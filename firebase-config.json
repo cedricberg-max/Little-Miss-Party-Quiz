@@ -1,9 +1,9 @@
 {
-  "apiKey": "",
+  "apiKey": "AIzaSyAY_TkDaejeLbtf5E9HFZy7NwxnfJYN-A8",
   "authDomain": "little-miss-party-quiz.firebaseapp.com",
   "databaseURL": "https://little-miss-party-quiz-default-rtdb.europe-west1.firebasedatabase.app",
   "projectId": "little-miss-party-quiz",
   "storageBucket": "little-miss-party-quiz.firebasestorage.app",
   "messagingSenderId": "1084435821400",
-  "appId": ""
+  "appId": "1:1084435821400:web:abd637d28fd6ed29a0eb2d"
 }
