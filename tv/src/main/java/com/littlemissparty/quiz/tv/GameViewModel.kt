@@ -1,6 +1,7 @@
 package com.littlemissparty.quiz.tv
 
 import android.app.Application
+import android.content.Context
 import android.media.AudioManager
 import android.media.ToneGenerator
 import androidx.lifecycle.AndroidViewModel
@@ -12,6 +13,8 @@ import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ServerValue
 import com.google.firebase.database.ValueEventListener
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -24,6 +27,9 @@ sealed interface UiState {
     data object MissingConfig : UiState
     data object Connecting : UiState
     data class Error(val message: String) : UiState
+
+    /** Une partie non terminée a été retrouvée au démarrage. */
+    data class ResumeOffer(val code: String, val teamNames: List<String>, val secondsLeft: Int) : UiState
     data class Lobby(
         val code: String,
         val joinUrl: String,
@@ -42,6 +48,16 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     private var game: DatabaseReference? = null
     private val listeners = mutableListOf<Pair<DatabaseReference, ValueEventListener>>()
+    private var countdown: Job? = null
+    private val prefs = app.getSharedPreferences("partie", Context.MODE_PRIVATE)
+
+    /** Code de la partie en cours, mémorisé sur la box pour survivre à un crash ou un redémarrage. */
+    private var activeCode: String?
+        get() = prefs.getString("active_game", null)
+        set(value) {
+            prefs.edit().apply { if (value == null) remove("active_game") else putString("active_game", value) }.commit()
+        }
+
     private val tones = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, 90) }.getOrNull()
 
     init {
@@ -52,21 +68,98 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Démarrage : si la box a une partie active non terminée, on propose de la reprendre
+     * (reprise automatique au bout de [AUTO_RESUME_SECONDS]) au lieu d'en créer une nouvelle.
+     */
     fun start() {
         _state.value = UiState.Connecting
         viewModelScope.launch {
             try {
                 val db = connect()
                 val uid = FirebaseAuth.getInstance().currentUser!!.uid
-                val code = createGame(db, uid)
-                val ref = db.getReference("games/$code")
-                game = ref
-                _state.value = UiState.Lobby(code = code, joinUrl = joinUrl(code))
-                listenGame(ref)
+                val saved = activeCode
+                if (saved != null) {
+                    val offer = resumableGame(db, uid, saved)
+                    if (offer != null) {
+                        offerResume(offer)
+                        return@launch
+                    }
+                    activeCode = null
+                }
+                open(db, createGame(db, uid))
             } catch (e: Exception) {
                 _state.value = UiState.Error(e.message ?: e.javaClass.simpleName)
             }
         }
+    }
+
+    /** Reprend la partie proposée (ou la partie active après une erreur réseau). */
+    fun resume() {
+        countdown?.cancel()
+        val code = (_state.value as? UiState.ResumeOffer)?.code ?: activeCode ?: return start()
+        _state.value = UiState.Connecting
+        viewModelScope.launch {
+            try {
+                open(connect(), code)
+            } catch (e: Exception) {
+                _state.value = UiState.Error(e.message ?: e.javaClass.simpleName)
+            }
+        }
+    }
+
+    /** « Réessayer » ne crée jamais de nouvelle partie si une partie est active. */
+    fun retry() = if (activeCode != null) resume() else start()
+
+    /** Termine la partie active (elle reste archivée dans Firebase) et en crée une nouvelle. */
+    fun newGame() {
+        countdown?.cancel()
+        val previous = (_state.value as? UiState.ResumeOffer)?.code ?: activeCode
+        _state.value = UiState.Connecting
+        viewModelScope.launch {
+            try {
+                val db = connect()
+                if (previous != null) {
+                    db.getReference("games/$previous/state").updateChildren(
+                        mapOf("phase" to "ended", "endedAt" to ServerValue.TIMESTAMP)
+                    )
+                }
+                activeCode = null
+                open(db, createGame(db, FirebaseAuth.getInstance().currentUser!!.uid))
+            } catch (e: Exception) {
+                _state.value = UiState.Error(e.message ?: e.javaClass.simpleName)
+            }
+        }
+    }
+
+    private suspend fun resumableGame(db: FirebaseDatabase, uid: String, code: String): UiState.ResumeOffer? {
+        // Sans réseau ni copie locale, on fait confiance au code mémorisé.
+        val snap = runCatching { db.getReference("games/$code").get().await() }.getOrNull()
+            ?: return UiState.ResumeOffer(code, emptyList(), AUTO_RESUME_SECONDS)
+        if (snap.child("hostUid").getValue(String::class.java) != uid) return null
+        if (snap.child("state/phase").getValue(String::class.java) == "ended") return null
+        val names = snap.child("teams").children.mapNotNull { it.child("name").getValue(String::class.java) }
+        return UiState.ResumeOffer(code, names, AUTO_RESUME_SECONDS)
+    }
+
+    private fun offerResume(offer: UiState.ResumeOffer) {
+        _state.value = offer
+        countdown = viewModelScope.launch {
+            for (s in AUTO_RESUME_SECONDS downTo 1) {
+                _state.update { if (it is UiState.ResumeOffer) it.copy(secondsLeft = s) else it }
+                delay(1000)
+            }
+            resume()
+        }
+    }
+
+    private fun open(db: FirebaseDatabase, code: String) {
+        stopListening()
+        val ref = db.getReference("games/$code")
+        game = ref
+        activeCode = code
+        _state.value = UiState.Lobby(code = code, joinUrl = joinUrl(code))
+        listenGame(ref)
     }
 
     /** Rouvre les buzzers pour un nouveau tour. */
@@ -144,13 +237,19 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         listeners += ref to listener
     }
 
-    override fun onCleared() {
+    private fun stopListening() {
         listeners.forEach { (ref, l) -> ref.removeEventListener(l) }
+        listeners.clear()
+    }
+
+    override fun onCleared() {
+        stopListening()
         tones?.release()
     }
 
     companion object {
         private var persistenceOn = false
+        const val AUTO_RESUME_SECONDS = 15
         private const val CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
         fun joinUrl(code: String) = "https://${BuildConfig.FB_PROJECT_ID}.web.app/?g=$code"
