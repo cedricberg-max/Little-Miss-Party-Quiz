@@ -4,9 +4,11 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+    // Lit tv/google-services.json et initialise Firebase automatiquement au démarrage.
+    id("com.google.gms.google-services")
 }
 
-// Configuration Firebase publique (la même que celle de la page pupitre).
+// Configuration Firebase publique partagée avec la page pupitre (adresse de la base).
 @Suppress("UNCHECKED_CAST")
 val firebaseConfig = JsonSlurper().parse(rootProject.file("firebase-config.json")) as Map<String, String>
 fun fb(key: String) = "\"" + (firebaseConfig[key] ?: "") + "\""
@@ -22,8 +24,6 @@ android {
         versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
         versionName = "0.1.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}"
 
-        buildConfigField("String", "FB_API_KEY", fb("apiKey"))
-        buildConfigField("String", "FB_APP_ID", fb("appId"))
         buildConfigField("String", "FB_PROJECT_ID", fb("projectId"))
         buildConfigField("String", "FB_DATABASE_URL", fb("databaseURL"))
     }

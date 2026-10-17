@@ -5,8 +5,6 @@ import android.media.AudioManager
 import android.media.ToneGenerator
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.FirebaseApp
-import com.google.firebase.FirebaseOptions
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
@@ -47,7 +45,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private val tones = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, 90) }.getOrNull()
 
     init {
-        if (BuildConfig.FB_API_KEY.isBlank()) {
+        if (BuildConfig.FB_PROJECT_ID.isBlank()) {
             _state.value = UiState.MissingConfig
         } else {
             start()
@@ -78,19 +76,16 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun connect(): FirebaseDatabase {
-        val ctx = getApplication<Application>()
-        if (FirebaseApp.getApps(ctx).isEmpty()) {
-            val options = FirebaseOptions.Builder()
-                .setApiKey(BuildConfig.FB_API_KEY)
-                .setApplicationId(BuildConfig.FB_APP_ID)
-                .setProjectId(BuildConfig.FB_PROJECT_ID)
-                .setDatabaseUrl(databaseUrl())
-                .build()
-            FirebaseApp.initializeApp(ctx, options)
-        }
+        // FirebaseApp est initialisé automatiquement à partir de google-services.json.
         val auth = FirebaseAuth.getInstance()
         if (auth.currentUser == null) auth.signInAnonymously().await()
-        return FirebaseDatabase.getInstance(databaseUrl())
+        return FirebaseDatabase.getInstance(databaseUrl()).also { db ->
+            // Copie locale sur la box : les données restent lisibles si Internet coupe.
+            if (!persistenceOn) {
+                runCatching { db.setPersistenceEnabled(true) }
+                persistenceOn = true
+            }
+        }
     }
 
     private suspend fun createGame(db: FirebaseDatabase, uid: String): String {
@@ -155,6 +150,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     companion object {
+        private var persistenceOn = false
         private const val CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
         fun joinUrl(code: String) = "https://${BuildConfig.FB_PROJECT_ID}.web.app/?g=$code"

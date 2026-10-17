@@ -38,7 +38,8 @@ jobs:
         id: check
         run: |
           project=$(jq -r .projectId firebase-config.json)
-          if [ -z "$project" ] || [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+          webkey=$(jq -r .apiKey firebase-config.json)
+          if [ -z "$project" ] || [ -z "$webkey" ] || [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
             echo "Firebase pas encore configuré : publication ignorée."
             echo "ready=false" >> "$GITHUB_OUTPUT"
           else
