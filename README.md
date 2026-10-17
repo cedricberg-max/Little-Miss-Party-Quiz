@@ -15,6 +15,9 @@ Quiz interactif façon jeu télévisé pour les prestations Little Miss Party.
 
 ## Installer l'appli sur la box
 
-À chaque mise à jour de `main`, GitHub compile l'APK et le publie avec le pupitre sur Firebase Hosting :
-`https://<projet>.web.app/tv.apk`. Sur la Mi Box, installez l'appli **Downloader**, tapez cette adresse et installez.
-L'APK est aussi téléchargeable dans l'onglet *Actions* de GitHub (artefact `little-miss-party-quiz-tv`).
+À chaque mise à jour de `main`, GitHub compile l'APK et le publie dans les **Releases** du dépôt
+(Firebase Hosting refuse les fichiers .apk sur l'offre gratuite). Le pupitre et les règles de la base
+sont publiés sur Firebase Hosting en même temps.
+
+Pour installer : télécharger l'APK depuis la dernière Release sur le PC, puis l'envoyer sur la Mi Box
+avec une clé USB ou l'appli « Send Files to TV ».

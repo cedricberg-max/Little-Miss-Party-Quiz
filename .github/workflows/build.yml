@@ -5,6 +5,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   apk:
     name: APK Android TV
@@ -24,6 +27,14 @@ jobs:
         with:
           name: little-miss-party-quiz-tv
           path: little-miss-party-quiz-tv.apk
+      - name: Publier l'APK dans les Releases GitHub
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "tv-v0.1.${{ github.run_number }}" little-miss-party-quiz-tv.apk \
+            --title "Box TV 0.1.${{ github.run_number }}" \
+            --notes "APK de l'appli TV, à installer sur la Mi Box." --latest
 
   publish:
     name: Publication Firebase
@@ -46,14 +57,9 @@ jobs:
             echo "ready=true" >> "$GITHUB_OUTPUT"
             echo "project=$project" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/download-artifact@v4
-        if: steps.check.outputs.ready == 'true'
-        with:
-          name: little-miss-party-quiz-tv
-      - name: Publier le pupitre, l'APK et les règles
+      - name: Publier le pupitre et les règles
         if: steps.check.outputs.ready == 'true'
         run: |
-          cp little-miss-party-quiz-tv.apk web/public/tv.apk
           cp firebase-config.json web/public/firebase-config.json
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
