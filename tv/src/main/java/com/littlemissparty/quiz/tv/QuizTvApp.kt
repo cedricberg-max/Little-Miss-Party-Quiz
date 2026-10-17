@@ -1,5 +1,6 @@
 package com.littlemissparty.quiz.tv
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -34,12 +35,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,6 +58,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -65,7 +70,17 @@ private val Night = Color(0xFF1A0B2E)
 private val Gold = Color(0xFFFFD166)
 
 @Composable
-fun QuizTvApp(state: UiState, onRearm: () -> Unit, onRetry: () -> Unit) {
+fun QuizTvApp(
+    state: UiState,
+    onRearm: () -> Unit,
+    onRetry: () -> Unit,
+    onResume: () -> Unit,
+    onNewGame: () -> Unit,
+    onQuit: () -> Unit,
+) {
+    // Bouton Retour pendant une partie : on demande confirmation au lieu de quitter.
+    var confirmQuit by remember { mutableStateOf(false) }
+    BackHandler(enabled = state is UiState.Lobby) { confirmQuit = true }
     Box(Modifier.fillMaxSize()) {
         PartyBackground()
         when (state) {
@@ -75,8 +90,96 @@ fun QuizTvApp(state: UiState, onRearm: () -> Unit, onRetry: () -> Unit) {
             )
             UiState.Connecting -> Connecting()
             is UiState.Error -> Message("Connexion impossible", state.message, onRetry)
+            is UiState.ResumeOffer -> ResumeOffer(state, onResume, onNewGame)
             is UiState.Lobby -> Lobby(state, onRearm)
         }
+    }
+    if (confirmQuit && state is UiState.Lobby) {
+        QuitDialog(
+            onContinue = { confirmQuit = false },
+            onNewGame = { confirmQuit = false; onNewGame() },
+            onQuit = { confirmQuit = false; onQuit() },
+        )
+    }
+}
+
+@Composable
+private fun ResumeOffer(state: UiState.ResumeOffer, onResume: () -> Unit, onNewGame: () -> Unit) {
+    val focus = remember { FocusRequester() }
+    Column(
+        Modifier.fillMaxSize().padding(64.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("Une partie est en cours", color = Color.White, fontSize = 48.sp, fontWeight = FontWeight.Black)
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "Code ${state.code}",
+            color = Gold, fontSize = 36.sp, fontWeight = FontWeight.Black, letterSpacing = 6.sp,
+        )
+        Spacer(Modifier.height(16.dp))
+        Text(
+            if (state.teamNames.isEmpty()) "Équipes : liste indisponible hors connexion"
+            else "Équipes : " + state.teamNames.joinToString(", "),
+            color = Color.White.copy(alpha = 0.85f), fontSize = 24.sp, textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(40.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+            Button(
+                onClick = onResume,
+                modifier = Modifier.focusRequester(focus),
+                colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Night),
+            ) {
+                Text(
+                    "Reprendre la partie (${state.secondsLeft})",
+                    fontSize = 26.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(8.dp),
+                )
+            }
+            OutlinedButton(onClick = onNewGame) {
+                Text("Nouvelle partie", color = Color.White, fontSize = 22.sp, modifier = Modifier.padding(8.dp))
+            }
+        }
+        Spacer(Modifier.height(24.dp))
+        Text(
+            "Reprise automatique dans ${state.secondsLeft} s",
+            color = Color.White.copy(alpha = 0.7f), fontSize = 20.sp,
+        )
+    }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+}
+
+@Composable
+private fun QuitDialog(onContinue: () -> Unit, onNewGame: () -> Unit, onQuit: () -> Unit) {
+    val focus = remember { FocusRequester() }
+    // Fenêtre séparée : la télécommande ne peut pas atteindre les boutons de l'écran derrière.
+    Dialog(onDismissRequest = onContinue) {
+        Column(
+            Modifier
+                .clip(RoundedCornerShape(32.dp))
+                .background(Night)
+                .padding(40.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("Quitter la partie ?", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "Si vous quittez, la partie reste enregistrée\net sera proposée au prochain démarrage.",
+                color = Color.White.copy(alpha = 0.8f), fontSize = 20.sp, textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(32.dp))
+            Button(
+                onClick = onContinue,
+                modifier = Modifier.focusRequester(focus),
+                colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Night),
+            ) { Text("Continuer la partie", fontSize = 22.sp, fontWeight = FontWeight.Bold) }
+            Spacer(Modifier.height(16.dp))
+            OutlinedButton(onClick = onQuit) { Text("Quitter l'application", color = Color.White, fontSize = 20.sp) }
+            Spacer(Modifier.height(16.dp))
+            OutlinedButton(onClick = onNewGame) {
+                Text("Terminer et lancer une nouvelle partie", color = Pink, fontSize = 20.sp)
+            }
+        }
+        LaunchedEffect(Unit) { focus.requestFocus() }
     }
 }
 

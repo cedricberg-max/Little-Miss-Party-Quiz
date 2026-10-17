@@ -17,7 +17,15 @@ class MainActivity : ComponentActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContent {
             val state by viewModel.state.collectAsState()
-            QuizTvApp(state = state, onRearm = viewModel::rearm, onRetry = viewModel::start)
+            QuizTvApp(
+                state = state,
+                onRearm = viewModel::rearm,
+                onRetry = viewModel::retry,
+                onResume = viewModel::resume,
+                onNewGame = viewModel::newGame,
+                // La partie active reste mémorisée : elle sera proposée au prochain lancement.
+                onQuit = ::finish,
+            )
         }
     }
 }
