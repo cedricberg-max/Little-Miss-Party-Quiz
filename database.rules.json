@@ -1,0 +1,21 @@
+{
+  "rules": {
+    "games": {
+      "$code": {
+        ".read": "auth != null",
+        ".write": "auth != null && (data.exists() ? data.child('hostUid').val() === auth.uid : newData.child('hostUid').val() === auth.uid)",
+        "teams": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid && data.parent().parent().child('hostUid').exists()",
+            ".validate": "newData.child('name').isString() && newData.child('name').val().length >= 1 && newData.child('name').val().length <= 20 && newData.child('color').isString()"
+          }
+        },
+        "buzz": {
+          "$round": {
+            ".write": "auth != null && !data.exists() && newData.child('team').val() === auth.uid && data.parent().parent().child('teams').child(auth.uid).exists() && data.parent().parent().child('state/buzzOpen').val() === true && data.parent().parent().child('state/round').val() + '' === $round"
+          }
+        }
+      }
+    }
+  }
+}

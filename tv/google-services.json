@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1084435821400",
+    "project_id": "little-miss-party-quiz",
+    "storage_bucket": "little-miss-party-quiz.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1084435821400:android:ff9c4dc55f493994a0eb2d",
+        "android_client_info": {
+          "package_name": "com.littlemissparty.quiz.tv"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAHKn9FI8m4TAe0PFnRkuAwuwQXkGKRR7U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

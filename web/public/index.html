@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#1A0B2E">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="manifest.webmanifest">
+  <title>Little Miss Party Quiz</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="app">
+    <section id="screen-loading" class="screen active">
+      <div class="logo">Little Miss Party<br><span>QUIZ</span></div>
+      <p class="hint">Connexion à la partie…</p>
+    </section>
+
+    <section id="screen-error" class="screen">
+      <div class="logo small">Oups !</div>
+      <p id="error-text" class="hint"></p>
+      <button id="retry" class="btn">Réessayer</button>
+    </section>
+
+    <section id="screen-join" class="screen">
+      <div class="logo">Little Miss Party<br><span>QUIZ</span></div>
+      <label for="team-name">Nom de votre équipe</label>
+      <input id="team-name" maxlength="20" autocomplete="off" placeholder="Les Licornes">
+      <p class="label">Votre couleur</p>
+      <div id="colors" class="colors"></div>
+      <button id="join" class="btn big">Rejoindre la partie</button>
+    </section>
+
+    <section id="screen-play" class="screen">
+      <div class="team-banner"><span id="team-dot" class="dot"></span><span id="team-label"></span></div>
+      <button id="buzz" class="buzz">BUZZ</button>
+      <p id="play-status" class="hint">Regardez la TV !</p>
+    </section>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

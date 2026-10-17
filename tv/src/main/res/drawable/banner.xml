@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp" android:height="180dp">
+    <item>
+        <shape>
+            <gradient android:angle="0" android:startColor="#FFFF3CAC" android:centerColor="#FF784BA0" android:endColor="#FF2B86C5" />
+        </shape>
+    </item>
+    <item android:drawable="@drawable/ic_star" android:gravity="center" android:width="140dp" android:height="140dp" />
+</layer-list>
