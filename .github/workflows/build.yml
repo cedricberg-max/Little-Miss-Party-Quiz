@@ -1,0 +1,60 @@
+name: Build et publication
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  apk:
+    name: APK Android TV
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Compiler l'APK
+        run: ./gradlew :tv:assembleRelease --stacktrace
+      - name: Renommer l'APK
+        run: cp tv/build/outputs/apk/release/tv-release.apk little-miss-party-quiz-tv.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: little-miss-party-quiz-tv
+          path: little-miss-party-quiz-tv.apk
+
+  publish:
+    name: Publication Firebase
+    needs: apk
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Vérifier la configuration
+        id: check
+        run: |
+          project=$(jq -r .projectId firebase-config.json)
+          if [ -z "$project" ] || [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "Firebase pas encore configuré : publication ignorée."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "project=$project" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/download-artifact@v4
+        if: steps.check.outputs.ready == 'true'
+        with:
+          name: little-miss-party-quiz-tv
+      - name: Publier le pupitre, l'APK et les règles
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          cp little-miss-party-quiz-tv.apk web/public/tv.apk
+          cp firebase-config.json web/public/firebase-config.json
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx --yes firebase-tools@13 deploy --only hosting,database \
+            --project "${{ steps.check.outputs.project }}" --non-interactive

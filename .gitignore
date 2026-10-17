@@ -1,0 +1,9 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.DS_Store
+.firebase/
+web/public/tv.apk
+web/public/firebase-config.json

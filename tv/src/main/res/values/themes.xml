@@ -1,0 +1,5 @@
+<resources>
+    <style name="Theme.Quiz" parent="android:Theme.Material.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">@color/night</item>
+    </style>
+</resources>
