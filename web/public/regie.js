@@ -2,7 +2,7 @@ import {
   ref, get, set, push, onValue, serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { CHOICE_LETTERS } from "./theme.js";
-import { passwordHash } from "./secret.js";
+import { writeProof } from "./proof.js";
 import { buildSnapshot, showTitle } from "./show.js";
 
 // Régie de l'animatrice, ouverte depuis la page des pupitres (bouton « Accès régie »).
@@ -35,42 +35,20 @@ export async function hasAccess(ctx, gameCode) {
   return (await get(ref(ctx.db, `games/${gameCode}/regie/${ctx.uid}`))).exists();
 }
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
 /**
  * Mot de passe commun des animatrices. La comparaison est faite par le serveur (règles Firebase) :
- * le téléphone n'envoie qu'une empreinte et ne peut jamais relire celle qui est enregistrée.
- * Le serveur n'accepte qu'un essai toutes les 2 secondes : on attend son tour si besoin.
+ * l'accès à la partie n'est accepté que si l'empreinte envoyée est la bonne.
  * Résultat : "ok", "wrong", "unset" (aucun mot de passe enregistré) ou "busy".
  */
 export async function loginWithPassword(ctx, gameCode, password) {
-  const salt = (await get(ref(ctx.db, "settings/regie/salt"))).val();
-  if (!salt) return "unset";
-  const hash = await passwordHash(salt, password);
-  // `.info` ne se lit qu'avec un écouteur, pas avec get().
-  const offset = await new Promise((resolve) => {
-    const stop = onValue(ref(ctx.db, ".info/serverTimeOffset"), (s) => { resolve(s.val() ?? 0); setTimeout(() => stop()); });
-  });
-  const gate = ref(ctx.db, "regieGate/try");
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const last = (await get(gate)).val();
-    const wait = last ? last.at + 2100 - (Date.now() + offset) : 0;
-    if (wait > 0) await sleep(Math.min(wait, 2500));
-    try {
-      await set(gate, { uid: ctx.uid, at: serverTimestamp() });
-    } catch {
-      continue; // un autre téléphone vient d'essayer
-    }
-    const gateAt = (await get(ref(ctx.db, "regieGate/try/at"))).val();
-    await set(ref(ctx.db, `regieProof/${ctx.uid}`), { hash, gateAt, at: serverTimestamp() });
-    try {
-      await set(ref(ctx.db, `games/${gameCode}/regie/${ctx.uid}`), { pairedAt: serverTimestamp(), via: "password" });
-      return "ok";
-    } catch {
-      return "wrong";
-    }
+  const proof = await writeProof(ctx, "regie", password);
+  if (proof !== "written") return proof;
+  try {
+    await set(ref(ctx.db, `games/${gameCode}/regie/${ctx.uid}`), { pairedAt: serverTimestamp(), via: "password" });
+    return "ok";
+  } catch {
+    return "wrong";
   }
-  return "busy";
 }
 
 /**
