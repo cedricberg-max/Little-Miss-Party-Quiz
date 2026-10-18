@@ -24,6 +24,10 @@ class ReconnexionTest : TestTv() {
             // La télécommande reste utilisable : la box avance seule et enverra tout au retour du réseau.
             ecran.ok("Lancer le quiz")
             ecran.voit("Question 1 / ")
+            // Les tablettes ne reçoivent pas la question : la box la fige d'elle-même, chrono arrêté.
+            ecran.voit("on attend le retour d'Internet")
+            ecran.voit("Le chrono est arrêté")
+            ecran.capture("pause-sans-internet")
             assertEquals("lobby", licornes.etat(code).child("phase").value)
         } finally {
             Boite.base.goOnline()
@@ -31,6 +35,13 @@ class ReconnexionTest : TestTv() {
 
         ecran.neVoitPas("Hors connexion", 30_000)
         val q = attendreQuestion(licornes, code, 0)
+        attendreQue("pause automatique publiée au retour du réseau") {
+            licornes.etat(code).takeIf { it.child("paused").value == true && it.child("pauseReason").value == "network" }
+        }
+        // Rien ne repart seul : l'animatrice relance, puis le décompte 3, 2, 1 rouvre les réponses.
+        ecran.ok("Reprendre")
+        attendreQue("reprise publiée") { licornes.etat(code).takeIf { it.child("paused").value == false } }
+        Thread.sleep(3_500)
         assertTrue("Réponse refusée après le retour du réseau", licornes.repondre(code, q.id, q.correct))
         ecran.voit("Toutes les équipes ont répondu")
         ecran.ok("Révéler la réponse")

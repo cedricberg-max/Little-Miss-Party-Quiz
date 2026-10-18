@@ -420,6 +420,20 @@ describe("régie", () => {
     await page.context().close();
   });
 
+  test("pause automatique de la box sans Internet : la régie le dit et laisse la reprise à l'animatrice", async () => {
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    await setPresence("rose", true);
+    await update(gameRef(), { state: { ...questionState(4), paused: true, pauseReason: "network", deadline: null, remainingMs: 12000 } });
+    const page = await openRegie();
+    await pair(page);
+    await page.locator("#c-hold", { hasText: "la box avait perdu Internet" }).waitFor();
+    await page.locator("#c-hold", { hasText: "vous pouvez reprendre" }).waitFor();
+    assert.equal((await commands()).length, 0);
+    await page.locator("#c-pause", { hasText: "Reprendre (3, 2, 1)" }).waitFor();
+    await page.context().close();
+  });
+
   test("la pause est possible pendant le classement, pas dans le salon d'attente", async () => {
     box = startBox();
     await addTeam("rose", "Les Roses");

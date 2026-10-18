@@ -45,9 +45,16 @@ class NavigationTelecommandeTest : TestTv() {
         ecran.capture("pause")
         attendreQue("pause publiée") { licornes.etat(code).takeIf { it.child("paused").value == true } }
 
-        ecran.ok("Reprendre")
+        // Double appui sur « Reprendre » : le second ne doit pas arrêter le chrono qui repart.
+        ecran.voit("Reprendre")
+        ecran.focusSur("Reprendre")
+        ecran.device.pressDPadCenter()
+        Thread.sleep(250)
+        ecran.device.pressDPadCenter()
         ecran.neVoitPas("Le chrono est arrêté")
         attendreQue("reprise publiée") { licornes.etat(code).takeIf { it.child("paused").value == false } }
+        Thread.sleep(3_000)
+        assertEquals("question", licornes.etat(code).child("phase").value)
     }
 
     @Test
