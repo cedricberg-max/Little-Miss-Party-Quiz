@@ -1,10 +1,11 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
 import { getAuth, signInAnonymously, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
 import {
-  getDatabase, ref, get, set, onValue, onDisconnect, serverTimestamp, connectDatabaseEmulator,
+  getDatabase, ref, get, set, update, onValue, onDisconnect, serverTimestamp, connectDatabaseEmulator,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { TEAM_COLORS, CHOICE_COLORS, CHOICE_LETTERS, MAX_TEAMS } from "./theme.js";
 import { hasAccess, loginWithPassword, loginWithPin, startRegie } from "./regie.js";
+import { watchVersion, showUpdateBanner } from "./version.js";
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -29,12 +30,29 @@ let lastScreen = null;
 let pending = null;
 let gameExists = false;
 
+/**
+ * Nouvelle version du site : le pupitre se recharge tout seul dès qu'il n'y a rien à perdre (jamais pendant une
+ * question, une inscription ou une demande d'entrée) ; il retrouve son équipe et ses points. La régie, elle,
+ * affiche un bandeau : l'animatrice choisit le moment.
+ */
+let newVersion = false;
+const SAFE_TO_RELOAD = new Set(["play", "result", "ended", "error", "loading", "replaced"]);
+function maybeReload() {
+  if (!newVersion) return;
+  if (document.body.classList.contains("regie-mode") || !$("regie-login").hidden) {
+    return showUpdateBanner("Nouvelle version de la régie en ligne : touchez « Mettre à jour » quand vous voulez (la partie continue).");
+  }
+  if (SAFE_TO_RELOAD.has(lastScreen)) location.reload();
+}
+watchVersion(() => { newVersion = true; maybeReload(); });
+
 function show(name) {
   // « Accès régie » : sur l'écran d'inscription (et si la partie est complète), jamais pendant le jeu.
   $("regie-open").hidden = !(gameExists && (name === "join" || name === "error"));
   if (lastScreen === name) return;
   lastScreen = name;
   document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === `screen-${name}`));
+  maybeReload();
 }
 
 function fail(message) {
@@ -132,23 +150,30 @@ function showReplaced(team) {
 // Nouvelle page, nouvelle prestation : on part d'un champ vide, même si le navigateur a gardé un ancien nom.
 $("team-name").value = "";
 
+/** Couleurs déjà prises par une autre équipe : réservées dans la base, ou portées par une équipe déjà inscrite. */
+let takenColors = new Set();
+const colorKey = (c) => c.slice(1).toUpperCase();
+
 function showJoin(late = false) {
   lateJoin = late;
+  stopListening();
   $("join-late").hidden = !late;
+  $("join-error").hidden = true;
   $("join").textContent = late ? "Demander à entrer" : "Rejoindre la partie";
-  const box = $("colors");
-  box.innerHTML = "";
-  TEAM_COLORS.forEach((c) => {
-    const b = document.createElement("button");
-    b.style.background = c;
-    b.setAttribute("aria-label", c);
-    b.classList.toggle("selected", c === chosenColor);
-    b.onclick = () => {
-      chosenColor = c;
-      box.querySelectorAll("button").forEach((x) => x.classList.toggle("selected", x === b));
-    };
-    box.appendChild(b);
-  });
+  let reserved = {};
+  let teams = {};
+  const refresh = () => {
+    takenColors = new Set([
+      ...Object.entries(reserved).filter(([, owner]) => owner !== uid).map(([k]) => k),
+      ...Object.entries(teams).filter(([id]) => id !== uid).map(([, t]) => t?.color && colorKey(t.color)).filter(Boolean),
+    ]);
+    // Couleur choisie prise entre-temps : on passe à la première libre.
+    if (takenColors.has(colorKey(chosenColor))) chosenColor = TEAM_COLORS.find((c) => !takenColors.has(colorKey(c))) ?? chosenColor;
+    renderColors();
+  };
+  listen(`games/${code}/colors`, (snap) => { reserved = snap.val() ?? {}; refresh(); });
+  listen(`games/${code}/teams`, (snap) => { teams = snap.val() ?? {}; refresh(); });
+  renderColors();
   show("join");
   $("team-name").focus();
   // Prestation chargée : on accueille les équipes avec le prénom de l'enfant fêté.
@@ -159,22 +184,59 @@ function showJoin(late = false) {
   }).catch(() => {});
 }
 
+function renderColors() {
+  const box = $("colors");
+  box.innerHTML = "";
+  TEAM_COLORS.forEach((c) => {
+    const b = document.createElement("button");
+    const taken = takenColors.has(colorKey(c));
+    b.style.background = c;
+    b.setAttribute("aria-label", taken ? `${c} (déjà prise)` : c);
+    b.dataset.color = c;
+    b.disabled = taken;
+    b.classList.toggle("taken", taken);
+    b.classList.toggle("selected", c === chosenColor);
+    b.onclick = () => {
+      chosenColor = c;
+      $("join-error").hidden = true;
+      box.querySelectorAll("button").forEach((x) => x.classList.toggle("selected", x === b));
+    };
+    box.appendChild(b);
+  });
+}
+
 $("join").onclick = async () => {
   const name = $("team-name").value.trim();
   if (!name) return $("team-name").focus();
   $("join").disabled = true;
+  // La couleur demandée à l'appui : l'écouteur des couleurs peut en changer pendant l'écriture.
+  const wanted = chosenColor;
   beep(660, 120); // débloque le son du navigateur dès le premier toucher
   keepAwake();
   try {
     if (lateJoin) {
-      await set(ref(db, `games/${code}/joinRequests/${uid}`), { name, color: chosenColor, at: serverTimestamp() });
+      await set(ref(db, `games/${code}/joinRequests/${uid}`), { name, color: wanted, at: serverTimestamp() });
       return waitForAdmission();
     }
-    await set(ref(db, `games/${code}/teams/${uid}`), { name, color: chosenColor, joinedAt: serverTimestamp() });
+    // L'équipe et sa couleur dans la même écriture : la base refuse une couleur déjà réservée par une autre équipe.
+    await update(ref(db, `games/${code}`), {
+      [`teams/${uid}`]: { name, color: wanted, joinedAt: serverTimestamp() },
+      [`colors/${colorKey(wanted)}`]: uid,
+    });
     teamId = uid;
     play();
   } catch (e) {
     console.error(e);
+    // Une autre équipe vient de prendre cette couleur : on le dit et on propose les couleurs encore libres.
+    const owner = !lateJoin && (await get(ref(db, `games/${code}/colors/${colorKey(wanted)}`)).catch(() => null))?.val();
+    if (owner && owner !== uid) {
+      $("join-error").textContent = "Cette couleur vient d'être prise par une autre équipe : choisissez-en une autre.";
+      $("join-error").hidden = false;
+      takenColors.add(colorKey(wanted));
+      if (chosenColor === wanted) chosenColor = TEAM_COLORS.find((c) => !takenColors.has(colorKey(c))) ?? chosenColor;
+      renderColors();
+      return;
+    }
     // Refusé le plus souvent parce que le quiz vient d'être lancé : on repasse par l'accueil, qui propose
     // alors de demander à entrer (le nom tapé et la couleur restent).
     if (!lateJoin) return start();
@@ -245,7 +307,6 @@ function play() {
   });
   listen(`games/${code}/teams`, (s) => { game.teams = s.val() ?? {}; game.teamsLoaded = true; render(); });
   listen(`games/${code}/state`, (s) => { game.state = s.val(); watchMyAnswer(); render(); });
-  listen(`games/${code}/buzz`, (s) => { game.buzz = s.val() ?? {}; render(); });
 }
 
 function watchMyAnswer() {
@@ -290,26 +351,22 @@ function render() {
 
 function renderLobby(st) {
   show("play");
-  $("buzz").hidden = false;
-  const round = st.round ?? 1;
-  const open = st.buzzOpen === true;
-  const first = game.buzz?.[round]?.team;
   const buzz = $("buzz");
-  buzz.classList.toggle("winner", first === teamId);
-  buzz.disabled = !open || !!first;
-  buzz.dataset.round = round;
-  if (first === teamId) $("play-status").textContent = "Vous avez buzzé en premier !";
-  else if (first) $("play-status").textContent = `Trop tard ! ${game.teams[first]?.name ?? "Une équipe"} a été plus rapide.`;
-  else if (open) $("play-status").textContent = "En attendant le quiz : buzzez pour essayer !";
-  else $("play-status").textContent = "Regardez la TV !";
+  buzz.hidden = false;
+  // Buzzer de l'accueil : pour s'amuser, autant de fois qu'on veut, sans gagnant ni blocage.
+  buzz.disabled = false;
+  buzz.classList.remove("winner");
+  $("play-status").textContent = "En attendant le quiz : buzzez autant que vous voulez !";
 }
 
 function renderQuestion(st) {
   show("question");
   $("q-number").textContent = `Question ${(st.index ?? 0) + 1} / ${st.total ?? "?"}`;
   $("q-double").hidden = !st.double;
+  if (st.kind === "number") return renderNumber(st);
   const choices = st.choices ?? [];
   const box = $("choices");
+  box.classList.remove("number");
   const key = `${st.qid}:${choices.length}`;
   if (box.dataset.key !== key) {
     box.dataset.key = key;
@@ -334,6 +391,61 @@ function renderQuestion(st) {
   if (mine != null) $("q-status").textContent = `Réponse ${CHOICE_LETTERS[mine]} envoyée ! Attendez la révélation…`;
   else if (st.phase === "closed") $("q-status").textContent = "Temps écoulé !";
   else $("q-status").textContent = "Choisissez votre réponse !";
+  runTimer(st);
+}
+
+/** Le Juste Chiffre : un pavé de chiffres, un nombre envoyé une seule fois, comme une réponse. */
+let numberDraft = "";
+const NUMBER_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "−", "0", "⌫"];
+function renderNumber(st) {
+  const box = $("choices");
+  const key = `${st.qid}:number`;
+  if (box.dataset.key !== key) {
+    box.dataset.key = key;
+    numberDraft = "";
+    box.innerHTML = "";
+    box.classList.remove("two");
+    box.classList.add("number");
+    const screen = document.createElement("div");
+    screen.className = "number-screen";
+    screen.id = "number-screen";
+    box.appendChild(screen);
+    const pad = document.createElement("div");
+    pad.className = "number-pad";
+    NUMBER_KEYS.forEach((k) => {
+      const b = document.createElement("button");
+      b.className = "number-key";
+      b.textContent = k;
+      b.dataset.key = k;
+      b.onclick = () => {
+        if (k === "⌫") numberDraft = numberDraft.slice(0, -1);
+        else if (k === "−") numberDraft = numberDraft.startsWith("-") ? numberDraft.slice(1) : `-${numberDraft}`;
+        else if (numberDraft.replace("-", "").length < 9) numberDraft = numberDraft === "0" ? k : numberDraft === "-0" ? `-${k}` : numberDraft + k;
+        beep(1200, 40);
+        render();
+      };
+      pad.appendChild(b);
+    });
+    box.appendChild(pad);
+    const send = document.createElement("button");
+    send.className = "btn big number-send";
+    send.id = "number-send";
+    send.textContent = "Valider";
+    send.onclick = () => {
+      const n = Number(numberDraft);
+      if (numberDraft === "" || numberDraft === "-" || !Number.isInteger(n)) return;
+      answer(n);
+    };
+    box.appendChild(send);
+  }
+  const mine = game.myAnswer?.choice ?? pending?.choice;
+  const locked = mine != null || st.phase !== "question" || st.paused || counting(st);
+  $("number-screen").textContent = mine != null ? `${mine}` : numberDraft || "…";
+  box.querySelectorAll("button").forEach((b) => { b.disabled = locked; });
+  $("number-send").disabled = locked || numberDraft === "" || numberDraft === "-";
+  if (mine != null) $("q-status").textContent = `Nombre ${mine} envoyé ! Attendez la révélation…`;
+  else if (st.phase === "closed") $("q-status").textContent = "Temps écoulé !";
+  else $("q-status").textContent = "Tapez votre nombre, puis « Valider » !";
   runTimer(st);
 }
 
@@ -431,9 +543,17 @@ function renderResult(st) {
   const ok = award?.correct === true;
   $("r-icon").textContent = ok ? "✓" : answered ? "✗" : "…";
   $("r-icon").className = `result-icon ${ok ? "ok" : "ko"}`;
-  $("r-title").textContent = ok ? `Bravo ! +${award.points} points` : answered ? "Raté pour cette fois !" : "Pas de réponse";
-  const correct = st.correct != null ? `${CHOICE_LETTERS[st.correct]} : ${st.choices?.[st.correct] ?? ""}` : "";
+  const number = st.kind === "number";
+  if (number) {
+    const exact = ok && game.myAnswer?.choice === st.correct;
+    $("r-title").textContent = exact ? `Pile le bon nombre ! +${award.points} points` : ok ? `Le plus proche ! +${award.points} points` : answered ? "Raté pour cette fois !" : "Pas de réponse";
+  } else {
+    $("r-title").textContent = ok ? `Bravo ! +${award.points} points` : answered ? "Raté pour cette fois !" : "Pas de réponse";
+  }
+  const correct = st.correct == null ? "" : number ? `${st.correct}${game.myAnswer ? ` (vous : ${game.myAnswer.choice})` : ""}` : `${CHOICE_LETTERS[st.correct]} : ${st.choices?.[st.correct] ?? ""}`;
   $("r-detail").textContent = (ok && award.bonus > 0 ? `dont ${award.bonus} de bonus rapidité. ` : "") + (correct ? `Bonne réponse : ${correct}` : "");
+  $("r-image").textContent = st.image ?? "";
+  $("r-image").hidden = !st.image;
   const { mine, rank } = rankOf(st.scores);
   $("r-total").textContent = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`;
 }
@@ -446,16 +566,26 @@ function renderEnded(st) {
   $("e-total").textContent = `${mine} points`;
 }
 
+/** Petit air rigolo, jamais le même deux fois de suite : trois notes qui montent ou qui descendent. */
+const FUN_TUNES = [[523, 659, 784], [784, 659, 523], [659, 880, 1047], [392, 523, 392], [880, 698, 1175]];
+let funTune = 0;
+function funSound() {
+  funTune = (funTune + 1 + Math.floor(Math.random() * (FUN_TUNES.length - 1))) % FUN_TUNES.length;
+  FUN_TUNES[funTune].forEach((f, i) => setTimeout(() => beep(f, 110), i * 90));
+}
+
 $("buzz").onclick = async () => {
   const buzz = $("buzz");
   if (buzz.disabled) return;
-  buzz.disabled = true;
-  beep(990, 250);
-  navigator.vibrate?.(200);
+  funSound();
+  navigator.vibrate?.(60);
+  buzz.classList.remove("bump");
+  void buzz.offsetWidth;
+  buzz.classList.add("bump");
   try {
-    await set(ref(db, `games/${code}/buzz/${buzz.dataset.round}`), { team: teamId, at: serverTimestamp() });
+    await set(ref(db, `games/${code}/fun/${teamId}`), { at: serverTimestamp() });
   } catch {
-    // Une autre équipe a été plus rapide : la base refuse le second buzz.
+    // Appuis trop rapprochés : la base ignore celui-ci, le suivant passera.
   }
 };
 

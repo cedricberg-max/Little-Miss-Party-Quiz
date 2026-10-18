@@ -23,4 +23,30 @@ object Scoring {
         val factor = if (question.double) 2 else 1
         return Award(answer.choice, correct = true, points = (BASE + bonus) * factor, bonus = bonus * factor)
     }
+
+    /** Le Juste Chiffre : la ou les équipes les plus proches. */
+    const val NUMBER_CLOSEST = 100
+
+    /** Le Juste Chiffre : nombre trouvé pile. */
+    const val NUMBER_EXACT = 150
+
+    /**
+     * Le Juste Chiffre : la ou les équipes les plus proches du nombre marquent [NUMBER_CLOSEST]
+     * ([NUMBER_EXACT] si elles l'ont trouvé pile) ; égalité de distance = tout le monde marque.
+     * La vitesse ne compte pas : pas de bonus, aucune course contre le réseau.
+     */
+    fun awardNumber(question: Question, answers: Map<String, Answer>): Map<String, Award> {
+        val distance = answers.mapValues { (_, a) -> kotlin.math.abs(a.choice.toLong() - question.correct.toLong()) }
+        val best = distance.values.minOrNull()
+        val factor = if (question.double) 2 else 1
+        return answers.mapValues { (team, a) ->
+            val wins = distance[team] == best
+            val points = when {
+                !wins -> 0
+                best == 0L -> NUMBER_EXACT
+                else -> NUMBER_CLOSEST
+            } * factor
+            Award(a.choice, correct = wins, points = points, bonus = 0)
+        }
+    }
 }

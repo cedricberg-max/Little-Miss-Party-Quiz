@@ -6,10 +6,14 @@ import org.json.JSONObject
 /**
  * Lecture d'un quiz au format JSON :
  * `{"id", "title", "questions": [{"id", "text", "choices": [...], "correct", "duration", "kind", "double", "round"}]}`,
- * plus `"cards": [{"word", "image"}]` pour une manche de mimes (`"kind": "mime"`, sans propositions).
+ * plus `"cards": [{"word", "image"}]` pour une manche de mimes (`"kind": "mime"`, sans propositions),
+ * et l'illustration facultative d'une question : `"image"` (émoji) et `"imageId"` (photo).
  * Toute erreur est signalée avec la question concernée, pour pouvoir la corriger.
  */
 object QuizJson {
+    /** Identifiant d'une photo d'illustration : empreinte de son contenu, 16 caractères hexadécimaux. */
+    val IMAGE_ID = Regex("[0-9a-f]{16}")
+
     fun parse(json: String): Quiz = parse(JSONObject(json))
 
     /**
@@ -47,6 +51,9 @@ object QuizJson {
                 val card = cards.getJSONObject(c)
                 MimeCard(card.getString("word").trim(), card.optString("image").ifBlank { null })
             },
+            // Une illustration mal formée est ignorée : elle ne doit jamais empêcher de jouer.
+            emoji = q.optString("image").trim().takeIf { it.isNotEmpty() && it.length <= 16 && kind != QuestionKind.MIME },
+            imageId = q.optString("imageId").takeIf { it.matches(IMAGE_ID) && kind != QuestionKind.MIME },
         )
     }
 }

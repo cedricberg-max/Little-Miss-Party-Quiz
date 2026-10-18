@@ -182,9 +182,10 @@ class DirecteurSonore {
     private fun memeEcran(p: Instant, i: Instant): List<Ordre> {
         val o = mutableListOf<Ordre>()
         if (i.equipes > p.equipes) o += Ordre.Jouer(Son.equipe(i.equipes - 1))
-        if (i.buzzeur >= 0 && p.buzzeur < 0) {
+        // Buzzer de l'accueil, pour s'amuser : chaque appui fait sonner l'équipe, autant de fois qu'elle veut.
+        if (i.buzzs > p.buzzs && i.buzzeur >= 0) {
             o += Ordre.Jouer(Son.equipe(i.buzzeur))
-            o += Ordre.Jouer(Son.VERROU)
+            o += Ordre.Jouer(Son.pop(i.buzzs))
         }
         if (i.ecran == Ecran.QUESTION) {
             if (i.reponses > p.reponses) o += Ordre.Jouer(Son.REPONSE)
@@ -237,8 +238,10 @@ data class Instant(
     val repriseDansMs: Long = 0,
     /** Fin du chrono : cinq dernières secondes d'une question, dix d'un tour de mimes. */
     val urgent: Boolean = false,
-    /** Place (0, 1, 2…) de l'équipe qui a buzzé, -1 si personne. */
+    /** Place (0, 1, 2…) de la dernière équipe qui a buzzé à l'accueil, -1 si personne. */
     val buzzeur: Int = -1,
+    /** Nombre d'appuis sur le buzzer de l'accueil depuis le début : un son par nouvel appui. */
+    val buzzs: Int = 0,
     val premiere: Boolean = false,
     val superFinale: Boolean = false,
     /** Équipes qui marquent des points à cette révélation. */

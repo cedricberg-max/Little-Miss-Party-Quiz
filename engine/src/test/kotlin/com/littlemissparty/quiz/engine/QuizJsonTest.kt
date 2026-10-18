@@ -54,4 +54,31 @@ class QuizJsonTest {
             QuizJson.fromValue(mapOf("id" to "x", "questions" to listOf(mapOf("id" to "q1", "text" to "?", "choices" to listOf("a"), "correct" to 0L))))
         }
     }
+
+    @Test
+    fun `illustration facultative, une illustration abimee est ignoree sans bloquer la partie`() {
+        val quiz = QuizJson.parse(
+            """{"id":"p","questions":[
+              {"id":"a","text":"Roi de la jungle ?","choices":["Lion","Tigre"],"correct":0,"image":"🦁","imageId":"0123456789abcdef"},
+              {"id":"b","text":"Sans image","choices":["Oui","Non"],"correct":0},
+              {"id":"c","text":"Abîmée","choices":["Oui","Non"],"correct":0,"image":"${"x".repeat(40)}","imageId":"../../secret"}]}""",
+        )
+        assertEquals("🦁", quiz.questions[0].emoji)
+        assertEquals("0123456789abcdef", quiz.questions[0].imageId)
+        assertEquals(null, quiz.questions[1].emoji)
+        assertEquals(null, quiz.questions[1].imageId)
+        assertEquals(null, quiz.questions[2].emoji)
+        assertEquals(null, quiz.questions[2].imageId)
+    }
+
+    @Test
+    fun `l'emoji d'illustration n'arrive sur les pupitres qu'a la revelation`() {
+        val quiz = Quiz("p", "P", listOf(Question("a", "Roi de la jungle ?", listOf("Lion", "Tigre"), 0, emoji = "🦁")))
+        val g = Game(quiz)
+        g.next(1_000)
+        assertEquals(null, Codec.publicState(g)["image"])
+        g.next(2_000)
+        g.next(3_000, emptyMap())
+        assertEquals("🦁", Codec.publicState(g)["image"])
+    }
 }

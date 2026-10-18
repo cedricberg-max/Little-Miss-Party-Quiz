@@ -12,6 +12,9 @@ enum class Phase(val code: String) {
 /** Période pendant laquelle le chrono tourne ([end] nul tant qu'il tourne encore). */
 data class Segment(val start: Long, val end: Long? = null)
 
+/** Écart toléré entre l'horloge de la box et celle du serveur pour dater une réponse. */
+const val ANSWER_CLOCK_MARGIN_MS = 2_000L
+
 /** Pause en cours : qui l'a provoquée et depuis quand. */
 data class Hold(val reason: String, val team: String?, val since: Long)
 
@@ -33,6 +36,15 @@ data class GameState(
     val mime: MimeRound? = null,
 ) {
     val paused: Boolean get() = hold != null
+
+    /** Heure d'ouverture de la question en cours (heure du serveur), null hors question. */
+    val openedAt: Long? get() = segments.firstOrNull()?.start
+
+    /**
+     * Réponse donnée pendant cette ouverture de la question ? Une question rejouée depuis la régie repart de zéro :
+     * une ancienne réponse encore en cache (même question, partie précédente) ne compte pas et ne ferme rien.
+     */
+    fun answeredSinceOpening(answerAt: Long): Boolean = openedAt?.let { answerAt >= it - ANSWER_CLOCK_MARGIN_MS } ?: true
 
     /** Un tour de mimes est en cours : son chrono tourne (hors pause). */
     val mimeTurn: Boolean get() = mime?.team != null
@@ -150,11 +162,12 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             val canOpen = s.phase == Phase.LOBBY || s.phase == Phase.SCORES || s.phase == Phase.REVEAL
             if (q == null || q.id != e.qid || !canOpen || e.index <= s.index || s.paused) null
             // Une manche de mimes s'ouvre sans chrono : il part au lancement du tour de chaque équipe.
-            else if (q.isMime) s.copy(
-                phase = Phase.QUESTION, index = e.index, qid = e.qid, segments = emptyList(), resumeAt = null,
-                mime = MimeRound(deck = q.cards.indices.toList()),
-            )
-            else s.copy(phase = Phase.QUESTION, index = e.index, qid = e.qid, segments = listOf(Segment(e.at)), resumeAt = null, mime = null)
+            else open(s, e.index, q, e.at)
+        }
+        is Jumped -> {
+            val q = quiz.questions.getOrNull(e.index)
+            if (q == null || q.id != e.qid) null
+            else open(s.copy(awards = s.awards - e.clear.toSet(), mimes = s.mimes - e.clear.toSet(), hold = null), e.index, q, e.at)
         }
         is Paused ->
             if (s.phase == Phase.LOBBY || s.phase == Phase.ENDED || s.paused) null
@@ -206,10 +219,15 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             if (s.phase == Phase.ENDED) null else s.copy(phase = Phase.ENDED, hold = null, mime = null)
         is MimeTurnStarted -> {
             val m = s.mime
-            if (m == null || m.team != null || s.paused || m.deck.isEmpty() || e.team.isBlank()) null
+            val cards = quiz.questions.getOrNull(s.index)?.cards.orEmpty()
+            if (m == null || m.team != null || s.paused || cards.isEmpty() || e.team.isBlank()) null
             else s.copy(
                 segments = listOf(Segment(e.at)), resumeAt = null,
-                mime = m.copy(team = e.team, found = 0, passed = 0, turns = m.turns + e.team),
+                // Paquet épuisé par les équipes précédentes : il est rebattu pour que chaque équipe ait son tour.
+                mime = m.copy(
+                    deck = m.deck.ifEmpty { cards.indices.toList() },
+                    team = e.team, found = 0, passed = 0, turns = m.turns + e.team,
+                ),
             )
         }
         is MimeFound -> {
@@ -251,6 +269,17 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         is MimeTurnEnded -> if (s.mime?.team == null) null else endTurn(s, e.at)
     }
 
+    /**
+     * Question [q] ouverte : chrono lancé, ou manche de mimes sans chrono (il part au tour de chaque équipe).
+     * Une manche de mimes rouverte (jeu rejoué) repart de zéro : ses mimes ne comptent jamais deux fois.
+     */
+    private fun open(s: GameState, index: Int, q: Question, at: Long): GameState =
+        if (q.isMime) s.copy(
+            phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null,
+            mimes = s.mimes - q.id, mime = MimeRound(deck = q.cards.indices.toList()),
+        )
+        else s.copy(phase = Phase.QUESTION, index = index, qid = q.id, segments = listOf(Segment(at)), resumeAt = null, mime = null)
+
     /** Tour de mimes terminé : chrono arrêté, bilan gardé pour la TV et la régie. */
     private fun endTurn(s: GameState, at: Long): GameState {
         val m = s.mime!!
@@ -283,6 +312,34 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         return emit(QuestionOpened(nextSeq, now, index, q.id))
     }
 
+    /** Première question de chaque jeu de la prestation (manche), dans l'ordre du programme. */
+    val rounds: List<Int>
+        get() = quiz.questions.indices.filter { i ->
+            i == 0 || quiz.questions[i].roundTitle == null || quiz.questions[i].roundTitle != quiz.questions[i - 1].roundTitle
+        }
+
+    /** Questions du jeu (manche) qui commence ou contient la question [index]. */
+    fun roundOf(index: Int): IntRange {
+        val starts = rounds
+        val start = starts.lastOrNull { it <= index } ?: 0
+        val end = (starts.firstOrNull { it > index } ?: quiz.questions.size) - 1
+        return start..end
+    }
+
+    /**
+     * Saut de la régie au début du jeu qui contient [index] : jeu suivant, autre jeu, ou jeu rejoué.
+     * Un jeu déjà commencé (le jeu en cours, ou un jeu d'avant) est rejoué : ses points sont retirés
+     * avant d'être rejoués. Les équipes, les autres points et les corrections restent. Possible en pause
+     * (la pause est levée) et après la fin de partie (fin demandée par erreur).
+     */
+    fun goto(index: Int, now: Long): GameEvent? {
+        if (index !in quiz.questions.indices) return null
+        val round = roundOf(index)
+        val replay = state.index >= round.first
+        val clear = if (replay) round.map { quiz.questions[it].id } else emptyList()
+        return emit(Jumped(nextSeq, now, round.first, quiz.questions[round.first].id, clear))
+    }
+
     fun pause(now: Long, reason: String = PAUSE_REGIE, team: String? = null): GameEvent? =
         emit(Paused(nextSeq, now, reason, team))
 
@@ -294,7 +351,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     fun reveal(now: Long, answers: Map<String, Answer>): GameEvent? {
         val q = question ?: return null
         if (state.phase != Phase.CLOSED) return null
-        val awards = answers.mapValues { (_, a) ->
+        val awards = if (q.isNumber) Scoring.awardNumber(q, answers) else answers.mapValues { (_, a) ->
             val remaining = (q.durationMs - state.elapsedAt(a.at)).coerceAtLeast(0)
             Scoring.award(q, a, remaining.toDouble() / q.durationMs)
         }

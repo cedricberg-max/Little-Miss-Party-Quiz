@@ -3,6 +3,7 @@ package com.littlemissparty.quiz.tv
 import android.app.Application
 import android.content.Context
 import android.os.SystemClock
+import android.util.Base64
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -22,6 +23,7 @@ import com.littlemissparty.quiz.engine.CommandResult
 import com.littlemissparty.quiz.engine.CommandStatus
 import com.littlemissparty.quiz.engine.Game
 import com.littlemissparty.quiz.engine.GameEvent
+import com.littlemissparty.quiz.engine.Jumped
 import com.littlemissparty.quiz.engine.MimeCard
 import com.littlemissparty.quiz.engine.MimeTurn
 import com.littlemissparty.quiz.engine.Scoring
@@ -84,7 +86,9 @@ sealed interface UiState {
         val lastGain: Map<String, Int> = emptyMap(),
         val isLast: Boolean = false,
         val round: Int = 1,
-        val buzzerUid: String? = null,
+        /** Buzzer de l'accueil, pour s'amuser : nombre d'appuis vus par équipe et dernière équipe qui a buzzé. */
+        val funBuzzes: Map<String, Int> = emptyMap(),
+        val lastFunBuzz: String? = null,
         val connected: Boolean = true,
         /** Écart entre l'horloge de la box et celle du serveur, pour afficher le bon chrono. */
         val serverOffset: Long = 0,
@@ -97,8 +101,11 @@ sealed interface UiState {
         val childName: String = "",
         /** Manche de mimes en cours (ou qui vient de finir, au classement), sinon null. */
         val mime: MimeUi? = null,
+        /** Photos d'illustration déjà chargées (identifiant → fichier JPEG), montrées à la révélation. */
+        val images: Map<String, ByteArray> = emptyMap(),
     ) : UiState {
-        val buzzer: Team? get() = teams.find { it.uid == buzzerUid }
+        /** Total des appuis sur le buzzer de l'accueil, pour le son. */
+        val funTotal: Int get() = funBuzzes.values.sum()
         val ranking: List<Pair<Team, Int>>
             get() = teams.map { it to (scores[it.uid] ?: 0) }.sortedWith(compareByDescending<Pair<Team, Int>> { it.second }.thenBy { it.first.joinedAt })
     }
@@ -153,6 +160,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var programRev: String = "initial"
     /** Pupitres connectés au dernier relevé, et pupitres tout juste décrochés (délai de grâce en cours). */
     private var online: Set<String> = emptySet()
+    private var funSeen: Map<String, Long>? = null
     private val dropTimers = mutableMapOf<String, Job>()
     /** Surveillance de la coupure Internet de la box (pause automatique d'une question en cours). */
     private var offlineWatch: Job? = null
@@ -386,14 +394,6 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun pause() = act { it.pause(serverNow()) }
     fun unpause() = act { it.resume(serverNow()) }
 
-    /** Réarme le buzzer de test du salon. */
-    fun rearm() {
-        val s = _state.value as? UiState.Playing ?: return
-        if (s.phase != Phase.LOBBY) return
-        _state.value = s.copy(round = s.round + 1, buzzerUid = null)
-        publishState()
-    }
-
     private fun act(action: (Game) -> GameEvent?) {
         viewModelScope.launch { actions.withLock { game?.let { commit(action(it)) } } }
     }
@@ -407,12 +407,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val ref = gameRef ?: return
         if (event == null) return
         val round = (_state.value as? UiState.Playing)?.round ?: 1
+        // Jeu rejoué depuis la régie : ses anciennes réponses sont effacées, les pupitres peuvent répondre à nouveau.
+        val replayed = (event as? Jumped)?.clear.orEmpty().associate { "answers/$it" to null }
         // Sans réseau, Firebase garde l'écriture en file d'attente et l'envoie au retour de la connexion.
         ref.updateChildren(
             mapOf(
                 "log/${Codec.key(event.seq)}" to clean(Codec.encode(event)),
                 "state" to clean(Codec.publicState(g, round)),
-            ) + extra
+            ) + replayed + extra
         ).addOnFailureListener { Log.e(TAG, "Écriture refusée", it) }
         refresh()
         schedule()
@@ -488,6 +490,32 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             )
         }
         watchAnswers(s.qid.takeIf { s.phase == Phase.QUESTION || s.phase == Phase.CLOSED })
+        // Photo de la question en cours et de la suivante chargées d'avance : la révélation ne l'attend jamais.
+        if (s.phase != Phase.LOBBY) {
+            listOfNotNull(q?.imageId, g.quiz.questions.getOrNull(s.index + 1)?.imageId).forEach(::prefetchImage)
+        }
+    }
+
+    private val imageBytes = object : LinkedHashMap<String, ByteArray>(8, 0.75f, true) {
+        // Quelques photos seulement en mémoire : la box ancienne a peu de place.
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ByteArray>?) = size > 4
+    }
+    private val imagesLoading = mutableSetOf<String>()
+
+    /** Lit une photo d'illustration dans la partie ; absente, abîmée ou hors connexion : la question reste sans photo. */
+    private fun prefetchImage(id: String) {
+        if (id in imageBytes || !imagesLoading.add(id)) return
+        val ref = gameRef ?: return run { imagesLoading -= id }
+        viewModelScope.launch {
+            val bytes = runCatching {
+                val data = ref.child("images/$id").readOnce()?.getValue(String::class.java)
+                data?.substringAfter("base64,", "")?.takeIf { it.isNotEmpty() }?.let { Base64.decode(it, Base64.DEFAULT) }
+            }.getOrNull()
+            imagesLoading -= id
+            if (bytes == null) return@launch
+            imageBytes[id] = bytes
+            updatePlaying { it.copy(images = imageBytes.toMap()) }
+        }
     }
 
     // ---------- Régie (téléphone de l'animatrice) ----------
@@ -660,11 +688,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             if (replace) {
                 updates["teams/$team/device"] = device
             } else {
+                // Jamais deux équipes de la même couleur : la couleur demandée si elle est libre, sinon une autre.
+                val color = freeColor(request.child("color").getValue(String::class.java), teams.map { it.color })
                 updates["teams/$device"] = mapOf(
                     "name" to request.child("name").getValue(String::class.java),
-                    "color" to request.child("color").getValue(String::class.java),
+                    "color" to color,
                     "joinedAt" to ServerValue.TIMESTAMP,
                 )
+                updates["colors/${colorKey(color)}"] = device
             }
         }
         ref.updateChildren(updates).addOnFailureListener { Log.e(TAG, "Entrée d'un appareil refusée", it) }
@@ -742,10 +773,22 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             online = now
             updatePlaying { it.copy(online = now) }
         }
-        observe(ref.child("buzz")) { snap ->
+        // Buzzer de l'accueil : chaque nouvel appui d'une équipe fait clignoter sa pastille et sonner la TV.
+        // Les appuis déjà là au branchement (box qui se reconnecte) ne rejouent rien.
+        funSeen = null
+        observe(ref.child("fun")) { snap ->
+            val now = snap.children.mapNotNull { c -> c.key?.let { it to (c.child("at").getValue(Long::class.java) ?: 0L) } }.toMap()
+            val before = funSeen
+            funSeen = now
+            if (before == null) return@observe
+            val pressed = now.filter { (uid, at) -> at > (before[uid] ?: 0L) }.keys
+            if (pressed.isEmpty()) return@observe
             updatePlaying { s ->
-                val buzzerUid = snap.child("${s.round}/team").getValue(String::class.java)
-                s.copy(buzzerUid = buzzerUid)
+                if (s.phase != Phase.LOBBY) s
+                else s.copy(
+                    funBuzzes = s.funBuzzes + pressed.associateWith { (s.funBuzzes[it] ?: 0) + 1 },
+                    lastFunBuzz = pressed.maxBy { now[it] ?: 0L },
+                )
             }
         }
         observe(ref.child("pairing")) { snap -> snap.children.forEach(::judgePairing) }
@@ -827,6 +870,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private fun parseAnswers(snap: DataSnapshot): Map<String, Answer> = snap.children.mapNotNull { a ->
         val choice = a.child("choice").getValue(Int::class.java) ?: return@mapNotNull null
         val at = a.child("at").getValue(Long::class.java) ?: return@mapNotNull null
+        // Question rejouée : une réponse de la fois précédente (restée en cache) ne compte pas.
+        if (game?.state?.answeredSinceOpening(at) == false) return@mapNotNull null
         a.key!! to Answer(choice, at)
     }.toMap()
 
@@ -923,11 +968,13 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "rev" to rev,
             // Cette box sait jouer les mimes : la régie prévient avant d'en envoyer à une TV trop ancienne.
             "mimes" to true,
+            "numbers" to true,
             "questions" to quiz.questions.map {
                 clean(mapOf(
                     "id" to it.id, "text" to it.text, "choices" to it.choices.ifEmpty { null }, "correct" to it.correct,
                     "duration" to it.durationSec, "kind" to it.kind.code, "double" to it.double, "round" to it.roundTitle,
                     "cards" to it.cards.ifEmpty { null }?.map { c -> clean(mapOf("word" to c.word, "image" to c.image)) },
+                    "image" to it.emoji, "imageId" to it.imageId,
                 ))
             },
         )

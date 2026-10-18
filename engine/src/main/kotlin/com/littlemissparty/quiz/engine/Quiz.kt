@@ -9,7 +9,13 @@ enum class QuestionKind(val code: String) {
     TRUE_FALSE("true_false"),
 
     /** Mimes : toute une manche, jouée équipe par équipe sur un paquet de cartes ([Question.cards]). */
-    MIME("mime");
+    MIME("mime"),
+
+    /**
+     * Le Juste Chiffre : chaque équipe tape un nombre sur son pupitre, la ou les plus proches gagnent.
+     * Pas de propositions ; [Question.correct] est le nombre à trouver.
+     */
+    NUMBER("number");
 
     companion object {
         fun of(code: String?): QuestionKind = entries.firstOrNull { it.code == code } ?: CLASSIC
@@ -29,6 +35,12 @@ data class Question(
     val roundTitle: String? = null,
     /** Mimes seulement : les cartes, dans l'ordre où elles apparaîtront. */
     val cards: List<MimeCard> = emptyList(),
+    /**
+     * Illustration facultative montrée à la révélation : un émoji ([emoji]) ou une photo préparée dans
+     * l'administration ([imageId], lue dans games/<code>/images). Absente ou introuvable : rien ne change.
+     */
+    val emoji: String? = null,
+    val imageId: String? = null,
 ) {
     init {
         require(id.isNotBlank()) { "Question sans identifiant" }
@@ -38,6 +50,10 @@ data class Question(
             require(cards.size in 1..MAX_MIME_CARDS) { "Mimes $id : il faut 1 à $MAX_MIME_CARDS cartes" }
             require(cards.none { it.word.isBlank() }) { "Mimes $id : carte sans mot" }
             require(durationSec in 15..180) { "Mimes $id : tour entre 15 et 180 s" }
+        } else if (kind == QuestionKind.NUMBER) {
+            require(choices.isEmpty()) { "Juste Chiffre $id : pas de propositions" }
+            require(correct in -MAX_NUMBER..MAX_NUMBER) { "Juste Chiffre $id : nombre hors limites" }
+            require(durationSec in 5..120) { "Question $id : durée entre 5 et 120 s" }
         } else {
             require(choices.size in 2..4) { "Question $id : il faut 2 à 4 propositions" }
             require(choices.none { it.isBlank() }) { "Question $id : proposition vide" }
@@ -47,6 +63,7 @@ data class Question(
     }
 
     val isMime: Boolean get() = kind == QuestionKind.MIME
+    val isNumber: Boolean get() = kind == QuestionKind.NUMBER
 
     val durationMs: Long get() = durationSec * 1000L
 }
@@ -63,3 +80,6 @@ data class Quiz(val id: String, val title: String, val questions: List<Question>
 data class MimeCard(val word: String, val image: String? = null)
 
 const val MAX_MIME_CARDS = 200
+
+/** Le Juste Chiffre : nombres de -999 999 999 à 999 999 999 (ce que le pupitre laisse taper). */
+const val MAX_NUMBER = 999_999_999

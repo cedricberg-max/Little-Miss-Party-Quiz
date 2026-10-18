@@ -5,7 +5,7 @@ import { CHOICE_LETTERS } from "./theme.js";
 import { writeProof } from "./proof.js";
 import { passwordCandidates } from "./secret.js";
 import {
-  buildSnapshot, showTitle, playable, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame,
+  buildSnapshot, showTitle, playable, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame, imageIds,
   isFutureRound, moveRound, removeRound, uniqueRoundTitle,
 } from "./show.js";
 import { profileForAge } from "./profiles.js";
@@ -177,7 +177,7 @@ const PHASES = {
 function nextLabel(st, teamCount) {
   switch (st.phase) {
     case "lobby": return teamCount ? "Lancer le quiz" : "En attente des équipes";
-    case "question": return st.mime ? (st.mime.team ? "Arrêter le tour" : "Terminer les mimes") : "Arrêter le chrono";
+    case "question": return st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? "Terminer les mimes" : "Voir le classement") : "Arrêter le chrono";
     case "closed": return "Révéler la réponse";
     case "reveal": return "Voir les scores";
     case "scores": return (st.index ?? 0) + 1 >= (st.total ?? 0) ? "Résultats finaux" : "Question suivante";
@@ -206,12 +206,14 @@ function render() {
   answerBtn.hidden = !inQuestion || correct == null;
   if (correct != null) {
     const text = (st.choices ?? q?.choices ?? [])[correct] ?? "";
-    answerBtn.textContent = answerMasked ? "Réponse masquée · toucher pour voir" : `Réponse ${CHOICE_LETTERS[correct]} · ${text}`;
+    const number = (q?.kind ?? st.kind) === "number";
+    answerBtn.textContent = answerMasked ? "Réponse masquée · toucher pour voir" : number ? `Juste Chiffre · ${correct}` : `Réponse ${CHOICE_LETTERS[correct]} · ${text}`;
     answerBtn.classList.toggle("masked", answerMasked);
   }
   const answered = Object.keys(live.answers).filter((t) => live.teams[t]).length;
   $("c-answered").textContent = st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ont répondu` : "";
 
+  renderGames(st);
   renderRequests(st, teams);
   renderMime(st, teams);
   renderTeams(st, teams);
@@ -349,6 +351,7 @@ function renderMime(st, teams) {
   // Pendant un tour, le choix est oublié : à la fin, la régie propose l'équipe qui a le moins joué.
   if (playing) mimeTeam = null;
   else if (!mimeTeam || !live.teams[mimeTeam]) {
+    // Ordre d'inscription, en commençant par les équipes qui ont le moins joué (tri stable).
     mimeTeam = [...teams].sort(([a], [b]) => turns.filter((t) => t === a).length - turns.filter((t) => t === b).length)[0]?.[0] ?? null;
   }
   const card = m.card;
@@ -360,14 +363,20 @@ function renderMime(st, teams) {
   const n = (k) => `${k} mime${k > 1 ? "s" : ""}`;
   $("mime-info").textContent = playing
     ? `${name(playing)} joue : ${n(m.found ?? 0)} trouvé${(m.found ?? 0) > 1 ? "s" : ""} · ${m.left} carte${m.left > 1 ? "s" : ""} restante${m.left > 1 ? "s" : ""}`
-    : m.left === 0
-      ? "Toutes les cartes ont été jouées : terminez les mimes."
-      : m.last
-        ? `Tour terminé : ${name(m.last.team)} a trouvé ${n(m.last.found)}. Qui joue maintenant ?`
+    : m.last
+        ? `Tour terminé : ${name(m.last.team)} a trouvé ${n(m.last.found)}. ${mimeRemaining(st).length ? "Qui joue maintenant ?" : "Toutes les équipes sont passées."}`
         : "Qui commence ? Choisissez l'équipe puis « Top départ ! ».";
 
+  // Équipes déjà passées et celles qui restent : la manche ne se termine qu'après toutes, ou sur décision.
+  const remaining = mimeRemaining(st);
+  const done = [...new Set(turns)].filter((id) => live.teams[id]).map(name);
+  $("mime-progress").textContent = !done.length
+    ? `À faire passer : ${remaining.map(name).join(", ") || "aucune équipe"}`
+    : remaining.length
+      ? `Déjà passées : ${done.join(", ")} · Restent : ${remaining.map(name).join(", ")}`
+      : `Toutes les équipes sont passées (${done.join(", ")}) : touchez « Voir le classement ».`;
   const box = $("mime-teams");
-  box.hidden = !!playing || m.left === 0;
+  box.hidden = !!playing;
   if (!box.hidden) {
     box.replaceChildren(...teams.map(([id, t]) => {
       const b = document.createElement("button");
@@ -376,14 +385,15 @@ function renderMime(st, teams) {
       b.style.borderLeftColor = t.color;
       const small = document.createElement("small");
       const played = turns.filter((x) => x === id).length;
-      small.textContent = `${n(counts[id] ?? 0)}${played ? ` · ${played} tour${played > 1 ? "s" : ""}` : ""}`;
+      small.textContent = `${n(counts[id] ?? 0)} · ${played ? `passée${played > 1 ? ` ${played} fois` : ""}` : "pas encore passée"}`;
+      b.classList.toggle("played", played > 0);
       b.append(t.name ?? "Équipe", small);
       b.onclick = () => { mimeTeam = id; render(); };
       return b;
     }));
   }
   const go = $("mime-go");
-  go.hidden = !!playing || m.left === 0;
+  go.hidden = !!playing;
   go.textContent = mimeTeam ? `Top départ ! (${name(mimeTeam)})` : "Top départ !";
   go.disabled = busy || !mimeTeam;
   $("mime-found").hidden = !playing;
@@ -409,6 +419,119 @@ $("mime-minus").onclick = () => { const t = live.state?.mime?.team; if (t) send(
 $("mime-fix-minus").onclick = () => { const t = live.state?.mime?.last?.team; if (t) send("mime_fix", { team: t, delta: -1 }); };
 $("mime-fix-plus").onclick = () => { const t = live.state?.mime?.last?.team; if (t) send("mime_fix", { team: t, delta: 1 }); };
 
+/** Équipes inscrites qui ne sont pas encore passées dans la manche de mimes en cours. */
+function mimeRemaining(st) {
+  const turns = st.mime?.turns ?? [];
+  return Object.entries(live.teams)
+    .sort((a, b) => (a[1].joinedAt ?? 0) - (b[1].joinedAt ?? 0))
+    .map(([id]) => id)
+    .filter((id) => !turns.includes(id));
+}
+
+// ---------- Jeux de la prestation : en cours, suivant, secours ----------
+
+let rescueOpen = false;
+
+/** Jeux (manches) du conducteur, celui en cours et le suivant. */
+function gamesOf(st) {
+  const questions = live.plan?.questions ?? [];
+  const rounds = programRounds(questions);
+  const index = st.phase === "lobby" ? -1 : st.index ?? -1;
+  const current = st.phase === "ended" ? null : rounds.find((r) => r.start <= index && index <= r.end) ?? null;
+  const next = st.phase === "ended" ? null : rounds.find((r) => r.start > index) ?? null;
+  return { questions, rounds, index, current, next };
+}
+
+function gameName(r, questions) {
+  const q = questions[r.start];
+  return q?.kind === "mime" ? `Mimes : ${q.text}` : r.title;
+}
+
+function gameDetail(r, questions) {
+  const q = questions[r.start];
+  if (q?.kind === "mime") return `${q.cards?.length ?? 0} cartes · tour de ${q.duration} s par équipe`;
+  const n = r.end - r.start + 1;
+  return `${n} question${n > 1 ? "s" : ""}`;
+}
+
+function renderGames(st) {
+  const { questions, rounds, current, next } = gamesOf(st);
+  const line = $("c-games");
+  line.replaceChildren();
+  const add = (label, value) => {
+    if (line.childNodes.length) line.append(" · ");
+    const b = document.createElement("b");
+    b.textContent = value;
+    line.append(`${label} `, b);
+  };
+  if (rounds.length) {
+    if (st.phase === "lobby") add("Premier jeu :", gameName(rounds[0], questions));
+    else if (current) add("En cours :", gameName(current, questions));
+    if (st.phase !== "lobby") {
+      if (next) add("Ensuite :", gameName(next, questions));
+      else if (st.phase !== "ended") line.append(line.childNodes.length ? " · Dernier jeu" : "Dernier jeu");
+    }
+  }
+  // Le secours n'a de sens qu'une fois la partie commencée (au salon, « Lancer le quiz » suffit).
+  $("c-rescue").hidden = st.phase === "lobby" || !rounds.length || !live.plan?.rev;
+  if (rescueOpen && $("c-rescue").hidden) rescueOpen = false;
+  $("rescue").hidden = !rescueOpen;
+  if (rescueOpen) renderRescue(st);
+}
+
+function renderRescue(st) {
+  const { questions, rounds, index, current, next } = gamesOf(st);
+  const busy = !!pending?.advance;
+  const nextBtn = $("rescue-next");
+  nextBtn.hidden = !next;
+  if (next) {
+    nextBtn.textContent = busy ? "Envoi…" : `▶ Passer au jeu suivant : ${gameName(next, questions)}`;
+    nextBtn.disabled = busy;
+    nextBtn.onclick = () => jumpTo(next, st);
+  }
+  const list = $("rescue-list");
+  list.replaceChildren(...rounds.map((r) => {
+    const row = document.createElement("div");
+    const isCurrent = r === current;
+    const played = st.phase === "ended" || r.start <= index;
+    row.className = `rescue-game${isCurrent ? " current" : ""}`;
+    row.dataset.start = r.start;
+    const name = document.createElement("span");
+    name.className = "name";
+    name.append(gameName(r, questions));
+    const small = document.createElement("small");
+    small.textContent = `${gameDetail(r, questions)} · ${isCurrent ? "en cours" : played ? "joué" : "à venir"}`;
+    name.append(small);
+    const b = document.createElement("button");
+    b.className = played ? "btn secondary" : "btn";
+    b.textContent = played ? "Rejouer" : "Aller à ce jeu";
+    b.disabled = busy;
+    b.onclick = () => jumpTo(r, st);
+    row.append(name, b);
+    return row;
+  }));
+}
+
+/** Saut vers le début du jeu [r], après confirmation adaptée (aller plus loin, ou rejouer). */
+async function jumpTo(r, st) {
+  const { questions, index } = gamesOf(st);
+  const name = gameName(r, questions);
+  const replay = st.phase === "ended" || r.start <= index;
+  const message = replay
+    ? `Rejouer « ${name} » depuis le début ?\n\nLes points gagnés dans ce jeu sont retirés puis rejoués : rien n'est compté deux fois. Les équipes et les points des autres jeux sont gardés.`
+    : `Passer directement à « ${name} » ?\n\nLe jeu en cours s'arrête là ; les points déjà gagnés sont gardés.`;
+  if (!confirm(message)) return;
+  const status = await send("goto", { index: r.start, qid: questions[r.start].id }, { advance: true });
+  if (status?.status === "applied") {
+    rescueOpen = false;
+    toast(replay ? `« ${name} » est relancé.` : `C'est parti pour « ${name} » !`);
+    render();
+  }
+}
+
+$("c-rescue").onclick = () => { rescueOpen = true; render(); };
+$("rescue-close").onclick = () => { rescueOpen = false; render(); };
+
 function renderTeams(st, teams) {
   const box = $("panel-teams");
   const scores = st.scores ?? {};
@@ -432,7 +555,8 @@ function renderTeams(st, teams) {
     if (!row) return;
     row.querySelector(".dot").classList.toggle("on", live.presence[id]?.online === true);
     row.querySelector(".swatch").style.background = t.color;
-    const answeredMark = live.answers[id] ? " · a répondu" : "";
+    // Juste Chiffre : l'animatrice voit le nombre de chaque équipe pour l'annoncer.
+    const answeredMark = live.answers[id] ? (st.kind === "number" ? ` · ${live.answers[id].choice}` : " · a répondu") : "";
     row.querySelector(".name").innerHTML = "";
     row.querySelector(".name").append(t.name ?? "Équipe");
     const small = document.createElement("small");
@@ -524,7 +648,7 @@ function planItem(q, i, current) {
   const title = document.createElement("div");
   title.textContent = `${i + 1}. ${q.text}${q.double ? " (×2)" : ""}`;
   const answer = document.createElement("b");
-  answer.textContent = `${CHOICE_LETTERS[q.correct] ?? "?"} · ${q.choices?.[q.correct] ?? ""}`;
+  answer.textContent = q.kind === "number" ? `Juste Chiffre · ${q.correct}` : `${CHOICE_LETTERS[q.correct] ?? "?"} · ${q.choices?.[q.correct] ?? ""}`;
   item.append(title, answer);
   return item;
 }
@@ -673,7 +797,7 @@ function renderPreview() {
   (mime ? [] : questions).slice(0, 5).forEach((q) => {
     const li = document.createElement("li");
     const answer = document.createElement("b");
-    answer.textContent = ` → ${q.choices[q.correct]}`;
+    answer.textContent = ` → ${q.kind === "number" ? q.correct : q.choices?.[q.correct] ?? ""}`;
     li.append(q.text, answer);
     list.appendChild(li);
   });
@@ -692,17 +816,24 @@ function renderPreview() {
  * La box à jour l'annonce dans son conducteur (`mimes: true`).
  */
 const OLD_TV = "La TV doit être mise à jour pour jouer aux mimes : sur la TV, menu Retour → « Rechercher une mise à jour ».";
-function tvRefusesMimes(questions) {
-  return !!live.plan && live.plan.mimes !== true && questions.some((q) => q?.kind === "mime");
+const OLD_TV_NUMBER = "La TV doit être mise à jour pour jouer au Juste Chiffre : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+/** Jeu que la TV allumée ne sait pas encore jouer (ancienne version) : le message à montrer, sinon null. */
+function tvRefuses(questions) {
+  if (!live.plan) return null;
+  if (live.plan.mimes !== true && questions.some((q) => q?.kind === "mime")) return OLD_TV;
+  if (live.plan.numbers !== true && questions.some((q) => q?.kind === "number")) return OLD_TV_NUMBER;
+  return null;
 }
 
 function addPicked(where) {
   if (!picked || editing) return;
-  if (tvRefusesMimes(picked.questions)) { toast(OLD_TV); return; }
+  const refused = tvRefuses(picked.questions);
+  if (refused) { toast(refused); return; }
   const st = live.state ?? { phase: "lobby" };
   const current = live.plan?.questions ?? [];
   const title = uniqueRoundTitle(current, picked.questions[0]?.round ?? picked.game.label);
   const added = picked.questions.map((q) => ({ ...q, round: title }));
+  copyImages(added);
   const index = st.phase === "lobby" ? -1 : st.index ?? -1;
   const place = where === "end" ? "à la fin du programme" : index < 0 ? "au début du programme" : "après la manche en cours";
   sendProgram(insertGame(current, added, where, index), `« ${title} » est ajouté ${place}.`, true);
@@ -837,9 +968,27 @@ function renderShows(st) {
 }
 
 /** Envoie l'instantané de la prestation à la TV, qui le vérifie et répond dans showStatus/. */
+/**
+ * Photos d'illustration : copiées de la bibliothèque dans la partie, où la TV les lit à la révélation.
+ * Jamais bloquant : une photo qui manque laisse simplement la question sans illustration.
+ */
+async function copyImages(questions) {
+  await Promise.all(imageIds(questions).map(async (id) => {
+    try {
+      const target = ref(db, `games/${code}/images/${id}`);
+      if ((await get(target)).exists()) return;
+      const data = (await get(ref(db, `library/images/${id}`))).val();
+      if (typeof data === "string") await set(target, data);
+    } catch (e) {
+      console.warn("Illustration non copiée", id, e);
+    }
+  }));
+}
+
 async function loadShow(id, snapshot) {
   if (loadingShow) return;
-  if (tvRefusesMimes(snapshot.quiz?.questions ?? [])) { toast(OLD_TV); return; }
+  const refused = tvRefuses(snapshot.quiz?.questions ?? []);
+  if (refused) { toast(refused); return; }
   loadingShow = id;
   render();
   const showId = push(ref(db, `games/${code}/show`)).key;
@@ -853,6 +1002,7 @@ async function loadShow(id, snapshot) {
     stop();
     done(status.status === "applied" ? `« ${snapshot.title} » est chargée sur la TV.` : SHOW_MESSAGES[status.reason] ?? "La TV a refusé cette prestation.");
   });
+  copyImages(snapshot.quiz?.questions);
   try {
     await set(ref(db, `games/${code}/show`), { ...snapshot, id: showId, by: uid, at: serverTimestamp() });
   } catch (e) {
@@ -889,6 +1039,7 @@ const STATUS_MESSAGES = {
   full: "8 équipes maximum : confiez plutôt à cet appareil une équipe existante.",
   busy: "Cet appareil joue déjà pour une équipe.",
   gone: "Cette demande n'existe plus : l'appareil a peut-être quitté la page.",
+  stale_program: "Le programme venait de changer : rien n'a été fait, la liste des jeux est à jour.",
 };
 
 function toast(message) {
@@ -959,7 +1110,12 @@ function showUndo(text, seq) {
 
 $("c-next").onclick = () => {
   const st = live.state;
-  // Mimes entre deux tours : « Terminer les mimes » passe au classement.
+  // Mimes entre deux tours : « Terminer les mimes » passe au classement, après confirmation s'il reste des équipes.
+  const left = st?.phase === "question" && st.mime && !st.mime.team ? mimeRemaining(st) : [];
+  if (left.length) {
+    const names = left.map((id) => live.teams[id]?.name ?? "Équipe").join(", ");
+    if (!confirm(`${names} ${left.length > 1 ? "ne sont" : "n'est"} pas encore ${left.length > 1 ? "passées" : "passée"}. Terminer les mimes quand même ?`)) return;
+  }
   send(st?.phase === "question" && !(st.mime && !st.mime.team) ? "close" : "next", {}, { advance: true });
 };
 $("c-pause").onclick = () => send(live.state?.paused ? "resume" : "pause", {}, { advance: true });

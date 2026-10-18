@@ -133,13 +133,14 @@ class MimeTest {
     }
 
     @Test
-    fun `paquet épuisé, le tour s'arrête tout seul`() {
+    fun `paquet épuisé, le tour s'arrête tout seul et l'équipe suivante joue avec le paquet rebattu`() {
         val g = atMimes()
         g.mimeStart("rose", t0 + 10_000)
         repeat(4) { g.mimeFound(t0 + 11_000 + it * 1_000L) }
         assertFalse(g.state.mimeTurn)
         assertEquals(4, g.state.mime?.last?.found)
-        assertNull(g.mimeStart("bleu", t0 + 20_000), "Plus aucune carte à mimer")
+        assertNotNull(g.mimeStart("bleu", t0 + 20_000), "Chaque équipe a son tour")
+        assertEquals("Chat", g.mimeCard?.word)
     }
 
     @Test

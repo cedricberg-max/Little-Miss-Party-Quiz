@@ -169,11 +169,14 @@ class DirecteurSonoreTest {
     }
 
     @Test
-    fun `un buzzer fait sonner l'equipe une fois`() {
+    fun `buzzer de l'accueil, chaque appui fait sonner l'equipe, jamais deux fois le meme appui`() {
         val d = DirecteurSonore()
-        d.observer(q2)
-        assertEquals(listOf(Son.EQUIPE_2, Son.VERROU), d.observer(q2.copy(buzzeur = 1)).sons())
-        assertTrue(d.observer(q2.copy(buzzeur = 1)).isEmpty())
+        val salon = Instant(Ecran.SALON, partie = "ABCD", equipes = 2)
+        d.observer(salon)
+        assertEquals(listOf(Son.EQUIPE_2, Son.pop(1)), d.observer(salon.copy(buzzeur = 1, buzzs = 1)).sons())
+        assertTrue(d.observer(salon.copy(buzzeur = 1, buzzs = 1)).isEmpty())
+        assertEquals(listOf(Son.EQUIPE_1, Son.pop(2)), d.observer(salon.copy(buzzeur = 0, buzzs = 2)).sons())
+        assertEquals(listOf(Son.EQUIPE_1, Son.pop(3)), d.observer(salon.copy(buzzeur = 0, buzzs = 3)).sons())
     }
 
     private val mimes = Instant(Ecran.MIMES, partie = "ABCD", index = 3, equipes = 2)

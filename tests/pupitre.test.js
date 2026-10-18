@@ -134,6 +134,111 @@ describe("pupitre", () => {
     for (const p of pages) await p.context().close();
   });
 
+  test("une couleur prise est grisée pour les autres, même si deux tablettes la choisissent en même temps", async () => {
+    const [a, b, c] = [await openPupitre(), await openPupitre(), await openPupitre()];
+    for (const p of [a, b, c]) await p.locator("#screen-join.active").waitFor();
+    // Les trois tablettes ont la première couleur présélectionnée ; deux valident en même temps.
+    await a.fill("#team-name", "Les Roses");
+    await b.fill("#team-name", "Les Bleus");
+    await Promise.all([a.click("#join"), b.click("#join")]);
+    // Si les deux demandes se croisent vraiment, la tablette perdante le dit, passe sur une couleur libre
+    // et il suffit de revalider.
+    const loser = await waitFor(async () => {
+      for (const p of [a, b]) if (await p.locator("#join-error:not([hidden])").count()) return p;
+      return Object.keys((await read("teams")) ?? {}).length === 2 ? "aucune" : null;
+    }, "les deux tablettes ont une réponse", 15000);
+    if (loser !== "aucune") {
+      await loser.locator("#join-error", { hasText: "vient d'être prise" }).waitFor();
+      await loser.click("#join");
+    }
+    await waitFor(async () => Object.keys((await read("teams")) ?? {}).length === 2, "deux équipes inscrites");
+    const teams = Object.values(await read("teams"));
+    assert.notEqual(teams[0].color, teams[1].color, "jamais deux équipes de la même couleur");
+    for (const p of [a, b]) await p.locator("#screen-play.active").waitFor();
+    // La troisième voit les deux couleurs prises, grisées et impossibles à choisir.
+    for (const t of teams) {
+      await c.locator(`#colors button[data-color="${t.color}"]:disabled`).waitFor();
+    }
+    assert.equal(teams.map((t) => t.color).includes(await c.locator("#colors button.selected").getAttribute("data-color")), false);
+    await c.fill("#team-name", "Les Verts");
+    await c.click("#join");
+    await c.locator("#screen-play.active").waitFor();
+    const colors = Object.values(await read("teams")).map((t) => t.color);
+    assert.equal(new Set(colors).size, 3);
+    for (const p of [a, b, c]) await p.context().close();
+  });
+
+  test("nouvelle version du site : le pupitre se recharge hors question et retrouve son équipe", async () => {
+    const page = await openPupitre();
+    let version = "0.1.1";
+    await page.route("**/version.json*", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ web: version }) }));
+    await page.reload();
+    await joinTeam(page, "Les Roses");
+    await page.locator(".web-version", { hasText: "Version 0.1.1" }).waitFor();
+    // Pendant une question, rien ne bouge.
+    await hostState(question());
+    await page.locator("#screen-question.active").waitFor();
+    version = "0.1.2";
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    await new Promise((r) => setTimeout(r, 800));
+    await page.locator(".web-version", { hasText: "Version 0.1.1" }).waitFor();
+    // Question terminée : le pupitre se met à jour tout seul et reste dans son équipe.
+    const reloaded = page.waitForEvent("load");
+    await hostState(question({ phase: "reveal", correct: 1, awards: {}, scores: {} }));
+    await reloaded;
+    await page.locator(".web-version", { hasText: "Version 0.1.2" }).waitFor();
+    await page.locator("#screen-result.active").waitFor();
+    await page.context().close();
+  });
+
+  test("Le Juste Chiffre : l'équipe tape son nombre une seule fois et voit si elle est la plus proche", async () => {
+    const page = await openPupitre();
+    await joinTeam(page, "Les Roses");
+    const uid = Object.keys(await read("teams"))[0];
+    await hostState(question({ qid: "n1", kind: "number", choices: null, text: "Combien d'os ?" }));
+    await page.locator("#screen-question.active .number-pad").waitFor();
+    assert.equal(await page.locator("#number-send").isDisabled(), true, "rien à envoyer tant que rien n'est tapé");
+    for (const k of ["2", "0", "7", "⌫", "6"]) await page.click(`.number-key[data-key="${k}"]`);
+    await page.locator("#number-screen", { hasText: "206" }).waitFor();
+    await page.click("#number-send");
+    await waitFor(async () => (await read(`answers/n1/${uid}`))?.choice === 206, "nombre enregistré");
+    await page.locator("#q-status", { hasText: "Nombre 206 envoyé" }).waitFor();
+    assert.equal(await page.locator(".number-key").first().isDisabled(), true);
+    await hostState(question({ qid: "n1", kind: "number", choices: null, phase: "reveal", correct: 206, awards: { [uid]: { correct: true, points: 150, bonus: 0 } }, scores: { [uid]: 150 } }));
+    await page.locator("#r-title", { hasText: "Pile le bon nombre ! +150 points" }).waitFor();
+    await page.locator("#r-detail", { hasText: "206 (vous : 206)" }).waitFor();
+    await page.context().close();
+  });
+
+  test("accueil : deux équipes buzzent à répétition, rien ne se bloque ni ne change d'écran", async () => {
+    const pages = [await openPupitre(), await openPupitre()];
+    await joinTeam(pages[0], "Les Roses");
+    await joinTeam(pages[1], "Les Bleus");
+    const uids = Object.fromEntries(Object.entries(await read("teams")).map(([uid, t]) => [t.name, uid]));
+    const seen = [];
+    for (let i = 0; i < 3; i++) {
+      for (const p of pages) {
+        assert.equal(await p.locator("#buzz").isDisabled(), false, "le buzzer de l'accueil n'est jamais bloqué");
+        await p.click("#buzz");
+      }
+      await waitFor(async () => {
+        const fun = (await read("fun")) ?? {};
+        return fun[uids["Les Roses"]]?.at && fun[uids["Les Bleus"]]?.at && fun[uids["Les Roses"]].at !== seen.at(-1);
+      }, "buzz des deux équipes");
+      seen.push((await read("fun"))[uids["Les Roses"]].at);
+      await new Promise((r) => setTimeout(r, 350));
+    }
+    assert.equal(new Set(seen).size, 3, "chaque appui est bien parti");
+    for (const p of pages) {
+      await p.locator("#screen-play.active").waitFor();
+      await p.locator("#play-status", { hasText: "buzzez autant que vous voulez" }).waitFor();
+    }
+    // Le quiz commence : le buzzer de l'accueil disparaît.
+    await hostState(question());
+    await pages[0].locator("#screen-question.active").waitFor();
+    for (const p of pages) await p.context().close();
+  });
+
   test("après un rechargement, le pupitre retrouve son équipe et sa réponse", async () => {
     const page = await openPupitre();
     await joinTeam(page, "Les Roses");
@@ -193,7 +298,7 @@ describe("pupitre", () => {
     const page = await openPupitre();
     await joinTeam(page, "Les Roses");
     await hostState(question({ phase: "scores", deadline: null, paused: true, pauseReason: "regie" }));
-    await page.locator("#paused:not([hidden])", { hasText: "On revient tout de suite !" }).waitFor();
+    await page.locator("#paused:not([hidden])", { hasText: "Pause paillettes !" }).waitFor();
     await hostState(question({ phase: "scores", deadline: null }));
     await page.locator("#paused[hidden]").waitFor({ state: "attached" });
     await page.context().close();
