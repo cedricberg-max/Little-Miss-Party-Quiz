@@ -163,6 +163,10 @@ Chaque jeu a son pictogramme et sa couleur d'accent, mais garde ce gabarit.
 | Révélation | ≈ 3 s | verrouillage + roulement (1 000 ms) → le projecteur hésite sur les propositions → les fausses s'éteignent une à une → la bonne en or avec éclat de rayons dorés et étiquette « BONNE RÉPONSE » → emblèmes des équipes gagnantes « tamponnés » sur la carte → +points qui montent au-dessus des scores → compteurs | faisceau = image en dégradé déplacée en `translationX` |
 | Victoire | ≈ 8 s | riser → podiums qui montent de la 4e à la 1re → couronne qui tombe sur le gagnant → explosion de confettis or + couleurs d'équipe → faisceaux qui balayent → fanfare → un prix en sticker pour chaque équipe | confettis ≤ 120 dans un seul `Canvas` ou Lottie < 150 Ko |
 
+**Révélation du blind test** : même tension que la révélation QCM, puis la pochette (carré de 360 dp,
+cadre or) apparaît en grand avec le titre et l'artiste en double néon ; l'emblème de l'équipe qui a
+trouvé se tamponne sur la pochette. Pochette absente : grand disque vinyle néon à la place.
+
 La logique du buzzer (horodatage, départage, verrou) ne dépend **jamais** d'une animation : l'écran
 réagit à l'état, il ne le produit pas.
 

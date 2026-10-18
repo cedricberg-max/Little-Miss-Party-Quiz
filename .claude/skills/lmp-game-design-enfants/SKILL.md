@@ -57,7 +57,8 @@ et sont consommées par des fonctions pures testées. Ne jamais recopier un nomb
 | Buzzer, mauvaise réponse | 0 (option −50 seulement en `GRANDS`/`ADULTES`), l'équipe est bloquée sur la question |
 | Buzzer, rebond (les autres équipes peuvent buzzer après une erreur) | 100 |
 | Blind test buzzer | 150 si buzz dans les 10 premières secondes, 100 ensuite, +50 bonus artiste ou œuvre |
-| Blind test QCM (Petits) | 100 par équipe correcte |
+| Blind test buzzer, après un indice donné par l'animatrice | 100 au plus (+50 bonus inchangé) |
+| Quiz musical à 4 propositions (`qcm-audio`, tous âges, conseillé pour les Petits) | comme un QCM : 100 + bonus fusée |
 | Mini-jeu, vainqueur | 300 |
 | Mini-jeu, chaque autre équipe ayant joué | 150 |
 | Super Finale | multiplicateur ×2 sur tout (200 + bonus 40) |
@@ -70,6 +71,27 @@ Règles associées :
   serveur (voir `lmp-firebase-rtdb-fiabilite`), jamais l'heure d'arrivée.
 - Les points sont **acquis à chaque question** (un événement par attribution). Quitter un jeu ne perd
   rien ; rejouer une question annule uniquement ses propres événements.
+
+### Quiz musical (validé le 18/10/2026)
+
+Deux modes dans le même moteur, extraits toujours joués sur la TV depuis le cache :
+
+- **Blind test classique (`blindtest`)** : extrait sur la TV → une équipe buzze → la musique se coupe →
+  réponse à voix haute → l'animatrice **valide ou refuse** depuis la régie. Refus : l'équipe est bloquée
+  sur ce titre, l'extrait reprend là où il s'était arrêté et les autres équipes peuvent buzzer (rebond).
+  Commandes de régie : reprendre l'extrait, donner un indice (affiché sur la TV), attribuer ou retirer
+  des points. Révélation : titre, artiste, pochette.
+- **Quiz musical à 4 propositions (`qcm-audio`)** : extrait sur la TV, 4 propositions sur chaque
+  pupitre, toutes les équipes répondent, révélation et points du QCM.
+- Bibliothèque classée par thème, âge (de / à) et difficulté (1 à 3) ; seuls des titres dont les droits
+  de stockage, reproduction et diffusion commerciale sont prouvés (fiche licence) peuvent être utilisés.
+
+### Mode de secours sans Internet
+
+Les pupitres ne marchent pas sans Internet. La box continue depuis son cache, pilotée à la
+télécommande : les équipes montrent des **cartes-réponses imprimées aux formes A à D** (triangle,
+losange, rond, carré, comme à l'écran), ou répondent à voix haute au blind test ; l'animatrice saisit
+les points. Le barème reste le même, sans bonus fusée (pas d'heure d'appui mesurable).
 
 ## 4. Remontée et suspense
 
