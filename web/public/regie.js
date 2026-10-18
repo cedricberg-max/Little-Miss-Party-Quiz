@@ -687,8 +687,18 @@ function renderPreview() {
   $("lib-end").disabled = editing || !questions.length;
 }
 
+/**
+ * Une TV d'avant les mimes refuse tout programme qui en contient : la régie le dit avant d'envoyer.
+ * La box à jour l'annonce dans son conducteur (`mimes: true`).
+ */
+const OLD_TV = "La TV doit être mise à jour pour jouer aux mimes : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+function tvRefusesMimes(questions) {
+  return !!live.plan && live.plan.mimes !== true && questions.some((q) => q?.kind === "mime");
+}
+
 function addPicked(where) {
   if (!picked || editing) return;
+  if (tvRefusesMimes(picked.questions)) { toast(OLD_TV); return; }
   const st = live.state ?? { phase: "lobby" };
   const current = live.plan?.questions ?? [];
   const title = uniqueRoundTitle(current, picked.questions[0]?.round ?? picked.game.label);
@@ -829,6 +839,7 @@ function renderShows(st) {
 /** Envoie l'instantané de la prestation à la TV, qui le vérifie et répond dans showStatus/. */
 async function loadShow(id, snapshot) {
   if (loadingShow) return;
+  if (tvRefusesMimes(snapshot.quiz?.questions ?? [])) { toast(OLD_TV); return; }
   loadingShow = id;
   render();
   const showId = push(ref(db, `games/${code}/show`)).key;

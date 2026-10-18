@@ -198,7 +198,7 @@ function startBox({ silent = false, held = false } = {}) {
     if (show.base == null) {
       await update(ref(db, `games/${CODE}`), {
         showStatus: { id: show.id, status: "applied", at: Date.now() },
-        conducteur: { id: show.quiz.id, title: show.title, rev: show.id, questions: show.quiz.questions },
+        conducteur: { id: show.quiz.id, title: show.title, rev: show.id, mimes: true, questions: show.quiz.questions },
         public: { title: show.title, childName: show.childName },
       });
       return;
@@ -247,7 +247,7 @@ beforeEach(async () => {
   await set(gameRef(), {
     hostUid: HOST,
     state: { phase: "lobby", seq: 0, total: QUESTIONS.length, scores: {}, round: 1, buzzOpen: true },
-    conducteur: { id: "demo", title: "Démo", rev: "initial", questions: QUESTIONS.map((q, i) => ({ id: `q${i + 1}`, ...q })) },
+    conducteur: { id: "demo", title: "Démo", rev: "initial", mimes: true, questions: QUESTIONS.map((q, i) => ({ id: `q${i + 1}`, ...q })) },
   });
 });
 afterEach(() => { box?.stop(); box = null; });
@@ -1043,6 +1043,30 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(plan.length, 4);
     assert.equal(plan[3].kind, "mime");
     assert.equal(plan[3].round, "Animaux à mimer · 2");
+    await regie.context().close();
+  });
+
+  test("TV trop ancienne pour les mimes : la régie le dit au lieu d'envoyer un programme refusé", async () => {
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    await seedLibrary("mimes", { zoo: { title: "Zoo", duration: 60, cards: [{ word: "Chat", image: "🐱" }], updatedAt: 1 } });
+    await seedLibrary("shows", {
+      lea: { childName: "Léa", age: 9, status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }, { type: "mimes", deckId: "zoo" }], updatedAt: 1 },
+    });
+    // Box d'avant les mimes : son conducteur ne les annonce pas.
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/conducteur/mimes`), null));
+    box = startBox();
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "Léa" }).click();
+    await regie.locator("#r-toast", { hasText: "La TV doit être mise à jour pour jouer aux mimes" }).waitFor();
+    assert.equal(await read("show"), null, "Rien n'est envoyé à la TV");
+    await regie.click("#tab-plan");
+    await regie.click("#plan-add");
+    await regie.locator("#lib-list [data-game^='mimes/']", { hasText: "Zoo" }).click();
+    await regie.click("#lib-end");
+    await regie.locator("#r-toast", { hasText: "La TV doit être mise à jour pour jouer aux mimes" }).waitFor();
+    assert.equal(await read("show"), null);
     await regie.context().close();
   });
 
