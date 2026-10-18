@@ -60,7 +60,7 @@
             "$uid": {
               ".read": "auth != null && (root.child('games').child($code).child('teams').child($uid).child('device').val() === auth.uid || (!root.child('games').child($code).child('teams').child($uid).child('device').exists() && auth.uid === $uid))",
               ".write": "auth != null && (root.child('games').child($code).child('teams').child($uid).child('device').val() === auth.uid || (!root.child('games').child($code).child('teams').child($uid).child('device').exists() && auth.uid === $uid)) && !data.exists() && root.child('games').child($code).child('teams').child($uid).exists() && root.child('games').child($code).child('state/phase').val() === 'question' && root.child('games').child($code).child('state/paused').val() !== true && (!root.child('games').child($code).child('state/resumeAt').exists() || now >= root.child('games').child($code).child('state/resumeAt').val()) && root.child('games').child($code).child('state/qid').val() === $qid && now <= root.child('games').child($code).child('state/deadline').val() + 2000",
-              ".validate": "newData.hasChildren(['choice', 'at']) && newData.child('choice').isNumber() && root.child('games').child($code).child('state/choices').child(newData.child('choice').val() + '').exists() && newData.child('at').val() === now",
+              ".validate": "newData.hasChildren(['choice', 'at']) && newData.child('choice').isNumber() && ((root.child('games').child($code).child('state/kind').val() !== 'number' && root.child('games').child($code).child('state/choices').child(newData.child('choice').val() + '').exists()) || (root.child('games').child($code).child('state/kind').val() === 'number' && newData.child('choice').val() >= -999999999 && newData.child('choice').val() <= 999999999 && newData.child('choice').val() % 1 === 0)) && newData.child('at').val() === now",
               "$other": {
                 ".validate": "$other === 'choice' || $other === 'at'"
               }
@@ -206,7 +206,7 @@
           ".validate": "!newData.exists() || (newData.child('title').isString() && newData.child('title').val().length >= 1 && newData.child('title').val().length <= 120 && newData.child('questions').hasChildren() && newData.child('updatedAt').val() === now)",
           "questions": {
             "$i": {
-              ".validate": "newData.child('text').isString() && newData.child('text').val().length <= 300 && newData.child('choices').hasChildren() && newData.child('correct').isNumber() && newData.child('status').val().matches(/^(brouillon|validee)$/)",
+              ".validate": "newData.child('text').isString() && newData.child('text').val().length <= 300 && (newData.child('choices').hasChildren() || newData.child('kind').val() === 'number') && newData.child('correct').isNumber() && newData.child('status').val().matches(/^(brouillon|validee)$/)",
               "duration": {
                 ".validate": "newData.isNumber() && newData.val() >= 5 && newData.val() <= 120"
               },

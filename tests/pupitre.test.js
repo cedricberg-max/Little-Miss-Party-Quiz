@@ -141,6 +141,16 @@ describe("pupitre", () => {
     await a.fill("#team-name", "Les Roses");
     await b.fill("#team-name", "Les Bleus");
     await Promise.all([a.click("#join"), b.click("#join")]);
+    // Si les deux demandes se croisent vraiment, la tablette perdante le dit, passe sur une couleur libre
+    // et il suffit de revalider.
+    const loser = await waitFor(async () => {
+      for (const p of [a, b]) if (await p.locator("#join-error:not([hidden])").count()) return p;
+      return Object.keys((await read("teams")) ?? {}).length === 2 ? "aucune" : null;
+    }, "les deux tablettes ont une réponse");
+    if (loser !== "aucune") {
+      await loser.locator("#join-error", { hasText: "vient d'être prise" }).waitFor();
+      await loser.click("#join");
+    }
     await waitFor(async () => Object.keys((await read("teams")) ?? {}).length === 2, "deux équipes inscrites");
     const teams = Object.values(await read("teams"));
     assert.notEqual(teams[0].color, teams[1].color, "jamais deux équipes de la même couleur");
@@ -178,6 +188,25 @@ describe("pupitre", () => {
     await reloaded;
     await page.locator(".web-version", { hasText: "Version 0.1.2" }).waitFor();
     await page.locator("#screen-result.active").waitFor();
+    await page.context().close();
+  });
+
+  test("Le Juste Chiffre : l'équipe tape son nombre une seule fois et voit si elle est la plus proche", async () => {
+    const page = await openPupitre();
+    await joinTeam(page, "Les Roses");
+    const uid = Object.keys(await read("teams"))[0];
+    await hostState(question({ qid: "n1", kind: "number", choices: null, text: "Combien d'os ?" }));
+    await page.locator("#screen-question.active .number-pad").waitFor();
+    assert.equal(await page.locator("#number-send").isDisabled(), true, "rien à envoyer tant que rien n'est tapé");
+    for (const k of ["2", "0", "7", "⌫", "6"]) await page.click(`.number-key[data-key="${k}"]`);
+    await page.locator("#number-screen", { hasText: "206" }).waitFor();
+    await page.click("#number-send");
+    await waitFor(async () => (await read(`answers/n1/${uid}`))?.choice === 206, "nombre enregistré");
+    await page.locator("#q-status", { hasText: "Nombre 206 envoyé" }).waitFor();
+    assert.equal(await page.locator(".number-key").first().isDisabled(), true);
+    await hostState(question({ qid: "n1", kind: "number", choices: null, phase: "reveal", correct: 206, awards: { [uid]: { correct: true, points: 150, bonus: 0 } }, scores: { [uid]: 150 } }));
+    await page.locator("#r-title", { hasText: "Pile le bon nombre ! +150 points" }).waitFor();
+    await page.locator("#r-detail", { hasText: "206 (vous : 206)" }).waitFor();
     await page.context().close();
   });
 

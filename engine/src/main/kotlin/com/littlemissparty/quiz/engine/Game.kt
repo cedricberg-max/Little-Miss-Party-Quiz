@@ -351,7 +351,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     fun reveal(now: Long, answers: Map<String, Answer>): GameEvent? {
         val q = question ?: return null
         if (state.phase != Phase.CLOSED) return null
-        val awards = answers.mapValues { (_, a) ->
+        val awards = if (q.isNumber) Scoring.awardNumber(q, answers) else answers.mapValues { (_, a) ->
             val remaining = (q.durationMs - state.elapsedAt(a.at)).coerceAtLeast(0)
             Scoring.award(q, a, remaining.toDouble() / q.durationMs)
         }

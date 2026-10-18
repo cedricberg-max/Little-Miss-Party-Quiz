@@ -131,3 +131,17 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
 .web-version { position: fixed; right: 8px; bottom: 4px; margin: 0; font-size: 11px; opacity: .45; pointer-events: none; z-index: 1; }
 .result-image { margin: 0; font-size: 72px; line-height: 1.1; }
 .result-image[hidden] { display: none; }
+
+/* Le Juste Chiffre : pavé numérique du pupitre */
+.choices.number { grid-template-columns: 1fr; gap: 10px; }
+.number-screen {
+  min-height: 72px; display: flex; align-items: center; justify-content: center; border-radius: 18px;
+  background: rgba(255, 255, 255, .12); border: 3px solid var(--team); font-size: 44px; font-weight: 900; letter-spacing: 2px;
+}
+.number-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.number-key {
+  min-height: 64px; border: 0; border-radius: 16px; background: rgba(255, 255, 255, .9); color: #1A0B2E;
+  font-size: 30px; font-weight: 900; cursor: pointer; touch-action: manipulation;
+}
+.number-key:active { transform: scale(.95); }
+.number-key:disabled, .number-send:disabled { opacity: .45; }

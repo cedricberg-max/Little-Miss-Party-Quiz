@@ -539,7 +539,7 @@ function review(id, quiz) {
     questions: (quiz.questions ?? []).filter(Boolean).map((q) => ({
       text: q.text ?? "", choices: [...(q.choices ?? [])], correct: q.correct ?? -1,
       duration: q.duration ?? null, double: q.double === true, status: q.status ?? "brouillon", marks: q.marks ?? 0,
-      image: q.image ?? "", imageId: q.imageId ?? null,
+      image: q.image ?? "", imageId: q.imageId ?? null, kind: q.kind === "number" ? "number" : null,
     })),
   };
   $("rv-title").value = quiz.title ?? "";
@@ -571,7 +571,23 @@ function renderReview() {
         h("label", { class: "check" }, h("input", { type: "checkbox", class: "q-valid", checked: q.status === "validee", onchange: (e) => { q.status = e.target.checked ? "validee" : "brouillon"; recheck(); } }), "Validée"),
         h("button", { type: "button", class: "icon", title: "Supprimer la question", text: "✕", onclick: () => { draft.questions.splice(i, 1); renderReview(); } })),
       h("textarea", { class: "q-text", rows: 2, value: q.text, oninput: (e) => { q.text = e.target.value.trim(); q.marks = 0; recheck(); } }),
-      h("div", { class: "choices" }, ...slots.map((c, k) => h("label", { class: "choice" },
+      h("label", { class: "check q-number-toggle" },
+        h("input", {
+          type: "checkbox", class: "q-is-number", checked: q.kind === "number",
+          onchange: (e) => {
+            q.kind = e.target.checked ? "number" : null;
+            q.correct = e.target.checked ? (Number.isInteger(Number(q.number)) && q.number !== "" ? Number(q.number) : NaN) : -1;
+            q.marks = 0;
+            renderReview();
+          },
+        }),
+        "Le Juste Chiffre : réponse en nombre (l'équipe la plus proche gagne)"),
+      q.kind === "number" ? h("label", { class: "inline q-number-row" }, "Nombre à trouver",
+        h("input", {
+          type: "number", step: 1, class: "q-number", value: Number.isInteger(q.correct) ? q.correct : "",
+          oninput: (e) => { q.number = e.target.value; q.correct = e.target.value === "" ? NaN : Number(e.target.value); recheck(); },
+        })) : null,
+      q.kind === "number" ? null : h("div", { class: "choices" }, ...slots.map((c, k) => h("label", { class: "choice" },
         h("input", { type: "radio", name: `correct-${i}`, checked: q.correct === k, onchange: () => { q.correct = k; q.marks = 0; syncChoices(q, slots); } }),
         h("span", { class: "letter", text: LETTERS[k] }),
         h("input", { class: "q-choice", value: c, placeholder: k < 2 ? "Proposition" : "Facultatif", oninput: (e) => { slots[k] = e.target.value; syncChoices(q, slots); } })))),
@@ -692,9 +708,9 @@ $("rv-add").onclick = () => {
 $("rv-save").onclick = async () => {
   const title = $("rv-title").value.trim();
   if (!title) return status("rv-status", "Donnez un titre au quiz.");
-  const questions = draft.questions.filter((q) => q.text || q.choices.length);
+  const questions = draft.questions.filter((q) => q.text || q.choices.length || q.kind === "number");
   if (!questions.length) return status("rv-status", "Le quiz ne contient aucune question.");
-  const empty = questions.findIndex((q) => !q.text || !q.choices.length);
+  const empty = questions.findIndex((q) => !q.text || (q.kind !== "number" && !q.choices.length));
   if (empty >= 0) return status("rv-status", `La question ${draft.questions.indexOf(questions[empty]) + 1} n'a pas de texte ou pas de proposition.`);
   const num = (v) => (v === "" ? null : Number(v));
   const id = draft.id ?? push(ref(db, "library/quizzes")).key;
@@ -706,7 +722,9 @@ $("rv-save").onclick = async () => {
       source: draft.quiz.source ?? "saisie",
       createdAt: draft.quiz.createdAt ?? Date.now(), updatedAt: serverTimestamp(),
       questions: questions.map((q) => ({
-        text: q.text.slice(0, 300), choices: q.choices, correct: q.correct, duration: q.duration, double: q.double, status: q.status,
+        text: q.text.slice(0, 300), choices: q.kind === "number" ? null : q.choices,
+        correct: q.kind === "number" ? (Number.isInteger(q.correct) ? q.correct : 0) : q.correct,
+        kind: q.kind === "number" ? "number" : null, duration: q.duration, double: q.double, status: q.status,
         image: cleanEmoji(q.image) || null, imageId: q.imageId || null,
       })),
     });

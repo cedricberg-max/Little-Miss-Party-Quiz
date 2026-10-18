@@ -728,3 +728,29 @@ describe("illustrations des questions", () => {
     await assertFails(get(ref(db("rose"), `games/${CODE}/images/${ID}`)));
   });
 });
+
+describe("Le Juste Chiffre", () => {
+  test("un nombre entier est accepté comme réponse, une seule fois ; jamais sur une question à propositions", async () => {
+    await seed({ kind: "number", choices: null });
+    await assertFails(answer("rose", 1.5));
+    await assertFails(answer("rose", 1e10));
+    await assertSucceeds(answer("rose", 206));
+    await assertFails(answer("rose", 207));
+    await assertSucceeds(answer("bleu", -3));
+  });
+  test("question à propositions : un nombre hors des propositions reste refusé", async () => {
+    await seed({ kind: "classic" });
+    await assertFails(answer("rose", 206));
+    await assertSucceeds(answer("rose", 3));
+  });
+  test("l'administration enregistre une question du Juste Chiffre sans propositions", async () => {
+    await seedAdmin(env, "sarah");
+    await assertSucceeds(set(ref(db("sarah"), "library/quizzes/j"), {
+      title: "Juste Chiffre", updatedAt: serverTimestamp(),
+      questions: [{ text: "Combien d'os ?", kind: "number", correct: 206, status: "validee" }],
+    }));
+    await assertFails(set(ref(db("sarah"), "library/quizzes/k"), {
+      title: "Cassé", updatedAt: serverTimestamp(), questions: [{ text: "Sans propositions", correct: 0, status: "validee" }],
+    }));
+  });
+});

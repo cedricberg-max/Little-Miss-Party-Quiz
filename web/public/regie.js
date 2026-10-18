@@ -206,7 +206,8 @@ function render() {
   answerBtn.hidden = !inQuestion || correct == null;
   if (correct != null) {
     const text = (st.choices ?? q?.choices ?? [])[correct] ?? "";
-    answerBtn.textContent = answerMasked ? "Réponse masquée · toucher pour voir" : `Réponse ${CHOICE_LETTERS[correct]} · ${text}`;
+    const number = (q?.kind ?? st.kind) === "number";
+    answerBtn.textContent = answerMasked ? "Réponse masquée · toucher pour voir" : number ? `Juste Chiffre · ${correct}` : `Réponse ${CHOICE_LETTERS[correct]} · ${text}`;
     answerBtn.classList.toggle("masked", answerMasked);
   }
   const answered = Object.keys(live.answers).filter((t) => live.teams[t]).length;
@@ -554,7 +555,8 @@ function renderTeams(st, teams) {
     if (!row) return;
     row.querySelector(".dot").classList.toggle("on", live.presence[id]?.online === true);
     row.querySelector(".swatch").style.background = t.color;
-    const answeredMark = live.answers[id] ? " · a répondu" : "";
+    // Juste Chiffre : l'animatrice voit le nombre de chaque équipe pour l'annoncer.
+    const answeredMark = live.answers[id] ? (st.kind === "number" ? ` · ${live.answers[id].choice}` : " · a répondu") : "";
     row.querySelector(".name").innerHTML = "";
     row.querySelector(".name").append(t.name ?? "Équipe");
     const small = document.createElement("small");
@@ -646,7 +648,7 @@ function planItem(q, i, current) {
   const title = document.createElement("div");
   title.textContent = `${i + 1}. ${q.text}${q.double ? " (×2)" : ""}`;
   const answer = document.createElement("b");
-  answer.textContent = `${CHOICE_LETTERS[q.correct] ?? "?"} · ${q.choices?.[q.correct] ?? ""}`;
+  answer.textContent = q.kind === "number" ? `Juste Chiffre · ${q.correct}` : `${CHOICE_LETTERS[q.correct] ?? "?"} · ${q.choices?.[q.correct] ?? ""}`;
   item.append(title, answer);
   return item;
 }
@@ -795,7 +797,7 @@ function renderPreview() {
   (mime ? [] : questions).slice(0, 5).forEach((q) => {
     const li = document.createElement("li");
     const answer = document.createElement("b");
-    answer.textContent = ` → ${q.choices[q.correct]}`;
+    answer.textContent = ` → ${q.kind === "number" ? q.correct : q.choices?.[q.correct] ?? ""}`;
     li.append(q.text, answer);
     list.appendChild(li);
   });
@@ -814,13 +816,19 @@ function renderPreview() {
  * La box à jour l'annonce dans son conducteur (`mimes: true`).
  */
 const OLD_TV = "La TV doit être mise à jour pour jouer aux mimes : sur la TV, menu Retour → « Rechercher une mise à jour ».";
-function tvRefusesMimes(questions) {
-  return !!live.plan && live.plan.mimes !== true && questions.some((q) => q?.kind === "mime");
+const OLD_TV_NUMBER = "La TV doit être mise à jour pour jouer au Juste Chiffre : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+/** Jeu que la TV allumée ne sait pas encore jouer (ancienne version) : le message à montrer, sinon null. */
+function tvRefuses(questions) {
+  if (!live.plan) return null;
+  if (live.plan.mimes !== true && questions.some((q) => q?.kind === "mime")) return OLD_TV;
+  if (live.plan.numbers !== true && questions.some((q) => q?.kind === "number")) return OLD_TV_NUMBER;
+  return null;
 }
 
 function addPicked(where) {
   if (!picked || editing) return;
-  if (tvRefusesMimes(picked.questions)) { toast(OLD_TV); return; }
+  const refused = tvRefuses(picked.questions);
+  if (refused) { toast(refused); return; }
   const st = live.state ?? { phase: "lobby" };
   const current = live.plan?.questions ?? [];
   const title = uniqueRoundTitle(current, picked.questions[0]?.round ?? picked.game.label);
@@ -979,7 +987,8 @@ async function copyImages(questions) {
 
 async function loadShow(id, snapshot) {
   if (loadingShow) return;
-  if (tvRefusesMimes(snapshot.quiz?.questions ?? [])) { toast(OLD_TV); return; }
+  const refused = tvRefuses(snapshot.quiz?.questions ?? []);
+  if (refused) { toast(refused); return; }
   loadingShow = id;
   render();
   const showId = push(ref(db, `games/${code}/show`)).key;

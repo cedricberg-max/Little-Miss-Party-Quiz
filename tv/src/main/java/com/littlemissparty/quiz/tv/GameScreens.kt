@@ -105,7 +105,8 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                         Illustration(q, state, Modifier.fillMaxHeight().aspectRatio(if (photo) 4f / 3f else 1f, matchHeightConstraintsFirst = true))
                         Spacer(Modifier.width(20.dp))
                     }
-                    ChoiceGrid(q.choices, correct = if (revealed) q.correct else null, Modifier.weight(1f).fillMaxHeight())
+                    if (q.isNumber) NumberBoard(state, revealed, Modifier.weight(1f).fillMaxHeight())
+                    else ChoiceGrid(q.choices, correct = if (revealed) q.correct else null, Modifier.weight(1f).fillMaxHeight())
                 }
             }
             Spacer(Modifier.height(16.dp))
@@ -120,6 +121,7 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                             answered = team.uid in state.answered,
                             points = if (revealed) state.awards[team.uid]?.points ?: 0 else null,
                             choice = if (revealed) state.awards[team.uid]?.choice else null,
+                            isNumber = q.isNumber,
                         )
                     }
                 }
@@ -180,7 +182,7 @@ private fun ChoiceCard(i: Int, text: String, correct: Int?, modifier: Modifier) 
 
 /** Pastille d'équipe sous la question : a répondu (sans dire quoi), puis points gagnés à la révélation. */
 @Composable
-private fun TeamStatus(rangGagnant: Int, team: Team, online: Boolean, answered: Boolean, points: Int?, choice: Int?) {
+private fun TeamStatus(rangGagnant: Int, team: Team, online: Boolean, answered: Boolean, points: Int?, choice: Int?, isNumber: Boolean = false) {
     val color = team.color.toColor()
     // Les points tombent comme des tampons, une équipe gagnante après l'autre, juste après la bonne réponse.
     val delai = if (rangGagnant >= 0) Tempo.tampon(rangGagnant) else Tempo.REVELATION_OR
@@ -199,7 +201,7 @@ private fun TeamStatus(rangGagnant: Int, team: Team, online: Boolean, answered: 
         Text(
             when {
                 revealedPoints != null -> (if (revealedPoints > 0) "+$revealedPoints" else "0") +
-                    (choice?.let { " · ${Palette.ChoiceLetters.getOrElse(it) { "?" }}" } ?: " · –")
+                    (choice?.let { " · ${if (isNumber) "$it" else Palette.ChoiceLetters.getOrElse(it) { "?" }}" } ?: " · –")
                 !online -> "hors ligne"
                 answered -> "a répondu ✓"
                 else -> "…"

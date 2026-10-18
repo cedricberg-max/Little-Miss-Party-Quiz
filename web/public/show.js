@@ -14,7 +14,9 @@ export function showTitle(show) {
 
 /** Questions jouables d'un quiz : celles que Sarah a validées et sans anomalie bloquante. */
 export function playable(quiz) {
-  return (quiz?.questions ?? []).filter((q) => q && q.status === "validee" && q.correct >= 0 && q.correct < (q.choices?.length ?? 0));
+  return (quiz?.questions ?? []).filter((q) => q && q.status === "validee" && (q.kind === "number"
+    ? Number.isInteger(q.correct)
+    : q.correct >= 0 && q.correct < (q.choices?.length ?? 0)));
 }
 
 /** Une manche est-elle complète (quiz choisi, ou paquet de mimes choisi) ? */
@@ -64,14 +66,15 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     if (!list.length) { problems.push(`Manche ${i + 1} (${quiz.title}) : aucune question validée.`); return; }
     rounds.push({ title: label, count: list.length });
     list.forEach((q, j) => {
-      const yesNo = q.choices.length === 2 && q.choices.map((c) => c.toLowerCase()).join("/") === "vrai/faux";
+      const number = q.kind === "number";
+      const yesNo = !number && q.choices.length === 2 && q.choices.map((c) => c.toLowerCase()).join("/") === "vrai/faux";
       questions.push({
         id: `r${i + 1}q${j + 1}`,
         text: q.text,
-        choices: q.choices,
+        ...(number ? {} : { choices: q.choices }),
         correct: q.correct,
         duration: q.duration ?? defaultDuration(profile),
-        kind: yesNo ? "true_false" : "classic",
+        kind: number ? "number" : yesNo ? "true_false" : "classic",
         double: round.type === "finale" || q.double === true,
         round: label,
         // Illustration facultative montrée à la révélation (émoji, ou photo copiée dans la partie par la régie).

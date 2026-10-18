@@ -361,8 +361,10 @@ function renderQuestion(st) {
   show("question");
   $("q-number").textContent = `Question ${(st.index ?? 0) + 1} / ${st.total ?? "?"}`;
   $("q-double").hidden = !st.double;
+  if (st.kind === "number") return renderNumber(st);
   const choices = st.choices ?? [];
   const box = $("choices");
+  box.classList.remove("number");
   const key = `${st.qid}:${choices.length}`;
   if (box.dataset.key !== key) {
     box.dataset.key = key;
@@ -387,6 +389,61 @@ function renderQuestion(st) {
   if (mine != null) $("q-status").textContent = `Réponse ${CHOICE_LETTERS[mine]} envoyée ! Attendez la révélation…`;
   else if (st.phase === "closed") $("q-status").textContent = "Temps écoulé !";
   else $("q-status").textContent = "Choisissez votre réponse !";
+  runTimer(st);
+}
+
+/** Le Juste Chiffre : un pavé de chiffres, un nombre envoyé une seule fois, comme une réponse. */
+let numberDraft = "";
+const NUMBER_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "−", "0", "⌫"];
+function renderNumber(st) {
+  const box = $("choices");
+  const key = `${st.qid}:number`;
+  if (box.dataset.key !== key) {
+    box.dataset.key = key;
+    numberDraft = "";
+    box.innerHTML = "";
+    box.classList.remove("two");
+    box.classList.add("number");
+    const screen = document.createElement("div");
+    screen.className = "number-screen";
+    screen.id = "number-screen";
+    box.appendChild(screen);
+    const pad = document.createElement("div");
+    pad.className = "number-pad";
+    NUMBER_KEYS.forEach((k) => {
+      const b = document.createElement("button");
+      b.className = "number-key";
+      b.textContent = k;
+      b.dataset.key = k;
+      b.onclick = () => {
+        if (k === "⌫") numberDraft = numberDraft.slice(0, -1);
+        else if (k === "−") numberDraft = numberDraft.startsWith("-") ? numberDraft.slice(1) : `-${numberDraft}`;
+        else if (numberDraft.replace("-", "").length < 9) numberDraft = numberDraft === "0" ? k : numberDraft === "-0" ? `-${k}` : numberDraft + k;
+        beep(1200, 40);
+        render();
+      };
+      pad.appendChild(b);
+    });
+    box.appendChild(pad);
+    const send = document.createElement("button");
+    send.className = "btn big number-send";
+    send.id = "number-send";
+    send.textContent = "Valider";
+    send.onclick = () => {
+      const n = Number(numberDraft);
+      if (numberDraft === "" || numberDraft === "-" || !Number.isInteger(n)) return;
+      answer(n);
+    };
+    box.appendChild(send);
+  }
+  const mine = game.myAnswer?.choice ?? pending?.choice;
+  const locked = mine != null || st.phase !== "question" || st.paused || counting(st);
+  $("number-screen").textContent = mine != null ? `${mine}` : numberDraft || "…";
+  box.querySelectorAll("button").forEach((b) => { b.disabled = locked; });
+  $("number-send").disabled = locked || numberDraft === "" || numberDraft === "-";
+  if (mine != null) $("q-status").textContent = `Nombre ${mine} envoyé ! Attendez la révélation…`;
+  else if (st.phase === "closed") $("q-status").textContent = "Temps écoulé !";
+  else $("q-status").textContent = "Tapez votre nombre, puis « Valider » !";
   runTimer(st);
 }
 
@@ -484,8 +541,14 @@ function renderResult(st) {
   const ok = award?.correct === true;
   $("r-icon").textContent = ok ? "✓" : answered ? "✗" : "…";
   $("r-icon").className = `result-icon ${ok ? "ok" : "ko"}`;
-  $("r-title").textContent = ok ? `Bravo ! +${award.points} points` : answered ? "Raté pour cette fois !" : "Pas de réponse";
-  const correct = st.correct != null ? `${CHOICE_LETTERS[st.correct]} : ${st.choices?.[st.correct] ?? ""}` : "";
+  const number = st.kind === "number";
+  if (number) {
+    const exact = ok && game.myAnswer?.choice === st.correct;
+    $("r-title").textContent = exact ? `Pile le bon nombre ! +${award.points} points` : ok ? `Le plus proche ! +${award.points} points` : answered ? "Raté pour cette fois !" : "Pas de réponse";
+  } else {
+    $("r-title").textContent = ok ? `Bravo ! +${award.points} points` : answered ? "Raté pour cette fois !" : "Pas de réponse";
+  }
+  const correct = st.correct == null ? "" : number ? `${st.correct}${game.myAnswer ? ` (vous : ${game.myAnswer.choice})` : ""}` : `${CHOICE_LETTERS[st.correct]} : ${st.choices?.[st.correct] ?? ""}`;
   $("r-detail").textContent = (ok && award.bonus > 0 ? `dont ${award.bonus} de bonus rapidité. ` : "") + (correct ? `Bonne réponse : ${correct}` : "");
   $("r-image").textContent = st.image ?? "";
   $("r-image").hidden = !st.image;
