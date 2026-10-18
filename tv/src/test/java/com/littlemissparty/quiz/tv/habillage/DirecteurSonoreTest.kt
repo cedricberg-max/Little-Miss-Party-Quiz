@@ -95,11 +95,13 @@ class DirecteurSonoreTest {
     }
 
     @Test
-    fun `la pause coupe tout, reste muette, puis la reprise compte 3 2 1`() {
+    fun `la pause coupe tout, carillon puis musique d'intermede, et la reprise compte 3 2 1`() {
         val d = DirecteurSonore()
         d.observer(q2.copy(urgent = true))
         val pause = d.observer(q2.copy(enPause = true))
-        assertEquals(listOf(Ordre.Couper, Ordre.Musique(Ambiance.INTERMEDE)), pause)
+        assertEquals(Ordre.Couper, pause.first())
+        assertEquals(listOf(Son.PAUSE), pause.sons())
+        assertEquals(Ordre.Musique(Ambiance.INTERMEDE, Tempo.PAUSE_MUSIQUE), pause.last())
         // Une réponse ou une équipe pendant la pause ne fait aucun bruit.
         assertTrue(d.observer(q2.copy(enPause = true, reponses = 1, equipes = 3)).isEmpty())
         val reprise = d.observer(q2.copy(reponses = 1, equipes = 3, repriseDansMs = 3_000))
@@ -107,7 +109,14 @@ class DirecteurSonoreTest {
         assertEquals(listOf(0L, 1_000L, 2_000L), pops.map { it.dansMs })
         assertTrue(Ordre.Jouer(Son.WHOOSH, 3_000) in reprise)
         assertEquals(Ordre.Musique(Ambiance.QUESTION, 3_000), reprise.last())
-        assertFalse(Ordre.Couper in reprise)
+        // Un seul Couper, en tête : il fait taire le carillon et annule la musique d'intermède encore prévue.
+        assertEquals(Ordre.Couper, reprise.first())
+        assertEquals(1, reprise.count { it == Ordre.Couper })
+    }
+
+    @Test
+    fun `une box qui se reconnecte pendant la pause remet la musique d'intermede, sans carillon`() {
+        assertEquals(listOf(Ordre.Musique(Ambiance.INTERMEDE)), DirecteurSonore().observer(q2.copy(enPause = true)))
     }
 
     @Test
@@ -164,10 +173,10 @@ class DirecteurSonoreTest {
         val d = DirecteurSonore()
         val salon = Instant(Ecran.SALON, partie = "ABCD", equipes = 2)
         d.observer(salon)
-        assertEquals(listOf(Son.EQUIPE_2, Son.pop(1)), d.observer(salon.copy(buzzeur = 1, buzzs = 1)).sons())
+        assertEquals(listOf(Son.RIGOLO_2), d.observer(salon.copy(buzzeur = 1, buzzs = 1)).sons())
         assertTrue(d.observer(salon.copy(buzzeur = 1, buzzs = 1)).isEmpty())
-        assertEquals(listOf(Son.EQUIPE_1, Son.pop(2)), d.observer(salon.copy(buzzeur = 0, buzzs = 2)).sons())
-        assertEquals(listOf(Son.EQUIPE_1, Son.pop(3)), d.observer(salon.copy(buzzeur = 0, buzzs = 3)).sons())
+        assertEquals(listOf(Son.RIGOLO_1), d.observer(salon.copy(buzzeur = 0, buzzs = 2)).sons())
+        assertEquals(listOf(Son.RIGOLO_1), d.observer(salon.copy(buzzeur = 0, buzzs = 3)).sons())
     }
 
     private val mimes = Instant(Ecran.MIMES, partie = "ABCD", index = 3, equipes = 2)
@@ -179,7 +188,7 @@ class DirecteurSonoreTest {
         d.observer(q2)
         val ouverture = d.observer(mimes)
         assertEquals(listOf(Son.MANCHE, Son.IMPACT), ouverture.sons())
-        assertEquals(Ambiance.SALON, ouverture.musique())
+        assertEquals(Ambiance.MIMES_ENTRE, ouverture.musique())
         val top = d.observer(tour)
         assertEquals(listOf(Son.MIME_TOP), top.sons())
         assertEquals(Ordre.Musique(Ambiance.MIMES, Tempo.MIME_TOP_IMPACT), top.filterIsInstance<Ordre.Musique>().last())
@@ -210,17 +219,172 @@ class DirecteurSonoreTest {
         d.observer(tour)
         val rate = d.observer(mimes)
         assertEquals(listOf(Son.MIME_FIN), rate.sons())
-        assertEquals(Ambiance.SALON, rate.musique())
+        assertEquals(Ambiance.MIMES_ENTRE, rate.musique())
     }
 
     @Test
     fun `pause pendant un tour de mimes puis reprise sur la musique du tour`() {
         val d = DirecteurSonore()
         d.observer(tour.copy(trouves = 1))
-        assertTrue(d.observer(tour.copy(trouves = 1, enPause = true)).sons().isEmpty())
+        assertEquals(listOf(Son.PAUSE), d.observer(tour.copy(trouves = 1, enPause = true)).sons())
         val reprise = d.observer(tour.copy(trouves = 1, repriseDansMs = 3_000))
         assertFalse(Son.MIME_TROUVE in reprise.sons())
         assertEquals(Ordre.Musique(Ambiance.MIMES, 3_000), reprise.filterIsInstance<Ordre.Musique>().last())
+    }
+
+    private val quizM1 = q1.copy(epreuve = "quiz|Manche 1")
+    private val mimesM = mimes.copy(epreuve = "mimes|Les mimes")
+
+    @Test
+    fun `passage du quiz aux mimes annonce par le jingle de transition, une seule fois`() {
+        val d = DirecteurSonore()
+        d.observer(salon)
+        // La première question du premier jeu garde son annonce habituelle.
+        assertEquals(listOf(Son.MANCHE, Son.IMPACT), d.observer(quizM1).sons().take(2))
+        d.observer(quizM1.copy(index = 1, premiere = false))
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 1, equipes = 2))
+        val arrivee = d.observer(mimesM.copy(index = 2))
+        assertEquals(listOf(Son.TRANSITION), arrivee.sons())
+        assertFalse(Son.MANCHE in arrivee.sons())
+        assertEquals(Ordre.Musique(Ambiance.MIMES_ENTRE, Tempo.TRANSITION_MUSIQUE), arrivee.last())
+        // Les tours de mimes qui suivent sont dans la même épreuve : pas de nouvelle transition.
+        assertEquals(listOf(Son.MIME_TOP), d.observer(tour.copy(index = 2, epreuve = mimesM.epreuve)).sons())
+        assertFalse(Son.TRANSITION in d.observer(mimesM.copy(index = 2)).sons())
+    }
+
+    @Test
+    fun `nouvelle manche de quiz annoncee par la transition, puis musique de question`() {
+        val d = DirecteurSonore()
+        d.observer(quizM1.copy(index = 4, premiere = false))
+        val m2 = d.observer(quizM1.copy(index = 5, premiere = false, epreuve = "quiz|Manche 2"))
+        assertEquals(Son.TRANSITION, m2.sons().first())
+        assertEquals(Ambiance.QUESTION, m2.musique())
+        assertFalse(Son.TRANSITION in d.observer(quizM1.copy(index = 6, premiere = false, epreuve = "quiz|Manche 2")).sons())
+    }
+
+    @Test
+    fun `une box qui se reconnecte en plein jeu ne rejoue pas la transition`() {
+        val d = DirecteurSonore()
+        assertTrue(d.observer(mimesM).sons().isEmpty())
+        assertFalse(Son.TRANSITION in d.observer(tour.copy(epreuve = mimesM.epreuve)).sons())
+    }
+
+    @Test
+    fun `jeu change pendant la pause, la transition part apres le decompte`() {
+        val d = DirecteurSonore()
+        d.observer(quizM1.copy(index = 1, premiere = false))
+        d.observer(quizM1.copy(index = 1, premiere = false, enPause = true))
+        assertTrue(d.observer(mimesM.copy(index = 2, enPause = true)).isEmpty())
+        val reprise = d.observer(mimesM.copy(index = 2, repriseDansMs = 3_000))
+        assertTrue(Ordre.Jouer(Son.TRANSITION, 3_000) in reprise)
+        assertFalse(Son.MANCHE in reprise.sons())
+    }
+
+    @Test
+    fun `juste chiffre, roulette qui se pose sur l'or, fanfare seulement si une equipe tombe pile`() {
+        val d = DirecteurSonore()
+        val question = Instant(Ecran.QUESTION, partie = "ABCD", index = 4, equipes = 2, nombre = true, propositions = 0)
+        d.observer(question)
+        val proche = d.observer(question.copy(ecran = Ecran.REVELATION, gagnants = 1))
+        assertEquals(Son.CHIFFRE_ROULETTE, proche.sons().first())
+        assertFalse(Son.ROULEMENT_COURT in proche.sons())
+        assertTrue(Ordre.Jouer(Son.BONNE_REPONSE, Tempo.REVELATION_OR) in proche)
+        assertFalse(Son.CHIFFRE_PILE in proche.sons())
+        d.observer(question.copy(index = 5))
+        val pile = d.observer(question.copy(index = 5, ecran = Ecran.REVELATION, gagnants = 1, pile = true))
+        assertTrue(Ordre.Jouer(Son.CHIFFRE_PILE, Tempo.REVELATION_OR) in pile)
+        assertFalse(Son.BONNE_REPONSE in pile.sons())
+    }
+
+    @Test
+    fun `vrai ou faux express, musique continue, verdict ding ou pouet, ni roulement ni tension`() {
+        val d = DirecteurSonore()
+        val question = Instant(Ecran.QUESTION, partie = "ABCD", index = 6, equipes = 2, propositions = 2, express = true, reponseVraie = true)
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 5, equipes = 2))
+        val entree = d.observer(question)
+        assertEquals(Ambiance.EXPRESS, entree.musique())
+        assertFalse(Son.TENSION in d.observer(question.copy(urgent = true)).sons())
+        val verrou = d.observer(question.copy(ecran = Ecran.VERROUILLEE))
+        assertEquals(null, verrou.musique())
+        val vrai = d.observer(question.copy(ecran = Ecran.REVELATION, gagnants = 1))
+        assertTrue(Ordre.Jouer(Son.VF_VRAI, Tempo.revelationOr(express = true)) in vrai)
+        assertFalse(Son.ROULEMENT_COURT in vrai.sons() || Son.BONNE_REPONSE in vrai.sons())
+        assertEquals(null, vrai.musique())
+        assertTrue(vrai.filterIsInstance<Ordre.Jouer>().all { it.dansMs <= Tempo.EXPRESS_POINTS })
+        // Question suivante : la musique express continue, pas de nouvelle entrée de musique.
+        d.observer(question.copy(index = 7, reponseVraie = false))
+        val faux = d.observer(question.copy(index = 7, reponseVraie = false, ecran = Ecran.REVELATION))
+        assertTrue(Son.VF_FAUX in faux.sons())
+        assertFalse(Son.VF_VRAI in faux.sons())
+    }
+
+    @Test
+    fun `zoom mystere, ouverture a l'entree et revelation dediee`() {
+        val d = DirecteurSonore()
+        val question = Instant(Ecran.QUESTION, partie = "ABCD", index = 8, equipes = 2, propositions = 4, zoom = true)
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 7, equipes = 2))
+        assertTrue(Son.ZOOM_OUVERTURE in d.observer(question).sons())
+        val revele = d.observer(question.copy(ecran = Ecran.REVELATION, gagnants = 1))
+        assertTrue(Son.ZOOM_REVELE in revele.sons())
+        assertFalse(Son.ROULEMENT_COURT in revele.sons())
+    }
+
+    @Test
+    fun `image floue, montee puis buzz qui fige tout, rate gentil, revelation`() {
+        val d = DirecteurSonore()
+        val image = Instant(Ecran.QUESTION, partie = "ABCD", index = 9, equipes = 3, propositions = 0, jeuBuzz = true, flou = true)
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 8, equipes = 3))
+        val entree = d.observer(image)
+        assertTrue(Son.FLOU_MONTEE in entree.sons())
+        assertEquals(Ambiance.SUSPENSE, entree.musique())
+        // L'équipe 2 buzze : gros buzz, sa note, suspense, plus de musique.
+        val buzz = d.observer(image.copy(buzzEquipe = 1))
+        assertEquals(listOf(Son.BUZZ_GROS, Son.EQUIPE_2, Son.SUSPENSE_REPONSE), buzz.sons())
+        assertTrue(Ordre.Arreter(Son.FLOU_MONTEE) in buzz)
+        assertEquals(Ambiance.SILENCE, buzz.musique())
+        // Le même état observé deux fois ne rejoue rien.
+        assertTrue(d.observer(image.copy(buzzEquipe = 1)).isEmpty())
+        // Raté : « pouet » gentil et la musique revient.
+        val rate = d.observer(image.copy(ratees = 1))
+        assertTrue(Ordre.Arreter(Son.SUSPENSE_REPONSE) in rate)
+        assertEquals(listOf(Son.VF_FAUX), rate.sons())
+        assertEquals(Ambiance.SUSPENSE, rate.musique())
+        assertFalse(Son.TENSION in d.observer(image.copy(ratees = 1, urgent = true)).sons())
+        // Une autre équipe buzze et trouve : révélation de la photo, sans roulement.
+        d.observer(image.copy(ratees = 1, urgent = true, buzzEquipe = 0))
+        val revele = d.observer(image.copy(ecran = Ecran.REVELATION, ratees = 1, gagnants = 1))
+        assertEquals(Ordre.Couper, revele.first())
+        assertTrue(Son.ZOOM_REVELE in revele.sons())
+        assertFalse(Son.ROULEMENT_COURT in revele.sons())
+    }
+
+    @Test
+    fun `chante le mot, pas de suspense pendant que l'equipe chante, applaudie si elle gagne`() {
+        val d = DirecteurSonore()
+        val mot = Instant(Ecran.QUESTION, partie = "ABCD", index = 10, equipes = 2, propositions = 1, jeuBuzz = true, chante = true)
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 9, equipes = 2))
+        assertFalse(Son.FLOU_MONTEE in d.observer(mot).sons())
+        val buzz = d.observer(mot.copy(buzzEquipe = 0))
+        assertEquals(listOf(Son.BUZZ_GROS, Son.EQUIPE_1), buzz.sons())
+        assertEquals(Ambiance.SILENCE, buzz.musique())
+        val bravo = d.observer(mot.copy(ecran = Ecran.REVELATION, gagnants = 1))
+        assertTrue(Ordre.Jouer(Son.APPLAUDISSEMENTS, Tempo.BUZZ_BRAVO) in bravo)
+        assertFalse(Son.ROULEMENT_COURT in bravo.sons())
+        val d2 = DirecteurSonore()
+        d2.observer(mot)
+        assertFalse(Son.APPLAUDISSEMENTS in d2.observer(mot.copy(ecran = Ecran.REVELATION)).sons())
+    }
+
+    @Test
+    fun `qui suis-je, une note par nouvel indice, pas pendant qu'une equipe repond`() {
+        val d = DirecteurSonore()
+        val qui = Instant(Ecran.QUESTION, partie = "ABCD", index = 11, equipes = 2, propositions = 1, jeuBuzz = true, indices = 1)
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 10, equipes = 2))
+        assertFalse(Son.INDICE in d.observer(qui).sons())
+        assertEquals(listOf(Son.INDICE), d.observer(qui.copy(indices = 2)).sons())
+        assertTrue(d.observer(qui.copy(indices = 2)).isEmpty())
+        d.observer(qui.copy(indices = 2, buzzEquipe = 1))
+        assertFalse(Son.INDICE in d.observer(qui.copy(indices = 3, buzzEquipe = 1)).sons())
     }
 
     @Test
@@ -231,7 +395,7 @@ class DirecteurSonoreTest {
     @Test
     fun `chaque son existe dans les ressources de l'appli`() {
         // Les tests JVM d'Android tournent depuis le dossier du module tv/.
-        val manquants = (Son.entries.map { it.fichier } + Ambiance.LIT_COMPLET + Ambiance.LIT_LEGER).filterNot { java.io.File("src/main/res/raw/$it.ogg").isFile }
+        val manquants = (Son.entries.map { it.fichier } + Lit.entries.map { it.fichier }).filterNot { java.io.File("src/main/res/raw/$it.ogg").isFile }
         assertTrue("Sons manquants : $manquants", manquants.isEmpty())
     }
 }

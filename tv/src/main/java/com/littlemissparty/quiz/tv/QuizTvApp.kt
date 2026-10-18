@@ -66,6 +66,7 @@ import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Release
 import com.littlemissparty.quiz.tv.habillage.BalayageDore
 import com.littlemissparty.quiz.tv.habillage.GeneriqueSalon
+import com.littlemissparty.quiz.tv.habillage.HabillageEcran
 import com.littlemissparty.quiz.tv.habillage.HabillageTv
 import com.littlemissparty.quiz.tv.habillage.Neon
 
@@ -191,6 +192,7 @@ private fun Playing(state: UiState.Playing, actions: TvActions) {
             Phase.ENDED -> "fin"
         },
     )
+    HabillageEcran(state)
     PauseLayer(state, actions.unpause)
 }
 

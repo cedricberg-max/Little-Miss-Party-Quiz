@@ -10,6 +10,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -27,6 +28,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.littlemissparty.quiz.engine.Phase
+import com.littlemissparty.quiz.engine.Question
+import com.littlemissparty.quiz.engine.QuestionKind
 import com.littlemissparty.quiz.tv.UiState
 import kotlin.math.cos
 import kotlin.math.exp
@@ -50,6 +53,10 @@ object Neon {
 object Habillage {
     val directeur = DirecteurSonore()
     val generiquesVus = mutableSetOf<String>()
+    /** Dernier jeu montré par partie : le rideau de transition ne passe qu'au changement de jeu. */
+    val epreuvesVues = mutableMapOf<String, String>()
+    /** Tours de mimes déjà présentés par le bandeau d'équipe. */
+    val equipesAnnoncees = mutableSetOf<String>()
 }
 
 /**
@@ -73,12 +80,13 @@ fun HabillageTv(state: UiState) {
         onDispose { cycle.removeObserver(observateur) }
     }
     val urgent = chronoUrgent(state as? UiState.Playing)
-    val instant = remember(state, urgent) { instantDe(state, urgent, System.currentTimeMillis()) }
+    val indices = indicesQuiSuis(state as? UiState.Playing)
+    val instant = remember(state, urgent, indices) { instantDe(state, urgent, System.currentTimeMillis(), indices) }
     LaunchedEffect(instant) { Sons.executer(Habillage.directeur.observer(instant)) }
     DecorPlateau(chaud = urgent)
 }
 
-internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long): Instant {
+internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indices: Int = 0): Instant {
     val s = state as? UiState.Playing ?: return Instant(Ecran.HORS_PARTIE)
     val ecran = when (s.phase) {
         Phase.LOBBY -> Ecran.SALON
@@ -110,7 +118,53 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long): Insta
         meneurAPoints = (s.ranking.firstOrNull()?.second ?: 0) > 0,
         trouves = s.mime?.takeIf { it.team != null }?.found ?: 0,
         passes = s.mime?.takeIf { it.team != null }?.passed ?: 0,
+        express = s.question?.isExpress == true,
+        reponseVraie = s.question?.let { q -> q.choices.getOrNull(q.correct)?.trim()?.startsWith("vrai", ignoreCase = true) } == true,
+        zoom = s.question?.isZoom == true,
+        jeuBuzz = s.question?.isBuzz == true,
+        flou = s.question?.isFlou == true,
+        chante = s.question?.isChante == true,
+        buzzEquipe = s.teams.indexOfFirst { it.uid == s.buzzTeam },
+        ratees = s.buzzBlocked.size,
+        indices = indices,
+        nombre = s.question?.isNumber == true,
+        pile = s.phase == Phase.REVEAL && s.question?.isNumber == true && s.awards.values.any { it.choice == s.question?.correct },
+        epreuve = s.question?.takeIf { s.phase == Phase.QUESTION || s.phase == Phase.CLOSED || s.phase == Phase.REVEAL }?.let(::epreuveDe) ?: "",
     )
+}
+
+/** Le jeu auquel appartient une question : les mimes, ou une manche de quiz (toutes ses questions ensemble). */
+internal fun epreuveDe(q: Question) = when (q.kind) {
+    QuestionKind.MIME -> "mimes"
+    QuestionKind.NUMBER -> "chiffre"
+    QuestionKind.EXPRESS -> "express"
+    QuestionKind.ZOOM -> "zoom"
+    QuestionKind.FLOU -> "flou"
+    QuestionKind.CHANTE -> "chante"
+    QuestionKind.QUISUIS -> "quisuis"
+    else -> "quiz"
+} + "|" + (q.roundTitle ?: "")
+
+/** Qui suis-je ? : nombre d'indices affichés, calculé comme le plateau (chrono à l'heure du serveur). */
+@Composable
+private fun indicesQuiSuis(s: UiState.Playing?): Int {
+    var n by remember { mutableIntStateOf(0) }
+    val q = s?.question?.takeIf { it.isQuiSuis }
+    // Chrono arrêté (pause, buzz en attente du verdict) : on ne compte plus, le nombre d'indices reste.
+    val deadline = if (s != null && q != null && s.phase == Phase.QUESTION && !s.paused) s.deadline else null
+    val depart = s?.resumeAt ?: 0L
+    val decalage = s?.serverOffset ?: 0L
+    LaunchedEffect(q?.id, deadline, depart) {
+        if (q == null) n = 0
+        if (q == null || deadline == null) return@LaunchedEffect
+        while (true) {
+            val reste = (deadline - maxOf(System.currentTimeMillis() + decalage, depart)).coerceAtLeast(0)
+            n = q.cluesShown(q.durationMs - reste)
+            if (reste == 0L) break
+            delay(200)
+        }
+    }
+    return n
 }
 
 /**

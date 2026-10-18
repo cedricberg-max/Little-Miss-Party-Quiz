@@ -20,7 +20,7 @@ object Sons {
     private const val FONDU_MS = 700L
     private const val COUPE_MS = 300L
     private const val PAS_MS = 40L
-    /** Durée exacte des deux boucles musicales (8 mesures à 120 BPM). */
+    /** Durée exacte des boucles musicales (8 mesures à 120 BPM). */
     private const val BOUCLE_MS = 16_000L
 
     private val fil = HandlerThread("habillage-son").apply { start() }
@@ -34,10 +34,8 @@ object Sons {
     private val longs = mutableMapOf<Son, MediaPlayer>()
     /** Numéro du dernier lancement de chaque son long : un fondu de sortie ne coupe jamais un son relancé entre-temps. */
     private val lancements = mutableMapOf<Son, Int>()
-    private var litComplet: MediaPlayer? = null
-    private var litLeger: MediaPlayer? = null
-    private var volComplet = 0f
-    private var volLeger = 0f
+    private val lits = mutableMapOf<Lit, MediaPlayer>()
+    private val volumes = Lit.entries.associateWith { 0f }.toMutableMap()
     private var ambiance = Ambiance.SILENCE
     private var pret = false
     private var enArriere = false
@@ -66,8 +64,7 @@ object Sons {
             }
             Son.entries.filter { it.long }.forEach { s -> essayer(s.name) { lecteur(app, s.fichier, boucle = false)?.let { longs[s] = it } } }
             essayer("lits") {
-                litComplet = lecteur(app, Ambiance.LIT_COMPLET, boucle = true)
-                litLeger = lecteur(app, Ambiance.LIT_LEGER, boucle = true)
+                Lit.entries.forEach { l -> essayer(l.name) { lecteur(app, l.fichier, boucle = true)?.let { lits[l] = it } } }
                 departDesLits = SystemClock.elapsedRealtime()
                 demarrerLits()
             }
@@ -93,7 +90,7 @@ object Sons {
         h.post {
             enArriere = true
             couper()
-            essayer("suspendre") { litComplet?.pause(); litLeger?.pause(); pool?.autoPause() }
+            essayer("suspendre") { lits.values.forEach { if (it.isPlaying) it.pause() }; pool?.autoPause() }
         }
     }
 
@@ -150,26 +147,25 @@ object Sons {
         }
     }
 
-    /** Fondu enchaîné entre la boucle complète et la boucle légère, qui tournent toujours ensemble. */
+    /** Fondu enchaîné d'une ambiance à l'autre : chaque boucle glisse vers son volume, celles qui se taisent s'arrêtent. */
     private fun versAmbiance(a: Ambiance) {
         ambiance = a
-        if (a.complete > 0f) reveiller(litComplet)
-        if (a.legere > 0f) reveiller(litLeger)
-        val deC = volComplet
-        val deL = volLeger
+        Lit.entries.forEach { if (a.volume(it) > 0f) reveiller(lits[it]) }
+        val depart = volumes.toMap()
         val etapes = (FONDU_MS / PAS_MS).toInt()
         for (k in 1..etapes) {
             h.postAtTime({
                 if (ambiance != a) return@postAtTime
                 val t = k.toFloat() / etapes
-                volComplet = deC + (a.complete - deC) * t
-                volLeger = deL + (a.legere - deL) * t
-                essayer("fondu") {
-                    litComplet?.setVolume(volComplet, volComplet)
-                    litLeger?.setVolume(volLeger, volLeger)
-                    if (k == etapes) {
-                        if (a.complete == 0f) litComplet?.let { if (it.isPlaying) it.pause() }
-                        if (a.legere == 0f) litLeger?.let { if (it.isPlaying) it.pause() }
+                Lit.entries.forEach { l ->
+                    val de = depart.getValue(l)
+                    val v = de + (a.volume(l) - de) * t
+                    volumes[l] = v
+                    essayer("fondu") {
+                        val mp = lits[l] ?: return@essayer
+                        if (de == 0f && v == 0f) return@essayer
+                        mp.setVolume(v, v)
+                        if (k == etapes && v == 0f && mp.isPlaying) mp.pause()
                     }
                 }
             }, fondus, SystemClock.uptimeMillis() + k * PAS_MS)
@@ -178,10 +174,13 @@ object Sons {
 
     /** Relance les boucles qui doivent s'entendre (retour au premier plan). */
     private fun demarrerLits() {
-        litComplet?.setVolume(volComplet, volComplet)
-        litLeger?.setVolume(volLeger, volLeger)
-        if (volComplet > 0f) reveiller(litComplet)
-        if (volLeger > 0f) reveiller(litLeger)
+        lits.forEach { (l, mp) ->
+            val v = volumes.getValue(l)
+            essayer("lit") {
+                mp.setVolume(v, v)
+                if (v > 0f) reveiller(mp)
+            }
+        }
     }
 
     /** Remet une boucle en route, calée sur le tempo commun. */
