@@ -1,6 +1,5 @@
 package com.littlemissparty.quiz.tv
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -8,8 +7,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -31,12 +28,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 
 /**
- * « Relier la régie » : QR code vers la page régie et code à 4 chiffres de secours.
- * Fenêtre ouverte à la demande de l'animatrice, refermée dès qu'un téléphone est relié.
+ * Code de secours de la régie, pour un téléphone qui n'a pas le mot de passe commun :
+ * sur la page des pupitres, « Accès régie » puis « Code affiché sur la TV ».
+ * Fenêtre ouverte depuis le menu (bouton Retour), refermée dès qu'un téléphone est relié.
  */
 @Composable
 fun RegieDialog(state: UiState.Playing, onClose: () -> Unit, onRemove: () -> Unit) {
-    val qr = remember(state.regieUrl) { qrCode(state.regieUrl) }
     val focus = remember { FocusRequester() }
     Dialog(onDismissRequest = onClose) {
         Row(
@@ -46,17 +43,11 @@ fun RegieDialog(state: UiState.Playing, onClose: () -> Unit, onRemove: () -> Uni
                 .padding(40.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(
-                Modifier.clip(RoundedCornerShape(24.dp)).background(Color.White).padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Image(qr, contentDescription = "QR code de la régie", modifier = Modifier.size(260.dp))
-            }
-            Spacer(Modifier.width(40.dp))
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Relier la régie", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold)
+                Text("Code de secours de la régie", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold)
                 Text(
-                    "Scannez avec le téléphone de l'animatrice,\npuis saisissez ce code :",
+                    "Sur le téléphone : scannez le QR code de la partie, touchez « Accès régie »,\n" +
+                        "puis « Code affiché sur la TV » et saisissez :",
                     color = Palette.InkSoft, fontSize = 20.sp,
                 )
                 Text(state.regiePin, color = Palette.Gold, fontSize = 64.sp, fontWeight = FontWeight.Black, letterSpacing = 12.sp)
@@ -64,7 +55,7 @@ fun RegieDialog(state: UiState.Playing, onClose: () -> Unit, onRemove: () -> Uni
                     "Partie ${state.code} · " + when (state.regies) {
                         0 -> "aucune régie reliée"
                         1 -> "1 régie reliée"
-                        else -> "${state.regies} régies reliées (maximum)"
+                        else -> "${state.regies} régies reliées"
                     },
                     color = Palette.InkSoft, fontSize = 18.sp,
                 )

@@ -261,7 +261,7 @@ private fun QuitDialog(
                 colors = ButtonDefaults.buttonColors(containerColor = Palette.Gold, contentColor = Palette.Night),
             ) { Text("Continuer la partie", fontSize = 22.sp, fontWeight = FontWeight.Bold) }
             Spacer(Modifier.height(16.dp))
-            OutlinedButton(onClick = onRegie) { Text("Relier la régie (téléphone)", color = Color.White, fontSize = 20.sp) }
+            OutlinedButton(onClick = onRegie) { Text("Code de secours de la régie", color = Color.White, fontSize = 20.sp) }
             Spacer(Modifier.height(16.dp))
             OutlinedButton(onClick = onQuit) { Text("Quitter l'application", color = Color.White, fontSize = 20.sp) }
             Spacer(Modifier.height(16.dp))
@@ -358,15 +358,7 @@ private fun Lobby(state: UiState.Playing, actions: TvActions) {
                 Text("En attendant : appuyez sur BUZZ sur votre pupitre !", color = Palette.Gold, fontSize = 22.sp)
                 Spacer(Modifier.height(16.dp))
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (state.teams.isNotEmpty() && state.buzzer == null) NextButton("Lancer le quiz", actions.next)
-                OutlinedButton(onClick = actions.showRegie) {
-                    Text(
-                        if (state.regies > 0) "Régie reliée ✓" else "Relier la régie",
-                        color = Color.White, fontSize = 20.sp, modifier = Modifier.padding(4.dp),
-                    )
-                }
-            }
+            if (state.teams.isNotEmpty() && state.buzzer == null) NextButton("Lancer le quiz", actions.next)
         }
         Spacer(Modifier.width(40.dp))
         Column(

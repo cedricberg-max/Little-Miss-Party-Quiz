@@ -9,6 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <title>Little Miss Party Quiz</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="regie.css">
 </head>
 <body>
   <div id="offline" class="offline" hidden>Connexion perdue… reconnexion en cours</div>
@@ -67,6 +68,57 @@
     </section>
   </main>
   <div id="paused" class="paused" hidden><div>PAUSE</div><p>Le chrono est arrêté</p></div>
+
+  <!-- Accès régie : discret, pour l'animatrice qui a scanné le même QR code que les équipes. -->
+  <button id="regie-open" class="regie-open" hidden>🎛 Accès régie</button>
+  <div id="regie-login" class="modal" hidden>
+    <form id="regie-form" class="modal-box" autocomplete="off">
+      <p class="modal-title">Accès régie</p>
+      <input id="regie-password" type="password" autocomplete="current-password" placeholder="Mot de passe de régie">
+      <input id="regie-pin" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="Code à 4 chiffres de la TV" hidden>
+      <p id="regie-status" class="modal-status"></p>
+      <button id="regie-go" class="btn" type="submit">Entrer</button>
+      <button id="regie-use-pin" class="link" type="button">Pas de mot de passe ? Code affiché sur la TV</button>
+      <button id="regie-cancel" class="link" type="button">Annuler</button>
+    </form>
+  </div>
+
+  <div id="regie" class="regie" hidden>
+    <div id="r-offline" class="banner" hidden>Reconnexion…</div>
+    <section class="control">
+      <header class="top">
+        <span id="c-dot" class="dot on"></span>
+        <span id="c-code" class="code"></span>
+        <span id="c-step" class="step"></span>
+        <span id="c-timer" class="timer"></span>
+      </header>
+
+      <div class="card">
+        <p id="c-phase" class="phase"></p>
+        <p id="c-question" class="question"></p>
+        <button id="c-answer" class="answer" aria-label="Afficher ou masquer la bonne réponse"></button>
+        <p id="c-answered" class="hint small"></p>
+      </div>
+
+      <nav class="tabs">
+        <button id="tab-teams" class="tab active">Équipes</button>
+        <button id="tab-plan" class="tab">Conducteur</button>
+      </nav>
+      <div id="panel-teams" class="panel"></div>
+      <div id="panel-plan" class="panel" hidden></div>
+
+      <div id="r-toast" class="toast" hidden></div>
+      <div id="undo" class="undo" hidden><span id="undo-text"></span><button id="undo-go">Annuler</button></div>
+
+      <footer class="actions">
+        <div class="row">
+          <button id="c-pause" class="btn secondary">Pause</button>
+          <button id="c-end" class="btn danger hold" title="Appui long pour terminer la partie"><span class="fill"></span><span class="label">Terminer</span></button>
+        </div>
+        <button id="c-next" class="btn main"></button>
+      </footer>
+    </section>
+  </div>
   <script type="module" src="app.js"></script>
 </body>
 </html>

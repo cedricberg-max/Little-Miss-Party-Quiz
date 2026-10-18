@@ -1,21 +1,18 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-import { getAuth, signInAnonymously, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
 import {
-  getDatabase, ref, get, set, push, onValue, serverTimestamp, connectDatabaseEmulator,
+  ref, get, set, push, onValue, serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { CHOICE_LETTERS } from "./theme.js";
+import { passwordHash } from "./secret.js";
 
-// Régie de l'animatrice : elle n'écrit que des commandes. La box les vérifie, les applique
-// et répond dans commandStatus/ ; l'écran se met à jour en relisant l'état de la partie.
+// Régie de l'animatrice, ouverte depuis la page des pupitres (bouton « Accès régie »).
+// Elle n'écrit que des commandes : la box les vérifie, les applique et répond dans commandStatus/ ;
+// l'écran se met à jour en relisant l'état de la partie.
 
 const $ = (id) => document.getElementById(id);
-const params = new URLSearchParams(location.search);
-const emulator = params.has("emu") && ["localhost", "127.0.0.1"].includes(location.hostname);
-const STORE = "lmp-regie-partie";
 /** Délai au-delà duquel une commande sans réponse signale une box injoignable. */
 const BOX_TIMEOUT_MS = 6000;
 
-let db, uid, code;
+let db, uid, code, onExit;
 let serverOffset = 0;
 let unsubscribers = [];
 let live = { state: null, teams: {}, presence: {}, plan: null, answers: {}, connected: true };
@@ -27,94 +24,58 @@ let undoTimer = null;
 let answerMasked = false;
 let tab = "teams";
 
-function show(name) {
-  document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === `screen-${name}`));
+// ---------- Accès ----------
+
+/** Ce téléphone est-il déjà relié à cette partie (après un rechargement, un écran verrouillé…) ? */
+export async function hasAccess(ctx, gameCode) {
+  return (await get(ref(ctx.db, `games/${gameCode}/regie/${ctx.uid}`))).exists();
 }
 
-function fail(message) {
-  stopListening();
-  $("error-text").textContent = message;
-  show("error");
-}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function remember(c) {
-  try { if (c) localStorage.setItem(STORE, c); else localStorage.removeItem(STORE); } catch { /* navigation privée */ }
-}
-function remembered() {
-  try { return localStorage.getItem(STORE); } catch { return null; }
-}
-
-async function start() {
-  show("loading");
-  code = (params.get("g") || remembered() || "").toUpperCase();
-  try {
-    if (!db) {
-      const config = await (await fetch("firebase-config.json", { cache: "no-store" })).json();
-      const app = initializeApp(config);
-      const auth = getAuth(app);
-      db = getDatabase(app);
-      if (emulator) {
-        connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
-        connectDatabaseEmulator(db, "127.0.0.1", 9000);
-      }
-      // L'identifiant est gardé par le navigateur : un téléphone relié le reste après un rechargement.
-      uid = (await signInAnonymously(auth)).user.uid;
+/**
+ * Mot de passe commun des animatrices. La comparaison est faite par le serveur (règles Firebase) :
+ * le téléphone n'envoie qu'une empreinte et ne peut jamais relire celle qui est enregistrée.
+ * Le serveur n'accepte qu'un essai toutes les 2 secondes : on attend son tour si besoin.
+ * Résultat : "ok", "wrong", "unset" (aucun mot de passe enregistré) ou "busy".
+ */
+export async function loginWithPassword(ctx, gameCode, password) {
+  const salt = (await get(ref(ctx.db, "settings/regie/salt"))).val();
+  if (!salt) return "unset";
+  const hash = await passwordHash(salt, password);
+  // `.info` ne se lit qu'avec un écouteur, pas avec get().
+  const offset = await new Promise((resolve) => {
+    const stop = onValue(ref(ctx.db, ".info/serverTimeOffset"), (s) => { resolve(s.val() ?? 0); setTimeout(() => stop()); });
+  });
+  const gate = ref(ctx.db, "regieGate/try");
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const last = (await get(gate)).val();
+    const wait = last ? last.at + 2100 - (Date.now() + offset) : 0;
+    if (wait > 0) await sleep(Math.min(wait, 2500));
+    try {
+      await set(gate, { uid: ctx.uid, at: serverTimestamp() });
+    } catch {
+      continue; // un autre téléphone vient d'essayer
     }
-    if (code && (await get(ref(db, `games/${code}/regie/${uid}`))).exists()) return control();
-    showPair();
-  } catch (e) {
-    console.error(e);
-    fail("Connexion impossible. Vérifiez Internet puis réessayez.");
-  }
-}
-
-// ---------- Appairage ----------
-
-function showPair(message = "", error = false) {
-  stopListening();
-  $("pair-code").value = code || "";
-  $("pair-status").textContent = message;
-  $("pair-status").classList.toggle("error", error);
-  show("pair");
-  (code ? $("pair-pin") : $("pair-code")).focus();
-}
-
-const PAIR_MESSAGES = {
-  wrong: "Code incorrect. Regardez le code à 4 chiffres sur la TV.",
-  locked: "Trop d'essais. Patientez une minute puis réessayez.",
-  full: "Deux régies sont déjà reliées. Retirez-en une depuis la TV.",
-};
-
-$("pair-go").onclick = async () => {
-  const c = $("pair-code").value.trim().toUpperCase();
-  const pin = $("pair-pin").value.trim();
-  if (!/^[A-Z0-9]{5}$/.test(c)) return showPair("Le code de la partie a 5 caractères.", true);
-  if (!/^[0-9]{4}$/.test(pin)) return showPair("Le code de la TV a 4 chiffres.", true);
-  code = c;
-  $("pair-go").disabled = true;
-  $("pair-status").classList.remove("error");
-  $("pair-status").textContent = "Vérification par la TV…";
-  try {
-    if (!(await get(ref(db, `games/${code}/hostUid`))).exists()) return showPair(`La partie ${code} n'existe pas.`, true);
-    const result = await requestPairing(pin);
-    if (result === "ok") {
-      remember(code);
-      $("pair-pin").value = "";
-      return control();
+    const gateAt = (await get(ref(ctx.db, "regieGate/try/at"))).val();
+    await set(ref(ctx.db, `regieProof/${ctx.uid}`), { hash, gateAt, at: serverTimestamp() });
+    try {
+      await set(ref(ctx.db, `games/${gameCode}/regie/${ctx.uid}`), { pairedAt: serverTimestamp(), via: "password" });
+      return "ok";
+    } catch {
+      return "wrong";
     }
-    showPair(PAIR_MESSAGES[result] ?? "La TV ne répond pas. Vérifiez qu'elle est allumée et connectée.", true);
-  } catch (e) {
-    console.error(e);
-    showPair("Demande refusée. Vérifiez le code de la partie.", true);
-  } finally {
-    $("pair-go").disabled = false;
   }
-};
+  return "busy";
+}
 
-/** Dépose la demande puis attend que la box l'ait traitée (elle l'efface et écrit le résultat). */
-async function requestPairing(pin) {
-  const request = ref(db, `games/${code}/pairing/${uid}`);
-  const result = ref(db, `games/${code}/pairingResult/${uid}`);
+/**
+ * Secours : code à 4 chiffres affiché sur la TV. La box compare le code, limite les essais,
+ * efface la demande et publie son verdict. Résultat : "ok", "wrong", "locked", "full" ou null (TV muette).
+ */
+export async function loginWithPin(ctx, gameCode, pin) {
+  const request = ref(ctx.db, `games/${gameCode}/pairing/${ctx.uid}`);
+  const result = ref(ctx.db, `games/${gameCode}/pairingResult/${ctx.uid}`);
   await set(request, { pin, at: serverTimestamp() });
   return new Promise((resolve) => {
     let stop = () => {};
@@ -126,6 +87,15 @@ async function requestPairing(pin) {
       resolve((await get(result)).val()?.status ?? null);
     });
   });
+}
+
+/** Ouvre l'interface de régie. [exit] est appelé si la TV retire ce téléphone. */
+export function startRegie(ctx, gameCode, exit) {
+  db = ctx.db;
+  uid = ctx.uid;
+  code = gameCode;
+  onExit = exit;
+  control();
 }
 
 // ---------- Pilotage ----------
@@ -140,28 +110,23 @@ function stopListening() {
 }
 
 function listen(path, fn) {
-  unsubscribers.push(onValue(ref(db, path), fn, (e) => {
-    console.error(path, e);
-    // Accès retiré par la TV (« Retirer les régies ») ou nouvelle partie.
-    if (path.endsWith(`regie/${uid}`) || path.endsWith("/commands")) remember(null);
-  }));
+  unsubscribers.push(onValue(ref(db, path), fn, (e) => console.error(path, e)));
 }
 
 function control() {
   stopListening();
   live = { state: null, teams: {}, presence: {}, plan: null, answers: {}, connected: true };
-  show("control");
   $("c-code").textContent = code;
   listen(".info/serverTimeOffset", (s) => { serverOffset = s.val() ?? 0; });
   listen(".info/connected", (s) => {
     live.connected = s.val() === true;
-    $("offline").hidden = live.connected;
+    $("r-offline").hidden = live.connected;
     $("c-dot").classList.toggle("on", live.connected);
   });
   listen(`games/${code}/regie/${uid}`, (s) => {
     if (s.exists()) return;
-    remember(null);
-    showPair("Ce téléphone n'est plus relié à la partie.", true);
+    stopListening();
+    onExit?.("Ce téléphone n'est plus relié à la régie de la partie.");
   });
   listen(`games/${code}/state`, (s) => { live.state = s.val(); watchAnswers(); render(); });
   listen(`games/${code}/teams`, (s) => { live.teams = s.val() ?? {}; render(); });
@@ -314,7 +279,7 @@ const STATUS_MESSAGES = {
 };
 
 function toast(message) {
-  const t = $("toast");
+  const t = $("r-toast");
   t.textContent = message;
   t.hidden = false;
   clearTimeout(t.timer);
@@ -411,6 +376,4 @@ function switchTab(name) {
   $("panel-plan").hidden = tab !== "plan";
 }
 
-$("retry").onclick = start;
 // Après le verrouillage du téléphone, Firebase se reconnecte seul et les écouteurs relisent l'état.
-start();

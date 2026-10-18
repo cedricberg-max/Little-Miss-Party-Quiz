@@ -1,6 +1,7 @@
 // Régie de l'animatrice dans un vrai navigateur (Chromium) branché sur l'émulateur Firebase.
 // Ce script joue le rôle de la box : il juge les demandes d'appairage et répond aux commandes.
-import { createReadStream, existsSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { createReadStream, existsSync } from "node:fs";
 import { createServer } from "node:http";
 import { extname, join, normalize } from "node:path";
 import { after, afterEach, before, beforeEach, describe, test } from "node:test";
@@ -8,6 +9,7 @@ import assert from "node:assert/strict";
 import { initializeTestEnvironment } from "@firebase/rules-unit-testing";
 import { ref, get, set, update, onValue } from "firebase/database";
 import { chromium } from "playwright";
+import { loadRules } from "./rules-loader.js";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const PUBLIC = join(ROOT, "web/public");
@@ -15,6 +17,8 @@ const FIREBASE_JS = join(ROOT, "tests/node_modules/firebase");
 const CODE = "REGI2";
 const HOST = "box";
 const PIN = "0427";
+const PASSWORD = "Licorne-2026";
+const SALT = "sel-de-test-0123456789";
 
 const testConfig = JSON.stringify({
   apiKey: "demo-key", authDomain: "demo-lmp.firebaseapp.com",
@@ -28,7 +32,7 @@ let box = null;
 before(async () => {
   env = await initializeTestEnvironment({
     projectId: "demo-lmp",
-    database: { rules: readFileSync(join(ROOT, "database.rules.json"), "utf8"), host: "127.0.0.1", port: 9000 },
+    database: { rules: loadRules(), host: "127.0.0.1", port: 9000 },
   });
   server = createServer((req, res) => {
     const path = decodeURIComponent(new URL(req.url, "http://x").pathname);
@@ -122,6 +126,9 @@ function startBox({ silent = false, held = false } = {}) {
 
 beforeEach(async () => {
   await env.clearDatabase();
+  await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), "settings/regie"), {
+    salt: SALT, hash: createHash("sha256").update(`${SALT}:${PASSWORD}`).digest("hex"), updatedAt: 1,
+  }));
   await set(gameRef(), {
     hostUid: HOST,
     state: { phase: "lobby", seq: 0, total: QUESTIONS.length, scores: {}, round: 1, buzzOpen: true },
@@ -135,7 +142,7 @@ async function addTeam(uid, name) {
     set(ref(ctx.database(), `games/${CODE}/teams/${uid}`), { name, color: "#FF2D8A", joinedAt: Date.now() }));
 }
 
-async function openRegie(context, query = `?g=${CODE}&emu=1`) {
+async function openRegie(context, query = `?g=${CODE}&emu=1`, path = "/") {
   context ??= await browser.newContext({ viewport: { width: 390, height: 844 } });
   await context.route("https://www.gstatic.com/firebasejs/11.1.0/*", (route) => {
     const name = new URL(route.request().url()).pathname.split("/").pop();
@@ -143,31 +150,111 @@ async function openRegie(context, query = `?g=${CODE}&emu=1`) {
   });
   const page = await context.newPage();
   page.on("pageerror", (e) => console.error("Erreur page :", e.message));
-  await page.goto(`${baseUrl}/regie.html${query}`);
+  page.on("console", (m) => { if (m.type() === "error") console.error("Console :", m.text()); });
+  await page.goto(`${baseUrl}${path}${query}`);
   return page;
 }
 
-async function pair(page, pin = PIN) {
-  await page.locator("#screen-pair.active").waitFor();
-  assert.equal(await page.inputValue("#pair-code"), CODE, "Le code de partie vient du QR");
-  await page.fill("#pair-pin", pin);
-  await page.click("#pair-go");
+/** L'animatrice scanne le même QR code que les équipes, touche « Accès régie » et tape le mot de passe. */
+async function pair(page, password = PASSWORD) {
+  await page.locator("#regie-open:not([hidden])").click();
+  await page.fill("#regie-password", password);
+  await page.click("#regie-go");
 }
+
+const inRegie = (page) => page.locator("#regie:not([hidden])").waitFor({ timeout: 10000 });
 
 const commands = async () => Object.values((await read("commands")) ?? {});
 
 describe("régie", () => {
-  test("un mauvais code est refusé, le bon relie le téléphone", async () => {
+  test("mot de passe commun : un mauvais est refusé, le bon ouvre la régie", async () => {
     box = startBox();
     const page = await openRegie();
-    await pair(page, "1111");
-    await page.locator("#pair-status", { hasText: "Code incorrect" }).waitFor();
+    await page.locator("#screen-join.active").waitFor();
+    await pair(page, "licorne");
+    await page.locator("#regie-status", { hasText: "Mot de passe incorrect" }).waitFor();
     assert.equal(await read("regie"), null);
-    await page.fill("#pair-pin", PIN);
-    await page.click("#pair-go");
-    await page.locator("#screen-control.active").waitFor();
-    assert.equal(Object.keys(await read("regie")).length, 1);
+    await page.fill("#regie-password", PASSWORD);
+    await page.click("#regie-go");
+    await inRegie(page);
+    assert.equal(Object.values(await read("regie"))[0].via, "password");
+    // Le pupitre ne s'est pas inscrit comme équipe.
+    assert.equal(await read("teams"), null);
     await page.context().close();
+  });
+
+  test("code de secours de la TV : un mauvais est refusé, le bon relie le téléphone", async () => {
+    box = startBox();
+    const page = await openRegie();
+    await page.locator("#regie-open:not([hidden])").click();
+    await page.click("#regie-use-pin");
+    await page.fill("#regie-pin", "1111");
+    await page.click("#regie-go");
+    await page.locator("#regie-status", { hasText: "Code incorrect" }).waitFor();
+    await page.fill("#regie-pin", PIN);
+    await page.click("#regie-go");
+    await inRegie(page);
+    assert.equal(Object.values(await read("regie"))[0].via, "pin");
+    await page.context().close();
+  });
+
+  test("sans mot de passe enregistré, la page oriente vers le code de la TV", async () => {
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), "settings/regie"), null));
+    const page = await openRegie();
+    await pair(page);
+    await page.locator("#regie-status", { hasText: "Aucun mot de passe" }).waitFor();
+    await page.context().close();
+  });
+
+  test("le bouton Accès régie disparaît pour une équipe qui joue", async () => {
+    const page = await openRegie();
+    await page.locator("#regie-open:not([hidden])").waitFor();
+    await page.fill("#team-name", "Les Roses");
+    await page.click("#join");
+    await page.locator("#screen-play.active").waitFor();
+    assert.equal(await page.locator("#regie-open").isHidden(), true);
+    await page.context().close();
+  });
+
+  test("Sarah change le mot de passe dans l'administration : effet immédiat, régie en cours gardée", async () => {
+    box = startBox();
+    const before = await openRegie();
+    await pair(before);
+    await inRegie(before);
+
+    const admin = await openRegie(null, "?emu=1", "/admin.html");
+    await admin.click("#login");
+    await admin.locator("#screen-settings:not([hidden])").waitFor();
+    await admin.fill("#pw1", "court");
+    await admin.fill("#pw2", "court");
+    await admin.click("#save");
+    await admin.locator("#save-status", { hasText: "au moins 8" }).waitFor();
+    await admin.fill("#pw1", "Nouveau-Mdp-42");
+    await admin.fill("#pw2", "Nouveau-Mdp-42");
+    await admin.click("#save");
+    await admin.locator("#save-status", { hasText: "Mot de passe enregistré" }).waitFor();
+
+    const oldPassword = await openRegie();
+    await pair(oldPassword, PASSWORD);
+    await oldPassword.locator("#regie-status", { hasText: "Mot de passe incorrect" }).waitFor();
+    const newPassword = await openRegie();
+    await pair(newPassword, "Nouveau-Mdp-42");
+    await inRegie(newPassword);
+    // L'animatrice reliée avant le changement pilote toujours.
+    await addTeam("rose", "Les Roses");
+    await before.locator("#c-next", { hasText: "Lancer le quiz" }).click();
+    await before.locator("#c-question", { hasText: "Couleur du ciel ?" }).waitFor();
+    for (const p of [before, admin, oldPassword, newPassword]) await p.context().close();
+  });
+
+  test("un compte Google qui n'est pas administrateur ne peut rien changer", async () => {
+    const admin = await openRegie(null, "?emu=1&as=intrus@gmail.com", "/admin.html");
+    await admin.click("#login");
+    await admin.fill("#pw1", "Pirate-123456");
+    await admin.fill("#pw2", "Pirate-123456");
+    await admin.click("#save");
+    await admin.locator("#save-status", { hasText: "pas les droits" }).waitFor();
+    await admin.context().close();
   });
 
   test("lancer le quiz, voir la question et sa réponse, arrêter le chrono", async () => {
@@ -256,9 +343,9 @@ describe("régie", () => {
     box = startBox();
     const page = await openRegie();
     await pair(page);
-    await page.locator("#screen-control.active").waitFor();
+    await inRegie(page);
     await page.click("#c-end");
-    await page.locator("#toast", { hasText: "Gardez le doigt appuyé" }).waitFor();
+    await page.locator("#r-toast", { hasText: "Gardez le doigt appuyé" }).waitFor();
     assert.equal((await commands()).length, 0);
     const btn = page.locator("#c-end");
     const boxRect = await btn.boundingBox();
@@ -276,9 +363,9 @@ describe("régie", () => {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const page = await openRegie(context);
     await pair(page);
-    await page.locator("#screen-control.active").waitFor();
-    await page.goto(`${baseUrl}/regie.html?emu=1`);
-    await page.locator("#screen-control.active").waitFor();
+    await inRegie(page);
+    await page.reload();
+    await inRegie(page);
     assert.equal(await page.textContent("#c-code"), CODE);
     await context.close();
   });
@@ -287,10 +374,10 @@ describe("régie", () => {
     box = startBox();
     const page = await openRegie();
     await pair(page);
-    await page.locator("#screen-control.active").waitFor();
+    await inRegie(page);
     const [uid] = Object.keys(await read("regie"));
     await update(gameRef(), { [`regie/${uid}`]: null });
-    await page.locator("#pair-status", { hasText: "n'est plus relié" }).waitFor();
+    await page.locator("#error-text", { hasText: "n'est plus relié" }).waitFor();
     await page.context().close();
   });
 
@@ -300,7 +387,7 @@ describe("régie", () => {
     const page = await openRegie();
     await pair(page);
     await page.locator("#c-next", { hasText: "Lancer le quiz" }).click();
-    await page.locator("#toast", { hasText: "La TV ne répond pas" }).waitFor({ timeout: 10000 });
+    await page.locator("#r-toast", { hasText: "La TV ne répond pas" }).waitFor({ timeout: 10000 });
     assert.equal(await page.locator("#c-next").isDisabled(), false);
     await page.context().close();
   });

@@ -1,6 +1,7 @@
 // Règles de sécurité Firebase : ce qu'un pupitre, la box ou un inconnu ont le droit de faire.
 // Lancé par `npm test` dans l'émulateur Firebase, jamais sur la vraie base.
-import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { loadRules, ADMIN_EMAIL } from "./rules-loader.js";
 import { after, before, beforeEach, describe, test } from "node:test";
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
 import { ref, get, set, update, serverTimestamp } from "firebase/database";
@@ -12,7 +13,7 @@ let env;
 before(async () => {
   env = await initializeTestEnvironment({
     projectId: "demo-lmp",
-    database: { rules: readFileSync(new URL("../database.rules.json", import.meta.url), "utf8"), host: "127.0.0.1", port: 9000 },
+    database: { rules: loadRules(), host: "127.0.0.1", port: 9000 },
   });
 });
 after(() => env?.cleanup());
@@ -207,7 +208,7 @@ describe("régie", () => {
     set(ref(db(uid), `games/${CODE}/commands/c-${uid}-${body.type}`), { expectSeq: 3, by: uid, at: serverTimestamp(), ...body });
   async function paired() {
     await seed();
-    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/${REGIE}`), { pairedAt: 1 }));
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/${REGIE}`), { pairedAt: 1, via: "pin" }));
   }
 
   test("un téléphone demande l'appairage avec un code à 4 chiffres", async () => {
@@ -222,7 +223,7 @@ describe("régie", () => {
     await assertFails(set(ref(db(REGIE), `games/${CODE}/pairing/${REGIE}`), { pin: "1234", at: 1 }));
     await assertFails(pair(REGIE, { pin: "1234", admin: true }));
   });
-  test("chemin compte animatrice fermé tant qu'aucune adresse n'est enregistrée", async () => {
+  test("plus de chemin « compte animatrice »", async () => {
     await seed();
     await assertFails(pair(REGIE, { staff: true }));
   });
@@ -238,7 +239,7 @@ describe("régie", () => {
     await seed();
     await pair(REGIE, { pin: "0427" });
     await assertSucceeds(update(ref(db(HOST), `games/${CODE}`), {
-      [`pairing/${REGIE}`]: null, [`regie/${REGIE}`]: { pairedAt: 1 }, [`pairingResult/${REGIE}`]: "ok",
+      [`pairing/${REGIE}`]: null, [`regie/${REGIE}`]: { pairedAt: 1, via: "pin" }, [`pairingResult/${REGIE}`]: "ok",
       pairingLock: { failures: 0 },
     }));
     await assertSucceeds(get(ref(db(REGIE), `games/${CODE}/regie/${REGIE}`)));
@@ -283,5 +284,93 @@ describe("régie", () => {
     await paired();
     await assertSucceeds(set(ref(db(HOST), `games/${CODE}/regie/${REGIE}`), null));
     await assertFails(command(REGIE, { type: "next" }));
+  });
+});
+
+describe("mot de passe commun de la régie", () => {
+  const SALT = "sel-de-test-0123456789";
+  const hash = (password) => createHash("sha256").update(`${SALT}:${password}`).digest("hex");
+  const admin = () => env.authenticatedContext("sarah", { email: ADMIN_EMAIL, email_verified: true }).database();
+  const setPassword = (password) => env.withSecurityRulesDisabled((ctx) =>
+    set(ref(ctx.database(), "settings/regie"), { salt: SALT, hash: hash(password), updatedAt: 1 }));
+  /** Ce que fait la page : un essai (au plus toutes les 2 s), une empreinte par essai, puis l'accès. */
+  async function enter(uid, password, code = CODE) {
+    const d = db(uid);
+    await set(ref(d, "regieGate/try"), { uid, at: serverTimestamp() });
+    const gateAt = (await get(ref(d, "regieGate/try/at"))).val();
+    await set(ref(d, `regieProof/${uid}`), { hash: hash(password), gateAt, at: serverTimestamp() });
+    await set(ref(d, `games/${code}/regie/${uid}`), { pairedAt: serverTimestamp(), via: "password" });
+  }
+  const pause = () => new Promise((r) => setTimeout(r, 2100));
+
+  test("le bon mot de passe donne accès à la régie de la partie", async () => {
+    await seed();
+    await setPassword("Licorne-2026");
+    await assertSucceeds(enter("tel", "Licorne-2026"));
+    await assertSucceeds(set(ref(db("tel"), `games/${CODE}/commands/c1`), { type: "next", expectSeq: 0, by: "tel", at: serverTimestamp() }));
+  });
+  test("un mauvais mot de passe est refusé", async () => {
+    await seed();
+    await setPassword("Licorne-2026");
+    await assertFails(enter("tel", "licorne-2026"));
+    await assertFails(get(ref(db("tel"), `games/${CODE}/conducteur`)));
+  });
+  test("sans mot de passe enregistré, personne n'entre par ce chemin", async () => {
+    await seed();
+    await assertFails(enter("tel", ""));
+  });
+  test("un seul essai toutes les 2 secondes, tous téléphones confondus", async () => {
+    await seed();
+    await setPassword("Licorne-2026");
+    await assertFails(enter("pirate", "essai1"));
+    await assertFails(enter("tel", "Licorne-2026"));
+    await pause();
+    await assertSucceeds(enter("tel", "Licorne-2026"));
+  });
+  test("une seule empreinte par essai : impossible d'enchaîner les mots de passe", async () => {
+    await seed();
+    await setPassword("Licorne-2026");
+    const d = db("pirate");
+    await set(ref(d, "regieGate/try"), { uid: "pirate", at: serverTimestamp() });
+    const gateAt = (await get(ref(d, "regieGate/try/at"))).val();
+    await assertSucceeds(set(ref(d, "regieProof/pirate"), { hash: hash("essai1"), gateAt, at: serverTimestamp() }));
+    await assertFails(set(ref(d, `games/${CODE}/regie/pirate`), { pairedAt: serverTimestamp(), via: "password" }));
+    await assertFails(set(ref(d, "regieProof/pirate"), { hash: hash("Licorne-2026"), gateAt, at: serverTimestamp() }));
+  });
+  test("accès impossible sans passer par l'essai (écriture directe)", async () => {
+    await seed();
+    await setPassword("Licorne-2026");
+    await assertFails(set(ref(db("tel"), `games/${CODE}/regie/tel`), { pairedAt: serverTimestamp(), via: "password" }));
+  });
+  test("l'empreinte et le mot de passe ne se relisent jamais", async () => {
+    await seed();
+    await setPassword("Licorne-2026");
+    await assertSucceeds(get(ref(db("tel"), "settings/regie/salt")));
+    await assertFails(get(ref(db("tel"), "settings/regie/hash")));
+    await assertFails(get(ref(db("tel"), "settings/regie")));
+    await enter("tel", "Licorne-2026");
+    await assertFails(get(ref(db("tel"), "regieProof/tel")));
+  });
+  test("pas d'accès à une partie terminée ou inexistante", async () => {
+    await seed({ phase: "ended" });
+    await setPassword("Licorne-2026");
+    await assertFails(enter("tel", "Licorne-2026"));
+    await pause();
+    await assertFails(enter("tel", "Licorne-2026", "ZZZZZ"));
+  });
+  test("seul un administrateur change le mot de passe, la régie déjà reliée reste reliée", async () => {
+    await seed();
+    await setPassword("Licorne-2026");
+    await assertSucceeds(enter("tel", "Licorne-2026"));
+    const next = { salt: "nouveau-sel-0123456789", hash: "a".repeat(64), updatedAt: serverTimestamp() };
+    await assertFails(set(ref(db("tel"), "settings/regie"), next));
+    await assertFails(set(ref(env.authenticatedContext("x", { email: "intrus@gmail.com", email_verified: true }).database(), "settings/regie"), next));
+    await assertSucceeds(set(ref(admin(), "settings/regie"), next));
+    // L'animatrice en pleine partie n'est pas déconnectée.
+    await assertSucceeds(set(ref(db("tel"), `games/${CODE}/commands/c2`), { type: "pause", expectSeq: 0, by: "tel", at: serverTimestamp() }));
+  });
+  test("mot de passe enregistré mal formé refusé", async () => {
+    await assertFails(set(ref(admin(), "settings/regie"), { salt: "court", hash: "a".repeat(64), updatedAt: serverTimestamp() }));
+    await assertFails(set(ref(admin(), "settings/regie"), { salt: SALT, hash: "motdepasseenclair", updatedAt: serverTimestamp() }));
   });
 });

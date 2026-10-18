@@ -103,13 +103,17 @@ games/$code
   answers/$qid/$uid { choice, at }             // écriture unique, at = heure serveur, question ouverte et hors pause
   buzz/$round  { team, at }                    // buzzer de test du salon
   // Régie (lot 2, PR « régie mobile ») : lecture par chemin, plus de lecture globale de la partie
-  pairing/$uid { pin | staff, at }             // demande du téléphone ; la box l'efface après jugement
+  pairing/$uid { pin, at }                     // secours : code de la TV ; la box l'efface après jugement
   pairingResult/$uid { status: ok|wrong|locked|full, at }   pairingLock { failures, until }
-  regie/$uid   { pairedAt, via: pin|staff }    // écrit par la box seule, 2 au plus
+  regie/$uid   { pairedAt, via: password|pin } // password : écrit par le téléphone, accepté par les règles
+                                               // si regieProof = settings/regie/hash ; pin : écrit par la box (2 au plus)
   conducteur   { title, questions[] { text, choices, correct, double } }   // lisible par les régies seules
   commands/$cmdId { type: next|pause|resume|close|adjust|undo|end, expectSeq, by, at, team?, delta?, target? }
   commandStatus/$cmdId { status: applied|stale|refused, reason?, seq?, at }   // même écriture que l'événement
 reports/$id    { kind, text, version, device, at }  // plantages de la box : écriture seule, lus par le workflow « Rapports »
+settings/regie { salt (lisible), hash (illisible), updatedAt, updatedBy }   // admin seulement (admin.html)
+regieGate/try  { uid, at }      // un essai de mot de passe toutes les 2 s, tous téléphones confondus
+regieProof/$uid { hash, gateAt, at }   // empreinte SHA-256(sel:mot de passe), une par essai, jamais relisible
 ```
 
 - Lecture : l'hôte lit toute sa partie ; tout compte connecté lit `hostUid`, `state`, `teams`,

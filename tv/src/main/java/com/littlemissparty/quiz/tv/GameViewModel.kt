@@ -75,8 +75,6 @@ sealed interface UiState {
         val connected: Boolean = true,
         /** Écart entre l'horloge de la box et celle du serveur, pour afficher le bon chrono. */
         val serverOffset: Long = 0,
-        /** Page à ouvrir sur le téléphone de l'animatrice (QR code « Relier la régie »). */
-        val regieUrl: String = "",
         /** Code à 4 chiffres de secours, propre à cette partie, jamais écrit dans Firebase. */
         val regiePin: String = "",
         val regies: Int = 0,
@@ -258,7 +256,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             code = code, joinUrl = joinUrl(code), total = quiz.questions.size, round = round,
             // Équipes connues dès l'ouverture : une commande reçue avant leur chargement est jugée correctement.
             teams = parseTeams(snap.child("teams")),
-            regieUrl = regieUrl(code), regiePin = regiePin(code), regies = regieUids.size,
+            regiePin = regiePin(code), regies = regieUids.size,
         )
         // Le conducteur (questions et bonnes réponses) n'est lisible que par les régies reliées.
         ref.child("conducteur").setValue(conducteur(quiz))
@@ -414,20 +412,18 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Demande d'appairage d'un téléphone : la box compare le code (il n'est jamais écrit dans Firebase),
-     * limite les essais (5 erreurs = 60 s de blocage), puis efface la demande et publie le verdict.
+     * Code de secours (le chemin normal est le mot de passe commun, vérifié par les règles Firebase) :
+     * la box compare le code (il n'est jamais écrit dans Firebase), limite les essais
+     * (5 erreurs = 60 s de blocage), puis efface la demande et publie le verdict.
      */
     private fun judgePairing(req: DataSnapshot) {
         val uid = req.key ?: return
         val s = _state.value as? UiState.Playing ?: return
         if (!judging.add(uid)) return
         val now = serverNow()
-        // Les règles n'acceptent `staff` que d'un compte animatrice vérifié.
-        val staff = req.child("staff").getValue(Boolean::class.java) == true
         val status = when {
             uid in regieUids -> "ok"
             regieUids.size >= MAX_REGIES -> "full"
-            staff -> "ok"
             now < pinLockedUntil -> "locked"
             req.child("pin").getValue(String::class.java) == s.regiePin -> "ok".also { pinFailures = 0 }
             ++pinFailures >= MAX_PIN_FAILURES -> "locked".also { pinFailures = 0; pinLockedUntil = now + PIN_LOCK_MS }
@@ -439,7 +435,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "pairingLock" to mapOf("failures" to pinFailures, "until" to pinLockedUntil),
         )
         if (status == "ok" && uid !in regieUids) {
-            updates["regie/$uid"] = mapOf("pairedAt" to ServerValue.TIMESTAMP, "via" to if (staff) "staff" else "pin")
+            updates["regie/$uid"] = mapOf("pairedAt" to ServerValue.TIMESTAMP, "via" to "pin")
         }
         gameRef?.updateChildren(updates)?.addOnCompleteListener { judging.remove(uid) }
     }
@@ -666,7 +662,6 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         private const val CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
         fun joinUrl(code: String) = "https://${BuildConfig.FB_PROJECT_ID}.web.app/?g=$code"
-        fun regieUrl(code: String) = "https://${BuildConfig.FB_PROJECT_ID}.web.app/regie.html?g=$code"
 
         /** Ce que la régie consulte : toutes les questions, avec leur bonne réponse. */
         fun conducteur(quiz: Quiz): Map<String, Any> = mapOf(
