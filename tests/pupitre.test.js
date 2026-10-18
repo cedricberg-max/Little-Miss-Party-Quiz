@@ -149,6 +149,34 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
+  test("nom d'équipe : champ vide à chaque prestation, saisie et correction libres, gardé à la reconnexion", async () => {
+    const page = await openPupitre();
+    await page.locator("#screen-join.active").waitFor();
+    assert.equal(await page.inputValue("#team-name"), "", "Aucun nom prérempli");
+    assert.equal(await page.getAttribute("#team-name", "placeholder"), "Choisissez un nom d'équipe");
+    // Saisie clavier puis correction d'une faute, comme sur un téléphone.
+    await page.locator("#team-name").pressSequentially("Les Licornez");
+    await page.keyboard.press("Backspace");
+    await page.locator("#team-name").pressSequentially("s");
+    await page.click("#join");
+    await page.locator("#screen-play.active").waitFor();
+    const uid = Object.keys(await read("teams"))[0];
+    assert.equal((await read(`teams/${uid}`)).name, "Les Licornes");
+
+    // Prestation suivante dans le même navigateur : rien n'est repris de l'ancienne équipe.
+    await set(ref(hostDb(), "games/TEST2"), { hostUid: HOST, state: { phase: "lobby", round: 1, total: 3, scores: {} } });
+    await page.goto(`${baseUrl}/?g=TEST2&emu=1`);
+    await page.locator("#screen-join.active").waitFor();
+    assert.equal(await page.inputValue("#team-name"), "");
+
+    // Retour sur la première partie : la reconnexion retrouve l'équipe et son nom sans rien retaper.
+    await page.goto(`${baseUrl}/?g=${CODE}&emu=1`);
+    await page.locator("#screen-play.active").waitFor();
+    assert.equal(Object.keys(await read("teams")).length, 1, "Pas de nouvelle équipe");
+    assert.equal((await read(`teams/${uid}`)).name, "Les Licornes");
+    await page.context().close();
+  });
+
   test("pendant la pause, impossible de répondre", async () => {
     const page = await openPupitre();
     await joinTeam(page, "Les Roses");
