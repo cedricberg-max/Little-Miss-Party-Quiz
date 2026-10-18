@@ -166,3 +166,16 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .mime-found:disabled { opacity: .5; }
 .regie .mime-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .regie .mime-row .btn { min-height: 72px; font-size: 22px; }
+
+/* Jeu en cours, jeu suivant et secours */
+.regie .games-row { display: flex; align-items: center; gap: 8px; }
+.regie .games { flex: 1; margin: 0; font-size: 14px; color: var(--ink-soft, #cbb8e8); }
+.regie .games b { color: var(--gold); }
+.regie .rescue-open { padding: 8px 12px; font-size: 15px; }
+.regie .rescue-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.regie .rescue-game { display: flex; align-items: center; gap: 10px; background: var(--night); border-radius: 14px; padding: 10px 12px; }
+.regie .rescue-game.current { outline: 2px solid var(--gold); }
+.regie .rescue-game .name { flex: 1; font-weight: 800; }
+.regie .rescue-game .name small { display: block; font-weight: 600; opacity: .75; }
+.regie .rescue-game button { padding: 10px 14px; font-size: 15px; }
+.regie .mime-progress { margin: 0; font-size: 15px; }

@@ -22,6 +22,7 @@ import com.littlemissparty.quiz.engine.CommandResult
 import com.littlemissparty.quiz.engine.CommandStatus
 import com.littlemissparty.quiz.engine.Game
 import com.littlemissparty.quiz.engine.GameEvent
+import com.littlemissparty.quiz.engine.Jumped
 import com.littlemissparty.quiz.engine.MimeCard
 import com.littlemissparty.quiz.engine.MimeTurn
 import com.littlemissparty.quiz.engine.Scoring
@@ -407,12 +408,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val ref = gameRef ?: return
         if (event == null) return
         val round = (_state.value as? UiState.Playing)?.round ?: 1
+        // Jeu rejoué depuis la régie : ses anciennes réponses sont effacées, les pupitres peuvent répondre à nouveau.
+        val replayed = (event as? Jumped)?.clear.orEmpty().associate { "answers/$it" to null }
         // Sans réseau, Firebase garde l'écriture en file d'attente et l'envoie au retour de la connexion.
         ref.updateChildren(
             mapOf(
                 "log/${Codec.key(event.seq)}" to clean(Codec.encode(event)),
                 "state" to clean(Codec.publicState(g, round)),
-            ) + extra
+            ) + replayed + extra
         ).addOnFailureListener { Log.e(TAG, "Écriture refusée", it) }
         refresh()
         schedule()

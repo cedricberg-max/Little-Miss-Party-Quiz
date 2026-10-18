@@ -115,6 +115,10 @@
         <button id="c-answer" class="answer" aria-label="Afficher ou masquer la bonne réponse"></button>
         <p id="c-answered" class="hint small"></p>
         <p id="c-hold" class="hold-info" hidden></p>
+        <div class="games-row">
+          <p id="c-games" class="games"></p>
+          <button id="c-rescue" class="btn secondary rescue-open" hidden>🛟 Jeux</button>
+        </div>
       </div>
       <div id="c-requests" class="requests" hidden></div>
 
@@ -122,6 +126,7 @@
       <section id="mime" class="mime" hidden aria-label="Mimes">
         <div id="mime-now" class="mime-now"><span class="emoji"></span><b class="word"></b></div>
         <p id="mime-info" class="mime-info"></p>
+        <p id="mime-progress" class="mime-progress"></p>
         <div id="mime-teams" class="mime-teams"></div>
         <button id="mime-go" class="btn main">Top départ !</button>
         <button id="mime-found" class="mime-found">TROUVÉ !<small>+1 mime</small></button>
@@ -154,6 +159,19 @@
         </div>
         <button id="c-next" class="btn main"></button>
       </footer>
+    </section>
+
+    <!-- Secours : voir le jeu en cours et le suivant, passer au suivant, aller à un autre jeu ou le rejouer. -->
+    <section id="rescue" class="lib" hidden aria-label="Jeux de la prestation">
+      <header class="lib-top">
+        <b>Jeux de la prestation</b>
+        <button id="rescue-close" class="btn secondary">Fermer</button>
+      </header>
+      <div class="lib-body">
+        <p class="hint">Les équipes et leurs points sont toujours gardés. Un jeu rejoué repart de zéro : ses anciens points sont retirés, jamais comptés deux fois.</p>
+        <button id="rescue-next" class="btn main"></button>
+        <div id="rescue-list" class="rescue-list"></div>
+      </div>
     </section>
 
     <!-- « Ajouter un jeu » : bibliothèque ouverte par-dessus la régie, sans quitter la partie. -->

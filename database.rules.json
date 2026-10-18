@@ -49,6 +49,7 @@
         "answers": {
           "$qid": {
             ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
+            ".write": "auth != null && root.child('games').child($code).child('hostUid').val() === auth.uid && !newData.exists()",
             "$uid": {
               ".read": "auth != null && (root.child('games').child($code).child('teams').child($uid).child('device').val() === auth.uid || (!root.child('games').child($code).child('teams').child($uid).child('device').exists() && auth.uid === $uid))",
               ".write": "auth != null && (root.child('games').child($code).child('teams').child($uid).child('device').val() === auth.uid || (!root.child('games').child($code).child('teams').child($uid).child('device').exists() && auth.uid === $uid)) && !data.exists() && root.child('games').child($code).child('teams').child($uid).exists() && root.child('games').child($code).child('state/phase').val() === 'question' && root.child('games').child($code).child('state/paused').val() !== true && (!root.child('games').child($code).child('state/resumeAt').exists() || now >= root.child('games').child($code).child('state/resumeAt').val()) && root.child('games').child($code).child('state/qid').val() === $qid && now <= root.child('games').child($code).child('state/deadline').val() + 2000",
@@ -99,7 +100,7 @@
           ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
           "$cmd": {
             ".write": "auth != null && !data.exists() && newData.exists() && root.child('games').child($code).child('regie').child(auth.uid).exists()",
-            ".validate": "newData.child('type').isString() && newData.child('type').val().matches(/^(next|pause|resume|close|adjust|undo|end|admit|replace|mime_start|mime_found|mime_pass|mime_fix|mime_stop)$/) && newData.child('expectSeq').isNumber() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
+            ".validate": "newData.child('type').isString() && newData.child('type').val().matches(/^(next|pause|resume|close|adjust|undo|end|admit|replace|mime_start|mime_found|mime_pass|mime_fix|mime_stop|goto)$/) && newData.child('expectSeq').isNumber() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
             "team": {
               ".validate": "newData.isString() && newData.val().length <= 128"
             },
@@ -111,6 +112,12 @@
             },
             "device": {
               ".validate": "newData.isString() && newData.val().length <= 128"
+            },
+            "index": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() < 500"
+            },
+            "qid": {
+              ".validate": "newData.isString() && newData.val().length <= 40"
             },
             "$other": {
               ".validate": "$other === 'type' || $other === 'expectSeq' || $other === 'by' || $other === 'at'"

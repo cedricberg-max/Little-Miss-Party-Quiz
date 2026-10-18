@@ -32,6 +32,7 @@ object Codec {
             is MimePassed -> mapOf("type" to "mime_pass")
             is MimeCorrected -> mapOf("type" to "mime_fix", "team" to e.team, "delta" to e.delta)
             is MimeTurnEnded -> mapOf("type" to "mime_stop")
+            is Jumped -> mapOf("type" to "goto", "index" to e.index, "qid" to e.qid, "clear" to e.clear.ifEmpty { null })
         }
         return base + body
     }
@@ -67,6 +68,7 @@ object Codec {
             "mime_pass" -> MimePassed(seq, at)
             "mime_fix" -> MimeCorrected(seq, at, m["team"] as String, m.num("delta").toInt())
             "mime_stop" -> MimeTurnEnded(seq, at)
+            "goto" -> Jumped(seq, at, m.num("index").toInt(), m["qid"] as String, (m["clear"] as? List<*>).orEmpty().map { it as String })
             else -> null
         }
     }.getOrNull()

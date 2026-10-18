@@ -86,6 +86,9 @@ function startBox({ silent = false, held = false } = {}) {
   const stops = [];
   /** Manche de mimes en cours (paquet restant), comme le moteur : MimeRound. */
   let deck = [];
+  let allCards = [];
+  /** Sauts reçus de la régie (commande goto). */
+  const gotos = [];
   stops.push(onValue(ref(db, `games/${CODE}/pairing`), async (s) => {
     for (const [uid, req] of Object.entries(s.val() ?? {})) {
       const ok = req.pin === PIN;
@@ -102,13 +105,25 @@ function startBox({ silent = false, held = false } = {}) {
       if (handled.has(id)) continue;
       handled.add(id);
       if (cmd.type === "admit" || cmd.type === "replace") { await admitDevice(id, cmd); continue; }
-      const advance = ["next", "close", "end", "pause", "resume", "mime_start", "mime_found", "mime_pass", "mime_stop"].includes(cmd.type);
+      const advance = ["next", "close", "end", "pause", "resume", "mime_start", "mime_found", "mime_pass", "mime_stop", "goto"].includes(cmd.type);
       let status = { status: "applied" };
       if (advance && cmd.expectSeq !== state.seq) status = { status: "stale", reason: "stale" };
       else {
         const seq = state.seq + 1;
         const m = state.mime;
-        if (cmd.type.startsWith("mime_") || (m && ["next", "close"].includes(cmd.type))) {
+        if (cmd.type === "goto") {
+          // Saut de la régie (secours) : même vérification du programme que Command.Goto.
+          const plan = (await get(ref(db, `games/${CODE}/conducteur`))).val();
+          const q = plan?.questions?.[cmd.index];
+          if (!q || q.id !== cmd.qid) status = { status: "refused", reason: "stale_program" };
+          else {
+            gotos.push({ index: cmd.index, qid: cmd.qid });
+            state = q.kind === "mime"
+              ? { ...state, seq, phase: "question", index: cmd.index, qid: q.id, kind: "mime", text: q.text, choices: null, deadline: null, paused: false, mime: { team: null, card: null, found: 0, passed: 0, left: q.cards.length, turns: [], counts: {}, points: 50 } }
+              : { ...questionState(seq), index: cmd.index, qid: q.id, text: q.text, choices: q.choices, total: plan.questions.length, scores: state.scores, mime: null };
+          }
+        }
+        else if (cmd.type.startsWith("mime_") || (m && ["next", "close"].includes(cmd.type))) {
           const next = mimeStep(state, cmd, seq);
           if (next) state = next; else status = { status: "refused", reason: "not_now" };
         }
@@ -142,7 +157,9 @@ function startBox({ silent = false, held = false } = {}) {
     const endTurn = (x) => ({ ...x, deadline: null, mime: { ...x.mime, team: null, card: null, found: 0, passed: 0, last: { team: m.team, found: x.mime.found, passed: x.mime.passed } } });
     switch (cmd.type) {
       case "mime_start":
-        if (m.team || !deck.length) return null;
+        if (m.team) return null;
+        // Paquet épuisé par les équipes précédentes : rebattu pour que chaque équipe ait son tour.
+        if (!deck.length) deck = [...allCards];
         return { ...st, seq, deadline: Date.now() + 60000, mime: { ...m, team: cmd.team, card: deck[0], found: 0, passed: 0, turns: [...(m.turns ?? []), cmd.team] } };
       case "mime_found": {
         if (!m.team) return null;
@@ -227,6 +244,7 @@ function startBox({ silent = false, held = false } = {}) {
     /** Partie arrivée à une manche de mimes de [cards] (sans tour en cours). */
     async mimes(cards, scores = {}) {
       deck = cards;
+      allCards = cards;
       state = {
         ...state, phase: "question", seq: state.seq + 1, index: 2, qid: "m1", kind: "mime", text: "Animaux", durationMs: 60000,
         choices: null, deadline: null, scores, buzzOpen: false,
@@ -235,6 +253,12 @@ function startBox({ silent = false, held = false } = {}) {
       await update(ref(db, `games/${CODE}`), { state });
     },
     refuseNextProgram: (reason) => { refuseProgram = reason; },
+    gotos,
+    /** Place la partie dans l'état [partial] (question en cours, partie terminée…). */
+    async set(partial) {
+      state = { ...state, ...partial };
+      await update(ref(db, `games/${CODE}`), { state });
+    },
   };
 }
 
@@ -495,12 +519,77 @@ describe("régie", () => {
     await page.locator("#mime-info", { hasText: "Les Bleus a trouvé 2 mimes" }).waitFor();
     // L'équipe suivante proposée est celle qui n'a pas encore joué.
     await page.locator(".mime-team.selected", { hasText: "Les Roses" }).waitFor();
+    await page.locator("#mime-progress", { hasText: "Déjà passées : Les Bleus · Restent : Les Roses" }).waitFor();
     assert.deepEqual((await commands()).map((c) => c.type), ["mime_start", "mime_found", "mime_pass", "mime_found", "mime_fix", "close", "mime_fix"]);
     assert.deepEqual((await commands()).find((c) => c.type === "mime_start").team, "bleu");
+    // Terminer avant que toutes les équipes soient passées : confirmation, et rien n'est envoyé si on renonce.
+    let asked = "";
+    page.once("dialog", (d) => { asked = d.message(); d.dismiss(); });
     await page.click("#c-next");
+    await page.waitForTimeout(300);
+    assert.match(asked, /Les Roses n'est pas encore passée/);
+    assert.equal((await commands()).length, 7);
+    // Les Roses jouent (paquet rebattu au besoin), puis le classement sans confirmation.
+    await page.click("#mime-go");
+    await page.locator("#mime-found:not([hidden]):not([disabled])").waitFor();
+    await page.click("#mime-found");
+    await page.locator("#mime-info", { hasText: "Les Roses joue : 1 mime trouvé" }).waitFor();
+    await page.click("#c-next");
+    await page.locator("#mime-progress", { hasText: "Toutes les équipes sont passées" }).waitFor();
+    await page.locator("#c-next", { hasText: "Voir le classement" }).click();
     await page.locator("#c-phase", { hasText: "Scores" }).waitFor();
-    assert.deepEqual((await read("state")).scores, { rose: 100, bleu: 100 });
+    assert.deepEqual((await read("state")).scores, { rose: 150, bleu: 100 });
     assert.equal(await page.locator("#mime").isHidden(), true);
+    await page.context().close();
+  });
+
+  test("secours : jeu en cours et suivant, passer au suivant, rejouer un jeu après confirmation", async () => {
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    const plan = [
+      { id: "q1", text: "Couleur du ciel ?", choices: ["Vert", "Bleu"], correct: 1, duration: 20, kind: "classic", round: "Quiz de Léa" },
+      { id: "q2", text: "2 + 2 ?", choices: ["4", "5"], correct: 0, duration: 20, kind: "classic", round: "Quiz de Léa" },
+      { id: "a1m", text: "Animaux", kind: "mime", duration: 60, round: "Animaux", cards: [{ word: "Chat", image: "🐱" }] },
+      { id: "f1", text: "Finale ?", choices: ["A", "B"], correct: 0, duration: 10, kind: "classic", round: "Finale" },
+    ];
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, questions: plan });
+    await box.set({ ...questionState(4), index: 1, qid: "q2", text: "2 + 2 ?", total: 4, scores: { rose: 100 } });
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    await page.locator("#c-games", { hasText: "En cours : Quiz de Léa · Ensuite : Mimes : Animaux" }).waitFor();
+    await page.click("#c-rescue");
+    await page.locator("#rescue:not([hidden])").waitFor();
+    await page.locator("#rescue-list .rescue-game.current", { hasText: "Quiz de Léa" }).locator("button", { hasText: "Rejouer" }).waitFor();
+    await page.locator("#rescue-list .rescue-game", { hasText: "Finale" }).locator("button", { hasText: "Aller à ce jeu" }).waitFor();
+    // Renoncer : rien n'est envoyé.
+    page.once("dialog", (d) => d.dismiss());
+    await page.click("#rescue-next");
+    await page.waitForTimeout(300);
+    assert.equal(box.gotos.length, 0);
+    // Passer au jeu suivant : les mimes s'ouvrent, les points restent.
+    let asked = "";
+    page.once("dialog", (d) => { asked = d.message(); d.accept(); });
+    await page.locator("#rescue-next", { hasText: "Passer au jeu suivant : Mimes : Animaux" }).click();
+    await page.locator("#r-toast", { hasText: "C'est parti pour « Mimes : Animaux » !" }).waitFor();
+    assert.match(asked, /points déjà gagnés sont gardés/);
+    assert.deepEqual(box.gotos, [{ index: 2, qid: "a1m" }]);
+    await page.locator("#mime:not([hidden])").waitFor();
+    await page.locator("#c-games", { hasText: "En cours : Mimes : Animaux · Ensuite : Finale" }).waitFor();
+    // Rejouer le quiz : confirmation qui dit que ses points sont retirés puis rejoués.
+    await page.click("#c-rescue");
+    page.once("dialog", (d) => { asked = d.message(); d.accept(); });
+    await page.locator("#rescue-list .rescue-game", { hasText: "Quiz de Léa" }).locator("button", { hasText: "Rejouer" }).click();
+    await page.locator("#r-toast", { hasText: "« Quiz de Léa » est relancé." }).waitFor();
+    assert.match(asked, /rien n'est compté deux fois/);
+    assert.deepEqual(box.gotos[1], { index: 0, qid: "q1" });
+    // Partie terminée par erreur : un jeu peut encore être relancé.
+    await box.set({ phase: "ended", seq: (await read("state")).seq + 1 });
+    await page.locator("#c-rescue:not([hidden])").click();
+    page.once("dialog", (d) => d.accept());
+    await page.locator("#rescue-list .rescue-game", { hasText: "Finale" }).locator("button", { hasText: "Rejouer" }).click();
+    await page.locator("#r-toast", { hasText: "« Finale » est relancé." }).waitFor();
+    assert.deepEqual(box.gotos[2], { index: 3, qid: "f1" });
     await page.context().close();
   });
 

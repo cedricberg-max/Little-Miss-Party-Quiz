@@ -30,6 +30,9 @@ sealed interface Command {
     data class MimeFix(override val id: String, override val expectSeq: Int, val team: String, val delta: Int) : Command
     data class MimeStop(override val id: String, override val expectSeq: Int) : Command
 
+    /** Régie : aller au jeu (manche) qui commence à la question [index], [qid] vérifiant le programme. */
+    data class Goto(override val id: String, override val expectSeq: Int, val index: Int, val qid: String) : Command
+
     companion object {
         /** Correction maximale en une fois, pour qu'une faute de frappe ne fausse pas tout le classement. */
         const val MAX_DELTA = 500
@@ -50,6 +53,7 @@ sealed interface Command {
                 "mime_pass" -> MimePass(id, seq)
                 "mime_fix" -> MimeFix(id, seq, m["team"] as String, (m["delta"] as Number).toInt())
                 "mime_stop" -> MimeStop(id, seq)
+                "goto" -> Goto(id, seq, (m["index"] as Number).toInt(), m["qid"] as String)
                 else -> null
             }
         }.getOrNull()
@@ -81,10 +85,11 @@ fun Game.execute(
 ): CommandResult {
     // Un double appui sur « Trouvé » ne compte qu'un mime : chaque appui vise la carte que la régie affichait.
     val advances = cmd is Command.Next || cmd is Command.Close || cmd is Command.End || cmd is Command.MimeStart ||
-        cmd is Command.MimeFound || cmd is Command.MimePass || cmd is Command.MimeStop
+        cmd is Command.MimeFound || cmd is Command.MimePass || cmd is Command.MimeStop || cmd is Command.Goto
     if (advances && cmd.expectSeq != state.lastSeq) return CommandResult(CommandStatus.STALE, reason = "stale")
     // En pause, rien n'avance : l'animatrice reprend d'abord (corrections de score et fin restent possibles).
-    if (state.paused && advances && cmd !is Command.End) return refused("paused")
+    // Le saut de jeu reste possible en pause : c'est la commande de secours pour débloquer une prestation.
+    if (state.paused && advances && cmd !is Command.End && cmd !is Command.Goto) return refused("paused")
     val event = when (cmd) {
         is Command.Next -> when (state.phase) {
             Phase.LOBBY -> if (teams.isEmpty()) return refused("no_teams") else next(now)
@@ -106,6 +111,8 @@ fun Game.execute(
         is Command.MimePass -> mimePass(now)
         is Command.MimeFix -> if (cmd.team !in teams) return refused("unknown_team") else mimeFix(cmd.team, cmd.delta, now)
         is Command.MimeStop -> mimeStop(now)
+        // Le programme a changé depuis l'affichage de la régie : rien n'est fait.
+        is Command.Goto -> if (quiz.questions.getOrNull(cmd.index)?.id != cmd.qid) return refused("stale_program") else goto(cmd.index, now)
     }
     return if (event == null) refused("not_now") else CommandResult(CommandStatus.APPLIED, event)
 }
