@@ -293,8 +293,13 @@ class PupitreSimule(etiquette: String) : AutoCloseable {
 
     fun rejoindre(code: String, nom: String, couleur: String) {
         bloquer {
-            base.getReference("games/$code/teams/$uid")
-                .setValue(mapOf("name" to nom, "color" to couleur, "joinedAt" to ServerValue.TIMESTAMP)).await()
+            // Comme le pupitre : l'équipe et sa couleur réservée dans la même écriture.
+            base.getReference("games/$code").updateChildren(
+                mapOf(
+                    "teams/$uid" to mapOf("name" to nom, "color" to couleur, "joinedAt" to ServerValue.TIMESTAMP),
+                    "colors/${couleur.removePrefix("#").uppercase()}" to uid,
+                ),
+            ).await()
         }
         signalerPresence(code)
     }

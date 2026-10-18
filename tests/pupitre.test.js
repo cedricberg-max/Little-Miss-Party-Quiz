@@ -134,6 +134,30 @@ describe("pupitre", () => {
     for (const p of pages) await p.context().close();
   });
 
+  test("une couleur prise est grisée pour les autres, même si deux tablettes la choisissent en même temps", async () => {
+    const [a, b, c] = [await openPupitre(), await openPupitre(), await openPupitre()];
+    for (const p of [a, b, c]) await p.locator("#screen-join.active").waitFor();
+    // Les trois tablettes ont la première couleur présélectionnée ; deux valident en même temps.
+    await a.fill("#team-name", "Les Roses");
+    await b.fill("#team-name", "Les Bleus");
+    await Promise.all([a.click("#join"), b.click("#join")]);
+    await waitFor(async () => Object.keys((await read("teams")) ?? {}).length === 2, "deux équipes inscrites");
+    const teams = Object.values(await read("teams"));
+    assert.notEqual(teams[0].color, teams[1].color, "jamais deux équipes de la même couleur");
+    for (const p of [a, b]) await p.locator("#screen-play.active").waitFor();
+    // La troisième voit les deux couleurs prises, grisées et impossibles à choisir.
+    for (const t of teams) {
+      await c.locator(`#colors button[data-color="${t.color}"]:disabled`).waitFor();
+    }
+    assert.equal(teams.map((t) => t.color).includes(await c.locator("#colors button.selected").getAttribute("data-color")), false);
+    await c.fill("#team-name", "Les Verts");
+    await c.click("#join");
+    await c.locator("#screen-play.active").waitFor();
+    const colors = Object.values(await read("teams")).map((t) => t.color);
+    assert.equal(new Set(colors).size, 3);
+    for (const p of [a, b, c]) await p.context().close();
+  });
+
   test("accueil : deux équipes buzzent à répétition, rien ne se bloque ni ne change d'écran", async () => {
     const pages = [await openPupitre(), await openPupitre()];
     await joinTeam(pages[0], "Les Roses");

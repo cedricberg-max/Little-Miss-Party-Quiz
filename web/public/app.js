@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
 import { getAuth, signInAnonymously, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
 import {
-  getDatabase, ref, get, set, onValue, onDisconnect, serverTimestamp, connectDatabaseEmulator,
+  getDatabase, ref, get, set, update, onValue, onDisconnect, serverTimestamp, connectDatabaseEmulator,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { TEAM_COLORS, CHOICE_COLORS, CHOICE_LETTERS, MAX_TEAMS } from "./theme.js";
 import { hasAccess, loginWithPassword, loginWithPin, startRegie } from "./regie.js";
@@ -132,23 +132,30 @@ function showReplaced(team) {
 // Nouvelle page, nouvelle prestation : on part d'un champ vide, même si le navigateur a gardé un ancien nom.
 $("team-name").value = "";
 
+/** Couleurs déjà prises par une autre équipe : réservées dans la base, ou portées par une équipe déjà inscrite. */
+let takenColors = new Set();
+const colorKey = (c) => c.slice(1).toUpperCase();
+
 function showJoin(late = false) {
   lateJoin = late;
+  stopListening();
   $("join-late").hidden = !late;
+  $("join-error").hidden = true;
   $("join").textContent = late ? "Demander à entrer" : "Rejoindre la partie";
-  const box = $("colors");
-  box.innerHTML = "";
-  TEAM_COLORS.forEach((c) => {
-    const b = document.createElement("button");
-    b.style.background = c;
-    b.setAttribute("aria-label", c);
-    b.classList.toggle("selected", c === chosenColor);
-    b.onclick = () => {
-      chosenColor = c;
-      box.querySelectorAll("button").forEach((x) => x.classList.toggle("selected", x === b));
-    };
-    box.appendChild(b);
-  });
+  let reserved = {};
+  let teams = {};
+  const refresh = () => {
+    takenColors = new Set([
+      ...Object.entries(reserved).filter(([, owner]) => owner !== uid).map(([k]) => k),
+      ...Object.entries(teams).filter(([id]) => id !== uid).map(([, t]) => t?.color && colorKey(t.color)).filter(Boolean),
+    ]);
+    // Couleur choisie prise entre-temps : on passe à la première libre.
+    if (takenColors.has(colorKey(chosenColor))) chosenColor = TEAM_COLORS.find((c) => !takenColors.has(colorKey(c))) ?? chosenColor;
+    renderColors();
+  };
+  listen(`games/${code}/colors`, (snap) => { reserved = snap.val() ?? {}; refresh(); });
+  listen(`games/${code}/teams`, (snap) => { teams = snap.val() ?? {}; refresh(); });
+  renderColors();
   show("join");
   $("team-name").focus();
   // Prestation chargée : on accueille les équipes avec le prénom de l'enfant fêté.
@@ -157,6 +164,27 @@ function showJoin(late = false) {
     $("join-welcome").textContent = p?.childName ? `Joyeux anniversaire ${p.childName} !` : p?.title ?? "";
     $("join-welcome").hidden = !$("join-welcome").textContent;
   }).catch(() => {});
+}
+
+function renderColors() {
+  const box = $("colors");
+  box.innerHTML = "";
+  TEAM_COLORS.forEach((c) => {
+    const b = document.createElement("button");
+    const taken = takenColors.has(colorKey(c));
+    b.style.background = c;
+    b.setAttribute("aria-label", taken ? `${c} (déjà prise)` : c);
+    b.dataset.color = c;
+    b.disabled = taken;
+    b.classList.toggle("taken", taken);
+    b.classList.toggle("selected", c === chosenColor);
+    b.onclick = () => {
+      chosenColor = c;
+      $("join-error").hidden = true;
+      box.querySelectorAll("button").forEach((x) => x.classList.toggle("selected", x === b));
+    };
+    box.appendChild(b);
+  });
 }
 
 $("join").onclick = async () => {
@@ -170,11 +198,25 @@ $("join").onclick = async () => {
       await set(ref(db, `games/${code}/joinRequests/${uid}`), { name, color: chosenColor, at: serverTimestamp() });
       return waitForAdmission();
     }
-    await set(ref(db, `games/${code}/teams/${uid}`), { name, color: chosenColor, joinedAt: serverTimestamp() });
+    // L'équipe et sa couleur dans la même écriture : la base refuse une couleur déjà réservée par une autre équipe.
+    await update(ref(db, `games/${code}`), {
+      [`teams/${uid}`]: { name, color: chosenColor, joinedAt: serverTimestamp() },
+      [`colors/${colorKey(chosenColor)}`]: uid,
+    });
     teamId = uid;
     play();
   } catch (e) {
     console.error(e);
+    // Une autre équipe vient de prendre cette couleur : on le dit et on propose les couleurs encore libres.
+    const owner = !lateJoin && (await get(ref(db, `games/${code}/colors/${colorKey(chosenColor)}`)).catch(() => null))?.val();
+    if (owner && owner !== uid) {
+      $("join-error").textContent = "Cette couleur vient d'être prise par une autre équipe : choisissez-en une autre.";
+      $("join-error").hidden = false;
+      takenColors.add(colorKey(chosenColor));
+      chosenColor = TEAM_COLORS.find((c) => !takenColors.has(colorKey(c))) ?? chosenColor;
+      renderColors();
+      return;
+    }
     // Refusé le plus souvent parce que le quiz vient d'être lancé : on repasse par l'accueil, qui propose
     // alors de demander à entrer (le nom tapé et la couleur restent).
     if (!lateJoin) return start();

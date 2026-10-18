@@ -659,11 +659,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             if (replace) {
                 updates["teams/$team/device"] = device
             } else {
+                // Jamais deux équipes de la même couleur : la couleur demandée si elle est libre, sinon une autre.
+                val color = freeColor(request.child("color").getValue(String::class.java), teams.map { it.color })
                 updates["teams/$device"] = mapOf(
                     "name" to request.child("name").getValue(String::class.java),
-                    "color" to request.child("color").getValue(String::class.java),
+                    "color" to color,
                     "joinedAt" to ServerValue.TIMESTAMP,
                 )
+                updates["colors/${colorKey(color)}"] = device
             }
         }
         ref.updateChildren(updates).addOnFailureListener { Log.e(TAG, "Entrée d'un appareil refusée", it) }

@@ -1,5 +1,6 @@
 // Règles de sécurité Firebase : ce qu'un pupitre, la box ou un inconnu ont le droit de faire.
 // Lancé par `npm test` dans l'émulateur Firebase, jamais sur la vraie base.
+import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { loadRules, seedAdmin, adminHash, ADMIN_PASSWORD, ADMIN_SALT } from "./rules-loader.js";
 import { after, before, beforeEach, describe, test } from "node:test";
@@ -68,30 +69,54 @@ describe("lecture", () => {
   });
 });
 
+/** Comme le pupitre : l'équipe et sa couleur réservée dans la même écriture. */
+const join = (uid, name, color, team = uid, code = CODE) =>
+  update(ref(db(uid), `games/${code}`), { [`teams/${team}`]: { name, color }, [`colors/${color.slice(1).toUpperCase()}`]: uid });
+
 describe("équipes", () => {
   test("rejoindre une partie existante dans le salon d'attente", async () => {
     await seed({ phase: "lobby" });
-    await assertSucceeds(set(ref(db("vert"), `games/${CODE}/teams/vert`), { name: "Les Verts", color: "#06D6A0" }));
+    await assertSucceeds(join("vert", "Les Verts", "#06D6A0"));
     // Même tablette qui rejoint deux fois : toujours une seule équipe.
-    await assertSucceeds(set(ref(db("vert"), `games/${CODE}/teams/vert`), { name: "Les Verts", color: "#06D6A0" }));
+    await assertSucceeds(join("vert", "Les Verts", "#06D6A0"));
   });
   test("partie commencée : un nouvel appareil ne crée pas d'équipe seul, il demande à entrer", async () => {
     await seed();
-    await assertFails(set(ref(db("vert"), `games/${CODE}/teams/vert`), { name: "Les Verts", color: "#06D6A0" }));
-    await assertFails(set(ref(db("rose"), `games/${CODE}/teams/rose`), { name: "Renommée", color: "#FF3CAC" }));
+    await assertFails(join("vert", "Les Verts", "#06D6A0"));
+    await assertFails(join("rose", "Renommée", "#FF3CAC"));
     await assertSucceeds(set(ref(db("vert"), `games/${CODE}/joinRequests/vert`), { name: "Les Verts", color: "#06D6A0", at: serverTimestamp() }));
   });
   test("impossible d'inscrire ou de renommer une autre équipe", async () => {
     await seed();
-    await assertFails(set(ref(db("vert"), `games/${CODE}/teams/rose`), { name: "Piratée", color: "#000000" }));
+    await assertFails(join("vert", "Piratée", "#000000", "rose"));
   });
   test("nom vide ou trop long refusé", async () => {
     await seed();
-    await assertFails(set(ref(db("vert"), `games/${CODE}/teams/vert`), { name: "", color: "#06D6A0" }));
-    await assertFails(set(ref(db("vert"), `games/${CODE}/teams/vert`), { name: "x".repeat(21), color: "#06D6A0" }));
+    await assertFails(join("vert", "", "#06D6A0"));
+    await assertFails(join("vert", "x".repeat(21), "#06D6A0"));
   });
   test("impossible de rejoindre une partie qui n'existe pas", async () => {
-    await assertFails(set(ref(db("vert"), "games/ZZZZZ/teams/vert"), { name: "Les Verts", color: "#06D6A0" }));
+    await assertFails(join("vert", "Les Verts", "#06D6A0", "vert", "ZZZZZ"));
+  });
+  test("une couleur prise n'est plus disponible pour les autres équipes, même en même temps", async () => {
+    await seed({ phase: "lobby" });
+    // Sans réserver sa couleur, une équipe ne peut pas s'inscrire.
+    await assertFails(set(ref(db("vert"), `games/${CODE}/teams/vert`), { name: "Les Verts", color: "#06D6A0" }));
+    // Deux tablettes choisissent la même couleur au même moment : une seule passe.
+    const results = await Promise.allSettled([join("vert", "Les Verts", "#06D6A0"), join("jaune", "Les Jaunes", "#06d6a0")]);
+    assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
+    const winner = results[0].status === "fulfilled" ? "vert" : "jaune";
+    const loser = winner === "vert" ? "jaune" : "vert";
+    assert.equal((await get(ref(db(HOST), `games/${CODE}/colors/06D6A0`))).val(), winner);
+    // Le perdant prend une autre couleur ; personne ne vole ni ne libère la couleur d'un autre.
+    await assertSucceeds(join(loser, "Les Autres", "#FFD166"));
+    await assertFails(set(ref(db(loser), `games/${CODE}/colors/06D6A0`), loser));
+    await assertFails(set(ref(db(loser), `games/${CODE}/colors/06D6A0`), null));
+    // Réserver une couleur sans équipe de cette couleur : refusé (pas de couleurs bloquées pour rien).
+    await assertFails(set(ref(db("violet"), `games/${CODE}/colors/9B5DE5`), "violet"));
+    await assertSucceeds(get(ref(db("violet"), `games/${CODE}/colors`)));
+    // La box admet une équipe en cours de partie avec sa couleur.
+    await assertSucceeds(update(ref(db(HOST), `games/${CODE}`), { "teams/tard": { name: "En retard", color: "#9B5DE5", joinedAt: 1 }, "colors/9B5DE5": "tard" }));
   });
 });
 
@@ -140,7 +165,7 @@ describe("remplacement d'un appareil", () => {
     await assertFails(set(ref(db("bleu"), `games/${CODE}/presence/bleu`), { online: false, at: serverTimestamp() }));
     await assertFails(set(ref(db("bleu"), `games/${CODE}/answers/q2/bleu`), { choice: 1, at: serverTimestamp() }));
     await assertFails(get(ref(db("bleu"), `games/${CODE}/answers/q1/bleu`)));
-    await assertFails(set(ref(db("bleu"), `games/${CODE}/teams/bleu`), { name: "Les Bleus", color: "#2B86C5" }));
+    await assertFails(join("bleu", "Les Bleus", "#2B86C5"));
     // Le nouvel appareil ne joue pas pour une autre équipe.
     await assertFails(set(ref(db("neuf"), `games/${CODE}/answers/q1/rose`), { choice: 0, at: serverTimestamp() }));
   });
