@@ -452,7 +452,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 closeIfEveryoneAnswered()
             }
 
-            override fun onCancelled(error: DatabaseError) = Log.e(TAG, "Réponses : ${error.message}")
+            override fun onCancelled(error: DatabaseError) {
+                Log.e(TAG, "Réponses : ${error.message}")
+            }
         }
         ref.addValueEventListener(listener)
         answersListener = ref to listener
