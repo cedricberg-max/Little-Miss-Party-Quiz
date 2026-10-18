@@ -22,7 +22,8 @@ Pour un audit de performance approfondi, utiliser aussi le skill officiel Google
   `tv-material` ne devient utile que pour des écrans très navigués à la télécommande.
 - **Pupitre** : HTML/CSS/JS sans framework (`web/public/`), sur n'importe quel téléphone ou tablette,
   Safari iOS compris.
-- **Régie** : page web sur le téléphone de l'animatrice (à créer), même stack que le pupitre.
+- **Régie** : **mode régie de la page des pupitres** (`web/public`), pas d'application ni de page
+  séparée : bouton « 🎛️ Accès régie » puis mot de passe commun (décision du 18/10/2026).
 - Pas de SDK Android dans le conteneur : les vérifications visuelles passent par les APK de GitHub
   Actions et les tests de captures en CI.
 
@@ -280,8 +281,12 @@ décoratif.
   et masquable, rien qui se lise de loin.
 - **Une main** : boutons principaux dans le tiers bas de l'écran, au moins 64 px de haut ; un seul
   bouton principal par état.
-- **Entrée** : scanner le QR de la TV suffit quand le téléphone est connecté au compte animatrice ;
-  sinon, saisie du code à 4 chiffres. Puis liste des prestations du jour, une touche pour charger.
+- **Entrée** : l'animatrice scanne le QR de la TV comme les équipes, touche le petit bouton
+  « 🎛️ Accès régie » en bas à droite de la page (discret, jamais au centre ni coloré, hors de portée
+  d'un enfant qui rejoint une équipe), saisit le mot de passe commun dans une fenêtre simple (clavier
+  ouvert d'office, œil pour afficher, bouton « Entrer »), puis la même page passe en mode régie. Liste
+  des prestations publiées, une touche pour charger. Pendant la partie, rouvrir la page ne redemande
+  rien. Jamais de compte ni d'adresse e-mail.
 - **Conducteur** consultable à tout moment (onglet) : manches, questions à venir avec leur réponse,
   sans interrompre ce que montre la TV.
 - **Commandes** : lancer une manche, question suivante, chrono (démarrer, pause, reprise), valider ou
