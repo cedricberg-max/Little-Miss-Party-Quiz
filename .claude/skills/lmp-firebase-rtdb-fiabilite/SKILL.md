@@ -17,11 +17,14 @@ viennent de `lmp-game-design-enfants`, l'affichage de `lmp-plateau-tv-motion`.
   Gemini ni Claude. Feuille de route :
   https://claude.ai/code/artifact/c59cec39-7c64-4dd3-be46-c138e82011d0
 - **Architecture globale validée (cedric, 18/10/2026, 09 h 36)** : quatre rôles (administration PC,
-  régie téléphone, plateau TV, pupitres) ; **compte sécurisé pour les animatrices, le QR code de la TV
-  gardant toute son utilité, accès depuis le téléphone extrêmement simple** ; le code à 4 chiffres
-  reste en secours ; droits musicaux **informatifs, jamais bloquants** ; médias en europe-west1.
-  Synthèse : https://claude.ai/code/artifact/610f901c-772e-41b3-88d5-be3228554396 . Les adresses
-  Google des admins et animatrices arrivent plus tard : ne jamais bloquer un développement dessus.
+  régie téléphone, plateau TV, pupitres) ; droits musicaux **informatifs, jamais bloquants** ; médias
+  en europe-west1. Synthèse : https://claude.ai/code/artifact/610f901c-772e-41b3-88d5-be3228554396 .
+- **Accès régie par mot de passe commun (décision définitive de cedric, 18/10/2026, 09 h 59)** :
+  **aucun compte pour les animatrices**. Elles scannent le QR de la TV, arrivent sur la page des
+  pupitres, touchent le bouton discret « 🎛️ Accès régie » (bas à droite), saisissent le mot de passe
+  commun et pilotent. Mot de passe vérifié **côté serveur**, essais limités, modifiable par Sarah dans
+  l'administration (Paramètres > Accès régie) sans redéploiement. Seuls les admins (Sarah, cedric) ont
+  un compte Google ; adresses fournies plus tard, ne jamais bloquer un développement dessus.
 - **Passage à Blaze validé dans son principe (cedric, 18/10/2026, 08 h 35)**, budget cible < 10 €/mois,
   alertes à 3, 5 et 8 € qui ne coupent jamais une prestation. Architecture hybride : Realtime Database
   pour le direct et la bibliothèque, **Cloud Storage** pour les médias, **cache local vérifié** sur la
@@ -73,7 +76,7 @@ au `uid` de la box (perdue si les données de la box sont effacées) ; pas encor
 8. **Écritures atomiques** : un changement d'état et ses événements partent dans un seul
    `updateChildren` multi-chemins. Pas de séquence de `setValue` dont une moitié peut échouer.
 9. **Bonne réponse secrète** : le contenu du quiz (avec les bonnes réponses) n'est lisible que par la
-   box, les régies appairées (via `conducteur`), les animatrices et l'admin, jamais par un pupitre. La bonne réponse n'est écrite dans la partie (`reveals/$qKey`) qu'au moment
+   box, les régies connectées (via `conducteur`) et l'admin, jamais par un pupitre. La bonne réponse n'est écrite dans la partie (`reveals/$qKey`) qu'au moment
    de la révélation.
 10. **Rien d'essentiel ne dépend du réseau pendant la partie** : instantané de prestation et médias
     téléchargés et vérifiés (SHA-256) dans le cache de la box **avant** le début ; extraits et images
@@ -121,14 +124,18 @@ reports/$id    { kind, text, version, device, at }  // plantages de la box : éc
 ```
 games/$code
   public       { title, childName, takenColors, phase }   // seul nœud lisible avant de rejoindre
-  pairing/$uid { pin?, staff?, at }   pairingLock { failures, until }   regie/$uid { pairedAt, via }
+  regie/$uid { since, via: 'motdepasse'|'pin' }   // écrit par la fonction regieLogin (ou la box en secours)
+  pairing/$uid { pin, at }   pairingLock { failures, until }   // secours par PIN, avant Blaze seulement
   conducteur   { rounds, questions avec bonnes réponses }  // publié par la box, lisible par les régies seules
   showId                        // prestation chargée, écrit par la box
   commands/$cmdId { type, args, expectSeq, by, at }    commandStatus/$cmdId
   teams/$teamId { name, color, emblem }       // une équipe = une place, pas une tablette
   devices/$uid "<teamId>"       // tablette rattachée à une place ; la régie rattache un remplaçant
   buzz/$windowId/$teamId { pressedAt, receivedAt }
-library/                        // lecture : rôles box, animatrice, admin ; écriture : admin
+settings/regie { hash, salt, version, updatedAt, updatedBy }   // lu et écrit par les fonctions seules
+regieAccess/$uid { grantedAt, expiresAt, version }   // écrit par regieLogin ; accès régie valable 12 h
+regieAttempts/$key { failures, until }               // limitation des essais, fonctions seules
+library/                        // lecture : box, admin, et régie connectée pour la liste des prestations ; écriture : admin
   quizzes/$quizId { title, theme, ageMin, ageMax, difficulty, source: 'tableur'|'gemini'|'saisie',
                     questions/$qid { ..., status: 'brouillon'|'validee', mediaId? } }
   media/$mediaId { path, sha256, size, type, title, artist, theme, ageMin, ageMax, difficulty,
@@ -182,32 +189,37 @@ plusieurs lignes pour la lecture ; dans `database.rules.json`, chaque condition 
 }}
 ```
 
-**Appairage de la régie (validé le 18/10/2026)** : le QR code de la TV prouve qu'on est dans la pièce
-et désigne la box ; le compte prouve qu'on est animatrice. Le code à 4 chiffres ne sert qu'en secours.
+**Accès à la régie (décision définitive du 18/10/2026)** : une seule page web pour joueurs et régie,
+un mot de passe commun, aucun compte animatrice.
 
-1. La TV affiche un QR code « Relier une régie » (lien vers la page régie avec le code de partie) et,
-   en petit, un **PIN à 4 chiffres** tiré au hasard pour cette partie. Le PIN n'est jamais écrit dans
-   Firebase : il reste sur la box (`SharedPreferences`, pour survivre à un redémarrage).
-2. **Chemin normal** : le téléphone de l'animatrice est déjà connecté à son compte Google (une seule
-   fois, session gardée par le navigateur). Elle scanne : la page écrit `pairing/$uid = { staff: true,
-   at }`, que les règles n'acceptent que d'un compte au rôle `animatrice` ou `admin`. La box l'appaire
-   sans PIN. **Aucune saisie** : scanner suffit.
-3. **Chemin de secours** (téléphone sans compte, compte pas encore configuré) : connexion anonyme,
-   saisie du PIN affiché, `pairing/$uid = { pin, at }`. PIN correct : `regie/$uid` ; PIN faux :
-   `pairingLock/failures`, 5 échecs = 60 s de blocage (la box limite les essais, les règles ne le
-   savent pas). Une régie de secours pilote la partie mais ne lit pas `library` : la prestation est
-   alors choisie à la télécommande sur la box.
-4. Les règles n'acceptent une commande que d'un `uid` présent dans `regie`. Une régie se retire depuis
-   la TV (« Retirer les régies ») ou en changeant de partie. Un nouveau PIN invalide les demandes en
-   attente. Deux régies au plus par partie.
-5. La régie appairée choisit la prestation (commande `loadShow { showId }`) ; la box la charge et
-   publie `conducteur`. La régie ne lit que la partie et `conducteur`, jamais `library` directement
-   (sauf rôle animatrice pour lister les prestations).
-6. **Avant les fonctions serveur (Spark, lot 2)** : le rôle se lit provisoirement dans une liste
-   d'adresses vérifiées écrite dans les règles (`auth.token.email_verified === true &&
-   auth.token.email.matches(/^(…)$/)`), vide tant que cedric n'a pas donné les adresses : le chemin de
-   secours fonctionne seul. À remplacer par `auth.token.role` dès les fonctions (lot 4).
-7. Deux prestations simultanées = deux parties, deux box, deux QR : rien n'est partagé.
+1. L'animatrice scanne le QR de la TV (le même que les équipes) et arrive sur la page des pupitres avec
+   le code de partie. Un bouton discret **« 🎛️ Accès régie »**, en bas à droite, ouvre une fenêtre
+   « Mot de passe de régie ». Pas d'inscription, pas d'application à installer.
+2. La page (connexion anonyme comme les pupitres) appelle la fonction **`regieLogin({ code, password })`**
+   (europe-west1). La fonction compare avec `settings/regie` (empreinte **scrypt** + sel, comparaison
+   à temps constant ; le mot de passe n'est jamais stocké en clair ni lisible par un client). Succès :
+   elle écrit dans un même `update` `regieAccess/$uid { grantedAt, expiresAt: +12 h, version }` et
+   `games/$code/regie/$uid { since, via: 'motdepasse' }`. La page bascule en mode régie, sans
+   rechargement ; la session reste valable 12 h sur ce téléphone (rouvrir la page ne redemande rien).
+3. **Limitation des essais** (dans la fonction, transaction sur `regieAttempts`) : par appareil, 5 échecs
+   → 1 min d'attente, puis 5 min ; par partie, 20 échecs en 10 min → 5 min. Message simple
+   (« Mot de passe incorrect », puis « Réessayez dans 1 minute »), jamais de détail technique.
+4. **Changement de mot de passe** : Paramètres > Accès régie > Modifier le mot de passe (saisie,
+   confirmation, au moins 6 caractères) dans l'administration ; fonction `setRegiePassword` réservée au
+   rôle `admin`, qui réécrit `settings/regie` et incrémente `version`. Effet immédiat pour les nouvelles
+   connexions, sans redéploiement. Une régie déjà connectée **n'est pas coupée** : elle garde son accès
+   jusqu'à la fin de sa partie (son `regie/$uid` reste valide). Bouton admin « Déconnecter toutes les
+   régies » pour le cas d'un mot de passe divulgué.
+5. **Droits de la régie** : envoyer des commandes à la partie (`commands`, si `regie/$uid` existe), lire
+   la partie et `conducteur`, lire la liste et le contenu des prestations publiées (si `regieAccess/$uid`
+   n'a pas expiré) pour en choisir une (commande `loadShow { showId }`). **Aucune écriture** dans
+   `library`, `settings` ni les médias : le mot de passe de régie ne donne aucun droit d'administration.
+6. **Avant Blaze** (pas de fonction possible) : le chemin de secours existant sert de transition. La TV
+   affiche un PIN à 4 chiffres, la page l'envoie, la box compare et écrit `regie/$uid { via: 'pin' }`
+   via `pairing/$uid` (5 PIN faux = 60 s de blocage, `pairingLock`). L'interface (bouton, fenêtre, mode régie) est la même ; seul l'appel
+   change. `regieLogin` se code et se teste dès maintenant sur l'émulateur, et se déploie dès la bascule.
+7. Une régie se retire depuis la TV (« Retirer les régies ») ou en changeant de partie. Deux régies au
+   plus par partie. Deux prestations simultanées = deux parties, deux box : rien n'est partagé.
 
 **Rôles (cible Blaze)** : portés par une revendication personnalisée `role` dans le jeton, posée
 **uniquement par les fonctions serveur** (Admin SDK) :
@@ -216,8 +228,7 @@ et désigne la box ; le compte prouve qu'on est animatrice. Le code à 4 chiffre
 | --- | --- | --- |
 | `admin` | Sarah, cedric (compte Google) | script d'administration lancé une fois avec le compte de service |
 | `box` | une box Android TV | la box affiche un code + QR ; un admin approuve dans la page d'administration → fonction `approveDevice` |
-| `animatrice` | Sarah et chaque animatrice (compte Google) | ajoutée ou retirée par un admin dans l'administration → fonction `setStaff` |
-| régie | un téléphone, une partie | scan du QR par un compte `animatrice`/`admin`, ou PIN de secours (`regie/$uid`) |
+| régie | un téléphone, une partie | mot de passe commun vérifié par `regieLogin` (PIN de la TV avant Blaze), pas de compte |
 | équipe | pupitre, une partie | `teams/$uid` ou `devices/$uid` de la partie |
 
 - Après approbation, la box force le rafraîchissement de son jeton (`getIdToken(true)`).
@@ -227,8 +238,9 @@ et désigne la box ; le compte prouve qu'on est animatrice. Le code à 4 chiffre
 - **Transfert de partie** (box en panne) : fonction `transferHost`, réservée à `admin`, qui réécrit
   `hostUid` vers la nouvelle box et ajoute un événement `host_transferred` au journal ; la nouvelle box
   télécharge l'instantané et rejoue le journal.
-- `library` : lecture `auth.token.role in ['box','animatrice','admin']` (en RTDB : une condition
-  `auth.token.role === '…'` par rôle) ; écriture `admin`. Un pupitre ne lit jamais une bonne réponse avant `reveals`.
+- `library` : lecture `auth.token.role in ['box','admin']` (en RTDB : une condition
+  `auth.token.role === '…'` par rôle), plus `shows` pour une régie dont `regieAccess/$uid/expiresAt > now` ;
+  écriture `admin` seulement. Un pupitre ne lit jamais une bonne réponse avant `reveals`.
 - `games/$code` : création réservée au rôle `box` ; lecture réservée à l'hôte, aux régies et aux équipes
   inscrites ; `public` lisible par tout compte connecté.
 - Storage `media/` : lecture `box`/`admin`, création `admin` avec taille et type contrôlés, jamais de
@@ -305,8 +317,10 @@ et désigne la box ; le compte prouve qu'on est animatrice. Le code à 4 chiffre
   exécutés par GitHub Actions sur chaque PR. Couvrir au minimum : un pupitre ne peut ni modifier un
   score ni écrire un événement ; une équipe ne répond pas deux fois ; un buzz hors fenêtre est refusé ;
   une régie non appairée ne peut pas commander ; une commande au `expectSeq` périmé est rejetée par le
-  moteur ; 5 PIN faux bloquent l'appairage 60 s ; `staff: true` est refusé à un compte sans rôle
-  animatrice ou admin ; une régie ne lit pas `conducteur` avant d'être appairée ; une tablette de
+  moteur ; 5 PIN faux bloquent l'appairage 60 s ; `regieLogin` refuse un mauvais mot de passe et bloque
+  après 5 échecs ; après `setRegiePassword`, l'ancien mot de passe est refusé mais une régie déjà
+  connectée continue de commander ; une régie n'écrit ni `library` ni `settings` ; personne ne lit
+  `settings/regie` ; une régie ne lit pas `conducteur` avant d'être connectée ; une tablette de
   remplacement rattachée par la régie garde le nom et les points de l'équipe ; un pupitre ne lit pas `library` ; un appareil inconnu
   ne peut pas se faire passer pour une équipe ; un compte sans rôle ne lit ni `library`, ni les médias,
   ni une partie dont il n'est pas membre ; une box n'écrit ni `library` ni les médias, ni la partie
