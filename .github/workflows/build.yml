@@ -61,6 +61,19 @@ jobs:
         run: ./gradlew :tv:assembleRelease --stacktrace
       - name: Renommer l'APK
         run: cp tv/build/outputs/apk/release/tv-release.apk little-miss-party-quiz-tv.apk
+      # La box refuse une mise à jour d'une autre appli, d'une version plus ancienne ou signée par une
+      # autre clé : on bloque ici un APK qu'elle refuserait, avant toute publication.
+      - name: Vérifier l'APK (appli, versionCode, signature)
+        run: |
+          bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          badging=$("$bt/aapt2" dump badging little-miss-party-quiz-tv.apk | head -1)
+          echo "$badging"
+          echo "$badging" | grep -q "name='com.littlemissparty.quiz.tv' versionCode='${{ github.run_number }}'" \
+            || { echo "::error::Nom de package ou versionCode inattendu"; exit 1; }
+          certs=$("$bt/apksigner" verify --print-certs little-miss-party-quiz-tv.apk)
+          echo "$certs"
+          echo "$certs" | grep -qi "SHA-256 digest: 0146199dd975cec17ba905ffb1c555726b1eabe4db6b40d24bd2767d39479b6e" \
+            || { echo "::error::APK signé par une autre clé : il ne s'installerait pas par-dessus la version de la box"; exit 1; }
       - uses: actions/upload-artifact@v4
         with:
           name: little-miss-party-quiz-tv
@@ -103,3 +116,36 @@ jobs:
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
           npx --yes firebase-tools@13 deploy --only hosting,database \
             --project "${{ steps.check.outputs.project }}" --non-interactive
+      # Mise à jour depuis la TV : le dépôt est privé, la box lit donc la dernière version stable
+      # (description + APK) sur l'hébergement Firebase, publié en même temps que le pupitre.
+      - uses: actions/download-artifact@v4
+        if: steps.check.outputs.ready == 'true'
+        with:
+          name: little-miss-party-quiz-tv
+          path: apk
+      - name: Préparer la mise à jour de la box (tv/latest.json)
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          vc=${{ github.run_number }}
+          apk="little-miss-party-quiz-tv-$vc.apk"
+          mkdir -p web/public/tv
+          cp apk/little-miss-party-quiz-tv.apk "web/public/tv/$apk"
+          jq -n --argjson vc "$vc" --arg name "0.1.$vc" --arg url "$apk" \
+            --arg sha "$(sha256sum "web/public/tv/$apk" | cut -d' ' -f1)" \
+            --argjson size "$(stat -c %s "web/public/tv/$apk")" --arg notes "$(git log -1 --format=%s)" \
+            '{versionCode: $vc, versionName: $name, url: $url, sha256: $sha, size: $size, notes: $notes}' \
+            > web/public/tv/latest.json
+          cat web/public/tv/latest.json
+      # Second envoi, séparé : s'il échouait (fichiers .apk refusés hors Blaze), le pupitre et les règles
+      # resteraient publiés ; la box garderait simplement sa version actuelle.
+      - name: Publier la mise à jour de la box
+        id: tvupdate
+        if: steps.check.outputs.ready == 'true'
+        continue-on-error: true
+        run: |
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx --yes firebase-tools@13 deploy --only hosting \
+            --project "${{ steps.check.outputs.project }}" --non-interactive
+      - name: Signaler une mise à jour non publiée
+        if: steps.tvupdate.outcome == 'failure'
+        run: echo "::warning::Mise à jour TV non publiée sur l'hébergement Firebase : la box ne verra pas cette version (vérifier que le projet est bien sur Blaze, qui accepte les fichiers .apk)."
