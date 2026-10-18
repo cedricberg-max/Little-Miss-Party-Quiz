@@ -5,20 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
   <title>Administration · Little Miss Party Quiz</title>
+  <meta name="theme-color" content="#fff7f3">
+  <link rel="icon" href="img/favicon.ico" sizes="any">
+  <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="img/icon-180.png">
+  <link rel="manifest" href="admin.webmanifest">
   <link rel="stylesheet" href="admin.css">
 </head>
 <body>
   <header>
-    <p class="brand">Little Miss Party Quiz · Administration</p>
+    <p class="brand"><img src="img/favicon.svg" alt="" width="34" height="34"> Little Miss Party <small>Quiz · Administration</small></p>
     <nav id="nav" hidden>
+      <button data-screen="home">Accueil</button>
       <button data-screen="shows">Prestations</button>
-      <button data-screen="quizzes">Quiz</button>
+      <button data-screen="quizzes">Bibliothèque</button>
       <button data-screen="settings">Paramètres</button>
     </nav>
     <button id="logout" class="link" hidden>Se déconnecter</button>
   </header>
   <main>
     <section id="screen-login" class="screen">
+      <div class="logo-band"><img src="img/logo-lmp.webp" alt="Little Miss Party" width="800" height="286"></div>
       <h1 id="login-title">Connexion</h1>
       <p id="login-hint" class="hint">Saisissez le mot de passe administrateur.</p>
       <form id="login-form" class="panel" autocomplete="off">
@@ -27,6 +34,34 @@
         <button id="login" class="btn" type="submit" disabled>Entrer</button>
         <p id="login-status" class="status"></p>
       </form>
+    </section>
+
+    <!-- Tableau de bord : page d'accueil de l'administration. -->
+    <section id="screen-home" class="screen" hidden>
+      <div class="hero">
+        <div class="hero-text">
+          <img class="hero-logo" src="img/logo-lmp.webp" alt="Little Miss Party" width="800" height="286">
+          <h1>Bonjour !</h1>
+          <p class="hint">Préparez les prochains anniversaires et retrouvez vos contenus.</p>
+        </div>
+        <div class="hero-actions">
+          <button id="home-new" class="btn big">＋ Créer une prestation</button>
+          <button id="home-import" class="btn secondary big">Importer un quiz</button>
+        </div>
+      </div>
+      <div class="stats">
+        <button class="stat" data-screen="shows"><b id="stat-upcoming">0</b><span>anniversaires à venir</span></button>
+        <button class="stat ready" data-screen="shows"><b id="stat-ready">0</b><span>prêts pour la régie</span></button>
+        <button class="stat todo" data-screen="shows"><b id="stat-todo">0</b><span>à compléter</span></button>
+      </div>
+      <h2>Prochains anniversaires</h2>
+      <div id="home-upcoming" class="cards"></div>
+      <h2>Bibliothèque</h2>
+      <div class="tiles">
+        <button class="tile" data-screen="quizzes"><span class="tile-icon">?</span><b>Quiz</b><span id="tile-quiz">0 quiz</span></button>
+        <div class="tile soon"><span class="tile-icon">★</span><b>Mini-jeux</b><span>Bientôt disponible</span></div>
+        <div class="tile soon"><span class="tile-icon">♪</span><b>Musiques et blind tests</b><span>Bientôt disponible</span></div>
+      </div>
     </section>
 
     <!-- Prestations : ce que la régie charge sur la TV le jour J. -->
@@ -39,11 +74,20 @@
         Une prestation « Prête » apparaît sur la régie de l'animatrice (onglet Prestation, dans le salon
         d'attente) : une touche la charge sur la TV.
       </p>
-      <div id="show-list" class="list"></div>
+      <div id="show-list" class="cards"></div>
+      <details id="show-past" class="archives" hidden>
+        <summary>Anniversaires passés (<span id="show-past-count">0</span>)</summary>
+        <div id="show-past-list" class="cards"></div>
+      </details>
+      <details id="show-archives" class="archives" hidden>
+        <summary>Prestations archivées (<span id="show-archive-count">0</span>)</summary>
+        <div id="show-archive-list" class="cards"></div>
+      </details>
     </section>
 
     <section id="screen-show-edit" class="screen" hidden>
-      <nav class="crumbs"><button class="link" data-screen="shows">Prestations</button> › <b id="show-edit-title">Nouvelle prestation</b></nav>
+      <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <button class="link" data-screen="shows">Prestations</button> › <b id="show-edit-title">Nouvelle prestation</b></nav>
+      <div id="show-ready" class="ready-box"></div>
       <form id="show-form" class="panel">
         <div class="grid">
           <label>Prénom de l'enfant fêté<input id="show-child" maxlength="40" required></label>
@@ -84,11 +128,11 @@
         <button id="quiz-import-open" class="btn">Importer un quiz</button>
       </div>
       <p class="hint">Seules les questions validées sont jouées sur la TV.</p>
-      <div id="quiz-list" class="list"></div>
+      <div id="quiz-list" class="cards"></div>
     </section>
 
     <section id="screen-import" class="screen" hidden>
-      <nav class="crumbs"><button class="link" data-screen="quizzes">Quiz</button> › <b>Importer</b></nav>
+      <nav class="crumbs"><button class="link" data-screen="quizzes">Bibliothèque</button> › <b>Importer</b></nav>
       <details class="panel" open>
         <summary>1. Demander le quiz à Gemini</summary>
         <div class="grid">
@@ -114,7 +158,7 @@
     </section>
 
     <section id="screen-review" class="screen" hidden>
-      <nav class="crumbs"><button class="link" data-screen="quizzes">Quiz</button> › <b>Relecture</b></nav>
+      <nav class="crumbs"><button class="link" data-screen="quizzes">Bibliothèque</button> › <b>Relecture</b></nav>
       <div class="panel grid">
         <label class="wide">Titre du quiz<input id="rv-title" maxlength="120"></label>
         <label>Thème<input id="rv-theme" maxlength="80"></label>
@@ -132,13 +176,15 @@
     </section>
 
     <section id="screen-settings" class="screen" hidden>
-      <nav class="crumbs">Paramètres</nav>
-      <h1>Mot de passe administrateur</h1>
+      <h1>Paramètres</h1>
+      <div class="settings">
+      <div class="panel">
+      <h2>Mot de passe administrateur</h2>
       <p class="hint">
         Toute personne qui le connaît a tous les droits ici : quiz, prestations et mots de passe. Après un
         changement, les autres ordinateurs et téléphones devront le saisir à nouveau.
       </p>
-      <form id="admin-form" class="panel">
+      <form id="admin-form" class="form">
         <label for="admin-pw1">Nouveau mot de passe administrateur (8 caractères au moins)</label>
         <input id="admin-pw1" type="password" autocomplete="new-password">
         <label for="admin-pw2">Confirmer le mot de passe</label>
@@ -146,15 +192,17 @@
         <button id="admin-save" class="btn" type="submit">Enregistrer</button>
         <p id="admin-save-status" class="status"></p>
       </form>
+      </div>
 
-      <h1>Mot de passe de la régie</h1>
+      <div class="panel">
+      <h2>Mot de passe de la régie</h2>
       <p class="hint">
         Toutes les animatrices utilisent ce mot de passe : sur le téléphone, scanner le QR code de la TV,
         toucher « Accès régie », saisir le mot de passe. Le changement vaut tout de suite pour les nouvelles
         connexions ; une animatrice déjà en pleine partie n'est pas déconnectée.
       </p>
       <p id="last-change" class="hint small"></p>
-      <form id="password-form" class="panel">
+      <form id="password-form" class="form">
         <label for="pw1">Nouveau mot de passe de la régie (8 caractères au moins)</label>
         <input id="pw1" type="password" autocomplete="new-password">
         <label for="pw2">Confirmer le mot de passe</label>
@@ -162,6 +210,8 @@
         <button id="save" class="btn" type="submit">Enregistrer</button>
         <p id="save-status" class="status"></p>
       </form>
+      </div>
+      </div>
     </section>
   </main>
   <script type="module" src="admin.js"></script>
