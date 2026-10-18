@@ -904,6 +904,49 @@ def zoom_revele():
     mx.add('fx', crash(.5, 2), (1.15 + .22) / B)
     return mx.render(duck=0)
 
+# ---------------------------------------------------------------- mini-jeu : Image floue au buzzer
+def buzz_gros():
+    """Le gros BUZZ de plateau : deux ondes carrées graves désaccordées, coup de grosse caisse et cymbale."""
+    n = int(.55 * SR)
+    t = np.arange(n) / SR
+    y = np.sign(np.sin(2 * np.pi * 147 * t)) * .5 + np.sign(np.sin(2 * np.pi * 151 * t)) * .5
+    y = biquad(y.astype(np.float32), 'lp', 2400) * np.minimum(1, t / .005) * np.minimum(1, (.55 - t) / .05)
+    mx = Mix(2, tail=1.5)
+    mx.add('fx', stereo(y.astype(np.float32) * .7), 0)
+    mx.add('kick', kick(1.0), 0)
+    mx.add('fx', crash(.5, 1.5), 0)
+    mx.add('brass', note('orchestra_hit', 55, .4, .6), 0)
+    return mx.render(duck=0)
+
+def flou_montee(duree=30.0):
+    """L'image se précise : nappe scintillante qui monte doucement pendant 30 s, sans jamais couvrir la salle."""
+    beats = duree / B
+    mx = Mix(beats, tail=.5)
+    for k in range(int(beats // 4)):
+        p = k / (beats / 4)
+        m = 60 + int(12 * p)
+        mx.add('strings', chord('pad_7_halo', [m, m + 7, m + 12], 4 * B, .25 + .25 * p, attack=.8, release=.8), k * 4)
+        for s8 in range(8):
+            mx.add('bells', note('celesta', 84 + (s8 * 7 + k * 2) % 12, .08, .06 + .1 * p, release=.4), k * 4 + s8 * .5)
+    mx.add('fx', noise_riser(duree, .12, 300, 8000), 0)
+    y = mx.render(duck=0, verb=1.2)
+    return y[:int(duree * SR)]
+
+def suspense_reponse(duree=12.0):
+    """Une équipe répond à voix haute : battement de timbales et tic-tac, tension qui monte, 12 s."""
+    beats = duree / B
+    mx = Mix(beats, tail=.2)
+    for i in range(int(beats * 2)):
+        p = i / (beats * 2)
+        mx.add('drums', note('woodblock', 84 if i % 2 == 0 else 79, .08, .3 + .3 * p), i * .5)
+        if i % 2 == 0:
+            mx.add('fx', note('timpani', 43, .3, .35 + .45 * p), i * .5)
+    for k in range(int(beats // 2)):
+        m = 55 + (k % 4)
+        mx.add('strings', chord('tremolo_strings', [m, m + 12], 2 * B, .2 + .3 * k / (beats / 2), release=.1), k * 2)
+    y = mx.render(duck=.2)
+    return y[:int(duree * SR)]
+
 PIECES = {
     'generique': (generique, -14.5), 'bed_full': (lambda: bed('full'), -15.5), 'bed_light': (lambda: bed('light'), -18.5),
     'tension': (tension, -16), 'riser_4b': (riser_4b, -17), 'impact': (impact, -15), 'round_sting': (round_sting, -15),
@@ -917,6 +960,7 @@ PIECES = {
     'bed_express': (bed_express, -16.5), 'vf_vrai': (vf_vrai, -17), 'vf_faux': (vf_faux, -20),
     'chiffre_roulette': (chiffre_roulette, -19), 'chiffre_pile': (chiffre_pile, -15),
     'zoom_ouverture': (zoom_ouverture, -21), 'zoom_revele': (zoom_revele, -16),
+    'buzz_gros': (buzz_gros, -15), 'flou_montee': (flou_montee, -22), 'suspense_reponse': (suspense_reponse, -19),
     'bed_mimes': (bed_mimes, -16.5), 'bed_pause': (bed_pause, -19), 'pause_in': (pause_in, -18), 'transition': (transition, -15),
 }
 for i in range(4):
@@ -930,5 +974,5 @@ if __name__ == '__main__':
     for name in only:
         fn, rms = PIECES[name]
         y = fn()
-        p = save(name, y, beats=LOOPS.get(name), loop=name in LOOPS, rms=rms, fade_tail=name not in LOOPS and name not in ('tension', 'mime_tension', 'riser_4b', 'drumroll_2b', 'drumroll_4b'))
+        p = save(name, y, beats=LOOPS.get(name), loop=name in LOOPS, rms=rms, fade_tail=name not in LOOPS and name not in ('tension', 'mime_tension', 'flou_montee', 'suspense_reponse', 'riser_4b', 'drumroll_2b', 'drumroll_4b'))
         print(f'{name:16s} {len(y) / SR:6.2f} s  -> {p}', flush=True)
