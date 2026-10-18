@@ -393,31 +393,35 @@ private fun Title() {
         1f, 1.03f, infiniteRepeatable(tween(1000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "pulse",
     )
     // Logo « Néon chic » : écriture blanche au halo rose, PARTY en or, QUIZ qui brille.
+    // Une ligne chacun, hauteurs fixées : le logo ne doit jamais pousser « Lancer le quiz » hors de l'écran.
     Column(Modifier.scale(pulse)) {
         Text(
             "Little Miss",
             style = TextStyle(
-                color = Neon.Blanc, fontSize = 60.sp, fontStyle = FontStyle.Italic, fontWeight = FontWeight.Light,
+                color = Neon.Blanc, fontSize = 46.sp, lineHeight = 50.sp, fontStyle = FontStyle.Italic, fontWeight = FontWeight.Light,
                 shadow = Shadow(Neon.Halo, blurRadius = 24f),
             ),
+            maxLines = 1, softWrap = false,
         )
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
                 "PARTY",
                 style = TextStyle(
                     brush = Brush.verticalGradient(listOf(Neon.OrClair, Neon.OrProfond)),
-                    fontSize = 48.sp, fontWeight = FontWeight.Bold, letterSpacing = 12.sp,
+                    fontSize = 36.sp, lineHeight = 40.sp, fontWeight = FontWeight.Bold, letterSpacing = 10.sp,
                     shadow = Shadow(Neon.Or.copy(alpha = 0.6f), blurRadius = 16f),
                 ),
-                modifier = Modifier.padding(bottom = 12.dp),
+                maxLines = 1, softWrap = false,
+                modifier = Modifier.padding(bottom = 8.dp),
             )
             Spacer(Modifier.width(18.dp))
             Text(
                 "QUIZ",
                 style = TextStyle(
-                    color = Color(0xFFFFF6E6), fontSize = 84.sp, fontWeight = FontWeight.Black, letterSpacing = 10.sp,
+                    color = Color(0xFFFFF6E6), fontSize = 64.sp, lineHeight = 66.sp, fontWeight = FontWeight.Black, letterSpacing = 8.sp,
                     shadow = Shadow(Neon.Or, blurRadius = 32f),
                 ),
+                maxLines = 1, softWrap = false,
             )
         }
     }

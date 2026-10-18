@@ -259,7 +259,7 @@ fun FinalScreen(state: UiState.Playing, actions: TvActions) {
                 Text(
                     "Victoire de ${team.name}",
                     style = TextStyle(
-                        color = team.color.toColor(), fontSize = 40.sp, fontWeight = FontWeight.Black,
+                        color = team.color.toColor(), fontSize = 36.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black,
                         shadow = Shadow(team.color.toColor(), blurRadius = 30f),
                     ),
                     modifier = Modifier.apparition(Tempo.FIN_VAINQUEUR, Unit).rebond(apres(Tempo.FIN_VAINQUEUR + 300, Unit), 0.15f),
