@@ -59,7 +59,9 @@ export async function loginWithPassword(ctx, gameCode, password) {
     await set(ref(ctx.db, `games/${gameCode}/regie/${ctx.uid}`), { pairedAt: serverTimestamp(), via: "password" });
     return "ok";
   } catch {
-    return "wrong";
+    // Refus du serveur : soit le mot de passe, soit une partie terminée ou inconnue (ancien QR code).
+    const phase = await get(ref(ctx.db, `games/${gameCode}/state/phase`)).then((s) => s.val(), () => null);
+    return phase == null || phase === "ended" ? "ended" : "wrong";
   }
 }
 
