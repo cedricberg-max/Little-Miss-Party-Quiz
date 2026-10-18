@@ -5,7 +5,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
@@ -16,7 +15,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -29,15 +27,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -49,16 +47,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -67,9 +66,10 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Release
-import kotlin.math.PI
-import kotlin.math.cos
-import kotlin.math.sin
+import com.littlemissparty.quiz.tv.habillage.BalayageDore
+import com.littlemissparty.quiz.tv.habillage.GeneriqueSalon
+import com.littlemissparty.quiz.tv.habillage.HabillageTv
+import com.littlemissparty.quiz.tv.habillage.Neon
 
 /** Ce que l'animatrice peut faire depuis la télécommande. */
 class TvActions(
@@ -133,7 +133,8 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null) 
                 }
             },
     ) {
-        PartyBackground()
+        // Décor du plateau et bande-son : suivent la partie sans jamais la modifier.
+        HabillageTv(state)
         when (state) {
             UiState.MissingConfig -> Message(
                 "Configuration Firebase manquante",
@@ -182,6 +183,15 @@ private fun Playing(state: UiState.Playing, actions: TvActions) {
         Phase.SCORES -> ScoresScreen(state, actions)
         Phase.ENDED -> FinalScreen(state, actions)
     }
+    if (state.phase == Phase.LOBBY) GeneriqueSalon(state.code, state.childName, state.title)
+    BalayageDore(
+        when (state.phase) {
+            Phase.LOBBY -> "salon"
+            Phase.QUESTION, Phase.CLOSED, Phase.REVEAL -> "question ${state.index}"
+            Phase.SCORES -> "classement ${state.index}"
+            Phase.ENDED -> "fin"
+        },
+    )
     PauseLayer(state, actions.unpause)
 }
 
@@ -286,34 +296,6 @@ private fun QuitDialog(
 }
 
 @Composable
-private fun PartyBackground() {
-    val t = rememberInfiniteTransition(label = "bg")
-    val shift by t.animateFloat(
-        0f, 1f, infiniteRepeatable(tween(12000, easing = LinearEasing), RepeatMode.Reverse), label = "shift",
-    )
-    val phase by t.animateFloat(
-        0f, (2 * PI).toFloat(), infiniteRepeatable(tween(20000, easing = LinearEasing)), label = "phase",
-    )
-    Canvas(Modifier.fillMaxSize()) {
-        drawRect(
-            Brush.linearGradient(
-                listOf(Palette.Night, Palette.Violet, Palette.Pink, Palette.Blue, Palette.Night),
-                start = Offset(size.width * shift, 0f),
-                end = Offset(size.width * (1 - shift), size.height),
-            )
-        )
-        // Bulles festives qui flottent doucement.
-        val bubbles = listOf(Palette.Pink, Palette.Gold, Palette.Blue, Color.White, Palette.Violet, Palette.Gold, Palette.Pink, Palette.Blue)
-        bubbles.forEachIndexed { i, c ->
-            val a = phase + i * 0.8f
-            val cx = size.width * (0.1f + 0.8f * ((i * 0.37f + 0.15f * sin(a)) % 1f))
-            val cy = size.height * (0.5f + 0.4f * cos(a * 0.7f + i))
-            drawCircle(c.copy(alpha = 0.18f), radius = size.minDimension * (0.04f + 0.02f * (i % 3)), center = Offset(cx, cy))
-        }
-    }
-}
-
-@Composable
 private fun Connecting() {
     Column(
         Modifier.fillMaxSize(),
@@ -414,14 +396,40 @@ private fun Lobby(state: UiState.Playing, actions: TvActions) {
 private fun Title() {
     val t = rememberInfiniteTransition(label = "title")
     val pulse by t.animateFloat(
-        1f, 1.06f, infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "pulse",
+        1f, 1.03f, infiniteRepeatable(tween(1000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "pulse",
     )
-    val tilt by t.animateFloat(
-        -2f, 2f, infiniteRepeatable(tween(1800, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "tilt",
-    )
-    Column(Modifier.scale(pulse).rotate(tilt)) {
-        Text("Little Miss Party", color = Color.White, fontSize = 64.sp, fontWeight = FontWeight.Black)
-        Text("QUIZ", color = Palette.Gold, fontSize = 88.sp, fontWeight = FontWeight.Black, letterSpacing = 12.sp)
+    // Logo « Néon chic » : écriture blanche au halo rose, PARTY en or, QUIZ qui brille.
+    // Une ligne chacun, hauteurs fixées : le logo ne doit jamais pousser « Lancer le quiz » hors de l'écran.
+    Column(Modifier.scale(pulse)) {
+        Text(
+            "Little Miss",
+            style = TextStyle(
+                color = Neon.Blanc, fontSize = 46.sp, lineHeight = 50.sp, fontStyle = FontStyle.Italic, fontWeight = FontWeight.Light,
+                shadow = Shadow(Neon.Halo, blurRadius = 24f),
+            ),
+            maxLines = 1, softWrap = false,
+        )
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                "PARTY",
+                style = TextStyle(
+                    brush = Brush.verticalGradient(listOf(Neon.OrClair, Neon.OrProfond)),
+                    fontSize = 36.sp, lineHeight = 40.sp, fontWeight = FontWeight.Bold, letterSpacing = 10.sp,
+                    shadow = Shadow(Neon.Or.copy(alpha = 0.6f), blurRadius = 16f),
+                ),
+                maxLines = 1, softWrap = false,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+            Spacer(Modifier.width(18.dp))
+            Text(
+                "QUIZ",
+                style = TextStyle(
+                    color = Color(0xFFFFF6E6), fontSize = 64.sp, lineHeight = 66.sp, fontWeight = FontWeight.Black, letterSpacing = 8.sp,
+                    shadow = Shadow(Neon.Or, blurRadius = 32f),
+                ),
+                maxLines = 1, softWrap = false,
+            )
+        }
     }
 }
 

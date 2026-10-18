@@ -99,6 +99,9 @@ dependencies {
     implementation("com.google.zxing:core:3.5.3")
     implementation("com.littlemissparty.quiz:engine")
 
+    // Tests JVM de l'habillage sonore (sans émulateur).
+    testImplementation("junit:junit:4.13.2")
+
     // Tests sur émulateur Android TV (workflow « Tests Android »).
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test:rules:1.6.1")
