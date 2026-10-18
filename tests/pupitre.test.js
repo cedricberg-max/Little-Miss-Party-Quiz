@@ -22,7 +22,7 @@ const testConfig = JSON.stringify({
   databaseURL: "https://demo-lmp.firebaseio.com", projectId: "demo-lmp", appId: "demo",
 });
 
-const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".webmanifest": "application/json" };
+const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".webmanifest": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".webp": "image/webp", ".ico": "image/x-icon" };
 
 let env, server, browser, baseUrl;
 

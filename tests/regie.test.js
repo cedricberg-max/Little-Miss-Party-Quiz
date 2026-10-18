@@ -24,7 +24,7 @@ const testConfig = JSON.stringify({
   apiKey: "demo-key", authDomain: "demo-lmp.firebaseapp.com",
   databaseURL: "https://demo-lmp.firebaseio.com", projectId: "demo-lmp", appId: "demo",
 });
-const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json" };
+const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".webmanifest": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".webp": "image/webp", ".ico": "image/x-icon" };
 
 let env, server, browser, baseUrl;
 let box = null;
@@ -199,7 +199,7 @@ async function openAdmin() {
   const page = await openRegie(null, "?emu=1", "/admin.html");
   await page.fill("#admin-password", ADMIN_PASSWORD);
   await page.click("#login");
-  await page.locator("#screen-shows:not([hidden])").waitFor();
+  await page.locator("#screen-home:not([hidden])").waitFor();
   return page;
 }
 
@@ -309,7 +309,7 @@ describe("régie", () => {
     await admin.locator("#login:enabled").waitFor();
     await admin.fill("#admin-password", ADMIN_PASSWORD);
     await admin.click("#login");
-    await admin.locator("#screen-shows:not([hidden])").waitFor();
+    await admin.locator("#screen-home:not([hidden])").waitFor();
     assert.ok(failed >= 2, "un premier essai refusé, puis un second accepté");
     await context.close();
   });
@@ -331,15 +331,15 @@ describe("régie", () => {
     await pc.fill("#admin-password", "Famille-2026");
     await pc.fill("#admin-password2", "Famille-2026");
     await pc.click("#login");
-    await pc.locator("#screen-shows:not([hidden])").waitFor();
+    await pc.locator("#screen-home:not([hidden])").waitFor();
     // Rechargement (ou coupure) : rien à ressaisir.
     await pc.reload();
-    await pc.locator("#screen-shows:not([hidden])").waitFor();
+    await pc.locator("#screen-home:not([hidden])").waitFor();
     // Un second ordinateur entre avec le même mot de passe.
     const portable = await openRegie(null, "?emu=1", "/admin.html");
     await portable.fill("#admin-password", "Famille-2026");
     await portable.click("#login");
-    await portable.locator("#screen-shows:not([hidden])").waitFor();
+    await portable.locator("#screen-home:not([hidden])").waitFor();
     // Changement depuis le PC : il reste connecté, le portable devra le ressaisir.
     await pc.click("#nav button[data-screen=settings]");
     await pc.fill("#admin-pw1", "Nouveau-Famille-1");
@@ -349,7 +349,7 @@ describe("régie", () => {
     await portable.reload();
     await portable.locator("#login-title", { hasText: "Connexion" }).waitFor();
     await pc.reload();
-    await pc.locator("#screen-shows:not([hidden])").waitFor();
+    await pc.locator("#screen-home:not([hidden])").waitFor();
     for (const p of [pc, portable]) await p.context().close();
   });
 
@@ -749,7 +749,7 @@ describe("bibliothèque de quiz et prestations", () => {
   test("Sarah prépare une prestation, l'animatrice la charge sur la TV depuis la régie", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX, finale: FINALE });
     const page = await admin();
-    await page.click("#show-new");
+    await page.click("#home-new");
     await page.fill("#show-child", "Léa");
     await page.fill("#show-age", "7");
     await page.fill("#show-date", "2026-12-02");
@@ -786,6 +786,58 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.click("#tab-plan");
     await regie.locator("#panel-plan .plan-round", { hasText: "Super Finale" }).waitFor();
     await regie.context().close();
+  });
+
+  test("tableau de bord : anniversaires à venir et leur état, dupliquer sans toucher l'original, archiver", async () => {
+    const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    const LEA = { childName: "Léa", age: 7, date: day(10), status: "publiee", themes: "Licornes", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 };
+    await seedLibrary("shows", {
+      lea: LEA,
+      tom: { childName: "Tom", date: day(3), status: "brouillon", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 },
+      vieux: { childName: "Ancien", age: 8, date: "2020-01-01", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 },
+    });
+    const page = await admin();
+    await page.locator("#stat-upcoming", { hasText: "2" }).waitFor();
+    assert.equal(await page.textContent("#stat-ready"), "1", "L'anniversaire passé ne compte pas");
+    assert.equal(await page.textContent("#stat-todo"), "1");
+    // Du plus proche au plus lointain, l'ancien anniversaire n'y est pas.
+    assert.deepEqual(await page.locator("#home-upcoming .show-card").evaluateAll((els) => els.map((e) => e.dataset.show)), ["tom", "lea"]);
+    const tom = page.locator('#home-upcoming [data-show="tom"]');
+    await tom.locator(".todo", { hasText: "Indiquer l'âge" }).waitFor();
+    assert.match(await tom.textContent(), /dans 3 jours/);
+    await page.locator('#home-upcoming [data-show="lea"] .pill', { hasText: "Prête" }).waitFor();
+    // Sur téléphone, rien ne dépasse de l'écran.
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "Défilement horizontal sur téléphone");
+
+    // Dupliquer : un nouveau brouillon avec les mêmes manches, l'original ne bouge pas.
+    await page.locator('#home-upcoming [data-show="lea"]').getByRole("button", { name: "Dupliquer" }).click();
+    await page.locator("#show-edit-title", { hasText: "Copie de « L'anniversaire de Léa »" }).waitFor();
+    assert.equal(await page.inputValue("#show-child"), "");
+    assert.equal(await page.inputValue("#show-themes"), "Licornes");
+    await page.fill("#show-child", "Zoé");
+    await page.fill("#show-age", "9");
+    await page.fill("#show-date", day(20));
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée." }).waitFor();
+    const shows = await library("shows");
+    const zoe = Object.values(shows).find((s) => s.childName === "Zoé");
+    assert.equal(zoe.status, "brouillon");
+    assert.deepEqual(zoe.rounds, LEA.rounds);
+    assert.deepEqual(shows.lea, LEA, "Prestation d'origine inchangée");
+    await page.locator("#show-ready", { hasText: "Passer le statut à « Prête »" }).waitFor();
+
+    // Archiver : Tom quitte les anniversaires à venir et rejoint les archives.
+    await page.click("#nav button[data-screen=home]");
+    await page.locator('#home-upcoming [data-show="tom"]').getByRole("button", { name: "Archiver" }).click();
+    await page.locator('#home-upcoming [data-show="tom"]').waitFor({ state: "detached" });
+    assert.equal((await library("shows/tom/status")), "archivee");
+    await page.click("#nav button[data-screen=shows]");
+    await page.locator("#show-archives summary", { hasText: "Prestations archivées (1)" }).waitFor();
+    assert.equal(await page.locator('#show-list [data-show="tom"]').count(), 0);
+    await page.locator("#show-past summary", { hasText: "Anniversaires passés (1)" }).waitFor();
+    assert.equal(await page.locator('#show-list [data-show="vieux"]').count(), 0);
+    await page.context().close();
   });
 
   test("une prestation en brouillon n'apparaît pas sur la régie ; le code de secours ne donne pas la liste", async () => {

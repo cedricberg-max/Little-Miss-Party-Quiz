@@ -2,6 +2,7 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { parseQuiz, checkQuestions, geminiPrompt, resolveCorrect } from "../web/public/importer.js";
+import { readiness, upcoming, daysUntil, isoDay, duplicateShow } from "../web/public/show.js";
 
 const GEMINI = `Titre : Les animaux de la jungle
 
@@ -147,5 +148,43 @@ Réponse : B`);
     const prompt = geminiPrompt({ theme: "Pokémon", age: 9, count: 10 });
     assert.match(prompt, /10 questions sur le thème « Pokémon », pour des enfants de 9 ans/);
     assert.match(prompt, /Réponse : <lettre/);
+  });
+});
+
+describe("tableau de bord des prestations", () => {
+  const QUIZ = { title: "Animaux", questions: [{ text: "Roi ?", choices: ["Lion", "Tigre"], correct: 0, status: "validee" }] };
+  const DRAFT = { title: "Brouillon", questions: [{ text: "?", choices: ["A", "B"], correct: 0, status: "brouillon" }] };
+  const quizzes = { animaux: QUIZ, draft: DRAFT };
+
+  test("état de préparation : prête seulement quand tout est complet et visible sur la régie", () => {
+    const ok = { childName: "Léa", age: 7, date: "2026-12-02", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }] };
+    assert.deepEqual(readiness(ok, quizzes), { level: "prete", todo: [] });
+    assert.deepEqual(readiness({ ...ok, status: "brouillon" }, quizzes).todo, ["Passer le statut à « Prête »"]);
+    assert.deepEqual(readiness({ childName: "Tom", status: "brouillon" }, quizzes).todo, ["Ajouter la date", "Indiquer l'âge", "Ajouter une manche"]);
+    const draftOnly = readiness({ ...ok, rounds: [{ type: "quiz", quizId: "draft" }] }, quizzes);
+    assert.equal(draftOnly.level, "a-completer");
+    assert.match(draftOnly.todo.join(), /aucune question validée/);
+    assert.match(readiness({ ...ok, rounds: [{ type: "quiz", quizId: "efface" }] }, quizzes).todo.join(), /n'existe plus/);
+    assert.equal(readiness({ ...ok, status: "archivee" }, quizzes).level, "archivee");
+  });
+
+  test("anniversaires à venir : du plus proche au plus lointain, sans les passés ni les archivés", () => {
+    const shows = {
+      passe: { date: "2026-10-01", status: "publiee" }, loin: { date: "2026-12-20", status: "brouillon" },
+      jour: { date: "2026-10-18", status: "publiee" }, archive: { date: "2026-11-01", status: "archivee" },
+      sansDate: { status: "brouillon" }, proche: { date: "2026-10-25", status: "brouillon" },
+    };
+    assert.deepEqual(upcoming(shows, "2026-10-18").map(([id]) => id), ["jour", "proche", "loin"]);
+    assert.equal(daysUntil("2026-12-02", "2026-10-18"), 45);
+    assert.equal(daysUntil("2026-10-18", "2026-10-18"), 0);
+    assert.equal(isoDay(new Date(2026, 0, 5)), "2026-01-05");
+  });
+
+  test("dupliquer : mêmes manches en brouillon, prénom et date à saisir, original intact", () => {
+    const original = { childName: "Léa", age: 7, date: "2026-12-02", title: "Léa 7 ans", status: "publiee", profile: "PETITS", themes: "Licornes", rounds: [{ type: "quiz", quizId: "animaux" }], createdAt: 1, updatedAt: 2 };
+    const copy = duplicateShow(original);
+    assert.deepEqual(copy, { profile: "PETITS", themes: "Licornes", status: "brouillon", rounds: [{ type: "quiz", quizId: "animaux" }] });
+    copy.rounds[0].quizId = "autre";
+    assert.equal(original.rounds[0].quizId, "animaux");
   });
 });

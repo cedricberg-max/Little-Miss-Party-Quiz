@@ -1,13 +1,15 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
 import { getAuth, signInAnonymously, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
 import {
-  getDatabase, ref, get, set, push, onValue, serverTimestamp, connectDatabaseEmulator,
+  getDatabase, ref, get, set, update, push, onValue, serverTimestamp, connectDatabaseEmulator,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { passwordHash, newSalt, MIN_PASSWORD_LENGTH } from "./secret.js";
 import { writeProof, isAdmin } from "./proof.js";
 import { parseQuiz, checkQuestions, geminiPrompt, LETTERS } from "./importer.js";
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
-import { buildSnapshot, estimateMinutes, playable, showTitle, ROUND_TYPES } from "./show.js";
+import {
+  buildSnapshot, estimateMinutes, playable, showTitle, ROUND_TYPES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
+} from "./show.js";
 
 // Administration : un mot de passe commun, sans compte ni adresse e-mail. Toute personne qui le connaît
 // a tous les droits. Le serveur (règles Firebase) vérifie l'empreinte envoyée par cet appareil ;
@@ -58,7 +60,7 @@ const ctx = { db, uid };
 let quizzes = {};
 let shows = {};
 let stops = [];
-let current = "shows";
+let current = "home";
 
 /** Petit constructeur d'éléments : h("button", { class: "btn", onclick }, "Texte"). */
 function h(tag, props = {}, ...kids) {
@@ -82,12 +84,13 @@ function status(id, text, ok = false) {
   $(id).classList.toggle("ok", ok);
 }
 
-const SCREENS = ["login", "shows", "show-edit", "quizzes", "import", "review", "settings"];
+const SCREENS = ["login", "home", "shows", "show-edit", "quizzes", "import", "review", "settings"];
 function show(name) {
-  if (["shows", "quizzes", "settings"].includes(name)) current = name;
+  if (["home", "shows", "quizzes", "settings"].includes(name)) current = name;
   SCREENS.forEach((s) => { $(`screen-${s}`).hidden = s !== name; });
   document.querySelectorAll("#nav button").forEach((b) => b.classList.toggle("active", b.dataset.screen === current));
   window.scrollTo(0, 0);
+  if (name === "home") renderHome();
   if (name === "shows") renderShows();
   if (name === "quizzes") renderQuizzes();
   if (name === "settings") showLastChange();
@@ -176,6 +179,7 @@ function enter() {
 route();
 
 function refreshLists() {
+  if (!$("screen-home").hidden) renderHome();
   if (!$("screen-shows").hidden) renderShows();
   if (!$("screen-quizzes").hidden) renderQuizzes();
   if (!$("screen-show-edit").hidden) refreshRounds();
@@ -185,24 +189,89 @@ const byDate = ([, a], [, b]) => (a.date ?? "9999").localeCompare(b.date ?? "999
 const dateLabel = (d) => (d ? new Date(`${d}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "sans date");
 const STATUS_LABELS = { brouillon: "Brouillon", publiee: "Prête", archivee: "Archivée" };
 
+// ---------- Tableau de bord ----------
+
+const shortDate = (d) => {
+  const day = new Date(`${d}T12:00:00`);
+  return { day: day.getDate(), month: day.toLocaleDateString("fr-FR", { month: "short" }).replace(".", "") };
+};
+const whenLabel = (d) => {
+  const n = daysUntil(d);
+  return n === 0 ? "aujourd'hui" : n === 1 ? "demain" : n > 1 ? `dans ${n} jours` : "passée";
+};
+
+function renderHome() {
+  const coming = upcoming(shows);
+  // Les anniversaires passés ne comptent plus : seuls ceux à venir ou encore sans date.
+  const today = isoDay();
+  const pending = Object.values(shows).filter((s) => !s.date || s.date >= today);
+  $("stat-upcoming").textContent = coming.length;
+  $("stat-ready").textContent = coming.filter(([, s]) => readiness(s, quizzes).level === "prete").length;
+  $("stat-todo").textContent = pending.filter((s) => readiness(s, quizzes).level === "a-completer").length;
+  const box = $("home-upcoming");
+  box.replaceChildren(...coming.slice(0, 6).map(([id, s]) => showCard(id, s)));
+  if (!coming.length) {
+    box.append(h("div", { class: "empty" },
+      h("p", { text: "Aucun anniversaire à venir pour l'instant." }),
+      h("button", { class: "btn", onclick: () => editShow(null), text: "Créer une prestation" })));
+  }
+  const n = Object.keys(quizzes).length;
+  const ok = Object.values(quizzes).reduce((t, q) => t + playable(q).length, 0);
+  $("tile-quiz").textContent = `${n} quiz · ${ok} question${ok > 1 ? "s" : ""} validée${ok > 1 ? "s" : ""}`;
+}
+$("home-new").onclick = () => editShow(null);
+$("home-import").onclick = () => $("quiz-import-open").click();
+
 // ---------- Prestations ----------
 
+/** Carte d'une prestation : date, prénom, âge, état de préparation et actions. */
+function showCard(id, s) {
+  const r = readiness(s, quizzes);
+  const { snapshot } = buildSnapshot(id, s, quizzes);
+  const date = s.date ? shortDate(s.date) : null;
+  return h("article", { class: `card show-card ${r.level}`, "data-show": id },
+    h("div", { class: "date-chip" }, date ? [h("b", { text: `${date.day}` }), h("span", { text: date.month })] : h("span", { text: "sans date" })),
+    h("div", { class: "card-body" },
+      h("b", { class: "card-title", text: showTitle(s) }),
+      h("span", { class: "meta", text: [s.childName, s.age ? `${s.age} ans` : "", s.date ? `${dateLabel(s.date)} (${whenLabel(s.date)})` : ""].filter(Boolean).join(" · ") }),
+      snapshot ? h("span", { class: "meta", text: `${snapshot.quiz.questions.length} questions · environ ${estimateMinutes(snapshot)} min` }) : null,
+      r.level === "prete"
+        ? h("span", { class: "pill ok", text: "✓ Prête : visible sur la régie" })
+        : r.level === "archivee"
+          ? h("span", { class: "pill", text: "Archivée" })
+          : h("div", { class: "todo" }, h("span", { class: "pill warn", text: "À compléter" }), h("ul", {}, ...r.todo.map((t) => h("li", { text: t })))),
+      h("div", { class: "card-actions" },
+        h("button", { class: "btn small", onclick: () => editShow(id), text: "Ouvrir" }),
+        h("button", { class: "btn small secondary", onclick: () => editShow(null, s), text: "Dupliquer" }),
+        s.status === "archivee"
+          ? h("button", { class: "btn small secondary", onclick: () => archive(id, false), text: "Désarchiver" })
+          : h("button", { class: "btn small secondary", onclick: () => archive(id, true), text: "Archiver" }))));
+}
+
 function renderShows() {
-  const box = $("show-list");
-  box.innerHTML = "";
+  const today = isoDay();
   const list = Object.entries(shows).sort(byDate);
-  if (!list.length) box.append(h("p", { class: "hint", text: "Aucune prestation pour l'instant." }));
-  list.forEach(([id, s]) => {
-    const { snapshot, problems } = buildSnapshot(id, s, quizzes);
-    box.append(h("button", { class: "item", "data-show": id, onclick: () => editShow(id) },
-      h("span", { class: `badge ${s.status}`, text: STATUS_LABELS[s.status] ?? s.status }),
-      h("b", { text: showTitle(s) }),
-      h("span", { text: [s.childName, s.age ? `${s.age} ans` : "", dateLabel(s.date)].filter(Boolean).join(" · ") }),
-      h("span", {
-        class: snapshot ? "" : "warn",
-        text: snapshot ? `${snapshot.quiz.questions.length} questions · environ ${estimateMinutes(snapshot)} min` : problems[problems.length - 1],
-      })));
-  });
+  const active = list.filter(([, s]) => s.status !== "archivee" && (!s.date || s.date >= today));
+  const past = list.filter(([, s]) => s.status !== "archivee" && s.date && s.date < today).reverse();
+  const archived = list.filter(([, s]) => s.status === "archivee");
+  $("show-list").replaceChildren(...active.map(([id, s]) => showCard(id, s)));
+  if (!active.length) $("show-list").append(h("p", { class: "hint", text: "Aucune prestation en cours de préparation." }));
+  $("show-past").hidden = !past.length;
+  $("show-past-count").textContent = past.length;
+  $("show-past-list").replaceChildren(...past.map(([id, s]) => showCard(id, s)));
+  $("show-archives").hidden = !archived.length;
+  $("show-archive-count").textContent = archived.length;
+  $("show-archive-list").replaceChildren(...archived.map(([id, s]) => showCard(id, s)));
+}
+
+/** Archiver range la prestation (elle disparaît de la régie) ; désarchiver la remet en brouillon. */
+async function archive(id, on) {
+  try {
+    await update(ref(db, `library/shows/${id}`), { status: on ? "archivee" : "brouillon", updatedAt: serverTimestamp() });
+  } catch (err) {
+    console.error(err);
+    alert("Modification refusée : vérifiez Internet ou reconnectez-vous.");
+  }
 }
 
 let editing = null; // { id, rounds }
@@ -213,10 +282,11 @@ $("show-profile").append(
 );
 $("show-new").onclick = () => editShow(null);
 
-function editShow(id) {
-  const s = id ? shows[id] : { status: "brouillon", rounds: [] };
+/** Ouvre une prestation ; sans identifiant, une nouvelle, vide ou copiée d'une autre (`from`). */
+function editShow(id, from = null) {
+  const s = id ? shows[id] : from ? duplicateShow(from) : { status: "brouillon", rounds: [] };
   editing = { id, rounds: (s.rounds ?? []).filter(Boolean).map((r) => ({ ...r })) };
-  $("show-edit-title").textContent = id ? showTitle(s) : "Nouvelle prestation";
+  $("show-edit-title").textContent = id ? showTitle(s) : from ? `Copie de « ${showTitle(from)} »` : "Nouvelle prestation";
   $("show-child").value = s.childName ?? "";
   $("show-age").value = s.age ?? "";
   $("show-date").value = s.date ?? "";
@@ -227,9 +297,10 @@ function editShow(id) {
   $("show-themes").value = s.themes ?? "";
   $("show-notes").value = s.notes ?? "";
   $("show-delete").hidden = !id;
-  status("show-status-msg", "");
+  status("show-status-msg", from ? "Copie prête : indiquez le prénom, l'âge et la date du nouvel anniversaire, puis enregistrez." : "", !!from);
   show("show-edit");
   refreshRounds();
+  if (from) $("show-child").focus();
 }
 
 function formShow() {
@@ -278,8 +349,15 @@ function refreshSummary() {
     ? `${snapshot.quiz.questions.length} questions jouables · environ ${estimateMinutes(snapshot)} min · chrono ${defaultDuration(profile)} s par question (profil ${PROFILES[profile].label}) sauf durée imposée`
     : "";
   $("show-problems").replaceChildren(...problems.map((p) => h("li", { text: p })));
+  const r = readiness(s, quizzes);
+  $("show-ready").className = `ready-box ${r.level}`;
+  $("show-ready").replaceChildren(r.level === "prete"
+    ? h("b", { text: "✓ Prestation prête : elle est visible sur la régie." })
+    : r.level === "archivee"
+      ? h("b", { text: "Prestation archivée : elle n'apparaît plus sur la régie." })
+      : h("div", {}, h("b", { text: "Reste à faire avant le jour J :" }), h("ul", {}, ...r.todo.map((t) => h("li", { text: t })))));
 }
-["show-age", "show-profile", "show-child", "show-title"].forEach((id) => $(id).addEventListener("input", refreshSummary));
+["show-age", "show-profile", "show-child", "show-title", "show-date", "show-status"].forEach((id) => $(id).addEventListener("input", refreshSummary));
 $("round-add").onclick = () => { editing.rounds.push({ type: "quiz", quizId: "" }); refreshRounds(); };
 
 $("show-form").onsubmit = async (e) => {

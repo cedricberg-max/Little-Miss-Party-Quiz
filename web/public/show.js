@@ -69,3 +69,48 @@ export function estimateMinutes(snapshot) {
   const sec = snapshot.quiz.questions.reduce((t, q) => t + q.duration + 30, 0);
   return Math.round(sec / 60);
 }
+
+/** Date du jour au format des prestations (AAAA-MM-JJ), à l'heure locale. */
+export function isoDay(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Nombre de jours entre aujourd'hui et la date de la prestation (négatif si elle est passée). */
+export function daysUntil(date, today = isoDay()) {
+  return Math.round((Date.parse(`${date}T12:00:00Z`) - Date.parse(`${today}T12:00:00Z`)) / 86400000);
+}
+
+/**
+ * État de préparation d'une prestation, pour le tableau de bord : « prete » quand elle est
+ * complète et visible sur la régie, sinon la liste de ce qui reste à faire.
+ */
+export function readiness(show, quizzes) {
+  if (show.status === "archivee") return { level: "archivee", todo: [] };
+  const todo = [];
+  if (!show.date) todo.push("Ajouter la date");
+  if (!show.age) todo.push("Indiquer l'âge");
+  if (!(show.rounds ?? []).filter((r) => r?.quizId).length) todo.push("Ajouter une manche");
+  else {
+    const { snapshot, problems } = buildSnapshot("x", show, quizzes);
+    todo.push(...problems.filter((p) => snapshot || !p.startsWith("Aucune question jouable")));
+    if (!snapshot && !problems.some((p) => p.startsWith("Manche"))) todo.push("Valider des questions");
+  }
+  if (!todo.length && show.status !== "publiee") todo.push("Passer le statut à « Prête »");
+  return { level: todo.length ? "a-completer" : "prete", todo };
+}
+
+/** Anniversaires à venir (aujourd'hui compris), du plus proche au plus lointain, archives exclues. */
+export function upcoming(shows, today = isoDay()) {
+  return Object.entries(shows)
+    .filter(([, s]) => s && s.status !== "archivee" && s.date && s.date >= today)
+    .sort(([, a], [, b]) => a.date.localeCompare(b.date));
+}
+
+/**
+ * Copie d'une prestation pour un nouvel anniversaire : mêmes manches (les quiz de la bibliothèque
+ * sont repris tels quels, sans être modifiés), prénom, date et âge à saisir, en brouillon.
+ */
+export function duplicateShow(show) {
+  const { childName, age, date, title, status, createdAt, updatedAt, origin, ...rest } = show;
+  return { ...rest, status: "brouillon", rounds: (show.rounds ?? []).filter(Boolean).map((r) => ({ ...r })) };
+}
