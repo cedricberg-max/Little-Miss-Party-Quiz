@@ -70,6 +70,8 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
 .buzz:disabled { filter: grayscale(.8) brightness(.7); }
 .buzz.winner { animation: winner .6s ease-in-out infinite alternate; }
 @keyframes winner { from { transform: scale(1); } to { transform: scale(1.08); box-shadow: 0 0 120px var(--gold); } }
+.buzz.bump { animation: bump .35s ease-out; }
+@keyframes bump { 0% { transform: scale(.92); } 50% { transform: scale(1.06); box-shadow: 0 0 120px var(--team); } 100% { transform: scale(1); } }
 
 /* Bandeau de connexion perdue */
 .offline {

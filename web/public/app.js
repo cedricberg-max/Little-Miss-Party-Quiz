@@ -245,7 +245,6 @@ function play() {
   });
   listen(`games/${code}/teams`, (s) => { game.teams = s.val() ?? {}; game.teamsLoaded = true; render(); });
   listen(`games/${code}/state`, (s) => { game.state = s.val(); watchMyAnswer(); render(); });
-  listen(`games/${code}/buzz`, (s) => { game.buzz = s.val() ?? {}; render(); });
 }
 
 function watchMyAnswer() {
@@ -290,18 +289,12 @@ function render() {
 
 function renderLobby(st) {
   show("play");
-  $("buzz").hidden = false;
-  const round = st.round ?? 1;
-  const open = st.buzzOpen === true;
-  const first = game.buzz?.[round]?.team;
   const buzz = $("buzz");
-  buzz.classList.toggle("winner", first === teamId);
-  buzz.disabled = !open || !!first;
-  buzz.dataset.round = round;
-  if (first === teamId) $("play-status").textContent = "Vous avez buzzé en premier !";
-  else if (first) $("play-status").textContent = `Trop tard ! ${game.teams[first]?.name ?? "Une équipe"} a été plus rapide.`;
-  else if (open) $("play-status").textContent = "En attendant le quiz : buzzez pour essayer !";
-  else $("play-status").textContent = "Regardez la TV !";
+  buzz.hidden = false;
+  // Buzzer de l'accueil : pour s'amuser, autant de fois qu'on veut, sans gagnant ni blocage.
+  buzz.disabled = false;
+  buzz.classList.remove("winner");
+  $("play-status").textContent = "En attendant le quiz : buzzez autant que vous voulez !";
 }
 
 function renderQuestion(st) {
@@ -446,16 +439,26 @@ function renderEnded(st) {
   $("e-total").textContent = `${mine} points`;
 }
 
+/** Petit air rigolo, jamais le même deux fois de suite : trois notes qui montent ou qui descendent. */
+const FUN_TUNES = [[523, 659, 784], [784, 659, 523], [659, 880, 1047], [392, 523, 392], [880, 698, 1175]];
+let funTune = 0;
+function funSound() {
+  funTune = (funTune + 1 + Math.floor(Math.random() * (FUN_TUNES.length - 1))) % FUN_TUNES.length;
+  FUN_TUNES[funTune].forEach((f, i) => setTimeout(() => beep(f, 110), i * 90));
+}
+
 $("buzz").onclick = async () => {
   const buzz = $("buzz");
   if (buzz.disabled) return;
-  buzz.disabled = true;
-  beep(990, 250);
-  navigator.vibrate?.(200);
+  funSound();
+  navigator.vibrate?.(60);
+  buzz.classList.remove("bump");
+  void buzz.offsetWidth;
+  buzz.classList.add("bump");
   try {
-    await set(ref(db, `games/${code}/buzz/${buzz.dataset.round}`), { team: teamId, at: serverTimestamp() });
+    await set(ref(db, `games/${code}/fun/${teamId}`), { at: serverTimestamp() });
   } catch {
-    // Une autre équipe a été plus rapide : la base refuse le second buzz.
+    // Appuis trop rapprochés : la base ignore celui-ci, le suivant passera.
   }
 };
 

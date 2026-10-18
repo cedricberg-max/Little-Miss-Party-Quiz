@@ -66,6 +66,16 @@
             ".write": "auth != null && !data.exists() && newData.child('team').isString() && root.child('games').child($code).child('teams').child(newData.child('team').val()).exists() && (root.child('games').child($code).child('teams').child(newData.child('team').val()).child('device').val() === auth.uid || (!root.child('games').child($code).child('teams').child(newData.child('team').val()).child('device').exists() && auth.uid === newData.child('team').val())) && data.parent().parent().child('state/buzzOpen').val() === true && data.parent().parent().child('state/round').val() + '' === $round"
           }
         },
+        "fun": {
+          ".read": "auth != null",
+          "$team": {
+            ".write": "auth != null && newData.exists() && root.child('games').child($code).child('teams').child($team).exists() && (root.child('games').child($code).child('teams').child($team).child('device').val() === auth.uid || (!root.child('games').child($code).child('teams').child($team).child('device').exists() && auth.uid === $team)) && root.child('games').child($code).child('state/phase').val() === 'lobby'",
+            ".validate": "newData.hasChildren(['at']) && newData.child('at').val() === now && (!data.exists() || now - data.child('at').val() >= 250)",
+            "$other": {
+              ".validate": "$other === 'at'"
+            }
+          }
+        },
         "pairing": {
           "$uid": {
             ".read": "auth != null && auth.uid === $uid",

@@ -33,7 +33,6 @@ class MainActivity : ComponentActivity() {
                     togglePause = viewModel::togglePause,
                     pause = viewModel::pause,
                     unpause = viewModel::unpause,
-                    rearm = viewModel::rearm,
                     retry = viewModel::retry,
                     resume = viewModel::resume,
                     newGame = viewModel::newGame,

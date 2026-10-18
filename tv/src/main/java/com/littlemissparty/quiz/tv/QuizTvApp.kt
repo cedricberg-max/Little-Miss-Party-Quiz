@@ -2,7 +2,6 @@ package com.littlemissparty.quiz.tv
 
 import android.view.KeyEvent as AndroidKeyEvent
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -12,9 +11,6 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -53,6 +49,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -77,7 +75,6 @@ class TvActions(
     val togglePause: () -> Unit,
     val pause: () -> Unit,
     val unpause: () -> Unit,
-    val rearm: () -> Unit,
     val retry: () -> Unit,
     val resume: () -> Unit,
     val newGame: () -> Unit,
@@ -356,14 +353,14 @@ private fun Lobby(state: UiState.Playing, actions: TvActions) {
             )
             Spacer(Modifier.height(16.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                state.teams.forEach { team -> TeamChip(team, online = team.uid in state.online) }
+                state.teams.forEach { team -> TeamChip(team, online = team.uid in state.online, buzz = state.funBuzzes[team.uid] ?: 0) }
             }
             Spacer(Modifier.weight(1f))
             if (state.teams.isNotEmpty()) {
-                Text("En attendant : appuyez sur BUZZ sur votre pupitre !", color = Palette.Gold, fontSize = 22.sp)
+                Text("En attendant : buzzez sur votre pupitre, autant que vous voulez !", color = Palette.Gold, fontSize = 22.sp)
                 Spacer(Modifier.height(16.dp))
             }
-            if (state.teams.isNotEmpty() && state.buzzer == null) NextButton("Lancer le quiz", actions.next)
+            if (state.teams.isNotEmpty()) NextButton("Lancer le quiz", actions.next)
         }
         Spacer(Modifier.width(40.dp))
         Column(
@@ -382,13 +379,6 @@ private fun Lobby(state: UiState.Playing, actions: TvActions) {
             Text("Code de la partie", color = Palette.Night.copy(alpha = 0.6f), fontSize = 18.sp)
             Text(state.code, color = Palette.Pink, fontSize = 48.sp, fontWeight = FontWeight.Black, letterSpacing = 8.sp)
         }
-    }
-    AnimatedVisibility(
-        visible = state.buzzer != null,
-        enter = fadeIn(tween(150)) + scaleIn(initialScale = 1.3f),
-        exit = fadeOut(tween(300)),
-    ) {
-        state.buzzer?.let { BuzzOverlay(it, actions.rearm) }
     }
 }
 
@@ -434,16 +424,30 @@ private fun Title() {
 }
 
 @Composable
-fun TeamChip(team: Team, online: Boolean = true, trailing: (@Composable () -> Unit)? = null) {
+fun TeamChip(team: Team, online: Boolean = true, buzz: Int = 0, trailing: (@Composable () -> Unit)? = null) {
     val pop = remember(team.uid) { Animatable(0f) }
     LaunchedEffect(team.uid) {
         pop.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))
     }
+    // Buzzer de l'accueil : la pastille de l'équipe saute et s'allume à sa couleur, sans rien bloquer.
+    val flash = remember(team.uid) { Animatable(0f) }
+    LaunchedEffect(buzz) {
+        if (buzz > 0) {
+            flash.snapTo(1f)
+            flash.animateTo(0f, tween(650, easing = FastOutSlowInEasing))
+        }
+    }
+    val bg = lerp(Color.White.copy(alpha = if (online) 0.15f else 0.06f), team.color.toColor(), flash.value * 0.85f)
     Row(
         Modifier
-            .scale(pop.value)
+            .graphicsLayer {
+                val k = pop.value * (1f + 0.18f * flash.value)
+                scaleX = k
+                scaleY = k
+                rotationZ = 4f * flash.value * if (buzz % 2 == 0) 1f else -1f
+            }
             .clip(RoundedCornerShape(50))
-            .background(Color.White.copy(alpha = if (online) 0.15f else 0.06f))
+            .background(bg)
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -455,31 +459,6 @@ fun TeamChip(team: Team, online: Boolean = true, trailing: (@Composable () -> Un
             Text("hors ligne", color = Palette.Gold, fontSize = 16.sp)
         }
         trailing?.let { Spacer(Modifier.width(12.dp)); it() }
-    }
-}
-
-@Composable
-private fun BuzzOverlay(team: Team, onRearm: () -> Unit) {
-    val focus = remember { FocusRequester() }
-    val bounce = remember(team.uid) { Animatable(0.3f) }
-    LaunchedEffect(team.uid) {
-        bounce.animateTo(1f, spring(dampingRatio = Spring.DampingRatioHighBouncy, stiffness = Spring.StiffnessMediumLow))
-    }
-    LaunchedEffect(Unit) { focus.requestFocus() }
-    Column(
-        Modifier.fillMaxSize().background(team.color.toColor().copy(alpha = 0.94f)),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text("BUZZ !", color = Color.White, fontSize = 48.sp, fontWeight = FontWeight.Black)
-        Text(
-            team.name,
-            modifier = Modifier.scale(bounce.value),
-            color = Color.White, fontSize = 120.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
-        )
-        Text("a buzzé en premier", color = Color.White, fontSize = 36.sp)
-        Spacer(Modifier.height(48.dp))
-        TvButton("Réarmer les buzzers", onRearm, Modifier.focusRequester(focus), primary = true, fontSize = 24.sp)
     }
 }
 

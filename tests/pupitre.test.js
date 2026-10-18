@@ -134,6 +134,35 @@ describe("pupitre", () => {
     for (const p of pages) await p.context().close();
   });
 
+  test("accueil : deux équipes buzzent à répétition, rien ne se bloque ni ne change d'écran", async () => {
+    const pages = [await openPupitre(), await openPupitre()];
+    await joinTeam(pages[0], "Les Roses");
+    await joinTeam(pages[1], "Les Bleus");
+    const uids = Object.fromEntries(Object.entries(await read("teams")).map(([uid, t]) => [t.name, uid]));
+    const seen = [];
+    for (let i = 0; i < 3; i++) {
+      for (const p of pages) {
+        assert.equal(await p.locator("#buzz").isDisabled(), false, "le buzzer de l'accueil n'est jamais bloqué");
+        await p.click("#buzz");
+      }
+      await waitFor(async () => {
+        const fun = (await read("fun")) ?? {};
+        return fun[uids["Les Roses"]]?.at && fun[uids["Les Bleus"]]?.at && fun[uids["Les Roses"]].at !== seen.at(-1);
+      }, "buzz des deux équipes");
+      seen.push((await read("fun"))[uids["Les Roses"]].at);
+      await new Promise((r) => setTimeout(r, 350));
+    }
+    assert.equal(new Set(seen).size, 3, "chaque appui est bien parti");
+    for (const p of pages) {
+      await p.locator("#screen-play.active").waitFor();
+      await p.locator("#play-status", { hasText: "buzzez autant que vous voulez" }).waitFor();
+    }
+    // Le quiz commence : le buzzer de l'accueil disparaît.
+    await hostState(question());
+    await pages[0].locator("#screen-question.active").waitFor();
+    for (const p of pages) await p.context().close();
+  });
+
   test("après un rechargement, le pupitre retrouve son équipe et sa réponse", async () => {
     const page = await openPupitre();
     await joinTeam(page, "Les Roses");

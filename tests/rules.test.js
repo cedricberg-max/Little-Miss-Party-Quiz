@@ -273,6 +273,23 @@ describe("buzzer", () => {
     await assertSucceeds(set(ref(db("rose"), `games/${CODE}/buzz/1`), { team: "rose", at: serverTimestamp() }));
     await assertFails(set(ref(db("bleu"), `games/${CODE}/buzz/1`), { team: "bleu", at: serverTimestamp() }));
   });
+  test("accueil : chaque équipe buzze pour s'amuser autant qu'elle veut, jamais pour une autre ni pendant le jeu", async () => {
+    await seed({ phase: "lobby", buzzOpen: true, round: 1 });
+    const fun = (uid, team) => set(ref(db(uid), `games/${CODE}/fun/${team}`), { at: serverTimestamp() });
+    await assertSucceeds(fun("rose", "rose"));
+    await assertSucceeds(fun("bleu", "bleu"));
+    // Rafale trop rapide (moins d'un quart de seconde) : ignorée, le suivant passe.
+    await assertFails(fun("rose", "rose"));
+    await new Promise((r) => setTimeout(r, 300));
+    await assertSucceeds(fun("rose", "rose"));
+    await assertFails(fun("rose", "bleu"));
+    await assertFails(set(ref(db("rose"), `games/${CODE}/fun/rose`), { at: serverTimestamp(), extra: 1 }));
+    await assertFails(set(ref(db("rose"), `games/${CODE}/fun/rose`), null));
+    await assertSucceeds(get(ref(db("bleu"), `games/${CODE}/fun`)));
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/state/phase`), "question"));
+    await new Promise((r) => setTimeout(r, 300));
+    await assertFails(fun("bleu", "bleu"));
+  });
 });
 
 describe("rapports de plantage", () => {

@@ -85,7 +85,9 @@ sealed interface UiState {
         val lastGain: Map<String, Int> = emptyMap(),
         val isLast: Boolean = false,
         val round: Int = 1,
-        val buzzerUid: String? = null,
+        /** Buzzer de l'accueil, pour s'amuser : nombre d'appuis vus par équipe et dernière équipe qui a buzzé. */
+        val funBuzzes: Map<String, Int> = emptyMap(),
+        val lastFunBuzz: String? = null,
         val connected: Boolean = true,
         /** Écart entre l'horloge de la box et celle du serveur, pour afficher le bon chrono. */
         val serverOffset: Long = 0,
@@ -99,7 +101,8 @@ sealed interface UiState {
         /** Manche de mimes en cours (ou qui vient de finir, au classement), sinon null. */
         val mime: MimeUi? = null,
     ) : UiState {
-        val buzzer: Team? get() = teams.find { it.uid == buzzerUid }
+        /** Total des appuis sur le buzzer de l'accueil, pour le son. */
+        val funTotal: Int get() = funBuzzes.values.sum()
         val ranking: List<Pair<Team, Int>>
             get() = teams.map { it to (scores[it.uid] ?: 0) }.sortedWith(compareByDescending<Pair<Team, Int>> { it.second }.thenBy { it.first.joinedAt })
     }
@@ -154,6 +157,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var programRev: String = "initial"
     /** Pupitres connectés au dernier relevé, et pupitres tout juste décrochés (délai de grâce en cours). */
     private var online: Set<String> = emptySet()
+    private var funSeen: Map<String, Long>? = null
     private val dropTimers = mutableMapOf<String, Job>()
     /** Surveillance de la coupure Internet de la box (pause automatique d'une question en cours). */
     private var offlineWatch: Job? = null
@@ -386,14 +390,6 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun mimeStop() = act { it.mimeStop(serverNow()) }
     fun pause() = act { it.pause(serverNow()) }
     fun unpause() = act { it.resume(serverNow()) }
-
-    /** Réarme le buzzer de test du salon. */
-    fun rearm() {
-        val s = _state.value as? UiState.Playing ?: return
-        if (s.phase != Phase.LOBBY) return
-        _state.value = s.copy(round = s.round + 1, buzzerUid = null)
-        publishState()
-    }
 
     private fun act(action: (Game) -> GameEvent?) {
         viewModelScope.launch { actions.withLock { game?.let { commit(action(it)) } } }
@@ -745,10 +741,22 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             online = now
             updatePlaying { it.copy(online = now) }
         }
-        observe(ref.child("buzz")) { snap ->
+        // Buzzer de l'accueil : chaque nouvel appui d'une équipe fait clignoter sa pastille et sonner la TV.
+        // Les appuis déjà là au branchement (box qui se reconnecte) ne rejouent rien.
+        funSeen = null
+        observe(ref.child("fun")) { snap ->
+            val now = snap.children.mapNotNull { c -> c.key?.let { it to (c.child("at").getValue(Long::class.java) ?: 0L) } }.toMap()
+            val before = funSeen
+            funSeen = now
+            if (before == null) return@observe
+            val pressed = now.filter { (uid, at) -> at > (before[uid] ?: 0L) }.keys
+            if (pressed.isEmpty()) return@observe
             updatePlaying { s ->
-                val buzzerUid = snap.child("${s.round}/team").getValue(String::class.java)
-                s.copy(buzzerUid = buzzerUid)
+                if (s.phase != Phase.LOBBY) s
+                else s.copy(
+                    funBuzzes = s.funBuzzes + pressed.associateWith { (s.funBuzzes[it] ?: 0) + 1 },
+                    lastFunBuzz = pressed.maxBy { now[it] ?: 0L },
+                )
             }
         }
         observe(ref.child("pairing")) { snap -> snap.children.forEach(::judgePairing) }
