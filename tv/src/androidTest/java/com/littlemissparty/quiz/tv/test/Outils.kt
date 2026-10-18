@@ -32,6 +32,7 @@ import java.io.ByteArrayOutputStream
 import java.util.UUID
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
@@ -49,7 +50,15 @@ fun <T : Any> attendreQue(quoi: String, ms: Long = 20_000, test: () -> T?): T {
     }
 }
 
-fun <T> bloquer(ms: Long = 20_000, bloc: suspend () -> T): T = runBlocking { withTimeout(ms) { bloc() } }
+/** Attend une opération Firebase ; en cas de délai dépassé, l'erreur montre la ligne du test qui attendait. */
+fun <T> bloquer(ms: Long = 20_000, bloc: suspend () -> T): T {
+    val appel = Throwable("Appel en attente")
+    return try {
+        runBlocking { withTimeout(ms) { bloc() } }
+    } catch (e: TimeoutCancellationException) {
+        throw AssertionError("Firebase n'a pas répondu en ${ms / 1000} s", appel)
+    }
+}
 
 /** Lecture ponctuelle par écouteur : `get()` peut rester bloqué quand la connexion s'est mise en veille. */
 suspend fun DatabaseReference.lireUneFois(): DataSnapshot = suspendCancellableCoroutine { suite ->
@@ -96,11 +105,6 @@ object Boite {
 
     /** Connexion de contrôle, ouverte une fois pour toute la série. */
     val controle by lazy { PupitreSimule("controle") }
-
-    /** Pile de chaque fil de l'appli, pour comprendre un blocage. */
-    fun piles(): String = Thread.getAllStackTraces().entries
-        .filter { (t, _) -> t.name == "main" || t.name.contains("Firebase", true) || t.name.contains("RunLoop", true) || t.name.contains("DefaultDispatcher") }
-        .joinToString("\n") { (t, pile) -> "[${t.name} ${t.state}]\n" + pile.take(25).joinToString("\n") { "    at $it" } }
 }
 
 /** L'écran de la TV et la télécommande, pilotés comme par l'animatrice. */

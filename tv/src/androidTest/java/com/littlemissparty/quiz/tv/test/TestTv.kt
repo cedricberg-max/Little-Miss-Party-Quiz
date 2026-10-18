@@ -25,7 +25,6 @@ abstract class TestTv {
         override fun failed(e: Throwable?, description: Description?) {
             runCatching { ecran.capture("echec") }
             runCatching { Log.e(TAG, "ÉCHEC ${description?.methodName} — écran : ${ecran.textes()}") }
-            runCatching { Log.e(TAG, "Fils de l'appli :\n${Boite.piles()}") }
         }
 
         override fun finished(description: Description?) {
