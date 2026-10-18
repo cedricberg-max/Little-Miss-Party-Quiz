@@ -25,6 +25,7 @@ abstract class TestTv {
         override fun failed(e: Throwable?, description: Description?) {
             runCatching { ecran.capture("echec") }
             runCatching { Log.e(TAG, "ÉCHEC ${description?.methodName} — écran : ${ecran.textes()}") }
+            runCatching { Log.e(TAG, "Fils de l'appli :\n${Boite.piles()}") }
         }
 
         override fun finished(description: Description?) {
@@ -44,6 +45,10 @@ abstract class TestTv {
         scenario = Boite.lancer()
         val code = attendreQue("création de la partie", 30_000) { Boite.codeActif() }
         ecran.voit("Scannez pour jouer", 30_000)
+        // La partie doit exister dans l'émulateur Firebase, sinon la box parlerait à une autre base.
+        PupitreSimule("controle").use { controle ->
+            check(controle.lire("games/$code/hostUid") != null) { "La partie $code n'est pas dans l'émulateur Firebase" }
+        }
         return code
     }
 

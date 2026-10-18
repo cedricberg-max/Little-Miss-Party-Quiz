@@ -56,15 +56,22 @@ object Boite {
 
     fun quizDemo(): Quiz = QuizJson.parse(contexte.assets.open("quizzes/demo.json").bufferedReader().use { it.readText() })
 
-    /** Refuse de continuer si l'appli n'est pas sur l'émulateur Firebase. */
+    /**
+     * Refuse de continuer si l'émulateur Firebase n'est pas joignable. La vérification passe par une
+     * connexion à part : la box doit faire elle-même sa première connexion, comme sur la vraie Mi Box.
+     */
     fun verifierEmulateur() {
-        val auth = FirebaseAuth.getInstance()
-        if (auth.currentUser == null) bloquer { auth.signInAnonymously().await() }
-        val valeur = bloquer { base.getReference("games/${Emulateur.MARQUEUR}/hostUid").get().await() }.value
-        if (valeur != Emulateur.VALEUR_MARQUEUR) {
-            throw AssertionError("La base n'est pas l'émulateur Firebase : tests arrêtés pour ne pas toucher la vraie base")
+        PupitreSimule("controle").use { controle ->
+            if (controle.lire("games/${Emulateur.MARQUEUR}/hostUid") != Emulateur.VALEUR_MARQUEUR) {
+                throw AssertionError("Émulateur Firebase introuvable : tests arrêtés pour ne pas toucher la vraie base")
+            }
         }
     }
+
+    /** Pile de chaque fil de l'appli, pour comprendre un blocage. */
+    fun piles(): String = Thread.getAllStackTraces().entries
+        .filter { (t, _) -> t.name == "main" || t.name.contains("Firebase", true) || t.name.contains("RunLoop", true) || t.name.contains("DefaultDispatcher") }
+        .joinToString("\n") { (t, pile) -> "[${t.name} ${t.state}]\n" + pile.take(25).joinToString("\n") { "    at $it" } }
 }
 
 /** L'écran de la TV et la télécommande, pilotés comme par l'animatrice. */
@@ -176,6 +183,8 @@ class PupitreSimule(etiquette: String) : AutoCloseable {
 
     /** État de la partie lu sur le serveur. */
     fun etat(code: String): DataSnapshot = bloquer { base.getReference("games/$code/state").get().await() }
+
+    fun lire(chemin: String): Any? = bloquer { base.getReference(chemin).get().await() }.value
 
     fun equipes(code: String): DataSnapshot = bloquer { base.getReference("games/$code/teams").get().await() }
 
