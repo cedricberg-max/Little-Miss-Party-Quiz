@@ -33,7 +33,19 @@ enum class QuestionKind(val code: String) {
      * Image floue : la photo ([Question.imageId]) devient de plus en plus nette ; la première équipe qui
      * buzze répond à voix haute et l'animatrice valide. La réponse est la proposition [Question.correct].
      */
-    FLOU("flou");
+    FLOU("flou"),
+
+    /**
+     * Chante le mot ! (inspiré de « Vendredi tout est permis ») : un mot s'affiche ([Question.text]) ; la
+     * première équipe qui buzze chante un bout de chanson qui le contient. Réponse unique : le mot lui-même.
+     */
+    CHANTE("chante"),
+
+    /**
+     * Qui suis-je ? : les indices ([Question.cards], dans l'ordre) apparaissent un à un au fil du chrono ; la
+     * première équipe qui buzze dit qui c'est. Réponse unique : [Question.choices] contient le personnage.
+     */
+    QUISUIS("quisuis");
 
     companion object {
         fun of(code: String?): QuestionKind = entries.firstOrNull { it.code == code } ?: CLASSIC
@@ -68,6 +80,12 @@ data class Question(
             require(cards.size in 1..MAX_MIME_CARDS) { "Mimes $id : il faut 1 à $MAX_MIME_CARDS cartes" }
             require(cards.none { it.word.isBlank() }) { "Mimes $id : carte sans mot" }
             require(durationSec in 15..180) { "Mimes $id : tour entre 15 et 180 s" }
+        } else if (kind == QuestionKind.CHANTE || kind == QuestionKind.QUISUIS) {
+            // Réponse orale jugée par l'animatrice : une seule réponse attendue, pas de propositions à l'écran.
+            require(choices.size == 1 && choices[0].isNotBlank() && correct == 0) { "Question $id : une seule réponse attendue" }
+            require(kind != QuestionKind.QUISUIS || cards.size in 2..MAX_CLUES) { "Qui suis-je $id : il faut 2 à $MAX_CLUES indices" }
+            require(cards.none { it.word.isBlank() }) { "Question $id : indice vide" }
+            require(durationSec in 10..120) { "Question $id : durée entre 10 et 120 s" }
         } else if (kind == QuestionKind.NUMBER) {
             require(choices.isEmpty()) { "Juste Chiffre $id : pas de propositions" }
             require(correct in -MAX_NUMBER..MAX_NUMBER) { "Juste Chiffre $id : nombre hors limites" }
@@ -88,6 +106,21 @@ data class Question(
     val isExpress: Boolean get() = kind == QuestionKind.EXPRESS
     val isZoom: Boolean get() = kind == QuestionKind.ZOOM
     val isFlou: Boolean get() = kind == QuestionKind.FLOU
+    val isChante: Boolean get() = kind == QuestionKind.CHANTE
+    val isQuiSuis: Boolean get() = kind == QuestionKind.QUISUIS
+
+    /** Jeux au buzzer : la première équipe qui buzze répond à voix haute, l'animatrice valide. */
+    val isBuzz: Boolean get() = isFlou || isChante || isQuiSuis
+
+    /**
+     * Qui suis-je ? : nombre d'indices visibles après [elapsedMs] de chrono. Le premier dès l'ouverture,
+     * puis un nouveau à intervalles réguliers ; tous sont visibles avant la fin du chrono.
+     */
+    fun cluesShown(elapsedMs: Long): Int {
+        if (!isQuiSuis) return 0
+        val step = durationMs / cards.size
+        return (1 + (elapsedMs.coerceAtLeast(0) / step).toInt()).coerceAtMost(cards.size)
+    }
 
     val durationMs: Long get() = durationSec * 1000L
 }
@@ -104,6 +137,9 @@ data class Quiz(val id: String, val title: String, val questions: List<Question>
 data class MimeCard(val word: String, val image: String? = null)
 
 const val MAX_MIME_CARDS = 200
+
+/** Qui suis-je ? : nombre maximum d'indices d'un personnage. */
+const val MAX_CLUES = 6
 
 /** Le Juste Chiffre : nombres de -999 999 999 à 999 999 999 (ce que le pupitre laisse taper). */
 const val MAX_NUMBER = 999_999_999

@@ -9,7 +9,7 @@ import { writeProof, isAdmin } from "./proof.js";
 import { parseQuiz, checkQuestions, geminiPrompt, LETTERS } from "./importer.js";
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
 import {
-  buildSnapshot, estimateMinutes, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
+  buildSnapshot, estimateMinutes, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, BUILTIN_GAMES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
   roundFilled, MIME_TURN,
 } from "./show.js";
 import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
@@ -341,7 +341,8 @@ function formShow() {
     durationMin: num($("show-duration").value),
     themes: $("show-themes").value.trim() || null,
     notes: $("show-notes").value.trim() || null,
-    rounds: editing.rounds.filter(roundFilled).map((r) => (r.type === "mimes" ? { type: "mimes", deckId: r.deckId } : { type: r.type ?? "quiz", quizId: r.quizId })),
+    rounds: editing.rounds.filter(roundFilled).map((r) => (BUILTIN_GAMES[r.type] ? { type: r.type, count: r.count ?? BUILTIN_GAMES[r.type].count }
+      : r.type === "mimes" ? { type: "mimes", deckId: r.deckId } : { type: r.type ?? "quiz", quizId: r.quizId })),
   };
 }
 
@@ -359,7 +360,14 @@ function refreshRounds() {
       h("span", { class: "num", text: `${i + 1}` }),
       h("select", { "aria-label": "Type de manche", onchange: (e) => { r.type = e.target.value; refreshRounds(); } },
         ...Object.entries(ROUND_TYPES).map(([k, label]) => h("option", { value: k, text: label, selected: (r.type ?? "quiz") === k }))),
-      r.type === "mimes"
+      BUILTIN_GAMES[r.type]
+        // Jeux au buzzer intégrés : rien à préparer, seulement combien de mots ou de personnages.
+        ? h("select", { class: "grow", "aria-label": "Nombre", onchange: (e) => { r.count = Number(e.target.value); refreshSummary(); } },
+          ...[4, 5, 6, 8, 10].map((n) => h("option", {
+            value: n, selected: (r.count ?? BUILTIN_GAMES[r.type].count) === n,
+            text: `${n} ${BUILTIN_GAMES[r.type].unit}s (${BUILTIN_GAMES[r.type].rule})`,
+          })))
+        : r.type === "mimes"
         ? h("select", { class: "grow", "aria-label": "Paquet de mimes", onchange: (e) => { r.deckId = e.target.value; refreshSummary(); } },
           h("option", { value: "", text: decks.length ? "Choisir un paquet de mimes…" : "Aucun paquet : créez-en un dans Mimes" }),
           ...decks.map(([did, d]) => h("option", { value: did, selected: r.deckId === did, text: `${d.title} (${(d.cards ?? []).length} cartes, tour de ${d.duration ?? MIME_TURN} s)` })))

@@ -113,6 +113,12 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                         // Image floue : la photo est la question, réponse à voix haute après un buzz.
                         FlouPhoto(q, state, Modifier.fillMaxHeight().aspectRatio(4f / 3f, matchHeightConstraintsFirst = true))
                         Spacer(Modifier.width(20.dp))
+                    } else if (q.isChante) {
+                        ChanteBoard(q, state, Modifier.weight(1.4f).fillMaxHeight())
+                        Spacer(Modifier.width(20.dp))
+                    } else if (q.isQuiSuis) {
+                        QuiSuisBoard(q, state, Modifier.weight(1.4f).fillMaxHeight())
+                        Spacer(Modifier.width(20.dp))
                     } else if (q.isZoom) {
                         ZoomPhoto(q, state, Modifier.fillMaxHeight().aspectRatio(4f / 3f, matchHeightConstraintsFirst = true))
                         Spacer(Modifier.width(20.dp))
@@ -121,7 +127,7 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                         Illustration(q, state, Modifier.fillMaxHeight().aspectRatio(if (photo) 4f / 3f else 1f, matchHeightConstraintsFirst = true))
                         Spacer(Modifier.width(20.dp))
                     }
-                    if (q.isFlou) FlouPanel(q, state, Modifier.weight(1f).fillMaxHeight())
+                    if (q.isBuzz) FlouPanel(q, state, Modifier.weight(1f).fillMaxHeight())
                     else if (q.isNumber) NumberBoard(state, revealed, Modifier.weight(1f).fillMaxHeight())
                     else ChoiceGrid(q.choices, correct = if (revealed) q.correct else null, Modifier.weight(1f).fillMaxHeight())
                 }
@@ -144,8 +150,8 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                 }
                 // En pause, le seul bouton est « Reprendre » sur l'intermède.
                 if (!state.paused) when (state.phase) {
-                    // Image floue : l'animatrice juge la réponse orale (la régie a les mêmes boutons).
-                    Phase.QUESTION -> if (q.isFlou && state.buzzTeam != null) {
+                    // Jeux au buzzer : l'animatrice juge la réponse orale (la régie a les mêmes boutons).
+                    Phase.QUESTION -> if (q.isBuzz && state.buzzTeam != null) {
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             TvButton("Mauvaise réponse", { actions.judgeBuzz(false) }, fontSize = 24.sp)
                             NextButton("Bonne réponse", { actions.judgeBuzz(true) }, key = state.buzzTeam)

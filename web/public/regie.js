@@ -5,7 +5,7 @@ import { CHOICE_LETTERS } from "./theme.js";
 import { writeProof } from "./proof.js";
 import { passwordCandidates } from "./secret.js";
 import {
-  buildSnapshot, showTitle, playable, QUIZ_GAMES, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame, imageIds,
+  buildSnapshot, showTitle, playable, QUIZ_GAMES, BUILTIN_GAMES, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame, imageIds,
   isFutureRound, moveRound, removeRound, uniqueRoundTitle,
 } from "./show.js";
 import { profileForAge } from "./profiles.js";
@@ -165,6 +165,9 @@ function watchAnswers() {
   answersUnsub = onValue(ref(db, `games/${code}/answers/${qid}`), (s) => { live.answers = s.val() ?? {}; render(); });
 }
 
+/** Jeux au buzzer : la première équipe qui buzze répond à voix haute (ou chante), la régie juge. */
+const BUZZ_KINDS = ["flou", "chante", "quisuis"];
+
 const PHASES = {
   lobby: "Salon d'attente",
   question: "Question en cours",
@@ -207,12 +210,12 @@ function render() {
   if (correct != null) {
     const text = (st.choices ?? q?.choices ?? [])[correct] ?? "";
     const number = (q?.kind ?? st.kind) === "number";
-    const flou = (q?.kind ?? st.kind) === "flou";
+    const flou = BUZZ_KINDS.includes(q?.kind ?? st.kind);
     answerBtn.textContent = answerMasked ? "Réponse masquée · toucher pour voir" : number ? `Juste Chiffre · ${correct}` : flou ? `Réponse · ${text}` : `Réponse ${CHOICE_LETTERS[correct]} · ${text}`;
     answerBtn.classList.toggle("masked", answerMasked);
   }
   const answered = Object.keys(live.answers).filter((t) => live.teams[t]).length;
-  $("c-answered").textContent = st.kind === "flou" ? "" : st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ont répondu` : "";
+  $("c-answered").textContent = BUZZ_KINDS.includes(st.kind) ? "" : st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ont répondu` : "";
 
   renderGames(st);
   renderRequests(st, teams);
@@ -414,15 +417,16 @@ function renderMime(st, teams) {
   }
 }
 
-/** Image floue : qui a buzzé, la réponse attendue, et les deux boutons du verdict. */
+/** Jeux au buzzer : qui a buzzé, la réponse attendue, et les deux boutons du verdict. */
 function renderFlou(st) {
-  const on = st.phase === "question" && st.kind === "flou";
+  const on = st.phase === "question" && BUZZ_KINDS.includes(st.kind);
   $("flou").hidden = !on;
   if (!on) return;
   const b = st.buzz ?? {};
   const name = (id) => live.teams[id]?.name ?? "Équipe";
   const q = live.plan?.questions?.[st.index];
-  const expected = q?.choices?.[q?.correct] ?? "";
+  const answer = q?.choices?.[q?.correct] ?? "";
+  const expected = st.kind === "chante" ? `une chanson avec le mot « ${answer} »` : answer;
   const tried = (b.blocked ?? []).filter((id) => live.teams[id]).map(name);
   $("flou-info").textContent = b.team
     ? `${name(b.team)} a buzzé ! Réponse attendue : ${expected || "voir la fiche"}`
@@ -712,13 +716,15 @@ async function fetchLibrary() {
     const rounds = Object.entries(s.val() ?? {})
       .filter(([, show]) => show)
       .sort((a, b) => (b[1].date ?? "").localeCompare(a[1].date ?? ""))
-      .flatMap(([id, show]) => (show.rounds ?? []).filter((r) => r && r.type !== "mimes").map((round, i) => {
+      .flatMap(([id, show]) => (show.rounds ?? []).filter((r) => r && r.type !== "mimes" && !BUILTIN_GAMES[r.type]).map((round, i) => {
         const title = quizzes[round.quizId]?.title ?? `Manche ${i + 1}`;
         const label = round.type === "finale" ? ROUND_TYPES.finale : QUIZ_GAMES[round.type] ? `${ROUND_TYPES[round.type]} : ${title}` : title;
         const date = show.date ? ` (${new Date(`${show.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })})` : "";
         return { key: `show/${id}/${i}`, label, from: `${showTitle(show)}${date}`, source: { type: round.type, quizId: round.quizId } };
       }));
-    library = { quizzes, mimes, games, rounds, decks, quizGames };
+    // Jeux au buzzer intégrés : toujours disponibles, sans rien préparer.
+    const builtins = Object.entries(BUILTIN_GAMES).map(([type, game]) => ({ key: `builtin/${type}`, label: ROUND_TYPES[type], source: { type, count: game.count } }));
+    library = { quizzes, mimes, games, rounds, decks, quizGames, builtins };
   } catch (e) {
     console.error(e);
     library = { denied: /permission/i.test(String(e?.message ?? e)) };
@@ -767,6 +773,14 @@ function renderLibrary() {
       box.appendChild(b);
       return;
     }
+    const builtin = BUILTIN_GAMES[game.source.type];
+    if (builtin) {
+      meta.textContent = `${game.source.count} ${builtin.unit}s · ${builtin.rule} · au buzzer`;
+      b.append(title, meta);
+      b.onclick = () => pick(game);
+      box.appendChild(b);
+      return;
+    }
     const quiz = library.quizzes[game.source.quizId];
     const kind = QUIZ_GAMES[game.source.type];
     const count = (kind ? kind.questions(quiz) : playable(quiz)).length;
@@ -785,7 +799,8 @@ function renderLibrary() {
   section("Mini-jeux et blind tests");
   if (!library.decks.length) hint("Mimes : aucun paquet de cartes pour l'instant (administration, Mimes).");
   library.decks.forEach((g) => entry(g, ""));
-  library.quizGames.forEach((g) => entry(g, g.source.type === "express" ? "enchaînées toutes seules" : "dévoilées au fil du chrono"));
+  library.quizGames.forEach((g) => entry(g, g.source.type === "express" ? "enchaînées toutes seules" : g.source.type === "flou" ? "au buzzer" : "dévoilées au fil du chrono"));
+  library.builtins.forEach((g) => entry(g, ""));
   for (const label of ["Blind test"]) {
     const b = document.createElement("button");
     b.className = "show-item";
@@ -832,8 +847,10 @@ function renderPreview() {
   (mime ? [] : questions).slice(0, 5).forEach((q) => {
     const li = document.createElement("li");
     const answer = document.createElement("b");
+    // Chante le mot : le mot seul ; Qui suis-je : le personnage et son premier indice.
+    if (q.kind === "chante") { answer.textContent = q.text; li.append(answer); list.appendChild(li); return; }
     answer.textContent = ` → ${q.kind === "number" ? q.correct : q.choices?.[q.correct] ?? ""}`;
-    li.append(q.text, answer);
+    li.append(q.kind === "quisuis" ? `${q.image ?? ""} ${q.cards?.[0]?.word ?? ""}…`.trim() : q.text, answer);
     list.appendChild(li);
   });
   if (questions.length > 5) list.insertAdjacentHTML("beforeend", `<li class="hint">… et ${questions.length - 5} autres</li>`);
@@ -855,6 +872,8 @@ const OLD_TV_NUMBER = "La TV doit être mise à jour pour jouer au Juste Chiffre
 const OLD_TV_EXPRESS = "La TV doit être mise à jour pour jouer au Vrai ou Faux express : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_ZOOM = "La TV doit être mise à jour pour jouer au Zoom mystère : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_FLOU = "La TV doit être mise à jour pour jouer à l'Image floue : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+const OLD_TV_CHANTE = "La TV doit être mise à jour pour jouer à « Chante le mot ! » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+const OLD_TV_QUISUIS = "La TV doit être mise à jour pour jouer à « Qui suis-je ? » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 /** Jeu que la TV allumée ne sait pas encore jouer (ancienne version) : le message à montrer, sinon null. */
 function tvRefuses(questions) {
   if (!live.plan) return null;
@@ -863,6 +882,8 @@ function tvRefuses(questions) {
   if (live.plan.express !== true && questions.some((q) => q?.kind === "express")) return OLD_TV_EXPRESS;
   if (live.plan.zoom !== true && questions.some((q) => q?.kind === "zoom")) return OLD_TV_ZOOM;
   if (live.plan.flou !== true && questions.some((q) => q?.kind === "flou")) return OLD_TV_FLOU;
+  if (live.plan.chante !== true && questions.some((q) => q?.kind === "chante")) return OLD_TV_CHANTE;
+  if (live.plan.quisuis !== true && questions.some((q) => q?.kind === "quisuis")) return OLD_TV_QUISUIS;
   return null;
 }
 

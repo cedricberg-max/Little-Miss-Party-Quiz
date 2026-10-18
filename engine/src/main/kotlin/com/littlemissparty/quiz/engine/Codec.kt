@@ -134,8 +134,8 @@ object Codec {
                 "kind" to q.kind.code,
                 "double" to q.double,
                 "text" to q.text,
-                // Image floue : réponse à voix haute, les propositions (qui contiennent la réponse) restent cachées.
-                "choices" to if (q.isFlou && !revealed) null else q.choices,
+                // Jeux au buzzer : réponse à voix haute, les propositions (qui contiennent la réponse) restent cachées.
+                "choices" to if (q.isBuzz && !revealed) null else q.choices,
                 "durationMs" to q.durationMs,
                 "deadline" to game.deadline(),
                 "remainingMs" to if (s.paused || s.buzzHeld) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,

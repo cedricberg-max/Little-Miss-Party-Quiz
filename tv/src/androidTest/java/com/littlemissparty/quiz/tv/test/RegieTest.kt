@@ -329,6 +329,50 @@ class RegieTest : TestTv() {
         ecran.capture("image-floue-revelation")
     }
 
+    @Test
+    fun chanteLeMotPuisQuiSuisJeLesIndicesArriventUnAUn() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        @Suppress("UNCHECKED_CAST")
+        val avant = regie.programme(code)["questions"] as List<Map<String, Any?>>
+        val chante = mapOf(
+            "id" to "c1", "text" to "soleil", "choices" to listOf("soleil"), "correct" to 0,
+            "duration" to 30, "kind" to "chante", "double" to false, "round" to "Chante le mot !",
+        )
+        val quiSuis = mapOf(
+            "id" to "p1", "text" to "Qui suis-je ?", "choices" to listOf("Le lion"), "correct" to 0, "image" to "🦁",
+            "duration" to 20, "kind" to "quisuis", "double" to false, "round" to "Qui suis-je ?",
+            "cards" to listOf(mapOf("word" to "J'ai une crinière"), mapOf("word" to "Je rugis très fort")),
+        )
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(chante, quiSuis) + avant))
+
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("CHANTE LE MOT !")
+        ecran.voit("SOLEIL")
+        attendreQue("buzzer ouvert") { licornes.etat(code).takeIf { it.child("qid").value == "c1" && it.child("buzzOpen").value == true } }
+        assertTrue(licornes.buzzer(code))
+        ecran.voit("À vous de chanter !")
+        ecran.capture("chante-le-mot-buzz")
+        assertEquals("applied", regie.commande(code, "buzz_ok"))
+        ecran.voit("Bravo Licornes, quelle voix !")
+        assertEquals("applied", regie.commande(code, "next"))
+        assertEquals("applied", regie.commande(code, "next"))
+
+        ecran.voit("QUI SUIS-JE ?")
+        ecran.voit("J'ai une crinière")
+        assertFalse("le deuxième indice attend son tour", ecran.affiche("Je rugis très fort"))
+        ecran.voit("Je rugis très fort", 20_000)
+        attendreQue("buzzer ouvert") { licornes.etat(code).takeIf { it.child("qid").value == "p1" && it.child("buzzOpen").value == true } }
+        assertTrue(licornes.buzzer(code))
+        ecran.voit("Licornes a buzzé !")
+        assertEquals("applied", regie.commande(code, "buzz_ok"))
+        ecran.voit("Le lion")
+        attendreQue("points des deux jeux") { points(licornes, code, licornes.uid).takeIf { it == 2L * Scoring.BUZZ } }
+        ecran.capture("qui-suis-je-revelation")
+    }
+
     private val regies = mutableListOf<RegieSimulee>()
 
     private fun regie() = RegieSimulee().also { regies += it }

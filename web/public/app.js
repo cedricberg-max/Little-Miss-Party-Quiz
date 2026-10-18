@@ -8,6 +8,13 @@ import { hasAccess, loginWithPassword, loginWithPin, startRegie } from "./regie.
 import { watchVersion, showUpdateBanner } from "./version.js";
 
 const $ = (id) => document.getElementById(id);
+/** Jeux au buzzer : un seul grand BUZZ, la réponse se donne à voix haute. */
+const BUZZ_KINDS = ["flou", "chante", "quisuis"];
+const BUZZ_INVITE = {
+  flou: "Image floue : buzzez dès que vous la reconnaissez !",
+  chante: "Chante le mot ! Buzzez et chantez une chanson avec le mot de la TV !",
+  quisuis: "Qui suis-je ? Écoutez les indices de la TV et buzzez dès que vous savez !",
+};
 const params = new URLSearchParams(location.search);
 const code = (params.get("g") || "").toUpperCase();
 // Tests automatiques uniquement : l'émulateur Firebase n'est accepté que depuis l'ordinateur de test.
@@ -338,7 +345,7 @@ function render() {
   switch (st.phase) {
     case "question":
     case "closed":
-      return st.mime ? renderMime(st) : st.kind === "flou" ? renderFlou(st) : renderQuestion(st);
+      return st.mime ? renderMime(st) : BUZZ_KINDS.includes(st.kind) ? renderFlou(st) : renderQuestion(st);
     case "reveal":
     case "scores":
       return st.mime ? renderMimeResult(st) : renderResult(st);
@@ -464,11 +471,12 @@ function renderFlou(st) {
   const open = st.phase === "question" && st.buzzOpen === true && !st.paused && !counting(st) && !b.team && !blocked;
   buzz.disabled = !open;
   buzz.classList.toggle("winner", b.team === teamId);
-  if (b.team === teamId) $("play-status").textContent = "Vous avez buzzé ! Donnez votre réponse à voix haute.";
-  else if (b.team) $("play-status").textContent = `${game.teams[b.team]?.name ?? "Une équipe"} a buzzé : écoutez sa réponse…`;
+  const chante = st.kind === "chante";
+  if (b.team === teamId) $("play-status").textContent = chante ? "Vous avez buzzé ! À vous de chanter !" : "Vous avez buzzé ! Donnez votre réponse à voix haute.";
+  else if (b.team) $("play-status").textContent = `${game.teams[b.team]?.name ?? "Une équipe"} a buzzé : ${chante ? "écoutez-les chanter" : "écoutez sa réponse"}…`;
   else if (st.phase === "closed") $("play-status").textContent = "Temps écoulé ! Regardez la TV.";
-  else if (blocked) $("play-status").textContent = "Raté pour cette image… Les autres équipes peuvent encore buzzer.";
-  else $("play-status").textContent = "Image floue : buzzez dès que vous la reconnaissez !";
+  else if (blocked) $("play-status").textContent = `Raté pour ${st.kind === "flou" ? "cette image" : chante ? "ce mot" : "ce personnage"}… Les autres équipes peuvent encore buzzer.`;
+  else $("play-status").textContent = BUZZ_INVITE[st.kind] ?? BUZZ_INVITE.flou;
 }
 
 async function buzzFlou(st) {
@@ -582,7 +590,7 @@ function renderResult(st) {
   if (number) {
     const exact = ok && game.myAnswer?.choice === st.correct;
     $("r-title").textContent = exact ? `Pile le bon nombre ! +${award.points} points` : ok ? `Le plus proche ! +${award.points} points` : answered ? "Raté pour cette fois !" : "Pas de réponse";
-  } else if (st.kind === "flou") {
+  } else if (BUZZ_KINDS.includes(st.kind)) {
     const winner = Object.keys(st.awards ?? {}).find((t) => st.awards[t]?.correct);
     $("r-icon").textContent = ok ? "✓" : "…";
     $("r-title").textContent = ok ? `Bravo ! +${award.points} points` : winner ? `${game.teams[winner]?.name ?? "Une équipe"} a trouvé !` : "Personne n'a trouvé";
@@ -590,8 +598,9 @@ function renderResult(st) {
     $("r-title").textContent = ok ? `Bravo ! +${award.points} points` : answered ? "Raté pour cette fois !" : "Pas de réponse";
   }
   const correct = st.correct == null ? "" : number ? `${st.correct}${game.myAnswer ? ` (vous : ${game.myAnswer.choice})` : ""}`
-    : st.kind === "flou" ? (st.choices?.[st.correct] ?? "") : `${CHOICE_LETTERS[st.correct]} : ${st.choices?.[st.correct] ?? ""}`;
-  $("r-detail").textContent = (ok && award.bonus > 0 ? `dont ${award.bonus} de bonus rapidité. ` : "") + (correct ? `${st.kind === "flou" ? "C'était" : "Bonne réponse"} : ${correct}` : "");
+    : BUZZ_KINDS.includes(st.kind) ? (st.choices?.[st.correct] ?? "") : `${CHOICE_LETTERS[st.correct]} : ${st.choices?.[st.correct] ?? ""}`;
+  const said = st.kind === "chante" ? "Le mot" : BUZZ_KINDS.includes(st.kind) ? "C'était" : "Bonne réponse";
+  $("r-detail").textContent = (ok && award.bonus > 0 ? `dont ${award.bonus} de bonus rapidité. ` : "") + (correct ? `${said} : ${correct}` : "");
   $("r-image").textContent = st.image ?? "";
   $("r-image").hidden = !st.image;
   const { mine, rank } = rankOf(st.scores);
@@ -617,7 +626,7 @@ function funSound() {
 $("buzz").onclick = async () => {
   const buzz = $("buzz");
   if (buzz.disabled) return;
-  if (game?.state?.kind === "flou" && game.state.phase === "question") return buzzFlou(game.state);
+  if (BUZZ_KINDS.includes(game?.state?.kind) && game.state.phase === "question") return buzzFlou(game.state);
   funSound();
   navigator.vibrate?.(60);
   buzz.classList.remove("bump");

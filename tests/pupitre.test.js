@@ -248,6 +248,25 @@ describe("pupitre", () => {
     for (const p of pages) await p.context().close();
   });
 
+  test("Chante le mot ! et Qui suis-je ? : le même grand BUZZ, la consigne du jeu, puis le mot ou le personnage", async () => {
+    const page = await openPupitre();
+    await joinTeam(page, "Les Roses");
+    const uid = Object.keys(await read("teams"))[0];
+    const jeu = (extra) => question({ choices: null, buzzOpen: true, buzz: { blocked: [] }, ...extra });
+    await hostState(jeu({ qid: "c1", kind: "chante", text: "soleil", round: "c1-1000-0" }));
+    await page.locator("#play-status", { hasText: "chantez une chanson avec le mot de la TV" }).waitFor();
+    await page.click("#buzz");
+    await waitFor(async () => (await read("buzz/c1-1000-0"))?.team === uid, "buzz enregistré");
+    await hostState(jeu({ qid: "c1", kind: "chante", text: "soleil", round: "c1-1000-0", buzzOpen: false, buzz: { team: uid, blocked: [] } }));
+    await page.locator("#play-status", { hasText: "À vous de chanter" }).waitFor();
+    await hostState(jeu({ qid: "c1", kind: "chante", text: "soleil", phase: "reveal", choices: ["soleil"], correct: 0, buzzOpen: false, awards: { [uid]: { correct: true, points: 150, bonus: 0 } }, scores: { [uid]: 150 } }));
+    await page.locator("#r-detail", { hasText: "Le mot : soleil" }).waitFor();
+    await hostState(jeu({ qid: "p1", kind: "quisuis", text: "Qui suis-je ?", round: "p1-1000-0" }));
+    await page.locator("#play-status", { hasText: "Écoutez les indices de la TV" }).waitFor();
+    assert.equal(await page.locator("#buzz").isDisabled(), false);
+    await page.context().close();
+  });
+
   test("accueil : deux équipes buzzent à répétition, rien ne se bloque ni ne change d'écran", async () => {
     const pages = [await openPupitre(), await openPupitre()];
     await joinTeam(pages[0], "Les Roses");

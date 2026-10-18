@@ -49,6 +49,29 @@ import kotlinx.coroutines.delay
 private val NIVEAUX = listOf(5, 8, 12, 18, 26, 38, 56, 80, 120, 170)
 
 /**
+ * Temps restant du chrono de la question, mis à jour en continu ; figé pendant une pause, pendant le
+ * décompte de reprise et pendant la réponse orale d'une équipe qui a buzzé (la box n'a plus d'échéance).
+ */
+@Composable
+fun chronoRestant(q: Question, state: UiState.Playing): Long {
+    var remaining by remember(q.id) { mutableLongStateOf(state.remainingMs) }
+    LaunchedEffect(q.id, state.deadline, state.paused, state.phase) {
+        val deadline = state.deadline
+        if (deadline == null) {
+            remaining = state.remainingMs
+            return@LaunchedEffect
+        }
+        val start = state.resumeAt ?: 0L
+        while (true) {
+            remaining = (deadline - maxOf(System.currentTimeMillis() + state.serverOffset, start)).coerceAtLeast(0)
+            if (remaining == 0L) break
+            delay(80)
+        }
+    }
+    return remaining
+}
+
+/**
  * Image floue : la photo devient de plus en plus nette au fil du chrono ; elle se fige quand une équipe
  * buzze (le chrono attend le verdict de l'animatrice) et apparaît enfin nette à la révélation.
  */
@@ -68,20 +91,7 @@ fun FlouPhoto(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
     }
     val nette = remember(photo) { photo?.asImageBitmap() }
     val total = q.durationMs.coerceAtLeast(1)
-    var remaining by remember(q.id) { mutableLongStateOf(state.remainingMs) }
-    LaunchedEffect(q.id, state.deadline, state.paused, state.phase) {
-        val deadline = state.deadline
-        if (deadline == null) {
-            remaining = state.remainingMs
-            return@LaunchedEffect
-        }
-        val start = state.resumeAt ?: 0L
-        while (true) {
-            remaining = (deadline - maxOf(System.currentTimeMillis() + state.serverOffset, start)).coerceAtLeast(0)
-            if (remaining == 0L) break
-            delay(80)
-        }
-    }
+    val remaining = chronoRestant(q, state)
     val revealed = state.phase == Phase.REVEAL || state.phase == Phase.SCORES
     val progress = (1f - remaining.toFloat() / total).coerceIn(0f, 1f)
     // Lent au début, plus rapide vers la fin : l'image reste mystérieuse un bon moment.
@@ -125,7 +135,7 @@ fun FlouPhoto(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
     }
 }
 
-/** Panneau à droite de l'image floue : consigne, équipe qui a buzzé, équipes déjà passées, puis la réponse. */
+/** Panneau des jeux au buzzer (image floue, chante le mot, qui suis-je) : consigne, équipe qui a buzzé, équipes déjà passées, puis la réponse. */
 @Composable
 fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier) {
     val buzzer = state.teams.find { it.uid == state.buzzTeam }
@@ -138,7 +148,7 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
     ) {
         when {
             state.phase == Phase.REVEAL || state.phase == Phase.SCORES -> {
-                Text("C'était :", color = Palette.InkSoft, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                Text(if (q.isChante) "Le mot :" else "C'était :", color = Palette.InkSoft, fontSize = 26.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 Text(
                     q.choices.getOrNull(q.correct).orEmpty(),
@@ -147,7 +157,12 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
                 )
                 Spacer(Modifier.height(20.dp))
                 Text(
-                    if (gagnant != null) "Bravo ${gagnant.name} !" else "Personne n'a trouvé, ce n'est pas grave !",
+                    when {
+                        gagnant != null && q.isChante -> "Bravo ${gagnant.name}, quelle voix !"
+                        gagnant != null -> "Bravo ${gagnant.name} !"
+                        q.isChante -> "Personne n'a chanté, ce n'est pas grave !"
+                        else -> "Personne n'a trouvé, ce n'est pas grave !"
+                    },
                     color = gagnant?.color?.toColor() ?: Palette.Ink, fontSize = 30.sp, lineHeight = 36.sp,
                     fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                 )
@@ -159,14 +174,18 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
                     textAlign = TextAlign.Center, modifier = Modifier.apparition(0, buzzer.uid),
                 )
                 Spacer(Modifier.height(14.dp))
-                Text("Votre réponse, à voix haute !", color = Palette.Ink, fontSize = 28.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                Text(if (q.isChante) "À vous de chanter !" else "Votre réponse, à voix haute !", color = Palette.Ink, fontSize = 28.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
             }
             state.phase == Phase.CLOSED -> Text(
-                "Temps écoulé ! Voyons ce qui se cachait…",
+                if (q.isFlou) "Temps écoulé ! Voyons ce qui se cachait…" else "Temps écoulé !",
                 color = Palette.Gold, fontSize = 32.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
             )
             else -> Text(
-                "Buzzez dès que vous reconnaissez l'image !",
+                when {
+                    q.isChante -> "Buzzez et chantez une chanson avec ce mot !"
+                    q.isQuiSuis -> "Buzzez dès que vous savez qui je suis !"
+                    else -> "Buzzez dès que vous reconnaissez l'image !"
+                },
                 color = Palette.Ink, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
             )
         }

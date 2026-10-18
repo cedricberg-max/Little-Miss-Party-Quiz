@@ -315,7 +315,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         )
         else s.copy(
             phase = Phase.QUESTION, index = index, qid = q.id, segments = listOf(Segment(at)), resumeAt = null, mime = null,
-            buzz = if (q.isFlou) BuzzRound() else null,
+            buzz = if (q.isBuzz) BuzzRound() else null,
         )
 
     /** Tour de mimes terminé : chrono arrêté, bilan gardé pour la TV et la régie. */
@@ -391,7 +391,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         val q = question ?: return null
         if (state.phase != Phase.CLOSED) return null
         // Image floue : les points viennent du buzzer ; chrono écoulé sans bonne réponse, personne ne marque.
-        val awards = if (q.isFlou) emptyMap()
+        val awards = if (q.isBuzz) emptyMap()
         else if (q.isNumber) Scoring.awardNumber(q, answers)
         else if (q.isExpress) answers.mapValues { (_, a) -> Scoring.awardExpress(q, a) }
         else answers.mapValues { (_, a) ->
