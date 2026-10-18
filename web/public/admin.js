@@ -1,21 +1,21 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-import {
-  getAuth, GoogleAuthProvider, signInWithPopup, signInWithCredential, signOut, onAuthStateChanged, connectAuthEmulator,
-} from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+import { getAuth, signInAnonymously, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
 import {
   getDatabase, ref, get, set, push, onValue, serverTimestamp, connectDatabaseEmulator,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { passwordHash, newSalt, MIN_PASSWORD_LENGTH } from "./secret.js";
+import { writeProof, isAdmin } from "./proof.js";
 import { parseQuiz, checkQuestions, geminiPrompt, LETTERS } from "./importer.js";
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
 import { buildSnapshot, estimateMinutes, playable, showTitle, ROUND_TYPES } from "./show.js";
 
-// Administration de Sarah et cedric (compte Google). Les droits sont vérifiés par les règles Firebase :
-// un compte qui n'est pas dans la liste des administrateurs ne peut rien lire ni enregistrer.
+// Administration : un mot de passe commun, sans compte ni adresse e-mail. Toute personne qui le connaît
+// a tous les droits. Le serveur (règles Firebase) vérifie l'empreinte envoyée par cet appareil ;
+// l'appareil reste reconnu après un rechargement, jusqu'au prochain changement du mot de passe.
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
-// Tests automatiques uniquement : émulateur Firebase et compte Google simulé, depuis l'ordinateur de test.
+// Tests automatiques uniquement : émulateur Firebase, depuis l'ordinateur de test.
 const emulator = params.has("emu") && ["localhost", "127.0.0.1"].includes(location.hostname);
 
 const config = await (await fetch("firebase-config.json", { cache: "no-store" })).json();
@@ -26,6 +26,9 @@ if (emulator) {
   connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
   connectDatabaseEmulator(db, "127.0.0.1", 9000);
 }
+// Connexion anonyme : l'identifiant est gardé par le navigateur, comme pour les pupitres.
+const uid = (await signInAnonymously(auth)).user.uid;
+const ctx = { db, uid };
 
 let quizzes = {};
 let shows = {};
@@ -68,39 +71,83 @@ document.querySelectorAll("[data-screen]").forEach((b) => { b.onclick = () => sh
 
 // ---------- Connexion ----------
 
-$("login").onclick = async () => {
+let setupMode = false;
+/** Changement du mot de passe administrateur en cours depuis cet appareil : pas de retour à la connexion. */
+let rekeying = false;
+
+async function route() {
+  if (await isAdmin(ctx)) return enter();
+  setupMode = !(await get(ref(db, "settings/admin/salt"))).val();
+  $("login-title").textContent = setupMode ? "Première configuration" : "Connexion";
+  $("login-hint").textContent = setupMode
+    ? "Aucun mot de passe administrateur n'existe encore : choisissez-le maintenant (8 caractères au moins)."
+    : "Saisissez le mot de passe administrateur.";
+  $("admin-confirm").hidden = !setupMode;
+  $("login").textContent = setupMode ? "Enregistrer et entrer" : "Entrer";
+  $("nav").hidden = true;
+  $("logout").hidden = true;
+  show("login");
+  $("admin-password").focus();
+}
+
+/** Écrit l'empreinte du mot de passe et vérifie auprès du serveur qu'elle ouvre l'administration. */
+async function prove(password) {
+  const r = await writeProof(ctx, "admin", password);
+  if (r === "busy") return "Trop d'essais en même temps. Réessayez dans quelques secondes.";
+  if (r === "unset") return "Aucun mot de passe administrateur enregistré.";
+  return (await isAdmin(ctx)) ? null : "Mot de passe incorrect.";
+}
+
+async function savePassword(kind, password) {
+  const salt = newSalt();
+  await set(ref(db, `settings/${kind}`), { salt, hash: await passwordHash(salt, password), updatedAt: serverTimestamp() });
+}
+
+$("login-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const pw = $("admin-password").value;
   status("login-status", "");
+  if (setupMode) {
+    if (pw.length < MIN_PASSWORD_LENGTH) return status("login-status", `Le mot de passe doit faire au moins ${MIN_PASSWORD_LENGTH} caractères.`);
+    if (pw !== $("admin-password2").value) return status("login-status", "Les deux mots de passe ne sont pas identiques.");
+  }
+  $("login").disabled = true;
   try {
-    if (emulator) {
-      const email = params.get("as") ?? "admin@lmp.test";
-      await signInWithCredential(auth, GoogleAuthProvider.credential(JSON.stringify({ sub: email, email, email_verified: true })));
-    } else {
-      await signInWithPopup(auth, new GoogleAuthProvider());
-    }
-  } catch (e) {
-    console.error(e);
-    status("login-status", "Connexion Google impossible. Réessayez.");
+    if (setupMode) await savePassword("admin", pw);
+    const error = await prove(pw);
+    if (error) return status("login-status", error);
+    $("admin-password").value = "";
+    $("admin-password2").value = "";
+    enter();
+  } catch (err) {
+    console.error(err);
+    status("login-status", setupMode ? "Un mot de passe vient d'être choisi ailleurs : saisissez-le." : "Connexion impossible. Vérifiez Internet puis réessayez.");
+    if (setupMode) route();
+  } finally {
+    $("login").disabled = false;
   }
 };
-$("logout").onclick = () => signOut(auth);
 
-onAuthStateChanged(auth, (user) => {
-  const google = user && !user.isAnonymous;
+$("logout").onclick = async () => {
   stops.forEach((s) => s());
   stops = [];
-  $("nav").hidden = !google;
-  $("logout").hidden = !google;
-  $("who").textContent = google ? user.email : "";
-  if (!google) return show("login");
-  const fail = (e) => {
-    console.error(e);
-    status("login-status", "Ce compte Google n'a pas les droits d'administration.");
-    show("login");
-  };
-  stops.push(onValue(ref(db, "library/quizzes"), (s) => { quizzes = s.val() ?? {}; refreshLists(); }, fail));
-  stops.push(onValue(ref(db, "library/shows"), (s) => { shows = s.val() ?? {}; refreshLists(); }, fail));
+  await set(ref(db, `adminProof/${uid}`), null).catch(() => {});
+  route();
+};
+
+function enter() {
+  stops.forEach((s) => s());
+  stops = [];
+  $("nav").hidden = false;
+  $("logout").hidden = false;
+  // Mot de passe changé depuis un autre appareil : retour à l'écran de connexion.
+  const lost = (e) => { console.error(e); stops.forEach((s) => s()); stops = []; if (!rekeying) route(); };
+  stops.push(onValue(ref(db, "library/quizzes"), (s) => { quizzes = s.val() ?? {}; refreshLists(); }, lost));
+  stops.push(onValue(ref(db, "library/shows"), (s) => { shows = s.val() ?? {}; refreshLists(); }, lost));
   show(current);
-});
+}
+
+route();
 
 function refreshLists() {
   if (!$("screen-shows").hidden) renderShows();
@@ -222,7 +269,7 @@ $("show-form").onsubmit = async (e) => {
   try {
     await set(ref(db, `library/shows/${id}`), {
       ...s, origin: prev.origin ?? "admin", createdAt: prev.createdAt ?? Date.now(),
-      updatedAt: serverTimestamp(), updatedBy: auth.currentUser.email,
+      updatedAt: serverTimestamp(),
     });
     editing.id = id;
     $("show-delete").hidden = false;
@@ -429,7 +476,7 @@ $("rv-save").onclick = async () => {
       title, theme: $("rv-theme").value.trim() || null,
       ageMin: num($("rv-age-min").value), ageMax: num($("rv-age-max").value),
       source: draft.quiz.source ?? "saisie",
-      createdAt: draft.quiz.createdAt ?? Date.now(), updatedAt: serverTimestamp(), updatedBy: auth.currentUser.email,
+      createdAt: draft.quiz.createdAt ?? Date.now(), updatedAt: serverTimestamp(),
       questions: questions.map((q) => ({
         text: q.text.slice(0, 300), choices: q.choices, correct: q.correct, duration: q.duration, double: q.double, status: q.status,
       })),
@@ -445,35 +492,54 @@ $("rv-save").onclick = async () => {
   }
 };
 
-// ---------- Paramètres : mot de passe de la régie ----------
+// ---------- Paramètres : mots de passe ----------
 
 async function showLastChange() {
   const at = (await get(ref(db, "settings/regie/updatedAt"))).val();
   $("last-change").textContent = at
     ? `Dernière modification : ${new Date(at).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" })}`
-    : "Aucun mot de passe enregistré pour l'instant : les animatrices utilisent le code affiché sur la TV.";
+    : "Aucun mot de passe de régie enregistré pour l'instant : les animatrices utilisent le code affiché sur la TV.";
 }
 
-$("password-form").onsubmit = async (e) => {
-  e.preventDefault();
-  const pw = $("pw1").value;
-  if (pw.length < MIN_PASSWORD_LENGTH) return status("save-status", `Le mot de passe doit faire au moins ${MIN_PASSWORD_LENGTH} caractères.`);
-  if (pw !== $("pw2").value) return status("save-status", "Les deux mots de passe ne sont pas identiques.");
-  $("save").disabled = true;
-  status("save-status", "");
-  try {
-    const salt = newSalt();
-    await set(ref(db, "settings/regie"), {
-      salt, hash: await passwordHash(salt, pw), updatedAt: serverTimestamp(), updatedBy: auth.currentUser.email,
-    });
-    $("pw1").value = "";
-    $("pw2").value = "";
-    status("save-status", "Mot de passe enregistré. Il est valable dès maintenant.", true);
+function passwordForm({ form, pw1, pw2, button, out, kind, done }) {
+  $(form).onsubmit = async (e) => {
+    e.preventDefault();
+    const pw = $(pw1).value;
+    if (pw.length < MIN_PASSWORD_LENGTH) return status(out, `Le mot de passe doit faire au moins ${MIN_PASSWORD_LENGTH} caractères.`);
+    if (pw !== $(pw2).value) return status(out, "Les deux mots de passe ne sont pas identiques.");
+    $(button).disabled = true;
+    status(out, "");
+    try {
+      if (kind === "admin") rekeying = true;
+      await savePassword(kind, pw);
+      $(pw1).value = "";
+      $(pw2).value = "";
+      await done(pw);
+    } catch (err) {
+      console.error(err);
+      status(out, "Enregistrement refusé : reconnectez-vous avec le mot de passe administrateur.");
+    } finally {
+      rekeying = false;
+      $(button).disabled = false;
+    }
+  };
+}
+
+passwordForm({
+  form: "password-form", pw1: "pw1", pw2: "pw2", button: "save", out: "save-status", kind: "regie",
+  done: async () => {
+    status("save-status", "Mot de passe de la régie enregistré. Il est valable dès maintenant.", true);
     await showLastChange();
-  } catch (err) {
-    console.error(err);
-    status("save-status", "Enregistrement refusé : ce compte Google n'a pas les droits d'administration.");
-  } finally {
-    $("save").disabled = false;
-  }
-};
+  },
+});
+
+passwordForm({
+  form: "admin-form", pw1: "admin-pw1", pw2: "admin-pw2", button: "admin-save", out: "admin-save-status", kind: "admin",
+  // L'ancienne empreinte de cet appareil ne vaut plus : on le reconnecte avec le nouveau mot de passe.
+  done: async (pw) => {
+    const error = await prove(pw);
+    if (error) return route();
+    enter();
+    status("admin-save-status", "Mot de passe administrateur changé. Les autres appareils devront le saisir à nouveau.", true);
+  },
+});

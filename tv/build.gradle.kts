@@ -31,6 +31,11 @@ android {
         testInstrumentationRunner = "com.littlemissparty.quiz.tv.test.LmpTestRunner"
         // Chaque test démarre l'appli dans un processus neuf, données effacées : comme une box qu'on allume.
         testInstrumentationRunnerArguments["clearPackageData"] = "true"
+        // Description de la dernière version stable, publiée avec le pupitre par GitHub Actions.
+        // Les tests sur émulateur peuvent la remplacer : ./gradlew -PlmpUpdateUrl=http://10.0.2.2:8080/tv/latest.json
+        val updateUrl = (project.findProperty("lmpUpdateUrl") as String?)
+            ?: "https://${firebaseConfig["projectId"] ?: ""}.web.app/tv/latest.json"
+        buildConfigField("String", "UPDATE_URL", "\"$updateUrl\"")
     }
 
     testOptions {

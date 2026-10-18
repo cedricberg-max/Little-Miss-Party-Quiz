@@ -1,0 +1,204 @@
+package com.littlemissparty.quiz.tv
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import com.littlemissparty.quiz.engine.Release
+import java.util.Locale
+
+class UpdateActions(
+    val search: () -> Unit,
+    val download: () -> Unit,
+    val cancelDownload: () -> Unit,
+    val install: () -> Unit,
+    /** Faux si la box n'a pas l'écran de réglage attendu. */
+    val openPermission: () -> Boolean,
+    val close: () -> Unit,
+)
+
+/** Partie en cours (équipes déjà là ou question jouée) : aucune mise à jour pendant une prestation. */
+fun gameInProgress(state: UiState): Boolean = state is UiState.ResumeOffer ||
+    (state is UiState.Playing && when (state.phase) {
+        com.littlemissparty.quiz.engine.Phase.ENDED -> false
+        com.littlemissparty.quiz.engine.Phase.LOBBY -> state.teams.isNotEmpty()
+        else -> true
+    })
+
+private fun mb(bytes: Long) = String.format(Locale.FRANCE, "%.1f Mo", bytes / 1_048_576.0)
+
+/** Fenêtre « Rechercher une mise à jour », entièrement utilisable à la télécommande. */
+@Composable
+fun UpdateDialog(ui: UpdateUi, busy: Boolean, actions: UpdateActions) {
+    val focus = remember { FocusRequester() }
+    Dialog(onDismissRequest = actions.close) {
+        Column(
+            Modifier
+                .clip(RoundedCornerShape(32.dp))
+                .background(Palette.Night)
+                .padding(40.dp)
+                .width(720.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Text("Mise à jour de l'appli", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold)
+            Text("Version installée : ${BuildConfig.VERSION_NAME}", color = Palette.InkSoft, fontSize = 18.sp)
+            val release = releaseOf(ui)
+            if (busy && ui !is UpdateUi.Installing) {
+                Body(
+                    (release?.let { "La version ${it.versionName} est disponible. " } ?: "") +
+                        "Une partie est en cours : la mise à jour se fera après la partie, " +
+                        "pour ne jamais couper une prestation.",
+                )
+                Buttons { Primary("Fermer", actions.close, focus) }
+            } else {
+                Content(ui, actions, focus)
+            }
+        }
+        LaunchedEffect(ui::class) { runCatching { focus.requestFocus() } }
+    }
+}
+
+private fun releaseOf(ui: UpdateUi): Release? = when (ui) {
+    is UpdateUi.Available -> ui.release
+    is UpdateUi.Downloading -> ui.release
+    is UpdateUi.Verifying -> ui.release
+    is UpdateUi.Ready -> ui.release
+    is UpdateUi.NeedsPermission -> ui.release
+    is UpdateUi.Installing -> ui.release
+    is UpdateUi.Failed -> ui.release
+    else -> null
+}
+
+@Composable
+private fun Content(ui: UpdateUi, actions: UpdateActions, focus: FocusRequester) {
+    when (ui) {
+        UpdateUi.Idle, UpdateUi.Checking -> {
+            Waiting("Recherche d'une nouvelle version…")
+            Buttons { Primary("Fermer", actions.close, focus) }
+        }
+        UpdateUi.UpToDate -> {
+            Body("L'appli est à jour.")
+            Buttons {
+                Primary("Fermer", actions.close, focus)
+                Secondary("Vérifier à nouveau", actions.search)
+            }
+        }
+        is UpdateUi.Available -> {
+            Body("Nouvelle version ${ui.release.versionName} disponible (${mb(ui.release.size)}).")
+            Notes(ui.release)
+            Buttons {
+                Primary("Télécharger la mise à jour", actions.download, focus)
+                Secondary("Plus tard", actions.close)
+            }
+        }
+        is UpdateUi.Downloading -> {
+            val p = (ui.done.toFloat() / ui.release.size).coerceIn(0f, 1f)
+            Body("Téléchargement de la version ${ui.release.versionName}… ${(p * 100).toInt()} %")
+            LinearProgressIndicator(progress = { p }, color = Palette.Gold, trackColor = Palette.Panel, modifier = Modifier.width(640.dp).height(12.dp))
+            Text("${mb(ui.done)} sur ${mb(ui.release.size)}", color = Palette.InkSoft, fontSize = 18.sp)
+            Buttons { Secondary("Annuler", actions.cancelDownload, focus) }
+        }
+        is UpdateUi.Verifying -> {
+            Waiting("Vérification de la mise à jour (signature, appli, version)…")
+        }
+        is UpdateUi.Ready -> {
+            Body(
+                "La version ${ui.release.versionName} est prête et vérifiée. Android va demander de confirmer " +
+                    "l'installation : choisissez « Mettre à jour » ou « Installer ». Les parties, réglages et codes sont conservés.",
+            )
+            Buttons {
+                Primary("Installer la mise à jour", actions.install, focus)
+                Secondary("Plus tard", actions.close)
+            }
+        }
+        is UpdateUi.NeedsPermission -> {
+            Body(
+                "Android doit autoriser Little Miss Party Quiz à installer ses mises à jour. " +
+                    "C'est à faire une seule fois.",
+            )
+            Text(
+                "Si le bouton n'ouvre rien : Paramètres › Préférences de l'appareil › Sécurité et restrictions › " +
+                    "Sources inconnues › Little Miss Party Quiz.",
+                color = Palette.InkSoft, fontSize = 18.sp,
+            )
+            Buttons {
+                Primary("Ouvrir le réglage Android", { actions.openPermission() }, focus)
+                Secondary("J'ai autorisé : installer", actions.install)
+            }
+        }
+        is UpdateUi.Installing -> {
+            Waiting("Confirmez l'installation sur l'écran d'Android. L'appli redémarre ensuite toute seule.")
+            Buttons { Secondary("Fermer", actions.close, focus) }
+        }
+        is UpdateUi.Failed -> {
+            Text(ui.message, color = Palette.Pink, fontSize = 22.sp)
+            Buttons {
+                Primary("Réessayer", if (ui.release == null) actions.search else actions.download, focus)
+                Secondary("Fermer", actions.close)
+            }
+        }
+    }
+}
+
+@Composable
+private fun Body(text: String) = Text(text, color = Color.White, fontSize = 22.sp)
+
+@Composable
+private fun Notes(r: Release) {
+    if (r.notes.isNotBlank()) Text("Contenu : ${r.notes}", color = Palette.InkSoft, fontSize = 18.sp)
+}
+
+@Composable
+private fun Waiting(text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        CircularProgressIndicator(color = Color.White)
+        Spacer(Modifier.width(20.dp))
+        Body(text)
+    }
+}
+
+@Composable
+private fun Buttons(content: @Composable () -> Unit) {
+    Spacer(Modifier.height(8.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) { content() }
+}
+
+@Composable
+private fun Primary(label: String, onClick: () -> Unit, focus: FocusRequester) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.focusRequester(focus),
+        colors = ButtonDefaults.buttonColors(containerColor = Palette.Gold, contentColor = Palette.Night),
+    ) { Text(label, fontSize = 22.sp, fontWeight = FontWeight.Bold) }
+}
+
+@Composable
+private fun Secondary(label: String, onClick: () -> Unit, focus: FocusRequester? = null) {
+    OutlinedButton(onClick = onClick, modifier = if (focus != null) Modifier.focusRequester(focus) else Modifier) {
+        Text(label, color = Color.White, fontSize = 20.sp)
+    }
+}

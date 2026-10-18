@@ -15,15 +15,18 @@
       <button data-screen="quizzes">Quiz</button>
       <button data-screen="settings">Paramètres</button>
     </nav>
-    <span id="who"></span>
     <button id="logout" class="link" hidden>Se déconnecter</button>
   </header>
   <main>
     <section id="screen-login" class="screen">
-      <h1>Connexion</h1>
-      <p class="hint">Réservé à Sarah et cedric, avec leur compte Google.</p>
-      <button id="login" class="btn">Se connecter avec Google</button>
-      <p id="login-status" class="status"></p>
+      <h1 id="login-title">Connexion</h1>
+      <p id="login-hint" class="hint">Saisissez le mot de passe administrateur.</p>
+      <form id="login-form" class="panel" autocomplete="off">
+        <label>Mot de passe administrateur<input id="admin-password" type="password" autocomplete="current-password"></label>
+        <label id="admin-confirm" hidden>Confirmer le mot de passe<input id="admin-password2" type="password" autocomplete="new-password"></label>
+        <button id="login" class="btn" type="submit">Entrer</button>
+        <p id="login-status" class="status"></p>
+      </form>
     </section>
 
     <!-- Prestations : ce que la régie charge sur la TV le jour J. -->
@@ -129,8 +132,22 @@
     </section>
 
     <section id="screen-settings" class="screen" hidden>
-      <nav class="crumbs">Paramètres › <b>Accès régie</b></nav>
-      <h1>Modifier le mot de passe de la régie</h1>
+      <nav class="crumbs">Paramètres</nav>
+      <h1>Mot de passe administrateur</h1>
+      <p class="hint">
+        Toute personne qui le connaît a tous les droits ici : quiz, prestations et mots de passe. Après un
+        changement, les autres ordinateurs et téléphones devront le saisir à nouveau.
+      </p>
+      <form id="admin-form" class="panel">
+        <label for="admin-pw1">Nouveau mot de passe administrateur (8 caractères au moins)</label>
+        <input id="admin-pw1" type="password" autocomplete="new-password">
+        <label for="admin-pw2">Confirmer le mot de passe</label>
+        <input id="admin-pw2" type="password" autocomplete="new-password">
+        <button id="admin-save" class="btn" type="submit">Enregistrer</button>
+        <p id="admin-save-status" class="status"></p>
+      </form>
+
+      <h1>Mot de passe de la régie</h1>
       <p class="hint">
         Toutes les animatrices utilisent ce mot de passe : sur le téléphone, scanner le QR code de la TV,
         toucher « Accès régie », saisir le mot de passe. Le changement vaut tout de suite pour les nouvelles
@@ -138,7 +155,7 @@
       </p>
       <p id="last-change" class="hint small"></p>
       <form id="password-form" class="panel">
-        <label for="pw1">Nouveau mot de passe (8 caractères au moins)</label>
+        <label for="pw1">Nouveau mot de passe de la régie (8 caractères au moins)</label>
         <input id="pw1" type="password" autocomplete="new-password">
         <label for="pw2">Confirmer le mot de passe</label>
         <input id="pw2" type="password" autocomplete="new-password">

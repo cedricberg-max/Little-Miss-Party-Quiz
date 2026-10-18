@@ -23,8 +23,10 @@ viennent de `lmp-game-design-enfants`, l'affichage de `lmp-plateau-tv-motion`.
   **aucun compte pour les animatrices**. Elles scannent le QR de la TV, arrivent sur la page des
   pupitres, touchent le bouton discret « 🎛️ Accès régie » (bas à droite), saisissent le mot de passe
   commun et pilotent. Mot de passe vérifié **côté serveur**, essais limités, modifiable par Sarah dans
-  l'administration (Paramètres > Accès régie) sans redéploiement. Seuls les admins (Sarah, cedric) ont
-  un compte Google ; adresses fournies plus tard, ne jamais bloquer un développement dessus.
+  l'administration (Paramètres > Accès régie) sans redéploiement. **Administration
+  (décision définitive du 18/10/2026, 11 h 48) : un mot de passe administrateur commun**, sans compte
+  Google, sans e-mail, sans rôle ni administrateur nominatif ; qui le connaît a tous les droits. Connexion
+  anonyme partout (box, régie, pupitres, administration).
 - **Passage à Blaze validé dans son principe (cedric, 18/10/2026, 08 h 35)**, budget cible < 10 €/mois,
   alertes à 3, 5 et 8 € qui ne coupent jamais une prestation. Architecture hybride : Realtime Database
   pour le direct et la bibliothèque, **Cloud Storage** pour les médias, **cache local vérifié** sur la
@@ -236,8 +238,9 @@ un mot de passe commun, aucun compte animatrice.
    changer l'interface**.
 4. **Changement de mot de passe** : Paramètres > Accès régie > Modifier le mot de passe (saisie,
    confirmation, 8 caractères au moins) dans l'administration ; l'admin réécrit `settings/regie` (nouveau
-   sel, nouvelle empreinte) ; écriture réservée aux admins (liste d'adresses dans les règles, vide tant
-   que cedric ne l'a pas donnée, puis rôle `admin` au lot 4). Effet immédiat pour les nouvelles
+   sel, nouvelle empreinte) ; écriture réservée à un appareil dont `adminProof/$uid` correspond à
+   `settings/admin/hash` (mot de passe administrateur commun, même mécanisme d'essai et d'empreinte ; premier
+   mot de passe choisi librement tant que `settings/admin` n'existe pas, réinitialisation par la console). Effet immédiat pour les nouvelles
    connexions, sans redéploiement. Une régie déjà reliée **n'est pas coupée** : son `regie/$uid` reste
    valide jusqu'à la fin de sa partie.
 5. **Droits de la régie** : envoyer des commandes à la partie (`commands`, si `regie/$uid` existe), lire
@@ -250,12 +253,13 @@ un mot de passe commun, aucun compte animatrice.
 7. Une régie se retire depuis la TV (« Retirer les régies ») ou en changeant de partie. Deux régies au
    plus par partie. Deux prestations simultanées = deux parties, deux box : rien n'est partagé.
 
-**Rôles (cible Blaze)** : portés par une revendication personnalisée `role` dans le jeton, posée
-**uniquement par les fonctions serveur** (Admin SDK) :
+**Rôles des appareils (cible Blaze)** : portés par une revendication personnalisée `role` dans le jeton, posée
+**uniquement par les fonctions serveur** (Admin SDK). L'administration n'est **pas** un rôle : c'est le mot de
+passe administrateur commun (`adminProof`), partout où cette section dit « `admin` » :
 
 | Rôle | Qui | Obtention |
 | --- | --- | --- |
-| `admin` | Sarah, cedric (compte Google) | script d'administration lancé une fois avec le compte de service |
+| administration | toute personne qui connaît le mot de passe administrateur commun ; jamais requis en prestation | empreinte vérifiée par les règles (`adminProof/$uid` = `settings/admin/hash`) |
 | `box` | une box Android TV | la box affiche un code + QR ; un admin approuve dans la page d'administration → fonction `approveDevice` |
 | régie | un téléphone, une partie | mot de passe commun vérifié par les règles (`regieProof`), PIN de la TV en secours, pas de compte |
 | équipe | pupitre, une partie | `teams/$uid` ou `devices/$uid` de la partie |

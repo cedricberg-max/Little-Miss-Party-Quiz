@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.littlemissparty.quiz.engine.Phase
+import com.littlemissparty.quiz.engine.Release
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -82,10 +83,15 @@ class TvActions(
     val showRegie: () -> Unit,
     val hideRegie: () -> Unit,
     val removeRegies: () -> Unit,
+    /** Ouvre la fenêtre « Rechercher une mise à jour ». */
+    val checkUpdate: () -> Unit = {},
 )
 
+/** Mise à jour de l'appli depuis la TV : état de la fenêtre et version trouvée par la recherche discrète. */
+class UpdateScreen(val ui: UpdateUi, val open: Boolean, val available: Release?, val actions: UpdateActions)
+
 @Composable
-fun QuizTvApp(state: UiState, actions: TvActions) {
+fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null) {
     // Bouton Retour pendant une partie : on met en pause et on demande confirmation au lieu de quitter.
     var confirmQuit by remember { mutableStateOf(false) }
     var pausedByDialog by remember { mutableStateOf(false) }
@@ -118,13 +124,14 @@ fun QuizTvApp(state: UiState, actions: TvActions) {
             UiState.MissingConfig -> Message(
                 "Configuration Firebase manquante",
                 "Cette version a été compilée sans le fichier firebase-config.json.",
+                onUpdate = actions.checkUpdate,
             )
             UiState.Connecting -> Connecting()
-            is UiState.Error -> Message("Connexion impossible", state.message, actions.retry)
+            is UiState.Error -> Message("Connexion impossible", state.message, actions.retry, actions.checkUpdate)
             is UiState.ResumeOffer -> ResumeOffer(state, actions.resume, actions.newGame)
             is UiState.Playing -> Playing(state, actions)
         }
-        StatusCorner(state, Modifier.align(Alignment.BottomStart))
+        StatusCorner(state, update?.available?.takeIf { !gameInProgress(state) }, Modifier.align(Alignment.BottomStart))
     }
     if (confirmQuit && state is UiState.Playing) {
         val close = {
@@ -136,12 +143,16 @@ fun QuizTvApp(state: UiState, actions: TvActions) {
             paused = state.paused,
             onContinue = close,
             onRegie = { close(); actions.showRegie() },
+            onUpdate = { close(); actions.checkUpdate() },
             onNewGame = { confirmQuit = false; pausedByDialog = false; actions.newGame() },
             onQuit = { confirmQuit = false; actions.quit() },
         )
     }
     if (state is UiState.Playing && state.showRegie) {
         RegieDialog(state, onClose = actions.hideRegie, onRemove = actions.removeRegies)
+    }
+    if (update != null && update.open) {
+        UpdateDialog(update.ui, busy = gameInProgress(state), actions = update.actions)
     }
 }
 
@@ -157,7 +168,7 @@ private fun Playing(state: UiState.Playing, actions: TvActions) {
 
 /** Version installée et état de la connexion, en petit dans un coin. */
 @Composable
-private fun StatusCorner(state: UiState, modifier: Modifier) {
+private fun StatusCorner(state: UiState, available: Release?, modifier: Modifier) {
     val connected = (state as? UiState.Playing)?.connected ?: true
     val regies = (state as? UiState.Playing)?.regies ?: 0
     Row(modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -165,7 +176,7 @@ private fun StatusCorner(state: UiState, modifier: Modifier) {
         Spacer(Modifier.width(8.dp))
         Text(
             (if (connected) "" else "Hors connexion · ") + (if (regies > 0) "Régie reliée · " else "") +
-                "v${BuildConfig.VERSION_NAME}",
+                "v${BuildConfig.VERSION_NAME}" + (available?.let { " · mise à jour ${it.versionName} disponible (menu Retour)" } ?: ""),
             color = Palette.InkSoft, fontSize = 13.sp,
         )
     }
@@ -235,6 +246,7 @@ private fun QuitDialog(
     paused: Boolean,
     onContinue: () -> Unit,
     onRegie: () -> Unit,
+    onUpdate: () -> Unit,
     onNewGame: () -> Unit,
     onQuit: () -> Unit,
 ) {
@@ -262,6 +274,8 @@ private fun QuitDialog(
             ) { Text("Continuer la partie", fontSize = 22.sp, fontWeight = FontWeight.Bold) }
             Spacer(Modifier.height(16.dp))
             OutlinedButton(onClick = onRegie) { Text("Code de secours de la régie", color = Color.White, fontSize = 20.sp) }
+            Spacer(Modifier.height(16.dp))
+            OutlinedButton(onClick = onUpdate) { Text("Rechercher une mise à jour", color = Color.White, fontSize = 20.sp) }
             Spacer(Modifier.height(16.dp))
             OutlinedButton(onClick = onQuit) { Text("Quitter l'application", color = Color.White, fontSize = 20.sp) }
             Spacer(Modifier.height(16.dp))
@@ -315,7 +329,7 @@ private fun Connecting() {
 }
 
 @Composable
-private fun Message(title: String, detail: String, onRetry: (() -> Unit)? = null) {
+private fun Message(title: String, detail: String, onRetry: (() -> Unit)? = null, onUpdate: (() -> Unit)? = null) {
     val focus = remember { FocusRequester() }
     Column(
         Modifier.fillMaxSize().padding(64.dp),
@@ -329,6 +343,10 @@ private fun Message(title: String, detail: String, onRetry: (() -> Unit)? = null
             Spacer(Modifier.height(32.dp))
             Button(onClick = onRetry, modifier = Modifier.focusRequester(focus)) { Text("Réessayer", fontSize = 22.sp) }
             LaunchedEffect(Unit) { focus.requestFocus() }
+        }
+        if (onUpdate != null) {
+            Spacer(Modifier.height(16.dp))
+            OutlinedButton(onClick = onUpdate) { Text("Rechercher une mise à jour", color = Color.White, fontSize = 20.sp) }
         }
     }
 }

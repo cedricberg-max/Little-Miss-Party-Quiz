@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { initializeTestEnvironment } from "@firebase/rules-unit-testing";
 import { ref, get, set, update, onValue } from "firebase/database";
 import { chromium } from "playwright";
-import { loadRules } from "./rules-loader.js";
+import { loadRules, seedAdmin, ADMIN_PASSWORD } from "./rules-loader.js";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const PUBLIC = join(ROOT, "web/public");
@@ -138,6 +138,7 @@ function startBox({ silent = false, held = false } = {}) {
 
 beforeEach(async () => {
   await env.clearDatabase();
+  await seedAdmin(env);
   await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), "settings/regie"), {
     salt: SALT, hash: createHash("sha256").update(`${SALT}:${PASSWORD}`).digest("hex"), updatedAt: 1,
   }));
@@ -164,6 +165,15 @@ async function openRegie(context, query = `?g=${CODE}&emu=1`, path = "/") {
   page.on("pageerror", (e) => console.error("Erreur page :", e.message));
   page.on("console", (m) => { if (m.type() === "error") console.error("Console :", m.text()); });
   await page.goto(`${baseUrl}${path}${query}`);
+  return page;
+}
+
+/** Administration : le mot de passe commun, saisi sur le PC familial. */
+async function openAdmin() {
+  const page = await openRegie(null, "?emu=1", "/admin.html");
+  await page.fill("#admin-password", ADMIN_PASSWORD);
+  await page.click("#login");
+  await page.locator("#screen-shows:not([hidden])").waitFor();
   return page;
 }
 
@@ -234,8 +244,7 @@ describe("régie", () => {
     await pair(before);
     await inRegie(before);
 
-    const admin = await openRegie(null, "?emu=1", "/admin.html");
-    await admin.click("#login");
+    const admin = await openAdmin();
     await admin.click("#nav button[data-screen=settings]");
     await admin.locator("#screen-settings:not([hidden])").waitFor();
     await admin.fill("#pw1", "court");
@@ -245,7 +254,7 @@ describe("régie", () => {
     await admin.fill("#pw1", "Nouveau-Mdp-42");
     await admin.fill("#pw2", "Nouveau-Mdp-42");
     await admin.click("#save");
-    await admin.locator("#save-status", { hasText: "Mot de passe enregistré" }).waitFor();
+    await admin.locator("#save-status", { hasText: "Mot de passe de la régie enregistré" }).waitFor();
 
     const oldPassword = await openRegie();
     await pair(oldPassword, PASSWORD);
@@ -260,21 +269,43 @@ describe("régie", () => {
     for (const p of [before, admin, oldPassword, newPassword]) await p.context().close();
   });
 
-  test("un compte Google qui n'est pas administrateur ne peut rien changer", async () => {
-    const admin = await openRegie(null, "?emu=1&as=intrus@gmail.com", "/admin.html");
+  test("un mauvais mot de passe administrateur n'ouvre rien", async () => {
+    const admin = await openRegie(null, "?emu=1", "/admin.html");
+    await admin.fill("#admin-password", "pas-le-bon-mdp");
     await admin.click("#login");
-    await admin.locator("#login-status", { hasText: "pas les droits" }).waitFor();
+    await admin.locator("#login-status", { hasText: "Mot de passe incorrect" }).waitFor();
     assert.equal(await admin.locator("#screen-settings").isHidden(), true);
-    // Même en contournant l'écran, l'écriture est refusée par le serveur.
-    const denied = await admin.evaluate(async () => {
-      const { getDatabase, ref, set, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js");
-      try {
-        await set(ref(getDatabase(), "settings/regie"), { salt: "x".repeat(16), hash: "a".repeat(64), updatedAt: serverTimestamp() });
-        return false;
-      } catch { return true; }
-    });
-    assert.equal(denied, true);
+    assert.equal(await admin.locator("#nav").isHidden(), true);
     await admin.context().close();
+  });
+
+  test("première configuration, appareil reconnu après rechargement, changement du mot de passe administrateur", async () => {
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), "settings/admin"), null));
+    const pc = await openRegie(null, "?emu=1", "/admin.html");
+    await pc.locator("#login-title", { hasText: "Première configuration" }).waitFor();
+    await pc.fill("#admin-password", "Famille-2026");
+    await pc.fill("#admin-password2", "Famille-2026");
+    await pc.click("#login");
+    await pc.locator("#screen-shows:not([hidden])").waitFor();
+    // Rechargement (ou coupure) : rien à ressaisir.
+    await pc.reload();
+    await pc.locator("#screen-shows:not([hidden])").waitFor();
+    // Un second ordinateur entre avec le même mot de passe.
+    const portable = await openRegie(null, "?emu=1", "/admin.html");
+    await portable.fill("#admin-password", "Famille-2026");
+    await portable.click("#login");
+    await portable.locator("#screen-shows:not([hidden])").waitFor();
+    // Changement depuis le PC : il reste connecté, le portable devra le ressaisir.
+    await pc.click("#nav button[data-screen=settings]");
+    await pc.fill("#admin-pw1", "Nouveau-Famille-1");
+    await pc.fill("#admin-pw2", "Nouveau-Famille-1");
+    await pc.click("#admin-save");
+    await pc.locator("#admin-save-status", { hasText: "Mot de passe administrateur changé" }).waitFor({ timeout: 15000 });
+    await portable.reload();
+    await portable.locator("#login-title", { hasText: "Connexion" }).waitFor();
+    await pc.reload();
+    await pc.locator("#screen-shows:not([hidden])").waitFor();
+    for (const p of [pc, portable]) await p.context().close();
   });
 
   test("lancer le quiz, voir la question et sa réponse, arrêter le chrono", async () => {
@@ -427,12 +458,7 @@ async function waitFor(fn, what, ms = 8000) {
 }
 
 describe("bibliothèque de quiz et prestations", () => {
-  const admin = async () => {
-    const page = await openRegie(null, "?emu=1", "/admin.html");
-    await page.click("#login");
-    await page.locator("#screen-shows:not([hidden])").waitFor();
-    return page;
-  };
+  const admin = openAdmin;
   const library = async (path) => {
     let value;
     await env.withSecurityRulesDisabled(async (ctx) => { value = (await get(ref(ctx.database(), `library/${path}`))).val(); });

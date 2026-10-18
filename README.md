@@ -21,12 +21,32 @@ Quiz interactif façon jeu télévisé pour les prestations Little Miss Party.
 
 ## Installer l'appli sur la box
 
-À chaque mise à jour de `main`, GitHub compile l'APK et le publie dans les **Releases** du dépôt
-(Firebase Hosting refuse les fichiers .apk sur l'offre gratuite). Le pupitre et les règles de la base
+À chaque mise à jour de `main`, GitHub compile l'APK et le publie dans les **Releases** du dépôt,
+et la recopie sur Firebase Hosting pour la mise à jour depuis la TV. Le pupitre et les règles de la base
 sont publiés sur Firebase Hosting en même temps.
 
-Pour installer : télécharger l'APK depuis la dernière Release sur le PC, puis l'envoyer sur la Mi Box
-avec une clé USB ou l'appli « Send Files to TV ».
+Première installation : télécharger l'APK depuis la dernière Release sur le PC, puis l'envoyer sur la
+Mi Box avec une clé USB ou l'appli « Send Files to TV ». C'est la seule fois.
+
+### Mettre à jour depuis la TV
+
+Bouton Retour de la télécommande › **Rechercher une mise à jour** (aussi sur l'écran « Connexion
+impossible »). La box lit `tv/latest.json` sur l'hébergement Firebase (publié par GitHub Actions avec
+chaque version stable de `main`), télécharge l'APK avec sa progression (reprise après une coupure), puis
+vérifie avant d'installer : taille et empreinte SHA-256, nom de l'appli, versionCode plus récent, même
+clé de signature que l'appli installée. Android demande ensuite de confirmer l'installation ; les
+parties, réglages et codes sont conservés, l'appli redémarre seule.
+
+- Jamais pendant une prestation : dès qu'une équipe est dans le salon ou qu'une question a été jouée,
+  la fenêtre dit d'attendre la fin de la partie. La box cherche seule une nouvelle version au démarrage
+  (petit fichier) et l'indique en petit dans le coin, sans rien télécharger.
+- Une seule autorisation Android, la première fois : « Sources inconnues » pour Little Miss Party Quiz
+  (la fenêtre ouvre le réglage).
+- Le dépôt étant privé, la box ne lit pas les Releases GitHub (il faudrait un jeton dans l'APK) : chaque
+  version stable est recopiée sur l'hébergement Firebase, qui accepte les fichiers .apk sur Blaze, dans
+  le quota gratuit (un APK d'environ 15 Mo par mise à jour de box).
+- GitHub Actions bloque toute version dont le nom d'appli, le versionCode ou la clé de signature
+  différerait (la box la refuserait).
 
 ## Tests automatiques
 
@@ -37,7 +57,7 @@ Lancés par GitHub à chaque modification ; aucun APK n'est publié si l'un éch
 
 ## Quiz et prestations
 
-Dans l'administration (`admin.html`, compte Google de Sarah ou cedric) :
+Dans l'administration (`admin.html`, mot de passe administrateur commun) :
 
 - **Quiz › Importer un quiz** : la page fournit la consigne à coller dans Gemini ; on colle sa réponse
   (ou des lignes copiées d'un tableur, ou un fichier CSV), puis on relit. Les anomalies sont signalées
@@ -52,15 +72,24 @@ Sans prestation chargée, la TV joue le quiz de démonstration livré avec l'app
 
 ## Mot de passe de la régie
 
-Sarah ou cedric le changent dans l'administration (`https://little-miss-party-quiz.web.app/admin.html`,
-Paramètres › Accès régie). Le serveur garde seulement une empreinte illisible et compare lui-même
+Il se change dans l'administration (`https://little-miss-party-quiz.web.app/admin.html`,
+Paramètres › Mot de passe de la régie). Le serveur garde seulement une empreinte illisible et compare lui-même
 (règles Firebase) ; il n'accepte qu'un essai toutes les 2 secondes. Les régies déjà reliées restent
 reliées après un changement.
 
-Administrateurs : Sarah (littlemisspartyspa@gmail.com) et cedric (berguig.cedric@gmail.com, propriétaire
-du projet Firebase), inscrits dans `database.rules.json` (expression `auth.token.email.matches(...)`).
-Les deux comptes ont les mêmes droits dans l'administration et ne se gênent pas. Il faut que la
-connexion Google soit activée dans Firebase (Authentication › Méthodes de connexion › Google).
+Deux accès séparés, deux mots de passe communs, sans aucun compte ni adresse e-mail :
+
+- **Administration** (bibliothèque, prestations, les deux mots de passe) : le mot de passe administrateur.
+  Toute personne qui le connaît a tous les droits. Le premier se choisit à la première ouverture de
+  `admin.html` ; il se change dans Paramètres. Un ordinateur reste reconnu après un rechargement, jusqu'au
+  prochain changement. Mot de passe perdu : effacer `settings/admin` dans la console Firebase (Realtime
+  Database), puis en choisir un nouveau.
+- **Régie en prestation** : le mot de passe de régie, sur le téléphone de l'animatrice. Il ne donne aucun
+  droit d'administration.
+
+Les deux sont vérifiés par les règles Firebase (empreinte SHA-256 salée, jamais relisible, un essai toutes
+les 2 secondes). Box, pupitres, régie et administration utilisent une connexion Firebase anonyme : le jour J,
+rien ne dépend de Google ni d'un e-mail.
 
 ## Rapports de plantage
 
