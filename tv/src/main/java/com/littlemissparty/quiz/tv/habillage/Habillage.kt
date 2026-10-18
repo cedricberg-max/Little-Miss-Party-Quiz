@@ -82,7 +82,11 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long): Insta
     val s = state as? UiState.Playing ?: return Instant(Ecran.HORS_PARTIE)
     val ecran = when (s.phase) {
         Phase.LOBBY -> Ecran.SALON
-        Phase.QUESTION -> Ecran.QUESTION
+        Phase.QUESTION -> when {
+            s.mime == null -> Ecran.QUESTION
+            s.mime.team != null -> Ecran.MIMES_TOUR
+            else -> Ecran.MIMES
+        }
         Phase.CLOSED -> Ecran.VERROUILLEE
         Phase.REVEAL -> Ecran.REVELATION
         Phase.SCORES -> Ecran.CLASSEMENT
@@ -103,15 +107,21 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long): Insta
         superFinale = s.question?.double == true,
         gagnants = if (s.phase == Phase.REVEAL) s.awards.values.count { it.points > 0 } else 0,
         meneurAPoints = (s.ranking.firstOrNull()?.second ?: 0) > 0,
+        trouves = s.mime?.takeIf { it.team != null }?.found ?: 0,
+        passes = s.mime?.takeIf { it.team != null }?.passed ?: 0,
     )
 }
 
-/** Vrai pendant les 5 dernières secondes du chrono, calculé comme le chrono affiché (heure du serveur). */
+/**
+ * Vrai pendant la fin du chrono (5 dernières secondes d'une question, 10 d'un tour de mimes), calculé comme
+ * le chrono affiché (heure du serveur).
+ */
 @Composable
 private fun chronoUrgent(s: UiState.Playing?): Boolean {
     var urgent by remember { mutableStateOf(false) }
     val deadline = if (s != null && s.phase == Phase.QUESTION && !s.paused) s.deadline else null
-    LaunchedEffect(deadline, s?.resumeAt) {
+    val fenetre = if (s?.mime != null) 10_000L else 5_000L
+    LaunchedEffect(deadline, s?.resumeAt, fenetre) {
         if (s == null || deadline == null) {
             urgent = false
             return@LaunchedEffect
@@ -119,7 +129,7 @@ private fun chronoUrgent(s: UiState.Playing?): Boolean {
         val depart = s.resumeAt ?: 0L
         while (true) {
             val reste = deadline - maxOf(System.currentTimeMillis() + s.serverOffset, depart)
-            urgent = reste in 1..5_000
+            urgent = reste in 1..fenetre
             if (reste <= 0) break
             delay(100)
         }

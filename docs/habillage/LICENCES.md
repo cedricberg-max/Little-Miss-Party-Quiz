@@ -1,12 +1,12 @@
 # Sons et musiques du plateau TV : origine et droits
 
-Les 30 sons de `tv/src/main/res/raw/lmp_*.ogg` (musiques de fond, générique, jingles, effets) ont été
+Les 35 sons de `tv/src/main/res/raw/lmp_*.ogg` (musiques de fond, générique, jingles, effets, sons des Mimes) ont été
 composés et mixés pour Little Miss Party avec `tools/habillage/studio.py`. Ils ne contiennent aucune
 musique existante : pas de droits SACEM à déclarer pour leur diffusion pendant une prestation.
 
 ## Instruments enregistrés
 
-Piano, cordes, cuivres, basse, cloches et timbales viennent des échantillons **FluidR3 GM**.
+Piano, cordes, cuivres, basse, cloches, timbales et sifflet viennent des échantillons **FluidR3 GM**.
 
 - Source : https://github.com/gleitz/midi-js-soundfonts/tree/gh-pages/FluidR3_GM (paquet npm `pepperscore-sounds-complete` 0.1.0)
 - Licence : Creative Commons Attribution 3.0, https://creativecommons.org/licenses/by/3.0/
