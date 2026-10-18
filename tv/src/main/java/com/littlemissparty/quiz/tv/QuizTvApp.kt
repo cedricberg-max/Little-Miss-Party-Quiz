@@ -1,5 +1,6 @@
 package com.littlemissparty.quiz.tv
 
+import android.view.KeyEvent as AndroidKeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
@@ -35,8 +36,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -54,34 +55,61 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.littlemissparty.quiz.engine.Phase
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 
-private val Pink = Color(0xFFFF3CAC)
-private val Violet = Color(0xFF784BA0)
-private val Blue = Color(0xFF2B86C5)
-private val Night = Color(0xFF1A0B2E)
-private val Gold = Color(0xFFFFD166)
+/** Ce que l'animatrice peut faire depuis la télécommande. */
+class TvActions(
+    val next: () -> Unit,
+    val togglePause: () -> Unit,
+    val pause: () -> Unit,
+    val unpause: () -> Unit,
+    val rearm: () -> Unit,
+    val retry: () -> Unit,
+    val resume: () -> Unit,
+    val newGame: () -> Unit,
+    val quit: () -> Unit,
+)
 
 @Composable
-fun QuizTvApp(
-    state: UiState,
-    onRearm: () -> Unit,
-    onRetry: () -> Unit,
-    onResume: () -> Unit,
-    onNewGame: () -> Unit,
-    onQuit: () -> Unit,
-) {
-    // Bouton Retour pendant une partie : on demande confirmation au lieu de quitter.
+fun QuizTvApp(state: UiState, actions: TvActions) {
+    // Bouton Retour pendant une partie : on met en pause et on demande confirmation au lieu de quitter.
     var confirmQuit by remember { mutableStateOf(false) }
-    BackHandler(enabled = state is UiState.Lobby) { confirmQuit = true }
-    Box(Modifier.fillMaxSize()) {
+    var pausedByDialog by remember { mutableStateOf(false) }
+    BackHandler(enabled = state is UiState.Playing) {
+        val s = state as UiState.Playing
+        if (s.phase == Phase.QUESTION && !s.paused) {
+            actions.pause()
+            pausedByDialog = true
+        }
+        confirmQuit = true
+    }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .onPreviewKeyEvent { e ->
+                // Touche lecture/pause de la télécommande : pause du chrono.
+                val playPause = e.nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_MEDIA_PLAY_PAUSE ||
+                    e.nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_MEDIA_PLAY ||
+                    e.nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_MEDIA_PAUSE
+                if (playPause && e.type == KeyEventType.KeyUp && state is UiState.Playing) {
+                    actions.togglePause()
+                    true
+                } else {
+                    false
+                }
+            },
+    ) {
         PartyBackground()
         when (state) {
             UiState.MissingConfig -> Message(
@@ -89,18 +117,63 @@ fun QuizTvApp(
                 "Cette version a été compilée sans le fichier firebase-config.json.",
             )
             UiState.Connecting -> Connecting()
-            is UiState.Error -> Message("Connexion impossible", state.message, onRetry)
-            is UiState.ResumeOffer -> ResumeOffer(state, onResume, onNewGame)
-            is UiState.Lobby -> Lobby(state, onRearm)
+            is UiState.Error -> Message("Connexion impossible", state.message, actions.retry)
+            is UiState.ResumeOffer -> ResumeOffer(state, actions.resume, actions.newGame)
+            is UiState.Playing -> Playing(state, actions)
         }
+        StatusCorner(state, Modifier.align(Alignment.BottomStart))
     }
-    if (confirmQuit && state is UiState.Lobby) {
+    if (confirmQuit && state is UiState.Playing) {
+        val close = {
+            confirmQuit = false
+            if (pausedByDialog) actions.unpause()
+            pausedByDialog = false
+        }
         QuitDialog(
-            onContinue = { confirmQuit = false },
-            onNewGame = { confirmQuit = false; onNewGame() },
-            onQuit = { confirmQuit = false; onQuit() },
+            paused = state.paused,
+            onContinue = close,
+            onNewGame = { confirmQuit = false; pausedByDialog = false; actions.newGame() },
+            onQuit = { confirmQuit = false; actions.quit() },
         )
     }
+}
+
+@Composable
+private fun Playing(state: UiState.Playing, actions: TvActions) {
+    when (state.phase) {
+        Phase.LOBBY -> Lobby(state, actions)
+        Phase.QUESTION, Phase.CLOSED, Phase.REVEAL -> QuestionScreen(state, actions)
+        Phase.SCORES -> ScoresScreen(state, actions)
+        Phase.ENDED -> FinalScreen(state, actions)
+    }
+}
+
+/** Version installée et état de la connexion, en petit dans un coin. */
+@Composable
+private fun StatusCorner(state: UiState, modifier: Modifier) {
+    val connected = (state as? UiState.Playing)?.connected ?: true
+    Row(modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(10.dp).clip(CircleShape).background(if (connected) Palette.Good else Color.Red))
+        Spacer(Modifier.width(8.dp))
+        Text(
+            (if (connected) "" else "Hors connexion · ") + "v${BuildConfig.VERSION_NAME}",
+            color = Palette.InkSoft, fontSize = 13.sp,
+        )
+    }
+}
+
+/** Le bouton unique de l'animatrice : il a toujours le focus, OK sur la télécommande l'active. */
+@Composable
+fun NextButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, key: Any = label) {
+    val focus = remember { FocusRequester() }
+    Button(
+        onClick = onClick,
+        modifier = modifier.focusRequester(focus),
+        colors = ButtonDefaults.buttonColors(containerColor = Palette.Gold, contentColor = Palette.Night),
+    ) {
+        Text("$label  ▶", fontSize = 24.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(6.dp))
+    }
+    LaunchedEffect(key) { runCatching { focus.requestFocus() } }
 }
 
 @Composable
@@ -115,7 +188,7 @@ private fun ResumeOffer(state: UiState.ResumeOffer, onResume: () -> Unit, onNewG
         Spacer(Modifier.height(12.dp))
         Text(
             "Code ${state.code}",
-            color = Gold, fontSize = 36.sp, fontWeight = FontWeight.Black, letterSpacing = 6.sp,
+            color = Palette.Gold, fontSize = 36.sp, fontWeight = FontWeight.Black, letterSpacing = 6.sp,
         )
         Spacer(Modifier.height(16.dp))
         Text(
@@ -128,7 +201,7 @@ private fun ResumeOffer(state: UiState.ResumeOffer, onResume: () -> Unit, onNewG
             Button(
                 onClick = onResume,
                 modifier = Modifier.focusRequester(focus),
-                colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Night),
+                colors = ButtonDefaults.buttonColors(containerColor = Palette.Gold, contentColor = Palette.Night),
             ) {
                 Text(
                     "Reprendre la partie (${state.secondsLeft})",
@@ -149,18 +222,18 @@ private fun ResumeOffer(state: UiState.ResumeOffer, onResume: () -> Unit, onNewG
 }
 
 @Composable
-private fun QuitDialog(onContinue: () -> Unit, onNewGame: () -> Unit, onQuit: () -> Unit) {
+private fun QuitDialog(paused: Boolean, onContinue: () -> Unit, onNewGame: () -> Unit, onQuit: () -> Unit) {
     val focus = remember { FocusRequester() }
     // Fenêtre séparée : la télécommande ne peut pas atteindre les boutons de l'écran derrière.
     Dialog(onDismissRequest = onContinue) {
         Column(
             Modifier
                 .clip(RoundedCornerShape(32.dp))
-                .background(Night)
+                .background(Palette.Night)
                 .padding(40.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("Quitter la partie ?", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold)
+            Text(if (paused) "Partie en pause" else "Quitter la partie ?", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(12.dp))
             Text(
                 "Si vous quittez, la partie reste enregistrée\net sera proposée au prochain démarrage.",
@@ -170,13 +243,13 @@ private fun QuitDialog(onContinue: () -> Unit, onNewGame: () -> Unit, onQuit: ()
             Button(
                 onClick = onContinue,
                 modifier = Modifier.focusRequester(focus),
-                colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Night),
+                colors = ButtonDefaults.buttonColors(containerColor = Palette.Gold, contentColor = Palette.Night),
             ) { Text("Continuer la partie", fontSize = 22.sp, fontWeight = FontWeight.Bold) }
             Spacer(Modifier.height(16.dp))
             OutlinedButton(onClick = onQuit) { Text("Quitter l'application", color = Color.White, fontSize = 20.sp) }
             Spacer(Modifier.height(16.dp))
             OutlinedButton(onClick = onNewGame) {
-                Text("Terminer et lancer une nouvelle partie", color = Pink, fontSize = 20.sp)
+                Text("Terminer et lancer une nouvelle partie", color = Palette.Pink, fontSize = 20.sp)
             }
         }
         LaunchedEffect(Unit) { focus.requestFocus() }
@@ -195,13 +268,13 @@ private fun PartyBackground() {
     Canvas(Modifier.fillMaxSize()) {
         drawRect(
             Brush.linearGradient(
-                listOf(Night, Violet, Pink, Blue, Night),
+                listOf(Palette.Night, Palette.Violet, Palette.Pink, Palette.Blue, Palette.Night),
                 start = Offset(size.width * shift, 0f),
                 end = Offset(size.width * (1 - shift), size.height),
             )
         )
         // Bulles festives qui flottent doucement.
-        val bubbles = listOf(Pink, Gold, Blue, Color.White, Violet, Gold, Pink, Blue)
+        val bubbles = listOf(Palette.Pink, Palette.Gold, Palette.Blue, Color.White, Palette.Violet, Palette.Gold, Palette.Pink, Palette.Blue)
         bubbles.forEachIndexed { i, c ->
             val a = phase + i * 0.8f
             val cx = size.width * (0.1f + 0.8f * ((i * 0.37f + 0.15f * sin(a)) % 1f))
@@ -245,23 +318,29 @@ private fun Message(title: String, detail: String, onRetry: (() -> Unit)? = null
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Lobby(state: UiState.Lobby, onRearm: () -> Unit) {
+private fun Lobby(state: UiState.Playing, actions: TvActions) {
     val qr = remember(state.joinUrl) { qrCode(state.joinUrl) }
     Row(Modifier.fillMaxSize().padding(horizontal = 56.dp, vertical = 40.dp)) {
         Column(Modifier.weight(1f).fillMaxHeight()) {
             Title()
             Spacer(Modifier.height(32.dp))
             Text(
-                if (state.teams.isEmpty()) "En attente des équipes…" else "${state.teams.size} équipe(s) dans la partie",
+                when {
+                    state.teams.isEmpty() -> "En attente des équipes…"
+                    state.teams.size >= GameViewModel.MAX_TEAMS -> "${state.teams.size} équipes : la partie est complète"
+                    else -> "${state.teams.size} équipe(s) dans la partie"
+                },
                 color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.SemiBold,
             )
             Spacer(Modifier.height(16.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                state.teams.forEach { team -> TeamChip(team) }
+                state.teams.forEach { team -> TeamChip(team, online = team.uid in state.online) }
             }
             Spacer(Modifier.weight(1f))
             if (state.teams.isNotEmpty()) {
-                Text("Test : appuyez sur BUZZ sur votre pupitre !", color = Gold, fontSize = 22.sp)
+                Text("En attendant : appuyez sur BUZZ sur votre pupitre !", color = Palette.Gold, fontSize = 22.sp)
+                Spacer(Modifier.height(16.dp))
+                if (state.buzzer == null) NextButton("Lancer le quiz", actions.next)
             }
         }
         Spacer(Modifier.width(40.dp))
@@ -274,12 +353,12 @@ private fun Lobby(state: UiState.Lobby, onRearm: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Text("Scannez pour jouer", color = Night, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Text("Scannez pour jouer", color = Palette.Night, fontSize = 28.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(16.dp))
             Image(qr, contentDescription = "QR code de la partie", modifier = Modifier.size(300.dp))
             Spacer(Modifier.height(16.dp))
-            Text("Code de la partie", color = Night.copy(alpha = 0.6f), fontSize = 18.sp)
-            Text(state.code, color = Pink, fontSize = 48.sp, fontWeight = FontWeight.Black, letterSpacing = 8.sp)
+            Text("Code de la partie", color = Palette.Night.copy(alpha = 0.6f), fontSize = 18.sp)
+            Text(state.code, color = Palette.Pink, fontSize = 48.sp, fontWeight = FontWeight.Black, letterSpacing = 8.sp)
         }
     }
     AnimatedVisibility(
@@ -287,7 +366,7 @@ private fun Lobby(state: UiState.Lobby, onRearm: () -> Unit) {
         enter = fadeIn(tween(150)) + scaleIn(initialScale = 1.3f),
         exit = fadeOut(tween(300)),
     ) {
-        state.buzzer?.let { BuzzOverlay(it, onRearm) }
+        state.buzzer?.let { BuzzOverlay(it, actions.rearm) }
     }
 }
 
@@ -302,12 +381,12 @@ private fun Title() {
     )
     Column(Modifier.scale(pulse).rotate(tilt)) {
         Text("Little Miss Party", color = Color.White, fontSize = 64.sp, fontWeight = FontWeight.Black)
-        Text("QUIZ", color = Gold, fontSize = 88.sp, fontWeight = FontWeight.Black, letterSpacing = 12.sp)
+        Text("QUIZ", color = Palette.Gold, fontSize = 88.sp, fontWeight = FontWeight.Black, letterSpacing = 12.sp)
     }
 }
 
 @Composable
-private fun TeamChip(team: Team) {
+fun TeamChip(team: Team, online: Boolean = true, trailing: (@Composable () -> Unit)? = null) {
     val pop = remember(team.uid) { Animatable(0f) }
     LaunchedEffect(team.uid) {
         pop.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))
@@ -316,13 +395,18 @@ private fun TeamChip(team: Team) {
         Modifier
             .scale(pop.value)
             .clip(RoundedCornerShape(50))
-            .background(Color.White.copy(alpha = 0.15f))
+            .background(Color.White.copy(alpha = if (online) 0.15f else 0.06f))
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(28.dp).clip(CircleShape).background(team.color.toColor()))
+        Box(Modifier.size(28.dp).clip(CircleShape).background(team.color.toColor().copy(alpha = if (online) 1f else 0.35f)))
         Spacer(Modifier.width(12.dp))
-        Text(team.name, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+        Text(team.name, color = Color.White.copy(alpha = if (online) 1f else 0.5f), fontSize = 26.sp, fontWeight = FontWeight.Bold)
+        if (!online) {
+            Spacer(Modifier.width(10.dp))
+            Text("hors ligne", color = Palette.Gold, fontSize = 16.sp)
+        }
+        trailing?.let { Spacer(Modifier.width(12.dp)); it() }
     }
 }
 
@@ -350,10 +434,10 @@ private fun BuzzOverlay(team: Team, onRearm: () -> Unit) {
         Button(
             onClick = onRearm,
             modifier = Modifier.focusRequester(focus),
-            colors = ButtonDefaults.buttonColors(containerColor = Night, contentColor = Color.White),
+            colors = ButtonDefaults.buttonColors(containerColor = Palette.Night, contentColor = Color.White),
         ) { Text("Réarmer les buzzers", fontSize = 24.sp, modifier = Modifier.padding(8.dp)) }
     }
 }
 
-private fun String.toColor(): Color =
-    runCatching { Color(android.graphics.Color.parseColor(this)) }.getOrDefault(Pink)
+fun String.toColor(): Color =
+    runCatching { Color(android.graphics.Color.parseColor(this)) }.getOrDefault(Palette.TeamFallback)

@@ -14,3 +14,5 @@ dependencyResolutionManagement {
 }
 rootProject.name = "LittleMissPartyQuiz"
 include(":tv")
+// Moteur de jeu en Kotlin pur, testé sans Android.
+includeBuild("engine")

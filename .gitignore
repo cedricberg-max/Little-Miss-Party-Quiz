@@ -6,3 +6,6 @@ local.properties
 .DS_Store
 .firebase/
 web/public/firebase-config.json
+node_modules/
+tests/test-results/
+*-debug.log

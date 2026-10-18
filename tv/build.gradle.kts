@@ -79,4 +79,5 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 
     implementation("com.google.zxing:core:3.5.3")
+    implementation("com.littlemissparty.quiz:engine")
 }

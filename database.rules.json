@@ -3,11 +3,37 @@
     "games": {
       "$code": {
         ".read": "auth != null",
-        ".write": "auth != null && (data.exists() ? data.child('hostUid').val() === auth.uid : newData.child('hostUid').val() === auth.uid)",
+        ".write": "auth != null && !data.exists() && newData.child('hostUid').val() === auth.uid",
+        "state": {
+          ".write": "auth != null && root.child('games').child($code).child('hostUid').val() === auth.uid"
+        },
+        "log": {
+          "$seq": {
+            ".write": "auth != null && !data.exists() && root.child('games').child($code).child('hostUid').val() === auth.uid",
+            ".validate": "newData.hasChildren(['seq', 'at', 'type'])"
+          }
+        },
         "teams": {
           "$uid": {
             ".write": "auth != null && auth.uid === $uid && data.parent().parent().child('hostUid').exists()",
-            ".validate": "newData.child('name').isString() && newData.child('name').val().length >= 1 && newData.child('name').val().length <= 20 && newData.child('color').isString()"
+            ".validate": "newData.child('name').isString() && newData.child('name').val().length >= 1 && newData.child('name').val().length <= 20 && newData.child('color').isString() && newData.child('color').val().length <= 9"
+          }
+        },
+        "presence": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid && data.parent().parent().child('teams').child($uid).exists()",
+            ".validate": "newData.child('online').isBoolean() && newData.child('at').isNumber()"
+          }
+        },
+        "answers": {
+          "$qid": {
+            "$uid": {
+              ".write": "auth != null && auth.uid === $uid && !data.exists() && root.child('games').child($code).child('teams').child($uid).exists() && root.child('games').child($code).child('state/phase').val() === 'question' && root.child('games').child($code).child('state/paused').val() !== true && root.child('games').child($code).child('state/qid').val() === $qid && now <= root.child('games').child($code).child('state/deadline').val() + 2000",
+              ".validate": "newData.hasChildren(['choice', 'at']) && newData.child('choice').isNumber() && root.child('games').child($code).child('state/choices').child(newData.child('choice').val() + '').exists() && newData.child('at').val() === now",
+              "$other": {
+                ".validate": "$other === 'choice' || $other === 'at'"
+              }
+            }
           }
         },
         "buzz": {
@@ -15,6 +41,12 @@
             ".write": "auth != null && !data.exists() && newData.child('team').val() === auth.uid && data.parent().parent().child('teams').child(auth.uid).exists() && data.parent().parent().child('state/buzzOpen').val() === true && data.parent().parent().child('state/round').val() + '' === $round"
           }
         }
+      }
+    },
+    "reports": {
+      "$id": {
+        ".write": "auth != null && !data.exists()",
+        ".validate": "newData.child('kind').isString() && newData.child('kind').val().length <= 20 && newData.child('text').isString() && newData.child('text').val().length <= 20000 && newData.child('at').val() === now"
       }
     }
   }

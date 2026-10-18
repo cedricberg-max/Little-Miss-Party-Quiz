@@ -3,6 +3,8 @@
 Quiz interactif façon jeu télévisé pour les prestations Little Miss Party.
 
 - **`tv/`** : l'application Android TV (Kotlin, Jetpack Compose) qui affiche le jeu et le QR code.
+- **`engine/`** : le moteur de jeu en Kotlin pur (barème, chrono, journal, reprise), testé sans Android.
+- **`tests/`** : tests automatiques des règles Firebase et du pupitre sur l'émulateur Firebase.
 - **`web/public/`** : le pupitre des équipes, une page web qui marche sur tout téléphone ou tablette (Android et Apple).
 - **`database.rules.json`** : les règles de sécurité de la base Firebase.
 - **`firebase-config.json`** : la configuration Firebase publique, partagée par la TV et le pupitre.
@@ -21,3 +23,15 @@ sont publiés sur Firebase Hosting en même temps.
 
 Pour installer : télécharger l'APK depuis la dernière Release sur le PC, puis l'envoyer sur la Mi Box
 avec une clé USB ou l'appli « Send Files to TV ».
+
+## Tests automatiques
+
+Lancés par GitHub à chaque modification ; aucun APK n'est publié si l'un échoue.
+
+- Moteur : `./gradlew -p engine test`
+- Règles Firebase et pupitre (navigateur simulé, émulateur Firebase) : `cd tests && npm ci && npm test`
+
+## Rapports de plantage
+
+La box envoie ses plantages dans `reports/` au démarrage suivant. Le workflow GitHub
+« Rapports de la box » (lancement manuel) affiche les 20 derniers.
