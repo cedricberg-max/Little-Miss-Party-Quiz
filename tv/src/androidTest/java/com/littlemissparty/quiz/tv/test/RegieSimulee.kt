@@ -94,10 +94,8 @@ class RegieSimulee : AutoCloseable {
         fun definirMotDePasse(motDePasse: String = MOT_DE_PASSE) {
             val sel = "0123456789abcdef0123456789abcdef"
             val corps = """{"salt":"$sel","hash":"${sha256("$sel:$motDePasse")}","updatedAt":${System.currentTimeMillis()}}"""
-            val url = URL(
-                "http://${Emulateur.HOTE}:${Emulateur.PORT_BASE}/settings/regie.json?ns=" +
-                    URL(GameViewModel.databaseUrl()).host.substringBefore('.'),
-            )
+            // Adresse de l'émulateur donnée à l'appli de test : http://10.0.2.2:9000?ns=<base>.
+            val url = URL("http://${Emulateur.HOTE}:${Emulateur.PORT_BASE}/settings/regie.json?${URL(GameViewModel.databaseUrl()).query}")
             val cnx = url.openConnection() as HttpURLConnection
             try {
                 cnx.requestMethod = "PUT"
