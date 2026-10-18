@@ -70,6 +70,14 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                     "Question ${state.index + 1} / ${state.total}",
                     color = Palette.InkSoft, fontSize = 22.sp, fontWeight = FontWeight.Bold,
                 )
+                if (q.isExpress) {
+                    Spacer(Modifier.width(16.dp))
+                    Text(
+                        "VRAI OU FAUX EXPRESS",
+                        color = Palette.Night, fontSize = 18.sp, fontWeight = FontWeight.Black,
+                        modifier = Modifier.clip(RoundedCornerShape(50)).background(Palette.Ink).padding(horizontal = 14.dp, vertical = 4.dp),
+                    )
+                }
                 if (q.double) {
                     Spacer(Modifier.width(16.dp))
                     Text(
@@ -129,7 +137,8 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                 if (!state.paused) when (state.phase) {
                     Phase.QUESTION -> NextButton("Arrêter le chrono", actions.next, key = state.phase)
                     Phase.CLOSED -> NextButton("Révéler la réponse", actions.next, key = state.phase)
-                    else -> NextButton("Voir les scores", actions.next, key = state.phase)
+                    // Vrai ou Faux express : la TV enchaîne seule ; le bouton ne fait qu'aller plus vite.
+                    else -> NextButton(if (q.isExpress) "Suivant" else "Voir les scores", actions.next, key = state.phase)
                 }
             }
         }

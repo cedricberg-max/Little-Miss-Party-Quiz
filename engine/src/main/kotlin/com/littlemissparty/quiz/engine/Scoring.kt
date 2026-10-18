@@ -24,6 +24,16 @@ object Scoring {
         return Award(answer.choice, correct = true, points = (BASE + bonus) * factor, bonus = bonus * factor)
     }
 
+    /** Vrai ou Faux express : chaque bonne réponse, sans bonus de vitesse. */
+    const val EXPRESS = 50
+
+    /** Vrai ou Faux express : [EXPRESS] par bonne réponse (×2 en Super Finale), rien sinon. */
+    fun awardExpress(question: Question, answer: Answer): Award {
+        val correct = answer.choice == question.correct
+        val factor = if (question.double) 2 else 1
+        return Award(answer.choice, correct = correct, points = if (correct) EXPRESS * factor else 0, bonus = 0)
+    }
+
     /** Le Juste Chiffre : la ou les équipes les plus proches. */
     const val NUMBER_CLOSEST = 100
 

@@ -9,7 +9,7 @@ import { writeProof, isAdmin } from "./proof.js";
 import { parseQuiz, checkQuestions, geminiPrompt, LETTERS } from "./importer.js";
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
 import {
-  buildSnapshot, estimateMinutes, playable, showTitle, ROUND_TYPES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
+  buildSnapshot, estimateMinutes, playable, expressQuestions, showTitle, ROUND_TYPES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
   roundFilled, MIME_TURN,
 } from "./show.js";
 import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
@@ -365,7 +365,10 @@ function refreshRounds() {
           ...decks.map(([did, d]) => h("option", { value: did, selected: r.deckId === did, text: `${d.title} (${(d.cards ?? []).length} cartes, tour de ${d.duration ?? MIME_TURN} s)` })))
         : h("select", { class: "grow", "aria-label": "Quiz de la manche", onchange: (e) => { r.quizId = e.target.value; refreshSummary(); } },
           h("option", { value: "", text: "Choisir un quiz…" }),
-          ...options.map(([qid, q]) => h("option", { value: qid, selected: r.quizId === qid, text: `${q.title} (${playable(q).length} validées)` }))),
+          ...options.map(([qid, q]) => h("option", {
+            value: qid, selected: r.quizId === qid,
+            text: r.type === "express" ? `${q.title} (${expressQuestions(q).length} Vrai / Faux)` : `${q.title} (${playable(q).length} validées)`,
+          }))),
       h("button", { type: "button", class: "icon", title: "Monter", disabled: i === 0, onclick: () => move(-1), text: "↑" }),
       h("button", { type: "button", class: "icon", title: "Descendre", disabled: i === editing.rounds.length - 1, onclick: () => move(1), text: "↓" }),
       h("button", { type: "button", class: "icon", title: "Retirer", onclick: () => { editing.rounds.splice(i, 1); refreshRounds(); }, text: "✕" })));

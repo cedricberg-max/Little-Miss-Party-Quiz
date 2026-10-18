@@ -228,6 +228,38 @@ class RegieTest : TestTv() {
         assertEquals(0L, points(dragons, code, dragons.uid))
     }
 
+    @Test
+    fun vraiOuFauxExpressSEnchaineToutSeul() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        @Suppress("UNCHECKED_CAST")
+        val avant = regie.programme(code)["questions"] as List<Map<String, Any?>>
+        fun affirmation(id: String, text: String, correct: Int) = mapOf(
+            "id" to id, "text" to text, "choices" to listOf("Vrai", "Faux"), "correct" to correct,
+            "duration" to 8, "kind" to "express", "double" to false, "round" to "Vrai ou Faux express",
+        )
+        val serie = listOf(affirmation("e1", "Le Soleil est une étoile.", 0), affirmation("e2", "Les poissons volent.", 1))
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, serie + avant))
+
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("VRAI OU FAUX EXPRESS")
+        attendreQue("première affirmation ouverte") { licornes.etat(code).takeIf { it.child("qid").value == "e1" && it.child("phase").value == "question" } }
+        ecran.capture("express-affirmation")
+        assertTrue(licornes.repondre(code, "e1", 0))
+        // Personne ne touche à rien : fermeture, révélation, puis affirmation suivante, toutes seules.
+        attendreQue("affirmation suivante ouverte toute seule") {
+            licornes.etat(code).takeIf { it.child("qid").value == "e2" && it.child("phase").value == "question" }
+        }
+        ecran.voit("Les poissons volent.")
+        assertEquals(Scoring.EXPRESS.toLong(), points(licornes, code, licornes.uid))
+        // Sans réponse, le chrono s'écoule ; dernière affirmation de la manche : les scores, sans double compte.
+        attendreQue("scores à la fin de la série", 30_000) { licornes.etat(code).takeIf { it.child("phase").value == "scores" } }
+        assertEquals(Scoring.EXPRESS.toLong(), points(licornes, code, licornes.uid))
+        ecran.capture("express-scores")
+    }
+
     private val regies = mutableListOf<RegieSimulee>()
 
     private fun regie() = RegieSimulee().also { regies += it }
