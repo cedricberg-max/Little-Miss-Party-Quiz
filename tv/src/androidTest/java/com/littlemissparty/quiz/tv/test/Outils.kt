@@ -264,9 +264,19 @@ class PupitreSimule(etiquette: String) : AutoCloseable {
     private val base = FirebaseDatabase.getInstance(app, GameViewModel.databaseUrl())
     val uid: String
 
+    @Volatile private var connecte = false
+
     init {
         Emulateur.brancher(auth, base)
         uid = bloquer { auth.signInAnonymously().await().user!!.uid }
+        base.getReference(".info/connected").addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                connecte = snapshot.getValue(Boolean::class.java) == true
+                Log.i(TAG, "Pupitre $etiquette : ${if (connecte) "connecté" else "déconnecté"}")
+            }
+
+            override fun onCancelled(error: DatabaseError) = Unit
+        })
     }
 
     fun rejoindre(code: String, nom: String, couleur: String) {
@@ -303,8 +313,10 @@ class PupitreSimule(etiquette: String) : AutoCloseable {
 
     fun couperReseau() = base.goOffline()
 
+    /** Comme la page web quand le Wi-Fi revient : reconnexion, puis présence signalée de nouveau. */
     fun retablirReseau(code: String) {
         base.goOnline()
+        attendreQue("reconnexion du pupitre", 30_000) { connecte.takeIf { it } }
         signalerPresence(code)
     }
 
