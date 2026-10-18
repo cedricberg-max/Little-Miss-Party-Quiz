@@ -31,7 +31,7 @@ class RegieSimulee : AutoCloseable {
 
     /** Comme le bouton « Accès régie » : renvoie true si le serveur accepte le mot de passe. */
     fun connecter(code: String, motDePasse: String): Boolean {
-        val sel = bloquer { base.getReference("settings/regie/salt").get().await() }.value as String
+        val sel = bloquer { base.getReference("settings/regie/salt").lireUneFois() }.value as String
         val empreinte = sha256("$sel:$motDePasse")
         val porte = base.getReference("regieGate/try")
         // Un seul essai toutes les 2 secondes pour tous les téléphones : on attend son tour.
@@ -41,7 +41,7 @@ class RegieSimulee : AutoCloseable {
                 bloquer { porte.setValue(mapOf("uid" to uid, "at" to ServerValue.TIMESTAMP)).await() }
             }.isSuccess
             if (!ouverte) return@repeat
-            val gateAt = bloquer { base.getReference("regieGate/try/at").get().await() }.value
+            val gateAt = bloquer { base.getReference("regieGate/try/at").lireUneFois() }.value
             bloquer {
                 base.getReference("regieProof/$uid")
                     .setValue(mapOf("hash" to empreinte, "gateAt" to gateAt, "at" to ServerValue.TIMESTAMP)).await()
@@ -58,7 +58,7 @@ class RegieSimulee : AutoCloseable {
 
     /** Numéro d'étape publié par la box, celui qu'affiche la régie. */
     fun etape(code: String): Int =
-        (bloquer { base.getReference("games/$code/state/seq").get().await() }.value as? Number)?.toInt() ?: 0
+        (bloquer { base.getReference("games/$code/state/seq").lireUneFois() }.value as? Number)?.toInt() ?: 0
 
     /** Écrit une commande sans attendre la réponse de la box ; renvoie son identifiant, ou null si refusée. */
     fun envoyer(code: String, type: String, expectSeq: Int = etape(code), extra: Map<String, Any> = emptyMap()): String? {
@@ -71,7 +71,7 @@ class RegieSimulee : AutoCloseable {
 
     /** Verdict de la box pour une commande : applied, stale, refused… */
     fun verdict(code: String, id: String): String = attendreQue("verdict de la box pour $id") {
-        bloquer { base.getReference("games/$code/commandStatus/$id/status").get().await() }.value as? String
+        bloquer { base.getReference("games/$code/commandStatus/$id/status").lireUneFois() }.value as? String
     }
 
     fun commande(code: String, type: String, extra: Map<String, Any> = emptyMap()): String {
@@ -80,7 +80,7 @@ class RegieSimulee : AutoCloseable {
     }
 
     fun lireConducteur(code: String): Boolean = runCatching {
-        bloquer { base.getReference("games/$code/conducteur").get().await() }.exists()
+        bloquer { base.getReference("games/$code/conducteur").lireUneFois() }.exists()
     }.getOrDefault(false)
 
     override fun close() {

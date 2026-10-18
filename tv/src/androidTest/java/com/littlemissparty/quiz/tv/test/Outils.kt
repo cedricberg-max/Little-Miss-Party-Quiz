@@ -13,14 +13,21 @@ import androidx.test.uiautomator.Until
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ServerValue
+import com.google.firebase.database.ValueEventListener
 import com.littlemissparty.quiz.engine.Quiz
 import com.littlemissparty.quiz.engine.QuizJson
 import com.littlemissparty.quiz.tv.GameViewModel
 import com.littlemissparty.quiz.tv.MainActivity
+import java.io.ByteArrayOutputStream
 import java.util.UUID
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
 
@@ -38,6 +45,21 @@ fun <T : Any> attendreQue(quoi: String, ms: Long = 20_000, test: () -> T?): T {
 
 fun <T> bloquer(ms: Long = 20_000, bloc: suspend () -> T): T = runBlocking { withTimeout(ms) { bloc() } }
 
+/** Lecture ponctuelle par écouteur : `get()` peut rester bloqué quand la connexion s'est mise en veille. */
+suspend fun DatabaseReference.lireUneFois(): DataSnapshot = suspendCancellableCoroutine { suite ->
+    val ecouteur = object : ValueEventListener {
+        override fun onDataChange(snapshot: DataSnapshot) {
+            if (suite.isActive) suite.resume(snapshot)
+        }
+
+        override fun onCancelled(error: DatabaseError) {
+            if (suite.isActive) suite.resumeWithException(error.toException())
+        }
+    }
+    addListenerForSingleValueEvent(ecouteur)
+    suite.invokeOnCancellation { removeEventListener(ecouteur) }
+}
+
 /** La box : l'appli TV elle-même, dans le même processus que les tests. */
 object Boite {
     val contexte: Context get() = InstrumentationRegistry.getInstrumentation().targetContext
@@ -52,7 +74,7 @@ object Boite {
     fun lancer(): ActivityScenario<MainActivity> = ActivityScenario.launch(MainActivity::class.java)
 
     /** État public de la partie tel que la box l'a publié (copie locale si la box est hors ligne). */
-    fun etat(code: String): DataSnapshot = bloquer { base.getReference("games/$code/state").get().await() }
+    fun etat(code: String): DataSnapshot = bloquer { base.getReference("games/$code/state").lireUneFois() }
 
     fun quizDemo(): Quiz = QuizJson.parse(contexte.assets.open("quizzes/demo.json").bufferedReader().use { it.readText() })
 
@@ -93,6 +115,7 @@ class Ecran(private val nomTest: () -> String) {
         device.wait(Until.findObject(By.textContains(texte)), ms)
             ?: run {
                 capture("introuvable")
+                runCatching { Log.e(TAG, "« $texte » introuvable, plan de l'écran :\n${plan()}") }
                 throw AssertionError("« $texte » n'apparaît pas à l'écran")
             }
 
@@ -127,6 +150,20 @@ class Ecran(private val nomTest: () -> String) {
     /** Textes visibles à l'écran, écrits dans le journal quand un test échoue. */
     fun textes(): String = device.findObjects(By.textStartsWith("")).mapNotNull { runCatching { it.text }.getOrNull() }
         .filter { it.isNotBlank() }.joinToString(" | ")
+
+    /** Taille de l'écran et position de chaque élément, pour voir ce qui sort de l'écran. */
+    fun plan(): String {
+        val m = Boite.contexte.resources.displayMetrics
+        val xml = ByteArrayOutputStream().also { device.dumpWindowHierarchy(it) }.toString()
+        val noeuds = Regex("""<node [^>]*>""").findAll(xml).mapNotNull { n ->
+            val attr = { a: String -> Regex("""\s$a="([^"]*)"""").find(n.value)?.groupValues?.get(1).orEmpty() }
+            val texte = attr("text").ifBlank { attr("content-desc") }
+            if (texte.isBlank() && attr("focusable") != "true") null
+            else "${attr("bounds")} ${attr("class").substringAfterLast('.')} « $texte »" +
+                (if (attr("focused") == "true") " [focus]" else "")
+        }
+        return "écran ${device.displayWidth}x${device.displayHeight} px, densité ${m.densityDpi} dpi\n" + noeuds.joinToString("\n")
+    }
 
     fun capture(nom: String) {
         val fichier = "$DOSSIER_CAPTURES/${nomTest()}-%02d-$nom.png".format(++numero)
@@ -183,11 +220,11 @@ class PupitreSimule(etiquette: String) : AutoCloseable {
     }.onFailure { Log.i(TAG, "Réponse refusée : ${it.message}") }.isSuccess
 
     /** État de la partie lu sur le serveur. */
-    fun etat(code: String): DataSnapshot = bloquer { base.getReference("games/$code/state").get().await() }
+    fun etat(code: String): DataSnapshot = bloquer { base.getReference("games/$code/state").lireUneFois() }
 
-    fun lire(chemin: String): Any? = bloquer { base.getReference(chemin).get().await() }.value
+    fun lire(chemin: String): Any? = bloquer { base.getReference(chemin).lireUneFois() }.value
 
-    fun equipes(code: String): DataSnapshot = bloquer { base.getReference("games/$code/teams").get().await() }
+    fun equipes(code: String): DataSnapshot = bloquer { base.getReference("games/$code/teams").lireUneFois() }
 
     fun couperReseau() = base.goOffline()
 

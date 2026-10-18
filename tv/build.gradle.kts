@@ -29,6 +29,12 @@ android {
 
         // Tests sur émulateur : branche l'appli sur l'émulateur Firebase local, jamais sur la vraie base.
         testInstrumentationRunner = "com.littlemissparty.quiz.tv.test.LmpTestRunner"
+        // Chaque test démarre l'appli dans un processus neuf, données effacées : comme une box qu'on allume.
+        testInstrumentationRunnerArguments["clearPackageData"] = "true"
+    }
+
+    testOptions {
+        execution = "ANDROIDX_TEST_ORCHESTRATOR"
     }
 
     // Clé fixe pour que chaque nouvelle version s'installe par-dessus l'ancienne.
@@ -90,4 +96,6 @@ dependencies {
     androidTestImplementation("androidx.test:core-ktx:1.6.1")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
+    androidTestUtil("androidx.test:orchestrator:1.5.1")
+    androidTestUtil("androidx.test.services:test-services:1.5.0")
 }

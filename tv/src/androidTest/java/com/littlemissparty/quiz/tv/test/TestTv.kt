@@ -29,15 +29,19 @@ abstract class TestTv {
         }
 
         override fun finished(description: Description?) {
+            val debut = System.currentTimeMillis()
             runCatching { scenario?.close() }
             pupitres.forEach { it.close() }
+            Log.i(TAG, "Rangement de ${description?.methodName} en ${System.currentTimeMillis() - debut} ms")
         }
     }
 
     @Before
     fun preparer() {
         Boite.oublierPartie()
+        val debut = System.currentTimeMillis()
         Boite.verifierEmulateur()
+        Log.i(TAG, "Émulateur Firebase vérifié en ${System.currentTimeMillis() - debut} ms")
     }
 
     /** Démarre l'appli comme sur une box neuve et renvoie le code de la partie créée. */
