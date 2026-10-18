@@ -209,29 +209,31 @@ $("join").onclick = async () => {
   const name = $("team-name").value.trim();
   if (!name) return $("team-name").focus();
   $("join").disabled = true;
+  // La couleur demandée à l'appui : l'écouteur des couleurs peut en changer pendant l'écriture.
+  const wanted = chosenColor;
   beep(660, 120); // débloque le son du navigateur dès le premier toucher
   keepAwake();
   try {
     if (lateJoin) {
-      await set(ref(db, `games/${code}/joinRequests/${uid}`), { name, color: chosenColor, at: serverTimestamp() });
+      await set(ref(db, `games/${code}/joinRequests/${uid}`), { name, color: wanted, at: serverTimestamp() });
       return waitForAdmission();
     }
     // L'équipe et sa couleur dans la même écriture : la base refuse une couleur déjà réservée par une autre équipe.
     await update(ref(db, `games/${code}`), {
-      [`teams/${uid}`]: { name, color: chosenColor, joinedAt: serverTimestamp() },
-      [`colors/${colorKey(chosenColor)}`]: uid,
+      [`teams/${uid}`]: { name, color: wanted, joinedAt: serverTimestamp() },
+      [`colors/${colorKey(wanted)}`]: uid,
     });
     teamId = uid;
     play();
   } catch (e) {
     console.error(e);
     // Une autre équipe vient de prendre cette couleur : on le dit et on propose les couleurs encore libres.
-    const owner = !lateJoin && (await get(ref(db, `games/${code}/colors/${colorKey(chosenColor)}`)).catch(() => null))?.val();
+    const owner = !lateJoin && (await get(ref(db, `games/${code}/colors/${colorKey(wanted)}`)).catch(() => null))?.val();
     if (owner && owner !== uid) {
       $("join-error").textContent = "Cette couleur vient d'être prise par une autre équipe : choisissez-en une autre.";
       $("join-error").hidden = false;
-      takenColors.add(colorKey(chosenColor));
-      chosenColor = TEAM_COLORS.find((c) => !takenColors.has(colorKey(c))) ?? chosenColor;
+      takenColors.add(colorKey(wanted));
+      if (chosenColor === wanted) chosenColor = TEAM_COLORS.find((c) => !takenColors.has(colorKey(c))) ?? chosenColor;
       renderColors();
       return;
     }

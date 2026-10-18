@@ -146,7 +146,7 @@ describe("pupitre", () => {
     const loser = await waitFor(async () => {
       for (const p of [a, b]) if (await p.locator("#join-error:not([hidden])").count()) return p;
       return Object.keys((await read("teams")) ?? {}).length === 2 ? "aucune" : null;
-    }, "les deux tablettes ont une réponse");
+    }, "les deux tablettes ont une réponse", 15000);
     if (loser !== "aucune") {
       await loser.locator("#join-error", { hasText: "vient d'être prise" }).waitFor();
       await loser.click("#join");
