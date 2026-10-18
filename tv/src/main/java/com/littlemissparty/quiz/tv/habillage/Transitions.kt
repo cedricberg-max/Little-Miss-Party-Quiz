@@ -85,7 +85,11 @@ private fun TransitionDeJeu(state: UiState.Playing) {
                 !mimes && avant.startsWith("quiz") -> "NOUVELLE MANCHE"
                 else -> "JEU SUIVANT"
             },
-            titre = if (mimes) "Les Mimes !" else q.roundTitle?.takeIf { it.isNotBlank() } ?: "Le Quiz !",
+            titre = when {
+                mimes -> "Les Mimes !"
+                q.kind == QuestionKind.NUMBER -> "Le Juste Chiffre !"
+                else -> q.roundTitle?.takeIf { it.isNotBlank() } ?: "Le Quiz !"
+            },
             dureeMs = if (mimes) Tempo.TRANSITION_RIDEAU else RIDEAU_QUIZ_MS,
         )
     }

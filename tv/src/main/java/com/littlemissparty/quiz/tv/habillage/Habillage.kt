@@ -116,12 +116,18 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long): Insta
         meneurAPoints = (s.ranking.firstOrNull()?.second ?: 0) > 0,
         trouves = s.mime?.takeIf { it.team != null }?.found ?: 0,
         passes = s.mime?.takeIf { it.team != null }?.passed ?: 0,
+        nombre = s.question?.isNumber == true,
+        pile = s.phase == Phase.REVEAL && s.question?.isNumber == true && s.awards.values.any { it.choice == s.question?.correct },
         epreuve = s.question?.takeIf { s.phase == Phase.QUESTION || s.phase == Phase.CLOSED || s.phase == Phase.REVEAL }?.let(::epreuveDe) ?: "",
     )
 }
 
 /** Le jeu auquel appartient une question : les mimes, ou une manche de quiz (toutes ses questions ensemble). */
-internal fun epreuveDe(q: Question) = (if (q.kind == QuestionKind.MIME) "mimes" else "quiz") + "|" + (q.roundTitle ?: "")
+internal fun epreuveDe(q: Question) = when (q.kind) {
+    QuestionKind.MIME -> "mimes"
+    QuestionKind.NUMBER -> "chiffre"
+    else -> "quiz"
+} + "|" + (q.roundTitle ?: "")
 
 /**
  * Vrai pendant la fin du chrono (5 dernières secondes d'une question, 10 d'un tour de mimes), calculé comme

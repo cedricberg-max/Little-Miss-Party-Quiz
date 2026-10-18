@@ -173,10 +173,10 @@ class DirecteurSonoreTest {
         val d = DirecteurSonore()
         val salon = Instant(Ecran.SALON, partie = "ABCD", equipes = 2)
         d.observer(salon)
-        assertEquals(listOf(Son.EQUIPE_2, Son.pop(1)), d.observer(salon.copy(buzzeur = 1, buzzs = 1)).sons())
+        assertEquals(listOf(Son.RIGOLO_2), d.observer(salon.copy(buzzeur = 1, buzzs = 1)).sons())
         assertTrue(d.observer(salon.copy(buzzeur = 1, buzzs = 1)).isEmpty())
-        assertEquals(listOf(Son.EQUIPE_1, Son.pop(2)), d.observer(salon.copy(buzzeur = 0, buzzs = 2)).sons())
-        assertEquals(listOf(Son.EQUIPE_1, Son.pop(3)), d.observer(salon.copy(buzzeur = 0, buzzs = 3)).sons())
+        assertEquals(listOf(Son.RIGOLO_1), d.observer(salon.copy(buzzeur = 0, buzzs = 2)).sons())
+        assertEquals(listOf(Son.RIGOLO_1), d.observer(salon.copy(buzzeur = 0, buzzs = 3)).sons())
     }
 
     private val mimes = Instant(Ecran.MIMES, partie = "ABCD", index = 3, equipes = 2)
@@ -278,6 +278,22 @@ class DirecteurSonoreTest {
         val reprise = d.observer(mimesM.copy(index = 2, repriseDansMs = 3_000))
         assertTrue(Ordre.Jouer(Son.TRANSITION, 3_000) in reprise)
         assertFalse(Son.MANCHE in reprise.sons())
+    }
+
+    @Test
+    fun `juste chiffre, roulette qui se pose sur l'or, fanfare seulement si une equipe tombe pile`() {
+        val d = DirecteurSonore()
+        val question = Instant(Ecran.QUESTION, partie = "ABCD", index = 4, equipes = 2, nombre = true, propositions = 0)
+        d.observer(question)
+        val proche = d.observer(question.copy(ecran = Ecran.REVELATION, gagnants = 1))
+        assertEquals(Son.CHIFFRE_ROULETTE, proche.sons().first())
+        assertFalse(Son.ROULEMENT_COURT in proche.sons())
+        assertTrue(Ordre.Jouer(Son.BONNE_REPONSE, Tempo.REVELATION_OR) in proche)
+        assertFalse(Son.CHIFFRE_PILE in proche.sons())
+        d.observer(question.copy(index = 5))
+        val pile = d.observer(question.copy(index = 5, ecran = Ecran.REVELATION, gagnants = 1, pile = true))
+        assertTrue(Ordre.Jouer(Son.CHIFFRE_PILE, Tempo.REVELATION_OR) in pile)
+        assertFalse(Son.BONNE_REPONSE in pile.sons())
     }
 
     @Test

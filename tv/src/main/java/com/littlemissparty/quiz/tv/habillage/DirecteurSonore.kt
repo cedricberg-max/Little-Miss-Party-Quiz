@@ -144,7 +144,16 @@ class DirecteurSonore {
                 o += Ordre.Jouer(Son.VERROU)
                 o += Ordre.Musique(Ambiance.SUSPENSE)
             }
-            Ecran.REVELATION -> {
+            Ecran.REVELATION -> if (i.nombre) {
+                // Le Juste Chiffre : les chiffres défilent et se posent sur l'or ; fanfare si une équipe tombe pile.
+                o += Ordre.Musique(Ambiance.SILENCE)
+                o += Ordre.Jouer(Son.CHIFFRE_ROULETTE)
+                o += Ordre.Jouer(if (i.pile) Son.CHIFFRE_PILE else Son.BONNE_REPONSE, Tempo.REVELATION_OR)
+                o += Ordre.Jouer(Son.IMPACT, Tempo.REVELATION_OR)
+                o += Ordre.Musique(Ambiance.FETE, Tempo.REVELATION_OR)
+                for (k in 0 until i.gagnants.coerceIn(0, 8)) o += Ordre.Jouer(Son.TAMPON, Tempo.tampon(k))
+                if (i.gagnants > 0) o += Ordre.Jouer(Son.POINTS, Tempo.REVELATION_POINTS)
+            } else {
                 o += Ordre.Musique(Ambiance.SILENCE)
                 o += Ordre.Jouer(Son.ROULEMENT_COURT)
                 for (k in 0 until (i.propositions - 1).coerceIn(0, 3)) {
@@ -182,11 +191,8 @@ class DirecteurSonore {
     private fun memeEcran(p: Instant, i: Instant): List<Ordre> {
         val o = mutableListOf<Ordre>()
         if (i.equipes > p.equipes) o += Ordre.Jouer(Son.equipe(i.equipes - 1))
-        // Buzzer de l'accueil, pour s'amuser : chaque appui fait sonner l'équipe, autant de fois qu'elle veut.
-        if (i.buzzs > p.buzzs && i.buzzeur >= 0) {
-            o += Ordre.Jouer(Son.equipe(i.buzzeur))
-            o += Ordre.Jouer(Son.pop(i.buzzs))
-        }
+        // Buzzer de l'accueil, pour s'amuser : chaque appui fait le bruit rigolo de l'équipe, autant de fois qu'elle veut.
+        if (i.buzzs > p.buzzs && i.buzzeur >= 0) o += Ordre.Jouer(Son.rigolo(i.buzzeur))
         if (i.ecran == Ecran.QUESTION) {
             if (i.reponses > p.reponses) o += Ordre.Jouer(Son.REPONSE)
             // La tension des 5 dernières secondes s'arrête quand le temps repart ou que tout le monde a répondu.
@@ -252,6 +258,9 @@ data class Instant(
     val passes: Int = 0,
     /** Jeu en cours (« quiz|Manche 1 », « mimes|… ») ; vide hors des questions. */
     val epreuve: String = "",
+    /** Le Juste Chiffre : révélation d'un nombre, et une équipe l'a trouvé pile. */
+    val nombre: Boolean = false,
+    val pile: Boolean = false,
 )
 
 /** [MIMES] : manche de mimes entre deux tours ; [MIMES_TOUR] : une équipe mime. */
@@ -317,6 +326,8 @@ enum class Son(val fichier: String, val long: Boolean = false) {
     MIME_FIN("lmp_mime_time_up", true),
     PAUSE("lmp_pause_in", true),
     TRANSITION("lmp_transition", true),
+    CHIFFRE_ROULETTE("lmp_chiffre_roulette", true),
+    CHIFFRE_PILE("lmp_chiffre_pile", true),
     RIGOLO_1("lmp_fun_buzz_1"), RIGOLO_2("lmp_fun_buzz_2"), RIGOLO_3("lmp_fun_buzz_3"), RIGOLO_4("lmp_fun_buzz_4"),
     EQUIPE_1("lmp_team_sting_1"), EQUIPE_2("lmp_team_sting_2"), EQUIPE_3("lmp_team_sting_3"), EQUIPE_4("lmp_team_sting_4");
 
