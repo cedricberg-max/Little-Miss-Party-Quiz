@@ -1,5 +1,5 @@
 // Règles Firebase utilisées par les tests : on ajoute une adresse administrateur fictive à la liste
-// des vraies (Sarah et cedric), pour vérifier ce qu'un administrateur peut faire sans leurs comptes.
+// de la vraie (compte Google de cedric), pour vérifier ce qu'un administrateur peut faire sans leurs comptes.
 import { readFileSync } from "node:fs";
 
 export const ADMIN_EMAIL = "admin@lmp.test";

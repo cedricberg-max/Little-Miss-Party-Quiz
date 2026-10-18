@@ -23,8 +23,8 @@ viennent de `lmp-game-design-enfants`, l'affichage de `lmp-plateau-tv-motion`.
   **aucun compte pour les animatrices**. Elles scannent le QR de la TV, arrivent sur la page des
   pupitres, touchent le bouton discret « 🎛️ Accès régie » (bas à droite), saisissent le mot de passe
   commun et pilotent. Mot de passe vérifié **côté serveur**, essais limités, modifiable par Sarah dans
-  l'administration (Paramètres > Accès régie) sans redéploiement. Seuls les admins (Sarah, cedric) ont
-  un compte Google ; adresses fournies plus tard, ne jamais bloquer un développement dessus.
+  l'administration (Paramètres > Accès régie) sans redéploiement. Seul l'admin (compte Google de cedric, utilisé aussi par Sarah sur le PC familial) a
+  un compte Google ; aucune connexion Google ni e-mail en prestation (box, régie, pupitres : connexion anonyme).
 - **Passage à Blaze validé dans son principe (cedric, 18/10/2026, 08 h 35)**, budget cible < 10 €/mois,
   alertes à 3, 5 et 8 € qui ne coupent jamais une prestation. Architecture hybride : Realtime Database
   pour le direct et la bibliothèque, **Cloud Storage** pour les médias, **cache local vérifié** sur la
@@ -255,7 +255,7 @@ un mot de passe commun, aucun compte animatrice.
 
 | Rôle | Qui | Obtention |
 | --- | --- | --- |
-| `admin` | Sarah, cedric (compte Google) | script d'administration lancé une fois avec le compte de service |
+| `admin` | compte Google de cedric (Sarah l'utilise sur le PC familial) ; jamais requis en prestation | script d'administration lancé une fois avec le compte de service |
 | `box` | une box Android TV | la box affiche un code + QR ; un admin approuve dans la page d'administration → fonction `approveDevice` |
 | régie | un téléphone, une partie | mot de passe commun vérifié par les règles (`regieProof`), PIN de la TV en secours, pas de compte |
 | équipe | pupitre, une partie | `teams/$uid` ou `devices/$uid` de la partie |

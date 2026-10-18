@@ -10,7 +10,7 @@ import { parseQuiz, checkQuestions, geminiPrompt, LETTERS } from "./importer.js"
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
 import { buildSnapshot, estimateMinutes, playable, showTitle, ROUND_TYPES } from "./show.js";
 
-// Administration de Sarah et cedric (compte Google). Les droits sont vérifiés par les règles Firebase :
+// Administration : un seul compte Google, celui de cedric (Sarah l'utilise sur le PC familial). Les droits sont vérifiés par les règles Firebase :
 // un compte qui n'est pas dans la liste des administrateurs ne peut rien lire ni enregistrer.
 
 const $ = (id) => document.getElementById(id);

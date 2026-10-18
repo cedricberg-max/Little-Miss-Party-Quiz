@@ -37,7 +37,7 @@ Lancés par GitHub à chaque modification ; aucun APK n'est publié si l'un éch
 
 ## Quiz et prestations
 
-Dans l'administration (`admin.html`, compte Google de Sarah ou cedric) :
+Dans l'administration (`admin.html`, compte Google principal de cedric) :
 
 - **Quiz › Importer un quiz** : la page fournit la consigne à coller dans Gemini ; on colle sa réponse
   (ou des lignes copiées d'un tableur, ou un fichier CSV), puis on relit. Les anomalies sont signalées
@@ -52,15 +52,21 @@ Sans prestation chargée, la TV joue le quiz de démonstration livré avec l'app
 
 ## Mot de passe de la régie
 
-Sarah ou cedric le changent dans l'administration (`https://little-miss-party-quiz.web.app/admin.html`,
+Il se change dans l'administration (`https://little-miss-party-quiz.web.app/admin.html`,
 Paramètres › Accès régie). Le serveur garde seulement une empreinte illisible et compare lui-même
 (règles Firebase) ; il n'accepte qu'un essai toutes les 2 secondes. Les régies déjà reliées restent
 reliées après un changement.
 
-Administrateurs : Sarah (littlemisspartyspa@gmail.com) et cedric (berguig.cedric@gmail.com, propriétaire
-du projet Firebase), inscrits dans `database.rules.json` (expression `auth.token.email.matches(...)`).
-Les deux comptes ont les mêmes droits dans l'administration et ne se gênent pas. Il faut que la
-connexion Google soit activée dans Firebase (Authentication › Méthodes de connexion › Google).
+Deux accès strictement séparés :
+
+- **Administration** (bibliothèque, prestations, mot de passe de régie) : un seul compte Google, celui
+  de cedric (berguig.cedric@gmail.com, propriétaire du projet Firebase), que Sarah utilise sur le PC
+  familial. Inscrit dans `database.rules.json` (expression `auth.token.email.matches(...)`, adresse
+  vérifiée). La connexion Google doit être activée dans Firebase (Authentication › Méthodes de
+  connexion › Google) ; elle ne sert qu'à cette page.
+- **Régie en prestation** : le téléphone de l'animatrice, avec le seul mot de passe de régie (connexion
+  Firebase anonyme + vérification par les règles). Aucun compte Google, aucun e-mail, aucun code reçu
+  par e-mail. La box et les pupitres utilisent aussi une connexion anonyme, sans e-mail.
 
 ## Rapports de plantage
 
