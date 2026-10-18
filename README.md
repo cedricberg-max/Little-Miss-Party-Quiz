@@ -42,9 +42,10 @@ Paramètres › Accès régie). Le serveur garde seulement une empreinte illisib
 (règles Firebase) ; il n'accepte qu'un essai toutes les 2 secondes. Les régies déjà reliées restent
 reliées après un changement.
 
-Pour que l'administration fonctionne : connexion Google activée dans Firebase (Authentication ›
-Méthodes de connexion › Google) et adresses des administrateurs inscrites dans `database.rules.json`
-(expression `auth.token.email.matches(...)`, vide tant qu'elles ne sont pas fournies).
+Administrateurs : Sarah (littlemisspartyspa@gmail.com) et cedric (berguig.cedric@gmail.com, propriétaire
+du projet Firebase), inscrits dans `database.rules.json` (expression `auth.token.email.matches(...)`).
+Les deux comptes ont les mêmes droits dans l'administration et ne se gênent pas. Il faut que la
+connexion Google soit activée dans Firebase (Authentication › Méthodes de connexion › Google).
 
 ## Rapports de plantage
 
