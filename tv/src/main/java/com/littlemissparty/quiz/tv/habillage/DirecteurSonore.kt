@@ -182,8 +182,6 @@ class DirecteurSonore {
     private fun memeEcran(p: Instant, i: Instant): List<Ordre> {
         val o = mutableListOf<Ordre>()
         if (i.equipes > p.equipes) o += Ordre.Jouer(Son.equipe(i.equipes - 1))
-        // Buzzer libre du salon : chaque appui fait son bruit rigolo, propre à l'équipe, sans rien verrouiller.
-        if (i.ecran == Ecran.SALON && i.buzzRigolo != p.buzzRigolo && i.buzzRigolo > 0) o += Ordre.Jouer(Son.rigolo(i.buzzRigoloEquipe))
         if (i.buzzeur >= 0 && p.buzzeur < 0) {
             o += Ordre.Jouer(Son.equipe(i.buzzeur))
             o += Ordre.Jouer(Son.VERROU)
@@ -251,9 +249,6 @@ data class Instant(
     val passes: Int = 0,
     /** Jeu en cours (« quiz|Manche 1 », « mimes|… ») ; vide hors des questions. */
     val epreuve: String = "",
-    /** Buzzer libre du salon : compteur d'appuis (change à chaque appui) et place de l'équipe qui a appuyé. */
-    val buzzRigolo: Int = 0,
-    val buzzRigoloEquipe: Int = 0,
 )
 
 /** [MIMES] : manche de mimes entre deux tours ; [MIMES_TOUR] : une équipe mime. */
