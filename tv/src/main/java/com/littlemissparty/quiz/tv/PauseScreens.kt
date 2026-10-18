@@ -131,8 +131,8 @@ private fun Intermission(state: UiState.Playing, onResume: () -> Unit) {
             Spacer(Modifier.height(16.dp))
             Text(
                 when {
-                    state.pauseReason == PAUSE_TEAM -> "On attend une équipe : gardez vos paillettes au chaud !"
-                    state.pauseReason == PAUSE_NETWORK -> "On attend le retour d'Internet : gardez vos paillettes au chaud !"
+                    state.pauseReason == PAUSE_TEAM -> "Petite pause : on attend une équipe, gardez vos paillettes au chaud !"
+                    state.pauseReason == PAUSE_NETWORK -> "Petite pause : on attend le retour d'Internet, gardez vos paillettes au chaud !"
                     state.childName.isNotBlank() -> "${state.childName} et ses invités reprennent leur souffle… la fête revient très vite !"
                     else -> "On reprend son souffle… la fête revient très vite !"
                 },
