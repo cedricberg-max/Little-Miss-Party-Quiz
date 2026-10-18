@@ -138,6 +138,26 @@
         <button id="c-next" class="btn main"></button>
       </footer>
     </section>
+
+    <!-- « Ajouter un jeu » : bibliothèque ouverte par-dessus la régie, sans quitter la partie. -->
+    <section id="lib" class="lib" hidden aria-label="Ajouter un jeu">
+      <header class="lib-top">
+        <b>Ajouter un jeu</b>
+        <button id="lib-close" class="btn secondary">Fermer</button>
+      </header>
+      <div id="lib-list" class="lib-body"></div>
+      <div id="lib-preview" class="lib-body" hidden>
+        <p id="lib-name" class="lib-name"></p>
+        <p id="lib-meta" class="hint"></p>
+        <ol id="lib-questions" class="lib-questions"></ol>
+        <p id="lib-problems" class="hold-info" hidden></p>
+        <div class="lib-actions">
+          <button id="lib-after" class="btn main">Ajouter après la manche actuelle</button>
+          <button id="lib-end" class="btn secondary">Ajouter à la fin</button>
+          <button id="lib-back" class="link">Choisir un autre jeu</button>
+        </div>
+      </div>
+    </section>
   </div>
   <script type="module" src="app.js"></script>
 </body>

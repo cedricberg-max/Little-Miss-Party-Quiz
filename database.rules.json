@@ -130,9 +130,12 @@
         },
         "show": {
           ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
-          ".write": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists() && root.child('games').child($code).child('state/phase').val() === 'lobby'",
+          ".write": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists() && (root.child('games').child($code).child('state/phase').val() === 'lobby' || (newData.child('base').isString() && root.child('games').child($code).child('state/phase').val() !== 'ended'))",
           ".validate": "newData.hasChildren(['id', 'title', 'quiz', 'by', 'at']) && newData.child('id').isString() && newData.child('id').val().length <= 40 && newData.child('title').isString() && newData.child('title').val().length <= 120 && newData.child('quiz/questions').exists() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
           "childName": {
+            ".validate": "newData.isString() && newData.val().length <= 40"
+          },
+          "base": {
             ".validate": "newData.isString() && newData.val().length <= 40"
           }
         },

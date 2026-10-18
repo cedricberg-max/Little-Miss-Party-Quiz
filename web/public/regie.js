@@ -3,7 +3,11 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { CHOICE_LETTERS } from "./theme.js";
 import { writeProof } from "./proof.js";
-import { buildSnapshot, showTitle } from "./show.js";
+import {
+  buildSnapshot, showTitle, playable, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame,
+  isFutureRound, moveRound, removeRound, uniqueRoundTitle,
+} from "./show.js";
+import { profileForAge } from "./profiles.js";
 
 // Régie de l'animatrice, ouverte depuis la page des pupitres (bouton « Accès régie »).
 // Elle n'écrit que des commandes : la box les vérifie, les applique et répond dans commandStatus/ ;
@@ -29,6 +33,12 @@ let tab = "teams";
 /** Prestations publiées par Sarah : null tant qu'elles ne sont pas lues. */
 let shows = null;
 let loadingShow = null;
+/** Bibliothèque de « Ajouter un jeu » (quiz et manches d'anciennes prestations) : null tant qu'elle n'est pas lue. */
+let library = null;
+/** Jeu choisi dans la bibliothèque, en aperçu avant de l'ajouter. */
+let picked = null;
+/** Modification du programme envoyée à la TV, en attente de son verdict : une seule à la fois. */
+let editing = false;
 
 // ---------- Accès ----------
 
@@ -101,6 +111,8 @@ function control() {
   stopListening();
   live = { state: null, teams: {}, presence: {}, plan: null, answers: {}, requests: {}, connected: true };
   shows = null;
+  library = null;
+  closeLibrary();
   $("c-code").textContent = code;
   listen(".info/serverTimeOffset", (s) => { serverOffset = s.val() ?? 0; });
   listen(".info/connected", (s) => {
@@ -332,31 +344,279 @@ function renderTeams(st, teams) {
   });
 }
 
+/**
+ * Conducteur : le programme en vigueur sur la TV, manche par manche. Pendant la partie, l'animatrice peut
+ * ajouter un jeu, déplacer ou retirer une manche pas encore commencée ; la manche en cours ne bouge jamais.
+ */
 function renderPlan(st) {
   const box = $("panel-plan");
-  const questions = live.plan?.questions ?? [];
-  const key = `${live.plan?.title}:${questions.length}:${st.index}`;
+  const plan = live.plan;
+  const questions = plan?.questions ?? [];
+  const index = st.phase === "lobby" ? -1 : st.index ?? -1;
+  const key = JSON.stringify([plan?.title, plan?.rev, questions.map((q) => q.id ?? q.text), index, st.phase, editing]);
   if (box.dataset.key === key) return;
   box.dataset.key = key;
   box.innerHTML = "";
   if (!questions.length) box.innerHTML = '<p class="hint">Le conducteur s\'affiche quand la TV l\'a publié.</p>';
-  questions.forEach((q, i) => {
-    const item = document.createElement("div");
-    item.className = `plan-item${i === st.index ? " current" : ""}${i < st.index ? " done" : ""}`;
-    if (q.round && q.round !== questions[i - 1]?.round) {
-      const round = document.createElement("p");
-      round.className = "plan-round";
-      round.textContent = q.round;
-      box.appendChild(round);
+  const editable = !!plan?.rev && st.phase !== "ended";
+  if (questions.length && st.phase !== "ended") {
+    if (editable) {
+      const add = document.createElement("button");
+      add.id = "plan-add";
+      add.className = "btn plan-add";
+      add.textContent = editing ? "Envoi à la TV…" : "＋ Ajouter un jeu";
+      add.disabled = editing;
+      add.onclick = openLibrary;
+      box.appendChild(add);
+    } else {
+      box.insertAdjacentHTML("beforeend", '<p class="hint">Pour ajouter un jeu en cours de partie, mettez à jour l\'appli de la TV.</p>');
     }
-    const title = document.createElement("div");
-    title.textContent = `${i + 1}. ${q.text}${q.double ? " (×2)" : ""}`;
-    const answer = document.createElement("b");
-    answer.textContent = `${CHOICE_LETTERS[q.correct] ?? "?"} · ${q.choices?.[q.correct] ?? ""}`;
-    item.append(title, answer);
-    box.appendChild(item);
+  }
+  const rounds = programRounds(questions);
+  const future = rounds.filter((r) => questions[r.start].round && isFutureRound(r, questions, index));
+  rounds.forEach((r) => {
+    if (questions[r.start].round) box.appendChild(roundHead(r, rounds, future, questions, index, editable));
+    for (let i = r.start; i <= r.end; i++) box.appendChild(planItem(questions[i], i, st.index));
   });
 }
+
+function roundHead(r, rounds, future, questions, index, editable) {
+  const head = document.createElement("div");
+  head.className = "plan-head";
+  head.dataset.round = r.title;
+  const title = document.createElement("p");
+  title.className = "plan-round";
+  title.textContent = r.title;
+  const state = document.createElement("span");
+  state.className = "state";
+  state.textContent = r.end < index ? "jouée" : r.start <= index ? "en cours" : "";
+  head.append(title, state);
+  const k = future.indexOf(r);
+  if (!editable || k < 0) return head;
+  const button = (label, cls, disabled, action) => {
+    const b = document.createElement("button");
+    b.textContent = label;
+    b.className = cls;
+    b.disabled = disabled || editing;
+    b.onclick = action;
+    head.appendChild(b);
+  };
+  const at = rounds.indexOf(r);
+  button("↑", "up", k === 0, () => sendProgram(moveRound(questions, r.start, -1, index), `« ${r.title} » avancée d'un cran.`));
+  button("↓", "down", k === future.length - 1, () => sendProgram(moveRound(questions, r.start, 1, index), `« ${r.title} » reculée d'un cran.`));
+  button("Retirer", "remove", rounds.length === 1 && at === 0, () => {
+    if (!confirm(`Retirer « ${r.title} » du programme ? Le quiz reste dans la bibliothèque.`)) return;
+    sendProgram(removeRound(questions, r.start, index), `« ${r.title} » est retirée du programme.`);
+  });
+  return head;
+}
+
+function planItem(q, i, current) {
+  const item = document.createElement("div");
+  item.className = `plan-item${i === current ? " current" : ""}${i < current ? " done" : ""}`;
+  const title = document.createElement("div");
+  title.textContent = `${i + 1}. ${q.text}${q.double ? " (×2)" : ""}`;
+  const answer = document.createElement("b");
+  answer.textContent = `${CHOICE_LETTERS[q.correct] ?? "?"} · ${q.choices?.[q.correct] ?? ""}`;
+  item.append(title, answer);
+  return item;
+}
+
+// ---------- Ajouter un jeu (pendant la partie) ----------
+
+const PROGRAM_MESSAGES = {
+  stale: "Le programme venait de changer (autre téléphone ?) : rien n'a été fait, le conducteur est à jour.",
+  current_round: "La manche en cours ne peut pas changer : rien n'a été fait.",
+  ended: "La partie est terminée : le programme ne change plus.",
+  not_now: "Pas possible à cette étape.",
+  invalid: "La TV n'a pas pu lire ce programme : rien n'a été fait.",
+};
+
+/** Quiz de la bibliothèque et manches des prestations déjà préparées, lus sans rien modifier. */
+async function fetchLibrary() {
+  library = { loading: true };
+  renderLibrary();
+  try {
+    const [s, q] = await Promise.all([get(ref(db, "library/shows")), get(ref(db, "library/quizzes"))]);
+    const quizzes = q.val() ?? {};
+    const games = Object.entries(quizzes)
+      .filter(([, quiz]) => quiz?.title)
+      .sort((a, b) => a[1].title.localeCompare(b[1].title, "fr"))
+      .map(([id, quiz]) => ({ key: `quiz/${id}`, label: quiz.title, source: { type: "quiz", quizId: id } }));
+    const rounds = Object.entries(s.val() ?? {})
+      .filter(([, show]) => show)
+      .sort((a, b) => (b[1].date ?? "").localeCompare(a[1].date ?? ""))
+      .flatMap(([id, show]) => (show.rounds ?? []).filter(Boolean).map((round, i) => {
+        const label = round.type === "finale" ? ROUND_TYPES.finale : quizzes[round.quizId]?.title ?? `Manche ${i + 1}`;
+        const date = show.date ? ` (${new Date(`${show.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })})` : "";
+        return { key: `show/${id}/${i}`, label, from: `${showTitle(show)}${date}`, source: { type: round.type, quizId: round.quizId } };
+      }));
+    library = { quizzes, games, rounds };
+  } catch (e) {
+    console.error(e);
+    library = { denied: /permission/i.test(String(e?.message ?? e)) };
+  }
+  renderLibrary();
+}
+
+function openLibrary() {
+  picked = null;
+  $("lib").hidden = false;
+  if (!library || library.denied || library.error) fetchLibrary();
+  else renderLibrary();
+}
+
+function closeLibrary() {
+  picked = null;
+  $("lib").hidden = true;
+}
+
+function renderLibrary() {
+  if ($("lib").hidden) return;
+  $("lib-list").hidden = !!picked;
+  $("lib-preview").hidden = !picked;
+  if (picked) return renderPreview();
+  const box = $("lib-list");
+  box.innerHTML = "";
+  const hint = (text) => { const p = document.createElement("p"); p.className = "hint"; p.textContent = text; box.appendChild(p); };
+  const section = (text) => { const p = document.createElement("p"); p.className = "lib-section"; p.textContent = text; box.appendChild(p); };
+  if (library?.loading) return hint("Chargement de la bibliothèque…");
+  if (library?.denied) return hint("Pour ouvrir la bibliothèque, entrez dans la régie avec le mot de passe (pas avec le code de la TV).");
+  if (!library?.games) return hint("Impossible de lire la bibliothèque. Vérifiez la connexion.");
+  const entry = (game, detail) => {
+    const b = document.createElement("button");
+    b.className = "show-item";
+    b.dataset.game = game.key;
+    const title = document.createElement("b");
+    title.textContent = game.label;
+    const meta = document.createElement("span");
+    const count = playable(library.quizzes[game.source.quizId]).length;
+    meta.textContent = [detail, count ? `${count} question${count > 1 ? "s" : ""}` : "aucune question validée"].filter(Boolean).join(" · ");
+    b.append(title, meta);
+    b.disabled = !count;
+    b.onclick = () => pick(game);
+    box.appendChild(b);
+  };
+  section("Quiz de la bibliothèque");
+  if (!library.games.length) hint("Aucun quiz pour l'instant : Sarah les prépare dans l'administration.");
+  library.games.forEach((g) => entry(g, ""));
+  if (library.rounds.length) section("Manches d'anciennes prestations");
+  library.rounds.forEach((g) => entry(g, g.from));
+  section("Mini-jeux et blind tests");
+  for (const label of ["Mini-jeux", "Blind test"]) {
+    const b = document.createElement("button");
+    b.className = "show-item";
+    b.disabled = true;
+    const title = document.createElement("b");
+    title.textContent = label;
+    const soon = document.createElement("span");
+    soon.className = "soon";
+    soon.textContent = "Bientôt";
+    b.append(title, soon);
+    box.appendChild(b);
+  }
+}
+
+/** Profil d'âge de la prestation chargée : les questions ajoutées prennent le même chrono. */
+let profile = null;
+
+async function pick(game) {
+  try {
+    const show = (await get(ref(db, `games/${code}/show`))).val();
+    profile = show?.profile ?? (show?.age != null ? profileForAge(show.age) : null);
+  } catch { profile = null; }
+  const prefix = `a${Date.now().toString(36)}`;
+  const { questions, problems } = gameQuestions(game.source, library.quizzes, profile ?? "MOYENS", prefix);
+  picked = { game, questions, problems };
+  renderLibrary();
+}
+
+function renderPreview() {
+  const { game, questions, problems } = picked;
+  const st = live.state ?? { phase: "lobby" };
+  $("lib-name").textContent = game.label;
+  $("lib-meta").textContent = [game.from, `${questions.length} question${questions.length > 1 ? "s" : ""}`].filter(Boolean).join(" · ");
+  const list = $("lib-questions");
+  list.innerHTML = "";
+  questions.slice(0, 5).forEach((q) => {
+    const li = document.createElement("li");
+    const answer = document.createElement("b");
+    answer.textContent = ` → ${q.choices[q.correct]}`;
+    li.append(q.text, answer);
+    list.appendChild(li);
+  });
+  if (questions.length > 5) list.insertAdjacentHTML("beforeend", `<li class="hint">… et ${questions.length - 5} autres</li>`);
+  $("lib-problems").hidden = !problems.length;
+  $("lib-problems").textContent = problems.join(" ");
+  const lobby = st.phase === "lobby";
+  const after = $("lib-after");
+  after.textContent = editing ? "Envoi à la TV…" : lobby ? "Ajouter au début" : "Ajouter après la manche actuelle";
+  after.disabled = editing || !questions.length;
+  $("lib-end").disabled = editing || !questions.length;
+}
+
+function addPicked(where) {
+  if (!picked || editing) return;
+  const st = live.state ?? { phase: "lobby" };
+  const current = live.plan?.questions ?? [];
+  const title = uniqueRoundTitle(current, picked.questions[0]?.round ?? picked.game.label);
+  const added = picked.questions.map((q) => ({ ...q, round: title }));
+  const index = st.phase === "lobby" ? -1 : st.index ?? -1;
+  const place = where === "end" ? "à la fin du programme" : index < 0 ? "au début du programme" : "après la manche en cours";
+  sendProgram(insertGame(current, added, where, index), `« ${title} » est ajouté ${place}.`, true);
+}
+
+/**
+ * Envoie le programme modifié à la TV, préparé sur la version affichée (base) : la box refuse s'il a changé
+ * entre-temps ou si la manche en cours est touchée, et répond dans showStatus/. Rien n'est écrit dans la
+ * bibliothèque : ses quiz restent tels quels.
+ */
+async function sendProgram(questions, success, fromLibrary = false) {
+  const plan = live.plan;
+  if (editing || !questions || !plan?.rev) return;
+  if (questions.length > MAX_QUESTIONS) { toast(`${MAX_QUESTIONS} questions au maximum dans une partie.`); return; }
+  editing = true;
+  render();
+  if (fromLibrary) renderLibrary();
+  const showRef = ref(db, `games/${code}/show`);
+  const id = push(showRef).key;
+  let previous = {};
+  try { previous = (await get(showRef)).val() ?? {}; } catch { previous = {}; }
+  // Prénom, âge et profil de la prestation sont gardés ; ses manches d'origine ne décrivent plus le programme.
+  const { rounds, base, quiz, ...keep } = previous;
+  const done = (message, applied) => {
+    editing = false;
+    if (applied || fromLibrary) closeLibrary();
+    toast(message);
+    render();
+  };
+  let stop = () => {};
+  const timeout = setTimeout(() => { stop(); done("La TV ne répond pas. Vérifiez qu'elle est allumée et connectée à Internet.", false); }, 8000);
+  stop = onValue(ref(db, `games/${code}/showStatus`), (s) => {
+    const status = s.val();
+    if (status?.id !== id) return;
+    clearTimeout(timeout);
+    stop();
+    const applied = status.status === "applied";
+    done(applied ? success : PROGRAM_MESSAGES[status.reason] ?? "La TV a refusé ce changement.", applied);
+  });
+  try {
+    await set(showRef, {
+      ...keep, id, base: plan.rev, title: plan.title || keep.title || "Programme",
+      quiz: { id: plan.id, title: plan.title || keep.title || "Programme", questions }, by: uid, at: serverTimestamp(),
+    });
+  } catch (e) {
+    console.error(e);
+    clearTimeout(timeout);
+    stop();
+    done("Changement refusé : la partie est peut-être terminée.", false);
+  }
+}
+
+$("lib-close").onclick = closeLibrary;
+$("lib-back").onclick = () => { picked = null; renderLibrary(); };
+$("lib-after").onclick = () => addPicked("after");
+$("lib-end").onclick = () => addPicked("end");
 
 // ---------- Prestations (salon d'attente) ----------
 

@@ -83,6 +83,31 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .plan-item.done { opacity: .5; }
 .regie .plan-item b { color: var(--gold); font-weight: 700; }
 .regie .plan-round { margin: 8px 0 0; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--halo); }
+/* Conducteur modifiable : manches futures déplaçables ou retirables, gros boutons tactiles. */
+.regie .plan-add { width: 100%; flex: none; }
+.regie .plan-head { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+.regie .plan-head .plan-round { flex: 1; margin: 0; }
+.regie .plan-head .state { font-size: 12px; color: var(--ink-soft); }
+.regie .plan-head button { min-width: 48px; height: 44px; border-radius: 12px; border: 1px solid #3a2652; background: var(--panel); color: var(--ink); font-size: 18px; font-weight: 800; padding: 0 10px; }
+.regie .plan-head button.remove { font-size: 14px; color: var(--danger); border-color: rgba(255, 90, 95, .5); }
+.regie .plan-head button:disabled { opacity: .35; }
+
+/* Bibliothèque « Ajouter un jeu », plein écran au-dessus de la régie. */
+.regie .lib {
+  position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; gap: 10px;
+  padding: calc(10px + env(safe-area-inset-top)) 16px calc(12px + env(safe-area-inset-bottom)); background: var(--night-deep);
+}
+.regie .lib-top { display: flex; align-items: center; gap: 10px; font-size: 20px; }
+.regie .lib-top b { flex: 1; }
+.regie .lib-top .btn { min-height: 48px; font-size: 16px; }
+.regie .lib-body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.regie .lib-section { margin: 8px 0 0; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--halo); }
+.regie .lib-name { margin: 0; font-size: 20px; font-weight: 800; }
+.regie .lib-questions { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; font-size: 15px; }
+.regie .lib-questions b { color: var(--gold); font-weight: 700; }
+.regie .lib-actions { display: flex; flex-direction: column; gap: 8px; margin-top: auto; padding-top: 8px; }
+.regie .soon { font-size: 12px; font-weight: 800; color: var(--night-deep); background: var(--gold); border-radius: 999px; padding: 2px 8px; align-self: flex-start; }
+
 .regie .show-item {
   display: flex; flex-direction: column; gap: 2px; text-align: left; width: 100%; min-height: 64px;
   background: var(--night); color: var(--ink); border: 1px solid #3a2652; border-radius: 14px; padding: 10px 12px; font-size: 14px;
