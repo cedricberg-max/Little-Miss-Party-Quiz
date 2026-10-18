@@ -32,7 +32,18 @@
       <input id="team-name" maxlength="20" autocomplete="off" placeholder="Les Licornes">
       <p class="label">Votre couleur</p>
       <div id="colors" class="colors"></div>
+      <p id="join-late" class="hint" hidden>La partie a commencé : l'animatrice va vous faire entrer. Vous remplacez une tablette ? Tapez le nom de votre équipe.</p>
       <button id="join" class="btn big">Rejoindre la partie</button>
+    </section>
+
+    <section id="screen-waiting" class="screen">
+      <div class="logo small">Demande envoyée</div>
+      <p class="hint">L'animatrice va vous faire entrer dans la partie, regardez-la !</p>
+    </section>
+
+    <section id="screen-replaced" class="screen">
+      <div class="logo small">Appareil remplacé</div>
+      <p id="replaced-text" class="hint"></p>
     </section>
 
     <section id="screen-play" class="screen">
@@ -102,6 +113,7 @@
         <p id="c-answered" class="hint small"></p>
         <p id="c-hold" class="hold-info" hidden></p>
       </div>
+      <div id="c-requests" class="requests" hidden></div>
 
       <nav class="tabs">
         <button id="tab-teams" class="tab active">Équipes</button>

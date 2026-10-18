@@ -16,7 +16,9 @@ const BOX_TIMEOUT_MS = 6000;
 let db, uid, code, onExit;
 let serverOffset = 0;
 let unsubscribers = [];
-let live = { state: null, teams: {}, presence: {}, plan: null, answers: {}, connected: true };
+let live = { state: null, teams: {}, presence: {}, plan: null, answers: {}, requests: {}, connected: true };
+/** Appareils dont la demande d'entrée est en cours de traitement par la box. */
+const admitting = new Set();
 let answersUnsub = null;
 let answersQid = null;
 let pending = null;
@@ -97,7 +99,7 @@ function listen(path, fn) {
 
 function control() {
   stopListening();
-  live = { state: null, teams: {}, presence: {}, plan: null, answers: {}, connected: true };
+  live = { state: null, teams: {}, presence: {}, plan: null, answers: {}, requests: {}, connected: true };
   shows = null;
   $("c-code").textContent = code;
   listen(".info/serverTimeOffset", (s) => { serverOffset = s.val() ?? 0; });
@@ -123,6 +125,7 @@ function control() {
   listen(`games/${code}/teams`, (s) => { live.teams = s.val() ?? {}; render(); });
   listen(`games/${code}/presence`, (s) => { live.presence = s.val() ?? {}; render(); });
   listen(`games/${code}/conducteur`, (s) => { live.plan = s.val(); render(); });
+  listen(`games/${code}/joinRequests`, (s) => { live.requests = s.val() ?? {}; render(); });
 }
 
 function watchAnswers() {
@@ -180,6 +183,7 @@ function render() {
   const answered = Object.keys(live.answers).filter((t) => live.teams[t]).length;
   $("c-answered").textContent = st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ont répondu` : "";
 
+  renderRequests(st, teams);
   renderTeams(st, teams);
   renderPlan(st);
   renderShows(st);
@@ -220,6 +224,76 @@ function renderHold(st, teams) {
     ? `Pas encore prête${offline.length > 1 ? "s" : ""} : ${offline.join(", ")}.`
     : "Toutes les équipes sont connectées : vous pouvez reprendre.");
   box.textContent = parts.join(" ");
+}
+
+/**
+ * Appareil arrivé en cours de partie (tablette déchargée, téléphone de secours…) : l'animatrice choisit
+ * d'en faire une nouvelle équipe ou de lui confier une équipe existante, qui garde ses points.
+ * Les équipes du même nom ou hors ligne sont proposées en premier.
+ */
+function renderRequests(st, teams) {
+  const box = $("c-requests");
+  const requests = Object.entries(live.requests).sort((a, b) => (a[1].at ?? 0) - (b[1].at ?? 0));
+  const online = (id) => live.presence[id]?.online === true;
+  const key = JSON.stringify([requests, teams.map(([id, t]) => [id, t.name, online(id)]), [...admitting]]);
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
+  box.innerHTML = "";
+  box.hidden = !requests.length;
+  requests.forEach(([device, r]) => {
+    const item = document.createElement("div");
+    item.className = "request";
+    item.dataset.device = device;
+    const title = document.createElement("p");
+    const swatch = document.createElement("span");
+    swatch.className = "swatch";
+    swatch.style.background = r.color;
+    title.append(swatch, `« ${r.name} » demande à entrer`);
+    const choices = document.createElement("div");
+    choices.className = "choices";
+    const same = (t) => t.name?.trim().toLowerCase() === r.name?.trim().toLowerCase();
+    const ordered = [...teams].sort(([ia, a], [ib, b]) => (same(b) - same(a)) || (online(ia) - online(ib)));
+    const busy = admitting.has(device) || st.phase === "ended";
+    ordered.forEach(([id, t]) => {
+      const b = document.createElement("button");
+      b.dataset.team = id;
+      b.classList.toggle("suggested", same(t));
+      b.textContent = `Remplace « ${t.name} »${online(id) ? "" : " (hors ligne)"}`;
+      b.disabled = busy;
+      b.onclick = () => replaceDevice(device, id);
+      choices.appendChild(b);
+    });
+    const add = document.createElement("button");
+    add.className = "new";
+    add.textContent = "Nouvelle équipe";
+    add.disabled = busy;
+    add.onclick = () => admit(device, "admit", {}, `« ${r.name} » entre dans la partie.`);
+    const ignore = document.createElement("button");
+    ignore.className = "link";
+    ignore.textContent = "Ignorer";
+    ignore.disabled = busy;
+    ignore.onclick = () => set(ref(db, `games/${code}/joinRequests/${device}`), null).catch((e) => console.error(e));
+    choices.append(add, ignore);
+    item.append(title, choices);
+    box.appendChild(item);
+  });
+}
+
+function replaceDevice(device, team) {
+  const name = live.teams[team]?.name ?? "l'équipe";
+  // Irréversible : l'ancien appareil ne pourra plus jamais jouer dans cette partie.
+  if (!confirm(`Confier « ${name} » à ce nouvel appareil ? Ses points sont gardés, l'ancien appareil ne pourra plus jouer.`)) return;
+  admit(device, "replace", { team }, `« ${name} » continue sur le nouvel appareil, avec ses points.`);
+}
+
+async function admit(device, type, extra, success) {
+  if (admitting.has(device)) return;
+  admitting.add(device);
+  render();
+  const status = await send(type, { device, ...extra });
+  admitting.delete(device);
+  if (status?.status === "applied") toast(success);
+  render();
 }
 
 function renderTeams(st, teams) {
@@ -405,6 +479,9 @@ const STATUS_MESSAGES = {
   unknown_team: "Équipe inconnue.",
   not_now: "Pas possible à cette étape.",
   paused: "La partie est en pause : touchez d'abord « Reprendre ».",
+  full: "8 équipes maximum : confiez plutôt à cet appareil une équipe existante.",
+  busy: "Cet appareil joue déjà pour une équipe.",
+  gone: "Cette demande n'existe plus : l'appareil a peut-être quitté la page.",
 };
 
 function toast(message) {

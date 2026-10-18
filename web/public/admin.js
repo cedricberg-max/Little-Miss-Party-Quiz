@@ -18,6 +18,9 @@ const params = new URLSearchParams(location.search);
 // Tests automatiques uniquement : émulateur Firebase, depuis l'ordinateur de test.
 const emulator = params.has("emu") && ["localhost", "127.0.0.1"].includes(location.hostname);
 
+// Tant que la page n'est pas prête, « Entrer » reste grisé et aucun formulaire ne recharge la page
+// (un envoi classique du formulaire repartirait sur une adresse sans ses paramètres).
+document.querySelectorAll("form").forEach((f) => f.addEventListener("submit", (e) => e.preventDefault()));
 const config = await (await fetch("firebase-config.json", { cache: "no-store" })).json();
 const app = initializeApp(config);
 const auth = getAuth(app);
@@ -27,7 +30,29 @@ if (emulator) {
   connectDatabaseEmulator(db, "127.0.0.1", 9000);
 }
 // Connexion anonyme : l'identifiant est gardé par le navigateur, comme pour les pupitres.
-const uid = (await signInAnonymously(auth)).user.uid;
+const uid = await signIn();
+
+/**
+ * Réseau instable au moment d'ouvrir la page : on recharge la page deux fois au plus (nouvel essai
+ * complet), puis on le dit au lieu de laisser une page muette.
+ */
+async function signIn() {
+  const tries = () => { try { return Number(sessionStorage.getItem("admin-signin-tries") ?? 0); } catch { return 2; } };
+  try {
+    const id = (await signInAnonymously(auth)).user.uid;
+    try { sessionStorage.removeItem("admin-signin-tries"); } catch { /* facultatif */ }
+    return id;
+  } catch (e) {
+    console.error(e);
+    if (tries() < 2) {
+      try { sessionStorage.setItem("admin-signin-tries", `${tries() + 1}`); } catch { /* facultatif */ }
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      document.getElementById("login-status").textContent = "Connexion impossible. Vérifiez Internet puis rechargez la page.";
+    }
+    return new Promise(() => {}); // la page s'arrête ici en attendant le rechargement
+  }
+}
 const ctx = { db, uid };
 
 let quizzes = {};
@@ -86,6 +111,7 @@ async function route() {
   $("login").textContent = setupMode ? "Enregistrer et entrer" : "Entrer";
   $("nav").hidden = true;
   $("logout").hidden = true;
+  $("login").disabled = false;
   show("login");
   $("admin-password").focus();
 }

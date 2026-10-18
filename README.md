@@ -18,6 +18,10 @@ Quiz interactif façon jeu télévisé pour les prestations Little Miss Party.
    révéler, scores, corrections) ; la télécommande de la box reste utilisable en secours. Sans mot de
    passe : « Code affiché sur la TV » (bouton Retour de la télécommande, « Code de secours de la régie »).
 4. Tout passe par Internet (Wi-Fi du lieu ou 4G), sans réseau commun ni routeur.
+5. Tablette déchargée ou cassée en pleine partie : n'importe quel téléphone scanne le même QR code et
+   « demande à entrer ». Sur la régie, l'animatrice choisit « Remplace « Les Bleus » » (l'équipe garde
+   nom, couleur et points ; l'ancien appareil est désactivé pour de bon, même s'il revient) ou
+   « Nouvelle équipe » (8 au plus). Une fois la partie commencée, aucun appareil n'entre sans elle.
 
 ## Installer l'appli sur la box
 
