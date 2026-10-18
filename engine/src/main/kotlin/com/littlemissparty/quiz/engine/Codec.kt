@@ -13,8 +13,8 @@ object Codec {
         val base = mapOf("seq" to e.seq, "at" to e.at)
         val body: Map<String, Any?> = when (e) {
             is QuestionOpened -> mapOf("type" to "open", "index" to e.index, "qid" to e.qid)
-            is Paused -> mapOf("type" to "pause")
-            is Resumed -> mapOf("type" to "resume")
+            is Paused -> mapOf("type" to "pause", "reason" to e.reason, "team" to e.team)
+            is Resumed -> mapOf("type" to "resume", "countdownMs" to e.countdownMs)
             is QuestionClosed -> mapOf("type" to "close")
             is Revealed -> mapOf(
                 "type" to "reveal",
@@ -37,8 +37,9 @@ object Codec {
         val at = m.num("at")
         when (m["type"]) {
             "open" -> QuestionOpened(seq, at, m.num("index").toInt(), m["qid"] as String)
-            "pause" -> Paused(seq, at)
-            "resume" -> Resumed(seq, at)
+            // Journaux d'avant la pause générale : pause de l'animatrice, reprise sans décompte.
+            "pause" -> Paused(seq, at, m["reason"] as? String ?: PAUSE_REGIE, m["team"] as? String)
+            "resume" -> Resumed(seq, at, (m["countdownMs"] as? Number)?.toLong() ?: 0L)
             "close" -> QuestionClosed(seq, at)
             "reveal" -> Revealed(
                 seq, at, m["qid"] as String,
@@ -78,6 +79,11 @@ object Codec {
             // Buzzer de test du salon d'attente : la box incrémente le tour pour réarmer.
             "round" to buzzRound,
             "buzzOpen" to (s.phase == Phase.LOBBY),
+            "paused" to s.paused,
+            // Les pupitres voient seulement qu'il y a une pause ; la régie lit aussi l'équipe concernée.
+            "pauseReason" to s.hold?.reason,
+            "pauseTeam" to s.hold?.team,
+            "resumeAt" to s.resumeAt,
         )
         if (q != null && s.phase != Phase.ENDED) {
             out += mapOf(
@@ -88,9 +94,8 @@ object Codec {
                 "text" to q.text,
                 "choices" to q.choices,
                 "durationMs" to q.durationMs,
-                "paused" to s.paused,
                 "deadline" to game.deadline(),
-                "remainingMs" to if (s.paused) q.durationMs - s.elapsedAt(Long.MAX_VALUE) else null,
+                "remainingMs" to if (s.paused) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
                 "correct" to if (revealed) q.correct else null,
                 "awards" to if (revealed) s.awards[q.id]?.mapValues { (_, a) ->
                     mapOf("correct" to a.correct, "points" to a.points, "bonus" to a.bonus)

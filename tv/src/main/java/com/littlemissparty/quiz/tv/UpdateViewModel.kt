@@ -17,6 +17,7 @@ import androidx.lifecycle.viewModelScope
 import com.littlemissparty.quiz.engine.ApkFacts
 import com.littlemissparty.quiz.engine.ApkProblem
 import com.littlemissparty.quiz.engine.Release
+import com.littlemissparty.quiz.engine.releaseToOffer
 import com.littlemissparty.quiz.engine.verifyApk
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -54,8 +55,9 @@ sealed interface UpdateUi {
 
 /**
  * Mise à jour de l'appli depuis la TV. Aucune installation n'est jamais lancée sans l'animatrice :
- * la box cherche seule une nouvelle version (un petit fichier), mais ne télécharge et n'installe
- * que sur demande, et jamais pendant une partie (l'écran le vérifie avant d'appeler ces fonctions).
+ * la box cherche seule une nouvelle version (un petit fichier) au démarrage puis régulièrement, et la
+ * propose dans une fenêtre hors partie ; elle ne télécharge et n'installe que si l'animatrice accepte,
+ * et jamais pendant une partie (l'écran le signale avec [setBusy]).
  *
  * Source : `tv/latest.json` et l'APK, publiés sur l'hébergement Firebase par GitHub Actions à chaque
  * version stable (branche main). Le dépôt GitHub est privé : la box ne pourrait pas lire ses Releases
@@ -70,6 +72,14 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
     /** Version plus récente trouvée par la recherche automatique, signalée en petit dans un coin. */
     private val _available = MutableStateFlow<Release?>(null)
     val available: StateFlow<Release?> = _available
+    /** Version à proposer d'elle-même dans une fenêtre, dès qu'aucune partie n'est en cours. */
+    private val _offer = MutableStateFlow<Release?>(null)
+    val offer: StateFlow<Release?> = _offer
+    /** « Plus tard » : cette version n'est plus proposée avant le prochain lancement. */
+    private var declined: Long? = null
+    /** « Installer maintenant » : on enchaîne téléchargement, vérification et installation. */
+    private var autoInstall = false
+    private var busy = false
 
     private var job: Job? = null
     private val dir = File(app.filesDir, "updates")
@@ -78,16 +88,55 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
     init {
         cleanup()
         viewModelScope.launch {
-            // Recherche discrète après le démarrage, sans rien télécharger.
+            // Recherche discrète après le démarrage puis régulièrement, sans rien télécharger.
             delay(AUTO_CHECK_DELAY_MS)
-            runCatching { fetchRelease() }.getOrNull()?.takeIf { it.isNewerThan(installed) }?.let { _available.value = it }
+            while (true) {
+                autoCheck()
+                delay(RECHECK_MS)
+            }
         }
         viewModelScope.launch {
             InstallEvents.results.collect { onInstallResult(it) }
         }
     }
 
+    private suspend fun autoCheck() {
+        // Fenêtre ouverte ou téléchargement en cours : l'animatrice est déjà dans la mise à jour.
+        val s = _ui.value
+        if (_open.value || !(s is UpdateUi.Idle || s is UpdateUi.UpToDate || s is UpdateUi.Failed)) return
+        val r = runCatching { fetchRelease() }.getOrNull()?.takeIf { it.isNewerThan(installed) } ?: return
+        _available.value = r
+        _offer.value = releaseToOffer(r, installed, declined)
+    }
+
+    /** Partie en cours sur la TV : rien ne s'installe, la proposition attend le retour à l'accueil. */
+    fun setBusy(value: Boolean) {
+        busy = value
+    }
+
+    /** « Installer maintenant » dans la fenêtre de proposition. */
+    fun acceptOffer() {
+        _offer.value ?: return
+        _offer.value = null
+        autoInstall = true
+        _open.value = true
+        when (val s = _ui.value) {
+            is UpdateUi.Ready -> install()
+            is UpdateUi.Available -> download()
+            is UpdateUi.Failed -> if (s.release != null) download() else search()
+            is UpdateUi.Downloading, is UpdateUi.Verifying, is UpdateUi.Installing, is UpdateUi.NeedsPermission -> Unit
+            else -> search()
+        }
+    }
+
+    /** « Plus tard » : la version reste signalée dans le coin et dans « Rechercher une mise à jour ». */
+    fun declineOffer() {
+        declined = _offer.value?.versionCode ?: return
+        _offer.value = null
+    }
+
     fun show() {
+        _offer.value = null
         _open.value = true
         val s = _ui.value
         if (s is UpdateUi.Idle || s is UpdateUi.UpToDate || (s is UpdateUi.Failed && s.release == null)) search()
@@ -95,6 +144,7 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
 
     fun hide() {
         _open.value = false
+        autoInstall = false
         // Installateur d'Android quitté sans réponse : on pourra relancer l'installation.
         (_ui.value as? UpdateUi.Installing)?.let { _ui.value = UpdateUi.Ready(it.release) }
     }
@@ -118,6 +168,17 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
                 Log.w(TAG, "Recherche de mise à jour", e)
                 UpdateUi.Failed("Impossible de joindre le serveur des mises à jour. Vérifiez la connexion Internet de la box.", null)
             }
+            continueAutoInstall()
+        }
+    }
+
+    /** Après « Installer maintenant » : étape suivante sans nouvel appui, jamais pendant une partie. */
+    private fun continueAutoInstall() {
+        if (!autoInstall || busy || !_open.value) return
+        when (_ui.value) {
+            is UpdateUi.Available -> download()
+            is UpdateUi.Ready -> install()
+            else -> Unit
         }
     }
 
@@ -147,6 +208,7 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
                     apkFile(r).delete()
                     UpdateUi.Failed(problemMessage(problem), r)
                 }
+                continueAutoInstall()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -169,6 +231,7 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
             is UpdateUi.NeedsPermission -> s.release
             else -> return
         }
+        autoInstall = false
         val app = getApplication<Application>()
         if (!app.packageManager.canRequestPackageInstalls()) {
             _ui.value = UpdateUi.NeedsPermission(r)
@@ -322,6 +385,8 @@ class UpdateViewModel(app: Application) : AndroidViewModel(app) {
     companion object {
         private const val TAG = "MiseAJour"
         private const val AUTO_CHECK_DELAY_MS = 20_000L
+        /** Box allumée toute la journée : nouvelle recherche toutes les 30 minutes (un petit fichier). */
+        private const val RECHECK_MS = 30L * 60 * 1000
         private const val SPARE_BYTES = 20L * 1024 * 1024
 
         fun problemMessage(p: ApkProblem) = when (p) {

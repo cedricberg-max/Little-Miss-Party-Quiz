@@ -164,8 +164,9 @@ function render() {
   $("c-step").textContent = inQuestion
     ? `Question ${st.index + 1} / ${st.total ?? "?"}${st.double ? " · ×2" : ""}`
     : st.phase === "lobby" ? live.plan?.title ?? "" : "";
-  $("c-phase").textContent = st.phase === "question" && st.paused ? "En pause" : PHASES[st.phase] ?? "";
-  $("c-phase").classList.toggle("paused", st.phase === "question" && st.paused === true);
+  $("c-phase").textContent = st.paused ? `En pause · ${PHASES[st.phase] ?? ""}` : PHASES[st.phase] ?? "";
+  $("c-phase").classList.toggle("on-hold", st.paused === true);
+  renderHold(st, teams);
   $("c-question").textContent = inQuestion ? st.text ?? q?.text ?? "" : st.phase === "ended" ? "Bravo à toutes les équipes !" : `${teams.length} équipe${teams.length > 1 ? "s" : ""} inscrite${teams.length > 1 ? "s" : ""}`;
 
   const correct = q?.correct ?? st.correct;
@@ -188,10 +189,37 @@ function render() {
   next.hidden = st.phase === "ended";
   next.textContent = pending?.advance ? "Envoi…" : nextLabel(st, teams.length);
   next.disabled = !!pending?.advance || (st.phase === "lobby" && teams.length === 0);
+  // Pause générale : possible à toute étape d'une partie commencée.
   const pause = $("c-pause");
-  pause.textContent = st.paused ? "Reprendre" : "Pause";
-  pause.disabled = st.phase !== "question" || !!pending?.advance;
+  pause.textContent = st.paused ? "Reprendre (3, 2, 1)" : "Pause";
+  pause.classList.toggle("resume", st.paused === true);
+  pause.disabled = st.phase === "lobby" || st.phase === "ended" || !!pending?.advance;
+  next.disabled = next.disabled || st.paused === true;
   $("c-end").hidden = st.phase === "ended";
+}
+
+/**
+ * En pause : pourquoi, et qui n'est pas prêt. La reprise reste toujours le choix de l'animatrice,
+ * même quand l'équipe déconnectée est revenue.
+ */
+function renderHold(st, teams) {
+  const box = $("c-hold");
+  box.hidden = !st.paused;
+  if (!st.paused) return;
+  const name = (id) => live.teams[id]?.name ?? "Une équipe";
+  const offline = teams.filter(([id]) => live.presence[id]?.online !== true).map(([id]) => name(id));
+  const parts = [];
+  if (st.pauseReason === "team" && st.pauseTeam) {
+    parts.push(live.presence[st.pauseTeam]?.online === true
+      ? `Pause automatique : « ${name(st.pauseTeam)} » avait perdu la connexion, elle est revenue.`
+      : `Pause automatique : « ${name(st.pauseTeam)} » a perdu la connexion. Son appareil se reconnecte seul.`);
+  } else {
+    parts.push("Partie en pause : chrono, réponses et scores sont figés.");
+  }
+  parts.push(offline.length
+    ? `Pas encore prête${offline.length > 1 ? "s" : ""} : ${offline.join(", ")}.`
+    : "Toutes les équipes sont connectées : vous pouvez reprendre.");
+  box.textContent = parts.join(" ");
 }
 
 function renderTeams(st, teams) {
@@ -361,7 +389,7 @@ function runTimer(st) {
     let ms;
     if (st.phase !== "question") ms = null;
     else if (st.paused) ms = st.remainingMs ?? 0;
-    else ms = Math.max(0, (st.deadline ?? 0) - (Date.now() + serverOffset));
+    else ms = Math.max(0, (st.deadline ?? 0) - Math.max(Date.now() + serverOffset, st.resumeAt ?? 0));
     el.textContent = ms == null ? "" : `${Math.ceil(ms / 1000)}`;
     el.classList.toggle("urgent", ms != null && ms <= 5000);
   };
@@ -376,6 +404,7 @@ const STATUS_MESSAGES = {
   no_teams: "Aucune équipe n'a encore rejoint la partie.",
   unknown_team: "Équipe inconnue.",
   not_now: "Pas possible à cette étape.",
+  paused: "La partie est en pause : touchez d'abord « Reprendre ».",
 };
 
 function toast(message) {

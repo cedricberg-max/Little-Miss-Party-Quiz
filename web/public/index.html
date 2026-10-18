@@ -68,7 +68,8 @@
       <p class="hint">Merci d'avoir joué à Little Miss Party Quiz</p>
     </section>
   </main>
-  <div id="paused" class="paused" hidden><div>PAUSE</div><p>Le chrono est arrêté</p></div>
+  <div id="paused" class="paused" hidden><div>Petite pause</div><p>On revient tout de suite !</p></div>
+  <div id="resume-count" class="paused countdown" hidden><div id="resume-num">3</div><p>C'est reparti !</p></div>
 
   <!-- Accès régie : discret, pour l'animatrice qui a scanné le même QR code que les équipes. -->
   <button id="regie-open" class="regie-open" hidden>🎛 Accès régie</button>
@@ -99,6 +100,7 @@
         <p id="c-question" class="question"></p>
         <button id="c-answer" class="answer" aria-label="Afficher ou masquer la bonne réponse"></button>
         <p id="c-answered" class="hint small"></p>
+        <p id="c-hold" class="hold-info" hidden></p>
       </div>
 
       <nav class="tabs">

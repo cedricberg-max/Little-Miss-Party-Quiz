@@ -196,7 +196,8 @@ function render() {
   document.documentElement.style.setProperty("--team", me.color);
   document.querySelectorAll(".team-label").forEach((e) => { e.textContent = me.name; });
   const st = game.state ?? { phase: "lobby" };
-  $("paused").hidden = !(st.phase === "question" && st.paused);
+  $("paused").hidden = !st.paused;
+  runResumeCountdown(st);
   switch (st.phase) {
     case "question":
     case "closed":
@@ -248,7 +249,7 @@ function renderQuestion(st) {
     });
   }
   const mine = game.myAnswer?.choice ?? pending?.choice;
-  const locked = mine != null || st.phase !== "question" || st.paused;
+  const locked = mine != null || st.phase !== "question" || st.paused || counting(st);
   box.querySelectorAll(".choice").forEach((b, i) => {
     b.disabled = locked;
     b.classList.toggle("picked", mine === i);
@@ -261,7 +262,7 @@ function renderQuestion(st) {
 
 async function answer(choice) {
   const st = game.state;
-  if (!st || st.phase !== "question" || st.paused || game.myAnswer || pending) return;
+  if (!st || st.phase !== "question" || st.paused || counting(st) || game.myAnswer || pending) return;
   pending = { qid: st.qid, choice };
   beep(990, 150);
   navigator.vibrate?.(80);
@@ -277,6 +278,24 @@ async function answer(choice) {
   }
 }
 
+/** Décompte 3, 2, 1 de la reprise, calé sur l'heure du serveur comme la TV. */
+const counting = (st) => !st.paused && st.resumeAt != null && st.resumeAt > Date.now() + serverOffset;
+let countdownHandle = null;
+function runResumeCountdown(st) {
+  clearInterval(countdownHandle);
+  const box = $("resume-count");
+  const tick = () => {
+    const ms = st.paused || st.resumeAt == null ? 0 : st.resumeAt - (Date.now() + serverOffset);
+    box.hidden = ms <= 0;
+    if (ms > 0) $("resume-num").textContent = `${Math.min(9, Math.ceil(ms / 1000))}`;
+    else { clearInterval(countdownHandle); countdownHandle = null; if (st.phase === "question") render(); }
+  };
+  const ms = st.paused || st.resumeAt == null ? 0 : st.resumeAt - (Date.now() + serverOffset);
+  if (ms <= 0) { box.hidden = true; return; }
+  tick();
+  countdownHandle = setInterval(tick, 100);
+}
+
 function runTimer(st) {
   clearInterval(timerHandle);
   const el = $("q-timer");
@@ -284,7 +303,7 @@ function runTimer(st) {
     let ms;
     if (st.phase !== "question") ms = 0;
     else if (st.paused) ms = st.remainingMs ?? 0;
-    else ms = Math.max(0, (st.deadline ?? 0) - (Date.now() + serverOffset));
+    else ms = Math.max(0, (st.deadline ?? 0) - Math.max(Date.now() + serverOffset, st.resumeAt ?? 0));
     const s = Math.ceil(ms / 1000);
     el.textContent = `${s}`;
     el.classList.toggle("urgent", s <= 5);

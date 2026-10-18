@@ -103,12 +103,18 @@ function startBox({ silent = false, held = false } = {}) {
         const seq = state.seq + 1;
         if (cmd.type === "next" && state.phase === "lobby") state = questionState(seq);
         else if (cmd.type === "close") state = { ...state, seq, phase: "closed", deadline: null };
-        else if (cmd.type === "pause") state = { ...state, seq, paused: true, deadline: null, remainingMs: 15000 };
+        else if (cmd.type === "pause" && state.paused) status = { status: "refused", reason: "not_now" };
+        else if (cmd.type === "pause") state = { ...state, seq, paused: true, pauseReason: "regie", deadline: null, remainingMs: 15000 };
+        else if (cmd.type === "resume") {
+          const resumeAt = Date.now() + 3000;
+          state = { ...state, seq, paused: false, pauseReason: null, pauseTeam: null, resumeAt, deadline: resumeAt + (state.remainingMs ?? 0), remainingMs: null };
+        }
+        else if (cmd.type === "next" && state.paused) status = { status: "refused", reason: "paused" };
         else if (cmd.type === "adjust") state = { ...state, seq, scores: { ...state.scores, [cmd.team]: (state.scores[cmd.team] ?? 0) + cmd.delta } };
         else if (cmd.type === "undo") state = { ...state, seq };
         else if (cmd.type === "end") state = { ...state, seq, phase: "ended" };
         else state = { ...state, seq };
-        status.seq = seq;
+        if (status.status === "applied") status.seq = seq;
       }
       await update(ref(db, `games/${CODE}`), { state, [`commandStatus/${id}`]: { ...status, at: Date.now() } });
     }
@@ -164,6 +170,8 @@ async function openRegie(context, query = `?g=${CODE}&emu=1`, path = "/") {
   const page = await context.newPage();
   page.on("pageerror", (e) => console.error("Erreur page :", e.message));
   page.on("console", (m) => { if (m.type() === "error") console.error("Console :", m.text()); });
+  // Diagnostic : l'adresse exacte d'une requête refusée (émulateur ou vrai service Google).
+  page.on("response", (r) => { if (r.status() >= 400) console.error("Réponse", r.status(), r.url(), "depuis", page.url()); });
   await page.goto(`${baseUrl}${path}${query}`);
   return page;
 }
@@ -187,6 +195,11 @@ async function pair(page, password = PASSWORD) {
 const inRegie = (page) => page.locator("#regie:not([hidden])").waitFor({ timeout: 10000 });
 
 const commands = async () => Object.values((await read("commands")) ?? {});
+
+async function setPresence(uid, online) {
+  await env.withSecurityRulesDisabled((ctx) =>
+    set(ref(ctx.database(), `games/${CODE}/presence/${uid}`), { online, at: Date.now() }));
+}
 
 describe("régie", () => {
   test("mot de passe commun : un mauvais est refusé, le bon ouvre la régie", async () => {
@@ -328,6 +341,62 @@ describe("régie", () => {
     await page.locator("#c-next", { hasText: "Arrêter le chrono" }).click();
     await page.locator("#c-phase", { hasText: "Temps écoulé" }).waitFor();
     assert.deepEqual((await commands()).map((c) => c.type).sort(), ["close", "next"]);
+    await page.context().close();
+  });
+
+  test("pause générale : la régie fige la partie puis la relance avec le décompte 3, 2, 1", async () => {
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    await setPresence("rose", true);
+    const page = await openRegie();
+    await pair(page);
+    await page.locator("#c-next", { hasText: "Lancer le quiz" }).click();
+    await page.locator("#c-question", { hasText: "Couleur du ciel ?" }).waitFor();
+
+    await page.locator("#c-pause", { hasText: "Pause" }).click();
+    await page.locator("#c-phase", { hasText: "En pause" }).waitFor();
+    await page.locator("#c-hold", { hasText: "chrono, réponses et scores sont figés" }).waitFor();
+    await page.locator("#c-hold", { hasText: "Toutes les équipes sont connectées" }).waitFor();
+    assert.equal(await page.locator("#c-next").isDisabled(), true, "Suivant bloqué pendant la pause");
+    assert.equal(await page.textContent("#c-timer"), "15", "Chrono figé");
+
+    await page.locator("#c-pause", { hasText: "Reprendre (3, 2, 1)" }).click();
+    await page.locator("#c-hold").waitFor({ state: "hidden" });
+    await page.locator("#c-pause", { hasText: "Pause" }).waitFor();
+    assert.equal(await page.locator("#c-next").isDisabled(), false);
+    assert.deepEqual((await commands()).map((c) => c.type).sort(), ["next", "pause", "resume"]);
+    await page.context().close();
+  });
+
+  test("pause automatique : la régie nomme l'équipe déconnectée puis la voit revenir", async () => {
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    await addTeam("bleu", "Les Bleus");
+    await setPresence("rose", true);
+    await setPresence("bleu", false);
+    await update(gameRef(), { state: { ...questionState(4), paused: true, pauseReason: "team", pauseTeam: "bleu", deadline: null, remainingMs: 12000 } });
+    const page = await openRegie();
+    await pair(page);
+    await page.locator("#c-hold", { hasText: "« Les Bleus » a perdu la connexion" }).waitFor();
+    await page.locator("#c-hold", { hasText: "Pas encore prête : Les Bleus" }).waitFor();
+    await setPresence("bleu", true);
+    await page.locator("#c-hold", { hasText: "elle est revenue" }).waitFor();
+    await page.locator("#c-hold", { hasText: "vous pouvez reprendre" }).waitFor();
+    // La reprise reste le choix de l'animatrice : rien n'est envoyé tout seul.
+    assert.equal((await commands()).length, 0);
+    assert.equal(await page.locator("#c-pause").isDisabled(), false);
+    await page.context().close();
+  });
+
+  test("la pause est possible pendant le classement, pas dans le salon d'attente", async () => {
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    assert.equal(await page.locator("#c-pause").isDisabled(), true, "Salon d'attente");
+    await update(gameRef(), { state: { ...questionState(4), phase: "scores", deadline: null } });
+    await waitFor(async () => !(await page.locator("#c-pause").isDisabled()), "pause possible au classement");
     await page.context().close();
   });
 

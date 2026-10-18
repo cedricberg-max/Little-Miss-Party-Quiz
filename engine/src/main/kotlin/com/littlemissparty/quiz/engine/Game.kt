@@ -12,6 +12,9 @@ enum class Phase(val code: String) {
 /** Période pendant laquelle le chrono tourne ([end] nul tant qu'il tourne encore). */
 data class Segment(val start: Long, val end: Long? = null)
 
+/** Pause en cours : qui l'a provoquée et depuis quand. */
+data class Hold(val reason: String, val team: String?, val since: Long)
+
 /** État de la partie, entièrement déduit du journal. */
 data class GameState(
     val phase: Phase = Phase.LOBBY,
@@ -21,8 +24,11 @@ data class GameState(
     val awards: Map<String, Map<String, Award>> = emptyMap(),
     val adjustments: Map<Int, ScoreAdjusted> = emptyMap(),
     val lastSeq: Int = 0,
+    val hold: Hold? = null,
+    /** Heure du serveur où se termine le décompte de la dernière reprise. */
+    val resumeAt: Long? = null,
 ) {
-    val paused: Boolean get() = phase == Phase.QUESTION && segments.lastOrNull()?.end != null
+    val paused: Boolean get() = hold != null
 
     /** Temps de chrono écoulé à l'instant [t] (pauses exclues). */
     fun elapsedAt(t: Long): Long = segments.sumOf { s ->
@@ -91,27 +97,43 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         is QuestionOpened -> {
             val q = quiz.questions.getOrNull(e.index)
             val canOpen = s.phase == Phase.LOBBY || s.phase == Phase.SCORES || s.phase == Phase.REVEAL
-            if (q == null || q.id != e.qid || !canOpen || e.index <= s.index) null
-            else s.copy(phase = Phase.QUESTION, index = e.index, qid = e.qid, segments = listOf(Segment(e.at)))
+            if (q == null || q.id != e.qid || !canOpen || e.index <= s.index || s.paused) null
+            else s.copy(phase = Phase.QUESTION, index = e.index, qid = e.qid, segments = listOf(Segment(e.at)), resumeAt = null)
         }
         is Paused ->
-            if (s.phase != Phase.QUESTION || s.paused) null
-            else s.copy(segments = s.segments.dropLast(1) + s.segments.last().copy(end = e.at))
+            if (s.phase == Phase.LOBBY || s.phase == Phase.ENDED || s.paused) null
+            else s.copy(
+                hold = Hold(e.reason, e.team, e.at),
+                segments = if (s.phase == Phase.QUESTION) {
+                    // Un chrono encore dans son décompte de reprise n'a pas commencé : rien n'est décompté.
+                    s.segments.dropLast(1) + s.segments.last().let { it.copy(end = maxOf(e.at, it.start)) }
+                } else s.segments,
+            )
         is Resumed ->
             if (!s.paused) null
-            else s.copy(segments = s.segments + Segment(e.at))
+            else {
+                val start = e.at + e.countdownMs.coerceIn(0, 10_000)
+                s.copy(
+                    hold = null,
+                    resumeAt = start,
+                    segments = if (s.phase == Phase.QUESTION) s.segments + Segment(start) else s.segments,
+                )
+            }
+        // Accepté en pause pour rejouer les journaux d'avant la pause générale (la fermeture levait la pause) ;
+        // les actions de la box et de la régie, elles, ne ferment jamais une question en pause.
         is QuestionClosed ->
             if (s.phase != Phase.QUESTION) null
             else s.copy(
                 phase = Phase.CLOSED,
+                hold = null,
                 segments = s.segments.map { if (it.end == null) it.copy(end = e.at) else it },
             )
         is Revealed ->
-            if (s.phase != Phase.CLOSED || e.qid != s.qid) null
+            if (s.phase != Phase.CLOSED || e.qid != s.qid || s.paused) null
             // Une seule attribution par question : la clé est l'identifiant de la question.
             else s.copy(phase = Phase.REVEAL, awards = s.awards + (e.qid to e.awards))
         is ScoresShown ->
-            if (s.phase != Phase.REVEAL) null else s.copy(phase = Phase.SCORES)
+            if (s.phase != Phase.REVEAL || s.paused) null else s.copy(phase = Phase.SCORES)
         is ScoreAdjusted ->
             if (e.delta == 0 || e.team.isBlank()) null
             else s.copy(adjustments = s.adjustments + (e.seq to e))
@@ -119,7 +141,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             if (e.target !in s.adjustments) null
             else s.copy(adjustments = s.adjustments - e.target)
         is GameEnded ->
-            if (s.phase == Phase.ENDED) null else s.copy(phase = Phase.ENDED)
+            if (s.phase == Phase.ENDED) null else s.copy(phase = Phase.ENDED, hold = null)
     }
 
     private val nextSeq get() = state.lastSeq + 1
@@ -130,7 +152,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
      * Le bouton « suivant » de l'animatrice : fait avancer la partie d'une étape.
      * [answers] sert seulement à l'étape de révélation.
      */
-    fun next(now: Long, answers: Map<String, Answer> = emptyMap()): GameEvent? = when (state.phase) {
+    fun next(now: Long, answers: Map<String, Answer> = emptyMap()): GameEvent? = if (state.paused) null else when (state.phase) {
         Phase.LOBBY -> openQuestion(0, now)
         Phase.QUESTION -> close(now)
         Phase.CLOSED -> reveal(now, answers)
@@ -144,9 +166,12 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         return emit(QuestionOpened(nextSeq, now, index, q.id))
     }
 
-    fun pause(now: Long): GameEvent? = emit(Paused(nextSeq, now))
-    fun resume(now: Long): GameEvent? = emit(Resumed(nextSeq, now))
-    fun close(now: Long): GameEvent? = emit(QuestionClosed(nextSeq, now))
+    fun pause(now: Long, reason: String = PAUSE_REGIE, team: String? = null): GameEvent? =
+        emit(Paused(nextSeq, now, reason, team))
+
+    /** Reprise avec le décompte 3, 2, 1 : le chrono repart quand il se termine. */
+    fun resume(now: Long, countdownMs: Long = RESUME_COUNTDOWN_MS): GameEvent? = emit(Resumed(nextSeq, now, countdownMs))
+    fun close(now: Long): GameEvent? = if (state.paused) null else emit(QuestionClosed(nextSeq, now))
 
     /** Calcule les points à partir des réponses reçues. Les réponses des équipes inconnues sont ignorées par l'appelant. */
     fun reveal(now: Long, answers: Map<String, Answer>): GameEvent? {

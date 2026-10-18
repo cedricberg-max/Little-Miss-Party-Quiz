@@ -17,7 +17,7 @@
 }
 [hidden] { display: none !important; }
 body.regie-mode { animation: none; background: #0b0614; }
-body.regie-mode #app, body.regie-mode #paused, body.regie-mode #offline, body.regie-mode .regie-open { display: none !important; }
+body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, body.regie-mode #offline, body.regie-mode .regie-open { display: none !important; }
 
 .regie .hint { color: var(--ink-soft); font-size: 16px; margin: 0; opacity: 1; }
 .regie .hint.small { font-size: 14px; }
@@ -47,7 +47,9 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #offline, body.re
 
 .regie .card { background: var(--night); border-radius: 16px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
 .regie .phase { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--halo); }
-.regie .phase.paused { color: var(--danger); }
+.regie .phase.on-hold { color: var(--danger); }
+.regie .hold-info { margin: 10px 0 0; padding: 10px 12px; border-radius: 12px; background: rgba(255, 210, 122, .14); color: #ffd27a; font-weight: 700; line-height: 1.4; }
+.regie #c-pause.resume { background: #ffd27a; color: #1a0b2e; border-color: #ffd27a; font-weight: 900; }
 .regie .question { margin: 0; font-size: 17px; font-weight: 700; }
 .regie .answer {
   align-self: flex-start; font-size: 14px; color: var(--gold); background: transparent;
