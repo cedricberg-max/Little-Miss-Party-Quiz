@@ -65,7 +65,7 @@ class DirecteurSonore {
         if (i.ecran == Ecran.HORS_PARTIE) return listOf(Ordre.Musique(Ambiance.SILENCE))
         if (i.enPause) return listOf(Ordre.Musique(Ambiance.INTERMEDE))
         if (i.ecran == Ecran.SALON && i.index < 0 && generiques.add(i.partie)) return generique()
-        return listOf(Ordre.Musique(ambiance(i.ecran)))
+        return listOf(Ordre.Musique(ambiance(i)))
     }
 
     private fun generique() = listOf(
@@ -86,7 +86,7 @@ class DirecteurSonore {
         ordres += if (changeDEcran(ecranAvant, i)) {
             entree(ecranAvant, i).filter { it != Ordre.Couper }.map { it.decale(dans) }
         } else {
-            listOf(Ordre.Musique(ambiance(i.ecran), dans))
+            listOf(Ordre.Musique(ambiance(i), dans))
         }
         return ordres
     }
@@ -100,19 +100,23 @@ class DirecteurSonore {
                 o += Ordre.Musique(Ambiance.SALON)
             }
             Ecran.QUESTION -> {
+                // Le Vrai ou Faux express garde sa musique nerveuse d'un bout à l'autre de la série.
+                val musique = if (i.express) Ambiance.EXPRESS else Ambiance.QUESTION
                 if (nouvelleEpreuve) {
                     o += Ordre.Jouer(Son.TRANSITION)
                     o += Ordre.Musique(Ambiance.SILENCE)
-                    o += Ordre.Musique(Ambiance.QUESTION, Tempo.TRANSITION_MUSIQUE)
+                    o += Ordre.Musique(musique, Tempo.TRANSITION_MUSIQUE)
                 } else if (i.premiere || i.superFinale) {
                     o += Ordre.Jouer(Son.MANCHE)
                     o += Ordre.Jouer(Son.IMPACT)
                     o += Ordre.Musique(Ambiance.SILENCE)
-                    o += Ordre.Musique(Ambiance.QUESTION, Tempo.QUESTION_MUSIQUE_APRES_MANCHE)
+                    o += Ordre.Musique(musique, Tempo.QUESTION_MUSIQUE_APRES_MANCHE)
                 } else {
                     o += Ordre.Jouer(Son.WHOOSH)
-                    o += Ordre.Musique(Ambiance.QUESTION)
+                    o += Ordre.Musique(musique)
                 }
+                // Zoom mystère : moteur d'objectif et déclic quand la photo apparaît.
+                if (i.zoom) o += Ordre.Jouer(Son.ZOOM_OUVERTURE, Tempo.PROPOSITIONS_DEBUT)
                 for (k in 0 until i.propositions.coerceIn(0, 8)) {
                     o += Ordre.Jouer(Son.pop(k), Tempo.propositionApparait(k))
                 }
@@ -142,7 +146,7 @@ class DirecteurSonore {
             }
             Ecran.VERROUILLEE -> {
                 o += Ordre.Jouer(Son.VERROU)
-                o += Ordre.Musique(Ambiance.SUSPENSE)
+                if (!i.express) o += Ordre.Musique(Ambiance.SUSPENSE)
             }
             Ecran.REVELATION -> if (i.nombre) {
                 // Le Juste Chiffre : les chiffres défilent et se posent sur l'or ; fanfare si une équipe tombe pile.
@@ -153,9 +157,15 @@ class DirecteurSonore {
                 o += Ordre.Musique(Ambiance.FETE, Tempo.REVELATION_OR)
                 for (k in 0 until i.gagnants.coerceIn(0, 8)) o += Ordre.Jouer(Son.TAMPON, Tempo.tampon(k))
                 if (i.gagnants > 0) o += Ordre.Jouer(Son.POINTS, Tempo.REVELATION_POINTS)
+            } else if (i.express) {
+                // Vrai ou Faux express : pas de roulement, le verdict tombe tout de suite et la musique continue.
+                o += Ordre.Jouer(if (i.reponseVraie) Son.VF_VRAI else Son.VF_FAUX, Tempo.revelationOr(express = true))
+                for (k in 0 until i.gagnants.coerceIn(0, 8)) o += Ordre.Jouer(Son.TAMPON, Tempo.tampon(k, express = true))
+                if (i.gagnants > 0) o += Ordre.Jouer(Son.POINTS, Tempo.EXPRESS_POINTS)
             } else {
                 o += Ordre.Musique(Ambiance.SILENCE)
-                o += Ordre.Jouer(Son.ROULEMENT_COURT)
+                // Zoom mystère : la photo s'ouvre en grand (mise au point, déclic, « tadaa ») à la place du roulement.
+                o += Ordre.Jouer(if (i.zoom) Son.ZOOM_REVELE else Son.ROULEMENT_COURT)
                 for (k in 0 until (i.propositions - 1).coerceIn(0, 3)) {
                     o += Ordre.Jouer(Son.ETEINT, Tempo.mauvaiseSEteint(k))
                 }
@@ -196,8 +206,9 @@ class DirecteurSonore {
         if (i.ecran == Ecran.QUESTION) {
             if (i.reponses > p.reponses) o += Ordre.Jouer(Son.REPONSE)
             // La tension des 5 dernières secondes s'arrête quand le temps repart ou que tout le monde a répondu.
-            val enTension = p.urgent && !tousOntRepondu(p)
-            val tension = i.urgent && !tousOntRepondu(i)
+            // Pas de tension en express : le chrono entier ne dure que quelques secondes.
+            val enTension = p.urgent && !tousOntRepondu(p) && !p.express
+            val tension = i.urgent && !tousOntRepondu(i) && !i.express
             if (tension && !enTension && !p.urgent) o += Ordre.Jouer(Son.TENSION)
             if (enTension && !tension) o += Ordre.Arreter(Son.TENSION)
         }
@@ -219,7 +230,14 @@ class DirecteurSonore {
 
     private fun tousOntRepondu(i: Instant) = i.equipes > 0 && i.reponses >= i.equipes
 
-    private fun ambiance(e: Ecran) = when (e) {
+    private fun ambiance(i: Instant) = when (i.ecran) {
+        Ecran.HORS_PARTIE -> Ambiance.SILENCE
+        Ecran.SALON -> Ambiance.SALON
+        Ecran.QUESTION, Ecran.VERROUILLEE, Ecran.REVELATION -> if (i.express) Ambiance.EXPRESS else ambianceParDefaut(i.ecran)
+        else -> ambianceParDefaut(i.ecran)
+    }
+
+    private fun ambianceParDefaut(e: Ecran) = when (e) {
         Ecran.HORS_PARTIE -> Ambiance.SILENCE
         Ecran.SALON -> Ambiance.SALON
         Ecran.QUESTION -> Ambiance.QUESTION
@@ -258,6 +276,10 @@ data class Instant(
     val passes: Int = 0,
     /** Jeu en cours (« quiz|Manche 1 », « mimes|… ») ; vide hors des questions. */
     val epreuve: String = "",
+    /** Vrai ou Faux express (et la bonne réponse est « Vrai »), Zoom mystère. */
+    val express: Boolean = false,
+    val reponseVraie: Boolean = false,
+    val zoom: Boolean = false,
     /** Le Juste Chiffre : révélation d'un nombre, et une équipe l'a trouvé pile. */
     val nombre: Boolean = false,
     val pile: Boolean = false,
@@ -272,10 +294,17 @@ enum class Lit(val fichier: String) {
     LEGER("lmp_bed_light"),
     MIMES("lmp_bed_mimes"),
     PAUSE("lmp_bed_pause"),
+    EXPRESS("lmp_bed_express"),
 }
 
 /** Fond musical : le volume de chaque boucle selon l'ambiance (fondu enchaîné de l'une à l'autre). */
-enum class Ambiance(private val complete: Float = 0f, private val legere: Float = 0f, private val mimes: Float = 0f, private val pause: Float = 0f) {
+enum class Ambiance(
+    private val complete: Float = 0f,
+    private val legere: Float = 0f,
+    private val mimes: Float = 0f,
+    private val pause: Float = 0f,
+    private val express: Float = 0f,
+) {
     SILENCE,
     SALON(complete = 0.55f),
     QUESTION(legere = 0.6f),
@@ -286,13 +315,16 @@ enum class Ambiance(private val complete: Float = 0f, private val legere: Float 
     /** Entre deux tours de mimes : la même musique, plus bas, pendant qu'on choisit l'équipe suivante. */
     MIMES_ENTRE(mimes = 0.35f),
     /** Pause : musique lounge feutrée, qui tient aussi longtemps qu'il faut. */
-    INTERMEDE(pause = 0.5f);
+    INTERMEDE(pause = 0.5f),
+    /** Vrai ou Faux express : course contre la montre, sur toute la série. */
+    EXPRESS(express = 0.5f);
 
     fun volume(l: Lit) = when (l) {
         Lit.COMPLET -> complete
         Lit.LEGER -> legere
         Lit.MIMES -> mimes
         Lit.PAUSE -> pause
+        Lit.EXPRESS -> express
     }
 }
 
@@ -328,6 +360,10 @@ enum class Son(val fichier: String, val long: Boolean = false) {
     TRANSITION("lmp_transition", true),
     CHIFFRE_ROULETTE("lmp_chiffre_roulette", true),
     CHIFFRE_PILE("lmp_chiffre_pile", true),
+    VF_VRAI("lmp_vf_vrai"),
+    VF_FAUX("lmp_vf_faux"),
+    ZOOM_OUVERTURE("lmp_zoom_ouverture"),
+    ZOOM_REVELE("lmp_zoom_revele", true),
     RIGOLO_1("lmp_fun_buzz_1"), RIGOLO_2("lmp_fun_buzz_2"), RIGOLO_3("lmp_fun_buzz_3"), RIGOLO_4("lmp_fun_buzz_4"),
     EQUIPE_1("lmp_team_sting_1"), EQUIPE_2("lmp_team_sting_2"), EQUIPE_3("lmp_team_sting_3"), EQUIPE_4("lmp_team_sting_4");
 
@@ -386,7 +422,16 @@ object Tempo {
     const val TRANSITION_RIDEAU = 2_600L
     const val PAUSE_MUSIQUE = 1_500L
 
+    /** Vrai ou Faux express : la révélation ne dure que 3,5 s, tout tombe tout de suite. */
+    const val EXPRESS_ETEINT = 100L
+    const val EXPRESS_OR = 300L
+    const val EXPRESS_TAMPON = 600L
+    const val EXPRESS_TAMPON_PAS = 120L
+    const val EXPRESS_POINTS = 900L
+
     fun propositionApparait(k: Int) = PROPOSITIONS_DEBUT + k * PROPOSITIONS_PAS
-    fun mauvaiseSEteint(k: Int) = REVELATION_ETEINT + k * REVELATION_ETEINT_PAS
-    fun tampon(k: Int) = REVELATION_TAMPON + k * REVELATION_TAMPON_PAS
+    fun mauvaiseSEteint(k: Int, express: Boolean = false) = if (express) EXPRESS_ETEINT else REVELATION_ETEINT + k * REVELATION_ETEINT_PAS
+    fun revelationOr(express: Boolean) = if (express) EXPRESS_OR else REVELATION_OR
+    fun tampon(k: Int, express: Boolean = false) =
+        if (express) EXPRESS_TAMPON + k * EXPRESS_TAMPON_PAS else REVELATION_TAMPON + k * REVELATION_TAMPON_PAS
 }

@@ -40,7 +40,7 @@ fun Illustration(q: Question, state: UiState.Playing, modifier: Modifier = Modif
     }
     if (photo == null && q.emoji == null) return
     // La carte arrive en rebondissant, une fois, au moment où la bonne réponse passe à l'or.
-    val visible = apres(Tempo.REVELATION_OR, q.id)
+    val visible = apres(Tempo.revelationOr(q.isExpress), q.id)
     val pop = remember(q.id) { Animatable(0.6f) }
     LaunchedEffect(q.id, visible) {
         if (visible) pop.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))

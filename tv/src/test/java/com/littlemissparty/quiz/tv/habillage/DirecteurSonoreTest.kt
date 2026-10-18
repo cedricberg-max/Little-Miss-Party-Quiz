@@ -297,6 +297,39 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `vrai ou faux express, musique continue, verdict ding ou pouet, ni roulement ni tension`() {
+        val d = DirecteurSonore()
+        val question = Instant(Ecran.QUESTION, partie = "ABCD", index = 6, equipes = 2, propositions = 2, express = true, reponseVraie = true)
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 5, equipes = 2))
+        val entree = d.observer(question)
+        assertEquals(Ambiance.EXPRESS, entree.musique())
+        assertFalse(Son.TENSION in d.observer(question.copy(urgent = true)).sons())
+        val verrou = d.observer(question.copy(ecran = Ecran.VERROUILLEE))
+        assertEquals(null, verrou.musique())
+        val vrai = d.observer(question.copy(ecran = Ecran.REVELATION, gagnants = 1))
+        assertTrue(Ordre.Jouer(Son.VF_VRAI, Tempo.revelationOr(express = true)) in vrai)
+        assertFalse(Son.ROULEMENT_COURT in vrai.sons() || Son.BONNE_REPONSE in vrai.sons())
+        assertEquals(null, vrai.musique())
+        assertTrue(vrai.filterIsInstance<Ordre.Jouer>().all { it.dansMs <= Tempo.EXPRESS_POINTS })
+        // Question suivante : la musique express continue, pas de nouvelle entrée de musique.
+        d.observer(question.copy(index = 7, reponseVraie = false))
+        val faux = d.observer(question.copy(index = 7, reponseVraie = false, ecran = Ecran.REVELATION))
+        assertTrue(Son.VF_FAUX in faux.sons())
+        assertFalse(Son.VF_VRAI in faux.sons())
+    }
+
+    @Test
+    fun `zoom mystere, ouverture a l'entree et revelation dediee`() {
+        val d = DirecteurSonore()
+        val question = Instant(Ecran.QUESTION, partie = "ABCD", index = 8, equipes = 2, propositions = 4, zoom = true)
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 7, equipes = 2))
+        assertTrue(Son.ZOOM_OUVERTURE in d.observer(question).sons())
+        val revele = d.observer(question.copy(ecran = Ecran.REVELATION, gagnants = 1))
+        assertTrue(Son.ZOOM_REVELE in revele.sons())
+        assertFalse(Son.ROULEMENT_COURT in revele.sons())
+    }
+
+    @Test
     fun `chaque son a un fichier distinct`() {
         assertEquals(Son.entries.size, Son.entries.map { it.fichier }.toSet().size)
     }

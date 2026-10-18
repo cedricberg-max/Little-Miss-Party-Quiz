@@ -88,9 +88,17 @@ private fun TransitionDeJeu(state: UiState.Playing) {
             titre = when {
                 mimes -> "Les Mimes !"
                 q.kind == QuestionKind.NUMBER -> "Le Juste Chiffre !"
-                else -> q.roundTitle?.takeIf { it.isNotBlank() } ?: "Le Quiz !"
+                else -> q.roundTitle?.takeIf { it.isNotBlank() } ?: when {
+                    q.isExpress -> "Vrai ou Faux express !"
+                    q.isZoom -> "Zoom mystère !"
+                    else -> "Le Quiz !"
+                }
             },
-            dureeMs = if (mimes) Tempo.TRANSITION_RIDEAU else RIDEAU_QUIZ_MS,
+            dureeMs = when {
+                mimes -> Tempo.TRANSITION_RIDEAU
+                q.isExpress -> RIDEAU_EXPRESS_MS
+                else -> RIDEAU_QUIZ_MS
+            },
         )
     }
     val a = annonce ?: return
@@ -246,4 +254,6 @@ private const val FERMETURE_MS = 280f
 private const val OUVERTURE_MS = 400f
 /** Le rideau d'une manche de quiz : 1,7 s, dont à peine plus d'une seconde plein écran. */
 private const val RIDEAU_QUIZ_MS = 1_700L
+/** En express le chrono ne dure que 7 à 12 s : rideau encore plus bref. */
+private const val RIDEAU_EXPRESS_MS = 1_300L
 private const val BANDEAU_MS = 2_800L

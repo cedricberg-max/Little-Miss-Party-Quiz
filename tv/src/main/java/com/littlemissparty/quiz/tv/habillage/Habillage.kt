@@ -116,6 +116,9 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long): Insta
         meneurAPoints = (s.ranking.firstOrNull()?.second ?: 0) > 0,
         trouves = s.mime?.takeIf { it.team != null }?.found ?: 0,
         passes = s.mime?.takeIf { it.team != null }?.passed ?: 0,
+        express = s.question?.isExpress == true,
+        reponseVraie = s.question?.let { q -> q.choices.getOrNull(q.correct)?.trim()?.startsWith("vrai", ignoreCase = true) } == true,
+        zoom = s.question?.isZoom == true,
         nombre = s.question?.isNumber == true,
         pile = s.phase == Phase.REVEAL && s.question?.isNumber == true && s.awards.values.any { it.choice == s.question?.correct },
         epreuve = s.question?.takeIf { s.phase == Phase.QUESTION || s.phase == Phase.CLOSED || s.phase == Phase.REVEAL }?.let(::epreuveDe) ?: "",
@@ -126,6 +129,8 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long): Insta
 internal fun epreuveDe(q: Question) = when (q.kind) {
     QuestionKind.MIME -> "mimes"
     QuestionKind.NUMBER -> "chiffre"
+    QuestionKind.EXPRESS -> "express"
+    QuestionKind.ZOOM -> "zoom"
     else -> "quiz"
 } + "|" + (q.roundTitle ?: "")
 

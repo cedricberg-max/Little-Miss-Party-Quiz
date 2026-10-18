@@ -117,7 +117,7 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                         Spacer(Modifier.width(20.dp))
                     }
                     if (q.isNumber) NumberBoard(state, revealed, Modifier.weight(1f).fillMaxHeight())
-                    else ChoiceGrid(q.choices, correct = if (revealed) q.correct else null, Modifier.weight(1f).fillMaxHeight())
+                    else ChoiceGrid(q.choices, correct = if (revealed) q.correct else null, Modifier.weight(1f).fillMaxHeight(), express = q.isExpress)
                 }
             }
             Spacer(Modifier.height(16.dp))
@@ -133,6 +133,7 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                             points = if (revealed) state.awards[team.uid]?.points ?: 0 else null,
                             choice = if (revealed) state.awards[team.uid]?.choice else null,
                             isNumber = q.isNumber,
+                            express = q.isExpress,
                         )
                     }
                 }
@@ -149,24 +150,24 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
 }
 
 @Composable
-private fun ChoiceGrid(choices: List<String>, correct: Int?, modifier: Modifier) {
+private fun ChoiceGrid(choices: List<String>, correct: Int?, modifier: Modifier, express: Boolean = false) {
     val rows = choices.indices.chunked(2)
     Column(modifier, verticalArrangement = Arrangement.spacedBy(14.dp)) {
         rows.forEach { row ->
             Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                row.forEach { i -> ChoiceCard(i, choices[i], correct, Modifier.weight(1f).fillMaxHeight().apparition(Tempo.propositionApparait(i), Unit)) }
+                row.forEach { i -> ChoiceCard(i, choices[i], correct, Modifier.weight(1f).fillMaxHeight().apparition(Tempo.propositionApparait(i), Unit), express) }
             }
         }
     }
 }
 
 @Composable
-private fun ChoiceCard(i: Int, text: String, correct: Int?, modifier: Modifier) {
+private fun ChoiceCard(i: Int, text: String, correct: Int?, modifier: Modifier, express: Boolean = false) {
     val isCorrect = correct == i
     // Révélation au rythme du roulement : les mauvaises s'éteignent une à une, puis la bonne passe à l'or.
     val rangMauvaise = if (correct == null) 0 else (0 until i).count { it != correct }
-    val eteinte = apres(Tempo.mauvaiseSEteint(rangMauvaise), correct, actif = correct != null && !isCorrect)
-    val enOr = apres(Tempo.REVELATION_OR, correct, actif = isCorrect)
+    val eteinte = apres(Tempo.mauvaiseSEteint(rangMauvaise, express), correct, actif = correct != null && !isCorrect)
+    val enOr = apres(Tempo.revelationOr(express), correct, actif = isCorrect)
     val dim by animateFloatAsState(if (eteinte) 0.3f else 1f, tween(350), label = "dim")
     val color = Palette.Choices[i % Palette.Choices.size]
     Row(
@@ -194,10 +195,10 @@ private fun ChoiceCard(i: Int, text: String, correct: Int?, modifier: Modifier) 
 
 /** Pastille d'équipe sous la question : a répondu (sans dire quoi), puis points gagnés à la révélation. */
 @Composable
-private fun TeamStatus(rangGagnant: Int, team: Team, online: Boolean, answered: Boolean, points: Int?, choice: Int?, isNumber: Boolean = false) {
+private fun TeamStatus(rangGagnant: Int, team: Team, online: Boolean, answered: Boolean, points: Int?, choice: Int?, isNumber: Boolean = false, express: Boolean = false) {
     val color = team.color.toColor()
     // Les points tombent comme des tampons, une équipe gagnante après l'autre, juste après la bonne réponse.
-    val delai = if (rangGagnant >= 0) Tempo.tampon(rangGagnant) else Tempo.REVELATION_OR
+    val delai = if (rangGagnant >= 0) Tempo.tampon(rangGagnant, express) else Tempo.revelationOr(express)
     val montre = apres(delai, points != null, actif = points != null)
     val revealedPoints = points.takeIf { montre }
     Column(
