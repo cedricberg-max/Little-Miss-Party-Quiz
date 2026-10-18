@@ -1,6 +1,7 @@
 package com.littlemissparty.quiz.tv
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,8 +24,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -39,6 +44,9 @@ class UpdateActions(
     /** Faux si la box n'a pas l'écran de réglage attendu. */
     val openPermission: () -> Boolean,
     val close: () -> Unit,
+    /** Fenêtre de proposition : « Installer maintenant » et « Plus tard ». */
+    val acceptOffer: () -> Unit = {},
+    val declineOffer: () -> Unit = {},
 )
 
 /** Partie en cours (équipes déjà là ou question jouée) : aucune mise à jour pendant une prestation. */
@@ -81,6 +89,52 @@ fun UpdateDialog(ui: UpdateUi, busy: Boolean, actions: UpdateActions) {
         LaunchedEffect(ui::class) { runCatching { focus.requestFocus() } }
     }
 }
+
+/**
+ * Proposition faite d'elle-même par la box, à l'accueil seulement (jamais pendant une partie).
+ * Retour vaut « Plus tard ».
+ */
+@Composable
+fun UpdateOfferDialog(release: Release, actions: UpdateActions) {
+    val focus = remember { FocusRequester() }
+    Dialog(onDismissRequest = actions.declineOffer) {
+        Column(
+            Modifier
+                .clip(RoundedCornerShape(32.dp))
+                .background(Brush.verticalGradient(listOf(Color(0xFF2B1642), Palette.Night)))
+                .border(2.dp, Brush.horizontalGradient(listOf(OfferHalo, Palette.Gold, OfferHalo)), RoundedCornerShape(32.dp))
+                .padding(44.dp)
+                .width(720.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("✨ LITTLE MISS PARTY QUIZ ✨", color = OfferHalo, fontSize = 18.sp, fontWeight = FontWeight.Black, letterSpacing = 6.sp)
+            Text(
+                "Une nouvelle version est prête !",
+                style = TextStyle(
+                    color = Palette.Gold, fontSize = 38.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
+                    shadow = Shadow(Palette.Gold.copy(alpha = 0.6f), blurRadius = 18f),
+                ),
+            )
+            Text(
+                "Version ${release.versionName} (installée : ${BuildConfig.VERSION_NAME}), ${mb(release.size)}",
+                color = Palette.InkSoft, fontSize = 18.sp,
+            )
+            if (release.notes.isNotBlank()) Text(release.notes, color = Color.White, fontSize = 20.sp, textAlign = TextAlign.Center)
+            Text(
+                "Les parties, réglages et codes sont conservés. Android demandera de confirmer l'installation.",
+                color = Color.White, fontSize = 20.sp, textAlign = TextAlign.Center,
+            )
+            Buttons {
+                Primary("Installer maintenant", actions.acceptOffer, focus)
+                Secondary("Plus tard", actions.declineOffer)
+            }
+        }
+        LaunchedEffect(release.versionCode) { runCatching { focus.requestFocus() } }
+    }
+}
+
+private val OfferHalo = Color(0xFFF888B3)
 
 private fun releaseOf(ui: UpdateUi): Release? = when (ui) {
     is UpdateUi.Available -> ui.release

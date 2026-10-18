@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import android.media.AudioManager
 import android.media.ToneGenerator
+import android.os.SystemClock
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -23,10 +24,12 @@ import com.littlemissparty.quiz.engine.CommandResult
 import com.littlemissparty.quiz.engine.CommandStatus
 import com.littlemissparty.quiz.engine.Game
 import com.littlemissparty.quiz.engine.GameEvent
+import com.littlemissparty.quiz.engine.PAUSE_TEAM
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.engine.Quiz
 import com.littlemissparty.quiz.engine.QuizJson
+import com.littlemissparty.quiz.engine.Resumed
 import com.littlemissparty.quiz.engine.execute
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -34,11 +37,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
 import java.security.SecureRandom
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 data class Team(val uid: String, val name: String, val color: String, val joinedAt: Long)
 
@@ -61,6 +67,10 @@ sealed interface UiState {
         val index: Int = -1,
         val total: Int = 0,
         val paused: Boolean = false,
+        /** Pause automatique (pupitre déconnecté) ou de l'animatrice : seule la régie voit l'équipe concernée. */
+        val pauseReason: String? = null,
+        /** Fin du décompte 3, 2, 1 de la dernière reprise (heure du serveur). */
+        val resumeAt: Long? = null,
         /** Heure du serveur où le chrono atteint zéro (null en pause ou hors question). */
         val deadline: Long? = null,
         val remainingMs: Long = 0,
@@ -116,6 +126,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var pinLockedUntil = 0L
     /** Dernier chargement de prestation jugé par la box (appliqué ou refusé) : jamais rejugé. */
     private var judgedShow: String? = null
+    /** Pupitres connectés au dernier relevé, et pupitres tout juste décrochés (délai de grâce en cours). */
+    private var online: Set<String> = emptySet()
+    private val dropTimers = mutableMapOf<String, Job>()
+    /** Dernier appui sur OK pris en compte (anti double appui). */
+    private var lastNextAt = -NEXT_GUARD_MS
     private val prefs = app.getSharedPreferences("partie", Context.MODE_PRIVATE)
 
     /** Code de la partie en cours, mémorisé sur la box pour survivre à un crash ou un redémarrage. */
@@ -208,10 +223,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun resumableGame(db: FirebaseDatabase, uid: String, code: String): UiState.ResumeOffer? {
-        val read = runCatching { db.getReference("games/$code").get().await() }
+        val read = runCatching { db.getReference("games/$code").readOnce() }
         // Lecture refusée : cette box n'est plus l'hôte de la partie (données effacées, autre compte).
         if (read.exceptionOrNull()?.message?.contains("ermission") == true) return null
-        // Sans réseau ni copie locale, on fait confiance au code mémorisé.
+        // Sans réseau ni copie locale (ou base muette), on fait confiance au code mémorisé.
         val snap = read.getOrNull() ?: return UiState.ResumeOffer(code, emptyList(), AUTO_RESUME_SECONDS)
         if (snap.child("hostUid").getValue(String::class.java) != uid) return null
         if (snap.child("state/phase").getValue(String::class.java) == Phase.ENDED.code) return null
@@ -245,7 +260,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val ref = db.getReference("games/$code")
         gameRef = ref
         activeCode = code
-        val snap = ref.get().await()
+        val snap = ref.readOnce() ?: error("La base Firebase ne répond pas. Vérifiez Internet puis réessayez.")
         // Prestation chargée par la régie et acceptée : la box la rejoue telle quelle, sans relire la bibliothèque.
         val show = snap.child("show")
         val showApplied = show.child("id").value != null &&
@@ -298,6 +313,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Bouton principal : fait avancer la partie d'une étape. */
     fun next() {
+        // Double appui sur OK : le second toucherait le bouton suivant, qui vient de prendre le focus.
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastNextAt < NEXT_GUARD_MS) return
+        lastNextAt = now
         viewModelScope.launch { actions.withLock {
             val g = game ?: return@withLock
             when (g.state.phase) {
@@ -340,7 +359,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 "state" to clean(Codec.publicState(g, round)),
             ) + extra
         ).addOnFailureListener { Log.e(TAG, "Écriture refusée", it) }
-        sound(g.state.phase)
+        if (event is Resumed) countdownBeeps(event) else sound(g.state.phase)
         refresh()
         schedule()
     }
@@ -395,6 +414,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 index = s.index,
                 total = g.quiz.questions.size,
                 paused = s.paused,
+                pauseReason = s.hold?.reason,
+                resumeAt = s.resumeAt,
                 deadline = g.deadline(),
                 remainingMs = q?.let { it.durationMs - s.elapsedAt(Long.MAX_VALUE) }?.coerceAtLeast(0) ?: 0,
                 awards = revealedAwards,
@@ -558,7 +579,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             val code = (1..5).map { CODE_CHARS.random() }.joinToString("")
             val ref = db.getReference("games/$code")
             // Seul `hostUid` est lisible avant d'être l'hôte : il suffit pour savoir si le code est pris.
-            if (!ref.child("hostUid").get().await().exists()) {
+            // Base muette deux fois de suite : inutile d'essayer d'autres codes.
+            val taken = ref.child("hostUid").readOnce() ?: ref.child("hostUid").readOnce()
+                ?: error("La base Firebase ne répond pas. Vérifiez Internet puis réessayez.")
+            if (!taken.exists()) {
                 val g = Game(loadQuiz(DEFAULT_QUIZ))
                 ref.setValue(
                     mapOf(
@@ -591,10 +615,13 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 s.copy(teams = teams)
             }
         }
+        online = emptySet()
         observe(ref.child("presence")) { snap ->
-            val online = snap.children.filter { it.child("online").getValue(Boolean::class.java) == true }
+            val now = snap.children.filter { it.child("online").getValue(Boolean::class.java) == true }
                 .mapNotNull { it.key }.toSet()
-            updatePlaying { it.copy(online = online) }
+            onPresence(online, now)
+            online = now
+            updatePlaying { it.copy(online = now) }
         }
         observe(ref.child("buzz")) { snap ->
             updatePlaying { s ->
@@ -613,6 +640,28 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             regieUids = uids
             // Une régie vient d'être reliée : on referme l'écran du QR code.
             updatePlaying { it.copy(regies = uids.size, showRegie = it.showRegie && added.isEmpty()) }
+        }
+    }
+
+    /**
+     * Un pupitre qui décroche en pleine question met la partie en pause pour ne défavoriser personne.
+     * Délai de grâce : un rechargement de page ou une micro-coupure ne déclenche rien. Seule la
+     * transition connecté → déconnecté compte : après la reprise, une équipe absente ne rebloque pas la partie.
+     */
+    private fun onPresence(before: Set<String>, now: Set<String>) {
+        (now - before).forEach { dropTimers.remove(it)?.cancel() }
+        (before - now).forEach { uid ->
+            dropTimers.remove(uid)?.cancel()
+            dropTimers[uid] = viewModelScope.launch {
+                delay(DROP_GRACE_MS)
+                dropTimers.remove(uid)
+                act { g ->
+                    val waited = g.state.phase == Phase.QUESTION && !g.state.paused && g.remainingMs(serverNow()) > 0
+                    if (waited && uid !in online && uid !in answers && teams().any { it.uid == uid }) {
+                        g.pause(serverNow(), PAUSE_TEAM, uid)
+                    } else null
+                }
+            }
         }
     }
 
@@ -680,6 +729,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun stopListening() {
+        dropTimers.values.forEach { it.cancel() }
+        dropTimers.clear()
         listeners.forEach { (ref, l) -> ref.removeEventListener(l) }
         listeners.clear()
         answersListener?.let { (r, l) -> r.removeEventListener(l) }
@@ -687,6 +738,19 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         commandsListener?.let { (r, l) -> r.removeEventListener(l) }
         commandsListener = null
         judging.clear()
+    }
+
+    /** Un bip par seconde du décompte 3, 2, 1, puis un plus aigu au départ. */
+    private fun countdownBeeps(event: Resumed) {
+        viewModelScope.launch {
+            val steps = (event.countdownMs / 1000).toInt()
+            for (i in 0 until steps) {
+                delay((event.at + i * 1000L - serverNow()).coerceAtLeast(0))
+                tones?.startTone(ToneGenerator.TONE_PROP_BEEP, 150)
+            }
+            delay((event.at + event.countdownMs - serverNow()).coerceAtLeast(0))
+            tones?.startTone(ToneGenerator.TONE_PROP_BEEP2, 300)
+        }
     }
 
     private fun sound(phase: Phase) {
@@ -717,6 +781,12 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
         /** Délai laissé aux réponses envoyées à la dernière seconde avant de fermer la question. */
         private const val CLOSE_GRACE_MS = 500L
+
+        /** Temps laissé à un pupitre déconnecté pour revenir seul avant la pause automatique. */
+        private const val DROP_GRACE_MS = 4000L
+
+        /** Deux appuis sur OK plus rapprochés que cela ne font avancer que d'une étape. */
+        private const val NEXT_GUARD_MS = 500L
         private const val CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
         fun joinUrl(code: String) = "https://${BuildConfig.FB_PROJECT_ID}.web.app/?g=$code"
@@ -741,5 +811,26 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 else -> k to v
             }
         }.toMap()
+    }
+}
+
+/**
+ * Lecture unique avec écouteur, bornée dans le temps (null si la base ne répond pas).
+ * `get()` peut ne jamais se terminer quand la persistance locale est activée et que l'appli est
+ * relancée sans que le processus Android soit tué (sortie par Retour, nouvelle partie).
+ */
+private suspend fun DatabaseReference.readOnce(timeoutMs: Long = 8000L): DataSnapshot? = withTimeoutOrNull(timeoutMs) {
+    suspendCancellableCoroutine { cont ->
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                if (cont.isActive) cont.resume(snapshot)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                if (cont.isActive) cont.resumeWithException(error.toException())
+            }
+        }
+        addListenerForSingleValueEvent(listener)
+        cont.invokeOnCancellation { removeEventListener(listener) }
     }
 }

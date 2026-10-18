@@ -109,4 +109,7 @@ input {
   background: rgba(26, 11, 46, .9); color: var(--gold); font-size: 64px; font-weight: 900; letter-spacing: 8px;
 }
 .paused p { color: #fff; font-size: 20px; letter-spacing: 0; font-weight: 700; }
+.paused div { text-align: center; letter-spacing: 2px; }
+.countdown { background: rgba(26, 11, 46, .75); }
+.countdown div { font-size: 140px; line-height: 1; }
 [hidden] { display: none !important; }

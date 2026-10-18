@@ -146,6 +146,12 @@ describe("réponses", () => {
     await seed({ paused: true, deadline: null });
     await assertFails(answer("rose", 1));
   });
+  test("refusée pendant le décompte 3, 2, 1 de la reprise, acceptée juste après", async () => {
+    await seed({ resumeAt: Date.now() + 1500, deadline: Date.now() + 15000 });
+    await assertFails(answer("rose", 1));
+    await new Promise((r) => setTimeout(r, 1700));
+    await assertSucceeds(answer("rose", 1));
+  });
   test("refusée quand la question est fermée", async () => {
     await seed({ phase: "closed" });
     await assertFails(answer("rose", 1));

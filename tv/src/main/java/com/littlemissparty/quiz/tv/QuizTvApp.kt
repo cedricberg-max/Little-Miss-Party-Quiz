@@ -88,7 +88,14 @@ class TvActions(
 )
 
 /** Mise à jour de l'appli depuis la TV : état de la fenêtre et version trouvée par la recherche discrète. */
-class UpdateScreen(val ui: UpdateUi, val open: Boolean, val available: Release?, val actions: UpdateActions)
+class UpdateScreen(
+    val ui: UpdateUi,
+    val open: Boolean,
+    val available: Release?,
+    val actions: UpdateActions,
+    /** Version à proposer d'elle-même, affichée seulement hors partie. */
+    val offer: Release? = null,
+)
 
 @Composable
 fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null) {
@@ -153,6 +160,9 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null) 
     }
     if (update != null && update.open) {
         UpdateDialog(update.ui, busy = gameInProgress(state), actions = update.actions)
+    } else if (update?.offer != null && !gameInProgress(state) && !confirmQuit && !(state is UiState.Playing && state.showRegie)) {
+        // La proposition attend le retour à l'accueil : jamais par-dessus une partie ou une autre fenêtre.
+        UpdateOfferDialog(update.offer, update.actions)
     }
 }
 
@@ -164,6 +174,7 @@ private fun Playing(state: UiState.Playing, actions: TvActions) {
         Phase.SCORES -> ScoresScreen(state, actions)
         Phase.ENDED -> FinalScreen(state, actions)
     }
+    PauseLayer(state, actions.unpause)
 }
 
 /** Version installée et état de la connexion, en petit dans un coin. */
