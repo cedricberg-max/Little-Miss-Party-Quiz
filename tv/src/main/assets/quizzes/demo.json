@@ -1,0 +1,17 @@
+{
+  "id": "demo",
+  "title": "Quiz de démonstration",
+  "questions": [
+    { "id": "animal-geant", "text": "Quel est le plus grand animal du monde ?", "choices": ["L'éléphant", "La baleine bleue", "La girafe", "Le requin blanc"], "correct": 1, "duration": 20 },
+    { "id": "araignee", "text": "Combien de pattes a une araignée ?", "choices": ["6", "8", "10", "4"], "correct": 1, "duration": 20 },
+    { "id": "tomate", "text": "La tomate est un fruit.", "choices": ["Vrai", "Faux"], "correct": 0, "duration": 10, "kind": "true_false" },
+    { "id": "capitale-italie", "text": "Quelle est la capitale de l'Italie ?", "choices": ["Milan", "Venise", "Rome", "Naples"], "correct": 2, "duration": 20 },
+    { "id": "olaf", "text": "Dans « La Reine des neiges », comment s'appelle le bonhomme de neige ?", "choices": ["Sven", "Olaf", "Kristoff", "Hans"], "correct": 1, "duration": 20 },
+    { "id": "planete-rouge", "text": "Quelle planète est surnommée la planète rouge ?", "choices": ["Vénus", "Jupiter", "Mars", "Saturne"], "correct": 2, "duration": 20 },
+    { "id": "soleil-etoile", "text": "Le Soleil est une étoile.", "choices": ["Vrai", "Faux"], "correct": 0, "duration": 10, "kind": "true_false" },
+    { "id": "arc-en-ciel", "text": "Combien de couleurs compte-t-on dans un arc-en-ciel ?", "choices": ["5", "6", "7", "8"], "correct": 2, "duration": 20 },
+    { "id": "fleuve", "text": "Quel est le plus long fleuve de France ?", "choices": ["La Seine", "La Loire", "Le Rhône", "La Garonne"], "correct": 1, "duration": 20 },
+    { "id": "bissextile", "text": "Combien de jours compte une année bissextile ?", "choices": ["364", "365", "366", "367"], "correct": 2, "duration": 20, "double": true },
+    { "id": "piano", "text": "Quel instrument a 88 touches ?", "choices": ["La guitare", "Le piano", "Le violon", "La flûte"], "correct": 1, "duration": 20, "double": true }
+  ]
+}

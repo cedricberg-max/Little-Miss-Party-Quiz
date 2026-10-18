@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <div id="offline" class="offline" hidden>Connexion perdue… reconnexion en cours</div>
   <main id="app">
     <section id="screen-loading" class="screen active">
       <div class="logo">Little Miss Party<br><span>QUIZ</span></div>
@@ -33,11 +34,39 @@
     </section>
 
     <section id="screen-play" class="screen">
-      <div class="team-banner"><span id="team-dot" class="dot"></span><span id="team-label"></span></div>
+      <div class="team-banner"><span class="dot"></span><span class="team-label"></span></div>
       <button id="buzz" class="buzz">BUZZ</button>
       <p id="play-status" class="hint">Regardez la TV !</p>
     </section>
+
+    <section id="screen-question" class="screen">
+      <div class="team-banner small"><span class="dot"></span><span class="team-label"></span></div>
+      <div class="question-head">
+        <span id="q-number"></span>
+        <span id="q-double" class="double" hidden>Points ×2</span>
+        <span id="q-timer" class="timer"></span>
+      </div>
+      <div id="choices" class="choices"></div>
+      <p id="q-status" class="hint">Regardez la question sur la TV !</p>
+    </section>
+
+    <section id="screen-result" class="screen">
+      <div class="team-banner small"><span class="dot"></span><span class="team-label"></span></div>
+      <div id="r-icon" class="result-icon"></div>
+      <p id="r-title" class="result-title"></p>
+      <p id="r-detail" class="hint"></p>
+      <p id="r-total" class="total"></p>
+    </section>
+
+    <section id="screen-ended" class="screen">
+      <div class="team-banner"><span class="dot"></span><span class="team-label"></span></div>
+      <div class="logo small">Bravo !</div>
+      <p id="e-rank" class="result-title"></p>
+      <p id="e-total" class="total"></p>
+      <p class="hint">Merci d'avoir joué à Little Miss Party Quiz</p>
+    </section>
   </main>
+  <div id="paused" class="paused" hidden><div>PAUSE</div><p>Le chrono est arrêté</p></div>
   <script type="module" src="app.js"></script>
 </body>
 </html>

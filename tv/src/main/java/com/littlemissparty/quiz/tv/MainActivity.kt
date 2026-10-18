@@ -13,18 +13,25 @@ class MainActivity : ComponentActivity() {
     private val viewModel: GameViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        CrashReporter.install(applicationContext)
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContent {
             val state by viewModel.state.collectAsState()
             QuizTvApp(
                 state = state,
-                onRearm = viewModel::rearm,
-                onRetry = viewModel::retry,
-                onResume = viewModel::resume,
-                onNewGame = viewModel::newGame,
-                // La partie active reste mémorisée : elle sera proposée au prochain lancement.
-                onQuit = ::finish,
+                actions = TvActions(
+                    next = viewModel::next,
+                    togglePause = viewModel::togglePause,
+                    pause = viewModel::pause,
+                    unpause = viewModel::unpause,
+                    rearm = viewModel::rearm,
+                    retry = viewModel::retry,
+                    resume = viewModel::resume,
+                    newGame = viewModel::newGame,
+                    // La partie active reste mémorisée : elle sera proposée au prochain lancement.
+                    quit = ::finish,
+                ),
             )
         }
     }

@@ -1,23 +1,36 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+import { getAuth, signInAnonymously, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
 import {
-  getDatabase, ref, get, set, onValue, serverTimestamp,
+  getDatabase, ref, get, set, onValue, onDisconnect, serverTimestamp, connectDatabaseEmulator,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
-
-const COLORS = ["#FF3CAC", "#FFD166", "#06D6A0", "#2B86C5", "#9B5DE5", "#F15BB5", "#FF7F11", "#00BBF9"];
+import { TEAM_COLORS, CHOICE_COLORS, CHOICE_LETTERS, MAX_TEAMS } from "./theme.js";
 
 const $ = (id) => document.getElementById(id);
-const code = (new URLSearchParams(location.search).get("g") || "").toUpperCase();
+const params = new URLSearchParams(location.search);
+const code = (params.get("g") || "").toUpperCase();
+// Tests automatiques uniquement : l'émulateur Firebase n'est accepté que depuis l'ordinateur de test.
+const emulator = params.has("emu") && ["localhost", "127.0.0.1"].includes(location.hostname);
 
-let db, uid, gameRef, unsubscribe;
-let chosenColor = COLORS[0];
+let db, uid, gameRef;
+let chosenColor = TEAM_COLORS[0];
 let audio;
+let serverOffset = 0;
+let unsubscribers = [];
+let game = { state: null, teams: {}, myAnswer: null, connected: true };
+let answerUnsub = null;
+let answerQid = null;
+let timerHandle = null;
+let lastScreen = null;
+let pending = null;
 
 function show(name) {
+  if (lastScreen === name) return;
+  lastScreen = name;
   document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === `screen-${name}`));
 }
 
 function fail(message) {
+  stopListening();
   $("error-text").textContent = message;
   show("error");
 }
@@ -37,23 +50,43 @@ function beep(freq = 880, ms = 180) {
   } catch { /* son indisponible : on continue sans */ }
 }
 
+let wakeLock = null;
 async function keepAwake() {
   try { await document.documentElement.requestFullscreen?.(); } catch { /* iOS : pas de plein écran */ }
-  try { await navigator.wakeLock?.request("screen"); } catch { /* facultatif */ }
+  try { wakeLock = await navigator.wakeLock?.request("screen"); } catch { /* facultatif */ }
 }
+// Le navigateur relâche l'écran allumé quand la page passe en arrière-plan : on le redemande au retour.
+document.addEventListener("visibilitychange", async () => {
+  if (document.visibilityState === "visible" && wakeLock) {
+    try { wakeLock = await navigator.wakeLock?.request("screen"); } catch { /* facultatif */ }
+  }
+});
 
 async function start() {
   show("loading");
+  lastScreen = "loading";
   if (!code) return fail("Scannez le QR code affiché sur la TV pour rejoindre une partie.");
   try {
-    const config = await (await fetch("firebase-config.json", { cache: "no-store" })).json();
-    const app = initializeApp(config);
-    uid = (await signInAnonymously(getAuth(app))).user.uid;
-    db = getDatabase(app);
+    if (!db) {
+      const config = await (await fetch("firebase-config.json", { cache: "no-store" })).json();
+      const app = initializeApp(config);
+      const auth = getAuth(app);
+      db = getDatabase(app);
+      if (emulator) {
+        connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+        connectDatabaseEmulator(db, "127.0.0.1", 9000);
+      }
+      // L'identifiant anonyme est conservé par le navigateur : après un rechargement,
+      // le pupitre retrouve automatiquement son équipe.
+      uid = (await signInAnonymously(auth)).user.uid;
+    }
     gameRef = ref(db, `games/${code}`);
-    const game = await get(gameRef);
-    if (!game.child("hostUid").exists()) return fail(`La partie ${code} n'existe pas ou est terminée.`);
-    if (game.child(`teams/${uid}`).exists()) return play();
+    const host = await get(ref(db, `games/${code}/hostUid`));
+    if (!host.exists()) return fail(`La partie ${code} n'existe pas ou est terminée.`);
+    const me = await get(ref(db, `games/${code}/teams/${uid}`));
+    if (me.exists()) return play();
+    const teams = await get(ref(db, `games/${code}/teams`));
+    if (teams.size >= MAX_TEAMS) return fail(`La partie est complète (${MAX_TEAMS} équipes maximum).`);
     showJoin();
   } catch (e) {
     console.error(e);
@@ -64,7 +97,7 @@ async function start() {
 function showJoin() {
   const box = $("colors");
   box.innerHTML = "";
-  COLORS.forEach((c) => {
+  TEAM_COLORS.forEach((c) => {
     const b = document.createElement("button");
     b.style.background = c;
     b.setAttribute("aria-label", c);
@@ -96,28 +129,185 @@ $("join").onclick = async () => {
   }
 };
 
+function stopListening() {
+  unsubscribers.forEach((u) => u());
+  unsubscribers = [];
+  answerUnsub?.();
+  answerUnsub = null;
+  answerQid = null;
+}
+
+function listen(path, fn) {
+  unsubscribers.push(onValue(ref(db, path), fn));
+}
+
 function play() {
-  show("play");
-  unsubscribe?.();
-  unsubscribe = onValue(gameRef, (snap) => {
-    const me = snap.child(`teams/${uid}`).val();
-    if (!me) return showJoin();
-    document.documentElement.style.setProperty("--team", me.color);
-    $("team-label").textContent = me.name;
-
-    const round = snap.child("state/round").val() ?? 1;
-    const open = snap.child("state/buzzOpen").val() === true;
-    const first = snap.child(`buzz/${round}/team`).val();
-    const buzz = $("buzz");
-    buzz.classList.toggle("winner", first === uid);
-    buzz.disabled = !open || !!first;
-    buzz.dataset.round = round;
-
-    if (first === uid) $("play-status").textContent = "Vous avez buzzé en premier !";
-    else if (first) $("play-status").textContent = `Trop tard ! ${snap.child(`teams/${first}/name`).val() ?? "Une équipe"} a été plus rapide.`;
-    else if (open) $("play-status").textContent = "Prêts ? Buzzez !";
-    else $("play-status").textContent = "Regardez la TV !";
+  stopListening();
+  game = { state: null, teams: {}, myAnswer: null, connected: true };
+  listen(".info/serverTimeOffset", (s) => { serverOffset = s.val() ?? 0; });
+  // Présence : la TV et la régie voient si ce pupitre est connecté.
+  listen(".info/connected", (s) => {
+    game.connected = s.val() === true;
+    $("offline").hidden = game.connected;
+    if (!game.connected) return;
+    const presence = ref(db, `games/${code}/presence/${uid}`);
+    onDisconnect(presence).set({ online: false, at: serverTimestamp() })
+      .then(() => set(presence, { online: true, at: serverTimestamp() }))
+      .catch(() => { /* équipe pas encore inscrite */ });
   });
+  listen(`games/${code}/teams`, (s) => { game.teams = s.val() ?? {}; game.teamsLoaded = true; render(); });
+  listen(`games/${code}/state`, (s) => { game.state = s.val(); watchMyAnswer(); render(); });
+  listen(`games/${code}/buzz`, (s) => { game.buzz = s.val() ?? {}; render(); });
+}
+
+function watchMyAnswer() {
+  const qid = game.state?.qid ?? null;
+  if (qid === answerQid) return;
+  answerUnsub?.();
+  answerQid = qid;
+  game.myAnswer = null;
+  if (!qid) return;
+  answerUnsub = onValue(ref(db, `games/${code}/answers/${qid}/${uid}`), (s) => {
+    game.myAnswer = s.val();
+    render();
+  });
+}
+
+function render() {
+  const me = game.teams[uid];
+  if (!me) {
+    // Équipe supprimée : retour à l'inscription (seulement une fois la liste des équipes reçue).
+    if (game.teamsLoaded) showJoin();
+    return;
+  }
+  document.documentElement.style.setProperty("--team", me.color);
+  document.querySelectorAll(".team-label").forEach((e) => { e.textContent = me.name; });
+  const st = game.state ?? { phase: "lobby" };
+  $("paused").hidden = !(st.phase === "question" && st.paused);
+  switch (st.phase) {
+    case "question":
+    case "closed":
+      return renderQuestion(st);
+    case "reveal":
+    case "scores":
+      return renderResult(st);
+    case "ended":
+      return renderEnded(st);
+    default:
+      return renderLobby(st);
+  }
+}
+
+function renderLobby(st) {
+  show("play");
+  const round = st.round ?? 1;
+  const open = st.buzzOpen === true;
+  const first = game.buzz?.[round]?.team;
+  const buzz = $("buzz");
+  buzz.classList.toggle("winner", first === uid);
+  buzz.disabled = !open || !!first;
+  buzz.dataset.round = round;
+  if (first === uid) $("play-status").textContent = "Vous avez buzzé en premier !";
+  else if (first) $("play-status").textContent = `Trop tard ! ${game.teams[first]?.name ?? "Une équipe"} a été plus rapide.`;
+  else if (open) $("play-status").textContent = "En attendant le quiz : buzzez pour essayer !";
+  else $("play-status").textContent = "Regardez la TV !";
+}
+
+function renderQuestion(st) {
+  show("question");
+  $("q-number").textContent = `Question ${(st.index ?? 0) + 1} / ${st.total ?? "?"}`;
+  $("q-double").hidden = !st.double;
+  const choices = st.choices ?? [];
+  const box = $("choices");
+  const key = `${st.qid}:${choices.length}`;
+  if (box.dataset.key !== key) {
+    box.dataset.key = key;
+    box.innerHTML = "";
+    box.classList.toggle("two", choices.length === 2);
+    choices.forEach((text, i) => {
+      const b = document.createElement("button");
+      b.className = "choice";
+      b.style.setProperty("--choice", CHOICE_COLORS[i]);
+      b.innerHTML = `<span class="letter">${CHOICE_LETTERS[i]}</span><span class="text"></span>`;
+      b.querySelector(".text").textContent = text;
+      b.onclick = () => answer(i);
+      box.appendChild(b);
+    });
+  }
+  const mine = game.myAnswer?.choice ?? pending?.choice;
+  const locked = mine != null || st.phase !== "question" || st.paused;
+  box.querySelectorAll(".choice").forEach((b, i) => {
+    b.disabled = locked;
+    b.classList.toggle("picked", mine === i);
+  });
+  if (mine != null) $("q-status").textContent = `Réponse ${CHOICE_LETTERS[mine]} envoyée ! Attendez la révélation…`;
+  else if (st.phase === "closed") $("q-status").textContent = "Temps écoulé !";
+  else $("q-status").textContent = "Choisissez votre réponse !";
+  runTimer(st);
+}
+
+async function answer(choice) {
+  const st = game.state;
+  if (!st || st.phase !== "question" || st.paused || game.myAnswer || pending) return;
+  pending = { qid: st.qid, choice };
+  beep(990, 150);
+  navigator.vibrate?.(80);
+  render();
+  try {
+    await set(ref(db, `games/${code}/answers/${st.qid}/${uid}`), { choice, at: serverTimestamp() });
+  } catch {
+    // Refusée par le serveur : chrono fini, pause, ou réponse déjà enregistrée.
+    if (!game.myAnswer) $("q-status").textContent = "Trop tard, la réponse n'a pas été prise.";
+  } finally {
+    pending = null;
+    render();
+  }
+}
+
+function runTimer(st) {
+  clearInterval(timerHandle);
+  const el = $("q-timer");
+  const tick = () => {
+    let ms;
+    if (st.phase !== "question") ms = 0;
+    else if (st.paused) ms = st.remainingMs ?? 0;
+    else ms = Math.max(0, (st.deadline ?? 0) - (Date.now() + serverOffset));
+    const s = Math.ceil(ms / 1000);
+    el.textContent = `${s}`;
+    el.classList.toggle("urgent", s <= 5);
+    if (ms <= 0 || st.paused) clearInterval(timerHandle);
+  };
+  tick();
+  timerHandle = setInterval(tick, 200);
+}
+
+function rankOf(scores) {
+  const mine = scores?.[uid] ?? 0;
+  const others = Object.keys(game.teams).filter((t) => (scores?.[t] ?? 0) > mine).length;
+  return { mine, rank: others + 1 };
+}
+
+function renderResult(st) {
+  clearInterval(timerHandle);
+  show("result");
+  const award = st.awards?.[uid];
+  const answered = award != null;
+  const ok = award?.correct === true;
+  $("r-icon").textContent = ok ? "✓" : answered ? "✗" : "…";
+  $("r-icon").className = `result-icon ${ok ? "ok" : "ko"}`;
+  $("r-title").textContent = ok ? `Bravo ! +${award.points} points` : answered ? "Raté pour cette fois !" : "Pas de réponse";
+  const correct = st.correct != null ? `${CHOICE_LETTERS[st.correct]} : ${st.choices?.[st.correct] ?? ""}` : "";
+  $("r-detail").textContent = (ok && award.bonus > 0 ? `dont ${award.bonus} de bonus rapidité. ` : "") + (correct ? `Bonne réponse : ${correct}` : "");
+  const { mine, rank } = rankOf(st.scores);
+  $("r-total").textContent = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`;
+}
+
+function renderEnded(st) {
+  clearInterval(timerHandle);
+  show("ended");
+  const { mine, rank } = rankOf(st.scores);
+  $("e-rank").textContent = rank === 1 ? "Vous avez gagné !" : `${rank}e place`;
+  $("e-total").textContent = `${mine} points`;
 }
 
 $("buzz").onclick = async () => {

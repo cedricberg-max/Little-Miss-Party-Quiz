@@ -67,3 +67,45 @@ input {
 .buzz:disabled { filter: grayscale(.8) brightness(.7); }
 .buzz.winner { animation: winner .6s ease-in-out infinite alternate; }
 @keyframes winner { from { transform: scale(1); } to { transform: scale(1.08); box-shadow: 0 0 120px var(--gold); } }
+
+/* Bandeau de connexion perdue */
+.offline {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 10; padding: 10px; text-align: center;
+  background: #ff4d6d; color: #fff; font-weight: 800; font-size: 16px;
+}
+.team-banner.small { font-size: 18px; padding: 6px 16px; }
+
+/* Question */
+.question-head { display: flex; align-items: center; gap: 12px; width: 100%; max-width: 520px; font-weight: 800; font-size: 18px; }
+.question-head .timer { margin-left: auto; font-size: 30px; font-weight: 900; min-width: 48px; text-align: right; }
+.question-head .timer.urgent { color: #ff4d6d; }
+.double { background: var(--gold); color: var(--night); padding: 3px 10px; border-radius: 999px; font-size: 14px; }
+.choices { display: grid; grid-template-columns: 1fr; gap: 12px; width: 100%; max-width: 520px; }
+.choice {
+  display: flex; align-items: center; gap: 14px; min-height: 76px; padding: 10px 16px; text-align: left;
+  border: 4px solid var(--choice); border-radius: 20px; background: rgba(255, 255, 255, .12);
+  color: #fff; font-size: 20px; font-weight: 800; cursor: pointer; transition: transform .08s, opacity .3s;
+}
+.choice:active { transform: scale(.97); }
+.choice .letter {
+  flex: none; width: 46px; height: 46px; border-radius: 50%; background: var(--choice);
+  display: grid; place-items: center; font-size: 24px; font-weight: 900;
+}
+.choice:disabled { opacity: .45; }
+.choice.picked { opacity: 1; background: var(--choice); box-shadow: 0 0 0 4px #fff; }
+.choices.two .choice { min-height: 120px; font-size: 26px; }
+
+/* Résultat */
+.result-icon { font-size: 110px; font-weight: 900; line-height: 1; }
+.result-icon.ok { color: #06d6a0; }
+.result-icon.ko { color: rgba(255, 255, 255, .6); }
+.result-title { font-size: 28px; font-weight: 900; margin: 0; }
+.total { font-size: 22px; font-weight: 800; margin: 0; background: rgba(255, 255, 255, .15); padding: 8px 18px; border-radius: 999px; }
+
+/* Pause */
+.paused {
+  position: fixed; inset: 0; z-index: 9; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: rgba(26, 11, 46, .9); color: var(--gold); font-size: 64px; font-weight: 900; letter-spacing: 8px;
+}
+.paused p { color: #fff; font-size: 20px; letter-spacing: 0; font-weight: 700; }
+[hidden] { display: none !important; }

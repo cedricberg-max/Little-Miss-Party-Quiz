@@ -1,0 +1,24 @@
+name: Rapports de la box
+
+# Lancement manuel : affiche les rapports de plantage envoyés par les box (chemin reports/ de la base),
+# illisibles depuis l'appli. Rien n'est modifié dans la base.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lire:
+    runs-on: ubuntu-latest
+    env:
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Afficher les 20 derniers rapports
+        run: |
+          project=$(jq -r .projectId firebase-config.json)
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx --yes firebase-tools@13 database:get /reports --project "$project" \
+            --order-by-key --limit-to-last 20 --pretty

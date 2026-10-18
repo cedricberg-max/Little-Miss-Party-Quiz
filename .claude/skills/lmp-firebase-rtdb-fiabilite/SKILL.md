@@ -30,15 +30,15 @@ viennent de `lmp-game-design-enfants`, l'affichage de `lmp-plateau-tv-motion`.
   écrit une seule fois si `buzzOpen` et bon tour). Déployées **par la CI sur `main` uniquement**
   (`firebase deploy --only hosting,database`) ; jamais de déploiement depuis le conteneur.
 
-Limites connues à corriger : premier buzz **arrivé** gagne (injuste en 4G) ; équipe liée à un `uid`
-(perdue si le navigateur efface ses données) ; partie liée au `uid` de la box (perdue si les données
-de la box sont effacées) ; pas de présence ; pas de régie.
+Limites connues à corriger : premier buzz **arrivé** gagne (injuste en 4G, lot 4) ; équipe liée à un
+`uid` (perdue si le navigateur efface ses données, réattribution par la régie au lot 2) ; partie liée
+au `uid` de la box (perdue si les données de la box sont effacées) ; pas encore de régie (lot 2).
 
 ## 2. Invariants (ne jamais les violer)
 
-1. **Un seul moteur** : la TV est l'unique écrivain de `state` et `events`. La régie et les pupitres
+1. **Un seul moteur** : la TV est l'unique écrivain de `state` et `log` (journal). La régie et les pupitres
    écrivent seulement des **intentions** (commandes, réponses, buzz, demande d'appairage).
-2. **Journal en ajout seul** : `events` n'est jamais modifié ni supprimé (règle `!data.exists()`). Une
+2. **Journal en ajout seul** : `log` n'est jamais modifié ni supprimé (règle `!data.exists()`). Une
    correction ou une annulation est un nouvel événement (`undoes: <eventId>`).
 3. **Scores dérivés** : un score se recalcule à partir des réponses et des événements non annulés.
    Ne jamais stocker un score comme source de vérité (un cache `scores` recalculé est permis, jamais
@@ -67,37 +67,44 @@ de la box sont effacées) ; pas de présence ; pas de régie.
     Storage, pas de second transport réseau (mode local) en V1. Tout passage à Blaze ou à une API
     payante demande l'accord explicite de cedric.
 
-## 3. Modèle de données de référence
+## 3. Modèle de données
 
-Modèle indicatif issu de la proposition globale. **La source de vérité est `database.rules.json` et le
-code du moteur** : quand le lot 1 fige un chemin différent, mettre ce skill à jour dans la même PR.
+### En place depuis le lot 1 (source de vérité : `database.rules.json`, `engine/`)
 
 ```
 games/$code
-  meta        { quizId, profil, createdAt }
-  hosts/tv    "<uid de la box>"                      // remplace hostUid (garder hostUid lisible pour les anciennes parties)
-  pairing/$uid { pin, at }                            // demande d'appairage régie (écriture unique par appareil)
-  pairingLock { failures, until }                     // écrit par la box : 5 PIN faux -> blocage 60 s
-  regie/$uid  { pairedAt }                            // écrit par la box seulement, après PIN correct
-  state       { phase, seq, roundIdx, qIdx, qKeyOpen, openedAt,
-                timer { status: "idle|running|paused", startedAt, durationMs, remainingMs },
-                buzz  { open, windowId, openedAt },
-                appliedCmds/$cmdId: true }
-  teams/$teamId     { name, color, joinedAt }         // 8 équipes max, identité indépendante de l'appareil
-  devices/$uid      "<teamId>"                         // appareil -> équipe (réattribuable par la régie)
-  presence/$uid     { online, lastSeen }
-  answers/$qKey/$teamId { choice, pressedAt, receivedAt }
-  buzz/$windowId/$teamId { pressedAt, receivedAt }
-  reveals/$qKey     { correct }                        // écrit par la box au moment de la révélation
-  commands/$cmdId   { type, args, expectSeq, by, at }  // écrites par la régie, lues par la box
-  commandStatus/$cmdId "applied" | "stale" | "invalid" // écrit par la box
-  events/$eventId   { seq, type, teamId, points, qKey, cmdId, at, undoes? }
-quizzes/$quizId    (questions et bonnes réponses : lecture admin + box autorisée uniquement)
-admins/$uid        true                                // compte Google de Sarah (page d'import)
+  hostUid, createdAt, quizId, appVersion      // écrits une seule fois, à la création par la box
+  state        { phase, seq, total, scores, round, buzzOpen,          // écrit par la box seule
+                 index, qid, kind, double, text, choices, durationMs,
+                 paused, deadline, remainingMs, correct?, awards? }   // correct et awards seulement après révélation
+  log/$seq     { seq, at, type, ... }          // journal, clé sur 6 chiffres, écriture unique (même la box)
+  teams/$uid   { name, color, joinedAt }       // une équipe = un uid anonyme de pupitre (8 max, côté appli)
+  presence/$uid { online, at }                 // onDisconnect -> online:false
+  answers/$qid/$uid { choice, at }             // écriture unique, at = heure serveur, question ouverte et hors pause
+  buzz/$round  { team, at }                    // buzzer de test du salon
+reports/$id    { kind, text, version, device, at }  // plantages de la box : écriture seule, lus par le workflow « Rapports »
 ```
 
-`$qKey` = `r{roundIdx}q{qIdx}` ; rejouer une question crée une nouvelle clé (`r1q4b`) et annule les
-événements de l'ancienne.
+- Le moteur (`engine/`, Kotlin pur, testé sans Android) rejoue `log/` pour reconstruire l'état ;
+  `state` n'est qu'une projection publique, réécrite dans le **même** `updateChildren` que l'événement.
+- Événements : `open`, `pause`, `resume`, `close`, `reveal` (points figés par question : une seconde
+  révélation est ignorée), `scores`, `adjust`, `undo`, `end`. Un événement impossible dans l'état
+  courant ou déjà vu (même `seq`) est ignoré, jamais une erreur.
+- Chrono : `open`/`pause`/`resume`/`close` forment des segments ; le bonus de rapidité se calcule sur
+  le temps de chrono restant à l'heure serveur de la réponse, pauses exclues.
+- Le quiz (avec les bonnes réponses) est dans l'APK (`tv/src/main/assets/quizzes/`), jamais dans la base.
+
+### Prévu (lots 2 et 4), à figer dans la PR qui l'ajoute
+
+```
+games/$code
+  pairing/$uid { pin, at }      pairingLock { failures, until }      regie/$uid { pairedAt }
+  commands/$cmdId { type, args, expectSeq, by, at }    commandStatus/$cmdId
+  devices/$uid "<teamId>"       // réattribution d'un pupitre à une équipe par la régie
+  buzz/$windowId/$teamId { pressedAt, receivedAt }
+quizzes/$quizId                 // quiz importés : lecture admin + box autorisée
+admins/$uid true
+```
 
 ## 4. Sécurité : règles et appairage de la régie
 
@@ -152,13 +159,13 @@ Autres règles :
 
 ## 5. Chrono
 
-- Démarrer : `timer = { status: "running", startedAt: TIMESTAMP, durationMs }`.
-- Pause : `{ status: "paused", remainingMs: durationMs - (serverNow - startedAt) }`.
-- Reprise : `{ status: "running", startedAt: TIMESTAMP, durationMs: remainingMs }`.
-- Chaque client calcule `serverNow = Date.now() + offset` avec l'écart lu sur
-  `.info/serverTimeOffset` (Kotlin : `db.getReference(".info/serverTimeOffset")`).
-- La fin du temps est **décidée par la TV** (moteur) qui écrit l'événement de clôture ; les pupitres
-  ne font qu'afficher.
+- Le moteur enregistre `open`, `pause`, `resume`, `close` avec l'heure serveur estimée par la box
+  (`System.currentTimeMillis() + offset`, écart lu sur `.info/serverTimeOffset`).
+- `state` publie `deadline` (heure serveur de fin) quand le chrono tourne, `remainingMs` en pause.
+- Chaque client affiche `deadline - (Date.now() + offset)` ; les pupitres ne décident rien.
+- La fin du temps est **décidée par la TV** : elle écrit `close` 500 ms après `deadline` (réponses de
+  la dernière seconde). Les règles refusent toute réponse hors phase `question`, en pause, ou plus de
+  2 s après `deadline`. La révélation relit `answers/$qid` après la fermeture confirmée.
 
 ## 6. Buzz équitable
 
@@ -175,8 +182,8 @@ Autres règles :
 - **Présence** : chaque appareil écoute `.info/connected` ; à `true`, il pose
   `presence/$uid/onDisconnect().update({online: false, lastSeen: TIMESTAMP})` **puis** écrit
   `online: true`. La régie affiche une pastille par équipe.
-- **Pause automatique** : pupitre d'une équipe hors ligne plus de 5 s pendant une question chronométrée
-  → le moteur met le chrono en pause (« On attend les Dragons »). La régie peut forcer la reprise.
+- **Pause proposée, jamais automatique** (feuille de route validée le 18/10/2026) : pupitre d'une équipe
+  hors ligne pendant une question → la régie affiche l'alerte et propose la pause ; l'animatrice décide.
 - **Pupitre qui revient** : relire l'état complet, ne jamais renvoyer une réponse déjà présente,
   réafficher « Réponse enregistrée » si elle existe.
 - **Nouvel appareil pour une équipe** : la régie réattribue `devices/$nouveauUid = teamId` ; l'équipe
