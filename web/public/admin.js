@@ -9,7 +9,7 @@ import { writeProof, isAdmin } from "./proof.js";
 import { parseQuiz, checkQuestions, geminiPrompt, LETTERS } from "./importer.js";
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
 import {
-  buildSnapshot, estimateMinutes, playable, expressQuestions, showTitle, ROUND_TYPES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
+  buildSnapshot, estimateMinutes, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
   roundFilled, MIME_TURN,
 } from "./show.js";
 import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
@@ -367,7 +367,8 @@ function refreshRounds() {
           h("option", { value: "", text: "Choisir un quiz…" }),
           ...options.map(([qid, q]) => h("option", {
             value: qid, selected: r.quizId === qid,
-            text: r.type === "express" ? `${q.title} (${expressQuestions(q).length} Vrai / Faux)` : `${q.title} (${playable(q).length} validées)`,
+            text: r.type === "express" ? `${q.title} (${expressQuestions(q).length} Vrai / Faux)`
+              : r.type === "zoom" ? `${q.title} (${zoomQuestions(q).length} avec photo)` : `${q.title} (${playable(q).length} validées)`,
           }))),
       h("button", { type: "button", class: "icon", title: "Monter", disabled: i === 0, onclick: () => move(-1), text: "↑" }),
       h("button", { type: "button", class: "icon", title: "Descendre", disabled: i === editing.rounds.length - 1, onclick: () => move(1), text: "↓" }),

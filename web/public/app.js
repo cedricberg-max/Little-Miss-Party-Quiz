@@ -361,7 +361,8 @@ function renderLobby(st) {
 
 function renderQuestion(st) {
   show("question");
-  $("q-number").textContent = st.kind === "express" ? "Vrai ou Faux express !" : `Question ${(st.index ?? 0) + 1} / ${st.total ?? "?"}`;
+  $("q-number").textContent = st.kind === "express" ? "Vrai ou Faux express !"
+    : st.kind === "zoom" ? "Zoom mystère : regardez la TV !" : `Question ${(st.index ?? 0) + 1} / ${st.total ?? "?"}`;
   $("q-double").hidden = !st.double;
   if (st.kind === "number") return renderNumber(st);
   const choices = st.choices ?? [];

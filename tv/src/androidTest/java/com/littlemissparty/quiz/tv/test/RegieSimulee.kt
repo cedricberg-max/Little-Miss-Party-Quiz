@@ -110,6 +110,11 @@ class RegieSimulee : AutoCloseable {
         }
     }
 
+    /** Comme la régie au chargement d'une prestation : copie une photo de la bibliothèque dans la partie. */
+    fun copierPhoto(code: String, id: String, dataUrl: String) {
+        bloquer { base.getReference("games/$code/images/$id").setValue(dataUrl).await() }
+    }
+
     override fun close() {
         runCatching { base.goOffline() }
     }

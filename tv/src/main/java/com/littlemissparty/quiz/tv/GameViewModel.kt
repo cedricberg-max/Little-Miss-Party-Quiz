@@ -513,10 +513,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             )
         }
         watchAnswers(s.qid.takeIf { s.phase == Phase.QUESTION || s.phase == Phase.CLOSED })
-        // Photo de la question en cours et de la suivante chargées d'avance : la révélation ne l'attend jamais.
-        if (s.phase != Phase.LOBBY) {
-            listOfNotNull(q?.imageId, g.quiz.questions.getOrNull(s.index + 1)?.imageId).forEach(::prefetchImage)
-        }
+        // Photo de la question en cours et de la suivante chargées d'avance (dès le salon d'attente pour la
+        // première) : la révélation, ou le Zoom mystère, ne l'attend jamais.
+        listOfNotNull(q?.imageId.takeIf { s.phase != Phase.LOBBY }, g.quiz.questions.getOrNull(s.index + 1)?.imageId).forEach(::prefetchImage)
     }
 
     private val imageBytes = object : LinkedHashMap<String, ByteArray>(8, 0.75f, true) {
@@ -993,6 +992,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "mimes" to true,
             "numbers" to true,
             "express" to true,
+            "zoom" to true,
             "questions" to quiz.questions.map {
                 clean(mapOf(
                     "id" to it.id, "text" to it.text, "choices" to it.choices.ifEmpty { null }, "correct" to it.correct,

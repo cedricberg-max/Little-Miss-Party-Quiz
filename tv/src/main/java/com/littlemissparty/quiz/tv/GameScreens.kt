@@ -108,7 +108,11 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
             key(state.index) {
                 // Révélation : l'illustration facultative (photo ou émoji) apparaît à gauche des propositions.
                 Row(Modifier.weight(1f)) {
-                    if (revealed && hasIllustration(q, state)) {
+                    // Zoom mystère : la photo est la question, elle se dévoile pendant tout le chrono.
+                    if (q.isZoom) {
+                        ZoomPhoto(q, state, Modifier.fillMaxHeight().aspectRatio(4f / 3f, matchHeightConstraintsFirst = true))
+                        Spacer(Modifier.width(20.dp))
+                    } else if (revealed && hasIllustration(q, state)) {
                         val photo = q.imageId != null && state.images[q.imageId] != null
                         Illustration(q, state, Modifier.fillMaxHeight().aspectRatio(if (photo) 4f / 3f else 1f, matchHeightConstraintsFirst = true))
                         Spacer(Modifier.width(20.dp))

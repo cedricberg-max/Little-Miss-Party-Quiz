@@ -3,7 +3,7 @@
 import { PROFILES, profileForAge, defaultDuration, expressDuration } from "./profiles.js";
 import { shuffle } from "./mime-cards.js";
 
-export const ROUND_TYPES = { quiz: "Quiz", finale: "Super Finale", express: "Vrai ou Faux express", mimes: "Mimes" };
+export const ROUND_TYPES = { quiz: "Quiz", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", mimes: "Mimes" };
 /** Durée d'un tour de mimes par défaut (secondes). */
 export const MIME_TURN = 60;
 export const MAX_QUESTIONS = 200;
@@ -23,6 +23,15 @@ const isYesNo = (q) => q.kind !== "number" && q.choices?.length === 2 && q.choic
 
 /** Affirmations jouables au Vrai ou Faux express : les questions Vrai / Faux validées du quiz. */
 export const expressQuestions = (quiz) => playable(quiz).filter(isYesNo);
+
+/** Questions jouables au Zoom mystère : les questions à propositions validées qui ont une photo. */
+export const zoomQuestions = (quiz) => playable(quiz).filter((q) => q.kind !== "number" && /^[0-9a-f]{16}$/.test(q.imageId ?? ""));
+
+/** Mini-jeux construits à partir d'un quiz : les questions retenues et ce qui manque quand il n'y en a pas. */
+export const QUIZ_GAMES = {
+  express: { questions: expressQuestions, unit: "affirmation", missing: "aucune question Vrai / Faux validée pour le Vrai ou Faux express" },
+  zoom: { questions: zoomQuestions, unit: "photo", missing: "aucune question avec photo pour le Zoom mystère (ajoutez des photos dans le quiz)" },
+};
 
 /** Une manche est-elle complète (quiz choisi, ou paquet de mimes choisi) ? */
 export const roundFilled = (round) => !!(round && (round.type === "mimes" ? round.deckId : round.quizId));
@@ -66,13 +75,13 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     }
     const quiz = quizzes[round.quizId];
     const express = round.type === "express";
-    const label = round.type === "finale" || express ? ROUND_TYPES[round.type] : quiz?.title ?? `Manche ${i + 1}`;
+    const zoom = round.type === "zoom";
+    const game = QUIZ_GAMES[round.type];
+    const label = round.type === "finale" || game ? ROUND_TYPES[round.type] : quiz?.title ?? `Manche ${i + 1}`;
     if (!quiz) { problems.push(`Manche ${i + 1} : le quiz n'existe plus dans la bibliothèque.`); return; }
-    const list = express ? expressQuestions(quiz) : playable(quiz);
+    const list = game ? game.questions(quiz) : playable(quiz);
     if (!list.length) {
-      problems.push(express
-        ? `Manche ${i + 1} (${quiz.title}) : aucune question Vrai / Faux validée pour le Vrai ou Faux express.`
-        : `Manche ${i + 1} (${quiz.title}) : aucune question validée.`);
+      problems.push(`Manche ${i + 1} (${quiz.title}) : ${game?.missing ?? "aucune question validée"}.`);
       return;
     }
     rounds.push({ title: label, count: list.length });
@@ -86,7 +95,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
         correct: q.correct,
         // Express : le chrono court du profil, toujours (c'est le jeu).
         duration: express ? expressDuration(profile) : q.duration ?? defaultDuration(profile),
-        kind: express ? "express" : number ? "number" : yesNo ? "true_false" : "classic",
+        kind: express ? "express" : zoom ? "zoom" : number ? "number" : yesNo ? "true_false" : "classic",
         double: round.type === "finale" || q.double === true,
         round: label,
         // Illustration facultative montrée à la révélation (émoji, ou photo copiée dans la partie par la régie).

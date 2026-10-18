@@ -215,7 +215,7 @@ function startBox({ silent = false, held = false } = {}) {
     if (show.base == null) {
       await update(ref(db, `games/${CODE}`), {
         showStatus: { id: show.id, status: "applied", at: Date.now() },
-        conducteur: { id: show.quiz.id, title: show.title, rev: show.id, mimes: true, numbers: true, express: true, questions: show.quiz.questions },
+        conducteur: { id: show.quiz.id, title: show.title, rev: show.id, mimes: true, numbers: true, express: true, zoom: true, questions: show.quiz.questions },
         public: { title: show.title, childName: show.childName },
       });
       return;
@@ -271,7 +271,7 @@ beforeEach(async () => {
   await set(gameRef(), {
     hostUid: HOST,
     state: { phase: "lobby", seq: 0, total: QUESTIONS.length, scores: {}, round: 1, buzzOpen: true },
-    conducteur: { id: "demo", title: "Démo", rev: "initial", mimes: true, numbers: true, express: true, questions: QUESTIONS.map((q, i) => ({ id: `q${i + 1}`, ...q })) },
+    conducteur: { id: "demo", title: "Démo", rev: "initial", mimes: true, numbers: true, express: true, zoom: true, questions: QUESTIONS.map((q, i) => ({ id: `q${i + 1}`, ...q })) },
   });
 });
 afterEach(() => { box?.stop(); box = null; });
@@ -552,7 +552,7 @@ describe("régie", () => {
       { id: "a1m", text: "Animaux", kind: "mime", duration: 60, round: "Animaux", cards: [{ word: "Chat", image: "🐱" }] },
       { id: "f1", text: "Finale ?", choices: ["A", "B"], correct: 0, duration: 10, kind: "classic", round: "Finale" },
     ];
-    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, questions: plan });
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, questions: plan });
     await box.set({ ...questionState(4), index: 1, qid: "q2", text: "2 + 2 ?", total: 4, scores: { rose: 100 } });
     const page = await openRegie();
     await pair(page);
@@ -1231,6 +1231,33 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.click("#lib-end");
     await regie.locator("#r-toast", { hasText: "pour jouer au Vrai ou Faux express" }).waitFor();
     assert.equal((await read("conducteur")).questions.length, before);
+    await regie.context().close();
+  });
+
+  test("Zoom mystère : proposé pour un quiz avec photos, ses photos copiées dans la partie, TV trop ancienne prévenue", async () => {
+    const PHOTO = "0123456789abcdef";
+    const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    await seedLibrary("quizzes", {
+      zoo: { title: "Zoo", source: "tableur", updatedAt: 1, questions: [{ text: "Quel animal ?", choices: ["Chat", "Lion"], correct: 1, imageId: PHOTO, status: "validee" }] },
+    });
+    await seedLibrary("images", { [PHOTO]: PNG });
+    await seedLibrary("shows", { lea: { childName: "Léa", age: 9, status: "publiee", rounds: [{ type: "zoom", quizId: "zoo" }], updatedAt: 1 } });
+    box = startBox();
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "Léa" }).click();
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    const [q] = (await read("show")).quiz.questions;
+    assert.deepEqual([q.kind, q.imageId, q.round], ["zoom", PHOTO, "Zoom mystère"]);
+    await waitFor(async () => (await read(`images/${PHOTO}`)) === PNG, "photo copiée dans la partie");
+    await regie.click("#tab-plan");
+    await regie.click("#plan-add");
+    await regie.locator("#lib-list [data-game='zoom/zoo']", { hasText: "Zoom mystère : Zoo" }).locator("span", { hasText: "1 photo" }).waitFor();
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/conducteur/zoom`), null));
+    await regie.locator("#lib-list [data-game='zoom/zoo']").click();
+    await regie.click("#lib-end");
+    await regie.locator("#r-toast", { hasText: "pour jouer au Zoom mystère" }).waitFor();
     await regie.context().close();
   });
 

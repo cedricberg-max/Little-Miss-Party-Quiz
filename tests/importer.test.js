@@ -317,6 +317,30 @@ describe("Vrai ou Faux express", () => {
   });
 });
 
+describe("Zoom mystère", () => {
+  const PHOTO = "0123456789abcdef";
+  const QUIZ = {
+    title: "Animaux",
+    questions: [
+      { text: "Quel animal ?", choices: ["Chat", "Lion"], correct: 1, imageId: PHOTO, status: "validee" },
+      { text: "Sans photo ?", choices: ["Oui", "Non"], correct: 0, status: "validee" },
+      { text: "Combien ?", kind: "number", correct: 4, imageId: PHOTO, status: "validee" },
+    ],
+  };
+
+  test("seules les questions à propositions avec photo, chrono du profil, points du quiz", () => {
+    const { snapshot, problems } = buildSnapshot("x", { childName: "Léa", age: 9, rounds: [{ type: "zoom", quizId: "a" }] }, { a: QUIZ });
+    assert.deepEqual(problems, []);
+    assert.deepEqual(snapshot.quiz.questions.map((q) => [q.kind, q.imageId, q.round, q.double]), [["zoom", PHOTO, "Zoom mystère", false]]);
+    assert.equal(snapshot.quiz.questions[0].duration, 25);
+  });
+
+  test("quiz sans photo : la manche est signalée", () => {
+    const quiz = { title: "Vide", questions: [{ text: "?", choices: ["a", "b"], correct: 0, status: "validee" }] };
+    assert.match(buildSnapshot("x", { childName: "Léa", age: 9, rounds: [{ type: "zoom", quizId: "v" }] }, { v: quiz }).problems[0], /aucune question avec photo/);
+  });
+});
+
 describe("Le Juste Chiffre", () => {
   test("une question sans propositions avec un nombre pour réponse devient une question du Juste Chiffre", () => {
     const { questions } = parseQuiz("1. Combien d'os dans le corps humain ?\nRéponse : 206\n\n2. Hauteur de la tour Eiffel en mètres ?\nRéponse : 1 000\n\n3. Sans réponse ?\nRéponse : beaucoup");
