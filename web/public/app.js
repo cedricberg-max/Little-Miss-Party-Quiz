@@ -13,6 +13,10 @@ const code = (params.get("g") || "").toUpperCase();
 const emulator = params.has("emu") && ["localhost", "127.0.0.1"].includes(location.hostname);
 
 let db, uid, gameRef;
+/** Équipe jouée par cet appareil : la sienne, ou celle dont il remplace l'appareil. */
+let teamId = null;
+let lateJoin = false;
+let presenceRef = null;
 let chosenColor = TEAM_COLORS[0];
 let audio;
 let serverOffset = 0;
@@ -90,18 +94,45 @@ async function start() {
     if (!host.exists()) return fail(`La partie ${code} n'existe pas ou est terminée.`);
     // Téléphone de l'animatrice déjà relié : retour direct à la régie (rechargement, écran verrouillé).
     if (await hasAccess({ db, uid }, code)) return enterRegie();
-    const me = await get(ref(db, `games/${code}/teams/${uid}`));
-    if (me.exists()) return play();
-    const teams = await get(ref(db, `games/${code}/teams`));
-    if (teams.size >= MAX_TEAMS) return fail(`La partie est complète (${MAX_TEAMS} équipes maximum).`);
-    showJoin();
+    const teams = (await get(ref(db, `games/${code}/teams`))).val() ?? {};
+    const mine = myTeam(teams);
+    if (mine && isReplaced(teams, mine)) return showReplaced(teams[mine]);
+    if (mine) { teamId = mine; return play(); }
+    // Partie commencée : un nouvel appareil n'entre que si la régie l'accepte (nouvelle équipe ou remplaçant).
+    const phase = (await get(ref(db, `games/${code}/state/phase`))).val() ?? "lobby";
+    if (phase === "ended") return fail("Cette partie est terminée. Merci d'avoir joué !");
+    if (phase === "lobby" && Object.keys(teams).length >= MAX_TEAMS) return fail(`La partie est complète (${MAX_TEAMS} équipes maximum).`);
+    showJoin(phase !== "lobby");
   } catch (e) {
     console.error(e);
     fail("Connexion impossible. Vérifiez Internet puis réessayez.");
   }
 }
 
-function showJoin() {
+/**
+ * Équipe de cet appareil : celle qui l'a désigné comme remplaçant, sinon celle qu'il a créée.
+ * Une équipe dont l'appareil a été remplacé reste « à lui » pour afficher qu'il est désactivé.
+ */
+function myTeam(teams) {
+  return Object.keys(teams).find((t) => teams[t]?.device === uid) ?? (teams[uid] ? uid : null);
+}
+const isReplaced = (teams, id) => !!teams[id] && (teams[id].device ?? id) !== uid;
+
+/** Ancien appareil d'une équipe : définitivement désactivé, même s'il se reconnecte. */
+function showReplaced(team) {
+  stopListening();
+  clearInterval(timerHandle);
+  $("paused").hidden = true;
+  $("resume-count").hidden = true;
+  if (presenceRef) onDisconnect(presenceRef).cancel().catch(() => {});
+  $("replaced-text").textContent = `L'équipe « ${team?.name ?? ""} » continue sur un autre appareil, avec tous ses points. Cet appareil ne joue plus.`;
+  show("replaced");
+}
+
+function showJoin(late = false) {
+  lateJoin = late;
+  $("join-late").hidden = !late;
+  $("join").textContent = late ? "Demander à entrer" : "Rejoindre la partie";
   const box = $("colors");
   box.innerHTML = "";
   TEAM_COLORS.forEach((c) => {
@@ -132,15 +163,49 @@ $("join").onclick = async () => {
   beep(660, 120); // débloque le son du navigateur dès le premier toucher
   keepAwake();
   try {
+    if (lateJoin) {
+      await set(ref(db, `games/${code}/joinRequests/${uid}`), { name, color: chosenColor, at: serverTimestamp() });
+      return waitForAdmission();
+    }
     await set(ref(db, `games/${code}/teams/${uid}`), { name, color: chosenColor, joinedAt: serverTimestamp() });
+    teamId = uid;
     play();
   } catch (e) {
     console.error(e);
+    // Refusé le plus souvent parce que le quiz vient d'être lancé : on repasse par l'accueil, qui propose
+    // alors de demander à entrer (le nom tapé et la couleur restent).
+    if (!lateJoin) return start();
     fail("Impossible de rejoindre la partie.");
   } finally {
     $("join").disabled = false;
   }
 };
+
+/** Demande envoyée : on attend que la régie crée l'équipe ou rattache cet appareil à une équipe. */
+function waitForAdmission() {
+  stopListening();
+  show("waiting");
+  let teams = {};
+  let refusal = null;
+  let done = false;
+  const admitted = () => {
+    const mine = myTeam(teams);
+    if (done || !mine || isReplaced(teams, mine)) return done;
+    done = true;
+    clearTimeout(refusal);
+    teamId = mine;
+    setTimeout(play, 0); // hors de l'écouteur en cours, qui sera débranché par play()
+    return true;
+  };
+  listen(`games/${code}/teams`, (s) => { teams = s.val() ?? {}; admitted(); });
+  listen(`games/${code}/joinRequests/${uid}`, (s) => {
+    if (s.exists()) return;
+    // Demande effacée : acceptée (l'équipe arrive dans la même écriture) ou écartée par l'animatrice.
+    refusal = setTimeout(() => {
+      if (!admitted()) fail("L'animatrice n'a pas fait entrer cet appareil. Réessayez ou demandez-lui.");
+    }, 2000);
+  });
+}
 
 function stopListening() {
   unsubscribers.forEach((u) => u());
@@ -157,16 +222,23 @@ function listen(path, fn) {
 function play() {
   stopListening();
   game = { state: null, teams: {}, myAnswer: null, connected: true };
+  presenceRef = ref(db, `games/${code}/presence/${teamId}`);
   listen(".info/serverTimeOffset", (s) => { serverOffset = s.val() ?? 0; });
   // Présence : la TV et la régie voient si ce pupitre est connecté.
   listen(".info/connected", (s) => {
     game.connected = s.val() === true;
     $("offline").hidden = game.connected;
     if (!game.connected) return;
-    const presence = ref(db, `games/${code}/presence/${uid}`);
+    const presence = presenceRef;
     onDisconnect(presence).set({ online: false, at: serverTimestamp() })
       .then(() => set(presence, { online: true, at: serverTimestamp() }))
-      .catch(() => { /* équipe pas encore inscrite */ });
+      .catch(() => { /* équipe pas encore inscrite, ou appareil remplacé */ });
+  });
+  // L'ancien appareil de l'équipe peut encore signaler « hors ligne » en se déconnectant : on corrige.
+  listen(`games/${code}/presence/${teamId}`, (s) => {
+    if (game.connected && s.val()?.online === false) {
+      set(presenceRef, { online: true, at: serverTimestamp() }).catch(() => {});
+    }
   });
   listen(`games/${code}/teams`, (s) => { game.teams = s.val() ?? {}; game.teamsLoaded = true; render(); });
   listen(`games/${code}/state`, (s) => { game.state = s.val(); watchMyAnswer(); render(); });
@@ -180,17 +252,18 @@ function watchMyAnswer() {
   answerQid = qid;
   game.myAnswer = null;
   if (!qid) return;
-  answerUnsub = onValue(ref(db, `games/${code}/answers/${qid}/${uid}`), (s) => {
+  answerUnsub = onValue(ref(db, `games/${code}/answers/${qid}/${teamId}`), (s) => {
     game.myAnswer = s.val();
     render();
   });
 }
 
 function render() {
-  const me = game.teams[uid];
+  const me = game.teams[teamId];
+  if (me && isReplaced(game.teams, teamId)) return showReplaced(me);
   if (!me) {
     // Équipe supprimée : retour à l'inscription (seulement une fois la liste des équipes reçue).
-    if (game.teamsLoaded) showJoin();
+    if (game.teamsLoaded) { stopListening(); start(); }
     return;
   }
   document.documentElement.style.setProperty("--team", me.color);
@@ -218,10 +291,10 @@ function renderLobby(st) {
   const open = st.buzzOpen === true;
   const first = game.buzz?.[round]?.team;
   const buzz = $("buzz");
-  buzz.classList.toggle("winner", first === uid);
+  buzz.classList.toggle("winner", first === teamId);
   buzz.disabled = !open || !!first;
   buzz.dataset.round = round;
-  if (first === uid) $("play-status").textContent = "Vous avez buzzé en premier !";
+  if (first === teamId) $("play-status").textContent = "Vous avez buzzé en premier !";
   else if (first) $("play-status").textContent = `Trop tard ! ${game.teams[first]?.name ?? "Une équipe"} a été plus rapide.`;
   else if (open) $("play-status").textContent = "En attendant le quiz : buzzez pour essayer !";
   else $("play-status").textContent = "Regardez la TV !";
@@ -268,7 +341,7 @@ async function answer(choice) {
   navigator.vibrate?.(80);
   render();
   try {
-    await set(ref(db, `games/${code}/answers/${st.qid}/${uid}`), { choice, at: serverTimestamp() });
+    await set(ref(db, `games/${code}/answers/${st.qid}/${teamId}`), { choice, at: serverTimestamp() });
   } catch {
     // Refusée par le serveur : chrono fini, pause, ou réponse déjà enregistrée.
     if (!game.myAnswer) $("q-status").textContent = "Trop tard, la réponse n'a pas été prise.";
@@ -314,7 +387,7 @@ function runTimer(st) {
 }
 
 function rankOf(scores) {
-  const mine = scores?.[uid] ?? 0;
+  const mine = scores?.[teamId] ?? 0;
   const others = Object.keys(game.teams).filter((t) => (scores?.[t] ?? 0) > mine).length;
   return { mine, rank: others + 1 };
 }
@@ -322,7 +395,7 @@ function rankOf(scores) {
 function renderResult(st) {
   clearInterval(timerHandle);
   show("result");
-  const award = st.awards?.[uid];
+  const award = st.awards?.[teamId];
   const answered = award != null;
   const ok = award?.correct === true;
   $("r-icon").textContent = ok ? "✓" : answered ? "✗" : "…";
@@ -349,7 +422,7 @@ $("buzz").onclick = async () => {
   beep(990, 250);
   navigator.vibrate?.(200);
   try {
-    await set(ref(db, `games/${code}/buzz/${buzz.dataset.round}`), { team: uid, at: serverTimestamp() });
+    await set(ref(db, `games/${code}/buzz/${buzz.dataset.round}`), { team: teamId, at: serverTimestamp() });
   } catch {
     // Une autre équipe a été plus rapide : la base refuse le second buzz.
   }

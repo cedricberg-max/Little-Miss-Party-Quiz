@@ -69,9 +69,17 @@ describe("lecture", () => {
 });
 
 describe("équipes", () => {
-  test("rejoindre une partie existante", async () => {
-    await seed();
+  test("rejoindre une partie existante dans le salon d'attente", async () => {
+    await seed({ phase: "lobby" });
     await assertSucceeds(set(ref(db("vert"), `games/${CODE}/teams/vert`), { name: "Les Verts", color: "#06D6A0" }));
+    // Même tablette qui rejoint deux fois : toujours une seule équipe.
+    await assertSucceeds(set(ref(db("vert"), `games/${CODE}/teams/vert`), { name: "Les Verts", color: "#06D6A0" }));
+  });
+  test("partie commencée : un nouvel appareil ne crée pas d'équipe seul, il demande à entrer", async () => {
+    await seed();
+    await assertFails(set(ref(db("vert"), `games/${CODE}/teams/vert`), { name: "Les Verts", color: "#06D6A0" }));
+    await assertFails(set(ref(db("rose"), `games/${CODE}/teams/rose`), { name: "Renommée", color: "#FF3CAC" }));
+    await assertSucceeds(set(ref(db("vert"), `games/${CODE}/joinRequests/vert`), { name: "Les Verts", color: "#06D6A0", at: serverTimestamp() }));
   });
   test("impossible d'inscrire ou de renommer une autre équipe", async () => {
     await seed();
@@ -84,6 +92,78 @@ describe("équipes", () => {
   });
   test("impossible de rejoindre une partie qui n'existe pas", async () => {
     await assertFails(set(ref(db("vert"), "games/ZZZZZ/teams/vert"), { name: "Les Verts", color: "#06D6A0" }));
+  });
+});
+
+describe("remplacement d'un appareil", () => {
+  const request = (uid, name = "Les Bleus") =>
+    set(ref(db(uid), `games/${CODE}/joinRequests/${uid}`), { name, color: "#2B86C5", at: serverTimestamp() });
+  /** La box rattache le téléphone « neuf » à l'équipe « bleu » (son ancien appareil avait l'identifiant « bleu »). */
+  const replace = (device = "neuf") => update(ref(db(HOST), `games/${CODE}`), { "teams/bleu/device": device, [`joinRequests/${device}`]: null });
+
+  test("demande d'entrée : l'appareil n'écrit que la sienne, avec l'heure du serveur, sans champ en plus", async () => {
+    await seed();
+    await assertSucceeds(request("neuf"));
+    await assertFails(set(ref(db("neuf"), `games/${CODE}/joinRequests/autre`), { name: "x", color: "#000", at: serverTimestamp() }));
+    await assertFails(set(ref(db("neuf2"), `games/${CODE}/joinRequests/neuf2`), { name: "x", color: "#000", at: 1 }));
+    await assertFails(set(ref(db("neuf2"), `games/${CODE}/joinRequests/neuf2`), { name: "x", color: "#000", at: serverTimestamp(), score: 9 }));
+    await assertFails(set(ref(db("neuf2"), "games/ZZZZZ/joinRequests/neuf2"), { name: "x", color: "#000", at: serverTimestamp() }));
+  });
+  test("les demandes ne sont lues que par la régie, la box et leur auteur", async () => {
+    await seed();
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));
+    await request("neuf");
+    await assertSucceeds(get(ref(db("tel"), `games/${CODE}/joinRequests`)));
+    await assertSucceeds(get(ref(db(HOST), `games/${CODE}/joinRequests`)));
+    await assertSucceeds(get(ref(db("neuf"), `games/${CODE}/joinRequests/neuf`)));
+    await assertFails(get(ref(db("rose"), `games/${CODE}/joinRequests`)));
+    // La régie peut écarter une demande, pas en créer.
+    await assertSucceeds(set(ref(db("tel"), `games/${CODE}/joinRequests/neuf`), null));
+    await assertFails(set(ref(db("tel"), `games/${CODE}/joinRequests/neuf`), { name: "x", color: "#000", at: serverTimestamp() }));
+  });
+  test("seule la box rattache un appareil à une équipe ou crée une équipe en cours de partie", async () => {
+    await seed();
+    await request("neuf");
+    await assertFails(set(ref(db("neuf"), `games/${CODE}/teams/bleu/device`), "neuf"));
+    await assertFails(set(ref(db("bleu"), `games/${CODE}/teams/bleu/device`), "neuf"));
+    await assertSucceeds(replace());
+    await assertSucceeds(set(ref(db(HOST), `games/${CODE}/teams/vert`), { name: "Les Verts", color: "#06D6A0", joinedAt: 1 }));
+  });
+  test("après le remplacement, le nouvel appareil joue pour l'équipe ; l'ancien est désactivé même s'il revient", async () => {
+    await seed();
+    await replace();
+    // Nouvel appareil : présence, réponse (relue ensuite) au nom de l'équipe.
+    await assertSucceeds(set(ref(db("neuf"), `games/${CODE}/presence/bleu`), { online: true, at: serverTimestamp() }));
+    await assertSucceeds(set(ref(db("neuf"), `games/${CODE}/answers/q1/bleu`), { choice: 2, at: serverTimestamp() }));
+    await assertSucceeds(get(ref(db("neuf"), `games/${CODE}/answers/q1/bleu`)));
+    // Ancien appareil : plus rien, ni réponse, ni présence, ni relecture, ni réinscription.
+    await assertFails(set(ref(db("bleu"), `games/${CODE}/presence/bleu`), { online: false, at: serverTimestamp() }));
+    await assertFails(set(ref(db("bleu"), `games/${CODE}/answers/q2/bleu`), { choice: 1, at: serverTimestamp() }));
+    await assertFails(get(ref(db("bleu"), `games/${CODE}/answers/q1/bleu`)));
+    await assertFails(set(ref(db("bleu"), `games/${CODE}/teams/bleu`), { name: "Les Bleus", color: "#2B86C5" }));
+    // Le nouvel appareil ne joue pas pour une autre équipe.
+    await assertFails(set(ref(db("neuf"), `games/${CODE}/answers/q1/rose`), { choice: 0, at: serverTimestamp() }));
+  });
+  test("une seule réponse par équipe, même si l'ancien appareil avait déjà répondu", async () => {
+    await seed();
+    await assertSucceeds(answer("bleu", 1));
+    await replace();
+    await assertFails(set(ref(db("neuf"), `games/${CODE}/answers/q1/bleu`), { choice: 2, at: serverTimestamp() }));
+  });
+  test("remplacé une deuxième fois : seul le dernier appareil compte", async () => {
+    await seed();
+    await replace("neuf");
+    await replace("neuf2");
+    await assertFails(answer("neuf"));
+    await assertFails(set(ref(db("neuf"), `games/${CODE}/answers/q1/bleu`), { choice: 2, at: serverTimestamp() }));
+    await assertSucceeds(set(ref(db("neuf2"), `games/${CODE}/answers/q1/bleu`), { choice: 2, at: serverTimestamp() }));
+  });
+  test("buzzer : le nouvel appareil buzze pour son équipe, l'ancien plus du tout", async () => {
+    await seed({ phase: "question", buzzOpen: true, round: 1 });
+    await replace();
+    await assertFails(set(ref(db("bleu"), `games/${CODE}/buzz/1`), { team: "bleu", at: serverTimestamp() }));
+    await assertFails(set(ref(db("neuf"), `games/${CODE}/buzz/1`), { team: "rose", at: serverTimestamp() }));
+    await assertSucceeds(set(ref(db("neuf"), `games/${CODE}/buzz/1`), { team: "bleu", at: serverTimestamp() }));
   });
 });
 
@@ -275,6 +355,8 @@ describe("régie", () => {
   test("commande mal formée refusée", async () => {
     await paired();
     await assertFails(command(REGIE, { type: "tricher" }));
+    await assertSucceeds(command(REGIE, { type: "replace", team: "rose", device: "neuf" }));
+    await assertFails(set(ref(db(REGIE), `games/${CODE}/commands/long`), { type: "replace", team: "rose", device: "x".repeat(200), expectSeq: 3, by: REGIE, at: serverTimestamp() }));
     await assertFails(command(REGIE, { type: "adjust", team: "rose", delta: 9999 }));
     await assertFails(command(REGIE, { type: "next", by: "autre" }));
     await assertFails(command(REGIE, { type: "next", at: 1 }));

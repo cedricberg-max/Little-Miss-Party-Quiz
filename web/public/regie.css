@@ -49,6 +49,15 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .phase { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--halo); }
 .regie .phase.on-hold { color: var(--danger); }
 .regie .hold-info { margin: 10px 0 0; padding: 10px 12px; border-radius: 12px; background: rgba(255, 210, 122, .14); color: #ffd27a; font-weight: 700; line-height: 1.4; }
+.regie .requests { display: flex; flex-direction: column; gap: 8px; }
+.regie .request { background: rgba(124, 255, 58, .1); border: 1px solid rgba(124, 255, 58, .45); border-radius: 14px; padding: 10px 12px; }
+.regie .request p { margin: 0 0 8px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+.regie .request .swatch { width: 14px; height: 14px; border-radius: 4px; flex: none; }
+.regie .request .choices { display: flex; flex-wrap: wrap; gap: 6px; }
+.regie .request button { min-height: 40px; border-radius: 10px; border: 1px solid #3a2652; background: var(--panel); color: var(--ink); font-size: 14px; font-weight: 700; padding: 0 10px; }
+.regie .request button.suggested { border-color: var(--ok); }
+.regie .request button.new { background: var(--ok); color: #1a0b2e; border-color: var(--ok); }
+.regie .request button.link { background: transparent; border-color: transparent; color: var(--ink-soft); text-decoration: underline; }
 .regie #c-pause.resume { background: #ffd27a; color: #1a0b2e; border-color: #ffd27a; font-weight: 900; }
 .regie .question { margin: 0; font-size: 17px; font-weight: 700; }
 .regie .answer {
