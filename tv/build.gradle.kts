@@ -26,6 +26,9 @@ android {
 
         buildConfigField("String", "FB_PROJECT_ID", fb("projectId"))
         buildConfigField("String", "FB_DATABASE_URL", fb("databaseURL"))
+
+        // Tests sur émulateur : branche l'appli sur l'émulateur Firebase local, jamais sur la vraie base.
+        testInstrumentationRunner = "com.littlemissparty.quiz.tv.test.LmpTestRunner"
     }
 
     // Clé fixe pour que chaque nouvelle version s'installe par-dessus l'ancienne.
@@ -80,4 +83,11 @@ dependencies {
 
     implementation("com.google.zxing:core:3.5.3")
     implementation("com.littlemissparty.quiz:engine")
+
+    // Tests sur émulateur Android TV (workflow « Tests Android »).
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:rules:1.6.1")
+    androidTestImplementation("androidx.test:core-ktx:1.6.1")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
 }

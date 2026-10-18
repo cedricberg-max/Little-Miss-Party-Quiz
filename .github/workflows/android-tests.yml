@@ -1,0 +1,124 @@
+name: Tests Android (émulateur TV)
+
+# Joue l'appli TV sur un émulateur Android TV : télécommande, partie complète, reprise,
+# coupures réseau et doublons. Les pupitres sont simulés et branchés sur l'émulateur
+# Firebase local : aucun test ne touche la vraie base.
+on:
+  pull_request:
+    paths:
+      - "tv/**"
+      - "engine/**"
+      - "database.rules.json"
+      - "firebase.json"
+      - "*.gradle.kts"
+      - "gradle/**"
+      - "gradle.properties"
+      - ".github/workflows/android-tests.yml"
+      - ".github/android-tests/**"
+  push:
+    branches: [main]
+    paths:
+      - "tv/**"
+      - "engine/**"
+      - "database.rules.json"
+      - "firebase.json"
+      - "*.gradle.kts"
+      - "gradle/**"
+      - "gradle.properties"
+      - ".github/workflows/android-tests.yml"
+      - ".github/android-tests/**"
+  workflow_dispatch:
+
+# Un nouvel envoi sur la même branche annule l'essai précédent (minutes GitHub économisées).
+concurrency:
+  group: android-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  emulateur-tv:
+    name: Émulateur Android TV
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      API_LEVEL: 28
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Capacités du runner
+        run: |
+          {
+            echo "### Runner"
+            echo "- Processeurs : $(nproc)"
+            echo "- Mémoire : $(free -h | awk '/Mem:/ {print $2}')"
+            echo "- Accélération KVM : $(test -e /dev/kvm && echo disponible || echo absente)"
+            echo "- Images Android TV proposées par Google :"
+            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --list 2>/dev/null \
+              | grep -oE 'system-images;android-[0-9]+;(android-tv|google-tv);[a-z0-9_]+' | sort -u -V | sed 's/^/  - /'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Activer KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tests/package-lock.json
+
+      - name: Compiler l'appli et les tests
+        run: ./gradlew :tv:assembleDebug :tv:assembleDebugAndroidTest :tv:assembleRelease --stacktrace
+
+      - name: Démarrer l'émulateur Firebase
+        run: |
+          npm --prefix tests ci
+          cd tests
+          # Même identifiant de projet que l'appli, mais tout reste sur ce runner.
+          nohup npx firebase emulators:start --project little-miss-party-quiz --only database,auth \
+            > "$RUNNER_TEMP/firebase-emulateurs.log" 2>&1 &
+          for i in $(seq 90); do
+            curl -sf http://127.0.0.1:9099/ >/dev/null && curl -s http://127.0.0.1:9000/.json >/dev/null && exit 0
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/firebase-emulateurs.log"
+          exit 1
+
+      - name: Tests sur l'émulateur Android TV (API ${{ env.API_LEVEL }})
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.API_LEVEL }}
+          target: android-tv
+          arch: x86
+          profile: tv_1080p
+          ram-size: 2048M
+          disable-animations: false
+          emulator-boot-timeout: 900
+          # DNS volontairement inutilisable : l'émulateur ne peut pas joindre les vrais serveurs Firebase,
+          # seulement l'émulateur local (adresse IP 10.0.2.2).
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -dns-server 192.0.2.1
+          script: bash .github/android-tests/run.sh
+
+      - name: Résumé des résultats
+        if: always()
+        run: python3 .github/android-tests/resume.py tv/build/outputs/androidTest-results android-test-output >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Journaux de l'émulateur Firebase
+        if: always()
+        run: cp "$RUNNER_TEMP/firebase-emulateurs.log" android-test-output/ 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tests-android-tv
+          path: |
+            android-test-output/
+            tv/build/outputs/androidTest-results/
+            tv/build/reports/androidTests/
+          retention-days: 14

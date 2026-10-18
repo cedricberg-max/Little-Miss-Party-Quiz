@@ -1,0 +1,62 @@
+package com.littlemissparty.quiz.tv.test
+
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.littlemissparty.quiz.engine.Scoring
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+
+/** Réponses, inscriptions et appuis en double : comptés une seule fois. */
+@RunWith(AndroidJUnit4::class)
+class DoublonsTest : TestTv() {
+
+    @Test
+    fun deuxiemeReponseDuMemePupitreRefusee() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val dragons = pupitre("dragons").also { it.rejoindre(code, "Dragons", ROSE) }
+        ecran.voit("Dragons")
+        ecran.ok("Lancer le quiz")
+        val q = attendreQuestion(licornes, code, 0)
+
+        assertTrue(licornes.repondre(code, q.id, q.correct))
+        assertFalse("Une équipe ne peut pas changer sa réponse", licornes.repondre(code, q.id, mauvaiseReponse(q)))
+        assertTrue(dragons.repondre(code, q.id, mauvaiseReponse(q)))
+        ecran.voit("Toutes les équipes ont répondu")
+        ecran.ok("Révéler la réponse")
+        ecran.voit("Voir les scores")
+        val gagne = points(licornes, code, licornes.uid)
+        assertTrue("Points comptés une seule fois : $gagne", gagne.toInt() in Scoring.BASE..(Scoring.BASE + Scoring.MAX_BONUS))
+    }
+
+    @Test
+    fun memeTabletteQuiRejointDeuxFois() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes")
+        licornes.rejoindre(code, "Licornes", VERT)
+        licornes.rejoindre(code, "Licornes", VERT)
+        ecran.voit("Licornes")
+        ecran.voit("1 équipe(s) dans la partie")
+        assertEquals(1L, licornes.equipes(code).childrenCount)
+    }
+
+    @Test
+    fun doubleAppuiRapideSurOk() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        ecran.voit("Lancer le quiz")
+        ecran.focusSur("Lancer le quiz")
+        // Un enfant ou une animatrice pressée appuie deux fois très vite.
+        ecran.device.pressDPadCenter()
+        Thread.sleep(250)
+        ecran.device.pressDPadCenter()
+        Thread.sleep(3000)
+        ecran.capture("apres-double-appui")
+        assertEquals(
+            "Le second appui ne doit pas arrêter le chrono de la question qui vient de s'ouvrir",
+            "question", licornes.etat(code).child("phase").value,
+        )
+    }
+}
