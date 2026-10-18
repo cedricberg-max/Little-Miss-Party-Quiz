@@ -3,7 +3,6 @@ package com.littlemissparty.quiz.tv.habillage
 import android.os.SystemClock
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -14,7 +13,6 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
@@ -22,7 +20,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -31,6 +28,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.tv.UiState
+import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.sin
 import kotlinx.coroutines.delay
@@ -130,38 +128,43 @@ private fun chronoUrgent(s: UiState.Playing?): Boolean {
 }
 
 /**
- * Le plateau : nuit violette, halos qui battent au tempo de la musique, sol en perspective, deux
- * projecteurs qui balaient, étincelles. Chaque élément est dessiné une seule fois dans son calque ;
- * à chaque image, seuls l'opacité et l'angle des calques changent (rien n'est redessiné ni recomposé),
- * pour rester fluide sur une petite box. Dans les 5 dernières secondes, les bords chauffent (orange).
+ * Le plateau : nuit violette, sol en perspective, deux projecteurs, et des halos et étincelles qui
+ * battent au tempo de la musique. Tout est dessiné une seule fois dans deux calques ; seule l'opacité du
+ * calque lumineux change, une vingtaine de fois par seconde, pour rester fluide sur une petite box et
+ * laisser la main aux écrans du jeu. Dans les 5 dernières secondes, les bords chauffent (orange).
  */
 @Composable
 fun DecorPlateau(chaud: Boolean) {
     val battement = remember { mutableFloatStateOf(0f) }
-    val temps = remember { mutableFloatStateOf(0f) }
     LaunchedEffect(Unit) {
         while (true) {
-            withFrameMillis {
-                val ms = SystemClock.elapsedRealtime() - Sons.departDesLits
-                val phase = Math.floorMod(ms, Tempo.TEMPS).toFloat() / Tempo.TEMPS
-                battement.floatValue = exp(-phase * 4.5f)
-                temps.floatValue = Math.floorMod(ms, 600_000L) / 1000f
-            }
+            val ms = SystemClock.elapsedRealtime() - Sons.departDesLits
+            val phase = Math.floorMod(ms, Tempo.TEMPS).toFloat() / Tempo.TEMPS
+            battement.floatValue = exp(-phase * 4.5f)
+            delay(50)
         }
     }
     val chaleur by animateFloatAsState(if (chaud) 1f else 0f, tween(600), label = "chaleur")
     Box(Modifier.fillMaxSize()) {
-        // Fond : ne se redessine jamais.
+        // Fond, sol et projecteurs : ne se redessinent jamais.
         Box(
             Modifier.fillMaxSize().drawWithCache {
-                val fond = Brush.radialGradient(listOf(Color(0xFF24093F), Color(0xFF130726), Neon.Nuit), Offset(size.width / 2, 0f), size.width * 0.85f)
-                onDrawBehind { drawRect(fond) }
+                val w = size.width
+                val h = size.height
+                val fond = Brush.radialGradient(listOf(Color(0xFF24093F), Color(0xFF130726), Neon.Nuit), Offset(w / 2, 0f), w * 0.85f)
+                val lignes = sol(w, h)
+                val faisceaux = listOf(faisceau(w, h, 0.18f, 16f), faisceau(w, h, 0.82f, -16f))
+                onDrawBehind {
+                    drawRect(fond)
+                    lignes.forEach { (b, de, a) -> drawLine(b, de, a, 1.5f) }
+                    faisceaux.forEach { (chemin, lumiere) -> drawPath(chemin, lumiere) }
+                }
             },
         )
-        // Halos rose, violet et or : leur éclat suit le battement.
+        // Halos rose, violet et or, et étincelles : leur éclat suit le battement.
         Box(
             Modifier.fillMaxSize()
-                .graphicsLayer { alpha = 0.5f + 0.5f * battement.floatValue }
+                .graphicsLayer { alpha = 0.45f + 0.55f * battement.floatValue }
                 .drawWithCache {
                     val w = size.width
                     val h = size.height
@@ -170,23 +173,12 @@ fun DecorPlateau(chaud: Boolean) {
                         Triple(Neon.Violet.copy(alpha = 0.55f), Offset(w * 0.9f, h * 0.05f), w * 0.31f),
                         Triple(Neon.Or.copy(alpha = 0.26f), Offset(w * 0.5f, h * 1.08f), w * 0.4f),
                     ).map { (c, o, r) -> Triple(Brush.radialGradient(listOf(c, Color.Transparent), o, r), o, r) }
-                    onDrawBehind { halos.forEach { (b, o, r) -> drawCircle(b, r, o) } }
+                    onDrawBehind {
+                        halos.forEach { (b, o, r) -> drawCircle(b, r, o) }
+                        etincelles()
+                    }
                 },
         )
-        // Sol quadrillé en perspective.
-        Box(
-            Modifier.fillMaxSize()
-                .graphicsLayer { alpha = 0.35f + 0.65f * battement.floatValue }
-                .drawWithCache {
-                    val lignes = sol(size.width, size.height)
-                    onDrawBehind { lignes.forEach { (b, de, a) -> drawLine(b, de, a, 1.5f) } }
-                },
-        )
-        // Deux projecteurs qui balancent depuis le bas de l'écran.
-        Projecteur(0.18f) { 14f + 12f * sin(temps.floatValue * 0.55f) }
-        Projecteur(0.82f) { -14f - 12f * sin(temps.floatValue * 0.55f + 1.3f) }
-        // Étincelles : quelques points, seuls redessinés à chaque image.
-        Canvas(Modifier.fillMaxSize()) { etincelles(temps.floatValue) }
         if (chaleur > 0.01f) {
             Box(
                 Modifier.fillMaxSize()
@@ -222,39 +214,29 @@ private fun sol(w: Float, h: Float): List<Triple<Brush, Offset, Offset>> {
     return rayons + traverses
 }
 
-/** Faisceau dessiné une fois ; seul son angle change, autour de son pied en bas de l'écran. */
-@Composable
-private fun Projecteur(x: Float, angle: () -> Float) {
-    Box(
-        Modifier.fillMaxSize()
-            .graphicsLayer {
-                transformOrigin = TransformOrigin(x, 1f)
-                rotationZ = angle()
-            }
-            .drawWithCache {
-                val pied = Offset(size.width * x, size.height)
-                val l = size.height * 1.3f
-                val demi = size.width * 0.06f
-                val faisceau = Path().apply {
-                    moveTo(pied.x - demi * 0.25f, pied.y)
-                    lineTo(pied.x - demi, pied.y - l)
-                    lineTo(pied.x + demi, pied.y - l)
-                    lineTo(pied.x + demi * 0.25f, pied.y)
-                    close()
-                }
-                val lumiere = Brush.verticalGradient(listOf(Color.Transparent, Neon.Blanc.copy(alpha = 0.09f), Color.Transparent), pied.y - l, pied.y)
-                onDrawBehind { drawPath(faisceau, lumiere) }
-            },
-    )
+/** Faisceau de projecteur partant du bas de l'écran (en x, fraction de la largeur), incliné de `degres`. */
+private fun faisceau(w: Float, h: Float, x: Float, degres: Float): Pair<Path, Brush> {
+    val pied = Offset(w * x, h)
+    val l = h * 1.3f
+    val demi = w * 0.06f
+    val a = Math.toRadians(degres.toDouble())
+    val dx = (sin(a) * l).toFloat()
+    val dy = (cos(a) * l).toFloat()
+    val chemin = Path().apply {
+        moveTo(pied.x - demi * 0.25f, pied.y)
+        lineTo(pied.x + dx - demi, pied.y - dy)
+        lineTo(pied.x + dx + demi, pied.y - dy)
+        lineTo(pied.x + demi * 0.25f, pied.y)
+        close()
+    }
+    val lumiere = Brush.verticalGradient(listOf(Color.Transparent, Neon.Blanc.copy(alpha = 0.09f), Color.Transparent), pied.y - dy, pied.y)
+    return chemin to lumiere
 }
 
 private val positions = List(18) { i -> Offset(((i * 0.618f + 0.11f) % 1f), ((i * 0.377f + 0.07f) % 0.75f)) }
 
-private fun DrawScope.etincelles(t: Float) {
+private fun DrawScope.etincelles() {
     positions.forEachIndexed { i, o ->
-        val a = ((sin(t * (1.1f + i % 4 * 0.3f) + i * 1.7f) + 1f) / 2f)
-        if (a > 0.35f) {
-            drawCircle(Neon.Blanc.copy(alpha = (a - 0.35f) * 0.9f), size.minDimension * (0.0025f + 0.0015f * (i % 3)), Offset(o.x * size.width, o.y * size.height))
-        }
+        drawCircle(Neon.Blanc.copy(alpha = 0.25f + 0.15f * (i % 4)), size.minDimension * (0.0025f + 0.0015f * (i % 3)), Offset(o.x * size.width, o.y * size.height))
     }
 }

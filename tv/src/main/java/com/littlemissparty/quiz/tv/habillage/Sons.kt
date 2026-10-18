@@ -20,6 +20,8 @@ object Sons {
     private const val FONDU_MS = 700L
     private const val COUPE_MS = 300L
     private const val PAS_MS = 40L
+    /** Durée exacte des deux boucles musicales (8 mesures à 120 BPM). */
+    private const val BOUCLE_MS = 16_000L
 
     private val fil = HandlerThread("habillage-son").apply { start() }
     private val h = Handler(fil.looper)
@@ -40,7 +42,10 @@ object Sons {
     private var pret = false
     private var enArriere = false
 
-    /** Heure (horloge de la box) où les boucles musicales ont démarré : les décors battent au même tempo. */
+    /**
+     * Origine du tempo (horloge de la box) : les boucles repartent toujours calées dessus, et les décors
+     * battent au même tempo. Une boucle muette est mise en pause, pour ne pas décoder du son pour rien.
+     */
     @Volatile var departDesLits: Long = SystemClock.elapsedRealtime()
         private set
 
@@ -63,6 +68,7 @@ object Sons {
             essayer("lits") {
                 litComplet = lecteur(app, Ambiance.LIT_COMPLET, boucle = true)
                 litLeger = lecteur(app, Ambiance.LIT_LEGER, boucle = true)
+                departDesLits = SystemClock.elapsedRealtime()
                 demarrerLits()
             }
         }
@@ -147,6 +153,8 @@ object Sons {
     /** Fondu enchaîné entre la boucle complète et la boucle légère, qui tournent toujours ensemble. */
     private fun versAmbiance(a: Ambiance) {
         ambiance = a
+        if (a.complete > 0f) reveiller(litComplet)
+        if (a.legere > 0f) reveiller(litLeger)
         val deC = volComplet
         val deL = volLeger
         val etapes = (FONDU_MS / PAS_MS).toInt()
@@ -159,21 +167,28 @@ object Sons {
                 essayer("fondu") {
                     litComplet?.setVolume(volComplet, volComplet)
                     litLeger?.setVolume(volLeger, volLeger)
+                    if (k == etapes) {
+                        if (a.complete == 0f) litComplet?.let { if (it.isPlaying) it.pause() }
+                        if (a.legere == 0f) litLeger?.let { if (it.isPlaying) it.pause() }
+                    }
                 }
             }, fondus, SystemClock.uptimeMillis() + k * PAS_MS)
         }
     }
 
+    /** Relance les boucles qui doivent s'entendre (retour au premier plan). */
     private fun demarrerLits() {
-        val c = litComplet ?: return
-        val l = litLeger ?: return
-        c.setVolume(volComplet, volComplet)
-        l.setVolume(volLeger, volLeger)
-        if (!c.isPlaying) c.start()
-        if (!l.isPlaying) l.start()
-        // Les deux boucles doivent rester calées : on les recale au même endroit.
-        l.seekTo(c.currentPosition)
-        departDesLits = SystemClock.elapsedRealtime() - c.currentPosition
+        litComplet?.setVolume(volComplet, volComplet)
+        litLeger?.setVolume(volLeger, volLeger)
+        if (volComplet > 0f) reveiller(litComplet)
+        if (volLeger > 0f) reveiller(litLeger)
+    }
+
+    /** Remet une boucle en route, calée sur le tempo commun. */
+    private fun reveiller(mp: MediaPlayer?) {
+        if (mp == null || mp.isPlaying) return
+        mp.seekTo(Math.floorMod(SystemClock.elapsedRealtime() - departDesLits, BOUCLE_MS).toInt())
+        mp.start()
     }
 
     private fun lecteur(context: Context, nom: String, boucle: Boolean): MediaPlayer? {
