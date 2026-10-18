@@ -105,6 +105,9 @@ enfants daltoniens (vert, jaune et orange se confondent en deutéranopie).
   apparition en fondu et légère respiration du halo (`graphicsLayer { alpha }`), rien d'autre.
 - Emplacements : écran d'accueil et générique (grand), coin supérieur pendant le jeu (petit,
   discret), écran final.
+- **Prénom de l'enfant fêté** (validé le 18/10/2026) : sous le logo à l'accueil (« Joyeux anniversaire
+  Marie-Chantal ! »), dans le générique et sur l'écran de victoire, en titre néon or ; prévoir les
+  prénoms longs et composés (réduction automatique jusqu'à 2 lignes, jamais de coupure).
 
 ### Typographie
 
@@ -265,10 +268,28 @@ dialogue de confirmation existant (`QuitDialog`).
 
 ## 9. Régie
 
+Le téléphone de l'animatrice est la **télécommande principale** (validé le 18/10/2026) ; la
+télécommande de la box reste le secours.
+
 Sombre, sobre, une main : état courant en haut, **un gros bouton « Suivant »** au libellé contextuel,
 **Pause** toujours visible, pastilles de connexion des pupitres. Actions destructrices par **appui long
 de 1 s** (anneau qui se remplit), bandeau « Annuler » de 10 s après chaque action. Aucun effet
 décoratif.
+
+- **Discrète pour les enfants** : fond sombre, luminosité basse, aucun son, la bonne réponse en petit
+  et masquable, rien qui se lise de loin.
+- **Une main** : boutons principaux dans le tiers bas de l'écran, au moins 64 px de haut ; un seul
+  bouton principal par état.
+- **Entrée** : scanner le QR de la TV suffit quand le téléphone est connecté au compte animatrice ;
+  sinon, saisie du code à 4 chiffres. Puis liste des prestations du jour, une touche pour charger.
+- **Conducteur** consultable à tout moment (onglet) : manches, questions à venir avec leur réponse,
+  sans interrompre ce que montre la TV.
+- **Commandes** : lancer une manche, question suivante, chrono (démarrer, pause, reprise), valider ou
+  refuser une réponse orale, attribuer ou corriger des points, musique (lecture, pause, reprise),
+  indice, passer une question, revenir en arrière, changer de jeu, tablette de remplacement pour une
+  équipe, contrôle d'avant-prestation, commandes d'urgence (pause générale, écran d'attente).
+- **Écran verrouillé ou coupure** : à la réouverture, la régie relit l'état et reprend sans rien
+  renvoyer ; un bandeau « Reconnexion… » discret, jamais une alerte bloquante.
 
 ## 10. Vérification avant de livrer un écran
 

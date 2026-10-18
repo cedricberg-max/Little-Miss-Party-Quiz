@@ -1,6 +1,6 @@
 ---
 name: lmp-game-design-enfants
-description: Règles de game design de Little Miss Party Quiz (barème, chronos, profils d'âge, remontée au score, frustration des enfants, fiche de mini-jeu). À lire avant de créer ou modifier une mécanique de jeu, un barème, un chrono, une manche, un mini-jeu ou un texte affiché aux joueurs.
+description: Règles de game design de Little Miss Party Quiz (barème, chronos, profils d'âge, remontée au score, frustration des enfants, fiche de mini-jeu, prestation personnalisée, mode express, création et import de quiz). À lire avant de créer ou modifier une mécanique de jeu, un barème, un chrono, une manche, un mini-jeu, une prestation, le mode express, l’import de quiz ou un texte affiché aux joueurs.
 ---
 
 # Game design enfants : Little Miss Party Quiz
@@ -83,8 +83,10 @@ Deux modes dans le même moteur, extraits toujours joués sur la TV depuis le ca
   des points. Révélation : titre, artiste, pochette.
 - **Quiz musical à 4 propositions (`qcm-audio`)** : extrait sur la TV, 4 propositions sur chaque
   pupitre, toutes les équipes répondent, révélation et points du QCM.
-- Bibliothèque classée par thème, âge (de / à) et difficulté (1 à 3) ; seuls des titres dont les droits
-  de stockage, reproduction et diffusion commerciale sont prouvés (fiche licence) peuvent être utilisés.
+- Bibliothèque classée par artiste, titre, thème, âge (de / à) et difficulté (1 à 3). Sarah importe un
+  fichier audio ordinaire, choisit un passage de 15 à 30 s, ajoute pochette et métadonnées.
+- **Droits (décision du 18/10/2026)** : statut des droits facultatif, affiché en avertissement, jamais
+  bloquant (voir `lmp-firebase-rtdb-fiabilite`, section 4 bis). Les autorisations sont traitées à part.
 
 ### Mode de secours sans Internet
 
@@ -122,6 +124,27 @@ les points. Le barème reste le même, sans bonus fusée (pas d'heure d'appui me
 - Une prestation type de 60 min : quiz 8, deux mini-jeux, blind test 8, Super Finale 4.
 - Introduction de manche ≤ 4 s, passable par l'animatrice.
 - Aucun temps mort de plus de 10 s sans quelque chose qui bouge ou qui parle sur la TV.
+- **Prestation personnalisée** : prénom de l'enfant fêté (accueil, générique, victoire), âge et profil,
+  thèmes, durée, équipes (nom, couleur, emblème), manches dans l'ordre. Préparée sur le PC et choisie
+  sur la régie : aucune ressaisie le jour J.
+
+### Mode anniversaire express (validé le 18/10/2026, reportable si le calendrier l'exige)
+
+L'animatrice saisit un prénom et un âge (thème et durée facultatifs). Une **fonction pure**, testée,
+compose le programme sans IA : elle part du programme type de la durée (60 min : quiz 8, deux
+mini-jeux, blind test 8, Super Finale 4), remplit chaque case avec des contenus validés de la
+bibliothèque dont la tranche d'âge contient l'âge, la difficulté adaptée au profil, le thème demandé
+en priorité, en écartant les contenus joués récemment. Si une case ne trouve rien, elle reste vide et
+la régie le dit (jamais de contenu hors âge). L'animatrice accepte, remplace ou réordonne, puis démarre.
+Le résultat est une prestation ordinaire (`origin: 'express'`).
+
+### Création des quiz
+
+Trois entrées, une seule relecture : import tableur, **collage d'un texte Gemini** produit avec la
+consigne fournie par l'administration (V1), génération Gemini intégrée (après le 2 décembre, API soumise
+à l'accord de cedric). L'analyse convertit, signale les anomalies (bonne réponse absente ou double,
+propositions identiques, texte trop long pour le profil, doublon), prévisualise TV et pupitre ; Sarah
+valide chaque question. Aucune IA n'intervient pendant une prestation.
 
 ## 6. Feedback et frustration
 
@@ -156,8 +179,9 @@ Contenu nécessaire et qui le prépare :
 Refuser ou simplifier un jeu qui : demande de taper du texte aux `PETITS`, dépend d'une vitesse de
 quelques centaines de millisecondes, dure plus de 6 min, ou n'a pas de mode manuel.
 
-Jeux validés et leur version : Mime, Zoom mystère, Vrai ou Faux express, Le Juste Chiffre, Statues
-musicales (V1) ; Pictionary (devinette orale), Bruitages, Qui a disparu (V1.5) ; Remets dans l'ordre,
+Jeux validés et leur version : Vrai ou Faux express, Mime, Zoom mystère (coupé en premier si le lot 4
+déborde), Le Juste Chiffre, Statues musicales (V1) ; Pictionary (retiré de la V1 le 18/10/2026),
+Bruitages, Qui a disparu (V1.5) ; Remets dans l'ordre,
 Course à la tape, Memory géant, Le Duel (V2).
 
 ## 8. Où vit le code
