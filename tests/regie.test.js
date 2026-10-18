@@ -113,6 +113,18 @@ function startBox({ silent = false, held = false } = {}) {
       await update(ref(db, `games/${CODE}`), { state, [`commandStatus/${id}`]: { ...status, at: Date.now() } });
     }
   }
+  // Prestation chargée par la régie : la vraie box vérifie le quiz, republie le conducteur et répond.
+  let judgedShow = null;
+  if (!silent) stops.push(onValue(ref(db, `games/${CODE}/show`), async (s) => {
+    const show = s.val();
+    if (!show || show.id === judgedShow) return;
+    judgedShow = show.id;
+    await update(ref(db, `games/${CODE}`), {
+      showStatus: { id: show.id, status: "applied", at: Date.now() },
+      conducteur: { title: show.title, questions: show.quiz.questions },
+      public: { title: show.title, childName: show.childName },
+    });
+  }));
   if (!silent) stops.push(onValue(ref(db, `games/${CODE}/commands`), (s) => {
     latest = s.val() ?? {};
     if (!held) process();
@@ -224,6 +236,7 @@ describe("régie", () => {
 
     const admin = await openRegie(null, "?emu=1", "/admin.html");
     await admin.click("#login");
+    await admin.click("#nav button[data-screen=settings]");
     await admin.locator("#screen-settings:not([hidden])").waitFor();
     await admin.fill("#pw1", "court");
     await admin.fill("#pw2", "court");
@@ -250,10 +263,17 @@ describe("régie", () => {
   test("un compte Google qui n'est pas administrateur ne peut rien changer", async () => {
     const admin = await openRegie(null, "?emu=1&as=intrus@gmail.com", "/admin.html");
     await admin.click("#login");
-    await admin.fill("#pw1", "Pirate-123456");
-    await admin.fill("#pw2", "Pirate-123456");
-    await admin.click("#save");
-    await admin.locator("#save-status", { hasText: "pas les droits" }).waitFor();
+    await admin.locator("#login-status", { hasText: "pas les droits" }).waitFor();
+    assert.equal(await admin.locator("#screen-settings").isHidden(), true);
+    // Même en contournant l'écran, l'écriture est refusée par le serveur.
+    const denied = await admin.evaluate(async () => {
+      const { getDatabase, ref, set, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js");
+      try {
+        await set(ref(getDatabase(), "settings/regie"), { salt: "x".repeat(16), hash: "a".repeat(64), updatedAt: serverTimestamp() });
+        return false;
+      } catch { return true; }
+    });
+    assert.equal(denied, true);
     await admin.context().close();
   });
 
@@ -319,6 +339,9 @@ describe("régie", () => {
     await addTeam("rose", "Les Roses");
     const page = await openRegie();
     await pair(page);
+    await inRegie(page);
+    // Dans le salon d'attente la régie s'ouvre sur les prestations : l'animatrice passe aux équipes.
+    await page.click("#tab-teams");
     await page.locator('.team[data-team="rose"] button[data-delta="10"]').click();
     await page.locator(".team .score", { hasText: "10" }).waitFor();
     await page.locator("#undo-text", { hasText: "+10 pour Les Roses" }).waitFor();
@@ -402,3 +425,140 @@ async function waitFor(fn, what, ms = 8000) {
     await new Promise((r) => setTimeout(r, 150));
   }
 }
+
+describe("bibliothèque de quiz et prestations", () => {
+  const admin = async () => {
+    const page = await openRegie(null, "?emu=1", "/admin.html");
+    await page.click("#login");
+    await page.locator("#screen-shows:not([hidden])").waitFor();
+    return page;
+  };
+  const library = async (path) => {
+    let value;
+    await env.withSecurityRulesDisabled(async (ctx) => { value = (await get(ref(ctx.database(), `library/${path}`))).val(); });
+    return value;
+  };
+  const seedLibrary = (path, value) => env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `library/${path}`), value));
+  const ANIMAUX = {
+    title: "Animaux", source: "gemini", updatedAt: 1, ageMin: 6, ageMax: 8,
+    questions: [
+      { text: "Roi de la jungle ?", choices: ["Lion", "Tigre", "Zèbre", "Singe"], correct: 0, status: "validee" },
+      { text: "Combien de pattes a une araignée ?", choices: ["6", "8"], correct: 1, status: "validee" },
+      { text: "Question pas encore relue", choices: ["Oui", "Non"], correct: 0, status: "brouillon" },
+    ],
+  };
+  const FINALE = {
+    title: "Finale", source: "tableur", updatedAt: 1,
+    questions: [{ text: "Le Soleil est une étoile", choices: ["Vrai", "Faux"], correct: 0, duration: 15, status: "validee" }],
+  };
+
+  test("Sarah colle un quiz Gemini, corrige l'anomalie signalée, valide et enregistre", async () => {
+    const page = await admin();
+    await page.click("#nav button[data-screen=quizzes]");
+    await page.click("#quiz-import-open");
+    await page.fill("#gem-theme", "La jungle");
+    await page.fill("#gem-age", "8");
+    assert.match(await page.inputValue("#gem-prompt"), /thème « La jungle », pour des enfants de 8 ans/);
+    await page.fill("#import-text", [
+      "Titre : La jungle", "",
+      "1. Quel animal est le roi de la jungle ?", "A) Le tigre", "B) Le lion", "C) L'éléphant", "D) Le singe", "Réponse : B", "",
+      "2. Combien de pattes a une araignée ?", "A) 6", "B) 8", "C) 10", "D) 4", "", // bonne réponse oubliée
+      "3. Le paresseux dort beaucoup.", "A) Vrai", "B) Faux", "Réponse : A",
+    ].join("\n"));
+    await page.click("#import-analyse");
+    await page.locator("#screen-review:not([hidden])").waitFor();
+    assert.equal(await page.inputValue("#rv-title"), "La jungle");
+    await page.locator("#rv-summary", { hasText: "3 questions · 0 validée · 1 à corriger" }).waitFor();
+    await page.locator('[data-q="1"] .problems', { hasText: "Bonne réponse absente" }).waitFor();
+    await page.click("#rv-validate-all");
+    await page.locator("#rv-summary", { hasText: "2 validées · 1 à corriger" }).waitFor();
+    assert.equal(await page.locator('[data-q="1"] .q-valid').isDisabled(), true);
+    // Sarah coche la bonne réponse (B) puis valide la question.
+    await page.locator('[data-q="1"] input[type=radio]').nth(1).check();
+    await page.locator('[data-q="1"] .q-valid').check();
+    await page.locator("#rv-summary", { hasText: "3 validées" }).waitFor();
+    await page.click("#rv-save");
+    await page.locator("#rv-status", { hasText: "3 questions validées sur 3" }).waitFor();
+    const saved = Object.values(await library("quizzes"));
+    assert.equal(saved.length, 1);
+    assert.equal(saved[0].title, "La jungle");
+    assert.equal(saved[0].source, "gemini");
+    assert.deepEqual(saved[0].questions.map((q) => [q.correct, q.status]), [[1, "validee"], [1, "validee"], [0, "validee"]]);
+    await page.click("#nav button[data-screen=quizzes]");
+    await page.locator("#quiz-list .item", { hasText: "3 questions · 3 validées" }).waitFor();
+    await page.context().close();
+  });
+
+  test("Sarah prépare une prestation, l'animatrice la charge sur la TV depuis la régie", async () => {
+    await seedLibrary("quizzes", { animaux: ANIMAUX, finale: FINALE });
+    const page = await admin();
+    await page.click("#show-new");
+    await page.fill("#show-child", "Léa");
+    await page.fill("#show-age", "7");
+    await page.fill("#show-date", "2026-12-02");
+    await page.click("#round-add");
+    await page.locator("#show-rounds select.grow").nth(0).selectOption("animaux");
+    await page.click("#round-add");
+    await page.locator("#show-rounds select").nth(2).selectOption("finale");
+    await page.locator("#show-rounds select.grow").nth(1).selectOption("finale");
+    await page.locator("#show-summary", { hasText: "3 questions jouables" }).waitFor();
+    await page.selectOption("#show-status", "publiee");
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
+    const saved = Object.values(await library("shows"))[0];
+    assert.equal(saved.childName, "Léa");
+    assert.deepEqual(saved.rounds, [{ type: "quiz", quizId: "animaux" }, { type: "finale", quizId: "finale" }]);
+    await page.context().close();
+
+    box = startBox();
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    // Dans le salon d'attente, la régie ouvre directement la liste des prestations prêtes.
+    await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "L'anniversaire de Léa" }).click();
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    await regie.locator("#c-step", { hasText: "L'anniversaire de Léa" }).waitFor();
+    const show = await read("show");
+    assert.equal(show.childName, "Léa");
+    assert.equal(show.profile, "PETITS");
+    const q = show.quiz.questions;
+    // Brouillon écarté, chrono du profil Petits (25 s + 10 s de lecture), durée imposée gardée, finale doublée.
+    assert.deepEqual(q.map((x) => [x.id, x.duration, x.double, x.round]), [
+      ["r1q1", 35, false, "Animaux"], ["r1q2", 35, false, "Animaux"], ["r2q1", 15, true, "Super Finale"],
+    ]);
+    await regie.click("#tab-plan");
+    await regie.locator("#panel-plan .plan-round", { hasText: "Super Finale" }).waitFor();
+    await regie.context().close();
+  });
+
+  test("une prestation en brouillon n'apparaît pas sur la régie ; le code de secours ne donne pas la liste", async () => {
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    await seedLibrary("shows", {
+      a: { childName: "Tom", status: "brouillon", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 },
+      b: { childName: "Inès", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 },
+    });
+    box = startBox();
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator(".show-item", { hasText: "Inès" }).waitFor();
+    assert.equal(await regie.locator(".show-item", { hasText: "Tom" }).count(), 0);
+    await regie.context().close();
+
+    const secours = await openRegie();
+    await secours.locator("#regie-open:not([hidden])").click();
+    await secours.click("#regie-use-pin");
+    await secours.fill("#regie-pin", PIN);
+    await secours.click("#regie-go");
+    await inRegie(secours);
+    await secours.locator("#panel-show", { hasText: "entrez dans la régie avec le mot de passe" }).waitFor();
+    await secours.context().close();
+  });
+
+  test("les équipes voient le prénom de l'enfant fêté en rejoignant la partie", async () => {
+    await update(gameRef(), { public: { title: "L'anniversaire de Léa", childName: "Léa" } });
+    const page = await openRegie();
+    await page.locator("#join-welcome", { hasText: "Joyeux anniversaire Léa !" }).waitFor();
+    await page.context().close();
+  });
+});

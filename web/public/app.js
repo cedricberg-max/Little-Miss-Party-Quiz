@@ -117,6 +117,12 @@ function showJoin() {
   });
   show("join");
   $("team-name").focus();
+  // Prestation chargée : on accueille les équipes avec le prénom de l'enfant fêté.
+  get(ref(db, `games/${code}/public`)).then((s) => {
+    const p = s.val();
+    $("join-welcome").textContent = p?.childName ? `Joyeux anniversaire ${p.childName} !` : p?.title ?? "";
+    $("join-welcome").hidden = !$("join-welcome").textContent;
+  }).catch(() => {});
 }
 
 $("join").onclick = async () => {

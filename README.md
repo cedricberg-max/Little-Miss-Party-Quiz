@@ -35,6 +35,21 @@ Lancés par GitHub à chaque modification ; aucun APK n'est publié si l'un éch
 - Moteur : `./gradlew -p engine test`
 - Règles Firebase, pupitre et régie (navigateur simulé, émulateur Firebase) : `cd tests && npm ci && npm test`
 
+## Quiz et prestations
+
+Dans l'administration (`admin.html`, compte Google de Sarah ou cedric) :
+
+- **Quiz › Importer un quiz** : la page fournit la consigne à coller dans Gemini ; on colle sa réponse
+  (ou des lignes copiées d'un tableur, ou un fichier CSV), puis on relit. Les anomalies sont signalées
+  (bonne réponse absente ou double, propositions identiques, question trop longue pour l'âge, doublon).
+  Seules les questions **validées** sont jouées.
+- **Prestations › Nouvelle prestation** : prénom de l'enfant, âge, date, manches dans l'ordre (quiz ou
+  Super Finale aux points doublés). Statut « Prête » : la prestation apparaît sur la régie.
+- Le jour J, dans le salon d'attente, la régie (entrée avec le mot de passe) ouvre l'onglet
+  **Prestation** : une touche charge la prestation sur la TV, qui accueille l'enfant par son prénom.
+
+Sans prestation chargée, la TV joue le quiz de démonstration livré avec l'appli.
+
 ## Mot de passe de la régie
 
 Sarah ou cedric le changent dans l'administration (`https://little-miss-party-quiz.web.app/admin.html`,

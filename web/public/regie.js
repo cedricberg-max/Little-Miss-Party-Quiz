@@ -3,6 +3,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { CHOICE_LETTERS } from "./theme.js";
 import { passwordHash } from "./secret.js";
+import { buildSnapshot, showTitle } from "./show.js";
 
 // Régie de l'animatrice, ouverte depuis la page des pupitres (bouton « Accès régie »).
 // Elle n'écrit que des commandes : la box les vérifie, les applique et répond dans commandStatus/ ;
@@ -23,6 +24,9 @@ let timerHandle = null;
 let undoTimer = null;
 let answerMasked = false;
 let tab = "teams";
+/** Prestations publiées par Sarah : null tant qu'elles ne sont pas lues. */
+let shows = null;
+let loadingShow = null;
 
 // ---------- Accès ----------
 
@@ -116,6 +120,7 @@ function listen(path, fn) {
 function control() {
   stopListening();
   live = { state: null, teams: {}, presence: {}, plan: null, answers: {}, connected: true };
+  shows = null;
   $("c-code").textContent = code;
   listen(".info/serverTimeOffset", (s) => { serverOffset = s.val() ?? 0; });
   listen(".info/connected", (s) => {
@@ -128,7 +133,15 @@ function control() {
     stopListening();
     onExit?.("Ce téléphone n'est plus relié à la régie de la partie.");
   });
-  listen(`games/${code}/state`, (s) => { live.state = s.val(); watchAnswers(); render(); });
+  let first = true;
+  listen(`games/${code}/state`, (s) => {
+    live.state = s.val();
+    watchAnswers();
+    // En arrivant dans le salon d'attente, la première chose à faire est de charger la prestation.
+    if (first && live.state?.phase === "lobby") switchTab("show");
+    first = false;
+    render();
+  });
   listen(`games/${code}/teams`, (s) => { live.teams = s.val() ?? {}; render(); });
   listen(`games/${code}/presence`, (s) => { live.presence = s.val() ?? {}; render(); });
   listen(`games/${code}/conducteur`, (s) => { live.plan = s.val(); render(); });
@@ -170,7 +183,9 @@ function render() {
   const q = live.plan?.questions?.[st.index];
   const inQuestion = st.phase !== "lobby" && st.phase !== "ended" && st.index != null && st.index >= 0;
 
-  $("c-step").textContent = inQuestion ? `Question ${st.index + 1} / ${st.total ?? "?"}${st.double ? " · ×2" : ""}` : "";
+  $("c-step").textContent = inQuestion
+    ? `Question ${st.index + 1} / ${st.total ?? "?"}${st.double ? " · ×2" : ""}`
+    : st.phase === "lobby" ? live.plan?.title ?? "" : "";
   $("c-phase").textContent = st.phase === "question" && st.paused ? "En pause" : PHASES[st.phase] ?? "";
   $("c-phase").classList.toggle("paused", st.phase === "question" && st.paused === true);
   $("c-question").textContent = inQuestion ? st.text ?? q?.text ?? "" : st.phase === "ended" ? "Bravo à toutes les équipes !" : `${teams.length} équipe${teams.length > 1 ? "s" : ""} inscrite${teams.length > 1 ? "s" : ""}`;
@@ -188,6 +203,7 @@ function render() {
 
   renderTeams(st, teams);
   renderPlan(st);
+  renderShows(st);
   runTimer(st);
 
   const next = $("c-next");
@@ -237,7 +253,7 @@ function renderTeams(st, teams) {
 function renderPlan(st) {
   const box = $("panel-plan");
   const questions = live.plan?.questions ?? [];
-  const key = `${questions.length}:${st.index}`;
+  const key = `${live.plan?.title}:${questions.length}:${st.index}`;
   if (box.dataset.key === key) return;
   box.dataset.key = key;
   box.innerHTML = "";
@@ -245,6 +261,12 @@ function renderPlan(st) {
   questions.forEach((q, i) => {
     const item = document.createElement("div");
     item.className = `plan-item${i === st.index ? " current" : ""}${i < st.index ? " done" : ""}`;
+    if (q.round && q.round !== questions[i - 1]?.round) {
+      const round = document.createElement("p");
+      round.className = "plan-round";
+      round.textContent = q.round;
+      box.appendChild(round);
+    }
     const title = document.createElement("div");
     title.textContent = `${i + 1}. ${q.text}${q.double ? " (×2)" : ""}`;
     const answer = document.createElement("b");
@@ -252,6 +274,106 @@ function renderPlan(st) {
     item.append(title, answer);
     box.appendChild(item);
   });
+}
+
+// ---------- Prestations (salon d'attente) ----------
+
+const SHOW_MESSAGES = {
+  not_now: "La partie a déjà commencé : la prestation ne peut plus changer.",
+  invalid: "La TV n'a pas pu lire cette prestation. Vérifiez-la dans l'administration.",
+};
+
+/** Lit les prestations publiées et les quiz qu'elles utilisent (réservé au mot de passe de régie). */
+async function fetchShows() {
+  shows = { loading: true };
+  render();
+  try {
+    const [s, q] = await Promise.all([get(ref(db, "library/shows")), get(ref(db, "library/quizzes"))]);
+    const quizzes = q.val() ?? {};
+    const today = new Date().toISOString().slice(0, 10);
+    const list = Object.entries(s.val() ?? {})
+      .filter(([, show]) => show.status === "publiee")
+      .map(([id, show]) => ({ id, show, ...buildSnapshot(id, show, quizzes) }))
+      // Les prestations à venir d'abord, la plus proche en tête ; les passées ensuite.
+      .sort((a, b) => {
+        const da = a.show.date ?? "9999", dbb = b.show.date ?? "9999";
+        const pa = da < today, pb = dbb < today;
+        return pa !== pb ? (pa ? 1 : -1) : pa ? dbb.localeCompare(da) : da.localeCompare(dbb);
+      });
+    shows = { list };
+  } catch (e) {
+    console.error(e);
+    shows = { denied: /permission/i.test(String(e?.message ?? e)) };
+  }
+  render();
+}
+
+function renderShows(st) {
+  const lobby = st.phase === "lobby";
+  $("tab-show").hidden = !lobby;
+  if (!lobby && tab === "show") switchTab("teams");
+  if (!lobby || tab !== "show") return;
+  if (shows === null) { fetchShows(); return; }
+  const box = $("panel-show");
+  const key = JSON.stringify([shows.loading, shows.denied, shows.list?.map((s) => s.id), loadingShow, live.plan?.title]);
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
+  box.innerHTML = "";
+  const hint = (text) => { const p = document.createElement("p"); p.className = "hint"; p.textContent = text; box.appendChild(p); };
+  if (shows.loading) return hint("Chargement des prestations…");
+  if (shows.denied) return hint("Pour charger une prestation, entrez dans la régie avec le mot de passe (pas avec le code de la TV).");
+  if (shows.error || !shows.list) return hint("Impossible de lire les prestations. Vérifiez la connexion.");
+  if (!shows.list.length) hint("Aucune prestation prête. Sarah les prépare dans l'administration (statut « Prête »).");
+  shows.list.forEach(({ id, show, snapshot, problems }) => {
+    const item = document.createElement("button");
+    item.className = "show-item";
+    item.dataset.show = id;
+    const title = document.createElement("b");
+    title.textContent = showTitle(show);
+    const meta = document.createElement("span");
+    const date = show.date ? new Date(`${show.date}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) : "";
+    meta.textContent = [show.childName, show.age ? `${show.age} ans` : "", date].filter(Boolean).join(" · ");
+    const detail = document.createElement("span");
+    detail.textContent = snapshot
+      ? `${snapshot.rounds.length} manche${snapshot.rounds.length > 1 ? "s" : ""} · ${snapshot.quiz.questions.length} questions`
+      : problems[problems.length - 1];
+    item.append(title, meta, detail);
+    if (loadingShow === id) detail.textContent = "Chargement sur la TV…";
+    item.disabled = !snapshot || !!loadingShow;
+    item.onclick = () => loadShow(id, snapshot);
+    box.appendChild(item);
+  });
+  const refresh = document.createElement("button");
+  refresh.className = "link";
+  refresh.textContent = "Actualiser la liste";
+  refresh.onclick = () => fetchShows();
+  box.appendChild(refresh);
+}
+
+/** Envoie l'instantané de la prestation à la TV, qui le vérifie et répond dans showStatus/. */
+async function loadShow(id, snapshot) {
+  if (loadingShow) return;
+  loadingShow = id;
+  render();
+  const showId = push(ref(db, `games/${code}/show`)).key;
+  const done = (message) => { loadingShow = null; if (message) toast(message); render(); };
+  let stop = () => {};
+  const timeout = setTimeout(() => { stop(); done("La TV ne répond pas. Vérifiez qu'elle est allumée et connectée à Internet."); }, 8000);
+  stop = onValue(ref(db, `games/${code}/showStatus`), (s) => {
+    const status = s.val();
+    if (status?.id !== showId) return;
+    clearTimeout(timeout);
+    stop();
+    done(status.status === "applied" ? `« ${snapshot.title} » est chargée sur la TV.` : SHOW_MESSAGES[status.reason] ?? "La TV a refusé cette prestation.");
+  });
+  try {
+    await set(ref(db, `games/${code}/show`), { ...snapshot, id: showId, by: uid, at: serverTimestamp() });
+  } catch (e) {
+    console.error(e);
+    clearTimeout(timeout);
+    stop();
+    done("Chargement refusé : la partie a peut-être déjà commencé.");
+  }
 }
 
 function runTimer(st) {
@@ -368,12 +490,14 @@ $("c-answer").onclick = () => { answerMasked = !answerMasked; render(); };
 
 $("tab-teams").onclick = () => switchTab("teams");
 $("tab-plan").onclick = () => switchTab("plan");
+$("tab-show").onclick = () => switchTab("show");
 function switchTab(name) {
   tab = name;
-  $("tab-teams").classList.toggle("active", tab === "teams");
-  $("tab-plan").classList.toggle("active", tab === "plan");
-  $("panel-teams").hidden = tab !== "teams";
-  $("panel-plan").hidden = tab !== "plan";
+  for (const t of ["teams", "plan", "show"]) {
+    $(`tab-${t}`).classList.toggle("active", tab === t);
+    $(`panel-${t}`).hidden = tab !== t;
+  }
+  render();
 }
 
 // Après le verrouillage du téléphone, Firebase se reconnecte seul et les écouteurs relisent l'état.

@@ -79,6 +79,9 @@ sealed interface UiState {
         val regiePin: String = "",
         val regies: Int = 0,
         val showRegie: Boolean = false,
+        /** Prestation chargée par la régie (titre et prénom de l'enfant fêté), vide pour le quiz de démonstration. */
+        val title: String = "",
+        val childName: String = "",
     ) : UiState {
         val buzzer: Team? get() = teams.find { it.uid == buzzerUid }
         val ranking: List<Pair<Team, Int>>
@@ -111,6 +114,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private val judging = mutableSetOf<String>()
     private var pinFailures = 0
     private var pinLockedUntil = 0L
+    /** Dernier chargement de prestation jugé par la box (appliqué ou refusé) : jamais rejugé. */
+    private var judgedShow: String? = null
     private val prefs = app.getSharedPreferences("partie", Context.MODE_PRIVATE)
 
     /** Code de la partie en cours, mémorisé sur la box pour survivre à un crash ou un redémarrage. */
@@ -241,7 +246,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         gameRef = ref
         activeCode = code
         val snap = ref.get().await()
-        val quiz = loadQuiz(snap.child("quizId").getValue(String::class.java))
+        // Prestation chargée par la régie et acceptée : la box la rejoue telle quelle, sans relire la bibliothèque.
+        val show = snap.child("show")
+        val showApplied = show.child("id").value != null &&
+            snap.child("showStatus/id").value == show.child("id").value &&
+            snap.child("showStatus/status").getValue(String::class.java) == "applied"
+        val quiz = (if (showApplied) runCatching { QuizJson.fromValue(show.child("quiz").value) }.getOrNull() else null)
+            ?: loadQuiz(snap.child("quizId").getValue(String::class.java))
+        judgedShow = snap.child("showStatus/id").getValue(String::class.java)
         val history = snap.child("log").children.mapNotNull { (it.value as? Map<*, *>)?.let(Codec::decode) }
         val g = Game(quiz, history)
         game = g
@@ -257,9 +269,12 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             // Équipes connues dès l'ouverture : une commande reçue avant leur chargement est jugée correctement.
             teams = parseTeams(snap.child("teams")),
             regiePin = regiePin(code), regies = regieUids.size,
+            title = if (showApplied) quiz.title else "",
+            childName = if (showApplied) show.child("childName").getValue(String::class.java).orEmpty() else "",
         )
         // Le conducteur (questions et bonnes réponses) n'est lisible que par les régies reliées.
         ref.child("conducteur").setValue(conducteur(quiz))
+        publishPublic()
         listenGame(db, ref)
         listenCommands(ref)
         refresh()
@@ -440,6 +455,48 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         gameRef?.updateChildren(updates)?.addOnCompleteListener { judging.remove(uid) }
     }
 
+    /**
+     * Prestation choisie sur la régie (salon d'attente seulement) : la box vérifie le quiz, remplace
+     * celui de la partie, republie le conducteur et répond dans showStatus/. Le journal est gardé
+     * (corrections de score déjà faites), aucune question n'a encore été jouée.
+     */
+    private fun judgeShow(snap: DataSnapshot) {
+        val id = snap.child("id").getValue(String::class.java) ?: return
+        if (id == judgedShow) return
+        viewModelScope.launch { actions.withLock {
+            if (id == judgedShow) return@withLock
+            val g = game ?: return@withLock
+            judgedShow = id
+            val quiz = runCatching { QuizJson.fromValue(snap.child("quiz").value) }
+            val reason = when {
+                g.state.phase != Phase.LOBBY || g.state.index >= 0 -> "not_now"
+                quiz.isFailure -> "invalid".also { Log.e(TAG, "Prestation refusée", quiz.exceptionOrNull()) }
+                else -> null
+            }
+            if (reason == null) {
+                val q = quiz.getOrThrow()
+                game = Game(q, g.events)
+                updatePlaying {
+                    it.copy(title = q.title, childName = snap.child("childName").getValue(String::class.java).orEmpty())
+                }
+                gameRef?.child("conducteur")?.setValue(conducteur(q))
+                publishPublic()
+                publishState()
+                refresh()
+            }
+            gameRef?.child("showStatus")?.setValue(
+                clean(mapOf("id" to id, "status" to if (reason == null) "applied" else "refused", "reason" to reason, "at" to ServerValue.TIMESTAMP))
+            )
+        } }
+    }
+
+    /** Titre et prénom de l'enfant fêté, lisibles par les pupitres pour l'accueil. */
+    private fun publishPublic() {
+        val s = _state.value as? UiState.Playing ?: return
+        val title = s.title.ifBlank { game?.quiz?.title.orEmpty() }
+        gameRef?.child("public")?.setValue(clean(mapOf("title" to title.take(120), "childName" to s.childName.take(40).ifBlank { null })))
+    }
+
     /** Les commandes arrivent dans l'ordre de leurs clés et passent une par une, comme les boutons de la box. */
     private fun listenCommands(ref: DatabaseReference) {
         val commands = ref.child("commands")
@@ -549,6 +606,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         observe(ref.child("pairing")) { snap -> snap.children.forEach(::judgePairing) }
+        observe(ref.child("show"), ::judgeShow)
         observe(ref.child("regie")) { snap ->
             val uids = snap.children.mapNotNull { it.key }.toSet()
             val added = uids - regieUids
@@ -667,7 +725,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         fun conducteur(quiz: Quiz): Map<String, Any> = mapOf(
             "title" to quiz.title,
             "questions" to quiz.questions.map {
-                mapOf("text" to it.text, "choices" to it.choices, "correct" to it.correct, "double" to it.double)
+                clean(mapOf("text" to it.text, "choices" to it.choices, "correct" to it.correct, "double" to it.double, "round" to it.roundTitle))
             },
         )
 

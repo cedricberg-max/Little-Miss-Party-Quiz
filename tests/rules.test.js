@@ -374,3 +374,87 @@ describe("mot de passe commun de la régie", () => {
     await assertFails(set(ref(admin(), "settings/regie"), { salt: SALT, hash: "motdepasseenclair", updatedAt: serverTimestamp() }));
   });
 });
+
+describe("bibliothèque, prestations et chargement sur la TV", () => {
+  const SALT = "sel-de-test-0123456789";
+  const hash = (password) => createHash("sha256").update(`${SALT}:${password}`).digest("hex");
+  const admin = () => env.authenticatedContext("sarah", { email: ADMIN_EMAIL, email_verified: true }).database();
+  const QUIZ = {
+    title: "Animaux", source: "gemini", updatedAt: serverTimestamp(),
+    questions: [{ text: "Roi de la jungle ?", choices: ["Lion", "Tigre"], correct: 0, status: "validee" }],
+  };
+  const SHOW = { childName: "Léa", age: 8, status: "publiee", rounds: [{ type: "quiz", quizId: "q1" }], updatedAt: serverTimestamp() };
+  const SNAPSHOT = (uid) => ({
+    id: "s1", title: "L'anniversaire de Léa", childName: "Léa", by: uid, at: serverTimestamp(),
+    quiz: { id: "show1", title: "L'anniversaire de Léa", questions: [{ id: "r1q1", text: "Roi ?", choices: ["Lion", "Tigre"], correct: 0 }] },
+  });
+  /** Téléphone relié par le mot de passe commun (même chemin que la page). */
+  async function regieByPassword(uid) {
+    await env.withSecurityRulesDisabled((ctx) =>
+      set(ref(ctx.database(), "settings/regie"), { salt: SALT, hash: hash("Licorne-2026"), updatedAt: 1 }));
+    const d = db(uid);
+    await set(ref(d, "regieGate/try"), { uid, at: serverTimestamp() });
+    const gateAt = (await get(ref(d, "regieGate/try/at"))).val();
+    await set(ref(d, `regieProof/${uid}`), { hash: hash("Licorne-2026"), gateAt, at: serverTimestamp() });
+    await set(ref(d, `games/${CODE}/regie/${uid}`), { pairedAt: serverTimestamp(), via: "password" });
+  }
+  const regieByPin = (uid) => env.withSecurityRulesDisabled((ctx) =>
+    set(ref(ctx.database(), `games/${CODE}/regie/${uid}`), { pairedAt: 1, via: "pin" }));
+
+  test("seul un administrateur enregistre ou supprime un quiz et une prestation", async () => {
+    await assertSucceeds(set(ref(admin(), "library/quizzes/q1"), QUIZ));
+    await assertSucceeds(set(ref(admin(), "library/shows/show1"), SHOW));
+    await assertFails(set(ref(db("tel"), "library/quizzes/q2"), QUIZ));
+    await assertFails(set(ref(env.authenticatedContext("x", { email: "intrus@gmail.com", email_verified: true }).database(), "library/shows/s2"), SHOW));
+    await assertFails(set(ref(env.authenticatedContext("y", { email: ADMIN_EMAIL, email_verified: false }).database(), "library/quizzes/q3"), QUIZ));
+    await assertSucceeds(set(ref(admin(), "library/quizzes/q1"), null));
+  });
+  test("quiz ou prestation mal formés refusés", async () => {
+    await assertFails(set(ref(admin(), "library/quizzes/q1"), { ...QUIZ, title: "" }));
+    await assertFails(set(ref(admin(), "library/quizzes/q1"), { ...QUIZ, questions: [{ ...QUIZ.questions[0], status: "ok" }] }));
+    await assertFails(set(ref(admin(), "library/quizzes/q1"), { ...QUIZ, questions: [{ ...QUIZ.questions[0], duration: 600 }] }));
+    await assertFails(set(ref(admin(), "library/shows/s1"), { ...SHOW, childName: "" }));
+    await assertFails(set(ref(admin(), "library/shows/s1"), { ...SHOW, status: "en ligne" }));
+  });
+  test("la bibliothèque se lit par l'administration et par une régie entrée avec le mot de passe", async () => {
+    await seed({ phase: "lobby" });
+    await assertSucceeds(set(ref(admin(), "library/quizzes/q1"), QUIZ));
+    await assertSucceeds(get(ref(admin(), "library")));
+    await regieByPassword("tel");
+    await assertSucceeds(get(ref(db("tel"), "library/shows")));
+    await assertSucceeds(get(ref(db("tel"), "library/quizzes/q1")));
+    // Le mot de passe commun ne donne aucun droit d'écriture dans la bibliothèque.
+    await assertFails(set(ref(db("tel"), "library/quizzes/q1"), QUIZ));
+  });
+  test("ni une équipe, ni la box, ni une régie entrée par le code de secours ne lisent la bibliothèque", async () => {
+    await seed({ phase: "lobby" });
+    await regieByPin("secours");
+    await assertFails(get(ref(db("rose"), "library")));
+    await assertFails(get(ref(db(HOST), "library/quizzes")));
+    await assertFails(get(ref(db("secours"), "library/shows")));
+  });
+  test("la régie charge une prestation dans le salon d'attente, pas pendant la partie", async () => {
+    await seed({ phase: "lobby" });
+    await regieByPin("tel");
+    await assertSucceeds(set(ref(db("tel"), `games/${CODE}/show`), SNAPSHOT("tel")));
+    await assertSucceeds(get(ref(db("tel"), `games/${CODE}/show`)));
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/state/phase`), "question"));
+    await assertFails(set(ref(db("tel"), `games/${CODE}/show`), { ...SNAPSHOT("tel"), id: "s2" }));
+  });
+  test("une équipe ne charge rien et ne lit pas les réponses de la prestation", async () => {
+    await seed({ phase: "lobby" });
+    await assertFails(set(ref(db("rose"), `games/${CODE}/show`), SNAPSHOT("rose")));
+    await regieByPin("tel");
+    await set(ref(db("tel"), `games/${CODE}/show`), SNAPSHOT("tel"));
+    await assertFails(get(ref(db("rose"), `games/${CODE}/show`)));
+    await assertFails(set(ref(db("tel"), `games/${CODE}/showStatus`), { id: "s1", status: "applied" }));
+    await assertFails(set(ref(db("tel"), `games/${CODE}/show`), { ...SNAPSHOT("rose") }));
+  });
+  test("la box publie le titre et le prénom, lisibles par tous les pupitres", async () => {
+    await seed({ phase: "lobby" });
+    await assertSucceeds(set(ref(db(HOST), `games/${CODE}/public`), { title: "L'anniversaire de Léa", childName: "Léa" }));
+    await assertSucceeds(set(ref(db(HOST), `games/${CODE}/showStatus`), { id: "s1", status: "applied" }));
+    await assertSucceeds(get(ref(db("rose"), `games/${CODE}/public`)));
+    await assertFails(set(ref(db("rose"), `games/${CODE}/public`), { title: "Pirate" }));
+  });
+});
