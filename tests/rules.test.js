@@ -363,6 +363,16 @@ describe("régie", () => {
     await assertFails(command(REGIE, { type: "next", points: 50 }));
     await assertFails(set(ref(db(REGIE), `games/${CODE}/commands/sans-seq`), { type: "next", by: REGIE, at: serverTimestamp() }));
   });
+  test("mimes : la régie lance un tour, valide, passe, corrige d'un point et arrête le tour", async () => {
+    await paired();
+    await assertSucceeds(command(REGIE, { type: "mime_start", team: "rose" }));
+    await assertSucceeds(command(REGIE, { type: "mime_found" }));
+    await assertSucceeds(command(REGIE, { type: "mime_pass" }));
+    await assertSucceeds(command(REGIE, { type: "mime_fix", team: "rose", delta: -1 }));
+    await assertSucceeds(command(REGIE, { type: "mime_stop" }));
+    await assertFails(command("rose", { type: "mime_found" }));
+    await assertFails(set(ref(db(REGIE), `games/${CODE}/commands/m-points`), { type: "mime_found", points: 50, expectSeq: 3, by: REGIE, at: serverTimestamp() }));
+  });
   test("une commande ne se réécrit pas", async () => {
     await paired();
     await assertSucceeds(command(REGIE, { type: "pause" }));
@@ -500,6 +510,19 @@ describe("bibliothèque, prestations et chargement sur la TV", () => {
     await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), "adminProof/y"), { hash: adminHash("faux"), gateAt: 1, at: 1 }));
     await assertFails(set(ref(db("y"), "library/quizzes/q3"), QUIZ));
     await assertSucceeds(set(ref(admin(), "library/quizzes/q1"), null));
+  });
+  test("paquet de mimes : enregistré par l'administration, lu par la régie, mal formé refusé", async () => {
+    const DECK = { title: "Animaux", duration: 60, updatedAt: serverTimestamp(), cards: [{ word: "Chat", image: "🐱" }, { word: "Robot" }] };
+    await assertSucceeds(set(ref(admin(), "library/mimes/m1"), DECK));
+    await assertFails(set(ref(db("tel"), "library/mimes/m2"), DECK));
+    await assertFails(set(ref(admin(), "library/mimes/m1"), { ...DECK, cards: [] }));
+    await assertFails(set(ref(admin(), "library/mimes/m1"), { ...DECK, duration: 600 }));
+    await assertFails(set(ref(admin(), "library/mimes/m1"), { ...DECK, cards: [{ word: "" }] }));
+    await assertFails(set(ref(admin(), "library/mimes/m1"), { ...DECK, cards: [{ word: "Chat", secret: 1 }] }));
+    await seed({ phase: "lobby" });
+    await regieByPassword("tel");
+    await assertSucceeds(get(ref(db("tel"), "library/mimes")));
+    await assertFails(get(ref(db("rose"), "library/mimes")));
   });
   test("quiz ou prestation mal formés refusés", async () => {
     await assertFails(set(ref(admin(), "library/quizzes/q1"), { ...QUIZ, title: "" }));

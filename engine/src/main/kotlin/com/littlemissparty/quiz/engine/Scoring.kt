@@ -10,6 +10,9 @@ object Scoring {
     const val BASE = 100
     const val MAX_BONUS = 20
 
+    /** Mime trouvé (validé par l'animatrice). */
+    const val MIME = 50
+
     /**
      * @param remainingFraction part du temps qui restait quand la réponse est arrivée (0 à 1).
      */

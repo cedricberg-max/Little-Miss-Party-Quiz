@@ -27,6 +27,11 @@ object Codec {
             is ScoreAdjusted -> mapOf("type" to "adjust", "team" to e.team, "delta" to e.delta, "reason" to e.reason)
             is Undone -> mapOf("type" to "undo", "target" to e.target)
             is GameEnded -> mapOf("type" to "end")
+            is MimeTurnStarted -> mapOf("type" to "mime_start", "team" to e.team)
+            is MimeFound -> mapOf("type" to "mime_found")
+            is MimePassed -> mapOf("type" to "mime_pass")
+            is MimeCorrected -> mapOf("type" to "mime_fix", "team" to e.team, "delta" to e.delta)
+            is MimeTurnEnded -> mapOf("type" to "mime_stop")
         }
         return base + body
     }
@@ -57,11 +62,32 @@ object Codec {
             "adjust" -> ScoreAdjusted(seq, at, m["team"] as String, m.num("delta").toInt(), m["reason"] as? String ?: "")
             "undo" -> Undone(seq, at, m.num("target").toInt())
             "end" -> GameEnded(seq, at)
+            "mime_start" -> MimeTurnStarted(seq, at, m["team"] as String)
+            "mime_found" -> MimeFound(seq, at)
+            "mime_pass" -> MimePassed(seq, at)
+            "mime_fix" -> MimeCorrected(seq, at, m["team"] as String, m.num("delta").toInt())
+            "mime_stop" -> MimeTurnEnded(seq, at)
             else -> null
         }
     }.getOrNull()
 
     private fun Map<*, *>.num(k: String): Long = (this[k] as Number).toLong()
+
+    /**
+     * Manche de mimes (encore publiée au classement qui la suit) : équipe qui joue, carte affichée (mot et image), compteurs du tour, bilan du dernier
+     * tour et mimes trouvés par équipe dans la manche. Seule la carte affichée est publiée, jamais le paquet.
+     */
+    private fun mimeState(game: Game, m: MimeRound?): Map<String, Any?> = mapOf(
+        "team" to m?.team,
+        "card" to game.mimeCard?.let { mapOf("word" to it.word, "image" to it.image) },
+        "found" to (m?.found ?: 0),
+        "passed" to (m?.passed ?: 0),
+        "left" to (m?.deck?.size ?: 0),
+        "turns" to m?.turns.orEmpty(),
+        "last" to m?.last?.let { mapOf("team" to it.team, "found" to it.found, "passed" to it.passed) },
+        "points" to Scoring.MIME,
+        "counts" to game.state.mimes[game.state.qid].orEmpty(),
+    )
 
     /**
      * Ce que les pupitres ont le droit de voir. La bonne réponse n'y figure qu'après la révélation :
@@ -101,6 +127,7 @@ object Codec {
                     mapOf("correct" to a.correct, "points" to a.points, "bonus" to a.bonus)
                 } else null,
             )
+            if (q.isMime) out["mime"] = mimeState(game, s.mime)
         }
         return out
     }

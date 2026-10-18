@@ -10,7 +10,9 @@ import { parseQuiz, checkQuestions, geminiPrompt, LETTERS } from "./importer.js"
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
 import {
   buildSnapshot, estimateMinutes, playable, showTitle, ROUND_TYPES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
+  roundFilled, MIME_TURN,
 } from "./show.js";
+import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
 
 // Administration : un mot de passe commun, sans compte ni adresse e-mail. Toute personne qui le connaît
 // a tous les droits. Le serveur (règles Firebase) vérifie l'empreinte envoyée par cet appareil ;
@@ -60,6 +62,7 @@ const ctx = { db, uid };
 
 let quizzes = {};
 let shows = {};
+let mimes = {};
 let stops = [];
 let current = "home";
 
@@ -85,15 +88,16 @@ function status(id, text, ok = false) {
   $(id).classList.toggle("ok", ok);
 }
 
-const SCREENS = ["login", "home", "shows", "show-edit", "quizzes", "import", "review", "settings"];
+const SCREENS = ["login", "home", "shows", "show-edit", "quizzes", "import", "review", "settings", "mimes", "mime-edit"];
 function show(name) {
-  if (["home", "shows", "quizzes", "settings"].includes(name)) current = name;
+  if (["home", "shows", "quizzes", "settings", "mimes"].includes(name)) current = name;
   SCREENS.forEach((s) => { $(`screen-${s}`).hidden = s !== name; });
   document.querySelectorAll("#nav button").forEach((b) => b.classList.toggle("active", b.dataset.screen === current));
   window.scrollTo(0, 0);
   if (name === "home") renderHome();
   if (name === "shows") renderShows();
   if (name === "quizzes") renderQuizzes();
+  if (name === "mimes") renderMimes();
   if (name === "settings") showLastChange();
 }
 document.querySelectorAll("[data-screen]").forEach((b) => { b.onclick = () => show(b.dataset.screen); });
@@ -177,6 +181,7 @@ function enter() {
   const lost = (e) => { console.error(e); stops.forEach((s) => s()); stops = []; if (!rekeying) route(); };
   stops.push(onValue(ref(db, "library/quizzes"), (s) => { quizzes = s.val() ?? {}; refreshLists(); }, lost));
   stops.push(onValue(ref(db, "library/shows"), (s) => { shows = s.val() ?? {}; refreshLists(); }, lost));
+  stops.push(onValue(ref(db, "library/mimes"), (s) => { mimes = s.val() ?? {}; refreshLists(); }, lost));
   show(current);
 }
 
@@ -186,6 +191,7 @@ function refreshLists() {
   if (!$("screen-home").hidden) renderHome();
   if (!$("screen-shows").hidden) renderShows();
   if (!$("screen-quizzes").hidden) renderQuizzes();
+  if (!$("screen-mimes").hidden) renderMimes();
   if (!$("screen-show-edit").hidden) refreshRounds();
 }
 
@@ -210,8 +216,8 @@ function renderHome() {
   const today = isoDay();
   const pending = Object.values(shows).filter((s) => !s.date || s.date >= today);
   $("stat-upcoming").textContent = coming.length;
-  $("stat-ready").textContent = coming.filter(([, s]) => readiness(s, quizzes).level === "prete").length;
-  $("stat-todo").textContent = pending.filter((s) => readiness(s, quizzes).level === "a-completer").length;
+  $("stat-ready").textContent = coming.filter(([, s]) => readiness(s, quizzes, mimes).level === "prete").length;
+  $("stat-todo").textContent = pending.filter((s) => readiness(s, quizzes, mimes).level === "a-completer").length;
   const box = $("home-upcoming");
   box.replaceChildren(...coming.slice(0, 6).map(([id, s]) => showCard(id, s)));
   if (!coming.length) {
@@ -222,6 +228,16 @@ function renderHome() {
   const n = Object.keys(quizzes).length;
   const ok = Object.values(quizzes).reduce((t, q) => t + playable(q).length, 0);
   $("tile-quiz").textContent = `${n} quiz · ${ok} question${ok > 1 ? "s" : ""} validée${ok > 1 ? "s" : ""}`;
+  const decks = Object.keys(mimes).length;
+  $("tile-mimes").textContent = `${decks} paquet${decks > 1 ? "s" : ""} de cartes`;
+}
+
+/** « 18 questions · 1 manche de mimes » : ce que contient une prestation. */
+function contentLabel(snapshot) {
+  const items = snapshot.quiz.questions;
+  const q = items.filter((x) => x.kind !== "mime").length;
+  const m = items.length - q;
+  return [q ? `${q} question${q > 1 ? "s" : ""}` : "", m ? `${m} manche${m > 1 ? "s" : ""} de mimes` : ""].filter(Boolean).join(" · ");
 }
 $("home-new").onclick = () => editShow(null);
 $("home-import").onclick = () => $("quiz-import-open").click();
@@ -230,15 +246,15 @@ $("home-import").onclick = () => $("quiz-import-open").click();
 
 /** Carte d'une prestation : date, prénom, âge, état de préparation et actions. */
 function showCard(id, s) {
-  const r = readiness(s, quizzes);
-  const { snapshot } = buildSnapshot(id, s, quizzes);
+  const r = readiness(s, quizzes, mimes);
+  const { snapshot } = buildSnapshot(id, s, quizzes, mimes);
   const date = s.date ? shortDate(s.date) : null;
   return h("article", { class: `card show-card ${r.level}`, "data-show": id },
     h("div", { class: "date-chip" }, date ? [h("b", { text: `${date.day}` }), h("span", { text: date.month })] : h("span", { text: "sans date" })),
     h("div", { class: "card-body" },
       h("b", { class: "card-title", text: showTitle(s) }),
       h("span", { class: "meta", text: [s.childName, s.age ? `${s.age} ans` : "", s.date ? `${dateLabel(s.date)} (${whenLabel(s.date)})` : ""].filter(Boolean).join(" · ") }),
-      snapshot ? h("span", { class: "meta", text: `${snapshot.quiz.questions.length} questions · environ ${estimateMinutes(snapshot)} min` }) : null,
+      snapshot ? h("span", { class: "meta", text: `${contentLabel(snapshot)} · environ ${estimateMinutes(snapshot)} min` }) : null,
       r.level === "prete"
         ? h("span", { class: "pill ok", text: "✓ Prête : visible sur la régie" })
         : r.level === "archivee"
@@ -320,7 +336,7 @@ function formShow() {
     durationMin: num($("show-duration").value),
     themes: $("show-themes").value.trim() || null,
     notes: $("show-notes").value.trim() || null,
-    rounds: editing.rounds.filter((r) => r.quizId),
+    rounds: editing.rounds.filter(roundFilled).map((r) => (r.type === "mimes" ? { type: "mimes", deckId: r.deckId } : { type: r.type ?? "quiz", quizId: r.quizId })),
   };
 }
 
@@ -330,16 +346,21 @@ function refreshRounds() {
   const box = $("show-rounds");
   box.innerHTML = "";
   const options = Object.entries(quizzes).sort(([, a], [, b]) => a.title.localeCompare(b.title));
+  const decks = Object.entries(mimes).sort(([, a], [, b]) => a.title.localeCompare(b.title));
   if (!editing.rounds.length) box.append(h("p", { class: "hint small", text: "Ajoutez au moins une manche." }));
   editing.rounds.forEach((r, i) => {
     const move = (d) => { const [x] = editing.rounds.splice(i, 1); editing.rounds.splice(i + d, 0, x); refreshRounds(); };
     box.append(h("div", { class: "round" },
       h("span", { class: "num", text: `${i + 1}` }),
-      h("select", { "aria-label": "Type de manche", onchange: (e) => { r.type = e.target.value; refreshSummary(); } },
+      h("select", { "aria-label": "Type de manche", onchange: (e) => { r.type = e.target.value; refreshRounds(); } },
         ...Object.entries(ROUND_TYPES).map(([k, label]) => h("option", { value: k, text: label, selected: (r.type ?? "quiz") === k }))),
-      h("select", { class: "grow", "aria-label": "Quiz de la manche", onchange: (e) => { r.quizId = e.target.value; refreshSummary(); } },
-        h("option", { value: "", text: "Choisir un quiz…" }),
-        ...options.map(([qid, q]) => h("option", { value: qid, selected: r.quizId === qid, text: `${q.title} (${playable(q).length} validées)` }))),
+      r.type === "mimes"
+        ? h("select", { class: "grow", "aria-label": "Paquet de mimes", onchange: (e) => { r.deckId = e.target.value; refreshSummary(); } },
+          h("option", { value: "", text: decks.length ? "Choisir un paquet de mimes…" : "Aucun paquet : créez-en un dans Mimes" }),
+          ...decks.map(([did, d]) => h("option", { value: did, selected: r.deckId === did, text: `${d.title} (${(d.cards ?? []).length} cartes, tour de ${d.duration ?? MIME_TURN} s)` })))
+        : h("select", { class: "grow", "aria-label": "Quiz de la manche", onchange: (e) => { r.quizId = e.target.value; refreshSummary(); } },
+          h("option", { value: "", text: "Choisir un quiz…" }),
+          ...options.map(([qid, q]) => h("option", { value: qid, selected: r.quizId === qid, text: `${q.title} (${playable(q).length} validées)` }))),
       h("button", { type: "button", class: "icon", title: "Monter", disabled: i === 0, onclick: () => move(-1), text: "↑" }),
       h("button", { type: "button", class: "icon", title: "Descendre", disabled: i === editing.rounds.length - 1, onclick: () => move(1), text: "↓" }),
       h("button", { type: "button", class: "icon", title: "Retirer", onclick: () => { editing.rounds.splice(i, 1); refreshRounds(); }, text: "✕" })));
@@ -349,13 +370,13 @@ function refreshRounds() {
 
 function refreshSummary() {
   const s = formShow();
-  const { snapshot, problems } = buildSnapshot(editing?.id ?? "nouvelle", s, quizzes);
+  const { snapshot, problems } = buildSnapshot(editing?.id ?? "nouvelle", s, quizzes, mimes);
   const profile = PROFILES[s.profile] ? s.profile : profileForAge(s.age);
   $("show-summary").textContent = snapshot
-    ? `${snapshot.quiz.questions.length} questions jouables · environ ${estimateMinutes(snapshot)} min · chrono ${defaultDuration(profile)} s par question (profil ${PROFILES[profile].label}) sauf durée imposée`
+    ? `${contentLabel(snapshot)} jouables · environ ${estimateMinutes(snapshot)} min · chrono ${defaultDuration(profile)} s par question (profil ${PROFILES[profile].label}) sauf durée imposée`
     : "";
   $("show-problems").replaceChildren(...problems.map((p) => h("li", { text: p })));
-  const r = readiness(s, quizzes);
+  const r = readiness(s, quizzes, mimes);
   $("show-ready").className = `ready-box ${r.level}`;
   $("show-ready").replaceChildren(r.level === "prete"
     ? h("b", { text: "✓ Prestation prête : elle est visible sur la régie." })
@@ -374,9 +395,9 @@ function refreshReuse() {
   const options = Object.entries(shows)
     .filter(([id]) => id !== editing?.id)
     .sort(([, a], [, b]) => (b.date ?? "").localeCompare(a.date ?? ""))
-    .flatMap(([id, s]) => (s.rounds ?? []).filter((r) => r?.quizId && quizzes[r.quizId]).map((r, i) => ({
+    .flatMap(([id, s]) => (s.rounds ?? []).filter((r) => (r?.type === "mimes" ? mimes[r.deckId] : r?.quizId && quizzes[r.quizId])).map((r, i) => ({
       value: `${id}/${i}`, round: r,
-      text: `${showTitle(s)}${s.date ? ` (${new Date(`${s.date}T12:00:00`).toLocaleDateString("fr-FR")})` : ""} · ${r.type === "finale" ? ROUND_TYPES.finale : "Manche"} : ${quizzes[r.quizId].title}`,
+      text: `${showTitle(s)}${s.date ? ` (${new Date(`${s.date}T12:00:00`).toLocaleDateString("fr-FR")})` : ""} · ${ROUND_TYPES[r.type] && r.type !== "quiz" ? ROUND_TYPES[r.type] : "Manche"} : ${r.type === "mimes" ? mimes[r.deckId].title : quizzes[r.quizId].title}`,
     })));
   reuseChoices = new Map(options.map((o) => [o.value, o.round]));
   $("round-reuse").replaceChildren(
@@ -387,7 +408,7 @@ function refreshReuse() {
 $("round-reuse").onchange = (e) => {
   const r = reuseChoices.get(e.target.value);
   if (!r) return;
-  editing.rounds.push({ type: r.type ?? "quiz", quizId: r.quizId });
+  editing.rounds.push(r.type === "mimes" ? { type: "mimes", deckId: r.deckId } : { type: r.type ?? "quiz", quizId: r.quizId });
   refreshRounds();
 };
 
@@ -395,8 +416,8 @@ $("show-form").onsubmit = async (e) => {
   e.preventDefault();
   const s = formShow();
   if (!s.childName) return status("show-status-msg", "Indiquez le prénom de l'enfant fêté.");
-  if (s.status === "publiee" && !buildSnapshot("x", s, quizzes).snapshot) {
-    return status("show-status-msg", "Une prestation prête doit contenir au moins une question validée.");
+  if (s.status === "publiee" && !buildSnapshot("x", s, quizzes, mimes).snapshot) {
+    return status("show-status-msg", "Une prestation prête doit contenir au moins une question validée ou un paquet de mimes.");
   }
   const id = editing.id ?? push(ref(db, "library/shows")).key;
   const prev = shows[id] ?? {};
@@ -709,4 +730,115 @@ $("test-create").onclick = async () => {
   } finally {
     btn.disabled = false;
   }
+};
+
+// ---------- Mimes : paquets de cartes ----------
+
+function renderMimes() {
+  const box = $("mime-list");
+  const list = Object.entries(mimes).sort(([, a], [, b]) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+  box.replaceChildren(...list.map(([id, d]) => {
+    const cards = (d.cards ?? []).filter(Boolean);
+    return h("div", { class: "item", "data-deck": id },
+      h("b", { text: d.title }),
+      h("span", { text: `${cards.length} carte${cards.length > 1 ? "s" : ""} · tour de ${d.duration ?? MIME_TURN} s` }),
+      h("span", { text: cards.slice(0, 8).map((c) => c.image ?? c.word).join(" ") }),
+      h("div", { class: "row" },
+        h("button", { class: "btn secondary", onclick: () => editDeck(id), text: "Modifier" }),
+        h("button", { class: "btn secondary", onclick: () => editDeck(null, d), text: "Dupliquer" })));
+  }));
+  if (!list.length) box.append(h("p", { class: "hint", text: "Aucun paquet pour l'instant : créez-en un en choisissant des images dans le catalogue." }));
+}
+
+let deck = null; // { id, cards: [{word, image}] }
+let deckTheme = MIME_THEMES[0];
+const sameCard = (a, b) => a.word.toLowerCase() === b.word.toLowerCase();
+
+$("mime-new").onclick = () => editDeck(null);
+
+/** Ouvre un paquet ; sans identifiant, un nouveau, vide ou copié d'un autre (`from`). */
+function editDeck(id, from = null) {
+  const d = id ? mimes[id] : from ?? {};
+  deck = { id, cards: (d.cards ?? []).filter(Boolean).map((c) => ({ word: c.word, ...(c.image ? { image: c.image } : {}) })) };
+  $("mime-edit-title").textContent = id ? d.title : from ? `Copie de « ${from.title} »` : "Nouveau paquet";
+  $("mime-title").value = from ? `${from.title} (copie)`.slice(0, 120) : d.title ?? "";
+  $("mime-duration").value = `${d.duration ?? MIME_TURN}`;
+  $("mime-delete").hidden = !id;
+  status("mime-status", "");
+  show("mime-edit");
+  renderDeck();
+}
+
+function toggleCard(card) {
+  const i = deck.cards.findIndex((c) => sameCard(c, card));
+  if (i >= 0) deck.cards.splice(i, 1);
+  else deck.cards.push({ word: card.word, ...(card.image ? { image: card.image } : {}) });
+  renderDeck();
+}
+
+function cardButton(card, on, onclick, extra = null) {
+  return h("button", { type: "button", class: `mime-card${on ? " on" : ""}`, onclick, "data-word": card.word },
+    h("span", { class: "emoji", text: card.image ?? "🎭" }), h("span", { class: "word", text: card.word }), extra);
+}
+
+function renderDeck() {
+  $("mime-count").textContent = deck.cards.length;
+  $("mime-picked").replaceChildren(...deck.cards.map((c) =>
+    cardButton(c, false, () => toggleCard(c), h("span", { class: "remove", text: "✕" }))));
+  if (!deck.cards.length) $("mime-picked").append(h("p", { class: "hint small", text: "Aucune carte : touchez des images du catalogue ci-dessous." }));
+  const themeCards = MIME_CATALOG.filter((c) => c.theme === deckTheme);
+  const allOn = themeCards.every((c) => deck.cards.some((x) => sameCard(x, c)));
+  $("mime-themes").replaceChildren(
+    ...MIME_THEMES.map((t) => h("button", { type: "button", class: `chip${t === deckTheme ? " active" : ""}`, onclick: () => { deckTheme = t; renderDeck(); }, text: t })),
+    h("button", { type: "button", class: "chip", onclick: () => {
+      themeCards.forEach((c) => { if (allOn === deck.cards.some((x) => sameCard(x, c))) toggleCard(c); });
+    }, text: allOn ? "Tout retirer de ce thème" : "Tout ce thème" }));
+  $("mime-catalog").replaceChildren(...themeCards.map((c) =>
+    cardButton(c, deck.cards.some((x) => sameCard(x, c)), () => toggleCard(c))));
+}
+
+$("mime-custom").onsubmit = (e) => {
+  e.preventDefault();
+  const word = $("mime-word").value.trim();
+  const image = $("mime-emoji").value.trim();
+  if (!word) return;
+  if (deck.cards.some((c) => sameCard(c, { word }))) return status("mime-status", `« ${word} » est déjà dans le paquet.`);
+  deck.cards.push({ word: word.slice(0, 40), ...(image ? { image: image.slice(0, 16) } : {}) });
+  $("mime-word").value = "";
+  $("mime-emoji").value = "";
+  status("mime-status", "");
+  renderDeck();
+  $("mime-word").focus();
+};
+
+$("mime-save").onclick = async () => {
+  const title = $("mime-title").value.trim();
+  if (!title) return status("mime-status", "Donnez un nom au paquet.");
+  if (!deck.cards.length) return status("mime-status", "Choisissez au moins une carte.");
+  const id = deck.id ?? push(ref(db, "library/mimes")).key;
+  $("mime-save").disabled = true;
+  try {
+    await set(ref(db, `library/mimes/${id}`), {
+      title, duration: Number($("mime-duration").value), cards: deck.cards,
+      createdAt: mimes[id]?.createdAt ?? Date.now(), updatedAt: serverTimestamp(),
+    });
+    deck.id = id;
+    $("mime-delete").hidden = false;
+    $("mime-edit-title").textContent = title;
+    status("mime-status", `Enregistré : ${deck.cards.length} carte${deck.cards.length > 1 ? "s" : ""}. Ajoutez-le à une prestation comme manche « Mimes ».`, true);
+  } catch (err) {
+    console.error(err);
+    status("mime-status", "Enregistrement refusé : vérifiez Internet ou reconnectez-vous.");
+  } finally {
+    $("mime-save").disabled = false;
+  }
+};
+
+$("mime-delete").onclick = async () => {
+  if (!deck?.id) return;
+  const used = Object.values(shows).filter((s) => (s.rounds ?? []).some((r) => r?.deckId === deck.id)).map(showTitle);
+  const warning = used.length ? `\n\nAttention, il est utilisé par : ${used.join(", ")}.` : "";
+  if (!confirm(`Supprimer le paquet « ${mimes[deck.id]?.title ?? ""} » ?${warning}`)) return;
+  await set(ref(db, `library/mimes/${deck.id}`), null);
+  show("mimes");
 };
