@@ -1,8 +1,11 @@
 // Prestation : ce que Sarah prépare dans l'administration (prénom, âge, profil, manches dans l'ordre)
 // et que la régie charge sur la TV. Fonctions pures, sans Firebase.
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
+import { shuffle } from "./mime-cards.js";
 
-export const ROUND_TYPES = { quiz: "Quiz", finale: "Super Finale" };
+export const ROUND_TYPES = { quiz: "Quiz", finale: "Super Finale", mimes: "Mimes" };
+/** Durée d'un tour de mimes par défaut (secondes). */
+export const MIME_TURN = 60;
 export const MAX_QUESTIONS = 200;
 
 export function showTitle(show) {
@@ -14,17 +17,46 @@ export function playable(quiz) {
   return (quiz?.questions ?? []).filter((q) => q && q.status === "validee" && q.correct >= 0 && q.correct < (q.choices?.length ?? 0));
 }
 
+/** Une manche est-elle complète (quiz choisi, ou paquet de mimes choisi) ? */
+export const roundFilled = (round) => !!(round && (round.type === "mimes" ? round.deckId : round.quizId));
+
+/**
+ * Manche de mimes : un seul élément du programme, avec le paquet de cartes mélangé (chaque prestation
+ * a son ordre) et la durée d'un tour. Le paquet de la bibliothèque n'est pas modifié.
+ */
+function mimeItem(round, deck, i, random) {
+  const cards = (deck.cards ?? []).filter((c) => c?.word?.trim()).map((c) => (c.image ? { word: c.word.trim(), image: c.image } : { word: c.word.trim() }));
+  return {
+    id: `r${i + 1}m`,
+    text: deck.title,
+    kind: "mime",
+    duration: round.duration ?? deck.duration ?? MIME_TURN,
+    cards: shuffle(cards, random),
+    round: deck.title,
+  };
+}
+
 /**
  * Instantané que la box joue : un seul quiz, manches mises bout à bout, chrono du profil pour
- * les questions sans durée imposée, points doublés pour la Super Finale.
+ * les questions sans durée imposée, points doublés pour la Super Finale ; une manche de mimes y est
+ * un seul élément qui porte son paquet de cartes.
  * Renvoie `{ snapshot, problems }` ; `snapshot` est nul si rien n'est jouable.
  */
-export function buildSnapshot(showId, show, quizzes) {
+export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.random) {
   const profile = PROFILES[show.profile] ? show.profile : profileForAge(show.age);
   const problems = [];
   const rounds = [];
   const questions = [];
   (show.rounds ?? []).filter(Boolean).forEach((round, i) => {
+    if (round.type === "mimes") {
+      const deck = mimes[round.deckId];
+      if (!deck) { problems.push(`Manche ${i + 1} : le paquet de mimes n'existe plus dans la bibliothèque.`); return; }
+      const item = mimeItem(round, deck, i, random);
+      if (!item.cards.length) { problems.push(`Manche ${i + 1} (${deck.title}) : aucune carte.`); return; }
+      rounds.push({ title: deck.title, count: 1, kind: "mime" });
+      questions.push(item);
+      return;
+    }
     const quiz = quizzes[round.quizId];
     const label = round.type === "finale" ? ROUND_TYPES.finale : quiz?.title ?? `Manche ${i + 1}`;
     if (!quiz) { problems.push(`Manche ${i + 1} : le quiz n'existe plus dans la bibliothèque.`); return; }
@@ -66,7 +98,8 @@ export function buildSnapshot(showId, show, quizzes) {
 /** Durée approximative d'une prestation, pour l'aider à composer : chrono + révélation et scores. */
 export function estimateMinutes(snapshot) {
   if (!snapshot) return 0;
-  const sec = snapshot.quiz.questions.reduce((t, q) => t + q.duration + 30, 0);
+  // Mimes : deux tours d'équipe environ, plus les changements d'équipe.
+  const sec = snapshot.quiz.questions.reduce((t, q) => t + (q.kind === "mime" ? 2 * q.duration + 60 : q.duration + 30), 0);
   return Math.round(sec / 60);
 }
 
@@ -84,14 +117,14 @@ export function daysUntil(date, today = isoDay()) {
  * État de préparation d'une prestation, pour le tableau de bord : « prete » quand elle est
  * complète et visible sur la régie, sinon la liste de ce qui reste à faire.
  */
-export function readiness(show, quizzes) {
+export function readiness(show, quizzes, mimes = {}) {
   if (show.status === "archivee") return { level: "archivee", todo: [] };
   const todo = [];
   if (!show.date) todo.push("Ajouter la date");
   if (!show.age) todo.push("Indiquer l'âge");
-  if (!(show.rounds ?? []).filter((r) => r?.quizId).length) todo.push("Ajouter une manche");
+  if (!(show.rounds ?? []).filter(roundFilled).length) todo.push("Ajouter une manche");
   else {
-    const { snapshot, problems } = buildSnapshot("x", show, quizzes);
+    const { snapshot, problems } = buildSnapshot("x", show, quizzes, mimes);
     todo.push(...problems.filter((p) => snapshot || !p.startsWith("Aucune question jouable")));
     if (!snapshot && !problems.some((p) => p.startsWith("Manche"))) todo.push("Valider des questions");
   }
@@ -144,10 +177,10 @@ export function lockedUntil(questions, index) {
  * insérer : chrono du profil de la prestation, identifiants nouveaux (préfixe [prefix]) pour ne jamais
  * croiser une question déjà jouée. Le quiz de la bibliothèque n'est pas modifié.
  */
-export function gameQuestions(source, quizzes, profile, prefix) {
-  const { snapshot, problems } = buildSnapshot("ajout", { profile, rounds: [source] }, quizzes);
+export function gameQuestions(source, quizzes, profile, prefix, mimes = {}) {
+  const { snapshot, problems } = buildSnapshot("ajout", { profile, rounds: [source] }, quizzes, mimes);
   if (!snapshot) return { questions: [], problems };
-  return { questions: snapshot.quiz.questions.map((q, j) => ({ ...q, id: `${prefix}q${j + 1}` })), problems };
+  return { questions: snapshot.quiz.questions.map((q, j) => ({ ...q, id: `${prefix}${q.kind === "mime" ? "m" : "q"}${j + 1}` })), problems };
 }
 
 /** Insère un jeu après la manche en cours (au début, au salon d'attente) ou à la fin du programme. */

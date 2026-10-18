@@ -277,10 +277,10 @@ function render() {
   switch (st.phase) {
     case "question":
     case "closed":
-      return renderQuestion(st);
+      return st.mime ? renderMime(st) : renderQuestion(st);
     case "reveal":
     case "scores":
-      return renderResult(st);
+      return st.mime ? renderMimeResult(st) : renderResult(st);
     case "ended":
       return renderEnded(st);
     default:
@@ -290,6 +290,7 @@ function render() {
 
 function renderLobby(st) {
   show("play");
+  $("buzz").hidden = false;
   const round = st.round ?? 1;
   const open = st.buzzOpen === true;
   const first = game.buzz?.[round]?.team;
@@ -334,6 +335,33 @@ function renderQuestion(st) {
   else if (st.phase === "closed") $("q-status").textContent = "Temps écoulé !";
   else $("q-status").textContent = "Choisissez votre réponse !";
   runTimer(st);
+}
+
+/** Mimes : rien à toucher sur le pupitre, tout se passe devant la TV ; il dit seulement qui joue. */
+function renderMime(st) {
+  clearInterval(timerHandle);
+  show("play");
+  const buzz = $("buzz");
+  buzz.disabled = true;
+  buzz.hidden = true;
+  const m = st.mime;
+  const mine = m.counts?.[teamId] ?? 0;
+  const found = mine ? ` Déjà ${mine} mime${mine > 1 ? "s" : ""} trouvé${mine > 1 ? "s" : ""} !` : "";
+  if (m.team === teamId) $("play-status").textContent = "C'est votre tour ! Celui qui devine se met dos à la TV, les autres miment.";
+  else if (m.team) $("play-status").textContent = `C'est au tour de ${game.teams[m.team]?.name ?? "une autre équipe"} : regardez-les mimer !${found}`;
+  else $("play-status").textContent = `Mimes ! L'animatrice choisit l'équipe qui joue.${found}`;
+}
+
+function renderMimeResult(st) {
+  clearInterval(timerHandle);
+  show("result");
+  const n = st.mime?.counts?.[teamId] ?? 0;
+  $("r-icon").textContent = n ? "★" : "…";
+  $("r-icon").className = `result-icon ${n ? "ok" : "ko"}`;
+  $("r-title").textContent = n ? `Bravo ! ${n} mime${n > 1 ? "s" : ""} trouvé${n > 1 ? "s" : ""}` : "Pas de mime trouvé cette fois !";
+  $("r-detail").textContent = n ? `+${n * (st.mime?.points ?? 50)} points` : "";
+  const { mine, rank } = rankOf(st.scores);
+  $("r-total").textContent = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`;
 }
 
 async function answer(choice) {

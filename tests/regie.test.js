@@ -84,6 +84,8 @@ function startBox({ silent = false, held = false } = {}) {
   let state = { phase: "lobby", seq: 0, total: QUESTIONS.length, scores: {}, round: 1, buzzOpen: true };
   const handled = new Set();
   const stops = [];
+  /** Manche de mimes en cours (paquet restant), comme le moteur : MimeRound. */
+  let deck = [];
   stops.push(onValue(ref(db, `games/${CODE}/pairing`), async (s) => {
     for (const [uid, req] of Object.entries(s.val() ?? {})) {
       const ok = req.pin === PIN;
@@ -100,12 +102,17 @@ function startBox({ silent = false, held = false } = {}) {
       if (handled.has(id)) continue;
       handled.add(id);
       if (cmd.type === "admit" || cmd.type === "replace") { await admitDevice(id, cmd); continue; }
-      const advance = ["next", "close", "end", "pause", "resume"].includes(cmd.type);
+      const advance = ["next", "close", "end", "pause", "resume", "mime_start", "mime_found", "mime_pass", "mime_stop"].includes(cmd.type);
       let status = { status: "applied" };
       if (advance && cmd.expectSeq !== state.seq) status = { status: "stale", reason: "stale" };
       else {
         const seq = state.seq + 1;
-        if (cmd.type === "next" && state.phase === "lobby") state = questionState(seq);
+        const m = state.mime;
+        if (cmd.type.startsWith("mime_") || (m && ["next", "close"].includes(cmd.type))) {
+          const next = mimeStep(state, cmd, seq);
+          if (next) state = next; else status = { status: "refused", reason: "not_now" };
+        }
+        else if (cmd.type === "next" && state.phase === "lobby") state = questionState(seq);
         else if (cmd.type === "close") state = { ...state, seq, phase: "closed", deadline: null };
         else if (cmd.type === "pause" && state.paused) status = { status: "refused", reason: "not_now" };
         else if (cmd.type === "pause") state = { ...state, seq, paused: true, pauseReason: "regie", deadline: null, remainingMs: 15000 };
@@ -121,6 +128,46 @@ function startBox({ silent = false, held = false } = {}) {
         if (status.status === "applied") status.seq = seq;
       }
       await update(ref(db, `games/${CODE}`), { state, [`commandStatus/${id}`]: { ...status, at: Date.now() } });
+    }
+  }
+  /** Mimes : mêmes règles que le moteur (MimeTurnStarted, MimeFound, MimePassed, MimeCorrected, MimeTurnEnded). */
+  function mimeStep(st, cmd, seq) {
+    const m = st.mime;
+    if (!m || st.paused) return null;
+    const counts = { ...(m.counts ?? {}) };
+    const add = (team, d) => {
+      counts[team] = Math.max(0, (counts[team] ?? 0) + d);
+      return { ...st.scores, [team]: (st.scores[team] ?? 0) + (counts[team] - (m.counts?.[team] ?? 0)) * 50 };
+    };
+    const endTurn = (x) => ({ ...x, deadline: null, mime: { ...x.mime, team: null, card: null, found: 0, passed: 0, last: { team: m.team, found: x.mime.found, passed: x.mime.passed } } });
+    switch (cmd.type) {
+      case "mime_start":
+        if (m.team || !deck.length) return null;
+        return { ...st, seq, deadline: Date.now() + 60000, mime: { ...m, team: cmd.team, card: deck[0], found: 0, passed: 0, turns: [...(m.turns ?? []), cmd.team] } };
+      case "mime_found": {
+        if (!m.team) return null;
+        const scores = add(m.team, 1);
+        deck = deck.slice(1);
+        const next = { ...st, seq, scores, mime: { ...m, counts, card: deck[0] ?? null, left: deck.length, found: m.found + 1 } };
+        return deck.length ? next : endTurn(next);
+      }
+      case "mime_pass":
+        if (!m.team || deck.length < 2) return null;
+        deck = [...deck.slice(1), deck[0]];
+        return { ...st, seq, mime: { ...m, card: deck[0], passed: m.passed + 1 } };
+      case "mime_fix": {
+        if ((counts[cmd.team] ?? 0) + cmd.delta < 0) return null;
+        const scores = add(cmd.team, cmd.delta);
+        const fix = (t) => (t && t.team === cmd.team ? { ...t, found: Math.max(0, t.found + cmd.delta) } : t);
+        return { ...st, seq, scores, mime: { ...m, counts, found: m.team === cmd.team ? Math.max(0, m.found + cmd.delta) : m.found, last: fix(m.last) ?? null } };
+      }
+      case "mime_stop":
+      case "close":
+        return m.team ? endTurn({ ...st, seq }) : null;
+      case "next":
+        return m.team ? endTurn({ ...st, seq }) : { ...st, seq, phase: "scores", deadline: null };
+      default:
+        return null;
     }
   }
   // Appareil arrivé en cours de partie : mêmes vérifications que GameViewModel.admitDevice.
@@ -177,6 +224,16 @@ function startBox({ silent = false, held = false } = {}) {
     stop: () => stops.forEach((f) => f()),
     release: () => { held = false; return process(); },
     get state() { return state; },
+    /** Partie arrivée à une manche de mimes de [cards] (sans tour en cours). */
+    async mimes(cards, scores = {}) {
+      deck = cards;
+      state = {
+        ...state, phase: "question", seq: state.seq + 1, index: 2, qid: "m1", kind: "mime", text: "Animaux", durationMs: 60000,
+        choices: null, deadline: null, scores, buzzOpen: false,
+        mime: { team: null, card: null, found: 0, passed: 0, left: cards.length, turns: [], counts: {}, points: 50 },
+      };
+      await update(ref(db, `games/${CODE}`), { state });
+    },
     refuseNextProgram: (reason) => { refuseProgram = reason; },
   };
 }
@@ -404,6 +461,91 @@ describe("régie", () => {
     await pc.reload();
     await pc.locator("#screen-home:not([hidden])").waitFor();
     for (const p of [pc, portable]) await p.context().close();
+  });
+
+  test("mimes : choisir l'équipe, lancer le tour, trouvé, passer, corriger ; les points vont au classement", async () => {
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    await addTeam("bleu", "Les Bleus");
+    const cards = [{ word: "Chat", image: "🐱" }, { word: "Pirate", image: "🏴‍☠️" }, { word: "Pizza", image: "🍕" }, { word: "Robot", image: "🤖" }];
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    await box.mimes(cards, { rose: 100 });
+    await page.locator("#mime:not([hidden])").waitFor();
+    await page.locator("#mime-info", { hasText: "Qui commence ?" }).waitFor();
+    assert.equal(await page.locator("#mime-found").isHidden(), true, "Pas de « Trouvé » avant le tour");
+    await page.locator("#c-next", { hasText: "Terminer les mimes" }).waitFor();
+    await page.locator(".mime-team", { hasText: "Les Bleus" }).click();
+    await page.locator("#mime-go", { hasText: "Top départ ! (Les Bleus)" }).click();
+    await page.locator("#mime-now .word", { hasText: "Chat" }).waitFor();
+    await page.locator("#c-next", { hasText: "Arrêter le tour" }).waitFor();
+    await page.click("#mime-found");
+    await page.locator("#mime-now .word", { hasText: "Pirate" }).waitFor();
+    await page.click("#mime-pass");
+    await page.locator("#mime-now .word", { hasText: "Pizza" }).waitFor();
+    await page.click("#mime-found");
+    await page.locator("#mime-info", { hasText: "2 mimes trouvés" }).waitFor();
+    await page.click("#mime-minus");
+    await page.locator("#mime-info", { hasText: "1 mime trouvé" }).waitFor();
+    await page.click("#c-next");
+    await page.locator("#mime-info", { hasText: "Les Bleus a trouvé 1 mime" }).waitFor();
+    // Juste après le tour : l'animatrice rend le point retiré par erreur.
+    await page.click("#mime-fix-plus");
+    await page.locator("#mime-info", { hasText: "Les Bleus a trouvé 2 mimes" }).waitFor();
+    // L'équipe suivante proposée est celle qui n'a pas encore joué.
+    await page.locator(".mime-team.selected", { hasText: "Les Roses" }).waitFor();
+    assert.deepEqual((await commands()).map((c) => c.type), ["mime_start", "mime_found", "mime_pass", "mime_found", "mime_fix", "close", "mime_fix"]);
+    assert.deepEqual((await commands()).find((c) => c.type === "mime_start").team, "bleu");
+    await page.click("#c-next");
+    await page.locator("#c-phase", { hasText: "Scores" }).waitFor();
+    assert.deepEqual((await read("state")).scores, { rose: 100, bleu: 100 });
+    assert.equal(await page.locator("#mime").isHidden(), true);
+    await page.context().close();
+  });
+
+  test("mimes en pause : les gros boutons sont figés jusqu'à la reprise", async () => {
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    await box.mimes([{ word: "Chat" }, { word: "Robot" }]);
+    await page.locator("#mime-go", { hasText: "Les Roses" }).click();
+    await page.locator("#mime-found:not([disabled])").waitFor();
+    await page.click("#c-pause");
+    await page.locator("#c-phase", { hasText: "En pause" }).waitFor();
+    assert.equal(await page.locator("#mime-found").isDisabled(), true);
+    assert.equal(await page.locator("#mime-pass").isDisabled(), true);
+    await page.click("#c-pause");
+    await page.locator("#mime-found:not([disabled])").waitFor();
+    await page.context().close();
+  });
+
+  test("pupitre pendant les mimes : il dit qui joue, sans rien à toucher", async () => {
+    box = startBox();
+    const team = await openRegie();
+    await team.fill("#team-name", "Les Roses");
+    await team.click("#join");
+    await team.locator("#screen-play.active").waitFor();
+    const rose = Object.keys(await read("teams"))[0];
+    await box.mimes([{ word: "Chat" }, { word: "Robot" }]);
+    await team.locator("#play-status", { hasText: "L'animatrice choisit l'équipe qui joue" }).waitFor();
+    assert.equal(await team.locator("#buzz").isHidden(), true);
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator("#mime-go", { hasText: "Les Roses" }).click();
+    await team.locator("#play-status", { hasText: "C'est votre tour !" }).waitFor();
+    assert.equal(await team.locator("body").innerText().then((t) => t.includes("Chat")), false, "Le mot n'apparaît jamais sur le pupitre");
+    await regie.click("#mime-found");
+    await regie.click("#c-next");
+    await regie.locator("#mime-info", { hasText: "Tour terminé" }).waitFor();
+    await regie.click("#c-next");
+    await team.locator("#r-title", { hasText: "Bravo ! 1 mime trouvé" }).waitFor();
+    await team.locator("#r-detail", { hasText: "+50 points" }).waitFor();
+    assert.ok(rose);
+    for (const p of [team, regie]) await p.context().close();
   });
 
   test("lancer le quiz, voir la question et sa réponse, arrêter le chrono", async () => {
@@ -838,6 +980,69 @@ describe("bibliothèque de quiz et prestations", () => {
     ]);
     await regie.click("#tab-plan");
     await regie.locator("#panel-plan .plan-round", { hasText: "Super Finale" }).waitFor();
+    await regie.context().close();
+  });
+
+  test("Sarah compose un paquet de mimes, l'ajoute à une prestation ; la régie le charge ou l'ajoute en direct", async () => {
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    const page = await admin();
+    await page.click(".tile[data-screen=mimes]");
+    await page.click("#mime-new");
+    await page.fill("#mime-title", "Animaux à mimer");
+    await page.selectOption("#mime-duration", "45");
+    await page.locator("#mime-catalog .mime-card", { hasText: "Chat" }).click();
+    await page.locator("#mime-catalog .mime-card", { hasText: "Éléphant" }).click();
+    await page.locator("#mime-catalog .mime-card", { hasText: "Lapin" }).click();
+    await page.locator("#mime-catalog .mime-card", { hasText: "Lapin" }).click();
+    await page.fill("#mime-word", "Le chat de Léa");
+    await page.fill("#mime-emoji", "😺");
+    await page.locator("#mime-custom button").click();
+    await page.locator("#mime-count", { hasText: "3" }).waitFor();
+    await page.click("#mime-save");
+    await page.locator("#mime-status", { hasText: "Enregistré : 3 cartes" }).waitFor();
+    const [deckId, deck] = Object.entries(await library("mimes"))[0];
+    assert.equal(deck.duration, 45);
+    assert.deepEqual(deck.cards, [{ word: "Chat", image: "🐱" }, { word: "Éléphant", image: "🐘" }, { word: "Le chat de Léa", image: "😺" }]);
+
+    await page.click("#nav button[data-screen=home]");
+    await page.click("#home-new");
+    await page.fill("#show-child", "Léa");
+    await page.fill("#show-age", "9");
+    await page.click("#round-add");
+    await page.locator("#show-rounds select.grow").nth(0).selectOption("animaux");
+    await page.click("#round-add");
+    await page.locator("#show-rounds .round").nth(1).locator("select").first().selectOption("mimes");
+    await page.locator("#show-rounds .round").nth(1).locator("select.grow").selectOption(deckId);
+    await page.locator("#show-summary", { hasText: "2 questions · 1 manche de mimes jouables" }).waitFor();
+    await page.selectOption("#show-status", "publiee");
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
+    assert.deepEqual(Object.values(await library("shows"))[0].rounds, [{ type: "quiz", quizId: "animaux" }, { type: "mimes", deckId }]);
+    await page.context().close();
+
+    box = startBox();
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "L'anniversaire de Léa" }).click();
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    const mime = (await read("show")).quiz.questions[2];
+    assert.equal(mime.kind, "mime");
+    assert.equal(mime.duration, 45);
+    assert.equal(mime.round, "Animaux à mimer");
+    assert.deepEqual(mime.cards.map((c) => c.word).sort(), ["Chat", "Le chat de Léa", "Éléphant"]);
+    await regie.click("#tab-plan");
+    await regie.locator("#panel-plan .plan-item", { hasText: "Mimes : Animaux à mimer" }).waitFor();
+    // En direct : « Ajouter un jeu » propose le paquet dans les mini-jeux.
+    await regie.click("#plan-add");
+    await regie.locator("#lib-list [data-game^='mimes/']", { hasText: "Animaux à mimer" }).click();
+    await regie.locator("#lib-meta", { hasText: "Mimes · 3 cartes · tour de 45 s" }).waitFor();
+    await regie.click("#lib-end");
+    await regie.locator("#r-toast", { hasText: "est ajouté à la fin du programme" }).waitFor();
+    const plan = (await read("conducteur")).questions;
+    assert.equal(plan.length, 4);
+    assert.equal(plan[3].kind, "mime");
+    assert.equal(plan[3].round, "Animaux à mimer · 2");
     await regie.context().close();
   });
 

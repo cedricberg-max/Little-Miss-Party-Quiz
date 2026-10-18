@@ -22,6 +22,9 @@ import com.littlemissparty.quiz.engine.CommandResult
 import com.littlemissparty.quiz.engine.CommandStatus
 import com.littlemissparty.quiz.engine.Game
 import com.littlemissparty.quiz.engine.GameEvent
+import com.littlemissparty.quiz.engine.MimeCard
+import com.littlemissparty.quiz.engine.MimeTurn
+import com.littlemissparty.quiz.engine.Scoring
 import com.littlemissparty.quiz.engine.PAUSE_TEAM
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
@@ -92,12 +95,29 @@ sealed interface UiState {
         /** Prestation chargée par la régie (titre et prénom de l'enfant fêté), vide pour le quiz de démonstration. */
         val title: String = "",
         val childName: String = "",
+        /** Manche de mimes en cours (ou qui vient de finir, au classement), sinon null. */
+        val mime: MimeUi? = null,
     ) : UiState {
         val buzzer: Team? get() = teams.find { it.uid == buzzerUid }
         val ranking: List<Pair<Team, Int>>
             get() = teams.map { it to (scores[it.uid] ?: 0) }.sortedWith(compareByDescending<Pair<Team, Int>> { it.second }.thenBy { it.first.joinedAt })
     }
 }
+
+/**
+ * Mimes vus par l'écran : équipe qui joue (null entre deux tours), carte affichée, compteurs du tour,
+ * bilan du dernier tour, mimes trouvés par équipe dans la manche et équipes ayant déjà joué.
+ */
+data class MimeUi(
+    val team: String? = null,
+    val card: MimeCard? = null,
+    val found: Int = 0,
+    val passed: Int = 0,
+    val left: Int = 0,
+    val last: MimeTurn? = null,
+    val counts: Map<String, Int> = emptyMap(),
+    val turns: List<String> = emptyList(),
+)
 
 /**
  * La box est l'unique arbitre de la partie : elle seule fait avancer le jeu et calcule les points.
@@ -335,8 +355,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             if (g.state.resumeAt?.let { serverNow() < it } == true) return@withLock
             when (g.state.phase) {
                 Phase.LOBBY -> if (teams().isNotEmpty()) commit(g.next(serverNow()))
+                // Mimes : arrête le tour en cours, ou termine la manche entre deux tours (« Terminer les mimes »).
+                Phase.QUESTION -> if (g.question?.isMime == true) commit(g.next(serverNow()))
                 // Chrono qui vient de partir : second appui d'un double clic, même livré en retard par la box.
-                Phase.QUESTION -> if (!g.justStarted(serverNow())) commit(g.close(serverNow()))
+                else if (!g.justStarted(serverNow())) commit(g.close(serverNow()))
                 Phase.CLOSED -> commit(g.reveal(serverNow(), collectAnswers()))
                 else -> commit(g.next(serverNow()))
             }
@@ -344,6 +366,23 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun togglePause() = act { g -> if (g.state.paused) g.resume(serverNow()) else g.pause(serverNow()) }
+
+    /** Mimes à la télécommande : lancer le tour de [team] (null : l'équipe qui a le moins joué). */
+    fun mimeStart(team: String?) = act { g -> (team ?: g.nextMimeTeam(teams().map { it.uid }))?.let { g.mimeStart(it, serverNow()) } }
+
+    /**
+     * Mime trouvé à la télécommande. Un appui juste après « Top départ » est le second appui d'un double clic
+     * sur OK (le bouton « Trouvé » vient de prendre le focus) : il ne compte pas.
+     */
+    fun mimeFound() {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastNextAt < NEXT_GUARD_MS) return
+        lastNextAt = now
+        act { g -> if (g.justStarted(serverNow())) null else g.mimeFound(serverNow()) }
+    }
+
+    fun mimePass() = act { it.mimePass(serverNow()) }
+    fun mimeStop() = act { it.mimeStop(serverNow()) }
     fun pause() = act { it.pause(serverNow()) }
     fun unpause() = act { it.resume(serverNow()) }
 
@@ -409,7 +448,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             delay((deadline - serverNow() + CLOSE_GRACE_MS).coerceAtLeast(0))
             actions.withLock {
                 if (g.state.phase == Phase.QUESTION && !g.state.paused && g.remainingMs(serverNow()) == 0L) {
-                    commit(g.close(serverNow()))
+                    // Fin de la question, ou fin du tour de mimes.
+                    commit(g.timeUp(serverNow()))
                 }
             }
         }
@@ -421,6 +461,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val s = g.state
         val q = g.question
         val revealedAwards = q?.let { s.awards[it.id] }.orEmpty()
+        val mimeCounts = q?.takeIf { it.isMime }?.let { s.mimes[it.id] }.orEmpty()
         _state.update { cur ->
             if (cur !is UiState.Playing) cur
             else cur.copy(
@@ -435,8 +476,15 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 remainingMs = q?.let { it.durationMs - s.elapsedAt(Long.MAX_VALUE) }?.coerceAtLeast(0) ?: 0,
                 awards = revealedAwards,
                 scores = s.scores(),
-                lastGain = revealedAwards.mapValues { it.value.points },
+                lastGain = if (q?.isMime == true) mimeCounts.mapValues { it.value * Scoring.MIME } else revealedAwards.mapValues { it.value.points },
                 isLast = g.isLastQuestion,
+                mime = q?.takeIf { it.isMime && s.phase != Phase.LOBBY }?.let {
+                    val m = s.mime
+                    MimeUi(
+                        team = m?.team, card = g.mimeCard, found = m?.found ?: 0, passed = m?.passed ?: 0,
+                        left = m?.deck?.size ?: 0, last = m?.last, counts = mimeCounts, turns = m?.turns.orEmpty(),
+                    )
+                },
             )
         }
         watchAnswers(s.qid.takeIf { s.phase == Phase.QUESTION || s.phase == Phase.CLOSED })
@@ -724,7 +772,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 delay(DROP_GRACE_MS)
                 dropTimers.remove(uid)
                 act { g ->
-                    val waited = g.state.phase == Phase.QUESTION && !g.state.paused && g.remainingMs(serverNow()) > 0
+                    // Pendant les mimes, les pupitres ne servent pas : un pupitre qui décroche ne bloque rien.
+                    val waited = g.state.phase == Phase.QUESTION && !g.state.paused && g.remainingMs(serverNow()) > 0 &&
+                        g.question?.isMime != true
                     if (waited && uid !in online && uid !in answers && teams().any { it.uid == uid }) {
                         g.pause(serverNow(), PAUSE_TEAM, uid)
                     } else null
@@ -873,8 +923,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "rev" to rev,
             "questions" to quiz.questions.map {
                 clean(mapOf(
-                    "id" to it.id, "text" to it.text, "choices" to it.choices, "correct" to it.correct,
+                    "id" to it.id, "text" to it.text, "choices" to it.choices.ifEmpty { null }, "correct" to it.correct,
                     "duration" to it.durationSec, "kind" to it.kind.code, "double" to it.double, "round" to it.roundTitle,
+                    "cards" to it.cards.ifEmpty { null }?.map { c -> clean(mapOf("word" to c.word, "image" to c.image)) },
                 ))
             },
         )

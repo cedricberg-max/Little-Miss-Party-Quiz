@@ -87,6 +87,11 @@ class TvActions(
     val removeRegies: () -> Unit,
     /** Ouvre la fenêtre « Rechercher une mise à jour ». */
     val checkUpdate: () -> Unit = {},
+    /** Mimes à la télécommande : lancer le tour (équipe proposée), trouvé, passer, arrêter le tour. */
+    val mimeStart: (String?) -> Unit = {},
+    val mimeFound: () -> Unit = {},
+    val mimePass: () -> Unit = {},
+    val mimeStop: () -> Unit = {},
 )
 
 /** Mise à jour de l'appli depuis la TV : état de la fenêtre et version trouvée par la recherche discrète. */
@@ -173,7 +178,8 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null) 
 private fun Playing(state: UiState.Playing, actions: TvActions) {
     when (state.phase) {
         Phase.LOBBY -> Lobby(state, actions)
-        Phase.QUESTION, Phase.CLOSED, Phase.REVEAL -> QuestionScreen(state, actions)
+        Phase.QUESTION, Phase.CLOSED, Phase.REVEAL ->
+            if (state.mime != null) MimeScreen(state, actions) else QuestionScreen(state, actions)
         Phase.SCORES -> ScoresScreen(state, actions)
         Phase.ENDED -> FinalScreen(state, actions)
     }

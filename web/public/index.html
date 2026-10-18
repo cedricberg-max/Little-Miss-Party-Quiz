@@ -118,6 +118,23 @@
       </div>
       <div id="c-requests" class="requests" hidden></div>
 
+      <!-- Mimes : la régie choisit l'équipe, lance son tour et valide chaque mime trouvé. -->
+      <section id="mime" class="mime" hidden aria-label="Mimes">
+        <div id="mime-now" class="mime-now"><span class="emoji"></span><b class="word"></b></div>
+        <p id="mime-info" class="mime-info"></p>
+        <div id="mime-teams" class="mime-teams"></div>
+        <button id="mime-go" class="btn main">Top départ !</button>
+        <button id="mime-found" class="mime-found">TROUVÉ !<small>+1 mime</small></button>
+        <div id="mime-row" class="mime-row">
+          <button id="mime-pass" class="btn secondary">Passer</button>
+          <button id="mime-minus" class="btn secondary">−1</button>
+        </div>
+        <div id="mime-fix" class="mime-row">
+          <button id="mime-fix-minus" class="btn secondary">−1</button>
+          <button id="mime-fix-plus" class="btn secondary">+1</button>
+        </div>
+      </section>
+
       <nav class="tabs">
         <button id="tab-teams" class="tab active">Équipes</button>
         <button id="tab-plan" class="tab">Conducteur</button>

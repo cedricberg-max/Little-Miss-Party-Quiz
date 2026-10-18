@@ -2,7 +2,8 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { parseQuiz, checkQuestions, geminiPrompt, resolveCorrect } from "../web/public/importer.js";
-import { buildSnapshot,
+import { MIME_CATALOG } from "../web/public/mime-cards.js";
+import { buildSnapshot, estimateMinutes,
   readiness, upcoming, daysUntil, isoDay, duplicateShow, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
 } from "../web/public/show.js";
 
@@ -248,5 +249,36 @@ describe("prestation de test", () => {
     const report = checkQuestions(TEST_QUIZ.questions, { profile: "MOYENS" });
     assert.deepEqual(report.flatMap((r) => [...r.errors, ...r.warnings]), []);
     assert.equal(readiness(TEST_SHOW, quizzes).level, "prete");
+  });
+});
+
+describe("mimes", () => {
+  const DECK = { title: "Animaux", duration: 45, cards: [{ word: "Chat", image: "🐱" }, { word: " Robot " }, { word: "" }, null] };
+  const QUIZ = { title: "Quiz", questions: [{ text: "Roi ?", choices: ["Lion", "Tigre"], correct: 0, status: "validee" }] };
+
+  test("une manche de mimes devient un seul élément du programme, avec son paquet et la durée d'un tour", () => {
+    const show = { childName: "Léa", age: 9, rounds: [{ type: "quiz", quizId: "q" }, { type: "mimes", deckId: "d" }] };
+    const { snapshot, problems } = buildSnapshot("s", show, { q: QUIZ }, { d: DECK }, () => 0);
+    assert.deepEqual(problems, []);
+    const mime = snapshot.quiz.questions[1];
+    assert.equal(snapshot.quiz.questions.length, 2);
+    assert.deepEqual({ ...mime, cards: undefined }, { id: "r2m", text: "Animaux", kind: "mime", duration: 45, cards: undefined, round: "Animaux" });
+    assert.deepEqual(mime.cards.map((c) => c.word).sort(), ["Chat", "Robot"], "Cartes vides écartées, mots nettoyés");
+    assert.deepEqual(snapshot.rounds[1], { title: "Animaux", count: 1, kind: "mime" });
+    assert.ok(estimateMinutes(snapshot) >= 3);
+  });
+
+  test("paquet supprimé ou vide : la manche est signalée, la prestation n'est pas prête", () => {
+    const show = { childName: "Léa", age: 9, date: "2026-12-02", status: "publiee", rounds: [{ type: "mimes", deckId: "absent" }] };
+    assert.match(buildSnapshot("s", show, {}, {}).problems[0], /paquet de mimes n'existe plus/);
+    assert.match(buildSnapshot("s", { ...show, rounds: [{ type: "mimes", deckId: "d" }] }, {}, { d: { title: "Vide", cards: [] } }).problems[0], /aucune carte/);
+    assert.equal(readiness({ ...show, rounds: [{ type: "mimes", deckId: "d" }] }, {}, { d: DECK }).level, "prete");
+  });
+
+  test("les cartes du catalogue ont un mot, une image et un thème, sans doublon", () => {
+    const words = MIME_CATALOG.map((c) => c.word.toLowerCase());
+    assert.equal(new Set(words).size, words.length);
+    assert.ok(MIME_CATALOG.length >= 100);
+    assert.ok(MIME_CATALOG.every((c) => c.word && c.image && c.image.length <= 16 && c.theme));
   });
 });

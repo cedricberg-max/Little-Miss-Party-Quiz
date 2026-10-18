@@ -107,6 +107,41 @@ class RegieTest : TestTv() {
         ecran.capture("jeu-ajoute")
     }
 
+    @Test
+    fun mimesPilotesDepuisLaRegie() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+
+        // Manche de mimes placée en tête du programme depuis le salon d'attente.
+        @Suppress("UNCHECKED_CAST")
+        val avant = regie.programme(code)["questions"] as List<Map<String, Any?>>
+        val mimes = mapOf(
+            "id" to "a1m", "text" to "Animaux", "kind" to "mime", "duration" to 60, "round" to "Animaux",
+            "cards" to listOf(mapOf("word" to "Chat", "image" to "🐱"), mapOf("word" to "Lion", "image" to "🦁")),
+        )
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(mimes) + avant))
+
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("Les Mimes !")
+        assertEquals("applied", regie.commande(code, "mime_start", mapOf("team" to licornes.uid)))
+        ecran.voit("Au tour de Licornes")
+        ecran.voit("Chat")
+        ecran.capture("mimes-tour")
+
+        assertEquals("applied", regie.commande(code, "mime_found"))
+        ecran.voit("Lion")
+        assertEquals("applied", regie.commande(code, "mime_stop"))
+        ecran.voit("Bravo Licornes")
+
+        // Entre deux tours, « Suivant » termine la manche : le mime trouvé compte au classement.
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("Après les mimes")
+        assertEquals(Scoring.MIME.toLong(), points(licornes, code, licornes.uid))
+        ecran.capture("mimes-classement")
+    }
+
     private val regies = mutableListOf<RegieSimulee>()
 
     private fun regie() = RegieSimulee().also { regies += it }
