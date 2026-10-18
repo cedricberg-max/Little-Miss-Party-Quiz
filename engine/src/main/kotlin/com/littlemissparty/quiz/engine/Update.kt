@@ -41,6 +41,13 @@ data class Release(
     fun isNewerThan(installedVersionCode: Long) = versionCode > installedVersionCode
 }
 
+/**
+ * Version que la box propose d'elle-même à l'animatrice, ou null. Après « Plus tard », la même version
+ * n'est plus proposée avant le prochain lancement de l'appli ; une version encore plus récente, si.
+ */
+fun releaseToOffer(latest: Release?, installedVersionCode: Long, declinedVersionCode: Long?): Release? =
+    latest?.takeIf { it.isNewerThan(installedVersionCode) && (declinedVersionCode == null || it.versionCode > declinedVersionCode) }
+
 /** Ce que la box lit dans l'APK téléchargé, avant de le confier à l'installateur d'Android. */
 data class ApkFacts(
     val sha256: String,

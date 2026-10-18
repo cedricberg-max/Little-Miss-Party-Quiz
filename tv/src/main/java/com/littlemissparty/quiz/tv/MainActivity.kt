@@ -5,6 +5,7 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 
@@ -22,6 +23,9 @@ class MainActivity : ComponentActivity() {
             val updateUi by updates.ui.collectAsState()
             val updateOpen by updates.open.collectAsState()
             val updateAvailable by updates.available.collectAsState()
+            val updateOffer by updates.offer.collectAsState()
+            val busy = gameInProgress(state)
+            LaunchedEffect(busy) { updates.setBusy(busy) }
             QuizTvApp(
                 state = state,
                 actions = TvActions(
@@ -41,7 +45,7 @@ class MainActivity : ComponentActivity() {
                     checkUpdate = updates::show,
                 ),
                 update = UpdateScreen(
-                    ui = updateUi, open = updateOpen, available = updateAvailable,
+                    ui = updateUi, open = updateOpen, available = updateAvailable, offer = updateOffer,
                     actions = UpdateActions(
                         search = updates::search,
                         download = updates::download,
@@ -49,6 +53,8 @@ class MainActivity : ComponentActivity() {
                         install = updates::install,
                         openPermission = updates::openInstallPermission,
                         close = updates::hide,
+                        acceptOffer = updates::acceptOffer,
+                        declineOffer = updates::declineOffer,
                     ),
                 ),
             )

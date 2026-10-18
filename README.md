@@ -30,16 +30,19 @@ Mi Box avec une clé USB ou l'appli « Send Files to TV ». C'est la seule fois.
 
 ### Mettre à jour depuis la TV
 
-Bouton Retour de la télécommande › **Rechercher une mise à jour** (aussi sur l'écran « Connexion
-impossible »). La box lit `tv/latest.json` sur l'hébergement Firebase (publié par GitHub Actions avec
+La box cherche seule une nouvelle version au démarrage puis toutes les 30 minutes (un petit fichier).
+Quand il y en a une, une fenêtre la propose à l'accueil : **Installer maintenant** enchaîne
+téléchargement, vérification et installation ; **Plus tard** (ou Retour) ne la repropose qu'au prochain
+lancement. Recherche manuelle toujours possible : bouton Retour de la télécommande › **Rechercher une
+mise à jour** (aussi sur l'écran « Connexion impossible »). La box lit `tv/latest.json` sur l'hébergement Firebase (publié par GitHub Actions avec
 chaque version stable de `main`), télécharge l'APK avec sa progression (reprise après une coupure), puis
 vérifie avant d'installer : taille et empreinte SHA-256, nom de l'appli, versionCode plus récent, même
 clé de signature que l'appli installée. Android demande ensuite de confirmer l'installation ; les
 parties, réglages et codes sont conservés, l'appli redémarre seule.
 
 - Jamais pendant une prestation : dès qu'une équipe est dans le salon ou qu'une question a été jouée,
-  la fenêtre dit d'attendre la fin de la partie. La box cherche seule une nouvelle version au démarrage
-  (petit fichier) et l'indique en petit dans le coin, sans rien télécharger.
+  la fenêtre dit d'attendre la fin de la partie, et la proposition automatique attend le retour à
+  l'accueil. Une version trouvée est aussi indiquée en petit dans le coin.
 - Une seule autorisation Android, la première fois : « Sources inconnues » pour Little Miss Party Quiz
   (la fenêtre ouvre le réglage).
 - Le dépôt étant privé, la box ne lit pas les Releases GitHub (il faudrait un jeton dans l'APK) : chaque

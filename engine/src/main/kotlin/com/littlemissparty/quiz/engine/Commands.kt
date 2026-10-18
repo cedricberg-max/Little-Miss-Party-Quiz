@@ -69,6 +69,8 @@ fun Game.execute(
 ): CommandResult {
     val advances = cmd is Command.Next || cmd is Command.Close || cmd is Command.End
     if (advances && cmd.expectSeq != state.lastSeq) return CommandResult(CommandStatus.STALE, reason = "stale")
+    // En pause, rien n'avance : l'animatrice reprend d'abord (corrections de score et fin restent possibles).
+    if (state.paused && (cmd is Command.Next || cmd is Command.Close)) return refused("paused")
     val event = when (cmd) {
         is Command.Next -> when (state.phase) {
             Phase.LOBBY -> if (teams.isEmpty()) return refused("no_teams") else next(now)

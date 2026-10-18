@@ -12,8 +12,29 @@ sealed interface GameEvent {
 }
 
 data class QuestionOpened(override val seq: Int, override val at: Long, val index: Int, val qid: String) : GameEvent
-data class Paused(override val seq: Int, override val at: Long) : GameEvent
-data class Resumed(override val seq: Int, override val at: Long) : GameEvent
+/**
+ * Pause générale, possible à toute étape d'une partie commencée : chrono, réponses et progression
+ * sont figés, scores et manche conservés. [reason] dit qui l'a demandée : [PAUSE_REGIE] (animatrice)
+ * ou [PAUSE_TEAM] (pupitre de l'équipe [team] déconnecté en pleine question).
+ */
+data class Paused(
+    override val seq: Int,
+    override val at: Long,
+    val reason: String = PAUSE_REGIE,
+    val team: String? = null,
+) : GameEvent
+
+/**
+ * Reprise, toujours décidée par l'animatrice. Le chrono repart [countdownMs] après l'appui,
+ * le temps du décompte 3, 2, 1 affiché sur la TV et les pupitres.
+ */
+data class Resumed(override val seq: Int, override val at: Long, val countdownMs: Long = 0) : GameEvent
+
+const val PAUSE_REGIE = "regie"
+const val PAUSE_TEAM = "team"
+
+/** Durée du décompte 3, 2, 1 à la reprise. */
+const val RESUME_COUNTDOWN_MS = 3000L
 
 /** Plus aucune réponse n'est acceptée pour la question en cours. */
 data class QuestionClosed(override val seq: Int, override val at: Long) : GameEvent

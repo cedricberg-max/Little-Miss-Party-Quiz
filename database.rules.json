@@ -37,7 +37,7 @@
             ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
             "$uid": {
               ".read": "auth != null && auth.uid === $uid",
-              ".write": "auth != null && auth.uid === $uid && !data.exists() && root.child('games').child($code).child('teams').child($uid).exists() && root.child('games').child($code).child('state/phase').val() === 'question' && root.child('games').child($code).child('state/paused').val() !== true && root.child('games').child($code).child('state/qid').val() === $qid && now <= root.child('games').child($code).child('state/deadline').val() + 2000",
+              ".write": "auth != null && auth.uid === $uid && !data.exists() && root.child('games').child($code).child('teams').child($uid).exists() && root.child('games').child($code).child('state/phase').val() === 'question' && root.child('games').child($code).child('state/paused').val() !== true && (!root.child('games').child($code).child('state/resumeAt').exists() || now >= root.child('games').child($code).child('state/resumeAt').val()) && root.child('games').child($code).child('state/qid').val() === $qid && now <= root.child('games').child($code).child('state/deadline').val() + 2000",
               ".validate": "newData.hasChildren(['choice', 'at']) && newData.child('choice').isNumber() && root.child('games').child($code).child('state/choices').child(newData.child('choice').val() + '').exists() && newData.child('at').val() === now",
               "$other": {
                 ".validate": "$other === 'choice' || $other === 'at'"

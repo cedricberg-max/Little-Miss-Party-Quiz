@@ -161,6 +161,31 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
+  test("la pause générale s'affiche aussi entre deux questions", async () => {
+    const page = await openPupitre();
+    await joinTeam(page, "Les Roses");
+    await hostState(question({ phase: "scores", deadline: null, paused: true, pauseReason: "regie" }));
+    await page.locator("#paused:not([hidden])", { hasText: "On revient tout de suite !" }).waitFor();
+    await hostState(question({ phase: "scores", deadline: null }));
+    await page.locator("#paused[hidden]").waitFor({ state: "attached" });
+    await page.context().close();
+  });
+
+  test("à la reprise, le décompte 3, 2, 1 bloque les réponses puis les rouvre", async () => {
+    const page = await openPupitre();
+    await joinTeam(page, "Les Roses");
+    const resumeAt = Date.now() + 2500;
+    await hostState(question({ resumeAt, deadline: resumeAt + 12000 }));
+    await page.locator("#resume-count:not([hidden])").waitFor();
+    assert.equal(await page.locator(".choice").first().isDisabled(), true, "Pas de réponse pendant le décompte");
+    await page.locator("#resume-count[hidden]").waitFor({ state: "attached", timeout: 6000 });
+    await waitFor(async () => !(await page.locator(".choice").first().isDisabled()), "réponses rouvertes après le décompte");
+    await page.locator(".choice").nth(1).click();
+    const uid = Object.keys(await read("teams"))[0];
+    await waitFor(async () => (await read(`answers/q1/${uid}`))?.choice === 1, "réponse acceptée après le décompte");
+    await page.context().close();
+  });
+
   test("la présence passe hors ligne quand le pupitre se ferme", async () => {
     const page = await openPupitre();
     await joinTeam(page, "Les Roses");

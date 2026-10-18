@@ -122,7 +122,7 @@ class GameTest {
         assertTrue(g.state.paused)
         assertNull(g.deadline())
         assertEquals(15_000, g.remainingMs(t0 + 60_000), "Le chrono ne bouge pas en pause")
-        g.resume(t0 + 65_000)
+        g.resume(t0 + 65_000, countdownMs = 0)
         assertEquals(t0 + 80_000, g.deadline())
         // Réponse 5 s après la reprise : 10 s de chrono consommées, il en reste 10.
         g.close(t0 + 80_000)
@@ -135,7 +135,7 @@ class GameTest {
         val g = Game(quiz)
         g.next(t0)
         g.pause(t0 + 10_000)
-        g.resume(t0 + 100_000)
+        g.resume(t0 + 100_000, countdownMs = 0)
         g.close(t0 + 105_000)
         g.reveal(t0 + 105_100, mapOf("a" to Answer(1, t0 + 2_000)))
         assertEquals(118, g.state.scores()["a"])

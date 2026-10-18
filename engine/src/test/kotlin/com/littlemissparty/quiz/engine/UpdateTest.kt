@@ -54,4 +54,14 @@ class UpdateTest {
         assertEquals(ApkProblem.WRONG_SIGNATURE, verifyApk(release, good.copy(signers = setOf("d".repeat(64))), pkg, 57, key))
         assertEquals(ApkProblem.WRONG_SIGNATURE, verifyApk(release, good.copy(signers = emptySet()), pkg, 57, key))
     }
+
+    @Test
+    fun `proposition automatique, seulement une version plus récente, pas deux fois après Plus tard`() {
+        assertEquals(release, releaseToOffer(release, 57, null))
+        assertNull(releaseToOffer(release, release.versionCode, null), "Déjà installée")
+        assertNull(releaseToOffer(null, 57, null), "Serveur injoignable : rien à proposer")
+        assertNull(releaseToOffer(release, 57, release.versionCode), "Plus tard : on ne la repropose pas")
+        val newer = release.copy(versionCode = release.versionCode + 1)
+        assertEquals(newer, releaseToOffer(newer, 57, release.versionCode), "Une version encore plus récente est reproposée")
+    }
 }

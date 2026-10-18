@@ -95,14 +95,14 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                         )
                     }
                 }
-                when (state.phase) {
-                    Phase.QUESTION -> if (!state.paused) NextButton("Arrêter le chrono", actions.next, key = state.phase)
+                // En pause, le seul bouton est « Reprendre » sur l'intermède.
+                if (!state.paused) when (state.phase) {
+                    Phase.QUESTION -> NextButton("Arrêter le chrono", actions.next, key = state.phase)
                     Phase.CLOSED -> NextButton("Révéler la réponse", actions.next, key = state.phase)
                     else -> NextButton("Voir les scores", actions.next, key = state.phase)
                 }
             }
         }
-        if (state.paused) PauseOverlay(actions.unpause)
     }
 }
 
@@ -182,8 +182,10 @@ private fun Countdown(state: UiState.Playing) {
             remaining = state.remainingMs
             return@LaunchedEffect
         }
+        // Pendant le décompte 3, 2, 1 de la reprise, le chrono reste figé.
+        val start = state.resumeAt ?: 0L
         while (true) {
-            remaining = (deadline - (System.currentTimeMillis() + state.serverOffset)).coerceAtLeast(0)
+            remaining = (deadline - maxOf(System.currentTimeMillis() + state.serverOffset, start)).coerceAtLeast(0)
             if (remaining == 0L) break
             delay(100)
         }
@@ -204,21 +206,6 @@ private fun Countdown(state: UiState.Playing) {
 }
 
 @Composable
-private fun PauseOverlay(onResume: () -> Unit) {
-    Column(
-        Modifier.fillMaxSize().background(Palette.Night.copy(alpha = 0.85f)),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text("PAUSE", color = Palette.Gold, fontSize = 96.sp, fontWeight = FontWeight.Black, letterSpacing = 12.sp)
-        Text("Le chrono est arrêté", color = Palette.Ink, fontSize = 28.sp)
-        Spacer(Modifier.height(12.dp))
-        Spacer(Modifier.height(24.dp))
-        NextButton("Reprendre", onResume, key = "pause")
-    }
-}
-
-@Composable
 fun ScoresScreen(state: UiState.Playing, actions: TvActions) {
     Column(Modifier.fillMaxSize().padding(horizontal = 56.dp, vertical = 28.dp)) {
         Text("Classement", color = Palette.Ink, fontSize = 40.sp, fontWeight = FontWeight.Black)
@@ -227,7 +214,7 @@ fun ScoresScreen(state: UiState.Playing, actions: TvActions) {
         Ranking(state, Modifier.weight(1f))
         Row {
             Spacer(Modifier.weight(1f))
-            NextButton(if (state.isLast) "Résultats finaux" else "Question suivante", actions.next, key = state.index)
+            if (!state.paused) NextButton(if (state.isLast) "Résultats finaux" else "Question suivante", actions.next, key = state.index)
         }
     }
 }

@@ -23,10 +23,12 @@ import com.littlemissparty.quiz.engine.CommandResult
 import com.littlemissparty.quiz.engine.CommandStatus
 import com.littlemissparty.quiz.engine.Game
 import com.littlemissparty.quiz.engine.GameEvent
+import com.littlemissparty.quiz.engine.PAUSE_TEAM
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.engine.Quiz
 import com.littlemissparty.quiz.engine.QuizJson
+import com.littlemissparty.quiz.engine.Resumed
 import com.littlemissparty.quiz.engine.execute
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -61,6 +63,10 @@ sealed interface UiState {
         val index: Int = -1,
         val total: Int = 0,
         val paused: Boolean = false,
+        /** Pause automatique (pupitre déconnecté) ou de l'animatrice : seule la régie voit l'équipe concernée. */
+        val pauseReason: String? = null,
+        /** Fin du décompte 3, 2, 1 de la dernière reprise (heure du serveur). */
+        val resumeAt: Long? = null,
         /** Heure du serveur où le chrono atteint zéro (null en pause ou hors question). */
         val deadline: Long? = null,
         val remainingMs: Long = 0,
@@ -116,6 +122,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var pinLockedUntil = 0L
     /** Dernier chargement de prestation jugé par la box (appliqué ou refusé) : jamais rejugé. */
     private var judgedShow: String? = null
+    /** Pupitres connectés au dernier relevé, et pupitres tout juste décrochés (délai de grâce en cours). */
+    private var online: Set<String> = emptySet()
+    private val dropTimers = mutableMapOf<String, Job>()
     private val prefs = app.getSharedPreferences("partie", Context.MODE_PRIVATE)
 
     /** Code de la partie en cours, mémorisé sur la box pour survivre à un crash ou un redémarrage. */
@@ -340,7 +349,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 "state" to clean(Codec.publicState(g, round)),
             ) + extra
         ).addOnFailureListener { Log.e(TAG, "Écriture refusée", it) }
-        sound(g.state.phase)
+        if (event is Resumed) countdownBeeps(event) else sound(g.state.phase)
         refresh()
         schedule()
     }
@@ -395,6 +404,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 index = s.index,
                 total = g.quiz.questions.size,
                 paused = s.paused,
+                pauseReason = s.hold?.reason,
+                resumeAt = s.resumeAt,
                 deadline = g.deadline(),
                 remainingMs = q?.let { it.durationMs - s.elapsedAt(Long.MAX_VALUE) }?.coerceAtLeast(0) ?: 0,
                 awards = revealedAwards,
@@ -591,10 +602,13 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 s.copy(teams = teams)
             }
         }
+        online = emptySet()
         observe(ref.child("presence")) { snap ->
-            val online = snap.children.filter { it.child("online").getValue(Boolean::class.java) == true }
+            val now = snap.children.filter { it.child("online").getValue(Boolean::class.java) == true }
                 .mapNotNull { it.key }.toSet()
-            updatePlaying { it.copy(online = online) }
+            onPresence(online, now)
+            online = now
+            updatePlaying { it.copy(online = now) }
         }
         observe(ref.child("buzz")) { snap ->
             updatePlaying { s ->
@@ -613,6 +627,28 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             regieUids = uids
             // Une régie vient d'être reliée : on referme l'écran du QR code.
             updatePlaying { it.copy(regies = uids.size, showRegie = it.showRegie && added.isEmpty()) }
+        }
+    }
+
+    /**
+     * Un pupitre qui décroche en pleine question met la partie en pause pour ne défavoriser personne.
+     * Délai de grâce : un rechargement de page ou une micro-coupure ne déclenche rien. Seule la
+     * transition connecté → déconnecté compte : après la reprise, une équipe absente ne rebloque pas la partie.
+     */
+    private fun onPresence(before: Set<String>, now: Set<String>) {
+        (now - before).forEach { dropTimers.remove(it)?.cancel() }
+        (before - now).forEach { uid ->
+            dropTimers.remove(uid)?.cancel()
+            dropTimers[uid] = viewModelScope.launch {
+                delay(DROP_GRACE_MS)
+                dropTimers.remove(uid)
+                act { g ->
+                    val waited = g.state.phase == Phase.QUESTION && !g.state.paused && g.remainingMs(serverNow()) > 0
+                    if (waited && uid !in online && uid !in answers && teams().any { it.uid == uid }) {
+                        g.pause(serverNow(), PAUSE_TEAM, uid)
+                    } else null
+                }
+            }
         }
     }
 
@@ -680,6 +716,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun stopListening() {
+        dropTimers.values.forEach { it.cancel() }
+        dropTimers.clear()
         listeners.forEach { (ref, l) -> ref.removeEventListener(l) }
         listeners.clear()
         answersListener?.let { (r, l) -> r.removeEventListener(l) }
@@ -687,6 +725,19 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         commandsListener?.let { (r, l) -> r.removeEventListener(l) }
         commandsListener = null
         judging.clear()
+    }
+
+    /** Un bip par seconde du décompte 3, 2, 1, puis un plus aigu au départ. */
+    private fun countdownBeeps(event: Resumed) {
+        viewModelScope.launch {
+            val steps = (event.countdownMs / 1000).toInt()
+            for (i in 0 until steps) {
+                delay((event.at + i * 1000L - serverNow()).coerceAtLeast(0))
+                tones?.startTone(ToneGenerator.TONE_PROP_BEEP, 150)
+            }
+            delay((event.at + event.countdownMs - serverNow()).coerceAtLeast(0))
+            tones?.startTone(ToneGenerator.TONE_PROP_BEEP2, 300)
+        }
     }
 
     private fun sound(phase: Phase) {
@@ -717,6 +768,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
         /** Délai laissé aux réponses envoyées à la dernière seconde avant de fermer la question. */
         private const val CLOSE_GRACE_MS = 500L
+
+        /** Temps laissé à un pupitre déconnecté pour revenir seul avant la pause automatique. */
+        private const val DROP_GRACE_MS = 4000L
         private const val CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
         fun joinUrl(code: String) = "https://${BuildConfig.FB_PROJECT_ID}.web.app/?g=$code"
