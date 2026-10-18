@@ -300,6 +300,20 @@ describe("régie", () => {
     for (const p of [before, admin, oldPassword, newPassword]) await p.context().close();
   });
 
+  test("administration : une connexion ratée à l'ouverture est réessayée seule", async () => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    let failed = 0;
+    await context.route("**/accounts:signUp*", (route) => (failed++ ? route.continue() : route.abort("internetdisconnected")));
+    const admin = await openRegie(context, "?emu=1", "/admin.html");
+    // « Entrer » reste grisé tant que la page n'est pas prête (ici : après le rechargement automatique).
+    await admin.locator("#login:enabled").waitFor();
+    await admin.fill("#admin-password", ADMIN_PASSWORD);
+    await admin.click("#login");
+    await admin.locator("#screen-shows:not([hidden])").waitFor();
+    assert.ok(failed >= 2, "un premier essai refusé, puis un second accepté");
+    await context.close();
+  });
+
   test("un mauvais mot de passe administrateur n'ouvre rien", async () => {
     const admin = await openRegie(null, "?emu=1", "/admin.html");
     await admin.fill("#admin-password", "pas-le-bon-mdp");
