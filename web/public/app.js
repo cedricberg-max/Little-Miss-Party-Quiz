@@ -5,6 +5,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { TEAM_COLORS, CHOICE_COLORS, CHOICE_LETTERS, MAX_TEAMS } from "./theme.js";
 import { hasAccess, loginWithPassword, loginWithPin, startRegie } from "./regie.js";
+import { watchVersion, showUpdateBanner } from "./version.js";
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -29,12 +30,29 @@ let lastScreen = null;
 let pending = null;
 let gameExists = false;
 
+/**
+ * Nouvelle version du site : le pupitre se recharge tout seul dès qu'il n'y a rien à perdre (jamais pendant une
+ * question, une inscription ou une demande d'entrée) ; il retrouve son équipe et ses points. La régie, elle,
+ * affiche un bandeau : l'animatrice choisit le moment.
+ */
+let newVersion = false;
+const SAFE_TO_RELOAD = new Set(["play", "result", "ended", "error", "loading", "replaced"]);
+function maybeReload() {
+  if (!newVersion) return;
+  if (document.body.classList.contains("regie-mode") || !$("regie-login").hidden) {
+    return showUpdateBanner("Nouvelle version de la régie en ligne : touchez « Mettre à jour » quand vous voulez (la partie continue).");
+  }
+  if (SAFE_TO_RELOAD.has(lastScreen)) location.reload();
+}
+watchVersion(() => { newVersion = true; maybeReload(); });
+
 function show(name) {
   // « Accès régie » : sur l'écran d'inscription (et si la partie est complète), jamais pendant le jeu.
   $("regie-open").hidden = !(gameExists && (name === "join" || name === "error"));
   if (lastScreen === name) return;
   lastScreen = name;
   document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === `screen-${name}`));
+  maybeReload();
 }
 
 function fail(message) {
@@ -469,6 +487,8 @@ function renderResult(st) {
   $("r-title").textContent = ok ? `Bravo ! +${award.points} points` : answered ? "Raté pour cette fois !" : "Pas de réponse";
   const correct = st.correct != null ? `${CHOICE_LETTERS[st.correct]} : ${st.choices?.[st.correct] ?? ""}` : "";
   $("r-detail").textContent = (ok && award.bonus > 0 ? `dont ${award.bonus} de bonus rapidité. ` : "") + (correct ? `Bonne réponse : ${correct}` : "");
+  $("r-image").textContent = st.image ?? "";
+  $("r-image").hidden = !st.image;
   const { mine, rank } = rankOf(st.scores);
   $("r-total").textContent = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`;
 }

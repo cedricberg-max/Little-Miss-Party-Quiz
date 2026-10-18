@@ -5,7 +5,7 @@ import { CHOICE_LETTERS } from "./theme.js";
 import { writeProof } from "./proof.js";
 import { passwordCandidates } from "./secret.js";
 import {
-  buildSnapshot, showTitle, playable, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame,
+  buildSnapshot, showTitle, playable, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame, imageIds,
   isFutureRound, moveRound, removeRound, uniqueRoundTitle,
 } from "./show.js";
 import { profileForAge } from "./profiles.js";
@@ -825,6 +825,7 @@ function addPicked(where) {
   const current = live.plan?.questions ?? [];
   const title = uniqueRoundTitle(current, picked.questions[0]?.round ?? picked.game.label);
   const added = picked.questions.map((q) => ({ ...q, round: title }));
+  copyImages(added);
   const index = st.phase === "lobby" ? -1 : st.index ?? -1;
   const place = where === "end" ? "à la fin du programme" : index < 0 ? "au début du programme" : "après la manche en cours";
   sendProgram(insertGame(current, added, where, index), `« ${title} » est ajouté ${place}.`, true);
@@ -959,6 +960,23 @@ function renderShows(st) {
 }
 
 /** Envoie l'instantané de la prestation à la TV, qui le vérifie et répond dans showStatus/. */
+/**
+ * Photos d'illustration : copiées de la bibliothèque dans la partie, où la TV les lit à la révélation.
+ * Jamais bloquant : une photo qui manque laisse simplement la question sans illustration.
+ */
+async function copyImages(questions) {
+  await Promise.all(imageIds(questions).map(async (id) => {
+    try {
+      const target = ref(db, `games/${code}/images/${id}`);
+      if ((await get(target)).exists()) return;
+      const data = (await get(ref(db, `library/images/${id}`))).val();
+      if (typeof data === "string") await set(target, data);
+    } catch (e) {
+      console.warn("Illustration non copiée", id, e);
+    }
+  }));
+}
+
 async function loadShow(id, snapshot) {
   if (loadingShow) return;
   if (tvRefusesMimes(snapshot.quiz?.questions ?? [])) { toast(OLD_TV); return; }
@@ -975,6 +993,7 @@ async function loadShow(id, snapshot) {
     stop();
     done(status.status === "applied" ? `« ${snapshot.title} » est chargée sur la TV.` : SHOW_MESSAGES[status.reason] ?? "La TV a refusé cette prestation.");
   });
+  copyImages(snapshot.quiz?.questions);
   try {
     await set(ref(db, `games/${code}/show`), { ...snapshot, id: showId, by: uid, at: serverTimestamp() });
   } catch (e) {

@@ -12,6 +12,9 @@ enum class Phase(val code: String) {
 /** Période pendant laquelle le chrono tourne ([end] nul tant qu'il tourne encore). */
 data class Segment(val start: Long, val end: Long? = null)
 
+/** Écart toléré entre l'horloge de la box et celle du serveur pour dater une réponse. */
+const val ANSWER_CLOCK_MARGIN_MS = 2_000L
+
 /** Pause en cours : qui l'a provoquée et depuis quand. */
 data class Hold(val reason: String, val team: String?, val since: Long)
 
@@ -33,6 +36,15 @@ data class GameState(
     val mime: MimeRound? = null,
 ) {
     val paused: Boolean get() = hold != null
+
+    /** Heure d'ouverture de la question en cours (heure du serveur), null hors question. */
+    val openedAt: Long? get() = segments.firstOrNull()?.start
+
+    /**
+     * Réponse donnée pendant cette ouverture de la question ? Une question rejouée depuis la régie repart de zéro :
+     * une ancienne réponse encore en cache (même question, partie précédente) ne compte pas et ne ferme rien.
+     */
+    fun answeredSinceOpening(answerAt: Long): Boolean = openedAt?.let { answerAt >= it - ANSWER_CLOCK_MARGIN_MS } ?: true
 
     /** Un tour de mimes est en cours : son chrono tourne (hors pause). */
     val mimeTurn: Boolean get() = mime?.team != null

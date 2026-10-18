@@ -74,6 +74,9 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
         kind: yesNo ? "true_false" : "classic",
         double: round.type === "finale" || q.double === true,
         round: label,
+        // Illustration facultative montrée à la révélation (émoji, ou photo copiée dans la partie par la régie).
+        ...(q.image ? { image: q.image } : {}),
+        ...(q.imageId ? { imageId: q.imageId } : {}),
       });
     });
   });
@@ -220,4 +223,9 @@ export function uniqueRoundTitle(questions, title) {
   let n = 2;
   while (taken.has(`${title} · ${n}`)) n++;
   return `${title} · ${n}`;
+}
+
+/** Photos d'illustration d'un programme (identifiants sans doublon), à copier dans la partie avant de l'envoyer. */
+export function imageIds(questions) {
+  return [...new Set((questions ?? []).map((q) => q?.imageId).filter((id) => typeof id === "string" && /^[0-9a-f]{16}$/.test(id)))];
 }

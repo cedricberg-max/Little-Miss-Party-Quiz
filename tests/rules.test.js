@@ -694,3 +694,37 @@ describe("mot de passe administrateur commun", () => {
     await assertSucceeds(access("portable"));
   });
 });
+
+describe("illustrations des questions", () => {
+  beforeEach(() => seedAdmin(env, "sarah"));
+  const PHOTO = "data:image/jpeg;base64,AAAA";
+  const ID = "0123456789abcdef";
+
+  test("l'administration range une photo, jamais remplacée en douce ; personne d'autre n'écrit", async () => {
+    await assertSucceeds(set(ref(db("sarah"), `library/images/${ID}`), PHOTO));
+    await assertFails(set(ref(db("sarah"), `library/images/${ID}`), "data:image/jpeg;base64,BBBB"));
+    await assertFails(set(ref(db("sarah"), "library/images/pas-un-id"), PHOTO));
+    await assertFails(set(ref(db("sarah"), "library/images/fedcba9876543210"), "javascript:alert(1)"));
+    await assertFails(set(ref(db("sarah"), "library/images/fedcba9876543210"), `data:image/jpeg;base64,${"A".repeat(150001)}`));
+    await assertFails(set(ref(db("rose"), "library/images/fedcba9876543210"), PHOTO));
+    await assertSucceeds(set(ref(db("sarah"), `library/images/${ID}`), null));
+  });
+  test("une question garde un émoji court et un identifiant de photo valide", async () => {
+    const quiz = (q) => set(ref(db("sarah"), "library/quizzes/z"), {
+      title: "Z", updatedAt: serverTimestamp(), questions: [{ text: "?", choices: ["a", "b"], correct: 0, status: "validee", ...q }],
+    });
+    await assertSucceeds(quiz({ image: "🦁", imageId: ID }));
+    await assertFails(quiz({ image: "x".repeat(17) }));
+    await assertFails(quiz({ imageId: "../../settings" }));
+  });
+  test("la régie copie une photo dans la partie ; la box la lit, les pupitres non", async () => {
+    await seed({ phase: "lobby" });
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));
+    await assertFails(set(ref(db("rose"), `games/${CODE}/images/${ID}`), PHOTO));
+    await assertSucceeds(set(ref(db("tel"), `games/${CODE}/images/${ID}`), PHOTO));
+    await assertFails(set(ref(db("tel"), `games/${CODE}/images/${ID}`), "data:image/jpeg;base64,BBBB"));
+    await assertSucceeds(get(ref(db(HOST), `games/${CODE}/images/${ID}`)));
+    await assertSucceeds(get(ref(db("tel"), `games/${CODE}/images/${ID}`)));
+    await assertFails(get(ref(db("rose"), `games/${CODE}/images/${ID}`)));
+  });
+});

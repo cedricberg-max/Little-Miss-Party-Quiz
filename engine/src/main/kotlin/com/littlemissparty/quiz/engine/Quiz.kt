@@ -29,6 +29,12 @@ data class Question(
     val roundTitle: String? = null,
     /** Mimes seulement : les cartes, dans l'ordre où elles apparaîtront. */
     val cards: List<MimeCard> = emptyList(),
+    /**
+     * Illustration facultative montrée à la révélation : un émoji ([emoji]) ou une photo préparée dans
+     * l'administration ([imageId], lue dans games/<code>/images). Absente ou introuvable : rien ne change.
+     */
+    val emoji: String? = null,
+    val imageId: String? = null,
 ) {
     init {
         require(id.isNotBlank()) { "Question sans identifiant" }

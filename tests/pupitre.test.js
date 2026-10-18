@@ -158,6 +158,29 @@ describe("pupitre", () => {
     for (const p of [a, b, c]) await p.context().close();
   });
 
+  test("nouvelle version du site : le pupitre se recharge hors question et retrouve son équipe", async () => {
+    const page = await openPupitre();
+    let version = "0.1.1";
+    await page.route("**/version.json*", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ web: version }) }));
+    await page.reload();
+    await joinTeam(page, "Les Roses");
+    await page.locator(".web-version", { hasText: "Version 0.1.1" }).waitFor();
+    // Pendant une question, rien ne bouge.
+    await hostState(question());
+    await page.locator("#screen-question.active").waitFor();
+    version = "0.1.2";
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    await new Promise((r) => setTimeout(r, 800));
+    await page.locator(".web-version", { hasText: "Version 0.1.1" }).waitFor();
+    // Question terminée : le pupitre se met à jour tout seul et reste dans son équipe.
+    const reloaded = page.waitForEvent("load");
+    await hostState(question({ phase: "reveal", correct: 1, awards: {}, scores: {} }));
+    await reloaded;
+    await page.locator(".web-version", { hasText: "Version 0.1.2" }).waitFor();
+    await page.locator("#screen-result.active").waitFor();
+    await page.context().close();
+  });
+
   test("accueil : deux équipes buzzent à répétition, rien ne se bloque ni ne change d'écran", async () => {
     const pages = [await openPupitre(), await openPupitre()];
     await joinTeam(pages[0], "Les Roses");

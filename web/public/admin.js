@@ -13,6 +13,11 @@ import {
   roundFilled, MIME_TURN,
 } from "./show.js";
 import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
+import { watchVersion, showUpdateBanner } from "./version.js";
+import { compressImage, imageId, cleanEmoji } from "./illustration.js";
+
+// Nouvelle version publiée pendant que l'administration est ouverte : on propose de recharger, sans rien perdre d'office.
+watchVersion(() => showUpdateBanner("Une nouvelle version de l'administration est en ligne. Enregistrez votre travail, puis mettez à jour."));
 
 // Administration : un mot de passe commun, sans compte ni adresse e-mail. Toute personne qui le connaît
 // a tous les droits. Le serveur (règles Firebase) vérifie l'empreinte envoyée par cet appareil ;
@@ -534,6 +539,7 @@ function review(id, quiz) {
     questions: (quiz.questions ?? []).filter(Boolean).map((q) => ({
       text: q.text ?? "", choices: [...(q.choices ?? [])], correct: q.correct ?? -1,
       duration: q.duration ?? null, double: q.double === true, status: q.status ?? "brouillon", marks: q.marks ?? 0,
+      image: q.image ?? "", imageId: q.imageId ?? null,
     })),
   };
   $("rv-title").value = quiz.title ?? "";
@@ -572,10 +578,68 @@ function renderReview() {
       h("div", { class: "row" },
         h("label", { class: "inline" }, "Durée (s)", h("input", { type: "number", min: 5, max: 120, class: "q-duration", value: q.duration ?? "", placeholder: "auto", oninput: (e) => { q.duration = e.target.value === "" ? null : Number(e.target.value); recheck(); } })),
         h("label", { class: "check" }, h("input", { type: "checkbox", checked: q.double, onchange: (e) => { q.double = e.target.checked; } }), "Points ×2")),
+      illustrationRow(q, i),
       h("ul", { class: "problems" }));
     box.append(card);
   });
   recheck();
+}
+
+/** Photos d'illustration déjà lues (identifiant → image), pour l'aperçu. */
+const imageCache = {};
+
+/**
+ * Illustration facultative, montrée sur la TV quand la réponse est révélée : un émoji, ou une photo
+ * choisie sur le PC (réduite avant l'envoi). Sans illustration, la question se joue comme avant.
+ */
+function illustrationRow(q, i) {
+  const preview = h("img", { class: "q-image", alt: "Photo de la question", hidden: !q.imageId });
+  const showPreview = () => {
+    preview.hidden = !q.imageId;
+    if (!q.imageId) return;
+    if (imageCache[q.imageId]) { preview.src = imageCache[q.imageId]; return; }
+    const id = q.imageId;
+    get(ref(db, `library/images/${id}`)).then((snap) => {
+      if (typeof snap.val() === "string") { imageCache[id] = snap.val(); if (q.imageId === id) preview.src = snap.val(); }
+    }).catch(() => {});
+  };
+  const info = h("span", { class: "hint q-image-info" });
+  const remove = h("button", {
+    type: "button", class: "link", text: "Retirer la photo", hidden: !q.imageId,
+    onclick: () => { q.imageId = null; remove.hidden = true; showPreview(); info.textContent = ""; },
+  });
+  const file = h("input", {
+    type: "file", accept: "image/*", class: "q-photo", hidden: true,
+    onchange: async (e) => {
+      const f = e.target.files?.[0];
+      e.target.value = "";
+      if (!f) return;
+      info.textContent = "Préparation de la photo…";
+      try {
+        const data = await compressImage(f);
+        const id = await imageId(data);
+        const target = ref(db, `library/images/${id}`);
+        if (!(await get(target)).exists()) await set(target, data);
+        imageCache[id] = data;
+        q.imageId = id;
+        remove.hidden = false;
+        showPreview();
+        info.textContent = `Photo prête (${Math.round(data.length / 1365)} Ko). Pensez à enregistrer le quiz.`;
+      } catch (err) {
+        console.error(err);
+        info.textContent = "Photo refusée : essayez une autre image (JPEG ou PNG).";
+      }
+    },
+  });
+  showPreview();
+  return h("div", { class: "row illustration", "data-illustration": i },
+    h("label", { class: "inline" }, "Illustration",
+      h("input", {
+        class: "q-emoji", value: q.image ?? "", maxlength: 16, placeholder: "🦁 émoji",
+        oninput: (e) => { q.image = cleanEmoji(e.target.value); },
+      })),
+    h("button", { type: "button", class: "btn small secondary", text: "📷 Photo…", onclick: () => file.click() }),
+    file, preview, remove, info);
 }
 
 /** Propositions remplies dans l'ordre ; la bonne réponse suit la case cochée. */
@@ -643,6 +707,7 @@ $("rv-save").onclick = async () => {
       createdAt: draft.quiz.createdAt ?? Date.now(), updatedAt: serverTimestamp(),
       questions: questions.map((q) => ({
         text: q.text.slice(0, 300), choices: q.choices, correct: q.correct, duration: q.duration, double: q.double, status: q.status,
+        image: cleanEmoji(q.image) || null, imageId: q.imageId || null,
       })),
     });
     draft.id = id;

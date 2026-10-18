@@ -1306,6 +1306,48 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
+  test("illustration : émoji et photo ajoutés dans l'admin, copiés dans la partie par la régie", async () => {
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    await seedLibrary("shows", { ines: { childName: "Inès", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 } });
+    const page = await admin();
+    await page.click("#nav button[data-screen=quizzes]");
+    await page.locator('#quiz-list [data-quiz="animaux"]').getByRole("button", { name: "Relire" }).click();
+    await page.locator('[data-q="1"]').waitFor();
+    await page.locator('[data-q="0"] .q-emoji').fill("🦁");
+    const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+    await page.locator('[data-q="1"] .q-photo').setInputFiles({ name: "araignee.png", mimeType: "image/png", buffer: PNG });
+    await page.locator('[data-q="1"] .q-image-info', { hasText: "Photo prête" }).waitFor();
+    await page.locator('[data-q="1"] .q-image:not([hidden])').waitFor();
+    await page.click("#rv-save");
+    await page.locator("#rv-status", { hasText: "Enregistré" }).waitFor();
+    const saved = (await library("quizzes")).animaux.questions;
+    assert.equal(saved[0].image, "🦁");
+    assert.equal(saved[0].imageId, undefined);
+    assert.match(saved[1].imageId, /^[0-9a-f]{16}$/);
+    const id = saved[1].imageId;
+    assert.match(await library(`images/${id}`), /^data:image\/jpeg;base64,/);
+    // Rouvert : la photo est toujours là, et on peut la retirer.
+    await page.reload();
+    await page.locator("#screen-home:not([hidden])").waitFor();
+    await page.click("#nav button[data-screen=quizzes]");
+    await page.locator('#quiz-list [data-quiz="animaux"]').getByRole("button", { name: "Relire" }).click();
+    await page.locator('[data-q="1"] .q-image:not([hidden])').waitFor();
+    await page.context().close();
+
+    // Régie : la prestation arrive sur la TV avec ses illustrations, la photo est copiée dans la partie.
+    box = startBox();
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator(".show-item", { hasText: "Inès" }).click();
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    const q = (await read("show")).quiz.questions;
+    assert.equal(q[0].image, "🦁");
+    assert.equal(q[1].imageId, id);
+    await waitFor(async () => (await read(`images/${id}`))?.startsWith("data:image/jpeg"), "photo copiée dans la partie");
+    await regie.context().close();
+  });
+
   test("prestation de test : ajoutée en un clic sans rien remplacer, modifiée dans l'admin, chargée telle quelle sur la TV", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     const INES = { childName: "Inès", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 };

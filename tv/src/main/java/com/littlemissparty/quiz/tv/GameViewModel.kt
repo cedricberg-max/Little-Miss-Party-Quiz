@@ -3,6 +3,7 @@ package com.littlemissparty.quiz.tv
 import android.app.Application
 import android.content.Context
 import android.os.SystemClock
+import android.util.Base64
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -100,6 +101,8 @@ sealed interface UiState {
         val childName: String = "",
         /** Manche de mimes en cours (ou qui vient de finir, au classement), sinon null. */
         val mime: MimeUi? = null,
+        /** Photos d'illustration déjà chargées (identifiant → fichier JPEG), montrées à la révélation. */
+        val images: Map<String, ByteArray> = emptyMap(),
     ) : UiState {
         /** Total des appuis sur le buzzer de l'accueil, pour le son. */
         val funTotal: Int get() = funBuzzes.values.sum()
@@ -487,6 +490,32 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             )
         }
         watchAnswers(s.qid.takeIf { s.phase == Phase.QUESTION || s.phase == Phase.CLOSED })
+        // Photo de la question en cours et de la suivante chargées d'avance : la révélation ne l'attend jamais.
+        if (s.phase != Phase.LOBBY) {
+            listOfNotNull(q?.imageId, g.quiz.questions.getOrNull(s.index + 1)?.imageId).forEach(::prefetchImage)
+        }
+    }
+
+    private val imageBytes = object : LinkedHashMap<String, ByteArray>(8, 0.75f, true) {
+        // Quelques photos seulement en mémoire : la box ancienne a peu de place.
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ByteArray>?) = size > 4
+    }
+    private val imagesLoading = mutableSetOf<String>()
+
+    /** Lit une photo d'illustration dans la partie ; absente, abîmée ou hors connexion : la question reste sans photo. */
+    private fun prefetchImage(id: String) {
+        if (id in imageBytes || !imagesLoading.add(id)) return
+        val ref = gameRef ?: return run { imagesLoading -= id }
+        viewModelScope.launch {
+            val bytes = runCatching {
+                val data = ref.child("images/$id").readOnce()?.getValue(String::class.java)
+                data?.substringAfter("base64,", "")?.takeIf { it.isNotEmpty() }?.let { Base64.decode(it, Base64.DEFAULT) }
+            }.getOrNull()
+            imagesLoading -= id
+            if (bytes == null) return@launch
+            imageBytes[id] = bytes
+            updatePlaying { it.copy(images = imageBytes.toMap()) }
+        }
     }
 
     // ---------- Régie (téléphone de l'animatrice) ----------
@@ -841,6 +870,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private fun parseAnswers(snap: DataSnapshot): Map<String, Answer> = snap.children.mapNotNull { a ->
         val choice = a.child("choice").getValue(Int::class.java) ?: return@mapNotNull null
         val at = a.child("at").getValue(Long::class.java) ?: return@mapNotNull null
+        // Question rejouée : une réponse de la fois précédente (restée en cache) ne compte pas.
+        if (game?.state?.answeredSinceOpening(at) == false) return@mapNotNull null
         a.key!! to Answer(choice, at)
     }.toMap()
 
@@ -942,6 +973,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     "id" to it.id, "text" to it.text, "choices" to it.choices.ifEmpty { null }, "correct" to it.correct,
                     "duration" to it.durationSec, "kind" to it.kind.code, "double" to it.double, "round" to it.roundTitle,
                     "cards" to it.cards.ifEmpty { null }?.map { c -> clean(mapOf("word" to c.word, "image" to c.image)) },
+                    "image" to it.emoji, "imageId" to it.imageId,
                 ))
             },
         )

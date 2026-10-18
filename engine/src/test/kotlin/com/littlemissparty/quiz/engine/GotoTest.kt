@@ -117,6 +117,21 @@ class GotoTest {
     }
 
     @Test
+    fun `question rejouée, une ancienne réponse restée en cache ne compte pas`() {
+        val g = Game(quiz)
+        g.next(now())
+        val first = t + 500
+        g.playQuestion()
+        g.next(now())
+        t += 30_000
+        g.goto(0, now())
+        assertEquals("q1", g.state.qid)
+        assertTrue(!g.state.answeredSinceOpening(first), "La réponse de la première fois est ignorée")
+        assertTrue(g.state.answeredSinceOpening(t + 3_000), "Une nouvelle réponse compte")
+        assertTrue(g.state.answeredSinceOpening(t - 1_000), "Petit écart d'horloge toléré")
+    }
+
+    @Test
     fun `secours en pause et après une fin par erreur, double appui sans effet`() {
         val g = Game(quiz)
         g.next(now())

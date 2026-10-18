@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -97,7 +98,15 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
             Spacer(Modifier.height(20.dp))
             // Chaque question a ses propres cartes : elles surgissent une à une, sur les bulles sonores.
             key(state.index) {
-                ChoiceGrid(q.choices, correct = if (revealed) q.correct else null, Modifier.weight(1f))
+                // Révélation : l'illustration facultative (photo ou émoji) apparaît à gauche des propositions.
+                Row(Modifier.weight(1f)) {
+                    if (revealed && hasIllustration(q, state)) {
+                        val photo = q.imageId != null && state.images[q.imageId] != null
+                        Illustration(q, state, Modifier.fillMaxHeight().aspectRatio(if (photo) 4f / 3f else 1f, matchHeightConstraintsFirst = true))
+                        Spacer(Modifier.width(20.dp))
+                    }
+                    ChoiceGrid(q.choices, correct = if (revealed) q.correct else null, Modifier.weight(1f).fillMaxHeight())
+                }
             }
             Spacer(Modifier.height(16.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {

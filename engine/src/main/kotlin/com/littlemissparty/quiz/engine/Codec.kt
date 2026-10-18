@@ -125,6 +125,8 @@ object Codec {
                 "deadline" to game.deadline(),
                 "remainingMs" to if (s.paused) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
                 "correct" to if (revealed) q.correct else null,
+                // L'émoji d'illustration peut trahir la réponse : seulement une fois révélée.
+                "image" to if (revealed) q.emoji else null,
                 "awards" to if (revealed) s.awards[q.id]?.mapValues { (_, a) ->
                     mapOf("correct" to a.correct, "points" to a.points, "bonus" to a.bonus)
                 } else null,

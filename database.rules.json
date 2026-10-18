@@ -163,6 +163,13 @@
             ".validate": "newData.isString() && newData.val().length <= 40"
           }
         },
+        "images": {
+          "$id": {
+            ".read": "auth != null && (root.child('games').child($code).child('hostUid').val() === auth.uid || root.child('games').child($code).child('regie').child(auth.uid).exists())",
+            ".write": "auth != null && !data.exists() && root.child('games').child($code).child('regie').child(auth.uid).exists()",
+            ".validate": "$id.matches(/^[0-9a-f]{16}$/) && newData.isString() && newData.val().beginsWith('data:image/') && newData.val().length <= 150000"
+          }
+        },
         "showStatus": {
           ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
           ".write": "auth != null && root.child('games').child($code).child('hostUid').val() === auth.uid"
@@ -202,9 +209,21 @@
               ".validate": "newData.child('text').isString() && newData.child('text').val().length <= 300 && newData.child('choices').hasChildren() && newData.child('correct').isNumber() && newData.child('status').val().matches(/^(brouillon|validee)$/)",
               "duration": {
                 ".validate": "newData.isNumber() && newData.val() >= 5 && newData.val() <= 120"
+              },
+              "image": {
+                ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 16"
+              },
+              "imageId": {
+                ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{16}$/)"
               }
             }
           }
+        }
+      },
+      "images": {
+        "$id": {
+          ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val() && (!data.exists() || !newData.exists())",
+          ".validate": "!newData.exists() || ($id.matches(/^[0-9a-f]{16}$/) && newData.isString() && newData.val().beginsWith('data:image/') && newData.val().length <= 150000)"
         }
       },
       "mimes": {
