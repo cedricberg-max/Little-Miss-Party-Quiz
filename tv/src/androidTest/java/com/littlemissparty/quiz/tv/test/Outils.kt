@@ -321,6 +321,15 @@ class PupitreSimule(etiquette: String) : AutoCloseable {
         }
     }.onFailure { Log.i(TAG, "Réponse refusée : ${it.message}") }.isSuccess
 
+    /** Image floue : buzze sous la clé de l'essai en cours ; renvoie false si le serveur refuse (buzzer fermé ou déjà pris). */
+    fun buzzer(code: String): Boolean = runCatching {
+        val cle = etat(code).child("round").value.toString()
+        bloquer {
+            base.getReference("games/$code/buzz/$cle")
+                .setValue(mapOf("team" to uid, "at" to ServerValue.TIMESTAMP)).await()
+        }
+    }.onFailure { Log.i(TAG, "Buzz refusé : ${it.message}") }.isSuccess
+
     /** État de la partie lu sur le serveur. */
     fun etat(code: String): DataSnapshot = bloquer { base.getReference("games/$code/state").lireUneFois() }
 

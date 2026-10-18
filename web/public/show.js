@@ -3,7 +3,9 @@
 import { PROFILES, profileForAge, defaultDuration, expressDuration } from "./profiles.js";
 import { shuffle } from "./mime-cards.js";
 
-export const ROUND_TYPES = { quiz: "Quiz", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", mimes: "Mimes" };
+export const ROUND_TYPES = { quiz: "Quiz", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", mimes: "Mimes" };
+/** Image floue : temps pour que la photo devienne nette (secondes), le même pour tous les âges. */
+export const FLOU_SEC = 40;
 /** Durée d'un tour de mimes par défaut (secondes). */
 export const MIME_TURN = 60;
 export const MAX_QUESTIONS = 200;
@@ -31,6 +33,7 @@ export const zoomQuestions = (quiz) => playable(quiz).filter((q) => q.kind !== "
 export const QUIZ_GAMES = {
   express: { questions: expressQuestions, unit: "affirmation", missing: "aucune question Vrai / Faux validée pour le Vrai ou Faux express" },
   zoom: { questions: zoomQuestions, unit: "photo", missing: "aucune question avec photo pour le Zoom mystère (ajoutez des photos dans le quiz)" },
+  flou: { questions: zoomQuestions, unit: "photo", missing: "aucune question avec photo pour l'Image floue (ajoutez des photos dans le quiz)" },
 };
 
 /** Une manche est-elle complète (quiz choisi, ou paquet de mimes choisi) ? */
@@ -76,6 +79,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     const quiz = quizzes[round.quizId];
     const express = round.type === "express";
     const zoom = round.type === "zoom";
+    const flou = round.type === "flou";
     const game = QUIZ_GAMES[round.type];
     const label = round.type === "finale" || game ? ROUND_TYPES[round.type] : quiz?.title ?? `Manche ${i + 1}`;
     if (!quiz) { problems.push(`Manche ${i + 1} : le quiz n'existe plus dans la bibliothèque.`); return; }
@@ -94,8 +98,9 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
         ...(number ? {} : { choices: q.choices }),
         correct: q.correct,
         // Express : le chrono court du profil, toujours (c'est le jeu).
-        duration: express ? expressDuration(profile) : q.duration ?? defaultDuration(profile),
-        kind: express ? "express" : zoom ? "zoom" : number ? "number" : yesNo ? "true_false" : "classic",
+        // Image floue : le temps que la photo devienne nette ; la réponse se donne à voix haute après un buzz.
+        duration: express ? expressDuration(profile) : flou ? FLOU_SEC : q.duration ?? defaultDuration(profile),
+        kind: express ? "express" : zoom ? "zoom" : flou ? "flou" : number ? "number" : yesNo ? "true_false" : "classic",
         double: round.type === "finale" || q.double === true,
         round: label,
         // Illustration facultative montrée à la révélation (émoji, ou photo copiée dans la partie par la régie).

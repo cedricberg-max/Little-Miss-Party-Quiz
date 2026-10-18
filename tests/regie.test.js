@@ -105,7 +105,7 @@ function startBox({ silent = false, held = false } = {}) {
       if (handled.has(id)) continue;
       handled.add(id);
       if (cmd.type === "admit" || cmd.type === "replace") { await admitDevice(id, cmd); continue; }
-      const advance = ["next", "close", "end", "pause", "resume", "mime_start", "mime_found", "mime_pass", "mime_stop", "goto"].includes(cmd.type);
+      const advance = ["next", "close", "end", "pause", "resume", "mime_start", "mime_found", "mime_pass", "mime_stop", "goto", "buzz_ok", "buzz_ko"].includes(cmd.type);
       let status = { status: "applied" };
       if (advance && cmd.expectSeq !== state.seq) status = { status: "stale", reason: "stale" };
       else {
@@ -121,6 +121,18 @@ function startBox({ silent = false, held = false } = {}) {
             state = q.kind === "mime"
               ? { ...state, seq, phase: "question", index: cmd.index, qid: q.id, kind: "mime", text: q.text, choices: null, deadline: null, paused: false, mime: { team: null, card: null, found: 0, passed: 0, left: q.cards.length, turns: [], counts: {}, points: 50 } }
               : { ...questionState(seq), index: cmd.index, qid: q.id, text: q.text, choices: q.choices, total: plan.questions.length, scores: state.scores, mime: null };
+          }
+        }
+        else if (cmd.type === "buzz_ok" || cmd.type === "buzz_ko") {
+          // Image floue : même verdict que BuzzJudged (150 au premier, 100 au rebond ; erreur = équipe bloquée, nouvelle clé).
+          const b = state.buzz;
+          if (state.phase !== "question" || state.kind !== "flou" || !b?.team || state.paused) status = { status: "refused", reason: "not_now" };
+          else if (cmd.type === "buzz_ok") {
+            const points = b.blocked.length ? 100 : 150;
+            state = { ...state, seq, phase: "reveal", buzzOpen: false, awards: { [b.team]: { correct: true, points, bonus: 0 } }, scores: { ...state.scores, [b.team]: (state.scores[b.team] ?? 0) + points } };
+          } else {
+            const blocked = [...b.blocked, b.team];
+            state = { ...state, seq, buzzOpen: true, round: `${state.qid}-1000-${blocked.length}`, buzz: { team: null, blocked }, buzzBlocked: Object.fromEntries(blocked.map((t) => [t, true])) };
           }
         }
         else if (cmd.type.startsWith("mime_") || (m && ["next", "close"].includes(cmd.type))) {
@@ -215,7 +227,7 @@ function startBox({ silent = false, held = false } = {}) {
     if (show.base == null) {
       await update(ref(db, `games/${CODE}`), {
         showStatus: { id: show.id, status: "applied", at: Date.now() },
-        conducteur: { id: show.quiz.id, title: show.title, rev: show.id, mimes: true, numbers: true, express: true, zoom: true, questions: show.quiz.questions },
+        conducteur: { id: show.quiz.id, title: show.title, rev: show.id, mimes: true, numbers: true, express: true, zoom: true, flou: true, questions: show.quiz.questions },
         public: { title: show.title, childName: show.childName },
       });
       return;
@@ -232,6 +244,13 @@ function startBox({ silent = false, held = false } = {}) {
       Object.assign(updates, { state, conducteur: { ...plan, rev: show.id, questions: show.quiz.questions } });
     }
     await update(ref(db, `games/${CODE}`), updates);
+  }));
+  // Image floue : le premier buzz écrit sous la clé en cours fige l'image pour son équipe (comme watchBuzz).
+  if (!silent) stops.push(onValue(ref(db, `games/${CODE}/buzz`), async (s) => {
+    const team = s.val()?.[state.round]?.team;
+    if (state.kind !== "flou" || state.phase !== "question" || !team || state.buzz?.team || state.buzz?.blocked.includes(team)) return;
+    state = { ...state, seq: state.seq + 1, buzzOpen: false, buzz: { ...state.buzz, team } };
+    await update(ref(db, `games/${CODE}`), { state });
   }));
   if (!silent) stops.push(onValue(ref(db, `games/${CODE}/commands`), (s) => {
     latest = s.val() ?? {};
@@ -271,7 +290,7 @@ beforeEach(async () => {
   await set(gameRef(), {
     hostUid: HOST,
     state: { phase: "lobby", seq: 0, total: QUESTIONS.length, scores: {}, round: 1, buzzOpen: true },
-    conducteur: { id: "demo", title: "Démo", rev: "initial", mimes: true, numbers: true, express: true, zoom: true, questions: QUESTIONS.map((q, i) => ({ id: `q${i + 1}`, ...q })) },
+    conducteur: { id: "demo", title: "Démo", rev: "initial", mimes: true, numbers: true, express: true, zoom: true, flou: true, questions: QUESTIONS.map((q, i) => ({ id: `q${i + 1}`, ...q })) },
   });
 });
 afterEach(() => { box?.stop(); box = null; });
@@ -543,6 +562,35 @@ describe("régie", () => {
     await page.context().close();
   });
 
+  test("Image floue : la régie voit qui a buzzé et la réponse attendue, refuse puis valide le rebond", async () => {
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    await addTeam("bleu", "Les Bleus");
+    const plan = [{ id: "f1", text: "Qu'est-ce qui se cache sous le flou ?", choices: ["Un lion", "Un chat"], correct: 0, duration: 40, kind: "flou", imageId: "0123456789abcdef", round: "Image floue" }];
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, questions: plan });
+    await box.set({ ...questionState(1), qid: "f1", kind: "flou", text: plan[0].text, choices: null, total: 1, round: "f1-1000-0", buzzOpen: true, buzz: { team: null, blocked: [] } });
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    await page.locator("#flou-info", { hasText: "En attente d'un buzz" }).waitFor();
+    assert.equal(await page.locator("#flou-judge").isHidden(), true, "pas de verdict sans buzz");
+    // Les Roses buzzent (écriture du pupitre) : la régie affiche l'équipe et la réponse attendue.
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/buzz/f1-1000-0`), { team: "rose", at: Date.now() }));
+    await page.locator("#flou-info", { hasText: "Les Roses a buzzé ! Réponse attendue : Un lion" }).waitFor();
+    await page.locator("#flou-ok small", { hasText: "+150 pour Les Roses" }).waitFor();
+    await page.click("#flou-ko");
+    await page.locator("#flou-info", { hasText: "Déjà essayé : Les Roses" }).waitFor();
+    assert.deepEqual((await read("state")).buzz.blocked, ["rose"]);
+    // Rebond des Bleus, validé : 100 points et révélation.
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/buzz/f1-1000-1`), { team: "bleu", at: Date.now() }));
+    await page.locator("#flou-ok small", { hasText: "+100 pour Les Bleus" }).waitFor();
+    await page.click("#flou-ok");
+    await page.locator("#c-phase", { hasText: "Réponse révélée" }).waitFor();
+    assert.deepEqual((await read("state")).scores, { bleu: 100 });
+    assert.equal(await page.locator("#flou").isHidden(), true);
+    await page.context().close();
+  });
+
   test("secours : jeu en cours et suivant, passer au suivant, rejouer un jeu après confirmation", async () => {
     box = startBox();
     await addTeam("rose", "Les Roses");
@@ -552,7 +600,7 @@ describe("régie", () => {
       { id: "a1m", text: "Animaux", kind: "mime", duration: 60, round: "Animaux", cards: [{ word: "Chat", image: "🐱" }] },
       { id: "f1", text: "Finale ?", choices: ["A", "B"], correct: 0, duration: 10, kind: "classic", round: "Finale" },
     ];
-    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, questions: plan });
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, questions: plan });
     await box.set({ ...questionState(4), index: 1, qid: "q2", text: "2 + 2 ?", total: 4, scores: { rose: 100 } });
     const page = await openRegie();
     await pair(page);

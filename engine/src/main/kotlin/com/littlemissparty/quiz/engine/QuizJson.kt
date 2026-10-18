@@ -36,8 +36,9 @@ object QuizJson {
 
     private fun question(q: JSONObject, i: Int): Question {
         val imageId = q.optString("imageId").takeIf { it.matches(IMAGE_ID) }
-        // Zoom mystère sans photo valable : la question se joue comme une question classique.
-        val kind = QuestionKind.of(q.optString("kind")).let { if (it == QuestionKind.ZOOM && imageId == null) QuestionKind.CLASSIC else it }
+        // Zoom mystère ou image floue sans photo valable : la question se joue comme une question classique.
+        val kind = QuestionKind.of(q.optString("kind"))
+            .let { if ((it == QuestionKind.ZOOM || it == QuestionKind.FLOU) && imageId == null) QuestionKind.CLASSIC else it }
         val choices: JSONArray = q.optJSONArray("choices") ?: JSONArray()
         val cards: JSONArray = q.optJSONArray("cards") ?: JSONArray()
         return Question(

@@ -341,6 +341,24 @@ describe("Zoom mystère", () => {
   });
 });
 
+describe("Image floue", () => {
+  const PHOTO = "0123456789abcdef";
+  test("les questions avec photo, 40 secondes pour que l'image devienne nette, sans propositions à l'écran", () => {
+    const quiz = { title: "Animaux", questions: [
+      { text: "Quel animal ?", choices: ["Chat", "Lion"], correct: 1, imageId: PHOTO, status: "validee" },
+      { text: "Sans photo ?", choices: ["Oui", "Non"], correct: 0, status: "validee" },
+    ] };
+    const { snapshot, problems } = buildSnapshot("x", { childName: "Léa", age: 7, rounds: [{ type: "flou", quizId: "a" }] }, { a: quiz });
+    assert.deepEqual(problems, []);
+    assert.deepEqual(snapshot.quiz.questions.map((q) => [q.kind, q.imageId, q.round, q.duration, q.choices[q.correct]]), [["flou", PHOTO, "Image floue", 40, "Lion"]]);
+  });
+
+  test("quiz sans photo : la manche est signalée", () => {
+    const quiz = { title: "Vide", questions: [{ text: "?", choices: ["a", "b"], correct: 0, status: "validee" }] };
+    assert.match(buildSnapshot("x", { childName: "Léa", age: 9, rounds: [{ type: "flou", quizId: "v" }] }, { v: quiz }).problems[0], /aucune question avec photo pour l'Image floue/);
+  });
+});
+
 describe("Le Juste Chiffre", () => {
   test("une question sans propositions avec un nombre pour réponse devient une question du Juste Chiffre", () => {
     const { questions } = parseQuiz("1. Combien d'os dans le corps humain ?\nRéponse : 206\n\n2. Hauteur de la tour Eiffel en mètres ?\nRéponse : 1 000\n\n3. Sans réponse ?\nRéponse : beaucoup");

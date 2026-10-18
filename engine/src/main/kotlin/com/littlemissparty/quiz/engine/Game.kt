@@ -21,6 +21,9 @@ const val EXPRESS_CLOSED_MS = 1_200L
 /** Vrai ou Faux express : temps de la révélation avant l'affirmation suivante. */
 const val EXPRESS_REVEAL_MS = 3_500L
 
+/** Image floue : l'équipe qui a buzzé et attend le verdict de l'animatrice, et les équipes déjà bloquées. */
+data class BuzzRound(val team: String? = null, val blocked: List<String> = emptyList())
+
 /** Pause en cours : qui l'a provoquée et depuis quand. */
 data class Hold(val reason: String, val team: String?, val since: Long)
 
@@ -40,6 +43,8 @@ data class GameState(
     val mimes: Map<String, Map<String, Int>> = emptyMap(),
     /** Manche de mimes en cours (null pour une question ordinaire). */
     val mime: MimeRound? = null,
+    /** Image floue en cours (null pour une autre question). */
+    val buzz: BuzzRound? = null,
 ) {
     val paused: Boolean get() = hold != null
 
@@ -51,6 +56,9 @@ data class GameState(
      * une ancienne réponse encore en cache (même question, partie précédente) ne compte pas et ne ferme rien.
      */
     fun answeredSinceOpening(answerAt: Long): Boolean = openedAt?.let { answerAt >= it - ANSWER_CLOCK_MARGIN_MS } ?: true
+
+    /** Image floue : une équipe a buzzé, le chrono attend le verdict de l'animatrice. */
+    val buzzHeld: Boolean get() = buzz?.team != null
 
     /** Un tour de mimes est en cours : son chrono tourne (hors pause). */
     val mimeTurn: Boolean get() = mime?.team != null
@@ -144,7 +152,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     /** Heure du serveur à laquelle le chrono atteindra zéro, ou null s'il est en pause ou arrêté. */
     fun deadline(): Long? {
         val q = question ?: return null
-        if (!timerRuns(q) || state.paused) return null
+        if (!timerRuns(q) || state.paused || state.buzzHeld) return null
         val running = state.segments.last()
         val before = state.elapsedAt(running.start)
         return running.start + q.durationMs - before
@@ -191,8 +199,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                 s.copy(
                     hold = null,
                     resumeAt = start,
-                    // Entre deux tours de mimes, aucun chrono ne tourne : il n'y a rien à relancer.
-                    segments = if (s.phase == Phase.QUESTION && (s.mime == null || s.mimeTurn)) s.segments + Segment(start) else s.segments,
+                    // Entre deux tours de mimes, ou pendant la réponse d'une équipe qui a buzzé, aucun chrono ne tourne.
+                    segments = if (s.phase == Phase.QUESTION && (s.mime == null || s.mimeTurn) && !s.buzzHeld) s.segments + Segment(start) else s.segments,
                 )
             }
         // Accepté en pause pour rejouer les journaux d'avant la pause générale (la fermeture levait la pause) ;
@@ -273,6 +281,27 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             )
         }
         is MimeTurnEnded -> if (s.mime?.team == null) null else endTurn(s, e.at)
+        is Buzzed -> {
+            val b = s.buzz
+            if (s.phase != Phase.QUESTION || b == null || b.team != null || s.paused || e.team.isBlank() || e.team in b.blocked) null
+            else s.copy(
+                buzz = b.copy(team = e.team),
+                segments = s.segments.map { if (it.end == null) it.copy(end = maxOf(e.at, it.start)) else it },
+            )
+        }
+        is BuzzJudged -> {
+            val b = s.buzz
+            val team = b?.team
+            val q = quiz.questions.getOrNull(s.index)
+            if (s.phase != Phase.QUESTION || b == null || team == null || s.paused || q == null) null
+            else if (e.ok) {
+                val factor = if (q.double) 2 else 1
+                val points = (if (b.blocked.isEmpty()) Scoring.BUZZ else Scoring.BUZZ_REBOUND) * factor
+                s.copy(phase = Phase.REVEAL, awards = s.awards + (q.id to mapOf(team to Award(q.correct, correct = true, points = points, bonus = 0))))
+            }
+            // Mauvaise réponse : l'équipe est bloquée sur cette image, le chrono repart.
+            else s.copy(buzz = b.copy(team = null, blocked = b.blocked + team), segments = s.segments + Segment(e.at))
+        }
     }
 
     /**
@@ -284,7 +313,10 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null,
             mimes = s.mimes - q.id, mime = MimeRound(deck = q.cards.indices.toList()),
         )
-        else s.copy(phase = Phase.QUESTION, index = index, qid = q.id, segments = listOf(Segment(at)), resumeAt = null, mime = null)
+        else s.copy(
+            phase = Phase.QUESTION, index = index, qid = q.id, segments = listOf(Segment(at)), resumeAt = null, mime = null,
+            buzz = if (q.isFlou) BuzzRound() else null,
+        )
 
     /** Tour de mimes terminé : chrono arrêté, bilan gardé pour la TV et la régie. */
     private fun endTurn(s: GameState, at: Long): GameState {
@@ -358,7 +390,9 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     fun reveal(now: Long, answers: Map<String, Answer>): GameEvent? {
         val q = question ?: return null
         if (state.phase != Phase.CLOSED) return null
-        val awards = if (q.isNumber) Scoring.awardNumber(q, answers)
+        // Image floue : les points viennent du buzzer ; chrono écoulé sans bonne réponse, personne ne marque.
+        val awards = if (q.isFlou) emptyMap()
+        else if (q.isNumber) Scoring.awardNumber(q, answers)
         else if (q.isExpress) answers.mapValues { (_, a) -> Scoring.awardExpress(q, a) }
         else answers.mapValues { (_, a) ->
             val remaining = (q.durationMs - state.elapsedAt(a.at)).coerceAtLeast(0)
@@ -385,6 +419,12 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             else -> null
         }
     }
+
+    /** Image floue : [team] a buzzé la première (refusé si une équipe attend déjà son verdict, ou si [team] est bloquée). */
+    fun buzz(team: String, now: Long): GameEvent? = emit(Buzzed(nextSeq, now, team))
+
+    /** Image floue : verdict de l'animatrice sur la réponse orale de l'équipe qui a buzzé. */
+    fun judgeBuzz(ok: Boolean, now: Long): GameEvent? = emit(BuzzJudged(nextSeq, now, ok))
 
     /** Délai avant l'étape automatique du Vrai ou Faux express, ou null s'il n'y en a pas. */
     fun expressDelayMs(): Long? {

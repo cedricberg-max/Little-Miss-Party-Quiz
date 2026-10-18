@@ -167,6 +167,12 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .mime-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .regie .mime-row .btn { min-height: 72px; font-size: 22px; }
 
+/* Image floue : une équipe a buzzé, l'animatrice juge sa réponse orale */
+.regie .flou { display: flex; flex-direction: column; gap: 10px; }
+.regie .flou-judge { display: flex; flex-direction: column; gap: 10px; }
+.regie .flou .mime-found { min-height: 130px; font-size: 34px; }
+.regie .flou-ko { min-height: 72px; font-size: 22px; }
+
 /* Jeu en cours, jeu suivant et secours */
 .regie .games-row { display: flex; align-items: center; gap: 8px; }
 .regie .games { flex: 1; margin: 0; font-size: 14px; color: var(--ink-soft, #cbb8e8); }

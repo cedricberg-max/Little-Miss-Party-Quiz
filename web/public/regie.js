@@ -207,15 +207,17 @@ function render() {
   if (correct != null) {
     const text = (st.choices ?? q?.choices ?? [])[correct] ?? "";
     const number = (q?.kind ?? st.kind) === "number";
-    answerBtn.textContent = answerMasked ? "Réponse masquée · toucher pour voir" : number ? `Juste Chiffre · ${correct}` : `Réponse ${CHOICE_LETTERS[correct]} · ${text}`;
+    const flou = (q?.kind ?? st.kind) === "flou";
+    answerBtn.textContent = answerMasked ? "Réponse masquée · toucher pour voir" : number ? `Juste Chiffre · ${correct}` : flou ? `Réponse · ${text}` : `Réponse ${CHOICE_LETTERS[correct]} · ${text}`;
     answerBtn.classList.toggle("masked", answerMasked);
   }
   const answered = Object.keys(live.answers).filter((t) => live.teams[t]).length;
-  $("c-answered").textContent = st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ont répondu` : "";
+  $("c-answered").textContent = st.kind === "flou" ? "" : st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ont répondu` : "";
 
   renderGames(st);
   renderRequests(st, teams);
   renderMime(st, teams);
+  renderFlou(st);
   renderTeams(st, teams);
   renderPlan(st);
   renderShows(st);
@@ -411,6 +413,29 @@ function renderMime(st, teams) {
     $("mime-fix-plus").disabled = busy;
   }
 }
+
+/** Image floue : qui a buzzé, la réponse attendue, et les deux boutons du verdict. */
+function renderFlou(st) {
+  const on = st.phase === "question" && st.kind === "flou";
+  $("flou").hidden = !on;
+  if (!on) return;
+  const b = st.buzz ?? {};
+  const name = (id) => live.teams[id]?.name ?? "Équipe";
+  const q = live.plan?.questions?.[st.index];
+  const expected = q?.choices?.[q?.correct] ?? "";
+  const tried = (b.blocked ?? []).filter((id) => live.teams[id]).map(name);
+  $("flou-info").textContent = b.team
+    ? `${name(b.team)} a buzzé ! Réponse attendue : ${expected || "voir la fiche"}`
+    : `En attente d'un buzz…${tried.length ? ` Déjà essayé : ${tried.join(", ")}.` : ""}`;
+  $("flou-judge").hidden = !b.team;
+  const busy = !!pending?.advance || st.paused === true;
+  $("flou-ok").disabled = busy;
+  $("flou-ko").disabled = busy;
+  $("flou-ok").querySelector("small").textContent = b.team ? `+${(b.blocked ?? []).length ? 100 : 150}${st.double ? " ×2" : ""} pour ${name(b.team)}` : "";
+}
+
+$("flou-ok").onclick = () => { navigator.vibrate?.(60); send("buzz_ok", {}, { advance: true }); };
+$("flou-ko").onclick = () => send("buzz_ko", {}, { advance: true });
 
 $("mime-go").onclick = () => { if (mimeTeam) send("mime_start", { team: mimeTeam }, { advance: true }); };
 $("mime-found").onclick = () => { navigator.vibrate?.(60); send("mime_found", {}, { advance: true }); };
@@ -829,6 +854,7 @@ const OLD_TV = "La TV doit être mise à jour pour jouer aux mimes : sur la TV, 
 const OLD_TV_NUMBER = "La TV doit être mise à jour pour jouer au Juste Chiffre : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_EXPRESS = "La TV doit être mise à jour pour jouer au Vrai ou Faux express : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_ZOOM = "La TV doit être mise à jour pour jouer au Zoom mystère : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+const OLD_TV_FLOU = "La TV doit être mise à jour pour jouer à l'Image floue : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 /** Jeu que la TV allumée ne sait pas encore jouer (ancienne version) : le message à montrer, sinon null. */
 function tvRefuses(questions) {
   if (!live.plan) return null;
@@ -836,6 +862,7 @@ function tvRefuses(questions) {
   if (live.plan.numbers !== true && questions.some((q) => q?.kind === "number")) return OLD_TV_NUMBER;
   if (live.plan.express !== true && questions.some((q) => q?.kind === "express")) return OLD_TV_EXPRESS;
   if (live.plan.zoom !== true && questions.some((q) => q?.kind === "zoom")) return OLD_TV_ZOOM;
+  if (live.plan.flou !== true && questions.some((q) => q?.kind === "flou")) return OLD_TV_FLOU;
   return null;
 }
 

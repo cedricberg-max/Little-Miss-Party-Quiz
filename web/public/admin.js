@@ -368,7 +368,7 @@ function refreshRounds() {
           ...options.map(([qid, q]) => h("option", {
             value: qid, selected: r.quizId === qid,
             text: r.type === "express" ? `${q.title} (${expressQuestions(q).length} Vrai / Faux)`
-              : r.type === "zoom" ? `${q.title} (${zoomQuestions(q).length} avec photo)` : `${q.title} (${playable(q).length} validées)`,
+              : r.type === "zoom" || r.type === "flou" ? `${q.title} (${zoomQuestions(q).length} avec photo)` : `${q.title} (${playable(q).length} validées)`,
           }))),
       h("button", { type: "button", class: "icon", title: "Monter", disabled: i === 0, onclick: () => move(-1), text: "↑" }),
       h("button", { type: "button", class: "icon", title: "Descendre", disabled: i === editing.rounds.length - 1, onclick: () => move(1), text: "↓" }),

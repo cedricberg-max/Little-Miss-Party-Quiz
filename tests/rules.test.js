@@ -298,6 +298,19 @@ describe("buzzer", () => {
     await assertSucceeds(set(ref(db("rose"), `games/${CODE}/buzz/1`), { team: "rose", at: serverTimestamp() }));
     await assertFails(set(ref(db("bleu"), `games/${CODE}/buzz/1`), { team: "bleu", at: serverTimestamp() }));
   });
+  test("image floue : clé de l'essai en cours seulement, la première équipe gagne, rien quand le buzzer est fermé", async () => {
+    await seed({ phase: "question", qid: "f1", kind: "flou", buzzOpen: true, round: "f1-1000-0" });
+    await assertFails(set(ref(db("rose"), `games/${CODE}/buzz/f1-999-0`), { team: "rose", at: serverTimestamp() }), "ancienne clé");
+    await assertSucceeds(set(ref(db("rose"), `games/${CODE}/buzz/f1-1000-0`), { team: "rose", at: serverTimestamp() }));
+    await assertFails(set(ref(db("bleu"), `games/${CODE}/buzz/f1-1000-0`), { team: "bleu", at: serverTimestamp() }));
+    // Une équipe bloquée après une erreur ne peut pas prendre la place sous la nouvelle clé.
+    await seed({ phase: "question", qid: "f1", kind: "flou", buzzOpen: true, round: "f1-1000-1", buzzBlocked: { rose: true } });
+    await assertFails(set(ref(db("rose"), `games/${CODE}/buzz/f1-1000-1`), { team: "rose", at: serverTimestamp() }));
+    await assertSucceeds(set(ref(db("bleu"), `games/${CODE}/buzz/f1-1000-1`), { team: "bleu", at: serverTimestamp() }));
+    // Verdict en attente : le buzzer est fermé, même sous la clé suivante.
+    await seed({ phase: "question", qid: "f1", kind: "flou", buzzOpen: false, round: "f1-1000-1" });
+    await assertFails(set(ref(db("bleu"), `games/${CODE}/buzz/f1-1000-1`), { team: "bleu", at: serverTimestamp() }));
+  });
   test("accueil : chaque équipe buzze pour s'amuser autant qu'elle veut, jamais pour une autre ni pendant le jeu", async () => {
     await seed({ phase: "lobby", buzzOpen: true, round: 1 });
     const fun = (uid, team) => set(ref(db(uid), `games/${CODE}/fun/${team}`), { at: serverTimestamp() });
@@ -413,6 +426,10 @@ describe("régie", () => {
     await assertSucceeds(command(REGIE, { type: "mime_fix", team: "rose", delta: -1 }));
     await assertSucceeds(command(REGIE, { type: "mime_stop" }));
     await assertFails(command("rose", { type: "mime_found" }));
+    // Image floue : le verdict vient de la régie, jamais d'un pupitre.
+    await assertSucceeds(command(REGIE, { type: "buzz_ok" }));
+    await assertSucceeds(command(REGIE, { type: "buzz_ko" }));
+    await assertFails(command("rose", { type: "buzz_ok" }));
     await assertFails(set(ref(db(REGIE), `games/${CODE}/commands/m-points`), { type: "mime_found", points: 50, expectSeq: 3, by: REGIE, at: serverTimestamp() }));
   });
   test("secours : la régie demande un saut de jeu ; seule la box efface les réponses d'un jeu rejoué", async () => {
