@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { initializeTestEnvironment } from "@firebase/rules-unit-testing";
 import { ref, get, set } from "firebase/database";
 import { chromium } from "playwright";
+import { loadRules } from "./rules-loader.js";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const PUBLIC = join(ROOT, "web/public");
@@ -28,7 +29,7 @@ let env, server, browser, baseUrl;
 before(async () => {
   env = await initializeTestEnvironment({
     projectId: "demo-lmp",
-    database: { rules: readFileSync(join(ROOT, "database.rules.json"), "utf8"), host: "127.0.0.1", port: 9000 },
+    database: { rules: loadRules(), host: "127.0.0.1", port: 9000 },
   });
   server = createServer((req, res) => {
     const path = decodeURIComponent(new URL(req.url, "http://x").pathname);

@@ -5,7 +5,7 @@ Quiz interactif façon jeu télévisé pour les prestations Little Miss Party.
 - **`tv/`** : l'application Android TV (Kotlin, Jetpack Compose) qui affiche le jeu et le QR code.
 - **`engine/`** : le moteur de jeu en Kotlin pur (barème, chrono, journal, reprise), testé sans Android.
 - **`tests/`** : tests automatiques des règles Firebase et du pupitre sur l'émulateur Firebase.
-- **`web/public/`** : le pupitre des équipes, une page web qui marche sur tout téléphone ou tablette (Android et Apple).
+- **`web/public/`** : la page des pupitres et de la régie (`index.html`, deux modes : joueur et régie) et l'administration (`admin.html`), des pages web qui marchent sur tout téléphone, tablette ou PC.
 - **`database.rules.json`** : les règles de sécurité de la base Firebase.
 - **`firebase-config.json`** : la configuration Firebase publique, partagée par la TV et le pupitre.
 
@@ -13,7 +13,11 @@ Quiz interactif façon jeu télévisé pour les prestations Little Miss Party.
 
 1. La box TV crée une partie sur Firebase et affiche un QR code.
 2. Chaque équipe scanne le QR code : la page pupitre s'ouvre, l'équipe choisit son nom et sa couleur.
-3. Tout passe par Internet (Wi-Fi du lieu ou 4G), sans réseau commun ni routeur.
+3. L'animatrice scanne le même QR code, touche le petit bouton « 🎛 Accès régie » en bas à droite et
+   saisit le mot de passe commun des animatrices. Son téléphone pilote ensuite la partie (lancer, chrono,
+   révéler, scores, corrections) ; la télécommande de la box reste utilisable en secours. Sans mot de
+   passe : « Code affiché sur la TV » (bouton Retour de la télécommande, « Code de secours de la régie »).
+4. Tout passe par Internet (Wi-Fi du lieu ou 4G), sans réseau commun ni routeur.
 
 ## Installer l'appli sur la box
 
@@ -29,7 +33,19 @@ avec une clé USB ou l'appli « Send Files to TV ».
 Lancés par GitHub à chaque modification ; aucun APK n'est publié si l'un échoue.
 
 - Moteur : `./gradlew -p engine test`
-- Règles Firebase et pupitre (navigateur simulé, émulateur Firebase) : `cd tests && npm ci && npm test`
+- Règles Firebase, pupitre et régie (navigateur simulé, émulateur Firebase) : `cd tests && npm ci && npm test`
+
+## Mot de passe de la régie
+
+Sarah ou cedric le changent dans l'administration (`https://little-miss-party-quiz.web.app/admin.html`,
+Paramètres › Accès régie). Le serveur garde seulement une empreinte illisible et compare lui-même
+(règles Firebase) ; il n'accepte qu'un essai toutes les 2 secondes. Les régies déjà reliées restent
+reliées après un changement.
+
+Administrateurs : Sarah (littlemisspartyspa@gmail.com) et cedric (berguig.cedric@gmail.com, propriétaire
+du projet Firebase), inscrits dans `database.rules.json` (expression `auth.token.email.matches(...)`).
+Les deux comptes ont les mêmes droits dans l'administration et ne se gênent pas. Il faut que la
+connexion Google soit activée dans Firebase (Authentication › Méthodes de connexion › Google).
 
 ## Rapports de plantage
 

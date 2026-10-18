@@ -8,6 +8,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.ChildEventListener
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.DatabaseReference
@@ -17,12 +18,16 @@ import com.google.firebase.database.ValueEventListener
 import com.littlemissparty.quiz.engine.Answer
 import com.littlemissparty.quiz.engine.Award
 import com.littlemissparty.quiz.engine.Codec
+import com.littlemissparty.quiz.engine.Command
+import com.littlemissparty.quiz.engine.CommandResult
+import com.littlemissparty.quiz.engine.CommandStatus
 import com.littlemissparty.quiz.engine.Game
 import com.littlemissparty.quiz.engine.GameEvent
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.engine.Quiz
 import com.littlemissparty.quiz.engine.QuizJson
+import com.littlemissparty.quiz.engine.execute
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,6 +38,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
+import java.security.SecureRandom
 
 data class Team(val uid: String, val name: String, val color: String, val joinedAt: Long)
 
@@ -69,6 +75,10 @@ sealed interface UiState {
         val connected: Boolean = true,
         /** Écart entre l'horloge de la box et celle du serveur, pour afficher le bon chrono. */
         val serverOffset: Long = 0,
+        /** Code à 4 chiffres de secours, propre à cette partie, jamais écrit dans Firebase. */
+        val regiePin: String = "",
+        val regies: Int = 0,
+        val showRegie: Boolean = false,
     ) : UiState {
         val buzzer: Team? get() = teams.find { it.uid == buzzerUid }
         val ranking: List<Pair<Team, Int>>
@@ -95,6 +105,12 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var timer: Job? = null
     private val actions = Mutex()
     private var serverOffset = 0L
+    private var commandsListener: Pair<DatabaseReference, ChildEventListener>? = null
+    private val handledCommands = mutableSetOf<String>()
+    private var regieUids: Set<String> = emptySet()
+    private val judging = mutableSetOf<String>()
+    private var pinFailures = 0
+    private var pinLockedUntil = 0L
     private val prefs = app.getSharedPreferences("partie", Context.MODE_PRIVATE)
 
     /** Code de la partie en cours, mémorisé sur la box pour survivre à un crash ou un redémarrage. */
@@ -187,9 +203,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun resumableGame(db: FirebaseDatabase, uid: String, code: String): UiState.ResumeOffer? {
+        val read = runCatching { db.getReference("games/$code").get().await() }
+        // Lecture refusée : cette box n'est plus l'hôte de la partie (données effacées, autre compte).
+        if (read.exceptionOrNull()?.message?.contains("ermission") == true) return null
         // Sans réseau ni copie locale, on fait confiance au code mémorisé.
-        val snap = runCatching { db.getReference("games/$code").get().await() }.getOrNull()
-            ?: return UiState.ResumeOffer(code, emptyList(), AUTO_RESUME_SECONDS)
+        val snap = read.getOrNull() ?: return UiState.ResumeOffer(code, emptyList(), AUTO_RESUME_SECONDS)
         if (snap.child("hostUid").getValue(String::class.java) != uid) return null
         if (snap.child("state/phase").getValue(String::class.java) == Phase.ENDED.code) return null
         val names = snap.child("teams").children.mapNotNull { it.child("name").getValue(String::class.java) }
@@ -228,8 +246,22 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val g = Game(quiz, history)
         game = g
         val round = snap.child("state/round").getValue(Int::class.java) ?: 1
-        _state.value = UiState.Playing(code = code, joinUrl = joinUrl(code), total = quiz.questions.size, round = round)
+        // Commandes de la régie déjà traitées avant un redémarrage : jamais appliquées deux fois.
+        handledCommands.clear()
+        snap.child("commandStatus").children.mapNotNullTo(handledCommands) { it.key }
+        regieUids = snap.child("regie").children.mapNotNull { it.key }.toSet()
+        pinFailures = snap.child("pairingLock/failures").getValue(Int::class.java) ?: 0
+        pinLockedUntil = snap.child("pairingLock/until").getValue(Long::class.java) ?: 0L
+        _state.value = UiState.Playing(
+            code = code, joinUrl = joinUrl(code), total = quiz.questions.size, round = round,
+            // Équipes connues dès l'ouverture : une commande reçue avant leur chargement est jugée correctement.
+            teams = parseTeams(snap.child("teams")),
+            regiePin = regiePin(code), regies = regieUids.size,
+        )
+        // Le conducteur (questions et bonnes réponses) n'est lisible que par les régies reliées.
+        ref.child("conducteur").setValue(conducteur(quiz))
         listenGame(db, ref)
+        listenCommands(ref)
         refresh()
         recover()
     }
@@ -247,7 +279,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ---------- Actions de l'animatrice (télécommande pour l'instant, régie au lot 2) ----------
+    // ---------- Actions de l'animatrice à la télécommande (secours de la régie) ----------
 
     /** Bouton principal : fait avancer la partie d'une étape. */
     fun next() {
@@ -277,8 +309,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { actions.withLock { game?.let { commit(action(it)) } } }
     }
 
-    /** Enregistre l'événement (journal + état public en une seule écriture) et met l'écran à jour. */
-    private fun commit(event: GameEvent?) {
+    /**
+     * Enregistre l'événement (journal + état public en une seule écriture) et met l'écran à jour.
+     * [extra] part dans la même écriture (réponse à la commande de la régie qui l'a déclenché).
+     */
+    private fun commit(event: GameEvent?, extra: Map<String, Any?> = emptyMap()) {
         val g = game ?: return
         val ref = gameRef ?: return
         if (event == null) return
@@ -288,7 +323,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             mapOf(
                 "log/${Codec.key(event.seq)}" to clean(Codec.encode(event)),
                 "state" to clean(Codec.publicState(g, round)),
-            )
+            ) + extra
         ).addOnFailureListener { Log.e(TAG, "Écriture refusée", it) }
         sound(g.state.phase)
         refresh()
@@ -356,6 +391,94 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         watchAnswers(s.qid.takeIf { s.phase == Phase.QUESTION || s.phase == Phase.CLOSED })
     }
 
+    // ---------- Régie (téléphone de l'animatrice) ----------
+
+    fun showRegie() = updatePlaying { it.copy(showRegie = true) }
+    fun hideRegie() = updatePlaying { it.copy(showRegie = false) }
+
+    /** Retire toutes les régies et change le code : les anciens téléphones ne pilotent plus. */
+    fun removeRegies() {
+        val s = _state.value as? UiState.Playing ?: return
+        if (regieUids.isNotEmpty()) gameRef?.updateChildren(regieUids.associate { "regie/$it" to null })
+        updatePlaying { it.copy(regiePin = newPin(s.code)) }
+    }
+
+    private fun regiePin(code: String): String = prefs.getString("regie_pin_$code", null) ?: newPin(code)
+
+    private fun newPin(code: String): String {
+        val pin = "%04d".format(SecureRandom().nextInt(10_000))
+        prefs.edit().putString("regie_pin_$code", pin).commit()
+        return pin
+    }
+
+    /**
+     * Code de secours (le chemin normal est le mot de passe commun, vérifié par les règles Firebase) :
+     * la box compare le code (il n'est jamais écrit dans Firebase), limite les essais
+     * (5 erreurs = 60 s de blocage), puis efface la demande et publie le verdict.
+     */
+    private fun judgePairing(req: DataSnapshot) {
+        val uid = req.key ?: return
+        val s = _state.value as? UiState.Playing ?: return
+        if (!judging.add(uid)) return
+        val now = serverNow()
+        val status = when {
+            uid in regieUids -> "ok"
+            regieUids.size >= MAX_REGIES -> "full"
+            now < pinLockedUntil -> "locked"
+            req.child("pin").getValue(String::class.java) == s.regiePin -> "ok".also { pinFailures = 0 }
+            ++pinFailures >= MAX_PIN_FAILURES -> "locked".also { pinFailures = 0; pinLockedUntil = now + PIN_LOCK_MS }
+            else -> "wrong"
+        }
+        val updates = mutableMapOf<String, Any?>(
+            "pairing/$uid" to null,
+            "pairingResult/$uid" to mapOf("status" to status, "at" to ServerValue.TIMESTAMP),
+            "pairingLock" to mapOf("failures" to pinFailures, "until" to pinLockedUntil),
+        )
+        if (status == "ok" && uid !in regieUids) {
+            updates["regie/$uid"] = mapOf("pairedAt" to ServerValue.TIMESTAMP, "via" to "pin")
+        }
+        gameRef?.updateChildren(updates)?.addOnCompleteListener { judging.remove(uid) }
+    }
+
+    /** Les commandes arrivent dans l'ordre de leurs clés et passent une par une, comme les boutons de la box. */
+    private fun listenCommands(ref: DatabaseReference) {
+        val commands = ref.child("commands")
+        val listener = object : ChildEventListener {
+            override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) = onCommand(snapshot)
+            override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) = Unit
+            override fun onChildRemoved(snapshot: DataSnapshot) = Unit
+            override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) = Unit
+            override fun onCancelled(error: DatabaseError) {
+                Log.e(TAG, "Commandes : ${error.message}")
+            }
+        }
+        commands.addChildEventListener(listener)
+        commandsListener = commands to listener
+    }
+
+    private fun onCommand(snap: DataSnapshot) {
+        val id = snap.key ?: return
+        if (!handledCommands.add(id)) return
+        val cmd = (snap.value as? Map<*, *>)?.let { Command.decode(id, it) }
+        viewModelScope.launch { actions.withLock {
+            val g = game ?: return@withLock
+            if (cmd == null) {
+                gameRef?.updateChildren(statusOf(id, CommandResult(CommandStatus.REFUSED, reason = "invalid")))
+                return@withLock
+            }
+            val answers = if (cmd is Command.Next && g.state.phase == Phase.CLOSED) collectAnswers() else emptyMap()
+            val result = g.execute(cmd, serverNow(), teams().map { it.uid }.toSet(), answers)
+            if (result.event != null) commit(result.event, statusOf(id, result))
+            else gameRef?.updateChildren(statusOf(id, result))
+        } }
+    }
+
+    private fun statusOf(id: String, r: CommandResult): Map<String, Any?> = mapOf(
+        "commandStatus/$id" to clean(
+            mapOf("status" to r.status.code, "reason" to r.reason, "seq" to r.event?.seq, "at" to ServerValue.TIMESTAMP)
+        ),
+    )
+
     // ---------- Firebase ----------
 
     private suspend fun connect(): FirebaseDatabase {
@@ -377,7 +500,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         repeat(8) {
             val code = (1..5).map { CODE_CHARS.random() }.joinToString("")
             val ref = db.getReference("games/$code")
-            if (!ref.get().await().exists()) {
+            // Seul `hostUid` est lisible avant d'être l'hôte : il suffit pour savoir si le code est pris.
+            if (!ref.child("hostUid").get().await().exists()) {
                 val g = Game(loadQuiz(DEFAULT_QUIZ))
                 ref.setValue(
                     mapOf(
@@ -404,15 +528,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             updatePlaying { it.copy(connected = connected) }
         }
         observe(ref.child("teams")) { snap ->
-            val teams = snap.children.mapNotNull { t ->
-                val name = t.child("name").getValue(String::class.java) ?: return@mapNotNull null
-                Team(
-                    uid = t.key!!,
-                    name = name,
-                    color = t.child("color").getValue(String::class.java) ?: "#FF3CAC",
-                    joinedAt = t.child("joinedAt").getValue(Long::class.java) ?: 0L,
-                )
-            }.sortedBy { it.joinedAt }.take(MAX_TEAMS)
+            val teams = parseTeams(snap)
             updatePlaying { s ->
                 if (teams.size > s.teams.size) tones?.startTone(ToneGenerator.TONE_PROP_BEEP2, 200)
                 s.copy(teams = teams)
@@ -432,7 +548,25 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 s.copy(buzzerUid = buzzerUid)
             }
         }
+        observe(ref.child("pairing")) { snap -> snap.children.forEach(::judgePairing) }
+        observe(ref.child("regie")) { snap ->
+            val uids = snap.children.mapNotNull { it.key }.toSet()
+            val added = uids - regieUids
+            regieUids = uids
+            // Une régie vient d'être reliée : on referme l'écran du QR code.
+            updatePlaying { it.copy(regies = uids.size, showRegie = it.showRegie && added.isEmpty()) }
+        }
     }
+
+    private fun parseTeams(snap: DataSnapshot): List<Team> = snap.children.mapNotNull { t ->
+        val name = t.child("name").getValue(String::class.java) ?: return@mapNotNull null
+        Team(
+            uid = t.key!!,
+            name = name,
+            color = t.child("color").getValue(String::class.java) ?: "#FF3CAC",
+            joinedAt = t.child("joinedAt").getValue(Long::class.java) ?: 0L,
+        )
+    }.sortedBy { it.joinedAt }.take(MAX_TEAMS)
 
     /** Suit les réponses de la question en cours (pour l'affichage « a répondu » et la fermeture anticipée). */
     private fun watchAnswers(qid: String?) {
@@ -492,6 +626,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         listeners.clear()
         answersListener?.let { (r, l) -> r.removeEventListener(l) }
         answersListener = null
+        commandsListener?.let { (r, l) -> r.removeEventListener(l) }
+        commandsListener = null
+        judging.clear()
     }
 
     private fun sound(phase: Phase) {
@@ -515,6 +652,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         private var persistenceOn = false
         const val AUTO_RESUME_SECONDS = 15
         const val MAX_TEAMS = 8
+        const val MAX_REGIES = 2
+        private const val MAX_PIN_FAILURES = 5
+        private const val PIN_LOCK_MS = 60_000L
         private const val DEFAULT_QUIZ = "demo"
 
         /** Délai laissé aux réponses envoyées à la dernière seconde avant de fermer la question. */
@@ -522,6 +662,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         private const val CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
         fun joinUrl(code: String) = "https://${BuildConfig.FB_PROJECT_ID}.web.app/?g=$code"
+
+        /** Ce que la régie consulte : toutes les questions, avec leur bonne réponse. */
+        fun conducteur(quiz: Quiz): Map<String, Any> = mapOf(
+            "title" to quiz.title,
+            "questions" to quiz.questions.map {
+                mapOf("text" to it.text, "choices" to it.choices, "correct" to it.correct, "double" to it.double)
+            },
+        )
 
         fun databaseUrl(): String = BuildConfig.FB_DATABASE_URL.ifBlank {
             "https://${BuildConfig.FB_PROJECT_ID}-default-rtdb.europe-west1.firebasedatabase.app"

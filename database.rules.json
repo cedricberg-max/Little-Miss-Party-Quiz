@@ -2,24 +2,31 @@
   "rules": {
     "games": {
       "$code": {
-        ".read": "auth != null",
+        ".read": "auth != null && data.child('hostUid').val() === auth.uid",
         ".write": "auth != null && !data.exists() && newData.child('hostUid').val() === auth.uid",
+        "hostUid": {
+          ".read": "auth != null"
+        },
         "state": {
+          ".read": "auth != null",
           ".write": "auth != null && root.child('games').child($code).child('hostUid').val() === auth.uid"
         },
         "log": {
+          ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
           "$seq": {
             ".write": "auth != null && !data.exists() && root.child('games').child($code).child('hostUid').val() === auth.uid",
             ".validate": "newData.hasChildren(['seq', 'at', 'type'])"
           }
         },
         "teams": {
+          ".read": "auth != null",
           "$uid": {
             ".write": "auth != null && auth.uid === $uid && data.parent().parent().child('hostUid').exists()",
             ".validate": "newData.child('name').isString() && newData.child('name').val().length >= 1 && newData.child('name').val().length <= 20 && newData.child('color').isString() && newData.child('color').val().length <= 9"
           }
         },
         "presence": {
+          ".read": "auth != null",
           "$uid": {
             ".write": "auth != null && auth.uid === $uid && data.parent().parent().child('teams').child($uid).exists()",
             ".validate": "newData.child('online').isBoolean() && newData.child('at').isNumber()"
@@ -27,7 +34,9 @@
         },
         "answers": {
           "$qid": {
+            ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
             "$uid": {
+              ".read": "auth != null && auth.uid === $uid",
               ".write": "auth != null && auth.uid === $uid && !data.exists() && root.child('games').child($code).child('teams').child($uid).exists() && root.child('games').child($code).child('state/phase').val() === 'question' && root.child('games').child($code).child('state/paused').val() !== true && root.child('games').child($code).child('state/qid').val() === $qid && now <= root.child('games').child($code).child('state/deadline').val() + 2000",
               ".validate": "newData.hasChildren(['choice', 'at']) && newData.child('choice').isNumber() && root.child('games').child($code).child('state/choices').child(newData.child('choice').val() + '').exists() && newData.child('at').val() === now",
               "$other": {
@@ -37,9 +46,93 @@
           }
         },
         "buzz": {
+          ".read": "auth != null",
           "$round": {
             ".write": "auth != null && !data.exists() && newData.child('team').val() === auth.uid && data.parent().parent().child('teams').child(auth.uid).exists() && data.parent().parent().child('state/buzzOpen').val() === true && data.parent().parent().child('state/round').val() + '' === $round"
           }
+        },
+        "pairing": {
+          "$uid": {
+            ".read": "auth != null && auth.uid === $uid",
+            ".write": "auth != null && ((auth.uid === $uid && !data.exists() && newData.exists()) || (root.child('games').child($code).child('hostUid').val() === auth.uid && !newData.exists()))",
+            ".validate": "newData.child('at').val() === now && newData.child('pin').isString() && newData.child('pin').val().matches(/^[0-9]{4}$/)",
+            "$other": {
+              ".validate": "$other === 'pin' || $other === 'at'"
+            }
+          }
+        },
+        "pairingResult": {
+          "$uid": {
+            ".read": "auth != null && auth.uid === $uid",
+            ".write": "auth != null && root.child('games').child($code).child('hostUid').val() === auth.uid"
+          }
+        },
+        "pairingLock": {
+          ".write": "auth != null && root.child('games').child($code).child('hostUid').val() === auth.uid"
+        },
+        "regie": {
+          "$uid": {
+            ".read": "auth != null && auth.uid === $uid",
+            ".write": "auth != null && (root.child('games').child($code).child('hostUid').val() === auth.uid || (auth.uid === $uid && !data.exists() && root.child('games').child($code).child('hostUid').exists() && root.child('games').child($code).child('state/phase').val() !== 'ended' && root.child('settings/regie/hash').isString() && root.child('regieProof').child(auth.uid).child('hash').val() === root.child('settings/regie/hash').val() && root.child('regieGate/try').child('uid').val() === auth.uid && root.child('regieProof').child(auth.uid).child('gateAt').val() === root.child('regieGate/try').child('at').val() && root.child('regieGate/try').child('at').val() > now - 10000))",
+            ".validate": "!newData.exists() || (newData.child('pairedAt').isNumber() && (newData.child('via').val() === 'pin' || (newData.child('via').val() === 'password' && newData.child('pairedAt').val() === now)))"
+          }
+        },
+        "conducteur": {
+          ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
+          ".write": "auth != null && root.child('games').child($code).child('hostUid').val() === auth.uid"
+        },
+        "commands": {
+          ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
+          "$cmd": {
+            ".write": "auth != null && !data.exists() && newData.exists() && root.child('games').child($code).child('regie').child(auth.uid).exists()",
+            ".validate": "newData.child('type').isString() && newData.child('type').val().matches(/^(next|pause|resume|close|adjust|undo|end)$/) && newData.child('expectSeq').isNumber() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
+            "team": {
+              ".validate": "newData.isString() && newData.val().length <= 128"
+            },
+            "delta": {
+              ".validate": "newData.isNumber() && newData.val() >= -500 && newData.val() <= 500"
+            },
+            "target": {
+              ".validate": "newData.isNumber()"
+            },
+            "$other": {
+              ".validate": "$other === 'type' || $other === 'expectSeq' || $other === 'by' || $other === 'at'"
+            }
+          }
+        },
+        "commandStatus": {
+          ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
+          "$cmd": {
+            ".write": "auth != null && root.child('games').child($code).child('hostUid').val() === auth.uid"
+          }
+        }
+      }
+    },
+    "settings": {
+      "regie": {
+        ".write": "auth != null && auth.token.email_verified === true && auth.token.email.matches(/^(littlemisspartyspa@gmail[.]com|berguig[.]cedric@gmail[.]com)$/)",
+        ".validate": "newData.hasChildren(['salt', 'hash', 'updatedAt']) && newData.child('salt').isString() && newData.child('salt').val().length >= 16 && newData.child('hash').isString() && newData.child('hash').val().matches(/^[0-9a-f]{64}$/) && newData.child('updatedAt').val() === now",
+        "salt": {
+          ".read": "auth != null"
+        },
+        "updatedAt": {
+          ".read": "auth != null"
+        }
+      }
+    },
+    "regieGate": {
+      "try": {
+        ".read": "auth != null",
+        ".write": "auth != null && (!data.exists() || data.child('at').val() < now - 2000)",
+        ".validate": "newData.child('uid').val() === auth.uid && newData.child('at').val() === now"
+      }
+    },
+    "regieProof": {
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid && root.child('regieGate/try').child('uid').val() === auth.uid && newData.child('gateAt').val() === root.child('regieGate/try').child('at').val() && (!data.exists() || data.child('gateAt').val() !== newData.child('gateAt').val())",
+        ".validate": "newData.child('hash').isString() && newData.child('hash').val().matches(/^[0-9a-f]{64}$/) && newData.child('gateAt').isNumber() && newData.child('at').val() === now",
+        "$other": {
+          ".validate": "$other === 'hash' || $other === 'gateAt' || $other === 'at'"
         }
       }
     },

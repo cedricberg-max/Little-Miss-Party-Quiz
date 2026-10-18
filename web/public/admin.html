@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Administration · Little Miss Party Quiz</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <header>
+    <p class="brand">Little Miss Party Quiz · Administration</p>
+    <span id="who"></span>
+    <button id="logout" class="link" hidden>Se déconnecter</button>
+  </header>
+  <main>
+    <section id="screen-login" class="screen">
+      <h1>Connexion</h1>
+      <p class="hint">Réservé à Sarah et cedric, avec leur compte Google.</p>
+      <button id="login" class="btn">Se connecter avec Google</button>
+      <p id="login-status" class="status"></p>
+    </section>
+
+    <section id="screen-settings" class="screen" hidden>
+      <nav class="crumbs">Paramètres › <b>Accès régie</b></nav>
+      <h1>Modifier le mot de passe de la régie</h1>
+      <p class="hint">
+        Toutes les animatrices utilisent ce mot de passe : sur le téléphone, scanner le QR code de la TV,
+        toucher « Accès régie », saisir le mot de passe. Le changement vaut tout de suite pour les nouvelles
+        connexions ; une animatrice déjà en pleine partie n'est pas déconnectée.
+      </p>
+      <p id="last-change" class="hint small"></p>
+      <form id="password-form">
+        <label for="pw1">Nouveau mot de passe (8 caractères au moins)</label>
+        <input id="pw1" type="password" autocomplete="new-password">
+        <label for="pw2">Confirmer le mot de passe</label>
+        <input id="pw2" type="password" autocomplete="new-password">
+        <button id="save" class="btn" type="submit">Enregistrer</button>
+        <p id="save-status" class="status"></p>
+      </form>
+    </section>
+  </main>
+  <script type="module" src="admin.js"></script>
+</body>
+</html>

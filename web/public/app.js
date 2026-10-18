@@ -4,6 +4,7 @@ import {
   getDatabase, ref, get, set, onValue, onDisconnect, serverTimestamp, connectDatabaseEmulator,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { TEAM_COLORS, CHOICE_COLORS, CHOICE_LETTERS, MAX_TEAMS } from "./theme.js";
+import { hasAccess, loginWithPassword, loginWithPin, startRegie } from "./regie.js";
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -22,8 +23,11 @@ let answerQid = null;
 let timerHandle = null;
 let lastScreen = null;
 let pending = null;
+let gameExists = false;
 
 function show(name) {
+  // « Accès régie » : sur l'écran d'inscription (et si la partie est complète), jamais pendant le jeu.
+  $("regie-open").hidden = !(gameExists && (name === "join" || name === "error"));
   if (lastScreen === name) return;
   lastScreen = name;
   document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === `screen-${name}`));
@@ -82,7 +86,10 @@ async function start() {
     }
     gameRef = ref(db, `games/${code}`);
     const host = await get(ref(db, `games/${code}/hostUid`));
+    gameExists = host.exists();
     if (!host.exists()) return fail(`La partie ${code} n'existe pas ou est terminée.`);
+    // Téléphone de l'animatrice déjà relié : retour direct à la régie (rechargement, écran verrouillé).
+    if (await hasAccess({ db, uid }, code)) return enterRegie();
     const me = await get(ref(db, `games/${code}/teams/${uid}`));
     if (me.exists()) return play();
     const teams = await get(ref(db, `games/${code}/teams`));
@@ -322,6 +329,83 @@ $("buzz").onclick = async () => {
     // Une autre équipe a été plus rapide : la base refuse le second buzz.
   }
 };
+
+// ---------- Accès régie ----------
+
+let usePin = false;
+
+function regieStatus(text, info = false) {
+  $("regie-status").textContent = text;
+  $("regie-status").classList.toggle("info", info);
+}
+
+function openRegieLogin() {
+  usePin = false;
+  $("regie-password").hidden = false;
+  $("regie-pin").hidden = true;
+  $("regie-use-pin").hidden = false;
+  $("regie-password").value = "";
+  $("regie-pin").value = "";
+  regieStatus("");
+  $("regie-login").hidden = false;
+  $("regie-password").focus();
+}
+
+$("regie-open").onclick = openRegieLogin;
+$("regie-cancel").onclick = () => { $("regie-login").hidden = true; };
+$("regie-use-pin").onclick = () => {
+  usePin = true;
+  $("regie-password").hidden = true;
+  $("regie-pin").hidden = false;
+  $("regie-use-pin").hidden = true;
+  regieStatus("Sur la TV : bouton Retour de la télécommande, puis « Code de secours de la régie ».", true);
+  $("regie-pin").focus();
+};
+
+const LOGIN_MESSAGES = {
+  wrong: "Mot de passe incorrect.",
+  unset: "Aucun mot de passe de régie n'est encore enregistré. Utilisez le code affiché sur la TV.",
+  busy: "Trop d'essais en même temps. Réessayez dans quelques secondes.",
+  pinWrong: "Code incorrect. Regardez le code à 4 chiffres sur la TV.",
+  locked: "Trop d'essais. Patientez une minute puis réessayez.",
+  full: "Deux téléphones sont déjà reliés par code. Retirez-les depuis la TV.",
+};
+
+$("regie-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const password = $("regie-password").value;
+  const pin = $("regie-pin").value.trim();
+  if (usePin && !/^[0-9]{4}$/.test(pin)) return regieStatus("Le code de la TV a 4 chiffres.");
+  if (!usePin && !password) return regieStatus("Saisissez le mot de passe de régie.");
+  $("regie-go").disabled = true;
+  regieStatus("Vérification…", true);
+  try {
+    const result = usePin ? await loginWithPin({ db, uid }, code, pin) : await loginWithPassword({ db, uid }, code, password);
+    if (result === "ok") return enterRegie();
+    regieStatus(LOGIN_MESSAGES[usePin && result === "wrong" ? "pinWrong" : result]
+      ?? "La TV ne répond pas. Vérifiez qu'elle est allumée et connectée.");
+  } catch (err) {
+    console.error(err);
+    regieStatus("Connexion impossible. Vérifiez Internet puis réessayez.");
+  } finally {
+    $("regie-go").disabled = false;
+  }
+};
+
+function enterRegie() {
+  stopListening();
+  clearInterval(timerHandle);
+  $("regie-login").hidden = true;
+  $("regie").hidden = false;
+  document.body.classList.add("regie-mode");
+  startRegie({ db, uid }, code, exitRegie);
+}
+
+function exitRegie(message) {
+  document.body.classList.remove("regie-mode");
+  $("regie").hidden = true;
+  fail(message);
+}
 
 $("retry").onclick = start;
 start();

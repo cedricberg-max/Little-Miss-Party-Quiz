@@ -79,6 +79,9 @@ class TvActions(
     val resume: () -> Unit,
     val newGame: () -> Unit,
     val quit: () -> Unit,
+    val showRegie: () -> Unit,
+    val hideRegie: () -> Unit,
+    val removeRegies: () -> Unit,
 )
 
 @Composable
@@ -132,9 +135,13 @@ fun QuizTvApp(state: UiState, actions: TvActions) {
         QuitDialog(
             paused = state.paused,
             onContinue = close,
+            onRegie = { close(); actions.showRegie() },
             onNewGame = { confirmQuit = false; pausedByDialog = false; actions.newGame() },
             onQuit = { confirmQuit = false; actions.quit() },
         )
+    }
+    if (state is UiState.Playing && state.showRegie) {
+        RegieDialog(state, onClose = actions.hideRegie, onRemove = actions.removeRegies)
     }
 }
 
@@ -152,11 +159,13 @@ private fun Playing(state: UiState.Playing, actions: TvActions) {
 @Composable
 private fun StatusCorner(state: UiState, modifier: Modifier) {
     val connected = (state as? UiState.Playing)?.connected ?: true
+    val regies = (state as? UiState.Playing)?.regies ?: 0
     Row(modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(10.dp).clip(CircleShape).background(if (connected) Palette.Good else Color.Red))
         Spacer(Modifier.width(8.dp))
         Text(
-            (if (connected) "" else "Hors connexion · ") + "v${BuildConfig.VERSION_NAME}",
+            (if (connected) "" else "Hors connexion · ") + (if (regies > 0) "Régie reliée · " else "") +
+                "v${BuildConfig.VERSION_NAME}",
             color = Palette.InkSoft, fontSize = 13.sp,
         )
     }
@@ -222,7 +231,13 @@ private fun ResumeOffer(state: UiState.ResumeOffer, onResume: () -> Unit, onNewG
 }
 
 @Composable
-private fun QuitDialog(paused: Boolean, onContinue: () -> Unit, onNewGame: () -> Unit, onQuit: () -> Unit) {
+private fun QuitDialog(
+    paused: Boolean,
+    onContinue: () -> Unit,
+    onRegie: () -> Unit,
+    onNewGame: () -> Unit,
+    onQuit: () -> Unit,
+) {
     val focus = remember { FocusRequester() }
     // Fenêtre séparée : la télécommande ne peut pas atteindre les boutons de l'écran derrière.
     Dialog(onDismissRequest = onContinue) {
@@ -245,6 +260,8 @@ private fun QuitDialog(paused: Boolean, onContinue: () -> Unit, onNewGame: () ->
                 modifier = Modifier.focusRequester(focus),
                 colors = ButtonDefaults.buttonColors(containerColor = Palette.Gold, contentColor = Palette.Night),
             ) { Text("Continuer la partie", fontSize = 22.sp, fontWeight = FontWeight.Bold) }
+            Spacer(Modifier.height(16.dp))
+            OutlinedButton(onClick = onRegie) { Text("Code de secours de la régie", color = Color.White, fontSize = 20.sp) }
             Spacer(Modifier.height(16.dp))
             OutlinedButton(onClick = onQuit) { Text("Quitter l'application", color = Color.White, fontSize = 20.sp) }
             Spacer(Modifier.height(16.dp))
@@ -340,8 +357,8 @@ private fun Lobby(state: UiState.Playing, actions: TvActions) {
             if (state.teams.isNotEmpty()) {
                 Text("En attendant : appuyez sur BUZZ sur votre pupitre !", color = Palette.Gold, fontSize = 22.sp)
                 Spacer(Modifier.height(16.dp))
-                if (state.buzzer == null) NextButton("Lancer le quiz", actions.next)
             }
+            if (state.teams.isNotEmpty() && state.buzzer == null) NextButton("Lancer le quiz", actions.next)
         }
         Spacer(Modifier.width(40.dp))
         Column(
