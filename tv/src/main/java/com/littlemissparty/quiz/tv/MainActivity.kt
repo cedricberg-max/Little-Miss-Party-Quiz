@@ -11,6 +11,7 @@ import androidx.compose.runtime.getValue
 class MainActivity : ComponentActivity() {
 
     private val viewModel: GameViewModel by viewModels()
+    private val updates: UpdateViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         CrashReporter.install(applicationContext)
@@ -18,6 +19,9 @@ class MainActivity : ComponentActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContent {
             val state by viewModel.state.collectAsState()
+            val updateUi by updates.ui.collectAsState()
+            val updateOpen by updates.open.collectAsState()
+            val updateAvailable by updates.available.collectAsState()
             QuizTvApp(
                 state = state,
                 actions = TvActions(
@@ -34,8 +38,26 @@ class MainActivity : ComponentActivity() {
                     showRegie = viewModel::showRegie,
                     hideRegie = viewModel::hideRegie,
                     removeRegies = viewModel::removeRegies,
+                    checkUpdate = updates::show,
+                ),
+                update = UpdateScreen(
+                    ui = updateUi, open = updateOpen, available = updateAvailable,
+                    actions = UpdateActions(
+                        search = updates::search,
+                        download = updates::download,
+                        cancelDownload = updates::cancelDownload,
+                        install = updates::install,
+                        openPermission = updates::openInstallPermission,
+                        close = updates::hide,
+                    ),
                 ),
             )
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Retour des réglages Android ou de l'écran d'installation.
+        updates.onResume()
     }
 }

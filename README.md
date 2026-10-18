@@ -21,12 +21,32 @@ Quiz interactif façon jeu télévisé pour les prestations Little Miss Party.
 
 ## Installer l'appli sur la box
 
-À chaque mise à jour de `main`, GitHub compile l'APK et le publie dans les **Releases** du dépôt
-(Firebase Hosting refuse les fichiers .apk sur l'offre gratuite). Le pupitre et les règles de la base
+À chaque mise à jour de `main`, GitHub compile l'APK et le publie dans les **Releases** du dépôt,
+et la recopie sur Firebase Hosting pour la mise à jour depuis la TV. Le pupitre et les règles de la base
 sont publiés sur Firebase Hosting en même temps.
 
-Pour installer : télécharger l'APK depuis la dernière Release sur le PC, puis l'envoyer sur la Mi Box
-avec une clé USB ou l'appli « Send Files to TV ».
+Première installation : télécharger l'APK depuis la dernière Release sur le PC, puis l'envoyer sur la
+Mi Box avec une clé USB ou l'appli « Send Files to TV ». C'est la seule fois.
+
+### Mettre à jour depuis la TV
+
+Bouton Retour de la télécommande › **Rechercher une mise à jour** (aussi sur l'écran « Connexion
+impossible »). La box lit `tv/latest.json` sur l'hébergement Firebase (publié par GitHub Actions avec
+chaque version stable de `main`), télécharge l'APK avec sa progression (reprise après une coupure), puis
+vérifie avant d'installer : taille et empreinte SHA-256, nom de l'appli, versionCode plus récent, même
+clé de signature que l'appli installée. Android demande ensuite de confirmer l'installation ; les
+parties, réglages et codes sont conservés, l'appli redémarre seule.
+
+- Jamais pendant une prestation : dès qu'une équipe est dans le salon ou qu'une question a été jouée,
+  la fenêtre dit d'attendre la fin de la partie. La box cherche seule une nouvelle version au démarrage
+  (petit fichier) et l'indique en petit dans le coin, sans rien télécharger.
+- Une seule autorisation Android, la première fois : « Sources inconnues » pour Little Miss Party Quiz
+  (la fenêtre ouvre le réglage).
+- Le dépôt étant privé, la box ne lit pas les Releases GitHub (il faudrait un jeton dans l'APK) : chaque
+  version stable est recopiée sur l'hébergement Firebase, qui accepte les fichiers .apk sur Blaze, dans
+  le quota gratuit (un APK d'environ 15 Mo par mise à jour de box).
+- GitHub Actions bloque toute version dont le nom d'appli, le versionCode ou la clé de signature
+  différerait (la box la refuserait).
 
 ## Tests automatiques
 
