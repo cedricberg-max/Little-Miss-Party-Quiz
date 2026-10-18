@@ -43,6 +43,10 @@ class MainActivity : ComponentActivity() {
                     hideRegie = viewModel::hideRegie,
                     removeRegies = viewModel::removeRegies,
                     checkUpdate = updates::show,
+                    mimeStart = viewModel::mimeStart,
+                    mimeFound = viewModel::mimeFound,
+                    mimePass = viewModel::mimePass,
+                    mimeStop = viewModel::mimeStop,
                 ),
                 update = UpdateScreen(
                     ui = updateUi, open = updateOpen, available = updateAvailable, offer = updateOffer,

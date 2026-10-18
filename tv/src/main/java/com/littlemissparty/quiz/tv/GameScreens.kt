@@ -209,7 +209,10 @@ private fun Countdown(state: UiState.Playing) {
 fun ScoresScreen(state: UiState.Playing, actions: TvActions) {
     Column(Modifier.fillMaxSize().padding(horizontal = 56.dp, vertical = 28.dp)) {
         Text("Classement", color = Palette.Ink, fontSize = 40.sp, fontWeight = FontWeight.Black)
-        Text("Après la question ${state.index + 1} / ${state.total}", color = Palette.InkSoft, fontSize = 20.sp)
+        Text(
+            if (state.mime != null) "Après les mimes" else "Après la question ${state.index + 1} / ${state.total}",
+            color = Palette.InkSoft, fontSize = 20.sp,
+        )
         Spacer(Modifier.height(16.dp))
         Ranking(state, Modifier.weight(1f))
         Row {
