@@ -14,6 +14,12 @@ import com.littlemissparty.quiz.tv.GameViewModel
 class LmpTestRunner : AndroidJUnitRunner() {
     override fun callApplicationOnCreate(app: Application) {
         super.callApplicationOnCreate(app)
+        // L'appli de test doit déjà viser l'émulateur (workflow : -PlmpDatabaseUrl). Avec la vraie adresse,
+        // useEmulator ne vaut que pour la première connexion : Firebase la range ensuite sous l'adresse de
+        // l'émulateur, et la suivante (appli relancée, nouvelle partie) partirait vers la vraie base.
+        check(GameViewModel.databaseUrl().startsWith("http://${Emulateur.HOTE}:${Emulateur.PORT_BASE}")) {
+            "L'appli de test ne vise pas l'émulateur Firebase : ${GameViewModel.databaseUrl()}"
+        }
         val db = FirebaseDatabase.getInstance(GameViewModel.databaseUrl())
         // Journal détaillé de Firebase dans le logcat, repris dans le journal du workflow.
         db.setLogLevel(Logger.Level.DEBUG)

@@ -80,7 +80,7 @@ for f in glob.glob("tv/build/outputs/androidTest-results/**/TEST-*.xml", recursi
             print("\n".join((e.text or "").splitlines()[:25]))
 PY
 echo "== Journal des tests (déroulé et plans d'écran) =="
-grep "/TestsTV\|/TestRunner\|Opening a connection\|Realtime connection failed\|closing realtime\|Got control message\|interrupt\|Scheduling connection" "$OUT/logcat.txt" | grep -v "TestRunner.*\sat \|TestRunner.*\.\.\. [0-9]* more" | cut -c1-400 || true
+grep "/TestsTV\|/TestRunner\|Opening a connection\|Realtime connection failed\|closing realtime\|Got control message\|interrupt\|Scheduling connection\|Sending data: {t=d, d={a=m" "$OUT/logcat.txt" | grep -v "TestRunner.*\sat \|TestRunner.*\.\.\. [0-9]* more" | cut -c1-400 || true
 echo "== Journal Android (extrait) =="
 grep -v "^--------\|/Persistence" "$OUT/logcat.txt" | cut -c1-300 | tail -n 600
 exit $STATUS

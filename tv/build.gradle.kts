@@ -55,6 +55,10 @@ android {
     buildTypes {
         debug {
             signingConfig = signingConfigs.getByName("lmp")
+            // Tests sur émulateur : ./gradlew -PlmpDatabaseUrl=http://10.0.2.2:9000?ns=... (version debug seulement).
+            (project.findProperty("lmpDatabaseUrl") as String?)?.let {
+                buildConfigField("String", "FB_DATABASE_URL", "\"$it\"")
+            }
         }
         release {
             isMinifyEnabled = false

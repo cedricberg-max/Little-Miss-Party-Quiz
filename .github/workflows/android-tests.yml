@@ -41,6 +41,8 @@ jobs:
     timeout-minutes: 60
     env:
       API_LEVEL: 28
+      # Version debug branchée sur l'émulateur Firebase du runner (la version release reste sur la vraie adresse).
+      ORG_GRADLE_PROJECT_lmpDatabaseUrl: http://10.0.2.2:9000?ns=little-miss-party-quiz-default-rtdb
     steps:
       - uses: actions/checkout@v4
 
