@@ -85,7 +85,6 @@ class RegieSimulee : AutoCloseable {
 
     override fun close() {
         runCatching { base.goOffline() }
-        runCatching { app.delete() }
     }
 
     companion object {

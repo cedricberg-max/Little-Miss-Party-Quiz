@@ -14,8 +14,11 @@ mkdir -p "$OUT/captures"
   adb shell pm list features | grep -E 'leanback|television' || echo "Pas de fonction Android TV déclarée"
 } | tee "$OUT/appareil.txt"
 
+adb logcat -G 16M || true
 adb logcat -c
-adb logcat -v time > "$OUT/logcat.txt" 2>&1 &
+# Seulement les journaux utiles : sinon Android en supprime une partie.
+adb logcat -v time TestsTV:V Partie:V TestRunner:V AndroidRuntime:E System.err:W FirebaseAuth:D \
+  PersistentConnection:D Connection:D RepoOperation:D Persistence:D '*:S' > "$OUT/logcat.txt" 2>&1 &
 LOGCAT=$!
 
 # Le DNS est coupé : les vrais serveurs Firebase doivent être injoignables.
@@ -42,14 +45,13 @@ echo "== APK publié : installation et démarrage hors connexion =="
 APK=tv/build/outputs/apk/release/tv-release.apk
 SMOKE="$OUT/apk-publie.txt"
 if adb install -r "$APK" > "$SMOKE" 2>&1; then
-  adb logcat -c
   adb shell am start -W -n "$PKG/.MainActivity" >> "$SMOKE" 2>&1
   sleep 20
   adb exec-out screencap -p > "$OUT/captures/apk-publie-hors-connexion.png"
   PID=$(adb shell pidof "$PKG" | tr -d '\r')
-  if [ -z "$PID" ] || adb logcat -d | grep -A5 "FATAL EXCEPTION" | grep -q "$PKG"; then
+  if [ -z "$PID" ] || adb logcat -d -t 2000 | grep -A5 "FATAL EXCEPTION" | grep -q "$PKG"; then
     echo "ÉCHEC : l'APK publié s'est arrêté au démarrage" | tee -a "$SMOKE"
-    adb logcat -d | grep -A30 "FATAL EXCEPTION" >> "$SMOKE" || true
+    adb logcat -d -t 2000 | grep -A30 "FATAL EXCEPTION" >> "$SMOKE" || true
     STATUS=1
   else
     echo "OK : l'APK publié démarre et reste ouvert sans réseau" | tee -a "$SMOKE"
@@ -73,5 +75,5 @@ for f in glob.glob("tv/build/outputs/androidTest-results/**/TEST-*.xml", recursi
             print("\n".join((e.text or "").splitlines()[:25]))
 PY
 echo "== Journal Android (extrait) =="
-grep -E "TestsTV|Partie|RepoOperation|PersistentConnection|Connection|WebSocket|FirebaseAuth|AndroidRuntime|System.err" "$OUT/logcat.txt" | grep -v "^--------" | tail -n 400
+grep -v "^--------" "$OUT/logcat.txt" | cut -c1-400 | tail -n 1500
 exit $STATUS

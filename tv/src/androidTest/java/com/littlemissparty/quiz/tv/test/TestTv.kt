@@ -46,9 +46,7 @@ abstract class TestTv {
         val code = attendreQue("création de la partie", 30_000) { Boite.codeActif() }
         ecran.voit("Scannez pour jouer", 30_000)
         // La partie doit exister dans l'émulateur Firebase, sinon la box parlerait à une autre base.
-        PupitreSimule("controle").use { controle ->
-            check(controle.lire("games/$code/hostUid") != null) { "La partie $code n'est pas dans l'émulateur Firebase" }
-        }
+        check(Boite.controle.lire("games/$code/hostUid") != null) { "La partie $code n'est pas dans l'émulateur Firebase" }
         return code
     }
 

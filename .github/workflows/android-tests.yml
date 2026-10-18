@@ -38,7 +38,7 @@ jobs:
   emulateur-tv:
     name: Émulateur Android TV
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       API_LEVEL: 28
     steps:

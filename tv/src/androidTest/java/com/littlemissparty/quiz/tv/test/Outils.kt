@@ -61,12 +61,13 @@ object Boite {
      * connexion à part : la box doit faire elle-même sa première connexion, comme sur la vraie Mi Box.
      */
     fun verifierEmulateur() {
-        PupitreSimule("controle").use { controle ->
-            if (controle.lire("games/${Emulateur.MARQUEUR}/hostUid") != Emulateur.VALEUR_MARQUEUR) {
-                throw AssertionError("Émulateur Firebase introuvable : tests arrêtés pour ne pas toucher la vraie base")
-            }
+        if (controle.lire("games/${Emulateur.MARQUEUR}/hostUid") != Emulateur.VALEUR_MARQUEUR) {
+            throw AssertionError("Émulateur Firebase introuvable : tests arrêtés pour ne pas toucher la vraie base")
         }
     }
+
+    /** Connexion de contrôle, ouverte une fois pour toute la série. */
+    val controle by lazy { PupitreSimule("controle") }
 
     /** Pile de chaque fil de l'appli, pour comprendre un blocage. */
     fun piles(): String = Thread.getAllStackTraces().entries
@@ -195,8 +196,8 @@ class PupitreSimule(etiquette: String) : AutoCloseable {
         signalerPresence(code)
     }
 
+    // L'appli Firebase du pupitre n'est pas supprimée : seulement déconnectée.
     override fun close() {
         runCatching { base.goOffline() }
-        runCatching { app.delete() }
     }
 }
