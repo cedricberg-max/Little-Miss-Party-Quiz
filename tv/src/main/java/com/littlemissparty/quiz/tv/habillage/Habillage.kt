@@ -4,6 +4,7 @@ import android.os.SystemClock
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -15,12 +16,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -127,8 +131,9 @@ private fun chronoUrgent(s: UiState.Playing?): Boolean {
 
 /**
  * Le plateau : nuit violette, halos qui battent au tempo de la musique, sol en perspective, deux
- * projecteurs qui balaient, étincelles. Une seule toile redessinée à chaque image, rien n'est recomposé.
- * Dans les 5 dernières secondes, les bords chauffent (orange).
+ * projecteurs qui balaient, étincelles. Chaque élément est dessiné une seule fois dans son calque ;
+ * à chaque image, seuls l'opacité et l'angle des calques changent (rien n'est redessiné ni recomposé),
+ * pour rester fluide sur une petite box. Dans les 5 dernières secondes, les bords chauffent (orange).
  */
 @Composable
 fun DecorPlateau(chaud: Boolean) {
@@ -145,71 +150,102 @@ fun DecorPlateau(chaud: Boolean) {
         }
     }
     val chaleur by animateFloatAsState(if (chaud) 1f else 0f, tween(600), label = "chaleur")
-    Canvas(Modifier.fillMaxSize()) {
-        val p = battement.floatValue
-        val t = temps.floatValue
-        val w = size.width
-        val h = size.height
-        drawRect(Brush.radialGradient(listOf(Color(0xFF24093F), Color(0xFF130726), Neon.Nuit), Offset(w / 2, 0f), w * 0.85f))
-        halo(Neon.Halo.copy(alpha = 0.30f * (0.45f + 0.55f * p)), Offset(w * 0.08f, h * 0.02f), w * 0.33f)
-        halo(Neon.Violet.copy(alpha = 0.55f * (0.55f + 0.45f * p)), Offset(w * 0.9f, h * 0.05f), w * 0.31f)
-        halo(Neon.Or.copy(alpha = 0.26f * (0.35f + 0.65f * p)), Offset(w * 0.5f, h * 1.08f), w * 0.4f)
-        sol(t, 0.10f + 0.22f * p)
-        projecteur(Offset(w * 0.18f, h), 14f + 12f * sin(t * 0.55f), 0.07f + 0.04f * p)
-        projecteur(Offset(w * 0.82f, h), -14f - 12f * sin(t * 0.55f + 1.3f), 0.07f + 0.04f * p)
-        etincelles(t)
+    Box(Modifier.fillMaxSize()) {
+        // Fond : ne se redessine jamais.
+        Box(
+            Modifier.fillMaxSize().drawWithCache {
+                val fond = Brush.radialGradient(listOf(Color(0xFF24093F), Color(0xFF130726), Neon.Nuit), Offset(size.width / 2, 0f), size.width * 0.85f)
+                onDrawBehind { drawRect(fond) }
+            },
+        )
+        // Halos rose, violet et or : leur éclat suit le battement.
+        Box(
+            Modifier.fillMaxSize()
+                .graphicsLayer { alpha = 0.5f + 0.5f * battement.floatValue }
+                .drawWithCache {
+                    val w = size.width
+                    val h = size.height
+                    val halos = listOf(
+                        Triple(Neon.Halo.copy(alpha = 0.30f), Offset(w * 0.08f, h * 0.02f), w * 0.33f),
+                        Triple(Neon.Violet.copy(alpha = 0.55f), Offset(w * 0.9f, h * 0.05f), w * 0.31f),
+                        Triple(Neon.Or.copy(alpha = 0.26f), Offset(w * 0.5f, h * 1.08f), w * 0.4f),
+                    ).map { (c, o, r) -> Triple(Brush.radialGradient(listOf(c, Color.Transparent), o, r), o, r) }
+                    onDrawBehind { halos.forEach { (b, o, r) -> drawCircle(b, r, o) } }
+                },
+        )
+        // Sol quadrillé en perspective.
+        Box(
+            Modifier.fillMaxSize()
+                .graphicsLayer { alpha = 0.35f + 0.65f * battement.floatValue }
+                .drawWithCache {
+                    val lignes = sol(size.width, size.height)
+                    onDrawBehind { lignes.forEach { (b, de, a) -> drawLine(b, de, a, 1.5f) } }
+                },
+        )
+        // Deux projecteurs qui balancent depuis le bas de l'écran.
+        Projecteur(0.18f) { 14f + 12f * sin(temps.floatValue * 0.55f) }
+        Projecteur(0.82f) { -14f - 12f * sin(temps.floatValue * 0.55f + 1.3f) }
+        // Étincelles : quelques points, seuls redessinés à chaque image.
+        Canvas(Modifier.fillMaxSize()) { etincelles(temps.floatValue) }
         if (chaleur > 0.01f) {
-            drawRect(
-                Brush.radialGradient(
-                    0.55f to Color.Transparent,
-                    1f to Neon.Chaud.copy(alpha = 0.5f * chaleur * (0.7f + 0.3f * p)),
-                    center = Offset(w / 2, h / 2), radius = w * 0.62f,
-                ),
+            Box(
+                Modifier.fillMaxSize()
+                    .graphicsLayer { alpha = chaleur * (0.7f + 0.3f * battement.floatValue) }
+                    .drawWithCache {
+                        val bords = Brush.radialGradient(
+                            0.55f to Color.Transparent,
+                            1f to Neon.Chaud.copy(alpha = 0.5f),
+                            center = Offset(size.width / 2, size.height / 2), radius = size.width * 0.62f,
+                        )
+                        onDrawBehind { drawRect(bords) }
+                    },
             )
         }
     }
 }
 
-private fun DrawScope.halo(couleur: Color, centre: Offset, rayon: Float) {
-    drawCircle(Brush.radialGradient(listOf(couleur, Color.Transparent), centre, rayon), rayon, centre)
-}
-
-/** Sol quadrillé en perspective, qui avance lentement vers le public. */
-private fun DrawScope.sol(t: Float, force: Float) {
-    val w = size.width
-    val h = size.height
+/** Lignes du sol : rayons qui fuient vers l'horizon et traverses de plus en plus serrées au loin. */
+private fun sol(w: Float, h: Float): List<Triple<Brush, Offset, Offset>> {
     val haut = h * 0.8f
     val fuite = Offset(w / 2, h * 0.45f)
-    val trait = 1.5f
-    for (k in -10..10) {
+    val rayon = Brush.verticalGradient(listOf(Color.Transparent, Neon.Halo.copy(alpha = 0.32f)), haut, h)
+    val rayons = (-10..10).map { k ->
         val xBas = w / 2 + k * w * 0.085f
         val xHaut = fuite.x + (xBas - fuite.x) * ((haut - fuite.y) / (h - fuite.y))
-        drawLine(
-            Brush.verticalGradient(listOf(Color.Transparent, Neon.Halo.copy(alpha = force)), haut, h),
-            Offset(xHaut, haut), Offset(xBas, h), trait,
-        )
+        Triple(rayon, Offset(xHaut, haut), Offset(xBas, h))
     }
-    val defile = (t * 0.25f) % 1f
-    for (k in 0 until 7) {
-        val u = ((k + defile) / 7f)
+    val traverses = (1..6).map { k ->
+        val u = k / 7f
         val y = haut + (h - haut) * u * u
-        drawLine(Neon.Halo.copy(alpha = force * u), Offset(0f, y), Offset(w, y), trait)
+        Triple<Brush, Offset, Offset>(SolidColor(Neon.Halo.copy(alpha = 0.32f * u)), Offset(0f, y), Offset(w, y))
     }
+    return rayons + traverses
 }
 
-private fun DrawScope.projecteur(pied: Offset, angle: Float, force: Float) {
-    val l = size.height * 1.3f
-    val demi = size.width * 0.06f
-    val faisceau = Path().apply {
-        moveTo(pied.x - demi * 0.25f, pied.y)
-        lineTo(pied.x - demi, pied.y - l)
-        lineTo(pied.x + demi, pied.y - l)
-        lineTo(pied.x + demi * 0.25f, pied.y)
-        close()
-    }
-    rotate(angle, pied) {
-        drawPath(faisceau, Brush.verticalGradient(listOf(Color.Transparent, Neon.Blanc.copy(alpha = force), Color.Transparent), pied.y - l, pied.y))
-    }
+/** Faisceau dessiné une fois ; seul son angle change, autour de son pied en bas de l'écran. */
+@Composable
+private fun Projecteur(x: Float, angle: () -> Float) {
+    Box(
+        Modifier.fillMaxSize()
+            .graphicsLayer {
+                transformOrigin = TransformOrigin(x, 1f)
+                rotationZ = angle()
+            }
+            .drawWithCache {
+                val pied = Offset(size.width * x, size.height)
+                val l = size.height * 1.3f
+                val demi = size.width * 0.06f
+                val faisceau = Path().apply {
+                    moveTo(pied.x - demi * 0.25f, pied.y)
+                    lineTo(pied.x - demi, pied.y - l)
+                    lineTo(pied.x + demi, pied.y - l)
+                    lineTo(pied.x + demi * 0.25f, pied.y)
+                    close()
+                }
+                val lumiere = Brush.verticalGradient(listOf(Color.Transparent, Neon.Blanc.copy(alpha = 0.09f), Color.Transparent), pied.y - l, pied.y)
+                onDrawBehind { drawPath(faisceau, lumiere) }
+            },
+    )
 }
 
 private val positions = List(18) { i -> Offset(((i * 0.618f + 0.11f) % 1f), ((i * 0.377f + 0.07f) % 0.75f)) }
