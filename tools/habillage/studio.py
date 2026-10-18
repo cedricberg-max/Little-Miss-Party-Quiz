@@ -849,6 +849,14 @@ def vf_faux():
         mx.add('keys', note('marimba', m, .15, .45, release=.2), k * .25)
     return mx.render(duck=0)
 
+def indice():
+    """Qui suis-je ? : nouvel indice, « ding » de célesta et carillon léger, curieux et feutré."""
+    mx = Mix(2, tail=1.5)
+    for k, m in enumerate((79, 84)):
+        mx.add('bells', note('celesta', m, .14 if k == 0 else .3, .6, release=.6), k * .12)
+    mx.add('bells', note('tinkle_bell', 96, .1, .2, release=.4), .12)
+    return mx.render(duck=0)
+
 def chiffre_roulette(duree=2.0):
     """Le Juste Chiffre : les chiffres défilent vite puis ralentissent et se posent pile à `duree` (l'or de la révélation)."""
     mx = Mix(duree / B + 2, tail=.6)
@@ -960,7 +968,7 @@ PIECES = {
     'bed_express': (bed_express, -16.5), 'vf_vrai': (vf_vrai, -17), 'vf_faux': (vf_faux, -20),
     'chiffre_roulette': (chiffre_roulette, -19), 'chiffre_pile': (chiffre_pile, -15),
     'zoom_ouverture': (zoom_ouverture, -21), 'zoom_revele': (zoom_revele, -16),
-    'buzz_gros': (buzz_gros, -15), 'flou_montee': (flou_montee, -22), 'suspense_reponse': (suspense_reponse, -19),
+    'buzz_gros': (buzz_gros, -15), 'flou_montee': (flou_montee, -22), 'suspense_reponse': (suspense_reponse, -19), 'indice': (indice, -21),
     'bed_mimes': (bed_mimes, -16.5), 'bed_pause': (bed_pause, -19), 'pause_in': (pause_in, -18), 'transition': (transition, -15),
 }
 for i in range(4):

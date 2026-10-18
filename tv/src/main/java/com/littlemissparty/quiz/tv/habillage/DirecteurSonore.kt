@@ -159,6 +159,22 @@ class DirecteurSonore {
                 o += Ordre.Musique(Ambiance.FETE, Tempo.REVELATION_OR)
                 for (k in 0 until i.gagnants.coerceIn(0, 8)) o += Ordre.Jouer(Son.TAMPON, Tempo.tampon(k))
                 if (i.gagnants > 0) o += Ordre.Jouer(Son.POINTS, Tempo.REVELATION_POINTS)
+            } else if (i.jeuBuzz) {
+                // Jeux au buzzer : la réponse s'affiche tout de suite, sans roulement.
+                o += Ordre.Musique(Ambiance.SILENCE)
+                when {
+                    // Image floue : la photo s'ouvre nette (mise au point, déclic, « tadaa »).
+                    i.flou -> o += Ordre.Jouer(Son.ZOOM_REVELE)
+                    else -> {
+                        o += Ordre.Jouer(Son.BONNE_REPONSE)
+                        o += Ordre.Jouer(Son.IMPACT)
+                    }
+                }
+                // Chante le mot : on applaudit la chanson.
+                if (i.chante && i.gagnants > 0) o += Ordre.Jouer(Son.APPLAUDISSEMENTS, Tempo.BUZZ_BRAVO)
+                o += Ordre.Musique(Ambiance.FETE, Tempo.BUZZ_BRAVO)
+                for (k in 0 until i.gagnants.coerceIn(0, 8)) o += Ordre.Jouer(Son.TAMPON, Tempo.tampon(k))
+                if (i.gagnants > 0) o += Ordre.Jouer(Son.POINTS, Tempo.REVELATION_POINTS)
             } else if (i.express) {
                 // Vrai ou Faux express : pas de roulement, le verdict tombe tout de suite et la musique continue.
                 o += Ordre.Jouer(if (i.reponseVraie) Son.VF_VRAI else Son.VF_FAUX, Tempo.revelationOr(express = true))
@@ -167,7 +183,7 @@ class DirecteurSonore {
             } else {
                 o += Ordre.Musique(Ambiance.SILENCE)
                 // Zoom mystère : la photo s'ouvre en grand (mise au point, déclic, « tadaa ») à la place du roulement.
-                o += Ordre.Jouer(if (i.zoom || i.flou) Son.ZOOM_REVELE else Son.ROULEMENT_COURT)
+                o += Ordre.Jouer(if (i.zoom) Son.ZOOM_REVELE else Son.ROULEMENT_COURT)
                 for (k in 0 until (i.propositions - 1).coerceIn(0, 3)) {
                     o += Ordre.Jouer(Son.ETEINT, Tempo.mauvaiseSEteint(k))
                 }
@@ -209,12 +225,12 @@ class DirecteurSonore {
             if (i.reponses > p.reponses) o += Ordre.Jouer(Son.REPONSE)
             // La tension des 5 dernières secondes s'arrête quand le temps repart ou que tout le monde a répondu.
             // Pas de tension en express : le chrono entier ne dure que quelques secondes.
-            // L'image floue a sa propre montée, qui tient lieu de tension.
-            val enTension = p.urgent && !tousOntRepondu(p) && !p.express && !p.flou
-            val tension = i.urgent && !tousOntRepondu(i) && !i.express && !i.flou
+            // Pas de tension dans les jeux au buzzer : le buzz et le suspense de la réponse en tiennent lieu.
+            val enTension = p.urgent && !tousOntRepondu(p) && !p.express && !p.jeuBuzz
+            val tension = i.urgent && !tousOntRepondu(i) && !i.express && !i.jeuBuzz
             if (tension && !enTension && !p.urgent) o += Ordre.Jouer(Son.TENSION)
             if (enTension && !tension) o += Ordre.Arreter(Son.TENSION)
-            if (i.flou) o += buzzImageFloue(p, i)
+            if (i.jeuBuzz) o += buzzJeu(p, i)
         }
         if (i.ecran == Ecran.MIMES_TOUR) {
             if (i.trouves > p.trouves) o += Ordre.Jouer(Son.MIME_TROUVE)
@@ -232,15 +248,19 @@ class DirecteurSonore {
         return o
     }
 
-    /** Image floue : le buzz fige tout (gros buzz, couleur de l'équipe, suspense) ; un raté repart en douceur. */
-    private fun buzzImageFloue(p: Instant, i: Instant): List<Ordre> {
+    /**
+     * Jeux au buzzer : le buzz fige tout (gros buzz, note de l'équipe, suspense, sauf pour Chante le mot où
+     * l'équipe chante sans musique) ; un raté repart en douceur ; Qui suis-je : une petite note par indice.
+     */
+    private fun buzzJeu(p: Instant, i: Instant): List<Ordre> {
         val o = mutableListOf<Ordre>()
+        if (i.indices > p.indices && p.indices > 0 && i.buzzEquipe < 0) o += Ordre.Jouer(Son.INDICE)
         if (i.buzzEquipe >= 0 && p.buzzEquipe < 0) {
             o += Ordre.Arreter(Son.FLOU_MONTEE)
             o += Ordre.Musique(Ambiance.SILENCE)
             o += Ordre.Jouer(Son.BUZZ_GROS)
             o += Ordre.Jouer(Son.equipe(i.buzzEquipe), Tempo.FLOU_EQUIPE)
-            o += Ordre.Jouer(Son.SUSPENSE_REPONSE, Tempo.FLOU_SUSPENSE)
+            if (!i.chante) o += Ordre.Jouer(Son.SUSPENSE_REPONSE, Tempo.FLOU_SUSPENSE)
         }
         if (i.buzzEquipe < 0 && p.buzzEquipe >= 0) {
             o += Ordre.Arreter(Son.SUSPENSE_REPONSE)
@@ -259,7 +279,7 @@ class DirecteurSonore {
         Ecran.QUESTION, Ecran.VERROUILLEE, Ecran.REVELATION -> when {
             i.express -> Ambiance.EXPRESS
             // Image floue : musique en retrait pendant que l'image se précise, silence pendant qu'une équipe répond.
-            i.flou && i.ecran == Ecran.QUESTION -> if (i.buzzEquipe >= 0) Ambiance.SILENCE else Ambiance.SUSPENSE
+            i.jeuBuzz && i.ecran == Ecran.QUESTION -> if (i.buzzEquipe >= 0) Ambiance.SILENCE else Ambiance.SUSPENSE
             else -> ambianceParDefaut(i.ecran)
         }
         else -> ambianceParDefaut(i.ecran)
@@ -308,8 +328,14 @@ data class Instant(
     val express: Boolean = false,
     val reponseVraie: Boolean = false,
     val zoom: Boolean = false,
-    /** Image floue : place de l'équipe qui a buzzé et attend le verdict (-1 sinon), équipes déjà ratées. */
+    /**
+     * Jeux au buzzer (Image floue, Chante le mot, Qui suis-je) : place de l'équipe qui a buzzé et attend le
+     * verdict (-1 sinon), équipes déjà ratées, indices de Qui suis-je déjà affichés.
+     */
+    val jeuBuzz: Boolean = false,
     val flou: Boolean = false,
+    val chante: Boolean = false,
+    val indices: Int = 0,
     val buzzEquipe: Int = -1,
     val ratees: Int = 0,
     /** Le Juste Chiffre : révélation d'un nombre, et une équipe l'a trouvé pile. */
@@ -399,6 +425,7 @@ enum class Son(val fichier: String, val long: Boolean = false) {
     FLOU_MONTEE("lmp_flou_montee", true),
     BUZZ_GROS("lmp_buzz_gros"),
     SUSPENSE_REPONSE("lmp_suspense_reponse", true),
+    INDICE("lmp_indice"),
     RIGOLO_1("lmp_fun_buzz_1"), RIGOLO_2("lmp_fun_buzz_2"), RIGOLO_3("lmp_fun_buzz_3"), RIGOLO_4("lmp_fun_buzz_4"),
     EQUIPE_1("lmp_team_sting_1"), EQUIPE_2("lmp_team_sting_2"), EQUIPE_3("lmp_team_sting_3"), EQUIPE_4("lmp_team_sting_4");
 
@@ -456,6 +483,8 @@ object Tempo {
     const val FLOU_EQUIPE = 300L
     const val FLOU_SUSPENSE = 900L
     const val FLOU_REPRISE = 600L
+    /** Jeux au buzzer : applaudissements et musique de fête juste après la réponse. */
+    const val BUZZ_BRAVO = 400L
     const val TRANSITION_MUSIQUE = 2_000L
     /** Durée du rideau plein écran qui annonce un nouveau jeu (assez court pour ne pas retarder la fête). */
     const val TRANSITION_RIDEAU = 2_600L

@@ -332,7 +332,7 @@ class DirecteurSonoreTest {
     @Test
     fun `image floue, montee puis buzz qui fige tout, rate gentil, revelation`() {
         val d = DirecteurSonore()
-        val image = Instant(Ecran.QUESTION, partie = "ABCD", index = 9, equipes = 3, propositions = 0, flou = true)
+        val image = Instant(Ecran.QUESTION, partie = "ABCD", index = 9, equipes = 3, propositions = 0, jeuBuzz = true, flou = true)
         d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 8, equipes = 3))
         val entree = d.observer(image)
         assertTrue(Son.FLOU_MONTEE in entree.sons())
@@ -356,6 +356,35 @@ class DirecteurSonoreTest {
         assertEquals(Ordre.Couper, revele.first())
         assertTrue(Son.ZOOM_REVELE in revele.sons())
         assertFalse(Son.ROULEMENT_COURT in revele.sons())
+    }
+
+    @Test
+    fun `chante le mot, pas de suspense pendant que l'equipe chante, applaudie si elle gagne`() {
+        val d = DirecteurSonore()
+        val mot = Instant(Ecran.QUESTION, partie = "ABCD", index = 10, equipes = 2, propositions = 1, jeuBuzz = true, chante = true)
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 9, equipes = 2))
+        assertFalse(Son.FLOU_MONTEE in d.observer(mot).sons())
+        val buzz = d.observer(mot.copy(buzzEquipe = 0))
+        assertEquals(listOf(Son.BUZZ_GROS, Son.EQUIPE_1), buzz.sons())
+        assertEquals(Ambiance.SILENCE, buzz.musique())
+        val bravo = d.observer(mot.copy(ecran = Ecran.REVELATION, gagnants = 1))
+        assertTrue(Ordre.Jouer(Son.APPLAUDISSEMENTS, Tempo.BUZZ_BRAVO) in bravo)
+        assertFalse(Son.ROULEMENT_COURT in bravo.sons())
+        val d2 = DirecteurSonore()
+        d2.observer(mot)
+        assertFalse(Son.APPLAUDISSEMENTS in d2.observer(mot.copy(ecran = Ecran.REVELATION)).sons())
+    }
+
+    @Test
+    fun `qui suis-je, une note par nouvel indice, pas pendant qu'une equipe repond`() {
+        val d = DirecteurSonore()
+        val qui = Instant(Ecran.QUESTION, partie = "ABCD", index = 11, equipes = 2, propositions = 1, jeuBuzz = true, indices = 1)
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 10, equipes = 2))
+        assertFalse(Son.INDICE in d.observer(qui).sons())
+        assertEquals(listOf(Son.INDICE), d.observer(qui.copy(indices = 2)).sons())
+        assertTrue(d.observer(qui.copy(indices = 2)).isEmpty())
+        d.observer(qui.copy(indices = 2, buzzEquipe = 1))
+        assertFalse(Son.INDICE in d.observer(qui.copy(indices = 3, buzzEquipe = 1)).sons())
     }
 
     @Test
