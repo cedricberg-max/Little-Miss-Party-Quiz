@@ -873,6 +873,37 @@ def chiffre_pile():
     mx.add('strings', chord('string_ensemble_1', [60, 64, 67, 72], 2 * B, .6, attack=.03, release=1), .75)
     return mx.render(duck=0)
 
+# ---------------------------------------------------------------- mini-jeu : Zoom mystère
+def _declic(vel=1.0):
+    """Déclic d'obturateur : deux clics de bruit filtré très courts."""
+    n = int(.05 * SR)
+    y = np.zeros((int(.12 * SR), 2), np.float32)
+    for o, v in ((0, 1.0), (.045, .6)):
+        c = biquad(noise(n), 'bp', 3200, 1.5) * np.exp(-np.arange(n) / (.006 * SR)) * v * vel
+        i = int(o * SR); y[i:i + n] += stereo(c.astype(np.float32))
+    return y
+
+def zoom_ouverture():
+    """La photo apparaît : moteur d'objectif qui fait la mise au point, puis déclic."""
+    mx = Mix(2, tail=1)
+    mx.add('fx', _glisse(lambda t: 900 + 500 * np.sin(2 * np.pi * 3 * t) * np.exp(-t / .3), .45, (1, .3), vel=.25), 0)
+    mx.add('fx', _declic(.9), .45 / B)
+    mx.add('bells', note('celesta', 88, .1, .3, release=.6), .5 / B)
+    return mx.render(duck=0)
+
+def zoom_revele():
+    """Révélation : la mise au point monte pendant le dézoom (1,1 s), déclic, puis « tadaa »."""
+    mx = Mix(5, tail=2.5)
+    mx.add('fx', noise_riser(1.1, .35, 400, 9000), 0)
+    mx.add('fx', _glisse(lambda t: 300 * 2 ** (2.2 * t / 1.1), 1.1, (1, .4, .2), vel=.3), 0)
+    mx.add('fx', _declic(1.0), 1.1 / B)
+    mx.add('brass', chord('brass_section', [55, 59, 62, 67], .2, .85, release=.15), 1.15 / B)
+    mx.add('brass', chord('brass_section', [60, 64, 67, 72], .9, 1.0, release=.6), (1.15 + .22) / B)
+    for k, m in enumerate([84, 88, 91, 96]):
+        mx.add('bells', note('glockenspiel', m, .2, .4, release=1), (1.37 + k * .08) / B)
+    mx.add('fx', crash(.5, 2), (1.15 + .22) / B)
+    return mx.render(duck=0)
+
 PIECES = {
     'generique': (generique, -14.5), 'bed_full': (lambda: bed('full'), -15.5), 'bed_light': (lambda: bed('light'), -18.5),
     'tension': (tension, -16), 'riser_4b': (riser_4b, -17), 'impact': (impact, -15), 'round_sting': (round_sting, -15),
@@ -885,6 +916,7 @@ PIECES = {
     'mime_time_up': (mime_time_up, -15), 'mime_tension': (lambda: tension(20), -16),
     'bed_express': (bed_express, -16.5), 'vf_vrai': (vf_vrai, -17), 'vf_faux': (vf_faux, -20),
     'chiffre_roulette': (chiffre_roulette, -19), 'chiffre_pile': (chiffre_pile, -15),
+    'zoom_ouverture': (zoom_ouverture, -21), 'zoom_revele': (zoom_revele, -16),
     'bed_mimes': (bed_mimes, -16.5), 'bed_pause': (bed_pause, -19), 'pause_in': (pause_in, -18), 'transition': (transition, -15),
 }
 for i in range(4):

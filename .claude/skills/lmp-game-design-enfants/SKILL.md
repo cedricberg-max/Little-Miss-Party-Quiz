@@ -64,6 +64,7 @@ et sont consommées par des fonctions pures testées. Ne jamais recopier un nomb
 | Mimes, chaque mime trouvé (choix de cedric, 18/10/2026) | 50 ; « −1 » de la régie retire un mime, jamais sous 0 |
 | Le Juste Chiffre, équipe la plus proche (toutes les équipes à égalité) | 100 ; pile le bon nombre : 150 ; ×2 en Super Finale ; pas de bonus fusée (`engine/Scoring.kt` : `awardNumber`, `NUMBER_CLOSEST`, `NUMBER_EXACT`) |
 | Vrai ou Faux express, chaque bonne réponse | 50 ; ×2 en Super Finale ; pas de bonus fusée ; chrono Petits 12 s, Moyens 9 s, Grands 8 s, Adultes 7 s ; la box enchaîne seule (révélation 1,2 s après la fermeture, affirmation suivante 3,5 s après), classement en fin de série |
+| Zoom mystère (question à propositions, photo obligatoire) | comme un QCM : 100 + bonus fusée ; la photo se dévoile de ×6 à ×1,6 pendant le chrono, puis ×1 à la révélation |
 | Super Finale | multiplicateur ×2 sur tout (200 + bonus 40) |
 | Joker « Double » | ×2 sur une question choisie, une fois par équipe, manches 1 et 2 uniquement |
 
