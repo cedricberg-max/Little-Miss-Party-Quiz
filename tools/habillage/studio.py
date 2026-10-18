@@ -849,16 +849,16 @@ def vf_faux():
         mx.add('keys', note('marimba', m, .15, .45, release=.2), k * .25)
     return mx.render(duck=0)
 
-def chiffre_roulette():
-    """Le Juste Chiffre : les chiffres défilent vite puis ralentissent, 3 s, et se posent."""
-    mx = Mix(7, tail=.6)
-    t, dt, k = 0.0, .045, 0
-    while t < 3.0:
-        mx.add('drums', note('woodblock', 84 if k % 2 else 88, .04, .35 + .3 * t / 3), t / B)
+def chiffre_roulette(duree=2.0):
+    """Le Juste Chiffre : les chiffres défilent vite puis ralentissent et se posent pile à `duree` (l'or de la révélation)."""
+    mx = Mix(duree / B + 2, tail=.6)
+    t, dt, k = 0.0, .04, 0
+    while t < duree - .12:
+        mx.add('drums', note('woodblock', 84 if k % 2 else 88, .04, .35 + .3 * t / duree), t / B)
         mx.add('bells', note('xylophone', 84 + (k * 5) % 12, .04, .12, release=.08), t / B)
-        t += dt; dt *= 1.065; k += 1
-    mx.add('fx', noise_riser(3.0, .2, 500, 7000), 0)
-    mx.add('drums', note('timpani', 43, .4, .7), 3.0 / B)
+        t += dt; dt *= 1.09; k += 1
+    mx.add('fx', noise_riser(duree, .2, 500, 7000), 0)
+    mx.add('drums', note('timpani', 43, .4, .7), duree / B)
     return mx.render(duck=0)
 
 def chiffre_pile():
