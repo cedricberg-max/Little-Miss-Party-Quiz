@@ -143,3 +143,26 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .modal-status { margin: 0; min-height: 1.2em; font-size: 15px; color: #ff8a8f; }
 .modal-status.info { color: rgba(255, 244, 242, .7); }
 .link { background: none; border: 0; color: rgba(255, 244, 242, .7); font-size: 14px; text-decoration: underline; padding: 4px; }
+
+/* Mimes : gros boutons pour une animatrice en pleine prestation. */
+.regie .control.mime-mode #c-question, .regie .control.mime-mode #c-answer, .regie .control.mime-mode #c-answered,
+.regie .control.mime-mode .tabs, .regie .control.mime-mode .panel { display: none !important; }
+.regie .mime { flex: 1; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+.regie .mime-now { display: flex; align-items: center; gap: 14px; background: var(--night); border-radius: 16px; padding: 10px 14px; min-height: 72px; }
+.regie .mime-now .emoji { font-size: 48px; line-height: 1; }
+.regie .mime-now .word { font-size: 26px; font-weight: 900; }
+.regie .mime-info { margin: 0; font-size: 17px; font-weight: 700; color: var(--gold); }
+.regie .mime-teams { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.regie .mime-team { min-height: 64px; border-radius: 14px; border: 3px solid transparent; background: var(--panel); color: var(--ink); font-size: 18px; font-weight: 800; padding: 6px 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.regie .mime-team small { font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+.regie .mime-team.selected { border-color: var(--gold); background: #3a2350; }
+.regie .mime-found {
+  flex: 1; min-height: 180px; border: 0; border-radius: 24px; background: var(--ok); color: #1a0b2e;
+  font-size: 44px; font-weight: 900; letter-spacing: 1px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  box-shadow: 0 8px 0 #4f9f22; touch-action: manipulation;
+}
+.regie .mime-found small { font-size: 18px; font-weight: 800; letter-spacing: 0; }
+.regie .mime-found:active { transform: translateY(4px); box-shadow: 0 4px 0 #4f9f22; }
+.regie .mime-found:disabled { opacity: .5; }
+.regie .mime-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.regie .mime-row .btn { min-height: 72px; font-size: 22px; }

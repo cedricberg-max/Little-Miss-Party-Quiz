@@ -199,3 +199,18 @@ button.item { cursor: pointer; }
   .card { padding: 14px; gap: 12px; }
   .date-chip { width: 54px; height: 60px; }
 }
+
+/* Mimes : grille de cartes (grande image, mot dessous) */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.chip { font: inherit; font-weight: 700; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; }
+.chip.active { background: var(--violet); border-color: var(--violet); color: #fff; }
+.mime-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
+.mime-card { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; font: inherit; color: var(--ink); background: var(--card); border: 2px solid var(--line); border-radius: 18px; cursor: pointer; }
+.mime-card .emoji { font-size: 40px; line-height: 1.1; }
+.mime-card .word { font-size: 14px; font-weight: 700; text-align: center; }
+.mime-card.on { border-color: var(--violet); background: var(--violet-pale); }
+.mime-card.on::after { content: "✓"; position: absolute; top: 4px; right: 8px; color: var(--violet); font-weight: 900; }
+.mime-card .remove { position: absolute; top: 2px; right: 6px; font-weight: 900; color: var(--soft); }
+.mime-custom { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.mime-custom input { flex: 1; min-width: 180px; }
+.mime-custom input.small { flex: 0 1 140px; min-width: 120px; }

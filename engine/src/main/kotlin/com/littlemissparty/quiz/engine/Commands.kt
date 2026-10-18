@@ -23,6 +23,13 @@ sealed interface Command {
     data class Undo(override val id: String, override val expectSeq: Int, val target: Int) : Command
     data class End(override val id: String, override val expectSeq: Int) : Command
 
+    /** Mimes : lancer le tour de [team], mime trouvé, carte passée, correction ±1, arrêter le tour. */
+    data class MimeStart(override val id: String, override val expectSeq: Int, val team: String) : Command
+    data class MimeFound(override val id: String, override val expectSeq: Int) : Command
+    data class MimePass(override val id: String, override val expectSeq: Int) : Command
+    data class MimeFix(override val id: String, override val expectSeq: Int, val team: String, val delta: Int) : Command
+    data class MimeStop(override val id: String, override val expectSeq: Int) : Command
+
     companion object {
         /** Correction maximale en une fois, pour qu'une faute de frappe ne fausse pas tout le classement. */
         const val MAX_DELTA = 500
@@ -38,6 +45,11 @@ sealed interface Command {
                 "adjust" -> Adjust(id, seq, m["team"] as String, (m["delta"] as Number).toInt())
                 "undo" -> Undo(id, seq, (m["target"] as Number).toInt())
                 "end" -> End(id, seq)
+                "mime_start" -> MimeStart(id, seq, m["team"] as String)
+                "mime_found" -> MimeFound(id, seq)
+                "mime_pass" -> MimePass(id, seq)
+                "mime_fix" -> MimeFix(id, seq, m["team"] as String, (m["delta"] as Number).toInt())
+                "mime_stop" -> MimeStop(id, seq)
                 else -> null
             }
         }.getOrNull()
@@ -67,17 +79,19 @@ fun Game.execute(
     teams: Set<String>,
     answers: Map<String, Answer> = emptyMap(),
 ): CommandResult {
-    val advances = cmd is Command.Next || cmd is Command.Close || cmd is Command.End
+    // Un double appui sur « Trouvé » ne compte qu'un mime : chaque appui vise la carte que la régie affichait.
+    val advances = cmd is Command.Next || cmd is Command.Close || cmd is Command.End || cmd is Command.MimeStart ||
+        cmd is Command.MimeFound || cmd is Command.MimePass || cmd is Command.MimeStop
     if (advances && cmd.expectSeq != state.lastSeq) return CommandResult(CommandStatus.STALE, reason = "stale")
     // En pause, rien n'avance : l'animatrice reprend d'abord (corrections de score et fin restent possibles).
-    if (state.paused && (cmd is Command.Next || cmd is Command.Close)) return refused("paused")
+    if (state.paused && advances && cmd !is Command.End) return refused("paused")
     val event = when (cmd) {
         is Command.Next -> when (state.phase) {
             Phase.LOBBY -> if (teams.isEmpty()) return refused("no_teams") else next(now)
             Phase.CLOSED -> reveal(now, answers.filterKeys { it in teams })
             else -> next(now)
         }
-        is Command.Close -> close(now)
+        is Command.Close -> if (state.mime != null) mimeStop(now) else close(now)
         is Command.Pause -> pause(now)
         is Command.Resume -> resume(now)
         is Command.Adjust -> when {
@@ -87,6 +101,11 @@ fun Game.execute(
         }
         is Command.Undo -> undo(cmd.target, now)
         is Command.End -> end(now)
+        is Command.MimeStart -> if (cmd.team !in teams) return refused("unknown_team") else mimeStart(cmd.team, now)
+        is Command.MimeFound -> mimeFound(now)
+        is Command.MimePass -> mimePass(now)
+        is Command.MimeFix -> if (cmd.team !in teams) return refused("unknown_team") else mimeFix(cmd.team, cmd.delta, now)
+        is Command.MimeStop -> mimeStop(now)
     }
     return if (event == null) refused("not_now") else CommandResult(CommandStatus.APPLIED, event)
 }

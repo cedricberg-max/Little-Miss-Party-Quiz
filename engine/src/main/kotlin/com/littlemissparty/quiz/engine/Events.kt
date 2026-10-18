@@ -76,3 +76,23 @@ data class Answer(val choice: Int, val at: Long)
 
 /** Points gagnés par une équipe sur une question ([points] inclut déjà le bonus et le doublement). */
 data class Award(val choice: Int?, val correct: Boolean, val points: Int, val bonus: Int)
+
+/*
+ * Mimes : une manche entière jouée équipe par équipe. La régie choisit l'équipe et lance son tour ;
+ * chaque mime trouvé rapporte [Scoring.MIME] points et fait apparaître la carte suivante.
+ */
+
+/** Tour de l'équipe [team] lancé : le chrono du tour démarre, la première carte s'affiche. */
+data class MimeTurnStarted(override val seq: Int, override val at: Long, val team: String) : GameEvent
+
+/** Mime trouvé, validé par l'animatrice : un point pour l'équipe qui joue, carte suivante. */
+data class MimeFound(override val seq: Int, override val at: Long) : GameEvent
+
+/** Carte passée, sans point : elle repart sous le paquet. */
+data class MimePassed(override val seq: Int, override val at: Long) : GameEvent
+
+/** Correction de l'animatrice (+1 ou −1) sur les mimes trouvés par [team] pendant cette manche, jamais sous zéro. */
+data class MimeCorrected(override val seq: Int, override val at: Long, val team: String, val delta: Int) : GameEvent
+
+/** Fin du tour : chrono écoulé, paquet épuisé ou arrêt par l'animatrice. */
+data class MimeTurnEnded(override val seq: Int, override val at: Long) : GameEvent

@@ -177,7 +177,7 @@ const PHASES = {
 function nextLabel(st, teamCount) {
   switch (st.phase) {
     case "lobby": return teamCount ? "Lancer le quiz" : "En attente des équipes";
-    case "question": return "Arrêter le chrono";
+    case "question": return st.mime ? (st.mime.team ? "Arrêter le tour" : "Terminer les mimes") : "Arrêter le chrono";
     case "closed": return "Révéler la réponse";
     case "reveal": return "Voir les scores";
     case "scores": return (st.index ?? 0) + 1 >= (st.total ?? 0) ? "Résultats finaux" : "Question suivante";
@@ -191,7 +191,9 @@ function render() {
   const q = live.plan?.questions?.[st.index];
   const inQuestion = st.phase !== "lobby" && st.phase !== "ended" && st.index != null && st.index >= 0;
 
-  $("c-step").textContent = inQuestion
+  $("c-step").textContent = inQuestion && st.mime
+    ? `Mimes · ${st.text ?? ""}`
+    : inQuestion
     ? `Question ${st.index + 1} / ${st.total ?? "?"}${st.double ? " · ×2" : ""}`
     : st.phase === "lobby" ? live.plan?.title ?? "" : "";
   $("c-phase").textContent = st.paused ? `En pause · ${PHASES[st.phase] ?? ""}` : PHASES[st.phase] ?? "";
@@ -211,6 +213,7 @@ function render() {
   $("c-answered").textContent = st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ont répondu` : "";
 
   renderRequests(st, teams);
+  renderMime(st, teams);
   renderTeams(st, teams);
   renderPlan(st);
   renderShows(st);
@@ -226,6 +229,9 @@ function render() {
   pause.classList.toggle("resume", st.paused === true);
   pause.disabled = st.phase === "lobby" || st.phase === "ended" || !!pending?.advance;
   next.disabled = next.disabled || st.paused === true;
+  // Mimes : le gros bouton « Trouvé » est dans la rubrique ; le bas de l'écran arrête le tour ou la manche.
+  if (st.phase === "question" && st.mime) next.classList.toggle("secondary", !!st.mime.team);
+  else next.classList.remove("secondary");
   $("c-end").hidden = st.phase === "ended";
 }
 
@@ -324,6 +330,84 @@ async function admit(device, type, extra, success) {
   if (status?.status === "applied") toast(success);
   render();
 }
+
+// ---------- Mimes ----------
+
+/** Équipe choisie pour le prochain tour de mimes (par défaut : celle qui a le moins joué). */
+let mimeTeam = null;
+
+function renderMime(st, teams) {
+  const m = st.phase === "question" ? st.mime : null;
+  $("mime").hidden = !m;
+  document.querySelector(".regie .control").classList.toggle("mime-mode", !!m);
+  if (!m) { mimeTeam = null; return; }
+  const name = (id) => live.teams[id]?.name ?? "Équipe";
+  const counts = m.counts ?? {};
+  const turns = m.turns ?? [];
+  const playing = m.team;
+  const busy = !!pending?.advance || st.paused === true;
+  // Pendant un tour, le choix est oublié : à la fin, la régie propose l'équipe qui a le moins joué.
+  if (playing) mimeTeam = null;
+  else if (!mimeTeam || !live.teams[mimeTeam]) {
+    mimeTeam = [...teams].sort(([a], [b]) => turns.filter((t) => t === a).length - turns.filter((t) => t === b).length)[0]?.[0] ?? null;
+  }
+  const card = m.card;
+  $("mime-now").hidden = !playing || !card;
+  if (card) {
+    $("mime-now").querySelector(".emoji").textContent = card.image ?? "🎭";
+    $("mime-now").querySelector(".word").textContent = card.word;
+  }
+  const n = (k) => `${k} mime${k > 1 ? "s" : ""}`;
+  $("mime-info").textContent = playing
+    ? `${name(playing)} joue : ${n(m.found ?? 0)} trouvé${(m.found ?? 0) > 1 ? "s" : ""} · ${m.left} carte${m.left > 1 ? "s" : ""} restante${m.left > 1 ? "s" : ""}`
+    : m.left === 0
+      ? "Toutes les cartes ont été jouées : terminez les mimes."
+      : m.last
+        ? `Tour terminé : ${name(m.last.team)} a trouvé ${n(m.last.found)}. Qui joue maintenant ?`
+        : "Qui commence ? Choisissez l'équipe puis « Top départ ! ».";
+
+  const box = $("mime-teams");
+  box.hidden = !!playing || m.left === 0;
+  if (!box.hidden) {
+    box.replaceChildren(...teams.map(([id, t]) => {
+      const b = document.createElement("button");
+      b.className = `mime-team${id === mimeTeam ? " selected" : ""}`;
+      b.dataset.team = id;
+      b.style.borderLeftColor = t.color;
+      const small = document.createElement("small");
+      const played = turns.filter((x) => x === id).length;
+      small.textContent = `${n(counts[id] ?? 0)}${played ? ` · ${played} tour${played > 1 ? "s" : ""}` : ""}`;
+      b.append(t.name ?? "Équipe", small);
+      b.onclick = () => { mimeTeam = id; render(); };
+      return b;
+    }));
+  }
+  const go = $("mime-go");
+  go.hidden = !!playing || m.left === 0;
+  go.textContent = mimeTeam ? `Top départ ! (${name(mimeTeam)})` : "Top départ !";
+  go.disabled = busy || !mimeTeam;
+  $("mime-found").hidden = !playing;
+  $("mime-found").disabled = busy;
+  $("mime-row").hidden = !playing;
+  $("mime-pass").disabled = busy || (m.left ?? 0) < 2;
+  $("mime-minus").disabled = busy || !(m.found > 0);
+  // Juste après un tour : corriger le compte de l'équipe qui vient de jouer, sans relancer de chrono.
+  const fixable = !playing && m.last;
+  $("mime-fix").hidden = !fixable;
+  if (fixable) {
+    $("mime-fix-minus").textContent = `−1 pour ${name(m.last.team)}`;
+    $("mime-fix-plus").textContent = `+1 pour ${name(m.last.team)}`;
+    $("mime-fix-minus").disabled = busy || !(counts[m.last.team] > 0);
+    $("mime-fix-plus").disabled = busy;
+  }
+}
+
+$("mime-go").onclick = () => { if (mimeTeam) send("mime_start", { team: mimeTeam }, { advance: true }); };
+$("mime-found").onclick = () => { navigator.vibrate?.(60); send("mime_found", {}, { advance: true }); };
+$("mime-pass").onclick = () => send("mime_pass", {}, { advance: true });
+$("mime-minus").onclick = () => { const t = live.state?.mime?.team; if (t) send("mime_fix", { team: t, delta: -1 }); };
+$("mime-fix-minus").onclick = () => { const t = live.state?.mime?.last?.team; if (t) send("mime_fix", { team: t, delta: -1 }); };
+$("mime-fix-plus").onclick = () => { const t = live.state?.mime?.last?.team; if (t) send("mime_fix", { team: t, delta: 1 }); };
 
 function renderTeams(st, teams) {
   const box = $("panel-teams");
@@ -429,6 +513,14 @@ function roundHead(r, rounds, future, questions, index, editable) {
 function planItem(q, i, current) {
   const item = document.createElement("div");
   item.className = `plan-item${i === current ? " current" : ""}${i < current ? " done" : ""}`;
+  if (q.kind === "mime") {
+    const title = document.createElement("div");
+    title.textContent = `${i + 1}. Mimes : ${q.text}`;
+    const detail = document.createElement("b");
+    detail.textContent = `${q.cards?.length ?? 0} cartes · tour de ${q.duration} s`;
+    item.append(title, detail);
+    return item;
+  }
   const title = document.createElement("div");
   title.textContent = `${i + 1}. ${q.text}${q.double ? " (×2)" : ""}`;
   const answer = document.createElement("b");
@@ -452,8 +544,13 @@ async function fetchLibrary() {
   library = { loading: true };
   renderLibrary();
   try {
-    const [s, q] = await Promise.all([get(ref(db, "library/shows")), get(ref(db, "library/quizzes"))]);
+    const [s, q, m] = await Promise.all([get(ref(db, "library/shows")), get(ref(db, "library/quizzes")), get(ref(db, "library/mimes"))]);
     const quizzes = q.val() ?? {};
+    const mimes = m.val() ?? {};
+    const decks = Object.entries(mimes)
+      .filter(([, d]) => d?.title)
+      .sort((a, b) => a[1].title.localeCompare(b[1].title, "fr"))
+      .map(([id, d]) => ({ key: `mimes/${id}`, label: d.title, source: { type: "mimes", deckId: id } }));
     const games = Object.entries(quizzes)
       .filter(([, quiz]) => quiz?.title)
       .sort((a, b) => a[1].title.localeCompare(b[1].title, "fr"))
@@ -461,12 +558,12 @@ async function fetchLibrary() {
     const rounds = Object.entries(s.val() ?? {})
       .filter(([, show]) => show)
       .sort((a, b) => (b[1].date ?? "").localeCompare(a[1].date ?? ""))
-      .flatMap(([id, show]) => (show.rounds ?? []).filter(Boolean).map((round, i) => {
+      .flatMap(([id, show]) => (show.rounds ?? []).filter((r) => r && r.type !== "mimes").map((round, i) => {
         const label = round.type === "finale" ? ROUND_TYPES.finale : quizzes[round.quizId]?.title ?? `Manche ${i + 1}`;
         const date = show.date ? ` (${new Date(`${show.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })})` : "";
         return { key: `show/${id}/${i}`, label, from: `${showTitle(show)}${date}`, source: { type: round.type, quizId: round.quizId } };
       }));
-    library = { quizzes, games, rounds };
+    library = { quizzes, mimes, games, rounds, decks };
   } catch (e) {
     console.error(e);
     library = { denied: /permission/i.test(String(e?.message ?? e)) };
@@ -505,6 +602,16 @@ function renderLibrary() {
     const title = document.createElement("b");
     title.textContent = game.label;
     const meta = document.createElement("span");
+    if (game.source.type === "mimes") {
+      const deck = library.mimes[game.source.deckId];
+      const count = (deck?.cards ?? []).filter(Boolean).length;
+      meta.textContent = `Mimes · ${count} carte${count > 1 ? "s" : ""} · tour de ${deck?.duration ?? 60} s`;
+      b.append(title, meta);
+      b.disabled = !count;
+      b.onclick = () => pick(game);
+      box.appendChild(b);
+      return;
+    }
     const count = playable(library.quizzes[game.source.quizId]).length;
     meta.textContent = [detail, count ? `${count} question${count > 1 ? "s" : ""}` : "aucune question validée"].filter(Boolean).join(" · ");
     b.append(title, meta);
@@ -518,7 +625,9 @@ function renderLibrary() {
   if (library.rounds.length) section("Manches d'anciennes prestations");
   library.rounds.forEach((g) => entry(g, g.from));
   section("Mini-jeux et blind tests");
-  for (const label of ["Mini-jeux", "Blind test"]) {
+  if (!library.decks.length) hint("Mimes : aucun paquet de cartes pour l'instant (administration, Mimes).");
+  library.decks.forEach((g) => entry(g, ""));
+  for (const label of ["Blind test"]) {
     const b = document.createElement("button");
     b.className = "show-item";
     b.disabled = true;
@@ -541,7 +650,7 @@ async function pick(game) {
     profile = show?.profile ?? (show?.age != null ? profileForAge(show.age) : null);
   } catch { profile = null; }
   const prefix = `a${Date.now().toString(36)}`;
-  const { questions, problems } = gameQuestions(game.source, library.quizzes, profile ?? "MOYENS", prefix);
+  const { questions, problems } = gameQuestions(game.source, library.quizzes, profile ?? "MOYENS", prefix, library.mimes);
   picked = { game, questions, problems };
   renderLibrary();
 }
@@ -550,10 +659,18 @@ function renderPreview() {
   const { game, questions, problems } = picked;
   const st = live.state ?? { phase: "lobby" };
   $("lib-name").textContent = game.label;
-  $("lib-meta").textContent = [game.from, `${questions.length} question${questions.length > 1 ? "s" : ""}`].filter(Boolean).join(" · ");
+  const mime = questions[0]?.kind === "mime" ? questions[0] : null;
+  $("lib-meta").textContent = mime
+    ? `Mimes · ${mime.cards.length} cartes · tour de ${mime.duration} s par équipe`
+    : [game.from, `${questions.length} question${questions.length > 1 ? "s" : ""}`].filter(Boolean).join(" · ");
   const list = $("lib-questions");
   list.innerHTML = "";
-  questions.slice(0, 5).forEach((q) => {
+  if (mime) {
+    const li = document.createElement("li");
+    li.textContent = mime.cards.slice(0, 12).map((c) => `${c.image ?? ""} ${c.word}`.trim()).join(" · ") + (mime.cards.length > 12 ? " …" : "");
+    list.appendChild(li);
+  }
+  (mime ? [] : questions).slice(0, 5).forEach((q) => {
     const li = document.createElement("li");
     const answer = document.createElement("b");
     answer.textContent = ` → ${q.choices[q.correct]}`;
@@ -645,12 +762,13 @@ async function fetchShows() {
   shows = { loading: true };
   render();
   try {
-    const [s, q] = await Promise.all([get(ref(db, "library/shows")), get(ref(db, "library/quizzes"))]);
+    const [s, q, m] = await Promise.all([get(ref(db, "library/shows")), get(ref(db, "library/quizzes")), get(ref(db, "library/mimes"))]);
     const quizzes = q.val() ?? {};
+    const mimes = m.val() ?? {};
     const today = new Date().toISOString().slice(0, 10);
     const list = Object.entries(s.val() ?? {})
       .filter(([, show]) => show.status === "publiee")
-      .map(([id, show]) => ({ id, show, ...buildSnapshot(id, show, quizzes) }))
+      .map(([id, show]) => ({ id, show, ...buildSnapshot(id, show, quizzes, mimes) }))
       // Les prestations à venir d'abord, la plus proche en tête ; les passées ensuite.
       .sort((a, b) => {
         const da = a.show.date ?? "9999", dbb = b.show.date ?? "9999";
@@ -691,8 +809,9 @@ function renderShows(st) {
     const date = show.date ? new Date(`${show.date}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) : "";
     meta.textContent = [show.childName, show.age ? `${show.age} ans` : "", date].filter(Boolean).join(" · ");
     const detail = document.createElement("span");
+    const asked = snapshot?.quiz.questions.filter((x) => x.kind !== "mime").length ?? 0;
     detail.textContent = snapshot
-      ? `${snapshot.rounds.length} manche${snapshot.rounds.length > 1 ? "s" : ""} · ${snapshot.quiz.questions.length} questions`
+      ? `${snapshot.rounds.length} manche${snapshot.rounds.length > 1 ? "s" : ""}${asked ? ` · ${asked} questions` : ""}`
       : problems[problems.length - 1];
     item.append(title, meta, detail);
     if (loadingShow === id) detail.textContent = "Chargement sur la TV…";
@@ -828,8 +947,9 @@ function showUndo(text, seq) {
 }
 
 $("c-next").onclick = () => {
-  const phase = live.state?.phase;
-  send(phase === "question" ? "close" : "next", {}, { advance: true });
+  const st = live.state;
+  // Mimes entre deux tours : « Terminer les mimes » passe au classement.
+  send(st?.phase === "question" && !(st.mime && !st.mime.team) ? "close" : "next", {}, { advance: true });
 };
 $("c-pause").onclick = () => send(live.state?.paused ? "resume" : "pause", {}, { advance: true });
 $("c-answer").onclick = () => { answerMasked = !answerMasked; render(); };

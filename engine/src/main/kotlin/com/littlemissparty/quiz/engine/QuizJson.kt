@@ -5,7 +5,8 @@ import org.json.JSONObject
 
 /**
  * Lecture d'un quiz au format JSON :
- * `{"id", "title", "questions": [{"id", "text", "choices": [...], "correct", "duration", "kind", "double", "round"}]}`.
+ * `{"id", "title", "questions": [{"id", "text", "choices": [...], "correct", "duration", "kind", "double", "round"}]}`,
+ * plus `"cards": [{"word", "image"}]` pour une manche de mimes (`"kind": "mime"`, sans propositions).
  * Toute erreur est signalée avec la question concernée, pour pouvoir la corriger.
  */
 object QuizJson {
@@ -30,16 +31,22 @@ object QuizJson {
     }
 
     private fun question(q: JSONObject, i: Int): Question {
-        val choices: JSONArray = q.getJSONArray("choices")
+        val kind = QuestionKind.of(q.optString("kind"))
+        val choices: JSONArray = q.optJSONArray("choices") ?: JSONArray()
+        val cards: JSONArray = q.optJSONArray("cards") ?: JSONArray()
         return Question(
             id = q.optString("id", "q${i + 1}"),
             text = q.getString("text"),
             choices = (0 until choices.length()).map { choices.getString(it).trim() },
-            correct = q.getInt("correct"),
-            durationSec = q.optInt("duration", 20),
-            kind = QuestionKind.of(q.optString("kind")),
+            correct = if (kind == QuestionKind.MIME) q.optInt("correct", -1) else q.getInt("correct"),
+            durationSec = q.optInt("duration", if (kind == QuestionKind.MIME) 60 else 20),
+            kind = kind,
             double = q.optBoolean("double", false),
             roundTitle = q.optString("round").ifBlank { null },
+            cards = (0 until cards.length()).map { c ->
+                val card = cards.getJSONObject(c)
+                MimeCard(card.getString("word").trim(), card.optString("image").ifBlank { null })
+            },
         )
     }
 }

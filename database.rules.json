@@ -99,7 +99,7 @@
           ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
           "$cmd": {
             ".write": "auth != null && !data.exists() && newData.exists() && root.child('games').child($code).child('regie').child(auth.uid).exists()",
-            ".validate": "newData.child('type').isString() && newData.child('type').val().matches(/^(next|pause|resume|close|adjust|undo|end|admit|replace)$/) && newData.child('expectSeq').isNumber() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
+            ".validate": "newData.child('type').isString() && newData.child('type').val().matches(/^(next|pause|resume|close|adjust|undo|end|admit|replace|mime_start|mime_found|mime_pass|mime_fix|mime_stop)$/) && newData.child('expectSeq').isNumber() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
             "team": {
               ".validate": "newData.isString() && newData.val().length <= 128"
             },
@@ -178,6 +178,20 @@
               ".validate": "newData.child('text').isString() && newData.child('text').val().length <= 300 && newData.child('choices').hasChildren() && newData.child('correct').isNumber() && newData.child('status').val().matches(/^(brouillon|validee)$/)",
               "duration": {
                 ".validate": "newData.isNumber() && newData.val() >= 5 && newData.val() <= 120"
+              }
+            }
+          }
+        }
+      },
+      "mimes": {
+        "$id": {
+          ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
+          ".validate": "!newData.exists() || (newData.child('title').isString() && newData.child('title').val().length >= 1 && newData.child('title').val().length <= 120 && newData.child('cards').hasChildren() && newData.child('duration').isNumber() && newData.child('duration').val() >= 15 && newData.child('duration').val() <= 180 && newData.child('updatedAt').val() === now)",
+          "cards": {
+            "$i": {
+              ".validate": "newData.child('word').isString() && newData.child('word').val().length >= 1 && newData.child('word').val().length <= 40 && (!newData.child('image').exists() || (newData.child('image').isString() && newData.child('image').val().length <= 16))",
+              "$other": {
+                ".validate": "$other === 'word' || $other === 'image'"
               }
             }
           }
