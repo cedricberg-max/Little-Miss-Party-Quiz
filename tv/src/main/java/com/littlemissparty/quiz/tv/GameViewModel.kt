@@ -46,7 +46,8 @@ import java.security.SecureRandom
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-data class Team(val uid: String, val name: String, val color: String, val joinedAt: Long)
+/** [uid] identifie l'équipe (l'appareil qui l'a créée) ; [device] est l'appareil qui le remplace, s'il y en a un. */
+data class Team(val uid: String, val name: String, val color: String, val joinedAt: Long, val device: String? = null)
 
 sealed interface UiState {
     data object MissingConfig : UiState
@@ -537,6 +538,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private fun onCommand(snap: DataSnapshot) {
         val id = snap.key ?: return
         if (!handledCommands.add(id)) return
+        val type = snap.child("type").getValue(String::class.java)
+        if (type == ADMIT || type == REPLACE) {
+            viewModelScope.launch { actions.withLock { admitDevice(id, replace = type == REPLACE, cmd = snap) } }
+            return
+        }
         val cmd = (snap.value as? Map<*, *>)?.let { Command.decode(id, it) }
         viewModelScope.launch { actions.withLock {
             val g = game ?: return@withLock
@@ -549,6 +555,44 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             if (result.event != null) commit(result.event, statusOf(id, result))
             else gameRef?.updateChildren(statusOf(id, result))
         } }
+    }
+
+    /**
+     * Appareil arrivé en cours de partie, accepté par la régie : nouvelle équipe, ou remplaçant d'une équipe
+     * existante, qui garde son nom, sa couleur et ses points (ils sont rangés sous l'identifiant de l'équipe).
+     * Les règles Firebase n'acceptent plus rien de l'ancien appareil. La demande est effacée dans la même écriture.
+     */
+    private suspend fun admitDevice(id: String, replace: Boolean, cmd: DataSnapshot) {
+        val ref = gameRef ?: return
+        val device = cmd.child("device").getValue(String::class.java)
+        val team = cmd.child("team").getValue(String::class.java)
+        val request = device?.let { runCatching { ref.child("joinRequests/$it").readOnce() }.getOrNull() }?.takeIf { it.exists() }
+        val teams = teams()
+        val reason = when {
+            device == null || request == null -> "gone"
+            teams.any { it.uid == device || it.device == device } -> "busy"
+            !replace && teams.size >= MAX_TEAMS -> "full"
+            replace && teams.none { it.uid == team } -> "unknown_team"
+            else -> null
+        }
+        val updates = mutableMapOf<String, Any?>(
+            "commandStatus/$id" to clean(
+                mapOf("status" to if (reason == null) "applied" else "refused", "reason" to reason, "at" to ServerValue.TIMESTAMP)
+            ),
+        )
+        if (reason == null && device != null && request != null) {
+            updates["joinRequests/$device"] = null
+            if (replace) {
+                updates["teams/$team/device"] = device
+            } else {
+                updates["teams/$device"] = mapOf(
+                    "name" to request.child("name").getValue(String::class.java),
+                    "color" to request.child("color").getValue(String::class.java),
+                    "joinedAt" to ServerValue.TIMESTAMP,
+                )
+            }
+        }
+        ref.updateChildren(updates).addOnFailureListener { Log.e(TAG, "Entrée d'un appareil refusée", it) }
     }
 
     private fun statusOf(id: String, r: CommandResult): Map<String, Any?> = mapOf(
@@ -672,6 +716,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             name = name,
             color = t.child("color").getValue(String::class.java) ?: "#FF3CAC",
             joinedAt = t.child("joinedAt").getValue(Long::class.java) ?: 0L,
+            device = t.child("device").getValue(String::class.java),
         )
     }.sortedBy { it.joinedAt }.take(MAX_TEAMS)
 
@@ -774,6 +819,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         private var persistenceOn = false
         const val AUTO_RESUME_SECONDS = 15
         const val MAX_TEAMS = 8
+        private const val ADMIT = "admit"
+        private const val REPLACE = "replace"
         const val MAX_REGIES = 2
         private const val MAX_PIN_FAILURES = 5
         private const val PIN_LOCK_MS = 60_000L

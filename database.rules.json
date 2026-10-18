@@ -21,23 +21,37 @@
         "teams": {
           ".read": "auth != null",
           "$uid": {
-            ".write": "auth != null && auth.uid === $uid && data.parent().parent().child('hostUid').exists()",
-            ".validate": "newData.child('name').isString() && newData.child('name').val().length >= 1 && newData.child('name').val().length <= 20 && newData.child('color').isString() && newData.child('color').val().length <= 9"
+            ".write": "auth != null && (root.child('games').child($code).child('hostUid').val() === auth.uid || (auth.uid === $uid && root.child('games').child($code).child('hostUid').exists() && (!root.child('games').child($code).child('state/phase').exists() || root.child('games').child($code).child('state/phase').val() === 'lobby') && !data.child('device').exists() && !newData.child('device').exists()))",
+            ".validate": "newData.child('name').isString() && newData.child('name').val().length >= 1 && newData.child('name').val().length <= 20 && newData.child('color').isString() && newData.child('color').val().length <= 9",
+            "device": {
+              ".validate": "newData.isString() && newData.val().length <= 128"
+            }
           }
         },
         "presence": {
           ".read": "auth != null",
           "$uid": {
-            ".write": "auth != null && auth.uid === $uid && data.parent().parent().child('teams').child($uid).exists()",
+            ".write": "auth != null && root.child('games').child($code).child('teams').child($uid).exists() && (root.child('games').child($code).child('teams').child($uid).child('device').val() === auth.uid || (!root.child('games').child($code).child('teams').child($uid).child('device').exists() && auth.uid === $uid))",
             ".validate": "newData.child('online').isBoolean() && newData.child('at').isNumber()"
+          }
+        },
+        "joinRequests": {
+          ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
+          "$uid": {
+            ".read": "auth != null && auth.uid === $uid",
+            ".write": "auth != null && root.child('games').child($code).child('hostUid').exists() && ((auth.uid === $uid && (!newData.exists() || root.child('games').child($code).child('state/phase').val() !== 'ended')) || (!newData.exists() && (root.child('games').child($code).child('hostUid').val() === auth.uid || root.child('games').child($code).child('regie').child(auth.uid).exists())))",
+            ".validate": "newData.child('name').isString() && newData.child('name').val().length >= 1 && newData.child('name').val().length <= 20 && newData.child('color').isString() && newData.child('color').val().length <= 9 && newData.child('at').val() === now",
+            "$other": {
+              ".validate": "$other === 'name' || $other === 'color' || $other === 'at'"
+            }
           }
         },
         "answers": {
           "$qid": {
             ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
             "$uid": {
-              ".read": "auth != null && auth.uid === $uid",
-              ".write": "auth != null && auth.uid === $uid && !data.exists() && root.child('games').child($code).child('teams').child($uid).exists() && root.child('games').child($code).child('state/phase').val() === 'question' && root.child('games').child($code).child('state/paused').val() !== true && (!root.child('games').child($code).child('state/resumeAt').exists() || now >= root.child('games').child($code).child('state/resumeAt').val()) && root.child('games').child($code).child('state/qid').val() === $qid && now <= root.child('games').child($code).child('state/deadline').val() + 2000",
+              ".read": "auth != null && (root.child('games').child($code).child('teams').child($uid).child('device').val() === auth.uid || (!root.child('games').child($code).child('teams').child($uid).child('device').exists() && auth.uid === $uid))",
+              ".write": "auth != null && (root.child('games').child($code).child('teams').child($uid).child('device').val() === auth.uid || (!root.child('games').child($code).child('teams').child($uid).child('device').exists() && auth.uid === $uid)) && !data.exists() && root.child('games').child($code).child('teams').child($uid).exists() && root.child('games').child($code).child('state/phase').val() === 'question' && root.child('games').child($code).child('state/paused').val() !== true && (!root.child('games').child($code).child('state/resumeAt').exists() || now >= root.child('games').child($code).child('state/resumeAt').val()) && root.child('games').child($code).child('state/qid').val() === $qid && now <= root.child('games').child($code).child('state/deadline').val() + 2000",
               ".validate": "newData.hasChildren(['choice', 'at']) && newData.child('choice').isNumber() && root.child('games').child($code).child('state/choices').child(newData.child('choice').val() + '').exists() && newData.child('at').val() === now",
               "$other": {
                 ".validate": "$other === 'choice' || $other === 'at'"
@@ -48,7 +62,7 @@
         "buzz": {
           ".read": "auth != null",
           "$round": {
-            ".write": "auth != null && !data.exists() && newData.child('team').val() === auth.uid && data.parent().parent().child('teams').child(auth.uid).exists() && data.parent().parent().child('state/buzzOpen').val() === true && data.parent().parent().child('state/round').val() + '' === $round"
+            ".write": "auth != null && !data.exists() && newData.child('team').isString() && root.child('games').child($code).child('teams').child(newData.child('team').val()).exists() && (root.child('games').child($code).child('teams').child(newData.child('team').val()).child('device').val() === auth.uid || (!root.child('games').child($code).child('teams').child(newData.child('team').val()).child('device').exists() && auth.uid === newData.child('team').val())) && data.parent().parent().child('state/buzzOpen').val() === true && data.parent().parent().child('state/round').val() + '' === $round"
           }
         },
         "pairing": {
@@ -85,7 +99,7 @@
           ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
           "$cmd": {
             ".write": "auth != null && !data.exists() && newData.exists() && root.child('games').child($code).child('regie').child(auth.uid).exists()",
-            ".validate": "newData.child('type').isString() && newData.child('type').val().matches(/^(next|pause|resume|close|adjust|undo|end)$/) && newData.child('expectSeq').isNumber() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
+            ".validate": "newData.child('type').isString() && newData.child('type').val().matches(/^(next|pause|resume|close|adjust|undo|end|admit|replace)$/) && newData.child('expectSeq').isNumber() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
             "team": {
               ".validate": "newData.isString() && newData.val().length <= 128"
             },
@@ -94,6 +108,9 @@
             },
             "target": {
               ".validate": "newData.isNumber()"
+            },
+            "device": {
+              ".validate": "newData.isString() && newData.val().length <= 128"
             },
             "$other": {
               ".validate": "$other === 'type' || $other === 'expectSeq' || $other === 'by' || $other === 'at'"
