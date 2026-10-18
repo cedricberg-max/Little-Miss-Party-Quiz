@@ -212,4 +212,26 @@ class PauseTest {
         g.close(t0 + 20_000)
         assertFalse(g.justStarted(t0 + 20_100), "Question fermée")
     }
+
+    @Test
+    fun `box sans Internet, la question se fige une fois, l'animatrice garde la main`() {
+        val g = Game(quiz)
+        assertNull(g.networkPause(t0, 60_000, null), "Salon d'attente : rien à figer")
+        g.next(t0)
+        assertNull(g.networkPause(t0 + 2_000, NETWORK_GRACE_MS - 1, null), "Micro-coupure : on attend")
+        val paused = g.networkPause(t0 + 5_000, NETWORK_GRACE_MS, null)
+        assertTrue(paused is Paused && paused.reason == PAUSE_NETWORK)
+        assertEquals(15_000, g.remainingMs(t0 + 60_000), "Chrono figé à 15 s")
+        assertNull(g.networkPause(t0 + 6_000, 10_000, null), "Déjà en pause")
+        // L'animatrice relance à la télécommande pendant la coupure : la box ne repause pas la même question.
+        g.resume(t0 + 7_000)
+        assertNull(g.networkPause(t0 + 12_000, 12_000, "q1"))
+        // Question suivante lancée hors connexion : elle se fige à son tour.
+        g.close(t0 + 13_000)
+        g.next(t0 + 13_100, mapOf("rose" to Answer(1, t0 + 11_000)))
+        g.next(t0 + 13_200)
+        g.next(t0 + 13_300)
+        assertEquals("q2", g.state.qid)
+        assertTrue(g.networkPause(t0 + 14_000, 14_000, "q1") is Paused)
+    }
 }

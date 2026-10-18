@@ -83,6 +83,18 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         return now - start < ms
     }
 
+    /**
+     * Box sans Internet depuis [offlineMs] : une question en cours (ou lancée hors connexion) se met en pause,
+     * car les tablettes ne la reçoivent plus et ne peuvent plus répondre. Une seule fois par question et par
+     * coupure ([alreadyFor] = question déjà mise en pause pendant cette coupure) : si l'animatrice relance
+     * quand même à la télécommande, la box ne la contredit pas.
+     */
+    fun networkPause(now: Long, offlineMs: Long, alreadyFor: String?): GameEvent? {
+        if (offlineMs < NETWORK_GRACE_MS || state.phase != Phase.QUESTION || state.paused) return null
+        if (state.qid == alreadyFor || remainingMs(now) == 0L) return null
+        return pause(now, PAUSE_NETWORK)
+    }
+
     /** Heure du serveur à laquelle le chrono atteindra zéro, ou null s'il est en pause ou arrêté. */
     fun deadline(): Long? {
         val q = question ?: return null

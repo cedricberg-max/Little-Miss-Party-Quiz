@@ -130,6 +130,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     /** Pupitres connectés au dernier relevé, et pupitres tout juste décrochés (délai de grâce en cours). */
     private var online: Set<String> = emptySet()
     private val dropTimers = mutableMapOf<String, Job>()
+    /** Surveillance de la coupure Internet de la box (pause automatique d'une question en cours). */
+    private var offlineWatch: Job? = null
     /** Dernier appui sur OK pris en compte (anti double appui). */
     private var lastNextAt = -NEXT_GUARD_MS
     private val prefs = app.getSharedPreferences("partie", Context.MODE_PRIVATE)
@@ -320,6 +322,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         lastNextAt = now
         viewModelScope.launch { actions.withLock {
             val g = game ?: return@withLock
+            // Décompte 3, 2, 1 en cours : un second appui sur « Reprendre » ne fait pas avancer la partie.
+            if (g.state.resumeAt?.let { serverNow() < it } == true) return@withLock
             when (g.state.phase) {
                 Phase.LOBBY -> if (teams().isNotEmpty()) commit(g.next(serverNow()))
                 // Chrono qui vient de partir : second appui d'un double clic, même livré en retard par la box.
@@ -653,6 +657,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         observe(db.getReference(".info/connected")) { snap ->
             val connected = snap.getValue(Boolean::class.java) == true
             updatePlaying { it.copy(connected = connected) }
+            onConnection(connected)
         }
         observe(ref.child("teams")) { snap ->
             val teams = parseTeams(snap)
@@ -775,7 +780,34 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         listeners += ref to listener
     }
 
+    /**
+     * Box sans Internet : passé le délai de grâce, la question en cours se fige (pause écrite sur la box,
+     * envoyée au retour du réseau). À la reconnexion, rien ne repart seul : l'animatrice relance.
+     */
+    private fun onConnection(connected: Boolean) {
+        offlineWatch?.cancel()
+        offlineWatch = null
+        if (connected) return
+        val since = SystemClock.elapsedRealtime()
+        offlineWatch = viewModelScope.launch {
+            var pausedFor: String? = null
+            while (true) {
+                delay(1000)
+                actions.withLock {
+                    val g = game ?: return@withLock
+                    val event = g.networkPause(serverNow(), SystemClock.elapsedRealtime() - since, pausedFor)
+                    if (event != null) {
+                        pausedFor = g.state.qid
+                        commit(event)
+                    }
+                }
+            }
+        }
+    }
+
     private fun stopListening() {
+        offlineWatch?.cancel()
+        offlineWatch = null
         dropTimers.values.forEach { it.cancel() }
         dropTimers.clear()
         listeners.forEach { (ref, l) -> ref.removeEventListener(l) }

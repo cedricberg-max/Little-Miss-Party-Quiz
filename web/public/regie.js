@@ -213,7 +213,9 @@ function renderHold(st, teams) {
   const name = (id) => live.teams[id]?.name ?? "Une équipe";
   const offline = teams.filter(([id]) => live.presence[id]?.online !== true).map(([id]) => name(id));
   const parts = [];
-  if (st.pauseReason === "team" && st.pauseTeam) {
+  if (st.pauseReason === "network") {
+    parts.push("Pause automatique : la box avait perdu Internet, les tablettes ne pouvaient plus répondre.");
+  } else if (st.pauseReason === "team" && st.pauseTeam) {
     parts.push(live.presence[st.pauseTeam]?.online === true
       ? `Pause automatique : « ${name(st.pauseTeam)} » avait perdu la connexion, elle est revenue.`
       : `Pause automatique : « ${name(st.pauseTeam)} » a perdu la connexion. Son appareil se reconnecte seul.`);

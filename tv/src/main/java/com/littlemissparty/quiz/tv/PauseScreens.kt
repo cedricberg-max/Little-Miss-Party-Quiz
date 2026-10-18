@@ -41,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.littlemissparty.quiz.engine.PAUSE_NETWORK
 import com.littlemissparty.quiz.engine.PAUSE_TEAM
 import com.littlemissparty.quiz.engine.Phase
 import kotlinx.coroutines.delay
@@ -117,6 +118,7 @@ private fun Intermission(state: UiState.Playing, onResume: () -> Unit) {
             Spacer(Modifier.height(16.dp))
             Text(
                 if (state.pauseReason == PAUSE_TEAM) "Petite pause : on attend nos amis, restez bien en place !"
+                else if (state.pauseReason == PAUSE_NETWORK) "Petite pause : on attend le retour d'Internet, restez bien en place !"
                 else if (state.childName.isNotBlank()) "Petite pause pour ${state.childName} et ses invités, ne bougez pas !"
                 else "Petite pause, restez bien en place !",
                 color = Palette.Ink, fontSize = 30.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
