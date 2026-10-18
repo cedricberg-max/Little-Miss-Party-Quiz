@@ -27,6 +27,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.littlemissparty.quiz.engine.Phase
+import com.littlemissparty.quiz.engine.Question
+import com.littlemissparty.quiz.engine.QuestionKind
 import com.littlemissparty.quiz.tv.UiState
 import kotlin.math.cos
 import kotlin.math.exp
@@ -50,6 +52,10 @@ object Neon {
 object Habillage {
     val directeur = DirecteurSonore()
     val generiquesVus = mutableSetOf<String>()
+    /** Dernier jeu montré par partie : le rideau de transition ne passe qu'au changement de jeu. */
+    val epreuvesVues = mutableMapOf<String, String>()
+    /** Tours de mimes déjà présentés par le bandeau d'équipe. */
+    val equipesAnnoncees = mutableSetOf<String>()
 }
 
 /**
@@ -109,8 +115,12 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long): Insta
         meneurAPoints = (s.ranking.firstOrNull()?.second ?: 0) > 0,
         trouves = s.mime?.takeIf { it.team != null }?.found ?: 0,
         passes = s.mime?.takeIf { it.team != null }?.passed ?: 0,
+        epreuve = s.question?.takeIf { s.phase == Phase.QUESTION || s.phase == Phase.CLOSED || s.phase == Phase.REVEAL }?.let(::epreuveDe) ?: "",
     )
 }
+
+/** Le jeu auquel appartient une question : les mimes, ou une manche de quiz (toutes ses questions ensemble). */
+internal fun epreuveDe(q: Question) = (if (q.kind == QuestionKind.MIME) "mimes" else "quiz") + "|" + (q.roundTitle ?: "")
 
 /**
  * Vrai pendant la fin du chrono (5 dernières secondes d'une question, 10 d'un tour de mimes), calculé comme

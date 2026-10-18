@@ -15,31 +15,48 @@ class DirecteurSonore {
     private var avantPause: Instant? = null
     /** Parties dont le générique a déjà été joué (une seule fois par partie, même après une reconnexion). */
     private val generiques = mutableSetOf<String>()
+    /** Dernière épreuve vue (partie, épreuve) : quand elle change, le jingle de transition annonce le nouveau jeu. */
+    private var epreuve: Pair<String, String>? = null
 
     fun observer(maintenant: Instant): List<Ordre> {
         val p = avant
         avant = maintenant
+        val precedente = epreuve
+        if (maintenant.epreuve.isNotEmpty()) epreuve = maintenant.partie to maintenant.epreuve
+        nouvelleEpreuve = maintenant.epreuve.isNotEmpty() && precedente != null &&
+            precedente.first == maintenant.partie && precedente.second != maintenant.epreuve
         if (p == null) return premiereFois(maintenant)
         if (maintenant.ecran == Ecran.HORS_PARTIE) {
             return if (p.ecran == Ecran.HORS_PARTIE) emptyList() else listOf(Ordre.Couper, Ordre.Musique(Ambiance.SILENCE))
         }
         if (p.ecran == Ecran.HORS_PARTIE) return premiereFois(maintenant)
 
-        // Pause : on coupe tout ce qui était prévu, une musique douce accompagne l'intermède.
+        // Pause : on coupe tout ce qui était prévu ; un carillon ouvre l'intermède, puis sa musique feutrée.
         if (!p.enPause && maintenant.enPause) {
             avantPause = p
-            return listOf(Ordre.Couper, Ordre.Musique(Ambiance.INTERMEDE))
+            transitionEnAttente = false
+            return listOf(Ordre.Couper, Ordre.Jouer(Son.PAUSE), Ordre.Musique(Ambiance.SILENCE), Ordre.Musique(Ambiance.INTERMEDE, Tempo.PAUSE_MUSIQUE))
         }
-        if (maintenant.enPause) return emptyList()
+        if (maintenant.enPause) {
+            if (nouvelleEpreuve) transitionEnAttente = true
+            return emptyList()
+        }
         if (p.enPause) {
             val ecranAvant = avantPause ?: p
             avantPause = null
+            if (transitionEnAttente) nouvelleEpreuve = true
+            transitionEnAttente = false
             return reprise(ecranAvant, maintenant)
         }
 
         if (changeDEcran(p, maintenant)) return entree(p, maintenant)
         return memeEcran(p, maintenant)
     }
+
+    /** Vrai pendant l'instant observé : on vient de passer à une autre épreuve de la même partie. */
+    private var nouvelleEpreuve = false
+    /** Une épreuve a changé pendant la pause : la transition sera jouée après le décompte. */
+    private var transitionEnAttente = false
 
     private fun changeDEcran(a: Instant, b: Instant) = a.ecran != b.ecran || a.index != b.index || a.partie != b.partie
 
@@ -62,7 +79,8 @@ class DirecteurSonore {
     private fun reprise(ecranAvant: Instant, i: Instant): List<Ordre> {
         val dans = i.repriseDansMs.coerceAtLeast(0)
         val n = ((dans + 999) / 1000).toInt().coerceAtMost(5)
-        val ordres = mutableListOf<Ordre>()
+        // Le carillon et la musique de l'intermède s'arrêtent ; la suite est calée sur le décompte.
+        val ordres = mutableListOf<Ordre>(Ordre.Couper)
         for (k in 0 until n) ordres += Ordre.Jouer(Son.pop(k), (dans - (n - k) * 1000L).coerceAtLeast(0))
         ordres += Ordre.Jouer(Son.WHOOSH, dans)
         ordres += if (changeDEcran(ecranAvant, i)) {
@@ -82,7 +100,11 @@ class DirecteurSonore {
                 o += Ordre.Musique(Ambiance.SALON)
             }
             Ecran.QUESTION -> {
-                if (i.premiere || i.superFinale) {
+                if (nouvelleEpreuve) {
+                    o += Ordre.Jouer(Son.TRANSITION)
+                    o += Ordre.Musique(Ambiance.SILENCE)
+                    o += Ordre.Musique(Ambiance.QUESTION, Tempo.TRANSITION_MUSIQUE)
+                } else if (i.premiere || i.superFinale) {
                     o += Ordre.Jouer(Son.MANCHE)
                     o += Ordre.Jouer(Son.IMPACT)
                     o += Ordre.Musique(Ambiance.SILENCE)
@@ -100,13 +122,18 @@ class DirecteurSonore {
                 o += Ordre.Jouer(Son.MIME_FIN)
                 o += Ordre.Musique(Ambiance.SILENCE)
                 if (p.trouves > 0) o += Ordre.Jouer(Son.APPLAUDISSEMENTS, Tempo.MIME_BILAN)
-                o += Ordre.Musique(Ambiance.SALON, Tempo.MIME_BILAN_MUSIQUE)
+                o += Ordre.Musique(Ambiance.MIMES_ENTRE, Tempo.MIME_BILAN_MUSIQUE)
+            } else if (nouvelleEpreuve) {
+                // On arrive d'un autre jeu : jingle de transition, puis la musique des mimes.
+                o += Ordre.Jouer(Son.TRANSITION)
+                o += Ordre.Musique(Ambiance.SILENCE)
+                o += Ordre.Musique(Ambiance.MIMES_ENTRE, Tempo.TRANSITION_MUSIQUE)
             } else {
                 // Ouverture de la manche.
                 o += Ordre.Jouer(Son.MANCHE)
                 o += Ordre.Jouer(Son.IMPACT)
                 o += Ordre.Musique(Ambiance.SILENCE)
-                o += Ordre.Musique(Ambiance.SALON, Tempo.QUESTION_MUSIQUE_APRES_MANCHE)
+                o += Ordre.Musique(Ambiance.MIMES_ENTRE, Tempo.QUESTION_MUSIQUE_APRES_MANCHE)
             }
             Ecran.MIMES_TOUR -> {
                 o += Ordre.Jouer(Son.MIME_TOP)
@@ -189,7 +216,7 @@ class DirecteurSonore {
         Ecran.HORS_PARTIE -> Ambiance.SILENCE
         Ecran.SALON -> Ambiance.SALON
         Ecran.QUESTION -> Ambiance.QUESTION
-        Ecran.MIMES -> Ambiance.SALON
+        Ecran.MIMES -> Ambiance.MIMES_ENTRE
         Ecran.MIMES_TOUR -> Ambiance.MIMES
         Ecran.VERROUILLEE -> Ambiance.SUSPENSE
         Ecran.REVELATION, Ecran.CLASSEMENT, Ecran.FIN -> Ambiance.FETE
@@ -220,26 +247,40 @@ data class Instant(
     /** Mimes trouvés et passés pendant le tour en cours. */
     val trouves: Int = 0,
     val passes: Int = 0,
+    /** Jeu en cours (« quiz|Manche 1 », « mimes|… ») ; vide hors des questions. */
+    val epreuve: String = "",
 )
 
 /** [MIMES] : manche de mimes entre deux tours ; [MIMES_TOUR] : une équipe mime. */
 enum class Ecran { HORS_PARTIE, SALON, QUESTION, MIMES, MIMES_TOUR, VERROUILLEE, REVELATION, CLASSEMENT, FIN }
 
-/** Fond musical : deux boucles jouées ensemble (complète et légère), dosées selon l'ambiance. */
-enum class Ambiance(val complete: Float, val legere: Float) {
-    SILENCE(0f, 0f),
-    SALON(0.55f, 0f),
-    QUESTION(0f, 0.6f),
-    SUSPENSE(0f, 0.25f),
-    FETE(0.8f, 0f),
-    /** Tour de mimes : la rythmique entraîne sans couvrir les cris de ceux qui devinent. */
-    MIMES(0.45f, 0f),
-    INTERMEDE(0f, 0.35f);
+/** Les boucles musicales de 16 s (8 mesures à 120 BPM), toujours calées sur le même tempo. */
+enum class Lit(val fichier: String) {
+    COMPLET("lmp_bed_full"),
+    LEGER("lmp_bed_light"),
+    MIMES("lmp_bed_mimes"),
+    PAUSE("lmp_bed_pause"),
+}
 
-    companion object {
-        /** Les deux boucles de 16 s (8 mesures), à lancer ensemble pour qu'elles restent calées. */
-        const val LIT_COMPLET = "lmp_bed_full"
-        const val LIT_LEGER = "lmp_bed_light"
+/** Fond musical : le volume de chaque boucle selon l'ambiance (fondu enchaîné de l'une à l'autre). */
+enum class Ambiance(private val complete: Float = 0f, private val legere: Float = 0f, private val mimes: Float = 0f, private val pause: Float = 0f) {
+    SILENCE,
+    SALON(complete = 0.55f),
+    QUESTION(legere = 0.6f),
+    SUSPENSE(legere = 0.25f),
+    FETE(complete = 0.8f),
+    /** Tour de mimes : rythmique latine qui entraîne, sans couvrir les cris de ceux qui devinent. */
+    MIMES(mimes = 0.6f),
+    /** Entre deux tours de mimes : la même musique, plus bas, pendant qu'on choisit l'équipe suivante. */
+    MIMES_ENTRE(mimes = 0.35f),
+    /** Pause : musique lounge feutrée, qui tient aussi longtemps qu'il faut. */
+    INTERMEDE(pause = 0.5f);
+
+    fun volume(l: Lit) = when (l) {
+        Lit.COMPLET -> complete
+        Lit.LEGER -> legere
+        Lit.MIMES -> mimes
+        Lit.PAUSE -> pause
     }
 }
 
@@ -271,6 +312,8 @@ enum class Son(val fichier: String, val long: Boolean = false) {
     MIME_PASSE("lmp_mime_pass"),
     MIME_TENSION("lmp_mime_tension", true),
     MIME_FIN("lmp_mime_time_up", true),
+    PAUSE("lmp_pause_in", true),
+    TRANSITION("lmp_transition", true),
     EQUIPE_1("lmp_team_sting_1"), EQUIPE_2("lmp_team_sting_2"), EQUIPE_3("lmp_team_sting_3"), EQUIPE_4("lmp_team_sting_4");
 
     companion object {
@@ -319,6 +362,12 @@ object Tempo {
     const val MIME_TOP_IMPACT = 500L
     const val MIME_BILAN = 1_000L
     const val MIME_BILAN_MUSIQUE = 2_500L
+    /** Jingle de changement de jeu : le logo aux cuivres tombe à 750 ms, l'animation y pose le nom du jeu. */
+    const val TRANSITION_IMPACT = 750L
+    const val TRANSITION_MUSIQUE = 2_000L
+    /** Durée du rideau plein écran qui annonce un nouveau jeu (assez court pour ne pas retarder la fête). */
+    const val TRANSITION_RIDEAU = 2_600L
+    const val PAUSE_MUSIQUE = 1_500L
 
     fun propositionApparait(k: Int) = PROPOSITIONS_DEBUT + k * PROPOSITIONS_PAS
     fun mauvaiseSEteint(k: Int) = REVELATION_ETEINT + k * REVELATION_ETEINT_PAS

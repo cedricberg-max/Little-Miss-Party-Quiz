@@ -277,8 +277,8 @@ fun Couronne(visible: Boolean, modifier: Modifier = Modifier) {
     Canvas(
         modifier.graphicsLayer {
             alpha = v.value.coerceIn(0f, 1f)
-            translationY = (1f - v.value) * -40f
-            rotationZ = -12f
+            translationY = (1f - v.value) * -24f
+            rotationZ = -10f
         },
     ) {
         val w = size.width
@@ -293,7 +293,7 @@ fun Couronne(visible: Boolean, modifier: Modifier = Modifier) {
             lineTo(w, h)
             close()
         }
-        drawCircle(Brush.radialGradient(listOf(Neon.Or.copy(alpha = 0.55f), Color.Transparent), Offset(w / 2, h / 2), w), w, Offset(w / 2, h / 2))
+        drawCircle(Brush.radialGradient(listOf(Neon.Or.copy(alpha = 0.5f), Color.Transparent), Offset(w / 2, h / 2), w * 0.6f), w * 0.6f, Offset(w / 2, h / 2))
         drawPath(p, Brush.verticalGradient(listOf(Neon.OrClair, Neon.OrProfond)))
     }
 }

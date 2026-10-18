@@ -95,11 +95,13 @@ class DirecteurSonoreTest {
     }
 
     @Test
-    fun `la pause coupe tout, reste muette, puis la reprise compte 3 2 1`() {
+    fun `la pause coupe tout, carillon puis musique d'intermede, et la reprise compte 3 2 1`() {
         val d = DirecteurSonore()
         d.observer(q2.copy(urgent = true))
         val pause = d.observer(q2.copy(enPause = true))
-        assertEquals(listOf(Ordre.Couper, Ordre.Musique(Ambiance.INTERMEDE)), pause)
+        assertEquals(Ordre.Couper, pause.first())
+        assertEquals(listOf(Son.PAUSE), pause.sons())
+        assertEquals(Ordre.Musique(Ambiance.INTERMEDE, Tempo.PAUSE_MUSIQUE), pause.last())
         // Une réponse ou une équipe pendant la pause ne fait aucun bruit.
         assertTrue(d.observer(q2.copy(enPause = true, reponses = 1, equipes = 3)).isEmpty())
         val reprise = d.observer(q2.copy(reponses = 1, equipes = 3, repriseDansMs = 3_000))
@@ -107,7 +109,14 @@ class DirecteurSonoreTest {
         assertEquals(listOf(0L, 1_000L, 2_000L), pops.map { it.dansMs })
         assertTrue(Ordre.Jouer(Son.WHOOSH, 3_000) in reprise)
         assertEquals(Ordre.Musique(Ambiance.QUESTION, 3_000), reprise.last())
-        assertFalse(Ordre.Couper in reprise)
+        // Un seul Couper, en tête : il fait taire le carillon et annule la musique d'intermède encore prévue.
+        assertEquals(Ordre.Couper, reprise.first())
+        assertEquals(1, reprise.count { it == Ordre.Couper })
+    }
+
+    @Test
+    fun `une box qui se reconnecte pendant la pause remet la musique d'intermede, sans carillon`() {
+        assertEquals(listOf(Ordre.Musique(Ambiance.INTERMEDE)), DirecteurSonore().observer(q2.copy(enPause = true)))
     }
 
     @Test
@@ -176,7 +185,7 @@ class DirecteurSonoreTest {
         d.observer(q2)
         val ouverture = d.observer(mimes)
         assertEquals(listOf(Son.MANCHE, Son.IMPACT), ouverture.sons())
-        assertEquals(Ambiance.SALON, ouverture.musique())
+        assertEquals(Ambiance.MIMES_ENTRE, ouverture.musique())
         val top = d.observer(tour)
         assertEquals(listOf(Son.MIME_TOP), top.sons())
         assertEquals(Ordre.Musique(Ambiance.MIMES, Tempo.MIME_TOP_IMPACT), top.filterIsInstance<Ordre.Musique>().last())
@@ -207,17 +216,65 @@ class DirecteurSonoreTest {
         d.observer(tour)
         val rate = d.observer(mimes)
         assertEquals(listOf(Son.MIME_FIN), rate.sons())
-        assertEquals(Ambiance.SALON, rate.musique())
+        assertEquals(Ambiance.MIMES_ENTRE, rate.musique())
     }
 
     @Test
     fun `pause pendant un tour de mimes puis reprise sur la musique du tour`() {
         val d = DirecteurSonore()
         d.observer(tour.copy(trouves = 1))
-        assertTrue(d.observer(tour.copy(trouves = 1, enPause = true)).sons().isEmpty())
+        assertEquals(listOf(Son.PAUSE), d.observer(tour.copy(trouves = 1, enPause = true)).sons())
         val reprise = d.observer(tour.copy(trouves = 1, repriseDansMs = 3_000))
         assertFalse(Son.MIME_TROUVE in reprise.sons())
         assertEquals(Ordre.Musique(Ambiance.MIMES, 3_000), reprise.filterIsInstance<Ordre.Musique>().last())
+    }
+
+    private val quizM1 = q1.copy(epreuve = "quiz|Manche 1")
+    private val mimesM = mimes.copy(epreuve = "mimes|Les mimes")
+
+    @Test
+    fun `passage du quiz aux mimes annonce par le jingle de transition, une seule fois`() {
+        val d = DirecteurSonore()
+        d.observer(salon)
+        // La première question du premier jeu garde son annonce habituelle.
+        assertEquals(listOf(Son.MANCHE, Son.IMPACT), d.observer(quizM1).sons().take(2))
+        d.observer(quizM1.copy(index = 1, premiere = false))
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 1, equipes = 2))
+        val arrivee = d.observer(mimesM.copy(index = 2))
+        assertEquals(listOf(Son.TRANSITION), arrivee.sons())
+        assertFalse(Son.MANCHE in arrivee.sons())
+        assertEquals(Ordre.Musique(Ambiance.MIMES_ENTRE, Tempo.TRANSITION_MUSIQUE), arrivee.last())
+        // Les tours de mimes qui suivent sont dans la même épreuve : pas de nouvelle transition.
+        assertEquals(listOf(Son.MIME_TOP), d.observer(tour.copy(index = 2, epreuve = mimesM.epreuve)).sons())
+        assertFalse(Son.TRANSITION in d.observer(mimesM.copy(index = 2)).sons())
+    }
+
+    @Test
+    fun `nouvelle manche de quiz annoncee par la transition, puis musique de question`() {
+        val d = DirecteurSonore()
+        d.observer(quizM1.copy(index = 4, premiere = false))
+        val m2 = d.observer(quizM1.copy(index = 5, premiere = false, epreuve = "quiz|Manche 2"))
+        assertEquals(Son.TRANSITION, m2.sons().first())
+        assertEquals(Ambiance.QUESTION, m2.musique())
+        assertFalse(Son.TRANSITION in d.observer(quizM1.copy(index = 6, premiere = false, epreuve = "quiz|Manche 2")).sons())
+    }
+
+    @Test
+    fun `une box qui se reconnecte en plein jeu ne rejoue pas la transition`() {
+        val d = DirecteurSonore()
+        assertTrue(d.observer(mimesM).sons().isEmpty())
+        assertFalse(Son.TRANSITION in d.observer(tour.copy(epreuve = mimesM.epreuve)).sons())
+    }
+
+    @Test
+    fun `jeu change pendant la pause, la transition part apres le decompte`() {
+        val d = DirecteurSonore()
+        d.observer(quizM1.copy(index = 1, premiere = false))
+        d.observer(quizM1.copy(index = 1, premiere = false, enPause = true))
+        assertTrue(d.observer(mimesM.copy(index = 2, enPause = true)).isEmpty())
+        val reprise = d.observer(mimesM.copy(index = 2, repriseDansMs = 3_000))
+        assertTrue(Ordre.Jouer(Son.TRANSITION, 3_000) in reprise)
+        assertFalse(Son.MANCHE in reprise.sons())
     }
 
     @Test
@@ -228,7 +285,7 @@ class DirecteurSonoreTest {
     @Test
     fun `chaque son existe dans les ressources de l'appli`() {
         // Les tests JVM d'Android tournent depuis le dossier du module tv/.
-        val manquants = (Son.entries.map { it.fichier } + Ambiance.LIT_COMPLET + Ambiance.LIT_LEGER).filterNot { java.io.File("src/main/res/raw/$it.ogg").isFile }
+        val manquants = (Son.entries.map { it.fichier } + Lit.entries.map { it.fichier }).filterNot { java.io.File("src/main/res/raw/$it.ogg").isFile }
         assertTrue("Sons manquants : $manquants", manquants.isEmpty())
     }
 }

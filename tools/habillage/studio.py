@@ -677,6 +677,106 @@ def mime_time_up():
     mx.add('fx', sub_boom(.7), 1.5)
     return mx.render(duck=0)
 
+def mimes_groove(mx, bar0, bars):
+    """Rythmique latino-funk des mimes : clave, agogo, basse slap, riff de marimba, cuivres en contretemps."""
+    prog = ['C', 'Am', 'F', 'G']
+    for bi in range(bars):
+        notes, root = CH[prog[bi % 4]]
+        b0 = (bar0 + bi) * 4
+        for o in (0, 1.75, 2):
+            mx.add('kick', kick(.95 if o != 1.75 else .6), b0 + o)
+        for q in (1, 3):
+            mx.add('drums', clap(.7), b0 + q)
+        for s in range(16):
+            mx.add('drums', shaker(.26 if s % 2 else .16), b0 + s * .25)
+        mx.add('drums', hat(.35, open_=True), b0 + 3.5)
+        # clave 3-2 sur deux mesures
+        for o in ((0, 1.5, 3) if bi % 2 == 0 else (1, 2)):
+            mx.add('drums', note('woodblock', 84, .08, .5), b0 + o)
+        for o, m in ((0, 79), (.5, 74), (1.5, 79), (2, 74), (2.75, 79), (3.5, 74)):
+            mx.add('drums', pan(note('agogo', m, .12, .32), .4), b0 + o)
+        for o, iv in ((0, 0), (.75, 12), (1.5, 0), (2, 7), (2.5, 12), (3.25, 10 if prog[bi % 4] == 'G' else 12), (3.5, 7)):
+            mx.add('bass', note('slap_bass_1', root + iv, B * .3, .9, release=.05), b0 + o)
+        arp = [notes[1] + 12, notes[3] + 12, notes[2] + 12, notes[1] + 24]
+        for k, o in enumerate((0, .75, 1.5, 2, 2.5, 3.25)):
+            mx.add('keys', pan(note('marimba', arp[k % 4], B * .3, .5, release=.2), -.35), b0 + o)
+        for o in (1.5, 3.5):
+            mx.add('brass', chord('brass_section', [m + 12 for m in notes[1:]], B * .25, .45, release=.1), b0 + o)
+
+def bed_mimes():
+    mx = Mix(32 * 3, tail=.5)
+    mimes_groove(mx, 0, 24)
+    hook_a = [(76, 0, .5), (79, .5, .5), (81, 1, .75), (79, 1.75, .25), (76, 2, 1), (74, 3, .5), (72, 3.5, .5),
+              (74, 4, .5), (76, 4.5, .5), (74, 5, .5), (72, 5.5, .5), (69, 6, 1.5)]
+    hook_b = [(76, 0, .5), (79, .5, .5), (81, 1, .5), (84, 1.5, 1), (83, 2.5, .5), (81, 3, .5), (79, 3.5, .5),
+              (77, 4, .5), (76, 4.5, .5), (74, 5, .5), (71, 5.5, .5), (74, 6, .5), (71, 6.5, 1.5)]
+    for rep in range(3):
+        base = rep * 32 + 16
+        for hook, off in ((hook_a, 0), (hook_b, 8)):
+            for m, o, d in hook:
+                mx.add('brass', note('muted_trumpet', m, d * B, .55, release=.15), base + off + o)
+                mx.add('bells', note('xylophone', m + 12, .12, .18, release=.3), base + off + o)
+    y = mx.render(duck=.3)
+    n = int(32 * B * SR)
+    return y[n:2 * n]
+
+def bed_pause():
+    """Pause : lounge feutré, piano électrique, balais, boîte à musique ; tient sans lasser."""
+    mx = Mix(32 * 3, tail=.5)
+    prog = ['F', 'Em', 'Dm', 'C', 'F', 'Em', 'Dm', 'G']
+    for bi in range(24):
+        notes, root = CH[prog[bi % 8]]
+        b0 = bi * 4
+        mx.add('kick', kick(.45), b0)
+        mx.add('kick', kick(.3), b0 + 2.5)
+        mx.add('drums', snare(.14, tight=True), b0 + 2)
+        for s in range(8):
+            mx.add('drums', shaker(.10 if s % 2 else .06), b0 + s * .5)
+        mx.add('drums', hat(.12), b0 + 1.5); mx.add('drums', hat(.12), b0 + 3.5)
+        for o, iv, d in ((0, 0, 1.4), (1.5, 7, .4), (2, 12, 1.4), (3.5, 7, .4)):
+            mx.add('bass', note('electric_bass_finger', root + iv, B * d, .6, release=.1), b0 + o)
+        mx.add('keys', chord('electric_piano_1', notes, B * 1.4, .55, release=.4), b0)
+        mx.add('keys', chord('electric_piano_1', notes, B * .9, .4, release=.4), b0 + 2.5)
+        mx.add('strings', chord('pad_2_warm', [m + 12 for m in notes], 4 * B - .05, .22, attack=.3, release=.5), b0)
+    motif = [(72, 0, 1), (76, 1, .5), (79, 1.5, .5), (77, 2, 1), (76, 3, 1), (74, 4, 2), (72, 6, 2)]
+    for rep in range(3):
+        for half in (0, 16):
+            for m, o, d in motif:
+                mx.add('bells', note('music_box', m + 12, d * B, .38, release=1.0), rep * 32 + half + o + (8 if half else 0))
+        for k, m in enumerate([84, 88, 91, 96]):
+            mx.add('bells', note('celesta', m, .2, .16, release=1.2), rep * 32 + 14 + k * .25)
+    y = mx.render(duck=.15, verb=1.3)
+    n = int(32 * B * SR)
+    return y[n:2 * n]
+
+def pause_in():
+    """Entrée en pause : glissando de harpe, accord feutré, étincelles de boîte à musique."""
+    mx = Mix(4, tail=3)
+    for k, m in enumerate([89, 86, 84, 81, 79, 77, 74, 72, 69, 67, 65, 62, 60]):
+        mx.add('strings', note('orchestral_harp', m, .3, .5, release=.6), k * .06)
+    mx.add('keys', chord('electric_piano_1', [53, 57, 60, 64], 2 * B, .7, release=1.2), .9)
+    mx.add('strings', chord('pad_2_warm', [65, 69, 72, 76], 2.5 * B, .35, attack=.2, release=1.2), .9)
+    for k, m in enumerate([84, 88, 91, 89]):
+        mx.add('bells', note('music_box', m, .3, .5, release=1.2), 1.4 + k * .25)
+    return mx.render(duck=0, verb=1.2)
+
+def transition():
+    """Changement de jeu : roulement qui monte, logo aux cuivres, grand impact."""
+    mx = Mix(5, tail=3)
+    for k in range(8):
+        mx.add('drums', snare(.35 + .08 * k), k * .125)
+    mx.add('fx', noise_riser(1 * B, .4, 600, 9000), 0)
+    mx.add('fx', reverse_swell(1 * B, .5), 0)
+    logo_phrase(mx, 1, (('brass', 'brass_section', 0, 1.0), ('brass', 'trumpet', 12, .5), ('bells', 'glockenspiel', 24, .55)), slow=.5)
+    mx.add('kick', kick(1.0), 1)
+    mx.add('fx', sub_boom(.9), 1.5); mx.add('fx', crash(.9, 3), 1.5)
+    mx.add('drums', note('timpani', 36, 1.2, .9), 1.5)
+    mx.add('strings', chord('string_ensemble_1', [48, 60, 64, 67, 76], 2 * B, .7, attack=.03, release=1), 1.5)
+    mx.add('bass', note('electric_bass_finger', 36, 2 * B, .9, release=.6), 1.5)
+    for k, m in enumerate([84, 88, 91, 96]):
+        mx.add('bells', note('glockenspiel', m + 12, .2, .35, release=1), 2 + k * .125)
+    return mx.render(duck=0)
+
 PIECES = {
     'generique': (generique, -14.5), 'bed_full': (lambda: bed('full'), -15.5), 'bed_light': (lambda: bed('light'), -18.5),
     'tension': (tension, -16), 'riser_4b': (riser_4b, -17), 'impact': (impact, -15), 'round_sting': (round_sting, -15),
@@ -687,11 +787,12 @@ PIECES = {
     'end_jingle': (end_jingle, -17),
     'mime_go': (mime_go, -15), 'mime_found': (mime_found, -18), 'mime_pass': (mime_pass, -21),
     'mime_time_up': (mime_time_up, -15), 'mime_tension': (lambda: tension(20), -16),
+    'bed_mimes': (bed_mimes, -16.5), 'bed_pause': (bed_pause, -19), 'pause_in': (pause_in, -18), 'transition': (transition, -15),
 }
 for i in range(4):
     PIECES[f'pop_{i + 1}'] = ((lambda i=i: pop(i)), -22)
     PIECES[f'team_sting_{i + 1}'] = ((lambda i=i: team_sting(i)), -17)
-LOOPS = {'bed_full': 32, 'bed_light': 32}
+LOOPS = {'bed_full': 32, 'bed_light': 32, 'bed_mimes': 32, 'bed_pause': 32}
 
 if __name__ == '__main__':
     only = sys.argv[2:] or list(PIECES)

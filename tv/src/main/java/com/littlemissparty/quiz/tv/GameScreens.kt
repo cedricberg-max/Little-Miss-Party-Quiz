@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -296,9 +295,10 @@ private fun Ranking(state: UiState.Playing, modifier: Modifier) {
                     .then(if (i == 0 && score > 0) Modifier.clip(RoundedCornerShape(24.dp)).background(Brush.horizontalGradient(listOf(Neon.Or.copy(alpha = 0.22f), Color.Transparent))) else Modifier),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(Modifier.width(44.dp)) {
+                // La couronne se pose à côté du rang, dans la ligne : rien ne dépasse du cadre, même en 1080p.
+                Row(Modifier.width(66.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("${i + 1}", color = if (i == 0) Palette.Gold else Palette.Ink, fontSize = 30.sp, fontWeight = FontWeight.Black)
-                    if (i == 0) Couronne(couronne && score > 0, Modifier.size(28.dp, 20.dp).offset(x = 14.dp, y = (-14).dp))
+                    if (i == 0) Couronne(couronne && score > 0, Modifier.padding(start = 6.dp).size(26.dp, 18.dp))
                 }
                 Box(Modifier.size(22.dp).clip(CircleShape).background(color))
                 Spacer(Modifier.width(12.dp))
