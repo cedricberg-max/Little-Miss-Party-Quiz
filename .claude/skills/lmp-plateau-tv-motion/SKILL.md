@@ -26,16 +26,42 @@ Pour un audit de performance approfondi, utiliser aussi le skill officiel Google
 - Pas de SDK Android dans le conteneur : les vérifications visuelles passent par les APK de GitHub
   Actions et les tests de captures en CI.
 
-## 2. Univers « Néon chic » (direction fluo, palette en cours de validation)
+## 2. Univers « Néon chic », version 2 (validée le 18/10/2026)
 
 Plateau de jeu télévisé moderne, ambiance soirée fluo et lumière noire : fond très sombre, halos néon,
 couleurs fluorescentes des équipes. Le logo Little Miss Party (néon blanc rosé + « PARTY » doré) donne
-la touche élégante ; les équipes apportent le fluo.
+la touche élégante ; les équipes apportent le fluo. La version 2 ajoute de la profondeur, du rythme et
+de la surprise sans toucher à la lisibilité.
 
-**Statut** : les valeurs ci-dessous sont des **propositions** issues de l'analyse du logo et des
-accessoires (18/10/2026). Tant que cedric ne les a pas validées, ne pas les figer dans le code ailleurs
-que dans les jetons centralisés (`ui/Theme.kt` côté TV, variables CSS `:root` côté web). Une fois
-validées, remplacer ce paragraphe par « Palette validée le … ».
+**Statut** : direction artistique V2 validée par cedric le 18/10/2026. Maquettes de référence (V2 à
+gauche, V1 à droite) : https://claude.ai/artifact/EssiViu72HPNfRpnVcsEE7 . Les 4 couleurs d'équipe et
+les emblèmes sont validés **à titre provisoire** : cedric les compare encore aux bracelets réels. Les
+valeurs ne vivent donc qu'à un seul endroit par plateforme (`ui/Theme.kt` côté TV, variables CSS
+`:root` côté web) pour pouvoir être ajustées sans toucher aux écrans.
+
+### Décor en 3 plans (V2)
+
+1. **Fond** : dégradé profond (`#24093F` → `#130726` → `NightDeep`), halos diffus rose halo, or et
+   violet `#6E28BE` à faible opacité, texture de points (1 px tous les 24 px, blanc à 4 à 7 %), sol de
+   plateau en perspective sur les écrans d'accueil. Tout ce plan est **une seule image WebP précalculée**
+   par écran-type (environ 150 Ko), jamais dessinée image par image.
+2. **Arcs et cercles de plateau** : grands arcs néon partiels, cercles en pointillés, faisceaux de
+   projecteurs. Images ou traits statiques ; animation permise : respiration lente (`alpha`, 6 s) ou
+   rotation très lente des rayons.
+3. **Éclats** : étincelles à 4 branches (10 à 14 sprites maximum, chacune scintille en `alpha` à son
+   rythme), confettis en tirets, petits gribouillis néon (zigzag, vague, flèche en pointillés) sur les
+   bords, emblèmes en « stickers » ronds légèrement inclinés (± 6 à 12°).
+
+- Couleurs du décor : rose halo `#F888B3`, or et blanc néon uniquement. **Les couleurs fluo n'entrent
+  dans le décor que pour fêter une équipe** (accueil avec toutes les équipes, buzz, révélation,
+  victoire).
+- **Pendant une question**, le décor tombe à environ 40 % ; les étincelles restent sur les bords, jamais
+  derrière le texte ; la question est posée sur un panneau sombre (`NightDeep` à 55 %).
+- Effets ludiques permis : texte en double néon (contour décalé, `TextStyle(drawStyle = Stroke(...))`
+  sous le texte plein), pastilles dorées inclinées, chiffres géants en contour. Rien d'enfantin ni de
+  dessin animé : pas de mascotte, pas de bulles, pas de couleurs pastel.
+- **Mode sobre** automatique : si la box rate des images (frame time > 20 ms sur 2 s), couper le plan 3
+  et les rotations, garder fond et contenu.
 
 ### Règle d'or : la couleur dit QUI, la forme dit QUOI
 
@@ -58,7 +84,7 @@ validées, remplacer ce paragraphe par « Palette validée le … ».
 | `Gold` | `#F0CC92` (dégradé `#E0B577` → `#F6DAAA`) | titres, cadres, bonne réponse, victoire |
 | `Muted` | blanc à 35 % | mauvaise réponse, éléments inactifs |
 
-### Couleurs d'équipe (proposition)
+### Couleurs d'équipe (validées à titre provisoire)
 
 | Équipe | Accessoire (photo) | Valeur écran proposée | Emblème |
 | --- | --- | --- | --- |
@@ -104,7 +130,8 @@ Chaque jeu a son pictogramme et sa couleur d'accent, mais garde ce gabarit.
 
 ## 3. Règles de mouvement
 
-1. **Une seule animation « héros » à la fois.** Pendant une question, seul le chrono bouge.
+1. **Une seule animation « héros » à la fois.** Pendant une question, seul le chrono bouge (plus le
+   scintillement lent des étincelles des bords, décor à 40 %).
 2. Durées :
 
 | Élément | Durée | Courbe |
@@ -126,6 +153,22 @@ Chaque jeu a son pictogramme et sa couleur d'accent, mais garde ce gabarit.
    s'affiche. La reprise reprend l'animation au même point.
 6. Résultats finaux : barres qui montent ensemble, la première s'arrête, pause 1 s, confettis et nom du
    vainqueur, puis trophées secondaires.
+
+### Temps forts de la V2
+
+| Moment | Durée | Séquence | Technique Mi Box |
+| --- | --- | --- | --- |
+| Introduction de manche | ≈ 3 s, passable | riser → chiffre géant en contour qui claque avec rebond → rayons qui tournent lentement → bandeau du thème en biais (−5°) qui glisse → règles en pastilles → emblèmes des équipes qui s'allument un par un, « Tout le monde est prêt ? » | rayons = une image tournée en `graphicsLayer { rotationZ }` ; chiffre en `scale` ressort |
+| Buzz | < 1,2 s | son + flash **dès la réception** → onde de choc (3 anneaux `scale` + `alpha`) → rayons couleur d'équipe → emblème géant qui tombe en tournant → confettis de l'équipe → nom en double néon ; autres équipes en « bloqués » | anneaux et rayons = images teintées ; confettis ≤ 60 rectangles dans un seul `Canvas` |
+| Révélation | ≈ 3 s | verrouillage + roulement (1 000 ms) → le projecteur hésite sur les propositions → les fausses s'éteignent une à une → la bonne en or avec éclat de rayons dorés et étiquette « BONNE RÉPONSE » → emblèmes des équipes gagnantes « tamponnés » sur la carte → +points qui montent au-dessus des scores → compteurs | faisceau = image en dégradé déplacée en `translationX` |
+| Victoire | ≈ 8 s | riser → podiums qui montent de la 4e à la 1re → couronne qui tombe sur le gagnant → explosion de confettis or + couleurs d'équipe → faisceaux qui balayent → fanfare → un prix en sticker pour chaque équipe | confettis ≤ 120 dans un seul `Canvas` ou Lottie < 150 Ko |
+
+**Révélation du blind test** : même tension que la révélation QCM, puis la pochette (carré de 360 dp,
+cadre or) apparaît en grand avec le titre et l'artiste en double néon ; l'emblème de l'équipe qui a
+trouvé se tamponne sur la pochette. Pochette absente : grand disque vinyle néon à la place.
+
+La logique du buzzer (horodatage, départage, verrou) ne dépend **jamais** d'une animation : l'écran
+réagit à l'état, il ne le produit pas.
 
 ## 4. Animations Compose : consignes de code
 
@@ -162,13 +205,39 @@ Chaque jeu a son pictogramme et sa couleur d'accent, mais garde ce gabarit.
   fournit les fichiers.
 - Jamais d'animation téléchargée pendant une partie.
 
-## 6. Son
+## 6. Son (validé le 18/10/2026)
 
-- Effets courts (buzz, clac, victoire, tic-tac) : `SoundPool`, préchargés au démarrage de la partie.
-  Le `ToneGenerator` actuel de `GameViewModel.kt` est provisoire.
-- Musiques et extraits du blind test : lecteur média (Media3/ExoPlayer) sur fichiers locaux en cache.
-- Un son de buzzer **propre à chaque équipe**. Tapis musical bas pendant la réflexion. Volume général
-  réglable depuis la régie. Pas plus d'un son « événement » à la fois.
+Deux sound designs distincts : **la box fait le spectacle, les pupitres font le retour personnel.** Le
+son de la TV couvre la salle ; celui des tablettes est faible et ne doit jamais le doubler.
+
+### Box (TV)
+
+| Moment | Sons |
+| --- | --- |
+| Accueil | boucle d'ambiance douce ; « ding » brillant à chaque équipe connectée |
+| Introduction de manche | riser 1,5 s → boom sur le chiffre → woosh sur le bandeau → jingle propre au type de manche (quiz, blind test, mini-jeu) |
+| Question | « pop » à l'apparition ; silence pendant la lecture ; tic-tac léger sur les 5 dernières secondes seulement |
+| Buzz | impact franc + éclat brillant, joué dès réception ; la musique du blind test baisse automatiquement (ducking) puis se coupe |
+| Révélation | roulement de tambour → « tchic » par fausse proposition éteinte → carillon doré sur la bonne → « blings » pendant le défilement des points |
+| Mauvaise réponse | « bloop » gentil, jamais de buzzer humiliant |
+| Victoire | riser → fanfare → explosion des confettis → applaudissements |
+
+- Effets courts : `SoundPool`, **tous préchargés au démarrage** (une vingtaine de sons OGG, 2 Mo au
+  total au plus). Le `ToneGenerator` actuel de `GameViewModel.kt` est provisoire.
+- Musiques et extraits du blind test : Media3/ExoPlayer sur fichiers locaux en cache.
+- Au plus **2 sons simultanés** (un événement + une ambiance). Pas de boom très grave ni très fort
+  (public de 6 à 8 ans). Volume des effets et de la musique réglables séparément depuis la régie.
+- Sources : bruitages libres de droits à usage commercial (licence vérifiée et notée à côté de chaque
+  fichier). Aucun service payant sans accord de cedric. Les extraits musicaux relèvent d'une décision
+  de droits à part (voir le skill `lmp-firebase-rtdb-fiabilite`, médias).
+
+### Pupitres (téléphones et tablettes Android)
+
+- Seulement des retours courts et aigus (ils percent mieux sur un petit haut-parleur) : « tic » au
+  toucher, « c'est enregistré » à la confirmation, « buzz reçu » ou « trop tard » doux.
+- **Jamais** le chrono, les jingles ni les sons de la TV : le décalage entre appareils créerait un écho.
+- Le vrai retour est **visuel** : flash plein écran dans la couleur de l'équipe. Le son est un bonus ;
+  bouton muet par pupitre. Le son est débloqué par le premier toucher (« Rejoindre »).
 
 ## 7. Télécommande (secours)
 
@@ -183,8 +252,13 @@ dialogue de confirmation existant (`QuitDialog`).
 - **Un seul geste attendu à la fois**, boutons d'au moins 120 px de côté, formes A à D identiques à la
   TV, en blanc sur fond sombre ; la couleur de l'équipe reste en fond et en bordure. Pour les `PETITS`,
   pas de texte sur les boutons.
-- Retour en moins de 100 ms après un toucher (état local immédiat, vibration, son), puis confirmation
+- Retour en moins de 100 ms après un toucher (état local immédiat, flash, son court), puis confirmation
   « Réponse enregistrée » quand le serveur a accepté.
+- **Vibration = bonus uniquement.** Beaucoup de tablettes Android bon marché n'ont pas de vibreur et
+  `navigator.vibrate()` renvoie `true` même sans moteur : impossible à détecter. Jamais la vibration
+  comme seul signal. Écran d'arrivée : bouton « Tester son et vibration » pour vérifier chaque appareil.
+- Appareils visés : Android 10 ou plus récent (Chrome à jour), 2 Go de RAM, écran 8 pouces conseillé.
+  Le point faible des tablettes bon marché est le Wi-Fi : le tester avant chaque achat groupé.
 - Entre deux questions : « Regardez la TV ! ».
 - Garder les acquis : déblocage du son au premier toucher, plein écran, `wakeLock`. Respecter
   `prefers-reduced-motion`.

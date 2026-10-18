@@ -1,6 +1,6 @@
 ---
 name: lmp-firebase-rtdb-fiabilite
-description: Architecture de données, règles de sécurité, synchronisation, reprise après crash, reconnexion, chrono serveur, buzz équitable et accès régie de Little Miss Party Quiz sur Firebase Realtime Database. À lire avant toute modification qui lit ou écrit dans Firebase, touche database.rules.json, l'état de partie, les scores, le chrono, le buzzer, les pupitres ou la régie.
+description: Architecture de données, règles de sécurité, synchronisation, reprise après crash, reconnexion, chrono serveur, buzz équitable, accès régie, rôles des appareils, médias Cloud Storage, cache local et coûts Blaze de Little Miss Party Quiz sur Firebase. À lire avant toute modification qui lit ou écrit dans Firebase, touche database.rules.json, storage.rules, les fonctions serveur, le cache de médias, l'état de partie, les scores, le chrono, le buzzer, les pupitres ou la régie.
 ---
 
 # Fiabilité Firebase Realtime Database : Little Miss Party Quiz
@@ -13,10 +13,18 @@ viennent de `lmp-game-design-enfants`, l'affichage de `lmp-plateau-tv-motion`.
 
 - Projet Firebase `little-miss-party-quiz`, Realtime Database **europe-west1**, authentification
   **anonyme** pour la TV, les pupitres et la régie.
-- **Décisions V1 (cedric, 18/10/2026)** : offre gratuite **Spark** (pas de Cloud Functions, pas de
-  Cloud Storage, pas de clé API Gemini ni Claude) ; médias intégrés à l'APK ; **8 équipes maximum** ;
-  régie appairée par QR + PIN vérifié par la box ; tout service payant exige l'accord explicite de
-  cedric. Feuille de route : https://claude.ai/code/artifact/c59cec39-7c64-4dd3-be46-c138e82011d0
+- **Décisions V1 (cedric, 18/10/2026)** : **8 équipes maximum** ; régie appairée par QR + PIN vérifié
+  par la box ; pas de clé API Gemini ni Claude. Feuille de route :
+  https://claude.ai/code/artifact/c59cec39-7c64-4dd3-be46-c138e82011d0
+- **Passage à Blaze validé dans son principe (cedric, 18/10/2026, 08 h 35)**, budget cible < 10 €/mois,
+  alertes à 3, 5 et 8 € qui ne coupent jamais une prestation. Architecture hybride : Realtime Database
+  pour le direct et la bibliothèque, **Cloud Storage** pour les médias, **cache local vérifié** sur la
+  box (copie de travail, jamais la seule sauvegarde), fonctions serveur pour les rôles et le transfert
+  de partie, n'importe quelle box Android TV autorisée. Document de référence (audit, coûts, règles,
+  migration) : https://claude.ai/code/artifact/06e9b5ed-d925-43cc-ba90-9a46905c0ea1 .
+  **La bascule Blaze est faite par cedric lui-même dans la console** : tant qu'elle n'est pas faite,
+  le projet reste sur Spark et rien de ce qui suit ne se déploie. Tout autre service payant (Gemini,
+  Play Console…) exige un nouvel accord explicite.
 - TV : `tv/src/main/java/com/littlemissparty/quiz/tv/GameViewModel.kt`
   - crée `games/$code` (code de 5 caractères sans ambiguïté, `CODE_CHARS`) avec `hostUid`, `createdAt`,
     `state {phase, buzzOpen, round}` ;
@@ -61,11 +69,17 @@ au `uid` de la box (perdue si les données de la box sont effacées) ; pas encor
 9. **Bonne réponse secrète** : le contenu du quiz (avec les bonnes réponses) n'est lisible que par la
    box appairée et l'admin. La bonne réponse n'est écrite dans la partie (`reveals/$qKey`) qu'au moment
    de la révélation.
-10. **Rien d'essentiel ne dépend du réseau pendant la partie** : quiz chargé avant le début, médias
-    dans l'APK.
-11. **Pas de nouvelle brique sans décision** : pas de Firestore, pas de Cloud Functions, pas de Cloud
-    Storage, pas de second transport réseau (mode local) en V1. Tout passage à Blaze ou à une API
-    payante demande l'accord explicite de cedric.
+10. **Rien d'essentiel ne dépend du réseau pendant la partie** : instantané de prestation et médias
+    téléchargés et vérifiés (SHA-256) dans le cache de la box **avant** le début ; extraits et images
+    lus uniquement depuis ce cache, jamais en streaming.
+11. **Pas de nouvelle brique sans décision** : briques validées = Realtime Database, Cloud Storage,
+    fonctions serveur (europe-west1, 2 instances au plus), sauvegardes quotidiennes. Toujours exclus en
+    V1 : Firestore, second transport réseau (mode local), toute API payante. Rien de payant ne se
+    déploie avant la bascule Blaze faite par cedric.
+12. **Aucune ressource publique** : ni `".read": true`, ni lien de téléchargement public
+    (`getDownloadUrl` interdit) ; médias lus par le SDK authentifié, rôle vérifié par les règles.
+13. **Médias immuables** : un fichier est nommé par son empreinte SHA-256 et n'est jamais remplacé ;
+    une correction est un nouveau fichier référencé par une nouvelle version de la fiche.
 
 ## 3. Modèle de données
 
@@ -92,19 +106,30 @@ reports/$id    { kind, text, version, device, at }  // plantages de la box : éc
   courant ou déjà vu (même `seq`) est ignoré, jamais une erreur.
 - Chrono : `open`/`pause`/`resume`/`close` forment des segments ; le bonus de rapidité se calcule sur
   le temps de chrono restant à l'heure serveur de la réponse, pauses exclues.
-- Le quiz (avec les bonnes réponses) est dans l'APK (`tv/src/main/assets/quizzes/`), jamais dans la base.
+- Aujourd'hui le quiz (avec les bonnes réponses) est dans l'APK (`tv/src/main/assets/quizzes/`). Cible :
+  instantané de prestation lu depuis `/library` puis mis en cache sur la box ; les assets ne gardent
+  qu'un quiz de démonstration.
 
 ### Prévu (lots 2 et 4), à figer dans la PR qui l'ajoute
 
 ```
 games/$code
+  public       { title, takenColors, phase }   // seul nœud lisible avant de rejoindre
   pairing/$uid { pin, at }      pairingLock { failures, until }      regie/$uid { pairedAt }
   commands/$cmdId { type, args, expectSeq, by, at }    commandStatus/$cmdId
   devices/$uid "<teamId>"       // réattribution d'un pupitre à une équipe par la régie
   buzz/$windowId/$teamId { pressedAt, receivedAt }
-quizzes/$quizId                 // quiz importés : lecture admin + box autorisée
-admins/$uid true
+library/                        // lecture : rôle box ou admin ; écriture : admin
+  quizzes/$quizId               // questions + bonnes réponses ; une question cite ses médias par id
+  media/$mediaId { path, sha256, size, type, title, artist, theme, ageMin, ageMax, difficulty,
+                   startMs, durationMs, coverId?,
+                   licence { source, kind, proof, usages, expiresAt } }   // licence obligatoire
+  shows/$showId  { title, date, quizIds, manifest/$mediaId { path, sha256, size } }  // instantané figé
+devices/$uid     { role, label, approvedBy, approvedAt, revokedAt? }   // écrit par les fonctions seules
+reportsQuota/$uid { lastAt }   // 1 rapport par minute
 ```
+
+Storage : `media/<sha256>.<ext>` (europe-west1), audio AAC 128 kb/s < 3 Mo, images WebP < 1 Mo.
 
 ## 4. Sécurité : règles et appairage de la régie
 
@@ -149,13 +174,49 @@ plusieurs lignes pour la lecture ; dans `database.rules.json`, chaque condition 
    encore appairés.
 5. Deux prestations simultanées = deux parties, deux box, deux PIN : rien n'est partagé.
 
-Autres règles :
+**Rôles (cible Blaze)** : portés par une revendication personnalisée `role` dans le jeton, posée
+**uniquement par les fonctions serveur** (Admin SDK) :
 
-- `quizzes` : lecture réservée aux admins et aux box autorisées (mécanisme d'autorisation de la box
-  défini avec le lot 2) ; écriture admin uniquement. Un pupitre ne lit jamais une bonne réponse avant `reveals`.
-- **Admin** : `root.child('admins').child(auth.uid).exists()` et
-  `auth.token.firebase.sign_in_provider === 'google.com'`.
+| Rôle | Qui | Obtention |
+| --- | --- | --- |
+| `admin` | Sarah, cedric (compte Google) | script d'administration lancé une fois avec le compte de service |
+| `box` | une box Android TV | la box affiche un code + QR ; un admin approuve dans la page d'administration → fonction `approveDevice` |
+| régie | téléphone de l'animatrice, une partie | appairage PIN ci-dessus (pas de rôle global) |
+| équipe | pupitre, une partie | `teams/$uid` ou `devices/$uid` de la partie |
+
+- Après approbation, la box force le rafraîchissement de son jeton (`getIdToken(true)`).
+- Révocation : la fonction retire le rôle, révoque les jetons et note `devices/$uid/revokedAt`. Les règles
+  RTDB vérifient aussi `revokedAt` (effet immédiat) ; Storage ne peut pas lire la RTDB, la révocation y
+  prend effet à l'expiration du jeton (1 h au plus).
+- **Transfert de partie** (box en panne) : fonction `transferHost`, réservée à `admin`, qui réécrit
+  `hostUid` vers la nouvelle box et ajoute un événement `host_transferred` au journal ; la nouvelle box
+  télécharge l'instantané et rejoue le journal.
+- `library` : lecture `auth.token.role in ['box','admin']` (en RTDB : `auth.token.role === 'box' ||
+  auth.token.role === 'admin'`) ; écriture `admin`. Un pupitre ne lit jamais une bonne réponse avant `reveals`.
+- `games/$code` : création réservée au rôle `box` ; lecture réservée à l'hôte, aux régies et aux équipes
+  inscrites ; `public` lisible par tout compte connecté.
+- Storage `media/` : lecture `box`/`admin`, création `admin` avec taille et type contrôlés, jamais de
+  modification ni de suppression par un client (nettoyage par script admin après vérification).
+- Migration sans casse : règles d'abord **compatibles** avec les box non autorisées, puis fermeture des
+  accès anonymes larges quand toutes les box sont à jour.
 - Jamais de `".read": true` ni de `".write": true`, jamais de sécurité qui repose sur un bouton caché.
+
+## 4 bis. Médias, cache et contrôle d'avant-prestation
+
+- **Téléchargement** : lire le manifeste de `library/shows/$showId`, ne télécharger que les fichiers
+  absents du cache, dans `filesDir/media/<sha256>.part`, vérifier l'empreinte, puis renommer. Reprise
+  fichier par fichier après coupure, réessais avec attente croissante.
+- **Place** : exiger au moins 2 fois la taille à télécharger (`StatFs`) avant de commencer.
+- **Lecture** : Media3/ExoPlayer et `SoundPool` sur fichiers locaux uniquement.
+- **Nettoyage** : fichiers non utilisés depuis 60 jours effacés de la box (le cloud garde tout).
+- **Licence** : refuser de télécharger un média dont `licence.expiresAt` est dépassée ; la page
+  d'administration refuse un média sans licence complète.
+- **Contrôle d'avant-prestation** (écran TV) : connexion + rôle `box` ; manifeste complet et empreintes
+  vérifiées ; espace libre ; son de test confirmé par l'animatrice ; pupitres et régie « présents » avec
+  latence ; aller-retour d'écriture et écart d'horloge. Verdict : Prêt / Prêt avec réserves / Pas prêt.
+- **Mode de secours sans Internet** : la box joue depuis le cache en mode télécommande, réponses sur
+  cartes A à D ou à voix haute, points saisis à la télécommande ; journal local renvoyé au retour du
+  réseau. Les pupitres ne fonctionnent pas sans Internet : ne jamais prétendre le contraire.
 
 ## 5. Chrono
 
@@ -201,8 +262,15 @@ Autres règles :
   exécutés par GitHub Actions sur chaque PR. Couvrir au minimum : un pupitre ne peut ni modifier un
   score ni écrire un événement ; une équipe ne répond pas deux fois ; un buzz hors fenêtre est refusé ;
   une régie non appairée ne peut pas commander ; une commande au `expectSeq` périmé est rejetée par le
-  moteur ; 5 PIN faux bloquent l'appairage 60 s ; un pupitre ne lit pas `quizzes` ; un appareil inconnu
-  ne peut pas se faire passer pour une équipe.
+  moteur ; 5 PIN faux bloquent l'appairage 60 s ; un pupitre ne lit pas `library` ; un appareil inconnu
+  ne peut pas se faire passer pour une équipe ; un compte sans rôle ne lit ni `library`, ni les médias,
+  ni une partie dont il n'est pas membre ; une box n'écrit ni `library` ni les médias, ni la partie
+  d'une autre box ; un fichier trop gros ou d'un type non prévu est refusé ; un média publié n'est ni
+  modifié ni supprimé par un client ; un second rapport dans la minute est refusé ; une fonction refuse
+  un appel sans le rôle attendu ; le transfert de partie garde le journal intact.
+- **Coûts** : un budget de 8 € (alertes à 3, 5, 8 €) qui n'arrête rien ; nettoyage automatique des
+  anciennes images des fonctions (`firebase functions:artifacts:setpolicy`) ; aucune boucle de lecture
+  sur la base ou le stockage côté client.
 - **Moteur** : tests JVM du replay (scores reconstruits depuis `events`, annulations, commande en
   double appliquée une seule fois, pause et reprise du chrono).
 - **Pupitres simulés** : Playwright avec 2 à 8 contextes de navigateur (8 équipes max) sur l'émulateur, partie complète et
@@ -214,7 +282,7 @@ Autres règles :
 
 ## 9. Avant de livrer une modification
 
-- [ ] Les 11 invariants de la section 2 tiennent.
+- [ ] Les 13 invariants de la section 2 tiennent.
 - [ ] Toute nouvelle écriture a sa règle et son test de règle.
 - [ ] Aucune logique de jeu n'utilise l'heure locale brute.
 - [ ] La reprise TV de la PR #3 fonctionne toujours (test de reprise passé).
