@@ -1,6 +1,10 @@
 package com.littlemissparty.quiz.tv.test
 
+import android.os.SystemClock
+import android.util.Log
+import android.view.KeyEvent
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.littlemissparty.quiz.engine.Scoring
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -48,10 +52,14 @@ class DoublonsTest : TestTv() {
         val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
         ecran.voit("Lancer le quiz")
         ecran.focusSur("Lancer le quiz")
-        // Un enfant ou une animatrice pressée appuie deux fois très vite.
-        ecran.device.pressDPadCenter()
+        // Un enfant ou une animatrice pressée appuie deux fois très vite : 250 ms entre les deux appuis.
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val premier = SystemClock.uptimeMillis()
+        instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
         Thread.sleep(250)
-        ecran.device.pressDPadCenter()
+        val second = SystemClock.uptimeMillis()
+        instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
+        Log.i(TAG, "Double appui : ${second - premier} ms entre les deux")
         Thread.sleep(3000)
         ecran.capture("apres-double-appui")
         assertEquals(

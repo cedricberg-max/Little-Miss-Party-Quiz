@@ -27,6 +27,11 @@ if adb shell ping -c 1 -W 3 firebaseio.com 2>&1 | grep -q "PING .*([0-9]"; then
   exit 1
 fi
 
+# L'émulateur Firebase annonce son adresse comme 127.0.0.1 : le SDK s'y reconnecte après une coupure.
+# Dans Android, 127.0.0.1 est l'appareil lui-même ; on renvoie ces ports vers le runner.
+adb reverse tcp:9000 tcp:9000
+adb reverse tcp:9099 tcp:9099
+
 # Marqueur que les tests vérifient avant de commencer : il n'existe que dans l'émulateur Firebase.
 curl -sf -X PUT -H "Authorization: Bearer owner" -d '{"hostUid":"emulateur-ci"}' \
   "http://127.0.0.1:9000/games/CIEMU.json?ns=little-miss-party-quiz-default-rtdb" > /dev/null || {
@@ -75,7 +80,7 @@ for f in glob.glob("tv/build/outputs/androidTest-results/**/TEST-*.xml", recursi
             print("\n".join((e.text or "").splitlines()[:25]))
 PY
 echo "== Journal des tests (déroulé et plans d'écran) =="
-grep "/TestsTV\|/TestRunner" "$OUT/logcat.txt" | grep -v "TestRunner.*\sat \|TestRunner.*\.\.\. [0-9]* more" | cut -c1-400 || true
+grep "/TestsTV\|/TestRunner\|Opening a connection\|Realtime connection failed\|closing realtime\|Got control message\|interrupt\|Scheduling connection" "$OUT/logcat.txt" | grep -v "TestRunner.*\sat \|TestRunner.*\.\.\. [0-9]* more" | cut -c1-400 || true
 echo "== Journal Android (extrait) =="
 grep -v "^--------\|/Persistence" "$OUT/logcat.txt" | cut -c1-300 | tail -n 600
 exit $STATUS
