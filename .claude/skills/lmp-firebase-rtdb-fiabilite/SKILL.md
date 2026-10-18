@@ -13,9 +13,15 @@ viennent de `lmp-game-design-enfants`, l'affichage de `lmp-plateau-tv-motion`.
 
 - Projet Firebase `little-miss-party-quiz`, Realtime Database **europe-west1**, authentification
   **anonyme** pour la TV, les pupitres et la régie.
-- **Décisions V1 (cedric, 18/10/2026)** : **8 équipes maximum** ; régie appairée par QR + PIN vérifié
-  par la box ; pas de clé API Gemini ni Claude. Feuille de route :
+- **Décisions V1 (cedric, 18/10/2026)** : **8 équipes maximum** (4 en usage courant) ; pas de clé API
+  Gemini ni Claude. Feuille de route :
   https://claude.ai/code/artifact/c59cec39-7c64-4dd3-be46-c138e82011d0
+- **Architecture globale validée (cedric, 18/10/2026, 09 h 36)** : quatre rôles (administration PC,
+  régie téléphone, plateau TV, pupitres) ; **compte sécurisé pour les animatrices, le QR code de la TV
+  gardant toute son utilité, accès depuis le téléphone extrêmement simple** ; le code à 4 chiffres
+  reste en secours ; droits musicaux **informatifs, jamais bloquants** ; médias en europe-west1.
+  Synthèse : https://claude.ai/code/artifact/610f901c-772e-41b3-88d5-be3228554396 . Les adresses
+  Google des admins et animatrices arrivent plus tard : ne jamais bloquer un développement dessus.
 - **Passage à Blaze validé dans son principe (cedric, 18/10/2026, 08 h 35)**, budget cible < 10 €/mois,
   alertes à 3, 5 et 8 € qui ne coupent jamais une prestation. Architecture hybride : Realtime Database
   pour le direct et la bibliothèque, **Cloud Storage** pour les médias, **cache local vérifié** sur la
@@ -67,7 +73,7 @@ au `uid` de la box (perdue si les données de la box sont effacées) ; pas encor
 8. **Écritures atomiques** : un changement d'état et ses événements partent dans un seul
    `updateChildren` multi-chemins. Pas de séquence de `setValue` dont une moitié peut échouer.
 9. **Bonne réponse secrète** : le contenu du quiz (avec les bonnes réponses) n'est lisible que par la
-   box appairée et l'admin. La bonne réponse n'est écrite dans la partie (`reveals/$qKey`) qu'au moment
+   box, les régies appairées (via `conducteur`), les animatrices et l'admin, jamais par un pupitre. La bonne réponse n'est écrite dans la partie (`reveals/$qKey`) qu'au moment
    de la révélation.
 10. **Rien d'essentiel ne dépend du réseau pendant la partie** : instantané de prestation et médias
     téléchargés et vérifiés (SHA-256) dans le cache de la box **avant** le début ; extraits et images
@@ -114,22 +120,38 @@ reports/$id    { kind, text, version, device, at }  // plantages de la box : éc
 
 ```
 games/$code
-  public       { title, takenColors, phase }   // seul nœud lisible avant de rejoindre
-  pairing/$uid { pin, at }      pairingLock { failures, until }      regie/$uid { pairedAt }
+  public       { title, childName, takenColors, phase }   // seul nœud lisible avant de rejoindre
+  pairing/$uid { pin?, staff?, at }   pairingLock { failures, until }   regie/$uid { pairedAt, via }
+  conducteur   { rounds, questions avec bonnes réponses }  // publié par la box, lisible par les régies seules
+  showId                        // prestation chargée, écrit par la box
   commands/$cmdId { type, args, expectSeq, by, at }    commandStatus/$cmdId
-  devices/$uid "<teamId>"       // réattribution d'un pupitre à une équipe par la régie
+  teams/$teamId { name, color, emblem }       // une équipe = une place, pas une tablette
+  devices/$uid "<teamId>"       // tablette rattachée à une place ; la régie rattache un remplaçant
   buzz/$windowId/$teamId { pressedAt, receivedAt }
-library/                        // lecture : rôle box ou admin ; écriture : admin
-  quizzes/$quizId               // questions + bonnes réponses ; une question cite ses médias par id
+library/                        // lecture : rôles box, animatrice, admin ; écriture : admin
+  quizzes/$quizId { title, theme, ageMin, ageMax, difficulty, source: 'tableur'|'gemini'|'saisie',
+                    questions/$qid { ..., status: 'brouillon'|'validee', mediaId? } }
   media/$mediaId { path, sha256, size, type, title, artist, theme, ageMin, ageMax, difficulty,
-                   startMs, durationMs, coverId?,
-                   licence { source, kind, proof, usages, expiresAt } }   // licence obligatoire
-  shows/$showId  { title, date, quizIds, manifest/$mediaId { path, sha256, size } }  // instantané figé
+                   startMs, durationMs, coverId?, available,
+                   rights? { status: 'a_verifier'|'libre'|'autorisation'|'contrat_sacem', source,
+                             restrictions, note } }   // facultatif, jamais bloquant
+  shows/$showId  { childName, age, profile, themes, durationMin, status: 'brouillon'|'publiee'|'archivee',
+                   origin: 'admin'|'express', teams/$teamId { name, color, emblem },
+                   rounds/$i { type, quizId? , game? }, manifest/$mediaId { path, sha256, size } }
 devices/$uid     { role, label, approvedBy, approvedAt, revokedAt? }   // écrit par les fonctions seules
 reportsQuota/$uid { lastAt }   // 1 rapport par minute
 ```
 
 Storage : `media/<sha256>.<ext>` (europe-west1), audio AAC 128 kb/s < 3 Mo, images WebP < 1 Mo.
+
+- **Prestation** (`shows`) : tout ce que la box doit jouer, préparé dans l'administration ou composé
+  par le mode express ; publiée sans recompiler l'APK. La box en fige un instantané (quiz + manifeste)
+  au chargement, puis la partie n'en dépend plus.
+- **Accès aux médias remplaçable** : moteur et quiz ne connaissent que `mediaId`/`sha256`. Un seul
+  composant par client (box, administration) traduit l'identifiant en téléchargement ; changer de
+  fournisseur de stockage = copier les fichiers et remplacer ce composant.
+- **Export de la bibliothèque** : ZIP (JSON de `library` + médias) produit depuis l'administration et
+  réimportable dans un projet neuf ; rappel quand le dernier export a plus de 30 jours.
 
 ## 4. Sécurité : règles et appairage de la régie
 
@@ -160,19 +182,32 @@ plusieurs lignes pour la lecture ; dans `database.rules.json`, chaque condition 
 }}
 ```
 
-**Appairage de la régie (V1, sans serveur payant)** :
+**Appairage de la régie (validé le 18/10/2026)** : le QR code de la TV prouve qu'on est dans la pièce
+et désigne la box ; le compte prouve qu'on est animatrice. Le code à 4 chiffres ne sert qu'en secours.
 
-1. La TV affiche, sur un écran réservé, un QR code (lien vers la page régie avec le code de partie) et
-   un **PIN à 4 chiffres** tiré au hasard pour cette partie. Le PIN n'est jamais écrit dans Firebase :
-   il reste en mémoire sur la box (et dans ses `SharedPreferences` pour survivre à un redémarrage).
-2. Le téléphone scanne, s'authentifie en anonyme et écrit `pairing/$uid = { pin, at }`.
-3. La box compare. PIN correct : elle écrit `regie/$uid` et supprime la demande. PIN faux : elle
-   incrémente `pairingLock/failures` ; à 5 échecs, elle ignore toute demande pendant 60 s
-   (`pairingLock/until`). La box limite les essais, ce que les règles seules ne savent pas faire.
+1. La TV affiche un QR code « Relier une régie » (lien vers la page régie avec le code de partie) et,
+   en petit, un **PIN à 4 chiffres** tiré au hasard pour cette partie. Le PIN n'est jamais écrit dans
+   Firebase : il reste sur la box (`SharedPreferences`, pour survivre à un redémarrage).
+2. **Chemin normal** : le téléphone de l'animatrice est déjà connecté à son compte Google (une seule
+   fois, session gardée par le navigateur). Elle scanne : la page écrit `pairing/$uid = { staff: true,
+   at }`, que les règles n'acceptent que d'un compte au rôle `animatrice` ou `admin`. La box l'appaire
+   sans PIN. **Aucune saisie** : scanner suffit.
+3. **Chemin de secours** (téléphone sans compte, compte pas encore configuré) : connexion anonyme,
+   saisie du PIN affiché, `pairing/$uid = { pin, at }`. PIN correct : `regie/$uid` ; PIN faux :
+   `pairingLock/failures`, 5 échecs = 60 s de blocage (la box limite les essais, les règles ne le
+   savent pas). Une régie de secours pilote la partie mais ne lit pas `library` : la prestation est
+   alors choisie à la télécommande sur la box.
 4. Les règles n'acceptent une commande que d'un `uid` présent dans `regie`. Une régie se retire depuis
-   la TV (« Retirer les régies ») ou en changeant de partie. Un nouveau PIN invalide les appareils non
-   encore appairés.
-5. Deux prestations simultanées = deux parties, deux box, deux PIN : rien n'est partagé.
+   la TV (« Retirer les régies ») ou en changeant de partie. Un nouveau PIN invalide les demandes en
+   attente. Deux régies au plus par partie.
+5. La régie appairée choisit la prestation (commande `loadShow { showId }`) ; la box la charge et
+   publie `conducteur`. La régie ne lit que la partie et `conducteur`, jamais `library` directement
+   (sauf rôle animatrice pour lister les prestations).
+6. **Avant les fonctions serveur (Spark, lot 2)** : le rôle se lit provisoirement dans une liste
+   d'adresses vérifiées écrite dans les règles (`auth.token.email_verified === true &&
+   auth.token.email.matches(/^(…)$/)`), vide tant que cedric n'a pas donné les adresses : le chemin de
+   secours fonctionne seul. À remplacer par `auth.token.role` dès les fonctions (lot 4).
+7. Deux prestations simultanées = deux parties, deux box, deux QR : rien n'est partagé.
 
 **Rôles (cible Blaze)** : portés par une revendication personnalisée `role` dans le jeton, posée
 **uniquement par les fonctions serveur** (Admin SDK) :
@@ -181,7 +216,8 @@ plusieurs lignes pour la lecture ; dans `database.rules.json`, chaque condition 
 | --- | --- | --- |
 | `admin` | Sarah, cedric (compte Google) | script d'administration lancé une fois avec le compte de service |
 | `box` | une box Android TV | la box affiche un code + QR ; un admin approuve dans la page d'administration → fonction `approveDevice` |
-| régie | téléphone de l'animatrice, une partie | appairage PIN ci-dessus (pas de rôle global) |
+| `animatrice` | Sarah et chaque animatrice (compte Google) | ajoutée ou retirée par un admin dans l'administration → fonction `setStaff` |
+| régie | un téléphone, une partie | scan du QR par un compte `animatrice`/`admin`, ou PIN de secours (`regie/$uid`) |
 | équipe | pupitre, une partie | `teams/$uid` ou `devices/$uid` de la partie |
 
 - Après approbation, la box force le rafraîchissement de son jeton (`getIdToken(true)`).
@@ -191,8 +227,8 @@ plusieurs lignes pour la lecture ; dans `database.rules.json`, chaque condition 
 - **Transfert de partie** (box en panne) : fonction `transferHost`, réservée à `admin`, qui réécrit
   `hostUid` vers la nouvelle box et ajoute un événement `host_transferred` au journal ; la nouvelle box
   télécharge l'instantané et rejoue le journal.
-- `library` : lecture `auth.token.role in ['box','admin']` (en RTDB : `auth.token.role === 'box' ||
-  auth.token.role === 'admin'`) ; écriture `admin`. Un pupitre ne lit jamais une bonne réponse avant `reveals`.
+- `library` : lecture `auth.token.role in ['box','animatrice','admin']` (en RTDB : une condition
+  `auth.token.role === '…'` par rôle) ; écriture `admin`. Un pupitre ne lit jamais une bonne réponse avant `reveals`.
 - `games/$code` : création réservée au rôle `box` ; lecture réservée à l'hôte, aux régies et aux équipes
   inscrites ; `public` lisible par tout compte connecté.
 - Storage `media/` : lecture `box`/`admin`, création `admin` avec taille et type contrôlés, jamais de
@@ -209,8 +245,15 @@ plusieurs lignes pour la lecture ; dans `database.rules.json`, chaque condition 
 - **Place** : exiger au moins 2 fois la taille à télécharger (`StatFs`) avant de commencer.
 - **Lecture** : Media3/ExoPlayer et `SoundPool` sur fichiers locaux uniquement.
 - **Nettoyage** : fichiers non utilisés depuis 60 jours effacés de la box (le cloud garde tout).
-- **Licence** : refuser de télécharger un média dont `licence.expiresAt` est dépassée ; la page
-  d'administration refuse un média sans licence complète.
+- **Droits (décision du 18/10/2026)** : jamais de blocage pour une information de droits absente ou
+  incomplète. Bloquants seulement les contrôles techniques : fichier lisible, format reconnu, extrait
+  de 15 à 30 s, audio < 3 Mo, image < 1 Mo, empreinte vérifiée. Le statut `rights` s'affiche en badge
+  et en avertissement (filtre « à vérifier ») dans l'administration et la prestation. Les
+  autorisations musicales sont traitées à part par cedric ; ne jamais inventer d'obligation technique
+  de Firebase. Un fichier retiré par l'hébergeur passe `available: false`.
+- **Média indisponible** : contrôle d'avant-prestation « Prêt avec réserves » avec remplacement
+  proposé (même thème, même âge) ou retrait de la question ; en partie, alerte sur la régie, TV sur un
+  écran d'attente propre, choix « extrait suivant / question sans musique / changer de jeu ».
 - **Contrôle d'avant-prestation** (écran TV) : connexion + rôle `box` ; manifeste complet et empreintes
   vérifiées ; espace libre ; son de test confirmé par l'animatrice ; pupitres et régie « présents » avec
   latence ; aller-retour d'écriture et écart d'horloge. Verdict : Prêt / Prêt avec réserves / Pas prêt.
@@ -262,7 +305,9 @@ plusieurs lignes pour la lecture ; dans `database.rules.json`, chaque condition 
   exécutés par GitHub Actions sur chaque PR. Couvrir au minimum : un pupitre ne peut ni modifier un
   score ni écrire un événement ; une équipe ne répond pas deux fois ; un buzz hors fenêtre est refusé ;
   une régie non appairée ne peut pas commander ; une commande au `expectSeq` périmé est rejetée par le
-  moteur ; 5 PIN faux bloquent l'appairage 60 s ; un pupitre ne lit pas `library` ; un appareil inconnu
+  moteur ; 5 PIN faux bloquent l'appairage 60 s ; `staff: true` est refusé à un compte sans rôle
+  animatrice ou admin ; une régie ne lit pas `conducteur` avant d'être appairée ; une tablette de
+  remplacement rattachée par la régie garde le nom et les points de l'équipe ; un pupitre ne lit pas `library` ; un appareil inconnu
   ne peut pas se faire passer pour une équipe ; un compte sans rôle ne lit ni `library`, ni les médias,
   ni une partie dont il n'est pas membre ; une box n'écrit ni `library` ni les médias, ni la partie
   d'une autre box ; un fichier trop gros ou d'un type non prévu est refusé ; un média publié n'est ni
