@@ -777,6 +777,33 @@ def transition():
         mx.add('bells', note('glockenspiel', m + 12, .2, .35, release=1), 2 + k * .125)
     return mx.render(duck=0)
 
+# ---------------------------------------------------------------- buzzer rigolo du salon
+def _glisse(f_of_t, dur, harm=(1, .5, .25), vel=1.0):
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    ph = 2 * np.pi * np.cumsum(f_of_t(t)) / SR
+    y = sum(a * np.sin(ph * (k + 1)) for k, a in enumerate(harm))
+    e = np.minimum(1, t / .01) * np.minimum(1, (dur - t) / .06)
+    return stereo((y * e * vel / sum(harm)).astype(np.float32))
+
+def fun_buzz(i):
+    """Buzz rigolo du salon, un par équipe : ressort, sifflet à coulisse, « pouet », xylophone qui dévale."""
+    mx = Mix(1.5, tail=1)
+    if i == 0:
+        mx.add('fx', _glisse(lambda t: 190 * (1 + .45 * np.exp(-t / .18) * np.sin(2 * np.pi * 16 * t)), .55, (1, .6, .3, .15)), 0)
+        mx.add('drums', note('woodblock', 79, .08, .5), 0)
+    elif i == 1:
+        mx.add('fx', _glisse(lambda t: 520 * 2 ** (1.6 * np.minimum(t / .32, 1)) * (1 + .02 * np.sin(2 * np.pi * 7 * t)), .42, (1, .08)), 0)
+    elif i == 2:
+        for k, m in enumerate((58, 53)):
+            mx.add('brass', note('tuba', m, .12 if k == 0 else .2, .9, release=.06), k * .36)
+            mx.add('brass', note('trombone', m + 12, .12 if k == 0 else .2, .45, release=.06), k * .36)
+    else:
+        for k, m in enumerate([96, 93, 91, 88, 84, 81, 79, 76]):
+            mx.add('bells', note('xylophone', m, .06, .6, release=.15), k * .07)
+        mx.add('drums', note('woodblock', 84, .08, .5), .62)
+    return mx.render(duck=0)
+
 PIECES = {
     'generique': (generique, -14.5), 'bed_full': (lambda: bed('full'), -15.5), 'bed_light': (lambda: bed('light'), -18.5),
     'tension': (tension, -16), 'riser_4b': (riser_4b, -17), 'impact': (impact, -15), 'round_sting': (round_sting, -15),
@@ -792,6 +819,7 @@ PIECES = {
 for i in range(4):
     PIECES[f'pop_{i + 1}'] = ((lambda i=i: pop(i)), -22)
     PIECES[f'team_sting_{i + 1}'] = ((lambda i=i: team_sting(i)), -17)
+    PIECES[f'fun_buzz_{i + 1}'] = ((lambda i=i: fun_buzz(i)), -20)
 LOOPS = {'bed_full': 32, 'bed_light': 32, 'bed_mimes': 32, 'bed_pause': 32}
 
 if __name__ == '__main__':

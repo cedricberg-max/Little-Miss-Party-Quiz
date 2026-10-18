@@ -182,6 +182,8 @@ class DirecteurSonore {
     private fun memeEcran(p: Instant, i: Instant): List<Ordre> {
         val o = mutableListOf<Ordre>()
         if (i.equipes > p.equipes) o += Ordre.Jouer(Son.equipe(i.equipes - 1))
+        // Buzzer libre du salon : chaque appui fait son bruit rigolo, propre à l'équipe, sans rien verrouiller.
+        if (i.ecran == Ecran.SALON && i.buzzRigolo != p.buzzRigolo && i.buzzRigolo > 0) o += Ordre.Jouer(Son.rigolo(i.buzzRigoloEquipe))
         if (i.buzzeur >= 0 && p.buzzeur < 0) {
             o += Ordre.Jouer(Son.equipe(i.buzzeur))
             o += Ordre.Jouer(Son.VERROU)
@@ -249,6 +251,9 @@ data class Instant(
     val passes: Int = 0,
     /** Jeu en cours (« quiz|Manche 1 », « mimes|… ») ; vide hors des questions. */
     val epreuve: String = "",
+    /** Buzzer libre du salon : compteur d'appuis (change à chaque appui) et place de l'équipe qui a appuyé. */
+    val buzzRigolo: Int = 0,
+    val buzzRigoloEquipe: Int = 0,
 )
 
 /** [MIMES] : manche de mimes entre deux tours ; [MIMES_TOUR] : une équipe mime. */
@@ -314,13 +319,16 @@ enum class Son(val fichier: String, val long: Boolean = false) {
     MIME_FIN("lmp_mime_time_up", true),
     PAUSE("lmp_pause_in", true),
     TRANSITION("lmp_transition", true),
+    RIGOLO_1("lmp_fun_buzz_1"), RIGOLO_2("lmp_fun_buzz_2"), RIGOLO_3("lmp_fun_buzz_3"), RIGOLO_4("lmp_fun_buzz_4"),
     EQUIPE_1("lmp_team_sting_1"), EQUIPE_2("lmp_team_sting_2"), EQUIPE_3("lmp_team_sting_3"), EQUIPE_4("lmp_team_sting_4");
 
     companion object {
         private val pops = listOf(POP_1, POP_2, POP_3, POP_4)
         private val equipes = listOf(EQUIPE_1, EQUIPE_2, EQUIPE_3, EQUIPE_4)
+        private val rigolos = listOf(RIGOLO_1, RIGOLO_2, RIGOLO_3, RIGOLO_4)
         fun pop(k: Int) = pops[Math.floorMod(k, pops.size)]
         fun equipe(place: Int) = equipes[Math.floorMod(place, equipes.size)]
+        fun rigolo(place: Int) = rigolos[Math.floorMod(place, rigolos.size)]
     }
 }
 

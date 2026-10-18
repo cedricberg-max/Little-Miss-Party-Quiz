@@ -1,6 +1,6 @@
 # Sons et musiques du plateau TV : origine et droits
 
-Les 39 sons de `tv/src/main/res/raw/lmp_*.ogg` (musiques de fond, musique des Mimes, musique de pause, générique, jingles de transition et de pause, effets, sons des Mimes) ont été
+Les 43 sons de `tv/src/main/res/raw/lmp_*.ogg` (musiques de fond, musique des Mimes, musique de pause, générique, jingles de transition et de pause, effets, sons des Mimes, buzz rigolos du salon) ont été
 composés et mixés pour Little Miss Party avec `tools/habillage/studio.py`. Ils ne contiennent aucune
 musique existante : pas de droits SACEM à déclarer pour leur diffusion pendant une prestation.
 
@@ -14,7 +14,7 @@ Piano, cordes, cuivres, basses, marimba, agogo, harpe, boîte à musique, cloche
 
 ## Synthèse maison
 
-Batterie, impacts, souffles et montées sont synthétisés par le script lui-même. Ils
+Batterie, impacts, souffles, montées, ressort et sifflet à coulisse sont synthétisés par le script lui-même. Ils
 n'utilisent aucun échantillon tiers.
 
 ## Refaire ou retoucher un son

@@ -278,6 +278,18 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `buzzer libre du salon, un bruit rigolo a chaque appui, celui de l'equipe, rien de verrouille`() {
+        val d = DirecteurSonore()
+        d.observer(salon.copy(equipes = 3))
+        assertEquals(listOf(Son.RIGOLO_2), d.observer(salon.copy(equipes = 3, buzzRigolo = 1, buzzRigoloEquipe = 1)).sons())
+        assertEquals(listOf(Son.RIGOLO_2), d.observer(salon.copy(equipes = 3, buzzRigolo = 2, buzzRigoloEquipe = 1)).sons())
+        assertEquals(listOf(Son.RIGOLO_3), d.observer(salon.copy(equipes = 3, buzzRigolo = 3, buzzRigoloEquipe = 2)).sons())
+        // Le même appui revu (rafraîchissement) ne rejoue rien ; jamais de verrou ni de musique coupée.
+        val revu = d.observer(salon.copy(equipes = 3, buzzRigolo = 3, buzzRigoloEquipe = 2))
+        assertTrue(revu.isEmpty())
+    }
+
+    @Test
     fun `chaque son a un fichier distinct`() {
         assertEquals(Son.entries.size, Son.entries.map { it.fichier }.toSet().size)
     }
