@@ -109,7 +109,12 @@
         </div>
         <h2>Manches, dans l'ordre</h2>
         <div id="show-rounds" class="rounds"></div>
-        <button id="round-add" type="button" class="btn secondary">Ajouter une manche</button>
+        <div class="round-tools">
+          <button id="round-add" type="button" class="btn secondary">Ajouter une manche</button>
+          <label class="reuse">Ou reprendre une manche d'une autre prestation
+            <select id="round-reuse"></select>
+          </label>
+        </div>
         <p id="show-summary" class="hint"></p>
         <ul id="show-problems" class="problems"></ul>
         <label class="wide">Notes pour l'animatrice<textarea id="show-notes" rows="3" maxlength="2000"></textarea></label>

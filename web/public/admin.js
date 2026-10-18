@@ -275,6 +275,7 @@ async function archive(id, on) {
 }
 
 let editing = null; // { id, rounds }
+let reuseChoices = new Map(); // manches reprises d'autres prestations, par « prestation/n° »
 
 $("show-profile").append(
   h("option", { value: "", text: "Automatique, selon l'âge" }),
@@ -321,6 +322,7 @@ function formShow() {
 
 function refreshRounds() {
   if (!editing) return;
+  refreshReuse();
   const box = $("show-rounds");
   box.innerHTML = "";
   const options = Object.entries(quizzes).sort(([, a], [, b]) => a.title.localeCompare(b.title));
@@ -359,6 +361,31 @@ function refreshSummary() {
 }
 ["show-age", "show-profile", "show-child", "show-title", "show-date", "show-status"].forEach((id) => $(id).addEventListener("input", refreshSummary));
 $("round-add").onclick = () => { editing.rounds.push({ type: "quiz", quizId: "" }); refreshRounds(); };
+
+/**
+ * Manches des autres prestations, à reprendre telles quelles : la nouvelle manche pointe vers le même
+ * quiz de la bibliothèque, l'ancienne prestation et le quiz ne sont pas modifiés.
+ */
+function refreshReuse() {
+  const options = Object.entries(shows)
+    .filter(([id]) => id !== editing?.id)
+    .sort(([, a], [, b]) => (b.date ?? "").localeCompare(a.date ?? ""))
+    .flatMap(([id, s]) => (s.rounds ?? []).filter((r) => r?.quizId && quizzes[r.quizId]).map((r, i) => ({
+      value: `${id}/${i}`, round: r,
+      text: `${showTitle(s)}${s.date ? ` (${new Date(`${s.date}T12:00:00`).toLocaleDateString("fr-FR")})` : ""} · ${r.type === "finale" ? ROUND_TYPES.finale : "Manche"} : ${quizzes[r.quizId].title}`,
+    })));
+  reuseChoices = new Map(options.map((o) => [o.value, o.round]));
+  $("round-reuse").replaceChildren(
+    h("option", { value: "", text: options.length ? "Choisir une manche…" : "Aucune autre prestation" }),
+    ...options.map((o) => h("option", { value: o.value, text: o.text })));
+  $("round-reuse").disabled = !options.length;
+}
+$("round-reuse").onchange = (e) => {
+  const r = reuseChoices.get(e.target.value);
+  if (!r) return;
+  editing.rounds.push({ type: r.type ?? "quiz", quizId: r.quizId });
+  refreshRounds();
+};
 
 $("show-form").onsubmit = async (e) => {
   e.preventDefault();
@@ -410,10 +437,18 @@ function renderQuizzes() {
       h("span", { class: ok < total ? "warn" : "", text: `${total} questions · ${ok} validées` }),
       h("div", { class: "row" },
         h("button", { class: "btn secondary", onclick: () => review(id, q), text: "Relire" }),
+        h("button", { class: "btn secondary", onclick: () => duplicateQuiz(q), text: "Dupliquer" }),
         h("button", { class: "btn danger", onclick: () => deleteQuiz(id, q), text: "Supprimer" }))));
   });
 }
 const SOURCES = { gemini: "Gemini", tableur: "tableur", json: "fichier", saisie: "saisie" };
+
+/** Copie à relire puis enregistrer comme nouveau quiz : l'original et ses prestations ne changent pas. */
+function duplicateQuiz(q) {
+  const { createdAt, updatedAt, ...rest } = q;
+  review(null, { ...rest, title: `${q.title} (copie)`.slice(0, 120) });
+  status("rv-status", "Copie : modifiez-la puis enregistrez-la, l'original ne change pas.", true);
+}
 
 async function deleteQuiz(id, q) {
   const used = Object.values(shows).filter((s) => (s.rounds ?? []).some((r) => r?.quizId === id)).map(showTitle);
