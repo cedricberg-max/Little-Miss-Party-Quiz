@@ -28,16 +28,17 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -63,6 +64,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Release
 import kotlin.math.PI
@@ -197,13 +199,7 @@ private fun StatusCorner(state: UiState, available: Release?, modifier: Modifier
 @Composable
 fun NextButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, key: Any = label) {
     val focus = remember { FocusRequester() }
-    Button(
-        onClick = onClick,
-        modifier = modifier.focusRequester(focus),
-        colors = ButtonDefaults.buttonColors(containerColor = Palette.Gold, contentColor = Palette.Night),
-    ) {
-        Text("$label  ▶", fontSize = 24.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(6.dp))
-    }
+    TvButton("$label  ▶", onClick, modifier.focusRequester(focus), primary = true, fontSize = 26.sp)
     LaunchedEffect(key) { runCatching { focus.requestFocus() } }
 }
 
@@ -229,19 +225,8 @@ private fun ResumeOffer(state: UiState.ResumeOffer, onResume: () -> Unit, onNewG
         )
         Spacer(Modifier.height(40.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            Button(
-                onClick = onResume,
-                modifier = Modifier.focusRequester(focus),
-                colors = ButtonDefaults.buttonColors(containerColor = Palette.Gold, contentColor = Palette.Night),
-            ) {
-                Text(
-                    "Reprendre la partie (${state.secondsLeft})",
-                    fontSize = 26.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(8.dp),
-                )
-            }
-            OutlinedButton(onClick = onNewGame) {
-                Text("Nouvelle partie", color = Color.White, fontSize = 22.sp, modifier = Modifier.padding(8.dp))
-            }
+            TvButton("Reprendre la partie (${state.secondsLeft})", onResume, Modifier.focusRequester(focus), primary = true, fontSize = 26.sp)
+            TvButton("Nouvelle partie", onNewGame)
         }
         Spacer(Modifier.height(24.dp))
         Text(
@@ -263,36 +248,32 @@ private fun QuitDialog(
 ) {
     val focus = remember { FocusRequester() }
     // Fenêtre séparée : la télécommande ne peut pas atteindre les boutons de l'écran derrière.
-    Dialog(onDismissRequest = onContinue) {
+    // Pleine largeur utile, dans la zone visible de la TV ; si l'écran est trop petit, la liste défile
+    // et le bouton sélectionné reste toujours à l'écran.
+    Dialog(onDismissRequest = onContinue, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
             Modifier
+                .padding(horizontal = 48.dp, vertical = 27.dp)
+                .widthIn(max = 720.dp)
                 .clip(RoundedCornerShape(32.dp))
                 .background(Palette.Night)
-                .padding(40.dp),
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 44.dp, vertical = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text(if (paused) "Partie en pause" else "Quitter la partie ?", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(12.dp))
+            Text(if (paused) "Partie en pause" else "Quitter la partie ?", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
             Text(
                 "Si vous quittez, la partie reste enregistrée\net sera proposée au prochain démarrage.",
                 color = Color.White.copy(alpha = 0.8f), fontSize = 20.sp, textAlign = TextAlign.Center,
             )
-            Spacer(Modifier.height(32.dp))
-            Button(
-                onClick = onContinue,
-                modifier = Modifier.focusRequester(focus),
-                colors = ButtonDefaults.buttonColors(containerColor = Palette.Gold, contentColor = Palette.Night),
-            ) { Text("Continuer la partie", fontSize = 22.sp, fontWeight = FontWeight.Bold) }
-            Spacer(Modifier.height(16.dp))
-            OutlinedButton(onClick = onRegie) { Text("Code de secours de la régie", color = Color.White, fontSize = 20.sp) }
-            Spacer(Modifier.height(16.dp))
-            OutlinedButton(onClick = onUpdate) { Text("Rechercher une mise à jour", color = Color.White, fontSize = 20.sp) }
-            Spacer(Modifier.height(16.dp))
-            OutlinedButton(onClick = onQuit) { Text("Quitter l'application", color = Color.White, fontSize = 20.sp) }
-            Spacer(Modifier.height(16.dp))
-            OutlinedButton(onClick = onNewGame) {
-                Text("Terminer et lancer une nouvelle partie", color = Palette.Pink, fontSize = 20.sp)
-            }
+            Spacer(Modifier.height(4.dp))
+            val wide = Modifier.fillMaxWidth()
+            TvButton("Continuer la partie", onContinue, wide.focusRequester(focus), primary = true)
+            TvButton("Code de secours de la régie", onRegie, wide, fontSize = 20.sp)
+            TvButton("Rechercher une mise à jour", onUpdate, wide, fontSize = 20.sp)
+            TvButton("Quitter l'application", onQuit, wide, fontSize = 20.sp)
+            TvButton("Terminer et lancer une nouvelle partie", onNewGame, wide, accent = Palette.Pink, fontSize = 20.sp)
         }
         LaunchedEffect(Unit) { focus.requestFocus() }
     }
@@ -352,12 +333,12 @@ private fun Message(title: String, detail: String, onRetry: (() -> Unit)? = null
         Text(detail, color = Color.White.copy(alpha = 0.8f), fontSize = 22.sp, textAlign = TextAlign.Center)
         if (onRetry != null) {
             Spacer(Modifier.height(32.dp))
-            Button(onClick = onRetry, modifier = Modifier.focusRequester(focus)) { Text("Réessayer", fontSize = 22.sp) }
+            TvButton("Réessayer", onRetry, Modifier.focusRequester(focus), primary = true)
             LaunchedEffect(Unit) { focus.requestFocus() }
         }
         if (onUpdate != null) {
             Spacer(Modifier.height(16.dp))
-            OutlinedButton(onClick = onUpdate) { Text("Rechercher une mise à jour", color = Color.White, fontSize = 20.sp) }
+            TvButton("Rechercher une mise à jour", onUpdate, fontSize = 20.sp)
         }
     }
 }
@@ -484,11 +465,7 @@ private fun BuzzOverlay(team: Team, onRearm: () -> Unit) {
         )
         Text("a buzzé en premier", color = Color.White, fontSize = 36.sp)
         Spacer(Modifier.height(48.dp))
-        Button(
-            onClick = onRearm,
-            modifier = Modifier.focusRequester(focus),
-            colors = ButtonDefaults.buttonColors(containerColor = Palette.Night, contentColor = Color.White),
-        ) { Text("Réarmer les buzzers", fontSize = 24.sp, modifier = Modifier.padding(8.dp)) }
+        TvButton("Réarmer les buzzers", onRearm, Modifier.focusRequester(focus), primary = true, fontSize = 24.sp)
     }
 }
 

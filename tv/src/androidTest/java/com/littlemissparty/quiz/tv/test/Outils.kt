@@ -142,6 +142,15 @@ class Ecran(private val nomTest: () -> String) {
     fun aLeFocus(texte: String): Boolean =
         device.hasObject(By.textContains(texte).focused(true)) || elements().any { it.visible && it.focus && texte in it.texte }
 
+    /** Le texte est entièrement à l'écran : ni coupé par un bord, ni masqué par une zone qui défile. */
+    fun entierementVisible(texte: String, ms: Long = 5_000) {
+        if (!attendre(ms) { elements().any { it.entier && texte in it.texte } }) {
+            capture("coupe")
+            runCatching { Log.e(TAG, "« $texte » coupé ou hors écran, plan de l'écran :\n${plan()}") }
+            throw AssertionError("« $texte » n'est pas entièrement visible")
+        }
+    }
+
     /** Attend que le bouton portant ce texte ait le focus de la télécommande. */
     fun focusSur(texte: String, ms: Long = 8_000) {
         if (!attendre(ms) { aLeFocus(texte) }) {
@@ -161,7 +170,7 @@ class Ecran(private val nomTest: () -> String) {
     }
 
     /** Un texte de l'interface Compose, lu dans l'arbre sémantique de l'appli. */
-    data class Element(val texte: String, val focus: Boolean, val visible: Boolean)
+    data class Element(val texte: String, val focus: Boolean, val visible: Boolean, val entier: Boolean = false)
 
     /**
      * Les boutons Compose ne donnent pas leur texte à UiAutomator (il n'y voit qu'une vue vide) :
@@ -202,7 +211,10 @@ class Ecran(private val nomTest: () -> String) {
             val b = n.boundsInWindow
             val visible = b.width > 0 && b.height > 0 && b.bottom > 0 && b.right > 0 &&
                 b.top < fenetre.height && b.left < fenetre.width
-            liste += Element(textes.joinToString(" "), n.config.getOrNull(SemanticsProperties.Focused) == true, visible)
+            // boundsInWindow est rognée par les parents : plus petite que le texte, il est coupé.
+            val entier = visible && b.top >= 0 && b.left >= 0 && b.bottom <= fenetre.height && b.right <= fenetre.width &&
+                b.height >= n.size.height - 1 && b.width >= n.size.width - 1
+            liste += Element(textes.joinToString(" "), n.config.getOrNull(SemanticsProperties.Focused) == true, visible, entier)
         }
         n.children.forEach { parcourir(it, fenetre, liste) }
     }
