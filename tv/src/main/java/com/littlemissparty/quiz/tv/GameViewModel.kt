@@ -921,6 +921,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "id" to quiz.id,
             "title" to quiz.title,
             "rev" to rev,
+            // Cette box sait jouer les mimes : la régie prévient avant d'en envoyer à une TV trop ancienne.
+            "mimes" to true,
             "questions" to quiz.questions.map {
                 clean(mapOf(
                     "id" to it.id, "text" to it.text, "choices" to it.choices.ifEmpty { null }, "correct" to it.correct,
