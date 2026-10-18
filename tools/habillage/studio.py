@@ -804,6 +804,75 @@ def fun_buzz(i):
         mx.add('drums', note('woodblock', 84, .08, .5), .62)
     return mx.render(duck=0)
 
+# ---------------------------------------------------------------- mini-jeux : Vrai ou Faux express, Le Juste Chiffre
+def bed_express():
+    """Course contre la montre : basse synthé en croches, charleston en doubles, cuivres qui relancent."""
+    mx = Mix(32 * 3, tail=.5)
+    prog = ['Am', 'F', 'C', 'G']
+    for bi in range(24):
+        notes, root = CH[prog[bi % 4]]
+        b0 = bi * 4
+        for q in range(4):
+            mx.add('kick', kick(1.0), b0 + q)
+            if q in (1, 3):
+                mx.add('drums', clap(.6), b0 + q); mx.add('drums', snare(.35, tight=True), b0 + q)
+            for s16 in range(4):
+                mx.add('drums', hat(.32 if s16 == 2 else .18, open_=s16 == 2), b0 + q + s16 * .25)
+        for e in range(8):
+            mx.add('bass', note('synth_bass_1', root + (12 if e % 2 else 0), B * .22, .85, release=.04), b0 + e * .5)
+        mx.add('strings', chord('synth_strings_1', [m + 12 for m in notes], 4 * B - .05, .3, attack=.05, release=.3), b0)
+        for o in (0, .75, 1.5):
+            mx.add('brass', chord('brass_section', [m + 12 for m in notes[1:]], B * .2, .4, release=.08), b0 + 2 + o)
+        arp = [notes[0] + 24, notes[2] + 24, notes[1] + 24, notes[3] + 24]
+        for s16 in range(16):
+            if s16 % 2 == 0:
+                mx.add('bells', note('glockenspiel', arp[(s16 // 2) % 4], .08, .14, release=.2), b0 + s16 * .25)
+    y = mx.render(duck=.35)
+    n = int(32 * B * SR)
+    return y[n:2 * n]
+
+def vf_vrai():
+    """Vrai : deux notes qui montent, éclat de cloches."""
+    mx = Mix(2, tail=2)
+    for k, m in enumerate((72, 79)):
+        mx.add('brass', note('brass_section', m, .18 if k == 0 else .4, .85, release=.25), k * .25)
+        mx.add('bells', note('glockenspiel', m + 12, .2, .5, release=.8), k * .25)
+    mx.add('drums', clap(.6), .25)
+    mx.add('bells', note('tinkle_bell', 103, .1, .25, release=.5), .4)
+    return mx.render(duck=0)
+
+def vf_faux():
+    """Faux : petit « pouet » qui descend, malicieux, jamais vexant."""
+    mx = Mix(2, tail=1.5)
+    for k, m in enumerate((67, 63)):
+        mx.add('brass', note('muted_trumpet', m, .16 if k == 0 else .35, .8, release=.15), k * .25)
+        mx.add('keys', note('marimba', m, .15, .45, release=.2), k * .25)
+    return mx.render(duck=0)
+
+def chiffre_roulette():
+    """Le Juste Chiffre : les chiffres défilent vite puis ralentissent, 3 s, et se posent."""
+    mx = Mix(7, tail=.6)
+    t, dt, k = 0.0, .045, 0
+    while t < 3.0:
+        mx.add('drums', note('woodblock', 84 if k % 2 else 88, .04, .35 + .3 * t / 3), t / B)
+        mx.add('bells', note('xylophone', 84 + (k * 5) % 12, .04, .12, release=.08), t / B)
+        t += dt; dt *= 1.065; k += 1
+    mx.add('fx', noise_riser(3.0, .2, 500, 7000), 0)
+    mx.add('drums', note('timpani', 43, .4, .7), 3.0 / B)
+    return mx.render(duck=0)
+
+def chiffre_pile():
+    """Pile poil ! : la bonne valeur exacte, petit triomphe aux cuivres et paillettes."""
+    mx = Mix(4, tail=2.5)
+    mx.add('fx', sub_boom(.7), 0); mx.add('fx', crash(.7, 2.5), 0)
+    for m, o, d in ((72, 0, .25), (76, .25, .25), (79, .5, .25), (84, .75, 1.5)):
+        mx.add('brass', note('brass_section', m, d * B, .9, release=.3), o)
+        mx.add('brass', note('trumpet', m + 12, d * B, .4, release=.25), o)
+    for k in range(10):
+        mx.add('bells', note('tinkle_bell', 100 + (k % 4) * 3, .1, .2, release=.5), .8 + k * .09)
+    mx.add('strings', chord('string_ensemble_1', [60, 64, 67, 72], 2 * B, .6, attack=.03, release=1), .75)
+    return mx.render(duck=0)
+
 PIECES = {
     'generique': (generique, -14.5), 'bed_full': (lambda: bed('full'), -15.5), 'bed_light': (lambda: bed('light'), -18.5),
     'tension': (tension, -16), 'riser_4b': (riser_4b, -17), 'impact': (impact, -15), 'round_sting': (round_sting, -15),
@@ -814,13 +883,15 @@ PIECES = {
     'end_jingle': (end_jingle, -17),
     'mime_go': (mime_go, -15), 'mime_found': (mime_found, -18), 'mime_pass': (mime_pass, -21),
     'mime_time_up': (mime_time_up, -15), 'mime_tension': (lambda: tension(20), -16),
+    'bed_express': (bed_express, -16.5), 'vf_vrai': (vf_vrai, -17), 'vf_faux': (vf_faux, -20),
+    'chiffre_roulette': (chiffre_roulette, -19), 'chiffre_pile': (chiffre_pile, -15),
     'bed_mimes': (bed_mimes, -16.5), 'bed_pause': (bed_pause, -19), 'pause_in': (pause_in, -18), 'transition': (transition, -15),
 }
 for i in range(4):
     PIECES[f'pop_{i + 1}'] = ((lambda i=i: pop(i)), -22)
     PIECES[f'team_sting_{i + 1}'] = ((lambda i=i: team_sting(i)), -17)
     PIECES[f'fun_buzz_{i + 1}'] = ((lambda i=i: fun_buzz(i)), -20)
-LOOPS = {'bed_full': 32, 'bed_light': 32, 'bed_mimes': 32, 'bed_pause': 32}
+LOOPS = {'bed_full': 32, 'bed_light': 32, 'bed_mimes': 32, 'bed_pause': 32, 'bed_express': 32}
 
 if __name__ == '__main__':
     only = sys.argv[2:] or list(PIECES)
