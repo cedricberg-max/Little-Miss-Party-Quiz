@@ -1582,6 +1582,33 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
+  test("prestation de test « tous les jeux » : photos dessinées, un peu de chaque jeu, rien de remplacé", async () => {
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    const page = await admin();
+    await page.click("#nav button[data-screen=settings]");
+    await page.click("#test-full-create");
+    await page.locator("#test-full-status", { hasText: "Ajoutée" }).waitFor({ timeout: 20000 });
+    await page.click("#test-full-create");
+    await page.locator("#test-full-status", { hasText: "existe déjà" }).waitFor();
+    await page.context().close();
+    const images = await library("images");
+    assert.equal(Object.keys(images).length, 4, "deux photos pour le Zoom mystère, deux pour l'Image floue");
+    assert.ok(Object.values(images).every((d) => d.startsWith("data:image/jpeg") && d.length < 150000));
+    assert.deepEqual((await library("quizzes")).animaux, ANIMAUX, "Quiz existant intact");
+    assert.equal((await library("mimes"))["test-lea-tous-les-jeux-mimes"].cards.length, 6);
+
+    box = startBox();
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator(".show-item", { hasText: "tous les jeux" }).click();
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    const kinds = [...new Set((await read("show")).quiz.questions.map((q) => q.kind))];
+    assert.deepEqual(kinds, ["classic", "number", "express", "mime", "zoom", "chante", "flou", "quisuis"]);
+    await waitFor(async () => Object.keys((await read("images")) ?? {}).length === 4, "photos copiées dans la partie");
+    await regie.context().close();
+  });
+
   test("une prestation en brouillon n'apparaît pas sur la régie ; le code de secours ne donne pas la liste", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     await seedLibrary("shows", {

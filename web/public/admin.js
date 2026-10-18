@@ -4,7 +4,7 @@ import {
   getDatabase, ref, get, set, update, push, onValue, serverTimestamp, connectDatabaseEmulator,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { passwordHash, newSalt, cleanPassword, passwordCandidates, MIN_PASSWORD_LENGTH } from "./secret.js";
-import { TEST_ID, TEST_QUIZ, TEST_SHOW } from "./test-show.js";
+import { TEST_ID, TEST_QUIZ, TEST_SHOW, FULL_ID, FULL_KEYS, FULL_QUIZZES, FULL_MIMES, FULL_SHOW, FULL_PHOTOS, photoQuiz, drawPhoto } from "./test-show.js";
 import { writeProof, isAdmin } from "./proof.js";
 import { parseQuiz, checkQuestions, geminiPrompt, LETTERS } from "./importer.js";
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
@@ -822,6 +822,48 @@ $("test-create").onclick = async () => {
   } catch (err) {
     console.error(err);
     status("test-status", "Échec de l'ajout. Vérifiez la connexion puis réessayez.");
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+/**
+ * Prestation de test « tous les jeux » : photos dessinées ici, puis quiz, paquet de mimes et enfin la
+ * prestation. Chaque contenu déjà présent est gardé tel quel : rien n'est jamais remplacé.
+ */
+$("test-full-create").onclick = async () => {
+  const btn = $("test-full-create");
+  btn.disabled = true;
+  const addIfMissing = async (path, value) => {
+    if ((await get(ref(db, path))).exists()) return;
+    await set(ref(db, path), value);
+  };
+  try {
+    if ((await get(ref(db, `library/shows/${FULL_ID}`))).exists()) {
+      status("test-full-status", "Elle existe déjà : retrouvez-la dans Prestations (rien n'a été modifié).", true);
+      return;
+    }
+    status("test-full-status", "Préparation des photos et des jeux…", true);
+    const now = Date.now();
+    for (const kind of ["zoom", "flou"]) {
+      const ids = [];
+      for (const photo of FULL_PHOTOS[kind]) {
+        const data = drawPhoto(photo);
+        const id = await imageId(data);
+        await addIfMissing(`library/images/${id}`, data);
+        ids.push(id);
+      }
+      await addIfMissing(`library/quizzes/${FULL_KEYS[kind]}`, { ...photoQuiz(kind, ids), createdAt: now, updatedAt: serverTimestamp() });
+    }
+    for (const [id, quiz] of Object.entries(FULL_QUIZZES)) {
+      await addIfMissing(`library/quizzes/${id}`, { ...quiz, createdAt: now, updatedAt: serverTimestamp() });
+    }
+    await addIfMissing(`library/mimes/${FULL_KEYS.mimes}`, { ...FULL_MIMES, createdAt: now, updatedAt: serverTimestamp() });
+    await set(ref(db, `library/shows/${FULL_ID}`), { ...FULL_SHOW, createdAt: now, updatedAt: serverTimestamp() });
+    status("test-full-status", "Ajoutée : « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux » est dans Prestations et sur la régie.", true);
+  } catch (err) {
+    console.error(err);
+    status("test-full-status", "Échec de l'ajout. Vérifiez la connexion puis réessayez.");
   } finally {
     btn.disabled = false;
   }
