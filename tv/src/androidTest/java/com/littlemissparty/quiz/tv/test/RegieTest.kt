@@ -197,6 +197,37 @@ class RegieTest : TestTv() {
         ecran.voit("Toutes les équipes ont répondu")
     }
 
+    @Test
+    fun justeChiffreLEquipeLaPlusProcheGagne() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val dragons = pupitre("dragons").also { it.rejoindre(code, "Dragons", ROSE) }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        @Suppress("UNCHECKED_CAST")
+        val avant = regie.programme(code)["questions"] as List<Map<String, Any?>>
+        val nombre = mapOf(
+            "id" to "a1n", "text" to "Combien d'os dans le corps humain ?", "kind" to "number", "correct" to 206,
+            "duration" to 30, "double" to false, "round" to "Le Juste Chiffre",
+        )
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(nombre) + avant))
+
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("LE JUSTE CHIFFRE")
+        attendreQue("question en nombre ouverte") {
+            licornes.etat(code).takeIf { it.child("phase").value == "question" && it.child("qid").value == "a1n" }
+        }
+        ecran.capture("juste-chiffre-question")
+        assertTrue(licornes.repondre(code, "a1n", 200))
+        assertTrue(dragons.repondre(code, "a1n", 250))
+        ecran.voit("Toutes les équipes ont répondu")
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("écart 6")
+        ecran.capture("juste-chiffre-revelation")
+        attendreQue("points de la plus proche") { points(licornes, code, licornes.uid).takeIf { it == Scoring.NUMBER_CLOSEST.toLong() } }
+        assertEquals(0L, points(dragons, code, dragons.uid))
+    }
+
     private val regies = mutableListOf<RegieSimulee>()
 
     private fun regie() = RegieSimulee().also { regies += it }
