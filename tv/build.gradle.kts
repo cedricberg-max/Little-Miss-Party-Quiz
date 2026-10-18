@@ -26,11 +26,20 @@ android {
 
         buildConfigField("String", "FB_PROJECT_ID", fb("projectId"))
         buildConfigField("String", "FB_DATABASE_URL", fb("databaseURL"))
+
+        // Tests sur émulateur : branche l'appli sur l'émulateur Firebase local, jamais sur la vraie base.
+        testInstrumentationRunner = "com.littlemissparty.quiz.tv.test.LmpTestRunner"
+        // Chaque test démarre l'appli dans un processus neuf, données effacées : comme une box qu'on allume.
+        testInstrumentationRunnerArguments["clearPackageData"] = "true"
         // Description de la dernière version stable, publiée avec le pupitre par GitHub Actions.
         // Les tests sur émulateur peuvent la remplacer : ./gradlew -PlmpUpdateUrl=http://10.0.2.2:8080/tv/latest.json
         val updateUrl = (project.findProperty("lmpUpdateUrl") as String?)
             ?: "https://${firebaseConfig["projectId"] ?: ""}.web.app/tv/latest.json"
         buildConfigField("String", "UPDATE_URL", "\"$updateUrl\"")
+    }
+
+    testOptions {
+        execution = "ANDROIDX_TEST_ORCHESTRATOR"
     }
 
     // Clé fixe pour que chaque nouvelle version s'installe par-dessus l'ancienne.
@@ -46,6 +55,10 @@ android {
     buildTypes {
         debug {
             signingConfig = signingConfigs.getByName("lmp")
+            // Tests sur émulateur : ./gradlew -PlmpDatabaseUrl=http://10.0.2.2:9000?ns=... (version debug seulement).
+            (project.findProperty("lmpDatabaseUrl") as String?)?.let {
+                buildConfigField("String", "FB_DATABASE_URL", "\"$it\"")
+            }
         }
         release {
             isMinifyEnabled = false
@@ -85,4 +98,13 @@ dependencies {
 
     implementation("com.google.zxing:core:3.5.3")
     implementation("com.littlemissparty.quiz:engine")
+
+    // Tests sur émulateur Android TV (workflow « Tests Android »).
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:rules:1.6.1")
+    androidTestImplementation("androidx.test:core-ktx:1.6.1")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
+    androidTestUtil("androidx.test:orchestrator:1.5.1")
+    androidTestUtil("androidx.test.services:test-services:1.5.0")
 }

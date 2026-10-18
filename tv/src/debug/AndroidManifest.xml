@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Version de test uniquement (jamais l'APK installé sur la box) : autorise la connexion
+     à l'émulateur Firebase local, qui ne parle pas en HTTPS. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:usesCleartextTraffic="true" />
+</manifest>
