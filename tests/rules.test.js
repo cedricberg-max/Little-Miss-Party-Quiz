@@ -525,13 +525,18 @@ describe("bibliothèque, prestations et chargement sur la TV", () => {
     await assertFails(get(ref(db(HOST), "library/quizzes")));
     await assertFails(get(ref(db("secours"), "library/shows")));
   });
-  test("la régie charge une prestation dans le salon d'attente, pas pendant la partie", async () => {
+  test("la régie charge une prestation au salon d'attente ; en partie, elle ne modifie que le programme", async () => {
     await seed({ phase: "lobby" });
     await regieByPin("tel");
     await assertSucceeds(set(ref(db("tel"), `games/${CODE}/show`), SNAPSHOT("tel")));
     await assertSucceeds(get(ref(db("tel"), `games/${CODE}/show`)));
     await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/state/phase`), "question"));
     await assertFails(set(ref(db("tel"), `games/${CODE}/show`), { ...SNAPSHOT("tel"), id: "s2" }));
+    // En pleine partie, seule une modification du programme (préparée sur une version précise) passe.
+    await assertSucceeds(set(ref(db("tel"), `games/${CODE}/show`), { ...SNAPSHOT("tel"), id: "s3", base: "s1" }));
+    await assertFails(set(ref(db("rose"), `games/${CODE}/show`), { ...SNAPSHOT("rose"), id: "s4", base: "s3" }));
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/state/phase`), "ended"));
+    await assertFails(set(ref(db("tel"), `games/${CODE}/show`), { ...SNAPSHOT("tel"), id: "s5", base: "s3" }));
   });
   test("une équipe ne charge rien et ne lit pas les réponses de la prestation", async () => {
     await seed({ phase: "lobby" });

@@ -31,6 +31,8 @@ import com.littlemissparty.quiz.engine.Quiz
 import com.littlemissparty.quiz.engine.QuizJson
 import com.littlemissparty.quiz.engine.Resumed
 import com.littlemissparty.quiz.engine.execute
+import com.littlemissparty.quiz.engine.programProblem
+import com.littlemissparty.quiz.engine.withProgram
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -127,6 +129,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var pinLockedUntil = 0L
     /** Dernier chargement de prestation jugé par la box (appliqué ou refusé) : jamais rejugé. */
     private var judgedShow: String? = null
+    /**
+     * Version du programme en vigueur (prestation ou modification acceptée), publiée dans le conducteur.
+     * Une modification préparée sur une autre version est refusée : deux téléphones ne se marchent pas dessus.
+     */
+    private var programRev: String = "initial"
     /** Pupitres connectés au dernier relevé, et pupitres tout juste décrochés (délai de grâce en cours). */
     private var online: Set<String> = emptySet()
     private val dropTimers = mutableMapOf<String, Job>()
@@ -264,13 +271,19 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         gameRef = ref
         activeCode = code
         val snap = ref.readOnce() ?: error("La base Firebase ne répond pas. Vérifiez Internet puis réessayez.")
-        // Prestation chargée par la régie et acceptée : la box la rejoue telle quelle, sans relire la bibliothèque.
+        // Programme en vigueur, écrit par la box elle-même (prestation et modifications acceptées) ;
+        // à défaut (partie d'une version plus ancienne), la prestation chargée par la régie et acceptée.
+        val program = snap.child("conducteur").takeIf { it.child("id").value != null && it.child("rev").value != null }
+            ?.let { c -> runCatching { QuizJson.fromValue(c.value) }.getOrNull()?.let { it to c.child("rev").getValue(String::class.java)!! } }
         val show = snap.child("show")
         val showApplied = show.child("id").value != null &&
             snap.child("showStatus/id").value == show.child("id").value &&
             snap.child("showStatus/status").getValue(String::class.java) == "applied"
-        val quiz = (if (showApplied) runCatching { QuizJson.fromValue(show.child("quiz").value) }.getOrNull() else null)
+        val quiz = program?.first
+            ?: (if (showApplied) runCatching { QuizJson.fromValue(show.child("quiz").value) }.getOrNull() else null)
             ?: loadQuiz(snap.child("quizId").getValue(String::class.java))
+        programRev = program?.second ?: if (showApplied) show.child("id").getValue(String::class.java)!! else "initial"
+        val named = program != null || showApplied
         judgedShow = snap.child("showStatus/id").getValue(String::class.java)
         val history = snap.child("log").children.mapNotNull { (it.value as? Map<*, *>)?.let(Codec::decode) }
         val g = Game(quiz, history)
@@ -287,11 +300,12 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             // Équipes connues dès l'ouverture : une commande reçue avant leur chargement est jugée correctement.
             teams = parseTeams(snap.child("teams")),
             regiePin = regiePin(code), regies = regieUids.size,
-            title = if (showApplied) quiz.title else "",
-            childName = if (showApplied) show.child("childName").getValue(String::class.java).orEmpty() else "",
+            title = if (named) quiz.title else "",
+            childName = if (named) snap.child("public/childName").getValue(String::class.java)
+                ?: show.child("childName").getValue(String::class.java).orEmpty() else "",
         )
         // Le conducteur (questions et bonnes réponses) n'est lisible que par les régies reliées.
-        ref.child("conducteur").setValue(conducteur(quiz))
+        ref.child("conducteur").setValue(conducteur(quiz, programRev))
         publishPublic()
         listenGame(db, ref)
         listenCommands(ref)
@@ -484,9 +498,12 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Prestation choisie sur la régie (salon d'attente seulement) : la box vérifie le quiz, remplace
-     * celui de la partie, republie le conducteur et répond dans showStatus/. Le journal est gardé
-     * (corrections de score déjà faites), aucune question n'a encore été jouée.
+     * Prestation choisie sur la régie, ou programme modifié en cours de partie (jeu ajouté, manches futures
+     * déplacées ou retirées). La box vérifie le quiz, remplace celui de la partie, republie le conducteur et
+     * répond dans showStatus/. Le journal est gardé tel quel : équipes, scores et progression ne bougent pas.
+     * - Sans `base` : une prestation complète, seulement au salon d'attente, avant toute question.
+     * - Avec `base` : une modification préparée sur le programme [programRev] ; la question et la manche en
+     *   cours ne changent jamais ([programProblem]).
      */
     private fun judgeShow(snap: DataSnapshot) {
         val id = snap.child("id").getValue(String::class.java) ?: return
@@ -495,22 +512,32 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             if (id == judgedShow) return@withLock
             val g = game ?: return@withLock
             judgedShow = id
+            val base = snap.child("base").getValue(String::class.java)
             val quiz = runCatching { QuizJson.fromValue(snap.child("quiz").value) }
-            val reason = when {
-                g.state.phase != Phase.LOBBY || g.state.index >= 0 -> "not_now"
+            val lobby = g.state.phase == Phase.LOBBY && g.state.index < 0
+            val q = quiz.getOrNull()
+            var reason = when {
                 quiz.isFailure -> "invalid".also { Log.e(TAG, "Prestation refusée", quiz.exceptionOrNull()) }
+                base == null && !lobby -> "not_now"
+                base != null && base != programRev -> "stale"
+                base != null -> g.programProblem(q!!)
                 else -> null
             }
-            if (reason == null) {
-                val q = quiz.getOrThrow()
-                game = Game(q, g.events)
+            val next = if (reason == null) (if (base == null) Game(q!!, g.events) else g.withProgram(q!!)) else null
+            if (reason == null && next == null) reason = "invalid"
+            if (next != null) {
+                game = next
+                programRev = id
                 updatePlaying {
-                    it.copy(title = q.title, childName = snap.child("childName").getValue(String::class.java).orEmpty())
+                    if (base == null) it.copy(title = q!!.title, childName = snap.child("childName").getValue(String::class.java).orEmpty())
+                    else it
                 }
-                gameRef?.child("conducteur")?.setValue(conducteur(q))
+                gameRef?.child("conducteur")?.setValue(conducteur(next.quiz, programRev))
                 publishPublic()
                 publishState()
                 refresh()
+                // Le chrono en cours était surveillé sur l'ancienne partie : on le reprend sur la nouvelle.
+                schedule()
             }
             gameRef?.child("showStatus")?.setValue(
                 clean(mapOf("id" to id, "status" to if (reason == null) "applied" else "refused", "reason" to reason, "at" to ServerValue.TIMESTAMP))
@@ -873,10 +900,19 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         fun joinUrl(code: String) = "https://${BuildConfig.FB_PROJECT_ID}.web.app/?g=$code"
 
         /** Ce que la régie consulte : toutes les questions, avec leur bonne réponse. */
-        fun conducteur(quiz: Quiz): Map<String, Any> = mapOf(
+        /**
+         * Programme complet en vigueur (même format qu'un quiz), lisible seulement par les régies reliées :
+         * la régie l'affiche et s'en sert pour préparer une modification ; la box le relit au redémarrage.
+         */
+        fun conducteur(quiz: Quiz, rev: String): Map<String, Any> = mapOf(
+            "id" to quiz.id,
             "title" to quiz.title,
+            "rev" to rev,
             "questions" to quiz.questions.map {
-                clean(mapOf("text" to it.text, "choices" to it.choices, "correct" to it.correct, "double" to it.double, "round" to it.roundTitle))
+                clean(mapOf(
+                    "id" to it.id, "text" to it.text, "choices" to it.choices, "correct" to it.correct,
+                    "duration" to it.durationSec, "kind" to it.kind.code, "double" to it.double, "round" to it.roundTitle,
+                ))
             },
         )
 

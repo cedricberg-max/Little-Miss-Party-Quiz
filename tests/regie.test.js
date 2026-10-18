@@ -10,6 +10,7 @@ import { initializeTestEnvironment } from "@firebase/rules-unit-testing";
 import { ref, get, set, update, onValue } from "firebase/database";
 import { chromium } from "playwright";
 import { loadRules, seedAdmin, ADMIN_PASSWORD } from "./rules-loader.js";
+import { lockedUntil } from "../web/public/show.js";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const PUBLIC = join(ROOT, "web/public");
@@ -76,6 +77,8 @@ function questionState(seq, index = 0) {
  * d'avancement refusée si expectSeq ne correspond plus, réponse dans commandStatus/.
  */
 function startBox({ silent = false, held = false } = {}) {
+  /** Verdict imposé à la prochaine modification du programme (pour vérifier ce qu'affiche la régie). */
+  let refuseProgram = null;
   const db = hostDb();
   let latest = {};
   let state = { phase: "lobby", seq: 0, total: QUESTIONS.length, scores: {}, round: 1, buzzOpen: true };
@@ -137,17 +140,34 @@ function startBox({ silent = false, held = false } = {}) {
     }
     await update(ref(db, `games/${CODE}`), updates);
   }
-  // Prestation chargée par la régie : la vraie box vérifie le quiz, republie le conducteur et répond.
+  // Prestation chargée par la régie, ou programme modifié en cours de partie : mêmes vérifications que
+  // GameViewModel.judgeShow (version du programme, manche en cours intouchable), conducteur republié.
   let judgedShow = null;
   if (!silent) stops.push(onValue(ref(db, `games/${CODE}/show`), async (s) => {
     const show = s.val();
     if (!show || show.id === judgedShow) return;
     judgedShow = show.id;
-    await update(ref(db, `games/${CODE}`), {
-      showStatus: { id: show.id, status: "applied", at: Date.now() },
-      conducteur: { title: show.title, questions: show.quiz.questions },
-      public: { title: show.title, childName: show.childName },
-    });
+    const plan = (await get(ref(db, `games/${CODE}/conducteur`))).val();
+    if (show.base == null) {
+      await update(ref(db, `games/${CODE}`), {
+        showStatus: { id: show.id, status: "applied", at: Date.now() },
+        conducteur: { id: show.quiz.id, title: show.title, rev: show.id, questions: show.quiz.questions },
+        public: { title: show.title, childName: show.childName },
+      });
+      return;
+    }
+    const index = state.phase === "lobby" ? -1 : state.index;
+    const keep = lockedUntil(plan.questions, index);
+    const same = (i) => JSON.stringify(show.quiz.questions[i]) === JSON.stringify(plan.questions[i]);
+    const reason = refuseProgram ?? (state.phase === "ended" ? "ended" : show.base !== plan.rev ? "stale"
+      : show.quiz.questions.length <= keep || ![...Array(keep + 1).keys()].every(same) ? "current_round" : null);
+    refuseProgram = null;
+    const updates = { showStatus: { id: show.id, status: reason ? "refused" : "applied", ...(reason ? { reason } : {}), at: Date.now() } };
+    if (!reason) {
+      state = { ...state, total: show.quiz.questions.length };
+      Object.assign(updates, { state, conducteur: { ...plan, rev: show.id, questions: show.quiz.questions } });
+    }
+    await update(ref(db, `games/${CODE}`), updates);
   }));
   if (!silent) stops.push(onValue(ref(db, `games/${CODE}/commands`), (s) => {
     latest = s.val() ?? {};
@@ -157,6 +177,7 @@ function startBox({ silent = false, held = false } = {}) {
     stop: () => stops.forEach((f) => f()),
     release: () => { held = false; return process(); },
     get state() { return state; },
+    refuseNextProgram: (reason) => { refuseProgram = reason; },
   };
 }
 
@@ -169,7 +190,7 @@ beforeEach(async () => {
   await set(gameRef(), {
     hostUid: HOST,
     state: { phase: "lobby", seq: 0, total: QUESTIONS.length, scores: {}, round: 1, buzzOpen: true },
-    conducteur: { title: "Démo", questions: QUESTIONS },
+    conducteur: { id: "demo", title: "Démo", rev: "initial", questions: QUESTIONS.map((q, i) => ({ id: `q${i + 1}`, ...q })) },
   });
 });
 afterEach(() => { box?.stop(); box = null; });
@@ -871,6 +892,108 @@ describe("bibliothèque de quiz et prestations", () => {
     const copy = Object.values(quizzes).find((q) => q.title === "Animaux (copie)");
     assert.equal(copy.questions[0].text, "Qui est le roi de la savane ?");
     await page.context().close();
+  });
+
+  test("ajouter un jeu en pleine partie, réorganiser les manches futures, sans toucher aux scores ni à la bibliothèque", async () => {
+    const DINO = { title: "Dinosaures", source: "tableur", updatedAt: 1, questions: [{ text: "Le T-Rex mangeait de la viande", choices: ["Vrai", "Faux"], correct: 0, status: "validee" }] };
+    await seedLibrary("quizzes", { animaux: ANIMAUX, finale: FINALE, dino: DINO });
+    await seedLibrary("shows", {
+      lea: { childName: "Léa", age: 7, date: "2099-12-02", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }, { type: "finale", quizId: "finale" }], updatedAt: 1 },
+      hugo: { childName: "Hugo", age: 9, date: "2025-06-01", status: "archivee", rounds: [{ type: "quiz", quizId: "dino" }], updatedAt: 1 },
+    });
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator(".show-item", { hasText: "L'anniversaire de Léa" }).click();
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    await regie.click("#c-next");
+    await regie.locator("#c-phase", { hasText: "Question en cours" }).waitFor();
+    await regie.locator('#panel-teams [data-team="rose"] button[data-delta="10"]').click();
+    await waitFor(async () => (await read("state/scores/rose")) === 10, "10 points pour les Roses");
+    const rounds = async () => (await read("conducteur")).questions.map((q) => q.round);
+
+    // Un quiz de la bibliothèque, après la manche en cours : aperçu puis ajout.
+    await regie.click("#tab-plan");
+    await regie.click("#plan-add");
+    await regie.locator('#lib-list [data-game="quiz/dino"]', { hasText: "1 question" }).click();
+    await regie.locator("#lib-questions", { hasText: "Le T-Rex mangeait de la viande" }).waitFor();
+    await regie.click("#lib-after");
+    await regie.locator("#r-toast", { hasText: "« Dinosaures » est ajouté après la manche en cours." }).waitFor();
+    assert.equal(await regie.locator("#lib").isHidden(), true);
+    assert.deepEqual(await rounds(), ["Animaux", "Animaux", "Dinosaures", "Super Finale"]);
+    assert.equal(await read("state/total"), 4);
+    assert.equal(await read("state/index"), 0, "La question en cours ne bouge pas");
+
+    // Une manche d'une ancienne prestation, à la fin : elle garde un titre distinct.
+    await regie.click("#plan-add");
+    await regie.locator('#lib-list [data-game="show/hugo/0"]', { hasText: "L'anniversaire de Hugo" }).click();
+    await regie.click("#lib-end");
+    await regie.locator("#r-toast", { hasText: "« Dinosaures · 2 » est ajouté à la fin du programme." }).waitFor();
+    assert.deepEqual(await rounds(), ["Animaux", "Animaux", "Dinosaures", "Super Finale", "Dinosaures · 2"]);
+
+    // La manche en cours n'a ni flèches ni « Retirer » ; une manche future se déplace et se retire.
+    assert.equal(await regie.locator('.plan-head[data-round="Animaux"] button').count(), 0);
+    await regie.click('.plan-head[data-round="Super Finale"] button.up');
+    await regie.locator("#r-toast", { hasText: "« Super Finale » avancée d'un cran." }).waitFor();
+    assert.deepEqual(await rounds(), ["Animaux", "Animaux", "Super Finale", "Dinosaures", "Dinosaures · 2"]);
+    regie.once("dialog", (d) => d.accept());
+    await regie.click('.plan-head[data-round="Dinosaures · 2"] button.remove');
+    await regie.locator("#r-toast", { hasText: "« Dinosaures · 2 » est retirée du programme." }).waitFor();
+    assert.deepEqual(await rounds(), ["Animaux", "Animaux", "Super Finale", "Dinosaures"]);
+
+    // Un autre téléphone a changé le programme juste avant : la TV refuse, la régie le dit, rien ne bouge.
+    box.refuseNextProgram("stale");
+    await regie.click('.plan-head[data-round="Dinosaures"] button.up');
+    await regie.locator("#r-toast", { hasText: "Le programme venait de changer" }).waitFor();
+    assert.deepEqual(await rounds(), ["Animaux", "Animaux", "Super Finale", "Dinosaures"]);
+
+    assert.equal(await read("state/scores/rose"), 10, "Scores gardés");
+    const lib = await library("quizzes");
+    assert.deepEqual(lib.dino, DINO, "Quiz de la bibliothèque inchangé");
+    assert.deepEqual(lib.animaux, ANIMAUX);
+    await regie.context().close();
+  });
+
+  test("prestation de test : ajoutée en un clic sans rien remplacer, modifiée dans l'admin, chargée telle quelle sur la TV", async () => {
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    const INES = { childName: "Inès", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 };
+    await seedLibrary("shows", { ines: INES });
+    const page = await admin();
+    await page.click("#nav button[data-screen=settings]");
+    await page.click("#test-create");
+    await page.locator("#test-status", { hasText: "Ajoutée" }).waitFor();
+    await page.click("#test-create");
+    await page.locator("#test-status", { hasText: "existe déjà" }).waitFor();
+    const shows = await library("shows");
+    assert.deepEqual(Object.keys(shows).sort(), ["ines", "test-lea-9-ans"]);
+    assert.deepEqual(shows.ines, INES, "Prestation existante intacte");
+    assert.deepEqual((await library("quizzes")).animaux, ANIMAUX, "Quiz existant intact");
+
+    // Dans l'administration : la prestation, puis ses 10 questions, dont Sarah corrige la première.
+    await page.click("#nav button[data-screen=shows]");
+    await page.locator('#screen-shows [data-show="test-lea-9-ans"]', { hasText: "ANNIVERSAIRE TEST – Léa, 9 ans" }).waitFor({ state: "attached" });
+    await page.click("#nav button[data-screen=quizzes]");
+    await page.locator('#quiz-list [data-quiz="test-lea-9-ans"]', { hasText: "10 questions · 10 validées" }).getByRole("button", { name: "Relire" }).click();
+    await page.locator('[data-q="9"]').waitFor();
+    await page.locator('[data-q="0"] .q-text').fill("Quelle est la capitale de la France ? (modifiée dans l'admin)");
+    await page.click("#rv-save");
+    await page.locator("#rv-status", { hasText: "10 questions validées sur 10" }).waitFor();
+    await page.context().close();
+
+    // Sur la régie : la même prestation, chargée sur la TV avec la question modifiée.
+    box = startBox();
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator(".show-item", { hasText: "ANNIVERSAIRE TEST – Léa, 9 ans" }).click();
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    const q = (await read("show")).quiz.questions;
+    assert.equal(q.length, 10);
+    assert.equal(q[0].text, "Quelle est la capitale de la France ? (modifiée dans l'admin)");
+    assert.equal(q[9].double, true);
+    await regie.context().close();
   });
 
   test("une prestation en brouillon n'apparaît pas sur la régie ; le code de secours ne donne pas la liste", async () => {

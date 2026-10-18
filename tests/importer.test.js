@@ -2,7 +2,9 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { parseQuiz, checkQuestions, geminiPrompt, resolveCorrect } from "../web/public/importer.js";
-import { readiness, upcoming, daysUntil, isoDay, duplicateShow } from "../web/public/show.js";
+import { buildSnapshot,
+  readiness, upcoming, daysUntil, isoDay, duplicateShow, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
+} from "../web/public/show.js";
 
 const GEMINI = `Titre : Les animaux de la jungle
 
@@ -186,5 +188,65 @@ describe("tableau de bord des prestations", () => {
     assert.deepEqual(copy, { profile: "PETITS", themes: "Licornes", status: "brouillon", rounds: [{ type: "quiz", quizId: "animaux" }] });
     copy.rounds[0].quizId = "autre";
     assert.equal(original.rounds[0].quizId, "animaux");
+  });
+});
+
+describe("programme modifié pendant la partie", () => {
+  const q = (id, round) => ({ id, text: `${id} ?`, choices: ["A", "B"], correct: 0, duration: 20, round });
+  const PLAN = [q("r1q1", "Animaux"), q("r1q2", "Animaux"), q("r2q1", "Espace"), q("r3q1", "Super Finale")];
+  const ids = (list) => list.map((x) => x.id);
+
+  test("la manche en cours est verrouillée jusqu'à sa dernière question", () => {
+    assert.equal(lockedUntil(PLAN, -1), -1);
+    assert.equal(lockedUntil(PLAN, 0), 1);
+    assert.equal(lockedUntil(PLAN, 2), 2);
+    assert.equal(lockedUntil([q("a"), q("b")], 0), 0, "Sans manches, seule la question en cours");
+    assert.deepEqual(programRounds(PLAN).map((r) => [r.title, r.start, r.end]), [["Animaux", 0, 1], ["Espace", 2, 2], ["Super Finale", 3, 3]]);
+  });
+
+  test("ajouter un jeu après la manche actuelle ou à la fin, avec des identifiants neufs", () => {
+    const quizzes = { dino: { title: "Dinosaures", questions: [{ text: "T-Rex ?", choices: ["Oui", "Non"], correct: 0, status: "validee" }] } };
+    const { questions } = gameQuestions({ type: "quiz", quizId: "dino" }, quizzes, "GRANDS", "e9");
+    assert.deepEqual(questions.map((x) => [x.id, x.round, x.duration]), [["e9q1", "Dinosaures", 22]]);
+    assert.deepEqual(ids(insertGame(PLAN, questions, "after", 0)), ["r1q1", "r1q2", "e9q1", "r2q1", "r3q1"]);
+    assert.deepEqual(ids(insertGame(PLAN, questions, "end", 0)), ["r1q1", "r1q2", "r2q1", "r3q1", "e9q1"]);
+    assert.deepEqual(ids(insertGame(PLAN, questions, "after", -1)), ["e9q1", "r1q1", "r1q2", "r2q1", "r3q1"], "Au salon : en premier");
+    const finale = gameQuestions({ type: "finale", quizId: "dino" }, quizzes, null, "e10");
+    assert.equal(finale.questions[0].double, true);
+    assert.equal(gameQuestions({ type: "quiz", quizId: "efface" }, quizzes, null, "x").questions.length, 0);
+  });
+
+  test("déplacer ou retirer seulement les manches pas encore commencées", () => {
+    assert.deepEqual(ids(moveRound(PLAN, 3, -1, 0)), ["r1q1", "r1q2", "r3q1", "r2q1"]);
+    assert.equal(moveRound(PLAN, 2, -1, 0), null, "Impossible de passer devant la manche en cours");
+    assert.equal(moveRound(PLAN, 3, 1, 0), null);
+    assert.deepEqual(ids(removeRound(PLAN, 2, 0)), ["r1q1", "r1q2", "r3q1"]);
+    assert.equal(removeRound(PLAN, 0, 0), null, "La manche en cours reste");
+    assert.equal(removeRound([q("a", "A")], 0, -1), null, "Le programme ne peut pas devenir vide");
+  });
+
+  test("un jeu ajouté deux fois garde des manches distinctes", () => {
+    assert.equal(uniqueRoundTitle(PLAN, "Dinosaures"), "Dinosaures");
+    assert.equal(uniqueRoundTitle(PLAN, "Animaux"), "Animaux · 2");
+    assert.equal(uniqueRoundTitle([...PLAN, q("x", "Animaux · 2")], "Animaux"), "Animaux · 3");
+  });
+});
+
+describe("prestation de test", () => {
+  test("10 questions jouables pour 9 ans, chronos imposés, finale ×2, prête pour la régie", async () => {
+    const { TEST_ID, TEST_QUIZ, TEST_SHOW } = await import("../web/public/test-show.js");
+    const quizzes = { [TEST_ID]: TEST_QUIZ };
+    const { snapshot, problems } = buildSnapshot(TEST_ID, TEST_SHOW, quizzes);
+    assert.deepEqual(problems, []);
+    assert.equal(snapshot.title, "ANNIVERSAIRE TEST – Léa, 9 ans");
+    assert.equal(snapshot.profile, "MOYENS");
+    const q = snapshot.quiz.questions;
+    assert.equal(q.length, 10);
+    assert.deepEqual(q.map((x) => x.duration), [20, 20, 15, 20, 20, 20, 15, 20, 20, 25]);
+    assert.deepEqual(q.map((x) => x.double), [false, false, false, false, false, false, false, false, false, true]);
+    assert.equal(q.filter((x) => x.kind === "true_false").length, 2);
+    const report = checkQuestions(TEST_QUIZ.questions, { profile: "MOYENS" });
+    assert.deepEqual(report.flatMap((r) => [...r.errors, ...r.warnings]), []);
+    assert.equal(readiness(TEST_SHOW, quizzes).level, "prete");
   });
 });

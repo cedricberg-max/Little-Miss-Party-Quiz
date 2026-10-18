@@ -114,3 +114,77 @@ export function duplicateShow(show) {
   const { childName, age, date, title, status, createdAt, updatedAt, origin, ...rest } = show;
   return { ...rest, status: "brouillon", rounds: (show.rounds ?? []).filter(Boolean).map((r) => ({ ...r })) };
 }
+
+// ---------- Programme modifié pendant la partie (régie) ----------
+// Mêmes règles que la box (engine Program.kt) : la question en cours et la fin de sa manche ne bougent pas.
+
+/** Manches du programme : suites de questions de même titre, avec leurs bornes. */
+export function programRounds(questions) {
+  const list = [];
+  questions.forEach((q, i) => {
+    const last = list[list.length - 1];
+    if (last && q.round && last.title === q.round) last.end = i;
+    else list.push({ title: q.round || "Questions", start: i, end: i });
+  });
+  return list;
+}
+
+/** Dernière question verrouillée : celle en cours et la fin de sa manche (-1 au salon d'attente). */
+export function lockedUntil(questions, index) {
+  if (index == null || index < 0) return -1;
+  const round = questions[index]?.round;
+  if (!round) return index;
+  let end = index;
+  while (questions[end + 1]?.round === round) end++;
+  return end;
+}
+
+/**
+ * Questions d'un jeu choisi dans la bibliothèque (quiz ou manche d'une ancienne prestation), prêtes à
+ * insérer : chrono du profil de la prestation, identifiants nouveaux (préfixe [prefix]) pour ne jamais
+ * croiser une question déjà jouée. Le quiz de la bibliothèque n'est pas modifié.
+ */
+export function gameQuestions(source, quizzes, profile, prefix) {
+  const { snapshot, problems } = buildSnapshot("ajout", { profile, rounds: [source] }, quizzes);
+  if (!snapshot) return { questions: [], problems };
+  return { questions: snapshot.quiz.questions.map((q, j) => ({ ...q, id: `${prefix}q${j + 1}` })), problems };
+}
+
+/** Insère un jeu après la manche en cours (au début, au salon d'attente) ou à la fin du programme. */
+export function insertGame(questions, added, where, index) {
+  const at = where === "end" ? questions.length : lockedUntil(questions, index) + 1;
+  return [...questions.slice(0, at), ...added, ...questions.slice(at)];
+}
+
+/** Manche pas encore commencée : la seule qu'on peut déplacer ou retirer. */
+export function isFutureRound(round, questions, index) {
+  return round.start > lockedUntil(questions, index);
+}
+
+/** Déplace une manche future d'un cran (delta -1 ou +1) parmi les manches futures ; null si impossible. */
+export function moveRound(questions, start, delta, index) {
+  const all = programRounds(questions);
+  const k = all.findIndex((r) => r.start === start);
+  const other = all[k + delta];
+  if (k < 0 || !other || !isFutureRound(all[k], questions, index) || !isFutureRound(other, questions, index)) return null;
+  const order = all.map((_, i) => i);
+  [order[k], order[k + delta]] = [order[k + delta], order[k]];
+  return order.flatMap((i) => questions.slice(all[i].start, all[i].end + 1));
+}
+
+/** Retire une manche future ; null si elle a commencé ou si le programme deviendrait vide. */
+export function removeRound(questions, start, index) {
+  const r = programRounds(questions).find((x) => x.start === start);
+  if (!r || !isFutureRound(r, questions, index)) return null;
+  const next = [...questions.slice(0, r.start), ...questions.slice(r.end + 1)];
+  return next.length ? next : null;
+}
+
+/** Titre de manche libre dans le programme (« Animaux · 2 »…) : deux manches ne se confondent jamais. */
+export function uniqueRoundTitle(questions, title) {
+  const taken = new Set(questions.map((q) => q.round));
+  if (!taken.has(title)) return title;
+  let n = 2;
+  while (taken.has(`${title} · ${n}`)) n++;
+  return `${title} · ${n}`;
+}

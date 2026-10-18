@@ -83,6 +83,33 @@ class RegieSimulee : AutoCloseable {
         bloquer { base.getReference("games/$code/conducteur").lireUneFois() }.exists()
     }.getOrDefault(false)
 
+    /** Programme en vigueur publié par la box (conducteur) : titre, version et questions. */
+    @Suppress("UNCHECKED_CAST")
+    fun programme(code: String): Map<String, Any?> =
+        bloquer { base.getReference("games/$code/conducteur").lireUneFois() }.value as Map<String, Any?>
+
+    /**
+     * Comme « Ajouter un jeu » ou les flèches du conducteur : programme modifié préparé sur la version [base].
+     * Renvoie le verdict de la box : "applied", ou la raison du refus (stale, current_round…).
+     */
+    fun modifierProgramme(code: String, base: String, questions: List<Map<String, Any?>>): String {
+        val plan = programme(code)
+        val ref = this.base.getReference("games/$code/show")
+        val id = ref.push().key!!
+        bloquer {
+            ref.setValue(mapOf(
+                "id" to id, "base" to base, "title" to plan["title"], "by" to uid, "at" to ServerValue.TIMESTAMP,
+                "quiz" to mapOf("id" to plan["id"], "title" to plan["title"], "questions" to questions),
+            )).await()
+        }
+        return attendreQue("verdict de la box pour le programme $id") {
+            val statut = bloquer { this.base.getReference("games/$code/showStatus").lireUneFois() }
+            if (statut.child("id").value != id) null
+            else if (statut.child("status").value == "applied") "applied"
+            else statut.child("reason").value as? String ?: "refused"
+        }
+    }
+
     override fun close() {
         runCatching { base.goOffline() }
     }
