@@ -124,7 +124,7 @@ reports/$id    { kind, text, version, device, at }  // plantages de la box : éc
 ```
 games/$code
   public       { title, childName, takenColors, phase }   // seul nœud lisible avant de rejoindre
-  regie/$uid { since, via: 'motdepasse'|'pin' }   // écrit par la fonction regieLogin (ou la box en secours)
+  regie/$uid { via: 'password'|'pin', at }   // écrit par le téléphone si les règles valident sa preuve (ou par la box pour le PIN)
   pairing/$uid { pin, at }   pairingLock { failures, until }   // secours par PIN, avant Blaze seulement
   conducteur   { rounds, questions avec bonnes réponses }  // publié par la box, lisible par les régies seules
   showId                        // prestation chargée, écrit par la box
@@ -132,9 +132,9 @@ games/$code
   teams/$teamId { name, color, emblem }       // une équipe = une place, pas une tablette
   devices/$uid "<teamId>"       // tablette rattachée à une place ; la régie rattache un remplaçant
   buzz/$windowId/$teamId { pressedAt, receivedAt }
-settings/regie { hash, salt, version, updatedAt, updatedBy }   // lu et écrit par les fonctions seules
-regieAccess/$uid { grantedAt, expiresAt, version }   // écrit par regieLogin ; accès régie valable 12 h
-regieAttempts/$key { failures, until }               // limitation des essais, fonctions seules
+settings/regie { salt, hash, updatedAt }   // salt lisible ; hash = SHA-256(sel:mot de passe), jamais lisible ; écriture admin
+regieGate/try { uid, at }                  // un essai toutes les 2 s, tous appareils confondus
+regieProof/$uid { hash, gateAt }           // empreinte d'un essai, écriture seule, jamais relisible
 library/                        // lecture : box, admin, et régie connectée pour la liste des prestations ; écriture : admin
   quizzes/$quizId { title, theme, ageMin, ageMax, difficulty, source: 'tableur'|'gemini'|'saisie',
                     questions/$qid { ..., status: 'brouillon'|'validee', mediaId? } }
@@ -195,29 +195,32 @@ un mot de passe commun, aucun compte animatrice.
 1. L'animatrice scanne le QR de la TV (le même que les équipes) et arrive sur la page des pupitres avec
    le code de partie. Un bouton discret **« 🎛️ Accès régie »**, en bas à droite, ouvre une fenêtre
    « Mot de passe de régie ». Pas d'inscription, pas d'application à installer.
-2. La page (connexion anonyme comme les pupitres) appelle la fonction **`regieLogin({ code, password })`**
-   (europe-west1). La fonction compare avec `settings/regie` (empreinte **scrypt** + sel, comparaison
-   à temps constant ; le mot de passe n'est jamais stocké en clair ni lisible par un client). Succès :
-   elle écrit dans un même `update` `regieAccess/$uid { grantedAt, expiresAt: +12 h, version }` et
-   `games/$code/regie/$uid { since, via: 'motdepasse' }`. La page bascule en mode régie, sans
-   rechargement ; la session reste valable 12 h sur ce téléphone (rouvrir la page ne redemande rien).
-3. **Limitation des essais** (dans la fonction, transaction sur `regieAttempts`) : par appareil, 5 échecs
-   → 1 min d'attente, puis 5 min ; par partie, 20 échecs en 10 min → 5 min. Message simple
-   (« Mot de passe incorrect », puis « Réessayez dans 1 minute »), jamais de détail technique.
+2. **Vérification par les règles RTDB, en place dès Spark (lot 2)**. La page (connexion anonyme comme
+   les pupitres) lit `settings/regie/salt`, calcule `SHA-256(sel + ':' + mot de passe)` dans le
+   navigateur, puis écrit dans l'ordre : `regieGate/try { uid, at }` (refusé si le dernier essai, de
+   n'importe quel appareil, date de moins de 2 s), `regieProof/$uid { hash, gateAt }` (une empreinte par
+   essai, jamais relisible), puis `games/$code/regie/$uid { via: 'password' }`. Les règles n'acceptent
+   cette dernière écriture que si `regieProof/$uid/hash === settings/regie/hash`, que la preuve vient
+   de l'essai en cours, et que la partie existe et n'est pas terminée. `settings/regie/hash` n'est
+   lisible par aucun client. La page bascule alors en mode régie, sans rechargement.
+3. **Limites connues de ce chemin** : pas de compteur par appareil ni par partie ; plafond global d'environ
+   1 800 essais par heure ; un appareil qui essaie en boucle peut ralentir les autres (attente de 2 s).
+   D'où **8 caractères au moins** imposés par l'administration. Au lot 4 (Blaze), une fonction
+   `regieLogin` (empreinte scrypt, limites par appareil et par partie) peut remplacer ce chemin **sans
+   changer l'interface**.
 4. **Changement de mot de passe** : Paramètres > Accès régie > Modifier le mot de passe (saisie,
-   confirmation, au moins 6 caractères) dans l'administration ; fonction `setRegiePassword` réservée au
-   rôle `admin`, qui réécrit `settings/regie` et incrémente `version`. Effet immédiat pour les nouvelles
-   connexions, sans redéploiement. Une régie déjà connectée **n'est pas coupée** : elle garde son accès
-   jusqu'à la fin de sa partie (son `regie/$uid` reste valide). Bouton admin « Déconnecter toutes les
-   régies » pour le cas d'un mot de passe divulgué.
+   confirmation, 8 caractères au moins) dans l'administration ; l'admin réécrit `settings/regie` (nouveau
+   sel, nouvelle empreinte) ; écriture réservée aux admins (liste d'adresses dans les règles, vide tant
+   que cedric ne l'a pas donnée, puis rôle `admin` au lot 4). Effet immédiat pour les nouvelles
+   connexions, sans redéploiement. Une régie déjà reliée **n'est pas coupée** : son `regie/$uid` reste
+   valide jusqu'à la fin de sa partie.
 5. **Droits de la régie** : envoyer des commandes à la partie (`commands`, si `regie/$uid` existe), lire
-   la partie et `conducteur`, lire la liste et le contenu des prestations publiées (si `regieAccess/$uid`
-   n'a pas expiré) pour en choisir une (commande `loadShow { showId }`). **Aucune écriture** dans
+   la partie et `conducteur`, lire la liste et le contenu des prestations publiées (régie reliée à une
+   partie en cours) pour en choisir une (commande `loadShow { showId }`). **Aucune écriture** dans
    `library`, `settings` ni les médias : le mot de passe de régie ne donne aucun droit d'administration.
-6. **Avant Blaze** (pas de fonction possible) : le chemin de secours existant sert de transition. La TV
-   affiche un PIN à 4 chiffres, la page l'envoie, la box compare et écrit `regie/$uid { via: 'pin' }`
-   via `pairing/$uid` (5 PIN faux = 60 s de blocage, `pairingLock`). L'interface (bouton, fenêtre, mode régie) est la même ; seul l'appel
-   change. `regieLogin` se code et se teste dès maintenant sur l'émulateur, et se déploie dès la bascule.
+6. **Secours** : tant qu'aucun mot de passe n'est posé (ou si l'admin n'est pas joignable), la TV affiche
+   un PIN à 4 chiffres ; la page l'envoie via `pairing/$uid`, la box compare et écrit
+   `regie/$uid { via: 'pin' }` (5 PIN faux = 60 s de blocage, `pairingLock`). Même bouton, même fenêtre.
 7. Une régie se retire depuis la TV (« Retirer les régies ») ou en changeant de partie. Deux régies au
    plus par partie. Deux prestations simultanées = deux parties, deux box : rien n'est partagé.
 
@@ -228,7 +231,7 @@ un mot de passe commun, aucun compte animatrice.
 | --- | --- | --- |
 | `admin` | Sarah, cedric (compte Google) | script d'administration lancé une fois avec le compte de service |
 | `box` | une box Android TV | la box affiche un code + QR ; un admin approuve dans la page d'administration → fonction `approveDevice` |
-| régie | un téléphone, une partie | mot de passe commun vérifié par `regieLogin` (PIN de la TV avant Blaze), pas de compte |
+| régie | un téléphone, une partie | mot de passe commun vérifié par les règles (`regieProof`), PIN de la TV en secours, pas de compte |
 | équipe | pupitre, une partie | `teams/$uid` ou `devices/$uid` de la partie |
 
 - Après approbation, la box force le rafraîchissement de son jeton (`getIdToken(true)`).
@@ -239,7 +242,7 @@ un mot de passe commun, aucun compte animatrice.
   `hostUid` vers la nouvelle box et ajoute un événement `host_transferred` au journal ; la nouvelle box
   télécharge l'instantané et rejoue le journal.
 - `library` : lecture `auth.token.role in ['box','admin']` (en RTDB : une condition
-  `auth.token.role === '…'` par rôle), plus `shows` pour une régie dont `regieAccess/$uid/expiresAt > now` ;
+  `auth.token.role === '…'` par rôle), plus `shows` pour une régie reliée à une partie en cours ;
   écriture `admin` seulement. Un pupitre ne lit jamais une bonne réponse avant `reveals`.
 - `games/$code` : création réservée au rôle `box` ; lecture réservée à l'hôte, aux régies et aux équipes
   inscrites ; `public` lisible par tout compte connecté.
@@ -317,9 +320,9 @@ un mot de passe commun, aucun compte animatrice.
   exécutés par GitHub Actions sur chaque PR. Couvrir au minimum : un pupitre ne peut ni modifier un
   score ni écrire un événement ; une équipe ne répond pas deux fois ; un buzz hors fenêtre est refusé ;
   une régie non appairée ne peut pas commander ; une commande au `expectSeq` périmé est rejetée par le
-  moteur ; 5 PIN faux bloquent l'appairage 60 s ; `regieLogin` refuse un mauvais mot de passe et bloque
-  après 5 échecs ; après `setRegiePassword`, l'ancien mot de passe est refusé mais une régie déjà
-  connectée continue de commander ; une régie n'écrit ni `library` ni `settings` ; personne ne lit
+  moteur ; 5 PIN faux bloquent l'appairage 60 s ; une mauvaise empreinte ne relie pas la régie ; un second
+  essai à moins de 2 s est refusé ; `settings/regie/hash` et `regieProof` ne sont jamais lisibles ; après
+  changement du mot de passe, l'ancien est refusé mais une régie déjà reliée continue de commander ; une régie n'écrit ni `library` ni `settings` ; personne ne lit
   `settings/regie` ; une régie ne lit pas `conducteur` avant d'être connectée ; une tablette de
   remplacement rattachée par la régie garde le nom et les points de l'équipe ; un pupitre ne lit pas `library` ; un appareil inconnu
   ne peut pas se faire passer pour une équipe ; un compte sans rôle ne lit ni `library`, ni les médias,

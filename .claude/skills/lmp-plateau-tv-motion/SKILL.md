@@ -285,7 +285,7 @@ décoratif.
   « 🎛️ Accès régie » en bas à droite de la page (discret, jamais au centre ni coloré, hors de portée
   d'un enfant qui rejoint une équipe), saisit le mot de passe commun dans une fenêtre simple (clavier
   ouvert d'office, œil pour afficher, bouton « Entrer »), puis la même page passe en mode régie. Liste
-  des prestations publiées, une touche pour charger. Session gardée 12 h : rouvrir la page ne redemande
+  des prestations publiées, une touche pour charger. Pendant la partie, rouvrir la page ne redemande
   rien. Jamais de compte ni d'adresse e-mail.
 - **Conducteur** consultable à tout moment (onglet) : manches, questions à venir avec leur réponse,
   sans interrompre ce que montre la TV.
