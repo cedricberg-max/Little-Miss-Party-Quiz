@@ -956,6 +956,46 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
+  test("prestation de test : ajoutée en un clic sans rien remplacer, modifiée dans l'admin, chargée telle quelle sur la TV", async () => {
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    const INES = { childName: "Inès", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 };
+    await seedLibrary("shows", { ines: INES });
+    const page = await admin();
+    await page.click("#nav button[data-screen=settings]");
+    await page.click("#test-create");
+    await page.locator("#test-status", { hasText: "Ajoutée" }).waitFor();
+    await page.click("#test-create");
+    await page.locator("#test-status", { hasText: "existe déjà" }).waitFor();
+    const shows = await library("shows");
+    assert.deepEqual(Object.keys(shows).sort(), ["ines", "test-lea-9-ans"]);
+    assert.deepEqual(shows.ines, INES, "Prestation existante intacte");
+    assert.deepEqual((await library("quizzes")).animaux, ANIMAUX, "Quiz existant intact");
+
+    // Dans l'administration : la prestation, puis ses 10 questions, dont Sarah corrige la première.
+    await page.click("#nav button[data-screen=shows]");
+    await page.locator('#screen-shows [data-show="test-lea-9-ans"]', { hasText: "ANNIVERSAIRE TEST – Léa, 9 ans" }).waitFor({ state: "attached" });
+    await page.click("#nav button[data-screen=quizzes]");
+    await page.locator('#quiz-list [data-quiz="test-lea-9-ans"]', { hasText: "10 questions · 10 validées" }).getByRole("button", { name: "Relire" }).click();
+    await page.locator('[data-q="9"]').waitFor();
+    await page.locator('[data-q="0"] .q-text').fill("Quelle est la capitale de la France ? (modifiée dans l'admin)");
+    await page.click("#rv-save");
+    await page.locator("#rv-status", { hasText: "10 questions validées sur 10" }).waitFor();
+    await page.context().close();
+
+    // Sur la régie : la même prestation, chargée sur la TV avec la question modifiée.
+    box = startBox();
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator(".show-item", { hasText: "ANNIVERSAIRE TEST – Léa, 9 ans" }).click();
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    const q = (await read("show")).quiz.questions;
+    assert.equal(q.length, 10);
+    assert.equal(q[0].text, "Quelle est la capitale de la France ? (modifiée dans l'admin)");
+    assert.equal(q[9].double, true);
+    await regie.context().close();
+  });
+
   test("une prestation en brouillon n'apparaît pas sur la régie ; le code de secours ne donne pas la liste", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     await seedLibrary("shows", {

@@ -4,6 +4,7 @@ import {
   getDatabase, ref, get, set, update, push, onValue, serverTimestamp, connectDatabaseEmulator,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { passwordHash, newSalt, MIN_PASSWORD_LENGTH } from "./secret.js";
+import { TEST_ID, TEST_QUIZ, TEST_SHOW } from "./test-show.js";
 import { writeProof, isAdmin } from "./proof.js";
 import { parseQuiz, checkQuestions, geminiPrompt, LETTERS } from "./importer.js";
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
@@ -682,3 +683,27 @@ passwordForm({
     status("admin-save-status", "Mot de passe administrateur changé. Les autres appareils devront le saisir à nouveau.", true);
   },
 });
+
+// ---------- Prestation de test ----------
+
+/** Ajoute la prestation de test et son quiz, seulement s'ils n'existent pas encore : rien n'est jamais remplacé. */
+$("test-create").onclick = async () => {
+  const btn = $("test-create");
+  btn.disabled = true;
+  try {
+    const [q, s] = await Promise.all([get(ref(db, `library/quizzes/${TEST_ID}`)), get(ref(db, `library/shows/${TEST_ID}`))]);
+    if (q.exists() || s.exists()) {
+      status("test-status", "Elle existe déjà : retrouvez-la dans Prestations (rien n'a été modifié).", true);
+      return;
+    }
+    const now = Date.now();
+    await set(ref(db, `library/quizzes/${TEST_ID}`), { ...TEST_QUIZ, createdAt: now, updatedAt: serverTimestamp() });
+    await set(ref(db, `library/shows/${TEST_ID}`), { ...TEST_SHOW, createdAt: now, updatedAt: serverTimestamp() });
+    status("test-status", "Ajoutée : « ANNIVERSAIRE TEST – Léa, 9 ans » est dans Prestations et sur la régie.", true);
+  } catch (err) {
+    console.error(err);
+    status("test-status", "Échec de l'ajout. Vérifiez la connexion puis réessayez.");
+  } finally {
+    btn.disabled = false;
+  }
+};

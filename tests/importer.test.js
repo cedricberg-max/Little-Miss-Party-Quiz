@@ -2,7 +2,7 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { parseQuiz, checkQuestions, geminiPrompt, resolveCorrect } from "../web/public/importer.js";
-import {
+import { buildSnapshot,
   readiness, upcoming, daysUntil, isoDay, duplicateShow, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
 } from "../web/public/show.js";
 
@@ -229,5 +229,24 @@ describe("programme modifié pendant la partie", () => {
     assert.equal(uniqueRoundTitle(PLAN, "Dinosaures"), "Dinosaures");
     assert.equal(uniqueRoundTitle(PLAN, "Animaux"), "Animaux · 2");
     assert.equal(uniqueRoundTitle([...PLAN, q("x", "Animaux · 2")], "Animaux"), "Animaux · 3");
+  });
+});
+
+describe("prestation de test", () => {
+  test("10 questions jouables pour 9 ans, chronos imposés, finale ×2, prête pour la régie", async () => {
+    const { TEST_ID, TEST_QUIZ, TEST_SHOW } = await import("../web/public/test-show.js");
+    const quizzes = { [TEST_ID]: TEST_QUIZ };
+    const { snapshot, problems } = buildSnapshot(TEST_ID, TEST_SHOW, quizzes);
+    assert.deepEqual(problems, []);
+    assert.equal(snapshot.title, "ANNIVERSAIRE TEST – Léa, 9 ans");
+    assert.equal(snapshot.profile, "MOYENS");
+    const q = snapshot.quiz.questions;
+    assert.equal(q.length, 10);
+    assert.deepEqual(q.map((x) => x.duration), [20, 20, 15, 20, 20, 20, 15, 20, 20, 25]);
+    assert.deepEqual(q.map((x) => x.double), [false, false, false, false, false, false, false, false, false, true]);
+    assert.equal(q.filter((x) => x.kind === "true_false").length, 2);
+    const report = checkQuestions(TEST_QUIZ.questions, { profile: "MOYENS" });
+    assert.deepEqual(report.flatMap((r) => [...r.errors, ...r.warnings]), []);
+    assert.equal(readiness(TEST_SHOW, quizzes).level, "prete");
   });
 });
