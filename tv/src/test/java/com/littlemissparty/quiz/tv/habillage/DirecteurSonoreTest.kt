@@ -167,6 +167,59 @@ class DirecteurSonoreTest {
         assertTrue(d.observer(q2.copy(buzzeur = 1)).isEmpty())
     }
 
+    private val mimes = Instant(Ecran.MIMES, partie = "ABCD", index = 3, equipes = 2)
+    private val tour = mimes.copy(ecran = Ecran.MIMES_TOUR)
+
+    @Test
+    fun `manche de mimes annoncee, top depart, puis un son par mime trouve ou passe`() {
+        val d = DirecteurSonore()
+        d.observer(q2)
+        val ouverture = d.observer(mimes)
+        assertEquals(listOf(Son.MANCHE, Son.IMPACT), ouverture.sons())
+        assertEquals(Ambiance.SALON, ouverture.musique())
+        val top = d.observer(tour)
+        assertEquals(listOf(Son.MIME_TOP), top.sons())
+        assertEquals(Ordre.Musique(Ambiance.MIMES, Tempo.MIME_TOP_IMPACT), top.filterIsInstance<Ordre.Musique>().last())
+        assertEquals(listOf(Son.MIME_TROUVE), d.observer(tour.copy(trouves = 1)).sons())
+        assertEquals(listOf(Son.MIME_PASSE), d.observer(tour.copy(trouves = 1, passes = 1)).sons())
+        // La même carte montrée deux fois (reconnexion de la régie, rafraîchissement) ne rejoue rien.
+        assertTrue(d.observer(tour.copy(trouves = 1, passes = 1)).isEmpty())
+    }
+
+    @Test
+    fun `tension des 10 dernieres secondes une seule fois, coupee par la fin du tour`() {
+        val d = DirecteurSonore()
+        d.observer(tour)
+        val tension = d.observer(tour.copy(urgent = true))
+        assertEquals(listOf(Son.MIME_TENSION), tension.sons())
+        assertEquals(Ambiance.SUSPENSE, tension.musique())
+        assertTrue(d.observer(tour.copy(urgent = true)).isEmpty())
+        val fin = d.observer(mimes.copy(urgent = false))
+        assertEquals(Ordre.Couper, fin.first())
+        assertEquals(Son.MIME_FIN, fin.sons().first())
+    }
+
+    @Test
+    fun `fin de tour applaudie seulement si l'equipe a trouve`() {
+        val d = DirecteurSonore()
+        d.observer(tour.copy(trouves = 2))
+        assertTrue(Son.APPLAUDISSEMENTS in d.observer(mimes).sons())
+        d.observer(tour)
+        val rate = d.observer(mimes)
+        assertEquals(listOf(Son.MIME_FIN), rate.sons())
+        assertEquals(Ambiance.SALON, rate.musique())
+    }
+
+    @Test
+    fun `pause pendant un tour de mimes puis reprise sur la musique du tour`() {
+        val d = DirecteurSonore()
+        d.observer(tour.copy(trouves = 1))
+        assertTrue(d.observer(tour.copy(trouves = 1, enPause = true)).sons().isEmpty())
+        val reprise = d.observer(tour.copy(trouves = 1, repriseDansMs = 3_000))
+        assertFalse(Son.MIME_TROUVE in reprise.sons())
+        assertEquals(Ordre.Musique(Ambiance.MIMES, 3_000), reprise.filterIsInstance<Ordre.Musique>().last())
+    }
+
     @Test
     fun `chaque son a un fichier distinct`() {
         assertEquals(Son.entries.size, Son.entries.map { it.fichier }.toSet().size)

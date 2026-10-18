@@ -8,6 +8,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -329,3 +332,87 @@ fun Confettis(delaiMs: Long, modifier: Modifier = Modifier) {
 }
 
 private class Confetti(val x: Float, val depart: Float, val vitesse: Float, val phase: Float, val tour: Float, val couleur: Color)
+
+/**
+ * Tampon qui claque au centre de son parent quand [cle] change (« TOP DÉPART ! », « TROUVÉ ! ») : il tombe
+ * de haut en tournant, tient un instant puis s'efface. Rien d'autre ne bouge, aucune touche n'est bloquée.
+ */
+@Composable
+fun Tampon(
+    texte: String,
+    cle: Any?,
+    couleur: Color = Neon.Or,
+    actif: Boolean = true,
+    tailleSp: Int = 72,
+    dureeMs: Int = 1_200,
+    modifier: Modifier = Modifier.fillMaxSize(),
+) {
+    val t = remember(cle) { Animatable(0f) }
+    LaunchedEffect(cle, actif) {
+        if (!actif) return@LaunchedEffect
+        t.snapTo(0f)
+        t.animateTo(1f, tween(dureeMs, easing = LinearEasing))
+    }
+    if (!actif || t.value <= 0f || t.value >= 1f) return
+    Box(modifier.clearAndSetSemantics {}, contentAlignment = Alignment.Center) {
+        Text(
+            texte,
+            maxLines = 1,
+            softWrap = false,
+            style = TextStyle(
+                color = couleur, fontSize = tailleSp.sp, lineHeight = (tailleSp + 6).sp, fontWeight = FontWeight.Black,
+                letterSpacing = 4.sp, shadow = Shadow(couleur.copy(alpha = 0.8f), Offset.Zero, 28f),
+            ),
+            modifier = Modifier
+                .graphicsLayer {
+                    val ms = t.value * dureeMs
+                    // 0-180 ms : tombe et se pose ; puis tient ; les 300 dernières ms : s'efface en grossissant.
+                    val pose = (ms / 180f).coerceIn(0f, 1f)
+                    val fin = ((ms - (dureeMs - 300)) / 300f).coerceIn(0f, 1f)
+                    val s = 2.2f - 1.2f * pose + 0.25f * fin
+                    scaleX = s
+                    scaleY = s
+                    rotationZ = -8f * pose
+                    alpha = pose * (1f - fin)
+                }
+                .background(Neon.Nuit.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
+                .border(4.dp, couleur, RoundedCornerShape(20.dp))
+                .padding(horizontal = 28.dp, vertical = 6.dp),
+        )
+    }
+}
+
+/** Gerbe de confettis d'une seconde et demie quand [cle] change : elle part du centre puis retombe. */
+@Composable
+fun Gerbe(cle: Any?, actif: Boolean = true, modifier: Modifier = Modifier) {
+    val t = remember(cle) { Animatable(0f) }
+    LaunchedEffect(cle, actif) {
+        if (!actif) return@LaunchedEffect
+        t.snapTo(0f)
+        t.animateTo(1f, tween(1_500, easing = LinearEasing))
+    }
+    val morceaux = remember {
+        val couleurs = listOf(Neon.Or, Neon.OrClair, Neon.Halo, Color(0xFF7CFF3A), Color(0xFFFF2D8A), Color(0xFFFFE61F), Neon.Blanc)
+        List(40) { i ->
+            val r = java.util.Random(i * 104729L)
+            val angle = (r.nextFloat() - 0.5f) * 2.6f
+            Confetti(angle, 0.55f + r.nextFloat() * 0.6f, 0f, r.nextFloat() * 6.28f, 2f + r.nextFloat() * 5f, couleurs[i % couleurs.size])
+        }
+    }
+    if (!actif || t.value <= 0f || t.value >= 1f) return
+    Canvas(modifier.fillMaxSize().clearAndSetSemantics {}) {
+        val s = t.value
+        val w = size.width
+        val h = size.height
+        val taille = h * 0.018f
+        morceaux.forEach { m ->
+            // m.x = angle de départ, m.depart = force : trajectoire en cloche, la gravité les ramène.
+            val x = w / 2 + sin(m.x) * m.depart * w * 0.45f * s
+            val y = h * 0.45f - cos(m.x) * m.depart * h * 0.9f * s + h * 1.1f * s * s
+            val largeur = taille * (0.4f + 0.6f * kotlin.math.abs(cos(s * 12f * m.tour + m.phase)))
+            rotate(s * 360f * m.tour + m.phase * 57f, Offset(x, y)) {
+                drawRect(m.couleur.copy(alpha = 1f - s * s), Offset(x - largeur / 2, y - taille * 0.3f), Size(largeur, taille * 0.6f))
+            }
+        }
+    }
+}

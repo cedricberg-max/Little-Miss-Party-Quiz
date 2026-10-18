@@ -418,24 +418,26 @@ def generique():
     mx.add('fx', reverse_swell(2 * B, .5), 14)
     return mx.render(duck=.35)
 
-def tension():
-    mx = Mix(10, tail=.1)
-    for i in range(20):  # croches : pédale de basse sur sol, tic-tac, timbales sur les temps
+def tension(beats=10):
+    """Tension de fin de chrono : 10 temps (5 s) pour les questions, 20 temps (10 s) pour les mimes."""
+    mx = Mix(beats, tail=.1)
+    n8 = 2 * beats
+    for i in range(n8):  # croches : pédale de basse sur sol, tic-tac, timbales sur les temps
         bb = i * .5
-        p = i / 20
+        p = i / n8
         mx.add('bass', note('synth_bass_1', 43 if i % 2 == 0 else 55, B * .4, .8, release=.05), bb)
         mx.add('drums', note('woodblock', 84 if i % 2 == 0 else 79, .1, .55 + .3 * p), bb)
         if i % 2 == 0:
             mx.add('kick', kick(.6 + .4 * p), bb)
             mx.add('fx', note('timpani', 43, .3, .4 + .5 * p), bb)
     # cordes en trémolo qui montent chromatiquement
-    for k in range(10):
-        m = 67 + k
-        mx.add('strings', chord('tremolo_strings', [m - 12, m], B, .35 + .05 * k, release=.08), k)
-    mx.add('fx', noise_riser(5 * B, .3, 400, 10000), 5)
-    mx.add('fx', reverse_swell(4 * B, .45), 6)
+    for k in range(beats):
+        m = 67 + k * 10 // beats
+        mx.add('strings', chord('tremolo_strings', [m - 12, m], B, .35 + .5 * k / beats, release=.08), k)
+    mx.add('fx', noise_riser(5 * B, .3, 400, 10000), beats - 5)
+    mx.add('fx', reverse_swell(4 * B, .45), beats - 4)
     y = mx.render(duck=.25)
-    return y[:int(10 * B * SR)]
+    return y[:int(beats * B * SR)]
 
 def riser_4b():
     mx = Mix(4, tail=.05)
@@ -627,6 +629,54 @@ def end_jingle():
     mx.add('bass', note('electric_bass_finger', 36, 2 * B, .6, release=1), 6)
     return mx.render(duck=0)
 
+# ---------------------------------------------------------------- mimes
+def mime_go():
+    """Top départ : coup de sifflet d'arbitre, puis les cuivres lancent le tour."""
+    mx = Mix(2, tail=2.5)
+    mx.add('fx', note('whistle', 96, .16, .8, release=.04), 0)
+    mx.add('fx', note('whistle', 96, .4, 1.0, release=.08), .5)
+    mx.add('brass', chord('brass_section', [60, 64, 67, 72], 1 * B, 1.0, release=.4), 1)
+    mx.add('brass', note('orchestra_hit', 60, .8, .6), 1)
+    mx.add('kick', kick(1.0), 1)
+    mx.add('fx', crash(.6, 2.5), 1)
+    for m, o in ((84, 1), (91, 1.25)):
+        mx.add('bells', note('glockenspiel', m + 12, .4, .45, release=1), o)
+    return mx.render(duck=0)
+
+def mime_found():
+    """Mime trouvé : arpège doré qui monte, clap et petit coup de cuivres, paillettes."""
+    mx = Mix(3, tail=2)
+    for k, m in enumerate([72, 76, 79, 84]):
+        mx.add('bells', note('glockenspiel', m + 12, .2, .7, release=.8), k * .125)
+        mx.add('bells', note('marimba', m, .2, .6, release=.3), k * .125)
+    mx.add('brass', chord('brass_section', [67, 72, 76], .75 * B, .75, release=.3), .5)
+    mx.add('drums', clap(.8), .5)
+    mx.add('kick', kick(.8), .5)
+    for k in range(8):
+        mx.add('bells', note('tinkle_bell', 100 + (k % 3) * 3, .1, .15, release=.4), .6 + k * .08)
+    return mx.render(duck=0)
+
+def mime_pass():
+    """Carte passée : souffle et trois notes qui descendent, sans rien de vexant."""
+    mx = Mix(1.5, tail=1)
+    mx.add('fx', whoosh(.5, .8, f0=5000, f1=500), 0)
+    for k, m in enumerate([67, 64, 60]):
+        mx.add('strings', note('pizzicato_strings', m, .15, .8, release=.15), .1 + k * .25)
+        mx.add('bells', note('marimba', m, .15, .45, release=.2), .1 + k * .25)
+    return mx.render(duck=0)
+
+def mime_time_up():
+    """Temps écoulé : long coup de sifflet, puis « ta-daa » des cuivres et timbales."""
+    mx = Mix(4, tail=3)
+    mx.add('fx', note('whistle', 91, .9, 1.0, release=.15), 0)
+    mx.add('brass', chord('brass_section', [55, 59, 62, 67], .5 * B, .9, release=.2), 1)
+    mx.add('brass', chord('brass_section', [48, 55, 60, 64, 72], 2 * B, 1.0, release=.8), 1.5)
+    mx.add('brass', note('orchestra_hit', 48, 1, .7), 1.5)
+    mx.add('drums', note('timpani', 36, 1.5, 1.0), 1.5)
+    mx.add('fx', crash(.8, 3), 1.5)
+    mx.add('fx', sub_boom(.7), 1.5)
+    return mx.render(duck=0)
+
 PIECES = {
     'generique': (generique, -14.5), 'bed_full': (lambda: bed('full'), -15.5), 'bed_light': (lambda: bed('light'), -18.5),
     'tension': (tension, -16), 'riser_4b': (riser_4b, -17), 'impact': (impact, -15), 'round_sting': (round_sting, -15),
@@ -635,6 +685,8 @@ PIECES = {
     'reveal_chime': (reveal_chime, -16), 'stamp': (stamp, -19), 'points_bling': (points_bling, -20), 'points_count': (points_count, -21),
     'crown_hit': (crown_hit, -15), 'victory_fanfare': (victory_fanfare, -14.5), 'applause': (applause, -20), 'prize_bells': (prize_bells, -19),
     'end_jingle': (end_jingle, -17),
+    'mime_go': (mime_go, -15), 'mime_found': (mime_found, -18), 'mime_pass': (mime_pass, -21),
+    'mime_time_up': (mime_time_up, -15), 'mime_tension': (lambda: tension(20), -16),
 }
 for i in range(4):
     PIECES[f'pop_{i + 1}'] = ((lambda i=i: pop(i)), -22)
@@ -646,5 +698,5 @@ if __name__ == '__main__':
     for name in only:
         fn, rms = PIECES[name]
         y = fn()
-        p = save(name, y, beats=LOOPS.get(name), loop=name in LOOPS, rms=rms, fade_tail=name not in LOOPS and name not in ('tension', 'riser_4b', 'drumroll_2b', 'drumroll_4b'))
+        p = save(name, y, beats=LOOPS.get(name), loop=name in LOOPS, rms=rms, fade_tail=name not in LOOPS and name not in ('tension', 'mime_tension', 'riser_4b', 'drumroll_2b', 'drumroll_4b'))
         print(f'{name:16s} {len(y) / SR:6.2f} s  -> {p}', flush=True)

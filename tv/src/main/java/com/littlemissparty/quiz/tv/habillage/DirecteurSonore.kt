@@ -95,6 +95,24 @@ class DirecteurSonore {
                     o += Ordre.Jouer(Son.pop(k), Tempo.propositionApparait(k))
                 }
             }
+            Ecran.MIMES -> if (p.ecran == Ecran.MIMES_TOUR) {
+                // Fin d'un tour : coup de sifflet et « ta-daa », applaudissements si l'équipe a trouvé.
+                o += Ordre.Jouer(Son.MIME_FIN)
+                o += Ordre.Musique(Ambiance.SILENCE)
+                if (p.trouves > 0) o += Ordre.Jouer(Son.APPLAUDISSEMENTS, Tempo.MIME_BILAN)
+                o += Ordre.Musique(Ambiance.SALON, Tempo.MIME_BILAN_MUSIQUE)
+            } else {
+                // Ouverture de la manche.
+                o += Ordre.Jouer(Son.MANCHE)
+                o += Ordre.Jouer(Son.IMPACT)
+                o += Ordre.Musique(Ambiance.SILENCE)
+                o += Ordre.Musique(Ambiance.SALON, Tempo.QUESTION_MUSIQUE_APRES_MANCHE)
+            }
+            Ecran.MIMES_TOUR -> {
+                o += Ordre.Jouer(Son.MIME_TOP)
+                o += Ordre.Musique(Ambiance.SILENCE)
+                o += Ordre.Musique(Ambiance.MIMES, Tempo.MIME_TOP_IMPACT)
+            }
             Ecran.VERROUILLEE -> {
                 o += Ordre.Jouer(Son.VERROU)
                 o += Ordre.Musique(Ambiance.SUSPENSE)
@@ -149,6 +167,19 @@ class DirecteurSonore {
             if (tension && !enTension && !p.urgent) o += Ordre.Jouer(Son.TENSION)
             if (enTension && !tension) o += Ordre.Arreter(Son.TENSION)
         }
+        if (i.ecran == Ecran.MIMES_TOUR) {
+            if (i.trouves > p.trouves) o += Ordre.Jouer(Son.MIME_TROUVE)
+            if (i.passes > p.passes) o += Ordre.Jouer(Son.MIME_PASSE)
+            // Dix dernières secondes du tour : la musique s'efface sous la tension.
+            if (i.urgent && !p.urgent) {
+                o += Ordre.Jouer(Son.MIME_TENSION)
+                o += Ordre.Musique(Ambiance.SUSPENSE)
+            }
+            if (p.urgent && !i.urgent) {
+                o += Ordre.Arreter(Son.MIME_TENSION)
+                o += Ordre.Musique(Ambiance.MIMES)
+            }
+        }
         return o
     }
 
@@ -158,6 +189,8 @@ class DirecteurSonore {
         Ecran.HORS_PARTIE -> Ambiance.SILENCE
         Ecran.SALON -> Ambiance.SALON
         Ecran.QUESTION -> Ambiance.QUESTION
+        Ecran.MIMES -> Ambiance.SALON
+        Ecran.MIMES_TOUR -> Ambiance.MIMES
         Ecran.VERROUILLEE -> Ambiance.SUSPENSE
         Ecran.REVELATION, Ecran.CLASSEMENT, Ecran.FIN -> Ambiance.FETE
     }
@@ -175,7 +208,7 @@ data class Instant(
     val enPause: Boolean = false,
     /** Temps restant du décompte 3, 2, 1 de la dernière reprise. */
     val repriseDansMs: Long = 0,
-    /** Cinq dernières secondes du chrono. */
+    /** Fin du chrono : cinq dernières secondes d'une question, dix d'un tour de mimes. */
     val urgent: Boolean = false,
     /** Place (0, 1, 2…) de l'équipe qui a buzzé, -1 si personne. */
     val buzzeur: Int = -1,
@@ -184,9 +217,13 @@ data class Instant(
     /** Équipes qui marquent des points à cette révélation. */
     val gagnants: Int = 0,
     val meneurAPoints: Boolean = false,
+    /** Mimes trouvés et passés pendant le tour en cours. */
+    val trouves: Int = 0,
+    val passes: Int = 0,
 )
 
-enum class Ecran { HORS_PARTIE, SALON, QUESTION, VERROUILLEE, REVELATION, CLASSEMENT, FIN }
+/** [MIMES] : manche de mimes entre deux tours ; [MIMES_TOUR] : une équipe mime. */
+enum class Ecran { HORS_PARTIE, SALON, QUESTION, MIMES, MIMES_TOUR, VERROUILLEE, REVELATION, CLASSEMENT, FIN }
 
 /** Fond musical : deux boucles jouées ensemble (complète et légère), dosées selon l'ambiance. */
 enum class Ambiance(val complete: Float, val legere: Float) {
@@ -195,6 +232,8 @@ enum class Ambiance(val complete: Float, val legere: Float) {
     QUESTION(0f, 0.6f),
     SUSPENSE(0f, 0.25f),
     FETE(0.8f, 0f),
+    /** Tour de mimes : la rythmique entraîne sans couvrir les cris de ceux qui devinent. */
+    MIMES(0.45f, 0f),
     INTERMEDE(0f, 0.35f);
 
     companion object {
@@ -227,6 +266,11 @@ enum class Son(val fichier: String, val long: Boolean = false) {
     CLOCHES("lmp_prize_bells"),
     FIN("lmp_end_jingle", true),
     POP_1("lmp_pop_1"), POP_2("lmp_pop_2"), POP_3("lmp_pop_3"), POP_4("lmp_pop_4"),
+    MIME_TOP("lmp_mime_go", true),
+    MIME_TROUVE("lmp_mime_found"),
+    MIME_PASSE("lmp_mime_pass"),
+    MIME_TENSION("lmp_mime_tension", true),
+    MIME_FIN("lmp_mime_time_up", true),
     EQUIPE_1("lmp_team_sting_1"), EQUIPE_2("lmp_team_sting_2"), EQUIPE_3("lmp_team_sting_3"), EQUIPE_4("lmp_team_sting_4");
 
     companion object {
@@ -271,6 +315,10 @@ object Tempo {
     const val FIN_VAINQUEUR = 2_000L
     const val FIN_JINGLE = 9_500L
     const val FIN_MUSIQUE = 12_000L
+    /** Coup de cuivres du « Top départ » des mimes, après les deux coups de sifflet. */
+    const val MIME_TOP_IMPACT = 500L
+    const val MIME_BILAN = 1_000L
+    const val MIME_BILAN_MUSIQUE = 2_500L
 
     fun propositionApparait(k: Int) = PROPOSITIONS_DEBUT + k * PROPOSITIONS_PAS
     fun mauvaiseSEteint(k: Int) = REVELATION_ETEINT + k * REVELATION_ETEINT_PAS
