@@ -101,7 +101,7 @@ class DirecteurSonore {
             }
             Ecran.QUESTION -> {
                 // Le Vrai ou Faux express garde sa musique nerveuse d'un bout à l'autre de la série.
-                val musique = if (i.express) Ambiance.EXPRESS else Ambiance.QUESTION
+                val musique = ambiance(i)
                 if (nouvelleEpreuve) {
                     o += Ordre.Jouer(Son.TRANSITION)
                     o += Ordre.Musique(Ambiance.SILENCE)
@@ -117,6 +117,8 @@ class DirecteurSonore {
                 }
                 // Zoom mystère : moteur d'objectif et déclic quand la photo apparaît.
                 if (i.zoom) o += Ordre.Jouer(Son.ZOOM_OUVERTURE, Tempo.PROPOSITIONS_DEBUT)
+                // Image floue : une longue montée accompagne la photo qui se précise.
+                if (i.flou) o += Ordre.Jouer(Son.FLOU_MONTEE, Tempo.PROPOSITIONS_DEBUT)
                 for (k in 0 until i.propositions.coerceIn(0, 8)) {
                     o += Ordre.Jouer(Son.pop(k), Tempo.propositionApparait(k))
                 }
@@ -165,7 +167,7 @@ class DirecteurSonore {
             } else {
                 o += Ordre.Musique(Ambiance.SILENCE)
                 // Zoom mystère : la photo s'ouvre en grand (mise au point, déclic, « tadaa ») à la place du roulement.
-                o += Ordre.Jouer(if (i.zoom) Son.ZOOM_REVELE else Son.ROULEMENT_COURT)
+                o += Ordre.Jouer(if (i.zoom || i.flou) Son.ZOOM_REVELE else Son.ROULEMENT_COURT)
                 for (k in 0 until (i.propositions - 1).coerceIn(0, 3)) {
                     o += Ordre.Jouer(Son.ETEINT, Tempo.mauvaiseSEteint(k))
                 }
@@ -207,10 +209,12 @@ class DirecteurSonore {
             if (i.reponses > p.reponses) o += Ordre.Jouer(Son.REPONSE)
             // La tension des 5 dernières secondes s'arrête quand le temps repart ou que tout le monde a répondu.
             // Pas de tension en express : le chrono entier ne dure que quelques secondes.
-            val enTension = p.urgent && !tousOntRepondu(p) && !p.express
-            val tension = i.urgent && !tousOntRepondu(i) && !i.express
+            // L'image floue a sa propre montée, qui tient lieu de tension.
+            val enTension = p.urgent && !tousOntRepondu(p) && !p.express && !p.flou
+            val tension = i.urgent && !tousOntRepondu(i) && !i.express && !i.flou
             if (tension && !enTension && !p.urgent) o += Ordre.Jouer(Son.TENSION)
             if (enTension && !tension) o += Ordre.Arreter(Son.TENSION)
+            if (i.flou) o += buzzImageFloue(p, i)
         }
         if (i.ecran == Ecran.MIMES_TOUR) {
             if (i.trouves > p.trouves) o += Ordre.Jouer(Son.MIME_TROUVE)
@@ -228,12 +232,36 @@ class DirecteurSonore {
         return o
     }
 
+    /** Image floue : le buzz fige tout (gros buzz, couleur de l'équipe, suspense) ; un raté repart en douceur. */
+    private fun buzzImageFloue(p: Instant, i: Instant): List<Ordre> {
+        val o = mutableListOf<Ordre>()
+        if (i.buzzEquipe >= 0 && p.buzzEquipe < 0) {
+            o += Ordre.Arreter(Son.FLOU_MONTEE)
+            o += Ordre.Musique(Ambiance.SILENCE)
+            o += Ordre.Jouer(Son.BUZZ_GROS)
+            o += Ordre.Jouer(Son.equipe(i.buzzEquipe), Tempo.FLOU_EQUIPE)
+            o += Ordre.Jouer(Son.SUSPENSE_REPONSE, Tempo.FLOU_SUSPENSE)
+        }
+        if (i.buzzEquipe < 0 && p.buzzEquipe >= 0) {
+            o += Ordre.Arreter(Son.SUSPENSE_REPONSE)
+            // Jamais moqueur : un petit « pouet » gentil, et l'image reprend avec la musique.
+            if (i.ratees > p.ratees) o += Ordre.Jouer(Son.VF_FAUX)
+            o += Ordre.Musique(ambiance(i), Tempo.FLOU_REPRISE)
+        }
+        return o
+    }
+
     private fun tousOntRepondu(i: Instant) = i.equipes > 0 && i.reponses >= i.equipes
 
     private fun ambiance(i: Instant) = when (i.ecran) {
         Ecran.HORS_PARTIE -> Ambiance.SILENCE
         Ecran.SALON -> Ambiance.SALON
-        Ecran.QUESTION, Ecran.VERROUILLEE, Ecran.REVELATION -> if (i.express) Ambiance.EXPRESS else ambianceParDefaut(i.ecran)
+        Ecran.QUESTION, Ecran.VERROUILLEE, Ecran.REVELATION -> when {
+            i.express -> Ambiance.EXPRESS
+            // Image floue : musique en retrait pendant que l'image se précise, silence pendant qu'une équipe répond.
+            i.flou && i.ecran == Ecran.QUESTION -> if (i.buzzEquipe >= 0) Ambiance.SILENCE else Ambiance.SUSPENSE
+            else -> ambianceParDefaut(i.ecran)
+        }
         else -> ambianceParDefaut(i.ecran)
     }
 
@@ -280,6 +308,10 @@ data class Instant(
     val express: Boolean = false,
     val reponseVraie: Boolean = false,
     val zoom: Boolean = false,
+    /** Image floue : place de l'équipe qui a buzzé et attend le verdict (-1 sinon), équipes déjà ratées. */
+    val flou: Boolean = false,
+    val buzzEquipe: Int = -1,
+    val ratees: Int = 0,
     /** Le Juste Chiffre : révélation d'un nombre, et une équipe l'a trouvé pile. */
     val nombre: Boolean = false,
     val pile: Boolean = false,
@@ -364,6 +396,9 @@ enum class Son(val fichier: String, val long: Boolean = false) {
     VF_FAUX("lmp_vf_faux"),
     ZOOM_OUVERTURE("lmp_zoom_ouverture"),
     ZOOM_REVELE("lmp_zoom_revele", true),
+    FLOU_MONTEE("lmp_flou_montee", true),
+    BUZZ_GROS("lmp_buzz_gros"),
+    SUSPENSE_REPONSE("lmp_suspense_reponse", true),
     RIGOLO_1("lmp_fun_buzz_1"), RIGOLO_2("lmp_fun_buzz_2"), RIGOLO_3("lmp_fun_buzz_3"), RIGOLO_4("lmp_fun_buzz_4"),
     EQUIPE_1("lmp_team_sting_1"), EQUIPE_2("lmp_team_sting_2"), EQUIPE_3("lmp_team_sting_3"), EQUIPE_4("lmp_team_sting_4");
 
@@ -417,6 +452,10 @@ object Tempo {
     const val MIME_BILAN_MUSIQUE = 2_500L
     /** Jingle de changement de jeu : le logo aux cuivres tombe à 750 ms, l'animation y pose le nom du jeu. */
     const val TRANSITION_IMPACT = 750L
+    /** Image floue : la note de l'équipe juste après le gros buzz, puis le suspense pendant sa réponse. */
+    const val FLOU_EQUIPE = 300L
+    const val FLOU_SUSPENSE = 900L
+    const val FLOU_REPRISE = 600L
     const val TRANSITION_MUSIQUE = 2_000L
     /** Durée du rideau plein écran qui annonce un nouveau jeu (assez court pour ne pas retarder la fête). */
     const val TRANSITION_RIDEAU = 2_600L

@@ -330,6 +330,35 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `image floue, montee puis buzz qui fige tout, rate gentil, revelation`() {
+        val d = DirecteurSonore()
+        val image = Instant(Ecran.QUESTION, partie = "ABCD", index = 9, equipes = 3, propositions = 0, flou = true)
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 8, equipes = 3))
+        val entree = d.observer(image)
+        assertTrue(Son.FLOU_MONTEE in entree.sons())
+        assertEquals(Ambiance.SUSPENSE, entree.musique())
+        // L'équipe 2 buzze : gros buzz, sa note, suspense, plus de musique.
+        val buzz = d.observer(image.copy(buzzEquipe = 1))
+        assertEquals(listOf(Son.BUZZ_GROS, Son.EQUIPE_2, Son.SUSPENSE_REPONSE), buzz.sons())
+        assertTrue(Ordre.Arreter(Son.FLOU_MONTEE) in buzz)
+        assertEquals(Ambiance.SILENCE, buzz.musique())
+        // Le même état observé deux fois ne rejoue rien.
+        assertTrue(d.observer(image.copy(buzzEquipe = 1)).isEmpty())
+        // Raté : « pouet » gentil et la musique revient.
+        val rate = d.observer(image.copy(ratees = 1))
+        assertTrue(Ordre.Arreter(Son.SUSPENSE_REPONSE) in rate)
+        assertEquals(listOf(Son.VF_FAUX), rate.sons())
+        assertEquals(Ambiance.SUSPENSE, rate.musique())
+        assertFalse(Son.TENSION in d.observer(image.copy(ratees = 1, urgent = true)).sons())
+        // Une autre équipe buzze et trouve : révélation de la photo, sans roulement.
+        d.observer(image.copy(ratees = 1, urgent = true, buzzEquipe = 0))
+        val revele = d.observer(image.copy(ecran = Ecran.REVELATION, ratees = 1, gagnants = 1))
+        assertEquals(Ordre.Couper, revele.first())
+        assertTrue(Son.ZOOM_REVELE in revele.sons())
+        assertFalse(Son.ROULEMENT_COURT in revele.sons())
+    }
+
+    @Test
     fun `chaque son a un fichier distinct`() {
         assertEquals(Son.entries.size, Son.entries.map { it.fichier }.toSet().size)
     }
