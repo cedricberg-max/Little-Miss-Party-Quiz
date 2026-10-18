@@ -170,6 +170,8 @@ async function openRegie(context, query = `?g=${CODE}&emu=1`, path = "/") {
   const page = await context.newPage();
   page.on("pageerror", (e) => console.error("Erreur page :", e.message));
   page.on("console", (m) => { if (m.type() === "error") console.error("Console :", m.text()); });
+  // Diagnostic : l'adresse exacte d'une requête refusée (émulateur ou vrai service Google).
+  page.on("response", (r) => { if (r.status() >= 400) console.error("Réponse", r.status(), r.url(), "depuis", page.url()); });
   await page.goto(`${baseUrl}${path}${query}`);
   return page;
 }
