@@ -15,7 +15,19 @@ enum class QuestionKind(val code: String) {
      * Le Juste Chiffre : chaque équipe tape un nombre sur son pupitre, la ou les plus proches gagnent.
      * Pas de propositions ; [Question.correct] est le nombre à trouver.
      */
-    NUMBER("number");
+    NUMBER("number"),
+
+    /**
+     * Vrai ou Faux express : une série d'affirmations (deux propositions, Vrai puis Faux) au chrono court,
+     * que la TV ferme, révèle et enchaîne toute seule jusqu'à la fin de la manche.
+     */
+    EXPRESS("express"),
+
+    /**
+     * Zoom mystère : une question à propositions dont la photo ([Question.imageId]) part très zoomée sur la
+     * TV et se dévoile au fil du chrono ; la révélation la montre entière. Points du quiz classique.
+     */
+    ZOOM("zoom");
 
     companion object {
         fun of(code: String?): QuestionKind = entries.firstOrNull { it.code == code } ?: CLASSIC
@@ -56,6 +68,8 @@ data class Question(
             require(durationSec in 5..120) { "Question $id : durée entre 5 et 120 s" }
         } else {
             require(choices.size in 2..4) { "Question $id : il faut 2 à 4 propositions" }
+            require(kind != QuestionKind.EXPRESS || choices.size == 2) { "Vrai ou Faux express $id : il faut 2 propositions" }
+            require(kind != QuestionKind.ZOOM || imageId != null) { "Zoom mystère $id : il faut une photo" }
             require(choices.none { it.isBlank() }) { "Question $id : proposition vide" }
             require(correct in choices.indices) { "Question $id : bonne réponse hors des propositions" }
             require(durationSec in 5..120) { "Question $id : durée entre 5 et 120 s" }
@@ -64,6 +78,8 @@ data class Question(
 
     val isMime: Boolean get() = kind == QuestionKind.MIME
     val isNumber: Boolean get() = kind == QuestionKind.NUMBER
+    val isExpress: Boolean get() = kind == QuestionKind.EXPRESS
+    val isZoom: Boolean get() = kind == QuestionKind.ZOOM
 
     val durationMs: Long get() = durationSec * 1000L
 }

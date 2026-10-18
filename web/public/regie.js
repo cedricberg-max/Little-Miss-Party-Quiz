@@ -5,7 +5,7 @@ import { CHOICE_LETTERS } from "./theme.js";
 import { writeProof } from "./proof.js";
 import { passwordCandidates } from "./secret.js";
 import {
-  buildSnapshot, showTitle, playable, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame, imageIds,
+  buildSnapshot, showTitle, playable, QUIZ_GAMES, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame, imageIds,
   isFutureRound, moveRound, removeRound, uniqueRoundTitle,
 } from "./show.js";
 import { profileForAge } from "./profiles.js";
@@ -675,6 +675,11 @@ async function fetchLibrary() {
       .filter(([, d]) => d?.title)
       .sort((a, b) => a[1].title.localeCompare(b[1].title, "fr"))
       .map(([id, d]) => ({ key: `mimes/${id}`, label: d.title, source: { type: "mimes", deckId: id } }));
+    // Vrai ou Faux express et Zoom mystère : proposés pour chaque quiz qui a les questions qu'il faut.
+    const quizGames = Object.entries(QUIZ_GAMES).flatMap(([type, game]) => Object.entries(quizzes)
+      .filter(([, quiz]) => quiz?.title && game.questions(quiz).length)
+      .sort((a, b) => a[1].title.localeCompare(b[1].title, "fr"))
+      .map(([id, quiz]) => ({ key: `${type}/${id}`, label: `${ROUND_TYPES[type]} : ${quiz.title}`, source: { type, quizId: id } })));
     const games = Object.entries(quizzes)
       .filter(([, quiz]) => quiz?.title)
       .sort((a, b) => a[1].title.localeCompare(b[1].title, "fr"))
@@ -683,11 +688,12 @@ async function fetchLibrary() {
       .filter(([, show]) => show)
       .sort((a, b) => (b[1].date ?? "").localeCompare(a[1].date ?? ""))
       .flatMap(([id, show]) => (show.rounds ?? []).filter((r) => r && r.type !== "mimes").map((round, i) => {
-        const label = round.type === "finale" ? ROUND_TYPES.finale : quizzes[round.quizId]?.title ?? `Manche ${i + 1}`;
+        const title = quizzes[round.quizId]?.title ?? `Manche ${i + 1}`;
+        const label = round.type === "finale" ? ROUND_TYPES.finale : QUIZ_GAMES[round.type] ? `${ROUND_TYPES[round.type]} : ${title}` : title;
         const date = show.date ? ` (${new Date(`${show.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })})` : "";
         return { key: `show/${id}/${i}`, label, from: `${showTitle(show)}${date}`, source: { type: round.type, quizId: round.quizId } };
       }));
-    library = { quizzes, mimes, games, rounds, decks };
+    library = { quizzes, mimes, games, rounds, decks, quizGames };
   } catch (e) {
     console.error(e);
     library = { denied: /permission/i.test(String(e?.message ?? e)) };
@@ -736,8 +742,11 @@ function renderLibrary() {
       box.appendChild(b);
       return;
     }
-    const count = playable(library.quizzes[game.source.quizId]).length;
-    meta.textContent = [detail, count ? `${count} question${count > 1 ? "s" : ""}` : "aucune question validée"].filter(Boolean).join(" · ");
+    const quiz = library.quizzes[game.source.quizId];
+    const kind = QUIZ_GAMES[game.source.type];
+    const count = (kind ? kind.questions(quiz) : playable(quiz)).length;
+    const unit = kind?.unit ?? "question";
+    meta.textContent = [detail, count ? `${count} ${unit}${count > 1 ? "s" : ""}` : "aucune question validée"].filter(Boolean).join(" · ");
     b.append(title, meta);
     b.disabled = !count;
     b.onclick = () => pick(game);
@@ -751,6 +760,7 @@ function renderLibrary() {
   section("Mini-jeux et blind tests");
   if (!library.decks.length) hint("Mimes : aucun paquet de cartes pour l'instant (administration, Mimes).");
   library.decks.forEach((g) => entry(g, ""));
+  library.quizGames.forEach((g) => entry(g, g.source.type === "express" ? "enchaînées toutes seules" : "dévoilées au fil du chrono"));
   for (const label of ["Blind test"]) {
     const b = document.createElement("button");
     b.className = "show-item";
@@ -817,11 +827,15 @@ function renderPreview() {
  */
 const OLD_TV = "La TV doit être mise à jour pour jouer aux mimes : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_NUMBER = "La TV doit être mise à jour pour jouer au Juste Chiffre : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+const OLD_TV_EXPRESS = "La TV doit être mise à jour pour jouer au Vrai ou Faux express : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+const OLD_TV_ZOOM = "La TV doit être mise à jour pour jouer au Zoom mystère : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 /** Jeu que la TV allumée ne sait pas encore jouer (ancienne version) : le message à montrer, sinon null. */
 function tvRefuses(questions) {
   if (!live.plan) return null;
   if (live.plan.mimes !== true && questions.some((q) => q?.kind === "mime")) return OLD_TV;
   if (live.plan.numbers !== true && questions.some((q) => q?.kind === "number")) return OLD_TV_NUMBER;
+  if (live.plan.express !== true && questions.some((q) => q?.kind === "express")) return OLD_TV_EXPRESS;
+  if (live.plan.zoom !== true && questions.some((q) => q?.kind === "zoom")) return OLD_TV_ZOOM;
   return null;
 }
 

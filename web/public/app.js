@@ -361,7 +361,8 @@ function renderLobby(st) {
 
 function renderQuestion(st) {
   show("question");
-  $("q-number").textContent = `Question ${(st.index ?? 0) + 1} / ${st.total ?? "?"}`;
+  $("q-number").textContent = st.kind === "express" ? "Vrai ou Faux express !"
+    : st.kind === "zoom" ? "Zoom mystère : regardez la TV !" : `Question ${(st.index ?? 0) + 1} / ${st.total ?? "?"}`;
   $("q-double").hidden = !st.double;
   if (st.kind === "number") return renderNumber(st);
   const choices = st.choices ?? [];
@@ -390,7 +391,7 @@ function renderQuestion(st) {
   });
   if (mine != null) $("q-status").textContent = `Réponse ${CHOICE_LETTERS[mine]} envoyée ! Attendez la révélation…`;
   else if (st.phase === "closed") $("q-status").textContent = "Temps écoulé !";
-  else $("q-status").textContent = "Choisissez votre réponse !";
+  else $("q-status").textContent = st.kind === "express" ? "Vrai ou faux ? Vite, ça s'enchaîne !" : "Choisissez votre réponse !";
   runTimer(st);
 }
 

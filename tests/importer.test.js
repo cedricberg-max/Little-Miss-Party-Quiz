@@ -283,6 +283,64 @@ describe("mimes", () => {
   });
 });
 
+describe("Vrai ou Faux express", () => {
+  const QUIZ = {
+    title: "Sciences",
+    questions: [
+      { text: "Le Soleil est une étoile", choices: ["Vrai", "Faux"], correct: 0, duration: 30, status: "validee" },
+      { text: "Planète la plus proche ?", choices: ["Mercure", "Mars", "Vénus", "Terre"], correct: 0, status: "validee" },
+      { text: "Les poissons volent", choices: ["vrai", "faux"], correct: 1, status: "validee" },
+      { text: "Pas encore relue", choices: ["Vrai", "Faux"], correct: 0, status: "brouillon" },
+    ],
+  };
+
+  test("seules les affirmations Vrai / Faux validées, au chrono court du profil, s'enchaînent dans une seule manche", () => {
+    const show = { childName: "Léa", age: 7, rounds: [{ type: "express", quizId: "s" }, { type: "quiz", quizId: "s" }] };
+    const { snapshot, problems } = buildSnapshot("x", show, { s: QUIZ });
+    assert.deepEqual(problems, []);
+    const express = snapshot.quiz.questions.filter((q) => q.kind === "express");
+    assert.deepEqual(express.map((q) => [q.text, q.duration, q.round]), [
+      ["Le Soleil est une étoile", 12, "Vrai ou Faux express"],
+      ["Les poissons volent", 12, "Vrai ou Faux express"],
+    ]);
+    // Le même quiz en manche normale garde ses chronos et son type.
+    assert.equal(snapshot.quiz.questions[2].kind, "true_false");
+    assert.equal(snapshot.quiz.questions[2].duration, 30);
+    assert.ok(estimateMinutes({ quiz: { questions: express } }) <= 1);
+  });
+
+  test("quiz sans Vrai / Faux : la manche est signalée, rien n'est inventé", () => {
+    const quiz = { title: "Capitales", questions: [{ text: "Capitale ?", choices: ["Paris", "Rome"], correct: 0, status: "validee" }] };
+    const { snapshot, problems } = buildSnapshot("x", { childName: "Léa", age: 9, rounds: [{ type: "express", quizId: "c" }] }, { c: quiz });
+    assert.equal(snapshot, null);
+    assert.match(problems[0], /aucune question Vrai \/ Faux validée pour le Vrai ou Faux express/);
+  });
+});
+
+describe("Zoom mystère", () => {
+  const PHOTO = "0123456789abcdef";
+  const QUIZ = {
+    title: "Animaux",
+    questions: [
+      { text: "Quel animal ?", choices: ["Chat", "Lion"], correct: 1, imageId: PHOTO, status: "validee" },
+      { text: "Sans photo ?", choices: ["Oui", "Non"], correct: 0, status: "validee" },
+      { text: "Combien ?", kind: "number", correct: 4, imageId: PHOTO, status: "validee" },
+    ],
+  };
+
+  test("seules les questions à propositions avec photo, chrono du profil, points du quiz", () => {
+    const { snapshot, problems } = buildSnapshot("x", { childName: "Léa", age: 9, rounds: [{ type: "zoom", quizId: "a" }] }, { a: QUIZ });
+    assert.deepEqual(problems, []);
+    assert.deepEqual(snapshot.quiz.questions.map((q) => [q.kind, q.imageId, q.round, q.double]), [["zoom", PHOTO, "Zoom mystère", false]]);
+    assert.equal(snapshot.quiz.questions[0].duration, 25);
+  });
+
+  test("quiz sans photo : la manche est signalée", () => {
+    const quiz = { title: "Vide", questions: [{ text: "?", choices: ["a", "b"], correct: 0, status: "validee" }] };
+    assert.match(buildSnapshot("x", { childName: "Léa", age: 9, rounds: [{ type: "zoom", quizId: "v" }] }, { v: quiz }).problems[0], /aucune question avec photo/);
+  });
+});
+
 describe("Le Juste Chiffre", () => {
   test("une question sans propositions avec un nombre pour réponse devient une question du Juste Chiffre", () => {
     const { questions } = parseQuiz("1. Combien d'os dans le corps humain ?\nRéponse : 206\n\n2. Hauteur de la tour Eiffel en mètres ?\nRéponse : 1 000\n\n3. Sans réponse ?\nRéponse : beaucoup");

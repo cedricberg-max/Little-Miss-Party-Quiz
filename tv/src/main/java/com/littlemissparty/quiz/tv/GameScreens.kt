@@ -69,6 +69,14 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                     "Question ${state.index + 1} / ${state.total}",
                     color = Palette.InkSoft, fontSize = 22.sp, fontWeight = FontWeight.Bold,
                 )
+                if (q.isExpress) {
+                    Spacer(Modifier.width(16.dp))
+                    Text(
+                        "VRAI OU FAUX EXPRESS",
+                        color = Palette.Night, fontSize = 18.sp, fontWeight = FontWeight.Black,
+                        modifier = Modifier.clip(RoundedCornerShape(50)).background(Palette.Ink).padding(horizontal = 14.dp, vertical = 4.dp),
+                    )
+                }
                 if (q.double) {
                     Spacer(Modifier.width(16.dp))
                     Text(
@@ -99,7 +107,11 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
             key(state.index) {
                 // Révélation : l'illustration facultative (photo ou émoji) apparaît à gauche des propositions.
                 Row(Modifier.weight(1f)) {
-                    if (revealed && hasIllustration(q, state)) {
+                    // Zoom mystère : la photo est la question, elle se dévoile pendant tout le chrono.
+                    if (q.isZoom) {
+                        ZoomPhoto(q, state, Modifier.fillMaxHeight().aspectRatio(4f / 3f, matchHeightConstraintsFirst = true))
+                        Spacer(Modifier.width(20.dp))
+                    } else if (revealed && hasIllustration(q, state)) {
                         val photo = q.imageId != null && state.images[q.imageId] != null
                         Illustration(q, state, Modifier.fillMaxHeight().aspectRatio(if (photo) 4f / 3f else 1f, matchHeightConstraintsFirst = true))
                         Spacer(Modifier.width(20.dp))
@@ -128,7 +140,8 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                 if (!state.paused) when (state.phase) {
                     Phase.QUESTION -> NextButton("Arrêter le chrono", actions.next, key = state.phase)
                     Phase.CLOSED -> NextButton("Révéler la réponse", actions.next, key = state.phase)
-                    else -> NextButton("Voir les scores", actions.next, key = state.phase)
+                    // Vrai ou Faux express : la TV enchaîne seule ; le bouton ne fait qu'aller plus vite.
+                    else -> NextButton(if (q.isExpress) "Suivant" else "Voir les scores", actions.next, key = state.phase)
                 }
             }
         }

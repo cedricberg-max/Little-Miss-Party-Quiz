@@ -143,6 +143,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var answers: Map<String, Answer> = emptyMap()
     private var countdown: Job? = null
     private var timer: Job? = null
+    private var expressTimer: Job? = null
     private val actions = Mutex()
     private var serverOffset = 0L
     private var commandsListener: Pair<DatabaseReference, ChildEventListener>? = null
@@ -232,6 +233,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun newGame() {
         countdown?.cancel()
         timer?.cancel()
+        expressTimer?.cancel()
         val previous = (_state.value as? UiState.ResumeOffer)?.code ?: activeCode
         _state.value = UiState.Connecting
         viewModelScope.launch {
@@ -290,6 +292,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun open(db: FirebaseDatabase, code: String) {
         stopListening()
         timer?.cancel()
+        expressTimer?.cancel()
         val ref = db.getReference("games/$code")
         gameRef = ref
         activeCode = code
@@ -441,9 +444,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun teams(): List<Team> = (_state.value as? UiState.Playing)?.teams.orEmpty()
 
-    /** Ferme automatiquement la question à la fin du chrono. */
+    /** Ferme automatiquement la question à la fin du chrono ; au Vrai ou Faux express, enchaîne aussi la suite. */
     private fun schedule() {
         timer?.cancel()
+        scheduleExpress()
         val g = game ?: return
         val deadline = g.deadline() ?: return
         timer = viewModelScope.launch {
@@ -453,6 +457,25 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     // Fin de la question, ou fin du tour de mimes.
                     commit(g.timeUp(serverNow()))
                 }
+            }
+        }
+    }
+
+    /**
+     * Vrai ou Faux express : révélation peu après la fermeture, puis affirmation suivante. L'étape est
+     * oubliée si la partie a bougé entre-temps (animatrice, régie, pause) : rien n'avance deux fois.
+     */
+    private fun scheduleExpress() {
+        expressTimer?.cancel()
+        val g = game ?: return
+        val wait = g.expressDelayMs() ?: return
+        val seq = g.state.lastSeq
+        expressTimer = viewModelScope.launch {
+            delay(wait)
+            actions.withLock {
+                if (game !== g || g.state.lastSeq != seq) return@withLock
+                val answers = if (g.state.phase == Phase.CLOSED) collectAnswers() else emptyMap()
+                commit(g.expressStep(serverNow(), answers))
             }
         }
     }
@@ -490,10 +513,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             )
         }
         watchAnswers(s.qid.takeIf { s.phase == Phase.QUESTION || s.phase == Phase.CLOSED })
-        // Photo de la question en cours et de la suivante chargées d'avance : la révélation ne l'attend jamais.
-        if (s.phase != Phase.LOBBY) {
-            listOfNotNull(q?.imageId, g.quiz.questions.getOrNull(s.index + 1)?.imageId).forEach(::prefetchImage)
-        }
+        // Photo de la question en cours et de la suivante chargées d'avance (dès le salon d'attente pour la
+        // première) : la révélation, ou le Zoom mystère, ne l'attend jamais.
+        listOfNotNull(q?.imageId.takeIf { s.phase != Phase.LOBBY }, g.quiz.questions.getOrNull(s.index + 1)?.imageId).forEach(::prefetchImage)
     }
 
     private val imageBytes = object : LinkedHashMap<String, ByteArray>(8, 0.75f, true) {
@@ -969,6 +991,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             // Cette box sait jouer les mimes : la régie prévient avant d'en envoyer à une TV trop ancienne.
             "mimes" to true,
             "numbers" to true,
+            "express" to true,
+            "zoom" to true,
             "questions" to quiz.questions.map {
                 clean(mapOf(
                     "id" to it.id, "text" to it.text, "choices" to it.choices.ifEmpty { null }, "correct" to it.correct,

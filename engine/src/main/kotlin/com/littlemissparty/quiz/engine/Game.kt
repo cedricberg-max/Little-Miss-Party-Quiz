@@ -15,6 +15,12 @@ data class Segment(val start: Long, val end: Long? = null)
 /** Écart toléré entre l'horloge de la box et celle du serveur pour dater une réponse. */
 const val ANSWER_CLOCK_MARGIN_MS = 2_000L
 
+/** Vrai ou Faux express : temps entre la fermeture et la révélation (la TV annonce « Temps écoulé »). */
+const val EXPRESS_CLOSED_MS = 1_200L
+
+/** Vrai ou Faux express : temps de la révélation avant l'affirmation suivante. */
+const val EXPRESS_REVEAL_MS = 3_500L
+
 /** Pause en cours : qui l'a provoquée et depuis quand. */
 data class Hold(val reason: String, val team: String?, val since: Long)
 
@@ -302,7 +308,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         // Mimes : « suivant » arrête le tour en cours, ou termine la manche entre deux tours.
         Phase.QUESTION -> if (state.mime == null) close(now) else if (state.mimeTurn) mimeStop(now) else emit(ScoresShown(nextSeq, now))
         Phase.CLOSED -> reveal(now, answers)
-        Phase.REVEAL -> emit(ScoresShown(nextSeq, now))
+        // Vrai ou Faux express : « suivant » passe à l'affirmation suivante, comme la box le fait seule.
+        Phase.REVEAL -> if (question?.isExpress == true) expressStep(now, answers) else emit(ScoresShown(nextSeq, now))
         Phase.SCORES -> if (isLastQuestion) end(now) else openQuestion(state.index + 1, now)
         Phase.ENDED -> null
     }
@@ -351,11 +358,42 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     fun reveal(now: Long, answers: Map<String, Answer>): GameEvent? {
         val q = question ?: return null
         if (state.phase != Phase.CLOSED) return null
-        val awards = if (q.isNumber) Scoring.awardNumber(q, answers) else answers.mapValues { (_, a) ->
+        val awards = if (q.isNumber) Scoring.awardNumber(q, answers)
+        else if (q.isExpress) answers.mapValues { (_, a) -> Scoring.awardExpress(q, a) }
+        else answers.mapValues { (_, a) ->
             val remaining = (q.durationMs - state.elapsedAt(a.at)).coerceAtLeast(0)
             Scoring.award(q, a, remaining.toDouble() / q.durationMs)
         }
         return emit(Revealed(nextSeq, now, q.id, awards))
+    }
+
+    /**
+     * Vrai ou Faux express : l'étape que la box fait toute seule après un court délai ([expressDelayMs]).
+     * Question fermée : révélation. Révélation : affirmation suivante de la même manche, ou scores à la
+     * fin de la manche. Rien en pause, ni hors d'une manche express.
+     */
+    fun expressStep(now: Long, answers: Map<String, Answer>): GameEvent? {
+        val q = question ?: return null
+        if (!q.isExpress || state.paused) return null
+        return when (state.phase) {
+            Phase.CLOSED -> reveal(now, answers)
+            Phase.REVEAL -> {
+                val following = quiz.questions.getOrNull(state.index + 1)
+                if (following != null && following.isExpress && following.roundTitle == q.roundTitle) openQuestion(state.index + 1, now)
+                else emit(ScoresShown(nextSeq, now))
+            }
+            else -> null
+        }
+    }
+
+    /** Délai avant l'étape automatique du Vrai ou Faux express, ou null s'il n'y en a pas. */
+    fun expressDelayMs(): Long? {
+        if (question?.isExpress != true || state.paused) return null
+        return when (state.phase) {
+            Phase.CLOSED -> EXPRESS_CLOSED_MS
+            Phase.REVEAL -> EXPRESS_REVEAL_MS
+            else -> null
+        }
     }
 
     fun adjust(team: String, delta: Int, reason: String, now: Long): GameEvent? =
