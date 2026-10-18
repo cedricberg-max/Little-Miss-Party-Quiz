@@ -11,3 +11,16 @@ export function newSalt() {
 }
 
 export const MIN_PASSWORD_LENGTH = 8;
+
+/**
+ * Les espaces ne comptent pas (claviers de téléphone qui en ajoutent après une suggestion) :
+ * on enregistre le mot de passe sans espaces, et à la saisie on essaie d'abord sans espaces,
+ * puis tel quel pour un mot de passe enregistré avant cette règle.
+ */
+export function cleanPassword(password) {
+  return password.replace(/\s+/g, "");
+}
+
+export function passwordCandidates(password) {
+  return [...new Set([cleanPassword(password), password])];
+}

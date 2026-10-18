@@ -331,6 +331,28 @@ describe("régie", () => {
     for (const p of [before, admin, oldPassword, newPassword]) await p.context().close();
   });
 
+  test("espaces ajoutés par le clavier du téléphone : le mot de passe de régie est quand même accepté", async () => {
+    box = startBox();
+    const admin = await openAdmin();
+    await admin.click("#nav button[data-screen=settings]");
+    await admin.locator("#screen-settings:not([hidden])").waitFor();
+    await admin.fill("#pw1", "sacha 100111");
+    await admin.fill("#pw2", "sacha100111 ");
+    await admin.click("#save");
+    await admin.locator("#save-status", { hasText: "Mot de passe de la régie enregistré" }).waitFor();
+    const phone = await openRegie();
+    await pair(phone, "sacha100111 ");
+    await inRegie(phone);
+    // Un mot de passe enregistré avec un espace avant cette règle s'ouvre encore tel quel.
+    const salt = "0123456789abcdef0123";
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), "settings/regie"),
+      { salt, hash: createHash("sha256").update(`${salt}:licorne 42`).digest("hex"), updatedAt: Date.now() }));
+    const old = await openRegie();
+    await pair(old, "licorne 42");
+    await inRegie(old);
+    for (const p of [admin, phone, old]) await p.context().close();
+  });
+
   test("administration : une connexion ratée à l'ouverture est réessayée seule", async () => {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     let failed = 0;
