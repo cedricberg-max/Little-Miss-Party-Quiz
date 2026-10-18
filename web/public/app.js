@@ -466,6 +466,7 @@ $("regie-use-pin").onclick = () => {
 const LOGIN_MESSAGES = {
   wrong: "Mot de passe de régie incorrect (ce n'est pas celui de l'administration). Il se change dans l'administration, Paramètres.",
   ended: "Cette partie est terminée. Scannez le QR code affiché en ce moment sur la TV.",
+  refused: "Mot de passe correct, mais la partie a refusé l'accès. Rechargez la page et réessayez.",
   unset: "Aucun mot de passe de régie n'est encore enregistré. Utilisez le code affiché sur la TV.",
   busy: "Trop d'essais en même temps. Réessayez dans quelques secondes.",
   pinWrong: "Code incorrect. Regardez le code à 4 chiffres sur la TV.",
