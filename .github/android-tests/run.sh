@@ -60,4 +60,18 @@ else
 fi
 
 kill "$LOGCAT" 2>/dev/null || true
+
+# Diagnostic lisible directement dans le journal du workflow.
+echo "== Échecs détaillés =="
+python3 - <<'PY'
+import glob, xml.etree.ElementTree as ET
+for f in glob.glob("tv/build/outputs/androidTest-results/**/TEST-*.xml", recursive=True):
+    for tc in ET.parse(f).getroot().iter("testcase"):
+        e = tc.find("failure")
+        if e is not None:
+            print("---", tc.get("classname").split(".")[-1], tc.get("name"))
+            print("\n".join((e.text or "").splitlines()[:25]))
+PY
+echo "== Journal Android (extrait) =="
+grep -E "TestsTV|Partie|RepoOperation|PersistentConnection|Connection|WebSocket|FirebaseAuth|AndroidRuntime|System.err" "$OUT/logcat.txt" | grep -v "^--------" | tail -n 400
 exit $STATUS

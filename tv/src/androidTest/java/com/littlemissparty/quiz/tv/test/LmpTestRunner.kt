@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.test.runner.AndroidJUnitRunner
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.Logger
 import com.littlemissparty.quiz.tv.GameViewModel
 
 /**
@@ -14,6 +15,8 @@ class LmpTestRunner : AndroidJUnitRunner() {
     override fun callApplicationOnCreate(app: Application) {
         super.callApplicationOnCreate(app)
         val db = FirebaseDatabase.getInstance(GameViewModel.databaseUrl())
+        // Journal détaillé de Firebase dans le logcat, repris dans le journal du workflow.
+        db.setLogLevel(Logger.Level.DEBUG)
         Emulateur.brancher(FirebaseAuth.getInstance(), db)
         // Comme sur la box : copie locale activée (l'appli le fait aussi, son appel devient sans effet).
         db.setPersistenceEnabled(true)

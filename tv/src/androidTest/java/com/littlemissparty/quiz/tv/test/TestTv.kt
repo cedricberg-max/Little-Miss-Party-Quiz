@@ -1,5 +1,6 @@
 package com.littlemissparty.quiz.tv.test
 
+import android.util.Log
 import androidx.test.core.app.ActivityScenario
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.tv.MainActivity
@@ -23,6 +24,7 @@ abstract class TestTv {
     val rangement = object : TestWatcher() {
         override fun failed(e: Throwable?, description: Description?) {
             runCatching { ecran.capture("echec") }
+            runCatching { Log.e(TAG, "ÉCHEC ${description?.methodName} — écran : ${ecran.textes()}") }
         }
 
         override fun finished(description: Description?) {

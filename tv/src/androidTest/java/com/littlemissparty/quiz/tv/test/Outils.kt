@@ -116,6 +116,10 @@ class Ecran(private val nomTest: () -> String) {
 
     fun touche(code: Int) = device.pressKeyCode(code)
 
+    /** Textes visibles à l'écran, écrits dans le journal quand un test échoue. */
+    fun textes(): String = device.findObjects(By.textStartsWith("")).mapNotNull { runCatching { it.text }.getOrNull() }
+        .filter { it.isNotBlank() }.joinToString(" | ")
+
     fun capture(nom: String) {
         val fichier = "$DOSSIER_CAPTURES/${nomTest()}-%02d-$nom.png".format(++numero)
         Log.i(TAG, "Capture $fichier")
