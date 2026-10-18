@@ -148,4 +148,4 @@ jobs:
             --project "${{ steps.check.outputs.project }}" --non-interactive
       - name: Signaler une mise à jour non publiée
         if: steps.tvupdate.outcome == 'failure'
-        run: echo "::warning::Mise à jour TV non publiée sur l'hébergement Firebase : la box ne verra pas cette version (vérifier que le projet est bien sur Blaze, qui accepte les fichiers .apk)."
+        run: echo "::warning::Mise à jour TV non publiée sur l'hébergement Firebase, la box ne verra pas cette version (vérifier que le projet est bien sur Blaze, qui accepte les fichiers .apk)."
