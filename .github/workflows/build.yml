@@ -114,6 +114,8 @@ jobs:
         if: steps.check.outputs.ready == 'true'
         run: |
           cp firebase-config.json web/public/firebase-config.json
+          # Numéro de version du site (le même que l'APK de cette publication) : les pages ouvertes se mettent à jour.
+          jq -n --arg web "0.1.${{ github.run_number }}" --arg sha "${GITHUB_SHA::7}" '{web: $web, sha: $sha}' > web/public/version.json
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
           npx --yes firebase-tools@13 deploy --only hosting,database \

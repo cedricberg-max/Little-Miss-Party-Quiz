@@ -96,3 +96,9 @@ data class MimeCorrected(override val seq: Int, override val at: Long, val team:
 
 /** Fin du tour : chrono écoulé, paquet épuisé ou arrêt par l'animatrice. */
 data class MimeTurnEnded(override val seq: Int, override val at: Long) : GameEvent
+
+/**
+ * Saut de la régie vers la question [index] (début d'un jeu de la prestation), en avant comme en arrière.
+ * Les points des questions [clear] sont retirés : un jeu rejoué ne compte jamais deux fois.
+ */
+data class Jumped(override val seq: Int, override val at: Long, val index: Int, val qid: String, val clear: List<String> = emptyList()) : GameEvent

@@ -282,3 +282,33 @@ describe("mimes", () => {
     assert.ok(MIME_CATALOG.every((c) => c.word && c.image && c.image.length <= 16 && c.theme));
   });
 });
+
+describe("Le Juste Chiffre", () => {
+  test("une question sans propositions avec un nombre pour réponse devient une question du Juste Chiffre", () => {
+    const { questions } = parseQuiz("1. Combien d'os dans le corps humain ?\nRéponse : 206\n\n2. Hauteur de la tour Eiffel en mètres ?\nRéponse : 1 000\n\n3. Sans réponse ?\nRéponse : beaucoup");
+    assert.equal(questions[0].kind, "number");
+    assert.equal(questions[0].correct, 206);
+    assert.deepEqual(questions[0].choices, []);
+    assert.equal(questions[1].correct, 1000);
+    assert.equal(questions[2].kind, undefined);
+    const checks = checkQuestions(questions);
+    assert.deepEqual(checks[0].errors, []);
+    assert.ok(checks[2].errors.length > 0, "une réponse qui n'est pas un nombre reste à corriger");
+  });
+  test("tableur : une ligne sans propositions avec un nombre, mélangée aux questions à propositions", () => {
+    const { questions } = parseQuiz("Question;Réponse A;Réponse B;Bonne réponse\nCombien de pattes a une araignée ?;;;8\nCapitale ?;Paris;Lyon;A");
+    assert.equal(questions.length, 2);
+    assert.equal(questions[0].kind, "number");
+    assert.equal(questions[0].correct, 8);
+    assert.equal(questions[1].kind, undefined);
+    assert.equal(questions[1].correct, 0);
+  });
+  test("dans une prestation, la question garde son type et son nombre, sans propositions", () => {
+    const quiz = { title: "Nombres", questions: [{ text: "Combien d'os ?", kind: "number", correct: 206, status: "validee" }] };
+    const { snapshot } = buildSnapshot("s", { childName: "Léa", age: 9, rounds: [{ type: "quiz", quizId: "n" }] }, { n: quiz });
+    const q = snapshot.quiz.questions[0];
+    assert.equal(q.kind, "number");
+    assert.equal(q.correct, 206);
+    assert.equal(q.choices, undefined);
+  });
+});

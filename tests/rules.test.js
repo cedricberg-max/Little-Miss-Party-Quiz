@@ -1,5 +1,6 @@
 // Règles de sécurité Firebase : ce qu'un pupitre, la box ou un inconnu ont le droit de faire.
 // Lancé par `npm test` dans l'émulateur Firebase, jamais sur la vraie base.
+import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { loadRules, seedAdmin, adminHash, ADMIN_PASSWORD, ADMIN_SALT } from "./rules-loader.js";
 import { after, before, beforeEach, describe, test } from "node:test";
@@ -68,30 +69,54 @@ describe("lecture", () => {
   });
 });
 
+/** Comme le pupitre : l'équipe et sa couleur réservée dans la même écriture. */
+const join = (uid, name, color, team = uid, code = CODE) =>
+  update(ref(db(uid), `games/${code}`), { [`teams/${team}`]: { name, color }, [`colors/${color.slice(1).toUpperCase()}`]: uid });
+
 describe("équipes", () => {
   test("rejoindre une partie existante dans le salon d'attente", async () => {
     await seed({ phase: "lobby" });
-    await assertSucceeds(set(ref(db("vert"), `games/${CODE}/teams/vert`), { name: "Les Verts", color: "#06D6A0" }));
+    await assertSucceeds(join("vert", "Les Verts", "#06D6A0"));
     // Même tablette qui rejoint deux fois : toujours une seule équipe.
-    await assertSucceeds(set(ref(db("vert"), `games/${CODE}/teams/vert`), { name: "Les Verts", color: "#06D6A0" }));
+    await assertSucceeds(join("vert", "Les Verts", "#06D6A0"));
   });
   test("partie commencée : un nouvel appareil ne crée pas d'équipe seul, il demande à entrer", async () => {
     await seed();
-    await assertFails(set(ref(db("vert"), `games/${CODE}/teams/vert`), { name: "Les Verts", color: "#06D6A0" }));
-    await assertFails(set(ref(db("rose"), `games/${CODE}/teams/rose`), { name: "Renommée", color: "#FF3CAC" }));
+    await assertFails(join("vert", "Les Verts", "#06D6A0"));
+    await assertFails(join("rose", "Renommée", "#FF3CAC"));
     await assertSucceeds(set(ref(db("vert"), `games/${CODE}/joinRequests/vert`), { name: "Les Verts", color: "#06D6A0", at: serverTimestamp() }));
   });
   test("impossible d'inscrire ou de renommer une autre équipe", async () => {
     await seed();
-    await assertFails(set(ref(db("vert"), `games/${CODE}/teams/rose`), { name: "Piratée", color: "#000000" }));
+    await assertFails(join("vert", "Piratée", "#000000", "rose"));
   });
   test("nom vide ou trop long refusé", async () => {
     await seed();
-    await assertFails(set(ref(db("vert"), `games/${CODE}/teams/vert`), { name: "", color: "#06D6A0" }));
-    await assertFails(set(ref(db("vert"), `games/${CODE}/teams/vert`), { name: "x".repeat(21), color: "#06D6A0" }));
+    await assertFails(join("vert", "", "#06D6A0"));
+    await assertFails(join("vert", "x".repeat(21), "#06D6A0"));
   });
   test("impossible de rejoindre une partie qui n'existe pas", async () => {
-    await assertFails(set(ref(db("vert"), "games/ZZZZZ/teams/vert"), { name: "Les Verts", color: "#06D6A0" }));
+    await assertFails(join("vert", "Les Verts", "#06D6A0", "vert", "ZZZZZ"));
+  });
+  test("une couleur prise n'est plus disponible pour les autres équipes, même en même temps", async () => {
+    await seed({ phase: "lobby" });
+    // Sans réserver sa couleur, une équipe ne peut pas s'inscrire.
+    await assertFails(set(ref(db("vert"), `games/${CODE}/teams/vert`), { name: "Les Verts", color: "#06D6A0" }));
+    // Deux tablettes choisissent la même couleur au même moment : une seule passe.
+    const results = await Promise.allSettled([join("vert", "Les Verts", "#06D6A0"), join("jaune", "Les Jaunes", "#06d6a0")]);
+    assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
+    const winner = results[0].status === "fulfilled" ? "vert" : "jaune";
+    const loser = winner === "vert" ? "jaune" : "vert";
+    assert.equal((await get(ref(db(HOST), `games/${CODE}/colors/06D6A0`))).val(), winner);
+    // Le perdant prend une autre couleur ; personne ne vole ni ne libère la couleur d'un autre.
+    await assertSucceeds(join(loser, "Les Autres", "#FFD166"));
+    await assertFails(set(ref(db(loser), `games/${CODE}/colors/06D6A0`), loser));
+    await assertFails(set(ref(db(loser), `games/${CODE}/colors/06D6A0`), null));
+    // Réserver une couleur sans équipe de cette couleur : refusé (pas de couleurs bloquées pour rien).
+    await assertFails(set(ref(db("violet"), `games/${CODE}/colors/9B5DE5`), "violet"));
+    await assertSucceeds(get(ref(db("violet"), `games/${CODE}/colors`)));
+    // La box admet une équipe en cours de partie avec sa couleur.
+    await assertSucceeds(update(ref(db(HOST), `games/${CODE}`), { "teams/tard": { name: "En retard", color: "#9B5DE5", joinedAt: 1 }, "colors/9B5DE5": "tard" }));
   });
 });
 
@@ -140,7 +165,7 @@ describe("remplacement d'un appareil", () => {
     await assertFails(set(ref(db("bleu"), `games/${CODE}/presence/bleu`), { online: false, at: serverTimestamp() }));
     await assertFails(set(ref(db("bleu"), `games/${CODE}/answers/q2/bleu`), { choice: 1, at: serverTimestamp() }));
     await assertFails(get(ref(db("bleu"), `games/${CODE}/answers/q1/bleu`)));
-    await assertFails(set(ref(db("bleu"), `games/${CODE}/teams/bleu`), { name: "Les Bleus", color: "#2B86C5" }));
+    await assertFails(join("bleu", "Les Bleus", "#2B86C5"));
     // Le nouvel appareil ne joue pas pour une autre équipe.
     await assertFails(set(ref(db("neuf"), `games/${CODE}/answers/q1/rose`), { choice: 0, at: serverTimestamp() }));
   });
@@ -273,6 +298,23 @@ describe("buzzer", () => {
     await assertSucceeds(set(ref(db("rose"), `games/${CODE}/buzz/1`), { team: "rose", at: serverTimestamp() }));
     await assertFails(set(ref(db("bleu"), `games/${CODE}/buzz/1`), { team: "bleu", at: serverTimestamp() }));
   });
+  test("accueil : chaque équipe buzze pour s'amuser autant qu'elle veut, jamais pour une autre ni pendant le jeu", async () => {
+    await seed({ phase: "lobby", buzzOpen: true, round: 1 });
+    const fun = (uid, team) => set(ref(db(uid), `games/${CODE}/fun/${team}`), { at: serverTimestamp() });
+    await assertSucceeds(fun("rose", "rose"));
+    await assertSucceeds(fun("bleu", "bleu"));
+    // Rafale trop rapide (moins d'un quart de seconde) : ignorée, le suivant passe.
+    await assertFails(fun("rose", "rose"));
+    await new Promise((r) => setTimeout(r, 300));
+    await assertSucceeds(fun("rose", "rose"));
+    await assertFails(fun("rose", "bleu"));
+    await assertFails(set(ref(db("rose"), `games/${CODE}/fun/rose`), { at: serverTimestamp(), extra: 1 }));
+    await assertFails(set(ref(db("rose"), `games/${CODE}/fun/rose`), null));
+    await assertSucceeds(get(ref(db("bleu"), `games/${CODE}/fun`)));
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/state/phase`), "question"));
+    await new Promise((r) => setTimeout(r, 300));
+    await assertFails(fun("bleu", "bleu"));
+  });
 });
 
 describe("rapports de plantage", () => {
@@ -372,6 +414,18 @@ describe("régie", () => {
     await assertSucceeds(command(REGIE, { type: "mime_stop" }));
     await assertFails(command("rose", { type: "mime_found" }));
     await assertFails(set(ref(db(REGIE), `games/${CODE}/commands/m-points`), { type: "mime_found", points: 50, expectSeq: 3, by: REGIE, at: serverTimestamp() }));
+  });
+  test("secours : la régie demande un saut de jeu ; seule la box efface les réponses d'un jeu rejoué", async () => {
+    await paired();
+    await assertSucceeds(command(REGIE, { type: "goto", index: 2, qid: "a1m" }));
+    await assertFails(command(REGIE, { type: "goto", index: -1, qid: "q1" }));
+    await assertFails(command(REGIE, { type: "goto", index: 0, qid: 12 }));
+    await assertSucceeds(answer("rose", 1));
+    await assertFails(set(ref(db("rose"), `games/${CODE}/answers/q1`), null));
+    await assertFails(set(ref(db(REGIE), `games/${CODE}/answers/q1`), null));
+    await assertFails(set(ref(db(HOST), `games/${CODE}/answers/q1/rose`), { choice: 2, at: serverTimestamp() }));
+    await assertSucceeds(set(ref(db(HOST), `games/${CODE}/answers/q1`), null));
+    await assertSucceeds(answer("rose", 2));
   });
   test("une commande ne se réécrit pas", async () => {
     await paired();
@@ -638,5 +692,65 @@ describe("mot de passe administrateur commun", () => {
     await assertSucceeds(set(ref(db("pc"), "adminProof/pc"), null));
     await assertFails(access("pc"));
     await assertSucceeds(access("portable"));
+  });
+});
+
+describe("illustrations des questions", () => {
+  beforeEach(() => seedAdmin(env, "sarah"));
+  const PHOTO = "data:image/jpeg;base64,AAAA";
+  const ID = "0123456789abcdef";
+
+  test("l'administration range une photo, jamais remplacée en douce ; personne d'autre n'écrit", async () => {
+    await assertSucceeds(set(ref(db("sarah"), `library/images/${ID}`), PHOTO));
+    await assertFails(set(ref(db("sarah"), `library/images/${ID}`), "data:image/jpeg;base64,BBBB"));
+    await assertFails(set(ref(db("sarah"), "library/images/pas-un-id"), PHOTO));
+    await assertFails(set(ref(db("sarah"), "library/images/fedcba9876543210"), "javascript:alert(1)"));
+    await assertFails(set(ref(db("sarah"), "library/images/fedcba9876543210"), `data:image/jpeg;base64,${"A".repeat(150001)}`));
+    await assertFails(set(ref(db("rose"), "library/images/fedcba9876543210"), PHOTO));
+    await assertSucceeds(set(ref(db("sarah"), `library/images/${ID}`), null));
+  });
+  test("une question garde un émoji court et un identifiant de photo valide", async () => {
+    const quiz = (q) => set(ref(db("sarah"), "library/quizzes/z"), {
+      title: "Z", updatedAt: serverTimestamp(), questions: [{ text: "?", choices: ["a", "b"], correct: 0, status: "validee", ...q }],
+    });
+    await assertSucceeds(quiz({ image: "🦁", imageId: ID }));
+    await assertFails(quiz({ image: "x".repeat(17) }));
+    await assertFails(quiz({ imageId: "../../settings" }));
+  });
+  test("la régie copie une photo dans la partie ; la box la lit, les pupitres non", async () => {
+    await seed({ phase: "lobby" });
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));
+    await assertFails(set(ref(db("rose"), `games/${CODE}/images/${ID}`), PHOTO));
+    await assertSucceeds(set(ref(db("tel"), `games/${CODE}/images/${ID}`), PHOTO));
+    await assertFails(set(ref(db("tel"), `games/${CODE}/images/${ID}`), "data:image/jpeg;base64,BBBB"));
+    await assertSucceeds(get(ref(db(HOST), `games/${CODE}/images/${ID}`)));
+    await assertSucceeds(get(ref(db("tel"), `games/${CODE}/images/${ID}`)));
+    await assertFails(get(ref(db("rose"), `games/${CODE}/images/${ID}`)));
+  });
+});
+
+describe("Le Juste Chiffre", () => {
+  test("un nombre entier est accepté comme réponse, une seule fois ; jamais sur une question à propositions", async () => {
+    await seed({ kind: "number", choices: null });
+    await assertFails(answer("rose", 1.5));
+    await assertFails(answer("rose", 1e10));
+    await assertSucceeds(answer("rose", 206));
+    await assertFails(answer("rose", 207));
+    await assertSucceeds(answer("bleu", -3));
+  });
+  test("question à propositions : un nombre hors des propositions reste refusé", async () => {
+    await seed({ kind: "classic" });
+    await assertFails(answer("rose", 206));
+    await assertSucceeds(answer("rose", 3));
+  });
+  test("l'administration enregistre une question du Juste Chiffre sans propositions", async () => {
+    await seedAdmin(env, "sarah");
+    await assertSucceeds(set(ref(db("sarah"), "library/quizzes/j"), {
+      title: "Juste Chiffre", updatedAt: serverTimestamp(),
+      questions: [{ text: "Combien d'os ?", kind: "number", correct: 206, status: "validee" }],
+    }));
+    await assertFails(set(ref(db("sarah"), "library/quizzes/k"), {
+      title: "Cassé", updatedAt: serverTimestamp(), questions: [{ text: "Sans propositions", correct: 0, status: "validee" }],
+    }));
   });
 });

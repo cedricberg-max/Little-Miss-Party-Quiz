@@ -29,6 +29,7 @@ body {
 .logo span { color: var(--gold); font-size: 52px; letter-spacing: 8px; }
 .logo.small { font-size: 40px; }
 .hint { opacity: .85; font-size: 18px; margin: 0; }
+.hint.error { color: #FFD166; font-weight: 700; opacity: 1; }
 .welcome { margin: 0; font-size: 22px; font-weight: 800; color: var(--gold); }
 label, .label { font-weight: 700; font-size: 18px; margin: 8px 0 0; }
 
@@ -44,6 +45,7 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
   transition: transform .15s;
 }
 .colors button.selected { border-color: #fff; transform: scale(1.15); }
+.colors button.taken { opacity: .25; transform: scale(.8); cursor: not-allowed; background-image: linear-gradient(135deg, transparent 45%, #fff 45%, #fff 55%, transparent 55%) !important; }
 
 .btn {
   font-size: 20px; font-weight: 800; color: var(--night); background: var(--gold);
@@ -70,6 +72,8 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
 .buzz:disabled { filter: grayscale(.8) brightness(.7); }
 .buzz.winner { animation: winner .6s ease-in-out infinite alternate; }
 @keyframes winner { from { transform: scale(1); } to { transform: scale(1.08); box-shadow: 0 0 120px var(--gold); } }
+.buzz.bump { animation: bump .35s ease-out; }
+@keyframes bump { 0% { transform: scale(.92); } 50% { transform: scale(1.06); box-shadow: 0 0 120px var(--team); } 100% { transform: scale(1); } }
 
 /* Bandeau de connexion perdue */
 .offline {
@@ -115,3 +119,29 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
 .countdown { background: rgba(26, 11, 46, .75); }
 .countdown div { font-size: 140px; line-height: 1; }
 [hidden] { display: none !important; }
+
+/* Nouvelle version du site publiée pendant que la page était ouverte. */
+.update-banner {
+  position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 50; display: flex; gap: 12px; align-items: center;
+  justify-content: space-between; padding: 12px 16px; border-radius: 14px; background: #FFD166; color: #1A0B2E;
+  font-weight: 700; font-size: 16px; box-shadow: 0 8px 30px rgba(0, 0, 0, .35);
+}
+.update-banner[hidden] { display: none; }
+.update-banner button { border: 0; border-radius: 10px; padding: 10px 14px; background: #1A0B2E; color: #fff; font-weight: 800; font-size: 15px; }
+.web-version { position: fixed; right: 8px; bottom: 4px; margin: 0; font-size: 11px; opacity: .45; pointer-events: none; z-index: 1; }
+.result-image { margin: 0; font-size: 72px; line-height: 1.1; }
+.result-image[hidden] { display: none; }
+
+/* Le Juste Chiffre : pavé numérique du pupitre */
+.choices.number { grid-template-columns: 1fr; gap: 10px; }
+.number-screen {
+  min-height: 72px; display: flex; align-items: center; justify-content: center; border-radius: 18px;
+  background: rgba(255, 255, 255, .12); border: 3px solid var(--team); font-size: 44px; font-weight: 900; letter-spacing: 2px;
+}
+.number-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.number-key {
+  min-height: 64px; border: 0; border-radius: 16px; background: rgba(255, 255, 255, .9); color: #1A0B2E;
+  font-size: 30px; font-weight: 900; cursor: pointer; touch-action: manipulation;
+}
+.number-key:active { transform: scale(.95); }
+.number-key:disabled, .number-send:disabled { opacity: .45; }

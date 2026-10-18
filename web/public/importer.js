@@ -148,6 +148,7 @@ function parseTable(text) {
         text: clean(r[header.text]),
         choices,
         correct: header.correct >= 0 ? resolveCorrect(r[header.correct], choices) : -1,
+        answer: header.correct >= 0 ? r[header.correct] : null,
         duration: header.duration >= 0 ? num(r[header.duration]) : null,
         double: header.double >= 0 && /^(oui|x|1|vrai|true|×?2|x2)$/i.test(String(r[header.double] ?? "").trim()),
         marks: 0,
@@ -159,9 +160,9 @@ function parseTable(text) {
     const [q, ...rest] = cells;
     let duration = null;
     if (rest.length >= 4 && /^\d+$/.test(rest[rest.length - 1]) && Number(rest[rest.length - 1]) > 4) duration = Number(rest.pop());
-    const answer = rest.length >= 3 ? rest.pop() : "";
+    const answer = rest.length >= 3 || (rest.length === 1 && numberAnswer(rest[0]) != null) ? rest.pop() : "";
     const choices = rest.filter(Boolean);
-    return finish({ text: q ?? "", choices, correct: resolveCorrect(answer, choices), duration, double: false, marks: 0 });
+    return finish({ text: q ?? "", choices, correct: resolveCorrect(answer, choices), answer, duration, double: false, marks: 0 });
   });
   return { title: "", theme: "", ageMin: null, ageMax: null, format: "tableur", questions };
 }
@@ -226,7 +227,16 @@ function finish(q) {
     if (q.answer != null) correct = resolveCorrect(q.answer, q.choices);
     else if (q.markIdx.length === 1) correct = q.markIdx[0];
   }
+  // Le Juste Chiffre : aucune proposition et une réponse en nombre entier (« Réponse : 206 »).
+  const target = !q.choices.length ? numberAnswer(q.answer) : null;
+  if (target != null) return { text, choices: [], correct: target, kind: "number", duration: q.duration ?? null, double, marks: 0 };
   return { text, choices: q.choices, correct, duration: q.duration ?? null, double, marks };
+}
+
+/** « 206 », « 1 000 », « -5 » → nombre entier ; sinon null. */
+export function numberAnswer(raw) {
+  const t = String(raw ?? "").replace(/[\s\u00a0\u202f.]/g, "").replace(/^−/, "-");
+  return /^-?\d{1,9}$/.test(t) ? Number(t) : null;
 }
 
 /**
@@ -261,6 +271,9 @@ function num(v) {
  * Anomalies de chaque question : `errors` (la question ne peut pas être validée) et `warnings`
  * (à regarder, la validation reste possible). [existing] : textes déjà présents dans la bibliothèque.
  */
+/** Le Juste Chiffre : plus grand nombre (en valeur absolue) qu'un pupitre laisse taper. */
+export const MAX_NUMBER = 999_999_999;
+
 export function checkQuestions(questions, { profile = null, existing = [] } = {}) {
   const p = PROFILES[profile];
   const known = new Set(existing.map(norm));
@@ -271,18 +284,23 @@ export function checkQuestions(questions, { profile = null, existing = [] } = {}
     const key = norm(q.text);
     if (!key) errors.push("Question vide.");
     if (q.text.length > MAX_TEXT) errors.push(`Question trop longue (${q.text.length} caractères, ${MAX_TEXT} au plus).`);
-    if (q.choices.length < 2) errors.push("Il faut au moins 2 propositions.");
-    if (q.choices.length > 4) errors.push(`${q.choices.length} propositions : 4 au plus.`);
-    if (q.choices.some((c) => !c)) errors.push("Une proposition est vide.");
-    if (q.choices.some((c) => c.length > MAX_CHOICE)) errors.push(`Une proposition dépasse ${MAX_CHOICE} caractères.`);
-    if (new Set(q.choices.map(norm)).size !== q.choices.length) errors.push("Deux propositions sont identiques.");
-    if ((q.marks ?? 0) > 1) errors.push("Plusieurs propositions sont marquées comme bonne réponse.");
-    else if (!(q.correct >= 0 && q.correct < q.choices.length)) errors.push("Bonne réponse absente ou introuvable dans les propositions.");
+    if (q.kind === "number") {
+      // Le Juste Chiffre : pas de propositions, un nombre entier à trouver.
+      if (!Number.isInteger(q.correct) || Math.abs(q.correct) > MAX_NUMBER) errors.push("Le Juste Chiffre : indiquez le nombre à trouver (nombre entier).");
+    } else {
+      if (q.choices.length < 2) errors.push("Il faut au moins 2 propositions.");
+      if (q.choices.length > 4) errors.push(`${q.choices.length} propositions : 4 au plus.`);
+      if (q.choices.some((c) => !c)) errors.push("Une proposition est vide.");
+      if (q.choices.some((c) => c.length > MAX_CHOICE)) errors.push(`Une proposition dépasse ${MAX_CHOICE} caractères.`);
+      if (new Set(q.choices.map(norm)).size !== q.choices.length) errors.push("Deux propositions sont identiques.");
+      if ((q.marks ?? 0) > 1) errors.push("Plusieurs propositions sont marquées comme bonne réponse.");
+      else if (!(q.correct >= 0 && q.correct < q.choices.length)) errors.push("Bonne réponse absente ou introuvable dans les propositions.");
+    }
     if (q.duration != null && (q.duration < MIN_DURATION_SEC || q.duration > MAX_DURATION_SEC)) {
       errors.push(`Durée de ${q.duration} s : entre ${MIN_DURATION_SEC} et ${MAX_DURATION_SEC} s.`);
     }
     if (p && words(q.text) > p.maxWords) warnings.push(`${words(q.text)} mots : long pour le profil ${p.label} (${p.maxWords} au plus).`);
-    if (p?.maxChoiceWords && q.choices.some((c) => words(c) > p.maxChoiceWords)) {
+    if (p?.maxChoiceWords && (q.choices ?? []).some((c) => words(c) > p.maxChoiceWords)) {
       warnings.push(`Propositions de plus de ${p.maxChoiceWords} mots : longues pour le profil ${p.label}.`);
     }
     if (key && seen.has(key)) warnings.push(`Même question que la n° ${seen.get(key) + 1}.`);

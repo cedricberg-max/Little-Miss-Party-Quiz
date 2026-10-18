@@ -13,6 +13,11 @@ import {
   roundFilled, MIME_TURN,
 } from "./show.js";
 import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
+import { watchVersion, showUpdateBanner } from "./version.js";
+import { compressImage, imageId, cleanEmoji } from "./illustration.js";
+
+// Nouvelle version publiée pendant que l'administration est ouverte : on propose de recharger, sans rien perdre d'office.
+watchVersion(() => showUpdateBanner("Une nouvelle version de l'administration est en ligne. Enregistrez votre travail, puis mettez à jour."));
 
 // Administration : un mot de passe commun, sans compte ni adresse e-mail. Toute personne qui le connaît
 // a tous les droits. Le serveur (règles Firebase) vérifie l'empreinte envoyée par cet appareil ;
@@ -534,6 +539,7 @@ function review(id, quiz) {
     questions: (quiz.questions ?? []).filter(Boolean).map((q) => ({
       text: q.text ?? "", choices: [...(q.choices ?? [])], correct: q.correct ?? -1,
       duration: q.duration ?? null, double: q.double === true, status: q.status ?? "brouillon", marks: q.marks ?? 0,
+      image: q.image ?? "", imageId: q.imageId ?? null, kind: q.kind === "number" ? "number" : null,
     })),
   };
   $("rv-title").value = quiz.title ?? "";
@@ -565,17 +571,91 @@ function renderReview() {
         h("label", { class: "check" }, h("input", { type: "checkbox", class: "q-valid", checked: q.status === "validee", onchange: (e) => { q.status = e.target.checked ? "validee" : "brouillon"; recheck(); } }), "Validée"),
         h("button", { type: "button", class: "icon", title: "Supprimer la question", text: "✕", onclick: () => { draft.questions.splice(i, 1); renderReview(); } })),
       h("textarea", { class: "q-text", rows: 2, value: q.text, oninput: (e) => { q.text = e.target.value.trim(); q.marks = 0; recheck(); } }),
-      h("div", { class: "choices" }, ...slots.map((c, k) => h("label", { class: "choice" },
+      h("label", { class: "check q-number-toggle" },
+        h("input", {
+          type: "checkbox", class: "q-is-number", checked: q.kind === "number",
+          onchange: (e) => {
+            q.kind = e.target.checked ? "number" : null;
+            q.correct = e.target.checked ? (Number.isInteger(Number(q.number)) && q.number !== "" ? Number(q.number) : NaN) : -1;
+            q.marks = 0;
+            renderReview();
+          },
+        }),
+        "Le Juste Chiffre : réponse en nombre (l'équipe la plus proche gagne)"),
+      q.kind === "number" ? h("label", { class: "inline q-number-row" }, "Nombre à trouver",
+        h("input", {
+          type: "number", step: 1, class: "q-number", value: Number.isInteger(q.correct) ? q.correct : "",
+          oninput: (e) => { q.number = e.target.value; q.correct = e.target.value === "" ? NaN : Number(e.target.value); recheck(); },
+        })) : null,
+      q.kind === "number" ? null : h("div", { class: "choices" }, ...slots.map((c, k) => h("label", { class: "choice" },
         h("input", { type: "radio", name: `correct-${i}`, checked: q.correct === k, onchange: () => { q.correct = k; q.marks = 0; syncChoices(q, slots); } }),
         h("span", { class: "letter", text: LETTERS[k] }),
         h("input", { class: "q-choice", value: c, placeholder: k < 2 ? "Proposition" : "Facultatif", oninput: (e) => { slots[k] = e.target.value; syncChoices(q, slots); } })))),
       h("div", { class: "row" },
         h("label", { class: "inline" }, "Durée (s)", h("input", { type: "number", min: 5, max: 120, class: "q-duration", value: q.duration ?? "", placeholder: "auto", oninput: (e) => { q.duration = e.target.value === "" ? null : Number(e.target.value); recheck(); } })),
         h("label", { class: "check" }, h("input", { type: "checkbox", checked: q.double, onchange: (e) => { q.double = e.target.checked; } }), "Points ×2")),
+      illustrationRow(q, i),
       h("ul", { class: "problems" }));
     box.append(card);
   });
   recheck();
+}
+
+/** Photos d'illustration déjà lues (identifiant → image), pour l'aperçu. */
+const imageCache = {};
+
+/**
+ * Illustration facultative, montrée sur la TV quand la réponse est révélée : un émoji, ou une photo
+ * choisie sur le PC (réduite avant l'envoi). Sans illustration, la question se joue comme avant.
+ */
+function illustrationRow(q, i) {
+  const preview = h("img", { class: "q-image", alt: "Photo de la question", hidden: !q.imageId });
+  const showPreview = () => {
+    preview.hidden = !q.imageId;
+    if (!q.imageId) return;
+    if (imageCache[q.imageId]) { preview.src = imageCache[q.imageId]; return; }
+    const id = q.imageId;
+    get(ref(db, `library/images/${id}`)).then((snap) => {
+      if (typeof snap.val() === "string") { imageCache[id] = snap.val(); if (q.imageId === id) preview.src = snap.val(); }
+    }).catch(() => {});
+  };
+  const info = h("span", { class: "hint q-image-info" });
+  const remove = h("button", {
+    type: "button", class: "link", text: "Retirer la photo", hidden: !q.imageId,
+    onclick: () => { q.imageId = null; remove.hidden = true; showPreview(); info.textContent = ""; },
+  });
+  const file = h("input", {
+    type: "file", accept: "image/*", class: "q-photo", hidden: true,
+    onchange: async (e) => {
+      const f = e.target.files?.[0];
+      e.target.value = "";
+      if (!f) return;
+      info.textContent = "Préparation de la photo…";
+      try {
+        const data = await compressImage(f);
+        const id = await imageId(data);
+        const target = ref(db, `library/images/${id}`);
+        if (!(await get(target)).exists()) await set(target, data);
+        imageCache[id] = data;
+        q.imageId = id;
+        remove.hidden = false;
+        showPreview();
+        info.textContent = `Photo prête (${Math.round(data.length / 1365)} Ko). Pensez à enregistrer le quiz.`;
+      } catch (err) {
+        console.error(err);
+        info.textContent = "Photo refusée : essayez une autre image (JPEG ou PNG).";
+      }
+    },
+  });
+  showPreview();
+  return h("div", { class: "row illustration", "data-illustration": i },
+    h("label", { class: "inline" }, "Illustration",
+      h("input", {
+        class: "q-emoji", value: q.image ?? "", maxlength: 16, placeholder: "🦁 émoji",
+        oninput: (e) => { q.image = cleanEmoji(e.target.value); },
+      })),
+    h("button", { type: "button", class: "btn small secondary", text: "📷 Photo…", onclick: () => file.click() }),
+    file, preview, remove, info);
 }
 
 /** Propositions remplies dans l'ordre ; la bonne réponse suit la case cochée. */
@@ -628,9 +708,9 @@ $("rv-add").onclick = () => {
 $("rv-save").onclick = async () => {
   const title = $("rv-title").value.trim();
   if (!title) return status("rv-status", "Donnez un titre au quiz.");
-  const questions = draft.questions.filter((q) => q.text || q.choices.length);
+  const questions = draft.questions.filter((q) => q.text || q.choices.length || q.kind === "number");
   if (!questions.length) return status("rv-status", "Le quiz ne contient aucune question.");
-  const empty = questions.findIndex((q) => !q.text || !q.choices.length);
+  const empty = questions.findIndex((q) => !q.text || (q.kind !== "number" && !q.choices.length));
   if (empty >= 0) return status("rv-status", `La question ${draft.questions.indexOf(questions[empty]) + 1} n'a pas de texte ou pas de proposition.`);
   const num = (v) => (v === "" ? null : Number(v));
   const id = draft.id ?? push(ref(db, "library/quizzes")).key;
@@ -642,7 +722,10 @@ $("rv-save").onclick = async () => {
       source: draft.quiz.source ?? "saisie",
       createdAt: draft.quiz.createdAt ?? Date.now(), updatedAt: serverTimestamp(),
       questions: questions.map((q) => ({
-        text: q.text.slice(0, 300), choices: q.choices, correct: q.correct, duration: q.duration, double: q.double, status: q.status,
+        text: q.text.slice(0, 300), choices: q.kind === "number" ? null : q.choices,
+        correct: q.kind === "number" ? (Number.isInteger(q.correct) ? q.correct : 0) : q.correct,
+        kind: q.kind === "number" ? "number" : null, duration: q.duration, double: q.double, status: q.status,
+        image: cleanEmoji(q.image) || null, imageId: q.imageId || null,
       })),
     });
     draft.id = id;
