@@ -3,6 +3,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { CHOICE_LETTERS } from "./theme.js";
 import { writeProof } from "./proof.js";
+import { passwordCandidates } from "./secret.js";
 import {
   buildSnapshot, showTitle, playable, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame,
   isFutureRound, moveRound, removeRound, uniqueRoundTitle,
@@ -54,24 +55,27 @@ export async function hasAccess(ctx, gameCode) {
  * accès refusé deux fois), "unset" (aucun mot de passe enregistré) ou "busy".
  */
 export async function loginWithPassword(ctx, gameCode, password) {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const proof = await writeProof(ctx, "regie", password);
-    if (proof !== "written") return proof;
-    try {
-      await set(ref(ctx.db, `games/${gameCode}/regie/${ctx.uid}`), { pairedAt: serverTimestamp(), via: "password" });
-      return "ok";
-    } catch (e) {
-      console.error("Accès régie refusé", e);
+  for (const candidate of passwordCandidates(password)) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const proof = await writeProof(ctx, "regie", candidate);
+      if (proof !== "written") return proof;
+      try {
+        await set(ref(ctx.db, `games/${gameCode}/regie/${ctx.uid}`), { pairedAt: serverTimestamp(), via: "password" });
+        return "ok";
+      } catch (e) {
+        console.error("Accès régie refusé", e);
+      }
+      // Refus du serveur : partie terminée ou inconnue (ancien QR code), mauvais mot de passe, ou tour
+      // d'essai perdu (réseau lent) : dans ce dernier cas seulement, un second essai suffit.
+      const phase = await get(ref(ctx.db, `games/${gameCode}/state/phase`)).then((s) => s.val(), () => null);
+      if (phase == null || phase === "ended") return "ended";
+      // La bibliothèque ne s'ouvre qu'avec le bon mot de passe de régie : elle dit si c'est lui le problème.
+      const accepted = await get(query(ref(ctx.db, "library/shows"), limitToFirst(1))).then(() => true, () => false);
+      if (!accepted) break;
+      if (attempt === 1) return "refused";
     }
-    // Refus du serveur : partie terminée ou inconnue (ancien QR code), mauvais mot de passe, ou tour
-    // d'essai perdu (réseau lent) : dans ce dernier cas seulement, un second essai suffit.
-    const phase = await get(ref(ctx.db, `games/${gameCode}/state/phase`)).then((s) => s.val(), () => null);
-    if (phase == null || phase === "ended") return "ended";
-    // La bibliothèque ne s'ouvre qu'avec le bon mot de passe de régie : elle dit si c'est lui le problème.
-    const accepted = await get(query(ref(ctx.db, "library/shows"), limitToFirst(1))).then(() => true, () => false);
-    if (!accepted) return "wrong";
   }
-  return "refused";
+  return "wrong";
 }
 
 /**

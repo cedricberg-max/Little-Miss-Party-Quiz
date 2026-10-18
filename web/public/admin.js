@@ -3,7 +3,7 @@ import { getAuth, signInAnonymously, connectAuthEmulator } from "https://www.gst
 import {
   getDatabase, ref, get, set, update, push, onValue, serverTimestamp, connectDatabaseEmulator,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
-import { passwordHash, newSalt, MIN_PASSWORD_LENGTH } from "./secret.js";
+import { passwordHash, newSalt, cleanPassword, passwordCandidates, MIN_PASSWORD_LENGTH } from "./secret.js";
 import { TEST_ID, TEST_QUIZ, TEST_SHOW } from "./test-show.js";
 import { writeProof, isAdmin } from "./proof.js";
 import { parseQuiz, checkQuestions, geminiPrompt, LETTERS } from "./importer.js";
@@ -122,15 +122,18 @@ async function route() {
 
 /** Écrit l'empreinte du mot de passe et vérifie auprès du serveur qu'elle ouvre l'administration. */
 async function prove(password) {
-  const r = await writeProof(ctx, "admin", password);
-  if (r === "busy") return "Trop d'essais en même temps. Réessayez dans quelques secondes.";
-  if (r === "unset") return "Aucun mot de passe administrateur enregistré.";
-  return (await isAdmin(ctx)) ? null : "Mot de passe incorrect.";
+  for (const candidate of passwordCandidates(password)) {
+    const r = await writeProof(ctx, "admin", candidate);
+    if (r === "busy") return "Trop d'essais en même temps. Réessayez dans quelques secondes.";
+    if (r === "unset") return "Aucun mot de passe administrateur enregistré.";
+    if (await isAdmin(ctx)) return null;
+  }
+  return "Mot de passe incorrect.";
 }
 
 async function savePassword(kind, password) {
   const salt = newSalt();
-  await set(ref(db, `settings/${kind}`), { salt, hash: await passwordHash(salt, password), updatedAt: serverTimestamp() });
+  await set(ref(db, `settings/${kind}`), { salt, hash: await passwordHash(salt, cleanPassword(password)), updatedAt: serverTimestamp() });
 }
 
 $("login-form").onsubmit = async (e) => {
@@ -138,8 +141,8 @@ $("login-form").onsubmit = async (e) => {
   const pw = $("admin-password").value;
   status("login-status", "");
   if (setupMode) {
-    if (pw.length < MIN_PASSWORD_LENGTH) return status("login-status", `Le mot de passe doit faire au moins ${MIN_PASSWORD_LENGTH} caractères.`);
-    if (pw !== $("admin-password2").value) return status("login-status", "Les deux mots de passe ne sont pas identiques.");
+    if (cleanPassword(pw).length < MIN_PASSWORD_LENGTH) return status("login-status", `Le mot de passe doit faire au moins ${MIN_PASSWORD_LENGTH} caractères.`);
+    if (cleanPassword(pw) !== cleanPassword($("admin-password2").value)) return status("login-status", "Les deux mots de passe ne sont pas identiques.");
   }
   $("login").disabled = true;
   try {
@@ -645,8 +648,8 @@ function passwordForm({ form, pw1, pw2, button, out, kind, done }) {
   $(form).onsubmit = async (e) => {
     e.preventDefault();
     const pw = $(pw1).value;
-    if (pw.length < MIN_PASSWORD_LENGTH) return status(out, `Le mot de passe doit faire au moins ${MIN_PASSWORD_LENGTH} caractères.`);
-    if (pw !== $(pw2).value) return status(out, "Les deux mots de passe ne sont pas identiques.");
+    if (cleanPassword(pw).length < MIN_PASSWORD_LENGTH) return status(out, `Le mot de passe doit faire au moins ${MIN_PASSWORD_LENGTH} caractères.`);
+    if (cleanPassword(pw) !== cleanPassword($(pw2).value)) return status(out, "Les deux mots de passe ne sont pas identiques.");
     $(button).disabled = true;
     status(out, "");
     try {
