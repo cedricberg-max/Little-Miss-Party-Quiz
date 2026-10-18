@@ -246,7 +246,7 @@ describe("régie", () => {
     const page = await openRegie();
     await page.locator("#screen-join.active").waitFor();
     await pair(page, "licorne");
-    await page.locator("#regie-status", { hasText: "Mot de passe incorrect" }).waitFor();
+    await page.locator("#regie-status", { hasText: "Mot de passe de régie incorrect" }).waitFor();
     assert.equal(await read("regie"), null);
     await page.fill("#regie-password", PASSWORD);
     await page.click("#regie-go");
@@ -254,6 +254,16 @@ describe("régie", () => {
     assert.equal(Object.values(await read("regie"))[0].via, "password");
     // Le pupitre ne s'est pas inscrit comme équipe.
     assert.equal(await read("teams"), null);
+    await page.context().close();
+  });
+
+  test("QR code d'une partie terminée : le bon mot de passe est refusé avec la vraie raison", async () => {
+    box = startBox();
+    await update(gameRef("state"), { phase: "ended" });
+    const page = await openRegie();
+    await pair(page);
+    await page.locator("#regie-status", { hasText: "Cette partie est terminée. Scannez le QR code affiché en ce moment sur la TV." }).waitFor();
+    assert.equal(await read("regie"), null);
     await page.context().close();
   });
 
@@ -310,7 +320,7 @@ describe("régie", () => {
 
     const oldPassword = await openRegie();
     await pair(oldPassword, PASSWORD);
-    await oldPassword.locator("#regie-status", { hasText: "Mot de passe incorrect" }).waitFor();
+    await oldPassword.locator("#regie-status", { hasText: "Mot de passe de régie incorrect" }).waitFor();
     const newPassword = await openRegie();
     await pair(newPassword, "Nouveau-Mdp-42");
     await inRegie(newPassword);
