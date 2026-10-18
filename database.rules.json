@@ -127,7 +127,17 @@
     },
     "settings": {
       "regie": {
-        ".write": "auth != null && auth.token.email_verified === true && auth.token.email.matches(/^(berguig[.]cedric@gmail[.]com)$/)",
+        ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
+        ".validate": "newData.hasChildren(['salt', 'hash', 'updatedAt']) && newData.child('salt').isString() && newData.child('salt').val().length >= 16 && newData.child('hash').isString() && newData.child('hash').val().matches(/^[0-9a-f]{64}$/) && newData.child('updatedAt').val() === now",
+        "salt": {
+          ".read": "auth != null"
+        },
+        "updatedAt": {
+          ".read": "auth != null"
+        }
+      },
+      "admin": {
+        ".write": "auth != null && newData.exists() && (!data.exists() || (auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()))",
         ".validate": "newData.hasChildren(['salt', 'hash', 'updatedAt']) && newData.child('salt').isString() && newData.child('salt').val().length >= 16 && newData.child('hash').isString() && newData.child('hash').val().matches(/^[0-9a-f]{64}$/) && newData.child('updatedAt').val() === now",
         "salt": {
           ".read": "auth != null"
@@ -138,10 +148,10 @@
       }
     },
     "library": {
-      ".read": "(auth != null && auth.token.email_verified === true && auth.token.email.matches(/^(berguig[.]cedric@gmail[.]com)$/)) || (auth != null && root.child('settings/regie/hash').isString() && root.child('regieProof').child(auth.uid).child('hash').val() === root.child('settings/regie/hash').val())",
+      ".read": "(auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()) || (auth != null && root.child('settings/regie/hash').isString() && root.child('regieProof').child(auth.uid).child('hash').val() === root.child('settings/regie/hash').val())",
       "quizzes": {
         "$id": {
-          ".write": "auth != null && auth.token.email_verified === true && auth.token.email.matches(/^(berguig[.]cedric@gmail[.]com)$/)",
+          ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
           ".validate": "!newData.exists() || (newData.child('title').isString() && newData.child('title').val().length >= 1 && newData.child('title').val().length <= 120 && newData.child('questions').hasChildren() && newData.child('updatedAt').val() === now)",
           "questions": {
             "$i": {
@@ -155,7 +165,7 @@
       },
       "shows": {
         "$id": {
-          ".write": "auth != null && auth.token.email_verified === true && auth.token.email.matches(/^(berguig[.]cedric@gmail[.]com)$/)",
+          ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
           ".validate": "!newData.exists() || (newData.child('childName').isString() && newData.child('childName').val().length >= 1 && newData.child('childName').val().length <= 40 && newData.child('status').isString() && newData.child('status').val().matches(/^(brouillon|publiee|archivee)$/) && newData.child('updatedAt').val() === now)"
         }
       }
@@ -174,6 +184,20 @@
         "$other": {
           ".validate": "$other === 'hash' || $other === 'gateAt' || $other === 'at'"
         }
+      }
+    },
+    "adminProof": {
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid && (!newData.exists() || (root.child('regieGate/try').child('uid').val() === auth.uid && newData.child('gateAt').val() === root.child('regieGate/try').child('at').val() && (!data.exists() || data.child('gateAt').val() !== newData.child('gateAt').val())))",
+        ".validate": "newData.child('hash').isString() && newData.child('hash').val().matches(/^[0-9a-f]{64}$/) && newData.child('gateAt').isNumber() && newData.child('at').val() === now",
+        "$other": {
+          ".validate": "$other === 'hash' || $other === 'gateAt' || $other === 'at'"
+        }
+      }
+    },
+    "adminAccess": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid && root.child('settings/admin/hash').isString() && root.child('adminProof').child($uid).child('hash').val() === root.child('settings/admin/hash').val()"
       }
     },
     "reports": {

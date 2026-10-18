@@ -1,7 +1,7 @@
 // Règles de sécurité Firebase : ce qu'un pupitre, la box ou un inconnu ont le droit de faire.
 // Lancé par `npm test` dans l'émulateur Firebase, jamais sur la vraie base.
 import { createHash } from "node:crypto";
-import { loadRules, ADMIN_EMAIL } from "./rules-loader.js";
+import { loadRules, seedAdmin, adminHash, ADMIN_PASSWORD, ADMIN_SALT } from "./rules-loader.js";
 import { after, before, beforeEach, describe, test } from "node:test";
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
 import { ref, get, set, update, serverTimestamp } from "firebase/database";
@@ -290,7 +290,8 @@ describe("régie", () => {
 describe("mot de passe commun de la régie", () => {
   const SALT = "sel-de-test-0123456789";
   const hash = (password) => createHash("sha256").update(`${SALT}:${password}`).digest("hex");
-  const admin = () => env.authenticatedContext("sarah", { email: ADMIN_EMAIL, email_verified: true }).database();
+  const admin = () => db("sarah");
+  beforeEach(() => seedAdmin(env, "sarah"));
   const setPassword = (password) => env.withSecurityRulesDisabled((ctx) =>
     set(ref(ctx.database(), "settings/regie"), { salt: SALT, hash: hash(password), updatedAt: 1 }));
   /** Ce que fait la page : un essai (au plus toutes les 2 s), une empreinte par essai, puis l'accès. */
@@ -364,7 +365,7 @@ describe("mot de passe commun de la régie", () => {
     await assertSucceeds(enter("tel", "Licorne-2026"));
     const next = { salt: "nouveau-sel-0123456789", hash: "a".repeat(64), updatedAt: serverTimestamp() };
     await assertFails(set(ref(db("tel"), "settings/regie"), next));
-    await assertFails(set(ref(env.authenticatedContext("x", { email: "intrus@gmail.com", email_verified: true }).database(), "settings/regie"), next));
+    await assertFails(set(ref(db("intrus"), "settings/regie"), next));
     await assertSucceeds(set(ref(admin(), "settings/regie"), next));
     // L'animatrice en pleine partie n'est pas déconnectée.
     await assertSucceeds(set(ref(db("tel"), `games/${CODE}/commands/c2`), { type: "pause", expectSeq: 0, by: "tel", at: serverTimestamp() }));
@@ -378,7 +379,8 @@ describe("mot de passe commun de la régie", () => {
 describe("bibliothèque, prestations et chargement sur la TV", () => {
   const SALT = "sel-de-test-0123456789";
   const hash = (password) => createHash("sha256").update(`${SALT}:${password}`).digest("hex");
-  const admin = () => env.authenticatedContext("sarah", { email: ADMIN_EMAIL, email_verified: true }).database();
+  const admin = () => db("sarah");
+  beforeEach(() => seedAdmin(env, "sarah"));
   const QUIZ = {
     title: "Animaux", source: "gemini", updatedAt: serverTimestamp(),
     questions: [{ text: "Roi de la jungle ?", choices: ["Lion", "Tigre"], correct: 0, status: "validee" }],
@@ -405,8 +407,10 @@ describe("bibliothèque, prestations et chargement sur la TV", () => {
     await assertSucceeds(set(ref(admin(), "library/quizzes/q1"), QUIZ));
     await assertSucceeds(set(ref(admin(), "library/shows/show1"), SHOW));
     await assertFails(set(ref(db("tel"), "library/quizzes/q2"), QUIZ));
-    await assertFails(set(ref(env.authenticatedContext("x", { email: "intrus@gmail.com", email_verified: true }).database(), "library/shows/s2"), SHOW));
-    await assertFails(set(ref(env.authenticatedContext("y", { email: ADMIN_EMAIL, email_verified: false }).database(), "library/quizzes/q3"), QUIZ));
+    await assertFails(set(ref(db("intrus"), "library/shows/s2"), SHOW));
+    // Une empreinte fausse (mauvais mot de passe) ne donne aucun droit.
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), "adminProof/y"), { hash: adminHash("faux"), gateAt: 1, at: 1 }));
+    await assertFails(set(ref(db("y"), "library/quizzes/q3"), QUIZ));
     await assertSucceeds(set(ref(admin(), "library/quizzes/q1"), null));
   });
   test("quiz ou prestation mal formés refusés", async () => {
@@ -456,5 +460,67 @@ describe("bibliothèque, prestations et chargement sur la TV", () => {
     await assertSucceeds(set(ref(db(HOST), `games/${CODE}/showStatus`), { id: "s1", status: "applied" }));
     await assertSucceeds(get(ref(db("rose"), `games/${CODE}/public`)));
     await assertFails(set(ref(db("rose"), `games/${CODE}/public`), { title: "Pirate" }));
+  });
+});
+
+describe("mot de passe administrateur commun", () => {
+  /** Ce que fait la page d'administration : un essai (au plus toutes les 2 s), puis l'empreinte. */
+  async function enterAdmin(uid, password = ADMIN_PASSWORD) {
+    const d = db(uid);
+    await set(ref(d, "regieGate/try"), { uid, at: serverTimestamp() });
+    const gateAt = (await get(ref(d, "regieGate/try/at"))).val();
+    await set(ref(d, `adminProof/${uid}`), { hash: adminHash(password), gateAt, at: serverTimestamp() });
+  }
+  const access = (uid) => get(ref(db(uid), `adminAccess/${uid}`));
+  const pause = () => new Promise((r) => setTimeout(r, 2100));
+  const settings = (password, salt = ADMIN_SALT) => ({ salt, hash: adminHash(password, salt), updatedAt: serverTimestamp() });
+
+  test("première configuration : le premier mot de passe se choisit librement, une seule fois", async () => {
+    await assertSucceeds(set(ref(db("pc"), "settings/admin"), settings(ADMIN_PASSWORD)));
+    await assertFails(set(ref(db("intrus"), "settings/admin"), settings("Pirate-2026")));
+    await assertFails(set(ref(db("intrus"), "settings/admin"), null));
+  });
+  test("le bon mot de passe ouvre l'administration, un mauvais non", async () => {
+    await seedAdmin(env);
+    await assertFails(access("pc"));
+    await enterAdmin("pc", "mauvais-mdp");
+    await assertFails(access("pc"));
+    await pause();
+    await enterAdmin("pc");
+    await assertSucceeds(access("pc"));
+    // Chacun ne vérifie que son propre accès, et personne ne relit les empreintes.
+    await assertFails(get(ref(db("tel"), "adminAccess/pc")));
+    await assertFails(get(ref(db("pc"), "adminProof/pc")));
+    await assertFails(get(ref(db("pc"), "settings/admin/hash")));
+  });
+  test("un seul essai toutes les 2 secondes, partagé avec la régie", async () => {
+    await seedAdmin(env);
+    await set(ref(db("pirate"), "regieGate/try"), { uid: "pirate", at: serverTimestamp() });
+    await assertFails(enterAdmin("pc"));
+  });
+  test("tous les droits : bibliothèque, prestations, les deux mots de passe", async () => {
+    await seedAdmin(env, "pc");
+    await assertSucceeds(set(ref(db("pc"), "library/shows/s1"), { childName: "Léa", status: "brouillon", updatedAt: serverTimestamp() }));
+    await assertSucceeds(set(ref(db("pc"), "settings/regie"), settings("Regie-2026", "sel-regie-0123456789")));
+    await assertSucceeds(set(ref(db("pc"), "settings/admin"), settings("Nouveau-Admin-1", "nouveau-sel-0123456789")));
+  });
+  test("après un changement, les autres appareils doivent le saisir à nouveau", async () => {
+    await seedAdmin(env, "pc", "portable");
+    await set(ref(db("pc"), "settings/admin"), settings("Nouveau-Admin-1", "nouveau-sel-0123456789"));
+    await assertFails(access("portable"));
+    await assertFails(set(ref(db("portable"), "library/shows/s1"), { childName: "Léa", status: "brouillon", updatedAt: serverTimestamp() }));
+  });
+  test("le mot de passe de la régie ne donne pas les droits d'administration", async () => {
+    await seedAdmin(env);
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), "regieProof/tel"), { hash: adminHash(), gateAt: 1, at: 1 }));
+    await assertFails(access("tel"));
+    await assertFails(set(ref(db("tel"), "settings/regie"), settings("Regie-2026", "sel-regie-0123456789")));
+  });
+  test("se déconnecter efface sa propre empreinte, jamais celle d'un autre", async () => {
+    await seedAdmin(env, "pc", "portable");
+    await assertFails(set(ref(db("pc"), "adminProof/portable"), null));
+    await assertSucceeds(set(ref(db("pc"), "adminProof/pc"), null));
+    await assertFails(access("pc"));
+    await assertSucceeds(access("portable"));
   });
 });

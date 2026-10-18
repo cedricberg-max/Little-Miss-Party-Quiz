@@ -37,7 +37,7 @@ Lancés par GitHub à chaque modification ; aucun APK n'est publié si l'un éch
 
 ## Quiz et prestations
 
-Dans l'administration (`admin.html`, compte Google principal de cedric) :
+Dans l'administration (`admin.html`, mot de passe administrateur commun) :
 
 - **Quiz › Importer un quiz** : la page fournit la consigne à coller dans Gemini ; on colle sa réponse
   (ou des lignes copiées d'un tableur, ou un fichier CSV), puis on relit. Les anomalies sont signalées
@@ -53,20 +53,23 @@ Sans prestation chargée, la TV joue le quiz de démonstration livré avec l'app
 ## Mot de passe de la régie
 
 Il se change dans l'administration (`https://little-miss-party-quiz.web.app/admin.html`,
-Paramètres › Accès régie). Le serveur garde seulement une empreinte illisible et compare lui-même
+Paramètres › Mot de passe de la régie). Le serveur garde seulement une empreinte illisible et compare lui-même
 (règles Firebase) ; il n'accepte qu'un essai toutes les 2 secondes. Les régies déjà reliées restent
 reliées après un changement.
 
-Deux accès strictement séparés :
+Deux accès séparés, deux mots de passe communs, sans aucun compte ni adresse e-mail :
 
-- **Administration** (bibliothèque, prestations, mot de passe de régie) : un seul compte Google, celui
-  de cedric (berguig.cedric@gmail.com, propriétaire du projet Firebase), que Sarah utilise sur le PC
-  familial. Inscrit dans `database.rules.json` (expression `auth.token.email.matches(...)`, adresse
-  vérifiée). La connexion Google doit être activée dans Firebase (Authentication › Méthodes de
-  connexion › Google) ; elle ne sert qu'à cette page.
-- **Régie en prestation** : le téléphone de l'animatrice, avec le seul mot de passe de régie (connexion
-  Firebase anonyme + vérification par les règles). Aucun compte Google, aucun e-mail, aucun code reçu
-  par e-mail. La box et les pupitres utilisent aussi une connexion anonyme, sans e-mail.
+- **Administration** (bibliothèque, prestations, les deux mots de passe) : le mot de passe administrateur.
+  Toute personne qui le connaît a tous les droits. Le premier se choisit à la première ouverture de
+  `admin.html` ; il se change dans Paramètres. Un ordinateur reste reconnu après un rechargement, jusqu'au
+  prochain changement. Mot de passe perdu : effacer `settings/admin` dans la console Firebase (Realtime
+  Database), puis en choisir un nouveau.
+- **Régie en prestation** : le mot de passe de régie, sur le téléphone de l'animatrice. Il ne donne aucun
+  droit d'administration.
+
+Les deux sont vérifiés par les règles Firebase (empreinte SHA-256 salée, jamais relisible, un essai toutes
+les 2 secondes). Box, pupitres, régie et administration utilisent une connexion Firebase anonyme : le jour J,
+rien ne dépend de Google ni d'un e-mail.
 
 ## Rapports de plantage
 
