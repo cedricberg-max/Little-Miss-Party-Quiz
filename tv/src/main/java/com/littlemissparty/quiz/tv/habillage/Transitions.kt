@@ -88,6 +88,9 @@ private fun TransitionDeJeu(state: UiState.Playing) {
             titre = when {
                 mimes -> "Les Mimes !"
                 q.kind == QuestionKind.NUMBER -> "Le Juste Chiffre !"
+                q.isFlou -> "L'Image floue !"
+                q.isChante -> "Chante le mot !"
+                q.isQuiSuis -> "Qui suis-je ?"
                 else -> q.roundTitle?.takeIf { it.isNotBlank() } ?: when {
                     q.isExpress -> "Vrai ou Faux express !"
                     q.isZoom -> "Zoom mystère !"

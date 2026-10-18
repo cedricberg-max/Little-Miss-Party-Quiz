@@ -32,6 +32,8 @@ object Codec {
             is MimePassed -> mapOf("type" to "mime_pass")
             is MimeCorrected -> mapOf("type" to "mime_fix", "team" to e.team, "delta" to e.delta)
             is MimeTurnEnded -> mapOf("type" to "mime_stop")
+            is Buzzed -> mapOf("type" to "buzz", "team" to e.team)
+            is BuzzJudged -> mapOf("type" to "buzz_judge", "ok" to e.ok)
             is Jumped -> mapOf("type" to "goto", "index" to e.index, "qid" to e.qid, "clear" to e.clear.ifEmpty { null })
         }
         return base + body
@@ -68,12 +70,23 @@ object Codec {
             "mime_pass" -> MimePassed(seq, at)
             "mime_fix" -> MimeCorrected(seq, at, m["team"] as String, m.num("delta").toInt())
             "mime_stop" -> MimeTurnEnded(seq, at)
+            "buzz" -> Buzzed(seq, at, m["team"] as String)
+            "buzz_judge" -> BuzzJudged(seq, at, m["ok"] == true)
             "goto" -> Jumped(seq, at, m.num("index").toInt(), m["qid"] as String, (m["clear"] as? List<*>).orEmpty().map { it as String })
             else -> null
         }
     }.getOrNull()
 
     private fun Map<*, *>.num(k: String): Long = (this[k] as Number).toLong()
+
+    /** Clé du buzzer de l'image floue en cours : question, ouverture (une question rejouée a sa propre clé) et essai. */
+    fun buzzKey(game: Game): String? {
+        val s = game.state
+        val b = s.buzz ?: return null
+        if (s.phase != Phase.QUESTION) return null
+        // Une clé de la base ne peut pas contenir . # $ [ ] / : on les remplace dans l'identifiant de la question.
+        return "${s.qid.orEmpty().replace(Regex("[.#$\\[\\]/]"), "_")}-${s.openedAt ?: 0}-${b.blocked.size}"
+    }
 
     /**
      * Manche de mimes (encore publiée au classement qui la suit) : équipe qui joue, carte affichée (mot et image), compteurs du tour, bilan du dernier
@@ -104,9 +117,10 @@ object Codec {
             "seq" to s.lastSeq,
             "total" to game.quiz.questions.size,
             "scores" to s.scores(),
-            // Buzzer de test du salon d'attente : la box incrémente le tour pour réarmer.
-            "round" to buzzRound,
-            "buzzOpen" to (s.phase == Phase.LOBBY),
+            // Buzzer : au salon d'attente (tour réarmé par la box), et à l'image floue tant que personne n'attend son
+            // verdict. La clé change à chaque ouverture et après chaque erreur : le premier qui écrit gagne.
+            "round" to (buzzKey(game) ?: buzzRound),
+            "buzzOpen" to (s.phase == Phase.LOBBY || (buzzKey(game) != null && !s.buzzHeld && !s.paused)),
             "paused" to s.paused,
             // Les pupitres voient seulement qu'il y a une pause ; la régie lit aussi l'équipe concernée.
             "pauseReason" to s.hold?.reason,
@@ -120,10 +134,11 @@ object Codec {
                 "kind" to q.kind.code,
                 "double" to q.double,
                 "text" to q.text,
-                "choices" to q.choices,
+                // Jeux au buzzer : réponse à voix haute, les propositions (qui contiennent la réponse) restent cachées.
+                "choices" to if (q.isBuzz && !revealed) null else q.choices,
                 "durationMs" to q.durationMs,
                 "deadline" to game.deadline(),
-                "remainingMs" to if (s.paused) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
+                "remainingMs" to if (s.paused || s.buzzHeld) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
                 "correct" to if (revealed) q.correct else null,
                 // L'émoji d'illustration peut trahir la réponse : seulement une fois révélée.
                 "image" to if (revealed) q.emoji else null,
@@ -132,6 +147,11 @@ object Codec {
                 } else null,
             )
             if (q.isMime) out["mime"] = mimeState(game, s.mime)
+            s.buzz?.let {
+                out["buzz"] = mapOf("team" to it.team, "blocked" to it.blocked)
+                // Même liste en table : les règles de la base refusent le buzz d'une équipe déjà bloquée.
+                out["buzzBlocked"] = it.blocked.associateWith { true }.ifEmpty { null }
+            }
         }
         return out
     }

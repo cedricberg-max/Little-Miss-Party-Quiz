@@ -90,6 +90,8 @@ class TvActions(
     val mimeFound: () -> Unit = {},
     val mimePass: () -> Unit = {},
     val mimeStop: () -> Unit = {},
+    /** Image floue à la télécommande : bonne (true) ou mauvaise réponse de l'équipe qui a buzzé. */
+    val judgeBuzz: (Boolean) -> Unit = {},
 )
 
 /** Mise à jour de l'appli depuis la TV : état de la fenêtre et version trouvée par la recherche discrète. */

@@ -2,8 +2,11 @@
 // et que la régie charge sur la TV. Fonctions pures, sans Firebase.
 import { PROFILES, profileForAge, defaultDuration, expressDuration } from "./profiles.js";
 import { shuffle } from "./mime-cards.js";
+import { CHANTE_WORDS, QUI_SUIS_JE } from "./buzz-cards.js";
 
-export const ROUND_TYPES = { quiz: "Quiz", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", mimes: "Mimes" };
+export const ROUND_TYPES = { quiz: "Quiz", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", mimes: "Mimes" };
+/** Image floue : temps pour que la photo devienne nette (secondes), le même pour tous les âges. */
+export const FLOU_SEC = 40;
 /** Durée d'un tour de mimes par défaut (secondes). */
 export const MIME_TURN = 60;
 export const MAX_QUESTIONS = 200;
@@ -31,10 +34,28 @@ export const zoomQuestions = (quiz) => playable(quiz).filter((q) => q.kind !== "
 export const QUIZ_GAMES = {
   express: { questions: expressQuestions, unit: "affirmation", missing: "aucune question Vrai / Faux validée pour le Vrai ou Faux express" },
   zoom: { questions: zoomQuestions, unit: "photo", missing: "aucune question avec photo pour le Zoom mystère (ajoutez des photos dans le quiz)" },
+  flou: { questions: zoomQuestions, unit: "photo", missing: "aucune question avec photo pour l'Image floue (ajoutez des photos dans le quiz)" },
 };
 
-/** Une manche est-elle complète (quiz choisi, ou paquet de mimes choisi) ? */
-export const roundFilled = (round) => !!(round && (round.type === "mimes" ? round.deckId : round.quizId));
+/**
+ * Jeux au buzzer à contenu intégré (inspirés de « Vendredi tout est permis ») : rien à préparer, la
+ * manche tire [count] éléments au hasard dans le catalogue, adaptés à l'âge (level 2 : pas pour les Petits).
+ */
+export const BUILTIN_GAMES = {
+  chante: {
+    unit: "mot", count: 6, duration: 30, rule: "le premier qui buzze chante une chanson avec ce mot",
+    items: (profile) => CHANTE_WORDS.filter((w) => profile !== "PETITS" || w.level === 1),
+    question: (w) => ({ text: w.word, choices: [w.word], correct: 0, kind: "chante" }),
+  },
+  quisuis: {
+    unit: "personnage", count: 5, duration: 40, rule: "un indice de plus toutes les 10 secondes",
+    items: (profile) => QUI_SUIS_JE.filter((p) => profile !== "PETITS" || p.level === 1),
+    question: (p) => ({ text: "Qui suis-je ?", choices: [p.answer], correct: 0, kind: "quisuis", cards: p.clues.map((word) => ({ word })), image: p.emoji }),
+  },
+};
+
+/** Une manche est-elle complète (quiz choisi, ou paquet de mimes choisi) ? Les jeux intégrés le sont toujours. */
+export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] ? true : round.type === "mimes" ? round.deckId : round.quizId));
 
 /**
  * Manche de mimes : un seul élément du programme, avec le paquet de cartes mélangé (chaque prestation
@@ -73,9 +94,20 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       questions.push(item);
       return;
     }
+    const builtin = BUILTIN_GAMES[round.type];
+    if (builtin) {
+      const count = Math.max(1, Math.min(12, round.count ?? builtin.count));
+      const picked = shuffle(builtin.items(profile), random).slice(0, count);
+      rounds.push({ title: ROUND_TYPES[round.type], count: picked.length });
+      picked.forEach((item, j) => questions.push({
+        id: `r${i + 1}q${j + 1}`, duration: builtin.duration, double: false, round: ROUND_TYPES[round.type], ...builtin.question(item),
+      }));
+      return;
+    }
     const quiz = quizzes[round.quizId];
     const express = round.type === "express";
     const zoom = round.type === "zoom";
+    const flou = round.type === "flou";
     const game = QUIZ_GAMES[round.type];
     const label = round.type === "finale" || game ? ROUND_TYPES[round.type] : quiz?.title ?? `Manche ${i + 1}`;
     if (!quiz) { problems.push(`Manche ${i + 1} : le quiz n'existe plus dans la bibliothèque.`); return; }
@@ -94,8 +126,9 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
         ...(number ? {} : { choices: q.choices }),
         correct: q.correct,
         // Express : le chrono court du profil, toujours (c'est le jeu).
-        duration: express ? expressDuration(profile) : q.duration ?? defaultDuration(profile),
-        kind: express ? "express" : zoom ? "zoom" : number ? "number" : yesNo ? "true_false" : "classic",
+        // Image floue : le temps que la photo devienne nette ; la réponse se donne à voix haute après un buzz.
+        duration: express ? expressDuration(profile) : flou ? FLOU_SEC : q.duration ?? defaultDuration(profile),
+        kind: express ? "express" : zoom ? "zoom" : flou ? "flou" : number ? "number" : yesNo ? "true_false" : "classic",
         double: round.type === "finale" || q.double === true,
         round: label,
         // Illustration facultative montrée à la révélation (émoji, ou photo copiée dans la partie par la régie).

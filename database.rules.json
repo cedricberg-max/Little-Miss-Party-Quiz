@@ -70,7 +70,7 @@
         "buzz": {
           ".read": "auth != null",
           "$round": {
-            ".write": "auth != null && !data.exists() && newData.child('team').isString() && root.child('games').child($code).child('teams').child(newData.child('team').val()).exists() && (root.child('games').child($code).child('teams').child(newData.child('team').val()).child('device').val() === auth.uid || (!root.child('games').child($code).child('teams').child(newData.child('team').val()).child('device').exists() && auth.uid === newData.child('team').val())) && data.parent().parent().child('state/buzzOpen').val() === true && data.parent().parent().child('state/round').val() + '' === $round"
+            ".write": "auth != null && !data.exists() && newData.child('team').isString() && root.child('games').child($code).child('teams').child(newData.child('team').val()).exists() && (root.child('games').child($code).child('teams').child(newData.child('team').val()).child('device').val() === auth.uid || (!root.child('games').child($code).child('teams').child(newData.child('team').val()).child('device').exists() && auth.uid === newData.child('team').val())) && data.parent().parent().child('state/buzzOpen').val() === true && data.parent().parent().child('state/round').val() + '' === $round && !data.parent().parent().child('state/buzzBlocked').child(newData.child('team').val()).exists()"
           }
         },
         "fun": {
@@ -117,7 +117,7 @@
           ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
           "$cmd": {
             ".write": "auth != null && !data.exists() && newData.exists() && root.child('games').child($code).child('regie').child(auth.uid).exists()",
-            ".validate": "newData.child('type').isString() && newData.child('type').val().matches(/^(next|pause|resume|close|adjust|undo|end|admit|replace|mime_start|mime_found|mime_pass|mime_fix|mime_stop|goto)$/) && newData.child('expectSeq').isNumber() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
+            ".validate": "newData.child('type').isString() && newData.child('type').val().matches(/^(next|pause|resume|close|adjust|undo|end|admit|replace|mime_start|mime_found|mime_pass|mime_fix|mime_stop|goto|buzz_ok|buzz_ko)$/) && newData.child('expectSeq').isNumber() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
             "team": {
               ".validate": "newData.isString() && newData.val().length <= 128"
             },
