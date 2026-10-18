@@ -103,6 +103,9 @@ sealed interface UiState {
         val mime: MimeUi? = null,
         /** Photos d'illustration déjà chargées (identifiant → fichier JPEG), montrées à la révélation. */
         val images: Map<String, ByteArray> = emptyMap(),
+        /** Image floue : équipe qui a buzzé et attend le verdict (null sinon), équipes bloquées sur cette image. */
+        val buzzTeam: String? = null,
+        val buzzBlocked: List<String> = emptyList(),
     ) : UiState {
         /** Total des appuis sur le buzzer de l'accueil, pour le son. */
         val funTotal: Int get() = funBuzzes.values.sum()
@@ -140,6 +143,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var game: Game? = null
     private val listeners = mutableListOf<Pair<DatabaseReference, ValueEventListener>>()
     private var answersListener: Pair<DatabaseReference, ValueEventListener>? = null
+    private var buzzListener: Pair<DatabaseReference, ValueEventListener>? = null
     private var answers: Map<String, Answer> = emptyMap()
     private var countdown: Job? = null
     private var timer: Job? = null
@@ -393,6 +397,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun mimePass() = act { it.mimePass(serverNow()) }
+
+    /** Image floue à la télécommande (secours de la régie) : verdict sur la réponse orale de l'équipe qui a buzzé. */
+    fun judgeBuzz(ok: Boolean) {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastNextAt < NEXT_GUARD_MS) return
+        lastNextAt = now
+        act { it.judgeBuzz(ok, serverNow()) }
+    }
     fun mimeStop() = act { it.mimeStop(serverNow()) }
     fun pause() = act { it.pause(serverNow()) }
     fun unpause() = act { it.resume(serverNow()) }
@@ -501,6 +513,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 remainingMs = q?.let { it.durationMs - s.elapsedAt(Long.MAX_VALUE) }?.coerceAtLeast(0) ?: 0,
                 awards = revealedAwards,
                 scores = s.scores(),
+                buzzTeam = s.buzz?.team,
+                buzzBlocked = s.buzz?.blocked.orEmpty(),
                 lastGain = if (q?.isMime == true) mimeCounts.mapValues { it.value * Scoring.MIME } else revealedAwards.mapValues { it.value.points },
                 isLast = g.isLastQuestion,
                 mime = q?.takeIf { it.isMime && s.phase != Phase.LOBBY }?.let {
@@ -513,6 +527,13 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             )
         }
         watchAnswers(s.qid.takeIf { s.phase == Phase.QUESTION || s.phase == Phase.CLOSED })
+        // Image floue : on écoute le buzzer de cet essai ; toutes les équipes bloquées, l'image se ferme.
+        watchBuzz(Codec.buzzKey(g)?.takeIf { !s.buzzHeld && !s.paused })
+        val blocked = s.buzz?.blocked.orEmpty()
+        val teamIds = teams().map { it.uid }
+        if (s.phase == Phase.QUESTION && !s.paused && !s.buzzHeld && teamIds.isNotEmpty() && blocked.containsAll(teamIds)) {
+            act { it.takeIf { g -> g.state.phase == Phase.QUESTION && g.state.buzz?.blocked.orEmpty().containsAll(teamIds) }?.close(serverNow()) }
+        }
         // Photo de la question en cours et de la suivante chargées d'avance (dès le salon d'attente pour la
         // première) : la révélation, ou le Zoom mystère, ne l'attend jamais.
         listOfNotNull(q?.imageId.takeIf { s.phase != Phase.LOBBY }, g.quiz.questions.getOrNull(s.index + 1)?.imageId).forEach(::prefetchImage)
@@ -883,6 +904,29 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         answersListener = ref to listener
     }
 
+    /**
+     * Image floue : le premier buzz écrit sous [key] (les règles refusent les suivants) fige l'image pour son équipe.
+     * Chaque ouverture et chaque essai ont leur clé : un buzz resté en cache d'une autre fois ne compte jamais.
+     */
+    private fun watchBuzz(key: String?) {
+        if (key == buzzListener?.first?.key) return
+        buzzListener?.let { (r, l) -> r.removeEventListener(l) }
+        buzzListener = null
+        val ref = gameRef?.child("buzz")?.child(key ?: return) ?: return
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val team = snapshot.child("team").getValue(String::class.java) ?: return
+                act { g -> if (Codec.buzzKey(g) == key && teams().any { it.uid == team }) g.buzz(team, serverNow()) else null }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e(TAG, "Buzzer : ${error.message}")
+            }
+        }
+        ref.addValueEventListener(listener)
+        buzzListener = ref to listener
+    }
+
     private fun closeIfEveryoneAnswered() {
         val teams = teams().map { it.uid }
         if (teams.isEmpty() || !answers.keys.containsAll(teams)) return
@@ -946,6 +990,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         listeners.clear()
         answersListener?.let { (r, l) -> r.removeEventListener(l) }
         answersListener = null
+        buzzListener?.let { (r, l) -> r.removeEventListener(l) }
+        buzzListener = null
         commandsListener?.let { (r, l) -> r.removeEventListener(l) }
         commandsListener = null
         judging.clear()
@@ -993,6 +1039,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "numbers" to true,
             "express" to true,
             "zoom" to true,
+            "flou" to true,
+            "chante" to true,
+            "quisuis" to true,
             "questions" to quiz.questions.map {
                 clean(mapOf(
                     "id" to it.id, "text" to it.text, "choices" to it.choices.ifEmpty { null }, "correct" to it.correct,

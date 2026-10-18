@@ -24,6 +24,12 @@ object Scoring {
         return Award(answer.choice, correct = true, points = (BASE + bonus) * factor, bonus = bonus * factor)
     }
 
+    /** Buzzer (image floue) : bonne réponse de la première équipe qui buzze. */
+    const val BUZZ = 150
+
+    /** Buzzer : bonne réponse après l'erreur d'une autre équipe (rebond). */
+    const val BUZZ_REBOUND = 100
+
     /** Vrai ou Faux express : chaque bonne réponse, sans bonus de vitesse. */
     const val EXPRESS = 50
 

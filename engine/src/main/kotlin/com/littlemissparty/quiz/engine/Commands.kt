@@ -30,6 +30,9 @@ sealed interface Command {
     data class MimeFix(override val id: String, override val expectSeq: Int, val team: String, val delta: Int) : Command
     data class MimeStop(override val id: String, override val expectSeq: Int) : Command
 
+    /** Image floue : la réponse orale de l'équipe qui a buzzé est bonne ([ok]) ou mauvaise. */
+    data class Judge(override val id: String, override val expectSeq: Int, val ok: Boolean) : Command
+
     /** Régie : aller au jeu (manche) qui commence à la question [index], [qid] vérifiant le programme. */
     data class Goto(override val id: String, override val expectSeq: Int, val index: Int, val qid: String) : Command
 
@@ -53,6 +56,8 @@ sealed interface Command {
                 "mime_pass" -> MimePass(id, seq)
                 "mime_fix" -> MimeFix(id, seq, m["team"] as String, (m["delta"] as Number).toInt())
                 "mime_stop" -> MimeStop(id, seq)
+                "buzz_ok" -> Judge(id, seq, true)
+                "buzz_ko" -> Judge(id, seq, false)
                 "goto" -> Goto(id, seq, (m["index"] as Number).toInt(), m["qid"] as String)
                 else -> null
             }
@@ -85,7 +90,8 @@ fun Game.execute(
 ): CommandResult {
     // Un double appui sur « Trouvé » ne compte qu'un mime : chaque appui vise la carte que la régie affichait.
     val advances = cmd is Command.Next || cmd is Command.Close || cmd is Command.End || cmd is Command.MimeStart ||
-        cmd is Command.MimeFound || cmd is Command.MimePass || cmd is Command.MimeStop || cmd is Command.Goto
+        cmd is Command.MimeFound || cmd is Command.MimePass || cmd is Command.MimeStop || cmd is Command.Goto ||
+        cmd is Command.Judge
     if (advances && cmd.expectSeq != state.lastSeq) return CommandResult(CommandStatus.STALE, reason = "stale")
     // En pause, rien n'avance : l'animatrice reprend d'abord (corrections de score et fin restent possibles).
     // Le saut de jeu reste possible en pause : c'est la commande de secours pour débloquer une prestation.
@@ -111,6 +117,8 @@ fun Game.execute(
         is Command.MimePass -> mimePass(now)
         is Command.MimeFix -> if (cmd.team !in teams) return refused("unknown_team") else mimeFix(cmd.team, cmd.delta, now)
         is Command.MimeStop -> mimeStop(now)
+        // Un double appui ne juge qu'une fois : il visait l'équipe que la régie affichait.
+        is Command.Judge -> judgeBuzz(cmd.ok, now)
         // Le programme a changé depuis l'affichage de la régie : rien n'est fait.
         is Command.Goto -> if (quiz.questions.getOrNull(cmd.index)?.id != cmd.qid) return refused("stale_program") else goto(cmd.index, now)
     }

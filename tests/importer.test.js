@@ -3,7 +3,7 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { parseQuiz, checkQuestions, geminiPrompt, resolveCorrect } from "../web/public/importer.js";
 import { MIME_CATALOG } from "../web/public/mime-cards.js";
-import { buildSnapshot, estimateMinutes,
+import { buildSnapshot, estimateMinutes, roundFilled,
   readiness, upcoming, daysUntil, isoDay, duplicateShow, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
 } from "../web/public/show.js";
 
@@ -338,6 +338,47 @@ describe("Zoom mystère", () => {
   test("quiz sans photo : la manche est signalée", () => {
     const quiz = { title: "Vide", questions: [{ text: "?", choices: ["a", "b"], correct: 0, status: "validee" }] };
     assert.match(buildSnapshot("x", { childName: "Léa", age: 9, rounds: [{ type: "zoom", quizId: "v" }] }, { v: quiz }).problems[0], /aucune question avec photo/);
+  });
+});
+
+describe("Image floue", () => {
+  const PHOTO = "0123456789abcdef";
+  test("les questions avec photo, 40 secondes pour que l'image devienne nette, sans propositions à l'écran", () => {
+    const quiz = { title: "Animaux", questions: [
+      { text: "Quel animal ?", choices: ["Chat", "Lion"], correct: 1, imageId: PHOTO, status: "validee" },
+      { text: "Sans photo ?", choices: ["Oui", "Non"], correct: 0, status: "validee" },
+    ] };
+    const { snapshot, problems } = buildSnapshot("x", { childName: "Léa", age: 7, rounds: [{ type: "flou", quizId: "a" }] }, { a: quiz });
+    assert.deepEqual(problems, []);
+    assert.deepEqual(snapshot.quiz.questions.map((q) => [q.kind, q.imageId, q.round, q.duration, q.choices[q.correct]]), [["flou", PHOTO, "Image floue", 40, "Lion"]]);
+  });
+
+  test("quiz sans photo : la manche est signalée", () => {
+    const quiz = { title: "Vide", questions: [{ text: "?", choices: ["a", "b"], correct: 0, status: "validee" }] };
+    assert.match(buildSnapshot("x", { childName: "Léa", age: 9, rounds: [{ type: "flou", quizId: "v" }] }, { v: quiz }).problems[0], /aucune question avec photo pour l'Image floue/);
+  });
+});
+
+describe("Jeux au buzzer intégrés (Chante le mot !, Qui suis-je ?)", () => {
+  test("rien à préparer : le nombre demandé, sans doublon, une seule réponse attendue, des indices pour Qui suis-je", () => {
+    const { snapshot, problems } = buildSnapshot("x", { childName: "Léa", age: 9, rounds: [{ type: "chante", count: 4 }, { type: "quisuis" }] }, {});
+    assert.deepEqual(problems, []);
+    const qs = snapshot.quiz.questions;
+    const chante = qs.filter((q) => q.kind === "chante");
+    const quiSuis = qs.filter((q) => q.kind === "quisuis");
+    assert.equal(chante.length, 4);
+    assert.equal(new Set(chante.map((q) => q.text)).size, 4, "jamais deux fois le même mot");
+    assert.ok(chante.every((q) => q.choices.length === 1 && q.choices[0] === q.text && q.correct === 0 && q.duration === 30 && q.round === "Chante le mot !"));
+    assert.equal(quiSuis.length, 5);
+    assert.ok(quiSuis.every((q) => q.choices.length === 1 && q.cards.length === 4 && q.image && q.duration === 40 && q.round === "Qui suis-je ?"));
+    assert.equal(new Set(qs.map((q) => q.id)).size, qs.length);
+  });
+
+  test("Petits : seulement les mots faciles ; une manche intégrée compte comme remplie", () => {
+    const { snapshot } = buildSnapshot("x", { childName: "Tom", age: 6, rounds: [{ type: "chante", count: 10 }] }, {}, {}, () => 0.5);
+    const hard = ["bonheur", "liberté", "rêve", "monde", "ange", "toujours", "jamais"];
+    assert.ok(snapshot.quiz.questions.every((q) => !hard.includes(q.text)));
+    assert.equal(roundFilled({ type: "quisuis" }), true);
   });
 });
 

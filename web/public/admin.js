@@ -4,12 +4,12 @@ import {
   getDatabase, ref, get, set, update, push, onValue, serverTimestamp, connectDatabaseEmulator,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { passwordHash, newSalt, cleanPassword, passwordCandidates, MIN_PASSWORD_LENGTH } from "./secret.js";
-import { TEST_ID, TEST_QUIZ, TEST_SHOW } from "./test-show.js";
+import { TEST_ID, TEST_QUIZ, TEST_SHOW, FULL_ID, FULL_KEYS, FULL_QUIZZES, FULL_MIMES, FULL_SHOW, FULL_PHOTOS, photoQuiz, drawPhoto } from "./test-show.js";
 import { writeProof, isAdmin } from "./proof.js";
 import { parseQuiz, checkQuestions, geminiPrompt, LETTERS } from "./importer.js";
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
 import {
-  buildSnapshot, estimateMinutes, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
+  buildSnapshot, estimateMinutes, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, BUILTIN_GAMES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
   roundFilled, MIME_TURN,
 } from "./show.js";
 import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
@@ -341,7 +341,8 @@ function formShow() {
     durationMin: num($("show-duration").value),
     themes: $("show-themes").value.trim() || null,
     notes: $("show-notes").value.trim() || null,
-    rounds: editing.rounds.filter(roundFilled).map((r) => (r.type === "mimes" ? { type: "mimes", deckId: r.deckId } : { type: r.type ?? "quiz", quizId: r.quizId })),
+    rounds: editing.rounds.filter(roundFilled).map((r) => (BUILTIN_GAMES[r.type] ? { type: r.type, count: r.count ?? BUILTIN_GAMES[r.type].count }
+      : r.type === "mimes" ? { type: "mimes", deckId: r.deckId } : { type: r.type ?? "quiz", quizId: r.quizId })),
   };
 }
 
@@ -359,7 +360,14 @@ function refreshRounds() {
       h("span", { class: "num", text: `${i + 1}` }),
       h("select", { "aria-label": "Type de manche", onchange: (e) => { r.type = e.target.value; refreshRounds(); } },
         ...Object.entries(ROUND_TYPES).map(([k, label]) => h("option", { value: k, text: label, selected: (r.type ?? "quiz") === k }))),
-      r.type === "mimes"
+      BUILTIN_GAMES[r.type]
+        // Jeux au buzzer intégrés : rien à préparer, seulement combien de mots ou de personnages.
+        ? h("select", { class: "grow", "aria-label": "Nombre", onchange: (e) => { r.count = Number(e.target.value); refreshSummary(); } },
+          ...[4, 5, 6, 8, 10].map((n) => h("option", {
+            value: n, selected: (r.count ?? BUILTIN_GAMES[r.type].count) === n,
+            text: `${n} ${BUILTIN_GAMES[r.type].unit}s (${BUILTIN_GAMES[r.type].rule})`,
+          })))
+        : r.type === "mimes"
         ? h("select", { class: "grow", "aria-label": "Paquet de mimes", onchange: (e) => { r.deckId = e.target.value; refreshSummary(); } },
           h("option", { value: "", text: decks.length ? "Choisir un paquet de mimes…" : "Aucun paquet : créez-en un dans Mimes" }),
           ...decks.map(([did, d]) => h("option", { value: did, selected: r.deckId === did, text: `${d.title} (${(d.cards ?? []).length} cartes, tour de ${d.duration ?? MIME_TURN} s)` })))
@@ -368,7 +376,7 @@ function refreshRounds() {
           ...options.map(([qid, q]) => h("option", {
             value: qid, selected: r.quizId === qid,
             text: r.type === "express" ? `${q.title} (${expressQuestions(q).length} Vrai / Faux)`
-              : r.type === "zoom" ? `${q.title} (${zoomQuestions(q).length} avec photo)` : `${q.title} (${playable(q).length} validées)`,
+              : r.type === "zoom" || r.type === "flou" ? `${q.title} (${zoomQuestions(q).length} avec photo)` : `${q.title} (${playable(q).length} validées)`,
           }))),
       h("button", { type: "button", class: "icon", title: "Monter", disabled: i === 0, onclick: () => move(-1), text: "↑" }),
       h("button", { type: "button", class: "icon", title: "Descendre", disabled: i === editing.rounds.length - 1, onclick: () => move(1), text: "↓" }),
@@ -814,6 +822,48 @@ $("test-create").onclick = async () => {
   } catch (err) {
     console.error(err);
     status("test-status", "Échec de l'ajout. Vérifiez la connexion puis réessayez.");
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+/**
+ * Prestation de test « tous les jeux » : photos dessinées ici, puis quiz, paquet de mimes et enfin la
+ * prestation. Chaque contenu déjà présent est gardé tel quel : rien n'est jamais remplacé.
+ */
+$("test-full-create").onclick = async () => {
+  const btn = $("test-full-create");
+  btn.disabled = true;
+  const addIfMissing = async (path, value) => {
+    if ((await get(ref(db, path))).exists()) return;
+    await set(ref(db, path), value);
+  };
+  try {
+    if ((await get(ref(db, `library/shows/${FULL_ID}`))).exists()) {
+      status("test-full-status", "Elle existe déjà : retrouvez-la dans Prestations (rien n'a été modifié).", true);
+      return;
+    }
+    status("test-full-status", "Préparation des photos et des jeux…", true);
+    const now = Date.now();
+    for (const kind of ["zoom", "flou"]) {
+      const ids = [];
+      for (const photo of FULL_PHOTOS[kind]) {
+        const data = drawPhoto(photo);
+        const id = await imageId(data);
+        await addIfMissing(`library/images/${id}`, data);
+        ids.push(id);
+      }
+      await addIfMissing(`library/quizzes/${FULL_KEYS[kind]}`, { ...photoQuiz(kind, ids), createdAt: now, updatedAt: serverTimestamp() });
+    }
+    for (const [id, quiz] of Object.entries(FULL_QUIZZES)) {
+      await addIfMissing(`library/quizzes/${id}`, { ...quiz, createdAt: now, updatedAt: serverTimestamp() });
+    }
+    await addIfMissing(`library/mimes/${FULL_KEYS.mimes}`, { ...FULL_MIMES, createdAt: now, updatedAt: serverTimestamp() });
+    await set(ref(db, `library/shows/${FULL_ID}`), { ...FULL_SHOW, createdAt: now, updatedAt: serverTimestamp() });
+    status("test-full-status", "Ajoutée : « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux » est dans Prestations et sur la régie.", true);
+  } catch (err) {
+    console.error(err);
+    status("test-full-status", "Échec de l'ajout. Vérifiez la connexion puis réessayez.");
   } finally {
     btn.disabled = false;
   }

@@ -46,6 +46,7 @@ class MainActivity : ComponentActivity() {
                     mimeFound = viewModel::mimeFound,
                     mimePass = viewModel::mimePass,
                     mimeStop = viewModel::mimeStop,
+                    judgeBuzz = viewModel::judgeBuzz,
                 ),
                 update = UpdateScreen(
                     ui = updateUi, open = updateOpen, available = updateAvailable, offer = updateOffer,

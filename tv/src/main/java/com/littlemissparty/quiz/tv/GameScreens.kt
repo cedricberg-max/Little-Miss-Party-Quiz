@@ -109,7 +109,17 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                 // Révélation : l'illustration facultative (photo ou émoji) apparaît à gauche des propositions.
                 Row(Modifier.weight(1f)) {
                     // Zoom mystère : la photo est la question, elle se dévoile pendant tout le chrono.
-                    if (q.isZoom) {
+                    if (q.isFlou) {
+                        // Image floue : la photo est la question, réponse à voix haute après un buzz.
+                        FlouPhoto(q, state, Modifier.fillMaxHeight().aspectRatio(4f / 3f, matchHeightConstraintsFirst = true))
+                        Spacer(Modifier.width(20.dp))
+                    } else if (q.isChante) {
+                        ChanteBoard(q, state, Modifier.weight(1.4f).fillMaxHeight())
+                        Spacer(Modifier.width(20.dp))
+                    } else if (q.isQuiSuis) {
+                        QuiSuisBoard(q, state, Modifier.weight(1.4f).fillMaxHeight())
+                        Spacer(Modifier.width(20.dp))
+                    } else if (q.isZoom) {
                         ZoomPhoto(q, state, Modifier.fillMaxHeight().aspectRatio(4f / 3f, matchHeightConstraintsFirst = true))
                         Spacer(Modifier.width(20.dp))
                     } else if (revealed && hasIllustration(q, state)) {
@@ -117,7 +127,8 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                         Illustration(q, state, Modifier.fillMaxHeight().aspectRatio(if (photo) 4f / 3f else 1f, matchHeightConstraintsFirst = true))
                         Spacer(Modifier.width(20.dp))
                     }
-                    if (q.isNumber) NumberBoard(state, revealed, Modifier.weight(1f).fillMaxHeight())
+                    if (q.isBuzz) FlouPanel(q, state, Modifier.weight(1f).fillMaxHeight())
+                    else if (q.isNumber) NumberBoard(state, revealed, Modifier.weight(1f).fillMaxHeight())
                     else ChoiceGrid(q.choices, correct = if (revealed) q.correct else null, Modifier.weight(1f).fillMaxHeight())
                 }
             }
@@ -139,7 +150,13 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                 }
                 // En pause, le seul bouton est « Reprendre » sur l'intermède.
                 if (!state.paused) when (state.phase) {
-                    Phase.QUESTION -> NextButton("Arrêter le chrono", actions.next, key = state.phase)
+                    // Jeux au buzzer : l'animatrice juge la réponse orale (la régie a les mêmes boutons).
+                    Phase.QUESTION -> if (q.isBuzz && state.buzzTeam != null) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            TvButton("Mauvaise réponse", { actions.judgeBuzz(false) }, fontSize = 24.sp)
+                            NextButton("Bonne réponse", { actions.judgeBuzz(true) }, key = state.buzzTeam)
+                        }
+                    } else NextButton("Arrêter le chrono", actions.next, key = state.phase)
                     Phase.CLOSED -> NextButton("Révéler la réponse", actions.next, key = state.phase)
                     // Vrai ou Faux express : la TV enchaîne seule ; le bouton ne fait qu'aller plus vite.
                     else -> NextButton(if (q.isExpress) "Suivant" else "Voir les scores", actions.next, key = state.phase)

@@ -97,6 +97,15 @@ data class MimeCorrected(override val seq: Int, override val at: Long, val team:
 /** Fin du tour : chrono écoulé, paquet épuisé ou arrêt par l'animatrice. */
 data class MimeTurnEnded(override val seq: Int, override val at: Long) : GameEvent
 
+/** Image floue : l'équipe [team] a buzzé la première ; le chrono et la photo se figent pendant sa réponse orale. */
+data class Buzzed(override val seq: Int, override val at: Long, val team: String) : GameEvent
+
+/**
+ * Image floue : l'animatrice juge la réponse orale de l'équipe qui a buzzé. Bonne : ses points et la
+ * révélation. Mauvaise : l'équipe est bloquée sur cette image, la photo reprend et les autres peuvent buzzer.
+ */
+data class BuzzJudged(override val seq: Int, override val at: Long, val ok: Boolean) : GameEvent
+
 /**
  * Saut de la régie vers la question [index] (début d'un jeu de la prestation), en avant comme en arrière.
  * Les points des questions [clear] sont retirés : un jeu rejoué ne compte jamais deux fois.

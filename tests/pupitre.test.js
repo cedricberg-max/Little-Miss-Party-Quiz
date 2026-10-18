@@ -210,6 +210,63 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
+  test("Image floue : deux équipes buzzent en même temps, une seule a la main ; après une erreur elle est bloquée", async () => {
+    const pages = [await openPupitre(), await openPupitre()];
+    await joinTeam(pages[0], "Les Roses");
+    await joinTeam(pages[1], "Les Bleus");
+    const uids = Object.fromEntries(Object.entries(await read("teams")).map(([uid, t]) => [t.name, uid]));
+    const flou = (extra = {}) => question({ qid: "f1", kind: "flou", choices: null, text: "Qu'est-ce qui se cache sous le flou ?", round: "f1-1000-0", buzzOpen: true, buzz: { blocked: [] }, ...extra });
+    await hostState(flou());
+    for (const p of pages) {
+      await p.locator("#play-status", { hasText: "buzzez dès que vous la reconnaissez" }).waitFor();
+      assert.equal(await p.locator("#buzz").isDisabled(), false);
+    }
+    // Les deux appuient presque en même temps : la base garde le premier, l'autre est refusé.
+    await Promise.all(pages.map((p) => p.click("#buzz")));
+    await waitFor(async () => (await read("buzz/f1-1000-0"))?.team, "un buzz enregistré");
+    const first = (await read("buzz/f1-1000-0")).team;
+    assert.ok([uids["Les Roses"], uids["Les Bleus"]].includes(first));
+    const [winner, other] = first === uids["Les Roses"] ? [pages[0], pages[1]] : [pages[1], pages[0]];
+    // La box fige l'image pour cette équipe.
+    await hostState(flou({ buzzOpen: false, deadline: null, remainingMs: 25000, buzz: { team: first, blocked: [] } }));
+    await winner.locator("#play-status", { hasText: "Vous avez buzzé" }).waitFor();
+    await other.locator("#play-status", { hasText: "a buzzé : écoutez sa réponse" }).waitFor();
+    assert.equal(await other.locator("#buzz").isDisabled(), true);
+    // Mauvaise réponse : nouvelle clé, l'équipe qui s'est trompée ne peut plus buzzer, l'autre si.
+    await hostState(flou({ round: "f1-1000-1", buzz: { blocked: [first] } }));
+    await winner.locator("#play-status", { hasText: "Raté pour cette image" }).waitFor();
+    assert.equal(await winner.locator("#buzz").isDisabled(), true);
+    assert.equal(await other.locator("#buzz").isDisabled(), false);
+    await other.click("#buzz");
+    const second = first === uids["Les Roses"] ? uids["Les Bleus"] : uids["Les Roses"];
+    await waitFor(async () => (await read("buzz/f1-1000-1"))?.team === second, "rebond enregistré");
+    // Révélation : la réponse et l'équipe gagnante sur chaque pupitre.
+    await hostState(flou({ phase: "reveal", choices: ["Un lion", "Un chat"], correct: 0, buzzOpen: false, awards: { [second]: { correct: true, points: 100, bonus: 0 } }, scores: { [second]: 100 }, buzz: { team: second, blocked: [first] } }));
+    await other.locator("#r-title", { hasText: "Bravo ! +100 points" }).waitFor();
+    await other.locator("#r-detail", { hasText: "C'était : Un lion" }).waitFor();
+    await winner.locator("#r-title", { hasText: "a trouvé !" }).waitFor();
+    for (const p of pages) await p.context().close();
+  });
+
+  test("Chante le mot ! et Qui suis-je ? : le même grand BUZZ, la consigne du jeu, puis le mot ou le personnage", async () => {
+    const page = await openPupitre();
+    await joinTeam(page, "Les Roses");
+    const uid = Object.keys(await read("teams"))[0];
+    const jeu = (extra) => question({ choices: null, buzzOpen: true, buzz: { blocked: [] }, ...extra });
+    await hostState(jeu({ qid: "c1", kind: "chante", text: "soleil", round: "c1-1000-0" }));
+    await page.locator("#play-status", { hasText: "chantez une chanson avec le mot de la TV" }).waitFor();
+    await page.click("#buzz");
+    await waitFor(async () => (await read("buzz/c1-1000-0"))?.team === uid, "buzz enregistré");
+    await hostState(jeu({ qid: "c1", kind: "chante", text: "soleil", round: "c1-1000-0", buzzOpen: false, buzz: { team: uid, blocked: [] } }));
+    await page.locator("#play-status", { hasText: "À vous de chanter" }).waitFor();
+    await hostState(jeu({ qid: "c1", kind: "chante", text: "soleil", phase: "reveal", choices: ["soleil"], correct: 0, buzzOpen: false, awards: { [uid]: { correct: true, points: 150, bonus: 0 } }, scores: { [uid]: 150 } }));
+    await page.locator("#r-detail", { hasText: "Le mot : soleil" }).waitFor();
+    await hostState(jeu({ qid: "p1", kind: "quisuis", text: "Qui suis-je ?", round: "p1-1000-0" }));
+    await page.locator("#play-status", { hasText: "Écoutez les indices de la TV" }).waitFor();
+    assert.equal(await page.locator("#buzz").isDisabled(), false);
+    await page.context().close();
+  });
+
   test("accueil : deux équipes buzzent à répétition, rien ne se bloque ni ne change d'écran", async () => {
     const pages = [await openPupitre(), await openPupitre()];
     await joinTeam(pages[0], "Les Roses");
