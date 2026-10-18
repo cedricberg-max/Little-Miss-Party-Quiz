@@ -2,8 +2,6 @@ package com.littlemissparty.quiz.tv
 
 import android.app.Application
 import android.content.Context
-import android.media.AudioManager
-import android.media.ToneGenerator
 import android.os.SystemClock
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
@@ -29,7 +27,6 @@ import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.engine.Quiz
 import com.littlemissparty.quiz.engine.QuizJson
-import com.littlemissparty.quiz.engine.Resumed
 import com.littlemissparty.quiz.engine.execute
 import com.littlemissparty.quiz.engine.programProblem
 import com.littlemissparty.quiz.engine.withProgram
@@ -149,8 +146,6 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         set(value) {
             prefs.edit().apply { if (value == null) remove("active_game") else putString("active_game", value) }.commit()
         }
-
-    private val tones = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, 90) }.getOrNull()
 
     init {
         if (BuildConfig.FB_PROJECT_ID.isBlank()) {
@@ -380,7 +375,6 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 "state" to clean(Codec.publicState(g, round)),
             ) + extra
         ).addOnFailureListener { Log.e(TAG, "Écriture refusée", it) }
-        if (event is Resumed) countdownBeeps(event) else sound(g.state.phase)
         refresh()
         schedule()
     }
@@ -689,7 +683,6 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         observe(ref.child("teams")) { snap ->
             val teams = parseTeams(snap)
             updatePlaying { s ->
-                if (teams.size > s.teams.size) tones?.startTone(ToneGenerator.TONE_PROP_BEEP2, 200)
                 s.copy(teams = teams)
             }
         }
@@ -704,9 +697,6 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         observe(ref.child("buzz")) { snap ->
             updatePlaying { s ->
                 val buzzerUid = snap.child("${s.round}/team").getValue(String::class.java)
-                if (buzzerUid != null && s.buzzerUid == null) {
-                    tones?.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 600)
-                }
                 s.copy(buzzerUid = buzzerUid)
             }
         }
@@ -765,9 +755,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val ref = gameRef?.child("answers")?.child(qid ?: return) ?: return
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val before = answers.size
                 answers = parseAnswers(snapshot)
-                if (answers.size > before) tones?.startTone(ToneGenerator.TONE_PROP_ACK, 120)
                 updatePlaying { it.copy(answered = answers.keys) }
                 closeIfEveryoneAnswered()
             }
@@ -846,33 +834,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         judging.clear()
     }
 
-    /** Un bip par seconde du décompte 3, 2, 1, puis un plus aigu au départ. */
-    private fun countdownBeeps(event: Resumed) {
-        viewModelScope.launch {
-            val steps = (event.countdownMs / 1000).toInt()
-            for (i in 0 until steps) {
-                delay((event.at + i * 1000L - serverNow()).coerceAtLeast(0))
-                tones?.startTone(ToneGenerator.TONE_PROP_BEEP, 150)
-            }
-            delay((event.at + event.countdownMs - serverNow()).coerceAtLeast(0))
-            tones?.startTone(ToneGenerator.TONE_PROP_BEEP2, 300)
-        }
-    }
-
-    private fun sound(phase: Phase) {
-        val tone = when (phase) {
-            Phase.QUESTION -> ToneGenerator.TONE_PROP_BEEP
-            Phase.CLOSED -> ToneGenerator.TONE_PROP_NACK
-            Phase.REVEAL -> ToneGenerator.TONE_CDMA_CONFIRM
-            Phase.ENDED -> ToneGenerator.TONE_CDMA_ABBR_ALERT
-            else -> return
-        }
-        tones?.startTone(tone, 300)
-    }
-
     override fun onCleared() {
         stopListening()
-        tones?.release()
     }
 
     companion object {
