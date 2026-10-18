@@ -96,7 +96,7 @@ fun MimeScreen(state: UiState.Playing, actions: TvActions) {
             Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    state.teams.forEach { t -> MimeTeamChip(t, m.counts[t.uid] ?: 0, playing = t.uid == m.team) }
+                    state.teams.forEach { t -> MimeTeamChip(t, m.counts[t.uid] ?: 0, playing = t.uid == m.team, passed = t.uid in m.turns) }
                 }
                 // En pause, le seul bouton est « Reprendre » sur l'intermède.
                 if (!state.paused) MimeButtons(state, m, actions)
@@ -257,8 +257,11 @@ private fun BetweenTurns(state: UiState.Playing, m: MimeUi, modifier: Modifier) 
             }
             Spacer(Modifier.height(10.dp))
             Text(
-                if (m.left == 0) "Toutes les cartes ont été mimées !"
-                else "Celui qui devine se met dos à la TV, ses coéquipiers miment sans parler.\nChaque mime trouvé rapporte ${Scoring.MIME} points.",
+                when {
+                    m.turns.isEmpty() -> "Celui qui devine se met dos à la TV, ses coéquipiers miment sans parler.\nChaque mime trouvé rapporte ${Scoring.MIME} points."
+                    remainingTeams(state, m).isEmpty() -> "Toutes les équipes sont passées !"
+                    else -> "Au tour de ${remainingTeams(state, m).first().name} ! Restent : ${remainingTeams(state, m).joinToString(", ") { it.name }}"
+                },
                 color = Palette.Ink, fontSize = 24.sp, textAlign = TextAlign.Center, lineHeight = 32.sp,
             )
         }
@@ -266,7 +269,7 @@ private fun BetweenTurns(state: UiState.Playing, m: MimeUi, modifier: Modifier) 
 }
 
 @Composable
-private fun MimeTeamChip(team: Team, count: Int, playing: Boolean) {
+private fun MimeTeamChip(team: Team, count: Int, playing: Boolean, passed: Boolean) {
     val color = team.color.toColor()
     Column(
         Modifier
@@ -278,11 +281,14 @@ private fun MimeTeamChip(team: Team, count: Int, playing: Boolean) {
     ) {
         Text(team.name, color = Palette.Ink, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1)
         Text(
-            "$count mime${if (count > 1) "s" else ""}",
+            "$count mime${if (count > 1) "s" else ""}" + if (passed && !playing) " ✓" else "",
             color = if (count > 0) Neon.Or else Palette.InkSoft, fontSize = 16.sp, fontWeight = FontWeight.Bold,
         )
     }
 }
+
+/** Équipes qui ne sont pas encore passées dans cette manche de mimes, dans l'ordre d'inscription. */
+private fun remainingTeams(state: UiState.Playing, m: MimeUi): List<Team> = state.teams.filter { it.uid !in m.turns }
 
 /** Secours à la télécommande : « Trouvé » a toujours le focus pendant un tour, « Top départ » entre deux tours. */
 @Composable
@@ -293,10 +299,15 @@ private fun MimeButtons(state: UiState.Playing, m: MimeUi, actions: TvActions) {
             TvButton("Arrêter le tour", actions.mimeStop, fontSize = 20.sp)
             NextButton("Trouvé !", actions.mimeFound, key = "turn-${m.turns.size}")
         } else {
-            TvButton("Terminer les mimes", actions.next, fontSize = 20.sp)
-            if (m.left > 0) {
-                val next = state.teams.minByOrNull { t -> m.turns.count { it == t.uid } }
-                NextButton("Top départ : ${next?.name ?: "équipe"}", { actions.mimeStart(next?.uid) }, key = "between-${m.turns.size}")
+            // Chaque équipe passe à son tour ; quand toutes sont passées, le bouton principal mène au classement.
+            val next = remainingTeams(state, m).firstOrNull()
+            if (next != null) {
+                TvButton("Terminer les mimes", actions.next, fontSize = 20.sp)
+                NextButton("Top départ : ${next.name}", { actions.mimeStart(next.uid) }, key = "between-${m.turns.size}")
+            } else {
+                val again = state.teams.minByOrNull { t -> m.turns.count { it == t.uid } }
+                if (again != null) TvButton("Encore un tour : ${again.name}", { actions.mimeStart(again.uid) }, fontSize = 20.sp)
+                NextButton("Voir le classement", actions.next, key = "between-${m.turns.size}")
             }
         }
     }

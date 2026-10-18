@@ -142,6 +142,61 @@ class RegieTest : TestTv() {
         ecran.capture("mimes-classement")
     }
 
+    /** Le scénario du premier vrai test de cedric : un quiz, puis les mimes, puis le classement et le jeu suivant. */
+    @Test
+    fun quizPuisMimesPuisJeuSuivantPuisRejouer() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        @Suppress("UNCHECKED_CAST")
+        val demo = regie.programme(code)["questions"] as List<Map<String, Any?>>
+        val mimes = mapOf(
+            "id" to "a1m", "text" to "Animaux", "kind" to "mime", "duration" to 60, "round" to "Animaux",
+            "cards" to listOf(mapOf("word" to "Chat", "image" to "🐱")),
+        )
+        val programme = listOf(demo[0] + ("round" to "Quiz"), mimes, demo[1] + ("round" to "Finale"))
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, programme))
+
+        // Quiz : une question jouée jusqu'au classement.
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("Question 1 / 3")
+        attendreQue("question 1 ouverte") { licornes.etat(code).takeIf { it.child("qid").value == demo[0]["id"] } }
+        assertTrue(licornes.repondre(code, demo[0]["id"] as String, (demo[0]["correct"] as Number).toInt()))
+        ecran.voit("Toutes les équipes ont répondu")
+        assertEquals("applied", regie.commande(code, "next"))
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("Classement")
+        val apresQuiz = points(licornes, code, licornes.uid)
+        assertTrue("La bonne réponse rapporte des points", apresQuiz >= Scoring.BASE)
+
+        // Fin du quiz : « suivant » enchaîne sur les mimes, sans rien bloquer.
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("Les Mimes !")
+        assertEquals("applied", regie.commande(code, "mime_start", mapOf("team" to licornes.uid)))
+        ecran.voit("Chat")
+        assertEquals("applied", regie.commande(code, "mime_found"))
+        ecran.voit("Bravo Licornes")
+        // Toutes les équipes sont passées : la TV propose le classement.
+        ecran.voit("Voir le classement")
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("Après les mimes")
+        assertEquals(apresQuiz + Scoring.MIME, points(licornes, code, licornes.uid))
+
+        // Jeu suivant : la finale s'ouvre avec les mêmes équipes et les mêmes scores.
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("Question 3 / 3")
+        assertEquals(apresQuiz + Scoring.MIME, points(licornes, code, licornes.uid))
+        ecran.capture("quiz-mimes-finale")
+
+        // Secours : rejouer le quiz retire ses points (pas de double compte), les mimes restent.
+        assertEquals("applied", regie.commande(code, "goto", mapOf("index" to 0, "qid" to demo[0]["id"] as String)))
+        ecran.voit("Question 1 / 3")
+        attendreQue("points du quiz retirés") { points(licornes, code, licornes.uid).takeIf { it == Scoring.MIME.toLong() } }
+        assertTrue("La tablette peut répondre de nouveau", licornes.repondre(code, demo[0]["id"] as String, (demo[0]["correct"] as Number).toInt()))
+        ecran.voit("Toutes les équipes ont répondu")
+    }
+
     private val regies = mutableListOf<RegieSimulee>()
 
     private fun regie() = RegieSimulee().also { regies += it }

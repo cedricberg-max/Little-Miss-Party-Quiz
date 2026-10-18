@@ -373,6 +373,18 @@ describe("régie", () => {
     await assertFails(command("rose", { type: "mime_found" }));
     await assertFails(set(ref(db(REGIE), `games/${CODE}/commands/m-points`), { type: "mime_found", points: 50, expectSeq: 3, by: REGIE, at: serverTimestamp() }));
   });
+  test("secours : la régie demande un saut de jeu ; seule la box efface les réponses d'un jeu rejoué", async () => {
+    await paired();
+    await assertSucceeds(command(REGIE, { type: "goto", index: 2, qid: "a1m" }));
+    await assertFails(command(REGIE, { type: "goto", index: -1, qid: "q1" }));
+    await assertFails(command(REGIE, { type: "goto", index: 0, qid: 12 }));
+    await assertSucceeds(answer("rose", 1));
+    await assertFails(set(ref(db("rose"), `games/${CODE}/answers/q1`), null));
+    await assertFails(set(ref(db(REGIE), `games/${CODE}/answers/q1`), null));
+    await assertFails(set(ref(db(HOST), `games/${CODE}/answers/q1/rose`), { choice: 2, at: serverTimestamp() }));
+    await assertSucceeds(set(ref(db(HOST), `games/${CODE}/answers/q1`), null));
+    await assertSucceeds(answer("rose", 2));
+  });
   test("une commande ne se réécrit pas", async () => {
     await paired();
     await assertSucceeds(command(REGIE, { type: "pause" }));
