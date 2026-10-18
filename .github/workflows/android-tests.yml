@@ -96,7 +96,9 @@ jobs:
           api-level: ${{ env.API_LEVEL }}
           target: android-tv
           arch: x86
-          profile: tv_1080p
+          # 720p : même mise en page que la Mi Box en 1080p (960 x 540 dp), mais 2,25 fois moins de pixels
+          # à dessiner sans carte graphique sur les 2 processeurs du runner.
+          profile: tv_720p
           ram-size: 2048M
           disable-animations: false
           emulator-boot-timeout: 900

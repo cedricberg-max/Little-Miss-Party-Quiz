@@ -29,10 +29,8 @@ abstract class TestTv {
         }
 
         override fun finished(description: Description?) {
-            val debut = System.currentTimeMillis()
-            runCatching { scenario?.close() }
+            // Pas de fermeture de l'écran ici : chaque test tourne dans son propre processus, arrêté juste après.
             pupitres.forEach { it.close() }
-            Log.i(TAG, "Rangement de ${description?.methodName} en ${System.currentTimeMillis() - debut} ms")
         }
     }
 

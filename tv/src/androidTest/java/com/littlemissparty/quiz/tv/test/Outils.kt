@@ -3,13 +3,19 @@ package com.littlemissparty.quiz.tv.test
 import android.content.Context
 import android.os.SystemClock
 import android.util.Log
+import android.view.View
+import android.view.ViewGroup
+import androidx.compose.ui.platform.ViewRootForTest
+import androidx.compose.ui.semantics.SemanticsNode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.Configurator
 import androidx.test.uiautomator.UiDevice
-import androidx.test.uiautomator.UiObject2
-import androidx.test.uiautomator.Until
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
@@ -111,31 +117,90 @@ class Ecran(private val nomTest: () -> String) {
         device.executeShellCommand("mkdir -p $DOSSIER_CAPTURES")
     }
 
-    fun voit(texte: String, ms: Long = 20_000): UiObject2 =
-        device.wait(Until.findObject(By.textContains(texte)), ms)
-            ?: run {
-                capture("introuvable")
-                runCatching { Log.e(TAG, "« $texte » introuvable, plan de l'écran :\n${plan()}") }
-                throw AssertionError("« $texte » n'apparaît pas à l'écran")
-            }
+    fun voit(texte: String, ms: Long = 20_000) {
+        if (!attendre(ms) { affiche(texte) }) {
+            capture("introuvable")
+            runCatching { Log.e(TAG, "« $texte » introuvable, plan de l'écran :\n${plan()}") }
+            throw AssertionError("« $texte » n'apparaît pas à l'écran")
+        }
+    }
 
     fun neVoitPas(texte: String, ms: Long = 10_000) {
-        if (device.wait(Until.gone(By.textContains(texte)), ms) != true) {
+        if (!attendre(ms) { !affiche(texte) }) {
             capture("encore-visible")
             throw AssertionError("« $texte » est encore à l'écran")
         }
     }
 
-    fun affiche(texte: String): Boolean = device.hasObject(By.textContains(texte))
+    fun affiche(texte: String): Boolean =
+        device.hasObject(By.textContains(texte)) || elements().any { it.visible && texte in it.texte }
 
-    fun aLeFocus(texte: String): Boolean = device.hasObject(By.textContains(texte).focused(true))
+    fun aLeFocus(texte: String): Boolean =
+        device.hasObject(By.textContains(texte).focused(true)) || elements().any { it.visible && it.focus && texte in it.texte }
 
     /** Attend que le bouton portant ce texte ait le focus de la télécommande. */
     fun focusSur(texte: String, ms: Long = 8_000) {
-        if (device.wait(Until.hasObject(By.textContains(texte).focused(true)), ms) != true) {
+        if (!attendre(ms) { aLeFocus(texte) }) {
             capture("focus")
+            runCatching { Log.e(TAG, "Pas de focus sur « $texte », plan de l'écran :\n${plan()}") }
             throw AssertionError("Le bouton « $texte » n'a pas le focus de la télécommande")
         }
+    }
+
+    private fun attendre(ms: Long, test: () -> Boolean): Boolean {
+        val fin = SystemClock.uptimeMillis() + ms
+        while (true) {
+            if (runCatching(test).getOrDefault(false)) return true
+            if (SystemClock.uptimeMillis() > fin) return false
+            Thread.sleep(250)
+        }
+    }
+
+    /** Un texte de l'interface Compose, lu dans l'arbre sémantique de l'appli. */
+    data class Element(val texte: String, val focus: Boolean, val visible: Boolean)
+
+    /**
+     * Les boutons Compose ne donnent pas leur texte à UiAutomator (il n'y voit qu'une vue vide) :
+     * on lit l'arbre sémantique de chaque fenêtre de l'appli, comme les tests Compose, mais sans
+     * attendre un écran immobile, car le fond animé ne s'arrête jamais.
+     */
+    fun elements(): List<Element> {
+        val liste = mutableListOf<Element>()
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            fenetres().flatMap(::racinesCompose).forEach { racine ->
+                parcourir(racine.semanticsOwner.rootSemanticsNode, racine.view.rootView, liste)
+            }
+        }
+        return liste
+    }
+
+    /** Toutes les fenêtres de l'appli, fenêtres de dialogue comprises (même méthode qu'Espresso). */
+    private fun fenetres(): List<View> = runCatching {
+        val wmg = Class.forName("android.view.WindowManagerGlobal")
+        val instance = wmg.getMethod("getInstance").invoke(null)
+        val vues = wmg.getDeclaredField("mViews").apply { isAccessible = true }.get(instance)
+        @Suppress("UNCHECKED_CAST")
+        (vues as List<View>).toList()
+    }.getOrElse {
+        ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED).map { it.window.decorView }
+    }
+
+    private fun racinesCompose(v: View): List<ViewRootForTest> = when (v) {
+        is ViewRootForTest -> listOf(v)
+        is ViewGroup -> (0 until v.childCount).flatMap { racinesCompose(v.getChildAt(it)) }
+        else -> emptyList()
+    }
+
+    private fun parcourir(n: SemanticsNode, fenetre: View, liste: MutableList<Element>) {
+        val textes = n.config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text } +
+            n.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty()
+        if (textes.isNotEmpty()) {
+            val b = n.boundsInWindow
+            val visible = b.width > 0 && b.height > 0 && b.bottom > 0 && b.right > 0 &&
+                b.top < fenetre.height && b.left < fenetre.width
+            liste += Element(textes.joinToString(" "), n.config.getOrNull(SemanticsProperties.Focused) == true, visible)
+        }
+        n.children.forEach { parcourir(it, fenetre, liste) }
     }
 
     /** Appuie sur OK quand le bouton attendu est à l'écran et sélectionné. */
@@ -148,8 +213,10 @@ class Ecran(private val nomTest: () -> String) {
     fun touche(code: Int) = device.pressKeyCode(code)
 
     /** Textes visibles à l'écran, écrits dans le journal quand un test échoue. */
-    fun textes(): String = device.findObjects(By.textStartsWith("")).mapNotNull { runCatching { it.text }.getOrNull() }
-        .filter { it.isNotBlank() }.joinToString(" | ")
+    fun textes(): String = (
+        device.findObjects(By.textStartsWith("")).mapNotNull { runCatching { it.text }.getOrNull() } +
+            runCatching { elements().filter { it.visible }.map { it.texte } }.getOrDefault(emptyList())
+        ).filter { it.isNotBlank() }.distinct().joinToString(" | ")
 
     /** Taille de l'écran et position de chaque élément, pour voir ce qui sort de l'écran. */
     fun plan(): String {
@@ -162,7 +229,11 @@ class Ecran(private val nomTest: () -> String) {
             else "${attr("bounds")} ${attr("class").substringAfterLast('.')} « $texte »" +
                 (if (attr("focused") == "true") " [focus]" else "")
         }
-        return "écran ${device.displayWidth}x${device.displayHeight} px, densité ${m.densityDpi} dpi\n" + noeuds.joinToString("\n")
+        val compose = runCatching { elements() }.getOrDefault(emptyList()).joinToString("\n") {
+            "Compose « ${it.texte} »" + (if (it.focus) " [focus]" else "") + (if (it.visible) "" else " [hors écran]")
+        }
+        return "écran ${device.displayWidth}x${device.displayHeight} px, densité ${m.densityDpi} dpi\n" +
+            noeuds.joinToString("\n") + "\n" + compose
     }
 
     fun capture(nom: String) {
