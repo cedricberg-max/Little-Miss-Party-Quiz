@@ -840,6 +840,39 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("reprendre une manche d'une ancienne prestation et dupliquer un quiz, sans toucher aux originaux", async () => {
+    await seedLibrary("quizzes", { animaux: ANIMAUX, finale: FINALE });
+    const LEA = { childName: "Léa", age: 7, date: "2026-03-01", status: "archivee", rounds: [{ type: "quiz", quizId: "animaux" }, { type: "finale", quizId: "finale" }], updatedAt: 1 };
+    await seedLibrary("shows", { lea: LEA });
+    const page = await admin();
+    await page.click("#home-new");
+    await page.fill("#show-child", "Zoé");
+    await page.locator('#round-reuse option[value="lea/1"]', { hasText: "Super Finale : Finale" }).waitFor({ state: "attached" });
+    await page.selectOption("#round-reuse", "lea/1");
+    assert.equal(await page.locator("#show-rounds select.grow").inputValue(), "finale");
+    assert.equal(await page.locator("#show-rounds select").first().inputValue(), "finale");
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée." }).waitFor();
+    const shows = await library("shows");
+    assert.deepEqual(Object.values(shows).find((s) => s.childName === "Zoé").rounds, [{ type: "finale", quizId: "finale" }]);
+    assert.deepEqual(shows.lea, LEA, "Ancienne prestation inchangée");
+
+    // Dupliquer un quiz : la copie se modifie et s'enregistre à part.
+    await page.click("#nav button[data-screen=quizzes]");
+    await page.locator('#quiz-list [data-quiz="animaux"]').getByRole("button", { name: "Dupliquer" }).click();
+    await page.locator("#screen-review:not([hidden])").waitFor();
+    assert.equal(await page.inputValue("#rv-title"), "Animaux (copie)");
+    await page.locator('[data-q="0"] .q-text').fill("Qui est le roi de la savane ?");
+    await page.click("#rv-save");
+    await page.locator("#rv-status", { hasText: "Enregistré" }).waitFor();
+    const quizzes = await library("quizzes");
+    assert.equal(Object.keys(quizzes).length, 3);
+    assert.equal(quizzes.animaux.questions[0].text, "Roi de la jungle ?", "Quiz d'origine inchangé");
+    const copy = Object.values(quizzes).find((q) => q.title === "Animaux (copie)");
+    assert.equal(copy.questions[0].text, "Qui est le roi de la savane ?");
+    await page.context().close();
+  });
+
   test("une prestation en brouillon n'apparaît pas sur la régie ; le code de secours ne donne pas la liste", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     await seedLibrary("shows", {

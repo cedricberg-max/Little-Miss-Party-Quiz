@@ -164,6 +164,8 @@ button.item { cursor: pointer; }
 .round { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px; border-radius: 16px; background: var(--bg-2); }
 .round .num { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: var(--violet); color: #fff; font-weight: 800; font-size: 14px; }
 .round .grow { flex: 1; min-width: 180px; }
+.round-tools { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; }
+.round-tools .reuse { flex: 1; min-width: min(100%, 320px); }
 .problems { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 2px; font-size: 15px; color: var(--warn); }
 .problems .err { color: var(--bad); }
 .problems:empty { display: none; }
