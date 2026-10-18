@@ -10,6 +10,9 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
+/** Une vraie petite image (PNG d'un pixel), comme celles que l'admin prépare. */
+private const val PIXEL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+
 /** La régie sur le téléphone de l'animatrice : connexion par mot de passe commun et pilotage de la TV. */
 @RunWith(AndroidJUnit4::class)
 class RegieTest : TestTv() {
@@ -226,6 +229,65 @@ class RegieTest : TestTv() {
         ecran.capture("juste-chiffre-revelation")
         attendreQue("points de la plus proche") { points(licornes, code, licornes.uid).takeIf { it == Scoring.NUMBER_CLOSEST.toLong() } }
         assertEquals(0L, points(dragons, code, dragons.uid))
+    }
+
+    @Test
+    fun vraiOuFauxExpressSEnchaineToutSeul() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        @Suppress("UNCHECKED_CAST")
+        val avant = regie.programme(code)["questions"] as List<Map<String, Any?>>
+        fun affirmation(id: String, text: String, correct: Int) = mapOf(
+            "id" to id, "text" to text, "choices" to listOf("Vrai", "Faux"), "correct" to correct,
+            "duration" to 8, "kind" to "express", "double" to false, "round" to "Vrai ou Faux express",
+        )
+        val serie = listOf(affirmation("e1", "Le Soleil est une étoile.", 0), affirmation("e2", "Les poissons volent.", 1))
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, serie + avant))
+
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("VRAI OU FAUX EXPRESS")
+        attendreQue("première affirmation ouverte") { licornes.etat(code).takeIf { it.child("qid").value == "e1" && it.child("phase").value == "question" } }
+        ecran.capture("express-affirmation")
+        assertTrue(licornes.repondre(code, "e1", 0))
+        // Personne ne touche à rien : fermeture, révélation, puis affirmation suivante, toutes seules.
+        attendreQue("affirmation suivante ouverte toute seule") {
+            licornes.etat(code).takeIf { it.child("qid").value == "e2" && it.child("phase").value == "question" }
+        }
+        ecran.voit("Les poissons volent.")
+        assertEquals(Scoring.EXPRESS.toLong(), points(licornes, code, licornes.uid))
+        // Sans réponse, le chrono s'écoule ; dernière affirmation de la manche : les scores, sans double compte.
+        attendreQue("scores à la fin de la série", 30_000) { licornes.etat(code).takeIf { it.child("phase").value == "scores" } }
+        assertEquals(Scoring.EXPRESS.toLong(), points(licornes, code, licornes.uid))
+        ecran.capture("express-scores")
+    }
+
+    @Test
+    fun zoomMystereLaPhotoSeDevoilePuisPointsDuQuiz() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        val photo = "0123456789abcdef"
+        regie.copierPhoto(code, photo, PIXEL)
+        @Suppress("UNCHECKED_CAST")
+        val avant = regie.programme(code)["questions"] as List<Map<String, Any?>>
+        val zoom = mapOf(
+            "id" to "z1", "text" to "Quel animal se cache sur la photo ?", "choices" to listOf("Chat", "Lion"), "correct" to 1,
+            "duration" to 20, "kind" to "zoom", "double" to false, "round" to "Zoom mystère", "imageId" to photo,
+        )
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(zoom) + avant))
+
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("ZOOM MYSTÈRE")
+        attendreQue("photo mystère ouverte") { licornes.etat(code).takeIf { it.child("qid").value == "z1" && it.child("phase").value == "question" } }
+        ecran.capture("zoom-mystere-question")
+        assertTrue(licornes.repondre(code, "z1", 1))
+        ecran.voit("Toutes les équipes ont répondu")
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("points du quiz pour la bonne réponse") { points(licornes, code, licornes.uid).takeIf { it >= Scoring.BASE } }
+        ecran.capture("zoom-mystere-revelation")
     }
 
     private val regies = mutableListOf<RegieSimulee>()

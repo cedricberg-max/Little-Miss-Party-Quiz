@@ -738,6 +738,13 @@ describe("Le Juste Chiffre", () => {
     await assertFails(answer("rose", 207));
     await assertSucceeds(answer("bleu", -3));
   });
+  test("Vrai ou Faux express : Vrai ou Faux seulement, une seule fois", async () => {
+    await seed({ kind: "express", choices: ["Vrai", "Faux"] });
+    await assertFails(answer("rose", 2));
+    await assertSucceeds(answer("rose", 1));
+    await assertFails(answer("rose", 0));
+    await assertSucceeds(answer("bleu", 0));
+  });
   test("question à propositions : un nombre hors des propositions reste refusé", async () => {
     await seed({ kind: "classic" });
     await assertFails(answer("rose", 206));

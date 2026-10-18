@@ -1,9 +1,9 @@
 // Prestation : ce que Sarah prépare dans l'administration (prénom, âge, profil, manches dans l'ordre)
 // et que la régie charge sur la TV. Fonctions pures, sans Firebase.
-import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
+import { PROFILES, profileForAge, defaultDuration, expressDuration } from "./profiles.js";
 import { shuffle } from "./mime-cards.js";
 
-export const ROUND_TYPES = { quiz: "Quiz", finale: "Super Finale", mimes: "Mimes" };
+export const ROUND_TYPES = { quiz: "Quiz", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", mimes: "Mimes" };
 /** Durée d'un tour de mimes par défaut (secondes). */
 export const MIME_TURN = 60;
 export const MAX_QUESTIONS = 200;
@@ -18,6 +18,20 @@ export function playable(quiz) {
     ? Number.isInteger(q.correct)
     : q.correct >= 0 && q.correct < (q.choices?.length ?? 0)));
 }
+
+const isYesNo = (q) => q.kind !== "number" && q.choices?.length === 2 && q.choices.map((c) => c.toLowerCase()).join("/") === "vrai/faux";
+
+/** Affirmations jouables au Vrai ou Faux express : les questions Vrai / Faux validées du quiz. */
+export const expressQuestions = (quiz) => playable(quiz).filter(isYesNo);
+
+/** Questions jouables au Zoom mystère : les questions à propositions validées qui ont une photo. */
+export const zoomQuestions = (quiz) => playable(quiz).filter((q) => q.kind !== "number" && /^[0-9a-f]{16}$/.test(q.imageId ?? ""));
+
+/** Mini-jeux construits à partir d'un quiz : les questions retenues et ce qui manque quand il n'y en a pas. */
+export const QUIZ_GAMES = {
+  express: { questions: expressQuestions, unit: "affirmation", missing: "aucune question Vrai / Faux validée pour le Vrai ou Faux express" },
+  zoom: { questions: zoomQuestions, unit: "photo", missing: "aucune question avec photo pour le Zoom mystère (ajoutez des photos dans le quiz)" },
+};
 
 /** Une manche est-elle complète (quiz choisi, ou paquet de mimes choisi) ? */
 export const roundFilled = (round) => !!(round && (round.type === "mimes" ? round.deckId : round.quizId));
@@ -60,21 +74,28 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       return;
     }
     const quiz = quizzes[round.quizId];
-    const label = round.type === "finale" ? ROUND_TYPES.finale : quiz?.title ?? `Manche ${i + 1}`;
+    const express = round.type === "express";
+    const zoom = round.type === "zoom";
+    const game = QUIZ_GAMES[round.type];
+    const label = round.type === "finale" || game ? ROUND_TYPES[round.type] : quiz?.title ?? `Manche ${i + 1}`;
     if (!quiz) { problems.push(`Manche ${i + 1} : le quiz n'existe plus dans la bibliothèque.`); return; }
-    const list = playable(quiz);
-    if (!list.length) { problems.push(`Manche ${i + 1} (${quiz.title}) : aucune question validée.`); return; }
+    const list = game ? game.questions(quiz) : playable(quiz);
+    if (!list.length) {
+      problems.push(`Manche ${i + 1} (${quiz.title}) : ${game?.missing ?? "aucune question validée"}.`);
+      return;
+    }
     rounds.push({ title: label, count: list.length });
     list.forEach((q, j) => {
       const number = q.kind === "number";
-      const yesNo = !number && q.choices.length === 2 && q.choices.map((c) => c.toLowerCase()).join("/") === "vrai/faux";
+      const yesNo = isYesNo(q);
       questions.push({
         id: `r${i + 1}q${j + 1}`,
         text: q.text,
         ...(number ? {} : { choices: q.choices }),
         correct: q.correct,
-        duration: q.duration ?? defaultDuration(profile),
-        kind: number ? "number" : yesNo ? "true_false" : "classic",
+        // Express : le chrono court du profil, toujours (c'est le jeu).
+        duration: express ? expressDuration(profile) : q.duration ?? defaultDuration(profile),
+        kind: express ? "express" : zoom ? "zoom" : number ? "number" : yesNo ? "true_false" : "classic",
         double: round.type === "finale" || q.double === true,
         round: label,
         // Illustration facultative montrée à la révélation (émoji, ou photo copiée dans la partie par la régie).
@@ -105,7 +126,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
 export function estimateMinutes(snapshot) {
   if (!snapshot) return 0;
   // Mimes : deux tours d'équipe environ, plus les changements d'équipe.
-  const sec = snapshot.quiz.questions.reduce((t, q) => t + (q.kind === "mime" ? 2 * q.duration + 60 : q.duration + 30), 0);
+  const sec = snapshot.quiz.questions.reduce((t, q) => t + (q.kind === "mime" ? 2 * q.duration + 60 : q.kind === "express" ? q.duration + 5 : q.duration + 30), 0);
   return Math.round(sec / 60);
 }
 
