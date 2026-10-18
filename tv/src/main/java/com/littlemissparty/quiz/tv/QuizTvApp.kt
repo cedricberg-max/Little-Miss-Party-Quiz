@@ -340,6 +340,13 @@ private fun Lobby(state: UiState.Playing, actions: TvActions) {
     Row(Modifier.fillMaxSize().padding(horizontal = 56.dp, vertical = 40.dp)) {
         Column(Modifier.weight(1f).fillMaxHeight()) {
             Title()
+            // Prestation chargée depuis la régie : on accueille l'enfant fêté par son prénom.
+            when {
+                state.childName.isNotBlank() -> Text(
+                    "Joyeux anniversaire ${state.childName} !", color = Palette.Gold, fontSize = 34.sp, fontWeight = FontWeight.Bold,
+                )
+                state.title.isNotBlank() -> Text(state.title, color = Palette.Gold, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+            }
             Spacer(Modifier.height(32.dp))
             Text(
                 when {

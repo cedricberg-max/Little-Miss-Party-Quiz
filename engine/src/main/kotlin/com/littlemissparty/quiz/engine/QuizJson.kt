@@ -5,12 +5,22 @@ import org.json.JSONObject
 
 /**
  * Lecture d'un quiz au format JSON :
- * `{"id", "title", "questions": [{"id", "text", "choices": [...], "correct", "duration", "kind", "double"}]}`.
+ * `{"id", "title", "questions": [{"id", "text", "choices": [...], "correct", "duration", "kind", "double", "round"}]}`.
  * Toute erreur est signalée avec la question concernée, pour pouvoir la corriger.
  */
 object QuizJson {
-    fun parse(json: String): Quiz {
-        val o = JSONObject(json)
+    fun parse(json: String): Quiz = parse(JSONObject(json))
+
+    /**
+     * Quiz relu dans Firebase (instantané de prestation chargé par la régie) : des Map, des List
+     * et des Long au lieu d'un texte JSON. Mêmes vérifications que pour un fichier.
+     */
+    fun fromValue(value: Any?): Quiz {
+        require(value is Map<*, *>) { "Prestation sans quiz" }
+        return parse(JSONObject(value))
+    }
+
+    private fun parse(o: JSONObject): Quiz {
         val questions = o.getJSONArray("questions")
         return Quiz(
             id = o.getString("id"),
@@ -29,6 +39,7 @@ object QuizJson {
             durationSec = q.optInt("duration", 20),
             kind = QuestionKind.of(q.optString("kind")),
             double = q.optBoolean("double", false),
+            roundTitle = q.optString("round").ifBlank { null },
         )
     }
 }

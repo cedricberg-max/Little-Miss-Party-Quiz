@@ -71,6 +71,15 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #offline, body.re
 .regie .plan-item.current { outline: 2px solid var(--halo); }
 .regie .plan-item.done { opacity: .5; }
 .regie .plan-item b { color: var(--gold); font-weight: 700; }
+.regie .plan-round { margin: 8px 0 0; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--halo); }
+.regie .show-item {
+  display: flex; flex-direction: column; gap: 2px; text-align: left; width: 100%; min-height: 64px;
+  background: var(--night); color: var(--ink); border: 1px solid #3a2652; border-radius: 14px; padding: 10px 12px; font-size: 14px;
+}
+.regie .show-item b { font-size: 16px; }
+.regie .show-item span { color: var(--ink-soft); }
+.regie .show-item:disabled { opacity: .5; }
+.regie .link { align-self: center; color: var(--ink-soft); }
 
 .regie .actions { display: flex; flex-direction: column; gap: 8px; padding-bottom: 12px; }
 .regie .actions .row { display: flex; gap: 8px; }

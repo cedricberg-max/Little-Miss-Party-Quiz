@@ -110,14 +110,27 @@ games/$code
   pairingResult/$uid { status: ok|wrong|locked|full, at }   pairingLock { failures, until }
   regie/$uid   { pairedAt, via: password|pin } // password : écrit par le téléphone, accepté par les règles
                                                // si regieProof = settings/regie/hash ; pin : écrit par la box (2 au plus)
-  conducteur   { title, questions[] { text, choices, correct, double } }   // lisible par les régies seules
+  conducteur   { title, questions[] { text, choices, correct, double, round? } }   // lisible par les régies seules
+  show         { id, showId, title, childName, age, profile, rounds[], quiz { id, title, questions[] }, by, at }
+               // instantané de prestation écrit par une régie, salon d'attente seulement ; la box le vérifie
+  showStatus   { id, status: applied|refused, reason?, at }   // réponse de la box ; un id jugé n'est jamais rejugé
+  public       { title, childName? }                           // écrit par la box, lisible par les pupitres
   commands/$cmdId { type: next|pause|resume|close|adjust|undo|end, expectSeq, by, at, team?, delta?, target? }
   commandStatus/$cmdId { status: applied|stale|refused, reason?, seq?, at }   // même écriture que l'événement
 reports/$id    { kind, text, version, device, at }  // plantages de la box : écriture seule, lus par le workflow « Rapports »
 settings/regie { salt (lisible), hash (illisible), updatedAt, updatedBy }   // admin seulement (admin.html)
 regieGate/try  { uid, at }      // un essai de mot de passe toutes les 2 s, tous téléphones confondus
 regieProof/$uid { hash, gateAt, at }   // empreinte SHA-256(sel:mot de passe), une par essai, jamais relisible
+library/       // écriture : admin ; lecture : admin et téléphone dont regieProof = settings/regie/hash (pas le PIN, pas la box)
+  quizzes/$id  { title, theme?, ageMin?, ageMax?, source: gemini|tableur|json|saisie, createdAt, updatedAt, updatedBy,
+                 questions[] { text, choices, correct, duration?, double, status: brouillon|validee } }
+  shows/$id    { childName, age?, date?, title?, profile?, themes?, durationMin?, notes?, status: brouillon|publiee|archivee,
+                 origin, rounds[] { type: quiz|finale, quizId }, createdAt, updatedAt, updatedBy }
 ```
+
+- Prestation : la régie (mot de passe) lit `library`, compose l'instantané (`web/public/show.js` : questions
+  validées seulement, chrono du profil + lecture si pas de durée, finale doublée) et l'écrit dans `games/$code/show` ;
+  la box n'a jamais besoin de lire la bibliothèque et rejoue l'instantané après un redémarrage.
 
 - Lecture : l'hôte lit toute sa partie ; tout compte connecté lit `hostUid`, `state`, `teams`,
   `presence`, `buzz` ; une équipe lit sa seule réponse ; une régie lit aussi `log`, `answers`,

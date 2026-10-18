@@ -105,6 +105,23 @@
           "$cmd": {
             ".write": "auth != null && root.child('games').child($code).child('hostUid').val() === auth.uid"
           }
+        },
+        "public": {
+          ".read": "auth != null",
+          ".write": "auth != null && root.child('games').child($code).child('hostUid').val() === auth.uid",
+          ".validate": "newData.child('title').isString() && newData.child('title').val().length <= 120 && (!newData.child('childName').exists() || (newData.child('childName').isString() && newData.child('childName').val().length <= 40))"
+        },
+        "show": {
+          ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
+          ".write": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists() && root.child('games').child($code).child('state/phase').val() === 'lobby'",
+          ".validate": "newData.hasChildren(['id', 'title', 'quiz', 'by', 'at']) && newData.child('id').isString() && newData.child('id').val().length <= 40 && newData.child('title').isString() && newData.child('title').val().length <= 120 && newData.child('quiz/questions').exists() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
+          "childName": {
+            ".validate": "newData.isString() && newData.val().length <= 40"
+          }
+        },
+        "showStatus": {
+          ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
+          ".write": "auth != null && root.child('games').child($code).child('hostUid').val() === auth.uid"
         }
       }
     },
@@ -117,6 +134,29 @@
         },
         "updatedAt": {
           ".read": "auth != null"
+        }
+      }
+    },
+    "library": {
+      ".read": "(auth != null && auth.token.email_verified === true && auth.token.email.matches(/^(littlemisspartyspa@gmail[.]com|berguig[.]cedric@gmail[.]com)$/)) || (auth != null && root.child('settings/regie/hash').isString() && root.child('regieProof').child(auth.uid).child('hash').val() === root.child('settings/regie/hash').val())",
+      "quizzes": {
+        "$id": {
+          ".write": "auth != null && auth.token.email_verified === true && auth.token.email.matches(/^(littlemisspartyspa@gmail[.]com|berguig[.]cedric@gmail[.]com)$/)",
+          ".validate": "!newData.exists() || (newData.child('title').isString() && newData.child('title').val().length >= 1 && newData.child('title').val().length <= 120 && newData.child('questions').hasChildren() && newData.child('updatedAt').val() === now)",
+          "questions": {
+            "$i": {
+              ".validate": "newData.child('text').isString() && newData.child('text').val().length <= 300 && newData.child('choices').hasChildren() && newData.child('correct').isNumber() && newData.child('status').val().matches(/^(brouillon|validee)$/)",
+              "duration": {
+                ".validate": "newData.isNumber() && newData.val() >= 5 && newData.val() <= 120"
+              }
+            }
+          }
+        }
+      },
+      "shows": {
+        "$id": {
+          ".write": "auth != null && auth.token.email_verified === true && auth.token.email.matches(/^(littlemisspartyspa@gmail[.]com|berguig[.]cedric@gmail[.]com)$/)",
+          ".validate": "!newData.exists() || (newData.child('childName').isString() && newData.child('childName').val().length >= 1 && newData.child('childName').val().length <= 40 && newData.child('status').isString() && newData.child('status').val().matches(/^(brouillon|publiee|archivee)$/) && newData.child('updatedAt').val() === now)"
         }
       }
     },

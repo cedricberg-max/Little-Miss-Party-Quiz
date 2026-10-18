@@ -27,6 +27,7 @@
 
     <section id="screen-join" class="screen">
       <div class="logo">Little Miss Party<br><span>QUIZ</span></div>
+      <p id="join-welcome" class="welcome" hidden></p>
       <label for="team-name">Nom de votre équipe</label>
       <input id="team-name" maxlength="20" autocomplete="off" placeholder="Les Licornes">
       <p class="label">Votre couleur</p>
@@ -103,9 +104,11 @@
       <nav class="tabs">
         <button id="tab-teams" class="tab active">Équipes</button>
         <button id="tab-plan" class="tab">Conducteur</button>
+        <button id="tab-show" class="tab" hidden>Prestation</button>
       </nav>
       <div id="panel-teams" class="panel"></div>
       <div id="panel-plan" class="panel" hidden></div>
+      <div id="panel-show" class="panel" hidden></div>
 
       <div id="r-toast" class="toast" hidden></div>
       <div id="undo" class="undo" hidden><span id="undo-text"></span><button id="undo-go">Annuler</button></div>

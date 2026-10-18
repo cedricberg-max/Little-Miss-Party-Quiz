@@ -22,6 +22,8 @@ data class Question(
     val kind: QuestionKind = QuestionKind.CLASSIC,
     /** Question de Super Finale : points doublés. */
     val double: Boolean = false,
+    /** Manche de la prestation (titre affiché sur le conducteur de la régie). */
+    val roundTitle: String? = null,
 ) {
     init {
         require(id.isNotBlank()) { "Question sans identifiant" }

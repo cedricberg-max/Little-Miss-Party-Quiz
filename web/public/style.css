@@ -29,6 +29,7 @@ body {
 .logo span { color: var(--gold); font-size: 52px; letter-spacing: 8px; }
 .logo.small { font-size: 40px; }
 .hint { opacity: .85; font-size: 18px; margin: 0; }
+.welcome { margin: 0; font-size: 22px; font-weight: 800; color: var(--gold); }
 label, .label { font-weight: 700; font-size: 18px; margin: 8px 0 0; }
 
 input {
