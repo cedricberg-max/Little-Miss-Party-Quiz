@@ -129,6 +129,9 @@ function showReplaced(team) {
   show("replaced");
 }
 
+// Nouvelle page, nouvelle prestation : on part d'un champ vide, même si le navigateur a gardé un ancien nom.
+$("team-name").value = "";
+
 function showJoin(late = false) {
   lateJoin = late;
   $("join-late").hidden = !late;
