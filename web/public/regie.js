@@ -1,5 +1,5 @@
 import {
-  ref, get, set, push, onValue, serverTimestamp,
+  ref, get, set, push, onValue, serverTimestamp, query, limitToFirst,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { CHOICE_LETTERS } from "./theme.js";
 import { writeProof } from "./proof.js";
@@ -50,19 +50,28 @@ export async function hasAccess(ctx, gameCode) {
 /**
  * Mot de passe commun des animatrices. La comparaison est faite par le serveur (règles Firebase) :
  * l'accès à la partie n'est accepté que si l'empreinte envoyée est la bonne.
- * Résultat : "ok", "wrong", "unset" (aucun mot de passe enregistré) ou "busy".
+ * Résultat : "ok", "wrong", "ended" (partie terminée ou inconnue), "refused" (mot de passe bon mais
+ * accès refusé deux fois), "unset" (aucun mot de passe enregistré) ou "busy".
  */
 export async function loginWithPassword(ctx, gameCode, password) {
-  const proof = await writeProof(ctx, "regie", password);
-  if (proof !== "written") return proof;
-  try {
-    await set(ref(ctx.db, `games/${gameCode}/regie/${ctx.uid}`), { pairedAt: serverTimestamp(), via: "password" });
-    return "ok";
-  } catch {
-    // Refus du serveur : soit le mot de passe, soit une partie terminée ou inconnue (ancien QR code).
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const proof = await writeProof(ctx, "regie", password);
+    if (proof !== "written") return proof;
+    try {
+      await set(ref(ctx.db, `games/${gameCode}/regie/${ctx.uid}`), { pairedAt: serverTimestamp(), via: "password" });
+      return "ok";
+    } catch (e) {
+      console.error("Accès régie refusé", e);
+    }
+    // Refus du serveur : partie terminée ou inconnue (ancien QR code), mauvais mot de passe, ou tour
+    // d'essai perdu (réseau lent) : dans ce dernier cas seulement, un second essai suffit.
     const phase = await get(ref(ctx.db, `games/${gameCode}/state/phase`)).then((s) => s.val(), () => null);
-    return phase == null || phase === "ended" ? "ended" : "wrong";
+    if (phase == null || phase === "ended") return "ended";
+    // La bibliothèque ne s'ouvre qu'avec le bon mot de passe de régie : elle dit si c'est lui le problème.
+    const accepted = await get(query(ref(ctx.db, "library/shows"), limitToFirst(1))).then(() => true, () => false);
+    if (!accepted) return "wrong";
   }
+  return "refused";
 }
 
 /**
