@@ -322,6 +322,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             val g = game ?: return@withLock
             when (g.state.phase) {
                 Phase.LOBBY -> if (teams().isNotEmpty()) commit(g.next(serverNow()))
+                // Chrono qui vient de partir : second appui d'un double clic, même livré en retard par la box.
+                Phase.QUESTION -> if (!g.justStarted(serverNow())) commit(g.close(serverNow()))
                 Phase.CLOSED -> commit(g.reveal(serverNow(), collectAnswers()))
                 else -> commit(g.next(serverNow()))
             }

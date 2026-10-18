@@ -194,4 +194,22 @@ class PauseTest {
         assertEquals(CommandStatus.REFUSED, g.execute(Command.Resume("r2", g.state.lastSeq), t0 + 3_100, teams).status)
         assertEquals(CommandStatus.APPLIED, g.execute(Command.Close("c2", g.state.lastSeq), t0 + 8_000, teams).status)
     }
+
+    @Test
+    fun `double appui sur OK, le chrono qui vient de partir ne s'arrete pas tout de suite`() {
+        val g = Game(quiz)
+        g.next(t0)
+        // Le second appui arrive 636 ms plus tard sur l'émulateur, bien après la garde de 500 ms de la box.
+        assertTrue(g.justStarted(t0 + 636))
+        assertFalse(g.justStarted(t0 + CLOSE_GUARD_MS))
+        // Après une pause, même protection à la reprise du chrono (décompte compris).
+        g.pause(t0 + 5_000)
+        assertFalse(g.justStarted(t0 + 5_100), "En pause, rien à protéger")
+        g.resume(t0 + 8_000)
+        assertTrue(g.justStarted(t0 + 9_000), "Pendant le décompte 3, 2, 1")
+        assertTrue(g.justStarted(t0 + 11_000 + 600))
+        assertFalse(g.justStarted(t0 + 11_000 + CLOSE_GUARD_MS))
+        g.close(t0 + 20_000)
+        assertFalse(g.justStarted(t0 + 20_100), "Question fermée")
+    }
 }
