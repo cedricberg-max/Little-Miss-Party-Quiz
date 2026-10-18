@@ -352,7 +352,7 @@ private fun TeamGlow(color: Color) {
     Box(
         Modifier.fillMaxSize().graphicsLayer { alpha = pulse }.drawWithCache {
             val r = size.minDimension * 0.75f
-            val halo = Brush.radialGradient(listOf(color.copy(alpha = 0.45f), Color.Transparent), center = center, radius = r)
+            val halo = Brush.radialGradient(listOf(color.copy(alpha = 0.45f), Color.Transparent), center = Offset(size.width / 2, size.height / 2), radius = r)
             onDrawBehind { drawCircle(halo, radius = r) }
         },
     )
