@@ -46,9 +46,24 @@ describe("lecture", () => {
     await seed();
     await assertFails(get(ref(db("rose"), "games")));
   });
-  test("une équipe lit sa partie", async () => {
+  test("une équipe lit l'état, les équipes et le buzzer, pas le reste", async () => {
     await seed();
-    await assertSucceeds(get(ref(db("rose"), `games/${CODE}`)));
+    await assertSucceeds(get(ref(db("rose"), `games/${CODE}/state`)));
+    await assertSucceeds(get(ref(db("rose"), `games/${CODE}/teams`)));
+    await assertSucceeds(get(ref(db("rose"), `games/${CODE}/buzz`)));
+    await assertFails(get(ref(db("rose"), `games/${CODE}`)));
+    await assertFails(get(ref(db("rose"), `games/${CODE}/log`)));
+  });
+  test("la box lit toute sa partie", async () => {
+    await seed();
+    await assertSucceeds(get(ref(db(HOST), `games/${CODE}`)));
+  });
+  test("une équipe voit sa propre réponse, pas celles des autres", async () => {
+    await seed();
+    await answer("rose", 1);
+    await assertSucceeds(get(ref(db("rose"), `games/${CODE}/answers/q1/rose`)));
+    await assertFails(get(ref(db("bleu"), `games/${CODE}/answers/q1/rose`)));
+    await assertFails(get(ref(db("rose"), `games/${CODE}/answers/q1`)));
   });
 });
 
@@ -182,5 +197,91 @@ describe("rapports de plantage", () => {
   });
   test("un rapport géant est refusé", async () => {
     await assertFails(set(ref(db(HOST), "reports/r2"), { ...report, text: "x".repeat(20001) }));
+  });
+});
+
+describe("régie", () => {
+  const REGIE = "tel";
+  const pair = (uid, body) => set(ref(db(uid), `games/${CODE}/pairing/${uid}`), { ...body, at: serverTimestamp() });
+  const command = (uid, body) =>
+    set(ref(db(uid), `games/${CODE}/commands/c-${uid}-${body.type}`), { expectSeq: 3, by: uid, at: serverTimestamp(), ...body });
+  async function paired() {
+    await seed();
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/${REGIE}`), { pairedAt: 1 }));
+  }
+
+  test("un téléphone demande l'appairage avec un code à 4 chiffres", async () => {
+    await seed();
+    await assertSucceeds(pair(REGIE, { pin: "0427" }));
+    await assertSucceeds(get(ref(db(REGIE), `games/${CODE}/pairing/${REGIE}`)));
+  });
+  test("demande mal formée refusée (pas 4 chiffres, heure du téléphone, champ en plus)", async () => {
+    await seed();
+    await assertFails(pair(REGIE, { pin: "12345" }));
+    await assertFails(pair(REGIE, { pin: "12a4" }));
+    await assertFails(set(ref(db(REGIE), `games/${CODE}/pairing/${REGIE}`), { pin: "1234", at: 1 }));
+    await assertFails(pair(REGIE, { pin: "1234", admin: true }));
+  });
+  test("chemin compte animatrice fermé tant qu'aucune adresse n'est enregistrée", async () => {
+    await seed();
+    await assertFails(pair(REGIE, { staff: true }));
+  });
+  test("personne ne lit la demande d'un autre ni ne s'appaire seul", async () => {
+    await seed();
+    await pair(REGIE, { pin: "0427" });
+    await assertFails(get(ref(db("espion"), `games/${CODE}/pairing/${REGIE}`)));
+    await assertFails(get(ref(db("espion"), `games/${CODE}/pairing`)));
+    await assertFails(set(ref(db(REGIE), `games/${CODE}/regie/${REGIE}`), { pairedAt: 1 }));
+    await assertFails(set(ref(db(REGIE), `games/${CODE}/pairingResult/${REGIE}`), "ok"));
+  });
+  test("la box juge la demande : elle l'efface et appaire le téléphone", async () => {
+    await seed();
+    await pair(REGIE, { pin: "0427" });
+    await assertSucceeds(update(ref(db(HOST), `games/${CODE}`), {
+      [`pairing/${REGIE}`]: null, [`regie/${REGIE}`]: { pairedAt: 1 }, [`pairingResult/${REGIE}`]: "ok",
+      pairingLock: { failures: 0 },
+    }));
+    await assertSucceeds(get(ref(db(REGIE), `games/${CODE}/regie/${REGIE}`)));
+    await assertSucceeds(get(ref(db(REGIE), `games/${CODE}/pairingResult/${REGIE}`)));
+  });
+  test("une régie appairée pilote par commandes et lit le conducteur, le journal et les réponses", async () => {
+    await paired();
+    await assertSucceeds(command(REGIE, { type: "next" }));
+    await assertSucceeds(command(REGIE, { type: "adjust", team: "rose", delta: -10 }));
+    await assertSucceeds(get(ref(db(REGIE), `games/${CODE}/conducteur`)));
+    await assertSucceeds(get(ref(db(REGIE), `games/${CODE}/log`)));
+    await assertSucceeds(get(ref(db(REGIE), `games/${CODE}/answers/q1`)));
+    await assertSucceeds(get(ref(db(REGIE), `games/${CODE}/commandStatus`)));
+  });
+  test("la régie ne touche jamais directement l'état, les scores ni le journal", async () => {
+    await paired();
+    await assertFails(update(ref(db(REGIE), `games/${CODE}/state`), { phase: "reveal" }));
+    await assertFails(set(ref(db(REGIE), `games/${CODE}/log/000001`), { seq: 1, at: 1, type: "adjust" }));
+    await assertFails(set(ref(db(REGIE), `games/${CODE}/commandStatus/x`), { status: "applied" }));
+  });
+  test("une équipe ou un inconnu ne peut ni commander ni lire le conducteur", async () => {
+    await paired();
+    await assertFails(command("rose", { type: "next" }));
+    await assertFails(get(ref(db("rose"), `games/${CODE}/conducteur`)));
+    await assertFails(get(ref(db("rose"), `games/${CODE}/commands`)));
+  });
+  test("commande mal formée refusée", async () => {
+    await paired();
+    await assertFails(command(REGIE, { type: "tricher" }));
+    await assertFails(command(REGIE, { type: "adjust", team: "rose", delta: 9999 }));
+    await assertFails(command(REGIE, { type: "next", by: "autre" }));
+    await assertFails(command(REGIE, { type: "next", at: 1 }));
+    await assertFails(command(REGIE, { type: "next", points: 50 }));
+    await assertFails(set(ref(db(REGIE), `games/${CODE}/commands/sans-seq`), { type: "next", by: REGIE, at: serverTimestamp() }));
+  });
+  test("une commande ne se réécrit pas", async () => {
+    await paired();
+    await assertSucceeds(command(REGIE, { type: "pause" }));
+    await assertFails(command(REGIE, { type: "pause" }));
+  });
+  test("une régie retirée par la box ne commande plus", async () => {
+    await paired();
+    await assertSucceeds(set(ref(db(HOST), `games/${CODE}/regie/${REGIE}`), null));
+    await assertFails(command(REGIE, { type: "next" }));
   });
 });

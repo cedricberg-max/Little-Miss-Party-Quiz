@@ -102,9 +102,20 @@ games/$code
   presence/$uid { online, at }                 // onDisconnect -> online:false
   answers/$qid/$uid { choice, at }             // écriture unique, at = heure serveur, question ouverte et hors pause
   buzz/$round  { team, at }                    // buzzer de test du salon
+  // Régie (lot 2, PR « régie mobile ») : lecture par chemin, plus de lecture globale de la partie
+  pairing/$uid { pin | staff, at }             // demande du téléphone ; la box l'efface après jugement
+  pairingResult/$uid { status: ok|wrong|locked|full, at }   pairingLock { failures, until }
+  regie/$uid   { pairedAt, via: pin|staff }    // écrit par la box seule, 2 au plus
+  conducteur   { title, questions[] { text, choices, correct, double } }   // lisible par les régies seules
+  commands/$cmdId { type: next|pause|resume|close|adjust|undo|end, expectSeq, by, at, team?, delta?, target? }
+  commandStatus/$cmdId { status: applied|stale|refused, reason?, seq?, at }   // même écriture que l'événement
 reports/$id    { kind, text, version, device, at }  // plantages de la box : écriture seule, lus par le workflow « Rapports »
 ```
 
+- Lecture : l'hôte lit toute sa partie ; tout compte connecté lit `hostUid`, `state`, `teams`,
+  `presence`, `buzz` ; une équipe lit sa seule réponse ; une régie lit aussi `log`, `answers`,
+  `conducteur`, `commands`, `commandStatus`. Les commandes sont jugées par `Game.execute`
+  (`engine/Commands.kt`) ; les identifiants déjà présents dans `commandStatus` ne sont jamais rejoués.
 - Le moteur (`engine/`, Kotlin pur, testé sans Android) rejoue `log/` pour reconstruire l'état ;
   `state` n'est qu'une projection publique, réécrite dans le **même** `updateChildren` que l'événement.
 - Événements : `open`, `pause`, `resume`, `close`, `reveal` (points figés par question : une seconde
@@ -121,7 +132,6 @@ reports/$id    { kind, text, version, device, at }  // plantages de la box : éc
 ```
 games/$code
   public       { title, childName, takenColors, phase }   // seul nœud lisible avant de rejoindre
-  pairing/$uid { pin?, staff?, at }   pairingLock { failures, until }   regie/$uid { pairedAt, via }
   conducteur   { rounds, questions avec bonnes réponses }  // publié par la box, lisible par les régies seules
   showId                        // prestation chargée, écrit par la box
   commands/$cmdId { type, args, expectSeq, by, at }    commandStatus/$cmdId

@@ -31,6 +31,9 @@ class MainActivity : ComponentActivity() {
                     newGame = viewModel::newGame,
                     // La partie active reste mémorisée : elle sera proposée au prochain lancement.
                     quit = ::finish,
+                    showRegie = viewModel::showRegie,
+                    hideRegie = viewModel::hideRegie,
+                    removeRegies = viewModel::removeRegies,
                 ),
             )
         }
