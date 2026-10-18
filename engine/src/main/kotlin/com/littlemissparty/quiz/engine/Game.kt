@@ -72,6 +72,17 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         return (q.durationMs - state.elapsedAt(now)).coerceAtLeast(0)
     }
 
+    /**
+     * Le chrono vient de (re)partir, il y a moins de [ms] : un appui sur « Arrêter le chrono » à cet instant
+     * est presque toujours le second appui d'un double clic sur OK (celui qui a lancé la question ou la reprise).
+     * Mesuré sur l'heure du serveur, il ne dépend pas du moment où la télécommande livre l'appui.
+     */
+    fun justStarted(now: Long, ms: Long = CLOSE_GUARD_MS): Boolean {
+        if (state.phase != Phase.QUESTION || state.paused) return false
+        val start = state.segments.lastOrNull()?.start ?: return false
+        return now - start < ms
+    }
+
     /** Heure du serveur à laquelle le chrono atteindra zéro, ou null s'il est en pause ou arrêté. */
     fun deadline(): Long? {
         val q = question ?: return null

@@ -36,6 +36,9 @@ const val PAUSE_TEAM = "team"
 /** Durée du décompte 3, 2, 1 à la reprise. */
 const val RESUME_COUNTDOWN_MS = 3000L
 
+/** Délai pendant lequel la télécommande ne peut pas arrêter un chrono qui vient de partir (double appui sur OK). */
+const val CLOSE_GUARD_MS = 1500L
+
 /** Plus aucune réponse n'est acceptée pour la question en cours. */
 data class QuestionClosed(override val seq: Int, override val at: Long) : GameEvent
 
