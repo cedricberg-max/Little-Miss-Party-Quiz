@@ -10,11 +10,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -243,16 +240,10 @@ private fun Buttons(content: @Composable () -> Unit) {
 
 @Composable
 private fun Primary(label: String, onClick: () -> Unit, focus: FocusRequester) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier.focusRequester(focus),
-        colors = ButtonDefaults.buttonColors(containerColor = Palette.Gold, contentColor = Palette.Night),
-    ) { Text(label, fontSize = 22.sp, fontWeight = FontWeight.Bold) }
+    TvButton(label, onClick, Modifier.focusRequester(focus), primary = true)
 }
 
 @Composable
 private fun Secondary(label: String, onClick: () -> Unit, focus: FocusRequester? = null) {
-    OutlinedButton(onClick = onClick, modifier = if (focus != null) Modifier.focusRequester(focus) else Modifier) {
-        Text(label, color = Color.White, fontSize = 20.sp)
-    }
+    TvButton(label, onClick, if (focus != null) Modifier.focusRequester(focus) else Modifier, fontSize = 20.sp)
 }

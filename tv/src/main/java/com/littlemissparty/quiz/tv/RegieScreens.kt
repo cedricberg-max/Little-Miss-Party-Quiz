@@ -8,9 +8,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -61,16 +58,8 @@ fun RegieDialog(state: UiState.Playing, onClose: () -> Unit, onRemove: () -> Uni
                 )
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Button(
-                        onClick = onClose,
-                        modifier = Modifier.focusRequester(focus),
-                        colors = ButtonDefaults.buttonColors(containerColor = Palette.Gold, contentColor = Palette.Night),
-                    ) { Text("Fermer", fontSize = 22.sp, fontWeight = FontWeight.Bold) }
-                    if (state.regies > 0) {
-                        OutlinedButton(onClick = onRemove) {
-                            Text("Retirer les régies", color = Palette.Pink, fontSize = 20.sp, textAlign = TextAlign.Center)
-                        }
-                    }
+                    TvButton("Fermer", onClose, Modifier.focusRequester(focus), primary = true)
+                    if (state.regies > 0) TvButton("Retirer les régies", onRemove, accent = Palette.Pink, fontSize = 20.sp)
                 }
             }
         }
