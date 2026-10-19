@@ -153,6 +153,12 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .ask-box .modal-title { font-size: 22px; color: var(--gold); }
 .regie .team .pts-open { width: auto; padding: 0 12px; white-space: nowrap; color: var(--gold); }
 .regie .pts-box { gap: 10px; text-align: center; }
+/* « ± Points » toujours à portée pendant les mimes, le Pictionary et le blind test (onglets masqués). */
+.regie .control:not(.mime-mode):not(.blind-mode) #c-points { display: none; }
+.regie .pts-teams { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.regie .pts-teams:empty { display: none; }
+.regie .pts-teams button { min-height: 40px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--trait); background: var(--panel); color: var(--ink); font-size: 15px; font-weight: 800; }
+.regie .pts-teams button.on { outline: 2px solid var(--gold); background: rgba(240, 204, 146, .16); }
 .regie .pts-sign { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: var(--panel); border-radius: 14px; padding: 4px; }
 .regie .pts-sign button { min-height: 44px; border: 0; border-radius: 11px; background: transparent; color: var(--ink-soft); font-size: 17px; font-weight: 800; }
 .regie .pts-sign #pts-bonus.on { background: linear-gradient(180deg, #F6DAAA, #E0B577); color: #2a1240; }
