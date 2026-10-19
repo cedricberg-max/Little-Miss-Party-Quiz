@@ -97,7 +97,9 @@ fun HabillageTv(state: UiState) {
     val disparu = (state as? UiState.Playing)?.let { s -> s.question?.takeIf { it.isDisparu }?.let { etapeDisparu(it, s).ordinal + 1 } } ?: 0
     val instant = remember(state, urgent, indices, statue, disparu, decompte) { instantDe(state, urgent, System.currentTimeMillis(), indices, statue, disparu, decompte) }
     LaunchedEffect(instant) { Sons.executer(Habillage.directeur.observer(instant)) }
-    DecorPlateau(chaud = urgent)
+    // Dernières questions du quiz à points multipliés : le plateau passe au doré, de la question à sa révélation.
+    val dore = (state as? UiState.Playing)?.let { it.question?.double == true && it.phase in listOf(Phase.QUESTION, Phase.CLOSED, Phase.REVEAL) } == true
+    DecorPlateau(chaud = urgent, dore = dore)
 }
 
 internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indices: Int = 0, statue: Boolean = false, disparu: Int = 0, decompte: Int = 0): Instant {
@@ -295,7 +297,7 @@ private fun secondesRestantes(s: UiState.Playing?): Int {
 private const val RESPIRATION_MS = 7_000L
 
 @Composable
-fun DecorPlateau(chaud: Boolean) {
+fun DecorPlateau(chaud: Boolean, dore: Boolean = false) {
     val battement = remember { mutableFloatStateOf(0f) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -305,6 +307,7 @@ fun DecorPlateau(chaud: Boolean) {
         }
     }
     val chaleur by animateFloatAsState(if (chaud) 1f else 0f, tween(600), label = "chaleur")
+    val or by animateFloatAsState(if (dore) 1f else 0f, tween(1_200), label = "dore")
     Box(Modifier.fillMaxSize()) {
         // Fond, sol et projecteurs : ne se redessinent jamais.
         Box(
@@ -339,6 +342,28 @@ fun DecorPlateau(chaud: Boolean) {
                     }
                 },
         )
+        // Plateau doré : lumière d'or qui tombe d'en haut et monte du sol, et poussière d'or ; respire comme les halos.
+        if (or > 0.01f) {
+            Box(
+                Modifier.fillMaxSize()
+                    .graphicsLayer { alpha = or * (0.75f + 0.25f * battement.floatValue) }
+                    .drawWithCache {
+                        val w = size.width
+                        val h = size.height
+                        val haut = Brush.radialGradient(listOf(Neon.OrClair.copy(alpha = 0.28f), Color.Transparent), Offset(w / 2, -h * 0.1f), w * 0.6f)
+                        val sol = Brush.radialGradient(listOf(Color(0xFFFFAA5A).copy(alpha = 0.30f), Color.Transparent), Offset(w / 2, h * 1.05f), w * 0.5f)
+                        val voile = Brush.verticalGradient(listOf(Color(0x33FF9A4A), Color(0x14F0CC92), Color(0x33FF9A4A)))
+                        onDrawBehind {
+                            drawRect(voile)
+                            drawRect(haut)
+                            drawRect(sol)
+                            positionsOr.forEachIndexed { k, o ->
+                                drawCircle(Neon.OrClair.copy(alpha = 0.35f + 0.2f * (k % 3)), size.minDimension * (0.003f + 0.0015f * (k % 2)), Offset(o.x * w, o.y * h))
+                            }
+                        }
+                    },
+            )
+        }
         if (chaleur > 0.01f) {
             Box(
                 Modifier.fillMaxSize()
@@ -392,6 +417,8 @@ private fun faisceau(w: Float, h: Float, x: Float, degres: Float): Pair<Path, Br
     val lumiere = Brush.verticalGradient(listOf(Color.Transparent, Neon.Blanc.copy(alpha = 0.09f), Color.Transparent), pied.y - dy, pied.y)
     return chemin to lumiere
 }
+
+private val positionsOr = List(24) { i -> Offset(((i * 0.437f + 0.05f) % 1f), 0.15f + ((i * 0.291f + 0.13f) % 0.8f)) }
 
 private val positions = List(18) { i -> Offset(((i * 0.618f + 0.11f) % 1f), ((i * 0.377f + 0.07f) % 0.75f)) }
 

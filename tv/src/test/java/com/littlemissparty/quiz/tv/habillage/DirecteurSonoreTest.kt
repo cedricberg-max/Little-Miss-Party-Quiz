@@ -84,8 +84,11 @@ class DirecteurSonoreTest {
         d.observer(q1)
         d.observer(q2)
         // Passage aux points ×2 : un éclat « points doublés », une seule fois, sans jingle de manche ni transition.
-        val bascule = d.observer(q2.copy(index = 8, superFinale = true)).sons()
+        val basculeOrdres = d.observer(q2.copy(index = 8, superFinale = true))
+        val bascule = basculeOrdres.sons()
         assertTrue(Son.BT_DOUBLE in bascule)
+        // La musique devient un peu plus pressante pendant ces questions.
+        assertEquals(Ambiance.DECISIVE, basculeOrdres.musique())
         assertFalse(Son.MANCHE in bascule || Son.TRANSITION in bascule)
         // Les questions ×2 suivantes s'enchaînent comme les autres.
         val suivante = d.observer(q2.copy(index = 9, superFinale = true)).sons()

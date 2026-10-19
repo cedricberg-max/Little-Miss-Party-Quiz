@@ -367,6 +367,8 @@ class DirecteurSonore {
             i.jeuBuzz && i.ecran == Ecran.QUESTION -> if (i.buzzEquipe >= 0) Ambiance.SILENCE else Ambiance.SUSPENSE
             // Zoom mystère : musique en retrait sous la montée, comme l'Image floue.
             i.zoom && i.ecran == Ecran.QUESTION -> Ambiance.SUSPENSE
+            // Dernières questions à points multipliés : la musique devient un peu plus pressante (pas angoissante).
+            i.superFinale && i.ecran == Ecran.QUESTION -> Ambiance.DECISIVE
             else -> ambianceParDefaut(i.ecran)
         }
         else -> ambianceParDefaut(i.ecran)
@@ -496,6 +498,8 @@ enum class Ambiance(
     INTERMEDE(pause = 0.5f),
     /** Vrai ou Faux express : course contre la montre, sur toute la série. */
     EXPRESS(express = 0.5f),
+    /** Dernières questions du quiz à points multipliés : la rythmique nerveuse de l'express, un peu plus bas. */
+    DECISIVE(express = 0.4f),
     /** Qui a disparu ? : boîte à musique et harpe pendant qu'on mémorise les objets. */
     MEMOIRE(magie = 0.55f),
     /** Qui a disparu ? : le tour de magie, la boîte à musique s'efface sous l'« abracadabra ». */
