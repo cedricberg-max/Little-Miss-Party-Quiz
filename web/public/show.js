@@ -205,6 +205,27 @@ export const pictoSeriesOf = (w) => (typeof w?.series === "string" && w.series.t
 /** Les séries de ces mots, dans l'ordre où elles apparaissent. */
 export const pictoSeriesList = (words) => [...new Set(words.map(pictoSeriesOf))];
 
+/** Super Finale : nombre de dernières questions du quiz à ×2 quand une ancienne manche est convertie. */
+export const SUPER_FINALE_LAST = 3;
+
+/**
+ * Ancienne manche « Super Finale » (avant la 0.1.271) : ce n'est pas un jeu. Elle disparaît de la liste et
+ * devient le réglage du quiz qui la précède (ses dernières questions ×2). Sans quiz avant elle, elle devient
+ * une manche Quiz ordinaire dont les dernières questions comptent double. [folded] : manches converties.
+ */
+export function foldLegacyFinale(list) {
+  const rounds = [];
+  let folded = 0;
+  for (const r of (list ?? []).filter(Boolean)) {
+    if (r.type !== "finale") { rounds.push({ ...r }); continue; }
+    folded++;
+    const host = [...rounds].reverse().find((x) => (x.type ?? "quiz") === "quiz");
+    if (host) { if (!(host.finale > 0)) host.finale = SUPER_FINALE_LAST; }
+    else rounds.push({ type: "quiz", quizId: r.quizId, finale: SUPER_FINALE_LAST });
+  }
+  return { rounds, folded };
+}
+
 /** Séries retenues pour une manche de Pictionary, ou null pour toutes. */
 export const pictoRoundSeries = (round) => {
   const list = Array.isArray(round?.series) ? round.series.filter((x) => typeof x === "string" && x.trim()).map((x) => x.trim()) : [];

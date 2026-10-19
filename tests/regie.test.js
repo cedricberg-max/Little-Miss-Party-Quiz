@@ -1951,14 +1951,16 @@ describe("bibliothèque de quiz et prestations", () => {
     const page = await admin();
     await page.click("#home-new");
     await page.fill("#show-child", "Zoé");
-    await page.locator('#round-reuse option[value="lea/1"]', { hasText: "Super Finale : Finale" }).waitFor({ state: "attached" });
-    await page.selectOption("#round-reuse", "lea/1");
-    assert.equal(await page.locator("#show-rounds select.grow").inputValue(), "finale");
-    assert.equal(await page.locator("#show-rounds select").first().inputValue(), "finale");
+    await page.locator('#round-reuse option[value="lea/0"]').waitFor({ state: "attached" });
+    // L'ancienne manche « Super Finale » n'est pas un jeu : elle ne se reprend pas.
+    assert.equal(await page.locator('#round-reuse option[value="lea/1"]').count(), 0);
+    assert.equal(await page.locator("#round-reuse option", { hasText: "Super Finale" }).count(), 0);
+    await page.selectOption("#round-reuse", "lea/0");
+    assert.equal(await page.locator("#show-rounds select.grow").inputValue(), "animaux");
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "Enregistrée." }).waitFor();
     const shows = await library("shows");
-    assert.deepEqual(Object.values(shows).find((s) => s.childName === "Zoé").rounds, [{ type: "finale", quizId: "finale" }]);
+    assert.deepEqual(Object.values(shows).find((s) => s.childName === "Zoé").rounds, [{ type: "quiz", quizId: "animaux" }]);
     assert.deepEqual(shows.lea, LEA, "Ancienne prestation inchangée");
 
     // Dupliquer un quiz : la copie se modifie et s'enregistre à part.
@@ -1974,6 +1976,22 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(quizzes.animaux.questions[0].text, "Roi de la jungle ?", "Quiz d'origine inchangé");
     const copy = Object.values(quizzes).find((q) => q.title === "Animaux (copie)");
     assert.equal(copy.questions[0].text, "Qui est le roi de la savane ?");
+    await page.context().close();
+  });
+
+  test("Régie PC : une ancienne manche « Super Finale » n'est plus un jeu, elle devient les 3 dernières questions ×2 du quiz", async () => {
+    await seedLibrary("quizzes", { animaux: ANIMAUX, finale: FINALE });
+    await seedLibrary("shows", { vieille: { childName: "Léa", age: 7, date: "2099-12-02", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }, { type: "finale", quizId: "finale" }], updatedAt: 1 } });
+    const page = await admin();
+    await page.locator('#home-upcoming [data-show="vieille"]').getByRole("button", { name: "Ouvrir" }).click();
+    await page.locator("#show-status-msg", { hasText: "L'ancienne manche « Super Finale » est devenue le réglage du quiz" }).waitFor();
+    assert.equal(await page.locator("#show-rounds .round").count(), 1);
+    assert.equal(await page.locator("#show-rounds .round select").first().inputValue(), "quiz");
+    assert.equal(await page.locator("#show-rounds select.finale").inputValue(), "3");
+    assert.equal(await page.locator('#show-rounds .round select').first().locator('option[value="finale"]').count(), 0);
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
+    assert.deepEqual((await library("shows")).vieille.rounds, [{ type: "quiz", quizId: "animaux", finale: 3 }]);
     await page.context().close();
   });
 
@@ -2217,7 +2235,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
-  test("prestation de test « tous les jeux » d'une version précédente : le bouton lui ajoute le blind test sans rien retirer", async () => {
+  test("prestation de test « tous les jeux » d'une version précédente : le bouton lui ajoute les nouveaux jeux et retire l'ancienne manche Super Finale", async () => {
     const old = { childName: "Léa", age: 9, status: "publiee", title: "ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux", origin: "test", updatedAt: 1,
       rounds: [{ type: "quiz", quizId: "animaux" }, { type: "chante", count: 3 }, { type: "finale", quizId: "finale" }] };
     await seedLibrary("quizzes", { animaux: ANIMAUX, finale: FINALE });
@@ -2228,7 +2246,9 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#test-full-status", { hasText: "Mise à jour" }).waitFor({ timeout: 20000 });
     await page.context().close();
     const show = await library("shows/test-lea-tous-les-jeux");
-    assert.deepEqual(show.rounds.map((r) => r.type), ["quiz", "chante", "disparu", "blind", "musical", "statues", "pictionary", "quiz", "finale", "portes"]);
+    // L'ancienne manche « Super Finale » disparaît : les 3 dernières questions du quiz comptent double.
+    assert.deepEqual(show.rounds.map((r) => r.type), ["quiz", "chante", "disparu", "blind", "musical", "statues", "pictionary", "quiz", "portes"]);
+    assert.equal(show.rounds[0].finale, 3);
     assert.equal(show.rounds[7].quizId, "test-lea-tous-les-jeux-images");
     assert.equal((await library("quizzes"))["test-lea-tous-les-jeux-images"].questions.length, 2);
     assert.equal(show.childName, "Léa");

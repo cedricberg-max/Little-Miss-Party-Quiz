@@ -15,7 +15,7 @@ import {
   buildSnapshot, estimateMinutes, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, BUILTIN_GAMES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
   roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC, PICTO_SECONDS, PICTO_SEC, PICTO_POINTS, PICTO_RULE, PORTES_DOORS, PORTES_DEFAULT, PORTES_VALUES,
   blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras, contentSlot, contentImages,
-  pictoSeriesOf, pictoSeriesList, pictoRoundSeries,
+  pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale,
 } from "./show.js";
 import { PICTO_OWN_SERIES } from "./picto-cards.js";
 import { EXTRACT_SECONDS, guessTrack, defaultStart, decodeFile, makeExtract, synthTune, encodeMp3, soundId } from "./audio.js";
@@ -331,7 +331,9 @@ $("show-new").onclick = () => editShow(null);
 /** Ouvre une prestation ; sans identifiant, une nouvelle, vide ou copiée d'une autre (`from`). */
 function editShow(id, from = null) {
   const s = id ? shows[id] : from ? duplicateShow(from) : { status: "brouillon", rounds: [] };
-  editing = { id, rounds: (s.rounds ?? []).filter(Boolean).map((r) => ({ ...r })) };
+  // Une ancienne manche « Super Finale » n'est pas un jeu : elle devient le réglage ×2 du quiz qui la précède.
+  const { rounds, folded } = foldLegacyFinale(s.rounds);
+  editing = { id, rounds };
   $("show-edit-title").textContent = id ? showTitle(s) : from ? `Copie de « ${showTitle(from)} »` : "Nouvelle prestation";
   $("show-child").value = s.childName ?? "";
   $("show-age").value = s.age ?? "";
@@ -343,7 +345,8 @@ function editShow(id, from = null) {
   $("show-themes").value = s.themes ?? "";
   $("show-notes").value = s.notes ?? "";
   $("show-delete").hidden = !id;
-  status("show-status-msg", from ? "Copie prête : indiquez le prénom, l'âge et la date du nouvel anniversaire, puis enregistrez." : "", !!from);
+  status("show-status-msg", from ? "Copie prête : indiquez le prénom, l'âge et la date du nouvel anniversaire, puis enregistrez."
+    : folded ? "L'ancienne manche « Super Finale » est devenue le réglage du quiz (ses dernières questions ×2). Enregistrez pour garder ce changement." : "", !!from || !!folded);
   show("show-edit");
   refreshRounds();
   if (from) $("show-child").focus();
@@ -420,10 +423,8 @@ function refreshRounds() {
       h("span", { class: "num", text: `${i + 1}` }),
       h("select", { "aria-label": "Type de manche", onchange: (e) => { r.type = e.target.value; refreshRounds(); } },
         // La Super Finale n'est pas un jeu : c'est un réglage de la manche Quiz (ses dernières questions ×2).
-        // Une ancienne manche « Super Finale » reste lisible, mais on n'en crée plus.
-        ...Object.entries(ROUND_TYPES).filter(([k]) => k !== "finale" || r.type === "finale").map(([k, label]) => h("option", {
-          value: k, selected: (r.type ?? "quiz") === k,
-          text: k === "finale" ? "Super Finale (ancienne manche, fin du quiz précédent ×2)" : label,
+        ...Object.entries(ROUND_TYPES).filter(([k]) => k !== "finale").map(([k, label]) => h("option", {
+          value: k, selected: (r.type ?? "quiz") === k, text: label,
         }))),
       BUILTIN_GAMES[r.type]
         // Jeux au buzzer intégrés : rien à préparer, seulement combien de mots ou de personnages.
@@ -512,7 +513,8 @@ function refreshReuse() {
   const options = Object.entries(shows)
     .filter(([id]) => id !== editing?.id)
     .sort(([, a], [, b]) => (b.date ?? "").localeCompare(a.date ?? ""))
-    .flatMap(([id, s]) => (s.rounds ?? []).filter((r) => roundContent(r) != null).map((r, i) => ({
+    // Une ancienne manche « Super Finale » ne se reprend pas : ce n'est pas un jeu.
+    .flatMap(([id, s]) => (s.rounds ?? []).map((r, i) => [r, i]).filter(([r]) => r && r.type !== "finale" && roundContent(r) != null).map(([r, i]) => ({
       value: `${id}/${i}`, round: r,
       text: `${showTitle(s)}${s.date ? ` (${new Date(`${s.date}T12:00:00`).toLocaleDateString("fr-FR")})` : ""} · ${ROUND_TYPES[r.type] && r.type !== "quiz" ? ROUND_TYPES[r.type] : "Manche"}${roundContent(r) ? ` : ${roundContent(r)}` : ""}`,
     })));
@@ -1158,22 +1160,25 @@ $("test-full-create").onclick = async () => {
     if (existing) {
       // Prestation de test d'une version précédente : on lui ajoute seulement les jeux qui lui manquent
       // (avant la Super Finale), sans rien retirer ni modifier d'autre.
-      const rounds = (existing.rounds ?? []).filter(Boolean);
+      // L'ancienne manche « Super Finale » disparaît : les dernières questions du quiz comptent double à la place.
+      const { rounds, folded } = foldLegacyFinale(existing.rounds);
       const missing = FULL_NEW_ROUNDS.filter((m) => !rounds.some((r) => r.type === m.type && (!m.quizId || r.quizId === m.quizId)));
-      if (existing.origin !== "test" || !missing.length) {
+      if (existing.origin !== "test" || (!missing.length && !folded)) {
         status("test-full-status", "Elle existe déjà : retrouvez-la dans Prestations (rien n'a été modifié).", true);
         return;
       }
       status("test-full-status", "Ajout des nouveaux jeux à la prestation de test…", true);
       if (missing.some((m) => m.playlistId)) await addTunes(Date.now());
       if (missing.some((m) => m.quizId === FULL_KEYS.images)) await addImageQuiz(Date.now());
-      // Les Portes mystères restent le jeu final : tout à la fin, après l'ancienne Super Finale.
+      // Les Portes mystères restent le jeu final : tout à la fin.
       const last = missing.filter((m) => m.type === "portes");
       const middle = missing.filter((m) => m.type !== "portes");
-      const at = rounds.findIndex((r) => r.type === "finale");
+      // Portes mystères déjà là : les nouveaux jeux passent juste avant elles.
+      const at = rounds.findIndex((r) => r.type === "portes");
       const next = [...(at < 0 ? [...rounds, ...middle] : [...rounds.slice(0, at), ...middle, ...rounds.slice(at)]), ...last];
       await set(ref(db, `library/shows/${FULL_ID}`), { ...existing, rounds: next, notes: FULL_SHOW.notes, updatedAt: serverTimestamp() });
-      status("test-full-status", `Mise à jour : ${missing.map((m) => (m.quizId === FULL_KEYS.images ? "Quiz en images" : ROUND_TYPES[m.type])).join(", ")} ajouté(s) à « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux ».`, true);
+      const added = missing.map((m) => (m.quizId === FULL_KEYS.images ? "Quiz en images" : ROUND_TYPES[m.type])).join(", ");
+      status("test-full-status", `Mise à jour de « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux » :${added ? ` ${added} ajouté(s).` : ""}${folded ? " L'ancienne manche « Super Finale » est retirée : les 3 dernières questions du quiz comptent double." : ""} Rechargez la prestation dans la régie.`, true);
       return;
     }
     status("test-full-status", "Préparation des photos, des musiques et des jeux…", true);
