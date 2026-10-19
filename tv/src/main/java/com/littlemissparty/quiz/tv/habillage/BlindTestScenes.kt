@@ -70,27 +70,31 @@ private fun horloge(cle: Any?): () -> Float {
 }
 
 /**
- * Présentation du blind test : rayons dorés, un vinyle qui glisse sur la platine puis tourne, « BLIND TEST » en
+ * Présentation du blind test : rayons dorés, la platine qui glisse en place, le bras qui se pose et le disque qui tourne, « BLIND TEST » en
  * grand, le nom de la playlist et le nombre de morceaux. Accompagne le générique court (lmp_bt_generique).
  */
 @Composable
 fun BlindIntro(playlist: String, morceaux: Int, modifier: Modifier = Modifier) {
     val ms = horloge(playlist)
     val arrivee = remember(playlist) { Animatable(0f) }
-    LaunchedEffect(playlist) { arrivee.animateTo(1f, tween(900, easing = FastOutSlowInEasing)) }
+    val bras = remember(playlist) { Animatable(0f) }
+    LaunchedEffect(playlist) {
+        arrivee.animateTo(1f, tween(900, easing = FastOutSlowInEasing))
+        bras.animateTo(1f, tween(450, easing = FastOutSlowInEasing))
+    }
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Rayons(ms)
         Row(Modifier.fillMaxSize().padding(horizontal = 80.dp, vertical = 60.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.fillMaxHeight(0.8f).aspectRatio(1f, matchHeightConstraintsFirst = true), contentAlignment = Alignment.Center) {
-                Vinyle(
-                    0f,
-                    Modifier.fillMaxSize().graphicsLayer {
-                        translationX = (1f - arrivee.value) * size.width * 1.4f
-                        rotationZ = (ms() - 900f).coerceAtLeast(0f) / 1000f * 198f - (1f - arrivee.value) * 120f
-                    },
-                )
-                Text("?", color = Neon.Nuit, fontSize = 72.sp, lineHeight = 72.sp, fontWeight = FontWeight.Black, modifier = Modifier.apparition(900, playlist))
-            }
+            // La platine glisse en place, puis le bras vient se poser et le disque se met à tourner.
+            Platine(
+                angle = { (ms() - 1300f).coerceAtLeast(0f) / 1000f * 198f },
+                leve = 1f - bras.value,
+                or = 0f,
+                modifier = Modifier.fillMaxHeight(0.8f).graphicsLayer {
+                    translationX = -(1f - arrivee.value) * size.width * 0.6f
+                    alpha = arrivee.value
+                },
+            )
             Spacer(Modifier.width(56.dp))
             Column(Modifier.weight(1f)) {
                 Text(
@@ -163,7 +167,7 @@ fun BlindBuzz(equipe: String, couleur: Color, modifier: Modifier = Modifier) {
 }
 
 /**
- * Révélation du morceau : la pochette se retourne au centre (un vinyle doré s'il n'y en a pas), le titre et
+ * Révélation du morceau : la pochette se retourne au centre (la platine au disque doré s'il n'y en a pas), le titre et
  * l'artiste apparaissent en toutes lettres, puis le badge des points tombe en rebondissant dans la couleur de
  * l'équipe gagnante. Sans gagnant, même mise en scène sans points. La durée de la séquence est celle que le
  * moteur garde l'écran affiché : rien ici n'attend ni ne déclenche la suite.
@@ -188,7 +192,7 @@ fun BlindRevelation(
         Rayons(ms)
         Row(Modifier.fillMaxSize().padding(horizontal = 72.dp, vertical = 40.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.fillMaxHeight(0.86f).aspectRatio(1f, matchHeightConstraintsFirst = true)
+                Modifier.fillMaxHeight(0.86f).aspectRatio(if (pochette != null) 1f else 1.2f, matchHeightConstraintsFirst = true)
                     .graphicsLayer {
                         rotationY = (1f - retourne.value) * 90f
                         val e = 0.7f + 0.3f * retourne.value
@@ -203,8 +207,8 @@ fun BlindRevelation(
                         modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(18.dp)).border(6.dp, Neon.Or, RoundedCornerShape(18.dp)),
                     )
                 } else {
-                    Vinyle(1f, Modifier.fillMaxSize().graphicsLayer { rotationZ = ms() / 1000f * 198f })
-                    Text("♫", color = Neon.Nuit, fontSize = 80.sp, lineHeight = 80.sp, fontWeight = FontWeight.Black)
+                    // Pas de pochette : le disque à l'étiquette dorée tourne sous le bras posé.
+                    Platine(angle = { ms() / 1000f * 198f }, leve = 0f, or = 1f, modifier = Modifier.fillMaxSize())
                 }
             }
             Spacer(Modifier.width(56.dp))

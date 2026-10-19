@@ -1,11 +1,12 @@
 package com.littlemissparty.quiz.tv.habillage
 
 import android.os.SystemClock
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +19,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,20 +29,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.littlemissparty.quiz.tv.R
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.sin
@@ -81,7 +81,9 @@ fun BlindTestBoard(joue: Boolean, revele: Boolean, manquant: Boolean, artiste: S
         }
     }
     val niveau by animateFloatAsState(if (joue) 1f else 0.08f, tween(350), label = "egaliseur")
-    val vie by animateFloatAsState(if (joue) 1f else 0f, tween(400), label = "ondes")
+    val vie by animateFloatAsState(if (joue) 1f else 0f, tween(400), label = "lumiere")
+    // Le bras se pose quand l'extrait joue et se relève (vite) quand il s'arrête.
+    val leve by animateFloatAsState(if (joue) 0f else 1f, tween(if (joue) 500 else 300, easing = FastOutSlowInEasing), label = "bras")
     val or by animateFloatAsState(if (revele) 1f else 0f, tween(600), label = "etiquette")
     Box(Modifier.then(modifier).clip(RoundedCornerShape(28.dp)).background(Color.White.copy(alpha = 0.07f))) {
         Text(
@@ -91,30 +93,14 @@ fun BlindTestBoard(joue: Boolean, revele: Boolean, manquant: Boolean, artiste: S
                 .clip(RoundedCornerShape(50)).background(Neon.Or).padding(horizontal = 14.dp, vertical = 4.dp),
         )
         Row(Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, top = 48.dp, bottom = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.fillMaxHeight().aspectRatio(1f, matchHeightConstraintsFirst = true), contentAlignment = Alignment.Center) {
-                // Halo qui bat au tempo, rose pendant l'écoute, doré à la révélation.
+            Box(Modifier.fillMaxHeight().aspectRatio(1.2f, matchHeightConstraintsFirst = true)) {
+                // Lumière de scène derrière le disque : elle respire au tempo, rose pendant l'écoute, dorée à la révélation.
                 Box(
-                    Modifier.fillMaxSize()
-                        .graphicsLayer { alpha = 0.35f + 0.45f * vie * battement.floatValue + 0.3f * or; scaleX = 1.12f; scaleY = 1.12f }
-                        .background(Brush.radialGradient(listOf(lerp(Neon.Halo, Neon.Or, or).copy(alpha = 0.45f), Color.Transparent))),
+                    Modifier.fillMaxHeight().aspectRatio(1f, matchHeightConstraintsFirst = true)
+                        .graphicsLayer { alpha = 0.25f + 0.25f * vie * battement.floatValue + 0.3f * or; scaleX = 1.15f; scaleY = 1.15f }
+                        .background(Brush.radialGradient(listOf(lerp(Neon.Halo, Neon.Or, or).copy(alpha = 0.40f), Color.Transparent))),
                 )
-                // Trois ondes qui partent du disque et s'effacent, décalées d'un tiers de cycle.
-                for (k in 0 until 3) {
-                    Box(
-                        Modifier.fillMaxSize(0.9f).graphicsLayer {
-                            val phase = ((temps.floatValue / 2.2f) + k / 3f) % 1f
-                            val e = 0.86f + 0.3f * phase
-                            scaleX = e; scaleY = e
-                            alpha = vie * 0.55f * (1f - phase)
-                        }.border(3.dp, Neon.Halo, CircleShape),
-                    )
-                }
-                Vinyle(or, Modifier.fillMaxSize(0.9f).graphicsLayer { rotationZ = angle.floatValue })
-                Text(
-                    if (revele) "♫" else "?",
-                    color = Neon.Nuit, fontSize = 64.sp, lineHeight = 64.sp, fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
-                )
-                BrasDePlatine(joue, Modifier.fillMaxSize(0.9f))
+                Platine(angle = { angle.floatValue }, leve = leve, or = or, modifier = Modifier.fillMaxSize())
             }
             Spacer(Modifier.width(24.dp))
             Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
@@ -138,48 +124,35 @@ fun BlindTestBoard(joue: Boolean, revele: Boolean, manquant: Boolean, artiste: S
     }
 }
 
-/** Le disque : vinyle noir à sillons, reflet, étiquette rose qui passe à l'or à la révélation. */
+/**
+ * Platine vue de dessus, en images réalistes calculées par tools/habillage/platine.py : le vinyle et son
+ * étiquette tournent, le reflet et l'ombre restent fixes (comme sous une vraie lampe), le bras pivote autour de
+ * son socle. Cadre 1200 × 1000 : disque centré en (500, 500), pivot du bras en (1090, 150).
+ *
+ * @param angle rotation du disque en degrés, lue au dessin (aucune recomposition pendant qu'il tourne)
+ * @param leve 0 : pointe posée sur le disque ; 1 : bras relevé sur son repose-bras
+ * @param or 0 : étiquette rose ; 1 : étiquette dorée (révélation)
+ */
 @Composable
-internal fun Vinyle(or: Float, modifier: Modifier) {
-    Box(
-        modifier.drawWithCache {
-            val c = Offset(size.width / 2, size.height / 2)
-            val r = size.minDimension / 2 * 0.92f
-            val sillons = (0 until 26).map { r * (0.42f + 0.56f * it / 25f) }
-            val reflet = Brush.sweepGradient(
-                listOf(Color.Transparent, Color.White.copy(alpha = 0.10f), Color.Transparent, Color.Transparent, Color.White.copy(alpha = 0.08f), Color.Transparent),
-                c,
-            )
-            onDrawBehind {
-                drawCircle(Color(0xFF0E0A12), r, c)
-                sillons.forEach { drawCircle(Color.White.copy(alpha = 0.05f), it, c, style = Stroke(1.2f)) }
-                drawCircle(reflet, r, c)
-                val etiquette = lerp(Neon.Halo, Neon.Or, or)
-                drawCircle(etiquette, r * 0.36f, c)
-                drawCircle(Neon.Nuit.copy(alpha = 0.35f), r * 0.36f, c, style = Stroke(3f))
-                // Un motif sur l'étiquette, pour qu'on voie le disque tourner.
-                drawArc(Neon.Nuit.copy(alpha = 0.45f), -20f, 40f, false, Offset(c.x - r * 0.26f, c.y - r * 0.26f), Size(r * 0.52f, r * 0.52f), style = Stroke(r * 0.05f))
-                drawCircle(Color(0xFF0E0A12), r * 0.035f, c)
+fun Platine(angle: () -> Float, leve: Float, or: Float, modifier: Modifier = Modifier) {
+    Box(modifier.aspectRatio(1.2f, matchHeightConstraintsFirst = true)) {
+        Box(Modifier.fillMaxHeight().aspectRatio(1f, matchHeightConstraintsFirst = true).graphicsLayer { rotationZ = angle() }, contentAlignment = Alignment.Center) {
+            Image(painterResource(R.drawable.lmp_bt_vinyle), contentDescription = null, modifier = Modifier.fillMaxSize())
+            Box(Modifier.fillMaxSize(0.331f)) {
+                Image(painterResource(R.drawable.lmp_bt_label_rose), contentDescription = null, modifier = Modifier.fillMaxSize())
+                if (or > 0f) {
+                    Image(painterResource(R.drawable.lmp_bt_label_or), contentDescription = null, modifier = Modifier.fillMaxSize().graphicsLayer { alpha = or })
+                }
             }
-        },
-    )
-}
-
-/** Le bras : posé sur le disque quand l'extrait joue, relevé sur le côté sinon. */
-@Composable
-private fun BrasDePlatine(pose: Boolean, modifier: Modifier) {
-    val inclinaison by animateFloatAsState(if (pose) 0f else -14f, tween(450), label = "bras")
-    Canvas(modifier) {
-        val pivot = Offset(size.width * 0.93f, size.height * 0.08f)
-        rotate(inclinaison, pivot) {
-            val coude = Offset(size.width * 0.86f, size.height * 0.55f)
-            val tete = Offset(size.width * 0.66f, size.height * 0.72f)
-            drawLine(Neon.OrClair, pivot, coude, 7f)
-            drawLine(Neon.OrClair, coude, tete, 7f)
-            drawRoundRect(Neon.OrProfond, Offset(tete.x - 14f, tete.y - 10f), Size(30f, 20f), CornerRadius(5f))
         }
-        drawCircle(Neon.OrProfond, 18f, pivot)
-        drawCircle(Neon.Nuit, 7f, pivot)
+        Image(painterResource(R.drawable.lmp_bt_reflet), contentDescription = null, modifier = Modifier.fillMaxSize())
+        Image(
+            painterResource(R.drawable.lmp_bt_bras), contentDescription = null,
+            modifier = Modifier.fillMaxSize().graphicsLayer {
+                rotationZ = -15f * leve
+                transformOrigin = TransformOrigin(1090f / 1200f, 150f / 1000f)
+            },
+        )
     }
 }
 
