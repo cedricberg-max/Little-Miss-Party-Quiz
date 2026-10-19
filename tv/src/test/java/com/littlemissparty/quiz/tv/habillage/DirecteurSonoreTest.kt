@@ -388,6 +388,52 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `blind test, diamant puis extrait, scratch au buzz, reprise apres un rate, chanson en grand a la revelation`() {
+        val d = DirecteurSonore()
+        val bt = Instant(Ecran.QUESTION, partie = "ABCD", index = 12, equipes = 2, propositions = 1, jeuBuzz = true, blindTest = true, extrait = "res:lmp_bt_frere_jacques", extraitMs = 0)
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 11, equipes = 2))
+        val entree = d.observer(bt)
+        assertEquals(Ambiance.SILENCE, entree.musique())
+        assertTrue(Son.BT_DIAMANT in entree.sons())
+        assertTrue(Ordre.Extrait("res:lmp_bt_frere_jacques", 0, Tempo.BT_EXTRAIT) in entree)
+        // Buzz à 6 s : le disque s'arrête net.
+        val buzz = d.observer(bt.copy(buzzEquipe = 1, extraitMs = 6_000))
+        assertTrue(Ordre.ArreterExtrait in buzz)
+        assertEquals(listOf(Son.BT_SCRATCH, Son.BUZZ_GROS, Son.EQUIPE_2, Son.SUSPENSE_REPONSE), buzz.sons())
+        // Raté : l'extrait repart là où il s'était arrêté.
+        val rate = d.observer(bt.copy(ratees = 1, extraitMs = 6_000))
+        assertTrue(Ordre.Extrait("res:lmp_bt_frere_jacques", 6_000, Tempo.FLOU_REPRISE) in rate)
+        assertEquals(Ambiance.SILENCE, rate.musique())
+        // Révélation : la chanson repart, pas de musique de fête par-dessus.
+        val revele = d.observer(bt.copy(ecran = Ecran.REVELATION, ratees = 1, gagnants = 1, extraitMs = 0))
+        assertTrue(revele.any { it is Ordre.Extrait })
+        assertFalse(revele.any { it is Ordre.Musique && it.ambiance == Ambiance.FETE })
+        assertFalse(Son.ROULEMENT_COURT in revele.sons())
+    }
+
+    @Test
+    fun `blind test, pause puis reprise sur l'extrait, et box qui se reconnecte en plein extrait`() {
+        val d = DirecteurSonore()
+        val bt = Instant(Ecran.QUESTION, partie = "ABCD", index = 12, equipes = 2, propositions = 1, jeuBuzz = true, blindTest = true, extrait = "/cache/a.mp3", extraitMs = 4_000)
+        d.observer(bt)
+        assertTrue(d.observer(bt.copy(enPause = true)).first() == Ordre.Couper)
+        val reprise = d.observer(bt.copy(repriseDansMs = 3_000, extraitMs = 5_000))
+        assertTrue(Ordre.Extrait("/cache/a.mp3", 5_000, 3_000) in reprise)
+        val autre = DirecteurSonore()
+        assertTrue(Ordre.Extrait("/cache/a.mp3", 4_000, 0) in autre.observer(bt))
+        // Pendant qu'une équipe répond, une box qui se reconnecte ne relance pas l'extrait.
+        assertFalse(DirecteurSonore().observer(bt.copy(buzzEquipe = 0)).any { it is Ordre.Extrait })
+    }
+
+    @Test
+    fun `chaque extrait du blind test integre existe dans les ressources de l'appli`() {
+        assertEquals(12, BlindTestCatalogue.extraits.size)
+        assertEquals(BlindTestCatalogue.extraits.size, BlindTestCatalogue.extraits.map { it.id }.toSet().size)
+        val manquants = BlindTestCatalogue.extraits.filterNot { java.io.File("src/main/res/raw/lmp_bt_${it.id}.ogg").isFile }
+        assertTrue("Extraits manquants : $manquants", manquants.isEmpty())
+    }
+
+    @Test
     fun `chaque son a un fichier distinct`() {
         assertEquals(Son.entries.size, Son.entries.map { it.fichier }.toSet().size)
     }

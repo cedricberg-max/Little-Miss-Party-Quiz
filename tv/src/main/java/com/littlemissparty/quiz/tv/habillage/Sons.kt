@@ -20,6 +20,8 @@ object Sons {
     private const val FONDU_MS = 700L
     private const val COUPE_MS = 300L
     private const val PAS_MS = 40L
+    /** Les extraits du blind test, un peu sous le maximum pour laisser la place aux sons du plateau. */
+    private const val VOLUME_EXTRAIT = 0.9f
     /** Durée exacte des boucles musicales (8 mesures à 120 BPM). */
     private const val BOUCLE_MS = 16_000L
 
@@ -38,6 +40,11 @@ object Sons {
     private val volumes = Lit.entries.associateWith { 0f }.toMutableMap()
     private var ambiance = Ambiance.SILENCE
     private var pret = false
+    private var app: Context? = null
+    /** Blind test : un seul lecteur d'extrait, gardé tant que la source ne change pas (reprise après un raté). */
+    private var extrait: MediaPlayer? = null
+    private var sourceExtrait: String? = null
+    private var lancementExtrait = 0
     private var enArriere = false
 
     /**
@@ -57,6 +64,7 @@ object Sons {
         h.post {
             if (pret) return@post
             pret = true
+            this.app = app
             essayer("pool") {
                 val p = SoundPool.Builder().setMaxStreams(8).setAudioAttributes(attributs).build()
                 Son.entries.filter { !it.long }.forEach { s -> id(app, s.fichier)?.let { courts[s] = p.load(app, it, 1) } }
@@ -80,6 +88,8 @@ object Sons {
                     is Ordre.Arreter -> essayer("arreter") { eteindre(o.son) }
                     is Ordre.Jouer -> plus(o.dansMs) { jouer(o.son) }
                     is Ordre.Musique -> plus(o.dansMs) { versAmbiance(o.ambiance) }
+                    is Ordre.Extrait -> plus(o.dansMs) { jouerExtrait(o.source, o.depuisMs) }
+                    Ordre.ArreterExtrait -> essayer("extrait") { arreterExtrait() }
                 }
             }
         }
@@ -128,6 +138,73 @@ object Sons {
     private fun couper() {
         h.removeCallbacksAndMessages(prevus)
         longs.keys.forEach { essayer("couper") { eteindre(it) } }
+        essayer("extrait") { arreterExtrait() }
+    }
+
+    /**
+     * Blind test : l'extrait part de [depuisMs] avec un très court fondu d'entrée. La source est un son de
+     * l'appli (« res:lmp_bt_… ») ou un fichier déjà en cache sur la box : rien n'est lu depuis Internet ici.
+     */
+    private fun jouerExtrait(source: String, depuisMs: Long) {
+        val ctx = app ?: return
+        val mp = extrait?.takeIf { sourceExtrait == source } ?: run {
+            extrait?.release()
+            extrait = null
+            sourceExtrait = null
+            nouvelExtrait(ctx, source)?.also { extrait = it; sourceExtrait = source }
+        } ?: return
+        val lancement = ++lancementExtrait
+        if (mp.isPlaying) mp.pause()
+        val fin = (mp.duration - 500).coerceAtLeast(0)
+        mp.seekTo(depuisMs.coerceIn(0, fin.toLong()).toInt())
+        mp.setVolume(0f, 0f)
+        mp.start()
+        val etapes = (COUPE_MS / PAS_MS).toInt()
+        for (k in 1..etapes) {
+            h.postAtTime({
+                essayer("extrait") {
+                    if (lancementExtrait != lancement || !mp.isPlaying) return@essayer
+                    val v = VOLUME_EXTRAIT * k / etapes
+                    mp.setVolume(v, v)
+                }
+            }, fondus, SystemClock.uptimeMillis() + k * PAS_MS)
+        }
+    }
+
+    private fun arreterExtrait() {
+        val mp = extrait ?: return
+        if (!mp.isPlaying) return
+        val lancement = ++lancementExtrait
+        val etapes = (COUPE_MS / PAS_MS).toInt()
+        for (k in 1..etapes) {
+            h.postAtTime({
+                essayer("extrait") {
+                    if (lancementExtrait != lancement || !mp.isPlaying) return@essayer
+                    val v = VOLUME_EXTRAIT * (1f - k.toFloat() / etapes)
+                    mp.setVolume(v, v)
+                    if (k == etapes) mp.pause()
+                }
+            }, fondus, SystemClock.uptimeMillis() + k * PAS_MS)
+        }
+    }
+
+    private fun nouvelExtrait(context: Context, source: String): MediaPlayer? {
+        val mp = MediaPlayer()
+        return try {
+            mp.setAudioAttributes(attributs)
+            if (source.startsWith("res:")) {
+                val res = id(context, source.removePrefix("res:")) ?: run { mp.release(); return null }
+                context.resources.openRawResourceFd(res).use { mp.setDataSource(it.fileDescriptor, it.startOffset, it.length) }
+            } else {
+                mp.setDataSource(source)
+            }
+            mp.prepare()
+            mp
+        } catch (e: Exception) {
+            mp.release()
+            Log.w(TAG, "Extrait « $source » illisible : ${e.message}")
+            null
+        }
     }
 
     private fun eteindre(s: Son) {

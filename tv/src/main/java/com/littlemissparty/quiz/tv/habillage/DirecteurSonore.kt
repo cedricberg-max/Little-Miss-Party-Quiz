@@ -65,7 +65,14 @@ class DirecteurSonore {
         if (i.ecran == Ecran.HORS_PARTIE) return listOf(Ordre.Musique(Ambiance.SILENCE))
         if (i.enPause) return listOf(Ordre.Musique(Ambiance.INTERMEDE))
         if (i.ecran == Ecran.SALON && i.index < 0 && generiques.add(i.partie)) return generique()
-        return listOf(Ordre.Musique(ambiance(i)))
+        return listOf(Ordre.Musique(ambiance(i))) + extraitEnCours(i, 0)
+    }
+
+    /** Blind test : l'extrait doit-il s'entendre sur cet écran (question sans buzz en attente, ou révélation) ? */
+    private fun extraitEnCours(i: Instant, dansMs: Long): List<Ordre> {
+        if (!i.blindTest || i.extrait.isEmpty()) return emptyList()
+        val joue = (i.ecran == Ecran.QUESTION && i.buzzEquipe < 0) || i.ecran == Ecran.REVELATION
+        return if (joue) listOf(Ordre.Extrait(i.extrait, i.extraitMs, dansMs)) else emptyList()
     }
 
     private fun generique() = listOf(
@@ -86,7 +93,7 @@ class DirecteurSonore {
         ordres += if (changeDEcran(ecranAvant, i)) {
             entree(ecranAvant, i).filter { it != Ordre.Couper }.map { it.decale(dans) }
         } else {
-            listOf(Ordre.Musique(ambiance(i), dans))
+            listOf(Ordre.Musique(ambiance(i), dans)) + extraitEnCours(i, dans)
         }
         return ordres
     }
@@ -119,6 +126,12 @@ class DirecteurSonore {
                 if (i.zoom) o += Ordre.Jouer(Son.ZOOM_OUVERTURE, Tempo.PROPOSITIONS_DEBUT)
                 // Image floue : une longue montée accompagne la photo qui se précise.
                 if (i.flou) o += Ordre.Jouer(Son.FLOU_MONTEE, Tempo.PROPOSITIONS_DEBUT)
+                // Blind test : le diamant se pose sur le disque, puis l'extrait part (après le jingle s'il y en a un).
+                if (i.blindTest) {
+                    val depart = if (nouvelleEpreuve) Tempo.TRANSITION_MUSIQUE else if (i.premiere) Tempo.QUESTION_MUSIQUE_APRES_MANCHE else 0L
+                    o += Ordre.Jouer(Son.BT_DIAMANT, depart)
+                    o += extraitEnCours(i, depart + Tempo.BT_EXTRAIT)
+                }
                 for (k in 0 until i.propositions.coerceIn(0, 8)) {
                     o += Ordre.Jouer(Son.pop(k), Tempo.propositionApparait(k))
                 }
@@ -172,7 +185,9 @@ class DirecteurSonore {
                 }
                 // Chante le mot : on applaudit la chanson.
                 if (i.chante && i.gagnants > 0) o += Ordre.Jouer(Son.APPLAUDISSEMENTS, Tempo.BUZZ_BRAVO)
-                o += Ordre.Musique(Ambiance.FETE, Tempo.BUZZ_BRAVO)
+                // Blind test : la chanson repart en grand pendant qu'on découvre le titre.
+                if (i.blindTest) o += extraitEnCours(i, Tempo.BUZZ_BRAVO)
+                else o += Ordre.Musique(Ambiance.FETE, Tempo.BUZZ_BRAVO)
                 for (k in 0 until i.gagnants.coerceIn(0, 8)) o += Ordre.Jouer(Son.TAMPON, Tempo.tampon(k))
                 if (i.gagnants > 0) o += Ordre.Jouer(Son.POINTS, Tempo.REVELATION_POINTS)
             } else if (i.express) {
@@ -256,6 +271,11 @@ class DirecteurSonore {
         val o = mutableListOf<Ordre>()
         if (i.indices > p.indices && p.indices > 0 && i.buzzEquipe < 0) o += Ordre.Jouer(Son.INDICE)
         if (i.buzzEquipe >= 0 && p.buzzEquipe < 0) {
+            // Blind test : le disque s'arrête net (scratch) au moment du buzz.
+            if (i.blindTest) {
+                o += Ordre.ArreterExtrait
+                o += Ordre.Jouer(Son.BT_SCRATCH)
+            }
             o += Ordre.Arreter(Son.FLOU_MONTEE)
             o += Ordre.Musique(Ambiance.SILENCE)
             o += Ordre.Jouer(Son.BUZZ_GROS)
@@ -267,6 +287,7 @@ class DirecteurSonore {
             // Jamais moqueur : un petit « pouet » gentil, et l'image reprend avec la musique.
             if (i.ratees > p.ratees) o += Ordre.Jouer(Son.VF_FAUX)
             o += Ordre.Musique(ambiance(i), Tempo.FLOU_REPRISE)
+            o += extraitEnCours(i, Tempo.FLOU_REPRISE)
         }
         return o
     }
@@ -278,6 +299,8 @@ class DirecteurSonore {
         Ecran.SALON -> Ambiance.SALON
         Ecran.QUESTION, Ecran.VERROUILLEE, Ecran.REVELATION -> when {
             i.express -> Ambiance.EXPRESS
+            // Blind test : rien ne doit couvrir l'extrait.
+            i.blindTest && i.ecran != Ecran.VERROUILLEE -> Ambiance.SILENCE
             // Image floue : musique en retrait pendant que l'image se précise, silence pendant qu'une équipe répond.
             i.jeuBuzz && i.ecran == Ecran.QUESTION -> if (i.buzzEquipe >= 0) Ambiance.SILENCE else Ambiance.SUSPENSE
             else -> ambianceParDefaut(i.ecran)
@@ -333,6 +356,10 @@ data class Instant(
      * verdict (-1 sinon), équipes déjà ratées, indices de Qui suis-je déjà affichés.
      */
     val jeuBuzz: Boolean = false,
+    /** Blind test : l'extrait à jouer (« res:lmp_bt_… » ou fichier en cache sur la box) et où le prendre. */
+    val blindTest: Boolean = false,
+    val extrait: String = "",
+    val extraitMs: Long = 0,
     val flou: Boolean = false,
     val chante: Boolean = false,
     val indices: Int = 0,
@@ -426,6 +453,8 @@ enum class Son(val fichier: String, val long: Boolean = false) {
     BUZZ_GROS("lmp_buzz_gros"),
     SUSPENSE_REPONSE("lmp_suspense_reponse", true),
     INDICE("lmp_indice"),
+    BT_DIAMANT("lmp_bt_diamant"),
+    BT_SCRATCH("lmp_bt_scratch"),
     RIGOLO_1("lmp_fun_buzz_1"), RIGOLO_2("lmp_fun_buzz_2"), RIGOLO_3("lmp_fun_buzz_3"), RIGOLO_4("lmp_fun_buzz_4"),
     EQUIPE_1("lmp_team_sting_1"), EQUIPE_2("lmp_team_sting_2"), EQUIPE_3("lmp_team_sting_3"), EQUIPE_4("lmp_team_sting_4");
 
@@ -443,12 +472,16 @@ sealed interface Ordre {
     data class Jouer(val son: Son, val dansMs: Long = 0) : Ordre
     data class Musique(val ambiance: Ambiance, val dansMs: Long = 0) : Ordre
     data class Arreter(val son: Son) : Ordre
+    /** Blind test : joue l'extrait [source] à partir de [depuisMs] ; [ArreterExtrait] l'arrête en fondu. */
+    data class Extrait(val source: String, val depuisMs: Long, val dansMs: Long = 0) : Ordre
+    data object ArreterExtrait : Ordre
     /** Annule les sons prévus et fait taire les sons longs en cours (changement d'écran, pause). */
     data object Couper : Ordre
 
     fun decale(ms: Long): Ordre = when (this) {
         is Jouer -> copy(dansMs = dansMs + ms)
         is Musique -> copy(dansMs = dansMs + ms)
+        is Extrait -> copy(dansMs = dansMs + ms)
         else -> this
     }
 }
@@ -485,6 +518,8 @@ object Tempo {
     const val FLOU_REPRISE = 600L
     /** Jeux au buzzer : applaudissements et musique de fête juste après la réponse. */
     const val BUZZ_BRAVO = 400L
+    /** Blind test : l'extrait part juste après le diamant posé sur le disque. */
+    const val BT_EXTRAIT = 700L
     const val TRANSITION_MUSIQUE = 2_000L
     /** Durée du rideau plein écran qui annonce un nouveau jeu (assez court pour ne pas retarder la fête). */
     const val TRANSITION_RIDEAU = 2_600L

@@ -857,6 +857,33 @@ def indice():
     mx.add('bells', note('tinkle_bell', 96, .1, .2, release=.4), .12)
     return mx.render(duck=0)
 
+def bt_diamant():
+    """Blind test : le diamant se pose sur le vinyle (petit choc sourd), deux tours de craquements."""
+    n = int(1.2 * SR); t = np.arange(n) / SR
+    choc = np.sin(2 * np.pi * 70 * t) * np.exp(-t / .05) * .9
+    crepit = np.zeros(n)
+    for _ in range(70):
+        i = int(rng.uniform(.05, 1.1) * SR); L = int(.002 * SR)
+        crepit[i:i + L] += rng.uniform(-1, 1) * np.exp(-np.arange(L) / (L / 4)) * rng.uniform(.2, .8)
+    souffle = biquad(noise(n), 'bp', 3000, .6) * .04 * np.minimum(1, t / .05) * np.exp(-t / .9)
+    tour = 1 + .25 * np.sin(2 * np.pi * t / .75)  # 33 tours : craquements qui reviennent à chaque tour
+    y = choc + biquad(crepit, 'hp', 1500) * tour * .6 + souffle
+    return stereo(y, .3, 6)
+
+def bt_scratch():
+    """Blind test : le disque s'arrête net sous la main du DJ, aller-retour de scratch."""
+    parts = []
+    for k, (f0, f1, d) in enumerate([(900, 2600, .11), (2600, 500, .16)]):
+        n = int(d * SR); t = np.arange(n) / SR
+        x = sweep_bp(noise(n), f0, f1, 3.5)
+        tone = np.sin(2 * np.pi * np.cumsum(np.linspace(f0 / 6, f1 / 6, n)) / SR) * .5
+        e = np.sin(np.pi * t / d) ** .6
+        parts.append((stereo((x * .9 + tone) * e, .2, 3), k * .1))
+    n = int(.6 * SR); t = np.arange(n) / SR
+    arret = np.sin(2 * np.pi * np.cumsum(np.linspace(180, 30, n)) / SR) * np.exp(-t / .12) * .5
+    parts.append((stereo(arret), .26))
+    return sum_at(parts)
+
 def chiffre_roulette(duree=2.0):
     """Le Juste Chiffre : les chiffres défilent vite puis ralentissent et se posent pile à `duree` (l'or de la révélation)."""
     mx = Mix(duree / B + 2, tail=.6)
@@ -968,7 +995,7 @@ PIECES = {
     'bed_express': (bed_express, -16.5), 'vf_vrai': (vf_vrai, -17), 'vf_faux': (vf_faux, -20),
     'chiffre_roulette': (chiffre_roulette, -19), 'chiffre_pile': (chiffre_pile, -15),
     'zoom_ouverture': (zoom_ouverture, -21), 'zoom_revele': (zoom_revele, -16),
-    'buzz_gros': (buzz_gros, -15), 'flou_montee': (flou_montee, -22), 'suspense_reponse': (suspense_reponse, -19), 'indice': (indice, -21),
+    'buzz_gros': (buzz_gros, -15), 'flou_montee': (flou_montee, -22), 'suspense_reponse': (suspense_reponse, -19), 'indice': (indice, -21), 'bt_diamant': (bt_diamant, -26), 'bt_scratch': (bt_scratch, -17),
     'bed_mimes': (bed_mimes, -16.5), 'bed_pause': (bed_pause, -19), 'pause_in': (pause_in, -18), 'transition': (transition, -15),
 }
 for i in range(4):
