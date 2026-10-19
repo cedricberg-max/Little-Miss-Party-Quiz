@@ -1,6 +1,6 @@
 # Sons et musiques du plateau TV : origine et droits
 
-Les 56 sons de `tv/src/main/res/raw/lmp_*.ogg` (musiques de fond, musique des Mimes, musique de pause, générique, jingles de transition et de pause, effets, sons des Mimes, buzz rigolos du salon, roulette et fanfare du Juste Chiffre, musique et verdicts du Vrai ou Faux express, ouverture et révélation du Zoom mystère, montée, gros buzz et suspense des jeux au buzzer, note des indices de Qui suis-je, diamant et scratch du blind test) ont été
+Les 58 sons de `tv/src/main/res/raw/lmp_*.ogg` (musiques de fond, musique des Mimes, musique de pause, générique, jingles de transition et de pause, effets, sons des Mimes, buzz rigolos du salon, roulette et fanfare du Juste Chiffre, musique et verdicts du Vrai ou Faux express, ouverture et révélation du Zoom mystère, montée, gros buzz et suspense des jeux au buzzer, note des indices de Qui suis-je, diamant et scratch du blind test, gel et reprise des Statues musicales) ont été
 composés et mixés pour Little Miss Party avec `tools/habillage/studio.py`. Ils ne contiennent aucune
 musique existante : pas de droits SACEM à déclarer pour leur diffusion pendant une prestation.
 

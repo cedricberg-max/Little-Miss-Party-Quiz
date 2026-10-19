@@ -428,6 +428,18 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `statues musicales, gel a chaque arret, elan a chaque reprise, jamais en double, rien par-dessus la musique du jeu`() {
+        val d = DirecteurSonore()
+        val danse = Instant(Ecran.QUESTION, partie = "ABCD", index = 15, equipes = 2, propositions = 0, musical = true)
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 14, equipes = 2))
+        assertEquals(Ambiance.SILENCE, d.observer(danse).musique())
+        assertEquals(listOf(Son.STATUE_GEL), d.observer(danse.copy(statue = true)).sons())
+        assertTrue(d.observer(danse.copy(statue = true)).isEmpty())
+        assertEquals(listOf(Son.STATUE_REPART), d.observer(danse).sons())
+        assertFalse(Son.TENSION in d.observer(danse.copy(urgent = true)).sons())
+    }
+
+    @Test
     fun `chaque extrait du blind test integre existe dans les ressources de l'appli`() {
         assertEquals(12, BlindTestCatalogue.extraits.size)
         assertEquals(BlindTestCatalogue.extraits.size, BlindTestCatalogue.extraits.map { it.id }.toSet().size)

@@ -239,6 +239,9 @@ class DirecteurSonore {
             if (tension && !enTension && !p.urgent) o += Ordre.Jouer(Son.TENSION)
             if (enTension && !tension) o += Ordre.Arreter(Son.TENSION)
             if (i.jeuBuzz) o += buzzJeu(p, i)
+            // Statues musicales : « gel ! » quand la musique s'arrête, petit élan quand elle repart.
+            if (i.statue && !p.statue) o += Ordre.Jouer(Son.STATUE_GEL)
+            if (!i.statue && p.statue) o += Ordre.Jouer(Son.STATUE_REPART)
         }
         if (i.ecran == Ecran.MIMES_TOUR) {
             if (i.trouves > p.trouves) o += Ordre.Jouer(Son.MIME_TROUVE)
@@ -347,6 +350,8 @@ data class Instant(
     val jeuBuzz: Boolean = false,
     /** La question fait entendre un extrait musical (blind test, quiz musical) : l'habillage se tait. */
     val musical: Boolean = false,
+    /** Statues musicales : la musique du jeu est arrêtée, tout le monde se fige. */
+    val statue: Boolean = false,
     val flou: Boolean = false,
     val chante: Boolean = false,
     val indices: Int = 0,
@@ -442,6 +447,8 @@ enum class Son(val fichier: String, val long: Boolean = false) {
     INDICE("lmp_indice"),
     BT_DIAMANT("lmp_bt_diamant"),
     BT_SCRATCH("lmp_bt_scratch"),
+    STATUE_GEL("lmp_statue_gel", true),
+    STATUE_REPART("lmp_statue_repart"),
     RIGOLO_1("lmp_fun_buzz_1"), RIGOLO_2("lmp_fun_buzz_2"), RIGOLO_3("lmp_fun_buzz_3"), RIGOLO_4("lmp_fun_buzz_4"),
     EQUIPE_1("lmp_team_sting_1"), EQUIPE_2("lmp_team_sting_2"), EQUIPE_3("lmp_team_sting_3"), EQUIPE_4("lmp_team_sting_4");
 
