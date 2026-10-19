@@ -194,6 +194,13 @@
             ".validate": "$id.matches(/^[0-9a-f]{16}$/) && newData.isString() && newData.val().beginsWith('data:image/') && newData.val().length <= 150000"
           }
         },
+        "choiceImages": {
+          "$id": {
+            ".read": "auth != null",
+            ".write": "auth != null && !data.exists() && root.child('games').child($code).child('regie').child(auth.uid).exists()",
+            ".validate": "$id.matches(/^[0-9a-f]{16}$/) && newData.isString() && newData.val().beginsWith('data:image/') && newData.val().length <= 150000"
+          }
+        },
         "sounds": {
           "$id": {
             ".read": "auth != null && (root.child('games').child($code).child('hostUid').val() === auth.uid || root.child('games').child($code).child('regie').child(auth.uid).exists())",
@@ -269,6 +276,11 @@
               },
               "imageId": {
                 ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{16}$/)"
+              },
+              "choiceImages": {
+                "$k": {
+                  ".validate": "$k.matches(/^[0-3]$/) && newData.isString() && newData.val().matches(/^[0-9a-f]{16}$/)"
+                }
               }
             }
           }

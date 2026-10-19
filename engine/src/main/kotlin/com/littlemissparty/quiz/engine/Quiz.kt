@@ -103,6 +103,11 @@ data class Question(
      */
     val emoji: String? = null,
     val imageId: String? = null,
+    /**
+     * Réponses en images (quiz des petits) : une photo par proposition, dans l'ordre des propositions, lue dans
+     * games/<code>/choiceImages. Vide : propositions en texte. Une proposition sans photo reste en texte.
+     */
+    val choiceImages: List<String?> = emptyList(),
     /** Blind test : l'artiste ou l'œuvre (dessin animé, film…), montré à la révélation ; facultatif. */
     val artist: String? = null,
     /**
@@ -151,6 +156,7 @@ data class Question(
             require(kind != QuestionKind.ZOOM || imageId != null) { "Zoom mystère $id : il faut une photo" }
             require(kind != QuestionKind.FLOU || imageId != null) { "Image floue $id : il faut une photo" }
             require(choices.none { it.isBlank() }) { "Question $id : proposition vide" }
+            require(choiceImages.isEmpty() || choiceImages.size == choices.size) { "Question $id : une photo par proposition" }
             require(correct in choices.indices) { "Question $id : bonne réponse hors des propositions" }
             require(durationSec in 5..120) { "Question $id : durée entre 5 et 120 s" }
         }
@@ -208,6 +214,8 @@ data class Question(
     val trackPoints: Int get() = points ?: Scoring.BLIND_POINTS
 
     /** Jeux au buzzer : la première équipe qui buzze répond à voix haute, l'animatrice valide. */
+    /** Au moins une proposition en image. */
+    val hasChoiceImages: Boolean get() = choiceImages.any { it != null }
     val isBuzz: Boolean get() = isFlou || isChante || isQuiSuis || isBlind || isDisparu
 
     /**

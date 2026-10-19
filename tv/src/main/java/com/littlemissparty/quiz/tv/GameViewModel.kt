@@ -677,6 +677,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         // Photo de la question en cours et de la suivante chargées d'avance (dès le salon d'attente pour la
         // première) : la révélation, ou le Zoom mystère, ne l'attend jamais.
         listOfNotNull(q?.imageId.takeIf { s.phase != Phase.LOBBY }, g.quiz.questions.getOrNull(s.index + 1)?.imageId).forEach(::prefetchImage)
+        // Réponses en images : celles de la question en cours et de la suivante (lisibles aussi par les pupitres).
+        listOfNotNull(q, g.quiz.questions.getOrNull(s.index + 1)).flatMap { it.choiceImages }.filterNotNull()
+            .forEach { prefetchImage(it, "choiceImages") }
         // Extraits musicaux : tous ceux du programme, dès son chargement, pour que la musique ne dépende
         // plus du réseau une fois la partie lancée.
         g.quiz.questions.mapNotNullTo(LinkedHashSet()) { it.audioId }.forEach(::prefetchSound)
@@ -769,13 +772,13 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private val imagesLoading = mutableSetOf<String>()
 
     /** Lit une photo d'illustration dans la partie ; absente, abîmée ou hors connexion : la question reste sans photo. */
-    private fun prefetchImage(id: String) {
+    private fun prefetchImage(id: String, dir: String = "images") {
         if (id in imageBytes || !imagesLoading.add(id)) return
         val ref = gameRef ?: return run { imagesLoading -= id }
         viewModelScope.launch {
             val bytes = runCatching {
                 // Attente de la copie par la régie : une lecture unique pourrait renvoyer « absente » depuis le cache.
-                val data = ref.child("images/$id").readWhenPresent(PHOTO_WAIT_MS)?.getValue(String::class.java)
+                val data = ref.child("$dir/$id").readWhenPresent(PHOTO_WAIT_MS)?.getValue(String::class.java)
                 data?.substringAfter("base64,", "")?.takeIf { it.isNotEmpty() }?.let { Base64.decode(it, Base64.DEFAULT) }
             }.getOrNull()
             imagesLoading -= id
@@ -1346,6 +1349,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     "duration" to it.durationSec, "kind" to it.kind.code, "double" to it.double, "round" to it.roundTitle,
                     "cards" to it.cards.ifEmpty { null }?.map { c -> clean(mapOf("word" to c.word, "image" to c.image)) },
                     "image" to it.emoji, "imageId" to it.imageId, "artist" to it.artist, "audioId" to it.audioId,
+                    "choiceImages" to it.choiceImages.ifEmpty { null }?.map { id -> id ?: "" },
                     // Blind test : valeur et durée de révélation du morceau, relues telles quelles après un redémarrage.
                     "points" to it.points?.takeIf { _ -> it.isBlind }, "reveal" to it.revealSec.takeIf { _ -> it.isBlind },
                 ))

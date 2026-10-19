@@ -185,6 +185,10 @@ button.item { cursor: pointer; }
 .choice { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); }
 .choice .letter { width: 20px; font-weight: 900; color: var(--rose); }
 .choice .q-choice { flex: 1; min-width: 0; }
+.choice-photo { display: inline-flex; align-items: center; gap: 4px; }
+.choice-thumb { width: 44px; height: 44px; object-fit: contain; border-radius: 8px; background: #fff; border: 1px solid #ddd; }
+.drop-zone { border: 2px dashed transparent; border-radius: 12px; }
+.drop-zone.over { border-color: var(--rose); background: rgba(255, 45, 138, .06); }
 
 @media (max-width: 640px) {
   header { position: static; padding: 10px 14px; }

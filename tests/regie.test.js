@@ -1,6 +1,7 @@
 // Régie de l'animatrice dans un vrai navigateur (Chromium) branché sur l'émulateur Firebase.
 // Ce script joue le rôle de la box : il juge les demandes d'appairage et répond aux commandes.
 import { createHash } from "node:crypto";
+import { deflateSync } from "node:zlib";
 import { createReadStream, existsSync } from "node:fs";
 import { createServer } from "node:http";
 import { extname, join, normalize } from "node:path";
@@ -13,6 +14,21 @@ import { loadRules, seedAdmin, ADMIN_PASSWORD } from "./rules-loader.js";
 import { lockedUntil } from "../web/public/show.js";
 
 const ROOT = new URL("..", import.meta.url).pathname;
+
+/** Petite image PNG d'une seule couleur (8 × 8), pour déposer des images différentes dans l'administration. */
+function png([r, g, b]) {
+  const crcTable = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+  const crc = (buf) => { let c = 0xffffffff; for (const x of buf) c = crcTable[(c ^ x) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  const chunk = (type, data) => {
+    const body = Buffer.concat([Buffer.from(type), data]);
+    const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+    const sum = Buffer.alloc(4); sum.writeUInt32BE(crc(body));
+    return Buffer.concat([len, body, sum]);
+  };
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(8, 0); ihdr.writeUInt32BE(8, 4); ihdr[8] = 8; ihdr[9] = 2;
+  const rows = Buffer.concat(Array.from({ length: 8 }, () => Buffer.from([0, ...Array.from({ length: 8 }, () => [r, g, b]).flat()])));
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", ihdr), chunk("IDAT", deflateSync(rows)), chunk("IEND", Buffer.alloc(0))]);
+}
 const PUBLIC = join(ROOT, "web/public");
 const FIREBASE_JS = join(ROOT, "tests/node_modules/firebase");
 const CODE = "REGI2";
@@ -1879,6 +1895,56 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
+  test("quiz en images : JSON de ChatGPT et images déposés ensemble, image manquante signalée puis ajoutée à la main, copiées dans la partie", async () => {
+    const json = JSON.stringify({ title: "Les animaux des petits", questions: [
+      { text: "Quel animal court le plus vite ?", choices: [{ text: "Lion", image: "q1-lion.png" }, { image: "q1-baleine.png" }, { text: "Chien", image: "q1-chien.png" }, { text: "Vache", image: "q1-vache.png" }], correct: 0 },
+      { text: "Quelle est la capitale de la France ?", choices: ["Paris", "Rome"], correct: 0 },
+    ] });
+    const page = await admin();
+    await page.click("#nav button[data-screen=quizzes]");
+    await page.click("#quiz-import-open");
+    await page.locator("#import-file").setInputFiles([
+      { name: "quiz.json", mimeType: "application/json", buffer: Buffer.from(json) },
+      { name: "q1-lion.png", mimeType: "image/png", buffer: png([230, 160, 30]) },
+      { name: "Q1-Baleine.PNG", mimeType: "image/png", buffer: png([40, 120, 230]) },
+      { name: "q1-chien.png", mimeType: "image/png", buffer: png([120, 80, 40]) },
+    ]);
+    await page.locator("#import-images", { hasText: "3 images prêtes" }).waitFor();
+    await page.click("#import-analyse");
+    await page.locator('[data-q="1"]').waitFor({ timeout: 15000 });
+    // Aperçu avant d'enregistrer : 3 images associées par leur nom, la 4e manque et c'est dit.
+    await waitFor(async () => (await page.locator('[data-q="0"] .choice-thumb:not([hidden])').count()) === 3, "3 images en aperçu");
+    assert.equal(await page.locator('[data-q="0"] .q-choice').nth(1).inputValue(), "Baleine", "mot tiré du nom de l'image");
+    await page.locator('[data-q="0"] .problems', { hasText: "q1-vache.png" }).waitFor();
+    // Ajoutée à la main avec « 📷 » ; la question en texte n'a pas d'image.
+    await page.locator('[data-q="0"] .choice-photo input[type=file]').nth(3).setInputFiles({ name: "vache.png", mimeType: "image/png", buffer: png([250, 250, 250]) });
+    await waitFor(async () => (await page.locator('[data-q="0"] .choice-thumb:not([hidden])').count()) === 4, "4 images en aperçu");
+    assert.equal(await page.locator('[data-q="1"] .choice-thumb:not([hidden])').count(), 0);
+    await page.click("#rv-validate-all");
+    await page.click("#rv-save");
+    await page.locator("#rv-status", { hasText: "Enregistré" }).waitFor();
+    await page.context().close();
+    const [[quizId, saved]] = Object.entries(await library("quizzes"));
+    const ids = Object.values(saved.questions[0].choiceImages);
+    assert.equal(new Set(ids).size, 4, "quatre images distinctes");
+    assert.equal(saved.questions[1].choiceImages, undefined);
+    for (const id of ids) assert.match(await library(`images/${id}`), /^data:image\/jpeg;base64,/);
+
+    // Régie : la prestation part sur la TV avec ses réponses en images, copiées là où les tablettes les lisent.
+    await seedLibrary("shows", { lou: { childName: "Lou", status: "publiee", rounds: [{ type: "quiz", quizId }], updatedAt: 1 } });
+    box = startBox();
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator(".show-item", { hasText: "Lou" }).click();
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    const q = (await read("show")).quiz.questions;
+    assert.deepEqual(q[0].choiceImages, ids);
+    assert.equal(q[1].choiceImages, undefined);
+    await waitFor(async () => Object.keys((await read("choiceImages")) ?? {}).length === 4, "images des réponses copiées dans la partie");
+    await regie.context().close();
+  });
+
   test("prestation de test : ajoutée en un clic sans rien remplacer, modifiée dans l'admin, chargée telle quelle sur la TV", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     const INES = { childName: "Inès", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 };
@@ -1929,7 +1995,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#test-full-status", { hasText: "existe déjà" }).waitFor();
     await page.context().close();
     const images = await library("images");
-    assert.equal(Object.keys(images).length, 4, "deux photos pour le Zoom mystère, deux pour l'Image floue");
+    assert.equal(Object.keys(images).length, 12, "deux photos pour le Zoom mystère, deux pour l'Image floue, huit réponses en images");
     assert.ok(Object.values(images).every((d) => d.startsWith("data:image/jpeg") && d.length < 150000));
     assert.deepEqual((await library("quizzes")).animaux, ANIMAUX, "Quiz existant intact");
     assert.equal((await library("mimes"))["test-lea-tous-les-jeux-mimes"].cards.length, 6);
@@ -1951,6 +2017,8 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(kinds, ["classic", "number", "express", "mime", "zoom", "chante", "flou", "quisuis", "disparu", "blind", "statues", "pictionary"]);
     assert.equal((await read("show")).quiz.questions.filter((q) => q.kind === "classic" && q.audioId).length, 4, "quiz musical sur les comptines");
     await waitFor(async () => Object.keys((await read("images")) ?? {}).length === 4, "photos copiées dans la partie");
+    assert.equal((await read("show")).quiz.questions.filter((q) => q.choiceImages?.length === 4).length, 2, "quiz en images des petits");
+    await waitFor(async () => Object.keys((await read("choiceImages")) ?? {}).length === 8, "réponses en images copiées dans la partie");
     await waitFor(async () => Object.keys((await read("sounds")) ?? {}).length === 4, "comptines copiées dans la partie", 15000);
     await regie.context().close();
   });
@@ -1966,7 +2034,9 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#test-full-status", { hasText: "Mise à jour" }).waitFor({ timeout: 20000 });
     await page.context().close();
     const show = await library("shows/test-lea-tous-les-jeux");
-    assert.deepEqual(show.rounds.map((r) => r.type), ["quiz", "chante", "disparu", "blind", "musical", "statues", "pictionary", "finale"]);
+    assert.deepEqual(show.rounds.map((r) => r.type), ["quiz", "chante", "disparu", "blind", "musical", "statues", "pictionary", "quiz", "finale"]);
+    assert.equal(show.rounds[7].quizId, "test-lea-tous-les-jeux-images");
+    assert.equal((await library("quizzes"))["test-lea-tous-les-jeux-images"].questions.length, 2);
     assert.equal(show.childName, "Léa");
     assert.equal(Object.keys(await library("sounds")).length, 4);
   });

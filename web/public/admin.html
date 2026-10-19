@@ -283,8 +283,17 @@
           Texte de Gemini, lignes copiées d'un tableur (colonnes : Question, Réponse A, Réponse B, Réponse C,
           Réponse D, Bonne réponse, Durée), ou fichier CSV.
         </p>
-        <textarea id="import-text" rows="12" placeholder="Collez ici…"></textarea>
-        <label class="file">Ou choisir un fichier<input id="import-file" type="file" accept=".csv,.tsv,.txt,.json,text/csv,text/plain"></label>
+        <p class="hint small">
+          Quiz en images pour les petits : copiez la consigne ChatGPT, puis déposez ici son fichier JSON <b>et toutes ses images en même temps</b>.
+          Chaque image est associée à la réponse qui porte son nom, réduite, et vous la voyez avant d'enregistrer.
+        </p>
+        <button id="gpt-copy" type="button" class="btn secondary">Copier la consigne ChatGPT (quiz en images)</button>
+        <textarea id="gpt-prompt" rows="9" readonly hidden></textarea>
+        <div id="import-drop" class="drop-zone">
+          <textarea id="import-text" rows="12" placeholder="Collez ici… ou déposez le fichier du quiz et ses images"></textarea>
+        </div>
+        <label class="file">Ou choisir des fichiers (quiz et images)<input id="import-file" type="file" multiple accept=".csv,.tsv,.txt,.json,text/csv,text/plain,application/json,image/*"></label>
+        <p id="import-images" class="hint small"></p>
         <button id="import-analyse" class="btn">Analyser</button>
         <p id="import-status" class="status"></p>
       </div>

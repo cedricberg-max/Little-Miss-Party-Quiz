@@ -8,7 +8,8 @@ import org.json.JSONObject
  * `{"id", "title", "questions": [{"id", "text", "choices": [...], "correct", "duration", "kind", "double", "round"}]}`,
  * plus `"cards": [{"word", "image"}]` pour une manche de mimes ou de Pictionary (`"kind": "mime"` ou
  * `"pictionary"`, sans propositions ; `"points"` : valeur d'un dessin trouvé),
- * l'illustration facultative d'une question : `"image"` (émoji) et `"imageId"` (photo), et pour la
+ * l'illustration facultative d'une question : `"image"` (émoji) et `"imageId"` (photo), des réponses en images
+ * (`"choiceImages"`, une photo par proposition), et pour la
  * musique `"audioId"` (extrait) et `"artist"` (blind test).
  * Toute erreur est signalée avec la question concernée, pour pouvoir la corriger.
  */
@@ -39,6 +40,19 @@ object QuizJson {
         )
     }
 
+    /** Kinds de questions dont les propositions peuvent être des photos (QCM et Vrai / Faux ordinaires). */
+    private val IMAGE_CHOICE_KINDS = setOf(QuestionKind.CLASSIC, QuestionKind.TRUE_FALSE)
+
+    /**
+     * Une photo par proposition (`"choiceImages": ["<id>", null, …]`) ; une photo mal formée est ignorée, et rien
+     * n'est gardé si aucune n'est valable ou si la question n'est pas un QCM : jamais un refus de jouer.
+     */
+    private fun choiceImages(list: JSONArray?, count: Int, kind: QuestionKind): List<String?> {
+        if (list == null || kind !in IMAGE_CHOICE_KINDS) return emptyList()
+        val ids = (0 until count).map { k -> list.optString(k).takeIf { it.matches(IMAGE_ID) } }
+        return if (ids.any { it != null }) ids else emptyList()
+    }
+
     private fun question(q: JSONObject, i: Int): Question {
         val imageId = q.optString("imageId").takeIf { it.matches(IMAGE_ID) }
         // Zoom mystère ou image floue sans photo valable : la question se joue comme une question classique.
@@ -63,6 +77,7 @@ object QuizJson {
             // Une illustration mal formée est ignorée : elle ne doit jamais empêcher de jouer.
             emoji = q.optString("image").trim().takeIf { it.isNotEmpty() && it.length <= 16 && !turns },
             imageId = imageId?.takeIf { !turns },
+            choiceImages = choiceImages(q.optJSONArray("choiceImages"), choices.length(), kind),
             artist = q.optString("artist").trim().takeIf { it.isNotEmpty() && kind == QuestionKind.BLIND }?.take(MAX_ARTIST),
             audioId = q.optString("audioId").takeIf { it.matches(IMAGE_ID) && !turns },
             points = q.optInt("points", 0).takeIf { it > 0 && (kind == QuestionKind.BLIND || kind == QuestionKind.PICTIONARY) }?.coerceAtMost(MAX_TRACK_POINTS),

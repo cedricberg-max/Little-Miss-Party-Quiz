@@ -413,6 +413,48 @@ class RegieTest : TestTv() {
     }
 
     @Test
+    fun reponsesEnImagesPuisQuestionEnTexteSansRienBloquer() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        val lion = "0123456789abcdef"
+        val chat = "fedcba9876543210"
+        regie.copierPhotoReponse(code, lion, PIXEL)
+        regie.copierPhotoReponse(code, chat, PIXEL)
+        @Suppress("UNCHECKED_CAST")
+        val demo = regie.programme(code)["questions"] as List<Map<String, Any?>>
+        val images = mapOf(
+            "id" to "i1", "text" to "Quel animal fait « miaou » ?", "choices" to listOf("Lion", "Chat", "Vache"), "correct" to 1,
+            "duration" to 20, "kind" to "classic", "double" to false, "round" to "Quiz des petits", "choiceImages" to listOf(lion, chat, ""),
+        )
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(images, demo[0] + ("round" to "Quiz des petits"))))
+
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("question en images ouverte") { licornes.etat(code).takeIf { it.child("qid").value == "i1" && it.child("phase").value == "question" } }
+        // Les deux photos s'affichent en grand ; la réponse sans photo reste en texte.
+        ecran.voit("Réponse A en image : Lion")
+        ecran.voit("Réponse B en image : Chat")
+        ecran.voit("Vache")
+        assertEquals(lion, licornes.etat(code).child("choiceImages/0").value)
+        ecran.capture("reponses-en-images")
+        assertTrue(licornes.repondre(code, "i1", 1))
+        ecran.voit("Toutes les équipes ont répondu")
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("points du QCM pour la bonne image") { points(licornes, code, licornes.uid).takeIf { it >= Scoring.BASE } }
+        ecran.capture("reponses-en-images-revelation")
+        // Question suivante en texte : rien ne bloque, le score est gardé.
+        val gagne = points(licornes, code, licornes.uid)
+        attendreQue("question en texte ouverte", 30_000) {
+            val e = licornes.etat(code)
+            if (e.child("qid").value == demo[0]["id"] && e.child("phase").value == "question") true
+            else { regie.commande(code, "next"); null }
+        }
+        ecran.voit(demo[0]["text"] as String)
+        assertEquals(gagne, points(licornes, code, licornes.uid))
+    }
+
+    @Test
     fun imageFloueLePremierBuzzRepondPuisLeRebondGagne() {
         val code = lancerBoite()
         val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }

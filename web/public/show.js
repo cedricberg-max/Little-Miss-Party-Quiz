@@ -322,6 +322,8 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
         // Illustration facultative montrée à la révélation (émoji, ou photo copiée dans la partie par la régie).
         ...(q.image ? { image: q.image } : {}),
         ...(q.imageId ? { imageId: q.imageId } : {}),
+        // Réponses en images (QCM et Vrai / Faux) : une photo par proposition, "" pour une proposition en texte.
+        ...(!number && !express && !zoom && !flou && choiceImageList(q).length ? { choiceImages: choiceImageList(q) } : {}),
       });
     });
   });
@@ -499,6 +501,24 @@ export function uniqueRoundTitle(questions, title) {
 /** Extraits musicaux d'un programme (identifiants sans doublon), à copier dans la partie avant de l'envoyer. */
 export function soundIds(questions) {
   return [...new Set((questions ?? []).map((q) => q?.audioId).filter((id) => typeof id === "string" && /^[0-9a-f]{16}$/.test(id)))];
+}
+
+const IMAGE_ID = /^[0-9a-f]{16}$/;
+
+/**
+ * Photos des propositions d'une question de la bibliothèque, alignées sur ses propositions ("" pour une
+ * proposition en texte) ; vide si aucune photo valable. La base les range en table ({ "0": id, "2": id }).
+ */
+export function choiceImageList(q) {
+  const raw = q?.choiceImages;
+  if (!raw || typeof raw !== "object") return [];
+  const list = (q.choices ?? []).map((_, k) => (IMAGE_ID.test(raw[k] ?? "") ? raw[k] : ""));
+  return list.some(Boolean) ? list : [];
+}
+
+/** Réponses en images d'un programme (identifiants sans doublon), à copier dans la partie avant de l'envoyer. */
+export function choiceImageIds(questions) {
+  return [...new Set((questions ?? []).flatMap((q) => (Array.isArray(q?.choiceImages) ? q.choiceImages : [])).filter((id) => typeof id === "string" && IMAGE_ID.test(id)))];
 }
 
 /** Photos d'illustration d'un programme (identifiants sans doublon), à copier dans la partie avant de l'envoyer. */

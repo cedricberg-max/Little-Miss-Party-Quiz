@@ -1217,6 +1217,27 @@ def pictio_trouve():
         mx.add('bells', note('tinkle_bell', 100 + (k % 4) * 2, .1, .16, release=.4), 2.1 + k * .09)
     return mx.render(duck=0)
 
+def pictio_crayon():
+    """Crayon à papier qui gratte la feuille, en boucle de 2 s sans couture : la TV la fait entendre tant que le
+    trait avance. Grain du graphite (petits craquements), souffle aigu, allers-retours de la main."""
+    dur, xf = 4 * B, .25
+    n, nx = int(dur * SR), int(xf * SR)
+    t = np.arange(n + nx) / SR
+    souffle = sweep_bp(noise(n + nx), 3200, 3200, q=.9) * .8 + sweep_bp(noise(n + nx), 1400, 1400, q=1.6) * .25
+    grain = np.zeros(n + nx)
+    rng = np.random.default_rng(7)
+    idx = rng.integers(0, n + nx, int(dur * 260))
+    grain[idx] = rng.uniform(.3, 1, len(idx)) * rng.choice([-1, 1], len(idx))
+    grain = sweep_bp(grain, 4500, 4500, q=1.2) * 2.2
+    # 7 allers-retours par seconde et une main qui accélère et ralentit, périodiques sur 2 s.
+    gestes = .35 + .65 * np.abs(np.sin(np.pi * 7 * t + .7 * np.sin(2 * np.pi * 1.5 * t))) ** 1.3
+    x = (souffle + grain) * gestes
+    # Boucle sans couture : la fin se fond dans le début.
+    f = np.linspace(0, 1, nx)
+    y = x[:n].copy()
+    y[:nx] = x[:nx] * f + x[n:n + nx] * (1 - f)
+    return stereo(y.astype(np.float32), width=.2)
+
 PIECES = {
     'generique': (generique, -14.5), 'bed_full': (lambda: bed('full'), -15.5), 'bed_light': (lambda: bed('light'), -18.5),
     'tension': (tension, -16), 'riser_4b': (riser_4b, -17), 'impact': (impact, -15), 'round_sting': (round_sting, -15),
@@ -1234,13 +1255,14 @@ PIECES = {
     'bt_generique': (lambda: couper(bt_generique(), 4.8), -15), 'bt_buzz': (bt_buzz, -15), 'bt_attente': (bt_attente, -21), 'bt_bravo': (bt_bravo, -15), 'bt_double': (lambda: couper(bt_double(), 4.8), -15), 'bt_outro': (lambda: couper(bt_outro(), 4.8), -16),
     'bed_magie': (bed_magie, -18.5), 'magie': (magie, -19), 'magie_pouf': (magie_pouf, -17),
     'bonus': (bonus, -17), 'malus': (malus, -20), 'pictio_top': (pictio_top, -16), 'pictio_trouve': (pictio_trouve, -16),
+    'pictio_crayon': (pictio_crayon, -24),
     'bed_mimes': (bed_mimes, -16.5), 'bed_pause': (bed_pause, -19), 'pause_in': (pause_in, -18), 'transition': (transition, -15),
 }
 for i in range(4):
     PIECES[f'pop_{i + 1}'] = ((lambda i=i: pop(i)), -22)
     PIECES[f'team_sting_{i + 1}'] = ((lambda i=i: team_sting(i)), -17)
     PIECES[f'fun_buzz_{i + 1}'] = ((lambda i=i: fun_buzz(i)), -20)
-LOOPS = {'bed_full': 32, 'bed_light': 32, 'bed_mimes': 32, 'bed_pause': 32, 'bed_express': 32, 'bed_magie': 32}
+LOOPS = {'bed_full': 32, 'bed_light': 32, 'bed_mimes': 32, 'bed_pause': 32, 'bed_express': 32, 'bed_magie': 32, 'pictio_crayon': 4}
 
 if __name__ == '__main__':
     only = sys.argv[2:] or list(PIECES)

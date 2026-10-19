@@ -5,7 +5,7 @@ import { CHOICE_LETTERS } from "./theme.js";
 import { writeProof } from "./proof.js";
 import { passwordCandidates } from "./secret.js";
 import {
-  buildSnapshot, showTitle, playable, QUIZ_GAMES, BUILTIN_GAMES, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame, imageIds,
+  buildSnapshot, showTitle, playable, QUIZ_GAMES, BUILTIN_GAMES, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame, imageIds, choiceImageIds,
   soundIds, MUSIC_GAMES, playableTracks, STATUES_SEC, PICTO_SEC,
   isFutureRound, moveRound, removeRound, uniqueRoundTitle,
 } from "./show.js";
@@ -1357,9 +1357,11 @@ function renderShows(st) {
  * Jamais bloquant : une photo qui manque laisse simplement la question sans illustration.
  */
 async function copyImages(questions) {
-  await Promise.all(imageIds(questions).map(async (id) => {
+  // Réponses en images : rangées à part, lisibles par les pupitres (les photos d'illustration, elles, ne le sont pas).
+  const all = [...imageIds(questions).map((id) => ["images", id]), ...choiceImageIds(questions).map((id) => ["choiceImages", id])];
+  await Promise.all(all.map(async ([dir, id]) => {
     try {
-      const target = ref(db, `games/${code}/images/${id}`);
+      const target = ref(db, `games/${code}/${dir}/${id}`);
       if ((await get(target)).exists()) return;
       const data = (await get(ref(db, `library/images/${id}`))).val();
       if (typeof data === "string") await set(target, data);

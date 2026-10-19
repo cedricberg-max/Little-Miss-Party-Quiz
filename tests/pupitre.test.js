@@ -191,6 +191,31 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
+  test("réponses en images : grandes photos sur la tablette, une case reste en texte, la réponse part comme un QCM", async () => {
+    const LION = "0123456789abcdef", CHIEN = "fedcba9876543210", VACHE = "00112233445566ff";
+    // Petit carré PNG valable : la photo s'affiche vraiment dans le bouton.
+    const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/choiceImages`), { [LION]: PNG, [CHIEN]: PNG, [VACHE]: PNG }));
+    const page = await openPupitre();
+    await joinTeam(page, "Les Petits");
+    const uid = Object.keys(await read("teams"))[0];
+    await hostState(question({ text: "Qui court le plus vite ?", choices: ["Lion", "Baleine", "Chien", "Vache"], choiceImages: [LION, "", CHIEN, VACHE] }));
+    await page.locator("#screen-question.active").waitFor();
+    await page.locator("#choices.pictures").waitFor();
+    await waitFor(async () => (await page.locator(".choice.with-photo img.photo:not([hidden])").count()) === 3, "3 photos affichées");
+    assert.equal(await page.locator(".choice").nth(1).locator("img").count(), 0, "Baleine reste en texte");
+    await page.locator(".choice").nth(1).locator(".text", { hasText: "Baleine" }).waitFor();
+    await page.locator(".choice").nth(2).locator(".text", { hasText: "Chien" }).waitFor();
+    await page.locator(".choice").nth(2).click();
+    await waitFor(async () => (await read(`answers/q1/${uid}`))?.choice === 2, "réponse C enregistrée");
+    await page.locator("#q-status", { hasText: "Réponse C envoyée" }).waitFor();
+    // Question suivante en texte : la tablette revient aux boutons habituels.
+    await hostState(question({ qid: "q2", index: 1, text: "Couleur du ciel ?" }));
+    await page.locator(".choice .text", { hasText: "Bleu" }).waitFor();
+    assert.equal(await page.locator("#choices.pictures").count(), 0);
+    await page.context().close();
+  });
+
   test("Le Juste Chiffre : l'équipe tape son nombre une seule fois et voit si elle est la plus proche", async () => {
     const page = await openPupitre();
     await joinTeam(page, "Les Roses");

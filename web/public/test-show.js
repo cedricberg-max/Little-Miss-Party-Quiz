@@ -170,7 +170,7 @@ export const FULL_TITLE = "ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux";
 /** Clés fixes des contenus de la bibliothèque : un second clic ne crée rien en double. */
 export const FULL_KEYS = {
   quiz: `${FULL_ID}-quiz`, express: `${FULL_ID}-vrai-faux`, zoom: `${FULL_ID}-zoom`, flou: `${FULL_ID}-flou`,
-  mimes: `${FULL_ID}-mimes`, playlist: `${FULL_ID}-comptines`,
+  mimes: `${FULL_ID}-mimes`, playlist: `${FULL_ID}-comptines`, images: `${FULL_ID}-images`,
 };
 
 const v = (text, choices, correct, extra = {}) => ({ text, choices, correct, double: false, status: "validee", ...extra });
@@ -186,6 +186,35 @@ export const FULL_PHOTOS = {
     { emoji: "🐘", colors: ["#06D6A0", "#118AB2"], q: v("Qu'est-ce qui se cache sous le flou ?", ["Un éléphant", "Une baleine"], 0) },
   ],
 };
+
+/** Quiz en images des petits : chaque réponse est une photo dessinée (émoji sur un fond coloré). */
+export const FULL_CHOICE_PHOTOS = [
+  {
+    text: "Quel animal court le plus vite ?", correct: 0,
+    choices: [
+      { word: "Guépard", emoji: "🐆", colors: ["#FFE61F", "#FF9F1C"] }, { word: "Baleine", emoji: "🐳", colors: ["#4CC9F0", "#4361EE"] },
+      { word: "Escargot", emoji: "🐌", colors: ["#9EF01A", "#38B000"] }, { word: "Vache", emoji: "🐄", colors: ["#FFB3C6", "#FF5D8F"] },
+    ],
+  },
+  {
+    text: "Lequel est un fruit ?", correct: 2,
+    choices: [
+      { word: "Voiture", emoji: "🚗", colors: ["#F94144", "#F3722C"] }, { word: "Ballon", emoji: "🎈", colors: ["#B5179E", "#7209B7"] },
+      { word: "Pomme", emoji: "🍎", colors: ["#CAFFBF", "#9BF6FF"] }, { word: "Chaussure", emoji: "👟", colors: ["#FDFFB6", "#FFD6A5"] },
+    ],
+  },
+];
+
+/** Quiz en images, une fois les photos dessinées et rangées ([ids] : une liste d'identifiants par question). */
+export function imageQuiz(ids) {
+  return {
+    title: "TEST – Quiz en images des petits", theme: "Réponses en images (test)", ageMin: 5, ageMax: 6, source: "saisie",
+    questions: FULL_CHOICE_PHOTOS.map((p, i) => ({
+      ...v(p.text, p.choices.map((c) => c.word), p.correct, { duration: 25 }),
+      choiceImages: Object.fromEntries(ids[i].map((id, k) => [String(k), id])),
+    })),
+  };
+}
 
 export const FULL_QUIZZES = {
   [FULL_KEYS.quiz]: {
@@ -247,12 +276,13 @@ export const FULL_NEW_ROUNDS = [
   { type: "musical", playlistId: FULL_KEYS.playlist },
   { type: "statues", duration: 60 },
   { type: "pictionary", duration: 90 },
+  { type: "quiz", quizId: FULL_KEYS.images },
 ];
 
 export const FULL_SHOW = {
   childName: "Léa", age: 9, date: "2026-10-25", status: "publiee", title: FULL_TITLE, profile: "MOYENS", durationMin: 25,
   themes: "Tous les jeux (test)",
-  notes: "Prestation de TEST : un peu de chaque jeu (quiz illustré, Juste Chiffre, Vrai ou Faux express, Mimes, Zoom mystère, Chante le mot !, Image floue, Qui suis-je ?, Qui a disparu ?, Blind test, Quiz musical, Statues musicales, Pictionary ; les 2 dernières questions du quiz sont la Super Finale ×2). Elle peut être archivée sans risque.",
+  notes: "Prestation de TEST : un peu de chaque jeu (quiz illustré, Juste Chiffre, Vrai ou Faux express, Mimes, Zoom mystère, Chante le mot !, Image floue, Qui suis-je ?, Qui a disparu ?, Blind test, Quiz musical, Statues musicales, Pictionary, quiz en images des petits ; les 2 dernières questions du quiz sont la Super Finale ×2). Elle peut être archivée sans risque.",
   rounds: [
     // Super Finale : les 2 dernières questions de ce quiz comptent double (un réglage du quiz, pas un jeu).
     { type: "quiz", quizId: FULL_KEYS.quiz, finale: 2 },

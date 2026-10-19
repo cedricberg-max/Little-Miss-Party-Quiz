@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -51,6 +52,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 
 /**
  * Habillage du Pictionary : le dessin en direct sur un tableau encadré, l'équipe qui dessine et son chrono,
@@ -201,6 +203,41 @@ fun ScenePictionary(
             TableauDessin(traits, Modifier.weight(1f), vide = "Le dessin arrive…")
         }
     }
+    GrattementCrayon(traits)
+}
+
+/** Boucle du grattement de crayon (res/raw). */
+const val FICHIER_CRAYON = "lmp_pictio_crayon"
+
+/** Le crayon se tait quand plus aucun point n'arrive pendant ce délai : le dessinateur a levé le doigt. */
+const val CRAYON_SILENCE_MS = 450L
+
+/** Points reçus en tout : ce nombre grandit tant que le trait avance et retombe quand la feuille est effacée. */
+fun pointsDessines(traits: List<TraitDessin>): Int = traits.sumOf { it.points.size / 2 }
+
+/** Le trait avance ? Pas à l'arrivée d'un dessin déjà commencé (TV relancée en plein tour), ni quand on efface. */
+fun crayonAvance(avant: Int, apres: Int): Boolean = avant >= 0 && apres > avant
+
+/**
+ * Grattement de crayon à papier sur la TV, calé sur le dessin en direct : il démarre quand de nouveaux points
+ * arrivent et s'arrête [CRAYON_SILENCE_MS] après le dernier. La tablette, elle, reste muette.
+ */
+@Composable
+fun GrattementCrayon(traits: List<TraitDessin>, jouer: (Boolean) -> Unit = Sons::crayon) {
+    val total = pointsDessines(traits)
+    val avant = remember { intArrayOf(-1) }
+    LaunchedEffect(total) {
+        val avance = crayonAvance(avant[0], total)
+        avant[0] = total
+        if (!avance) {
+            jouer(false)
+            return@LaunchedEffect
+        }
+        jouer(true)
+        delay(CRAYON_SILENCE_MS)
+        jouer(false)
+    }
+    DisposableEffect(Unit) { onDispose { jouer(false) } }
 }
 
 /** « PICTIONARY » en lettres dorées. */

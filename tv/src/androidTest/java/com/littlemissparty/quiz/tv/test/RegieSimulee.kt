@@ -115,6 +115,11 @@ class RegieSimulee : AutoCloseable {
         bloquer { base.getReference("games/$code/images/$id").setValue(dataUrl).await() }
     }
 
+    /** Comme la régie : copie la photo d'une réponse en image, là où la box et les tablettes la lisent. */
+    fun copierPhotoReponse(code: String, id: String, dataUrl: String) {
+        bloquer { base.getReference("games/$code/choiceImages/$id").setValue(dataUrl).await() }
+    }
+
     fun copierExtrait(code: String, id: String, dataUrl: String) {
         bloquer { base.getReference("games/$code/sounds/$id").setValue(dataUrl).await() }
     }
