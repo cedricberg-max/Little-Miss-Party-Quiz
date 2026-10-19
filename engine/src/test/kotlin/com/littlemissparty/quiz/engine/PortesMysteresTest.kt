@@ -43,13 +43,12 @@ class PortesMysteresTest {
     }
 
     @Test
-    fun `l'animatrice ouvre les portes une à une, le jackpot en dernier, puis le classement final et la fin`() {
+    fun `l'animatrice ouvre les portes une à une de gauche à droite, puis le classement final et la fin`() {
         val g = partie()
         assertEquals(mapOf("count" to 4), Codec.publicState(g)["portes"], "rien n'est dit avant la révélation")
         g.close(t0 + 10_000)
         g.next(t0 + 11_000, mapOf("licornes" to Answer(2, t0 + 6_000), "dragons" to Answer(1, t0 + 7_000)))
-        // Portes vides d'abord (1 puis 4, indices 0 et 3), puis le malus (indice 1), le jackpot (indice 2) en dernier.
-        assertEquals(listOf(0, 3, 1, 2), g.doorOrder())
+        assertEquals(listOf(0, 1, 2, 3), g.doorOrder())
         @Suppress("UNCHECKED_CAST")
         fun etat() = Codec.publicState(g)["portes"] as Map<String, Any?>
         assertEquals(0, etat()["opened"])
@@ -57,7 +56,7 @@ class PortesMysteresTest {
         assertNull(Codec.publicState(g)["correct"])
         repeat(3) { g.next(t0 + 12_000L + it) }
         assertEquals(3, g.state.doorsOpened)
-        assertEquals(mapOf("0" to 150, "3" to 50, "1" to -150), etat()["values"], "seules les portes ouvertes")
+        assertEquals(mapOf("0" to 150, "1" to -150, "2" to 300), etat()["values"], "seules les portes ouvertes")
         assertEquals(Phase.REVEAL, g.state.phase)
         g.next(t0 + 13_000)
         assertEquals(4, g.state.doorsOpened)

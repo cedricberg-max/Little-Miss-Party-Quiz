@@ -13,7 +13,7 @@ import { parseQuiz, checkQuestions, geminiPrompt, chatgptImagePrompt, imageKey, 
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
 import {
   buildSnapshot, estimateMinutes, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, BUILTIN_GAMES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
-  roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC, PICTO_SECONDS, PICTO_SEC, PICTO_POINTS, PICTO_RULE,
+  roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC, PICTO_SECONDS, PICTO_SEC, PICTO_POINTS, PICTO_RULE, PORTES_DOORS, PORTES_DEFAULT, PORTES_VALUES,
   blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras,
 } from "./show.js";
 import { EXTRACT_SECONDS, guessTrack, defaultStart, decodeFile, makeExtract, synthTune, encodeMp3, soundId } from "./audio.js";
@@ -363,6 +363,7 @@ function formShow() {
       : r.type === "mimes" ? { type: "mimes", deckId: r.deckId }
       : r.type === "statues" ? { type: "statues", duration: r.duration ?? STATUES_SEC }
       : r.type === "pictionary" ? { type: "pictionary", duration: r.duration ?? PICTO_SEC }
+      : r.type === "portes" ? { type: "portes", doors: r.doors ?? PORTES_DEFAULT }
       : MUSIC_GAMES[r.type] ? { type: r.type, playlistId: r.playlistId }
       : { type: r.type ?? "quiz", quizId: r.quizId, ...(r.count > 0 ? { count: r.count } : {}), ...((r.type ?? "quiz") === "quiz" && r.finale > 0 ? { finale: r.finale } : {}) })),
   };
@@ -403,6 +404,10 @@ function refreshRounds() {
         // Pictionary : les mots viennent du catalogue (page Jeux), seulement le temps de dessin par équipe.
         ? h("select", { class: "grow", "aria-label": "Temps de dessin", onchange: (e) => { r.duration = Number(e.target.value); refreshSummary(); } },
           ...PICTO_SECONDS.map((n) => h("option", { value: n, selected: (r.duration ?? PICTO_SEC) === n, text: `${n} secondes de dessin par équipe (un mot par tour, ${PICTO_POINTS} points s'il est trouvé)` })))
+        : r.type === "portes"
+        // Portes mystères : rien à préparer, seulement le nombre de portes (valeurs mélangées à chaque partie).
+        ? h("select", { class: "grow", "aria-label": "Nombre de portes", onchange: (e) => { r.doors = Number(e.target.value); refreshSummary(); } },
+          ...PORTES_DOORS.map((n) => h("option", { value: n, selected: (r.doors ?? PORTES_DEFAULT) === n, text: `${n} portes (${PORTES_VALUES[n].map((v) => (v > 0 ? `+${v}` : `−${-v}`)).join(" / ")} points, mélangés à chaque partie)` })))
         : MUSIC_GAMES[r.type]
         ? h("select", { class: "grow", "aria-label": "Playlist", onchange: (e) => { r.playlistId = e.target.value; refreshSummary(); } },
           h("option", { value: "", text: lists.length ? "Choisir une playlist…" : "Aucune playlist : créez-en une dans Blind test" }),
@@ -419,7 +424,7 @@ function refreshRounds() {
               : r.type === "zoom" || r.type === "flou" ? `${q.title} (${zoomQuestions(q).length} avec photo)` : `${q.title} (${playable(q).length} validées)`,
           }))),
       // Jeux tirés d'un quiz : toutes ses questions retenues, ou seulement les premières.
-      !BUILTIN_GAMES[r.type] && r.type !== "statues" && r.type !== "pictionary" && r.type !== "mimes" && !MUSIC_GAMES[r.type]
+      !BUILTIN_GAMES[r.type] && r.type !== "statues" && r.type !== "pictionary" && r.type !== "portes" && r.type !== "mimes" && !MUSIC_GAMES[r.type]
         ? h("select", { class: "count", "aria-label": "Nombre de questions", onchange: (e) => { r.count = Number(e.target.value) || null; refreshSummary(); } },
           h("option", { value: "", text: "Toutes les questions" }),
           ...[1, 2, 3, 4, 5, 6, 8, 10, 12, 15].map((n) => h("option", { value: n, selected: r.count === n, text: n === 1 ? "La première seulement" : `Les ${n} premières` })))
@@ -476,7 +481,7 @@ function refreshReuse() {
 /** Contenu d'une manche (titre du quiz, du paquet, de la playlist), "" pour un jeu sans contenu, null s'il n'existe plus. */
 function roundContent(r) {
   if (!r?.type && !r?.quizId) return null;
-  if (BUILTIN_GAMES[r.type] || r.type === "statues" || r.type === "pictionary") return "";
+  if (BUILTIN_GAMES[r.type] || r.type === "statues" || r.type === "pictionary" || r.type === "portes") return "";
   if (r.type === "mimes") return mimes[r.deckId]?.title ?? null;
   if (MUSIC_GAMES[r.type]) return playlists[r.playlistId]?.title ?? null;
   return quizzes[r.quizId]?.title ?? null;
@@ -1555,6 +1560,7 @@ const GAME_GROUPS = [
     { type: "pictionary", icon: "✏️", rule: `Équipe par équipe : vous montrez un mot sur la tablette de l'équipe, un enfant le dessine et le dessin s'affiche en direct sur la TV. ${PICTO_POINTS} points si son équipe trouve avant la fin du chrono. Le temps de dessin se choisit dans la prestation.` },
   ] },
   { title: "Sans contenu", hint: "Rien à préparer.", games: [
+    { type: "portes", icon: "🚪", rule: "Le jeu final : chaque équipe choisit une porte sur sa tablette. Derrière, un bonus ou un malus qui peut renverser le classement ! Vous ouvrez les portes une à une depuis la régie, puis le classement final. À mettre en dernier dans la prestation." },
     { type: "statues", icon: "🗿", rule: "La musique s'arrête par moments : tout le monde se fige ! Vous désignez l'équipe gagnante depuis la régie. La durée se choisit dans la prestation." },
   ] },
 ];

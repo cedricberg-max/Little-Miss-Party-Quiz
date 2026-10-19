@@ -123,6 +123,8 @@ sealed interface UiState {
         val sounds: Map<String, String> = emptyMap(),
         /** Blind test en cours (ou qui vient de finir, au bilan), sinon null. */
         val blind: BlindUi? = null,
+        /** Portes mystères : ordre d'ouverture, portes déjà ouvertes et valeurs (null hors de ce jeu). */
+        val portes: PortesUi? = null,
     ) : UiState {
         /** Total des appuis sur le buzzer de l'accueil, pour le son. */
         val funTotal: Int get() = funBuzzes.values.sum()
@@ -158,6 +160,12 @@ data class BlindUi(
  * Mimes vus par l'écran : équipe qui joue (null entre deux tours), carte affichée, compteurs du tour,
  * bilan du dernier tour, mimes trouvés par équipe dans la manche et équipes ayant déjà joué.
  */
+/** Portes mystères : [order] ordre d'ouverture des portes, [opened] combien sont ouvertes, [doors] leurs valeurs. */
+data class PortesUi(val order: List<Int>, val opened: Int, val doors: List<Int>) {
+    /** Toutes les portes sont ouvertes : place au classement final. */
+    val allOpen: Boolean get() = opened >= doors.size
+}
+
 data class MimeUi(
     val team: String? = null,
     val card: MimeCard? = null,
@@ -647,6 +655,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 buzzTeam = s.buzz?.team,
                 buzzBlocked = s.buzz?.blocked.orEmpty(),
                 blind = q?.takeIf { it.isBlind && s.phase != Phase.LOBBY }?.let { blindUi(g) },
+                portes = q?.takeIf { it.isPortes && s.phase != Phase.LOBBY }?.let { PortesUi(g.doorOrder(), s.doorsOpened, it.doors) },
                 lastGain = if (q?.isTurns == true) mimeCounts.mapValues { it.value * s.pointsPerFound(q.id) } else revealedAwards.mapValues { it.value.points },
                 isLast = g.isLastQuestion,
                 nextGame = g.nextGameTitle(),
@@ -1342,6 +1351,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             // Blind test morceau par morceau : « Lancer le morceau », relance, révéler sans points, passer, bilan.
             "blindPlay" to true,
             "statues" to true,
+            // Portes mystères (jeu final) : choix d'une porte sur les tablettes, ouverture une à une.
+            "portes" to true,
             "disparu" to true,
             "questions" to quiz.questions.map {
                 clean(mapOf(
@@ -1349,6 +1360,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     "duration" to it.durationSec, "kind" to it.kind.code, "double" to it.double, "round" to it.roundTitle,
                     "cards" to it.cards.ifEmpty { null }?.map { c -> clean(mapOf("word" to c.word, "image" to c.image)) },
                     "image" to it.emoji, "imageId" to it.imageId, "artist" to it.artist, "audioId" to it.audioId,
+                    "doors" to it.doors.ifEmpty { null },
                     "choiceImages" to it.choiceImages.ifEmpty { null }?.map { id -> id ?: "" },
                     // Blind test : valeur et durée de révélation du morceau, relues telles quelles après un redémarrage.
                     "points" to it.points?.takeIf { _ -> it.isBlind }, "reveal" to it.revealSec.takeIf { _ -> it.isBlind },

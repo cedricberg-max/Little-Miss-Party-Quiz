@@ -387,7 +387,7 @@ function renderLobby(st) {
 function renderQuestion(st) {
   show("question");
   $("q-number").textContent = st.kind === "express" ? "Vrai ou Faux express !"
-    : st.kind === "zoom" ? "Zoom mystère : regardez la TV !" : `Question ${(st.index ?? 0) + 1} / ${st.total ?? "?"}`;
+    : st.kind === "zoom" ? "Zoom mystère : regardez la TV !" : st.kind === "portes" ? "Portes mystères !" : `Question ${(st.index ?? 0) + 1} / ${st.total ?? "?"}`;
   $("q-double").hidden = !st.double;
   if (st.kind === "number") return renderNumber(st);
   const choices = st.choices ?? [];
@@ -406,7 +406,8 @@ function renderQuestion(st) {
       const b = document.createElement("button");
       b.className = "choice";
       b.style.setProperty("--choice", CHOICE_COLORS[i]);
-      b.innerHTML = `<span class="letter">${CHOICE_LETTERS[i]}</span><span class="text"></span>`;
+      b.innerHTML = `<span class="letter">${st.kind === "portes" ? "🚪" : CHOICE_LETTERS[i]}</span><span class="text"></span>`;
+      if (st.kind === "portes") b.classList.add("door");
       b.querySelector(".text").textContent = text;
       if (pictures && IMAGE_ID.test(photos[i] ?? "")) showChoicePhoto(b, photos[i], text);
       b.onclick = () => answer(i);
@@ -419,7 +420,11 @@ function renderQuestion(st) {
     b.disabled = locked;
     b.classList.toggle("picked", mine === i);
   });
-  if (mine != null) $("q-status").textContent = `Réponse ${CHOICE_LETTERS[mine]} envoyée ! Attendez la révélation…`;
+  if (st.kind === "portes") {
+    // Portes mystères : un seul choix, en secret ; les portes s'ouvrent ensuite une à une sur la TV.
+    $("q-status").textContent = mine != null ? `${choices[mine] ?? "Porte choisie"}… suspense ! Regardez la TV.`
+      : st.phase === "closed" ? "Les choix sont fermés !" : "Choisissez une porte : derrière, un bonus… ou un malus !";
+  } else if (mine != null) $("q-status").textContent = `Réponse ${CHOICE_LETTERS[mine]} envoyée ! Attendez la révélation…`;
   else if (st.phase === "closed") $("q-status").textContent = "Temps écoulé !";
   else $("q-status").textContent = st.kind === "express" ? "Vrai ou faux ? Vite, ça s'enchaîne !" : "Choisissez votre réponse !";
   runTimer(st);
@@ -774,6 +779,7 @@ function renderResult(st) {
   $("r-icon").textContent = ok ? "✓" : answered ? "✗" : "…";
   $("r-icon").className = `result-icon ${ok ? "ok" : "ko"}`;
   const number = st.kind === "number";
+  if (st.kind === "portes") return renderPortesResult(st, award);
   if (st.kind === "statues") {
     $("r-icon").textContent = ok ? "🏆" : "♪";
     $("r-icon").className = "result-icon ok";
@@ -797,6 +803,30 @@ function renderResult(st) {
   $("r-image").hidden = !st.image;
   const { mine, rank } = rankOf(st.scores);
   $("r-total").textContent = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`;
+}
+
+/**
+ * Portes mystères : le résultat de l'équipe n'apparaît qu'au moment où sa porte s'ouvre sur la TV (sinon la
+ * tablette gâcherait le suspense), le total et la place seulement une fois toutes les portes ouvertes.
+ */
+function renderPortesResult(st, award) {
+  const p = st.portes ?? {};
+  const door = award?.choice;
+  const opened = (p.order ?? []).slice(0, p.opened ?? 0);
+  const mineOpen = door != null && opened.includes(door);
+  const all = st.phase === "scores" || (p.opened ?? 0) >= (p.count ?? 0);
+  const name = door != null ? st.choices?.[door] ?? `Porte ${door + 1}` : null;
+  $("r-icon").className = `result-icon ${mineOpen && award.points > 0 ? "ok" : "ko"}`;
+  $("r-icon").textContent = !mineOpen ? "🚪" : award.points > 0 ? "🎁" : award.points < 0 ? "🐢" : "🫧";
+  $("r-title").textContent = door == null ? "Pas de porte choisie"
+    : !mineOpen ? `${name}… suspense !`
+    : award.points > 0 ? `BONUS ! +${award.points} points` : award.points < 0 ? `Aïe, un malus ! −${-award.points} points` : "Ouf, le malus ne vous retire rien !";
+  $("r-detail").textContent = door == null ? "" : mineOpen ? `Derrière la ${name.toLowerCase()}` : "Les portes s'ouvrent une à une sur la TV…";
+  $("r-image").hidden = true;
+  if (all) {
+    const { mine, rank } = rankOf(st.scores);
+    $("r-total").textContent = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`;
+  } else $("r-total").textContent = "Classement à la fin des portes !";
 }
 
 function renderEnded(st) {

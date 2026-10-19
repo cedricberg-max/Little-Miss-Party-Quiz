@@ -611,14 +611,10 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     }
 
     /**
-     * Portes mystères : ordre d'ouverture des portes, pour le suspense. D'abord les portes que personne n'a prises,
-     * puis celles des équipes du malus au plus gros bonus : le jackpot s'ouvre en dernier.
+     * Portes mystères : ordre d'ouverture des portes, de gauche à droite (porte 1, porte 2…), comme sur les tablettes.
+     * Le suspense vient des valeurs tirées au hasard, pas de l'ordre.
      */
-    fun doorOrder(): List<Int> {
-        val q = question?.takeIf { it.isPortes } ?: return emptyList()
-        val taken = state.awards[q.id].orEmpty().values.mapNotNull { it.choice }.toSet()
-        return q.choices.indices.sortedWith(compareBy<Int>({ it in taken }, { if (it in taken) q.doors[it] else 0 }, { it }))
-    }
+    fun doorOrder(): List<Int> = question?.takeIf { it.isPortes }?.choices?.indices?.toList() ?: emptyList()
 
     /** Blind test : le morceau qui suit le morceau en cours dans la même playlist, s'il y en a un. */
     fun nextTrack(): Question? {
