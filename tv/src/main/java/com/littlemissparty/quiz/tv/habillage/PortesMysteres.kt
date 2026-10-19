@@ -100,8 +100,14 @@ fun espaceMilliers(n: Int): String = (if (n < 0) "−" else "") + abs(n).toStrin
 /** « +300 », « −150 » (vrai signe moins). */
 fun texteValeur(v: Int): String = (if (v < 0) "−" else "+") + abs(v)
 
-/** Une équipe dans les Portes mystères. [porte] : index de la porte choisie, null tant qu'elle n'a pas choisi. */
-data class EquipePortes(val nom: String, val couleur: Color, val avant: Int, val apres: Int, val porte: Int?)
+/** Une équipe pendant le choix des portes : [aChoisi] passe à vrai dès qu'elle a choisi (sans dire quelle porte). */
+data class EquipePorte(val nom: String, val couleur: Color, val aChoisi: Boolean = true)
+
+/** Une porte et ce qu'elle cache : sa valeur et les équipes qui l'ont choisie (aucune, une ou plusieurs). */
+data class PorteOuverte(val valeur: Int, val equipes: List<EquipePorte>)
+
+/** Une ligne du classement final : scores avant et après les portes, rangs (1 = premier) calculés par la partie. */
+data class LignePortes(val nom: String, val couleur: Color, val avant: Int, val apres: Int, val rangAvant: Int, val rangApres: Int)
 
 /** Rang (0 = premier) de chaque équipe selon [scores] ; à égalité, [departage] (rang précédent) puis l'ordre des équipes. */
 fun rangs(scores: List<Int>, departage: List<Int>? = null): List<Int> {
@@ -111,48 +117,32 @@ fun rangs(scores: List<Int>, departage: List<Int>? = null): List<Int> {
     return r.toList()
 }
 
-/** Le dernier choisit en premier, le premier en dernier. */
-fun ordreChoix(equipes: List<EquipePortes>): List<Int> {
-    val r = rangs(equipes.map { it.avant })
-    return equipes.indices.sortedByDescending { r[it] }
-}
-
-/** Ordre d'ouverture conseillé : les portes vides d'abord, la porte de l'équipe en tête en dernier. */
-fun ordreOuverture(equipes: List<EquipePortes>, nbPortes: Int): List<Int> {
-    val r = rangs(equipes.map { it.avant })
-    val meilleur = { k: Int -> equipes.indices.filter { equipes[it].porte == k }.minOfOrNull { r[it] } ?: Int.MAX_VALUE }
-    return (0 until nbPortes).sortedWith(compareByDescending<Int> { meilleur(it) }.thenBy { it })
-}
-
 enum class Recit { TOUJOURS_EN_TETE, NOUVEAU_PREMIER, TUILE_DU_PREMIER, MONTE, DESCEND, TIENT, AUCUN }
 
+/** Ce qui arrive à une équipe ; rangs à partir de 0. */
 data class Evolution(val rangAvant: Int, val rangApres: Int, val recit: Recit) {
     val places get() = rangAvant - rangApres
 }
 
 /** Ce qui arrive à chaque équipe entre le classement d'avant et celui d'après les portes. */
-fun evolutions(equipes: List<EquipePortes>): List<Evolution> {
-    val avant = rangs(equipes.map { it.avant })
-    val apres = rangs(equipes.map { it.apres }, avant)
-    return equipes.indices.map { i ->
-        val a = avant[i]
-        val p = apres[i]
-        val recit = when {
-            equipes.size == 1 -> Recit.TOUJOURS_EN_TETE
-            a == 0 && p == 0 -> Recit.TOUJOURS_EN_TETE
-            p == 0 -> Recit.NOUVEAU_PREMIER
-            a == 0 -> Recit.TUILE_DU_PREMIER
-            p < a -> Recit.MONTE
-            p > a -> Recit.DESCEND
-            equipes[i].apres > equipes[i].avant -> Recit.TIENT
-            else -> Recit.AUCUN
-        }
-        Evolution(a, p, recit)
+fun evolutions(lignes: List<LignePortes>): List<Evolution> = lignes.map { l ->
+    val a = l.rangAvant - 1
+    val p = l.rangApres - 1
+    val recit = when {
+        lignes.size == 1 -> Recit.TOUJOURS_EN_TETE
+        a == 0 && p == 0 -> Recit.TOUJOURS_EN_TETE
+        p == 0 -> Recit.NOUVEAU_PREMIER
+        a == 0 -> Recit.TUILE_DU_PREMIER
+        p < a -> Recit.MONTE
+        p > a -> Recit.DESCEND
+        l.apres > l.avant -> Recit.TIENT
+        else -> Recit.AUCUN
     }
+    Evolution(a, p, recit)
 }
 
 /** Le premier a changé : « RENVERSEMENT ! ». */
-fun renversement(equipes: List<EquipePortes>): Boolean = evolutions(equipes).any { it.recit == Recit.NOUVEAU_PREMIER }
+fun renversement(lignes: List<LignePortes>): Boolean = evolutions(lignes).any { it.recit == Recit.NOUVEAU_PREMIER }
 
 fun texteRecit(e: Evolution): String? = when (e.recit) {
     Recit.TOUJOURS_EN_TETE -> "Toujours en tête !"
@@ -238,22 +228,69 @@ fun IntroPortes(valeurs: List<Int>, modifier: Modifier = Modifier, jouer: (Son) 
 /* ------------------------------------------------------------------ Choix */
 
 /**
- * Les portes fermées pendant que les équipes choisissent en secret sur leur tablette : la pastille de chaque
- * équipe qui a choisi se pose au-dessus de sa porte (le contenu, lui, reste caché). [auTour] : index de l'équipe
- * qui choisit maintenant, null quand tout le monde a choisi.
+ * Les portes fermées pendant que toutes les équipes choisissent en même temps, en secret, sur leur tablette.
+ * En bas, chaque équipe passe à « ✓ » dès qu'elle a choisi, sans jamais montrer quelle porte. [secondes] et
+ * [fraction] : chrono facultatif.
  */
 @Composable
-fun ChoixPortes(valeurs: List<Int>, equipes: List<EquipePortes>, auTour: Int?, modifier: Modifier = Modifier, jouer: (Son) -> Unit = jouerSon) {
-    val choisies = equipes.count { it.porte != null }
-    LaunchedEffect(choisies) { if (choisies > 0) jouer(Son.pop(choisies - 1)) }
-    val bandeau = when {
-        auTour != null && equipes.getOrNull(auTour) != null -> "Au tour de " to equipes[auTour].nom
-        choisies == equipes.size && equipes.isNotEmpty() -> "Les jeux sont faits !" to null
-        else -> "Le dernier choisit en premier !" to null
-    }
+fun ChoixPortes(
+    nombre: Int,
+    equipes: List<EquipePorte>,
+    secondes: Int?,
+    fraction: Float?,
+    modifier: Modifier = Modifier,
+    jouer: (Son) -> Unit = jouerSon,
+) {
+    val choisies = equipes.count { it.aChoisi }
+    val depart = remember { choisies }
+    LaunchedEffect(choisies) { if (choisies > depart) jouer(Son.pop(choisies - 1)) }
+    val tous = equipes.isNotEmpty() && choisies == equipes.size
     Echelle(960.dp, 540.dp, modifier) {
-        Bandeau(bandeau.first, bandeau.second, Modifier.align(Alignment.TopCenter).padding(top = 16.dp))
-        RangeePortes(valeurs, equipes, ouvertes = emptySet(), enCours = null, ms = { 0f }, Modifier.align(Alignment.BottomCenter))
+        Bandeau(if (tous) "Les jeux sont faits !" else "Choisissez votre porte ", if (tous) null else "sur la tablette !", Modifier.align(Alignment.TopCenter).padding(top = 16.dp))
+        if (secondes != null) ChronoPictionary(secondes, fraction ?: 0f, Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 16.dp))
+        RangeePortes(
+            valeurs = List(nombre.coerceIn(1, 4)) { 0 },
+            equipes = { emptyList() },
+            ouvertes = emptySet(),
+            enCours = null,
+            ms = { 0f },
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 40.dp),
+        )
+        EquipesQuiChoisissent(equipes, Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp))
+    }
+}
+
+/** Les équipes, en bas de l'écran : ✓ quand elle a choisi, petits points qui attendent sinon. Jusqu'à 8, sur deux lignes. */
+@Composable
+private fun EquipesQuiChoisissent(equipes: List<EquipePorte>, modifier: Modifier = Modifier) {
+    val boucle = rememberInfiniteTransition(label = "attente")
+    val attente by boucle.animateFloat(0.35f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "attente")
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        equipes.chunked(4).forEach { ligne ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ligne.forEach { e ->
+                    Row(
+                        Modifier
+                            .widthIn(max = 220.dp)
+                            .background(if (e.aChoisi) e.couleur.copy(alpha = 0.28f) else Neon.Nuit2.copy(alpha = 0.7f), RoundedCornerShape(50))
+                            .border(2.dp, e.couleur.copy(alpha = if (e.aChoisi) 1f else 0.5f), RoundedCornerShape(50))
+                            .rebond(e.aChoisi, 0.15f)
+                            .padding(start = 6.dp, end = 12.dp, top = 3.dp, bottom = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(Modifier.size(22.dp).background(if (e.aChoisi) Neon.JusteClair else Color.White.copy(alpha = 0.15f), CircleShape), contentAlignment = Alignment.Center) {
+                            if (e.aChoisi) {
+                                Text("✓", style = TextStyle(color = Neon.JusteTexte, fontSize = 15.sp, fontWeight = FontWeight.Black))
+                            } else {
+                                Text("…", style = TextStyle(color = Neon.Blanc, fontSize = 13.sp, fontWeight = FontWeight.Black), modifier = Modifier.graphicsLayer { alpha = attente })
+                            }
+                        }
+                        Spacer(Modifier.width(7.dp))
+                        Text(e.nom, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(color = Neon.Blanc, fontSize = 16.sp, fontWeight = FontWeight.Black))
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -263,25 +300,22 @@ private const val ZOOM_MS = 700f
 private const val TAMBOUR_MS = 2_000f
 private const val OUVRE_MS = ZOOM_MS + TAMBOUR_MS
 private const val CONTENU_MS = OUVRE_MS + 600f
-private const val COMPTE_MS = OUVRE_MS + 1_500f
-private const val OUVERTURE_TOTAL_MS = COMPTE_MS + 1_200f
+private const val EQUIPES_MS = OUVRE_MS + 1_400f
+private const val OUVERTURE_TOTAL_MS = EQUIPES_MS + 1_500f
 
 /**
- * Ouverture des portes, une par une. [ouvertes] : portes déjà ouvertes (montrées ouvertes, sans animation) ;
- * [enCours] : la porte qu'on ouvre maintenant : zoom, roulement de tambour, la porte s'ouvre, son contenu jaillit
- * et les scores des équipes qui l'ont choisie défilent jusqu'à leur nouveau total ([EquipePortes.apres]).
+ * Ouverture des portes, une par une : les portes d'index < [ouvertes] sont ouvertes. Quand [ouvertes] augmente
+ * pendant que l'écran est affiché, la nouvelle porte (index ouvertes − 1) s'anime : zoom, roulement de tambour,
+ * ouverture, contenu, équipes qui l'ont choisie. Arrivé sur l'écran (TV relancée, reconnexion), tout est montré
+ * fixe : aucune porte déjà ouverte n'est rejouée.
  */
 @Composable
-fun OuverturePortes(
-    valeurs: List<Int>,
-    equipes: List<EquipePortes>,
-    ouvertes: Set<Int>,
-    enCours: Int?,
-    modifier: Modifier = Modifier,
-    jouer: (Son) -> Unit = jouerSon,
-) {
+fun OuverturePortes(portes: List<PorteOuverte>, ouvertes: Int, modifier: Modifier = Modifier, jouer: (Son) -> Unit = jouerSon) {
+    val depart = remember { ouvertes }
+    val enCours = if (ouvertes > depart && ouvertes in 1..portes.size) ouvertes - 1 else null
     val t = remember(enCours) { Animatable(0f) }
     val joue by rememberUpdatedState(jouer)
+    val valeurs = portes.map { it.valeur }
     LaunchedEffect(enCours) {
         val k = enCours ?: return@LaunchedEffect
         val v = valeurs.getOrNull(k) ?: return@LaunchedEffect
@@ -298,23 +332,27 @@ fun OuverturePortes(
                 else -> Son.POINTS
             },
         )
-        t.animateTo(COMPTE_MS, tween((COMPTE_MS - CONTENU_MS).toInt(), easing = LinearEasing))
-        if (equipes.any { it.porte == k && it.apres != it.avant }) joue(Son.COMPTEUR)
-        t.animateTo(OUVERTURE_TOTAL_MS, tween((OUVERTURE_TOTAL_MS - COMPTE_MS).toInt(), easing = LinearEasing))
+        t.animateTo(OUVERTURE_TOTAL_MS, tween((OUVERTURE_TOTAL_MS - CONTENU_MS).toInt(), easing = LinearEasing))
     }
-    val premier = rangs(equipes.map { it.avant }).indexOf(0)
     val bandeau = when {
-        enCours != null && equipes.size > 1 && equipes.getOrNull(premier)?.porte == enCours -> "Et maintenant… la porte " to "du premier !"
         enCours != null -> "Porte " to "${enCours + 1}…"
-        ouvertes.size >= valeurs.size -> "Toutes les portes sont ouvertes !" to null
+        ouvertes >= portes.size -> "Toutes les portes sont ouvertes !" to null
         else -> "Les portes mystères" to null
     }
+    val ouvertesSet = (0 until ouvertes.coerceIn(0, portes.size)).toSet() - setOfNotNull(enCours)
     Echelle(960.dp, 540.dp, modifier) {
         Bandeau(bandeau.first, bandeau.second, Modifier.align(Alignment.TopCenter).padding(top = 16.dp))
-        RangeePortes(valeurs, equipes, ouvertes, enCours, ms = { t.value }, Modifier.align(Alignment.BottomCenter))
+        RangeePortes(
+            valeurs = valeurs,
+            // Les équipes d'une porte ne sont montrées qu'une fois la porte ouverte (sous la porte qu'on ouvre, puis au-dessus).
+            equipes = { k -> if (k in ouvertesSet) portes[k].equipes else emptyList() },
+            ouvertes = ouvertesSet,
+            enCours = enCours,
+            ms = { t.value },
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 40.dp),
+        )
         if (enCours != null) {
-            val qui = equipes.filter { it.porte == enCours }
-            GainsPorte(qui, ms = { t.value }, Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp))
+            GainsPorte(portes[enCours], ms = { t.value }, Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp))
         }
         // Éclair de lumière quand la porte s'ouvre.
         Box(
@@ -334,7 +372,7 @@ fun OuverturePortes(
 @Composable
 private fun RangeePortes(
     valeurs: List<Int>,
-    equipes: List<EquipePortes>,
+    equipes: (Int) -> List<EquipePorte>,
     ouvertes: Set<Int>,
     enCours: Int?,
     ms: () -> Float,
@@ -371,7 +409,7 @@ private fun RangeePortes(
                     },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                PucesPorte(equipes.filter { it.porte == k }, Modifier.height(if (equipes.size > 3) 100.dp else 72.dp))
+                PucesPorte(equipes(k), Modifier.height(100.dp))
                 Spacer(Modifier.height(8.dp))
                 PorteMystere(
                     index = k,
@@ -400,7 +438,7 @@ private fun RangeePortes(
 
 /** Pastilles des équipes qui ont choisi cette porte, de bas en haut : une par ligne jusqu'à 4, deux au-delà (jusqu'à 8). */
 @Composable
-private fun PucesPorte(qui: List<EquipePortes>, modifier: Modifier = Modifier) {
+private fun PucesPorte(qui: List<EquipePorte>, modifier: Modifier = Modifier) {
     val parLigne = if (qui.size > 4) 2 else 1
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.Bottom), horizontalAlignment = Alignment.CenterHorizontally) {
         qui.chunked(parLigne).reversed().forEach { ligne ->
@@ -429,45 +467,35 @@ private fun PuceEquipe(nom: String, couleur: Color, largeurMax: Dp, modifier: Mo
     }
 }
 
-/** Les équipes de la porte ouverte, avec leur score qui défile jusqu'au nouveau total. */
+/** Sous la porte qu'on vient d'ouvrir : les points exacts et les équipes qui l'ont choisie. */
 @Composable
-private fun GainsPorte(qui: List<EquipePortes>, ms: () -> Float, modifier: Modifier = Modifier) {
-    val visible by remember { derivedStateOf { ms() >= COMPTE_MS - 300f } }
+private fun GainsPorte(porte: PorteOuverte, ms: () -> Float, modifier: Modifier = Modifier) {
+    val visible by remember { derivedStateOf { ms() >= EQUIPES_MS } }
     if (!visible) return
+    val qui = porte.equipes
     Column(
         modifier
-            .background(Neon.Nuit2.copy(alpha = 0.85f), RoundedCornerShape(18.dp))
+            .apparition(0, porte)
+            .background(Neon.Nuit2.copy(alpha = 0.88f), RoundedCornerShape(18.dp))
             .border(2.dp, Neon.Or.copy(alpha = 0.7f), RoundedCornerShape(18.dp))
             .padding(horizontal = 18.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
+        Text(
+            texteDelta(porte.valeur),
+            style = TextStyle(color = if (porte.valeur < 0) Color.White else Neon.JusteTexte, fontSize = 22.sp, fontWeight = FontWeight.Black),
+            modifier = Modifier
+                .background(if (porte.valeur < 0) Neon.Faux else Neon.JusteClair, RoundedCornerShape(50))
+                .padding(horizontal = 14.dp, vertical = 2.dp),
+        )
         if (qui.isEmpty()) {
-            Text("Personne n'a ouvert cette porte !", style = TextStyle(color = Neon.Blanc.copy(alpha = 0.8f), fontSize = 20.sp, fontWeight = FontWeight.Black))
-            return@Column
-        }
-        // Jusqu'à 8 équipes derrière la même porte : deux colonnes au-delà de 4.
-        qui.chunked(if (qui.size > 4) 2 else 1).forEach { ligne ->
-            Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
-                ligne.forEach { e ->
-                    val gain = e.apres - e.avant
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        PuceEquipe(e.nom, e.couleur, 150.dp, taille = if (qui.size > 4) 13.sp else 16.sp)
-                        Spacer(Modifier.width(10.dp))
-                        val score by remember(e) { derivedStateOf { valeurCompteur(e.avant, e.apres, (ms() - COMPTE_MS) / 1_100f) } }
-                        Text(
-                            espaceMilliers(score),
-                            style = TextStyle(color = Neon.Blanc, fontSize = if (qui.size > 4) 16.sp else 20.sp, fontWeight = FontWeight.Black),
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            texteValeur(gain),
-                            style = TextStyle(color = if (gain < 0) Color.White else Neon.JusteTexte, fontSize = if (qui.size > 4) 13.sp else 16.sp, fontWeight = FontWeight.Black),
-                            modifier = Modifier
-                                .background(if (gain < 0) Neon.Faux else Neon.JusteClair, RoundedCornerShape(50))
-                                .padding(horizontal = 8.dp, vertical = 1.dp),
-                        )
-                    }
+            Text("Personne n'a ouvert cette porte !", style = TextStyle(color = Neon.Blanc.copy(alpha = 0.8f), fontSize = 18.sp, fontWeight = FontWeight.Black))
+        } else {
+            // Jusqu'à 8 équipes derrière la même porte : 4 par ligne.
+            qui.chunked(4).forEach { ligne ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ligne.forEach { e -> PuceEquipe(e.nom, e.couleur, 190.dp, taille = 15.sp) }
                 }
             }
         }
@@ -650,6 +678,7 @@ private fun ContenuPorte(valeur: Int, apparition: () -> Float) {
                 color = if (valeur < 0) Color(0xFFC3122F) else Color(0xFF0B7A34), fontSize = 34.sp, lineHeight = 36.sp,
                 fontWeight = FontWeight.Black, shadow = Shadow(Color.White, Offset(0f, 2f), 0f),
             ),
+            modifier = Modifier.clearAndSetSemantics {},
         )
     }
 }
@@ -666,8 +695,9 @@ private const val RECITS_MS = 3_900f
  * Si le premier change, le bandeau « RENVERSEMENT ! » claque. Les scores montrés sont exactement ceux de la partie.
  */
 @Composable
-fun ClassementPortes(equipes: List<EquipePortes>, modifier: Modifier = Modifier, jouer: (Son) -> Unit = jouerSon) {
-    val evo = remember(equipes) { evolutions(equipes) }
+fun ClassementPortes(lignes: List<LignePortes>, modifier: Modifier = Modifier, jouer: (Son) -> Unit = jouerSon) {
+    val equipes = lignes
+    val evo = remember(lignes) { evolutions(lignes) }
     val renverse = evo.any { it.recit == Recit.NOUVEAU_PREMIER }
     val n = equipes.size.coerceAtLeast(1)
     val pasRecit = if (n > 5) 260f else 420f
@@ -710,7 +740,7 @@ fun ClassementPortes(equipes: List<EquipePortes>, modifier: Modifier = Modifier,
 }
 
 @Composable
-private fun LigneClassement(e: EquipePortes, evo: Evolution, i: Int, hauteur: Float, ms: () -> Float, pasRecit: Float) {
+private fun LigneClassement(e: LignePortes, evo: Evolution, i: Int, hauteur: Float, ms: () -> Float, pasRecit: Float) {
     val gain = e.apres - e.avant
     val texte = texteRecit(evo)
     val tete by remember(evo) { derivedStateOf { if (ms() < BASCULE_MS + 600f) evo.rangAvant == 0 else evo.rangApres == 0 } }
