@@ -132,6 +132,8 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         meneurAPoints = (s.ranking.firstOrNull()?.second ?: 0) > 0,
         trouves = s.mime?.takeIf { it.team != null }?.found ?: 0,
         passes = s.mime?.takeIf { it.team != null }?.passed ?: 0,
+        pictionary = s.mime?.picto == true,
+        pictioTrouve = (s.mime?.last?.found ?: 0) > 0,
         express = s.question?.isExpress == true,
         reponseVraie = s.question?.let { q -> q.choices.getOrNull(q.correct)?.trim()?.startsWith("vrai", ignoreCase = true) } == true,
         zoom = s.question?.isZoom == true,

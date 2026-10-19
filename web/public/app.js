@@ -672,13 +672,14 @@ function renderDraw(st, m) {
 
 function renderWatch(m, name) {
   show("watch");
-  $("watch-status").textContent = m.team ? "" : `${name(m.secret)} choisit son mot… chut !`;
+  $("watch-status").textContent = "";
   const who = m.team ?? m.secret;
+  const phase = m.team ? "dessin" : "choix";
   if (spectateursFor !== who) {
     stopWatch();
     spectateursFor = who;
-    spectateurs = animationSpectateurs($("watch-host"), { equipe: name(who) });
-  }
+    spectateurs = animationSpectateurs($("watch-host"), { equipe: name(who), phase });
+  } else spectateurs.changerPhase(phase);
 }
 
 async function answer(choice) {

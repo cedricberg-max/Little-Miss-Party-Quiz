@@ -292,8 +292,7 @@ describe("pupitre", () => {
     await hostState(picto({ secret: L, offer, chosen: null, pickKey: "r1p-100" }));
     await licornes.locator("#screen-pick.active").waitFor();
     assert.equal(await licornes.locator("#pick-host .choix-carte").count(), 3);
-    await dragons.locator("#watch-status", { hasText: "Licornes choisit son mot" }).waitFor();
-    await dragons.locator("#watch-host .sp-bandeau").waitFor();
+    await dragons.locator("#watch-host .sp-bandeau", { hasText: "Licornes » choisit son mot secret" }).waitFor();
     assert.equal(await dragons.locator(".choix-carte").count(), 0, "l'autre équipe ne voit pas les mots");
     await licornes.click(".choix-fleche[data-sens='1']");
     await licornes.click(".choix-valider");
@@ -306,7 +305,7 @@ describe("pupitre", () => {
     await hostState(picto({ team: L, card: offer[1], drawKey: "r1p-200", turns: [L] }, { deadline: Date.now() + 60000 }));
     await licornes.locator("#screen-draw.active").waitFor();
     await licornes.locator(".ardoise-titre", { hasText: "Maison" }).waitFor();
-    await dragons.locator(".sp-bandeau", { hasText: "Licornes" }).waitFor();
+    await dragons.locator(".sp-bandeau", { hasText: "Licornes » dessine" }).waitFor();
     const canvas = licornes.locator("#draw-host canvas");
     const box = await waitFor(async () => { const b = await canvas.boundingBox(); return b && b.height > 50 ? b : null; }, "feuille à sa taille");
     await licornes.mouse.move(box.x + 20, box.y + 20);
