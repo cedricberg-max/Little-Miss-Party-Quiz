@@ -27,14 +27,14 @@ class DefisPauseTest {
     }
 
     @Test
-    fun `liste qui ne contient que des defis avec prenom, sans prenom : jamais d'ecran vide`() {
+    fun `liste qui ne contient que des defis avec prenom, sans prenom, jamais d'ecran vide`() {
         val defis = defisPour("", listOf("Bravo [prénom] !"))
         assertTrue(defis.isNotEmpty())
         assertTrue(defis.none { "[" in it })
     }
 
     @Test
-    fun `lecture de la base : textes nettoyes, liste vide ignoree`() {
+    fun `lecture de la base, textes nettoyes, liste vide ignoree`() {
         assertEquals(listOf("Ola !", "Sautez"), lireDefis(listOf("  Ola   ! ", null, "", "Sautez")))
         assertNull(lireDefis(listOf(null, "  ")))
         assertNull(lireDefis(emptyList()))
