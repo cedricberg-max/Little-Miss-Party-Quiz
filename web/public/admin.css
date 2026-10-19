@@ -247,3 +247,22 @@ button.item { cursor: pointer; }
 .track .track-cover[hidden] { display: none; }
 .track .track-n { font-weight: 800; color: var(--accent, #c2185b); }
 @media (max-width: 640px) { .track .track-extra { grid-column: auto; } }
+
+/* Jeux : une carte par mini-jeu, rangées par famille */
+.game-group { margin-bottom: 26px; }
+.game-group h2 { margin-bottom: 2px; }
+.game-card b { display: flex; align-items: center; gap: 10px; }
+.game-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--violet-pale); color: var(--violet); font-size: 20px; flex: none; }
+.game-card .rule { color: var(--ink); }
+.game-card .small { font-size: 14px; }
+
+/* Contenu intégré : un bouton par élément, actif ou retiré */
+.content-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: 10px; }
+.content-item { display: flex; align-items: stretch; gap: 4px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); opacity: .55; }
+.content-item.on { opacity: 1; border-color: var(--violet); box-shadow: var(--shadow); }
+.content-item.custom { border-style: dashed; }
+.content-toggle { flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 12px; font: inherit; text-align: left; color: var(--ink); background: none; border: 0; cursor: pointer; min-width: 0; }
+.content-item:not(.on) .content-toggle b { text-decoration: line-through; }
+.content-toggle .detail { color: var(--soft); font-size: 13px; line-height: 1.35; }
+.content-toggle .tag { font-size: 12px; font-weight: 800; padding: 1px 8px; border-radius: 999px; background: var(--gold-pale); color: var(--warn); }
+.round select.count { flex: none; max-width: 190px; }

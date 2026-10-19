@@ -18,7 +18,10 @@
     <nav id="nav" hidden>
       <button data-screen="home">Accueil</button>
       <button data-screen="shows">Prestations</button>
-      <button data-screen="quizzes">Bibliothèque</button>
+      <button data-screen="games">Jeux</button>
+      <button data-screen="quizzes">Quiz</button>
+      <button data-screen="mimes">Mimes</button>
+      <button data-screen="music">Musique</button>
       <button data-screen="settings">Paramètres</button>
     </nav>
     <button id="logout" class="link" hidden>Se déconnecter</button>
@@ -58,9 +61,10 @@
       <div id="home-upcoming" class="cards"></div>
       <h2>Bibliothèque</h2>
       <div class="tiles">
+        <button class="tile" data-screen="games"><span class="tile-icon">🎲</span><b>Tous les jeux</b><span id="tile-games">12 jeux et leur contenu</span></button>
         <button class="tile" data-screen="quizzes"><span class="tile-icon">?</span><b>Quiz</b><span id="tile-quiz">0 quiz</span></button>
         <button class="tile" data-screen="mimes"><span class="tile-icon">★</span><b>Mimes</b><span id="tile-mimes">0 paquet</span></button>
-        <button class="tile" data-screen="music"><span class="tile-icon">♪</span><b>Blind test</b><span id="tile-music">0 playlist</span></button>
+        <button class="tile" data-screen="music"><span class="tile-icon">♪</span><b>Blind test et quiz musical</b><span id="tile-music">0 playlist</span></button>
       </div>
     </section>
 
@@ -124,6 +128,28 @@
         </div>
         <p id="show-status-msg" class="status"></p>
       </form>
+    </section>
+
+    <!-- Jeux : chaque mini-jeu, sa règle, où se trouve son contenu et dans quelles prestations il sert. -->
+    <section id="screen-games" class="screen" hidden>
+      <h1>Jeux</h1>
+      <p class="hint">
+        Tous les jeux de la plateforme et où gérer leur contenu. Pour en jouer un, ajoutez-le comme manche
+        dans une prestation (onglet Prestations), ou en direct depuis la régie (« ＋ Ajouter un jeu »).
+      </p>
+      <div id="games-list"></div>
+    </section>
+
+    <!-- Contenu intégré d'un jeu au buzzer : retirer un élément du catalogue, ajouter les siens. -->
+    <section id="screen-builtin" class="screen" hidden>
+      <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <b id="builtin-title">Jeu</b></nav>
+      <p id="builtin-rule" class="hint"></p>
+      <div class="panel">
+        <p class="label"><b id="builtin-count">0</b> · touchez un élément pour le retirer du jeu ou le remettre</p>
+        <div id="builtin-items" class="content-grid"></div>
+      </div>
+      <form id="builtin-add" class="panel grid"></form>
+      <p id="builtin-status" class="status"></p>
     </section>
 
     <!-- Bibliothèque de quiz : import (Gemini, tableur), relecture, validation question par question. -->
@@ -274,7 +300,10 @@
       </div>
       <p id="rv-summary" class="summary"></p>
       <div id="rv-list" class="questions"></div>
-      <button id="rv-add" type="button" class="btn secondary">Ajouter une question</button>
+      <div class="row">
+        <button id="rv-add" type="button" class="btn secondary">Ajouter une question</button>
+        <button id="rv-add-tf" type="button" class="btn secondary">Ajouter une question Vrai / Faux</button>
+      </div>
       <div class="actions sticky">
         <button id="rv-validate-all" type="button" class="btn secondary">Tout valider</button>
         <button id="rv-save" type="button" class="btn">Enregistrer dans la bibliothèque</button>
@@ -330,7 +359,7 @@
       <p class="hint">
         Pour tout voir sur la TV : « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux » enchaîne un peu de chaque jeu
         (quiz illustré, Juste Chiffre, Vrai ou Faux express, Mimes, Zoom mystère, Chante le mot !, Image floue,
-        Qui suis-je ?, Blind test et Quiz musical sur des comptines libres de droits, Statues musicales, Super Finale). Elle s'ajoute à
+        Qui suis-je ?, Qui a disparu ?, Blind test et Quiz musical sur des comptines libres de droits, Statues musicales, Super Finale). Elle s'ajoute à
         côté de la première, sans rien remplacer ; déjà ajoutée, le même bouton lui ajoute les nouveaux jeux.
       </p>
       <button id="test-full-create" class="btn" type="button">Ajouter la prestation de test « tous les jeux »</button>

@@ -298,6 +298,26 @@
           }
         }
       },
+      "contents": {
+        "$game": {
+          ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
+          ".validate": "!newData.exists() || ($game.matches(/^(chante|quisuis|disparu)$/) && newData.child('updatedAt').val() === now)",
+          "off": {
+            "$i": {
+              ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 80"
+            }
+          },
+          "extra": {
+            ".validate": "newData.hasChildren()",
+            "$i": {
+              ".validate": "newData.hasChildren()"
+            }
+          },
+          "$other": {
+            ".validate": "$other === 'off' || $other === 'extra' || $other === 'updatedAt'"
+          }
+        }
+      },
       "shows": {
         "$id": {
           ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",

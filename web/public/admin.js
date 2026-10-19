@@ -14,7 +14,7 @@ import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
 import {
   buildSnapshot, estimateMinutes, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, BUILTIN_GAMES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
   roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC,
-  blindScale, trackPoints, BLIND_REVEAL_SECONDS,
+  blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras,
 } from "./show.js";
 import { EXTRACT_SECONDS, guessTrack, defaultStart, decodeFile, makeExtract, synthTune, encodeMp3, soundId } from "./audio.js";
 import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
@@ -74,6 +74,7 @@ let quizzes = {};
 let shows = {};
 let mimes = {};
 let playlists = {};
+let contents = {};
 let stops = [];
 let current = "home";
 
@@ -99,13 +100,14 @@ function status(id, text, ok = false) {
   $(id).classList.toggle("ok", ok);
 }
 
-const SCREENS = ["login", "home", "shows", "show-edit", "quizzes", "import", "review", "settings", "mimes", "mime-edit", "music", "playlist-edit"];
+const SCREENS = ["login", "home", "shows", "show-edit", "games", "builtin", "quizzes", "import", "review", "settings", "mimes", "mime-edit", "music", "playlist-edit"];
 function show(name) {
-  if (["home", "shows", "quizzes", "settings", "mimes", "music"].includes(name)) current = name;
+  if (["home", "shows", "games", "quizzes", "settings", "mimes", "music"].includes(name)) current = name;
   SCREENS.forEach((s) => { $(`screen-${s}`).hidden = s !== name; });
   document.querySelectorAll("#nav button").forEach((b) => b.classList.toggle("active", b.dataset.screen === current));
   window.scrollTo(0, 0);
   if (name === "home") renderHome();
+  if (name === "games") renderGames();
   if (name === "shows") renderShows();
   if (name === "quizzes") renderQuizzes();
   if (name === "mimes") renderMimes();
@@ -196,6 +198,7 @@ function enter() {
   stops.push(onValue(ref(db, "library/shows"), (s) => { shows = s.val() ?? {}; refreshLists(); }, lost));
   stops.push(onValue(ref(db, "library/mimes"), (s) => { mimes = s.val() ?? {}; refreshLists(); }, lost));
   stops.push(onValue(ref(db, "library/playlists"), (s) => { playlists = s.val() ?? {}; refreshLists(); }, lost));
+  stops.push(onValue(ref(db, "library/contents"), (s) => { contents = s.val() ?? {}; refreshLists(); }, lost));
   show(current);
 }
 
@@ -203,6 +206,8 @@ route();
 
 function refreshLists() {
   if (!$("screen-home").hidden) renderHome();
+  if (!$("screen-games").hidden) renderGames();
+  if (!$("screen-builtin").hidden) renderBuiltin();
   if (!$("screen-shows").hidden) renderShows();
   if (!$("screen-quizzes").hidden) renderQuizzes();
   if (!$("screen-mimes").hidden) renderMimes();
@@ -231,8 +236,8 @@ function renderHome() {
   const today = isoDay();
   const pending = Object.values(shows).filter((s) => !s.date || s.date >= today);
   $("stat-upcoming").textContent = coming.length;
-  $("stat-ready").textContent = coming.filter(([, s]) => readiness(s, quizzes, mimes, playlists).level === "prete").length;
-  $("stat-todo").textContent = pending.filter((s) => readiness(s, quizzes, mimes, playlists).level === "a-completer").length;
+  $("stat-ready").textContent = coming.filter(([, s]) => readiness(s, quizzes, mimes, playlists, contents).level === "prete").length;
+  $("stat-todo").textContent = pending.filter((s) => readiness(s, quizzes, mimes, playlists, contents).level === "a-completer").length;
   const box = $("home-upcoming");
   box.replaceChildren(...coming.slice(0, 6).map(([id, s]) => showCard(id, s)));
   if (!coming.length) {
@@ -263,8 +268,8 @@ $("home-import").onclick = () => $("quiz-import-open").click();
 
 /** Carte d'une prestation : date, prénom, âge, état de préparation et actions. */
 function showCard(id, s) {
-  const r = readiness(s, quizzes, mimes, playlists);
-  const { snapshot } = buildSnapshot(id, s, quizzes, mimes, Math.random, playlists);
+  const r = readiness(s, quizzes, mimes, playlists, contents);
+  const { snapshot } = buildSnapshot(id, s, quizzes, mimes, Math.random, playlists, contents);
   const date = s.date ? shortDate(s.date) : null;
   return h("article", { class: `card show-card ${r.level}`, "data-show": id },
     h("div", { class: "date-chip" }, date ? [h("b", { text: `${date.day}` }), h("span", { text: date.month })] : h("span", { text: "sans date" })),
@@ -356,7 +361,8 @@ function formShow() {
     rounds: editing.rounds.filter(roundFilled).map((r) => (BUILTIN_GAMES[r.type] ? { type: r.type, count: r.count ?? BUILTIN_GAMES[r.type].count }
       : r.type === "mimes" ? { type: "mimes", deckId: r.deckId }
       : r.type === "statues" ? { type: "statues", duration: r.duration ?? STATUES_SEC }
-      : MUSIC_GAMES[r.type] ? { type: r.type, playlistId: r.playlistId } : { type: r.type ?? "quiz", quizId: r.quizId })),
+      : MUSIC_GAMES[r.type] ? { type: r.type, playlistId: r.playlistId }
+      : { type: r.type ?? "quiz", quizId: r.quizId, ...(r.count > 0 ? { count: r.count } : {}) })),
   };
 }
 
@@ -405,6 +411,12 @@ function refreshRounds() {
             text: r.type === "express" ? `${q.title} (${expressQuestions(q).length} Vrai / Faux)`
               : r.type === "zoom" || r.type === "flou" ? `${q.title} (${zoomQuestions(q).length} avec photo)` : `${q.title} (${playable(q).length} validées)`,
           }))),
+      // Jeux tirés d'un quiz : toutes ses questions retenues, ou seulement les premières.
+      !BUILTIN_GAMES[r.type] && r.type !== "statues" && r.type !== "mimes" && !MUSIC_GAMES[r.type]
+        ? h("select", { class: "count", "aria-label": "Nombre de questions", onchange: (e) => { r.count = Number(e.target.value) || null; refreshSummary(); } },
+          h("option", { value: "", text: "Toutes les questions" }),
+          ...[1, 2, 3, 4, 5, 6, 8, 10, 12, 15].map((n) => h("option", { value: n, selected: r.count === n, text: n === 1 ? "La première seulement" : `Les ${n} premières` })))
+        : null,
       h("button", { type: "button", class: "icon", title: "Monter", disabled: i === 0, onclick: () => move(-1), text: "↑" }),
       h("button", { type: "button", class: "icon", title: "Descendre", disabled: i === editing.rounds.length - 1, onclick: () => move(1), text: "↓" }),
       h("button", { type: "button", class: "icon", title: "Retirer", onclick: () => { editing.rounds.splice(i, 1); refreshRounds(); }, text: "✕" })));
@@ -414,13 +426,13 @@ function refreshRounds() {
 
 function refreshSummary() {
   const s = formShow();
-  const { snapshot, problems } = buildSnapshot(editing?.id ?? "nouvelle", s, quizzes, mimes, Math.random, playlists);
+  const { snapshot, problems } = buildSnapshot(editing?.id ?? "nouvelle", s, quizzes, mimes, Math.random, playlists, contents);
   const profile = PROFILES[s.profile] ? s.profile : profileForAge(s.age);
   $("show-summary").textContent = snapshot
     ? `${contentLabel(snapshot)} jouables · environ ${estimateMinutes(snapshot)} min · chrono ${defaultDuration(profile)} s par question (profil ${PROFILES[profile].label}) sauf durée imposée`
     : "";
   $("show-problems").replaceChildren(...problems.map((p) => h("li", { text: p })));
-  const r = readiness(s, quizzes, mimes, playlists);
+  const r = readiness(s, quizzes, mimes, playlists, contents);
   $("show-ready").className = `ready-box ${r.level}`;
   $("show-ready").replaceChildren(r.level === "prete"
     ? h("b", { text: "✓ Prestation prête : elle est visible sur la régie." })
@@ -439,9 +451,9 @@ function refreshReuse() {
   const options = Object.entries(shows)
     .filter(([id]) => id !== editing?.id)
     .sort(([, a], [, b]) => (b.date ?? "").localeCompare(a.date ?? ""))
-    .flatMap(([id, s]) => (s.rounds ?? []).filter((r) => (r?.type === "mimes" ? mimes[r.deckId] : r?.quizId && quizzes[r.quizId])).map((r, i) => ({
+    .flatMap(([id, s]) => (s.rounds ?? []).filter((r) => roundContent(r) != null).map((r, i) => ({
       value: `${id}/${i}`, round: r,
-      text: `${showTitle(s)}${s.date ? ` (${new Date(`${s.date}T12:00:00`).toLocaleDateString("fr-FR")})` : ""} · ${ROUND_TYPES[r.type] && r.type !== "quiz" ? ROUND_TYPES[r.type] : "Manche"} : ${r.type === "mimes" ? mimes[r.deckId].title : quizzes[r.quizId].title}`,
+      text: `${showTitle(s)}${s.date ? ` (${new Date(`${s.date}T12:00:00`).toLocaleDateString("fr-FR")})` : ""} · ${ROUND_TYPES[r.type] && r.type !== "quiz" ? ROUND_TYPES[r.type] : "Manche"}${roundContent(r) ? ` : ${roundContent(r)}` : ""}`,
     })));
   reuseChoices = new Map(options.map((o) => [o.value, o.round]));
   $("round-reuse").replaceChildren(
@@ -449,10 +461,20 @@ function refreshReuse() {
     ...options.map((o) => h("option", { value: o.value, text: o.text })));
   $("round-reuse").disabled = !options.length;
 }
+/** Contenu d'une manche (titre du quiz, du paquet, de la playlist), "" pour un jeu sans contenu, null s'il n'existe plus. */
+function roundContent(r) {
+  if (!r?.type && !r?.quizId) return null;
+  if (BUILTIN_GAMES[r.type] || r.type === "statues") return "";
+  if (r.type === "mimes") return mimes[r.deckId]?.title ?? null;
+  if (MUSIC_GAMES[r.type]) return playlists[r.playlistId]?.title ?? null;
+  return quizzes[r.quizId]?.title ?? null;
+}
 $("round-reuse").onchange = (e) => {
   const r = reuseChoices.get(e.target.value);
   if (!r) return;
-  editing.rounds.push(r.type === "mimes" ? { type: "mimes", deckId: r.deckId } : { type: r.type ?? "quiz", quizId: r.quizId });
+  // Copie de la manche (même contenu de la bibliothèque, mêmes réglages) : l'autre prestation ne change pas.
+  editing.rounds.push(JSON.parse(JSON.stringify(r)));
+  e.target.value = "";
   refreshRounds();
 };
 
@@ -460,8 +482,12 @@ $("show-form").onsubmit = async (e) => {
   e.preventDefault();
   const s = formShow();
   if (!s.childName) return status("show-status-msg", "Indiquez le prénom de l'enfant fêté.");
-  if (s.status === "publiee" && !buildSnapshot("x", s, quizzes, mimes, Math.random, playlists).snapshot) {
-    return status("show-status-msg", "Une prestation prête doit contenir au moins une question validée ou un paquet de mimes.");
+  if (s.status === "publiee") {
+    const { snapshot, problems } = buildSnapshot("x", s, quizzes, mimes, Math.random, playlists, contents);
+    if (!snapshot) {
+      const why = problems.filter((p) => p.startsWith("Manche"));
+      return status("show-status-msg", `Elle ne peut pas encore être « Prête » : ${why.length ? why.join(" ") : "ajoutez une manche jouable (quiz avec des questions validées, mimes, musique ou jeu intégré)."}`);
+    }
   }
   const id = editing.id ?? push(ref(db, "library/shows")).key;
   const prev = shows[id] ?? {};
@@ -607,6 +633,8 @@ function renderReview() {
     const card = h("div", { class: "qcard", "data-q": i },
       h("div", { class: "qhead" },
         h("b", { text: `Question ${i + 1}` }),
+        h("button", { type: "button", class: "icon", title: "Monter", text: "↑", disabled: i === 0, onclick: () => { moveQuestion(i, -1); } }),
+        h("button", { type: "button", class: "icon", title: "Descendre", text: "↓", disabled: i === draft.questions.length - 1, onclick: () => { moveQuestion(i, 1); } }),
         h("label", { class: "check" }, h("input", { type: "checkbox", class: "q-valid", checked: q.status === "validee", onchange: (e) => { q.status = e.target.checked ? "validee" : "brouillon"; recheck(); } }), "Validée"),
         h("button", { type: "button", class: "icon", title: "Supprimer la question", text: "✕", onclick: () => { draft.questions.splice(i, 1); renderReview(); } })),
       h("textarea", { class: "q-text", rows: 2, value: q.text, oninput: (e) => { q.text = e.target.value.trim(); q.marks = 0; recheck(); } }),
@@ -743,6 +771,19 @@ $("rv-add").onclick = () => {
   renderReview();
   $("rv-list").lastElementChild?.querySelector(".q-text")?.focus();
 };
+// Vrai / Faux : les deux propositions déjà écrites, il ne reste qu'à taper l'affirmation et cocher la bonne.
+$("rv-add-tf").onclick = () => {
+  draft.questions.push({ text: "", choices: ["Vrai", "Faux"], correct: -1, duration: null, double: false, status: "brouillon", marks: 0 });
+  renderReview();
+  $("rv-list").lastElementChild?.querySelector(".q-text")?.focus();
+};
+
+/** Ordre de passage des questions dans le quiz. */
+function moveQuestion(i, delta) {
+  const [q] = draft.questions.splice(i, 1);
+  draft.questions.splice(i + delta, 0, q);
+  renderReview();
+}
 
 $("rv-save").onclick = async () => {
   const title = $("rv-title").value.trim();
@@ -935,7 +976,8 @@ function renderMimes() {
       h("span", { text: cards.slice(0, 8).map((c) => c.image ?? c.word).join(" ") }),
       h("div", { class: "row" },
         h("button", { class: "btn secondary", onclick: () => editDeck(id), text: "Modifier" }),
-        h("button", { class: "btn secondary", onclick: () => editDeck(null, d), text: "Dupliquer" })));
+        h("button", { class: "btn secondary", onclick: () => editDeck(null, d), text: "Dupliquer" }),
+        h("button", { class: "btn danger", onclick: () => deleteDeck(id), text: "Supprimer" })));
   }));
   if (!list.length) box.append(h("p", { class: "hint", text: "Aucun paquet pour l'instant : créez-en un en choisissant des images dans le catalogue." }));
 }
@@ -1025,13 +1067,16 @@ $("mime-save").onclick = async () => {
 };
 
 $("mime-delete").onclick = async () => {
-  if (!deck?.id) return;
-  const used = Object.values(shows).filter((s) => (s.rounds ?? []).some((r) => r?.deckId === deck.id)).map(showTitle);
-  const warning = used.length ? `\n\nAttention, il est utilisé par : ${used.join(", ")}.` : "";
-  if (!confirm(`Supprimer le paquet « ${mimes[deck.id]?.title ?? ""} » ?${warning}`)) return;
-  await set(ref(db, `library/mimes/${deck.id}`), null);
-  show("mimes");
+  if (deck?.id && await deleteDeck(deck.id)) show("mimes");
 };
+
+async function deleteDeck(id) {
+  const used = Object.values(shows).filter((s) => (s.rounds ?? []).some((r) => r?.deckId === id)).map(showTitle);
+  const warning = used.length ? `\n\nAttention, il est utilisé par : ${used.join(", ")}.` : "";
+  if (!confirm(`Supprimer le paquet « ${mimes[id]?.title ?? ""} » ?${warning}`)) return false;
+  await set(ref(db, `library/mimes/${id}`), null);
+  return true;
+}
 
 // ---------- Blind test : playlists d'extraits musicaux ----------
 
@@ -1046,7 +1091,10 @@ function renderPlaylists() {
       h("b", { text: p.title }),
       h("span", { text: `${tracks.length} morceau${tracks.length > 1 ? "x" : ""} · extraits de ${p.duration ?? BLIND_SEC} s` }),
       h("span", { text: tracks.slice(0, 5).map((t) => t.title).join(" · ") + (tracks.length > 5 ? " …" : "") }),
-      h("div", { class: "row" }, h("button", { class: "btn secondary", onclick: () => editPlaylist(id), text: "Modifier" })));
+      h("div", { class: "row" },
+        h("button", { class: "btn secondary", onclick: () => editPlaylist(id), text: "Modifier" }),
+        h("button", { class: "btn secondary", onclick: () => duplicatePlaylist(id), text: "Dupliquer" }),
+        h("button", { class: "btn danger", onclick: () => deletePlaylist(id), text: "Supprimer" })));
   }));
   if (!list.length) box.append(h("p", { class: "hint", text: "Aucune playlist pour l'instant : créez-en une avec vos fichiers musicaux." }));
 }
@@ -1294,10 +1342,202 @@ $("playlist-save").onclick = async () => {
 };
 
 $("playlist-delete").onclick = async () => {
-  if (!playlist?.id) return;
-  const used = Object.values(shows).filter((s) => (s.rounds ?? []).some((r) => r?.playlistId === playlist.id)).map(showTitle);
+  if (playlist?.id && await deletePlaylist(playlist.id)) show("music");
+};
+
+async function deletePlaylist(id) {
+  const used = Object.values(shows).filter((s) => (s.rounds ?? []).some((r) => r?.playlistId === id)).map(showTitle);
   const warning = used.length ? `\n\nAttention, elle est utilisée par : ${used.join(", ")}.` : "";
-  if (!confirm(`Supprimer la playlist « ${playlists[playlist.id]?.title ?? ""} » ?${warning}`)) return;
-  await set(ref(db, `library/playlists/${playlist.id}`), null);
-  show("music");
+  if (!confirm(`Supprimer la playlist « ${playlists[id]?.title ?? ""} » ?${warning}`)) return false;
+  await set(ref(db, `library/playlists/${id}`), null);
+  return true;
+}
+
+/** Copie d'une playlist (mêmes extraits, déjà enregistrés) : l'originale et ses prestations ne changent pas. */
+async function duplicatePlaylist(id) {
+  const { createdAt, updatedAt, ...rest } = playlists[id];
+  const copy = push(ref(db, "library/playlists")).key;
+  await set(ref(db, `library/playlists/${copy}`), { ...rest, title: `${rest.title} (copie)`.slice(0, 120), createdAt: Date.now(), updatedAt: serverTimestamp() });
+}
+
+// ---------- Jeux : tous les mini-jeux, leur règle et où gérer leur contenu ----------
+
+const usedIn = (type) => Object.values(shows).filter((s) => s && s.status !== "archivee" && (s.rounds ?? []).some((r) => r?.type === type)).length;
+const plural = (n, word, many = `${word}s`) => `${n} ${n > 1 ? many : word}`;
+
+/** Les jeux par famille : ce qui se prépare dans la bibliothèque, ce qui vient d'un quiz, ce qui est intégré. */
+const GAME_GROUPS = [
+  { title: "Avec vos contenus", hint: "Vous préparez le contenu dans la bibliothèque, une fois, et vous le réutilisez dans toutes les prestations.", games: [
+    { type: "quiz", icon: "?", rule: "Questions à 2, 3 ou 4 propositions sur les pupitres ; toutes les équipes qui trouvent marquent. Une question peut aussi être un « Juste Chiffre » (réponse en nombre).",
+      status: () => { const ok = Object.values(quizzes).reduce((t, q) => t + playable(q).length, 0); return `${plural(Object.keys(quizzes).length, "quiz", "quiz")} · ${plural(ok, "question validée", "questions validées")}`; },
+      actions: () => [["Gérer les quiz", () => show("quizzes")], ["Importer un quiz", () => $("quiz-import-open").click()]] },
+    { type: "mimes", icon: "🎭", rule: "Équipe par équipe : un enfant devine, ses coéquipiers miment l'image. 50 points par mime trouvé.",
+      status: () => plural(Object.keys(mimes).length, "paquet de cartes", "paquets de cartes"),
+      actions: () => [["Gérer les paquets", () => show("mimes")], ["Nouveau paquet", () => editDeck(null)]] },
+    { type: "blind", icon: "🎵", rule: "Les morceaux d'une playlist, dans l'ordre : le premier qui buzze donne le titre à voix haute, vous validez.",
+      status: () => plural(Object.keys(playlists).length, "playlist"),
+      actions: () => [["Gérer les playlists", () => show("music")]] },
+    { type: "musical", icon: "🎶", rule: "Un extrait d'une playlist et 4 titres sur les pupitres ; même playlist que le blind test.",
+      status: () => plural(Object.values(playlists).filter((p) => playableTracks(p).length >= 2).length, "playlist utilisable", "playlists utilisables"),
+      actions: () => [["Gérer les playlists", () => show("music")]] },
+  ] },
+  { title: "Tirés d'un quiz", hint: "Rien de plus à préparer : ces jeux reprennent les questions d'un quiz de la bibliothèque. Dans la prestation, choisissez le quiz et combien de questions.", games: [
+    { type: "express", icon: "✔", rule: "Les questions Vrai / Faux d'un quiz, au chrono court du profil.", needs: "Vrai / Faux validées" },
+    { type: "zoom", icon: "🔍", rule: "Les questions avec photo d'un quiz : la photo se dévoile peu à peu.", needs: "photos" },
+    { type: "flou", icon: "🌫", rule: "Les questions avec photo d'un quiz : l'image devient nette, le premier qui buzze répond.", needs: "photos" },
+    { type: "finale", icon: "★", rule: "Les dernières questions du quiz, à points ×2 : elles terminent le quiz qui les précède, ce n'est pas un jeu à part.", needs: "questions validées" },
+  ] },
+  { title: "Contenu intégré", hint: "Prêts à jouer : la manche tire au hasard dans un catalogue adapté à l'âge. Vous pouvez retirer des éléments et ajouter les vôtres.", games: [
+    { type: "chante", icon: "🎤" }, { type: "quisuis", icon: "🕵" }, { type: "disparu", icon: "🎩" },
+  ] },
+  { title: "Sans contenu", hint: "Rien à préparer.", games: [
+    { type: "statues", icon: "🗿", rule: "La musique s'arrête par moments : tout le monde se fige ! Vous désignez l'équipe gagnante depuis la régie. La durée se choisit dans la prestation." },
+  ] },
+];
+
+function renderGames() {
+  const box = $("games-list");
+  box.replaceChildren(...GAME_GROUPS.map((group) => h("section", { class: "game-group" },
+    h("h2", { text: group.title }),
+    h("p", { class: "hint small", text: group.hint }),
+    h("div", { class: "cards" }, ...group.games.map((g) => {
+      const quizGame = QUIZ_GAMES[g.type] || g.type === "finale";
+      const content = CONTENT_GAMES[g.type];
+      const rule = g.rule ?? (content ? `${BUILTIN_GAMES[g.type].rule[0].toUpperCase()}${BUILTIN_GAMES[g.type].rule.slice(1)}.` : "");
+      const line = g.status ? g.status()
+        : quizGame ? `${plural(Object.values(quizzes).filter((q) => (QUIZ_GAMES[g.type]?.questions ?? playable)(q).length).length, "quiz utilisable", "quiz utilisables")} (avec des ${g.needs})`
+        : content ? builtinLine(g.type)
+        : "Toujours disponible";
+      const actions = g.actions ? g.actions()
+        : quizGame ? [["Voir les quiz", () => show("quizzes")]]
+        : content ? [[`Voir et modifier les ${CONTENT_GAMES[g.type].unit}s`, () => openBuiltin(g.type)]]
+        : [];
+      const n = usedIn(g.type);
+      return h("div", { class: "item game-card", "data-game": g.type },
+        h("b", {}, h("span", { class: "game-icon", text: g.icon }), ROUND_TYPES[g.type]),
+        h("span", { class: "rule", text: rule }),
+        h("span", { text: line }),
+        h("span", { class: "small", text: n ? `Dans ${plural(n, "prestation")} en cours` : "Dans aucune prestation en cours" }),
+        actions.length ? h("div", { class: "row" }, ...actions.map(([label, fn], k) => h("button", { class: `btn${k ? " secondary" : ""}`, onclick: fn, text: label }))) : null);
+    })))));
+}
+
+/** « 38 mots actifs dont 2 ajoutés · 3 retirés » */
+function builtinLine(type) {
+  const game = CONTENT_GAMES[type];
+  const active = activeItems(type, contents[type]).length;
+  const added = contentExtras(type, contents[type]).length;
+  const off = game.catalog.length + added - active;
+  return [`${plural(active, `${game.unit} actif`, `${game.unit}s actifs`)}${added ? ` dont ${added} ajouté${added > 1 ? "s" : ""}` : ""}`, off ? `${off} retiré${off > 1 ? "s" : ""}` : ""].filter(Boolean).join(" · ");
+}
+
+// ---------- Contenu intégré d'un jeu (Chante le mot !, Qui suis-je ?, Qui a disparu ?) ----------
+
+let builtinType = null;
+
+function openBuiltin(type) {
+  builtinType = type;
+  $("builtin-title").textContent = ROUND_TYPES[type];
+  const rule = BUILTIN_GAMES[type].rule;
+  $("builtin-rule").textContent = `${rule[0].toUpperCase()}${rule.slice(1)}. Chaque manche tire au hasard parmi les éléments actifs ; le nombre se choisit dans la prestation. Les éléments marqués « grands » ne sortent pas pour les 6-8 ans.`;
+  status("builtin-status", "");
+  renderBuiltinForm();
+  show("builtin");
+  renderBuiltin();
+}
+
+/** État enregistré du jeu, en listes simples : clés retirées et ajouts valables. */
+function builtinState(type) {
+  const c = contents[type] ?? {};
+  const off = (Array.isArray(c.off) ? c.off : Object.values(c.off ?? {})).map((k) => `${k}`.toLowerCase());
+  return { off, extra: contentExtras(type, c) };
+}
+
+async function saveBuiltin(type, next, message) {
+  try {
+    await set(ref(db, `library/contents/${type}`), {
+      off: next.off.length ? next.off : null,
+      extra: next.extra.length ? next.extra.map(({ level, ...x }) => x) : null,
+      updatedAt: serverTimestamp(),
+    });
+    status("builtin-status", message, true);
+  } catch (err) {
+    console.error(err);
+    status("builtin-status", "Enregistrement refusé : vérifiez Internet ou reconnectez-vous.");
+  }
+}
+
+function renderBuiltin() {
+  const type = builtinType;
+  if (!type) return;
+  const game = CONTENT_GAMES[type];
+  const { off, extra } = builtinState(type);
+  const active = activeItems(type, contents[type]).length;
+  $("builtin-count").textContent = `${plural(active, `${game.unit} actif`, `${game.unit}s actifs`)} sur ${game.catalog.length + extra.length}`;
+  const tile = (item, custom) => {
+    const key = game.key(item);
+    const on = !off.includes(key);
+    const detail = type === "quisuis" ? item.clues.join(" · ") : type === "disparu" ? item.objects.map((o) => o.image).join(" ") : "";
+    return h("div", { class: `content-item${on ? " on" : ""}${custom ? " custom" : ""}`, "data-key": key },
+      h("button", {
+        type: "button", class: "content-toggle", "aria-pressed": on ? "true" : "false",
+        title: on ? "Retirer du jeu" : "Remettre dans le jeu",
+        onclick: () => saveBuiltin(type, { off: on ? [...off, key] : off.filter((k) => k !== key), extra },
+          on ? `« ${game.label(item)} » est retiré du jeu.` : `« ${game.label(item)} » est remis dans le jeu.`),
+      },
+        h("b", { text: game.label(item) }),
+        item.level === 2 ? h("span", { class: "tag", text: "grands" }) : null,
+        custom ? h("span", { class: "tag", text: "ajouté" }) : null,
+        detail ? h("span", { class: "detail", text: detail }) : null),
+      custom ? h("button", {
+        type: "button", class: "icon", title: "Supprimer cet ajout", text: "✕",
+        onclick: () => {
+          if (!confirm(`Supprimer « ${game.label(item)} » ?`)) return;
+          saveBuiltin(type, { off: off.filter((k) => k !== key), extra: extra.filter((x) => game.key(x) !== key) }, `« ${game.label(item)} » est supprimé.`);
+        },
+      }) : null);
+  };
+  $("builtin-items").replaceChildren(...game.catalog.map((x) => tile(x, false)), ...extra.map((x) => tile(x, true)));
+}
+
+/** Formulaire d'ajout propre à chaque jeu. */
+function renderBuiltinForm() {
+  const type = builtinType;
+  const form = $("builtin-add");
+  const field = (label, id, props = {}) => h("label", { class: props.wide ? "wide" : "" }, label, h(props.area ? "textarea" : "input", { id, maxlength: props.max ?? 60, rows: props.rows, placeholder: props.placeholder ?? "" }));
+  const fields = type === "chante" ? [field("Nouveau mot", "bi-word", { max: 40, placeholder: "arc-en-ciel" })]
+    : type === "quisuis" ? [
+      field("Réponse", "bi-answer", { placeholder: "Le kangourou" }), field("Émoji (facultatif)", "bi-emoji", { max: 16, placeholder: "🦘" }),
+      ...[1, 2, 3, 4].map((n) => field(`Indice ${n}${n === 1 ? " (le plus difficile)" : n === 4 ? " (le plus facile)" : ""}`, `bi-clue${n}`, { wide: true, max: 120 })),
+    ]
+    : [
+      field("Nom de la famille d'objets", "bi-theme", { placeholder: "Les jouets" }),
+      field("Objets : un par ligne, le mot puis son émoji (5 à 12)", "bi-objects", { wide: true, area: true, rows: 6, max: 1200, placeholder: "Ours en peluche 🧸\nBallon ⚽\nDé 🎲" }),
+    ];
+  form.replaceChildren(h("p", { class: "label wide", text: `Ajouter ${type === "chante" ? "un mot" : type === "quisuis" ? "un personnage" : "une famille d'objets"}` }),
+    ...fields, h("div", { class: "wide" }, h("button", { class: "btn", type: "submit", text: "Ajouter" })));
+}
+
+$("builtin-add").onsubmit = (e) => {
+  e.preventDefault();
+  const type = builtinType;
+  const game = CONTENT_GAMES[type];
+  const val = (id) => $(id)?.value.trim() ?? "";
+  const raw = type === "chante" ? { word: val("bi-word") }
+    : type === "quisuis" ? { answer: val("bi-answer"), emoji: val("bi-emoji"), clues: [1, 2, 3, 4].map((n) => val(`bi-clue${n}`)).filter(Boolean) }
+    : { theme: val("bi-theme"), objects: val("bi-objects").split("\n").map((line) => {
+      const m = line.trim().match(/^(.*\S)\s+(\S+)$/u);
+      return m ? { word: m[1], image: m[2] } : null;
+    }).filter(Boolean) };
+  const item = game.clean(raw);
+  if (!item) {
+    return status("builtin-status", type === "chante" ? "Écrivez le mot à ajouter."
+      : type === "quisuis" ? "Il faut la réponse et au moins 2 indices."
+      : "Il faut un nom et au moins 5 objets, chacun avec son émoji (« Poupée 🪆 »).");
+  }
+  const { off, extra } = builtinState(type);
+  const key = game.key(item);
+  if ([...game.catalog, ...extra].some((x) => game.key(x) === key)) return status("builtin-status", `« ${game.label(item)} » existe déjà.`);
+  saveBuiltin(type, { off, extra: [...extra, item] }, `« ${game.label(item)} » est ajouté au jeu.`);
+  e.target.reset();
 };

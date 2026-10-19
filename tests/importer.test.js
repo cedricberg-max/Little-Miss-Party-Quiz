@@ -3,7 +3,7 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { parseQuiz, checkQuestions, geminiPrompt, resolveCorrect } from "../web/public/importer.js";
 import { MIME_CATALOG } from "../web/public/mime-cards.js";
-import { buildSnapshot, estimateMinutes, roundFilled,
+import { activeItems, buildSnapshot, estimateMinutes, roundFilled,
   readiness, upcoming, daysUntil, isoDay, duplicateShow, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
   soundIds,
 } from "../web/public/show.js";
@@ -555,5 +555,46 @@ describe("Super Finale : les dernières questions du quiz, pas un jeu à part", 
     const { snapshot, problems } = play([{ type: "mimes", deckId: "d" }, { type: "finale", quizId: "f" }]);
     assert.deepEqual(problems, []);
     assert.deepEqual(snapshot.quiz.questions.map((q) => [q.round, q.double ?? false]), [["Mimes", false], ["Super Finale", true], ["Super Finale", true]]);
+  });
+});
+
+describe("Régie PC : contenus intégrés réglés, nombre de questions, notes", () => {
+  const quiz = { title: "Animaux", questions: [1, 2, 3, 4].map((n) => ({ text: `Q${n} ?`, choices: ["Oui", "Non"], correct: 0, status: "validee" })) };
+
+  test("un élément retiré ne sort plus, un ajout peut sortir, un ajout mal formé est ignoré", () => {
+    const contents = {
+      chante: { off: ["soleil", "Maman"], extra: [{ word: " arc-en-ciel " }, { word: "" }, null] },
+      quisuis: { extra: [{ answer: "Le kangourou", emoji: "🦘", clues: ["Australie", "Poche"] }, { answer: "Seul", clues: ["un indice"] }] },
+      disparu: { off: ["fruits"], extra: [{ theme: "Jouets", objects: [["Ours", "🧸"], ["Ballon", "⚽"], ["Dé", "🎲"], ["Cerf-volant", "🪁"], ["Toupie", "🎯"]].map(([word, image]) => ({ word, image })) }] },
+    };
+    const words = activeItems("chante", contents.chante).map((w) => w.word);
+    assert.ok(!words.includes("soleil") && !words.includes("maman"));
+    assert.equal(words.at(-1), "arc-en-ciel");
+    assert.deepEqual(activeItems("quisuis", contents.quisuis).at(-1), { answer: "Le kangourou", emoji: "🦘", clues: ["Australie", "Poche"], level: 1 });
+    assert.equal(activeItems("quisuis", contents.quisuis).filter((p) => p.answer === "Seul").length, 0);
+    const themes = activeItems("disparu", contents.disparu).map((t) => t.theme);
+    assert.ok(!themes.includes("Fruits") && themes.includes("Jouets"));
+    // Un seul mot actif : la manche ne joue que lui.
+    const only = { chante: { off: activeItems("chante", {}).map((w) => w.word.toLowerCase()), extra: [{ word: "arc-en-ciel" }] } };
+    const { snapshot } = buildSnapshot("s", { age: 9, rounds: [{ type: "chante", count: 6 }] }, {}, {}, Math.random, {}, only);
+    assert.deepEqual(snapshot.quiz.questions.map((q) => q.text), ["arc-en-ciel"]);
+  });
+
+  test("tout retiré : la manche est signalée, jamais jouée vide", () => {
+    const none = { quisuis: { off: activeItems("quisuis", {}).map((p) => p.answer.toLowerCase()) } };
+    const { snapshot, problems } = buildSnapshot("s", { age: 9, rounds: [{ type: "quisuis" }] }, {}, {}, Math.random, {}, none);
+    assert.equal(snapshot, null);
+    assert.match(problems[0], /aucun personnage actif/);
+  });
+
+  test("nombre de questions : les premières du quiz ; sans nombre, tout le quiz", () => {
+    const { snapshot } = buildSnapshot("s", { age: 9, rounds: [{ type: "quiz", quizId: "a", count: 2 }, { type: "finale", quizId: "a", count: 1 }] }, { a: quiz });
+    assert.deepEqual(snapshot.quiz.questions.map((q) => [q.text, q.double]), [["Q1 ?", false], ["Q2 ?", false], ["Q1 ?", true]]);
+    assert.equal(buildSnapshot("s", { age: 9, rounds: [{ type: "quiz", quizId: "a" }] }, { a: quiz }).snapshot.quiz.questions.length, 4);
+  });
+
+  test("les notes de la prestation partent avec le programme, pour la régie", () => {
+    assert.equal(buildSnapshot("s", { age: 9, notes: "  Gâteau à 16 h  ", rounds: [{ type: "quiz", quizId: "a" }] }, { a: quiz }).snapshot.notes, "Gâteau à 16 h");
+    assert.equal("notes" in buildSnapshot("s", { age: 9, rounds: [{ type: "quiz", quizId: "a" }] }, { a: quiz }).snapshot, false);
   });
 });

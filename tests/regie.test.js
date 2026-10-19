@@ -1202,7 +1202,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#round-add");
     await page.locator("#show-rounds select.grow").nth(0).selectOption("animaux");
     await page.click("#round-add");
-    await page.locator("#show-rounds select").nth(2).selectOption("finale");
+    await page.locator("#show-rounds .round").nth(1).locator("select").first().selectOption("finale");
     await page.locator("#show-rounds select.grow").nth(1).selectOption("finale");
     await page.locator("#show-summary", { hasText: "3 questions jouables" }).waitFor();
     await page.selectOption("#show-status", "publiee");
@@ -1234,6 +1234,78 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.click("#tab-plan");
     assert.equal(await regie.locator("#panel-plan .plan-round").count(), 1);
     await regie.locator("#panel-plan .plan-item", { hasText: "Super Finale ×2" }).waitFor();
+    await regie.context().close();
+  });
+
+  test("Régie PC : la page Jeux montre chaque jeu, un contenu intégré se règle, une prestation choisit son nombre de questions et ses notes arrivent en régie", async () => {
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    const page = await admin();
+    await page.click("#nav button[data-screen=games]");
+    assert.equal(await page.locator(".game-card").count(), 12);
+    await page.locator('.game-card[data-game=quiz]', { hasText: "1 quiz · 2 questions validées" }).waitFor();
+    await page.locator('.game-card[data-game=finale]', { hasText: "ce n'est pas un jeu à part" }).waitFor();
+    // Mimes : la carte mène aux paquets (ce que Sarah ne trouvait pas).
+    await page.locator('.game-card[data-game=mimes] button', { hasText: "Gérer les paquets" }).click();
+    await page.locator("#screen-mimes:not([hidden])").waitFor();
+    await page.click("#nav button[data-screen=games]");
+
+    // Chante le mot ! : un mot du catalogue retiré, un mot à soi ajouté, puis remis et supprimé.
+    await page.locator('.game-card[data-game=chante] button', { hasText: "Voir et modifier les mots" }).click();
+    await page.locator('#builtin-items .content-item.on[data-key="soleil"] .content-toggle').click();
+    await page.locator("#builtin-status", { hasText: "« soleil » est retiré du jeu." }).waitFor();
+    await page.fill("#bi-word", "arc-en-ciel");
+    await page.click("#builtin-add button[type=submit]");
+    await page.locator("#builtin-status", { hasText: "« arc-en-ciel » est ajouté au jeu." }).waitFor();
+    await page.locator('#builtin-items .content-item.custom[data-key="arc-en-ciel"]').waitFor();
+    let chante = await library("contents");
+    assert.deepEqual(chante.chante.off, ["soleil"]);
+    assert.deepEqual(chante.chante.extra, [{ word: "arc-en-ciel" }]);
+    await page.fill("#bi-word", "Soleil");
+    await page.click("#builtin-add button[type=submit]");
+    await page.locator("#builtin-status", { hasText: "« Soleil » existe déjà." }).waitFor();
+    // Qui suis-je ? : un personnage sans assez d'indices est refusé avec la raison.
+    await page.click("#screen-builtin .crumbs button");
+    await page.locator('.game-card[data-game=quisuis] button').click();
+    await page.fill("#bi-answer", "Le koala");
+    await page.fill("#bi-clue1", "Je dors dans les eucalyptus");
+    await page.click("#builtin-add button[type=submit]");
+    await page.locator("#builtin-status", { hasText: "au moins 2 indices" }).waitFor();
+    await page.fill("#bi-clue2", "Je ressemble à un petit ours gris");
+    await page.click("#builtin-add button[type=submit]");
+    await page.locator("#builtin-status", { hasText: "« Le koala » est ajouté au jeu." }).waitFor();
+    await page.click("#nav button[data-screen=games]");
+    await page.locator('.game-card[data-game=chante]', { hasText: "dont 1 ajouté · 1 retiré" }).waitFor();
+
+    // Prestation : la première question seulement du quiz, 4 mots, et des notes pour l'animatrice.
+    await page.click("#nav button[data-screen=home]");
+    await page.click("#home-new");
+    await page.fill("#show-child", "Léa");
+    await page.fill("#show-age", "9");
+    await page.fill("#show-date", "2026-12-02");
+    await page.click("#round-add");
+    await page.locator("#show-rounds select.grow").nth(0).selectOption("animaux");
+    await page.locator("#show-rounds select.count").selectOption("1");
+    await page.click("#round-add");
+    await page.locator("#show-rounds .round").nth(1).locator("select").first().selectOption("chante");
+    await page.locator("#show-rounds .round").nth(1).locator("select.grow").selectOption("4");
+    await page.fill("#show-notes", "Gâteau à 16 h.\nLéa adore les licornes.");
+    await page.locator("#show-summary", { hasText: "5 questions" }).waitFor();
+    await page.selectOption("#show-status", "publiee");
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
+    assert.deepEqual(Object.values(await library("shows"))[0].rounds, [{ type: "quiz", quizId: "animaux", count: 1 }, { type: "chante", count: 4 }]);
+    await page.context().close();
+
+    box = startBox();
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "L'anniversaire de Léa" }).click();
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    const show = await read("show");
+    assert.deepEqual(show.quiz.questions.map((q) => q.round), ["Animaux", "Chante le mot !", "Chante le mot !", "Chante le mot !", "Chante le mot !"]);
+    assert.ok(!show.quiz.questions.some((q) => q.text === "soleil"), "Un mot retiré ne sort plus");
+    await regie.locator("#c-notes:not([hidden])", { hasText: "Léa adore les licornes." }).waitFor();
     await regie.context().close();
   });
 

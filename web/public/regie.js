@@ -186,6 +186,14 @@ function control() {
   // Blind test : la box dit, extrait par extrait, s'il est dans son cache (ok), en chargement ou manquant.
   listen(`games/${code}/media`, (s) => { live.media = s.val() ?? {}; render(); });
   listen(`games/${code}/joinRequests`, (s) => { live.requests = s.val() ?? {}; render(); });
+  // Notes de Sarah pour l'animatrice, préparées dans l'administration avec la prestation.
+  listen(`games/${code}/show/notes`, (s) => {
+    const notes = typeof s.val() === "string" ? s.val().trim() : "";
+    // Ouvertes à leur arrivée ; l'animatrice les replie d'une touche.
+    if (notes && notes !== $("c-notes-text").textContent) $("c-notes").open = true;
+    $("c-notes").hidden = !notes;
+    $("c-notes-text").textContent = notes;
+  });
 }
 
 function watchAnswers() {
@@ -697,7 +705,8 @@ function gameDetail(r, questions) {
   const q = questions[r.start];
   if (q?.kind === "mime") return `${q.cards?.length ?? 0} cartes · tour de ${q.duration} s par équipe`;
   const n = r.end - r.start + 1;
-  const finale = questions.slice(r.start, r.end + 1).filter((x) => x.finale).length;
+  // La TV ne republie que « double » : les questions à points ×2 sont celles de la Super Finale.
+  const finale = questions.slice(r.start, r.end + 1).filter((x) => x.finale || x.double).length;
   return `${n} question${n > 1 ? "s" : ""}${finale ? ` dont ${finale} de Super Finale (×2)` : ""}`;
 }
 
@@ -919,10 +928,11 @@ async function fetchLibrary() {
   library = { loading: true };
   renderLibrary();
   try {
-    const [s, q, m, p] = await Promise.all([get(ref(db, "library/shows")), get(ref(db, "library/quizzes")), get(ref(db, "library/mimes")), get(ref(db, "library/playlists"))]);
+    const [s, q, m, p, c] = await Promise.all(["shows", "quizzes", "mimes", "playlists", "contents"].map((k) => get(ref(db, `library/${k}`))));
     const quizzes = q.val() ?? {};
     const mimes = m.val() ?? {};
     const playlists = p.val() ?? {};
+    const contents = c.val() ?? {};
     // Blind test et quiz musical : proposés pour chaque playlist qui a des extraits.
     const music = Object.entries(MUSIC_GAMES).flatMap(([type]) => Object.entries(playlists)
       .filter(([, pl]) => pl?.title && playableTracks(pl).length >= (type === "musical" ? 2 : 1))
@@ -955,7 +965,7 @@ async function fetchLibrary() {
       ...Object.entries(BUILTIN_GAMES).map(([type, game]) => ({ key: `builtin/${type}`, label: ROUND_TYPES[type], source: { type, count: game.count } })),
       { key: "builtin/statues", label: ROUND_TYPES.statues, source: { type: "statues", duration: STATUES_SEC } },
     ];
-    library = { quizzes, mimes, playlists, games, rounds, decks, quizGames, builtins, music };
+    library = { quizzes, mimes, playlists, contents, games, rounds, decks, quizGames, builtins, music };
   } catch (e) {
     console.error(e);
     library = { denied: /permission/i.test(String(e?.message ?? e)) };
@@ -1061,7 +1071,7 @@ async function pick(game) {
     profile = show?.profile ?? (show?.age != null ? profileForAge(show.age) : null);
   } catch { profile = null; }
   const prefix = `a${Date.now().toString(36)}`;
-  const { questions, problems } = gameQuestions(game.source, library.quizzes, profile ?? "MOYENS", prefix, library.mimes, library.playlists);
+  const { questions, problems } = gameQuestions(game.source, library.quizzes, profile ?? "MOYENS", prefix, library.mimes, library.playlists, library.contents);
   picked = { game, questions, problems };
   renderLibrary();
 }
@@ -1221,14 +1231,15 @@ const SHOW_MESSAGES = {
  * l'ouverture de la régie n'est jamais lancée dans son ancienne version.
  */
 async function readShows() {
-  const [s, q, m, p] = await Promise.all([get(ref(db, "library/shows")), get(ref(db, "library/quizzes")), get(ref(db, "library/mimes")), get(ref(db, "library/playlists"))]);
+  const [s, q, m, p, c] = await Promise.all(["shows", "quizzes", "mimes", "playlists", "contents"].map((k) => get(ref(db, `library/${k}`))));
   const quizzes = q.val() ?? {};
   const mimes = m.val() ?? {};
   const playlists = p.val() ?? {};
+  const contents = c.val() ?? {};
   const today = new Date().toISOString().slice(0, 10);
   return Object.entries(s.val() ?? {})
     .filter(([, show]) => show.status === "publiee")
-    .map(([id, show]) => ({ id, show, ...buildSnapshot(id, show, quizzes, mimes, Math.random, playlists) }))
+    .map(([id, show]) => ({ id, show, ...buildSnapshot(id, show, quizzes, mimes, Math.random, playlists, contents) }))
     // Les prestations à venir d'abord, la plus proche en tête ; les passées ensuite.
     .sort((a, b) => {
       const da = a.show.date ?? "9999", dbb = b.show.date ?? "9999";
