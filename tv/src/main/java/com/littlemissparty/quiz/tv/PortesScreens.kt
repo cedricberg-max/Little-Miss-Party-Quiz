@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -48,15 +48,14 @@ fun PortesScreen(state: UiState.Playing, actions: TvActions) {
                 }
                 OuverturePortes(portes, ouvertes = p.opened, modifier = Modifier.fillMaxSize())
             } else {
-                val (secondes, fraction) = tempsPortes(state)
-                val ecoule = (1f - fraction) * (state.question?.durationMs ?: 0)
                 // Les premières secondes du choix : « La manche du destin », et ce qui se cache derrière les portes.
-                if (state.phase == Phase.QUESTION && ecoule < INTRO_MS) IntroPortes(p.doors, Modifier.fillMaxSize())
+                // Pas de chrono : chacun prend son temps, l'animatrice ferme les choix quand tout le monde est prêt.
+                if (state.phase == Phase.QUESTION && introEnCours(state)) IntroPortes(p.doors, Modifier.fillMaxSize())
                 else ChoixPortes(
                     nombre = p.doors.size,
                     equipes = state.teams.map { EquipePorte(it.name, it.color.toColor(), it.uid in state.answered) },
-                    secondes = secondes.takeIf { state.phase == Phase.QUESTION },
-                    fraction = fraction.takeIf { state.phase == Phase.QUESTION },
+                    secondes = null,
+                    fraction = null,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -91,25 +90,17 @@ fun PortesClassementScreen(state: UiState.Playing, actions: TvActions) {
     }
 }
 
-private const val INTRO_MS = 3_500f
+private const val INTRO_MS = 3_500L
 
-/** Secondes restantes pour choisir et part du temps qui reste, calées sur l'heure du serveur. */
+/** Présentation des portes pendant les premières secondes après l'ouverture des choix (heure du serveur). */
 @Composable
-private fun tempsPortes(state: UiState.Playing): Pair<Int, Float> {
-    val total = state.question?.durationMs ?: 1
-    var remaining by remember { mutableLongStateOf(state.remainingMs) }
-    LaunchedEffect(state.deadline, state.paused) {
-        val deadline = state.deadline
-        if (deadline == null) {
-            remaining = state.remainingMs
-            return@LaunchedEffect
-        }
-        val start = state.resumeAt ?: 0L
-        while (true) {
-            remaining = (deadline - maxOf(System.currentTimeMillis() + state.serverOffset, start)).coerceAtLeast(0)
-            if (remaining == 0L) break
-            delay(200)
-        }
+private fun introEnCours(state: UiState.Playing): Boolean {
+    val fin = (state.openedAt ?: return false) + INTRO_MS
+    var enCours by remember(fin) { mutableStateOf(System.currentTimeMillis() + state.serverOffset < fin) }
+    LaunchedEffect(fin) {
+        val reste = fin - (System.currentTimeMillis() + state.serverOffset)
+        if (reste > 0) delay(reste)
+        enCours = false
     }
-    return ((remaining + 999) / 1000).toInt() to remaining.toFloat() / total
+    return enCours
 }

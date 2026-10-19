@@ -279,6 +279,7 @@ function render() {
   $("c-phase").classList.toggle("on-hold", st.paused === true);
   renderHold(st, teams);
   renderFactor(st);
+  renderDoors(st, q);
   $("c-question").textContent = inQuestion ? st.text ?? q?.text ?? "" : st.phase === "ended" ? (gamesOf(st).next ? "Bravo à toutes les équipes ! Un jeu a été ajouté : la partie peut reprendre." : "Bravo à toutes les équipes ! Pour continuer, ajoutez un jeu (onglet Programme) ou rejouez-en un (⏭ Changer de jeu).") : `${teams.length} équipe${teams.length > 1 ? "s" : ""} inscrite${teams.length > 1 ? "s" : ""}`;
 
   const portes = (q?.kind ?? st.kind) === "portes";
@@ -287,7 +288,7 @@ function render() {
   answerBtn.hidden = !inQuestion || (correct == null && !(portes && q?.doors));
   if (portes && q?.doors) {
     // Portes mystères : ce qu'il y a derrière chaque porte, pour l'animatrice seulement (masquable comme une réponse).
-    const values = q.doors.map((v, k) => `${k + 1} : ${v > 0 ? "+" : "−"}${Math.abs(v)}`).join(" · ");
+    const values = doorValues(q).map((v, k) => `${k + 1} : ${v > 0 ? "+" : "−"}${Math.abs(v)}`).join(" · ");
     answerBtn.textContent = answerMasked ? "Portes masquées · toucher pour voir" : `Derrière les portes · ${values}`;
     answerBtn.classList.toggle("masked", answerMasked);
   } else if (correct != null) {
@@ -351,6 +352,47 @@ function renderFactor(st) {
     b.classList.toggle("on", on);
     b.setAttribute("aria-pressed", String(on));
   });
+}
+
+/** Portes mystères : valeurs en vigueur derrière les portes (celles changées par l'animatrice comprises). */
+function doorValues(q) {
+  const changed = live.plan?.doorValues?.[q.id];
+  return q.doors.map((v, k) => (typeof changed?.[k] === "number" ? changed[k] : v));
+}
+
+/** Valeurs proposées pour une porte (points) ; une valeur tirée au hasard hors de la liste reste choisie. */
+const DOOR_CHOICES = [-300, -150, -100, -50, 0, 50, 100, 150, 200, 300, 500];
+
+/**
+ * Portes mystères, avant l'ouverture : l'animatrice change la valeur d'une porte pour changer un peu le cours des
+ * choses. Replié par défaut, pour que les enfants qui regardent le téléphone ne voient rien.
+ */
+function renderDoors(st, q) {
+  const box = $("c-doors");
+  const open = q?.kind === "portes" && Array.isArray(q.doors) && (st.phase === "question" || st.phase === "closed") && live.plan?.portesSet === true;
+  box.hidden = !open || isDemo();
+  if (box.hidden) return;
+  const values = doorValues(q);
+  const key = `${q.id}:${values.join(",")}`;
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
+  const sign = (v) => (v > 0 ? `+${v}` : v < 0 ? `−${Math.abs(v)}` : "0");
+  $("c-doors-list").replaceChildren(...values.map((v, k) => {
+    const select = document.createElement("select");
+    select.setAttribute("aria-label", `Porte ${k + 1}`);
+    for (const n of [...new Set([...DOOR_CHOICES, v])].sort((a, b) => a - b)) {
+      const o = document.createElement("option");
+      o.value = n;
+      o.textContent = `${sign(n)} points`;
+      o.selected = n === v;
+      select.appendChild(o);
+    }
+    select.onchange = () => send("portes_set", { qid: q.id, door: k, value: Number(select.value) });
+    const label = document.createElement("label");
+    label.className = "door-value";
+    label.append(`🚪 Porte ${k + 1}`, select);
+    return label;
+  }));
 }
 
 function renderHold(st, teams) {

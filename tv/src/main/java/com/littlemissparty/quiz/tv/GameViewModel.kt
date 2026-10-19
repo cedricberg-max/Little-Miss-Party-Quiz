@@ -103,6 +103,8 @@ sealed interface UiState {
         val factor: Int = 1,
         /** Annonce « × N » avant la première question multipliée : heure (serveur) où le chrono part ; null sinon. */
         val introUntil: Long? = null,
+        /** Heure du serveur où la question s'est ouverte (Portes mystères : présentation des premières secondes). */
+        val openedAt: Long? = null,
         /** Questions multipliées restantes, celle-ci comprise (pour l'annonce). */
         val multipliedLeft: Int = 0,
         /** Points gagnés par équipe dans le jeu en cours : vainqueur du jeu, célébré à sa fin (nextGame ou isLast). */
@@ -447,7 +449,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
      */
     private fun recover() {
         val g = game ?: return
-        if (g.state.phase == Phase.QUESTION && !g.state.paused && g.remainingMs(serverNow()) == 0L) {
+        // Portes mystères : pas de chrono, rien ne se ferme seul.
+        if (g.state.phase == Phase.QUESTION && !g.state.paused && g.question?.isPortes != true && g.remainingMs(serverNow()) == 0L) {
             // Comme à la fin du chrono : question fermée, tour de mimes terminé, extrait du blind test arrêté.
             act { it.timeUp(serverNow()) }
         } else {
@@ -542,7 +545,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val replayed = (event as? Jumped)?.clear.orEmpty().associate { "answers/$it" to null } +
             // Question ouverte : ses anciennes réponses (jeu déjà joué puis repris plus tôt dans le programme)
             // sont effacées, sinon les règles refuseraient les nouvelles et la question ne rapporterait rien.
-            ((event as? QuestionOpened)?.let { mapOf("answers/${it.qid}" to null) } ?: emptyMap())
+            ((event as? QuestionOpened)?.let { mapOf("answers/${it.qid}" to null) } ?: emptyMap()) +
+            // Portes mystères : valeurs en vigueur derrière les portes (l'animatrice peut les changer), pour la régie seule.
+            (g.question?.takeIf { it.isPortes }?.let { mapOf("conducteur/doorValues/${it.id}" to g.doorsOf(it)) } ?: emptyMap())
         // Sans réseau, Firebase garde l'écriture en file d'attente et l'envoie au retour de la connexion.
         ref.updateChildren(
             mapOf(
@@ -670,13 +675,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 buzzTeam = s.buzz?.team,
                 buzzBlocked = s.buzz?.blocked.orEmpty(),
                 blind = q?.takeIf { it.isBlind && s.phase != Phase.LOBBY }?.let { blindUi(g) },
-                portes = q?.takeIf { it.isPortes && s.phase != Phase.LOBBY }?.let { PortesUi(g.doorOrder(), s.doorsOpened, it.doors) },
+                portes = q?.takeIf { it.isPortes && s.phase != Phase.LOBBY }?.let { PortesUi(g.doorOrder(), s.doorsOpened, g.doorsOf(it)) },
                 lastGain = if (q?.isTurns == true) mimeCounts.mapValues { it.value * s.pointsPerFound(q.id) } else revealedAwards.mapValues { it.value.points },
                 isLast = g.isLastQuestion,
                 nextGame = g.nextGameTitle(),
                 etape = g.gameStep()?.label,
                 factor = g.factorOf(s.index),
                 introUntil = g.multiplierIntroUntil(),
+                openedAt = s.openedAt,
                 multipliedLeft = g.multipliedLeft(s.index),
                 gameGains = g.gameGains(),
                 mime = q?.takeIf { it.isTurns && s.phase != Phase.LOBBY }?.let {
@@ -1399,6 +1405,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "statues" to true,
             // Portes mystères (jeu final) : choix d'une porte sur les tablettes, ouverture une à une.
             "portes" to true,
+            // Portes mystères : l'animatrice peut changer les valeurs derrière les portes (commande portes_set).
+            "portesSet" to true,
             "disparu" to true,
             "questions" to quiz.questions.map {
                 clean(mapOf(

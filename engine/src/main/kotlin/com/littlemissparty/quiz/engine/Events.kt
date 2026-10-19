@@ -63,6 +63,15 @@ data class ScoresShown(override val seq: Int, override val at: Long) : GameEvent
  */
 data class FactorChosen(override val seq: Int, override val at: Long, val start: Int, val factor: Int) : GameEvent
 
+/**
+ * Portes mystères : l'animatrice change la valeur cachée derrière la porte [door] (bonus ou malus), avant
+ * l'ouverture des portes, pour changer un peu le cours des choses.
+ */
+data class DoorSet(override val seq: Int, override val at: Long, val qid: String, val door: Int, val value: Int) : GameEvent
+
+/** Valeurs possibles derrière une porte (points), bornes comprises. */
+val DOOR_VALUES = -500..1000
+
 /** Multiplicateurs proposés à l'animatrice pour les dernières questions du quiz ; le premier est celui par défaut. */
 val FACTORS = listOf(2, 3, 5)
 

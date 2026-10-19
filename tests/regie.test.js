@@ -129,7 +129,7 @@ function startBox({ silent = false, held = false } = {}) {
         const m = state.mime;
         if (cmd.type === "goto") {
           // Saut de la régie (secours) : même vérification du programme que Command.Goto.
-          const plan = (await get(ref(db, `games/${CODE}/conducteur`))).val();
+          const plan = (await read("conducteur")) ?? { questions: [] };
           const q = plan?.questions?.[cmd.index];
           if (!q || q.id !== cmd.qid) status = { status: "refused", reason: "stale_program" };
           else {
@@ -278,7 +278,7 @@ function startBox({ silent = false, held = false } = {}) {
     const show = s.val();
     if (!show || show.id === judgedShow) return;
     judgedShow = show.id;
-    const plan = (await get(ref(db, `games/${CODE}/conducteur`))).val();
+    const plan = (await read("conducteur")) ?? { questions: [] };
     if (show.base == null) {
       await update(ref(db, `games/${CODE}`), {
         showStatus: { id: show.id, status: "applied", at: Date.now() },
@@ -1226,6 +1226,34 @@ describe("régie", () => {
     await box.set({ ...questionState(box.state.seq + 1, 1), double: true, factor: 3, factorChoice: null, game: { label: "Quiz · question 2 / 2" } });
     await page.locator("#c-step", { hasText: "Quiz · question 2 / 2 · ×3" }).waitFor();
     assert.equal(await page.locator("#c-factor").isHidden(), true);
+    await page.context().close();
+  });
+
+  test("Portes mystères : l'animatrice change ce qu'il y a derrière une porte avant l'ouverture, sans chrono", async () => {
+    box = startBox();
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    const plan = (await read("conducteur")) ?? { questions: [] };
+    const portes = { id: "p1", text: "Portes mystères", kind: "portes", choices: ["Porte 1", "Porte 2", "Porte 3"], correct: -1, doors: [300, -150, 50], round: "Portes mystères" };
+    await set(gameRef("conducteur"), { ...plan, portesSet: true, questions: [...plan.questions, portes] });
+    await box.set({ ...questionState(box.state.seq + 1, 0), index: 2, qid: "p1", kind: "portes", text: "Portes mystères", choices: portes.choices, deadline: null, total: 3 });
+    await page.locator("#c-doors:not([hidden])").waitFor();
+    // Replié : les enfants qui regardent le téléphone ne voient pas les valeurs.
+    assert.equal(await page.locator("#c-doors-list select").first().isVisible(), false);
+    await page.click("#c-doors summary");
+    assert.equal(await page.locator("#c-doors-list select").count(), 3);
+    assert.equal(await page.locator("#c-doors-list select").nth(1).inputValue(), "-150");
+    await page.locator("#c-doors-list select").nth(1).selectOption("200");
+    await waitFor(async () => (await commands()).find((c) => c.type === "portes_set" && c.qid === "p1" && c.door === 1 && c.value === 200), "commande portes_set");
+    // La box publie la nouvelle valeur : la régie l'affiche.
+    await set(gameRef("conducteur/doorValues/p1"), [300, 200, 50]);
+    await page.locator("#c-answer", { hasText: "2 : +200" }).waitFor();
+    // Pas de chrono pour les portes.
+    assert.equal(await page.locator("#c-timer").isVisible(), false);
+    // Portes ouvertes : plus de changement possible.
+    await box.set({ ...box.state, seq: box.state.seq + 1, phase: "reveal", portes: { count: 3, order: [0, 1, 2], opened: 0, values: {} } });
+    await page.locator("#c-doors[hidden]").waitFor({ state: "attached" });
     await page.context().close();
   });
 

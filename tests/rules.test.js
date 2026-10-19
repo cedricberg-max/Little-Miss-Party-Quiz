@@ -272,6 +272,12 @@ describe("réponses", () => {
     await seed({ deadline: Date.now() - 5000 });
     await assertFails(answer("rose", 1));
   });
+  test("Portes mystères : pas de chrono, une porte se choisit tant que les choix sont ouverts ; ailleurs, pas de réponse sans chrono", async () => {
+    await seed({ deadline: null });
+    await assertFails(answer("rose", 1));
+    await seed({ kind: "portes", choices: ["Porte 1", "Porte 2", "Porte 3"], deadline: null });
+    await assertSucceeds(answer("rose", 1));
+  });
   test("proposition inexistante refusée", async () => {
     await seed({ choices: ["Vrai", "Faux"] });
     await assertFails(answer("rose", 2));
@@ -505,6 +511,11 @@ describe("régie", () => {
     await assertFails(command(REGIE, { type: "factor", factor: 4 }));
     await assertFails(command(REGIE, { type: "factor", factor: "5" }));
     await assertSucceeds(command(REGIE, { type: "factor", factor: 3 }));
+    // Portes mystères : la valeur d'une porte, dans les bornes seulement.
+    await assertSucceeds(command(REGIE, { type: "portes_set", qid: "p1", door: 2, value: -150 }));
+    await assertFails(command(REGIE, { type: "portes_set", qid: "p1", door: 9, value: 100 }));
+    await assertFails(command(REGIE, { type: "portes_set", qid: "p1", door: 0, value: 5000 }));
+    await assertFails(command("rose", { type: "portes_set", qid: "p1", door: 0, value: 300 }));
     await assertSucceeds(answer("rose", 1));
     await assertFails(set(ref(db("rose"), `games/${CODE}/answers/q1`), null));
     await assertFails(set(ref(db(REGIE), `games/${CODE}/answers/q1`), null));

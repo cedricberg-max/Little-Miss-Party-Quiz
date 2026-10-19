@@ -815,6 +815,12 @@ function runResumeCountdown(st) {
 
 function runTimer(st, el = $("q-timer")) {
   clearInterval(timerHandle);
+  // Pas de chrono (Portes mystères : chacun prend son temps) : rien à afficher.
+  if (st.phase === "question" && st.deadline == null && st.remainingMs == null) {
+    el.textContent = "";
+    el.classList.remove("urgent");
+    return;
+  }
   const tick = () => {
     let ms;
     if (st.phase !== "question") ms = 0;

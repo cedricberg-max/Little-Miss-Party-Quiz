@@ -26,6 +26,7 @@ object Codec {
             is ScoresShown -> mapOf("type" to "scores")
             is FactorChosen -> mapOf("type" to "factor", "start" to e.start, "factor" to e.factor)
             is DoorOpened -> mapOf("type" to "door", "qid" to e.qid)
+            is DoorSet -> mapOf("type" to "doorset", "qid" to e.qid, "door" to e.door, "value" to e.value)
             is ScoreAdjusted -> mapOf("type" to "adjust", "team" to e.team, "delta" to e.delta, "reason" to e.reason)
             is Undone -> mapOf("type" to "undo", "target" to e.target)
             is GameEnded -> mapOf("type" to "end")
@@ -75,6 +76,7 @@ object Codec {
             "scores" -> ScoresShown(seq, at)
             "factor" -> FactorChosen(seq, at, m.num("start").toInt(), m.num("factor").toInt())
             "door" -> DoorOpened(seq, at, m["qid"] as String)
+            "doorset" -> DoorSet(seq, at, m["qid"] as String, m.num("door").toInt(), m.num("value").toInt())
             "adjust" -> ScoreAdjusted(seq, at, m["team"] as String, m.num("delta").toInt(), m["reason"] as? String ?: "")
             "undo" -> Undone(seq, at, m.num("target").toInt())
             "end" -> GameEnded(seq, at)
@@ -191,7 +193,7 @@ object Codec {
                 "choiceImages" to q.choiceImages.takeIf { q.hasChoiceImages && !(q.isBuzz && !revealed) }?.map { it ?: "" },
                 "durationMs" to q.durationMs,
                 "deadline" to game.deadline(),
-                "remainingMs" to if (s.paused || s.buzzHeld || s.buzz?.waiting == true) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
+                "remainingMs" to if (!q.isPortes && (s.paused || s.buzzHeld || s.buzz?.waiting == true)) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
                 "correct" to if (revealed && !q.isPortes) q.correct else null,
                 // L'émoji d'illustration peut trahir la réponse : seulement une fois révélée.
                 "image" to if (revealed) q.emoji else null,
@@ -228,7 +230,7 @@ object Codec {
             "count" to q.choices.size,
             "order" to order,
             "opened" to s.doorsOpened,
-            "values" to q.doors.mapIndexed { i, v -> if (i in open) v else null }.withIndex().filter { it.value != null }
+            "values" to game.doorsOf(q).mapIndexed { i, v -> if (i in open) v else null }.withIndex().filter { it.value != null }
                 .associate { it.index.toString() to it.value },
             "picks" to s.awards[q.id].orEmpty().mapValues { it.value.choice },
         )

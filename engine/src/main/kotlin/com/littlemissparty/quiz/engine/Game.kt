@@ -89,6 +89,8 @@ data class GameState(
     val factors: Map<Int, Int> = emptyMap(),
     /** Portes mystères : nombre de portes déjà ouvertes par l'animatrice (dans l'ordre de [Game.doorOrder]). */
     val doorsOpened: Int = 0,
+    /** Portes mystères : valeurs changées par l'animatrice, par question puis par porte. */
+    val doorValues: Map<String, Map<Int, Int>> = emptyMap(),
 ) {
     val paused: Boolean get() = hold != null
 
@@ -179,8 +181,11 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         return (q.durationMs - state.elapsedAt(now)).coerceAtLeast(0)
     }
 
-    /** Le chrono de [q] est en marche (ou en pause) : question ouverte, ou tour de mimes en cours. */
-    private fun timerRuns(q: Question) = state.phase == Phase.QUESTION && (!q.isTurns || state.mimeTurn) &&
+    /**
+     * Le chrono de [q] est en marche (ou en pause) : question ouverte, ou tour de mimes en cours. Portes mystères :
+     * jamais de chrono, chacun prend son temps et l'animatrice ferme les choix quand tout le monde est prêt.
+     */
+    private fun timerRuns(q: Question) = state.phase == Phase.QUESTION && !q.isPortes && (!q.isTurns || state.mimeTurn) &&
         (!q.isBlind || (state.buzz?.waiting == false && state.segments.isNotEmpty()))
 
     /**
@@ -289,6 +294,12 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             // Fin d'une manche de mimes, entre deux tours : les points sont déjà comptés, on passe au classement.
             s.phase == Phase.QUESTION && s.mime != null && !s.mimeTurn -> s.copy(phase = Phase.SCORES, mime = null)
             else -> null
+        }
+        is DoorSet -> {
+            val q = quiz.questions.getOrNull(s.index)
+            if (q == null || !q.isPortes || e.qid != s.qid || (s.phase != Phase.QUESTION && s.phase != Phase.CLOSED) ||
+                e.door !in q.choices.indices || e.value !in DOOR_VALUES) null
+            else s.copy(doorValues = s.doorValues + (e.qid to (s.doorValues[e.qid].orEmpty() + (e.door to e.value))))
         }
         is DoorOpened -> {
             val q = quiz.questions.getOrNull(s.index)
@@ -647,7 +658,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         if (state.phase != Phase.CLOSED) return null
         // Image floue : les points viennent du buzzer ; chrono écoulé sans bonne réponse, personne ne marque.
         val awards = if (q.isBuzz || q.isStatues) emptyMap()
-        else if (q.isPortes) Scoring.awardPortes(q, answers, state.scores())
+        else if (q.isPortes) Scoring.awardPortes(q.copy(doors = doorsOf(q)), answers, state.scores())
         else if (q.isNumber) Scoring.awardNumber(q, answers, factorOf(state.index))
         else if (q.isExpress) answers.mapValues { (_, a) -> Scoring.awardExpress(q, a, factorOf(state.index)) }
         else answers.mapValues { (_, a) ->
@@ -674,6 +685,17 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             }
             else -> null
         }
+    }
+
+    /** Portes mystères : valeurs derrière les portes de [q], avec celles changées par l'animatrice. */
+    fun doorsOf(q: Question): List<Int> = q.doors.mapIndexed { i, v -> state.doorValues[q.id]?.get(i) ?: v }
+
+    /** Portes mystères : change la valeur d'une porte, tant qu'aucune n'est ouverte (choix en cours ou fermés). */
+    fun setDoor(door: Int, value: Int, now: Long): GameEvent? {
+        val q = question ?: return null
+        if (!q.isPortes || (state.phase != Phase.QUESTION && state.phase != Phase.CLOSED)) return null
+        if (door !in q.choices.indices || value !in DOOR_VALUES || doorsOf(q).getOrNull(door) == value) return null
+        return emit(DoorSet(nextSeq, now, q.id, door, value))
     }
 
     /** Portes mystères : ouvre la porte suivante (rien hors de la révélation, ni quand toutes sont ouvertes). */
