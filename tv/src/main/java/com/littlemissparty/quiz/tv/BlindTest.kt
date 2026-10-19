@@ -59,7 +59,8 @@ fun ExtraitMusical(q: Question, state: UiState.Playing) {
                 revealed && coupe -> if (player.isPlaying) player.pause()
                 revealed -> {
                     player.seekTo(0); player.start()
-                    if (q.isBlind) {
+                    // revealSec 0 : tout l'extrait, le temps de chanter.
+                    if (q.isBlind && q.revealSec > 0) {
                         delay(q.revealSec * 1000L)
                         if (player.isPlaying) player.pause()
                     }

@@ -531,6 +531,9 @@ describe("blind test et quiz musical", () => {
     const custom = run({ title: "Tubes", duration: 25, tracks, points: 50, finalPoints: 500, finalCount: 1, reveal: 10 });
     assert.deepEqual(custom.map((q) => q.points), [50, 150, 50, 50, 50, 500]);
     assert.ok(custom.every((q) => q.reveal === 10));
+    // Révélation longue, ou tout l'extrait (0) pour chanter le refrain.
+    assert.ok(run({ title: "Tubes", duration: 25, tracks, reveal: 30 }).every((q) => q.reveal === 30));
+    assert.ok(run({ title: "Tubes", duration: 25, tracks, reveal: 0 }).every((q) => q.reveal === 0));
     // Barème abîmé : les valeurs par défaut.
     assert.deepEqual(run({ title: "Tubes", duration: 25, tracks, points: -3, finalCount: 99 }).map((q) => q.points), [100, 150, 100, 200, 200, 200]);
   });

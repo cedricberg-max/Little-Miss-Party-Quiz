@@ -622,8 +622,8 @@ function renderBlind(st, teams) {
   $("blind-ko").disabled = busy;
   $("blind-ok").querySelector("small").textContent = buzzer ? `+${b.points} pour ${name(buzzer)}` : "";
   const question = st.phase === "question" && !buzzer;
-  // Plus de « Réautoriser toutes les équipes » : une équipe qui s'est trompée rebuzze d'elle-même 3 s après la reprise.
-  $("blind-unblock").hidden = true;
+  // Une équipe qui s'est trompée rebuzze d'elle-même 3 s après la reprise ; l'animatrice peut lever cette attente.
+  $("blind-unblock").hidden = !(question && tried.length);
   $("blind-reveal").hidden = !question;
   $("blind-skip").hidden = !question;
   $("blind-cut").hidden = !(st.phase === "reveal" && !b.cut);

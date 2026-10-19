@@ -919,7 +919,11 @@ describe("blind test : extraits musicaux et playlists", () => {
     await assertSucceeds(playlist([{ title: "Final", audioId: ID, points: 300, imageId: "fedcba9876543210", duration: 30 }], { points: 100, finalPoints: 200, finalCount: 3, reveal: 7 }));
     await assertFails(playlist([{ title: "Trop cher", audioId: ID, points: 5000 }]));
     await assertFails(playlist([{ title: "Pochette", audioId: ID, imageId: "../images" }]));
-    await assertFails(playlist([{ title: "A", audioId: ID }], { reveal: 60 }));
+    // Révélation : jusqu'à 60 s, ou 0 = tout l'extrait (le temps de chanter).
+    await assertSucceeds(playlist([{ title: "A", audioId: ID }], { reveal: 30 }));
+    await assertSucceeds(playlist([{ title: "A", audioId: ID }], { reveal: 0 }));
+    await assertFails(playlist([{ title: "A", audioId: ID }], { reveal: 61 }));
+    await assertFails(playlist([{ title: "A", audioId: ID }], { reveal: 2 }));
     await assertFails(playlist([{ title: "A", audioId: ID }], { finalPoints: -1 }));
     await assertFails(playlist([{ title: "Trop long", audioId: ID }], { duration: 300 }));
     await assertFails(set(ref(db("rose"), "library/playlists/p"), { title: "X", duration: 25, tracks: [{ title: "A", audioId: ID }], updatedAt: serverTimestamp() }));

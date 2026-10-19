@@ -241,6 +241,14 @@ class BlindTestTest {
         assertNull(quiz.questions[1].artist)
         assertNull(quiz.questions[2].audioId, "une empreinte mal formée est ignorée, sans refuser la prestation")
         assertEquals(Scoring.BLIND_POINTS, quiz.questions[2].trackPoints)
+
+        // Révélation de 30 s, ou tout l'extrait (0) pour chanter le refrain ; au-delà de 60 s, ramenée à 60.
+        fun reveal(v: Int) = QuizJson.parse(
+            """{"id":"p","questions":[{"id":"b","text":"T ?","choices":["A"],"correct":0,"kind":"blind","audioId":"$audio","reveal":$v}]}""",
+        ).questions[0].revealSec
+        assertEquals(30, reveal(30))
+        assertEquals(0, reveal(0))
+        assertEquals(60, reveal(500))
     }
 
     @Test

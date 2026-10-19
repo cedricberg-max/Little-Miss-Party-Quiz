@@ -39,7 +39,8 @@ export const BLIND_SEC = 25;
  * morceaux valent plus, et secondes de révélation (pochette, titre, extrait rejoué). Réglable par playlist.
  */
 export const BLIND_SCALE = { points: 100, finalPoints: 200, finalCount: 3, reveal: 7 };
-export const BLIND_REVEAL_SECONDS = [4, 5, 7, 10, 15];
+/** Durée de la révélation d'un morceau du blind test, en secondes ; 0 = tout l'extrait (le temps de chanter). */
+export const BLIND_REVEAL_SECONDS = [4, 5, 7, 10, 15, 20, 30, 0];
 const bounded = (v, min, max, fallback) => (Number.isInteger(v) && v >= min && v <= max ? v : fallback);
 
 /** Barème d'une playlist, valeurs manquantes ou hors limites remplacées par celles par défaut. */
@@ -48,7 +49,7 @@ export function blindScale(playlist) {
     points: bounded(playlist?.points, 1, 1000, BLIND_SCALE.points),
     finalPoints: bounded(playlist?.finalPoints, 1, 1000, BLIND_SCALE.finalPoints),
     finalCount: bounded(playlist?.finalCount, 0, 20, BLIND_SCALE.finalCount),
-    reveal: bounded(playlist?.reveal, 3, 20, BLIND_SCALE.reveal),
+    reveal: playlist?.reveal === 0 ? 0 : bounded(playlist?.reveal, 3, 60, BLIND_SCALE.reveal),
   };
 }
 

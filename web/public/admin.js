@@ -1306,7 +1306,7 @@ let playlist = null; // { id, tracks: [{ title, artist, rights, points?, imageId
 let preview = null; // { audio, url, timer }
 
 $("playlist-duration").replaceChildren(...EXTRACT_SECONDS.map((n) => h("option", { value: n, text: `${n} secondes` })));
-$("playlist-reveal").replaceChildren(...BLIND_REVEAL_SECONDS.map((n) => h("option", { value: n, text: `${n} secondes` })));
+$("playlist-reveal").replaceChildren(...BLIND_REVEAL_SECONDS.map((n) => h("option", { value: n, text: n ? `${n} secondes` : "Tout l'extrait (on chante !)" })));
 ["playlist-points", "playlist-final-points", "playlist-final-count"].forEach((id) => { $(id).oninput = () => renderTracks(); });
 
 /** Barème saisi dans l'écran de la playlist (valeurs hors limites remplacées par celles par défaut). */

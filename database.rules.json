@@ -318,7 +318,7 @@
             ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 20"
           },
           "reveal": {
-            ".validate": "newData.isNumber() && newData.val() >= 3 && newData.val() <= 20"
+            ".validate": "newData.isNumber() && (newData.val() === 0 || (newData.val() >= 3 && newData.val() <= 60))"
           },
           "tracks": {
             "$i": {

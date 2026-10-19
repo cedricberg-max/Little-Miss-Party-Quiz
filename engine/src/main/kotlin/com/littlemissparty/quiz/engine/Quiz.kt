@@ -145,7 +145,7 @@ data class Question(
             require(cards.none { it.word.isBlank() }) { "Question $id : indice vide" }
             require(durationSec in 10..120) { "Question $id : durée entre 10 et 120 s" }
             require(points == null || points in 1..MAX_TRACK_POINTS) { "Blind test $id : valeur entre 1 et $MAX_TRACK_POINTS points" }
-            require(revealSec in 3..20) { "Blind test $id : révélation entre 3 et 20 s" }
+            require(revealSec == 0 || revealSec in 3..60) { "Blind test $id : révélation entre 3 et 60 s, ou tout l'extrait" }
         } else if (kind == QuestionKind.DISPARU) {
             require(choices.size == 1 && correct == 0) { "Qui a disparu $id : une seule réponse attendue" }
             require(cards.size in 4..MAX_DISPARU) { "Qui a disparu $id : il faut 4 à $MAX_DISPARU objets" }

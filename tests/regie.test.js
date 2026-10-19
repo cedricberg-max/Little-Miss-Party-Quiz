@@ -764,11 +764,13 @@ describe("régie", () => {
     await page.click("#blind-ko");
     await waitFor(async () => (await commands()).includes("buzz_ko"), "mauvaise réponse envoyée");
 
-    // Musique arrêtée après l'erreur : relancer (l'équipe ratée rebuzzera 3 s après), révéler ou passer.
+    // Musique arrêtée après l'erreur : relancer (l'équipe ratée rebuzzera 3 s après, ou tout de suite), révéler ou passer.
     await box.set({ ...(await read("state")), buzz: { team: null, blocked: ["rose"] }, blind: blindState({ played: true }) });
     await page.locator("#blind-info", { hasText: "Pas trouvé (Les Roses). Relancez la musique : les autres buzzent tout de suite, Les Roses 3 s après." }).waitFor();
     await page.locator("#c-next", { hasText: "Relancer la musique" }).waitFor();
-    assert.equal(await page.locator("#blind-unblock").isHidden(), true, "plus de « Réautoriser » : le rebuzz après 3 s est automatique");
+    // L'équipe ratée rebuzze 3 s après la reprise ; l'animatrice peut lever cette attente.
+    await page.locator("#blind-unblock", { hasText: "Laisser rebuzzer tout de suite" }).click();
+    await waitFor(async () => (await commands()).includes("blind_unblock"), "rebuzz immédiat envoyé");
     await page.click("#blind-skip");
     assert.match(await respond(page), /Passer ce morceau/);
     await waitFor(async () => (await commands()).includes("blind_skip"), "passer le morceau envoyé");
