@@ -535,6 +535,19 @@ describe("Super Finale : les dernières questions du quiz, pas un jeu à part", 
   const LIB = { a: quiz("Animaux", 2), b: quiz("Sport", 1), f: quiz("Finale", 2) };
   const play = (rounds) => buildSnapshot("s", { childName: "Léa", age: 9, rounds }, LIB, { d: { title: "Mimes", cards: [{ word: "Chat" }] } }, () => 0);
 
+  test("réglage de la manche Quiz : ses N dernières questions comptent double, dans le même jeu", () => {
+    const two = play([{ type: "quiz", quizId: "a", finale: 2 }, { type: "mimes", deckId: "d" }]).snapshot;
+    assert.deepEqual(two.quiz.questions.map((q) => [q.round, q.double ?? false, q.finale ?? false]), [
+      ["Animaux", true, true], ["Animaux", true, true], ["Mimes", false, false],
+    ]);
+    assert.deepEqual(two.rounds.map((r) => [r.title, r.count, r.finale]), [["Animaux", 2, 2], ["Mimes", 1, undefined]]);
+    const one = play([{ type: "quiz", quizId: "a", finale: 1 }]).snapshot;
+    assert.deepEqual(one.quiz.questions.map((q) => q.double ?? false), [false, true]);
+    assert.deepEqual(play([{ type: "quiz", quizId: "a", finale: 9 }]).snapshot.quiz.questions.map((q) => q.double), [true, true], "jamais plus que le quiz");
+    assert.deepEqual(play([{ type: "quiz", quizId: "a" }]).snapshot.quiz.questions.map((q) => q.double), [false, false], "sans réglage : rien ×2");
+    assert.deepEqual(play([{ type: "express", quizId: "a", finale: 2 }]).snapshot?.quiz.questions.map((q) => q.double ?? false) ?? [], play([{ type: "express", quizId: "a" }]).snapshot?.quiz.questions.map((q) => q.double ?? false) ?? [], "seulement pour le Quiz");
+  });
+
   test("après un quiz : ses questions ×2 terminent ce quiz, sous son titre", () => {
     const { snapshot, problems } = play([{ type: "quiz", quizId: "a" }, { type: "mimes", deckId: "d" }, { type: "finale", quizId: "f" }]);
     assert.deepEqual(problems, []);
