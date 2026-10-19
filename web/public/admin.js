@@ -359,7 +359,7 @@ function formShow() {
     durationMin: num($("show-duration").value),
     themes: $("show-themes").value.trim() || null,
     notes: $("show-notes").value.trim() || null,
-    rounds: editing.rounds.filter(roundFilled).map((r) => (BUILTIN_GAMES[r.type] ? { type: r.type, count: r.count ?? BUILTIN_GAMES[r.type].count }
+    rounds: editing.rounds.filter(roundFilled).map((r) => (BUILTIN_GAMES[r.type] ? { type: r.type, count: r.count ?? BUILTIN_GAMES[r.type].count, ...(r.type === "disparu" && r.objects ? { objects: r.objects } : {}) }
       : r.type === "mimes" ? { type: "mimes", deckId: r.deckId }
       : r.type === "statues" ? { type: "statues", duration: r.duration ?? STATUES_SEC }
       : r.type === "pictionary" ? { type: "pictionary", duration: r.duration ?? PICTO_SEC }
@@ -423,6 +423,12 @@ function refreshRounds() {
             text: r.type === "express" ? `${q.title} (${expressQuestions(q).length} Vrai / Faux)`
               : r.type === "zoom" || r.type === "flou" ? `${q.title} (${zoomQuestions(q).length} avec photo)` : `${q.title} (${playable(q).length} validées)`,
           }))),
+      // Qui a disparu ? : objets par grille, pour régler la difficulté (par défaut selon l'âge de la prestation).
+      r.type === "disparu"
+        ? h("select", { class: "count", "aria-label": "Objets par grille", onchange: (e) => { r.objects = Number(e.target.value) || null; refreshSummary(); } },
+          h("option", { value: "", text: "Objets : selon l'âge" }),
+          ...[4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => h("option", { value: n, selected: r.objects === n, text: `${n} objets par grille` })))
+        : null,
       // Jeux tirés d'un quiz : toutes ses questions retenues, ou seulement les premières.
       !BUILTIN_GAMES[r.type] && r.type !== "statues" && r.type !== "pictionary" && r.type !== "portes" && r.type !== "mimes" && !MUSIC_GAMES[r.type]
         ? h("select", { class: "count", "aria-label": "Nombre de questions", onchange: (e) => { r.count = Number(e.target.value) || null; refreshSummary(); } },
@@ -638,14 +644,26 @@ $("gpt-copy").onclick = async () => {
  */
 async function attachImportImages(questions) {
   let done = 0;
+  const find = (name) => importImages.get(imageKey(name)) ?? importImages.get(imageKey(name).replace(/\.[a-z0-9]+$/, ".png"))
+    ?? [...importImages.entries()].find(([key]) => key.replace(/\.[a-z0-9]+$/, "") === imageKey(name).replace(/\.[a-z0-9]+$/, ""))?.[1];
   for (const q of questions) {
+    // Image de révélation : rangée comme une photo d'illustration, montrée sur la TV avec la bonne réponse.
+    if (q.revealFile) {
+      const f = find(q.revealFile);
+      q.missingImages ??= [];
+      if (!f) q.missingImages.push(q.revealFile);
+      else {
+        status("import-status", `Préparation des images… (${++done})`, true);
+        try { q.imageId = await storeIllustration(f); } catch (err) { console.error(err); q.missingImages.push(q.revealFile); }
+      }
+      delete q.revealFile;
+    }
     if (!q.imageFiles) continue;
     q.choiceImages = [];
-    q.missingImages = [];
+    q.missingImages ??= [];
     for (const [k, name] of q.imageFiles.entries()) {
       if (!name) { q.choiceImages[k] = null; continue; }
-      const f = importImages.get(imageKey(name)) ?? importImages.get(imageKey(name).replace(/\.[a-z0-9]+$/, ".png"))
-        ?? [...importImages.entries()].find(([key]) => key.replace(/\.[a-z0-9]+$/, "") === imageKey(name).replace(/\.[a-z0-9]+$/, ""))?.[1];
+      const f = find(name);
       if (!f) { q.choiceImages[k] = null; q.missingImages.push(name); continue; }
       status("import-status", `Préparation des images… (${++done})`, true);
       try { q.choiceImages[k] = await storeChoiceImage(f); } catch (err) { console.error(err); q.choiceImages[k] = null; q.missingImages.push(name); }
@@ -657,7 +675,7 @@ async function attachImportImages(questions) {
 $("import-analyse").onclick = async () => {
   const parsed = parseQuiz($("import-text").value);
   if (!parsed.questions.length) return status("import-status", "Aucune question trouvée. Vérifiez le texte collé.");
-  if (parsed.questions.some((q) => q.imageFiles)) {
+  if (parsed.questions.some((q) => q.imageFiles || q.revealFile)) {
     $("import-analyse").disabled = true;
     try { await attachImportImages(parsed.questions); } finally { $("import-analyse").disabled = false; }
   }
@@ -762,7 +780,11 @@ const imageCache = {};
  */
 function illustrationRow(q, i) {
   const preview = h("img", { class: "q-image", alt: "Photo de la question", hidden: !q.imageId });
+  // Repère de préparation, jamais bloquant : sans illustration, la révélation montre seulement la réponse.
+  const missing = h("span", { class: "tag missing", text: "illustration manquante" });
+  const refreshMissing = () => { missing.hidden = !!(q.imageId || q.image); };
   const showPreview = () => {
+    refreshMissing();
     preview.hidden = !q.imageId;
     if (!q.imageId) return;
     if (imageCache[q.imageId]) { preview.src = imageCache[q.imageId]; return; }
@@ -784,11 +806,8 @@ function illustrationRow(q, i) {
       if (!f) return;
       info.textContent = "Préparation de la photo…";
       try {
-        const data = await compressImage(f);
-        const id = await imageId(data);
-        const target = ref(db, `library/images/${id}`);
-        if (!(await get(target)).exists()) await set(target, data);
-        imageCache[id] = data;
+        const id = await storeIllustration(f);
+        const data = imageCache[id];
         q.imageId = id;
         remove.hidden = false;
         showPreview();
@@ -800,11 +819,13 @@ function illustrationRow(q, i) {
     },
   });
   showPreview();
+  refreshMissing();
   return h("div", { class: "row illustration", "data-illustration": i },
+    missing,
     h("label", { class: "inline" }, "Illustration",
       h("input", {
         class: "q-emoji", value: q.image ?? "", maxlength: 16, placeholder: "🦁 émoji",
-        oninput: (e) => { q.image = cleanEmoji(e.target.value); },
+        oninput: (e) => { q.image = cleanEmoji(e.target.value); refreshMissing(); },
       })),
     h("button", { type: "button", class: "btn small secondary", text: "📷 Photo…", onclick: () => file.click() }),
     file, preview, remove, info);
@@ -856,6 +877,16 @@ function choicePhoto(q, slots, k) {
   return h("span", { class: "choice-photo" }, thumb, remove,
     h("button", { type: "button", class: "icon", title: "Mettre une image à la place du texte", text: "📷", onclick: (e) => { e.preventDefault(); file.click(); } }),
     file);
+}
+
+/** Réduit une photo d'illustration (révélation) et la range dans la bibliothèque ; renvoie son identifiant. */
+async function storeIllustration(fileOrBlob) {
+  const data = await compressImage(fileOrBlob);
+  const id = await imageId(data);
+  const target = ref(db, `library/images/${id}`);
+  if (!(await get(target)).exists()) await set(target, data);
+  imageCache[id] = data;
+  return id;
 }
 
 /** Réduit une image de réponse et la range dans la bibliothèque (une seule copie par image) ; renvoie son identifiant. */

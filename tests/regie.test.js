@@ -2048,7 +2048,7 @@ describe("bibliothèque de quiz et prestations", () => {
 
   test("quiz en images : JSON de ChatGPT et images déposés ensemble, image manquante signalée puis ajoutée à la main, copiées dans la partie", async () => {
     const json = JSON.stringify({ title: "Les animaux des petits", questions: [
-      { text: "Quel animal court le plus vite ?", choices: [{ text: "Lion", image: "q1-lion.png" }, { image: "q1-baleine.png" }, { text: "Chien", image: "q1-chien.png" }, { text: "Vache", image: "q1-vache.png" }], correct: 0 },
+      { text: "Quel animal court le plus vite ?", illustration: "q1-revelation.png", choices: [{ text: "Lion", image: "q1-lion.png" }, { image: "q1-baleine.png" }, { text: "Chien", image: "q1-chien.png" }, { text: "Vache", image: "q1-vache.png" }], correct: 0 },
       { text: "Quelle est la capitale de la France ?", choices: ["Paris", "Rome"], correct: 0 },
     ] });
     const page = await admin();
@@ -2059,8 +2059,9 @@ describe("bibliothèque de quiz et prestations", () => {
       { name: "q1-lion.png", mimeType: "image/png", buffer: png([230, 160, 30]) },
       { name: "Q1-Baleine.PNG", mimeType: "image/png", buffer: png([40, 120, 230]) },
       { name: "q1-chien.png", mimeType: "image/png", buffer: png([120, 80, 40]) },
+      { name: "q1-revelation.png", mimeType: "image/png", buffer: png([200, 60, 60]) },
     ]);
-    await page.locator("#import-images", { hasText: "3 images prêtes" }).waitFor();
+    await page.locator("#import-images", { hasText: "4 images prêtes" }).waitFor();
     await page.click("#import-analyse");
     await page.locator('[data-q="1"]').waitFor({ timeout: 15000 });
     // Aperçu avant d'enregistrer : 3 images associées par leur nom, la 4e manque et c'est dit.
@@ -2071,6 +2072,10 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator('[data-q="0"] .choice-photo input[type=file]').nth(3).setInputFiles({ name: "vache.png", mimeType: "image/png", buffer: png([250, 250, 250]) });
     await waitFor(async () => (await page.locator('[data-q="0"] .choice-thumb:not([hidden])').count()) === 4, "4 images en aperçu");
     assert.equal(await page.locator('[data-q="1"] .choice-thumb:not([hidden])').count(), 0);
+    // Image de révélation associée à la question 1 ; la question 2 n'a pas d'illustration, c'est signalé sans bloquer.
+    await page.locator('[data-q="0"] .q-image:not([hidden])').waitFor();
+    assert.equal(await page.locator('[data-q="0"] .tag.missing').isHidden(), true);
+    await page.locator('[data-q="1"] .tag.missing:not([hidden])', { hasText: "illustration manquante" }).waitFor();
     await page.click("#rv-validate-all");
     await page.click("#rv-save");
     await page.locator("#rv-status", { hasText: "Enregistré" }).waitFor();
@@ -2080,6 +2085,8 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(new Set(ids).size, 4, "quatre images distinctes");
     assert.equal(saved.questions[1].choiceImages, undefined);
     for (const id of ids) assert.match(await library(`images/${id}`), /^data:image\/jpeg;base64,/);
+    assert.match(saved.questions[0].imageId, /^[0-9a-f]{16}$/);
+    assert.ok(!ids.includes(saved.questions[0].imageId), "image de révélation distincte des réponses");
 
     // Régie : la prestation part sur la TV avec ses réponses en images, copiées là où les tablettes les lisent.
     await seedLibrary("shows", { lou: { childName: "Lou", status: "publiee", rounds: [{ type: "quiz", quizId }], updatedAt: 1 } });

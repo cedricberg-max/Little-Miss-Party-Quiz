@@ -3,7 +3,8 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { parseQuiz, checkQuestions, geminiPrompt, resolveCorrect, chatgptImagePrompt, imageKey, wordFromImage } from "../web/public/importer.js";
 import { MIME_CATALOG } from "../web/public/mime-cards.js";
-import { activeItems, buildSnapshot, estimateMinutes, roundFilled,
+import { DISPARU_THEMES } from "../web/public/buzz-cards.js";
+import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, roundFilled,
   readiness, upcoming, daysUntil, isoDay, duplicateShow, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
   soundIds, choiceImageIds, choiceImageList,
 } from "../web/public/show.js";
@@ -161,9 +162,12 @@ describe("quiz en images (ChatGPT)", () => {
   const LION = "0123456789abcdef", CHIEN = "fedcba9876543210";
   test("JSON de ChatGPT : chaque réponse garde son texte et le nom de son image ; sans texte, le mot vient du nom", () => {
     const { questions } = parseQuiz("```json\n" + JSON.stringify({ title: "Petits", questions: [
-      { text: "Qui court vite ?", choices: [{ text: "Lion", image: "q1-lion.png" }, { image: "q1-baleine.png" }, "Chien", { text: "Vache", image: "images/Q1-Vache.PNG" }], correct: 0 },
-      { text: "Capitale ?", choices: ["Paris", "Rome"], correct: 0 },
+      { text: "Qui court vite ?", illustration: "q1-revelation.png", choices: [{ text: "Lion", image: "q1-lion.png" }, { image: "q1-baleine.png" }, "Chien", { text: "Vache", image: "images/Q1-Vache.PNG" }], correct: 0 },
+      { text: "Capitale ?", image: "🗼", choices: ["Paris", "Rome"], correct: 0 },
     ] }) + "\n```");
+    // Image de révélation par question ; un émoji sous « image » n'est pas un fichier.
+    assert.equal(questions[0].revealFile, "q1-revelation.png");
+    assert.equal(questions[1].revealFile, undefined);
     assert.deepEqual(questions[0].choices, ["Lion", "Baleine", "Chien", "Vache"]);
     assert.deepEqual(questions[0].imageFiles, ["q1-lion.png", "q1-baleine.png", null, "images/Q1-Vache.PNG"]);
     assert.equal(questions[1].imageFiles, undefined, "question en texte");
@@ -173,6 +177,7 @@ describe("quiz en images (ChatGPT)", () => {
     assert.deepEqual(report[0].errors, []);
     assert.match(report[0].warnings.join(" "), /introuvable.*q1-vache\.png/);
     assert.match(chatgptImagePrompt({ theme: "les animaux", count: 5 }), /5 questions sur le thème « les animaux ».*\n[\s\S]*"image": "q1-lion\.png"/);
+    assert.match(chatgptImagePrompt({}), /"illustration": "q1-revelation\.png"/);
   });
   test("prestation : les photos suivent leurs réponses, seulement pour un quiz à propositions", () => {
     const quiz = { title: "Petits", questions: [
@@ -654,6 +659,17 @@ describe("Régie PC : contenus intégrés réglés, nombre de questions, notes",
     const { snapshot } = buildSnapshot("s", { age: 9, rounds: [{ type: "quisuis" }] }, {}, {}, Math.random, {}, contents);
     assert.equal(snapshot.quiz.questions[0].imageId, "0123456789abcdef");
     assert.equal(snapshot.quiz.questions[0].choices[0], "Le koala");
+  });
+
+  test("Qui a disparu ? : objets par grille réglés sur la manche, et jamais deux fois la même famille", () => {
+    const { snapshot } = buildSnapshot("s", { age: 7, rounds: [{ type: "disparu", count: 4, objects: 11 }, { type: "disparu", count: 4 }] }, {});
+    const grids = snapshot.quiz.questions.filter((q) => q.kind === "disparu");
+    assert.equal(grids.length, 8);
+    assert.ok(grids.slice(0, 4).every((q) => q.cards.length === 11), "11 objets demandés sur la première manche");
+    assert.ok(grids.slice(4).every((q) => q.cards.length === 5), "la seconde suit l'âge (6-8 ans : 5)");
+    const family = (q) => DISPARU_THEMES.find((t) => q.cards.every((c) => t.objects.some((o) => o.word === c.word))).theme;
+    assert.equal(new Set(grids.map(family)).size, 8, "8 familles différentes sur les deux manches");
+    assert.equal(disparuObjects({ objects: 40 }, "MOYENS"), 7);
   });
 
   test("tout retiré : la manche est signalée, jamais jouée vide", () => {

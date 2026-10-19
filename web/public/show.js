@@ -108,7 +108,8 @@ export const BUILTIN_GAMES = {
   },
   disparu: {
     unit: "grille", count: 4, duration: 45, rule: "on mémorise les objets, puis l'un d'eux disparaît",
-    items: (profile, random, list) => list.map((t) => disparuGrid(t, DISPARU_OBJECTS[profile] ?? 7, random)),
+    // Nombre d'objets par grille : réglé sur la manche (4 à 12), sinon selon l'âge.
+    items: (profile, random, list, round) => list.map((t) => disparuGrid(t, disparuObjects(round, profile), random)),
     question: (g) => ({ text: "Qui a disparu ?", choices: [g.missing.word], correct: 0, kind: "disparu", cards: g.objects, image: g.missing.image, duration: g.duration }),
   },
 };
@@ -178,6 +179,10 @@ export function activeItems(type, content) {
 const DISPARU_OBJECTS = { PETITS: 5, MOYENS: 7, GRANDS: 9, ADULTES: 9 };
 const DISPARU_SEARCH_SEC = 25;
 
+/** Objets par grille d'une manche Qui a disparu ? : le réglage de la manche (4 à 12), sinon celui de l'âge. */
+export const disparuObjects = (round, profile) =>
+  Number.isInteger(round?.objects) && round.objects >= 4 && round.objects <= 12 ? round.objects : DISPARU_OBJECTS[profile] ?? 7;
+
 /**
  * Une grille de Qui a disparu ? : [n] objets de la famille et celui qui disparaîtra. La durée suit le
  * moteur de la TV : 2 s de mémorisation par objet (10 à 18 s), 3 s de tour de magie, puis la recherche.
@@ -186,7 +191,7 @@ function disparuGrid(theme, n, random) {
   const objects = shuffle(theme.objects, random).slice(0, n);
   const missing = objects[Math.floor(random() * objects.length)];
   const memo = Math.min(18, Math.max(10, objects.length * 2));
-  return { objects, missing, duration: memo + 3 + DISPARU_SEARCH_SEC };
+  return { theme: theme.theme, objects, missing, duration: memo + 3 + DISPARU_SEARCH_SEC };
 }
 
 /** Une manche est-elle complète (quiz choisi, ou paquet de mimes choisi) ? Les jeux intégrés le sont toujours. */
@@ -252,6 +257,8 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
   const blocks = [];
   let rounds, questions;
   const begin = (type) => { rounds = []; questions = []; blocks.push({ type, rounds, questions }); };
+  /** Éléments des jeux intégrés déjà tirés dans cette prestation, par jeu. */
+  const used = {};
   (show.rounds ?? []).filter(Boolean).forEach((round, i) => {
     begin(round.type);
     if (round.type === "mimes") {
@@ -309,7 +316,14 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     const builtin = BUILTIN_GAMES[round.type];
     if (builtin) {
       const count = Math.max(1, Math.min(12, round.count ?? builtin.count));
-      const picked = shuffle(builtin.items(profile, random, activeItems(round.type, contents?.[round.type])), random).slice(0, count);
+      // Deux manches du même jeu dans une prestation : pas deux fois le même mot, personnage ou famille, tant qu'il en reste.
+      const game = CONTENT_GAMES[round.type];
+      const seen = (used[round.type] ??= new Set());
+      const all = activeItems(round.type, contents?.[round.type]);
+      const fresh = all.filter((x) => !seen.has(game.key(x)));
+      const pool = fresh.length >= Math.min(count, all.length) ? fresh : all;
+      const picked = shuffle(builtin.items(profile, random, pool, round), random).slice(0, count);
+      picked.forEach((x) => seen.add(game.key(x)));
       if (!picked.length) {
         problems.push(`Manche ${i + 1} (${ROUND_TYPES[round.type]}) : aucun ${CONTENT_GAMES[round.type].unit} actif (page Jeux de l'administration).`);
         return;
