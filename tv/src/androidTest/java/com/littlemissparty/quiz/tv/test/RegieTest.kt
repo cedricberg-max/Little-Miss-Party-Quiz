@@ -219,6 +219,103 @@ class RegieTest : TestTv() {
         ecran.voit("Toutes les équipes ont répondu")
     }
 
+    /**
+     * Pictionary en premier jeu, puis les mimes, puis le quiz : un autre ordre que le test précédent, et deux jeux à
+     * tour de rôle d'affilée (ils partagent la même mécanique : rien ne doit déborder de l'un sur l'autre).
+     */
+    @Test
+    fun pictionaryPuisMimesPuisQuizSansRienBloquer() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val dragons = pupitre("dragons").also { it.rejoindre(code, "Dragons", ROSE) }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        @Suppress("UNCHECKED_CAST")
+        val demo = regie.programme(code)["questions"] as List<Map<String, Any?>>
+        val picto = mapOf(
+            "id" to "a1p", "text" to "Pictionary", "kind" to "pictionary", "duration" to 60, "round" to "Pictionary",
+            "points" to Scoring.PICTO,
+            "cards" to listOf(
+                mapOf("word" to "Soleil", "image" to "☀️"), mapOf("word" to "Maison", "image" to "🏠"),
+                mapOf("word" to "Bateau", "image" to "⛵"), mapOf("word" to "Pomme", "image" to "🍎"),
+            ),
+        )
+        val mimes = mapOf(
+            "id" to "a2m", "text" to "Animaux", "kind" to "mime", "duration" to 60, "round" to "Animaux",
+            "cards" to listOf(mapOf("word" to "Chat", "image" to "🐱")),
+        )
+        val programme = listOf(picto, mimes, demo[0] + ("round" to "Quiz"))
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, programme))
+
+        // Pictionary : l'intro, puis Sarah montre 3 mots au dessinateur des Licornes.
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("PICTIONARY")
+        ecran.voit("Pictionary !")
+        assertEquals("applied", regie.commande(code, "picto_show", mapOf("team" to licornes.uid)))
+        ecran.voit("Chut !")
+        attendreQue("3 mots proposés") { licornes.etat(code).child("mime/offer").childrenCount.takeIf { it == 3L } }
+        // Tant que le mot n'est pas choisi, « on dessine » est refusé ; seule la tablette du dessinateur choisit.
+        assertEquals("refused", regie.commande(code, "picto_draw"))
+        assertFalse("Une autre équipe ne choisit pas le mot", dragons.choisirMot(code, 0))
+        assertTrue(licornes.choisirMot(code, 1))
+        attendreQue("choix reçu par la box") { licornes.etat(code).child("mime/chosen").value?.takeIf { (it as Number).toInt() == 1 } }
+        ecran.capture("pictionary-choix")
+
+        // Le dessin part de la tablette et s'affiche en direct sur la TV ; les autres tablettes ne dessinent pas.
+        assertEquals("applied", regie.commande(code, "picto_draw"))
+        ecran.voit("Licornes dessine !")
+        ecran.voit("Dessin en direct · 0 traits")
+        assertTrue(licornes.dessiner(code, "100,100 200,200 300,250"))
+        assertTrue(licornes.dessiner(code, "300,250 420,310", couleur = "#2B86C5", epaisseur = 2))
+        assertFalse("Une autre équipe ne dessine pas", dragons.dessiner(code, "500,500 600,600"))
+        ecran.voit("Dessin en direct · 2 traits")
+        ecran.capture("pictionary-dessin")
+        assertEquals("applied", regie.commande(code, "mime_found"))
+        ecran.voit("Bravo Licornes ! +${Scoring.PICTO} points")
+        ecran.voit("Dessin en direct · 2 traits")
+        attendreQue("points du dessin") { points(licornes, code, licornes.uid).takeIf { it == Scoring.PICTO.toLong() } }
+        // Le double appui sur « Trouvé ! » ne compte pas deux fois.
+        assertEquals("refused", regie.commande(code, "mime_found"))
+
+        // Les Dragons : le temps est arrêté sans mot trouvé, zéro point, et l'ancien dessin ne revient pas.
+        assertEquals("applied", regie.commande(code, "picto_show", mapOf("team" to dragons.uid)))
+        ecran.voit("Chut !")
+        assertTrue(dragons.choisirMot(code, 0))
+        attendreQue("choix des Dragons") { dragons.etat(code).child("mime/chosen").value }
+        assertEquals("applied", regie.commande(code, "picto_draw"))
+        ecran.voit("Dragons dessine !")
+        ecran.voit("Dessin en direct · 0 traits")
+        assertEquals("applied", regie.commande(code, "mime_stop"))
+        ecran.voit("Pas trouvé cette fois, Dragons !")
+        assertEquals(0L, points(dragons, code, dragons.uid))
+        ecran.voit("Voir le classement")
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("Après le Pictionary")
+        ecran.voit("Jeu suivant : Animaux")
+
+        // Mimes juste après : leurs propres points, et rien du Pictionary ne déborde.
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("Les Mimes !")
+        ecran.neVoitPas("PICTIONARY")
+        assertEquals("applied", regie.commande(code, "mime_start", mapOf("team" to dragons.uid)))
+        ecran.voit("Chat")
+        assertEquals("applied", regie.commande(code, "mime_found"))
+        ecran.voit("Bravo Dragons")
+        attendreQue("points du mime") { points(dragons, code, dragons.uid).takeIf { it == Scoring.MIME.toLong() } }
+        // Sarah passe au classement sans faire jouer les Licornes : rien ne bloque.
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("Après les mimes")
+        ecran.voit("Jeu suivant : Quiz")
+
+        // Le quiz s'ouvre avec les mêmes équipes et les mêmes scores.
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("Question 3 / 3")
+        assertEquals(Scoring.PICTO.toLong(), points(licornes, code, licornes.uid))
+        assertEquals(Scoring.MIME.toLong(), points(dragons, code, dragons.uid))
+        assertTrue(licornes.repondre(code, demo[0]["id"] as String, (demo[0]["correct"] as Number).toInt()))
+        ecran.capture("pictionary-mimes-quiz")
+    }
+
     @Test
     fun justeChiffreLEquipeLaPlusProcheGagne() {
         val code = lancerBoite()

@@ -105,7 +105,7 @@ function startBox({ silent = false, held = false } = {}) {
       if (handled.has(id)) continue;
       handled.add(id);
       if (cmd.type === "admit" || cmd.type === "replace") { await admitDevice(id, cmd); continue; }
-      const advance = ["next", "close", "end", "pause", "resume", "mime_start", "mime_found", "mime_pass", "mime_stop", "goto", "buzz_ok", "buzz_ko"].includes(cmd.type);
+      const advance = ["next", "close", "end", "pause", "resume", "mime_start", "mime_found", "mime_pass", "mime_stop", "goto", "buzz_ok", "buzz_ko", "picto_show", "picto_draw"].includes(cmd.type);
       let status = { status: "applied" };
       if (advance && cmd.expectSeq !== state.seq) status = { status: "stale", reason: "stale" };
       else {
@@ -135,8 +135,8 @@ function startBox({ silent = false, held = false } = {}) {
             state = { ...state, seq, buzzOpen: true, round: `${state.qid}-1000-${blocked.length}`, buzz: { team: null, blocked }, buzzBlocked: Object.fromEntries(blocked.map((t) => [t, true])) };
           }
         }
-        else if (cmd.type.startsWith("mime_") || (m && ["next", "close"].includes(cmd.type))) {
-          const next = mimeStep(state, cmd, seq);
+        else if (cmd.type.startsWith("mime_") || cmd.type.startsWith("picto_") || (m && ["next", "close"].includes(cmd.type))) {
+          const next = state.kind === "pictionary" ? pictoStep(state, cmd, seq) : mimeStep(state, cmd, seq);
           if (next) state = next; else status = { status: "refused", reason: "not_now" };
         }
         else if (cmd.type === "next" && state.phase === "lobby") state = questionState(seq);
@@ -195,6 +195,40 @@ function startBox({ silent = false, held = false } = {}) {
         return m.team ? endTurn({ ...st, seq }) : null;
       case "next":
         return m.team ? endTurn({ ...st, seq }) : { ...st, seq, phase: "scores", deadline: null };
+      default:
+        return null;
+    }
+  }
+  /** Pictionary : mêmes règles que le moteur (PictoShown, PictoChosen, MimeTurnStarted, MimeFound, MimePassed, MimeTurnEnded). */
+  function pictoStep(st, cmd, seq) {
+    const m = st.mime;
+    if (!m || st.paused) return null;
+    const endTurn = (x, found) => {
+      const counts = { ...(m.counts ?? {}) };
+      if (found) counts[m.team] = (counts[m.team] ?? 0) + 1;
+      deck = deck.filter((c) => c !== m.card);
+      return { ...x, seq, deadline: null, scores: found ? { ...st.scores, [m.team]: (st.scores[m.team] ?? 0) + 150 } : st.scores,
+        mime: { ...m, counts, team: null, card: null, drawKey: null, left: deck.length, last: { team: m.team, found: found ? 1 : 0, passed: 0, word: m.card.word } } };
+    };
+    switch (cmd.type) {
+      case "picto_show":
+        if (m.team || m.secret === cmd.team) return null;
+        if (!deck.length) deck = [...allCards];
+        return { ...st, seq, mime: { ...m, secret: cmd.team, offer: deck.slice(0, 3), chosen: null, card: null, pickKey: `${st.qid}-${seq}` } };
+      case "picto_draw":
+        if (!m.secret || m.chosen == null) return null;
+        return { ...st, seq, deadline: Date.now() + 60000, mime: { ...m, team: m.secret, secret: null, offer: null, chosen: null, pickKey: null, drawKey: `${st.qid}-${seq}`, turns: [...(m.turns ?? []), m.secret] } };
+      case "mime_pass":
+        if (!m.secret || deck.length < 4) return null;
+        deck = [...deck.slice(3), ...deck.slice(0, 3)];
+        return { ...st, seq, mime: { ...m, offer: deck.slice(0, 3), chosen: null, card: null, pickKey: `${st.qid}-${seq}` } };
+      case "mime_found":
+        return m.team ? endTurn(st, true) : null;
+      case "mime_stop":
+      case "close":
+        return m.team ? endTurn(st, false) : null;
+      case "next":
+        return m.team ? endTurn(st, false) : { ...st, seq, phase: "scores", deadline: null };
       default:
         return null;
     }
@@ -269,6 +303,22 @@ function startBox({ silent = false, held = false } = {}) {
         choices: null, deadline: null, scores, buzzOpen: false,
         mime: { team: null, card: null, found: 0, passed: 0, left: cards.length, turns: [], counts: {}, points: 50 },
       };
+      await update(ref(db, `games/${CODE}`), { state });
+    },
+    async picto(cards, scores = {}) {
+      deck = cards;
+      allCards = cards;
+      state = {
+        ...state, phase: "question", seq: state.seq + 1, index: 2, qid: "r3p", kind: "pictionary", text: "Pictionary", durationMs: 60000,
+        choices: null, deadline: null, scores, buzzOpen: false,
+        mime: { team: null, card: null, found: 0, passed: 0, left: cards.length, turns: [], counts: {}, points: 150 },
+      };
+      await update(ref(db, `games/${CODE}`), { state });
+    },
+    /** Pictionary : le dessinateur touche le mot [i] sur sa tablette (PictoChosen). */
+    async pictoChoose(i) {
+      state = { ...state, seq: state.seq + 1, mime: { ...state.mime, chosen: i, card: state.mime.offer[i] } };
+      deck = [state.mime.card, ...deck.filter((c) => c !== state.mime.card)];
       await update(ref(db, `games/${CODE}`), { state });
     },
     refuseNextProgram: (reason) => { refuseProgram = reason; },
@@ -740,6 +790,43 @@ describe("régie", () => {
     assert.match(await respond(page), /La partie reprend avec ce jeu/);
     await page.locator("#r-toast", { hasText: "C'est parti pour « Finale » !" }).waitFor();
     assert.deepEqual(box.gotos[2], { index: 3, qid: "f1" });
+    await page.context().close();
+  });
+
+  test("Pictionary : Sarah montre 3 mots, voit le choix du dessinateur, masque le mot puis valide ; 150 points", async () => {
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    await addTeam("bleu", "Les Bleus");
+    const cards = [{ word: "Chat", image: "🐱" }, { word: "Pirate", image: "🏴‍☠️" }, { word: "Pizza", image: "🍕" }, { word: "Robot", image: "🤖" }, { word: "Glace", image: "🍦" }];
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    await box.picto(cards);
+    await page.locator("#mime:not([hidden])").waitFor();
+    await page.locator("#mime-info", { hasText: "Qui commence ?" }).waitFor();
+    await page.locator("#c-next", { hasText: "Terminer le Pictionary" }).waitFor();
+    await page.locator(".mime-team", { hasText: "Les Bleus" }).click();
+    await page.locator("#mime-go", { hasText: "Montrer le mot à Les Bleus" }).click();
+    await page.locator("#mime-info", { hasText: "Chat · Pirate · Pizza" }).waitFor();
+    // Tant que le dessinateur n'a pas choisi, impossible de lancer le dessin ; Sarah peut proposer 3 autres mots.
+    await page.locator("#mime-go[disabled]", { hasText: "Masquer le mot" }).waitFor();
+    await page.click("#mime-pass");
+    await page.locator("#mime-info", { hasText: "Robot · Glace · Chat" }).waitFor();
+    // Le choix fait sur la tablette s'affiche sur la régie.
+    await box.pictoChoose(1);
+    await page.locator("#mime-info", { hasText: "a choisi son mot" }).waitFor();
+    await page.locator("#mime-now .word", { hasText: "Glace" }).waitFor();
+    await page.locator("#mime-go:not([disabled])", { hasText: "Masquer le mot : on dessine ! (Les Bleus)" }).click();
+    await page.locator("#mime-info", { hasText: "Les Bleus dessine !" }).waitFor();
+    await page.locator("#mime-found small", { hasText: "+150 points" }).waitFor();
+    assert.equal(await page.locator("#mime-row").isHidden(), true, "ni « Passer » ni −1 pendant le dessin");
+    await page.click("#mime-found");
+    await page.locator("#mime-info", { hasText: "Tour terminé : Les Bleus a trouvé « Glace » !" }).waitFor();
+    await page.locator("#mime-fix-plus", { hasText: "+150 pour Les Bleus" }).waitFor();
+    await page.locator(".mime-team.selected", { hasText: "Les Roses" }).waitFor();
+    assert.deepEqual((await commands()).map((c) => c.type), ["picto_show", "mime_pass", "picto_draw", "mime_found"]);
+    assert.equal((await commands()).find((c) => c.type === "picto_show").team, "bleu");
+    assert.equal((await read("state")).scores.bleu, 150);
     await page.context().close();
   });
 
@@ -1860,7 +1947,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.locator(".show-item", { hasText: "tous les jeux" }).click();
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const kinds = [...new Set((await read("show")).quiz.questions.map((q) => q.kind))];
-    assert.deepEqual(kinds, ["classic", "number", "express", "mime", "zoom", "chante", "flou", "quisuis", "disparu", "blind", "statues"]);
+    assert.deepEqual(kinds, ["classic", "number", "express", "mime", "zoom", "chante", "flou", "quisuis", "disparu", "blind", "statues", "pictionary"]);
     assert.equal((await read("show")).quiz.questions.filter((q) => q.kind === "classic" && q.audioId).length, 4, "quiz musical sur les comptines");
     await waitFor(async () => Object.keys((await read("images")) ?? {}).length === 4, "photos copiées dans la partie");
     await waitFor(async () => Object.keys((await read("sounds")) ?? {}).length === 4, "comptines copiées dans la partie", 15000);
@@ -1878,7 +1965,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#test-full-status", { hasText: "Mise à jour" }).waitFor({ timeout: 20000 });
     await page.context().close();
     const show = await library("shows/test-lea-tous-les-jeux");
-    assert.deepEqual(show.rounds.map((r) => r.type), ["quiz", "chante", "disparu", "blind", "musical", "statues", "finale"]);
+    assert.deepEqual(show.rounds.map((r) => r.type), ["quiz", "chante", "disparu", "blind", "musical", "statues", "pictionary", "finale"]);
     assert.equal(show.childName, "Léa");
     assert.equal(Object.keys(await library("sounds")).length, 4);
   });

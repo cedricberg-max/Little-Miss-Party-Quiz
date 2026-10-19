@@ -122,7 +122,8 @@ private fun Feuille(couleur: Color, modifier: Modifier = Modifier) {
             .border(4.dp, couleur, RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
             .background(Color.White)
-            .semantics { contentDescription = "Dessin en direct" },
+            // Le nombre de traits reçus sert aux tests sur émulateur (le dessin arrive bien sur la TV).
+            .semantics { contentDescription = "Dessin en direct · ${dessin.traits.size} traits" },
     ) {
         Canvas(Modifier.fillMaxSize()) {
             val sx = size.width / 1000f

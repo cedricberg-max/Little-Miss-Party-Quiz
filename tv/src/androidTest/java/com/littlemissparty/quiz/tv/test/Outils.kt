@@ -346,6 +346,24 @@ class PupitreSimule(etiquette: String) : AutoCloseable {
         }
     }.onFailure { Log.i(TAG, "Buzz refusé : ${it.message}") }.isSuccess
 
+    /** Pictionary : le dessinateur choisit l'un des 3 mots proposés ; renvoie false si le serveur refuse. */
+    fun choisirMot(code: String, choix: Int): Boolean = runCatching {
+        val cle = etat(code).child("mime/pickKey").value.toString()
+        bloquer {
+            base.getReference("games/$code/pictoChoice/$cle")
+                .setValue(mapOf("i" to choix, "at" to ServerValue.TIMESTAMP)).await()
+        }
+    }.onFailure { Log.i(TAG, "Choix du mot refusé : ${it.message}") }.isSuccess
+
+    /** Pictionary : envoie un morceau de trait (« x,y x,y … » de 0 à 1000) ; renvoie false si le serveur refuse. */
+    fun dessiner(code: String, points: String, couleur: String = "#F94144", epaisseur: Int = 3): Boolean = runCatching {
+        val cle = etat(code).child("mime/drawKey").value.toString()
+        bloquer {
+            base.getReference("games/$code/drawing/$cle").push()
+                .setValue(mapOf("c" to couleur, "w" to epaisseur, "p" to points)).await()
+        }
+    }.onFailure { Log.i(TAG, "Trait refusé : ${it.message}") }.isSuccess
+
     /** État de la partie lu sur le serveur. */
     fun etat(code: String): DataSnapshot = bloquer { base.getReference("games/$code/state").lireUneFois() }
 

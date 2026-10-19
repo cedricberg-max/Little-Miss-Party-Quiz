@@ -909,6 +909,14 @@ describe("blind test : extraits musicaux et playlists", () => {
       await assertFails(set(ref(db("rose"), `games/${CODE}/commands/${type}-rose`), { type, expectSeq: 3, by: "rose", at: serverTimestamp() }));
     }
   });
+  test("Pictionary : la régie montre le mot et lance le dessin ; jamais un pupitre", async () => {
+    await seed({ phase: "lobby" });
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));
+    for (const type of ["picto_show", "picto_draw"]) {
+      await assertSucceeds(set(ref(db("tel"), `games/${CODE}/commands/${type}`), { type, expectSeq: 3, by: "tel", at: serverTimestamp(), ...(type === "picto_show" ? { team: "rose" } : {}) }));
+      await assertFails(set(ref(db("rose"), `games/${CODE}/commands/${type}-rose`), { type, expectSeq: 3, by: "rose", at: serverTimestamp() }));
+    }
+  });
 });
 
 describe("défis de la pause", () => {
