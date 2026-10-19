@@ -70,7 +70,7 @@ private val HAUTEUR = 700.dp
 
 /** Millisecondes écoulées depuis l'arrivée de [cle], rafraîchies une vingtaine de fois par seconde. */
 @Composable
-private fun horloge(cle: Any?): () -> Float {
+internal fun horloge(cle: Any?): () -> Float {
     val depart = remember(cle) { SystemClock.elapsedRealtime() }
     val maintenant = remember(cle) { mutableLongStateOf(depart) }
     LaunchedEffect(cle) {
