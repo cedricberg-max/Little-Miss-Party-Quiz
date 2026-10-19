@@ -1,0 +1,179 @@
+package com.littlemissparty.quiz.tv.habillage
+
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.layout.Placeable
+import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+
+/**
+ * Mise en page des équipes, de 1 à 8, sans jamais rien pousser hors de l'écran.
+ * La règle vaut pour tous les jeux, actuels et futurs : la plupart des fêtes ont 4 équipes, mais il peut y en avoir 8.
+ * Les puces reçoivent une largeur imposée : leur nom doit tenir sur une ligne (maxLines = 1, points de suspension).
+ * Quand la place manque, elles sont dites « compactes » : texte plus petit, statut abrégé.
+ */
+
+/**
+ * Bandeau du bas d'écran : les puces des équipes, et les boutons de l'animatrice à droite.
+ * 1. Si toutes les puces tiennent à leur largeur naturelle à côté des boutons : une seule ligne, comme d'habitude.
+ * 2. Sinon, des rangs de puces à largeur égale (au moins [largeurConfort], pour que les noms restent lisibles),
+ *    le dernier rang partageant la ligne des boutons quand il y a la place, sinon les boutons dessous.
+ * 3. En dernier recours (8 équipes et trois boutons), deux rangs de puces compactes au-dessus des boutons.
+ */
+@Composable
+fun BandeauEquipes(
+    nombre: Int,
+    modifier: Modifier = Modifier,
+    largeurConfort: Dp = 150.dp,
+    largeurMax: Dp = 230.dp,
+    ecart: Dp = 10.dp,
+    actions: @Composable () -> Unit = {},
+    puce: @Composable (index: Int, compacte: Boolean, modifier: Modifier) -> Unit,
+) {
+    SubcomposeLayout(modifier) { c ->
+        val w = c.maxWidth
+        val gap = ecart.roundToPx()
+        val max = largeurMax.roundToPx()
+        val confort = largeurConfort.roundToPx()
+        val boutons = subcompose("actions", actions).map { it.measure(Constraints(maxWidth = w, maxHeight = c.maxHeight)) }
+        val bw = boutons.sumOf { it.width }
+        val bh = boutons.maxOfOrNull { it.height } ?: 0
+        val n = nombre.coerceAtLeast(0)
+        val aCote = w - bw - if (bw > 0) gap * 2 else 0
+        fun largeur(dispo: Int, parRang: Int) = ((dispo - gap * (parRang - 1)) / parRang.coerceAtLeast(1)).coerceIn(0, max)
+        val normales = (0 until n).map { i -> subcompose("puce$i") { puce(i, false, Modifier) } }
+        val naturelles = normales.map { m -> (m.maxOfOrNull { it.maxIntrinsicWidth(c.maxHeight) } ?: 0).coerceAtMost(max) }
+        // Disposition : largeurs des puces, nombre par rang, et le dernier rang partage-t-il la ligne des boutons ?
+        var largeurs: List<Int>? = null
+        var parRang = n.coerceAtLeast(1)
+        var memeLigne = true
+        var compacte = false
+        if (naturelles.sum() + gap * (n - 1).coerceAtLeast(0) <= aCote) {
+            largeurs = naturelles
+        } else {
+            for (rangs in 1..2) {
+                val pr = (n + rangs - 1) / rangs
+                val dernier = n - pr * (rangs - 1)
+                val u = minOf(largeur(w, pr), largeur(aCote, dernier))
+                if (u >= confort) { largeurs = List(n) { u }; parRang = pr; break }
+            }
+            if (largeurs == null) {
+                memeLigne = false
+                for (rangs in 1..2) {
+                    val pr = (n + rangs - 1) / rangs
+                    val u = largeur(w, pr)
+                    if (u >= confort || rangs == 2) {
+                        largeurs = List(n) { u }; parRang = pr; compacte = u < confort; break
+                    }
+                }
+            }
+        }
+        val finales = largeurs ?: List(n) { largeur(w, n) }
+        val sources = if (compacte) (0 until n).map { i -> subcompose("compacte$i") { puce(i, true, Modifier) } } else normales
+        val puces = sources.mapIndexed { i, m ->
+            m.map { it.measure(Constraints(minWidth = finales[i], maxWidth = finales[i], maxHeight = c.maxHeight)) }
+        }
+        val rangs = puces.chunked(parRang.coerceAtLeast(1))
+        val hauteurRang = rangs.map { r -> r.maxOfOrNull { p -> p.maxOfOrNull { it.height } ?: 0 } ?: 0 }.toMutableList()
+        // Le dernier rang partage la ligne des boutons : il prend leur hauteur s'ils sont plus hauts.
+        if (memeLigne && hauteurRang.isNotEmpty()) hauteurRang[hauteurRang.lastIndex] = maxOf(hauteurRang.last(), bh)
+        val hPuces = hauteurRang.sum() + gap * (rangs.size - 1).coerceAtLeast(0)
+        val h = when {
+            rangs.isEmpty() -> bh
+            memeLigne -> hPuces
+            else -> hPuces + if (bh > 0) gap + bh else 0
+        }.coerceAtMost(c.maxHeight)
+        layout(w, h) {
+            var y = 0
+            var k = 0
+            rangs.forEachIndexed { r, rang ->
+                var x = 0
+                rang.forEach { p ->
+                    p.forEach { it.placeRelative(x, y + (hauteurRang[r] - it.height) / 2) }
+                    x += finales[k++] + gap
+                }
+                y += hauteurRang[r] + gap
+            }
+            var x = w - bw
+            val yb = if (memeLigne) h - (hauteurRang.lastOrNull() ?: bh) + ((hauteurRang.lastOrNull() ?: bh) - bh) / 2 else h - bh
+            boutons.forEach { b -> b.placeRelative(x, yb + (bh - b.height) / 2); x += b.width }
+        }
+    }
+}
+
+/**
+ * Liste des équipes dans un espace fixé (salon d'accueil) : en ligne, à leur largeur naturelle, tant qu'elles tiennent ;
+ * sinon en grille compacte de 2 colonnes à largeur égale (3 si les noms restent lisibles). Ce qui ne tient vraiment pas est rogné, jamais
+ * poussé plus bas : le bouton placé sous la grille reste toujours visible.
+ */
+@Composable
+fun GrilleEquipes(
+    nombre: Int,
+    modifier: Modifier = Modifier,
+    ecart: Dp = 16.dp,
+    ecartCompact: Dp = 6.dp,
+    largeurLisible: Dp = 160.dp,
+    puce: @Composable (index: Int, compacte: Boolean, modifier: Modifier) -> Unit,
+) {
+    SubcomposeLayout(modifier.clipToBounds()) { c ->
+        val w = c.maxWidth
+        val hMax = c.maxHeight
+        val gap = ecart.roundToPx()
+        val n = nombre.coerceAtLeast(0)
+        // 1. À la largeur naturelle, retour à la ligne quand le rang est plein.
+        val libres = (0 until n).map { i -> subcompose("libre$i") { puce(i, false, Modifier) }.map { it.measure(Constraints(maxWidth = w)) } }
+        val rangsLibres = mutableListOf<MutableList<List<Placeable>>>()
+        var largeurRang = 0
+        libres.forEach { p ->
+            val lp = p.maxOfOrNull { it.width } ?: 0
+            if (rangsLibres.isEmpty() || largeurRang + gap + lp > w) {
+                rangsLibres += mutableListOf(p)
+                largeurRang = lp
+            } else {
+                rangsLibres.last() += p
+                largeurRang += gap + lp
+            }
+        }
+        fun hauteur(rangs: List<List<List<Placeable>>>) =
+            rangs.sumOf { r -> r.maxOfOrNull { p -> p.maxOfOrNull { it.height } ?: 0 } ?: 0 } + gap * (rangs.size - 1).coerceAtLeast(0)
+        if (c.hasBoundedHeight.not() || hauteur(rangsLibres) <= hMax || n <= 1) {
+            val h = hauteur(rangsLibres).coerceAtMost(hMax)
+            return@SubcomposeLayout layout(w, h) {
+                var y = 0
+                rangsLibres.forEach { r ->
+                    val hr = r.maxOfOrNull { p -> p.maxOfOrNull { it.height } ?: 0 } ?: 0
+                    var x = 0
+                    r.forEach { p -> p.forEach { it.placeRelative(x, y + (hr - it.height) / 2) }; x += (p.maxOfOrNull { it.width } ?: 0) + gap }
+                    y += hr + gap
+                }
+            }
+        }
+        // 2. Grille compacte à largeur égale : 2 colonnes, ou 3 si 2 ne tiennent pas en hauteur.
+        val gc = ecartCompact.roundToPx()
+        fun hauteurGrille(rangs: List<List<List<Placeable>>>) =
+            rangs.sumOf { r -> r.maxOfOrNull { p -> p.maxOfOrNull { it.height } ?: 0 } ?: 0 } + gc * (rangs.size - 1).coerceAtLeast(0)
+        var colonnes = 1
+        var grille: List<List<List<Placeable>>>
+        do {
+            colonnes++
+            val largeurColonne = (w - gc * (colonnes - 1)) / colonnes
+            grille = (0 until n).map { i ->
+                subcompose("grille$colonnes-$i") { puce(i, true, Modifier) }
+                    .map { it.measure(Constraints(minWidth = largeurColonne, maxWidth = largeurColonne)) }
+            }.chunked(colonnes)
+        } while (hauteurGrille(grille) > hMax && colonnes < 3 && (w - gc * colonnes) / (colonnes + 1) >= largeurLisible.roundToPx())
+        val lc = (w - gc * (colonnes - 1)) / colonnes
+        val h = hauteurGrille(grille).coerceAtMost(hMax)
+        layout(w, h) {
+            var y = 0
+            grille.forEach { r ->
+                val hr = r.maxOfOrNull { p -> p.maxOfOrNull { it.height } ?: 0 } ?: 0
+                r.forEachIndexed { k, p -> p.forEach { it.placeRelative(k * (lc + gc), y + (hr - it.height) / 2) } }
+                y += hr + gc
+            }
+        }
+    }
+}

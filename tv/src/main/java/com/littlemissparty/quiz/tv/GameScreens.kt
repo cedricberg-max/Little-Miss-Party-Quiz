@@ -47,6 +47,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.Phase
+import com.littlemissparty.quiz.engine.Question
+import com.littlemissparty.quiz.tv.habillage.BandeauEquipes
 import com.littlemissparty.quiz.tv.habillage.Confettis
 import com.littlemissparty.quiz.tv.habillage.Couronne
 import com.littlemissparty.quiz.tv.habillage.Neon
@@ -141,39 +143,47 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                 }
             }
             Spacer(Modifier.height(16.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    val gagnants = state.teams.filter { (state.awards[it.uid]?.points ?: 0) > 0 }
-                    state.teams.forEach { team ->
-                        TeamStatus(
-                            rangGagnant = gagnants.indexOf(team),
-                            team = team,
-                            online = team.uid in state.online,
-                            answered = team.uid in state.answered,
-                            points = if (revealed) state.awards[team.uid]?.points ?: 0 else null,
-                            choice = if (revealed) state.awards[team.uid]?.choice else null,
-                            isNumber = q.isNumber,
-                            express = q.isExpress,
-                        )
-                    }
-                }
-                // En pause, le seul bouton est « Reprendre » sur l'intermède.
-                if (!state.paused) when (state.phase) {
-                    // Jeux au buzzer : l'animatrice juge la réponse orale (la régie a les mêmes boutons).
-                    Phase.QUESTION -> if (q.isBuzz && state.buzzTeam != null) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            TvButton("Mauvaise réponse", { actions.judgeBuzz(false) }, fontSize = 24.sp)
-                            // Blind test : le titre seul, ou le titre et l'artiste (bonus).
-                            if (q.isBlind) TvButton("Titre + artiste", { actions.judgeBonus() }, fontSize = 24.sp)
-                            NextButton(if (q.isBlind) "Bon titre" else "Bonne réponse", { actions.judgeBuzz(true) }, key = state.buzzTeam)
-                        }
-                    } else NextButton("Arrêter le chrono", actions.next, key = state.phase)
-                    Phase.CLOSED -> NextButton("Révéler la réponse", actions.next, key = state.phase)
-                    // Vrai ou Faux express : la TV enchaîne seule ; le bouton ne fait qu'aller plus vite.
-                    else -> NextButton(if (q.isExpress) "Suivant" else "Voir les scores", actions.next, key = state.phase)
-                }
+            // De 1 à 8 équipes : les pastilles passent au-dessus des boutons quand elles ne tiennent plus à côté.
+            val gagnants = state.teams.filter { (state.awards[it.uid]?.points ?: 0) > 0 }
+            BandeauEquipes(
+                nombre = state.teams.size,
+                modifier = Modifier.fillMaxWidth(),
+                actions = { BoutonsQuestion(state, q, actions) },
+            ) { i, compacte, m ->
+                val team = state.teams.getOrNull(i) ?: return@BandeauEquipes
+                TeamStatus(
+                    rangGagnant = gagnants.indexOf(team),
+                    team = team,
+                    online = team.uid in state.online,
+                    answered = team.uid in state.answered,
+                    points = if (revealed) state.awards[team.uid]?.points ?: 0 else null,
+                    choice = if (revealed) state.awards[team.uid]?.choice else null,
+                    isNumber = q.isNumber,
+                    express = q.isExpress,
+                    compacte = compacte,
+                    modifier = m,
+                )
             }
         }
+    }
+}
+
+/** Boutons de l'animatrice sous la question. En pause, le seul bouton est « Reprendre » sur l'intermède. */
+@Composable
+private fun BoutonsQuestion(state: UiState.Playing, q: Question, actions: TvActions) {
+    if (!state.paused) when (state.phase) {
+        // Jeux au buzzer : l'animatrice juge la réponse orale (la régie a les mêmes boutons).
+        Phase.QUESTION -> if (q.isBuzz && state.buzzTeam != null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TvButton("Mauvaise réponse", { actions.judgeBuzz(false) }, fontSize = 24.sp)
+                // Blind test : le titre seul, ou le titre et l'artiste (bonus).
+                if (q.isBlind) TvButton("Titre + artiste", { actions.judgeBonus() }, fontSize = 24.sp)
+                NextButton(if (q.isBlind) "Bon titre" else "Bonne réponse", { actions.judgeBuzz(true) }, key = state.buzzTeam)
+            }
+        } else NextButton("Arrêter le chrono", actions.next, key = state.phase)
+        Phase.CLOSED -> NextButton("Révéler la réponse", actions.next, key = state.phase)
+        // Vrai ou Faux express : la TV enchaîne seule ; le bouton ne fait qu'aller plus vite.
+        else -> NextButton(if (q.isExpress) "Suivant" else "Voir les scores", actions.next, key = state.phase)
     }
 }
 
@@ -223,32 +233,37 @@ private fun ChoiceCard(i: Int, text: String, correct: Int?, modifier: Modifier, 
 
 /** Pastille d'équipe sous la question : a répondu (sans dire quoi), puis points gagnés à la révélation. */
 @Composable
-private fun TeamStatus(rangGagnant: Int, team: Team, online: Boolean, answered: Boolean, points: Int?, choice: Int?, isNumber: Boolean = false, express: Boolean = false) {
+private fun TeamStatus(
+    rangGagnant: Int, team: Team, online: Boolean, answered: Boolean, points: Int?, choice: Int?,
+    isNumber: Boolean = false, express: Boolean = false, compacte: Boolean = false, modifier: Modifier = Modifier,
+) {
     val color = team.color.toColor()
     // Les points tombent comme des tampons, une équipe gagnante après l'autre, juste après la bonne réponse.
     val delai = if (rangGagnant >= 0) Tempo.tampon(rangGagnant, express) else Tempo.revelationOr(express)
     val montre = apres(delai, points != null, actif = points != null)
     val revealedPoints = points.takeIf { montre }
+    val taille = if (compacte) 14.sp else 16.sp
     Column(
-        Modifier
+        modifier
             .rebond(revealedPoints != null && revealedPoints > 0, 0.25f)
             .clip(RoundedCornerShape(16.dp))
             .background(if (answered || revealedPoints != null) color.copy(alpha = 0.35f) else Palette.Panel)
             .border(2.dp, if (online) color else Color.Gray, RoundedCornerShape(16.dp))
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = if (compacte) 8.dp else 12.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(team.name, color = Palette.Ink, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        // Nom et statut toujours sur une ligne : de 1 à 8 équipes, la pastille garde sa hauteur.
+        Text(team.name, color = Palette.Ink, fontSize = taille, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(
             when {
                 revealedPoints != null -> (if (revealedPoints > 0) "+$revealedPoints" else "0") +
                     (choice?.let { " · ${if (isNumber) "$it" else Palette.ChoiceLetters.getOrElse(it) { "?" }}" } ?: " · –")
                 !online -> "hors ligne"
-                answered -> "a répondu ✓"
+                answered -> if (compacte) "✓" else "a répondu ✓"
                 else -> "…"
             },
             color = if (revealedPoints != null && revealedPoints > 0) Palette.Gold else Palette.InkSoft,
-            fontSize = 16.sp, fontWeight = FontWeight.Bold,
+            fontSize = taille, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -332,7 +347,10 @@ private fun Ranking(state: UiState.Playing, modifier: Modifier) {
     val ranking = state.ranking
     val best = (ranking.firstOrNull()?.second ?: 0).coerceAtLeast(1)
     val couronne = apres(Tempo.CLASSEMENT_COURONNE, Unit)
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    // Jusqu'à 8 équipes : au-delà de 5, les lignes se resserrent pour que tout tienne sans rogner les chiffres.
+    val serre = ranking.size > 5
+    val grand = if (serre) 24.sp else 30.sp
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(if (serre) 4.dp else 8.dp)) {
         ranking.forEachIndexed { i, (team, score) ->
             // Les scores montent depuis ceux d'avant la question, sur le compteur sonore.
             val compteur = remember(team.uid) { Animatable((score - (state.lastGain[team.uid] ?: 0)).coerceAtLeast(0).toFloat()) }
@@ -344,23 +362,26 @@ private fun Ranking(state: UiState.Playing, modifier: Modifier) {
             val width = compteur.value / best
             val color = team.color.toColor()
             Row(
-                Modifier.weight(1f, fill = false).height(48.dp).apparition(90L * i, Unit)
+                Modifier.weight(1f, fill = false).height(if (serre) 40.dp else 48.dp).apparition(90L * i, Unit)
                     .then(if (i == 0 && score > 0) Modifier.clip(RoundedCornerShape(24.dp)).background(Brush.horizontalGradient(listOf(Neon.Or.copy(alpha = 0.22f), Color.Transparent))) else Modifier),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 // La couronne se pose à côté du rang, dans la ligne : rien ne dépasse du cadre, même en 1080p.
                 Row(Modifier.width(66.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("${i + 1}", color = if (i == 0) Palette.Gold else Palette.Ink, fontSize = 30.sp, fontWeight = FontWeight.Black)
+                    Text("${i + 1}", color = if (i == 0) Palette.Gold else Palette.Ink, fontSize = grand, fontWeight = FontWeight.Black, maxLines = 1)
                     if (i == 0) Couronne(couronne && score > 0, Modifier.padding(start = 6.dp).size(26.dp, 18.dp))
                 }
                 Box(Modifier.size(22.dp).clip(CircleShape).background(color))
                 Spacer(Modifier.width(12.dp))
-                Text(team.name, color = Palette.Ink, fontSize = 26.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.width(240.dp))
+                Text(
+                    team.name, color = Palette.Ink, fontSize = if (serre) 22.sp else 26.sp, fontWeight = FontWeight.Bold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(240.dp),
+                )
                 Box(Modifier.weight(1f).height(26.dp).clip(RoundedCornerShape(13.dp)).background(Palette.Panel)) {
                     Box(Modifier.fillMaxHeight().fillMaxWidth(width.coerceIn(0.02f, 1f)).clip(RoundedCornerShape(13.dp)).background(Brush.horizontalGradient(listOf(color.copy(alpha = 0.35f), color))))
                 }
                 Spacer(Modifier.width(16.dp))
-                Text("$shown", color = Palette.Ink, fontSize = 30.sp, fontWeight = FontWeight.Black, modifier = Modifier.width(90.dp), textAlign = TextAlign.End)
+                Text("$shown", color = Palette.Ink, fontSize = grand, fontWeight = FontWeight.Black, maxLines = 1, modifier = Modifier.width(90.dp), textAlign = TextAlign.End)
                 val gain = state.lastGain[team.uid] ?: 0
                 Text(if (gain > 0) "+$gain" else "", color = Palette.Gold, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(70.dp), textAlign = TextAlign.End)
             }

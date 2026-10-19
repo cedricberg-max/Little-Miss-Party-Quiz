@@ -16,8 +16,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -58,6 +56,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -66,6 +65,7 @@ import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Release
 import com.littlemissparty.quiz.tv.habillage.BalayageDore
 import com.littlemissparty.quiz.tv.habillage.GeneriqueSalon
+import com.littlemissparty.quiz.tv.habillage.GrilleEquipes
 import com.littlemissparty.quiz.tv.habillage.HabillageEcran
 import com.littlemissparty.quiz.tv.habillage.HabillageTv
 import com.littlemissparty.quiz.tv.habillage.Neon
@@ -241,6 +241,7 @@ private fun ResumeOffer(state: UiState.ResumeOffer, onResume: () -> Unit, onNewG
             if (state.teamNames.isEmpty()) "Équipes : liste indisponible hors connexion"
             else "Équipes : " + state.teamNames.joinToString(", "),
             color = Color.White.copy(alpha = 0.85f), fontSize = 24.sp, textAlign = TextAlign.Center,
+            maxLines = 3, overflow = TextOverflow.Ellipsis,
         )
         Spacer(Modifier.height(40.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -334,35 +335,44 @@ private fun Message(title: String, detail: String, onRetry: (() -> Unit)? = null
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Lobby(state: UiState.Playing, actions: TvActions) {
     val qr = remember(state.joinUrl) { qrCode(state.joinUrl) }
     Row(Modifier.fillMaxSize().padding(horizontal = 56.dp, vertical = 40.dp)) {
         Column(Modifier.weight(1f).fillMaxHeight()) {
             Title()
+            // Au-delà de 4 équipes, on resserre pour que toutes tiennent au-dessus de « Lancer le quiz ».
+            val nombreuses = state.teams.size > 4
             // Prestation chargée depuis la régie : on accueille l'enfant fêté par son prénom.
             when {
                 state.childName.isNotBlank() -> Text(
-                    "Joyeux anniversaire ${state.childName} !", color = Palette.Gold, fontSize = 34.sp, fontWeight = FontWeight.Bold,
+                    "Joyeux anniversaire ${state.childName} !", color = Palette.Gold, fontSize = if (nombreuses) 26.sp else 34.sp,
+                    fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 )
-                state.title.isNotBlank() -> Text(state.title, color = Palette.Gold, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+                state.title.isNotBlank() -> Text(
+                    state.title, color = Palette.Gold, fontSize = if (nombreuses) 24.sp else 30.sp, fontWeight = FontWeight.Bold,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis,
+                )
             }
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(if (nombreuses) 12.dp else 32.dp))
             Text(
                 when {
                     state.teams.isEmpty() -> "En attente des équipes…"
                     state.teams.size >= GameViewModel.MAX_TEAMS -> "${state.teams.size} équipes : la partie est complète"
                     else -> "${state.teams.size} équipe(s) dans la partie"
                 },
-                color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.SemiBold,
+                color = Color.White, fontSize = if (nombreuses) 20.sp else 26.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
             )
-            Spacer(Modifier.height(16.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                state.teams.forEach { team -> TeamChip(team, online = team.uid in state.online, buzz = state.funBuzzes[team.uid] ?: 0) }
+            Spacer(Modifier.height(if (nombreuses) 10.dp else 16.dp))
+            // De 1 à 8 équipes : la grille prend la place libre et se resserre, sans jamais pousser le bouton hors de l'écran.
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                GrilleEquipes(state.teams.size) { i, compacte, m ->
+                    val team = state.teams.getOrNull(i) ?: return@GrilleEquipes
+                    TeamChip(team, online = team.uid in state.online, buzz = state.funBuzzes[team.uid] ?: 0, compacte = compacte, modifier = m)
+                }
             }
-            Spacer(Modifier.weight(1f))
-            if (state.teams.isNotEmpty()) {
+            // La consigne du buzzer cède sa place à la liste dès 4 équipes.
+            if (state.teams.isNotEmpty() && state.teams.size <= 3) {
                 Text("En attendant : buzzez sur votre pupitre, autant que vous voulez !", color = Palette.Gold, fontSize = 22.sp)
                 Spacer(Modifier.height(16.dp))
             }
@@ -430,7 +440,10 @@ private fun Title() {
 }
 
 @Composable
-fun TeamChip(team: Team, online: Boolean = true, buzz: Int = 0, trailing: (@Composable () -> Unit)? = null) {
+fun TeamChip(
+    team: Team, online: Boolean = true, buzz: Int = 0, trailing: (@Composable () -> Unit)? = null,
+    compacte: Boolean = false, modifier: Modifier = Modifier,
+) {
     val pop = remember(team.uid) { Animatable(0f) }
     LaunchedEffect(team.uid) {
         pop.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))
@@ -445,7 +458,7 @@ fun TeamChip(team: Team, online: Boolean = true, buzz: Int = 0, trailing: (@Comp
     }
     val bg = lerp(Color.White.copy(alpha = if (online) 0.15f else 0.06f), team.color.toColor(), flash.value * 0.85f)
     Row(
-        Modifier
+        modifier
             .graphicsLayer {
                 val k = pop.value * (1f + 0.18f * flash.value)
                 scaleX = k
@@ -454,15 +467,18 @@ fun TeamChip(team: Team, online: Boolean = true, buzz: Int = 0, trailing: (@Comp
             }
             .clip(RoundedCornerShape(50))
             .background(bg)
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(horizontal = if (compacte) 12.dp else 20.dp, vertical = if (compacte) 4.dp else 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(28.dp).clip(CircleShape).background(team.color.toColor().copy(alpha = if (online) 1f else 0.35f)))
-        Spacer(Modifier.width(12.dp))
-        Text(team.name, color = Color.White.copy(alpha = if (online) 1f else 0.5f), fontSize = 26.sp, fontWeight = FontWeight.Bold)
+        Box(Modifier.size(if (compacte) 18.dp else 28.dp).clip(CircleShape).background(team.color.toColor().copy(alpha = if (online) 1f else 0.35f)))
+        Spacer(Modifier.width(if (compacte) 8.dp else 12.dp))
+        Text(
+            team.name, color = Color.White.copy(alpha = if (online) 1f else 0.5f), fontSize = if (compacte) 17.sp else 26.sp,
+            fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
+        )
         if (!online) {
-            Spacer(Modifier.width(10.dp))
-            Text("hors ligne", color = Palette.Gold, fontSize = 16.sp)
+            Spacer(Modifier.width(if (compacte) 6.dp else 10.dp))
+            Text("hors ligne", color = Palette.Gold, fontSize = if (compacte) 13.sp else 16.sp, maxLines = 1)
         }
         trailing?.let { Spacer(Modifier.width(12.dp)); it() }
     }
