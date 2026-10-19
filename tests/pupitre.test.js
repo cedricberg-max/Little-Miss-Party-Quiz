@@ -511,6 +511,16 @@ describe("pupitre", () => {
     await joinTeam(page, "Les Roses");
     await hostState(question({ phase: "scores", deadline: null, paused: true, pauseReason: "regie" }));
     await page.locator("#paused:not([hidden])", { hasText: "Pause fun !" }).waitFor();
+    // Sur un téléphone, le texte reste centré avec des marges : jamais collé aux bords de l'écran.
+    await page.setViewportSize({ width: 390, height: 844 });
+    const texte = await page.locator("#paused p").evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return { gauche: r.left, droite: innerWidth - r.right, align: getComputedStyle(el).textAlign };
+    });
+    assert.ok(texte.gauche >= 20 && texte.droite >= 20, `marges du texte de pause : ${JSON.stringify(texte)}`);
+    assert.equal(texte.align, "center");
+    const titre = await page.locator("#paused div").evaluate((el) => el.scrollWidth <= el.clientWidth);
+    assert.ok(titre, "le titre « Pause fun ! » tient sur l'écran");
     await hostState(question({ phase: "scores", deadline: null }));
     await page.locator("#paused[hidden]").waitFor({ state: "attached" });
     await page.context().close();

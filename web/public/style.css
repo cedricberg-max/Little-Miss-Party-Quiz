@@ -128,10 +128,12 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
 /* Pause */
 .paused {
   position: fixed; inset: 0; z-index: 9; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  background: rgba(26, 11, 46, .9); color: var(--gold); font-size: 64px; font-weight: 900; letter-spacing: 8px;
+  gap: 14px; padding: 24px 28px; box-sizing: border-box;
+  background: rgba(26, 11, 46, .9); color: var(--gold); font-size: clamp(40px, 13vw, 64px); font-weight: 900; letter-spacing: 8px;
 }
-.paused p { color: #fff; font-size: 20px; letter-spacing: 0; font-weight: 700; }
-.paused div { text-align: center; letter-spacing: 2px; }
+/* Texte de pause centré avec de vraies marges : jamais collé aux bords d'un téléphone. */
+.paused p { margin: 0; max-width: 20em; color: #fff; font-size: 19px; line-height: 1.45; letter-spacing: 0; font-weight: 600; text-align: center; opacity: .92; }
+.paused div { text-align: center; letter-spacing: 2px; line-height: 1.05; }
 .countdown { background: rgba(26, 11, 46, .75); }
 .countdown div { font-size: 140px; line-height: 1; }
 [hidden] { display: none !important; }
