@@ -508,6 +508,39 @@ def lock_clac():
     mx.add('brass', note('orchestra_hit', 48, .3, .35, release=.3), 0)
     return mx.render(duck=0)
 
+def timbale_synth(vel=1.0, f=87.0):
+    """Timbale de synthèse (sans banque de sons) : fondamentale qui descend un peu, peau frappée, longue tenue."""
+    n = int(.9 * SR); t = np.arange(n) / SR
+    fr = f * (1 + .06 * np.exp(-t / .05))
+    ph = 2 * np.pi * np.cumsum(fr) / SR
+    y = (np.sin(ph) + .45 * np.sin(1.5 * ph) + .2 * np.sin(2.02 * ph)) * np.exp(-t / .55)
+    y += biquad(noise(n), 'bp', 900, .8) * np.exp(-t / .02) * .5
+    return stereo(np.tanh(1.2 * y) * vel * .8, .3, 6)
+
+def roulement_final(dur=7.0):
+    """Grand gagnant de la soirée : long roulement caisse claire + timbales qui monte pendant [dur] secondes,
+    avec un souffle de cymbale qui enfle, et s'arrête net sur l'impact (le crash vient avec lui)."""
+    parts = []
+    t = 0.0
+    while t < dur - .02:
+        p = t / dur
+        v = (.18 + .82 * p ** 1.6) * (0.85 + .3 * rng.random())
+        parts.append((snare(v * .55, tight=True), t))
+        t += .075 - .04 * p
+    tt = 0.0
+    while tt < dur - .05:
+        p = tt / dur
+        parts.append((timbale_synth((.2 + .8 * p ** 1.4) * .9, 87.0 if int(tt / .5) % 2 == 0 else 98.0), tt))
+        tt += .16 - .08 * p
+    y = sum_at(parts)
+    n = int(dur * SR)
+    y = y[:n]
+    tn = np.arange(n) / SR
+    souffle = stereo(sweep_bp(noise(n), 2500, 9000, 1.2) * (tn / dur) ** 3 * .35, .6, 9)
+    y = y + souffle
+    y[-int(.01 * SR):] *= np.linspace(1, 0, int(.01 * SR))[:, None]
+    return Pedalboard([Reverb(room_size=.35, wet_level=.14, dry_level=.95)])(y.T.astype(np.float32), SR).T[:n + int(.05 * SR)]
+
 def drumroll(beats):
     mx = Mix(beats, tail=.05)
     mx.add('fx', roll(beats * B, .85, 43), 0)
@@ -1308,7 +1341,7 @@ PIECES = {
     'generique': (generique, -14.5), 'bed_full': (lambda: bed('full'), -15.5), 'bed_light': (lambda: bed('light'), -18.5),
     'tension': (tension, -16), 'riser_4b': (riser_4b, -17), 'impact': (impact, -15), 'round_sting': (round_sting, -15),
     'whoosh': (whoosh_snd, -21), 'tick_answer': (tick_answer, -21), 'bip': (bip, -18), 'bip_fin': ((lambda: bip(True)), -17), 'lock_clac': (lock_clac, -15),
-    'drumroll_2b': (lambda: drumroll(2), -17), 'drumroll_4b': (lambda: drumroll(4), -17), 'wrong_off': (wrong_off, -21),
+    'drumroll_2b': (lambda: drumroll(2), -17), 'roulement_final': (roulement_final, -17), 'drumroll_4b': (lambda: drumroll(4), -17), 'wrong_off': (wrong_off, -21),
     'reveal_chime': (reveal_chime, -16), 'stamp': (stamp, -19), 'points_bling': (points_bling, -20), 'points_count': (points_count, -21),
     'crown_hit': (crown_hit, -15), 'victory_fanfare': (victory_fanfare, -14.5), 'applause': (applause, -20), 'prize_bells': (prize_bells, -19),
     'end_jingle': (end_jingle, -17),
@@ -1337,5 +1370,5 @@ if __name__ == '__main__':
     for name in only:
         fn, rms = PIECES[name]
         y = fn()
-        p = save(name, y, beats=LOOPS.get(name), loop=name in LOOPS, rms=rms, fade_tail=name not in LOOPS and name not in ('bt_attente', 'tension', 'mime_tension', 'flou_montee', 'suspense_reponse', 'riser_4b', 'drumroll_2b', 'drumroll_4b'))
+        p = save(name, y, beats=LOOPS.get(name), loop=name in LOOPS, rms=rms, fade_tail=name not in LOOPS and name not in ('bt_attente', 'tension', 'mime_tension', 'flou_montee', 'suspense_reponse', 'riser_4b', 'drumroll_2b', 'drumroll_4b', 'roulement_final'))
         print(f'{name:16s} {len(y) / SR:6.2f} s  -> {p}', flush=True)

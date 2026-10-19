@@ -249,8 +249,9 @@ class DirecteurSonore {
             }
             Ecran.FIN -> {
                 o += Ordre.Musique(Ambiance.SILENCE)
-                o += Ordre.Jouer(Son.ROULEMENT_LONG)
-                o += Ordre.Jouer(Son.MONTEE)
+                // Grand gagnant : long roulement qui monte pendant tout le suspense, la montée arrive sur la fin.
+                o += Ordre.Jouer(Son.ROULEMENT_FINAL)
+                o += Ordre.Jouer(Son.MONTEE, Tempo.FIN_VAINQUEUR - 2_000)
                 o += Ordre.Jouer(Son.IMPACT, Tempo.FIN_VAINQUEUR)
                 o += Ordre.Jouer(Son.FANFARE, Tempo.FIN_VAINQUEUR)
                 o += Ordre.Jouer(Son.APPLAUDISSEMENTS, Tempo.FIN_VAINQUEUR)
@@ -528,6 +529,7 @@ enum class Son(val fichier: String, val long: Boolean = false) {
     VERROU("lmp_lock_clac"),
     ROULEMENT_COURT("lmp_drumroll_2b"),
     ROULEMENT_LONG("lmp_drumroll_4b"),
+    ROULEMENT_FINAL("lmp_roulement_final", true),
     ETEINT("lmp_wrong_off"),
     BONNE_REPONSE("lmp_reveal_chime", true),
     TAMPON("lmp_stamp"),
@@ -635,9 +637,10 @@ object Tempo {
     const val REVELATION_POINTS = 3_000L
     const val CLASSEMENT_COMPTEUR = 300L
     const val CLASSEMENT_COURONNE = 1_800L
-    const val FIN_VAINQUEUR = 2_000L
-    const val FIN_JINGLE = 9_500L
-    const val FIN_MUSIQUE = 12_000L
+    /** Grand gagnant : 7 s de suspense (lmp_roulement_final), puis l'impact ; jingle et musique de fête ensuite. */
+    const val FIN_VAINQUEUR = 7_000L
+    const val FIN_JINGLE = 14_500L
+    const val FIN_MUSIQUE = 17_000L
     /** Coup de cuivres du « Top départ » des mimes, après les deux coups de sifflet. */
     const val MIME_TOP_IMPACT = 500L
     const val MIME_BILAN = 1_000L

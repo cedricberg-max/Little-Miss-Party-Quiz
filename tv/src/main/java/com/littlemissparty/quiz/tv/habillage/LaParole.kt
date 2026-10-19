@@ -145,7 +145,7 @@ fun LaParole(nom: String, couleur: Color, visible: Boolean, modifier: Modifier =
 
 /** Le nom de l'équipe en grand, réduit autant qu'il faut pour tenir sur une seule ligne dans [largeurMax]. */
 @Composable
-internal fun NomUneLigne(texte: String, couleur: Color, tailleMax: Float, largeurMax: Dp) {
+internal fun NomUneLigne(texte: String, couleur: Color, tailleMax: Float, largeurMax: Dp, tailleMin: Float = 28f) {
     val mesure = rememberTextMeasurer()
     val densite = LocalDensity.current
     fun style(taille: Float) = TextStyle(
@@ -155,7 +155,7 @@ internal fun NomUneLigne(texte: String, couleur: Color, tailleMax: Float, largeu
     val taille = remember(texte, largeurMax, densite.density, densite.fontScale) {
         val maxPx = with(densite) { largeurMax.toPx() }
         var s = tailleMax
-        while (s > 28f && mesure.measure(texte, style(s), maxLines = 1, softWrap = false).size.width > maxPx) s *= 0.92f
+        while (s > tailleMin && mesure.measure(texte, style(s), maxLines = 1, softWrap = false).size.width > maxPx) s *= 0.92f
         s
     }
     Text(texte, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, style = style(taille))
