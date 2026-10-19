@@ -6,6 +6,7 @@ import { writeProof } from "./proof.js";
 import { passwordCandidates } from "./secret.js";
 import {
   buildSnapshot, showTitle, playable, QUIZ_GAMES, BUILTIN_GAMES, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame, imageIds,
+  soundIds, MUSIC_GAMES, playableTracks,
   isFutureRound, moveRound, removeRound, uniqueRoundTitle,
 } from "./show.js";
 import { profileForAge } from "./profiles.js";
@@ -166,7 +167,9 @@ function watchAnswers() {
 }
 
 /** Jeux au buzzer : la première équipe qui buzze répond à voix haute (ou chante), la régie juge. */
-const BUZZ_KINDS = ["flou", "chante", "quisuis"];
+const BUZZ_KINDS = ["flou", "chante", "quisuis", "blind"];
+/** Blind test : plein tarif seulement pour un buzz dans ces premières millisecondes de l'extrait. */
+const BLIND_FAST_MS = 10_000;
 
 const PHASES = {
   lobby: "Salon d'attente",
@@ -426,7 +429,9 @@ function renderFlou(st) {
   const name = (id) => live.teams[id]?.name ?? "Équipe";
   const q = live.plan?.questions?.[st.index];
   const answer = q?.choices?.[q?.correct] ?? "";
-  const expected = st.kind === "chante" ? `une chanson avec le mot « ${answer} »` : answer;
+  const blind = st.kind === "blind";
+  const expected = st.kind === "chante" ? `une chanson avec le mot « ${answer} »`
+    : blind ? `« ${answer} »${q?.artist ? ` (bonus : ${q.artist})` : ""}` : answer;
   const tried = (b.blocked ?? []).filter((id) => live.teams[id]).map(name);
   $("flou-info").textContent = b.team
     ? `${name(b.team)} a buzzé ! Réponse attendue : ${expected || "voir la fiche"}`
@@ -435,11 +440,20 @@ function renderFlou(st) {
   const busy = !!pending?.advance || st.paused === true;
   $("flou-ok").disabled = busy;
   $("flou-ko").disabled = busy;
-  $("flou-ok").querySelector("small").textContent = b.team ? `+${(b.blocked ?? []).length ? 100 : 150}${st.double ? " ×2" : ""} pour ${name(b.team)}` : "";
+  // Blind test : le chrono figé au buzz dit où en était l'extrait (plein tarif dans les 10 premières secondes).
+  const late = blind && (st.durationMs ?? 0) - (st.remainingMs ?? 0) > BLIND_FAST_MS;
+  const base = (b.blocked ?? []).length || late ? 100 : 150;
+  const times = st.double ? " ×2" : "";
+  $("flou-ok").firstChild.textContent = blind ? "BON TITRE" : "BONNE RÉPONSE";
+  $("flou-ok").querySelector("small").textContent = b.team ? `+${base}${times} pour ${name(b.team)}` : "";
+  $("flou-bonus").hidden = !blind;
+  $("flou-bonus").disabled = busy;
+  $("flou-bonus").querySelector("small").textContent = b.team ? `+${base + 50}${times} pour ${name(b.team)}` : "";
 }
 
 $("flou-ok").onclick = () => { navigator.vibrate?.(60); send("buzz_ok", {}, { advance: true }); };
 $("flou-ko").onclick = () => send("buzz_ko", {}, { advance: true });
+$("flou-bonus").onclick = () => { navigator.vibrate?.(60); send("buzz_bonus", {}, { advance: true }); };
 
 $("mime-go").onclick = () => { if (mimeTeam) send("mime_start", { team: mimeTeam }, { advance: true }); };
 $("mime-found").onclick = () => { navigator.vibrate?.(60); send("mime_found", {}, { advance: true }); };
@@ -697,9 +711,15 @@ async function fetchLibrary() {
   library = { loading: true };
   renderLibrary();
   try {
-    const [s, q, m] = await Promise.all([get(ref(db, "library/shows")), get(ref(db, "library/quizzes")), get(ref(db, "library/mimes"))]);
+    const [s, q, m, p] = await Promise.all([get(ref(db, "library/shows")), get(ref(db, "library/quizzes")), get(ref(db, "library/mimes")), get(ref(db, "library/playlists"))]);
     const quizzes = q.val() ?? {};
     const mimes = m.val() ?? {};
+    const playlists = p.val() ?? {};
+    // Blind test et quiz musical : proposés pour chaque playlist qui a des extraits.
+    const music = Object.entries(MUSIC_GAMES).flatMap(([type]) => Object.entries(playlists)
+      .filter(([, pl]) => pl?.title && playableTracks(pl).length >= (type === "musical" ? 2 : 1))
+      .sort((a, b) => a[1].title.localeCompare(b[1].title, "fr"))
+      .map(([id, pl]) => ({ key: `${type}/${id}`, label: `${ROUND_TYPES[type]} : ${pl.title}`, source: { type, playlistId: id } })));
     const decks = Object.entries(mimes)
       .filter(([, d]) => d?.title)
       .sort((a, b) => a[1].title.localeCompare(b[1].title, "fr"))
@@ -716,7 +736,7 @@ async function fetchLibrary() {
     const rounds = Object.entries(s.val() ?? {})
       .filter(([, show]) => show)
       .sort((a, b) => (b[1].date ?? "").localeCompare(a[1].date ?? ""))
-      .flatMap(([id, show]) => (show.rounds ?? []).filter((r) => r && r.type !== "mimes" && !BUILTIN_GAMES[r.type]).map((round, i) => {
+      .flatMap(([id, show]) => (show.rounds ?? []).filter((r) => r && r.type !== "mimes" && !BUILTIN_GAMES[r.type] && !MUSIC_GAMES[r.type]).map((round, i) => {
         const title = quizzes[round.quizId]?.title ?? `Manche ${i + 1}`;
         const label = round.type === "finale" ? ROUND_TYPES.finale : QUIZ_GAMES[round.type] ? `${ROUND_TYPES[round.type]} : ${title}` : title;
         const date = show.date ? ` (${new Date(`${show.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })})` : "";
@@ -724,7 +744,7 @@ async function fetchLibrary() {
       }));
     // Jeux au buzzer intégrés : toujours disponibles, sans rien préparer.
     const builtins = Object.entries(BUILTIN_GAMES).map(([type, game]) => ({ key: `builtin/${type}`, label: ROUND_TYPES[type], source: { type, count: game.count } }));
-    library = { quizzes, mimes, games, rounds, decks, quizGames, builtins };
+    library = { quizzes, mimes, playlists, games, rounds, decks, quizGames, builtins, music };
   } catch (e) {
     console.error(e);
     library = { denied: /permission/i.test(String(e?.message ?? e)) };
@@ -773,6 +793,15 @@ function renderLibrary() {
       box.appendChild(b);
       return;
     }
+    if (MUSIC_GAMES[game.source.type]) {
+      const pl = library.playlists[game.source.playlistId];
+      const count = playableTracks(pl).length;
+      meta.textContent = `${count} morceau${count > 1 ? "x" : ""} · extraits de ${pl?.duration ?? 25} s · ${MUSIC_GAMES[game.source.type].rule}`;
+      b.append(title, meta);
+      b.onclick = () => pick(game);
+      box.appendChild(b);
+      return;
+    }
     const builtin = BUILTIN_GAMES[game.source.type];
     if (builtin) {
       meta.textContent = `${game.source.count} ${builtin.unit}s · ${builtin.rule} · au buzzer`;
@@ -801,18 +830,8 @@ function renderLibrary() {
   library.decks.forEach((g) => entry(g, ""));
   library.quizGames.forEach((g) => entry(g, g.source.type === "express" ? "enchaînées toutes seules" : g.source.type === "flou" ? "au buzzer" : "dévoilées au fil du chrono"));
   library.builtins.forEach((g) => entry(g, ""));
-  for (const label of ["Blind test"]) {
-    const b = document.createElement("button");
-    b.className = "show-item";
-    b.disabled = true;
-    const title = document.createElement("b");
-    title.textContent = label;
-    const soon = document.createElement("span");
-    soon.className = "soon";
-    soon.textContent = "Bientôt";
-    b.append(title, soon);
-    box.appendChild(b);
-  }
+  if (!library.music.length) hint("Blind test : aucune playlist pour l'instant (administration, Blind test).");
+  library.music.forEach((g) => entry(g, ""));
 }
 
 /** Profil d'âge de la prestation chargée : les questions ajoutées prennent le même chrono. */
@@ -824,7 +843,7 @@ async function pick(game) {
     profile = show?.profile ?? (show?.age != null ? profileForAge(show.age) : null);
   } catch { profile = null; }
   const prefix = `a${Date.now().toString(36)}`;
-  const { questions, problems } = gameQuestions(game.source, library.quizzes, profile ?? "MOYENS", prefix, library.mimes);
+  const { questions, problems } = gameQuestions(game.source, library.quizzes, profile ?? "MOYENS", prefix, library.mimes, library.playlists);
   picked = { game, questions, problems };
   renderLibrary();
 }
@@ -849,6 +868,8 @@ function renderPreview() {
     const answer = document.createElement("b");
     // Chante le mot : le mot seul ; Qui suis-je : le personnage et son premier indice.
     if (q.kind === "chante") { answer.textContent = q.text; li.append(answer); list.appendChild(li); return; }
+    // Blind test et quiz musical : le titre (et l'artiste) de chaque extrait.
+    if (q.audioId) { answer.textContent = `♪ ${q.choices?.[q.correct] ?? ""}${q.artist ? ` · ${q.artist}` : ""}`; li.append(answer); list.appendChild(li); return; }
     answer.textContent = ` → ${q.kind === "number" ? q.correct : q.choices?.[q.correct] ?? ""}`;
     li.append(q.kind === "quisuis" ? `${q.image ?? ""} ${q.cards?.[0]?.word ?? ""}…`.trim() : q.text, answer);
     list.appendChild(li);
@@ -874,6 +895,7 @@ const OLD_TV_ZOOM = "La TV doit être mise à jour pour jouer au Zoom mystère :
 const OLD_TV_FLOU = "La TV doit être mise à jour pour jouer à l'Image floue : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_CHANTE = "La TV doit être mise à jour pour jouer à « Chante le mot ! » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_QUISUIS = "La TV doit être mise à jour pour jouer à « Qui suis-je ? » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+const OLD_TV_BLIND = "La TV doit être mise à jour pour jouer au blind test : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 /** Jeu que la TV allumée ne sait pas encore jouer (ancienne version) : le message à montrer, sinon null. */
 function tvRefuses(questions) {
   if (!live.plan) return null;
@@ -884,6 +906,8 @@ function tvRefuses(questions) {
   if (live.plan.flou !== true && questions.some((q) => q?.kind === "flou")) return OLD_TV_FLOU;
   if (live.plan.chante !== true && questions.some((q) => q?.kind === "chante")) return OLD_TV_CHANTE;
   if (live.plan.quisuis !== true && questions.some((q) => q?.kind === "quisuis")) return OLD_TV_QUISUIS;
+  // Quiz musical compris : une ancienne TV le jouerait sans musique.
+  if (live.plan.blind !== true && questions.some((q) => q?.kind === "blind" || q?.audioId)) return OLD_TV_BLIND;
   return null;
 }
 
@@ -896,6 +920,7 @@ function addPicked(where) {
   const title = uniqueRoundTitle(current, picked.questions[0]?.round ?? picked.game.label);
   const added = picked.questions.map((q) => ({ ...q, round: title }));
   copyImages(added);
+  copySounds(added);
   const index = st.phase === "lobby" ? -1 : st.index ?? -1;
   const place = where === "end" ? "à la fin du programme" : index < 0 ? "au début du programme" : "après la manche en cours";
   sendProgram(insertGame(current, added, where, index), `« ${title} » est ajouté ${place}.`, true);
@@ -965,13 +990,14 @@ async function fetchShows() {
   shows = { loading: true };
   render();
   try {
-    const [s, q, m] = await Promise.all([get(ref(db, "library/shows")), get(ref(db, "library/quizzes")), get(ref(db, "library/mimes"))]);
+    const [s, q, m, p] = await Promise.all([get(ref(db, "library/shows")), get(ref(db, "library/quizzes")), get(ref(db, "library/mimes")), get(ref(db, "library/playlists"))]);
     const quizzes = q.val() ?? {};
     const mimes = m.val() ?? {};
+    const playlists = p.val() ?? {};
     const today = new Date().toISOString().slice(0, 10);
     const list = Object.entries(s.val() ?? {})
       .filter(([, show]) => show.status === "publiee")
-      .map(([id, show]) => ({ id, show, ...buildSnapshot(id, show, quizzes, mimes) }))
+      .map(([id, show]) => ({ id, show, ...buildSnapshot(id, show, quizzes, mimes, Math.random, playlists) }))
       // Les prestations à venir d'abord, la plus proche en tête ; les passées ensuite.
       .sort((a, b) => {
         const da = a.show.date ?? "9999", dbb = b.show.date ?? "9999";
@@ -1047,6 +1073,23 @@ async function copyImages(questions) {
   }));
 }
 
+/**
+ * Extraits musicaux : copiés de la bibliothèque dans la partie ; la TV les range dans son cache et les joue
+ * sans Internet. Un par un (quelques centaines de Ko chacun) pour ménager un téléphone en 4G.
+ */
+async function copySounds(questions) {
+  for (const id of soundIds(questions)) {
+    try {
+      const target = ref(db, `games/${code}/sounds/${id}`);
+      if ((await get(target)).exists()) continue;
+      const data = (await get(ref(db, `library/sounds/${id}`))).val();
+      if (typeof data === "string") await set(target, data);
+    } catch (e) {
+      console.warn("Extrait non copié", id, e);
+    }
+  }
+}
+
 async function loadShow(id, snapshot) {
   if (loadingShow) return;
   const refused = tvRefuses(snapshot.quiz?.questions ?? []);
@@ -1065,6 +1108,7 @@ async function loadShow(id, snapshot) {
     done(status.status === "applied" ? `« ${snapshot.title} » est chargée sur la TV.` : SHOW_MESSAGES[status.reason] ?? "La TV a refusé cette prestation.");
   });
   copyImages(snapshot.quiz?.questions);
+  copySounds(snapshot.quiz?.questions);
   try {
     await set(ref(db, `games/${code}/show`), { ...snapshot, id: showId, by: uid, at: serverTimestamp() });
   } catch (e) {

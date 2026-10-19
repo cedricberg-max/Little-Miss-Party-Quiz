@@ -62,6 +62,8 @@ import kotlinx.coroutines.delay
 fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
     val q = state.question ?: return
     val revealed = state.phase == Phase.REVEAL
+    // Blind test ou quiz musical : l'extrait joue depuis le cache de la box, calé sur le chrono.
+    ExtraitMusical(q, state)
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 24.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -115,6 +117,9 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                     } else if (q.isChante) {
                         ChanteBoard(q, state, Modifier.weight(1.4f).fillMaxHeight())
                         Spacer(Modifier.width(20.dp))
+                    } else if (q.isBlind) {
+                        BlindBoard(q, state, Modifier.weight(1.2f).fillMaxHeight())
+                        Spacer(Modifier.width(20.dp))
                     } else if (q.isQuiSuis) {
                         QuiSuisBoard(q, state, Modifier.weight(1.4f).fillMaxHeight())
                         Spacer(Modifier.width(20.dp))
@@ -154,7 +159,9 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                     Phase.QUESTION -> if (q.isBuzz && state.buzzTeam != null) {
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             TvButton("Mauvaise réponse", { actions.judgeBuzz(false) }, fontSize = 24.sp)
-                            NextButton("Bonne réponse", { actions.judgeBuzz(true) }, key = state.buzzTeam)
+                            // Blind test : le titre seul, ou le titre et l'artiste (bonus).
+                            if (q.isBlind) TvButton("Titre + artiste", { actions.judgeBonus() }, fontSize = 24.sp)
+                            NextButton(if (q.isBlind) "Bon titre" else "Bonne réponse", { actions.judgeBuzz(true) }, key = state.buzzTeam)
                         }
                     } else NextButton("Arrêter le chrono", actions.next, key = state.phase)
                     Phase.CLOSED -> NextButton("Révéler la réponse", actions.next, key = state.phase)
