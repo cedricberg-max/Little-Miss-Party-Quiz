@@ -1,11 +1,11 @@
 // Import des quiz : texte Gemini, tableur, CSV, JSON, et anomalies signalées à la relecture.
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { parseQuiz, checkQuestions, geminiPrompt, resolveCorrect } from "../web/public/importer.js";
+import { parseQuiz, checkQuestions, geminiPrompt, resolveCorrect, chatgptImagePrompt, imageKey, wordFromImage } from "../web/public/importer.js";
 import { MIME_CATALOG } from "../web/public/mime-cards.js";
 import { activeItems, buildSnapshot, estimateMinutes, roundFilled,
   readiness, upcoming, daysUntil, isoDay, duplicateShow, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
-  soundIds,
+  soundIds, choiceImageIds, choiceImageList,
 } from "../web/public/show.js";
 import { guessTrack, defaultStart } from "../web/public/audio.js";
 import { FULL_SHOW, FULL_TUNES, tunePlaylist } from "../web/public/test-show.js";
@@ -154,6 +154,38 @@ Réponse : B`);
     const prompt = geminiPrompt({ theme: "Pokémon", age: 9, count: 10 });
     assert.match(prompt, /10 questions sur le thème « Pokémon », pour des enfants de 9 ans/);
     assert.match(prompt, /Réponse : <lettre/);
+  });
+});
+
+describe("quiz en images (ChatGPT)", () => {
+  const LION = "0123456789abcdef", CHIEN = "fedcba9876543210";
+  test("JSON de ChatGPT : chaque réponse garde son texte et le nom de son image ; sans texte, le mot vient du nom", () => {
+    const { questions } = parseQuiz("```json\n" + JSON.stringify({ title: "Petits", questions: [
+      { text: "Qui court vite ?", choices: [{ text: "Lion", image: "q1-lion.png" }, { image: "q1-baleine.png" }, "Chien", { text: "Vache", image: "images/Q1-Vache.PNG" }], correct: 0 },
+      { text: "Capitale ?", choices: ["Paris", "Rome"], correct: 0 },
+    ] }) + "\n```");
+    assert.deepEqual(questions[0].choices, ["Lion", "Baleine", "Chien", "Vache"]);
+    assert.deepEqual(questions[0].imageFiles, ["q1-lion.png", "q1-baleine.png", null, "images/Q1-Vache.PNG"]);
+    assert.equal(questions[1].imageFiles, undefined, "question en texte");
+    assert.equal(imageKey("images/Q1-Vache.PNG"), "q1-vache.png");
+    assert.equal(wordFromImage("q12_poisson-rouge.png"), "Poisson rouge");
+    const report = checkQuestions([{ ...questions[0], missingImages: ["q1-vache.png"] }]);
+    assert.deepEqual(report[0].errors, []);
+    assert.match(report[0].warnings.join(" "), /introuvable.*q1-vache\.png/);
+    assert.match(chatgptImagePrompt({ theme: "les animaux", count: 5 }), /5 questions sur le thème « les animaux ».*\n[\s\S]*"image": "q1-lion\.png"/);
+  });
+  test("prestation : les photos suivent leurs réponses, seulement pour un quiz à propositions", () => {
+    const quiz = { title: "Petits", questions: [
+      { text: "Qui court vite ?", choices: ["Lion", "Baleine", "Chien"], correct: 0, status: "validee", choiceImages: { 0: LION, 2: CHIEN } },
+      { text: "Capitale ?", choices: ["Paris", "Rome"], correct: 0, status: "validee" },
+    ] };
+    const { snapshot, problems } = buildSnapshot("s", { rounds: [{ type: "quiz", quizId: "p" }] }, { p: quiz });
+    assert.deepEqual(problems, []);
+    const [a, b] = snapshot.quiz.questions;
+    assert.deepEqual(a.choiceImages, [LION, "", CHIEN]);
+    assert.equal(b.choiceImages, undefined);
+    assert.deepEqual(choiceImageIds(snapshot.quiz.questions), [LION, CHIEN]);
+    assert.deepEqual(choiceImageList({ choices: ["a", "b"], choiceImages: [null, "../x"] }), [], "aucune photo valable : texte");
   });
 });
 

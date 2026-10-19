@@ -17,10 +17,13 @@ export function cleanEmoji(text) {
   return [...(text ?? "").trim()].slice(0, 8).join("").slice(0, 16);
 }
 
-/** Réduit une photo (fichier choisi sur le PC) en JPEG d'au plus 800 px de large, sous IMAGE_BUDGET. */
-export async function compressImage(file, budget = IMAGE_BUDGET) {
+/** Photo d'une réponse en image : plus petite (elle s'affiche dans une case de la TV et des tablettes). */
+export const CHOICE_IMAGE = { budget: 45_000, width: 480 };
+
+/** Réduit une photo (fichier choisi sur le PC) en JPEG d'au plus [maxWidth] px de large, sous [budget]. */
+export async function compressImage(file, budget = IMAGE_BUDGET, maxWidth = 800) {
   const bitmap = await createImageBitmap(file);
-  let width = Math.min(800, bitmap.width);
+  let width = Math.min(maxWidth, bitmap.width);
   for (let attempt = 0; attempt < 6; attempt++) {
     const height = Math.round((bitmap.height * width) / bitmap.width);
     const canvas = document.createElement("canvas");

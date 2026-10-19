@@ -4,6 +4,8 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -38,6 +40,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -148,7 +152,10 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                     else if (q.isBlind) {}
                     else if (q.isBuzz) FlouPanel(q, state, Modifier.weight(1f).fillMaxHeight())
                     else if (q.isNumber) NumberBoard(state, revealed, Modifier.weight(1f).fillMaxHeight())
-                    else ChoiceGrid(q.choices, correct = if (revealed) q.correct else null, Modifier.weight(1f).fillMaxHeight(), express = q.isExpress)
+                    else ChoiceGrid(
+                        q.choices, correct = if (revealed) q.correct else null, Modifier.weight(1f).fillMaxHeight(), express = q.isExpress,
+                        photos = q.choiceImages.map { id -> id?.let { state.images[it] } },
+                    )
                 }
             }
             Spacer(Modifier.height(16.dp))
@@ -212,19 +219,46 @@ private fun BoutonsQuestion(state: UiState.Playing, q: Question, actions: TvActi
 }
 
 @Composable
-private fun ChoiceGrid(choices: List<String>, correct: Int?, modifier: Modifier, express: Boolean = false) {
+private fun ChoiceGrid(choices: List<String>, correct: Int?, modifier: Modifier, express: Boolean = false, photos: List<ByteArray?> = emptyList()) {
     val rows = choices.indices.chunked(2)
     Column(modifier, verticalArrangement = Arrangement.spacedBy(14.dp)) {
         rows.forEach { row ->
             Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                row.forEach { i -> ChoiceCard(i, choices[i], correct, Modifier.weight(1f).fillMaxHeight().apparition(Tempo.propositionApparait(i), Unit), express) }
+                row.forEach { i ->
+                    ChoiceCard(i, choices[i], correct, Modifier.weight(1f).fillMaxHeight().apparition(Tempo.propositionApparait(i), Unit), express, photos.getOrNull(i))
+                }
             }
         }
     }
 }
 
+/**
+ * Réponse en image (quiz des petits) : la photo en grand, la lettre et sa couleur en pastille, le mot en petit
+ * dessous. Une photo pas encore chargée ou illisible : la proposition s'affiche en texte, la partie ne l'attend pas.
+ */
 @Composable
-private fun ChoiceCard(i: Int, text: String, correct: Int?, modifier: Modifier, express: Boolean = false) {
+private fun PhotoChoix(i: Int, text: String, bytes: ByteArray, juste: Boolean, color: Color, modifier: Modifier = Modifier): Boolean {
+    val photo = remember(bytes) { runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap() }.getOrNull() } ?: return false
+    Column(modifier.padding(vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            Image(
+                photo, contentDescription = "Réponse ${Palette.ChoiceLetters[i]} en image : $text", contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)),
+            )
+            Box(Modifier.align(Alignment.TopStart).size(46.dp).clip(CircleShape).background(color), contentAlignment = Alignment.Center) {
+                Text(Palette.ChoiceLetters[i], color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Black)
+            }
+        }
+        Text(
+            text, color = if (juste) Neon.JusteTexte else Palette.Ink, fontSize = 22.sp, lineHeight = 26.sp, fontWeight = FontWeight.Bold,
+            maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
+        )
+    }
+    return true
+}
+
+@Composable
+private fun ChoiceCard(i: Int, text: String, correct: Int?, modifier: Modifier, express: Boolean = false, photo: ByteArray? = null) {
     val isCorrect = correct == i
     // Révélation au rythme du roulement : les mauvaises s'éteignent une à une (✗ corail), puis la bonne passe au vert.
     val rangMauvaise = if (correct == null) 0 else (0 until i).count { it != correct }
@@ -248,14 +282,17 @@ private fun ChoiceCard(i: Int, text: String, correct: Int?, modifier: Modifier, 
             .padding(horizontal = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(52.dp).clip(CircleShape).background(color), contentAlignment = Alignment.Center) {
-            Text(Palette.ChoiceLetters[i], color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Black)
+        val enImage = if (photo != null) PhotoChoix(i, text, photo, juste, color, Modifier.weight(1f).fillMaxHeight()) else false
+        if (!enImage) {
+            Box(Modifier.size(52.dp).clip(CircleShape).background(color), contentAlignment = Alignment.Center) {
+                Text(Palette.ChoiceLetters[i], color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Black)
+            }
+            Spacer(Modifier.width(18.dp))
+            Text(
+                text, color = if (juste) Neon.JusteTexte else Palette.Ink, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+                maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+            )
         }
-        Spacer(Modifier.width(18.dp))
-        Text(
-            text, color = if (juste) Neon.JusteTexte else Palette.Ink, fontSize = 28.sp, fontWeight = FontWeight.Bold,
-            maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-        )
         when {
             juste -> Box(
                 Modifier.size(48.dp).apparition(100, Unit).clip(CircleShape).background(Color.White),

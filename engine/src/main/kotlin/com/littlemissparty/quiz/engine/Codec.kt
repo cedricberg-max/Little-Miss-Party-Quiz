@@ -174,6 +174,8 @@ object Codec {
                 "text" to q.text,
                 // Jeux au buzzer : réponse à voix haute, les propositions (qui contiennent la réponse) restent cachées.
                 "choices" to if (q.isBuzz && !revealed) null else q.choices,
+                // Réponses en images : la photo de chaque proposition ("" pour une proposition en texte).
+                "choiceImages" to q.choiceImages.takeIf { q.hasChoiceImages && !(q.isBuzz && !revealed) }?.map { it ?: "" },
                 "durationMs" to q.durationMs,
                 "deadline" to game.deadline(),
                 "remainingMs" to if (s.paused || s.buzzHeld || s.buzz?.waiting == true) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,

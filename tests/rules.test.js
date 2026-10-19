@@ -817,6 +817,33 @@ describe("illustrations des questions", () => {
   });
 });
 
+describe("réponses en images", () => {
+  beforeEach(() => seedAdmin(env, "sarah"));
+  const PHOTO = "data:image/jpeg;base64,AAAA";
+  const ID = "0123456789abcdef";
+
+  test("une question range une photo par case A à D, jamais autre chose", async () => {
+    const quiz = (q) => set(ref(db("sarah"), "library/quizzes/z"), {
+      title: "Z", updatedAt: serverTimestamp(), questions: [{ text: "?", choices: ["a", "b"], correct: 0, status: "validee", ...q }],
+    });
+    await assertSucceeds(quiz({ choiceImages: { 0: ID, 1: ID } }));
+    await assertFails(quiz({ choiceImages: { 4: ID } }));
+    await assertFails(quiz({ choiceImages: { 0: "../../settings" } }));
+  });
+  test("la régie copie les photos des réponses ; la box et les pupitres les lisent, personne d'autre n'écrit", async () => {
+    await seed({ phase: "lobby" });
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));
+    await assertFails(set(ref(db("rose"), `games/${CODE}/choiceImages/${ID}`), PHOTO));
+    await assertFails(set(ref(db("tel"), `games/${CODE}/choiceImages/pas-un-id`), PHOTO));
+    await assertSucceeds(set(ref(db("tel"), `games/${CODE}/choiceImages/${ID}`), PHOTO));
+    await assertFails(set(ref(db("tel"), `games/${CODE}/choiceImages/${ID}`), "data:image/jpeg;base64,BBBB"));
+    await assertSucceeds(get(ref(db(HOST), `games/${CODE}/choiceImages/${ID}`)));
+    await assertSucceeds(get(ref(db("rose"), `games/${CODE}/choiceImages/${ID}`)));
+    // Les photos d'illustration, qui peuvent montrer la réponse, restent invisibles aux pupitres.
+    await assertFails(get(ref(db("rose"), `games/${CODE}/images/${ID}`)));
+  });
+});
+
 describe("Le Juste Chiffre", () => {
   test("un nombre entier est accepté comme réponse, une seule fois ; jamais sur une question à propositions", async () => {
     await seed({ kind: "number", choices: null });

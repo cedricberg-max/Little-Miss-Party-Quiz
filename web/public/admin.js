@@ -6,10 +6,10 @@ import {
 import { passwordHash, newSalt, cleanPassword, passwordCandidates, MIN_PASSWORD_LENGTH } from "./secret.js";
 import {
   TEST_ID, TEST_QUIZ, TEST_SHOW, FULL_ID, FULL_KEYS, FULL_QUIZZES, FULL_MIMES, FULL_SHOW, FULL_PHOTOS, photoQuiz, drawPhoto,
-  FULL_TUNES, FULL_TUNE_SEC, FULL_NEW_ROUNDS, tunePlaylist,
+  FULL_TUNES, FULL_TUNE_SEC, FULL_NEW_ROUNDS, tunePlaylist, FULL_CHOICE_PHOTOS, imageQuiz,
 } from "./test-show.js";
 import { writeProof, isAdmin } from "./proof.js";
-import { parseQuiz, checkQuestions, geminiPrompt, LETTERS } from "./importer.js";
+import { parseQuiz, checkQuestions, geminiPrompt, chatgptImagePrompt, imageKey, wordFromImage, LETTERS } from "./importer.js";
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
 import {
   buildSnapshot, estimateMinutes, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, BUILTIN_GAMES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
@@ -19,7 +19,7 @@ import {
 import { EXTRACT_SECONDS, guessTrack, defaultStart, decodeFile, makeExtract, synthTune, encodeMp3, soundId } from "./audio.js";
 import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
 import { watchVersion, showUpdateBanner } from "./version.js";
-import { compressImage, imageId, cleanEmoji } from "./illustration.js";
+import { compressImage, imageId, cleanEmoji, CHOICE_IMAGE } from "./illustration.js";
 
 // Nouvelle version publiée pendant que l'administration est ouverte : on propose de recharger, sans rien perdre d'office.
 watchVersion(() => showUpdateBanner("Une nouvelle version de l'administration est en ligne. Enregistrez votre travail, puis mettez à jour."));
@@ -567,6 +567,8 @@ async function deleteQuiz(id, q) {
 $("quiz-import-open").onclick = () => {
   $("import-text").value = "";
   $("import-file").value = "";
+  importImages.clear();
+  $("import-images").textContent = "";
   status("import-status", "");
   updatePrompt();
   show("import");
@@ -586,14 +588,74 @@ $("gem-copy").onclick = async () => {
   }
   setTimeout(() => { $("gem-copy").textContent = "Copier la consigne"; }, 2500);
 };
+/** Images déposées avec le quiz (nom comparable → fichier), associées aux réponses par leur nom à l'analyse. */
+const importImages = new Map();
+
+/** Fichiers choisis ou déposés : le texte (JSON, CSV…) va dans la zone de texte, les images sont gardées de côté. */
+async function takeImportFiles(files) {
+  let texts = 0;
+  for (const f of files) {
+    if (f.type.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(f.name)) importImages.set(imageKey(f.name), f);
+    else if (!texts++) $("import-text").value = await f.text();
+  }
+  const n = importImages.size;
+  $("import-images").textContent = n ? `${n} image${n > 1 ? "s" : ""} prête${n > 1 ? "s" : ""} à associer aux réponses.` : "";
+}
 $("import-file").onchange = async () => {
-  const file = $("import-file").files[0];
-  if (file) $("import-text").value = await file.text();
+  await takeImportFiles([...$("import-file").files]);
+  $("import-file").value = "";
+};
+const dropZone = $("import-drop");
+dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("over"); });
+dropZone.addEventListener("dragleave", () => dropZone.classList.remove("over"));
+dropZone.addEventListener("drop", async (e) => {
+  e.preventDefault();
+  dropZone.classList.remove("over");
+  await takeImportFiles([...(e.dataTransfer?.files ?? [])]);
+});
+$("gpt-copy").onclick = async () => {
+  const text = chatgptImagePrompt({ theme: $("gem-theme").value, age: $("gem-age").value, count: Number($("gem-count").value) || 6 });
+  try {
+    await navigator.clipboard.writeText(text);
+    $("gpt-copy").textContent = "Consigne copiée";
+  } catch {
+    $("gpt-prompt").hidden = false;
+    $("gpt-prompt").value = text;
+    $("gpt-prompt").select();
+    $("gpt-copy").textContent = "Sélectionnée : faites Ctrl+C";
+  }
+  setTimeout(() => { $("gpt-copy").textContent = "Copier la consigne ChatGPT (quiz en images)"; }, 2500);
 };
 
-$("import-analyse").onclick = () => {
+/**
+ * Associe les images déposées aux réponses qui les nomment : chaque image est réduite et rangée dans la
+ * bibliothèque ; une image introuvable est signalée à la relecture, la réponse reste en texte.
+ */
+async function attachImportImages(questions) {
+  let done = 0;
+  for (const q of questions) {
+    if (!q.imageFiles) continue;
+    q.choiceImages = [];
+    q.missingImages = [];
+    for (const [k, name] of q.imageFiles.entries()) {
+      if (!name) { q.choiceImages[k] = null; continue; }
+      const f = importImages.get(imageKey(name)) ?? importImages.get(imageKey(name).replace(/\.[a-z0-9]+$/, ".png"))
+        ?? [...importImages.entries()].find(([key]) => key.replace(/\.[a-z0-9]+$/, "") === imageKey(name).replace(/\.[a-z0-9]+$/, ""))?.[1];
+      if (!f) { q.choiceImages[k] = null; q.missingImages.push(name); continue; }
+      status("import-status", `Préparation des images… (${++done})`, true);
+      try { q.choiceImages[k] = await storeChoiceImage(f); } catch (err) { console.error(err); q.choiceImages[k] = null; q.missingImages.push(name); }
+    }
+    delete q.imageFiles;
+  }
+}
+
+$("import-analyse").onclick = async () => {
   const parsed = parseQuiz($("import-text").value);
   if (!parsed.questions.length) return status("import-status", "Aucune question trouvée. Vérifiez le texte collé.");
+  if (parsed.questions.some((q) => q.imageFiles)) {
+    $("import-analyse").disabled = true;
+    try { await attachImportImages(parsed.questions); } finally { $("import-analyse").disabled = false; }
+  }
   const theme = $("gem-theme").value.trim();
   const age = Number($("gem-age").value) || null;
   review(null, {
@@ -617,6 +679,9 @@ function review(id, quiz) {
       text: q.text ?? "", choices: [...(q.choices ?? [])], correct: q.correct ?? -1,
       duration: q.duration ?? null, double: q.double === true, status: q.status ?? "brouillon", marks: q.marks ?? 0,
       image: q.image ?? "", imageId: q.imageId ?? null, kind: q.kind === "number" ? "number" : null,
+      // Réponses en images : une photo par case A à D (les propositions sont rangées dans l'ordre des cases).
+      slotImages: [0, 1, 2, 3].map((k) => (IMAGE_ID.test(q.choiceImages?.[k] ?? "") ? q.choiceImages[k] : null)),
+      missingImages: q.missingImages ?? [],
     })),
   };
   $("rv-title").value = quiz.title ?? "";
@@ -669,7 +734,8 @@ function renderReview() {
       q.kind === "number" ? null : h("div", { class: "choices" }, ...slots.map((c, k) => h("label", { class: "choice" },
         h("input", { type: "radio", name: `correct-${i}`, checked: q.correct === k, onchange: () => { q.correct = k; q.marks = 0; syncChoices(q, slots); } }),
         h("span", { class: "letter", text: LETTERS[k] }),
-        h("input", { class: "q-choice", value: c, placeholder: k < 2 ? "Proposition" : "Facultatif", oninput: (e) => { slots[k] = e.target.value; syncChoices(q, slots); } })))),
+        h("input", { class: "q-choice", value: c, placeholder: k < 2 ? "Proposition" : "Facultatif", oninput: (e) => { slots[k] = e.target.value; syncChoices(q, slots); } }),
+        choicePhoto(q, slots, k)))),
       h("div", { class: "row" },
         h("label", { class: "inline" }, "Durée (s)", h("input", { type: "number", min: 5, max: 120, class: "q-duration", value: q.duration ?? "", placeholder: "auto", oninput: (e) => { q.duration = e.target.value === "" ? null : Number(e.target.value); recheck(); } })),
         h("label", { class: "check" }, h("input", { type: "checkbox", checked: q.double, onchange: (e) => { q.double = e.target.checked; } }), "Points ×2")),
@@ -679,6 +745,8 @@ function renderReview() {
   });
   recheck();
 }
+
+const IMAGE_ID = /^[0-9a-f]{16}$/;
 
 /** Photos d'illustration déjà lues (identifiant → image), pour l'aperçu. */
 const imageCache = {};
@@ -737,13 +805,72 @@ function illustrationRow(q, i) {
     file, preview, remove, info);
 }
 
-/** Propositions remplies dans l'ordre ; la bonne réponse suit la case cochée. */
+/**
+ * Réponse en image (quiz des petits) : « 📷 » choisit une photo sur le PC pour cette case, réduite avant l'envoi.
+ * Sur la TV et les tablettes, la photo remplace le texte ; le mot reste dessous, en petit.
+ */
+function choicePhoto(q, slots, k) {
+  const thumb = h("img", { class: "choice-thumb", alt: `Image de la réponse ${LETTERS[k]}`, hidden: true });
+  const show_ = () => {
+    const id = q.slotImages?.[k];
+    thumb.hidden = !id;
+    remove.hidden = !id;
+    if (!id) return;
+    if (imageCache[id]) { thumb.src = imageCache[id]; return; }
+    get(ref(db, `library/images/${id}`)).then((snap) => {
+      if (typeof snap.val() === "string") { imageCache[id] = snap.val(); if (q.slotImages?.[k] === id) thumb.src = snap.val(); }
+    }).catch(() => {});
+  };
+  const remove = h("button", {
+    type: "button", class: "icon", title: "Retirer l'image", text: "✕", hidden: true,
+    onclick: (e) => { e.preventDefault(); q.slotImages[k] = null; show_(); syncChoices(q, slots); },
+  });
+  const file = h("input", {
+    type: "file", accept: "image/*", hidden: true,
+    onchange: async (e) => {
+      const f = e.target.files?.[0];
+      e.target.value = "";
+      if (!f) return;
+      try {
+        const id = await storeChoiceImage(f);
+        q.slotImages[k] = id;
+        if (!slots[k].trim()) {
+          slots[k] = wordFromImage(f.name) || LETTERS[k];
+          const input = $("rv-list").querySelector(`[data-q="${draft.questions.indexOf(q)}"]`)?.querySelectorAll(".q-choice")[k];
+          if (input) input.value = slots[k];
+        }
+        show_();
+        syncChoices(q, slots);
+      } catch (err) {
+        console.error(err);
+        status("rv-status", "Image refusée : essayez une autre image (JPEG ou PNG).");
+      }
+    },
+  });
+  show_();
+  return h("span", { class: "choice-photo" }, thumb, remove,
+    h("button", { type: "button", class: "icon", title: "Mettre une image à la place du texte", text: "📷", onclick: (e) => { e.preventDefault(); file.click(); } }),
+    file);
+}
+
+/** Réduit une image de réponse et la range dans la bibliothèque (une seule copie par image) ; renvoie son identifiant. */
+async function storeChoiceImage(fileOrBlob) {
+  const data = await compressImage(fileOrBlob, CHOICE_IMAGE.budget, CHOICE_IMAGE.width);
+  const id = await imageId(data);
+  const target = ref(db, `library/images/${id}`);
+  if (!(await get(target)).exists()) await set(target, data);
+  imageCache[id] = data;
+  return id;
+}
+
+/** Propositions remplies dans l'ordre ; la bonne réponse et les images suivent leur case. */
 function syncChoices(q, slots) {
   const filled = slots.map((c, k) => [c.trim(), k]).filter(([c]) => c);
   const radio = $("rv-list").querySelector(`[data-q="${draft.questions.indexOf(q)}"]`)?.querySelectorAll("input[type=radio]");
   const checkedSlot = radio ? [...radio].findIndex((r) => r.checked) : q.correct;
   q.choices = filled.map(([c]) => c);
   q.correct = filled.findIndex(([, k]) => k === checkedSlot);
+  q.choiceImages = filled.map(([, k]) => q.slotImages?.[k] ?? null);
   recheck();
 }
 
@@ -818,6 +945,7 @@ $("rv-save").onclick = async () => {
         correct: q.kind === "number" ? (Number.isInteger(q.correct) ? q.correct : 0) : q.correct,
         kind: q.kind === "number" ? "number" : null, duration: q.duration, double: q.double, status: q.status,
         image: cleanEmoji(q.image) || null, imageId: q.imageId || null,
+        choiceImages: q.kind === "number" ? null : savedChoiceImages(q),
       })),
     });
     draft.id = id;
@@ -830,6 +958,13 @@ $("rv-save").onclick = async () => {
     $("rv-save").disabled = false;
   }
 };
+
+/** Images des réponses à enregistrer : { "0": id, "2": id } (cases sans image omises), ou rien. */
+function savedChoiceImages(q) {
+  const ids = (q.choiceImages ?? q.choices.map((_, k) => q.slotImages?.[k] ?? null)).slice(0, q.choices.length);
+  const entries = ids.map((id, k) => [String(k), id]).filter(([, id]) => IMAGE_ID.test(id ?? ""));
+  return entries.length ? Object.fromEntries(entries) : null;
+}
 
 // ---------- Paramètres : mots de passe ----------
 
@@ -929,28 +1064,45 @@ $("test-full-create").onclick = async () => {
     }
     await addIfMissing(`library/playlists/${FULL_KEYS.playlist}`, { ...tunePlaylist(ids), createdAt: now, updatedAt: serverTimestamp() });
   };
+  /** Quiz en images des petits : une photo dessinée par réponse, rangée une seule fois dans la bibliothèque. */
+  const addImageQuiz = async (now) => {
+    const ids = [];
+    for (const q of FULL_CHOICE_PHOTOS) {
+      const row = [];
+      for (const c of q.choices) {
+        const data = drawPhoto(c);
+        const id = await imageId(data);
+        await addIfMissing(`library/images/${id}`, data);
+        row.push(id);
+      }
+      ids.push(row);
+    }
+    await addIfMissing(`library/quizzes/${FULL_KEYS.images}`, { ...imageQuiz(ids), createdAt: now, updatedAt: serverTimestamp() });
+  };
   try {
     const existing = (await get(ref(db, `library/shows/${FULL_ID}`))).val();
     if (existing) {
       // Prestation de test d'une version précédente : on lui ajoute seulement les jeux qui lui manquent
       // (avant la Super Finale), sans rien retirer ni modifier d'autre.
       const rounds = (existing.rounds ?? []).filter(Boolean);
-      const missing = FULL_NEW_ROUNDS.filter((m) => !rounds.some((r) => r.type === m.type));
+      const missing = FULL_NEW_ROUNDS.filter((m) => !rounds.some((r) => r.type === m.type && (!m.quizId || r.quizId === m.quizId)));
       if (existing.origin !== "test" || !missing.length) {
         status("test-full-status", "Elle existe déjà : retrouvez-la dans Prestations (rien n'a été modifié).", true);
         return;
       }
       status("test-full-status", "Ajout des nouveaux jeux à la prestation de test…", true);
       if (missing.some((m) => m.playlistId)) await addTunes(Date.now());
+      if (missing.some((m) => m.quizId === FULL_KEYS.images)) await addImageQuiz(Date.now());
       const at = rounds.findIndex((r) => r.type === "finale");
       const next = at < 0 ? [...rounds, ...missing] : [...rounds.slice(0, at), ...missing, ...rounds.slice(at)];
       await set(ref(db, `library/shows/${FULL_ID}`), { ...existing, rounds: next, notes: FULL_SHOW.notes, updatedAt: serverTimestamp() });
-      status("test-full-status", `Mise à jour : ${missing.map((m) => ROUND_TYPES[m.type]).join(", ")} ajouté(s) à « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux ».`, true);
+      status("test-full-status", `Mise à jour : ${missing.map((m) => (m.quizId === FULL_KEYS.images ? "Quiz en images" : ROUND_TYPES[m.type])).join(", ")} ajouté(s) à « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux ».`, true);
       return;
     }
     status("test-full-status", "Préparation des photos, des musiques et des jeux…", true);
     const now = Date.now();
     await addTunes(now);
+    await addImageQuiz(now);
     for (const kind of ["zoom", "flou"]) {
       const ids = [];
       for (const photo of FULL_PHOTOS[kind]) {

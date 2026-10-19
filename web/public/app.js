@@ -391,19 +391,24 @@ function renderQuestion(st) {
   $("q-double").hidden = !st.double;
   if (st.kind === "number") return renderNumber(st);
   const choices = st.choices ?? [];
+  const photos = Array.isArray(st.choiceImages) ? st.choiceImages : [];
+  const pictures = photos.some((id) => IMAGE_ID.test(id ?? ""));
   const box = $("choices");
   box.classList.remove("number");
-  const key = `${st.qid}:${choices.length}`;
+  const key = `${st.qid}:${choices.length}:${pictures}`;
   if (box.dataset.key !== key) {
     box.dataset.key = key;
     box.innerHTML = "";
     box.classList.toggle("two", choices.length === 2);
+    // Réponses en images (quiz des petits) : deux colonnes de grandes photos, même couleur et même lettre que sur la TV.
+    box.classList.toggle("pictures", pictures);
     choices.forEach((text, i) => {
       const b = document.createElement("button");
       b.className = "choice";
       b.style.setProperty("--choice", CHOICE_COLORS[i]);
       b.innerHTML = `<span class="letter">${CHOICE_LETTERS[i]}</span><span class="text"></span>`;
       b.querySelector(".text").textContent = text;
+      if (pictures && IMAGE_ID.test(photos[i] ?? "")) showChoicePhoto(b, photos[i], text);
       b.onclick = () => answer(i);
       box.appendChild(b);
     });
@@ -418,6 +423,26 @@ function renderQuestion(st) {
   else if (st.phase === "closed") $("q-status").textContent = "Temps écoulé !";
   else $("q-status").textContent = st.kind === "express" ? "Vrai ou faux ? Vite, ça s'enchaîne !" : "Choisissez votre réponse !";
   runTimer(st);
+}
+
+const IMAGE_ID = /^[0-9a-f]{16}$/;
+/** Photos des réponses déjà lues (identifiant → adresse data:), gardées pour toute la partie. */
+const choicePhotos = new Map();
+
+/** Ajoute la photo d'une réponse au bouton ; tant qu'elle n'est pas lue (ou si elle manque), le mot suffit. */
+function showChoicePhoto(button, id, text) {
+  const img = document.createElement("img");
+  img.className = "photo";
+  img.alt = text;
+  img.hidden = true;
+  button.prepend(img);
+  button.classList.add("with-photo");
+  const set_ = (data) => { if (typeof data === "string" && data.startsWith("data:image/")) { img.src = data; img.hidden = false; } };
+  if (choicePhotos.has(id)) return set_(choicePhotos.get(id));
+  get(ref(db, `games/${code}/choiceImages/${id}`)).then((snap) => {
+    if (typeof snap.val() === "string") choicePhotos.set(id, snap.val());
+    set_(snap.val());
+  }).catch((e) => console.warn("Photo de réponse non lue", id, e));
 }
 
 /** Le Juste Chiffre : un pavé de chiffres, un nombre envoyé une seule fois, comme une réponse. */

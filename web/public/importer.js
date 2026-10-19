@@ -31,6 +31,51 @@ export function geminiPrompt({ theme = "", age = "", count = 8 } = {}) {
   ].join("\n");
 }
 
+/**
+ * Consigne à copier dans ChatGPT pour un quiz en images (petits de 5-6 ans) : un fichier JSON lu par [parseQuiz]
+ * et une image par réponse, nommée comme dans le JSON, à déposer ensemble dans l'administration.
+ */
+export function chatgptImagePrompt({ theme = "", age = "", count = 6 } = {}) {
+  const sujet = theme.trim() ? `sur le thème « ${theme.trim()} »` : "sur des thèmes variés";
+  const public_ = String(age).trim() ? `des enfants de ${String(age).trim()} ans` : "des enfants de 5 à 6 ans";
+  return [
+    `Crée un quiz de ${count} questions ${sujet}, pour ${public_} qui ne savent pas encore bien lire.`,
+    "Chaque question a 4 réponses en images : une image simple et colorée par réponse, sur fond blanc, format carré.",
+    "Une seule bonne réponse, aucune question piège.",
+    "Nomme chaque image q<numéro de la question>-<mot>.png (par exemple q1-lion.png), puis donne-moi toutes les images à télécharger.",
+    "Donne aussi un fichier quiz.json exactement dans ce format, sans aucun autre texte :",
+    "",
+    "{",
+    '  "title": "<titre du quiz>",',
+    '  "questions": [',
+    "    {",
+    '      "text": "Quel animal court le plus vite ?",',
+    '      "choices": [',
+    '        { "text": "Lion", "image": "q1-lion.png" },',
+    '        { "text": "Baleine", "image": "q1-baleine.png" },',
+    '        { "text": "Chien", "image": "q1-chien.png" },',
+    '        { "text": "Vache", "image": "q1-vache.png" }',
+    "      ],",
+    '      "correct": 0',
+    "    }",
+    "  ]",
+    "}",
+    "",
+    "« correct » est le numéro de la bonne réponse en comptant à partir de 0.",
+  ].join("\n");
+}
+
+/** Nom de fichier d'image comparable : sans dossier, en minuscules, sans accents. */
+export function imageKey(name) {
+  return norm(String(name ?? "").split(/[\\/]/).pop());
+}
+
+/** Mot tiré d'un nom d'image (« q1-lion.png » → « Lion ») quand la réponse n'a pas de texte. */
+export function wordFromImage(name) {
+  const base = String(name ?? "").split(/[\\/]/).pop().replace(/\.[a-z0-9]{2,5}$/i, "").replace(/^q\d+[-_ ]*/i, "").replace(/[-_]+/g, " ").trim();
+  return base ? base[0].toUpperCase() + base.slice(1) : "";
+}
+
 const norm = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 const words = (s) => String(s ?? "").trim().split(/\s+/).filter(Boolean).length;
 
@@ -62,7 +107,17 @@ function tryJson(text) {
     ageMin: num(data.ageMin), ageMax: num(data.ageMax),
     format: "json",
     questions: list.map((q) => {
-      const choices = (q.choices ?? q.propositions ?? q.options ?? q.reponses ?? q.réponses ?? []).map(clean);
+      // Une réponse peut être un texte, ou { text, image } (quiz en images : le nom du fichier image déposé avec le JSON).
+      const rawChoices = q.choices ?? q.propositions ?? q.options ?? q.reponses ?? q.réponses ?? [];
+      const listed = q.choiceImages ?? q.images ?? [];
+      const files = rawChoices.map((c, k) => {
+        const name = (c && typeof c === "object" ? c.image ?? c.img ?? c.fichier ?? c.file : null) ?? (Array.isArray(listed) ? listed[k] : null);
+        return typeof name === "string" && name.trim() ? name.trim() : null;
+      });
+      const choices = rawChoices.map((c, k) => {
+        const t = clean(c && typeof c === "object" ? c.text ?? c.texte ?? c.label ?? c.mot ?? "" : c);
+        return t || (files[k] ? wordFromImage(files[k]) : "");
+      });
       const raw = q.correct ?? q.answer ?? q.bonne_reponse ?? q.bonneReponse ?? q.reponse ?? q.réponse;
       // Le format du projet compte à partir de 0 ; un nombre égal au nombre de propositions vient d'un comptage à partir de 1.
       const correct = typeof raw === "number" ? (raw === choices.length ? raw - 1 : raw) : resolveCorrect(raw, choices);
@@ -70,6 +125,7 @@ function tryJson(text) {
         text: clean(q.text ?? q.question ?? q.intitule ?? ""),
         choices, correct: Number.isInteger(correct) ? correct : -1,
         duration: num(q.duration ?? q.duree ?? q.durée), double: q.double === true, marks: 0,
+        ...(files.some(Boolean) ? { imageFiles: files } : {}),
       });
     }),
   };
@@ -230,7 +286,7 @@ function finish(q) {
   // Le Juste Chiffre : aucune proposition et une réponse en nombre entier (« Réponse : 206 »).
   const target = !q.choices.length ? numberAnswer(q.answer) : null;
   if (target != null) return { text, choices: [], correct: target, kind: "number", duration: q.duration ?? null, double, marks: 0 };
-  return { text, choices: q.choices, correct, duration: q.duration ?? null, double, marks };
+  return { text, choices: q.choices, correct, duration: q.duration ?? null, double, marks, ...(q.imageFiles ? { imageFiles: q.imageFiles } : {}) };
 }
 
 /** « 206 », « 1 000 », « -5 » → nombre entier ; sinon null. */
@@ -303,6 +359,8 @@ export function checkQuestions(questions, { profile = null, existing = [] } = {}
     if (p?.maxChoiceWords && (q.choices ?? []).some((c) => words(c) > p.maxChoiceWords)) {
       warnings.push(`Propositions de plus de ${p.maxChoiceWords} mots : longues pour le profil ${p.label}.`);
     }
+    const missing = (q.missingImages ?? []).filter(Boolean);
+    if (missing.length) warnings.push(`Image${missing.length > 1 ? "s" : ""} introuvable${missing.length > 1 ? "s" : ""} parmi les fichiers déposés : ${missing.join(", ")}. Ajoutez-la${missing.length > 1 ? "s" : ""} avec « 📷 » ou laissez la réponse en texte.`);
     if (key && seen.has(key)) warnings.push(`Même question que la n° ${seen.get(key) + 1}.`);
     else if (key) seen.set(key, i);
     if (key && known.has(key)) warnings.push("Cette question existe déjà dans la bibliothèque.");
