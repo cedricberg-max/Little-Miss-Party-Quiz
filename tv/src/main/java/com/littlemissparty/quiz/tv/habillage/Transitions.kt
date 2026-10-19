@@ -82,7 +82,7 @@ private fun TransitionDeJeu(state: UiState.Playing) {
             id = "${state.code} $cle ${state.index}",
             surtitre = when {
                 avant == null -> "C'EST PARTI !"
-                !mimes && avant.startsWith("quiz") -> "NOUVELLE MANCHE"
+                !mimes && (avant.startsWith("quiz") || avant.startsWith("manche")) -> "NOUVELLE MANCHE"
                 else -> "JEU SUIVANT"
             },
             titre = when {
@@ -91,6 +91,8 @@ private fun TransitionDeJeu(state: UiState.Playing) {
                 q.isFlou -> "L'Image floue !"
                 q.isChante -> "Chante le mot !"
                 q.isQuiSuis -> "Qui suis-je ?"
+                q.isBlind -> "Blind test !"
+                q.isStatues -> "Statues musicales !"
                 else -> q.roundTitle?.takeIf { it.isNotBlank() } ?: when {
                     q.isExpress -> "Vrai ou Faux express !"
                     q.isZoom -> "Zoom mystère !"
