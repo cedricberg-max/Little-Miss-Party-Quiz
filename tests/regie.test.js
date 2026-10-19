@@ -658,6 +658,39 @@ describe("régie", () => {
     await page.context().close();
   });
 
+  for (const [width, height] of [[360, 640], [390, 780]]) {
+    test(`petit téléphone ${width}×${height} : pendant un buzz en pause automatique, Reprendre et le bouton principal restent à l'écran`, async () => {
+      box = startBox();
+      await addTeam("rose", "Les Roses");
+      await addTeam("bleu", "Les Bleus");
+      const plan = [{ id: "c1", text: "Amour", kind: "chante", duration: 40, round: "Chante le mot !" }];
+      await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, questions: plan });
+      await box.set({ ...questionState(1), qid: "c1", kind: "chante", text: "Amour", choices: null, total: 1, round: "c1-1000-0", buzzOpen: false, buzz: { team: "rose", blocked: [] }, paused: true, pauseReason: "team", pauseTeam: "bleu", deadline: null, remainingMs: 20000 });
+      const context = await browser.newContext({ viewport: { width, height } });
+      const page = await openRegie(context);
+      await pair(page);
+      await inRegie(page);
+      await page.locator("#c-hold", { hasText: "Les Bleus" }).waitFor();
+      await page.locator("#flou-judge:not([hidden])").waitFor();
+      // Chaque bouton du bas est entièrement dans l'écran et c'est bien lui qu'un doigt touche.
+      for (const id of ["c-pause", "c-end", "c-next"]) {
+        const visible = await page.evaluate((id) => {
+          const el = document.getElementById(id);
+          const r = el.getBoundingClientRect();
+          const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+          return r.top >= 0 && r.bottom <= innerHeight + 0.5 && r.height > 0 && (hit === el || el.contains(hit));
+        }, id);
+        assert.ok(visible, `#${id} visible et touchable en ${width}×${height}`);
+      }
+      // Le reste se lit en faisant défiler la régie : les boutons de jugement sont atteignables.
+      await page.locator("#flou-ko").scrollIntoViewIfNeeded();
+      assert.ok(await page.locator("#flou-ko").isVisible());
+      await page.locator("#c-pause", { hasText: "Reprendre (3, 2, 1)" }).click();
+      await waitFor(async () => (await commands()).some((c) => c.type === "resume"), "reprise envoyée");
+      await page.context().close();
+    });
+  }
+
   test("Image floue : la régie voit qui a buzzé et la réponse attendue, refuse puis valide le rebond", async () => {
     box = startBox();
     await addTeam("rose", "Les Roses");

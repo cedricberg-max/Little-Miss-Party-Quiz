@@ -124,6 +124,13 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .link { align-self: center; color: var(--ink-soft); }
 
 .regie .actions { display: flex; flex-direction: column; gap: 8px; padding-bottom: 12px; }
+/* Jamais de bouton hors de l'écran : si le haut grossit (pause automatique, notes, jugement d'un buzz),
+   la régie défile, et Pause, Terminer et le bouton principal restent collés en bas de l'écran. */
+.regie .control { overflow-y: auto; overscroll-behavior: contain; }
+.regie .control > * { flex-shrink: 0; }
+.regie .control > .panel, .regie .control > .mime { flex-shrink: 1; min-height: 120px; }
+.regie .actions { position: sticky; bottom: 0; z-index: 2; margin-top: auto; padding-top: 8px; background: var(--fond-bas); box-shadow: 0 -12px 16px -4px var(--fond-bas); }
+
 .regie .actions .row { display: flex; gap: 8px; }
 .regie .actions .row .btn { flex: 1; }
 
@@ -255,3 +262,14 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .defis .defi-effacer { flex: none; min-height: 44px; padding: 0 12px; font-size: 15px; }
 .regie .defi-ajout { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
 .regie .defi-ajout .btn { min-height: 48px; }
+
+/* Petits téléphones : boutons de jugement et bandeaux un peu plus compacts. */
+@media (max-height: 760px) {
+  .regie .btn.main { min-height: 60px; font-size: 20px; }
+  .regie .btn { min-height: 54px; }
+  .regie .flou .mime-found { min-height: 96px; font-size: 28px; }
+  .regie .flou-ko { min-height: 56px; font-size: 19px; }
+  .regie .flou .flou-bonus { min-height: 72px; font-size: 22px; }
+  .regie .mime-found { min-height: 130px; font-size: 36px; }
+  .regie .hold-info { margin-top: 6px; padding: 8px 10px; font-size: 14px; }
+}
