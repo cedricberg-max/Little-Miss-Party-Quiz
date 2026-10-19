@@ -5,14 +5,20 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,28 +38,31 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.sin
+import kotlinx.coroutines.delay
 
 /**
- * Blind test : un vinyle qui tourne sous un bras de platine, et un égaliseur qui danse au tempo pendant que
- * l'extrait joue. Au buzz, le disque freine et s'arrête, l'égaliseur retombe et « STOP ! » prend la couleur de
- * l'équipe ; à la révélation, le disque repart et l'étiquette s'illumine d'or.
+ * Blind test : à gauche un vinyle qui tourne sous un bras de platine, entouré d'ondes et d'un halo qui battent
+ * au tempo ; à droite un égaliseur et une légende. Au buzz, le disque freine et s'arrête, le bras se relève,
+ * l'égaliseur retombe ; à la révélation, l'étiquette passe à l'or, « ? » devient « ♫ » et le disque repart.
  *
- * Léger pour la Mi Box : le disque est dessiné une fois (sillons en cache) et seule sa rotation change ;
- * l'égaliseur est un seul Canvas redessiné une vingtaine de fois par seconde.
+ * Léger pour la Mi Box : le disque est dessiné une fois (sillons en cache) et seule sa rotation change ; ondes et
+ * halo ne changent que d'échelle et d'opacité (graphicsLayer) ; l'égaliseur est un petit Canvas redessiné une
+ * vingtaine de fois par seconde.
  *
  * @param joue l'extrait s'entend (question sans buzz en attente, ou révélation)
- * @param buzzeur nom et couleur de l'équipe qui a buzzé, null sinon (le nom reste affiché par le panneau du buzzer)
+ * @param manquant l'extrait n'a pas pu être chargé : la légende le dit, l'animatrice peut passer
+ * @param artiste affiché sous « Écoutez la suite ! » à la révélation
  */
 @Composable
-fun BlindTestBoard(joue: Boolean, revele: Boolean, buzzeur: Pair<String, Color>?, modifier: Modifier = Modifier) {
+fun BlindTestBoard(joue: Boolean, revele: Boolean, manquant: Boolean, artiste: String?, modifier: Modifier = Modifier) {
     // Tours par seconde : 33 tours/min ≈ 0,55 ; le disque freine en 0,6 s au buzz et repart en 0,4 s.
     val vitesse by animateFloatAsState(if (joue) 0.55f else 0f, tween(if (joue) 400 else 600), label = "vinyle")
     val angle = remember { mutableFloatStateOf(0f) }
@@ -72,34 +81,59 @@ fun BlindTestBoard(joue: Boolean, revele: Boolean, buzzeur: Pair<String, Color>?
         }
     }
     val niveau by animateFloatAsState(if (joue) 1f else 0.08f, tween(350), label = "egaliseur")
+    val vie by animateFloatAsState(if (joue) 1f else 0f, tween(400), label = "ondes")
     val or by animateFloatAsState(if (revele) 1f else 0f, tween(600), label = "etiquette")
-    Box(
-        modifier.clip(RoundedCornerShape(28.dp)).background(Color.White.copy(alpha = 0.08f)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(Modifier.fillMaxSize().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                "BLIND TEST",
-                color = Neon.Nuit, fontSize = 18.sp, fontWeight = FontWeight.Black,
-                modifier = Modifier.clip(RoundedCornerShape(50)).background(Neon.Or).padding(horizontal = 14.dp, vertical = 4.dp),
-            )
-            Spacer(Modifier.height(10.dp))
-            Box(Modifier.weight(1f).aspectRatio(1f), contentAlignment = Alignment.Center) {
-                Vinyle(or, Modifier.fillMaxSize().graphicsLayer { rotationZ = angle.floatValue })
-                BrasDePlatine(joue, Modifier.fillMaxSize())
+    Box(Modifier.then(modifier).clip(RoundedCornerShape(28.dp)).background(Color.White.copy(alpha = 0.07f))) {
+        Text(
+            "BLIND TEST",
+            color = Neon.Nuit, fontSize = 18.sp, fontWeight = FontWeight.Black,
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 12.dp)
+                .clip(RoundedCornerShape(50)).background(Neon.Or).padding(horizontal = 14.dp, vertical = 4.dp),
+        )
+        Row(Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, top = 48.dp, bottom = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.fillMaxHeight().aspectRatio(1f, matchHeightConstraintsFirst = true), contentAlignment = Alignment.Center) {
+                // Halo qui bat au tempo, rose pendant l'écoute, doré à la révélation.
+                Box(
+                    Modifier.fillMaxSize()
+                        .graphicsLayer { alpha = 0.35f + 0.45f * vie * battement.floatValue + 0.3f * or; scaleX = 1.12f; scaleY = 1.12f }
+                        .background(Brush.radialGradient(listOf(lerp(Neon.Halo, Neon.Or, or).copy(alpha = 0.45f), Color.Transparent))),
+                )
+                // Trois ondes qui partent du disque et s'effacent, décalées d'un tiers de cycle.
+                for (k in 0 until 3) {
+                    Box(
+                        Modifier.fillMaxSize(0.9f).graphicsLayer {
+                            val phase = ((temps.floatValue / 2.2f) + k / 3f) % 1f
+                            val e = 0.86f + 0.3f * phase
+                            scaleX = e; scaleY = e
+                            alpha = vie * 0.55f * (1f - phase)
+                        }.border(3.dp, Neon.Halo, CircleShape),
+                    )
+                }
+                Vinyle(or, Modifier.fillMaxSize(0.9f).graphicsLayer { rotationZ = angle.floatValue })
+                Text(
+                    if (revele) "♫" else "?",
+                    color = Neon.Nuit, fontSize = 64.sp, lineHeight = 64.sp, fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
+                )
+                BrasDePlatine(joue, Modifier.fillMaxSize(0.9f))
             }
-            Spacer(Modifier.height(12.dp))
-            Egaliseur(niveau, battement, temps, Modifier.fillMaxWidth().height(64.dp))
-            Spacer(Modifier.height(8.dp))
-            Text(
-                when {
-                    revele -> "Écoutez la suite !"
-                    buzzeur != null -> "STOP !"
-                    else -> "Buzzez dès que vous reconnaissez la chanson !"
-                },
-                color = buzzeur?.second?.takeIf { !revele } ?: Neon.Blanc,
-                fontSize = 26.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
-            )
+            Spacer(Modifier.width(24.dp))
+            Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
+                Egaliseur(niveau, battement, temps, or, Modifier.fillMaxWidth().height(150.dp))
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    when {
+                        manquant && !revele -> "Extrait indisponible : l'animatrice peut passer."
+                        revele -> "Écoutez la suite !"
+                        joue -> "Écoutez bien…"
+                        else -> "Musique en pause"
+                    },
+                    color = if (revele) Neon.Or else Neon.Blanc, fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.Black,
+                )
+                if (revele && artiste != null) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(artiste, color = Neon.Blanc.copy(alpha = 0.8f), fontSize = 24.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+            }
         }
     }
 }
@@ -120,7 +154,7 @@ private fun Vinyle(or: Float, modifier: Modifier) {
                 drawCircle(Color(0xFF0E0A12), r, c)
                 sillons.forEach { drawCircle(Color.White.copy(alpha = 0.05f), it, c, style = Stroke(1.2f)) }
                 drawCircle(reflet, r, c)
-                val etiquette = androidx.compose.ui.graphics.lerp(Neon.Halo, Neon.Or, or)
+                val etiquette = lerp(Neon.Halo, Neon.Or, or)
                 drawCircle(etiquette, r * 0.36f, c)
                 drawCircle(Neon.Nuit.copy(alpha = 0.35f), r * 0.36f, c, style = Stroke(3f))
                 // Un motif sur l'étiquette, pour qu'on voie le disque tourner.
@@ -149,9 +183,9 @@ private fun BrasDePlatine(pose: Boolean, modifier: Modifier) {
     }
 }
 
-/** Seize barres or et rose qui rebondissent au tempo ; elles retombent quand la musique s'arrête. */
+/** Seize barres or et rose (tout or à la révélation) qui rebondissent au tempo ; elles retombent quand la musique s'arrête. */
 @Composable
-private fun Egaliseur(niveau: Float, battement: androidx.compose.runtime.FloatState, temps: androidx.compose.runtime.FloatState, modifier: Modifier) {
+private fun Egaliseur(niveau: Float, battement: androidx.compose.runtime.FloatState, temps: androidx.compose.runtime.FloatState, or: Float, modifier: Modifier) {
     val barres = 16
     Canvas(modifier) {
         val b = battement.floatValue
@@ -162,7 +196,7 @@ private fun Egaliseur(niveau: Float, battement: androidx.compose.runtime.FloatSt
             val vague = 0.35f + 0.25f * sin(t * 3.1f + k * 0.7f) + 0.2f * sin(t * 5.3f + k * 1.9f)
             val h = size.height * niveau * (0.15f + 0.85f * (0.5f * b + 0.5f * abs(vague)).coerceIn(0f, 1f))
             val x = k * l * 1.6f + l * 0.3f
-            val couleur = if (k % 2 == 0) Neon.Or else Neon.Halo
+            val couleur = if (k % 2 == 0) Neon.Or else lerp(Neon.Halo, Neon.Or, or)
             drawRoundRect(couleur, Offset(x, size.height - h), Size(l, h.coerceAtLeast(4f)), CornerRadius(l / 2))
         }
     }
