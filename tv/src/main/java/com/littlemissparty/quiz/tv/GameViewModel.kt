@@ -24,6 +24,7 @@ import com.littlemissparty.quiz.engine.CommandStatus
 import com.littlemissparty.quiz.engine.Game
 import com.littlemissparty.quiz.engine.GameEvent
 import com.littlemissparty.quiz.engine.Jumped
+import com.littlemissparty.quiz.engine.QuestionOpened
 import com.littlemissparty.quiz.engine.MimeCard
 import com.littlemissparty.quiz.engine.MimeTurn
 import com.littlemissparty.quiz.engine.Scoring
@@ -428,7 +429,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         if (event == null) return
         val round = (_state.value as? UiState.Playing)?.round ?: 1
         // Jeu rejoué depuis la régie : ses anciennes réponses sont effacées, les pupitres peuvent répondre à nouveau.
-        val replayed = (event as? Jumped)?.clear.orEmpty().associate { "answers/$it" to null }
+        val replayed = (event as? Jumped)?.clear.orEmpty().associate { "answers/$it" to null } +
+            // Question ouverte : ses anciennes réponses (jeu déjà joué puis repris plus tôt dans le programme)
+            // sont effacées, sinon les règles refuseraient les nouvelles et la question ne rapporterait rien.
+            ((event as? QuestionOpened)?.let { mapOf("answers/${it.qid}" to null) } ?: emptyMap())
         // Sans réseau, Firebase garde l'écriture en file d'attente et l'envoie au retour de la connexion.
         ref.updateChildren(
             mapOf(
@@ -548,7 +552,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private val soundFiles = mutableMapOf<String, String>()
-    private val SOUND_TRIES = 40
+    private val SOUND_TRIES = 3
     private val SOUND_RETRY_MS = 3_000L
     private val soundsLoading = mutableSetOf<String>()
 
@@ -569,10 +573,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         if (file.isFile && file.length() > 0) return publishSound(id, file)
         val ref = gameRef ?: return run { soundsLoading -= id }
         viewModelScope.launch {
-            // La régie copie les extraits pendant que la TV reçoit le programme : on réessaie un moment.
+            // La régie copie les extraits pendant que la TV reçoit le programme : on attend qu'ils arrivent.
             repeat(SOUND_TRIES) { attempt ->
                 val ok = runCatching {
-                    val data = ref.child("sounds/$id").readOnce()?.getValue(String::class.java) ?: return@runCatching false
+                    val data = ref.child("sounds/$id").readWhenPresent()?.getValue(String::class.java) ?: return@runCatching false
                     if (!Extraits.empreinteOk(id, data)) return@runCatching false
                     val bytes = Base64.decode(data.substringAfter("base64,", ""), Base64.DEFAULT)
                     if (bytes.isEmpty()) return@runCatching false
@@ -609,7 +613,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val ref = gameRef ?: return run { imagesLoading -= id }
         viewModelScope.launch {
             val bytes = runCatching {
-                val data = ref.child("images/$id").readOnce()?.getValue(String::class.java)
+                // Attente de la copie par la régie : une lecture unique pourrait renvoyer « absente » depuis le cache.
+                val data = ref.child("images/$id").readWhenPresent(PHOTO_WAIT_MS)?.getValue(String::class.java)
                 data?.substringAfter("base64,", "")?.takeIf { it.isNotEmpty() }?.let { Base64.decode(it, Base64.DEFAULT) }
             }.getOrNull()
             imagesLoading -= id
@@ -1131,6 +1136,29 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
  * `get()` peut ne jamais se terminer quand la persistance locale est activée et que l'appli est
  * relancée sans que le processus Android soit tué (sortie par Retour, nouvelle partie).
  */
+/**
+ * Attend qu'une donnée existe (photo ou extrait que la régie est en train de copier) : écoute en continu,
+ * car avec le cache local une lecture unique peut répondre « absente » alors que la copie arrive. Null au-delà
+ * de [timeoutMs].
+ */
+private suspend fun DatabaseReference.readWhenPresent(timeoutMs: Long = 60_000L): DataSnapshot? = withTimeoutOrNull(timeoutMs) {
+    suspendCancellableCoroutine { cont ->
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                if (snapshot.exists() && cont.isActive) { removeEventListener(this); cont.resume(snapshot) }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                if (cont.isActive) cont.resumeWithException(error.toException())
+            }
+        }
+        addValueEventListener(listener)
+        cont.invokeOnCancellation { removeEventListener(listener) }
+    }
+}
+
+private const val PHOTO_WAIT_MS = 30_000L
+
 private suspend fun DatabaseReference.readOnce(timeoutMs: Long = 8000L): DataSnapshot? = withTimeoutOrNull(timeoutMs) {
     suspendCancellableCoroutine { cont ->
         val listener = object : ValueEventListener {

@@ -97,6 +97,7 @@ fun ExtraitMusical(q: Question, state: UiState.Playing) {
                 }
                 else -> if (player.isPlaying) player.pause()
             }
+            Unit
         }.onFailure { Log.w("Extrait", "Lecture impossible", it) }
     }
 }

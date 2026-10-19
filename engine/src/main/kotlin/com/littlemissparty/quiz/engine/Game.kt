@@ -316,6 +316,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         if (q.isMime) s.copy(
             phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null,
             mimes = s.mimes - q.id, mime = MimeRound(deck = q.cards.indices.toList()),
+            // Le buzz d'un jeu précédent (équipe validée) ne doit jamais figer le chrono des mimes.
+            buzz = null,
         )
         else s.copy(
             phase = Phase.QUESTION, index = index, qid = q.id, segments = listOf(Segment(at)), resumeAt = null, mime = null,

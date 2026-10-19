@@ -373,6 +373,41 @@ class RegieTest : TestTv() {
         ecran.capture("qui-suis-je-revelation")
     }
 
+    @Test
+    fun blindTestLExtraitEstMisEnCacheLeBuzzLeFigeEtLArtisteDonneLeBonus() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        val id = java.security.MessageDigest.getInstance("SHA-256").digest(EXTRAIT_MP3.toByteArray()).take(8).joinToString("") { "%02x".format(it) }
+        regie.copierExtrait(code, id, EXTRAIT_MP3)
+        @Suppress("UNCHECKED_CAST")
+        val avant = regie.programme(code)["questions"] as List<Map<String, Any?>>
+        val blind = mapOf(
+            "id" to "b1", "text" to "Quel est ce titre ?", "choices" to listOf("Frère Jacques"), "correct" to 0, "artist" to "Comptine",
+            "duration" to 20, "kind" to "blind", "double" to false, "round" to "Blind test · Comptines", "audioId" to id,
+        )
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(blind) + avant))
+        val cache = java.io.File(androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext.filesDir, "extraits/$id.mp3")
+        attendreQue("extrait copié dans le cache de la box") { cache.takeIf { it.isFile && it.length() > 0 } }
+
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("BLIND TEST")
+        ecran.voit("Buzzez dès que vous reconnaissez la chanson !")
+        attendreQue("buzzer ouvert") { licornes.etat(code).takeIf { it.child("qid").value == "b1" && it.child("buzzOpen").value == true } }
+        assertFalse("le titre reste caché sur les pupitres", licornes.etat(code).hasChild("choices"))
+        assertTrue(licornes.buzzer(code))
+        ecran.voit("Le titre, à voix haute !")
+        ecran.capture("blind-test-buzz")
+        assertEquals("applied", regie.commande(code, "buzz_bonus"))
+        ecran.voit("Frère Jacques")
+        ecran.voit("Comptine")
+        attendreQue("titre et artiste dans les 10 premières secondes") {
+            points(licornes, code, licornes.uid).takeIf { it == (Scoring.BUZZ + Scoring.BLIND_ARTIST).toLong() }
+        }
+        ecran.capture("blind-test-revelation")
+    }
+
     private val regies = mutableListOf<RegieSimulee>()
 
     private fun regie() = RegieSimulee().also { regies += it }

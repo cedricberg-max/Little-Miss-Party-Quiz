@@ -86,4 +86,18 @@ class BlindTestTest {
         val replay = Game(quiz).apply { g.events.forEach { record(Codec.decode(Codec.encode(it))!!) } }
         assertEquals(g.state.scores(), replay.state.scores())
     }
+
+    @Test
+    fun `des mimes juste après un jeu au buzzer gagné, le chrono du tour tourne normalement`() {
+        val mimes = Question("m1", "Mimes", emptyList(), -1, durationSec = 60, kind = QuestionKind.MIME, cards = listOf(MimeCard("chat"), MimeCard("chien")))
+        val g = game(blind("b1"), mimes)
+        g.buzz("rose", t0 + 2_000)
+        g.judgeBuzz(true, t0 + 3_000)
+        g.next(t0 + 5_000)
+        g.next(t0 + 6_000)
+        assertEquals("m1", g.state.qid)
+        g.mimeStart("rose", t0 + 7_000)
+        assertEquals(false, g.state.buzzHeld)
+        assertEquals(t0 + 7_000 + 60_000, g.deadline())
+    }
 }

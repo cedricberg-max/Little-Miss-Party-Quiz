@@ -911,16 +911,22 @@ function tvRefuses(questions) {
   return null;
 }
 
-function addPicked(where) {
-  if (!picked || editing) return;
+let adding = false;
+async function addPicked(where) {
+  if (!picked || editing || adding) return;
   const refused = tvRefuses(picked.questions);
   if (refused) { toast(refused); return; }
+  const chosen = picked.questions;
+  // Photos copiées avant l'envoi : la TV les cherche dès qu'elle accepte le programme. Les extraits,
+  // plus lourds, suivent ; la TV les attend.
+  adding = true;
+  try { await copyImages(chosen); } finally { adding = false; }
+  copySounds(chosen);
+  if (!picked || editing) return;
   const st = live.state ?? { phase: "lobby" };
   const current = live.plan?.questions ?? [];
-  const title = uniqueRoundTitle(current, picked.questions[0]?.round ?? picked.game.label);
-  const added = picked.questions.map((q) => ({ ...q, round: title }));
-  copyImages(added);
-  copySounds(added);
+  const title = uniqueRoundTitle(current, chosen[0]?.round ?? picked.game.label);
+  const added = chosen.map((q) => ({ ...q, round: title }));
   const index = st.phase === "lobby" ? -1 : st.index ?? -1;
   const place = where === "end" ? "à la fin du programme" : index < 0 ? "au début du programme" : "après la manche en cours";
   sendProgram(insertGame(current, added, where, index), `« ${title} » est ajouté ${place}.`, true);
@@ -1096,6 +1102,7 @@ async function loadShow(id, snapshot) {
   if (refused) { toast(refused); return; }
   loadingShow = id;
   render();
+  await copyImages(snapshot.quiz?.questions);
   const showId = push(ref(db, `games/${code}/show`)).key;
   const done = (message) => { loadingShow = null; if (message) toast(message); render(); };
   let stop = () => {};
@@ -1107,7 +1114,6 @@ async function loadShow(id, snapshot) {
     stop();
     done(status.status === "applied" ? `« ${snapshot.title} » est chargée sur la TV.` : SHOW_MESSAGES[status.reason] ?? "La TV a refusé cette prestation.");
   });
-  copyImages(snapshot.quiz?.questions);
   copySounds(snapshot.quiz?.questions);
   try {
     await set(ref(db, `games/${code}/show`), { ...snapshot, id: showId, by: uid, at: serverTimestamp() });
@@ -1125,7 +1131,8 @@ function runTimer(st) {
   const tick = () => {
     let ms;
     if (st.phase !== "question") ms = null;
-    else if (st.paused) ms = st.remainingMs ?? 0;
+    // En pause, ou chrono figé pendant la réponse d'une équipe qui a buzzé : le temps restant publié par la box.
+    else if (st.paused || (st.buzz?.team && st.deadline == null)) ms = st.remainingMs ?? 0;
     else ms = Math.max(0, (st.deadline ?? 0) - Math.max(Date.now() + serverOffset, st.resumeAt ?? 0));
     el.textContent = ms == null ? "" : `${Math.ceil(ms / 1000)}`;
     el.classList.toggle("urgent", ms != null && ms <= 5000);

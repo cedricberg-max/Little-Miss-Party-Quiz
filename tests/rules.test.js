@@ -430,6 +430,9 @@ describe("régie", () => {
     await assertSucceeds(command(REGIE, { type: "buzz_ok" }));
     await assertSucceeds(command(REGIE, { type: "buzz_ko" }));
     await assertFails(command("rose", { type: "buzz_ok" }));
+    // Blind test : bon titre et bon artiste.
+    await assertSucceeds(command(REGIE, { type: "buzz_bonus" }));
+    await assertFails(command("rose", { type: "buzz_bonus" }));
     await assertFails(set(ref(db(REGIE), `games/${CODE}/commands/m-points`), { type: "mime_found", points: 50, expectSeq: 3, by: REGIE, at: serverTimestamp() }));
   });
   test("secours : la régie demande un saut de jeu ; seule la box efface les réponses d'un jeu rejoué", async () => {
@@ -776,5 +779,40 @@ describe("Le Juste Chiffre", () => {
     await assertFails(set(ref(db("sarah"), "library/quizzes/k"), {
       title: "Cassé", updatedAt: serverTimestamp(), questions: [{ text: "Sans propositions", correct: 0, status: "validee" }],
     }));
+  });
+});
+
+describe("blind test : extraits musicaux et playlists", () => {
+  beforeEach(() => seedAdmin(env, "sarah"));
+  const SOUND = "data:audio/mpeg;base64,SUQz";
+  const ID = "0123456789abcdef";
+  const playlist = (tracks, extra = {}) => set(ref(db("sarah"), "library/playlists/p"), { title: "Dessins animés", duration: 25, tracks, updatedAt: serverTimestamp(), ...extra });
+
+  test("l'administration range un extrait MP3, jamais remplacé en douce ; personne d'autre n'écrit", async () => {
+    await assertSucceeds(set(ref(db("sarah"), `library/sounds/${ID}`), SOUND));
+    await assertFails(set(ref(db("sarah"), `library/sounds/${ID}`), "data:audio/mpeg;base64,AAAA"));
+    await assertFails(set(ref(db("sarah"), "library/sounds/fedcba9876543210"), "data:text/html;base64,PHNjcmlwdD4="));
+    await assertFails(set(ref(db("sarah"), "library/sounds/fedcba9876543210"), `data:audio/mpeg;base64,${"A".repeat(900001)}`));
+    await assertFails(set(ref(db("rose"), "library/sounds/fedcba9876543210"), SOUND));
+    await assertSucceeds(set(ref(db("sarah"), `library/sounds/${ID}`), null));
+  });
+  test("une playlist : titre, durée d'extrait, morceaux avec titre et extrait ; droits facultatifs", async () => {
+    await assertSucceeds(playlist([{ title: "Libérée, délivrée", artist: "La Reine des neiges", audioId: ID, rights: "CD de Sarah" }, { title: "Hakuna Matata", audioId: ID }]));
+    await assertFails(playlist([{ title: "", audioId: ID }]));
+    await assertFails(playlist([{ title: "Sans extrait" }]));
+    await assertFails(playlist([{ title: "Mauvais extrait", audioId: "../../settings" }]));
+    await assertFails(playlist([{ title: "Champ en plus", audioId: ID, points: 500 }]));
+    await assertFails(playlist([{ title: "Trop long", audioId: ID }], { duration: 300 }));
+    await assertFails(set(ref(db("rose"), "library/playlists/p"), { title: "X", duration: 25, tracks: [{ title: "A", audioId: ID }], updatedAt: serverTimestamp() }));
+  });
+  test("la régie copie un extrait dans la partie une seule fois ; la box le lit, les pupitres non", async () => {
+    await seed({ phase: "lobby" });
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));
+    await assertFails(set(ref(db("rose"), `games/${CODE}/sounds/${ID}`), SOUND));
+    await assertSucceeds(set(ref(db("tel"), `games/${CODE}/sounds/${ID}`), SOUND));
+    await assertFails(set(ref(db("tel"), `games/${CODE}/sounds/${ID}`), "data:audio/mpeg;base64,AAAA"));
+    await assertFails(set(ref(db("tel"), `games/${CODE}/sounds/fedcba9876543210`), "data:image/jpeg;base64,AAAA"));
+    await assertSucceeds(get(ref(db(HOST), `games/${CODE}/sounds/${ID}`)));
+    await assertFails(get(ref(db("rose"), `games/${CODE}/sounds/${ID}`)));
   });
 });
