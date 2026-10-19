@@ -722,6 +722,15 @@ describe("Régie PC : contenus intégrés réglés, nombre de questions, notes",
     assert.match(vide.problems[0], /aucun mot actif dans les séries choisies/);
   });
 
+  test("Pictionary : la vraie photo d'un mot part avec sa carte et se copie avec les réponses en images", () => {
+    const contents = { pictionary: { extra: [{ word: "Toboggan", image: "🛝" }], images: { toboggan: "0123456789abcdef", chat: "pas-une-photo" } } };
+    const { snapshot } = buildSnapshot("s", { age: 9, rounds: [{ type: "pictionary" }] }, {}, {}, Math.random, {}, contents);
+    const cards = snapshot.quiz.questions[0].cards;
+    assert.deepEqual(cards.find((c) => c.word === "Toboggan"), { word: "Toboggan", image: "🛝", imageId: "0123456789abcdef" });
+    assert.equal(cards.find((c) => c.word === "Chat")?.imageId, undefined, "une photo mal formée est ignorée");
+    assert.deepEqual(choiceImageIds(snapshot.quiz.questions), ["0123456789abcdef"]);
+  });
+
   test("tout retiré : la manche est signalée, jamais jouée vide", () => {
     const none = { quisuis: { off: activeItems("quisuis", {}).map((p) => p.answer.toLowerCase()) } };
     const { snapshot, problems } = buildSnapshot("s", { age: 9, rounds: [{ type: "quisuis" }] }, {}, {}, Math.random, {}, none);

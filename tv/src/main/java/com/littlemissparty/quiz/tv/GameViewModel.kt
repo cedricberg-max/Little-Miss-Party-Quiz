@@ -708,6 +708,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         // Réponses en images : celles de la question en cours et de la suivante (lisibles aussi par les pupitres).
         listOfNotNull(q, g.quiz.questions.getOrNull(s.index + 1)).flatMap { it.choiceImages }.filterNotNull()
             .forEach { prefetchImage(it, "choiceImages") }
+        // Pictionary : photos des mots proposés (rangées avec les réponses en images), prêtes pour la révélation.
+        (g.offerCards + listOfNotNull(g.lastCard)).mapNotNull { it.imageId }.forEach { prefetchImage(it, "choiceImages") }
         // Extraits musicaux : tous ceux du programme, dès son chargement, pour que la musique ne dépende
         // plus du réseau une fois la partie lancée.
         g.quiz.questions.mapNotNullTo(LinkedHashSet()) { it.audioId }.forEach(::prefetchSound)
@@ -1402,7 +1404,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 clean(mapOf(
                     "id" to it.id, "text" to it.text, "choices" to it.choices.ifEmpty { null }, "correct" to it.correct,
                     "duration" to it.durationSec, "kind" to it.kind.code, "double" to it.double, "round" to it.roundTitle,
-                    "cards" to it.cards.ifEmpty { null }?.map { c -> clean(mapOf("word" to c.word, "image" to c.image)) },
+                    "cards" to it.cards.ifEmpty { null }?.map { c -> clean(mapOf("word" to c.word, "image" to c.image, "imageId" to c.imageId)) },
                     "image" to it.emoji, "imageId" to it.imageId, "artist" to it.artist, "audioId" to it.audioId,
                     "doors" to it.doors.ifEmpty { null },
                     "choiceImages" to it.choiceImages.ifEmpty { null }?.map { id -> id ?: "" },

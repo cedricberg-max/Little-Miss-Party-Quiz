@@ -1,5 +1,7 @@
 package com.littlemissparty.quiz.tv
 
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,7 +27,9 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -96,6 +101,9 @@ fun PictionaryScreen(state: UiState.Playing, actions: TvActions) {
                     secret != null -> IntroPictionary(secret.name, secret.color.toColor(), motMontre = m.chosen, modifier = Modifier.fillMaxSize())
                     last != null && lastTeam != null && card != null -> {
                         val emoji = card.image
+                        // Photo du mot (préparée dans l'administration), sinon son émoji.
+                        val bytes = card.imageId?.let { state.images[it] }
+                        val photo = remember(bytes) { bytes?.let { runCatching { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() } }
                         RevelationPictionary(
                             mot = card.word,
                             trouve = last.found > 0,
@@ -103,7 +111,8 @@ fun PictionaryScreen(state: UiState.Playing, actions: TvActions) {
                             couleur = lastTeam.color.toColor(),
                             traits = traits,
                             points = if (last.found > 0) last.found * m.points else null,
-                            image = emoji?.let { e -> @Composable { Text(e, fontSize = 110.sp, lineHeight = 116.sp) } },
+                            image = photo?.let { p -> @Composable { Image(p, contentDescription = card.word, contentScale = ContentScale.Crop, modifier = Modifier.size(150.dp).clip(RoundedCornerShape(24.dp))) } }
+                                ?: emoji?.let { e -> @Composable { Text(e, fontSize = 110.sp, lineHeight = 116.sp) } },
                         )
                     }
                     else -> Presentation(state, m)

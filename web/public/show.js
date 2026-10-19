@@ -335,7 +335,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       rounds.push({ title: ROUND_TYPES.pictionary, count: 1, kind: "pictionary" });
       questions.push({
         id: `r${i + 1}p`, text: ROUND_TYPES.pictionary, kind: "pictionary", duration, double: false, round: ROUND_TYPES.pictionary,
-        points: PICTO_POINTS, cards: shuffle(words, random).slice(0, 200).map((w) => (w.image ? { word: w.word, image: w.image } : { word: w.word })),
+        points: PICTO_POINTS, cards: shuffle(words, random).slice(0, 200).map((w) => ({ word: w.word, ...(w.image ? { image: w.image } : {}), ...(w.imageId ? { imageId: w.imageId } : {}) })),
       });
       return;
     }
@@ -606,7 +606,9 @@ export function choiceImageList(q) {
 
 /** Réponses en images d'un programme (identifiants sans doublon), à copier dans la partie avant de l'envoyer. */
 export function choiceImageIds(questions) {
-  return [...new Set((questions ?? []).flatMap((q) => (Array.isArray(q?.choiceImages) ? q.choiceImages : [])).filter((id) => typeof id === "string" && IMAGE_ID.test(id)))];
+  // Rangées avec les réponses en images : aussi les photos des mots du Pictionary (lues par la tablette du dessinateur).
+  return [...new Set((questions ?? []).flatMap((q) => [...(Array.isArray(q?.choiceImages) ? q.choiceImages : []), ...(Array.isArray(q?.cards) ? q.cards.map((c) => c?.imageId) : [])])
+    .filter((id) => typeof id === "string" && IMAGE_ID.test(id)))];
 }
 
 /** Photos d'illustration d'un programme (identifiants sans doublon), à copier dans la partie avant de l'envoyer. */

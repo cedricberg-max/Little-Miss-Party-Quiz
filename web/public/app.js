@@ -712,9 +712,18 @@ function renderPick(m) {
   if (choixKey !== m.pickKey) {
     stopPick();
     choixKey = m.pickKey;
-    choix = choisirMot($("pick-host"), m.offer.map((c) => ({ mot: c.word, image: c.image ?? "✏️" })), {
+    // Photo du mot (préparée dans la Régie PC) quand elle est lue, sinon son émoji ; les cartes se redessinent à son arrivée.
+    choix = choisirMot($("pick-host"), m.offer.map((c) => ({ mot: c.word, image: choicePhotos.get(c.imageId) ?? c.image ?? "✏️" })), {
       surChoix: (i) => choosePicto(m.pickKey, i),
     });
+    const key = m.pickKey;
+    for (const id of m.offer.map((c) => c.imageId).filter((id) => IMAGE_ID.test(id ?? "") && !choicePhotos.has(id))) {
+      get(ref(db, `games/${code}/choiceImages/${id}`)).then((snap) => {
+        if (typeof snap.val() !== "string" || !snap.val().startsWith("data:image/")) return;
+        choicePhotos.set(id, snap.val());
+        if (choixKey === key && game.state?.mime?.chosen == null) { stopPick(); render(); }
+      }).catch((e) => console.warn("Photo du mot non lue", id, e));
+    }
   }
   $("pick-status").textContent = m.chosen != null
     ? `Tu vas dessiner « ${m.offer[m.chosen]?.word ?? ""} ». Garde le secret ! L'animatrice va masquer le mot, puis tu dessines.`

@@ -73,7 +73,8 @@ object QuizJson {
             roundTitle = q.optString("round").ifBlank { null },
             cards = (0 until cards.length()).map { c ->
                 val card = cards.getJSONObject(c)
-                MimeCard(card.getString("word").trim(), card.optString("image").ifBlank { null })
+                // Photo du mot (Pictionary, préparée dans l'administration) : ignorée si mal formée.
+                MimeCard(card.getString("word").trim(), card.optString("image").ifBlank { null }, card.optString("imageId").takeIf { IMAGE_ID.matches(it) })
             },
             // Une illustration mal formée est ignorée : elle ne doit jamais empêcher de jouer.
             emoji = q.optString("image").trim().takeIf { it.isNotEmpty() && it.length <= 16 && !turns },

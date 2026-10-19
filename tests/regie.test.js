@@ -1636,6 +1636,12 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#builtin-status", { hasText: "« Toboggan » est ajouté au jeu." }).waitFor();
     await page.locator("#builtin-items h3.content-series", { hasText: "Au parc" }).waitFor();
     assert.deepEqual((await library("contents")).pictionary.extra, [{ word: "Toboggan", series: "Au parc" }]);
+    // Une vraie photo pour un mot : elle remplace l'émoji sur la tablette du dessinateur et sur la TV.
+    const toboggan = page.locator('#builtin-items .content-item[data-key="toboggan"]');
+    await toboggan.locator(".choice-photo input[type=file]").setInputFiles({ name: "toboggan.png", mimeType: "image/png", buffer: png([200, 120, 40]) });
+    await page.locator("#builtin-status", { hasText: "Image de « Toboggan » enregistrée." }).waitFor();
+    await toboggan.locator(".choice-thumb:not([hidden])").waitFor();
+    assert.match((await library("contents")).pictionary.images.toboggan, /^[0-9a-f]{16}$/);
 
     await page.click("#nav button[data-screen=home]");
     await page.click("#home-new");

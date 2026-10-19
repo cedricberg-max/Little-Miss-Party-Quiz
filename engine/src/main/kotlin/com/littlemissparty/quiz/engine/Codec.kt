@@ -116,21 +116,24 @@ object Codec {
      */
     private fun mimeState(game: Game, m: MimeRound?): Map<String, Any?> = mapOf(
         "team" to m?.team,
-        "card" to game.mimeCard?.let { mapOf("word" to it.word, "image" to it.image) },
+        "card" to game.mimeCard?.let(::cardMap),
         "found" to (m?.found ?: 0),
         "passed" to (m?.passed ?: 0),
         "left" to (m?.deck?.size ?: 0),
         "turns" to m?.turns.orEmpty(),
-        "last" to m?.last?.let { mapOf("team" to it.team, "found" to it.found, "passed" to it.passed, "word" to game.lastCard?.word, "image" to game.lastCard?.image) },
+        "last" to m?.last?.let { mapOf("team" to it.team, "found" to it.found, "passed" to it.passed, "word" to game.lastCard?.word, "image" to game.lastCard?.image) + listOfNotNull(game.lastCard?.imageId?.let { "imageId" to it }) },
         "points" to game.state.qid?.let(game.state::pointsPerFound),
         "counts" to game.state.mimes[game.state.qid].orEmpty(),
         // Pictionary : équipe qui découvre son mot, et clé du dessin du tour (en cours ou dernier) dans `drawing/`.
         "secret" to m?.secret,
-        "offer" to game.offerCards.map { mapOf("word" to it.word, "image" to it.image) }.ifEmpty { null },
+        "offer" to game.offerCards.map(::cardMap).ifEmpty { null },
         "chosen" to m?.takeIf { it.secret != null }?.pick?.let { m.offer.indexOf(it) },
         "pickKey" to pickKey(game),
         "drawKey" to drawKey(game),
     )
+
+    /** Carte de mime ou de Pictionary : mot, émoji, et photo seulement si elle existe. */
+    private fun cardMap(c: MimeCard): Map<String, Any?> = mapOf("word" to c.word, "image" to c.image) + listOfNotNull(c.imageId?.let { "imageId" to it })
 
     /** Pictionary : clé où la tablette du dessinateur écrit son choix (`pictoChoice/`) : manche et heure de la proposition. */
     fun pickKey(game: Game): String? {

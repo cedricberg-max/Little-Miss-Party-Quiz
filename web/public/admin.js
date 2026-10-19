@@ -1728,7 +1728,8 @@ function renderBuiltin() {
     const key = game.key(item);
     const on = !off.includes(key);
     const detail = type === "quisuis" ? item.clues.join(" · ") : type === "disparu" ? item.objects.map((o) => o.image).join(" ") : "";
-    const photo = type === "quisuis" ? characterPhoto(item, key, images) : null;
+    // Qui suis-je ? : image du personnage ; Pictionary : vraie photo du mot, à la place de son émoji.
+    const photo = type === "quisuis" || type === "pictionary" ? contentPhoto(type, item, key, images) : null;
     // Repère de préparation, jamais bloquant : le personnage se révélera sans visuel.
     const missing = type === "quisuis" && !item.emoji && !images[contentSlot(key)];
     return h("div", { class: `content-item${on ? " on" : ""}${custom ? " custom" : ""}`, "data-key": key },
@@ -1765,13 +1766,14 @@ function renderBuiltin() {
 }
 
 /**
- * Qui suis-je ? : l'image du personnage (générée par exemple avec ChatGPT), réduite et rangée comme les images
- * de réponses. Elle remplace l'émoji à la révélation sur la TV ; « ✕ » la retire.
+ * Qui suis-je ? : l'image du personnage (générée par exemple avec ChatGPT) ; Pictionary : une vraie photo du mot.
+ * Réduite et rangée comme les images de réponses, elle remplace l'émoji (TV, tablette du dessinateur) ; « ✕ » la retire.
  */
-function characterPhoto(item, key, images) {
+function contentPhoto(type, item, key, images) {
+  const name = type === "quisuis" ? item.answer : item.word;
   const slot = contentSlot(key);
   const id = images[slot];
-  const thumb = h("img", { class: "choice-thumb", alt: `Image de ${item.answer}`, hidden: !id });
+  const thumb = h("img", { class: "choice-thumb", alt: `Image de ${name}`, hidden: !id });
   if (id) {
     if (imageCache[id]) thumb.src = imageCache[id];
     else get(ref(db, `library/images/${id}`)).then((snap) => {
@@ -1779,8 +1781,8 @@ function characterPhoto(item, key, images) {
     }).catch(() => {});
   }
   const save = (next, message) => {
-    const st = builtinState("quisuis");
-    saveBuiltin("quisuis", { ...st, images: next }, message);
+    const st = builtinState(type);
+    saveBuiltin(type, { ...st, images: next }, message);
   };
   const file = h("input", {
     type: "file", accept: "image/*", hidden: true,
@@ -1790,7 +1792,7 @@ function characterPhoto(item, key, images) {
       if (!f) return;
       try {
         const newId = await storeChoiceImage(f);
-        save({ ...builtinState("quisuis").images, [slot]: newId }, `Image de « ${item.answer} » enregistrée.`);
+        save({ ...builtinState(type).images, [slot]: newId }, `Image de « ${name} » enregistrée.`);
       } catch (err) {
         console.error(err);
         status("builtin-status", "Image refusée : essayez une autre image (JPEG ou PNG).");
@@ -1800,9 +1802,9 @@ function characterPhoto(item, key, images) {
   return h("span", { class: "choice-photo" }, thumb,
     id ? h("button", {
       type: "button", class: "icon", title: "Retirer l'image", text: "✕",
-      onclick: () => { const { [slot]: _, ...rest } = builtinState("quisuis").images; save(rest, `Image de « ${item.answer} » retirée.`); },
+      onclick: () => { const { [slot]: _, ...rest } = builtinState(type).images; save(rest, `Image de « ${name} » retirée.`); },
     }) : null,
-    h("button", { type: "button", class: "icon", title: "Choisir une image pour ce personnage", text: "📷", onclick: () => file.click() }),
+    h("button", { type: "button", class: "icon", title: type === "quisuis" ? "Choisir une image pour ce personnage" : "Choisir une photo pour ce mot", text: "📷", onclick: () => file.click() }),
     file);
 }
 

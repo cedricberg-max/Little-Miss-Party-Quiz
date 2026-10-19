@@ -255,7 +255,7 @@ data class Quiz(val id: String, val title: String, val questions: List<Question>
 }
 
 /** Carte de mime : le mot à faire deviner et son image (un emoji du catalogue intégré, facultatif). */
-data class MimeCard(val word: String, val image: String? = null)
+data class MimeCard(val word: String, val image: String? = null, val imageId: String? = null)
 
 const val MAX_MIME_CARDS = 200
 
