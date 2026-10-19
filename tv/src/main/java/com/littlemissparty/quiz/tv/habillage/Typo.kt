@@ -115,3 +115,10 @@ fun Modifier.boutonNeonDore(focus: Boolean, forme: Shape = RoundedCornerShape(18
     }
 
 fun couleurTexteNeonDore(focus: Boolean): Color = if (focus) Neon.Nuit else Neon.OrClair
+
+/**
+ * Interligne de Baloo 2 : ses lignes naturelles font 1,6 em (contre 1,17 pour la police d'avant), ce qui faisait
+ * grandir les textes et descendre les lettres dans les pastilles. Les styles de l'habillage passent à 1,2 em,
+ * lettres centrées dans la ligne, comme le style par défaut de l'appli (MainActivity).
+ */
+val LIGNE_LMP = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None)

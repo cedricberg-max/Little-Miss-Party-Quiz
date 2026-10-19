@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 
 /** Durée de l'annonce du multiplicateur, calée sur l'éclat « points doublés » (lmp_bt_double) joué au même moment. */
@@ -50,7 +51,7 @@ fun AnnonceMultiplicateur(facteur: Int, restantes: Int, modifier: Modifier = Mod
             )
             Text(
                 "× $facteur", fontSize = 260.sp, lineHeight = 260.sp, fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
-                style = TextStyle(fontFamily = PoliceLmp, color = Neon.Or, shadow = Shadow(Neon.Or.copy(alpha = 0.7f), Offset.Zero, 50f)),
+                style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = Neon.Or, shadow = Shadow(Neon.Or.copy(alpha = 0.7f), Offset.Zero, 50f)),
                 modifier = Modifier.apparition(2000, cle).rebond(apres(2400, cle), 0.05f),
             )
             Text(

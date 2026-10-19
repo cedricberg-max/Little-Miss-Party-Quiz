@@ -40,6 +40,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import kotlin.math.PI
 import kotlin.math.abs
@@ -148,7 +149,7 @@ fun BonusMalus(
                 Text(
                     if (bonus) "BONUS !" else "MALUS !",
                     maxLines = 1,
-                    style = TextStyle(fontFamily = PoliceLmp,
+                    style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP,
                         brush = Brush.verticalGradient(listOf(accent2, accent)),
                         fontSize = 40.sp, fontWeight = FontWeight.Black, letterSpacing = 6.sp,
                         shadow = Shadow(accent.copy(alpha = 0.7f), Offset.Zero, 22f),
@@ -162,7 +163,7 @@ fun BonusMalus(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.widthIn(max = 560.dp),
-                        style = TextStyle(fontFamily = PoliceLmp, color = couleur, fontSize = 34.sp, fontWeight = FontWeight.ExtraBold, shadow = Shadow(Neon.Nuit, Offset(0f, 3f), 6f)),
+                        style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = couleur, fontSize = 34.sp, fontWeight = FontWeight.ExtraBold, shadow = Shadow(Neon.Nuit, Offset(0f, 3f), 6f)),
                     )
                 }
                 Text(
@@ -185,15 +186,15 @@ fun BonusMalus(
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (!bonus) {
-                        Text("Oups !", style = TextStyle(fontFamily = PoliceLmp, color = Neon.Halo, fontSize = 24.sp, fontWeight = FontWeight.Bold))
+                        Text("Oups !", style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = Neon.Halo, fontSize = 24.sp, fontWeight = FontWeight.Bold))
                         Spacer(Modifier.width(18.dp))
                     }
-                    Text("Score", style = TextStyle(fontFamily = PoliceLmp, color = Neon.Blanc.copy(alpha = 0.75f), fontSize = 24.sp, fontWeight = FontWeight.SemiBold))
+                    Text("Score", style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = Neon.Blanc.copy(alpha = 0.75f), fontSize = 24.sp, fontWeight = FontWeight.SemiBold))
                     Spacer(Modifier.width(12.dp))
                     Text(
                         "$compte",
                         maxLines = 1,
-                        style = TextStyle(fontFamily = PoliceLmp, color = Neon.Blanc, fontSize = 34.sp, fontWeight = FontWeight.Black, shadow = Shadow(accent.copy(alpha = 0.6f), Offset.Zero, 14f)),
+                        style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = Neon.Blanc, fontSize = 34.sp, fontWeight = FontWeight.Black, shadow = Shadow(accent.copy(alpha = 0.6f), Offset.Zero, 14f)),
                     )
                 }
                 Spacer(Modifier.height(2.dp))

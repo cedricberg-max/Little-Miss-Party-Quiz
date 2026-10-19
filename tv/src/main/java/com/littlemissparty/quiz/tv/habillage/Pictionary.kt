@@ -52,6 +52,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 
@@ -252,7 +253,7 @@ fun MotPictionary(taille: TextUnit, modifier: Modifier = Modifier) {
         "PICTIONARY",
         maxLines = 1,
         modifier = modifier,
-        style = TextStyle(fontFamily = PoliceLmp,
+        style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP,
             brush = Brush.verticalGradient(listOf(Neon.OrClair, Neon.Or, Neon.OrProfond)),
             fontSize = taille, fontWeight = FontWeight.Black, letterSpacing = taille * 0.12f,
             shadow = Shadow(Neon.Halo.copy(alpha = 0.6f), Offset.Zero, 18f),
@@ -340,7 +341,7 @@ fun IntroPictionary(equipe: String, couleur: Color, motMontre: Boolean, modifier
                 equipe,
                 color = couleur, fontSize = 60.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
-                style = TextStyle(fontFamily = PoliceLmp, shadow = Shadow(couleur.copy(alpha = 0.7f), Offset.Zero, 26f)),
+                style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, shadow = Shadow(couleur.copy(alpha = 0.7f), Offset.Zero, 26f)),
                 modifier = Modifier.widthIn(max = 880.dp).apparition(450, equipe),
             )
             Spacer(Modifier.height(30.dp))
@@ -384,7 +385,7 @@ fun RevelationPictionary(
                     if (trouve) "TROUVÉ !" else "Temps écoulé !",
                     maxLines = 1,
                     modifier = Modifier.rebond(trouve, 0.06f).apparition(0, trouve),
-                    style = TextStyle(fontFamily = PoliceLmp,
+                    style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP,
                         color = if (trouve) Neon.JusteClair else Neon.Or,
                         fontSize = if (trouve) 64.sp else 50.sp, fontWeight = FontWeight.Black, letterSpacing = 3.sp,
                         shadow = Shadow((if (trouve) Neon.JusteClair else Neon.Or).copy(alpha = 0.7f), Offset.Zero, 26f),
@@ -424,7 +425,7 @@ fun RevelationPictionary(
                             mot.uppercase(),
                             color = Neon.Blanc, fontSize = if (mot.length > 12) 34.sp else 44.sp, fontWeight = FontWeight.Black,
                             textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                            style = TextStyle(fontFamily = PoliceLmp, shadow = Shadow(Neon.Halo.copy(alpha = 0.6f), Offset.Zero, 18f)),
+                            style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, shadow = Shadow(Neon.Halo.copy(alpha = 0.6f), Offset.Zero, 18f)),
                         )
                         if (points != null && points > 0) {
                             Spacer(Modifier.height(10.dp))

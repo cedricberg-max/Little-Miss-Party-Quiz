@@ -57,6 +57,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import kotlin.math.PI
 import kotlin.math.abs
@@ -178,7 +179,7 @@ fun IntroPortes(valeurs: List<Int>, modifier: Modifier = Modifier, jouer: (Son) 
         Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
             LogoLmp(54.dp)
             Spacer(Modifier.height(8.dp))
-            Text("DERNIÈRE MANCHE", style = TextStyle(fontFamily = PoliceLmp, color = Neon.Or, fontSize = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = 8.sp))
+            Text("DERNIÈRE MANCHE", style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = Neon.Or, fontSize = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = 8.sp))
             Spacer(Modifier.height(6.dp))
             Text(
                 "LA MANCHE DU DESTIN",
@@ -198,7 +199,7 @@ fun IntroPortes(valeurs: List<Int>, modifier: Modifier = Modifier, jouer: (Son) 
             )
             Text(
                 "Tout peut basculer !",
-                style = TextStyle(fontFamily = PoliceLmp, color = Neon.Blanc, fontSize = 34.sp, fontWeight = FontWeight.Black),
+                style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = Neon.Blanc, fontSize = 34.sp, fontWeight = FontWeight.Black),
                 modifier = Modifier.graphicsLayer {
                     val p = ((t.value - 1_400f) / 260f).coerceIn(0f, 1f)
                     val s = 2.2f - 1.2f * p
@@ -220,8 +221,8 @@ fun IntroPortes(valeurs: List<Int>, modifier: Modifier = Modifier, jouer: (Son) 
                             .padding(horizontal = 14.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("${nomContenu(v)} ", style = TextStyle(fontFamily = PoliceLmp, color = Neon.Blanc, fontSize = 18.sp, fontWeight = FontWeight.Bold))
-                        Text(texteValeur(v), style = TextStyle(fontFamily = PoliceLmp, color = if (v < 0) Neon.Faux else Neon.JusteClair, fontSize = 18.sp, fontWeight = FontWeight.Black))
+                        Text("${nomContenu(v)} ", style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = Neon.Blanc, fontSize = 18.sp, fontWeight = FontWeight.Bold))
+                        Text(texteValeur(v), style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = if (v < 0) Neon.Faux else Neon.JusteClair, fontSize = 18.sp, fontWeight = FontWeight.Black))
                     }
                 }
             }
@@ -284,13 +285,13 @@ private fun EquipesQuiChoisissent(equipes: List<EquipePorte>, modifier: Modifier
                     ) {
                         Box(Modifier.size(22.dp).background(if (e.aChoisi) Neon.JusteClair else Color.White.copy(alpha = 0.15f), CircleShape), contentAlignment = Alignment.Center) {
                             if (e.aChoisi) {
-                                Text("✓", style = TextStyle(fontFamily = PoliceLmp, color = Neon.JusteTexte, fontSize = 15.sp, fontWeight = FontWeight.Black))
+                                Text("✓", style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = Neon.JusteTexte, fontSize = 15.sp, fontWeight = FontWeight.Black))
                             } else {
-                                Text("…", style = TextStyle(fontFamily = PoliceLmp, color = Neon.Blanc, fontSize = 13.sp, fontWeight = FontWeight.Black), modifier = Modifier.graphicsLayer { alpha = attente })
+                                Text("…", style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = Neon.Blanc, fontSize = 13.sp, fontWeight = FontWeight.Black), modifier = Modifier.graphicsLayer { alpha = attente })
                             }
                         }
                         Spacer(Modifier.width(7.dp))
-                        Text(e.nom, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = PoliceLmp, color = Neon.Blanc, fontSize = 16.sp, fontWeight = FontWeight.Black))
+                        Text(e.nom, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = Neon.Blanc, fontSize = 16.sp, fontWeight = FontWeight.Black))
                     }
                 }
             }
@@ -467,7 +468,7 @@ private fun PuceEquipe(nom: String, couleur: Color, largeurMax: Dp, modifier: Mo
     ) {
         Box(Modifier.size(11.dp).background(couleur, CircleShape))
         Spacer(Modifier.width(5.dp))
-        Text(nom, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = PoliceLmp, color = Neon.Blanc, fontSize = taille, fontWeight = FontWeight.Black))
+        Text(nom, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = Neon.Blanc, fontSize = taille, fontWeight = FontWeight.Black))
     }
 }
 
@@ -488,13 +489,13 @@ private fun GainsPorte(porte: PorteOuverte, ms: () -> Float, modifier: Modifier 
     ) {
         Text(
             texteDelta(porte.valeur),
-            style = TextStyle(fontFamily = PoliceLmp, color = if (porte.valeur < 0) Color.White else Neon.JusteTexte, fontSize = 22.sp, fontWeight = FontWeight.Black),
+            style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = if (porte.valeur < 0) Color.White else Neon.JusteTexte, fontSize = 22.sp, fontWeight = FontWeight.Black),
             modifier = Modifier
                 .background(if (porte.valeur < 0) Neon.Faux else Neon.JusteClair, RoundedCornerShape(50))
                 .padding(horizontal = 14.dp, vertical = 2.dp),
         )
         if (qui.isEmpty()) {
-            Text("Personne n'a ouvert cette porte !", style = TextStyle(fontFamily = PoliceLmp, color = Neon.Blanc.copy(alpha = 0.8f), fontSize = 18.sp, fontWeight = FontWeight.Black))
+            Text("Personne n'a ouvert cette porte !", style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = Neon.Blanc.copy(alpha = 0.8f), fontSize = 18.sp, fontWeight = FontWeight.Black))
         } else {
             // Jusqu'à 8 équipes derrière la même porte : 4 par ligne.
             qui.chunked(4).forEach { ligne ->
@@ -686,7 +687,7 @@ private fun ContenuPorte(valeur: Int, apparition: () -> Float) {
         Text(
             nomContenu(valeur).uppercase(),
             textAlign = TextAlign.Center,
-            style = TextStyle(fontFamily = PoliceLmp, color = couleur, fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp),
+            style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = couleur, fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp),
         )
     }
 }
@@ -774,11 +775,11 @@ private fun LigneClassement(e: LignePortes, evo: Evolution, i: Int, hauteur: Flo
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val rangMontre by remember(evo) { derivedStateOf { if (ms() < BASCULE_MS + 600f) evo.rangAvant else evo.rangApres } }
-        Text("${rangMontre + 1}", style = TextStyle(fontFamily = PoliceLmp, color = Neon.Or, fontSize = taille, fontWeight = FontWeight.Black), modifier = Modifier.width((hauteur * 0.7f).dp))
-        Text(e.nom, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = PoliceLmp, color = Neon.Blanc, fontSize = taille, fontWeight = FontWeight.Black), modifier = Modifier.weight(1f))
+        Text("${rangMontre + 1}", style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = Neon.Or, fontSize = taille, fontWeight = FontWeight.Black), modifier = Modifier.width((hauteur * 0.7f).dp))
+        Text(e.nom, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = Neon.Blanc, fontSize = taille, fontWeight = FontWeight.Black), modifier = Modifier.weight(1f))
         Text(
             texteValeur(gain),
-            style = TextStyle(fontFamily = PoliceLmp, color = if (gain < 0) Color.White else Neon.JusteTexte, fontSize = taille * 0.72f, fontWeight = FontWeight.Black),
+            style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = if (gain < 0) Color.White else Neon.JusteTexte, fontSize = taille * 0.72f, fontWeight = FontWeight.Black),
             modifier = Modifier
                 .graphicsLayer {
                     val p = ((ms() - DELTAS_MS) / 300f).coerceIn(0f, 1f)
@@ -791,7 +792,7 @@ private fun LigneClassement(e: LignePortes, evo: Evolution, i: Int, hauteur: Flo
         )
         Spacer(Modifier.width(12.dp))
         val score by remember(e) { derivedStateOf { valeurCompteur(e.avant, e.apres, (ms() - DELTAS_MS) / 1_200f) } }
-        Text(espaceMilliers(score), style = TextStyle(fontFamily = PoliceLmp, color = Neon.Blanc, fontSize = taille, fontWeight = FontWeight.Black), modifier = Modifier.widthIn(min = (hauteur * 1.6f).dp), textAlign = TextAlign.End)
+        Text(espaceMilliers(score), style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = Neon.Blanc, fontSize = taille, fontWeight = FontWeight.Black), modifier = Modifier.widthIn(min = (hauteur * 1.6f).dp), textAlign = TextAlign.End)
     }
     if (texte != null) {
         // L'étiquette du récit, à droite de la ligne, une équipe après l'autre.
@@ -814,7 +815,7 @@ private fun LigneClassement(e: LignePortes, evo: Evolution, i: Int, hauteur: Flo
                 Text(
                     texte,
                     maxLines = 1, softWrap = false,
-                    style = TextStyle(fontFamily = PoliceLmp, color = encre, fontSize = taille * 0.7f, fontWeight = FontWeight.Black),
+                    style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = encre, fontSize = taille * 0.7f, fontWeight = FontWeight.Black),
                     modifier = Modifier
                         .align(Alignment.CenterStart)
                         .apparition(0, texte)
@@ -878,9 +879,9 @@ private fun Bandeau(texte: String, accent: String?, modifier: Modifier = Modifie
             .padding(horizontal = 26.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(texte, maxLines = 1, softWrap = false, style = TextStyle(fontFamily = PoliceLmp, color = Neon.Blanc, fontSize = 26.sp, fontWeight = FontWeight.Black))
+        Text(texte, maxLines = 1, softWrap = false, style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = Neon.Blanc, fontSize = 26.sp, fontWeight = FontWeight.Black))
         if (accent != null) {
-            Text(accent, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = PoliceLmp, color = Color(0xFFFFD166), fontSize = 26.sp, fontWeight = FontWeight.Black))
+            Text(accent, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = Color(0xFFFFD166), fontSize = 26.sp, fontWeight = FontWeight.Black))
         }
     }
 }

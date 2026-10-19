@@ -36,6 +36,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import kotlin.math.PI
 import kotlin.math.cos
@@ -135,7 +136,7 @@ fun LaParole(nom: String, couleur: Color, visible: Boolean, modifier: Modifier =
             ) {
                 Text(
                     "🎤  LA PAROLE EST À",
-                    style = TextStyle(fontFamily = PoliceLmp, color = Neon.Or, fontSize = 24.sp, fontWeight = FontWeight.Black, letterSpacing = 4.sp),
+                    style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = Neon.Or, fontSize = 24.sp, fontWeight = FontWeight.Black, letterSpacing = 4.sp),
                 )
                 NomUneLigne(nom.ifBlank { "Équipe" }, couleur, 96f, 780.dp)
             }

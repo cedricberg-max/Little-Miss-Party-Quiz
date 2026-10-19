@@ -42,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlin.math.PI
@@ -142,7 +143,7 @@ fun Victoire(classement: List<Classee>, modifier: Modifier = Modifier) {
                         if (gagnants.size > 1) {
                             Text(
                                 "Égalité !",
-                                style = TextStyle(fontFamily = PoliceLmp, color = Neon.Or, fontSize = 36.sp, fontWeight = FontWeight.Black, shadow = Shadow(Neon.Or, Offset.Zero, 20f)),
+                                style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = Neon.Or, fontSize = 36.sp, fontWeight = FontWeight.Black, shadow = Shadow(Neon.Or, Offset.Zero, 20f)),
                                 maxLines = 1, modifier = Modifier.apparition(Tempo.FIN_VAINQUEUR, Unit),
                             )
                         }
