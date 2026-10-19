@@ -8,7 +8,7 @@ import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, roundFille
   readiness, upcoming, daysUntil, isoDay, duplicateShow, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
   soundIds, choiceImageIds, choiceImageList,
 } from "../web/public/show.js";
-import { guessTrack, defaultStart } from "../web/public/audio.js";
+import { guessTrack, defaultStart, normalizeLevel } from "../web/public/audio.js";
 import { FULL_SHOW, FULL_TUNES, tunePlaylist } from "../web/public/test-show.js";
 
 const GEMINI = `Titre : Les animaux de la jungle
@@ -552,6 +552,24 @@ describe("blind test et quiz musical", () => {
     assert.equal(defaultStart(210, 25), 45);
     assert.equal(defaultStart(60, 25), 20);
     assert.equal(defaultStart(20, 25), 0);
+  });
+  test("chaque extrait est mis au même niveau sonore, sans jamais dépasser la pleine échelle", () => {
+    const sine = (amp) => Float32Array.from({ length: 44_100 }, (_, i) => amp * Math.sin(i / 7));
+    const rms = (a) => Math.sqrt(a.reduce((s, x) => s + x * x, 0) / a.length);
+    const calme = sine(0.1), fort = sine(0.45);
+    assert.ok(normalizeLevel(calme) > 1);
+    assert.ok(normalizeLevel(fort) < 1);
+    for (const a of [calme, fort]) {
+      assert.ok(Math.abs(rms(a) - 0.2) < 0.03, `niveau ${rms(a)}`);
+      assert.ok(a.every((x) => Math.abs(x) < 1));
+    }
+    // Un pic isolé dans un morceau très calme : le gain s'arrête avant d'écrêter, le pic est adouci.
+    const pic = sine(0.02); pic[100] = 0.9;
+    normalizeLevel(pic);
+    assert.ok(pic.every((x) => Math.abs(x) < 1));
+    const silence = new Float32Array(1000);
+    assert.equal(normalizeLevel(silence), 1);
+    assert.ok(silence.every((x) => x === 0));
   });
   test("la prestation de test « tous les jeux » a un blind test et un quiz musical de comptines du domaine public", () => {
     const pl = tunePlaylist(FULL_TUNES.map((_, i) => ID(i)));
