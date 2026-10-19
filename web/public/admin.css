@@ -275,3 +275,10 @@ button.item { cursor: pointer; }
 .content-item .choice-photo { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 6px; }
 .content-item .choice-photo .choice-thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 10px; }
 .round select.count, .round select.finale { flex: none; max-width: 190px; }
+
+/* Pictionary : temps de dessin et séries de mots de la manche. */
+.picto-round { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.picto-series { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.picto-series .chip { padding: 5px 11px; font-size: 14px; }
+.picto-series .small { flex-basis: 100%; color: var(--muted, #6b5f80); }
+.content-series { grid-column: 1 / -1; margin: 10px 0 2px; font-size: 15px; color: var(--violet); }

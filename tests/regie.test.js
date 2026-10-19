@@ -1624,6 +1624,41 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
+  test("Régie PC : Pictionary rangé en séries, un mot à soi dans sa série, une manche choisit ses séries ou les tire au hasard", async () => {
+    const page = await admin();
+    await page.click("#nav button[data-screen=games]");
+    await page.locator('.game-card[data-game=pictionary] button').first().click();
+    await page.locator("#builtin-items h3.content-series", { hasText: "Animaux" }).waitFor();
+    await page.locator("#builtin-items h3.content-series", { hasText: "À manger" }).waitFor();
+    await page.fill("#bi-word", "Toboggan");
+    await page.fill("#bi-series", "Au parc");
+    await page.click("#builtin-add button[type=submit]");
+    await page.locator("#builtin-status", { hasText: "« Toboggan » est ajouté au jeu." }).waitFor();
+    await page.locator("#builtin-items h3.content-series", { hasText: "Au parc" }).waitFor();
+    assert.deepEqual((await library("contents")).pictionary.extra, [{ word: "Toboggan", series: "Au parc" }]);
+
+    await page.click("#nav button[data-screen=home]");
+    await page.click("#home-new");
+    await page.fill("#show-child", "Léa");
+    await page.fill("#show-age", "9");
+    await page.click("#round-add");
+    await page.locator("#show-rounds .round").nth(0).locator("select").first().selectOption("pictionary");
+    const picker = page.locator("#show-rounds .picto-series");
+    await picker.locator("span", { hasText: "Toutes les séries : 77 mots" }).waitFor();
+    await picker.locator("button", { hasText: "🎲 Au hasard" }).click();
+    assert.equal(await picker.locator("button.chip.active").count(), 3);
+    await picker.locator("button", { hasText: "Toutes" }).click();
+    assert.equal(await picker.locator("button.chip.active").count(), 0);
+    await picker.locator("button", { hasText: "Animaux (18)" }).click();
+    await picker.locator("button", { hasText: "Au parc (1)" }).click();
+    await picker.locator("span", { hasText: "Séries : 19 mots" }).waitFor();
+    await page.selectOption("#show-status", "publiee");
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
+    assert.deepEqual(Object.values(await library("shows"))[0].rounds, [{ type: "pictionary", duration: 90, series: ["Animaux", "Au parc"] }]);
+    await page.context().close();
+  });
+
   test("Sarah compose un paquet de mimes, l'ajoute à une prestation ; la régie le charge ou l'ajoute en direct", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     const page = await admin();

@@ -3,7 +3,7 @@
 import { PROFILES, profileForAge, defaultDuration, expressDuration } from "./profiles.js";
 import { shuffle } from "./mime-cards.js";
 import { CHANTE_WORDS, QUI_SUIS_JE, DISPARU_THEMES } from "./buzz-cards.js";
-import { PICTO_WORDS } from "./picto-cards.js";
+import { PICTO_WORDS, PICTO_OWN_SERIES } from "./picto-cards.js";
 
 /**
  * Portes mystères (jeu final) : 3 ou 4 portes, chacune cache un bonus ou un malus qui peut renverser le classement ;
@@ -136,7 +136,10 @@ export const CONTENT_GAMES = {
   pictionary: {
     unit: "mot", catalog: PICTO_WORDS, key: (w) => w.word.toLowerCase(), label: (w) => `${w.image ?? ""} ${w.word}`.trim(),
     clean: (x) => (typeof x?.word === "string" && x.word.trim()
-      ? { word: x.word.trim().slice(0, 40), ...(typeof x.image === "string" && x.image.trim() ? { image: x.image.trim().slice(0, 16) } : {}), level: 1 }
+      ? {
+        word: x.word.trim().slice(0, 40), ...(typeof x.image === "string" && x.image.trim() ? { image: x.image.trim().slice(0, 16) } : {}), level: 1,
+        ...(typeof x.series === "string" && x.series.trim() ? { series: x.series.trim().slice(0, 30) } : {}),
+      }
       : null),
   },
   disparu: {
@@ -196,6 +199,18 @@ function disparuGrid(theme, n, random) {
 }
 
 /** Une manche est-elle complète (quiz choisi, ou paquet de mimes choisi) ? Les jeux intégrés le sont toujours. */
+/** Série d'un mot du Pictionary ; un mot ajouté sans série va dans « Mes mots ». */
+export const pictoSeriesOf = (w) => (typeof w?.series === "string" && w.series.trim() ? w.series.trim() : PICTO_OWN_SERIES);
+
+/** Les séries de ces mots, dans l'ordre où elles apparaissent. */
+export const pictoSeriesList = (words) => [...new Set(words.map(pictoSeriesOf))];
+
+/** Séries retenues pour une manche de Pictionary, ou null pour toutes. */
+export const pictoRoundSeries = (round) => {
+  const list = Array.isArray(round?.series) ? round.series.filter((x) => typeof x === "string" && x.trim()).map((x) => x.trim()) : [];
+  return list.length ? list : null;
+};
+
 export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || round.type === "statues" || round.type === "pictionary" || round.type === "portes" ? true : round.type === "mimes" ? round.deckId : MUSIC_GAMES[round.type] ? round.playlistId : round.quizId));
 
 /** Morceaux jouables d'une playlist : un titre et un extrait enregistré. */
@@ -290,8 +305,11 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     }
     if (round.type === "pictionary") {
       // Un seul élément : le paquet de mots mélangé (adapté à l'âge), joué équipe par équipe, un mot par tour.
-      const words = activeItems("pictionary", contents?.pictionary).filter((w) => profile !== "PETITS" || w.level !== 2);
-      if (!words.length) { problems.push(`Manche ${i + 1} (Pictionary) : aucun mot actif (page Jeux de l'administration).`); return; }
+      // Séries choisies pour la manche (aucune : toutes les séries).
+      const series = pictoRoundSeries(round);
+      const words = activeItems("pictionary", contents?.pictionary)
+        .filter((w) => (profile !== "PETITS" || w.level !== 2) && (!series || series.includes(pictoSeriesOf(w))));
+      if (!words.length) { problems.push(`Manche ${i + 1} (Pictionary) : aucun mot actif${series ? " dans les séries choisies" : ""} (page Jeux de l'administration).`); return; }
       const duration = PICTO_SECONDS.includes(round.duration) ? round.duration : PICTO_SEC;
       rounds.push({ title: ROUND_TYPES.pictionary, count: 1, kind: "pictionary" });
       questions.push({

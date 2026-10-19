@@ -6,8 +6,9 @@ import { MIME_CATALOG } from "../web/public/mime-cards.js";
 import { DISPARU_THEMES } from "../web/public/buzz-cards.js";
 import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, roundFilled,
   readiness, upcoming, daysUntil, isoDay, duplicateShow, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
-  soundIds, choiceImageIds, choiceImageList,
+  soundIds, choiceImageIds, choiceImageList, pictoSeriesList, pictoSeriesOf,
 } from "../web/public/show.js";
+import { PICTO_WORDS, PICTO_SERIES } from "../web/public/picto-cards.js";
 import { guessTrack, defaultStart, normalizeLevel } from "../web/public/audio.js";
 import { FULL_SHOW, FULL_TUNES, tunePlaylist } from "../web/public/test-show.js";
 
@@ -691,6 +692,22 @@ describe("Régie PC : contenus intégrés réglés, nombre de questions, notes",
     const family = (q) => DISPARU_THEMES.find((t) => q.cards.every((c) => t.objects.some((o) => o.word === c.word))).theme;
     assert.equal(new Set(grids.map(family)).size, 8, "8 familles différentes sur les deux manches");
     assert.equal(disparuObjects({ objects: 40 }, "MOYENS"), 7);
+  });
+
+  test("Pictionary : mots rangés en séries, la manche garde seulement les séries choisies", () => {
+    assert.ok(PICTO_WORDS.every((w) => PICTO_SERIES.includes(w.series)), "chaque mot intégré a sa série");
+    assert.ok(PICTO_SERIES.length >= 5);
+    const contents = { pictionary: { extra: [{ word: "Toboggan", image: "🛝", series: "Au parc" }, { word: "Doudou" }] } };
+    assert.deepEqual(pictoSeriesList(activeItems("pictionary", contents.pictionary)).slice(-2), ["Au parc", "Mes mots"]);
+    const deck = (series) => buildSnapshot("s", { age: 9, rounds: [{ type: "pictionary", series }] }, {}, {}, Math.random, {}, contents);
+    const animaux = deck(["Animaux", "Au parc"]).snapshot.quiz.questions[0].cards.map((c) => c.word);
+    const attendus = [...PICTO_WORDS.filter((w) => w.series === "Animaux").map((w) => w.word), "Toboggan"];
+    assert.deepEqual([...animaux].sort(), attendus.sort(), "Animaux et la série ajoutée, rien d'autre");
+    assert.equal(deck(null).snapshot.quiz.questions[0].cards.length, PICTO_WORDS.length + 2, "aucune série choisie : toutes");
+    assert.equal(pictoSeriesOf({ word: "X" }), "Mes mots");
+    const vide = deck(["Série effacée"]);
+    assert.equal(vide.snapshot, null);
+    assert.match(vide.problems[0], /aucun mot actif dans les séries choisies/);
   });
 
   test("tout retiré : la manche est signalée, jamais jouée vide", () => {

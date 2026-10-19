@@ -15,7 +15,9 @@ import {
   buildSnapshot, estimateMinutes, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, BUILTIN_GAMES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
   roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC, PICTO_SECONDS, PICTO_SEC, PICTO_POINTS, PICTO_RULE, PORTES_DOORS, PORTES_DEFAULT, PORTES_VALUES,
   blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras, contentSlot, contentImages,
+  pictoSeriesOf, pictoSeriesList, pictoRoundSeries,
 } from "./show.js";
+import { PICTO_OWN_SERIES } from "./picto-cards.js";
 import { EXTRACT_SECONDS, guessTrack, defaultStart, decodeFile, makeExtract, synthTune, encodeMp3, soundId } from "./audio.js";
 import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
 import { watchVersion, showUpdateBanner } from "./version.js";
@@ -362,11 +364,45 @@ function formShow() {
     rounds: editing.rounds.filter(roundFilled).map((r) => (BUILTIN_GAMES[r.type] ? { type: r.type, count: r.count ?? BUILTIN_GAMES[r.type].count, ...(r.type === "disparu" && r.objects ? { objects: r.objects } : {}) }
       : r.type === "mimes" ? { type: "mimes", deckId: r.deckId }
       : r.type === "statues" ? { type: "statues", duration: r.duration ?? STATUES_SEC }
-      : r.type === "pictionary" ? { type: "pictionary", duration: r.duration ?? PICTO_SEC }
+      : r.type === "pictionary" ? { type: "pictionary", duration: r.duration ?? PICTO_SEC, ...(pictoRoundSeries(r) ? { series: pictoRoundSeries(r) } : {}) }
       : r.type === "portes" ? { type: "portes", doors: r.doors ?? PORTES_DEFAULT }
       : MUSIC_GAMES[r.type] ? { type: r.type, playlistId: r.playlistId }
       : { type: r.type ?? "quiz", quizId: r.quizId, ...(r.count > 0 ? { count: r.count } : {}), ...((r.type ?? "quiz") === "quiz" && r.finale > 0 ? { finale: r.finale } : {}) })),
   };
+}
+
+/** Nombre de séries tirées par « Au hasard ». */
+const PICTO_RANDOM_SERIES = 3;
+
+/**
+ * Pictionary : les séries de mots de la manche (Animaux, À manger…). Aucune cochée : toutes les séries.
+ * « Au hasard » en tire quelques-unes ; le nombre de mots retenus s'affiche.
+ */
+function pictoSeriesPicker(r) {
+  const words = activeItems("pictionary", contents.pictionary);
+  const all = pictoSeriesList(words);
+  const box = h("div", { class: "picto-series" });
+  const draw = () => {
+    const chosen = pictoRoundSeries(r) ?? [];
+    const count = words.filter((w) => !chosen.length || chosen.includes(pictoSeriesOf(w))).length;
+    const set = (list) => { r.series = list.length ? list : null; draw(); refreshSummary(); };
+    box.replaceChildren(
+      h("span", { class: "small", text: chosen.length ? `Séries : ${count} mots` : `Toutes les séries : ${count} mots` }),
+      ...all.map((name) => h("button", {
+        type: "button", class: `chip${chosen.includes(name) ? " active" : ""}`, "aria-pressed": chosen.includes(name) ? "true" : "false",
+        text: `${name} (${words.filter((w) => pictoSeriesOf(w) === name).length})`,
+        onclick: () => set(chosen.includes(name) ? chosen.filter((x) => x !== name) : [...chosen, name]),
+      })),
+      h("button", {
+        type: "button", class: "chip", text: "🎲 Au hasard",
+        title: `Tirer ${PICTO_RANDOM_SERIES} séries au hasard`,
+        onclick: () => set([...all].sort(() => Math.random() - 0.5).slice(0, Math.min(PICTO_RANDOM_SERIES, all.length))),
+      }),
+      chosen.length ? h("button", { type: "button", class: "chip", text: "Toutes", onclick: () => set([]) }) : null,
+    );
+  };
+  draw();
+  return box;
 }
 
 function refreshRounds() {
@@ -401,9 +437,11 @@ function refreshRounds() {
         ? h("select", { class: "grow", "aria-label": "Durée", onchange: (e) => { r.duration = Number(e.target.value); refreshSummary(); } },
           ...STATUES_SECONDS.map((n) => h("option", { value: n, selected: (r.duration ?? STATUES_SEC) === n, text: `${n} secondes de musique (on danse, on se fige à l'arrêt ; vous désignez l'équipe gagnante)` })))
         : r.type === "pictionary"
-        // Pictionary : les mots viennent du catalogue (page Jeux), seulement le temps de dessin par équipe.
-        ? h("select", { class: "grow", "aria-label": "Temps de dessin", onchange: (e) => { r.duration = Number(e.target.value); refreshSummary(); } },
-          ...PICTO_SECONDS.map((n) => h("option", { value: n, selected: (r.duration ?? PICTO_SEC) === n, text: `${n} secondes de dessin par équipe (un mot par tour, ${PICTO_POINTS} points s'il est trouvé)` })))
+        // Pictionary : les mots viennent du catalogue (page Jeux) ; le temps de dessin et les séries de mots.
+        ? h("div", { class: "grow picto-round" },
+          h("select", { "aria-label": "Temps de dessin", onchange: (e) => { r.duration = Number(e.target.value); refreshSummary(); } },
+            ...PICTO_SECONDS.map((n) => h("option", { value: n, selected: (r.duration ?? PICTO_SEC) === n, text: `${n} secondes de dessin par équipe (un mot par tour, ${PICTO_POINTS} points s'il est trouvé)` }))),
+          pictoSeriesPicker(r))
         : r.type === "portes"
         // Portes mystères : rien à préparer, seulement le nombre de portes (valeurs mélangées à chaque partie).
         ? h("select", { class: "grow", "aria-label": "Nombre de portes", onchange: (e) => { r.doors = Number(e.target.value); refreshSummary(); } },
@@ -1709,7 +1747,16 @@ function renderBuiltin() {
         },
       }) : null);
   };
-  $("builtin-items").replaceChildren(...game.catalog.map((x) => tile(x, false)), ...extra.map((x) => tile(x, true)));
+  const tiles = [...game.catalog.map((x) => [x, false]), ...extra.map((x) => [x, true])];
+  // Pictionary : les mots rangés par série (Animaux, À manger…, puis « Mes mots »).
+  if (type === "pictionary") {
+    $("builtin-items").replaceChildren(...pictoSeriesList(tiles.map(([x]) => x)).flatMap((name) => [
+      h("h3", { class: "content-series", text: name }),
+      ...tiles.filter(([x]) => pictoSeriesOf(x) === name).map(([x, custom]) => tile(x, custom)),
+    ]));
+    return;
+  }
+  $("builtin-items").replaceChildren(...tiles.map(([x, custom]) => tile(x, custom)));
 }
 
 /**
@@ -1760,7 +1807,12 @@ function renderBuiltinForm() {
   const form = $("builtin-add");
   const field = (label, id, props = {}) => h("label", { class: props.wide ? "wide" : "" }, label, h(props.area ? "textarea" : "input", { id, maxlength: props.max ?? 60, rows: props.rows, placeholder: props.placeholder ?? "" }));
   const fields = type === "chante" ? [field("Nouveau mot", "bi-word", { max: 40, placeholder: "arc-en-ciel" })]
-    : type === "pictionary" ? [field("Mot à dessiner", "bi-word", { max: 40, placeholder: "Toboggan" }), field("Émoji (facultatif)", "bi-emoji", { max: 16, placeholder: "🛝" })]
+    : type === "pictionary" ? [
+      field("Mot à dessiner", "bi-word", { max: 40, placeholder: "Toboggan" }), field("Émoji (facultatif)", "bi-emoji", { max: 16, placeholder: "🛝" }),
+      // Série : une existante (liste) ou une nouvelle ; vide = « Mes mots ».
+      h("label", {}, "Série (facultatif)", h("input", { id: "bi-series", maxlength: 30, list: "bi-series-list", placeholder: PICTO_OWN_SERIES }),
+        h("datalist", { id: "bi-series-list" }, ...pictoSeriesList([...CONTENT_GAMES.pictionary.catalog, ...builtinState(type).extra]).map((name) => h("option", { value: name })))),
+    ]
     : type === "quisuis" ? [
       field("Réponse", "bi-answer", { placeholder: "Le kangourou" }), field("Émoji (facultatif)", "bi-emoji", { max: 16, placeholder: "🦘" }),
       ...[1, 2, 3, 4].map((n) => field(`Indice ${n}${n === 1 ? " (le plus difficile)" : n === 4 ? " (le plus facile)" : ""}`, `bi-clue${n}`, { wide: true, max: 120 })),
@@ -1779,7 +1831,7 @@ $("builtin-add").onsubmit = (e) => {
   const game = CONTENT_GAMES[type];
   const val = (id) => $(id)?.value.trim() ?? "";
   const raw = type === "chante" ? { word: val("bi-word") }
-    : type === "pictionary" ? { word: val("bi-word"), image: val("bi-emoji") }
+    : type === "pictionary" ? { word: val("bi-word"), image: val("bi-emoji"), series: val("bi-series") }
     : type === "quisuis" ? { answer: val("bi-answer"), emoji: val("bi-emoji"), clues: [1, 2, 3, 4].map((n) => val(`bi-clue${n}`)).filter(Boolean) }
     : { theme: val("bi-theme"), objects: val("bi-objects").split("\n").map((line) => {
       const m = line.trim().match(/^(.*\S)\s+(\S+)$/u);
