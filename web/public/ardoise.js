@@ -306,3 +306,80 @@ export function afficherMotSecret(hote, { mot, image = "" }) {
     },
   };
 }
+
+/**
+ * Choix du mot par le dessinateur : trois cartes (image + mot) qu'il fait défiler du doigt ou avec les flèches,
+ * puis « Je choisis ce mot ! ». surChoix(index) n'est appelé qu'une fois ; ensuite la carte confirme le choix.
+ * [mots] = [{ mot, image }] (image = adresse ou émoji).
+ */
+export function choisirMot(hote, mots, { surChoix = () => {} } = {}) {
+  hote.classList.add("choix-mot");
+  hote.innerHTML = `
+    <div class="choix-titre">🤫 Choisis ton mot secret</div>
+    <div class="choix-piste">
+      <button type="button" class="choix-fleche" data-sens="-1" aria-label="Mot précédent">‹</button>
+      <div class="choix-vue"><div class="choix-cartes"></div></div>
+      <button type="button" class="choix-fleche" data-sens="1" aria-label="Mot suivant">›</button>
+    </div>
+    <div class="choix-points"></div>
+    <button type="button" class="choix-valider">Je choisis ce mot !</button>`;
+  const cartes = hote.querySelector(".choix-cartes");
+  const points = hote.querySelector(".choix-points");
+  const valider = hote.querySelector(".choix-valider");
+  let courant = 0;
+  let choisi = false;
+  mots.forEach(({ mot, image = "" }, i) => {
+    const c = document.createElement("div");
+    c.className = "choix-carte";
+    const img = document.createElement("div");
+    img.className = "mot-secret-image";
+    if (/^(https?:|data:|\/|\.\/)/.test(image)) {
+      const el = document.createElement("img");
+      el.src = image;
+      el.alt = "";
+      img.append(el);
+    } else img.textContent = image;
+    const m = document.createElement("div");
+    m.className = "mot-secret-mot";
+    m.textContent = mot;
+    c.append(img, m);
+    cartes.append(c);
+    const p = document.createElement("button");
+    p.type = "button";
+    p.className = "choix-point";
+    p.setAttribute("aria-label", `Mot ${i + 1}`);
+    p.onclick = () => aller(i);
+    points.append(p);
+  });
+  function aller(i) {
+    if (choisi) return;
+    courant = (i + mots.length) % mots.length;
+    cartes.style.transform = `translateX(${-100 * courant}%)`;
+    points.querySelectorAll(".choix-point").forEach((p, k) => p.setAttribute("aria-current", String(k === courant)));
+  }
+  hote.querySelectorAll(".choix-fleche").forEach((b) => { b.onclick = () => aller(courant + Number(b.dataset.sens)); });
+  // Glisser du doigt vers la gauche ou la droite.
+  let depart = null;
+  cartes.addEventListener("pointerdown", (e) => { depart = e.clientX; });
+  cartes.addEventListener("pointerup", (e) => {
+    if (depart === null) return;
+    const dx = e.clientX - depart;
+    depart = null;
+    if (Math.abs(dx) > 40) aller(courant + (dx < 0 ? 1 : -1));
+  });
+  valider.onclick = () => {
+    if (choisi) return;
+    choisi = true;
+    hote.classList.add("choix-fait");
+    valider.disabled = true;
+    valider.textContent = "C'est noté ! Sarah connaît ton mot.";
+    surChoix(courant);
+  };
+  aller(0);
+  return {
+    masquer() {
+      hote.innerHTML = "";
+      hote.classList.remove("choix-mot", "choix-fait");
+    },
+  };
+}
