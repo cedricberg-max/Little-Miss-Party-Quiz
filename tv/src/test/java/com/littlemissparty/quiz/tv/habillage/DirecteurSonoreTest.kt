@@ -69,6 +69,22 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `les dernieres questions a points doubles ne sonnent pas comme un nouveau jeu`() {
+        val d = DirecteurSonore()
+        d.observer(salon)
+        d.observer(q1)
+        d.observer(q2)
+        // Passage aux points ×2 : un éclat « points doublés », une seule fois, sans jingle de manche ni transition.
+        val bascule = d.observer(q2.copy(index = 8, superFinale = true)).sons()
+        assertTrue(Son.BT_DOUBLE in bascule)
+        assertFalse(Son.MANCHE in bascule || Son.TRANSITION in bascule)
+        // Les questions ×2 suivantes s'enchaînent comme les autres.
+        val suivante = d.observer(q2.copy(index = 9, superFinale = true)).sons()
+        assertTrue(Son.WHOOSH in suivante)
+        assertFalse(Son.BT_DOUBLE in suivante || Son.MANCHE in suivante)
+    }
+
+    @Test
     fun `un tic par reponse recue, rien si rien ne change`() {
         val d = DirecteurSonore()
         d.observer(q2)
