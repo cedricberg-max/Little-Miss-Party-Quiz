@@ -55,6 +55,8 @@ data class GameState(
     val segments: List<Segment> = emptyList(),
     val awards: Map<String, Map<String, Award>> = emptyMap(),
     val adjustments: Map<Int, ScoreAdjusted> = emptyMap(),
+    /** Question en cours au moment de chaque correction (numéro de l'événement → question) : le bonus compte dans ce jeu. */
+    val adjustedIn: Map<Int, String> = emptyMap(),
     val lastSeq: Int = 0,
     val hold: Hold? = null,
     /** Heure du serveur où se termine le décompte de la dernière reprise. */
@@ -257,7 +259,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         }
         is ScoreAdjusted ->
             if (e.delta == 0 || e.team.isBlank()) null
-            else s.copy(adjustments = s.adjustments + (e.seq to e))
+            else s.copy(adjustments = s.adjustments + (e.seq to e), adjustedIn = s.qid?.let { s.adjustedIn + (e.seq to it) } ?: s.adjustedIn)
         is Undone ->
             if (e.target !in s.adjustments) null
             else s.copy(adjustments = s.adjustments - e.target)

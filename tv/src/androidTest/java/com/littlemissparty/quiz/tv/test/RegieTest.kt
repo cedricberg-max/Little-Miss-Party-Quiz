@@ -41,10 +41,26 @@ class RegieTest : TestTv() {
         val avant = points(licornes, code, licornes.uid)
         assertTrue(avant >= Scoring.BASE)
 
-        // Correction de score depuis la régie.
-        assertEquals("applied", regie.commande(code, "adjust", mapOf("team" to licornes.uid, "delta" to 50)))
+        // Correction de score depuis la régie : la TV l'annonce en grand, avec le montant exact, puis
+        // l'animation s'efface d'elle-même (2 s : on la guette dès l'envoi).
+        val bonus = regie.envoyer(code, "adjust", extra = mapOf("team" to licornes.uid, "delta" to 50))!!
+        ecran.apercoit("+50 POINTS")
+        ecran.apercoit("BONUS !", 1_000)
+        assertEquals("applied", regie.verdict(code, bonus))
         attendreQue("correction publiée") { points(licornes, code, licornes.uid).takeIf { it == avant + 50 } }
+        ecran.neVoitPas("BONUS !", 6_000)
         ecran.capture("apres-correction")
+        // Malus : montant exact aussi, et le jeu continue dessous.
+        val malus = regie.envoyer(code, "adjust", extra = mapOf("team" to licornes.uid, "delta" to -30))!!
+        ecran.apercoit("−30 POINTS")
+        ecran.apercoit("MALUS !", 1_000)
+        assertEquals("applied", regie.verdict(code, malus))
+        ecran.neVoitPas("MALUS !", 6_000)
+        ecran.voit("Voir les scores")
+        attendreQue("malus publié") { points(licornes, code, licornes.uid).takeIf { it == avant + 20 } }
+        // Une validation = une seule animation : rien ne revient ensuite.
+        Thread.sleep(3_000)
+        assertFalse("Aucune animation rejouée", ecran.affiche("BONUS !") || ecran.affiche("MALUS !"))
     }
 
     @Test

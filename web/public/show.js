@@ -78,20 +78,63 @@ export const QUIZ_GAMES = {
 export const BUILTIN_GAMES = {
   chante: {
     unit: "mot", count: 6, duration: 30, rule: "le premier qui buzze chante une chanson avec ce mot",
-    items: (profile) => CHANTE_WORDS.filter((w) => profile !== "PETITS" || w.level === 1),
+    items: (profile, random, list) => list.filter((w) => profile !== "PETITS" || w.level === 1),
     question: (w) => ({ text: w.word, choices: [w.word], correct: 0, kind: "chante" }),
   },
   quisuis: {
     unit: "personnage", count: 5, duration: 40, rule: "un indice de plus toutes les 10 secondes",
-    items: (profile) => QUI_SUIS_JE.filter((p) => profile !== "PETITS" || p.level === 1),
+    items: (profile, random, list) => list.filter((p) => profile !== "PETITS" || p.level === 1),
     question: (p) => ({ text: "Qui suis-je ?", choices: [p.answer], correct: 0, kind: "quisuis", cards: p.clues.map((word) => ({ word })), image: p.emoji }),
   },
   disparu: {
     unit: "grille", count: 4, duration: 45, rule: "on mémorise les objets, puis l'un d'eux disparaît",
-    items: (profile, random) => DISPARU_THEMES.map((t) => disparuGrid(t, DISPARU_OBJECTS[profile] ?? 7, random)),
+    items: (profile, random, list) => list.map((t) => disparuGrid(t, DISPARU_OBJECTS[profile] ?? 7, random)),
     question: (g) => ({ text: "Qui a disparu ?", choices: [g.missing.word], correct: 0, kind: "disparu", cards: g.objects, image: g.missing.image, duration: g.duration }),
   },
 };
+
+/**
+ * Contenus des jeux intégrés réglables dans l'administration (page Jeux) : `library/contents/<jeu>` garde
+ * les éléments du catalogue retirés (`off`, leurs clés) et les ajouts de Sarah (`extra`). Le catalogue du
+ * code n'est jamais modifié ; un ajout mal formé est ignoré, il n'empêche jamais de jouer.
+ */
+export const CONTENT_GAMES = {
+  chante: {
+    unit: "mot", catalog: CHANTE_WORDS, key: (w) => w.word.toLowerCase(), label: (w) => w.word,
+    clean: (x) => (typeof x?.word === "string" && x.word.trim() ? { word: x.word.trim().slice(0, 40), level: 1 } : null),
+  },
+  quisuis: {
+    unit: "personnage", catalog: QUI_SUIS_JE, key: (p) => p.answer.toLowerCase(), label: (p) => `${p.emoji ?? ""} ${p.answer}`.trim(),
+    clean: (x) => {
+      const clues = (Array.isArray(x?.clues) ? x.clues : []).filter((c) => typeof c === "string" && c.trim()).map((c) => c.trim().slice(0, 120)).slice(0, 4);
+      if (typeof x?.answer !== "string" || !x.answer.trim() || clues.length < 2) return null;
+      return { answer: x.answer.trim().slice(0, 60), emoji: typeof x.emoji === "string" ? x.emoji.trim().slice(0, 16) : "", clues, level: 1 };
+    },
+  },
+  disparu: {
+    unit: "famille", catalog: DISPARU_THEMES, key: (t) => t.theme.toLowerCase(), label: (t) => t.theme,
+    clean: (x) => {
+      const objects = (Array.isArray(x?.objects) ? x.objects : [])
+        .filter((o) => typeof o?.word === "string" && o.word.trim() && typeof o.image === "string" && o.image.trim())
+        .map((o) => ({ word: o.word.trim().slice(0, 40), image: o.image.trim().slice(0, 16) })).slice(0, 12);
+      if (typeof x?.theme !== "string" || !x.theme.trim() || objects.length < 5) return null;
+      return { theme: x.theme.trim().slice(0, 60), objects };
+    },
+  },
+};
+
+/** Ajouts valables de Sarah pour un jeu intégré (les éléments mal formés sont écartés). */
+export function contentExtras(type, content) {
+  const game = CONTENT_GAMES[type];
+  return (Array.isArray(content?.extra) ? content.extra : Object.values(content?.extra ?? {})).map(game.clean).filter(Boolean);
+}
+
+/** Éléments jouables d'un jeu intégré : le catalogue sans les éléments retirés, plus les ajouts. */
+export function activeItems(type, content) {
+  const game = CONTENT_GAMES[type];
+  const off = new Set((Array.isArray(content?.off) ? content.off : Object.values(content?.off ?? {})).map((k) => `${k}`.toLowerCase()));
+  return [...game.catalog, ...contentExtras(type, content)].filter((x) => !off.has(game.key(x)));
+}
 
 /** Qui a disparu ? : objets par grille selon l'âge, et temps de recherche après la mémorisation. */
 const DISPARU_OBJECTS = { PETITS: 5, MOYENS: 7, GRANDS: 9, ADULTES: 9 };
@@ -164,7 +207,7 @@ function mimeItem(round, deck, i, random) {
  * un seul élément qui porte son paquet de cartes.
  * Renvoie `{ snapshot, problems }` ; `snapshot` est nul si rien n'est jouable.
  */
-export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.random, playlists = {}) {
+export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.random, playlists = {}, contents = {}) {
   const profile = PROFILES[show.profile] ? show.profile : profileForAge(show.age);
   const problems = [];
   // Un bloc par manche préparée : la Super Finale rejoint ensuite le quiz qu'elle termine.
@@ -206,7 +249,11 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     const builtin = BUILTIN_GAMES[round.type];
     if (builtin) {
       const count = Math.max(1, Math.min(12, round.count ?? builtin.count));
-      const picked = shuffle(builtin.items(profile, random), random).slice(0, count);
+      const picked = shuffle(builtin.items(profile, random, activeItems(round.type, contents?.[round.type])), random).slice(0, count);
+      if (!picked.length) {
+        problems.push(`Manche ${i + 1} (${ROUND_TYPES[round.type]}) : aucun ${CONTENT_GAMES[round.type].unit} actif (page Jeux de l'administration).`);
+        return;
+      }
       rounds.push({ title: ROUND_TYPES[round.type], count: picked.length });
       picked.forEach((item, j) => questions.push({
         id: `r${i + 1}q${j + 1}`, duration: builtin.duration, double: false, round: ROUND_TYPES[round.type], ...builtin.question(item),
@@ -220,7 +267,8 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     const game = QUIZ_GAMES[round.type];
     const label = round.type === "finale" || game ? ROUND_TYPES[round.type] : quiz?.title ?? `Manche ${i + 1}`;
     if (!quiz) { problems.push(`Manche ${i + 1} : le quiz n'existe plus dans la bibliothèque.`); return; }
-    const list = game ? game.questions(quiz) : playable(quiz);
+    // Nombre de questions choisi dans la prestation : les premières du quiz, dans son ordre.
+    const list = (game ? game.questions(quiz) : playable(quiz)).slice(0, round.count > 0 ? round.count : undefined);
     if (!list.length) {
       problems.push(`Manche ${i + 1} (${quiz.title}) : ${game?.missing ?? "aucune question validée"}.`);
       return;
@@ -259,6 +307,8 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
   return {
     snapshot: {
       showId, title, childName: show.childName?.trim() ?? "", age: show.age ?? null, profile, rounds,
+      // Notes de Sarah pour l'animatrice, lues sur la régie le jour J (la TV les ignore).
+      ...(show.notes?.trim() ? { notes: show.notes.trim().slice(0, 2000) } : {}),
       quiz: { id: showId, title, questions },
     },
     problems,
@@ -310,14 +360,14 @@ export function daysUntil(date, today = isoDay()) {
  * État de préparation d'une prestation, pour le tableau de bord : « prete » quand elle est
  * complète et visible sur la régie, sinon la liste de ce qui reste à faire.
  */
-export function readiness(show, quizzes, mimes = {}, playlists = {}) {
+export function readiness(show, quizzes, mimes = {}, playlists = {}, contents = {}) {
   if (show.status === "archivee") return { level: "archivee", todo: [] };
   const todo = [];
   if (!show.date) todo.push("Ajouter la date");
   if (!show.age) todo.push("Indiquer l'âge");
   if (!(show.rounds ?? []).filter(roundFilled).length) todo.push("Ajouter une manche");
   else {
-    const { snapshot, problems } = buildSnapshot("x", show, quizzes, mimes, Math.random, playlists);
+    const { snapshot, problems } = buildSnapshot("x", show, quizzes, mimes, Math.random, playlists, contents);
     todo.push(...problems.filter((p) => snapshot || !p.startsWith("Aucune question jouable")));
     if (!snapshot && !problems.some((p) => p.startsWith("Manche"))) todo.push("Valider des questions");
   }
@@ -370,8 +420,8 @@ export function lockedUntil(questions, index) {
  * insérer : chrono du profil de la prestation, identifiants nouveaux (préfixe [prefix]) pour ne jamais
  * croiser une question déjà jouée. Le quiz de la bibliothèque n'est pas modifié.
  */
-export function gameQuestions(source, quizzes, profile, prefix, mimes = {}, playlists = {}) {
-  const { snapshot, problems } = buildSnapshot("ajout", { profile, rounds: [source] }, quizzes, mimes, Math.random, playlists);
+export function gameQuestions(source, quizzes, profile, prefix, mimes = {}, playlists = {}, contents = {}) {
+  const { snapshot, problems } = buildSnapshot("ajout", { profile, rounds: [source] }, quizzes, mimes, Math.random, playlists, contents);
   if (!snapshot) return { questions: [], problems };
   return { questions: snapshot.quiz.questions.map((q, j) => ({ ...q, id: `${prefix}${q.kind === "mime" ? "m" : "q"}${j + 1}` })), problems };
 }

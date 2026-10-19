@@ -151,6 +151,25 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 /* Confirmation de la régie : titre, explication, gros bouton d'action, Annuler. */
 .regie .ask-box { max-width: 420px; text-align: left; border: 1px solid var(--trait); box-shadow: 0 18px 60px rgba(0, 0, 0, .55); }
 .regie .ask-box .modal-title { font-size: 22px; color: var(--gold); }
+.regie .team .pts-open { width: auto; padding: 0 12px; white-space: nowrap; color: var(--gold); }
+.regie .pts-box { gap: 10px; text-align: center; }
+.regie .pts-sign { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: var(--panel); border-radius: 14px; padding: 4px; }
+.regie .pts-sign button { min-height: 44px; border: 0; border-radius: 11px; background: transparent; color: var(--ink-soft); font-size: 17px; font-weight: 800; }
+.regie .pts-sign #pts-bonus.on { background: linear-gradient(180deg, #F6DAAA, #E0B577); color: #2a1240; }
+.regie .pts-sign #pts-malus.on { background: #FF7A2F; color: #2a1240; }
+.regie .pts-value { margin: 2px 0 0; font-size: 56px; line-height: 1; font-weight: 900; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.regie .pts-value.bonus { color: var(--gold); }
+.regie .pts-value.malus { color: #FF9A5C; }
+.regie .pts-preview { margin: 0; font-size: 14px; color: var(--ink-soft); }
+.regie .pts-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.regie .pts-grid button { min-height: 52px; border-radius: 12px; border: 1px solid var(--trait); background: var(--panel); color: var(--ink); font-size: 18px; font-weight: 900; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; }
+.regie .pts-grid button small { font-size: 10px; font-weight: 600; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .5px; }
+.regie .pts-grid button.on { outline: 2px solid var(--gold); background: rgba(240, 204, 146, .16); }
+.regie .pts-fine { display: grid; grid-template-columns: 1fr 1fr 1.6fr 1fr 1fr; gap: 6px; }
+.regie .pts-fine button { min-height: 46px; border-radius: 12px; border: 1px solid var(--trait); background: var(--panel); color: var(--ink); font-size: 16px; font-weight: 800; }
+.regie .pts-fine input { min-width: 0; max-width: none; text-align: center; font-size: 20px; font-weight: 800; border-radius: 12px; }
+.regie .pts-range { width: 100%; accent-color: var(--gold); }
+.regie .pts-box #pts-ok.malus { background: #FF7A2F; color: #2a1240; }
 .regie .ask-text { margin: 0; font-size: 16px; line-height: 1.45; color: var(--ink); white-space: pre-line; }
 .regie .ask-box .btn { min-height: 56px; width: 100%; }
 .regie .ask-box .btn.alert { background: var(--danger); color: #fff; }
@@ -193,6 +212,9 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .games-row { display: flex; align-items: center; gap: 8px; }
 .regie .games { flex: 1; margin: 0; font-size: 14px; color: var(--ink-soft, #cbb8e8); }
 .regie .games b { color: var(--gold); }
+.regie .notes { margin-top: 10px; font-size: 15px; }
+.regie .notes summary { cursor: pointer; color: var(--gold); font-weight: 700; min-height: 32px; }
+.regie .notes p { margin: 6px 0 0; white-space: pre-line; line-height: 1.4; }
 .regie .rescue-open { padding: 8px 12px; font-size: 15px; }
 .regie .rescue-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .regie .rescue-game { display: flex; align-items: center; gap: 10px; background: var(--night); border-radius: 14px; padding: 10px 12px; }

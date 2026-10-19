@@ -121,6 +121,10 @@
           <p id="c-games" class="games"></p>
           <button id="c-rescue" class="btn secondary rescue-open" hidden>🛟 Jeux</button>
         </div>
+        <details id="c-notes" class="notes" hidden>
+          <summary>📝 Notes de la prestation</summary>
+          <p id="c-notes-text"></p>
+        </details>
       </div>
       <div id="c-requests" class="requests" hidden></div>
 
@@ -227,6 +231,38 @@
         </div>
       </div>
     </section>
+    <!-- Points d'une équipe en deux temps : l'animatrice prépare le montant (rien ne bouge), puis valide une fois. -->
+    <div id="pts" class="modal ask" hidden>
+      <div class="modal-box ask-box pts-box" role="dialog" aria-modal="true" aria-labelledby="pts-title">
+        <p id="pts-title" class="modal-title"></p>
+        <div class="pts-sign" role="group" aria-label="Bonus ou malus">
+          <button type="button" id="pts-bonus" class="on">Bonus</button>
+          <button type="button" id="pts-malus">Malus</button>
+        </div>
+        <p id="pts-value" class="pts-value">+0</p>
+        <p id="pts-preview" class="pts-preview"></p>
+        <div class="pts-grid" id="pts-presets">
+          <button type="button" data-set="10">10</button>
+          <button type="button" data-set="20">20</button>
+          <button type="button" data-set="50">50<small>mime</small></button>
+          <button type="button" data-set="100">100<small>quiz</small></button>
+          <button type="button" data-set="150">150<small>buzzer</small></button>
+          <button type="button" data-set="200">200<small>finale</small></button>
+          <button type="button" data-set="300">300<small>mini-jeu</small></button>
+          <button type="button" data-set="500">500<small>max</small></button>
+        </div>
+        <div class="pts-fine">
+          <button type="button" data-step="-10">−10</button>
+          <button type="button" data-step="-1">−1</button>
+          <input id="pts-input" type="number" inputmode="numeric" min="0" max="500" step="1" aria-label="Montant exact">
+          <button type="button" data-step="1">+1</button>
+          <button type="button" data-step="10">+10</button>
+        </div>
+        <input id="pts-range" class="pts-range" type="range" min="0" max="500" step="10" aria-label="Montant">
+        <button id="pts-ok" class="btn main" type="button" disabled></button>
+        <button id="pts-cancel" class="btn secondary" type="button">Annuler</button>
+      </div>
+    </div>
     <!-- Confirmation aux couleurs de la régie (remplace la boîte grise du navigateur). -->
     <div id="ask" class="modal ask" hidden>
       <div class="modal-box ask-box" role="dialog" aria-modal="true" aria-labelledby="ask-title">

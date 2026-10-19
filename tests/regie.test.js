@@ -325,6 +325,14 @@ async function openAdmin() {
 }
 
 /** L'animatrice scanne le même QR code que les équipes, touche « Accès régie » et tape le mot de passe. */
+/** Bonus de [amount] points pour une équipe, en deux temps : préparer le montant, puis valider. */
+async function givePoints(page, team, amount) {
+  await page.locator(`#panel-teams [data-team="${team}"] .pts-open`).click();
+  await page.locator("#pts-input").fill(String(Math.abs(amount)));
+  if (amount < 0) await page.click("#pts-malus");
+  await page.click("#pts-ok");
+}
+
 async function pair(page, password = PASSWORD) {
   await page.locator("#regie-open:not([hidden])").click();
   await page.fill("#regie-password", password);
@@ -914,7 +922,7 @@ describe("régie", () => {
     await inRegie(page);
     // Dans le salon d'attente la régie s'ouvre sur les prestations : l'animatrice passe aux équipes.
     await page.click("#tab-teams");
-    await page.locator('.team[data-team="rose"] button[data-delta="10"]').click();
+    await givePoints(page, "rose", 10);
     await page.locator(".team .score", { hasText: "10" }).waitFor();
     await page.locator("#undo-text", { hasText: "+10 pour Les Roses" }).waitFor();
     await page.click("#undo-go");
@@ -922,6 +930,55 @@ describe("régie", () => {
     const adjust = (await commands()).find((c) => c.type === "adjust");
     assert.equal(adjust.team, "rose");
     assert.equal(adjust.delta, 10);
+    await page.context().close();
+  });
+
+  test("bonus et malus en deux temps : préparer ne change rien, une validation = un seul envoi du montant exact", async () => {
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    await page.click("#tab-teams");
+    await page.locator('.team[data-team="rose"] .pts-open').click();
+    await page.locator("#pts-title", { hasText: "Points pour Les Roses" }).waitFor();
+    assert.equal(await page.locator("#pts-ok").isDisabled(), true, "rien à valider tant qu'aucun montant n'est choisi");
+    // L'animatrice hésite : montants types, ±10, ±1, saisie, curseur… rien ne part vers la TV.
+    await page.click('#pts [data-set="100"]');
+    await page.click('#pts [data-step="10"]');
+    await page.click('#pts [data-step="10"]');
+    await page.click('#pts [data-step="-1"]');
+    await page.locator("#pts-value", { hasText: "+119" }).waitFor();
+    await page.locator("#pts-input").fill("520");
+    await page.locator("#pts-value", { hasText: "+500" }).waitFor();
+    await page.locator("#pts-range").fill("200");
+    await page.locator("#pts-value", { hasText: "+200" }).waitFor();
+    await page.click('#pts [data-set="150"]');
+    await page.locator("#pts-preview", { hasText: "Score : 0 → 150" }).waitFor();
+    await page.locator("#pts-ok", { hasText: "Valider +150 points" }).waitFor();
+    await new Promise((r) => setTimeout(r, 300));
+    assert.equal((await commands()).length, 0, "préparer n'envoie rien");
+    // Double appui sur « Valider » : une seule correction.
+    await page.locator("#pts-ok").dblclick();
+    await page.locator("#undo-text", { hasText: "+150 pour Les Roses" }).waitFor();
+    await page.locator('.team[data-team="rose"] .score', { hasText: "150" }).waitFor();
+    assert.equal(await page.locator("#pts").isHidden(), true);
+    // Malus : on bascule le signe, on valide.
+    await page.locator('.team[data-team="rose"] .pts-open').click();
+    await page.locator("#pts-value", { hasText: "+0" }).waitFor();
+    await page.click("#pts-malus");
+    await page.click('#pts [data-set="50"]');
+    await page.locator("#pts-ok", { hasText: "Valider −50 points" }).click();
+    await page.locator("#undo-text", { hasText: "−50 pour Les Roses" }).waitFor();
+    // Annuler sans valider : rien n'est envoyé.
+    await page.locator('.team[data-team="rose"] .pts-open').click();
+    await page.click('#pts [data-set="300"]');
+    await page.click("#pts-cancel");
+    await page.locator('.team[data-team="rose"] .score', { hasText: "100" }).waitFor();
+    await new Promise((r) => setTimeout(r, 300));
+    const deltas = (await commands()).filter((c) => c.type === "adjust").map((c) => c.delta);
+    assert.deepEqual(deltas, [150, -50]);
+    assert.equal(box.state.scores.rose, 100);
     await page.context().close();
   });
 
@@ -1012,8 +1069,8 @@ describe("remplacement d'un appareil en cours de partie", () => {
 
   test("tablette remplacée : l'équipe continue sur le nouvel appareil, l'ancien est désactivé même rechargé", async () => {
     const { regie, old, blue } = await startedGame();
-    await regie.locator("#panel-teams [data-team] button[data-delta='10']").first().waitFor();
-    await regie.locator(`#panel-teams [data-team="${blue}"] button[data-delta="10"]`).click();
+    await regie.locator("#panel-teams [data-team] .pts-open").first().waitFor();
+    await givePoints(regie, blue, 10);
     await waitFor(async () => (await read("state"))?.scores?.[blue] === 10, "points avant le remplacement");
 
     // Un téléphone de secours scanne le QR code : la partie a commencé, il demande à entrer.
@@ -1202,7 +1259,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#round-add");
     await page.locator("#show-rounds select.grow").nth(0).selectOption("animaux");
     await page.click("#round-add");
-    await page.locator("#show-rounds select").nth(2).selectOption("finale");
+    await page.locator("#show-rounds .round").nth(1).locator("select").first().selectOption("finale");
     await page.locator("#show-rounds select.grow").nth(1).selectOption("finale");
     await page.locator("#show-summary", { hasText: "3 questions jouables" }).waitFor();
     await page.selectOption("#show-status", "publiee");
@@ -1234,6 +1291,78 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.click("#tab-plan");
     assert.equal(await regie.locator("#panel-plan .plan-round").count(), 1);
     await regie.locator("#panel-plan .plan-item", { hasText: "Super Finale ×2" }).waitFor();
+    await regie.context().close();
+  });
+
+  test("Régie PC : la page Jeux montre chaque jeu, un contenu intégré se règle, une prestation choisit son nombre de questions et ses notes arrivent en régie", async () => {
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    const page = await admin();
+    await page.click("#nav button[data-screen=games]");
+    assert.equal(await page.locator(".game-card").count(), 12);
+    await page.locator('.game-card[data-game=quiz]', { hasText: "1 quiz · 2 questions validées" }).waitFor();
+    await page.locator('.game-card[data-game=finale]', { hasText: "ce n'est pas un jeu à part" }).waitFor();
+    // Mimes : la carte mène aux paquets (ce que Sarah ne trouvait pas).
+    await page.locator('.game-card[data-game=mimes] button', { hasText: "Gérer les paquets" }).click();
+    await page.locator("#screen-mimes:not([hidden])").waitFor();
+    await page.click("#nav button[data-screen=games]");
+
+    // Chante le mot ! : un mot du catalogue retiré, un mot à soi ajouté, puis remis et supprimé.
+    await page.locator('.game-card[data-game=chante] button', { hasText: "Voir et modifier les mots" }).click();
+    await page.locator('#builtin-items .content-item.on[data-key="soleil"] .content-toggle').click();
+    await page.locator("#builtin-status", { hasText: "« soleil » est retiré du jeu." }).waitFor();
+    await page.fill("#bi-word", "arc-en-ciel");
+    await page.click("#builtin-add button[type=submit]");
+    await page.locator("#builtin-status", { hasText: "« arc-en-ciel » est ajouté au jeu." }).waitFor();
+    await page.locator('#builtin-items .content-item.custom[data-key="arc-en-ciel"]').waitFor();
+    let chante = await library("contents");
+    assert.deepEqual(chante.chante.off, ["soleil"]);
+    assert.deepEqual(chante.chante.extra, [{ word: "arc-en-ciel" }]);
+    await page.fill("#bi-word", "Soleil");
+    await page.click("#builtin-add button[type=submit]");
+    await page.locator("#builtin-status", { hasText: "« Soleil » existe déjà." }).waitFor();
+    // Qui suis-je ? : un personnage sans assez d'indices est refusé avec la raison.
+    await page.click("#screen-builtin .crumbs button");
+    await page.locator('.game-card[data-game=quisuis] button').click();
+    await page.fill("#bi-answer", "Le koala");
+    await page.fill("#bi-clue1", "Je dors dans les eucalyptus");
+    await page.click("#builtin-add button[type=submit]");
+    await page.locator("#builtin-status", { hasText: "au moins 2 indices" }).waitFor();
+    await page.fill("#bi-clue2", "Je ressemble à un petit ours gris");
+    await page.click("#builtin-add button[type=submit]");
+    await page.locator("#builtin-status", { hasText: "« Le koala » est ajouté au jeu." }).waitFor();
+    await page.click("#nav button[data-screen=games]");
+    await page.locator('.game-card[data-game=chante]', { hasText: "dont 1 ajouté · 1 retiré" }).waitFor();
+
+    // Prestation : la première question seulement du quiz, 4 mots, et des notes pour l'animatrice.
+    await page.click("#nav button[data-screen=home]");
+    await page.click("#home-new");
+    await page.fill("#show-child", "Léa");
+    await page.fill("#show-age", "9");
+    await page.fill("#show-date", "2026-12-02");
+    await page.click("#round-add");
+    await page.locator("#show-rounds select.grow").nth(0).selectOption("animaux");
+    await page.locator("#show-rounds select.count").selectOption("1");
+    await page.click("#round-add");
+    await page.locator("#show-rounds .round").nth(1).locator("select").first().selectOption("chante");
+    await page.locator("#show-rounds .round").nth(1).locator("select.grow").selectOption("4");
+    await page.fill("#show-notes", "Gâteau à 16 h.\nLéa adore les licornes.");
+    await page.locator("#show-summary", { hasText: "5 questions" }).waitFor();
+    await page.selectOption("#show-status", "publiee");
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
+    assert.deepEqual(Object.values(await library("shows"))[0].rounds, [{ type: "quiz", quizId: "animaux", count: 1 }, { type: "chante", count: 4 }]);
+    await page.context().close();
+
+    box = startBox();
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "L'anniversaire de Léa" }).click();
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    const show = await read("show");
+    assert.deepEqual(show.quiz.questions.map((q) => q.round), ["Animaux", "Chante le mot !", "Chante le mot !", "Chante le mot !", "Chante le mot !"]);
+    assert.ok(!show.quiz.questions.some((q) => q.text === "soleil"), "Un mot retiré ne sort plus");
+    await regie.locator("#c-notes:not([hidden])", { hasText: "Léa adore les licornes." }).waitFor();
     await regie.context().close();
   });
 
@@ -1571,7 +1700,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     await regie.click("#c-next");
     await regie.locator("#c-phase", { hasText: "Question en cours" }).waitFor();
-    await regie.locator('#panel-teams [data-team="rose"] button[data-delta="10"]').click();
+    await givePoints(regie, "rose", 10);
     await waitFor(async () => (await read("state/scores/rose")) === 10, "10 points pour les Roses");
     const rounds = async () => (await read("conducteur")).questions.map((q) => q.round);
 

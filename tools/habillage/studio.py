@@ -1147,6 +1147,38 @@ def bt_outro():
     mx.add('fx', stereo(arret), 2.4 + 3)
     return mx.render(duck=0)
 
+# ---------------------------------------------------------------- bonus et malus de l'animatrice
+def bonus():
+    """Bonus : montée éclair, gros coup de cuivres et clap, arpège doré, puis le compteur qui grimpe en clochettes."""
+    mx = Mix(4, tail=1.5)
+    mx.add('fx', noise_riser(.36, .55, f0=600, f1=9000), 0)
+    h = 1.0  # temps de l'impact (0,5 s), quand le chiffre se pose à l'écran
+    mx.add('brass', note('orchestra_hit', 67, .5, .85), h)
+    mx.add('brass', chord('brass_section', [60, 64, 67, 72, 76], 1.2 * B, .95, release=.5), h)
+    mx.add('kick', kick(1.0), h)
+    mx.add('drums', clap(.9), h)
+    mx.add('fx', crash(.45, 2.0), h)
+    for k, m in enumerate([72, 76, 79, 84, 88, 91]):
+        mx.add('bells', note('glockenspiel', m + 12, .2, .55, release=.7), h + .15 + k * .11)
+    for k in range(14):
+        mx.add('bells', note('celesta', 79 + k, .07, .3 + .02 * k, release=.12), h + .9 + k * .1)
+    mx.add('bells', note('glockenspiel', 108, .3, .45, release=1), h + 2.35)
+    for k in range(6):
+        mx.add('bells', note('tinkle_bell', 100 + (k % 3) * 3, .1, .14, release=.4), h + 2.35 + k * .07)
+    return mx.render(duck=0)
+
+def malus():
+    """Malus : « oups » de trompette bouchée qui descend, petit ressort, et le compteur qui redescend. Comique, jamais vexant."""
+    mx = Mix(3, tail=1.2)
+    mx.add('drums', note('woodblock', 79, .08, .5), 0)
+    h = 1.0
+    for k, (m, d) in enumerate(((65, .16), (64, .16), (62, .42))):
+        mx.add('brass', note('muted_trumpet', m, d, .75, release=.12), h + k * .36)
+    mx.add('fx', _glisse(lambda t: 260 * (1 + .4 * np.exp(-t / .16) * np.sin(2 * np.pi * 14 * t)), .45, (1, .5, .2), .35), h + 1.25)
+    for k, m in enumerate([79, 76, 74, 72, 69, 67]):
+        mx.add('bells', note('marimba', m, .08, .4, release=.12), h + 1.4 + k * .12)
+    return mx.render(duck=0)
+
 PIECES = {
     'generique': (generique, -14.5), 'bed_full': (lambda: bed('full'), -15.5), 'bed_light': (lambda: bed('light'), -18.5),
     'tension': (tension, -16), 'riser_4b': (riser_4b, -17), 'impact': (impact, -15), 'round_sting': (round_sting, -15),
@@ -1163,6 +1195,7 @@ PIECES = {
     'buzz_gros': (buzz_gros, -15), 'flou_montee': (flou_montee, -22), 'suspense_reponse': (suspense_reponse, -19), 'indice': (indice, -21), 'bt_diamant': (bt_diamant, -26), 'bt_scratch': (bt_scratch, -17), 'statue_gel': (statue_gel, -17), 'statue_repart': (statue_repart, -19),
     'bt_generique': (lambda: couper(bt_generique(), 4.8), -15), 'bt_buzz': (bt_buzz, -15), 'bt_attente': (bt_attente, -21), 'bt_bravo': (bt_bravo, -15), 'bt_double': (lambda: couper(bt_double(), 4.8), -15), 'bt_outro': (lambda: couper(bt_outro(), 4.8), -16),
     'bed_magie': (bed_magie, -18.5), 'magie': (magie, -19), 'magie_pouf': (magie_pouf, -17),
+    'bonus': (bonus, -17), 'malus': (malus, -20),
     'bed_mimes': (bed_mimes, -16.5), 'bed_pause': (bed_pause, -19), 'pause_in': (pause_in, -18), 'transition': (transition, -15),
 }
 for i in range(4):

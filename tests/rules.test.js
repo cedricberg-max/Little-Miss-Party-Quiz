@@ -608,6 +608,20 @@ describe("bibliothèque, prestations et chargement sur la TV", () => {
     await assertFails(set(ref(admin(), "library/shows/s1"), { ...SHOW, childName: "" }));
     await assertFails(set(ref(admin(), "library/shows/s1"), { ...SHOW, status: "en ligne" }));
   });
+  test("contenus intégrés : l'administration retire et ajoute, la régie les lit sans pouvoir les changer", async () => {
+    await seed({ phase: "lobby" });
+    const ok = { off: ["soleil"], extra: [{ word: "arc-en-ciel" }], updatedAt: serverTimestamp() };
+    await assertSucceeds(set(ref(admin(), "library/contents/chante"), ok));
+    await assertFails(set(ref(admin(), "library/contents/pictionary"), ok));
+    await assertFails(set(ref(admin(), "library/contents/chante"), { ...ok, pirate: true }));
+    await assertFails(set(ref(admin(), "library/contents/chante"), { ...ok, off: ["x".repeat(81)] }));
+    await assertSucceeds(set(ref(admin(), "library/contents/chante"), null));
+    await assertSucceeds(set(ref(admin(), "library/contents/quisuis"), { extra: [{ answer: "Le kangourou", clues: ["Australie", "Poche"] }], updatedAt: serverTimestamp() }));
+    await regieByPassword("tel");
+    await assertSucceeds(get(ref(db("tel"), "library/contents")));
+    await assertFails(set(ref(db("tel"), "library/contents/quisuis"), ok));
+    await assertFails(get(ref(db("rose"), "library/contents")));
+  });
   test("la bibliothèque se lit par l'administration et par une régie entrée avec le mot de passe", async () => {
     await seed({ phase: "lobby" });
     await assertSucceeds(set(ref(admin(), "library/quizzes/q1"), QUIZ));

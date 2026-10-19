@@ -34,6 +34,8 @@ let timerHandle = null;
 let undoTimer = null;
 let answerMasked = false;
 let tab = "teams";
+/** L'animatrice a déjà touché un onglet : la régie ne la renvoie plus d'elle-même vers un autre. */
+let tabChosen = false;
 /** Prestations publiées par Sarah : null tant qu'elles ne sont pas lues. */
 let shows = null;
 let loadingShow = null;
@@ -173,11 +175,12 @@ function control() {
     onExit?.("Ce téléphone n'est plus relié à la régie de la partie.");
   });
   let first = true;
+  tabChosen = false;
   listen(`games/${code}/state`, (s) => {
     live.state = s.val();
     watchAnswers();
     // En arrivant dans le salon d'attente, la première chose à faire est de charger la prestation.
-    if (first && live.state?.phase === "lobby") switchTab("show");
+    if (first && !tabChosen && live.state?.phase === "lobby") switchTab("show");
     first = false;
     render();
   });
@@ -187,6 +190,14 @@ function control() {
   // Blind test : la box dit, extrait par extrait, s'il est dans son cache (ok), en chargement ou manquant.
   listen(`games/${code}/media`, (s) => { live.media = s.val() ?? {}; render(); });
   listen(`games/${code}/joinRequests`, (s) => { live.requests = s.val() ?? {}; render(); });
+  // Notes de Sarah pour l'animatrice, préparées dans l'administration avec la prestation.
+  listen(`games/${code}/show/notes`, (s) => {
+    const notes = typeof s.val() === "string" ? s.val().trim() : "";
+    // Ouvertes à leur arrivée ; l'animatrice les replie d'une touche.
+    if (notes && notes !== $("c-notes-text").textContent) $("c-notes").open = true;
+    $("c-notes").hidden = !notes;
+    $("c-notes-text").textContent = notes;
+  });
 }
 
 function watchAnswers() {
@@ -281,6 +292,7 @@ function render() {
   renderFlou(st);
   renderStatues(st, teams);
   renderTeams(st, teams);
+  renderPoints();
   renderPlan(st);
   renderShows(st);
   runTimer(st);
@@ -698,7 +710,8 @@ function gameDetail(r, questions) {
   const q = questions[r.start];
   if (q?.kind === "mime") return `${q.cards?.length ?? 0} cartes · tour de ${q.duration} s par équipe`;
   const n = r.end - r.start + 1;
-  const finale = questions.slice(r.start, r.end + 1).filter((x) => x.finale).length;
+  // La TV ne republie que « double » : les questions à points ×2 sont celles de la Super Finale.
+  const finale = questions.slice(r.start, r.end + 1).filter((x) => x.finale || x.double).length;
   return `${n} question${n > 1 ? "s" : ""}${finale ? ` dont ${finale} de Super Finale (×2)` : ""}`;
 }
 
@@ -794,8 +807,8 @@ function renderTeams(st, teams) {
       row.className = "team";
       row.dataset.team = id;
       row.innerHTML = '<span class="dot"></span><span class="swatch"></span><span class="name"></span><span class="score"></span>'
-        + '<button data-delta="-10">−10</button><button data-delta="10">+10</button>';
-      row.querySelectorAll("button").forEach((b) => { b.onclick = () => adjust(id, Number(b.dataset.delta)); });
+        + '<button class="pts-open">± Points</button>';
+      row.querySelector(".pts-open").onclick = () => choosePoints(id);
       box.appendChild(row);
     });
   }
@@ -920,10 +933,11 @@ async function fetchLibrary() {
   library = { loading: true };
   renderLibrary();
   try {
-    const [s, q, m, p] = await Promise.all([get(ref(db, "library/shows")), get(ref(db, "library/quizzes")), get(ref(db, "library/mimes")), get(ref(db, "library/playlists"))]);
+    const [s, q, m, p, c] = await Promise.all(["shows", "quizzes", "mimes", "playlists", "contents"].map((k) => get(ref(db, `library/${k}`))));
     const quizzes = q.val() ?? {};
     const mimes = m.val() ?? {};
     const playlists = p.val() ?? {};
+    const contents = c.val() ?? {};
     // Blind test et quiz musical : proposés pour chaque playlist qui a des extraits.
     const music = Object.entries(MUSIC_GAMES).flatMap(([type]) => Object.entries(playlists)
       .filter(([, pl]) => pl?.title && playableTracks(pl).length >= (type === "musical" ? 2 : 1))
@@ -956,7 +970,7 @@ async function fetchLibrary() {
       ...Object.entries(BUILTIN_GAMES).map(([type, game]) => ({ key: `builtin/${type}`, label: ROUND_TYPES[type], source: { type, count: game.count } })),
       { key: "builtin/statues", label: ROUND_TYPES.statues, source: { type: "statues", duration: STATUES_SEC } },
     ];
-    library = { quizzes, mimes, playlists, games, rounds, decks, quizGames, builtins, music };
+    library = { quizzes, mimes, playlists, contents, games, rounds, decks, quizGames, builtins, music };
   } catch (e) {
     console.error(e);
     library = { denied: /permission/i.test(String(e?.message ?? e)) };
@@ -1062,7 +1076,7 @@ async function pick(game) {
     profile = show?.profile ?? (show?.age != null ? profileForAge(show.age) : null);
   } catch { profile = null; }
   const prefix = `a${Date.now().toString(36)}`;
-  const { questions, problems } = gameQuestions(game.source, library.quizzes, profile ?? "MOYENS", prefix, library.mimes, library.playlists);
+  const { questions, problems } = gameQuestions(game.source, library.quizzes, profile ?? "MOYENS", prefix, library.mimes, library.playlists, library.contents);
   picked = { game, questions, problems };
   renderLibrary();
 }
@@ -1222,14 +1236,15 @@ const SHOW_MESSAGES = {
  * l'ouverture de la régie n'est jamais lancée dans son ancienne version.
  */
 async function readShows() {
-  const [s, q, m, p] = await Promise.all([get(ref(db, "library/shows")), get(ref(db, "library/quizzes")), get(ref(db, "library/mimes")), get(ref(db, "library/playlists"))]);
+  const [s, q, m, p, c] = await Promise.all(["shows", "quizzes", "mimes", "playlists", "contents"].map((k) => get(ref(db, `library/${k}`))));
   const quizzes = q.val() ?? {};
   const mimes = m.val() ?? {};
   const playlists = p.val() ?? {};
+  const contents = c.val() ?? {};
   const today = new Date().toISOString().slice(0, 10);
   return Object.entries(s.val() ?? {})
     .filter(([, show]) => show.status === "publiee")
-    .map(([id, show]) => ({ id, show, ...buildSnapshot(id, show, quizzes, mimes, Math.random, playlists) }))
+    .map(([id, show]) => ({ id, show, ...buildSnapshot(id, show, quizzes, mimes, Math.random, playlists, contents) }))
     // Les prestations à venir d'abord, la plus proche en tête ; les passées ensuite.
     .sort((a, b) => {
       const da = a.show.date ?? "9999", dbb = b.show.date ?? "9999";
@@ -1472,6 +1487,72 @@ async function adjust(team, delta) {
   showUndo(`${delta > 0 ? "+" : "−"}${Math.abs(delta)} pour ${name}`, status.seq);
 }
 
+/**
+ * Bonus ou malus en deux temps. Préparer le montant (montants types, ±1, ±10, saisie, curseur) ne change rien :
+ * ni score ni animation. « Valider » envoie une seule correction, du montant exact ; la TV l'annonce une fois.
+ * Le bouton se bloque dès le premier appui et la fenêtre se ferme : un double appui ne compte jamais deux fois.
+ */
+const MAX_POINTS = 500;
+let points = null;
+
+function choosePoints(team) {
+  points = { team, sign: 1, amount: 0, sending: false };
+  $("pts-title").textContent = `Points pour ${live.teams[team]?.name ?? "l'équipe"}`;
+  $("pts-input").value = "";
+  $("pts").hidden = false;
+  renderPoints();
+}
+
+function setAmount(n) {
+  if (!points || points.sending) return;
+  points.amount = Math.max(0, Math.min(MAX_POINTS, Math.round(Number(n) || 0)));
+  renderPoints();
+}
+
+function renderPoints() {
+  if (!points) return;
+  const { team, sign, amount, sending } = points;
+  const delta = sign * amount;
+  const score = live.state?.scores?.[team] ?? 0;
+  $("pts-bonus").classList.toggle("on", sign > 0);
+  $("pts-malus").classList.toggle("on", sign < 0);
+  $("pts-value").textContent = `${sign > 0 ? "+" : "−"}${amount}`;
+  $("pts-value").className = `pts-value ${amount ? (sign > 0 ? "bonus" : "malus") : ""}`;
+  $("pts-preview").textContent = amount ? `Score : ${score} → ${score + delta}` : `Score : ${score} · choisissez un montant`;
+  if (document.activeElement !== $("pts-input")) $("pts-input").value = amount ? String(amount) : "";
+  $("pts-range").value = String(amount);
+  $("pts-presets").querySelectorAll("[data-set]").forEach((b) => { b.classList.toggle("on", Number(b.dataset.set) === amount); });
+  const ok = $("pts-ok");
+  ok.disabled = !amount || sending;
+  ok.textContent = sending ? "Envoi…" : amount ? `Valider ${sign > 0 ? "+" : "−"}${amount} point${amount > 1 ? "s" : ""}` : "Valider";
+  ok.classList.toggle("malus", sign < 0);
+}
+
+function closePoints() {
+  points = null;
+  $("pts").hidden = true;
+}
+
+async function validatePoints() {
+  if (!points || points.sending || !points.amount) return;
+  points.sending = true;
+  const { team, sign, amount } = points;
+  renderPoints();
+  closePoints();
+  await adjust(team, sign * amount);
+}
+
+$("pts-bonus").onclick = () => { if (points && !points.sending) { points.sign = 1; renderPoints(); } };
+$("pts-malus").onclick = () => { if (points && !points.sending) { points.sign = -1; renderPoints(); } };
+$("pts-presets").querySelectorAll("[data-set]").forEach((b) => { b.onclick = () => setAmount(Number(b.dataset.set)); });
+document.querySelectorAll("#pts [data-step]").forEach((b) => { b.onclick = () => setAmount((points?.amount ?? 0) + Number(b.dataset.step)); });
+$("pts-input").oninput = () => setAmount($("pts-input").value);
+$("pts-input").onblur = () => renderPoints();
+$("pts-range").oninput = () => setAmount($("pts-range").value);
+$("pts-ok").onclick = validatePoints;
+$("pts-cancel").onclick = closePoints;
+$("pts").onclick = (e) => { if (e.target === $("pts")) closePoints(); };
+
 /** Bandeau « Annuler » pendant 10 secondes après une correction. */
 function showUndo(text, seq) {
   clearTimeout(undoTimer);
@@ -1520,10 +1601,10 @@ $("c-answer").onclick = () => { answerMasked = !answerMasked; render(); };
   btn.onclick = () => { if (!fired) toast("Gardez le doigt appuyé une seconde pour terminer la partie."); fired = false; };
 })();
 
-$("tab-teams").onclick = () => switchTab("teams");
-$("tab-plan").onclick = () => switchTab("plan");
-$("tab-show").onclick = () => switchTab("show");
-$("tab-defis").onclick = () => switchTab("defis");
+$("tab-teams").onclick = () => { tabChosen = true; switchTab("teams"); };
+$("tab-plan").onclick = () => { tabChosen = true; switchTab("plan"); };
+$("tab-show").onclick = () => { tabChosen = true; switchTab("show"); };
+$("tab-defis").onclick = () => { tabChosen = true; switchTab("defis"); };
 function switchTab(name) {
   tab = name;
   // Liste des prestations relue à chaque ouverture de l'onglet : elle reflète toujours l'administration.

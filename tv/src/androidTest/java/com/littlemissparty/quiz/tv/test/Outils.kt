@@ -129,6 +129,22 @@ class Ecran(private val nomTest: () -> String) {
         }
     }
 
+    /**
+     * Texte qui ne reste que 2 s (annonce BONUS / MALUS) : lu seulement dans l'arbre Compose, sans passer par
+     * UiAutomator (lent pendant une animation), relu toutes les 50 ms pour ne pas le manquer.
+     */
+    fun apercoit(texte: String, ms: Long = 5_000) {
+        val fin = SystemClock.uptimeMillis() + ms
+        while (!runCatching { elements().any { texte in it.texte } }.getOrDefault(false)) {
+            if (SystemClock.uptimeMillis() > fin) {
+                capture("introuvable")
+                runCatching { Log.e(TAG, "« $texte » jamais aperçu, plan de l'écran :\n${plan()}") }
+                throw AssertionError("« $texte » n'est jamais apparu à l'écran")
+            }
+            Thread.sleep(50)
+        }
+    }
+
     fun neVoitPas(texte: String, ms: Long = 10_000) {
         if (!attendre(ms) { !affiche(texte) }) {
             capture("encore-visible")
