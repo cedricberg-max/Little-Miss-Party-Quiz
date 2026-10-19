@@ -314,6 +314,12 @@ describe("buzzer", () => {
     await seed({ phase: "question", qid: "f1", kind: "flou", buzzOpen: false, round: "f1-1000-1" });
     await assertFails(set(ref(db("bleu"), `games/${CODE}/buzz/f1-1000-1`), { team: "bleu", at: serverTimestamp() }));
   });
+  test("blind test : l'équipe qui s'est trompée rebuzze seulement à l'heure publiée par la box", async () => {
+    await seed({ phase: "question", qid: "b1", kind: "blind", buzzOpen: true, round: "b1-1000-1", buzzBlocked: { rose: Date.now() + 60_000 } });
+    await assertFails(set(ref(db("rose"), `games/${CODE}/buzz/b1-1000-1`), { team: "rose", at: serverTimestamp() }), "trop tôt");
+    await seed({ phase: "question", qid: "b1", kind: "blind", buzzOpen: true, round: "b1-1000-2", buzzBlocked: { rose: Date.now() - 1_000 } });
+    await assertSucceeds(set(ref(db("rose"), `games/${CODE}/buzz/b1-1000-2`), { team: "rose", at: serverTimestamp() }));
+  });
   test("accueil : chaque équipe buzze pour s'amuser autant qu'elle veut, jamais pour une autre ni pendant le jeu", async () => {
     await seed({ phase: "lobby", buzzOpen: true, round: 1 });
     const fun = (uid, team) => set(ref(db(uid), `games/${CODE}/fun/${team}`), { at: serverTimestamp() });

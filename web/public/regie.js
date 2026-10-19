@@ -609,7 +609,7 @@ function renderBlind(st, teams) {
     info = `${name(buzzer)} a buzzé ! Réponse attendue : ${expected}`;
   } else if (b.waiting) {
     info = !b.played ? `Prêt : ${expected}. Touchez « Lancer le morceau » quand vous voulez.`
-      : tried.length ? `Pas trouvé (${tried.join(", ")}). Relancez la musique pour les autres équipes.`
+      : tried.length ? `Pas trouvé (${tried.join(", ")}). Relancez la musique : les autres buzzent tout de suite, ${tried.length > 1 ? "ces équipes" : tried[0]} 3 s après.`
       : "Musique arrêtée. Relancez-la, révélez ou passez le morceau.";
     if (ready === "missing") info += " ⚠ Extrait introuvable sur la TV : révélez ou passez ce morceau.";
     else if (ready === "loading") info += " ⏳ La TV charge encore l'extrait.";
@@ -622,7 +622,8 @@ function renderBlind(st, teams) {
   $("blind-ko").disabled = busy;
   $("blind-ok").querySelector("small").textContent = buzzer ? `+${b.points} pour ${name(buzzer)}` : "";
   const question = st.phase === "question" && !buzzer;
-  $("blind-unblock").hidden = !(question && tried.length);
+  // Plus de « Réautoriser toutes les équipes » : une équipe qui s'est trompée rebuzze d'elle-même 3 s après la reprise.
+  $("blind-unblock").hidden = true;
   $("blind-reveal").hidden = !question;
   $("blind-skip").hidden = !question;
   $("blind-cut").hidden = !(st.phase === "reveal" && !b.cut);
@@ -1518,8 +1519,12 @@ function runTimer(st) {
     if (st.phase !== "question") ms = null;
     // En pause, ou chrono figé pendant la réponse d'une équipe qui a buzzé : le temps restant publié par la box.
     else if (st.paused || (st.buzz?.team && st.deadline == null)) ms = st.remainingMs ?? 0;
-    else ms = Math.max(0, (st.deadline ?? 0) - Math.max(Date.now() + serverOffset, st.resumeAt ?? 0));
-    el.textContent = ms == null ? "" : `${Math.ceil(ms / 1000)}`;
+    // Sans chrono en cours (blind test qui attend la relance, mimes entre deux tours) : rien, plutôt qu'un 0 inquiétant.
+    else if (st.deadline == null) ms = st.remainingMs ?? null;
+    else ms = Math.max(0, st.deadline - Math.max(Date.now() + serverOffset, st.resumeAt ?? 0));
+    // Secondes restantes au chrono de la question (ou de l'extrait au blind test).
+    el.textContent = ms == null ? "" : `⏱ ${Math.ceil(ms / 1000)} s`;
+    el.title = "Temps restant au chrono";
     el.classList.toggle("urgent", ms != null && ms <= 5000);
   };
   tick();

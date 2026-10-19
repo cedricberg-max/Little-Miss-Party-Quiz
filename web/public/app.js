@@ -39,6 +39,7 @@ let presenceRef = null;
 let chosenColor = TEAM_COLORS[0];
 let audio;
 let serverOffset = 0;
+let rebuzzHandle = null;
 let unsubscribers = [];
 let game = { state: null, teams: {}, myAnswer: null, connected: true };
 let answerUnsub = null;
@@ -395,6 +396,7 @@ function render() {
   document.documentElement.style.setProperty("--team", me.color);
   document.querySelectorAll(".team-label").forEach((e) => { e.textContent = me.name; });
   const st = game.state ?? { phase: "lobby" };
+  clearTimeout(rebuzzHandle);
   $("paused").hidden = !st.paused;
   runResumeCountdown(st);
   // Saut vers un autre jeu en plein Pictionary : l'ardoise, les mots et l'animation s'arrêtent.
@@ -558,7 +560,12 @@ function renderFlou(st) {
   const buzz = $("buzz");
   buzz.hidden = false;
   const b = st.buzz ?? {};
-  const blocked = (b.blocked ?? []).includes(teamId);
+  const tried = (b.blocked ?? []).includes(teamId);
+  // Blind test : une équipe qui s'est trompée peut rebuzzer sur le même morceau, 3 s après la reprise de la musique
+  // (petite marge pour que la base, à l'heure du serveur, l'accepte à coup sûr).
+  const rebuzzIn = tried && st.kind === "blind" && typeof b.rebuzzAt === "number" ? b.rebuzzAt + 300 - (Date.now() + serverOffset) : null;
+  if (rebuzzIn != null && rebuzzIn > 0) rebuzzHandle = setTimeout(render, rebuzzIn);
+  const blocked = tried && !(rebuzzIn != null && rebuzzIn <= 0);
   const open = st.phase === "question" && st.buzzOpen === true && !st.paused && !counting(st) && !b.team && !blocked;
   buzz.disabled = !open;
   buzz.classList.toggle("winner", b.team === teamId);
@@ -572,6 +579,9 @@ function renderFlou(st) {
   else if (st.kind === "blind" && st.blind?.waiting && !st.paused) $("play-status").textContent = blocked
     ? "Raté pour cette chanson… Les autres équipes vont tenter leur chance."
     : st.blind.played ? "Musique en pause… Préparez-vous, elle va repartir !" : "Prêts ? La musique va commencer, le doigt sur le buzzer !";
+  else if (rebuzzIn != null && !st.paused) $("play-status").textContent = blocked
+    ? "Raté… Écoutez bien : vous pourrez retenter votre chance dans un instant !"
+    : "Vous pouvez retenter votre chance : buzzez si vous avez trouvé !";
   else if (blocked) $("play-status").textContent = `Raté pour ${st.kind === "flou" ? "cette image" : chante ? "ce mot" : st.kind === "blind" ? "cette chanson" : st.kind === "disparu" ? "cette fois" : "ce personnage"}… Les autres équipes peuvent encore buzzer.`;
   else $("play-status").textContent = BUZZ_INVITE[st.kind] ?? BUZZ_INVITE.flou;
 }

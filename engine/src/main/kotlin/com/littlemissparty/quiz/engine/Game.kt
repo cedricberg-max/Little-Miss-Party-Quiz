@@ -24,6 +24,9 @@ const val BLIND_END_MARGIN_MS = 1_000L
 /** Qui a disparu ? : le buzzer peut s'ouvrir un poil avant l'heure (minuterie de la box). */
 const val ARM_TOLERANCE_MS = 250L
 
+/** Blind test : une équipe qui s'est trompée peut rebuzzer sur le même morceau, 3 s après la reprise de la musique. */
+const val REBUZZ_DELAY_MS = 3_000L
+
 /** Vrai ou Faux express : temps de la révélation avant l'affirmation suivante. */
 const val EXPRESS_REVEAL_MS = 3_500L
 
@@ -383,7 +386,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         }
         is Buzzed -> {
             val b = s.buzz
-            if (s.phase != Phase.QUESTION || b == null || !b.armed || b.waiting || b.team != null || s.paused || e.team.isBlank() || e.team in b.blocked) null
+            if (s.phase != Phase.QUESTION || b == null || !b.armed || b.waiting || b.team != null || s.paused || e.team.isBlank() ||
+                (e.team in b.blocked && !rebuzzOpen(s, e.at))) null
             else s.copy(
                 buzz = b.copy(team = e.team),
                 segments = s.segments.map { if (it.end == null) it.copy(end = maxOf(e.at, it.start)) else it },
@@ -456,8 +460,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                 else (if (b.blocked.isEmpty()) Scoring.BUZZ else Scoring.BUZZ_REBOUND) * factor
                 s.copy(phase = Phase.REVEAL, awards = s.awards + (q.id to mapOf(team to Award(q.correct, correct = true, points = points, bonus = 0))))
             }
-            // Blind test, mauvaise réponse : l'équipe est bloquée sur ce morceau, la musique attend la relance.
-            else if (q.isBlind) s.copy(buzz = b.copy(team = null, blocked = b.blocked + team, tries = b.tries + 1, waiting = true))
+            // Blind test, mauvaise réponse : la musique attend la relance ; l'équipe pourra rebuzzer 3 s après la reprise.
+            else if (q.isBlind) s.copy(buzz = b.copy(team = null, blocked = (b.blocked + team).distinct(), tries = b.tries + 1, waiting = true))
             // Mauvaise réponse : l'équipe est bloquée sur cette image, le chrono repart.
             else s.copy(buzz = b.copy(team = null, blocked = b.blocked + team, tries = b.tries + 1), segments = s.segments + Segment(e.at))
         }
@@ -691,6 +695,21 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
 
     /** Blind test : toutes les équipes peuvent de nouveau buzzer sur ce morceau. */
     fun blindUnblock(now: Long): GameEvent? = emit(BuzzUnblocked(nextSeq, now))
+
+    /**
+     * Blind test : heure à partir de laquelle les équipes qui se sont trompées peuvent rebuzzer sur ce morceau
+     * (3 s après la reprise de la musique, après le décompte 3, 2, 1 s'il y en a un) ; null hors musique en cours.
+     */
+    fun rebuzzAt(): Long? = rebuzzAtIn(state)
+
+    private fun rebuzzAtIn(s: GameState): Long? {
+        val seg = s.segments.lastOrNull()
+        if (s.phase != Phase.QUESTION || quiz.questions.getOrNull(s.index)?.isBlind != true || s.buzz?.waiting != false || seg == null || seg.end != null) return null
+        return seg.start + REBUZZ_DELAY_MS
+    }
+
+    // Petite tolérance : l'heure du buzz vient de la tablette, celle de la reprise de la box.
+    private fun rebuzzOpen(s: GameState, at: Long): Boolean = rebuzzAtIn(s)?.let { at + ARM_TOLERANCE_MS >= it } == true
 
     /** Blind test : révèle le morceau sans gagnant (aucun point). */
     fun blindReveal(now: Long): GameEvent? {

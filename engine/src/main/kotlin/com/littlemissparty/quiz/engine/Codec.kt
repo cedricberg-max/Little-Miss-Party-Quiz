@@ -199,9 +199,11 @@ object Codec {
             if (q.isTurns) out["mime"] = mimeState(game, s.mime)
             if (q.isBlind) out["blind"] = blindState(game)
             s.buzz?.let {
-                out["buzz"] = mapOf("team" to it.team, "blocked" to it.blocked)
-                // Même liste en table : les règles de la base refusent le buzz d'une équipe déjà bloquée.
-                out["buzzBlocked"] = it.blocked.associateWith { true }.ifEmpty { null }
+                val rebuzz = game.rebuzzAt()
+                out["buzz"] = mapOf("team" to it.team, "blocked" to it.blocked, "rebuzzAt" to rebuzz)
+                // Même liste en table : les règles de la base refusent le buzz d'une équipe déjà bloquée. Au blind test,
+                // l'heure (serveur) à partir de laquelle elle peut rebuzzer sur le même morceau.
+                out["buzzBlocked"] = it.blocked.associateWith { rebuzz ?: true }.ifEmpty { null }
             }
         }
         return out

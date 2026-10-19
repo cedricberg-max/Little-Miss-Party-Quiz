@@ -217,15 +217,18 @@ private fun BoutonsQuestion(state: UiState.Playing, q: Question, actions: TvActi
         // Jeux au buzzer : l'animatrice juge la réponse orale. Régie reliée : elle juge depuis la régie,
         // la TV ne montre pas de boutons de secours (la télécommande reprend la main sans régie).
         Phase.QUESTION -> if (q.isBuzz && state.buzzTeam != null) {
-            if (state.regies == 0) Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (state.regies == 0) Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
                 TvButton("Mauvaise réponse", { actions.judgeBuzz(false) }, fontSize = 24.sp)
                 NextButton("Bonne réponse", { actions.judgeBuzz(true) }, key = state.buzzTeam)
             }
         } else if (q.isBlind && state.blind != null && state.blind.waiting) {
-            // Blind test, musique à l'arrêt : l'animatrice lance (ou relance), révèle ou passe le morceau.
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                TvButton("Passer", actions.blindSkip, fontSize = 24.sp)
-                TvButton("Révéler sans points", actions.blindReveal, fontSize = 24.sp)
+            // Blind test, musique à l'arrêt : l'animatrice lance (ou relance), révèle ou passe le morceau. Régie reliée :
+            // révéler et passer se font depuis la régie. Écart large : le bouton sélectionné grossit et brille.
+            Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+                if (state.regies == 0) {
+                    TvButton("Passer", actions.blindSkip, fontSize = 24.sp)
+                    TvButton("Révéler sans points", actions.blindReveal, fontSize = 24.sp)
+                }
                 NextButton(if (state.blind.played) "Relancer la musique" else "Lancer le morceau", actions.next, key = state.blind.played)
             }
         } else NextButton(if (q.isBlind) "Arrêter la musique" else "Arrêter le chrono", actions.next, key = state.phase)

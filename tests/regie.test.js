@@ -764,12 +764,11 @@ describe("régie", () => {
     await page.click("#blind-ko");
     await waitFor(async () => (await commands()).includes("buzz_ko"), "mauvaise réponse envoyée");
 
-    // Musique arrêtée après l'erreur : relancer pour les autres, ou réautoriser tout le monde, ou passer.
+    // Musique arrêtée après l'erreur : relancer (l'équipe ratée rebuzzera 3 s après), révéler ou passer.
     await box.set({ ...(await read("state")), buzz: { team: null, blocked: ["rose"] }, blind: blindState({ played: true }) });
-    await page.locator("#blind-info", { hasText: "Pas trouvé (Les Roses). Relancez la musique pour les autres équipes." }).waitFor();
+    await page.locator("#blind-info", { hasText: "Pas trouvé (Les Roses). Relancez la musique : les autres buzzent tout de suite, Les Roses 3 s après." }).waitFor();
     await page.locator("#c-next", { hasText: "Relancer la musique" }).waitFor();
-    await page.click("#blind-unblock");
-    await waitFor(async () => (await commands()).includes("blind_unblock"), "réautorisation envoyée");
+    assert.equal(await page.locator("#blind-unblock").isHidden(), true, "plus de « Réautoriser » : le rebuzz après 3 s est automatique");
     await page.click("#blind-skip");
     assert.match(await respond(page), /Passer ce morceau/);
     await waitFor(async () => (await commands()).includes("blind_skip"), "passer le morceau envoyé");
@@ -988,7 +987,7 @@ describe("régie", () => {
     await page.locator("#c-hold", { hasText: "chrono, réponses et scores sont figés" }).waitFor();
     await page.locator("#c-hold", { hasText: "Toutes les équipes sont connectées" }).waitFor();
     assert.equal(await page.locator("#c-next").isDisabled(), true, "Suivant bloqué pendant la pause");
-    assert.equal(await page.textContent("#c-timer"), "15", "Chrono figé");
+    assert.equal(await page.textContent("#c-timer"), "⏱ 15 s", "Chrono figé");
 
     await page.locator("#c-pause", { hasText: "Reprendre (3, 2, 1)" }).click();
     await page.locator("#c-hold").waitFor({ state: "hidden" });

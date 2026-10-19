@@ -295,6 +295,24 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
+  test("blind test : après une erreur, l'équipe attend 3 s après la reprise de la musique puis peut rebuzzer", async () => {
+    const page = await openPupitre();
+    await joinTeam(page, "Les Roses");
+    const uid = Object.entries(await read("teams")).find(([, t]) => t.name === "Les Roses")[0];
+    const rebuzzAt = Date.now() + 1_500;
+    await hostState(question({
+      qid: "b1", kind: "blind", choices: null, text: "Quel est ce titre ?", round: "b1-1000-1", buzzOpen: true,
+      blind: { waiting: false, played: true }, buzz: { blocked: [uid], rebuzzAt }, buzzBlocked: { [uid]: rebuzzAt },
+    }));
+    await page.locator("#play-status", { hasText: "vous pourrez retenter votre chance dans un instant" }).waitFor();
+    assert.equal(await page.locator("#buzz").isDisabled(), true, "bouton grisé pendant les 3 s");
+    await page.locator("#play-status", { hasText: "Vous pouvez retenter votre chance" }).waitFor({ timeout: 5_000 });
+    assert.equal(await page.locator("#buzz").isDisabled(), false);
+    await page.click("#buzz");
+    await waitFor(async () => (await read("buzz/b1-1000-1"))?.team === uid, "rebuzz accepté par la base");
+    await page.context().close();
+  });
+
   test("Image floue : deux équipes buzzent en même temps, une seule a la main ; après une erreur elle est bloquée", async () => {
     const pages = [await openPupitre(), await openPupitre()];
     await joinTeam(pages[0], "Les Roses");

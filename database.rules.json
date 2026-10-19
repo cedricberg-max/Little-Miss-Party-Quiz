@@ -73,7 +73,7 @@
         "buzz": {
           ".read": "auth != null",
           "$round": {
-            ".write": "auth != null && !data.exists() && newData.child('team').isString() && root.child('games').child($code).child('teams').child(newData.child('team').val()).exists() && (root.child('games').child($code).child('teams').child(newData.child('team').val()).child('device').val() === auth.uid || (!root.child('games').child($code).child('teams').child(newData.child('team').val()).child('device').exists() && auth.uid === newData.child('team').val())) && data.parent().parent().child('state/buzzOpen').val() === true && data.parent().parent().child('state/round').val() + '' === $round && !data.parent().parent().child('state/buzzBlocked').child(newData.child('team').val()).exists()"
+            ".write": "auth != null && !data.exists() && newData.child('team').isString() && root.child('games').child($code).child('teams').child(newData.child('team').val()).exists() && (root.child('games').child($code).child('teams').child(newData.child('team').val()).child('device').val() === auth.uid || (!root.child('games').child($code).child('teams').child(newData.child('team').val()).child('device').exists() && auth.uid === newData.child('team').val())) && data.parent().parent().child('state/buzzOpen').val() === true && data.parent().parent().child('state/round').val() + '' === $round && (!data.parent().parent().child('state/buzzBlocked').child(newData.child('team').val()).exists() || (data.parent().parent().child('state/buzzBlocked').child(newData.child('team').val()).isNumber() && data.parent().parent().child('state/buzzBlocked').child(newData.child('team').val()).val() <= now))"
           }
         },
         "fun": {

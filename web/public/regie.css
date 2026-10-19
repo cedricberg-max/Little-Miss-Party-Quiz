@@ -45,7 +45,7 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .top { display: flex; align-items: center; gap: 10px; font-size: 15px; color: var(--ink-soft); }
 .regie .top .code { font-weight: 800; color: var(--ink); letter-spacing: 2px; }
 .regie .top .step { flex: 1; }
-.regie .top .timer { font-size: 26px; font-weight: 900; color: var(--ink); min-width: 2ch; text-align: right; }
+.regie .top .timer { font-size: 22px; white-space: nowrap; font-weight: 900; color: var(--ink); min-width: 2ch; text-align: right; }
 .regie .top .timer.urgent { color: var(--danger); }
 .regie .dot { width: 10px; height: 10px; border-radius: 50%; background: #555; flex: none; }
 .regie .dot.on { background: var(--ok); }
