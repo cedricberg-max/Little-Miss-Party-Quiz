@@ -102,6 +102,9 @@ jobs:
           # à dessiner sans carte graphique sur les 2 processeurs du runner.
           profile: tv_720p
           ram-size: 2048M
+          # Partition de données réduite : l'image du runner du 18/10/2026 ne laisse qu'environ 6,7 Go libres,
+          # l'émulateur en demandait 7,4 Go par défaut et refusait de démarrer.
+          disk-size: 2048M
           disable-animations: false
           emulator-boot-timeout: 900
           # DNS volontairement inutilisable : l'émulateur ne peut pas joindre les vrais serveurs Firebase,
