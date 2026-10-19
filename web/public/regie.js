@@ -167,7 +167,7 @@ function watchAnswers() {
 }
 
 /** Jeux au buzzer : la première équipe qui buzze répond à voix haute (ou chante), la régie juge. */
-const BUZZ_KINDS = ["flou", "chante", "quisuis", "blind"];
+const BUZZ_KINDS = ["flou", "chante", "quisuis", "blind", "disparu"];
 /** Blind test : plein tarif seulement pour un buzz dans ces premières millisecondes de l'extrait. */
 const BLIND_FAST_MS = 10_000;
 
@@ -434,8 +434,10 @@ function renderFlou(st) {
   const expected = st.kind === "chante" ? `une chanson avec le mot « ${answer} »`
     : blind ? `« ${answer} »${q?.artist ? ` (bonus : ${q.artist})` : ""}` : answer;
   const tried = (b.blocked ?? []).filter((id) => live.teams[id]).map(name);
+  const memo = st.kind === "disparu" && st.buzzOpen !== true && !b.team && !st.paused;
   $("flou-info").textContent = b.team
     ? `${name(b.team)} a buzzé ! Réponse attendue : ${expected || "voir la fiche"}`
+    : memo ? `Les enfants mémorisent les objets… Celui qui va disparaître : ${answer}.`
     : `En attente d'un buzz…${tried.length ? ` Déjà essayé : ${tried.join(", ")}.` : ""}`;
   $("flou-judge").hidden = !b.team;
   const busy = !!pending?.advance || st.paused === true;
@@ -908,6 +910,7 @@ function renderPreview() {
     // Blind test et quiz musical : le titre (et l'artiste) de chaque extrait.
     if (q.audioId) { answer.textContent = `♪ ${q.choices?.[q.correct] ?? ""}${q.artist ? ` · ${q.artist}` : ""}`; li.append(answer); list.appendChild(li); return; }
     answer.textContent = ` → ${q.kind === "number" ? q.correct : q.choices?.[q.correct] ?? ""}`;
+    if (q.kind === "disparu") { answer.textContent = ` → ${q.image ?? ""} ${q.choices?.[q.correct] ?? ""}`; li.append((q.cards ?? []).map((c) => c.image ?? c.word).join(" "), answer); list.appendChild(li); return; }
     li.append(q.kind === "quisuis" ? `${q.image ?? ""} ${q.cards?.[0]?.word ?? ""}…`.trim() : q.text, answer);
     list.appendChild(li);
   });
@@ -933,6 +936,7 @@ const OLD_TV_FLOU = "La TV doit être mise à jour pour jouer à l'Image floue :
 const OLD_TV_CHANTE = "La TV doit être mise à jour pour jouer à « Chante le mot ! » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_QUISUIS = "La TV doit être mise à jour pour jouer à « Qui suis-je ? » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_STATUES = "La TV doit être mise à jour pour jouer aux statues musicales : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+const OLD_TV_DISPARU = "La TV doit être mise à jour pour jouer à « Qui a disparu ? » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_BLIND = "La TV doit être mise à jour pour jouer au blind test : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 /** Jeu que la TV allumée ne sait pas encore jouer (ancienne version) : le message à montrer, sinon null. */
 function tvRefuses(questions) {
@@ -945,6 +949,7 @@ function tvRefuses(questions) {
   if (live.plan.chante !== true && questions.some((q) => q?.kind === "chante")) return OLD_TV_CHANTE;
   if (live.plan.quisuis !== true && questions.some((q) => q?.kind === "quisuis")) return OLD_TV_QUISUIS;
   if (live.plan.statues !== true && questions.some((q) => q?.kind === "statues")) return OLD_TV_STATUES;
+  if (live.plan.disparu !== true && questions.some((q) => q?.kind === "disparu")) return OLD_TV_DISPARU;
   // Quiz musical compris : une ancienne TV le jouerait sans musique.
   if (live.plan.blind !== true && questions.some((q) => q?.kind === "blind" || q?.audioId)) return OLD_TV_BLIND;
   return null;

@@ -2,9 +2,9 @@
 // et que la régie charge sur la TV. Fonctions pures, sans Firebase.
 import { PROFILES, profileForAge, defaultDuration, expressDuration } from "./profiles.js";
 import { shuffle } from "./mime-cards.js";
-import { CHANTE_WORDS, QUI_SUIS_JE } from "./buzz-cards.js";
+import { CHANTE_WORDS, QUI_SUIS_JE, DISPARU_THEMES } from "./buzz-cards.js";
 
-export const ROUND_TYPES = { quiz: "Quiz", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes" };
+export const ROUND_TYPES = { quiz: "Quiz", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes" };
 /** Statues musicales : durées proposées (secondes) et durée par défaut. Musique maison de la TV, rien à préparer. */
 export const STATUES_SECONDS = [60, 90, 120];
 export const STATUES_SEC = 90;
@@ -62,7 +62,27 @@ export const BUILTIN_GAMES = {
     items: (profile) => QUI_SUIS_JE.filter((p) => profile !== "PETITS" || p.level === 1),
     question: (p) => ({ text: "Qui suis-je ?", choices: [p.answer], correct: 0, kind: "quisuis", cards: p.clues.map((word) => ({ word })), image: p.emoji }),
   },
+  disparu: {
+    unit: "grille", count: 4, duration: 45, rule: "on mémorise les objets, puis l'un d'eux disparaît",
+    items: (profile, random) => DISPARU_THEMES.map((t) => disparuGrid(t, DISPARU_OBJECTS[profile] ?? 7, random)),
+    question: (g) => ({ text: "Qui a disparu ?", choices: [g.missing.word], correct: 0, kind: "disparu", cards: g.objects, image: g.missing.image, duration: g.duration }),
+  },
 };
+
+/** Qui a disparu ? : objets par grille selon l'âge, et temps de recherche après la mémorisation. */
+const DISPARU_OBJECTS = { PETITS: 5, MOYENS: 7, GRANDS: 9, ADULTES: 9 };
+const DISPARU_SEARCH_SEC = 25;
+
+/**
+ * Une grille de Qui a disparu ? : [n] objets de la famille et celui qui disparaîtra. La durée suit le
+ * moteur de la TV : 2 s de mémorisation par objet (10 à 18 s), 3 s de tour de magie, puis la recherche.
+ */
+function disparuGrid(theme, n, random) {
+  const objects = shuffle(theme.objects, random).slice(0, n);
+  const missing = objects[Math.floor(random() * objects.length)];
+  const memo = Math.min(18, Math.max(10, objects.length * 2));
+  return { objects, missing, duration: memo + 3 + DISPARU_SEARCH_SEC };
+}
 
 /** Une manche est-elle complète (quiz choisi, ou paquet de mimes choisi) ? Les jeux intégrés le sont toujours. */
 export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || round.type === "statues" ? true : round.type === "mimes" ? round.deckId : MUSIC_GAMES[round.type] ? round.playlistId : round.quizId));
@@ -152,7 +172,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     const builtin = BUILTIN_GAMES[round.type];
     if (builtin) {
       const count = Math.max(1, Math.min(12, round.count ?? builtin.count));
-      const picked = shuffle(builtin.items(profile), random).slice(0, count);
+      const picked = shuffle(builtin.items(profile, random), random).slice(0, count);
       rounds.push({ title: ROUND_TYPES[round.type], count: picked.length });
       picked.forEach((item, j) => questions.push({
         id: `r${i + 1}q${j + 1}`, duration: builtin.duration, double: false, round: ROUND_TYPES[round.type], ...builtin.question(item),

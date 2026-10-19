@@ -264,6 +264,13 @@ describe("pupitre", () => {
     await hostState(jeu({ qid: "p1", kind: "quisuis", text: "Qui suis-je ?", round: "p1-1000-0" }));
     await page.locator("#play-status", { hasText: "Écoutez les indices de la TV" }).waitFor();
     assert.equal(await page.locator("#buzz").isDisabled(), false);
+    // Qui a disparu ? : pas de buzz pendant qu'on mémorise, puis le buzzer s'ouvre quand l'objet a disparu.
+    await hostState(jeu({ qid: "d1", kind: "disparu", text: "Qui a disparu ?", round: "d1-1000-0", buzzOpen: false }));
+    await page.locator("#play-status", { hasText: "mémorisez bien tous les objets" }).waitFor();
+    assert.equal(await page.locator("#buzz").isDisabled(), true);
+    await hostState(jeu({ qid: "d1", kind: "disparu", text: "Qui a disparu ?", round: "d1-1000-0" }));
+    await page.locator("#play-status", { hasText: "quel objet manque sur la TV" }).waitFor();
+    assert.equal(await page.locator("#buzz").isDisabled(), false);
     await page.context().close();
   });
 

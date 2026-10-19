@@ -9,12 +9,13 @@ import { watchVersion, showUpdateBanner } from "./version.js";
 
 const $ = (id) => document.getElementById(id);
 /** Jeux au buzzer : un seul grand BUZZ, la réponse se donne à voix haute. */
-const BUZZ_KINDS = ["flou", "chante", "quisuis", "blind"];
+const BUZZ_KINDS = ["flou", "chante", "quisuis", "blind", "disparu"];
 const BUZZ_INVITE = {
   flou: "Image floue : buzzez dès que vous la reconnaissez !",
   chante: "Chante le mot ! Buzzez et chantez une chanson avec le mot de la TV !",
   quisuis: "Qui suis-je ? Écoutez les indices de la TV et buzzez dès que vous savez !",
   blind: "Blind test : écoutez la musique et buzzez dès que vous reconnaissez la chanson !",
+  disparu: "Qui a disparu ? Buzzez dès que vous savez quel objet manque sur la TV !",
 };
 const params = new URLSearchParams(location.search);
 const code = (params.get("g") || "").toUpperCase();
@@ -476,7 +477,9 @@ function renderFlou(st) {
   if (b.team === teamId) $("play-status").textContent = chante ? "Vous avez buzzé ! À vous de chanter !" : st.kind === "blind" ? "Vous avez buzzé ! Le titre, à voix haute (et l'artiste pour le bonus) !" : "Vous avez buzzé ! Donnez votre réponse à voix haute.";
   else if (b.team) $("play-status").textContent = `${game.teams[b.team]?.name ?? "Une équipe"} a buzzé : ${chante ? "écoutez-les chanter" : "écoutez sa réponse"}…`;
   else if (st.phase === "closed") $("play-status").textContent = "Temps écoulé ! Regardez la TV.";
-  else if (blocked) $("play-status").textContent = `Raté pour ${st.kind === "flou" ? "cette image" : chante ? "ce mot" : st.kind === "blind" ? "cette chanson" : "ce personnage"}… Les autres équipes peuvent encore buzzer.`;
+  // Qui a disparu ? : le buzzer s'ouvre quand les objets reviennent sur la TV, après la mémorisation.
+  else if (st.kind === "disparu" && st.buzzOpen !== true && !st.paused) $("play-status").textContent = "Regardez la TV et mémorisez bien tous les objets…";
+  else if (blocked) $("play-status").textContent = `Raté pour ${st.kind === "flou" ? "cette image" : chante ? "ce mot" : st.kind === "blind" ? "cette chanson" : st.kind === "disparu" ? "cette fois" : "ce personnage"}… Les autres équipes peuvent encore buzzer.`;
   else $("play-status").textContent = BUZZ_INVITE[st.kind] ?? BUZZ_INVITE.flou;
 }
 

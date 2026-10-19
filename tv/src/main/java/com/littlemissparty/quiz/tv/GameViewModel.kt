@@ -154,6 +154,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var countdown: Job? = null
     private var timer: Job? = null
     private var expressTimer: Job? = null
+    private var armTimer: Job? = null
     private val actions = Mutex()
     private var serverOffset = 0L
     private var commandsListener: Pair<DatabaseReference, ChildEventListener>? = null
@@ -244,6 +245,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         countdown?.cancel()
         timer?.cancel()
         expressTimer?.cancel()
+        armTimer?.cancel()
         val previous = (_state.value as? UiState.ResumeOffer)?.code ?: activeCode
         _state.value = UiState.Connecting
         viewModelScope.launch {
@@ -303,6 +305,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         stopListening()
         timer?.cancel()
         expressTimer?.cancel()
+        armTimer?.cancel()
         val ref = db.getReference("games/$code")
         gameRef = ref
         activeCode = code
@@ -469,6 +472,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private fun schedule() {
         timer?.cancel()
         scheduleExpress()
+        scheduleArm()
         val g = game ?: return
         val deadline = g.deadline() ?: return
         timer = viewModelScope.launch {
@@ -478,6 +482,26 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     // Fin de la question, ou fin du tour de mimes.
                     commit(g.timeUp(serverNow()))
                 }
+            }
+        }
+    }
+
+    /**
+     * Qui a disparu ? : ouvre le buzzer quand le chrono a dépassé la mémorisation. Une pause repousse
+     * l'ouverture (la minuterie repart à chaque changement de la partie) ; un réveil trop tôt (décompte
+     * 3, 2, 1 d'une reprise) attend encore un peu.
+     */
+    private fun scheduleArm() {
+        armTimer?.cancel()
+        val g = game ?: return
+        if (g.armDelayMs(serverNow()) == null) return
+        armTimer = viewModelScope.launch {
+            while (true) {
+                val wait = g.armDelayMs(serverNow()) ?: return@launch
+                delay(wait.coerceAtLeast(100))
+                // Ouvert : commit relance les minuteries, dont celle-ci qui n'a alors plus rien à attendre.
+                actions.withLock { if (game === g) commit(g.armBuzz(serverNow())) }
+                if (game !== g) return@launch
             }
         }
     }
@@ -1107,6 +1131,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "quisuis" to true,
             "blind" to true,
             "statues" to true,
+            "disparu" to true,
             "questions" to quiz.questions.map {
                 clean(mapOf(
                     "id" to it.id, "text" to it.text, "choices" to it.choices.ifEmpty { null }, "correct" to it.correct,

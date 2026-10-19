@@ -385,6 +385,29 @@ describe("Jeux au buzzer intégrés (Chante le mot !, Qui suis-je ?)", () => {
   });
 });
 
+describe("Qui a disparu ?", () => {
+  test("des grilles d'objets d'une même famille, l'objet disparu en fait partie, la durée suit l'âge", () => {
+    const { snapshot, problems } = buildSnapshot("x", { childName: "Léa", age: 9, rounds: [{ type: "disparu" }] }, {});
+    assert.deepEqual(problems, []);
+    const qs = snapshot.quiz.questions;
+    assert.equal(qs.length, 4);
+    assert.equal(new Set(qs.map((q) => q.cards.map((c) => c.word).join())).size, 4, "quatre grilles différentes");
+    for (const q of qs) {
+      assert.equal(q.kind, "disparu");
+      assert.equal(q.round, "Qui a disparu ?");
+      assert.equal(q.cards.length, 7, "7 objets chez les Moyens");
+      assert.equal(q.correct, 0);
+      assert.equal(q.cards.filter((c) => c.word === q.choices[0]).length, 1, "l'objet disparu est dans la grille");
+      assert.equal(q.image, q.cards.find((c) => c.word === q.choices[0]).image);
+      assert.equal(q.duration, 14 + 3 + 25, "mémorisation (2 s par objet), tour de magie, recherche");
+      assert.ok(q.cards.every((c) => c.image && c.word));
+    }
+    const petits = buildSnapshot("x", { childName: "Tom", age: 6, rounds: [{ type: "disparu", count: 2 }] }, {}).snapshot.quiz.questions;
+    assert.deepEqual(petits.map((q) => [q.cards.length, q.duration]), [[5, 38], [5, 38]], "5 objets et 10 s pour mémoriser chez les Petits");
+    assert.equal(roundFilled({ type: "disparu" }), true);
+  });
+});
+
 describe("Le Juste Chiffre", () => {
   test("une question sans propositions avec un nombre pour réponse devient une question du Juste Chiffre", () => {
     const { questions } = parseQuiz("1. Combien d'os dans le corps humain ?\nRéponse : 206\n\n2. Hauteur de la tour Eiffel en mètres ?\nRéponse : 1 000\n\n3. Sans réponse ?\nRéponse : beaucoup");
