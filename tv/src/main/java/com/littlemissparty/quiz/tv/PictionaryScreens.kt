@@ -103,7 +103,7 @@ fun PictionaryScreen(state: UiState.Playing, actions: TvActions) {
                             couleur = lastTeam.color.toColor(),
                             traits = traits,
                             points = if (last.found > 0) last.found * m.points else null,
-                            image = if (emoji != null) ({ Text(emoji, fontSize = 110.sp, lineHeight = 116.sp) }) else null,
+                            image = emoji?.let { e -> @Composable { Text(e, fontSize = 110.sp, lineHeight = 116.sp) } },
                         )
                     }
                     else -> Presentation(state, m)
