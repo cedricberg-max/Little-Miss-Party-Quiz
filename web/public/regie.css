@@ -194,3 +194,21 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .rescue-game .name small { display: block; font-weight: 600; opacity: .75; }
 .regie .rescue-game button { padding: 10px 14px; font-size: 15px; }
 .regie .mime-progress { margin: 0; font-size: 15px; }
+
+/* Blind test : playlist et commandes de l'animatrice */
+.regie .control.blind-mode #c-answered, .regie .control.blind-mode .tabs, .regie .control.blind-mode .panel { display: none !important; }
+.regie .blind { overflow-y: auto; }
+.regie .blind-head { margin: 0; font-size: 16px; font-weight: 800; }
+.regie .blind-head .double { color: #1a0b2e; background: var(--gold); border-radius: 999px; padding: 2px 10px; margin-left: 6px; }
+.regie .blind .mime-row .btn { min-height: 60px; font-size: 17px; }
+.regie .blind .mime-row .btn[hidden] { display: none; }
+.regie .blind-tracks { margin: 4px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.regie .blind-track { display: flex; align-items: center; gap: 8px; background: var(--night); border-radius: 12px; padding: 8px 10px; font-size: 15px; }
+.regie .blind-track.current { outline: 2px solid var(--gold); }
+.regie .blind-track.done { opacity: .7; }
+.regie .blind-track .n { font-weight: 900; color: var(--gold); min-width: 1.6em; }
+.regie .blind-track .title { flex: 1; font-weight: 800; }
+.regie .blind-track .title small { display: block; font-weight: 600; opacity: .75; }
+.regie .blind-track .pts { font-weight: 800; white-space: nowrap; }
+.regie .blind-track .status { font-size: 13px; white-space: nowrap; }
+.regie .blind-track .media.missing { color: #ff8a8f; font-weight: 800; }

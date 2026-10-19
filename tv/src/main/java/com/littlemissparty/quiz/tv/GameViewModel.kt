@@ -17,6 +17,8 @@ import com.google.firebase.database.ServerValue
 import com.google.firebase.database.ValueEventListener
 import com.littlemissparty.quiz.engine.Answer
 import com.littlemissparty.quiz.engine.Award
+import com.littlemissparty.quiz.engine.BlindStatus
+import com.littlemissparty.quiz.engine.BlindTrack
 import com.littlemissparty.quiz.engine.Codec
 import com.littlemissparty.quiz.engine.Command
 import com.littlemissparty.quiz.engine.CommandResult
@@ -112,12 +114,35 @@ sealed interface UiState {
          * musical les jouent depuis ce fichier, jamais en streaming. Absent : la question se joue sans musique.
          */
         val sounds: Map<String, String> = emptyMap(),
+        /** Blind test en cours (ou qui vient de finir, au bilan), sinon null. */
+        val blind: BlindUi? = null,
     ) : UiState {
         /** Total des appuis sur le buzzer de l'accueil, pour le son. */
         val funTotal: Int get() = funBuzzes.values.sum()
         val ranking: List<Pair<Team, Int>>
             get() = teams.map { it to (scores[it.uid] ?: 0) }.sortedWith(compareByDescending<Pair<Team, Int>> { it.second }.thenBy { it.first.joinedAt })
     }
+}
+
+/**
+ * Blind test vu par l'écran : numéro du morceau dans la playlist, sa valeur (et si elle est doublée par rapport aux
+ * premiers morceaux), musique en attente du « Lancer » de l'animatrice, extrait déjà entamé, révélation raccourcie,
+ * durée de la révélation et morceaux de la playlist.
+ */
+data class BlindUi(
+    val numero: Int,
+    val total: Int,
+    val points: Int,
+    val doubled: Boolean,
+    val waiting: Boolean,
+    val played: Boolean,
+    val cut: Boolean,
+    val revealSec: Int,
+    val tracks: List<BlindTrack>,
+    val playlist: String,
+) {
+    /** Morceaux à double valeur restant à jouer, celui-ci compris. */
+    val doubledLeft: Int get() = tracks.count { it.points > (tracks.minOfOrNull { t -> t.points } ?: 0) && (it.status == BlindStatus.TODO || it.status == BlindStatus.PLAYING) }
 }
 
 /**
@@ -157,6 +182,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var armTimer: Job? = null
     private val actions = Mutex()
     private var serverOffset = 0L
+    private var offsetKnown = false
     private var commandsListener: Pair<DatabaseReference, ChildEventListener>? = null
     private val handledCommands = mutableSetOf<String>()
     private var regieUids: Set<String> = emptySet()
@@ -308,6 +334,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         armTimer?.cancel()
         val ref = db.getReference("games/$code")
         gameRef = ref
+        soundMarks.clear()
         activeCode = code
         val snap = ref.readOnce() ?: error("La base Firebase ne répond pas. Vérifiez Internet puis réessayez.")
         // Programme en vigueur, écrit par la box elle-même (prestation et modifications acceptées) ;
@@ -359,7 +386,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private fun recover() {
         val g = game ?: return
         if (g.state.phase == Phase.QUESTION && !g.state.paused && g.remainingMs(serverNow()) == 0L) {
-            act { it.close(serverNow()) }
+            // Comme à la fin du chrono : question fermée, tour de mimes terminé, extrait du blind test arrêté.
+            act { it.timeUp(serverNow()) }
         } else {
             schedule()
         }
@@ -381,6 +409,12 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 Phase.LOBBY -> if (teams().isNotEmpty()) commit(g.next(serverNow()))
                 // Mimes : arrête le tour en cours, ou termine la manche entre deux tours (« Terminer les mimes »).
                 Phase.QUESTION -> if (g.question?.isMime == true) commit(g.next(serverNow()))
+                // Blind test : OK lance (ou relance) la musique, ou l'arrête ; une équipe qui a buzzé est jugée par ses boutons.
+                else if (g.question?.isBlind == true) {
+                    if (g.state.buzz?.team != null) return@withLock
+                    if (g.state.buzz?.waiting == true) commit(g.blindPlay(serverNow(), unblock = allBlocked(g)))
+                    else if (!g.justStarted(serverNow())) commit(g.blindStop(serverNow()))
+                }
                 // Chrono qui vient de partir : second appui d'un double clic, même livré en retard par la box.
                 else if (!g.justStarted(serverNow())) commit(g.close(serverNow()))
                 Phase.CLOSED -> commit(g.reveal(serverNow(), collectAnswers()))
@@ -388,6 +422,17 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             }
         } }
     }
+
+    /** Blind test : toutes les équipes inscrites ont déjà tenté leur chance sur ce morceau. */
+    private fun allBlocked(g: Game): Boolean {
+        val blocked = g.state.buzz?.blocked.orEmpty()
+        val ids = teams().map { it.uid }
+        return blocked.isNotEmpty() && ids.isNotEmpty() && blocked.containsAll(ids)
+    }
+
+    /** Blind test à la télécommande : révéler sans gagnant, passer le morceau. */
+    fun blindReveal() = act { it.blindReveal(serverNow()) }
+    fun blindSkip() = act { it.blindSkip(serverNow()) }
 
     fun togglePause() = act { g -> if (g.state.paused) g.resume(serverNow()) else g.pause(serverNow()) }
 
@@ -408,11 +453,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun mimePass() = act { it.mimePass(serverNow()) }
 
     /** Image floue à la télécommande (secours de la régie) : verdict sur la réponse orale de l'équipe qui a buzzé. */
-    fun judgeBuzz(ok: Boolean, bonus: Boolean = false) {
+    fun judgeBuzz(ok: Boolean) {
         val now = SystemClock.elapsedRealtime()
         if (now - lastNextAt < NEXT_GUARD_MS) return
         lastNextAt = now
-        act { it.judgeBuzz(ok, serverNow(), bonus) }
+        act { it.judgeBuzz(ok, serverNow()) }
     }
     fun mimeStop() = act { it.mimeStop(serverNow()) }
     fun pause() = act { it.pause(serverNow()) }
@@ -459,9 +504,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val qid = g.state.qid ?: return emptyMap()
         // La fermeture a été envoyée avant cette lecture : le serveur la traite d'abord, les règles refusent
         // ensuite toute réponse, donc la liste relue est définitive.
-        val fresh = withTimeoutOrNull(4000) {
-            gameRef?.child("answers/$qid")?.get()?.await()?.let(::parseAnswers)
-        }
+        // Lecture refusée ou impossible (box hors ligne) : on garde les réponses déjà reçues, sans planter.
+        val fresh = runCatching {
+            withTimeoutOrNull(4000) { gameRef?.child("answers/$qid")?.get()?.await()?.let(::parseAnswers) }
+        }.onFailure { Log.w(TAG, "Réponses relues impossibles", it) }.getOrNull()
         val known = teams().map { it.uid }.toSet()
         return (fresh ?: answers).filterKeys { it in known }
     }
@@ -476,12 +522,17 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val g = game ?: return
         val deadline = g.deadline() ?: return
         timer = viewModelScope.launch {
-            delay((deadline - serverNow() + CLOSE_GRACE_MS).coerceAtLeast(0))
-            actions.withLock {
-                if (g.state.phase == Phase.QUESTION && !g.state.paused && g.remainingMs(serverNow()) == 0L) {
-                    // Fin de la question, ou fin du tour de mimes.
-                    commit(g.timeUp(serverNow()))
+            // Réveil trop tôt (heure du serveur corrigée entre-temps) : on attend encore, sans jamais abandonner.
+            while (game === g && g.deadline() == deadline) {
+                delay((deadline - serverNow() + CLOSE_GRACE_MS).coerceAtLeast(100))
+                val done = actions.withLock {
+                    if (g.state.phase == Phase.QUESTION && !g.state.paused && g.remainingMs(serverNow()) == 0L) {
+                        // Fin de la question, ou fin du tour de mimes.
+                        commit(g.timeUp(serverNow()))
+                        true
+                    } else g.deadline() != deadline
                 }
+                if (done) return@launch
             }
         }
     }
@@ -548,6 +599,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 scores = s.scores(),
                 buzzTeam = s.buzz?.team,
                 buzzBlocked = s.buzz?.blocked.orEmpty(),
+                blind = q?.takeIf { it.isBlind && s.phase != Phase.LOBBY }?.let { blindUi(g) },
                 lastGain = if (q?.isMime == true) mimeCounts.mapValues { it.value * Scoring.MIME } else revealedAwards.mapValues { it.value.points },
                 isLast = g.isLastQuestion,
                 mime = q?.takeIf { it.isMime && s.phase != Phase.LOBBY }?.let {
@@ -564,7 +616,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         watchBuzz(Codec.buzzKey(g)?.takeIf { !s.buzzHeld && !s.paused })
         val blocked = s.buzz?.blocked.orEmpty()
         val teamIds = teams().map { it.uid }
-        if (s.phase == Phase.QUESTION && !s.paused && !s.buzzHeld && teamIds.isNotEmpty() && blocked.containsAll(teamIds)) {
+        // Blind test : rien ne se ferme seul, la relance réautorise tout le monde.
+        if (s.phase == Phase.QUESTION && !s.paused && !s.buzzHeld && q?.isBlind != true && teamIds.isNotEmpty() && blocked.containsAll(teamIds)) {
             act { it.takeIf { g -> g.state.phase == Phase.QUESTION && g.state.buzz?.blocked.orEmpty().containsAll(teamIds) }?.close(serverNow()) }
         }
         // Photo de la question en cours et de la suivante chargées d'avance (dès le salon d'attente pour la
@@ -575,7 +628,31 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         g.quiz.questions.mapNotNullTo(LinkedHashSet()) { it.audioId }.forEach(::prefetchSound)
     }
 
+    private fun blindUi(g: Game): BlindUi {
+        val q = g.question!!
+        val tracks = g.blindTracks()
+        val i = tracks.indexOfFirst { it.qid == q.id }
+        val points = tracks.getOrNull(i)?.points ?: q.trackPoints
+        return BlindUi(
+            numero = i + 1, total = tracks.size, points = points,
+            doubled = points > (tracks.minOfOrNull { it.points } ?: points),
+            waiting = g.state.buzz?.waiting == true, played = g.state.segments.isNotEmpty(),
+            cut = g.state.revealCut == q.id, revealSec = q.revealSec, tracks = tracks,
+            playlist = q.roundTitle.orEmpty(),
+        )
+    }
+
     private val soundFiles = mutableMapOf<String, String>()
+    /** État de chaque extrait déjà publié pour la régie dans cette partie (prêt, en chargement, manquant). */
+    private val soundMarks = mutableMapOf<String, String>()
+
+    /** La régie voit, morceau par morceau, si la box a bien l'extrait avant de le lancer. */
+    private fun markSound(id: String, status: String) {
+        if (soundMarks[id] == status) return
+        val ref = gameRef ?: return
+        soundMarks[id] = status
+        ref.child("media/$id").setValue(status)
+    }
     private val SOUND_TRIES = 3
     private val SOUND_RETRY_MS = 3_000L
     private val soundsLoading = mutableSetOf<String>()
@@ -587,11 +664,13 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
      */
     private fun prefetchSound(id: String) {
         if (id in soundFiles) {
+            markSound(id, "ok")
             // Nouvelle partie sur la même box : l'extrait déjà en cache est remis dans l'état de l'écran.
             if ((_state.value as? UiState.Playing)?.sounds?.containsKey(id) == false) updatePlaying { it.copy(sounds = soundFiles.toMap()) }
             return
         }
         if (!soundsLoading.add(id)) return
+        markSound(id, "loading")
         val dir = java.io.File(getApplication<Application>().filesDir, "extraits")
         val file = java.io.File(dir, "$id.mp3")
         if (file.isFile && file.length() > 0) return publishSound(id, file)
@@ -616,12 +695,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 if (attempt < SOUND_TRIES - 1) delay(SOUND_RETRY_MS)
             }
             soundsLoading -= id
+            markSound(id, "missing")
         }
     }
 
     private fun publishSound(id: String, file: java.io.File) {
         soundsLoading -= id
         soundFiles[id] = file.absolutePath
+        markSound(id, "ok")
         updatePlaying { it.copy(sounds = soundFiles.toMap()) }
     }
 
@@ -777,10 +858,20 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         val cmd = (snap.value as? Map<*, *>)?.let { Command.decode(id, it) }
+        val sentAt = snap.child("at").getValue(Long::class.java)
         viewModelScope.launch { actions.withLock {
             val g = game ?: return@withLock
             if (cmd == null) {
                 gameRef?.updateChildren(statusOf(id, CommandResult(CommandStatus.REFUSED, reason = "invalid")))
+                return@withLock
+            }
+            // Commande restée sans réponse (box éteinte ou hors ligne) : la régie a déjà dit « la TV ne répond pas »
+            // et l'animatrice a pu la renvoyer. Rejouée plus tard, une correction de score compterait deux fois.
+            // Seulement les commandes sans numéro d'étape (pause, reprise, corrections) : les autres sont déjà
+            // refusées si la partie a bougé. Et seulement une fois l'heure du serveur connue.
+            val unguarded = cmd is Command.Pause || cmd is Command.Resume || cmd is Command.Adjust || cmd is Command.Undo || cmd is Command.MimeFix
+            if (unguarded && offsetKnown && sentAt != null && serverNow() - sentAt > STALE_COMMAND_MS) {
+                gameRef?.updateChildren(statusOf(id, CommandResult(CommandStatus.REFUSED, reason = "too_old")))
                 return@withLock
             }
             val answers = if (cmd is Command.Next && g.state.phase == Phase.CLOSED) collectAnswers() else emptyMap()
@@ -882,6 +973,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private fun listenGame(db: FirebaseDatabase, ref: DatabaseReference) {
         observe(db.getReference(".info/serverTimeOffset")) { snap ->
             serverOffset = (snap.value as? Number)?.toLong() ?: 0L
+            offsetKnown = snap.value != null
+            // Le chrono surveillé l'était peut-être avec l'ancienne heure : on le recale.
+            schedule()
             updatePlaying { it.copy(serverOffset = serverOffset) }
         }
         observe(db.getReference(".info/connected")) { snap ->
@@ -946,8 +1040,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 dropTimers.remove(uid)
                 act { g ->
                     // Pendant les mimes, les pupitres ne servent pas : un pupitre qui décroche ne bloque rien.
+                    // Blind test : seulement pendant la musique (en attente de relance, rien ne court).
                     val waited = g.state.phase == Phase.QUESTION && !g.state.paused && g.remainingMs(serverNow()) > 0 &&
-                        g.question?.isMime != true
+                        g.question?.isMime != true && g.state.buzz?.waiting != true
                     if (waited && uid !in online && uid !in answers && teams().any { it.uid == uid }) {
                         g.pause(serverNow(), PAUSE_TEAM, uid)
                     } else null
@@ -1100,6 +1195,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         private const val PIN_LOCK_MS = 60_000L
         private const val DEFAULT_QUIZ = "demo"
 
+        /** Une commande de la régie plus ancienne que cela n'est plus appliquée (la régie a abandonné après 6 s). */
+        private const val STALE_COMMAND_MS = 15_000L
+
         /** Délai laissé aux réponses envoyées à la dernière seconde avant de fermer la question. */
         private const val CLOSE_GRACE_MS = 500L
 
@@ -1130,6 +1228,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "chante" to true,
             "quisuis" to true,
             "blind" to true,
+            // Blind test morceau par morceau : « Lancer le morceau », relance, révéler sans points, passer, bilan.
+            "blindPlay" to true,
             "statues" to true,
             "disparu" to true,
             "questions" to quiz.questions.map {
@@ -1138,6 +1238,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     "duration" to it.durationSec, "kind" to it.kind.code, "double" to it.double, "round" to it.roundTitle,
                     "cards" to it.cards.ifEmpty { null }?.map { c -> clean(mapOf("word" to c.word, "image" to c.image)) },
                     "image" to it.emoji, "imageId" to it.imageId, "artist" to it.artist, "audioId" to it.audioId,
+                    // Blind test : valeur et durée de révélation du morceau, relues telles quelles après un redémarrage.
+                    "points" to it.points?.takeIf { _ -> it.isBlind }, "reveal" to it.revealSec.takeIf { _ -> it.isBlind },
                 ))
             },
         )

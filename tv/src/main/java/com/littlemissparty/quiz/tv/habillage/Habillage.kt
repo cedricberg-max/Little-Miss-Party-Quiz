@@ -96,6 +96,7 @@ fun HabillageTv(state: UiState) {
 
 internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indices: Int = 0, statue: Boolean = false, disparu: Int = 0): Instant {
     val s = state as? UiState.Playing ?: return Instant(Ecran.HORS_PARTIE)
+    val blind = s.blind?.takeIf { s.question?.isBlind == true }
     val ecran = when (s.phase) {
         Phase.LOBBY -> Ecran.SALON
         Phase.QUESTION -> when {
@@ -136,9 +137,16 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         ratees = s.buzzBlocked.size,
         indices = indices,
         // Blind test, quiz musical (extrait bien reçu), statues : la TV joue déjà une musique, l'habillage se tait.
-        musical = s.question?.let { q -> q.isStatues || q.audioId?.let { s.sounds[it] } != null } == true,
+        musical = s.question?.let { q -> q.isStatues || (q.isBlind && s.blind != null) || q.audioId?.let { s.sounds[it] } != null } == true,
         statue = statue && s.question?.isStatues == true,
         disparu = if (s.question?.isDisparu == true) disparu else 0,
+        // Blind test : présentation du 1er morceau, chanson qui joue, points doublés, révélation raccourcie, bilan.
+        blind = blind != null,
+        blindPresentation = blind != null && s.phase == Phase.QUESTION && blind.numero == 1 && !blind.played && blind.waiting && s.buzzTeam == null,
+        blindLecture = blind != null && s.phase == Phase.QUESTION && !blind.waiting && s.buzzTeam == null,
+        blindDouble = blind?.doubled == true,
+        blindCoupe = blind?.cut == true,
+        blindBilan = blind != null && s.phase == Phase.SCORES && blind.numero >= blind.total,
         nombre = s.question?.isNumber == true,
         pile = s.phase == Phase.REVEAL && s.question?.isNumber == true && s.awards.values.any { it.choice == s.question?.correct },
         epreuve = s.question?.takeIf { s.phase == Phase.QUESTION || s.phase == Phase.CLOSED || s.phase == Phase.REVEAL }?.let(::epreuveDe) ?: "",
