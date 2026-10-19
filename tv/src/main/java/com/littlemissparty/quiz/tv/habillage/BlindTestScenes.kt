@@ -268,7 +268,7 @@ fun BlindRevelation(
 @Composable
 fun BlindDouble(points: Int, restants: Int, modifier: Modifier = Modifier) {
     val ms = horloge(restants)
-    Box(modifier.fillMaxSize().background(Neon.Nuit.copy(alpha = 0.88f)), contentAlignment = Alignment.Center) {
+    Box(modifier.fillMaxSize().background(Neon.Fond.copy(alpha = 0.88f)), contentAlignment = Alignment.Center) {
         Rayons(ms)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
@@ -300,23 +300,26 @@ fun BlindDouble(points: Int, restants: Int, modifier: Modifier = Modifier) {
 fun BlindBilan(lignes: List<Triple<String, Color, Int>>, modifier: Modifier = Modifier) {
     val tri = remember(lignes) { lignes.sortedByDescending { it.third } }
     val max = (tri.firstOrNull()?.third ?: 0).coerceAtLeast(1)
-    Column(modifier.fillMaxSize().padding(horizontal = 120.dp, vertical = 60.dp), verticalArrangement = Arrangement.Center) {
+    // De 1 à 8 équipes : au-delà de 4, les lignes se resserrent pour tenir dans l'écran.
+    val serre = tri.size > 4
+    val taille = if (serre) 26.sp else 38.sp
+    Column(modifier.fillMaxSize().padding(horizontal = 120.dp, vertical = if (serre) 30.dp else 60.dp), verticalArrangement = Arrangement.Center) {
         Text(
             "BILAN DU BLIND TEST", color = Neon.Or, fontSize = 64.sp, fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
             modifier = Modifier.apparition(0, lignes),
         )
-        Spacer(Modifier.height(36.dp))
+        Spacer(Modifier.height(if (serre) 16.dp else 36.dp))
         tri.forEachIndexed { k, (nom, couleur, pts) ->
             val remplir = remember(lignes) { Animatable(0f) }
             LaunchedEffect(lignes) {
                 delay(500L + k * 350L)
                 remplir.animateTo(pts.toFloat() / max, tween(700, easing = FastOutSlowInEasing))
             }
-            Row(Modifier.fillMaxWidth().padding(vertical = 10.dp).apparition(300L + k * 350L, lignes), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(28.dp).clip(CircleShape).background(couleur))
+            Row(Modifier.fillMaxWidth().padding(vertical = if (serre) 4.dp else 10.dp).apparition(300L + k * 350L, lignes), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(if (serre) 20.dp else 28.dp).clip(CircleShape).background(couleur))
                 Spacer(Modifier.width(18.dp))
-                Text(nom, color = Neon.Blanc, fontSize = 38.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(380.dp))
-                Box(Modifier.weight(1f).height(40.dp).clip(RoundedCornerShape(20.dp)).background(Color.White.copy(alpha = 0.08f))) {
+                Text(nom, color = Neon.Blanc, fontSize = taille, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(380.dp))
+                Box(Modifier.weight(1f).height(if (serre) 26.dp else 40.dp).clip(RoundedCornerShape(20.dp)).background(Color.White.copy(alpha = 0.08f))) {
                     Box(
                         Modifier.fillMaxHeight().fillMaxWidth().graphicsLayer {
                             scaleX = remplir.value.coerceAtLeast(0.02f)
@@ -326,7 +329,7 @@ fun BlindBilan(lignes: List<Triple<String, Color, Int>>, modifier: Modifier = Mo
                 }
                 Spacer(Modifier.width(18.dp))
                 Text(
-                    if (pts > 1) "$pts pts" else "$pts pt", color = couleur, fontSize = 38.sp, fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
+                    if (pts > 1) "$pts pts" else "$pts pt", color = couleur, fontSize = taille, fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
                     modifier = Modifier.width(140.dp), textAlign = TextAlign.End,
                 )
             }

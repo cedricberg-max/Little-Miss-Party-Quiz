@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.Phase
@@ -171,7 +172,7 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
                 Text(
                     "${buzzer.name} a buzzé !",
                     color = buzzer.color.toColor(), fontSize = 46.sp, lineHeight = 52.sp, fontWeight = FontWeight.Black,
-                    textAlign = TextAlign.Center, modifier = Modifier.apparition(0, buzzer.uid),
+                    textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.apparition(0, buzzer.uid),
                 )
                 Spacer(Modifier.height(14.dp))
                 Text(if (q.isChante) "À vous de chanter !" else if (q.isBlind) "Le titre, à voix haute !" else "Votre réponse, à voix haute !", color = Palette.Ink, fontSize = 28.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
@@ -200,6 +201,8 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
             Text(
                 "Déjà essayé : " + passees.joinToString(", ") { it.name },
                 color = Palette.InkSoft, fontSize = 22.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
+                // Jusqu'à 7 équipes déjà passées : deux lignes au plus, la fin s'efface en « … ».
+                maxLines = 2, overflow = TextOverflow.Ellipsis,
             )
         }
     }

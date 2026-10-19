@@ -2,8 +2,12 @@
    Tout est rangé sous .regie pour ne rien changer à l'apparence du pupitre. */
 .regie {
   --night-deep: #0b0614;
-  --night: #1a0b2e;
-  --panel: #241238;
+  /* Fonds un peu plus clairs, les mêmes que la TV (validés sur l'écran du blind test). */
+  --fond: #221040;
+  --fond-bas: #160b2b;
+  --trait: #4a3168;
+  --night: #2a1449;
+  --panel: #34195a;
   --ink: #fff4f2;
   --ink-soft: rgba(255, 244, 242, .62);
   --halo: #f888b3;
@@ -13,10 +17,11 @@
   position: fixed; inset: 0; z-index: 20; overflow: hidden;
   padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  color: var(--ink); background: var(--night-deep); text-align: left;
+  color: var(--ink); text-align: left;
+  background: radial-gradient(120% 70% at 50% 0%, #3a1466 0%, var(--fond) 45%, var(--fond-bas) 100%) fixed var(--fond-bas);
 }
 [hidden] { display: none !important; }
-body.regie-mode { animation: none; background: #0b0614; }
+body.regie-mode { animation: none; background: #160b2b; }
 body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, body.regie-mode #offline, body.regie-mode .regie-open { display: none !important; }
 
 .regie .hint { color: var(--ink-soft); font-size: 16px; margin: 0; opacity: 1; }
@@ -26,7 +31,7 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
   padding: 0 18px; color: var(--night-deep); background: var(--gold); cursor: pointer;
 }
 .regie .btn.main { width: 100%; min-height: 76px; font-size: 22px; }
-.regie .btn.secondary { background: var(--panel); color: var(--ink); border: 1px solid #3a2652; }
+.regie .btn.secondary { background: var(--panel); color: var(--ink); border: 1px solid var(--trait); }
 .regie .btn.danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
 .regie .btn:disabled { opacity: .45; }
 
@@ -54,7 +59,7 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .request p { margin: 0 0 8px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
 .regie .request .swatch { width: 14px; height: 14px; border-radius: 4px; flex: none; }
 .regie .request .choices { display: flex; flex-wrap: wrap; gap: 6px; }
-.regie .request button { min-height: 40px; border-radius: 10px; border: 1px solid #3a2652; background: var(--panel); color: var(--ink); font-size: 14px; font-weight: 700; padding: 0 10px; }
+.regie .request button { min-height: 40px; border-radius: 10px; border: 1px solid var(--trait); background: var(--panel); color: var(--ink); font-size: 14px; font-weight: 700; padding: 0 10px; }
 .regie .request button.suggested { border-color: var(--ok); }
 .regie .request button.new { background: var(--ok); color: #1a0b2e; border-color: var(--ok); }
 .regie .request button.link { background: transparent; border-color: transparent; color: var(--ink-soft); text-decoration: underline; }
@@ -76,7 +81,7 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .team .name { flex: 1; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .regie .team .name small { display: block; font-weight: 500; color: var(--ink-soft); font-size: 12px; }
 .regie .team .score { font-weight: 900; font-size: 18px; min-width: 3.5ch; text-align: right; }
-.regie .team button { width: 48px; height: 48px; border-radius: 12px; border: 1px solid #3a2652; background: var(--panel); color: var(--ink); font-size: 16px; font-weight: 800; }
+.regie .team button { width: 48px; height: 48px; border-radius: 12px; border: 1px solid var(--trait); background: var(--panel); color: var(--ink); font-size: 16px; font-weight: 800; }
 
 .regie .plan-item { background: var(--night); border-radius: 12px; padding: 8px 12px; font-size: 14px; }
 .regie .plan-item.current { outline: 2px solid var(--halo); }
@@ -88,14 +93,14 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .plan-head { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
 .regie .plan-head .plan-round { flex: 1; margin: 0; }
 .regie .plan-head .state { font-size: 12px; color: var(--ink-soft); }
-.regie .plan-head button { min-width: 48px; height: 44px; border-radius: 12px; border: 1px solid #3a2652; background: var(--panel); color: var(--ink); font-size: 18px; font-weight: 800; padding: 0 10px; }
+.regie .plan-head button { min-width: 48px; height: 44px; border-radius: 12px; border: 1px solid var(--trait); background: var(--panel); color: var(--ink); font-size: 18px; font-weight: 800; padding: 0 10px; }
 .regie .plan-head button.remove { font-size: 14px; color: var(--danger); border-color: rgba(255, 90, 95, .5); }
 .regie .plan-head button:disabled { opacity: .35; }
 
 /* Bibliothèque « Ajouter un jeu », plein écran au-dessus de la régie. */
 .regie .lib {
   position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; gap: 10px;
-  padding: calc(10px + env(safe-area-inset-top)) 16px calc(12px + env(safe-area-inset-bottom)); background: var(--night-deep);
+  padding: calc(10px + env(safe-area-inset-top)) 16px calc(12px + env(safe-area-inset-bottom)); background: var(--fond-bas);
 }
 .regie .lib-top { display: flex; align-items: center; gap: 10px; font-size: 20px; }
 .regie .lib-top b { flex: 1; }
@@ -110,7 +115,7 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 
 .regie .show-item {
   display: flex; flex-direction: column; gap: 2px; text-align: left; width: 100%; min-height: 64px;
-  background: var(--night); color: var(--ink); border: 1px solid #3a2652; border-radius: 14px; padding: 10px 12px; font-size: 14px;
+  background: var(--night); color: var(--ink); border: 1px solid var(--trait); border-radius: 14px; padding: 10px 12px; font-size: 14px;
 }
 .regie .show-item b { font-size: 16px; }
 .regie .show-item span { color: var(--ink-soft); }
@@ -121,7 +126,7 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .actions .row { display: flex; gap: 8px; }
 .regie .actions .row .btn { flex: 1; }
 
-.regie .banner { position: fixed; top: 0; left: 0; right: 0; z-index: 5; text-align: center; font-size: 14px; padding: 6px; background: #3a2652; color: var(--ink); }
+.regie .banner { position: fixed; top: 0; left: 0; right: 0; z-index: 5; text-align: center; font-size: 14px; padding: 6px; background: var(--trait); color: var(--ink); }
 .regie .toast { background: var(--panel); border-radius: 12px; padding: 10px 12px; font-size: 15px; }
 .regie .undo { display: flex; align-items: center; gap: 10px; background: var(--panel); border-radius: 12px; padding: 6px 6px 6px 12px; font-size: 15px; }
 .regie .undo span { flex: 1; }
@@ -136,7 +141,7 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .modal { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; background: rgba(11, 6, 20, .8); padding: 16px; }
 .modal-box {
   width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 12px;
-  background: #1a0b2e; color: #fff4f2; border-radius: 20px; padding: 20px; text-align: center;
+  background: var(--night); color: #fff4f2; border-radius: 20px; padding: 20px; text-align: center;
 }
 .modal-title { margin: 0; font-size: 20px; font-weight: 800; }
 .modal-box input { max-width: none; font-size: 20px; }
@@ -155,7 +160,7 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .mime-teams { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
 .regie .mime-team { min-height: 64px; border-radius: 14px; border: 3px solid transparent; background: var(--panel); color: var(--ink); font-size: 18px; font-weight: 800; padding: 6px 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
 .regie .mime-team small { font-size: 13px; font-weight: 600; color: var(--ink-soft); }
-.regie .mime-team.selected { border-color: var(--gold); background: #3a2350; }
+.regie .mime-team.selected { border-color: var(--gold); background: #4a2c66; }
 .regie .mime-found {
   flex: 1; min-height: 180px; border: 0; border-radius: 24px; background: var(--ok); color: #1a0b2e;
   font-size: 44px; font-weight: 900; letter-spacing: 1px; display: flex; flex-direction: column; align-items: center; justify-content: center;

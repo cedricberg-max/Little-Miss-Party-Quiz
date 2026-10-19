@@ -87,7 +87,7 @@ private fun Intermission(state: UiState.Playing, onResume: () -> Unit) {
     val twinkle by t.animateFloat(0f, (2 * PI).toFloat(), infiniteRepeatable(tween(4_000, easing = LinearEasing)), label = "twinkle")
     val chute = t.animateFloat(0f, 1f, infiniteRepeatable(tween(14_000, easing = LinearEasing)), label = "chute")
     val vague = t.animateFloat(0f, (2 * PI).toFloat(), infiniteRepeatable(tween(2_400, easing = LinearEasing)), label = "vague")
-    Box(Modifier.fillMaxSize().background(Palette.Night.copy(alpha = 0.94f)), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize().background(Neon.Fond.copy(alpha = 0.94f)), contentAlignment = Alignment.Center) {
         // 1. Faisceaux de projecteurs : dessinés une fois, seule la rotation du calque change.
         Box(
             Modifier.fillMaxSize()
@@ -272,7 +272,7 @@ private fun ResumeCountdown(state: UiState.Playing) {
     if (shown <= 0) return
     val pop = remember(shown) { Animatable(1.8f) }
     LaunchedEffect(shown) { pop.animateTo(1f, tween(450, easing = FastOutSlowInEasing)) }
-    Box(Modifier.fillMaxSize().background(Palette.Night.copy(alpha = 0.7f)), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize().background(Neon.Fond.copy(alpha = 0.7f)), contentAlignment = Alignment.Center) {
         // Anneau doré qui se resserre sur chaque chiffre, comme un projecteur qui fait le point.
         Canvas(
             Modifier.size(300.dp).graphicsLayer {

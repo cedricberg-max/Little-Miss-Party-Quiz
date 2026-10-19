@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.MimeCard
 import com.littlemissparty.quiz.engine.Scoring
+import com.littlemissparty.quiz.tv.habillage.BandeauEquipes
 import com.littlemissparty.quiz.tv.habillage.Gerbe
 import com.littlemissparty.quiz.tv.habillage.Neon
 import com.littlemissparty.quiz.tv.habillage.Tampon
@@ -94,12 +95,15 @@ fun MimeScreen(state: UiState.Playing, actions: TvActions) {
             if (team != null) Turn(state, m, team) else BetweenTurns(state, m, Modifier.weight(1f))
             if (team != null) Spacer(Modifier.weight(1f))
             Spacer(Modifier.height(12.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    state.teams.forEach { t -> MimeTeamChip(t, m.counts[t.uid] ?: 0, playing = t.uid == m.team, passed = t.uid in m.turns) }
-                }
+            // De 1 à 8 équipes : les pastilles passent au-dessus des boutons quand elles ne tiennent plus à côté.
+            BandeauEquipes(
+                nombre = state.teams.size,
+                modifier = Modifier.fillMaxWidth(),
                 // En pause, le seul bouton est « Reprendre » sur l'intermède.
-                if (!state.paused) MimeButtons(state, m, actions)
+                actions = { if (!state.paused) MimeButtons(state, m, actions) },
+            ) { i, compacte, mod ->
+                val t = state.teams.getOrNull(i) ?: return@BandeauEquipes
+                MimeTeamChip(t, m.counts[t.uid] ?: 0, playing = t.uid == m.team, passed = t.uid in m.turns, compacte = compacte, modifier = mod)
             }
         }
         // « TOP DÉPART ! » claque au début de chaque tour, « TEMPS ÉCOULÉ ! » à la fin, calés sur les sifflets.
@@ -263,26 +267,29 @@ private fun BetweenTurns(state: UiState.Playing, m: MimeUi, modifier: Modifier) 
                     else -> "Au tour de ${remainingTeams(state, m).first().name} ! Restent : ${remainingTeams(state, m).joinToString(", ") { it.name }}"
                 },
                 color = Palette.Ink, fontSize = 24.sp, textAlign = TextAlign.Center, lineHeight = 32.sp,
+                maxLines = 3, overflow = TextOverflow.Ellipsis,
             )
         }
     }
 }
 
 @Composable
-private fun MimeTeamChip(team: Team, count: Int, playing: Boolean, passed: Boolean) {
+private fun MimeTeamChip(team: Team, count: Int, playing: Boolean, passed: Boolean, compacte: Boolean = false, modifier: Modifier = Modifier) {
     val color = team.color.toColor()
+    val taille = if (compacte) 14.sp else 16.sp
     Column(
-        Modifier
+        modifier
             .clip(RoundedCornerShape(16.dp))
             .background(if (playing) color.copy(alpha = 0.45f) else Palette.Panel)
             .border(if (playing) 3.dp else 2.dp, color, RoundedCornerShape(16.dp))
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = if (compacte) 8.dp else 12.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(team.name, color = Palette.Ink, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        Text(team.name, color = Palette.Ink, fontSize = taille, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(
             "$count mime${if (count > 1) "s" else ""}" + if (passed && !playing) " ✓" else "",
-            color = if (count > 0) Neon.Or else Palette.InkSoft, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+            color = if (count > 0) Neon.Or else Palette.InkSoft, fontSize = taille, fontWeight = FontWeight.Bold,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
     }
 }

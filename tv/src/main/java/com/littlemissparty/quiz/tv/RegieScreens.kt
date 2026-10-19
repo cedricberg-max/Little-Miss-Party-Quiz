@@ -23,6 +23,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.littlemissparty.quiz.tv.habillage.Neon
 
 /**
  * Code de secours de la régie, pour un téléphone qui n'a pas le mot de passe commun :
@@ -36,7 +37,7 @@ fun RegieDialog(state: UiState.Playing, onClose: () -> Unit, onRemove: () -> Uni
         Row(
             Modifier
                 .clip(RoundedCornerShape(32.dp))
-                .background(Palette.Night)
+                .background(Neon.Fond)
                 .padding(40.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

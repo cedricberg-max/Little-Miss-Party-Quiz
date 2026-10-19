@@ -105,6 +105,9 @@ class DirecteurSonore {
                 if (i.musical) {
                     // La chanson part dès l'ouverture : aucun jingle par-dessus (le rideau, lui, passe quand même).
                     o += Ordre.Musique(Ambiance.SILENCE)
+                    // Blind test : son générique court à la présentation, un éclat de cuivres au passage en points doublés.
+                    if (i.blindPresentation) o += Ordre.Jouer(Son.BT_GENERIQUE)
+                    if (i.blind && i.blindDouble && !p.blindDouble) o += Ordre.Jouer(Son.BT_DOUBLE)
                 } else if (nouvelleEpreuve) {
                     o += Ordre.Jouer(Son.TRANSITION)
                     o += Ordre.Musique(Ambiance.SILENCE)
@@ -123,9 +126,10 @@ class DirecteurSonore {
                 // Image floue : une longue montée accompagne la photo qui se précise.
                 if (i.flou) o += Ordre.Jouer(Son.FLOU_MONTEE, Tempo.PROPOSITIONS_DEBUT)
                 // Extrait musical (blind test, quiz musical) : le diamant se pose sur le disque quand la chanson part.
-                if (i.musical) o += Ordre.Jouer(Son.BT_DIAMANT)
+                // Blind test : seulement quand la chanson part vraiment (pas pendant la présentation).
+                if (i.musical && (!i.blind || i.blindLecture)) o += Ordre.Jouer(Son.BT_DIAMANT)
                 // Une bulle par proposition affichée ; les jeux au buzzer n'en affichent aucune.
-                val bulles = if (i.jeuBuzz) 0 else i.propositions.coerceIn(0, 8)
+                val bulles = if (i.jeuBuzz || i.blind) 0 else i.propositions.coerceIn(0, 8)
                 for (k in 0 until bulles) {
                     o += Ordre.Jouer(Son.pop(k), Tempo.propositionApparait(k))
                 }
@@ -166,6 +170,12 @@ class DirecteurSonore {
                 o += Ordre.Musique(Ambiance.FETE, Tempo.REVELATION_OR)
                 for (k in 0 until i.gagnants.coerceIn(0, 8)) o += Ordre.Jouer(Son.TAMPON, Tempo.tampon(k))
                 if (i.gagnants > 0) o += Ordre.Jouer(Son.POINTS, Tempo.REVELATION_POINTS)
+            } else if (i.blind) {
+                // Blind test : rembobinage et fanfare quand une équipe a trouvé, simple carillon sinon (jamais moqueur).
+                o += Ordre.Musique(Ambiance.SILENCE)
+                o += Ordre.Jouer(if (i.gagnants > 0) Son.BT_BRAVO else Son.BONNE_REPONSE)
+                for (k in 0 until i.gagnants.coerceIn(0, 8)) o += Ordre.Jouer(Son.TAMPON, Tempo.tampon(k))
+                if (i.gagnants > 0) o += Ordre.Jouer(Son.POINTS, Tempo.REVELATION_POINTS)
             } else if (i.jeuBuzz) {
                 // Jeux au buzzer : la réponse s'affiche tout de suite, sans roulement.
                 o += Ordre.Musique(Ambiance.SILENCE)
@@ -203,7 +213,14 @@ class DirecteurSonore {
                 }
                 if (i.gagnants > 0) o += Ordre.Jouer(Son.POINTS, Tempo.REVELATION_POINTS)
             }
-            Ecran.CLASSEMENT -> {
+            Ecran.CLASSEMENT -> if (i.blindBilan) {
+                // Fin du blind test : le riff du générique ralenti, puis le classement et la fête.
+                o += Ordre.Musique(Ambiance.SILENCE)
+                o += Ordre.Jouer(Son.BT_OUTRO)
+                o += Ordre.Jouer(Son.COMPTEUR, Tempo.CLASSEMENT_COMPTEUR)
+                if (i.meneurAPoints) o += Ordre.Jouer(Son.COURONNE, Tempo.CLASSEMENT_COURONNE)
+                o += Ordre.Musique(Ambiance.FETE, Tempo.BT_OUTRO_MUSIQUE)
+            } else {
                 o += Ordre.Jouer(Son.WHOOSH)
                 o += Ordre.Jouer(Son.COMPTEUR, Tempo.CLASSEMENT_COMPTEUR)
                 if (i.meneurAPoints) o += Ordre.Jouer(Son.COURONNE, Tempo.CLASSEMENT_COURONNE)
@@ -238,7 +255,9 @@ class DirecteurSonore {
             val tension = i.urgent && !tousOntRepondu(i) && !i.express && !i.jeuBuzz && !i.musical
             if (tension && !enTension && !p.urgent) o += Ordre.Jouer(Son.TENSION)
             if (enTension && !tension) o += Ordre.Arreter(Son.TENSION)
-            if (i.jeuBuzz) o += buzzJeu(p, i)
+            if (i.jeuBuzz || i.blind) o += buzzJeu(p, i)
+            // Blind test : le diamant se pose chaque fois que Sarah lance (ou relance) la chanson.
+            if (i.blind && i.blindLecture && !p.blindLecture && i.buzzEquipe < 0) o += Ordre.Jouer(Son.BT_DIAMANT)
             // Qui a disparu ? : « abracadabra » au début du tour de magie, « pouf ! » quand l'objet a disparu.
             if (i.disparu == DISPARU_MAGIE && p.disparu == DISPARU_MEMORISER) {
                 o += Ordre.Jouer(Son.MAGIE)
@@ -252,6 +271,8 @@ class DirecteurSonore {
             if (i.statue && !p.statue) o += Ordre.Jouer(Son.STATUE_GEL)
             if (!i.statue && p.statue) o += Ordre.Jouer(Son.STATUE_REPART)
         }
+        // Blind test : Sarah raccourcit la révélation, la fanfare s'arrête.
+        if (i.ecran == Ecran.REVELATION && i.blind && i.blindCoupe && !p.blindCoupe) o += Ordre.Couper
         if (i.ecran == Ecran.MIMES_TOUR) {
             if (i.trouves > p.trouves) o += Ordre.Jouer(Son.MIME_TROUVE)
             if (i.passes > p.passes) o += Ordre.Jouer(Son.MIME_PASSE)
@@ -282,8 +303,14 @@ class DirecteurSonore {
         if (nouveauBuzz || repart) o += Ordre.Couper
         // Jamais moqueur : un petit « pouet » gentil quand une équipe s'est trompée.
         if ((nouveauBuzz || repart) && i.ratees > p.ratees) o += Ordre.Jouer(Son.VF_FAUX)
-        if (nouveauBuzz) {
-            // Blind test : le disque s'arrête net (scratch) au moment du buzz.
+        if (nouveauBuzz && i.blind) {
+            // Blind test : le disque freine, « BWAP » de cuivres, la note de l'équipe, puis l'attente feutrée.
+            o += Ordre.Musique(Ambiance.SILENCE)
+            o += Ordre.Jouer(Son.BT_BUZZ)
+            o += Ordre.Jouer(Son.equipe(i.buzzEquipe), Tempo.FLOU_EQUIPE)
+            o += Ordre.Jouer(Son.BT_ATTENTE, Tempo.BT_ATTENTE_DEBUT)
+        } else if (nouveauBuzz) {
+            // Quiz musical : le disque s'arrête net (scratch) au moment du buzz.
             if (i.musical) o += Ordre.Jouer(Son.BT_SCRATCH)
             o += Ordre.Musique(Ambiance.SILENCE)
             o += Ordre.Jouer(Son.BUZZ_GROS)
@@ -372,6 +399,16 @@ data class Instant(
     val indices: Int = 0,
     val buzzEquipe: Int = -1,
     val ratees: Int = 0,
+    /**
+     * Blind test : question du blind test, présentation du premier morceau (avant la première écoute),
+     * chanson en cours de lecture, points doublés, révélation raccourcie par la régie, bilan de fin de manche.
+     */
+    val blind: Boolean = false,
+    val blindPresentation: Boolean = false,
+    val blindLecture: Boolean = false,
+    val blindDouble: Boolean = false,
+    val blindCoupe: Boolean = false,
+    val blindBilan: Boolean = false,
     /** Qui a disparu ? : étape du jeu ([DISPARU_MEMORISER]…[DISPARU_REPONSE]), 0 pour les autres jeux. */
     val disparu: Int = 0,
     /** Le Juste Chiffre : révélation d'un nombre, et une équipe l'a trouvé pile. */
@@ -545,6 +582,9 @@ object Tempo {
     const val FLOU_REPRISE = 600L
     /** Jeux au buzzer : applaudissements et musique de fête juste après la réponse. */
     const val BUZZ_BRAVO = 400L
+    /** Blind test : l'attente feutrée démarre sous la fin du « BWAP » ; la fête attend la fin de l'outro. */
+    const val BT_ATTENTE_DEBUT = 1_500L
+    const val BT_OUTRO_MUSIQUE = 4_000L
 
     const val TRANSITION_MUSIQUE = 2_000L
     /** Durée du rideau plein écran qui annonce un nouveau jeu (assez court pour ne pas retarder la fête). */
