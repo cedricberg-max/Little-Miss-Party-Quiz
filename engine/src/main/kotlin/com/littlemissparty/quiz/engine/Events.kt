@@ -57,6 +57,15 @@ data class Revealed(
 
 data class ScoresShown(override val seq: Int, override val at: Long) : GameEvent
 
+/**
+ * Dernières questions du quiz à points multipliés : l'animatrice choisit, juste avant la première, le
+ * multiplicateur de toute la série qui commence à la question [start] (×2 si elle ne touche à rien).
+ */
+data class FactorChosen(override val seq: Int, override val at: Long, val start: Int, val factor: Int) : GameEvent
+
+/** Multiplicateurs proposés à l'animatrice pour les dernières questions du quiz ; le premier est celui par défaut. */
+val FACTORS = listOf(2, 3, 5)
+
 /** Portes mystères : l'animatrice ouvre la porte suivante (dans l'ordre de [Game.doorOrder]). */
 data class DoorOpened(override val seq: Int, override val at: Long, val qid: String) : GameEvent
 

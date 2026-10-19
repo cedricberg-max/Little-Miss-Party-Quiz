@@ -19,11 +19,10 @@ object Scoring {
     /**
      * @param remainingFraction part du temps qui restait quand la réponse est arrivée (0 à 1).
      */
-    fun award(question: Question, answer: Answer?, remainingFraction: Double): Award {
+    fun award(question: Question, answer: Answer?, remainingFraction: Double, factor: Int = if (question.double) 2 else 1): Award {
         if (answer == null) return Award(choice = null, correct = false, points = 0, bonus = 0)
         if (answer.choice != question.correct) return Award(answer.choice, correct = false, points = 0, bonus = 0)
         val bonus = (MAX_BONUS * remainingFraction.coerceIn(0.0, 1.0)).roundToInt()
-        val factor = if (question.double) 2 else 1
         return Award(answer.choice, correct = true, points = (BASE + bonus) * factor, bonus = bonus * factor)
     }
 
@@ -43,7 +42,6 @@ object Scoring {
     /** Vrai ou Faux express : chaque bonne réponse, sans bonus de vitesse. */
     const val EXPRESS = 50
 
-    /** Vrai ou Faux express : [EXPRESS] par bonne réponse (×2 en Super Finale), rien sinon. */
     /**
      * Portes mystères : chaque équipe reçoit la valeur de la porte choisie (plusieurs équipes peuvent prendre la
      * même). Un malus ne fait jamais descendre un score sous 0 : il est réduit au score de l'équipe ([scores], avant
@@ -56,9 +54,9 @@ object Scoring {
             Award(a.choice, correct = value > 0, points = points, bonus = 0)
         }
 
-    fun awardExpress(question: Question, answer: Answer): Award {
+    /** Vrai ou Faux express : [EXPRESS] par bonne réponse (multiplié en fin de quiz), rien sinon. */
+    fun awardExpress(question: Question, answer: Answer, factor: Int = if (question.double) 2 else 1): Award {
         val correct = answer.choice == question.correct
-        val factor = if (question.double) 2 else 1
         return Award(answer.choice, correct = correct, points = if (correct) EXPRESS * factor else 0, bonus = 0)
     }
 
@@ -73,10 +71,9 @@ object Scoring {
      * ([NUMBER_EXACT] si elles l'ont trouvé pile) ; égalité de distance = tout le monde marque.
      * La vitesse ne compte pas : pas de bonus, aucune course contre le réseau.
      */
-    fun awardNumber(question: Question, answers: Map<String, Answer>): Map<String, Award> {
+    fun awardNumber(question: Question, answers: Map<String, Answer>, factor: Int = if (question.double) 2 else 1): Map<String, Award> {
         val distance = answers.mapValues { (_, a) -> kotlin.math.abs(a.choice.toLong() - question.correct.toLong()) }
         val best = distance.values.minOrNull()
-        val factor = if (question.double) 2 else 1
         return answers.mapValues { (team, a) ->
             val wins = distance[team] == best
             val points = when {

@@ -14,7 +14,7 @@ import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
 import {
   buildSnapshot, estimateMinutes, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, BUILTIN_GAMES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
   roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC, PICTO_SECONDS, PICTO_SEC, PICTO_POINTS, PICTO_RULE, PORTES_DOORS, PORTES_DEFAULT, PORTES_VALUES,
-  blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras,
+  blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras, contentSlot, contentImages,
 } from "./show.js";
 import { EXTRACT_SECONDS, guessTrack, defaultStart, decodeFile, makeExtract, synthTune, encodeMp3, soundId } from "./audio.js";
 import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
@@ -1623,14 +1623,16 @@ function openBuiltin(type) {
 function builtinState(type) {
   const c = contents[type] ?? {};
   const off = (Array.isArray(c.off) ? c.off : Object.values(c.off ?? {})).map((k) => `${k}`.toLowerCase());
-  return { off, extra: contentExtras(type, c) };
+  return { off, extra: contentExtras(type, c), images: contentImages(c) };
 }
 
 async function saveBuiltin(type, next, message) {
+  const images = next.images ?? builtinState(type).images;
   try {
     await set(ref(db, `library/contents/${type}`), {
       off: next.off.length ? next.off : null,
       extra: next.extra.length ? next.extra.map(({ level, ...x }) => x) : null,
+      images: Object.keys(images).length ? images : null,
       updatedAt: serverTimestamp(),
     });
     status("builtin-status", message, true);
@@ -1647,10 +1649,14 @@ function renderBuiltin() {
   const { off, extra } = builtinState(type);
   const active = activeItems(type, contents[type]).length;
   $("builtin-count").textContent = `${plural(active, `${game.unit} actif`, `${game.unit}s actifs`)} sur ${game.catalog.length + extra.length}`;
+  const { images } = builtinState(type);
   const tile = (item, custom) => {
     const key = game.key(item);
     const on = !off.includes(key);
     const detail = type === "quisuis" ? item.clues.join(" · ") : type === "disparu" ? item.objects.map((o) => o.image).join(" ") : "";
+    const photo = type === "quisuis" ? characterPhoto(item, key, images) : null;
+    // Repère de préparation, jamais bloquant : le personnage se révélera sans visuel.
+    const missing = type === "quisuis" && !item.emoji && !images[contentSlot(key)];
     return h("div", { class: `content-item${on ? " on" : ""}${custom ? " custom" : ""}`, "data-key": key },
       h("button", {
         type: "button", class: "content-toggle", "aria-pressed": on ? "true" : "false",
@@ -1661,7 +1667,9 @@ function renderBuiltin() {
         h("b", { text: game.label(item) }),
         item.level === 2 ? h("span", { class: "tag", text: "grands" }) : null,
         custom ? h("span", { class: "tag", text: "ajouté" }) : null,
+        missing ? h("span", { class: "tag missing", text: "image ou émoji manquant" }) : null,
         detail ? h("span", { class: "detail", text: detail }) : null),
+      photo,
       custom ? h("button", {
         type: "button", class: "icon", title: "Supprimer cet ajout", text: "✕",
         onclick: () => {
@@ -1671,6 +1679,48 @@ function renderBuiltin() {
       }) : null);
   };
   $("builtin-items").replaceChildren(...game.catalog.map((x) => tile(x, false)), ...extra.map((x) => tile(x, true)));
+}
+
+/**
+ * Qui suis-je ? : l'image du personnage (générée par exemple avec ChatGPT), réduite et rangée comme les images
+ * de réponses. Elle remplace l'émoji à la révélation sur la TV ; « ✕ » la retire.
+ */
+function characterPhoto(item, key, images) {
+  const slot = contentSlot(key);
+  const id = images[slot];
+  const thumb = h("img", { class: "choice-thumb", alt: `Image de ${item.answer}`, hidden: !id });
+  if (id) {
+    if (imageCache[id]) thumb.src = imageCache[id];
+    else get(ref(db, `library/images/${id}`)).then((snap) => {
+      if (typeof snap.val() === "string") { imageCache[id] = snap.val(); thumb.src = snap.val(); }
+    }).catch(() => {});
+  }
+  const save = (next, message) => {
+    const st = builtinState("quisuis");
+    saveBuiltin("quisuis", { ...st, images: next }, message);
+  };
+  const file = h("input", {
+    type: "file", accept: "image/*", hidden: true,
+    onchange: async (e) => {
+      const f = e.target.files?.[0];
+      e.target.value = "";
+      if (!f) return;
+      try {
+        const newId = await storeChoiceImage(f);
+        save({ ...builtinState("quisuis").images, [slot]: newId }, `Image de « ${item.answer} » enregistrée.`);
+      } catch (err) {
+        console.error(err);
+        status("builtin-status", "Image refusée : essayez une autre image (JPEG ou PNG).");
+      }
+    },
+  });
+  return h("span", { class: "choice-photo" }, thumb,
+    id ? h("button", {
+      type: "button", class: "icon", title: "Retirer l'image", text: "✕",
+      onclick: () => { const { [slot]: _, ...rest } = builtinState("quisuis").images; save(rest, `Image de « ${item.answer} » retirée.`); },
+    }) : null,
+    h("button", { type: "button", class: "icon", title: "Choisir une image pour ce personnage", text: "📷", onclick: () => file.click() }),
+    file);
 }
 
 /** Formulaire d'ajout propre à chaque jeu. */

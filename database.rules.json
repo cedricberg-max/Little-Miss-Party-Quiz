@@ -144,7 +144,7 @@
           ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
           "$cmd": {
             ".write": "auth != null && !data.exists() && newData.exists() && root.child('games').child($code).child('regie').child(auth.uid).exists()",
-            ".validate": "newData.child('type').isString() && newData.child('type').val().matches(/^(next|pause|resume|close|adjust|undo|end|admit|replace|mime_start|mime_found|mime_pass|mime_fix|mime_stop|goto|buzz_ok|buzz_ko|buzz_bonus|statues_win|blind_play|blind_unblock|blind_reveal|blind_skip|blind_cut|picto_show|picto_draw)$/) && newData.child('expectSeq').isNumber() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
+            ".validate": "newData.child('type').isString() && newData.child('type').val().matches(/^(next|pause|resume|close|adjust|undo|end|admit|replace|mime_start|mime_found|mime_pass|mime_fix|mime_stop|goto|buzz_ok|buzz_ko|buzz_bonus|statues_win|blind_play|blind_unblock|blind_reveal|blind_skip|blind_cut|picto_show|picto_draw|factor)$/) && newData.child('expectSeq').isNumber() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
             "team": {
               ".validate": "newData.isString() && newData.val().length <= 128"
             },
@@ -162,6 +162,9 @@
             },
             "qid": {
               ".validate": "newData.isString() && newData.val().length <= 40"
+            },
+            "factor": {
+              ".validate": "newData.val() === 2 || newData.val() === 3 || newData.val() === 5"
             },
             "$other": {
               ".validate": "$other === 'type' || $other === 'expectSeq' || $other === 'by' || $other === 'at'"
@@ -356,7 +359,7 @@
       "contents": {
         "$game": {
           ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
-          ".validate": "!newData.exists() || ($game.matches(/^(chante|quisuis|disparu)$/) && newData.child('updatedAt').val() === now)",
+          ".validate": "!newData.exists() || ($game.matches(/^(chante|quisuis|disparu|pictionary)$/) && newData.child('updatedAt').val() === now)",
           "off": {
             "$i": {
               ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 80"
@@ -368,8 +371,13 @@
               ".validate": "newData.hasChildren()"
             }
           },
+          "images": {
+            "$k": {
+              ".validate": "$k.length <= 80 && newData.isString() && newData.val().matches(/^[0-9a-f]{16}$/)"
+            }
+          },
           "$other": {
-            ".validate": "$other === 'off' || $other === 'extra' || $other === 'updatedAt'"
+            ".validate": "$other === 'off' || $other === 'extra' || $other === 'images' || $other === 'updatedAt'"
           }
         }
       },

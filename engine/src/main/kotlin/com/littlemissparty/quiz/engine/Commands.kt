@@ -55,6 +55,9 @@ sealed interface Command {
     /** Blind test : raccourcir la révélation. */
     data class BlindCut(override val id: String, override val expectSeq: Int) : Command
 
+    /** Dernières questions du quiz : multiplicateur de la série qui commence à la question suivante. */
+    data class Factor(override val id: String, override val expectSeq: Int, val factor: Int) : Command
+
     /** Régie : aller au jeu (manche) qui commence à la question [index], [qid] vérifiant le programme. */
     data class Goto(override val id: String, override val expectSeq: Int, val index: Int, val qid: String) : Command
 
@@ -91,6 +94,7 @@ sealed interface Command {
                 "blind_skip" -> BlindSkip(id, seq)
                 "blind_cut" -> BlindCut(id, seq)
                 "goto" -> Goto(id, seq, (m["index"] as Number).toInt(), m["qid"] as String)
+                "factor" -> Factor(id, seq, (m["factor"] as Number).toInt())
                 else -> null
             }
         }.getOrNull()
@@ -168,6 +172,7 @@ fun Game.execute(
         is Command.BlindReveal -> blindReveal(now)
         is Command.BlindSkip -> blindSkip(now)
         is Command.BlindCut -> blindCut(now)
+        is Command.Factor -> if (cmd.factor !in FACTORS) return refused("bad_factor") else chooseFactor(cmd.factor, now)
         // Le programme a changé depuis l'affichage de la régie : rien n'est fait.
         is Command.Goto -> if (quiz.questions.getOrNull(cmd.index)?.id != cmd.qid) return refused("stale_program") else goto(cmd.index, now)
     }

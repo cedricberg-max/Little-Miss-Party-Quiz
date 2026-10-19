@@ -103,7 +103,8 @@ export const BUILTIN_GAMES = {
   quisuis: {
     unit: "personnage", count: 5, duration: 40, rule: "un indice de plus toutes les 10 secondes",
     items: (profile, random, list) => list.filter((p) => profile !== "PETITS" || p.level === 1),
-    question: (p) => ({ text: "Qui suis-je ?", choices: [p.answer], correct: 0, kind: "quisuis", cards: p.clues.map((word) => ({ word })), image: p.emoji }),
+    // Le personnage se montre à la révélation : son image (préparée dans l'administration), sinon son émoji.
+    question: (p) => ({ text: "Qui suis-je ?", choices: [p.answer], correct: 0, kind: "quisuis", cards: p.clues.map((word) => ({ word })), image: p.emoji, ...(p.imageId ? { imageId: p.imageId } : {}) }),
   },
   disparu: {
     unit: "grille", count: 4, duration: 45, rule: "on mémorise les objets, puis l'un d'eux disparaît",
@@ -154,11 +155,23 @@ export function contentExtras(type, content) {
   return (Array.isArray(content?.extra) ? content.extra : Object.values(content?.extra ?? {})).map(game.clean).filter(Boolean);
 }
 
-/** Éléments jouables d'un jeu intégré : le catalogue sans les éléments retirés, plus les ajouts. */
+/** Clé d'un élément utilisable dans la base (sans . # $ [ ] /) : images des personnages de Qui suis-je ?. */
+export const contentSlot = (key) => `${key}`.replace(/[.#$[\]/]/g, "_").slice(0, 80);
+
+/** Images choisies dans l'administration pour les éléments d'un jeu (Qui suis-je ?), par clé d'élément. */
+export function contentImages(content) {
+  const out = {};
+  for (const [k, id] of Object.entries(content?.images ?? {})) if (typeof id === "string" && /^[0-9a-f]{16}$/.test(id)) out[k] = id;
+  return out;
+}
+
+/** Éléments jouables d'un jeu intégré : le catalogue sans les éléments retirés, plus les ajouts, avec leur image. */
 export function activeItems(type, content) {
   const game = CONTENT_GAMES[type];
   const off = new Set((Array.isArray(content?.off) ? content.off : Object.values(content?.off ?? {})).map((k) => `${k}`.toLowerCase()));
-  return [...game.catalog, ...contentExtras(type, content)].filter((x) => !off.has(game.key(x)));
+  const images = contentImages(content);
+  return [...game.catalog, ...contentExtras(type, content)].filter((x) => !off.has(game.key(x)))
+    .map((x) => (images[contentSlot(game.key(x))] ? { ...x, imageId: images[contentSlot(game.key(x))] } : x));
 }
 
 /** Qui a disparu ? : objets par grille selon l'âge, et temps de recherche après la mémorisation. */

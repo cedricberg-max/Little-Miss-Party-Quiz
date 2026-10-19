@@ -76,6 +76,8 @@ data class GameState(
     val skipped: Set<String> = emptySet(),
     /** Blind test : morceau dont l'animatrice a raccourci la révélation. */
     val revealCut: String? = null,
+    /** Dernières questions du quiz : multiplicateur choisi par l'animatrice, par première question de la série. */
+    val factors: Map<Int, Int> = emptyMap(),
     /** Portes mystères : nombre de portes déjà ouvertes par l'animatrice (dans l'ordre de [Game.doorOrder]). */
     val doorsOpened: Int = 0,
 ) {
@@ -270,6 +272,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             else if (s.phase != Phase.CLOSED || e.qid != s.qid || s.paused) null
             // Une seule attribution par question : la clé est l'identifiant de la question.
             else s.copy(phase = Phase.REVEAL, awards = s.awards + (e.qid to e.awards))
+        is FactorChosen ->
+            if (e.factor !in FACTORS || doubleRunStart(e.start) != e.start) null else s.copy(factors = s.factors + (e.start to e.factor))
         is ScoresShown -> when {
             s.paused -> null
             s.phase == Phase.REVEAL -> s.copy(phase = Phase.SCORES)
@@ -431,7 +435,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             val q = quiz.questions.getOrNull(s.index)
             if ((s.phase != Phase.QUESTION && s.phase != Phase.CLOSED) || q == null || !q.isStatues || s.paused || e.team.isBlank()) null
             else {
-                val factor = if (q.double) 2 else 1
+                val factor = factorIn(s, s.index)
                 val others = e.others.filter { it != e.team && it.isNotBlank() }.associateWith { Award(null, correct = false, points = Scoring.MINI_PLAYED * factor, bonus = 0) }
                 s.copy(
                     phase = Phase.REVEAL,
@@ -446,7 +450,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             val q = quiz.questions.getOrNull(s.index)
             if (s.phase != Phase.QUESTION || b == null || team == null || s.paused || q == null) null
             else if (e.ok) {
-                val factor = if (q.double) 2 else 1
+                val factor = if (q.isBlind) (if (q.double) 2 else 1) else factorIn(s, s.index)
                 // Blind test : la valeur du morceau, quel que soit le moment du buzz.
                 val points = if (q.isBlind) q.trackPoints * factor
                 else (if (b.blocked.isEmpty()) Scoring.BUZZ else Scoring.BUZZ_REBOUND) * factor
@@ -535,6 +539,40 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             i == 0 || quiz.questions[i].roundTitle == null || quiz.questions[i].roundTitle != quiz.questions[i - 1].roundTitle
         }
 
+    /**
+     * Première question de la série à points multipliés (dernières questions d'une manche de quiz) qui contient
+     * [index], ou null hors d'une telle série. Le blind test garde ses propres morceaux doublés, hors de ce réglage.
+     */
+    fun doubleRunStart(index: Int): Int? {
+        val q = quiz.questions.getOrNull(index)?.takeIf { it.double && !it.isBlind } ?: return null
+        var i = index
+        while (quiz.questions.getOrNull(i - 1)?.let { it.double && !it.isBlind && it.roundTitle == q.roundTitle } == true) i--
+        return i
+    }
+
+    /** Multiplicateur des points de la question [index] : 1, ou celui choisi pour sa série (×2 par défaut). */
+    fun factorOf(index: Int): Int = factorIn(state, index)
+
+    private fun factorIn(s: GameState, index: Int): Int =
+        quiz.questions.getOrNull(index)?.takeIf { it.isBlind }?.let { if (it.double) 2 else 1 }
+            ?: doubleRunStart(index)?.let { s.factors[it] ?: FACTORS.first() } ?: 1
+
+    /**
+     * Série à points multipliés dont l'animatrice peut encore choisir le multiplicateur : celle qui commence à la
+     * question suivante, entre deux questions (jamais pendant une question déjà affichée avec sa valeur).
+     */
+    fun factorChoice(): Int? {
+        if (state.phase != Phase.LOBBY && state.phase != Phase.REVEAL && state.phase != Phase.SCORES) return null
+        val next = state.index + 1
+        return next.takeIf { doubleRunStart(it) == it }
+    }
+
+    fun chooseFactor(factor: Int, now: Long): GameEvent? {
+        val start = factorChoice() ?: return null
+        if (factor !in FACTORS) return null
+        return emit(FactorChosen(nextSeq, now, start, factor))
+    }
+
     /** Questions du jeu (manche) qui commence ou contient la question [index]. */
     fun roundOf(index: Int): IntRange {
         val starts = rounds
@@ -575,11 +613,11 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         // Image floue : les points viennent du buzzer ; chrono écoulé sans bonne réponse, personne ne marque.
         val awards = if (q.isBuzz || q.isStatues) emptyMap()
         else if (q.isPortes) Scoring.awardPortes(q, answers, state.scores())
-        else if (q.isNumber) Scoring.awardNumber(q, answers)
-        else if (q.isExpress) answers.mapValues { (_, a) -> Scoring.awardExpress(q, a) }
+        else if (q.isNumber) Scoring.awardNumber(q, answers, factorOf(state.index))
+        else if (q.isExpress) answers.mapValues { (_, a) -> Scoring.awardExpress(q, a, factorOf(state.index)) }
         else answers.mapValues { (_, a) ->
             val remaining = (q.durationMs - state.elapsedAt(a.at)).coerceAtLeast(0)
-            Scoring.award(q, a, remaining.toDouble() / q.durationMs)
+            Scoring.award(q, a, remaining.toDouble() / q.durationMs, factorOf(state.index))
         }
         return emit(Revealed(nextSeq, now, q.id, awards))
     }

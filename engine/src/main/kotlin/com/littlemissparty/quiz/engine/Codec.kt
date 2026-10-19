@@ -24,6 +24,7 @@ object Codec {
                 },
             )
             is ScoresShown -> mapOf("type" to "scores")
+            is FactorChosen -> mapOf("type" to "factor", "start" to e.start, "factor" to e.factor)
             is DoorOpened -> mapOf("type" to "door", "qid" to e.qid)
             is ScoreAdjusted -> mapOf("type" to "adjust", "team" to e.team, "delta" to e.delta, "reason" to e.reason)
             is Undone -> mapOf("type" to "undo", "target" to e.target)
@@ -72,6 +73,7 @@ object Codec {
                 },
             )
             "scores" -> ScoresShown(seq, at)
+            "factor" -> FactorChosen(seq, at, m.num("start").toInt(), m.num("factor").toInt())
             "door" -> DoorOpened(seq, at, m["qid"] as String)
             "adjust" -> ScoreAdjusted(seq, at, m["team"] as String, m.num("delta").toInt(), m["reason"] as? String ?: "")
             "undo" -> Undone(seq, at, m.num("target").toInt())
@@ -167,12 +169,16 @@ object Codec {
             "pauseTeam" to s.hold?.team,
             "resumeAt" to s.resumeAt,
         )
+        // Dernières questions du quiz : la régie propose le multiplicateur juste avant la première.
+        game.factorChoice()?.let { start -> out["factorChoice"] = mapOf("start" to start, "factor" to (s.factors[start] ?: FACTORS.first())) }
         if (q != null && s.phase != Phase.ENDED) {
+            game.gameStep()?.let { out["game"] = mapOf("title" to it.title, "n" to it.n, "of" to it.of, "label" to it.label) }
             out += mapOf(
                 "index" to s.index,
                 "qid" to q.id,
                 "kind" to q.kind.code,
                 "double" to q.double,
+                "factor" to game.factorOf(s.index).takeIf { q.double },
                 "text" to q.text,
                 // Jeux au buzzer : réponse à voix haute, les propositions (qui contiennent la réponse) restent cachées.
                 "choices" to if (q.isBuzz && !revealed) null else q.choices,

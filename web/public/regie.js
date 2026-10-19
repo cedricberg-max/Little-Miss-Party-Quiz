@@ -195,8 +195,8 @@ function control() {
   // Notes de Sarah pour l'animatrice, préparées dans l'administration avec la prestation.
   listen(`games/${code}/show/notes`, (s) => {
     const notes = typeof s.val() === "string" ? s.val().trim() : "";
-    // Ouvertes à leur arrivée ; l'animatrice les replie d'une touche.
-    if (notes && notes !== $("c-notes-text").textContent) $("c-notes").open = true;
+    // Ouvertes à leur arrivée avant la partie ; l'animatrice les replie d'une touche.
+    if (notes && notes !== $("c-notes-text").textContent) $("c-notes").open = (live.state?.phase ?? "lobby") === "lobby";
     $("c-notes").hidden = !notes;
     $("c-notes-text").textContent = notes;
   });
@@ -257,8 +257,13 @@ function nextLabel(st, teamCount) {
   }
 }
 
+let notesFolded = false;
+
 function render() {
   const st = live.state ?? { phase: "lobby" };
+  // Partie lancée : les notes se replient d'elles-mêmes, une fois, pour laisser la place aux commandes.
+  if (st.phase !== "lobby" && !notesFolded) { $("c-notes").open = false; notesFolded = true; }
+  if (st.phase === "lobby") notesFolded = false;
   // Le téléphone de la régie reste allumé pendant toute la partie, puis rend la veille normale à la fin.
   setAwake(st.phase !== "ended");
   const teams = Object.entries(live.teams).sort((a, b) => (a[1].joinedAt ?? 0) - (b[1].joinedAt ?? 0));
@@ -268,11 +273,12 @@ function render() {
   $("c-step").textContent = inQuestion && st.mime
     ? (st.kind === "pictionary" ? "Pictionary" : `Mimes · ${st.text ?? ""}`)
     : inQuestion
-    ? `Question ${st.index + 1} / ${st.total ?? "?"}${st.double ? " · ×2" : ""}`
+    ? `${st.game?.label ?? `Question ${st.index + 1}`}${st.double ? ` · ×${st.factor ?? 2}` : ""}`
     : st.phase === "lobby" ? live.plan?.title ?? "" : "";
   $("c-phase").textContent = st.paused ? `En pause · ${PHASES[st.phase] ?? ""}` : PHASES[st.phase] ?? "";
   $("c-phase").classList.toggle("on-hold", st.paused === true);
   renderHold(st, teams);
+  renderFactor(st);
   $("c-question").textContent = inQuestion ? st.text ?? q?.text ?? "" : st.phase === "ended" ? (gamesOf(st).next ? "Bravo à toutes les équipes ! Un jeu a été ajouté : la partie peut reprendre." : "Bravo à toutes les équipes ! Pour continuer, ajoutez un jeu (onglet Programme) ou rejouez-en un (⏭ Changer de jeu).") : `${teams.length} équipe${teams.length > 1 ? "s" : ""} inscrite${teams.length > 1 ? "s" : ""}`;
 
   const portes = (q?.kind ?? st.kind) === "portes";
@@ -331,6 +337,22 @@ function render() {
  * En pause : pourquoi, et qui n'est pas prêt. La reprise reste toujours le choix de l'animatrice,
  * même quand l'équipe déconnectée est revenue.
  */
+/** Juste avant les dernières questions du quiz : l'animatrice choisit ×2, ×3 ou ×5 (×2 par défaut). */
+function renderFactor(st) {
+  const choice = st.factorChoice;
+  const box = $("c-factor");
+  box.hidden = !choice || isDemo();
+  if (box.hidden) return;
+  const n = (live.plan?.questions ?? []).slice(choice.start).findIndex((q, k, rest) => !(q.double || q.finale) || (k > 0 && q.round !== rest[0].round));
+  const count = n < 0 ? (live.plan?.questions?.length ?? 0) - choice.start : n;
+  $("c-factor-text").textContent = `${count > 1 ? `Les ${count} dernières questions du quiz arrivent` : "La dernière question du quiz arrive"} : combien de points ?`;
+  box.querySelectorAll("[data-factor]").forEach((b) => {
+    const on = Number(b.dataset.factor) === choice.factor;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-pressed", String(on));
+  });
+}
+
 function renderHold(st, teams) {
   const box = $("c-hold");
   box.hidden = !st.paused;
@@ -1517,6 +1539,7 @@ const STATUS_MESSAGES = {
   gone: "Cette demande n'existe plus : l'appareil a peut-être quitté la page.",
   stale_program: "Le programme venait de changer : rien n'a été fait, la liste des jeux est à jour.",
   countdown: "La partie reprend (3, 2, 1) : attendez la fin du décompte.",
+  bad_factor: "Valeur de points inconnue.",
 };
 
 function toast(message) {
@@ -1673,6 +1696,10 @@ function showUndo(text, seq) {
   };
   undoTimer = setTimeout(() => { $("undo").hidden = true; }, 10000);
 }
+
+$("c-factor").querySelectorAll("[data-factor]").forEach((b) => {
+  b.onclick = () => send("factor", { factor: Number(b.dataset.factor) });
+});
 
 $("c-next").onclick = async () => {
   const st = live.state;

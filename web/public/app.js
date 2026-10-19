@@ -428,8 +428,11 @@ function renderLobby(st) {
 function renderQuestion(st) {
   show("question");
   $("q-number").textContent = st.kind === "express" ? "Vrai ou Faux express !"
-    : st.kind === "zoom" ? "Zoom mystère : regardez la TV !" : st.kind === "portes" ? "Portes mystères !" : `Question ${(st.index ?? 0) + 1} / ${st.total ?? "?"}`;
+    : st.kind === "zoom" ? "Zoom mystère : regardez la TV !" : st.kind === "portes" ? "Portes mystères !"
+    // Box à jour : la position dans le jeu en cours (« Quiz · question 5 / 10 »), jamais dans toute la prestation.
+    : st.game?.label ?? `Question ${(st.index ?? 0) + 1}`;
   $("q-double").hidden = !st.double;
+  $("q-double").textContent = `Points ×${st.factor ?? 2}`;
   if (st.kind === "number") return renderNumber(st);
   $("choices").hidden = st.kind === "portes";
   $("portes-host").hidden = st.kind !== "portes";

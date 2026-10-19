@@ -96,6 +96,10 @@ sealed interface UiState {
         val isLast: Boolean = false,
         /** Fin d'un jeu : nom du jeu qui commence ensuite (annoncé sur le bouton), null au milieu d'un jeu. */
         val nextGame: String? = null,
+        /** Où en est la partie dans le jeu en cours : « Image floue · 3 / 8 », « Quiz · question 5 / 10 ». */
+        val etape: String? = null,
+        /** Points multipliés de la question en cours (dernières questions du quiz : ×2, ×3 ou ×5), 1 sinon. */
+        val factor: Int = 1,
         /** Points gagnés par équipe dans le jeu en cours : vainqueur du jeu, célébré à sa fin (nextGame ou isLast). */
         val gameGains: Map<String, Int> = emptyMap(),
         val round: Int = 1,
@@ -665,6 +669,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 lastGain = if (q?.isTurns == true) mimeCounts.mapValues { it.value * s.pointsPerFound(q.id) } else revealedAwards.mapValues { it.value.points },
                 isLast = g.isLastQuestion,
                 nextGame = g.nextGameTitle(),
+                etape = g.gameStep()?.label,
+                factor = g.factorOf(s.index),
                 gameGains = g.gameGains(),
                 mime = q?.takeIf { it.isTurns && s.phase != Phase.LOBBY }?.let {
                     val m = s.mime

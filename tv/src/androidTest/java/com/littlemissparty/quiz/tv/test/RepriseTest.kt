@@ -28,7 +28,7 @@ class RepriseTest : TestTv() {
         ecran.ok("Reprendre la partie")
 
         // Même partie, même étape : la réponse donnée avant la fermeture compte toujours.
-        ecran.voit("Question 1 / ")
+        ecran.voit("Quiz · question 1 / ")
         ecran.ok("Révéler la réponse")
         ecran.voit("Voir les scores")
         assertEquals(code, Boite.codeActif())
@@ -48,7 +48,7 @@ class RepriseTest : TestTv() {
         relancerBoite()
         ecran.voit("Reprise automatique", 30_000)
         ecran.capture("compte-a-rebours")
-        ecran.voit("Question 1 / ", 30_000)
+        ecran.voit("Quiz · question 1 / ", 30_000)
         assertEquals("Aucune nouvelle partie ne doit être créée", code, Boite.codeActif())
     }
 }

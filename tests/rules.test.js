@@ -495,6 +495,10 @@ describe("régie", () => {
     await assertSucceeds(command(REGIE, { type: "goto", index: 2, qid: "a1m" }));
     await assertFails(command(REGIE, { type: "goto", index: -1, qid: "q1" }));
     await assertFails(command(REGIE, { type: "goto", index: 0, qid: 12 }));
+    // Dernières questions du quiz : ×2, ×3 ou ×5 seulement.
+    await assertFails(command(REGIE, { type: "factor", factor: 4 }));
+    await assertFails(command(REGIE, { type: "factor", factor: "5" }));
+    await assertSucceeds(command(REGIE, { type: "factor", factor: 3 }));
     await assertSucceeds(answer("rose", 1));
     await assertFails(set(ref(db("rose"), `games/${CODE}/answers/q1`), null));
     await assertFails(set(ref(db(REGIE), `games/${CODE}/answers/q1`), null));
@@ -664,11 +668,16 @@ describe("bibliothèque, prestations et chargement sur la TV", () => {
     await seed({ phase: "lobby" });
     const ok = { off: ["soleil"], extra: [{ word: "arc-en-ciel" }], updatedAt: serverTimestamp() };
     await assertSucceeds(set(ref(admin(), "library/contents/chante"), ok));
-    await assertFails(set(ref(admin(), "library/contents/pictionary"), ok));
+    // Mots du Pictionary réglables comme les autres jeux intégrés ; un jeu inconnu, non.
+    await assertSucceeds(set(ref(admin(), "library/contents/pictionary"), ok));
+    await assertFails(set(ref(admin(), "library/contents/pirate"), ok));
     await assertFails(set(ref(admin(), "library/contents/chante"), { ...ok, pirate: true }));
     await assertFails(set(ref(admin(), "library/contents/chante"), { ...ok, off: ["x".repeat(81)] }));
     await assertSucceeds(set(ref(admin(), "library/contents/chante"), null));
     await assertSucceeds(set(ref(admin(), "library/contents/quisuis"), { extra: [{ answer: "Le kangourou", clues: ["Australie", "Poche"] }], updatedAt: serverTimestamp() }));
+    // Qui suis-je ? : une image par personnage (identifiant de la bibliothèque d'images).
+    await assertSucceeds(set(ref(admin(), "library/contents/quisuis"), { extra: [{ answer: "Le kangourou", clues: ["Australie", "Poche"] }], images: { "le kangourou": "0123456789abcdef" }, updatedAt: serverTimestamp() }));
+    await assertFails(set(ref(admin(), "library/contents/quisuis"), { images: { "le kangourou": "pas-une-image" }, updatedAt: serverTimestamp() }));
     await regieByPassword("tel");
     await assertSucceeds(get(ref(db("tel"), "library/contents")));
     await assertFails(set(ref(db("tel"), "library/contents/quisuis"), ok));

@@ -26,7 +26,7 @@ class NavigationTelecommandeTest : TestTv() {
         ecran.capture("salon-une-equipe")
 
         ecran.ok("Lancer la fête !")
-        ecran.voit("Question 1 / ${quiz.questions.size}")
+        ecran.voit("Quiz · question 1 / ${quiz.questions.size}")
         ecran.voit(quiz.questions[0].text)
         ecran.voit("Arrêter le chrono")
         ecran.capture("question-1")
@@ -72,7 +72,7 @@ class NavigationTelecommandeTest : TestTv() {
 
         ecran.ok("Continuer la partie")
         ecran.neVoitPas("Continuer la partie")
-        ecran.voit("Question 1 / ")
+        ecran.voit("Quiz · question 1 / ")
         attendreQue("chrono relancé") { licornes.etat(code).takeIf { it.child("paused").value == false } }
     }
 

@@ -166,6 +166,11 @@ function startBox({ silent = false, held = false } = {}) {
         else if (cmd.type === "next" && state.paused) status = { status: "refused", reason: "paused" };
         else if (cmd.type === "adjust") state = { ...state, seq, scores: { ...state.scores, [cmd.team]: (state.scores[cmd.team] ?? 0) + cmd.delta } };
         else if (cmd.type === "undo") state = { ...state, seq };
+        else if (cmd.type === "factor") {
+          // Dernières questions du quiz : même règle que Command.Factor (entre deux questions seulement).
+          if (!state.factorChoice) status = { status: "refused", reason: "not_now" };
+          else state = { ...state, seq, factorChoice: { ...state.factorChoice, factor: cmd.factor } };
+        }
         else if (cmd.type === "end") state = { ...state, seq, phase: "ended" };
         else state = { ...state, seq };
         if (status.status === "applied") status.seq = seq;
@@ -1204,6 +1209,25 @@ describe("régie", () => {
     await page.context().close();
   });
 
+  test("juste avant les dernières questions du quiz, l'animatrice choisit ×2, ×3 ou ×5", async () => {
+    box = startBox();
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    assert.equal(await page.locator("#c-factor").isHidden(), true);
+    await box.set({ ...questionState(1), phase: "scores", factorChoice: { start: 1, factor: 2 } });
+    await page.locator("#c-factor:not([hidden])", { hasText: "combien de points" }).waitFor();
+    await page.locator("#c-factor [data-factor='2'].on").waitFor();
+    await page.click("#c-factor [data-factor='3']");
+    await waitFor(async () => (await commands()).find((c) => c.type === "factor" && c.factor === 3), "commande ×3");
+    await page.locator("#c-factor [data-factor='3'].on").waitFor();
+    // Question multipliée lancée : plus de choix, la régie affiche la valeur.
+    await box.set({ ...questionState(box.state.seq + 1, 1), double: true, factor: 3, factorChoice: null, game: { label: "Quiz · question 2 / 2" } });
+    await page.locator("#c-step", { hasText: "Quiz · question 2 / 2 · ×3" }).waitFor();
+    assert.equal(await page.locator("#c-factor").isHidden(), true);
+    await page.context().close();
+  });
+
   test("terminer la partie exige un appui long", async () => {
     box = startBox();
     const page = await openRegie();
@@ -1546,6 +1570,23 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.fill("#bi-clue2", "Je ressemble à un petit ours gris");
     await page.click("#builtin-add button[type=submit]");
     await page.locator("#builtin-status", { hasText: "« Le koala » est ajouté au jeu." }).waitFor();
+    // Ni émoji ni image : un repère discret, jamais bloquant ; une image (ChatGPT) le remplace.
+    const koala = page.locator('#builtin-items .content-item[data-key="le koala"]');
+    await koala.locator(".tag.missing", { hasText: "image ou émoji manquant" }).waitFor();
+    await koala.locator(".choice-photo input[type=file]").setInputFiles({ name: "koala.png", mimeType: "image/png", buffer: png([120, 120, 130]) });
+    await page.locator("#builtin-status", { hasText: "Image de « Le koala » enregistrée." }).waitFor();
+    await koala.locator(".choice-thumb:not([hidden])").waitFor();
+    assert.equal(await koala.locator(".tag.missing").count(), 0);
+    const portrait = (await library("contents")).quisuis.images["le koala"];
+    assert.match(portrait, /^[0-9a-f]{16}$/);
+    assert.equal(typeof (await library(`images/${portrait}`)), "string");
+    // Pictionary : un mot à soi s'enregistre comme pour les autres jeux.
+    await page.click("#nav button[data-screen=games]");
+    await page.locator('.game-card[data-game=pictionary] button').first().click();
+    await page.fill("#bi-word", "Toboggan");
+    await page.click("#builtin-add button[type=submit]");
+    await page.locator("#builtin-status", { hasText: "« Toboggan » est ajouté au jeu." }).waitFor();
+    assert.deepEqual((await library("contents")).pictionary.extra, [{ word: "Toboggan" }]);
     await page.click("#nav button[data-screen=games]");
     await page.locator('.game-card[data-game=chante]', { hasText: "dont 1 ajouté · 1 retiré" }).waitFor();
 

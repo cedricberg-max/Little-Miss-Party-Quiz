@@ -226,6 +226,11 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .games { flex: 1; margin: 0; font-size: 14px; color: var(--ink-soft, #cbb8e8); }
 .regie .games b { color: var(--gold); }
 .regie .notes { margin-top: 10px; font-size: 15px; }
+.regie .factor { margin-top: 10px; padding: 10px 12px; border-radius: 14px; background: rgba(255, 214, 10, 0.12); border: 1px solid var(--gold); }
+.regie .factor-text { margin: 0 0 8px; font-weight: 700; color: var(--gold); }
+.regie .factor-row { display: flex; gap: 8px; }
+.regie .factor-row .btn { flex: 1; min-height: 48px; font-size: 20px; font-weight: 800; }
+.regie .factor-row .btn.on { background: var(--gold); color: var(--night-deep); border-color: var(--gold); }
 .regie .notes summary { cursor: pointer; color: var(--gold); font-weight: 700; min-height: 32px; }
 .regie .notes p { margin: 6px 0 0; white-space: pre-line; line-height: 1.4; }
 .regie .rescue-open { padding: 8px 12px; font-size: 15px; }

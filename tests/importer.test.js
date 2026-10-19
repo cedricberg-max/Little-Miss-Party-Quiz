@@ -649,6 +649,13 @@ describe("Régie PC : contenus intégrés réglés, nombre de questions, notes",
     assert.deepEqual(snapshot.quiz.questions.map((q) => q.text), ["arc-en-ciel"]);
   });
 
+  test("Qui suis-je ? : l'image d'un personnage préparée dans l'administration part avec la question", () => {
+    const contents = { quisuis: { off: activeItems("quisuis", {}).map((p) => p.answer.toLowerCase()), extra: [{ answer: "Le koala", clues: ["Eucalyptus", "Australie"] }], images: { "le koala": "0123456789abcdef", autre: "pas-un-id" } } };
+    const { snapshot } = buildSnapshot("s", { age: 9, rounds: [{ type: "quisuis" }] }, {}, {}, Math.random, {}, contents);
+    assert.equal(snapshot.quiz.questions[0].imageId, "0123456789abcdef");
+    assert.equal(snapshot.quiz.questions[0].choices[0], "Le koala");
+  });
+
   test("tout retiré : la manche est signalée, jamais jouée vide", () => {
     const none = { quisuis: { off: activeItems("quisuis", {}).map((p) => p.answer.toLowerCase()) } };
     const { snapshot, problems } = buildSnapshot("s", { age: 9, rounds: [{ type: "quisuis" }] }, {}, {}, Math.random, {}, none);

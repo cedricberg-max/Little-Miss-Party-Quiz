@@ -57,7 +57,7 @@ import com.littlemissparty.quiz.tv.habillage.LaParole
 import com.littlemissparty.quiz.tv.habillage.PAROLE_CENTRE_MS
 import com.littlemissparty.quiz.tv.habillage.PAROLE_GLISSE_MS
 import com.littlemissparty.quiz.tv.habillage.Neon
-import com.littlemissparty.quiz.tv.habillage.SignatureLogo
+import com.littlemissparty.quiz.tv.habillage.LogoLmp
 import com.littlemissparty.quiz.tv.habillage.Victoire
 import com.littlemissparty.quiz.tv.habillage.Tempo
 import com.littlemissparty.quiz.tv.habillage.apparition
@@ -78,8 +78,9 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
         Column(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 24.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "Question ${state.index + 1} / ${state.total}",
+                    state.etape ?: "Question ${state.index + 1}",
                     color = Palette.InkSoft, fontSize = 22.sp, fontWeight = FontWeight.Bold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
                 )
                 if (q.isExpress) {
                     Spacer(Modifier.width(16.dp))
@@ -92,14 +93,12 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                 if (q.double) {
                     Spacer(Modifier.width(16.dp))
                     Text(
-                        "POINTS ×2",
+                        "POINTS ×${state.factor.coerceAtLeast(2)}",
                         color = Palette.Night, fontSize = 18.sp, fontWeight = FontWeight.Black,
                         modifier = Modifier.clip(RoundedCornerShape(50)).background(Palette.Gold).padding(horizontal = 14.dp, vertical = 4.dp),
                     )
                 }
-                // Signature discrète de la marque, dans la ligne d'en-tête : jamais sur la question ni les réponses.
                 Spacer(Modifier.width(20.dp))
-                SignatureLogo()
                 Spacer(Modifier.weight(1f))
                 when (state.phase) {
                     Phase.QUESTION -> Countdown(state)
@@ -418,14 +417,14 @@ fun ScoresScreen(state: UiState.Playing, actions: TvActions) {
             when {
                 state.mime?.picto == true -> "Après le Pictionary"
                 state.mime != null -> "Après les mimes"
-                else -> "Après la question ${state.index + 1} / ${state.total}"
+                else -> "Après ${state.etape ?: "la question ${state.index + 1}"}"
             },
             color = Palette.InkSoft, fontSize = 20.sp,
         )
         Spacer(Modifier.height(16.dp))
         Ranking(state, Modifier.weight(1f))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            SignatureLogo()
+            LogoLmp(64.dp)
             Spacer(Modifier.weight(1f))
             if (!state.paused) NextButton(suiteLabel(state), actions.next, key = state.index)
         }
