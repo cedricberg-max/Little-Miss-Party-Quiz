@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,10 +37,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -47,6 +50,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -216,7 +220,7 @@ fun IntroPortes(valeurs: List<Int>, modifier: Modifier = Modifier, jouer: (Son) 
                             .padding(horizontal = 14.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("${iconeContenu(v)} ${nomContenu(v)} ", style = TextStyle(color = Neon.Blanc, fontSize = 18.sp, fontWeight = FontWeight.Bold))
+                        Text("${nomContenu(v)} ", style = TextStyle(color = Neon.Blanc, fontSize = 18.sp, fontWeight = FontWeight.Bold))
                         Text(texteValeur(v), style = TextStyle(color = if (v < 0) Neon.Faux else Neon.JusteClair, fontSize = 18.sp, fontWeight = FontWeight.Black))
                     }
                 }
@@ -504,52 +508,84 @@ private fun GainsPorte(porte: PorteOuverte, ms: () -> Float, modifier: Modifier 
 
 /* ------------------------------------------------------------------ Une porte */
 
-private class StylePorte(val haut: Color, val bas: Color, val halo: Color, val motif: DrawScope.() -> Unit)
+/** Laque d'une porte : haut et bas du dégradé. */
+private class StylePorte(val haut: Color, val bas: Color)
 
-private val ETOILES = List(14) { i -> val r = java.util.Random(i * 31L + 7); Offset(r.nextFloat(), r.nextFloat()) to (0.6f + r.nextFloat()) }
-
+/** Portes laquées façon art déco : bleu nuit, bordeaux, émeraude, prune. */
 private val STYLES = listOf(
-    // Royale : violet profond, lattes et lueur dorée.
-    StylePorte(Color(0xFF7B2FD0), Color(0xFF2C0B5A), Color(0x73FFD166)) {
-        val pas = size.width / 9
-        for (k in 1..8) drawLine(Color.White.copy(alpha = 0.06f), Offset(k * pas, 0f), Offset(k * pas, size.height), 2f)
-        drawCircle(Brush.radialGradient(listOf(Color(0x59FFD166), Color.Transparent), Offset(size.width / 2, size.height * 0.3f), size.width * 0.5f))
-    },
-    // Bonbon : rayures roses.
-    StylePorte(Color(0xFFFF5FB0), Color(0xFFC2186B), Color(0x8CFF5FB0)) {
-        val pas = size.width / 5
-        var x = -size.height
-        while (x < size.width) {
-            drawLine(Color.White.copy(alpha = 0.2f), Offset(x, size.height), Offset(x + size.height, 0f), pas * 0.5f)
-            x += pas
-        }
-    },
-    // Galaxie : bleu nuit, étoiles et nébuleuse.
-    StylePorte(Color(0xFF1B3A8A), Color(0xFF070B2A), Color(0x8C50A0FF)) {
-        drawCircle(Brush.radialGradient(listOf(Color(0x8C9B5DE5), Color.Transparent), Offset(size.width * 0.7f, size.height * 0.8f), size.width * 0.6f))
-        ETOILES.forEach { (p, r) -> drawCircle(Color.White, r * size.width * 0.012f, Offset(p.x * size.width, p.y * size.height)) }
-    },
-    // Arc-en-ciel : vert d'eau et arc en bas.
-    StylePorte(Color(0xFF0FA58A), Color(0xFF064C45), Color(0x802EE86B)) {
-        val couleurs = listOf(Color(0x8CFF5A5F), Color(0x8CFFD166), Color(0x8C2EE86B), Color(0x8C2B86C5))
-        couleurs.forEachIndexed { k, c ->
-            val r = size.width * (0.62f - k * 0.07f)
-            drawArc(c, 180f, 180f, false, Offset(size.width / 2 - r, size.height * 0.95f - r), Size(2 * r, 2 * r), style = Stroke(size.width * 0.06f))
-        }
-    },
+    StylePorte(Color(0xFF1D3A7A), Color(0xFF0A1638)),
+    StylePorte(Color(0xFF7A1838), Color(0xFF34061A)),
+    StylePorte(Color(0xFF0F5E4A), Color(0xFF052A22)),
+    StylePorte(Color(0xFF3A2160), Color(0xFF140726)),
 )
 
+private val OR_CLAIR = Color(0xFFFFF3D1)
+private val OR_MOYEN = Color(0xFFE9C27A)
+private val OR_FONCE = Color(0xFFA8782F)
+private val OR_CADRE = listOf(OR_FONCE, OR_CLAIR, OR_MOYEN, OR_FONCE, OR_CLAIR, OR_MOYEN)
+
+/** Haut de la porte : couronne à gradins art déco (proportion de la hauteur occupée par les gradins). */
+private const val COURONNE = 0.09f
+private val Couronne = GenericShape { s, _ ->
+    val w = s.width
+    val h = s.height
+    moveTo(0f, h * COURONNE)
+    lineTo(w * 0.18f, h * COURONNE); lineTo(w * 0.18f, h * 0.04f)
+    lineTo(w * 0.34f, h * 0.04f); lineTo(w * 0.34f, 0f)
+    lineTo(w * 0.66f, 0f); lineTo(w * 0.66f, h * 0.04f)
+    lineTo(w * 0.82f, h * 0.04f); lineTo(w * 0.82f, h * COURONNE)
+    lineTo(w, h * COURONNE); lineTo(w, h); lineTo(0f, h)
+    close()
+}
+
+/** Soleil art déco, panneau mouluré et poignée, dessinés en traits dorés sur la laque. */
+private fun DrawScope.decorPorte() {
+    val w = size.width
+    val h = size.height
+    // Reflet de la laque.
+    drawRect(Brush.linearGradient(listOf(Color.White.copy(alpha = 0.08f), Color.Transparent, Color.Black.copy(alpha = 0.25f)), Offset.Zero, Offset(w, 0f)))
+    // Soleil : demi-cercle doré et rayons.
+    val r = w * 0.42f
+    val centre = Offset(w / 2, h * 0.05f + r)
+    val trait = 1.3.dp.toPx()
+    drawArc(OR_MOYEN, 180f, 180f, false, Offset(centre.x - r, centre.y - r), Size(2 * r, 2 * r), style = Stroke(trait * 1.3f))
+    var angle = 180.0 + 11.25
+    while (angle < 360.0) {
+        val a = Math.toRadians(angle)
+        val c = kotlin.math.cos(a).toFloat()
+        val sn = kotlin.math.sin(a).toFloat()
+        drawLine(OR_MOYEN.copy(alpha = 0.6f), Offset(centre.x + c * r * 0.3f, centre.y + sn * r * 0.3f), Offset(centre.x + c * r, centre.y + sn * r), trait * 0.8f)
+        angle += 11.25
+    }
+    // Panneau mouluré, double filet, losange au centre.
+    val g = w * 0.12f
+    val haut = h * 0.44f
+    val bas = h * 0.93f
+    drawRect(OR_MOYEN.copy(alpha = 0.7f), Offset(g, haut), Size(w - 2 * g, bas - haut), style = Stroke(trait))
+    val i = (w - 2 * g) * 0.07f
+    drawRect(OR_MOYEN.copy(alpha = 0.4f), Offset(g + i, haut + i), Size(w - 2 * g - 2 * i, bas - haut - 2 * i), style = Stroke(trait * 0.7f))
+    val m = Offset(w / 2, (haut + bas) / 2)
+    val d = w * 0.085f
+    val losange = Path().apply { moveTo(m.x, m.y - d); lineTo(m.x + d, m.y); lineTo(m.x, m.y + d); lineTo(m.x - d, m.y); close() }
+    drawPath(losange, OR_MOYEN.copy(alpha = 0.7f), style = Stroke(trait))
+    // Poignée verticale en laiton.
+    drawRoundRect(
+        Brush.horizontalGradient(listOf(OR_FONCE, OR_CLAIR, OR_MOYEN), w * 0.89f, w * 0.93f),
+        Offset(w * 0.89f, h * 0.52f), Size(w * 0.04f, h * 0.19f), CornerRadius(w * 0.02f),
+    )
+}
+
 /**
- * Une porte mystère (150 × 260) : cadre doré, battant décoré qui s'ouvre sur ses gonds ([ouverture] de 0 à 1),
- * lumière qui filtre dessous, et derrière, le contenu ([contenu] de 0 à 1 pour son apparition).
+ * Une porte mystère (150 × 260) façon art déco : cadre doré à gradins, battant laqué avec soleil et panneau
+ * moulurés qui s'ouvre sur ses gonds ([ouverture] de 0 à 1), projecteur au-dessus et lumière au sol ; derrière,
+ * le contenu ([contenu] de 0 à 1 pour son apparition).
  */
 @Composable
 private fun PorteMystere(index: Int, valeur: Int, ouverture: () -> Float, tremble: () -> Boolean, contenu: () -> Float) {
     val style = STYLES[Math.floorMod(index, STYLES.size)]
     val boucle = rememberInfiniteTransition(label = "porte")
-    val respire by boucle.animateFloat(0f, 1f, infiniteRepeatable(tween(1_800 + index * 230), RepeatMode.Reverse), label = "respire")
+    val respire by boucle.animateFloat(0f, 1f, infiniteRepeatable(tween(2_400 + index * 300), RepeatMode.Reverse), label = "respire")
     val vibre by boucle.animateFloat(0f, 1f, infiniteRepeatable(tween(90, easing = LinearEasing)), label = "vibre")
-    val arche = RoundedCornerShape(topStartPercent = 50, topEndPercent = 50, bottomStartPercent = 4, bottomEndPercent = 4)
     Box(
         Modifier
             .width(150.dp)
@@ -561,124 +597,96 @@ private fun PorteMystere(index: Int, valeur: Int, ouverture: () -> Float, trembl
                 }
             }
             .drawBehind {
-                // Halo coloré et lumière qui filtre sous la porte.
-                drawCircle(Brush.radialGradient(listOf(style.halo, Color.Transparent)), size.width * 0.95f, Offset(size.width / 2, size.height * 0.5f))
+                // Projecteur qui tombe sur la porte, et la lumière au sol.
+                val w = size.width
+                val h = size.height
+                val cone = Path().apply {
+                    moveTo(w * 0.42f, -h * 0.5f); lineTo(w * 0.58f, -h * 0.5f)
+                    lineTo(w * 1.3f, h); lineTo(-w * 0.3f, h); close()
+                }
+                drawPath(
+                    cone,
+                    Brush.verticalGradient(listOf(Color(0x40FFECBE), Color(0x10FFECBE)), -h * 0.5f, h),
+                    alpha = 0.6f + 0.4f * respire,
+                )
                 drawOval(
-                    Brush.radialGradient(listOf(Color(0xF2FFE696), Color.Transparent)),
-                    Offset(size.width * 0.1f, size.height - 6f), Size(size.width * 0.8f, 18f), alpha = 0.55f + 0.45f * respire,
+                    Brush.radialGradient(listOf(Color(0x99FFDC96), Color.Transparent)),
+                    Offset(-w * 0.1f, h - 10f), Size(w * 1.2f, 26f),
                 )
             }
-            .clip(arche)
-            .background(Brush.linearGradient(listOf(Color(0xFFFFF6DC), Neon.Or, Color(0xFFC9974F), Neon.Or)))
-            .padding(9.dp),
+            .clip(Couronne)
+            .background(Brush.linearGradient(OR_CADRE)),
     ) {
-        val archeInt = RoundedCornerShape(topStartPercent = 50, topEndPercent = 50, bottomStartPercent = 3, bottomEndPercent = 3)
+        val interieur = Modifier
+            .fillMaxSize()
+            .padding(start = 7.dp, end = 7.dp, top = (260 * COURONNE).dp + 7.dp)
         // Derrière la porte : la lumière et le contenu.
         Box(
-            Modifier
-                .fillMaxSize()
-                .clip(archeInt)
-                .background(Brush.radialGradient(listOf(Color(0xFFFFFBE8), Color(0xFFFFE39A), Color(0xFFFF9F43), Color(0xFF7A2C00)))),
+            interieur.background(Brush.radialGradient(0f to Color(0xFFFFF6DC), 0.55f to Color(0xFFF1C46F), 1f to Color(0xFFC07F2E))),
             contentAlignment = Alignment.Center,
         ) {
             ContenuPorte(valeur, contenu)
         }
         // Le battant, qui pivote sur ses gonds (bord gauche).
         Box(
-            Modifier
-                .fillMaxSize()
+            interieur
                 .graphicsLayer {
                     val o = ouverture()
                     val e = if (o <= 0f) 0f else 1f - (1f - o) * (1f - o) * (1f - o)
                     transformOrigin = TransformOrigin(0f, 0.5f)
                     cameraDistance = 9f * density
-                    rotationY = -108f * e
+                    rotationY = -104f * e
                     alpha = if (e > 0.93f) 0f else 1f
                 }
-                .clip(archeInt)
-                .background(Brush.linearGradient(listOf(style.haut, style.bas)))
-                .drawBehind { style.motif(this) },
+                .background(Brush.verticalGradient(listOf(style.haut, style.bas)))
+                .drawBehind { decorPorte() },
         ) {
+            // Numéro en médaille dorée, au cœur du soleil.
             Box(
                 Modifier
                     .align(Alignment.TopCenter)
-                    .offset(y = 32.dp)
-                    .size(52.dp)
-                    .background(Brush.radialGradient(listOf(Color.White, Neon.Or, Color(0xFFC9974F))), CircleShape),
+                    .offset(y = 20.dp)
+                    .size(46.dp)
+                    .background(OR_MOYEN, CircleShape)
+                    .padding(2.dp)
+                    .background(Color(0xFF24103D), CircleShape)
+                    .padding(2.dp)
+                    .background(Brush.radialGradient(listOf(OR_CLAIR, OR_MOYEN, OR_FONCE)), CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("${index + 1}", style = TextStyle(color = Neon.Nuit2, fontSize = 32.sp, fontWeight = FontWeight.Black))
+                Text("${index + 1}", style = TextStyle(color = Color(0xFF24103D), fontSize = 26.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.ExtraBold))
             }
-            Text(
-                "?",
-                style = TextStyle(color = Color.White.copy(alpha = 0.92f), fontSize = 50.sp, fontWeight = FontWeight.Black, shadow = Shadow(Color.White, Offset.Zero, 24f)),
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .offset(y = 22.dp)
-                    .graphicsLayer {
-                        val s = 1f + 0.1f * respire
-                        scaleX = s
-                        scaleY = s
-                        alpha = 0.75f + 0.25f * respire
-                    },
-            )
-            Box(
-                Modifier
-                    .align(Alignment.CenterEnd)
-                    .offset(x = (-10).dp, y = 30.dp)
-                    .size(13.dp)
-                    .background(Brush.radialGradient(listOf(Color.White, Neon.Or, Color(0xFF8A6328))), CircleShape),
-            )
         }
     }
 }
 
-/** Ce qui jaillit derrière la porte : l'icône (la tuile tombe du toit), le nom et la valeur. */
+/** Ce qui apparaît derrière la porte : la valeur en grand, en lettres de gala, et son nom. */
 @Composable
 private fun ContenuPorte(valeur: Int, apparition: () -> Float) {
     Column(
         Modifier.graphicsLayer {
             val p = apparition()
-            val s = if (p <= 0f) 0f else p + 0.25f * sin(p * PI.toFloat())
+            val s = if (p <= 0f) 0f else p + 0.2f * sin(p * PI.toFloat())
             scaleX = s
             scaleY = s
             alpha = if (p <= 0f) 0f else 1f
         },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        if (valeur < 0) {
-            Box(
-                Modifier
-                    .size(66.dp, 40.dp)
-                    .graphicsLayer {
-                        val p = apparition()
-                        translationY = -260f * (1f - p).coerceAtLeast(0f)
-                        rotationZ = -30f * (1f - p)
-                    }
-                    .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomStart = 28.dp, bottomEnd = 28.dp))
-                    .background(Brush.verticalGradient(listOf(Color(0xFFE8794A), Color(0xFFB5481F))))
-                    .drawBehind {
-                        val pas = size.width / 5
-                        for (k in 1..4) drawLine(Color.Black.copy(alpha = 0.14f), Offset(k * pas, 0f), Offset(k * pas, size.height), 3f)
-                        drawLine(Color.White.copy(alpha = 0.3f), Offset(0f, 3f), Offset(size.width, 3f), 4f)
-                    },
-            )
-        } else {
-            Text(iconeContenu(valeur), style = TextStyle(fontSize = 54.sp, lineHeight = 60.sp))
-        }
-        Spacer(Modifier.height(4.dp))
-        Text(
-            nomContenu(valeur).uppercase() + " !",
-            textAlign = TextAlign.Center,
-            style = TextStyle(color = Color(0xFF3B1170), fontSize = 15.sp, fontWeight = FontWeight.Black),
-        )
+        val couleur = if (valeur < 0) Color(0xFF8E0F24) else Color(0xFF3A1C00)
         Text(
             texteValeur(valeur),
             style = TextStyle(
-                color = if (valeur < 0) Color(0xFFC3122F) else Color(0xFF0B7A34), fontSize = 34.sp, lineHeight = 36.sp,
-                fontWeight = FontWeight.Black, shadow = Shadow(Color.White, Offset(0f, 2f), 0f),
+                color = couleur, fontSize = 38.sp, lineHeight = 40.sp, fontFamily = FontFamily.Serif,
+                fontWeight = FontWeight.ExtraBold, shadow = Shadow(Color.White.copy(alpha = 0.6f), Offset(0f, 2f), 0f),
             ),
             modifier = Modifier.clearAndSetSemantics {},
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            nomContenu(valeur).uppercase(),
+            textAlign = TextAlign.Center,
+            style = TextStyle(color = couleur, fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp),
         )
     }
 }

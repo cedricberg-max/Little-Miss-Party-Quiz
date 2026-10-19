@@ -4,13 +4,14 @@
  * de l'écran à montrer.
  */
 
-const STYLES = ["pm-royale", "pm-bonbon", "pm-galaxie", "pm-arcenciel"];
+const STYLES = ["pm-bleu", "pm-bordeaux", "pm-emeraude", "pm-prune"];
 
+// Porte art déco : cadre doré à gradins, battant laqué (soleil, médaille numérotée, panneau mouluré, poignée).
 const porteHTML = (k, contenu = "") => `
   <div class="pm-porte ${STYLES[k % STYLES.length]}">
+    <div class="pm-spot"></div><div class="pm-sol"></div><div class="pm-cadre"></div>
     <div class="pm-interieur">${contenu}</div>
-    <div class="pm-battant"><div class="pm-numero">${k + 1}</div><div class="pm-q">?</div><div class="pm-poignee"></div></div>
-    <div class="pm-lumiere"></div>
+    <div class="pm-battant"><div class="pm-soleil"></div><div class="pm-numero">${k + 1}</div><div class="pm-panneau"></div><div class="pm-poignee"></div></div>
   </div>`;
 
 const pastille = (equipe) => {
@@ -111,15 +112,14 @@ export function choisirPorte(hote, { nombre = 4, equipe = null, surChoix = () =>
 export function ecranPorteOuverte(hote, { valeur, porte = 0, equipe = null }) {
   hote.classList.add("pm");
   const malus = valeur < 0;
-  const contenu = `<div class="pm-revele ${malus ? "pm-malus" : ""}">
-      ${malus ? '<div class="pm-tuile"></div>' : `<div class="pm-icone">${valeur >= 300 ? "💰" : valeur >= 150 ? "🎁" : "🍬"}</div>`}
-      <div class="pm-nom"></div></div>`;
+  const contenu = `<div class="pm-revele ${malus ? "pm-malus" : ""}"><div class="pm-valeur"></div><div class="pm-nom"></div></div>`;
   hote.innerHTML = `
     <div class="pm-titre"></div>
     <div class="pm-mini pm-resultat">${porteHTML(porte, contenu)}</div>
     <div class="pm-points ${malus ? "pm-moins" : ""}"></div>`;
   hote.querySelector(".pm-titre").textContent = malus ? "Aïe, la tuile !" : valeur >= 300 ? "JACKPOT !" : "Bravo !";
-  hote.querySelector(".pm-nom").textContent = `${nomContenu(valeur)} !`;
+  hote.querySelector(".pm-valeur").textContent = `${valeur < 0 ? "−" : "+"}${Math.abs(valeur)}`;
+  hote.querySelector(".pm-nom").textContent = nomContenu(valeur).toUpperCase();
   hote.querySelector(".pm-points").textContent = texteDelta(valeur);
   if (equipe) hote.prepend(pastille(equipe));
   // La porte s'ouvre juste après l'affichage.
