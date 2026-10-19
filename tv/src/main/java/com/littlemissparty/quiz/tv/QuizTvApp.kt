@@ -342,7 +342,7 @@ private fun Lobby(state: UiState.Playing, actions: TvActions) {
     Row(Modifier.fillMaxSize().padding(horizontal = 56.dp, vertical = 40.dp)) {
         Column(Modifier.weight(1f).fillMaxHeight()) {
             Title()
-            // Au-delà de 4 équipes, on resserre pour que toutes tiennent au-dessus de « Lancer le quiz ».
+            // Au-delà de 4 équipes, on resserre pour que toutes tiennent au-dessus de « Lancer la fête ! ».
             val nombreuses = state.teams.size > 4
             // Prestation chargée depuis la régie : on accueille l'enfant fêté par son prénom.
             when {
@@ -377,7 +377,7 @@ private fun Lobby(state: UiState.Playing, actions: TvActions) {
                 Text("En attendant : buzzez sur votre pupitre, autant que vous voulez !", color = Palette.Gold, fontSize = 22.sp)
                 Spacer(Modifier.height(16.dp))
             }
-            if (state.teams.isNotEmpty()) NextButton("Lancer le quiz", actions.next)
+            if (state.teams.isNotEmpty()) NextButton("Lancer la fête !", actions.next)
         }
         Spacer(Modifier.width(40.dp))
         Column(
@@ -406,7 +406,7 @@ private fun Title() {
         1f, 1.03f, infiniteRepeatable(tween(1000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "pulse",
     )
     // Logo « Néon chic » : écriture blanche au halo rose, PARTY en or, QUIZ qui brille.
-    // Une ligne chacun, hauteurs fixées : le logo ne doit jamais pousser « Lancer le quiz » hors de l'écran.
+    // Une ligne chacun, hauteurs fixées : le logo ne doit jamais pousser « Lancer la fête ! » hors de l'écran.
     Column(Modifier.scale(pulse)) {
         Text(
             "Little Miss",

@@ -529,3 +529,31 @@ describe("statues musicales", () => {
     assert.equal(estimateMinutes(snapshot), 4);
   });
 });
+
+describe("Super Finale : les dernières questions du quiz, pas un jeu à part", () => {
+  const quiz = (title, n) => ({ title, questions: [...Array(n).keys()].map((i) => ({ text: `${title} ${i + 1} ?`, choices: ["Oui", "Non"], correct: 0, status: "validee" })) });
+  const LIB = { a: quiz("Animaux", 2), b: quiz("Sport", 1), f: quiz("Finale", 2) };
+  const play = (rounds) => buildSnapshot("s", { childName: "Léa", age: 9, rounds }, LIB, { d: { title: "Mimes", cards: [{ word: "Chat" }] } }, () => 0);
+
+  test("après un quiz : ses questions ×2 terminent ce quiz, sous son titre", () => {
+    const { snapshot, problems } = play([{ type: "quiz", quizId: "a" }, { type: "mimes", deckId: "d" }, { type: "finale", quizId: "f" }]);
+    assert.deepEqual(problems, []);
+    assert.deepEqual(snapshot.quiz.questions.map((q) => [q.round, q.double ?? false, q.finale ?? false]), [
+      ["Animaux", false, false], ["Animaux", false, false], ["Animaux", true, true], ["Animaux", true, true], ["Mimes", false, false],
+    ]);
+    assert.deepEqual(snapshot.rounds.map((r) => [r.title, r.count, r.finale]), [["Animaux", 4, 2], ["Mimes", 1, undefined]]);
+  });
+
+  test("le quiz le plus proche avant la finale l'accueille ; à défaut, le premier quiz après", () => {
+    const before = play([{ type: "quiz", quizId: "a" }, { type: "quiz", quizId: "b" }, { type: "finale", quizId: "f" }]).snapshot;
+    assert.deepEqual(before.quiz.questions.map((q) => q.round), ["Animaux", "Animaux", "Sport", "Sport", "Sport"]);
+    const first = play([{ type: "finale", quizId: "f" }, { type: "mimes", deckId: "d" }, { type: "quiz", quizId: "b" }]).snapshot;
+    assert.deepEqual(first.quiz.questions.map((q) => [q.round, q.double ?? false]), [["Mimes", false], ["Sport", false], ["Sport", true], ["Sport", true]]);
+  });
+
+  test("sans aucun quiz : la finale reste jouable seule, ×2", () => {
+    const { snapshot, problems } = play([{ type: "mimes", deckId: "d" }, { type: "finale", quizId: "f" }]);
+    assert.deepEqual(problems, []);
+    assert.deepEqual(snapshot.quiz.questions.map((q) => [q.round, q.double ?? false]), [["Mimes", false], ["Super Finale", true], ["Super Finale", true]]);
+  });
+});

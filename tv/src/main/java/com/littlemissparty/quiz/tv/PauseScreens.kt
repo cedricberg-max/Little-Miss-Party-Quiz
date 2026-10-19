@@ -76,7 +76,7 @@ fun PauseLayer(state: UiState.Playing, onResume: () -> Unit) {
 }
 
 /**
- * Intermède « Pause paillettes » : faisceaux qui tournent, halo qui respire, paillettes qui tombent,
+ * Intermède « Pause fun » : faisceaux qui tournent, halo qui respire, paillettes qui tombent,
  * titre qui ondule. Une pause qui dure propose des petits défis à la salle, pour que l'attente reste un jeu.
  */
 @Composable
@@ -131,8 +131,8 @@ private fun Intermission(state: UiState.Playing, onResume: () -> Unit) {
             Spacer(Modifier.height(16.dp))
             Text(
                 when {
-                    state.pauseReason == PAUSE_TEAM -> "Petite pause : on attend une équipe, gardez vos paillettes au chaud !"
-                    state.pauseReason == PAUSE_NETWORK -> "Petite pause : on attend le retour d'Internet, gardez vos paillettes au chaud !"
+                    state.pauseReason == PAUSE_TEAM -> "Petite pause : on attend une équipe, gardez le rythme !"
+                    state.pauseReason == PAUSE_NETWORK -> "Petite pause : on attend le retour d'Internet, gardez le rythme !"
                     state.childName.isNotBlank() -> "${state.childName} et ses invités reprennent leur souffle… la fête revient très vite !"
                     else -> "On reprend son souffle… la fête revient très vite !"
                 },
@@ -303,7 +303,7 @@ private fun secondsBefore(at: Long, offset: Long): Int {
 
 private val NeonHalo = Color(0xFFF888B3)
 
-private const val TITRE_PAUSE = "Pause paillettes !"
+private const val TITRE_PAUSE = "Pause fun !"
 private const val DEFI_ATTENTE_MS = 7_000L
 private const val DEFI_DUREE_MS = 8_000L
 

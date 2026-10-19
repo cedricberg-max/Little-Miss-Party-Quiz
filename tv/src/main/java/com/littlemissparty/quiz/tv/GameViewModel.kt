@@ -37,6 +37,8 @@ import com.littlemissparty.quiz.engine.Quiz
 import com.littlemissparty.quiz.engine.QuizJson
 import com.littlemissparty.quiz.engine.execute
 import com.littlemissparty.quiz.engine.programProblem
+import com.littlemissparty.quiz.engine.gameGains
+import com.littlemissparty.quiz.engine.nextGameTitle
 import com.littlemissparty.quiz.engine.withProgram
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -88,6 +90,10 @@ sealed interface UiState {
         /** Points de la question qui vient d'être révélée, pour l'animation des scores. */
         val lastGain: Map<String, Int> = emptyMap(),
         val isLast: Boolean = false,
+        /** Fin d'un jeu : nom du jeu qui commence ensuite (annoncé sur le bouton), null au milieu d'un jeu. */
+        val nextGame: String? = null,
+        /** Points gagnés par équipe dans le jeu en cours : vainqueur du jeu, célébré à sa fin (nextGame ou isLast). */
+        val gameGains: Map<String, Int> = emptyMap(),
         val round: Int = 1,
         /** Buzzer de l'accueil, pour s'amuser : nombre d'appuis vus par équipe et dernière équipe qui a buzzé. */
         val funBuzzes: Map<String, Int> = emptyMap(),
@@ -604,6 +610,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 blind = q?.takeIf { it.isBlind && s.phase != Phase.LOBBY }?.let { blindUi(g) },
                 lastGain = if (q?.isMime == true) mimeCounts.mapValues { it.value * Scoring.MIME } else revealedAwards.mapValues { it.value.points },
                 isLast = g.isLastQuestion,
+                nextGame = g.nextGameTitle(),
+                gameGains = g.gameGains(),
                 mime = q?.takeIf { it.isMime && s.phase != Phase.LOBBY }?.let {
                     val m = s.mime
                     MimeUi(

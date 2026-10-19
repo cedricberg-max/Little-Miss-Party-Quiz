@@ -56,12 +56,39 @@ class ProgramTest {
     }
 
     @Test
-    fun `au salon tout peut changer, après la fin plus rien`() {
+    fun `au salon tout peut changer`() {
         val g = Game(quiz)
         assertEquals(-1, g.lockedUntil())
         assertNotNull(g.withProgram(Quiz("autre", "Autre", ajout)))
-        val ended = firstScored().apply { end(t0 + 9_000) }
-        assertEquals("ended", ended.programProblem(Quiz("lea", "Léa", animaux + ajout)))
+    }
+
+    @Test
+    fun `après la fin, un jeu ajouté permet de reprendre la partie sans perdre les points`() {
+        // Programme qui s'arrêtait trop tôt (bug n° 8 du test du 19 octobre) : le quiz est fini, partie terminée.
+        val g = Game(Quiz("lea", "Léa", animaux)).apply {
+            next(t0); next(t0 + 4_000); next(t0 + 4_100, mapOf("rose" to Answer(0, t0 + 1_000))); next(t0 + 4_200)
+            next(t0 + 5_000); next(t0 + 6_000); next(t0 + 6_100); next(t0 + 6_200)
+            next(t0 + 7_000)
+        }
+        assertEquals(Phase.ENDED, g.state.phase)
+        val before = g.state.scores()
+        // Ce qui a été joué ne bouge pas ; un jeu ajouté à la fin est accepté.
+        assertEquals("current_round", g.programProblem(Quiz("lea", "Léa", listOf(animaux[0]) + ajout)))
+        val edited = assertNotNull(g.withProgram(Quiz("lea", "Léa", animaux + ajout)))
+        assertEquals(Phase.ENDED, edited.state.phase)
+        // La régie va au jeu ajouté : la partie reprend, les points sont gardés, rien n'est rejoué.
+        assertNotNull(edited.goto(2, t0 + 8_000))
+        assertEquals("x1q1", edited.state.qid)
+        assertEquals(Phase.QUESTION, edited.state.phase)
+        assertEquals(before, edited.state.scores())
+        // Le jeu ajouté se joue jusqu'au bout, puis la partie se termine de nouveau normalement.
+        edited.next(t0 + 9_000); edited.next(t0 + 9_100); edited.next(t0 + 9_200)
+        edited.next(t0 + 10_000); edited.next(t0 + 10_100); edited.next(t0 + 10_200); edited.next(t0 + 10_300)
+        edited.next(t0 + 11_000)
+        assertEquals(Phase.ENDED, edited.state.phase)
+        assertEquals(before, edited.state.scores())
+        // Relu depuis le journal (box redémarrée), l'état est le même.
+        assertEquals(edited.state, Game(edited.quiz, edited.events).state)
     }
 
     @Test
@@ -76,6 +103,33 @@ class ProgramTest {
         edited.next(t0 + 7_000)
         assertEquals(Phase.QUESTION, edited.state.phase)
         assertEquals("x1q1", edited.state.qid)
+    }
+
+    @Test
+    fun `la fin d'un jeu annonce le jeu suivant, jamais au milieu d'un jeu`() {
+        val g = firstScored()
+        assertNull(g.nextGameTitle(), "Question 2 d'Animaux à suivre : même jeu")
+        g.next(t0 + 6_000); g.next(t0 + 7_000); g.next(t0 + 7_100); g.next(t0 + 7_200)
+        assertEquals("Espace", g.nextGameTitle())
+        val mimes = Question("m", "Animaux", emptyList(), correct = -1, kind = QuestionKind.MIME, roundTitle = "Mimes des animaux", cards = listOf(MimeCard("Chat")))
+        val avecMimes = Game(Quiz("lea", "Léa", animaux + mimes), g.events)
+        assertEquals("Mimes", avecMimes.nextGameTitle())
+        assertNull(Game(Quiz("lea", "Léa", animaux), g.events).nextGameTitle(), "Plus rien après : résultats finaux")
+        val sansTitre = Game(Quiz("lea", "Léa", animaux + Question("x", "Sans manche ?", listOf("Oui", "Non"), correct = 0)), g.events)
+        assertEquals("Quiz", sansTitre.nextGameTitle(), "Questions sans titre de manche : un quiz")
+    }
+
+    @Test
+    fun `les points d'un jeu ne comptent que ce jeu`() {
+        val g = firstScored()
+        val total = g.state.scores()
+        assertEquals(total, g.gameGains(), "Premier jeu : tout vient de lui")
+        g.next(t0 + 6_000); g.next(t0 + 7_000); g.next(t0 + 7_100); g.next(t0 + 7_200)
+        assertEquals(total, g.gameGains(), "Fin du jeu Animaux : son vainqueur")
+        g.next(t0 + 7_300)
+        assertEquals("Espace", g.question!!.roundTitle)
+        assertEquals(emptyMap(), g.gameGains(), "Nouveau jeu : rien encore")
+        assertEquals(total, g.state.scores(), "Le total, lui, est gardé")
     }
 
     @Test

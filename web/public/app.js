@@ -6,6 +6,7 @@ import {
 import { TEAM_COLORS, CHOICE_COLORS, CHOICE_LETTERS, MAX_TEAMS } from "./theme.js";
 import { hasAccess, loginWithPassword, loginWithPin, startRegie } from "./regie.js";
 import { watchVersion, showUpdateBanner } from "./version.js";
+import { setAwake, isAwake, onAwakeChange } from "./awake.js";
 
 const $ = (id) => document.getElementById(id);
 /** Jeux au buzzer : un seul grand BUZZ, la réponse se donne à voix haute. */
@@ -55,9 +56,19 @@ function maybeReload() {
 }
 watchVersion(() => { newVersion = true; maybeReload(); });
 
+/** Écrans où l'équipe joue (salon compris) : la tablette reste allumée, même si personne ne la touche. */
+const AWAKE_SCREENS = new Set(["waiting", "play", "question", "result"]);
+/** Écrans où la partie est finie pour cet appareil : la veille normale d'Android reprend. */
+const SLEEP_SCREENS = new Set(["join", "ended", "replaced"]);
+
 function show(name) {
   // « Accès régie » : sur l'écran d'inscription (et si la partie est complète), jamais pendant le jeu.
   $("regie-open").hidden = !(gameExists && (name === "join" || name === "error"));
+  // Chargement ou erreur passagère (reconnexion) : on garde l'état d'avant, la tablette ne s'éteint pas pour si peu.
+  if (!document.body.classList.contains("regie-mode")) {
+    if (AWAKE_SCREENS.has(name)) setAwake(true);
+    else if (SLEEP_SCREENS.has(name)) setAwake(false);
+  }
   if (lastScreen === name) return;
   lastScreen = name;
   document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === `screen-${name}`));
@@ -85,17 +96,10 @@ function beep(freq = 880, ms = 180) {
   } catch { /* son indisponible : on continue sans */ }
 }
 
-let wakeLock = null;
+/** Plein écran au premier toucher (l'écran allumé, lui, suit l'état de la partie : voir show()). */
 async function keepAwake() {
   try { await document.documentElement.requestFullscreen?.(); } catch { /* iOS : pas de plein écran */ }
-  try { wakeLock = await navigator.wakeLock?.request("screen"); } catch { /* facultatif */ }
 }
-// Le navigateur relâche l'écran allumé quand la page passe en arrière-plan : on le redemande au retour.
-document.addEventListener("visibilitychange", async () => {
-  if (document.visibilityState === "visible" && wakeLock) {
-    try { wakeLock = await navigator.wakeLock?.request("screen"); } catch { /* facultatif */ }
-  }
-});
 
 async function start() {
   show("loading");
@@ -293,6 +297,11 @@ function listen(path, fn) {
   unsubscribers.push(onValue(ref(db, path), fn));
 }
 
+// La régie voit si une tablette ne peut pas rester allumée (navigateur sans cette fonction, batterie faible).
+onAwakeChange((awake) => {
+  if (presenceRef && game.connected && teamId) update(presenceRef, { awake }).catch(() => {});
+});
+
 function play() {
   stopListening();
   game = { state: null, teams: {}, myAnswer: null, connected: true };
@@ -305,13 +314,13 @@ function play() {
     if (!game.connected) return;
     const presence = presenceRef;
     onDisconnect(presence).set({ online: false, at: serverTimestamp() })
-      .then(() => set(presence, { online: true, at: serverTimestamp() }))
+      .then(() => set(presence, { online: true, at: serverTimestamp(), awake: isAwake() }))
       .catch(() => { /* équipe pas encore inscrite, ou appareil remplacé */ });
   });
   // L'ancien appareil de l'équipe peut encore signaler « hors ligne » en se déconnectant : on corrige.
   listen(`games/${code}/presence/${teamId}`, (s) => {
     if (game.connected && s.val()?.online === false) {
-      set(presenceRef, { online: true, at: serverTimestamp() }).catch(() => {});
+      set(presenceRef, { online: true, at: serverTimestamp(), awake: isAwake() }).catch(() => {});
     }
   });
   listen(`games/${code}/teams`, (s) => { game.teams = s.val() ?? {}; game.teamsLoaded = true; render(); });
