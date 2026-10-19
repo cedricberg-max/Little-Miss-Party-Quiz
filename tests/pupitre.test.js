@@ -548,6 +548,76 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
+  test("portrait et paysage : chaque écran tient sur un téléphone et une tablette, dans les deux sens, sans rien couper", async () => {
+    const FORMATS = { "téléphone droit": [390, 844], "téléphone couché": [844, 390], "tablette posée": [1280, 800], "tablette droite": [800, 1280] };
+    const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const IDS = ["0123456789abcdef", "fedcba9876543210", "00112233445566ff", "ffeeddccbbaa9988"];
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/choiceImages`), Object.fromEntries(IDS.map((id) => [id, PNG]))));
+    const page = await openPupitre();
+    const shots = process.env.LMP_SHOTS;
+    /** Rien ne dépasse : ni l'écran actif, ni ses boutons, ni ses textes (sinon un enfant ne peut pas répondre). */
+    const tient = async (nom) => {
+      for (const [format, [width, height]] of Object.entries(FORMATS)) {
+        await page.setViewportSize({ width, height });
+        await page.waitForTimeout(450);
+        if (shots) await page.screenshot({ path: `${shots}/${nom}-${width}x${height}.png` });
+        const trop = await page.evaluate(() => {
+          const ecran = document.querySelector(".screen.active");
+          const out = [];
+          if (ecran.scrollHeight > ecran.clientHeight + 2) out.push(`écran ${ecran.scrollHeight} > ${ecran.clientHeight}`);
+          for (const el of ecran.querySelectorAll("button, input, .choice, .team-banner, .hint, canvas, .ardoise-outils")) {
+            const r = el.getBoundingClientRect();
+            if (!r.width || el.closest("[hidden]")) continue;
+            if (r.left < -1 || r.top < -1 || r.right > innerWidth + 1 || r.bottom > innerHeight + 1) out.push(`${el.className || el.tagName} ${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.right)},${Math.round(r.bottom)}`);
+          }
+          return out;
+        });
+        assert.deepEqual(trop, [], `${nom}, ${format} (${width}×${height})`);
+      }
+    };
+    await page.locator("#screen-join.active").waitFor();
+    await tient("rejoindre");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await joinTeam(page, "Les Licornes");
+    const uid = Object.keys(await read("teams"))[0];
+    await page.locator("#screen-play.active").waitFor();
+    await tient("buzzer");
+    await hostState(question({ text: "Quel animal est le plus rapide ?", choices: ["Le guépard", "La tortue des Galápagos", "Le paresseux", "L'escargot de Bourgogne"] }));
+    await page.locator("#screen-question.active .choice").first().waitFor();
+    await tient("quatre-reponses");
+    await hostState(question({ qid: "q2", kind: "express", choices: ["Vrai", "Faux"] }));
+    await page.locator("#choices.two").waitFor();
+    await tient("vrai-faux");
+    await hostState(question({ qid: "q3", choices: ["Lion", "Chien", "Vache", "Chat"], choiceImages: IDS }));
+    await page.locator("#choices.pictures img.photo:not([hidden])").first().waitFor();
+    await tient("reponses-en-images");
+    await hostState(question({ qid: "q4", kind: "number", choices: null }));
+    await page.locator(".number-key").first().waitFor();
+    await tient("juste-chiffre");
+    await hostState(question({ qid: "q4", phase: "reveal", correct: 1, awards: { [uid]: 100 }, scores: { [uid]: 100 } }));
+    await page.locator("#screen-result.active").waitFor();
+    await tient("resultat");
+    const picto = (mime, extra = {}) => question({ qid: "r1p", kind: "pictionary", text: "Pictionary", choices: null, deadline: null,
+      mime: { team: null, found: 0, passed: 0, left: 10, turns: [], counts: {}, points: 150, ...mime }, ...extra });
+    const offer = [{ word: "Soleil", image: "☀️" }, { word: "Maison", image: "🏠" }, { word: "Bateau", image: "⛵" }];
+    await hostState(picto({ secret: uid, offer, chosen: null, pickKey: "r1p-100" }));
+    await page.locator("#screen-pick.active .choix-carte").first().waitFor();
+    await tient("pictionary-choix");
+    await hostState(picto({ team: uid, card: offer[1], drawKey: "r1p-200", turns: [uid] }, { deadline: Date.now() + 60000 }));
+    await page.locator("#screen-draw.active canvas").waitFor();
+    await tient("pictionary-ardoise");
+    // Paysage : la feuille en grand, les outils à côté d'elle, pas dessous.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.waitForTimeout(450);
+    const [feuille, outils] = await Promise.all([".ardoise-feuille", ".ardoise-outils"].map((sel) => page.locator(sel).boundingBox()));
+    assert.ok(outils.x >= feuille.x + feuille.width - 1, `outils à droite de la feuille : ${JSON.stringify({ feuille, outils })}`);
+    assert.ok(feuille.height > 560, `feuille en grand : ${feuille.height}`);
+    await hostState(question({ phase: "ended", scores: { [uid]: 1200 } }));
+    await page.locator("#screen-ended.active").waitFor();
+    await tient("fin");
+    await page.context().close();
+  });
+
   test("la pause générale s'affiche aussi entre deux questions", async () => {
     const page = await openPupitre();
     await joinTeam(page, "Les Roses");

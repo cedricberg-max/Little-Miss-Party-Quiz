@@ -2,7 +2,7 @@
   "name": "Little Miss Party Quiz",
   "short_name": "LMP Quiz",
   "display": "fullscreen",
-  "orientation": "portrait",
+  "orientation": "any",
   "background_color": "#1A0B2E",
   "theme_color": "#1A0B2E",
   "start_url": ".",

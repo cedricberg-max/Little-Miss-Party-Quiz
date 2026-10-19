@@ -21,7 +21,8 @@ body {
 @keyframes party { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
 
 #app { height: 100%; padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom); }
-.screen { display: none; height: 100%; flex-direction: column; align-items: center; justify-content: center; gap: 18px; text-align: center; }
+/* Un écran trop haut pour l'appareil (téléphone couché) défile au lieu d'être coupé. */
+.screen { display: none; height: 100%; flex-direction: column; align-items: center; justify-content: safe center; gap: 18px; text-align: center; overflow-y: auto; }
 .screen.active { display: flex; animation: pop .35s cubic-bezier(.2, 1.4, .4, 1); }
 @keyframes pop { from { transform: scale(.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
@@ -170,3 +171,69 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
 .draw-head { display: flex; width: 100%; max-width: 980px; align-items: center; font-weight: 900; font-size: 22px; }
 .draw-head .timer { margin-left: auto; font-size: 30px; }
 .draw-head .timer.urgent { color: #ff4d6d; }
+
+/* ---------- Portrait ou paysage : l'écran suit l'appareil ----------
+   Téléphone tenu droit : tout en colonne (mise en page ci-dessus). Tablette posée, ou téléphone couché : on
+   profite de la largeur, l'équipe et les consignes à gauche, les réponses ou le buzzer à droite. */
+@media (orientation: landscape) and (min-width: 600px) {
+  #app { padding-left: max(24px, env(safe-area-inset-left)); padding-right: max(24px, env(safe-area-inset-right)); }
+
+  /* Rejoindre : le logo à gauche, le nom et la couleur à droite. */
+  #screen-join.active { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-content: safe center; justify-items: center; column-gap: 32px; row-gap: 10px; }
+  #screen-join.active > * { grid-column: 2; }
+  #screen-join.active > .logo { grid-column: 1; grid-row: 1 / span 9; align-self: center; }
+
+  /* Buzzer : l'équipe et la consigne à gauche, le gros bouton à droite. */
+  #screen-play.active { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 1fr auto auto 1fr; align-items: center; justify-items: center; column-gap: 40px; row-gap: 14px; }
+  #screen-play > .team-banner { grid-column: 1; grid-row: 2; }
+  #screen-play > #play-status { grid-column: 1; grid-row: 3; max-width: 22em; }
+  #screen-play > #buzz { grid-column: 2; grid-row: 1 / -1; }
+  #screen-play:has(> #buzz[hidden]) > * { grid-column: 1 / -1; }
+  .buzz { width: min(46vw, 74vh); height: min(46vw, 74vh); }
+
+  /* Question : l'équipe, le chrono et la consigne à gauche, les réponses en 2 × 2 à droite. */
+  #screen-question.active { display: grid; grid-template-columns: minmax(170px, 30%) minmax(0, 1fr); grid-template-rows: 1fr auto auto auto 1fr; align-items: center; justify-items: center; column-gap: 28px; row-gap: 12px; }
+  #screen-question > .team-banner { grid-column: 1; grid-row: 2; max-width: 100%; }
+  #screen-question > .question-head { grid-column: 1; grid-row: 3; flex-wrap: wrap; justify-content: center; }
+  #screen-question > .question-head .timer { margin-left: 0; }
+  #screen-question > #q-status { grid-column: 1; grid-row: 4; }
+  #screen-question > #choices, #screen-question > #portes-host { grid-column: 2; grid-row: 1 / -1; width: 100%; max-width: 900px; }
+  .choices { grid-template-columns: 1fr 1fr; }
+  .choice { min-height: clamp(64px, 20vh, 120px); font-size: clamp(18px, 2.4vw, 26px); }
+  .choices.two .choice { min-height: clamp(96px, 40vh, 220px); }
+  .choices.pictures { grid-template-columns: 1fr 1fr; }
+  .choice.with-photo { min-height: 0; }
+  .choice.with-photo .photo { width: auto; max-width: 100%; height: clamp(70px, 30vh, 260px); }
+  .choices.number { grid-template-columns: 1fr; max-width: 520px; justify-self: center; }
+  .number-screen { min-height: clamp(48px, 13vh, 72px); font-size: clamp(30px, 8vh, 44px); }
+  .number-key { min-height: clamp(38px, 11vh, 64px); font-size: clamp(22px, 6vh, 30px); }
+
+  /* Résultat et fin : le gros pictogramme à gauche, le détail à droite. */
+  #screen-result.active, #screen-ended.active { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); grid-auto-rows: auto; align-content: safe center; justify-items: center; align-items: center; column-gap: 32px; row-gap: 10px; }
+  #screen-result.active > *, #screen-ended.active > * { grid-column: 2; }
+  #screen-result.active > .result-icon, #screen-ended.active > .logo { grid-column: 1; grid-row: 1 / span 8; }
+  #screen-result.active > .team-banner, #screen-ended.active > .team-banner { grid-column: 1 / -1; grid-row: auto; }
+
+  /* Reprendre une équipe : la liste sur deux colonnes. */
+  .takeover-list { display: grid; grid-template-columns: 1fr 1fr; max-width: 640px; }
+}
+
+/* Écran peu haut (téléphone couché) : tout se resserre pour tenir sans défiler. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .screen { gap: 10px; }
+  .logo { font-size: 24px; }
+  .logo span { font-size: 40px; letter-spacing: 6px; }
+  .logo.small { font-size: 30px; }
+  .team-banner { font-size: 20px; padding: 6px 16px; }
+  .team-banner.small { font-size: 16px; padding: 4px 14px; }
+  .hint { font-size: 16px; }
+  input { padding: 10px 16px; font-size: 20px; }
+  .colors { gap: 8px; }
+  .colors button { width: 42px; height: 42px; }
+  .btn.big { padding: 12px 28px; font-size: 20px; }
+  .result-icon { font-size: 76px; }
+  .result-title { font-size: 22px; }
+  .result-image { font-size: 52px; }
+  .countdown div { font-size: 96px; }
+  .paused { font-size: 44px; }
+}
