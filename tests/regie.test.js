@@ -277,7 +277,7 @@ function startBox({ silent = false, held = false } = {}) {
     if (show.base == null) {
       await update(ref(db, `games/${CODE}`), {
         showStatus: { id: show.id, status: "applied", at: Date.now() },
-        conducteur: { id: show.quiz.id, title: show.title, rev: show.id, mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, blindPlay: true, statues: true, disparu: true, pictionary: true, questions: show.quiz.questions },
+        conducteur: { id: show.quiz.id, title: show.title, rev: show.id, mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, blindPlay: true, statues: true, disparu: true, pictionary: true, portes: true, questions: show.quiz.questions },
         public: { title: show.title, childName: show.childName },
       });
       return;
@@ -356,7 +356,7 @@ beforeEach(async () => {
   await set(gameRef(), {
     hostUid: HOST,
     state: { phase: "lobby", seq: 0, total: QUESTIONS.length, scores: {}, round: 1, buzzOpen: true },
-    conducteur: { id: "demo", title: "Démo", rev: "initial", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, blindPlay: true, statues: true, disparu: true, pictionary: true, questions: QUESTIONS.map((q, i) => ({ id: `q${i + 1}`, ...q })) },
+    conducteur: { id: "demo", title: "Démo", rev: "initial", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, blindPlay: true, statues: true, disparu: true, pictionary: true, portes: true, questions: QUESTIONS.map((q, i) => ({ id: `q${i + 1}`, ...q })) },
   });
 });
 afterEach(() => { box?.stop(); box = null; });
@@ -674,7 +674,7 @@ describe("régie", () => {
       track("b2", "Hakuna Matata", "Le Roi lion", "fedcba9876543210", 100),
       track("b3", "Un jour mon prince viendra", "Blanche-Neige", "00112233445566ff", 200),
     ];
-    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, blindPlay: true, statues: true, disparu: true, pictionary: true, questions: plan });
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, blindPlay: true, statues: true, disparu: true, pictionary: true, portes: true, questions: plan });
     // Comme la box : un état par extrait.
     for (const [id, status] of [["0123456789abcdef", "ok"], ["fedcba9876543210", "missing"], ["00112233445566ff", "ok"]]) await set(gameRef(`media/${id}`), status);
     const tracks = (statuses, team) => plan.map((t, k) => ({ qid: t.id, points: t.points, status: statuses[k], ...(statuses[k] === "found" ? { team } : {}) }));
@@ -746,7 +746,7 @@ describe("régie", () => {
     await addTeam("rose", "Les Roses");
     await addTeam("bleu", "Les Bleus");
     const plan = [{ id: "s1", text: "Statues musicales", duration: 60, kind: "statues", round: "Statues musicales" }];
-    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, disparu: true, pictionary: true, questions: plan });
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, disparu: true, pictionary: true, portes: true, questions: plan });
     await box.set({ ...questionState(1), qid: "s1", kind: "statues", text: plan[0].text, choices: null, total: 1, durationMs: 60000 });
     const page = await openRegie();
     await pair(page);
@@ -1401,8 +1401,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     const page = await admin();
     await page.click("#nav button[data-screen=games]");
-    // 12 jeux (dont le Pictionary) : la Super Finale n'en est pas un, c'est la fin du quiz (réglage de la manche Quiz).
-    assert.equal(await page.locator(".game-card").count(), 12);
+    // 13 jeux (dont le Pictionary et les Portes mystères) : la Super Finale n'en est pas un, c'est la fin du quiz (réglage de la manche Quiz).
+    assert.equal(await page.locator(".game-card").count(), 13);
     await page.locator('.game-card[data-game=pictionary]').waitFor();
     await page.locator('.game-card[data-game=quiz]', { hasText: "1 quiz · 2 questions validées" }).waitFor();
     await page.locator('.game-card[data-game=quiz]', { hasText: "les dernières questions du quiz peuvent compter double" }).waitFor();
@@ -2014,7 +2014,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.locator(".show-item", { hasText: "tous les jeux" }).click();
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const kinds = [...new Set((await read("show")).quiz.questions.map((q) => q.kind))];
-    assert.deepEqual(kinds, ["classic", "number", "express", "mime", "zoom", "chante", "flou", "quisuis", "disparu", "blind", "statues", "pictionary"]);
+    assert.deepEqual(kinds, ["classic", "number", "express", "mime", "zoom", "chante", "flou", "quisuis", "disparu", "blind", "statues", "pictionary", "portes"]);
     assert.equal((await read("show")).quiz.questions.filter((q) => q.kind === "classic" && q.audioId).length, 4, "quiz musical sur les comptines");
     await waitFor(async () => Object.keys((await read("images")) ?? {}).length === 4, "photos copiées dans la partie");
     assert.equal((await read("show")).quiz.questions.filter((q) => q.choiceImages?.length === 4).length, 2, "quiz en images des petits");
@@ -2034,7 +2034,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#test-full-status", { hasText: "Mise à jour" }).waitFor({ timeout: 20000 });
     await page.context().close();
     const show = await library("shows/test-lea-tous-les-jeux");
-    assert.deepEqual(show.rounds.map((r) => r.type), ["quiz", "chante", "disparu", "blind", "musical", "statues", "pictionary", "quiz", "finale"]);
+    assert.deepEqual(show.rounds.map((r) => r.type), ["quiz", "chante", "disparu", "blind", "musical", "statues", "pictionary", "quiz", "finale", "portes"]);
     assert.equal(show.rounds[7].quizId, "test-lea-tous-les-jeux-images");
     assert.equal((await library("quizzes"))["test-lea-tous-les-jeux-images"].questions.length, 2);
     assert.equal(show.childName, "Léa");

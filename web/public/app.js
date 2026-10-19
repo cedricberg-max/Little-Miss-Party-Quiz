@@ -817,10 +817,10 @@ function renderPortesResult(st, award) {
   const all = st.phase === "scores" || (p.opened ?? 0) >= (p.count ?? 0);
   const name = door != null ? st.choices?.[door] ?? `Porte ${door + 1}` : null;
   $("r-icon").className = `result-icon ${mineOpen && award.points > 0 ? "ok" : "ko"}`;
-  $("r-icon").textContent = !mineOpen ? "🚪" : award.points > 0 ? "🎁" : award.points < 0 ? "🐢" : "🫧";
+  $("r-icon").textContent = !mineOpen ? "🚪" : award.points > 0 ? "🎁" : award.points < 0 ? "🧱" : "🫧";
   $("r-title").textContent = door == null ? "Pas de porte choisie"
     : !mineOpen ? `${name}… suspense !`
-    : award.points > 0 ? `BONUS ! +${award.points} points` : award.points < 0 ? `Aïe, un malus ! −${-award.points} points` : "Ouf, le malus ne vous retire rien !";
+    : award.points > 0 ? `BONUS ! +${award.points} points` : award.points < 0 ? `Aïe, la tuile ! −${-award.points} points` : "Ouf, le malus ne vous retire rien !";
   $("r-detail").textContent = door == null ? "" : mineOpen ? `Derrière la ${name.toLowerCase()}` : "Les portes s'ouvrent une à une sur la TV…";
   $("r-image").hidden = true;
   if (all) {

@@ -1098,8 +1098,11 @@ $("test-full-create").onclick = async () => {
       status("test-full-status", "Ajout des nouveaux jeux à la prestation de test…", true);
       if (missing.some((m) => m.playlistId)) await addTunes(Date.now());
       if (missing.some((m) => m.quizId === FULL_KEYS.images)) await addImageQuiz(Date.now());
+      // Les Portes mystères restent le jeu final : tout à la fin, après l'ancienne Super Finale.
+      const last = missing.filter((m) => m.type === "portes");
+      const middle = missing.filter((m) => m.type !== "portes");
       const at = rounds.findIndex((r) => r.type === "finale");
-      const next = at < 0 ? [...rounds, ...missing] : [...rounds.slice(0, at), ...missing, ...rounds.slice(at)];
+      const next = [...(at < 0 ? [...rounds, ...middle] : [...rounds.slice(0, at), ...middle, ...rounds.slice(at)]), ...last];
       await set(ref(db, `library/shows/${FULL_ID}`), { ...existing, rounds: next, notes: FULL_SHOW.notes, updatedAt: serverTimestamp() });
       status("test-full-status", `Mise à jour : ${missing.map((m) => (m.quizId === FULL_KEYS.images ? "Quiz en images" : ROUND_TYPES[m.type])).join(", ")} ajouté(s) à « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux ».`, true);
       return;
