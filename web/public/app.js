@@ -401,6 +401,7 @@ function render() {
   runResumeCountdown(st);
   // Saut vers un autre jeu en plein Pictionary : l'ardoise, les mots et l'animation s'arrêtent.
   if (st.kind !== "pictionary" || !st.mime) stopPicto();
+  $("play-intro").hidden = true;
   switch (st.phase) {
     case "question":
     case "closed":
@@ -434,7 +435,10 @@ function renderLobby(st) {
 function renderIntro(st) {
   show("play");
   $("buzz").hidden = true;
-  $("play-status").textContent = `${st.game?.title ? `Prochain jeu : ${st.game.title}. ` : ""}Écoutez bien l'animatrice !`;
+  // Le nom du jeu en grand, comme sur la TV ; les règles, c'est l'animatrice qui les donne.
+  $("play-intro-title").textContent = st.game?.title ?? "";
+  $("play-intro").hidden = !st.game?.title;
+  $("play-status").textContent = "Écoutez bien l'animatrice !";
 }
 
 function renderQuestion(st) {

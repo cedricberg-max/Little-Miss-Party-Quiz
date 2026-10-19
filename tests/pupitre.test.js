@@ -565,7 +565,7 @@ describe("pupitre", () => {
           const ecran = document.querySelector(".screen.active");
           const out = [];
           if (ecran.scrollHeight > ecran.clientHeight + 2) out.push(`écran ${ecran.scrollHeight} > ${ecran.clientHeight}`);
-          for (const el of ecran.querySelectorAll("button, input, .choice, .team-banner, .hint, canvas, .ardoise-outils")) {
+          for (const el of ecran.querySelectorAll("button, input, .choice, .team-banner, .hint, canvas, .ardoise-outils, .intro-jeu")) {
             const r = el.getBoundingClientRect();
             if (!r.width || el.closest("[hidden]")) continue;
             if (r.left < -1 || r.top < -1 || r.right > innerWidth + 1 || r.bottom > innerHeight + 1) out.push(`${el.className || el.tagName} ${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.right)},${Math.round(r.bottom)}`);
@@ -582,6 +582,9 @@ describe("pupitre", () => {
     const uid = Object.keys(await read("teams"))[0];
     await page.locator("#screen-play.active").waitFor();
     await tient("buzzer");
+    await hostState({ phase: "intro", seq: 5, total: 4, scores: {}, round: 1, buzzOpen: false, paused: false, index: 0, qid: "f0", kind: "flou", deadline: null, game: { title: "Image floue", n: 1, of: 3, label: "Image floue · 1 / 3" } });
+    await page.locator("#play-intro:not([hidden])", { hasText: "Image floue" }).waitFor();
+    await tient("presentation");
     await hostState(question({ text: "Quel animal est le plus rapide ?", choices: ["Le guépard", "La tortue des Galápagos", "Le paresseux", "L'escargot de Bourgogne"] }));
     await page.locator("#screen-question.active .choice").first().waitFor();
     await tient("quatre-reponses");
@@ -622,11 +625,14 @@ describe("pupitre", () => {
     const page = await openPupitre();
     await joinTeam(page, "Les Roses");
     await hostState({ phase: "intro", seq: 5, total: 4, scores: {}, round: 1, buzzOpen: false, paused: false, index: 2, qid: "f1", kind: "flou", deadline: null, game: { title: "Image floue", n: 1, of: 3, label: "Image floue · 1 / 3" } });
-    await page.locator("#play-status", { hasText: "Prochain jeu : Image floue. Écoutez bien l'animatrice !" }).waitFor();
+    await page.locator("#play-intro:not([hidden])", { hasText: "Prochain jeu" }).waitFor();
+    assert.equal(await page.locator("#play-intro-title").textContent(), "Image floue");
+    assert.equal(await page.locator("#play-status").textContent(), "Écoutez bien l'animatrice !");
     assert.equal(await page.locator("#buzz").isVisible(), false, "pas de buzzer pendant la présentation");
     assert.equal(await page.locator("#screen-question").isVisible(), false);
     await hostState(question({ qid: "f1", kind: "flou", choices: null, buzzOpen: true, buzz: { blocked: [] }, round: "f1-1000-0" }));
     await page.locator("#buzz:not([hidden])").waitFor();
+    assert.equal(await page.locator("#play-intro").isVisible(), false, "le nom du jeu s'efface quand l'épreuve est lancée");
     await page.context().close();
   });
 

@@ -267,3 +267,45 @@
   .mot-secret-carte { width: min(80vw, 760px); display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 24px; row-gap: 8px; padding: 16px 22px; }
   .mot-secret-carte > .mot-secret-image { grid-row: 1 / span 3; width: min(40vh, 240px); font-size: min(26vh, 150px); }
 }
+
+/* ---------- Portrait : la feuille est limitée par la largeur ; le titre, la feuille et les outils restent groupés
+   au centre de l'écran au lieu de laisser deux grands vides autour de la feuille. ---------- */
+@media (orientation: portrait) {
+  .ardoise { justify-content: center; gap: 16px; }
+  .ardoise-zone { flex: 0 1 auto; height: calc((min(100vw - 40px, 980px) - 36px) * .75 + 40px); }
+}
+
+/* ---------- Tablette (droite ou posée) : outils, mot et cartes à la taille de la tablette ---------- */
+@media (min-width: 700px) and (min-height: 700px) {
+  .ardoise-titre { font-size: 40px; }
+  .ardoise-outils { gap: 14px 26px; padding: 12px 22px; border-radius: 34px; }
+  .ardoise-couleurs, .ardoise-epaisseurs { gap: 12px; }
+  .ardoise-feutre { width: 54px; height: 54px; }
+  .ardoise-epaisseur { width: 58px; height: 58px; }
+  .ardoise-gomme, .ardoise-effacer { min-height: 58px; font-size: 22px; }
+  .ardoise-attente { font-size: 38px; }
+  .choix-titre { font-size: 44px; }
+  .choix-piste { width: min(92vw, 860px); }
+  .choix-carte { gap: 16px; padding: 26px 18px 28px; }
+  .choix-carte .mot-secret-image { width: 320px; font-size: 200px; }
+  .choix-carte .mot-secret-mot { font-size: 76px; }
+  .choix-fleche { width: 72px; height: 72px; font-size: 46px; }
+  .choix-point { width: 18px; height: 18px; }
+  .choix-valider { min-height: 76px; padding: 0 44px; font-size: 32px; }
+  .mot-secret-carte { width: min(88vw, 760px); gap: 20px; padding: 30px 34px 34px; }
+  .mot-secret-titre { font-size: 34px; }
+  .mot-secret-image { width: 340px; font-size: 220px; }
+  .mot-secret-mot { font-size: 88px; }
+  .mot-secret-consigne { font-size: 26px; }
+}
+@media (orientation: landscape) and (min-width: 700px) and (min-height: 700px) {
+  /* La feuille garde toute la hauteur : titre plus discret qu'en portrait. */
+  .ardoise-titre { font-size: 30px; }
+  .ardoise-couleurs { gap: 12px; }
+  .ardoise-gomme, .ardoise-effacer { width: 100%; }
+  .choix-carte { gap: 34px; padding: 20px 28px; }
+  .choix-carte .mot-secret-image { width: min(36vh, 290px); font-size: min(24vh, 190px); }
+  .choix-carte .mot-secret-mot { font-size: clamp(54px, 9vh, 76px); }
+  .mot-secret-carte { width: min(84vw, 900px); }
+  .mot-secret-carte > .mot-secret-image { width: min(40vh, 320px); font-size: min(26vh, 200px); }
+}
