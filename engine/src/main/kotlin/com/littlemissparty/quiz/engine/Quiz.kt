@@ -60,7 +60,15 @@ enum class QuestionKind(val code: String) {
      * monde danse, et se fige à l'arrêt. À la fin, l'animatrice désigne l'équipe gagnante (la dernière à ne
      * pas avoir bougé). Pas de propositions ni de pupitre à toucher.
      */
-    STATUES("statues");
+    STATUES("statues"),
+
+    /**
+     * Qui a disparu ? : des objets ([Question.cards], émoji et nom) s'affichent sur la TV le temps de les
+     * mémoriser ([Question.memoMs]), puis disparaissent un instant ; quand ils reviennent, il en manque un.
+     * La première équipe qui buzze dit lequel. Le buzzer n'ouvre qu'au retour des objets ([Question.buzzFromMs]).
+     * Réponse unique : [Question.choices] contient le nom de l'objet disparu, qui est l'une des cartes.
+     */
+    DISPARU("disparu");
 
     companion object {
         fun of(code: String?): QuestionKind = entries.firstOrNull { it.code == code } ?: CLASSIC
@@ -108,6 +116,12 @@ data class Question(
             require(kind != QuestionKind.QUISUIS || cards.size in 2..MAX_CLUES) { "Qui suis-je $id : il faut 2 à $MAX_CLUES indices" }
             require(cards.none { it.word.isBlank() }) { "Question $id : indice vide" }
             require(durationSec in 10..120) { "Question $id : durée entre 10 et 120 s" }
+        } else if (kind == QuestionKind.DISPARU) {
+            require(choices.size == 1 && correct == 0) { "Qui a disparu $id : une seule réponse attendue" }
+            require(cards.size in 4..MAX_DISPARU) { "Qui a disparu $id : il faut 4 à $MAX_DISPARU objets" }
+            require(cards.none { it.word.isBlank() }) { "Qui a disparu $id : objet sans nom" }
+            require(cards.count { it.word == choices[0] } == 1) { "Qui a disparu $id : l'objet disparu doit être un des objets" }
+            require(durationMs >= buzzFromMs + 15_000 && durationSec <= 120) { "Qui a disparu $id : durée trop courte ou trop longue" }
         } else if (kind == QuestionKind.STATUES) {
             require(choices.isEmpty()) { "Statues musicales $id : pas de propositions" }
             require(durationSec in 30..180) { "Statues musicales $id : durée entre 30 et 180 s" }
@@ -135,6 +149,16 @@ data class Question(
     val isQuiSuis: Boolean get() = kind == QuestionKind.QUISUIS
     val isBlind: Boolean get() = kind == QuestionKind.BLIND
     val isStatues: Boolean get() = kind == QuestionKind.STATUES
+    val isDisparu: Boolean get() = kind == QuestionKind.DISPARU
+
+    /** Qui a disparu ? : temps pour mémoriser les objets, deux secondes par objet (10 à 18 s). */
+    val memoMs: Long get() = if (isDisparu) (cards.size * 2_000L).coerceIn(10_000L, 18_000L) else 0L
+
+    /** Chrono écoulé à partir duquel on peut buzzer : après la mémorisation et le tour de magie (Qui a disparu ?). */
+    val buzzFromMs: Long get() = if (isDisparu) memoMs + DISPARU_MAGIE_MS else 0L
+
+    /** Qui a disparu ? : place de l'objet disparu dans la grille. */
+    val missingIndex: Int get() = if (isDisparu) cards.indexOfFirst { it.word == choices[0] } else -1
 
     /**
      * Statues musicales : moments où la musique s'arrête, en millisecondes de chrono [début, fin[. Tirés au
@@ -158,7 +182,7 @@ data class Question(
     fun statueAt(elapsedMs: Long): Boolean = statues.any { elapsedMs in it }
 
     /** Jeux au buzzer : la première équipe qui buzze répond à voix haute, l'animatrice valide. */
-    val isBuzz: Boolean get() = isFlou || isChante || isQuiSuis || isBlind
+    val isBuzz: Boolean get() = isFlou || isChante || isQuiSuis || isBlind || isDisparu
 
     /**
      * Qui suis-je ? : nombre d'indices visibles après [elapsedMs] de chrono. Le premier dès l'ouverture,
@@ -188,6 +212,12 @@ const val MAX_MIME_CARDS = 200
 
 /** Qui suis-je ? : nombre maximum d'indices d'un personnage. */
 const val MAX_CLUES = 6
+
+/** Qui a disparu ? : nombre maximum d'objets dans la grille. */
+const val MAX_DISPARU = 12
+
+/** Qui a disparu ? : durée du tour de magie, objets cachés, entre la mémorisation et la recherche. */
+const val DISPARU_MAGIE_MS = 3_000L
 
 /** Statues musicales : arrêt de la musique le plus long (millisecondes). */
 const val STATUE_MAX_MS = 5_000L

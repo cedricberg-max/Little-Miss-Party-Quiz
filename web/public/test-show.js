@@ -247,8 +247,9 @@ export function tunePlaylist(ids) {
   };
 }
 
-/** Manches musicales de la prestation de test, ajoutées aussi à une prestation de test plus ancienne. */
-export const FULL_MUSIC_ROUNDS = [
+/** Jeux les plus récents de la prestation de test, ajoutés aussi à une prestation de test plus ancienne. */
+export const FULL_NEW_ROUNDS = [
+  { type: "disparu", count: 2 },
   { type: "blind", playlistId: FULL_KEYS.playlist },
   { type: "musical", playlistId: FULL_KEYS.playlist },
   { type: "statues", duration: 60 },
@@ -257,7 +258,7 @@ export const FULL_MUSIC_ROUNDS = [
 export const FULL_SHOW = {
   childName: "Léa", age: 9, date: "2026-10-25", status: "publiee", title: FULL_TITLE, profile: "MOYENS", durationMin: 25,
   themes: "Tous les jeux (test)",
-  notes: "Prestation de TEST : un peu de chaque jeu (quiz illustré, Juste Chiffre, Vrai ou Faux express, Mimes, Zoom mystère, Chante le mot !, Image floue, Qui suis-je ?, Blind test, Quiz musical, Statues musicales, Super Finale). Elle peut être archivée sans risque.",
+  notes: "Prestation de TEST : un peu de chaque jeu (quiz illustré, Juste Chiffre, Vrai ou Faux express, Mimes, Zoom mystère, Chante le mot !, Image floue, Qui suis-je ?, Qui a disparu ?, Blind test, Quiz musical, Statues musicales, Super Finale). Elle peut être archivée sans risque.",
   rounds: [
     { type: "quiz", quizId: FULL_KEYS.quiz },
     { type: "express", quizId: FULL_KEYS.express },
@@ -266,7 +267,7 @@ export const FULL_SHOW = {
     { type: "chante", count: 3 },
     { type: "flou", quizId: FULL_KEYS.flou },
     { type: "quisuis", count: 3 },
-    ...FULL_MUSIC_ROUNDS,
+    ...FULL_NEW_ROUNDS,
     { type: "finale", quizId: FULL_KEYS.finale },
   ],
   origin: "test",

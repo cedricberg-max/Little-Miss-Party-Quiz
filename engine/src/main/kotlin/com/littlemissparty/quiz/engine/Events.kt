@@ -97,6 +97,9 @@ data class MimeCorrected(override val seq: Int, override val at: Long, val team:
 /** Fin du tour : chrono écoulé, paquet épuisé ou arrêt par l'animatrice. */
 data class MimeTurnEnded(override val seq: Int, override val at: Long) : GameEvent
 
+/** Qui a disparu ? : la mémorisation est finie, les objets reviennent (sans l'un d'eux) et le buzzer s'ouvre. */
+data class BuzzArmed(override val seq: Int, override val at: Long) : GameEvent
+
 /** Image floue : l'équipe [team] a buzzé la première ; le chrono et la photo se figent pendant sa réponse orale. */
 data class Buzzed(override val seq: Int, override val at: Long, val team: String) : GameEvent
 

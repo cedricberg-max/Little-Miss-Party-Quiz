@@ -180,8 +180,13 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
                 if (q.isFlou) "Temps écoulé ! Voyons ce qui se cachait…" else if (q.isBlind) "Temps écoulé ! Écoutons la réponse…" else "Temps écoulé !",
                 color = Palette.Gold, fontSize = 32.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
             )
+            q.isDisparu && etapeDisparu(q, state) != EtapeDisparu.CHERCHER -> Text(
+                "Mémorisez bien tous les objets !",
+                color = Palette.Ink, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
+            )
             else -> Text(
                 when {
+                    q.isDisparu -> "Buzzez dès que vous savez quel objet a disparu !"
                     q.isChante -> "Buzzez et chantez une chanson avec ce mot !"
                     q.isQuiSuis -> "Buzzez dès que vous savez qui je suis !"
                     q.isBlind -> "Buzzez dès que vous reconnaissez la chanson !"

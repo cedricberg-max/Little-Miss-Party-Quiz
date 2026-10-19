@@ -434,6 +434,42 @@ class RegieTest : TestTv() {
         ecran.capture("statues-musicales-gagnante")
     }
 
+    @Test
+    fun quiADisparuOnMemoriseSansBuzzerPuisUnObjetManque() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        @Suppress("UNCHECKED_CAST")
+        val avant = regie.programme(code)["questions"] as List<Map<String, Any?>>
+        val objets = listOf("Pomme" to "🍎", "Banane" to "🍌", "Fraise" to "🍓", "Cerises" to "🍒").map { (w, e) -> mapOf("word" to w, "image" to e) }
+        val disparu = mapOf(
+            "id" to "d1", "text" to "Qui a disparu ?", "choices" to listOf("Fraise"), "correct" to 0, "image" to "🍓",
+            "duration" to 30, "kind" to "disparu", "double" to false, "round" to "Qui a disparu ?", "cards" to objets,
+        )
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(disparu) + avant))
+
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("MÉMORISEZ !")
+        ecran.voit("Mémorisez bien tous les objets !")
+        ecran.voit("Fraise")
+        attendreQue("question ouverte") { licornes.etat(code).takeIf { it.child("qid").value == "d1" } }
+        assertEquals(false, licornes.etat(code).child("buzzOpen").value)
+        assertFalse("pas de buzz pendant la mémorisation", licornes.buzzer(code))
+        ecran.capture("qui-a-disparu-memoriser")
+        // 4 objets : 10 s pour mémoriser, 3 s de tour de magie, puis le buzzer s'ouvre.
+        ecran.voit("Buzzez dès que vous savez quel objet a disparu !", 20_000)
+        assertFalse("l'objet disparu n'est plus affiché", ecran.affiche("Fraise"))
+        attendreQue("buzzer ouvert") { licornes.etat(code).takeIf { it.child("buzzOpen").value == true } }
+        ecran.capture("qui-a-disparu-chercher")
+        assertTrue(licornes.buzzer(code))
+        ecran.voit("Licornes a buzzé !")
+        assertEquals("applied", regie.commande(code, "buzz_ok"))
+        ecran.voit("Fraise")
+        attendreQue("150 points") { points(licornes, code, licornes.uid).takeIf { it == Scoring.BUZZ.toLong() } }
+        ecran.capture("qui-a-disparu-revelation")
+    }
+
     private val regies = mutableListOf<RegieSimulee>()
 
     private fun regie() = RegieSimulee().also { regies += it }

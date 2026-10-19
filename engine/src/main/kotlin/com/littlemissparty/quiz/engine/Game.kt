@@ -18,11 +18,14 @@ const val ANSWER_CLOCK_MARGIN_MS = 2_000L
 /** Vrai ou Faux express : temps entre la fermeture et la révélation (la TV annonce « Temps écoulé »). */
 const val EXPRESS_CLOSED_MS = 1_200L
 
+/** Qui a disparu ? : le buzzer peut s'ouvrir un poil avant l'heure (minuterie de la box). */
+const val ARM_TOLERANCE_MS = 250L
+
 /** Vrai ou Faux express : temps de la révélation avant l'affirmation suivante. */
 const val EXPRESS_REVEAL_MS = 3_500L
 
 /** Image floue : l'équipe qui a buzzé et attend le verdict de l'animatrice, et les équipes déjà bloquées. */
-data class BuzzRound(val team: String? = null, val blocked: List<String> = emptyList())
+data class BuzzRound(val team: String? = null, val blocked: List<String> = emptyList(), val armed: Boolean = true)
 
 /** Pause en cours : qui l'a provoquée et depuis quand. */
 data class Hold(val reason: String, val team: String?, val since: Long)
@@ -283,11 +286,15 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         is MimeTurnEnded -> if (s.mime?.team == null) null else endTurn(s, e.at)
         is Buzzed -> {
             val b = s.buzz
-            if (s.phase != Phase.QUESTION || b == null || b.team != null || s.paused || e.team.isBlank() || e.team in b.blocked) null
+            if (s.phase != Phase.QUESTION || b == null || !b.armed || b.team != null || s.paused || e.team.isBlank() || e.team in b.blocked) null
             else s.copy(
                 buzz = b.copy(team = e.team),
                 segments = s.segments.map { if (it.end == null) it.copy(end = maxOf(e.at, it.start)) else it },
             )
+        }
+        is BuzzArmed -> {
+            val b = s.buzz
+            if (s.phase != Phase.QUESTION || b == null || b.armed || s.paused) null else s.copy(buzz = b.copy(armed = true))
         }
         is StatuesWon -> {
             val q = quiz.questions.getOrNull(s.index)
@@ -334,7 +341,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         )
         else s.copy(
             phase = Phase.QUESTION, index = index, qid = q.id, segments = listOf(Segment(at)), resumeAt = null, mime = null,
-            buzz = if (q.isBuzz) BuzzRound() else null,
+            buzz = if (q.isBuzz) BuzzRound(armed = q.buzzFromMs == 0L) else null,
         )
 
     /** Tour de mimes terminé : chrono arrêté, bilan gardé pour la TV et la régie. */
@@ -449,6 +456,23 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     fun judgeBuzz(ok: Boolean, now: Long, bonus: Boolean = false): GameEvent? = emit(BuzzJudged(nextSeq, now, ok, bonus && ok))
 
     /** Délai avant l'étape automatique du Vrai ou Faux express, ou null s'il n'y en a pas. */
+    /**
+     * Qui a disparu ? : temps de chrono à attendre avant d'ouvrir le buzzer, ou null s'il n'y a rien à
+     * attendre (autre jeu, buzzer déjà ouvert, pause).
+     */
+    fun armDelayMs(now: Long): Long? {
+        val q = question ?: return null
+        val b = state.buzz ?: return null
+        if (state.phase != Phase.QUESTION || b.armed || state.paused) return null
+        return (q.buzzFromMs - state.elapsedAt(now)).coerceAtLeast(0)
+    }
+
+    /** Ouvre le buzzer de Qui a disparu ? une fois la mémorisation finie (jamais avant). */
+    fun armBuzz(now: Long): GameEvent? {
+        val wait = armDelayMs(now) ?: return null
+        return if (wait > ARM_TOLERANCE_MS) null else emit(BuzzArmed(nextSeq, now))
+    }
+
     fun expressDelayMs(): Long? {
         if (question?.isExpress != true || state.paused) return null
         return when (state.phase) {

@@ -6,7 +6,7 @@ import {
 import { passwordHash, newSalt, cleanPassword, passwordCandidates, MIN_PASSWORD_LENGTH } from "./secret.js";
 import {
   TEST_ID, TEST_QUIZ, TEST_SHOW, FULL_ID, FULL_KEYS, FULL_QUIZZES, FULL_MIMES, FULL_SHOW, FULL_PHOTOS, photoQuiz, drawPhoto,
-  FULL_TUNES, FULL_TUNE_SEC, FULL_MUSIC_ROUNDS, tunePlaylist,
+  FULL_TUNES, FULL_TUNE_SEC, FULL_NEW_ROUNDS, tunePlaylist,
 } from "./test-show.js";
 import { writeProof, isAdmin } from "./proof.js";
 import { parseQuiz, checkQuestions, geminiPrompt, LETTERS } from "./importer.js";
@@ -877,7 +877,7 @@ $("test-full-create").onclick = async () => {
       // Prestation de test d'une version précédente : on lui ajoute seulement les jeux qui lui manquent
       // (avant la Super Finale), sans rien retirer ni modifier d'autre.
       const rounds = (existing.rounds ?? []).filter(Boolean);
-      const missing = FULL_MUSIC_ROUNDS.filter((m) => !rounds.some((r) => r.type === m.type));
+      const missing = FULL_NEW_ROUNDS.filter((m) => !rounds.some((r) => r.type === m.type));
       if (existing.origin !== "test" || !missing.length) {
         status("test-full-status", "Elle existe déjà : retrouvez-la dans Prestations (rien n'a été modifié).", true);
         return;

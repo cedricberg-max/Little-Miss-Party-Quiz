@@ -120,6 +120,9 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                     } else if (q.isBlind) {
                         BlindBoard(q, state, Modifier.weight(1.2f).fillMaxHeight())
                         Spacer(Modifier.width(20.dp))
+                    } else if (q.isDisparu) {
+                        DisparuBoard(q, state, Modifier.weight(1.6f).fillMaxHeight())
+                        Spacer(Modifier.width(20.dp))
                     } else if (q.isQuiSuis) {
                         QuiSuisBoard(q, state, Modifier.weight(1.4f).fillMaxHeight())
                         Spacer(Modifier.width(20.dp))

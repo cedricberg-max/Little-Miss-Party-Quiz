@@ -34,3 +34,19 @@ export const QUI_SUIS_JE = [
   ["La licorne", "🦄", ["Je suis un animal imaginaire", "Ma crinière a souvent toutes les couleurs", "Je ressemble à un cheval", "J'ai une corne sur le front"]],
   ["Le clown", "🤡", ["Je travaille au cirque", "J'ai de très grandes chaussures", "Je fais rire les enfants", "J'ai un nez rouge"]],
 ].map(([answer, emoji, clues]) => ({ answer, emoji, clues, level: 1 }));
+
+/**
+ * Qui a disparu ? : des familles d'objets faciles à nommer. La manche tire une famille par grille, quelques
+ * objets au hasard, et en fait disparaître un.
+ */
+export const DISPARU_THEMES = [
+  ["Fruits", [["Pomme", "🍎"], ["Banane", "🍌"], ["Fraise", "🍓"], ["Cerises", "🍒"], ["Raisin", "🍇"], ["Poire", "🍐"], ["Pastèque", "🍉"], ["Ananas", "🍍"], ["Citron", "🍋"], ["Kiwi", "🥝"], ["Pêche", "🍑"], ["Noix de coco", "🥥"]]],
+  ["Animaux de la ferme", [["Vache", "🐄"], ["Cochon", "🐖"], ["Mouton", "🐑"], ["Coq", "🐓"], ["Cheval", "🐴"], ["Canard", "🦆"], ["Chèvre", "🐐"], ["Lapin", "🐇"], ["Chien", "🐕"], ["Chat", "🐈"], ["Dindon", "🦃"], ["Souris", "🐁"]]],
+  ["Animaux sauvages", [["Lion", "🦁"], ["Éléphant", "🐘"], ["Girafe", "🦒"], ["Singe", "🐒"], ["Tigre", "🐯"], ["Zèbre", "🦓"], ["Ours", "🐻"], ["Crocodile", "🐊"], ["Hippopotame", "🦛"], ["Panda", "🐼"], ["Kangourou", "🦘"], ["Pingouin", "🐧"]]],
+  ["Transports", [["Voiture", "🚗"], ["Bus", "🚌"], ["Vélo", "🚲"], ["Avion", "✈️"], ["Fusée", "🚀"], ["Train", "🚂"], ["Voilier", "⛵"], ["Hélicoptère", "🚁"], ["Camion de pompiers", "🚒"], ["Trottinette", "🛴"], ["Moto", "🏍️"], ["Tracteur", "🚜"]]],
+  ["La fête", [["Gâteau", "🎂"], ["Ballon", "🎈"], ["Cadeau", "🎁"], ["Bougie", "🕯️"], ["Sucette", "🍭"], ["Chapeau", "🎩"], ["Bonbon", "🍬"], ["Confettis", "🎊"], ["Glace", "🍦"], ["Cupcake", "🧁"], ["Trompette", "🎺"], ["Couronne", "👑"]]],
+  ["À table", [["Pizza", "🍕"], ["Hamburger", "🍔"], ["Frites", "🍟"], ["Croissant", "🥐"], ["Fromage", "🧀"], ["Œuf", "🥚"], ["Cookie", "🍪"], ["Beignet", "🍩"], ["Carotte", "🥕"], ["Maïs", "🌽"], ["Spaghettis", "🍝"], ["Bretzel", "🥨"]]],
+  ["La mer", [["Poisson", "🐟"], ["Pieuvre", "🐙"], ["Crabe", "🦀"], ["Baleine", "🐳"], ["Dauphin", "🐬"], ["Requin", "🦈"], ["Tortue", "🐢"], ["Coquillage", "🐚"], ["Ancre", "⚓"], ["Calamar", "🦑"], ["Homard", "🦞"], ["Bateau", "🚢"]]],
+  ["L'école", [["Crayon", "✏️"], ["Règle", "📏"], ["Ciseaux", "✂️"], ["Livres", "📚"], ["Cartable", "🎒"], ["Trombone", "📎"], ["Cloche", "🔔"], ["Globe", "🌍"], ["Équerre", "📐"], ["Pinceau", "🖌️"], ["Boulier", "🧮"], ["Cahier", "📒"]]],
+  ["Le sport", [["Football", "⚽"], ["Basket", "🏀"], ["Tennis", "🎾"], ["Rugby", "🏈"], ["Ping-pong", "🏓"], ["Badminton", "🏸"], ["Boxe", "🥊"], ["Patin à glace", "⛸️"], ["Ski", "🎿"], ["Coupe", "🏆"], ["Médaille", "🥇"], ["Bowling", "🎳"]]],
+].map(([theme, objects]) => ({ theme, objects: objects.map(([word, image]) => ({ word, image })) }));
