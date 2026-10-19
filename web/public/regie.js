@@ -11,6 +11,7 @@ import {
 } from "./show.js";
 import { profileForAge } from "./profiles.js";
 import { setAwake } from "./awake.js";
+import { ouvrirDefis } from "./defis.js";
 
 // Régie de l'animatrice, ouverte depuis la page des pupitres (bouton « Accès régie »).
 // Elle n'écrit que des commandes : la box les vérifie, les applique et répond dans commandStatus/ ;
@@ -1603,14 +1604,17 @@ $("c-answer").onclick = () => { answerMasked = !answerMasked; render(); };
 $("tab-teams").onclick = () => { tabChosen = true; switchTab("teams"); };
 $("tab-plan").onclick = () => { tabChosen = true; switchTab("plan"); };
 $("tab-show").onclick = () => { tabChosen = true; switchTab("show"); };
+$("tab-defis").onclick = () => { tabChosen = true; switchTab("defis"); };
 function switchTab(name) {
   tab = name;
   // Liste des prestations relue à chaque ouverture de l'onglet : elle reflète toujours l'administration.
   if (name === "show" && !loadingShow) shows = null;
-  for (const t of ["teams", "plan", "show"]) {
+  for (const t of ["teams", "plan", "show", "defis"]) {
     $(`tab-${t}`).classList.toggle("active", tab === t);
     $(`panel-${t}`).hidden = tab !== t;
   }
+  // Défis de la pause : relus et affichés à chaque ouverture de l'onglet.
+  if (name === "defis") ouvrirDefis(db, $("panel-defis"), toast, demander);
   render();
 }
 

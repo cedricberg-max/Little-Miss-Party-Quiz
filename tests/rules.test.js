@@ -861,3 +861,43 @@ describe("blind test : extraits musicaux et playlists", () => {
     }
   });
 });
+
+describe("défis de la pause", () => {
+  const SALT = "sel-de-test-0123456789";
+  const hash = (password) => createHash("sha256").update(`${SALT}:${password}`).digest("hex");
+  beforeEach(() => seedAdmin(env, "sarah"));
+  async function regieByPassword(uid) {
+    await env.withSecurityRulesDisabled((ctx) =>
+      set(ref(ctx.database(), "settings/regie"), { salt: SALT, hash: hash("Licorne-2026"), updatedAt: 1 }));
+    const d = db(uid);
+    await set(ref(d, "regieGate/try"), { uid, at: serverTimestamp() });
+    const gateAt = (await get(ref(d, "regieGate/try/at"))).val();
+    await set(ref(d, `regieProof/${uid}`), { hash: hash("Licorne-2026"), gateAt, at: serverTimestamp() });
+  }
+  const DEFIS = { list: ["Tout le monde fait la ola !", "Un tonnerre d'applaudissements pour [prénom] !"], updatedAt: serverTimestamp() };
+
+  test("la régie et l'administration modifient les défis, la TV les lit", async () => {
+    await regieByPassword("tel");
+    await assertSucceeds(set(ref(db("tel"), "settings/defis"), DEFIS));
+    await assertSucceeds(set(ref(db("sarah"), "settings/defis"), { list: ["Dansez !"], updatedAt: serverTimestamp() }));
+    // Tout effacer reste permis : la TV reprend alors ses défis intégrés.
+    await assertSucceeds(set(ref(db("tel"), "settings/defis"), { updatedAt: serverTimestamp() }));
+    await assertSucceeds(get(ref(db(HOST), "settings/defis")));
+    await assertFails(get(ref(db(null), "settings/defis")));
+  });
+  test("un inconnu ou une équipe ne modifie pas les défis", async () => {
+    await assertFails(set(ref(db("intrus"), "settings/defis"), DEFIS));
+    await assertFails(set(ref(db(null), "settings/defis"), DEFIS));
+  });
+  test("défis mal formés refusés", async () => {
+    await regieByPassword("tel");
+    const avec = (list) => set(ref(db("tel"), "settings/defis"), { list, updatedAt: serverTimestamp() });
+    await assertFails(avec([""]));
+    await assertFails(avec(["x".repeat(121)]));
+    await assertFails(avec(Array.from({ length: 31 }, (_, i) => `Défi ${i}`)));
+    await assertFails(avec([42]));
+    await assertFails(set(ref(db("tel"), "settings/defis"), { ...DEFIS, secret: 1 }));
+    await assertFails(set(ref(db("tel"), "settings/defis"), { list: ["Dansez !"], updatedAt: 1 }));
+    await assertSucceeds(avec(Array.from({ length: 30 }, (_, i) => `Défi ${i}`)));
+  });
+});
