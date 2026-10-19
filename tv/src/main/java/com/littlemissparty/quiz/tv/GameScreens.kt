@@ -408,7 +408,7 @@ fun ScoresScreen(state: UiState.Playing, actions: TvActions) {
 }
 
 /** Bouton du classement : résultats finaux, jeu suivant annoncé par son nom, ou question suivante du même jeu. */
-private fun suiteLabel(state: UiState.Playing): String = when {
+internal fun suiteLabel(state: UiState.Playing): String = when {
     state.isLast -> "Résultats finaux"
     state.nextGame != null -> "Jeu suivant : ${state.nextGame.let { if (it.length > 26) it.take(25).trimEnd() + "…" else it }}"
     else -> "Question suivante"

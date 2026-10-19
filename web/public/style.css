@@ -101,6 +101,9 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
 .choice:disabled { opacity: .45; }
 .choice.picked { opacity: 1; background: var(--choice); box-shadow: 0 0 0 4px #fff; }
 .choices.two .choice { min-height: 120px; font-size: 26px; }
+/* Portes mystères : de grandes portes à toucher. */
+.choice.door { min-height: 96px; font-size: 24px; }
+.choice.door .letter { background: var(--gold, #FFE61F); font-size: 26px; }
 /* Réponses en images : deux colonnes, la photo en grand, la lettre en pastille, le mot dessous. */
 .choices.pictures { grid-template-columns: 1fr 1fr; }
 .choice.with-photo { position: relative; flex-direction: column; justify-content: center; gap: 6px; padding: 8px; text-align: center; font-size: 17px; }

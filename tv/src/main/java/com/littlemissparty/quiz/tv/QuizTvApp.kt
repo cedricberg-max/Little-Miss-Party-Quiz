@@ -179,9 +179,10 @@ private fun Playing(state: UiState.Playing, actions: TvActions) {
     when (state.phase) {
         Phase.LOBBY -> Lobby(state, actions)
         Phase.QUESTION, Phase.CLOSED, Phase.REVEAL ->
-            if (state.mime?.picto == true) PictionaryScreen(state, actions)
+            if (state.portes != null) PortesScreen(state, actions)
+            else if (state.mime?.picto == true) PictionaryScreen(state, actions)
             else if (state.mime != null) MimeScreen(state, actions) else QuestionScreen(state, actions)
-        Phase.SCORES -> ScoresScreen(state, actions)
+        Phase.SCORES -> if (state.portes != null) PortesClassementScreen(state, actions) else ScoresScreen(state, actions)
         Phase.ENDED -> FinalScreen(state, actions)
     }
     if (state.phase == Phase.LOBBY) GeneriqueSalon(state.code, state.childName, state.title)

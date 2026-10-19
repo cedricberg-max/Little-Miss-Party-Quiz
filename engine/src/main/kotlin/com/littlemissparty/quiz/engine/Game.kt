@@ -76,6 +76,8 @@ data class GameState(
     val skipped: Set<String> = emptySet(),
     /** Blind test : morceau dont l'animatrice a raccourci la révélation. */
     val revealCut: String? = null,
+    /** Portes mystères : nombre de portes déjà ouvertes par l'animatrice (dans l'ordre de [Game.doorOrder]). */
+    val doorsOpened: Int = 0,
 ) {
     val paused: Boolean get() = hold != null
 
@@ -275,6 +277,11 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             s.phase == Phase.QUESTION && s.mime != null && !s.mimeTurn -> s.copy(phase = Phase.SCORES, mime = null)
             else -> null
         }
+        is DoorOpened -> {
+            val q = quiz.questions.getOrNull(s.index)
+            if (q == null || !q.isPortes || e.qid != s.qid || s.phase != Phase.REVEAL || s.doorsOpened >= q.choices.size) null
+            else s.copy(doorsOpened = s.doorsOpened + 1)
+        }
         is ScoreAdjusted ->
             if (e.delta == 0 || e.team.isBlank()) null
             else s.copy(adjustments = s.adjustments + (e.seq to e), adjustedIn = s.qid?.let { s.adjustedIn + (e.seq to it) } ?: s.adjustedIn)
@@ -470,7 +477,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         )
         else s.copy(
             phase = Phase.QUESTION, index = index, qid = q.id, segments = listOf(Segment(at)), resumeAt = null, mime = null,
-            buzz = if (q.isBuzz) BuzzRound(armed = q.buzzFromMs == 0L) else null,
+            buzz = if (q.isBuzz) BuzzRound(armed = q.buzzFromMs == 0L) else null, doorsOpened = 0,
         )
 
     private fun closeSegments(s: GameState, at: Long) = s.segments.map { if (it.end == null) it.copy(end = maxOf(at, it.start)) else it }
@@ -507,6 +514,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         // Vrai ou Faux express : « suivant » passe à l'affirmation suivante, comme la box le fait seule.
         Phase.REVEAL -> when {
             question?.isExpress == true -> expressStep(now, answers)
+            // Portes mystères : « suivant » ouvre la porte suivante, puis montre le classement final.
+            question?.isPortes == true && state.doorsOpened < question!!.choices.size -> openDoor(now)
             // Blind test : « Titre suivant » annonce le morceau suivant de la playlist, sans le lancer.
             nextTrack() != null -> openQuestion(state.index + 1, now)
             else -> emit(ScoresShown(nextSeq, now))
@@ -565,6 +574,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         if (state.phase != Phase.CLOSED) return null
         // Image floue : les points viennent du buzzer ; chrono écoulé sans bonne réponse, personne ne marque.
         val awards = if (q.isBuzz || q.isStatues) emptyMap()
+        else if (q.isPortes) Scoring.awardPortes(q, answers, state.scores())
         else if (q.isNumber) Scoring.awardNumber(q, answers)
         else if (q.isExpress) answers.mapValues { (_, a) -> Scoring.awardExpress(q, a) }
         else answers.mapValues { (_, a) ->
@@ -592,6 +602,19 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             else -> null
         }
     }
+
+    /** Portes mystères : ouvre la porte suivante (rien hors de la révélation, ni quand toutes sont ouvertes). */
+    fun openDoor(now: Long): GameEvent? {
+        val q = question ?: return null
+        if (!q.isPortes || state.phase != Phase.REVEAL || state.doorsOpened >= q.choices.size) return null
+        return emit(DoorOpened(nextSeq, now, q.id))
+    }
+
+    /**
+     * Portes mystères : ordre d'ouverture des portes, de gauche à droite (porte 1, porte 2…), comme sur les tablettes.
+     * Le suspense vient des valeurs tirées au hasard, pas de l'ordre.
+     */
+    fun doorOrder(): List<Int> = question?.takeIf { it.isPortes }?.choices?.indices?.toList() ?: emptyList()
 
     /** Blind test : le morceau qui suit le morceau en cours dans la même playlist, s'il y en a un. */
     fun nextTrack(): Question? {

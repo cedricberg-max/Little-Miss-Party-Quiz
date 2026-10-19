@@ -5,7 +5,17 @@ import { shuffle } from "./mime-cards.js";
 import { CHANTE_WORDS, QUI_SUIS_JE, DISPARU_THEMES } from "./buzz-cards.js";
 import { PICTO_WORDS } from "./picto-cards.js";
 
-export const ROUND_TYPES = { quiz: "Quiz", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes", pictionary: "Pictionary" };
+/**
+ * Portes mystères (jeu final) : 3 ou 4 portes, chacune cache un bonus ou un malus qui peut renverser le classement ;
+ * un malus ne fait jamais descendre une équipe sous 0 (réglé par le moteur de la TV).
+ */
+export const PORTES_DOORS = [3, 4];
+export const PORTES_DEFAULT = 4;
+export const PORTES_SEC = 30;
+export const PORTES_VALUES = { 3: [300, 100, -150], 4: [300, 150, 50, -150] };
+export const PORTES_RULE = "chaque équipe choisit une porte sur sa tablette : derrière, un bonus ou un malus qui peut tout renverser ! Plusieurs équipes peuvent prendre la même porte";
+
+export const ROUND_TYPES = { quiz: "Quiz", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes", pictionary: "Pictionary", portes: "Portes mystères" };
 /** Statues musicales : durées proposées (secondes) et durée par défaut. Musique maison de la TV, rien à préparer. */
 export const STATUES_SECONDS = [60, 90, 120];
 export const STATUES_SEC = 90;
@@ -167,7 +177,7 @@ function disparuGrid(theme, n, random) {
 }
 
 /** Une manche est-elle complète (quiz choisi, ou paquet de mimes choisi) ? Les jeux intégrés le sont toujours. */
-export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || round.type === "statues" || round.type === "pictionary" ? true : round.type === "mimes" ? round.deckId : MUSIC_GAMES[round.type] ? round.playlistId : round.quizId));
+export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || round.type === "statues" || round.type === "pictionary" || round.type === "portes" ? true : round.type === "mimes" ? round.deckId : MUSIC_GAMES[round.type] ? round.playlistId : round.quizId));
 
 /** Morceaux jouables d'une playlist : un titre et un extrait enregistré. */
 export const playableTracks = (playlist) => (playlist?.tracks ?? []).filter((t) => t?.title?.trim() && /^[0-9a-f]{16}$/.test(t.audioId ?? ""));
@@ -245,6 +255,16 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       const duration = STATUES_SECONDS.includes(round.duration) ? round.duration : STATUES_SEC;
       rounds.push({ title: ROUND_TYPES.statues, count: 1 });
       questions.push({ id: `r${i + 1}s`, text: ROUND_TYPES.statues, kind: "statues", duration, double: false, round: ROUND_TYPES.statues });
+      return;
+    }
+    if (round.type === "portes") {
+      // Un seul élément : chaque équipe choisit une porte, les valeurs sont mélangées ici (jamais deux fois pareil).
+      const count = PORTES_DOORS.includes(round.doors) ? round.doors : PORTES_DEFAULT;
+      rounds.push({ title: ROUND_TYPES.portes, count: 1 });
+      questions.push({
+        id: `r${i + 1}d`, text: ROUND_TYPES.portes, kind: "portes", choices: Array.from({ length: count }, (_, k) => `Porte ${k + 1}`),
+        correct: -1, duration: PORTES_SEC, double: false, round: ROUND_TYPES.portes, doors: shuffle(PORTES_VALUES[count], random),
+      });
       return;
     }
     if (round.type === "pictionary") {
@@ -375,7 +395,7 @@ function assemble(blocks) {
 export function estimateMinutes(snapshot) {
   if (!snapshot) return 0;
   // Mimes : deux tours d'équipe environ, plus les changements d'équipe. Pictionary : un tour pour chacune de 4 équipes.
-  const sec = snapshot.quiz.questions.reduce((t, q) => t + (q.kind === "mime" ? 2 * q.duration + 60 : q.kind === "pictionary" ? 4 * (q.duration + 30) : q.kind === "express" ? q.duration + 5 : q.duration + 30), 0);
+  const sec = snapshot.quiz.questions.reduce((t, q) => t + (q.kind === "mime" ? 2 * q.duration + 60 : q.kind === "pictionary" ? 4 * (q.duration + 30) : q.kind === "portes" ? 120 : q.kind === "express" ? q.duration + 5 : q.duration + 30), 0);
   return Math.round(sec / 60);
 }
 

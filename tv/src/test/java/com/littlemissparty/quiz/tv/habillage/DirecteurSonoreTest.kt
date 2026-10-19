@@ -20,7 +20,16 @@ class DirecteurSonoreTest {
         val d = DirecteurSonore()
         val o = d.observer(salon)
         assertEquals(listOf(Son.GENERIQUE), o.sons())
-        assertEquals(Ordre.Musique(Ambiance.SALON, Tempo.GENERIQUE_FIN), o.filterIsInstance<Ordre.Musique>().last())
+        assertEquals(Ambiance.SALON, o.musique())
+        // Pas de blanc entre le générique et le salon : la boucle repart de sa première mesure sur le temps fort
+        // qui suit la dernière note (16 temps), presque aussi fort, puis redescend en douceur.
+        assertTrue(Ordre.Caler(Tempo.GENERIQUE_RELAIS) in o)
+        val musiques = o.filterIsInstance<Ordre.Musique>()
+        val relais = musiques.first { it.ambiance == Ambiance.SALON_ARRIVEE }
+        assertEquals(Tempo.GENERIQUE_RELAIS, relais.dansMs)
+        assertEquals(16 * Tempo.TEMPS, relais.dansMs)
+        assertTrue(relais.fonduMs <= 200)
+        assertTrue(musiques.last().dansMs > relais.dansMs && musiques.last().fonduMs >= 2_000)
         assertTrue(d.observer(salon).isEmpty())
         // La box perd la partie puis la retrouve : pas de second générique.
         d.observer(Instant(Ecran.HORS_PARTIE))

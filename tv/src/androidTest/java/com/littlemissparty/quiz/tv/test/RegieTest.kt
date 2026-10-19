@@ -684,4 +684,64 @@ class RegieTest : TestTv() {
 
     @org.junit.After
     fun rangerRegies() = regies.forEach { it.close() }
+
+    @Test
+    fun portesMysteresApresUnQuizOuvertesUneAUneJusquAuClassementFinalPuisLaFin() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val dragons = pupitre("dragons").also { it.rejoindre(code, "Dragons", ROSE) }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        @Suppress("UNCHECKED_CAST")
+        val demo = regie.programme(code)["questions"] as List<Map<String, Any?>>
+        val portes = mapOf(
+            "id" to "pm", "text" to "Portes mystères", "choices" to listOf("Porte 1", "Porte 2", "Porte 3"), "correct" to -1,
+            "duration" to 30, "kind" to "portes", "double" to false, "round" to "Portes mystères", "doors" to listOf(150, -150, 300),
+        )
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(demo[0] + ("round" to "Quiz"), portes)))
+
+        // Un jeu avant les portes : les Licornes marquent.
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("question du quiz ouverte") { licornes.etat(code).takeIf { it.child("qid").value == demo[0]["id"] && it.child("phase").value == "question" } }
+        assertTrue(licornes.repondre(code, demo[0]["id"] as String, (demo[0]["correct"] as Number).toInt()))
+        attendreQue("points du quiz") { points(licornes, code, licornes.uid).takeIf { it >= Scoring.BASE } ?: run { regie.commande(code, "next"); null } }
+        val avant = points(licornes, code, licornes.uid)
+
+        // Jeu suivant : les portes, sans rien bloquer.
+        attendreQue("choix des portes ouvert", 30_000) {
+            val e = licornes.etat(code)
+            if (e.child("qid").value == "pm" && e.child("phase").value == "question") true
+            else { regie.commande(code, "next"); null }
+        }
+        ecran.voit("Fermer les choix")
+        assertEquals(3L, (licornes.etat(code).child("portes/count").value as Number).toLong())
+        assertNull("aucune valeur avant l'ouverture", licornes.etat(code).child("portes/values").value)
+        ecran.capture("portes-choix")
+        assertTrue(licornes.repondre(code, "pm", 1))
+        assertTrue(dragons.repondre(code, "pm", 2))
+        ecran.voit("Les jeux sont faits")
+
+        // L'animatrice ferme les choix puis ouvre les portes une à une, de gauche à droite.
+        attendreQue("portes prêtes à s'ouvrir") {
+            licornes.etat(code).takeIf { it.child("phase").value == "reveal" } ?: run { regie.commande(code, "next"); null }
+        }
+        ecran.voit("Ouvrir la porte suivante")
+        for (k in 0 until 3) {
+            assertEquals("applied", regie.commande(code, "next"))
+            attendreQue("porte ${k + 1} ouverte") { licornes.etat(code).takeIf { (it.child("portes/opened").value as? Number)?.toInt() == k + 1 } }
+        }
+        ecran.voit("Classement final")
+        ecran.capture("portes-ouvertes")
+        assertEquals(maxOf(0L, avant - 150), points(licornes, code, licornes.uid))
+        assertEquals(300L, points(dragons, code, dragons.uid))
+
+        // Classement final des portes, puis la grande finale : scores gardés, rien ne bloque.
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("classement des portes") { licornes.etat(code).takeIf { it.child("phase").value == "scores" } }
+        ecran.voit("Résultats finaux")
+        ecran.capture("portes-classement")
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("fin de partie") { licornes.etat(code).takeIf { it.child("phase").value == "ended" } }
+        assertEquals(300L, points(dragons, code, dragons.uid))
+    }
 }

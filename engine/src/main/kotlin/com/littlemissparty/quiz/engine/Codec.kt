@@ -24,6 +24,7 @@ object Codec {
                 },
             )
             is ScoresShown -> mapOf("type" to "scores")
+            is DoorOpened -> mapOf("type" to "door", "qid" to e.qid)
             is ScoreAdjusted -> mapOf("type" to "adjust", "team" to e.team, "delta" to e.delta, "reason" to e.reason)
             is Undone -> mapOf("type" to "undo", "target" to e.target)
             is GameEnded -> mapOf("type" to "end")
@@ -71,6 +72,7 @@ object Codec {
                 },
             )
             "scores" -> ScoresShown(seq, at)
+            "door" -> DoorOpened(seq, at, m["qid"] as String)
             "adjust" -> ScoreAdjusted(seq, at, m["team"] as String, m.num("delta").toInt(), m["reason"] as? String ?: "")
             "undo" -> Undone(seq, at, m.num("target").toInt())
             "end" -> GameEnded(seq, at)
@@ -179,7 +181,7 @@ object Codec {
                 "durationMs" to q.durationMs,
                 "deadline" to game.deadline(),
                 "remainingMs" to if (s.paused || s.buzzHeld || s.buzz?.waiting == true) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
-                "correct" to if (revealed) q.correct else null,
+                "correct" to if (revealed && !q.isPortes) q.correct else null,
                 // L'émoji d'illustration peut trahir la réponse : seulement une fois révélée.
                 "image" to if (revealed) q.emoji else null,
                 "artist" to if (revealed) q.artist else null,
@@ -187,6 +189,7 @@ object Codec {
                     mapOf("correct" to a.correct, "points" to a.points, "bonus" to a.bonus)
                 } else null,
             )
+            if (q.isPortes) out["portes"] = portesState(game)
             if (q.isTurns) out["mime"] = mimeState(game, s.mime)
             if (q.isBlind) out["blind"] = blindState(game)
             s.buzz?.let {
@@ -196,6 +199,26 @@ object Codec {
             }
         }
         return out
+    }
+
+    /**
+     * Portes mystères, pour la TV, la régie et les pupitres : rien n'est dit avant la révélation ; ensuite l'ordre
+     * d'ouverture, le nombre de portes ouvertes, la valeur des seules portes ouvertes et le choix de chaque équipe.
+     */
+    fun portesState(game: Game): Map<String, Any?> {
+        val q = game.question ?: return emptyMap()
+        val s = game.state
+        if (s.phase != Phase.REVEAL && s.phase != Phase.SCORES) return mapOf("count" to q.choices.size)
+        val order = game.doorOrder()
+        val open = order.take(s.doorsOpened).toSet()
+        return mapOf(
+            "count" to q.choices.size,
+            "order" to order,
+            "opened" to s.doorsOpened,
+            "values" to q.doors.mapIndexed { i, v -> if (i in open) v else null }.withIndex().filter { it.value != null }
+                .associate { it.index.toString() to it.value },
+            "picks" to s.awards[q.id].orEmpty().mapValues { it.value.choice },
+        )
     }
 
     /**

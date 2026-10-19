@@ -562,6 +562,23 @@ describe("statues musicales", () => {
   });
 });
 
+describe("Portes mystères", () => {
+  const QUIZ = { title: "Quiz", questions: [{ text: "Roi ?", choices: ["Lion", "Tigre"], correct: 0, status: "validee" }] };
+  test("le jeu final : 3 ou 4 portes, contenus mélangés, à la suite d'un quiz sans rien bloquer", () => {
+    const show = { childName: "Léa", age: 9, rounds: [{ type: "quiz", quizId: "q" }, { type: "portes", doors: 3 }, { type: "portes" }, { type: "portes", doors: 9 }] };
+    const { snapshot, problems } = buildSnapshot("s", show, { q: QUIZ });
+    assert.deepEqual(problems, []);
+    const doors = snapshot.quiz.questions.filter((q) => q.kind === "portes");
+    assert.equal(doors.length, 3);
+    assert.deepEqual(doors.map((q) => q.choices.length), [3, 4, 4], "4 portes par défaut ou si le nombre est invalide");
+    assert.deepEqual([...doors[0].doors].sort((a, b) => a - b), [-150, 100, 300]);
+    assert.deepEqual([...doors[1].doors].sort((a, b) => a - b), [-150, 50, 150, 300]);
+    assert.deepEqual(doors.map((q) => [q.text, q.round, q.correct, q.duration]), Array(3).fill(["Portes mystères", "Portes mystères", -1, 30]));
+    assert.equal(new Set(snapshot.quiz.questions.map((q) => q.id)).size, snapshot.quiz.questions.length, "identifiants uniques");
+    assert.equal(roundFilled({ type: "portes" }), true, "rien à préparer");
+  });
+});
+
 describe("Super Finale : les dernières questions du quiz, pas un jeu à part", () => {
   const quiz = (title, n) => ({ title, questions: [...Array(n).keys()].map((i) => ({ text: `${title} ${i + 1} ?`, choices: ["Oui", "Non"], correct: 0, status: "validee" })) });
   const LIB = { a: quiz("Animaux", 2), b: quiz("Sport", 1), f: quiz("Finale", 2) };

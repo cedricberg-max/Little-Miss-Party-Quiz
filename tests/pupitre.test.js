@@ -216,6 +216,39 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
+  test("Portes mystères : choix secret d'une porte, résultat caché jusqu'à l'ouverture de sa porte sur la TV", async () => {
+    const page = await openPupitre();
+    await joinTeam(page, "Les Roses");
+    const uid = Object.keys(await read("teams"))[0];
+    const portes = { qid: "pm", kind: "portes", text: "Portes mystères", choices: ["Porte 1", "Porte 2", "Porte 3"], correct: null };
+    await hostState(question({ ...portes, portes: { count: 3 } }));
+    await page.locator("#q-number", { hasText: "Portes mystères !" }).waitFor();
+    assert.equal(await page.locator("#portes-host .pm-mini").count(), 3);
+    assert.equal(await page.locator("#choices").isVisible(), false);
+    await page.locator("#portes-host .pm-mini").nth(1).click();
+    await page.click("#portes-host .pm-choisir");
+    await waitFor(async () => (await read(`answers/pm/${uid}`))?.choice === 1, "porte 2 enregistrée");
+    await page.locator("#portes-host .pm-titre", { hasText: "Porte 2 choisie" }).waitFor();
+    // Porte 1 ouverte, pas encore la sienne : rien n'est dit.
+    const award = { [uid]: { choice: 1, correct: false, points: -150, bonus: 0 } };
+    const reveal = (opened, values) => hostState(question({ ...portes, phase: "reveal", awards: award, scores: { [uid]: 50 }, portes: { count: 3, order: [0, 1, 2], opened, values } }));
+    await reveal(1, { 0: 300 });
+    await page.locator("#r-title", { hasText: "Porte 2… suspense !" }).waitFor();
+    await page.locator("#r-total", { hasText: "Classement à la fin des portes" }).waitFor();
+    // Sa porte s'ouvre : la tuile, points exacts ; le total arrive quand toutes les portes sont ouvertes.
+    await reveal(2, { 0: 300, 1: -150 });
+    await page.locator("#r-portes .pm-titre", { hasText: "Aïe, la tuile !" }).waitFor();
+    await page.locator("#r-portes .pm-points", { hasText: "−150 POINTS" }).waitFor();
+    assert.equal(await page.locator("#r-title").isVisible(), false);
+    await reveal(3, { 0: 300, 1: -150, 2: 150 });
+    await page.locator("#r-total", { hasText: "50 points · 1re place" }).waitFor();
+    // Question suivante ordinaire : les boutons habituels reviennent.
+    await hostState(question({ qid: "q9", text: "Couleur du ciel ?" }));
+    await page.locator(".choice .text", { hasText: "Bleu" }).waitFor();
+    assert.equal(await page.locator("#portes-host").isVisible(), false);
+    await page.context().close();
+  });
+
   test("Le Juste Chiffre : l'équipe tape son nombre une seule fois et voit si elle est la plus proche", async () => {
     const page = await openPupitre();
     await joinTeam(page, "Les Roses");
