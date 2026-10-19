@@ -447,7 +447,9 @@ function renderMime(st, teams) {
     ? playing
       ? `${name(playing)} dessine ! Validez dès que l'équipe a trouvé le mot.`
       : secret
-        ? `Le mot est sur la tablette de ${name(secret)} : le dessinateur le regarde, les autres sont retournés. Puis masquez-le pour lancer le dessin.`
+        ? m.chosen != null
+          ? `Le dessinateur de ${name(secret)} a choisi son mot. Masquez-le pour lancer le dessin et le chrono.`
+          : `Sur la tablette de ${name(secret)}, le dessinateur choisit son mot (les autres sont retournés) : ${(m.offer ?? []).map((c) => c.word).join(" · ")}`
         : m.last
           ? `Tour terminé : ${name(m.last.team)} ${m.last.found ? `a trouvé « ${m.last.word ?? "?"} » !` : `n'a pas trouvé « ${m.last.word ?? "?"} ».`} ${mimeRemaining(st).length ? "Qui joue maintenant ?" : "Toutes les équipes sont passées."}`
           : "Qui commence ? Choisissez l'équipe, faites retourner ses coéquipiers, puis montrez le mot au dessinateur."
@@ -488,14 +490,15 @@ function renderMime(st, teams) {
   go.textContent = !picto ? (mimeTeam ? `Top départ ! (${name(mimeTeam)})` : "Top départ !")
     : secret && secret === mimeTeam ? `🙈 Masquer le mot : on dessine ! (${name(secret)})`
     : mimeTeam ? `👁 Montrer le mot à ${name(mimeTeam)}` : "👁 Montrer le mot";
-  go.disabled = busy || !mimeTeam;
+  // Pictionary : on ne masque qu'une fois le mot choisi par le dessinateur.
+  go.disabled = busy || !mimeTeam || (picto && secret && secret === mimeTeam && m.chosen == null);
   $("mime-found").hidden = !playing;
   $("mime-found").disabled = busy;
   $("mime-found").querySelector("small").textContent = picto ? `+${m.points ?? 150} points` : "+1 mime";
   // Pictionary : « Autre mot » tant que le dessinateur découvre le sien ; pas de « Passer » ni de −1 pendant le dessin.
   $("mime-row").hidden = picto ? !secret : !playing;
-  $("mime-pass").textContent = picto ? "Autre mot" : "Passer";
-  $("mime-pass").disabled = busy || (m.left ?? 0) < 2;
+  $("mime-pass").textContent = picto ? "Proposer 3 autres mots" : "Passer";
+  $("mime-pass").disabled = busy || (m.left ?? 0) < (picto ? (m.offer?.length ?? 0) + 1 : 2);
   $("mime-minus").hidden = picto;
   $("mime-minus").disabled = busy || !(m.found > 0);
   // Juste après un tour : corriger le compte de l'équipe qui vient de jouer, sans relancer de chrono.

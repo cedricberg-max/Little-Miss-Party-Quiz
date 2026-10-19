@@ -56,6 +56,45 @@
       <p id="play-status" class="hint">Regardez la TV !</p>
     </section>
 
+    <!-- Pictionary : le dessinateur choisit son mot, dessine ; les autres équipes regardent la TV. -->
+    <section id="screen-pick" class="screen picto-pick">
+      <div class="team-banner small"><span class="dot"></span><span class="team-label"></span></div>
+      <p id="pick-title" class="pick-title">Choisis le mot que tu vas dessiner</p>
+      <p class="hint pick-secret">🤫 Chut ! Ne le montre à personne.</p>
+      <div id="pick-words" class="pick-words"></div>
+      <button id="pick-ok" class="btn big">Je dessine celui-là !</button>
+      <p id="pick-status" class="hint"></p>
+    </section>
+
+    <section id="screen-draw" class="screen sheet">
+      <div class="sheet-head"><span class="team-label"></span><span id="draw-timer" class="timer"></span></div>
+      <div class="sheet-paper"><canvas id="sheet-canvas" aria-label="Feuille à dessin"></canvas></div>
+      <div class="sheet-tools">
+        <div class="sheet-colors">
+          <button data-color="#1A0B2E" aria-label="Noir"></button><button data-color="#F94144" aria-label="Rouge"></button>
+          <button data-color="#FF8C1A" aria-label="Orange"></button><button data-color="#FFD60A" aria-label="Jaune"></button>
+          <button data-color="#2EE86B" aria-label="Vert"></button><button data-color="#2B86C5" aria-label="Bleu"></button>
+          <button data-color="#9B5DE5" aria-label="Violet"></button><button data-color="#8B5A2B" aria-label="Marron"></button>
+          <button data-color="paper" class="eraser" aria-label="Gomme">🧽</button>
+        </div>
+        <div class="sheet-widths">
+          <button data-width="1" aria-label="Trait fin"><i></i></button><button data-width="2" aria-label="Trait moyen"><i></i></button><button data-width="3" aria-label="Trait épais"><i></i></button>
+          <button data-clear class="clear">Tout effacer</button>
+        </div>
+      </div>
+      <p id="draw-word" class="draw-word"></p>
+    </section>
+
+    <section id="screen-watch" class="screen picto-watch">
+      <div class="team-banner small"><span class="dot"></span><span class="team-label"></span></div>
+      <div class="watch-stage" aria-hidden="true">
+        <div class="doodler"><span class="doodler-face">✏️</span></div>
+        <img class="watch-logo" src="img/logo-lmp.webp" alt="">
+      </div>
+      <p id="watch-msg" class="watch-msg"></p>
+      <p id="watch-status" class="hint"></p>
+    </section>
+
     <section id="screen-question" class="screen">
       <div class="team-banner small"><span class="dot"></span><span class="team-label"></span></div>
       <div class="question-head">

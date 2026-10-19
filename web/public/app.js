@@ -7,6 +7,7 @@ import { TEAM_COLORS, CHOICE_COLORS, CHOICE_LETTERS, MAX_TEAMS } from "./theme.j
 import { hasAccess, loginWithPassword, loginWithPin, startRegie } from "./regie.js";
 import { watchVersion, showUpdateBanner } from "./version.js";
 import { setAwake, isAwake, onAwakeChange } from "./awake.js";
+import { startSheet } from "./picto.js";
 
 const $ = (id) => document.getElementById(id);
 /** Jeux au buzzer : un seul grand BUZZ, la réponse se donne à voix haute. */
@@ -46,7 +47,7 @@ let gameExists = false;
  * affiche un bandeau : l'animatrice choisit le moment.
  */
 let newVersion = false;
-const SAFE_TO_RELOAD = new Set(["play", "result", "ended", "error", "loading", "replaced"]);
+const SAFE_TO_RELOAD = new Set(["play", "result", "ended", "error", "loading", "replaced", "watch"]);
 function maybeReload() {
   if (!newVersion) return;
   if (document.body.classList.contains("regie-mode") || !$("regie-login").hidden) {
@@ -57,7 +58,7 @@ function maybeReload() {
 watchVersion(() => { newVersion = true; maybeReload(); });
 
 /** Écrans où l'équipe joue (salon compris) : la tablette reste allumée, même si personne ne la touche. */
-const AWAKE_SCREENS = new Set(["waiting", "play", "question", "result"]);
+const AWAKE_SCREENS = new Set(["waiting", "play", "question", "result", "pick", "draw", "watch"]);
 /** Écrans où la partie est finie pour cet appareil : la veille normale d'Android reprend. */
 const SLEEP_SCREENS = new Set(["join", "ended", "replaced"]);
 
@@ -356,11 +357,13 @@ function render() {
   switch (st.phase) {
     case "question":
     case "closed":
-      return st.mime ? renderMime(st) : st.kind === "statues" ? renderStatues(st) : BUZZ_KINDS.includes(st.kind) ? renderFlou(st) : renderQuestion(st);
+      return st.mime ? (st.kind === "pictionary" ? renderPicto(st) : renderMime(st)) : st.kind === "statues" ? renderStatues(st) : BUZZ_KINDS.includes(st.kind) ? renderFlou(st) : renderQuestion(st);
     case "reveal":
     case "scores":
+      stopPicto();
       return st.mime ? renderMimeResult(st) : renderResult(st);
     case "ended":
+      stopPicto();
       return renderEnded(st);
     default:
       return renderLobby(st);
@@ -540,12 +543,145 @@ function renderMimeResult(st) {
   clearInterval(timerHandle);
   show("result");
   const n = st.mime?.counts?.[teamId] ?? 0;
+  const what = st.kind === "pictionary" ? "dessin" : "mime";
   $("r-icon").textContent = n ? "★" : "…";
   $("r-icon").className = `result-icon ${n ? "ok" : "ko"}`;
-  $("r-title").textContent = n ? `Bravo ! ${n} mime${n > 1 ? "s" : ""} trouvé${n > 1 ? "s" : ""}` : "Pas de mime trouvé cette fois !";
+  $("r-title").textContent = n ? `Bravo ! ${n} ${what}${n > 1 ? "s" : ""} trouvé${n > 1 ? "s" : ""}` : `Pas de ${what} trouvé cette fois !`;
   $("r-detail").textContent = n ? `+${n * (st.mime?.points ?? 50)} points` : "";
   const { mine, rank } = rankOf(st.scores);
   $("r-total").textContent = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`;
+}
+
+// ---------- Pictionary ----------
+
+/** Feuille à dessin en cours (tour de cette équipe) et la clé de son dessin. */
+let sheet = null;
+let sheetKey = null;
+/** Mot touché par le dessinateur parmi ceux proposés (avant de l'envoyer), pour la proposition [pickFor]. */
+let pickIndex = null;
+let pickFor = null;
+let watchHandle = null;
+const WATCH_MESSAGES = [
+  "Chut… le crayon réfléchit 🤔", "Est-ce un chat ? Une fusée ? Un gâteau ? 🧐", "Regardez la TV, ça dessine en direct ! 📺",
+  "Picasso n'a qu'à bien se tenir 🎨", "On retient son souffle… 😮", "Trop fort ce dessin ! 👏",
+  "Vous auriez trouvé, vous ? 😏", "Encore un petit trait… ✏️", "Attention, chef-d'œuvre en cours ! 🖼️",
+];
+
+function stopSheet() {
+  sheet?.stop();
+  sheet = null;
+  sheetKey = null;
+}
+
+function stopWatch() {
+  clearInterval(watchHandle);
+  watchHandle = null;
+}
+
+function stopPicto() {
+  stopSheet();
+  stopWatch();
+}
+
+/**
+ * Pictionary : le dessinateur de l'équipe qui joue choisit son mot puis dessine ; les autres équipes regardent
+ * la TV (animation sur leur tablette) ; entre deux tours, la tablette dit qui va jouer.
+ */
+function renderPicto(st) {
+  clearInterval(timerHandle);
+  const m = st.mime;
+  const name = (id) => game.teams[id]?.name ?? "une autre équipe";
+  if (m.secret === teamId && m.offer?.length && m.pickKey) {
+    stopPicto();
+    return renderPick(m);
+  }
+  if (m.team === teamId && m.drawKey) {
+    stopWatch();
+    return renderDraw(st, m);
+  }
+  stopSheet();
+  if (m.team || m.secret) return renderWatch(m, name);
+  stopWatch();
+  show("play");
+  $("buzz").disabled = true;
+  $("buzz").hidden = true;
+  const mine = m.counts?.[teamId] ?? 0;
+  const found = mine ? ` Déjà ${mine} dessin${mine > 1 ? "s" : ""} trouvé${mine > 1 ? "s" : ""} !` : "";
+  $("play-status").textContent = m.last
+    ? `« ${m.last.word ?? "?"} » : ${m.last.found ? `bravo ${name(m.last.team)} !` : "pas trouvé cette fois."} L'animatrice choisit l'équipe suivante.${found}`
+    : `Pictionary ! L'animatrice choisit l'équipe qui dessine en premier.${found}`;
+}
+
+function renderPick(m) {
+  show("pick");
+  if (pickFor !== m.pickKey) {
+    pickFor = m.pickKey;
+    pickIndex = m.chosen ?? null;
+    $("pick-words").replaceChildren(...m.offer.map((c, i) => {
+      const b = document.createElement("button");
+      b.className = "picto-word";
+      b.dataset.i = i;
+      const emoji = document.createElement("span");
+      emoji.className = "emoji";
+      emoji.textContent = c.image ?? "✏️";
+      b.append(emoji, c.word);
+      b.onclick = () => { pickIndex = i; navigator.vibrate?.(30); render(); };
+      return b;
+    }));
+  }
+  document.querySelectorAll("#pick-words .picto-word").forEach((b) => b.classList.toggle("on", Number(b.dataset.i) === pickIndex));
+  const sent = m.chosen != null && m.chosen === pickIndex;
+  const ok = $("pick-ok");
+  ok.disabled = pickIndex == null || sent;
+  ok.textContent = sent ? "C'est noté ✓" : "Je dessine celui-là !";
+  ok.onclick = () => choosePicto(m.pickKey, pickIndex);
+  $("pick-status").textContent = m.chosen != null
+    ? `Tu vas dessiner « ${m.offer[m.chosen]?.word ?? ""} ». Garde le secret ! L'animatrice va masquer le mot, puis tu dessines.`
+    : "Fais défiler les mots et touche celui que tu préfères.";
+}
+
+async function choosePicto(key, i) {
+  if (i == null || !key) return;
+  beep(880, 120);
+  try {
+    await set(ref(db, `games/${code}/pictoChoice/${key}`), { i, at: serverTimestamp() });
+  } catch {
+    $("pick-status").textContent = "Le choix n'est pas parti : vérifiez la connexion et touchez encore « Je dessine celui-là ! ».";
+  }
+}
+
+function renderDraw(st, m) {
+  show("draw");
+  if (sheetKey !== m.drawKey) {
+    stopSheet();
+    sheetKey = m.drawKey;
+    sheet = startSheet($("screen-draw"), db, `games/${code}/drawing/${m.drawKey}`, {
+      onError: () => { $("draw-word").textContent = "Le dessin n'arrive plus à la TV : vérifiez la connexion."; },
+    });
+  }
+  $("draw-word").textContent = m.card?.word ? `Ton mot : ${m.card.word} ${m.card.image ?? ""}`.trim() : "";
+  runTimer(st, $("draw-timer"));
+}
+
+function renderWatch(m, name) {
+  show("watch");
+  $("watch-status").textContent = m.team
+    ? `${name(m.team)} dessine : regardez la TV !`
+    : `${name(m.secret)} choisit son mot… chut !`;
+  if (!watchHandle) {
+    let k = Math.floor(Math.random() * WATCH_MESSAGES.length);
+    const next = () => {
+      k = (k + 1) % WATCH_MESSAGES.length;
+      const el = $("watch-msg");
+      el.textContent = WATCH_MESSAGES[k];
+      // Relance la petite animation d'apparition à chaque message.
+      el.style.animation = "none";
+      void el.offsetWidth;
+      el.style.animation = "";
+    };
+    next();
+    watchHandle = setInterval(next, 4000);
+  }
 }
 
 async function answer(choice) {
@@ -584,9 +720,8 @@ function runResumeCountdown(st) {
   countdownHandle = setInterval(tick, 100);
 }
 
-function runTimer(st) {
+function runTimer(st, el = $("q-timer")) {
   clearInterval(timerHandle);
-  const el = $("q-timer");
   const tick = () => {
     let ms;
     if (st.phase !== "question") ms = 0;

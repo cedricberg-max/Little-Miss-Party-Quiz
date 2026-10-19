@@ -83,6 +83,30 @@
             }
           }
         },
+        "drawing": {
+          ".read": "auth != null",
+          ".write": "auth != null && root.child('games').child($code).child('hostUid').val() === auth.uid && !newData.exists()",
+          "$key": {
+            "$stroke": {
+              ".write": "auth != null && !data.exists() && newData.exists() && root.child('games').child($code).child('state/kind').val() === 'pictionary' && root.child('games').child($code).child('state/paused').val() !== true && root.child('games').child($code).child('state/mime/drawKey').val() === $key && root.child('games').child($code).child('state/mime/team').isString() && (root.child('games').child($code).child('teams').child(root.child('games').child($code).child('state/mime/team').val()).child('device').val() === auth.uid || (!root.child('games').child($code).child('teams').child(root.child('games').child($code).child('state/mime/team').val()).child('device').exists() && auth.uid === root.child('games').child($code).child('state/mime/team').val()))",
+              ".validate": "(newData.child('clear').val() === true && !newData.child('p').exists()) || (newData.child('p').isString() && newData.child('p').val().length >= 3 && newData.child('p').val().length <= 3000 && newData.child('p').val().matches(/^[0-9]{1,4},[0-9]{1,4}( [0-9]{1,4},[0-9]{1,4})*$/) && newData.child('c').isString() && newData.child('c').val().matches(/^(#[0-9A-Fa-f]{6}|paper)$/) && newData.child('w').isNumber() && newData.child('w').val() >= 1 && newData.child('w').val() <= 3)",
+              "$other": {
+                ".validate": "$other === 'p' || $other === 'c' || $other === 'w' || $other === 'clear'"
+              }
+            }
+          }
+        },
+        "pictoChoice": {
+          ".read": "auth != null",
+          ".write": "auth != null && root.child('games').child($code).child('hostUid').val() === auth.uid && !newData.exists()",
+          "$key": {
+            ".write": "auth != null && newData.exists() && root.child('games').child($code).child('state/kind').val() === 'pictionary' && root.child('games').child($code).child('state/mime/pickKey').val() === $key && root.child('games').child($code).child('state/mime/secret').isString() && (root.child('games').child($code).child('teams').child(root.child('games').child($code).child('state/mime/secret').val()).child('device').val() === auth.uid || (!root.child('games').child($code).child('teams').child(root.child('games').child($code).child('state/mime/secret').val()).child('device').exists() && auth.uid === root.child('games').child($code).child('state/mime/secret').val()))",
+            ".validate": "newData.child('i').isNumber() && newData.child('i').val() % 1 === 0 && newData.child('i').val() >= 0 && newData.child('i').val() < 3 && newData.child('at').val() === now",
+            "$other": {
+              ".validate": "$other === 'i' || $other === 'at'"
+            }
+          }
+        },
         "pairing": {
           "$uid": {
             ".read": "auth != null && auth.uid === $uid",
