@@ -57,6 +57,9 @@ data class Revealed(
 
 data class ScoresShown(override val seq: Int, override val at: Long) : GameEvent
 
+/** Portes mystères : l'animatrice ouvre la porte suivante (dans l'ordre de [Game.doorOrder]). */
+data class DoorOpened(override val seq: Int, override val at: Long, val qid: String) : GameEvent
+
 /** Correction manuelle d'un score (régie). */
 data class ScoreAdjusted(
     override val seq: Int,

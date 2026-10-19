@@ -44,6 +44,18 @@ object Scoring {
     const val EXPRESS = 50
 
     /** Vrai ou Faux express : [EXPRESS] par bonne réponse (×2 en Super Finale), rien sinon. */
+    /**
+     * Portes mystères : chaque équipe reçoit la valeur de la porte choisie (plusieurs équipes peuvent prendre la
+     * même). Un malus ne fait jamais descendre un score sous 0 : il est réduit au score de l'équipe ([scores], avant
+     * les portes). Une équipe qui n'a pas choisi ne gagne ni ne perd rien.
+     */
+    fun awardPortes(question: Question, answers: Map<String, Answer>, scores: Map<String, Int>): Map<String, Award> =
+        answers.filterValues { it.choice in question.doors.indices }.mapValues { (team, a) ->
+            val value = question.doors[a.choice]
+            val points = if (value < 0) maxOf(value, -(scores[team] ?: 0).coerceAtLeast(0)) else value
+            Award(a.choice, correct = value > 0, points = points, bonus = 0)
+        }
+
     fun awardExpress(question: Question, answer: Answer): Award {
         val correct = answer.choice == question.correct
         val factor = if (question.double) 2 else 1
