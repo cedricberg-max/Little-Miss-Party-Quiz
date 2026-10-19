@@ -41,19 +41,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -68,6 +64,7 @@ import com.littlemissparty.quiz.tv.habillage.GeneriqueSalon
 import com.littlemissparty.quiz.tv.habillage.GrilleEquipes
 import com.littlemissparty.quiz.tv.habillage.HabillageEcran
 import com.littlemissparty.quiz.tv.habillage.HabillageTv
+import com.littlemissparty.quiz.tv.habillage.LogoQuiz
 import com.littlemissparty.quiz.tv.habillage.Neon
 
 /** Ce que l'animatrice peut faire depuis la télécommande. */
@@ -405,39 +402,9 @@ private fun Title() {
     val pulse by t.animateFloat(
         1f, 1.03f, infiniteRepeatable(tween(1000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "pulse",
     )
-    // Logo « Néon chic » : écriture blanche au halo rose, PARTY en or, QUIZ qui brille.
-    // Une ligne chacun, hauteurs fixées : le logo ne doit jamais pousser « Lancer la fête ! » hors de l'écran.
-    Column(Modifier.scale(pulse)) {
-        Text(
-            "Little Miss",
-            style = TextStyle(
-                color = Neon.Blanc, fontSize = 46.sp, lineHeight = 50.sp, fontStyle = FontStyle.Italic, fontWeight = FontWeight.Light,
-                shadow = Shadow(Neon.Halo, blurRadius = 24f),
-            ),
-            maxLines = 1, softWrap = false,
-        )
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(
-                "PARTY",
-                style = TextStyle(
-                    brush = Brush.verticalGradient(listOf(Neon.OrClair, Neon.OrProfond)),
-                    fontSize = 36.sp, lineHeight = 40.sp, fontWeight = FontWeight.Bold, letterSpacing = 10.sp,
-                    shadow = Shadow(Neon.Or.copy(alpha = 0.6f), blurRadius = 16f),
-                ),
-                maxLines = 1, softWrap = false,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
-            Spacer(Modifier.width(18.dp))
-            Text(
-                "QUIZ",
-                style = TextStyle(
-                    color = Color(0xFFFFF6E6), fontSize = 64.sp, lineHeight = 66.sp, fontWeight = FontWeight.Black, letterSpacing = 8.sp,
-                    shadow = Shadow(Neon.Or, blurRadius = 32f),
-                ),
-                maxLines = 1, softWrap = false,
-            )
-        }
-    }
+    // Le logo officiel (image), « QUIZ » en or dessous, et la même petite pompe qu'avant.
+    // Hauteur fixe, proche de l'ancien logo en texte : il ne pousse jamais « Lancer la fête ! » hors de l'écran.
+    LogoQuiz(84.dp, Modifier.graphicsLayer { scaleX = pulse; scaleY = pulse; transformOrigin = TransformOrigin(0f, 0.5f) })
 }
 
 @Composable

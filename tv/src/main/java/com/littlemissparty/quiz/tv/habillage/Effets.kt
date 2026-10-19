@@ -8,12 +8,12 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -41,10 +41,10 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlinx.coroutines.delay
@@ -99,10 +99,39 @@ fun Modifier.rebond(actif: Boolean, ampleur: Float = 0.08f): Modifier = composed
     }
 }
 
+/** Reflet blanc qui balaie une fois l'élément quand [actif] devient vrai (la carte de la bonne réponse). */
+fun Modifier.reflet(actif: Boolean): Modifier = composed {
+    val x = remember { Animatable(-1f) }
+    LaunchedEffect(actif) {
+        if (!actif) {
+            x.snapTo(-1f)
+            return@LaunchedEffect
+        }
+        delay(150)
+        x.snapTo(-0.4f)
+        x.animateTo(1.4f, tween(700, easing = FastOutSlowInEasing))
+    }
+    drawWithContent {
+        drawContent()
+        val p = x.value
+        if (p > -0.5f && p < 1.4f) {
+            val cx = size.width * p
+            val bande = size.width * 0.22f
+            drawRect(
+                Brush.linearGradient(
+                    listOf(Color.Transparent, Color.White.copy(alpha = 0.45f), Color.Transparent),
+                    start = Offset(cx - bande, 0f), end = Offset(cx + bande, size.height),
+                ),
+            )
+        }
+    }
+}
+
 /**
- * Générique d'ouverture, une fois par partie, calé sur la musique du générique : « Little Miss » s'écrit,
- * « PARTY » tombe lettre par lettre, « QUIZ » claque, puis on salue l'enfant fêté. Il s'efface seul et
- * laisse le salon dessous : aucun bouton, aucune touche de la télécommande n'est bloquée.
+ * Générique d'ouverture, une fois par partie, calé sur la musique du générique : le logo officiel se dévoile
+ * de gauche à droite, « QUIZ » claque, puis on salue l'enfant fêté. Le voile est opaque : le salon dessous
+ * (et son propre logo) n'apparaît qu'à la sortie, il n'y a jamais deux logos à la fois. Il s'efface seul :
+ * aucun bouton, aucune touche de la télécommande n'est bloquée.
  */
 @Composable
 fun GeneriqueSalon(partie: String, prenom: String, titre: String) {
@@ -125,85 +154,65 @@ fun GeneriqueSalon(partie: String, prenom: String, titre: String) {
                 scaleX = 1f + 0.08f * sortie
                 scaleY = 1f + 0.08f * sortie
             }
-            .background(Neon.Fond.copy(alpha = 0.93f)),
+            .background(Brush.verticalGradient(listOf(Neon.FondHaut, Neon.Fond, Neon.FondBas))),
         contentAlignment = Alignment.Center,
     ) {
         Rayons(ms)
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            // « Little Miss » s'écrit de gauche à droite, néon rose.
-            Text(
-                "Little Miss",
-                style = TextStyle(
-                    color = Neon.Blanc, fontSize = 96.sp, fontStyle = FontStyle.Italic, fontWeight = FontWeight.Light,
-                    shadow = Shadow(Neon.Halo, Offset.Zero, 28f),
-                ),
-                modifier = Modifier.graphicsLayer {
-                    val ecrit = ((ms() - 300f) / 1_200f).coerceIn(0f, 1f)
-                    alpha = if (ecrit > 0f) 1f else 0f
-                    clip = true
-                    shape = DevoileGauche(ecrit)
-                },
-            )
-            // « PARTY » : une lettre par croche, en or.
-            Row {
-                "PARTY".forEachIndexed { i, c ->
-                    val debut = 1_500f + i * 125f
-                    Text(
-                        c.toString(),
-                        style = TextStyle(
-                            brush = Brush.verticalGradient(listOf(Neon.OrClair, Neon.OrProfond)),
-                            fontSize = 64.sp, fontWeight = FontWeight.Bold, letterSpacing = 14.sp,
-                            shadow = Shadow(Neon.Or.copy(alpha = 0.6f), Offset.Zero, 18f),
-                        ),
-                        modifier = Modifier.graphicsLayer {
-                            val x = ((ms() - debut) / 260f).coerceIn(0f, 1f)
-                            alpha = x
-                            translationY = (1f - x) * -60f
-                            rotationX = (1f - x) * 70f
-                        },
-                    )
-                }
-            }
-            // « QUIZ » claque sur le temps fort.
-            Text(
-                "QUIZ",
-                style = TextStyle(
-                    color = Color(0xFFFFF6E6), fontSize = 120.sp, fontWeight = FontWeight.Black, letterSpacing = 18.sp,
-                    shadow = Shadow(Neon.Or, Offset.Zero, 40f),
-                ),
-                modifier = Modifier.graphicsLayer {
-                    val q = ((ms() - 2_500f) / 450f).coerceIn(0f, 1f)
-                    val claque = if (q <= 0f) 0f else 1f + 0.5f * (1f - q) * (1f - q)
-                    alpha = if (q > 0f) 1f else 0f
-                    scaleX = claque
-                    scaleY = claque
-                },
-            )
-            Spacer(Modifier.height(24.dp))
-            Text(
-                if (prenom.isNotBlank()) "Joyeux anniversaire" else titre.ifBlank { "Bienvenue sur le plateau !" },
-                color = Neon.Blanc, fontSize = 40.sp, fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.graphicsLayer {
-                    val salut = ((ms() - 4_000f) / 600f).coerceIn(0f, 1f)
-                    alpha = salut
-                    translationY = (1f - salut) * 40f
-                },
-            )
-            if (prenom.isNotBlank()) {
-                Text(
-                    "$prenom !",
-                    style = TextStyle(
-                        color = Color(0xFFFFF6E6), fontSize = 92.sp, fontWeight = FontWeight.Bold,
-                        shadow = Shadow(Neon.Or, Offset.Zero, 36f),
-                    ),
-                    modifier = Modifier.graphicsLayer {
-                        val nom = ((ms() - 4_500f) / 700f).coerceIn(0f, 1f)
-                        alpha = nom
-                        val s = 0.6f + 0.4f * nom
+        // Dessiné pour 960 × 560 et mis à l'échelle : tout tient, sur la Mi Box comme sur une TV 4K.
+        Echelle(960.dp, 560.dp) {
+            Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                // Le logo s'écrit de gauche à droite, puis respire une fois quand « QUIZ » claque.
+                LogoLmp(
+                    170.dp,
+                    Modifier.graphicsLayer {
+                        val ecrit = ((ms() - 300f) / 1_500f).coerceIn(0f, 1f)
+                        alpha = if (ecrit > 0f) 1f else 0f
+                        clip = true
+                        shape = DevoileGauche(ecrit)
+                        val choc = ((ms() - 2_500f) / 600f).coerceIn(0f, 1f)
+                        val s = 1f + 0.04f * sin(choc * PI.toFloat())
                         scaleX = s
                         scaleY = s
                     },
                 )
+                // « QUIZ » claque sur le temps fort.
+                MotQuiz(
+                    84.sp,
+                    Modifier.graphicsLayer {
+                        val q = ((ms() - 2_500f) / 450f).coerceIn(0f, 1f)
+                        val claque = if (q <= 0f) 0f else 1f + 0.5f * (1f - q) * (1f - q)
+                        alpha = if (q > 0f) 1f else 0f
+                        scaleX = claque
+                        scaleY = claque
+                    },
+                )
+                Spacer(Modifier.height(20.dp))
+                Text(
+                    if (prenom.isNotBlank()) "Joyeux anniversaire" else titre.ifBlank { "Bienvenue sur le plateau !" },
+                    color = Neon.Blanc, fontSize = 38.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                    modifier = Modifier.graphicsLayer {
+                        val salut = ((ms() - 4_000f) / 600f).coerceIn(0f, 1f)
+                        alpha = salut
+                        translationY = (1f - salut) * 40f
+                    },
+                )
+                if (prenom.isNotBlank()) {
+                    Text(
+                        "$prenom !",
+                        style = TextStyle(
+                            color = Color(0xFFFFF6E6), fontSize = 84.sp, lineHeight = 92.sp, fontWeight = FontWeight.Bold,
+                            shadow = Shadow(Neon.Or, Offset.Zero, 36f),
+                        ),
+                        maxLines = 1, softWrap = false,
+                        modifier = Modifier.graphicsLayer {
+                            val nom = ((ms() - 4_500f) / 700f).coerceIn(0f, 1f)
+                            alpha = nom
+                            val s = 0.6f + 0.4f * nom
+                            scaleX = s
+                            scaleY = s
+                        },
+                    )
+                }
             }
         }
     }

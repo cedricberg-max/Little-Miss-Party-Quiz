@@ -210,6 +210,22 @@
         "updatedAt": {
           ".read": "auth != null"
         }
+      },
+      "defis": {
+        ".read": "auth != null",
+        ".write": "(auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()) || (auth != null && root.child('settings/regie/hash').isString() && root.child('regieProof').child(auth.uid).child('hash').val() === root.child('settings/regie/hash').val())",
+        ".validate": "newData.hasChildren(['updatedAt']) && newData.child('updatedAt').val() === now",
+        "list": {
+          "$i": {
+            ".validate": "$i.matches(/^([0-9]|[12][0-9])$/) && newData.isString() && newData.val().length >= 1 && newData.val().length <= 120"
+          }
+        },
+        "updatedAt": {
+          ".validate": "newData.isNumber()"
+        },
+        "$other": {
+          ".validate": "false"
+        }
       }
     },
     "library": {

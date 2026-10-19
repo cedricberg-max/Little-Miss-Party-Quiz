@@ -52,6 +52,11 @@ object Neon {
     val OrClair = Color(0xFFF6DAAA)
     val OrProfond = Color(0xFFE0B577)
     val Chaud = Color(0xFFFF5A1F)
+    /** Révélation (palette A, audit du 19 octobre) : vert électrique = juste, corail = faux. Le jaune pâle ne sert plus de « bonne réponse ». */
+    val JusteClair = Color(0xFF2EE86B)
+    val JusteProfond = Color(0xFF12C957)
+    val JusteTexte = Color(0xFF08240F)
+    val Faux = Color(0xFFFF5A5F)
 }
 
 /** Ce qui doit survivre à l'écran : un générique par partie, même si la box se reconnecte. */

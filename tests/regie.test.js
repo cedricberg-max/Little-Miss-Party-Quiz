@@ -1832,3 +1832,32 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 });
+
+describe("défis de la pause", () => {
+  const defis = async () => (await get(ref(hostDb(), "settings/defis/list"))).val();
+
+  test("la régie ajoute, modifie et efface les défis affichés pendant la pause", async () => {
+    box = startBox();
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    await page.click("#tab-defis");
+    // Rien d'enregistré : la liste d'origine s'affiche, prête à être modifiée.
+    await page.locator("#panel-defis ol.defis input").nth(6).waitFor();
+    assert.equal(await page.locator("#panel-defis ol.defis input").count(), 7);
+
+    await page.fill('#panel-defis input[aria-label="Nouveau défi"]', "Tout le monde imite un lion !");
+    await page.click("#panel-defis .defi-ajout button");
+    await waitFor(async () => (await defis())?.length === 8, "défi ajouté");
+    assert.equal((await defis())[7], "Tout le monde imite un lion !");
+
+    await page.locator("#panel-defis ol.defis input").first().fill("La ola, deux fois !");
+    await page.locator("#panel-defis ol.defis input").first().press("Enter");
+    await page.locator("#panel-defis ol.defis input").first().blur();
+    await waitFor(async () => (await defis())?.[0] === "La ola, deux fois !", "défi modifié");
+
+    await page.locator("#panel-defis .defi-effacer").first().click();
+    await waitFor(async () => (await defis())?.length === 7 && (await defis())[0] !== "La ola, deux fois !", "défi effacé");
+    await page.context().close();
+  });
+});
