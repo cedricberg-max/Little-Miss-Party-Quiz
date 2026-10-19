@@ -625,7 +625,7 @@ describe("bibliothèque, prestations et chargement sur la TV", () => {
     await assertFails(get(ref(db(HOST), "library/quizzes")));
     await assertFails(get(ref(db("secours"), "library/shows")));
   });
-  test("la régie charge une prestation au salon d'attente ; en partie, elle ne modifie que le programme", async () => {
+  test("la régie charge une prestation au salon d'attente ; en partie et après la fin, elle ne modifie que le programme", async () => {
     await seed({ phase: "lobby" });
     await regieByPin("tel");
     await assertSucceeds(set(ref(db("tel"), `games/${CODE}/show`), SNAPSHOT("tel")));
@@ -636,7 +636,9 @@ describe("bibliothèque, prestations et chargement sur la TV", () => {
     await assertSucceeds(set(ref(db("tel"), `games/${CODE}/show`), { ...SNAPSHOT("tel"), id: "s3", base: "s1" }));
     await assertFails(set(ref(db("rose"), `games/${CODE}/show`), { ...SNAPSHOT("rose"), id: "s4", base: "s3" }));
     await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/state/phase`), "ended"));
-    await assertFails(set(ref(db("tel"), `games/${CODE}/show`), { ...SNAPSHOT("tel"), id: "s5", base: "s3" }));
+    // Après la fin, un jeu ajouté au programme permet de reprendre la partie ; recharger une autre prestation, non.
+    await assertSucceeds(set(ref(db("tel"), `games/${CODE}/show`), { ...SNAPSHOT("tel"), id: "s5", base: "s3" }));
+    await assertFails(set(ref(db("tel"), `games/${CODE}/show`), { ...SNAPSHOT("tel"), id: "s6" }));
   });
   test("une équipe ne charge rien et ne lit pas les réponses de la prestation", async () => {
     await seed({ phase: "lobby" });

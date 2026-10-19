@@ -167,9 +167,12 @@ function mimeItem(round, deck, i, random) {
 export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.random, playlists = {}) {
   const profile = PROFILES[show.profile] ? show.profile : profileForAge(show.age);
   const problems = [];
-  const rounds = [];
-  const questions = [];
+  // Un bloc par manche préparée : la Super Finale rejoint ensuite le quiz qu'elle termine.
+  const blocks = [];
+  let rounds, questions;
+  const begin = (type) => { rounds = []; questions = []; blocks.push({ type, rounds, questions }); };
   (show.rounds ?? []).filter(Boolean).forEach((round, i) => {
+    begin(round.type);
     if (round.type === "mimes") {
       const deck = mimes[round.deckId];
       if (!deck) { problems.push(`Manche ${i + 1} : le paquet de mimes n'existe plus dans la bibliothèque.`); return; }
@@ -243,6 +246,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       });
     });
   });
+  ({ rounds, questions } = assemble(blocks));
   if (questions.length > MAX_QUESTIONS) {
     problems.push(`${questions.length} questions : seules les ${MAX_QUESTIONS} premières seront jouées.`);
     questions.length = MAX_QUESTIONS;
@@ -259,6 +263,29 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     },
     problems,
   };
+}
+
+/**
+ * Programme final : les manches dans l'ordre, sauf la Super Finale, qui n'est pas un jeu à part mais les
+ * dernières questions du quiz (règle de cedric) : ses questions (×2) suivent celles du quiz qui la précède,
+ * sous le même titre de jeu. Sans quiz avant elle, elle termine le premier quiz qui la suit ; sans aucun
+ * quiz, elle reste seule sous le titre « Super Finale ».
+ */
+function assemble(blocks) {
+  const isQuiz = (b) => b.type === "quiz" && b.questions.length > 0;
+  const kept = blocks.filter((b) => b.questions.length > 0);
+  kept.forEach((b, k) => {
+    if (b.type !== "finale") return;
+    const host = kept.slice(0, k).reverse().find(isQuiz) ?? kept.slice(k + 1).find(isQuiz);
+    if (!host) return;
+    const title = host.rounds[0].title;
+    host.questions.push(...b.questions.map((q) => ({ ...q, round: title, finale: true })));
+    host.rounds[0].count += b.questions.length;
+    host.rounds[0].finale = (host.rounds[0].finale ?? 0) + b.questions.length;
+    b.merged = true;
+  });
+  const used = kept.filter((b) => !b.merged);
+  return { rounds: used.flatMap((b) => b.rounds), questions: used.flatMap((b) => b.questions) };
 }
 
 /** Durée approximative d'une prestation, pour l'aider à composer : chrono + révélation et scores. */

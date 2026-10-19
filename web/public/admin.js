@@ -374,7 +374,11 @@ function refreshRounds() {
     box.append(h("div", { class: "round" },
       h("span", { class: "num", text: `${i + 1}` }),
       h("select", { "aria-label": "Type de manche", onchange: (e) => { r.type = e.target.value; refreshRounds(); } },
-        ...Object.entries(ROUND_TYPES).map(([k, label]) => h("option", { value: k, text: label, selected: (r.type ?? "quiz") === k }))),
+        ...Object.entries(ROUND_TYPES).map(([k, label]) => h("option", {
+          value: k, selected: (r.type ?? "quiz") === k,
+          // La Super Finale n'est pas un jeu à part : ce sont les dernières questions (×2) du quiz qui la précède.
+          text: k === "finale" ? "Super Finale (fin du quiz précédent, ×2)" : label,
+        }))),
       BUILTIN_GAMES[r.type]
         // Jeux au buzzer intégrés : rien à préparer, seulement combien de mots ou de personnages.
         ? h("select", { class: "grow", "aria-label": "Nombre", onchange: (e) => { r.count = Number(e.target.value); refreshSummary(); } },

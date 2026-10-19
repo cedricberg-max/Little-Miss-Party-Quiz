@@ -134,7 +134,7 @@ private fun Intermission(state: UiState.Playing, onResume: () -> Unit) {
             Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 LogoLmp(54.dp)
                 Spacer(Modifier.height(12.dp))
-                TitreOndule(TITRE_PAUSE, { vague.value }, Modifier.graphicsLayer { val s = 0.97f + 0.03f * breath; scaleX = s; scaleY = s })
+                TitreOndule(TITRE_PAUSE.uppercase(), { vague.value }, Modifier.graphicsLayer { val s = 0.97f + 0.03f * breath; scaleX = s; scaleY = s })
                 Spacer(Modifier.height(16.dp))
                 Text(
                     when {
@@ -304,7 +304,8 @@ private fun secondsBefore(at: Long, offset: Long): Int {
 
 private val NeonHalo = Color(0xFFF888B3)
 
-private const val TITRE_PAUSE = "PAUSE FUN !"
+// Texte de la pause ; la TV l'affiche en majuscules (« PAUSE FUN ! », maquette validée le 19 octobre).
+private const val TITRE_PAUSE = "Pause fun !"
 /** Couleurs des confettis de la pause : celles des équipes, l'or et le blanc. */
 private val CONFETTIS = listOf(Palette.Gold, Color(0xFF7CFF3A), Color(0xFFFF2D8A), Color(0xFF3A86FF), Color(0xFFFFE61F), Color(0xFFFF5A1F), Color.White, Color(0xFF9EF01A))
 private const val DEFI_DUREE_MS = 8_000L

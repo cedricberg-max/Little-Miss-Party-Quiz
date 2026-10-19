@@ -120,6 +120,7 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .show-item b { font-size: 16px; }
 .regie .show-item span { color: var(--ink-soft); }
 .regie .show-item:disabled { opacity: .5; }
+.regie .show-item .show-warn { color: #ffd27a; font-weight: 700; }
 .regie .link { align-self: center; color: var(--ink-soft); }
 
 .regie .actions { display: flex; flex-direction: column; gap: 8px; padding-bottom: 12px; }
@@ -147,6 +148,12 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .modal-box input { max-width: none; font-size: 20px; }
 .modal-status { margin: 0; min-height: 1.2em; font-size: 15px; color: #ff8a8f; }
 .modal-status.info { color: rgba(255, 244, 242, .7); }
+/* Confirmation de la régie : titre, explication, gros bouton d'action, Annuler. */
+.regie .ask-box { max-width: 420px; text-align: left; border: 1px solid var(--trait); box-shadow: 0 18px 60px rgba(0, 0, 0, .55); }
+.regie .ask-box .modal-title { font-size: 22px; color: var(--gold); }
+.regie .ask-text { margin: 0; font-size: 16px; line-height: 1.45; color: var(--ink); white-space: pre-line; }
+.regie .ask-box .btn { min-height: 56px; width: 100%; }
+.regie .ask-box .btn.alert { background: var(--danger); color: #fff; }
 .link { background: none; border: 0; color: rgba(255, 244, 242, .7); font-size: 14px; text-decoration: underline; padding: 4px; }
 
 /* Mimes : gros boutons pour une animatrice en pleine prestation. */

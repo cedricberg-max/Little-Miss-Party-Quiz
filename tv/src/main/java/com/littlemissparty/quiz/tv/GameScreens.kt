@@ -345,7 +345,7 @@ fun ScoresScreen(state: UiState.Playing, actions: TvActions) {
             BlindBilanEcran(state, Modifier.weight(1f).fillMaxWidth())
             Row {
                 Spacer(Modifier.weight(1f))
-                if (!state.paused) NextButton(if (state.isLast) "Résultats finaux" else "Question suivante", actions.next, key = state.index)
+                if (!state.paused) NextButton(suiteLabel(state), actions.next, key = state.index)
             }
         }
         return
@@ -364,9 +364,16 @@ fun ScoresScreen(state: UiState.Playing, actions: TvActions) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             SignatureLogo()
             Spacer(Modifier.weight(1f))
-            if (!state.paused) NextButton(if (state.isLast) "Résultats finaux" else "Question suivante", actions.next, key = state.index)
+            if (!state.paused) NextButton(suiteLabel(state), actions.next, key = state.index)
         }
     }
+}
+
+/** Bouton du classement : résultats finaux, jeu suivant annoncé par son nom, ou question suivante du même jeu. */
+private fun suiteLabel(state: UiState.Playing): String = when {
+    state.isLast -> "Résultats finaux"
+    state.nextGame != null -> "Jeu suivant : ${state.nextGame.let { if (it.length > 26) it.take(25).trimEnd() + "…" else it }}"
+    else -> "Question suivante"
 }
 
 @Composable

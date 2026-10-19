@@ -84,7 +84,7 @@
       <p class="hint">Merci d'avoir joué à Little Miss Party Quiz</p>
     </section>
   </main>
-  <div id="paused" class="paused" hidden><div>PAUSE FUN !</div><p>On reprend son souffle… la fête revient très vite !</p></div>
+  <div id="paused" class="paused" hidden><div>Pause fun !</div><p>On reprend son souffle… la fête revient très vite !</p></div>
   <div id="resume-count" class="paused countdown" hidden><div id="resume-num">3</div><p>C'est reparti !</p></div>
 
   <!-- Accès régie : discret, pour l'animatrice qui a scanné le même QR code que les équipes. -->
@@ -227,6 +227,15 @@
         </div>
       </div>
     </section>
+    <!-- Confirmation aux couleurs de la régie (remplace la boîte grise du navigateur). -->
+    <div id="ask" class="modal ask" hidden>
+      <div class="modal-box ask-box" role="dialog" aria-modal="true" aria-labelledby="ask-title">
+        <p id="ask-title" class="modal-title"></p>
+        <p id="ask-text" class="ask-text"></p>
+        <button id="ask-ok" class="btn main" type="button"></button>
+        <button id="ask-cancel" class="btn secondary" type="button">Annuler</button>
+      </div>
+    </div>
   </div>
   <div id="update-banner" class="update-banner" hidden><span></span><button type="button">Mettre à jour</button></div>
   <p class="web-version" data-web-version></p>

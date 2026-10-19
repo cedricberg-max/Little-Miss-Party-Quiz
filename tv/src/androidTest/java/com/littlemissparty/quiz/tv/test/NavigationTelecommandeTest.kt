@@ -17,7 +17,7 @@ class NavigationTelecommandeTest : TestTv() {
         val code = lancerBoite()
         ecran.voit(code)
         ecran.voit("En attente des équipes")
-        assertFalse("Pas de lancement possible sans équipe", ecran.affiche("Lancer la fête"))
+        assertFalse("Pas de lancement possible sans équipe", ecran.affiche("Lancer la fête !"))
         ecran.capture("salon-vide")
 
         val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
@@ -25,7 +25,7 @@ class NavigationTelecommandeTest : TestTv() {
         ecran.voit("1 équipe(s) dans la partie")
         ecran.capture("salon-une-equipe")
 
-        ecran.ok("Lancer la fête")
+        ecran.ok("Lancer la fête !")
         ecran.voit("Question 1 / ${quiz.questions.size}")
         ecran.voit(quiz.questions[0].text)
         ecran.voit("Arrêter le chrono")
@@ -37,7 +37,7 @@ class NavigationTelecommandeTest : TestTv() {
     fun pauseAvecLaToucheLecture() {
         val code = lancerBoite()
         val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
-        ecran.ok("Lancer la fête")
+        ecran.ok("Lancer la fête !")
         attendreQuestion(licornes, code, 0)
 
         ecran.touche(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
@@ -61,7 +61,7 @@ class NavigationTelecommandeTest : TestTv() {
     fun retourOuvreLaFenetreSansQuitter() {
         val code = lancerBoite()
         val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
-        ecran.ok("Lancer la fête")
+        ecran.ok("Lancer la fête !")
         attendreQuestion(licornes, code, 0)
 
         ecran.device.pressBack()
@@ -80,7 +80,7 @@ class NavigationTelecommandeTest : TestTv() {
     fun nouvellePartieDepuisLaFenetreAvecLesFleches() {
         val code = lancerBoite()
         val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
-        ecran.ok("Lancer la fête")
+        ecran.ok("Lancer la fête !")
         attendreQuestion(licornes, code, 0)
 
         ecran.device.pressBack()

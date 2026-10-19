@@ -364,7 +364,7 @@ describe("pupitre", () => {
     const page = await openPupitre();
     await joinTeam(page, "Les Roses");
     await hostState(question({ phase: "scores", deadline: null, paused: true, pauseReason: "regie" }));
-    await page.locator("#paused:not([hidden])", { hasText: "PAUSE FUN !" }).waitFor();
+    await page.locator("#paused:not([hidden])", { hasText: "Pause fun !" }).waitFor();
     await hostState(question({ phase: "scores", deadline: null }));
     await page.locator("#paused[hidden]").waitFor({ state: "attached" });
     await page.context().close();

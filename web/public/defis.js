@@ -28,7 +28,7 @@ let defis = null;
 let erreur = null;
 
 /** Affiche la rubrique « Défis de la pause » dans [box] ; chaque changement est enregistré tout de suite. */
-export async function ouvrirDefis(db, box, toast) {
+export async function ouvrirDefis(db, box, toast, demander) {
   if (defis === null) {
     box.innerHTML = '<p class="hint">Chargement des défis…</p>';
     try {
@@ -40,10 +40,10 @@ export async function ouvrirDefis(db, box, toast) {
       erreur = "Impossible de lire les défis : vérifiez la connexion, puis rouvrez l'onglet.";
     }
   }
-  dessiner(db, box, toast);
+  dessiner(db, box, toast, demander);
 }
 
-async function enregistrer(db, box, toast, suivant) {
+async function enregistrer(db, box, toast, demander, suivant) {
   const list = nettoyerDefis(suivant);
   try {
     await set(ref(db, "settings/defis"), list.length ? { list, updatedAt: serverTimestamp() } : { updatedAt: serverTimestamp() });
@@ -56,10 +56,10 @@ async function enregistrer(db, box, toast, suivant) {
       ? "Pour modifier les défis, ouvrez la régie avec son mot de passe (pas le code de la TV)."
       : "Les défis n'ont pas pu être enregistrés. Vérifiez la connexion et réessayez.");
   }
-  dessiner(db, box, toast);
+  dessiner(db, box, toast, demander);
 }
 
-function dessiner(db, box, toast) {
+function dessiner(db, box, toast, demander) {
   box.innerHTML = "";
   if (erreur) {
     box.innerHTML = `<p class="hint">${erreur}</p>`;
@@ -83,13 +83,13 @@ function dessiner(db, box, toast) {
     champ.onchange = () => {
       const suivant = [...defis];
       suivant[i] = champ.value;
-      enregistrer(db, box, toast, suivant);
+      enregistrer(db, box, toast, demander, suivant);
     };
     const effacer = document.createElement("button");
     effacer.type = "button";
     effacer.className = "btn secondary defi-effacer";
     effacer.textContent = "Effacer";
-    effacer.onclick = () => enregistrer(db, box, toast, defis.filter((_, k) => k !== i));
+    effacer.onclick = () => enregistrer(db, box, toast, demander, defis.filter((_, k) => k !== i));
     li.append(champ, effacer);
     liste.appendChild(li);
   });
@@ -112,7 +112,7 @@ function dessiner(db, box, toast) {
   ajout.onsubmit = (e) => {
     e.preventDefault();
     if (!nouveau.value.trim()) { toast("Écrivez d'abord le défi."); return; }
-    enregistrer(db, box, toast, [...defis, nouveau.value]);
+    enregistrer(db, box, toast, demander, [...defis, nouveau.value]);
   };
   box.appendChild(ajout);
   if (plein) box.insertAdjacentHTML("beforeend", `<p class="hint">${DEFIS_MAX} défis au maximum : effacez-en un pour en ajouter un autre.</p>`);
@@ -121,8 +121,9 @@ function dessiner(db, box, toast) {
   origine.type = "button";
   origine.className = "link";
   origine.textContent = "Remettre les défis d'origine";
-  origine.onclick = () => {
-    if (window.confirm("Remplacer la liste par les défis d'origine ?")) enregistrer(db, box, toast, DEFIS_PAR_DEFAUT);
+  origine.onclick = async () => {
+    const oui = await demander({ title: "Remettre les défis d'origine ?", text: "La liste actuelle sera remplacée.", ok: "Remettre", alert: true });
+    if (oui) enregistrer(db, box, toast, demander, DEFIS_PAR_DEFAUT);
   };
   box.appendChild(origine);
 }

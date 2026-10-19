@@ -25,8 +25,8 @@ class HuitEquipesTest : TestTv() {
         noms.forEach { ecran.voit(it) }
         ecran.capture("salon-8-equipes")
         // Le plus important : « Lancer la fête ! » n'est jamais poussé hors de l'écran par la liste des équipes.
-        ecran.entierementVisible("Lancer la fête")
-        ecran.ok("Lancer la fête")
+        ecran.entierementVisible("Lancer la fête !")
+        ecran.ok("Lancer la fête !")
 
         val q = attendreQuestion(equipes[0], code, 0)
         ecran.entierementVisible("Arrêter le chrono")

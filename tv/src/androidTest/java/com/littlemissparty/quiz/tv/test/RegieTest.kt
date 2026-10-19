@@ -56,7 +56,7 @@ class RegieTest : TestTv() {
         assertNull("Une régie non reliée ne peut pas envoyer de commande", regie.envoyer(code, "next"))
         assertFalse("Une régie non reliée ne lit pas les bonnes réponses", regie.lireConducteur(code))
         assertFalse(ecran.affiche("Régie reliée"))
-        ecran.voit("Lancer la fête")
+        ecran.voit("Lancer la fête !")
     }
 
     @Test
@@ -170,6 +170,8 @@ class RegieTest : TestTv() {
         assertEquals("applied", regie.commande(code, "next"))
         assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("Classement")
+        // Fin du quiz : la TV annonce le jeu suivant au lieu de « Question suivante » (bug n° 8).
+        ecran.voit("Jeu suivant : Mimes")
         val apresQuiz = points(licornes, code, licornes.uid)
         assertTrue("La bonne réponse rapporte des points", apresQuiz >= Scoring.BASE)
 
@@ -184,6 +186,7 @@ class RegieTest : TestTv() {
         ecran.voit("Voir le classement")
         assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("Après les mimes")
+        ecran.voit("Jeu suivant : Finale")
         assertEquals(apresQuiz + Scoring.MIME, points(licornes, code, licornes.uid))
 
         // Jeu suivant : la finale s'ouvre avec les mêmes équipes et les mêmes scores.
@@ -446,7 +449,8 @@ class RegieTest : TestTv() {
         assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("Bilan du blind test")
         ecran.voit("100 pts")
-        ecran.entierementVisible("Question suivante")
+        // Le jeu suivant (le quiz de démonstration, sans titre de manche) est annoncé.
+        ecran.entierementVisible("Jeu suivant : Quiz")
         assertEquals(100L, points(dragons, code, dragons.uid))
         ecran.capture("blind-test-bilan")
     }
