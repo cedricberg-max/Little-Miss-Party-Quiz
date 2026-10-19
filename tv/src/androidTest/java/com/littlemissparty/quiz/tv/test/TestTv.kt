@@ -61,11 +61,18 @@ abstract class TestTv {
 
     protected fun mauvaiseReponse(q: Question) = (q.correct + 1) % q.choices.size
 
-    /** Attend que le serveur ait reçu l'ouverture de la question [index]. */
+    /**
+     * Attend que le serveur ait reçu l'ouverture de la question [index] et que les réponses soient permises : comme
+     * un vrai pupitre, on laisse passer l'annonce « × N » des dernières questions multipliées (resumeAt).
+     */
     protected fun attendreQuestion(lecteur: PupitreSimule, code: String, index: Int): Question {
         val q = quiz.questions[index]
-        attendreQue("question ${index + 1} ouverte sur le serveur") {
+        val etat = attendreQue("question ${index + 1} ouverte sur le serveur") {
             lecteur.etat(code).takeIf { it.child("phase").value == "question" && it.child("qid").value == q.id }
+        }
+        (etat.child("resumeAt").value as? Number)?.toLong()?.let { depart ->
+            val reste = depart + 600 - System.currentTimeMillis()
+            if (reste > 0) Thread.sleep(reste)
         }
         return q
     }

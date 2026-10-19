@@ -11,6 +11,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.ProvideTextStyle
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.unit.em
 import com.littlemissparty.quiz.tv.habillage.AvecPoliceLmp
 import com.littlemissparty.quiz.tv.habillage.BonusMalus
 import androidx.compose.runtime.collectAsState
@@ -35,7 +41,7 @@ class MainActivity : ComponentActivity() {
             val busy = gameInProgress(state)
             LaunchedEffect(busy) { updates.setBusy(busy) }
             // Police Baloo 2 « cartes néon » (choix de cedric) pour tous les textes qui n'en imposent pas une autre.
-            AvecPoliceLmp {
+            PoliceDesEcrans {
             Box(Modifier.fillMaxSize()) {
             // Pictionary : le dessin en direct passe à part, pour ne redessiner que la feuille à chaque trait.
             CompositionLocalProvider(LocalDessin provides viewModel.dessin) {
@@ -93,4 +99,20 @@ class MainActivity : ComponentActivity() {
         // Retour des réglages Android ou de l'écran d'installation.
         updates.onResume()
     }
+}
+
+/**
+ * Baloo 2 a des lignes très hautes (1,6 fois la taille du texte, contre 1,17 pour la police d'avant) : sans
+ * interligne imposé, chaque texte des écrans grandissait d'un tiers et poussait le bas de l'écran hors de la TV
+ * (code du salon, « Reprise automatique », boutons). On garde l'interligne d'avant, lettres centrées dans la ligne ;
+ * les textes qui fixent le leur (habillage) ne changent pas.
+ */
+@Composable
+private fun PoliceDesEcrans(contenu: @Composable () -> Unit) = AvecPoliceLmp {
+    ProvideTextStyle(
+        LocalTextStyle.current.merge(
+            TextStyle(lineHeight = 1.2.em, lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None)),
+        ),
+        contenu,
+    )
 }

@@ -477,7 +477,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             when (g.state.phase) {
                 Phase.LOBBY -> if (teams().isNotEmpty()) commit(g.next(serverNow()))
                 // Mimes : arrête le tour en cours, ou termine la manche entre deux tours (« Terminer les mimes »).
-                Phase.QUESTION -> if (g.question?.isTurns == true) commit(g.next(serverNow()))
+                // Présentation d'un jeu : OK lance l'épreuve, comme « ▶ Lancer l'épreuve » de la régie.
+                Phase.QUESTION -> if (g.state.intro || g.question?.isTurns == true) commit(g.next(serverNow()))
                 // Blind test : OK lance (ou relance) la musique, ou l'arrête ; une équipe qui a buzzé est jugée par ses boutons.
                 else if (g.question?.isBlind == true) {
                     if (g.state.buzz?.team != null) return@withLock

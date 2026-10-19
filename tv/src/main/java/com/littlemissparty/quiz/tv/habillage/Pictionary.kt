@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
@@ -411,8 +412,10 @@ fun RevelationPictionary(
                         Text("Le mot", color = Neon.Or, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                         if (image != null) {
                             Spacer(Modifier.height(10.dp))
+                            // L'image prend la place qui reste (170 dp au plus) : le mot et les points restent toujours visibles.
                             Box(
-                                Modifier.size(170.dp).background(Color.White, RoundedCornerShape(20.dp)).padding(10.dp).clearAndSetSemantics {},
+                                Modifier.weight(1f, fill = false).sizeIn(maxWidth = 170.dp, maxHeight = 170.dp).aspectRatio(1f)
+                                    .background(Color.White, RoundedCornerShape(20.dp)).padding(10.dp).clearAndSetSemantics {},
                                 contentAlignment = Alignment.Center,
                             ) { image() }
                         }
