@@ -53,6 +53,8 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -206,19 +208,28 @@ private fun Playing(state: UiState.Playing, actions: TvActions) {
     PauseLayer(state, actions.unpause)
 }
 
-/** Version installée et état de la connexion, en petit dans un coin. */
+/**
+ * Pastille en bas à gauche : verte quand la régie est reliée, rouge sinon (régie absente ou connexion perdue).
+ * La version installée s'ajoute seulement hors partie (accueil, salon) : en pleine partie elle n'apporte rien,
+ * elle reste lisible dans le menu Retour.
+ */
 @Composable
 private fun StatusCorner(state: UiState, available: Release?, modifier: Modifier) {
     val connected = (state as? UiState.Playing)?.connected ?: true
     val regies = (state as? UiState.Playing)?.regies ?: 0
+    val reliee = connected && regies > 0
+    val enPartie = (state as? UiState.Playing)?.let { it.phase != Phase.LOBBY && it.phase != Phase.ENDED } ?: false
+    // Lue par les tests sur émulateur (et les lecteurs d'écran) : l'état exact derrière la couleur.
+    val etat = listOfNotNull("Hors connexion".takeIf { !connected }, if (reliee) "Régie reliée" else "Régie non reliée").joinToString(" · ")
     Row(modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(10.dp).clip(CircleShape).background(if (connected) Palette.Good else Color.Red))
-        Spacer(Modifier.width(8.dp))
-        Text(
-            (if (connected) "" else "Hors connexion · ") + (if (regies > 0) "Régie reliée · " else "") +
+        Box(Modifier.size(12.dp).clip(CircleShape).background(if (reliee) Palette.Good else Color.Red).semantics { contentDescription = etat })
+        if (!enPartie) {
+            Spacer(Modifier.width(8.dp))
+            Text(
                 "v${BuildConfig.VERSION_NAME}" + (available?.let { " · mise à jour ${it.versionName} disponible (menu Retour)" } ?: ""),
-            color = Palette.InkSoft, fontSize = 13.sp,
-        )
+                color = Palette.InkSoft, fontSize = 13.sp,
+            )
+        }
     }
 }
 
