@@ -1,15 +1,17 @@
 package com.littlemissparty.quiz.tv
 
 import android.graphics.BitmapFactory
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,15 +22,23 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.littlemissparty.quiz.engine.BlindStatus
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
+import com.littlemissparty.quiz.tv.habillage.BlindBilan
+import com.littlemissparty.quiz.tv.habillage.BlindBuzz
+import com.littlemissparty.quiz.tv.habillage.BlindDouble
+import com.littlemissparty.quiz.tv.habillage.BlindIntro
+import com.littlemissparty.quiz.tv.habillage.BlindRevelation
+import com.littlemissparty.quiz.tv.habillage.BlindTestBoard
+import com.littlemissparty.quiz.tv.habillage.Echelle
 import com.littlemissparty.quiz.tv.habillage.apparition
+import com.littlemissparty.quiz.tv.habillage.apres
 import com.littlemissparty.quiz.tv.habillage.rebond
 
 /** Pochette du morceau (photo choisie dans l'admin), une fois chargée sur la box ; null sinon. */
@@ -38,13 +48,69 @@ fun pochette(q: Question, state: UiState.Playing): ImageBitmap? {
     return remember(bytes) { bytes?.let { runCatching { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() } }
 }
 
-/** Blind test révélé : la pochette au centre, à la place du disque. */
+/** Nom de la playlist sans le « Blind test · » du titre de manche, déjà écrit en grand sur la présentation. */
+private fun nomPlaylist(titre: String) = titre.replace(Regex("^\\s*blind\\s*test\\s*[·:\\-–—]?\\s*", RegexOption.IGNORE_CASE), "")
+
+/**
+ * Blind test, tout l'espace au-dessus des équipes et des boutons : la présentation (premier morceau en attente),
+ * l'écoute (platine et panneau), « STOP ! » au buzz, puis la révélation avec la pochette. Chaque scène se met à
+ * l'échelle de la place, de 1 à 8 équipes.
+ */
 @Composable
-fun BlindPochette(image: ImageBitmap, cle: Any?, modifier: Modifier = Modifier) {
-    Image(
-        image, contentDescription = "Pochette du morceau", contentScale = ContentScale.Crop,
-        modifier = modifier.apparition(0, cle).rebond(true, 0.06f).clip(RoundedCornerShape(24.dp)).border(6.dp, Palette.Gold, RoundedCornerShape(24.dp)),
-    )
+fun BlindScene(q: Question, state: UiState.Playing, modifier: Modifier = Modifier) {
+    val b = state.blind
+    val buzzer = state.teams.find { it.uid == state.buzzTeam }
+    when {
+        state.phase == Phase.REVEAL || state.phase == Phase.SCORES -> {
+            val gagnant = state.teams.find { (state.awards[it.uid]?.points ?: 0) > 0 }
+            BlindRevelation(
+                cle = q.id,
+                pochette = pochette(q, state),
+                titre = q.choices.getOrNull(q.correct).orEmpty(),
+                artiste = q.artist,
+                gagnant = gagnant?.let { it.name to it.color.toColor() },
+                points = gagnant?.let { state.awards[it.uid]?.points } ?: 0,
+                double = b?.doubled == true,
+                modifier = modifier,
+            )
+        }
+        state.phase == Phase.QUESTION && buzzer != null -> BlindBuzz(buzzer.name, buzzer.color.toColor(), modifier)
+        state.phase == Phase.QUESTION && b != null && b.numero == 1 && b.waiting && !b.played ->
+            BlindIntro(nomPlaylist(b.playlist), b.total, b.points, modifier)
+        else -> Echelle(880.dp, 400.dp, modifier) {
+            Row(Modifier.fillMaxSize()) {
+                val joue = state.phase == Phase.QUESTION && state.deadline != null && !state.paused && b?.waiting != true
+                val manquant = q.audioId == null || state.sounds[q.audioId] == null
+                BlindTestBoard(joue, manquant, Modifier.weight(1.1f).fillMaxHeight())
+                Spacer(Modifier.width(20.dp))
+                BlindPanel(q, state, Modifier.weight(1f).fillMaxHeight())
+            }
+        }
+    }
+}
+
+/**
+ * Premier des morceaux à double valeur, encore en attente : « × 2 » par-dessus tout l'écran pendant l'annonce
+ * sonore (lmp_bt_double), puis l'écran du morceau revient avec « POINTS DOUBLÉS ».
+ */
+@Composable
+fun BlindAnnonceDouble(q: Question, state: UiState.Playing) {
+    val b = state.blind ?: return
+    val precedent = b.tracks.getOrNull(b.numero - 2)
+    val annonce = q.isBlind && state.phase == Phase.QUESTION && b.doubled && b.waiting && !b.played && state.buzzTeam == null &&
+        precedent != null && precedent.points != b.points
+    val fini = apres(4_500, q.id, actif = annonce)
+    if (annonce && !fini) BlindDouble(b.points, b.doubledLeft)
+}
+
+/** Bilan du blind test : les points gagnés par chaque équipe pendant le blind test (morceaux trouvés). */
+@Composable
+fun BlindBilanEcran(state: UiState.Playing, modifier: Modifier = Modifier) {
+    val b = state.blind ?: return
+    val lignes = state.teams.map { t ->
+        Triple(t.name, t.color.toColor(), b.tracks.filter { it.status == BlindStatus.FOUND && it.team == t.uid }.sumOf { it.points })
+    }
+    BlindBilan(lignes, modifier)
 }
 
 /**
