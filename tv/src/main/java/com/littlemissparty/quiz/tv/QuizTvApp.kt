@@ -18,12 +18,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -246,24 +248,24 @@ fun NextButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier
 private fun ResumeOffer(state: UiState.ResumeOffer, onResume: () -> Unit, onNewGame: () -> Unit) {
     val focus = remember { FocusRequester() }
     Column(
-        Modifier.fillMaxSize().padding(64.dp),
+        Modifier.fillMaxSize().padding(horizontal = 64.dp, vertical = 32.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("Une partie est en cours", color = Color.White, fontSize = 48.sp, fontWeight = FontWeight.Black)
+        Text("Une partie est en cours", color = Color.White, fontSize = 48.sp, lineHeight = 56.sp, fontWeight = FontWeight.Black)
         Spacer(Modifier.height(12.dp))
         Text(
             "Code ${state.code}",
-            color = Palette.Gold, fontSize = 36.sp, fontWeight = FontWeight.Black, letterSpacing = 6.sp,
+            color = Palette.Gold, fontSize = 36.sp, lineHeight = 42.sp, fontWeight = FontWeight.Black, letterSpacing = 6.sp,
         )
         Spacer(Modifier.height(16.dp))
         Text(
             if (state.teamNames.isEmpty()) "Équipes : liste indisponible hors connexion"
             else "Équipes : " + state.teamNames.joinToString(", "),
-            color = Color.White.copy(alpha = 0.85f), fontSize = 24.sp, textAlign = TextAlign.Center,
+            color = Color.White.copy(alpha = 0.85f), fontSize = 24.sp, lineHeight = 30.sp, textAlign = TextAlign.Center,
             maxLines = 3, overflow = TextOverflow.Ellipsis,
         )
-        Spacer(Modifier.height(40.dp))
+        Spacer(Modifier.height(32.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
             TvButton("Reprendre la partie (${state.secondsLeft})", onResume, Modifier.focusRequester(focus), primary = true, fontSize = 26.sp)
             TvButton("Nouvelle partie", onNewGame)
@@ -271,7 +273,7 @@ private fun ResumeOffer(state: UiState.ResumeOffer, onResume: () -> Unit, onNewG
         Spacer(Modifier.height(24.dp))
         Text(
             "Reprise automatique dans ${state.secondsLeft} s",
-            color = Color.White.copy(alpha = 0.7f), fontSize = 20.sp,
+            color = Color.White.copy(alpha = 0.7f), fontSize = 20.sp, lineHeight = 26.sp,
         )
     }
     LaunchedEffect(Unit) { focus.requestFocus() }
@@ -410,12 +412,16 @@ private fun Lobby(state: UiState.Playing, actions: TvActions) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Text("Scannez pour jouer", color = Palette.Night, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(16.dp))
-            Image(qr, contentDescription = "QR code de la partie", modifier = Modifier.size(300.dp))
-            Spacer(Modifier.height(16.dp))
-            Text("Code de la partie", color = Palette.Night.copy(alpha = 0.6f), fontSize = 18.sp)
-            Text(state.code, color = Palette.Pink, fontSize = 48.sp, fontWeight = FontWeight.Black, letterSpacing = 8.sp)
+            Text("Scannez pour jouer", color = Palette.Night, fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(14.dp))
+            // Le QR prend la place qui reste (300 dp au plus) : le code de la partie dessous est toujours entier.
+            Image(
+                qr, contentDescription = "QR code de la partie",
+                modifier = Modifier.weight(1f, fill = false).sizeIn(maxWidth = 300.dp, maxHeight = 300.dp).aspectRatio(1f),
+            )
+            Spacer(Modifier.height(14.dp))
+            Text("Code de la partie", color = Palette.Night.copy(alpha = 0.6f), fontSize = 18.sp, lineHeight = 22.sp)
+            Text(state.code, color = Palette.Pink, fontSize = 48.sp, lineHeight = 54.sp, fontWeight = FontWeight.Black, letterSpacing = 8.sp)
         }
     }
 }

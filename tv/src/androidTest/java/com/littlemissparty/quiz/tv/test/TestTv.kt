@@ -18,7 +18,7 @@ abstract class TestTv {
     protected val ecran = Ecran { "${javaClass.simpleName}.${nom.methodName}" }
     protected val quiz = Boite.quizDemo()
     private val pupitres = mutableListOf<PupitreSimule>()
-    private var scenario: ActivityScenario<MainActivity>? = null
+    @Volatile private var scenario: ActivityScenario<MainActivity>? = null
 
     @get:Rule
     val rangement = object : TestWatcher() {
@@ -54,7 +54,9 @@ abstract class TestTv {
     /** Ferme l'appli (comme le bouton Quitter ou un plantage) puis la relance. */
     protected fun relancerBoite() {
         scenario?.close()
-        scenario = Boite.lancer()
+        // Le lancement attend une appli « au repos », ce qui peut durer tout le compte à rebours de la reprise
+        // (15 s) : on regarde l'écran pendant qu'il se termine, comme l'animatrice devant la TV.
+        Thread { scenario = Boite.lancer() }.start()
     }
 
     protected fun pupitre(etiquette: String) = PupitreSimule(etiquette).also { pupitres += it }

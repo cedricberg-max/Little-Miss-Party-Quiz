@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,7 +18,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -122,14 +124,18 @@ private fun ObjetCase(carte: MimeCard, etape: EtapeDisparu, disparu: Boolean, mo
         when {
             etape == EtapeDisparu.MAGIE -> Text("✨", fontSize = 48.sp)
             trou -> Text("?", color = Palette.Gold, fontSize = 64.sp, fontWeight = FontWeight.Black, modifier = Modifier.apparition(0, "trou"))
-            else -> Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = if (enOr) Modifier.apparition(0, "retour") else Modifier) {
-                Text(carte.image ?: "⭐", fontSize = 52.sp)
-                Text(
-                    carte.word,
-                    color = if (enOr) Palette.Gold else Palette.Ink, fontSize = 22.sp, fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.width(160.dp),
-                )
+            else -> BoxWithConstraints(contentAlignment = Alignment.Center) {
+                // L'emoji se réduit dans les petites cases (beaucoup d'objets) : le nom reste toujours lisible dessous.
+                val taille = with(LocalDensity.current) { ((maxHeight - 34.dp) / 1.15f).coerceIn(16.dp, 52.dp).toSp() }
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = if (enOr) Modifier.apparition(0, "retour") else Modifier) {
+                    Text(carte.image ?: "⭐", fontSize = taille, lineHeight = taille * 1.15f)
+                    Text(
+                        carte.word,
+                        color = if (enOr) Palette.Gold else Palette.Ink, fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 160.dp),
+                    )
+                }
             }
         }
     }
