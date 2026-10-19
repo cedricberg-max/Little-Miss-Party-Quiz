@@ -236,6 +236,8 @@ describe("pupitre", () => {
     await hostState(flou({ round: "f1-1000-1", buzz: { blocked: [first] } }));
     await winner.locator("#play-status", { hasText: "Raté pour cette image" }).waitFor();
     assert.equal(await winner.locator("#buzz").isDisabled(), true);
+    // Chaque pupitre reçoit le nouvel état de son côté : on attend que l'autre l'ait affiché.
+    await other.locator("#play-status", { hasText: "buzzez dès que vous la reconnaissez" }).waitFor();
     assert.equal(await other.locator("#buzz").isDisabled(), false);
     await other.click("#buzz");
     const second = first === uids["Les Roses"] ? uids["Les Bleus"] : uids["Les Roses"];
