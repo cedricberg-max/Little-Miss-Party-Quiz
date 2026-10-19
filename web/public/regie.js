@@ -802,8 +802,10 @@ function renderTeams(st, teams) {
       row.className = "team";
       row.dataset.team = id;
       row.innerHTML = '<span class="dot"></span><span class="swatch"></span><span class="name"></span><span class="score"></span>'
-        + '<button data-delta="-10">−10</button><button data-delta="10">+10</button>';
-      row.querySelectorAll("button").forEach((b) => { b.onclick = () => adjust(id, Number(b.dataset.delta)); });
+        + '<button data-delta="-10">−10</button><button data-delta="10">+10</button>'
+        + '<button class="pts-open" aria-label="Bonus ou malus">±</button>';
+      row.querySelectorAll("button[data-delta]").forEach((b) => { b.onclick = () => adjust(id, Number(b.dataset.delta)); });
+      row.querySelector(".pts-open").onclick = () => choosePoints(id);
       box.appendChild(row);
     });
   }
@@ -1480,6 +1482,22 @@ async function adjust(team, delta) {
   if (status?.status !== "applied") return;
   const name = live.teams[team]?.name ?? "l'équipe";
   showUndo(`${delta > 0 ? "+" : "−"}${Math.abs(delta)} pour ${name}`, status.seq);
+}
+
+/** Bonus ou malus d'un autre montant : un toucher sur le montant l'envoie, la TV l'annonce en grand. */
+function choosePoints(team) {
+  const box = $("pts");
+  $("pts-title").textContent = `Points pour ${live.teams[team]?.name ?? "l'équipe"}`;
+  const close = () => {
+    box.hidden = true;
+    box.onclick = $("pts-cancel").onclick = null;
+  };
+  box.querySelectorAll("[data-pts]").forEach((b) => {
+    b.onclick = () => { close(); adjust(team, Number(b.dataset.pts)); };
+  });
+  $("pts-cancel").onclick = close;
+  box.onclick = (e) => { if (e.target === box) close(); };
+  box.hidden = false;
 }
 
 /** Bandeau « Annuler » pendant 10 secondes après une correction. */

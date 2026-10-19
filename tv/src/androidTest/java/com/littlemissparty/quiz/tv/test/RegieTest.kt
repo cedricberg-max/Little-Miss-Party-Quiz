@@ -44,7 +44,18 @@ class RegieTest : TestTv() {
         // Correction de score depuis la régie.
         assertEquals("applied", regie.commande(code, "adjust", mapOf("team" to licornes.uid, "delta" to 50)))
         attendreQue("correction publiée") { points(licornes, code, licornes.uid).takeIf { it == avant + 50 } }
+        // La TV l'annonce en grand, avec le montant exact, puis l'animation s'efface d'elle-même.
+        ecran.voit("+50 POINTS", 5_000)
+        ecran.voit("BONUS !", 2_000)
         ecran.capture("apres-correction")
+        ecran.neVoitPas("BONUS !", 6_000)
+        // Malus : montant exact aussi, et le jeu continue dessous.
+        assertEquals("applied", regie.commande(code, "adjust", mapOf("team" to licornes.uid, "delta" to -30)))
+        ecran.voit("−30 POINTS", 5_000)
+        ecran.voit("MALUS !", 2_000)
+        ecran.neVoitPas("MALUS !", 6_000)
+        ecran.voit("Voir les scores")
+        assertEquals(avant + 20, points(licornes, code, licornes.uid))
     }
 
     @Test

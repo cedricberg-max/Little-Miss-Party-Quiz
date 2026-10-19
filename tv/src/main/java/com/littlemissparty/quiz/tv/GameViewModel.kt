@@ -30,6 +30,7 @@ import com.littlemissparty.quiz.engine.QuestionOpened
 import com.littlemissparty.quiz.engine.MimeCard
 import com.littlemissparty.quiz.engine.MimeTurn
 import com.littlemissparty.quiz.engine.Scoring
+import com.littlemissparty.quiz.engine.ScoreAdjusted
 import com.littlemissparty.quiz.engine.PAUSE_TEAM
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
@@ -177,6 +178,16 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _state = MutableStateFlow<UiState>(UiState.Connecting)
     val state: StateFlow<UiState> = _state
+
+    /** BONUS ou MALUS à montrer par-dessus l'écran : seulement les corrections de la régie que la box vient d'appliquer. */
+    private val coups = FileDesCoups()
+    private val _coup = MutableStateFlow<CoupDeScore?>(null)
+    val coup: StateFlow<CoupDeScore?> = _coup
+
+    /** L'animation [id] est finie : la suivante de la file, s'il y en a une. */
+    fun coupFini(id: Int) {
+        _coup.value = coups.fini(id)
+    }
 
     private var gameRef: DatabaseReference? = null
     private var game: Game? = null
@@ -343,6 +354,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val ref = db.getReference("games/$code")
         gameRef = ref
         soundMarks.clear()
+        // Partie rouverte ou relue : les corrections du journal ne se rejouent jamais à l'écran.
+        coups.vider()
+        _coup.value = null
         activeCode = code
         val snap = ref.readOnce() ?: error("La base Firebase ne répond pas. Vérifiez Internet puis réessayez.")
         // Programme en vigueur, écrit par la box elle-même (prestation et modifications acceptées) ;
@@ -521,6 +535,13 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun teams(): List<Team> = (_state.value as? UiState.Playing)?.teams.orEmpty()
+
+    /** Une correction vient d'être appliquée par la box (commande en direct, jamais relue du journal). */
+    private fun montrerCoup(e: ScoreAdjusted, avant: Int, apres: Int) {
+        if (e.delta == 0) return
+        val team = teams().firstOrNull { it.uid == e.team } ?: return
+        _coup.value = coups.ajouter(CoupDeScore(e.seq, team.uid, team.name, team.color, e.delta, avant, apres))
+    }
 
     /** Ferme automatiquement la question à la fin du chrono ; au Vrai ou Faux express, enchaîne aussi la suite. */
     private fun schedule() {
@@ -887,9 +908,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 return@withLock
             }
             val answers = if (cmd is Command.Next && g.state.phase == Phase.CLOSED) collectAnswers() else emptyMap()
+            val avant = g.state.scores()
             val result = g.execute(cmd, serverNow(), teams().map { it.uid }.toSet(), answers)
             if (result.event != null) commit(result.event, statusOf(id, result))
             else gameRef?.updateChildren(statusOf(id, result))
+            (result.event as? ScoreAdjusted)?.let { e -> montrerCoup(e, avant[e.team] ?: 0, g.state.scores()[e.team] ?: 0) }
         } }
     }
 

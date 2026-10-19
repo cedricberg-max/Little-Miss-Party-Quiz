@@ -925,6 +925,30 @@ describe("régie", () => {
     await page.context().close();
   });
 
+  test("bonus et malus d'un montant au choix : le montant exact part à la TV", async () => {
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    await page.click("#tab-teams");
+    await page.locator('.team[data-team="rose"] .pts-open').click();
+    await page.locator("#pts-title", { hasText: "Points pour Les Roses" }).waitFor();
+    await page.locator('#pts [data-pts="100"]').click();
+    assert.equal(await page.locator("#pts").isHidden(), true);
+    await page.locator("#undo-text", { hasText: "+100 pour Les Roses" }).waitFor();
+    await page.locator('.team[data-team="rose"] .pts-open').click();
+    await page.locator('#pts [data-pts="-50"]').click();
+    await page.locator("#undo-text", { hasText: "−50 pour Les Roses" }).waitFor();
+    // Annuler sans choisir : rien n'est envoyé.
+    await page.locator('.team[data-team="rose"] .pts-open').click();
+    await page.click("#pts-cancel");
+    await page.locator(".team .score", { hasText: "50" }).waitFor();
+    const deltas = (await commands()).filter((c) => c.type === "adjust").map((c) => c.delta);
+    assert.deepEqual(deltas, [100, -50]);
+    await page.context().close();
+  });
+
   test("le conducteur liste les questions avec leur réponse", async () => {
     box = startBox();
     const page = await openRegie();

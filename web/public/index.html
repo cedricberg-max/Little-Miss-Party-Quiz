@@ -229,6 +229,22 @@
         </div>
       </div>
     </section>
+    <!-- Bonus ou malus d'un montant au choix : la TV l'annonce en grand. -->
+    <div id="pts" class="modal ask" hidden>
+      <div class="modal-box ask-box pts-box" role="dialog" aria-modal="true" aria-labelledby="pts-title">
+        <p id="pts-title" class="modal-title"></p>
+        <p class="pts-label">Bonus</p>
+        <div class="pts-grid bonus">
+          <button type="button" data-pts="50">+50</button><button type="button" data-pts="100">+100</button><button type="button" data-pts="150">+150</button>
+          <button type="button" data-pts="200">+200</button><button type="button" data-pts="300">+300</button><button type="button" data-pts="500">+500</button>
+        </div>
+        <p class="pts-label">Malus</p>
+        <div class="pts-grid malus">
+          <button type="button" data-pts="-10">−10</button><button type="button" data-pts="-50">−50</button><button type="button" data-pts="-100">−100</button>
+        </div>
+        <button id="pts-cancel" class="btn secondary" type="button">Annuler</button>
+      </div>
+    </div>
     <!-- Confirmation aux couleurs de la régie (remplace la boîte grise du navigateur). -->
     <div id="ask" class="modal ask" hidden>
       <div class="modal-box ask-box" role="dialog" aria-modal="true" aria-labelledby="ask-title">
