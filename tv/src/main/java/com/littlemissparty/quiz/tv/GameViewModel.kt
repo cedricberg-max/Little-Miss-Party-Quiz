@@ -140,6 +140,8 @@ data class BlindUi(
     val revealSec: Int,
     val tracks: List<BlindTrack>,
     val playlist: String,
+    /** Points gagnés par équipe (uid) pendant ce blind test, pour le bilan. */
+    val gains: Map<String, Int> = emptyMap(),
 ) {
     /** Morceaux à double valeur restant à jouer, celui-ci compris. */
     val doubledLeft: Int get() = tracks.count { it.points > (tracks.minOfOrNull { t -> t.points } ?: 0) && (it.status == BlindStatus.TODO || it.status == BlindStatus.PLAYING) }
@@ -639,6 +641,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             waiting = g.state.buzz?.waiting == true, played = g.state.segments.isNotEmpty(),
             cut = g.state.revealCut == q.id, revealSec = q.revealSec, tracks = tracks,
             playlist = q.roundTitle.orEmpty(),
+            gains = tracks.flatMap { g.state.awards[it.qid].orEmpty().entries }
+                .groupBy({ it.key }, { it.value.points }).mapValues { (_, p) -> p.sum() },
         )
     }
 

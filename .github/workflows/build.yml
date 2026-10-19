@@ -80,6 +80,8 @@ jobs:
         with:
           name: little-miss-party-quiz-tv
           path: little-miss-party-quiz-tv.apk
+          # Copie de travail seulement : chaque version publiée reste dans les Releases (espace de stockage limité).
+          retention-days: 3
       - name: Publier l'APK dans les Releases GitHub
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         env:
