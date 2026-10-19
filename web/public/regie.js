@@ -23,6 +23,8 @@ const BOX_TIMEOUT_MS = 6000;
 
 let db, uid, code, onExit;
 let serverOffset = 0;
+/** Réaffichage à la fin du décompte de reprise (le bouton principal redevient actif). */
+let countdownTimer = null;
 let unsubscribers = [];
 let live = { state: null, teams: {}, presence: {}, plan: null, answers: {}, requests: {}, connected: true };
 /** Appareils dont la demande d'entrée est en cours de traitement par la box. */
@@ -313,7 +315,12 @@ function render() {
   pause.textContent = st.paused ? "Reprendre (3, 2, 1)" : "Pause";
   pause.classList.toggle("resume", st.paused === true);
   pause.disabled = st.phase === "lobby" || st.phase === "ended" || !!pending?.advance;
-  next.disabled = next.disabled || st.paused === true || (blindMode(st) && st.phase === "question" && !!st.buzz?.team);
+  // Décompte 3, 2, 1 d'une reprise : « Arrêter le chrono » attend la fin du décompte (un appui juste après
+  // « Reprendre » fermerait la question avant qu'elle reparte : « Temps écoulé ! » sur la TV).
+  const countdown = st.phase === "question" && !st.paused && (st.resumeAt ?? 0) - (Date.now() + serverOffset);
+  clearTimeout(countdownTimer);
+  if (countdown > 0) countdownTimer = setTimeout(render, countdown + 50);
+  next.disabled = next.disabled || st.paused === true || countdown > 0 || (blindMode(st) && st.phase === "question" && !!st.buzz?.team);
   // Mimes : le gros bouton « Trouvé » est dans la rubrique ; le bas de l'écran arrête le tour ou la manche.
   if (st.phase === "question" && st.mime) next.classList.toggle("secondary", !!st.mime.team);
   else next.classList.remove("secondary");
@@ -422,20 +429,24 @@ async function admit(device, type, extra, success) {
 let mimeTeam = null;
 /** L'animatrice a choisi elle-même l'équipe (le Pictionary ne la remplace plus par celle qui voit le mot). */
 let mimeChosen = false;
+/** Nombre de tours déjà lancés quand le choix a été fait : un tour de plus, et le choix est oublié. */
+let mimeTurnsSeen = null;
 
 function renderMime(st, teams) {
   const m = st.phase === "question" ? st.mime : null;
   $("mime").hidden = !m;
   document.querySelector(".regie .control").classList.toggle("mime-mode", !!m);
-  if (!m) { mimeTeam = null; mimeChosen = false; return; }
+  if (!m) { mimeTeam = null; mimeChosen = false; mimeTurnsSeen = null; return; }
   const name = (id) => live.teams[id]?.name ?? "Équipe";
   const counts = m.counts ?? {};
   const turns = m.turns ?? [];
   const playing = m.team;
   const busy = !!pending?.advance || st.paused === true;
-  // Pendant un tour, le choix est oublié : à la fin, la régie propose l'équipe qui a le moins joué.
+  // Un tour a été lancé depuis le choix (même si la régie ne l'a pas vu passer : écran éteint, reconnexion) :
+  // le choix est oublié, et à la fin du tour la régie propose l'équipe qui a le moins joué.
+  if (turns.length !== mimeTurnsSeen) { mimeTeam = null; mimeChosen = false; mimeTurnsSeen = turns.length; }
   if (playing) { mimeTeam = null; mimeChosen = false; }
-  else if (!mimeTeam || !live.teams[mimeTeam]) {
+  else if (!mimeChosen || !live.teams[mimeTeam]) {
     // Ordre d'inscription, en commençant par les équipes qui ont le moins joué (tri stable).
     mimeTeam = [...teams].sort(([a], [b]) => turns.filter((t) => t === a).length - turns.filter((t) => t === b).length)[0]?.[0] ?? null;
   }
@@ -1567,12 +1578,22 @@ async function adjust(team, delta) {
 const MAX_POINTS = 500;
 let points = null;
 
-function choosePoints(team) {
-  points = { team, sign: 1, amount: 0, sending: false };
-  $("pts-title").textContent = `Points pour ${live.teams[team]?.name ?? "l'équipe"}`;
+/**
+ * [pick] : ouvert depuis « ± Points » des mimes, du Pictionary ou du blind test (onglet Équipes masqué) :
+ * l'animatrice choisit l'équipe dans la fenêtre même, le montant préparé est gardé.
+ */
+function choosePoints(team, pick = false) {
+  points = { team, sign: 1, amount: 0, sending: false, pick };
   $("pts-input").value = "";
   $("pts").hidden = false;
   renderPoints();
+}
+
+/** Équipe à proposer d'abord : celle qui mime, dessine ou a buzzé, sinon la première inscrite. */
+function defaultTeam() {
+  const st = live.state ?? {};
+  const ids = Object.entries(live.teams).sort((a, b) => (a[1].joinedAt ?? 0) - (b[1].joinedAt ?? 0)).map(([id]) => id);
+  return [st.mime?.team, st.mime?.last?.team, st.buzz?.team].find((id) => id && live.teams[id]) ?? ids[0];
 }
 
 function setAmount(n) {
@@ -1583,8 +1604,20 @@ function setAmount(n) {
 
 function renderPoints() {
   if (!points) return;
-  const { team, sign, amount, sending } = points;
+  const { team, sign, amount, sending, pick } = points;
   const delta = sign * amount;
+  $("pts-title").textContent = pick ? "Bonus ou malus" : `Points pour ${live.teams[team]?.name ?? "l'équipe"}`;
+  const chips = $("pts-teams");
+  chips.replaceChildren(...(pick ? Object.entries(live.teams).sort((a, b) => (a[1].joinedAt ?? 0) - (b[1].joinedAt ?? 0)) : []).map(([id, t]) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.dataset.team = id;
+    b.textContent = t.name ?? "Équipe";
+    b.classList.toggle("on", id === team);
+    b.disabled = sending;
+    b.onclick = () => { if (points && !points.sending) { points.team = id; renderPoints(); } };
+    return b;
+  }));
   const score = live.state?.scores?.[team] ?? 0;
   $("pts-bonus").classList.toggle("on", sign > 0);
   $("pts-malus").classList.toggle("on", sign < 0);
@@ -1595,7 +1628,7 @@ function renderPoints() {
   $("pts-range").value = String(amount);
   $("pts-presets").querySelectorAll("[data-set]").forEach((b) => { b.classList.toggle("on", Number(b.dataset.set) === amount); });
   const ok = $("pts-ok");
-  ok.disabled = !amount || sending;
+  ok.disabled = !amount || sending || !live.teams[team];
   ok.textContent = sending ? "Envoi…" : amount ? `Valider ${sign > 0 ? "+" : "−"}${amount} point${amount > 1 ? "s" : ""}` : "Valider";
   ok.classList.toggle("malus", sign < 0);
 }
@@ -1606,7 +1639,7 @@ function closePoints() {
 }
 
 async function validatePoints() {
-  if (!points || points.sending || !points.amount) return;
+  if (!points || points.sending || !points.amount || !live.teams[points.team]) return;
   points.sending = true;
   const { team, sign, amount } = points;
   renderPoints();
@@ -1622,6 +1655,7 @@ $("pts-input").oninput = () => setAmount($("pts-input").value);
 $("pts-input").onblur = () => renderPoints();
 $("pts-range").oninput = () => setAmount($("pts-range").value);
 $("pts-ok").onclick = validatePoints;
+$("c-points").onclick = () => { if (Object.keys(live.teams).length) choosePoints(defaultTeam(), true); else toast("Aucune équipe inscrite."); };
 $("pts-cancel").onclick = closePoints;
 $("pts").onclick = (e) => { if (e.target === $("pts")) closePoints(); };
 

@@ -580,6 +580,29 @@ describe("régie", () => {
     for (const p of [pc, portable]) await p.context().close();
   });
 
+  test("mimes : après le tour d'une équipe, la régie propose celle qui n'est pas passée, même sans avoir vu le tour", async () => {
+    box = startBox();
+    await addTeam("touk", "Touk");
+    await addTeam("touka", "Touka");
+    const plan = [{ id: "a1m", text: "Animaux", kind: "mime", duration: 60, round: "Animaux", cards: [{ word: "Chat", image: "🐱" }] }];
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, questions: plan });
+    const mime = (extra) => ({ ...questionState(2), index: 0, qid: "a1m", kind: "mime", text: "Animaux", choices: null, total: 1, deadline: null, mime: { team: null, card: null, found: 0, passed: 0, left: 13, turns: [], counts: {}, points: 50, ...extra } });
+    await box.set(mime({}));
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    // Sarah choisit Touk ; le tour se joue pendant que l'écran du téléphone est éteint (la régie ne le voit pas).
+    await page.locator(".mime-team[data-team=\"touk\"]").click();
+    await page.locator("#mime-go", { hasText: "Top départ ! (Touk)" }).waitFor();
+    await box.set(mime({ turns: ["touk"], counts: { touk: 13 }, last: { team: "touk", found: 13, passed: 0 } }));
+    await page.locator("#mime-info", { hasText: "Tour terminé : Touk" }).waitFor();
+    await page.locator("#mime-go", { hasText: "Top départ ! (Touka)" }).waitFor();
+    // Faire rejouer Touk reste possible si Sarah la choisit exprès.
+    await page.locator(".mime-team[data-team=\"touk\"]").click();
+    await page.locator("#mime-go", { hasText: "Top départ ! (Touk)" }).waitFor();
+    await page.context().close();
+  });
+
   test("mimes : choisir l'équipe, lancer le tour, trouvé, passer, corriger ; les points vont au classement", async () => {
     box = startBox();
     await addTeam("rose", "Les Roses");
@@ -932,7 +955,9 @@ describe("régie", () => {
     await page.locator("#c-pause", { hasText: "Reprendre (3, 2, 1)" }).click();
     await page.locator("#c-hold").waitFor({ state: "hidden" });
     await page.locator("#c-pause", { hasText: "Pause" }).waitFor();
-    assert.equal(await page.locator("#c-next").isDisabled(), false);
+    // Pendant le décompte 3, 2, 1, « Arrêter le chrono » attend : un appui réflexe ne ferme pas la question.
+    assert.equal(await page.locator("#c-next").isDisabled(), true, "Arrêt du chrono bloqué pendant le décompte");
+    await page.locator("#c-next:not([disabled])", { hasText: "Arrêter le chrono" }).waitFor({ timeout: 5000 });
     assert.deepEqual((await commands()).map((c) => c.type).sort(), ["next", "pause", "resume"]);
     await page.context().close();
   });
@@ -1033,6 +1058,34 @@ describe("régie", () => {
     const adjust = (await commands()).find((c) => c.type === "adjust");
     assert.equal(adjust.team, "rose");
     assert.equal(adjust.delta, 10);
+    await page.context().close();
+  });
+
+  test("« ± Points » reste accessible pendant les mimes (onglets masqués) : choix de l'équipe dans la fenêtre", async () => {
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    await addTeam("bleu", "Les Bleus");
+    const plan = [{ id: "a1m", text: "Animaux", kind: "mime", duration: 60, round: "Animaux", cards: [{ word: "Chat", image: "🐱" }] }];
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, questions: plan });
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    await page.click("#tab-teams");
+    // Hors mimes et blind test, « ± Points » passe par l'onglet Équipes : pas de bouton en double.
+    assert.equal(await page.locator("#c-points").isVisible(), false);
+    await box.set({ ...questionState(2), index: 0, qid: "a1m", kind: "mime", text: "Animaux", choices: null, total: 1, deadline: null, mime: { team: "rose", card: { word: "Chat", image: "🐱" }, found: 0, passed: 0, left: 1, turns: ["rose"], counts: {}, points: 50 } });
+    await page.locator("#mime:not([hidden])").waitFor();
+    assert.equal(await page.locator(".tabs").isVisible(), false);
+    await page.click("#c-points");
+    // L'équipe qui mime est proposée d'abord ; l'animatrice choisit une autre équipe, le montant reste.
+    await page.locator("#pts-teams button.on", { hasText: "Les Roses" }).waitFor();
+    await page.click('#pts [data-set="50"]');
+    await page.click('#pts-teams button[data-team="bleu"]');
+    await page.locator("#pts-teams button.on", { hasText: "Les Bleus" }).waitFor();
+    await page.locator("#pts-ok", { hasText: "Valider +50 points" }).click();
+    await page.locator("#undo-text", { hasText: "+50 pour Les Bleus" }).waitFor();
+    const adjust = (await commands()).filter((c) => c.type === "adjust");
+    assert.deepEqual(adjust.map((c) => [c.team, c.delta]), [["bleu", 50]]);
     await page.context().close();
   });
 
