@@ -254,7 +254,10 @@ def bras():
         alpha = a + alpha * (1 - a)
     # Ombre portée sous le bras.
     ombre = Image.fromarray((alpha * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(10 * SS))
-    ombre = np.roll(np.roll(np.asarray(ombre, np.float32) / 255, 16 * SS, 0), 12 * SS, 1) * 0.55
+    # Décalage sans enroulement : l'ombre qui sortirait du cadre à droite ne doit pas réapparaître à gauche.
+    ombre = np.asarray(ombre, np.float32) / 255
+    dy, dx = 16 * SS, 12 * SS
+    ombre = np.pad(ombre, ((dy, 0), (dx, 0)))[:ombre.shape[0], :ombre.shape[1]] * 0.55
     a_tot = alpha + ombre * (1 - alpha)
     col_tot = np.where(a_tot[..., None] > 0, col * alpha[..., None] / np.maximum(a_tot, 1e-6)[..., None], 0)
     return enregistrer(np.dstack([col_tot, a_tot]), 'lmp_bt_bras.webp', W, H)

@@ -37,6 +37,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -137,8 +144,9 @@ fun BlindIntro(playlist: String, morceaux: Int, points: Int, modifier: Modifier 
 }
 
 /**
- * Une équipe a buzzé : le panneau prend la couleur de l'équipe et flashe trois fois, « STOP ! » claque, puis
- * « X a buzzé ! » et « On attend sa réponse… » qui respire.
+ * Une équipe a buzzé : panneau bleu nuit cerné d'un néon de la couleur de l'équipe, qui flashe trois fois,
+ * « STOP ! » claque en néon, puis « X a buzzé ! » et « On attend sa réponse… » qui respire. Le fond ne mélange
+ * jamais la couleur de l'équipe au violet : même rendu propre avec les 8 couleurs.
  */
 @Composable
 fun BlindBuzz(equipe: String, couleur: Color, modifier: Modifier = Modifier) {
@@ -146,9 +154,20 @@ fun BlindBuzz(equipe: String, couleur: Color, modifier: Modifier = Modifier) {
     val anim = rememberInfiniteTransition(label = "attente")
     val souffle by anim.animateFloat(0.45f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "attente")
     Echelle(LARGEUR, HAUTEUR, modifier) { Box(
-        Modifier.fillMaxSize().clip(RoundedCornerShape(28.dp))
-            .background(couleur.copy(alpha = 0.22f))
-            .border(6.dp, couleur, RoundedCornerShape(28.dp)),
+        Modifier.fillMaxSize()
+            .drawBehind {
+                // Halo du néon autour du cadre : quelques contours de plus en plus larges et transparents.
+                for (k in 1..4) {
+                    val e = k * 7.dp.toPx()
+                    drawRoundRect(
+                        couleur.copy(alpha = 0.16f / k), Offset(-e / 2, -e / 2), Size(size.width + e, size.height + e),
+                        CornerRadius(28.dp.toPx() + e / 2), style = Stroke(e),
+                    )
+                }
+            }
+            .clip(RoundedCornerShape(28.dp))
+            .background(Brush.linearGradient(listOf(Color(0xFF1D0C40), Color(0xFF0B041F))))
+            .border(5.dp, couleur, RoundedCornerShape(28.dp)),
         contentAlignment = Alignment.Center,
     ) {
         // Trois flashs blancs au moment du buzz.
@@ -160,7 +179,8 @@ fun BlindBuzz(equipe: String, couleur: Color, modifier: Modifier = Modifier) {
         )
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
             Text(
-                "STOP !", color = couleur, fontSize = 150.sp, lineHeight = 156.sp, fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
+                "STOP !", fontSize = 150.sp, lineHeight = 156.sp, fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
+                style = TextStyle(color = couleur, shadow = Shadow(couleur.copy(alpha = 0.85f), Offset.Zero, 40f)),
                 modifier = Modifier.apparition(0, equipe),
             )
             Text(
