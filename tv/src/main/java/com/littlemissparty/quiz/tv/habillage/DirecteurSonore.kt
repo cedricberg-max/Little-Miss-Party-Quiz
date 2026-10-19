@@ -549,6 +549,10 @@ enum class Son(val fichier: String, val long: Boolean = false) {
     MALUS("lmp_malus"),
     PICTIO_TOP("lmp_pictio_top", true),
     PICTIO_TROUVE("lmp_pictio_trouve", true),
+    PORTES_OUVRE("lmp_portes_ouvre", true),
+    PORTES_JACKPOT("lmp_portes_jackpot", true),
+    PORTES_TUILE("lmp_portes_tuile", true),
+    PORTES_RENVERSEMENT("lmp_portes_renversement", true),
     EQUIPE_1("lmp_team_sting_1"), EQUIPE_2("lmp_team_sting_2"), EQUIPE_3("lmp_team_sting_3"), EQUIPE_4("lmp_team_sting_4");
 
     companion object {

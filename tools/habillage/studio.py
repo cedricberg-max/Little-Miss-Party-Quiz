@@ -1238,6 +1238,63 @@ def pictio_crayon():
     y[:nx] = x[:nx] * f + x[n:n + nx] * (1 - f)
     return stereo(y.astype(np.float32), width=.2)
 
+# ---------------------------------------------------------------- Portes mystères
+def portes_ouvre():
+    """Une porte mystère s'ouvre : grincement de bois, coup de timbale, crash et souffle de lumière qui monte."""
+    mx = Mix(2.5, tail=2)
+    mx.add('fx', _glisse(lambda t: 95 + 70 * t / .55 + 18 * np.sin(2 * np.pi * 23 * t), .55, (1, .7, .5, .35, .2), .35), 0)
+    mx.add('drums', note('timpani', 36, 1.2, 1.0), .5)
+    mx.add('kick', kick(1.0), .5)
+    mx.add('fx', crash(.8, 2.5), .5)
+    mx.add('fx', sub_boom(.6), .5)
+    mx.add('bells', note('glockenspiel', 96, .4, .35, release=1.0), .55)
+    return mx.render(duck=0)
+
+def portes_jackpot():
+    """Jackpot : cascade de pièces, arpège qui grimpe, grand accord de cuivres et pluie de clochettes."""
+    mx = Mix(4, tail=2.5)
+    for k in range(16):
+        mx.add('bells', note('tinkle_bell', 96 + (k * 5) % 12, .08, .3, release=.3), k * .045)
+    for k, m in enumerate([60, 64, 67, 72, 76, 79, 84]):
+        mx.add('bells', note('glockenspiel', m + 12, .2, .6, release=.6), .2 + k * .07)
+        mx.add('bells', note('marimba', m, .12, .45, release=.2), .2 + k * .07)
+    mx.add('brass', note('orchestra_hit', 72, .5, .7), .75)
+    mx.add('brass', chord('brass_section', [48, 60, 64, 67, 72, 76], 1.8 * B, 1.0, release=.8), .75)
+    mx.add('kick', kick(1.0), .75)
+    mx.add('drums', clap(.9), .75)
+    mx.add('fx', crash(.6, 2.5), .75)
+    for k in range(10):
+        mx.add('bells', note('tinkle_bell', 100 + (k % 5) * 2, .1, .18, release=.4), 1.1 + k * .1)
+    return mx.render(duck=0)
+
+def portes_tuile():
+    """La tuile : sifflement de chute, « bonk » sur la tête, puis la trompette bouchée qui se moque gentiment."""
+    mx = Mix(4, tail=1.5)
+    mx.add('fx', _glisse(lambda t: 1700 * np.exp(-t * 2.9), .6, (1, .2), .35), 0)
+    mx.add('drums', note('woodblock', 72, .1, .9), .6)
+    mx.add('fx', _glisse(lambda t: 150 * np.exp(-t * 3) + 60, .3, (1, .4), .9), .6)
+    mx.add('fx', _glisse(lambda t: 520 * (1 + .35 * np.exp(-t / .2) * np.sin(2 * np.pi * 15 * t)), .4, (1, .5, .2), .25), .68)
+    for k, (m, d) in enumerate(((67, .22), (66, .22), (65, .22), (64, .9))):
+        mx.add('brass', note('muted_trumpet', m - 12, d, .8, release=.15), 1.0 + k * .32)
+    return mx.render(duck=0)
+
+def portes_renversement():
+    """RENVERSEMENT ! : coup de gong grave, cuivres qui claquent, roulement qui retombe sur une fanfare."""
+    mx = Mix(4, tail=2.5)
+    mx.add('fx', sub_boom(1.0), 0)
+    mx.add('drums', note('timpani', 36, 1.5, 1.0), 0)
+    mx.add('brass', note('orchestra_hit', 60, .6, .9), 0)
+    mx.add('brass', chord('brass_section', [48, 55, 60, 63], .7 * B, 1.0, release=.3), 0)
+    mx.add('fx', crash(.9, 3), 0)
+    for k in range(10):
+        mx.add('drums', snare(.35 + .05 * k, tight=True), .55 + k * .05)
+    mx.add('brass', chord('brass_section', [48, 60, 64, 67, 72], 2 * B, 1.0, release=.8), 1.1)
+    mx.add('kick', kick(1.0), 1.1)
+    mx.add('drums', clap(.9), 1.1)
+    for k, m in enumerate([72, 76, 79, 84]):
+        mx.add('bells', note('glockenspiel', m + 12, .3, .5, release=.8), 1.15 + k * .08)
+    return mx.render(duck=0)
+
 PIECES = {
     'generique': (generique, -14.5), 'bed_full': (lambda: bed('full'), -15.5), 'bed_light': (lambda: bed('light'), -18.5),
     'tension': (tension, -16), 'riser_4b': (riser_4b, -17), 'impact': (impact, -15), 'round_sting': (round_sting, -15),
@@ -1256,6 +1313,8 @@ PIECES = {
     'bed_magie': (bed_magie, -18.5), 'magie': (magie, -19), 'magie_pouf': (magie_pouf, -17),
     'bonus': (bonus, -17), 'malus': (malus, -20), 'pictio_top': (pictio_top, -16), 'pictio_trouve': (pictio_trouve, -16),
     'pictio_crayon': (pictio_crayon, -24),
+    'portes_ouvre': (portes_ouvre, -16), 'portes_jackpot': (portes_jackpot, -16), 'portes_tuile': (portes_tuile, -18),
+    'portes_renversement': (portes_renversement, -15),
     'bed_mimes': (bed_mimes, -16.5), 'bed_pause': (bed_pause, -19), 'pause_in': (pause_in, -18), 'transition': (transition, -15),
 }
 for i in range(4):
