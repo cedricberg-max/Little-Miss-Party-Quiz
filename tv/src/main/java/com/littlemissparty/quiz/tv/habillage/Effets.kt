@@ -1,5 +1,6 @@
 package com.littlemissparty.quiz.tv.habillage
 
+import android.os.SystemClock
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -139,7 +140,14 @@ fun GeneriqueSalon(partie: String, prenom: String, titre: String) {
     if (!montrer) return
     val t = remember(partie) { Animatable(0f) }
     LaunchedEffect(partie) {
-        t.animateTo(Tempo.GENERIQUE_ANIMATION.toFloat(), tween(Tempo.GENERIQUE_ANIMATION.toInt(), easing = LinearEasing))
+        // Le logo s'écrit sur le roulement de tambour : on attend que le générique parte vraiment (box qui finit de
+        // charger ses sons au lancement), sans jamais attendre plus de GENERIQUE_ATTENTE_MAX (box muette).
+        val debut = SystemClock.uptimeMillis()
+        fun parti() = Sons.departGenerique >= debut - 1_000
+        while (!parti() && SystemClock.uptimeMillis() - debut < Tempo.GENERIQUE_ATTENTE_MAX) delay(16)
+        val avance = if (parti()) (SystemClock.uptimeMillis() - Sons.departGenerique).coerceIn(0, 1_000) else 0L
+        t.snapTo(avance.toFloat())
+        t.animateTo(Tempo.GENERIQUE_ANIMATION.toFloat(), tween((Tempo.GENERIQUE_ANIMATION - avance).toInt(), easing = LinearEasing))
         montrer = false
     }
     // Le temps n'est lu que dans les calques (graphicsLayer) : rien ne se recompose à chaque image, la Mi Box suit.
@@ -161,15 +169,16 @@ fun GeneriqueSalon(partie: String, prenom: String, titre: String) {
         // Dessiné pour 960 × 560 et mis à l'échelle : tout tient, sur la Mi Box comme sur une TV 4K.
         Echelle(960.dp, 560.dp) {
             Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                // Le logo s'écrit de gauche à droite, puis respire une fois quand « QUIZ » claque.
+                // Le logo s'écrit de gauche à droite pendant le roulement de tambour (0 à 2 s du générique), puis respire
+                // une fois quand « QUIZ » claque sur l'impact (2 s, le 5e temps).
                 LogoLmp(
                     170.dp,
                     Modifier.graphicsLayer {
-                        val ecrit = ((ms() - 300f) / 1_500f).coerceIn(0f, 1f)
+                        val ecrit = ((ms() - 200f) / 1_700f).coerceIn(0f, 1f)
                         alpha = if (ecrit > 0f) 1f else 0f
                         clip = true
                         shape = DevoileGauche(ecrit)
-                        val choc = ((ms() - 2_500f) / 600f).coerceIn(0f, 1f)
+                        val choc = ((ms() - 2_000f) / 600f).coerceIn(0f, 1f)
                         val s = 1f + 0.04f * sin(choc * PI.toFloat())
                         scaleX = s
                         scaleY = s
@@ -179,7 +188,7 @@ fun GeneriqueSalon(partie: String, prenom: String, titre: String) {
                 MotQuiz(
                     84.sp,
                     Modifier.graphicsLayer {
-                        val q = ((ms() - 2_500f) / 450f).coerceIn(0f, 1f)
+                        val q = ((ms() - 2_000f) / 450f).coerceIn(0f, 1f)
                         val claque = if (q <= 0f) 0f else 1f + 0.5f * (1f - q) * (1f - q)
                         alpha = if (q > 0f) 1f else 0f
                         scaleX = claque

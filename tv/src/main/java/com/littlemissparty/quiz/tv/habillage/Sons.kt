@@ -39,7 +39,7 @@ object Sons {
     private val longs = mutableMapOf<Son, MediaPlayer>()
     /** Numéro du dernier lancement de chaque son long : un fondu de sortie ne coupe jamais un son relancé entre-temps. */
     private val lancements = mutableMapOf<Son, Int>()
-    private val lits = mutableMapOf<Lit, MediaPlayer>()
+    private val lits = mutableMapOf<Lit, Boucle>()
     private val volumes = Lit.entries.associateWith { 0f }.toMutableMap()
     private var ambiance = Ambiance.SILENCE
     /** Dernière ambiance demandée, même encore programmée : c'est elle qu'on remet au retour au premier plan. */
@@ -57,29 +57,61 @@ object Sons {
     @Volatile var departDesLits: Long = SystemClock.elapsedRealtime()
         private set
 
+    /**
+     * Instant (SystemClock.uptimeMillis) où le générique a vraiment démarré : l'animation du logo s'y cale, même si
+     * la box finissait encore de charger ses sons au démarrage.
+     */
+    @Volatile var departGenerique: Long = Long.MIN_VALUE / 2
+        private set
+
     private val attributs = AudioAttributes.Builder()
         .setUsage(AudioAttributes.USAGE_GAME)
         .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
         .build()
 
+    /**
+     * Charge les sons un par un, chacun dans son propre message du fil : un ordre reçu pendant le chargement (le
+     * générique au lancement) passe entre deux, sans attendre la fin. Le générique et la musique du salon d'abord.
+     */
     fun preparer(context: Context) {
         val app = context.applicationContext
         h.post {
             if (pret) return@post
             pret = true
-            essayer("pool") {
-                val p = SoundPool.Builder().setMaxStreams(8).setAudioAttributes(attributs).build()
-                Son.entries.filter { !it.long }.forEach { s -> id(app, s.fichier)?.let { courts[s] = p.load(app, it, 1) } }
-                pool = p
+            val etapes = ArrayDeque<() -> Unit>()
+            val longsDabord = listOf(Son.GENERIQUE) + Son.entries.filter { it.long && it != Son.GENERIQUE }
+            val litsDabord = listOf(Lit.COMPLET) + Lit.entries.filter { it != Lit.COMPLET }
+            etapes += { chargerLong(app, Son.GENERIQUE) }
+            etapes += { chargerLit(app, Lit.COMPLET) }
+            etapes += {
+                essayer("pool") {
+                    val p = SoundPool.Builder().setMaxStreams(8).setAudioAttributes(attributs).build()
+                    Son.entries.filter { !it.long }.forEach { s -> id(app, s.fichier)?.let { courts[s] = p.load(app, it, 1) } }
+                    pool = p
+                }
             }
-            Son.entries.filter { it.long }.forEach { s -> essayer(s.name) { lecteur(app, s.fichier, boucle = false)?.let { longs[s] = it } } }
-            essayer("crayon") { crayon = lecteur(app, FICHIER_CRAYON, boucle = true) }
-            essayer("lits") {
-                Lit.entries.forEach { l -> essayer(l.name) { lecteur(app, l.fichier, boucle = true)?.let { lits[l] = it } } }
-                departDesLits = SystemClock.elapsedRealtime()
-                demarrerLits()
-            }
+            longsDabord.drop(1).forEach { s -> etapes += { chargerLong(app, s) } }
+            etapes += { essayer("crayon") { crayon = lecteur(app, FICHIER_CRAYON, boucle = true) } }
+            litsDabord.drop(1).forEach { l -> etapes += { chargerLit(app, l) } }
+            enchainer(etapes)
         }
+    }
+
+    private fun enchainer(etapes: ArrayDeque<() -> Unit>) {
+        val etape = etapes.removeFirstOrNull() ?: return
+        etape()
+        h.post { enchainer(etapes) }
+    }
+
+    private fun chargerLong(app: Context, s: Son) = essayer(s.name) { lecteur(app, s.fichier, boucle = false)?.let { longs[s] = it } }
+
+    /** Une boucle chargée après un ordre de musique prend tout de suite le volume de l'ambiance en cours. */
+    private fun chargerLit(app: Context, l: Lit) = essayer(l.name) {
+        val b = boucle(app, l.fichier) ?: return@essayer
+        lits[l] = b
+        val v = volumes.getValue(l)
+        b.setVolume(v)
+        if (v > 0f && !enArriere) reveiller(b)
     }
 
     fun executer(ordres: List<Ordre>) {
@@ -92,8 +124,9 @@ object Sons {
                     is Ordre.Jouer -> plus(o.dansMs) { jouer(o.son) }
                     is Ordre.Musique -> {
                         ambianceVoulue = o.ambiance
-                        plus(o.dansMs) { versAmbiance(o.ambiance) }
+                        plus(o.dansMs) { versAmbiance(o.ambiance, o.fonduMs) }
                     }
+                    is Ordre.Caler -> plus(o.dansMs) { caler() }
                 }
             }
         }
@@ -152,6 +185,7 @@ object Sons {
             mp.setVolume(1f, 1f)
             mp.seekTo(0)
             mp.start()
+            if (s == Son.GENERIQUE) departGenerique = SystemClock.uptimeMillis()
         } else {
             val id = courts[s] ?: return
             pool?.play(id, 1f, 1f, 1, 0, 1f)
@@ -208,12 +242,18 @@ object Sons {
         }
     }
 
+    /** Les boucles repartent du début de leur première mesure à cet instant (relais du générique). */
+    private fun caler() {
+        departDesLits = SystemClock.elapsedRealtime()
+        lits.values.forEach { if (it.isPlaying) essayer("caler") { it.demarrer(0) } }
+    }
+
     /** Fondu enchaîné d'une ambiance à l'autre : chaque boucle glisse vers son volume, celles qui se taisent s'arrêtent. */
-    private fun versAmbiance(a: Ambiance) {
+    private fun versAmbiance(a: Ambiance, fonduMs: Long = FONDU_MS) {
         ambiance = a
         Lit.entries.forEach { if (a.volume(it) > 0f) reveiller(lits[it]) }
         val depart = volumes.toMap()
-        val etapes = (FONDU_MS / PAS_MS).toInt()
+        val etapes = (fonduMs / PAS_MS).toInt().coerceAtLeast(1)
         for (k in 1..etapes) {
             h.postAtTime({
                 if (ambiance != a) return@postAtTime
@@ -223,10 +263,10 @@ object Sons {
                     val v = de + (a.volume(l) - de) * t
                     volumes[l] = v
                     essayer("fondu") {
-                        val mp = lits[l] ?: return@essayer
+                        val b = lits[l] ?: return@essayer
                         if (de == 0f && v == 0f) return@essayer
-                        mp.setVolume(v, v)
-                        if (k == etapes && v == 0f && mp.isPlaying) mp.pause()
+                        b.setVolume(v)
+                        if (k == etapes && v == 0f) b.pause()
                     }
                 }
             }, fondus, SystemClock.uptimeMillis() + k * PAS_MS)
@@ -235,20 +275,25 @@ object Sons {
 
     /** Relance les boucles qui doivent s'entendre (retour au premier plan). */
     private fun demarrerLits() {
-        lits.forEach { (l, mp) ->
+        lits.forEach { (l, b) ->
             val v = volumes.getValue(l)
             essayer("lit") {
-                mp.setVolume(v, v)
-                if (v > 0f) reveiller(mp)
+                b.setVolume(v)
+                if (v > 0f) reveiller(b)
             }
         }
     }
 
     /** Remet une boucle en route, calée sur le tempo commun. */
-    private fun reveiller(mp: MediaPlayer?) {
-        if (mp == null || mp.isPlaying) return
-        mp.seekTo(Math.floorMod(SystemClock.elapsedRealtime() - departDesLits, BOUCLE_MS).toInt())
-        mp.start()
+    private fun reveiller(b: Boucle?) {
+        if (b == null || b.isPlaying) return
+        b.demarrer(Math.floorMod(SystemClock.elapsedRealtime() - departDesLits, BOUCLE_MS).toInt())
+    }
+
+    private fun boucle(context: Context, nom: String): Boucle? {
+        val a = lecteur(context, nom, boucle = false) ?: return null
+        val b = try { lecteur(context, nom, boucle = false) } catch (e: Exception) { null }
+        return Boucle(a, b)
     }
 
     private fun lecteur(context: Context, nom: String, boucle: Boolean): MediaPlayer? {
@@ -278,13 +323,12 @@ object Sons {
             volumeCrayon = 0f
             crayonActif = false
         }
-        Lit.entries.find { it.fichier == nom && lits[it] === ancien }?.let { l ->
-            lits[l] = neuf
-            val v = volumes.getValue(l)
-            essayer("lit") {
-                neuf.setVolume(v, v)
-                if (v > 0f && !enArriere) reveiller(neuf)
-            }
+        Lit.entries.find { it.fichier == nom && lits[it]?.possede(ancien) == true }?.let { l ->
+            // Une boucle, c'est deux lecteurs : on refait les deux.
+            essayer("reconstruire") { lits[l]?.liberer() }
+            essayer("reconstruire") { neuf.release() }
+            lits.remove(l)
+            chargerLit(context, l)
         }
     }
 
@@ -297,5 +341,63 @@ object Sons {
         } catch (e: Exception) {
             Log.w(TAG, "Son « $quoi » ignoré : ${e.message}")
         }
+    }
+}
+
+/**
+ * Boucle musicale sans blanc : deux lecteurs du même fichier se passent le relais (setNextMediaPlayer), le second
+ * part à l'échantillon près quand le premier finit. Un lecteur seul en isLooping revient au début du fichier avec un
+ * trou audible sur certaines TV. Sans second lecteur (mémoire), on retombe sur isLooping.
+ */
+private class Boucle(private val a: MediaPlayer, private val b: MediaPlayer?) {
+    private var courant = a
+
+    init {
+        if (b == null || !relier(a, b)) a.isLooping = true
+    }
+
+    private fun relier(de: MediaPlayer, vers: MediaPlayer): Boolean = try {
+        de.setOnCompletionListener { relais(it) }
+        vers.setOnCompletionListener { relais(it) }
+        de.setNextMediaPlayer(vers)
+        true
+    } catch (e: Exception) {
+        false
+    }
+
+    /** Le lecteur qui vient de finir se remet au début et attend son tour derrière celui qui joue. */
+    private fun relais(fini: MediaPlayer) {
+        val suivant = if (fini === a) b ?: return else a
+        courant = suivant
+        try {
+            fini.seekTo(0)
+            suivant.setNextMediaPlayer(fini)
+        } catch (e: Exception) {
+            // Relais impossible : celui qui joue boucle seul, comme avant.
+            try { suivant.isLooping = true } catch (_: Exception) {}
+        }
+    }
+
+    val isPlaying: Boolean get() = courant.isPlaying
+
+    fun setVolume(v: Float) {
+        a.setVolume(v, v)
+        b?.setVolume(v, v)
+    }
+
+    fun pause() {
+        if (courant.isPlaying) courant.pause()
+    }
+
+    fun demarrer(ms: Int) {
+        courant.seekTo(ms)
+        if (!courant.isPlaying) courant.start()
+    }
+
+    fun possede(mp: MediaPlayer) = mp === a || mp === b
+
+    fun liberer() {
+        a.release()
+        b?.release()
     }
 }

@@ -68,11 +68,17 @@ class DirecteurSonore {
         return listOf(Ordre.Musique(ambiance(i)))
     }
 
+    /**
+     * Générique puis musique du salon, sans blanc : la boucle repart de sa première mesure sur le temps fort qui
+     * suit la dernière note du générique, presque aussi fort, puis redescend doucement à son volume de fond.
+     */
     private fun generique() = listOf(
         Ordre.Couper,
         Ordre.Musique(Ambiance.SILENCE),
         Ordre.Jouer(Son.GENERIQUE),
-        Ordre.Musique(Ambiance.SALON, Tempo.GENERIQUE_FIN),
+        Ordre.Caler(Tempo.GENERIQUE_RELAIS),
+        Ordre.Musique(Ambiance.SALON_ARRIVEE, Tempo.GENERIQUE_RELAIS, Tempo.FONDU_RELAIS),
+        Ordre.Musique(Ambiance.SALON, Tempo.GENERIQUE_FIN, Tempo.FONDU_DESCENTE),
     )
 
     /** Décompte 3, 2, 1 de la reprise, puis la musique (ou l'entrée de l'écran s'il a changé pendant la pause). */
@@ -466,6 +472,8 @@ enum class Ambiance(
 ) {
     SILENCE,
     SALON(complete = 0.55f),
+    /** Relais du générique : la musique du salon entre presque aussi fort que lui, avant de redescendre. */
+    SALON_ARRIVEE(complete = 0.85f),
     QUESTION(legere = 0.6f),
     SUSPENSE(legere = 0.25f),
     FETE(complete = 0.8f),
@@ -567,7 +575,9 @@ enum class Son(val fichier: String, val long: Boolean = false) {
 
 sealed interface Ordre {
     data class Jouer(val son: Son, val dansMs: Long = 0) : Ordre
-    data class Musique(val ambiance: Ambiance, val dansMs: Long = 0) : Ordre
+    data class Musique(val ambiance: Ambiance, val dansMs: Long = 0, val fonduMs: Long = Tempo.FONDU_MUSIQUE) : Ordre
+    /** Les boucles musicales repartent du début de leur première mesure (relais calé sur le générique). */
+    data class Caler(val dansMs: Long = 0) : Ordre
     data class Arreter(val son: Son) : Ordre
     /** Annule les sons prévus et fait taire les sons longs en cours (changement d'écran, pause). */
     data object Couper : Ordre
@@ -575,6 +585,7 @@ sealed interface Ordre {
     fun decale(ms: Long): Ordre = when (this) {
         is Jouer -> copy(dansMs = dansMs + ms)
         is Musique -> copy(dansMs = dansMs + ms)
+        is Caler -> copy(dansMs = dansMs + ms)
         else -> this
     }
 }
@@ -582,7 +593,16 @@ sealed interface Ordre {
 /** Minutage partagé par les sons et les animations, pour qu'image et son tombent ensemble (120 BPM, un temps = 500 ms). */
 object Tempo {
     const val TEMPS = 500L
-    const val GENERIQUE_FIN = 9_400L
+    /** Fondu enchaîné ordinaire d'une ambiance musicale à l'autre. */
+    const val FONDU_MUSIQUE = 700L
+    /** Temps fort qui suit la dernière note du générique (16 temps) : la musique du salon prend le relais. */
+    const val GENERIQUE_RELAIS = 8_000L
+    const val FONDU_RELAIS = 120L
+    /** Après deux mesures au niveau du générique, la musique du salon redescend doucement à son volume de fond. */
+    const val GENERIQUE_FIN = 12_000L
+    const val FONDU_DESCENTE = 3_000L
+    /** Box qui charge encore ses sons ou reste muette : l'animation du générique n'attend jamais plus que ça. */
+    const val GENERIQUE_ATTENTE_MAX = 2_500L
     /** Durée de l'animation du générique sur le salon. */
     const val GENERIQUE_ANIMATION = 9_000L
     const val QUESTION_MUSIQUE_APRES_MANCHE = 1_500L
