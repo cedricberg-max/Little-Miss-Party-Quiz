@@ -22,12 +22,17 @@ object Sons {
     private const val PAS_MS = 40L
     /** Durée exacte des boucles musicales (8 mesures à 120 BPM). */
     private const val BOUCLE_MS = 16_000L
+    /** Crayon du Pictionary : léger, sous la musique ; il part vite et s'éteint un peu plus doucement. */
+    private const val CRAYON_VOLUME = 0.7f
+    private const val CRAYON_ENTREE_MS = 80L
+    private const val CRAYON_SORTIE_MS = 200L
 
     private val fil = HandlerThread("habillage-son").apply { start() }
     private val h = Handler(fil.looper)
     /** Jeton des sons programmés : [Ordre.Couper] les annule tous d'un coup. */
     private val prevus = Any()
     private val fondus = Any()
+    private val fonduCrayon = Any()
 
     private var pool: SoundPool? = null
     private val courts = mutableMapOf<Son, Int>()
@@ -39,6 +44,9 @@ object Sons {
     private var ambiance = Ambiance.SILENCE
     /** Dernière ambiance demandée, même encore programmée : c'est elle qu'on remet au retour au premier plan. */
     private var ambianceVoulue = Ambiance.SILENCE
+    private var crayon: MediaPlayer? = null
+    private var crayonActif = false
+    private var volumeCrayon = 0f
     private var pret = false
     private var enArriere = false
 
@@ -65,6 +73,7 @@ object Sons {
                 pool = p
             }
             Son.entries.filter { it.long }.forEach { s -> essayer(s.name) { lecteur(app, s.fichier, boucle = false)?.let { longs[s] = it } } }
+            essayer("crayon") { crayon = lecteur(app, FICHIER_CRAYON, boucle = true) }
             essayer("lits") {
                 Lit.entries.forEach { l -> essayer(l.name) { lecteur(app, l.fichier, boucle = true)?.let { lits[l] = it } } }
                 departDesLits = SystemClock.elapsedRealtime()
@@ -90,12 +99,29 @@ object Sons {
         }
     }
 
+    /**
+     * Grattement du crayon pendant le Pictionary : on l'entend tant que le trait avance sur la TV, il s'éteint
+     * quand le dessinateur lève le doigt. Rappeler avec la même valeur ne fait rien.
+     */
+    fun crayon(actif: Boolean) {
+        h.post {
+            if (actif == crayonActif || (actif && enArriere)) return@post
+            crayonActif = actif
+            essayer("crayon") { fondreCrayon(actif) }
+        }
+    }
+
     /** L'appli passe en arrière-plan (bouton Accueil, mise en veille) : silence total. */
     fun suspendre() {
         h.post {
             enArriere = true
             couper()
             essayer("suspendre") { lits.values.forEach { if (it.isPlaying) it.pause() }; pool?.autoPause() }
+            essayer("suspendre") {
+                h.removeCallbacksAndMessages(fonduCrayon)
+                crayon?.let { if (it.isPlaying) it.pause() }
+                volumeCrayon = 0f
+            }
         }
     }
 
@@ -136,6 +162,33 @@ object Sons {
     private fun couper() {
         h.removeCallbacksAndMessages(prevus)
         longs.keys.forEach { essayer("couper") { eteindre(it) } }
+        // Le crayon se tait aussi ; le prochain point reçu le relance.
+        if (crayonActif) {
+            crayonActif = false
+            essayer("couper") { fondreCrayon(false) }
+        }
+    }
+
+    private fun fondreCrayon(actif: Boolean) {
+        val mp = crayon ?: return
+        h.removeCallbacksAndMessages(fonduCrayon)
+        val de = volumeCrayon
+        val vers = if (actif) CRAYON_VOLUME else 0f
+        if (actif && !mp.isPlaying) {
+            mp.setVolume(de, de)
+            mp.start()
+        }
+        val etapes = ((if (actif) CRAYON_ENTREE_MS else CRAYON_SORTIE_MS) / PAS_MS).toInt().coerceAtLeast(1)
+        for (k in 1..etapes) {
+            h.postAtTime({
+                essayer("crayon") {
+                    val v = de + (vers - de) * k / etapes
+                    volumeCrayon = v
+                    mp.setVolume(v, v)
+                    if (k == etapes && vers == 0f && mp.isPlaying) mp.pause()
+                }
+            }, fonduCrayon, SystemClock.uptimeMillis() + k * PAS_MS)
+        }
     }
 
     private fun eteindre(s: Son) {
@@ -220,6 +273,11 @@ object Sons {
         essayer("reconstruire") { ancien.release() }
         val neuf = try { lecteur(context, nom, boucle) } catch (e: Exception) { null } ?: return
         Son.entries.find { it.fichier == nom && longs[it] === ancien }?.let { longs[it] = neuf }
+        if (crayon === ancien) {
+            crayon = neuf
+            volumeCrayon = 0f
+            crayonActif = false
+        }
         Lit.entries.find { it.fichier == nom && lits[it] === ancien }?.let { l ->
             lits[l] = neuf
             val v = volumes.getValue(l)

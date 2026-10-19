@@ -2,7 +2,9 @@ package com.littlemissparty.quiz.tv.habillage
 
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PictionaryTest {
@@ -39,5 +41,24 @@ class PictionaryTest {
         assertEquals(8, COULEURS_DESSIN.size)
         assertEquals(listOf(0.006f, 0.012f, 0.028f), EPAISSEURS_DESSIN)
         assertEquals(4f / 3f, RATIO_DESSIN, 1e-6f)
+    }
+
+    @Test
+    fun `le crayon gratte seulement quand le trait avance`() {
+        val un = TraitDessin("a", 0, 1, floatArrayOf(0.1f, 0.1f, 0.2f, 0.2f))
+        val deux = TraitDessin("a", 0, 1, floatArrayOf(0.1f, 0.1f, 0.2f, 0.2f, 0.3f, 0.3f))
+        assertEquals(2, pointsDessines(listOf(un)))
+        assertEquals(5, pointsDessines(listOf(un, deux)))
+        // Dessin déjà commencé à l'arrivée sur l'écran (TV relancée) : pas de grattement.
+        assertFalse(crayonAvance(-1, 40))
+        assertTrue(crayonAvance(2, 3))
+        // Rien de nouveau, ou feuille effacée : le crayon se tait.
+        assertFalse(crayonAvance(3, 3))
+        assertFalse(crayonAvance(30, 0))
+    }
+
+    @Test
+    fun `la boucle du crayon est bien dans l'appli`() {
+        assertTrue(java.io.File("src/main/res/raw/$FICHIER_CRAYON.ogg").isFile)
     }
 }
