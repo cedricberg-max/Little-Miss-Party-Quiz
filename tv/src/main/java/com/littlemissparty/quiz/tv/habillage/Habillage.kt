@@ -78,7 +78,7 @@ fun HabillageTv(state: UiState) {
     val statue = statueFigee(state as? UiState.Playing)
     // Qui a disparu ? : l'étape affichée par le plateau (mémoriser, tour de magie, chercher, réponse), de 1 à 4.
     val disparu = (state as? UiState.Playing)?.let { s -> s.question?.takeIf { it.isDisparu }?.let { etapeDisparu(it, s).ordinal + 1 } } ?: 0
-    val instant = remember(state, urgent, indices, statue, disparu, decompte) { instantDe(state, urgent, System.currentTimeMillis(), indices, statue, disparu, decompte) }
+    val instant = remember(state, urgent, indices, statue, disparu, decompte) { instantDe(state, urgent, System.currentTimeMillis(), indices, statue, disparu, decompte, presentation = (state as? UiState.Playing)?.intro == true) }
     LaunchedEffect(instant) { Sons.executer(Habillage.directeur.observer(instant)) }
     // Dernières questions du quiz à points multipliés : le plateau passe au doré, de la question à sa révélation.
     val dore = (state as? UiState.Playing)?.let { it.question?.double == true && it.phase in listOf(Phase.QUESTION, Phase.CLOSED, Phase.REVEAL) } == true
