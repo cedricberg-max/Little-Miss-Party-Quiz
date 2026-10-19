@@ -330,8 +330,9 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                 segments = listOf(Segment(e.at)), resumeAt = null,
                 // Paquet épuisé par les équipes précédentes : il est rebattu pour que chaque équipe ait son tour.
                 mime = m.copy(
-                    // Pictionary : le mot choisi passe en tête du paquet, les autres mots proposés resservent plus tard.
-                    deck = if (picto) listOf(m.pick!!) + (m.deck - m.pick) else m.deck.ifEmpty { cards.indices.toList() },
+                    // Pictionary : le mot choisi passe en tête du paquet ; les deux autres mots déjà montrés repartent tout
+                    // au fond, pour qu'aucune autre équipe ne les revoie avant que le paquet soit épuisé.
+                    deck = if (picto) listOf(m.pick!!) + (m.deck - m.offer.toSet()) + (m.offer - m.pick) else m.deck.ifEmpty { cards.indices.toList() },
                     team = e.team, found = 0, passed = 0, turns = m.turns + e.team, secret = null, offer = emptyList(), pick = null, started = e.at,
                 ),
             )
