@@ -6,7 +6,7 @@ import { writeProof } from "./proof.js";
 import { passwordCandidates } from "./secret.js";
 import {
   buildSnapshot, showTitle, playable, QUIZ_GAMES, BUILTIN_GAMES, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame, imageIds,
-  soundIds, MUSIC_GAMES, playableTracks, STATUES_SEC,
+  soundIds, MUSIC_GAMES, playableTracks, STATUES_SEC, PICTO_SEC,
   isFutureRound, moveRound, removeRound, uniqueRoundTitle,
 } from "./show.js";
 import { profileForAge } from "./profiles.js";
@@ -237,7 +237,7 @@ function nextLabel(st, teamCount) {
   }
   switch (st.phase) {
     case "lobby": return teamCount ? "Lancer la fête !" : "En attente des équipes";
-    case "question": return st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? "Terminer les mimes" : "Voir le classement") : "Arrêter le chrono";
+    case "question": return st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? `Terminer ${st.kind === "pictionary" ? "le Pictionary" : "les mimes"}` : "Voir le classement") : "Arrêter le chrono";
     case "closed": return "Révéler la réponse";
     case "reveal": return "Voir les scores";
     case "scores": {
@@ -263,14 +263,14 @@ function render() {
   const inQuestion = st.phase !== "lobby" && st.phase !== "ended" && st.index != null && st.index >= 0;
 
   $("c-step").textContent = inQuestion && st.mime
-    ? `Mimes · ${st.text ?? ""}`
+    ? (st.kind === "pictionary" ? "Pictionary" : `Mimes · ${st.text ?? ""}`)
     : inQuestion
     ? `Question ${st.index + 1} / ${st.total ?? "?"}${st.double ? " · ×2" : ""}`
     : st.phase === "lobby" ? live.plan?.title ?? "" : "";
   $("c-phase").textContent = st.paused ? `En pause · ${PHASES[st.phase] ?? ""}` : PHASES[st.phase] ?? "";
   $("c-phase").classList.toggle("on-hold", st.paused === true);
   renderHold(st, teams);
-  $("c-question").textContent = inQuestion ? st.text ?? q?.text ?? "" : st.phase === "ended" ? (gamesOf(st).next ? "Bravo à toutes les équipes ! Un jeu a été ajouté : la partie peut reprendre." : "Bravo à toutes les équipes ! Pour continuer, ajoutez un jeu (onglet Programme) ou rejouez-en un (🛟 Jeux).") : `${teams.length} équipe${teams.length > 1 ? "s" : ""} inscrite${teams.length > 1 ? "s" : ""}`;
+  $("c-question").textContent = inQuestion ? st.text ?? q?.text ?? "" : st.phase === "ended" ? (gamesOf(st).next ? "Bravo à toutes les équipes ! Un jeu a été ajouté : la partie peut reprendre." : "Bravo à toutes les équipes ! Pour continuer, ajoutez un jeu (onglet Programme) ou rejouez-en un (⏭ Changer de jeu).") : `${teams.length} équipe${teams.length > 1 ? "s" : ""} inscrite${teams.length > 1 ? "s" : ""}`;
 
   const correct = q?.correct ?? st.correct;
   const answerBtn = $("c-answer");
@@ -413,31 +413,45 @@ async function admit(device, type, extra, success) {
 
 /** Équipe choisie pour le prochain tour de mimes (par défaut : celle qui a le moins joué). */
 let mimeTeam = null;
+/** L'animatrice a choisi elle-même l'équipe (le Pictionary ne la remplace plus par celle qui voit le mot). */
+let mimeChosen = false;
 
 function renderMime(st, teams) {
   const m = st.phase === "question" ? st.mime : null;
   $("mime").hidden = !m;
   document.querySelector(".regie .control").classList.toggle("mime-mode", !!m);
-  if (!m) { mimeTeam = null; return; }
+  if (!m) { mimeTeam = null; mimeChosen = false; return; }
   const name = (id) => live.teams[id]?.name ?? "Équipe";
   const counts = m.counts ?? {};
   const turns = m.turns ?? [];
   const playing = m.team;
   const busy = !!pending?.advance || st.paused === true;
   // Pendant un tour, le choix est oublié : à la fin, la régie propose l'équipe qui a le moins joué.
-  if (playing) mimeTeam = null;
+  if (playing) { mimeTeam = null; mimeChosen = false; }
   else if (!mimeTeam || !live.teams[mimeTeam]) {
     // Ordre d'inscription, en commençant par les équipes qui ont le moins joué (tri stable).
     mimeTeam = [...teams].sort(([a], [b]) => turns.filter((t) => t === a).length - turns.filter((t) => t === b).length)[0]?.[0] ?? null;
   }
+  // Pictionary : un mot par tour, d'abord montré sur la tablette de l'équipe (m.secret), puis dessiné (m.team).
+  const picto = st.kind === "pictionary";
+  const secret = picto ? m.secret : null;
+  if (secret && live.teams[secret] && !playing && !mimeChosen) mimeTeam = secret;
   const card = m.card;
-  $("mime-now").hidden = !playing || !card;
+  $("mime-now").hidden = !(playing || secret) || !card;
   if (card) {
     $("mime-now").querySelector(".emoji").textContent = card.image ?? "🎭";
     $("mime-now").querySelector(".word").textContent = card.word;
   }
-  const n = (k) => `${k} mime${k > 1 ? "s" : ""}`;
-  $("mime-info").textContent = playing
+  const n = (k) => (picto ? `${k} dessin${k > 1 ? "s" : ""}` : `${k} mime${k > 1 ? "s" : ""}`);
+  $("mime-info").textContent = picto
+    ? playing
+      ? `${name(playing)} dessine ! Validez dès que l'équipe a trouvé le mot.`
+      : secret
+        ? `Le mot est sur la tablette de ${name(secret)} : le dessinateur le regarde, les autres sont retournés. Puis masquez-le pour lancer le dessin.`
+        : m.last
+          ? `Tour terminé : ${name(m.last.team)} ${m.last.found ? `a trouvé « ${m.last.word ?? "?"} » !` : `n'a pas trouvé « ${m.last.word ?? "?"} ».`} ${mimeRemaining(st).length ? "Qui joue maintenant ?" : "Toutes les équipes sont passées."}`
+          : "Qui commence ? Choisissez l'équipe, faites retourner ses coéquipiers, puis montrez le mot au dessinateur."
+    : playing
     ? `${name(playing)} joue : ${n(m.found ?? 0)} trouvé${(m.found ?? 0) > 1 ? "s" : ""} · ${m.left} carte${m.left > 1 ? "s" : ""} restante${m.left > 1 ? "s" : ""}`
     : m.last
         ? `Tour terminé : ${name(m.last.team)} a trouvé ${n(m.last.found)}. ${mimeRemaining(st).length ? "Qui joue maintenant ?" : "Toutes les équipes sont passées."}`
@@ -453,6 +467,7 @@ function renderMime(st, teams) {
       : `Toutes les équipes sont passées (${done.join(", ")}) : touchez « Voir le classement ».`;
   const box = $("mime-teams");
   box.hidden = !!playing;
+  box.classList.toggle("picto", picto);
   if (!box.hidden) {
     box.replaceChildren(...teams.map(([id, t]) => {
       const b = document.createElement("button");
@@ -464,25 +479,32 @@ function renderMime(st, teams) {
       small.textContent = `${n(counts[id] ?? 0)} · ${played ? `passée${played > 1 ? ` ${played} fois` : ""}` : "pas encore passée"}`;
       b.classList.toggle("played", played > 0);
       b.append(t.name ?? "Équipe", small);
-      b.onclick = () => { mimeTeam = id; render(); };
+      b.onclick = () => { mimeTeam = id; mimeChosen = true; render(); };
       return b;
     }));
   }
   const go = $("mime-go");
   go.hidden = !!playing;
-  go.textContent = mimeTeam ? `Top départ ! (${name(mimeTeam)})` : "Top départ !";
+  go.textContent = !picto ? (mimeTeam ? `Top départ ! (${name(mimeTeam)})` : "Top départ !")
+    : secret && secret === mimeTeam ? `🙈 Masquer le mot : on dessine ! (${name(secret)})`
+    : mimeTeam ? `👁 Montrer le mot à ${name(mimeTeam)}` : "👁 Montrer le mot";
   go.disabled = busy || !mimeTeam;
   $("mime-found").hidden = !playing;
   $("mime-found").disabled = busy;
-  $("mime-row").hidden = !playing;
+  $("mime-found").querySelector("small").textContent = picto ? `+${m.points ?? 150} points` : "+1 mime";
+  // Pictionary : « Autre mot » tant que le dessinateur découvre le sien ; pas de « Passer » ni de −1 pendant le dessin.
+  $("mime-row").hidden = picto ? !secret : !playing;
+  $("mime-pass").textContent = picto ? "Autre mot" : "Passer";
   $("mime-pass").disabled = busy || (m.left ?? 0) < 2;
+  $("mime-minus").hidden = picto;
   $("mime-minus").disabled = busy || !(m.found > 0);
   // Juste après un tour : corriger le compte de l'équipe qui vient de jouer, sans relancer de chrono.
   const fixable = !playing && m.last;
   $("mime-fix").hidden = !fixable;
   if (fixable) {
-    $("mime-fix-minus").textContent = `−1 pour ${name(m.last.team)}`;
-    $("mime-fix-plus").textContent = `+1 pour ${name(m.last.team)}`;
+    const unit = picto ? `${m.points ?? 150}` : "1";
+    $("mime-fix-minus").textContent = `−${unit} pour ${name(m.last.team)}`;
+    $("mime-fix-plus").textContent = `+${unit} pour ${name(m.last.team)}`;
     $("mime-fix-minus").disabled = busy || !(counts[m.last.team] > 0);
     $("mime-fix-plus").disabled = busy;
   }
@@ -667,7 +689,13 @@ $("flou-ok").onclick = () => { navigator.vibrate?.(60); send("buzz_ok", {}, { ad
 $("flou-ko").onclick = () => send("buzz_ko", {}, { advance: true });
 $("flou-bonus").onclick = () => { navigator.vibrate?.(60); send("buzz_bonus", {}, { advance: true }); };
 
-$("mime-go").onclick = () => { if (mimeTeam) send("mime_start", { team: mimeTeam }, { advance: true }); };
+$("mime-go").onclick = () => {
+  if (!mimeTeam) return;
+  const m = live.state?.mime;
+  if (live.state?.kind !== "pictionary") send("mime_start", { team: mimeTeam }, { advance: true });
+  else if (m?.secret && m.secret === mimeTeam) send("picto_draw", {}, { advance: true });
+  else send("picto_show", { team: mimeTeam }, { advance: true });
+};
 $("mime-found").onclick = () => { navigator.vibrate?.(60); send("mime_found", {}, { advance: true }); };
 $("mime-pass").onclick = () => send("mime_pass", {}, { advance: true });
 $("mime-minus").onclick = () => { const t = live.state?.mime?.team; if (t) send("mime_fix", { team: t, delta: -1 }); };
@@ -703,12 +731,13 @@ const played = (r, st, index) => r.start <= index && st.phase !== "lobby";
 
 function gameName(r, questions) {
   const q = questions[r.start];
-  return q?.kind === "mime" ? `Mimes : ${q.text}` : r.title;
+  return q?.kind === "mime" ? `Mimes : ${q.text}` : q?.kind === "pictionary" ? "Pictionary" : r.title;
 }
 
 function gameDetail(r, questions) {
   const q = questions[r.start];
   if (q?.kind === "mime") return `${q.cards?.length ?? 0} cartes · tour de ${q.duration} s par équipe`;
+  if (q?.kind === "pictionary") return `un mot par équipe · ${q.duration} s de dessin · ${q.points ?? 150} points`;
   const n = r.end - r.start + 1;
   // La TV ne republie que « double » : les questions à points ×2 sont celles de la Super Finale.
   const finale = questions.slice(r.start, r.end + 1).filter((x) => x.finale || x.double).length;
@@ -902,11 +931,11 @@ function roundHead(r, rounds, future, questions, index, editable) {
 function planItem(q, i, current) {
   const item = document.createElement("div");
   item.className = `plan-item${i === current ? " current" : ""}${i < current ? " done" : ""}`;
-  if (q.kind === "mime") {
+  if (q.kind === "mime" || q.kind === "pictionary") {
     const title = document.createElement("div");
-    title.textContent = `${i + 1}. Mimes : ${q.text}`;
+    title.textContent = q.kind === "pictionary" ? `${i + 1}. Pictionary` : `${i + 1}. Mimes : ${q.text}`;
     const detail = document.createElement("b");
-    detail.textContent = `${q.cards?.length ?? 0} cartes · tour de ${q.duration} s`;
+    detail.textContent = q.kind === "pictionary" ? `${q.cards?.length ?? 0} mots · ${q.duration} s de dessin par équipe` : `${q.cards?.length ?? 0} cartes · tour de ${q.duration} s`;
     item.append(title, detail);
     return item;
   }
@@ -959,7 +988,7 @@ async function fetchLibrary() {
     const rounds = Object.entries(s.val() ?? {})
       .filter(([, show]) => show)
       .sort((a, b) => (b[1].date ?? "").localeCompare(a[1].date ?? ""))
-      .flatMap(([id, show]) => (show.rounds ?? []).filter((r) => r && r.type !== "mimes" && r.type !== "statues" && r.type !== "finale" && !BUILTIN_GAMES[r.type] && !MUSIC_GAMES[r.type]).map((round, i) => {
+      .flatMap(([id, show]) => (show.rounds ?? []).filter((r) => r && r.type !== "mimes" && r.type !== "statues" && r.type !== "pictionary" && r.type !== "finale" && !BUILTIN_GAMES[r.type] && !MUSIC_GAMES[r.type]).map((round, i) => {
         const title = quizzes[round.quizId]?.title ?? `Manche ${i + 1}`;
         const label = QUIZ_GAMES[round.type] ? `${ROUND_TYPES[round.type]} : ${title}` : title;
         const date = show.date ? ` (${new Date(`${show.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })})` : "";
@@ -970,6 +999,7 @@ async function fetchLibrary() {
     const builtins = [
       ...Object.entries(BUILTIN_GAMES).map(([type, game]) => ({ key: `builtin/${type}`, label: ROUND_TYPES[type], source: { type, count: game.count } })),
       { key: "builtin/statues", label: ROUND_TYPES.statues, source: { type: "statues", duration: STATUES_SEC } },
+      { key: "builtin/pictionary", label: ROUND_TYPES.pictionary, source: { type: "pictionary", duration: PICTO_SEC } },
     ];
     library = { quizzes, mimes, playlists, contents, games, rounds, decks, quizGames, builtins, music };
   } catch (e) {
@@ -1086,9 +1116,9 @@ function renderPreview() {
   const { game, questions, problems } = picked;
   const st = live.state ?? { phase: "lobby" };
   $("lib-name").textContent = game.label;
-  const mime = questions[0]?.kind === "mime" ? questions[0] : null;
+  const mime = questions[0]?.kind === "mime" || questions[0]?.kind === "pictionary" ? questions[0] : null;
   $("lib-meta").textContent = mime
-    ? `Mimes · ${mime.cards.length} cartes · tour de ${mime.duration} s par équipe`
+    ? `${mime.kind === "pictionary" ? "Pictionary" : "Mimes"} · ${mime.cards.length} ${mime.kind === "pictionary" ? "mots · un mot par équipe" : "cartes"} · tour de ${mime.duration} s par équipe`
     : [game.from, `${questions.length} question${questions.length > 1 ? "s" : ""}`].filter(Boolean).join(" · ");
   const list = $("lib-questions");
   list.innerHTML = "";
@@ -1132,11 +1162,13 @@ const OLD_TV_CHANTE = "La TV doit être mise à jour pour jouer à « Chante le 
 const OLD_TV_QUISUIS = "La TV doit être mise à jour pour jouer à « Qui suis-je ? » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_STATUES = "La TV doit être mise à jour pour jouer aux statues musicales : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_DISPARU = "La TV doit être mise à jour pour jouer à « Qui a disparu ? » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+const OLD_TV_PICTO = "La TV doit être mise à jour pour jouer au Pictionary : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_BLIND = "La TV doit être mise à jour pour jouer au blind test : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 /** Jeu que la TV allumée ne sait pas encore jouer (ancienne version) : le message à montrer, sinon null. */
 function tvRefuses(questions) {
   if (!live.plan) return null;
   if (live.plan.mimes !== true && questions.some((q) => q?.kind === "mime")) return OLD_TV;
+  if (live.plan.pictionary !== true && questions.some((q) => q?.kind === "pictionary")) return OLD_TV_PICTO;
   if (live.plan.numbers !== true && questions.some((q) => q?.kind === "number")) return OLD_TV_NUMBER;
   if (live.plan.express !== true && questions.some((q) => q?.kind === "express")) return OLD_TV_EXPRESS;
   if (live.plan.zoom !== true && questions.some((q) => q?.kind === "zoom")) return OLD_TV_ZOOM;
@@ -1292,7 +1324,7 @@ function renderShows(st) {
     const date = show.date ? new Date(`${show.date}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) : "";
     meta.textContent = [show.childName, show.age ? `${show.age} ans` : "", date].filter(Boolean).join(" · ");
     const detail = document.createElement("span");
-    const asked = snapshot?.quiz.questions.filter((x) => x.kind !== "mime").length ?? 0;
+    const asked = snapshot?.quiz.questions.filter((x) => x.kind !== "mime" && x.kind !== "pictionary").length ?? 0;
     detail.textContent = snapshot
       ? `${snapshot.rounds.length} jeu${snapshot.rounds.length > 1 ? "x" : ""}${asked ? ` · ${asked} questions` : ""}`
       : problems[problems.length - 1];
@@ -1579,7 +1611,8 @@ $("c-next").onclick = async () => {
   const left = st?.phase === "question" && st.mime && !st.mime.team ? mimeRemaining(st) : [];
   if (left.length) {
     const names = left.map((id) => live.teams[id]?.name ?? "Équipe").join(", ");
-    if (!await demander({ title: "Terminer les mimes ?", text: `${names} ${left.length > 1 ? "ne sont" : "n'est"} pas encore ${left.length > 1 ? "passées" : "passée"}.`, ok: "Terminer les mimes" })) return;
+    const game = st.kind === "pictionary" ? "le Pictionary" : "les mimes";
+    if (!await demander({ title: `Terminer ${game} ?`, text: `${names} ${left.length > 1 ? "ne sont" : "n'est"} pas encore ${left.length > 1 ? "passées" : "passée"}.`, ok: `Terminer ${game}` })) return;
   }
   // Blind test : « next » lance, relance ou arrête la musique (la box décide selon l'état du morceau).
   send(st?.phase === "question" && !(st.mime && !st.mime.team) && !blindMode(st) ? "close" : "next", {}, { advance: true });

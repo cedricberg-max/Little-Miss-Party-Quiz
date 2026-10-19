@@ -29,6 +29,7 @@ object Codec {
             is GameEnded -> mapOf("type" to "end")
             is MimeTurnStarted -> mapOf("type" to "mime_start", "team" to e.team)
             is PictoShown -> mapOf("type" to "picto_show", "team" to e.team)
+            is PictoChosen -> mapOf("type" to "picto_choose", "choice" to e.choice)
             is MimeFound -> mapOf("type" to "mime_found")
             is MimePassed -> mapOf("type" to "mime_pass")
             is MimeCorrected -> mapOf("type" to "mime_fix", "team" to e.team, "delta" to e.delta)
@@ -75,6 +76,7 @@ object Codec {
             "end" -> GameEnded(seq, at)
             "mime_start" -> MimeTurnStarted(seq, at, m["team"] as String)
             "picto_show" -> PictoShown(seq, at, m["team"] as String)
+            "picto_choose" -> PictoChosen(seq, at, m.num("choice").toInt())
             "mime_found" -> MimeFound(seq, at)
             "mime_pass" -> MimePassed(seq, at)
             "mime_fix" -> MimeCorrected(seq, at, m["team"] as String, m.num("delta").toInt())
@@ -120,8 +122,18 @@ object Codec {
         "counts" to game.state.mimes[game.state.qid].orEmpty(),
         // Pictionary : équipe qui découvre son mot, et clé du dessin du tour (en cours ou dernier) dans `drawing/`.
         "secret" to m?.secret,
+        "offer" to game.offerCards.map { mapOf("word" to it.word, "image" to it.image) }.ifEmpty { null },
+        "chosen" to m?.takeIf { it.secret != null }?.pick?.let { m.offer.indexOf(it) },
+        "pickKey" to pickKey(game),
         "drawKey" to drawKey(game),
     )
+
+    /** Pictionary : clé où la tablette du dessinateur écrit son choix (`pictoChoice/`) : manche et heure de la proposition. */
+    fun pickKey(game: Game): String? {
+        val m = game.state.mime ?: return null
+        if (m.secret == null || game.question?.isPicto != true) return null
+        return "${game.state.qid.orEmpty().replace(Regex("[.#$\\[\\]/]"), "_")}-${m.shownAt}"
+    }
 
     /** Pictionary : clé du dessin du tour en cours (ou du dernier tour) : manche et heure de départ du tour. */
     fun drawKey(game: Game): String? {

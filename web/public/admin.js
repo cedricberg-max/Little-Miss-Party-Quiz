@@ -13,7 +13,7 @@ import { parseQuiz, checkQuestions, geminiPrompt, LETTERS } from "./importer.js"
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
 import {
   buildSnapshot, estimateMinutes, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, BUILTIN_GAMES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
-  roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC,
+  roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC, PICTO_SECONDS, PICTO_SEC, PICTO_POINTS, PICTO_RULE,
   blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras,
 } from "./show.js";
 import { EXTRACT_SECONDS, guessTrack, defaultStart, decodeFile, makeExtract, synthTune, encodeMp3, soundId } from "./audio.js";
@@ -257,9 +257,10 @@ function renderHome() {
 /** « 18 questions · 1 manche de mimes » : ce que contient une prestation. */
 function contentLabel(snapshot) {
   const items = snapshot.quiz.questions;
-  const q = items.filter((x) => x.kind !== "mime").length;
-  const m = items.length - q;
-  return [q ? `${q} question${q > 1 ? "s" : ""}` : "", m ? `${m} manche${m > 1 ? "s" : ""} de mimes` : ""].filter(Boolean).join(" · ");
+  const q = items.filter((x) => x.kind !== "mime" && x.kind !== "pictionary").length;
+  const m = items.filter((x) => x.kind === "mime").length;
+  const p = items.filter((x) => x.kind === "pictionary").length;
+  return [q ? `${q} question${q > 1 ? "s" : ""}` : "", m ? `${m} manche${m > 1 ? "s" : ""} de mimes` : "", p ? `${p} Pictionary` : ""].filter(Boolean).join(" · ");
 }
 $("home-new").onclick = () => editShow(null);
 $("home-import").onclick = () => $("quiz-import-open").click();
@@ -361,6 +362,7 @@ function formShow() {
     rounds: editing.rounds.filter(roundFilled).map((r) => (BUILTIN_GAMES[r.type] ? { type: r.type, count: r.count ?? BUILTIN_GAMES[r.type].count }
       : r.type === "mimes" ? { type: "mimes", deckId: r.deckId }
       : r.type === "statues" ? { type: "statues", duration: r.duration ?? STATUES_SEC }
+      : r.type === "pictionary" ? { type: "pictionary", duration: r.duration ?? PICTO_SEC }
       : MUSIC_GAMES[r.type] ? { type: r.type, playlistId: r.playlistId }
       : { type: r.type ?? "quiz", quizId: r.quizId, ...(r.count > 0 ? { count: r.count } : {}), ...((r.type ?? "quiz") === "quiz" && r.finale > 0 ? { finale: r.finale } : {}) })),
   };
@@ -397,6 +399,10 @@ function refreshRounds() {
         // Statues musicales : rien à préparer, seulement la durée de la musique.
         ? h("select", { class: "grow", "aria-label": "Durée", onchange: (e) => { r.duration = Number(e.target.value); refreshSummary(); } },
           ...STATUES_SECONDS.map((n) => h("option", { value: n, selected: (r.duration ?? STATUES_SEC) === n, text: `${n} secondes de musique (on danse, on se fige à l'arrêt ; vous désignez l'équipe gagnante)` })))
+        : r.type === "pictionary"
+        // Pictionary : les mots viennent du catalogue (page Jeux), seulement le temps de dessin par équipe.
+        ? h("select", { class: "grow", "aria-label": "Temps de dessin", onchange: (e) => { r.duration = Number(e.target.value); refreshSummary(); } },
+          ...PICTO_SECONDS.map((n) => h("option", { value: n, selected: (r.duration ?? PICTO_SEC) === n, text: `${n} secondes de dessin par équipe (un mot par tour, ${PICTO_POINTS} points s'il est trouvé)` })))
         : MUSIC_GAMES[r.type]
         ? h("select", { class: "grow", "aria-label": "Playlist", onchange: (e) => { r.playlistId = e.target.value; refreshSummary(); } },
           h("option", { value: "", text: lists.length ? "Choisir une playlist…" : "Aucune playlist : créez-en une dans Blind test" }),
@@ -413,7 +419,7 @@ function refreshRounds() {
               : r.type === "zoom" || r.type === "flou" ? `${q.title} (${zoomQuestions(q).length} avec photo)` : `${q.title} (${playable(q).length} validées)`,
           }))),
       // Jeux tirés d'un quiz : toutes ses questions retenues, ou seulement les premières.
-      !BUILTIN_GAMES[r.type] && r.type !== "statues" && r.type !== "mimes" && !MUSIC_GAMES[r.type]
+      !BUILTIN_GAMES[r.type] && r.type !== "statues" && r.type !== "pictionary" && r.type !== "mimes" && !MUSIC_GAMES[r.type]
         ? h("select", { class: "count", "aria-label": "Nombre de questions", onchange: (e) => { r.count = Number(e.target.value) || null; refreshSummary(); } },
           h("option", { value: "", text: "Toutes les questions" }),
           ...[1, 2, 3, 4, 5, 6, 8, 10, 12, 15].map((n) => h("option", { value: n, selected: r.count === n, text: n === 1 ? "La première seulement" : `Les ${n} premières` })))
@@ -470,7 +476,7 @@ function refreshReuse() {
 /** Contenu d'une manche (titre du quiz, du paquet, de la playlist), "" pour un jeu sans contenu, null s'il n'existe plus. */
 function roundContent(r) {
   if (!r?.type && !r?.quizId) return null;
-  if (BUILTIN_GAMES[r.type] || r.type === "statues") return "";
+  if (BUILTIN_GAMES[r.type] || r.type === "statues" || r.type === "pictionary") return "";
   if (r.type === "mimes") return mimes[r.deckId]?.title ?? null;
   if (MUSIC_GAMES[r.type]) return playlists[r.playlistId]?.title ?? null;
   return quizzes[r.quizId]?.title ?? null;
@@ -1394,6 +1400,7 @@ const GAME_GROUPS = [
   ] },
   { title: "Contenu intégré", hint: "Prêts à jouer : la manche tire au hasard dans un catalogue adapté à l'âge. Vous pouvez retirer des éléments et ajouter les vôtres.", games: [
     { type: "chante", icon: "🎤" }, { type: "quisuis", icon: "🕵" }, { type: "disparu", icon: "🎩" },
+    { type: "pictionary", icon: "✏️", rule: `Équipe par équipe : vous montrez un mot sur la tablette de l'équipe, un enfant le dessine et le dessin s'affiche en direct sur la TV. ${PICTO_POINTS} points si son équipe trouve avant la fin du chrono. Le temps de dessin se choisit dans la prestation.` },
   ] },
   { title: "Sans contenu", hint: "Rien à préparer.", games: [
     { type: "statues", icon: "🗿", rule: "La musique s'arrête par moments : tout le monde se fige ! Vous désignez l'équipe gagnante depuis la régie. La durée se choisit dans la prestation." },
@@ -1443,8 +1450,8 @@ let builtinType = null;
 function openBuiltin(type) {
   builtinType = type;
   $("builtin-title").textContent = ROUND_TYPES[type];
-  const rule = BUILTIN_GAMES[type].rule;
-  $("builtin-rule").textContent = `${rule[0].toUpperCase()}${rule.slice(1)}. Chaque manche tire au hasard parmi les éléments actifs ; le nombre se choisit dans la prestation. Les éléments marqués « grands » ne sortent pas pour les 6-8 ans.`;
+  const rule = BUILTIN_GAMES[type]?.rule ?? PICTO_RULE;
+  $("builtin-rule").textContent = `${rule[0].toUpperCase()}${rule.slice(1)}. ${type === "pictionary" ? "Chaque tour tire un mot au hasard parmi les mots actifs" : "Chaque manche tire au hasard parmi les éléments actifs ; le nombre se choisit dans la prestation"}. Les éléments marqués « grands » ne sortent pas pour les 6-8 ans.`;
   status("builtin-status", "");
   renderBuiltinForm();
   show("builtin");
@@ -1511,6 +1518,7 @@ function renderBuiltinForm() {
   const form = $("builtin-add");
   const field = (label, id, props = {}) => h("label", { class: props.wide ? "wide" : "" }, label, h(props.area ? "textarea" : "input", { id, maxlength: props.max ?? 60, rows: props.rows, placeholder: props.placeholder ?? "" }));
   const fields = type === "chante" ? [field("Nouveau mot", "bi-word", { max: 40, placeholder: "arc-en-ciel" })]
+    : type === "pictionary" ? [field("Mot à dessiner", "bi-word", { max: 40, placeholder: "Toboggan" }), field("Émoji (facultatif)", "bi-emoji", { max: 16, placeholder: "🛝" })]
     : type === "quisuis" ? [
       field("Réponse", "bi-answer", { placeholder: "Le kangourou" }), field("Émoji (facultatif)", "bi-emoji", { max: 16, placeholder: "🦘" }),
       ...[1, 2, 3, 4].map((n) => field(`Indice ${n}${n === 1 ? " (le plus difficile)" : n === 4 ? " (le plus facile)" : ""}`, `bi-clue${n}`, { wide: true, max: 120 })),
@@ -1519,7 +1527,7 @@ function renderBuiltinForm() {
       field("Nom de la famille d'objets", "bi-theme", { placeholder: "Les jouets" }),
       field("Objets : un par ligne, le mot puis son émoji (5 à 12)", "bi-objects", { wide: true, area: true, rows: 6, max: 1200, placeholder: "Ours en peluche 🧸\nBallon ⚽\nDé 🎲" }),
     ];
-  form.replaceChildren(h("p", { class: "label wide", text: `Ajouter ${type === "chante" ? "un mot" : type === "quisuis" ? "un personnage" : "une famille d'objets"}` }),
+  form.replaceChildren(h("p", { class: "label wide", text: `Ajouter ${type === "chante" || type === "pictionary" ? "un mot" : type === "quisuis" ? "un personnage" : "une famille d'objets"}` }),
     ...fields, h("div", { class: "wide" }, h("button", { class: "btn", type: "submit", text: "Ajouter" })));
 }
 
@@ -1529,6 +1537,7 @@ $("builtin-add").onsubmit = (e) => {
   const game = CONTENT_GAMES[type];
   const val = (id) => $(id)?.value.trim() ?? "";
   const raw = type === "chante" ? { word: val("bi-word") }
+    : type === "pictionary" ? { word: val("bi-word"), image: val("bi-emoji") }
     : type === "quisuis" ? { answer: val("bi-answer"), emoji: val("bi-emoji"), clues: [1, 2, 3, 4].map((n) => val(`bi-clue${n}`)).filter(Boolean) }
     : { theme: val("bi-theme"), objects: val("bi-objects").split("\n").map((line) => {
       const m = line.trim().match(/^(.*\S)\s+(\S+)$/u);
@@ -1536,7 +1545,7 @@ $("builtin-add").onsubmit = (e) => {
     }).filter(Boolean) };
   const item = game.clean(raw);
   if (!item) {
-    return status("builtin-status", type === "chante" ? "Écrivez le mot à ajouter."
+    return status("builtin-status", type === "chante" || type === "pictionary" ? "Écrivez le mot à ajouter."
       : type === "quisuis" ? "Il faut la réponse et au moins 2 indices."
       : "Il faut un nom et au moins 5 objets, chacun avec son émoji (« Poupée 🪆 »).");
   }

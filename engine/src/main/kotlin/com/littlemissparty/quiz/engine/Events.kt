@@ -86,10 +86,13 @@ data class Award(val choice: Int?, val correct: Boolean, val points: Int, val bo
 data class MimeTurnStarted(override val seq: Int, override val at: Long, val team: String) : GameEvent
 
 /**
- * Pictionary : le mot du tour s'affiche sur la tablette de l'équipe [team] (le reste de l'équipe est tourné).
- * Aucun chrono : il part quand l'animatrice masque le mot ([MimeTurnStarted]).
+ * Pictionary : trois mots s'affichent sur la tablette de l'équipe [team] (le reste de l'équipe est tourné) ; le
+ * dessinateur en choisit un. Aucun chrono : il part quand l'animatrice masque le mot ([MimeTurnStarted]).
  */
 data class PictoShown(override val seq: Int, override val at: Long, val team: String) : GameEvent
+
+/** Pictionary : le dessinateur choisit, sur sa tablette, le mot [choice] (0 à 2) parmi ceux qui lui sont proposés. */
+data class PictoChosen(override val seq: Int, override val at: Long, val choice: Int) : GameEvent
 
 /** Mime trouvé, validé par l'animatrice : un point pour l'équipe qui joue, carte suivante. */
 data class MimeFound(override val seq: Int, override val at: Long) : GameEvent

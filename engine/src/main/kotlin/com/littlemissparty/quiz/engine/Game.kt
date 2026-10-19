@@ -27,6 +27,9 @@ const val ARM_TOLERANCE_MS = 250L
 /** Vrai ou Faux express : temps de la révélation avant l'affirmation suivante. */
 const val EXPRESS_REVEAL_MS = 3_500L
 
+/** Pictionary : nombre de mots proposés au dessinateur. */
+const val PICTO_OFFER = 3
+
 /** Image floue : l'équipe qui a buzzé et attend le verdict de l'animatrice, et les équipes déjà bloquées. */
 data class BuzzRound(
     val team: String? = null,
@@ -122,8 +125,13 @@ data class MimeRound(
     val passed: Int = 0,
     val last: MimeTurn? = null,
     val turns: List<String> = emptyList(),
-    /** Pictionary : équipe qui découvre son mot sur sa tablette, avant que le chrono parte. */
+    /** Pictionary : équipe qui choisit son mot sur sa tablette, avant que le chrono parte. */
     val secret: String? = null,
+    /** Pictionary : les mots proposés au dessinateur (indices dans [Question.cards]), et celui qu'il a choisi. */
+    val offer: List<Int> = emptyList(),
+    val pick: Int? = null,
+    /** Pictionary : heure où les mots ont été proposés (clé du choix envoyé par la tablette). */
+    val shownAt: Long? = null,
     /** Heure du serveur où le tour en cours (ou le dernier) a commencé : clé du dessin de ce tour. */
     val started: Long? = null,
 )
@@ -280,20 +288,31 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             val cards = quiz.questions.getOrNull(s.index)?.takeIf { it.isPicto }?.cards.orEmpty()
             if (m == null || m.team != null || m.secret == e.team || s.paused || cards.isEmpty() || e.team.isBlank()) null
             // Paquet épuisé par les équipes précédentes : il est rebattu pour que chaque équipe ait son tour.
-            else s.copy(mime = m.copy(deck = m.deck.ifEmpty { cards.indices.toList() }, secret = e.team))
+            else {
+                val deck = m.deck.ifEmpty { cards.indices.toList() }
+                s.copy(mime = m.copy(deck = deck, secret = e.team, offer = deck.take(PICTO_OFFER), pick = null, shownAt = e.at))
+            }
+        }
+        is PictoChosen -> {
+            val m = s.mime
+            if (m?.secret == null || m.team != null || s.paused || e.choice !in m.offer.indices || m.pick == m.offer[e.choice]) null
+            else s.copy(mime = m.copy(pick = m.offer[e.choice]))
         }
         is MimeTurnStarted -> {
             val m = s.mime
             val q = quiz.questions.getOrNull(s.index)
             val cards = q?.cards.orEmpty()
             // Pictionary : le dessin commence seulement après que l'équipe a vu son mot.
-            if (m == null || m.team != null || s.paused || cards.isEmpty() || e.team.isBlank() || (q?.isPicto == true && m.secret != e.team)) null
+            val picto = q?.isPicto == true
+            // Pictionary : le dessin commence seulement après que l'équipe a choisi son mot.
+            if (m == null || m.team != null || s.paused || cards.isEmpty() || e.team.isBlank() || (picto && (m.secret != e.team || m.pick == null))) null
             else s.copy(
                 segments = listOf(Segment(e.at)), resumeAt = null,
                 // Paquet épuisé par les équipes précédentes : il est rebattu pour que chaque équipe ait son tour.
                 mime = m.copy(
-                    deck = m.deck.ifEmpty { cards.indices.toList() },
-                    team = e.team, found = 0, passed = 0, turns = m.turns + e.team, secret = null, started = e.at,
+                    // Pictionary : le mot choisi passe en tête du paquet, les autres mots proposés resservent plus tard.
+                    deck = if (picto) listOf(m.pick!!) + (m.deck - m.pick) else m.deck.ifEmpty { cards.indices.toList() },
+                    team = e.team, found = 0, passed = 0, turns = m.turns + e.team, secret = null, offer = emptyList(), pick = null, started = e.at,
                 ),
             )
         }
@@ -316,8 +335,16 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         is MimePassed -> {
             val m = s.mime
             val picto = quiz.questions.getOrNull(s.index)?.isPicto == true
-            // Pictionary : « Autre mot » seulement pendant que l'équipe découvre son mot, avant de dessiner.
-            if (m == null || s.paused || m.deck.size < 2 || (if (picto) m.secret == null else m.team == null)) null
+            // Pictionary : « Autres mots » seulement pendant que le dessinateur choisit, avant de dessiner.
+            if (m == null || s.paused) null
+            else if (picto) {
+                if (m.secret == null || m.team != null || m.deck.size <= m.offer.size) null
+                else {
+                    val deck = m.deck.drop(m.offer.size) + m.deck.take(m.offer.size)
+                    s.copy(mime = m.copy(deck = deck, offer = deck.take(PICTO_OFFER), pick = null, passed = m.passed + 1))
+                }
+            }
+            else if (m.team == null || m.deck.size < 2) null
             else s.copy(mime = m.copy(deck = m.deck.drop(1) + m.deck.first(), passed = m.passed + 1))
         }
         is MimeCorrected -> {
@@ -672,6 +699,9 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     /** Pictionary : montrer le mot à l'équipe [team], sur sa tablette. */
     fun pictoShow(team: String, now: Long): GameEvent? = emit(PictoShown(nextSeq, now, team))
 
+    /** Pictionary : le dessinateur a choisi le mot [choice] (0 à 2) parmi ceux proposés sur sa tablette. */
+    fun pictoChoose(choice: Int, now: Long): GameEvent? = emit(PictoChosen(nextSeq, now, choice))
+
     /** Pictionary : masquer le mot, la tablette devient une feuille à dessin et le chrono part. */
     fun pictoDraw(now: Long): GameEvent? = state.mime?.secret?.let { mimeStart(it, now) }
     fun mimeFound(now: Long): GameEvent? = emit(MimeFound(nextSeq, now))
@@ -688,7 +718,15 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     }
 
     /** Carte affichée pendant le tour de mimes, ou null. */
-    val mimeCard: MimeCard? get() = state.mime?.takeIf { it.team != null || it.secret != null }?.deck?.firstOrNull()?.let { question?.cards?.getOrNull(it) }
+    val mimeCard: MimeCard? get() {
+        val m = state.mime ?: return null
+        // Pictionary, pendant le choix : le mot choisi par le dessinateur (aucun tant qu'il hésite).
+        if (m.secret != null) return m.pick?.let { question?.cards?.getOrNull(it) }
+        return m.takeIf { it.team != null }?.deck?.firstOrNull()?.let { question?.cards?.getOrNull(it) }
+    }
+
+    /** Pictionary : les mots proposés au dessinateur pendant qu'il choisit. */
+    val offerCards: List<MimeCard> get() = state.mime?.takeIf { it.secret != null }?.offer.orEmpty().mapNotNull { question?.cards?.getOrNull(it) }
 
     /** Pictionary : le mot du dernier tour terminé, montré à tous (TV comprise) une fois le tour fini. */
     val lastCard: MimeCard? get() = state.mime?.last?.card?.let { question?.cards?.getOrNull(it) }
