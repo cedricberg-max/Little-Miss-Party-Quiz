@@ -41,6 +41,10 @@ import kotlinx.coroutines.delay
 object Neon {
     val Nuit = Color(0xFF0B0614)
     val Nuit2 = Color(0xFF1A0B2E)
+    /** Fonds de l'appli (plateau, intermèdes, fenêtres) : le violet un peu plus clair validé sur l'écran du blind test. */
+    val FondHaut = Color(0xFF3A1466)
+    val Fond = Color(0xFF221040)
+    val FondBas = Color(0xFF160B2B)
     val Violet = Color(0xFF6E28BE)
     val Blanc = Color(0xFFFFF4F2)
     val Halo = Color(0xFFF888B3)
@@ -263,7 +267,7 @@ fun DecorPlateau(chaud: Boolean) {
             Modifier.fillMaxSize().drawWithCache {
                 val w = size.width
                 val h = size.height
-                val fond = Brush.radialGradient(listOf(Color(0xFF33115A), Color(0xFF1F0E3A), Color(0xFF160B2B)), Offset(w / 2, 0f), w * 0.85f)
+                val fond = Brush.radialGradient(listOf(Neon.FondHaut, Neon.Fond, Neon.FondBas), Offset(w / 2, 0f), w * 0.85f)
                 val lignes = sol(w, h)
                 val faisceaux = listOf(faisceau(w, h, 0.18f, 16f), faisceau(w, h, 0.82f, -16f))
                 onDrawBehind {

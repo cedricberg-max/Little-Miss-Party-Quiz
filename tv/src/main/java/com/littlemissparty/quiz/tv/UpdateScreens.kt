@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.littlemissparty.quiz.engine.Release
 import java.util.Locale
+import com.littlemissparty.quiz.tv.habillage.Neon
 
 class UpdateActions(
     val search: () -> Unit,
@@ -64,7 +65,7 @@ fun UpdateDialog(ui: UpdateUi, busy: Boolean, actions: UpdateActions) {
         Column(
             Modifier
                 .clip(RoundedCornerShape(32.dp))
-                .background(Palette.Night)
+                .background(Neon.Fond)
                 .padding(40.dp)
                 .width(720.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -98,7 +99,7 @@ fun UpdateOfferDialog(release: Release, actions: UpdateActions) {
         Column(
             Modifier
                 .clip(RoundedCornerShape(32.dp))
-                .background(Brush.verticalGradient(listOf(Color(0xFF2B1642), Palette.Night)))
+                .background(Brush.verticalGradient(listOf(Neon.FondHaut, Neon.Fond)))
                 .border(2.dp, Brush.horizontalGradient(listOf(OfferHalo, Palette.Gold, OfferHalo)), RoundedCornerShape(32.dp))
                 .padding(44.dp)
                 .width(720.dp),

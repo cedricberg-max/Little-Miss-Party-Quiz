@@ -125,7 +125,7 @@ fun GeneriqueSalon(partie: String, prenom: String, titre: String) {
                 scaleX = 1f + 0.08f * sortie
                 scaleY = 1f + 0.08f * sortie
             }
-            .background(Neon.Nuit.copy(alpha = 0.93f)),
+            .background(Neon.Fond.copy(alpha = 0.93f)),
         contentAlignment = Alignment.Center,
     ) {
         Rayons(ms)

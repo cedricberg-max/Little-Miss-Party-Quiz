@@ -268,7 +268,7 @@ fun BlindRevelation(
 @Composable
 fun BlindDouble(points: Int, restants: Int, modifier: Modifier = Modifier) {
     val ms = horloge(restants)
-    Box(modifier.fillMaxSize().background(Neon.Nuit.copy(alpha = 0.88f)), contentAlignment = Alignment.Center) {
+    Box(modifier.fillMaxSize().background(Neon.Fond.copy(alpha = 0.88f)), contentAlignment = Alignment.Center) {
         Rayons(ms)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(

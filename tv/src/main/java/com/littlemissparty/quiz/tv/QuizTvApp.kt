@@ -276,7 +276,7 @@ private fun QuitDialog(
                 .padding(horizontal = 48.dp, vertical = 27.dp)
                 .widthIn(max = 720.dp)
                 .clip(RoundedCornerShape(32.dp))
-                .background(Palette.Night)
+                .background(Neon.Fond)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 44.dp, vertical = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
