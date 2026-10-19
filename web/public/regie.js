@@ -23,6 +23,8 @@ const BOX_TIMEOUT_MS = 6000;
 
 let db, uid, code, onExit;
 let serverOffset = 0;
+/** Réaffichage à la fin du décompte de reprise (le bouton principal redevient actif). */
+let countdownTimer = null;
 let unsubscribers = [];
 let live = { state: null, teams: {}, presence: {}, plan: null, answers: {}, requests: {}, connected: true };
 /** Appareils dont la demande d'entrée est en cours de traitement par la box. */
@@ -313,7 +315,12 @@ function render() {
   pause.textContent = st.paused ? "Reprendre (3, 2, 1)" : "Pause";
   pause.classList.toggle("resume", st.paused === true);
   pause.disabled = st.phase === "lobby" || st.phase === "ended" || !!pending?.advance;
-  next.disabled = next.disabled || st.paused === true || (blindMode(st) && st.phase === "question" && !!st.buzz?.team);
+  // Décompte 3, 2, 1 d'une reprise : « Arrêter le chrono » attend la fin du décompte (un appui juste après
+  // « Reprendre » fermerait la question avant qu'elle reparte : « Temps écoulé ! » sur la TV).
+  const countdown = st.phase === "question" && !st.paused && (st.resumeAt ?? 0) - (Date.now() + serverOffset);
+  clearTimeout(countdownTimer);
+  if (countdown > 0) countdownTimer = setTimeout(render, countdown + 50);
+  next.disabled = next.disabled || st.paused === true || countdown > 0 || (blindMode(st) && st.phase === "question" && !!st.buzz?.team);
   // Mimes : le gros bouton « Trouvé » est dans la rubrique ; le bas de l'écran arrête le tour ou la manche.
   if (st.phase === "question" && st.mime) next.classList.toggle("secondary", !!st.mime.team);
   else next.classList.remove("secondary");

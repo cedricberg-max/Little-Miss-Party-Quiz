@@ -955,7 +955,9 @@ describe("régie", () => {
     await page.locator("#c-pause", { hasText: "Reprendre (3, 2, 1)" }).click();
     await page.locator("#c-hold").waitFor({ state: "hidden" });
     await page.locator("#c-pause", { hasText: "Pause" }).waitFor();
-    assert.equal(await page.locator("#c-next").isDisabled(), false);
+    // Pendant le décompte 3, 2, 1, « Arrêter le chrono » attend : un appui réflexe ne ferme pas la question.
+    assert.equal(await page.locator("#c-next").isDisabled(), true, "Arrêt du chrono bloqué pendant le décompte");
+    await page.locator("#c-next:not([disabled])", { hasText: "Arrêter le chrono" }).waitFor({ timeout: 5000 });
     assert.deepEqual((await commands()).map((c) => c.type).sort(), ["next", "pause", "resume"]);
     await page.context().close();
   });
