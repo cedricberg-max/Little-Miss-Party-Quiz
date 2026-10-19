@@ -297,7 +297,7 @@ class RegieTest : TestTv() {
         ecran.voit("Voir le classement")
         assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("Après le Pictionary")
-        ecran.voit("Jeu suivant : Animaux")
+        ecran.voit("Jeu suivant : Mimes")
 
         // Mimes juste après : leurs propres points, et rien du Pictionary ne déborde.
         assertEquals("applied", regie.commande(code, "next"))
@@ -472,7 +472,7 @@ class RegieTest : TestTv() {
 
         assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("CHANTE LE MOT !")
-        ecran.voit("MAISON")
+        ecran.voit("SOLEIL")
         attendreQue("buzzer ouvert") { licornes.etat(code).takeIf { it.child("qid").value == "c1" && it.child("buzzOpen").value == true } }
         assertTrue(licornes.buzzer(code))
         ecran.voit("À vous de chanter !")
