@@ -1,7 +1,7 @@
 package com.littlemissparty.quiz.tv
 
 /** Couleurs proposées aux équipes, les mêmes que sur le pupitre (web/public/theme.js). */
-val TEAM_COLORS = listOf("#FF3CAC", "#FFD166", "#06D6A0", "#2B86C5", "#9B5DE5", "#F15BB5", "#FF7F11", "#00BBF9")
+val TEAM_COLORS = listOf("#FF3CAC", "#FFD166", "#06D6A0", "#2B86C5", "#9B5DE5", "#F94144", "#FF7F11", "#9EF01A")
 
 /** Clé de réservation d'une couleur dans la base (games/<code>/colors/<clé>) : « #ff3cac » → « FF3CAC ». */
 fun colorKey(color: String): String = color.removePrefix("#").uppercase()
