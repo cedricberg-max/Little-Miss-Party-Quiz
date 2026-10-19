@@ -101,7 +101,7 @@ private fun Roulette(cible: Int, cle: Any?): String {
 @Composable
 private fun NumberReveal(state: UiState.Playing) {
     val q = state.question ?: return
-    // Le nombre arrive avec l'or de la révélation, puis le classement des écarts.
+    // Le nombre juste arrive en vert (comme la bonne réponse des QCM) avec la révélation, puis le classement des écarts.
     val visible = apres(Tempo.REVELATION_OR, q.id)
     val pop = remember(q.id) { Animatable(0.5f) }
     LaunchedEffect(q.id, visible) {
@@ -110,7 +110,7 @@ private fun NumberReveal(state: UiState.Playing) {
     val defile = Roulette(q.correct, q.id)
     Text(
         if (visible) "${q.correct}" else defile,
-        color = Neon.Or, fontSize = 72.sp, lineHeight = 78.sp, fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
+        color = if (visible) Neon.JusteClair else Neon.Or, fontSize = 72.sp, lineHeight = 78.sp, fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
         modifier = Modifier.graphicsLayer { scaleX = pop.value; scaleY = pop.value },
     )
     Spacer(Modifier.height(10.dp))

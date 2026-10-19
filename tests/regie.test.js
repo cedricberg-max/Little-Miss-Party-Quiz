@@ -426,7 +426,7 @@ describe("régie", () => {
     await inRegie(newPassword);
     // L'animatrice reliée avant le changement pilote toujours.
     await addTeam("rose", "Les Roses");
-    await before.locator("#c-next", { hasText: "Lancer le quiz" }).click();
+    await before.locator("#c-next", { hasText: "Lancer la fête" }).click();
     await before.locator("#c-question", { hasText: "Couleur du ciel ?" }).waitFor();
     for (const p of [before, admin, oldPassword, newPassword]) await p.context().close();
   });
@@ -788,7 +788,7 @@ describe("régie", () => {
     assert.equal(await page.locator("#c-next").isDisabled(), true);
 
     await addTeam("rose", "Les Roses");
-    await page.locator("#c-next", { hasText: "Lancer le quiz" }).click();
+    await page.locator("#c-next", { hasText: "Lancer la fête" }).click();
     await page.locator("#c-question", { hasText: "Couleur du ciel ?" }).waitFor();
     await page.locator("#c-answer", { hasText: "Réponse B · Bleu" }).waitFor();
     assert.deepEqual((await commands()).map((c) => [c.type, c.expectSeq]), [["next", 0]]);
@@ -809,7 +809,7 @@ describe("régie", () => {
     await setPresence("rose", true);
     const page = await openRegie();
     await pair(page);
-    await page.locator("#c-next", { hasText: "Lancer le quiz" }).click();
+    await page.locator("#c-next", { hasText: "Lancer la fête" }).click();
     await page.locator("#c-question", { hasText: "Couleur du ciel ?" }).waitFor();
 
     await page.locator("#c-pause", { hasText: "Pause" }).click();
@@ -878,7 +878,7 @@ describe("régie", () => {
     await addTeam("rose", "Les Roses");
     const page = await openRegie();
     await pair(page);
-    await page.locator("#c-next", { hasText: "Lancer le quiz" }).waitFor();
+    await page.locator("#c-next", { hasText: "Lancer la fête" }).waitFor();
     await page.locator("#c-next").dblclick();
     await page.locator("#c-question", { hasText: "Couleur du ciel ?" }).waitFor();
     assert.equal((await commands()).length, 1);
@@ -894,8 +894,8 @@ describe("régie", () => {
     await pair(a);
     const b = await openRegie();
     await pair(b);
-    await a.locator("#c-next", { hasText: "Lancer le quiz" }).waitFor();
-    await b.locator("#c-next", { hasText: "Lancer le quiz" }).waitFor();
+    await a.locator("#c-next", { hasText: "Lancer la fête" }).waitFor();
+    await b.locator("#c-next", { hasText: "Lancer la fête" }).waitFor();
     await Promise.all([a.click("#c-next"), b.click("#c-next")]);
     await waitFor(async () => (await commands()).length === 2, "deux commandes reçues");
     await box.release();
@@ -982,7 +982,7 @@ describe("régie", () => {
     await addTeam("rose", "Les Roses");
     const page = await openRegie();
     await pair(page);
-    await page.locator("#c-next", { hasText: "Lancer le quiz" }).click();
+    await page.locator("#c-next", { hasText: "Lancer la fête" }).click();
     await page.locator("#r-toast", { hasText: "La TV ne répond pas" }).waitFor({ timeout: 10000 });
     assert.equal(await page.locator("#c-next").isDisabled(), false);
     await page.context().close();
@@ -1006,7 +1006,7 @@ describe("remplacement d'un appareil en cours de partie", () => {
     const old = await tablet("Les Bleus");
     await old.locator("#screen-play.active").waitFor();
     await addTeam("rose", "Les Roses");
-    await regie.locator("#c-next", { hasText: "Lancer le quiz" }).click();
+    await regie.locator("#c-next", { hasText: "Lancer la fête" }).click();
     await old.locator("#screen-question.active").waitFor();
     const [blue] = Object.entries(await read("teams")).find(([, t]) => t.name === "Les Bleus");
     return { regie, old, blue };
@@ -1081,7 +1081,7 @@ describe("remplacement d'un appareil en cours de partie", () => {
     await addTeam("rose", "Les Roses");
     const slow = await openRegie();
     await slow.locator("#screen-join.active").waitFor();
-    await regie.locator("#c-next", { hasText: "Lancer le quiz" }).click();
+    await regie.locator("#c-next", { hasText: "Lancer la fête" }).click();
     await waitFor(async () => (await read("state"))?.phase === "question", "quiz lancé");
     await slow.fill("#team-name", "Les Lents");
     await slow.click("#join");
@@ -1817,6 +1817,35 @@ describe("bibliothèque de quiz et prestations", () => {
     await update(gameRef(), { public: { title: "L'anniversaire de Léa", childName: "Léa" } });
     const page = await openRegie();
     await page.locator("#join-welcome", { hasText: "Joyeux anniversaire Léa !" }).waitFor();
+    await page.context().close();
+  });
+});
+
+describe("défis de la pause", () => {
+  const defis = async () => (await get(ref(hostDb(), "settings/defis/list"))).val();
+
+  test("la régie ajoute, modifie et efface les défis affichés pendant la pause", async () => {
+    box = startBox();
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    await page.click("#tab-defis");
+    // Rien d'enregistré : la liste d'origine s'affiche, prête à être modifiée.
+    await page.locator("#panel-defis ol.defis input").nth(6).waitFor();
+    assert.equal(await page.locator("#panel-defis ol.defis input").count(), 7);
+
+    await page.fill('#panel-defis input[aria-label="Nouveau défi"]', "Tout le monde imite un lion !");
+    await page.click("#panel-defis .defi-ajout button");
+    await waitFor(async () => (await defis())?.length === 8, "défi ajouté");
+    assert.equal((await defis())[7], "Tout le monde imite un lion !");
+
+    await page.locator("#panel-defis ol.defis input").first().fill("La ola, deux fois !");
+    await page.locator("#panel-defis ol.defis input").first().press("Enter");
+    await page.locator("#panel-defis ol.defis input").first().blur();
+    await waitFor(async () => (await defis())?.[0] === "La ola, deux fois !", "défi modifié");
+
+    await page.locator("#panel-defis .defi-effacer").first().click();
+    await waitFor(async () => (await defis())?.length === 7 && (await defis())[0] !== "La ola, deux fois !", "défi effacé");
     await page.context().close();
   });
 });

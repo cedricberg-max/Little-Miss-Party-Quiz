@@ -38,9 +38,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -49,13 +47,16 @@ import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.tv.habillage.BandeauEquipes
-import com.littlemissparty.quiz.tv.habillage.Confettis
+import com.littlemissparty.quiz.tv.habillage.Classee
 import com.littlemissparty.quiz.tv.habillage.Couronne
 import com.littlemissparty.quiz.tv.habillage.Neon
+import com.littlemissparty.quiz.tv.habillage.SignatureLogo
+import com.littlemissparty.quiz.tv.habillage.Victoire
 import com.littlemissparty.quiz.tv.habillage.Tempo
 import com.littlemissparty.quiz.tv.habillage.apparition
 import com.littlemissparty.quiz.tv.habillage.apres
 import com.littlemissparty.quiz.tv.habillage.rebond
+import com.littlemissparty.quiz.tv.habillage.reflet
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 
@@ -89,6 +90,9 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                         modifier = Modifier.clip(RoundedCornerShape(50)).background(Palette.Gold).padding(horizontal = 14.dp, vertical = 4.dp),
                     )
                 }
+                // Signature discrète de la marque, dans la ligne d'en-tête : jamais sur la question ni les réponses.
+                Spacer(Modifier.width(20.dp))
+                SignatureLogo()
                 Spacer(Modifier.weight(1f))
                 when (state.phase) {
                     Phase.QUESTION -> Countdown(state)
@@ -222,20 +226,25 @@ private fun ChoiceGrid(choices: List<String>, correct: Int?, modifier: Modifier,
 @Composable
 private fun ChoiceCard(i: Int, text: String, correct: Int?, modifier: Modifier, express: Boolean = false) {
     val isCorrect = correct == i
-    // Révélation au rythme du roulement : les mauvaises s'éteignent une à une, puis la bonne passe à l'or.
+    // Révélation au rythme du roulement : les mauvaises s'éteignent une à une (✗ corail), puis la bonne passe au vert.
     val rangMauvaise = if (correct == null) 0 else (0 until i).count { it != correct }
     val eteinte = apres(Tempo.mauvaiseSEteint(rangMauvaise, express), correct, actif = correct != null && !isCorrect)
-    val enOr = apres(Tempo.revelationOr(express), correct, actif = isCorrect)
-    val dim by animateFloatAsState(if (eteinte) 0.3f else 1f, tween(350), label = "dim")
+    val juste = apres(Tempo.revelationOr(express), correct, actif = isCorrect)
+    val dim by animateFloatAsState(if (eteinte) 0.35f else 1f, tween(350), label = "dim")
     val color = Palette.Choices[i % Palette.Choices.size]
+    val forme = RoundedCornerShape(24.dp)
+    // Palette A (audit du 19 octobre) : vert plein = juste, corail = faux ; ✓ et ✗ disent la même chose sans la couleur.
     Row(
         modifier
-            .rebond(enOr)
+            .rebond(juste)
             .alpha(dim)
-            .clip(RoundedCornerShape(24.dp))
-            .background(Palette.Panel)
-            .then(if (enOr) Modifier.background(Brush.verticalGradient(listOf(Neon.OrClair.copy(alpha = 0.6f), Neon.OrProfond.copy(alpha = 0.35f)))) else Modifier)
-            .border(if (enOr) 5.dp else 3.dp, if (enOr) Neon.Or else color, RoundedCornerShape(24.dp))
+            .clip(forme)
+            .then(
+                if (juste) Modifier.background(Brush.verticalGradient(listOf(Neon.JusteClair, Neon.JusteProfond)))
+                else Modifier.background(Palette.Panel),
+            )
+            .border(if (juste) 5.dp else 3.dp, if (juste) Color.White else if (eteinte) Neon.Faux else color, forme)
+            .reflet(juste)
             .padding(horizontal = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -244,10 +253,16 @@ private fun ChoiceCard(i: Int, text: String, correct: Int?, modifier: Modifier, 
         }
         Spacer(Modifier.width(18.dp))
         Text(
-            text, color = Palette.Ink, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+            text, color = if (juste) Neon.JusteTexte else Palette.Ink, fontSize = 28.sp, fontWeight = FontWeight.Bold,
             maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
         )
-        if (enOr) Text("✓", color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.Black)
+        when {
+            juste -> Box(
+                Modifier.size(48.dp).apparition(100, Unit).clip(CircleShape).background(Color.White),
+                contentAlignment = Alignment.Center,
+            ) { Text("✓", color = Neon.JusteProfond, fontSize = 32.sp, fontWeight = FontWeight.Black) }
+            eteinte -> Text("✗", color = Neon.Faux, fontSize = 32.sp, fontWeight = FontWeight.Black)
+        }
     }
 }
 
@@ -346,7 +361,8 @@ fun ScoresScreen(state: UiState.Playing, actions: TvActions) {
         )
         Spacer(Modifier.height(16.dp))
         Ranking(state, Modifier.weight(1f))
-        Row {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SignatureLogo()
             Spacer(Modifier.weight(1f))
             if (!state.paused) NextButton(if (state.isLast) "Résultats finaux" else "Question suivante", actions.next, key = state.index)
         }
@@ -355,25 +371,8 @@ fun ScoresScreen(state: UiState.Playing, actions: TvActions) {
 
 @Composable
 fun FinalScreen(state: UiState.Playing, actions: TvActions) {
-    Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().padding(horizontal = 56.dp, vertical = 28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("Bravo à toutes les équipes !", color = Palette.Gold, fontSize = 44.sp, fontWeight = FontWeight.Black)
-            state.ranking.firstOrNull()?.let { (team, _) ->
-                // Le nom du vainqueur s'allume en néon sur l'impact de la fanfare.
-                Text(
-                    "Victoire de ${team.name}",
-                    style = TextStyle(
-                        color = team.color.toColor(), fontSize = 36.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black,
-                        shadow = Shadow(team.color.toColor(), blurRadius = 30f),
-                    ),
-                    modifier = Modifier.apparition(Tempo.FIN_VAINQUEUR, Unit).rebond(apres(Tempo.FIN_VAINQUEUR + 300, Unit), 0.15f),
-                )
-            }
-            Spacer(Modifier.height(16.dp))
-            Ranking(state, Modifier.weight(1f))
-        }
-        Confettis(Tempo.FIN_VAINQUEUR)
-    }
+    // Célébration de fin (de 1 à 8 équipes, égalité, personne n'a marqué) : habillage/Victoire.kt.
+    Victoire(state.ranking.map { (team, score) -> Classee(team.name, team.color.toColor(), score) })
 }
 
 @Composable

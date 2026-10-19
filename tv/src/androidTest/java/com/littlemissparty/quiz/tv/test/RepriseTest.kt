@@ -15,7 +15,7 @@ class RepriseTest : TestTv() {
     fun repriseAvecOkApresFermeture() {
         val code = lancerBoite()
         val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
-        ecran.ok("Lancer le quiz")
+        ecran.ok("Lancer la fête")
         val q = attendreQuestion(licornes, code, 0)
         assertTrue(licornes.repondre(code, q.id, q.correct))
         ecran.voit("Toutes les équipes ont répondu")
@@ -42,7 +42,7 @@ class RepriseTest : TestTv() {
     fun repriseAutomatiqueSansToucherLaTelecommande() {
         val code = lancerBoite()
         val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
-        ecran.ok("Lancer le quiz")
+        ecran.ok("Lancer la fête")
         attendreQuestion(licornes, code, 0)
 
         relancerBoite()

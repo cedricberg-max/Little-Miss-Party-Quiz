@@ -10,6 +10,7 @@ import {
   isFutureRound, moveRound, removeRound, uniqueRoundTitle,
 } from "./show.js";
 import { profileForAge } from "./profiles.js";
+import { ouvrirDefis } from "./defis.js";
 
 // Régie de l'animatrice, ouverte depuis la page des pupitres (bouton « Accès régie »).
 // Elle n'écrit que des commandes : la box les vérifie, les applique et répond dans commandStatus/ ;
@@ -194,7 +195,7 @@ function nextLabel(st, teamCount) {
     if (st.phase === "reveal") return blindHasNext(st) ? "Titre suivant ▶" : "Bilan du blind test";
   }
   switch (st.phase) {
-    case "lobby": return teamCount ? "Lancer le quiz" : "En attente des équipes";
+    case "lobby": return teamCount ? "Lancer la fête !" : "En attente des équipes";
     case "question": return st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? "Terminer les mimes" : "Voir le classement") : "Arrêter le chrono";
     case "closed": return "Révéler la réponse";
     case "reveal": return "Voir les scores";
@@ -669,7 +670,7 @@ function renderGames(st) {
       else if (st.phase !== "ended") line.append(line.childNodes.length ? " · Dernier jeu" : "Dernier jeu");
     }
   }
-  // Le secours n'a de sens qu'une fois la partie commencée (au salon, « Lancer le quiz » suffit).
+  // Le secours n'a de sens qu'une fois la partie commencée (au salon, « Lancer la fête ! » suffit).
   $("c-rescue").hidden = st.phase === "lobby" || !rounds.length || !live.plan?.rev;
   if (rescueOpen && $("c-rescue").hidden) rescueOpen = false;
   $("rescue").hidden = !rescueOpen;
@@ -1423,12 +1424,15 @@ $("c-answer").onclick = () => { answerMasked = !answerMasked; render(); };
 $("tab-teams").onclick = () => switchTab("teams");
 $("tab-plan").onclick = () => switchTab("plan");
 $("tab-show").onclick = () => switchTab("show");
+$("tab-defis").onclick = () => switchTab("defis");
 function switchTab(name) {
   tab = name;
-  for (const t of ["teams", "plan", "show"]) {
+  for (const t of ["teams", "plan", "show", "defis"]) {
     $(`tab-${t}`).classList.toggle("active", tab === t);
     $(`panel-${t}`).hidden = tab !== t;
   }
+  // Défis de la pause : relus et affichés à chaque ouverture de l'onglet.
+  if (name === "defis") ouvrirDefis(db, $("panel-defis"), toast);
   render();
 }
 

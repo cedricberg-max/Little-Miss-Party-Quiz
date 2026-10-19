@@ -51,11 +51,14 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.PAUSE_NETWORK
 import com.littlemissparty.quiz.engine.PAUSE_TEAM
 import com.littlemissparty.quiz.engine.Phase
+import com.littlemissparty.quiz.tv.habillage.Echelle
+import com.littlemissparty.quiz.tv.habillage.LogoLmp
 import com.littlemissparty.quiz.tv.habillage.Neon
 import kotlinx.coroutines.delay
 import kotlin.math.PI
@@ -69,6 +72,8 @@ import kotlin.math.sin
  */
 @Composable
 fun PauseLayer(state: UiState.Playing, onResume: () -> Unit) {
+    // Les défis de la régie sont gardés en copie sur la box dès le début de la partie, prêts même sans Internet.
+    LaunchedEffect(Unit) { DefisPause.suivre() }
     AnimatedVisibility(state.paused, enter = fadeIn(tween(500)), exit = fadeOut(tween(400))) {
         Intermission(state, onResume)
     }
@@ -76,8 +81,8 @@ fun PauseLayer(state: UiState.Playing, onResume: () -> Unit) {
 }
 
 /**
- * Intermède « Pause paillettes » : faisceaux qui tournent, halo qui respire, paillettes qui tombent,
- * titre qui ondule. Une pause qui dure propose des petits défis à la salle, pour que l'attente reste un jeu.
+ * Intermède « PAUSE FUN ! » : faisceaux qui tournent, halo qui respire, confettis qui tombent, titre qui ondule.
+ * Un défi pour la salle est toujours affiché (modifiables dans la régie, onglet « Défis ») : l'attente reste un jeu.
  */
 @Composable
 private fun Intermission(state: UiState.Playing, onResume: () -> Unit) {
@@ -122,32 +127,35 @@ private fun Intermission(state: UiState.Playing, onResume: () -> Unit) {
         )
         // 3. Étincelles à quatre branches sur les bords, chacune scintille à son rythme.
         Sparkles { twinkle }
-        // 4. Paillettes qui tombent doucement, en boucle : la pause peut durer, l'écran reste vivant.
+        // 4. Confettis qui tombent doucement, en boucle : la pause peut durer, l'écran reste vivant.
         Paillettes { chute.value }
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Text("LITTLE MISS PARTY QUIZ", color = NeonHalo, fontSize = 22.sp, fontWeight = FontWeight.Black, letterSpacing = 8.sp)
-            Spacer(Modifier.height(20.dp))
-            TitreOndule(TITRE_PAUSE, { vague.value }, Modifier.graphicsLayer { val s = 0.97f + 0.03f * breath; scaleX = s; scaleY = s })
-            Spacer(Modifier.height(16.dp))
-            Text(
-                when {
-                    state.pauseReason == PAUSE_TEAM -> "Petite pause : on attend une équipe, gardez vos paillettes au chaud !"
-                    state.pauseReason == PAUSE_NETWORK -> "Petite pause : on attend le retour d'Internet, gardez vos paillettes au chaud !"
-                    state.childName.isNotBlank() -> "${state.childName} et ses invités reprennent leur souffle… la fête revient très vite !"
-                    else -> "On reprend son souffle… la fête revient très vite !"
-                },
-                color = Palette.Ink, fontSize = 30.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 48.dp),
-            )
-            if (state.phase == Phase.QUESTION) {
-                Spacer(Modifier.height(10.dp))
-                Text("Le chrono est arrêté", color = Palette.InkSoft, fontSize = 22.sp)
+        // Dessiné pour 960 × 560 et réduit si besoin : le bouton « Reprendre » reste toujours à l'écran.
+        Echelle(960.dp, 560.dp) {
+            Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                LogoLmp(54.dp)
+                Spacer(Modifier.height(12.dp))
+                TitreOndule(TITRE_PAUSE, { vague.value }, Modifier.graphicsLayer { val s = 0.97f + 0.03f * breath; scaleX = s; scaleY = s })
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    when {
+                        state.pauseReason == PAUSE_TEAM -> "Petite pause : on attend une équipe, gardez le rythme !"
+                        state.pauseReason == PAUSE_NETWORK -> "Petite pause : on attend le retour d'Internet, gardez le rythme !"
+                        state.childName.isNotBlank() -> "${state.childName} et ses invités reprennent leur souffle… la fête revient très vite !"
+                        else -> "On reprend son souffle… la fête revient très vite !"
+                    },
+                    color = Palette.Ink, fontSize = 30.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 48.dp),
+                )
+                if (state.phase == Phase.QUESTION) {
+                    Spacer(Modifier.height(10.dp))
+                    Text("Le chrono est arrêté", color = Palette.InkSoft, fontSize = 22.sp)
+                }
+                Spacer(Modifier.height(24.dp))
+                DefiPause(state.childName)
+                Spacer(Modifier.height(24.dp))
+                // Secours à la télécommande ; avec la régie, c'est l'animatrice qui relance depuis son téléphone.
+                NextButton("Reprendre", onResume, key = "pause")
             }
-            Spacer(Modifier.height(24.dp))
-            DefiPause(state.childName)
-            Spacer(Modifier.height(24.dp))
-            // Secours à la télécommande ; avec la régie, c'est l'animatrice qui relance depuis son téléphone.
-            NextButton("Reprendre", onResume, key = "pause")
         }
     }
 }
@@ -175,45 +183,38 @@ private fun TitreOndule(texte: String, phase: () -> Float, modifier: Modifier = 
  */
 @Composable
 private fun DefiPause(prenom: String) {
-    val defis = remember(prenom) {
-        buildList {
-            add("Tout le monde fait la ola !")
-            if (prenom.isNotBlank()) add("Un tonnerre d'applaudissements pour $prenom !")
-            add("Montrez votre plus belle pose de star !")
-            add("Applaudissez l'équipe d'à côté !")
-            add("Vos plus beaux pas de danse, c'est maintenant !")
-            add("Trois tapes dans les mains, tous ensemble !")
-            add("Qui a le plus beau sourire de l'équipe ?")
-        }
-    }
-    var k by remember { mutableIntStateOf(-1) }
+    // Toujours un défi à l'écran, dès le début de la pause, puis un nouveau toutes les 8 secondes.
+    val enregistres by DefisPause.enregistres
+    val defis = remember(prenom, enregistres) { defisPour(prenom, enregistres) }
+    var k by remember { mutableIntStateOf(0) }
     LaunchedEffect(defis) {
-        delay(DEFI_ATTENTE_MS)
         while (true) {
-            k++
             delay(DEFI_DUREE_MS)
+            k++
         }
     }
-    Box(Modifier.height(64.dp), contentAlignment = Alignment.Center) {
+    Box(Modifier.height(96.dp).padding(horizontal = 40.dp), contentAlignment = Alignment.Center) {
         AnimatedContent(
             k,
             transitionSpec = { (fadeIn(tween(500)) + slideInVertically(tween(500)) { it / 2 }) togetherWith fadeOut(tween(300)) },
             label = "defi",
         ) { n ->
-            if (n < 0) return@AnimatedContent
             Row(
                 Modifier.background(Neon.Halo.copy(alpha = 0.16f), RoundedCornerShape(32.dp)).padding(horizontal = 28.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("DÉFI PAUSE", color = Palette.Gold, fontSize = 18.sp, fontWeight = FontWeight.Black, letterSpacing = 4.sp)
                 Spacer(Modifier.size(16.dp))
-                Text(defis[n % defis.size], color = Palette.Ink, fontSize = 26.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+                Text(
+                    defis[n % defis.size], color = Palette.Ink, fontSize = 26.sp, lineHeight = 30.sp, fontWeight = FontWeight.Bold,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                )
             }
         }
     }
 }
 
-/** Paillettes dorées, roses et blanches qui tombent en tournoyant ; une quarantaine de petits rectangles. */
+/** Confettis multicolores qui tombent en tournoyant ; une quarantaine de petits rectangles. */
 @Composable
 private fun Paillettes(phase: () -> Float) {
     Canvas(Modifier.fillMaxSize().clearAndSetSemantics {}) {
@@ -225,7 +226,7 @@ private fun Paillettes(phase: () -> Float) {
             val y = ((p * v + d) % 1f) * (h + 4 * l) - 2 * l
             val x = w * x0 + sin(p * 2 * PI.toFloat() * v + i) * w * 0.015f
             val tour = sin(p * 2 * PI.toFloat() * (2 + i % 3) + i)
-            val couleur = when (i % 4) { 0, 2 -> Palette.Gold; 1 -> NeonHalo; else -> Color.White }
+            val couleur = CONFETTIS[i % CONFETTIS.size]
             rotate(i * 37f + p * 360f * (1 + i % 2), Offset(x, y)) {
                 drawRect(
                     couleur.copy(alpha = 0.35f + 0.45f * kotlin.math.abs(tour)),
@@ -303,8 +304,9 @@ private fun secondsBefore(at: Long, offset: Long): Int {
 
 private val NeonHalo = Color(0xFFF888B3)
 
-private const val TITRE_PAUSE = "Pause paillettes !"
-private const val DEFI_ATTENTE_MS = 7_000L
+private const val TITRE_PAUSE = "PAUSE FUN !"
+/** Couleurs des confettis de la pause : celles des équipes, l'or et le blanc. */
+private val CONFETTIS = listOf(Palette.Gold, Color(0xFF7CFF3A), Color(0xFFFF2D8A), Color(0xFF3A86FF), Color(0xFFFFE61F), Color(0xFFFF5A1F), Color.White, Color(0xFF9EF01A))
 private const val DEFI_DUREE_MS = 8_000L
 
 /** Paillettes : position horizontale, vitesse de chute (tours par cycle), décalage de départ. */
