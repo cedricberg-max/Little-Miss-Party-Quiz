@@ -140,7 +140,16 @@ class DirecteurSonore {
                     o += Ordre.Jouer(Son.pop(k), Tempo.propositionApparait(k))
                 }
             }
-            Ecran.MIMES -> if (p.ecran == Ecran.MIMES_TOUR) {
+            Ecran.MIMES -> if (p.ecran == Ecran.MIMES_TOUR && i.pictionary) {
+                // Fin d'un dessin : « Trouvé ! » et applaudissements (sauf s'il a déjà sonné pendant le tour),
+                // sinon le sifflet de fin.
+                val trouve = i.pictioTrouve || p.trouves > 0
+                if (!trouve) o += Ordre.Jouer(Son.MIME_FIN)
+                else if (p.trouves == 0) o += Ordre.Jouer(Son.PICTIO_TROUVE)
+                o += Ordre.Musique(Ambiance.SILENCE)
+                if (trouve) o += Ordre.Jouer(Son.APPLAUDISSEMENTS, Tempo.MIME_BILAN)
+                o += Ordre.Musique(Ambiance.MIMES_ENTRE, Tempo.MIME_BILAN_MUSIQUE)
+            } else if (p.ecran == Ecran.MIMES_TOUR) {
                 // Fin d'un tour : coup de sifflet et « ta-daa », applaudissements si l'équipe a trouvé.
                 o += Ordre.Jouer(Son.MIME_FIN)
                 o += Ordre.Musique(Ambiance.SILENCE)
@@ -159,7 +168,7 @@ class DirecteurSonore {
                 o += Ordre.Musique(Ambiance.MIMES_ENTRE, Tempo.QUESTION_MUSIQUE_APRES_MANCHE)
             }
             Ecran.MIMES_TOUR -> {
-                o += Ordre.Jouer(Son.MIME_TOP)
+                o += Ordre.Jouer(if (i.pictionary) Son.PICTIO_TOP else Son.MIME_TOP)
                 o += Ordre.Musique(Ambiance.SILENCE)
                 o += Ordre.Musique(Ambiance.MIMES, Tempo.MIME_TOP_IMPACT)
             }
@@ -280,7 +289,7 @@ class DirecteurSonore {
         // Blind test : Sarah raccourcit la révélation, la fanfare s'arrête.
         if (i.ecran == Ecran.REVELATION && i.blind && i.blindCoupe && !p.blindCoupe) o += Ordre.Couper
         if (i.ecran == Ecran.MIMES_TOUR) {
-            if (i.trouves > p.trouves) o += Ordre.Jouer(Son.MIME_TROUVE)
+            if (i.trouves > p.trouves) o += Ordre.Jouer(if (i.pictionary) Son.PICTIO_TROUVE else Son.MIME_TROUVE)
             if (i.passes > p.passes) o += Ordre.Jouer(Son.MIME_PASSE)
             // Dix dernières secondes du tour : la musique s'efface sous la tension.
             if (i.urgent && !p.urgent) {
@@ -420,6 +429,12 @@ data class Instant(
     /** Le Juste Chiffre : révélation d'un nombre, et une équipe l'a trouvé pile. */
     val nombre: Boolean = false,
     val pile: Boolean = false,
+    /**
+     * Pictionary (même structure que les mimes) : top départ et « Trouvé ! » au crayon ; le dernier tour a été
+     * trouvé (la régie peut finir le tour au moment même où elle valide le mot).
+     */
+    val pictionary: Boolean = false,
+    val pictioTrouve: Boolean = false,
 )
 
 const val DISPARU_MEMORISER = 1

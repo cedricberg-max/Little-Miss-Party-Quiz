@@ -248,6 +248,29 @@ class DirecteurSonoreTest {
         assertEquals(Ordre.Musique(Ambiance.MIMES, 3_000), reprise.filterIsInstance<Ordre.Musique>().last())
     }
 
+    private val dessin = tour.copy(pictionary = true)
+    private val entreDessins = mimes.copy(pictionary = true)
+
+    @Test
+    fun `pictionary - top depart au crayon, trouve une seule fois, sifflet si le temps s'ecoule`() {
+        val d = DirecteurSonore()
+        d.observer(entreDessins)
+        assertEquals(listOf(Son.PICTIO_TOP), d.observer(dessin).sons())
+        // La régie valide « Trouvé ! » et finit le tour d'un coup : le « Trouvé ! » sonne à la fin du tour.
+        val fin = d.observer(entreDessins.copy(pictioTrouve = true))
+        assertEquals(listOf(Son.PICTIO_TROUVE, Son.APPLAUDISSEMENTS), fin.sons())
+        assertTrue(d.observer(entreDessins.copy(pictioTrouve = true)).isEmpty())
+        // Trouvé pendant le tour, puis fin du tour : pas de second « Trouvé ! ».
+        d.observer(dessin)
+        assertEquals(listOf(Son.PICTIO_TROUVE), d.observer(dessin.copy(trouves = 1)).sons())
+        assertEquals(listOf(Son.APPLAUDISSEMENTS), d.observer(entreDessins.copy(pictioTrouve = true)).sons())
+        // Temps écoulé : le sifflet, ni « Trouvé ! » ni applaudissements.
+        d.observer(dessin)
+        val rate = d.observer(entreDessins)
+        assertEquals(listOf(Son.MIME_FIN), rate.sons())
+        assertEquals(Ambiance.MIMES_ENTRE, rate.musique())
+    }
+
     private val quizM1 = q1.copy(epreuve = "quiz|Manche 1")
     private val mimesM = mimes.copy(epreuve = "mimes|Les mimes")
 

@@ -112,11 +112,17 @@ const CRAYONS = `
     <g class="sp-notes"><text x="40" y="110">♪</text><text x="350" y="90">♫</text><text x="60" y="200">♪</text></g>
   </g>`;
 
+const BANDEAUX = {
+  choix: (equipe) => `L'équipe « ${equipe} » choisit son mot secret… chut !`,
+  dessin: (equipe) => `L'équipe « ${equipe} » dessine : regardez la télé !`,
+};
+
 /**
- * Lance l'animation dans [hote]. options : { equipe } (l'équipe qui dessine, citée dans les bulles et le bandeau).
- * Rend { arreter() }, à appeler quand le tour se termine.
+ * Lance l'animation dans [hote]. options : { equipe } (l'équipe qui dessine, citée dans les bulles et le bandeau),
+ * { phase } : "choix" pendant que le dessinateur choisit son mot, "dessin" ensuite.
+ * Rend { changerPhase(phase), arreter() } ; arreter() quand le tour se termine.
  */
-export function animationSpectateurs(hote, { equipe = "l'équipe" } = {}) {
+export function animationSpectateurs(hote, { equipe = "l'équipe", phase = "dessin" } = {}) {
   hote.classList.add("spectateurs");
   hote.innerHTML = `
     <div class="sp-titre">Pictionary</div>
@@ -128,7 +134,9 @@ export function animationSpectateurs(hote, { equipe = "l'équipe" } = {}) {
       </svg>
     </div>
     <div class="sp-bandeau"></div>`;
-  hote.querySelector(".sp-bandeau").textContent = `L'équipe « ${equipe} » dessine : regardez la télé !`;
+  const bandeau = hote.querySelector(".sp-bandeau");
+  const changerPhase = (p) => { bandeau.textContent = (BANDEAUX[p] ?? BANDEAUX.dessin)(equipe); };
+  changerPhase(phase);
   const scenes = [...hote.querySelectorAll(".sp-scene")];
   const bulle = hote.querySelector(".sp-bulle");
   let scene = -1;
@@ -157,6 +165,7 @@ export function animationSpectateurs(hote, { equipe = "l'équipe" } = {}) {
   }, BULLE_MS);
 
   return {
+    changerPhase,
     arreter() {
       clearInterval(minuterie);
       hote.innerHTML = "";
