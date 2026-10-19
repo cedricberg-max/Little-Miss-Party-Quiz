@@ -193,7 +193,8 @@
       <p class="hint">
         Importez vos propres fichiers musicaux (MP3, M4A, WAV…) : l'administration garde seulement l'extrait
         choisi, la TV le copie avant la partie et le joue même sans Internet. Une playlist sert au blind test
-        (le premier qui buzze donne le titre, bonus pour l'artiste) et au quiz musical (4 titres proposés sur les pupitres).
+        (morceaux joués dans l'ordre, le premier qui buzze donne le titre, les derniers valent double) et au quiz musical
+        (4 titres proposés sur les pupitres).
       </p>
       <div id="playlist-list" class="cards"></div>
     </section>
@@ -206,6 +207,17 @@
           <select id="playlist-duration"></select>
         </label>
       </div>
+      <div class="panel grid" id="playlist-scale">
+        <p class="label wide">Barème du blind test</p>
+        <label>Points d'un morceau<input id="playlist-points" type="number" min="1" max="1000" step="10" value="100"></label>
+        <label>Points des derniers morceaux<input id="playlist-final-points" type="number" min="1" max="1000" step="10" value="200"></label>
+        <label>Nombre de derniers morceaux<input id="playlist-final-count" type="number" min="0" max="20" step="1" value="3"></label>
+        <label>Révélation (titre, pochette, extrait)
+          <select id="playlist-reveal"></select>
+        </label>
+        <p class="hint small wide">La TV annonce les morceaux à double valeur ; la régie voit la valeur de chaque morceau avant de le lancer.
+          Un morceau peut avoir sa propre valeur ci-dessous.</p>
+      </div>
       <div class="panel">
         <p class="label">Morceaux : <b id="playlist-count">0</b></p>
         <div id="playlist-tracks" class="tracks"></div>
@@ -215,6 +227,7 @@
         <p class="hint small">
           Titre et artiste sont devinés depuis le nom du fichier (« Artiste - Titre.mp3 ») : corrigez-les si besoin.
           Choisissez le début de l'extrait avec le curseur et écoutez-le avant d'enregistrer.
+          Les flèches ↑ ↓ changent l'ordre de passage au blind test. La pochette (facultative) s'affiche sur la TV à la révélation.
           La note sur les droits est facultative et n'empêche jamais de jouer.
         </p>
       </div>

@@ -117,7 +117,7 @@
           ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
           "$cmd": {
             ".write": "auth != null && !data.exists() && newData.exists() && root.child('games').child($code).child('regie').child(auth.uid).exists()",
-            ".validate": "newData.child('type').isString() && newData.child('type').val().matches(/^(next|pause|resume|close|adjust|undo|end|admit|replace|mime_start|mime_found|mime_pass|mime_fix|mime_stop|goto|buzz_ok|buzz_ko|buzz_bonus|statues_win)$/) && newData.child('expectSeq').isNumber() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
+            ".validate": "newData.child('type').isString() && newData.child('type').val().matches(/^(next|pause|resume|close|adjust|undo|end|admit|replace|mime_start|mime_found|mime_pass|mime_fix|mime_stop|goto|buzz_ok|buzz_ko|buzz_bonus|statues_win|blind_play|blind_unblock|blind_reveal|blind_skip|blind_cut)$/) && newData.child('expectSeq').isNumber() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
             "team": {
               ".validate": "newData.isString() && newData.val().length <= 128"
             },
@@ -175,6 +175,13 @@
             ".read": "auth != null && (root.child('games').child($code).child('hostUid').val() === auth.uid || root.child('games').child($code).child('regie').child(auth.uid).exists())",
             ".write": "auth != null && !data.exists() && root.child('games').child($code).child('regie').child(auth.uid).exists()",
             ".validate": "$id.matches(/^[0-9a-f]{16}$/) && newData.isString() && newData.val().beginsWith('data:audio/mpeg;base64,') && newData.val().length <= 900000"
+          }
+        },
+        "media": {
+          ".read": "auth != null && (root.child('games').child($code).child('hostUid').val() === auth.uid || root.child('games').child($code).child('regie').child(auth.uid).exists())",
+          "$id": {
+            ".write": "auth != null && root.child('games').child($code).child('hostUid').val() === auth.uid",
+            ".validate": "$id.matches(/^[0-9a-f]{16}$/) && newData.isString() && newData.val().matches(/^(ok|loading|missing)$/)"
           }
         },
         "showStatus": {
@@ -243,14 +250,35 @@
         "$id": {
           ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
           ".validate": "!newData.exists() || (newData.child('title').isString() && newData.child('title').val().length >= 1 && newData.child('title').val().length <= 120 && newData.child('tracks').hasChildren() && newData.child('duration').isNumber() && newData.child('duration').val() >= 10 && newData.child('duration').val() <= 45 && newData.child('updatedAt').val() === now)",
+          "points": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 1000"
+          },
+          "finalPoints": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 1000"
+          },
+          "finalCount": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 20"
+          },
+          "reveal": {
+            ".validate": "newData.isNumber() && newData.val() >= 3 && newData.val() <= 20"
+          },
           "tracks": {
             "$i": {
               ".validate": "newData.child('title').isString() && newData.child('title').val().length >= 1 && newData.child('title').val().length <= 80 && newData.child('audioId').isString() && newData.child('audioId').val().matches(/^[0-9a-f]{16}$/) && (!newData.child('artist').exists() || (newData.child('artist').isString() && newData.child('artist').val().length <= 80)) && (!newData.child('rights').exists() || (newData.child('rights').isString() && newData.child('rights').val().length <= 120))",
               "$other": {
-                ".validate": "$other === 'title' || $other === 'artist' || $other === 'audioId' || $other === 'rights' || $other === 'source'"
+                ".validate": "$other === 'title' || $other === 'artist' || $other === 'audioId' || $other === 'rights' || $other === 'source' || $other === 'points' || $other === 'imageId' || $other === 'duration'"
               },
               "source": {
                 ".validate": "newData.isString() && newData.val().length <= 200"
+              },
+              "points": {
+                ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 1000"
+              },
+              "imageId": {
+                ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{16}$/)"
+              },
+              "duration": {
+                ".validate": "newData.isNumber() && newData.val() >= 10 && newData.val() <= 45"
               }
             }
           }

@@ -14,6 +14,7 @@ import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
 import {
   buildSnapshot, estimateMinutes, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, BUILTIN_GAMES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
   roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC,
+  blindScale, trackPoints, BLIND_REVEAL_SECONDS,
 } from "./show.js";
 import { EXTRACT_SECONDS, guessTrack, defaultStart, decodeFile, makeExtract, synthTune, encodeMp3, soundId } from "./audio.js";
 import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
@@ -1046,18 +1047,36 @@ function renderPlaylists() {
   if (!list.length) box.append(h("p", { class: "hint", text: "Aucune playlist pour l'instant : créez-en une avec vos fichiers musicaux." }));
 }
 
-let playlist = null; // { id, tracks: [{ title, artist, rights, audioId? | file, length, start }] }
+let playlist = null; // { id, tracks: [{ title, artist, rights, points?, imageId?, duration?, audioId? | file, length, start }] }
 let preview = null; // { audio, url, timer }
 
 $("playlist-duration").replaceChildren(...EXTRACT_SECONDS.map((n) => h("option", { value: n, text: `${n} secondes` })));
+$("playlist-reveal").replaceChildren(...BLIND_REVEAL_SECONDS.map((n) => h("option", { value: n, text: `${n} secondes` })));
+["playlist-points", "playlist-final-points", "playlist-final-count"].forEach((id) => { $(id).oninput = () => renderTracks(); });
+
+/** Barème saisi dans l'écran de la playlist (valeurs hors limites remplacées par celles par défaut). */
+function scaleInputs() {
+  return blindScale({
+    points: Number($("playlist-points").value), finalPoints: Number($("playlist-final-points").value),
+    finalCount: Number($("playlist-final-count").value), reveal: Number($("playlist-reveal").value),
+  });
+}
 $("playlist-new").onclick = () => editPlaylist(null);
 
 function editPlaylist(id) {
   const p = id ? playlists[id] : {};
   playlist = {
     id,
-    tracks: (p.tracks ?? []).filter(Boolean).map((t) => ({ title: t.title ?? "", artist: t.artist ?? "", rights: t.rights ?? "", audioId: t.audioId })),
+    tracks: (p.tracks ?? []).filter(Boolean).map((t) => ({
+      title: t.title ?? "", artist: t.artist ?? "", rights: t.rights ?? "", audioId: t.audioId,
+      points: t.points ?? null, imageId: t.imageId ?? null, duration: t.duration ?? null,
+    })),
   };
+  const scale = blindScale(p);
+  $("playlist-points").value = `${scale.points}`;
+  $("playlist-final-points").value = `${scale.finalPoints}`;
+  $("playlist-final-count").value = `${scale.finalCount}`;
+  $("playlist-reveal").value = `${scale.reveal}`;
   $("playlist-edit-title").textContent = id ? p.title : "Nouvelle playlist";
   $("playlist-title").value = p.title ?? "";
   $("playlist-duration").value = `${p.duration ?? BLIND_SEC}`;
@@ -1085,7 +1104,7 @@ async function listen(t) {
       preview = { audio, url };
       audio.currentTime = t.start;
       await audio.play();
-      preview.timer = setTimeout(stopPreview, Number($("playlist-duration").value) * 1000);
+      preview.timer = setTimeout(stopPreview, (t.duration ?? Number($("playlist-duration").value)) * 1000);
     } else {
       const data = (await get(ref(db, `library/sounds/${t.audioId}`))).val();
       if (typeof data !== "string") return status("playlist-status", `Extrait de « ${t.title} » introuvable.`);
@@ -1099,16 +1118,77 @@ async function listen(t) {
   }
 }
 
+/** Déplace un morceau dans l'ordre de passage du blind test. */
+function moveTrack(i, delta) {
+  const j = i + delta;
+  if (j < 0 || j >= playlist.tracks.length) return;
+  const [t] = playlist.tracks.splice(i, 1);
+  playlist.tracks.splice(j, 0, t);
+  renderTracks();
+}
+
+/** Pochette facultative d'un morceau : photo réduite et rangée comme les illustrations des quiz. */
+function coverTools(t) {
+  const img = h("img", { class: "track-cover", alt: "Pochette", hidden: !t.imageId });
+  const showCover = () => {
+    img.hidden = !t.imageId;
+    if (!t.imageId) return;
+    const id = t.imageId;
+    if (imageCache[id]) { img.src = imageCache[id]; return; }
+    get(ref(db, `library/images/${id}`)).then((snap) => {
+      if (typeof snap.val() === "string") { imageCache[id] = snap.val(); if (t.imageId === id) img.src = snap.val(); }
+    }).catch(() => {});
+  };
+  const remove = h("button", { type: "button", class: "link", text: "Retirer la pochette", hidden: !t.imageId, onclick: () => { t.imageId = null; remove.hidden = true; showCover(); } });
+  const input = h("input", {
+    type: "file", accept: "image/*", class: "track-cover-file", hidden: true,
+    onchange: async (e) => {
+      const f = e.target.files?.[0];
+      e.target.value = "";
+      if (!f) return;
+      try {
+        const data = await compressImage(f);
+        const id = await imageId(data);
+        const target = ref(db, `library/images/${id}`);
+        if (!(await get(target)).exists()) await set(target, data);
+        imageCache[id] = data;
+        t.imageId = id;
+        remove.hidden = false;
+        showCover();
+      } catch (err) {
+        console.error(err);
+        status("playlist-status", "Pochette refusée : essayez une autre image (JPEG ou PNG).");
+      }
+    },
+  });
+  showCover();
+  return [img, h("label", { class: "link" }, "Pochette…", input), remove];
+}
+
 function renderTracks() {
   $("playlist-count").textContent = playlist.tracks.length;
   const seconds = Number($("playlist-duration").value);
+  const scale = scaleInputs();
+  const n = playlist.tracks.length;
   $("playlist-tracks").replaceChildren(...playlist.tracks.map((t, i) => {
     const label = h("span", { text: `Début de l'extrait : ${mmss(t.start ?? 0)}` });
-    const max = Math.max(0, Math.floor((t.length ?? 0) - seconds));
+    const length = t.duration ?? seconds;
+    const max = Math.max(0, Math.floor((t.length ?? 0) - length));
+    const auto = trackPoints(scale, null, i, n);
+    // Durée propre au morceau : seulement avant l'enregistrement (l'extrait est découpé à ce moment-là).
+    const duration = t.file ? h("label", { class: "inline" }, "Durée",
+      h("select", {
+        class: "track-duration", "aria-label": "Durée de l'extrait",
+        onchange: (e) => { t.duration = e.target.value ? Number(e.target.value) : null; renderTracks(); },
+      },
+      h("option", { value: "", text: `comme la playlist (${seconds} s)`, selected: t.duration == null }),
+      ...EXTRACT_SECONDS.map((s) => h("option", { value: s, text: `${s} s`, selected: t.duration === s })))) : null;
     return h("div", { class: `track${t.file ? "" : " saved"}`, "data-track": i },
       h("input", { type: "text", maxlength: 80, placeholder: "Titre (la réponse)", value: t.title, "aria-label": "Titre", oninput: (e) => { t.title = e.target.value; } }),
       h("input", { type: "text", maxlength: 80, placeholder: "Artiste ou dessin animé (bonus, facultatif)", value: t.artist, "aria-label": "Artiste", oninput: (e) => { t.artist = e.target.value; } }),
       h("div", { class: "track-tools" },
+        h("button", { type: "button", class: "icon", title: "Plus tôt", disabled: i === 0, onclick: () => moveTrack(i, -1), text: "↑" }),
+        h("button", { type: "button", class: "icon", title: "Plus tard", disabled: i === n - 1, onclick: () => moveTrack(i, 1), text: "↓" }),
         h("button", { type: "button", class: "icon", title: "Écouter l'extrait", onclick: () => listen(t), text: "▶" }),
         h("button", { type: "button", class: "icon", title: "Retirer", onclick: () => { stopPreview(); playlist.tracks.splice(i, 1); renderTracks(); }, text: "✕" })),
       h("div", { class: "track-start" }, label,
@@ -1117,6 +1197,16 @@ function renderTracks() {
           oninput: (e) => { t.start = Number(e.target.value); label.textContent = `Début de l'extrait : ${mmss(t.start)}`; },
           onchange: () => { if (preview) listen(t); },
         })),
+      h("div", { class: "track-extra" },
+        h("span", { class: "track-n", text: `Morceau ${i + 1}` }),
+        h("label", { class: "inline" }, "Points",
+          h("input", {
+            type: "number", class: "track-points", min: 1, max: 1000, step: 10, placeholder: `${auto}`, value: t.points ?? "",
+            "aria-label": "Points du morceau", title: `Vide : ${auto} points (barème de la playlist)`,
+            oninput: (e) => { const v = Number(e.target.value); t.points = e.target.value && Number.isInteger(v) && v >= 1 && v <= 1000 ? v : null; },
+          })),
+        duration,
+        ...coverTools(t)),
       h("input", { type: "text", class: "track-note", maxlength: 120, placeholder: "Droits (facultatif, pour information)", value: t.rights, "aria-label": "Droits", oninput: (e) => { t.rights = e.target.value; } }));
   }));
   if (!playlist.tracks.length) $("playlist-tracks").append(h("p", { class: "hint small", text: "Aucun morceau : ajoutez vos fichiers musicaux." }));
@@ -1162,7 +1252,7 @@ $("playlist-save").onclick = async () => {
       status("playlist-status", `Préparation de l'extrait ${k + 1} / ${fresh.length} : ${t.title}…`, true);
       let extract;
       try {
-        extract = await makeExtract(await decodeFile(t.file), t.start ?? 0, seconds);
+        extract = await makeExtract(await decodeFile(t.file), t.start ?? 0, t.duration ?? seconds);
       } catch (err) {
         console.error(err);
         return status("playlist-status", `« ${t.title} » : fichier illisible. Essayez un autre format (MP3 de préférence).`);
@@ -1173,12 +1263,16 @@ $("playlist-save").onclick = async () => {
       delete t.file;
     }
     const id = playlist.id ?? push(ref(db, "library/playlists")).key;
+    const scale = scaleInputs();
     await set(ref(db, `library/playlists/${id}`), {
-      title, duration: seconds,
+      title, duration: seconds, ...scale,
       tracks: playlist.tracks.map((t) => ({
         title: t.title.trim().slice(0, 80), audioId: t.audioId,
         ...(t.artist.trim() ? { artist: t.artist.trim().slice(0, 80) } : {}),
         ...(t.rights.trim() ? { rights: t.rights.trim().slice(0, 120) } : {}),
+        ...(t.points ? { points: t.points } : {}),
+        ...(t.imageId ? { imageId: t.imageId } : {}),
+        ...(t.duration && t.duration !== seconds ? { duration: t.duration } : {}),
       })),
       createdAt: playlists[id]?.createdAt ?? Date.now(), updatedAt: serverTimestamp(),
     });

@@ -804,7 +804,13 @@ describe("blind test : extraits musicaux et playlists", () => {
     await assertFails(playlist([{ title: "", audioId: ID }]));
     await assertFails(playlist([{ title: "Sans extrait" }]));
     await assertFails(playlist([{ title: "Mauvais extrait", audioId: "../../settings" }]));
-    await assertFails(playlist([{ title: "Champ en plus", audioId: ID, points: 500 }]));
+    await assertFails(playlist([{ title: "Champ en plus", audioId: ID, volume: 5 }]));
+    // Blind test : valeur, pochette et durée propres à un morceau, barème de la playlist.
+    await assertSucceeds(playlist([{ title: "Final", audioId: ID, points: 300, imageId: "fedcba9876543210", duration: 30 }], { points: 100, finalPoints: 200, finalCount: 3, reveal: 7 }));
+    await assertFails(playlist([{ title: "Trop cher", audioId: ID, points: 5000 }]));
+    await assertFails(playlist([{ title: "Pochette", audioId: ID, imageId: "../images" }]));
+    await assertFails(playlist([{ title: "A", audioId: ID }], { reveal: 60 }));
+    await assertFails(playlist([{ title: "A", audioId: ID }], { finalPoints: -1 }));
     await assertFails(playlist([{ title: "Trop long", audioId: ID }], { duration: 300 }));
     await assertFails(set(ref(db("rose"), "library/playlists/p"), { title: "X", duration: 25, tracks: [{ title: "A", audioId: ID }], updatedAt: serverTimestamp() }));
   });
@@ -817,5 +823,25 @@ describe("blind test : extraits musicaux et playlists", () => {
     await assertFails(set(ref(db("tel"), `games/${CODE}/sounds/fedcba9876543210`), "data:image/jpeg;base64,AAAA"));
     await assertSucceeds(get(ref(db(HOST), `games/${CODE}/sounds/${ID}`)));
     await assertFails(get(ref(db("rose"), `games/${CODE}/sounds/${ID}`)));
+  });
+  test("la box dit à la régie si chaque extrait est prêt ; ni la régie ni un pupitre ne l'écrivent", async () => {
+    await seed({ phase: "lobby" });
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));
+    await assertSucceeds(set(ref(db(HOST), `games/${CODE}/media/${ID}`), "loading"));
+    await assertSucceeds(set(ref(db(HOST), `games/${CODE}/media/${ID}`), "ok"));
+    await assertFails(set(ref(db(HOST), `games/${CODE}/media/${ID}`), "peut-être"));
+    await assertFails(set(ref(db(HOST), `games/${CODE}/media/pas-un-id`), "ok"));
+    await assertFails(set(ref(db("tel"), `games/${CODE}/media/${ID}`), "missing"));
+    await assertFails(set(ref(db("rose"), `games/${CODE}/media/${ID}`), "missing"));
+    await assertSucceeds(get(ref(db("tel"), `games/${CODE}/media/${ID}`)));
+    await assertFails(get(ref(db("rose"), `games/${CODE}/media/${ID}`)));
+  });
+  test("blind test : la régie lance, relance, réautorise, révèle, passe et raccourcit ; jamais un pupitre", async () => {
+    await seed({ phase: "lobby" });
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));
+    for (const type of ["blind_play", "blind_unblock", "blind_reveal", "blind_skip", "blind_cut"]) {
+      await assertSucceeds(set(ref(db("tel"), `games/${CODE}/commands/${type}`), { type, expectSeq: 3, by: "tel", at: serverTimestamp() }));
+      await assertFails(set(ref(db("rose"), `games/${CODE}/commands/${type}-rose`), { type, expectSeq: 3, by: "rose", at: serverTimestamp() }));
+    }
   });
 });

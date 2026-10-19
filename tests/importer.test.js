@@ -471,6 +471,25 @@ describe("blind test et quiz musical", () => {
     assert.equal(roundFilled({ type: "blind" }), false);
     assert.equal(roundFilled({ type: "blind", playlistId: "p" }), true);
   });
+  test("blind test : morceaux dans l'ordre de la playlist, les 3 derniers à 200, valeur et pochette propres à un morceau", () => {
+    const tracks = Array.from({ length: 6 }, (_, k) => ({ title: `Titre ${k + 1}`, audioId: ID(k) }));
+    tracks[1] = { ...tracks[1], points: 150, imageId: "fedcba9876543210", duration: 30 };
+    const show = { childName: "Léa", age: 9, rounds: [{ type: "blind", playlistId: "p" }] };
+    const run = (p) => buildSnapshot("s", show, {}, {}, Math.random, { p }).snapshot.quiz.questions;
+    const qs = run({ title: "Tubes", duration: 25, tracks });
+    assert.deepEqual(qs.map((q) => q.choices[0]), tracks.map((t) => t.title), "jamais mélangés : Sarah choisit l'ordre");
+    assert.deepEqual(qs.map((q) => q.points), [100, 150, 100, 200, 200, 200]);
+    assert.ok(qs.every((q) => q.reveal === 7));
+    assert.equal(qs[1].imageId, "fedcba9876543210");
+    assert.equal(qs[1].duration, 30);
+    assert.equal(qs[0].imageId, undefined);
+    // Barème choisi dans l'administration.
+    const custom = run({ title: "Tubes", duration: 25, tracks, points: 50, finalPoints: 500, finalCount: 1, reveal: 10 });
+    assert.deepEqual(custom.map((q) => q.points), [50, 150, 50, 50, 50, 500]);
+    assert.ok(custom.every((q) => q.reveal === 10));
+    // Barème abîmé : les valeurs par défaut.
+    assert.deepEqual(run({ title: "Tubes", duration: 25, tracks, points: -3, finalCount: 99 }).map((q) => q.points), [100, 150, 100, 200, 200, 200]);
+  });
   test("playlist effacée ou trop courte : la manche est signalée, jamais jouée à moitié", () => {
     const one = { title: "Solo", duration: 20, tracks: [{ title: "A", audioId: ID(0) }] };
     const gone = buildSnapshot("s", { childName: "Tom", age: 8, rounds: [{ type: "blind", playlistId: "x" }] }, {}, {}, Math.random, {});

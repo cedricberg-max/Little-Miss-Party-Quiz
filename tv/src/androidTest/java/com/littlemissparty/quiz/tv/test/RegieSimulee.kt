@@ -119,6 +119,10 @@ class RegieSimulee : AutoCloseable {
         bloquer { base.getReference("games/$code/sounds/$id").setValue(dataUrl).await() }
     }
 
+    /** Ce que la box dit d'un extrait : ok (en cache), loading, missing. */
+    fun extraitPret(code: String, id: String): String? =
+        bloquer { base.getReference("games/$code/media/$id").lireUneFois() }.value as? String
+
     override fun close() {
         runCatching { base.goOffline() }
     }

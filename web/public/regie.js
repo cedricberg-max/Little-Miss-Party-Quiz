@@ -125,7 +125,7 @@ function listen(path, fn) {
 
 function control() {
   stopListening();
-  live = { state: null, teams: {}, presence: {}, plan: null, answers: {}, requests: {}, connected: true };
+  live = { state: null, teams: {}, presence: {}, plan: null, answers: {}, requests: {}, media: {}, connected: true };
   shows = null;
   library = null;
   closeLibrary();
@@ -153,6 +153,8 @@ function control() {
   listen(`games/${code}/teams`, (s) => { live.teams = s.val() ?? {}; render(); });
   listen(`games/${code}/presence`, (s) => { live.presence = s.val() ?? {}; render(); });
   listen(`games/${code}/conducteur`, (s) => { live.plan = s.val(); render(); });
+  // Blind test : la box dit, extrait par extrait, s'il est dans son cache (ok), en chargement ou manquant.
+  listen(`games/${code}/media`, (s) => { live.media = s.val() ?? {}; render(); });
   listen(`games/${code}/joinRequests`, (s) => { live.requests = s.val() ?? {}; render(); });
 }
 
@@ -180,7 +182,17 @@ const PHASES = {
   ended: "Partie terminée",
 };
 
+/** Blind test piloté morceau par morceau (TV assez récente pour « Lancer le morceau »). */
+function blindMode(st) {
+  return st.kind === "blind" && st.blind != null && live.plan?.blindPlay === true;
+}
+
 function nextLabel(st, teamCount) {
+  if (blindMode(st)) {
+    const b = st.blind;
+    if (st.phase === "question") return st.buzz?.team ? "Une équipe répond…" : b.waiting ? (b.played ? "▶ Relancer la musique" : "▶ Lancer le morceau") : "⏸ Arrêter la musique";
+    if (st.phase === "reveal") return blindHasNext(st) ? "Titre suivant ▶" : "Bilan du blind test";
+  }
   switch (st.phase) {
     case "lobby": return teamCount ? "Lancer le quiz" : "En attente des équipes";
     case "question": return st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? "Terminer les mimes" : "Voir le classement") : "Arrêter le chrono";
@@ -223,6 +235,7 @@ function render() {
   renderGames(st);
   renderRequests(st, teams);
   renderMime(st, teams);
+  renderBlind(st, teams);
   renderFlou(st);
   renderStatues(st, teams);
   renderTeams(st, teams);
@@ -239,7 +252,7 @@ function render() {
   pause.textContent = st.paused ? "Reprendre (3, 2, 1)" : "Pause";
   pause.classList.toggle("resume", st.paused === true);
   pause.disabled = st.phase === "lobby" || st.phase === "ended" || !!pending?.advance;
-  next.disabled = next.disabled || st.paused === true;
+  next.disabled = next.disabled || st.paused === true || (blindMode(st) && st.phase === "question" && !!st.buzz?.team);
   // Mimes : le gros bouton « Trouvé » est dans la rubrique ; le bas de l'écran arrête le tour ou la manche.
   if (st.phase === "question" && st.mime) next.classList.toggle("secondary", !!st.mime.team);
   else next.classList.remove("secondary");
@@ -421,9 +434,121 @@ function renderMime(st, teams) {
   }
 }
 
+// ---------- Blind test ----------
+
+const BLIND_STATUS = { todo: "À jouer", playing: "En cours", found: "Trouvé", revealed: "Révélé", skipped: "Passé" };
+const MEDIA_STATUS = { ok: "✓ prêt", loading: "⏳ chargement", missing: "⚠ manquant" };
+
+function blindHasNext(st) {
+  const tracks = st.blind?.tracks ?? [];
+  const i = tracks.findIndex((t) => t.qid === st.qid);
+  return i >= 0 && i < tracks.length - 1;
+}
+
+/**
+ * Blind test : en-tête (morceau, valeur), ce qui se passe, verdict de la réponse orale, commandes de secours
+ * (relancer pour tous, révéler sans points, passer, raccourcir) et playlist avec le statut de chaque morceau.
+ */
+function renderBlind(st, teams) {
+  const on = blindMode(st) && ["question", "reveal", "scores"].includes(st.phase);
+  $("blind").hidden = !on;
+  document.querySelector(".regie .control").classList.toggle("blind-mode", on);
+  if (!on) return;
+  const b = st.blind;
+  const name = (id) => live.teams[id]?.name ?? "Équipe";
+  const tracks = b.tracks ?? [];
+  const i = tracks.findIndex((t) => t.qid === st.qid);
+  const plan = (qid) => (live.plan?.questions ?? []).find((q) => q.id === qid);
+  const title = (qid) => { const q = plan(qid); return q?.choices?.[q?.correct] ?? "?"; };
+  const min = Math.min(...tracks.map((t) => t.points));
+  const media = (qid) => { const id = plan(qid)?.audioId; return id ? live.media?.[id] ?? "loading" : "missing"; };
+  const busy = !!pending?.advance || st.paused === true;
+  const q = plan(st.qid);
+  const head = $("blind-head");
+  head.textContent = st.phase === "scores" ? "Bilan du blind test" : `Morceau ${i + 1} / ${tracks.length} · ${b.points} points`;
+  if (st.phase !== "scores" && b.points > min) {
+    const tag = document.createElement("span");
+    tag.className = "double";
+    tag.textContent = "POINTS DOUBLÉS";
+    head.append(tag);
+  }
+  const buzzer = st.buzz?.team;
+  const tried = (st.buzz?.blocked ?? []).filter((id) => live.teams[id]).map(name);
+  const expected = `« ${title(st.qid)} »${q?.artist ? ` de ${q.artist}` : ""}`;
+  const ready = media(st.qid);
+  let info;
+  if (st.phase === "scores") {
+    const found = tracks.filter((t) => t.status === "found");
+    info = found.length
+      ? `${found.length} morceau${found.length > 1 ? "x" : ""} trouvé${found.length > 1 ? "s" : ""} sur ${tracks.length}. Touchez le bouton du bas pour continuer.`
+      : "Aucun morceau trouvé. Touchez le bouton du bas pour continuer.";
+  } else if (st.phase === "reveal") {
+    const winner = Object.keys(st.awards ?? {}).find((t) => st.awards[t]?.correct);
+    info = winner ? `${name(winner)} a trouvé ${expected} : +${st.awards[winner].points} points.` : `Révélé sans points : ${expected}.`;
+  } else if (buzzer) {
+    info = `${name(buzzer)} a buzzé ! Réponse attendue : ${expected}`;
+  } else if (b.waiting) {
+    info = !b.played ? `Prêt : ${expected}. Touchez « Lancer le morceau » quand vous voulez.`
+      : tried.length ? `Pas trouvé (${tried.join(", ")}). Relancez la musique pour les autres équipes.`
+      : "Musique arrêtée. Relancez-la, révélez ou passez le morceau.";
+    if (ready === "missing") info += " ⚠ Extrait introuvable sur la TV : révélez ou passez ce morceau.";
+    else if (ready === "loading") info += " ⏳ La TV charge encore l'extrait.";
+  } else {
+    info = `Musique en cours… En attente d'un buzz.${tried.length ? ` Déjà essayé : ${tried.join(", ")}.` : ""}`;
+  }
+  $("blind-info").textContent = info;
+  $("blind-judge").hidden = !(st.phase === "question" && buzzer);
+  $("blind-ok").disabled = busy;
+  $("blind-ko").disabled = busy;
+  $("blind-ok").querySelector("small").textContent = buzzer ? `+${b.points} pour ${name(buzzer)}` : "";
+  const question = st.phase === "question" && !buzzer;
+  $("blind-unblock").hidden = !(question && tried.length);
+  $("blind-reveal").hidden = !question;
+  $("blind-skip").hidden = !question;
+  $("blind-cut").hidden = !(st.phase === "reveal" && !b.cut);
+  ["blind-unblock", "blind-reveal", "blind-skip", "blind-cut"].forEach((id) => { $(id).disabled = busy; });
+  $("blind-row").hidden = ["blind-unblock", "blind-reveal", "blind-skip", "blind-cut"].every((id) => $(id).hidden);
+
+  const list = $("blind-tracks");
+  const key = JSON.stringify([tracks, st.qid, live.media, live.plan?.rev, Object.keys(live.teams)]);
+  if (list.dataset.key === key) return;
+  list.dataset.key = key;
+  list.replaceChildren(...tracks.map((t, k) => {
+    const li = document.createElement("li");
+    li.className = `blind-track${t.qid === st.qid ? " current" : ""}${t.status === "todo" || t.qid === st.qid ? "" : " done"}`;
+    const n = document.createElement("span");
+    n.className = "n";
+    n.textContent = `${k + 1}.`;
+    const label = document.createElement("span");
+    label.className = "title";
+    const artist = document.createElement("small");
+    artist.textContent = plan(t.qid)?.artist ?? "";
+    label.append(title(t.qid), artist);
+    const pts = document.createElement("span");
+    pts.className = "pts";
+    pts.textContent = `${t.points} pts${t.points > min ? " ×2" : ""}`;
+    const status = document.createElement("span");
+    status.className = "status";
+    status.textContent = t.status === "found" && t.team ? `Trouvé · ${name(t.team)}` : BLIND_STATUS[t.status] ?? "";
+    const m = document.createElement("span");
+    const state = media(t.qid);
+    m.className = `media ${state}`;
+    m.textContent = t.status === "todo" || t.status === "playing" ? MEDIA_STATUS[state] ?? "" : "";
+    li.append(n, label, pts, status, m);
+    return li;
+  }));
+}
+
+$("blind-ok").onclick = () => { navigator.vibrate?.(60); send("buzz_ok", {}, { advance: true }); };
+$("blind-ko").onclick = () => send("buzz_ko", {}, { advance: true });
+$("blind-unblock").onclick = () => send("blind_unblock", {}, { advance: true });
+$("blind-reveal").onclick = () => { if (confirm("Révéler ce morceau sans donner de points ?")) send("blind_reveal", {}, { advance: true }); };
+$("blind-skip").onclick = () => { if (confirm("Passer ce morceau sans le révéler ?")) send("blind_skip", {}, { advance: true }); };
+$("blind-cut").onclick = () => send("blind_cut", {}, { advance: true });
+
 /** Jeux au buzzer : qui a buzzé, la réponse attendue, et les deux boutons du verdict. */
 function renderFlou(st) {
-  const on = st.phase === "question" && BUZZ_KINDS.includes(st.kind);
+  const on = st.phase === "question" && BUZZ_KINDS.includes(st.kind) && !blindMode(st);
   $("flou").hidden = !on;
   if (!on) return;
   const b = st.buzz ?? {};
@@ -591,7 +716,7 @@ async function jumpTo(r, st) {
   const replay = st.phase === "ended" || r.start <= index;
   const message = replay
     ? `Rejouer « ${name} » depuis le début ?\n\nLes points gagnés dans ce jeu sont retirés puis rejoués : rien n'est compté deux fois. Les équipes et les points des autres jeux sont gardés.`
-    : `Passer directement à « ${name} » ?\n\nLe jeu en cours s'arrête là ; les points déjà gagnés sont gardés.`;
+    : `Passer directement à « ${name} » ?\n\nLe jeu en cours s'arrête là ; les points déjà gagnés sont gardés. Si « ${name} » avait déjà été commencé plus tôt, il repart de zéro (ses anciens points sont retirés puis rejoués).`;
   if (!confirm(message)) return;
   const status = await send("goto", { index: r.start, qid: questions[r.start].id }, { advance: true });
   if (status?.status === "applied") {
@@ -951,7 +1076,8 @@ function tvRefuses(questions) {
   if (live.plan.statues !== true && questions.some((q) => q?.kind === "statues")) return OLD_TV_STATUES;
   if (live.plan.disparu !== true && questions.some((q) => q?.kind === "disparu")) return OLD_TV_DISPARU;
   // Quiz musical compris : une ancienne TV le jouerait sans musique.
-  if (live.plan.blind !== true && questions.some((q) => q?.kind === "blind" || q?.audioId)) return OLD_TV_BLIND;
+  if (live.plan.blindPlay !== true && questions.some((q) => q?.kind === "blind")) return OLD_TV_BLIND;
+  if (live.plan.blind !== true && questions.some((q) => q?.audioId)) return OLD_TV_BLIND;
   return null;
 }
 
@@ -1273,7 +1399,8 @@ $("c-next").onclick = () => {
     const names = left.map((id) => live.teams[id]?.name ?? "Équipe").join(", ");
     if (!confirm(`${names} ${left.length > 1 ? "ne sont" : "n'est"} pas encore ${left.length > 1 ? "passées" : "passée"}. Terminer les mimes quand même ?`)) return;
   }
-  send(st?.phase === "question" && !(st.mime && !st.mime.team) ? "close" : "next", {}, { advance: true });
+  // Blind test : « next » lance, relance ou arrête la musique (la box décide selon l'état du morceau).
+  send(st?.phase === "question" && !(st.mime && !st.mime.team) && !blindMode(st) ? "close" : "next", {}, { advance: true });
 };
 $("c-pause").onclick = () => send(live.state?.paused ? "resume" : "pause", {}, { advance: true });
 $("c-answer").onclick = () => { answerMasked = !answerMasked; render(); };
