@@ -37,6 +37,8 @@ object Sons {
     private val lits = mutableMapOf<Lit, MediaPlayer>()
     private val volumes = Lit.entries.associateWith { 0f }.toMutableMap()
     private var ambiance = Ambiance.SILENCE
+    /** Dernière ambiance demandée, même encore programmée : c'est elle qu'on remet au retour au premier plan. */
+    private var ambianceVoulue = Ambiance.SILENCE
     private var pret = false
     private var enArriere = false
 
@@ -79,7 +81,10 @@ object Sons {
                     Ordre.Couper -> couper()
                     is Ordre.Arreter -> essayer("arreter") { eteindre(o.son) }
                     is Ordre.Jouer -> plus(o.dansMs) { jouer(o.son) }
-                    is Ordre.Musique -> plus(o.dansMs) { versAmbiance(o.ambiance) }
+                    is Ordre.Musique -> {
+                        ambianceVoulue = o.ambiance
+                        plus(o.dansMs) { versAmbiance(o.ambiance) }
+                    }
                 }
             }
         }
@@ -102,6 +107,9 @@ object Sons {
                 pool?.autoResume()
                 demarrerLits()
             }
+            // Une musique encore programmée (fin du générique, entrée en pause…) a été annulée en arrière-plan :
+            // on la remet, sinon l'écran resterait muet jusqu'au suivant.
+            if (ambiance != ambianceVoulue) essayer("reprendre") { versAmbiance(ambianceVoulue) }
         }
     }
 
@@ -199,6 +207,26 @@ object Sons {
             isLooping = boucle
             setVolume(0f, 0f)
             prepare()
+            // Un lecteur en erreur (serveur audio de la box relancé…) resterait muet toute la partie : on le refait.
+            setOnErrorListener { mp, quoi, extra ->
+                Log.w(TAG, "Lecteur « $nom » en erreur ($quoi, $extra), reconstruit")
+                h.post { reconstruire(context, nom, boucle, mp) }
+                true
+            }
+        }
+    }
+
+    private fun reconstruire(context: Context, nom: String, boucle: Boolean, ancien: MediaPlayer) {
+        essayer("reconstruire") { ancien.release() }
+        val neuf = try { lecteur(context, nom, boucle) } catch (e: Exception) { null } ?: return
+        Son.entries.find { it.fichier == nom && longs[it] === ancien }?.let { longs[it] = neuf }
+        Lit.entries.find { it.fichier == nom && lits[it] === ancien }?.let { l ->
+            lits[l] = neuf
+            val v = volumes.getValue(l)
+            essayer("lit") {
+                neuf.setVolume(v, v)
+                if (v > 0f && !enArriere) reveiller(neuf)
+            }
         }
     }
 

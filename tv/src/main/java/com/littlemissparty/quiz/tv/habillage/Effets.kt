@@ -7,6 +7,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -111,13 +113,14 @@ fun GeneriqueSalon(partie: String, prenom: String, titre: String) {
         t.animateTo(Tempo.GENERIQUE_ANIMATION.toFloat(), tween(Tempo.GENERIQUE_ANIMATION.toInt(), easing = LinearEasing))
         montrer = false
     }
-    val ms = t.value
-    val sortie = ((ms - 7_600f) / 1_400f).coerceIn(0f, 1f)
+    // Le temps n'est lu que dans les calques (graphicsLayer) : rien ne se recompose à chaque image, la Mi Box suit.
+    val ms = { t.value }
     Box(
         Modifier
             .fillMaxSize()
             .clearAndSetSemantics {}
             .graphicsLayer {
+                val sortie = ((ms() - 7_600f) / 1_400f).coerceIn(0f, 1f)
                 alpha = 1f - sortie
                 scaleX = 1f + 0.08f * sortie
                 scaleY = 1f + 0.08f * sortie
@@ -128,7 +131,6 @@ fun GeneriqueSalon(partie: String, prenom: String, titre: String) {
         Rayons(ms)
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             // « Little Miss » s'écrit de gauche à droite, néon rose.
-            val ecrit = ((ms - 300f) / 1_200f).coerceIn(0f, 1f)
             Text(
                 "Little Miss",
                 style = TextStyle(
@@ -136,6 +138,7 @@ fun GeneriqueSalon(partie: String, prenom: String, titre: String) {
                     shadow = Shadow(Neon.Halo, Offset.Zero, 28f),
                 ),
                 modifier = Modifier.graphicsLayer {
+                    val ecrit = ((ms() - 300f) / 1_200f).coerceIn(0f, 1f)
                     alpha = if (ecrit > 0f) 1f else 0f
                     clip = true
                     shape = DevoileGauche(ecrit)
@@ -145,7 +148,6 @@ fun GeneriqueSalon(partie: String, prenom: String, titre: String) {
             Row {
                 "PARTY".forEachIndexed { i, c ->
                     val debut = 1_500f + i * 125f
-                    val x = ((ms - debut) / 260f).coerceIn(0f, 1f)
                     Text(
                         c.toString(),
                         style = TextStyle(
@@ -154,6 +156,7 @@ fun GeneriqueSalon(partie: String, prenom: String, titre: String) {
                             shadow = Shadow(Neon.Or.copy(alpha = 0.6f), Offset.Zero, 18f),
                         ),
                         modifier = Modifier.graphicsLayer {
+                            val x = ((ms() - debut) / 260f).coerceIn(0f, 1f)
                             alpha = x
                             translationY = (1f - x) * -60f
                             rotationX = (1f - x) * 70f
@@ -162,23 +165,29 @@ fun GeneriqueSalon(partie: String, prenom: String, titre: String) {
                 }
             }
             // « QUIZ » claque sur le temps fort.
-            val q = ((ms - 2_500f) / 450f).coerceIn(0f, 1f)
-            val claque = if (q <= 0f) 0f else 1f + 0.5f * (1f - q) * (1f - q)
             Text(
                 "QUIZ",
                 style = TextStyle(
                     color = Color(0xFFFFF6E6), fontSize = 120.sp, fontWeight = FontWeight.Black, letterSpacing = 18.sp,
                     shadow = Shadow(Neon.Or, Offset.Zero, 40f),
                 ),
-                modifier = Modifier.graphicsLayer { alpha = if (q > 0f) 1f else 0f; scaleX = claque; scaleY = claque },
+                modifier = Modifier.graphicsLayer {
+                    val q = ((ms() - 2_500f) / 450f).coerceIn(0f, 1f)
+                    val claque = if (q <= 0f) 0f else 1f + 0.5f * (1f - q) * (1f - q)
+                    alpha = if (q > 0f) 1f else 0f
+                    scaleX = claque
+                    scaleY = claque
+                },
             )
             Spacer(Modifier.height(24.dp))
-            val salut = ((ms - 4_000f) / 600f).coerceIn(0f, 1f)
-            val nom = ((ms - 4_500f) / 700f).coerceIn(0f, 1f)
             Text(
                 if (prenom.isNotBlank()) "Joyeux anniversaire" else titre.ifBlank { "Bienvenue sur le plateau !" },
                 color = Neon.Blanc, fontSize = 40.sp, fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.graphicsLayer { alpha = salut; translationY = (1f - salut) * 40f },
+                modifier = Modifier.graphicsLayer {
+                    val salut = ((ms() - 4_000f) / 600f).coerceIn(0f, 1f)
+                    alpha = salut
+                    translationY = (1f - salut) * 40f
+                },
             )
             if (prenom.isNotBlank()) {
                 Text(
@@ -188,6 +197,7 @@ fun GeneriqueSalon(partie: String, prenom: String, titre: String) {
                         shadow = Shadow(Neon.Or, Offset.Zero, 36f),
                     ),
                     modifier = Modifier.graphicsLayer {
+                        val nom = ((ms() - 4_500f) / 700f).coerceIn(0f, 1f)
                         alpha = nom
                         val s = 0.6f + 0.4f * nom
                         scaleX = s
@@ -210,28 +220,29 @@ private class DevoileGauche(private val part: Float) : androidx.compose.ui.graph
     )
 }
 
-/** Rayons dorés qui tournent derrière le logo du générique. */
+/** Rayons dorés qui tournent derrière le logo du générique : dessinés une fois, seul le calque tourne. */
 @Composable
-private fun Rayons(ms: Float) {
-    val force = (ms / 800f).coerceIn(0f, 1f)
-    Canvas(Modifier.fillMaxSize().graphicsLayer { rotationZ = ms / 1000f * 8f; alpha = force }) {
-        val c = Offset(size.width / 2, size.height / 2)
-        val r = size.maxDimension
-        val pinceau = Brush.radialGradient(listOf(Neon.Or.copy(alpha = 0.20f), Color.Transparent), c, r * 0.55f)
-        for (i in 0 until 20) {
-            val a = Math.toRadians(i * 18.0)
-            val w = 0.07
-            drawPath(
-                Path().apply {
-                    moveTo(c.x, c.y)
-                    lineTo(c.x + (r * cos(a - w)).toFloat(), c.y + (r * sin(a - w)).toFloat())
-                    lineTo(c.x + (r * cos(a + w)).toFloat(), c.y + (r * sin(a + w)).toFloat())
-                    close()
-                },
-                pinceau,
-            )
-        }
-    }
+private fun Rayons(ms: () -> Float) {
+    Box(
+        Modifier.fillMaxSize()
+            .graphicsLayer { rotationZ = ms() / 1000f * 8f; alpha = (ms() / 800f).coerceIn(0f, 1f) }
+            .drawWithCache {
+                val c = Offset(size.width / 2, size.height / 2)
+                val r = size.maxDimension
+                val pinceau = Brush.radialGradient(listOf(Neon.Or.copy(alpha = 0.20f), Color.Transparent), c, r * 0.55f)
+                val rayons = (0 until 20).map { i ->
+                    val a = Math.toRadians(i * 18.0)
+                    val w = 0.07
+                    Path().apply {
+                        moveTo(c.x, c.y)
+                        lineTo(c.x + (r * cos(a - w)).toFloat(), c.y + (r * sin(a - w)).toFloat())
+                        lineTo(c.x + (r * cos(a + w)).toFloat(), c.y + (r * sin(a + w)).toFloat())
+                        close()
+                    }
+                }
+                onDrawBehind { rayons.forEach { drawPath(it, pinceau) } }
+            },
+    )
 }
 
 /** Reflet doré qui traverse l'écran à chaque changement de [cle] (question suivante, classement…). */
@@ -353,7 +364,9 @@ fun Tampon(
         t.snapTo(0f)
         t.animateTo(1f, tween(dureeMs, easing = LinearEasing))
     }
-    if (!actif || t.value <= 0f || t.value >= 1f) return
+    // Lu à travers derivedStateOf : l'effet ne se recompose qu'en apparaissant et en disparaissant, pas à chaque image.
+    val enCours by remember(t) { derivedStateOf { t.value > 0f && t.value < 1f } }
+    if (!actif || !enCours) return
     Box(modifier.clearAndSetSemantics {}, contentAlignment = Alignment.Center) {
         Text(
             texte,
@@ -399,7 +412,9 @@ fun Gerbe(cle: Any?, actif: Boolean = true, modifier: Modifier = Modifier) {
             Confetti(angle, 0.55f + r.nextFloat() * 0.6f, 0f, r.nextFloat() * 6.28f, 2f + r.nextFloat() * 5f, couleurs[i % couleurs.size])
         }
     }
-    if (!actif || t.value <= 0f || t.value >= 1f) return
+    // Lu à travers derivedStateOf : l'effet ne se recompose qu'en apparaissant et en disparaissant, pas à chaque image.
+    val enCours by remember(t) { derivedStateOf { t.value > 0f && t.value < 1f } }
+    if (!actif || !enCours) return
     Canvas(modifier.fillMaxSize().clearAndSetSemantics {}) {
         val s = t.value
         val w = size.width

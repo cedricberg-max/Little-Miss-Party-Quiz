@@ -190,8 +190,11 @@ private fun chronoUrgent(s: UiState.Playing?): Boolean {
         }
         val depart = s.resumeAt ?: 0L
         while (true) {
-            val reste = deadline - maxOf(System.currentTimeMillis() + s.serverOffset, depart)
-            urgent = reste in 1..fenetre
+            val maintenant = System.currentTimeMillis() + s.serverOffset
+            val reste = deadline - maxOf(maintenant, depart)
+            // Pas pendant le décompte 3, 2, 1 d'une reprise : la tension attend que le chrono reparte. Elle tient
+            // jusqu'au changement d'écran (la box ferme la question un peu après zéro), sans retomber à zéro.
+            urgent = maintenant >= depart && reste <= fenetre
             if (reste <= 0) break
             delay(100)
         }

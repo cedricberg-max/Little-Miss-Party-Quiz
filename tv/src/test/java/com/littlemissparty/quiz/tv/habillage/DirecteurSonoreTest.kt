@@ -340,13 +340,13 @@ class DirecteurSonoreTest {
         // L'équipe 2 buzze : gros buzz, sa note, suspense, plus de musique.
         val buzz = d.observer(image.copy(buzzEquipe = 1))
         assertEquals(listOf(Son.BUZZ_GROS, Son.EQUIPE_2, Son.SUSPENSE_REPONSE), buzz.sons())
-        assertTrue(Ordre.Arreter(Son.FLOU_MONTEE) in buzz)
+        assertEquals(Ordre.Couper, buzz.first())
         assertEquals(Ambiance.SILENCE, buzz.musique())
         // Le même état observé deux fois ne rejoue rien.
         assertTrue(d.observer(image.copy(buzzEquipe = 1)).isEmpty())
         // Raté : « pouet » gentil et la musique revient.
         val rate = d.observer(image.copy(ratees = 1))
-        assertTrue(Ordre.Arreter(Son.SUSPENSE_REPONSE) in rate)
+        assertEquals(Ordre.Couper, rate.first())
         assertEquals(listOf(Son.VF_FAUX), rate.sons())
         assertEquals(Ambiance.SUSPENSE, rate.musique())
         assertFalse(Son.TENSION in d.observer(image.copy(ratees = 1, urgent = true)).sons())
@@ -356,6 +356,24 @@ class DirecteurSonoreTest {
         assertEquals(Ordre.Couper, revele.first())
         assertTrue(Son.ZOOM_REVELE in revele.sons())
         assertFalse(Son.ROULEMENT_COURT in revele.sons())
+    }
+
+    @Test
+    fun `deuxieme buzz juste apres un rate, la musique prevue ne repart pas sous la reponse`() {
+        val d = DirecteurSonore()
+        val image = Instant(Ecran.QUESTION, partie = "ABCD", index = 9, equipes = 3, propositions = 1, jeuBuzz = true, flou = true)
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 8, equipes = 3))
+        d.observer(image)
+        d.observer(image.copy(buzzEquipe = 0))
+        val rate = d.observer(image.copy(ratees = 1))
+        assertTrue(rate.any { it is Ordre.Musique && it.dansMs > 0 })
+        // L'équipe 2 buzze avant que la musique revienne : tout ce qui était prévu est annulé d'abord.
+        val buzz = d.observer(image.copy(ratees = 1, buzzEquipe = 2))
+        assertEquals(Ordre.Couper, buzz.first())
+        assertEquals(Ambiance.SILENCE, buzz.musique())
+        // Les deux changements arrivent d'un coup (raté de l'équipe 3, buzz de l'équipe 1) : pouet puis buzz.
+        val coup = d.observer(image.copy(ratees = 2, buzzEquipe = 1))
+        assertEquals(listOf(Son.VF_FAUX, Son.BUZZ_GROS, Son.EQUIPE_2, Son.SUSPENSE_REPONSE), coup.sons())
     }
 
     @Test

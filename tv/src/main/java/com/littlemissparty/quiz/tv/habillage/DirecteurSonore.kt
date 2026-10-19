@@ -266,19 +266,22 @@ class DirecteurSonore {
     private fun buzzJeu(p: Instant, i: Instant): List<Ordre> {
         val o = mutableListOf<Ordre>()
         if (i.indices > p.indices && p.indices > 0 && i.buzzEquipe < 0) o += Ordre.Jouer(Son.INDICE)
-        if (i.buzzEquipe >= 0 && p.buzzEquipe < 0) {
+        val nouveauBuzz = i.buzzEquipe >= 0 && i.buzzEquipe != p.buzzEquipe
+        val repart = i.buzzEquipe < 0 && p.buzzEquipe >= 0
+        // Annule d'abord tout ce qui était prévu (musique qui revenait après un raté, suspense, montée de l'image) :
+        // un deuxième buzz juste après un raté ne doit jamais entendre la musique repartir sous sa réponse.
+        if (nouveauBuzz || repart) o += Ordre.Couper
+        // Jamais moqueur : un petit « pouet » gentil quand une équipe s'est trompée.
+        if ((nouveauBuzz || repart) && i.ratees > p.ratees) o += Ordre.Jouer(Son.VF_FAUX)
+        if (nouveauBuzz) {
             // Blind test : le disque s'arrête net (scratch) au moment du buzz.
             if (i.musical) o += Ordre.Jouer(Son.BT_SCRATCH)
-            o += Ordre.Arreter(Son.FLOU_MONTEE)
             o += Ordre.Musique(Ambiance.SILENCE)
             o += Ordre.Jouer(Son.BUZZ_GROS)
             o += Ordre.Jouer(Son.equipe(i.buzzEquipe), Tempo.FLOU_EQUIPE)
             if (!i.chante) o += Ordre.Jouer(Son.SUSPENSE_REPONSE, Tempo.FLOU_SUSPENSE)
-        }
-        if (i.buzzEquipe < 0 && p.buzzEquipe >= 0) {
-            o += Ordre.Arreter(Son.SUSPENSE_REPONSE)
-            // Jamais moqueur : un petit « pouet » gentil, et l'image reprend avec la musique.
-            if (i.ratees > p.ratees) o += Ordre.Jouer(Son.VF_FAUX)
+        } else if (repart) {
+            // L'image (ou la chanson) reprend, avec sa musique.
             o += Ordre.Musique(ambiance(i), Tempo.FLOU_REPRISE)
         }
         return o
