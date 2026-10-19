@@ -105,10 +105,25 @@ class DirecteurSonore {
                 o += Ordre.Jouer(Son.WHOOSH)
                 o += Ordre.Musique(Ambiance.SALON)
             }
+            Ecran.PRESENTATION -> if (nouvelleEpreuve) {
+                // Présentation d'un jeu : le jingle du rideau, puis une musique douce sous la voix de Sarah.
+                o += Ordre.Jouer(Son.TRANSITION)
+                o += Ordre.Musique(Ambiance.SILENCE)
+                o += Ordre.Musique(Ambiance.PRESENTATION, Tempo.TRANSITION_MUSIQUE)
+            } else {
+                o += Ordre.Jouer(Son.WHOOSH)
+                o += Ordre.Musique(Ambiance.PRESENTATION)
+            }
             Ecran.QUESTION -> {
                 // Le Vrai ou Faux express garde sa musique nerveuse d'un bout à l'autre de la série.
                 val musique = ambiance(i)
-                if (i.musical) {
+                if (p.ecran == Ecran.PRESENTATION && !i.musical) {
+                    // Sarah lance le jeu présenté : le jingle d'ouverture de manche, puis la musique du jeu.
+                    o += Ordre.Jouer(Son.MANCHE)
+                    o += Ordre.Jouer(Son.IMPACT)
+                    o += Ordre.Musique(Ambiance.SILENCE)
+                    o += Ordre.Musique(musique, Tempo.QUESTION_MUSIQUE_APRES_MANCHE)
+                } else if (i.musical) {
                     // La chanson part dès l'ouverture : aucun jingle par-dessus (le rideau, lui, passe quand même).
                     o += Ordre.Musique(Ambiance.SILENCE)
                     // Blind test : son générique court à la présentation, un éclat de cuivres au passage en points doublés.
@@ -378,6 +393,7 @@ class DirecteurSonore {
     private fun ambianceParDefaut(e: Ecran) = when (e) {
         Ecran.HORS_PARTIE -> Ambiance.SILENCE
         Ecran.SALON -> Ambiance.SALON
+        Ecran.PRESENTATION -> Ambiance.PRESENTATION
         Ecran.QUESTION -> Ambiance.QUESTION
         Ecran.MIMES -> Ambiance.MIMES_ENTRE
         Ecran.MIMES_TOUR -> Ambiance.MIMES
@@ -463,7 +479,7 @@ const val DISPARU_CHERCHER = 3
 const val DISPARU_REPONSE = 4
 
 /** [MIMES] : manche de mimes entre deux tours ; [MIMES_TOUR] : une équipe mime. */
-enum class Ecran { HORS_PARTIE, SALON, QUESTION, MIMES, MIMES_TOUR, VERROUILLEE, REVELATION, CLASSEMENT, FIN }
+enum class Ecran { HORS_PARTIE, SALON, PRESENTATION, QUESTION, MIMES, MIMES_TOUR, VERROUILLEE, REVELATION, CLASSEMENT, FIN }
 
 /** Les boucles musicales de 16 s (8 mesures à 120 BPM), toujours calées sur le même tempo. */
 enum class Lit(val fichier: String) {
@@ -490,6 +506,8 @@ enum class Ambiance(
     SALON_ARRIVEE(complete = 0.85f),
     QUESTION(legere = 0.6f),
     SUSPENSE(legere = 0.25f),
+    /** Présentation d'un jeu : la musique du salon, assez bas pour que Sarah présente le jeu par-dessus. */
+    PRESENTATION(complete = 0.3f),
     FETE(complete = 0.8f),
     /** Tour de mimes : rythmique latine qui entraîne, sans couvrir les cris de ceux qui devinent. */
     MIMES(mimes = 0.6f),

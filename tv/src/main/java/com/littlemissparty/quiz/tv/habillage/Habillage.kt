@@ -85,12 +85,17 @@ fun HabillageTv(state: UiState) {
     DecorPlateau(chaud = urgent, dore = dore)
 }
 
-internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indices: Int = 0, statue: Boolean = false, disparu: Int = 0, decompte: Int = 0): Instant {
+/**
+ * [presentation] : la TV montre l'écran de présentation du jeu (avant sa première question, en attendant que
+ * Sarah le lance) ; musique douce, ni jingle de question ni bulles.
+ */
+internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indices: Int = 0, statue: Boolean = false, disparu: Int = 0, decompte: Int = 0, presentation: Boolean = false): Instant {
     val s = state as? UiState.Playing ?: return Instant(Ecran.HORS_PARTIE)
     val blind = s.blind?.takeIf { s.question?.isBlind == true }
     val ecran = when (s.phase) {
         Phase.LOBBY -> Ecran.SALON
         Phase.QUESTION -> when {
+            presentation -> Ecran.PRESENTATION
             s.mime == null -> Ecran.QUESTION
             s.mime.team != null -> Ecran.MIMES_TOUR
             else -> Ecran.MIMES

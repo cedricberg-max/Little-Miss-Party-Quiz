@@ -640,4 +640,26 @@ class DirecteurSonoreTest {
         val manquants = (Son.entries.map { it.fichier } + Lit.entries.map { it.fichier }).filterNot { java.io.File("src/main/res/raw/$it.ogg").isFile }
         assertTrue("Sons manquants : $manquants", manquants.isEmpty())
     }
+
+    @Test
+    fun `presentation d'un jeu en musique douce, le jingle de manche seulement quand Sarah le lance`() {
+        val d = DirecteurSonore()
+        d.observer(salon)
+        val presentation = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 0, equipes = 2, premiere = true, epreuve = "quiz|")
+        val o = d.observer(presentation)
+        assertFalse(Son.MANCHE in o.sons())
+        assertTrue(o.sons().none { it.name.startsWith("POP") })
+        assertEquals(Ambiance.PRESENTATION, o.musique())
+        // Elle peut durer : rien ne se rejoue tant que Sarah présente le jeu.
+        assertTrue(d.observer(presentation).isEmpty())
+        val lance = d.observer(q1.copy(epreuve = "quiz|"))
+        assertTrue(Son.MANCHE in lance.sons())
+        assertEquals(Ambiance.QUESTION, lance.musique())
+        // Jeu suivant : rideau à la présentation, puis le jingle de manche au lancement, même loin dans la partie.
+        val suivant = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 8, equipes = 2, epreuve = "zoom|")
+        val rideau = d.observer(suivant)
+        assertTrue(Son.TRANSITION in rideau.sons())
+        assertEquals(Ambiance.PRESENTATION, rideau.musique())
+        assertTrue(Son.MANCHE in d.observer(suivant.copy(ecran = Ecran.QUESTION)).sons())
+    }
 }
