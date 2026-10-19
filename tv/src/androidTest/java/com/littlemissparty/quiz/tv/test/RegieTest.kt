@@ -726,7 +726,7 @@ class RegieTest : TestTv() {
             licornes.etat(code).takeIf { it.child("phase").value == "reveal" } ?: run { regie.commande(code, "next"); null }
         }
         ecran.voit("Ouvrir la porte suivante")
-        repeat(3) { k ->
+        for (k in 0 until 3) {
             assertEquals("applied", regie.commande(code, "next"))
             attendreQue("porte ${k + 1} ouverte") { licornes.etat(code).takeIf { (it.child("portes/opened").value as? Number)?.toInt() == k + 1 } }
         }
