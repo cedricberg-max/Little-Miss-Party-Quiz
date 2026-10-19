@@ -77,10 +77,17 @@ fun DisparuBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
                 .apparition(0, etape),
         )
         Spacer(Modifier.height(10.dp))
-        val colonnes = if (q.cards.size <= 6) 3 else 4
+        // Colonnes choisies pour remplir les lignes ; une dernière ligne incomplète est centrée, jamais un trou d'un côté.
+        val colonnes = when (q.cards.size) {
+            in 1..4 -> 2
+            in 5..6, 9 -> 3
+            else -> 4
+        }
         Column(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             q.cards.indices.chunked(colonnes).forEach { ligne ->
                 Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    val vide = colonnes - ligne.size
+                    if (vide > 0) Spacer(Modifier.weight(vide / 2f))
                     ligne.forEach { i ->
                         val disparu = i == q.missingIndex
                         ObjetCase(
@@ -88,7 +95,7 @@ fun DisparuBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
                             Modifier.weight(1f).fillMaxHeight().graphicsLayer { if (etape == EtapeDisparu.MAGIE) rotationZ = if (i % 2 == 0) tourne else -tourne },
                         )
                     }
-                    repeat(colonnes - ligne.size) { Spacer(Modifier.weight(1f)) }
+                    if (vide > 0) Spacer(Modifier.weight(vide / 2f))
                 }
             }
         }

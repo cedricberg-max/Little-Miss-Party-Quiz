@@ -7,7 +7,6 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import android.graphics.BitmapFactory
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,7 +16,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -31,7 +29,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -43,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
+import com.littlemissparty.quiz.tv.habillage.RevelationPersonnage
 import com.littlemissparty.quiz.tv.habillage.apparition
 
 /** Petit badge doré en haut d'un plateau de mini-jeu. */
@@ -130,20 +128,17 @@ fun QuiSuisBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
         Row(verticalAlignment = Alignment.CenterVertically) {
             Badge("QUI SUIS-JE ?")
             Spacer(Modifier.weight(1f))
-            // Révélation : l'image du personnage (préparée dans l'administration), sinon son émoji.
-            val photo = if (revealed) imagePersonnage(q, state) else null
-            if (photo != null) {
-                Image(
-                    photo, contentDescription = null, contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(84.dp).clip(RoundedCornerShape(18.dp)).apparition(0, revealed),
-                )
-            } else {
-                Text(
-                    if (revealed) q.emoji.orEmpty() else "?",
-                    color = Palette.Gold, fontSize = 44.sp, fontWeight = FontWeight.Black,
-                    modifier = Modifier.apparition(0, revealed),
-                )
-            }
+            if (!revealed) Text("?", color = Palette.Gold, fontSize = 44.sp, fontWeight = FontWeight.Black)
+        }
+        // Révélation : le personnage en grand, avec son image (préparée dans l'administration), son émoji ou son nom seul.
+        if (revealed) {
+            RevelationPersonnage(
+                nom = q.choices.getOrNull(q.correct).orEmpty(),
+                emoji = q.emoji?.takeIf { it.isNotBlank() },
+                image = imagePersonnage(q, state),
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+            )
+            return@Column
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
             val mesure = rememberTextMeasurer()

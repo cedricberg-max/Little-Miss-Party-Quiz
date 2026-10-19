@@ -185,8 +185,9 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
         }
         // Blind test : annonce des derniers morceaux à double valeur, par-dessus tout l'écran.
         if (q.isBlind) BlindAnnonceDouble(q, state)
-        // Jeux au buzzer : « La parole est à … » en grand, puis en bandeau tant que l'équipe répond.
-        if (q.isBuzz) key(state.index) { AnnonceParole(state) }
+        // Jeux au buzzer : « La parole est à … » en grand, puis en bandeau tant que l'équipe répond
+        // (le blind test a sa propre scène au buzz).
+        if (q.isBuzz && !q.isBlind) key(state.index) { AnnonceParole(state) }
     }
 }
 
