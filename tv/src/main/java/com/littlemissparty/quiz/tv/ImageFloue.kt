@@ -174,16 +174,17 @@ fun FlouPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifier
                     textAlign = TextAlign.Center, modifier = Modifier.apparition(0, buzzer.uid),
                 )
                 Spacer(Modifier.height(14.dp))
-                Text(if (q.isChante) "À vous de chanter !" else "Votre réponse, à voix haute !", color = Palette.Ink, fontSize = 28.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                Text(if (q.isChante) "À vous de chanter !" else if (q.isBlind) "Le titre, à voix haute !" else "Votre réponse, à voix haute !", color = Palette.Ink, fontSize = 28.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
             }
             state.phase == Phase.CLOSED -> Text(
-                if (q.isFlou) "Temps écoulé ! Voyons ce qui se cachait…" else "Temps écoulé !",
+                if (q.isFlou) "Temps écoulé ! Voyons ce qui se cachait…" else if (q.isBlind) "Temps écoulé ! Écoutons la réponse…" else "Temps écoulé !",
                 color = Palette.Gold, fontSize = 32.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
             )
             else -> Text(
                 when {
                     q.isChante -> "Buzzez et chantez une chanson avec ce mot !"
                     q.isQuiSuis -> "Buzzez dès que vous savez qui je suis !"
+                    q.isBlind -> "Buzzez dès que vous reconnaissez la chanson !"
                     else -> "Buzzez dès que vous reconnaissez l'image !"
                 },
                 color = Palette.Ink, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,

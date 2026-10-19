@@ -33,7 +33,8 @@ object Codec {
             is MimeCorrected -> mapOf("type" to "mime_fix", "team" to e.team, "delta" to e.delta)
             is MimeTurnEnded -> mapOf("type" to "mime_stop")
             is Buzzed -> mapOf("type" to "buzz", "team" to e.team)
-            is BuzzJudged -> mapOf("type" to "buzz_judge", "ok" to e.ok)
+            is BuzzJudged -> if (e.bonus) mapOf("type" to "buzz_judge", "ok" to e.ok, "bonus" to true) else mapOf("type" to "buzz_judge", "ok" to e.ok)
+            is StatuesWon -> mapOf("type" to "statues_win", "team" to e.team, "others" to e.others.ifEmpty { null })
             is Jumped -> mapOf("type" to "goto", "index" to e.index, "qid" to e.qid, "clear" to e.clear.ifEmpty { null })
         }
         return base + body
@@ -71,7 +72,8 @@ object Codec {
             "mime_fix" -> MimeCorrected(seq, at, m["team"] as String, m.num("delta").toInt())
             "mime_stop" -> MimeTurnEnded(seq, at)
             "buzz" -> Buzzed(seq, at, m["team"] as String)
-            "buzz_judge" -> BuzzJudged(seq, at, m["ok"] == true)
+            "statues_win" -> StatuesWon(seq, at, m["team"] as String, (m["others"] as? List<*>).orEmpty().map { it as String })
+            "buzz_judge" -> BuzzJudged(seq, at, m["ok"] == true, m["bonus"] == true)
             "goto" -> Jumped(seq, at, m.num("index").toInt(), m["qid"] as String, (m["clear"] as? List<*>).orEmpty().map { it as String })
             else -> null
         }
@@ -142,6 +144,7 @@ object Codec {
                 "correct" to if (revealed) q.correct else null,
                 // L'émoji d'illustration peut trahir la réponse : seulement une fois révélée.
                 "image" to if (revealed) q.emoji else null,
+                "artist" to if (revealed) q.artist else null,
                 "awards" to if (revealed) s.awards[q.id]?.mapValues { (_, a) ->
                     mapOf("correct" to a.correct, "points" to a.points, "bonus" to a.bonus)
                 } else null,

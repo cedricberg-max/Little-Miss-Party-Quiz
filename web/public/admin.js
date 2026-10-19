@@ -4,14 +4,18 @@ import {
   getDatabase, ref, get, set, update, push, onValue, serverTimestamp, connectDatabaseEmulator,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { passwordHash, newSalt, cleanPassword, passwordCandidates, MIN_PASSWORD_LENGTH } from "./secret.js";
-import { TEST_ID, TEST_QUIZ, TEST_SHOW, FULL_ID, FULL_KEYS, FULL_QUIZZES, FULL_MIMES, FULL_SHOW, FULL_PHOTOS, photoQuiz, drawPhoto } from "./test-show.js";
+import {
+  TEST_ID, TEST_QUIZ, TEST_SHOW, FULL_ID, FULL_KEYS, FULL_QUIZZES, FULL_MIMES, FULL_SHOW, FULL_PHOTOS, photoQuiz, drawPhoto,
+  FULL_TUNES, FULL_TUNE_SEC, FULL_MUSIC_ROUNDS, tunePlaylist,
+} from "./test-show.js";
 import { writeProof, isAdmin } from "./proof.js";
 import { parseQuiz, checkQuestions, geminiPrompt, LETTERS } from "./importer.js";
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
 import {
   buildSnapshot, estimateMinutes, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, BUILTIN_GAMES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
-  roundFilled, MIME_TURN,
+  roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC,
 } from "./show.js";
+import { EXTRACT_SECONDS, guessTrack, defaultStart, decodeFile, makeExtract, synthTune, encodeMp3, soundId } from "./audio.js";
 import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
 import { watchVersion, showUpdateBanner } from "./version.js";
 import { compressImage, imageId, cleanEmoji } from "./illustration.js";
@@ -68,6 +72,7 @@ const ctx = { db, uid };
 let quizzes = {};
 let shows = {};
 let mimes = {};
+let playlists = {};
 let stops = [];
 let current = "home";
 
@@ -93,9 +98,9 @@ function status(id, text, ok = false) {
   $(id).classList.toggle("ok", ok);
 }
 
-const SCREENS = ["login", "home", "shows", "show-edit", "quizzes", "import", "review", "settings", "mimes", "mime-edit"];
+const SCREENS = ["login", "home", "shows", "show-edit", "quizzes", "import", "review", "settings", "mimes", "mime-edit", "music", "playlist-edit"];
 function show(name) {
-  if (["home", "shows", "quizzes", "settings", "mimes"].includes(name)) current = name;
+  if (["home", "shows", "quizzes", "settings", "mimes", "music"].includes(name)) current = name;
   SCREENS.forEach((s) => { $(`screen-${s}`).hidden = s !== name; });
   document.querySelectorAll("#nav button").forEach((b) => b.classList.toggle("active", b.dataset.screen === current));
   window.scrollTo(0, 0);
@@ -103,6 +108,8 @@ function show(name) {
   if (name === "shows") renderShows();
   if (name === "quizzes") renderQuizzes();
   if (name === "mimes") renderMimes();
+  if (name === "music") renderPlaylists();
+  if (name !== "playlist-edit") stopPreview();
   if (name === "settings") showLastChange();
 }
 document.querySelectorAll("[data-screen]").forEach((b) => { b.onclick = () => show(b.dataset.screen); });
@@ -187,6 +194,7 @@ function enter() {
   stops.push(onValue(ref(db, "library/quizzes"), (s) => { quizzes = s.val() ?? {}; refreshLists(); }, lost));
   stops.push(onValue(ref(db, "library/shows"), (s) => { shows = s.val() ?? {}; refreshLists(); }, lost));
   stops.push(onValue(ref(db, "library/mimes"), (s) => { mimes = s.val() ?? {}; refreshLists(); }, lost));
+  stops.push(onValue(ref(db, "library/playlists"), (s) => { playlists = s.val() ?? {}; refreshLists(); }, lost));
   show(current);
 }
 
@@ -197,6 +205,7 @@ function refreshLists() {
   if (!$("screen-shows").hidden) renderShows();
   if (!$("screen-quizzes").hidden) renderQuizzes();
   if (!$("screen-mimes").hidden) renderMimes();
+  if (!$("screen-music").hidden) renderPlaylists();
   if (!$("screen-show-edit").hidden) refreshRounds();
 }
 
@@ -221,8 +230,8 @@ function renderHome() {
   const today = isoDay();
   const pending = Object.values(shows).filter((s) => !s.date || s.date >= today);
   $("stat-upcoming").textContent = coming.length;
-  $("stat-ready").textContent = coming.filter(([, s]) => readiness(s, quizzes, mimes).level === "prete").length;
-  $("stat-todo").textContent = pending.filter((s) => readiness(s, quizzes, mimes).level === "a-completer").length;
+  $("stat-ready").textContent = coming.filter(([, s]) => readiness(s, quizzes, mimes, playlists).level === "prete").length;
+  $("stat-todo").textContent = pending.filter((s) => readiness(s, quizzes, mimes, playlists).level === "a-completer").length;
   const box = $("home-upcoming");
   box.replaceChildren(...coming.slice(0, 6).map(([id, s]) => showCard(id, s)));
   if (!coming.length) {
@@ -235,6 +244,8 @@ function renderHome() {
   $("tile-quiz").textContent = `${n} quiz · ${ok} question${ok > 1 ? "s" : ""} validée${ok > 1 ? "s" : ""}`;
   const decks = Object.keys(mimes).length;
   $("tile-mimes").textContent = `${decks} paquet${decks > 1 ? "s" : ""} de cartes`;
+  const lists = Object.keys(playlists).length;
+  $("tile-music").textContent = `${lists} playlist${lists > 1 ? "s" : ""}`;
 }
 
 /** « 18 questions · 1 manche de mimes » : ce que contient une prestation. */
@@ -251,8 +262,8 @@ $("home-import").onclick = () => $("quiz-import-open").click();
 
 /** Carte d'une prestation : date, prénom, âge, état de préparation et actions. */
 function showCard(id, s) {
-  const r = readiness(s, quizzes, mimes);
-  const { snapshot } = buildSnapshot(id, s, quizzes, mimes);
+  const r = readiness(s, quizzes, mimes, playlists);
+  const { snapshot } = buildSnapshot(id, s, quizzes, mimes, Math.random, playlists);
   const date = s.date ? shortDate(s.date) : null;
   return h("article", { class: `card show-card ${r.level}`, "data-show": id },
     h("div", { class: "date-chip" }, date ? [h("b", { text: `${date.day}` }), h("span", { text: date.month })] : h("span", { text: "sans date" })),
@@ -342,7 +353,9 @@ function formShow() {
     themes: $("show-themes").value.trim() || null,
     notes: $("show-notes").value.trim() || null,
     rounds: editing.rounds.filter(roundFilled).map((r) => (BUILTIN_GAMES[r.type] ? { type: r.type, count: r.count ?? BUILTIN_GAMES[r.type].count }
-      : r.type === "mimes" ? { type: "mimes", deckId: r.deckId } : { type: r.type ?? "quiz", quizId: r.quizId })),
+      : r.type === "mimes" ? { type: "mimes", deckId: r.deckId }
+      : r.type === "statues" ? { type: "statues", duration: r.duration ?? STATUES_SEC }
+      : MUSIC_GAMES[r.type] ? { type: r.type, playlistId: r.playlistId } : { type: r.type ?? "quiz", quizId: r.quizId })),
   };
 }
 
@@ -353,6 +366,7 @@ function refreshRounds() {
   box.innerHTML = "";
   const options = Object.entries(quizzes).sort(([, a], [, b]) => a.title.localeCompare(b.title));
   const decks = Object.entries(mimes).sort(([, a], [, b]) => a.title.localeCompare(b.title));
+  const lists = Object.entries(playlists).sort(([, a], [, b]) => a.title.localeCompare(b.title));
   if (!editing.rounds.length) box.append(h("p", { class: "hint small", text: "Ajoutez au moins une manche." }));
   editing.rounds.forEach((r, i) => {
     const move = (d) => { const [x] = editing.rounds.splice(i, 1); editing.rounds.splice(i + d, 0, x); refreshRounds(); };
@@ -367,6 +381,14 @@ function refreshRounds() {
             value: n, selected: (r.count ?? BUILTIN_GAMES[r.type].count) === n,
             text: `${n} ${BUILTIN_GAMES[r.type].unit}s (${BUILTIN_GAMES[r.type].rule})`,
           })))
+        : r.type === "statues"
+        // Statues musicales : rien à préparer, seulement la durée de la musique.
+        ? h("select", { class: "grow", "aria-label": "Durée", onchange: (e) => { r.duration = Number(e.target.value); refreshSummary(); } },
+          ...STATUES_SECONDS.map((n) => h("option", { value: n, selected: (r.duration ?? STATUES_SEC) === n, text: `${n} secondes de musique (on danse, on se fige à l'arrêt ; vous désignez l'équipe gagnante)` })))
+        : MUSIC_GAMES[r.type]
+        ? h("select", { class: "grow", "aria-label": "Playlist", onchange: (e) => { r.playlistId = e.target.value; refreshSummary(); } },
+          h("option", { value: "", text: lists.length ? "Choisir une playlist…" : "Aucune playlist : créez-en une dans Blind test" }),
+          ...lists.map(([pid, p]) => h("option", { value: pid, selected: r.playlistId === pid, text: `${p.title} (${playableTracks(p).length} morceaux, extraits de ${p.duration ?? BLIND_SEC} s)` })))
         : r.type === "mimes"
         ? h("select", { class: "grow", "aria-label": "Paquet de mimes", onchange: (e) => { r.deckId = e.target.value; refreshSummary(); } },
           h("option", { value: "", text: decks.length ? "Choisir un paquet de mimes…" : "Aucun paquet : créez-en un dans Mimes" }),
@@ -387,13 +409,13 @@ function refreshRounds() {
 
 function refreshSummary() {
   const s = formShow();
-  const { snapshot, problems } = buildSnapshot(editing?.id ?? "nouvelle", s, quizzes, mimes);
+  const { snapshot, problems } = buildSnapshot(editing?.id ?? "nouvelle", s, quizzes, mimes, Math.random, playlists);
   const profile = PROFILES[s.profile] ? s.profile : profileForAge(s.age);
   $("show-summary").textContent = snapshot
     ? `${contentLabel(snapshot)} jouables · environ ${estimateMinutes(snapshot)} min · chrono ${defaultDuration(profile)} s par question (profil ${PROFILES[profile].label}) sauf durée imposée`
     : "";
   $("show-problems").replaceChildren(...problems.map((p) => h("li", { text: p })));
-  const r = readiness(s, quizzes, mimes);
+  const r = readiness(s, quizzes, mimes, playlists);
   $("show-ready").className = `ready-box ${r.level}`;
   $("show-ready").replaceChildren(r.level === "prete"
     ? h("b", { text: "✓ Prestation prête : elle est visible sur la régie." })
@@ -433,7 +455,7 @@ $("show-form").onsubmit = async (e) => {
   e.preventDefault();
   const s = formShow();
   if (!s.childName) return status("show-status-msg", "Indiquez le prénom de l'enfant fêté.");
-  if (s.status === "publiee" && !buildSnapshot("x", s, quizzes, mimes).snapshot) {
+  if (s.status === "publiee" && !buildSnapshot("x", s, quizzes, mimes, Math.random, playlists).snapshot) {
     return status("show-status-msg", "Une prestation prête doit contenir au moins une question validée ou un paquet de mimes.");
   }
   const id = editing.id ?? push(ref(db, "library/shows")).key;
@@ -838,13 +860,39 @@ $("test-full-create").onclick = async () => {
     if ((await get(ref(db, path))).exists()) return;
     await set(ref(db, path), value);
   };
+  /** Comptines du blind test : fabriquées ici, rangées une seule fois dans la bibliothèque. */
+  const addTunes = async (now) => {
+    const ids = [];
+    for (const tune of FULL_TUNES) {
+      const data = await encodeMp3(await synthTune(tune.melody, FULL_TUNE_SEC), 96);
+      const id = await soundId(data);
+      await addIfMissing(`library/sounds/${id}`, data);
+      ids.push(id);
+    }
+    await addIfMissing(`library/playlists/${FULL_KEYS.playlist}`, { ...tunePlaylist(ids), createdAt: now, updatedAt: serverTimestamp() });
+  };
   try {
-    if ((await get(ref(db, `library/shows/${FULL_ID}`))).exists()) {
-      status("test-full-status", "Elle existe déjà : retrouvez-la dans Prestations (rien n'a été modifié).", true);
+    const existing = (await get(ref(db, `library/shows/${FULL_ID}`))).val();
+    if (existing) {
+      // Prestation de test d'une version précédente : on lui ajoute seulement les jeux qui lui manquent
+      // (avant la Super Finale), sans rien retirer ni modifier d'autre.
+      const rounds = (existing.rounds ?? []).filter(Boolean);
+      const missing = FULL_MUSIC_ROUNDS.filter((m) => !rounds.some((r) => r.type === m.type));
+      if (existing.origin !== "test" || !missing.length) {
+        status("test-full-status", "Elle existe déjà : retrouvez-la dans Prestations (rien n'a été modifié).", true);
+        return;
+      }
+      status("test-full-status", "Ajout des nouveaux jeux à la prestation de test…", true);
+      if (missing.some((m) => m.playlistId)) await addTunes(Date.now());
+      const at = rounds.findIndex((r) => r.type === "finale");
+      const next = at < 0 ? [...rounds, ...missing] : [...rounds.slice(0, at), ...missing, ...rounds.slice(at)];
+      await set(ref(db, `library/shows/${FULL_ID}`), { ...existing, rounds: next, notes: FULL_SHOW.notes, updatedAt: serverTimestamp() });
+      status("test-full-status", `Mise à jour : ${missing.map((m) => ROUND_TYPES[m.type]).join(", ")} ajouté(s) à « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux ».`, true);
       return;
     }
-    status("test-full-status", "Préparation des photos et des jeux…", true);
+    status("test-full-status", "Préparation des photos, des musiques et des jeux…", true);
     const now = Date.now();
+    await addTunes(now);
     for (const kind of ["zoom", "flou"]) {
       const ids = [];
       for (const photo of FULL_PHOTOS[kind]) {
@@ -978,4 +1026,180 @@ $("mime-delete").onclick = async () => {
   if (!confirm(`Supprimer le paquet « ${mimes[deck.id]?.title ?? ""} » ?${warning}`)) return;
   await set(ref(db, `library/mimes/${deck.id}`), null);
   show("mimes");
+};
+
+// ---------- Blind test : playlists d'extraits musicaux ----------
+
+const mmss = (sec) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, "0")}`;
+
+function renderPlaylists() {
+  const box = $("playlist-list");
+  const list = Object.entries(playlists).sort(([, a], [, b]) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+  box.replaceChildren(...list.map(([id, p]) => {
+    const tracks = playableTracks(p);
+    return h("div", { class: "item", "data-playlist": id },
+      h("b", { text: p.title }),
+      h("span", { text: `${tracks.length} morceau${tracks.length > 1 ? "x" : ""} · extraits de ${p.duration ?? BLIND_SEC} s` }),
+      h("span", { text: tracks.slice(0, 5).map((t) => t.title).join(" · ") + (tracks.length > 5 ? " …" : "") }),
+      h("div", { class: "row" }, h("button", { class: "btn secondary", onclick: () => editPlaylist(id), text: "Modifier" })));
+  }));
+  if (!list.length) box.append(h("p", { class: "hint", text: "Aucune playlist pour l'instant : créez-en une avec vos fichiers musicaux." }));
+}
+
+let playlist = null; // { id, tracks: [{ title, artist, rights, audioId? | file, length, start }] }
+let preview = null; // { audio, url, timer }
+
+$("playlist-duration").replaceChildren(...EXTRACT_SECONDS.map((n) => h("option", { value: n, text: `${n} secondes` })));
+$("playlist-new").onclick = () => editPlaylist(null);
+
+function editPlaylist(id) {
+  const p = id ? playlists[id] : {};
+  playlist = {
+    id,
+    tracks: (p.tracks ?? []).filter(Boolean).map((t) => ({ title: t.title ?? "", artist: t.artist ?? "", rights: t.rights ?? "", audioId: t.audioId })),
+  };
+  $("playlist-edit-title").textContent = id ? p.title : "Nouvelle playlist";
+  $("playlist-title").value = p.title ?? "";
+  $("playlist-duration").value = `${p.duration ?? BLIND_SEC}`;
+  $("playlist-delete").hidden = !id;
+  status("playlist-status", "");
+  show("playlist-edit");
+  renderTracks();
+}
+
+function stopPreview() {
+  if (!preview) return;
+  clearTimeout(preview.timer);
+  preview.audio.pause();
+  if (preview.url) URL.revokeObjectURL(preview.url);
+  preview = null;
+}
+
+/** Écoute : l'extrait enregistré, ou le fichier à partir du début choisi pendant la durée de l'extrait. */
+async function listen(t) {
+  stopPreview();
+  try {
+    if (t.file) {
+      const url = URL.createObjectURL(t.file);
+      const audio = new Audio(url);
+      preview = { audio, url };
+      audio.currentTime = t.start;
+      await audio.play();
+      preview.timer = setTimeout(stopPreview, Number($("playlist-duration").value) * 1000);
+    } else {
+      const data = (await get(ref(db, `library/sounds/${t.audioId}`))).val();
+      if (typeof data !== "string") return status("playlist-status", `Extrait de « ${t.title} » introuvable.`);
+      const audio = new Audio(data);
+      preview = { audio };
+      await audio.play();
+    }
+  } catch (e) {
+    console.error(e);
+    status("playlist-status", "Écoute impossible sur cet ordinateur (le morceau sera quand même enregistré).");
+  }
+}
+
+function renderTracks() {
+  $("playlist-count").textContent = playlist.tracks.length;
+  const seconds = Number($("playlist-duration").value);
+  $("playlist-tracks").replaceChildren(...playlist.tracks.map((t, i) => {
+    const label = h("span", { text: `Début de l'extrait : ${mmss(t.start ?? 0)}` });
+    const max = Math.max(0, Math.floor((t.length ?? 0) - seconds));
+    return h("div", { class: `track${t.file ? "" : " saved"}`, "data-track": i },
+      h("input", { type: "text", maxlength: 80, placeholder: "Titre (la réponse)", value: t.title, "aria-label": "Titre", oninput: (e) => { t.title = e.target.value; } }),
+      h("input", { type: "text", maxlength: 80, placeholder: "Artiste ou dessin animé (bonus, facultatif)", value: t.artist, "aria-label": "Artiste", oninput: (e) => { t.artist = e.target.value; } }),
+      h("div", { class: "track-tools" },
+        h("button", { type: "button", class: "icon", title: "Écouter l'extrait", onclick: () => listen(t), text: "▶" }),
+        h("button", { type: "button", class: "icon", title: "Retirer", onclick: () => { stopPreview(); playlist.tracks.splice(i, 1); renderTracks(); }, text: "✕" })),
+      h("div", { class: "track-start" }, label,
+        h("input", {
+          type: "range", min: 0, max, step: 1, value: Math.min(t.start ?? 0, max), "aria-label": "Début de l'extrait",
+          oninput: (e) => { t.start = Number(e.target.value); label.textContent = `Début de l'extrait : ${mmss(t.start)}`; },
+          onchange: () => { if (preview) listen(t); },
+        })),
+      h("input", { type: "text", class: "track-note", maxlength: 120, placeholder: "Droits (facultatif, pour information)", value: t.rights, "aria-label": "Droits", oninput: (e) => { t.rights = e.target.value; } }));
+  }));
+  if (!playlist.tracks.length) $("playlist-tracks").append(h("p", { class: "hint small", text: "Aucun morceau : ajoutez vos fichiers musicaux." }));
+}
+$("playlist-duration").onchange = () => renderTracks();
+
+/** Durée d'un fichier, lue par le navigateur sans le décoder en entier. */
+function fileDuration(file) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const audio = new Audio();
+    const done = (d) => { URL.revokeObjectURL(url); resolve(Number.isFinite(d) ? d : 0); };
+    audio.onloadedmetadata = () => done(audio.duration);
+    audio.onerror = () => done(0);
+    audio.src = url;
+  });
+}
+
+$("playlist-files").onchange = async (e) => {
+  const files = [...e.target.files];
+  e.target.value = "";
+  for (const file of files) {
+    const length = await fileDuration(file);
+    const { title, artist } = guessTrack(file.name);
+    playlist.tracks.push({ title, artist, rights: "", file, length, start: defaultStart(length, Number($("playlist-duration").value)) });
+  }
+  renderTracks();
+};
+
+$("playlist-save").onclick = async () => {
+  const title = $("playlist-title").value.trim();
+  if (!title) return status("playlist-status", "Donnez un nom à la playlist.");
+  if (!playlist.tracks.length) return status("playlist-status", "Ajoutez au moins un morceau.");
+  const untitled = playlist.tracks.findIndex((t) => !t.title.trim());
+  if (untitled >= 0) return status("playlist-status", `Morceau ${untitled + 1} : indiquez son titre (c'est la réponse attendue).`);
+  stopPreview();
+  const seconds = Number($("playlist-duration").value);
+  $("playlist-save").disabled = true;
+  try {
+    // Chaque nouveau morceau : extrait découpé et réencodé ici, rangé une seule fois dans la bibliothèque.
+    const fresh = playlist.tracks.filter((t) => t.file);
+    for (const [k, t] of fresh.entries()) {
+      status("playlist-status", `Préparation de l'extrait ${k + 1} / ${fresh.length} : ${t.title}…`, true);
+      let extract;
+      try {
+        extract = await makeExtract(await decodeFile(t.file), t.start ?? 0, seconds);
+      } catch (err) {
+        console.error(err);
+        return status("playlist-status", `« ${t.title} » : fichier illisible. Essayez un autre format (MP3 de préférence).`);
+      }
+      const target = ref(db, `library/sounds/${extract.id}`);
+      if (!(await get(target)).exists()) await set(target, extract.data);
+      t.audioId = extract.id;
+      delete t.file;
+    }
+    const id = playlist.id ?? push(ref(db, "library/playlists")).key;
+    await set(ref(db, `library/playlists/${id}`), {
+      title, duration: seconds,
+      tracks: playlist.tracks.map((t) => ({
+        title: t.title.trim().slice(0, 80), audioId: t.audioId,
+        ...(t.artist.trim() ? { artist: t.artist.trim().slice(0, 80) } : {}),
+        ...(t.rights.trim() ? { rights: t.rights.trim().slice(0, 120) } : {}),
+      })),
+      createdAt: playlists[id]?.createdAt ?? Date.now(), updatedAt: serverTimestamp(),
+    });
+    playlist.id = id;
+    $("playlist-delete").hidden = false;
+    $("playlist-edit-title").textContent = title;
+    renderTracks();
+    status("playlist-status", `Enregistrée : ${playlist.tracks.length} morceau${playlist.tracks.length > 1 ? "x" : ""}. Ajoutez-la à une prestation comme manche « Blind test » ou « Quiz musical ».`, true);
+  } catch (err) {
+    console.error(err);
+    status("playlist-status", "Enregistrement refusé : vérifiez Internet ou reconnectez-vous.");
+  } finally {
+    $("playlist-save").disabled = false;
+  }
+};
+
+$("playlist-delete").onclick = async () => {
+  if (!playlist?.id) return;
+  const used = Object.values(shows).filter((s) => (s.rounds ?? []).some((r) => r?.playlistId === playlist.id)).map(showTitle);
+  const warning = used.length ? `\n\nAttention, elle est utilisée par : ${used.join(", ")}.` : "";
+  if (!confirm(`Supprimer la playlist « ${playlists[playlist.id]?.title ?? ""} » ?${warning}`)) return;
+  await set(ref(db, `library/playlists/${playlist.id}`), null);
+  show("music");
 };

@@ -170,7 +170,7 @@ export const FULL_TITLE = "ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux";
 /** Clés fixes des contenus de la bibliothèque : un second clic ne crée rien en double. */
 export const FULL_KEYS = {
   quiz: `${FULL_ID}-quiz`, express: `${FULL_ID}-vrai-faux`, zoom: `${FULL_ID}-zoom`, flou: `${FULL_ID}-flou`,
-  finale: `${FULL_ID}-finale`, mimes: `${FULL_ID}-mimes`,
+  finale: `${FULL_ID}-finale`, mimes: `${FULL_ID}-mimes`, playlist: `${FULL_ID}-comptines`,
 };
 
 const v = (text, choices, correct, extra = {}) => ({ text, choices, correct, double: false, status: "validee", ...extra });
@@ -225,10 +225,39 @@ export const FULL_MIMES = {
   ],
 };
 
+/**
+ * Blind test de la prestation de test : comptines traditionnelles du domaine public, jouées par le petit
+ * synthétiseur de l'administration (aucun fichier ni aucun droit nécessaire). Notes « note:temps ».
+ */
+export const FULL_TUNES = [
+  { title: "Frère Jacques", melody: "C4:1 D4:1 E4:1 C4:1 C4:1 D4:1 E4:1 C4:1 E4:1 F4:1 G4:2 E4:1 F4:1 G4:2 G4:0.5 A4:0.5 G4:0.5 F4:0.5 E4:1 C4:1 G4:0.5 A4:0.5 G4:0.5 F4:0.5 E4:1 C4:1 C4:1 G3:1 C4:2 C4:1 G3:1 C4:2" },
+  { title: "Au clair de la lune", melody: "C4:1 C4:1 C4:1 D4:1 E4:2 D4:2 C4:1 E4:1 D4:1 D4:1 C4:4 C4:1 C4:1 C4:1 D4:1 E4:2 D4:2 C4:1 E4:1 D4:1 D4:1 C4:4 D4:1 D4:1 D4:1 D4:1 A3:2 A3:2 D4:1 C4:1 B3:1 A3:1 G3:4" },
+  { title: "Ah ! vous dirai-je, maman", artist: "Mozart", melody: "C4:1 C4:1 G4:1 G4:1 A4:1 A4:1 G4:2 F4:1 F4:1 E4:1 E4:1 D4:1 D4:1 C4:2 G4:1 G4:1 F4:1 F4:1 E4:1 E4:1 D4:2 G4:1 G4:1 F4:1 F4:1 E4:1 E4:1 D4:2" },
+  { title: "Joyeux anniversaire", melody: "G4:0.75 G4:0.25 A4:1 G4:1 C5:1 B4:2 G4:0.75 G4:0.25 A4:1 G4:1 D5:1 C5:2 G4:0.75 G4:0.25 G5:1 E5:1 C5:1 B4:1 A4:2 F5:0.75 F5:0.25 E5:1 C5:1 D5:1 C5:3" },
+];
+/** Durée des extraits de comptines (secondes). */
+export const FULL_TUNE_SEC = 20;
+
+/** Playlist de comptines, une fois les extraits fabriqués ([ids] : identifiant de chaque extrait, dans l'ordre). */
+export function tunePlaylist(ids) {
+  return {
+    title: "TEST – Comptines",
+    duration: FULL_TUNE_SEC,
+    tracks: FULL_TUNES.map((t, i) => ({ title: t.title, audioId: ids[i], ...(t.artist ? { artist: t.artist } : {}), rights: "Domaine public" })),
+  };
+}
+
+/** Manches musicales de la prestation de test, ajoutées aussi à une prestation de test plus ancienne. */
+export const FULL_MUSIC_ROUNDS = [
+  { type: "blind", playlistId: FULL_KEYS.playlist },
+  { type: "musical", playlistId: FULL_KEYS.playlist },
+  { type: "statues", duration: 60 },
+];
+
 export const FULL_SHOW = {
   childName: "Léa", age: 9, date: "2026-10-25", status: "publiee", title: FULL_TITLE, profile: "MOYENS", durationMin: 25,
   themes: "Tous les jeux (test)",
-  notes: "Prestation de TEST : un peu de chaque jeu (quiz illustré, Juste Chiffre, Vrai ou Faux express, Mimes, Zoom mystère, Chante le mot !, Image floue, Qui suis-je ?, Super Finale). Elle peut être archivée sans risque.",
+  notes: "Prestation de TEST : un peu de chaque jeu (quiz illustré, Juste Chiffre, Vrai ou Faux express, Mimes, Zoom mystère, Chante le mot !, Image floue, Qui suis-je ?, Blind test, Quiz musical, Statues musicales, Super Finale). Elle peut être archivée sans risque.",
   rounds: [
     { type: "quiz", quizId: FULL_KEYS.quiz },
     { type: "express", quizId: FULL_KEYS.express },
@@ -237,6 +266,7 @@ export const FULL_SHOW = {
     { type: "chante", count: 3 },
     { type: "flou", quizId: FULL_KEYS.flou },
     { type: "quisuis", count: 3 },
+    ...FULL_MUSIC_ROUNDS,
     { type: "finale", quizId: FULL_KEYS.finale },
   ],
   origin: "test",

@@ -4,7 +4,17 @@ import { PROFILES, profileForAge, defaultDuration, expressDuration } from "./pro
 import { shuffle } from "./mime-cards.js";
 import { CHANTE_WORDS, QUI_SUIS_JE } from "./buzz-cards.js";
 
-export const ROUND_TYPES = { quiz: "Quiz", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", mimes: "Mimes" };
+export const ROUND_TYPES = { quiz: "Quiz", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes" };
+/** Statues musicales : durées proposées (secondes) et durée par défaut. Musique maison de la TV, rien à préparer. */
+export const STATUES_SECONDS = [60, 90, 120];
+export const STATUES_SEC = 90;
+/** Jeux musicaux : leurs extraits viennent d'une playlist de la bibliothèque (library/playlists). */
+export const MUSIC_GAMES = {
+  blind: { rule: "le premier qui buzze donne le titre, bonus pour l'artiste" },
+  musical: { rule: "4 titres proposés sur les pupitres, toutes les équipes répondent" },
+};
+/** Durée d'un extrait de blind test par défaut (secondes). */
+export const BLIND_SEC = 25;
 /** Image floue : temps pour que la photo devienne nette (secondes), le même pour tous les âges. */
 export const FLOU_SEC = 40;
 /** Durée d'un tour de mimes par défaut (secondes). */
@@ -55,7 +65,31 @@ export const BUILTIN_GAMES = {
 };
 
 /** Une manche est-elle complète (quiz choisi, ou paquet de mimes choisi) ? Les jeux intégrés le sont toujours. */
-export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] ? true : round.type === "mimes" ? round.deckId : round.quizId));
+export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || round.type === "statues" ? true : round.type === "mimes" ? round.deckId : MUSIC_GAMES[round.type] ? round.playlistId : round.quizId));
+
+/** Morceaux jouables d'une playlist : un titre et un extrait enregistré. */
+export const playableTracks = (playlist) => (playlist?.tracks ?? []).filter((t) => t?.title?.trim() && /^[0-9a-f]{16}$/.test(t.audioId ?? ""));
+
+/**
+ * Questions d'un jeu musical. Blind test : un buzz par morceau, réponse à voix haute (le titre, bonus pour
+ * l'artiste). Quiz musical : le bon titre parmi trois autres titres de la même playlist, sur les pupitres.
+ */
+function musicQuestions(type, playlist, prefix, random) {
+  const tracks = shuffle(playableTracks(playlist), random);
+  const titles = [...new Set(tracks.map((t) => t.title.trim()))];
+  // Le type dans le titre : blind test et quiz musical d'une même playlist restent deux manches distinctes.
+  const label = playlist.title?.trim() ? `${ROUND_TYPES[type]} · ${playlist.title.trim()}` : ROUND_TYPES[type];
+  return tracks.map((t, j) => {
+    const title = t.title.trim();
+    const base = { id: `${prefix}${j + 1}`, double: false, round: label, audioId: t.audioId, duration: playlist.duration ?? BLIND_SEC };
+    if (type === "blind") {
+      return { ...base, text: "Quel est ce titre ?", choices: [title], correct: 0, kind: "blind", ...(t.artist?.trim() ? { artist: t.artist.trim() } : {}) };
+    }
+    const others = shuffle(titles.filter((x) => x !== title), random).slice(0, 3);
+    const choices = shuffle([title, ...others], random);
+    return { ...base, text: "Quel est ce titre ?", choices, correct: choices.indexOf(title), kind: "classic" };
+  });
+}
 
 /**
  * Manche de mimes : un seul élément du programme, avec le paquet de cartes mélangé (chaque prestation
@@ -79,7 +113,7 @@ function mimeItem(round, deck, i, random) {
  * un seul élément qui porte son paquet de cartes.
  * Renvoie `{ snapshot, problems }` ; `snapshot` est nul si rien n'est jouable.
  */
-export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.random) {
+export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.random, playlists = {}) {
   const profile = PROFILES[show.profile] ? show.profile : profileForAge(show.age);
   const problems = [];
   const rounds = [];
@@ -92,6 +126,27 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       if (!item.cards.length) { problems.push(`Manche ${i + 1} (${deck.title}) : aucune carte.`); return; }
       rounds.push({ title: deck.title, count: 1, kind: "mime" });
       questions.push(item);
+      return;
+    }
+    if (round.type === "statues") {
+      // Un seul élément : la musique joue et s'arrête par moments, l'animatrice désigne l'équipe gagnante.
+      const duration = STATUES_SECONDS.includes(round.duration) ? round.duration : STATUES_SEC;
+      rounds.push({ title: ROUND_TYPES.statues, count: 1 });
+      questions.push({ id: `r${i + 1}s`, text: ROUND_TYPES.statues, kind: "statues", duration, double: false, round: ROUND_TYPES.statues });
+      return;
+    }
+    if (MUSIC_GAMES[round.type]) {
+      const playlist = playlists[round.playlistId];
+      if (!playlist) { problems.push(`Manche ${i + 1} : la playlist n'existe plus dans la bibliothèque.`); return; }
+      const list = musicQuestions(round.type, playlist, `r${i + 1}q`, random);
+      if (round.type === "musical" && new Set(list.map((q) => q.choices[q.correct])).size < 2) {
+        problems.push(`Manche ${i + 1} (${playlist.title}) : il faut au moins 2 morceaux pour proposer des titres.`);
+        return;
+      }
+      if (!list.length) { problems.push(`Manche ${i + 1} (${playlist.title}) : aucun morceau avec un extrait.`); return; }
+      const label = list[0].round;
+      rounds.push({ title: label, count: list.length });
+      questions.push(...list);
       return;
     }
     const builtin = BUILTIN_GAMES[round.type];
@@ -177,14 +232,14 @@ export function daysUntil(date, today = isoDay()) {
  * État de préparation d'une prestation, pour le tableau de bord : « prete » quand elle est
  * complète et visible sur la régie, sinon la liste de ce qui reste à faire.
  */
-export function readiness(show, quizzes, mimes = {}) {
+export function readiness(show, quizzes, mimes = {}, playlists = {}) {
   if (show.status === "archivee") return { level: "archivee", todo: [] };
   const todo = [];
   if (!show.date) todo.push("Ajouter la date");
   if (!show.age) todo.push("Indiquer l'âge");
   if (!(show.rounds ?? []).filter(roundFilled).length) todo.push("Ajouter une manche");
   else {
-    const { snapshot, problems } = buildSnapshot("x", show, quizzes, mimes);
+    const { snapshot, problems } = buildSnapshot("x", show, quizzes, mimes, Math.random, playlists);
     todo.push(...problems.filter((p) => snapshot || !p.startsWith("Aucune question jouable")));
     if (!snapshot && !problems.some((p) => p.startsWith("Manche"))) todo.push("Valider des questions");
   }
@@ -237,8 +292,8 @@ export function lockedUntil(questions, index) {
  * insérer : chrono du profil de la prestation, identifiants nouveaux (préfixe [prefix]) pour ne jamais
  * croiser une question déjà jouée. Le quiz de la bibliothèque n'est pas modifié.
  */
-export function gameQuestions(source, quizzes, profile, prefix, mimes = {}) {
-  const { snapshot, problems } = buildSnapshot("ajout", { profile, rounds: [source] }, quizzes, mimes);
+export function gameQuestions(source, quizzes, profile, prefix, mimes = {}, playlists = {}) {
+  const { snapshot, problems } = buildSnapshot("ajout", { profile, rounds: [source] }, quizzes, mimes, Math.random, playlists);
   if (!snapshot) return { questions: [], problems };
   return { questions: snapshot.quiz.questions.map((q, j) => ({ ...q, id: `${prefix}${q.kind === "mime" ? "m" : "q"}${j + 1}` })), problems };
 }
@@ -280,6 +335,11 @@ export function uniqueRoundTitle(questions, title) {
   let n = 2;
   while (taken.has(`${title} · ${n}`)) n++;
   return `${title} · ${n}`;
+}
+
+/** Extraits musicaux d'un programme (identifiants sans doublon), à copier dans la partie avant de l'envoyer. */
+export function soundIds(questions) {
+  return [...new Set((questions ?? []).map((q) => q?.audioId).filter((id) => typeof id === "string" && /^[0-9a-f]{16}$/.test(id)))];
 }
 
 /** Photos d'illustration d'un programme (identifiants sans doublon), à copier dans la partie avant de l'envoyer. */

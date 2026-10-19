@@ -5,7 +5,10 @@ import { parseQuiz, checkQuestions, geminiPrompt, resolveCorrect } from "../web/
 import { MIME_CATALOG } from "../web/public/mime-cards.js";
 import { buildSnapshot, estimateMinutes, roundFilled,
   readiness, upcoming, daysUntil, isoDay, duplicateShow, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
+  soundIds,
 } from "../web/public/show.js";
+import { guessTrack, defaultStart } from "../web/public/audio.js";
+import { FULL_SHOW, FULL_TUNES, tunePlaylist } from "../web/public/test-show.js";
 
 const GEMINI = `Titre : Les animaux de la jungle
 
@@ -409,5 +412,78 @@ describe("Le Juste Chiffre", () => {
     assert.equal(q.kind, "number");
     assert.equal(q.correct, 206);
     assert.equal(q.choices, undefined);
+  });
+});
+
+describe("blind test et quiz musical", () => {
+  const ID = (n) => `${n}123456789abcdef`;
+  const playlist = {
+    title: "Dessins animés", duration: 25,
+    tracks: [
+      { title: "Libérée, délivrée", artist: "La Reine des neiges", audioId: ID(0) },
+      { title: "Hakuna Matata", artist: "Le Roi lion", audioId: ID(1) },
+      { title: "Sous l'océan", audioId: ID(2) },
+      { title: "Je voudrais déjà être roi", audioId: ID(3) },
+      { title: "Sans extrait" },
+    ],
+  };
+  test("une playlist donne un blind test au buzzer et un quiz musical à 4 titres, en deux manches distinctes", () => {
+    const show = { childName: "Léa", age: 9, rounds: [{ type: "blind", playlistId: "p" }, { type: "musical", playlistId: "p" }] };
+    const { snapshot, problems } = buildSnapshot("s", show, {}, {}, Math.random, { p: playlist });
+    assert.deepEqual(problems, []);
+    const qs = snapshot.quiz.questions;
+    const blind = qs.filter((q) => q.kind === "blind");
+    const musical = qs.filter((q) => q.kind === "classic");
+    assert.equal(blind.length, 4, "un morceau sans extrait n'est pas joué");
+    assert.equal(musical.length, 4);
+    assert.ok(blind.every((q) => q.choices.length === 1 && q.correct === 0 && q.duration === 25 && /^[0-9]123456789abcdef$/.test(q.audioId)));
+    assert.equal(blind.find((q) => q.choices[0] === "Hakuna Matata").artist, "Le Roi lion");
+    assert.ok(musical.every((q) => q.choices.length === 4 && new Set(q.choices).size === 4 && q.audioId));
+    for (const q of musical) {
+      const track = playlist.tracks.find((t) => t.audioId === q.audioId);
+      assert.equal(q.choices[q.correct], track.title, "la bonne réponse est le titre de l'extrait joué");
+    }
+    assert.deepEqual(programRounds(qs).map((r) => r.title), ["Blind test · Dessins animés", "Quiz musical · Dessins animés"]);
+    assert.equal(soundIds(qs).length, 4);
+    assert.equal(roundFilled({ type: "blind" }), false);
+    assert.equal(roundFilled({ type: "blind", playlistId: "p" }), true);
+  });
+  test("playlist effacée ou trop courte : la manche est signalée, jamais jouée à moitié", () => {
+    const one = { title: "Solo", duration: 20, tracks: [{ title: "A", audioId: ID(0) }] };
+    const gone = buildSnapshot("s", { childName: "Tom", age: 8, rounds: [{ type: "blind", playlistId: "x" }] }, {}, {}, Math.random, {});
+    assert.equal(gone.snapshot, null);
+    assert.match(gone.problems.join(), /playlist n'existe plus/);
+    const musical = buildSnapshot("s", { childName: "Tom", age: 8, rounds: [{ type: "musical", playlistId: "o" }] }, {}, {}, Math.random, { o: one });
+    assert.match(musical.problems.join(), /au moins 2 morceaux/);
+    const blind = buildSnapshot("s", { childName: "Tom", age: 8, rounds: [{ type: "blind", playlistId: "o" }] }, {}, {}, Math.random, { o: one });
+    assert.equal(blind.snapshot.quiz.questions.length, 1);
+    assert.deepEqual(readiness({ childName: "Tom", age: 8, date: "2026-12-02", status: "publiee", rounds: [{ type: "blind", playlistId: "o" }] }, {}, {}, { o: one }), { level: "prete", todo: [] });
+  });
+  test("titre et artiste devinés depuis le nom du fichier, début d'extrait proposé dans le morceau", () => {
+    assert.deepEqual(guessTrack("Stromae - Alors on danse.mp3"), { artist: "Stromae", title: "Alors on danse" });
+    assert.deepEqual(guessTrack("03 - Angèle – Balance ton quoi.m4a"), { artist: "Angèle", title: "Balance ton quoi" });
+    assert.deepEqual(guessTrack("libérée_délivrée.wav"), { artist: "", title: "libérée délivrée" });
+    assert.equal(defaultStart(210, 25), 45);
+    assert.equal(defaultStart(60, 25), 20);
+    assert.equal(defaultStart(20, 25), 0);
+  });
+  test("la prestation de test « tous les jeux » a un blind test et un quiz musical de comptines du domaine public", () => {
+    const pl = tunePlaylist(FULL_TUNES.map((_, i) => ID(i)));
+    const { snapshot, problems } = buildSnapshot("t", FULL_SHOW, {}, {}, Math.random, { [FULL_SHOW.rounds.find((r) => r.type === "blind").playlistId]: pl });
+    assert.ok(pl.tracks.every((t) => t.rights === "Domaine public"));
+    const kinds = snapshot.quiz.questions.map((q) => q.kind);
+    assert.equal(kinds.filter((k) => k === "blind").length, FULL_TUNES.length);
+    assert.ok(problems.every((p) => !/playlist|morceau/.test(p)));
+  });
+});
+
+describe("statues musicales", () => {
+  test("une manche sans rien à préparer : un seul élément, durée choisie, musique de la TV", () => {
+    const { snapshot, problems } = buildSnapshot("s", { childName: "Léa", age: 7, rounds: [{ type: "statues", duration: 60 }, { type: "statues", duration: 999 }] }, {});
+    assert.deepEqual(problems, []);
+    const qs = snapshot.quiz.questions;
+    assert.deepEqual(qs.map((q) => [q.kind, q.duration, q.choices, q.round]), [["statues", 60, undefined, "Statues musicales"], ["statues", 90, undefined, "Statues musicales"]]);
+    assert.equal(roundFilled({ type: "statues" }), true);
+    assert.equal(estimateMinutes(snapshot), 4);
   });
 });

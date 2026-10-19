@@ -60,7 +60,7 @@
       <div class="tiles">
         <button class="tile" data-screen="quizzes"><span class="tile-icon">?</span><b>Quiz</b><span id="tile-quiz">0 quiz</span></button>
         <button class="tile" data-screen="mimes"><span class="tile-icon">★</span><b>Mimes</b><span id="tile-mimes">0 paquet</span></button>
-        <div class="tile soon"><span class="tile-icon">♪</span><b>Musiques et blind tests</b><span>Bientôt disponible</span></div>
+        <button class="tile" data-screen="music"><span class="tile-icon">♪</span><b>Blind test</b><span id="tile-music">0 playlist</span></button>
       </div>
     </section>
 
@@ -184,6 +184,47 @@
       </div>
     </section>
 
+    <!-- Blind test : playlists d'extraits musicaux importés depuis les fichiers de Sarah. -->
+    <section id="screen-music" class="screen" hidden>
+      <div class="title-row">
+        <h1>Blind test</h1>
+        <button id="playlist-new" class="btn">Nouvelle playlist</button>
+      </div>
+      <p class="hint">
+        Importez vos propres fichiers musicaux (MP3, M4A, WAV…) : l'administration garde seulement l'extrait
+        choisi, la TV le copie avant la partie et le joue même sans Internet. Une playlist sert au blind test
+        (le premier qui buzze donne le titre, bonus pour l'artiste) et au quiz musical (4 titres proposés sur les pupitres).
+      </p>
+      <div id="playlist-list" class="cards"></div>
+    </section>
+
+    <section id="screen-playlist-edit" class="screen" hidden>
+      <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <button class="link" data-screen="music">Blind test</button> › <b id="playlist-edit-title">Nouvelle playlist</b></nav>
+      <div class="panel grid">
+        <label class="wide">Nom de la playlist<input id="playlist-title" maxlength="120" placeholder="Dessins animés"></label>
+        <label>Durée des extraits
+          <select id="playlist-duration"></select>
+        </label>
+      </div>
+      <div class="panel">
+        <p class="label">Morceaux : <b id="playlist-count">0</b></p>
+        <div id="playlist-tracks" class="tracks"></div>
+        <label class="btn secondary file-btn">Ajouter des musiques…
+          <input id="playlist-files" type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" multiple hidden>
+        </label>
+        <p class="hint small">
+          Titre et artiste sont devinés depuis le nom du fichier (« Artiste - Titre.mp3 ») : corrigez-les si besoin.
+          Choisissez le début de l'extrait avec le curseur et écoutez-le avant d'enregistrer.
+          La note sur les droits est facultative et n'empêche jamais de jouer.
+        </p>
+      </div>
+      <div class="actions sticky">
+        <button id="playlist-save" type="button" class="btn">Enregistrer la playlist</button>
+        <button id="playlist-delete" type="button" class="btn danger" hidden>Supprimer</button>
+        <p id="playlist-status" class="status"></p>
+      </div>
+    </section>
+
     <section id="screen-import" class="screen" hidden>
       <nav class="crumbs"><button class="link" data-screen="quizzes">Bibliothèque</button> › <b>Importer</b></nav>
       <details class="panel" open>
@@ -276,7 +317,8 @@
       <p class="hint">
         Pour tout voir sur la TV : « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux » enchaîne un peu de chaque jeu
         (quiz illustré, Juste Chiffre, Vrai ou Faux express, Mimes, Zoom mystère, Chante le mot !, Image floue,
-        Qui suis-je ?, Super Finale). Elle s'ajoute à côté de la première, sans rien remplacer.
+        Qui suis-je ?, Blind test et Quiz musical sur des comptines libres de droits, Statues musicales, Super Finale). Elle s'ajoute à
+        côté de la première, sans rien remplacer ; déjà ajoutée, le même bouton lui ajoute les nouveaux jeux.
       </p>
       <button id="test-full-create" class="btn" type="button">Ajouter la prestation de test « tous les jeux »</button>
       <p id="test-full-status" class="status"></p>

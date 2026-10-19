@@ -117,7 +117,7 @@
           ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
           "$cmd": {
             ".write": "auth != null && !data.exists() && newData.exists() && root.child('games').child($code).child('regie').child(auth.uid).exists()",
-            ".validate": "newData.child('type').isString() && newData.child('type').val().matches(/^(next|pause|resume|close|adjust|undo|end|admit|replace|mime_start|mime_found|mime_pass|mime_fix|mime_stop|goto|buzz_ok|buzz_ko)$/) && newData.child('expectSeq').isNumber() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
+            ".validate": "newData.child('type').isString() && newData.child('type').val().matches(/^(next|pause|resume|close|adjust|undo|end|admit|replace|mime_start|mime_found|mime_pass|mime_fix|mime_stop|goto|buzz_ok|buzz_ko|buzz_bonus|statues_win)$/) && newData.child('expectSeq').isNumber() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
             "team": {
               ".validate": "newData.isString() && newData.val().length <= 128"
             },
@@ -168,6 +168,13 @@
             ".read": "auth != null && (root.child('games').child($code).child('hostUid').val() === auth.uid || root.child('games').child($code).child('regie').child(auth.uid).exists())",
             ".write": "auth != null && !data.exists() && root.child('games').child($code).child('regie').child(auth.uid).exists()",
             ".validate": "$id.matches(/^[0-9a-f]{16}$/) && newData.isString() && newData.val().beginsWith('data:image/') && newData.val().length <= 150000"
+          }
+        },
+        "sounds": {
+          "$id": {
+            ".read": "auth != null && (root.child('games').child($code).child('hostUid').val() === auth.uid || root.child('games').child($code).child('regie').child(auth.uid).exists())",
+            ".write": "auth != null && !data.exists() && root.child('games').child($code).child('regie').child(auth.uid).exists()",
+            ".validate": "$id.matches(/^[0-9a-f]{16}$/) && newData.isString() && newData.val().beginsWith('data:audio/mpeg;base64,') && newData.val().length <= 900000"
           }
         },
         "showStatus": {
@@ -224,6 +231,29 @@
         "$id": {
           ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val() && (!data.exists() || !newData.exists())",
           ".validate": "!newData.exists() || ($id.matches(/^[0-9a-f]{16}$/) && newData.isString() && newData.val().beginsWith('data:image/') && newData.val().length <= 150000)"
+        }
+      },
+      "sounds": {
+        "$id": {
+          ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val() && (!data.exists() || !newData.exists())",
+          ".validate": "!newData.exists() || ($id.matches(/^[0-9a-f]{16}$/) && newData.isString() && newData.val().beginsWith('data:audio/mpeg;base64,') && newData.val().length <= 900000)"
+        }
+      },
+      "playlists": {
+        "$id": {
+          ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
+          ".validate": "!newData.exists() || (newData.child('title').isString() && newData.child('title').val().length >= 1 && newData.child('title').val().length <= 120 && newData.child('tracks').hasChildren() && newData.child('duration').isNumber() && newData.child('duration').val() >= 10 && newData.child('duration').val() <= 45 && newData.child('updatedAt').val() === now)",
+          "tracks": {
+            "$i": {
+              ".validate": "newData.child('title').isString() && newData.child('title').val().length >= 1 && newData.child('title').val().length <= 80 && newData.child('audioId').isString() && newData.child('audioId').val().matches(/^[0-9a-f]{16}$/) && (!newData.child('artist').exists() || (newData.child('artist').isString() && newData.child('artist').val().length <= 80)) && (!newData.child('rights').exists() || (newData.child('rights').isString() && newData.child('rights').val().length <= 120))",
+              "$other": {
+                ".validate": "$other === 'title' || $other === 'artist' || $other === 'audioId' || $other === 'rights' || $other === 'source'"
+              },
+              "source": {
+                ".validate": "newData.isString() && newData.val().length <= 200"
+              }
+            }
+          }
         }
       },
       "mimes": {
