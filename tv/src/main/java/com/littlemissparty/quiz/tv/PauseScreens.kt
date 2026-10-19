@@ -64,6 +64,7 @@ import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+import com.littlemissparty.quiz.tv.habillage.PoliceLmp
 
 /**
  * Pause générale et décompte de reprise, par-dessus toutes les étapes de la partie.
@@ -164,7 +165,7 @@ private fun Intermission(state: UiState.Playing, onResume: () -> Unit) {
 @Composable
 private fun TitreOndule(texte: String, phase: () -> Float, modifier: Modifier = Modifier) {
     val style = TextStyle(
-        color = Palette.Gold, fontSize = 72.sp, lineHeight = 80.sp, fontWeight = FontWeight.Black,
+        fontFamily = PoliceLmp, color = Palette.Gold, fontSize = 72.sp, lineHeight = 80.sp, fontWeight = FontWeight.Black,
         shadow = Shadow(Palette.Gold.copy(alpha = 0.8f), blurRadius = 28f),
     )
     Row(modifier.clearAndSetSemantics { text = AnnotatedString(texte) }) {
@@ -289,7 +290,7 @@ private fun ResumeCountdown(state: UiState.Playing) {
             Text(
                 "$shown",
                 style = TextStyle(
-                    color = Palette.Gold, fontSize = 200.sp, fontWeight = FontWeight.Black,
+                    fontFamily = PoliceLmp, color = Palette.Gold, fontSize = 200.sp, fontWeight = FontWeight.Black,
                     shadow = Shadow(Palette.Gold.copy(alpha = 0.9f), blurRadius = 40f),
                 ),
                 modifier = Modifier.graphicsLayer { scaleX = pop.value; scaleY = pop.value; alpha = (2.2f - pop.value).coerceIn(0f, 1f) },

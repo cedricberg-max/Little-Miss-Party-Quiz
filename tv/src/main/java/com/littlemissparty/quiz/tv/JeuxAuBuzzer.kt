@@ -16,11 +16,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,6 +40,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
+import com.littlemissparty.quiz.tv.habillage.CarteIndice
+import com.littlemissparty.quiz.tv.habillage.PoliceLmp
 import com.littlemissparty.quiz.tv.habillage.RevelationPersonnage
 import com.littlemissparty.quiz.tv.habillage.apparition
 
@@ -93,7 +95,7 @@ private fun MotEnGrand(mot: String, modifier: Modifier = Modifier) {
         val largeur = constraints.maxWidth
         val borne = constraints.hasBoundedWidth
         val taille = remember(mot, largeur, borne) {
-            val style = TextStyle(fontSize = MOT_TAILLE_MAX.sp, fontWeight = FontWeight.Black)
+            val style = TextStyle(fontFamily = PoliceLmp, fontSize = MOT_TAILLE_MAX.sp, fontWeight = FontWeight.Black)
             val plusLong = if (borne) mot.split(' ').maxOf { mesure.measure(it, style, softWrap = false, maxLines = 1).size.width } else 0
             // Petite marge : la mesure et l'affichage peuvent différer d'un pixel.
             if (plusLong <= 0) MOT_TAILLE_MAX
@@ -144,14 +146,18 @@ fun QuiSuisBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
             val mesure = rememberTextMeasurer()
             val densite = LocalDensity.current
             val indices = q.cards.take(shown).map { it.word }
-            val largeur = (constraints.maxWidth - with(densite) { 56.dp.roundToPx() }).coerceAtLeast(1)
             val hauteur = constraints.maxHeight
-            val taille = remember(indices, aide, largeur, hauteur, densite.density) {
-                fun style(t: Float) = TextStyle(fontSize = t.sp, lineHeight = (t * 1.2f).sp, fontWeight = FontWeight.Bold)
+            // Cartes néon (choix de cedric) : pastille numérotée de 1,45 × la taille du texte, marges et bordure de la carte.
+            val taille = remember(indices, aide, constraints.maxWidth, hauteur, densite.density) {
+                fun style(t: Float) = TextStyle(fontFamily = PoliceLmp, fontSize = t.sp, lineHeight = (t * 1.15f).sp, fontWeight = FontWeight.ExtraBold)
                 var t = INDICE_TAILLE_MAX
                 while (t > INDICE_TAILLE_MIN) {
+                    val largeur = (constraints.maxWidth - with(densite) { (58f + t * 1.45f).dp.roundToPx() }).coerceAtLeast(1)
                     val total = indices.sumOf {
-                        mesure.measure(it, style(t), maxLines = 2, constraints = Constraints(maxWidth = largeur)).size.height
+                        maxOf(
+                            mesure.measure(it, style(t), constraints = Constraints(maxWidth = largeur)).size.height,
+                            with(densite) { (t * 1.45f).dp.roundToPx() },
+                        ) + with(densite) { 26.dp.roundToPx() }
                     } + with(densite) { (10.dp * (indices.size - 1).coerceAtLeast(0)).roundToPx() + (if (aide) 34.dp else 0.dp).roundToPx() }
                     if (!constraints.hasBoundedHeight || total <= hauteur) break
                     t -= 1f
@@ -160,21 +166,7 @@ fun QuiSuisBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
             }
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically)) {
                 indices.forEachIndexed { i, clue ->
-                    Row(
-                        Modifier.fillMaxWidth().apparition(0, "${q.id}-$i"),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            "${i + 1}", color = Palette.Night, fontSize = 22.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
-                            modifier = Modifier.clip(RoundedCornerShape(50)).background(Palette.Ink).width(40.dp).padding(vertical = 4.dp),
-                        )
-                        Spacer(Modifier.width(16.dp))
-                        Text(
-                            clue,
-                            color = Palette.Ink, fontSize = taille.sp, lineHeight = (taille * 1.2f).sp, fontWeight = FontWeight.Bold,
-                            maxLines = 2, overflow = TextOverflow.Ellipsis,
-                        )
-                    }
+                    key(q.id, i) { CarteIndice(i + 1, clue, Modifier.fillMaxWidth(), taille.sp) }
                 }
                 if (aide) {
                     Text(
