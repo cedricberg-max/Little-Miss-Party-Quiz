@@ -186,6 +186,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     /** L'animation [id] est finie : la suivante de la file, s'il y en a une. */
     fun coupFini(id: Int) {
+        Log.i(TAG, "Annonce $id terminée")
         _coup.value = coups.fini(id)
     }
 
@@ -540,6 +541,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private fun montrerCoup(e: ScoreAdjusted, avant: Int, apres: Int) {
         if (e.delta == 0) return
         val team = teams().firstOrNull { it.uid == e.team } ?: return
+        Log.i(TAG, "Annonce ${if (e.delta > 0) "BONUS" else "MALUS"} ${e.delta} pour ${team.name} (événement ${e.seq})")
         _coup.value = coups.ajouter(CoupDeScore(e.seq, team.uid, team.name, team.color, e.delta, avant, apres))
     }
 
