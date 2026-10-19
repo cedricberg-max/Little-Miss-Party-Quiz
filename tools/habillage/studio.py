@@ -1179,6 +1179,44 @@ def malus():
         mx.add('bells', note('marimba', m, .08, .4, release=.12), h + 1.4 + k * .12)
     return mx.render(duck=0)
 
+# ---------------------------------------------------------------- Pictionary
+def _gribouillis(dur, vel=1.0, rapide=9.0):
+    """Feutre qui gratte le papier : souffle filtré, haché au rythme des allers-retours de la main."""
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    x = sweep_bp(noise(n), 2600, 4200, q=1.4)
+    gestes = np.abs(np.sin(np.pi * rapide * t + .8 * np.sin(2 * np.pi * 1.3 * t))) ** 1.5
+    e = gestes * np.minimum(1, t / .02) * np.minimum(1, (dur - t) / .05)
+    return stereo((x * e * vel).astype(np.float32), width=.3)
+
+def pictio_top():
+    """Top départ du Pictionary : trois coups de feutre sur le papier, puis les cuivres lancent le chrono."""
+    mx = Mix(4, tail=2)
+    mx.add('fx', _gribouillis(.9, .9), 0)
+    for k, m in enumerate([67, 72, 76]):
+        mx.add('bells', note('marimba', m, .12, .6, release=.2), k * .5)
+    mx.add('brass', chord('brass_section', [60, 64, 67, 72], 1.0 * B, .9, release=.4), 2)
+    mx.add('kick', kick(.9), 2)
+    mx.add('drums', clap(.8), 2)
+    mx.add('bells', note('glockenspiel', 96, .3, .45, release=.8), 2)
+    return mx.render(duck=0)
+
+def pictio_trouve():
+    """Dessin deviné : gribouillis qui s'emballe, arpège qui monte, grand accord joyeux et pluie de clochettes."""
+    mx = Mix(5, tail=2.5)
+    mx.add('fx', _gribouillis(.45, .7, rapide=14), 0)
+    for k, m in enumerate([72, 76, 79, 84, 88]):
+        mx.add('bells', note('glockenspiel', m + 12, .2, .65, release=.8), 1 + k * .14)
+        mx.add('bells', note('marimba', m, .15, .5, release=.25), 1 + k * .14)
+    mx.add('brass', note('orchestra_hit', 72, .5, .7), 1.8)
+    mx.add('brass', chord('brass_section', [60, 64, 67, 72, 76, 79], 1.6 * B, 1.0, release=.7), 1.8)
+    mx.add('kick', kick(1.0), 1.8)
+    mx.add('drums', clap(.9), 1.8)
+    mx.add('fx', crash(.5, 2.5), 1.8)
+    for k in range(12):
+        mx.add('bells', note('tinkle_bell', 100 + (k % 4) * 2, .1, .16, release=.4), 2.1 + k * .09)
+    return mx.render(duck=0)
+
 PIECES = {
     'generique': (generique, -14.5), 'bed_full': (lambda: bed('full'), -15.5), 'bed_light': (lambda: bed('light'), -18.5),
     'tension': (tension, -16), 'riser_4b': (riser_4b, -17), 'impact': (impact, -15), 'round_sting': (round_sting, -15),
@@ -1195,7 +1233,7 @@ PIECES = {
     'buzz_gros': (buzz_gros, -15), 'flou_montee': (flou_montee, -22), 'suspense_reponse': (suspense_reponse, -19), 'indice': (indice, -21), 'bt_diamant': (bt_diamant, -26), 'bt_scratch': (bt_scratch, -17), 'statue_gel': (statue_gel, -17), 'statue_repart': (statue_repart, -19),
     'bt_generique': (lambda: couper(bt_generique(), 4.8), -15), 'bt_buzz': (bt_buzz, -15), 'bt_attente': (bt_attente, -21), 'bt_bravo': (bt_bravo, -15), 'bt_double': (lambda: couper(bt_double(), 4.8), -15), 'bt_outro': (lambda: couper(bt_outro(), 4.8), -16),
     'bed_magie': (bed_magie, -18.5), 'magie': (magie, -19), 'magie_pouf': (magie_pouf, -17),
-    'bonus': (bonus, -17), 'malus': (malus, -20),
+    'bonus': (bonus, -17), 'malus': (malus, -20), 'pictio_top': (pictio_top, -16), 'pictio_trouve': (pictio_trouve, -16),
     'bed_mimes': (bed_mimes, -16.5), 'bed_pause': (bed_pause, -19), 'pause_in': (pause_in, -18), 'transition': (transition, -15),
 }
 for i in range(4):

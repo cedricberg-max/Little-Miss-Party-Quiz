@@ -354,6 +354,7 @@ fun ScoresScreen(state: UiState.Playing, actions: TvActions) {
         Text("Classement", color = Palette.Ink, fontSize = 40.sp, fontWeight = FontWeight.Black)
         Text(
             when {
+                state.mime?.picto == true -> "Après le Pictionary"
                 state.mime != null -> "Après les mimes"
                 else -> "Après la question ${state.index + 1} / ${state.total}"
             },

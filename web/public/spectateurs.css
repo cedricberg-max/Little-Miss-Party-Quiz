@@ -1,0 +1,114 @@
+/* Animation des tablettes spectatrices du Pictionary : personnages caricaturaux, bulles et logo. */
+.spectateurs {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  padding: 10px 0;
+}
+.sp-titre {
+  font-size: clamp(26px, 6vw, 44px);
+  font-weight: 900;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  background: linear-gradient(180deg, #f6daaa, #f0cc92 50%, #c9974f);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 12px rgba(248, 136, 179, .6));
+}
+.sp-scene-zone { width: min(94vw, calc((100vh - 230px) * 1.48), 900px); flex: 0 1 auto; }
+.sp-svg { display: block; width: 100%; height: auto; overflow: visible; }
+.sp-bulle {
+  position: relative;
+  max-width: min(90vw, 560px);
+  min-height: 2.6em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 20px;
+  border-radius: 22px;
+  background: #fff;
+  color: #1b1035;
+  font-size: clamp(16px, 3.6vw, 24px);
+  font-weight: 800;
+  text-align: center;
+  box-shadow: 0 6px 18px rgba(26, 11, 46, .35), 0 0 0 3px #f0cc92;
+}
+.sp-bulle::after {
+  content: "";
+  position: absolute;
+  bottom: -12px;
+  left: 30%;
+  border: 8px solid transparent;
+  border-top: 14px solid #fff;
+  border-bottom: 0;
+}
+.sp-bulle-entre { animation: sp-bulle .5s cubic-bezier(.2, 1.5, .4, 1); }
+@keyframes sp-bulle { from { transform: scale(.3); opacity: 0; } }
+.sp-bandeau {
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: rgba(26, 11, 46, .45);
+  color: #fff;
+  font-size: clamp(15px, 3.2vw, 20px);
+  font-weight: 700;
+  text-align: center;
+}
+
+/* Une scène à la fois : elle arrive en rebondissant. */
+.sp-scene { opacity: 0; transform: translateY(30px); transition: opacity .4s, transform .5s cubic-bezier(.2, 1.4, .4, 1); }
+.sp-scene.sp-active { opacity: 1; transform: none; }
+.sp-scene:not(.sp-active) * { animation-play-state: paused !important; }
+.sp-svg * { transform-box: fill-box; }
+
+/* Yeux : ils clignent et regardent autour d'eux. */
+.sp-paupiere { transform-origin: center top; transform: scaleY(0); animation: sp-cligne 4s infinite; }
+@keyframes sp-cligne { 0%, 92%, 100% { transform: scaleY(0); } 95% { transform: scaleY(1); } }
+.sp-pupille { animation: sp-regarde 5s ease-in-out infinite; }
+@keyframes sp-regarde { 0%, 100% { transform: translate(0, 0); } 25% { transform: translate(3px, -2px); } 50% { transform: translate(-3px, 1px); } 75% { transform: translate(2px, 2px); } }
+
+/* Le peintre : il respire, sa moustache frétille, son pinceau va et vient et dévoile le logo. */
+.sp-respire { transform-origin: center bottom; animation: sp-respire 2.2s ease-in-out infinite; }
+@keyframes sp-respire { 50% { transform: scale(1.03, .97); } }
+.sp-moustache { transform-origin: center; animation: sp-fretille .6s ease-in-out infinite alternate; }
+@keyframes sp-fretille { to { transform: rotate(4deg) scaleX(1.06); } }
+.sp-bras-pinceau { transform-origin: left bottom; animation: sp-peint .5s ease-in-out infinite alternate; }
+@keyframes sp-peint { from { transform: rotate(-8deg); } to { transform: rotate(10deg) translate(4px, -6px); } }
+.sp-voile { transform-origin: right center; animation: sp-devoile 7s ease-in-out infinite; }
+@keyframes sp-devoile { 0%, 8% { transform: scaleX(1); } 70%, 100% { transform: scaleX(0); } }
+.sp-tache { transform-origin: center; animation: sp-goutte 1.4s ease-in infinite; }
+@keyframes sp-goutte { 0% { transform: translateY(-8px) scale(.4); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(6px) scale(1); } }
+
+/* Le détective : il va et vient en sautillant, la loupe tourne, les points d'interrogation montent. */
+.sp-marche { animation: sp-marche 7s ease-in-out infinite; }
+@keyframes sp-marche { 0%, 100% { transform: translateX(-30px); } 50% { transform: translateX(40px); } }
+.sp-sautille { transform-origin: center bottom; animation: sp-sautille .45s ease-in-out infinite alternate; }
+@keyframes sp-sautille { to { transform: translateY(-6px) rotate(2deg); } }
+.sp-loupe { transform-origin: 10% 90%; animation: sp-loupe 1.6s ease-in-out infinite alternate; }
+@keyframes sp-loupe { from { transform: rotate(-12deg); } to { transform: rotate(14deg); } }
+.sp-question { font: 900 40px system-ui, sans-serif; fill: #f0cc92; animation: sp-monte 3s ease-in infinite; }
+.sp-question.q2 { animation-delay: 1s; fill: #ff8ab8; }
+.sp-question.q3 { animation-delay: 2s; fill: #fff; }
+@keyframes sp-monte { 0% { transform: translateY(40px) scale(.5); opacity: 0; } 20% { opacity: 1; } 100% { transform: translateY(-30px) scale(1.2) rotate(15deg); opacity: 0; } }
+.sp-affiche { transform-origin: center bottom; animation: sp-balance 3s ease-in-out infinite alternate; }
+@keyframes sp-balance { from { transform: rotate(-4deg); } to { transform: rotate(4deg); } }
+
+/* Les crayons danseurs : chacun sur son temps, bras en l'air, la pancarte du logo au milieu. */
+.sp-danse { transform-origin: center bottom; animation: sp-danse .8s ease-in-out infinite alternate; animation-delay: var(--phase); }
+@keyframes sp-danse { from { transform: rotate(-9deg) translateY(0); } to { transform: rotate(9deg) translateY(-14px); } }
+.sp-bras.g { transform-origin: right bottom; animation: sp-bras-g .4s ease-in-out infinite alternate; }
+.sp-bras.d { transform-origin: left bottom; animation: sp-bras-d .4s ease-in-out infinite alternate; }
+@keyframes sp-bras-g { to { transform: rotate(28deg); } }
+@keyframes sp-bras-d { to { transform: rotate(-28deg); } }
+.sp-pancarte { transform-origin: center bottom; animation: sp-balance 1.2s ease-in-out infinite alternate; }
+.sp-notes text { font: 900 34px system-ui, sans-serif; fill: #fff; animation: sp-monte 2.4s ease-in infinite; }
+.sp-notes text:nth-child(2) { animation-delay: .8s; fill: #f0cc92; }
+.sp-notes text:nth-child(3) { animation-delay: 1.6s; fill: #ff8ab8; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sp-svg *, .sp-bulle-entre { animation: none !important; }
+}

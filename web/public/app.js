@@ -7,6 +7,9 @@ import { TEAM_COLORS, CHOICE_COLORS, CHOICE_LETTERS, MAX_TEAMS } from "./theme.j
 import { hasAccess, loginWithPassword, loginWithPin, startRegie } from "./regie.js";
 import { watchVersion, showUpdateBanner } from "./version.js";
 import { setAwake, isAwake, onAwakeChange } from "./awake.js";
+import { envoyeurDessin } from "./picto.js";
+import { creerArdoise, choisirMot } from "./ardoise.js";
+import { animationSpectateurs } from "./spectateurs.js";
 
 const $ = (id) => document.getElementById(id);
 /** Jeux au buzzer : un seul grand BUZZ, la réponse se donne à voix haute. */
@@ -46,7 +49,7 @@ let gameExists = false;
  * affiche un bandeau : l'animatrice choisit le moment.
  */
 let newVersion = false;
-const SAFE_TO_RELOAD = new Set(["play", "result", "ended", "error", "loading", "replaced"]);
+const SAFE_TO_RELOAD = new Set(["play", "result", "ended", "error", "loading", "replaced", "watch"]);
 function maybeReload() {
   if (!newVersion) return;
   if (document.body.classList.contains("regie-mode") || !$("regie-login").hidden) {
@@ -57,7 +60,7 @@ function maybeReload() {
 watchVersion(() => { newVersion = true; maybeReload(); });
 
 /** Écrans où l'équipe joue (salon compris) : la tablette reste allumée, même si personne ne la touche. */
-const AWAKE_SCREENS = new Set(["waiting", "play", "question", "result"]);
+const AWAKE_SCREENS = new Set(["waiting", "play", "question", "result", "pick", "draw", "watch"]);
 /** Écrans où la partie est finie pour cet appareil : la veille normale d'Android reprend. */
 const SLEEP_SCREENS = new Set(["join", "ended", "replaced"]);
 
@@ -353,14 +356,18 @@ function render() {
   const st = game.state ?? { phase: "lobby" };
   $("paused").hidden = !st.paused;
   runResumeCountdown(st);
+  // Saut vers un autre jeu en plein Pictionary : l'ardoise, les mots et l'animation s'arrêtent.
+  if (st.kind !== "pictionary" || !st.mime) stopPicto();
   switch (st.phase) {
     case "question":
     case "closed":
-      return st.mime ? renderMime(st) : st.kind === "statues" ? renderStatues(st) : BUZZ_KINDS.includes(st.kind) ? renderFlou(st) : renderQuestion(st);
+      return st.mime ? (st.kind === "pictionary" ? renderPicto(st) : renderMime(st)) : st.kind === "statues" ? renderStatues(st) : BUZZ_KINDS.includes(st.kind) ? renderFlou(st) : renderQuestion(st);
     case "reveal":
     case "scores":
+      stopPicto();
       return st.mime ? renderMimeResult(st) : renderResult(st);
     case "ended":
+      stopPicto();
       return renderEnded(st);
     default:
       return renderLobby(st);
@@ -540,12 +547,139 @@ function renderMimeResult(st) {
   clearInterval(timerHandle);
   show("result");
   const n = st.mime?.counts?.[teamId] ?? 0;
+  const what = st.kind === "pictionary" ? "dessin" : "mime";
   $("r-icon").textContent = n ? "★" : "…";
   $("r-icon").className = `result-icon ${n ? "ok" : "ko"}`;
-  $("r-title").textContent = n ? `Bravo ! ${n} mime${n > 1 ? "s" : ""} trouvé${n > 1 ? "s" : ""}` : "Pas de mime trouvé cette fois !";
+  $("r-title").textContent = n ? `Bravo ! ${n} ${what}${n > 1 ? "s" : ""} trouvé${n > 1 ? "s" : ""}` : `Pas de ${what} trouvé cette fois !`;
   $("r-detail").textContent = n ? `+${n * (st.mime?.points ?? 50)} points` : "";
   const { mine, rank } = rankOf(st.scores);
   $("r-total").textContent = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`;
+}
+
+// ---------- Pictionary ----------
+// L'habillage vient du fil Design (ardoise.js, spectateurs.js) ; ici, seulement quand montrer quoi, et l'envoi.
+
+/** Ardoise du dessinateur (tour de cette équipe) et la clé de son dessin. */
+let ardoise = null;
+let ardoiseKey = null;
+/** Les 3 mots proposés au dessinateur, pour la proposition [choixKey]. */
+let choix = null;
+let choixKey = null;
+/** Animation des tablettes qui regardent, pour l'équipe [spectateursFor]. */
+let spectateurs = null;
+let spectateursFor = null;
+
+function stopSheet() {
+  ardoise?.detruire();
+  ardoise = null;
+  ardoiseKey = null;
+}
+
+function stopPick() {
+  choix?.masquer();
+  choix = null;
+  choixKey = null;
+}
+
+function stopWatch() {
+  spectateurs?.arreter();
+  spectateurs = null;
+  spectateursFor = null;
+}
+
+function stopPicto() {
+  stopSheet();
+  stopPick();
+  stopWatch();
+}
+
+/**
+ * Pictionary : le dessinateur de l'équipe qui joue choisit son mot puis dessine ; les autres équipes regardent
+ * la TV (animation sur leur tablette) ; entre deux tours, la tablette dit qui va jouer.
+ */
+function renderPicto(st) {
+  clearInterval(timerHandle);
+  const m = st.mime;
+  const name = (id) => game.teams[id]?.name ?? "une autre équipe";
+  if (m.secret === teamId && m.offer?.length && m.pickKey) {
+    stopSheet();
+    stopWatch();
+    return renderPick(m);
+  }
+  stopPick();
+  if (m.team === teamId && m.drawKey) {
+    stopWatch();
+    return renderDraw(st, m);
+  }
+  stopSheet();
+  if (m.team || m.secret) return renderWatch(m, name);
+  stopWatch();
+  show("play");
+  $("buzz").disabled = true;
+  $("buzz").hidden = true;
+  const mine = m.counts?.[teamId] ?? 0;
+  const found = mine ? ` Déjà ${mine} dessin${mine > 1 ? "s" : ""} trouvé${mine > 1 ? "s" : ""} !` : "";
+  $("play-status").textContent = m.last
+    ? `« ${m.last.word ?? "?"} » : ${m.last.found ? `bravo ${name(m.last.team)} !` : "pas trouvé cette fois."} L'animatrice choisit l'équipe suivante.${found}`
+    : `Pictionary ! L'animatrice choisit l'équipe qui dessine en premier.${found}`;
+}
+
+function renderPick(m) {
+  show("pick");
+  if (choixKey !== m.pickKey) {
+    stopPick();
+    choixKey = m.pickKey;
+    choix = choisirMot($("pick-host"), m.offer.map((c) => ({ mot: c.word, image: c.image ?? "✏️" })), {
+      surChoix: (i) => choosePicto(m.pickKey, i),
+    });
+  }
+  $("pick-status").textContent = m.chosen != null
+    ? `Tu vas dessiner « ${m.offer[m.chosen]?.word ?? ""} ». Garde le secret ! L'animatrice va masquer le mot, puis tu dessines.`
+    : "";
+}
+
+async function choosePicto(key, i) {
+  if (i == null || !key) return;
+  beep(880, 120);
+  navigator.vibrate?.(30);
+  try {
+    await set(ref(db, `games/${code}/pictoChoice/${key}`), { i, at: serverTimestamp() });
+  } catch {
+    // Refusé (connexion, pause, autres mots proposés entre-temps) : les cartes reviennent pour choisir de nouveau.
+    stopPick();
+    render();
+    $("pick-status").textContent = "Le choix n'est pas parti : vérifie la connexion et choisis encore ton mot.";
+  }
+}
+
+function renderDraw(st, m) {
+  show("draw");
+  if (ardoiseKey !== m.drawKey) {
+    stopSheet();
+    ardoiseKey = m.drawKey;
+    $("draw-status").textContent = "";
+    const envoi = envoyeurDessin(db, `games/${code}/drawing/${m.drawKey}`, {
+      onError: () => { $("draw-status").textContent = "Le dessin n'arrive plus à la TV : vérifiez la connexion."; },
+    });
+    const mot = m.card?.word ? `Dessine : ${m.card.word} ${m.card.image ?? ""}`.trim() : "À toi de dessiner !";
+    ardoise = creerArdoise($("draw-host"), { surTrait: envoi.trait, surEffacer: envoi.effacer, titre: mot });
+  }
+  // En pause, la feuille se fige (la base refuserait les traits) ; elle repart à la reprise.
+  if (st.paused) ardoise.desactiver("Pause ! On reprend dans un instant.");
+  else ardoise.activer();
+  runTimer(st, $("draw-timer"));
+}
+
+function renderWatch(m, name) {
+  show("watch");
+  $("watch-status").textContent = "";
+  const who = m.team ?? m.secret;
+  const phase = m.team ? "dessin" : "choix";
+  if (spectateursFor !== who) {
+    stopWatch();
+    spectateursFor = who;
+    spectateurs = animationSpectateurs($("watch-host"), { equipe: name(who), phase });
+  } else spectateurs.changerPhase(phase);
 }
 
 async function answer(choice) {
@@ -584,9 +718,8 @@ function runResumeCountdown(st) {
   countdownHandle = setInterval(tick, 100);
 }
 
-function runTimer(st) {
+function runTimer(st, el = $("q-timer")) {
   clearInterval(timerHandle);
-  const el = $("q-timer");
   const tick = () => {
     let ms;
     if (st.phase !== "question") ms = 0;

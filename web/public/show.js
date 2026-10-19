@@ -3,11 +3,20 @@
 import { PROFILES, profileForAge, defaultDuration, expressDuration } from "./profiles.js";
 import { shuffle } from "./mime-cards.js";
 import { CHANTE_WORDS, QUI_SUIS_JE, DISPARU_THEMES } from "./buzz-cards.js";
+import { PICTO_WORDS } from "./picto-cards.js";
 
-export const ROUND_TYPES = { quiz: "Quiz", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes" };
+export const ROUND_TYPES = { quiz: "Quiz", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes", pictionary: "Pictionary" };
 /** Statues musicales : durées proposées (secondes) et durée par défaut. Musique maison de la TV, rien à préparer. */
 export const STATUES_SECONDS = [60, 90, 120];
 export const STATUES_SEC = 90;
+/**
+ * Pictionary : équipe par équipe, un mot par tour ; temps de dessin proposés (secondes), celui par défaut, et
+ * points d'un dessin trouvé. Les mots viennent du catalogue intégré (réglable dans la page Jeux).
+ */
+export const PICTO_SECONDS = [60, 90, 120];
+export const PICTO_SEC = 90;
+export const PICTO_POINTS = 150;
+export const PICTO_RULE = "équipe par équipe, un enfant dessine le mot sur la tablette, son équipe devine en regardant la TV";
 /** Jeux musicaux : leurs extraits viennent d'une playlist de la bibliothèque (library/playlists). */
 export const MUSIC_GAMES = {
   blind: { rule: "le premier qui buzze donne le titre ; les derniers morceaux valent double" },
@@ -111,6 +120,12 @@ export const CONTENT_GAMES = {
       return { answer: x.answer.trim().slice(0, 60), emoji: typeof x.emoji === "string" ? x.emoji.trim().slice(0, 16) : "", clues, level: 1 };
     },
   },
+  pictionary: {
+    unit: "mot", catalog: PICTO_WORDS, key: (w) => w.word.toLowerCase(), label: (w) => `${w.image ?? ""} ${w.word}`.trim(),
+    clean: (x) => (typeof x?.word === "string" && x.word.trim()
+      ? { word: x.word.trim().slice(0, 40), ...(typeof x.image === "string" && x.image.trim() ? { image: x.image.trim().slice(0, 16) } : {}), level: 1 }
+      : null),
+  },
   disparu: {
     unit: "famille", catalog: DISPARU_THEMES, key: (t) => t.theme.toLowerCase(), label: (t) => t.theme,
     clean: (x) => {
@@ -152,7 +167,7 @@ function disparuGrid(theme, n, random) {
 }
 
 /** Une manche est-elle complète (quiz choisi, ou paquet de mimes choisi) ? Les jeux intégrés le sont toujours. */
-export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || round.type === "statues" ? true : round.type === "mimes" ? round.deckId : MUSIC_GAMES[round.type] ? round.playlistId : round.quizId));
+export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || round.type === "statues" || round.type === "pictionary" ? true : round.type === "mimes" ? round.deckId : MUSIC_GAMES[round.type] ? round.playlistId : round.quizId));
 
 /** Morceaux jouables d'une playlist : un titre et un extrait enregistré. */
 export const playableTracks = (playlist) => (playlist?.tracks ?? []).filter((t) => t?.title?.trim() && /^[0-9a-f]{16}$/.test(t.audioId ?? ""));
@@ -230,6 +245,18 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       const duration = STATUES_SECONDS.includes(round.duration) ? round.duration : STATUES_SEC;
       rounds.push({ title: ROUND_TYPES.statues, count: 1 });
       questions.push({ id: `r${i + 1}s`, text: ROUND_TYPES.statues, kind: "statues", duration, double: false, round: ROUND_TYPES.statues });
+      return;
+    }
+    if (round.type === "pictionary") {
+      // Un seul élément : le paquet de mots mélangé (adapté à l'âge), joué équipe par équipe, un mot par tour.
+      const words = activeItems("pictionary", contents?.pictionary).filter((w) => profile !== "PETITS" || w.level !== 2);
+      if (!words.length) { problems.push(`Manche ${i + 1} (Pictionary) : aucun mot actif (page Jeux de l'administration).`); return; }
+      const duration = PICTO_SECONDS.includes(round.duration) ? round.duration : PICTO_SEC;
+      rounds.push({ title: ROUND_TYPES.pictionary, count: 1, kind: "pictionary" });
+      questions.push({
+        id: `r${i + 1}p`, text: ROUND_TYPES.pictionary, kind: "pictionary", duration, double: false, round: ROUND_TYPES.pictionary,
+        points: PICTO_POINTS, cards: shuffle(words, random).slice(0, 200).map((w) => (w.image ? { word: w.word, image: w.image } : { word: w.word })),
+      });
       return;
     }
     if (MUSIC_GAMES[round.type]) {
@@ -345,8 +372,8 @@ function assemble(blocks) {
 /** Durée approximative d'une prestation, pour l'aider à composer : chrono + révélation et scores. */
 export function estimateMinutes(snapshot) {
   if (!snapshot) return 0;
-  // Mimes : deux tours d'équipe environ, plus les changements d'équipe.
-  const sec = snapshot.quiz.questions.reduce((t, q) => t + (q.kind === "mime" ? 2 * q.duration + 60 : q.kind === "express" ? q.duration + 5 : q.duration + 30), 0);
+  // Mimes : deux tours d'équipe environ, plus les changements d'équipe. Pictionary : un tour pour chacune de 4 équipes.
+  const sec = snapshot.quiz.questions.reduce((t, q) => t + (q.kind === "mime" ? 2 * q.duration + 60 : q.kind === "pictionary" ? 4 * (q.duration + 30) : q.kind === "express" ? q.duration + 5 : q.duration + 30), 0);
   return Math.round(sec / 60);
 }
 

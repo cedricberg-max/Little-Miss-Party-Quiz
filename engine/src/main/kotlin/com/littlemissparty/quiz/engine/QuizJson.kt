@@ -6,7 +6,8 @@ import org.json.JSONObject
 /**
  * Lecture d'un quiz au format JSON :
  * `{"id", "title", "questions": [{"id", "text", "choices": [...], "correct", "duration", "kind", "double", "round"}]}`,
- * plus `"cards": [{"word", "image"}]` pour une manche de mimes (`"kind": "mime"`, sans propositions),
+ * plus `"cards": [{"word", "image"}]` pour une manche de mimes ou de Pictionary (`"kind": "mime"` ou
+ * `"pictionary"`, sans propositions ; `"points"` : valeur d'un dessin trouvé),
  * l'illustration facultative d'une question : `"image"` (émoji) et `"imageId"` (photo), et pour la
  * musique `"audioId"` (extrait) et `"artist"` (blind test).
  * Toute erreur est signalée avec la question concernée, pour pouvoir la corriger.
@@ -45,12 +46,13 @@ object QuizJson {
             .let { if ((it == QuestionKind.ZOOM || it == QuestionKind.FLOU) && imageId == null) QuestionKind.CLASSIC else it }
         val choices: JSONArray = q.optJSONArray("choices") ?: JSONArray()
         val cards: JSONArray = q.optJSONArray("cards") ?: JSONArray()
+        val turns = kind == QuestionKind.MIME || kind == QuestionKind.PICTIONARY
         return Question(
             id = q.optString("id", "q${i + 1}"),
             text = q.getString("text"),
             choices = (0 until choices.length()).map { choices.getString(it).trim() },
-            correct = if (kind == QuestionKind.MIME || kind == QuestionKind.STATUES) q.optInt("correct", -1) else q.getInt("correct"),
-            durationSec = q.optInt("duration", if (kind == QuestionKind.MIME) 60 else 20),
+            correct = if (turns || kind == QuestionKind.STATUES) q.optInt("correct", -1) else q.getInt("correct"),
+            durationSec = q.optInt("duration", if (kind == QuestionKind.PICTIONARY) 90 else if (turns) 60 else 20),
             kind = kind,
             double = q.optBoolean("double", false),
             roundTitle = q.optString("round").ifBlank { null },
@@ -59,11 +61,11 @@ object QuizJson {
                 MimeCard(card.getString("word").trim(), card.optString("image").ifBlank { null })
             },
             // Une illustration mal formée est ignorée : elle ne doit jamais empêcher de jouer.
-            emoji = q.optString("image").trim().takeIf { it.isNotEmpty() && it.length <= 16 && kind != QuestionKind.MIME },
-            imageId = imageId?.takeIf { kind != QuestionKind.MIME },
+            emoji = q.optString("image").trim().takeIf { it.isNotEmpty() && it.length <= 16 && !turns },
+            imageId = imageId?.takeIf { !turns },
             artist = q.optString("artist").trim().takeIf { it.isNotEmpty() && kind == QuestionKind.BLIND }?.take(MAX_ARTIST),
-            audioId = q.optString("audioId").takeIf { it.matches(IMAGE_ID) && kind != QuestionKind.MIME },
-            points = q.optInt("points", 0).takeIf { it > 0 && kind == QuestionKind.BLIND }?.coerceAtMost(MAX_TRACK_POINTS),
+            audioId = q.optString("audioId").takeIf { it.matches(IMAGE_ID) && !turns },
+            points = q.optInt("points", 0).takeIf { it > 0 && (kind == QuestionKind.BLIND || kind == QuestionKind.PICTIONARY) }?.coerceAtMost(MAX_TRACK_POINTS),
             revealSec = q.optInt("reveal", BLIND_REVEAL_SEC).coerceIn(3, 20),
         )
     }

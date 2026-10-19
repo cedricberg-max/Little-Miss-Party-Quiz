@@ -13,6 +13,9 @@ object Scoring {
     /** Mime trouvé (validé par l'animatrice). */
     const val MIME = 50
 
+    /** Pictionary : dessin trouvé par l'équipe qui joue (validé par l'animatrice), quand l'administration n'en donne pas. */
+    const val PICTO = 150
+
     /**
      * @param remainingFraction part du temps qui restait quand la réponse est arrivée (0 à 1).
      */

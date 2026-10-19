@@ -8,6 +8,7 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
 import com.littlemissparty.quiz.tv.habillage.BonusMalus
@@ -33,6 +34,8 @@ class MainActivity : ComponentActivity() {
             val busy = gameInProgress(state)
             LaunchedEffect(busy) { updates.setBusy(busy) }
             Box(Modifier.fillMaxSize()) {
+            // Pictionary : le dessin en direct passe à part, pour ne redessiner que la feuille à chaque trait.
+            CompositionLocalProvider(LocalDessin provides viewModel.dessin) {
             QuizTvApp(
                 state = state,
                 actions = TvActions(
@@ -71,6 +74,7 @@ class MainActivity : ComponentActivity() {
                     ),
                 ),
             )
+            }
             // BONUS / MALUS de la régie, par-dessus le jeu sans rien arrêter (chrono, musique, pupitres).
             coup?.let { c -> key(c.id) { BonusMalus(c.nom, c.couleur.toColor(), c.delta, c.avant, c.apres) { viewModel.coupFini(c.id) } } }
             }

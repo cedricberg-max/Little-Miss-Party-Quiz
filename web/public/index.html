@@ -12,6 +12,8 @@
   <link rel="apple-touch-icon" href="img/icon-180.png">
   <title>Little Miss Party Quiz</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="ardoise.css">
+  <link rel="stylesheet" href="spectateurs.css">
   <link rel="stylesheet" href="regie.css">
 </head>
 <body>
@@ -54,6 +56,25 @@
       <div class="team-banner"><span class="dot"></span><span class="team-label"></span></div>
       <button id="buzz" class="buzz">BUZZ</button>
       <p id="play-status" class="hint">Regardez la TV !</p>
+    </section>
+
+    <!-- Pictionary : le dessinateur choisit son mot, dessine ; les autres équipes regardent la TV. -->
+    <!-- Pictionary : choix du mot, ardoise et animation des autres équipes (modules ardoise.js et spectateurs.js). -->
+    <section id="screen-pick" class="screen picto-screen">
+      <div class="team-banner small"><span class="dot"></span><span class="team-label"></span></div>
+      <div id="pick-host" class="picto-host"></div>
+      <p id="pick-status" class="hint"></p>
+    </section>
+
+    <section id="screen-draw" class="screen picto-screen picto-draw">
+      <div class="draw-head"><span class="team-label"></span><span id="draw-timer" class="timer"></span></div>
+      <div id="draw-host" class="picto-host"></div>
+      <p id="draw-status" class="hint"></p>
+    </section>
+
+    <section id="screen-watch" class="screen picto-screen">
+      <div id="watch-host" class="picto-host"></div>
+      <p id="watch-status" class="hint"></p>
     </section>
 
     <section id="screen-question" class="screen">
@@ -119,7 +140,7 @@
         <p id="c-hold" class="hold-info" hidden></p>
         <div class="games-row">
           <p id="c-games" class="games"></p>
-          <button id="c-rescue" class="btn secondary rescue-open" hidden>🛟 Jeux</button>
+          <button id="c-rescue" class="btn secondary rescue-open" hidden>⏭ Changer de jeu</button>
         </div>
         <details id="c-notes" class="notes" hidden>
           <summary>📝 Notes de la prestation</summary>

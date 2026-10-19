@@ -330,6 +330,55 @@ describe("buzzer", () => {
   });
 });
 
+describe("Pictionary", () => {
+  const picto = (mime) => seed({ kind: "pictionary", qid: "r2p", choices: null, mime });
+  const stroke = (uid, key, data = { c: "#1A0B2E", w: 2, p: "10,20 30,40" }) => set(ref(db(uid), `games/${CODE}/drawing/${key}/s${Math.random().toString(36).slice(2)}`), data);
+  const choose = (uid, key, i) => set(ref(db(uid), `games/${CODE}/pictoChoice/${key}`), { i, at: serverTimestamp() });
+
+  test("seule l'équipe à qui les mots sont proposés choisit, parmi les trois, sur la proposition en cours", async () => {
+    await picto({ secret: "bleu", pickKey: "r2p-100" });
+    await assertSucceeds(choose("bleu", "r2p-100", 2));
+    await assertSucceeds(choose("bleu", "r2p-100", 0));
+    await assertFails(choose("rose", "r2p-100", 1));
+    await assertFails(choose("bleu", "r2p-99", 1));
+    await assertFails(choose("bleu", "r2p-100", 3));
+    await assertFails(set(ref(db("bleu"), `games/${CODE}/pictoChoice/r2p-100`), { i: 1, at: 5 }));
+    await assertFails(set(ref(db("bleu"), `games/${CODE}/pictoChoice/r2p-100`), { i: 1, at: serverTimestamp(), points: 500 }));
+  });
+
+  test("seule l'équipe qui dessine envoie des traits, sur la clé du tour en cours, jamais en pause", async () => {
+    await picto({ team: "rose", drawKey: "r2p-200" });
+    await assertSucceeds(stroke("rose", "r2p-200"));
+    await assertSucceeds(stroke("rose", "r2p-200", { clear: true }));
+    await assertSucceeds(stroke("rose", "r2p-200", { c: "paper", w: 3, p: "0,0" }));
+    await assertFails(stroke("bleu", "r2p-200"));
+    await assertFails(stroke("rose", "r2p-199"));
+    await assertFails(stroke("rose", "r2p-200", { c: "#1A0B2E", w: 9, p: "1,2 3,4" }));
+    await assertFails(stroke("rose", "r2p-200", { c: "red", w: 2, p: "1,2 3,4" }));
+    await assertFails(stroke("rose", "r2p-200", { c: "#1A0B2E", w: 2, p: "<script>" }));
+    await assertFails(stroke("rose", "r2p-200", { c: "#1A0B2E", w: 2, p: "1,2", points: 150 }));
+    // Tout le monde voit le dessin en direct (la TV, et les autres tablettes si besoin).
+    await assertSucceeds(get(ref(db("bleu"), `games/${CODE}/drawing/r2p-200`)));
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/state/paused`), true));
+    await assertFails(stroke("rose", "r2p-200"));
+  });
+
+  test("un trait ne se réécrit pas ; la box seule efface les dessins", async () => {
+    await picto({ team: "rose", drawKey: "r2p-200" });
+    const path = `games/${CODE}/drawing/r2p-200/s1`;
+    await assertSucceeds(set(ref(db("rose"), path), { c: "#1A0B2E", w: 1, p: "1,1 2,2" }));
+    await assertFails(set(ref(db("rose"), path), { c: "#F94144", w: 1, p: "1,1 2,2" }));
+    await assertFails(set(ref(db("rose"), `games/${CODE}/drawing`), null));
+    await assertSucceeds(set(ref(db(HOST), `games/${CODE}/drawing`), null));
+  });
+
+  test("hors Pictionary, rien ne s'écrit", async () => {
+    await seed({ mime: { team: "rose", drawKey: "r2p-200", secret: "rose", pickKey: "k" } });
+    await assertFails(stroke("rose", "r2p-200"));
+    await assertFails(choose("rose", "k", 0));
+  });
+});
+
 describe("rapports de plantage", () => {
   const report = { kind: "crash", text: "trace", version: "0.1.20", at: serverTimestamp() };
   test("la box envoie un rapport, personne ne peut le relire ni l'écraser", async () => {
@@ -857,6 +906,14 @@ describe("blind test : extraits musicaux et playlists", () => {
     await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));
     for (const type of ["blind_play", "blind_unblock", "blind_reveal", "blind_skip", "blind_cut"]) {
       await assertSucceeds(set(ref(db("tel"), `games/${CODE}/commands/${type}`), { type, expectSeq: 3, by: "tel", at: serverTimestamp() }));
+      await assertFails(set(ref(db("rose"), `games/${CODE}/commands/${type}-rose`), { type, expectSeq: 3, by: "rose", at: serverTimestamp() }));
+    }
+  });
+  test("Pictionary : la régie montre le mot et lance le dessin ; jamais un pupitre", async () => {
+    await seed({ phase: "lobby" });
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));
+    for (const type of ["picto_show", "picto_draw"]) {
+      await assertSucceeds(set(ref(db("tel"), `games/${CODE}/commands/${type}`), { type, expectSeq: 3, by: "tel", at: serverTimestamp(), ...(type === "picto_show" ? { team: "rose" } : {}) }));
       await assertFails(set(ref(db("rose"), `games/${CODE}/commands/${type}-rose`), { type, expectSeq: 3, by: "rose", at: serverTimestamp() }));
     }
   });

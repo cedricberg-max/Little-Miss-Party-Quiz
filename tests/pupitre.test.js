@@ -276,6 +276,67 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
+  test("Pictionary : le dessinateur choisit 1 mot sur 3 puis dessine sur l'ardoise ; l'autre équipe a son animation", async () => {
+    const [licornes, dragons] = [await openPupitre(), await openPupitre()];
+    await joinTeam(licornes, "Licornes");
+    await joinTeam(dragons, "Dragons");
+    const uidOf = Object.fromEntries(Object.entries(await read("teams")).map(([uid, t]) => [t.name, uid]));
+    const L = uidOf.Licornes;
+    const offer = [{ word: "Soleil", image: "☀️" }, { word: "Maison", image: "🏠" }, { word: "Bateau", image: "⛵" }];
+    const picto = (mime, extra = {}) => question({
+      qid: "r1p", kind: "pictionary", text: "Pictionary", choices: null, deadline: null,
+      mime: { team: null, found: 0, passed: 0, left: 10, turns: [], counts: {}, points: 150, ...mime }, ...extra,
+    });
+
+    // Sarah montre 3 mots aux Licornes : seul leur dessinateur les voit, les fait défiler et choisit.
+    await hostState(picto({ secret: L, offer, chosen: null, pickKey: "r1p-100" }));
+    await licornes.locator("#screen-pick.active").waitFor();
+    assert.equal(await licornes.locator("#pick-host .choix-carte").count(), 3);
+    await dragons.locator("#watch-host .sp-bandeau", { hasText: "Licornes » choisit son mot secret" }).waitFor();
+    assert.equal(await dragons.locator(".choix-carte").count(), 0, "l'autre équipe ne voit pas les mots");
+    await licornes.click(".choix-fleche[data-sens='1']");
+    await licornes.click(".choix-valider");
+    await waitFor(async () => (await read("pictoChoice/r1p-100"))?.i === 1, "choix enregistré");
+    await licornes.locator(".choix-valider", { hasText: "C'est noté" }).waitFor();
+    await hostState(picto({ secret: L, offer, chosen: 1, pickKey: "r1p-100" }));
+    await licornes.locator("#pick-status", { hasText: "Tu vas dessiner « Maison »" }).waitFor();
+
+    // On dessine sur l'ardoise : les traits partent vers la TV par petits paquets ; « Tout effacer » aussi.
+    await hostState(picto({ team: L, card: offer[1], drawKey: "r1p-200", turns: [L] }, { deadline: Date.now() + 60000 }));
+    await licornes.locator("#screen-draw.active").waitFor();
+    await licornes.locator(".ardoise-titre", { hasText: "Maison" }).waitFor();
+    await dragons.locator(".sp-bandeau", { hasText: "Licornes » dessine" }).waitFor();
+    const canvas = licornes.locator("#draw-host canvas");
+    const box = await waitFor(async () => { const b = await canvas.boundingBox(); return b && b.height > 50 ? b : null; }, "feuille à sa taille");
+    await licornes.mouse.move(box.x + 20, box.y + 20);
+    await licornes.mouse.down();
+    for (let k = 1; k <= 12; k++) {
+      await licornes.mouse.move(box.x + 20 + k * 15, box.y + 20 + k * 10);
+      await licornes.waitForTimeout(25);
+    }
+    await licornes.mouse.up();
+    const strokes = await waitFor(async () => {
+      const all = Object.values((await read("drawing/r1p-200")) ?? {}).filter((s) => s.p);
+      return all.length >= 2 ? all : null;
+    }, "traits reçus");
+    assert.equal(strokes[0].c, "#1B1035", "crayon noir au départ");
+    assert.equal(strokes[0].w, 2, "trait moyen au départ");
+    const pts = strokes.map((s) => s.p.split(" ").map((xy) => xy.split(",").map(Number)));
+    assert.ok(pts.flat().every(([x, y]) => x >= 0 && x <= 1000 && y >= 0 && y <= 1000), "coordonnées de 0 à 1000");
+    // Chaque paquet reprend le dernier point du précédent : la TV relie le trait sans trou.
+    for (let i = 1; i < pts.length; i++) assert.deepEqual(pts[i][0], pts[i - 1].at(-1));
+    await licornes.click(".ardoise-effacer");
+    await licornes.click(".ardoise-effacer");
+    await waitFor(async () => Object.values((await read("drawing/r1p-200")) ?? {}).some((s) => s.clear), "effacement envoyé");
+
+    // Fin du tour : chacun retrouve l'écran d'attente, avec le mot.
+    await hostState(picto({ turns: [L], counts: { [L]: 1 }, last: { team: L, found: 1, passed: 0, word: "Maison" } }));
+    await licornes.locator("#play-status", { hasText: "« Maison » : bravo Licornes" }).waitFor();
+    await dragons.locator("#play-status", { hasText: "« Maison » : bravo Licornes" }).waitFor();
+    await licornes.context().close();
+    await dragons.context().close();
+  });
+
   test("accueil : deux équipes buzzent à répétition, rien ne se bloque ni ne change d'écran", async () => {
     const pages = [await openPupitre(), await openPupitre()];
     await joinTeam(pages[0], "Les Roses");

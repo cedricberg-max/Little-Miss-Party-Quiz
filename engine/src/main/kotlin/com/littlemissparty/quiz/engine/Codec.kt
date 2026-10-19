@@ -28,6 +28,8 @@ object Codec {
             is Undone -> mapOf("type" to "undo", "target" to e.target)
             is GameEnded -> mapOf("type" to "end")
             is MimeTurnStarted -> mapOf("type" to "mime_start", "team" to e.team)
+            is PictoShown -> mapOf("type" to "picto_show", "team" to e.team)
+            is PictoChosen -> mapOf("type" to "picto_choose", "choice" to e.choice)
             is MimeFound -> mapOf("type" to "mime_found")
             is MimePassed -> mapOf("type" to "mime_pass")
             is MimeCorrected -> mapOf("type" to "mime_fix", "team" to e.team, "delta" to e.delta)
@@ -73,6 +75,8 @@ object Codec {
             "undo" -> Undone(seq, at, m.num("target").toInt())
             "end" -> GameEnded(seq, at)
             "mime_start" -> MimeTurnStarted(seq, at, m["team"] as String)
+            "picto_show" -> PictoShown(seq, at, m["team"] as String)
+            "picto_choose" -> PictoChosen(seq, at, m.num("choice").toInt())
             "mime_found" -> MimeFound(seq, at)
             "mime_pass" -> MimePassed(seq, at)
             "mime_fix" -> MimeCorrected(seq, at, m["team"] as String, m.num("delta").toInt())
@@ -113,10 +117,30 @@ object Codec {
         "passed" to (m?.passed ?: 0),
         "left" to (m?.deck?.size ?: 0),
         "turns" to m?.turns.orEmpty(),
-        "last" to m?.last?.let { mapOf("team" to it.team, "found" to it.found, "passed" to it.passed) },
-        "points" to Scoring.MIME,
+        "last" to m?.last?.let { mapOf("team" to it.team, "found" to it.found, "passed" to it.passed, "word" to game.lastCard?.word, "image" to game.lastCard?.image) },
+        "points" to game.state.qid?.let(game.state::pointsPerFound),
         "counts" to game.state.mimes[game.state.qid].orEmpty(),
+        // Pictionary : équipe qui découvre son mot, et clé du dessin du tour (en cours ou dernier) dans `drawing/`.
+        "secret" to m?.secret,
+        "offer" to game.offerCards.map { mapOf("word" to it.word, "image" to it.image) }.ifEmpty { null },
+        "chosen" to m?.takeIf { it.secret != null }?.pick?.let { m.offer.indexOf(it) },
+        "pickKey" to pickKey(game),
+        "drawKey" to drawKey(game),
     )
+
+    /** Pictionary : clé où la tablette du dessinateur écrit son choix (`pictoChoice/`) : manche et heure de la proposition. */
+    fun pickKey(game: Game): String? {
+        val m = game.state.mime ?: return null
+        if (m.secret == null || game.question?.isPicto != true) return null
+        return "${game.state.qid.orEmpty().replace(Regex("[.#$\\[\\]/]"), "_")}-${m.shownAt}"
+    }
+
+    /** Pictionary : clé du dessin du tour en cours (ou du dernier tour) : manche et heure de départ du tour. */
+    fun drawKey(game: Game): String? {
+        val started = game.state.mime?.started ?: return null
+        if (game.question?.isPicto != true) return null
+        return "${game.state.qid.orEmpty().replace(Regex("[.#$\\[\\]/]"), "_")}-$started"
+    }
 
     /**
      * Ce que les pupitres ont le droit de voir. La bonne réponse n'y figure qu'après la révélation :
@@ -161,7 +185,7 @@ object Codec {
                     mapOf("correct" to a.correct, "points" to a.points, "bonus" to a.bonus)
                 } else null,
             )
-            if (q.isMime) out["mime"] = mimeState(game, s.mime)
+            if (q.isTurns) out["mime"] = mimeState(game, s.mime)
             if (q.isBlind) out["blind"] = blindState(game)
             s.buzz?.let {
                 out["buzz"] = mapOf("team" to it.team, "blocked" to it.blocked)

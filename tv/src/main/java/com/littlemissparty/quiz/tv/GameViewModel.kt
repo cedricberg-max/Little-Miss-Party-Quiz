@@ -167,6 +167,16 @@ data class MimeUi(
     val last: MimeTurn? = null,
     val counts: Map<String, Int> = emptyMap(),
     val turns: List<String> = emptyList(),
+    /** Pictionary : manche jouée équipe par équipe, un mot dessiné par tour (sinon des mimes). */
+    val picto: Boolean = false,
+    /** Pictionary : équipe qui choisit son mot sur sa tablette (le mot n'est jamais montré sur la TV). */
+    val secret: String? = null,
+    /** Pictionary : le dessinateur a choisi son mot (Sarah peut masquer le mot et lancer le dessin). */
+    val chosen: Boolean = false,
+    /** Pictionary : le mot du dernier tour, révélé à tous une fois le tour fini. */
+    val lastCard: MimeCard? = null,
+    /** Points d'un mime ou d'un dessin trouvé. */
+    val points: Int = Scoring.MIME,
 )
 
 /**
@@ -195,6 +205,12 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private val listeners = mutableListOf<Pair<DatabaseReference, ValueEventListener>>()
     private var answersListener: Pair<DatabaseReference, ValueEventListener>? = null
     private var buzzListener: Pair<DatabaseReference, ValueEventListener>? = null
+    private var pickListener: Pair<DatabaseReference, ValueEventListener>? = null
+    private var drawListener: Pair<DatabaseReference, ChildEventListener>? = null
+    private val _dessin = MutableStateFlow(Dessin())
+
+    /** Pictionary : le dessin du tour en cours (ou du dernier tour), reçu de la tablette en direct. */
+    val dessin: StateFlow<Dessin> = _dessin
     private var answers: Map<String, Answer> = emptyMap()
     private var countdown: Job? = null
     private var timer: Job? = null
@@ -431,7 +447,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             when (g.state.phase) {
                 Phase.LOBBY -> if (teams().isNotEmpty()) commit(g.next(serverNow()))
                 // Mimes : arrête le tour en cours, ou termine la manche entre deux tours (« Terminer les mimes »).
-                Phase.QUESTION -> if (g.question?.isMime == true) commit(g.next(serverNow()))
+                Phase.QUESTION -> if (g.question?.isTurns == true) commit(g.next(serverNow()))
                 // Blind test : OK lance (ou relance) la musique, ou l'arrête ; une équipe qui a buzzé est jugée par ses boutons.
                 else if (g.question?.isBlind == true) {
                     if (g.state.buzz?.team != null) return@withLock
@@ -613,7 +629,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val s = g.state
         val q = g.question
         val revealedAwards = q?.let { s.awards[it.id] }.orEmpty()
-        val mimeCounts = q?.takeIf { it.isMime }?.let { s.mimes[it.id] }.orEmpty()
+        val mimeCounts = q?.takeIf { it.isTurns }?.let { s.mimes[it.id] }.orEmpty()
         _state.update { cur ->
             if (cur !is UiState.Playing) cur
             else cur.copy(
@@ -631,15 +647,17 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 buzzTeam = s.buzz?.team,
                 buzzBlocked = s.buzz?.blocked.orEmpty(),
                 blind = q?.takeIf { it.isBlind && s.phase != Phase.LOBBY }?.let { blindUi(g) },
-                lastGain = if (q?.isMime == true) mimeCounts.mapValues { it.value * Scoring.MIME } else revealedAwards.mapValues { it.value.points },
+                lastGain = if (q?.isTurns == true) mimeCounts.mapValues { it.value * s.pointsPerFound(q.id) } else revealedAwards.mapValues { it.value.points },
                 isLast = g.isLastQuestion,
                 nextGame = g.nextGameTitle(),
                 gameGains = g.gameGains(),
-                mime = q?.takeIf { it.isMime && s.phase != Phase.LOBBY }?.let {
+                mime = q?.takeIf { it.isTurns && s.phase != Phase.LOBBY }?.let {
                     val m = s.mime
                     MimeUi(
-                        team = m?.team, card = g.mimeCard, found = m?.found ?: 0, passed = m?.passed ?: 0,
+                        // Pictionary : le mot reste secret sur la TV pendant le tour (seule la tablette du dessinateur l'affiche).
+                        team = m?.team, card = g.mimeCard.takeIf { !q.isPicto }, found = m?.found ?: 0, passed = m?.passed ?: 0,
                         left = m?.deck?.size ?: 0, last = m?.last, counts = mimeCounts, turns = m?.turns.orEmpty(),
+                        picto = q.isPicto, secret = m?.secret, chosen = m?.pick != null, lastCard = g.lastCard, points = s.pointsPerFound(q.id),
                     )
                 },
             )
@@ -647,6 +665,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         watchAnswers(s.qid.takeIf { s.phase == Phase.QUESTION || s.phase == Phase.CLOSED })
         // Image floue : on écoute le buzzer de cet essai ; toutes les équipes bloquées, l'image se ferme.
         watchBuzz(Codec.buzzKey(g)?.takeIf { !s.buzzHeld && !s.paused })
+        // Pictionary : le choix du mot sur la tablette du dessinateur, puis son dessin en direct.
+        watchPick(Codec.pickKey(g)?.takeIf { !s.paused })
+        watchDrawing(Codec.drawKey(g))
         val blocked = s.buzz?.blocked.orEmpty()
         val teamIds = teams().map { it.uid }
         // Blind test : rien ne se ferme seul, la relance réautorise tout le monde.
@@ -1079,7 +1100,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     // Pendant les mimes, les pupitres ne servent pas : un pupitre qui décroche ne bloque rien.
                     // Blind test : seulement pendant la musique (en attente de relance, rien ne court).
                     val waited = g.state.phase == Phase.QUESTION && !g.state.paused && g.remainingMs(serverNow()) > 0 &&
-                        g.question?.isMime != true && g.state.buzz?.waiting != true
+                        g.question?.isTurns != true && g.state.buzz?.waiting != true
                     if (waited && uid !in online && uid !in answers && teams().any { it.uid == uid }) {
                         g.pause(serverNow(), PAUSE_TEAM, uid)
                     } else null
@@ -1144,6 +1165,53 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
         ref.addValueEventListener(listener)
         buzzListener = ref to listener
+    }
+
+    /** Pictionary : le dessinateur choisit son mot sur sa tablette (games/<code>/pictoChoice/<clé>). */
+    private fun watchPick(key: String?) {
+        if (key == pickListener?.first?.key) return
+        pickListener?.let { (r, l) -> r.removeEventListener(l) }
+        pickListener = null
+        val ref = gameRef?.child("pictoChoice")?.child(key ?: return) ?: return
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val i = snapshot.child("i").getValue(Int::class.java) ?: return
+                act { g -> if (Codec.pickKey(g) == key) g.pictoChoose(i, serverNow()) else null }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e(TAG, "Choix du Pictionary : ${error.message}")
+            }
+        }
+        ref.addValueEventListener(listener)
+        pickListener = ref to listener
+    }
+
+    /**
+     * Pictionary : le dessin du tour [key], paquet de traits par paquet de traits, dans l'ordre de la tablette.
+     * Il reste affiché après le tour (avec le mot) jusqu'au tour suivant ; une box relancée le relit en entier.
+     */
+    private fun watchDrawing(key: String?) {
+        if (key == drawListener?.first?.key && (key == null || _dessin.value.cle == key)) return
+        drawListener?.let { (r, l) -> r.removeEventListener(l) }
+        drawListener = null
+        _dessin.value = Dessin(key)
+        val ref = gameRef?.child("drawing")?.child(key ?: return) ?: return
+        val listener = object : ChildEventListener {
+            override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
+                val paquet = snapshot.value as? Map<*, *> ?: return
+                _dessin.update { d -> if (d.cle == key) d.avec(paquet) else d }
+            }
+
+            override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) = Unit
+            override fun onChildRemoved(snapshot: DataSnapshot) = Unit
+            override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) = Unit
+            override fun onCancelled(error: DatabaseError) {
+                Log.e(TAG, "Dessin du Pictionary : ${error.message}")
+            }
+        }
+        ref.addChildEventListener(listener)
+        drawListener = ref to listener
     }
 
     private fun closeIfEveryoneAnswered() {
@@ -1211,6 +1279,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         answersListener = null
         buzzListener?.let { (r, l) -> r.removeEventListener(l) }
         buzzListener = null
+        watchPick(null)
+        watchDrawing(null)
         commandsListener?.let { (r, l) -> r.removeEventListener(l) }
         commandsListener = null
         judging.clear()
@@ -1258,6 +1328,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "rev" to rev,
             // Cette box sait jouer les mimes : la régie prévient avant d'en envoyer à une TV trop ancienne.
             "mimes" to true,
+            "pictionary" to true,
             "numbers" to true,
             "express" to true,
             "zoom" to true,
