@@ -131,7 +131,8 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                         Illustration(q, state, Modifier.fillMaxHeight().aspectRatio(if (photo) 4f / 3f else 1f, matchHeightConstraintsFirst = true))
                         Spacer(Modifier.width(20.dp))
                     }
-                    if (q.isBuzz) FlouPanel(q, state, Modifier.weight(1f).fillMaxHeight())
+                    if (q.isStatues) StatuesBoard(q, state, Modifier.weight(1f).fillMaxHeight())
+                    else if (q.isBuzz) FlouPanel(q, state, Modifier.weight(1f).fillMaxHeight())
                     else if (q.isNumber) NumberBoard(state, revealed, Modifier.weight(1f).fillMaxHeight())
                     else ChoiceGrid(q.choices, correct = if (revealed) q.correct else null, Modifier.weight(1f).fillMaxHeight(), express = q.isExpress)
                 }

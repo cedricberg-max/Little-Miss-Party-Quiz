@@ -6,7 +6,7 @@ import { writeProof } from "./proof.js";
 import { passwordCandidates } from "./secret.js";
 import {
   buildSnapshot, showTitle, playable, QUIZ_GAMES, BUILTIN_GAMES, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame, imageIds,
-  soundIds, MUSIC_GAMES, playableTracks,
+  soundIds, MUSIC_GAMES, playableTracks, STATUES_SEC,
   isFutureRound, moveRound, removeRound, uniqueRoundTitle,
 } from "./show.js";
 import { profileForAge } from "./profiles.js";
@@ -218,12 +218,13 @@ function render() {
     answerBtn.classList.toggle("masked", answerMasked);
   }
   const answered = Object.keys(live.answers).filter((t) => live.teams[t]).length;
-  $("c-answered").textContent = BUZZ_KINDS.includes(st.kind) ? "" : st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ont répondu` : "";
+  $("c-answered").textContent = BUZZ_KINDS.includes(st.kind) || st.kind === "statues" ? "" : st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ont répondu` : "";
 
   renderGames(st);
   renderRequests(st, teams);
   renderMime(st, teams);
   renderFlou(st);
+  renderStatues(st, teams);
   renderTeams(st, teams);
   renderPlan(st);
   renderShows(st);
@@ -449,6 +450,32 @@ function renderFlou(st) {
   $("flou-bonus").hidden = !blind;
   $("flou-bonus").disabled = busy;
   $("flou-bonus").querySelector("small").textContent = b.team ? `+${base + 50}${times} pour ${name(b.team)}` : "";
+}
+
+/** Statues musicales : un gros bouton par équipe pour désigner la gagnante, à la fin ou dès qu'il n'en reste qu'une. */
+function renderStatues(st, teams) {
+  const on = (st.phase === "question" || st.phase === "closed") && st.kind === "statues";
+  $("statues").hidden = !on;
+  if (!on) return;
+  const busy = !!pending?.advance || st.paused === true;
+  $("statues-info").textContent = st.phase === "closed"
+    ? "La musique est finie : touchez l'équipe gagnante."
+    : "Musique en cours : les enfants dansent et se figent à chaque arrêt. Éliminez ceux qui bougent, puis touchez l'équipe gagnante.";
+  const box = $("statues-teams");
+  const key = teams.map(([id, t]) => `${id}:${t.name}`).join("|");
+  if (box.dataset.key !== key) {
+    box.dataset.key = key;
+    box.replaceChildren(...teams.map(([id, t]) => {
+      const b = document.createElement("button");
+      b.className = "mime-team statues-team";
+      b.dataset.team = id;
+      b.textContent = `🏆 ${t.name}`;
+      b.onclick = () => { navigator.vibrate?.(60); send("statues_win", { team: id }, { advance: true }); };
+      return b;
+    }));
+  }
+  box.querySelectorAll("button").forEach((b) => { b.disabled = busy; });
+  $("statues-points").textContent = `${st.double ? "600" : "300"} points pour l'équipe gagnante, ${st.double ? "300" : "150"} pour les autres.`;
 }
 
 $("flou-ok").onclick = () => { navigator.vibrate?.(60); send("buzz_ok", {}, { advance: true }); };
@@ -736,14 +763,17 @@ async function fetchLibrary() {
     const rounds = Object.entries(s.val() ?? {})
       .filter(([, show]) => show)
       .sort((a, b) => (b[1].date ?? "").localeCompare(a[1].date ?? ""))
-      .flatMap(([id, show]) => (show.rounds ?? []).filter((r) => r && r.type !== "mimes" && !BUILTIN_GAMES[r.type] && !MUSIC_GAMES[r.type]).map((round, i) => {
+      .flatMap(([id, show]) => (show.rounds ?? []).filter((r) => r && r.type !== "mimes" && r.type !== "statues" && !BUILTIN_GAMES[r.type] && !MUSIC_GAMES[r.type]).map((round, i) => {
         const title = quizzes[round.quizId]?.title ?? `Manche ${i + 1}`;
         const label = round.type === "finale" ? ROUND_TYPES.finale : QUIZ_GAMES[round.type] ? `${ROUND_TYPES[round.type]} : ${title}` : title;
         const date = show.date ? ` (${new Date(`${show.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })})` : "";
         return { key: `show/${id}/${i}`, label, from: `${showTitle(show)}${date}`, source: { type: round.type, quizId: round.quizId } };
       }));
     // Jeux au buzzer intégrés : toujours disponibles, sans rien préparer.
-    const builtins = Object.entries(BUILTIN_GAMES).map(([type, game]) => ({ key: `builtin/${type}`, label: ROUND_TYPES[type], source: { type, count: game.count } }));
+    const builtins = [
+      ...Object.entries(BUILTIN_GAMES).map(([type, game]) => ({ key: `builtin/${type}`, label: ROUND_TYPES[type], source: { type, count: game.count } })),
+      { key: "builtin/statues", label: ROUND_TYPES.statues, source: { type: "statues", duration: STATUES_SEC } },
+    ];
     library = { quizzes, mimes, playlists, games, rounds, decks, quizGames, builtins, music };
   } catch (e) {
     console.error(e);
@@ -797,6 +827,13 @@ function renderLibrary() {
       const pl = library.playlists[game.source.playlistId];
       const count = playableTracks(pl).length;
       meta.textContent = `${count} morceau${count > 1 ? "x" : ""} · extraits de ${pl?.duration ?? 25} s · ${MUSIC_GAMES[game.source.type].rule}`;
+      b.append(title, meta);
+      b.onclick = () => pick(game);
+      box.appendChild(b);
+      return;
+    }
+    if (game.source.type === "statues") {
+      meta.textContent = `${game.source.duration} s de musique · on se fige à l'arrêt · vous désignez l'équipe gagnante`;
       b.append(title, meta);
       b.onclick = () => pick(game);
       box.appendChild(b);
@@ -895,6 +932,7 @@ const OLD_TV_ZOOM = "La TV doit être mise à jour pour jouer au Zoom mystère :
 const OLD_TV_FLOU = "La TV doit être mise à jour pour jouer à l'Image floue : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_CHANTE = "La TV doit être mise à jour pour jouer à « Chante le mot ! » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_QUISUIS = "La TV doit être mise à jour pour jouer à « Qui suis-je ? » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+const OLD_TV_STATUES = "La TV doit être mise à jour pour jouer aux statues musicales : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_BLIND = "La TV doit être mise à jour pour jouer au blind test : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 /** Jeu que la TV allumée ne sait pas encore jouer (ancienne version) : le message à montrer, sinon null. */
 function tvRefuses(questions) {
@@ -906,6 +944,7 @@ function tvRefuses(questions) {
   if (live.plan.flou !== true && questions.some((q) => q?.kind === "flou")) return OLD_TV_FLOU;
   if (live.plan.chante !== true && questions.some((q) => q?.kind === "chante")) return OLD_TV_CHANTE;
   if (live.plan.quisuis !== true && questions.some((q) => q?.kind === "quisuis")) return OLD_TV_QUISUIS;
+  if (live.plan.statues !== true && questions.some((q) => q?.kind === "statues")) return OLD_TV_STATUES;
   // Quiz musical compris : une ancienne TV le jouerait sans musique.
   if (live.plan.blind !== true && questions.some((q) => q?.kind === "blind" || q?.audioId)) return OLD_TV_BLIND;
   return null;

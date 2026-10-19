@@ -346,7 +346,7 @@ function render() {
   switch (st.phase) {
     case "question":
     case "closed":
-      return st.mime ? renderMime(st) : BUZZ_KINDS.includes(st.kind) ? renderFlou(st) : renderQuestion(st);
+      return st.mime ? renderMime(st) : st.kind === "statues" ? renderStatues(st) : BUZZ_KINDS.includes(st.kind) ? renderFlou(st) : renderQuestion(st);
     case "reveal":
     case "scores":
       return st.mime ? renderMimeResult(st) : renderResult(st);
@@ -493,6 +493,18 @@ async function buzzFlou(st) {
   }
 }
 
+/** Statues musicales : rien à toucher, tout le monde danse devant la TV et se fige quand la musique s'arrête. */
+function renderStatues(st) {
+  clearInterval(timerHandle);
+  show("play");
+  const buzz = $("buzz");
+  buzz.disabled = true;
+  buzz.hidden = true;
+  $("play-status").textContent = st.phase === "closed"
+    ? "Fin de la musique ! L'animatrice désigne l'équipe gagnante."
+    : "Statues musicales ! Posez la tablette et dansez tant que la musique joue. Quand elle s'arrête : STATUE !";
+}
+
 /** Mimes : rien à toucher sur le pupitre, tout se passe devant la TV ; il dit seulement qui joue. */
 function renderMime(st) {
   clearInterval(timerHandle);
@@ -588,7 +600,11 @@ function renderResult(st) {
   $("r-icon").textContent = ok ? "✓" : answered ? "✗" : "…";
   $("r-icon").className = `result-icon ${ok ? "ok" : "ko"}`;
   const number = st.kind === "number";
-  if (number) {
+  if (st.kind === "statues") {
+    $("r-icon").textContent = ok ? "🏆" : "♪";
+    $("r-icon").className = "result-icon ok";
+    $("r-title").textContent = ok ? `Les meilleures statues ! +${award.points} points` : award?.points ? `Bien dansé ! +${award.points} points` : "Bien dansé !";
+  } else if (number) {
     const exact = ok && game.myAnswer?.choice === st.correct;
     $("r-title").textContent = exact ? `Pile le bon nombre ! +${award.points} points` : ok ? `Le plus proche ! +${award.points} points` : answered ? "Raté pour cette fois !" : "Pas de réponse";
   } else if (BUZZ_KINDS.includes(st.kind)) {

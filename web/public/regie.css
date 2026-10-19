@@ -173,6 +173,8 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .flou .mime-found { min-height: 130px; font-size: 34px; }
 .regie .flou-ko { min-height: 72px; font-size: 22px; }
 .regie .flou .flou-bonus { min-height: 96px; font-size: 26px; }
+.regie .statues-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.regie .statues-team { min-height: 88px; font-size: 22px; font-weight: 800; }
 .regie .flou .flou-bonus[hidden] { display: none; }
 
 /* Jeu en cours, jeu suivant et secours */

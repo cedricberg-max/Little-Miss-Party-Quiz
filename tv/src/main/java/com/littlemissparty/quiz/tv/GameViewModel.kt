@@ -1106,6 +1106,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "chante" to true,
             "quisuis" to true,
             "blind" to true,
+            "statues" to true,
             "questions" to quiz.questions.map {
                 clean(mapOf(
                     "id" to it.id, "text" to it.text, "choices" to it.choices.ifEmpty { null }, "correct" to it.correct,

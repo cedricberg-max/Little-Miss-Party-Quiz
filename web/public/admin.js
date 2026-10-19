@@ -13,7 +13,7 @@ import { parseQuiz, checkQuestions, geminiPrompt, LETTERS } from "./importer.js"
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
 import {
   buildSnapshot, estimateMinutes, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, BUILTIN_GAMES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
-  roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC,
+  roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC,
 } from "./show.js";
 import { EXTRACT_SECONDS, guessTrack, defaultStart, decodeFile, makeExtract, synthTune, encodeMp3, soundId } from "./audio.js";
 import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
@@ -354,6 +354,7 @@ function formShow() {
     notes: $("show-notes").value.trim() || null,
     rounds: editing.rounds.filter(roundFilled).map((r) => (BUILTIN_GAMES[r.type] ? { type: r.type, count: r.count ?? BUILTIN_GAMES[r.type].count }
       : r.type === "mimes" ? { type: "mimes", deckId: r.deckId }
+      : r.type === "statues" ? { type: "statues", duration: r.duration ?? STATUES_SEC }
       : MUSIC_GAMES[r.type] ? { type: r.type, playlistId: r.playlistId } : { type: r.type ?? "quiz", quizId: r.quizId })),
   };
 }
@@ -380,6 +381,10 @@ function refreshRounds() {
             value: n, selected: (r.count ?? BUILTIN_GAMES[r.type].count) === n,
             text: `${n} ${BUILTIN_GAMES[r.type].unit}s (${BUILTIN_GAMES[r.type].rule})`,
           })))
+        : r.type === "statues"
+        // Statues musicales : rien à préparer, seulement la durée de la musique.
+        ? h("select", { class: "grow", "aria-label": "Durée", onchange: (e) => { r.duration = Number(e.target.value); refreshSummary(); } },
+          ...STATUES_SECONDS.map((n) => h("option", { value: n, selected: (r.duration ?? STATUES_SEC) === n, text: `${n} secondes de musique (on danse, on se fige à l'arrêt ; vous désignez l'équipe gagnante)` })))
         : MUSIC_GAMES[r.type]
         ? h("select", { class: "grow", "aria-label": "Playlist", onchange: (e) => { r.playlistId = e.target.value; refreshSummary(); } },
           h("option", { value: "", text: lists.length ? "Choisir une playlist…" : "Aucune playlist : créez-en une dans Blind test" }),
@@ -877,12 +882,12 @@ $("test-full-create").onclick = async () => {
         status("test-full-status", "Elle existe déjà : retrouvez-la dans Prestations (rien n'a été modifié).", true);
         return;
       }
-      status("test-full-status", "Ajout du blind test à la prestation de test…", true);
-      await addTunes(Date.now());
+      status("test-full-status", "Ajout des nouveaux jeux à la prestation de test…", true);
+      if (missing.some((m) => m.playlistId)) await addTunes(Date.now());
       const at = rounds.findIndex((r) => r.type === "finale");
       const next = at < 0 ? [...rounds, ...missing] : [...rounds.slice(0, at), ...missing, ...rounds.slice(at)];
       await set(ref(db, `library/shows/${FULL_ID}`), { ...existing, rounds: next, notes: FULL_SHOW.notes, updatedAt: serverTimestamp() });
-      status("test-full-status", "Mise à jour : le blind test et le quiz musical sont ajoutés à « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux ».", true);
+      status("test-full-status", `Mise à jour : ${missing.map((m) => ROUND_TYPES[m.type]).join(", ")} ajouté(s) à « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux ».`, true);
       return;
     }
     status("test-full-status", "Préparation des photos, des musiques et des jeux…", true);

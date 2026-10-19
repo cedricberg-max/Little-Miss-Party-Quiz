@@ -289,6 +289,19 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                 segments = s.segments.map { if (it.end == null) it.copy(end = maxOf(e.at, it.start)) else it },
             )
         }
+        is StatuesWon -> {
+            val q = quiz.questions.getOrNull(s.index)
+            if ((s.phase != Phase.QUESTION && s.phase != Phase.CLOSED) || q == null || !q.isStatues || s.paused || e.team.isBlank()) null
+            else {
+                val factor = if (q.double) 2 else 1
+                val others = e.others.filter { it != e.team && it.isNotBlank() }.associateWith { Award(null, correct = false, points = Scoring.MINI_PLAYED * factor, bonus = 0) }
+                s.copy(
+                    phase = Phase.REVEAL,
+                    segments = s.segments.map { if (it.end == null) it.copy(end = maxOf(e.at, it.start)) else it },
+                    awards = s.awards + (q.id to others + (e.team to Award(null, correct = true, points = Scoring.MINI_WIN * factor, bonus = 0))),
+                )
+            }
+        }
         is BuzzJudged -> {
             val b = s.buzz
             val team = b?.team
@@ -397,7 +410,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         val q = question ?: return null
         if (state.phase != Phase.CLOSED) return null
         // Image floue : les points viennent du buzzer ; chrono écoulé sans bonne réponse, personne ne marque.
-        val awards = if (q.isBuzz) emptyMap()
+        val awards = if (q.isBuzz || q.isStatues) emptyMap()
         else if (q.isNumber) Scoring.awardNumber(q, answers)
         else if (q.isExpress) answers.mapValues { (_, a) -> Scoring.awardExpress(q, a) }
         else answers.mapValues { (_, a) ->
@@ -425,6 +438,9 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             else -> null
         }
     }
+
+    /** Statues musicales : l'animatrice désigne l'équipe gagnante ; [others] = les autres équipes inscrites. */
+    fun statuesWin(team: String, others: Collection<String>, now: Long): GameEvent? = emit(StatuesWon(nextSeq, now, team, others.toList()))
 
     /** Image floue : [team] a buzzé la première (refusé si une équipe attend déjà son verdict, ou si [team] est bloquée). */
     fun buzz(team: String, now: Long): GameEvent? = emit(Buzzed(nextSeq, now, team))

@@ -4,7 +4,10 @@ import { PROFILES, profileForAge, defaultDuration, expressDuration } from "./pro
 import { shuffle } from "./mime-cards.js";
 import { CHANTE_WORDS, QUI_SUIS_JE } from "./buzz-cards.js";
 
-export const ROUND_TYPES = { quiz: "Quiz", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", blind: "Blind test", musical: "Quiz musical", mimes: "Mimes" };
+export const ROUND_TYPES = { quiz: "Quiz", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes" };
+/** Statues musicales : durées proposées (secondes) et durée par défaut. Musique maison de la TV, rien à préparer. */
+export const STATUES_SECONDS = [60, 90, 120];
+export const STATUES_SEC = 90;
 /** Jeux musicaux : leurs extraits viennent d'une playlist de la bibliothèque (library/playlists). */
 export const MUSIC_GAMES = {
   blind: { rule: "le premier qui buzze donne le titre, bonus pour l'artiste" },
@@ -62,7 +65,7 @@ export const BUILTIN_GAMES = {
 };
 
 /** Une manche est-elle complète (quiz choisi, ou paquet de mimes choisi) ? Les jeux intégrés le sont toujours. */
-export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] ? true : round.type === "mimes" ? round.deckId : MUSIC_GAMES[round.type] ? round.playlistId : round.quizId));
+export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || round.type === "statues" ? true : round.type === "mimes" ? round.deckId : MUSIC_GAMES[round.type] ? round.playlistId : round.quizId));
 
 /** Morceaux jouables d'une playlist : un titre et un extrait enregistré. */
 export const playableTracks = (playlist) => (playlist?.tracks ?? []).filter((t) => t?.title?.trim() && /^[0-9a-f]{16}$/.test(t.audioId ?? ""));
@@ -123,6 +126,13 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       if (!item.cards.length) { problems.push(`Manche ${i + 1} (${deck.title}) : aucune carte.`); return; }
       rounds.push({ title: deck.title, count: 1, kind: "mime" });
       questions.push(item);
+      return;
+    }
+    if (round.type === "statues") {
+      // Un seul élément : la musique joue et s'arrête par moments, l'animatrice désigne l'équipe gagnante.
+      const duration = STATUES_SECONDS.includes(round.duration) ? round.duration : STATUES_SEC;
+      rounds.push({ title: ROUND_TYPES.statues, count: 1 });
+      questions.push({ id: `r${i + 1}s`, text: ROUND_TYPES.statues, kind: "statues", duration, double: false, round: ROUND_TYPES.statues });
       return;
     }
     if (MUSIC_GAMES[round.type]) {

@@ -36,6 +36,10 @@ object Scoring {
     /** Blind test : bonus quand l'équipe cite aussi l'artiste (ou l'œuvre), accordé par l'animatrice. */
     const val BLIND_ARTIST = 50
 
+    /** Mini-jeu physique (statues musicales) : l'équipe gagnante, puis chaque autre équipe qui a joué. */
+    const val MINI_WIN = 300
+    const val MINI_PLAYED = 150
+
     /** Vrai ou Faux express : chaque bonne réponse, sans bonus de vitesse. */
     const val EXPRESS = 50
 

@@ -476,3 +476,14 @@ describe("blind test et quiz musical", () => {
     assert.ok(problems.every((p) => !/playlist|morceau/.test(p)));
   });
 });
+
+describe("statues musicales", () => {
+  test("une manche sans rien à préparer : un seul élément, durée choisie, musique de la TV", () => {
+    const { snapshot, problems } = buildSnapshot("s", { childName: "Léa", age: 7, rounds: [{ type: "statues", duration: 60 }, { type: "statues", duration: 999 }] }, {});
+    assert.deepEqual(problems, []);
+    const qs = snapshot.quiz.questions;
+    assert.deepEqual(qs.map((q) => [q.kind, q.duration, q.choices, q.round]), [["statues", 60, undefined, "Statues musicales"], ["statues", 90, undefined, "Statues musicales"]]);
+    assert.equal(roundFilled({ type: "statues" }), true);
+    assert.equal(estimateMinutes(snapshot), 4);
+  });
+});

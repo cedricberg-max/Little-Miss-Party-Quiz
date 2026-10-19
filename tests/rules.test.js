@@ -433,6 +433,9 @@ describe("régie", () => {
     // Blind test : bon titre et bon artiste.
     await assertSucceeds(command(REGIE, { type: "buzz_bonus" }));
     await assertFails(command("rose", { type: "buzz_bonus" }));
+    // Statues musicales : l'équipe gagnante désignée par la régie.
+    await assertSucceeds(command(REGIE, { type: "statues_win", team: "rose" }));
+    await assertFails(command("rose", { type: "statues_win", team: "rose" }));
     await assertFails(set(ref(db(REGIE), `games/${CODE}/commands/m-points`), { type: "mime_found", points: 50, expectSeq: 3, by: REGIE, at: serverTimestamp() }));
   });
   test("secours : la régie demande un saut de jeu ; seule la box efface les réponses d'un jeu rejoué", async () => {

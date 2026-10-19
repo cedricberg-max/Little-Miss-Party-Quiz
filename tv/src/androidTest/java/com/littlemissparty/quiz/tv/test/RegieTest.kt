@@ -408,6 +408,32 @@ class RegieTest : TestTv() {
         ecran.capture("blind-test-revelation")
     }
 
+    @Test
+    fun statuesMusicalesLaMusiqueSArretePuisLaRegieDesigneLaGagnante() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val dragons = pupitre("dragons").also { it.rejoindre(code, "Dragons", ROSE) }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        @Suppress("UNCHECKED_CAST")
+        val avant = regie.programme(code)["questions"] as List<Map<String, Any?>>
+        val statues = mapOf("id" to "s1", "text" to "Statues musicales", "duration" to 60, "kind" to "statues", "double" to false, "round" to "Statues musicales")
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(statues) + avant))
+
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("STATUES MUSICALES")
+        ecran.voit("DANSEZ !")
+        // Premier arrêt de la musique entre 6 et 10 s.
+        ecran.voit("STATUE !", 20_000)
+        ecran.capture("statues-musicales-statue")
+        ecran.voit("DANSEZ !", 15_000)
+        assertEquals("applied", regie.commande(code, "statues_win", mapOf("team" to dragons.uid)))
+        ecran.voit("Bravo Dragons !")
+        attendreQue("300 pour la gagnante") { points(dragons, code, dragons.uid).takeIf { it == Scoring.MINI_WIN.toLong() } }
+        assertEquals(Scoring.MINI_PLAYED.toLong(), points(licornes, code, licornes.uid))
+        ecran.capture("statues-musicales-gagnante")
+    }
+
     private val regies = mutableListOf<RegieSimulee>()
 
     private fun regie() = RegieSimulee().also { regies += it }

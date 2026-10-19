@@ -53,7 +53,14 @@ enum class QuestionKind(val code: String) {
      * Réponse unique : [Question.choices] contient le titre. La musique suit le chrono : elle se fige au buzz
      * et pendant une pause, puis reprend là où elle s'était arrêtée.
      */
-    BLIND("blind");
+    BLIND("blind"),
+
+    /**
+     * Statues musicales : la musique joue sur la TV et s'arrête par moments ([Question.statueAt]) ; tout le
+     * monde danse, et se fige à l'arrêt. À la fin, l'animatrice désigne l'équipe gagnante (la dernière à ne
+     * pas avoir bougé). Pas de propositions ni de pupitre à toucher.
+     */
+    STATUES("statues");
 
     companion object {
         fun of(code: String?): QuestionKind = entries.firstOrNull { it.code == code } ?: CLASSIC
@@ -101,6 +108,9 @@ data class Question(
             require(kind != QuestionKind.QUISUIS || cards.size in 2..MAX_CLUES) { "Qui suis-je $id : il faut 2 à $MAX_CLUES indices" }
             require(cards.none { it.word.isBlank() }) { "Question $id : indice vide" }
             require(durationSec in 10..120) { "Question $id : durée entre 10 et 120 s" }
+        } else if (kind == QuestionKind.STATUES) {
+            require(choices.isEmpty()) { "Statues musicales $id : pas de propositions" }
+            require(durationSec in 30..180) { "Statues musicales $id : durée entre 30 et 180 s" }
         } else if (kind == QuestionKind.NUMBER) {
             require(choices.isEmpty()) { "Juste Chiffre $id : pas de propositions" }
             require(correct in -MAX_NUMBER..MAX_NUMBER) { "Juste Chiffre $id : nombre hors limites" }
@@ -124,6 +134,28 @@ data class Question(
     val isChante: Boolean get() = kind == QuestionKind.CHANTE
     val isQuiSuis: Boolean get() = kind == QuestionKind.QUISUIS
     val isBlind: Boolean get() = kind == QuestionKind.BLIND
+    val isStatues: Boolean get() = kind == QuestionKind.STATUES
+
+    /**
+     * Statues musicales : moments où la musique s'arrête, en millisecondes de chrono [début, fin[. Tirés au
+     * hasard mais toujours les mêmes pour une question (graine = identifiant) : la TV relancée retombe sur
+     * le même enchaînement. La musique joue toujours au début et dans les dernières secondes.
+     */
+    val statues: List<LongRange> by lazy {
+        if (!isStatues) return@lazy emptyList()
+        val rnd = kotlin.random.Random(id.hashCode())
+        val out = mutableListOf<LongRange>()
+        var t = 6_000L + rnd.nextLong(0, 4_000)
+        while (t + STATUE_MAX_MS + 4_000 < durationMs) {
+            val stop = 2_500L + rnd.nextLong(0, STATUE_MAX_MS - 2_500)
+            out += t until t + stop
+            t += stop + 4_000 + rnd.nextLong(0, 7_000)
+        }
+        out
+    }
+
+    /** Statues musicales : la musique est-elle arrêtée (tout le monde se fige) à [elapsedMs] de chrono ? */
+    fun statueAt(elapsedMs: Long): Boolean = statues.any { elapsedMs in it }
 
     /** Jeux au buzzer : la première équipe qui buzze répond à voix haute, l'animatrice valide. */
     val isBuzz: Boolean get() = isFlou || isChante || isQuiSuis || isBlind
@@ -156,6 +188,9 @@ const val MAX_MIME_CARDS = 200
 
 /** Qui suis-je ? : nombre maximum d'indices d'un personnage. */
 const val MAX_CLUES = 6
+
+/** Statues musicales : arrêt de la musique le plus long (millisecondes). */
+const val STATUE_MAX_MS = 5_000L
 
 /** Le Juste Chiffre : nombres de -999 999 999 à 999 999 999 (ce que le pupitre laisse taper). */
 const val MAX_NUMBER = 999_999_999

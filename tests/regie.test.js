@@ -227,7 +227,7 @@ function startBox({ silent = false, held = false } = {}) {
     if (show.base == null) {
       await update(ref(db, `games/${CODE}`), {
         showStatus: { id: show.id, status: "applied", at: Date.now() },
-        conducteur: { id: show.quiz.id, title: show.title, rev: show.id, mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, questions: show.quiz.questions },
+        conducteur: { id: show.quiz.id, title: show.title, rev: show.id, mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, questions: show.quiz.questions },
         public: { title: show.title, childName: show.childName },
       });
       return;
@@ -290,7 +290,7 @@ beforeEach(async () => {
   await set(gameRef(), {
     hostUid: HOST,
     state: { phase: "lobby", seq: 0, total: QUESTIONS.length, scores: {}, round: 1, buzzOpen: true },
-    conducteur: { id: "demo", title: "Démo", rev: "initial", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, questions: QUESTIONS.map((q, i) => ({ id: `q${i + 1}`, ...q })) },
+    conducteur: { id: "demo", title: "Démo", rev: "initial", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, questions: QUESTIONS.map((q, i) => ({ id: `q${i + 1}`, ...q })) },
   });
 });
 afterEach(() => { box?.stop(); box = null; });
@@ -614,6 +614,24 @@ describe("régie", () => {
     await page.locator("#flou-bonus small", { hasText: "+150 pour Les Roses" }).waitFor();
     await page.click("#flou-bonus");
     await waitFor(async () => Object.values((await read("commands")) ?? {}).some((c) => c.type === "buzz_bonus"), "commande bonus envoyée");
+    await page.context().close();
+  });
+
+  test("statues musicales : un gros bouton par équipe désigne la gagnante", async () => {
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    await addTeam("bleu", "Les Bleus");
+    const plan = [{ id: "s1", text: "Statues musicales", duration: 60, kind: "statues", round: "Statues musicales" }];
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, questions: plan });
+    await box.set({ ...questionState(1), qid: "s1", kind: "statues", text: plan[0].text, choices: null, total: 1, durationMs: 60000 });
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    await page.locator("#statues-info", { hasText: "Musique en cours" }).waitFor();
+    await page.locator("#statues-points", { hasText: "300 points pour l'équipe gagnante, 150 pour les autres" }).waitFor();
+    assert.equal(await page.locator("#c-answered").textContent(), "");
+    await page.locator(".statues-team", { hasText: "Les Bleus" }).click();
+    await waitFor(async () => Object.values((await read("commands")) ?? {}).some((c) => c.type === "statues_win" && c.team === "bleu"), "gagnante envoyée");
     await page.context().close();
   });
 
@@ -1648,7 +1666,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.locator(".show-item", { hasText: "tous les jeux" }).click();
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const kinds = [...new Set((await read("show")).quiz.questions.map((q) => q.kind))];
-    assert.deepEqual(kinds, ["classic", "number", "express", "mime", "zoom", "chante", "flou", "quisuis", "blind"]);
+    assert.deepEqual(kinds, ["classic", "number", "express", "mime", "zoom", "chante", "flou", "quisuis", "blind", "statues"]);
     assert.equal((await read("show")).quiz.questions.filter((q) => q.kind === "classic" && q.audioId).length, 4, "quiz musical sur les comptines");
     await waitFor(async () => Object.keys((await read("images")) ?? {}).length === 4, "photos copiées dans la partie");
     await waitFor(async () => Object.keys((await read("sounds")) ?? {}).length === 4, "comptines copiées dans la partie", 15000);
@@ -1666,7 +1684,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#test-full-status", { hasText: "Mise à jour" }).waitFor({ timeout: 20000 });
     await page.context().close();
     const show = await library("shows/test-lea-tous-les-jeux");
-    assert.deepEqual(show.rounds.map((r) => r.type), ["quiz", "chante", "blind", "musical", "finale"]);
+    assert.deepEqual(show.rounds.map((r) => r.type), ["quiz", "chante", "blind", "musical", "statues", "finale"]);
     assert.equal(show.childName, "Léa");
     assert.equal(Object.keys(await library("sounds")).length, 4);
   });

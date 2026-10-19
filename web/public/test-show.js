@@ -251,12 +251,13 @@ export function tunePlaylist(ids) {
 export const FULL_MUSIC_ROUNDS = [
   { type: "blind", playlistId: FULL_KEYS.playlist },
   { type: "musical", playlistId: FULL_KEYS.playlist },
+  { type: "statues", duration: 60 },
 ];
 
 export const FULL_SHOW = {
   childName: "Léa", age: 9, date: "2026-10-25", status: "publiee", title: FULL_TITLE, profile: "MOYENS", durationMin: 25,
   themes: "Tous les jeux (test)",
-  notes: "Prestation de TEST : un peu de chaque jeu (quiz illustré, Juste Chiffre, Vrai ou Faux express, Mimes, Zoom mystère, Chante le mot !, Image floue, Qui suis-je ?, Blind test, Quiz musical, Super Finale). Elle peut être archivée sans risque.",
+  notes: "Prestation de TEST : un peu de chaque jeu (quiz illustré, Juste Chiffre, Vrai ou Faux express, Mimes, Zoom mystère, Chante le mot !, Image floue, Qui suis-je ?, Blind test, Quiz musical, Statues musicales, Super Finale). Elle peut être archivée sans risque.",
   rounds: [
     { type: "quiz", quizId: FULL_KEYS.quiz },
     { type: "express", quizId: FULL_KEYS.express },

@@ -49,7 +49,7 @@ object QuizJson {
             id = q.optString("id", "q${i + 1}"),
             text = q.getString("text"),
             choices = (0 until choices.length()).map { choices.getString(it).trim() },
-            correct = if (kind == QuestionKind.MIME) q.optInt("correct", -1) else q.getInt("correct"),
+            correct = if (kind == QuestionKind.MIME || kind == QuestionKind.STATUES) q.optInt("correct", -1) else q.getInt("correct"),
             durationSec = q.optInt("duration", if (kind == QuestionKind.MIME) 60 else 20),
             kind = kind,
             double = q.optBoolean("double", false),
