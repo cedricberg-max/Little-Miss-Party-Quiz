@@ -85,7 +85,7 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                 if (q.double) {
                     Spacer(Modifier.width(16.dp))
                     Text(
-                        "DERNIÈRES QUESTIONS · POINTS ×2",
+                        "POINTS ×2",
                         color = Palette.Night, fontSize = 18.sp, fontWeight = FontWeight.Black,
                         modifier = Modifier.clip(RoundedCornerShape(50)).background(Palette.Gold).padding(horizontal = 14.dp, vertical = 4.dp),
                     )
