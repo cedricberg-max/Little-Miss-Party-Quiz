@@ -9,6 +9,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,12 +20,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -68,14 +72,37 @@ fun ChanteBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modifi
             "♫", color = Palette.Gold, fontSize = 64.sp,
             modifier = Modifier.align(Alignment.CenterEnd).padding(end = 36.dp).graphicsLayer { translationY = -24f * (1f - haut) },
         )
+        MotEnGrand(q.text.uppercase(), Modifier.padding(horizontal = 110.dp).apparition(0, q.id))
+    }
+}
+
+/**
+ * Mot à chanter en très grand, réduit juste assez pour que chaque mot tienne sur une ligne : jamais
+ * « AMOU / R » coupé en deux. Une expression de plusieurs mots passe à la ligne entre les mots.
+ */
+@Composable
+private fun MotEnGrand(mot: String, modifier: Modifier = Modifier) {
+    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+        val mesure = rememberTextMeasurer()
+        val largeur = constraints.maxWidth
+        val borne = constraints.hasBoundedWidth
+        val taille = remember(mot, largeur, borne) {
+            val style = TextStyle(fontSize = MOT_TAILLE_MAX.sp, fontWeight = FontWeight.Black)
+            val plusLong = if (borne) mot.split(' ').maxOf { mesure.measure(it, style, softWrap = false, maxLines = 1).size.width } else 0
+            // Petite marge : la mesure et l'affichage peuvent différer d'un pixel.
+            if (plusLong <= 0) MOT_TAILLE_MAX
+            else (MOT_TAILLE_MAX * largeur * 0.96f / plusLong).coerceIn(MOT_TAILLE_MIN, MOT_TAILLE_MAX)
+        }
         Text(
-            q.text.uppercase(),
-            color = Palette.Ink, fontSize = 96.sp, lineHeight = 104.sp, fontWeight = FontWeight.Black,
+            mot,
+            color = Palette.Ink, fontSize = taille.sp, lineHeight = (taille * 1.08f).sp, fontWeight = FontWeight.Black,
             textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 110.dp).apparition(0, q.id),
         )
     }
 }
+
+private const val MOT_TAILLE_MAX = 96f
+private const val MOT_TAILLE_MIN = 36f
 
 /**
  * Qui suis-je ? : les indices apparaissent un à un au fil du chrono (figés pendant une réponse orale) ;

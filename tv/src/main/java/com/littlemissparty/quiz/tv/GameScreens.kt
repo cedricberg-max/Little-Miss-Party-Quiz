@@ -53,6 +53,9 @@ import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.tv.habillage.BandeauEquipes
 import com.littlemissparty.quiz.tv.habillage.Classee
 import com.littlemissparty.quiz.tv.habillage.Couronne
+import com.littlemissparty.quiz.tv.habillage.LaParole
+import com.littlemissparty.quiz.tv.habillage.PAROLE_CENTRE_MS
+import com.littlemissparty.quiz.tv.habillage.PAROLE_GLISSE_MS
 import com.littlemissparty.quiz.tv.habillage.Neon
 import com.littlemissparty.quiz.tv.habillage.SignatureLogo
 import com.littlemissparty.quiz.tv.habillage.Victoire
@@ -183,16 +186,38 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
         }
         // Blind test : annonce des derniers morceaux à double valeur, par-dessus tout l'écran.
         if (q.isBlind) BlindAnnonceDouble(q, state)
+        // Jeux au buzzer : « La parole est à … » en grand, puis en bandeau tant que l'équipe répond.
+        if (q.isBuzz) key(state.index) { AnnonceParole(state) }
     }
+}
+
+/**
+ * L'équipe qui a buzzé, par-dessus la question. Le nom reste le temps de la sortie après le verdict ; une box qui
+ * arrive sur une question déjà buzzée (reconnexion) affiche directement le bandeau, sans rejouer l'annonce au centre.
+ */
+@Composable
+private fun AnnonceParole(state: UiState.Playing) {
+    val buzzer = state.teams.find { it.uid == state.buzzTeam }
+    val dejaLa = remember { state.buzzTeam }
+    val dernier = remember { arrayOf(buzzer) }
+    if (buzzer != null) dernier[0] = buzzer
+    val equipe = dernier[0] ?: return
+    LaParole(
+        nom = equipe.name,
+        couleur = equipe.color.toColor(),
+        visible = buzzer != null && state.phase == Phase.QUESTION && !state.paused,
+        dejaMs = if (equipe.uid == dejaLa) PAROLE_CENTRE_MS + PAROLE_GLISSE_MS else 0L,
+    )
 }
 
 /** Boutons de l'animatrice sous la question. En pause, le seul bouton est « Reprendre » sur l'intermède. */
 @Composable
 private fun BoutonsQuestion(state: UiState.Playing, q: Question, actions: TvActions) {
     if (!state.paused) when (state.phase) {
-        // Jeux au buzzer : l'animatrice juge la réponse orale (la régie a les mêmes boutons).
+        // Jeux au buzzer : l'animatrice juge la réponse orale. Régie reliée : elle juge depuis la régie,
+        // la TV ne montre pas de boutons de secours (la télécommande reprend la main sans régie).
         Phase.QUESTION -> if (q.isBuzz && state.buzzTeam != null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (state.regies == 0) Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TvButton("Mauvaise réponse", { actions.judgeBuzz(false) }, fontSize = 24.sp)
                 NextButton("Bonne réponse", { actions.judgeBuzz(true) }, key = state.buzzTeam)
             }

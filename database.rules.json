@@ -48,8 +48,11 @@
             ".read": "auth != null && auth.uid === $uid",
             ".write": "auth != null && root.child('games').child($code).child('hostUid').exists() && ((auth.uid === $uid && (!newData.exists() || root.child('games').child($code).child('state/phase').val() !== 'ended')) || (!newData.exists() && (root.child('games').child($code).child('hostUid').val() === auth.uid || root.child('games').child($code).child('regie').child(auth.uid).exists())))",
             ".validate": "newData.child('name').isString() && newData.child('name').val().length >= 1 && newData.child('name').val().length <= 20 && newData.child('color').isString() && newData.child('color').val().length <= 9 && newData.child('at').val() === now",
+            "replace": {
+              ".validate": "newData.isString() && root.child('games').child($code).child('teams').child(newData.val()).exists()"
+            },
             "$other": {
-              ".validate": "$other === 'name' || $other === 'color' || $other === 'at'"
+              ".validate": "$other === 'name' || $other === 'color' || $other === 'at' || $other === 'replace'"
             }
           }
         },

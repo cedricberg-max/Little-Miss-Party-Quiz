@@ -24,6 +24,10 @@ const BUZZ_INVITE = {
 };
 const params = new URLSearchParams(location.search);
 const code = (params.get("g") || "").toUpperCase();
+// QR « Reconnecter la régie » de la TV : la fenêtre du mot de passe s'ouvre d'elle-même.
+const regieDirect = params.get("regie") === "1";
+// QR « Reconnecter une tablette » de la TV : cette tablette reprend une équipe existante.
+const takeover = params.get("reprise") === "1";
 // Tests automatiques uniquement : l'émulateur Firebase n'est accepté que depuis l'ordinateur de test.
 const emulator = params.has("emu") && ["localhost", "127.0.0.1"].includes(location.hostname);
 
@@ -136,8 +140,11 @@ async function start() {
     // Partie commencée : un nouvel appareil n'entre que si la régie l'accepte (nouvelle équipe ou remplaçant).
     const phase = (await get(ref(db, `games/${code}/state/phase`))).val() ?? "lobby";
     if (phase === "ended") return fail("Cette partie est terminée. Merci d'avoir joué !");
-    if (phase === "lobby" && Object.keys(teams).length >= MAX_TEAMS) return fail(`La partie est complète (${MAX_TEAMS} équipes maximum).`);
-    showJoin(phase !== "lobby");
+    if (takeover && !regieDirect && Object.keys(teams).length) return showTakeover(phase !== "lobby");
+    if (phase === "lobby" && Object.keys(teams).length >= MAX_TEAMS) {
+      fail(`La partie est complète (${MAX_TEAMS} équipes maximum).`);
+    } else showJoin(phase !== "lobby");
+    if (regieDirect) openRegieLogin();
   } catch (e) {
     console.error(e);
     fail("Connexion impossible. Vérifiez Internet puis réessayez.");
@@ -263,9 +270,42 @@ $("join").onclick = async () => {
   }
 };
 
-/** Demande envoyée : on attend que la régie crée l'équipe ou rattache cet appareil à une équipe. */
-function waitForAdmission() {
+/** Choix de l'équipe à reprendre ; « C'est une nouvelle équipe » revient à l'inscription habituelle. */
+function showTakeover(late) {
   stopListening();
+  listen(`games/${code}/teams`, (s) => {
+    const teams = Object.entries(s.val() ?? {}).sort((a, b) => (a[1].joinedAt ?? 0) - (b[1].joinedAt ?? 0));
+    $("takeover-list").replaceChildren(...teams.map(([id, t]) => {
+      const b = document.createElement("button");
+      b.dataset.team = id;
+      b.textContent = t.name ?? "Équipe";
+      b.style.borderLeftColor = t.color ?? "#fff";
+      b.onclick = () => askTakeover(id, t);
+      return b;
+    }));
+  });
+  $("takeover-new").onclick = () => showJoin(late);
+  show("takeover");
+}
+
+/** Demande de reprise : l'animatrice la confirme sur la TV (ou la régie), l'équipe garde tout. */
+async function askTakeover(id, team) {
+  $("takeover-list").querySelectorAll("button").forEach((b) => { b.disabled = true; });
+  beep(660, 120);
+  keepAwake();
+  try {
+    await set(ref(db, `games/${code}/joinRequests/${uid}`), { name: team.name, color: team.color, replace: id, at: serverTimestamp() });
+    waitForAdmission(`Sur la TV, l'animatrice confirme que cette tablette reprend « ${team.name} ».`);
+  } catch (e) {
+    console.error(e);
+    fail("Impossible d'envoyer la demande. Vérifiez Internet puis réessayez.");
+  }
+}
+
+/** Demande envoyée : on attend que la régie crée l'équipe ou rattache cet appareil à une équipe. */
+function waitForAdmission(text = "L'animatrice va vous faire entrer dans la partie, regardez-la !") {
+  stopListening();
+  $("waiting-text").textContent = text;
   show("waiting");
   let teams = {};
   let refusal = null;

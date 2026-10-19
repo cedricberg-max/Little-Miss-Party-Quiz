@@ -375,16 +375,17 @@ function renderRequests(st, teams) {
     const swatch = document.createElement("span");
     swatch.className = "swatch";
     swatch.style.background = r.color;
-    title.append(swatch, `« ${r.name} » demande à entrer`);
+    const target = r.replace && live.teams[r.replace] ? r.replace : null;
+    title.append(swatch, target ? `Une nouvelle tablette veut reprendre « ${live.teams[target].name} »` : `« ${r.name} » demande à entrer`);
     const choices = document.createElement("div");
     choices.className = "choices";
-    const same = (t) => t.name?.trim().toLowerCase() === r.name?.trim().toLowerCase();
-    const ordered = [...teams].sort(([ia, a], [ib, b]) => (same(b) - same(a)) || (online(ia) - online(ib)));
+    const same = (t, id) => (target ? id === target : t.name?.trim().toLowerCase() === r.name?.trim().toLowerCase());
+    const ordered = [...teams].sort(([ia, a], [ib, b]) => (same(b, ib) - same(a, ia)) || (online(ia) - online(ib)));
     const busy = admitting.has(device) || st.phase === "ended";
     ordered.forEach(([id, t]) => {
       const b = document.createElement("button");
       b.dataset.team = id;
-      b.classList.toggle("suggested", same(t));
+      b.classList.toggle("suggested", same(t, id));
       b.textContent = `Remplace « ${t.name} »${online(id) ? "" : " (hors ligne)"}`;
       b.disabled = busy;
       b.onclick = () => replaceDevice(device, id);
@@ -1515,6 +1516,7 @@ const STATUS_MESSAGES = {
   busy: "Cet appareil joue déjà pour une équipe.",
   gone: "Cette demande n'existe plus : l'appareil a peut-être quitté la page.",
   stale_program: "Le programme venait de changer : rien n'a été fait, la liste des jeux est à jour.",
+  countdown: "La partie reprend (3, 2, 1) : attendez la fin du décompte.",
 };
 
 function toast(message) {

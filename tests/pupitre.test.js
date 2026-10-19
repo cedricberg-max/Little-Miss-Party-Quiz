@@ -6,7 +6,7 @@ import { extname, join, normalize } from "node:path";
 import { after, before, beforeEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { initializeTestEnvironment } from "@firebase/rules-unit-testing";
-import { ref, get, set } from "firebase/database";
+import { ref, get, set, update } from "firebase/database";
 import { chromium } from "playwright";
 import { loadRules } from "./rules-loader.js";
 
@@ -70,7 +70,7 @@ async function waitFor(fn, what, ms = 8000) {
 }
 
 /** Un pupitre = un navigateur séparé (son propre identifiant d'équipe). */
-async function openPupitre() {
+async function openPupitre(extra = "") {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   // Le SDK Firebase est servi depuis les fichiers locaux au lieu du CDN de Google.
   await context.route("https://www.gstatic.com/firebasejs/11.1.0/*", (route) => {
@@ -79,7 +79,7 @@ async function openPupitre() {
   });
   const page = await context.newPage();
   page.on("pageerror", (e) => console.error("Erreur page :", e.message));
-  await page.goto(`${baseUrl}/?g=${CODE}&emu=1`);
+  await page.goto(`${baseUrl}/?g=${CODE}&emu=1${extra}`);
   return page;
 }
 
@@ -102,6 +102,33 @@ const question = (extra = {}) => ({
 });
 
 describe("pupitre", () => {
+  test("« Reconnecter une tablette » : la nouvelle tablette choisit l'équipe, l'ancienne s'arrête, l'équipe garde tout", async () => {
+    const old = await openPupitre();
+    await joinTeam(old, "Les Bleus");
+    const [bleu] = Object.keys(await read("teams"));
+    await hostState(question({ scores: { [bleu]: 300 } }));
+    await old.locator("#screen-question.active").waitFor();
+    // QR « Reconnecter une tablette » de la TV.
+    const neuf = await openPupitre("&reprise=1");
+    await neuf.locator("#screen-takeover.active").waitFor();
+    await neuf.locator(`#takeover-list button[data-team="${bleu}"]`, { hasText: "Les Bleus" }).click();
+    await neuf.locator("#waiting-text", { hasText: "reprend « Les Bleus »" }).waitFor();
+    const [[device, demande]] = Object.entries(await waitFor(() => read("joinRequests"), "demande de reprise"));
+    assert.equal(demande.replace, bleu);
+    // La box confie l'équipe (confirmation à la télécommande) : même écriture que pour la régie.
+    await update(ref(hostDb(), `games/${CODE}`), { [`teams/${bleu}/device`]: device, [`joinRequests/${device}`]: null });
+    await neuf.locator("#screen-question.active").waitFor();
+    await old.locator("#screen-replaced.active").waitFor();
+    for (const p of [old, neuf]) await p.context().close();
+  });
+
+  test("QR « Reconnecter la régie » : la fenêtre du mot de passe de la régie s'ouvre d'elle-même", async () => {
+    const page = await openPupitre("&regie=1");
+    await page.locator("#regie-login:not([hidden])").waitFor();
+    await page.locator("#regie-password:not([hidden])").waitFor();
+    await page.context().close();
+  });
+
   test("trois équipes rejoignent, répondent une seule fois et voient leur résultat", async () => {
     const pages = [await openPupitre(), await openPupitre(), await openPupitre()];
     await joinTeam(pages[0], "Les Roses");

@@ -45,7 +45,15 @@
 
     <section id="screen-waiting" class="screen">
       <div class="logo small">Demande envoyée</div>
-      <p class="hint">L'animatrice va vous faire entrer dans la partie, regardez-la !</p>
+      <p id="waiting-text" class="hint">L'animatrice va vous faire entrer dans la partie, regardez-la !</p>
+    </section>
+
+    <!-- « Reconnecter une tablette » (QR de la TV) : la nouvelle tablette reprend une équipe existante. -->
+    <section id="screen-takeover" class="screen">
+      <div class="logo small">Reprendre une équipe</div>
+      <p class="hint">Touchez le nom de l'équipe qui continue sur cette tablette. Elle garde son nom, sa couleur et ses points.</p>
+      <div id="takeover-list" class="takeover-list"></div>
+      <button id="takeover-new" class="link">C'est une nouvelle équipe</button>
     </section>
 
     <section id="screen-replaced" class="screen">

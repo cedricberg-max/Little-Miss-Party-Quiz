@@ -133,6 +133,9 @@ describe("remplacement d'un appareil", () => {
     await assertFails(set(ref(db("neuf2"), `games/${CODE}/joinRequests/neuf2`), { name: "x", color: "#000", at: 1 }));
     await assertFails(set(ref(db("neuf2"), `games/${CODE}/joinRequests/neuf2`), { name: "x", color: "#000", at: serverTimestamp(), score: 9 }));
     await assertFails(set(ref(db("neuf2"), "games/ZZZZZ/joinRequests/neuf2"), { name: "x", color: "#000", at: serverTimestamp() }));
+    // Reprise d'une équipe (« Reconnecter une tablette ») : seulement une équipe qui existe.
+    await assertSucceeds(set(ref(db("neuf3"), `games/${CODE}/joinRequests/neuf3`), { name: "Les Bleus", color: "#2B86C5", replace: "bleu", at: serverTimestamp() }));
+    await assertFails(set(ref(db("neuf4"), `games/${CODE}/joinRequests/neuf4`), { name: "x", color: "#000", replace: "inconnue", at: serverTimestamp() }));
   });
   test("les demandes ne sont lues que par la régie, la box et leur auteur", async () => {
     await seed();

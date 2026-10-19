@@ -77,6 +77,34 @@ class NavigationTelecommandeTest : TestTv() {
     }
 
     @Test
+    fun reconnecterUneTabletteGardeLEquipeEtSesPoints() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        ecran.ok("Lancer la fête !")
+        attendreQuestion(licornes, code, 0)
+
+        // Menu Retour → « Reconnecter une tablette » : QR code, puis attente de la nouvelle tablette.
+        ecran.device.pressBack()
+        ecran.focusSur("Continuer la partie")
+        ecran.touche(KeyEvent.KEYCODE_DPAD_DOWN)
+        ecran.touche(KeyEvent.KEYCODE_DPAD_DOWN)
+        ecran.ok("Reconnecter une tablette")
+        ecran.voit("En attente de la nouvelle tablette…")
+        ecran.entierementVisible("Reconnecter une tablette")
+        ecran.capture("reconnecter-tablette")
+
+        // La nouvelle tablette touche « Licornes » : la TV propose de la lui confier, sélection déjà dessus.
+        val neuve = pupitre("neuve")
+        neuve.demanderReprise(code, licornes.uid, "Licornes", VERT)
+        ecran.ok("Confier « Licornes » à la nouvelle tablette")
+        attendreQue("tablette rattachée à l'équipe") {
+            licornes.equipes(code).child("${licornes.uid}/device").value?.takeIf { it == neuve.uid }
+        }
+        ecran.neVoitPas("Reconnecter une tablette")
+        assertEquals("une seule équipe, la même", 1L, licornes.equipes(code).childrenCount)
+    }
+
+    @Test
     fun nouvellePartieDepuisLaFenetreAvecLesFleches() {
         val code = lancerBoite()
         val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
@@ -87,7 +115,7 @@ class NavigationTelecommandeTest : TestTv() {
         // Descend avec la flèche bouton par bouton : chacun prend la sélection et reste lisible en entier,
         // jusqu'au dernier, qui était coupé sur la vraie TV.
         val cible = "Terminer et lancer une nouvelle partie"
-        val menu = listOf("Continuer la partie", "Code de secours de la régie", "Rechercher une mise à jour", "Quitter l'application", cible)
+        val menu = listOf("Continuer la partie", "Reconnecter la régie", "Reconnecter une tablette", "Rechercher une mise à jour", "Quitter l'application", cible)
         menu.forEachIndexed { i, bouton ->
             if (i > 0) ecran.touche(KeyEvent.KEYCODE_DPAD_DOWN)
             ecran.focusSur(bouton)

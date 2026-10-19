@@ -80,6 +80,10 @@ class TvActions(
     val showRegie: () -> Unit,
     val hideRegie: () -> Unit,
     val removeRegies: () -> Unit,
+    /** « Reconnecter une tablette » : ouvrir, fermer, confier une équipe (appareil, équipe) à la nouvelle tablette. */
+    val showTablette: () -> Unit = {},
+    val hideTablette: () -> Unit = {},
+    val confierTablette: (String, String) -> Unit = { _, _ -> },
     /** Ouvre la fenêtre « Rechercher une mise à jour ». */
     val checkUpdate: () -> Unit = {},
     /** Mimes à la télécommande : lancer le tour (équipe proposée), trouvé, passer, arrêter le tour. */
@@ -158,6 +162,7 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null) 
             paused = state.paused,
             onContinue = close,
             onRegie = { close(); actions.showRegie() },
+            onTablette = { close(); actions.showTablette() },
             onUpdate = { close(); actions.checkUpdate() },
             onNewGame = { confirmQuit = false; pausedByDialog = false; actions.newGame() },
             onQuit = { confirmQuit = false; actions.quit() },
@@ -166,9 +171,12 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null) 
     if (state is UiState.Playing && state.showRegie) {
         RegieDialog(state, onClose = actions.hideRegie, onRemove = actions.removeRegies)
     }
+    if (state is UiState.Playing && state.showTablette) {
+        TabletteDialog(state, onClose = actions.hideTablette, onConfier = actions.confierTablette)
+    }
     if (update != null && update.open) {
         UpdateDialog(update.ui, busy = gameInProgress(state), actions = update.actions)
-    } else if (update?.offer != null && !gameInProgress(state) && !confirmQuit && !(state is UiState.Playing && state.showRegie)) {
+    } else if (update?.offer != null && !gameInProgress(state) && !confirmQuit && !(state is UiState.Playing && (state.showRegie || state.showTablette))) {
         // La proposition attend le retour à l'accueil : jamais par-dessus une partie ou une autre fenêtre.
         UpdateOfferDialog(update.offer, update.actions)
     }
@@ -262,6 +270,7 @@ private fun QuitDialog(
     paused: Boolean,
     onContinue: () -> Unit,
     onRegie: () -> Unit,
+    onTablette: () -> Unit,
     onUpdate: () -> Unit,
     onNewGame: () -> Unit,
     onQuit: () -> Unit,
@@ -290,7 +299,8 @@ private fun QuitDialog(
             Spacer(Modifier.height(4.dp))
             val wide = Modifier.fillMaxWidth()
             TvButton("Continuer la partie", onContinue, wide.focusRequester(focus), primary = true)
-            TvButton("Code de secours de la régie", onRegie, wide, fontSize = 20.sp)
+            TvButton("Reconnecter la régie", onRegie, wide, fontSize = 20.sp)
+            TvButton("Reconnecter une tablette", onTablette, wide, fontSize = 20.sp)
             TvButton("Rechercher une mise à jour", onUpdate, wide, fontSize = 20.sp)
             TvButton("Quitter l'application", onQuit, wide, fontSize = 20.sp)
             TvButton("Terminer et lancer une nouvelle partie", onNewGame, wide, accent = Palette.Pink, fontSize = 20.sp)
