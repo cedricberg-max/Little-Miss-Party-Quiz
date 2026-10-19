@@ -749,9 +749,9 @@ function gameDetail(r, questions) {
   if (q?.kind === "mime") return `${q.cards?.length ?? 0} cartes · tour de ${q.duration} s par équipe`;
   if (q?.kind === "pictionary") return `un mot par équipe · ${q.duration} s de dessin · ${q.points ?? 150} points`;
   const n = r.end - r.start + 1;
-  // La TV ne republie que « double » : les questions à points ×2 sont celles de la Super Finale.
-  const finale = questions.slice(r.start, r.end + 1).filter((x) => x.finale || x.double).length;
-  return `${n} question${n > 1 ? "s" : ""}${finale ? ` dont ${finale} de Super Finale (×2)` : ""}`;
+  // Dernières questions du quiz à points ×2 (réglage de la manche, jamais un jeu à part).
+  const double = questions.slice(r.start, r.end + 1).filter((x) => x.finale || x.double).length;
+  return `${n} question${n > 1 ? "s" : ""}${double ? ` dont ${double === 1 ? "la dernière" : `les ${double} dernières`} à points ×2` : ""}`;
 }
 
 function renderGames(st) {
@@ -773,11 +773,28 @@ function renderGames(st) {
       else if (st.phase !== "ended") line.append(line.childNodes.length ? " · Dernier jeu" : "Dernier jeu");
     }
   }
+  renderDemo(st);
   // Le secours n'a de sens qu'une fois la partie commencée (au salon, « Lancer la fête ! » suffit).
   $("c-rescue").hidden = st.phase === "lobby" || !rounds.length || !live.plan?.rev;
   if (rescueOpen && $("c-rescue").hidden) rescueOpen = false;
   $("rescue").hidden = !rescueOpen;
   if (rescueOpen) renderRescue(st);
+}
+
+/** La TV joue son quiz de démonstration : aucune prestation n'a été chargée. */
+const isDemo = () => live.plan?.id === "demo";
+
+/**
+ * Quiz de démonstration en cours : la régie dit clairement qu'aucune prestation n'est chargée et comment
+ * en lancer une (une prestation ne se charge qu'au salon d'attente, avant « Lancer la fête ! »).
+ */
+function renderDemo(st) {
+  const box = $("c-demo");
+  box.hidden = !isDemo();
+  if (box.hidden) return;
+  box.textContent = st.phase === "lobby"
+    ? "Aucune prestation chargée : la TV jouera son quiz de démonstration. Choisissez la prestation dans l'onglet « Prestation » avant de lancer la fête."
+    : "La TV joue son quiz de démonstration, pas une prestation. Pour jouer une prestation : sur la TV, touche Retour → « Terminer et lancer une nouvelle partie », puis choisissez-la dans l'onglet « Prestation » de la régie.";
 }
 
 function renderRescue(st) {
@@ -950,7 +967,7 @@ function planItem(q, i, current) {
     return item;
   }
   const title = document.createElement("div");
-  title.textContent = `${i + 1}. ${q.text}${q.double ? " · Super Finale ×2" : ""}`;
+  title.textContent = `${i + 1}. ${q.text}${q.double ? " · points ×2" : ""}`;
   const answer = document.createElement("b");
   answer.textContent = q.kind === "portes" ? `${q.choices?.length ?? 0} portes · bonus ou malus` : q.kind === "number" ? `Juste Chiffre · ${q.correct}` : `${CHOICE_LETTERS[q.correct] ?? "?"} · ${q.choices?.[q.correct] ?? ""}`;
   item.append(title, answer);
@@ -1627,6 +1644,15 @@ $("c-next").onclick = async () => {
   if (st?.phase === "ended") {
     const { next } = gamesOf(st);
     if (next) jumpTo(next, st);
+    return;
+  }
+  // Lancer la fête sans prestation chargée : la TV jouerait son quiz de démonstration, on le confirme d'abord.
+  if (st?.phase === "lobby" && isDemo() && !await demander({
+    title: "Aucune prestation chargée",
+    text: "La TV va jouer son quiz de démonstration. Pour jouer une prestation, choisissez-la d'abord dans l'onglet « Prestation ».",
+    ok: "Lancer la démonstration",
+  })) {
+    switchTab("show");
     return;
   }
   // Mimes entre deux tours : « Terminer les mimes » passe au classement, après confirmation s'il reste des équipes.

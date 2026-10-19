@@ -452,8 +452,9 @@ export function programRounds(questions) {
   const list = [];
   questions.forEach((q, i) => {
     const last = list[list.length - 1];
-    if (last && q.round && last.title === q.round) last.end = i;
-    else list.push({ title: q.round || "Questions", start: i, end: i });
+    // Questions sans titre de manche (quiz de démonstration) : un seul jeu « Quiz », comme l'annonce la TV.
+    if (last && (q.round ? last.title === q.round : last.untitled)) last.end = i;
+    else list.push(q.round ? { title: q.round, start: i, end: i } : { title: "Quiz", start: i, end: i, untitled: true });
   });
   return list;
 }
