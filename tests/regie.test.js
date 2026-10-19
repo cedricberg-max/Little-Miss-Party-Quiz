@@ -325,6 +325,14 @@ async function openAdmin() {
 }
 
 /** L'animatrice scanne le même QR code que les équipes, touche « Accès régie » et tape le mot de passe. */
+/** Bonus de [amount] points pour une équipe, en deux temps : préparer le montant, puis valider. */
+async function givePoints(page, team, amount) {
+  await page.locator(`#panel-teams [data-team="${team}"] .pts-open`).click();
+  await page.locator("#pts-input").fill(String(Math.abs(amount)));
+  if (amount < 0) await page.click("#pts-malus");
+  await page.click("#pts-ok");
+}
+
 async function pair(page, password = PASSWORD) {
   await page.locator("#regie-open:not([hidden])").click();
   await page.fill("#regie-password", password);
@@ -914,7 +922,7 @@ describe("régie", () => {
     await inRegie(page);
     // Dans le salon d'attente la régie s'ouvre sur les prestations : l'animatrice passe aux équipes.
     await page.click("#tab-teams");
-    await page.locator('.team[data-team="rose"] button[data-delta="10"]').click();
+    await givePoints(page, "rose", 10);
     await page.locator(".team .score", { hasText: "10" }).waitFor();
     await page.locator("#undo-text", { hasText: "+10 pour Les Roses" }).waitFor();
     await page.click("#undo-go");
@@ -925,7 +933,7 @@ describe("régie", () => {
     await page.context().close();
   });
 
-  test("bonus et malus d'un montant au choix : le montant exact part à la TV", async () => {
+  test("bonus et malus en deux temps : préparer ne change rien, une validation = un seul envoi du montant exact", async () => {
     box = startBox();
     await addTeam("rose", "Les Roses");
     const page = await openRegie();
@@ -934,18 +942,43 @@ describe("régie", () => {
     await page.click("#tab-teams");
     await page.locator('.team[data-team="rose"] .pts-open').click();
     await page.locator("#pts-title", { hasText: "Points pour Les Roses" }).waitFor();
-    await page.locator('#pts [data-pts="100"]').click();
+    assert.equal(await page.locator("#pts-ok").isDisabled(), true, "rien à valider tant qu'aucun montant n'est choisi");
+    // L'animatrice hésite : montants types, ±10, ±1, saisie, curseur… rien ne part vers la TV.
+    await page.click('#pts [data-set="100"]');
+    await page.click('#pts [data-step="10"]');
+    await page.click('#pts [data-step="10"]');
+    await page.click('#pts [data-step="-1"]');
+    await page.locator("#pts-value", { hasText: "+119" }).waitFor();
+    await page.locator("#pts-input").fill("520");
+    await page.locator("#pts-value", { hasText: "+500" }).waitFor();
+    await page.locator("#pts-range").fill("200");
+    await page.locator("#pts-value", { hasText: "+200" }).waitFor();
+    await page.click('#pts [data-set="150"]');
+    await page.locator("#pts-preview", { hasText: "Score : 0 → 150" }).waitFor();
+    await page.locator("#pts-ok", { hasText: "Valider +150 points" }).waitFor();
+    await new Promise((r) => setTimeout(r, 300));
+    assert.equal((await commands()).length, 0, "préparer n'envoie rien");
+    // Double appui sur « Valider » : une seule correction.
+    await page.locator("#pts-ok").dblclick();
+    await page.locator("#undo-text", { hasText: "+150 pour Les Roses" }).waitFor();
+    await page.locator('.team[data-team="rose"] .score', { hasText: "150" }).waitFor();
     assert.equal(await page.locator("#pts").isHidden(), true);
-    await page.locator("#undo-text", { hasText: "+100 pour Les Roses" }).waitFor();
+    // Malus : on bascule le signe, on valide.
     await page.locator('.team[data-team="rose"] .pts-open').click();
-    await page.locator('#pts [data-pts="-50"]').click();
+    await page.locator("#pts-value", { hasText: "+0" }).waitFor();
+    await page.click("#pts-malus");
+    await page.click('#pts [data-set="50"]');
+    await page.locator("#pts-ok", { hasText: "Valider −50 points" }).click();
     await page.locator("#undo-text", { hasText: "−50 pour Les Roses" }).waitFor();
-    // Annuler sans choisir : rien n'est envoyé.
+    // Annuler sans valider : rien n'est envoyé.
     await page.locator('.team[data-team="rose"] .pts-open').click();
+    await page.click('#pts [data-set="300"]');
     await page.click("#pts-cancel");
-    await page.locator(".team .score", { hasText: "50" }).waitFor();
+    await page.locator('.team[data-team="rose"] .score', { hasText: "100" }).waitFor();
+    await new Promise((r) => setTimeout(r, 300));
     const deltas = (await commands()).filter((c) => c.type === "adjust").map((c) => c.delta);
-    assert.deepEqual(deltas, [100, -50]);
+    assert.deepEqual(deltas, [150, -50]);
+    assert.equal(box.state.scores.rose, 100);
     await page.context().close();
   });
 
@@ -1036,8 +1069,8 @@ describe("remplacement d'un appareil en cours de partie", () => {
 
   test("tablette remplacée : l'équipe continue sur le nouvel appareil, l'ancien est désactivé même rechargé", async () => {
     const { regie, old, blue } = await startedGame();
-    await regie.locator("#panel-teams [data-team] button[data-delta='10']").first().waitFor();
-    await regie.locator(`#panel-teams [data-team="${blue}"] button[data-delta="10"]`).click();
+    await regie.locator("#panel-teams [data-team] .pts-open").first().waitFor();
+    await givePoints(regie, blue, 10);
     await waitFor(async () => (await read("state"))?.scores?.[blue] === 10, "points avant le remplacement");
 
     // Un téléphone de secours scanne le QR code : la partie a commencé, il demande à entrer.
@@ -1667,7 +1700,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     await regie.click("#c-next");
     await regie.locator("#c-phase", { hasText: "Question en cours" }).waitFor();
-    await regie.locator('#panel-teams [data-team="rose"] button[data-delta="10"]').click();
+    await givePoints(regie, "rose", 10);
     await waitFor(async () => (await read("state/scores/rose")) === 10, "10 points pour les Roses");
     const rounds = async () => (await read("conducteur")).questions.map((q) => q.round);
 

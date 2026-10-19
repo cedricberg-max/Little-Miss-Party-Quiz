@@ -33,6 +33,8 @@ let timerHandle = null;
 let undoTimer = null;
 let answerMasked = false;
 let tab = "teams";
+/** L'animatrice a déjà touché un onglet : la régie ne la renvoie plus d'elle-même vers un autre. */
+let tabChosen = false;
 /** Prestations publiées par Sarah : null tant qu'elles ne sont pas lues. */
 let shows = null;
 let loadingShow = null;
@@ -172,11 +174,12 @@ function control() {
     onExit?.("Ce téléphone n'est plus relié à la régie de la partie.");
   });
   let first = true;
+  tabChosen = false;
   listen(`games/${code}/state`, (s) => {
     live.state = s.val();
     watchAnswers();
     // En arrivant dans le salon d'attente, la première chose à faire est de charger la prestation.
-    if (first && live.state?.phase === "lobby") switchTab("show");
+    if (first && !tabChosen && live.state?.phase === "lobby") switchTab("show");
     first = false;
     render();
   });
@@ -288,6 +291,7 @@ function render() {
   renderFlou(st);
   renderStatues(st, teams);
   renderTeams(st, teams);
+  renderPoints();
   renderPlan(st);
   renderShows(st);
   runTimer(st);
@@ -802,9 +806,7 @@ function renderTeams(st, teams) {
       row.className = "team";
       row.dataset.team = id;
       row.innerHTML = '<span class="dot"></span><span class="swatch"></span><span class="name"></span><span class="score"></span>'
-        + '<button data-delta="-10">−10</button><button data-delta="10">+10</button>'
-        + '<button class="pts-open" aria-label="Bonus ou malus">±</button>';
-      row.querySelectorAll("button[data-delta]").forEach((b) => { b.onclick = () => adjust(id, Number(b.dataset.delta)); });
+        + '<button class="pts-open">± Points</button>';
       row.querySelector(".pts-open").onclick = () => choosePoints(id);
       box.appendChild(row);
     });
@@ -1484,21 +1486,71 @@ async function adjust(team, delta) {
   showUndo(`${delta > 0 ? "+" : "−"}${Math.abs(delta)} pour ${name}`, status.seq);
 }
 
-/** Bonus ou malus d'un autre montant : un toucher sur le montant l'envoie, la TV l'annonce en grand. */
+/**
+ * Bonus ou malus en deux temps. Préparer le montant (montants types, ±1, ±10, saisie, curseur) ne change rien :
+ * ni score ni animation. « Valider » envoie une seule correction, du montant exact ; la TV l'annonce une fois.
+ * Le bouton se bloque dès le premier appui et la fenêtre se ferme : un double appui ne compte jamais deux fois.
+ */
+const MAX_POINTS = 500;
+let points = null;
+
 function choosePoints(team) {
-  const box = $("pts");
+  points = { team, sign: 1, amount: 0, sending: false };
   $("pts-title").textContent = `Points pour ${live.teams[team]?.name ?? "l'équipe"}`;
-  const close = () => {
-    box.hidden = true;
-    box.onclick = $("pts-cancel").onclick = null;
-  };
-  box.querySelectorAll("[data-pts]").forEach((b) => {
-    b.onclick = () => { close(); adjust(team, Number(b.dataset.pts)); };
-  });
-  $("pts-cancel").onclick = close;
-  box.onclick = (e) => { if (e.target === box) close(); };
-  box.hidden = false;
+  $("pts-input").value = "";
+  $("pts").hidden = false;
+  renderPoints();
 }
+
+function setAmount(n) {
+  if (!points || points.sending) return;
+  points.amount = Math.max(0, Math.min(MAX_POINTS, Math.round(Number(n) || 0)));
+  renderPoints();
+}
+
+function renderPoints() {
+  if (!points) return;
+  const { team, sign, amount, sending } = points;
+  const delta = sign * amount;
+  const score = live.state?.scores?.[team] ?? 0;
+  $("pts-bonus").classList.toggle("on", sign > 0);
+  $("pts-malus").classList.toggle("on", sign < 0);
+  $("pts-value").textContent = `${sign > 0 ? "+" : "−"}${amount}`;
+  $("pts-value").className = `pts-value ${amount ? (sign > 0 ? "bonus" : "malus") : ""}`;
+  $("pts-preview").textContent = amount ? `Score : ${score} → ${score + delta}` : `Score : ${score} · choisissez un montant`;
+  if (document.activeElement !== $("pts-input")) $("pts-input").value = amount ? String(amount) : "";
+  $("pts-range").value = String(amount);
+  $("pts-presets").querySelectorAll("[data-set]").forEach((b) => { b.classList.toggle("on", Number(b.dataset.set) === amount); });
+  const ok = $("pts-ok");
+  ok.disabled = !amount || sending;
+  ok.textContent = sending ? "Envoi…" : amount ? `Valider ${sign > 0 ? "+" : "−"}${amount} point${amount > 1 ? "s" : ""}` : "Valider";
+  ok.classList.toggle("malus", sign < 0);
+}
+
+function closePoints() {
+  points = null;
+  $("pts").hidden = true;
+}
+
+async function validatePoints() {
+  if (!points || points.sending || !points.amount) return;
+  points.sending = true;
+  const { team, sign, amount } = points;
+  renderPoints();
+  closePoints();
+  await adjust(team, sign * amount);
+}
+
+$("pts-bonus").onclick = () => { if (points && !points.sending) { points.sign = 1; renderPoints(); } };
+$("pts-malus").onclick = () => { if (points && !points.sending) { points.sign = -1; renderPoints(); } };
+$("pts-presets").querySelectorAll("[data-set]").forEach((b) => { b.onclick = () => setAmount(Number(b.dataset.set)); });
+document.querySelectorAll("#pts [data-step]").forEach((b) => { b.onclick = () => setAmount((points?.amount ?? 0) + Number(b.dataset.step)); });
+$("pts-input").oninput = () => setAmount($("pts-input").value);
+$("pts-input").onblur = () => renderPoints();
+$("pts-range").oninput = () => setAmount($("pts-range").value);
+$("pts-ok").onclick = validatePoints;
+$("pts-cancel").onclick = closePoints;
+$("pts").onclick = (e) => { if (e.target === $("pts")) closePoints(); };
 
 /** Bandeau « Annuler » pendant 10 secondes après une correction. */
 function showUndo(text, seq) {
@@ -1548,9 +1600,9 @@ $("c-answer").onclick = () => { answerMasked = !answerMasked; render(); };
   btn.onclick = () => { if (!fired) toast("Gardez le doigt appuyé une seconde pour terminer la partie."); fired = false; };
 })();
 
-$("tab-teams").onclick = () => switchTab("teams");
-$("tab-plan").onclick = () => switchTab("plan");
-$("tab-show").onclick = () => switchTab("show");
+$("tab-teams").onclick = () => { tabChosen = true; switchTab("teams"); };
+$("tab-plan").onclick = () => { tabChosen = true; switchTab("plan"); };
+$("tab-show").onclick = () => { tabChosen = true; switchTab("show"); };
 function switchTab(name) {
   tab = name;
   // Liste des prestations relue à chaque ouverture de l'onglet : elle reflète toujours l'administration.

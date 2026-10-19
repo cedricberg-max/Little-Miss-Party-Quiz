@@ -58,25 +58,21 @@ data class CoupDeScore(
 }
 
 /**
- * File des coups à montrer, un à la fois pour rester lisibles. Deux corrections rapides de la même équipe
- * dans le même sens, la seconde arrivée avant que la première n'ait commencé, n'en font qu'une (+10 puis +10
- * montrent +20). Celle qui est déjà à l'écran n'est jamais modifiée.
+ * File des coups à montrer, un à la fois pour rester lisibles : chaque validation de la régie a sa propre
+ * animation, dans l'ordre, jamais deux fois. Celle qui est à l'écran n'est jamais modifiée.
  */
 class FileDesCoups(private val max: Int = 6) {
     private val attente = ArrayDeque<CoupDeScore>()
+    private val vus = mutableSetOf<Int>()
     var courant: CoupDeScore? = null
         private set
 
-    /** Ajoute un coup ; rend le coup à montrer maintenant. */
+    /** Ajoute un coup (un id déjà vu est ignoré) ; rend le coup à montrer maintenant. */
     fun ajouter(c: CoupDeScore): CoupDeScore? {
-        val dernier = attente.lastOrNull()
-        if (dernier != null && dernier.equipe == c.equipe && dernier.bonus == c.bonus) {
-            attente[attente.lastIndex] = c.copy(delta = dernier.delta + c.delta, avant = dernier.avant)
-        } else {
-            attente.addLast(c)
-            // Une avalanche de corrections : on garde les dernières, le score réel est déjà juste.
-            while (attente.size > max) attente.removeFirst()
-        }
+        if (!vus.add(c.id)) return courant
+        attente.addLast(c)
+        // Une avalanche de corrections : on garde les dernières, le score réel est déjà juste.
+        while (attente.size > max) attente.removeFirst()
         if (courant == null) courant = attente.removeFirstOrNull()
         return courant
     }
@@ -90,6 +86,7 @@ class FileDesCoups(private val max: Int = 6) {
 
     fun vider() {
         attente.clear()
+        vus.clear()
         courant = null
     }
 }

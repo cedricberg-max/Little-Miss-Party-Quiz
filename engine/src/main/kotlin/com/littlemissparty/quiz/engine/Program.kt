@@ -47,16 +47,17 @@ fun Game.nextGameTitle(): String? {
 }
 
 /**
- * Points gagnés par chaque équipe dans le jeu en cours (questions et mimes ; les corrections manuelles
- * de la régie n'y sont pas) : le vainqueur d'un jeu, célébré à sa fin, sans attendre le classement final.
+ * Points gagnés par chaque équipe dans le jeu en cours (questions, mimes, et bonus ou malus donnés par la
+ * régie pendant ce jeu) : le vainqueur d'un jeu, célébré à sa fin, sans attendre le classement final.
  */
 fun Game.gameGains(): Map<String, Int> {
     if (state.index !in quiz.questions.indices) return emptyMap()
     val totals = mutableMapOf<String, Int>()
-    roundOf(state.index).forEach { i ->
-        val id = quiz.questions[i].id
+    val ids = roundOf(state.index).map { quiz.questions[it].id }.toSet()
+    ids.forEach { id ->
         state.awards[id].orEmpty().forEach { (team, a) -> totals.merge(team, a.points, Int::plus) }
         state.mimes[id].orEmpty().forEach { (team, n) -> totals.merge(team, n * Scoring.MIME, Int::plus) }
     }
+    state.adjustments.values.filter { state.adjustedIn[it.seq] in ids }.forEach { totals.merge(it.team, it.delta, Int::plus) }
     return totals
 }

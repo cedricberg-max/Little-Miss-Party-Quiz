@@ -56,6 +56,9 @@ class RegieTest : TestTv() {
         ecran.neVoitPas("MALUS !", 6_000)
         ecran.voit("Voir les scores")
         assertEquals(avant + 20, points(licornes, code, licornes.uid))
+        // Une validation = une seule animation : rien ne revient ensuite.
+        Thread.sleep(3_000)
+        assertFalse("Aucune animation rejouée", ecran.affiche("BONUS !") || ecran.affiche("MALUS !"))
     }
 
     @Test

@@ -31,16 +31,24 @@ class FileDesCoupsTest {
     }
 
     @Test
-    fun `deux corrections de la meme equipe dans le meme sens qui attendent n'en font qu'une, au total exact`() {
+    fun `chaque validation a sa propre animation, au montant exact, meme pour la meme equipe`() {
         val f = FileDesCoups()
         f.ajouter(coup(1, "b", 50, 0))
-        f.ajouter(coup(2, "a", 10, 200))
-        f.ajouter(coup(3, "a", 10, 210))
-        val suivant = f.fini(1)!!
-        assertEquals(20, suivant.delta)
-        assertEquals(200, suivant.avant)
-        assertEquals(220, suivant.apres)
-        assertNull(f.fini(suivant.id))
+        f.ajouter(coup(2, "a", 150, 200))
+        f.ajouter(coup(3, "a", 100, 350))
+        assertEquals(150, f.fini(1)?.delta)
+        assertEquals(100, f.fini(2)?.delta)
+        assertNull(f.fini(3))
+    }
+
+    @Test
+    fun `un meme evenement recu deux fois ne s'anime qu'une fois`() {
+        val f = FileDesCoups()
+        f.ajouter(coup(1, "a", 150, 0))
+        f.ajouter(coup(1, "a", 150, 0))
+        assertNull(f.fini(1))
+        f.ajouter(coup(1, "a", 150, 0))
+        assertNull(f.courant)
     }
 
     @Test

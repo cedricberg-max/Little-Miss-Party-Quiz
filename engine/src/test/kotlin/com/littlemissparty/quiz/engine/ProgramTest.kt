@@ -133,6 +133,27 @@ class ProgramTest {
     }
 
     @Test
+    fun `un bonus ou un malus de la régie compte dans le jeu où il est donné, une seule fois`() {
+        val g = firstScored()
+        val base = g.state.scores()
+        assertNotNull(g.adjust("bleu", 150, "", t0 + 5_100))
+        val malus = g.adjust("rose", -50, "", t0 + 5_200)!!
+        assertEquals(150, g.gameGains()["bleu"], "Bonus validé pendant le jeu Animaux : il compte pour ce jeu")
+        assertEquals((base["rose"] ?: 0) - 50, g.gameGains()["rose"])
+        assertEquals(150, g.state.scores()["bleu"], "Une validation = exactement le montant, une fois")
+        assertNotNull(g.undo(malus.seq, t0 + 5_300))
+        assertEquals(base["rose"], g.gameGains()["rose"], "Malus annulé : il ne compte plus nulle part")
+        g.next(t0 + 6_000); g.next(t0 + 7_000); g.next(t0 + 7_100); g.next(t0 + 7_200); g.next(t0 + 7_300)
+        assertEquals("Espace", g.question!!.roundTitle)
+        g.adjust("bleu", 100, "", t0 + 7_400)
+        assertEquals(mapOf("bleu" to 100), g.gameGains(), "Le jeu suivant ne compte que ses propres bonus")
+        assertEquals(250, g.state.scores()["bleu"], "Le classement garde tout")
+        val relu = Game(quiz, g.events)
+        assertEquals(g.state.scores(), relu.state.scores(), "Journal relu (redémarrage) : mêmes totaux, rien en double")
+        assertEquals(g.gameGains(), relu.gameGains())
+    }
+
+    @Test
     fun `quiz sans manches, seule la question en cours est verrouillée`() {
         val plain = Quiz("demo", "Démo", listOf(Question("q1", "Un ?", listOf("A", "B"), 0), Question("q2", "Deux ?", listOf("A", "B"), 0)))
         val g = Game(plain).apply { next(t0) }
