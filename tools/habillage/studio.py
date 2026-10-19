@@ -857,6 +857,52 @@ def indice():
     mx.add('bells', note('tinkle_bell', 96, .1, .2, release=.4), .12)
     return mx.render(duck=0)
 
+def bt_diamant():
+    """Blind test : le diamant se pose sur le vinyle (petit choc sourd), deux tours de craquements."""
+    n = int(1.2 * SR); t = np.arange(n) / SR
+    choc = np.sin(2 * np.pi * 70 * t) * np.exp(-t / .05) * .9
+    crepit = np.zeros(n)
+    for _ in range(70):
+        i = int(rng.uniform(.05, 1.1) * SR); L = int(.002 * SR)
+        crepit[i:i + L] += rng.uniform(-1, 1) * np.exp(-np.arange(L) / (L / 4)) * rng.uniform(.2, .8)
+    souffle = biquad(noise(n), 'bp', 3000, .6) * .04 * np.minimum(1, t / .05) * np.exp(-t / .9)
+    tour = 1 + .25 * np.sin(2 * np.pi * t / .75)  # 33 tours : craquements qui reviennent à chaque tour
+    y = choc + biquad(crepit, 'hp', 1500) * tour * .6 + souffle
+    return stereo(y, .3, 6)
+
+def bt_scratch():
+    """Blind test : le disque s'arrête net sous la main du DJ, aller-retour de scratch."""
+    parts = []
+    for k, (f0, f1, d) in enumerate([(900, 2600, .11), (2600, 500, .16)]):
+        n = int(d * SR); t = np.arange(n) / SR
+        x = sweep_bp(noise(n), f0, f1, 3.5)
+        tone = np.sin(2 * np.pi * np.cumsum(np.linspace(f0 / 6, f1 / 6, n)) / SR) * .5
+        e = np.sin(np.pi * t / d) ** .6
+        parts.append((stereo((x * .9 + tone) * e, .2, 3), k * .1))
+    n = int(.6 * SR); t = np.arange(n) / SR
+    arret = np.sin(2 * np.pi * np.cumsum(np.linspace(180, 30, n)) / SR) * np.exp(-t / .12) * .5
+    parts.append((stereo(arret), .26))
+    return sum_at(parts)
+
+def statue_gel():
+    """Statues musicales : la musique s'arrête net, « shhhk » de cymbale étouffée et cristal qui gèle."""
+    mx = Mix(4, tail=2)
+    n = int(.35 * SR); t = np.arange(n) / SR
+    mx.add('drums', stereo(biquad(noise(n), 'hp', 5000) * np.exp(-t / .04) * .8, .4, 5), 0)
+    mx.add('kick', kick(.7), 0)
+    for k, m in enumerate((96, 103, 108)):
+        mx.add('bells', note('celesta', m, .2, .45 - .1 * k, release=1.2), .08 + k * .07)
+    mx.add('bells', note('tinkle_bell', 100, .3, .3, release=1.4), .3)
+    return mx.render(duck=0)
+
+def statue_repart():
+    """Statues musicales : c'est reparti, petit « wizz » qui remonte et coup de caisse claire."""
+    mx = Mix(3, tail=1)
+    mx.add('fx', noise_riser(.45, .5, 400, 6000), 0)
+    mx.add('drums', snare(.6), .9)
+    mx.add('brass', note('brass_section', 79, .15, .6, release=.15), .9)
+    return mx.render(duck=0)
+
 def chiffre_roulette(duree=2.0):
     """Le Juste Chiffre : les chiffres défilent vite puis ralentissent et se posent pile à `duree` (l'or de la révélation)."""
     mx = Mix(duree / B + 2, tail=.6)
@@ -955,6 +1001,152 @@ def suspense_reponse(duree=12.0):
     y = mx.render(duck=.2)
     return y[:int(duree * SR)]
 
+def bed_magie():
+    """Qui a disparu ? : mémorisation, boîte à musique et harpe sur nappe douce ; mystérieux, sans presser."""
+    mx = Mix(32 * 3, tail=.5)
+    prog = ['Am', 'F', 'Dm', 'Em', 'Am', 'F', 'Dm', 'G']
+    for bi in range(24):
+        notes, root = CH[prog[bi % 8]]
+        b0 = bi * 4
+        mx.add('strings', chord('pad_2_warm', [m + 12 for m in notes], 4 * B - .05, .2, attack=.4, release=.6), b0)
+        mx.add('bass', note('acoustic_bass', root, 2 * B, .35, release=.3), b0)
+        arp = [notes[0] + 12, notes[2] + 12, notes[1] + 24, notes[3] + 12]
+        for s8 in range(8):
+            mx.add('strings', note('orchestral_harp', arp[s8 % 4], .5 * B, .32 + (.08 if s8 % 4 == 0 else 0), release=.5), b0 + s8 * .5)
+        if bi % 2 == 0:
+            mx.add('drums', shaker(.12), b0 + 1); mx.add('drums', shaker(.12), b0 + 3)
+    air = [(76, 0, 1.5), (72, 1.5, .5), (74, 2, 1), (71, 3, 1), (72, 4, 1.5), (69, 5.5, .5), (71, 6, 2)]
+    for rep in range(3):
+        for half in (0, 16):
+            for m, o, d in air:
+                mx.add('bells', note('music_box', m + 12, d * B, .3, release=1.0), rep * 32 + half + 8 + o)
+        mx.add('bells', note('tinkle_bell', 100, .1, .1, release=.5), rep * 32 + 15.5)
+    y = mx.render(duck=.25)
+    n = int(32 * B * SR)
+    return y[n:2 * n]
+
+def magie():
+    """Qui a disparu ? : « abracadabra », 3 s de tourbillon scintillant qui monte jusqu'au tour de magie."""
+    mx = Mix(6, tail=1.0)
+    mx.add('fx', reverse_swell(2.9, .55), 0)
+    mx.add('fx', noise_riser(2.9, .25, 400, 7000), 0)
+    for k in range(22):
+        m = 72 + (k * 5) % 24
+        mx.add('bells', note('celesta', m, .1, .22 + .02 * k, release=.3), k * (2.8 / 22) / B)
+    for k in range(10):
+        mx.add('bells', note('tinkle_bell', 96 + (k % 4) * 3, .1, .1 + .02 * k, release=.4), (1.5 + k * .13) / B)
+    mx.add('strings', chord('pad_7_halo', [57, 64, 69, 72], 2.9, .3, attack=1.2, release=.3), 0)
+    return mx.render(duck=0)
+
+def magie_pouf():
+    """Qui a disparu ? : « pouf ! » l'objet s'évapore, nuage de fumée et cascade de harpe qui redescend."""
+    mx = Mix(4, tail=1.5)
+    n = int(.6 * SR); t = np.arange(n) / SR
+    pouf = biquad(noise(n), 'lp', 900) * np.exp(-t / .09) * 1.2 + np.sin(2 * np.pi * 90 * t) * np.exp(-t / .07) * .6
+    mx.add('fx', stereo(pouf, .4, 8), 0)
+    mx.add('fx', whoosh(.6, .35, .05, 5000, 600), 0)
+    for k, m in enumerate([96, 93, 91, 88, 86, 84, 81, 79, 76, 74, 72, 69]):
+        mx.add('strings', note('orchestral_harp', m - 12, .25, .5 - .02 * k, release=.6), (.08 + k * .045) / B)
+    for k in range(6):
+        mx.add('bells', note('tinkle_bell', 100 + (k % 3) * 4, .1, .2, release=.6), (.05 + k * .07) / B)
+    mx.add('bells', note('celesta', 84, .3, .4, release=1.0), .7 / B)
+    return mx.render(duck=0)
+
+def couper(y, duree, fondu=.5):
+    """Raccourcit un son à [duree] s avec un fondu : les sons courts restent sous 5 s (SoundPool de la box)."""
+    y = y[:int(duree * SR)].copy(); f = int(fondu * SR)
+    y[-f:] *= np.linspace(1, 0, f)[:, None]
+    return y
+
+def bt_generique():
+    """Blind test : générique court. Le diamant se pose, scratch, puis riff disco cuivres + basse et un « hit » final."""
+    mx = Mix(10, tail=2.0)
+    mx.add('fx', bt_diamant() * .6, 0)
+    mx.add('fx', bt_scratch() * .8, .9)
+    riff = [(67, 0, .5), (70, .5, .5), (72, 1, .5), (74, 1.5, .25), (75, 1.75, .75), (74, 2.5, .5), (72, 3, 1)]
+    b0 = 2
+    for m, o, d in riff:
+        mx.add('brass', note('brass_section', m, d * B, .8, release=.15), b0 + o)
+        mx.add('bells', note('glockenspiel', m + 24, .12, .2, release=.4), b0 + o)
+    for k in range(8):
+        mx.add('bass', note('electric_bass_finger', 43 if k % 2 == 0 else 55, B * .42, .9, release=.06), b0 + k * .5)
+        mx.add('kick', kick(.9), b0 + k * .5) if k % 2 == 0 else mx.add('drums', hat(.5, open_=True), b0 + k * .5)
+        if k % 4 == 2: mx.add('drums', clap(.7), b0 + k * .5)
+    mx.add('brass', chord('brass_section', [55, 62, 67, 72], 1.5 * B, 1.0, release=.6), b0 + 4)
+    mx.add('brass', note('orchestra_hit', 55, 1, .7), b0 + 4)
+    mx.add('fx', crash(.6, 2.0), b0 + 4)
+    return mx.render(duck=0)
+
+def bt_buzz():
+    """Blind test : buzzer spécifique. Le disque freine (scratch) et un « BWAP » de cuivres + cloche annonce l'équipe."""
+    mx = Mix(3, tail=1.5)
+    mx.add('fx', bt_scratch() * .7, 0)
+    mx.add('brass', chord('brass_section', [58, 65, 70], .45, 1.0, release=.2), .22 / B)
+    mx.add('brass', note('orchestra_hit', 58, .5, .7), .22 / B)
+    mx.add('kick', kick(1.0), .22 / B)
+    mx.add('bells', note('tubular_bells', 82, .6, .45, release=1.2), .25 / B)
+    return mx.render(duck=0)
+
+def bt_attente(duree=14.0):
+    """Blind test : attente de la réponse. Pulsation feutrée (charleston, pizz, nappe), on retient son souffle."""
+    beats = int(duree / B)
+    mx = Mix(beats + 2, tail=.5)
+    for k in range(beats * 2):
+        mx.add('drums', hat(.18 + (.08 if k % 2 == 0 else 0)), k * .5)
+    for k in range(beats):
+        mx.add('strings', note('pizzicato_strings', (45, 52, 48, 52)[k % 4], B * .5, .45, release=.1), k)
+    for b in range(0, beats, 8):
+        mx.add('strings', chord('pad_7_halo', [57, 64, 69], 8 * B - .1, .2, attack=1.0, release=.6), b)
+    y = mx.render(duck=0)
+    n = int(duree * SR); y = y[:n]
+    y[-int(.4 * SR):] *= np.linspace(1, 0, int(.4 * SR))[:, None]
+    return y
+
+def bt_bravo():
+    """Blind test : bonne réponse. Rembobinage du vinyle, coup de cymbale et fanfare de cuivres qui s'ouvre."""
+    mx = Mix(8, tail=2.5)
+    n = int(.45 * SR); t = np.arange(n) / SR
+    rewind = sweep_bp(noise(n), 400, 5000, 3) * np.sin(np.pi * t / .45) * .6
+    mx.add('fx', stereo(rewind, .3, 4), 0)
+    b0 = .5 / B
+    mx.add('fx', crash(.8, 2.5), b0)
+    mx.add('kick', kick(1.0), b0)
+    fan = [(60, 0, .5), (64, .5, .5), (67, 1, .5), (72, 1.5, 2)]
+    for m, o, d in fan:
+        mx.add('brass', chord('brass_section', [m, m + 4, m + 7], d * B, .9, release=.3), b0 + o)
+    for k in range(10):
+        mx.add('bells', note('glockenspiel', 84 + (k * 4) % 12, .15, .3, release=.6), b0 + 1.5 + k * .12)
+    return mx.render(duck=0)
+
+def bt_double():
+    """Blind test : « points doublés ! ». Montée, deux impacts (× 2) et éclat de cuivres, festif et solennel."""
+    mx = Mix(8, tail=2.5)
+    mx.add('fx', noise_riser(2 * B * 2, .5), 0)
+    mx.add('drums', roll(4 * B, .7), 0)
+    for k, b in enumerate((4, 5)):
+        mx.add('brass', note('orchestra_hit', 60 + 7 * k, .6, .9), b)
+        mx.add('kick', kick(1.0), b)
+        mx.add('drums', note('timpani', 36 + 7 * k, 1.0, 1.0), b)
+    mx.add('brass', chord('brass_section', [60, 67, 72, 76], 2 * B, 1.0, release=.6), 6)
+    mx.add('fx', crash(.7, 2.5), 6)
+    for k in range(8):
+        mx.add('bells', note('glockenspiel', 84 + (k % 4) * 3, .12, .3, release=.6), 6 + k * .2)
+    return mx.render(duck=0)
+
+def bt_outro():
+    """Blind test : conclusion. Le riff du générique ralenti, accord final et le disque qui s'arrête."""
+    mx = Mix(10, tail=2.5)
+    riff = [(67, 0, .5), (70, .5, .5), (72, 1, .5), (74, 1.5, .5), (79, 2, 2)]
+    for m, o, d in riff:
+        mx.add('brass', note('brass_section', m, d * B * 1.2, .8, release=.3), o * 1.2)
+        mx.add('bells', note('glockenspiel', m + 24, .2, .2, release=.6), o * 1.2)
+    mx.add('brass', chord('brass_section', [55, 62, 67, 71, 74], 3 * B, .9, release=1.0), 2.4)
+    mx.add('fx', crash(.5, 2.5), 2.4)
+    n = int(1.0 * SR); t = np.arange(n) / SR
+    arret = np.sin(2 * np.pi * np.cumsum(np.linspace(220, 25, n)) / SR) * np.exp(-t / .3) * .35
+    mx.add('fx', stereo(arret), 2.4 + 3)
+    return mx.render(duck=0)
+
 PIECES = {
     'generique': (generique, -14.5), 'bed_full': (lambda: bed('full'), -15.5), 'bed_light': (lambda: bed('light'), -18.5),
     'tension': (tension, -16), 'riser_4b': (riser_4b, -17), 'impact': (impact, -15), 'round_sting': (round_sting, -15),
@@ -968,19 +1160,21 @@ PIECES = {
     'bed_express': (bed_express, -16.5), 'vf_vrai': (vf_vrai, -17), 'vf_faux': (vf_faux, -20),
     'chiffre_roulette': (chiffre_roulette, -19), 'chiffre_pile': (chiffre_pile, -15),
     'zoom_ouverture': (zoom_ouverture, -21), 'zoom_revele': (zoom_revele, -16),
-    'buzz_gros': (buzz_gros, -15), 'flou_montee': (flou_montee, -22), 'suspense_reponse': (suspense_reponse, -19), 'indice': (indice, -21),
+    'buzz_gros': (buzz_gros, -15), 'flou_montee': (flou_montee, -22), 'suspense_reponse': (suspense_reponse, -19), 'indice': (indice, -21), 'bt_diamant': (bt_diamant, -26), 'bt_scratch': (bt_scratch, -17), 'statue_gel': (statue_gel, -17), 'statue_repart': (statue_repart, -19),
+    'bt_generique': (lambda: couper(bt_generique(), 4.8), -15), 'bt_buzz': (bt_buzz, -15), 'bt_attente': (bt_attente, -21), 'bt_bravo': (bt_bravo, -15), 'bt_double': (lambda: couper(bt_double(), 4.8), -15), 'bt_outro': (lambda: couper(bt_outro(), 4.8), -16),
+    'bed_magie': (bed_magie, -18.5), 'magie': (magie, -19), 'magie_pouf': (magie_pouf, -17),
     'bed_mimes': (bed_mimes, -16.5), 'bed_pause': (bed_pause, -19), 'pause_in': (pause_in, -18), 'transition': (transition, -15),
 }
 for i in range(4):
     PIECES[f'pop_{i + 1}'] = ((lambda i=i: pop(i)), -22)
     PIECES[f'team_sting_{i + 1}'] = ((lambda i=i: team_sting(i)), -17)
     PIECES[f'fun_buzz_{i + 1}'] = ((lambda i=i: fun_buzz(i)), -20)
-LOOPS = {'bed_full': 32, 'bed_light': 32, 'bed_mimes': 32, 'bed_pause': 32, 'bed_express': 32}
+LOOPS = {'bed_full': 32, 'bed_light': 32, 'bed_mimes': 32, 'bed_pause': 32, 'bed_express': 32, 'bed_magie': 32}
 
 if __name__ == '__main__':
     only = sys.argv[2:] or list(PIECES)
     for name in only:
         fn, rms = PIECES[name]
         y = fn()
-        p = save(name, y, beats=LOOPS.get(name), loop=name in LOOPS, rms=rms, fade_tail=name not in LOOPS and name not in ('tension', 'mime_tension', 'flou_montee', 'suspense_reponse', 'riser_4b', 'drumroll_2b', 'drumroll_4b'))
+        p = save(name, y, beats=LOOPS.get(name), loop=name in LOOPS, rms=rms, fade_tail=name not in LOOPS and name not in ('bt_attente', 'tension', 'mime_tension', 'flou_montee', 'suspense_reponse', 'riser_4b', 'drumroll_2b', 'drumroll_4b'))
         print(f'{name:16s} {len(y) / SR:6.2f} s  -> {p}', flush=True)

@@ -81,12 +81,13 @@ fun HabillageTv(state: UiState) {
     }
     val urgent = chronoUrgent(state as? UiState.Playing)
     val indices = indicesQuiSuis(state as? UiState.Playing)
-    val instant = remember(state, urgent, indices) { instantDe(state, urgent, System.currentTimeMillis(), indices) }
+    val statue = statueFigee(state as? UiState.Playing)
+    val instant = remember(state, urgent, indices, statue) { instantDe(state, urgent, System.currentTimeMillis(), indices, statue) }
     LaunchedEffect(instant) { Sons.executer(Habillage.directeur.observer(instant)) }
     DecorPlateau(chaud = urgent)
 }
 
-internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indices: Int = 0): Instant {
+internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indices: Int = 0, statue: Boolean = false): Instant {
     val s = state as? UiState.Playing ?: return Instant(Ecran.HORS_PARTIE)
     val ecran = when (s.phase) {
         Phase.LOBBY -> Ecran.SALON
@@ -127,23 +128,35 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         buzzEquipe = s.teams.indexOfFirst { it.uid == s.buzzTeam },
         ratees = s.buzzBlocked.size,
         indices = indices,
+        // Blind test, quiz musical (extrait bien reçu), statues : la TV joue déjà une musique, l'habillage se tait.
+        musical = s.question?.let { q -> q.isStatues || q.audioId?.let { s.sounds[it] } != null } == true,
+        statue = statue && s.question?.isStatues == true,
         nombre = s.question?.isNumber == true,
         pile = s.phase == Phase.REVEAL && s.question?.isNumber == true && s.awards.values.any { it.choice == s.question?.correct },
         epreuve = s.question?.takeIf { s.phase == Phase.QUESTION || s.phase == Phase.CLOSED || s.phase == Phase.REVEAL }?.let(::epreuveDe) ?: "",
     )
 }
 
-/** Le jeu auquel appartient une question : les mimes, ou une manche de quiz (toutes ses questions ensemble). */
-internal fun epreuveDe(q: Question) = when (q.kind) {
-    QuestionKind.MIME -> "mimes"
-    QuestionKind.NUMBER -> "chiffre"
-    QuestionKind.EXPRESS -> "express"
-    QuestionKind.ZOOM -> "zoom"
-    QuestionKind.FLOU -> "flou"
-    QuestionKind.CHANTE -> "chante"
-    QuestionKind.QUISUIS -> "quisuis"
-    else -> "quiz"
-} + "|" + (q.roundTitle ?: "")
+/**
+ * Le jeu auquel appartient une question : les mimes, ou une manche. Une manche nommée reste un seul jeu même
+ * si elle mélange des types de questions (quiz et Juste Chiffre) : le rideau ne passe qu'à son début.
+ */
+internal fun epreuveDe(q: Question): String {
+    val titre = q.roundTitle?.takeIf { it.isNotBlank() }
+    if (q.kind == QuestionKind.MIME) return "mimes|" + (titre ?: "")
+    if (titre != null) return "manche|$titre"
+    return when (q.kind) {
+        QuestionKind.NUMBER -> "chiffre"
+        QuestionKind.EXPRESS -> "express"
+        QuestionKind.ZOOM -> "zoom"
+        QuestionKind.FLOU -> "flou"
+        QuestionKind.CHANTE -> "chante"
+        QuestionKind.QUISUIS -> "quisuis"
+        QuestionKind.BLIND -> "blind"
+        QuestionKind.STATUES -> "statues"
+        else -> "quiz"
+    } + "|"
+}
 
 /** Qui suis-je ? : nombre d'indices affichés, calculé comme le plateau (chrono à l'heure du serveur). */
 @Composable
@@ -168,6 +181,32 @@ private fun indicesQuiSuis(s: UiState.Playing?): Int {
 }
 
 /**
+ * Statues musicales : vrai pendant une statue (musique coupée), calculé comme le plateau. Chrono arrêté (pause) :
+ * la valeur reste, pour ne pas sonner « on repart » quand l'animatrice met en pause.
+ */
+@Composable
+private fun statueFigee(s: UiState.Playing?): Boolean {
+    var figee by remember { mutableStateOf(false) }
+    val q = s?.question?.takeIf { it.isStatues }
+    val deadline = if (s != null && q != null && s.phase == Phase.QUESTION && !s.paused) s.deadline else null
+    val depart = s?.resumeAt ?: 0L
+    val decalage = s?.serverOffset ?: 0L
+    LaunchedEffect(q?.id, deadline, depart, s?.phase) {
+        if (q == null || s?.phase != Phase.QUESTION) figee = false
+        if (q == null || deadline == null) return@LaunchedEffect
+        while (true) {
+            val maintenant = System.currentTimeMillis() + decalage
+            val reste = (deadline - maxOf(maintenant, depart)).coerceAtLeast(0)
+            // Pendant le décompte 3, 2, 1 d'une reprise, rien ne bouge.
+            if (maintenant >= depart) figee = reste > 0 && q.statueAt(q.durationMs - reste)
+            if (reste == 0L) break
+            delay(100)
+        }
+    }
+    return figee
+}
+
+/**
  * Vrai pendant la fin du chrono (5 dernières secondes d'une question, 10 d'un tour de mimes), calculé comme
  * le chrono affiché (heure du serveur).
  */
@@ -183,8 +222,11 @@ private fun chronoUrgent(s: UiState.Playing?): Boolean {
         }
         val depart = s.resumeAt ?: 0L
         while (true) {
-            val reste = deadline - maxOf(System.currentTimeMillis() + s.serverOffset, depart)
-            urgent = reste in 1..fenetre
+            val maintenant = System.currentTimeMillis() + s.serverOffset
+            val reste = deadline - maxOf(maintenant, depart)
+            // Pas pendant le décompte 3, 2, 1 d'une reprise : la tension attend que le chrono reparte. Elle tient
+            // jusqu'au changement d'écran (la box ferme la question un peu après zéro), sans retomber à zéro.
+            urgent = maintenant >= depart && reste <= fenetre
             if (reste <= 0) break
             delay(100)
         }
@@ -216,7 +258,7 @@ fun DecorPlateau(chaud: Boolean) {
             Modifier.fillMaxSize().drawWithCache {
                 val w = size.width
                 val h = size.height
-                val fond = Brush.radialGradient(listOf(Color(0xFF24093F), Color(0xFF130726), Neon.Nuit), Offset(w / 2, 0f), w * 0.85f)
+                val fond = Brush.radialGradient(listOf(Color(0xFF33115A), Color(0xFF1F0E3A), Color(0xFF160B2B)), Offset(w / 2, 0f), w * 0.85f)
                 val lignes = sol(w, h)
                 val faisceaux = listOf(faisceau(w, h, 0.18f, 16f), faisceau(w, h, 0.82f, -16f))
                 onDrawBehind {

@@ -102,7 +102,10 @@ class DirecteurSonore {
             Ecran.QUESTION -> {
                 // Le Vrai ou Faux express garde sa musique nerveuse d'un bout à l'autre de la série.
                 val musique = ambiance(i)
-                if (nouvelleEpreuve) {
+                if (i.musical) {
+                    // La chanson part dès l'ouverture : aucun jingle par-dessus (le rideau, lui, passe quand même).
+                    o += Ordre.Musique(Ambiance.SILENCE)
+                } else if (nouvelleEpreuve) {
                     o += Ordre.Jouer(Son.TRANSITION)
                     o += Ordre.Musique(Ambiance.SILENCE)
                     o += Ordre.Musique(musique, Tempo.TRANSITION_MUSIQUE)
@@ -119,7 +122,11 @@ class DirecteurSonore {
                 if (i.zoom) o += Ordre.Jouer(Son.ZOOM_OUVERTURE, Tempo.PROPOSITIONS_DEBUT)
                 // Image floue : une longue montée accompagne la photo qui se précise.
                 if (i.flou) o += Ordre.Jouer(Son.FLOU_MONTEE, Tempo.PROPOSITIONS_DEBUT)
-                for (k in 0 until i.propositions.coerceIn(0, 8)) {
+                // Extrait musical (blind test, quiz musical) : le diamant se pose sur le disque quand la chanson part.
+                if (i.musical) o += Ordre.Jouer(Son.BT_DIAMANT)
+                // Une bulle par proposition affichée ; les jeux au buzzer n'en affichent aucune.
+                val bulles = if (i.jeuBuzz) 0 else i.propositions.coerceIn(0, 8)
+                for (k in 0 until bulles) {
                     o += Ordre.Jouer(Son.pop(k), Tempo.propositionApparait(k))
                 }
             }
@@ -172,7 +179,8 @@ class DirecteurSonore {
                 }
                 // Chante le mot : on applaudit la chanson.
                 if (i.chante && i.gagnants > 0) o += Ordre.Jouer(Son.APPLAUDISSEMENTS, Tempo.BUZZ_BRAVO)
-                o += Ordre.Musique(Ambiance.FETE, Tempo.BUZZ_BRAVO)
+                // Blind test : la chanson repart en grand pendant qu'on découvre le titre, rien par-dessus.
+                if (!i.musical) o += Ordre.Musique(Ambiance.FETE, Tempo.BUZZ_BRAVO)
                 for (k in 0 until i.gagnants.coerceIn(0, 8)) o += Ordre.Jouer(Son.TAMPON, Tempo.tampon(k))
                 if (i.gagnants > 0) o += Ordre.Jouer(Son.POINTS, Tempo.REVELATION_POINTS)
             } else if (i.express) {
@@ -189,7 +197,7 @@ class DirecteurSonore {
                 }
                 o += Ordre.Jouer(Son.BONNE_REPONSE, Tempo.REVELATION_OR)
                 o += Ordre.Jouer(Son.IMPACT, Tempo.REVELATION_OR)
-                o += Ordre.Musique(Ambiance.FETE, Tempo.REVELATION_OR)
+                if (!i.musical) o += Ordre.Musique(Ambiance.FETE, Tempo.REVELATION_OR)
                 for (k in 0 until i.gagnants.coerceIn(0, 8)) {
                     o += Ordre.Jouer(Son.TAMPON, Tempo.tampon(k))
                 }
@@ -226,11 +234,23 @@ class DirecteurSonore {
             // La tension des 5 dernières secondes s'arrête quand le temps repart ou que tout le monde a répondu.
             // Pas de tension en express : le chrono entier ne dure que quelques secondes.
             // Pas de tension dans les jeux au buzzer : le buzz et le suspense de la réponse en tiennent lieu.
-            val enTension = p.urgent && !tousOntRepondu(p) && !p.express && !p.jeuBuzz
-            val tension = i.urgent && !tousOntRepondu(i) && !i.express && !i.jeuBuzz
+            val enTension = p.urgent && !tousOntRepondu(p) && !p.express && !p.jeuBuzz && !p.musical
+            val tension = i.urgent && !tousOntRepondu(i) && !i.express && !i.jeuBuzz && !i.musical
             if (tension && !enTension && !p.urgent) o += Ordre.Jouer(Son.TENSION)
             if (enTension && !tension) o += Ordre.Arreter(Son.TENSION)
             if (i.jeuBuzz) o += buzzJeu(p, i)
+            // Qui a disparu ? : « abracadabra » au début du tour de magie, « pouf ! » quand l'objet a disparu.
+            if (i.disparu == DISPARU_MAGIE && p.disparu == DISPARU_MEMORISER) {
+                o += Ordre.Jouer(Son.MAGIE)
+                o += Ordre.Musique(ambiance(i))
+            }
+            if (i.disparu >= DISPARU_CHERCHER && p.disparu in DISPARU_MEMORISER..DISPARU_MAGIE) {
+                o += Ordre.Jouer(Son.MAGIE_POUF)
+                o += Ordre.Musique(ambiance(i))
+            }
+            // Statues musicales : « gel ! » quand la musique s'arrête, petit élan quand elle repart.
+            if (i.statue && !p.statue) o += Ordre.Jouer(Son.STATUE_GEL)
+            if (!i.statue && p.statue) o += Ordre.Jouer(Son.STATUE_REPART)
         }
         if (i.ecran == Ecran.MIMES_TOUR) {
             if (i.trouves > p.trouves) o += Ordre.Jouer(Son.MIME_TROUVE)
@@ -255,17 +275,22 @@ class DirecteurSonore {
     private fun buzzJeu(p: Instant, i: Instant): List<Ordre> {
         val o = mutableListOf<Ordre>()
         if (i.indices > p.indices && p.indices > 0 && i.buzzEquipe < 0) o += Ordre.Jouer(Son.INDICE)
-        if (i.buzzEquipe >= 0 && p.buzzEquipe < 0) {
-            o += Ordre.Arreter(Son.FLOU_MONTEE)
+        val nouveauBuzz = i.buzzEquipe >= 0 && i.buzzEquipe != p.buzzEquipe
+        val repart = i.buzzEquipe < 0 && p.buzzEquipe >= 0
+        // Annule d'abord tout ce qui était prévu (musique qui revenait après un raté, suspense, montée de l'image) :
+        // un deuxième buzz juste après un raté ne doit jamais entendre la musique repartir sous sa réponse.
+        if (nouveauBuzz || repart) o += Ordre.Couper
+        // Jamais moqueur : un petit « pouet » gentil quand une équipe s'est trompée.
+        if ((nouveauBuzz || repart) && i.ratees > p.ratees) o += Ordre.Jouer(Son.VF_FAUX)
+        if (nouveauBuzz) {
+            // Blind test : le disque s'arrête net (scratch) au moment du buzz.
+            if (i.musical) o += Ordre.Jouer(Son.BT_SCRATCH)
             o += Ordre.Musique(Ambiance.SILENCE)
             o += Ordre.Jouer(Son.BUZZ_GROS)
             o += Ordre.Jouer(Son.equipe(i.buzzEquipe), Tempo.FLOU_EQUIPE)
             if (!i.chante) o += Ordre.Jouer(Son.SUSPENSE_REPONSE, Tempo.FLOU_SUSPENSE)
-        }
-        if (i.buzzEquipe < 0 && p.buzzEquipe >= 0) {
-            o += Ordre.Arreter(Son.SUSPENSE_REPONSE)
-            // Jamais moqueur : un petit « pouet » gentil, et l'image reprend avec la musique.
-            if (i.ratees > p.ratees) o += Ordre.Jouer(Son.VF_FAUX)
+        } else if (repart) {
+            // L'image (ou la chanson) reprend, avec sa musique.
             o += Ordre.Musique(ambiance(i), Tempo.FLOU_REPRISE)
         }
         return o
@@ -278,7 +303,12 @@ class DirecteurSonore {
         Ecran.SALON -> Ambiance.SALON
         Ecran.QUESTION, Ecran.VERROUILLEE, Ecran.REVELATION -> when {
             i.express -> Ambiance.EXPRESS
+            // Extrait musical : rien ne doit couvrir la chanson.
+            i.musical && i.ecran != Ecran.VERROUILLEE -> Ambiance.SILENCE
             // Image floue : musique en retrait pendant que l'image se précise, silence pendant qu'une équipe répond.
+            // Qui a disparu ? : musique douce pour mémoriser, presque rien pendant le tour de magie.
+            i.disparu == DISPARU_MEMORISER && i.ecran == Ecran.QUESTION -> Ambiance.MEMOIRE
+            i.disparu == DISPARU_MAGIE && i.ecran == Ecran.QUESTION -> Ambiance.ENVOUTEMENT
             i.jeuBuzz && i.ecran == Ecran.QUESTION -> if (i.buzzEquipe >= 0) Ambiance.SILENCE else Ambiance.SUSPENSE
             else -> ambianceParDefaut(i.ecran)
         }
@@ -333,15 +363,26 @@ data class Instant(
      * verdict (-1 sinon), équipes déjà ratées, indices de Qui suis-je déjà affichés.
      */
     val jeuBuzz: Boolean = false,
+    /** La question fait entendre un extrait musical (blind test, quiz musical) : l'habillage se tait. */
+    val musical: Boolean = false,
+    /** Statues musicales : la musique du jeu est arrêtée, tout le monde se fige. */
+    val statue: Boolean = false,
     val flou: Boolean = false,
     val chante: Boolean = false,
     val indices: Int = 0,
     val buzzEquipe: Int = -1,
     val ratees: Int = 0,
+    /** Qui a disparu ? : étape du jeu ([DISPARU_MEMORISER]…[DISPARU_REPONSE]), 0 pour les autres jeux. */
+    val disparu: Int = 0,
     /** Le Juste Chiffre : révélation d'un nombre, et une équipe l'a trouvé pile. */
     val nombre: Boolean = false,
     val pile: Boolean = false,
 )
+
+const val DISPARU_MEMORISER = 1
+const val DISPARU_MAGIE = 2
+const val DISPARU_CHERCHER = 3
+const val DISPARU_REPONSE = 4
 
 /** [MIMES] : manche de mimes entre deux tours ; [MIMES_TOUR] : une équipe mime. */
 enum class Ecran { HORS_PARTIE, SALON, QUESTION, MIMES, MIMES_TOUR, VERROUILLEE, REVELATION, CLASSEMENT, FIN }
@@ -353,6 +394,7 @@ enum class Lit(val fichier: String) {
     MIMES("lmp_bed_mimes"),
     PAUSE("lmp_bed_pause"),
     EXPRESS("lmp_bed_express"),
+    MAGIE("lmp_bed_magie"),
 }
 
 /** Fond musical : le volume de chaque boucle selon l'ambiance (fondu enchaîné de l'une à l'autre). */
@@ -362,6 +404,7 @@ enum class Ambiance(
     private val mimes: Float = 0f,
     private val pause: Float = 0f,
     private val express: Float = 0f,
+    private val magie: Float = 0f,
 ) {
     SILENCE,
     SALON(complete = 0.55f),
@@ -375,7 +418,11 @@ enum class Ambiance(
     /** Pause : musique lounge feutrée, qui tient aussi longtemps qu'il faut. */
     INTERMEDE(pause = 0.5f),
     /** Vrai ou Faux express : course contre la montre, sur toute la série. */
-    EXPRESS(express = 0.5f);
+    EXPRESS(express = 0.5f),
+    /** Qui a disparu ? : boîte à musique et harpe pendant qu'on mémorise les objets. */
+    MEMOIRE(magie = 0.55f),
+    /** Qui a disparu ? : le tour de magie, la boîte à musique s'efface sous l'« abracadabra ». */
+    ENVOUTEMENT(magie = 0.18f);
 
     fun volume(l: Lit) = when (l) {
         Lit.COMPLET -> complete
@@ -383,6 +430,7 @@ enum class Ambiance(
         Lit.MIMES -> mimes
         Lit.PAUSE -> pause
         Lit.EXPRESS -> express
+        Lit.MAGIE -> magie
     }
 }
 
@@ -426,6 +474,18 @@ enum class Son(val fichier: String, val long: Boolean = false) {
     BUZZ_GROS("lmp_buzz_gros"),
     SUSPENSE_REPONSE("lmp_suspense_reponse", true),
     INDICE("lmp_indice"),
+    BT_DIAMANT("lmp_bt_diamant"),
+    BT_SCRATCH("lmp_bt_scratch"),
+    STATUE_GEL("lmp_statue_gel", true),
+    STATUE_REPART("lmp_statue_repart"),
+    MAGIE("lmp_magie"),
+    MAGIE_POUF("lmp_magie_pouf"),
+    BT_GENERIQUE("lmp_bt_generique"),
+    BT_BUZZ("lmp_bt_buzz"),
+    BT_ATTENTE("lmp_bt_attente", true),
+    BT_BRAVO("lmp_bt_bravo"),
+    BT_DOUBLE("lmp_bt_double"),
+    BT_OUTRO("lmp_bt_outro"),
     RIGOLO_1("lmp_fun_buzz_1"), RIGOLO_2("lmp_fun_buzz_2"), RIGOLO_3("lmp_fun_buzz_3"), RIGOLO_4("lmp_fun_buzz_4"),
     EQUIPE_1("lmp_team_sting_1"), EQUIPE_2("lmp_team_sting_2"), EQUIPE_3("lmp_team_sting_3"), EQUIPE_4("lmp_team_sting_4");
 
@@ -485,6 +545,7 @@ object Tempo {
     const val FLOU_REPRISE = 600L
     /** Jeux au buzzer : applaudissements et musique de fête juste après la réponse. */
     const val BUZZ_BRAVO = 400L
+
     const val TRANSITION_MUSIQUE = 2_000L
     /** Durée du rideau plein écran qui annonce un nouveau jeu (assez court pour ne pas retarder la fête). */
     const val TRANSITION_RIDEAU = 2_600L
