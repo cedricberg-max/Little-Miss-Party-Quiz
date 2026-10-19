@@ -31,7 +31,7 @@ sealed interface Command {
     data class MimeStop(override val id: String, override val expectSeq: Int) : Command
 
     /** Image floue : la réponse orale de l'équipe qui a buzzé est bonne ([ok]) ou mauvaise. */
-    data class Judge(override val id: String, override val expectSeq: Int, val ok: Boolean) : Command
+    data class Judge(override val id: String, override val expectSeq: Int, val ok: Boolean, val bonus: Boolean = false) : Command
 
     /** Régie : aller au jeu (manche) qui commence à la question [index], [qid] vérifiant le programme. */
     data class Goto(override val id: String, override val expectSeq: Int, val index: Int, val qid: String) : Command
@@ -58,6 +58,8 @@ sealed interface Command {
                 "mime_stop" -> MimeStop(id, seq)
                 "buzz_ok" -> Judge(id, seq, true)
                 "buzz_ko" -> Judge(id, seq, false)
+                // Blind test : bon titre et bon artiste.
+                "buzz_bonus" -> Judge(id, seq, true, bonus = true)
                 "goto" -> Goto(id, seq, (m["index"] as Number).toInt(), m["qid"] as String)
                 else -> null
             }
@@ -118,7 +120,7 @@ fun Game.execute(
         is Command.MimeFix -> if (cmd.team !in teams) return refused("unknown_team") else mimeFix(cmd.team, cmd.delta, now)
         is Command.MimeStop -> mimeStop(now)
         // Un double appui ne juge qu'une fois : il visait l'équipe que la régie affichait.
-        is Command.Judge -> judgeBuzz(cmd.ok, now)
+        is Command.Judge -> judgeBuzz(cmd.ok, now, cmd.bonus)
         // Le programme a changé depuis l'affichage de la régie : rien n'est fait.
         is Command.Goto -> if (quiz.questions.getOrNull(cmd.index)?.id != cmd.qid) return refused("stale_program") else goto(cmd.index, now)
     }

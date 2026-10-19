@@ -45,7 +45,15 @@ enum class QuestionKind(val code: String) {
      * Qui suis-je ? : les indices ([Question.cards], dans l'ordre) apparaissent un à un au fil du chrono ; la
      * première équipe qui buzze dit qui c'est. Réponse unique : [Question.choices] contient le personnage.
      */
-    QUISUIS("quisuis");
+    QUISUIS("quisuis"),
+
+    /**
+     * Blind test : un extrait musical ([Question.audioId]) joue sur la TV ; la première équipe qui buzze donne
+     * le titre à voix haute et l'animatrice valide, avec un bonus si l'équipe cite aussi [Question.artist].
+     * Réponse unique : [Question.choices] contient le titre. La musique suit le chrono : elle se fige au buzz
+     * et pendant une pause, puis reprend là où elle s'était arrêtée.
+     */
+    BLIND("blind");
 
     companion object {
         fun of(code: String?): QuestionKind = entries.firstOrNull { it.code == code } ?: CLASSIC
@@ -71,6 +79,13 @@ data class Question(
      */
     val emoji: String? = null,
     val imageId: String? = null,
+    /** Blind test : l'artiste ou l'œuvre (dessin animé, film…), montré à la révélation ; facultatif. */
+    val artist: String? = null,
+    /**
+     * Extrait musical joué sur la TV pendant la question (games/<code>/sounds) : celui du blind test, ou d'une
+     * question de quiz musical à propositions. Absent ou introuvable : la question se joue sans musique.
+     */
+    val audioId: String? = null,
 ) {
     init {
         require(id.isNotBlank()) { "Question sans identifiant" }
@@ -80,7 +95,7 @@ data class Question(
             require(cards.size in 1..MAX_MIME_CARDS) { "Mimes $id : il faut 1 à $MAX_MIME_CARDS cartes" }
             require(cards.none { it.word.isBlank() }) { "Mimes $id : carte sans mot" }
             require(durationSec in 15..180) { "Mimes $id : tour entre 15 et 180 s" }
-        } else if (kind == QuestionKind.CHANTE || kind == QuestionKind.QUISUIS) {
+        } else if (kind == QuestionKind.CHANTE || kind == QuestionKind.QUISUIS || kind == QuestionKind.BLIND) {
             // Réponse orale jugée par l'animatrice : une seule réponse attendue, pas de propositions à l'écran.
             require(choices.size == 1 && choices[0].isNotBlank() && correct == 0) { "Question $id : une seule réponse attendue" }
             require(kind != QuestionKind.QUISUIS || cards.size in 2..MAX_CLUES) { "Qui suis-je $id : il faut 2 à $MAX_CLUES indices" }
@@ -108,9 +123,10 @@ data class Question(
     val isFlou: Boolean get() = kind == QuestionKind.FLOU
     val isChante: Boolean get() = kind == QuestionKind.CHANTE
     val isQuiSuis: Boolean get() = kind == QuestionKind.QUISUIS
+    val isBlind: Boolean get() = kind == QuestionKind.BLIND
 
     /** Jeux au buzzer : la première équipe qui buzze répond à voix haute, l'animatrice valide. */
-    val isBuzz: Boolean get() = isFlou || isChante || isQuiSuis
+    val isBuzz: Boolean get() = isFlou || isChante || isQuiSuis || isBlind
 
     /**
      * Qui suis-je ? : nombre d'indices visibles après [elapsedMs] de chrono. Le premier dès l'ouverture,

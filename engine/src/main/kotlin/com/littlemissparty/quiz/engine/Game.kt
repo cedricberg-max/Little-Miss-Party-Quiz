@@ -296,8 +296,12 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             if (s.phase != Phase.QUESTION || b == null || team == null || s.paused || q == null) null
             else if (e.ok) {
                 val factor = if (q.double) 2 else 1
-                val points = (if (b.blocked.isEmpty()) Scoring.BUZZ else Scoring.BUZZ_REBOUND) * factor
-                s.copy(phase = Phase.REVEAL, awards = s.awards + (q.id to mapOf(team to Award(q.correct, correct = true, points = points, bonus = 0))))
+                // Blind test : le plein tarif seulement pour un buzz dans les premières secondes de l'extrait
+                // (le chrono, figé au buzz, dit où en était la musique) ; bonus si l'artiste est cité aussi.
+                val first = b.blocked.isEmpty() && (!q.isBlind || s.elapsedAt(Long.MAX_VALUE) <= Scoring.BLIND_FAST_MS)
+                val bonus = if (e.bonus && q.isBlind) Scoring.BLIND_ARTIST * factor else 0
+                val points = (if (first) Scoring.BUZZ else Scoring.BUZZ_REBOUND) * factor + bonus
+                s.copy(phase = Phase.REVEAL, awards = s.awards + (q.id to mapOf(team to Award(q.correct, correct = true, points = points, bonus = bonus))))
             }
             // Mauvaise réponse : l'équipe est bloquée sur cette image, le chrono repart.
             else s.copy(buzz = b.copy(team = null, blocked = b.blocked + team), segments = s.segments + Segment(e.at))
@@ -424,7 +428,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     fun buzz(team: String, now: Long): GameEvent? = emit(Buzzed(nextSeq, now, team))
 
     /** Image floue : verdict de l'animatrice sur la réponse orale de l'équipe qui a buzzé. */
-    fun judgeBuzz(ok: Boolean, now: Long): GameEvent? = emit(BuzzJudged(nextSeq, now, ok))
+    fun judgeBuzz(ok: Boolean, now: Long, bonus: Boolean = false): GameEvent? = emit(BuzzJudged(nextSeq, now, ok, bonus && ok))
 
     /** Délai avant l'étape automatique du Vrai ou Faux express, ou null s'il n'y en a pas. */
     fun expressDelayMs(): Long? {
