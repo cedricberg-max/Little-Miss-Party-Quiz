@@ -480,6 +480,12 @@ enum class Son(val fichier: String, val long: Boolean = false) {
     STATUE_REPART("lmp_statue_repart"),
     MAGIE("lmp_magie"),
     MAGIE_POUF("lmp_magie_pouf"),
+    BT_GENERIQUE("lmp_bt_generique"),
+    BT_BUZZ("lmp_bt_buzz"),
+    BT_ATTENTE("lmp_bt_attente", true),
+    BT_BRAVO("lmp_bt_bravo"),
+    BT_DOUBLE("lmp_bt_double"),
+    BT_OUTRO("lmp_bt_outro"),
     RIGOLO_1("lmp_fun_buzz_1"), RIGOLO_2("lmp_fun_buzz_2"), RIGOLO_3("lmp_fun_buzz_3"), RIGOLO_4("lmp_fun_buzz_4"),
     EQUIPE_1("lmp_team_sting_1"), EQUIPE_2("lmp_team_sting_2"), EQUIPE_3("lmp_team_sting_3"), EQUIPE_4("lmp_team_sting_4");
 

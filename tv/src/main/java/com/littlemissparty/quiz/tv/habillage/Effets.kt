@@ -222,7 +222,7 @@ private class DevoileGauche(private val part: Float) : androidx.compose.ui.graph
 
 /** Rayons dorés qui tournent derrière le logo du générique : dessinés une fois, seul le calque tourne. */
 @Composable
-private fun Rayons(ms: () -> Float) {
+internal fun Rayons(ms: () -> Float) {
     Box(
         Modifier.fillMaxSize()
             .graphicsLayer { rotationZ = ms() / 1000f * 8f; alpha = (ms() / 800f).coerceIn(0f, 1f) }

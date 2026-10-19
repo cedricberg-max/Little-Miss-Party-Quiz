@@ -140,7 +140,7 @@ fun BlindTestBoard(joue: Boolean, revele: Boolean, manquant: Boolean, artiste: S
 
 /** Le disque : vinyle noir à sillons, reflet, étiquette rose qui passe à l'or à la révélation. */
 @Composable
-private fun Vinyle(or: Float, modifier: Modifier) {
+internal fun Vinyle(or: Float, modifier: Modifier) {
     Box(
         modifier.drawWithCache {
             val c = Offset(size.width / 2, size.height / 2)
