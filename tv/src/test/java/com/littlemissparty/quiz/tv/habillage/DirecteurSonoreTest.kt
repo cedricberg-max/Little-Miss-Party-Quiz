@@ -433,6 +433,55 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `blind test, generique a la presentation, diamant a chaque lancement, buzz dedie et attente, bravo, points doubles, outro`() {
+        val d = DirecteurSonore()
+        val bt = Instant(Ecran.QUESTION, partie = "ABCD", index = 12, equipes = 2, propositions = 0, jeuBuzz = true, musical = true,
+            blind = true, epreuve = "manche|Blind test")
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 11, equipes = 2))
+        // Présentation : le générique du blind test, pas encore de diamant ni de bulles.
+        val presentation = d.observer(bt.copy(blindPresentation = true))
+        assertEquals(listOf(Son.BT_GENERIQUE), presentation.sons())
+        assertEquals(Ambiance.SILENCE, presentation.musique())
+        // Sarah lance la chanson : le diamant se pose, une seule fois.
+        assertEquals(listOf(Son.BT_DIAMANT), d.observer(bt.copy(blindLecture = true)).sons())
+        assertTrue(d.observer(bt.copy(blindLecture = true)).isEmpty())
+        // Buzz : le buzzer du blind test, la note de l'équipe, puis l'attente feutrée ; ni scratch ni gros buzz.
+        val buzz = d.observer(bt.copy(buzzEquipe = 1))
+        assertEquals(listOf(Son.BT_BUZZ, Son.EQUIPE_2, Son.BT_ATTENTE), buzz.sons())
+        assertEquals(Ambiance.SILENCE, buzz.musique())
+        // Mauvaise réponse : petit « pouet », silence, l'attente se coupe ; puis Sarah relance la chanson.
+        val rate = d.observer(bt.copy(ratees = 1))
+        assertTrue(Ordre.Couper in rate)
+        assertEquals(listOf(Son.VF_FAUX), rate.sons())
+        assertEquals(Ambiance.SILENCE, rate.musique())
+        assertEquals(listOf(Son.BT_DIAMANT), d.observer(bt.copy(ratees = 1, blindLecture = true)).sons())
+        // Révélation avec un gagnant : fanfare du blind test, tampon et points ; raccourcie par Sarah, tout se tait.
+        val revele = d.observer(bt.copy(ecran = Ecran.REVELATION, ratees = 1, gagnants = 1))
+        assertEquals(listOf(Son.BT_BRAVO, Son.TAMPON, Son.POINTS), revele.sons())
+        assertFalse(revele.any { it is Ordre.Musique && it.ambiance == Ambiance.FETE })
+        assertEquals(listOf(Ordre.Couper), d.observer(bt.copy(ecran = Ecran.REVELATION, ratees = 1, gagnants = 1, blindCoupe = true)))
+        // Personne n'a trouvé : un simple carillon, jamais moqueur.
+        d.observer(bt.copy(index = 13, blindLecture = true))
+        assertEquals(listOf(Son.BONNE_REPONSE), d.observer(bt.copy(index = 13, ecran = Ecran.REVELATION)).sons())
+        // Premier morceau à points doublés : l'éclat de cuivres, une seule fois.
+        assertEquals(listOf(Son.BT_DOUBLE, Son.BT_DIAMANT), d.observer(bt.copy(index = 14, blindDouble = true, blindLecture = true)).sons())
+        d.observer(bt.copy(index = 14, ecran = Ecran.REVELATION, blindDouble = true))
+        assertFalse(Son.BT_DOUBLE in d.observer(bt.copy(index = 15, blindDouble = true, blindLecture = true)).sons())
+        // Bilan : l'outro, puis le classement et la fête une fois l'outro fini.
+        val bilan = d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 15, equipes = 2, blind = true, blindBilan = true, meneurAPoints = true))
+        assertEquals(listOf(Son.BT_OUTRO, Son.COMPTEUR, Son.COURONNE), bilan.sons())
+        assertEquals(Ordre.Musique(Ambiance.FETE, Tempo.BT_OUTRO_MUSIQUE), bilan.last())
+    }
+
+    @Test
+    fun `blind test, une box qui se reconnecte ne rejoue ni le generique ni les points doubles`() {
+        val d = DirecteurSonore()
+        val o = d.observer(Instant(Ecran.QUESTION, partie = "ABCD", index = 14, equipes = 2, jeuBuzz = true, musical = true,
+            blind = true, blindDouble = true, blindLecture = true))
+        assertEquals(listOf(Ordre.Musique(Ambiance.SILENCE)), o)
+    }
+
+    @Test
     fun `quiz musical a quatre titres, ni musique ni tension sur la chanson, revelation sans fete`() {
         val d = DirecteurSonore()
         val q = Instant(Ecran.QUESTION, partie = "ABCD", index = 14, equipes = 2, propositions = 4, musical = true)
