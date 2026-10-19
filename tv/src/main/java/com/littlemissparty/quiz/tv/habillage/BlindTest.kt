@@ -94,7 +94,7 @@ fun BlindTestBoard(joue: Boolean, manquant: Boolean, modifier: Modifier = Modifi
                 // Lumière de scène derrière le disque : elle respire au tempo pendant l'écoute.
                 Box(
                     Modifier.fillMaxHeight().aspectRatio(1f, matchHeightConstraintsFirst = true)
-                        .graphicsLayer { alpha = 0.25f + 0.35f * vie * battement.floatValue; scaleX = 1.15f; scaleY = 1.15f }
+                        .graphicsLayer { alpha = 0.3f + 0.15f * vie * battement.floatValue; scaleX = 1.15f; scaleY = 1.15f }
                         .background(Brush.radialGradient(listOf(Neon.Halo.copy(alpha = 0.40f), Color.Transparent))),
                 )
                 Platine(angle = { angle.floatValue }, leve = leve, or = 0f, modifier = Modifier.fillMaxHeight())

@@ -33,7 +33,7 @@ import com.littlemissparty.quiz.engine.QuestionKind
 import com.littlemissparty.quiz.tv.UiState
 import com.littlemissparty.quiz.tv.etapeDisparu
 import kotlin.math.cos
-import kotlin.math.exp
+import kotlin.math.PI
 import kotlin.math.sin
 import kotlinx.coroutines.delay
 
@@ -260,19 +260,21 @@ private fun chronoUrgent(s: UiState.Playing?): Boolean {
 
 /**
  * Le plateau : nuit violette, sol en perspective, deux projecteurs, et des halos et étincelles qui
- * battent au tempo de la musique. Tout est dessiné une seule fois dans deux calques ; seule l'opacité du
- * calque lumineux change, une vingtaine de fois par seconde, pour rester fluide sur une petite box et
- * laisser la main aux écrans du jeu. Dans les 5 dernières secondes, les bords chauffent (orange).
+ * respirent lentement (une respiration toutes les [RESPIRATION_MS], jamais au tempo : le battement à deux
+ * coups par seconde faisait clignoter tout l'écran). Tout est dessiné une seule fois dans deux calques ; seule
+ * l'opacité du calque lumineux change, pour rester fluide sur une petite box et laisser la main aux écrans du
+ * jeu. Dans les 5 dernières secondes, les bords chauffent (orange).
  */
+private const val RESPIRATION_MS = 7_000L
+
 @Composable
 fun DecorPlateau(chaud: Boolean) {
     val battement = remember { mutableFloatStateOf(0f) }
     LaunchedEffect(Unit) {
         while (true) {
-            val ms = SystemClock.elapsedRealtime() - Sons.departDesLits
-            val phase = Math.floorMod(ms, Tempo.TEMPS).toFloat() / Tempo.TEMPS
-            battement.floatValue = exp(-phase * 4.5f)
-            delay(50)
+            val phase = Math.floorMod(SystemClock.elapsedRealtime(), RESPIRATION_MS).toFloat() / RESPIRATION_MS
+            battement.floatValue = 0.5f - 0.5f * cos(2f * PI.toFloat() * phase)
+            delay(80)
         }
     }
     val chaleur by animateFloatAsState(if (chaud) 1f else 0f, tween(600), label = "chaleur")
@@ -295,7 +297,7 @@ fun DecorPlateau(chaud: Boolean) {
         // Halos rose, violet et or, et étincelles : leur éclat suit le battement.
         Box(
             Modifier.fillMaxSize()
-                .graphicsLayer { alpha = 0.45f + 0.55f * battement.floatValue }
+                .graphicsLayer { alpha = 0.62f + 0.23f * battement.floatValue }
                 .drawWithCache {
                     val w = size.width
                     val h = size.height
@@ -313,7 +315,7 @@ fun DecorPlateau(chaud: Boolean) {
         if (chaleur > 0.01f) {
             Box(
                 Modifier.fillMaxSize()
-                    .graphicsLayer { alpha = chaleur * (0.7f + 0.3f * battement.floatValue) }
+                    .graphicsLayer { alpha = chaleur * (0.8f + 0.2f * battement.floatValue) }
                     .drawWithCache {
                         val bords = Brush.radialGradient(
                             0.55f to Color.Transparent,
