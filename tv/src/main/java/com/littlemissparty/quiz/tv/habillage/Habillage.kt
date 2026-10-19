@@ -31,6 +31,7 @@ import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.engine.QuestionKind
 import com.littlemissparty.quiz.tv.UiState
+import com.littlemissparty.quiz.tv.etapeDisparu
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.sin
@@ -82,12 +83,14 @@ fun HabillageTv(state: UiState) {
     val urgent = chronoUrgent(state as? UiState.Playing)
     val indices = indicesQuiSuis(state as? UiState.Playing)
     val statue = statueFigee(state as? UiState.Playing)
-    val instant = remember(state, urgent, indices, statue) { instantDe(state, urgent, System.currentTimeMillis(), indices, statue) }
+    // Qui a disparu ? : l'étape affichée par le plateau (mémoriser, tour de magie, chercher, réponse), de 1 à 4.
+    val disparu = (state as? UiState.Playing)?.let { s -> s.question?.takeIf { it.isDisparu }?.let { etapeDisparu(it, s).ordinal + 1 } } ?: 0
+    val instant = remember(state, urgent, indices, statue, disparu) { instantDe(state, urgent, System.currentTimeMillis(), indices, statue, disparu) }
     LaunchedEffect(instant) { Sons.executer(Habillage.directeur.observer(instant)) }
     DecorPlateau(chaud = urgent)
 }
 
-internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indices: Int = 0, statue: Boolean = false): Instant {
+internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indices: Int = 0, statue: Boolean = false, disparu: Int = 0): Instant {
     val s = state as? UiState.Playing ?: return Instant(Ecran.HORS_PARTIE)
     val ecran = when (s.phase) {
         Phase.LOBBY -> Ecran.SALON
@@ -131,6 +134,7 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         // Blind test, quiz musical (extrait bien reçu), statues : la TV joue déjà une musique, l'habillage se tait.
         musical = s.question?.let { q -> q.isStatues || q.audioId?.let { s.sounds[it] } != null } == true,
         statue = statue && s.question?.isStatues == true,
+        disparu = if (s.question?.isDisparu == true) disparu else 0,
         nombre = s.question?.isNumber == true,
         pile = s.phase == Phase.REVEAL && s.question?.isNumber == true && s.awards.values.any { it.choice == s.question?.correct },
         epreuve = s.question?.takeIf { s.phase == Phase.QUESTION || s.phase == Phase.CLOSED || s.phase == Phase.REVEAL }?.let(::epreuveDe) ?: "",
@@ -154,6 +158,7 @@ internal fun epreuveDe(q: Question): String {
         QuestionKind.QUISUIS -> "quisuis"
         QuestionKind.BLIND -> "blind"
         QuestionKind.STATUES -> "statues"
+        QuestionKind.DISPARU -> "disparu"
         else -> "quiz"
     } + "|"
 }

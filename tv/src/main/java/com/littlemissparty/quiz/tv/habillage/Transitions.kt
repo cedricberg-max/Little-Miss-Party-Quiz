@@ -93,6 +93,7 @@ private fun TransitionDeJeu(state: UiState.Playing) {
                 q.isQuiSuis -> "Qui suis-je ?"
                 q.isBlind -> "Blind test !"
                 q.isStatues -> "Statues musicales !"
+                q.isDisparu -> "Qui a disparu ?"
                 else -> q.roundTitle?.takeIf { it.isNotBlank() } ?: when {
                     q.isExpress -> "Vrai ou Faux express !"
                     q.isZoom -> "Zoom mystère !"
