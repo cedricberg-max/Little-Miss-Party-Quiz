@@ -30,6 +30,10 @@ sealed interface Command {
     data class MimeFix(override val id: String, override val expectSeq: Int, val team: String, val delta: Int) : Command
     data class MimeStop(override val id: String, override val expectSeq: Int) : Command
 
+    /** Pictionary : montrer le mot à [team] sur sa tablette, puis le masquer pour lancer le dessin et le chrono. */
+    data class PictoShow(override val id: String, override val expectSeq: Int, val team: String) : Command
+    data class PictoDraw(override val id: String, override val expectSeq: Int) : Command
+
     /** Image floue : la réponse orale de l'équipe qui a buzzé est bonne ([ok]) ou mauvaise. */
     data class Judge(override val id: String, override val expectSeq: Int, val ok: Boolean, val bonus: Boolean = false) : Command
 
@@ -74,6 +78,8 @@ sealed interface Command {
                 "mime_pass" -> MimePass(id, seq)
                 "mime_fix" -> MimeFix(id, seq, m["team"] as String, (m["delta"] as Number).toInt())
                 "mime_stop" -> MimeStop(id, seq)
+                "picto_show" -> PictoShow(id, seq, m["team"] as String)
+                "picto_draw" -> PictoDraw(id, seq)
                 "buzz_ok" -> Judge(id, seq, true)
                 "buzz_ko" -> Judge(id, seq, false)
                 // Blind test : bon titre et bon artiste.
@@ -118,7 +124,8 @@ fun Game.execute(
     val advances = cmd is Command.Next || cmd is Command.Close || cmd is Command.End || cmd is Command.MimeStart ||
         cmd is Command.MimeFound || cmd is Command.MimePass || cmd is Command.MimeStop || cmd is Command.Goto ||
         cmd is Command.Judge || cmd is Command.StatuesWin || cmd is Command.BlindPlay || cmd is Command.BlindUnblock ||
-        cmd is Command.BlindReveal || cmd is Command.BlindSkip || cmd is Command.BlindCut
+        cmd is Command.BlindReveal || cmd is Command.BlindSkip || cmd is Command.BlindCut ||
+        cmd is Command.PictoShow || cmd is Command.PictoDraw
     if (advances && cmd.expectSeq != state.lastSeq) return CommandResult(CommandStatus.STALE, reason = "stale")
     // En pause, rien n'avance : l'animatrice reprend d'abord (corrections de score et fin restent possibles).
     // Le saut de jeu reste possible en pause : c'est la commande de secours pour débloquer une prestation.
@@ -148,6 +155,8 @@ fun Game.execute(
         is Command.MimePass -> mimePass(now)
         is Command.MimeFix -> if (cmd.team !in teams) return refused("unknown_team") else mimeFix(cmd.team, cmd.delta, now)
         is Command.MimeStop -> mimeStop(now)
+        is Command.PictoShow -> if (cmd.team !in teams) return refused("unknown_team") else pictoShow(cmd.team, now)
+        is Command.PictoDraw -> pictoDraw(now)
         // Un double appui ne juge qu'une fois : il visait l'équipe que la régie affichait.
         is Command.Judge -> judgeBuzz(cmd.ok, now, cmd.bonus)
         is Command.StatuesWin -> if (cmd.team !in teams) return refused("unknown_team") else statuesWin(cmd.team, teams - cmd.team, now)

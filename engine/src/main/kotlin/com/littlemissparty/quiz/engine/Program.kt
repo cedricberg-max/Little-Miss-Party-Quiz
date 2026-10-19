@@ -56,7 +56,7 @@ fun Game.gameGains(): Map<String, Int> {
     val ids = roundOf(state.index).map { quiz.questions[it].id }.toSet()
     ids.forEach { id ->
         state.awards[id].orEmpty().forEach { (team, a) -> totals.merge(team, a.points, Int::plus) }
-        state.mimes[id].orEmpty().forEach { (team, n) -> totals.merge(team, n * Scoring.MIME, Int::plus) }
+        state.mimes[id].orEmpty().forEach { (team, n) -> totals.merge(team, n * state.pointsPerFound(id), Int::plus) }
     }
     state.adjustments.values.filter { state.adjustedIn[it.seq] in ids }.forEach { totals.merge(it.team, it.delta, Int::plus) }
     return totals

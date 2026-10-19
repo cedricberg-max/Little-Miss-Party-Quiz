@@ -85,6 +85,12 @@ data class Award(val choice: Int?, val correct: Boolean, val points: Int, val bo
 /** Tour de l'équipe [team] lancé : le chrono du tour démarre, la première carte s'affiche. */
 data class MimeTurnStarted(override val seq: Int, override val at: Long, val team: String) : GameEvent
 
+/**
+ * Pictionary : le mot du tour s'affiche sur la tablette de l'équipe [team] (le reste de l'équipe est tourné).
+ * Aucun chrono : il part quand l'animatrice masque le mot ([MimeTurnStarted]).
+ */
+data class PictoShown(override val seq: Int, override val at: Long, val team: String) : GameEvent
+
 /** Mime trouvé, validé par l'animatrice : un point pour l'équipe qui joue, carte suivante. */
 data class MimeFound(override val seq: Int, override val at: Long) : GameEvent
 

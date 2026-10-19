@@ -68,7 +68,16 @@ enum class QuestionKind(val code: String) {
      * La première équipe qui buzze dit lequel. Le buzzer n'ouvre qu'au retour des objets ([Question.buzzFromMs]).
      * Réponse unique : [Question.choices] contient le nom de l'objet disparu, qui est l'une des cartes.
      */
-    DISPARU("disparu");
+    DISPARU("disparu"),
+
+    /**
+     * Pictionary : toute une manche, jouée équipe par équipe comme les mimes, sur un paquet de mots ([Question.cards]).
+     * L'animatrice montre le mot (et son image) sur la tablette de l'équipe qui joue, le reste de l'équipe tourné ;
+     * puis elle le masque : la tablette devient une feuille à dessin, le dessin s'affiche en direct sur la TV et le
+     * chrono du tour part. Un seul mot par tour : trouvé, il rapporte [Question.points] à l'équipe ; chrono écoulé,
+     * le tour est perdu.
+     */
+    PICTIONARY("pictionary");
 
     companion object {
         fun of(code: String?): QuestionKind = entries.firstOrNull { it.code == code } ?: CLASSIC
@@ -109,11 +118,12 @@ data class Question(
     init {
         require(id.isNotBlank()) { "Question sans identifiant" }
         require(text.isNotBlank()) { "Question $id : texte vide" }
-        if (kind == QuestionKind.MIME) {
-            // Pour les mimes, la durée est celle du tour de chaque équipe.
+        if (kind == QuestionKind.MIME || kind == QuestionKind.PICTIONARY) {
+            // Pour les mimes et le Pictionary, la durée est celle du tour de chaque équipe.
             require(cards.size in 1..MAX_MIME_CARDS) { "Mimes $id : il faut 1 à $MAX_MIME_CARDS cartes" }
             require(cards.none { it.word.isBlank() }) { "Mimes $id : carte sans mot" }
             require(durationSec in 15..180) { "Mimes $id : tour entre 15 et 180 s" }
+            require(points == null || points in 1..MAX_TRACK_POINTS) { "Pictionary $id : valeur entre 1 et $MAX_TRACK_POINTS points" }
         } else if (kind == QuestionKind.CHANTE || kind == QuestionKind.QUISUIS || kind == QuestionKind.BLIND) {
             // Réponse orale jugée par l'animatrice : une seule réponse attendue, pas de propositions à l'écran.
             require(choices.size == 1 && choices[0].isNotBlank() && correct == 0) { "Question $id : une seule réponse attendue" }
@@ -147,6 +157,13 @@ data class Question(
     }
 
     val isMime: Boolean get() = kind == QuestionKind.MIME
+    val isPicto: Boolean get() = kind == QuestionKind.PICTIONARY
+
+    /** Jeu joué équipe par équipe, tour après tour (mimes, Pictionary) : le chrono part au lancement de chaque tour. */
+    val isTurns: Boolean get() = isMime || isPicto
+
+    /** Points d'un mime ou d'un dessin trouvé. */
+    val foundPoints: Int get() = if (isPicto) points ?: Scoring.PICTO else Scoring.MIME
     val isNumber: Boolean get() = kind == QuestionKind.NUMBER
     val isExpress: Boolean get() = kind == QuestionKind.EXPRESS
     val isZoom: Boolean get() = kind == QuestionKind.ZOOM
