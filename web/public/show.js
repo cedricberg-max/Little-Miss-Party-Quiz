@@ -429,7 +429,8 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       showId, title, childName: show.childName?.trim() ?? "", age: show.age ?? null, profile, rounds,
       // Notes de Sarah pour l'animatrice, lues sur la régie le jour J (la TV les ignore).
       ...(show.notes?.trim() ? { notes: show.notes.trim().slice(0, 2000) } : {}),
-      quiz: { id: showId, title, questions },
+      // Chaque jeu s'ouvre sur son écran de présentation, que l'animatrice lance depuis la régie.
+      quiz: { id: showId, title, questions, intros: true },
     },
     problems,
   };

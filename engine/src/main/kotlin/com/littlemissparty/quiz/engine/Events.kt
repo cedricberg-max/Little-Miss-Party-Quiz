@@ -69,6 +69,12 @@ data class FactorChosen(override val seq: Int, override val at: Long, val start:
  */
 data class DoorSet(override val seq: Int, override val at: Long, val qid: String, val door: Int, val value: Int) : GameEvent
 
+/**
+ * Écran de présentation d'un jeu terminé : l'animatrice a expliqué les règles et lance la première question
+ * (ou la première manche) du jeu. Le chrono, la musique ou le premier tour partent seulement maintenant.
+ */
+data class GameLaunched(override val seq: Int, override val at: Long) : GameEvent
+
 /** Valeurs possibles derrière une porte (points), bornes comprises. */
 val DOOR_VALUES = -500..1000
 

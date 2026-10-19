@@ -4,6 +4,9 @@ package com.littlemissparty.quiz.engine
  * Conversion entre les événements et les données stockées dans Firebase
  * (des Map de String, Long, Double, Boolean). Firebase renvoie tous les nombres en Long ou Double.
  */
+/** Phase publiée pendant l'écran de présentation d'un jeu (la question est ouverte mais rien n'a commencé). */
+const val PHASE_INTRO = "intro"
+
 object Codec {
 
     /** Clé d'un événement dans `log/` : numérotée sur 6 chiffres pour rester triée. */
@@ -27,6 +30,7 @@ object Codec {
             is FactorChosen -> mapOf("type" to "factor", "start" to e.start, "factor" to e.factor)
             is DoorOpened -> mapOf("type" to "door", "qid" to e.qid)
             is DoorSet -> mapOf("type" to "doorset", "qid" to e.qid, "door" to e.door, "value" to e.value)
+            is GameLaunched -> mapOf("type" to "launch")
             is ScoreAdjusted -> mapOf("type" to "adjust", "team" to e.team, "delta" to e.delta, "reason" to e.reason)
             is Undone -> mapOf("type" to "undo", "target" to e.target)
             is GameEnded -> mapOf("type" to "end")
@@ -77,6 +81,7 @@ object Codec {
             "factor" -> FactorChosen(seq, at, m.num("start").toInt(), m.num("factor").toInt())
             "door" -> DoorOpened(seq, at, m["qid"] as String)
             "doorset" -> DoorSet(seq, at, m["qid"] as String, m.num("door").toInt(), m.num("value").toInt())
+            "launch" -> GameLaunched(seq, at)
             "adjust" -> ScoreAdjusted(seq, at, m["team"] as String, m.num("delta").toInt(), m["reason"] as? String ?: "")
             "undo" -> Undone(seq, at, m.num("target").toInt())
             "end" -> GameEnded(seq, at)
@@ -160,7 +165,8 @@ object Codec {
         val q = game.question
         val revealed = s.phase == Phase.REVEAL || s.phase == Phase.SCORES || s.phase == Phase.ENDED
         val out = linkedMapOf<String, Any?>(
-            "phase" to s.phase.code,
+            // Présentation d'un jeu : ni question ni propositions, tout le monde attend le lancement de l'animatrice.
+            "phase" to if (s.intro) PHASE_INTRO else s.phase.code,
             "seq" to s.lastSeq,
             "total" to game.quiz.questions.size,
             "scores" to s.scores(),
@@ -176,6 +182,11 @@ object Codec {
         )
         // Dernières questions du quiz : la régie propose le multiplicateur juste avant la première.
         game.factorChoice()?.let { start -> out["factorChoice"] = mapOf("start" to start, "factor" to (s.factors[start] ?: FACTORS.first())) }
+        if (q != null && s.intro) {
+            game.gameStep()?.let { out["game"] = mapOf("title" to it.title, "n" to it.n, "of" to it.of, "label" to it.label) }
+            out += mapOf("index" to s.index, "qid" to q.id, "kind" to q.kind.code, "deadline" to null, "buzzOpen" to false)
+            return out
+        }
         if (q != null && s.phase != Phase.ENDED) {
             game.gameStep()?.let { out["game"] = mapOf("title" to it.title, "n" to it.n, "of" to it.of, "label" to it.label) }
             out += mapOf(

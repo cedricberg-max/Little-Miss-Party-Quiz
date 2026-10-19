@@ -679,6 +679,52 @@ class RegieTest : TestTv() {
         ecran.capture("qui-a-disparu-revelation")
     }
 
+    @Test
+    fun chaqueJeuSOuvreSurSaPresentationEtAttendQueLAnimatriceLeLance() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        val questions = listOf(
+            mapOf(
+                "id" to "p1", "text" to "Quel animal miaule ?", "choices" to listOf("Le chat", "Le chien"), "correct" to 0,
+                "duration" to 20, "kind" to "classic", "double" to false, "round" to "Quiz des animaux",
+            ),
+            mapOf(
+                "id" to "p2", "text" to "Le ciel est vert", "choices" to listOf("Vrai", "Faux"), "correct" to 1,
+                "duration" to 20, "kind" to "true_false", "double" to false, "round" to "Vrai ou Faux",
+            ),
+        )
+        assertEquals("applied", regie.chargerPrestation(code, "Anniversaire de Léa", questions))
+        assertEquals("applied", regie.commande(code, "next"))
+
+        // Présentation du premier jeu : son nom, rien d'autre ; rien ne part tant que l'animatrice ne lance pas.
+        ecran.voit("Quiz des animaux")
+        ecran.voit("Lancer l'épreuve")
+        assertEquals("intro", licornes.etat(code).child("phase").value)
+        assertFalse("pas de réponse pendant la présentation", licornes.repondre(code, "p1", 0))
+        ecran.capture("presentation-jeu")
+        ecran.neVoitPas("Quel animal miaule ?", 3_000)
+        assertEquals("intro", licornes.etat(code).child("phase").value)
+
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("Quel animal miaule ?")
+        attendreQue("première question ouverte") { licornes.etat(code).takeIf { it.child("phase").value == "question" } }
+        assertTrue(licornes.repondre(code, "p1", 0))
+        ecran.voit("Toutes les équipes ont répondu")
+        assertEquals("applied", regie.commande(code, "next"))
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("Jeu suivant : Vrai ou Faux")
+
+        // Jeu suivant : sa présentation, lancée cette fois à la télécommande.
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("Lancer l'épreuve")
+        ecran.voit("Vrai ou Faux")
+        ecran.ok("Lancer l'épreuve")
+        ecran.voit("Le ciel est vert")
+        attendreQue("question du Vrai ou Faux ouverte") { licornes.etat(code).takeIf { it.child("phase").value == "question" && it.child("qid").value == "p2" } }
+    }
+
     private val regies = mutableListOf<RegieSimulee>()
 
     private fun regie() = RegieSimulee().also { regies += it }

@@ -246,7 +246,11 @@ data class Question(
     val durationMs: Long get() = durationSec * 1000L
 }
 
-data class Quiz(val id: String, val title: String, val questions: List<Question>) {
+/**
+ * [intros] : chaque jeu (manche) s'ouvre sur un écran de présentation qui attend que l'animatrice le lance.
+ * Vrai pour les prestations ; les quiz des tests du moteur s'en passent.
+ */
+data class Quiz(val id: String, val title: String, val questions: List<Question>, val intros: Boolean = false) {
     init {
         require(questions.isNotEmpty()) { "Quiz $id : aucune question" }
         val dup = questions.groupBy { it.id }.filter { it.value.size > 1 }.keys

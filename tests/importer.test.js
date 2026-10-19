@@ -203,6 +203,7 @@ describe("quiz en images (ChatGPT)", () => {
     assert.deepEqual(a.choiceImages, [LION, "", CHIEN]);
     assert.equal(b.choiceImages, undefined);
     assert.deepEqual(choiceImageIds(snapshot.quiz.questions), [LION, CHIEN]);
+    assert.equal(snapshot.quiz.intros, true, "chaque jeu de la prestation s'ouvre sur son écran de présentation");
     assert.deepEqual(choiceImageList({ choices: ["a", "b"], choiceImages: [null, "../x"] }), [], "aucune photo valable : texte");
   });
 });

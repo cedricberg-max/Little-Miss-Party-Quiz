@@ -189,7 +189,8 @@ private fun Playing(state: UiState.Playing, actions: TvActions) {
     when (state.phase) {
         Phase.LOBBY -> Lobby(state, actions)
         Phase.QUESTION, Phase.CLOSED, Phase.REVEAL ->
-            if (state.portes != null) PortesScreen(state, actions)
+            if (state.intro) PresentationScreen(state, actions)
+            else if (state.portes != null) PortesScreen(state, actions)
             else if (state.mime?.picto == true) PictionaryScreen(state, actions)
             else if (state.mime != null) MimeScreen(state, actions) else QuestionScreen(state, actions)
         Phase.SCORES -> if (state.portes != null) PortesClassementScreen(state, actions) else ScoresScreen(state, actions)

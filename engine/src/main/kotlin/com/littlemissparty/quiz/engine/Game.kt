@@ -91,6 +91,8 @@ data class GameState(
     val doorsOpened: Int = 0,
     /** Portes mystères : valeurs changées par l'animatrice, par question puis par porte. */
     val doorValues: Map<String, Map<Int, Int>> = emptyMap(),
+    /** Écran de présentation du jeu qui commence : rien ne part avant le lancement de l'animatrice ([GameLaunched]). */
+    val intro: Boolean = false,
 ) {
     val paused: Boolean get() = hold != null
 
@@ -185,7 +187,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
      * Le chrono de [q] est en marche (ou en pause) : question ouverte, ou tour de mimes en cours. Portes mystères :
      * jamais de chrono, chacun prend son temps et l'animatrice ferme les choix quand tout le monde est prêt.
      */
-    private fun timerRuns(q: Question) = state.phase == Phase.QUESTION && !q.isPortes && (!q.isTurns || state.mimeTurn) &&
+    private fun timerRuns(q: Question) = state.phase == Phase.QUESTION && !state.intro && !q.isPortes && (!q.isTurns || state.mimeTurn) &&
         (!q.isBlind || (state.buzz?.waiting == false && state.segments.isNotEmpty()))
 
     /**
@@ -233,20 +235,41 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         return true
     }
 
-    private fun reduce(s: GameState, e: GameEvent): GameState? = when (e) {
+    /**
+     * Pendant la présentation d'un jeu, seuls comptent le lancement, la pause, les points de la régie, le saut
+     * vers un autre jeu, la fin de partie et les réglages (multiplicateur, portes) : aucune réponse, aucun buzz.
+     */
+    private fun reduce(s: GameState, e: GameEvent): GameState? =
+        if (s.intro && e !is GameLaunched && e !is Paused && e !is Resumed && e !is ScoreAdjusted && e !is Undone &&
+            e !is Jumped && e !is GameEnded && e !is FactorChosen && e !is DoorSet) null
+        else reduceEvent(s, e)
+
+    /** Jeu qui commence à la question [index] : il s'ouvre sur son écran de présentation, sans chrono ni buzzer. */
+    private fun presented(s: GameState, index: Int): GameState =
+        if (quiz.intros && index in rounds) s.copy(intro = true, segments = emptyList(), resumeAt = null, mime = null, buzz = null)
+        else s.copy(intro = false)
+
+    private fun reduceEvent(s: GameState, e: GameEvent): GameState? = when (e) {
+        is GameLaunched -> {
+            val q = quiz.questions.getOrNull(s.index)
+            if (!s.intro || s.phase != Phase.QUESTION || q == null || s.paused) null else open(s.copy(intro = false), s.index, q, e.at)
+        }
         is QuestionOpened -> {
             val q = quiz.questions.getOrNull(e.index)
             val canOpen = s.phase == Phase.LOBBY || s.phase == Phase.SCORES || s.phase == Phase.REVEAL
             if (q == null || q.id != e.qid || !canOpen || e.index <= s.index || s.paused) null
             // Une manche de mimes s'ouvre sans chrono : il part au lancement du tour de chaque équipe.
-            else open(s, e.index, q, e.at)
+            else presented(open(s, e.index, q, e.at), e.index)
         }
         is Jumped -> {
             val q = quiz.questions.getOrNull(e.index)
             if (q == null || q.id != e.qid) null
-            else open(
-                s.copy(awards = s.awards - e.clear.toSet(), mimes = s.mimes - e.clear.toSet(), skipped = s.skipped - e.clear.toSet(), hold = null),
-                e.index, q, e.at,
+            else presented(
+                open(
+                    s.copy(awards = s.awards - e.clear.toSet(), mimes = s.mimes - e.clear.toSet(), skipped = s.skipped - e.clear.toSet(), hold = null),
+                    e.index, q, e.at,
+                ),
+                e.index,
             )
         }
         is Paused ->
@@ -267,7 +290,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                     resumeAt = start,
                     // Entre deux tours de mimes, ou pendant la réponse d'une équipe qui a buzzé, aucun chrono ne tourne.
                     // Blind test en attente du « Lancer » de l'animatrice : la musique ne repart pas toute seule.
-                    segments = if (s.phase == Phase.QUESTION && (s.mime == null || s.mimeTurn) && !s.buzzHeld && s.buzz?.waiting != true) s.segments + Segment(start) else s.segments,
+                    // Présentation d'un jeu : le chrono attend le lancement.
+                    segments = if (s.phase == Phase.QUESTION && !s.intro && (s.mime == null || s.mimeTurn) && !s.buzzHeld && s.buzz?.waiting != true) s.segments + Segment(start) else s.segments,
                 )
             }
         // Accepté en pause pour rejouer les journaux d'avant la pause générale (la fermeture levait la pause) ;
@@ -313,7 +337,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             if (e.target !in s.adjustments) null
             else s.copy(adjustments = s.adjustments - e.target)
         is GameEnded ->
-            if (s.phase == Phase.ENDED) null else s.copy(phase = Phase.ENDED, hold = null, mime = null)
+            if (s.phase == Phase.ENDED) null else s.copy(phase = Phase.ENDED, hold = null, mime = null, intro = false)
         is PictoShown -> {
             val m = s.mime
             val cards = quiz.questions.getOrNull(s.index)?.takeIf { it.isPicto }?.cards.orEmpty()
@@ -536,6 +560,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         Phase.LOBBY -> openQuestion(0, now)
         // Mimes : « suivant » arrête le tour en cours, ou termine la manche entre deux tours.
         Phase.QUESTION -> when {
+            // Écran de présentation : l'animatrice lance le jeu (première question, premier tour ou premier morceau).
+            state.intro -> emit(GameLaunched(nextSeq, now))
             // Blind test à la télécommande : OK lance la musique, ou l'arrête.
             question?.isBlind == true -> if (state.buzz?.waiting == true) blindPlay(now) else blindStop(now)
             state.mime == null -> close(now)
@@ -844,6 +870,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
 
     /** Chrono à zéro : fin de la question, ou fin du tour de mimes. */
     fun timeUp(now: Long): GameEvent? = when {
+        state.intro -> null
         state.mime != null -> mimeStop(now)
         // Blind test : fin de l'extrait, la musique s'arrête et l'animatrice décide de la suite.
         question?.isBlind == true -> blindStop(now)

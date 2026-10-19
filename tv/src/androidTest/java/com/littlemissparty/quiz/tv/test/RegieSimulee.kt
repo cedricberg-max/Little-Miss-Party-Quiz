@@ -111,6 +111,27 @@ class RegieSimulee : AutoCloseable {
     }
 
     /** Comme la régie au chargement d'une prestation : copie une photo de la bibliothèque dans la partie. */
+    /**
+     * Comme « Charger » dans l'onglet Prestation, au salon d'attente : une prestation complète, dont chaque jeu
+     * s'ouvre sur son écran de présentation (comme celles préparées dans la Régie PC). Renvoie le verdict de la box.
+     */
+    fun chargerPrestation(code: String, titre: String, questions: List<Map<String, Any?>>): String {
+        val ref = this.base.getReference("games/$code/show")
+        val id = ref.push().key!!
+        bloquer {
+            ref.setValue(mapOf(
+                "id" to id, "title" to titre, "by" to uid, "at" to ServerValue.TIMESTAMP,
+                "quiz" to mapOf("id" to "presta", "title" to titre, "questions" to questions, "intros" to true),
+            )).await()
+        }
+        return attendreQue("verdict de la box pour la prestation $id") {
+            val statut = bloquer { this.base.getReference("games/$code/showStatus").lireUneFois() }
+            if (statut.child("id").value != id) null
+            else if (statut.child("status").value == "applied") "applied"
+            else statut.child("reason").value as? String ?: "refused"
+        }
+    }
+
     fun copierPhoto(code: String, id: String, dataUrl: String) {
         bloquer { base.getReference("games/$code/images/$id").setValue(dataUrl).await() }
     }

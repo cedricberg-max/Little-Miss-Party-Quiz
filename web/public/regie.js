@@ -224,6 +224,7 @@ const PHASES = {
   reveal: "Réponse révélée",
   scores: "Scores",
   ended: "Partie terminée",
+  intro: "Présentation du jeu",
 };
 
 /** Blind test piloté morceau par morceau (TV assez récente pour « Lancer le morceau »). */
@@ -239,6 +240,8 @@ function nextLabel(st, teamCount) {
   }
   switch (st.phase) {
     case "lobby": return teamCount ? "Lancer la fête !" : "En attente des équipes";
+    // Écran de présentation du jeu sur la TV : l'animatrice explique les règles, puis lance le jeu.
+    case "intro": return "▶ Lancer l'épreuve";
     case "question": return st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? `Terminer ${st.kind === "pictionary" ? "le Pictionary" : "les mimes"}` : "Voir le classement") : st.kind === "portes" ? "Fermer les choix" : "Arrêter le chrono";
     case "closed": return st.kind === "portes" ? "Aux portes ! 🚪" : "Révéler la réponse";
     // Portes mystères : l'animatrice ouvre les portes une à une, puis montre le classement final.
@@ -269,8 +272,9 @@ function render() {
   const teams = Object.entries(live.teams).sort((a, b) => (a[1].joinedAt ?? 0) - (b[1].joinedAt ?? 0));
   const q = live.plan?.questions?.[st.index];
   const inQuestion = st.phase !== "lobby" && st.phase !== "ended" && st.index != null && st.index >= 0;
+  const intro = st.phase === "intro";
 
-  $("c-step").textContent = inQuestion && st.mime
+  $("c-step").textContent = intro ? st.game?.title ?? "" : inQuestion && st.mime
     ? (st.kind === "pictionary" ? "Pictionary" : `Mimes · ${st.text ?? ""}`)
     : inQuestion
     ? `${st.game?.label ?? `Question ${st.index + 1}`}${st.double ? ` · ×${st.factor ?? 2}` : ""}`
@@ -280,12 +284,12 @@ function render() {
   renderHold(st, teams);
   renderFactor(st);
   renderDoors(st, q);
-  $("c-question").textContent = inQuestion ? st.text ?? q?.text ?? "" : st.phase === "ended" ? (gamesOf(st).next ? "Bravo à toutes les équipes ! Un jeu a été ajouté : la partie peut reprendre." : "Bravo à toutes les équipes ! Pour continuer, ajoutez un jeu (onglet Programme) ou rejouez-en un (⏭ Changer de jeu).") : `${teams.length} équipe${teams.length > 1 ? "s" : ""} inscrite${teams.length > 1 ? "s" : ""}`;
+  $("c-question").textContent = intro ? "La TV présente le jeu. Expliquez les règles, puis lancez l'épreuve." : inQuestion ? st.text ?? q?.text ?? "" : st.phase === "ended" ? (gamesOf(st).next ? "Bravo à toutes les équipes ! Un jeu a été ajouté : la partie peut reprendre." : "Bravo à toutes les équipes ! Pour continuer, ajoutez un jeu (onglet Programme) ou rejouez-en un (⏭ Changer de jeu).") : `${teams.length} équipe${teams.length > 1 ? "s" : ""} inscrite${teams.length > 1 ? "s" : ""}`;
 
   const portes = (q?.kind ?? st.kind) === "portes";
   const correct = portes ? null : q?.correct ?? st.correct;
   const answerBtn = $("c-answer");
-  answerBtn.hidden = !inQuestion || (correct == null && !(portes && q?.doors));
+  answerBtn.hidden = intro || !inQuestion || (correct == null && !(portes && q?.doors));
   if (portes && q?.doors) {
     // Portes mystères : ce qu'il y a derrière chaque porte, pour l'animatrice seulement (masquable comme une réponse).
     const values = doorValues(q).map((v, k) => `${k + 1} : ${v > 0 ? "+" : "−"}${Math.abs(v)}`).join(" · ");

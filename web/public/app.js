@@ -412,6 +412,9 @@ function render() {
     case "ended":
       stopPicto();
       return renderEnded(st);
+    case "intro":
+      stopPicto();
+      return renderIntro(st);
     default:
       return renderLobby(st);
   }
@@ -425,6 +428,13 @@ function renderLobby(st) {
   buzz.disabled = false;
   buzz.classList.remove("winner");
   $("play-status").textContent = "En attendant le quiz : buzzez autant que vous voulez !";
+}
+
+/** Présentation d'un jeu sur la TV : pas de buzzer, l'animatrice explique les règles avant de lancer le jeu. */
+function renderIntro(st) {
+  show("play");
+  $("buzz").hidden = true;
+  $("play-status").textContent = `${st.game?.title ? `Prochain jeu : ${st.game.title}. ` : ""}Écoutez bien l'animatrice !`;
 }
 
 function renderQuestion(st) {

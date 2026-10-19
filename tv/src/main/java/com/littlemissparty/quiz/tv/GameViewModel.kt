@@ -99,6 +99,10 @@ sealed interface UiState {
         val nextGame: String? = null,
         /** Où en est la partie dans le jeu en cours : « Image floue · 3 / 8 », « Quiz · question 5 / 10 ». */
         val etape: String? = null,
+        /** Écran de présentation du jeu qui commence : il attend que l'animatrice le lance. */
+        val intro: Boolean = false,
+        /** Nom du jeu en cours (« Image floue », « Mimes »…), pour sa présentation. */
+        val gameTitle: String? = null,
         /** Points multipliés de la question en cours (dernières questions du quiz : ×2, ×3 ou ×5), 1 sinon. */
         val factor: Int = 1,
         /** Annonce « × N » avant la première question multipliée : heure (serveur) où le chrono part ; null sinon. */
@@ -680,6 +684,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 isLast = g.isLastQuestion,
                 nextGame = g.nextGameTitle(),
                 etape = g.gameStep()?.label,
+                intro = s.intro,
+                gameTitle = g.gameStep()?.title,
                 factor = g.factorOf(s.index),
                 introUntil = g.multiplierIntroUntil(),
                 openedAt = s.openedAt,
@@ -1390,6 +1396,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "id" to quiz.id,
             "title" to quiz.title,
             "rev" to rev,
+            // Présentation de chaque jeu (prestations) : gardée au redémarrage de la box, qui relit ce conducteur.
+            "intros" to quiz.intros,
             // Cette box sait jouer les mimes : la régie prévient avant d'en envoyer à une TV trop ancienne.
             "mimes" to true,
             "pictionary" to true,

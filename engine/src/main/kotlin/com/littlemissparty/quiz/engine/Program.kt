@@ -31,7 +31,8 @@ fun Game.programProblem(next: Quiz): String? {
 /** La même partie avec le nouveau programme, ou null s'il toucherait à ce qui est joué ou en cours. */
 fun Game.withProgram(next: Quiz): Game? {
     if (programProblem(next) != null) return null
-    return Game(next, events).takeIf { it.state == state }
+    // Les présentations des jeux suivent la prestation en cours, quel que soit le programme envoyé.
+    return Game(next.copy(intros = quiz.intros), events).takeIf { it.state == state }
 }
 
 /**

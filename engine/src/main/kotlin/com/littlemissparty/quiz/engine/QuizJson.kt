@@ -37,6 +37,7 @@ object QuizJson {
             id = o.getString("id"),
             title = o.optString("title", o.getString("id")),
             questions = (0 until questions.length()).map { i -> question(questions.getJSONObject(i), i) },
+            intros = o.optBoolean("intros", false),
         )
     }
 

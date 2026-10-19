@@ -1257,6 +1257,24 @@ describe("régie", () => {
     await page.context().close();
   });
 
+  test("présentation d'un jeu : la régie propose « ▶ Lancer l'épreuve » et c'est elle qui lance le jeu", async () => {
+    box = startBox();
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    const { text, choices, ...ouverte } = questionState(box.state.seq + 1, 0);
+    await box.set({ ...ouverte, phase: "intro", deadline: null, game: { title: "Image floue", n: 1, of: 3, label: "Image floue · 1 / 3" } });
+    await page.locator("#c-next", { hasText: "▶ Lancer l'épreuve" }).waitFor();
+    assert.equal(await page.textContent("#c-step"), "Image floue");
+    assert.match(await page.textContent("#c-question"), /Expliquez les règles, puis lancez l'épreuve/);
+    assert.equal(await page.locator("#c-answer").isVisible(), false, "pas de réponse affichée pendant la présentation");
+    assert.equal(await page.textContent("#c-phase"), "Présentation du jeu");
+    await page.click("#c-next");
+    await waitFor(async () => (await commands()).some((c) => c.type === "next"), "lancement envoyé");
+    assert.equal((await commands()).filter((c) => c.type === "close").length, 0, "jamais « Arrêter le chrono » pendant la présentation");
+    await page.context().close();
+  });
+
   test("terminer la partie exige un appui long", async () => {
     box = startBox();
     const page = await openRegie();

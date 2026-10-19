@@ -618,6 +618,18 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
+  test("présentation d'un jeu sur la TV : pas de buzzer ni de question, la tablette dit d'écouter l'animatrice", async () => {
+    const page = await openPupitre();
+    await joinTeam(page, "Les Roses");
+    await hostState({ phase: "intro", seq: 5, total: 4, scores: {}, round: 1, buzzOpen: false, paused: false, index: 2, qid: "f1", kind: "flou", deadline: null, game: { title: "Image floue", n: 1, of: 3, label: "Image floue · 1 / 3" } });
+    await page.locator("#play-status", { hasText: "Prochain jeu : Image floue. Écoutez bien l'animatrice !" }).waitFor();
+    assert.equal(await page.locator("#buzz").isVisible(), false, "pas de buzzer pendant la présentation");
+    assert.equal(await page.locator("#screen-question").isVisible(), false);
+    await hostState(question({ qid: "f1", kind: "flou", choices: null, buzzOpen: true, buzz: { blocked: [] }, round: "f1-1000-0" }));
+    await page.locator("#buzz:not([hidden])").waitFor();
+    await page.context().close();
+  });
+
   test("la pause générale s'affiche aussi entre deux questions", async () => {
     const page = await openPupitre();
     await joinTeam(page, "Les Roses");
