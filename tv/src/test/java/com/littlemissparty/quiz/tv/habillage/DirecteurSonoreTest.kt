@@ -458,6 +458,32 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `qui a disparu, musique douce pour memoriser, abracadabra puis pouf, et le buzzer reprend la main`() {
+        val d = DirecteurSonore()
+        val q = Instant(Ecran.QUESTION, partie = "ABCD", index = 16, equipes = 2, propositions = 1, jeuBuzz = true, disparu = DISPARU_MEMORISER)
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 15, equipes = 2))
+        assertEquals(Ambiance.MEMOIRE, d.observer(q).musique())
+        val magie = d.observer(q.copy(disparu = DISPARU_MAGIE))
+        assertEquals(listOf(Son.MAGIE), magie.sons())
+        assertEquals(Ambiance.ENVOUTEMENT, magie.musique())
+        assertTrue(d.observer(q.copy(disparu = DISPARU_MAGIE)).isEmpty())
+        val chercher = q.copy(disparu = DISPARU_CHERCHER)
+        val pouf = d.observer(chercher)
+        assertEquals(listOf(Son.MAGIE_POUF), pouf.sons())
+        assertEquals(Ambiance.SUSPENSE, pouf.musique())
+        assertTrue(Son.BUZZ_GROS in d.observer(chercher.copy(buzzEquipe = 1)).sons())
+    }
+
+    @Test
+    fun `qui a disparu, une box qui se reconnecte en pleine recherche ne refait pas le pouf`() {
+        val d = DirecteurSonore()
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 15, equipes = 2))
+        val chercher = Instant(Ecran.QUESTION, partie = "ABCD", index = 16, equipes = 2, propositions = 1, jeuBuzz = true, disparu = DISPARU_CHERCHER)
+        d.observer(chercher)
+        assertFalse(Son.MAGIE_POUF in d.observer(chercher).sons())
+    }
+
+    @Test
     fun `chaque extrait du blind test integre existe dans les ressources de l'appli`() {
         assertEquals(12, BlindTestCatalogue.extraits.size)
         assertEquals(BlindTestCatalogue.extraits.size, BlindTestCatalogue.extraits.map { it.id }.toSet().size)

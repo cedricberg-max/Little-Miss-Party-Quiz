@@ -1001,6 +1001,57 @@ def suspense_reponse(duree=12.0):
     y = mx.render(duck=.2)
     return y[:int(duree * SR)]
 
+def bed_magie():
+    """Qui a disparu ? : mémorisation, boîte à musique et harpe sur nappe douce ; mystérieux, sans presser."""
+    mx = Mix(32 * 3, tail=.5)
+    prog = ['Am', 'F', 'Dm', 'Em', 'Am', 'F', 'Dm', 'G']
+    for bi in range(24):
+        notes, root = CH[prog[bi % 8]]
+        b0 = bi * 4
+        mx.add('strings', chord('pad_2_warm', [m + 12 for m in notes], 4 * B - .05, .2, attack=.4, release=.6), b0)
+        mx.add('bass', note('acoustic_bass', root, 2 * B, .35, release=.3), b0)
+        arp = [notes[0] + 12, notes[2] + 12, notes[1] + 24, notes[3] + 12]
+        for s8 in range(8):
+            mx.add('strings', note('orchestral_harp', arp[s8 % 4], .5 * B, .32 + (.08 if s8 % 4 == 0 else 0), release=.5), b0 + s8 * .5)
+        if bi % 2 == 0:
+            mx.add('drums', shaker(.12), b0 + 1); mx.add('drums', shaker(.12), b0 + 3)
+    air = [(76, 0, 1.5), (72, 1.5, .5), (74, 2, 1), (71, 3, 1), (72, 4, 1.5), (69, 5.5, .5), (71, 6, 2)]
+    for rep in range(3):
+        for half in (0, 16):
+            for m, o, d in air:
+                mx.add('bells', note('music_box', m + 12, d * B, .3, release=1.0), rep * 32 + half + 8 + o)
+        mx.add('bells', note('tinkle_bell', 100, .1, .1, release=.5), rep * 32 + 15.5)
+    y = mx.render(duck=.25)
+    n = int(32 * B * SR)
+    return y[n:2 * n]
+
+def magie():
+    """Qui a disparu ? : « abracadabra », 3 s de tourbillon scintillant qui monte jusqu'au tour de magie."""
+    mx = Mix(6, tail=1.0)
+    mx.add('fx', reverse_swell(2.9, .55), 0)
+    mx.add('fx', noise_riser(2.9, .25, 400, 7000), 0)
+    for k in range(22):
+        m = 72 + (k * 5) % 24
+        mx.add('bells', note('celesta', m, .1, .22 + .02 * k, release=.3), k * (2.8 / 22) / B)
+    for k in range(10):
+        mx.add('bells', note('tinkle_bell', 96 + (k % 4) * 3, .1, .1 + .02 * k, release=.4), (1.5 + k * .13) / B)
+    mx.add('strings', chord('pad_7_halo', [57, 64, 69, 72], 2.9, .3, attack=1.2, release=.3), 0)
+    return mx.render(duck=0)
+
+def magie_pouf():
+    """Qui a disparu ? : « pouf ! » l'objet s'évapore, nuage de fumée et cascade de harpe qui redescend."""
+    mx = Mix(4, tail=1.5)
+    n = int(.6 * SR); t = np.arange(n) / SR
+    pouf = biquad(noise(n), 'lp', 900) * np.exp(-t / .09) * 1.2 + np.sin(2 * np.pi * 90 * t) * np.exp(-t / .07) * .6
+    mx.add('fx', stereo(pouf, .4, 8), 0)
+    mx.add('fx', whoosh(.6, .35, .05, 5000, 600), 0)
+    for k, m in enumerate([96, 93, 91, 88, 86, 84, 81, 79, 76, 74, 72, 69]):
+        mx.add('strings', note('orchestral_harp', m - 12, .25, .5 - .02 * k, release=.6), (.08 + k * .045) / B)
+    for k in range(6):
+        mx.add('bells', note('tinkle_bell', 100 + (k % 3) * 4, .1, .2, release=.6), (.05 + k * .07) / B)
+    mx.add('bells', note('celesta', 84, .3, .4, release=1.0), .7 / B)
+    return mx.render(duck=0)
+
 PIECES = {
     'generique': (generique, -14.5), 'bed_full': (lambda: bed('full'), -15.5), 'bed_light': (lambda: bed('light'), -18.5),
     'tension': (tension, -16), 'riser_4b': (riser_4b, -17), 'impact': (impact, -15), 'round_sting': (round_sting, -15),
@@ -1015,13 +1066,14 @@ PIECES = {
     'chiffre_roulette': (chiffre_roulette, -19), 'chiffre_pile': (chiffre_pile, -15),
     'zoom_ouverture': (zoom_ouverture, -21), 'zoom_revele': (zoom_revele, -16),
     'buzz_gros': (buzz_gros, -15), 'flou_montee': (flou_montee, -22), 'suspense_reponse': (suspense_reponse, -19), 'indice': (indice, -21), 'bt_diamant': (bt_diamant, -26), 'bt_scratch': (bt_scratch, -17), 'statue_gel': (statue_gel, -17), 'statue_repart': (statue_repart, -19),
+    'bed_magie': (bed_magie, -18.5), 'magie': (magie, -19), 'magie_pouf': (magie_pouf, -17),
     'bed_mimes': (bed_mimes, -16.5), 'bed_pause': (bed_pause, -19), 'pause_in': (pause_in, -18), 'transition': (transition, -15),
 }
 for i in range(4):
     PIECES[f'pop_{i + 1}'] = ((lambda i=i: pop(i)), -22)
     PIECES[f'team_sting_{i + 1}'] = ((lambda i=i: team_sting(i)), -17)
     PIECES[f'fun_buzz_{i + 1}'] = ((lambda i=i: fun_buzz(i)), -20)
-LOOPS = {'bed_full': 32, 'bed_light': 32, 'bed_mimes': 32, 'bed_pause': 32, 'bed_express': 32}
+LOOPS = {'bed_full': 32, 'bed_light': 32, 'bed_mimes': 32, 'bed_pause': 32, 'bed_express': 32, 'bed_magie': 32}
 
 if __name__ == '__main__':
     only = sys.argv[2:] or list(PIECES)

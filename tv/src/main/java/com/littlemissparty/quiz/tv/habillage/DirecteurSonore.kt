@@ -239,6 +239,15 @@ class DirecteurSonore {
             if (tension && !enTension && !p.urgent) o += Ordre.Jouer(Son.TENSION)
             if (enTension && !tension) o += Ordre.Arreter(Son.TENSION)
             if (i.jeuBuzz) o += buzzJeu(p, i)
+            // Qui a disparu ? : « abracadabra » au début du tour de magie, « pouf ! » quand l'objet a disparu.
+            if (i.disparu == DISPARU_MAGIE && p.disparu == DISPARU_MEMORISER) {
+                o += Ordre.Jouer(Son.MAGIE)
+                o += Ordre.Musique(ambiance(i))
+            }
+            if (i.disparu >= DISPARU_CHERCHER && p.disparu in DISPARU_MEMORISER..DISPARU_MAGIE) {
+                o += Ordre.Jouer(Son.MAGIE_POUF)
+                o += Ordre.Musique(ambiance(i))
+            }
             // Statues musicales : « gel ! » quand la musique s'arrête, petit élan quand elle repart.
             if (i.statue && !p.statue) o += Ordre.Jouer(Son.STATUE_GEL)
             if (!i.statue && p.statue) o += Ordre.Jouer(Son.STATUE_REPART)
@@ -297,6 +306,9 @@ class DirecteurSonore {
             // Extrait musical : rien ne doit couvrir la chanson.
             i.musical && i.ecran != Ecran.VERROUILLEE -> Ambiance.SILENCE
             // Image floue : musique en retrait pendant que l'image se précise, silence pendant qu'une équipe répond.
+            // Qui a disparu ? : musique douce pour mémoriser, presque rien pendant le tour de magie.
+            i.disparu == DISPARU_MEMORISER && i.ecran == Ecran.QUESTION -> Ambiance.MEMOIRE
+            i.disparu == DISPARU_MAGIE && i.ecran == Ecran.QUESTION -> Ambiance.ENVOUTEMENT
             i.jeuBuzz && i.ecran == Ecran.QUESTION -> if (i.buzzEquipe >= 0) Ambiance.SILENCE else Ambiance.SUSPENSE
             else -> ambianceParDefaut(i.ecran)
         }
@@ -360,10 +372,17 @@ data class Instant(
     val indices: Int = 0,
     val buzzEquipe: Int = -1,
     val ratees: Int = 0,
+    /** Qui a disparu ? : étape du jeu ([DISPARU_MEMORISER]…[DISPARU_REPONSE]), 0 pour les autres jeux. */
+    val disparu: Int = 0,
     /** Le Juste Chiffre : révélation d'un nombre, et une équipe l'a trouvé pile. */
     val nombre: Boolean = false,
     val pile: Boolean = false,
 )
+
+const val DISPARU_MEMORISER = 1
+const val DISPARU_MAGIE = 2
+const val DISPARU_CHERCHER = 3
+const val DISPARU_REPONSE = 4
 
 /** [MIMES] : manche de mimes entre deux tours ; [MIMES_TOUR] : une équipe mime. */
 enum class Ecran { HORS_PARTIE, SALON, QUESTION, MIMES, MIMES_TOUR, VERROUILLEE, REVELATION, CLASSEMENT, FIN }
@@ -375,6 +394,7 @@ enum class Lit(val fichier: String) {
     MIMES("lmp_bed_mimes"),
     PAUSE("lmp_bed_pause"),
     EXPRESS("lmp_bed_express"),
+    MAGIE("lmp_bed_magie"),
 }
 
 /** Fond musical : le volume de chaque boucle selon l'ambiance (fondu enchaîné de l'une à l'autre). */
@@ -384,6 +404,7 @@ enum class Ambiance(
     private val mimes: Float = 0f,
     private val pause: Float = 0f,
     private val express: Float = 0f,
+    private val magie: Float = 0f,
 ) {
     SILENCE,
     SALON(complete = 0.55f),
@@ -397,7 +418,11 @@ enum class Ambiance(
     /** Pause : musique lounge feutrée, qui tient aussi longtemps qu'il faut. */
     INTERMEDE(pause = 0.5f),
     /** Vrai ou Faux express : course contre la montre, sur toute la série. */
-    EXPRESS(express = 0.5f);
+    EXPRESS(express = 0.5f),
+    /** Qui a disparu ? : boîte à musique et harpe pendant qu'on mémorise les objets. */
+    MEMOIRE(magie = 0.55f),
+    /** Qui a disparu ? : le tour de magie, la boîte à musique s'efface sous l'« abracadabra ». */
+    ENVOUTEMENT(magie = 0.18f);
 
     fun volume(l: Lit) = when (l) {
         Lit.COMPLET -> complete
@@ -405,6 +430,7 @@ enum class Ambiance(
         Lit.MIMES -> mimes
         Lit.PAUSE -> pause
         Lit.EXPRESS -> express
+        Lit.MAGIE -> magie
     }
 }
 
@@ -452,6 +478,8 @@ enum class Son(val fichier: String, val long: Boolean = false) {
     BT_SCRATCH("lmp_bt_scratch"),
     STATUE_GEL("lmp_statue_gel", true),
     STATUE_REPART("lmp_statue_repart"),
+    MAGIE("lmp_magie"),
+    MAGIE_POUF("lmp_magie_pouf"),
     RIGOLO_1("lmp_fun_buzz_1"), RIGOLO_2("lmp_fun_buzz_2"), RIGOLO_3("lmp_fun_buzz_3"), RIGOLO_4("lmp_fun_buzz_4"),
     EQUIPE_1("lmp_team_sting_1"), EQUIPE_2("lmp_team_sting_2"), EQUIPE_3("lmp_team_sting_3"), EQUIPE_4("lmp_team_sting_4");
 
