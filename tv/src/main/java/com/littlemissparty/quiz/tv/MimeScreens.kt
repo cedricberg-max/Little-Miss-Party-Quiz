@@ -322,7 +322,7 @@ private fun MimeButtons(state: UiState.Playing, m: MimeUi, actions: TvActions) {
 
 /** Chrono du tour, calé sur l'heure du serveur comme celui des questions. */
 @Composable
-private fun MimeCountdown(state: UiState.Playing) {
+internal fun MimeCountdown(state: UiState.Playing) {
     val total = state.question?.durationMs ?: 1
     var remaining by remember { mutableLongStateOf(state.remainingMs) }
     LaunchedEffect(state.deadline, state.paused) {
