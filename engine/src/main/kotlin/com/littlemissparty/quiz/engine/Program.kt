@@ -16,9 +16,12 @@ fun Game.lockedUntil(): Int {
     return end
 }
 
-/** Raison du refus d'un nouveau programme, ou null s'il peut remplacer l'actuel sans rien perdre. */
+/**
+ * Raison du refus d'un nouveau programme, ou null s'il peut remplacer l'actuel sans rien perdre.
+ * Possible aussi après la fin de la partie : un jeu ajouté permet de la reprendre (saut de la régie),
+ * équipes et scores gardés. Tout ce qui a déjà été joué reste intouchable.
+ */
 fun Game.programProblem(next: Quiz): String? {
-    if (state.phase == Phase.ENDED) return "ended"
     val keep = lockedUntil()
     if (next.questions.size <= keep) return "current_round"
     if ((0..keep).any { next.questions[it] != quiz.questions[it] }) return "current_round"
@@ -29,4 +32,31 @@ fun Game.programProblem(next: Quiz): String? {
 fun Game.withProgram(next: Quiz): Game? {
     if (programProblem(next) != null) return null
     return Game(next, events).takeIf { it.state == state }
+}
+
+/**
+ * Nom du jeu qui commence à la question suivante, pour annoncer « Jeu suivant : … » à la fin d'un jeu
+ * (jamais une simple « question suivante » quand c'est un autre jeu qui arrive). Null si la suite est dans
+ * le même jeu ou s'il n'y a plus rien ; « Quiz » pour des questions sans titre de manche (quiz de démonstration).
+ */
+fun Game.nextGameTitle(): String? {
+    val i = state.index + 1
+    val q = quiz.questions.getOrNull(i) ?: return null
+    if (state.index >= 0 && q.roundTitle == quiz.questions[state.index].roundTitle) return null
+    return if (q.isMime) "Mimes" else q.roundTitle ?: "Quiz"
+}
+
+/**
+ * Points gagnés par chaque équipe dans le jeu en cours (questions et mimes ; les corrections manuelles
+ * de la régie n'y sont pas) : le vainqueur d'un jeu, célébré à sa fin, sans attendre le classement final.
+ */
+fun Game.gameGains(): Map<String, Int> {
+    if (state.index !in quiz.questions.indices) return emptyMap()
+    val totals = mutableMapOf<String, Int>()
+    roundOf(state.index).forEach { i ->
+        val id = quiz.questions[i].id
+        state.awards[id].orEmpty().forEach { (team, a) -> totals.merge(team, a.points, Int::plus) }
+        state.mimes[id].orEmpty().forEach { (team, n) -> totals.merge(team, n * Scoring.MIME, Int::plus) }
+    }
+    return totals
 }

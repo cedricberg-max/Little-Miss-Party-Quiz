@@ -10,6 +10,7 @@ import {
   isFutureRound, moveRound, removeRound, uniqueRoundTitle,
 } from "./show.js";
 import { profileForAge } from "./profiles.js";
+import { setAwake } from "./awake.js";
 
 // Régie de l'animatrice, ouverte depuis la page des pupitres (bouton « Accès régie »).
 // Elle n'écrit que des commandes : la box les vérifie, les applique et répond dans commandStatus/ ;
@@ -111,12 +112,41 @@ export function startRegie(ctx, gameCode, exit) {
 // ---------- Pilotage ----------
 
 function stopListening() {
+  setAwake(false);
   unsubscribers.forEach((u) => u());
   unsubscribers = [];
   answersUnsub?.();
   answersUnsub = null;
   answersQid = null;
   clearInterval(timerHandle);
+}
+
+/**
+ * Confirmation aux couleurs de la régie, à la place de la boîte du navigateur : titre, explication, gros
+ * bouton d'action et « Annuler ». [alert] : action qui retire quelque chose (bouton en couleur d'alerte).
+ * Renvoie une promesse : vrai si l'animatrice confirme.
+ */
+function demander({ title, text = "", ok = "Confirmer", alert = false }) {
+  return new Promise((resolve) => {
+    const box = $("ask");
+    $("ask-title").textContent = title;
+    $("ask-text").textContent = text;
+    $("ask-text").hidden = !text;
+    const okBtn = $("ask-ok");
+    okBtn.textContent = ok;
+    okBtn.classList.toggle("alert", alert);
+    const close = (answer) => {
+      box.hidden = true;
+      okBtn.onclick = $("ask-cancel").onclick = box.onclick = null;
+      resolve(answer);
+    };
+    okBtn.onclick = () => close(true);
+    $("ask-cancel").onclick = () => close(false);
+    // Toucher à côté de la fenêtre = annuler.
+    box.onclick = (e) => { if (e.target === box) close(false); };
+    box.hidden = false;
+    okBtn.focus();
+  });
 }
 
 function listen(path, fn) {
@@ -194,17 +224,28 @@ function nextLabel(st, teamCount) {
     if (st.phase === "reveal") return blindHasNext(st) ? "Titre suivant ▶" : "Bilan du blind test";
   }
   switch (st.phase) {
-    case "lobby": return teamCount ? "Lancer le quiz" : "En attente des équipes";
+    case "lobby": return teamCount ? "Lancer la fête !" : "En attente des équipes";
     case "question": return st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? "Terminer les mimes" : "Voir le classement") : "Arrêter le chrono";
     case "closed": return "Révéler la réponse";
     case "reveal": return "Voir les scores";
-    case "scores": return (st.index ?? 0) + 1 >= (st.total ?? 0) ? "Résultats finaux" : "Question suivante";
+    case "scores": {
+      if ((st.index ?? 0) + 1 >= (st.total ?? 0)) return "Résultats finaux 🏆";
+      // Fin d'un jeu : on annonce le jeu qui commence, jamais une simple « question suivante ».
+      const { next, questions } = gamesOf(st);
+      return next && next.start === (st.index ?? 0) + 1 ? `Jeu suivant : ${gameName(next, questions)} ▶` : "Question suivante";
+    }
+    case "ended": {
+      const { next, questions } = gamesOf(st);
+      return next ? `Jeu suivant : ${gameName(next, questions)} ▶` : "";
+    }
     default: return "";
   }
 }
 
 function render() {
   const st = live.state ?? { phase: "lobby" };
+  // Le téléphone de la régie reste allumé pendant toute la partie, puis rend la veille normale à la fin.
+  setAwake(st.phase !== "ended");
   const teams = Object.entries(live.teams).sort((a, b) => (a[1].joinedAt ?? 0) - (b[1].joinedAt ?? 0));
   const q = live.plan?.questions?.[st.index];
   const inQuestion = st.phase !== "lobby" && st.phase !== "ended" && st.index != null && st.index >= 0;
@@ -217,7 +258,7 @@ function render() {
   $("c-phase").textContent = st.paused ? `En pause · ${PHASES[st.phase] ?? ""}` : PHASES[st.phase] ?? "";
   $("c-phase").classList.toggle("on-hold", st.paused === true);
   renderHold(st, teams);
-  $("c-question").textContent = inQuestion ? st.text ?? q?.text ?? "" : st.phase === "ended" ? "Bravo à toutes les équipes !" : `${teams.length} équipe${teams.length > 1 ? "s" : ""} inscrite${teams.length > 1 ? "s" : ""}`;
+  $("c-question").textContent = inQuestion ? st.text ?? q?.text ?? "" : st.phase === "ended" ? (gamesOf(st).next ? "Bravo à toutes les équipes ! Un jeu a été ajouté : la partie peut reprendre." : "Bravo à toutes les équipes ! Pour continuer, ajoutez un jeu (onglet Programme) ou rejouez-en un (🛟 Jeux).") : `${teams.length} équipe${teams.length > 1 ? "s" : ""} inscrite${teams.length > 1 ? "s" : ""}`;
 
   const correct = q?.correct ?? st.correct;
   const answerBtn = $("c-answer");
@@ -244,7 +285,7 @@ function render() {
   runTimer(st);
 
   const next = $("c-next");
-  next.hidden = st.phase === "ended";
+  next.hidden = st.phase === "ended" && !gamesOf(st).next;
   next.textContent = pending?.advance ? "Envoi…" : nextLabel(st, teams.length);
   next.disabled = !!pending?.advance || (st.phase === "lobby" && teams.length === 0);
   // Pause générale : possible à toute étape d'une partie commencée.
@@ -338,10 +379,10 @@ function renderRequests(st, teams) {
   });
 }
 
-function replaceDevice(device, team) {
+async function replaceDevice(device, team) {
   const name = live.teams[team]?.name ?? "l'équipe";
   // Irréversible : l'ancien appareil ne pourra plus jamais jouer dans cette partie.
-  if (!confirm(`Confier « ${name} » à ce nouvel appareil ? Ses points sont gardés, l'ancien appareil ne pourra plus jouer.`)) return;
+  if (!await demander({ title: `Confier « ${name} » à ce nouvel appareil ?`, text: "Ses points sont gardés. L'ancien appareil ne pourra plus jouer.", ok: "Confier l'équipe" })) return;
   admit(device, "replace", { team }, `« ${name} » continue sur le nouvel appareil, avec ses points.`);
 }
 
@@ -542,8 +583,12 @@ function renderBlind(st, teams) {
 $("blind-ok").onclick = () => { navigator.vibrate?.(60); send("buzz_ok", {}, { advance: true }); };
 $("blind-ko").onclick = () => send("buzz_ko", {}, { advance: true });
 $("blind-unblock").onclick = () => send("blind_unblock", {}, { advance: true });
-$("blind-reveal").onclick = () => { if (confirm("Révéler ce morceau sans donner de points ?")) send("blind_reveal", {}, { advance: true }); };
-$("blind-skip").onclick = () => { if (confirm("Passer ce morceau sans le révéler ?")) send("blind_skip", {}, { advance: true }); };
+$("blind-reveal").onclick = async () => {
+  if (await demander({ title: "Révéler ce morceau sans points ?", text: "La TV montre le titre et l'artiste. Aucune équipe ne marque.", ok: "Révéler sans points" })) send("blind_reveal", {}, { advance: true });
+};
+$("blind-skip").onclick = async () => {
+  if (await demander({ title: "Passer ce morceau ?", text: "Il n'est pas révélé et ne rapporte aucun point.", ok: "Passer le morceau" })) send("blind_skip", {}, { advance: true });
+};
 $("blind-cut").onclick = () => send("blind_cut", {}, { advance: true });
 
 /** Jeux au buzzer : qui a buzzé, la réponse attendue, et les deux boutons du verdict. */
@@ -635,9 +680,13 @@ function gamesOf(st) {
   const rounds = programRounds(questions);
   const index = st.phase === "lobby" ? -1 : st.index ?? -1;
   const current = st.phase === "ended" ? null : rounds.find((r) => r.start <= index && index <= r.end) ?? null;
-  const next = st.phase === "ended" ? null : rounds.find((r) => r.start > index) ?? null;
+  // Après la fin de la partie, un jeu ajouté au programme est encore « à venir » : la partie peut reprendre avec lui.
+  const next = rounds.find((r) => r.start > index) ?? null;
   return { questions, rounds, index, current, next };
 }
+
+/** Jeu déjà commencé (ou joué) : y aller, c'est le rejouer. */
+const played = (r, st, index) => r.start <= index && st.phase !== "lobby";
 
 function gameName(r, questions) {
   const q = questions[r.start];
@@ -648,7 +697,8 @@ function gameDetail(r, questions) {
   const q = questions[r.start];
   if (q?.kind === "mime") return `${q.cards?.length ?? 0} cartes · tour de ${q.duration} s par équipe`;
   const n = r.end - r.start + 1;
-  return `${n} question${n > 1 ? "s" : ""}`;
+  const finale = questions.slice(r.start, r.end + 1).filter((x) => x.finale).length;
+  return `${n} question${n > 1 ? "s" : ""}${finale ? ` dont ${finale} de Super Finale (×2)` : ""}`;
 }
 
 function renderGames(st) {
@@ -662,14 +712,15 @@ function renderGames(st) {
     line.append(`${label} `, b);
   };
   if (rounds.length) {
-    if (st.phase === "lobby") add("Premier jeu :", gameName(rounds[0], questions));
+    // Au salon : tout le programme que la TV a reçu, pour vérifier d'un coup d'œil qu'aucun jeu ne manque.
+    if (st.phase === "lobby") add(`Programme sur la TV (${rounds.length} jeu${rounds.length > 1 ? "x" : ""}) :`, rounds.map((r) => gameName(r, questions)).join(" → "));
     else if (current) add("En cours :", gameName(current, questions));
     if (st.phase !== "lobby") {
       if (next) add("Ensuite :", gameName(next, questions));
       else if (st.phase !== "ended") line.append(line.childNodes.length ? " · Dernier jeu" : "Dernier jeu");
     }
   }
-  // Le secours n'a de sens qu'une fois la partie commencée (au salon, « Lancer le quiz » suffit).
+  // Le secours n'a de sens qu'une fois la partie commencée (au salon, « Lancer la fête ! » suffit).
   $("c-rescue").hidden = st.phase === "lobby" || !rounds.length || !live.plan?.rev;
   if (rescueOpen && $("c-rescue").hidden) rescueOpen = false;
   $("rescue").hidden = !rescueOpen;
@@ -690,18 +741,18 @@ function renderRescue(st) {
   list.replaceChildren(...rounds.map((r) => {
     const row = document.createElement("div");
     const isCurrent = r === current;
-    const played = st.phase === "ended" || r.start <= index;
+    const done = played(r, st, index);
     row.className = `rescue-game${isCurrent ? " current" : ""}`;
     row.dataset.start = r.start;
     const name = document.createElement("span");
     name.className = "name";
     name.append(gameName(r, questions));
     const small = document.createElement("small");
-    small.textContent = `${gameDetail(r, questions)} · ${isCurrent ? "en cours" : played ? "joué" : "à venir"}`;
+    small.textContent = `${gameDetail(r, questions)} · ${isCurrent ? "en cours" : done ? "joué" : "à venir"}`;
     name.append(small);
     const b = document.createElement("button");
-    b.className = played ? "btn secondary" : "btn";
-    b.textContent = played ? "Rejouer" : "Aller à ce jeu";
+    b.className = done ? "btn secondary" : "btn";
+    b.textContent = done ? "Rejouer" : "Aller à ce jeu";
     b.disabled = busy;
     b.onclick = () => jumpTo(r, st);
     row.append(name, b);
@@ -713,11 +764,11 @@ function renderRescue(st) {
 async function jumpTo(r, st) {
   const { questions, index } = gamesOf(st);
   const name = gameName(r, questions);
-  const replay = st.phase === "ended" || r.start <= index;
-  const message = replay
-    ? `Rejouer « ${name} » depuis le début ?\n\nLes points gagnés dans ce jeu sont retirés puis rejoués : rien n'est compté deux fois. Les équipes et les points des autres jeux sont gardés.`
-    : `Passer directement à « ${name} » ?\n\nLe jeu en cours s'arrête là ; les points déjà gagnés sont gardés. Si « ${name} » avait déjà été commencé plus tôt, il repart de zéro (ses anciens points sont retirés puis rejoués).`;
-  if (!confirm(message)) return;
+  const replay = played(r, st, index);
+  const ok = await demander(replay
+    ? { title: `Rejouer « ${name} » ?`, text: "Le jeu repart de sa première question. Les points gagnés dans ce jeu sont retirés puis rejoués : rien n'est compté deux fois. Les équipes et les points des autres jeux sont gardés.", ok: "Rejouer ce jeu", alert: true }
+    : { title: `Passer à « ${name} » ?`, text: st.phase === "ended" ? "La partie reprend avec ce jeu. Les équipes et leurs points sont gardés." : `Le jeu en cours s'arrête là, ses points déjà gagnés sont gardés. Si « ${name} » avait déjà été commencé, il repart de zéro sans compter deux fois.`, ok: `Aller à « ${name} »` });
+  if (!ok) return;
   const status = await send("goto", { index: r.start, qid: questions[r.start].id }, { advance: true });
   if (status?.status === "applied") {
     rescueOpen = false;
@@ -757,7 +808,9 @@ function renderTeams(st, teams) {
     row.querySelector(".name").innerHTML = "";
     row.querySelector(".name").append(t.name ?? "Équipe");
     const small = document.createElement("small");
-    small.textContent = (live.presence[id]?.online === true ? "connectée" : "hors ligne") + answeredMark;
+    // Tablette qui ne peut pas rester allumée (navigateur trop ancien, batterie très faible) : Sarah le sait avant de jouer.
+    const sleepy = live.presence[id]?.online === true && live.presence[id]?.awake === false ? " · ⚠ l'écran peut se mettre en veille" : "";
+    small.textContent = (live.presence[id]?.online === true ? "connectée" : "hors ligne") + sleepy + answeredMark;
     row.querySelector(".name").append(small);
     row.querySelector(".score").textContent = scores[id] ?? 0;
     row.querySelectorAll("button").forEach((b) => { b.disabled = st.phase === "ended"; });
@@ -778,8 +831,9 @@ function renderPlan(st) {
   box.dataset.key = key;
   box.innerHTML = "";
   if (!questions.length) box.innerHTML = '<p class="hint">Le conducteur s\'affiche quand la TV l\'a publié.</p>';
-  const editable = !!plan?.rev && st.phase !== "ended";
-  if (questions.length && st.phase !== "ended") {
+  // Même après la fin de la partie : un jeu ajouté permet de reprendre, scores gardés (récupération contrôlée).
+  const editable = !!plan?.rev;
+  if (questions.length) {
     if (editable) {
       const add = document.createElement("button");
       add.id = "plan-add";
@@ -824,8 +878,8 @@ function roundHead(r, rounds, future, questions, index, editable) {
   const at = rounds.indexOf(r);
   button("↑", "up", k === 0, () => sendProgram(moveRound(questions, r.start, -1, index), `« ${r.title} » avancée d'un cran.`));
   button("↓", "down", k === future.length - 1, () => sendProgram(moveRound(questions, r.start, 1, index), `« ${r.title} » reculée d'un cran.`));
-  button("Retirer", "remove", rounds.length === 1 && at === 0, () => {
-    if (!confirm(`Retirer « ${r.title} » du programme ? Le quiz reste dans la bibliothèque.`)) return;
+  button("Retirer", "remove", rounds.length === 1 && at === 0, async () => {
+    if (!await demander({ title: `Retirer « ${r.title} » du programme ?`, text: "Le jeu n'est pas effacé : il reste dans la bibliothèque.", ok: "Retirer du programme", alert: true })) return;
     sendProgram(removeRound(questions, r.start, index), `« ${r.title} » est retirée du programme.`);
   });
   return head;
@@ -843,7 +897,7 @@ function planItem(q, i, current) {
     return item;
   }
   const title = document.createElement("div");
-  title.textContent = `${i + 1}. ${q.text}${q.double ? " (×2)" : ""}`;
+  title.textContent = `${i + 1}. ${q.text}${q.double ? " · Super Finale ×2" : ""}`;
   const answer = document.createElement("b");
   answer.textContent = q.kind === "number" ? `Juste Chiffre · ${q.correct}` : `${CHOICE_LETTERS[q.correct] ?? "?"} · ${q.choices?.[q.correct] ?? ""}`;
   item.append(title, answer);
@@ -1161,26 +1215,33 @@ const SHOW_MESSAGES = {
   invalid: "La TV n'a pas pu lire cette prestation. Vérifiez-la dans l'administration.",
 };
 
-/** Lit les prestations publiées et les quiz qu'elles utilisent (réservé au mot de passe de régie). */
+/**
+ * Lit les prestations publiées et la bibliothèque, et prépare le programme de chacune (réservé au mot de
+ * passe de régie). Toujours relu depuis la base : une prestation modifiée dans l'administration après
+ * l'ouverture de la régie n'est jamais lancée dans son ancienne version.
+ */
+async function readShows() {
+  const [s, q, m, p] = await Promise.all([get(ref(db, "library/shows")), get(ref(db, "library/quizzes")), get(ref(db, "library/mimes")), get(ref(db, "library/playlists"))]);
+  const quizzes = q.val() ?? {};
+  const mimes = m.val() ?? {};
+  const playlists = p.val() ?? {};
+  const today = new Date().toISOString().slice(0, 10);
+  return Object.entries(s.val() ?? {})
+    .filter(([, show]) => show.status === "publiee")
+    .map(([id, show]) => ({ id, show, ...buildSnapshot(id, show, quizzes, mimes, Math.random, playlists) }))
+    // Les prestations à venir d'abord, la plus proche en tête ; les passées ensuite.
+    .sort((a, b) => {
+      const da = a.show.date ?? "9999", dbb = b.show.date ?? "9999";
+      const pa = da < today, pb = dbb < today;
+      return pa !== pb ? (pa ? 1 : -1) : pa ? dbb.localeCompare(da) : da.localeCompare(dbb);
+    });
+}
+
 async function fetchShows() {
   shows = { loading: true };
   render();
   try {
-    const [s, q, m, p] = await Promise.all([get(ref(db, "library/shows")), get(ref(db, "library/quizzes")), get(ref(db, "library/mimes")), get(ref(db, "library/playlists"))]);
-    const quizzes = q.val() ?? {};
-    const mimes = m.val() ?? {};
-    const playlists = p.val() ?? {};
-    const today = new Date().toISOString().slice(0, 10);
-    const list = Object.entries(s.val() ?? {})
-      .filter(([, show]) => show.status === "publiee")
-      .map(([id, show]) => ({ id, show, ...buildSnapshot(id, show, quizzes, mimes, Math.random, playlists) }))
-      // Les prestations à venir d'abord, la plus proche en tête ; les passées ensuite.
-      .sort((a, b) => {
-        const da = a.show.date ?? "9999", dbb = b.show.date ?? "9999";
-        const pa = da < today, pb = dbb < today;
-        return pa !== pb ? (pa ? 1 : -1) : pa ? dbb.localeCompare(da) : da.localeCompare(dbb);
-      });
-    shows = { list };
+    shows = { list: await readShows() };
   } catch (e) {
     console.error(e);
     shows = { denied: /permission/i.test(String(e?.message ?? e)) };
@@ -1216,12 +1277,19 @@ function renderShows(st) {
     const detail = document.createElement("span");
     const asked = snapshot?.quiz.questions.filter((x) => x.kind !== "mime").length ?? 0;
     detail.textContent = snapshot
-      ? `${snapshot.rounds.length} manche${snapshot.rounds.length > 1 ? "s" : ""}${asked ? ` · ${asked} questions` : ""}`
+      ? `${snapshot.rounds.length} jeu${snapshot.rounds.length > 1 ? "x" : ""}${asked ? ` · ${asked} questions` : ""}`
       : problems[problems.length - 1];
     item.append(title, meta, detail);
+    // Un jeu qui ne peut pas être préparé ne disparaît jamais en silence : la régie le dit avant le lancement.
+    if (snapshot && problems.length) {
+      const warn = document.createElement("span");
+      warn.className = "show-warn";
+      warn.textContent = `⚠ ${problems.join(" ")}`;
+      item.append(warn);
+    }
     if (loadingShow === id) detail.textContent = "Chargement sur la TV…";
     item.disabled = !snapshot || !!loadingShow;
-    item.onclick = () => loadShow(id, snapshot);
+    item.onclick = () => loadShow(id);
     box.appendChild(item);
   });
   const refresh = document.createElement("button");
@@ -1266,12 +1334,37 @@ async function copySounds(questions) {
   }
 }
 
-async function loadShow(id, snapshot) {
+async function loadShow(id) {
   if (loadingShow) return;
-  const refused = tvRefuses(snapshot.quiz?.questions ?? []);
-  if (refused) { toast(refused); return; }
   loadingShow = id;
   render();
+  // La prestation est relue à l'instant du lancement : jamais la version gardée depuis l'ouverture de la page.
+  let fresh;
+  try {
+    fresh = (await readShows()).find((x) => x.id === id);
+  } catch (e) {
+    console.error(e);
+    loadingShow = null;
+    toast("Impossible de relire la prestation. Vérifiez la connexion puis réessayez.");
+    return render();
+  }
+  shows = { list: shows?.list?.map((x) => (x.id === id && fresh ? fresh : x)) ?? [] };
+  const { snapshot, problems } = fresh ?? {};
+  if (!snapshot) {
+    loadingShow = null;
+    toast(fresh ? problems[problems.length - 1] : "Cette prestation n'est plus prête : vérifiez-la dans l'administration.");
+    return render();
+  }
+  const refused = tvRefuses(snapshot.quiz?.questions ?? []);
+  if (refused) { loadingShow = null; toast(refused); return render(); }
+  if (problems.length && !await demander({
+    title: "Un jeu ne pourra pas être joué",
+    text: `${problems.join("\n")}\n\nProgramme qui sera joué : ${snapshot.rounds.map((r) => r.title).join(" → ")}.`,
+    ok: "Lancer quand même",
+  })) {
+    loadingShow = null;
+    return render();
+  }
   await copyImages(snapshot.quiz?.questions);
   const showId = push(ref(db, `games/${code}/show`)).key;
   const done = (message) => { loadingShow = null; if (message) toast(message); render(); };
@@ -1282,7 +1375,7 @@ async function loadShow(id, snapshot) {
     if (status?.id !== showId) return;
     clearTimeout(timeout);
     stop();
-    done(status.status === "applied" ? `« ${snapshot.title} » est chargée sur la TV.` : SHOW_MESSAGES[status.reason] ?? "La TV a refusé cette prestation.");
+    done(status.status === "applied" ? `« ${snapshot.title} » est chargée sur la TV : ${snapshot.rounds.length} jeu${snapshot.rounds.length > 1 ? "x" : ""}.` : SHOW_MESSAGES[status.reason] ?? "La TV a refusé cette prestation.");
   });
   copySounds(snapshot.quiz?.questions);
   try {
@@ -1391,13 +1484,19 @@ function showUndo(text, seq) {
   undoTimer = setTimeout(() => { $("undo").hidden = true; }, 10000);
 }
 
-$("c-next").onclick = () => {
+$("c-next").onclick = async () => {
   const st = live.state;
+  // Partie terminée mais un jeu ajouté ensuite : la partie reprend avec lui, scores gardés.
+  if (st?.phase === "ended") {
+    const { next } = gamesOf(st);
+    if (next) jumpTo(next, st);
+    return;
+  }
   // Mimes entre deux tours : « Terminer les mimes » passe au classement, après confirmation s'il reste des équipes.
   const left = st?.phase === "question" && st.mime && !st.mime.team ? mimeRemaining(st) : [];
   if (left.length) {
     const names = left.map((id) => live.teams[id]?.name ?? "Équipe").join(", ");
-    if (!confirm(`${names} ${left.length > 1 ? "ne sont" : "n'est"} pas encore ${left.length > 1 ? "passées" : "passée"}. Terminer les mimes quand même ?`)) return;
+    if (!await demander({ title: "Terminer les mimes ?", text: `${names} ${left.length > 1 ? "ne sont" : "n'est"} pas encore ${left.length > 1 ? "passées" : "passée"}.`, ok: "Terminer les mimes" })) return;
   }
   // Blind test : « next » lance, relance ou arrête la musique (la box décide selon l'état du morceau).
   send(st?.phase === "question" && !(st.mime && !st.mime.team) && !blindMode(st) ? "close" : "next", {}, { advance: true });
@@ -1425,6 +1524,8 @@ $("tab-plan").onclick = () => switchTab("plan");
 $("tab-show").onclick = () => switchTab("show");
 function switchTab(name) {
   tab = name;
+  // Liste des prestations relue à chaque ouverture de l'onglet : elle reflète toujours l'administration.
+  if (name === "show" && !loadingShow) shows = null;
   for (const t of ["teams", "plan", "show"]) {
     $(`tab-${t}`).classList.toggle("active", tab === t);
     $(`panel-${t}`).hidden = tab !== t;
