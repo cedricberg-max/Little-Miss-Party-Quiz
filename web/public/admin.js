@@ -362,7 +362,7 @@ function formShow() {
       : r.type === "mimes" ? { type: "mimes", deckId: r.deckId }
       : r.type === "statues" ? { type: "statues", duration: r.duration ?? STATUES_SEC }
       : MUSIC_GAMES[r.type] ? { type: r.type, playlistId: r.playlistId }
-      : { type: r.type ?? "quiz", quizId: r.quizId, ...(r.count > 0 ? { count: r.count } : {}) })),
+      : { type: r.type ?? "quiz", quizId: r.quizId, ...(r.count > 0 ? { count: r.count } : {}), ...((r.type ?? "quiz") === "quiz" && r.finale > 0 ? { finale: r.finale } : {}) })),
   };
 }
 
@@ -380,10 +380,11 @@ function refreshRounds() {
     box.append(h("div", { class: "round" },
       h("span", { class: "num", text: `${i + 1}` }),
       h("select", { "aria-label": "Type de manche", onchange: (e) => { r.type = e.target.value; refreshRounds(); } },
-        ...Object.entries(ROUND_TYPES).map(([k, label]) => h("option", {
+        // La Super Finale n'est pas un jeu : c'est un réglage de la manche Quiz (ses dernières questions ×2).
+        // Une ancienne manche « Super Finale » reste lisible, mais on n'en crée plus.
+        ...Object.entries(ROUND_TYPES).filter(([k]) => k !== "finale" || r.type === "finale").map(([k, label]) => h("option", {
           value: k, selected: (r.type ?? "quiz") === k,
-          // La Super Finale n'est pas un jeu à part : ce sont les dernières questions (×2) du quiz qui la précède.
-          text: k === "finale" ? "Super Finale (fin du quiz précédent, ×2)" : label,
+          text: k === "finale" ? "Super Finale (ancienne manche, fin du quiz précédent ×2)" : label,
         }))),
       BUILTIN_GAMES[r.type]
         // Jeux au buzzer intégrés : rien à préparer, seulement combien de mots ou de personnages.
@@ -416,6 +417,11 @@ function refreshRounds() {
         ? h("select", { class: "count", "aria-label": "Nombre de questions", onchange: (e) => { r.count = Number(e.target.value) || null; refreshSummary(); } },
           h("option", { value: "", text: "Toutes les questions" }),
           ...[1, 2, 3, 4, 5, 6, 8, 10, 12, 15].map((n) => h("option", { value: n, selected: r.count === n, text: n === 1 ? "La première seulement" : `Les ${n} premières` })))
+        : null,
+      (r.type ?? "quiz") === "quiz"
+        ? h("select", { class: "finale", "aria-label": "Super Finale", onchange: (e) => { r.finale = Number(e.target.value) || null; refreshSummary(); } },
+          h("option", { value: "", text: "Sans Super Finale" }),
+          ...[1, 2, 3, 4, 5].map((n) => h("option", { value: n, selected: r.finale === n, text: n === 1 ? "Super Finale : la dernière question ×2" : `Super Finale : les ${n} dernières ×2` })))
         : null,
       h("button", { type: "button", class: "icon", title: "Monter", disabled: i === 0, onclick: () => move(-1), text: "↑" }),
       h("button", { type: "button", class: "icon", title: "Descendre", disabled: i === editing.rounds.length - 1, onclick: () => move(1), text: "↓" }),
@@ -1368,7 +1374,7 @@ const plural = (n, word, many = `${word}s`) => `${n} ${n > 1 ? many : word}`;
 /** Les jeux par famille : ce qui se prépare dans la bibliothèque, ce qui vient d'un quiz, ce qui est intégré. */
 const GAME_GROUPS = [
   { title: "Avec vos contenus", hint: "Vous préparez le contenu dans la bibliothèque, une fois, et vous le réutilisez dans toutes les prestations.", games: [
-    { type: "quiz", icon: "?", rule: "Questions à 2, 3 ou 4 propositions sur les pupitres ; toutes les équipes qui trouvent marquent. Une question peut aussi être un « Juste Chiffre » (réponse en nombre).",
+    { type: "quiz", icon: "?", rule: "Questions à 2, 3 ou 4 propositions sur les pupitres ; toutes les équipes qui trouvent marquent. Une question peut aussi être un « Juste Chiffre » (réponse en nombre). Super Finale : dans la prestation, les dernières questions du quiz peuvent compter double.",
       status: () => { const ok = Object.values(quizzes).reduce((t, q) => t + playable(q).length, 0); return `${plural(Object.keys(quizzes).length, "quiz", "quiz")} · ${plural(ok, "question validée", "questions validées")}`; },
       actions: () => [["Gérer les quiz", () => show("quizzes")], ["Importer un quiz", () => $("quiz-import-open").click()]] },
     { type: "mimes", icon: "🎭", rule: "Équipe par équipe : un enfant devine, ses coéquipiers miment l'image. 50 points par mime trouvé.",
@@ -1385,7 +1391,6 @@ const GAME_GROUPS = [
     { type: "express", icon: "✔", rule: "Les questions Vrai / Faux d'un quiz, au chrono court du profil.", needs: "Vrai / Faux validées" },
     { type: "zoom", icon: "🔍", rule: "Les questions avec photo d'un quiz : la photo se dévoile peu à peu.", needs: "photos" },
     { type: "flou", icon: "🌫", rule: "Les questions avec photo d'un quiz : l'image devient nette, le premier qui buzze répond.", needs: "photos" },
-    { type: "finale", icon: "★", rule: "Les dernières questions du quiz, à points ×2 : elles terminent le quiz qui les précède, ce n'est pas un jeu à part.", needs: "questions validées" },
   ] },
   { title: "Contenu intégré", hint: "Prêts à jouer : la manche tire au hasard dans un catalogue adapté à l'âge. Vous pouvez retirer des éléments et ajouter les vôtres.", games: [
     { type: "chante", icon: "🎤" }, { type: "quisuis", icon: "🕵" }, { type: "disparu", icon: "🎩" },
@@ -1401,7 +1406,7 @@ function renderGames() {
     h("h2", { text: group.title }),
     h("p", { class: "hint small", text: group.hint }),
     h("div", { class: "cards" }, ...group.games.map((g) => {
-      const quizGame = QUIZ_GAMES[g.type] || g.type === "finale";
+      const quizGame = QUIZ_GAMES[g.type];
       const content = CONTENT_GAMES[g.type];
       const rule = g.rule ?? (content ? `${BUILTIN_GAMES[g.type].rule[0].toUpperCase()}${BUILTIN_GAMES[g.type].rule.slice(1)}.` : "");
       const line = g.status ? g.status()

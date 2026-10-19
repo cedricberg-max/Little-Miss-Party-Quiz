@@ -265,4 +265,4 @@ button.item { cursor: pointer; }
 .content-item:not(.on) .content-toggle b { text-decoration: line-through; }
 .content-toggle .detail { color: var(--soft); font-size: 13px; line-height: 1.35; }
 .content-toggle .tag { font-size: 12px; font-weight: 800; padding: 1px 8px; border-radius: 999px; background: var(--gold-pale); color: var(--warn); }
-.round select.count { flex: none; max-width: 190px; }
+.round select.count, .round select.finale { flex: none; max-width: 190px; }

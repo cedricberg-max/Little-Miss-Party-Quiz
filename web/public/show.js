@@ -273,8 +273,11 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       problems.push(`Manche ${i + 1} (${quiz.title}) : ${game?.missing ?? "aucune question validée"}.`);
       return;
     }
-    rounds.push({ title: label, count: list.length });
+    // Super Finale : réglage d'une manche Quiz, ses N dernières questions comptent double (ce n'est pas un jeu à part).
+    const finale = (round.type ?? "quiz") === "quiz" ? Math.max(0, Math.min(list.length, Math.floor(Number(round.finale) || 0))) : 0;
+    rounds.push({ title: label, count: list.length, ...(finale ? { finale } : {}) });
     list.forEach((q, j) => {
+      const last = j >= list.length - finale;
       const number = q.kind === "number";
       const yesNo = isYesNo(q);
       questions.push({
@@ -286,7 +289,8 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
         // Image floue : le temps que la photo devienne nette ; la réponse se donne à voix haute après un buzz.
         duration: express ? expressDuration(profile) : flou ? FLOU_SEC : q.duration ?? defaultDuration(profile),
         kind: express ? "express" : zoom ? "zoom" : flou ? "flou" : number ? "number" : yesNo ? "true_false" : "classic",
-        double: round.type === "finale" || q.double === true,
+        double: round.type === "finale" || last || q.double === true,
+        ...(last ? { finale: true } : {}),
         round: label,
         // Illustration facultative montrée à la révélation (émoji, ou photo copiée dans la partie par la régie).
         ...(q.image ? { image: q.image } : {}),

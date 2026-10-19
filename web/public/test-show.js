@@ -170,7 +170,7 @@ export const FULL_TITLE = "ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux";
 /** Clés fixes des contenus de la bibliothèque : un second clic ne crée rien en double. */
 export const FULL_KEYS = {
   quiz: `${FULL_ID}-quiz`, express: `${FULL_ID}-vrai-faux`, zoom: `${FULL_ID}-zoom`, flou: `${FULL_ID}-flou`,
-  finale: `${FULL_ID}-finale`, mimes: `${FULL_ID}-mimes`, playlist: `${FULL_ID}-comptines`,
+  mimes: `${FULL_ID}-mimes`, playlist: `${FULL_ID}-comptines`,
 };
 
 const v = (text, choices, correct, extra = {}) => ({ text, choices, correct, double: false, status: "validee", ...extra });
@@ -206,13 +206,6 @@ export const FULL_QUIZZES = {
       v("Une araignée a 8 pattes.", ["Vrai", "Faux"], 0),
       v("Les poissons respirent hors de l'eau.", ["Vrai", "Faux"], 1),
       v("Le chocolat est fait avec du cacao.", ["Vrai", "Faux"], 0),
-    ],
-  },
-  [FULL_KEYS.finale]: {
-    title: "TEST – Super Finale de Léa", theme: "Finale (test)", ageMin: 9, ageMax: 9, source: "saisie",
-    questions: [
-      v("Quel est le plus grand océan du monde ?", ["Atlantique", "Indien", "Arctique", "Pacifique"], 3, { image: "🌊", duration: 25 }),
-      v("Combien font 7 × 8 ?", ["54", "56", "63", "48"], 1, { image: "✖️", duration: 25 }),
     ],
   },
 };
@@ -258,9 +251,10 @@ export const FULL_NEW_ROUNDS = [
 export const FULL_SHOW = {
   childName: "Léa", age: 9, date: "2026-10-25", status: "publiee", title: FULL_TITLE, profile: "MOYENS", durationMin: 25,
   themes: "Tous les jeux (test)",
-  notes: "Prestation de TEST : un peu de chaque jeu (quiz illustré, Juste Chiffre, Vrai ou Faux express, Mimes, Zoom mystère, Chante le mot !, Image floue, Qui suis-je ?, Qui a disparu ?, Blind test, Quiz musical, Statues musicales, Super Finale). Elle peut être archivée sans risque.",
+  notes: "Prestation de TEST : un peu de chaque jeu (quiz illustré, Juste Chiffre, Vrai ou Faux express, Mimes, Zoom mystère, Chante le mot !, Image floue, Qui suis-je ?, Qui a disparu ?, Blind test, Quiz musical, Statues musicales ; les 2 dernières questions du quiz sont la Super Finale ×2). Elle peut être archivée sans risque.",
   rounds: [
-    { type: "quiz", quizId: FULL_KEYS.quiz },
+    // Super Finale : les 2 dernières questions de ce quiz comptent double (un réglage du quiz, pas un jeu).
+    { type: "quiz", quizId: FULL_KEYS.quiz, finale: 2 },
     { type: "express", quizId: FULL_KEYS.express },
     { type: "mimes", deckId: FULL_KEYS.mimes },
     { type: "zoom", quizId: FULL_KEYS.zoom },
@@ -268,7 +262,6 @@ export const FULL_SHOW = {
     { type: "flou", quizId: FULL_KEYS.flou },
     { type: "quisuis", count: 3 },
     ...FULL_NEW_ROUNDS,
-    { type: "finale", quizId: FULL_KEYS.finale },
   ],
   origin: "test",
 };

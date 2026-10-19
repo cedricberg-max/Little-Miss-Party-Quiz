@@ -112,7 +112,13 @@ class DirecteurSonore {
                     o += Ordre.Jouer(Son.TRANSITION)
                     o += Ordre.Musique(Ambiance.SILENCE)
                     o += Ordre.Musique(musique, Tempo.TRANSITION_MUSIQUE)
-                } else if (i.premiere || i.superFinale) {
+                } else if (i.superFinale && !p.superFinale) {
+                    // Les dernières questions du quiz passent à points ×2 : un éclat « points doublés », une seule fois.
+                    // Ce n'est pas un nouveau jeu : ni rideau ni jingle de manche.
+                    o += Ordre.Jouer(Son.BT_DOUBLE)
+                    o += Ordre.Musique(Ambiance.SILENCE)
+                    o += Ordre.Musique(musique, Tempo.QUESTION_MUSIQUE_APRES_MANCHE)
+                } else if (i.premiere) {
                     o += Ordre.Jouer(Son.MANCHE)
                     o += Ordre.Jouer(Son.IMPACT)
                     o += Ordre.Musique(Ambiance.SILENCE)

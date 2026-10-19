@@ -1257,17 +1257,17 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.fill("#show-age", "7");
     await page.fill("#show-date", "2026-12-02");
     await page.click("#round-add");
+    // La Super Finale n'est pas un jeu qu'on ajoute : c'est un réglage de la manche Quiz.
+    assert.equal(await page.locator('#show-rounds .round select').first().locator('option[value="finale"]').count(), 0);
     await page.locator("#show-rounds select.grow").nth(0).selectOption("animaux");
-    await page.click("#round-add");
-    await page.locator("#show-rounds .round").nth(1).locator("select").first().selectOption("finale");
-    await page.locator("#show-rounds select.grow").nth(1).selectOption("finale");
-    await page.locator("#show-summary", { hasText: "3 questions jouables" }).waitFor();
+    await page.locator("#show-rounds select.finale").selectOption("1");
+    await page.locator("#show-summary", { hasText: "2 questions jouables" }).waitFor();
     await page.selectOption("#show-status", "publiee");
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
     const saved = Object.values(await library("shows"))[0];
     assert.equal(saved.childName, "Léa");
-    assert.deepEqual(saved.rounds, [{ type: "quiz", quizId: "animaux" }, { type: "finale", quizId: "finale" }]);
+    assert.deepEqual(saved.rounds, [{ type: "quiz", quizId: "animaux", finale: 1 }]);
     await page.context().close();
 
     box = startBox();
@@ -1282,10 +1282,10 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(show.childName, "Léa");
     assert.equal(show.profile, "PETITS");
     const q = show.quiz.questions;
-    // Brouillon écarté, chrono du profil Petits (25 s + 10 s de lecture), durée imposée gardée,
-    // Super Finale doublée et jouée comme les dernières questions du quiz, pas comme un jeu à part.
+    // Brouillon écarté, chrono du profil Petits (25 s + 10 s de lecture),
+    // Super Finale : la dernière question du quiz compte double, dans le même jeu.
     assert.deepEqual(q.map((x) => [x.id, x.duration, x.double, x.round]), [
-      ["r1q1", 35, false, "Animaux"], ["r1q2", 35, false, "Animaux"], ["r2q1", 15, true, "Animaux"],
+      ["r1q1", 35, false, "Animaux"], ["r1q2", 35, true, "Animaux"],
     ]);
     await regie.locator("#c-games", { hasText: "Programme sur la TV (1 jeu)" }).waitFor();
     await regie.click("#tab-plan");
@@ -1298,9 +1298,11 @@ describe("bibliothèque de quiz et prestations", () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     const page = await admin();
     await page.click("#nav button[data-screen=games]");
-    assert.equal(await page.locator(".game-card").count(), 12);
+    // 11 jeux : la Super Finale n'en est pas un, c'est la fin du quiz (réglage de la manche Quiz).
+    assert.equal(await page.locator(".game-card").count(), 11);
     await page.locator('.game-card[data-game=quiz]', { hasText: "1 quiz · 2 questions validées" }).waitFor();
-    await page.locator('.game-card[data-game=finale]', { hasText: "ce n'est pas un jeu à part" }).waitFor();
+    await page.locator('.game-card[data-game=quiz]', { hasText: "les dernières questions du quiz peuvent compter double" }).waitFor();
+    assert.equal(await page.locator('.game-card[data-game=finale]').count(), 0);
     // Mimes : la carte mène aux paquets (ce que Sarah ne trouvait pas).
     await page.locator('.game-card[data-game=mimes] button', { hasText: "Gérer les paquets" }).click();
     await page.locator("#screen-mimes:not([hidden])").waitFor();
