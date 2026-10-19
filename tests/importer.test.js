@@ -240,6 +240,13 @@ describe("programme modifié pendant la partie", () => {
     assert.deepEqual(programRounds(PLAN).map((r) => [r.title, r.start, r.end]), [["Animaux", 0, 1], ["Espace", 2, 2], ["Super Finale", 3, 3]]);
   });
 
+  test("quiz de démonstration (questions sans manche) : un seul jeu « Quiz », pas un jeu par question", () => {
+    const demo = [q("a"), q("b"), { ...q("c"), double: true }];
+    assert.deepEqual(programRounds(demo).map((r) => [r.title, r.start, r.end]), [["Quiz", 0, 2]]);
+    // Un jeu ajouté ensuite reste un jeu à part.
+    assert.deepEqual(programRounds([...demo, q("m", "Mimes")]).map((r) => [r.title, r.start, r.end]), [["Quiz", 0, 2], ["Mimes", 3, 3]]);
+  });
+
   test("ajouter un jeu après la manche actuelle ou à la fin, avec des identifiants neufs", () => {
     const quizzes = { dino: { title: "Dinosaures", questions: [{ text: "T-Rex ?", choices: ["Oui", "Non"], correct: 0, status: "validee" }] } };
     const { questions } = gameQuestions({ type: "quiz", quizId: "dino" }, quizzes, "GRANDS", "e9");

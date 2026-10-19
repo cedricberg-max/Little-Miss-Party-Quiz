@@ -356,7 +356,7 @@ beforeEach(async () => {
   await set(gameRef(), {
     hostUid: HOST,
     state: { phase: "lobby", seq: 0, total: QUESTIONS.length, scores: {}, round: 1, buzzOpen: true },
-    conducteur: { id: "demo", title: "Démo", rev: "initial", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, blindPlay: true, statues: true, disparu: true, pictionary: true, portes: true, questions: QUESTIONS.map((q, i) => ({ id: `q${i + 1}`, ...q })) },
+    conducteur: { id: "essai", title: "Démo", rev: "initial", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, blindPlay: true, statues: true, disparu: true, pictionary: true, portes: true, questions: QUESTIONS.map((q, i) => ({ id: `q${i + 1}`, ...q })) },
   });
 });
 afterEach(() => { box?.stop(); box = null; });
@@ -1085,6 +1085,30 @@ describe("régie", () => {
     await page.context().close();
   });
 
+  test("quiz de démonstration : la régie le dit, demande confirmation avant de le lancer et l'affiche comme un seul jeu", async () => {
+    box = startBox();
+    await set(gameRef("conducteur"), { ...(await read("conducteur")), id: "demo", title: "Quiz de démonstration" });
+    await addTeam("rose", "Les Roses");
+    const page = await openRegie();
+    await pair(page);
+    await page.locator("#c-demo", { hasText: "Aucune prestation chargée" }).waitFor();
+    // « Lancer la fête ! » sans prestation : confirmation ; « Annuler » ouvre l'onglet Prestation sans rien lancer.
+    await page.locator("#c-next", { hasText: "Lancer la fête !" }).click();
+    await page.locator("#ask-title", { hasText: "Aucune prestation chargée" }).waitFor();
+    await page.click("#ask-cancel");
+    await page.locator("#panel-show:not([hidden])").waitFor();
+    assert.equal((await read("state")).phase, "lobby");
+    await page.locator("#c-next", { hasText: "Lancer la fête !" }).click();
+    await page.click("#ask-ok");
+    await page.locator("#c-demo", { hasText: "Terminer et lancer une nouvelle partie" }).waitFor();
+    // Les questions sans manche forment un seul jeu, et les points ×2 ne sont jamais présentés comme un jeu.
+    await page.click("#c-rescue");
+    assert.equal(await page.locator("#rescue-list .rescue-game").count(), 1);
+    const text = await page.locator("#rescue-list").textContent();
+    assert.ok(!text.includes("Super Finale"), text);
+    await page.context().close();
+  });
+
   test("le conducteur liste les questions avec leur réponse", async () => {
     box = startBox();
     const page = await openRegie();
@@ -1393,7 +1417,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.locator("#c-games", { hasText: "Programme sur la TV (1 jeu)" }).waitFor();
     await regie.click("#tab-plan");
     assert.equal(await regie.locator("#panel-plan .plan-round").count(), 1);
-    await regie.locator("#panel-plan .plan-item", { hasText: "Super Finale ×2" }).waitFor();
+    await regie.locator("#panel-plan .plan-item", { hasText: "points ×2" }).waitFor();
     await regie.context().close();
   });
 
