@@ -180,7 +180,7 @@ fun BlindBuzz(equipe: String, couleur: Color, modifier: Modifier = Modifier) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
             Text(
                 "STOP !", fontSize = 150.sp, lineHeight = 156.sp, fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
-                style = TextStyle(color = couleur, shadow = Shadow(couleur.copy(alpha = 0.85f), Offset.Zero, 40f)),
+                style = TextStyle(fontFamily = PoliceLmp, color = couleur, shadow = Shadow(couleur.copy(alpha = 0.85f), Offset.Zero, 40f)),
                 modifier = Modifier.apparition(0, equipe),
             )
             Text(

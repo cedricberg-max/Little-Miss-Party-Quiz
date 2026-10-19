@@ -156,7 +156,7 @@ private fun Rideau(a: Annonce, fini: () -> Unit) {
             }
             Text(
                 a.titre,
-                style = TextStyle(
+                style = TextStyle(fontFamily = PoliceLmp,
                     brush = Brush.verticalGradient(listOf(Neon.OrClair, Neon.Or, Neon.OrProfond)),
                     fontSize = taille, lineHeight = taille * 1.1f, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                     shadow = Shadow(Neon.Or.copy(alpha = 0.6f), blurRadius = 30f),

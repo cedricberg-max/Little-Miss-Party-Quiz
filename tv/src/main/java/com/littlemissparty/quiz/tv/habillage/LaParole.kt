@@ -135,7 +135,7 @@ fun LaParole(nom: String, couleur: Color, visible: Boolean, modifier: Modifier =
             ) {
                 Text(
                     "🎤  LA PAROLE EST À",
-                    style = TextStyle(color = Neon.Or, fontSize = 24.sp, fontWeight = FontWeight.Black, letterSpacing = 4.sp),
+                    style = TextStyle(fontFamily = PoliceLmp, color = Neon.Or, fontSize = 24.sp, fontWeight = FontWeight.Black, letterSpacing = 4.sp),
                 )
                 NomUneLigne(nom.ifBlank { "Équipe" }, couleur, 96f, 780.dp)
             }
@@ -148,7 +148,7 @@ fun LaParole(nom: String, couleur: Color, visible: Boolean, modifier: Modifier =
 internal fun NomUneLigne(texte: String, couleur: Color, tailleMax: Float, largeurMax: Dp, tailleMin: Float = 28f) {
     val mesure = rememberTextMeasurer()
     val densite = LocalDensity.current
-    fun style(taille: Float) = TextStyle(
+    fun style(taille: Float) = TextStyle(fontFamily = PoliceLmp,
         color = couleur, fontSize = taille.sp, lineHeight = (taille * 1.1f).sp, fontWeight = FontWeight.Black,
         shadow = Shadow(couleur.copy(alpha = 0.8f), Offset.Zero, 28f),
     )

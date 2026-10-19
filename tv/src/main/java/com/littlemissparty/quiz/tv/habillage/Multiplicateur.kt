@@ -50,7 +50,7 @@ fun AnnonceMultiplicateur(facteur: Int, restantes: Int, modifier: Modifier = Mod
             )
             Text(
                 "× $facteur", fontSize = 260.sp, lineHeight = 260.sp, fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
-                style = TextStyle(color = Neon.Or, shadow = Shadow(Neon.Or.copy(alpha = 0.7f), Offset.Zero, 50f)),
+                style = TextStyle(fontFamily = PoliceLmp, color = Neon.Or, shadow = Shadow(Neon.Or.copy(alpha = 0.7f), Offset.Zero, 50f)),
                 modifier = Modifier.apparition(2000, cle).rebond(apres(2400, cle), 0.05f),
             )
             Text(

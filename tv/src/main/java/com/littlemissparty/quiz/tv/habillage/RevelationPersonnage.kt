@@ -77,7 +77,7 @@ fun RevelationPersonnage(nom: String, emoji: String?, image: ImageBitmap?, modif
                 }
                 Text(
                     "C'ÉTAIT…",
-                    style = TextStyle(color = Neon.Or, fontSize = if (visuel) 20.sp else 26.sp, fontWeight = FontWeight.Black, letterSpacing = 5.sp),
+                    style = TextStyle(fontFamily = PoliceLmp, color = Neon.Or, fontSize = if (visuel) 20.sp else 26.sp, fontWeight = FontWeight.Black, letterSpacing = 5.sp),
                     modifier = Modifier.graphicsLayer { alpha = ((t.value - 250f) / 300f).coerceIn(0f, 1f) },
                 )
                 Box(

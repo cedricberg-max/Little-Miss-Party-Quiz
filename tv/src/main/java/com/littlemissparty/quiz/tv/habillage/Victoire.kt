@@ -142,7 +142,7 @@ fun Victoire(classement: List<Classee>, modifier: Modifier = Modifier) {
                         if (gagnants.size > 1) {
                             Text(
                                 "Égalité !",
-                                style = TextStyle(color = Neon.Or, fontSize = 36.sp, fontWeight = FontWeight.Black, shadow = Shadow(Neon.Or, Offset.Zero, 20f)),
+                                style = TextStyle(fontFamily = PoliceLmp, color = Neon.Or, fontSize = 36.sp, fontWeight = FontWeight.Black, shadow = Shadow(Neon.Or, Offset.Zero, 20f)),
                                 maxLines = 1, modifier = Modifier.apparition(Tempo.FIN_VAINQUEUR, Unit),
                             )
                         }
@@ -169,7 +169,7 @@ fun Victoire(classement: List<Classee>, modifier: Modifier = Modifier) {
                         } else {
                             Text(
                                 "Bravo à toutes les équipes !",
-                                style = TextStyle(color = Neon.Or, fontSize = 54.sp, lineHeight = 60.sp, fontWeight = FontWeight.Black, shadow = Shadow(Neon.Or, Offset.Zero, 24f)),
+                                style = TextStyle(fontFamily = PoliceLmp, color = Neon.Or, fontSize = 54.sp, lineHeight = 60.sp, fontWeight = FontWeight.Black, shadow = Shadow(Neon.Or, Offset.Zero, 24f)),
                                 textAlign = TextAlign.Center, maxLines = 2, modifier = Modifier.apparition(2_000, Unit),
                             )
                             Spacer(Modifier.height(10.dp))
@@ -319,7 +319,7 @@ private fun NomVainqueur(g: Classee, impact: Float) {
     }
     Text(
         g.nom,
-        style = TextStyle(
+        style = TextStyle(fontFamily = PoliceLmp,
             color = g.couleur, fontSize = taille, lineHeight = taille * 1.08f, fontWeight = FontWeight.Black,
             // Liseré or : un halo doré serré sous le halo de la couleur d'équipe.
             shadow = Shadow(Neon.Or.copy(alpha = 0.9f), Offset.Zero, 18f),
@@ -353,7 +353,7 @@ private fun NomsEgalite(gagnants: List<Classee>) {
                 rang.forEach { g ->
                     Text(
                         g.nom,
-                        style = TextStyle(color = g.couleur, fontSize = taille, lineHeight = taille * 1.12f, fontWeight = FontWeight.Black, shadow = Shadow(Neon.Or.copy(alpha = 0.8f), Offset.Zero, 14f)),
+                        style = TextStyle(fontFamily = PoliceLmp, color = g.couleur, fontSize = taille, lineHeight = taille * 1.12f, fontWeight = FontWeight.Black, shadow = Shadow(Neon.Or.copy(alpha = 0.8f), Offset.Zero, 14f)),
                         maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = if (rang.size == 1) 880.dp else 430.dp),
                     )
                 }
