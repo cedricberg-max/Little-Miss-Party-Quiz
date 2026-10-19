@@ -10,11 +10,35 @@ export const STATUES_SECONDS = [60, 90, 120];
 export const STATUES_SEC = 90;
 /** Jeux musicaux : leurs extraits viennent d'une playlist de la bibliothèque (library/playlists). */
 export const MUSIC_GAMES = {
-  blind: { rule: "le premier qui buzze donne le titre, bonus pour l'artiste" },
+  blind: { rule: "le premier qui buzze donne le titre ; les derniers morceaux valent double" },
   musical: { rule: "4 titres proposés sur les pupitres, toutes les équipes répondent" },
 };
 /** Durée d'un extrait de blind test par défaut (secondes). */
 export const BLIND_SEC = 25;
+/**
+ * Barème d'un blind test par défaut : valeur d'un morceau, valeur des derniers morceaux, combien de derniers
+ * morceaux valent plus, et secondes de révélation (pochette, titre, extrait rejoué). Réglable par playlist.
+ */
+export const BLIND_SCALE = { points: 100, finalPoints: 200, finalCount: 3, reveal: 7 };
+export const BLIND_REVEAL_SECONDS = [4, 5, 7, 10, 15];
+const bounded = (v, min, max, fallback) => (Number.isInteger(v) && v >= min && v <= max ? v : fallback);
+
+/** Barème d'une playlist, valeurs manquantes ou hors limites remplacées par celles par défaut. */
+export function blindScale(playlist) {
+  return {
+    points: bounded(playlist?.points, 1, 1000, BLIND_SCALE.points),
+    finalPoints: bounded(playlist?.finalPoints, 1, 1000, BLIND_SCALE.finalPoints),
+    finalCount: bounded(playlist?.finalCount, 0, 20, BLIND_SCALE.finalCount),
+    reveal: bounded(playlist?.reveal, 3, 20, BLIND_SCALE.reveal),
+  };
+}
+
+/** Valeur du morceau [i] sur [n] : celle choisie pour ce morceau, sinon celle des derniers morceaux ou la normale. */
+export function trackPoints(playlist, track, i, n) {
+  const scale = blindScale(playlist);
+  if (Number.isInteger(track?.points) && track.points >= 1 && track.points <= 1000) return track.points;
+  return i >= n - scale.finalCount ? scale.finalPoints : scale.points;
+}
 /** Image floue : temps pour que la photo devienne nette (secondes), le même pour tous les âges. */
 export const FLOU_SEC = 40;
 /** Durée d'un tour de mimes par défaut (secondes). */
@@ -91,19 +115,26 @@ export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || 
 export const playableTracks = (playlist) => (playlist?.tracks ?? []).filter((t) => t?.title?.trim() && /^[0-9a-f]{16}$/.test(t.audioId ?? ""));
 
 /**
- * Questions d'un jeu musical. Blind test : un buzz par morceau, réponse à voix haute (le titre, bonus pour
- * l'artiste). Quiz musical : le bon titre parmi trois autres titres de la même playlist, sur les pupitres.
+ * Questions d'un jeu musical. Blind test : les morceaux dans l'ordre de la playlist, un buzz par morceau,
+ * réponse à voix haute, chaque morceau avec sa valeur, sa pochette et sa durée de révélation. Quiz musical : le bon
+ * titre parmi trois autres titres de la même playlist, sur les pupitres, morceaux mélangés.
  */
 function musicQuestions(type, playlist, prefix, random) {
-  const tracks = shuffle(playableTracks(playlist), random);
+  const tracks = type === "blind" ? playableTracks(playlist) : shuffle(playableTracks(playlist), random);
+  const scale = blindScale(playlist);
   const titles = [...new Set(tracks.map((t) => t.title.trim()))];
   // Le type dans le titre : blind test et quiz musical d'une même playlist restent deux manches distinctes.
   const label = playlist.title?.trim() ? `${ROUND_TYPES[type]} · ${playlist.title.trim()}` : ROUND_TYPES[type];
   return tracks.map((t, j) => {
     const title = t.title.trim();
-    const base = { id: `${prefix}${j + 1}`, double: false, round: label, audioId: t.audioId, duration: playlist.duration ?? BLIND_SEC };
+    const base = { id: `${prefix}${j + 1}`, double: false, round: label, audioId: t.audioId, duration: t.duration ?? playlist.duration ?? BLIND_SEC };
     if (type === "blind") {
-      return { ...base, text: "Quel est ce titre ?", choices: [title], correct: 0, kind: "blind", ...(t.artist?.trim() ? { artist: t.artist.trim() } : {}) };
+      return {
+        ...base, text: "Quel est ce titre ?", choices: [title], correct: 0, kind: "blind",
+        points: trackPoints(playlist, t, j, tracks.length), reveal: scale.reveal,
+        ...(t.artist?.trim() ? { artist: t.artist.trim() } : {}),
+        ...(/^[0-9a-f]{16}$/.test(t.imageId ?? "") ? { imageId: t.imageId } : {}),
+      };
     }
     const others = shuffle(titles.filter((x) => x !== title), random).slice(0, 3);
     const choices = shuffle([title, ...others], random);

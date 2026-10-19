@@ -82,11 +82,20 @@ fun ExtraitMusical(q: Question, state: UiState.Playing) {
         onDispose { runCatching { player.stop() }; runCatching { player.release() } }
     }
     val revealed = state.phase == Phase.REVEAL
+    // Blind test : la révélation fait réentendre l'extrait quelques secondes, ou s'arrête si l'animatrice raccourcit.
+    val coupe = q.isBlind && state.blind?.cut == true
     val enCours = state.phase == Phase.QUESTION && state.deadline != null && !state.paused
-    LaunchedEffect(player, enCours, revealed, state.deadline, state.resumeAt) {
+    LaunchedEffect(player, enCours, revealed, coupe, state.deadline, state.resumeAt) {
         runCatching {
             when {
-                revealed -> { player.seekTo(0); player.start() }
+                revealed && coupe -> if (player.isPlaying) player.pause()
+                revealed -> {
+                    player.seekTo(0); player.start()
+                    if (q.isBlind) {
+                        delay(q.revealSec * 1000L)
+                        if (player.isPlaying) player.pause()
+                    }
+                }
                 enCours -> {
                     // Après une reprise, la musique attend la fin du décompte 3, 2, 1, comme le chrono.
                     val start = state.resumeAt ?: 0L

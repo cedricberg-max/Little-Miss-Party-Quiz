@@ -97,6 +97,24 @@ data class MimeCorrected(override val seq: Int, override val at: Long, val team:
 /** Fin du tour : chrono écoulé, paquet épuisé ou arrêt par l'animatrice. */
 data class MimeTurnEnded(override val seq: Int, override val at: Long) : GameEvent
 
+/**
+ * Blind test : l'animatrice lance (ou relance) la musique du morceau ; les buzzers s'ouvrent. [unblock] :
+ * toutes les équipes avaient déjà tenté leur chance, elles peuvent toutes rebuzzer.
+ */
+data class BlindPlayed(override val seq: Int, override val at: Long, val unblock: Boolean = false) : GameEvent
+
+/** Blind test : la musique s'arrête (fin de l'extrait, ou l'animatrice l'arrête) ; on attend sa relance. */
+data class BlindStopped(override val seq: Int, override val at: Long) : GameEvent
+
+/** Blind test : l'animatrice réautorise toutes les équipes à buzzer sur ce morceau. */
+data class BuzzUnblocked(override val seq: Int, override val at: Long) : GameEvent
+
+/** Blind test : morceau [qid] passé sans révélation ; le morceau suivant s'annonce (ou le bilan à la fin). */
+data class BlindSkipped(override val seq: Int, override val at: Long, val qid: String) : GameEvent
+
+/** Blind test : l'animatrice raccourcit la révélation du morceau [qid] (musique et animation coupées). */
+data class RevealCut(override val seq: Int, override val at: Long, val qid: String) : GameEvent
+
 /** Qui a disparu ? : la mémorisation est finie, les objets reviennent (sans l'un d'eux) et le buzzer s'ouvre. */
 data class BuzzArmed(override val seq: Int, override val at: Long) : GameEvent
 

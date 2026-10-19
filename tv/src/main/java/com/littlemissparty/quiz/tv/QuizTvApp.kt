@@ -92,8 +92,9 @@ class TvActions(
     val mimeStop: () -> Unit = {},
     /** Image floue à la télécommande : bonne (true) ou mauvaise réponse de l'équipe qui a buzzé. */
     val judgeBuzz: (Boolean) -> Unit = {},
-    /** Blind test : bon titre et bon artiste (bonus). */
-    val judgeBonus: () -> Unit = {},
+    /** Blind test à la télécommande : révéler le morceau sans gagnant, le passer sans le révéler. */
+    val blindReveal: () -> Unit = {},
+    val blindSkip: () -> Unit = {},
 )
 
 /** Mise à jour de l'appli depuis la TV : état de la fenêtre et version trouvée par la recherche discrète. */

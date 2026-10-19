@@ -118,7 +118,10 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                         ChanteBoard(q, state, Modifier.weight(1.4f).fillMaxHeight())
                         Spacer(Modifier.width(20.dp))
                     } else if (q.isBlind) {
-                        BlindBoard(q, state, Modifier.weight(1.2f).fillMaxHeight())
+                        // Révélation : la pochette prend la place du disque (le disque reste s'il n'y en a pas).
+                        val image = if (revealed) pochette(q, state) else null
+                        if (image != null) BlindPochette(image, q.id, Modifier.fillMaxHeight().aspectRatio(1f, matchHeightConstraintsFirst = true))
+                        else BlindBoard(q, state, Modifier.weight(1.2f).fillMaxHeight())
                         Spacer(Modifier.width(20.dp))
                     } else if (q.isDisparu) {
                         DisparuBoard(q, state, Modifier.weight(1.6f).fillMaxHeight())
@@ -135,6 +138,7 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                         Spacer(Modifier.width(20.dp))
                     }
                     if (q.isStatues) StatuesBoard(q, state, Modifier.weight(1f).fillMaxHeight())
+                    else if (q.isBlind) BlindPanel(q, state, Modifier.weight(1f).fillMaxHeight())
                     else if (q.isBuzz) FlouPanel(q, state, Modifier.weight(1f).fillMaxHeight())
                     else if (q.isNumber) NumberBoard(state, revealed, Modifier.weight(1f).fillMaxHeight())
                     else ChoiceGrid(q.choices, correct = if (revealed) q.correct else null, Modifier.weight(1f).fillMaxHeight(), express = q.isExpress)
@@ -163,14 +167,27 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                     Phase.QUESTION -> if (q.isBuzz && state.buzzTeam != null) {
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             TvButton("Mauvaise réponse", { actions.judgeBuzz(false) }, fontSize = 24.sp)
-                            // Blind test : le titre seul, ou le titre et l'artiste (bonus).
-                            if (q.isBlind) TvButton("Titre + artiste", { actions.judgeBonus() }, fontSize = 24.sp)
-                            NextButton(if (q.isBlind) "Bon titre" else "Bonne réponse", { actions.judgeBuzz(true) }, key = state.buzzTeam)
+                            NextButton("Bonne réponse", { actions.judgeBuzz(true) }, key = state.buzzTeam)
                         }
-                    } else NextButton("Arrêter le chrono", actions.next, key = state.phase)
+                    } else if (q.isBlind && state.blind != null && state.blind.waiting) {
+                        // Blind test, musique à l'arrêt : l'animatrice lance (ou relance), révèle ou passe le morceau.
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            TvButton("Passer", actions.blindSkip, fontSize = 24.sp)
+                            TvButton("Révéler sans points", actions.blindReveal, fontSize = 24.sp)
+                            NextButton(if (state.blind.played) "Relancer la musique" else "Lancer le morceau", actions.next, key = state.blind.played)
+                        }
+                    } else NextButton(if (q.isBlind) "Arrêter la musique" else "Arrêter le chrono", actions.next, key = state.phase)
                     Phase.CLOSED -> NextButton("Révéler la réponse", actions.next, key = state.phase)
                     // Vrai ou Faux express : la TV enchaîne seule ; le bouton ne fait qu'aller plus vite.
-                    else -> NextButton(if (q.isExpress) "Suivant" else "Voir les scores", actions.next, key = state.phase)
+                    else -> NextButton(
+                        when {
+                            q.isExpress -> "Suivant"
+                            // Blind test : le morceau suivant s'annonce, sans démarrer ; après le dernier, le bilan.
+                            q.isBlind -> state.blind?.takeIf { it.numero < it.total }?.let { "Titre suivant" } ?: "Bilan du blind test"
+                            else -> "Voir les scores"
+                        },
+                        actions.next, key = state.phase,
+                    )
                 }
             }
         }
@@ -292,7 +309,11 @@ fun ScoresScreen(state: UiState.Playing, actions: TvActions) {
     Column(Modifier.fillMaxSize().padding(horizontal = 56.dp, vertical = 28.dp)) {
         Text("Classement", color = Palette.Ink, fontSize = 40.sp, fontWeight = FontWeight.Black)
         Text(
-            if (state.mime != null) "Après les mimes" else "Après la question ${state.index + 1} / ${state.total}",
+            when {
+                state.mime != null -> "Après les mimes"
+                state.blind != null -> "Bilan du blind test"
+                else -> "Après la question ${state.index + 1} / ${state.total}"
+            },
             color = Palette.InkSoft, fontSize = 20.sp,
         )
         Spacer(Modifier.height(16.dp))

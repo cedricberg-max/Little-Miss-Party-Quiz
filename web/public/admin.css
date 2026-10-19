@@ -239,3 +239,11 @@ button.item { cursor: pointer; }
 .track.saved .track-start { display: none; }
 .file-btn { display: inline-block; cursor: pointer; }
 @media (max-width: 640px) { .track { grid-template-columns: 1fr; } .track .track-start, .track .track-note { grid-column: auto; } }
+
+/* Blind test : ordre, valeur et pochette de chaque morceau */
+.track .track-extra { grid-column: 1 / 3; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; color: var(--soft); font-size: 15px; }
+.track .track-extra input[type="number"] { width: 90px; }
+.track .track-cover { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
+.track .track-cover[hidden] { display: none; }
+.track .track-n { font-weight: 800; color: var(--accent, #c2185b); }
+@media (max-width: 640px) { .track .track-extra { grid-column: auto; } }

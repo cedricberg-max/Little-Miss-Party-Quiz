@@ -147,6 +147,22 @@
         <div id="statues-teams" class="statues-teams"></div>
         <p id="statues-points" class="hint"></p>
       </section>
+      <!-- Blind test : la régie lance chaque morceau, juge la réponse orale, relance, révèle ou passe. -->
+      <section id="blind" class="flou blind" hidden aria-label="Blind test">
+        <p id="blind-head" class="blind-head"></p>
+        <p id="blind-info" class="mime-info"></p>
+        <div id="blind-judge" class="flou-judge">
+          <button id="blind-ok" class="mime-found">BONNE RÉPONSE<small></small></button>
+          <button id="blind-ko" class="btn secondary flou-ko">Mauvaise réponse</button>
+        </div>
+        <div id="blind-row" class="mime-row">
+          <button id="blind-unblock" class="btn secondary">Réautoriser toutes les équipes</button>
+          <button id="blind-reveal" class="btn secondary">Révéler sans points</button>
+          <button id="blind-skip" class="btn secondary">Passer le morceau</button>
+          <button id="blind-cut" class="btn secondary">Raccourcir la révélation</button>
+        </div>
+        <ol id="blind-tracks" class="blind-tracks"></ol>
+      </section>
       <section id="flou" class="flou" hidden aria-label="Image floue">
         <p id="flou-info" class="mime-info"></p>
         <div id="flou-judge" class="flou-judge">

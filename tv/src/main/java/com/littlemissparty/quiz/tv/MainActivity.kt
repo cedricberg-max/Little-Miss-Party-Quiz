@@ -47,7 +47,8 @@ class MainActivity : ComponentActivity() {
                     mimePass = viewModel::mimePass,
                     mimeStop = viewModel::mimeStop,
                     judgeBuzz = { ok -> viewModel.judgeBuzz(ok) },
-                    judgeBonus = { viewModel.judgeBuzz(true, bonus = true) },
+                    blindReveal = viewModel::blindReveal,
+                    blindSkip = viewModel::blindSkip,
                 ),
                 update = UpdateScreen(
                     ui = updateUi, open = updateOpen, available = updateAvailable, offer = updateOffer,

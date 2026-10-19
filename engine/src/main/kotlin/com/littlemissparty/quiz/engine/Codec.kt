@@ -34,6 +34,11 @@ object Codec {
             is MimeTurnEnded -> mapOf("type" to "mime_stop")
             is Buzzed -> mapOf("type" to "buzz", "team" to e.team)
             is BuzzArmed -> mapOf("type" to "buzz_armed")
+            is BlindPlayed -> if (e.unblock) mapOf("type" to "blind_play", "unblock" to true) else mapOf("type" to "blind_play")
+            is BlindStopped -> mapOf("type" to "blind_stop")
+            is BuzzUnblocked -> mapOf("type" to "buzz_unblock")
+            is BlindSkipped -> mapOf("type" to "blind_skip", "qid" to e.qid)
+            is RevealCut -> mapOf("type" to "reveal_cut", "qid" to e.qid)
             is BuzzJudged -> if (e.bonus) mapOf("type" to "buzz_judge", "ok" to e.ok, "bonus" to true) else mapOf("type" to "buzz_judge", "ok" to e.ok)
             is StatuesWon -> mapOf("type" to "statues_win", "team" to e.team, "others" to e.others.ifEmpty { null })
             is Jumped -> mapOf("type" to "goto", "index" to e.index, "qid" to e.qid, "clear" to e.clear.ifEmpty { null })
@@ -74,6 +79,11 @@ object Codec {
             "mime_stop" -> MimeTurnEnded(seq, at)
             "buzz" -> Buzzed(seq, at, m["team"] as String)
             "buzz_armed" -> BuzzArmed(seq, at)
+            "blind_play" -> BlindPlayed(seq, at, m["unblock"] == true)
+            "blind_stop" -> BlindStopped(seq, at)
+            "buzz_unblock" -> BuzzUnblocked(seq, at)
+            "blind_skip" -> BlindSkipped(seq, at, m["qid"] as String)
+            "reveal_cut" -> RevealCut(seq, at, m["qid"] as String)
             "statues_win" -> StatuesWon(seq, at, m["team"] as String, (m["others"] as? List<*>).orEmpty().map { it as String })
             "buzz_judge" -> BuzzJudged(seq, at, m["ok"] == true, m["bonus"] == true)
             "goto" -> Jumped(seq, at, m.num("index").toInt(), m["qid"] as String, (m["clear"] as? List<*>).orEmpty().map { it as String })
@@ -89,7 +99,7 @@ object Codec {
         val b = s.buzz ?: return null
         if (s.phase != Phase.QUESTION) return null
         // Une clé de la base ne peut pas contenir . # $ [ ] / : on les remplace dans l'identifiant de la question.
-        return "${s.qid.orEmpty().replace(Regex("[.#$\\[\\]/]"), "_")}-${s.openedAt ?: 0}-${b.blocked.size}"
+        return "${s.qid.orEmpty().replace(Regex("[.#$\\[\\]/]"), "_")}-${s.openedAt ?: 0}-${b.tries}"
     }
 
     /**
@@ -124,7 +134,7 @@ object Codec {
             // Buzzer : au salon d'attente (tour réarmé par la box), et à l'image floue tant que personne n'attend son
             // verdict. La clé change à chaque ouverture et après chaque erreur : le premier qui écrit gagne.
             "round" to (buzzKey(game) ?: buzzRound),
-            "buzzOpen" to (s.phase == Phase.LOBBY || (buzzKey(game) != null && !s.buzzHeld && !s.paused && s.buzz?.armed != false)),
+            "buzzOpen" to (s.phase == Phase.LOBBY || (buzzKey(game) != null && !s.buzzHeld && !s.paused && s.buzz?.armed != false && s.buzz?.waiting != true)),
             "paused" to s.paused,
             // Les pupitres voient seulement qu'il y a une pause ; la régie lit aussi l'équipe concernée.
             "pauseReason" to s.hold?.reason,
@@ -142,7 +152,7 @@ object Codec {
                 "choices" to if (q.isBuzz && !revealed) null else q.choices,
                 "durationMs" to q.durationMs,
                 "deadline" to game.deadline(),
-                "remainingMs" to if (s.paused || s.buzzHeld) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
+                "remainingMs" to if (s.paused || s.buzzHeld || s.buzz?.waiting == true) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
                 "correct" to if (revealed) q.correct else null,
                 // L'émoji d'illustration peut trahir la réponse : seulement une fois révélée.
                 "image" to if (revealed) q.emoji else null,
@@ -152,6 +162,7 @@ object Codec {
                 } else null,
             )
             if (q.isMime) out["mime"] = mimeState(game, s.mime)
+            if (q.isBlind) out["blind"] = blindState(game)
             s.buzz?.let {
                 out["buzz"] = mapOf("team" to it.team, "blocked" to it.blocked)
                 // Même liste en table : les règles de la base refusent le buzz d'une équipe déjà bloquée.
@@ -159,5 +170,21 @@ object Codec {
             }
         }
         return out
+    }
+
+    /**
+     * Blind test, pour la régie et les pupitres : la valeur du morceau, la musique en attente de relance, et le
+     * statut de chaque morceau de la playlist (sans titre ni artiste : ils restent dans le conducteur de la régie).
+     */
+    fun blindState(game: Game): Map<String, Any?> {
+        val s = game.state
+        val q = game.question ?: return emptyMap()
+        return mapOf(
+            "points" to q.trackPoints * (if (q.double) 2 else 1),
+            "waiting" to (s.buzz?.waiting == true),
+            "played" to s.segments.isNotEmpty(),
+            "cut" to (s.revealCut == q.id),
+            "tracks" to game.blindTracks().map { mapOf("qid" to it.qid, "points" to it.points, "status" to it.status.code, "team" to it.team) },
+        )
     }
 }

@@ -36,6 +36,21 @@ sealed interface Command {
     /** Statues musicales : l'équipe gagnante désignée par l'animatrice. */
     data class StatuesWin(override val id: String, override val expectSeq: Int, val team: String) : Command
 
+    /** Blind test : lancer ou relancer la musique du morceau. */
+    data class BlindPlay(override val id: String, override val expectSeq: Int) : Command
+
+    /** Blind test : réautoriser toutes les équipes à buzzer sur ce morceau. */
+    data class BlindUnblock(override val id: String, override val expectSeq: Int) : Command
+
+    /** Blind test : révéler le morceau sans gagnant. */
+    data class BlindReveal(override val id: String, override val expectSeq: Int) : Command
+
+    /** Blind test : passer le morceau sans le révéler. */
+    data class BlindSkip(override val id: String, override val expectSeq: Int) : Command
+
+    /** Blind test : raccourcir la révélation. */
+    data class BlindCut(override val id: String, override val expectSeq: Int) : Command
+
     /** Régie : aller au jeu (manche) qui commence à la question [index], [qid] vérifiant le programme. */
     data class Goto(override val id: String, override val expectSeq: Int, val index: Int, val qid: String) : Command
 
@@ -64,6 +79,11 @@ sealed interface Command {
                 // Blind test : bon titre et bon artiste.
                 "buzz_bonus" -> Judge(id, seq, true, bonus = true)
                 "statues_win" -> StatuesWin(id, seq, m["team"] as String)
+                "blind_play" -> BlindPlay(id, seq)
+                "blind_unblock" -> BlindUnblock(id, seq)
+                "blind_reveal" -> BlindReveal(id, seq)
+                "blind_skip" -> BlindSkip(id, seq)
+                "blind_cut" -> BlindCut(id, seq)
                 "goto" -> Goto(id, seq, (m["index"] as Number).toInt(), m["qid"] as String)
                 else -> null
             }
@@ -97,18 +117,23 @@ fun Game.execute(
     // Un double appui sur « Trouvé » ne compte qu'un mime : chaque appui vise la carte que la régie affichait.
     val advances = cmd is Command.Next || cmd is Command.Close || cmd is Command.End || cmd is Command.MimeStart ||
         cmd is Command.MimeFound || cmd is Command.MimePass || cmd is Command.MimeStop || cmd is Command.Goto ||
-        cmd is Command.Judge || cmd is Command.StatuesWin
+        cmd is Command.Judge || cmd is Command.StatuesWin || cmd is Command.BlindPlay || cmd is Command.BlindUnblock ||
+        cmd is Command.BlindReveal || cmd is Command.BlindSkip || cmd is Command.BlindCut
     if (advances && cmd.expectSeq != state.lastSeq) return CommandResult(CommandStatus.STALE, reason = "stale")
     // En pause, rien n'avance : l'animatrice reprend d'abord (corrections de score et fin restent possibles).
     // Le saut de jeu reste possible en pause : c'est la commande de secours pour débloquer une prestation.
     if (state.paused && advances && cmd !is Command.End && cmd !is Command.Goto) return refused("paused")
+    // Toutes les équipes inscrites ont déjà tenté leur chance : à la relance, tout le monde peut rebuzzer.
+    val allTried = state.buzz?.blocked?.let { b -> b.isNotEmpty() && teams.isNotEmpty() && teams.all { it in b } } == true
     val event = when (cmd) {
         is Command.Next -> when (state.phase) {
             Phase.LOBBY -> if (teams.isEmpty()) return refused("no_teams") else next(now)
+            // Blind test : le bouton principal lance ou relance la musique, comme « Lancer le morceau ».
+            Phase.QUESTION -> if (question?.isBlind == true && state.buzz?.waiting == true) blindPlay(now, allTried) else next(now)
             Phase.CLOSED -> reveal(now, answers.filterKeys { it in teams })
             else -> next(now)
         }
-        is Command.Close -> if (state.mime != null) mimeStop(now) else close(now)
+        is Command.Close -> if (state.mime != null) mimeStop(now) else if (question?.isBlind == true) blindStop(now) else close(now)
         is Command.Pause -> pause(now)
         is Command.Resume -> resume(now)
         is Command.Adjust -> when {
@@ -126,6 +151,11 @@ fun Game.execute(
         // Un double appui ne juge qu'une fois : il visait l'équipe que la régie affichait.
         is Command.Judge -> judgeBuzz(cmd.ok, now, cmd.bonus)
         is Command.StatuesWin -> if (cmd.team !in teams) return refused("unknown_team") else statuesWin(cmd.team, teams - cmd.team, now)
+        is Command.BlindPlay -> blindPlay(now, unblock = allTried)
+        is Command.BlindUnblock -> blindUnblock(now)
+        is Command.BlindReveal -> blindReveal(now)
+        is Command.BlindSkip -> blindSkip(now)
+        is Command.BlindCut -> blindCut(now)
         // Le programme a changé depuis l'affichage de la régie : rien n'est fait.
         is Command.Goto -> if (quiz.questions.getOrNull(cmd.index)?.id != cmd.qid) return refused("stale_program") else goto(cmd.index, now)
     }

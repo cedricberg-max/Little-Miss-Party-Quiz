@@ -18,6 +18,9 @@ const val ANSWER_CLOCK_MARGIN_MS = 2_000L
 /** Vrai ou Faux express : temps entre la fermeture et la révélation (la TV annonce « Temps écoulé »). */
 const val EXPRESS_CLOSED_MS = 1_200L
 
+/** Blind test : un extrait relancé à moins de ce temps de sa fin repart du début. */
+const val BLIND_END_MARGIN_MS = 1_000L
+
 /** Qui a disparu ? : le buzzer peut s'ouvrir un poil avant l'heure (minuterie de la box). */
 const val ARM_TOLERANCE_MS = 250L
 
@@ -25,7 +28,21 @@ const val ARM_TOLERANCE_MS = 250L
 const val EXPRESS_REVEAL_MS = 3_500L
 
 /** Image floue : l'équipe qui a buzzé et attend le verdict de l'animatrice, et les équipes déjà bloquées. */
-data class BuzzRound(val team: String? = null, val blocked: List<String> = emptyList(), val armed: Boolean = true)
+data class BuzzRound(
+    val team: String? = null,
+    val blocked: List<String> = emptyList(),
+    val armed: Boolean = true,
+    /** Essais déjà jugés ou réautorisations : chaque tentative a sa clé de buzz, le premier qui écrit gagne. */
+    val tries: Int = 0,
+    /** Blind test : musique à l'arrêt, en attente du « Lancer » ou du « Relancer » de l'animatrice. */
+    val waiting: Boolean = false,
+)
+
+/** Blind test : ce qu'est devenu un morceau de la playlist. */
+enum class BlindStatus(val code: String) { TODO("todo"), PLAYING("playing"), FOUND("found"), REVEALED("revealed"), SKIPPED("skipped") }
+
+/** Blind test : un morceau de la playlist, sa valeur (doublée en Super Finale) et l'équipe qui l'a trouvé. */
+data class BlindTrack(val qid: String, val points: Int, val status: BlindStatus, val team: String?)
 
 /** Pause en cours : qui l'a provoquée et depuis quand. */
 data class Hold(val reason: String, val team: String?, val since: Long)
@@ -48,6 +65,10 @@ data class GameState(
     val mime: MimeRound? = null,
     /** Image floue en cours (null pour une autre question). */
     val buzz: BuzzRound? = null,
+    /** Blind test : morceaux passés sans révélation. */
+    val skipped: Set<String> = emptySet(),
+    /** Blind test : morceau dont l'animatrice a raccourci la révélation. */
+    val revealCut: String? = null,
 ) {
     val paused: Boolean get() = hold != null
 
@@ -126,7 +147,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     }
 
     /** Le chrono de [q] est en marche (ou en pause) : question ouverte, ou tour de mimes en cours. */
-    private fun timerRuns(q: Question) = state.phase == Phase.QUESTION && (!q.isMime || state.mimeTurn)
+    private fun timerRuns(q: Question) = state.phase == Phase.QUESTION && (!q.isMime || state.mimeTurn) &&
+        (!q.isBlind || (state.buzz?.waiting == false && state.segments.isNotEmpty()))
 
     /**
      * Le chrono vient de (re)partir, il y a moins de [ms] : un appui sur « Arrêter le chrono » à cet instant
@@ -184,7 +206,10 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         is Jumped -> {
             val q = quiz.questions.getOrNull(e.index)
             if (q == null || q.id != e.qid) null
-            else open(s.copy(awards = s.awards - e.clear.toSet(), mimes = s.mimes - e.clear.toSet(), hold = null), e.index, q, e.at)
+            else open(
+                s.copy(awards = s.awards - e.clear.toSet(), mimes = s.mimes - e.clear.toSet(), skipped = s.skipped - e.clear.toSet(), hold = null),
+                e.index, q, e.at,
+            )
         }
         is Paused ->
             if (s.phase == Phase.LOBBY || s.phase == Phase.ENDED || s.paused) null
@@ -203,7 +228,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                     hold = null,
                     resumeAt = start,
                     // Entre deux tours de mimes, ou pendant la réponse d'une équipe qui a buzzé, aucun chrono ne tourne.
-                    segments = if (s.phase == Phase.QUESTION && (s.mime == null || s.mimeTurn) && !s.buzzHeld) s.segments + Segment(start) else s.segments,
+                    // Blind test en attente du « Lancer » de l'animatrice : la musique ne repart pas toute seule.
+                    segments = if (s.phase == Phase.QUESTION && (s.mime == null || s.mimeTurn) && !s.buzzHeld && s.buzz?.waiting != true) s.segments + Segment(start) else s.segments,
                 )
             }
         // Accepté en pause pour rejouer les journaux d'avant la pause générale (la fermeture levait la pause) ;
@@ -216,7 +242,10 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                 segments = s.segments.map { if (it.end == null) it.copy(end = e.at) else it },
             )
         is Revealed ->
-            if (s.phase != Phase.CLOSED || e.qid != s.qid || s.paused) null
+            // Blind test : l'animatrice peut révéler un morceau sans gagnant directement, musique arrêtée ou non.
+            if (e.qid == s.qid && !s.paused && s.phase == Phase.QUESTION && quiz.questions.getOrNull(s.index)?.isBlind == true && s.buzz?.team == null)
+                s.copy(phase = Phase.REVEAL, awards = s.awards + (e.qid to e.awards), segments = closeSegments(s, e.at), buzz = s.buzz?.copy(waiting = true))
+            else if (s.phase != Phase.CLOSED || e.qid != s.qid || s.paused) null
             // Une seule attribution par question : la clé est l'identifiant de la question.
             else s.copy(phase = Phase.REVEAL, awards = s.awards + (e.qid to e.awards))
         is ScoresShown -> when {
@@ -286,12 +315,50 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         is MimeTurnEnded -> if (s.mime?.team == null) null else endTurn(s, e.at)
         is Buzzed -> {
             val b = s.buzz
-            if (s.phase != Phase.QUESTION || b == null || !b.armed || b.team != null || s.paused || e.team.isBlank() || e.team in b.blocked) null
+            if (s.phase != Phase.QUESTION || b == null || !b.armed || b.waiting || b.team != null || s.paused || e.team.isBlank() || e.team in b.blocked) null
             else s.copy(
                 buzz = b.copy(team = e.team),
                 segments = s.segments.map { if (it.end == null) it.copy(end = maxOf(e.at, it.start)) else it },
             )
         }
+        is BlindPlayed -> {
+            val b = s.buzz
+            val q = quiz.questions.getOrNull(s.index)
+            if (s.phase != Phase.QUESTION || q == null || !q.isBlind || b == null || !b.waiting || b.team != null || s.paused) null
+            else {
+                // Extrait déjà joué jusqu'au bout : il repart du début.
+                val rewind = s.segments.isEmpty() || s.elapsedAt(e.at) >= q.durationMs - BLIND_END_MARGIN_MS
+                s.copy(
+                    segments = if (rewind) listOf(Segment(e.at)) else s.segments + Segment(e.at),
+                    resumeAt = null,
+                    buzz = if (e.unblock) b.copy(waiting = false, blocked = emptyList(), tries = b.tries + 1) else b.copy(waiting = false),
+                )
+            }
+        }
+        is BlindStopped -> {
+            val b = s.buzz
+            if (s.phase != Phase.QUESTION || quiz.questions.getOrNull(s.index)?.isBlind != true || b == null || b.waiting || b.team != null || s.paused) null
+            else s.copy(segments = closeSegments(s, e.at), buzz = b.copy(waiting = true))
+        }
+        is BuzzUnblocked -> {
+            val b = s.buzz
+            if (s.phase != Phase.QUESTION || quiz.questions.getOrNull(s.index)?.isBlind != true || b == null || b.team != null || b.blocked.isEmpty()) null
+            else s.copy(buzz = b.copy(blocked = emptyList(), tries = b.tries + 1))
+        }
+        is BlindSkipped -> {
+            val q = quiz.questions.getOrNull(s.index)
+            if (s.phase != Phase.QUESTION || q == null || !q.isBlind || e.qid != s.qid || s.buzz?.team != null || s.paused) null
+            else {
+                val skipped = s.copy(skipped = s.skipped + q.id, segments = closeSegments(s, e.at))
+                val following = quiz.questions.getOrNull(s.index + 1)
+                // Morceau suivant de la même playlist, ou bilan du blind test.
+                if (following != null && following.isBlind && s.index + 1 in roundOf(s.index)) open(skipped, s.index + 1, following, e.at)
+                else skipped.copy(phase = Phase.SCORES, buzz = null)
+            }
+        }
+        is RevealCut ->
+            if (s.phase != Phase.REVEAL || e.qid != s.qid || quiz.questions.getOrNull(s.index)?.isBlind != true || s.revealCut == e.qid) null
+            else s.copy(revealCut = e.qid)
         is BuzzArmed -> {
             val b = s.buzz
             if (s.phase != Phase.QUESTION || b == null || b.armed || s.paused) null else s.copy(buzz = b.copy(armed = true))
@@ -316,15 +383,15 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             if (s.phase != Phase.QUESTION || b == null || team == null || s.paused || q == null) null
             else if (e.ok) {
                 val factor = if (q.double) 2 else 1
-                // Blind test : le plein tarif seulement pour un buzz dans les premières secondes de l'extrait
-                // (le chrono, figé au buzz, dit où en était la musique) ; bonus si l'artiste est cité aussi.
-                val first = b.blocked.isEmpty() && (!q.isBlind || s.elapsedAt(Long.MAX_VALUE) <= Scoring.BLIND_FAST_MS)
-                val bonus = if (e.bonus && q.isBlind) Scoring.BLIND_ARTIST * factor else 0
-                val points = (if (first) Scoring.BUZZ else Scoring.BUZZ_REBOUND) * factor + bonus
-                s.copy(phase = Phase.REVEAL, awards = s.awards + (q.id to mapOf(team to Award(q.correct, correct = true, points = points, bonus = bonus))))
+                // Blind test : la valeur du morceau, quel que soit le moment du buzz.
+                val points = if (q.isBlind) q.trackPoints * factor
+                else (if (b.blocked.isEmpty()) Scoring.BUZZ else Scoring.BUZZ_REBOUND) * factor
+                s.copy(phase = Phase.REVEAL, awards = s.awards + (q.id to mapOf(team to Award(q.correct, correct = true, points = points, bonus = 0))))
             }
+            // Blind test, mauvaise réponse : l'équipe est bloquée sur ce morceau, la musique attend la relance.
+            else if (q.isBlind) s.copy(buzz = b.copy(team = null, blocked = b.blocked + team, tries = b.tries + 1, waiting = true))
             // Mauvaise réponse : l'équipe est bloquée sur cette image, le chrono repart.
-            else s.copy(buzz = b.copy(team = null, blocked = b.blocked + team), segments = s.segments + Segment(e.at))
+            else s.copy(buzz = b.copy(team = null, blocked = b.blocked + team, tries = b.tries + 1), segments = s.segments + Segment(e.at))
         }
     }
 
@@ -339,10 +406,17 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             // Le buzz d'un jeu précédent (équipe validée) ne doit jamais figer le chrono des mimes.
             buzz = null,
         )
+        // Blind test : le morceau s'annonce, la musique attend le « Lancer le morceau » de l'animatrice.
+        else if (q.isBlind) s.copy(
+            phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null, mime = null,
+            buzz = BuzzRound(waiting = true), revealCut = null,
+        )
         else s.copy(
             phase = Phase.QUESTION, index = index, qid = q.id, segments = listOf(Segment(at)), resumeAt = null, mime = null,
             buzz = if (q.isBuzz) BuzzRound(armed = q.buzzFromMs == 0L) else null,
         )
+
+    private fun closeSegments(s: GameState, at: Long) = s.segments.map { if (it.end == null) it.copy(end = maxOf(at, it.start)) else it }
 
     /** Tour de mimes terminé : chrono arrêté, bilan gardé pour la TV et la régie. */
     private fun endTurn(s: GameState, at: Long): GameState {
@@ -364,10 +438,21 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     fun next(now: Long, answers: Map<String, Answer> = emptyMap()): GameEvent? = if (state.paused) null else when (state.phase) {
         Phase.LOBBY -> openQuestion(0, now)
         // Mimes : « suivant » arrête le tour en cours, ou termine la manche entre deux tours.
-        Phase.QUESTION -> if (state.mime == null) close(now) else if (state.mimeTurn) mimeStop(now) else emit(ScoresShown(nextSeq, now))
+        Phase.QUESTION -> when {
+            // Blind test à la télécommande : OK lance la musique, ou l'arrête.
+            question?.isBlind == true -> if (state.buzz?.waiting == true) blindPlay(now) else blindStop(now)
+            state.mime == null -> close(now)
+            state.mimeTurn -> mimeStop(now)
+            else -> emit(ScoresShown(nextSeq, now))
+        }
         Phase.CLOSED -> reveal(now, answers)
         // Vrai ou Faux express : « suivant » passe à l'affirmation suivante, comme la box le fait seule.
-        Phase.REVEAL -> if (question?.isExpress == true) expressStep(now, answers) else emit(ScoresShown(nextSeq, now))
+        Phase.REVEAL -> when {
+            question?.isExpress == true -> expressStep(now, answers)
+            // Blind test : « Titre suivant » annonce le morceau suivant de la playlist, sans le lancer.
+            nextTrack() != null -> openQuestion(state.index + 1, now)
+            else -> emit(ScoresShown(nextSeq, now))
+        }
         Phase.SCORES -> if (isLastQuestion) end(now) else openQuestion(state.index + 1, now)
         Phase.ENDED -> null
     }
@@ -393,15 +478,19 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
 
     /**
      * Saut de la régie au début du jeu qui contient [index] : jeu suivant, autre jeu, ou jeu rejoué.
-     * Un jeu déjà commencé (le jeu en cours, ou un jeu d'avant) est rejoué : ses points sont retirés
-     * avant d'être rejoués. Les équipes, les autres points et les corrections restent. Possible en pause
-     * (la pause est levée) et après la fin de partie (fin demandée par erreur).
+     * Un jeu déjà commencé (le jeu en cours, un jeu d'avant, ou un jeu plus loin déjà ouvert avant un retour
+     * en arrière) est rejoué : ses points sont retirés avant d'être rejoués, et la box efface ses anciennes
+     * réponses (sinon les règles refuseraient les nouvelles et le jeu ne rapporterait plus rien). Les équipes,
+     * les autres points et les corrections restent. Possible en pause (la pause est levée) et après la fin de
+     * partie (fin demandée par erreur).
      */
     fun goto(index: Int, now: Long): GameEvent? {
         if (index !in quiz.questions.indices) return null
         val round = roundOf(index)
-        val replay = state.index >= round.first
-        val clear = if (replay) round.map { quiz.questions[it].id } else emptyList()
+        val ids = round.map { quiz.questions[it].id }
+        val replay = state.index >= round.first ||
+            log.any { (it is QuestionOpened && it.qid in ids) || (it is Jumped && it.qid in ids) }
+        val clear = if (replay) ids else emptyList()
         return emit(Jumped(nextSeq, now, round.first, quiz.questions[round.first].id, clear))
     }
 
@@ -446,6 +535,62 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         }
     }
 
+    /** Blind test : le morceau qui suit le morceau en cours dans la même playlist, s'il y en a un. */
+    fun nextTrack(): Question? {
+        if (question?.isBlind != true) return null
+        return quiz.questions.getOrNull(state.index + 1)?.takeIf { it.isBlind && state.index + 1 in roundOf(state.index) }
+    }
+
+    /** Blind test : les morceaux de la playlist en cours, dans l'ordre, avec leur valeur et ce qu'ils sont devenus. */
+    fun blindTracks(): List<BlindTrack> {
+        val s = state
+        if (question?.isBlind != true) return emptyList()
+        return roundOf(s.index).filter { quiz.questions[it].isBlind }.map { i ->
+            val t = quiz.questions[i]
+            val award = s.awards[t.id]
+            val winner = award?.entries?.firstOrNull { it.value.correct }
+            BlindTrack(
+                qid = t.id,
+                points = t.trackPoints * (if (t.double) 2 else 1),
+                status = when {
+                    winner != null -> BlindStatus.FOUND
+                    award != null -> BlindStatus.REVEALED
+                    t.id in s.skipped -> BlindStatus.SKIPPED
+                    i == s.index && s.phase == Phase.QUESTION -> BlindStatus.PLAYING
+                    else -> BlindStatus.TODO
+                },
+                team = winner?.key,
+            )
+        }
+    }
+
+    /** Blind test : lance ou relance la musique. [unblock] : toutes les équipes peuvent de nouveau buzzer. */
+    fun blindPlay(now: Long, unblock: Boolean = false): GameEvent? = emit(BlindPlayed(nextSeq, now, unblock))
+
+    /** Blind test : arrête la musique (fin de l'extrait) ; on attend la relance de l'animatrice. */
+    fun blindStop(now: Long): GameEvent? = emit(BlindStopped(nextSeq, now))
+
+    /** Blind test : toutes les équipes peuvent de nouveau buzzer sur ce morceau. */
+    fun blindUnblock(now: Long): GameEvent? = emit(BuzzUnblocked(nextSeq, now))
+
+    /** Blind test : révèle le morceau sans gagnant (aucun point). */
+    fun blindReveal(now: Long): GameEvent? {
+        val q = question?.takeIf { it.isBlind } ?: return null
+        return emit(Revealed(nextSeq, now, q.id, emptyMap()))
+    }
+
+    /** Blind test : passe le morceau sans le révéler. */
+    fun blindSkip(now: Long): GameEvent? {
+        val q = question?.takeIf { it.isBlind } ?: return null
+        return emit(BlindSkipped(nextSeq, now, q.id))
+    }
+
+    /** Blind test : raccourcit la révélation en cours. */
+    fun blindCut(now: Long): GameEvent? {
+        val q = question?.takeIf { it.isBlind } ?: return null
+        return emit(RevealCut(nextSeq, now, q.id))
+    }
+
     /** Statues musicales : l'animatrice désigne l'équipe gagnante ; [others] = les autres équipes inscrites. */
     fun statuesWin(team: String, others: Collection<String>, now: Long): GameEvent? = emit(StatuesWon(nextSeq, now, team, others.toList()))
 
@@ -464,7 +609,9 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         val q = question ?: return null
         val b = state.buzz ?: return null
         if (state.phase != Phase.QUESTION || b.armed || state.paused) return null
-        return (q.buzzFromMs - state.elapsedAt(now)).coerceAtLeast(0)
+        // Décompte 3, 2, 1 d'une reprise : le chrono n'a pas encore repris, la mémorisation attend aussi.
+        val countdown = state.segments.lastOrNull()?.takeIf { it.end == null }?.let { it.start - now }?.coerceAtLeast(0) ?: 0
+        return countdown + (q.buzzFromMs - state.elapsedAt(now)).coerceAtLeast(0)
     }
 
     /** Ouvre le buzzer de Qui a disparu ? une fois la mémorisation finie (jamais avant). */
@@ -496,7 +643,12 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     fun mimeStop(now: Long): GameEvent? = emit(MimeTurnEnded(nextSeq, now))
 
     /** Chrono à zéro : fin de la question, ou fin du tour de mimes. */
-    fun timeUp(now: Long): GameEvent? = if (state.mime != null) mimeStop(now) else close(now)
+    fun timeUp(now: Long): GameEvent? = when {
+        state.mime != null -> mimeStop(now)
+        // Blind test : fin de l'extrait, la musique s'arrête et l'animatrice décide de la suite.
+        question?.isBlind == true -> blindStop(now)
+        else -> close(now)
+    }
 
     /** Carte affichée pendant le tour de mimes, ou null. */
     val mimeCard: MimeCard? get() = state.mime?.takeIf { it.team != null }?.deck?.firstOrNull()?.let { question?.cards?.getOrNull(it) }

@@ -101,6 +101,10 @@ data class Question(
      * question de quiz musical à propositions. Absent ou introuvable : la question se joue sans musique.
      */
     val audioId: String? = null,
+    /** Blind test : valeur du morceau (points de l'équipe qui trouve), réglée dans l'administration. */
+    val points: Int? = null,
+    /** Blind test : durée de la séquence de révélation (extrait rejoué, pochette, titre, points), en secondes. */
+    val revealSec: Int = BLIND_REVEAL_SEC,
 ) {
     init {
         require(id.isNotBlank()) { "Question sans identifiant" }
@@ -116,6 +120,8 @@ data class Question(
             require(kind != QuestionKind.QUISUIS || cards.size in 2..MAX_CLUES) { "Qui suis-je $id : il faut 2 à $MAX_CLUES indices" }
             require(cards.none { it.word.isBlank() }) { "Question $id : indice vide" }
             require(durationSec in 10..120) { "Question $id : durée entre 10 et 120 s" }
+            require(points == null || points in 1..MAX_TRACK_POINTS) { "Blind test $id : valeur entre 1 et $MAX_TRACK_POINTS points" }
+            require(revealSec in 3..20) { "Blind test $id : révélation entre 3 et 20 s" }
         } else if (kind == QuestionKind.DISPARU) {
             require(choices.size == 1 && correct == 0) { "Qui a disparu $id : une seule réponse attendue" }
             require(cards.size in 4..MAX_DISPARU) { "Qui a disparu $id : il faut 4 à $MAX_DISPARU objets" }
@@ -181,6 +187,9 @@ data class Question(
     /** Statues musicales : la musique est-elle arrêtée (tout le monde se fige) à [elapsedMs] de chrono ? */
     fun statueAt(elapsedMs: Long): Boolean = statues.any { elapsedMs in it }
 
+    /** Blind test : points de l'équipe qui trouve ce morceau (avant le ×2 de la Super Finale). */
+    val trackPoints: Int get() = points ?: Scoring.BLIND_POINTS
+
     /** Jeux au buzzer : la première équipe qui buzze répond à voix haute, l'animatrice valide. */
     val isBuzz: Boolean get() = isFlou || isChante || isQuiSuis || isBlind || isDisparu
 
@@ -212,6 +221,12 @@ const val MAX_MIME_CARDS = 200
 
 /** Qui suis-je ? : nombre maximum d'indices d'un personnage. */
 const val MAX_CLUES = 6
+
+/** Blind test : valeur maximale d'un morceau. */
+const val MAX_TRACK_POINTS = 1_000
+
+/** Blind test : durée par défaut de la séquence de révélation (secondes). */
+const val BLIND_REVEAL_SEC = 7
 
 /** Qui a disparu ? : nombre maximum d'objets dans la grille. */
 const val MAX_DISPARU = 12

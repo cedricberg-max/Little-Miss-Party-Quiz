@@ -63,6 +63,8 @@ object QuizJson {
             imageId = imageId?.takeIf { kind != QuestionKind.MIME },
             artist = q.optString("artist").trim().takeIf { it.isNotEmpty() && kind == QuestionKind.BLIND }?.take(MAX_ARTIST),
             audioId = q.optString("audioId").takeIf { it.matches(IMAGE_ID) && kind != QuestionKind.MIME },
+            points = q.optInt("points", 0).takeIf { it > 0 && kind == QuestionKind.BLIND }?.coerceAtMost(MAX_TRACK_POINTS),
+            revealSec = q.optInt("reveal", BLIND_REVEAL_SEC).coerceIn(3, 20),
         )
     }
 }

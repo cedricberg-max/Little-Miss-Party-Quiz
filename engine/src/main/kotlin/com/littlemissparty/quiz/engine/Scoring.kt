@@ -30,11 +30,8 @@ object Scoring {
     /** Buzzer : bonne réponse après l'erreur d'une autre équipe (rebond). */
     const val BUZZ_REBOUND = 100
 
-    /** Blind test : [BUZZ] seulement pour un buzz dans ces premières millisecondes d'extrait, [BUZZ_REBOUND] ensuite. */
-    const val BLIND_FAST_MS = 10_000L
-
-    /** Blind test : bonus quand l'équipe cite aussi l'artiste (ou l'œuvre), accordé par l'animatrice. */
-    const val BLIND_ARTIST = 50
+    /** Blind test : valeur d'un morceau quand l'administration n'en donne pas (les derniers valent souvent le double). */
+    const val BLIND_POINTS = 100
 
     /** Mini-jeu physique (statues musicales) : l'équipe gagnante, puis chaque autre équipe qui a joué. */
     const val MINI_WIN = 300

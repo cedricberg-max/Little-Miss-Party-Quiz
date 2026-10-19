@@ -227,7 +227,7 @@ function startBox({ silent = false, held = false } = {}) {
     if (show.base == null) {
       await update(ref(db, `games/${CODE}`), {
         showStatus: { id: show.id, status: "applied", at: Date.now() },
-        conducteur: { id: show.quiz.id, title: show.title, rev: show.id, mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, disparu: true, questions: show.quiz.questions },
+        conducteur: { id: show.quiz.id, title: show.title, rev: show.id, mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, blindPlay: true, statues: true, disparu: true, questions: show.quiz.questions },
         public: { title: show.title, childName: show.childName },
       });
       return;
@@ -290,7 +290,7 @@ beforeEach(async () => {
   await set(gameRef(), {
     hostUid: HOST,
     state: { phase: "lobby", seq: 0, total: QUESTIONS.length, scores: {}, round: 1, buzzOpen: true },
-    conducteur: { id: "demo", title: "Démo", rev: "initial", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, disparu: true, questions: QUESTIONS.map((q, i) => ({ id: `q${i + 1}`, ...q })) },
+    conducteur: { id: "demo", title: "Démo", rev: "initial", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, blindPlay: true, statues: true, disparu: true, questions: QUESTIONS.map((q, i) => ({ id: `q${i + 1}`, ...q })) },
   });
 });
 afterEach(() => { box?.stop(); box = null; });
@@ -591,10 +591,72 @@ describe("régie", () => {
     await page.context().close();
   });
 
-  test("blind test : la régie voit le titre et l'artiste, plein tarif dans les 10 premières secondes, bonus artiste", async () => {
+  test("blind test : playlist et statuts, lancer, juger, relancer pour les autres, passer, raccourcir, titre suivant", async () => {
     box = startBox();
     await addTeam("rose", "Les Roses");
     await addTeam("bleu", "Les Bleus");
+    const track = (id, title, artist, audioId, points) => ({ id, text: "Quel est ce titre ?", choices: [title], correct: 0, duration: 25, kind: "blind", artist, audioId, points, round: "Blind test · Dessins animés" });
+    const plan = [
+      track("b1", "Libérée, délivrée", "La Reine des neiges", "0123456789abcdef", 100),
+      track("b2", "Hakuna Matata", "Le Roi lion", "fedcba9876543210", 100),
+      track("b3", "Un jour mon prince viendra", "Blanche-Neige", "00112233445566ff", 200),
+    ];
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, blindPlay: true, statues: true, disparu: true, questions: plan });
+    // Comme la box : un état par extrait.
+    for (const [id, status] of [["0123456789abcdef", "ok"], ["fedcba9876543210", "missing"], ["00112233445566ff", "ok"]]) await set(gameRef(`media/${id}`), status);
+    const tracks = (statuses, team) => plan.map((t, k) => ({ qid: t.id, points: t.points, status: statuses[k], ...(statuses[k] === "found" ? { team } : {}) }));
+    const blindState = (extra) => ({ points: 100, waiting: true, played: false, cut: false, tracks: tracks(["playing", "todo", "todo"]), ...extra });
+    await box.set({ ...questionState(1), qid: "b1", kind: "blind", text: "Quel est ce titre ?", choices: null, total: 3, durationMs: 25000, deadline: null, round: "b1-1000-0", buzzOpen: false, buzz: { team: null, blocked: [] }, blind: blindState() });
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    const commands = async () => Object.values((await read("commands")) ?? {}).map((c) => c.type);
+    // Le morceau s'annonce : la régie voit sa valeur, le titre attendu, et l'état des extraits de la playlist.
+    await page.locator("#blind-head", { hasText: "Morceau 1 / 3 · 100 points" }).waitFor();
+    await page.locator("#blind-info", { hasText: "Prêt : « Libérée, délivrée » de La Reine des neiges" }).waitFor();
+    await page.locator("#c-next", { hasText: "Lancer le morceau" }).waitFor();
+    assert.equal(await page.locator("#blind-tracks li").count(), 3);
+    await page.locator("#blind-tracks li", { hasText: "Hakuna Matata" }).locator(".media", { hasText: "manquant" }).waitFor();
+    await page.locator("#blind-tracks li", { hasText: "Un jour mon prince viendra" }).locator(".pts", { hasText: "200 pts ×2" }).waitFor();
+    assert.equal(await page.locator("#flou").isVisible(), false, "l'ancien panneau des jeux au buzzer reste caché");
+    await page.click("#c-next");
+    await waitFor(async () => (await commands()).includes("next"), "« Lancer le morceau » envoyé");
+
+    // Les Roses buzzent : verdict à la régie, le bouton principal attend.
+    await box.set({ ...(await read("state")), buzz: { team: "rose", blocked: [] }, blind: blindState({ waiting: false, played: true }) });
+    await page.locator("#blind-info", { hasText: "Les Roses a buzzé ! Réponse attendue : « Libérée, délivrée » de La Reine des neiges" }).waitFor();
+    await page.locator("#blind-ok small", { hasText: "+100 pour Les Roses" }).waitFor();
+    assert.equal(await page.locator("#c-next").isDisabled(), true);
+    await page.click("#blind-ko");
+    await waitFor(async () => (await commands()).includes("buzz_ko"), "mauvaise réponse envoyée");
+
+    // Musique arrêtée après l'erreur : relancer pour les autres, ou réautoriser tout le monde, ou passer.
+    await box.set({ ...(await read("state")), buzz: { team: null, blocked: ["rose"] }, blind: blindState({ played: true }) });
+    await page.locator("#blind-info", { hasText: "Pas trouvé (Les Roses). Relancez la musique pour les autres équipes." }).waitFor();
+    await page.locator("#c-next", { hasText: "Relancer la musique" }).waitFor();
+    await page.click("#blind-unblock");
+    await waitFor(async () => (await commands()).includes("blind_unblock"), "réautorisation envoyée");
+    page.once("dialog", (d) => d.accept());
+    await page.click("#blind-skip");
+    await waitFor(async () => (await commands()).includes("blind_skip"), "passer le morceau envoyé");
+
+    // Révélation : qui a trouvé et combien, « Raccourcir », puis « Titre suivant ».
+    await box.set({ ...(await read("state")), phase: "reveal", choices: ["Libérée, délivrée"], correct: 0, awards: { bleu: { correct: true, points: 100, bonus: 0 } }, buzz: { team: null, blocked: ["rose"] }, blind: blindState({ played: true, tracks: tracks(["found", "todo", "todo"], "bleu") }) });
+    await page.locator("#blind-info", { hasText: "Les Bleus a trouvé « Libérée, délivrée » de La Reine des neiges : +100 points." }).waitFor();
+    await page.locator("#blind-tracks li", { hasText: "Libérée, délivrée" }).locator(".status", { hasText: "Trouvé · Les Bleus" }).waitFor();
+    await page.locator("#c-next", { hasText: "Titre suivant" }).waitFor();
+    await page.click("#blind-cut");
+    await waitFor(async () => (await commands()).includes("blind_cut"), "raccourcir envoyé");
+    // Dernier morceau, à double valeur : le bouton mène au bilan.
+    await box.set({ ...(await read("state")), qid: "b3", index: 2, blind: blindState({ points: 200, played: true, tracks: tracks(["found", "skipped", "revealed"], "bleu") }) });
+    await page.locator("#blind-head", { hasText: "Morceau 3 / 3 · 200 points" }).locator(".double", { hasText: "POINTS DOUBLÉS" }).waitFor();
+    await page.locator("#c-next", { hasText: "Bilan du blind test" }).waitFor();
+    await page.context().close();
+  });
+
+  test("blind test sur une TV d'avant « Lancer le morceau » : la régie garde l'ancien panneau", async () => {
+    box = startBox();
+    await addTeam("rose", "Les Roses");
     const plan = [{ id: "b1", text: "Quel est ce titre ?", choices: ["Libérée, délivrée"], correct: 0, duration: 25, kind: "blind", artist: "La Reine des neiges", audioId: "0123456789abcdef", round: "Blind test · Dessins animés" }];
     await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, questions: plan });
     await box.set({ ...questionState(1), qid: "b1", kind: "blind", text: plan[0].text, choices: null, total: 1, durationMs: 25000, round: "b1-1000-0", buzzOpen: true, buzz: { team: null, blocked: [] } });
@@ -602,18 +664,7 @@ describe("régie", () => {
     await pair(page);
     await inRegie(page);
     await page.locator("#flou-info", { hasText: "En attente d'un buzz" }).waitFor();
-    // Les Roses buzzent à 6 s d'extrait : la box fige le chrono (temps restant publié).
-    await box.set({ ...(await read("state")), buzz: { team: "rose", blocked: [] }, buzzOpen: false, deadline: null, remainingMs: 19000 });
-    await page.locator("#flou-info", { hasText: "Les Roses a buzzé ! Réponse attendue : « Libérée, délivrée » (bonus : La Reine des neiges)" }).waitFor();
-    await page.locator("#flou-ok", { hasText: "BON TITRE" }).waitFor();
-    await page.locator("#flou-ok small", { hasText: "+150 pour Les Roses" }).waitFor();
-    await page.locator("#flou-bonus small", { hasText: "+200 pour Les Roses" }).waitFor();
-    // Buzz tardif (14 s d'extrait) : 100, et 150 avec l'artiste.
-    await box.set({ ...(await read("state")), remainingMs: 11000 });
-    await page.locator("#flou-ok small", { hasText: "+100 pour Les Roses" }).waitFor();
-    await page.locator("#flou-bonus small", { hasText: "+150 pour Les Roses" }).waitFor();
-    await page.click("#flou-bonus");
-    await waitFor(async () => Object.values((await read("commands")) ?? {}).some((c) => c.type === "buzz_bonus"), "commande bonus envoyée");
+    assert.equal(await page.locator("#blind").isVisible(), false);
     await page.context().close();
   });
 

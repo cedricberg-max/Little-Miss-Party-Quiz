@@ -374,38 +374,70 @@ class RegieTest : TestTv() {
     }
 
     @Test
-    fun blindTestLExtraitEstMisEnCacheLeBuzzLeFigeEtLArtisteDonneLeBonus() {
+    fun blindTestLancerBuzzRateRelancerBonneReponsePuisRevelerSansPointsEtBilan() {
         val code = lancerBoite()
         val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val dragons = pupitre("dragons").also { it.rejoindre(code, "Dragons", ROSE) }
         val regie = regie()
         assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
         val id = java.security.MessageDigest.getInstance("SHA-256").digest(EXTRAIT_MP3.toByteArray()).take(8).joinToString("") { "%02x".format(it) }
         regie.copierExtrait(code, id, EXTRAIT_MP3)
         @Suppress("UNCHECKED_CAST")
         val avant = regie.programme(code)["questions"] as List<Map<String, Any?>>
-        val blind = mapOf(
-            "id" to "b1", "text" to "Quel est ce titre ?", "choices" to listOf("Frère Jacques"), "correct" to 0, "artist" to "Comptine",
-            "duration" to 20, "kind" to "blind", "double" to false, "round" to "Blind test · Comptines", "audioId" to id,
+        fun morceau(qid: String, titre: String, points: Int) = mapOf(
+            "id" to qid, "text" to "Quel est ce titre ?", "choices" to listOf(titre), "correct" to 0, "artist" to "Comptine",
+            "duration" to 20, "kind" to "blind", "double" to false, "round" to "Blind test · Comptines", "audioId" to id, "points" to points,
         )
-        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(blind) + avant))
+        val playlist = listOf(morceau("b1", "Frère Jacques", 100), morceau("b2", "Au clair de la lune", 200))
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, playlist + avant))
         val cache = java.io.File(androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext.filesDir, "extraits/$id.mp3")
         attendreQue("extrait copié dans le cache de la box") { cache.takeIf { it.isFile && it.length() > 0 } }
+        attendreQue("la régie voit l'extrait prêt") { regie.extraitPret(code, id)?.takeIf { it == "ok" } }
 
+        // Le morceau s'annonce : la musique attend « Lancer le morceau », personne ne peut buzzer.
         assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("BLIND TEST")
-        ecran.voit("Buzzez dès que vous reconnaissez la chanson !")
-        attendreQue("buzzer ouvert") { licornes.etat(code).takeIf { it.child("qid").value == "b1" && it.child("buzzOpen").value == true } }
+        ecran.voit("Morceau 1 / 2")
+        ecran.voit("Prêts ? Écoutez bien…")
+        assertFalse("pas de buzz avant la musique", licornes.buzzer(code))
         assertFalse("le titre reste caché sur les pupitres", licornes.etat(code).hasChild("choices"))
+        assertEquals("applied", regie.commande(code, "blind_play"))
+        attendreQue("buzzer ouvert") { licornes.etat(code).takeIf { it.child("buzzOpen").value == true } }
         assertTrue(licornes.buzzer(code))
-        ecran.voit("Le titre, à voix haute !")
+        ecran.voit("Licornes a buzzé !")
+        ecran.voit("On attend sa réponse…")
+        assertFalse("une seule équipe à la fois", dragons.buzzer(code))
         ecran.capture("blind-test-buzz")
-        assertEquals("applied", regie.commande(code, "buzz_bonus"))
+
+        // Mauvaise réponse : la musique reste arrêtée jusqu'à la relance, les Licornes ne rebuzzent pas.
+        assertEquals("applied", regie.commande(code, "buzz_ko"))
+        ecran.voit("Pas tout à fait ! La musique va repartir…")
+        assertFalse(dragons.buzzer(code))
+        assertEquals("applied", regie.commande(code, "blind_play"))
+        attendreQue("buzzer rouvert aux autres") { dragons.etat(code).takeIf { it.child("buzzOpen").value == true } }
+        assertFalse("l'équipe qui s'est trompée attend", licornes.buzzer(code))
+        assertTrue(dragons.buzzer(code))
+        ecran.voit("Dragons a buzzé !")
+        assertEquals("applied", regie.commande(code, "buzz_ok"))
         ecran.voit("Frère Jacques")
         ecran.voit("Comptine")
-        attendreQue("titre et artiste dans les 10 premières secondes") {
-            points(licornes, code, licornes.uid).takeIf { it == (Scoring.BUZZ + Scoring.BLIND_ARTIST).toLong() }
-        }
+        ecran.voit("Bonne réponse ! Bravo Dragons")
+        attendreQue("la valeur du morceau, une fois") { points(dragons, code, dragons.uid).takeIf { it == 100L } }
+        assertEquals(0L, points(licornes, code, licornes.uid))
         ecran.capture("blind-test-revelation")
+        assertEquals("applied", regie.commande(code, "blind_cut"))
+
+        // « Titre suivant » : le dernier morceau, à double valeur, attend à son tour d'être lancé.
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("Morceau 2 / 2")
+        ecran.voit("POINTS DOUBLÉS · 200 points")
+        assertEquals("applied", regie.commande(code, "blind_reveal"))
+        ecran.voit("Au clair de la lune")
+        ecran.voit("Personne n'a trouvé, ce n'est pas grave !")
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("Bilan du blind test")
+        assertEquals(100L, points(dragons, code, dragons.uid))
+        ecran.capture("blind-test-bilan")
     }
 
     @Test
