@@ -174,24 +174,52 @@ private fun Rideau(a: Annonce, fini: () -> Unit) {
     }
 }
 
-/** Moitié du rideau : velours violet, liseré doré du côté où les deux panneaux se rejoignent. */
+/**
+ * Moitié du rideau : velours prune plissé, frange dorée en bas. Côté où les deux panneaux se rejoignent,
+ * le velours s'assombrit en un pli d'ombre (et déborde un peu) : fermé, le rideau ne montre ni fente ni trait clair.
+ */
 @Composable
-private fun Panneau(modifier: Modifier, bordADroite: Boolean) {
+internal fun Panneau(modifier: Modifier, bordADroite: Boolean) {
     Box(
         modifier.fillMaxHeight().drawWithCache {
-            val fond = Brush.horizontalGradient(
-                if (bordADroite) listOf(Neon.Nuit, Neon.Nuit2, Neon.Violet.copy(alpha = 0.95f))
-                else listOf(Neon.Violet.copy(alpha = 0.95f), Neon.Nuit2, Neon.Nuit),
-            )
+            val w = size.width
+            val h = size.height
+            val recouvre = 3.dp.toPx()
+            // Le panneau dessine un peu au-delà de la jonction pour que les deux velours se chevauchent.
+            val gauche = if (bordADroite) 0f else -recouvre
+            val large = w + recouvre
+            val velours = Brush.verticalGradient(listOf(Color(0xFF3A1060), Color(0xFF2A0B4A), Color(0xFF16062A)))
+            // Plis : bandes de lumière et d'ombre douces, plus serrées vers la jonction.
             val plis = Brush.horizontalGradient(
-                List(9) { i -> if (i % 2 == 0) Color.Transparent else Color.Black.copy(alpha = 0.18f) },
+                List(15) { i -> if (i % 2 == 0) Color.White.copy(alpha = 0.07f) else Color.Black.copy(alpha = 0.28f) },
+                startX = gauche, endX = gauche + large,
             )
-            val x = if (bordADroite) size.width - 3.dp.toPx() else 0f
-            val lumiere = Brush.verticalGradient(listOf(Neon.Or.copy(alpha = 0f), Neon.OrClair, Neon.Or.copy(alpha = 0f)))
+            val ombreJonction = Brush.horizontalGradient(
+                if (bordADroite) listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)) else listOf(Color.Black.copy(alpha = 0.55f), Color.Transparent),
+                startX = if (bordADroite) w - 46.dp.toPx() else -recouvre,
+                endX = if (bordADroite) w + recouvre else 46.dp.toPx(),
+            )
+            val ombreBord = Brush.horizontalGradient(
+                if (bordADroite) listOf(Color.Black.copy(alpha = 0.45f), Color.Transparent) else listOf(Color.Transparent, Color.Black.copy(alpha = 0.45f)),
+                startX = if (bordADroite) 0f else w - 80.dp.toPx(),
+                endX = if (bordADroite) 80.dp.toPx() else w,
+            )
+            val hFrange = 34.dp.toPx()
+            val galon = Brush.verticalGradient(listOf(Neon.OrClair, Neon.OrProfond), h - hFrange - 8.dp.toPx(), h - hFrange)
+            val pas = 7.dp.toPx()
+            val franges = Brush.verticalGradient(listOf(Neon.Or, Neon.OrProfond.copy(alpha = 0.35f)), h - hFrange, h)
             onDrawBehind {
-                drawRect(fond)
-                drawRect(plis)
-                drawRect(lumiere, topLeft = Offset(x, 0f), size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height))
+                drawRect(velours, Offset(gauche, 0f), androidx.compose.ui.geometry.Size(large, h))
+                drawRect(plis, Offset(gauche, 0f), androidx.compose.ui.geometry.Size(large, h))
+                drawRect(ombreBord, Offset(0f, 0f), androidx.compose.ui.geometry.Size(w, h))
+                drawRect(ombreJonction, Offset(gauche, 0f), androidx.compose.ui.geometry.Size(large, h))
+                // Galon doré et frange en bas du rideau.
+                drawRect(galon, Offset(gauche, h - hFrange - 8.dp.toPx()), androidx.compose.ui.geometry.Size(large, 8.dp.toPx()))
+                var x = gauche + pas / 2
+                while (x < gauche + large) {
+                    drawLine(franges, Offset(x, h - hFrange), Offset(x, h - 4.dp.toPx()), 2.dp.toPx())
+                    x += pas
+                }
             }
         },
     )
