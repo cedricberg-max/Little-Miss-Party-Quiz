@@ -156,16 +156,16 @@ data class BlindUi(
     val doubledLeft: Int get() = tracks.count { it.points > (tracks.minOfOrNull { t -> t.points } ?: 0) && (it.status == BlindStatus.TODO || it.status == BlindStatus.PLAYING) }
 }
 
-/**
- * Mimes vus par l'écran : équipe qui joue (null entre deux tours), carte affichée, compteurs du tour,
- * bilan du dernier tour, mimes trouvés par équipe dans la manche et équipes ayant déjà joué.
- */
 /** Portes mystères : [order] ordre d'ouverture des portes, [opened] combien sont ouvertes, [doors] leurs valeurs. */
 data class PortesUi(val order: List<Int>, val opened: Int, val doors: List<Int>) {
     /** Toutes les portes sont ouvertes : place au classement final. */
     val allOpen: Boolean get() = opened >= doors.size
 }
 
+/**
+ * Mimes vus par l'écran : équipe qui joue (null entre deux tours), carte affichée, compteurs du tour,
+ * bilan du dernier tour, mimes trouvés par équipe dans la manche et équipes ayant déjà joué.
+ */
 data class MimeUi(
     val team: String? = null,
     val card: MimeCard? = null,
