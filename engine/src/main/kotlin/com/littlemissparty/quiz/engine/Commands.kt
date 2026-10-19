@@ -130,6 +130,9 @@ fun Game.execute(
     // En pause, rien n'avance : l'animatrice reprend d'abord (corrections de score et fin restent possibles).
     // Le saut de jeu reste possible en pause : c'est la commande de secours pour débloquer une prestation.
     if (state.paused && advances && cmd !is Command.End && cmd !is Command.Goto) return refused("paused")
+    // Décompte 3, 2, 1 d'une reprise : un « Arrêter le chrono » arrivé maintenant est un appui réflexe
+    // (la question n'a pas encore repris) ; il fermerait la question avant qu'elle reparte.
+    if (cmd is Command.Close && state.phase == Phase.QUESTION && (state.resumeAt ?: Long.MIN_VALUE) > now) return refused("countdown")
     // Toutes les équipes inscrites ont déjà tenté leur chance : à la relance, tout le monde peut rebuzzer.
     val allTried = state.buzz?.blocked?.let { b -> b.isNotEmpty() && teams.isNotEmpty() && teams.all { it in b } } == true
     val event = when (cmd) {

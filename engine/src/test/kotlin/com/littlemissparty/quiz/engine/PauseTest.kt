@@ -116,6 +116,23 @@ class PauseTest {
     }
 
     @Test
+    fun `un arrêt du chrono de la régie pendant le décompte de reprise est refusé, puis accepté après`() {
+        val g = Game(quiz)
+        g.next(t0)
+        g.pause(t0 + 1_000)
+        g.resume(t0 + 60_000)
+        // Appui réflexe juste après « Reprendre » : la question ne se ferme pas (« Temps écoulé ! » évité).
+        val tot = g.execute(Command.Close("c1", g.state.lastSeq), t0 + 60_500, teams)
+        assertEquals(CommandStatus.REFUSED, tot.status)
+        assertEquals("countdown", tot.reason)
+        assertEquals(Phase.QUESTION, g.state.phase)
+        assertEquals(19_000L, g.remainingMs(t0 + 63_000))
+        // Après le décompte, l'animatrice peut arrêter le chrono normalement.
+        assertEquals(CommandStatus.APPLIED, g.execute(Command.Close("c2", g.state.lastSeq), t0 + 65_000, teams).status)
+        assertEquals(Phase.CLOSED, g.state.phase)
+    }
+
+    @Test
     fun `une pause automatique nomme l'équipe déconnectée`() {
         val g = Game(quiz)
         g.next(t0)

@@ -59,6 +59,9 @@ import kotlin.coroutines.resumeWithException
 /** [uid] identifie l'équipe (l'appareil qui l'a créée) ; [device] est l'appareil qui le remplace, s'il y en a un. */
 data class Team(val uid: String, val name: String, val color: String, val joinedAt: Long, val device: String? = null)
 
+/** Appareil qui demande à entrer en cours de partie ; [replace] : l'équipe qu'il veut reprendre. */
+data class JoinRequestUi(val device: String, val name: String, val color: String, val replace: String?)
+
 sealed interface UiState {
     data object MissingConfig : UiState
     data object Connecting : UiState
@@ -106,6 +109,9 @@ sealed interface UiState {
         val regiePin: String = "",
         val regies: Int = 0,
         val showRegie: Boolean = false,
+        /** Fenêtre « Reconnecter une tablette » ouverte, et les appareils qui demandent à reprendre une équipe. */
+        val showTablette: Boolean = false,
+        val requests: List<JoinRequestUi> = emptyList(),
         /** Prestation chargée par la régie (titre et prénom de l'enfant fêté), vide pour le quiz de démonstration. */
         val title: String = "",
         val childName: String = "",
@@ -801,6 +807,17 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     fun showRegie() = updatePlaying { it.copy(showRegie = true) }
     fun hideRegie() = updatePlaying { it.copy(showRegie = false) }
+    fun showTablette() = updatePlaying { it.copy(showTablette = true) }
+    fun hideTablette() = updatePlaying { it.copy(showTablette = false) }
+
+    /** « Reconnecter une tablette » : l'animatrice confie à la TV l'équipe que la nouvelle tablette a choisie. */
+    fun confierTablette(device: String, team: String) {
+        viewModelScope.launch {
+            val refus = actions.withLock { admitDevice(null, replace = true, device = device, team = team) }
+            // Tablette confiée : la fenêtre se referme, la partie reprend où elle en était.
+            if (refus == null) hideTablette()
+        }
+    }
 
     /** Retire toutes les régies et change le code : les anciens téléphones ne pilotent plus. */
     fun removeRegies() {
@@ -922,7 +939,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         if (!handledCommands.add(id)) return
         val type = snap.child("type").getValue(String::class.java)
         if (type == ADMIT || type == REPLACE) {
-            viewModelScope.launch { actions.withLock { admitDevice(id, replace = type == REPLACE, cmd = snap) } }
+            val device = snap.child("device").getValue(String::class.java)
+            val team = snap.child("team").getValue(String::class.java)
+            viewModelScope.launch { actions.withLock { admitDevice(id, replace = type == REPLACE, device = device, team = team) } }
             return
         }
         val cmd = (snap.value as? Map<*, *>)?.let { Command.decode(id, it) }
@@ -955,11 +974,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
      * Appareil arrivé en cours de partie, accepté par la régie : nouvelle équipe, ou remplaçant d'une équipe
      * existante, qui garde son nom, sa couleur et ses points (ils sont rangés sous l'identifiant de l'équipe).
      * Les règles Firebase n'acceptent plus rien de l'ancien appareil. La demande est effacée dans la même écriture.
+     * [id] : commande de la régie, qui reçoit la réponse ; null quand l'animatrice confirme à la télécommande.
      */
-    private suspend fun admitDevice(id: String, replace: Boolean, cmd: DataSnapshot) {
-        val ref = gameRef ?: return
-        val device = cmd.child("device").getValue(String::class.java)
-        val team = cmd.child("team").getValue(String::class.java)
+    private suspend fun admitDevice(id: String?, replace: Boolean, device: String?, team: String?): String? {
+        val ref = gameRef ?: return "gone"
         val request = device?.let { runCatching { ref.child("joinRequests/$it").readOnce() }.getOrNull() }?.takeIf { it.exists() }
         val teams = teams()
         val reason = when {
@@ -969,11 +987,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             replace && teams.none { it.uid == team } -> "unknown_team"
             else -> null
         }
-        val updates = mutableMapOf<String, Any?>(
-            "commandStatus/$id" to clean(
-                mapOf("status" to if (reason == null) "applied" else "refused", "reason" to reason, "at" to ServerValue.TIMESTAMP)
-            ),
+        val updates = mutableMapOf<String, Any?>()
+        if (id != null) updates["commandStatus/$id"] = clean(
+            mapOf("status" to if (reason == null) "applied" else "refused", "reason" to reason, "at" to ServerValue.TIMESTAMP)
         )
+        if (id == null && reason != null) Log.w(TAG, "Tablette non confiée : $reason")
         if (reason == null && device != null && request != null) {
             updates["joinRequests/$device"] = null
             if (replace) {
@@ -989,7 +1007,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 updates["colors/${colorKey(color)}"] = device
             }
         }
-        ref.updateChildren(updates).addOnFailureListener { Log.e(TAG, "Entrée d'un appareil refusée", it) }
+        if (updates.isNotEmpty()) ref.updateChildren(updates).addOnFailureListener { Log.e(TAG, "Entrée d'un appareil refusée", it) }
+        return reason
     }
 
     private fun statusOf(id: String, r: CommandResult): Map<String, Any?> = mapOf(
@@ -1087,6 +1106,18 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
         observe(ref.child("pairing")) { snap -> snap.children.forEach(::judgePairing) }
         observe(ref.child("show"), ::judgeShow)
+        observe(ref.child("joinRequests")) { snap ->
+            val list = snap.children.mapNotNull { r ->
+                val device = r.key ?: return@mapNotNull null
+                JoinRequestUi(
+                    device,
+                    r.child("name").getValue(String::class.java) ?: "Équipe",
+                    r.child("color").getValue(String::class.java) ?: "#FFFFFF",
+                    r.child("replace").getValue(String::class.java),
+                )
+            }
+            updatePlaying { it.copy(requests = list) }
+        }
         observe(ref.child("regie")) { snap ->
             val uids = snap.children.mapNotNull { it.key }.toSet()
             val added = uids - regieUids

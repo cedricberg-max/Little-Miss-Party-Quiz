@@ -329,6 +329,15 @@ class PupitreSimule(etiquette: String) : AutoCloseable {
         }
     }
 
+    /** « Reconnecter une tablette » : comme la page web, demande à reprendre l'équipe [equipe]. */
+    fun demanderReprise(code: String, equipe: String, nom: String, couleur: String) {
+        bloquer {
+            base.getReference("games/$code/joinRequests/$uid").setValue(
+                mapOf("name" to nom, "color" to couleur, "replace" to equipe, "at" to ServerValue.TIMESTAMP),
+            ).await()
+        }
+    }
+
     /** Envoie une réponse ; renvoie false si le serveur la refuse. */
     fun repondre(code: String, qid: String, choix: Int): Boolean = runCatching {
         bloquer {

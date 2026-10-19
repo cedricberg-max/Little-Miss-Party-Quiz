@@ -575,7 +575,8 @@ class RegieTest : TestTv() {
         ecran.voit("Licornes a buzzé !")
         ecran.voit("On attend sa réponse…")
         ecran.entierementVisible("Licornes a buzzé !")
-        ecran.entierementVisible("Bonne réponse")
+        // Régie reliée : c'est elle qui juge, la TV ne montre pas les boutons de secours.
+        ecran.neVoitPas("Mauvaise réponse", 2_000)
         assertFalse("une seule équipe à la fois", dragons.buzzer(code))
         ecran.capture("blind-test-buzz")
 
