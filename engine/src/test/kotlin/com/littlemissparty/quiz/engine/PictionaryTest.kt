@@ -2,6 +2,7 @@ package com.littlemissparty.quiz.engine
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -108,7 +109,11 @@ class PictionaryTest {
         assertNull(g.mimePass(t0 + 8_000))
         g.pictoShow("rose", t0 + 10_000)
         g.pictoChoose(0, t0 + 11_000)
+        val avant = Codec.pickKey(g)
         assertNotNull(g.mimePass(t0 + 12_000))
+        // Nouveaux mots = nouvelle clé : la tablette remplace ses cartes, un choix fait sur les anciens mots
+        // (tablette en retard) ne peut pas désigner un des nouveaux (« Lapin » choisi, « Dinosaure » annoncé).
+        assertNotEquals(avant, Codec.pickKey(g))
         assertEquals(listOf("Soleil", "Pomme", "Vélo"), g.offerCards.map { it.word })
         assertNull(g.mimeCard, "Nouveaux mots : il choisit de nouveau")
         g.pictoChoose(2, t0 + 13_000)

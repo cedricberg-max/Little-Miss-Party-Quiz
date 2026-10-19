@@ -5,6 +5,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Test
 import com.littlemissparty.quiz.tv.habillage.COULEURS_DESSIN
+import com.littlemissparty.quiz.tv.habillage.GOMME_DESSIN
 
 /** Pictionary : la TV relit les paquets de traits envoyés par la tablette du dessinateur. */
 class DessinTest {
@@ -51,12 +52,14 @@ class DessinTest {
             .avec(mapOf("c" to "paper", "w" to 2L, "p" to "1,1"))
             .avec(mapOf("c" to "#123456", "w" to 1L, "p" to "10,10"))
         val t = d.pourTableau()
-        assertEquals(2, t.size)
+        assertEquals(3, t.size)
         assertEquals(1, t[0].couleur)
         assertEquals(2, t[0].epaisseur)
         assertEquals(listOf(0f, 0f, 0.5f, 0.25f, 1f, 1f), t[0].points.toList())
-        assertEquals("Une couleur hors palette prend l'encre", 0, t[1].couleur)
-        assertEquals(0, t[1].epaisseur)
+        assertEquals("La gomme recouvre le dessin, couleur papier", GOMME_DESSIN, t[1].couleur)
+        assertEquals(1, t[1].epaisseur)
+        assertEquals("Une couleur hors palette prend l'encre", 0, t[2].couleur)
+        assertEquals(0, t[2].epaisseur)
         assertEquals(8, COULEURS_DESSIN.size)
     }
 }

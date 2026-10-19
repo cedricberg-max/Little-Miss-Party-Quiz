@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.tv.habillage.BandeauEquipes
 import com.littlemissparty.quiz.tv.habillage.COULEURS_DESSIN
+import com.littlemissparty.quiz.tv.habillage.GOMME_DESSIN
 import com.littlemissparty.quiz.tv.habillage.EPAISSEURS_DESSIN
 import com.littlemissparty.quiz.tv.habillage.IntroPictionary
 import com.littlemissparty.quiz.tv.habillage.MotPictionary
@@ -59,11 +60,10 @@ val LocalDessin = staticCompositionLocalOf<StateFlow<Dessin>> { MutableStateFlow
 
 /**
  * Le dessin reçu, au format de l'habillage (TableauDessin) : coordonnées 0..1, feutres et épaisseurs de l'ardoise.
- * Une couleur hors palette prend l'encre ; la gomme d'une ancienne tablette (couleur papier) n'est pas tracée.
+ * Une couleur hors palette prend l'encre ; la gomme (couleur papier) recouvre le dessin là où elle passe.
  */
-fun Dessin.pourTableau(): List<TraitDessin> = traits.mapIndexedNotNull { i, t ->
-    val argb = t.couleur ?: return@mapIndexedNotNull null
-    val couleur = COULEURS_DESSIN.indexOfFirst { (it.toArgb().toLong() and 0xFFFFFFFFL) == argb }.coerceAtLeast(0)
+fun Dessin.pourTableau(): List<TraitDessin> = traits.mapIndexed { i, t ->
+    val couleur = t.couleur?.let { argb -> COULEURS_DESSIN.indexOfFirst { (it.toArgb().toLong() and 0xFFFFFFFFL) == argb }.coerceAtLeast(0) } ?: GOMME_DESSIN
     val points = FloatArray(t.points.size * 2) { k -> (if (k % 2 == 0) t.points[k / 2].first else t.points[k / 2].second) / 1000f }
     TraitDessin("$effacements-$i", couleur, (t.epaisseur - 1).coerceIn(EPAISSEURS_DESSIN.indices), points)
 }

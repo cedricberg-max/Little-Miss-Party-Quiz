@@ -25,8 +25,10 @@ class MultiplicateurTest {
     private val t0 = 1_000_000L
 
     /** Joue la question en cours jusqu'au classement : « rose » répond juste tout de suite. */
-    private fun jouer(g: Game, t: Long): Long {
-        if (g.state.phase == Phase.LOBBY || g.state.phase == Phase.SCORES) g.next(t)
+    private fun jouer(g: Game, debut: Long): Long {
+        if (g.state.phase == Phase.LOBBY || g.state.phase == Phase.SCORES) g.next(debut)
+        // Première question multipliée : le chrono part après l'annonce « × N ».
+        val t = g.multiplierIntroUntil() ?: debut
         g.next(t + 10_000)
         g.next(t + 10_100, mapOf("rose" to Answer(0, t + 10_000)))
         g.next(t + 10_200)
@@ -97,6 +99,31 @@ class MultiplicateurTest {
         assertEquals(3, reprise.factorOf(1))
         t = jouer(reprise, t)
         assertEquals(300, gagne(reprise, "a2"))
+    }
+
+    @Test
+    fun `annonce « × N » avant la première question multipliée seulement, puis le chrono part`() {
+        val g = Game(quiz)
+        val t = jouer(g, t0)
+        g.execute(Command.Factor("x", g.state.lastSeq, 3), t, teams)
+        g.next(t)
+        assertEquals(t + MULTIPLIER_INTRO_MS, g.multiplierIntroUntil())
+        assertEquals(2, g.multipliedLeft(g.state.index))
+        assertEquals(t + MULTIPLIER_INTRO_MS + 10_000, g.deadline(), "le chrono entier, après l'annonce")
+        assertEquals(t + MULTIPLIER_INTRO_MS, Codec.publicState(g)["intro"])
+        // « Arrêter le chrono » réflexe pendant l'annonce : refusé, comme pendant un décompte.
+        assertEquals("countdown", g.execute(Command.Close("c", g.state.lastSeq), t + 1_000, teams).reason)
+        // Pause pendant l'annonce : la reprise est un décompte ordinaire, l'annonce ne revient pas.
+        g.pause(t + 2_000)
+        assertNull(g.multiplierIntroUntil())
+        g.resume(t + 9_000, countdownMs = 3_000)
+        assertNull(g.multiplierIntroUntil())
+        assertEquals(t + 12_000 + 10_000, g.deadline(), "rien n'a été décompté pendant l'annonce")
+        // Question suivante de la série : pas de nouvelle annonce.
+        jouer(g, t + 12_000)
+        g.next(t + 40_000)
+        assertNull(g.multiplierIntroUntil())
+        assertEquals(1, g.multipliedLeft(g.state.index))
     }
 
     @Test

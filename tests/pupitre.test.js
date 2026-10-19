@@ -403,6 +403,13 @@ describe("pupitre", () => {
     await licornes.locator(".choix-valider", { hasText: "C'est noté" }).waitFor();
     await hostState(picto({ secret: L, offer, chosen: 1, pickKey: "r1p-100" }));
     await licornes.locator("#pick-status", { hasText: "Tu vas dessiner « Maison »" }).waitFor();
+    // Tour suivant : toucher directement la carte choisit le mot, comme le bouton.
+    await hostState(picto({ secret: L, offer, chosen: null, pickKey: "r1p-150" }));
+    await licornes.locator("#pick-host .choix-valider:not([disabled])").waitFor();
+    await licornes.click(".choix-fleche[data-sens='-1']");
+    await licornes.locator("#pick-host .choix-carte").nth(2).click();
+    await waitFor(async () => (await read("pictoChoice/r1p-150"))?.i === 2, "choix par toucher de la carte enregistré");
+    await licornes.locator(".choix-valider", { hasText: "C'est noté" }).waitFor();
 
     // On dessine sur l'ardoise : les traits partent vers la TV par petits paquets ; « Tout effacer » aussi.
     await hostState(picto({ team: L, card: offer[1], drawKey: "r1p-200", turns: [L] }, { deadline: Date.now() + 60000 }));
@@ -428,6 +435,16 @@ describe("pupitre", () => {
     assert.ok(pts.flat().every(([x, y]) => x >= 0 && x <= 1000 && y >= 0 && y <= 1000), "coordonnées de 0 à 1000");
     // Chaque paquet reprend le dernier point du précédent : la TV relie le trait sans trou.
     for (let i = 1; i < pts.length; i++) assert.deepEqual(pts[i][0], pts[i - 1].at(-1));
+    // Gomme : efface juste un morceau ; le trait part vers la TV en couleur papier.
+    await licornes.click(".ardoise-gomme");
+    assert.equal(await licornes.getAttribute(".ardoise-gomme", "aria-checked"), "true");
+    await licornes.mouse.move(box.x + 60, box.y + 45);
+    await licornes.mouse.down();
+    await licornes.mouse.move(box.x + 90, box.y + 65);
+    await licornes.mouse.up();
+    await waitFor(async () => Object.values((await read("drawing/r1p-200")) ?? {}).some((s) => s.c === "paper"), "trait de gomme envoyé");
+    await licornes.click(".ardoise-feutre >> nth=1");
+    assert.equal(await licornes.getAttribute(".ardoise-gomme", "aria-checked"), "false", "un feutre repose la gomme");
     await licornes.click(".ardoise-effacer");
     await licornes.click(".ardoise-effacer");
     await waitFor(async () => Object.values((await read("drawing/r1p-200")) ?? {}).some((s) => s.clear), "effacement envoyé");

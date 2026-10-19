@@ -3,7 +3,7 @@
  * Module autonome, sans Firebase : il dessine en local et rend chaque trait à l'appelant, qui l'envoie à la TV.
  *
  * Contrat d'un trait (le même que la TV) : { id, c, w, p }
- *   c = index de couleur (COULEURS_DESSIN), w = index d'épaisseur (EPAISSEURS),
+ *   c = index de couleur (COULEURS_DESSIN) ou GOMME, w = index d'épaisseur (EPAISSEURS),
  *   p = [x0, y0, x1, y1, …] en coordonnées 0..1 sur une feuille 4:3, arrondies à 3 décimales.
  * Pendant le geste, surTrait(trait, false) part au plus toutes les 80 ms avec le trait entier (même id, il grandit) ;
  * au lever du doigt, surTrait(trait, true). Un geste très long est coupé en plusieurs traits (POINTS_MAX).
@@ -11,6 +11,8 @@
 
 export const COULEURS_DESSIN = ["#1B1035", "#FF2D8A", "#2B86C5", "#12C957", "#FFB000", "#FF5A1F", "#6E28BE", "#8B5A2B"];
 export const NOMS_COULEURS = ["Noir", "Rose", "Bleu", "Vert", "Jaune", "Orange", "Violet", "Marron"];
+/** La gomme : un trait qui efface (envoyé à la TV en couleur « paper »). */
+export const GOMME = -1;
 /** Épaisseur du trait, en fraction de la largeur de la feuille. */
 export const EPAISSEURS = [0.006, 0.012, 0.028];
 export const RATIO = 4 / 3;
@@ -24,7 +26,9 @@ const arrondi = (v) => Math.round(Math.min(1, Math.max(0, v)) * 1000) / 1000;
 export function tracer(ctx, trait, l, h) {
   const p = trait.p;
   if (!p || p.length < 2) return;
-  ctx.strokeStyle = COULEURS_DESSIN[trait.c] ?? COULEURS_DESSIN[0];
+  // Gomme : le trait efface ce qui est dessous (le papier de la feuille réapparaît).
+  ctx.globalCompositeOperation = trait.c === GOMME ? "destination-out" : "source-over";
+  ctx.strokeStyle = trait.c === GOMME ? "#000" : COULEURS_DESSIN[trait.c] ?? COULEURS_DESSIN[0];
   ctx.fillStyle = ctx.strokeStyle;
   ctx.lineWidth = (EPAISSEURS[trait.w] ?? EPAISSEURS[1]) * l;
   ctx.lineCap = "round";
@@ -44,6 +48,7 @@ export function tracer(ctx, trait, l, h) {
   }
   ctx.lineTo(p[p.length - 2] * l, p[p.length - 1] * h);
   ctx.stroke();
+  ctx.globalCompositeOperation = "source-over";
 }
 
 /**
@@ -67,6 +72,7 @@ export function creerArdoise(hote, { surTrait = () => {}, surEffacer = () => {},
     <div class="ardoise-outils">
       <div class="ardoise-couleurs" role="radiogroup" aria-label="Couleur"></div>
       <div class="ardoise-epaisseurs" role="radiogroup" aria-label="Épaisseur"></div>
+      <button type="button" class="ardoise-gomme" role="radio" aria-label="Gomme">🧽 Gomme</button>
       <button type="button" class="ardoise-effacer">Tout effacer</button>
     </div>`;
   const $ = (s) => hote.querySelector(s);
@@ -113,9 +119,13 @@ export function creerArdoise(hote, { surTrait = () => {}, surEffacer = () => {},
   });
   function choisirCouleur(i) {
     couleur = i;
-    hote.style.setProperty("--feutre-actif", COULEURS_DESSIN[i]);
+    hote.style.setProperty("--feutre-actif", i === GOMME ? "#fff8ea" : COULEURS_DESSIN[i]);
     hote.querySelectorAll(".ardoise-feutre").forEach((b, k) => b.setAttribute("aria-checked", String(k === i)));
+    $(".ardoise-gomme").setAttribute("aria-checked", String(i === GOMME));
+    hote.classList.toggle("ardoise-gommer", i === GOMME);
   }
+  // Gomme : efface juste là où passe le doigt ; un feutre la repose.
+  $(".ardoise-gomme").onclick = () => choisirCouleur(GOMME);
   function choisirEpaisseur(i) {
     epaisseur = i;
     hote.querySelectorAll(".ardoise-epaisseur").forEach((b, k) => b.setAttribute("aria-checked", String(k === i)));
@@ -309,7 +319,7 @@ export function afficherMotSecret(hote, { mot, image = "" }) {
 
 /**
  * Choix du mot par le dessinateur : trois cartes (image + mot) qu'il fait défiler du doigt ou avec les flèches,
- * puis « Je choisis ce mot ! ». surChoix(index) n'est appelé qu'une fois ; ensuite la carte confirme le choix.
+ * puis « Je choisis ce mot ! » ou un toucher de la carte. surChoix(index) n'est appelé qu'une fois ; ensuite la carte confirme le choix.
  * [mots] = [{ mot, image }] (image = adresse ou émoji).
  */
 export function choisirMot(hote, mots, { surChoix = () => {} } = {}) {
@@ -366,6 +376,8 @@ export function choisirMot(hote, mots, { surChoix = () => {} } = {}) {
     const dx = e.clientX - depart;
     depart = null;
     if (Math.abs(dx) > 40) aller(courant + (dx < 0 ? 1 : -1));
+    // Simple toucher de la carte (sans glisser) : le mot est choisi, comme avec « Je choisis ce mot ! ».
+    else if (Math.abs(dx) < 12) valider.onclick();
   });
   valider.onclick = () => {
     if (choisi) return;

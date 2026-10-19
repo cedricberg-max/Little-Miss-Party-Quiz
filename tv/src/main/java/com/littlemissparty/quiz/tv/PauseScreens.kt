@@ -262,6 +262,8 @@ private fun Sparkles(phase: () -> Float) {
 @Composable
 private fun ResumeCountdown(state: UiState.Playing) {
     val resumeAt = state.resumeAt ?: return
+    // Avant les dernières questions multipliées, c'est l'annonce « × N » qui occupe l'écran, pas le 3, 2, 1.
+    if (resumeAt == state.introUntil) return
     var shown by remember(resumeAt) { mutableIntStateOf(secondsBefore(resumeAt, state.serverOffset)) }
     LaunchedEffect(resumeAt) {
         while (true) {

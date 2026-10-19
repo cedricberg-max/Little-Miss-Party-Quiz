@@ -101,6 +101,10 @@ sealed interface UiState {
         val etape: String? = null,
         /** Points multipliés de la question en cours (dernières questions du quiz : ×2, ×3 ou ×5), 1 sinon. */
         val factor: Int = 1,
+        /** Annonce « × N » avant la première question multipliée : heure (serveur) où le chrono part ; null sinon. */
+        val introUntil: Long? = null,
+        /** Questions multipliées restantes, celle-ci comprise (pour l'annonce). */
+        val multipliedLeft: Int = 0,
         /** Points gagnés par équipe dans le jeu en cours : vainqueur du jeu, célébré à sa fin (nextGame ou isLast). */
         val gameGains: Map<String, Int> = emptyMap(),
         val round: Int = 1,
@@ -672,6 +676,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 nextGame = g.nextGameTitle(),
                 etape = g.gameStep()?.label,
                 factor = g.factorOf(s.index),
+                introUntil = g.multiplierIntroUntil(),
+                multipliedLeft = g.multipliedLeft(s.index),
                 gameGains = g.gameGains(),
                 mime = q?.takeIf { it.isTurns && s.phase != Phase.LOBBY }?.let {
                     val m = s.mime

@@ -24,6 +24,12 @@ const val BLIND_END_MARGIN_MS = 1_000L
 /** Qui a disparu ? : le buzzer peut s'ouvrir un poil avant l'heure (minuterie de la box). */
 const val ARM_TOLERANCE_MS = 250L
 
+/**
+ * Première des dernières questions à points multipliés : la TV annonce « × N » en plein écran pendant ce temps,
+ * le chrono et les réponses partent ensuite (comme après le décompte d'une reprise).
+ */
+const val MULTIPLIER_INTRO_MS = 4_500L
+
 /** Blind test : une équipe qui s'est trompée peut rebuzzer sur le même morceau, 3 s après la reprise de la musique. */
 const val REBUZZ_DELAY_MS = 3_000L
 
@@ -355,7 +361,9 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                 if (m.secret == null || m.team != null || m.deck.size <= m.offer.size) null
                 else {
                     val deck = m.deck.drop(m.offer.size) + m.deck.take(m.offer.size)
-                    s.copy(mime = m.copy(deck = deck, offer = deck.take(PICTO_OFFER), pick = null, passed = m.passed + 1))
+                    // Nouvelle heure de présentation = nouvelle clé de choix : la tablette remplace ses cartes, et un choix
+                    // fait sur les anciens mots ne peut jamais désigner un des nouveaux.
+                    s.copy(mime = m.copy(deck = deck, offer = deck.take(PICTO_OFFER), pick = null, passed = m.passed + 1, shownAt = e.at))
                 }
             }
             else if (m.team == null || m.deck.size < 2) null
@@ -483,10 +491,14 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null, mime = null,
             buzz = BuzzRound(waiting = true), revealCut = null,
         )
-        else s.copy(
-            phase = Phase.QUESTION, index = index, qid = q.id, segments = listOf(Segment(at)), resumeAt = null, mime = null,
-            buzz = if (q.isBuzz) BuzzRound(armed = q.buzzFromMs == 0L) else null, doorsOpened = 0,
-        )
+        else {
+            // Dernières questions multipliées : la première attend la fin de l'annonce « × N » de la TV.
+            val start = at + if (!q.isBuzz && doubleRunStart(index) == index) MULTIPLIER_INTRO_MS else 0L
+            s.copy(
+                phase = Phase.QUESTION, index = index, qid = q.id, segments = listOf(Segment(start)), resumeAt = start.takeIf { it > at }, mime = null,
+                buzz = if (q.isBuzz) BuzzRound(armed = q.buzzFromMs == 0L) else null, doorsOpened = 0,
+            )
+        }
 
     private fun closeSegments(s: GameState, at: Long) = s.segments.map { if (it.end == null) it.copy(end = maxOf(at, it.start)) else it }
 
@@ -552,6 +564,24 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         var i = index
         while (quiz.questions.getOrNull(i - 1)?.let { it.double && !it.isBlind && it.roundTitle == q.roundTitle } == true) i--
         return i
+    }
+
+    /**
+     * Annonce « × N » en cours (première des questions multipliées, avant que le chrono parte) : l'heure de départ
+     * du chrono ; null sinon. Une pause pendant l'annonce la remplace par le décompte ordinaire de la reprise.
+     */
+    fun multiplierIntroUntil(): Long? {
+        val s = state
+        if (s.phase != Phase.QUESTION || s.index < 0 || doubleRunStart(s.index) != s.index) return null
+        return s.resumeAt?.takeIf { s.segments.size == 1 && it == s.openedAt && !s.paused }
+    }
+
+    /** Nombre de questions à points multipliés de la série en cours, à partir de la question [index] comprise. */
+    fun multipliedLeft(index: Int): Int {
+        val q = quiz.questions.getOrNull(index)?.takeIf { it.double && !it.isBlind } ?: return 0
+        var n = 0
+        while (quiz.questions.getOrNull(index + n)?.let { it.double && !it.isBlind && it.roundTitle == q.roundTitle } == true) n++
+        return n
     }
 
     /** Multiplicateur des points de la question [index] : 1, ou celui choisi pour sa série (×2 par défaut). */

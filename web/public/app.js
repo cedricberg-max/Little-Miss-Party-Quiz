@@ -792,8 +792,11 @@ function runResumeCountdown(st) {
   const tick = () => {
     const ms = st.paused || st.resumeAt == null ? 0 : st.resumeAt - (Date.now() + serverOffset);
     box.hidden = ms <= 0;
-    if (ms > 0) $("resume-num").textContent = `${Math.min(9, Math.ceil(ms / 1000))}`;
-    else { clearInterval(countdownHandle); countdownHandle = null; if (st.phase === "question") render(); }
+    if (ms > 0) {
+      $("resume-num").textContent = `${Math.min(9, Math.ceil(ms / 1000))}`;
+      // Avant les dernières questions multipliées, la TV annonce « × N » : le décompte le dit aussi.
+      $("resume-text").textContent = st.intro != null && st.intro === st.resumeAt ? `Points ×${st.factor ?? 2} !` : "C'est reparti !";
+    } else { clearInterval(countdownHandle); countdownHandle = null; if (st.phase === "question") render(); }
   };
   const ms = st.paused || st.resumeAt == null ? 0 : st.resumeAt - (Date.now() + serverOffset);
   if (ms <= 0) { box.hidden = true; return; }

@@ -357,6 +357,8 @@ private class Box(val quiz: Quiz, val teams: Set<String> = EQUIPES) {
         val q = assertNotNull(game.question)
         assertEquals(Phase.QUESTION, state.phase, "${q.id} ouverte")
         assertFalse(state.paused)
+        // Annonce « × N » avant la première question multipliée : les pupitres attendent qu'elle finisse.
+        game.multiplierIntroUntil()?.let { attend(it - now) }
         // Question rouverte par « Suivant » après un retour en arrière : ses anciens points sont remplacés à la
         // révélation, jamais ajoutés (les mimes, eux, repartent de zéro dès l'ouverture).
         val avant = moins(scores(), state.awards[q.id].orEmpty().mapValues { it.value.points })
@@ -470,7 +472,15 @@ private class Box(val quiz: Quiz, val teams: Set<String> = EQUIPES) {
         }
         assertEquals(buzzer, state.buzz, "buzzer de ${q.id}")
         assertEquals(if (q.isMime) MimeRound(deck = q.cards.indices.toList()) else null, state.mime, "mimes de ${q.id}")
-        if (q.isMime || q.isBlind) assertNull(game.deadline()) else assertEquals(now + q.durationMs, game.deadline(), "chrono de ${q.id}")
+        // Première des questions multipliées : la TV annonce « × N », le chrono et les réponses partent ensuite.
+        val intro = q.double && !q.isBlind && !q.isBuzz && game.doubleRunStart(index) == index
+        assertEquals(if (intro) now + MULTIPLIER_INTRO_MS else null, game.multiplierIntroUntil(), "annonce × N avant ${q.id}")
+        val depart = game.multiplierIntroUntil() ?: now
+        if (q.isMime || q.isBlind) assertNull(game.deadline()) else assertEquals(depart + q.durationMs, game.deadline(), "chrono de ${q.id}")
+        if (intro) {
+            assertFalse(tryAnswer(teams.first(), 0), "pas de réponse pendant l'annonce")
+            attend(depart - now)
+        }
     }
 
     /** Joue toute la prestation avec les boutons de la régie et les minuteries, du salon d'attente aux résultats. */

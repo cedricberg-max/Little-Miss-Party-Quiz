@@ -50,6 +50,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
+import com.littlemissparty.quiz.tv.habillage.ANNONCE_MULTIPLICATEUR_MS
+import com.littlemissparty.quiz.tv.habillage.AnnonceMultiplicateur
 import com.littlemissparty.quiz.tv.habillage.BandeauEquipes
 import com.littlemissparty.quiz.tv.habillage.Classee
 import com.littlemissparty.quiz.tv.habillage.Couronne
@@ -185,6 +187,8 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
         }
         // Blind test : annonce des derniers morceaux à double valeur, par-dessus tout l'écran.
         if (q.isBlind) BlindAnnonceDouble(q, state)
+        // Dernières questions du quiz à points multipliés : « × N » en plein écran avant que le chrono parte.
+        state.introUntil?.let { fin -> key(fin) { AnnonceFacteur(state, fin) } }
         // Jeux au buzzer : « La parole est à … » en grand, puis en bandeau tant que l'équipe répond
         // (le blind test a sa propre scène au buzz).
         if (q.isBuzz && !q.isBlind) key(state.index) { AnnonceParole(state) }
@@ -208,6 +212,15 @@ private fun AnnonceParole(state: UiState.Playing) {
         visible = buzzer != null && state.phase == Phase.QUESTION && !state.paused,
         dejaMs = if (equipe.uid == dejaLa) PAROLE_CENTRE_MS + PAROLE_GLISSE_MS else 0L,
     )
+}
+
+/** Annonce « × N » jusqu'au départ du chrono (calé sur l'heure du serveur, comme le décompte d'une reprise). */
+@Composable
+private fun AnnonceFacteur(state: UiState.Playing, fin: Long) {
+    val reste = remember(fin) { (fin - (System.currentTimeMillis() + state.serverOffset)).coerceIn(0L, ANNONCE_MULTIPLICATEUR_MS) }
+    if (reste > 0 && !apres(reste, fin) && !state.paused) {
+        AnnonceMultiplicateur(facteur = state.factor.coerceAtLeast(2), restantes = state.multipliedLeft.coerceAtLeast(1))
+    }
 }
 
 /** Boutons de l'animatrice sous la question. En pause, le seul bouton est « Reprendre » sur l'intermède. */

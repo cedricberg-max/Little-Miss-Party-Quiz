@@ -135,6 +135,16 @@
   background: var(--feutre-actif);
 }
 .ardoise-epaisseur[aria-checked="true"] { box-shadow: 0 0 0 3px var(--or); transform: scale(1.1); }
+.ardoise-gomme {
+  min-height: 44px;
+  padding: 0 16px !important;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, .9) !important;
+  color: #6e28be;
+  font-weight: 800 !important;
+}
+.ardoise-gomme[aria-checked="true"] { box-shadow: 0 0 0 3px var(--or); transform: scale(1.08); }
+.ardoise-gommer .ardoise-feuille canvas { cursor: cell; }
 .ardoise-effacer {
   min-height: 44px;
   padding: 0 18px !important;

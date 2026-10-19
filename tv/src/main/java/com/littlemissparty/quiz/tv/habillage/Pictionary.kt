@@ -66,6 +66,10 @@ val COULEURS_DESSIN = listOf(
     Color(0xFFFFB000), Color(0xFFFF5A1F), Color(0xFF6E28BE), Color(0xFF8B5A2B),
 )
 
+/** La gomme de l'ardoise : un trait couleur papier qui recouvre le dessin (couleur « paper » côté tablette). */
+const val GOMME_DESSIN = -1
+private val PAPIER_DESSIN = Color(0xFFFFFBF0)
+
 /** Épaisseurs du trait, en fraction de la largeur de la feuille (mêmes valeurs que le web). */
 val EPAISSEURS_DESSIN = listOf(0.006f, 0.012f, 0.028f)
 
@@ -136,7 +140,7 @@ fun TableauDessin(traits: List<TraitDessin>, modifier: Modifier = Modifier, vide
                     val h = l / RATIO_DESSIN
                     val o = Offset((size.width - l) / 2, (size.height - h) / 2)
                     val chemins = traits.map { t ->
-                        Triple(cheminDe(t, l, h), COULEURS_DESSIN[t.couleur], EPAISSEURS_DESSIN[t.epaisseur] * l)
+                        Triple(cheminDe(t, l, h), COULEURS_DESSIN.getOrNull(t.couleur) ?: PAPIER_DESSIN, EPAISSEURS_DESSIN[t.epaisseur] * l)
                     }
                     val pointilles = Color(0xFF6E28BE).copy(alpha = 0.07f)
                     val pas = l / 40f

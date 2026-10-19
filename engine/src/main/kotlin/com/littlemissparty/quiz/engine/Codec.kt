@@ -179,6 +179,8 @@ object Codec {
                 "kind" to q.kind.code,
                 "double" to q.double,
                 "factor" to game.factorOf(s.index).takeIf { q.double },
+                // Annonce « × N » de la TV avant la première question multipliée : les pupitres attendent avec elle.
+                "intro" to game.multiplierIntroUntil(),
                 "text" to q.text,
                 // Jeux au buzzer : réponse à voix haute, les propositions (qui contiennent la réponse) restent cachées.
                 "choices" to if (q.isBuzz && !revealed) null else q.choices,
