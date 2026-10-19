@@ -1,11 +1,18 @@
 package com.littlemissparty.quiz.tv.habillage
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.Placeable
 import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -174,6 +181,23 @@ fun GrilleEquipes(
                 r.forEachIndexed { k, p -> p.forEach { it.placeRelative(k * (lc + gc), y + (hr - it.height) / 2) } }
                 y += hr + gc
             }
+        }
+    }
+}
+
+/**
+ * Scène dessinée pour une surface de référence ([largeur] × [hauteur]) et agrandie ou réduite d'un bloc pour remplir
+ * la place qui reste au-dessus des équipes et des boutons : de 1 à 8 équipes, tout garde ses proportions, rien ne
+ * déborde. Textes, marges et images changent ensemble d'échelle ; la scène occupe toute la place (un peu plus large
+ * ou plus haute que la référence selon l'écran).
+ */
+@Composable
+fun Echelle(largeur: Dp, hauteur: Dp, modifier: Modifier = Modifier, maxi: Float = 1.25f, contenu: @Composable BoxScope.() -> Unit) {
+    BoxWithConstraints(modifier.clipToBounds()) {
+        val k = minOf(maxWidth / largeur, maxHeight / hauteur).coerceIn(0.2f, maxi)
+        val d = LocalDensity.current
+        CompositionLocalProvider(LocalDensity provides Density(d.density * k, d.fontScale)) {
+            Box(Modifier.fillMaxSize(), content = contenu)
         }
     }
 }

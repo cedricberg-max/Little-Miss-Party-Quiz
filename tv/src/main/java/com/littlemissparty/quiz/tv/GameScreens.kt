@@ -100,13 +100,16 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                 }
             }
             Spacer(Modifier.height(12.dp))
-            Text(
-                q.text,
-                color = Palette.Ink, fontSize = 34.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
-                lineHeight = 40.sp, maxLines = 3, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().apparition(0, state.index),
-            )
-            Spacer(Modifier.height(20.dp))
+            // Blind test : pas de question écrite (« Quel est ce titre ? »), la scène prend la place.
+            if (!q.isBlind) {
+                Text(
+                    q.text,
+                    color = Palette.Ink, fontSize = 34.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
+                    lineHeight = 40.sp, maxLines = 3, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth().apparition(0, state.index),
+                )
+                Spacer(Modifier.height(20.dp))
+            }
             // Chaque question a ses propres cartes : elles surgissent une à une, sur les bulles sonores.
             key(state.index) {
                 // Révélation : l'illustration facultative (photo ou émoji) apparaît à gauche des propositions.
@@ -120,11 +123,8 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                         ChanteBoard(q, state, Modifier.weight(1.4f).fillMaxHeight())
                         Spacer(Modifier.width(20.dp))
                     } else if (q.isBlind) {
-                        // Révélation : la pochette prend la place du disque (le disque reste s'il n'y en a pas).
-                        val image = if (revealed) pochette(q, state) else null
-                        if (image != null) BlindPochette(image, q.id, Modifier.fillMaxHeight().aspectRatio(1f, matchHeightConstraintsFirst = true))
-                        else BlindBoard(q, state, Modifier.weight(1.2f).fillMaxHeight())
-                        Spacer(Modifier.width(20.dp))
+                        // Blind test : une scène par moment (présentation, écoute, « STOP ! », révélation) sur toute la largeur.
+                        BlindScene(q, state, Modifier.weight(1f).fillMaxHeight())
                     } else if (q.isDisparu) {
                         DisparuBoard(q, state, Modifier.weight(1.6f).fillMaxHeight())
                         Spacer(Modifier.width(20.dp))
@@ -139,8 +139,9 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                         Illustration(q, state, Modifier.fillMaxHeight().aspectRatio(if (photo) 4f / 3f else 1f, matchHeightConstraintsFirst = true))
                         Spacer(Modifier.width(20.dp))
                     }
+                    // Le blind test occupe déjà toute la largeur.
                     if (q.isStatues) StatuesBoard(q, state, Modifier.weight(1f).fillMaxHeight())
-                    else if (q.isBlind) BlindPanel(q, state, Modifier.weight(1f).fillMaxHeight())
+                    else if (q.isBlind) {}
                     else if (q.isBuzz) FlouPanel(q, state, Modifier.weight(1f).fillMaxHeight())
                     else if (q.isNumber) NumberBoard(state, revealed, Modifier.weight(1f).fillMaxHeight())
                     else ChoiceGrid(q.choices, correct = if (revealed) q.correct else null, Modifier.weight(1f).fillMaxHeight(), express = q.isExpress)
@@ -169,6 +170,8 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                 )
             }
         }
+        // Blind test : annonce des derniers morceaux à double valeur, par-dessus tout l'écran.
+        if (q.isBlind) BlindAnnonceDouble(q, state)
     }
 }
 
@@ -321,12 +324,22 @@ private fun Countdown(state: UiState.Playing) {
 
 @Composable
 fun ScoresScreen(state: UiState.Playing, actions: TvActions) {
+    // Fin du blind test : le bilan de ses morceaux trouvés plutôt que le classement général.
+    if (state.blind != null && state.mime == null) {
+        Column(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 24.dp)) {
+            BlindBilanEcran(state, Modifier.weight(1f).fillMaxWidth())
+            Row {
+                Spacer(Modifier.weight(1f))
+                if (!state.paused) NextButton(if (state.isLast) "Résultats finaux" else "Question suivante", actions.next, key = state.index)
+            }
+        }
+        return
+    }
     Column(Modifier.fillMaxSize().padding(horizontal = 56.dp, vertical = 28.dp)) {
         Text("Classement", color = Palette.Ink, fontSize = 40.sp, fontWeight = FontWeight.Black)
         Text(
             when {
                 state.mime != null -> "Après les mimes"
-                state.blind != null -> "Bilan du blind test"
                 else -> "Après la question ${state.index + 1} / ${state.total}"
             },
             color = Palette.InkSoft, fontSize = 20.sp,

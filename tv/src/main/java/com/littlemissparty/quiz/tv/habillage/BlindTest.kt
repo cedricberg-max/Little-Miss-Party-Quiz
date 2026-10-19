@@ -7,10 +7,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -18,13 +16,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,7 +36,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.tv.R
@@ -49,20 +46,18 @@ import kotlin.math.sin
 import kotlinx.coroutines.delay
 
 /**
- * Blind test : à gauche un vinyle qui tourne sous un bras de platine, entouré d'ondes et d'un halo qui battent
- * au tempo ; à droite un égaliseur et une légende. Au buzz, le disque freine et s'arrête, le bras se relève,
- * l'égaliseur retombe ; à la révélation, l'étiquette passe à l'or, « ? » devient « ♫ » et le disque repart.
+ * Blind test, pendant l'écoute : un vinyle qui tourne sous un bras de platine, sur un halo qui bat au tempo, et
+ * un égaliseur dessous. Au buzz ou quand l'animatrice arrête la musique, le disque s'arrête, le bras se relève et
+ * l'égaliseur retombe. Le panneau d'à côté (numéro du morceau, consignes) est dans l'écran du jeu.
  *
- * Léger pour la Mi Box : le disque est dessiné une fois (sillons en cache) et seule sa rotation change ; ondes et
- * halo ne changent que d'échelle et d'opacité (graphicsLayer) ; l'égaliseur est un petit Canvas redessiné une
- * vingtaine de fois par seconde.
+ * Léger pour la Mi Box : le disque est dessiné une fois (sillons en cache) et seule sa rotation change ; le halo
+ * ne change que d'opacité (graphicsLayer) ; l'égaliseur est un petit Canvas redessiné une vingtaine de fois par seconde.
  *
- * @param joue l'extrait s'entend (question sans buzz en attente, ou révélation)
+ * @param joue l'extrait s'entend
  * @param manquant l'extrait n'a pas pu être chargé : la légende le dit, l'animatrice peut passer
- * @param artiste affiché sous « Écoutez la suite ! » à la révélation
  */
 @Composable
-fun BlindTestBoard(joue: Boolean, revele: Boolean, manquant: Boolean, artiste: String?, modifier: Modifier = Modifier) {
+fun BlindTestBoard(joue: Boolean, manquant: Boolean, modifier: Modifier = Modifier) {
     // Tours par seconde : 33 tours/min ≈ 0,55 ; le disque s'arrête net au buzz et repart en 0,4 s.
     val vitesse by animateFloatAsState(if (joue) 0.55f else 0f, tween(if (joue) 400 else 200), label = "vinyle")
     val angle = remember { mutableFloatStateOf(0f) }
@@ -84,7 +79,6 @@ fun BlindTestBoard(joue: Boolean, revele: Boolean, manquant: Boolean, artiste: S
     val vie by animateFloatAsState(if (joue) 1f else 0f, tween(400), label = "lumiere")
     // Le bras se pose quand l'extrait joue et se relève (vite) quand il s'arrête.
     val leve by animateFloatAsState(if (joue) 0f else 1f, tween(if (joue) 500 else 300, easing = FastOutSlowInEasing), label = "bras")
-    val or by animateFloatAsState(if (revele) 1f else 0f, tween(600), label = "etiquette")
     Box(Modifier.then(modifier).clip(RoundedCornerShape(28.dp)).background(Color.White.copy(alpha = 0.07f))) {
         Text(
             "BLIND TEST",
@@ -92,33 +86,27 @@ fun BlindTestBoard(joue: Boolean, revele: Boolean, manquant: Boolean, artiste: S
             modifier = Modifier.align(Alignment.TopCenter).padding(top = 12.dp)
                 .clip(RoundedCornerShape(50)).background(Neon.Or).padding(horizontal = 14.dp, vertical = 4.dp),
         )
-        Row(Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, top = 48.dp, bottom = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.fillMaxHeight().aspectRatio(1.2f, matchHeightConstraintsFirst = true)) {
-                // Lumière de scène derrière le disque : elle respire au tempo, rose pendant l'écoute, dorée à la révélation.
+        Column(
+            Modifier.fillMaxSize().padding(start = 20.dp, end = 20.dp, top = 46.dp, bottom = 14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                // Lumière de scène derrière le disque : elle respire au tempo pendant l'écoute.
                 Box(
                     Modifier.fillMaxHeight().aspectRatio(1f, matchHeightConstraintsFirst = true)
-                        .graphicsLayer { alpha = 0.25f + 0.25f * vie * battement.floatValue + 0.3f * or; scaleX = 1.15f; scaleY = 1.15f }
-                        .background(Brush.radialGradient(listOf(lerp(Neon.Halo, Neon.Or, or).copy(alpha = 0.40f), Color.Transparent))),
+                        .graphicsLayer { alpha = 0.25f + 0.35f * vie * battement.floatValue; scaleX = 1.15f; scaleY = 1.15f }
+                        .background(Brush.radialGradient(listOf(Neon.Halo.copy(alpha = 0.40f), Color.Transparent))),
                 )
-                Platine(angle = { angle.floatValue }, leve = leve, or = or, modifier = Modifier.fillMaxSize())
+                Platine(angle = { angle.floatValue }, leve = leve, or = 0f, modifier = Modifier.fillMaxHeight())
             }
-            Spacer(Modifier.width(24.dp))
-            Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
-                Egaliseur(niveau, battement, temps, or, Modifier.fillMaxWidth().height(150.dp))
-                Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(10.dp))
+            if (manquant) {
                 Text(
-                    when {
-                        manquant && !revele -> "Extrait indisponible : l'animatrice peut passer."
-                        revele -> "Écoutez la suite !"
-                        joue -> "Écoutez bien…"
-                        else -> "Musique en pause"
-                    },
-                    color = if (revele) Neon.Or else Neon.Blanc, fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.Black,
+                    "Extrait indisponible : l'animatrice peut passer.", color = Neon.Blanc, fontSize = 20.sp, lineHeight = 24.sp,
+                    fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 2,
                 )
-                if (revele && artiste != null) {
-                    Spacer(Modifier.height(6.dp))
-                    Text(artiste, color = Neon.Blanc.copy(alpha = 0.8f), fontSize = 24.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                }
+            } else {
+                Egaliseur(niveau, battement, temps, 0f, Modifier.fillMaxWidth(0.8f).height(50.dp))
             }
         }
     }

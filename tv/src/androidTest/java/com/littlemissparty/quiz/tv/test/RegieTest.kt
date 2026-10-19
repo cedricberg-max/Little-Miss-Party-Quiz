@@ -399,6 +399,10 @@ class RegieTest : TestTv() {
         ecran.voit("BLIND TEST")
         ecran.voit("Morceau 1 / 2")
         ecran.voit("Prêts ? Écoutez bien…")
+        // La présentation tient au-dessus des équipes et des boutons.
+        ecran.entierementVisible("Prêts ? Écoutez bien…")
+        ecran.entierementVisible("Lancer le morceau")
+        ecran.capture("blind-test-presentation")
         assertFalse("pas de buzz avant la musique", licornes.buzzer(code))
         assertFalse("le titre reste caché sur les pupitres", licornes.etat(code).hasChild("choices"))
         assertEquals("applied", regie.commande(code, "blind_play"))
@@ -406,6 +410,8 @@ class RegieTest : TestTv() {
         assertTrue(licornes.buzzer(code))
         ecran.voit("Licornes a buzzé !")
         ecran.voit("On attend sa réponse…")
+        ecran.entierementVisible("Licornes a buzzé !")
+        ecran.entierementVisible("Bonne réponse")
         assertFalse("une seule équipe à la fois", dragons.buzzer(code))
         ecran.capture("blind-test-buzz")
 
@@ -439,6 +445,8 @@ class RegieTest : TestTv() {
         ecran.entierementVisible("Personne n'a trouvé, ce n'est pas grave !")
         assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("Bilan du blind test")
+        ecran.voit("100 pts")
+        ecran.entierementVisible("Question suivante")
         assertEquals(100L, points(dragons, code, dragons.uid))
         ecran.capture("blind-test-bilan")
     }
