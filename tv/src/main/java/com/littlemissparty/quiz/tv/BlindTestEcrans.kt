@@ -63,7 +63,9 @@ fun BlindPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifie
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        if (b != null) {
+        // À la révélation, le panneau garde sa hauteur pour le titre et le gagnant (960 × 540 dp sur la box) :
+        // la valeur du morceau est dans le « +N ».
+        if (b != null && !revele) {
             Text("Morceau ${b.numero} / ${b.total}", color = Palette.InkSoft, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Text(
                 if (b.doubled) "POINTS DOUBLÉS · ${b.points} points" else "${b.points} points",
@@ -76,34 +78,34 @@ fun BlindPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifie
         }
         when {
             revele -> {
-                Text("C'était…", color = Palette.InkSoft, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                Text("C'était…", color = Palette.InkSoft, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Text(
                     q.choices.getOrNull(q.correct).orEmpty(),
-                    color = Palette.Gold, fontSize = 46.sp, lineHeight = 52.sp, fontWeight = FontWeight.Black,
-                    textAlign = TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.apparition(300, q.id),
+                    color = Palette.Gold, fontSize = 34.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black,
+                    textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.apparition(300, q.id),
                 )
                 q.artist?.takeIf { it.isNotBlank() }?.let {
                     Text(
-                        it, color = Palette.Ink, fontSize = 32.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
-                        maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.apparition(700, q.id),
+                        it, color = Palette.Ink, fontSize = 24.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.apparition(700, q.id),
                     )
                 }
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(10.dp))
                 if (gagnant != null) {
                     Text(
                         "Bonne réponse ! Bravo ${gagnant.name}",
-                        color = gagnant.color.toColor(), fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.Black,
-                        textAlign = TextAlign.Center, modifier = Modifier.apparition(1100, q.id),
+                        color = gagnant.color.toColor(), fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.Black,
+                        textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.apparition(1100, q.id),
                     )
                     Text(
                         "+${state.awards[gagnant.uid]?.points ?: 0}",
-                        color = Palette.Gold, fontSize = 64.sp, fontWeight = FontWeight.Black,
+                        color = Palette.Gold, fontSize = 40.sp, fontWeight = FontWeight.Black,
                         modifier = Modifier.apparition(1400, q.id).rebond(true, 0.12f),
                     )
                 } else {
                     Text(
-                        "Personne n'a trouvé, ce n'est pas grave !", color = Palette.Ink, fontSize = 28.sp, fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center, modifier = Modifier.apparition(1100, q.id),
+                        "Personne n'a trouvé, ce n'est pas grave !", color = Palette.Ink, fontSize = 22.sp, lineHeight = 28.sp,
+                        fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.apparition(1100, q.id),
                     )
                 }
             }
@@ -136,7 +138,8 @@ fun BlindPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifie
             Spacer(Modifier.height(20.dp))
             Text(
                 "Déjà essayé : " + passees.joinToString(", ") { it.name },
-                color = Palette.InkSoft, fontSize = 22.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
+                color = Palette.InkSoft, fontSize = 22.sp, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }

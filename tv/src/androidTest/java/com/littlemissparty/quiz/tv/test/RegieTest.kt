@@ -422,6 +422,8 @@ class RegieTest : TestTv() {
         ecran.voit("Frère Jacques")
         ecran.voit("Comptine")
         ecran.voit("Bonne réponse ! Bravo Dragons")
+        ecran.entierementVisible("Bonne réponse ! Bravo Dragons")
+        ecran.entierementVisible("+100")
         attendreQue("la valeur du morceau, une fois") { points(dragons, code, dragons.uid).takeIf { it == 100L } }
         assertEquals(0L, points(licornes, code, licornes.uid))
         ecran.capture("blind-test-revelation")
@@ -434,6 +436,7 @@ class RegieTest : TestTv() {
         assertEquals("applied", regie.commande(code, "blind_reveal"))
         ecran.voit("Au clair de la lune")
         ecran.voit("Personne n'a trouvé, ce n'est pas grave !")
+        ecran.entierementVisible("Personne n'a trouvé, ce n'est pas grave !")
         assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("Bilan du blind test")
         assertEquals(100L, points(dragons, code, dragons.uid))
