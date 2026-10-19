@@ -1,153 +1,44 @@
-// Pictionary sur le pupitre : la feuille à dessin de l'équipe qui joue. Le dessin part vers la TV par petits
-// paquets de traits (environ 10 par seconde) dans games/<code>/drawing/<clé du tour>/<push> :
-//   { c: couleur "#RRGGBB" ou "paper" (gomme), w: épaisseur 1 à 3, p: "x,y x,y …" }  ou  { clear: true }.
+// Pictionary sur le pupitre : envoi vers la TV des traits de l'ardoise (ardoise.js), par petits paquets, dans
+// games/<code>/drawing/<clé du tour>/<push> :
+//   { c: couleur "#RRGGBB", w: épaisseur 1 à 3, p: "x,y x,y …" }  ou  { clear: true }.
 // Les coordonnées vont de 0 à 1000 sur une feuille au format 4:3 (la TV dessine la même feuille, à sa taille).
-// Un paquet qui continue un trait recommence par son dernier point : la TV relie les paquets sans trou.
+// L'ardoise rend le trait entier toutes les 80 ms pendant le geste : on n'envoie que les points nouveaux, en
+// recommençant par le dernier point déjà parti, pour que la TV relie les paquets sans trou. Chaque paquet est écrit
+// une seule fois (les règles de la base refusent toute réécriture d'un trait).
 import { ref, push } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
+import { COULEURS_DESSIN } from "./ardoise.js";
 
-/** Couleurs de la palette (la première est celle du crayon au départ) ; « paper » est la gomme. */
-export const PICTO_COLORS = ["#1A0B2E", "#F94144", "#FF8C1A", "#FFD60A", "#2EE86B", "#2B86C5", "#9B5DE5", "#8B5A2B"];
-const WIDTHS = { 1: 6, 2: 14, 3: 30 };
-/** Feuille au format 4:3 ; coordonnées entières de 0 à 1000 sur chaque axe. */
-export const SHEET_RATIO = 4 / 3;
-const FLUSH_MS = 90;
-const MIN_STEP = 4;
+const coord = (v) => Math.round(Math.min(1, Math.max(0, v)) * 1000);
+
+/** Le paquet à envoyer pour [trait] ({ c, w, p: [x, y, …] } de 0 à 1), à partir du point [depuis]. */
+export function paquet(trait, depuis) {
+  const p = [];
+  for (let i = depuis * 2; i + 1 < trait.p.length; i += 2) p.push(`${coord(trait.p[i])},${coord(trait.p[i + 1])}`);
+  return { c: COULEURS_DESSIN[trait.c] ?? COULEURS_DESSIN[0], w: Math.min(3, Math.max(1, (trait.w ?? 1) + 1)), p: p.join(" ") };
+}
 
 /**
- * Feuille à dessin dans [root] (canvas, outils) qui envoie ses traits dans [path] de la base [db].
- * Renvoie un objet { stop() } : arrêter de dessiner (fin du tour, autre écran).
+ * Relie l'ardoise à la base : renvoie { trait(t, fini), effacer() }, à passer en surTrait et surEffacer.
+ * [onError] est appelé si un envoi est refusé (connexion perdue, pause, fin du tour).
  */
-export function startSheet(root, db, path, { onError } = {}) {
-  const canvas = root.querySelector("canvas");
-  const ctx = canvas.getContext("2d");
+export function envoyeurDessin(db, path, { onError } = {}) {
   const target = ref(db, path);
-  let color = PICTO_COLORS[0];
-  let width = 2;
-  let stroke = null;
-  let sent = 0;
-  let timer = null;
-  let stopped = false;
-  const done = [];
-
+  /** Nombre de points déjà partis pour chaque trait en cours. */
+  const partis = new Map();
   const send = (data) => push(target, data).catch((e) => { console.error(e); onError?.(); });
-
-  function size() {
-    const box = root.querySelector(".sheet-paper").getBoundingClientRect();
-    const w = Math.max(1, Math.min(box.width, box.height * SHEET_RATIO));
-    const h = w / SHEET_RATIO;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.style.width = `${w}px`;
-    canvas.style.height = `${h}px`;
-    canvas.width = Math.round(w * dpr);
-    canvas.height = Math.round(h * dpr);
-    redraw();
-  }
-
-  function paint(s) {
-    const sx = canvas.width / 1000;
-    const sy = canvas.height / 1000;
-    ctx.strokeStyle = ctx.fillStyle = s.c === "paper" ? "#FFFFFF" : s.c;
-    ctx.lineWidth = WIDTHS[s.w] * (canvas.width / 1000) * (1000 / 800);
-    ctx.lineCap = ctx.lineJoin = "round";
-    if (s.pts.length === 1) {
-      ctx.beginPath();
-      ctx.arc(s.pts[0][0] * sx, s.pts[0][1] * sy, ctx.lineWidth / 2, 0, Math.PI * 2);
-      ctx.fill();
-      return;
-    }
-    ctx.beginPath();
-    s.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x * sx, y * sy) : ctx.moveTo(x * sx, y * sy)));
-    ctx.stroke();
-  }
-
-  function redraw() {
-    ctx.fillStyle = "#FFFFFF";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    done.forEach(paint);
-    if (stroke) paint(stroke);
-  }
-
-  function point(e) {
-    const r = canvas.getBoundingClientRect();
-    const x = Math.round(((e.clientX - r.left) / r.width) * 1000);
-    const y = Math.round(((e.clientY - r.top) / r.height) * 1000);
-    return [Math.max(0, Math.min(1000, x)), Math.max(0, Math.min(1000, y))];
-  }
-
-  /** Envoie les points pas encore partis du trait en cours, en reprenant le dernier point déjà envoyé. */
-  function flush() {
-    if (!stroke) return;
-    const from = Math.max(0, sent - 1);
-    const pts = stroke.pts.slice(from);
-    if (sent > 0 && pts.length < 2) return;
-    send({ c: stroke.c, w: stroke.w, p: pts.map(([x, y]) => `${x},${y}`).join(" ") });
-    sent = stroke.pts.length;
-  }
-
-  canvas.onpointerdown = (e) => {
-    if (stopped) return;
-    e.preventDefault();
-    canvas.setPointerCapture?.(e.pointerId);
-    stroke = { c: color, w: width, pts: [point(e)] };
-    sent = 0;
-    paint(stroke);
-    clearInterval(timer);
-    timer = setInterval(flush, FLUSH_MS);
-  };
-  canvas.onpointermove = (e) => {
-    if (!stroke || stopped) return;
-    e.preventDefault();
-    const p = point(e);
-    const last = stroke.pts[stroke.pts.length - 1];
-    if (Math.abs(p[0] - last[0]) + Math.abs(p[1] - last[1]) < MIN_STEP) return;
-    stroke.pts.push(p);
-    paint({ ...stroke, pts: [last, p] });
-  };
-  const end = () => {
-    if (!stroke) return;
-    clearInterval(timer);
-    flush();
-    done.push(stroke);
-    stroke = null;
-  };
-  canvas.onpointerup = end;
-  canvas.onpointercancel = end;
-  canvas.onpointerleave = end;
-
-  root.querySelectorAll("[data-color]").forEach((b) => {
-    b.style.setProperty("--swatch", b.dataset.color === "paper" ? "#FFFFFF" : b.dataset.color);
-    b.onclick = () => {
-      color = b.dataset.color;
-      root.querySelectorAll("[data-color]").forEach((x) => x.classList.toggle("on", x === b));
-    };
-  });
-  root.querySelectorAll("[data-width]").forEach((b) => {
-    b.onclick = () => {
-      width = Number(b.dataset.width);
-      root.querySelectorAll("[data-width]").forEach((x) => x.classList.toggle("on", x === b));
-    };
-  });
-  const clear = root.querySelector("[data-clear]");
-  clear.onclick = () => {
-    if (stopped) return;
-    done.length = 0;
-    stroke = null;
-    redraw();
-    send({ clear: true });
-  };
-  // Outils remis à zéro à chaque tour : crayon foncé, trait moyen.
-  root.querySelectorAll("[data-color]").forEach((x) => x.classList.toggle("on", x.dataset.color === color));
-  root.querySelectorAll("[data-width]").forEach((x) => x.classList.toggle("on", Number(x.dataset.width) === width));
-
-  window.addEventListener("resize", size);
-  size();
   return {
-    stop() {
-      stopped = true;
-      end();
-      clearInterval(timer);
-      window.removeEventListener("resize", size);
-      canvas.onpointerdown = canvas.onpointermove = canvas.onpointerup = canvas.onpointercancel = canvas.onpointerleave = null;
+    trait(t, fini) {
+      const n = Math.floor(t.p.length / 2);
+      const deja = partis.get(t.id) ?? 0;
+      if (fini) partis.delete(t.id);
+      else partis.set(t.id, Math.max(deja, n));
+      // Rien de nouveau depuis le dernier paquet.
+      if (n === 0 || (deja > 0 && n <= deja)) return;
+      send(paquet(t, Math.max(0, deja - 1)));
+    },
+    effacer() {
+      partis.clear();
+      send({ clear: true });
     },
   };
 }

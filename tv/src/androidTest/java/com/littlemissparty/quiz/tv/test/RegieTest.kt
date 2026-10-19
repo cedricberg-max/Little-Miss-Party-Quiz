@@ -252,18 +252,21 @@ class RegieTest : TestTv() {
         ecran.voit("PICTIONARY")
         ecran.voit("Pictionary !")
         assertEquals("applied", regie.commande(code, "picto_show", mapOf("team" to licornes.uid)))
-        ecran.voit("Chut !")
+        ecran.voit("Au tour de")
+        ecran.voit("Toute l'équipe se retourne")
         attendreQue("3 mots proposés") { licornes.etat(code).child("mime/offer").childrenCount.takeIf { it == 3L } }
         // Tant que le mot n'est pas choisi, « on dessine » est refusé ; seule la tablette du dessinateur choisit.
         assertEquals("refused", regie.commande(code, "picto_draw"))
         assertFalse("Une autre équipe ne choisit pas le mot", dragons.choisirMot(code, 0))
         assertTrue(licornes.choisirMot(code, 1))
         attendreQue("choix reçu par la box") { licornes.etat(code).child("mime/chosen").value?.takeIf { (it as Number).toInt() == 1 } }
+        ecran.voit("découvre son mot secret")
+        ecran.neVoitPas("MAISON")
         ecran.capture("pictionary-choix")
 
         // Le dessin part de la tablette et s'affiche en direct sur la TV ; les autres tablettes ne dessinent pas.
         assertEquals("applied", regie.commande(code, "picto_draw"))
-        ecran.voit("Licornes dessine !")
+        ecran.voit("dessine !")
         ecran.voit("Dessin en direct · 0 traits")
         assertTrue(licornes.dessiner(code, "100,100 200,200 300,250"))
         assertTrue(licornes.dessiner(code, "300,250 420,310", couleur = "#2B86C5", epaisseur = 2))
@@ -271,7 +274,10 @@ class RegieTest : TestTv() {
         ecran.voit("Dessin en direct · 2 traits")
         ecran.capture("pictionary-dessin")
         assertEquals("applied", regie.commande(code, "mime_found"))
-        ecran.voit("Bravo Licornes ! +${Scoring.PICTO} points")
+        ecran.voit("TROUVÉ !")
+        ecran.voit("Bravo Licornes !")
+        ecran.voit("+${Scoring.PICTO} points")
+        ecran.voit("MAISON")
         ecran.voit("Dessin en direct · 2 traits")
         attendreQue("points du dessin") { points(licornes, code, licornes.uid).takeIf { it == Scoring.PICTO.toLong() } }
         // Le double appui sur « Trouvé ! » ne compte pas deux fois.
@@ -279,14 +285,14 @@ class RegieTest : TestTv() {
 
         // Les Dragons : le temps est arrêté sans mot trouvé, zéro point, et l'ancien dessin ne revient pas.
         assertEquals("applied", regie.commande(code, "picto_show", mapOf("team" to dragons.uid)))
-        ecran.voit("Chut !")
+        ecran.voit("Toute l'équipe se retourne")
         assertTrue(dragons.choisirMot(code, 0))
         attendreQue("choix des Dragons") { dragons.etat(code).child("mime/chosen").value }
         assertEquals("applied", regie.commande(code, "picto_draw"))
-        ecran.voit("Dragons dessine !")
+        ecran.voit("dessine !")
         ecran.voit("Dessin en direct · 0 traits")
         assertEquals("applied", regie.commande(code, "mime_stop"))
-        ecran.voit("Pas trouvé cette fois, Dragons !")
+        ecran.voit("Temps écoulé !")
         assertEquals(0L, points(dragons, code, dragons.uid))
         ecran.voit("Voir le classement")
         assertEquals("applied", regie.commande(code, "next"))
@@ -466,7 +472,7 @@ class RegieTest : TestTv() {
 
         assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("CHANTE LE MOT !")
-        ecran.voit("SOLEIL")
+        ecran.voit("MAISON")
         attendreQue("buzzer ouvert") { licornes.etat(code).takeIf { it.child("qid").value == "c1" && it.child("buzzOpen").value == true } }
         assertTrue(licornes.buzzer(code))
         ecran.voit("À vous de chanter !")

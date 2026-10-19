@@ -372,7 +372,7 @@ export function choisirMot(hote, mots, { surChoix = () => {} } = {}) {
     choisi = true;
     hote.classList.add("choix-fait");
     valider.disabled = true;
-    valider.textContent = "C'est noté ! Sarah connaît ton mot.";
+    valider.textContent = "C'est noté ! L'animatrice connaît ton mot.";
     surChoix(courant);
   };
   aller(0);

@@ -171,6 +171,8 @@ data class MimeUi(
     val picto: Boolean = false,
     /** Pictionary : équipe qui choisit son mot sur sa tablette (le mot n'est jamais montré sur la TV). */
     val secret: String? = null,
+    /** Pictionary : le dessinateur a choisi son mot (Sarah peut masquer le mot et lancer le dessin). */
+    val chosen: Boolean = false,
     /** Pictionary : le mot du dernier tour, révélé à tous une fois le tour fini. */
     val lastCard: MimeCard? = null,
     /** Points d'un mime ou d'un dessin trouvé. */
@@ -655,7 +657,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                         // Pictionary : le mot reste secret sur la TV pendant le tour (seule la tablette du dessinateur l'affiche).
                         team = m?.team, card = g.mimeCard.takeIf { !q.isPicto }, found = m?.found ?: 0, passed = m?.passed ?: 0,
                         left = m?.deck?.size ?: 0, last = m?.last, counts = mimeCounts, turns = m?.turns.orEmpty(),
-                        picto = q.isPicto, secret = m?.secret, lastCard = g.lastCard, points = s.pointsPerFound(q.id),
+                        picto = q.isPicto, secret = m?.secret, chosen = m?.pick != null, lastCard = g.lastCard, points = s.pointsPerFound(q.id),
                     )
                 },
             )

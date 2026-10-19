@@ -7,7 +7,9 @@ import { TEAM_COLORS, CHOICE_COLORS, CHOICE_LETTERS, MAX_TEAMS } from "./theme.j
 import { hasAccess, loginWithPassword, loginWithPin, startRegie } from "./regie.js";
 import { watchVersion, showUpdateBanner } from "./version.js";
 import { setAwake, isAwake, onAwakeChange } from "./awake.js";
-import { startSheet } from "./picto.js";
+import { envoyeurDessin } from "./picto.js";
+import { creerArdoise, choisirMot } from "./ardoise.js";
+import { animationSpectateurs } from "./spectateurs.js";
 
 const $ = (id) => document.getElementById(id);
 /** Jeux au buzzer : un seul grand BUZZ, la réponse se donne à voix haute. */
@@ -354,6 +356,8 @@ function render() {
   const st = game.state ?? { phase: "lobby" };
   $("paused").hidden = !st.paused;
   runResumeCountdown(st);
+  // Saut vers un autre jeu en plein Pictionary : l'ardoise, les mots et l'animation s'arrêtent.
+  if (st.kind !== "pictionary" || !st.mime) stopPicto();
   switch (st.phase) {
     case "question":
     case "closed":
@@ -553,33 +557,39 @@ function renderMimeResult(st) {
 }
 
 // ---------- Pictionary ----------
+// L'habillage vient du fil Design (ardoise.js, spectateurs.js) ; ici, seulement quand montrer quoi, et l'envoi.
 
-/** Feuille à dessin en cours (tour de cette équipe) et la clé de son dessin. */
-let sheet = null;
-let sheetKey = null;
-/** Mot touché par le dessinateur parmi ceux proposés (avant de l'envoyer), pour la proposition [pickFor]. */
-let pickIndex = null;
-let pickFor = null;
-let watchHandle = null;
-const WATCH_MESSAGES = [
-  "Chut… le crayon réfléchit 🤔", "Est-ce un chat ? Une fusée ? Un gâteau ? 🧐", "Regardez la TV, ça dessine en direct ! 📺",
-  "Picasso n'a qu'à bien se tenir 🎨", "On retient son souffle… 😮", "Trop fort ce dessin ! 👏",
-  "Vous auriez trouvé, vous ? 😏", "Encore un petit trait… ✏️", "Attention, chef-d'œuvre en cours ! 🖼️",
-];
+/** Ardoise du dessinateur (tour de cette équipe) et la clé de son dessin. */
+let ardoise = null;
+let ardoiseKey = null;
+/** Les 3 mots proposés au dessinateur, pour la proposition [choixKey]. */
+let choix = null;
+let choixKey = null;
+/** Animation des tablettes qui regardent, pour l'équipe [spectateursFor]. */
+let spectateurs = null;
+let spectateursFor = null;
 
 function stopSheet() {
-  sheet?.stop();
-  sheet = null;
-  sheetKey = null;
+  ardoise?.detruire();
+  ardoise = null;
+  ardoiseKey = null;
+}
+
+function stopPick() {
+  choix?.masquer();
+  choix = null;
+  choixKey = null;
 }
 
 function stopWatch() {
-  clearInterval(watchHandle);
-  watchHandle = null;
+  spectateurs?.arreter();
+  spectateurs = null;
+  spectateursFor = null;
 }
 
 function stopPicto() {
   stopSheet();
+  stopPick();
   stopWatch();
 }
 
@@ -592,9 +602,11 @@ function renderPicto(st) {
   const m = st.mime;
   const name = (id) => game.teams[id]?.name ?? "une autre équipe";
   if (m.secret === teamId && m.offer?.length && m.pickKey) {
-    stopPicto();
+    stopSheet();
+    stopWatch();
     return renderPick(m);
   }
+  stopPick();
   if (m.team === teamId && m.drawKey) {
     stopWatch();
     return renderDraw(st, m);
@@ -614,73 +626,58 @@ function renderPicto(st) {
 
 function renderPick(m) {
   show("pick");
-  if (pickFor !== m.pickKey) {
-    pickFor = m.pickKey;
-    pickIndex = m.chosen ?? null;
-    $("pick-words").replaceChildren(...m.offer.map((c, i) => {
-      const b = document.createElement("button");
-      b.className = "picto-word";
-      b.dataset.i = i;
-      const emoji = document.createElement("span");
-      emoji.className = "emoji";
-      emoji.textContent = c.image ?? "✏️";
-      b.append(emoji, c.word);
-      b.onclick = () => { pickIndex = i; navigator.vibrate?.(30); render(); };
-      return b;
-    }));
+  if (choixKey !== m.pickKey) {
+    stopPick();
+    choixKey = m.pickKey;
+    choix = choisirMot($("pick-host"), m.offer.map((c) => ({ mot: c.word, image: c.image ?? "✏️" })), {
+      surChoix: (i) => choosePicto(m.pickKey, i),
+    });
   }
-  document.querySelectorAll("#pick-words .picto-word").forEach((b) => b.classList.toggle("on", Number(b.dataset.i) === pickIndex));
-  const sent = m.chosen != null && m.chosen === pickIndex;
-  const ok = $("pick-ok");
-  ok.disabled = pickIndex == null || sent;
-  ok.textContent = sent ? "C'est noté ✓" : "Je dessine celui-là !";
-  ok.onclick = () => choosePicto(m.pickKey, pickIndex);
   $("pick-status").textContent = m.chosen != null
     ? `Tu vas dessiner « ${m.offer[m.chosen]?.word ?? ""} ». Garde le secret ! L'animatrice va masquer le mot, puis tu dessines.`
-    : "Fais défiler les mots et touche celui que tu préfères.";
+    : "";
 }
 
 async function choosePicto(key, i) {
   if (i == null || !key) return;
   beep(880, 120);
+  navigator.vibrate?.(30);
   try {
     await set(ref(db, `games/${code}/pictoChoice/${key}`), { i, at: serverTimestamp() });
   } catch {
-    $("pick-status").textContent = "Le choix n'est pas parti : vérifiez la connexion et touchez encore « Je dessine celui-là ! ».";
+    // Refusé (connexion, pause, autres mots proposés entre-temps) : les cartes reviennent pour choisir de nouveau.
+    stopPick();
+    render();
+    $("pick-status").textContent = "Le choix n'est pas parti : vérifie la connexion et choisis encore ton mot.";
   }
 }
 
 function renderDraw(st, m) {
   show("draw");
-  if (sheetKey !== m.drawKey) {
+  if (ardoiseKey !== m.drawKey) {
     stopSheet();
-    sheetKey = m.drawKey;
-    sheet = startSheet($("screen-draw"), db, `games/${code}/drawing/${m.drawKey}`, {
-      onError: () => { $("draw-word").textContent = "Le dessin n'arrive plus à la TV : vérifiez la connexion."; },
+    ardoiseKey = m.drawKey;
+    $("draw-status").textContent = "";
+    const envoi = envoyeurDessin(db, `games/${code}/drawing/${m.drawKey}`, {
+      onError: () => { $("draw-status").textContent = "Le dessin n'arrive plus à la TV : vérifiez la connexion."; },
     });
+    const mot = m.card?.word ? `Dessine : ${m.card.word} ${m.card.image ?? ""}`.trim() : "À toi de dessiner !";
+    ardoise = creerArdoise($("draw-host"), { surTrait: envoi.trait, surEffacer: envoi.effacer, titre: mot });
   }
-  $("draw-word").textContent = m.card?.word ? `Ton mot : ${m.card.word} ${m.card.image ?? ""}`.trim() : "";
+  // En pause, la feuille se fige (la base refuserait les traits) ; elle repart à la reprise.
+  if (st.paused) ardoise.desactiver("Pause ! On reprend dans un instant.");
+  else ardoise.activer();
   runTimer(st, $("draw-timer"));
 }
 
 function renderWatch(m, name) {
   show("watch");
-  $("watch-status").textContent = m.team
-    ? `${name(m.team)} dessine : regardez la TV !`
-    : `${name(m.secret)} choisit son mot… chut !`;
-  if (!watchHandle) {
-    let k = Math.floor(Math.random() * WATCH_MESSAGES.length);
-    const next = () => {
-      k = (k + 1) % WATCH_MESSAGES.length;
-      const el = $("watch-msg");
-      el.textContent = WATCH_MESSAGES[k];
-      // Relance la petite animation d'apparition à chaque message.
-      el.style.animation = "none";
-      void el.offsetWidth;
-      el.style.animation = "";
-    };
-    next();
-    watchHandle = setInterval(next, 4000);
+  $("watch-status").textContent = m.team ? "" : `${name(m.secret)} choisit son mot… chut !`;
+  const who = m.team ?? m.secret;
+  if (spectateursFor !== who) {
+    stopWatch();
+    spectateursFor = who;
+    spectateurs = animationSpectateurs($("watch-host"), { equipe: name(who) });
   }
 }
 
