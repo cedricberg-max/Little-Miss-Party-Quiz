@@ -90,16 +90,17 @@ fun HabillageTv(state: UiState) {
         onDispose { cycle.removeObserver(observateur) }
     }
     val urgent = chronoUrgent(state as? UiState.Playing)
+    val decompte = secondesRestantes(state as? UiState.Playing)
     val indices = indicesQuiSuis(state as? UiState.Playing)
     val statue = statueFigee(state as? UiState.Playing)
     // Qui a disparu ? : l'étape affichée par le plateau (mémoriser, tour de magie, chercher, réponse), de 1 à 4.
     val disparu = (state as? UiState.Playing)?.let { s -> s.question?.takeIf { it.isDisparu }?.let { etapeDisparu(it, s).ordinal + 1 } } ?: 0
-    val instant = remember(state, urgent, indices, statue, disparu) { instantDe(state, urgent, System.currentTimeMillis(), indices, statue, disparu) }
+    val instant = remember(state, urgent, indices, statue, disparu, decompte) { instantDe(state, urgent, System.currentTimeMillis(), indices, statue, disparu, decompte) }
     LaunchedEffect(instant) { Sons.executer(Habillage.directeur.observer(instant)) }
     DecorPlateau(chaud = urgent)
 }
 
-internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indices: Int = 0, statue: Boolean = false, disparu: Int = 0): Instant {
+internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indices: Int = 0, statue: Boolean = false, disparu: Int = 0, decompte: Int = 0): Instant {
     val s = state as? UiState.Playing ?: return Instant(Ecran.HORS_PARTIE)
     val blind = s.blind?.takeIf { s.question?.isBlind == true }
     val ecran = when (s.phase) {
@@ -124,6 +125,7 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         enPause = s.paused,
         repriseDansMs = s.resumeAt?.let { it - (maintenant + s.serverOffset) }?.coerceAtLeast(0) ?: 0,
         urgent = urgent,
+        decompte = decompte,
         buzzeur = s.teams.indexOfFirst { it.uid == s.lastFunBuzz },
         buzzs = s.funTotal,
         premiere = s.index == 0,
@@ -256,6 +258,31 @@ private fun chronoUrgent(s: UiState.Playing?): Boolean {
         }
     }
     return urgent
+}
+
+/**
+ * Secondes restantes (5 à 1) pendant les cinq dernières secondes du chrono affiché, 0 sinon : ne change qu'une fois
+ * par seconde. 0 pendant une pause, un buzz (chrono figé) et le décompte 3, 2, 1 d'une reprise.
+ */
+@Composable
+private fun secondesRestantes(s: UiState.Playing?): Int {
+    var secondes by remember { mutableStateOf(0) }
+    val deadline = if (s != null && (s.phase == Phase.QUESTION) && !s.paused) s.deadline else null
+    LaunchedEffect(deadline, s?.resumeAt) {
+        if (s == null || deadline == null) {
+            secondes = 0
+            return@LaunchedEffect
+        }
+        val depart = s.resumeAt ?: 0L
+        while (true) {
+            val maintenant = System.currentTimeMillis() + s.serverOffset
+            val reste = deadline - maxOf(maintenant, depart)
+            secondes = if (maintenant >= depart && reste in 1..5_000) ((reste + 999) / 1_000).toInt() else 0
+            if (reste <= 0) break
+            delay(if (reste > 6_000) 500 else 50)
+        }
+    }
+    return secondes
 }
 
 /**

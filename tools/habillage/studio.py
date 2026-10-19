@@ -482,6 +482,15 @@ def pop(i):
     mx.add('fx', stereo(np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t / .02) * .4), 0)
     return mx.render(duck=0)
 
+def bip(fin=False):
+    """Décompte des 5 dernières secondes : un bip clair par seconde, le dernier plus aigu et plus long."""
+    f, d = (1318.5, .26) if fin else (987.8, .14)
+    n = int((d + .25) * SR); t = np.arange(n) / SR
+    env = np.minimum(t / .004, 1) * np.where(t < d, 1, np.exp(-(t - d) / .03)) * np.exp(-t / (d * 2.2))
+    y = (np.sin(2 * np.pi * f * t) + .22 * np.sin(4 * np.pi * f * t) + .08 * np.sin(6 * np.pi * f * t)) * env
+    y = np.stack([y, y], 1).astype(np.float32)
+    return Pedalboard([HighpassFilter(300), Reverb(room_size=.15, wet_level=.08, dry_level=.95)])(y.T, SR).T
+
 def tick_answer():
     mx = Mix(1, tail=1)
     mx.add('bells', note('celesta', 88, .2, .8, release=.6), 0)
@@ -1298,7 +1307,7 @@ def portes_renversement():
 PIECES = {
     'generique': (generique, -14.5), 'bed_full': (lambda: bed('full'), -15.5), 'bed_light': (lambda: bed('light'), -18.5),
     'tension': (tension, -16), 'riser_4b': (riser_4b, -17), 'impact': (impact, -15), 'round_sting': (round_sting, -15),
-    'whoosh': (whoosh_snd, -21), 'tick_answer': (tick_answer, -21), 'lock_clac': (lock_clac, -15),
+    'whoosh': (whoosh_snd, -21), 'tick_answer': (tick_answer, -21), 'bip': (bip, -18), 'bip_fin': ((lambda: bip(True)), -17), 'lock_clac': (lock_clac, -15),
     'drumroll_2b': (lambda: drumroll(2), -17), 'drumroll_4b': (lambda: drumroll(4), -17), 'wrong_off': (wrong_off, -21),
     'reveal_chime': (reveal_chime, -16), 'stamp': (stamp, -19), 'points_bling': (points_bling, -20), 'points_count': (points_count, -21),
     'crown_hit': (crown_hit, -15), 'victory_fanfare': (victory_fanfare, -14.5), 'applause': (applause, -20), 'prize_bells': (prize_bells, -19),

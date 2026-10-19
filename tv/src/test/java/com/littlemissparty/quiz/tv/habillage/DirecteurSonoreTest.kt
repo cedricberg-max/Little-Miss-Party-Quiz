@@ -371,7 +371,11 @@ class DirecteurSonoreTest {
         val d = DirecteurSonore()
         val question = Instant(Ecran.QUESTION, partie = "ABCD", index = 8, equipes = 2, propositions = 4, zoom = true)
         d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 7, equipes = 2))
-        assertTrue(Son.ZOOM_OUVERTURE in d.observer(question).sons())
+        val entree = d.observer(question)
+        assertTrue(Son.ZOOM_OUVERTURE in entree.sons())
+        // La même montée de tension que l'Image floue sous le dézoom, musique en retrait.
+        assertTrue(Son.FLOU_MONTEE in entree.sons())
+        assertEquals(Ambiance.SUSPENSE, entree.musique())
         val revele = d.observer(question.copy(ecran = Ecran.REVELATION, gagnants = 1))
         assertTrue(Son.ZOOM_REVELE in revele.sons())
         assertFalse(Son.ROULEMENT_COURT in revele.sons())
@@ -397,6 +401,8 @@ class DirecteurSonoreTest {
         assertEquals(Ordre.Couper, rate.first())
         assertEquals(listOf(Son.VF_FAUX), rate.sons())
         assertEquals(Ambiance.SUSPENSE, rate.musique())
+        // La montée dramatique repart là où le buzz l'avait figée, comme la photo.
+        assertTrue(rate.contains(Ordre.Reprendre(Son.FLOU_MONTEE, Tempo.FLOU_REPRISE)))
         assertFalse(Son.TENSION in d.observer(image.copy(ratees = 1, urgent = true)).sons())
         // Une autre équipe buzze et trouve : révélation de la photo, sans roulement.
         d.observer(image.copy(ratees = 1, urgent = true, buzzEquipe = 0))
@@ -404,6 +410,38 @@ class DirecteurSonoreTest {
         assertEquals(Ordre.Couper, revele.first())
         assertTrue(Son.ZOOM_REVELE in revele.sons())
         assertFalse(Son.ROULEMENT_COURT in revele.sons())
+    }
+
+    @Test
+    fun `bip a chacune des cinq dernieres secondes, le dernier plus aigu, jamais en double`() {
+        val d = DirecteurSonore()
+        val q = Instant(Ecran.QUESTION, partie = "ABCD", index = 3, equipes = 3, propositions = 4)
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 2, equipes = 3))
+        d.observer(q)
+        val sons = (5 downTo 1).map { s -> d.observer(q.copy(urgent = true, decompte = s)).sons() }
+        assertEquals(listOf(Son.BIP, Son.BIP, Son.BIP, Son.BIP), sons.take(4).map { it.single { s -> s == Son.BIP } })
+        assertTrue(Son.BIP_FIN in sons.last())
+        assertFalse(Son.BIP in sons.last())
+        // Le même état observé deux fois ne rebipe pas.
+        assertFalse(Son.BIP_FIN in d.observer(q.copy(urgent = true, decompte = 1)).sons())
+    }
+
+    @Test
+    fun `pas de bip pendant la reponse d'une equipe qui a buzze, en express, ni quand tout le monde a repondu`() {
+        val d = DirecteurSonore()
+        val image = Instant(Ecran.QUESTION, partie = "ABCD", index = 9, equipes = 3, propositions = 0, jeuBuzz = true, flou = true)
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 8, equipes = 3))
+        d.observer(image)
+        assertTrue(Son.BIP in d.observer(image.copy(decompte = 5)).sons())
+        assertFalse(Son.BIP in d.observer(image.copy(decompte = 4, buzzEquipe = 0)).sons())
+        val express = DirecteurSonore()
+        val vf = Instant(Ecran.QUESTION, partie = "ABCD", index = 4, equipes = 2, propositions = 2, express = true)
+        express.observer(vf)
+        assertFalse(Son.BIP in express.observer(vf.copy(decompte = 3)).sons())
+        val tous = DirecteurSonore()
+        val quiz = Instant(Ecran.QUESTION, partie = "ABCD", index = 5, equipes = 2, propositions = 4)
+        tous.observer(quiz)
+        assertFalse(Son.BIP in tous.observer(quiz.copy(reponses = 2, decompte = 3)).sons())
     }
 
     @Test

@@ -20,6 +20,8 @@ object Sons {
     private const val FONDU_MS = 700L
     private const val COUPE_MS = 300L
     private const val PAS_MS = 40L
+    private const val REPRISE_FONDU_MS = 600L
+    private const val REPRISE_MIN_RESTE_MS = 500
     /** Durée exacte des boucles musicales (8 mesures à 120 BPM). */
     private const val BOUCLE_MS = 16_000L
     /** Crayon du Pictionary : léger, sous la musique ; il part vite et s'éteint un peu plus doucement. */
@@ -127,6 +129,7 @@ object Sons {
                         plus(o.dansMs) { versAmbiance(o.ambiance, o.fonduMs) }
                     }
                     is Ordre.Caler -> plus(o.dansMs) { caler() }
+                    is Ordre.Reprendre -> plus(o.dansMs) { reprendreLong(o.son) }
                 }
             }
         }
@@ -189,6 +192,26 @@ object Sons {
         } else {
             val id = courts[s] ?: return
             pool?.play(id, 1f, 1f, 1, 0, 1f)
+        }
+    }
+
+    /** Relance en fondu un son long mis en pause en cours de route, à l'endroit où il s'était arrêté (rien s'il était fini). */
+    private fun reprendreLong(s: Son) {
+        val mp = longs[s] ?: return
+        if (mp.isPlaying || mp.currentPosition <= 0 || mp.currentPosition >= mp.duration - REPRISE_MIN_RESTE_MS) return
+        val lancement = (lancements[s] ?: 0) + 1
+        lancements[s] = lancement
+        mp.setVolume(0f, 0f)
+        mp.start()
+        val etapes = (REPRISE_FONDU_MS / PAS_MS).toInt()
+        for (k in 1..etapes) {
+            h.postAtTime({
+                essayer("reprendre") {
+                    if (lancements[s] != lancement) return@essayer
+                    val v = k.toFloat() / etapes
+                    mp.setVolume(v, v)
+                }
+            }, prevus, SystemClock.uptimeMillis() + k * PAS_MS)
         }
     }
 

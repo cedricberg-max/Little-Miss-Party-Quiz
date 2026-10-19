@@ -135,8 +135,8 @@ class DirecteurSonore {
                 }
                 // Zoom mystère : moteur d'objectif et déclic quand la photo apparaît.
                 if (i.zoom) o += Ordre.Jouer(Son.ZOOM_OUVERTURE, Tempo.PROPOSITIONS_DEBUT)
-                // Image floue : une longue montée accompagne la photo qui se précise.
-                if (i.flou) o += Ordre.Jouer(Son.FLOU_MONTEE, Tempo.PROPOSITIONS_DEBUT)
+                // Image floue et Zoom mystère : une longue montée accompagne la photo qui se précise (ou se dézoome).
+                if (i.flou || i.zoom) o += Ordre.Jouer(Son.FLOU_MONTEE, Tempo.PROPOSITIONS_DEBUT)
                 // Extrait musical (blind test, quiz musical) : le diamant se pose sur le disque quand la chanson part.
                 // Blind test : seulement quand la chanson part vraiment (pas pendant la présentation).
                 if (i.musical && (!i.blind || i.blindLecture)) o += Ordre.Jouer(Son.BT_DIAMANT)
@@ -267,6 +267,11 @@ class DirecteurSonore {
         if (i.equipes > p.equipes) o += Ordre.Jouer(Son.equipe(i.equipes - 1))
         // Buzzer de l'accueil, pour s'amuser : chaque appui fait le bruit rigolo de l'équipe, autant de fois qu'elle veut.
         if (i.buzzs > p.buzzs && i.buzzeur >= 0) o += Ordre.Jouer(Son.rigolo(i.buzzeur))
+        // Bip, bip, bip : chacune des cinq dernières secondes du chrono, le dernier plus aigu. Jamais pendant qu'une
+        // équipe répond après un buzz (le chrono est figé), en express (trop court) ni quand tout le monde a répondu.
+        if ((i.ecran == Ecran.QUESTION || i.ecran == Ecran.MIMES_TOUR) && i.decompte in 1..5 && i.decompte != p.decompte &&
+            !i.enPause && !i.express && i.buzzEquipe < 0 && !tousOntRepondu(i)
+        ) o += Ordre.Jouer(if (i.decompte == 1) Son.BIP_FIN else Son.BIP)
         if (i.ecran == Ecran.QUESTION) {
             if (i.reponses > p.reponses) o += Ordre.Jouer(Son.REPONSE)
             // La tension des 5 dernières secondes s'arrête quand le temps repart ou que tout le monde a répondu.
@@ -338,8 +343,10 @@ class DirecteurSonore {
             o += Ordre.Jouer(Son.equipe(i.buzzEquipe), Tempo.FLOU_EQUIPE)
             if (!i.chante) o += Ordre.Jouer(Son.SUSPENSE_REPONSE, Tempo.FLOU_SUSPENSE)
         } else if (repart) {
-            // L'image (ou la chanson) reprend, avec sa musique.
+            // L'image (ou la chanson) reprend, avec sa musique ; Image floue : la montée dramatique repart là où le
+            // buzz l'avait figée, comme la photo.
             o += Ordre.Musique(ambiance(i), Tempo.FLOU_REPRISE)
+            if (i.flou) o += Ordre.Reprendre(Son.FLOU_MONTEE, Tempo.FLOU_REPRISE)
         }
         return o
     }
@@ -358,6 +365,8 @@ class DirecteurSonore {
             i.disparu == DISPARU_MEMORISER && i.ecran == Ecran.QUESTION -> Ambiance.MEMOIRE
             i.disparu == DISPARU_MAGIE && i.ecran == Ecran.QUESTION -> Ambiance.ENVOUTEMENT
             i.jeuBuzz && i.ecran == Ecran.QUESTION -> if (i.buzzEquipe >= 0) Ambiance.SILENCE else Ambiance.SUSPENSE
+            // Zoom mystère : musique en retrait sous la montée, comme l'Image floue.
+            i.zoom && i.ecran == Ecran.QUESTION -> Ambiance.SUSPENSE
             else -> ambianceParDefaut(i.ecran)
         }
         else -> ambianceParDefaut(i.ecran)
@@ -388,6 +397,8 @@ data class Instant(
     val repriseDansMs: Long = 0,
     /** Fin du chrono : cinq dernières secondes d'une question, dix d'un tour de mimes. */
     val urgent: Boolean = false,
+    /** Secondes restantes au chrono pendant ses cinq dernières secondes (5, 4, 3, 2, 1) ; 0 sinon : un bip par seconde. */
+    val decompte: Int = 0,
     /** Place (0, 1, 2…) de la dernière équipe qui a buzzé à l'accueil, -1 si personne. */
     val buzzeur: Int = -1,
     /** Nombre d'appuis sur le buzzer de l'accueil depuis le début : un son par nouvel appui. */
@@ -504,6 +515,7 @@ enum class Ambiance(
 enum class Son(val fichier: String, val long: Boolean = false) {
     GENERIQUE("lmp_generique", true),
     TENSION("lmp_tension", true),
+    BIP("lmp_bip"), BIP_FIN("lmp_bip_fin"),
     MONTEE("lmp_riser_4b"),
     IMPACT("lmp_impact", true),
     MANCHE("lmp_round_sting"),
@@ -579,6 +591,8 @@ sealed interface Ordre {
     /** Les boucles musicales repartent du début de leur première mesure (relais calé sur le générique). */
     data class Caler(val dansMs: Long = 0) : Ordre
     data class Arreter(val son: Son) : Ordre
+    /** Un son long mis en sourdine (par [Couper]) repart là où il s'était arrêté, en fondu. */
+    data class Reprendre(val son: Son, val dansMs: Long = 0) : Ordre
     /** Annule les sons prévus et fait taire les sons longs en cours (changement d'écran, pause). */
     data object Couper : Ordre
 
@@ -586,6 +600,7 @@ sealed interface Ordre {
         is Jouer -> copy(dansMs = dansMs + ms)
         is Musique -> copy(dansMs = dansMs + ms)
         is Caler -> copy(dansMs = dansMs + ms)
+        is Reprendre -> copy(dansMs = dansMs + ms)
         else -> this
     }
 }
