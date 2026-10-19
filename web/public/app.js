@@ -10,6 +10,7 @@ import { setAwake, isAwake, onAwakeChange } from "./awake.js";
 import { envoyeurDessin } from "./picto.js";
 import { creerArdoise, choisirMot } from "./ardoise.js";
 import { animationSpectateurs } from "./spectateurs.js";
+import { choisirPorte, ecranPorteOuverte } from "./portes.js";
 
 const $ = (id) => document.getElementById(id);
 /** Jeux au buzzer : un seul grand BUZZ, la réponse se donne à voix haute. */
@@ -390,6 +391,9 @@ function renderQuestion(st) {
     : st.kind === "zoom" ? "Zoom mystère : regardez la TV !" : st.kind === "portes" ? "Portes mystères !" : `Question ${(st.index ?? 0) + 1} / ${st.total ?? "?"}`;
   $("q-double").hidden = !st.double;
   if (st.kind === "number") return renderNumber(st);
+  $("choices").hidden = st.kind === "portes";
+  $("portes-host").hidden = st.kind !== "portes";
+  if (st.kind === "portes") return renderPortesChoice(st);
   const choices = st.choices ?? [];
   const photos = Array.isArray(st.choiceImages) ? st.choiceImages : [];
   const pictures = photos.some((id) => IMAGE_ID.test(id ?? ""));
@@ -420,11 +424,7 @@ function renderQuestion(st) {
     b.disabled = locked;
     b.classList.toggle("picked", mine === i);
   });
-  if (st.kind === "portes") {
-    // Portes mystères : un seul choix, en secret ; les portes s'ouvrent ensuite une à une sur la TV.
-    $("q-status").textContent = mine != null ? `${choices[mine] ?? "Porte choisie"}… suspense ! Regardez la TV.`
-      : st.phase === "closed" ? "Les choix sont fermés !" : "Choisissez une porte : derrière, un bonus… ou un malus !";
-  } else if (mine != null) $("q-status").textContent = `Réponse ${CHOICE_LETTERS[mine]} envoyée ! Attendez la révélation…`;
+  if (mine != null) $("q-status").textContent = `Réponse ${CHOICE_LETTERS[mine]} envoyée ! Attendez la révélation…`;
   else if (st.phase === "closed") $("q-status").textContent = "Temps écoulé !";
   else $("q-status").textContent = st.kind === "express" ? "Vrai ou faux ? Vite, ça s'enchaîne !" : "Choisissez votre réponse !";
   runTimer(st);
@@ -780,6 +780,7 @@ function renderResult(st) {
   $("r-icon").className = `result-icon ${ok ? "ok" : "ko"}`;
   const number = st.kind === "number";
   if (st.kind === "portes") return renderPortesResult(st, award);
+  showPortesReveal(null);
   if (st.kind === "statues") {
     $("r-icon").textContent = ok ? "🏆" : "♪";
     $("r-icon").className = "result-icon ok";
@@ -805,6 +806,54 @@ function renderResult(st) {
   $("r-total").textContent = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`;
 }
 
+/** Équipe de cet appareil, pour les écrans des Portes mystères. */
+const myTeamInfo = () => (game.teams[teamId] ? { nom: game.teams[teamId].name, couleur: game.teams[teamId].color } : null);
+
+/** Choix des Portes mystères (écran portes.js) : { qid, etat, ctl } de la question en cours. */
+let portesChoix = null;
+function renderPortesChoice(st) {
+  const host = $("portes-host");
+  const mine = game.myAnswer?.choice ?? pending?.choice;
+  if (portesChoix?.qid !== st.qid) {
+    portesChoix?.ctl.detruire();
+    const qid = st.qid;
+    portesChoix = {
+      qid, etat: "choix",
+      ctl: choisirPorte(host, {
+        nombre: (st.choices ?? []).length || 4, equipe: myTeamInfo(),
+        // Choix refusé (pause, temps écoulé) : les portes reviennent, rien n'est perdu.
+        surChoix: (i) => Promise.resolve(answer(i)).finally(() => {
+          if (!game.myAnswer && portesChoix?.qid === qid && game.state?.phase === "question") { portesChoix.ctl.detruire(); portesChoix = null; render(); }
+        }),
+      }),
+    };
+  }
+  if (mine != null && portesChoix.etat !== `porte${mine}`) {
+    portesChoix.etat = `porte${mine}`;
+    portesChoix.ctl.verrouiller(mine);
+  } else if (mine == null && st.phase !== "question" && portesChoix.etat !== "ferme") {
+    portesChoix.etat = "ferme";
+    portesChoix.ctl.attente("Les choix sont fermés !");
+  }
+  $("q-status").textContent = "";
+  runTimer(st);
+}
+
+/** Résultat ouvert des Portes mystères (écran portes.js), pour ne pas rejouer l'ouverture à chaque mise à jour. */
+let portesResultat = null;
+function showPortesReveal(key, options) {
+  const box = $("r-portes");
+  for (const id of ["r-icon", "r-title", "r-detail"]) $(id).hidden = key != null;
+  box.hidden = key == null;
+  if (key == null) {
+    if (portesResultat) { portesResultat.ctl.detruire(); portesResultat = null; }
+    return;
+  }
+  if (portesResultat?.key === key) return;
+  portesResultat?.ctl.detruire();
+  portesResultat = { key, ctl: ecranPorteOuverte(box, options) };
+}
+
 /**
  * Portes mystères : le résultat de l'équipe n'apparaît qu'au moment où sa porte s'ouvre sur la TV (sinon la
  * tablette gâcherait le suspense), le total et la place seulement une fois toutes les portes ouvertes.
@@ -823,6 +872,13 @@ function renderPortesResult(st, award) {
     : award.points > 0 ? `BONUS ! +${award.points} points` : award.points < 0 ? `Aïe, la tuile ! −${-award.points} points` : "Ouf, le malus ne vous retire rien !";
   $("r-detail").textContent = door == null ? "" : mineOpen ? `Derrière la ${name.toLowerCase()}` : "Les portes s'ouvrent une à une sur la TV…";
   $("r-image").hidden = true;
+  // Sa porte est ouverte sur la TV : la porte s'ouvre aussi sur la tablette, avec les points exacts.
+  const value = mineOpen ? Number(p.values?.[door] ?? award.points) : null;
+  showPortesReveal(mineOpen ? `${st.qid}:${door}` : null, { valeur: value, porte: door, equipe: myTeamInfo() });
+  if (mineOpen && award.points !== value) {
+    $("r-detail").hidden = false;
+    $("r-detail").textContent = `Votre score ne descend jamais sous 0 : ${award.points < 0 ? "−" : "+"}${Math.abs(award.points)} points pour vous.`;
+  }
   if (all) {
     const { mine, rank } = rankOf(st.scores);
     $("r-total").textContent = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`;
