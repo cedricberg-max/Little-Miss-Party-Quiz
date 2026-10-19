@@ -227,7 +227,7 @@ function startBox({ silent = false, held = false } = {}) {
     if (show.base == null) {
       await update(ref(db, `games/${CODE}`), {
         showStatus: { id: show.id, status: "applied", at: Date.now() },
-        conducteur: { id: show.quiz.id, title: show.title, rev: show.id, mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, questions: show.quiz.questions },
+        conducteur: { id: show.quiz.id, title: show.title, rev: show.id, mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, questions: show.quiz.questions },
         public: { title: show.title, childName: show.childName },
       });
       return;
@@ -290,7 +290,7 @@ beforeEach(async () => {
   await set(gameRef(), {
     hostUid: HOST,
     state: { phase: "lobby", seq: 0, total: QUESTIONS.length, scores: {}, round: 1, buzzOpen: true },
-    conducteur: { id: "demo", title: "Démo", rev: "initial", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, questions: QUESTIONS.map((q, i) => ({ id: `q${i + 1}`, ...q })) },
+    conducteur: { id: "demo", title: "Démo", rev: "initial", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, questions: QUESTIONS.map((q, i) => ({ id: `q${i + 1}`, ...q })) },
   });
 });
 afterEach(() => { box?.stop(); box = null; });
@@ -588,6 +588,50 @@ describe("régie", () => {
     await page.locator("#c-phase", { hasText: "Réponse révélée" }).waitFor();
     assert.deepEqual((await read("state")).scores, { bleu: 100 });
     assert.equal(await page.locator("#flou").isHidden(), true);
+    await page.context().close();
+  });
+
+  test("blind test : la régie voit le titre et l'artiste, plein tarif dans les 10 premières secondes, bonus artiste", async () => {
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    await addTeam("bleu", "Les Bleus");
+    const plan = [{ id: "b1", text: "Quel est ce titre ?", choices: ["Libérée, délivrée"], correct: 0, duration: 25, kind: "blind", artist: "La Reine des neiges", audioId: "0123456789abcdef", round: "Blind test · Dessins animés" }];
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, questions: plan });
+    await box.set({ ...questionState(1), qid: "b1", kind: "blind", text: plan[0].text, choices: null, total: 1, durationMs: 25000, round: "b1-1000-0", buzzOpen: true, buzz: { team: null, blocked: [] } });
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    await page.locator("#flou-info", { hasText: "En attente d'un buzz" }).waitFor();
+    // Les Roses buzzent à 6 s d'extrait : la box fige le chrono (temps restant publié).
+    await box.set({ ...(await read("state")), buzz: { team: "rose", blocked: [] }, buzzOpen: false, deadline: null, remainingMs: 19000 });
+    await page.locator("#flou-info", { hasText: "Les Roses a buzzé ! Réponse attendue : « Libérée, délivrée » (bonus : La Reine des neiges)" }).waitFor();
+    await page.locator("#flou-ok", { hasText: "BON TITRE" }).waitFor();
+    await page.locator("#flou-ok small", { hasText: "+150 pour Les Roses" }).waitFor();
+    await page.locator("#flou-bonus small", { hasText: "+200 pour Les Roses" }).waitFor();
+    // Buzz tardif (14 s d'extrait) : 100, et 150 avec l'artiste.
+    await box.set({ ...(await read("state")), remainingMs: 11000 });
+    await page.locator("#flou-ok small", { hasText: "+100 pour Les Roses" }).waitFor();
+    await page.locator("#flou-bonus small", { hasText: "+150 pour Les Roses" }).waitFor();
+    await page.click("#flou-bonus");
+    await waitFor(async () => Object.values((await read("commands")) ?? {}).some((c) => c.type === "buzz_bonus"), "commande bonus envoyée");
+    await page.context().close();
+  });
+
+  test("statues musicales : un gros bouton par équipe désigne la gagnante", async () => {
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    await addTeam("bleu", "Les Bleus");
+    const plan = [{ id: "s1", text: "Statues musicales", duration: 60, kind: "statues", round: "Statues musicales" }];
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, statues: true, questions: plan });
+    await box.set({ ...questionState(1), qid: "s1", kind: "statues", text: plan[0].text, choices: null, total: 1, durationMs: 60000 });
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    await page.locator("#statues-info", { hasText: "Musique en cours" }).waitFor();
+    await page.locator("#statues-points", { hasText: "300 points pour l'équipe gagnante, 150 pour les autres" }).waitFor();
+    assert.equal(await page.locator("#c-answered").textContent(), "");
+    await page.locator(".statues-team", { hasText: "Les Bleus" }).click();
+    await waitFor(async () => Object.values((await read("commands")) ?? {}).some((c) => c.type === "statues_win" && c.team === "bleu"), "gagnante envoyée");
     await page.context().close();
   });
 
@@ -1009,6 +1053,17 @@ describe("remplacement d'un appareil en cours de partie", () => {
     for (const p of [regie, old, extra]) await p.context().close();
   });
 });
+
+/** Fichier WAV mono 22 kHz : un bip de [hz] pendant [seconds] secondes, pour simuler un morceau importé. */
+function wav(hz, seconds) {
+  const rate = 22050, n = rate * seconds;
+  const buf = Buffer.alloc(44 + n * 2);
+  buf.write("RIFF", 0); buf.writeUInt32LE(36 + n * 2, 4); buf.write("WAVE", 8); buf.write("fmt ", 12);
+  buf.writeUInt32LE(16, 16); buf.writeUInt16LE(1, 20); buf.writeUInt16LE(1, 22); buf.writeUInt32LE(rate, 24);
+  buf.writeUInt32LE(rate * 2, 28); buf.writeUInt16LE(2, 32); buf.writeUInt16LE(16, 34); buf.write("data", 36); buf.writeUInt32LE(n * 2, 40);
+  for (let i = 0; i < n; i++) buf.writeInt16LE(Math.round(6000 * Math.sin((2 * Math.PI * hz * i) / rate)), 44 + i * 2);
+  return buf;
+}
 
 async function waitFor(fn, what, ms = 8000) {
   const end = Date.now() + ms;
@@ -1596,6 +1651,13 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.ok(Object.values(images).every((d) => d.startsWith("data:image/jpeg") && d.length < 150000));
     assert.deepEqual((await library("quizzes")).animaux, ANIMAUX, "Quiz existant intact");
     assert.equal((await library("mimes"))["test-lea-tous-les-jeux-mimes"].cards.length, 6);
+    const sounds = await library("sounds");
+    assert.equal(Object.keys(sounds).length, 4, "quatre comptines");
+    for (const [id, data] of Object.entries(sounds)) {
+      assert.ok(data.startsWith("data:audio/mpeg;base64,") && data.length < 880000);
+      assert.equal(createHash("sha256").update(data).digest("hex").slice(0, 16), id, "identifiant = empreinte du contenu");
+    }
+    assert.deepEqual((await library("playlists"))["test-lea-tous-les-jeux-comptines"].tracks.map((t) => t.title), ["Frère Jacques", "Au clair de la lune", "Ah ! vous dirai-je, maman", "Joyeux anniversaire"]);
 
     box = startBox();
     const regie = await openRegie();
@@ -1604,8 +1666,75 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.locator(".show-item", { hasText: "tous les jeux" }).click();
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const kinds = [...new Set((await read("show")).quiz.questions.map((q) => q.kind))];
-    assert.deepEqual(kinds, ["classic", "number", "express", "mime", "zoom", "chante", "flou", "quisuis"]);
+    assert.deepEqual(kinds, ["classic", "number", "express", "mime", "zoom", "chante", "flou", "quisuis", "blind", "statues"]);
+    assert.equal((await read("show")).quiz.questions.filter((q) => q.kind === "classic" && q.audioId).length, 4, "quiz musical sur les comptines");
     await waitFor(async () => Object.keys((await read("images")) ?? {}).length === 4, "photos copiées dans la partie");
+    await waitFor(async () => Object.keys((await read("sounds")) ?? {}).length === 4, "comptines copiées dans la partie", 15000);
+    await regie.context().close();
+  });
+
+  test("prestation de test « tous les jeux » d'une version précédente : le bouton lui ajoute le blind test sans rien retirer", async () => {
+    const old = { childName: "Léa", age: 9, status: "publiee", title: "ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux", origin: "test", updatedAt: 1,
+      rounds: [{ type: "quiz", quizId: "animaux" }, { type: "chante", count: 3 }, { type: "finale", quizId: "finale" }] };
+    await seedLibrary("quizzes", { animaux: ANIMAUX, finale: FINALE });
+    await seedLibrary("shows/test-lea-tous-les-jeux", old);
+    const page = await admin();
+    await page.click("#nav button[data-screen=settings]");
+    await page.click("#test-full-create");
+    await page.locator("#test-full-status", { hasText: "Mise à jour" }).waitFor({ timeout: 20000 });
+    await page.context().close();
+    const show = await library("shows/test-lea-tous-les-jeux");
+    assert.deepEqual(show.rounds.map((r) => r.type), ["quiz", "chante", "blind", "musical", "statues", "finale"]);
+    assert.equal(show.childName, "Léa");
+    assert.equal(Object.keys(await library("sounds")).length, 4);
+  });
+
+  test("Sarah importe ses fichiers musicaux : extraits réencodés en MP3 léger, titre et artiste devinés, chargés sur la TV", async () => {
+    const page = await admin();
+    await page.click(".tile[data-screen=music]");
+    await page.click("#playlist-new");
+    await page.fill("#playlist-title", "Dessins animés");
+    await page.selectOption("#playlist-duration", "15");
+    await page.setInputFiles("#playlist-files", [
+      { name: "La Reine des neiges - Libérée délivrée.wav", mimeType: "audio/wav", buffer: wav(440, 40) },
+      { name: "Hakuna Matata.wav", mimeType: "audio/wav", buffer: wav(330, 30) },
+    ]);
+    await page.locator(".track").nth(1).waitFor();
+    assert.equal(await page.locator(".track input[aria-label=Titre]").first().inputValue(), "Libérée délivrée");
+    assert.equal(await page.locator(".track input[aria-label=Artiste]").first().inputValue(), "La Reine des neiges");
+    // Sans titre, refus clair ; puis on le complète.
+    await page.locator(".track input[aria-label=Titre]").nth(1).fill("");
+    await page.click("#playlist-save");
+    await page.locator("#playlist-status", { hasText: "Morceau 2 : indiquez son titre" }).waitFor();
+    await page.locator(".track input[aria-label=Titre]").nth(1).fill("Hakuna Matata");
+    await page.locator(".track input[aria-label=Droits]").nth(1).fill("CD de Sarah");
+    await page.click("#playlist-save");
+    await page.locator("#playlist-status", { hasText: "Enregistrée : 2 morceaux" }).waitFor({ timeout: 30000 });
+    await page.context().close();
+    const [id, pl] = Object.entries(await library("playlists"))[0];
+    assert.equal(pl.duration, 15);
+    assert.deepEqual(pl.tracks.map((t) => [t.title, t.artist ?? null, t.rights ?? null]), [["Libérée délivrée", "La Reine des neiges", null], ["Hakuna Matata", null, "CD de Sarah"]]);
+    const sounds = await library("sounds");
+    for (const t of pl.tracks) {
+      const data = sounds[t.audioId];
+      assert.ok(data?.startsWith("data:audio/mpeg;base64,"), "extrait MP3 rangé");
+      assert.equal(createHash("sha256").update(data).digest("hex").slice(0, 16), t.audioId);
+      // 15 s de MP3 mono : bien plus léger que le fichier d'origine.
+      assert.ok(data.length < 300000, `extrait léger (${data.length})`);
+    }
+
+    await seedLibrary("shows/musique", { childName: "Tom", age: 8, date: "2026-12-02", status: "publiee", updatedAt: 1,
+      rounds: [{ type: "blind", playlistId: id }, { type: "musical", playlistId: id }] });
+    box = startBox();
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator(".show-item", { hasText: "Tom" }).click();
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    const qs = (await read("show")).quiz.questions;
+    assert.deepEqual(qs.map((q) => q.kind), ["blind", "blind", "classic", "classic"]);
+    assert.ok(qs.every((q) => pl.tracks.some((t) => t.audioId === q.audioId) && q.duration === 15));
+    await waitFor(async () => Object.keys((await read("sounds")) ?? {}).length === 2, "extraits copiés dans la partie");
     await regie.context().close();
   });
 

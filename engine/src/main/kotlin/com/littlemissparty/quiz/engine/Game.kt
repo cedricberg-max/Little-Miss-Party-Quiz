@@ -289,6 +289,19 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                 segments = s.segments.map { if (it.end == null) it.copy(end = maxOf(e.at, it.start)) else it },
             )
         }
+        is StatuesWon -> {
+            val q = quiz.questions.getOrNull(s.index)
+            if ((s.phase != Phase.QUESTION && s.phase != Phase.CLOSED) || q == null || !q.isStatues || s.paused || e.team.isBlank()) null
+            else {
+                val factor = if (q.double) 2 else 1
+                val others = e.others.filter { it != e.team && it.isNotBlank() }.associateWith { Award(null, correct = false, points = Scoring.MINI_PLAYED * factor, bonus = 0) }
+                s.copy(
+                    phase = Phase.REVEAL,
+                    segments = s.segments.map { if (it.end == null) it.copy(end = maxOf(e.at, it.start)) else it },
+                    awards = s.awards + (q.id to others + (e.team to Award(null, correct = true, points = Scoring.MINI_WIN * factor, bonus = 0))),
+                )
+            }
+        }
         is BuzzJudged -> {
             val b = s.buzz
             val team = b?.team
@@ -296,8 +309,12 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             if (s.phase != Phase.QUESTION || b == null || team == null || s.paused || q == null) null
             else if (e.ok) {
                 val factor = if (q.double) 2 else 1
-                val points = (if (b.blocked.isEmpty()) Scoring.BUZZ else Scoring.BUZZ_REBOUND) * factor
-                s.copy(phase = Phase.REVEAL, awards = s.awards + (q.id to mapOf(team to Award(q.correct, correct = true, points = points, bonus = 0))))
+                // Blind test : le plein tarif seulement pour un buzz dans les premières secondes de l'extrait
+                // (le chrono, figé au buzz, dit où en était la musique) ; bonus si l'artiste est cité aussi.
+                val first = b.blocked.isEmpty() && (!q.isBlind || s.elapsedAt(Long.MAX_VALUE) <= Scoring.BLIND_FAST_MS)
+                val bonus = if (e.bonus && q.isBlind) Scoring.BLIND_ARTIST * factor else 0
+                val points = (if (first) Scoring.BUZZ else Scoring.BUZZ_REBOUND) * factor + bonus
+                s.copy(phase = Phase.REVEAL, awards = s.awards + (q.id to mapOf(team to Award(q.correct, correct = true, points = points, bonus = bonus))))
             }
             // Mauvaise réponse : l'équipe est bloquée sur cette image, le chrono repart.
             else s.copy(buzz = b.copy(team = null, blocked = b.blocked + team), segments = s.segments + Segment(e.at))
@@ -312,6 +329,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         if (q.isMime) s.copy(
             phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null,
             mimes = s.mimes - q.id, mime = MimeRound(deck = q.cards.indices.toList()),
+            // Le buzz d'un jeu précédent (équipe validée) ne doit jamais figer le chrono des mimes.
+            buzz = null,
         )
         else s.copy(
             phase = Phase.QUESTION, index = index, qid = q.id, segments = listOf(Segment(at)), resumeAt = null, mime = null,
@@ -391,7 +410,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         val q = question ?: return null
         if (state.phase != Phase.CLOSED) return null
         // Image floue : les points viennent du buzzer ; chrono écoulé sans bonne réponse, personne ne marque.
-        val awards = if (q.isBuzz) emptyMap()
+        val awards = if (q.isBuzz || q.isStatues) emptyMap()
         else if (q.isNumber) Scoring.awardNumber(q, answers)
         else if (q.isExpress) answers.mapValues { (_, a) -> Scoring.awardExpress(q, a) }
         else answers.mapValues { (_, a) ->
@@ -420,11 +439,14 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         }
     }
 
+    /** Statues musicales : l'animatrice désigne l'équipe gagnante ; [others] = les autres équipes inscrites. */
+    fun statuesWin(team: String, others: Collection<String>, now: Long): GameEvent? = emit(StatuesWon(nextSeq, now, team, others.toList()))
+
     /** Image floue : [team] a buzzé la première (refusé si une équipe attend déjà son verdict, ou si [team] est bloquée). */
     fun buzz(team: String, now: Long): GameEvent? = emit(Buzzed(nextSeq, now, team))
 
     /** Image floue : verdict de l'animatrice sur la réponse orale de l'équipe qui a buzzé. */
-    fun judgeBuzz(ok: Boolean, now: Long): GameEvent? = emit(BuzzJudged(nextSeq, now, ok))
+    fun judgeBuzz(ok: Boolean, now: Long, bonus: Boolean = false): GameEvent? = emit(BuzzJudged(nextSeq, now, ok, bonus && ok))
 
     /** Délai avant l'étape automatique du Vrai ou Faux express, ou null s'il n'y en a pas. */
     fun expressDelayMs(): Long? {

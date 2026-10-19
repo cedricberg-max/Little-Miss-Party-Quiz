@@ -7,12 +7,16 @@ import org.json.JSONObject
  * Lecture d'un quiz au format JSON :
  * `{"id", "title", "questions": [{"id", "text", "choices": [...], "correct", "duration", "kind", "double", "round"}]}`,
  * plus `"cards": [{"word", "image"}]` pour une manche de mimes (`"kind": "mime"`, sans propositions),
- * et l'illustration facultative d'une question : `"image"` (émoji) et `"imageId"` (photo).
+ * l'illustration facultative d'une question : `"image"` (émoji) et `"imageId"` (photo), et pour la
+ * musique `"audioId"` (extrait) et `"artist"` (blind test).
  * Toute erreur est signalée avec la question concernée, pour pouvoir la corriger.
  */
 object QuizJson {
     /** Identifiant d'une photo d'illustration : empreinte de son contenu, 16 caractères hexadécimaux. */
     val IMAGE_ID = Regex("[0-9a-f]{16}")
+
+    /** Longueur maximale du nom d'artiste (blind test). */
+    const val MAX_ARTIST = 80
 
     fun parse(json: String): Quiz = parse(JSONObject(json))
 
@@ -45,7 +49,7 @@ object QuizJson {
             id = q.optString("id", "q${i + 1}"),
             text = q.getString("text"),
             choices = (0 until choices.length()).map { choices.getString(it).trim() },
-            correct = if (kind == QuestionKind.MIME) q.optInt("correct", -1) else q.getInt("correct"),
+            correct = if (kind == QuestionKind.MIME || kind == QuestionKind.STATUES) q.optInt("correct", -1) else q.getInt("correct"),
             durationSec = q.optInt("duration", if (kind == QuestionKind.MIME) 60 else 20),
             kind = kind,
             double = q.optBoolean("double", false),
@@ -57,6 +61,8 @@ object QuizJson {
             // Une illustration mal formée est ignorée : elle ne doit jamais empêcher de jouer.
             emoji = q.optString("image").trim().takeIf { it.isNotEmpty() && it.length <= 16 && kind != QuestionKind.MIME },
             imageId = imageId?.takeIf { kind != QuestionKind.MIME },
+            artist = q.optString("artist").trim().takeIf { it.isNotEmpty() && kind == QuestionKind.BLIND }?.take(MAX_ARTIST),
+            audioId = q.optString("audioId").takeIf { it.matches(IMAGE_ID) && kind != QuestionKind.MIME },
         )
     }
 }

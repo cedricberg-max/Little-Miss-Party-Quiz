@@ -115,6 +115,10 @@ class RegieSimulee : AutoCloseable {
         bloquer { base.getReference("games/$code/images/$id").setValue(dataUrl).await() }
     }
 
+    fun copierExtrait(code: String, id: String, dataUrl: String) {
+        bloquer { base.getReference("games/$code/sounds/$id").setValue(dataUrl).await() }
+    }
+
     override fun close() {
         runCatching { base.goOffline() }
     }

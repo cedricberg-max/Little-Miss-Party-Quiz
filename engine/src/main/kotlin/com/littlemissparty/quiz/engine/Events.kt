@@ -104,7 +104,13 @@ data class Buzzed(override val seq: Int, override val at: Long, val team: String
  * Image floue : l'animatrice juge la réponse orale de l'équipe qui a buzzé. Bonne : ses points et la
  * révélation. Mauvaise : l'équipe est bloquée sur cette image, la photo reprend et les autres peuvent buzzer.
  */
-data class BuzzJudged(override val seq: Int, override val at: Long, val ok: Boolean) : GameEvent
+/**
+ * Statues musicales : l'animatrice désigne l'équipe gagnante [team] ; les autres équipes qui ont joué
+ * ([others]) marquent aussi, un peu moins. Révélation.
+ */
+data class StatuesWon(override val seq: Int, override val at: Long, val team: String, val others: List<String>) : GameEvent
+
+data class BuzzJudged(override val seq: Int, override val at: Long, val ok: Boolean, val bonus: Boolean = false) : GameEvent
 
 /**
  * Saut de la régie vers la question [index] (début d'un jeu de la prestation), en avant comme en arrière.

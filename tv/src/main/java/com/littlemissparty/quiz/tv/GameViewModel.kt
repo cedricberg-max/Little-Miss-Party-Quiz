@@ -24,6 +24,7 @@ import com.littlemissparty.quiz.engine.CommandStatus
 import com.littlemissparty.quiz.engine.Game
 import com.littlemissparty.quiz.engine.GameEvent
 import com.littlemissparty.quiz.engine.Jumped
+import com.littlemissparty.quiz.engine.QuestionOpened
 import com.littlemissparty.quiz.engine.MimeCard
 import com.littlemissparty.quiz.engine.MimeTurn
 import com.littlemissparty.quiz.engine.Scoring
@@ -106,6 +107,11 @@ sealed interface UiState {
         /** Image floue : équipe qui a buzzé et attend le verdict (null sinon), équipes bloquées sur cette image. */
         val buzzTeam: String? = null,
         val buzzBlocked: List<String> = emptyList(),
+        /**
+         * Extraits musicaux déjà dans le cache de la box (identifiant → fichier MP3 local) : blind test et quiz
+         * musical les jouent depuis ce fichier, jamais en streaming. Absent : la question se joue sans musique.
+         */
+        val sounds: Map<String, String> = emptyMap(),
     ) : UiState {
         /** Total des appuis sur le buzzer de l'accueil, pour le son. */
         val funTotal: Int get() = funBuzzes.values.sum()
@@ -399,11 +405,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun mimePass() = act { it.mimePass(serverNow()) }
 
     /** Image floue à la télécommande (secours de la régie) : verdict sur la réponse orale de l'équipe qui a buzzé. */
-    fun judgeBuzz(ok: Boolean) {
+    fun judgeBuzz(ok: Boolean, bonus: Boolean = false) {
         val now = SystemClock.elapsedRealtime()
         if (now - lastNextAt < NEXT_GUARD_MS) return
         lastNextAt = now
-        act { it.judgeBuzz(ok, serverNow()) }
+        act { it.judgeBuzz(ok, serverNow(), bonus) }
     }
     fun mimeStop() = act { it.mimeStop(serverNow()) }
     fun pause() = act { it.pause(serverNow()) }
@@ -423,7 +429,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         if (event == null) return
         val round = (_state.value as? UiState.Playing)?.round ?: 1
         // Jeu rejoué depuis la régie : ses anciennes réponses sont effacées, les pupitres peuvent répondre à nouveau.
-        val replayed = (event as? Jumped)?.clear.orEmpty().associate { "answers/$it" to null }
+        val replayed = (event as? Jumped)?.clear.orEmpty().associate { "answers/$it" to null } +
+            // Question ouverte : ses anciennes réponses (jeu déjà joué puis repris plus tôt dans le programme)
+            // sont effacées, sinon les règles refuseraient les nouvelles et la question ne rapporterait rien.
+            ((event as? QuestionOpened)?.let { mapOf("answers/${it.qid}" to null) } ?: emptyMap())
         // Sans réseau, Firebase garde l'écriture en file d'attente et l'envoie au retour de la connexion.
         ref.updateChildren(
             mapOf(
@@ -537,6 +546,59 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         // Photo de la question en cours et de la suivante chargées d'avance (dès le salon d'attente pour la
         // première) : la révélation, ou le Zoom mystère, ne l'attend jamais.
         listOfNotNull(q?.imageId.takeIf { s.phase != Phase.LOBBY }, g.quiz.questions.getOrNull(s.index + 1)?.imageId).forEach(::prefetchImage)
+        // Extraits musicaux : tous ceux du programme, dès son chargement, pour que la musique ne dépende
+        // plus du réseau une fois la partie lancée.
+        g.quiz.questions.mapNotNullTo(LinkedHashSet()) { it.audioId }.forEach(::prefetchSound)
+    }
+
+    private val soundFiles = mutableMapOf<String, String>()
+    private val SOUND_TRIES = 3
+    private val SOUND_RETRY_MS = 3_000L
+    private val soundsLoading = mutableSetOf<String>()
+
+    /**
+     * Copie un extrait musical de la partie dans le cache de la box (filesDir/extraits/<empreinte>.mp3).
+     * Le fichier est vérifié par son empreinte avant d'être gardé ; déjà là (partie précédente, redémarrage),
+     * il n'est pas retéléchargé. Absent, abîmé ou hors connexion : la question se jouera sans musique.
+     */
+    private fun prefetchSound(id: String) {
+        if (id in soundFiles) {
+            // Nouvelle partie sur la même box : l'extrait déjà en cache est remis dans l'état de l'écran.
+            if ((_state.value as? UiState.Playing)?.sounds?.containsKey(id) == false) updatePlaying { it.copy(sounds = soundFiles.toMap()) }
+            return
+        }
+        if (!soundsLoading.add(id)) return
+        val dir = java.io.File(getApplication<Application>().filesDir, "extraits")
+        val file = java.io.File(dir, "$id.mp3")
+        if (file.isFile && file.length() > 0) return publishSound(id, file)
+        val ref = gameRef ?: return run { soundsLoading -= id }
+        viewModelScope.launch {
+            // La régie copie les extraits pendant que la TV reçoit le programme : on attend qu'ils arrivent.
+            repeat(SOUND_TRIES) { attempt ->
+                val ok = runCatching {
+                    val data = ref.child("sounds/$id").readWhenPresent()?.getValue(String::class.java) ?: return@runCatching false
+                    if (!Extraits.empreinteOk(id, data)) return@runCatching false
+                    val bytes = Base64.decode(data.substringAfter("base64,", ""), Base64.DEFAULT)
+                    if (bytes.isEmpty()) return@runCatching false
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        dir.mkdirs()
+                        val part = java.io.File(dir, "$id.part")
+                        part.writeBytes(bytes)
+                        part.renameTo(file)
+                    }
+                }.getOrDefault(false)
+                if (ok && file.isFile) return@launch publishSound(id, file)
+                if (gameRef != ref) { soundsLoading -= id; return@launch }
+                if (attempt < SOUND_TRIES - 1) delay(SOUND_RETRY_MS)
+            }
+            soundsLoading -= id
+        }
+    }
+
+    private fun publishSound(id: String, file: java.io.File) {
+        soundsLoading -= id
+        soundFiles[id] = file.absolutePath
+        updatePlaying { it.copy(sounds = soundFiles.toMap()) }
     }
 
     private val imageBytes = object : LinkedHashMap<String, ByteArray>(8, 0.75f, true) {
@@ -551,7 +613,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val ref = gameRef ?: return run { imagesLoading -= id }
         viewModelScope.launch {
             val bytes = runCatching {
-                val data = ref.child("images/$id").readOnce()?.getValue(String::class.java)
+                // Attente de la copie par la régie : une lecture unique pourrait renvoyer « absente » depuis le cache.
+                val data = ref.child("images/$id").readWhenPresent(PHOTO_WAIT_MS)?.getValue(String::class.java)
                 data?.substringAfter("base64,", "")?.takeIf { it.isNotEmpty() }?.let { Base64.decode(it, Base64.DEFAULT) }
             }.getOrNull()
             imagesLoading -= id
@@ -1042,12 +1105,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "flou" to true,
             "chante" to true,
             "quisuis" to true,
+            "blind" to true,
+            "statues" to true,
             "questions" to quiz.questions.map {
                 clean(mapOf(
                     "id" to it.id, "text" to it.text, "choices" to it.choices.ifEmpty { null }, "correct" to it.correct,
                     "duration" to it.durationSec, "kind" to it.kind.code, "double" to it.double, "round" to it.roundTitle,
                     "cards" to it.cards.ifEmpty { null }?.map { c -> clean(mapOf("word" to c.word, "image" to c.image)) },
-                    "image" to it.emoji, "imageId" to it.imageId,
+                    "image" to it.emoji, "imageId" to it.imageId, "artist" to it.artist, "audioId" to it.audioId,
                 ))
             },
         )
@@ -1072,6 +1137,29 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
  * `get()` peut ne jamais se terminer quand la persistance locale est activée et que l'appli est
  * relancée sans que le processus Android soit tué (sortie par Retour, nouvelle partie).
  */
+/**
+ * Attend qu'une donnée existe (photo ou extrait que la régie est en train de copier) : écoute en continu,
+ * car avec le cache local une lecture unique peut répondre « absente » alors que la copie arrive. Null au-delà
+ * de [timeoutMs].
+ */
+private suspend fun DatabaseReference.readWhenPresent(timeoutMs: Long = 60_000L): DataSnapshot? = withTimeoutOrNull(timeoutMs) {
+    suspendCancellableCoroutine { cont ->
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                if (snapshot.exists() && cont.isActive) { removeEventListener(this); cont.resume(snapshot) }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                if (cont.isActive) cont.resumeWithException(error.toException())
+            }
+        }
+        addValueEventListener(listener)
+        cont.invokeOnCancellation { removeEventListener(listener) }
+    }
+}
+
+private const val PHOTO_WAIT_MS = 30_000L
+
 private suspend fun DatabaseReference.readOnce(timeoutMs: Long = 8000L): DataSnapshot? = withTimeoutOrNull(timeoutMs) {
     suspendCancellableCoroutine { cont ->
         val listener = object : ValueEventListener {
