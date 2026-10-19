@@ -133,17 +133,24 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
     )
 }
 
-/** Le jeu auquel appartient une question : les mimes, ou une manche de quiz (toutes ses questions ensemble). */
-internal fun epreuveDe(q: Question) = when (q.kind) {
-    QuestionKind.MIME -> "mimes"
-    QuestionKind.NUMBER -> "chiffre"
-    QuestionKind.EXPRESS -> "express"
-    QuestionKind.ZOOM -> "zoom"
-    QuestionKind.FLOU -> "flou"
-    QuestionKind.CHANTE -> "chante"
-    QuestionKind.QUISUIS -> "quisuis"
-    else -> "quiz"
-} + "|" + (q.roundTitle ?: "")
+/**
+ * Le jeu auquel appartient une question : les mimes, ou une manche. Une manche nommée reste un seul jeu même
+ * si elle mélange des types de questions (quiz et Juste Chiffre) : le rideau ne passe qu'à son début.
+ */
+internal fun epreuveDe(q: Question): String {
+    val titre = q.roundTitle?.takeIf { it.isNotBlank() }
+    if (q.kind == QuestionKind.MIME) return "mimes|" + (titre ?: "")
+    if (titre != null) return "manche|$titre"
+    return when (q.kind) {
+        QuestionKind.NUMBER -> "chiffre"
+        QuestionKind.EXPRESS -> "express"
+        QuestionKind.ZOOM -> "zoom"
+        QuestionKind.FLOU -> "flou"
+        QuestionKind.CHANTE -> "chante"
+        QuestionKind.QUISUIS -> "quisuis"
+        else -> "quiz"
+    } + "|"
+}
 
 /** Qui suis-je ? : nombre d'indices affichés, calculé comme le plateau (chrono à l'heure du serveur). */
 @Composable

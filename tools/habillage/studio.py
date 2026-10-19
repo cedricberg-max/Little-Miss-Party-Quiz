@@ -884,6 +884,25 @@ def bt_scratch():
     parts.append((stereo(arret), .26))
     return sum_at(parts)
 
+def statue_gel():
+    """Statues musicales : la musique s'arrête net, « shhhk » de cymbale étouffée et cristal qui gèle."""
+    mx = Mix(4, tail=2)
+    n = int(.35 * SR); t = np.arange(n) / SR
+    mx.add('drums', stereo(biquad(noise(n), 'hp', 5000) * np.exp(-t / .04) * .8, .4, 5), 0)
+    mx.add('kick', kick(.7), 0)
+    for k, m in enumerate((96, 103, 108)):
+        mx.add('bells', note('celesta', m, .2, .45 - .1 * k, release=1.2), .08 + k * .07)
+    mx.add('bells', note('tinkle_bell', 100, .3, .3, release=1.4), .3)
+    return mx.render(duck=0)
+
+def statue_repart():
+    """Statues musicales : c'est reparti, petit « wizz » qui remonte et coup de caisse claire."""
+    mx = Mix(3, tail=1)
+    mx.add('fx', noise_riser(.45, .5, 400, 6000), 0)
+    mx.add('drums', snare(.6), .9)
+    mx.add('brass', note('brass_section', 79, .15, .6, release=.15), .9)
+    return mx.render(duck=0)
+
 def chiffre_roulette(duree=2.0):
     """Le Juste Chiffre : les chiffres défilent vite puis ralentissent et se posent pile à `duree` (l'or de la révélation)."""
     mx = Mix(duree / B + 2, tail=.6)
@@ -995,7 +1014,7 @@ PIECES = {
     'bed_express': (bed_express, -16.5), 'vf_vrai': (vf_vrai, -17), 'vf_faux': (vf_faux, -20),
     'chiffre_roulette': (chiffre_roulette, -19), 'chiffre_pile': (chiffre_pile, -15),
     'zoom_ouverture': (zoom_ouverture, -21), 'zoom_revele': (zoom_revele, -16),
-    'buzz_gros': (buzz_gros, -15), 'flou_montee': (flou_montee, -22), 'suspense_reponse': (suspense_reponse, -19), 'indice': (indice, -21), 'bt_diamant': (bt_diamant, -26), 'bt_scratch': (bt_scratch, -17),
+    'buzz_gros': (buzz_gros, -15), 'flou_montee': (flou_montee, -22), 'suspense_reponse': (suspense_reponse, -19), 'indice': (indice, -21), 'bt_diamant': (bt_diamant, -26), 'bt_scratch': (bt_scratch, -17), 'statue_gel': (statue_gel, -17), 'statue_repart': (statue_repart, -19),
     'bed_mimes': (bed_mimes, -16.5), 'bed_pause': (bed_pause, -19), 'pause_in': (pause_in, -18), 'transition': (transition, -15),
 }
 for i in range(4):
