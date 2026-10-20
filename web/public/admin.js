@@ -9,7 +9,7 @@ import {
   FULL_TUNES, FULL_TUNE_SEC, FULL_NEW_ROUNDS, tunePlaylist, FULL_CHOICE_PHOTOS, imageQuiz,
 } from "./test-show.js";
 import { writeProof, isAdmin } from "./proof.js";
-import { parseQuiz, checkQuestions, geminiPrompt, chatgptImagePrompt, imageKey, wordFromImage, photoQuestions, LETTERS } from "./importer.js";
+import { parseQuiz, checkQuestions, geminiPrompt, chatgptUrl, imageKey, wordFromImage, photoQuestions, LETTERS } from "./importer.js";
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
 import {
   buildSnapshot, estimateMinutes, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, BUILTIN_GAMES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
@@ -17,6 +17,7 @@ import {
   blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras, contentSlot, contentImages,
   pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches,
   roundQuizIds, roundPicks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS,
+  isStatuesList, statuesSongs, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS,
 } from "./show.js";
 import { shuffle } from "./mime-cards.js";
 import { PICTO_OWN_SERIES } from "./picto-cards.js";
@@ -111,7 +112,9 @@ function status(id, text, ok = false) {
 
 const SCREENS = ["login", "home", "shows", "show-edit", "games", "builtin", "quizzes", "import", "review", "settings", "mimes", "mime-edit", "music", "playlist-edit"];
 function show(name) {
-  if (["home", "shows", "games", "quizzes", "settings", "mimes", "music"].includes(name)) current = name;
+  // Quiz, mimes et musique se rangent sous « Jeux » dans le menu (cedric) : c'est l'onglet Jeux qui reste allumé.
+  if (["home", "shows", "games", "settings"].includes(name)) current = name;
+  if (["quizzes", "mimes", "music", "builtin", "import", "review", "mime-edit", "playlist-edit"].includes(name)) current = "games";
   SCREENS.forEach((s) => { $(`screen-${s}`).hidden = s !== name; });
   document.querySelectorAll("#nav button").forEach((b) => b.classList.toggle("active", b.dataset.screen === current));
   window.scrollTo(0, 0);
@@ -254,13 +257,32 @@ function renderHome() {
       h("p", { text: "Aucun anniversaire à venir pour l'instant." }),
       h("button", { class: "btn", onclick: () => editShow(null), text: "Créer une prestation" })));
   }
-  const n = Object.keys(quizzes).length;
-  const ok = Object.values(quizzes).reduce((t, q) => t + playable(q).length, 0);
-  $("tile-quiz").textContent = `${n} quiz · ${ok} question${ok > 1 ? "s" : ""} validée${ok > 1 ? "s" : ""}`;
-  const decks = Object.keys(mimes).length;
-  $("tile-mimes").textContent = `${decks} paquet${decks > 1 ? "s" : ""} de cartes`;
-  const lists = Object.keys(playlists).length;
-  $("tile-music").textContent = `${lists} playlist${lists > 1 ? "s" : ""}`;
+  renderHomeGames();
+}
+
+/** Accueil : chaque jeu en tuile, par famille ; la tuile mène à son contenu (ou à sa fiche s'il n'y a rien à préparer). */
+function renderHomeGames() {
+  $("home-games").replaceChildren(...GAME_GROUPS.map((group) => h("div", { class: "home-group" },
+    h("h3", { text: group.title }),
+    h("div", { class: "tiles" }, ...group.games.map((g) => {
+      const { line, actions } = gameInfo(g);
+      const open = actions[0]?.[1] ?? (() => openGameCard(g.type));
+      return h("button", { class: "tile", "data-game": g.type, ...(GAME_SCREENS[g.type] ? { "data-screen": GAME_SCREENS[g.type] } : {}), onclick: open },
+        h("span", { class: "tile-icon", text: g.icon }), h("b", { text: ROUND_TYPES[g.type] }), h("span", { text: line }));
+    })))));
+}
+
+/** Page de contenu des tuiles principales (repère pour les tests et l'aide). */
+const GAME_SCREENS = { quiz: "quizzes", mimes: "mimes", blind: "music" };
+
+/** Fiche d'un jeu sur la page Jeux (jeux sans contenu à préparer), mise en avant. */
+function openGameCard(type) {
+  show("games");
+  const card = document.querySelector(`.game-card[data-game="${type}"]`);
+  if (!card) return;
+  card.scrollIntoView({ block: "center" });
+  card.classList.add("flash");
+  setTimeout(() => card.classList.remove("flash"), 1600);
 }
 
 /** « 18 questions · 1 manche de mimes » : ce que contient une prestation. */
@@ -294,6 +316,7 @@ function showCard(id, s) {
       h("div", { class: "card-actions" },
         h("button", { class: "btn small", onclick: () => editShow(id), text: "Ouvrir" }),
         h("button", { class: "btn small secondary", onclick: () => editShow(null, s), text: "Dupliquer" }),
+        h("button", { class: "btn small secondary", onclick: () => rename(`library/shows/${id}`, showTitle(s), "de la prestation"), text: "Renommer" }),
         s.status === "archivee"
           ? h("button", { class: "btn small secondary", onclick: () => archive(id, false), text: "Désarchiver" })
           : h("button", { class: "btn small secondary", onclick: () => archive(id, true), text: "Archiver" }))));
@@ -324,6 +347,25 @@ function renderShows() {
   $("show-search-count").textContent = query ? `${list.length} prestation${list.length > 1 ? "s" : ""} trouvée${list.length > 1 ? "s" : ""}` : "";
 }
 $("show-search").addEventListener("input", () => renderShows());
+
+/**
+ * « Renommer » : nouveau titre d'une prestation, d'un quiz, d'un paquet de mimes ou d'une playlist, sans rien
+ * changer d'autre. Les prestations qui s'en servent affichent tout de suite le nouveau nom.
+ */
+async function rename(path, current, what) {
+  const asked = prompt(`Nouveau nom ${what} :`, current ?? "");
+  if (asked === null) return false;
+  const title = asked.trim().replace(/\s+/g, " ").slice(0, 120);
+  if (!title || title === current) return false;
+  try {
+    await update(ref(db, path), { title, updatedAt: serverTimestamp() });
+    return true;
+  } catch (err) {
+    console.error(err);
+    alert("Renommage refusé : vérifiez Internet ou reconnectez-vous.");
+    return false;
+  }
+}
 
 /** Archiver range la prestation (elle disparaît de la régie) ; désarchiver la remet en brouillon. */
 async function archive(id, on) {
@@ -396,7 +438,7 @@ function formShow() {
     rounds: editing.rounds.filter(roundFilled).map((r) => (BUILTIN_GAMES[r.type] ? { type: r.type, count: r.count ?? BUILTIN_GAMES[r.type].count, ...(r.type === "disparu" && r.objects ? { objects: r.objects } : {}), ...picksOf(r) }
       // Mimes : un paquet, ou le catalogue au hasard ; cartes choisies (tirage modifié à la main) gardées dans la manche.
       : r.type === "mimes" ? { type: "mimes", ...(r.deckId ? { deckId: r.deckId } : { random: true }), ...(mimeCards(r.cards).length ? { cards: mimeCards(r.cards).slice(0, 200) } : {}) }
-      : r.type === "statues" ? { type: "statues", duration: r.duration ?? STATUES_SEC }
+      : r.type === "statues" ? { type: "statues", duration: r.duration ?? STATUES_SEC, ...(roundSongs(r, playlists).length ? { songs: roundSongs(r, playlists).map((t) => t.audioId) } : {}) }
       : r.type === "pictionary" ? { type: "pictionary", duration: r.duration ?? PICTO_SEC, ...(pictoRoundSeries(r) ? { series: pictoRoundSeries(r) } : {}), ...picksOf(r) }
       : r.type === "coffres" ? { type: "coffres" }
       : r.type === "gonfleur" ? { type: "gonfleur" }
@@ -582,6 +624,32 @@ function pictoSeriesPicker(r) {
   return box;
 }
 
+/**
+ * Statues musicales : les chansons de la liste (page Jeux), à cocher pour la manche ; jouées dans l'ordre de la liste.
+ * Aucune cochée : la musique de la fête, sur la TV. Une nouvelle manche part avec toutes les chansons cochées.
+ */
+function songsPicker(r) {
+  const songs = statuesSongs(playlists);
+  if (!Array.isArray(r.songs)) r.songs = songs.map((t) => t.audioId).slice(0, MAX_STATUES_SONGS);
+  const chosen = new Set(r.songs);
+  const manage = h("button", { type: "button", class: "link", text: songs.length ? "Gérer les chansons" : "Ajouter vos chansons (page Jeux)", onclick: () => openStatuesSongs() });
+  if (!songs.length) return h("p", { class: "hint small statues-songs" }, "Musique de la fête (aucune chanson dans la liste). ", manage);
+  return h("div", { class: "statues-songs" },
+    h("p", { class: "hint small", text: !chosen.size ? "Aucune chanson cochée : musique de la fête." : roundSongs(r, playlists).length === 1 ? "1 chanson cochée, jouée en boucle :" : `${roundSongs(r, playlists).length} chansons cochées, jouées l'une après l'autre :` }),
+    ...songs.map((t) => h("label", { class: "inline statues-song" },
+      h("input", {
+        type: "checkbox", value: t.audioId, checked: chosen.has(t.audioId),
+        onchange: (e) => {
+          const keep = new Set(r.songs);
+          if (e.target.checked) keep.add(t.audioId); else keep.delete(t.audioId);
+          r.songs = songs.map((x) => x.audioId).filter((id) => keep.has(id)).slice(0, MAX_STATUES_SONGS);
+          refreshRounds();
+        },
+      }),
+      t.artist?.trim() ? `${t.title} (${t.artist.trim()})` : t.title)),
+    manage);
+}
+
 function refreshRounds() {
   if (!editing) return;
   refreshReuse();
@@ -589,7 +657,7 @@ function refreshRounds() {
   box.innerHTML = "";
   const options = Object.entries(quizzes).sort(([, a], [, b]) => a.title.localeCompare(b.title));
   const decks = Object.entries(mimes).sort(([, a], [, b]) => a.title.localeCompare(b.title));
-  const lists = Object.entries(playlists).sort(([, a], [, b]) => a.title.localeCompare(b.title));
+  const lists = Object.entries(playlists).filter(([, p]) => !isStatuesList(p)).sort(([, a], [, b]) => a.title.localeCompare(b.title));
   if (!editing.rounds.length) box.append(h("p", { class: "hint small", text: "Ajoutez au moins une manche." }));
   editing.rounds.forEach((r, i) => {
     const move = (d) => { const [x] = editing.rounds.splice(i, 1); editing.rounds.splice(i + d, 0, x); refreshRounds(); };
@@ -610,9 +678,11 @@ function refreshRounds() {
             }))),
           picksSelection(r))
         : r.type === "statues"
-        // Statues musicales : rien à préparer, seulement la durée de la musique.
-        ? h("select", { class: "grow", "aria-label": "Durée", onchange: (e) => { r.duration = Number(e.target.value); refreshSummary(); } },
-          ...STATUES_SECONDS.map((n) => h("option", { value: n, selected: (r.duration ?? STATUES_SEC) === n, text: `${n} secondes de musique (on danse, on se fige à l'arrêt ; vous désignez l'équipe gagnante)` })))
+        // Statues musicales : la durée de la musique et les chansons cochées (aucune : la musique de la fête).
+        ? h("div", { class: "grow picto-round" },
+          h("select", { class: "grow", "aria-label": "Durée", onchange: (e) => { r.duration = Number(e.target.value); refreshSummary(); } },
+            ...STATUES_SECONDS.map((n) => h("option", { value: n, selected: (r.duration ?? STATUES_SEC) === n, text: `${n} secondes de musique (on danse, on se fige à l'arrêt ; vous désignez l'équipe gagnante)` }))),
+          songsPicker(r))
         : r.type === "pictionary"
         // Pictionary : les mots viennent du catalogue (page Jeux) ; le temps de dessin et les séries de mots.
         ? h("div", { class: "grow picto-round" },
@@ -767,7 +837,7 @@ function renderQuizzes() {
   const box = $("quiz-list");
   box.innerHTML = "";
   const list = Object.entries(quizzes).sort(([, a], [, b]) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
-  if (!list.length) box.append(h("p", { class: "hint", text: "Aucun quiz pour l'instant : importez-en un depuis Gemini ou un tableur." }));
+  if (!list.length) box.append(h("p", { class: "hint", text: "Aucun quiz pour l'instant : « Créer un quiz » vous guide pas à pas." }));
   list.forEach(([id, q]) => {
     const total = (q.questions ?? []).filter(Boolean).length;
     const ok = playable(q).length;
@@ -777,12 +847,13 @@ function renderQuizzes() {
       h("span", { text: [q.theme, ages, SOURCES[q.source] ?? ""].filter(Boolean).join(" · ") }),
       h("span", { class: ok < total ? "warn" : "", text: `${total} questions · ${ok} validées` }),
       h("div", { class: "row" },
-        h("button", { class: "btn secondary", onclick: () => review(id, q), text: "Relire" }),
+        h("button", { class: "btn secondary", onclick: () => review(id, q), text: "Éditer" }),
+        h("button", { class: "btn secondary", onclick: () => rename(`library/quizzes/${id}`, q.title, "du quiz"), text: "Renommer" }),
         h("button", { class: "btn secondary", onclick: () => duplicateQuiz(q), text: "Dupliquer" }),
         h("button", { class: "btn danger", onclick: () => deleteQuiz(id, q), text: "Supprimer" }))));
   });
 }
-const SOURCES = { gemini: "Gemini", tableur: "tableur", json: "fichier", saisie: "saisie", photos: "photos" };
+const SOURCES = { gemini: "texte collé", tableur: "tableur", json: "fichier", saisie: "saisie", photos: "photos" };
 
 /** Copie à relire puis enregistrer comme nouveau quiz : l'original et ses prestations ne changent pas. */
 function duplicateQuiz(q) {
@@ -829,19 +900,42 @@ $("quiz-import-open").onclick = () => {
   show("import");
 };
 
+/** Réponses du quiz demandé : « texte » ou « images » (des mots simples, images ajoutées ensuite par Sarah). */
+const answersMode = () => document.querySelector("input[name=gem-answers]:checked")?.value ?? "texte";
+
 function updatePrompt() {
-  $("gem-prompt").value = geminiPrompt({ theme: $("gem-theme").value, age: $("gem-age").value, count: Number($("gem-count").value) || 8 });
+  $("gem-prompt").value = geminiPrompt({
+    theme: $("gem-theme").value, age: $("gem-age").value, count: Number($("gem-count").value) || 8,
+    difficulty: $("gem-difficulty").value, answers: answersMode(),
+  });
 }
 ["gem-theme", "gem-age", "gem-count"].forEach((id) => $(id).addEventListener("input", updatePrompt));
-$("gem-copy").onclick = async () => {
+$("gem-difficulty").addEventListener("change", updatePrompt);
+document.querySelectorAll("input[name=gem-answers]").forEach((r) => r.addEventListener("change", updatePrompt));
+
+/** Copie la demande ; sans accès au presse-papiers, elle est sélectionnée pour un Ctrl+C. */
+async function copyPrompt() {
+  updatePrompt();
   try {
     await navigator.clipboard.writeText($("gem-prompt").value);
-    $("gem-copy").textContent = "Consigne copiée";
+    return true;
   } catch {
+    $("gem-prompt").closest("details").open = true;
     $("gem-prompt").select();
-    $("gem-copy").textContent = "Sélectionnée : faites Ctrl+C";
+    return false;
   }
-  setTimeout(() => { $("gem-copy").textContent = "Copier la consigne"; }, 2500);
+}
+$("gem-copy").onclick = async () => {
+  $("gem-copy").textContent = (await copyPrompt()) ? "Demande copiée" : "Sélectionnée : faites Ctrl+C";
+  setTimeout(() => { $("gem-copy").textContent = "Copier la demande"; }, 2500);
+};
+// ChatGPT s'ouvre dans un nouvel onglet avec la demande déjà écrite (et copiée, au cas où).
+$("gem-open").onclick = async () => {
+  updatePrompt();
+  const tab = window.open(chatgptUrl($("gem-prompt").value), "_blank");
+  if (tab) tab.opener = null;
+  await copyPrompt();
+  status("import-status", tab === null ? "Le navigateur a bloqué l'ouverture : ouvrez ChatGPT vous-même et collez la demande (Ctrl+V)." : "", true);
 };
 /** Images déposées avec le quiz (nom comparable → fichier), associées aux réponses par leur nom à l'analyse. */
 const importImages = new Map();
@@ -868,19 +962,6 @@ dropZone.addEventListener("drop", async (e) => {
   dropZone.classList.remove("over");
   await takeImportFiles([...(e.dataTransfer?.files ?? [])]);
 });
-$("gpt-copy").onclick = async () => {
-  const text = chatgptImagePrompt({ theme: $("gem-theme").value, age: $("gem-age").value, count: Number($("gem-count").value) || 6 });
-  try {
-    await navigator.clipboard.writeText(text);
-    $("gpt-copy").textContent = "Consigne copiée";
-  } catch {
-    $("gpt-prompt").hidden = false;
-    $("gpt-prompt").value = text;
-    $("gpt-prompt").select();
-    $("gpt-copy").textContent = "Sélectionnée : faites Ctrl+C";
-  }
-  setTimeout(() => { $("gpt-copy").textContent = "Copier la consigne ChatGPT (quiz en images)"; }, 2500);
-};
 
 /**
  * Associe les images déposées aux réponses qui les nomment : chaque image est réduite et rangée dans la
@@ -932,9 +1013,12 @@ $("import-analyse").onclick = async () => {
     source: parsed.format === "texte" ? "gemini" : parsed.format,
     questions: parsed.questions.map((q) => ({ ...q, status: "brouillon" })),
   });
+  if (answersMode() === "images" && !parsed.questions.some((q) => q.imageFiles)) {
+    status("rv-status", "Réponses en images : ajoutez une image à chaque réponse avec 📷, puis validez.", true);
+  }
 };
 
-// ---------- Relecture d'un quiz ----------
+// ---------- Éditer un quiz ----------
 
 let draft = null; // { id, quiz, questions }
 
@@ -1440,7 +1524,8 @@ function renderMimes() {
       h("span", { text: `${cards.length} carte${cards.length > 1 ? "s" : ""} · tour de ${d.duration ?? MIME_TURN} s` }),
       h("span", { text: cards.slice(0, 8).map((c) => c.image ?? c.word).join(" ") }),
       h("div", { class: "row" },
-        h("button", { class: "btn secondary", onclick: () => editDeck(id), text: "Modifier" }),
+        h("button", { class: "btn secondary", onclick: () => editDeck(id), text: "Éditer" }),
+        h("button", { class: "btn secondary", onclick: () => rename(`library/mimes/${id}`, d.title, "du paquet"), text: "Renommer" }),
         h("button", { class: "btn secondary", onclick: () => editDeck(null, d), text: "Dupliquer" }),
         h("button", { class: "btn danger", onclick: () => deleteDeck(id), text: "Supprimer" })));
   }));
@@ -1562,7 +1647,7 @@ const mmss = (sec) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).pa
 
 function renderPlaylists() {
   const box = $("playlist-list");
-  const list = Object.entries(playlists).sort(([, a], [, b]) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+  const list = Object.entries(playlists).filter(([, p]) => !isStatuesList(p)).sort(([, a], [, b]) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
   box.replaceChildren(...list.map(([id, p]) => {
     const tracks = playableTracks(p);
     return h("div", { class: "item", "data-playlist": id },
@@ -1570,7 +1655,8 @@ function renderPlaylists() {
       h("span", { text: `${tracks.length} morceau${tracks.length > 1 ? "x" : ""} · extraits de ${p.duration ?? BLIND_SEC} s` }),
       h("span", { text: tracks.slice(0, 5).map((t) => t.title).join(" · ") + (tracks.length > 5 ? " …" : "") }),
       h("div", { class: "row" },
-        h("button", { class: "btn secondary", onclick: () => editPlaylist(id), text: "Modifier" }),
+        h("button", { class: "btn secondary", onclick: () => editPlaylist(id), text: "Éditer" }),
+        h("button", { class: "btn secondary", onclick: () => rename(`library/playlists/${id}`, p.title, "de la playlist"), text: "Renommer" }),
         h("button", { class: "btn secondary", onclick: () => duplicatePlaylist(id), text: "Dupliquer" }),
         h("button", { class: "btn danger", onclick: () => deletePlaylist(id), text: "Supprimer" })));
   }));
@@ -1580,7 +1666,9 @@ function renderPlaylists() {
 let playlist = null; // { id, tracks: [{ title, artist, rights, points?, imageId?, duration?, audioId? | file, length, start }] }
 let preview = null; // { audio, url, timer }
 
-$("playlist-duration").replaceChildren(...EXTRACT_SECONDS.map((n) => h("option", { value: n, text: `${n} secondes` })));
+/** Longueurs proposées : extraits du blind test, ou chansons des statues (plus longues). */
+const extractChoices = () => (playlist?.use === "statues" ? STATUES_EXTRACTS : EXTRACT_SECONDS);
+const extractText = (n) => (n >= 60 ? `${n === 60 ? "1 minute" : `1 min ${n - 60}`}` : `${n} secondes`);
 $("playlist-reveal").replaceChildren(...BLIND_REVEAL_SECONDS.map((n) => h("option", { value: n, text: n ? `${n} secondes` : "Tout l'extrait (on chante !)" })));
 ["playlist-points", "playlist-final-points", "playlist-final-count"].forEach((id) => { $(id).oninput = () => renderTracks(); });
 
@@ -1593,10 +1681,20 @@ function scaleInputs() {
 }
 $("playlist-new").onclick = () => editPlaylist(null);
 
-function editPlaylist(id) {
-  const p = id ? playlists[id] : {};
+/**
+ * Chansons des statues musicales (page Jeux) : une seule liste, ouverte dans l'écran des playlists sans le barème
+ * du blind test. Elle est créée au premier enregistrement.
+ */
+function openStatuesSongs() {
+  const [found] = Object.entries(playlists).filter(([, p]) => isStatuesList(p)).sort(([, a], [, b]) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+  editPlaylist(found ? found[0] : null, { use: "statues", title: "Chansons des statues musicales" });
+}
+
+function editPlaylist(id, fresh = {}) {
+  const p = id ? playlists[id] : fresh;
+  const statues = isStatuesList(p);
   playlist = {
-    id,
+    id, use: statues ? "statues" : null,
     tracks: (p.tracks ?? []).filter(Boolean).map((t) => ({
       title: t.title ?? "", artist: t.artist ?? "", rights: t.rights ?? "", audioId: t.audioId,
       points: t.points ?? null, imageId: t.imageId ?? null, duration: t.duration ?? null,
@@ -1607,9 +1705,20 @@ function editPlaylist(id) {
   $("playlist-final-points").value = `${scale.finalPoints}`;
   $("playlist-final-count").value = `${scale.finalCount}`;
   $("playlist-reveal").value = `${scale.reveal}`;
-  $("playlist-edit-title").textContent = id ? p.title : "Nouvelle playlist";
+  $("playlist-edit-title").textContent = id || statues ? p.title : "Nouvelle playlist";
   $("playlist-title").value = p.title ?? "";
-  $("playlist-duration").value = `${p.duration ?? BLIND_SEC}`;
+  // Statues : pas de barème ni de pochette ; le fil d'Ariane ramène à la page Jeux.
+  $("playlist-scale").hidden = statues;
+  $("statues-hint").hidden = !statues;
+  $("playlist-hint").hidden = statues;
+  $("playlist-crumb").textContent = statues ? ROUND_TYPES.statues : "Musique";
+  $("playlist-crumb").dataset.screen = statues ? "games" : "music";
+  $("playlist-title-label").textContent = statues ? "Nom de la liste" : "Nom de la playlist";
+  $("playlist-duration-label").textContent = statues ? "Longueur de chaque chanson" : "Durée des extraits";
+  $("playlist-count-label").textContent = statues ? "Chansons" : "Morceaux";
+  $("playlist-save").textContent = statues ? "Enregistrer les chansons" : "Enregistrer la playlist";
+  $("playlist-duration").replaceChildren(...extractChoices().map((n) => h("option", { value: n, text: extractText(n) })));
+  $("playlist-duration").value = `${p.duration ?? (statues ? STATUES_EXTRACT : BLIND_SEC)}`;
   $("playlist-delete").hidden = !id;
   status("playlist-status", "");
   show("playlist-edit");
@@ -1715,7 +1824,8 @@ function renderTracks() {
   const scale = scaleInputs();
   const n = playlist.tracks.length;
   $("playlist-tracks").replaceChildren(...playlist.tracks.map((t, i) => {
-    const label = h("span", { text: `Début de l'extrait : ${mmss(t.start ?? 0)}` });
+    const debut = playlist.use === "statues" ? "Début du passage" : "Début de l'extrait";
+    const label = h("span", { text: `${debut} : ${mmss(t.start ?? 0)}` });
     const length = t.duration ?? seconds;
     const max = Math.max(0, Math.floor((t.length ?? 0) - length));
     const auto = trackPoints(scale, null, i, n);
@@ -1725,11 +1835,12 @@ function renderTracks() {
         class: "track-duration", "aria-label": "Durée de l'extrait",
         onchange: (e) => { t.duration = e.target.value ? Number(e.target.value) : null; renderTracks(); },
       },
-      h("option", { value: "", text: `comme la playlist (${seconds} s)`, selected: t.duration == null }),
-      ...EXTRACT_SECONDS.map((s) => h("option", { value: s, text: `${s} s`, selected: t.duration === s })))) : null;
+      h("option", { value: "", text: `comme ${playlist.use === "statues" ? "la liste" : "la playlist"} (${seconds} s)`, selected: t.duration == null }),
+      ...extractChoices().map((s) => h("option", { value: s, text: `${s} s`, selected: t.duration === s })))) : null;
+    const statues = playlist.use === "statues";
     return h("div", { class: `track${t.file ? "" : " saved"}`, "data-track": i },
-      h("input", { type: "text", maxlength: 80, placeholder: "Titre (la réponse)", value: t.title, "aria-label": "Titre", oninput: (e) => { t.title = e.target.value; } }),
-      h("input", { type: "text", maxlength: 80, placeholder: "Artiste ou dessin animé (bonus, facultatif)", value: t.artist, "aria-label": "Artiste", oninput: (e) => { t.artist = e.target.value; } }),
+      h("input", { type: "text", maxlength: 80, placeholder: statues ? "Titre de la chanson" : "Titre (la réponse)", value: t.title, "aria-label": "Titre", oninput: (e) => { t.title = e.target.value; } }),
+      h("input", { type: "text", maxlength: 80, placeholder: statues ? "Artiste (facultatif)" : "Artiste ou dessin animé (bonus, facultatif)", value: t.artist, "aria-label": "Artiste", oninput: (e) => { t.artist = e.target.value; } }),
       h("div", { class: "track-tools" },
         h("button", { type: "button", class: "icon", title: "Plus tôt", disabled: i === 0, onclick: () => moveTrack(i, -1), text: "↑" }),
         h("button", { type: "button", class: "icon", title: "Plus tard", disabled: i === n - 1, onclick: () => moveTrack(i, 1), text: "↓" }),
@@ -1738,22 +1849,22 @@ function renderTracks() {
       h("div", { class: "track-start" }, label,
         h("input", {
           type: "range", min: 0, max, step: 1, value: Math.min(t.start ?? 0, max), "aria-label": "Début de l'extrait",
-          oninput: (e) => { t.start = Number(e.target.value); label.textContent = `Début de l'extrait : ${mmss(t.start)}`; },
+          oninput: (e) => { t.start = Number(e.target.value); label.textContent = `${debut} : ${mmss(t.start)}`; },
           onchange: () => { if (preview) listen(t); },
         })),
       h("div", { class: "track-extra" },
-        h("span", { class: "track-n", text: `Morceau ${i + 1}` }),
-        h("label", { class: "inline" }, "Points",
+        h("span", { class: "track-n", text: `${statues ? "Chanson" : "Morceau"} ${i + 1}` }),
+        statues ? null : h("label", { class: "inline" }, "Points",
           h("input", {
             type: "number", class: "track-points", min: 1, max: 1000, step: 10, placeholder: `${auto}`, value: t.points ?? "",
             "aria-label": "Points du morceau", title: `Vide : ${auto} points (barème de la playlist)`,
             oninput: (e) => { const v = Number(e.target.value); t.points = e.target.value && Number.isInteger(v) && v >= 1 && v <= 1000 ? v : null; },
           })),
         duration,
-        ...coverTools(t)),
-      h("input", { type: "text", class: "track-note", maxlength: 120, placeholder: "Droits (facultatif, pour information)", value: t.rights, "aria-label": "Droits", oninput: (e) => { t.rights = e.target.value; } }));
+        ...(statues ? [] : coverTools(t))),
+      statues ? null : h("input", { type: "text", class: "track-note", maxlength: 120, placeholder: "Droits (facultatif, pour information)", value: t.rights, "aria-label": "Droits", oninput: (e) => { t.rights = e.target.value; } }));
   }));
-  if (!playlist.tracks.length) $("playlist-tracks").append(h("p", { class: "hint small", text: "Aucun morceau : ajoutez vos fichiers musicaux." }));
+  if (!playlist.tracks.length) $("playlist-tracks").append(h("p", { class: "hint small", text: playlist.use === "statues" ? "Aucune chanson : ajoutez vos fichiers musicaux. Sans chanson, la TV joue la musique de la fête." : "Aucun morceau : ajoutez vos fichiers musicaux." }));
 }
 $("playlist-duration").onchange = () => renderTracks();
 
@@ -1783,10 +1894,11 @@ $("playlist-files").onchange = async (e) => {
 
 $("playlist-save").onclick = async () => {
   const title = $("playlist-title").value.trim();
-  if (!title) return status("playlist-status", "Donnez un nom à la playlist.");
-  if (!playlist.tracks.length) return status("playlist-status", "Ajoutez au moins un morceau.");
+  const statues = playlist.use === "statues";
+  if (!title) return status("playlist-status", statues ? "Donnez un nom à la liste." : "Donnez un nom à la playlist.");
+  if (!playlist.tracks.length) return status("playlist-status", statues ? "Ajoutez au moins une chanson." : "Ajoutez au moins un morceau.");
   const untitled = playlist.tracks.findIndex((t) => !t.title.trim());
-  if (untitled >= 0) return status("playlist-status", `Morceau ${untitled + 1} : indiquez son titre (c'est la réponse attendue).`);
+  if (untitled >= 0) return status("playlist-status", statues ? `Chanson ${untitled + 1} : indiquez son titre.` : `Morceau ${untitled + 1} : indiquez son titre (c'est la réponse attendue).`);
   stopPreview();
   const seconds = Number($("playlist-duration").value);
   $("playlist-save").disabled = true;
@@ -1808,9 +1920,8 @@ $("playlist-save").onclick = async () => {
       delete t.file;
     }
     const id = playlist.id ?? push(ref(db, "library/playlists")).key;
-    const scale = scaleInputs();
     await set(ref(db, `library/playlists/${id}`), {
-      title, duration: seconds, ...scale,
+      title, duration: seconds, ...(statues ? { use: "statues" } : scaleInputs()),
       tracks: playlist.tracks.map((t) => ({
         title: t.title.trim().slice(0, 80), audioId: t.audioId,
         ...(t.artist.trim() ? { artist: t.artist.trim().slice(0, 80) } : {}),
@@ -1826,7 +1937,9 @@ $("playlist-save").onclick = async () => {
     $("playlist-delete").hidden = false;
     $("playlist-edit-title").textContent = title;
     renderTracks();
-    status("playlist-status", `Enregistrée : ${playlist.tracks.length} morceau${playlist.tracks.length > 1 ? "x" : ""}. Ajoutez-la à une prestation comme manche « Blind test » ou « Quiz musical ».`, true);
+    status("playlist-status", statues
+      ? `Enregistrée : ${plural(playlist.tracks.length, "chanson")}. Cochez-les dans une manche « Statues musicales » de la prestation.`
+      : `Enregistrée : ${playlist.tracks.length} morceau${playlist.tracks.length > 1 ? "x" : ""}. Ajoutez-la à une prestation comme manche « Blind test » ou « Quiz musical ».`, true);
   } catch (err) {
     console.error(err);
     status("playlist-status", "Enregistrement refusé : vérifiez Internet ou reconnectez-vous.");
@@ -1836,13 +1949,14 @@ $("playlist-save").onclick = async () => {
 };
 
 $("playlist-delete").onclick = async () => {
-  if (playlist?.id && await deletePlaylist(playlist.id)) show("music");
+  if (playlist?.id && await deletePlaylist(playlist.id)) show(playlist.use === "statues" ? "games" : "music");
 };
 
 async function deletePlaylist(id) {
-  const used = Object.values(shows).filter((s) => (s.rounds ?? []).some((r) => r?.playlistId === id)).map(showTitle);
+  const ids = new Set(playableTracks(playlists[id]).map((t) => t.audioId));
+  const used = Object.values(shows).filter((s) => (s.rounds ?? []).some((r) => r?.playlistId === id || (r?.type === "statues" && (r.songs ?? []).some((x) => ids.has(x))))).map(showTitle);
   const warning = used.length ? `\n\nAttention, elle est utilisée par : ${used.join(", ")}.` : "";
-  if (!confirm(`Supprimer la playlist « ${playlists[id]?.title ?? ""} » ?${warning}`)) return false;
+  if (!confirm(`Supprimer ${isStatuesList(playlists[id]) ? "la liste des chansons des statues" : "la playlist"} « ${playlists[id]?.title ?? ""} » ?${warning}`)) return false;
   await set(ref(db, `library/playlists/${id}`), null);
   return true;
 }
@@ -1864,16 +1978,19 @@ const GAME_GROUPS = [
   { title: "Avec vos contenus", hint: "Vous préparez le contenu dans la bibliothèque, une fois, et vous le réutilisez dans toutes les prestations.", games: [
     { type: "quiz", icon: "?", rule: "Questions à 2, 3 ou 4 propositions sur les pupitres ; toutes les équipes qui trouvent marquent. Une question peut aussi être un « Juste Chiffre » (réponse en nombre). Super Finale : dans la prestation, les dernières questions du quiz peuvent compter double.",
       status: () => { const ok = Object.values(quizzes).reduce((t, q) => t + playable(q).length, 0); return `${plural(Object.keys(quizzes).length, "quiz", "quiz")} · ${plural(ok, "question validée", "questions validées")}`; },
-      actions: () => [["Gérer les quiz", () => show("quizzes")], ["Importer un quiz", () => $("quiz-import-open").click()]] },
+      actions: () => [["Gérer les quiz", () => show("quizzes")], ["Créer un quiz", () => $("quiz-import-open").click()]] },
     { type: "mimes", icon: "🎭", rule: "Équipe par équipe : un enfant devine, ses coéquipiers miment l'image. 50 points par mime trouvé.",
       status: () => plural(Object.keys(mimes).length, "paquet de cartes", "paquets de cartes"),
       actions: () => [["Gérer les paquets", () => show("mimes")], ["Nouveau paquet", () => editDeck(null)]] },
     { type: "blind", icon: "🎵", rule: "Les morceaux d'une playlist, dans l'ordre : le premier qui buzze donne le titre à voix haute, vous validez.",
-      status: () => plural(Object.keys(playlists).length, "playlist"),
+      status: () => plural(Object.values(playlists).filter((p) => !isStatuesList(p)).length, "playlist"),
       actions: () => [["Gérer les playlists", () => show("music")]] },
     { type: "musical", icon: "🎶", rule: "Un extrait d'une playlist et 4 titres sur les pupitres ; même playlist que le blind test.",
-      status: () => plural(Object.values(playlists).filter((p) => playableTracks(p).length >= 2).length, "playlist utilisable", "playlists utilisables"),
+      status: () => plural(Object.values(playlists).filter((p) => !isStatuesList(p) && playableTracks(p).length >= 2).length, "playlist utilisable", "playlists utilisables"),
       actions: () => [["Gérer les playlists", () => show("music")]] },
+    { type: "statues", icon: "🗿", rule: "Vos chansons jouent sur la TV et s'arrêtent par moments : tout le monde se fige ! Vous désignez l'équipe gagnante depuis la régie. Dans la prestation : la durée et les chansons cochées (aucune : la musique de la fête).",
+      status: () => plural(statuesSongs(playlists).length, "chanson"),
+      actions: () => [["Gérer les chansons", () => openStatuesSongs()]] },
   ] },
   { title: "Tirés d'un quiz", hint: "Rien de plus à préparer : ces jeux reprennent les questions d'un quiz de la bibliothèque. Dans la prestation, choisissez le quiz et combien de questions.", games: [
     { type: "express", icon: "✔", rule: "Les questions Vrai / Faux d'un quiz, au chrono court du profil.", needs: "Vrai / Faux validées" },
@@ -1888,7 +2005,6 @@ const GAME_GROUPS = [
     { type: "coffres", icon: "💣", rule: "Chaque équipe à son tour ouvre un coffre sur sa tablette : bonus ou malus, tirés au sort à l'ouverture. Après quelques tours sans danger, une bombe se cache dans un des coffres : l'équipe qui l'ouvre perd 300 points (jamais sous 0) et le jeu s'arrête sur le bilan. Personne ne connaît le contenu des coffres, régie comprise. Idéal en dernier jeu." },
     { type: "patate", icon: "🥔", rule: "Une bombe passe d'équipe en équipe : sur sa tablette, l'équipe qui la tient choisit à qui l'envoyer (jamais tout de suite à l'équipe qui vient de l'envoyer, sauf à 2 équipes ; on ne peut la renvoyer que 2 secondes après l'avoir reçue). La mèche, tirée au sort, reste secrète : à l'explosion, l'équipe qui tient la bombe perd 150 points (jamais sous 0), toutes les autres en gagnent 150." },
     { type: "gonfleur", icon: "🎈", rule: "Chaque équipe tapote sa tablette le plus vite possible pour gonfler son ballon sur la TV ; on peut se relayer. Le premier ballon qui éclate gagne 300 points, les autres équipes 150. Depuis la régie, « Arrêter la course » donne la victoire au plus gros ballon." },
-    { type: "statues", icon: "🗿", rule: "La musique s'arrête par moments : tout le monde se fige ! Vous désignez l'équipe gagnante depuis la régie. La durée se choisit dans la prestation." },
   ] },
 ];
 
@@ -1898,17 +2014,7 @@ function renderGames() {
     h("h2", { text: group.title }),
     h("p", { class: "hint small", text: group.hint }),
     h("div", { class: "cards" }, ...group.games.map((g) => {
-      const quizGame = QUIZ_GAMES[g.type];
-      const content = CONTENT_GAMES[g.type];
-      const rule = g.rule ?? (content ? `${BUILTIN_GAMES[g.type].rule[0].toUpperCase()}${BUILTIN_GAMES[g.type].rule.slice(1)}.` : "");
-      const line = g.status ? g.status()
-        : quizGame ? `${plural(Object.values(quizzes).filter((q) => (QUIZ_GAMES[g.type]?.questions ?? playable)(q).length).length, "quiz utilisable", "quiz utilisables")} (avec des ${g.needs})`
-        : content ? builtinLine(g.type)
-        : "Toujours disponible";
-      const actions = g.actions ? g.actions()
-        : quizGame ? [["Voir les quiz", () => show("quizzes")]]
-        : content ? [[`Voir et modifier les ${CONTENT_GAMES[g.type].unit}s`, () => openBuiltin(g.type)]]
-        : [];
+      const { rule, line, actions } = gameInfo(g);
       const n = usedIn(g.type);
       return h("div", { class: "item game-card", "data-game": g.type },
         h("b", {}, h("span", { class: "game-icon", text: g.icon }), ROUND_TYPES[g.type]),
@@ -1917,6 +2023,22 @@ function renderGames() {
         h("span", { class: "small", text: n ? `Dans ${plural(n, "prestation")} en cours` : "Dans aucune prestation en cours" }),
         actions.length ? h("div", { class: "row" }, ...actions.map(([label, fn], k) => h("button", { class: `btn${k ? " secondary" : ""}`, onclick: fn, text: label }))) : null);
     })))));
+}
+
+/** Règle, état du contenu et actions d'un jeu : les mêmes sur la page Jeux et sur l'accueil. */
+function gameInfo(g) {
+  const quizGame = QUIZ_GAMES[g.type];
+  const content = CONTENT_GAMES[g.type];
+  const rule = g.rule ?? (content ? `${BUILTIN_GAMES[g.type].rule[0].toUpperCase()}${BUILTIN_GAMES[g.type].rule.slice(1)}.` : "");
+  const line = g.status ? g.status()
+    : quizGame ? `${plural(Object.values(quizzes).filter((q) => (QUIZ_GAMES[g.type]?.questions ?? playable)(q).length).length, "quiz utilisable", "quiz utilisables")} (avec des ${g.needs})`
+    : content ? builtinLine(g.type)
+    : "Rien à préparer";
+  const actions = g.actions ? g.actions()
+    : quizGame ? [["Voir les quiz", () => show("quizzes")]]
+    : content ? [[`Voir et modifier les ${CONTENT_GAMES[g.type].unit}s`, () => openBuiltin(g.type)]]
+    : [];
+  return { rule, line, actions };
 }
 
 /** « 38 mots actifs dont 2 ajoutés · 3 retirés » */

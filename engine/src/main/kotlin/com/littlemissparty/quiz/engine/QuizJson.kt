@@ -20,6 +20,9 @@ object QuizJson {
     /** Longueur maximale du nom d'artiste (blind test). */
     const val MAX_ARTIST = 80
 
+    /** Statues musicales : au plus autant de chansons dans une manche. */
+    const val MAX_STATUES_SONGS = 20
+
     fun parse(json: String): Quiz = parse(JSONObject(json))
 
     /**
@@ -84,6 +87,8 @@ object QuizJson {
             doors = if (kind == QuestionKind.PORTES) (0 until doors.length()).map { doors.getInt(it) } else emptyList(),
             artist = q.optString("artist").trim().takeIf { it.isNotEmpty() && kind == QuestionKind.BLIND }?.take(MAX_ARTIST),
             audioId = q.optString("audioId").takeIf { it.matches(IMAGE_ID) && !turns },
+            audioIds = q.optJSONArray("audioIds")?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty()
+                .filter { it.matches(IMAGE_ID) && kind == QuestionKind.STATUES }.distinct().take(MAX_STATUES_SONGS),
             points = q.optInt("points", 0).takeIf { it > 0 && (kind == QuestionKind.BLIND || kind == QuestionKind.PICTIONARY) }?.coerceAtMost(MAX_TRACK_POINTS),
             // 0 : tout l'extrait à la révélation (le temps de chanter le refrain).
             revealSec = q.optInt("reveal", BLIND_REVEAL_SEC).let { if (it == 0) 0 else it.coerceIn(3, 60) },

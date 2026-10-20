@@ -348,7 +348,10 @@
       "playlists": {
         "$id": {
           ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
-          ".validate": "!newData.exists() || (newData.child('title').isString() && newData.child('title').val().length >= 1 && newData.child('title').val().length <= 120 && newData.child('tracks').hasChildren() && newData.child('duration').isNumber() && newData.child('duration').val() >= 10 && newData.child('duration').val() <= 45 && newData.child('updatedAt').val() === now)",
+          ".validate": "!newData.exists() || (newData.child('title').isString() && newData.child('title').val().length >= 1 && newData.child('title').val().length <= 120 && newData.child('tracks').hasChildren() && newData.child('duration').isNumber() && newData.child('duration').val() >= 10 && (newData.child('duration').val() <= 45 || (newData.child('use').val() === 'statues' && newData.child('duration').val() <= 90)) && newData.child('updatedAt').val() === now)",
+          "use": {
+            ".validate": "newData.val() === 'statues'"
+          },
           "points": {
             ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 1000"
           },
@@ -377,7 +380,7 @@
                 ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{16}$/)"
               },
               "duration": {
-                ".validate": "newData.isNumber() && newData.val() >= 10 && newData.val() <= 45"
+                ".validate": "newData.isNumber() && newData.val() >= 10 && (newData.val() <= 45 || (newData.parent().parent().parent().child('use').val() === 'statues' && newData.val() <= 90))"
               }
             }
           }

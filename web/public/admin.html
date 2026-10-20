@@ -19,9 +19,6 @@
       <button data-screen="home">Accueil</button>
       <button data-screen="shows">Prestations</button>
       <button data-screen="games">Jeux</button>
-      <button data-screen="quizzes">Quiz</button>
-      <button data-screen="mimes">Mimes</button>
-      <button data-screen="music">Musique</button>
       <button data-screen="settings">Paramètres</button>
     </nav>
     <button id="logout" class="link" hidden>Se déconnecter</button>
@@ -58,13 +55,9 @@
       </div>
       <h2>Prochains anniversaires</h2>
       <div id="home-upcoming" class="cards"></div>
-      <h2>Bibliothèque</h2>
-      <div class="tiles">
-        <button class="tile" data-screen="games"><span class="tile-icon">🎲</span><b>Tous les jeux</b><span id="tile-games">12 jeux et leur contenu</span></button>
-        <button class="tile" data-screen="quizzes"><span class="tile-icon">?</span><b>Quiz</b><span id="tile-quiz">0 quiz</span></button>
-        <button class="tile" data-screen="mimes"><span class="tile-icon">★</span><b>Mimes</b><span id="tile-mimes">0 paquet</span></button>
-        <button class="tile" data-screen="music"><span class="tile-icon">♪</span><b>Blind test et quiz musical</b><span id="tile-music">0 playlist</span></button>
-      </div>
+      <h2>Bibliothèque des jeux</h2>
+      <!-- Tous les jeux, rangés comme sur la page Jeux : un appui ouvre ce qui se prépare pour ce jeu. -->
+      <div id="home-games" class="home-games"></div>
     </section>
 
     <!-- Prestations : ce que la régie charge sur la TV le jour J. -->
@@ -155,21 +148,23 @@
       <p id="builtin-status" class="status"></p>
     </section>
 
-    <!-- Bibliothèque de quiz : import (Gemini, tableur), relecture, validation question par question. -->
+    <!-- Bibliothèque de quiz : création (demande à ChatGPT, tableur, fichier), édition, validation question par question. -->
     <section id="screen-quizzes" class="screen" hidden>
+      <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <b>Quiz</b></nav>
       <div class="title-row">
         <h1>Bibliothèque de quiz</h1>
-        <button id="quiz-import-open" class="btn">Importer un quiz</button>
+        <button id="quiz-import-open" class="btn">Créer un quiz</button>
         <button id="quiz-photos-open" class="btn secondary">📷 Quiz de photos</button>
         <input id="quiz-photos" type="file" accept="image/*" multiple hidden>
       </div>
-      <p class="hint">« Quiz de photos » : choisissez vos photos d'un coup, le nom de chaque fichier devient sa réponse (vous la corrigez à la relecture). Ce quiz se choisit ensuite pour l'Image floue ou le Zoom mystère.</p>
+      <p class="hint">« Quiz de photos » : choisissez vos photos d'un coup, le nom de chaque fichier devient sa réponse (vous la corrigez avant d’enregistrer). Ce quiz se choisit ensuite pour l'Image floue ou le Zoom mystère.</p>
       <p class="hint">Seules les questions validées sont jouées sur la TV.</p>
       <div id="quiz-list" class="cards"></div>
     </section>
 
     <!-- Mimes : paquets de cartes (image et mot) choisis dans le catalogue intégré, avec la durée d'un tour. -->
     <section id="screen-mimes" class="screen" hidden>
+      <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <b>Mimes</b></nav>
       <div class="title-row">
         <h1>Paquets de mimes</h1>
         <button id="mime-new" class="btn">Nouveau paquet</button>
@@ -182,7 +177,7 @@
     </section>
 
     <section id="screen-mime-edit" class="screen" hidden>
-      <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <button class="link" data-screen="mimes">Mimes</button> › <b id="mime-edit-title">Nouveau paquet</b></nav>
+      <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <button class="link" data-screen="mimes">Mimes</button> › <b id="mime-edit-title">Nouveau paquet</b></nav>
       <div class="panel grid">
         <label class="wide">Nom du paquet<input id="mime-title" maxlength="120" placeholder="Animaux et métiers"></label>
         <label>Durée d'un tour
@@ -218,6 +213,7 @@
 
     <!-- Blind test : playlists d'extraits musicaux importés depuis les fichiers de Sarah. -->
     <section id="screen-music" class="screen" hidden>
+      <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <b>Musique</b></nav>
       <div class="title-row">
         <h1>Blind test</h1>
         <button id="playlist-new" class="btn">Nouvelle playlist</button>
@@ -232,10 +228,10 @@
     </section>
 
     <section id="screen-playlist-edit" class="screen" hidden>
-      <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <button class="link" data-screen="music">Blind test</button> › <b id="playlist-edit-title">Nouvelle playlist</b></nav>
+      <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <button id="playlist-crumb" class="link" data-screen="music">Musique</button> › <b id="playlist-edit-title">Nouvelle playlist</b></nav>
       <div class="panel grid">
-        <label class="wide">Nom de la playlist<input id="playlist-title" maxlength="120" placeholder="Dessins animés"></label>
-        <label>Durée des extraits
+        <label class="wide"><span id="playlist-title-label">Nom de la playlist</span><input id="playlist-title" maxlength="120" placeholder="Dessins animés"></label>
+        <label><span id="playlist-duration-label">Durée des extraits</span>
           <select id="playlist-duration"></select>
         </label>
       </div>
@@ -251,12 +247,17 @@
           Un morceau peut avoir sa propre valeur ci-dessous.</p>
       </div>
       <div class="panel">
-        <p class="label">Morceaux : <b id="playlist-count">0</b></p>
+        <p class="label"><span id="playlist-count-label">Morceaux</span> : <b id="playlist-count">0</b></p>
         <div id="playlist-tracks" class="tracks"></div>
         <label class="btn secondary file-btn">Ajouter des musiques…
           <input id="playlist-files" type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" multiple hidden>
         </label>
-        <p class="hint small">
+        <p id="statues-hint" class="hint small" hidden>
+          Le titre est deviné depuis le nom du fichier : corrigez-le si besoin. Choisissez avec le curseur le passage gardé
+          (1 minute ou 1 min 30, réglable chanson par chanson) et écoutez-le avant d'enregistrer. Dans chaque prestation, vous cochez
+          les chansons de la manche : la TV les joue l'une après l'autre, dans l'ordre de cette liste (flèches ↑ ↓).
+        </p>
+        <p id="playlist-hint" class="hint small">
           Titre et artiste sont devinés depuis le nom du fichier (« Artiste - Titre.mp3 ») : corrigez-les si besoin.
           Choisissez le début de l'extrait avec le curseur et écoutez-le avant d'enregistrer.
           Les flèches ↑ ↓ changent l'ordre de passage au blind test. La pochette (facultative) s'affiche sur la TV à la révélation.
@@ -271,30 +272,43 @@
     </section>
 
     <section id="screen-import" class="screen" hidden>
-      <nav class="crumbs"><button class="link" data-screen="quizzes">Bibliothèque</button> › <b>Importer</b></nav>
-      <details class="panel" open>
-        <summary>1. Demander le quiz à Gemini</summary>
+      <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <button class="link" data-screen="quizzes">Quiz</button> › <b>Créer un quiz</b></nav>
+      <h1>Créer un quiz</h1>
+      <div class="panel">
+        <p class="label">1. Votre quiz</p>
         <div class="grid">
-          <label>Thème<input id="gem-theme" placeholder="Les animaux de la jungle"></label>
+          <label class="wide">Thème<input id="gem-theme" placeholder="Les animaux de la jungle"></label>
           <label>Âge des enfants<input id="gem-age" placeholder="8"></label>
           <label>Nombre de questions<input id="gem-count" type="number" min="1" max="30" value="8"></label>
+          <label>Difficulté
+            <select id="gem-difficulty">
+              <option value="facile">Facile</option>
+              <option value="moyen" selected>Moyen</option>
+              <option value="difficile">Difficile</option>
+            </select>
+          </label>
+          <fieldset class="wide answers-mode">
+            <legend>Réponses</legend>
+            <label class="inline"><input type="radio" name="gem-answers" value="texte" checked> En texte</label>
+            <label class="inline"><input type="radio" name="gem-answers" value="images"> En images, pour les enfants qui ne lisent pas encore (vous ajoutez les images ensuite)</label>
+          </fieldset>
         </div>
-        <textarea id="gem-prompt" rows="9" readonly></textarea>
-        <button id="gem-copy" type="button" class="btn secondary">Copier la consigne</button>
-        <p class="hint small">Collez la consigne dans Gemini, puis copiez toute sa réponse ci-dessous.</p>
-      </details>
+        <div class="row">
+          <button id="gem-open" type="button" class="btn">Ouvrir ChatGPT avec ma demande</button>
+          <button id="gem-copy" type="button" class="btn secondary">Copier la demande</button>
+        </div>
+        <p class="hint small">La demande est aussi copiée : si elle n'apparaît pas dans ChatGPT, collez-la (Ctrl+V) et envoyez. Copiez ensuite toute sa réponse ci-dessous.</p>
+        <details>
+          <summary class="hint small">Voir la demande</summary>
+          <textarea id="gem-prompt" rows="9" readonly></textarea>
+        </details>
+      </div>
       <div class="panel">
-        <p class="label">2. Coller le quiz</p>
+        <p class="label">2. Coller la réponse</p>
         <p class="hint small">
-          Texte de Gemini, lignes copiées d'un tableur (colonnes : Question, Réponse A, Réponse B, Réponse C,
-          Réponse D, Bonne réponse, Durée), ou fichier CSV.
+          Collez la réponse de ChatGPT. Vous pouvez aussi coller des lignes d'un tableur (colonnes : Question, Réponse A, Réponse B,
+          Réponse C, Réponse D, Bonne réponse, Durée), ou déposer un fichier de quiz (CSV, JSON) avec ses images.
         </p>
-        <p class="hint small">
-          Quiz en images pour les petits : copiez la consigne ChatGPT, puis déposez ici son fichier JSON <b>et toutes ses images en même temps</b>.
-          Chaque image est associée à la réponse qui porte son nom, réduite, et vous la voyez avant d'enregistrer.
-        </p>
-        <button id="gpt-copy" type="button" class="btn secondary">Copier la consigne ChatGPT (quiz en images)</button>
-        <textarea id="gpt-prompt" rows="9" readonly hidden></textarea>
         <div id="import-drop" class="drop-zone">
           <textarea id="import-text" rows="12" placeholder="Collez ici… ou déposez le fichier du quiz et ses images"></textarea>
         </div>
@@ -306,7 +320,7 @@
     </section>
 
     <section id="screen-review" class="screen" hidden>
-      <nav class="crumbs"><button class="link" data-screen="quizzes">Bibliothèque</button> › <b>Relecture</b></nav>
+      <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <button class="link" data-screen="quizzes">Quiz</button> › <b>Éditer</b></nav>
       <div class="panel grid">
         <label class="wide">Titre du quiz<input id="rv-title" maxlength="120"></label>
         <label>Thème<input id="rv-theme" maxlength="80"></label>

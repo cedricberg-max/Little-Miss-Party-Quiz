@@ -939,6 +939,16 @@ describe("blind test : extraits musicaux et playlists", () => {
     await assertFails(playlist([{ title: "Trop long", audioId: ID }], { duration: 300 }));
     await assertFails(set(ref(db("rose"), "library/playlists/p"), { title: "X", duration: 25, tracks: [{ title: "A", audioId: ID }], updatedAt: serverTimestamp() }));
   });
+  test("chansons des statues musicales : une liste marquée « statues », chansons jusqu'à 90 s, rien d'autre ne change", async () => {
+    await assertSucceeds(playlist([{ title: "Danse des canards", audioId: ID }, { title: "Tourner", audioId: ID, duration: 90 }], { use: "statues", duration: 60 }));
+    await assertSucceeds(playlist([{ title: "A", audioId: ID }], { use: "statues", duration: 90 }));
+    await assertFails(playlist([{ title: "A", audioId: ID }], { use: "statues", duration: 120 }));
+    await assertFails(playlist([{ title: "A", audioId: ID, duration: 120 }], { use: "statues", duration: 60 }));
+    // Blind test : les extraits restent limités à 45 s ; pas d'autre usage que « statues ».
+    await assertFails(playlist([{ title: "A", audioId: ID }], { duration: 60 }));
+    await assertFails(playlist([{ title: "A", audioId: ID, duration: 60 }]));
+    await assertFails(playlist([{ title: "A", audioId: ID }], { use: "karaoke" }));
+  });
   test("la régie copie un extrait dans la partie une seule fois ; la box le lit, les pupitres non", async () => {
     await seed({ phase: "lobby" });
     await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));
