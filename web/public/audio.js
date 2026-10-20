@@ -7,9 +7,9 @@ import { imageId } from "./illustration.js";
 
 /** Taille maximale d'un extrait enregistré (caractères de son adresse data:), sous la limite des règles. */
 export const SOUND_BUDGET = 880_000;
-/** Durées d'extrait proposées (secondes) ; les règles acceptent de 10 à 45 s. */
-export const EXTRACT_SECONDS = [15, 20, 25, 30, 40];
-export const DEFAULT_EXTRACT = 25;
+/** Durées d'extrait proposées (secondes) = temps pour buzzer ; les règles acceptent de 10 à 45 s. */
+export const EXTRACT_SECONDS = [20, 25, 30, 35, 40, 45];
+export const DEFAULT_EXTRACT = 30;
 const RATE = 44_100;
 const FADE_IN = 0.3;
 const FADE_OUT = 1.5;
@@ -99,10 +99,13 @@ export async function encodeMp3(buffer, kbps = 80) {
   return `data:audio/mpeg;base64,${btoa(binary)}`;
 }
 
-/** Extrait prêt à ranger : découpé, réencodé sous [SOUND_BUDGET] (débit réduit si besoin), avec son identifiant. */
-export async function makeExtract(buffer, start, seconds) {
+/**
+ * Extrait prêt à ranger : découpé, réencodé sous [SOUND_BUDGET] (débit réduit si besoin), avec son identifiant.
+ * [rates] : débits essayés dans l'ordre (le refrain de 90 s part plus bas).
+ */
+export async function makeExtract(buffer, start, seconds, rates = [96, 80, 64, 48]) {
   const cut = await cutExtract(buffer, start, seconds);
-  for (const kbps of [96, 80, 64, 48]) {
+  for (const kbps of rates) {
     const data = await encodeMp3(cut, kbps);
     if (data.length <= SOUND_BUDGET) return { id: await soundId(data), data, seconds: Math.round(cut.duration) };
   }

@@ -87,6 +87,7 @@ object QuizJson {
             doors = if (kind == QuestionKind.PORTES) (0 until doors.length()).map { doors.getInt(it) } else emptyList(),
             artist = q.optString("artist").trim().takeIf { it.isNotEmpty() && kind == QuestionKind.BLIND }?.take(MAX_ARTIST),
             audioId = q.optString("audioId").takeIf { it.matches(IMAGE_ID) && !turns },
+            refrainId = q.optString("refrainId").takeIf { it.matches(IMAGE_ID) && kind == QuestionKind.BLIND },
             audioIds = q.optJSONArray("audioIds")?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty()
                 .filter { it.matches(IMAGE_ID) && kind == QuestionKind.STATUES }.distinct().take(MAX_STATUES_SONGS),
             points = q.optInt("points", 0).takeIf { it > 0 && (kind == QuestionKind.BLIND || kind == QuestionKind.PICTIONARY) }?.coerceAtMost(MAX_TRACK_POINTS),

@@ -149,6 +149,11 @@ data class Question(
      * Vide : la musique maison de la TV.
      */
     val audioIds: List<String> = emptyList(),
+    /**
+     * Blind test : extrait du refrain (environ 90 s), joué plus fort et en boucle à la révélation, jusqu'au
+     * « Titre suivant » de l'animatrice (« on chante tous ensemble »). Absent : l'extrait du morceau est rejoué.
+     */
+    val refrainId: String? = null,
     /** Blind test : valeur du morceau (points de l'équipe qui trouve), réglée dans l'administration. */
     val points: Int? = null,
     /** Blind test : durée de la séquence de révélation (extrait rejoué, pochette, titre, points), en secondes. */

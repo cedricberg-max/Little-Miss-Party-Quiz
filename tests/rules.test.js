@@ -957,6 +957,28 @@ describe("blind test : extraits musicaux et playlists", () => {
     await assertFails(playlist([{ title: "A", audioId: ID, duration: 60 }]));
     await assertFails(playlist([{ title: "A", audioId: ID }], { use: "karaoke" }));
   });
+  test("bibliothèque des sons : chanson, préréglages et refrain ; les playlists la reprennent et la suivent", async () => {
+    const REFRAIN = "fedcba9876543210";
+    const song = (extra = {}) => set(ref(db("sarah"), "library/songs/s1"), { title: "Hakuna Matata", audioId: ID, buzz: 30, updatedAt: serverTimestamp(), ...extra });
+    await assertSucceeds(song({ artist: "Le Roi lion", refrainId: REFRAIN, start: 12, refrain: 61, length: 214, createdAt: 1, imageId: REFRAIN, rights: "CD" }));
+    await assertFails(song({ buzz: 60 }));
+    await assertFails(song({ buzz: 5 }));
+    await assertFails(song({ refrainId: "../sounds" }));
+    await assertFails(song({ refrain: -3 }));
+    await assertFails(song({ volume: 11 }));
+    await assertFails(set(ref(db("sarah"), "library/songs/s1"), { title: "Sans date", audioId: ID, buzz: 30 }));
+    await assertFails(set(ref(db("rose"), "library/songs/s2"), { title: "X", audioId: ID, buzz: 30, updatedAt: serverTimestamp() }));
+    // Morceau de playlist : son refrain et sa chanson.
+    await assertSucceeds(playlist([{ title: "Hakuna Matata", audioId: ID, refrainId: REFRAIN, songId: "s1", duration: 30 }]));
+    await assertFails(playlist([{ title: "A", audioId: ID, refrainId: "pas-un-son" }]));
+    await assertFails(playlist([{ title: "A", audioId: ID, songId: "x".repeat(41) }]));
+    // Une chanson changée dans la bibliothèque : ses morceaux suivent, en une écriture avec la date de la playlist.
+    await assertSucceeds(update(ref(db("sarah")), {
+      "library/playlists/p/tracks/0": { title: "Hakuna Matata", audioId: REFRAIN, refrainId: ID, songId: "s1", duration: 35 },
+      "library/playlists/p/updatedAt": serverTimestamp(),
+    }));
+    await assertSucceeds(set(ref(db("sarah"), "library/songs/s1"), null));
+  });
   test("la régie copie un extrait dans la partie une seule fois ; la box le lit, les pupitres non", async () => {
     await seed({ phase: "lobby" });
     await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));

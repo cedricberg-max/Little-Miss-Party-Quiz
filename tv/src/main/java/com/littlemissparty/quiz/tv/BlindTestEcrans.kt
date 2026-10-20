@@ -174,6 +174,13 @@ fun BlindPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifie
                         fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.apparition(1100, q.id),
                     )
                 }
+                // Refrain préparé : le moment le plus festif, toute la salle chante jusqu'au « Titre suivant ».
+                if (state.phase == Phase.REVEAL && q.refrainId?.let { it in state.sounds } == true) {
+                    Text(
+                        "🎤 Tous ensemble, on chante !", color = Palette.Gold, fontSize = 22.sp, fontWeight = FontWeight.Black,
+                        textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.padding(top = 8.dp).apparition(2_200, q.id),
+                    )
+                }
             }
             buzzer != null -> {
                 Text(

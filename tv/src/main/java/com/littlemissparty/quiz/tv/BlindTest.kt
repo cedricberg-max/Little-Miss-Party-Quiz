@@ -9,6 +9,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
+import com.littlemissparty.quiz.tv.habillage.GAIN_REFRAIN_MB
 import com.littlemissparty.quiz.tv.habillage.boosterExtrait
 import kotlinx.coroutines.delay
 import java.security.MessageDigest
@@ -52,11 +53,14 @@ fun ExtraitMusical(q: Question, state: UiState.Playing) {
     val revealed = state.phase == Phase.REVEAL
     // Blind test : la révélation fait réentendre l'extrait quelques secondes, ou s'arrête si l'animatrice raccourcit.
     val coupe = q.isBlind && state.blind?.cut == true
+    // Refrain préparé dans la Régie PC : c'est lui qui joue à la révélation, en boucle, à la place de l'extrait.
+    val refrain = q.refrainId?.takeIf { q.isBlind }?.let { state.sounds[it] }
+    if (revealed && refrain != null && !coupe && !state.paused) RefrainEnBoucle(q.id, refrain)
     val enCours = state.phase == Phase.QUESTION && state.deadline != null && !state.paused
     LaunchedEffect(player, enCours, revealed, coupe, state.deadline, state.resumeAt) {
         runCatching {
             when {
-                revealed && coupe -> if (player.isPlaying) player.pause()
+                revealed && (coupe || refrain != null) -> if (player.isPlaying) player.pause()
                 revealed -> {
                     player.seekTo(0); player.start()
                     // revealSec 0 : tout l'extrait, le temps de chanter.
@@ -77,5 +81,62 @@ fun ExtraitMusical(q: Question, state: UiState.Playing) {
             }
             Unit
         }.onFailure { Log.w("Extrait", "Lecture impossible", it) }
+    }
+}
+
+/** Fondu enchaîné entre deux passages du refrain, en millisecondes. */
+private const val FONDU_REFRAIN_MS = 2_000L
+
+/**
+ * Blind test, révélation : le refrain (environ 90 s) joue plus fort que l'extrait et repart en boucle, avec un
+ * fondu enchaîné, jusqu'au « Titre suivant » de l'animatrice (le composant disparaît alors, la musique s'arrête).
+ * Deux lecteurs se relaient : le second démarre en fondu pendant que le premier s'éteint.
+ */
+@Composable
+fun RefrainEnBoucle(cle: String, path: String) {
+    val lecteurs = remember(cle, path) {
+        runCatching {
+            List(2) {
+                MediaPlayer().apply {
+                    setAudioAttributes(
+                        AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build(),
+                    )
+                    setDataSource(path)
+                    prepare()
+                }
+            }
+        }.onFailure { Log.w("Extrait", "Refrain illisible", it) }.getOrNull()
+    } ?: return
+    DisposableEffect(lecteurs) {
+        val volumes = lecteurs.map { boosterExtrait(it, GAIN_REFRAIN_MB) }
+        onDispose {
+            volumes.forEach { runCatching { it?.release() } }
+            lecteurs.forEach { runCatching { it.stop() }; runCatching { it.release() } }
+        }
+    }
+    LaunchedEffect(lecteurs) {
+        runCatching {
+            var i = 0
+            lecteurs[0].setVolume(1f, 1f)
+            lecteurs[0].start()
+            while (true) {
+                val actuel = lecteurs[i]
+                val suivant = lecteurs[1 - i]
+                val duree = actuel.duration.toLong().coerceAtLeast(FONDU_REFRAIN_MS * 3)
+                delay((duree - actuel.currentPosition - FONDU_REFRAIN_MS).coerceAtLeast(0))
+                suivant.seekTo(0)
+                suivant.setVolume(0f, 0f)
+                suivant.start()
+                val pas = 10
+                for (k in 1..pas) {
+                    delay(FONDU_REFRAIN_MS / pas)
+                    val v = k / pas.toFloat()
+                    suivant.setVolume(v, v)
+                    actuel.setVolume(1 - v, 1 - v)
+                }
+                if (actuel.isPlaying) actuel.pause()
+                i = 1 - i
+            }
+        }.onFailure { Log.w("Extrait", "Lecture du refrain impossible", it) }
     }
 }
