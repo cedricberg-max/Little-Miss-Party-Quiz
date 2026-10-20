@@ -67,7 +67,7 @@ class BlindTestTest {
     }
 
     @Test
-    fun `mauvaise réponse, la musique attend la relance, l'équipe ratée ne rebuzze pas, plusieurs erreurs sans points`() {
+    fun `mauvaise réponse, la musique attend la relance, l'équipe ratée attend 3 s, plusieurs erreurs sans points`() {
         val g = game()
         g.cmd("blind_play", t0 + 1_000)
         g.buzz("rose", t0 + 5_000)
@@ -81,7 +81,7 @@ class BlindTestTest {
         // La musique repart là où elle s'était arrêtée : 4 s jouées, 21 s restantes.
         assertEquals(t0 + 20_000 + 21_000, g.deadline())
         assertTrue(Codec.buzzKey(g) != key, "nouvelle clé : le buzz raté ne bloque pas les autres")
-        assertNull(g.buzz("rose", t0 + 21_000), "l'équipe qui s'est trompée attend son tour")
+        assertNull(g.buzz("rose", t0 + 21_000), "l'équipe qui s'est trompée attend 3 s après la reprise")
         g.buzz("bleu", t0 + 22_000)
         g.cmd("buzz_ko", t0 + 23_000)
         g.cmd("blind_play", t0 + 24_000)
@@ -94,6 +94,35 @@ class BlindTestTest {
         g.buzz("rose", t0 + 31_000)
         g.cmd("buzz_ok", t0 + 32_000)
         assertEquals(mapOf("rose" to 100), g.state.scores(), "aucun point pour les erreurs, la valeur du morceau à la fin")
+    }
+
+    @Test
+    fun `une équipe qui s'est trompée rebuzze 3 s après la reprise, plusieurs fois, compte à rebours compris`() {
+        val g = game()
+        g.cmd("blind_play", t0 + 1_000)
+        assertNull(Codec.publicState(g)["buzzBlocked"], "personne n'est bloqué")
+        g.buzz("rose", t0 + 5_000)
+        g.cmd("buzz_ko", t0 + 7_000)
+        assertNull(g.rebuzzAt(), "musique à l'arrêt : personne ne buzze")
+        assertEquals(mapOf("rose" to true), Codec.publicState(g)["buzzBlocked"], "les règles refusent tout buzz pendant l'attente")
+
+        g.cmd("blind_play", t0 + 20_000)
+        assertEquals(t0 + 23_000, g.rebuzzAt())
+        assertEquals(mapOf("rose" to t0 + 23_000), Codec.publicState(g)["buzzBlocked"], "heure de rebuzz publiée pour les règles et le pupitre")
+        assertNull(g.buzz("rose", t0 + 22_000), "trop tôt")
+        assertNotNull(g.buzz("rose", t0 + 23_100), "3 s après la reprise : elle retente")
+        g.cmd("buzz_ko", t0 + 24_000)
+        assertEquals(listOf("rose"), g.state.buzz!!.blocked, "une seule fois dans la liste, même après deux erreurs")
+
+        // Pause pendant la musique puis reprise avec 3, 2, 1 : les 3 s comptent après le décompte.
+        g.cmd("blind_play", t0 + 30_000)
+        g.pause(t0 + 31_000)
+        g.resume(t0 + 40_000, countdownMs = 3_000)
+        assertEquals(t0 + 46_000, g.rebuzzAt())
+        assertNull(g.buzz("rose", t0 + 44_000), "pendant les 3 s après le décompte")
+        g.buzz("rose", t0 + 46_500)
+        g.cmd("buzz_ok", t0 + 47_000)
+        assertEquals(mapOf("rose" to 100), g.state.scores(), "trouvé au 3e essai : la valeur du morceau, sans pénalité")
     }
 
     @Test
@@ -212,6 +241,14 @@ class BlindTestTest {
         assertNull(quiz.questions[1].artist)
         assertNull(quiz.questions[2].audioId, "une empreinte mal formée est ignorée, sans refuser la prestation")
         assertEquals(Scoring.BLIND_POINTS, quiz.questions[2].trackPoints)
+
+        // Révélation de 30 s, ou tout l'extrait (0) pour chanter le refrain ; au-delà de 60 s, ramenée à 60.
+        fun reveal(v: Int) = QuizJson.parse(
+            """{"id":"p","questions":[{"id":"b","text":"T ?","choices":["A"],"correct":0,"kind":"blind","audioId":"$audio","reveal":$v}]}""",
+        ).questions[0].revealSec
+        assertEquals(30, reveal(30))
+        assertEquals(0, reveal(0))
+        assertEquals(60, reveal(500))
     }
 
     @Test

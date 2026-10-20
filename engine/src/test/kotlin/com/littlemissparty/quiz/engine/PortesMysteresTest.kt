@@ -95,4 +95,39 @@ class PortesMysteresTest {
         val e = DoorOpened(7, t0, "p1")
         assertEquals(e, Codec.decode(Codec.encode(e)))
     }
+
+    @Test
+    fun `pas de chrono sur les portes, chacun prend son temps et l'animatrice ferme les choix`() {
+        val g = partie()
+        assertNull(g.deadline())
+        assertEquals(0L, g.remainingMs(t0 + 600_000))
+        assertNull(Codec.publicState(g)["deadline"])
+        assertNull(Codec.publicState(g)["remainingMs"])
+        assertEquals(Phase.QUESTION, g.state.phase, "rien ne se ferme tout seul")
+    }
+
+    @Test
+    fun `l'animatrice change ce qu'il y a derrière une porte avant l'ouverture, les points suivent`() {
+        val g = partie()
+        val seq = g.state.lastSeq
+        assertEquals(CommandStatus.REFUSED, g.execute(Command.PortesSet("a", seq, "q1", 1, 200), t0 + 6_000, setOf("licornes")).status, "autre jeu")
+        assertEquals(CommandStatus.APPLIED, g.execute(Command.PortesSet("b", seq, "p1", 1, 200), t0 + 6_000, setOf("licornes")).status)
+        assertEquals(listOf(150, 200, 300, 50), g.doorsOf(portes))
+        assertNull(g.setDoor(1, 200, t0 + 6_500), "même valeur : rien à changer")
+        assertNull(g.setDoor(9, 100, t0 + 6_500), "porte inconnue")
+        assertNull(g.setDoor(0, 5_000, t0 + 6_500), "valeur hors barème")
+        g.close(t0 + 10_000)
+        assertTrue(g.setDoor(2, -50, t0 + 10_500) != null, "encore possible choix fermés")
+        g.next(t0 + 11_000, mapOf("licornes" to Answer(1, t0 + 7_000), "dragons" to Answer(2, t0 + 7_500)))
+        val awards = g.state.awards.getValue("p1")
+        assertEquals(200, awards.getValue("licornes").points)
+        assertEquals(0, awards.getValue("dragons").points, "malus sur un score à 0")
+        assertNull(g.setDoor(0, 100, t0 + 12_000), "plus rien ne change une fois les portes révélées")
+        repeat(4) { g.next(t0 + 13_000L + it) }
+        @Suppress("UNCHECKED_CAST")
+        val valeurs = (Codec.publicState(g)["portes"] as Map<String, Any?>)["values"]
+        assertEquals(mapOf("0" to 150, "1" to 200, "2" to -50, "3" to 50), valeurs, "la TV montre les valeurs choisies")
+        val replay = Game(g.quiz, g.events.map { Codec.decode(Codec.encode(it))!! })
+        assertEquals(g.state.scores(), replay.state.scores(), "le journal garde les changements")
+    }
 }

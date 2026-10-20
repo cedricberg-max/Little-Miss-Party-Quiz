@@ -42,6 +42,7 @@ export function chatgptImagePrompt({ theme = "", age = "", count = 6 } = {}) {
     `Crée un quiz de ${count} questions ${sujet}, pour ${public_} qui ne savent pas encore bien lire.`,
     "Chaque question a 4 réponses en images : une image simple et colorée par réponse, sur fond blanc, format carré.",
     "Une seule bonne réponse, aucune question piège.",
+    "Pour chaque question, fais aussi une image de révélation qui montre la bonne réponse, nommée q<numéro>-revelation.png.",
     "Nomme chaque image q<numéro de la question>-<mot>.png (par exemple q1-lion.png), puis donne-moi toutes les images à télécharger.",
     "Donne aussi un fichier quiz.json exactement dans ce format, sans aucun autre texte :",
     "",
@@ -50,6 +51,7 @@ export function chatgptImagePrompt({ theme = "", age = "", count = 6 } = {}) {
     '  "questions": [',
     "    {",
     '      "text": "Quel animal court le plus vite ?",',
+    '      "illustration": "q1-revelation.png",',
     '      "choices": [',
     '        { "text": "Lion", "image": "q1-lion.png" },',
     '        { "text": "Baleine", "image": "q1-baleine.png" },',
@@ -126,9 +128,19 @@ function tryJson(text) {
         choices, correct: Number.isInteger(correct) ? correct : -1,
         duration: num(q.duration ?? q.duree ?? q.durée), double: q.double === true, marks: 0,
         ...(files.some(Boolean) ? { imageFiles: files } : {}),
+        ...(revealFile(q) ? { revealFile: revealFile(q) } : {}),
       });
     }),
   };
+}
+
+/**
+ * Image de révélation d'une question (montrée sur la TV avec la bonne réponse) : nom du fichier déposé avec le
+ * JSON, sous « illustration », « revelation » ou « image » quand c'est un nom de fichier (sinon c'est un émoji).
+ */
+function revealFile(q) {
+  const name = [q.illustration, q.revelation, q.révélation, q.reveal, q.image].find((x) => typeof x === "string" && /\.(png|jpe?g|webp|gif)$/i.test(x.trim()));
+  return name ? name.trim() : null;
 }
 
 // ---------- Tableur ----------
@@ -286,7 +298,7 @@ function finish(q) {
   // Le Juste Chiffre : aucune proposition et une réponse en nombre entier (« Réponse : 206 »).
   const target = !q.choices.length ? numberAnswer(q.answer) : null;
   if (target != null) return { text, choices: [], correct: target, kind: "number", duration: q.duration ?? null, double, marks: 0 };
-  return { text, choices: q.choices, correct, duration: q.duration ?? null, double, marks, ...(q.imageFiles ? { imageFiles: q.imageFiles } : {}) };
+  return { text, choices: q.choices, correct, duration: q.duration ?? null, double, marks, ...(q.imageFiles ? { imageFiles: q.imageFiles } : {}), ...(q.revealFile ? { revealFile: q.revealFile } : {}) };
 }
 
 /** « 206 », « 1 000 », « -5 » → nombre entier ; sinon null. */

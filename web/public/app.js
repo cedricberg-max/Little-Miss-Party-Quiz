@@ -39,6 +39,7 @@ let presenceRef = null;
 let chosenColor = TEAM_COLORS[0];
 let audio;
 let serverOffset = 0;
+let rebuzzHandle = null;
 let unsubscribers = [];
 let game = { state: null, teams: {}, myAnswer: null, connected: true };
 let answerUnsub = null;
@@ -395,10 +396,12 @@ function render() {
   document.documentElement.style.setProperty("--team", me.color);
   document.querySelectorAll(".team-label").forEach((e) => { e.textContent = me.name; });
   const st = game.state ?? { phase: "lobby" };
+  clearTimeout(rebuzzHandle);
   $("paused").hidden = !st.paused;
   runResumeCountdown(st);
   // Saut vers un autre jeu en plein Pictionary : l'ardoise, les mots et l'animation s'arrêtent.
   if (st.kind !== "pictionary" || !st.mime) stopPicto();
+  $("play-intro").hidden = true;
   switch (st.phase) {
     case "question":
     case "closed":
@@ -410,6 +413,9 @@ function render() {
     case "ended":
       stopPicto();
       return renderEnded(st);
+    case "intro":
+      stopPicto();
+      return renderIntro(st);
     default:
       return renderLobby(st);
   }
@@ -425,11 +431,24 @@ function renderLobby(st) {
   $("play-status").textContent = "En attendant le quiz : buzzez autant que vous voulez !";
 }
 
+/** Présentation d'un jeu sur la TV : pas de buzzer, l'animatrice explique les règles avant de lancer le jeu. */
+function renderIntro(st) {
+  show("play");
+  $("buzz").hidden = true;
+  // Le nom du jeu en grand, comme sur la TV ; les règles, c'est l'animatrice qui les donne.
+  $("play-intro-title").textContent = st.game?.title ?? "";
+  $("play-intro").hidden = !st.game?.title;
+  $("play-status").textContent = "Écoutez bien l'animatrice !";
+}
+
 function renderQuestion(st) {
   show("question");
   $("q-number").textContent = st.kind === "express" ? "Vrai ou Faux express !"
-    : st.kind === "zoom" ? "Zoom mystère : regardez la TV !" : st.kind === "portes" ? "Portes mystères !" : `Question ${(st.index ?? 0) + 1} / ${st.total ?? "?"}`;
+    : st.kind === "zoom" ? "Zoom mystère : regardez la TV !" : st.kind === "portes" ? "Portes mystères !"
+    // Box à jour : la position dans le jeu en cours (« Quiz · question 5 / 10 »), jamais dans toute la prestation.
+    : st.game?.label ?? `Question ${(st.index ?? 0) + 1}`;
   $("q-double").hidden = !st.double;
+  $("q-double").textContent = `Points ×${st.factor ?? 2}`;
   if (st.kind === "number") return renderNumber(st);
   $("choices").hidden = st.kind === "portes";
   $("portes-host").hidden = st.kind !== "portes";
@@ -555,7 +574,12 @@ function renderFlou(st) {
   const buzz = $("buzz");
   buzz.hidden = false;
   const b = st.buzz ?? {};
-  const blocked = (b.blocked ?? []).includes(teamId);
+  const tried = (b.blocked ?? []).includes(teamId);
+  // Blind test : une équipe qui s'est trompée peut rebuzzer sur le même morceau, 3 s après la reprise de la musique
+  // (petite marge pour que la base, à l'heure du serveur, l'accepte à coup sûr).
+  const rebuzzIn = tried && st.kind === "blind" && typeof b.rebuzzAt === "number" ? b.rebuzzAt + 300 - (Date.now() + serverOffset) : null;
+  if (rebuzzIn != null && rebuzzIn > 0) rebuzzHandle = setTimeout(render, rebuzzIn);
+  const blocked = tried && !(rebuzzIn != null && rebuzzIn <= 0);
   const open = st.phase === "question" && st.buzzOpen === true && !st.paused && !counting(st) && !b.team && !blocked;
   buzz.disabled = !open;
   buzz.classList.toggle("winner", b.team === teamId);
@@ -569,6 +593,9 @@ function renderFlou(st) {
   else if (st.kind === "blind" && st.blind?.waiting && !st.paused) $("play-status").textContent = blocked
     ? "Raté pour cette chanson… Les autres équipes vont tenter leur chance."
     : st.blind.played ? "Musique en pause… Préparez-vous, elle va repartir !" : "Prêts ? La musique va commencer, le doigt sur le buzzer !";
+  else if (rebuzzIn != null && !st.paused) $("play-status").textContent = blocked
+    ? "Raté… Écoutez bien : vous pourrez retenter votre chance dans un instant !"
+    : "Vous pouvez retenter votre chance : buzzez si vous avez trouvé !";
   else if (blocked) $("play-status").textContent = `Raté pour ${st.kind === "flou" ? "cette image" : chante ? "ce mot" : st.kind === "blind" ? "cette chanson" : st.kind === "disparu" ? "cette fois" : "ce personnage"}… Les autres équipes peuvent encore buzzer.`;
   else $("play-status").textContent = BUZZ_INVITE[st.kind] ?? BUZZ_INVITE.flou;
 }
@@ -699,9 +726,18 @@ function renderPick(m) {
   if (choixKey !== m.pickKey) {
     stopPick();
     choixKey = m.pickKey;
-    choix = choisirMot($("pick-host"), m.offer.map((c) => ({ mot: c.word, image: c.image ?? "✏️" })), {
+    // Photo du mot (préparée dans la Régie PC) quand elle est lue, sinon son émoji ; les cartes se redessinent à son arrivée.
+    choix = choisirMot($("pick-host"), m.offer.map((c) => ({ mot: c.word, image: choicePhotos.get(c.imageId) ?? c.image ?? "✏️" })), {
       surChoix: (i) => choosePicto(m.pickKey, i),
     });
+    const key = m.pickKey;
+    for (const id of m.offer.map((c) => c.imageId).filter((id) => IMAGE_ID.test(id ?? "") && !choicePhotos.has(id))) {
+      get(ref(db, `games/${code}/choiceImages/${id}`)).then((snap) => {
+        if (typeof snap.val() !== "string" || !snap.val().startsWith("data:image/")) return;
+        choicePhotos.set(id, snap.val());
+        if (choixKey === key && game.state?.mime?.chosen == null) { stopPick(); render(); }
+      }).catch((e) => console.warn("Photo du mot non lue", id, e));
+    }
   }
   $("pick-status").textContent = m.chosen != null
     ? `Tu vas dessiner « ${m.offer[m.chosen]?.word ?? ""} ». Garde le secret ! L'animatrice va masquer le mot, puis tu dessines.`
@@ -779,8 +815,11 @@ function runResumeCountdown(st) {
   const tick = () => {
     const ms = st.paused || st.resumeAt == null ? 0 : st.resumeAt - (Date.now() + serverOffset);
     box.hidden = ms <= 0;
-    if (ms > 0) $("resume-num").textContent = `${Math.min(9, Math.ceil(ms / 1000))}`;
-    else { clearInterval(countdownHandle); countdownHandle = null; if (st.phase === "question") render(); }
+    if (ms > 0) {
+      $("resume-num").textContent = `${Math.min(9, Math.ceil(ms / 1000))}`;
+      // Avant les dernières questions multipliées, la TV annonce « × N » : le décompte le dit aussi.
+      $("resume-text").textContent = st.intro != null && st.intro === st.resumeAt ? `Points ×${st.factor ?? 2} !` : "C'est reparti !";
+    } else { clearInterval(countdownHandle); countdownHandle = null; if (st.phase === "question") render(); }
   };
   const ms = st.paused || st.resumeAt == null ? 0 : st.resumeAt - (Date.now() + serverOffset);
   if (ms <= 0) { box.hidden = true; return; }
@@ -790,6 +829,12 @@ function runResumeCountdown(st) {
 
 function runTimer(st, el = $("q-timer")) {
   clearInterval(timerHandle);
+  // Pas de chrono (Portes mystères : chacun prend son temps) : rien à afficher.
+  if (st.phase === "question" && st.deadline == null && st.remainingMs == null) {
+    el.textContent = "";
+    el.classList.remove("urgent");
+    return;
+  }
   const tick = () => {
     let ms;
     if (st.phase !== "question") ms = 0;

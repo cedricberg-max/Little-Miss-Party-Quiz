@@ -105,10 +105,25 @@ class DirecteurSonore {
                 o += Ordre.Jouer(Son.WHOOSH)
                 o += Ordre.Musique(Ambiance.SALON)
             }
+            Ecran.PRESENTATION -> if (nouvelleEpreuve) {
+                // Présentation d'un jeu : le jingle du rideau, puis une musique douce sous la voix de Sarah.
+                o += Ordre.Jouer(Son.TRANSITION)
+                o += Ordre.Musique(Ambiance.SILENCE)
+                o += Ordre.Musique(Ambiance.PRESENTATION, Tempo.TRANSITION_MUSIQUE)
+            } else {
+                o += Ordre.Jouer(Son.WHOOSH)
+                o += Ordre.Musique(Ambiance.PRESENTATION)
+            }
             Ecran.QUESTION -> {
                 // Le Vrai ou Faux express garde sa musique nerveuse d'un bout à l'autre de la série.
                 val musique = ambiance(i)
-                if (i.musical) {
+                if (p.ecran == Ecran.PRESENTATION && !i.musical) {
+                    // Sarah lance le jeu présenté : le jingle d'ouverture de manche, puis la musique du jeu.
+                    o += Ordre.Jouer(Son.MANCHE)
+                    o += Ordre.Jouer(Son.IMPACT)
+                    o += Ordre.Musique(Ambiance.SILENCE)
+                    o += Ordre.Musique(musique, Tempo.QUESTION_MUSIQUE_APRES_MANCHE)
+                } else if (i.musical) {
                     // La chanson part dès l'ouverture : aucun jingle par-dessus (le rideau, lui, passe quand même).
                     o += Ordre.Musique(Ambiance.SILENCE)
                     // Blind test : son générique court à la présentation, un éclat de cuivres au passage en points doublés.
@@ -135,8 +150,8 @@ class DirecteurSonore {
                 }
                 // Zoom mystère : moteur d'objectif et déclic quand la photo apparaît.
                 if (i.zoom) o += Ordre.Jouer(Son.ZOOM_OUVERTURE, Tempo.PROPOSITIONS_DEBUT)
-                // Image floue : une longue montée accompagne la photo qui se précise.
-                if (i.flou) o += Ordre.Jouer(Son.FLOU_MONTEE, Tempo.PROPOSITIONS_DEBUT)
+                // Image floue et Zoom mystère : une longue montée accompagne la photo qui se précise (ou se dézoome).
+                if (i.flou || i.zoom) o += Ordre.Jouer(Son.FLOU_MONTEE, Tempo.PROPOSITIONS_DEBUT)
                 // Extrait musical (blind test, quiz musical) : le diamant se pose sur le disque quand la chanson part.
                 // Blind test : seulement quand la chanson part vraiment (pas pendant la présentation).
                 if (i.musical && (!i.blind || i.blindLecture)) o += Ordre.Jouer(Son.BT_DIAMANT)
@@ -249,8 +264,9 @@ class DirecteurSonore {
             }
             Ecran.FIN -> {
                 o += Ordre.Musique(Ambiance.SILENCE)
-                o += Ordre.Jouer(Son.ROULEMENT_LONG)
-                o += Ordre.Jouer(Son.MONTEE)
+                // Grand gagnant : long roulement qui monte pendant tout le suspense, la montée arrive sur la fin.
+                o += Ordre.Jouer(Son.ROULEMENT_FINAL)
+                o += Ordre.Jouer(Son.MONTEE, Tempo.FIN_VAINQUEUR - 2_000)
                 o += Ordre.Jouer(Son.IMPACT, Tempo.FIN_VAINQUEUR)
                 o += Ordre.Jouer(Son.FANFARE, Tempo.FIN_VAINQUEUR)
                 o += Ordre.Jouer(Son.APPLAUDISSEMENTS, Tempo.FIN_VAINQUEUR)
@@ -267,6 +283,11 @@ class DirecteurSonore {
         if (i.equipes > p.equipes) o += Ordre.Jouer(Son.equipe(i.equipes - 1))
         // Buzzer de l'accueil, pour s'amuser : chaque appui fait le bruit rigolo de l'équipe, autant de fois qu'elle veut.
         if (i.buzzs > p.buzzs && i.buzzeur >= 0) o += Ordre.Jouer(Son.rigolo(i.buzzeur))
+        // Bip, bip, bip : chacune des cinq dernières secondes du chrono, le dernier plus aigu. Jamais pendant qu'une
+        // équipe répond après un buzz (le chrono est figé), en express (trop court) ni quand tout le monde a répondu.
+        if ((i.ecran == Ecran.QUESTION || i.ecran == Ecran.MIMES_TOUR) && i.decompte in 1..5 && i.decompte != p.decompte &&
+            !i.enPause && !i.express && i.buzzEquipe < 0 && !tousOntRepondu(i)
+        ) o += Ordre.Jouer(if (i.decompte == 1) Son.BIP_FIN else Son.BIP)
         if (i.ecran == Ecran.QUESTION) {
             if (i.reponses > p.reponses) o += Ordre.Jouer(Son.REPONSE)
             // La tension des 5 dernières secondes s'arrête quand le temps repart ou que tout le monde a répondu.
@@ -338,8 +359,10 @@ class DirecteurSonore {
             o += Ordre.Jouer(Son.equipe(i.buzzEquipe), Tempo.FLOU_EQUIPE)
             if (!i.chante) o += Ordre.Jouer(Son.SUSPENSE_REPONSE, Tempo.FLOU_SUSPENSE)
         } else if (repart) {
-            // L'image (ou la chanson) reprend, avec sa musique.
+            // L'image (ou la chanson) reprend, avec sa musique ; Image floue : la montée dramatique repart là où le
+            // buzz l'avait figée, comme la photo.
             o += Ordre.Musique(ambiance(i), Tempo.FLOU_REPRISE)
+            if (i.flou) o += Ordre.Reprendre(Son.FLOU_MONTEE, Tempo.FLOU_REPRISE)
         }
         return o
     }
@@ -358,6 +381,10 @@ class DirecteurSonore {
             i.disparu == DISPARU_MEMORISER && i.ecran == Ecran.QUESTION -> Ambiance.MEMOIRE
             i.disparu == DISPARU_MAGIE && i.ecran == Ecran.QUESTION -> Ambiance.ENVOUTEMENT
             i.jeuBuzz && i.ecran == Ecran.QUESTION -> if (i.buzzEquipe >= 0) Ambiance.SILENCE else Ambiance.SUSPENSE
+            // Zoom mystère : musique en retrait sous la montée, comme l'Image floue.
+            i.zoom && i.ecran == Ecran.QUESTION -> Ambiance.SUSPENSE
+            // Dernières questions à points multipliés : la musique devient un peu plus pressante (pas angoissante).
+            i.superFinale && i.ecran == Ecran.QUESTION -> Ambiance.DECISIVE
             else -> ambianceParDefaut(i.ecran)
         }
         else -> ambianceParDefaut(i.ecran)
@@ -366,6 +393,7 @@ class DirecteurSonore {
     private fun ambianceParDefaut(e: Ecran) = when (e) {
         Ecran.HORS_PARTIE -> Ambiance.SILENCE
         Ecran.SALON -> Ambiance.SALON
+        Ecran.PRESENTATION -> Ambiance.PRESENTATION
         Ecran.QUESTION -> Ambiance.QUESTION
         Ecran.MIMES -> Ambiance.MIMES_ENTRE
         Ecran.MIMES_TOUR -> Ambiance.MIMES
@@ -388,6 +416,8 @@ data class Instant(
     val repriseDansMs: Long = 0,
     /** Fin du chrono : cinq dernières secondes d'une question, dix d'un tour de mimes. */
     val urgent: Boolean = false,
+    /** Secondes restantes au chrono pendant ses cinq dernières secondes (5, 4, 3, 2, 1) ; 0 sinon : un bip par seconde. */
+    val decompte: Int = 0,
     /** Place (0, 1, 2…) de la dernière équipe qui a buzzé à l'accueil, -1 si personne. */
     val buzzeur: Int = -1,
     /** Nombre d'appuis sur le buzzer de l'accueil depuis le début : un son par nouvel appui. */
@@ -449,7 +479,7 @@ const val DISPARU_CHERCHER = 3
 const val DISPARU_REPONSE = 4
 
 /** [MIMES] : manche de mimes entre deux tours ; [MIMES_TOUR] : une équipe mime. */
-enum class Ecran { HORS_PARTIE, SALON, QUESTION, MIMES, MIMES_TOUR, VERROUILLEE, REVELATION, CLASSEMENT, FIN }
+enum class Ecran { HORS_PARTIE, SALON, PRESENTATION, QUESTION, MIMES, MIMES_TOUR, VERROUILLEE, REVELATION, CLASSEMENT, FIN }
 
 /** Les boucles musicales de 16 s (8 mesures à 120 BPM), toujours calées sur le même tempo. */
 enum class Lit(val fichier: String) {
@@ -476,6 +506,8 @@ enum class Ambiance(
     SALON_ARRIVEE(complete = 0.85f),
     QUESTION(legere = 0.6f),
     SUSPENSE(legere = 0.25f),
+    /** Présentation d'un jeu : la musique du salon, assez bas pour que Sarah présente le jeu par-dessus. */
+    PRESENTATION(complete = 0.3f),
     FETE(complete = 0.8f),
     /** Tour de mimes : rythmique latine qui entraîne, sans couvrir les cris de ceux qui devinent. */
     MIMES(mimes = 0.6f),
@@ -485,6 +517,8 @@ enum class Ambiance(
     INTERMEDE(pause = 0.5f),
     /** Vrai ou Faux express : course contre la montre, sur toute la série. */
     EXPRESS(express = 0.5f),
+    /** Dernières questions du quiz à points multipliés : la rythmique nerveuse de l'express, un peu plus bas. */
+    DECISIVE(express = 0.4f),
     /** Qui a disparu ? : boîte à musique et harpe pendant qu'on mémorise les objets. */
     MEMOIRE(magie = 0.55f),
     /** Qui a disparu ? : le tour de magie, la boîte à musique s'efface sous l'« abracadabra ». */
@@ -504,6 +538,7 @@ enum class Ambiance(
 enum class Son(val fichier: String, val long: Boolean = false) {
     GENERIQUE("lmp_generique", true),
     TENSION("lmp_tension", true),
+    BIP("lmp_bip"), BIP_FIN("lmp_bip_fin"),
     MONTEE("lmp_riser_4b"),
     IMPACT("lmp_impact", true),
     MANCHE("lmp_round_sting"),
@@ -512,6 +547,7 @@ enum class Son(val fichier: String, val long: Boolean = false) {
     VERROU("lmp_lock_clac"),
     ROULEMENT_COURT("lmp_drumroll_2b"),
     ROULEMENT_LONG("lmp_drumroll_4b"),
+    ROULEMENT_FINAL("lmp_roulement_final", true),
     ETEINT("lmp_wrong_off"),
     BONNE_REPONSE("lmp_reveal_chime", true),
     TAMPON("lmp_stamp"),
@@ -579,6 +615,8 @@ sealed interface Ordre {
     /** Les boucles musicales repartent du début de leur première mesure (relais calé sur le générique). */
     data class Caler(val dansMs: Long = 0) : Ordre
     data class Arreter(val son: Son) : Ordre
+    /** Un son long mis en sourdine (par [Couper]) repart là où il s'était arrêté, en fondu. */
+    data class Reprendre(val son: Son, val dansMs: Long = 0) : Ordre
     /** Annule les sons prévus et fait taire les sons longs en cours (changement d'écran, pause). */
     data object Couper : Ordre
 
@@ -586,6 +624,7 @@ sealed interface Ordre {
         is Jouer -> copy(dansMs = dansMs + ms)
         is Musique -> copy(dansMs = dansMs + ms)
         is Caler -> copy(dansMs = dansMs + ms)
+        is Reprendre -> copy(dansMs = dansMs + ms)
         else -> this
     }
 }
@@ -616,9 +655,10 @@ object Tempo {
     const val REVELATION_POINTS = 3_000L
     const val CLASSEMENT_COMPTEUR = 300L
     const val CLASSEMENT_COURONNE = 1_800L
-    const val FIN_VAINQUEUR = 2_000L
-    const val FIN_JINGLE = 9_500L
-    const val FIN_MUSIQUE = 12_000L
+    /** Grand gagnant : 7 s de suspense (lmp_roulement_final), puis l'impact ; jingle et musique de fête ensuite. */
+    const val FIN_VAINQUEUR = 7_000L
+    const val FIN_JINGLE = 14_500L
+    const val FIN_MUSIQUE = 17_000L
     /** Coup de cuivres du « Top départ » des mimes, après les deux coups de sifflet. */
     const val MIME_TOP_IMPACT = 500L
     const val MIME_BILAN = 1_000L

@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -156,7 +157,7 @@ private fun Rideau(a: Annonce, fini: () -> Unit) {
             }
             Text(
                 a.titre,
-                style = TextStyle(
+                style = TextStyle(fontFamily = PoliceLmp,
                     brush = Brush.verticalGradient(listOf(Neon.OrClair, Neon.Or, Neon.OrProfond)),
                     fontSize = taille, lineHeight = taille * 1.1f, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                     shadow = Shadow(Neon.Or.copy(alpha = 0.6f), blurRadius = 30f),
@@ -175,51 +176,32 @@ private fun Rideau(a: Annonce, fini: () -> Unit) {
 }
 
 /**
- * Moitié du rideau : velours prune plissé, frange dorée en bas. Côté où les deux panneaux se rejoignent,
- * le velours s'assombrit en un pli d'ombre (et déborde un peu) : fermé, le rideau ne montre ni fente ni trait clair.
+ * Moitié du rideau : velours violet qui s'éclaircit vers le milieu, plis doux. Les deux panneaux se rejoignent
+ * sur le même violet opaque et se chevauchent un peu : fermé, le rideau ne montre ni fente ni trait clair
+ * (cedric, 19 octobre : l'ancien rideau, sans le raccord blanc).
  */
 @Composable
 internal fun Panneau(modifier: Modifier, bordADroite: Boolean) {
     Box(
         modifier.fillMaxHeight().drawWithCache {
             val w = size.width
-            val h = size.height
             val recouvre = 3.dp.toPx()
-            // Le panneau dessine un peu au-delà de la jonction pour que les deux velours se chevauchent.
             val gauche = if (bordADroite) 0f else -recouvre
             val large = w + recouvre
-            val velours = Brush.verticalGradient(listOf(Color(0xFF3A1060), Color(0xFF2A0B4A), Color(0xFF16062A)))
-            // Plis : bandes de lumière et d'ombre douces, plus serrées vers la jonction.
+            val milieu = lerp(Neon.Nuit, Neon.Violet, 0.95f)
+            // Le violet le plus clair forme un palier au milieu (pas une arête), pour que la jonction ne se voie pas.
+            val fond = if (bordADroite) {
+                Brush.horizontalGradient(0f to Neon.Nuit, 0.5f to Neon.Nuit2, 0.85f to milieu, 1f to milieu, startX = gauche, endX = gauche + large)
+            } else {
+                Brush.horizontalGradient(0f to milieu, 0.15f to milieu, 0.5f to Neon.Nuit2, 1f to Neon.Nuit, startX = gauche, endX = gauche + large)
+            }
             val plis = Brush.horizontalGradient(
-                List(15) { i -> if (i % 2 == 0) Color.White.copy(alpha = 0.07f) else Color.Black.copy(alpha = 0.28f) },
+                List(9) { i -> if (i % 2 == 0) Color.Transparent else Color.Black.copy(alpha = 0.18f) },
                 startX = gauche, endX = gauche + large,
             )
-            val ombreJonction = Brush.horizontalGradient(
-                if (bordADroite) listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)) else listOf(Color.Black.copy(alpha = 0.55f), Color.Transparent),
-                startX = if (bordADroite) w - 46.dp.toPx() else -recouvre,
-                endX = if (bordADroite) w + recouvre else 46.dp.toPx(),
-            )
-            val ombreBord = Brush.horizontalGradient(
-                if (bordADroite) listOf(Color.Black.copy(alpha = 0.45f), Color.Transparent) else listOf(Color.Transparent, Color.Black.copy(alpha = 0.45f)),
-                startX = if (bordADroite) 0f else w - 80.dp.toPx(),
-                endX = if (bordADroite) 80.dp.toPx() else w,
-            )
-            val hFrange = 34.dp.toPx()
-            val galon = Brush.verticalGradient(listOf(Neon.OrClair, Neon.OrProfond), h - hFrange - 8.dp.toPx(), h - hFrange)
-            val pas = 7.dp.toPx()
-            val franges = Brush.verticalGradient(listOf(Neon.Or, Neon.OrProfond.copy(alpha = 0.35f)), h - hFrange, h)
             onDrawBehind {
-                drawRect(velours, Offset(gauche, 0f), androidx.compose.ui.geometry.Size(large, h))
-                drawRect(plis, Offset(gauche, 0f), androidx.compose.ui.geometry.Size(large, h))
-                drawRect(ombreBord, Offset(0f, 0f), androidx.compose.ui.geometry.Size(w, h))
-                drawRect(ombreJonction, Offset(gauche, 0f), androidx.compose.ui.geometry.Size(large, h))
-                // Galon doré et frange en bas du rideau.
-                drawRect(galon, Offset(gauche, h - hFrange - 8.dp.toPx()), androidx.compose.ui.geometry.Size(large, 8.dp.toPx()))
-                var x = gauche + pas / 2
-                while (x < gauche + large) {
-                    drawLine(franges, Offset(x, h - hFrange), Offset(x, h - 4.dp.toPx()), 2.dp.toPx())
-                    x += pas
-                }
+                drawRect(fond, Offset(gauche, 0f), androidx.compose.ui.geometry.Size(large, size.height))
+                drawRect(plis, Offset(gauche, 0f), androidx.compose.ui.geometry.Size(large, size.height))
             }
         },
     )

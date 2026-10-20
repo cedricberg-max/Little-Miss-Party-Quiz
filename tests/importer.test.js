@@ -3,11 +3,13 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { parseQuiz, checkQuestions, geminiPrompt, resolveCorrect, chatgptImagePrompt, imageKey, wordFromImage } from "../web/public/importer.js";
 import { MIME_CATALOG } from "../web/public/mime-cards.js";
-import { activeItems, buildSnapshot, estimateMinutes, roundFilled,
+import { DISPARU_THEMES } from "../web/public/buzz-cards.js";
+import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, roundFilled,
   readiness, upcoming, daysUntil, isoDay, duplicateShow, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
-  soundIds, choiceImageIds, choiceImageList,
+  soundIds, choiceImageIds, choiceImageList, pictoSeriesList, pictoSeriesOf, foldLegacyFinale,
 } from "../web/public/show.js";
-import { guessTrack, defaultStart } from "../web/public/audio.js";
+import { PICTO_WORDS, PICTO_SERIES } from "../web/public/picto-cards.js";
+import { guessTrack, defaultStart, normalizeLevel } from "../web/public/audio.js";
 import { FULL_SHOW, FULL_TUNES, tunePlaylist } from "../web/public/test-show.js";
 
 const GEMINI = `Titre : Les animaux de la jungle
@@ -157,13 +159,28 @@ Réponse : B`);
   });
 });
 
+describe("Super Finale", () => {
+  test("une ancienne manche « Super Finale » devient le réglage ×2 du quiz qui la précède, jamais une manche à part", () => {
+    const old = [{ type: "quiz", quizId: "a" }, { type: "chante", count: 3 }, { type: "finale", quizId: "f" }, { type: "portes", doors: 4 }];
+    assert.deepEqual(foldLegacyFinale(old), { rounds: [{ type: "quiz", quizId: "a", finale: 3 }, { type: "chante", count: 3 }, { type: "portes", doors: 4 }], folded: 1 });
+    assert.equal(old[0].finale, undefined, "l'original n'est pas modifié");
+    // Un réglage déjà choisi est gardé ; sans quiz avant elle, elle devient une manche Quiz ordinaire.
+    assert.deepEqual(foldLegacyFinale([{ type: "quiz", quizId: "a", finale: 2 }, { type: "finale", quizId: "f" }]).rounds, [{ type: "quiz", quizId: "a", finale: 2 }]);
+    assert.deepEqual(foldLegacyFinale([{ type: "finale", quizId: "f" }]).rounds, [{ type: "quiz", quizId: "f", finale: 3 }]);
+    assert.deepEqual(foldLegacyFinale([{ type: "mimes", deckId: "d" }, null]), { rounds: [{ type: "mimes", deckId: "d" }], folded: 0 });
+  });
+});
+
 describe("quiz en images (ChatGPT)", () => {
   const LION = "0123456789abcdef", CHIEN = "fedcba9876543210";
   test("JSON de ChatGPT : chaque réponse garde son texte et le nom de son image ; sans texte, le mot vient du nom", () => {
     const { questions } = parseQuiz("```json\n" + JSON.stringify({ title: "Petits", questions: [
-      { text: "Qui court vite ?", choices: [{ text: "Lion", image: "q1-lion.png" }, { image: "q1-baleine.png" }, "Chien", { text: "Vache", image: "images/Q1-Vache.PNG" }], correct: 0 },
-      { text: "Capitale ?", choices: ["Paris", "Rome"], correct: 0 },
+      { text: "Qui court vite ?", illustration: "q1-revelation.png", choices: [{ text: "Lion", image: "q1-lion.png" }, { image: "q1-baleine.png" }, "Chien", { text: "Vache", image: "images/Q1-Vache.PNG" }], correct: 0 },
+      { text: "Capitale ?", image: "🗼", choices: ["Paris", "Rome"], correct: 0 },
     ] }) + "\n```");
+    // Image de révélation par question ; un émoji sous « image » n'est pas un fichier.
+    assert.equal(questions[0].revealFile, "q1-revelation.png");
+    assert.equal(questions[1].revealFile, undefined);
     assert.deepEqual(questions[0].choices, ["Lion", "Baleine", "Chien", "Vache"]);
     assert.deepEqual(questions[0].imageFiles, ["q1-lion.png", "q1-baleine.png", null, "images/Q1-Vache.PNG"]);
     assert.equal(questions[1].imageFiles, undefined, "question en texte");
@@ -173,6 +190,7 @@ describe("quiz en images (ChatGPT)", () => {
     assert.deepEqual(report[0].errors, []);
     assert.match(report[0].warnings.join(" "), /introuvable.*q1-vache\.png/);
     assert.match(chatgptImagePrompt({ theme: "les animaux", count: 5 }), /5 questions sur le thème « les animaux ».*\n[\s\S]*"image": "q1-lion\.png"/);
+    assert.match(chatgptImagePrompt({}), /"illustration": "q1-revelation\.png"/);
   });
   test("prestation : les photos suivent leurs réponses, seulement pour un quiz à propositions", () => {
     const quiz = { title: "Petits", questions: [
@@ -185,6 +203,7 @@ describe("quiz en images (ChatGPT)", () => {
     assert.deepEqual(a.choiceImages, [LION, "", CHIEN]);
     assert.equal(b.choiceImages, undefined);
     assert.deepEqual(choiceImageIds(snapshot.quiz.questions), [LION, CHIEN]);
+    assert.equal(snapshot.quiz.intros, true, "chaque jeu de la prestation s'ouvre sur son écran de présentation");
     assert.deepEqual(choiceImageList({ choices: ["a", "b"], choiceImages: [null, "../x"] }), [], "aucune photo valable : texte");
   });
 });
@@ -526,6 +545,9 @@ describe("blind test et quiz musical", () => {
     const custom = run({ title: "Tubes", duration: 25, tracks, points: 50, finalPoints: 500, finalCount: 1, reveal: 10 });
     assert.deepEqual(custom.map((q) => q.points), [50, 150, 50, 50, 50, 500]);
     assert.ok(custom.every((q) => q.reveal === 10));
+    // Révélation longue, ou tout l'extrait (0) pour chanter le refrain.
+    assert.ok(run({ title: "Tubes", duration: 25, tracks, reveal: 30 }).every((q) => q.reveal === 30));
+    assert.ok(run({ title: "Tubes", duration: 25, tracks, reveal: 0 }).every((q) => q.reveal === 0));
     // Barème abîmé : les valeurs par défaut.
     assert.deepEqual(run({ title: "Tubes", duration: 25, tracks, points: -3, finalCount: 99 }).map((q) => q.points), [100, 150, 100, 200, 200, 200]);
   });
@@ -547,6 +569,24 @@ describe("blind test et quiz musical", () => {
     assert.equal(defaultStart(210, 25), 45);
     assert.equal(defaultStart(60, 25), 20);
     assert.equal(defaultStart(20, 25), 0);
+  });
+  test("chaque extrait est mis au même niveau sonore, sans jamais dépasser la pleine échelle", () => {
+    const sine = (amp) => Float32Array.from({ length: 44_100 }, (_, i) => amp * Math.sin(i / 7));
+    const rms = (a) => Math.sqrt(a.reduce((s, x) => s + x * x, 0) / a.length);
+    const calme = sine(0.1), fort = sine(0.45);
+    assert.ok(normalizeLevel(calme) > 1);
+    assert.ok(normalizeLevel(fort) < 1);
+    for (const a of [calme, fort]) {
+      assert.ok(Math.abs(rms(a) - 0.2) < 0.03, `niveau ${rms(a)}`);
+      assert.ok(a.every((x) => Math.abs(x) < 1));
+    }
+    // Un pic isolé dans un morceau très calme : le gain s'arrête avant d'écrêter, le pic est adouci.
+    const pic = sine(0.02); pic[100] = 0.9;
+    normalizeLevel(pic);
+    assert.ok(pic.every((x) => Math.abs(x) < 1));
+    const silence = new Float32Array(1000);
+    assert.equal(normalizeLevel(silence), 1);
+    assert.ok(silence.every((x) => x === 0));
   });
   test("la prestation de test « tous les jeux » a un blind test et un quiz musical de comptines du domaine public", () => {
     const pl = tunePlaylist(FULL_TUNES.map((_, i) => ID(i)));
@@ -647,6 +687,49 @@ describe("Régie PC : contenus intégrés réglés, nombre de questions, notes",
     const only = { chante: { off: activeItems("chante", {}).map((w) => w.word.toLowerCase()), extra: [{ word: "arc-en-ciel" }] } };
     const { snapshot } = buildSnapshot("s", { age: 9, rounds: [{ type: "chante", count: 6 }] }, {}, {}, Math.random, {}, only);
     assert.deepEqual(snapshot.quiz.questions.map((q) => q.text), ["arc-en-ciel"]);
+  });
+
+  test("Qui suis-je ? : l'image d'un personnage préparée dans l'administration part avec la question", () => {
+    const contents = { quisuis: { off: activeItems("quisuis", {}).map((p) => p.answer.toLowerCase()), extra: [{ answer: "Le koala", clues: ["Eucalyptus", "Australie"] }], images: { "le koala": "0123456789abcdef", autre: "pas-un-id" } } };
+    const { snapshot } = buildSnapshot("s", { age: 9, rounds: [{ type: "quisuis" }] }, {}, {}, Math.random, {}, contents);
+    assert.equal(snapshot.quiz.questions[0].imageId, "0123456789abcdef");
+    assert.equal(snapshot.quiz.questions[0].choices[0], "Le koala");
+  });
+
+  test("Qui a disparu ? : objets par grille réglés sur la manche, et jamais deux fois la même famille", () => {
+    const { snapshot } = buildSnapshot("s", { age: 7, rounds: [{ type: "disparu", count: 4, objects: 11 }, { type: "disparu", count: 4 }] }, {});
+    const grids = snapshot.quiz.questions.filter((q) => q.kind === "disparu");
+    assert.equal(grids.length, 8);
+    assert.ok(grids.slice(0, 4).every((q) => q.cards.length === 11), "11 objets demandés sur la première manche");
+    assert.ok(grids.slice(4).every((q) => q.cards.length === 5), "la seconde suit l'âge (6-8 ans : 5)");
+    const family = (q) => DISPARU_THEMES.find((t) => q.cards.every((c) => t.objects.some((o) => o.word === c.word))).theme;
+    assert.equal(new Set(grids.map(family)).size, 8, "8 familles différentes sur les deux manches");
+    assert.equal(disparuObjects({ objects: 40 }, "MOYENS"), 7);
+  });
+
+  test("Pictionary : mots rangés en séries, la manche garde seulement les séries choisies", () => {
+    assert.ok(PICTO_WORDS.every((w) => PICTO_SERIES.includes(w.series)), "chaque mot intégré a sa série");
+    assert.ok(PICTO_SERIES.length >= 5);
+    const contents = { pictionary: { extra: [{ word: "Toboggan", image: "🛝", series: "Au parc" }, { word: "Doudou" }] } };
+    assert.deepEqual(pictoSeriesList(activeItems("pictionary", contents.pictionary)).slice(-2), ["Au parc", "Mes mots"]);
+    const deck = (series) => buildSnapshot("s", { age: 9, rounds: [{ type: "pictionary", series }] }, {}, {}, Math.random, {}, contents);
+    const animaux = deck(["Animaux", "Au parc"]).snapshot.quiz.questions[0].cards.map((c) => c.word);
+    const attendus = [...PICTO_WORDS.filter((w) => w.series === "Animaux").map((w) => w.word), "Toboggan"];
+    assert.deepEqual([...animaux].sort(), attendus.sort(), "Animaux et la série ajoutée, rien d'autre");
+    assert.equal(deck(null).snapshot.quiz.questions[0].cards.length, PICTO_WORDS.length + 2, "aucune série choisie : toutes");
+    assert.equal(pictoSeriesOf({ word: "X" }), "Mes mots");
+    const vide = deck(["Série effacée"]);
+    assert.equal(vide.snapshot, null);
+    assert.match(vide.problems[0], /aucun mot actif dans les séries choisies/);
+  });
+
+  test("Pictionary : la vraie photo d'un mot part avec sa carte et se copie avec les réponses en images", () => {
+    const contents = { pictionary: { extra: [{ word: "Toboggan", image: "🛝" }], images: { toboggan: "0123456789abcdef", chat: "pas-une-photo" } } };
+    const { snapshot } = buildSnapshot("s", { age: 9, rounds: [{ type: "pictionary" }] }, {}, {}, Math.random, {}, contents);
+    const cards = snapshot.quiz.questions[0].cards;
+    assert.deepEqual(cards.find((c) => c.word === "Toboggan"), { word: "Toboggan", image: "🛝", imageId: "0123456789abcdef" });
+    assert.equal(cards.find((c) => c.word === "Chat")?.imageId, undefined, "une photo mal formée est ignorée");
+    assert.deepEqual(choiceImageIds(snapshot.quiz.questions), ["0123456789abcdef"]);
   });
 
   test("tout retiré : la manche est signalée, jamais jouée vide", () => {

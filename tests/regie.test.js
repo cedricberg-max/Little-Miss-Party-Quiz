@@ -129,7 +129,7 @@ function startBox({ silent = false, held = false } = {}) {
         const m = state.mime;
         if (cmd.type === "goto") {
           // Saut de la régie (secours) : même vérification du programme que Command.Goto.
-          const plan = (await get(ref(db, `games/${CODE}/conducteur`))).val();
+          const plan = (await read("conducteur")) ?? { questions: [] };
           const q = plan?.questions?.[cmd.index];
           if (!q || q.id !== cmd.qid) status = { status: "refused", reason: "stale_program" };
           else {
@@ -166,6 +166,11 @@ function startBox({ silent = false, held = false } = {}) {
         else if (cmd.type === "next" && state.paused) status = { status: "refused", reason: "paused" };
         else if (cmd.type === "adjust") state = { ...state, seq, scores: { ...state.scores, [cmd.team]: (state.scores[cmd.team] ?? 0) + cmd.delta } };
         else if (cmd.type === "undo") state = { ...state, seq };
+        else if (cmd.type === "factor") {
+          // Dernières questions du quiz : même règle que Command.Factor (entre deux questions seulement).
+          if (!state.factorChoice) status = { status: "refused", reason: "not_now" };
+          else state = { ...state, seq, factorChoice: { ...state.factorChoice, factor: cmd.factor } };
+        }
         else if (cmd.type === "end") state = { ...state, seq, phase: "ended" };
         else state = { ...state, seq };
         if (status.status === "applied") status.seq = seq;
@@ -273,7 +278,7 @@ function startBox({ silent = false, held = false } = {}) {
     const show = s.val();
     if (!show || show.id === judgedShow) return;
     judgedShow = show.id;
-    const plan = (await get(ref(db, `games/${CODE}/conducteur`))).val();
+    const plan = (await read("conducteur")) ?? { questions: [] };
     if (show.base == null) {
       await update(ref(db, `games/${CODE}`), {
         showStatus: { id: show.id, status: "applied", at: Date.now() },
@@ -759,12 +764,13 @@ describe("régie", () => {
     await page.click("#blind-ko");
     await waitFor(async () => (await commands()).includes("buzz_ko"), "mauvaise réponse envoyée");
 
-    // Musique arrêtée après l'erreur : relancer pour les autres, ou réautoriser tout le monde, ou passer.
+    // Musique arrêtée après l'erreur : relancer (l'équipe ratée rebuzzera 3 s après, ou tout de suite), révéler ou passer.
     await box.set({ ...(await read("state")), buzz: { team: null, blocked: ["rose"] }, blind: blindState({ played: true }) });
-    await page.locator("#blind-info", { hasText: "Pas trouvé (Les Roses). Relancez la musique pour les autres équipes." }).waitFor();
+    await page.locator("#blind-info", { hasText: "Pas trouvé (Les Roses). Relancez la musique : les autres buzzent tout de suite, Les Roses 3 s après." }).waitFor();
     await page.locator("#c-next", { hasText: "Relancer la musique" }).waitFor();
-    await page.click("#blind-unblock");
-    await waitFor(async () => (await commands()).includes("blind_unblock"), "réautorisation envoyée");
+    // L'équipe ratée rebuzze 3 s après la reprise ; l'animatrice peut lever cette attente.
+    await page.locator("#blind-unblock", { hasText: "Laisser rebuzzer tout de suite" }).click();
+    await waitFor(async () => (await commands()).includes("blind_unblock"), "rebuzz immédiat envoyé");
     await page.click("#blind-skip");
     assert.match(await respond(page), /Passer ce morceau/);
     await waitFor(async () => (await commands()).includes("blind_skip"), "passer le morceau envoyé");
@@ -983,7 +989,7 @@ describe("régie", () => {
     await page.locator("#c-hold", { hasText: "chrono, réponses et scores sont figés" }).waitFor();
     await page.locator("#c-hold", { hasText: "Toutes les équipes sont connectées" }).waitFor();
     assert.equal(await page.locator("#c-next").isDisabled(), true, "Suivant bloqué pendant la pause");
-    assert.equal(await page.textContent("#c-timer"), "15", "Chrono figé");
+    assert.equal(await page.textContent("#c-timer"), "⏱ 15 s", "Chrono figé");
 
     await page.locator("#c-pause", { hasText: "Reprendre (3, 2, 1)" }).click();
     await page.locator("#c-hold").waitFor({ state: "hidden" });
@@ -1201,6 +1207,71 @@ describe("régie", () => {
     await pair(page);
     await page.click("#tab-plan");
     await page.locator(".plan-item", { hasText: "Le soleil est une étoile" }).locator("b", { hasText: "A · Vrai" }).waitFor();
+    await page.context().close();
+  });
+
+  test("juste avant les dernières questions du quiz, l'animatrice choisit ×2, ×3 ou ×5", async () => {
+    box = startBox();
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    assert.equal(await page.locator("#c-factor").isHidden(), true);
+    await box.set({ ...questionState(1), phase: "scores", factorChoice: { start: 1, factor: 2 } });
+    await page.locator("#c-factor:not([hidden])", { hasText: "combien de points" }).waitFor();
+    await page.locator("#c-factor [data-factor='2'].on").waitFor();
+    await page.click("#c-factor [data-factor='3']");
+    await waitFor(async () => (await commands()).find((c) => c.type === "factor" && c.factor === 3), "commande ×3");
+    await page.locator("#c-factor [data-factor='3'].on").waitFor();
+    // Question multipliée lancée : plus de choix, la régie affiche la valeur.
+    await box.set({ ...questionState(box.state.seq + 1, 1), double: true, factor: 3, factorChoice: null, game: { label: "Quiz · question 2 / 2" } });
+    await page.locator("#c-step", { hasText: "Quiz · question 2 / 2 · ×3" }).waitFor();
+    assert.equal(await page.locator("#c-factor").isHidden(), true);
+    await page.context().close();
+  });
+
+  test("Portes mystères : l'animatrice change ce qu'il y a derrière une porte avant l'ouverture, sans chrono", async () => {
+    box = startBox();
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    const plan = (await read("conducteur")) ?? { questions: [] };
+    const portes = { id: "p1", text: "Portes mystères", kind: "portes", choices: ["Porte 1", "Porte 2", "Porte 3"], correct: -1, doors: [300, -150, 50], round: "Portes mystères" };
+    await set(gameRef("conducteur"), { ...plan, portesSet: true, questions: [...plan.questions, portes] });
+    await box.set({ ...questionState(box.state.seq + 1, 0), index: 2, qid: "p1", kind: "portes", text: "Portes mystères", choices: portes.choices, deadline: null, total: 3 });
+    await page.locator("#c-doors:not([hidden])").waitFor();
+    // Replié : les enfants qui regardent le téléphone ne voient pas les valeurs.
+    assert.equal(await page.locator("#c-doors-list select").first().isVisible(), false);
+    await page.click("#c-doors summary");
+    assert.equal(await page.locator("#c-doors-list select").count(), 3);
+    assert.equal(await page.locator("#c-doors-list select").nth(1).inputValue(), "-150");
+    await page.locator("#c-doors-list select").nth(1).selectOption("200");
+    await waitFor(async () => (await commands()).find((c) => c.type === "portes_set" && c.qid === "p1" && c.door === 1 && c.value === 200), "commande portes_set");
+    // La box publie la nouvelle valeur : la régie l'affiche.
+    await set(gameRef("conducteur/doorValues/p1"), [300, 200, 50]);
+    await page.locator("#c-answer", { hasText: "2 : +200" }).waitFor();
+    // Pas de chrono pour les portes.
+    assert.equal(await page.locator("#c-timer").isVisible(), false);
+    // Portes ouvertes : plus de changement possible.
+    await box.set({ ...box.state, seq: box.state.seq + 1, phase: "reveal", portes: { count: 3, order: [0, 1, 2], opened: 0, values: {} } });
+    await page.locator("#c-doors[hidden]").waitFor({ state: "attached" });
+    await page.context().close();
+  });
+
+  test("présentation d'un jeu : la régie propose « ▶ Lancer l'épreuve » et c'est elle qui lance le jeu", async () => {
+    box = startBox();
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    const { text, choices, ...ouverte } = questionState(box.state.seq + 1, 0);
+    await box.set({ ...ouverte, phase: "intro", deadline: null, game: { title: "Image floue", n: 1, of: 3, label: "Image floue · 1 / 3" } });
+    await page.locator("#c-next", { hasText: "▶ Lancer l'épreuve" }).waitFor();
+    assert.equal(await page.textContent("#c-step"), "Image floue");
+    assert.match(await page.textContent("#c-question"), /Expliquez les règles, puis lancez l'épreuve/);
+    assert.equal(await page.locator("#c-answer").isVisible(), false, "pas de réponse affichée pendant la présentation");
+    assert.equal(await page.textContent("#c-phase"), "Présentation du jeu");
+    await page.click("#c-next");
+    await waitFor(async () => (await commands()).some((c) => c.type === "next"), "lancement envoyé");
+    assert.equal((await commands()).filter((c) => c.type === "close").length, 0, "jamais « Arrêter le chrono » pendant la présentation");
     await page.context().close();
   });
 
@@ -1546,6 +1617,23 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.fill("#bi-clue2", "Je ressemble à un petit ours gris");
     await page.click("#builtin-add button[type=submit]");
     await page.locator("#builtin-status", { hasText: "« Le koala » est ajouté au jeu." }).waitFor();
+    // Ni émoji ni image : un repère discret, jamais bloquant ; une image (ChatGPT) le remplace.
+    const koala = page.locator('#builtin-items .content-item[data-key="le koala"]');
+    await koala.locator(".tag.missing", { hasText: "image ou émoji manquant" }).waitFor();
+    await koala.locator(".choice-photo input[type=file]").setInputFiles({ name: "koala.png", mimeType: "image/png", buffer: png([120, 120, 130]) });
+    await page.locator("#builtin-status", { hasText: "Image de « Le koala » enregistrée." }).waitFor();
+    await koala.locator(".choice-thumb:not([hidden])").waitFor();
+    assert.equal(await koala.locator(".tag.missing").count(), 0);
+    const portrait = (await library("contents")).quisuis.images["le koala"];
+    assert.match(portrait, /^[0-9a-f]{16}$/);
+    assert.equal(typeof (await library(`images/${portrait}`)), "string");
+    // Pictionary : un mot à soi s'enregistre comme pour les autres jeux.
+    await page.click("#nav button[data-screen=games]");
+    await page.locator('.game-card[data-game=pictionary] button').first().click();
+    await page.fill("#bi-word", "Toboggan");
+    await page.click("#builtin-add button[type=submit]");
+    await page.locator("#builtin-status", { hasText: "« Toboggan » est ajouté au jeu." }).waitFor();
+    assert.deepEqual((await library("contents")).pictionary.extra, [{ word: "Toboggan" }]);
     await page.click("#nav button[data-screen=games]");
     await page.locator('.game-card[data-game=chante]', { hasText: "dont 1 ajouté · 1 retiré" }).waitFor();
 
@@ -1580,6 +1668,47 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.ok(!show.quiz.questions.some((q) => q.text === "soleil"), "Un mot retiré ne sort plus");
     await regie.locator("#c-notes:not([hidden])", { hasText: "Léa adore les licornes." }).waitFor();
     await regie.context().close();
+  });
+
+  test("Régie PC : Pictionary rangé en séries, un mot à soi dans sa série, une manche choisit ses séries ou les tire au hasard", async () => {
+    const page = await admin();
+    await page.click("#nav button[data-screen=games]");
+    await page.locator('.game-card[data-game=pictionary] button').first().click();
+    await page.locator("#builtin-items h3.content-series", { hasText: "Animaux" }).waitFor();
+    await page.locator("#builtin-items h3.content-series", { hasText: "À manger" }).waitFor();
+    await page.fill("#bi-word", "Toboggan");
+    await page.fill("#bi-series", "Au parc");
+    await page.click("#builtin-add button[type=submit]");
+    await page.locator("#builtin-status", { hasText: "« Toboggan » est ajouté au jeu." }).waitFor();
+    await page.locator("#builtin-items h3.content-series", { hasText: "Au parc" }).waitFor();
+    assert.deepEqual((await library("contents")).pictionary.extra, [{ word: "Toboggan", series: "Au parc" }]);
+    // Une vraie photo pour un mot : elle remplace l'émoji sur la tablette du dessinateur et sur la TV.
+    const toboggan = page.locator('#builtin-items .content-item[data-key="toboggan"]');
+    await toboggan.locator(".choice-photo input[type=file]").setInputFiles({ name: "toboggan.png", mimeType: "image/png", buffer: png([200, 120, 40]) });
+    await page.locator("#builtin-status", { hasText: "Image de « Toboggan » enregistrée." }).waitFor();
+    await toboggan.locator(".choice-thumb:not([hidden])").waitFor();
+    assert.match((await library("contents")).pictionary.images.toboggan, /^[0-9a-f]{16}$/);
+
+    await page.click("#nav button[data-screen=home]");
+    await page.click("#home-new");
+    await page.fill("#show-child", "Léa");
+    await page.fill("#show-age", "9");
+    await page.click("#round-add");
+    await page.locator("#show-rounds .round").nth(0).locator("select").first().selectOption("pictionary");
+    const picker = page.locator("#show-rounds .picto-series");
+    await picker.locator("span", { hasText: "Toutes les séries : 77 mots" }).waitFor();
+    await picker.locator("button", { hasText: "🎲 Au hasard" }).click();
+    assert.equal(await picker.locator("button.chip.active").count(), 3);
+    await picker.locator("button", { hasText: "Toutes" }).click();
+    assert.equal(await picker.locator("button.chip.active").count(), 0);
+    await picker.locator("button", { hasText: "Animaux (18)" }).click();
+    await picker.locator("button", { hasText: "Au parc (1)" }).click();
+    await picker.locator("span", { hasText: "Séries : 19 mots" }).waitFor();
+    await page.selectOption("#show-status", "publiee");
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
+    assert.deepEqual(Object.values(await library("shows"))[0].rounds, [{ type: "pictionary", duration: 90, series: ["Animaux", "Au parc"] }]);
+    await page.context().close();
   });
 
   test("Sarah compose un paquet de mimes, l'ajoute à une prestation ; la régie le charge ou l'ajoute en direct", async () => {
@@ -1874,14 +2003,16 @@ describe("bibliothèque de quiz et prestations", () => {
     const page = await admin();
     await page.click("#home-new");
     await page.fill("#show-child", "Zoé");
-    await page.locator('#round-reuse option[value="lea/1"]', { hasText: "Super Finale : Finale" }).waitFor({ state: "attached" });
-    await page.selectOption("#round-reuse", "lea/1");
-    assert.equal(await page.locator("#show-rounds select.grow").inputValue(), "finale");
-    assert.equal(await page.locator("#show-rounds select").first().inputValue(), "finale");
+    await page.locator('#round-reuse option[value="lea/0"]').waitFor({ state: "attached" });
+    // L'ancienne manche « Super Finale » n'est pas un jeu : elle ne se reprend pas.
+    assert.equal(await page.locator('#round-reuse option[value="lea/1"]').count(), 0);
+    assert.equal(await page.locator("#round-reuse option", { hasText: "Super Finale" }).count(), 0);
+    await page.selectOption("#round-reuse", "lea/0");
+    assert.equal(await page.locator("#show-rounds select.grow").inputValue(), "animaux");
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "Enregistrée." }).waitFor();
     const shows = await library("shows");
-    assert.deepEqual(Object.values(shows).find((s) => s.childName === "Zoé").rounds, [{ type: "finale", quizId: "finale" }]);
+    assert.deepEqual(Object.values(shows).find((s) => s.childName === "Zoé").rounds, [{ type: "quiz", quizId: "animaux" }]);
     assert.deepEqual(shows.lea, LEA, "Ancienne prestation inchangée");
 
     // Dupliquer un quiz : la copie se modifie et s'enregistre à part.
@@ -1897,6 +2028,22 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(quizzes.animaux.questions[0].text, "Roi de la jungle ?", "Quiz d'origine inchangé");
     const copy = Object.values(quizzes).find((q) => q.title === "Animaux (copie)");
     assert.equal(copy.questions[0].text, "Qui est le roi de la savane ?");
+    await page.context().close();
+  });
+
+  test("Régie PC : une ancienne manche « Super Finale » n'est plus un jeu, elle devient les 3 dernières questions ×2 du quiz", async () => {
+    await seedLibrary("quizzes", { animaux: ANIMAUX, finale: FINALE });
+    await seedLibrary("shows", { vieille: { childName: "Léa", age: 7, date: "2099-12-02", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }, { type: "finale", quizId: "finale" }], updatedAt: 1 } });
+    const page = await admin();
+    await page.locator('#home-upcoming [data-show="vieille"]').getByRole("button", { name: "Ouvrir" }).click();
+    await page.locator("#show-status-msg", { hasText: "L'ancienne manche « Super Finale » est devenue le réglage du quiz" }).waitFor();
+    assert.equal(await page.locator("#show-rounds .round").count(), 1);
+    assert.equal(await page.locator("#show-rounds .round select").first().inputValue(), "quiz");
+    assert.equal(await page.locator("#show-rounds select.finale").inputValue(), "3");
+    assert.equal(await page.locator('#show-rounds .round select').first().locator('option[value="finale"]').count(), 0);
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
+    assert.deepEqual((await library("shows")).vieille.rounds, [{ type: "quiz", quizId: "animaux", finale: 3 }]);
     await page.context().close();
   });
 
@@ -2007,7 +2154,7 @@ describe("bibliothèque de quiz et prestations", () => {
 
   test("quiz en images : JSON de ChatGPT et images déposés ensemble, image manquante signalée puis ajoutée à la main, copiées dans la partie", async () => {
     const json = JSON.stringify({ title: "Les animaux des petits", questions: [
-      { text: "Quel animal court le plus vite ?", choices: [{ text: "Lion", image: "q1-lion.png" }, { image: "q1-baleine.png" }, { text: "Chien", image: "q1-chien.png" }, { text: "Vache", image: "q1-vache.png" }], correct: 0 },
+      { text: "Quel animal court le plus vite ?", illustration: "q1-revelation.png", choices: [{ text: "Lion", image: "q1-lion.png" }, { image: "q1-baleine.png" }, { text: "Chien", image: "q1-chien.png" }, { text: "Vache", image: "q1-vache.png" }], correct: 0 },
       { text: "Quelle est la capitale de la France ?", choices: ["Paris", "Rome"], correct: 0 },
     ] });
     const page = await admin();
@@ -2018,8 +2165,9 @@ describe("bibliothèque de quiz et prestations", () => {
       { name: "q1-lion.png", mimeType: "image/png", buffer: png([230, 160, 30]) },
       { name: "Q1-Baleine.PNG", mimeType: "image/png", buffer: png([40, 120, 230]) },
       { name: "q1-chien.png", mimeType: "image/png", buffer: png([120, 80, 40]) },
+      { name: "q1-revelation.png", mimeType: "image/png", buffer: png([200, 60, 60]) },
     ]);
-    await page.locator("#import-images", { hasText: "3 images prêtes" }).waitFor();
+    await page.locator("#import-images", { hasText: "4 images prêtes" }).waitFor();
     await page.click("#import-analyse");
     await page.locator('[data-q="1"]').waitFor({ timeout: 15000 });
     // Aperçu avant d'enregistrer : 3 images associées par leur nom, la 4e manque et c'est dit.
@@ -2030,6 +2178,10 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator('[data-q="0"] .choice-photo input[type=file]').nth(3).setInputFiles({ name: "vache.png", mimeType: "image/png", buffer: png([250, 250, 250]) });
     await waitFor(async () => (await page.locator('[data-q="0"] .choice-thumb:not([hidden])').count()) === 4, "4 images en aperçu");
     assert.equal(await page.locator('[data-q="1"] .choice-thumb:not([hidden])').count(), 0);
+    // Image de révélation associée à la question 1 ; la question 2 n'a pas d'illustration, c'est signalé sans bloquer.
+    await page.locator('[data-q="0"] .q-image:not([hidden])').waitFor();
+    assert.equal(await page.locator('[data-q="0"] .tag.missing').isHidden(), true);
+    await page.locator('[data-q="1"] .tag.missing:not([hidden])', { hasText: "illustration manquante" }).waitFor();
     await page.click("#rv-validate-all");
     await page.click("#rv-save");
     await page.locator("#rv-status", { hasText: "Enregistré" }).waitFor();
@@ -2039,6 +2191,8 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(new Set(ids).size, 4, "quatre images distinctes");
     assert.equal(saved.questions[1].choiceImages, undefined);
     for (const id of ids) assert.match(await library(`images/${id}`), /^data:image\/jpeg;base64,/);
+    assert.match(saved.questions[0].imageId, /^[0-9a-f]{16}$/);
+    assert.ok(!ids.includes(saved.questions[0].imageId), "image de révélation distincte des réponses");
 
     // Régie : la prestation part sur la TV avec ses réponses en images, copiées là où les tablettes les lisent.
     await seedLibrary("shows", { lou: { childName: "Lou", status: "publiee", rounds: [{ type: "quiz", quizId }], updatedAt: 1 } });
@@ -2133,7 +2287,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
-  test("prestation de test « tous les jeux » d'une version précédente : le bouton lui ajoute le blind test sans rien retirer", async () => {
+  test("prestation de test « tous les jeux » d'une version précédente : le bouton lui ajoute les nouveaux jeux et retire l'ancienne manche Super Finale", async () => {
     const old = { childName: "Léa", age: 9, status: "publiee", title: "ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux", origin: "test", updatedAt: 1,
       rounds: [{ type: "quiz", quizId: "animaux" }, { type: "chante", count: 3 }, { type: "finale", quizId: "finale" }] };
     await seedLibrary("quizzes", { animaux: ANIMAUX, finale: FINALE });
@@ -2144,7 +2298,9 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#test-full-status", { hasText: "Mise à jour" }).waitFor({ timeout: 20000 });
     await page.context().close();
     const show = await library("shows/test-lea-tous-les-jeux");
-    assert.deepEqual(show.rounds.map((r) => r.type), ["quiz", "chante", "disparu", "blind", "musical", "statues", "pictionary", "quiz", "finale", "portes"]);
+    // L'ancienne manche « Super Finale » disparaît : les 3 dernières questions du quiz comptent double.
+    assert.deepEqual(show.rounds.map((r) => r.type), ["quiz", "chante", "disparu", "blind", "musical", "statues", "pictionary", "quiz", "portes"]);
+    assert.equal(show.rounds[0].finale, 3);
     assert.equal(show.rounds[7].quizId, "test-lea-tous-les-jeux-images");
     assert.equal((await library("quizzes"))["test-lea-tous-les-jeux-images"].questions.length, 2);
     assert.equal(show.childName, "Léa");

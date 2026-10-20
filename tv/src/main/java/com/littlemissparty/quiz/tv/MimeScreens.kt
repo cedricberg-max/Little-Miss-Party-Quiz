@@ -63,6 +63,7 @@ import com.littlemissparty.quiz.tv.habillage.apparition
 import com.littlemissparty.quiz.tv.habillage.apres
 import com.littlemissparty.quiz.tv.habillage.rebond
 import kotlinx.coroutines.delay
+import com.littlemissparty.quiz.tv.habillage.PoliceLmp
 
 /*
  * Manche de mimes sur la TV. L'enfant qui devine tourne le dos à l'écran ; ses coéquipiers voient une très
@@ -252,7 +253,7 @@ private fun BetweenTurns(state: UiState.Playing, m: MimeUi, modifier: Modifier) 
                     "Les Mimes !",
                     maxLines = 1, softWrap = false,
                     style = TextStyle(
-                        brush = Brush.verticalGradient(listOf(Neon.OrClair, Neon.Or, Neon.OrProfond)),
+                        fontFamily = PoliceLmp, brush = Brush.verticalGradient(listOf(Neon.OrClair, Neon.Or, Neon.OrProfond)),
                         fontSize = 56.sp, lineHeight = 62.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp,
                         shadow = Shadow(Neon.Halo.copy(alpha = 0.7f), Offset.Zero, 30f),
                     ),

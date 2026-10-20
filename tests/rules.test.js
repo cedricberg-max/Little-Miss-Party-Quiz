@@ -272,6 +272,12 @@ describe("réponses", () => {
     await seed({ deadline: Date.now() - 5000 });
     await assertFails(answer("rose", 1));
   });
+  test("Portes mystères : pas de chrono, une porte se choisit tant que les choix sont ouverts ; ailleurs, pas de réponse sans chrono", async () => {
+    await seed({ deadline: null });
+    await assertFails(answer("rose", 1));
+    await seed({ kind: "portes", choices: ["Porte 1", "Porte 2", "Porte 3"], deadline: null });
+    await assertSucceeds(answer("rose", 1));
+  });
   test("proposition inexistante refusée", async () => {
     await seed({ choices: ["Vrai", "Faux"] });
     await assertFails(answer("rose", 2));
@@ -313,6 +319,12 @@ describe("buzzer", () => {
     // Verdict en attente : le buzzer est fermé, même sous la clé suivante.
     await seed({ phase: "question", qid: "f1", kind: "flou", buzzOpen: false, round: "f1-1000-1" });
     await assertFails(set(ref(db("bleu"), `games/${CODE}/buzz/f1-1000-1`), { team: "bleu", at: serverTimestamp() }));
+  });
+  test("blind test : l'équipe qui s'est trompée rebuzze seulement à l'heure publiée par la box", async () => {
+    await seed({ phase: "question", qid: "b1", kind: "blind", buzzOpen: true, round: "b1-1000-1", buzzBlocked: { rose: Date.now() + 60_000 } });
+    await assertFails(set(ref(db("rose"), `games/${CODE}/buzz/b1-1000-1`), { team: "rose", at: serverTimestamp() }), "trop tôt");
+    await seed({ phase: "question", qid: "b1", kind: "blind", buzzOpen: true, round: "b1-1000-2", buzzBlocked: { rose: Date.now() - 1_000 } });
+    await assertSucceeds(set(ref(db("rose"), `games/${CODE}/buzz/b1-1000-2`), { team: "rose", at: serverTimestamp() }));
   });
   test("accueil : chaque équipe buzze pour s'amuser autant qu'elle veut, jamais pour une autre ni pendant le jeu", async () => {
     await seed({ phase: "lobby", buzzOpen: true, round: 1 });
@@ -495,6 +507,15 @@ describe("régie", () => {
     await assertSucceeds(command(REGIE, { type: "goto", index: 2, qid: "a1m" }));
     await assertFails(command(REGIE, { type: "goto", index: -1, qid: "q1" }));
     await assertFails(command(REGIE, { type: "goto", index: 0, qid: 12 }));
+    // Dernières questions du quiz : ×2, ×3 ou ×5 seulement.
+    await assertFails(command(REGIE, { type: "factor", factor: 4 }));
+    await assertFails(command(REGIE, { type: "factor", factor: "5" }));
+    await assertSucceeds(command(REGIE, { type: "factor", factor: 3 }));
+    // Portes mystères : la valeur d'une porte, dans les bornes seulement.
+    await assertSucceeds(command(REGIE, { type: "portes_set", qid: "p1", door: 2, value: -150 }));
+    await assertFails(command(REGIE, { type: "portes_set", qid: "p1", door: 9, value: 100 }));
+    await assertFails(command(REGIE, { type: "portes_set", qid: "p1", door: 0, value: 5000 }));
+    await assertFails(command("rose", { type: "portes_set", qid: "p1", door: 0, value: 300 }));
     await assertSucceeds(answer("rose", 1));
     await assertFails(set(ref(db("rose"), `games/${CODE}/answers/q1`), null));
     await assertFails(set(ref(db(REGIE), `games/${CODE}/answers/q1`), null));
@@ -664,11 +685,16 @@ describe("bibliothèque, prestations et chargement sur la TV", () => {
     await seed({ phase: "lobby" });
     const ok = { off: ["soleil"], extra: [{ word: "arc-en-ciel" }], updatedAt: serverTimestamp() };
     await assertSucceeds(set(ref(admin(), "library/contents/chante"), ok));
-    await assertFails(set(ref(admin(), "library/contents/pictionary"), ok));
+    // Mots du Pictionary réglables comme les autres jeux intégrés ; un jeu inconnu, non.
+    await assertSucceeds(set(ref(admin(), "library/contents/pictionary"), ok));
+    await assertFails(set(ref(admin(), "library/contents/pirate"), ok));
     await assertFails(set(ref(admin(), "library/contents/chante"), { ...ok, pirate: true }));
     await assertFails(set(ref(admin(), "library/contents/chante"), { ...ok, off: ["x".repeat(81)] }));
     await assertSucceeds(set(ref(admin(), "library/contents/chante"), null));
     await assertSucceeds(set(ref(admin(), "library/contents/quisuis"), { extra: [{ answer: "Le kangourou", clues: ["Australie", "Poche"] }], updatedAt: serverTimestamp() }));
+    // Qui suis-je ? : une image par personnage (identifiant de la bibliothèque d'images).
+    await assertSucceeds(set(ref(admin(), "library/contents/quisuis"), { extra: [{ answer: "Le kangourou", clues: ["Australie", "Poche"] }], images: { "le kangourou": "0123456789abcdef" }, updatedAt: serverTimestamp() }));
+    await assertFails(set(ref(admin(), "library/contents/quisuis"), { images: { "le kangourou": "pas-une-image" }, updatedAt: serverTimestamp() }));
     await regieByPassword("tel");
     await assertSucceeds(get(ref(db("tel"), "library/contents")));
     await assertFails(set(ref(db("tel"), "library/contents/quisuis"), ok));
@@ -904,7 +930,11 @@ describe("blind test : extraits musicaux et playlists", () => {
     await assertSucceeds(playlist([{ title: "Final", audioId: ID, points: 300, imageId: "fedcba9876543210", duration: 30 }], { points: 100, finalPoints: 200, finalCount: 3, reveal: 7 }));
     await assertFails(playlist([{ title: "Trop cher", audioId: ID, points: 5000 }]));
     await assertFails(playlist([{ title: "Pochette", audioId: ID, imageId: "../images" }]));
-    await assertFails(playlist([{ title: "A", audioId: ID }], { reveal: 60 }));
+    // Révélation : jusqu'à 60 s, ou 0 = tout l'extrait (le temps de chanter).
+    await assertSucceeds(playlist([{ title: "A", audioId: ID }], { reveal: 30 }));
+    await assertSucceeds(playlist([{ title: "A", audioId: ID }], { reveal: 0 }));
+    await assertFails(playlist([{ title: "A", audioId: ID }], { reveal: 61 }));
+    await assertFails(playlist([{ title: "A", audioId: ID }], { reveal: 2 }));
     await assertFails(playlist([{ title: "A", audioId: ID }], { finalPoints: -1 }));
     await assertFails(playlist([{ title: "Trop long", audioId: ID }], { duration: 300 }));
     await assertFails(set(ref(db("rose"), "library/playlists/p"), { title: "X", duration: 25, tracks: [{ title: "A", audioId: ID }], updatedAt: serverTimestamp() }));

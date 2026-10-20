@@ -295,6 +295,24 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
+  test("blind test : après une erreur, l'équipe attend 3 s après la reprise de la musique puis peut rebuzzer", async () => {
+    const page = await openPupitre();
+    await joinTeam(page, "Les Roses");
+    const uid = Object.entries(await read("teams")).find(([, t]) => t.name === "Les Roses")[0];
+    const rebuzzAt = Date.now() + 1_500;
+    await hostState(question({
+      qid: "b1", kind: "blind", choices: null, text: "Quel est ce titre ?", round: "b1-1000-1", buzzOpen: true,
+      blind: { waiting: false, played: true }, buzz: { blocked: [uid], rebuzzAt }, buzzBlocked: { [uid]: rebuzzAt },
+    }));
+    await page.locator("#play-status", { hasText: "vous pourrez retenter votre chance dans un instant" }).waitFor();
+    assert.equal(await page.locator("#buzz").isDisabled(), true, "bouton grisé pendant les 3 s");
+    await page.locator("#play-status", { hasText: "Vous pouvez retenter votre chance" }).waitFor({ timeout: 5_000 });
+    assert.equal(await page.locator("#buzz").isDisabled(), false);
+    await page.click("#buzz");
+    await waitFor(async () => (await read("buzz/b1-1000-1"))?.team === uid, "rebuzz accepté par la base");
+    await page.context().close();
+  });
+
   test("Image floue : deux équipes buzzent en même temps, une seule a la main ; après une erreur elle est bloquée", async () => {
     const pages = [await openPupitre(), await openPupitre()];
     await joinTeam(pages[0], "Les Roses");
@@ -385,6 +403,20 @@ describe("pupitre", () => {
     await licornes.locator(".choix-valider", { hasText: "C'est noté" }).waitFor();
     await hostState(picto({ secret: L, offer, chosen: 1, pickKey: "r1p-100" }));
     await licornes.locator("#pick-status", { hasText: "Tu vas dessiner « Maison »" }).waitFor();
+    // Tour suivant : toucher directement la carte choisit le mot, comme le bouton.
+    await hostState(picto({ secret: L, offer, chosen: null, pickKey: "r1p-150" }));
+    await licornes.locator("#pick-host .choix-valider:not([disabled])").waitFor();
+    await licornes.click(".choix-fleche[data-sens='-1']");
+    await licornes.locator("#pick-host .choix-carte").nth(2).click();
+    await waitFor(async () => (await read("pictoChoice/r1p-150"))?.i === 2, "choix par toucher de la carte enregistré");
+    await licornes.locator(".choix-valider", { hasText: "C'est noté" }).waitFor();
+    // Un mot avec sa vraie photo (Régie PC) : la photo remplace l'émoji sur la carte.
+    const PHOTO = "0123456789abcdef";
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/choiceImages/${PHOTO}`),
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="));
+    await hostState(picto({ secret: L, offer: [{ ...offer[0], imageId: PHOTO }, offer[1], offer[2]], chosen: null, pickKey: "r1p-160" }));
+    await licornes.locator('#pick-host .choix-carte .mot-secret-image img[src^="data:image/png"]').waitFor({ state: "attached" });
+    assert.equal(await licornes.locator("#pick-host .choix-carte .mot-secret-image img").count(), 1);
 
     // On dessine sur l'ardoise : les traits partent vers la TV par petits paquets ; « Tout effacer » aussi.
     await hostState(picto({ team: L, card: offer[1], drawKey: "r1p-200", turns: [L] }, { deadline: Date.now() + 60000 }));
@@ -410,6 +442,16 @@ describe("pupitre", () => {
     assert.ok(pts.flat().every(([x, y]) => x >= 0 && x <= 1000 && y >= 0 && y <= 1000), "coordonnées de 0 à 1000");
     // Chaque paquet reprend le dernier point du précédent : la TV relie le trait sans trou.
     for (let i = 1; i < pts.length; i++) assert.deepEqual(pts[i][0], pts[i - 1].at(-1));
+    // Gomme : efface juste un morceau ; le trait part vers la TV en couleur papier.
+    await licornes.click(".ardoise-gomme");
+    assert.equal(await licornes.getAttribute(".ardoise-gomme", "aria-checked"), "true");
+    await licornes.mouse.move(box.x + 60, box.y + 45);
+    await licornes.mouse.down();
+    await licornes.mouse.move(box.x + 90, box.y + 65);
+    await licornes.mouse.up();
+    await waitFor(async () => Object.values((await read("drawing/r1p-200")) ?? {}).some((s) => s.c === "paper"), "trait de gomme envoyé");
+    await licornes.click(".ardoise-feutre >> nth=1");
+    assert.equal(await licornes.getAttribute(".ardoise-gomme", "aria-checked"), "false", "un feutre repose la gomme");
     await licornes.click(".ardoise-effacer");
     await licornes.click(".ardoise-effacer");
     await waitFor(async () => Object.values((await read("drawing/r1p-200")) ?? {}).some((s) => s.clear), "effacement envoyé");
@@ -506,11 +548,109 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
+  test("portrait et paysage : chaque écran tient sur un téléphone et une tablette, dans les deux sens, sans rien couper", async () => {
+    const FORMATS = { "téléphone droit": [390, 844], "téléphone couché": [844, 390], "tablette posée": [1280, 800], "tablette droite": [800, 1280] };
+    const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const IDS = ["0123456789abcdef", "fedcba9876543210", "00112233445566ff", "ffeeddccbbaa9988"];
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/choiceImages`), Object.fromEntries(IDS.map((id) => [id, PNG]))));
+    const page = await openPupitre();
+    const shots = process.env.LMP_SHOTS;
+    /** Rien ne dépasse : ni l'écran actif, ni ses boutons, ni ses textes (sinon un enfant ne peut pas répondre). */
+    const tient = async (nom) => {
+      for (const [format, [width, height]] of Object.entries(FORMATS)) {
+        await page.setViewportSize({ width, height });
+        await page.waitForTimeout(450);
+        if (shots) await page.screenshot({ path: `${shots}/${nom}-${width}x${height}.png` });
+        const trop = await page.evaluate(() => {
+          const ecran = document.querySelector(".screen.active");
+          const out = [];
+          if (ecran.scrollHeight > ecran.clientHeight + 2) out.push(`écran ${ecran.scrollHeight} > ${ecran.clientHeight}`);
+          for (const el of ecran.querySelectorAll("button, input, .choice, .team-banner, .hint, canvas, .ardoise-outils, .intro-jeu")) {
+            const r = el.getBoundingClientRect();
+            if (!r.width || el.closest("[hidden]")) continue;
+            if (r.left < -1 || r.top < -1 || r.right > innerWidth + 1 || r.bottom > innerHeight + 1) out.push(`${el.className || el.tagName} ${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.right)},${Math.round(r.bottom)}`);
+          }
+          return out;
+        });
+        assert.deepEqual(trop, [], `${nom}, ${format} (${width}×${height})`);
+      }
+    };
+    await page.locator("#screen-join.active").waitFor();
+    await tient("rejoindre");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await joinTeam(page, "Les Licornes");
+    const uid = Object.keys(await read("teams"))[0];
+    await page.locator("#screen-play.active").waitFor();
+    await tient("buzzer");
+    await hostState({ phase: "intro", seq: 5, total: 4, scores: {}, round: 1, buzzOpen: false, paused: false, index: 0, qid: "f0", kind: "flou", deadline: null, game: { title: "Image floue", n: 1, of: 3, label: "Image floue · 1 / 3" } });
+    await page.locator("#play-intro:not([hidden])", { hasText: "Image floue" }).waitFor();
+    await tient("presentation");
+    await hostState(question({ text: "Quel animal est le plus rapide ?", choices: ["Le guépard", "La tortue des Galápagos", "Le paresseux", "L'escargot de Bourgogne"] }));
+    await page.locator("#screen-question.active .choice").first().waitFor();
+    await tient("quatre-reponses");
+    await hostState(question({ qid: "q2", kind: "express", choices: ["Vrai", "Faux"] }));
+    await page.locator("#choices.two").waitFor();
+    await tient("vrai-faux");
+    await hostState(question({ qid: "q3", choices: ["Lion", "Chien", "Vache", "Chat"], choiceImages: IDS }));
+    await page.locator("#choices.pictures img.photo:not([hidden])").first().waitFor();
+    await tient("reponses-en-images");
+    await hostState(question({ qid: "q4", kind: "number", choices: null }));
+    await page.locator(".number-key").first().waitFor();
+    await tient("juste-chiffre");
+    await hostState(question({ qid: "q4", phase: "reveal", correct: 1, awards: { [uid]: 100 }, scores: { [uid]: 100 } }));
+    await page.locator("#screen-result.active").waitFor();
+    await tient("resultat");
+    const picto = (mime, extra = {}) => question({ qid: "r1p", kind: "pictionary", text: "Pictionary", choices: null, deadline: null,
+      mime: { team: null, found: 0, passed: 0, left: 10, turns: [], counts: {}, points: 150, ...mime }, ...extra });
+    const offer = [{ word: "Soleil", image: "☀️" }, { word: "Maison", image: "🏠" }, { word: "Bateau", image: "⛵" }];
+    await hostState(picto({ secret: uid, offer, chosen: null, pickKey: "r1p-100" }));
+    await page.locator("#screen-pick.active .choix-carte").first().waitFor();
+    await tient("pictionary-choix");
+    await hostState(picto({ team: uid, card: offer[1], drawKey: "r1p-200", turns: [uid] }, { deadline: Date.now() + 60000 }));
+    await page.locator("#screen-draw.active canvas").waitFor();
+    await tient("pictionary-ardoise");
+    // Paysage : la feuille en grand, les outils à côté d'elle, pas dessous.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.waitForTimeout(450);
+    const [feuille, outils] = await Promise.all([".ardoise-feuille", ".ardoise-outils"].map((sel) => page.locator(sel).boundingBox()));
+    assert.ok(outils.x >= feuille.x + feuille.width - 1, `outils à droite de la feuille : ${JSON.stringify({ feuille, outils })}`);
+    assert.ok(feuille.height > 560, `feuille en grand : ${feuille.height}`);
+    await hostState(question({ phase: "ended", scores: { [uid]: 1200 } }));
+    await page.locator("#screen-ended.active").waitFor();
+    await tient("fin");
+    await page.context().close();
+  });
+
+  test("présentation d'un jeu sur la TV : pas de buzzer ni de question, la tablette dit d'écouter l'animatrice", async () => {
+    const page = await openPupitre();
+    await joinTeam(page, "Les Roses");
+    await hostState({ phase: "intro", seq: 5, total: 4, scores: {}, round: 1, buzzOpen: false, paused: false, index: 2, qid: "f1", kind: "flou", deadline: null, game: { title: "Image floue", n: 1, of: 3, label: "Image floue · 1 / 3" } });
+    await page.locator("#play-intro:not([hidden])", { hasText: "Prochain jeu" }).waitFor();
+    assert.equal(await page.locator("#play-intro-title").textContent(), "Image floue");
+    assert.equal(await page.locator("#play-status").textContent(), "Écoutez bien l'animatrice !");
+    assert.equal(await page.locator("#buzz").isVisible(), false, "pas de buzzer pendant la présentation");
+    assert.equal(await page.locator("#screen-question").isVisible(), false);
+    await hostState(question({ qid: "f1", kind: "flou", choices: null, buzzOpen: true, buzz: { blocked: [] }, round: "f1-1000-0" }));
+    await page.locator("#buzz:not([hidden])").waitFor();
+    assert.equal(await page.locator("#play-intro").isVisible(), false, "le nom du jeu s'efface quand l'épreuve est lancée");
+    await page.context().close();
+  });
+
   test("la pause générale s'affiche aussi entre deux questions", async () => {
     const page = await openPupitre();
     await joinTeam(page, "Les Roses");
     await hostState(question({ phase: "scores", deadline: null, paused: true, pauseReason: "regie" }));
     await page.locator("#paused:not([hidden])", { hasText: "Pause fun !" }).waitFor();
+    // Sur un téléphone, le texte reste centré avec des marges : jamais collé aux bords de l'écran.
+    await page.setViewportSize({ width: 390, height: 844 });
+    const texte = await page.locator("#paused p").evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return { gauche: r.left, droite: innerWidth - r.right, align: getComputedStyle(el).textAlign };
+    });
+    assert.ok(texte.gauche >= 20 && texte.droite >= 20, `marges du texte de pause : ${JSON.stringify(texte)}`);
+    assert.equal(texte.align, "center");
+    const titre = await page.locator("#paused div").evaluate((el) => el.scrollWidth <= el.clientWidth);
+    assert.ok(titre, "le titre « Pause fun ! » tient sur l'écran");
     await hostState(question({ phase: "scores", deadline: null }));
     await page.locator("#paused[hidden]").waitFor({ state: "attached" });
     await page.context().close();

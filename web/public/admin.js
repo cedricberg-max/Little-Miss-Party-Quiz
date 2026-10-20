@@ -14,8 +14,10 @@ import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
 import {
   buildSnapshot, estimateMinutes, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, BUILTIN_GAMES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
   roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC, PICTO_SECONDS, PICTO_SEC, PICTO_POINTS, PICTO_RULE, PORTES_DOORS, PORTES_DEFAULT, PORTES_VALUES,
-  blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras,
+  blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras, contentSlot, contentImages,
+  pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale,
 } from "./show.js";
+import { PICTO_OWN_SERIES } from "./picto-cards.js";
 import { EXTRACT_SECONDS, guessTrack, defaultStart, decodeFile, makeExtract, synthTune, encodeMp3, soundId } from "./audio.js";
 import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
 import { watchVersion, showUpdateBanner } from "./version.js";
@@ -329,7 +331,9 @@ $("show-new").onclick = () => editShow(null);
 /** Ouvre une prestation ; sans identifiant, une nouvelle, vide ou copiée d'une autre (`from`). */
 function editShow(id, from = null) {
   const s = id ? shows[id] : from ? duplicateShow(from) : { status: "brouillon", rounds: [] };
-  editing = { id, rounds: (s.rounds ?? []).filter(Boolean).map((r) => ({ ...r })) };
+  // Une ancienne manche « Super Finale » n'est pas un jeu : elle devient le réglage ×2 du quiz qui la précède.
+  const { rounds, folded } = foldLegacyFinale(s.rounds);
+  editing = { id, rounds };
   $("show-edit-title").textContent = id ? showTitle(s) : from ? `Copie de « ${showTitle(from)} »` : "Nouvelle prestation";
   $("show-child").value = s.childName ?? "";
   $("show-age").value = s.age ?? "";
@@ -341,7 +345,8 @@ function editShow(id, from = null) {
   $("show-themes").value = s.themes ?? "";
   $("show-notes").value = s.notes ?? "";
   $("show-delete").hidden = !id;
-  status("show-status-msg", from ? "Copie prête : indiquez le prénom, l'âge et la date du nouvel anniversaire, puis enregistrez." : "", !!from);
+  status("show-status-msg", from ? "Copie prête : indiquez le prénom, l'âge et la date du nouvel anniversaire, puis enregistrez."
+    : folded ? "L'ancienne manche « Super Finale » est devenue le réglage du quiz (ses dernières questions ×2). Enregistrez pour garder ce changement." : "", !!from || !!folded);
   show("show-edit");
   refreshRounds();
   if (from) $("show-child").focus();
@@ -359,14 +364,48 @@ function formShow() {
     durationMin: num($("show-duration").value),
     themes: $("show-themes").value.trim() || null,
     notes: $("show-notes").value.trim() || null,
-    rounds: editing.rounds.filter(roundFilled).map((r) => (BUILTIN_GAMES[r.type] ? { type: r.type, count: r.count ?? BUILTIN_GAMES[r.type].count }
+    rounds: editing.rounds.filter(roundFilled).map((r) => (BUILTIN_GAMES[r.type] ? { type: r.type, count: r.count ?? BUILTIN_GAMES[r.type].count, ...(r.type === "disparu" && r.objects ? { objects: r.objects } : {}) }
       : r.type === "mimes" ? { type: "mimes", deckId: r.deckId }
       : r.type === "statues" ? { type: "statues", duration: r.duration ?? STATUES_SEC }
-      : r.type === "pictionary" ? { type: "pictionary", duration: r.duration ?? PICTO_SEC }
+      : r.type === "pictionary" ? { type: "pictionary", duration: r.duration ?? PICTO_SEC, ...(pictoRoundSeries(r) ? { series: pictoRoundSeries(r) } : {}) }
       : r.type === "portes" ? { type: "portes", doors: r.doors ?? PORTES_DEFAULT }
       : MUSIC_GAMES[r.type] ? { type: r.type, playlistId: r.playlistId }
       : { type: r.type ?? "quiz", quizId: r.quizId, ...(r.count > 0 ? { count: r.count } : {}), ...((r.type ?? "quiz") === "quiz" && r.finale > 0 ? { finale: r.finale } : {}) })),
   };
+}
+
+/** Nombre de séries tirées par « Au hasard ». */
+const PICTO_RANDOM_SERIES = 3;
+
+/**
+ * Pictionary : les séries de mots de la manche (Animaux, À manger…). Aucune cochée : toutes les séries.
+ * « Au hasard » en tire quelques-unes ; le nombre de mots retenus s'affiche.
+ */
+function pictoSeriesPicker(r) {
+  const words = activeItems("pictionary", contents.pictionary);
+  const all = pictoSeriesList(words);
+  const box = h("div", { class: "picto-series" });
+  const draw = () => {
+    const chosen = pictoRoundSeries(r) ?? [];
+    const count = words.filter((w) => !chosen.length || chosen.includes(pictoSeriesOf(w))).length;
+    const set = (list) => { r.series = list.length ? list : null; draw(); refreshSummary(); };
+    box.replaceChildren(
+      h("span", { class: "small", text: chosen.length ? `Séries : ${count} mots` : `Toutes les séries : ${count} mots` }),
+      ...all.map((name) => h("button", {
+        type: "button", class: `chip${chosen.includes(name) ? " active" : ""}`, "aria-pressed": chosen.includes(name) ? "true" : "false",
+        text: `${name} (${words.filter((w) => pictoSeriesOf(w) === name).length})`,
+        onclick: () => set(chosen.includes(name) ? chosen.filter((x) => x !== name) : [...chosen, name]),
+      })),
+      h("button", {
+        type: "button", class: "chip", text: "🎲 Au hasard",
+        title: `Tirer ${PICTO_RANDOM_SERIES} séries au hasard`,
+        onclick: () => set([...all].sort(() => Math.random() - 0.5).slice(0, Math.min(PICTO_RANDOM_SERIES, all.length))),
+      }),
+      chosen.length ? h("button", { type: "button", class: "chip", text: "Toutes", onclick: () => set([]) }) : null,
+    );
+  };
+  draw();
+  return box;
 }
 
 function refreshRounds() {
@@ -384,10 +423,8 @@ function refreshRounds() {
       h("span", { class: "num", text: `${i + 1}` }),
       h("select", { "aria-label": "Type de manche", onchange: (e) => { r.type = e.target.value; refreshRounds(); } },
         // La Super Finale n'est pas un jeu : c'est un réglage de la manche Quiz (ses dernières questions ×2).
-        // Une ancienne manche « Super Finale » reste lisible, mais on n'en crée plus.
-        ...Object.entries(ROUND_TYPES).filter(([k]) => k !== "finale" || r.type === "finale").map(([k, label]) => h("option", {
-          value: k, selected: (r.type ?? "quiz") === k,
-          text: k === "finale" ? "Super Finale (ancienne manche, fin du quiz précédent ×2)" : label,
+        ...Object.entries(ROUND_TYPES).filter(([k]) => k !== "finale").map(([k, label]) => h("option", {
+          value: k, selected: (r.type ?? "quiz") === k, text: label,
         }))),
       BUILTIN_GAMES[r.type]
         // Jeux au buzzer intégrés : rien à préparer, seulement combien de mots ou de personnages.
@@ -401,9 +438,11 @@ function refreshRounds() {
         ? h("select", { class: "grow", "aria-label": "Durée", onchange: (e) => { r.duration = Number(e.target.value); refreshSummary(); } },
           ...STATUES_SECONDS.map((n) => h("option", { value: n, selected: (r.duration ?? STATUES_SEC) === n, text: `${n} secondes de musique (on danse, on se fige à l'arrêt ; vous désignez l'équipe gagnante)` })))
         : r.type === "pictionary"
-        // Pictionary : les mots viennent du catalogue (page Jeux), seulement le temps de dessin par équipe.
-        ? h("select", { class: "grow", "aria-label": "Temps de dessin", onchange: (e) => { r.duration = Number(e.target.value); refreshSummary(); } },
-          ...PICTO_SECONDS.map((n) => h("option", { value: n, selected: (r.duration ?? PICTO_SEC) === n, text: `${n} secondes de dessin par équipe (un mot par tour, ${PICTO_POINTS} points s'il est trouvé)` })))
+        // Pictionary : les mots viennent du catalogue (page Jeux) ; le temps de dessin et les séries de mots.
+        ? h("div", { class: "grow picto-round" },
+          h("select", { "aria-label": "Temps de dessin", onchange: (e) => { r.duration = Number(e.target.value); refreshSummary(); } },
+            ...PICTO_SECONDS.map((n) => h("option", { value: n, selected: (r.duration ?? PICTO_SEC) === n, text: `${n} secondes de dessin par équipe (un mot par tour, ${PICTO_POINTS} points s'il est trouvé)` }))),
+          pictoSeriesPicker(r))
         : r.type === "portes"
         // Portes mystères : rien à préparer, seulement le nombre de portes (valeurs mélangées à chaque partie).
         ? h("select", { class: "grow", "aria-label": "Nombre de portes", onchange: (e) => { r.doors = Number(e.target.value); refreshSummary(); } },
@@ -423,6 +462,12 @@ function refreshRounds() {
             text: r.type === "express" ? `${q.title} (${expressQuestions(q).length} Vrai / Faux)`
               : r.type === "zoom" || r.type === "flou" ? `${q.title} (${zoomQuestions(q).length} avec photo)` : `${q.title} (${playable(q).length} validées)`,
           }))),
+      // Qui a disparu ? : objets par grille, pour régler la difficulté (par défaut selon l'âge de la prestation).
+      r.type === "disparu"
+        ? h("select", { class: "count", "aria-label": "Objets par grille", onchange: (e) => { r.objects = Number(e.target.value) || null; refreshSummary(); } },
+          h("option", { value: "", text: "Objets : selon l'âge" }),
+          ...[4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => h("option", { value: n, selected: r.objects === n, text: `${n} objets par grille` })))
+        : null,
       // Jeux tirés d'un quiz : toutes ses questions retenues, ou seulement les premières.
       !BUILTIN_GAMES[r.type] && r.type !== "statues" && r.type !== "pictionary" && r.type !== "portes" && r.type !== "mimes" && !MUSIC_GAMES[r.type]
         ? h("select", { class: "count", "aria-label": "Nombre de questions", onchange: (e) => { r.count = Number(e.target.value) || null; refreshSummary(); } },
@@ -468,7 +513,8 @@ function refreshReuse() {
   const options = Object.entries(shows)
     .filter(([id]) => id !== editing?.id)
     .sort(([, a], [, b]) => (b.date ?? "").localeCompare(a.date ?? ""))
-    .flatMap(([id, s]) => (s.rounds ?? []).filter((r) => roundContent(r) != null).map((r, i) => ({
+    // Une ancienne manche « Super Finale » ne se reprend pas : ce n'est pas un jeu.
+    .flatMap(([id, s]) => (s.rounds ?? []).map((r, i) => [r, i]).filter(([r]) => r && r.type !== "finale" && roundContent(r) != null).map(([r, i]) => ({
       value: `${id}/${i}`, round: r,
       text: `${showTitle(s)}${s.date ? ` (${new Date(`${s.date}T12:00:00`).toLocaleDateString("fr-FR")})` : ""} · ${ROUND_TYPES[r.type] && r.type !== "quiz" ? ROUND_TYPES[r.type] : "Manche"}${roundContent(r) ? ` : ${roundContent(r)}` : ""}`,
     })));
@@ -638,14 +684,26 @@ $("gpt-copy").onclick = async () => {
  */
 async function attachImportImages(questions) {
   let done = 0;
+  const find = (name) => importImages.get(imageKey(name)) ?? importImages.get(imageKey(name).replace(/\.[a-z0-9]+$/, ".png"))
+    ?? [...importImages.entries()].find(([key]) => key.replace(/\.[a-z0-9]+$/, "") === imageKey(name).replace(/\.[a-z0-9]+$/, ""))?.[1];
   for (const q of questions) {
+    // Image de révélation : rangée comme une photo d'illustration, montrée sur la TV avec la bonne réponse.
+    if (q.revealFile) {
+      const f = find(q.revealFile);
+      q.missingImages ??= [];
+      if (!f) q.missingImages.push(q.revealFile);
+      else {
+        status("import-status", `Préparation des images… (${++done})`, true);
+        try { q.imageId = await storeIllustration(f); } catch (err) { console.error(err); q.missingImages.push(q.revealFile); }
+      }
+      delete q.revealFile;
+    }
     if (!q.imageFiles) continue;
     q.choiceImages = [];
-    q.missingImages = [];
+    q.missingImages ??= [];
     for (const [k, name] of q.imageFiles.entries()) {
       if (!name) { q.choiceImages[k] = null; continue; }
-      const f = importImages.get(imageKey(name)) ?? importImages.get(imageKey(name).replace(/\.[a-z0-9]+$/, ".png"))
-        ?? [...importImages.entries()].find(([key]) => key.replace(/\.[a-z0-9]+$/, "") === imageKey(name).replace(/\.[a-z0-9]+$/, ""))?.[1];
+      const f = find(name);
       if (!f) { q.choiceImages[k] = null; q.missingImages.push(name); continue; }
       status("import-status", `Préparation des images… (${++done})`, true);
       try { q.choiceImages[k] = await storeChoiceImage(f); } catch (err) { console.error(err); q.choiceImages[k] = null; q.missingImages.push(name); }
@@ -657,7 +715,7 @@ async function attachImportImages(questions) {
 $("import-analyse").onclick = async () => {
   const parsed = parseQuiz($("import-text").value);
   if (!parsed.questions.length) return status("import-status", "Aucune question trouvée. Vérifiez le texte collé.");
-  if (parsed.questions.some((q) => q.imageFiles)) {
+  if (parsed.questions.some((q) => q.imageFiles || q.revealFile)) {
     $("import-analyse").disabled = true;
     try { await attachImportImages(parsed.questions); } finally { $("import-analyse").disabled = false; }
   }
@@ -762,7 +820,11 @@ const imageCache = {};
  */
 function illustrationRow(q, i) {
   const preview = h("img", { class: "q-image", alt: "Photo de la question", hidden: !q.imageId });
+  // Repère de préparation, jamais bloquant : sans illustration, la révélation montre seulement la réponse.
+  const missing = h("span", { class: "tag missing", text: "illustration manquante" });
+  const refreshMissing = () => { missing.hidden = !!(q.imageId || q.image); };
   const showPreview = () => {
+    refreshMissing();
     preview.hidden = !q.imageId;
     if (!q.imageId) return;
     if (imageCache[q.imageId]) { preview.src = imageCache[q.imageId]; return; }
@@ -784,11 +846,8 @@ function illustrationRow(q, i) {
       if (!f) return;
       info.textContent = "Préparation de la photo…";
       try {
-        const data = await compressImage(f);
-        const id = await imageId(data);
-        const target = ref(db, `library/images/${id}`);
-        if (!(await get(target)).exists()) await set(target, data);
-        imageCache[id] = data;
+        const id = await storeIllustration(f);
+        const data = imageCache[id];
         q.imageId = id;
         remove.hidden = false;
         showPreview();
@@ -800,11 +859,13 @@ function illustrationRow(q, i) {
     },
   });
   showPreview();
+  refreshMissing();
   return h("div", { class: "row illustration", "data-illustration": i },
+    missing,
     h("label", { class: "inline" }, "Illustration",
       h("input", {
         class: "q-emoji", value: q.image ?? "", maxlength: 16, placeholder: "🦁 émoji",
-        oninput: (e) => { q.image = cleanEmoji(e.target.value); },
+        oninput: (e) => { q.image = cleanEmoji(e.target.value); refreshMissing(); },
       })),
     h("button", { type: "button", class: "btn small secondary", text: "📷 Photo…", onclick: () => file.click() }),
     file, preview, remove, info);
@@ -856,6 +917,16 @@ function choicePhoto(q, slots, k) {
   return h("span", { class: "choice-photo" }, thumb, remove,
     h("button", { type: "button", class: "icon", title: "Mettre une image à la place du texte", text: "📷", onclick: (e) => { e.preventDefault(); file.click(); } }),
     file);
+}
+
+/** Réduit une photo d'illustration (révélation) et la range dans la bibliothèque ; renvoie son identifiant. */
+async function storeIllustration(fileOrBlob) {
+  const data = await compressImage(fileOrBlob);
+  const id = await imageId(data);
+  const target = ref(db, `library/images/${id}`);
+  if (!(await get(target)).exists()) await set(target, data);
+  imageCache[id] = data;
+  return id;
 }
 
 /** Réduit une image de réponse et la range dans la bibliothèque (une seule copie par image) ; renvoie son identifiant. */
@@ -1089,22 +1160,25 @@ $("test-full-create").onclick = async () => {
     if (existing) {
       // Prestation de test d'une version précédente : on lui ajoute seulement les jeux qui lui manquent
       // (avant la Super Finale), sans rien retirer ni modifier d'autre.
-      const rounds = (existing.rounds ?? []).filter(Boolean);
+      // L'ancienne manche « Super Finale » disparaît : les dernières questions du quiz comptent double à la place.
+      const { rounds, folded } = foldLegacyFinale(existing.rounds);
       const missing = FULL_NEW_ROUNDS.filter((m) => !rounds.some((r) => r.type === m.type && (!m.quizId || r.quizId === m.quizId)));
-      if (existing.origin !== "test" || !missing.length) {
+      if (existing.origin !== "test" || (!missing.length && !folded)) {
         status("test-full-status", "Elle existe déjà : retrouvez-la dans Prestations (rien n'a été modifié).", true);
         return;
       }
       status("test-full-status", "Ajout des nouveaux jeux à la prestation de test…", true);
       if (missing.some((m) => m.playlistId)) await addTunes(Date.now());
       if (missing.some((m) => m.quizId === FULL_KEYS.images)) await addImageQuiz(Date.now());
-      // Les Portes mystères restent le jeu final : tout à la fin, après l'ancienne Super Finale.
+      // Les Portes mystères restent le jeu final : tout à la fin.
       const last = missing.filter((m) => m.type === "portes");
       const middle = missing.filter((m) => m.type !== "portes");
-      const at = rounds.findIndex((r) => r.type === "finale");
+      // Portes mystères déjà là : les nouveaux jeux passent juste avant elles.
+      const at = rounds.findIndex((r) => r.type === "portes");
       const next = [...(at < 0 ? [...rounds, ...middle] : [...rounds.slice(0, at), ...middle, ...rounds.slice(at)]), ...last];
       await set(ref(db, `library/shows/${FULL_ID}`), { ...existing, rounds: next, notes: FULL_SHOW.notes, updatedAt: serverTimestamp() });
-      status("test-full-status", `Mise à jour : ${missing.map((m) => (m.quizId === FULL_KEYS.images ? "Quiz en images" : ROUND_TYPES[m.type])).join(", ")} ajouté(s) à « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux ».`, true);
+      const added = missing.map((m) => (m.quizId === FULL_KEYS.images ? "Quiz en images" : ROUND_TYPES[m.type])).join(", ");
+      status("test-full-status", `Mise à jour de « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux » :${added ? ` ${added} ajouté(s).` : ""}${folded ? " L'ancienne manche « Super Finale » est retirée : les 3 dernières questions du quiz comptent double." : ""} Rechargez la prestation dans la régie.`, true);
       return;
     }
     status("test-full-status", "Préparation des photos, des musiques et des jeux…", true);
@@ -1275,7 +1349,7 @@ let playlist = null; // { id, tracks: [{ title, artist, rights, points?, imageId
 let preview = null; // { audio, url, timer }
 
 $("playlist-duration").replaceChildren(...EXTRACT_SECONDS.map((n) => h("option", { value: n, text: `${n} secondes` })));
-$("playlist-reveal").replaceChildren(...BLIND_REVEAL_SECONDS.map((n) => h("option", { value: n, text: `${n} secondes` })));
+$("playlist-reveal").replaceChildren(...BLIND_REVEAL_SECONDS.map((n) => h("option", { value: n, text: n ? `${n} secondes` : "Tout l'extrait (on chante !)" })));
 ["playlist-points", "playlist-final-points", "playlist-final-count"].forEach((id) => { $(id).oninput = () => renderTracks(); });
 
 /** Barème saisi dans l'écran de la playlist (valeurs hors limites remplacées par celles par défaut). */
@@ -1623,14 +1697,16 @@ function openBuiltin(type) {
 function builtinState(type) {
   const c = contents[type] ?? {};
   const off = (Array.isArray(c.off) ? c.off : Object.values(c.off ?? {})).map((k) => `${k}`.toLowerCase());
-  return { off, extra: contentExtras(type, c) };
+  return { off, extra: contentExtras(type, c), images: contentImages(c) };
 }
 
 async function saveBuiltin(type, next, message) {
+  const images = next.images ?? builtinState(type).images;
   try {
     await set(ref(db, `library/contents/${type}`), {
       off: next.off.length ? next.off : null,
       extra: next.extra.length ? next.extra.map(({ level, ...x }) => x) : null,
+      images: Object.keys(images).length ? images : null,
       updatedAt: serverTimestamp(),
     });
     status("builtin-status", message, true);
@@ -1647,10 +1723,15 @@ function renderBuiltin() {
   const { off, extra } = builtinState(type);
   const active = activeItems(type, contents[type]).length;
   $("builtin-count").textContent = `${plural(active, `${game.unit} actif`, `${game.unit}s actifs`)} sur ${game.catalog.length + extra.length}`;
+  const { images } = builtinState(type);
   const tile = (item, custom) => {
     const key = game.key(item);
     const on = !off.includes(key);
     const detail = type === "quisuis" ? item.clues.join(" · ") : type === "disparu" ? item.objects.map((o) => o.image).join(" ") : "";
+    // Qui suis-je ? : image du personnage ; Pictionary : vraie photo du mot, à la place de son émoji.
+    const photo = type === "quisuis" || type === "pictionary" ? contentPhoto(type, item, key, images) : null;
+    // Repère de préparation, jamais bloquant : le personnage se révélera sans visuel.
+    const missing = type === "quisuis" && !item.emoji && !images[contentSlot(key)];
     return h("div", { class: `content-item${on ? " on" : ""}${custom ? " custom" : ""}`, "data-key": key },
       h("button", {
         type: "button", class: "content-toggle", "aria-pressed": on ? "true" : "false",
@@ -1661,7 +1742,9 @@ function renderBuiltin() {
         h("b", { text: game.label(item) }),
         item.level === 2 ? h("span", { class: "tag", text: "grands" }) : null,
         custom ? h("span", { class: "tag", text: "ajouté" }) : null,
+        missing ? h("span", { class: "tag missing", text: "image ou émoji manquant" }) : null,
         detail ? h("span", { class: "detail", text: detail }) : null),
+      photo,
       custom ? h("button", {
         type: "button", class: "icon", title: "Supprimer cet ajout", text: "✕",
         onclick: () => {
@@ -1670,7 +1753,59 @@ function renderBuiltin() {
         },
       }) : null);
   };
-  $("builtin-items").replaceChildren(...game.catalog.map((x) => tile(x, false)), ...extra.map((x) => tile(x, true)));
+  const tiles = [...game.catalog.map((x) => [x, false]), ...extra.map((x) => [x, true])];
+  // Pictionary : les mots rangés par série (Animaux, À manger…, puis « Mes mots »).
+  if (type === "pictionary") {
+    $("builtin-items").replaceChildren(...pictoSeriesList(tiles.map(([x]) => x)).flatMap((name) => [
+      h("h3", { class: "content-series", text: name }),
+      ...tiles.filter(([x]) => pictoSeriesOf(x) === name).map(([x, custom]) => tile(x, custom)),
+    ]));
+    return;
+  }
+  $("builtin-items").replaceChildren(...tiles.map(([x, custom]) => tile(x, custom)));
+}
+
+/**
+ * Qui suis-je ? : l'image du personnage (générée par exemple avec ChatGPT) ; Pictionary : une vraie photo du mot.
+ * Réduite et rangée comme les images de réponses, elle remplace l'émoji (TV, tablette du dessinateur) ; « ✕ » la retire.
+ */
+function contentPhoto(type, item, key, images) {
+  const name = type === "quisuis" ? item.answer : item.word;
+  const slot = contentSlot(key);
+  const id = images[slot];
+  const thumb = h("img", { class: "choice-thumb", alt: `Image de ${name}`, hidden: !id });
+  if (id) {
+    if (imageCache[id]) thumb.src = imageCache[id];
+    else get(ref(db, `library/images/${id}`)).then((snap) => {
+      if (typeof snap.val() === "string") { imageCache[id] = snap.val(); thumb.src = snap.val(); }
+    }).catch(() => {});
+  }
+  const save = (next, message) => {
+    const st = builtinState(type);
+    saveBuiltin(type, { ...st, images: next }, message);
+  };
+  const file = h("input", {
+    type: "file", accept: "image/*", hidden: true,
+    onchange: async (e) => {
+      const f = e.target.files?.[0];
+      e.target.value = "";
+      if (!f) return;
+      try {
+        const newId = await storeChoiceImage(f);
+        save({ ...builtinState(type).images, [slot]: newId }, `Image de « ${name} » enregistrée.`);
+      } catch (err) {
+        console.error(err);
+        status("builtin-status", "Image refusée : essayez une autre image (JPEG ou PNG).");
+      }
+    },
+  });
+  return h("span", { class: "choice-photo" }, thumb,
+    id ? h("button", {
+      type: "button", class: "icon", title: "Retirer l'image", text: "✕",
+      onclick: () => { const { [slot]: _, ...rest } = builtinState(type).images; save(rest, `Image de « ${name} » retirée.`); },
+    }) : null,
+    h("button", { type: "button", class: "icon", title: type === "quisuis" ? "Choisir une image pour ce personnage" : "Choisir une photo pour ce mot", text: "📷", onclick: () => file.click() }),
+    file);
 }
 
 /** Formulaire d'ajout propre à chaque jeu. */
@@ -1679,7 +1814,12 @@ function renderBuiltinForm() {
   const form = $("builtin-add");
   const field = (label, id, props = {}) => h("label", { class: props.wide ? "wide" : "" }, label, h(props.area ? "textarea" : "input", { id, maxlength: props.max ?? 60, rows: props.rows, placeholder: props.placeholder ?? "" }));
   const fields = type === "chante" ? [field("Nouveau mot", "bi-word", { max: 40, placeholder: "arc-en-ciel" })]
-    : type === "pictionary" ? [field("Mot à dessiner", "bi-word", { max: 40, placeholder: "Toboggan" }), field("Émoji (facultatif)", "bi-emoji", { max: 16, placeholder: "🛝" })]
+    : type === "pictionary" ? [
+      field("Mot à dessiner", "bi-word", { max: 40, placeholder: "Toboggan" }), field("Émoji (facultatif)", "bi-emoji", { max: 16, placeholder: "🛝" }),
+      // Série : une existante (liste) ou une nouvelle ; vide = « Mes mots ».
+      h("label", {}, "Série (facultatif)", h("input", { id: "bi-series", maxlength: 30, list: "bi-series-list", placeholder: PICTO_OWN_SERIES }),
+        h("datalist", { id: "bi-series-list" }, ...pictoSeriesList([...CONTENT_GAMES.pictionary.catalog, ...builtinState(type).extra]).map((name) => h("option", { value: name })))),
+    ]
     : type === "quisuis" ? [
       field("Réponse", "bi-answer", { placeholder: "Le kangourou" }), field("Émoji (facultatif)", "bi-emoji", { max: 16, placeholder: "🦘" }),
       ...[1, 2, 3, 4].map((n) => field(`Indice ${n}${n === 1 ? " (le plus difficile)" : n === 4 ? " (le plus facile)" : ""}`, `bi-clue${n}`, { wide: true, max: 120 })),
@@ -1698,7 +1838,7 @@ $("builtin-add").onsubmit = (e) => {
   const game = CONTENT_GAMES[type];
   const val = (id) => $(id)?.value.trim() ?? "";
   const raw = type === "chante" ? { word: val("bi-word") }
-    : type === "pictionary" ? { word: val("bi-word"), image: val("bi-emoji") }
+    : type === "pictionary" ? { word: val("bi-word"), image: val("bi-emoji"), series: val("bi-series") }
     : type === "quisuis" ? { answer: val("bi-answer"), emoji: val("bi-emoji"), clues: [1, 2, 3, 4].map((n) => val(`bi-clue${n}`)).filter(Boolean) }
     : { theme: val("bi-theme"), objects: val("bi-objects").split("\n").map((line) => {
       const m = line.trim().match(/^(.*\S)\s+(\S+)$/u);

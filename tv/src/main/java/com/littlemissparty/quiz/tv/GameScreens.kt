@@ -50,6 +50,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
+import com.littlemissparty.quiz.tv.habillage.ANNONCE_MULTIPLICATEUR_MS
+import com.littlemissparty.quiz.tv.habillage.AnnonceMultiplicateur
 import com.littlemissparty.quiz.tv.habillage.BandeauEquipes
 import com.littlemissparty.quiz.tv.habillage.Classee
 import com.littlemissparty.quiz.tv.habillage.Couronne
@@ -57,7 +59,7 @@ import com.littlemissparty.quiz.tv.habillage.LaParole
 import com.littlemissparty.quiz.tv.habillage.PAROLE_CENTRE_MS
 import com.littlemissparty.quiz.tv.habillage.PAROLE_GLISSE_MS
 import com.littlemissparty.quiz.tv.habillage.Neon
-import com.littlemissparty.quiz.tv.habillage.SignatureLogo
+import com.littlemissparty.quiz.tv.habillage.LogoLmp
 import com.littlemissparty.quiz.tv.habillage.Victoire
 import com.littlemissparty.quiz.tv.habillage.Tempo
 import com.littlemissparty.quiz.tv.habillage.apparition
@@ -78,8 +80,9 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
         Column(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 24.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "Question ${state.index + 1} / ${state.total}",
+                    state.etape ?: "Question ${state.index + 1}",
                     color = Palette.InkSoft, fontSize = 22.sp, fontWeight = FontWeight.Bold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
                 )
                 if (q.isExpress) {
                     Spacer(Modifier.width(16.dp))
@@ -92,14 +95,12 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                 if (q.double) {
                     Spacer(Modifier.width(16.dp))
                     Text(
-                        "POINTS ×2",
+                        "POINTS ×${state.factor.coerceAtLeast(2)}",
                         color = Palette.Night, fontSize = 18.sp, fontWeight = FontWeight.Black,
                         modifier = Modifier.clip(RoundedCornerShape(50)).background(Palette.Gold).padding(horizontal = 14.dp, vertical = 4.dp),
                     )
                 }
-                // Signature discrète de la marque, dans la ligne d'en-tête : jamais sur la question ni les réponses.
                 Spacer(Modifier.width(20.dp))
-                SignatureLogo()
                 Spacer(Modifier.weight(1f))
                 when (state.phase) {
                     Phase.QUESTION -> Countdown(state)
@@ -186,8 +187,11 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
         }
         // Blind test : annonce des derniers morceaux à double valeur, par-dessus tout l'écran.
         if (q.isBlind) BlindAnnonceDouble(q, state)
-        // Jeux au buzzer : « La parole est à … » en grand, puis en bandeau tant que l'équipe répond.
-        if (q.isBuzz) key(state.index) { AnnonceParole(state) }
+        // Dernières questions du quiz à points multipliés : « × N » en plein écran avant que le chrono parte.
+        state.introUntil?.let { fin -> key(fin) { AnnonceFacteur(state, fin) } }
+        // Jeux au buzzer : « La parole est à … » en grand, puis en bandeau tant que l'équipe répond
+        // (le blind test a sa propre scène au buzz).
+        if (q.isBuzz && !q.isBlind) key(state.index) { AnnonceParole(state) }
     }
 }
 
@@ -210,6 +214,15 @@ private fun AnnonceParole(state: UiState.Playing) {
     )
 }
 
+/** Annonce « × N » jusqu'au départ du chrono (calé sur l'heure du serveur, comme le décompte d'une reprise). */
+@Composable
+private fun AnnonceFacteur(state: UiState.Playing, fin: Long) {
+    val reste = remember(fin) { (fin - (System.currentTimeMillis() + state.serverOffset)).coerceIn(0L, ANNONCE_MULTIPLICATEUR_MS) }
+    if (reste > 0 && !apres(reste, fin) && !state.paused) {
+        AnnonceMultiplicateur(facteur = state.factor.coerceAtLeast(2), restantes = state.multipliedLeft.coerceAtLeast(1))
+    }
+}
+
 /** Boutons de l'animatrice sous la question. En pause, le seul bouton est « Reprendre » sur l'intermède. */
 @Composable
 private fun BoutonsQuestion(state: UiState.Playing, q: Question, actions: TvActions) {
@@ -217,15 +230,18 @@ private fun BoutonsQuestion(state: UiState.Playing, q: Question, actions: TvActi
         // Jeux au buzzer : l'animatrice juge la réponse orale. Régie reliée : elle juge depuis la régie,
         // la TV ne montre pas de boutons de secours (la télécommande reprend la main sans régie).
         Phase.QUESTION -> if (q.isBuzz && state.buzzTeam != null) {
-            if (state.regies == 0) Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (state.regies == 0) Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
                 TvButton("Mauvaise réponse", { actions.judgeBuzz(false) }, fontSize = 24.sp)
                 NextButton("Bonne réponse", { actions.judgeBuzz(true) }, key = state.buzzTeam)
             }
         } else if (q.isBlind && state.blind != null && state.blind.waiting) {
-            // Blind test, musique à l'arrêt : l'animatrice lance (ou relance), révèle ou passe le morceau.
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                TvButton("Passer", actions.blindSkip, fontSize = 24.sp)
-                TvButton("Révéler sans points", actions.blindReveal, fontSize = 24.sp)
+            // Blind test, musique à l'arrêt : l'animatrice lance (ou relance), révèle ou passe le morceau. Régie reliée :
+            // révéler et passer se font depuis la régie. Écart large : le bouton sélectionné grossit et brille.
+            Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+                if (state.regies == 0) {
+                    TvButton("Passer", actions.blindSkip, fontSize = 24.sp)
+                    TvButton("Révéler sans points", actions.blindReveal, fontSize = 24.sp)
+                }
                 NextButton(if (state.blind.played) "Relancer la musique" else "Lancer le morceau", actions.next, key = state.blind.played)
             }
         } else NextButton(if (q.isBlind) "Arrêter la musique" else "Arrêter le chrono", actions.next, key = state.phase)
@@ -418,14 +434,14 @@ fun ScoresScreen(state: UiState.Playing, actions: TvActions) {
             when {
                 state.mime?.picto == true -> "Après le Pictionary"
                 state.mime != null -> "Après les mimes"
-                else -> "Après la question ${state.index + 1} / ${state.total}"
+                else -> "Après ${state.etape ?: "la question ${state.index + 1}"}"
             },
             color = Palette.InkSoft, fontSize = 20.sp,
         )
         Spacer(Modifier.height(16.dp))
         Ranking(state, Modifier.weight(1f))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            SignatureLogo()
+            LogoLmp(64.dp)
             Spacer(Modifier.weight(1f))
             if (!state.paused) NextButton(suiteLabel(state), actions.next, key = state.index)
         }

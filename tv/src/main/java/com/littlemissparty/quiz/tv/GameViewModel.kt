@@ -39,6 +39,7 @@ import com.littlemissparty.quiz.engine.QuizJson
 import com.littlemissparty.quiz.engine.execute
 import com.littlemissparty.quiz.engine.programProblem
 import com.littlemissparty.quiz.engine.gameGains
+import com.littlemissparty.quiz.engine.gameStep
 import com.littlemissparty.quiz.engine.nextGameTitle
 import com.littlemissparty.quiz.engine.withProgram
 import kotlinx.coroutines.Job
@@ -96,6 +97,20 @@ sealed interface UiState {
         val isLast: Boolean = false,
         /** Fin d'un jeu : nom du jeu qui commence ensuite (annoncé sur le bouton), null au milieu d'un jeu. */
         val nextGame: String? = null,
+        /** Où en est la partie dans le jeu en cours : « Image floue · 3 / 8 », « Quiz · question 5 / 10 ». */
+        val etape: String? = null,
+        /** Écran de présentation du jeu qui commence : il attend que l'animatrice le lance. */
+        val intro: Boolean = false,
+        /** Nom du jeu en cours (« Image floue », « Mimes »…), pour sa présentation. */
+        val gameTitle: String? = null,
+        /** Points multipliés de la question en cours (dernières questions du quiz : ×2, ×3 ou ×5), 1 sinon. */
+        val factor: Int = 1,
+        /** Annonce « × N » avant la première question multipliée : heure (serveur) où le chrono part ; null sinon. */
+        val introUntil: Long? = null,
+        /** Heure du serveur où la question s'est ouverte (Portes mystères : présentation des premières secondes). */
+        val openedAt: Long? = null,
+        /** Questions multipliées restantes, celle-ci comprise (pour l'annonce). */
+        val multipliedLeft: Int = 0,
         /** Points gagnés par équipe dans le jeu en cours : vainqueur du jeu, célébré à sa fin (nextGame ou isLast). */
         val gameGains: Map<String, Int> = emptyMap(),
         val round: Int = 1,
@@ -438,7 +453,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
      */
     private fun recover() {
         val g = game ?: return
-        if (g.state.phase == Phase.QUESTION && !g.state.paused && g.remainingMs(serverNow()) == 0L) {
+        // Portes mystères : pas de chrono, rien ne se ferme seul.
+        if (g.state.phase == Phase.QUESTION && !g.state.paused && g.question?.isPortes != true && g.remainingMs(serverNow()) == 0L) {
             // Comme à la fin du chrono : question fermée, tour de mimes terminé, extrait du blind test arrêté.
             act { it.timeUp(serverNow()) }
         } else {
@@ -461,7 +477,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             when (g.state.phase) {
                 Phase.LOBBY -> if (teams().isNotEmpty()) commit(g.next(serverNow()))
                 // Mimes : arrête le tour en cours, ou termine la manche entre deux tours (« Terminer les mimes »).
-                Phase.QUESTION -> if (g.question?.isTurns == true) commit(g.next(serverNow()))
+                // Présentation d'un jeu : OK lance l'épreuve, comme « ▶ Lancer l'épreuve » de la régie.
+                Phase.QUESTION -> if (g.state.intro || g.question?.isTurns == true) commit(g.next(serverNow()))
                 // Blind test : OK lance (ou relance) la musique, ou l'arrête ; une équipe qui a buzzé est jugée par ses boutons.
                 else if (g.question?.isBlind == true) {
                     if (g.state.buzz?.team != null) return@withLock
@@ -533,7 +550,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val replayed = (event as? Jumped)?.clear.orEmpty().associate { "answers/$it" to null } +
             // Question ouverte : ses anciennes réponses (jeu déjà joué puis repris plus tôt dans le programme)
             // sont effacées, sinon les règles refuseraient les nouvelles et la question ne rapporterait rien.
-            ((event as? QuestionOpened)?.let { mapOf("answers/${it.qid}" to null) } ?: emptyMap())
+            ((event as? QuestionOpened)?.let { mapOf("answers/${it.qid}" to null) } ?: emptyMap()) +
+            // Portes mystères : valeurs en vigueur derrière les portes (l'animatrice peut les changer), pour la régie seule.
+            (g.question?.takeIf { it.isPortes }?.let { mapOf("conducteur/doorValues/${it.id}" to g.doorsOf(it)) } ?: emptyMap())
         // Sans réseau, Firebase garde l'écriture en file d'attente et l'envoie au retour de la connexion.
         ref.updateChildren(
             mapOf(
@@ -661,10 +680,17 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 buzzTeam = s.buzz?.team,
                 buzzBlocked = s.buzz?.blocked.orEmpty(),
                 blind = q?.takeIf { it.isBlind && s.phase != Phase.LOBBY }?.let { blindUi(g) },
-                portes = q?.takeIf { it.isPortes && s.phase != Phase.LOBBY }?.let { PortesUi(g.doorOrder(), s.doorsOpened, it.doors) },
+                portes = q?.takeIf { it.isPortes && s.phase != Phase.LOBBY }?.let { PortesUi(g.doorOrder(), s.doorsOpened, g.doorsOf(it)) },
                 lastGain = if (q?.isTurns == true) mimeCounts.mapValues { it.value * s.pointsPerFound(q.id) } else revealedAwards.mapValues { it.value.points },
                 isLast = g.isLastQuestion,
                 nextGame = g.nextGameTitle(),
+                etape = g.gameStep()?.label,
+                intro = s.intro,
+                gameTitle = g.gameStep()?.title,
+                factor = g.factorOf(s.index),
+                introUntil = g.multiplierIntroUntil(),
+                openedAt = s.openedAt,
+                multipliedLeft = g.multipliedLeft(s.index),
                 gameGains = g.gameGains(),
                 mime = q?.takeIf { it.isTurns && s.phase != Phase.LOBBY }?.let {
                     val m = s.mime
@@ -695,6 +721,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         // Réponses en images : celles de la question en cours et de la suivante (lisibles aussi par les pupitres).
         listOfNotNull(q, g.quiz.questions.getOrNull(s.index + 1)).flatMap { it.choiceImages }.filterNotNull()
             .forEach { prefetchImage(it, "choiceImages") }
+        // Pictionary : photos des mots proposés (rangées avec les réponses en images), prêtes pour la révélation.
+        (g.offerCards + listOfNotNull(g.lastCard)).mapNotNull { it.imageId }.forEach { prefetchImage(it, "choiceImages") }
         // Extraits musicaux : tous ceux du programme, dès son chargement, pour que la musique ne dépende
         // plus du réseau une fois la partie lancée.
         g.quiz.questions.mapNotNullTo(LinkedHashSet()) { it.audioId }.forEach(::prefetchSound)
@@ -1369,6 +1397,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "id" to quiz.id,
             "title" to quiz.title,
             "rev" to rev,
+            // Présentation de chaque jeu (prestations) : gardée au redémarrage de la box, qui relit ce conducteur.
+            "intros" to quiz.intros,
             // Cette box sait jouer les mimes : la régie prévient avant d'en envoyer à une TV trop ancienne.
             "mimes" to true,
             "pictionary" to true,
@@ -1384,12 +1414,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "statues" to true,
             // Portes mystères (jeu final) : choix d'une porte sur les tablettes, ouverture une à une.
             "portes" to true,
+            // Portes mystères : l'animatrice peut changer les valeurs derrière les portes (commande portes_set).
+            "portesSet" to true,
             "disparu" to true,
             "questions" to quiz.questions.map {
                 clean(mapOf(
                     "id" to it.id, "text" to it.text, "choices" to it.choices.ifEmpty { null }, "correct" to it.correct,
                     "duration" to it.durationSec, "kind" to it.kind.code, "double" to it.double, "round" to it.roundTitle,
-                    "cards" to it.cards.ifEmpty { null }?.map { c -> clean(mapOf("word" to c.word, "image" to c.image)) },
+                    "cards" to it.cards.ifEmpty { null }?.map { c -> clean(mapOf("word" to c.word, "image" to c.image, "imageId" to c.imageId)) },
                     "image" to it.emoji, "imageId" to it.imageId, "artist" to it.artist, "audioId" to it.audioId,
                     "doors" to it.doors.ifEmpty { null },
                     "choiceImages" to it.choiceImages.ifEmpty { null }?.map { id -> id ?: "" },

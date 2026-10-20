@@ -52,7 +52,30 @@ export async function cutExtract(buffer, start, seconds) {
   gain.gain.linearRampToValueAtTime(0, length);
   src.connect(gain).connect(ctx.destination);
   src.start(0, from, length);
-  return ctx.startRendering();
+  const out = await ctx.startRendering();
+  normalizeLevel(out.getChannelData(0));
+  return out;
+}
+
+/** Niveau visé pour tous les extraits (RMS en pleine échelle, environ -14 dB) : ni plus bas que les bruitages, ni plus fort d'une chanson à l'autre. */
+const TARGET_RMS = 0.2;
+const KNEE = 0.8;
+
+/**
+ * Met un extrait au niveau commun, sur place : gain vers [TARGET_RMS] (entre ÷2 et ×4), crêtes adoucies au-dessus de
+ * [KNEE] pour ne jamais dépasser la pleine échelle. Un extrait silencieux reste tel quel.
+ */
+export function normalizeLevel(samples) {
+  let sum = 0, peak = 0;
+  for (const x of samples) { sum += x * x; peak = Math.max(peak, Math.abs(x)); }
+  const rms = Math.sqrt(sum / Math.max(1, samples.length));
+  if (rms < 1e-4 || peak < 1e-4) return 1;
+  const g = Math.min(4, Math.max(0.5, TARGET_RMS / rms), 1.5 / peak);
+  for (let i = 0; i < samples.length; i++) {
+    const y = samples[i] * g, a = Math.abs(y);
+    samples[i] = a <= KNEE ? y : Math.sign(y) * (KNEE + (1 - KNEE) * Math.tanh((a - KNEE) / (1 - KNEE)));
+  }
+  return g;
 }
 
 /** Encode un AudioBuffer mono en MP3 ([kbps]) et rend son adresse data:audio/mpeg. */

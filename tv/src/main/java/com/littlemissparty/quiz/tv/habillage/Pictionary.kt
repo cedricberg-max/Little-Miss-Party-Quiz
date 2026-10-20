@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
@@ -51,6 +52,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 
@@ -65,6 +67,10 @@ val COULEURS_DESSIN = listOf(
     Color(0xFF1B1035), Color(0xFFFF2D8A), Color(0xFF2B86C5), Color(0xFF12C957),
     Color(0xFFFFB000), Color(0xFFFF5A1F), Color(0xFF6E28BE), Color(0xFF8B5A2B),
 )
+
+/** La gomme de l'ardoise : un trait couleur papier qui recouvre le dessin (couleur « paper » côté tablette). */
+const val GOMME_DESSIN = -1
+private val PAPIER_DESSIN = Color(0xFFFFFBF0)
 
 /** Épaisseurs du trait, en fraction de la largeur de la feuille (mêmes valeurs que le web). */
 val EPAISSEURS_DESSIN = listOf(0.006f, 0.012f, 0.028f)
@@ -136,7 +142,7 @@ fun TableauDessin(traits: List<TraitDessin>, modifier: Modifier = Modifier, vide
                     val h = l / RATIO_DESSIN
                     val o = Offset((size.width - l) / 2, (size.height - h) / 2)
                     val chemins = traits.map { t ->
-                        Triple(cheminDe(t, l, h), COULEURS_DESSIN[t.couleur], EPAISSEURS_DESSIN[t.epaisseur] * l)
+                        Triple(cheminDe(t, l, h), COULEURS_DESSIN.getOrNull(t.couleur) ?: PAPIER_DESSIN, EPAISSEURS_DESSIN[t.epaisseur] * l)
                     }
                     val pointilles = Color(0xFF6E28BE).copy(alpha = 0.07f)
                     val pas = l / 40f
@@ -247,7 +253,7 @@ fun MotPictionary(taille: TextUnit, modifier: Modifier = Modifier) {
         "PICTIONARY",
         maxLines = 1,
         modifier = modifier,
-        style = TextStyle(
+        style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP,
             brush = Brush.verticalGradient(listOf(Neon.OrClair, Neon.Or, Neon.OrProfond)),
             fontSize = taille, fontWeight = FontWeight.Black, letterSpacing = taille * 0.12f,
             shadow = Shadow(Neon.Halo.copy(alpha = 0.6f), Offset.Zero, 18f),
@@ -335,7 +341,7 @@ fun IntroPictionary(equipe: String, couleur: Color, motMontre: Boolean, modifier
                 equipe,
                 color = couleur, fontSize = 60.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
-                style = TextStyle(shadow = Shadow(couleur.copy(alpha = 0.7f), Offset.Zero, 26f)),
+                style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, shadow = Shadow(couleur.copy(alpha = 0.7f), Offset.Zero, 26f)),
                 modifier = Modifier.widthIn(max = 880.dp).apparition(450, equipe),
             )
             Spacer(Modifier.height(30.dp))
@@ -379,7 +385,7 @@ fun RevelationPictionary(
                     if (trouve) "TROUVÉ !" else "Temps écoulé !",
                     maxLines = 1,
                     modifier = Modifier.rebond(trouve, 0.06f).apparition(0, trouve),
-                    style = TextStyle(
+                    style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP,
                         color = if (trouve) Neon.JusteClair else Neon.Or,
                         fontSize = if (trouve) 64.sp else 50.sp, fontWeight = FontWeight.Black, letterSpacing = 3.sp,
                         shadow = Shadow((if (trouve) Neon.JusteClair else Neon.Or).copy(alpha = 0.7f), Offset.Zero, 26f),
@@ -407,8 +413,10 @@ fun RevelationPictionary(
                         Text("Le mot", color = Neon.Or, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                         if (image != null) {
                             Spacer(Modifier.height(10.dp))
+                            // L'image prend la place qui reste (170 dp au plus) : le mot et les points restent toujours visibles.
                             Box(
-                                Modifier.size(170.dp).background(Color.White, RoundedCornerShape(20.dp)).padding(10.dp).clearAndSetSemantics {},
+                                Modifier.weight(1f, fill = false).sizeIn(maxWidth = 170.dp, maxHeight = 170.dp).aspectRatio(1f)
+                                    .background(Color.White, RoundedCornerShape(20.dp)).padding(10.dp).clearAndSetSemantics {},
                                 contentAlignment = Alignment.Center,
                             ) { image() }
                         }
@@ -417,7 +425,7 @@ fun RevelationPictionary(
                             mot.uppercase(),
                             color = Neon.Blanc, fontSize = if (mot.length > 12) 34.sp else 44.sp, fontWeight = FontWeight.Black,
                             textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                            style = TextStyle(shadow = Shadow(Neon.Halo.copy(alpha = 0.6f), Offset.Zero, 18f)),
+                            style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, shadow = Shadow(Neon.Halo.copy(alpha = 0.6f), Offset.Zero, 18f)),
                         )
                         if (points != null && points > 0) {
                             Spacer(Modifier.height(10.dp))

@@ -195,8 +195,8 @@ function control() {
   // Notes de Sarah pour l'animatrice, préparées dans l'administration avec la prestation.
   listen(`games/${code}/show/notes`, (s) => {
     const notes = typeof s.val() === "string" ? s.val().trim() : "";
-    // Ouvertes à leur arrivée ; l'animatrice les replie d'une touche.
-    if (notes && notes !== $("c-notes-text").textContent) $("c-notes").open = true;
+    // Ouvertes à leur arrivée avant la partie ; l'animatrice les replie d'une touche.
+    if (notes && notes !== $("c-notes-text").textContent) $("c-notes").open = (live.state?.phase ?? "lobby") === "lobby";
     $("c-notes").hidden = !notes;
     $("c-notes-text").textContent = notes;
   });
@@ -224,6 +224,7 @@ const PHASES = {
   reveal: "Réponse révélée",
   scores: "Scores",
   ended: "Partie terminée",
+  intro: "Présentation du jeu",
 };
 
 /** Blind test piloté morceau par morceau (TV assez récente pour « Lancer le morceau »). */
@@ -239,6 +240,8 @@ function nextLabel(st, teamCount) {
   }
   switch (st.phase) {
     case "lobby": return teamCount ? "Lancer la fête !" : "En attente des équipes";
+    // Écran de présentation du jeu sur la TV : l'animatrice explique les règles, puis lance le jeu.
+    case "intro": return "▶ Lancer l'épreuve";
     case "question": return st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? `Terminer ${st.kind === "pictionary" ? "le Pictionary" : "les mimes"}` : "Voir le classement") : st.kind === "portes" ? "Fermer les choix" : "Arrêter le chrono";
     case "closed": return st.kind === "portes" ? "Aux portes ! 🚪" : "Révéler la réponse";
     // Portes mystères : l'animatrice ouvre les portes une à une, puis montre le classement final.
@@ -257,31 +260,39 @@ function nextLabel(st, teamCount) {
   }
 }
 
+let notesFolded = false;
+
 function render() {
   const st = live.state ?? { phase: "lobby" };
+  // Partie lancée : les notes se replient d'elles-mêmes, une fois, pour laisser la place aux commandes.
+  if (st.phase !== "lobby" && !notesFolded) { $("c-notes").open = false; notesFolded = true; }
+  if (st.phase === "lobby") notesFolded = false;
   // Le téléphone de la régie reste allumé pendant toute la partie, puis rend la veille normale à la fin.
   setAwake(st.phase !== "ended");
   const teams = Object.entries(live.teams).sort((a, b) => (a[1].joinedAt ?? 0) - (b[1].joinedAt ?? 0));
   const q = live.plan?.questions?.[st.index];
   const inQuestion = st.phase !== "lobby" && st.phase !== "ended" && st.index != null && st.index >= 0;
+  const intro = st.phase === "intro";
 
-  $("c-step").textContent = inQuestion && st.mime
+  $("c-step").textContent = intro ? st.game?.title ?? "" : inQuestion && st.mime
     ? (st.kind === "pictionary" ? "Pictionary" : `Mimes · ${st.text ?? ""}`)
     : inQuestion
-    ? `Question ${st.index + 1} / ${st.total ?? "?"}${st.double ? " · ×2" : ""}`
+    ? `${st.game?.label ?? `Question ${st.index + 1}`}${st.double ? ` · ×${st.factor ?? 2}` : ""}`
     : st.phase === "lobby" ? live.plan?.title ?? "" : "";
   $("c-phase").textContent = st.paused ? `En pause · ${PHASES[st.phase] ?? ""}` : PHASES[st.phase] ?? "";
   $("c-phase").classList.toggle("on-hold", st.paused === true);
   renderHold(st, teams);
-  $("c-question").textContent = inQuestion ? st.text ?? q?.text ?? "" : st.phase === "ended" ? (gamesOf(st).next ? "Bravo à toutes les équipes ! Un jeu a été ajouté : la partie peut reprendre." : "Bravo à toutes les équipes ! Pour continuer, ajoutez un jeu (onglet Programme) ou rejouez-en un (⏭ Changer de jeu).") : `${teams.length} équipe${teams.length > 1 ? "s" : ""} inscrite${teams.length > 1 ? "s" : ""}`;
+  renderFactor(st);
+  renderDoors(st, q);
+  $("c-question").textContent = intro ? "La TV présente le jeu. Expliquez les règles, puis lancez l'épreuve." : inQuestion ? st.text ?? q?.text ?? "" : st.phase === "ended" ? (gamesOf(st).next ? "Bravo à toutes les équipes ! Un jeu a été ajouté : la partie peut reprendre." : "Bravo à toutes les équipes ! Pour continuer, ajoutez un jeu (onglet Programme) ou rejouez-en un (⏭ Changer de jeu).") : `${teams.length} équipe${teams.length > 1 ? "s" : ""} inscrite${teams.length > 1 ? "s" : ""}`;
 
   const portes = (q?.kind ?? st.kind) === "portes";
   const correct = portes ? null : q?.correct ?? st.correct;
   const answerBtn = $("c-answer");
-  answerBtn.hidden = !inQuestion || (correct == null && !(portes && q?.doors));
+  answerBtn.hidden = intro || !inQuestion || (correct == null && !(portes && q?.doors));
   if (portes && q?.doors) {
     // Portes mystères : ce qu'il y a derrière chaque porte, pour l'animatrice seulement (masquable comme une réponse).
-    const values = q.doors.map((v, k) => `${k + 1} : ${v > 0 ? "+" : "−"}${Math.abs(v)}`).join(" · ");
+    const values = doorValues(q).map((v, k) => `${k + 1} : ${v > 0 ? "+" : "−"}${Math.abs(v)}`).join(" · ");
     answerBtn.textContent = answerMasked ? "Portes masquées · toucher pour voir" : `Derrière les portes · ${values}`;
     answerBtn.classList.toggle("masked", answerMasked);
   } else if (correct != null) {
@@ -331,6 +342,63 @@ function render() {
  * En pause : pourquoi, et qui n'est pas prêt. La reprise reste toujours le choix de l'animatrice,
  * même quand l'équipe déconnectée est revenue.
  */
+/** Juste avant les dernières questions du quiz : l'animatrice choisit ×2, ×3 ou ×5 (×2 par défaut). */
+function renderFactor(st) {
+  const choice = st.factorChoice;
+  const box = $("c-factor");
+  box.hidden = !choice || isDemo();
+  if (box.hidden) return;
+  const n = (live.plan?.questions ?? []).slice(choice.start).findIndex((q, k, rest) => !(q.double || q.finale) || (k > 0 && q.round !== rest[0].round));
+  const count = n < 0 ? (live.plan?.questions?.length ?? 0) - choice.start : n;
+  $("c-factor-text").textContent = `${count > 1 ? `Les ${count} dernières questions du quiz arrivent` : "La dernière question du quiz arrive"} : combien de points ?`;
+  box.querySelectorAll("[data-factor]").forEach((b) => {
+    const on = Number(b.dataset.factor) === choice.factor;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-pressed", String(on));
+  });
+}
+
+/** Portes mystères : valeurs en vigueur derrière les portes (celles changées par l'animatrice comprises). */
+function doorValues(q) {
+  const changed = live.plan?.doorValues?.[q.id];
+  return q.doors.map((v, k) => (typeof changed?.[k] === "number" ? changed[k] : v));
+}
+
+/** Valeurs proposées pour une porte (points) ; une valeur tirée au hasard hors de la liste reste choisie. */
+const DOOR_CHOICES = [-300, -150, -100, -50, 0, 50, 100, 150, 200, 300, 500];
+
+/**
+ * Portes mystères, avant l'ouverture : l'animatrice change la valeur d'une porte pour changer un peu le cours des
+ * choses. Replié par défaut, pour que les enfants qui regardent le téléphone ne voient rien.
+ */
+function renderDoors(st, q) {
+  const box = $("c-doors");
+  const open = q?.kind === "portes" && Array.isArray(q.doors) && (st.phase === "question" || st.phase === "closed") && live.plan?.portesSet === true;
+  box.hidden = !open || isDemo();
+  if (box.hidden) return;
+  const values = doorValues(q);
+  const key = `${q.id}:${values.join(",")}`;
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
+  const sign = (v) => (v > 0 ? `+${v}` : v < 0 ? `−${Math.abs(v)}` : "0");
+  $("c-doors-list").replaceChildren(...values.map((v, k) => {
+    const select = document.createElement("select");
+    select.setAttribute("aria-label", `Porte ${k + 1}`);
+    for (const n of [...new Set([...DOOR_CHOICES, v])].sort((a, b) => a - b)) {
+      const o = document.createElement("option");
+      o.value = n;
+      o.textContent = `${sign(n)} points`;
+      o.selected = n === v;
+      select.appendChild(o);
+    }
+    select.onchange = () => send("portes_set", { qid: q.id, door: k, value: Number(select.value) });
+    const label = document.createElement("label");
+    label.className = "door-value";
+    label.append(`🚪 Porte ${k + 1}`, select);
+    return label;
+  }));
+}
+
 function renderHold(st, teams) {
   const box = $("c-hold");
   box.hidden = !st.paused;
@@ -587,7 +655,7 @@ function renderBlind(st, teams) {
     info = `${name(buzzer)} a buzzé ! Réponse attendue : ${expected}`;
   } else if (b.waiting) {
     info = !b.played ? `Prêt : ${expected}. Touchez « Lancer le morceau » quand vous voulez.`
-      : tried.length ? `Pas trouvé (${tried.join(", ")}). Relancez la musique pour les autres équipes.`
+      : tried.length ? `Pas trouvé (${tried.join(", ")}). Relancez la musique : les autres buzzent tout de suite, ${tried.length > 1 ? "ces équipes" : tried[0]} 3 s après.`
       : "Musique arrêtée. Relancez-la, révélez ou passez le morceau.";
     if (ready === "missing") info += " ⚠ Extrait introuvable sur la TV : révélez ou passez ce morceau.";
     else if (ready === "loading") info += " ⏳ La TV charge encore l'extrait.";
@@ -600,6 +668,7 @@ function renderBlind(st, teams) {
   $("blind-ko").disabled = busy;
   $("blind-ok").querySelector("small").textContent = buzzer ? `+${b.points} pour ${name(buzzer)}` : "";
   const question = st.phase === "question" && !buzzer;
+  // Une équipe qui s'est trompée rebuzze d'elle-même 3 s après la reprise ; l'animatrice peut lever cette attente.
   $("blind-unblock").hidden = !(question && tried.length);
   $("blind-reveal").hidden = !question;
   $("blind-skip").hidden = !question;
@@ -1496,8 +1565,12 @@ function runTimer(st) {
     if (st.phase !== "question") ms = null;
     // En pause, ou chrono figé pendant la réponse d'une équipe qui a buzzé : le temps restant publié par la box.
     else if (st.paused || (st.buzz?.team && st.deadline == null)) ms = st.remainingMs ?? 0;
-    else ms = Math.max(0, (st.deadline ?? 0) - Math.max(Date.now() + serverOffset, st.resumeAt ?? 0));
-    el.textContent = ms == null ? "" : `${Math.ceil(ms / 1000)}`;
+    // Sans chrono en cours (blind test qui attend la relance, mimes entre deux tours) : rien, plutôt qu'un 0 inquiétant.
+    else if (st.deadline == null) ms = st.remainingMs ?? null;
+    else ms = Math.max(0, st.deadline - Math.max(Date.now() + serverOffset, st.resumeAt ?? 0));
+    // Secondes restantes au chrono de la question (ou de l'extrait au blind test).
+    el.textContent = ms == null ? "" : `⏱ ${Math.ceil(ms / 1000)} s`;
+    el.title = "Temps restant au chrono";
     el.classList.toggle("urgent", ms != null && ms <= 5000);
   };
   tick();
@@ -1517,6 +1590,7 @@ const STATUS_MESSAGES = {
   gone: "Cette demande n'existe plus : l'appareil a peut-être quitté la page.",
   stale_program: "Le programme venait de changer : rien n'a été fait, la liste des jeux est à jour.",
   countdown: "La partie reprend (3, 2, 1) : attendez la fin du décompte.",
+  bad_factor: "Valeur de points inconnue.",
 };
 
 function toast(message) {
@@ -1673,6 +1747,10 @@ function showUndo(text, seq) {
   };
   undoTimer = setTimeout(() => { $("undo").hidden = true; }, 10000);
 }
+
+$("c-factor").querySelectorAll("[data-factor]").forEach((b) => {
+  b.onclick = () => send("factor", { factor: Number(b.dataset.factor) });
+});
 
 $("c-next").onclick = async () => {
   const st = live.state;

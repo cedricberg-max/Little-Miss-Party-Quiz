@@ -44,7 +44,7 @@ fun LogoLmp(hauteur: Dp, modifier: Modifier = Modifier) {
 fun MotQuiz(taille: TextUnit, modifier: Modifier = Modifier) {
     Text(
         "QUIZ",
-        style = TextStyle(
+        style = TextStyle(fontFamily = PoliceLmp,
             brush = Brush.verticalGradient(listOf(Neon.OrClair, Neon.OrProfond)),
             fontSize = taille, lineHeight = taille * 1.05f, fontWeight = FontWeight.Black, letterSpacing = taille * 0.42f,
             shadow = Shadow(Neon.Or.copy(alpha = 0.5f), Offset.Zero, 24f),

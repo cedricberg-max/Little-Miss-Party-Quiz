@@ -31,7 +31,7 @@ class RegieTest : TestTv() {
         ecran.capture("regie-reliee")
 
         assertEquals("applied", regie.commande(code, "next"))
-        ecran.voit("Question 1 / ")
+        ecran.voit("Quiz · question 1 / ")
         val q = attendreQuestion(licornes, code, 0)
         assertTrue(licornes.repondre(code, q.id, q.correct))
         ecran.voit("Toutes les équipes ont répondu")
@@ -114,7 +114,7 @@ class RegieTest : TestTv() {
         // La question en cours ne peut pas disparaître du programme.
         assertEquals("current_round", regie.modifierProgramme(code, version, avant.drop(1)))
         assertEquals("applied", regie.modifierProgramme(code, version, avant + ajout))
-        ecran.voit("Question 1 / ${avant.size + 1}")
+        ecran.voit("Quiz · question 1 / ${avant.size}")
         // Préparé sur l'ancienne version (deuxième téléphone en retard) : refusé, rien ne bouge.
         assertEquals("stale", regie.modifierProgramme(code, version, avant))
 
@@ -179,7 +179,7 @@ class RegieTest : TestTv() {
 
         // Quiz : une question jouée jusqu'au classement.
         assertEquals("applied", regie.commande(code, "next"))
-        ecran.voit("Question 1 / 3")
+        ecran.voit("Quiz · question 1 / 1")
         attendreQue("question 1 ouverte") { licornes.etat(code).takeIf { it.child("qid").value == demo[0]["id"] } }
         assertTrue(licornes.repondre(code, demo[0]["id"] as String, (demo[0]["correct"] as Number).toInt()))
         ecran.voit("Toutes les équipes ont répondu")
@@ -207,13 +207,13 @@ class RegieTest : TestTv() {
 
         // Jeu suivant : la finale s'ouvre avec les mêmes équipes et les mêmes scores.
         assertEquals("applied", regie.commande(code, "next"))
-        ecran.voit("Question 3 / 3")
+        ecran.voit("Finale · question 1 / 1")
         assertEquals(apresQuiz + Scoring.MIME, points(licornes, code, licornes.uid))
         ecran.capture("quiz-mimes-finale")
 
         // Secours : rejouer le quiz retire ses points (pas de double compte), les mimes restent.
         assertEquals("applied", regie.commande(code, "goto", mapOf("index" to 0, "qid" to demo[0]["id"] as String)))
-        ecran.voit("Question 1 / 3")
+        ecran.voit("Quiz · question 1 / 1")
         attendreQue("points du quiz retirés") { points(licornes, code, licornes.uid).takeIf { it == Scoring.MIME.toLong() } }
         assertTrue("La tablette peut répondre de nouveau", licornes.repondre(code, demo[0]["id"] as String, (demo[0]["correct"] as Number).toInt()))
         ecran.voit("Toutes les équipes ont répondu")
@@ -315,7 +315,7 @@ class RegieTest : TestTv() {
 
         // Le quiz s'ouvre avec les mêmes équipes et les mêmes scores.
         assertEquals("applied", regie.commande(code, "next"))
-        ecran.voit("Question 3 / 3")
+        ecran.voit("Quiz · question 1 / 1")
         assertEquals(Scoring.PICTO.toLong(), points(licornes, code, licornes.uid))
         assertEquals(Scoring.MIME.toLong(), points(dragons, code, dragons.uid))
         assertTrue(licornes.repondre(code, demo[0]["id"] as String, (demo[0]["correct"] as Number).toInt()))
@@ -677,6 +677,52 @@ class RegieTest : TestTv() {
         ecran.voit("Fraise")
         attendreQue("150 points") { points(licornes, code, licornes.uid).takeIf { it == Scoring.BUZZ.toLong() } }
         ecran.capture("qui-a-disparu-revelation")
+    }
+
+    @Test
+    fun chaqueJeuSOuvreSurSaPresentationEtAttendQueLAnimatriceLeLance() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        val questions = listOf(
+            mapOf(
+                "id" to "p1", "text" to "Quel animal miaule ?", "choices" to listOf("Le chat", "Le chien"), "correct" to 0,
+                "duration" to 20, "kind" to "classic", "double" to false, "round" to "Quiz des animaux",
+            ),
+            mapOf(
+                "id" to "p2", "text" to "Le ciel est vert", "choices" to listOf("Vrai", "Faux"), "correct" to 1,
+                "duration" to 20, "kind" to "true_false", "double" to false, "round" to "Vrai ou Faux",
+            ),
+        )
+        assertEquals("applied", regie.chargerPrestation(code, "Anniversaire de Léa", questions))
+        assertEquals("applied", regie.commande(code, "next"))
+
+        // Présentation du premier jeu : son nom, rien d'autre ; rien ne part tant que l'animatrice ne lance pas.
+        ecran.voit("Quiz des animaux")
+        ecran.voit("Lancer l'épreuve")
+        assertEquals("intro", licornes.etat(code).child("phase").value)
+        assertFalse("pas de réponse pendant la présentation", licornes.repondre(code, "p1", 0))
+        ecran.capture("presentation-jeu")
+        ecran.neVoitPas("Quel animal miaule ?", 3_000)
+        assertEquals("intro", licornes.etat(code).child("phase").value)
+
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("Quel animal miaule ?")
+        attendreQue("première question ouverte") { licornes.etat(code).takeIf { it.child("phase").value == "question" } }
+        assertTrue(licornes.repondre(code, "p1", 0))
+        ecran.voit("Toutes les équipes ont répondu")
+        assertEquals("applied", regie.commande(code, "next"))
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("Jeu suivant : Vrai ou Faux")
+
+        // Jeu suivant : sa présentation, lancée cette fois à la télécommande.
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("Lancer l'épreuve")
+        ecran.voit("Vrai ou Faux")
+        ecran.ok("Lancer l'épreuve")
+        ecran.voit("Le ciel est vert")
+        attendreQue("question du Vrai ou Faux ouverte") { licornes.etat(code).takeIf { it.child("phase").value == "question" && it.child("qid").value == "p2" } }
     }
 
     private val regies = mutableListOf<RegieSimulee>()

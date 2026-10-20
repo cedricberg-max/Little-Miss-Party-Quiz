@@ -229,6 +229,7 @@ private class Box(val quiz: Quiz, val teams: Set<String> = EQUIPES) {
             // Blind test : « Suivant » lance ou arrête la musique ; l'animatrice juge, puis révèle sans points.
             val blindEnCours = copie.question?.isBlind == true && copie.state.phase == Phase.QUESTION
             val c = when {
+                copie.state.intro -> Command.Next("n$appuis", copie.state.lastSeq)
                 blindEnCours && copie.state.buzz?.team != null -> Command.Judge("j$appuis", copie.state.lastSeq, false)
                 blindEnCours -> Command.BlindReveal("v$appuis", copie.state.lastSeq)
                 else -> Command.Next("n$appuis", copie.state.lastSeq)
@@ -357,6 +358,8 @@ private class Box(val quiz: Quiz, val teams: Set<String> = EQUIPES) {
         val q = assertNotNull(game.question)
         assertEquals(Phase.QUESTION, state.phase, "${q.id} ouverte")
         assertFalse(state.paused)
+        // Annonce « × N » avant la première question multipliée : les pupitres attendent qu'elle finisse.
+        game.multiplierIntroUntil()?.let { attend(it - now) }
         // Question rouverte par « Suivant » après un retour en arrière : ses anciens points sont remplacés à la
         // révélation, jamais ajoutés (les mimes, eux, repartent de zéro dès l'ouverture).
         val avant = moins(scores(), state.awards[q.id].orEmpty().mapValues { it.value.points })
@@ -463,6 +466,28 @@ private class Box(val quiz: Quiz, val teams: Set<String> = EQUIPES) {
         assertEquals(q.id, state.qid)
         assertEquals(Phase.QUESTION, state.phase)
         assertFalse(state.paused)
+        // Premier écran d'un jeu : sa présentation, qui attend l'animatrice (rien ne part tout seul).
+        assertEquals(quiz.intros && index in game.rounds, state.intro, "présentation de ${q.id}")
+        if (state.intro) {
+            val public = Codec.publicState(game)
+            assertEquals(PHASE_INTRO, public["phase"])
+            assertEquals(game.gameStep()?.title, (public["game"] as Map<*, *>)["title"], "nom du jeu présenté")
+            assertNull(public["text"], "ni question ni propositions pendant la présentation")
+            assertNull(public["choices"])
+            assertEquals(false, public["buzzOpen"])
+            assertNull(game.deadline(), "présentation : pas de chrono")
+            assertFalse(tryAnswer(teams.first(), 0), "pas de réponse pendant la présentation")
+            assertNull(tryBuzz(ROSE), "pas de buzz pendant la présentation")
+            assertNull(game.armDelayMs(now), "Qui a disparu ? : la mémorisation attend le lancement")
+            assertNull(game.expressDelayMs(), "Vrai ou Faux express : rien ne s'enchaîne avant le lancement")
+            val avant = state
+            attend(60_000)
+            assertNull(game.timeUp(now), "la box ne ferme jamais une présentation")
+            assertEquals(avant, state, "une minute plus tard, toujours la présentation")
+            etape("présentation")
+            next()
+            assertFalse(state.intro, "l'animatrice a lancé ${q.id}")
+        }
         val buzzer = when {
             q.isBlind -> BuzzRound(waiting = true)
             q.isBuzz -> BuzzRound(armed = q.buzzFromMs == 0L)
@@ -470,7 +495,15 @@ private class Box(val quiz: Quiz, val teams: Set<String> = EQUIPES) {
         }
         assertEquals(buzzer, state.buzz, "buzzer de ${q.id}")
         assertEquals(if (q.isMime) MimeRound(deck = q.cards.indices.toList()) else null, state.mime, "mimes de ${q.id}")
-        if (q.isMime || q.isBlind) assertNull(game.deadline()) else assertEquals(now + q.durationMs, game.deadline(), "chrono de ${q.id}")
+        // Première des questions multipliées : la TV annonce « × N », le chrono et les réponses partent ensuite.
+        val intro = q.double && !q.isBlind && !q.isBuzz && game.doubleRunStart(index) == index
+        assertEquals(if (intro) now + MULTIPLIER_INTRO_MS else null, game.multiplierIntroUntil(), "annonce × N avant ${q.id}")
+        val depart = game.multiplierIntroUntil() ?: now
+        if (q.isMime || q.isBlind) assertNull(game.deadline()) else assertEquals(depart + q.durationMs, game.deadline(), "chrono de ${q.id}")
+        if (intro) {
+            assertFalse(tryAnswer(teams.first(), 0), "pas de réponse pendant l'annonce")
+            attend(depart - now)
+        }
     }
 
     /** Joue toute la prestation avec les boutons de la régie et les minuteries, du salon d'attente aux résultats. */
@@ -686,6 +719,26 @@ class PrestationsCompletesTest {
     fun `tous les jeux à la suite, avec un double appui sur chaque bouton`() {
         val b = Box(TOUS_LES_JEUX).apply { doubleAppui = true }
         b.joueJusquAuBout()
+        assertEquals(scores(rose = 550, bleu = 900, vert = 1000), b.scores())
+    }
+
+    @Test
+    fun `chaque jeu s'ouvre sur sa présentation et attend l'animatrice, double appui et box relancée après chaque événement`() {
+        val b = Box(TOUS_LES_JEUX.copy(intros = true)).apply { doubleAppui = true; redemarreAChaqueEvenement = true }
+        b.joueJusquAuBout()
+        assertEquals(scores(rose = 550, bleu = 900, vert = 1000), b.scores(), "mêmes points qu'en jouant sans présentation")
+    }
+
+    @Test
+    fun `présentation des jeux, pause et reprise à chaque étape`() {
+        val b = Box(TOUS_LES_JEUX.copy(intros = true))
+        var presentations = 0
+        b.etape = { ou ->
+            if (ou == "présentation") presentations++
+            b.pauseVerifiee("${b.state.qid} $ou")
+        }
+        b.joueJusquAuBout()
+        assertEquals(b.game.rounds.size, presentations, "une présentation par jeu")
         assertEquals(scores(rose = 550, bleu = 900, vert = 1000), b.scores())
     }
 

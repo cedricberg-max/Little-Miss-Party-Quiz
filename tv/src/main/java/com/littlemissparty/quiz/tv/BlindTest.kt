@@ -9,6 +9,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
+import com.littlemissparty.quiz.tv.habillage.boosterExtrait
 import kotlinx.coroutines.delay
 import java.security.MessageDigest
 
@@ -45,7 +46,8 @@ fun ExtraitMusical(q: Question, state: UiState.Playing) {
         }.onFailure { Log.w("Extrait", "Extrait illisible ${q.audioId}", it) }.getOrNull()
     } ?: return
     DisposableEffect(player) {
-        onDispose { runCatching { player.stop() }; runCatching { player.release() } }
+        val volume = boosterExtrait(player)
+        onDispose { runCatching { volume?.release() }; runCatching { player.stop() }; runCatching { player.release() } }
     }
     val revealed = state.phase == Phase.REVEAL
     // Blind test : la révélation fait réentendre l'extrait quelques secondes, ou s'arrête si l'animatrice raccourcit.
@@ -57,7 +59,8 @@ fun ExtraitMusical(q: Question, state: UiState.Playing) {
                 revealed && coupe -> if (player.isPlaying) player.pause()
                 revealed -> {
                     player.seekTo(0); player.start()
-                    if (q.isBlind) {
+                    // revealSec 0 : tout l'extrait, le temps de chanter.
+                    if (q.isBlind && q.revealSec > 0) {
                         delay(q.revealSec * 1000L)
                         if (player.isPlaying) player.pause()
                     }

@@ -21,7 +21,8 @@ body {
 @keyframes party { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
 
 #app { height: 100%; padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom); }
-.screen { display: none; height: 100%; flex-direction: column; align-items: center; justify-content: center; gap: 18px; text-align: center; }
+/* Un écran trop haut pour l'appareil (téléphone couché) défile au lieu d'être coupé. */
+.screen { display: none; height: 100%; flex-direction: column; align-items: center; justify-content: safe center; gap: 18px; text-align: center; overflow-y: auto; }
 .screen.active { display: flex; animation: pop .35s cubic-bezier(.2, 1.4, .4, 1); }
 @keyframes pop { from { transform: scale(.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
@@ -39,7 +40,8 @@ input {
 }
 /* Texte indicatif nettement plus pâle qu'un vrai nom, pour qu'on ne cherche pas à l'effacer. */
 input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-size: 18px; }
-.colors { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; max-width: 360px; }
+/* Les 8 couleurs en deux rangées de 4, jamais une couleur seule sur sa ligne. */
+.colors { display: grid; grid-template-columns: repeat(4, auto); justify-content: center; gap: 12px 14px; }
 .colors button {
   width: 52px; height: 52px; border-radius: 50%; border: 4px solid transparent; cursor: pointer;
   transition: transform .15s;
@@ -90,6 +92,16 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
 }
 .team-banner.small { font-size: 18px; padding: 6px 16px; }
 
+/* Présentation d'un jeu : le nom du prochain jeu en grand, dans un cadre doré qui respire. */
+.intro-jeu {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 100%; padding: 18px 30px; border-radius: 28px;
+  background: rgba(26, 11, 46, .35); box-shadow: 0 0 0 3px rgba(255, 209, 102, .75), 0 0 40px rgba(255, 209, 102, .3);
+  animation: intro-jeu 2.6s ease-in-out infinite alternate;
+}
+@keyframes intro-jeu { to { transform: scale(1.04); box-shadow: 0 0 0 3px rgba(255, 209, 102, .95), 0 0 60px rgba(255, 209, 102, .5); } }
+.intro-jeu-label { font-size: 16px; font-weight: 800; letter-spacing: .25em; text-transform: uppercase; color: var(--gold); }
+.intro-jeu-titre { font-size: clamp(30px, 9vw, 48px); font-weight: 900; line-height: 1.1; overflow-wrap: anywhere; }
+
 /* Question */
 .question-head { display: flex; align-items: center; gap: 12px; width: 100%; max-width: 520px; font-weight: 800; font-size: 18px; }
 .question-head .timer { margin-left: auto; font-size: 30px; font-weight: 900; min-width: 48px; text-align: right; }
@@ -128,10 +140,12 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
 /* Pause */
 .paused {
   position: fixed; inset: 0; z-index: 9; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  background: rgba(26, 11, 46, .9); color: var(--gold); font-size: 64px; font-weight: 900; letter-spacing: 8px;
+  gap: 14px; padding: 24px 28px; box-sizing: border-box;
+  background: rgba(26, 11, 46, .9); color: var(--gold); font-size: clamp(40px, 13vw, 64px); font-weight: 900; letter-spacing: 8px;
 }
-.paused p { color: #fff; font-size: 20px; letter-spacing: 0; font-weight: 700; }
-.paused div { text-align: center; letter-spacing: 2px; }
+/* Texte de pause centré avec de vraies marges : jamais collé aux bords d'un téléphone. */
+.paused p { margin: 0; max-width: 20em; color: #fff; font-size: 19px; line-height: 1.45; letter-spacing: 0; font-weight: 600; text-align: center; opacity: .92; }
+.paused div { text-align: center; letter-spacing: 2px; line-height: 1.05; }
 .countdown { background: rgba(26, 11, 46, .75); }
 .countdown div { font-size: 140px; line-height: 1; }
 [hidden] { display: none !important; }
@@ -168,3 +182,130 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
 .draw-head { display: flex; width: 100%; max-width: 980px; align-items: center; font-weight: 900; font-size: 22px; }
 .draw-head .timer { margin-left: auto; font-size: 30px; }
 .draw-head .timer.urgent { color: #ff4d6d; }
+
+/* ---------- Portrait ou paysage : l'écran suit l'appareil ----------
+   Téléphone tenu droit : tout en colonne (mise en page ci-dessus). Tablette posée, ou téléphone couché : on
+   profite de la largeur, l'équipe et les consignes à gauche, les réponses ou le buzzer à droite. */
+@media (orientation: landscape) and (min-width: 600px) {
+  #app { padding-left: max(24px, env(safe-area-inset-left)); padding-right: max(24px, env(safe-area-inset-right)); }
+
+  /* Rejoindre : le logo à gauche, le nom et la couleur à droite. */
+  #screen-join.active { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-content: safe center; justify-items: center; column-gap: 32px; row-gap: 10px; }
+  #screen-join.active > * { grid-column: 2; }
+  #screen-join.active > .logo { grid-column: 1; grid-row: 1 / span 9; align-self: center; }
+
+  /* Buzzer : l'équipe et la consigne à gauche, le gros bouton à droite. */
+  #screen-play.active { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 1fr auto auto 1fr; align-items: center; justify-items: center; column-gap: 40px; row-gap: 14px; }
+  #screen-play > .team-banner { grid-column: 1; grid-row: 2; }
+  #screen-play > #play-status { grid-column: 1; grid-row: 3; max-width: 22em; }
+  #screen-play > #buzz { grid-column: 2; grid-row: 1 / -1; }
+  /* Sans buzzer (présentation d'un jeu, attente) : une simple colonne centrée. */
+  #screen-play.active:has(> #buzz[hidden]) { display: flex; }
+  .buzz { width: min(46vw, 74vh); height: min(46vw, 74vh); }
+
+  /* Question : l'équipe, le chrono et la consigne à gauche, les réponses en 2 × 2 à droite. */
+  #screen-question.active { display: grid; grid-template-columns: minmax(170px, 30%) minmax(0, 1fr); grid-template-rows: 1fr auto auto auto 1fr; align-items: center; justify-items: center; column-gap: 28px; row-gap: 12px; }
+  #screen-question > .team-banner { grid-column: 1; grid-row: 2; max-width: 100%; }
+  #screen-question > .question-head { grid-column: 1; grid-row: 3; flex-wrap: wrap; justify-content: center; }
+  #screen-question > .question-head .timer { margin-left: 0; }
+  #screen-question > #q-status { grid-column: 1; grid-row: 4; }
+  #screen-question > #choices, #screen-question > #portes-host { grid-column: 2; grid-row: 1 / -1; width: 100%; max-width: 900px; }
+  .choices { grid-template-columns: 1fr 1fr; }
+  .choice { min-height: clamp(64px, 20vh, 120px); font-size: clamp(18px, 2.4vw, 26px); }
+  .choices.two .choice { min-height: clamp(96px, 40vh, 220px); }
+  .choices.pictures { grid-template-columns: 1fr 1fr; }
+  .choice.with-photo { min-height: 0; }
+  .choice.with-photo .photo { width: auto; max-width: 100%; height: clamp(70px, 30vh, 260px); }
+  .choices.number { grid-template-columns: 1fr; max-width: 520px; justify-self: center; }
+  .number-screen { min-height: clamp(48px, 13vh, 72px); font-size: clamp(30px, 8vh, 44px); }
+  .number-key { min-height: clamp(38px, 11vh, 64px); font-size: clamp(22px, 6vh, 30px); }
+
+  /* Résultat et fin restent en colonne centrée : courts, ils tiennent en hauteur et restent bien composés. */
+
+  /* Reprendre une équipe : la liste sur deux colonnes. */
+  .takeover-list { display: grid; grid-template-columns: 1fr 1fr; max-width: 640px; }
+}
+
+/* Écran peu haut (téléphone couché) : tout se resserre pour tenir sans défiler. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .screen { gap: 10px; }
+  .logo { font-size: 24px; }
+  .logo span { font-size: 40px; letter-spacing: 6px; }
+  .logo.small { font-size: 30px; }
+  .team-banner { font-size: 20px; padding: 6px 16px; }
+  .team-banner.small { font-size: 16px; padding: 4px 14px; }
+  .hint { font-size: 16px; }
+  input { padding: 10px 16px; font-size: 20px; }
+  .colors { gap: 8px; }
+  .colors button { width: 42px; height: 42px; }
+  .btn.big { padding: 12px 28px; font-size: 20px; }
+  .result-icon { font-size: 76px; }
+  .result-title { font-size: 22px; }
+  .result-image { font-size: 52px; }
+  .countdown div { font-size: 96px; }
+  .paused { font-size: 44px; }
+}
+
+/* ---------- Tablette (droite ou posée) : le même écran que sur téléphone, mais à la taille de la tablette ----------
+   Sans ce palier, les écrans du téléphone flottaient au milieu d'une tablette, en petit. */
+@media (min-width: 700px) and (min-height: 700px) {
+  #app .screen { gap: 26px; }
+  #app .logo { font-size: 44px; }
+  #app .logo span { font-size: 78px; letter-spacing: 12px; }
+  #app .logo.small { font-size: 60px; }
+  #app .hint { font-size: 24px; }
+  #app .welcome { font-size: 30px; }
+  #app label, #app .label { font-size: 24px; }
+  #app input { max-width: 520px; font-size: 30px; padding: 18px 24px; border-radius: 20px; }
+  #app input::placeholder { font-size: 24px; }
+  #app .colors { gap: 18px 22px; }
+  #app .colors button { width: 72px; height: 72px; border-width: 5px; }
+  #app .takeover-list { max-width: 560px; }
+  #app .takeover-list button { min-height: 80px; font-size: 28px; }
+  #app .btn { font-size: 26px; padding: 18px 36px; }
+  #app .btn.big { font-size: 30px; padding: 22px 48px; }
+  #app .team-banner { font-size: 34px; padding: 14px 30px; gap: 16px; }
+  #app .team-banner.small { font-size: 24px; padding: 8px 22px; }
+  #app .dot { width: 28px; height: 28px; }
+  #app .buzz { font-size: 110px; border-width: 14px; }
+  #app .question-head { max-width: 760px; font-size: 26px; }
+  #app .question-head .timer { font-size: 46px; min-width: 70px; }
+  #app .double { font-size: 20px; padding: 4px 14px; }
+  #app .choices { max-width: 760px; gap: 18px; }
+  #app .choice { min-height: 110px; padding: 14px 22px; gap: 18px; font-size: 30px; border-width: 5px; border-radius: 26px; }
+  #app .choice .letter { width: 64px; height: 64px; font-size: 34px; }
+  #app .choices.two .choice { min-height: 170px; font-size: 38px; }
+  #app .choice.door { min-height: 130px; font-size: 32px; }
+  #app .choice.with-photo { font-size: 24px; padding: 12px; }
+  #app .choice.with-photo .letter { width: 50px; height: 50px; font-size: 26px; }
+  #app .intro-jeu { padding: 26px 48px; gap: 10px; border-radius: 36px; }
+  #app .intro-jeu-label { font-size: 22px; }
+  #app .intro-jeu-titre { font-size: 72px; }
+  #app .result-icon { font-size: 170px; }
+  #app .result-title { font-size: 42px; }
+  #app .total { font-size: 32px; padding: 12px 26px; }
+  #app .result-image { font-size: 110px; }
+  #app .number-screen { min-height: 100px; font-size: 62px; }
+  #app .choices.number { gap: 14px; }
+  #app .number-pad { gap: 14px; }
+  #app .number-key { min-height: 88px; font-size: 42px; border-radius: 20px; }
+  #app .draw-head { font-size: 30px; }
+  #app .draw-head .timer { font-size: 44px; }
+  .paused p { font-size: 26px; }
+}
+
+/* Tablette posée : les réponses gardent leurs proportions dans la colonne de droite. */
+@media (orientation: landscape) and (min-width: 700px) and (min-height: 700px) {
+  #screen-question.active { grid-template-columns: minmax(260px, 32%) minmax(0, 1fr); column-gap: 40px; }
+  #app #screen-question > #choices { max-width: 1000px; }
+  #app .choice { min-height: clamp(110px, 22vh, 200px); }
+  #app .choices.two .choice { min-height: clamp(170px, 46vh, 360px); }
+  #app .choice.with-photo { min-height: 0; }
+  #app .choice.with-photo .photo { height: clamp(120px, 28vh, 260px); }
+  #app .number-screen { min-height: clamp(70px, 11vh, 100px); font-size: clamp(44px, 7vh, 62px); }
+  #app .number-key { min-height: clamp(60px, 10vh, 88px); font-size: clamp(32px, 5.4vh, 42px); }
+  #app .choices.number { max-width: 640px; }
+  #app .picto-host, #app .draw-head { max-width: 1240px; }
+  #app .draw-head { font-size: 24px; }
+  #app .draw-head .timer { font-size: 34px; }
+}

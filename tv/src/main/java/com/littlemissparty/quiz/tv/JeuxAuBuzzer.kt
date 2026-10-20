@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import android.graphics.BitmapFactory
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,26 +16,33 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
+import com.littlemissparty.quiz.tv.habillage.CarteIndice
+import com.littlemissparty.quiz.tv.habillage.PoliceLmp
+import com.littlemissparty.quiz.tv.habillage.RevelationPersonnage
 import com.littlemissparty.quiz.tv.habillage.apparition
 
 /** Petit badge doré en haut d'un plateau de mini-jeu. */
@@ -87,7 +95,7 @@ private fun MotEnGrand(mot: String, modifier: Modifier = Modifier) {
         val largeur = constraints.maxWidth
         val borne = constraints.hasBoundedWidth
         val taille = remember(mot, largeur, borne) {
-            val style = TextStyle(fontSize = MOT_TAILLE_MAX.sp, fontWeight = FontWeight.Black)
+            val style = TextStyle(fontFamily = PoliceLmp, fontSize = MOT_TAILLE_MAX.sp, fontWeight = FontWeight.Black)
             val plusLong = if (borne) mot.split(' ').maxOf { mesure.measure(it, style, softWrap = false, maxLines = 1).size.width } else 0
             // Petite marge : la mesure et l'affichage peuvent différer d'un pixel.
             if (plusLong <= 0) MOT_TAILLE_MAX
@@ -106,48 +114,77 @@ private const val MOT_TAILLE_MIN = 36f
 
 /**
  * Qui suis-je ? : les indices apparaissent un à un au fil du chrono (figés pendant une réponse orale) ;
- * à la révélation, tous les indices et l'émoji du personnage.
+ * à la révélation, tous les indices et l'émoji du personnage. Les indices restent centrés dans le cadre et
+ * se réduisent juste assez pour que le dernier ne soit jamais coupé, de 1 à 8 équipes.
  */
 @Composable
 fun QuiSuisBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modifier) {
     val remaining = chronoRestant(q, state)
     val revealed = state.phase == Phase.REVEAL || state.phase == Phase.SCORES
     val shown = if (revealed || state.phase == Phase.CLOSED) q.cards.size else q.cluesShown(q.durationMs - remaining)
+    val aide = shown < q.cards.size
     Column(
         modifier.clip(RoundedCornerShape(28.dp)).background(Color.White.copy(alpha = 0.10f)).padding(horizontal = 28.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Badge("QUI SUIS-JE ?")
             Spacer(Modifier.weight(1f))
-            Text(
-                if (revealed) q.emoji ?: "⭐" else "?",
-                color = Palette.Gold, fontSize = 56.sp, fontWeight = FontWeight.Black,
-                modifier = Modifier.apparition(0, revealed),
-            )
+            if (!revealed) Text("?", color = Palette.Gold, fontSize = 44.sp, fontWeight = FontWeight.Black)
         }
-        q.cards.take(shown).forEachIndexed { i, clue ->
-            Row(
-                Modifier.fillMaxWidth().apparition(0, "${q.id}-$i"),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    "${i + 1}", color = Palette.Night, fontSize = 22.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
-                    modifier = Modifier.clip(RoundedCornerShape(50)).background(Palette.Ink).width(40.dp).padding(vertical = 4.dp),
-                )
-                Spacer(Modifier.width(16.dp))
-                Text(
-                    clue.word,
-                    color = Palette.Ink, fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.Bold,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis,
-                )
+        // Révélation : le personnage en grand, avec son image (préparée dans l'administration), son émoji ou son nom seul.
+        if (revealed) {
+            RevelationPersonnage(
+                nom = q.choices.getOrNull(q.correct).orEmpty(),
+                emoji = q.emoji?.takeIf { it.isNotBlank() },
+                image = imagePersonnage(q, state),
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+            )
+            return@Column
+        }
+        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            val mesure = rememberTextMeasurer()
+            val densite = LocalDensity.current
+            val indices = q.cards.take(shown).map { it.word }
+            val hauteur = constraints.maxHeight
+            // Cartes néon (choix de cedric) : pastille numérotée de 1,45 × la taille du texte, marges et bordure de la carte.
+            val taille = remember(indices, aide, constraints.maxWidth, hauteur, densite.density) {
+                fun style(t: Float) = TextStyle(fontFamily = PoliceLmp, fontSize = t.sp, lineHeight = (t * 1.15f).sp, fontWeight = FontWeight.ExtraBold)
+                var t = INDICE_TAILLE_MAX
+                while (t > INDICE_TAILLE_MIN) {
+                    val largeur = (constraints.maxWidth - with(densite) { (58f + t * 1.45f).dp.roundToPx() }).coerceAtLeast(1)
+                    val total = indices.sumOf {
+                        maxOf(
+                            mesure.measure(it, style(t), constraints = Constraints(maxWidth = largeur)).size.height,
+                            with(densite) { (t * 1.45f).dp.roundToPx() },
+                        ) + with(densite) { 26.dp.roundToPx() }
+                    } + with(densite) { (10.dp * (indices.size - 1).coerceAtLeast(0)).roundToPx() + (if (aide) 34.dp else 0.dp).roundToPx() }
+                    if (!constraints.hasBoundedHeight || total <= hauteur) break
+                    t -= 1f
+                }
+                t
             }
-        }
-        if (shown < q.cards.size) {
-            Text(
-                "Prochain indice dans un instant…",
-                color = Palette.InkSoft, fontSize = 20.sp, modifier = Modifier.padding(start = 56.dp),
-            )
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically)) {
+                indices.forEachIndexed { i, clue ->
+                    key(q.id, i) { CarteIndice(i + 1, clue, Modifier.fillMaxWidth(), taille.sp) }
+                }
+                if (aide) {
+                    Text(
+                        "Prochain indice dans un instant…",
+                        color = Palette.InkSoft, fontSize = 20.sp, modifier = Modifier.padding(start = 56.dp),
+                    )
+                }
+            }
         }
     }
 }
+
+/** Image du personnage de Qui suis-je ?, une fois chargée sur la box ; null sinon. */
+@Composable
+private fun imagePersonnage(q: Question, state: UiState.Playing): ImageBitmap? {
+    val bytes = q.imageId?.let { state.images[it] }
+    return remember(bytes) { bytes?.let { runCatching { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() } }
+}
+
+private const val INDICE_TAILLE_MAX = 30f
+private const val INDICE_TAILLE_MIN = 18f

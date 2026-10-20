@@ -24,6 +24,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.littlemissparty.quiz.tv.habillage.Neon
+import com.littlemissparty.quiz.tv.habillage.PoliceLmp
+import com.littlemissparty.quiz.tv.habillage.couleurTexteNeonDore
 
 private val Shape = RoundedCornerShape(50)
 private const val FOCUS_MS = 160
@@ -45,20 +48,28 @@ fun TvButton(
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
     val scale by animateFloatAsState(if (focused) 1.08f else 1f, tween(FOCUS_MS), label = "scale")
-    val glow by animateDpAsState(if (focused) 18.dp else 0.dp, tween(FOCUS_MS), label = "glow")
+    val glow by animateDpAsState(if (focused) 18.dp else if (primary) 10.dp else 0.dp, tween(FOCUS_MS), label = "glow")
+    // Bouton principal « néon doré » (choix de cedric) : fond de nuit cerclé d'or, texte or clair ; plein or sous le focus.
     val container by animateColorAsState(
         when {
             focused -> Palette.Gold
-            primary -> Palette.Gold.copy(alpha = 0.18f)
+            primary -> Neon.Nuit2.copy(alpha = 0.85f)
             else -> Color.White.copy(alpha = 0.08f)
         },
         tween(FOCUS_MS), label = "container",
     )
-    val ink by animateColorAsState(if (focused) Palette.FocusInk else accent, tween(FOCUS_MS), label = "ink")
+    val ink by animateColorAsState(
+        when {
+            focused -> Palette.FocusInk
+            primary -> couleurTexteNeonDore(false)
+            else -> accent
+        },
+        tween(FOCUS_MS), label = "ink",
+    )
     val border by animateColorAsState(
         when {
             focused -> Color.White
-            primary -> Palette.Gold
+            primary -> Neon.Or
             else -> Color.White.copy(alpha = 0.45f)
         },
         tween(FOCUS_MS), label = "border",
@@ -70,7 +81,7 @@ fun TvButton(
             .shadow(glow, Shape, ambientColor = Palette.Gold, spotColor = Palette.Gold),
         shape = Shape,
         colors = ButtonDefaults.buttonColors(containerColor = container, contentColor = ink),
-        border = BorderStroke(if (focused) 4.dp else 2.dp, border),
+        border = BorderStroke(if (focused) 4.dp else if (primary) 3.dp else 2.dp, border),
         contentPadding = PaddingValues(horizontal = 28.dp, vertical = 12.dp),
         interactionSource = interaction,
     ) {
@@ -78,7 +89,9 @@ fun TvButton(
             label,
             color = ink,
             fontSize = fontSize,
-            fontWeight = if (focused || primary) FontWeight.Black else FontWeight.SemiBold,
+            // Le bouton Material impose sa propre police : celle de l'appli est redonnée ici.
+            fontFamily = PoliceLmp,
+            fontWeight = if (focused || primary) FontWeight.ExtraBold else FontWeight.SemiBold,
             textAlign = TextAlign.Center,
         )
     }

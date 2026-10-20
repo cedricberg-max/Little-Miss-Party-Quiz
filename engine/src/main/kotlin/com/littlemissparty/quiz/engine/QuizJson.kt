@@ -37,6 +37,7 @@ object QuizJson {
             id = o.getString("id"),
             title = o.optString("title", o.getString("id")),
             questions = (0 until questions.length()).map { i -> question(questions.getJSONObject(i), i) },
+            intros = o.optBoolean("intros", false),
         )
     }
 
@@ -73,7 +74,8 @@ object QuizJson {
             roundTitle = q.optString("round").ifBlank { null },
             cards = (0 until cards.length()).map { c ->
                 val card = cards.getJSONObject(c)
-                MimeCard(card.getString("word").trim(), card.optString("image").ifBlank { null })
+                // Photo du mot (Pictionary, préparée dans l'administration) : ignorée si mal formée.
+                MimeCard(card.getString("word").trim(), card.optString("image").ifBlank { null }, card.optString("imageId").takeIf { IMAGE_ID.matches(it) })
             },
             // Une illustration mal formée est ignorée : elle ne doit jamais empêcher de jouer.
             emoji = q.optString("image").trim().takeIf { it.isNotEmpty() && it.length <= 16 && !turns },
@@ -83,7 +85,8 @@ object QuizJson {
             artist = q.optString("artist").trim().takeIf { it.isNotEmpty() && kind == QuestionKind.BLIND }?.take(MAX_ARTIST),
             audioId = q.optString("audioId").takeIf { it.matches(IMAGE_ID) && !turns },
             points = q.optInt("points", 0).takeIf { it > 0 && (kind == QuestionKind.BLIND || kind == QuestionKind.PICTIONARY) }?.coerceAtMost(MAX_TRACK_POINTS),
-            revealSec = q.optInt("reveal", BLIND_REVEAL_SEC).coerceIn(3, 20),
+            // 0 : tout l'extrait à la révélation (le temps de chanter le refrain).
+            revealSec = q.optInt("reveal", BLIND_REVEAL_SEC).let { if (it == 0) 0 else it.coerceIn(3, 60) },
         )
     }
 }

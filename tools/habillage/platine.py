@@ -93,7 +93,7 @@ def etiquette(fond, encre, nom):
     vignette = 1 - 0.18 * (r / rr) ** 2
     col = np.array(fond, np.float32)[None, None, :] * (papier * vignette)[..., None]
     # Filets imprimés.
-    for rf, ep in ((0.92, 0.012), (0.62, 0.008)):
+    for rf, ep in ((0.97, 0.012), (0.56, 0.008)):
         anneau = 1 - lisse(0, ep * rr, np.abs(r - rf * rr))
         col = col * (1 - 0.55 * anneau[..., None]) + np.array(encre, np.float32) * 0.55 * anneau[..., None]
     a = 1 - lisse(rr - 1, rr, r)
@@ -102,16 +102,15 @@ def etiquette(fond, encre, nom):
     metal = 0.55 + 0.4 * np.clip(-(dx + dy) / (0.055 * rr * 1.4), -1, 1)
     col = np.where(axe[..., None], np.stack([metal, metal, metal * 1.02], -1), col)
     img = Image.fromarray((np.dstack([np.clip(col, 0, 1), a]) * 255).astype(np.uint8), 'RGBA')
-    d = ImageDraw.Draw(img)
-    police = ImageFont.truetype('/usr/share/fonts/opentype/inter/InterDisplay-Bold.otf', int(0.15 * rr * SS))
-    petite = ImageFont.truetype('/usr/share/fonts/opentype/inter/InterDisplay-Bold.otf', int(0.1 * rr * SS))
-    teinte = tuple(int(v * 255) for v in encre) + (235,)
-    texte_courbe(img, 'LITTLE MISS PARTY', police, 0.76 * rr * SS, -90, teinte, haut=True)
-    texte_courbe(img, 'BLIND TEST', police, 0.76 * rr * SS, 90, teinte, haut=False)
-    for t, dy_ in (('33⅓', -0.3), ('STÉRÉO', 0.3)):
-        bb = d.textbbox((0, 0), t, font=petite)
-        d.text((S / 2 - (bb[2] - bb[0]) / 2, S / 2 + dy_ * rr * SS - (bb[3] - bb[1]) / 2 - bb[1]), t, font=petite, fill=teinte)
+    # Texte gros et noir, entre les deux filets : il doit se lire de loin sur la TV, même quand le disque tourne.
+    police = ImageFont.truetype('/usr/share/fonts/opentype/inter/Inter-Black.otf', int(0.2 * rr * SS))
+    teinte = tuple(int(v * 255) for v in encre) + (255,)
+    texte_courbe(img, 'LITTLE MISS PARTY', police, 0.775 * rr * SS, -90, teinte, haut=True)
+    texte_courbe(img, 'BLIND TEST', police, 0.775 * rr * SS, 90, teinte, haut=False)
     img.resize((taille, taille), Image.LANCZOS).save(os.path.join(OUT, nom), 'WEBP', quality=90, method=6)
+
+
+ESPACE = 1.03  # espacement des lettres le long du cercle
 
 
 def texte_courbe(img, texte, police, rayon, centre_deg, couleur, haut):
@@ -119,10 +118,10 @@ def texte_courbe(img, texte, police, rayon, centre_deg, couleur, haut):
     S = img.size[0]
     d = ImageDraw.Draw(img)
     largeurs = [d.textlength(ch, font=police) for ch in texte]
-    total = sum(largeurs) * 1.08
+    total = sum(largeurs) * ESPACE
     angle = math.radians(centre_deg) - (total / rayon / 2 if haut else -total / rayon / 2)
     for ch, lw in zip(texte, largeurs):
-        pas = lw * 1.08 / rayon
+        pas = lw * ESPACE / rayon
         a = angle + (pas / 2 if haut else -pas / 2)
         cx, cy = S / 2 + rayon * math.cos(a), S / 2 + rayon * math.sin(a)
         tuile = Image.new('RGBA', (int(lw * 2 + 8), int(police.size * 1.6)), (0, 0, 0, 0))
@@ -254,7 +253,10 @@ def bras():
         alpha = a + alpha * (1 - a)
     # Ombre portée sous le bras.
     ombre = Image.fromarray((alpha * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(10 * SS))
-    ombre = np.roll(np.roll(np.asarray(ombre, np.float32) / 255, 16 * SS, 0), 12 * SS, 1) * 0.55
+    # Décalage sans enroulement : l'ombre qui sortirait du cadre à droite ne doit pas réapparaître à gauche.
+    ombre = np.asarray(ombre, np.float32) / 255
+    dy, dx = 16 * SS, 12 * SS
+    ombre = np.pad(ombre, ((dy, 0), (dx, 0)))[:ombre.shape[0], :ombre.shape[1]] * 0.55
     a_tot = alpha + ombre * (1 - alpha)
     col_tot = np.where(a_tot[..., None] > 0, col * alpha[..., None] / np.maximum(a_tot, 1e-6)[..., None], 0)
     return enregistrer(np.dstack([col_tot, a_tot]), 'lmp_bt_bras.webp', W, H)

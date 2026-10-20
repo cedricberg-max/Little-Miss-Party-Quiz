@@ -36,6 +36,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import kotlin.math.PI
 import kotlin.math.cos
@@ -135,7 +136,7 @@ fun LaParole(nom: String, couleur: Color, visible: Boolean, modifier: Modifier =
             ) {
                 Text(
                     "🎤  LA PAROLE EST À",
-                    style = TextStyle(color = Neon.Or, fontSize = 24.sp, fontWeight = FontWeight.Black, letterSpacing = 4.sp),
+                    style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = Neon.Or, fontSize = 24.sp, fontWeight = FontWeight.Black, letterSpacing = 4.sp),
                 )
                 NomUneLigne(nom.ifBlank { "Équipe" }, couleur, 96f, 780.dp)
             }
@@ -145,17 +146,17 @@ fun LaParole(nom: String, couleur: Color, visible: Boolean, modifier: Modifier =
 
 /** Le nom de l'équipe en grand, réduit autant qu'il faut pour tenir sur une seule ligne dans [largeurMax]. */
 @Composable
-private fun NomUneLigne(texte: String, couleur: Color, tailleMax: Float, largeurMax: Dp) {
+internal fun NomUneLigne(texte: String, couleur: Color, tailleMax: Float, largeurMax: Dp, tailleMin: Float = 28f) {
     val mesure = rememberTextMeasurer()
     val densite = LocalDensity.current
-    fun style(taille: Float) = TextStyle(
+    fun style(taille: Float) = TextStyle(fontFamily = PoliceLmp,
         color = couleur, fontSize = taille.sp, lineHeight = (taille * 1.1f).sp, fontWeight = FontWeight.Black,
         shadow = Shadow(couleur.copy(alpha = 0.8f), Offset.Zero, 28f),
     )
     val taille = remember(texte, largeurMax, densite.density, densite.fontScale) {
         val maxPx = with(densite) { largeurMax.toPx() }
         var s = tailleMax
-        while (s > 28f && mesure.measure(texte, style(s), maxLines = 1, softWrap = false).size.width > maxPx) s *= 0.92f
+        while (s > tailleMin && mesure.measure(texte, style(s), maxLines = 1, softWrap = false).size.width > maxPx) s *= 0.92f
         s
     }
     Text(texte, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, style = style(taille))

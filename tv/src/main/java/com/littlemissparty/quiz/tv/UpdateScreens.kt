@@ -33,6 +33,7 @@ import androidx.compose.ui.window.Dialog
 import com.littlemissparty.quiz.engine.Release
 import java.util.Locale
 import com.littlemissparty.quiz.tv.habillage.Neon
+import com.littlemissparty.quiz.tv.habillage.PoliceLmp
 
 class UpdateActions(
     val search: () -> Unit,
@@ -110,7 +111,7 @@ fun UpdateOfferDialog(release: Release, actions: UpdateActions) {
             Text(
                 "Une nouvelle version est prête !",
                 style = TextStyle(
-                    color = Palette.Gold, fontSize = 38.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
+                    fontFamily = PoliceLmp, color = Palette.Gold, fontSize = 38.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                     shadow = Shadow(Palette.Gold.copy(alpha = 0.6f), blurRadius = 18f),
                 ),
             )

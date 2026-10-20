@@ -4,6 +4,9 @@ package com.littlemissparty.quiz.engine
  * Conversion entre les événements et les données stockées dans Firebase
  * (des Map de String, Long, Double, Boolean). Firebase renvoie tous les nombres en Long ou Double.
  */
+/** Phase publiée pendant l'écran de présentation d'un jeu (la question est ouverte mais rien n'a commencé). */
+const val PHASE_INTRO = "intro"
+
 object Codec {
 
     /** Clé d'un événement dans `log/` : numérotée sur 6 chiffres pour rester triée. */
@@ -24,7 +27,10 @@ object Codec {
                 },
             )
             is ScoresShown -> mapOf("type" to "scores")
+            is FactorChosen -> mapOf("type" to "factor", "start" to e.start, "factor" to e.factor)
             is DoorOpened -> mapOf("type" to "door", "qid" to e.qid)
+            is DoorSet -> mapOf("type" to "doorset", "qid" to e.qid, "door" to e.door, "value" to e.value)
+            is GameLaunched -> mapOf("type" to "launch")
             is ScoreAdjusted -> mapOf("type" to "adjust", "team" to e.team, "delta" to e.delta, "reason" to e.reason)
             is Undone -> mapOf("type" to "undo", "target" to e.target)
             is GameEnded -> mapOf("type" to "end")
@@ -72,7 +78,10 @@ object Codec {
                 },
             )
             "scores" -> ScoresShown(seq, at)
+            "factor" -> FactorChosen(seq, at, m.num("start").toInt(), m.num("factor").toInt())
             "door" -> DoorOpened(seq, at, m["qid"] as String)
+            "doorset" -> DoorSet(seq, at, m["qid"] as String, m.num("door").toInt(), m.num("value").toInt())
+            "launch" -> GameLaunched(seq, at)
             "adjust" -> ScoreAdjusted(seq, at, m["team"] as String, m.num("delta").toInt(), m["reason"] as? String ?: "")
             "undo" -> Undone(seq, at, m.num("target").toInt())
             "end" -> GameEnded(seq, at)
@@ -114,21 +123,24 @@ object Codec {
      */
     private fun mimeState(game: Game, m: MimeRound?): Map<String, Any?> = mapOf(
         "team" to m?.team,
-        "card" to game.mimeCard?.let { mapOf("word" to it.word, "image" to it.image) },
+        "card" to game.mimeCard?.let(::cardMap),
         "found" to (m?.found ?: 0),
         "passed" to (m?.passed ?: 0),
         "left" to (m?.deck?.size ?: 0),
         "turns" to m?.turns.orEmpty(),
-        "last" to m?.last?.let { mapOf("team" to it.team, "found" to it.found, "passed" to it.passed, "word" to game.lastCard?.word, "image" to game.lastCard?.image) },
+        "last" to m?.last?.let { mapOf("team" to it.team, "found" to it.found, "passed" to it.passed, "word" to game.lastCard?.word, "image" to game.lastCard?.image) + listOfNotNull(game.lastCard?.imageId?.let { "imageId" to it }) },
         "points" to game.state.qid?.let(game.state::pointsPerFound),
         "counts" to game.state.mimes[game.state.qid].orEmpty(),
         // Pictionary : équipe qui découvre son mot, et clé du dessin du tour (en cours ou dernier) dans `drawing/`.
         "secret" to m?.secret,
-        "offer" to game.offerCards.map { mapOf("word" to it.word, "image" to it.image) }.ifEmpty { null },
+        "offer" to game.offerCards.map(::cardMap).ifEmpty { null },
         "chosen" to m?.takeIf { it.secret != null }?.pick?.let { m.offer.indexOf(it) },
         "pickKey" to pickKey(game),
         "drawKey" to drawKey(game),
     )
+
+    /** Carte de mime ou de Pictionary : mot, émoji, et photo seulement si elle existe. */
+    private fun cardMap(c: MimeCard): Map<String, Any?> = mapOf("word" to c.word, "image" to c.image) + listOfNotNull(c.imageId?.let { "imageId" to it })
 
     /** Pictionary : clé où la tablette du dessinateur écrit son choix (`pictoChoice/`) : manche et heure de la proposition. */
     fun pickKey(game: Game): String? {
@@ -153,7 +165,8 @@ object Codec {
         val q = game.question
         val revealed = s.phase == Phase.REVEAL || s.phase == Phase.SCORES || s.phase == Phase.ENDED
         val out = linkedMapOf<String, Any?>(
-            "phase" to s.phase.code,
+            // Présentation d'un jeu : ni question ni propositions, tout le monde attend le lancement de l'animatrice.
+            "phase" to if (s.intro) PHASE_INTRO else s.phase.code,
             "seq" to s.lastSeq,
             "total" to game.quiz.questions.size,
             "scores" to s.scores(),
@@ -167,12 +180,23 @@ object Codec {
             "pauseTeam" to s.hold?.team,
             "resumeAt" to s.resumeAt,
         )
+        // Dernières questions du quiz : la régie propose le multiplicateur juste avant la première.
+        game.factorChoice()?.let { start -> out["factorChoice"] = mapOf("start" to start, "factor" to (s.factors[start] ?: FACTORS.first())) }
+        if (q != null && s.intro) {
+            game.gameStep()?.let { out["game"] = mapOf("title" to it.title, "n" to it.n, "of" to it.of, "label" to it.label) }
+            out += mapOf("index" to s.index, "qid" to q.id, "kind" to q.kind.code, "deadline" to null, "buzzOpen" to false)
+            return out
+        }
         if (q != null && s.phase != Phase.ENDED) {
+            game.gameStep()?.let { out["game"] = mapOf("title" to it.title, "n" to it.n, "of" to it.of, "label" to it.label) }
             out += mapOf(
                 "index" to s.index,
                 "qid" to q.id,
                 "kind" to q.kind.code,
                 "double" to q.double,
+                "factor" to game.factorOf(s.index).takeIf { q.double },
+                // Annonce « × N » de la TV avant la première question multipliée : les pupitres attendent avec elle.
+                "intro" to game.multiplierIntroUntil(),
                 "text" to q.text,
                 // Jeux au buzzer : réponse à voix haute, les propositions (qui contiennent la réponse) restent cachées.
                 "choices" to if (q.isBuzz && !revealed) null else q.choices,
@@ -180,7 +204,7 @@ object Codec {
                 "choiceImages" to q.choiceImages.takeIf { q.hasChoiceImages && !(q.isBuzz && !revealed) }?.map { it ?: "" },
                 "durationMs" to q.durationMs,
                 "deadline" to game.deadline(),
-                "remainingMs" to if (s.paused || s.buzzHeld || s.buzz?.waiting == true) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
+                "remainingMs" to if (!q.isPortes && (s.paused || s.buzzHeld || s.buzz?.waiting == true)) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
                 "correct" to if (revealed && !q.isPortes) q.correct else null,
                 // L'émoji d'illustration peut trahir la réponse : seulement une fois révélée.
                 "image" to if (revealed) q.emoji else null,
@@ -193,9 +217,11 @@ object Codec {
             if (q.isTurns) out["mime"] = mimeState(game, s.mime)
             if (q.isBlind) out["blind"] = blindState(game)
             s.buzz?.let {
-                out["buzz"] = mapOf("team" to it.team, "blocked" to it.blocked)
-                // Même liste en table : les règles de la base refusent le buzz d'une équipe déjà bloquée.
-                out["buzzBlocked"] = it.blocked.associateWith { true }.ifEmpty { null }
+                val rebuzz = game.rebuzzAt()
+                out["buzz"] = mapOf("team" to it.team, "blocked" to it.blocked, "rebuzzAt" to rebuzz)
+                // Même liste en table : les règles de la base refusent le buzz d'une équipe déjà bloquée. Au blind test,
+                // l'heure (serveur) à partir de laquelle elle peut rebuzzer sur le même morceau.
+                out["buzzBlocked"] = it.blocked.associateWith { rebuzz ?: true }.ifEmpty { null }
             }
         }
         return out
@@ -215,7 +241,7 @@ object Codec {
             "count" to q.choices.size,
             "order" to order,
             "opened" to s.doorsOpened,
-            "values" to q.doors.mapIndexed { i, v -> if (i in open) v else null }.withIndex().filter { it.value != null }
+            "values" to game.doorsOf(q).mapIndexed { i, v -> if (i in open) v else null }.withIndex().filter { it.value != null }
                 .associate { it.index.toString() to it.value },
             "picks" to s.awards[q.id].orEmpty().mapValues { it.value.choice },
         )

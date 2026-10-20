@@ -3,7 +3,7 @@
 import { PROFILES, profileForAge, defaultDuration, expressDuration } from "./profiles.js";
 import { shuffle } from "./mime-cards.js";
 import { CHANTE_WORDS, QUI_SUIS_JE, DISPARU_THEMES } from "./buzz-cards.js";
-import { PICTO_WORDS } from "./picto-cards.js";
+import { PICTO_WORDS, PICTO_OWN_SERIES } from "./picto-cards.js";
 
 /**
  * Portes mystères (jeu final) : 3 ou 4 portes, chacune cache un bonus ou un malus qui peut renverser le classement ;
@@ -39,7 +39,8 @@ export const BLIND_SEC = 25;
  * morceaux valent plus, et secondes de révélation (pochette, titre, extrait rejoué). Réglable par playlist.
  */
 export const BLIND_SCALE = { points: 100, finalPoints: 200, finalCount: 3, reveal: 7 };
-export const BLIND_REVEAL_SECONDS = [4, 5, 7, 10, 15];
+/** Durée de la révélation d'un morceau du blind test, en secondes ; 0 = tout l'extrait (le temps de chanter). */
+export const BLIND_REVEAL_SECONDS = [4, 5, 7, 10, 15, 20, 30, 0];
 const bounded = (v, min, max, fallback) => (Number.isInteger(v) && v >= min && v <= max ? v : fallback);
 
 /** Barème d'une playlist, valeurs manquantes ou hors limites remplacées par celles par défaut. */
@@ -48,7 +49,7 @@ export function blindScale(playlist) {
     points: bounded(playlist?.points, 1, 1000, BLIND_SCALE.points),
     finalPoints: bounded(playlist?.finalPoints, 1, 1000, BLIND_SCALE.finalPoints),
     finalCount: bounded(playlist?.finalCount, 0, 20, BLIND_SCALE.finalCount),
-    reveal: bounded(playlist?.reveal, 3, 20, BLIND_SCALE.reveal),
+    reveal: playlist?.reveal === 0 ? 0 : bounded(playlist?.reveal, 3, 60, BLIND_SCALE.reveal),
   };
 }
 
@@ -103,11 +104,13 @@ export const BUILTIN_GAMES = {
   quisuis: {
     unit: "personnage", count: 5, duration: 40, rule: "un indice de plus toutes les 10 secondes",
     items: (profile, random, list) => list.filter((p) => profile !== "PETITS" || p.level === 1),
-    question: (p) => ({ text: "Qui suis-je ?", choices: [p.answer], correct: 0, kind: "quisuis", cards: p.clues.map((word) => ({ word })), image: p.emoji }),
+    // Le personnage se montre à la révélation : son image (préparée dans l'administration), sinon son émoji.
+    question: (p) => ({ text: "Qui suis-je ?", choices: [p.answer], correct: 0, kind: "quisuis", cards: p.clues.map((word) => ({ word })), image: p.emoji, ...(p.imageId ? { imageId: p.imageId } : {}) }),
   },
   disparu: {
     unit: "grille", count: 4, duration: 45, rule: "on mémorise les objets, puis l'un d'eux disparaît",
-    items: (profile, random, list) => list.map((t) => disparuGrid(t, DISPARU_OBJECTS[profile] ?? 7, random)),
+    // Nombre d'objets par grille : réglé sur la manche (4 à 12), sinon selon l'âge.
+    items: (profile, random, list, round) => list.map((t) => disparuGrid(t, disparuObjects(round, profile), random)),
     question: (g) => ({ text: "Qui a disparu ?", choices: [g.missing.word], correct: 0, kind: "disparu", cards: g.objects, image: g.missing.image, duration: g.duration }),
   },
 };
@@ -133,7 +136,10 @@ export const CONTENT_GAMES = {
   pictionary: {
     unit: "mot", catalog: PICTO_WORDS, key: (w) => w.word.toLowerCase(), label: (w) => `${w.image ?? ""} ${w.word}`.trim(),
     clean: (x) => (typeof x?.word === "string" && x.word.trim()
-      ? { word: x.word.trim().slice(0, 40), ...(typeof x.image === "string" && x.image.trim() ? { image: x.image.trim().slice(0, 16) } : {}), level: 1 }
+      ? {
+        word: x.word.trim().slice(0, 40), ...(typeof x.image === "string" && x.image.trim() ? { image: x.image.trim().slice(0, 16) } : {}), level: 1,
+        ...(typeof x.series === "string" && x.series.trim() ? { series: x.series.trim().slice(0, 30) } : {}),
+      }
       : null),
   },
   disparu: {
@@ -154,16 +160,32 @@ export function contentExtras(type, content) {
   return (Array.isArray(content?.extra) ? content.extra : Object.values(content?.extra ?? {})).map(game.clean).filter(Boolean);
 }
 
-/** Éléments jouables d'un jeu intégré : le catalogue sans les éléments retirés, plus les ajouts. */
+/** Clé d'un élément utilisable dans la base (sans . # $ [ ] /) : images des personnages de Qui suis-je ?. */
+export const contentSlot = (key) => `${key}`.replace(/[.#$[\]/]/g, "_").slice(0, 80);
+
+/** Images choisies dans l'administration pour les éléments d'un jeu (Qui suis-je ?), par clé d'élément. */
+export function contentImages(content) {
+  const out = {};
+  for (const [k, id] of Object.entries(content?.images ?? {})) if (typeof id === "string" && /^[0-9a-f]{16}$/.test(id)) out[k] = id;
+  return out;
+}
+
+/** Éléments jouables d'un jeu intégré : le catalogue sans les éléments retirés, plus les ajouts, avec leur image. */
 export function activeItems(type, content) {
   const game = CONTENT_GAMES[type];
   const off = new Set((Array.isArray(content?.off) ? content.off : Object.values(content?.off ?? {})).map((k) => `${k}`.toLowerCase()));
-  return [...game.catalog, ...contentExtras(type, content)].filter((x) => !off.has(game.key(x)));
+  const images = contentImages(content);
+  return [...game.catalog, ...contentExtras(type, content)].filter((x) => !off.has(game.key(x)))
+    .map((x) => (images[contentSlot(game.key(x))] ? { ...x, imageId: images[contentSlot(game.key(x))] } : x));
 }
 
 /** Qui a disparu ? : objets par grille selon l'âge, et temps de recherche après la mémorisation. */
 const DISPARU_OBJECTS = { PETITS: 5, MOYENS: 7, GRANDS: 9, ADULTES: 9 };
 const DISPARU_SEARCH_SEC = 25;
+
+/** Objets par grille d'une manche Qui a disparu ? : le réglage de la manche (4 à 12), sinon celui de l'âge. */
+export const disparuObjects = (round, profile) =>
+  Number.isInteger(round?.objects) && round.objects >= 4 && round.objects <= 12 ? round.objects : DISPARU_OBJECTS[profile] ?? 7;
 
 /**
  * Une grille de Qui a disparu ? : [n] objets de la famille et celui qui disparaîtra. La durée suit le
@@ -173,10 +195,43 @@ function disparuGrid(theme, n, random) {
   const objects = shuffle(theme.objects, random).slice(0, n);
   const missing = objects[Math.floor(random() * objects.length)];
   const memo = Math.min(18, Math.max(10, objects.length * 2));
-  return { objects, missing, duration: memo + 3 + DISPARU_SEARCH_SEC };
+  return { theme: theme.theme, objects, missing, duration: memo + 3 + DISPARU_SEARCH_SEC };
 }
 
 /** Une manche est-elle complète (quiz choisi, ou paquet de mimes choisi) ? Les jeux intégrés le sont toujours. */
+/** Série d'un mot du Pictionary ; un mot ajouté sans série va dans « Mes mots ». */
+export const pictoSeriesOf = (w) => (typeof w?.series === "string" && w.series.trim() ? w.series.trim() : PICTO_OWN_SERIES);
+
+/** Les séries de ces mots, dans l'ordre où elles apparaissent. */
+export const pictoSeriesList = (words) => [...new Set(words.map(pictoSeriesOf))];
+
+/** Super Finale : nombre de dernières questions du quiz à ×2 quand une ancienne manche est convertie. */
+export const SUPER_FINALE_LAST = 3;
+
+/**
+ * Ancienne manche « Super Finale » (avant la 0.1.271) : ce n'est pas un jeu. Elle disparaît de la liste et
+ * devient le réglage du quiz qui la précède (ses dernières questions ×2). Sans quiz avant elle, elle devient
+ * une manche Quiz ordinaire dont les dernières questions comptent double. [folded] : manches converties.
+ */
+export function foldLegacyFinale(list) {
+  const rounds = [];
+  let folded = 0;
+  for (const r of (list ?? []).filter(Boolean)) {
+    if (r.type !== "finale") { rounds.push({ ...r }); continue; }
+    folded++;
+    const host = [...rounds].reverse().find((x) => (x.type ?? "quiz") === "quiz");
+    if (host) { if (!(host.finale > 0)) host.finale = SUPER_FINALE_LAST; }
+    else rounds.push({ type: "quiz", quizId: r.quizId, finale: SUPER_FINALE_LAST });
+  }
+  return { rounds, folded };
+}
+
+/** Séries retenues pour une manche de Pictionary, ou null pour toutes. */
+export const pictoRoundSeries = (round) => {
+  const list = Array.isArray(round?.series) ? round.series.filter((x) => typeof x === "string" && x.trim()).map((x) => x.trim()) : [];
+  return list.length ? list : null;
+};
+
 export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || round.type === "statues" || round.type === "pictionary" || round.type === "portes" ? true : round.type === "mimes" ? round.deckId : MUSIC_GAMES[round.type] ? round.playlistId : round.quizId));
 
 /** Morceaux jouables d'une playlist : un titre et un extrait enregistré. */
@@ -239,6 +294,8 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
   const blocks = [];
   let rounds, questions;
   const begin = (type) => { rounds = []; questions = []; blocks.push({ type, rounds, questions }); };
+  /** Éléments des jeux intégrés déjà tirés dans cette prestation, par jeu. */
+  const used = {};
   (show.rounds ?? []).filter(Boolean).forEach((round, i) => {
     begin(round.type);
     if (round.type === "mimes") {
@@ -269,13 +326,16 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     }
     if (round.type === "pictionary") {
       // Un seul élément : le paquet de mots mélangé (adapté à l'âge), joué équipe par équipe, un mot par tour.
-      const words = activeItems("pictionary", contents?.pictionary).filter((w) => profile !== "PETITS" || w.level !== 2);
-      if (!words.length) { problems.push(`Manche ${i + 1} (Pictionary) : aucun mot actif (page Jeux de l'administration).`); return; }
+      // Séries choisies pour la manche (aucune : toutes les séries).
+      const series = pictoRoundSeries(round);
+      const words = activeItems("pictionary", contents?.pictionary)
+        .filter((w) => (profile !== "PETITS" || w.level !== 2) && (!series || series.includes(pictoSeriesOf(w))));
+      if (!words.length) { problems.push(`Manche ${i + 1} (Pictionary) : aucun mot actif${series ? " dans les séries choisies" : ""} (page Jeux de l'administration).`); return; }
       const duration = PICTO_SECONDS.includes(round.duration) ? round.duration : PICTO_SEC;
       rounds.push({ title: ROUND_TYPES.pictionary, count: 1, kind: "pictionary" });
       questions.push({
         id: `r${i + 1}p`, text: ROUND_TYPES.pictionary, kind: "pictionary", duration, double: false, round: ROUND_TYPES.pictionary,
-        points: PICTO_POINTS, cards: shuffle(words, random).slice(0, 200).map((w) => (w.image ? { word: w.word, image: w.image } : { word: w.word })),
+        points: PICTO_POINTS, cards: shuffle(words, random).slice(0, 200).map((w) => ({ word: w.word, ...(w.image ? { image: w.image } : {}), ...(w.imageId ? { imageId: w.imageId } : {}) })),
       });
       return;
     }
@@ -296,7 +356,14 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     const builtin = BUILTIN_GAMES[round.type];
     if (builtin) {
       const count = Math.max(1, Math.min(12, round.count ?? builtin.count));
-      const picked = shuffle(builtin.items(profile, random, activeItems(round.type, contents?.[round.type])), random).slice(0, count);
+      // Deux manches du même jeu dans une prestation : pas deux fois le même mot, personnage ou famille, tant qu'il en reste.
+      const game = CONTENT_GAMES[round.type];
+      const seen = (used[round.type] ??= new Set());
+      const all = activeItems(round.type, contents?.[round.type]);
+      const fresh = all.filter((x) => !seen.has(game.key(x)));
+      const pool = fresh.length >= Math.min(count, all.length) ? fresh : all;
+      const picked = shuffle(builtin.items(profile, random, pool, round), random).slice(0, count);
+      picked.forEach((x) => seen.add(game.key(x)));
       if (!picked.length) {
         problems.push(`Manche ${i + 1} (${ROUND_TYPES[round.type]}) : aucun ${CONTENT_GAMES[round.type].unit} actif (page Jeux de l'administration).`);
         return;
@@ -362,7 +429,8 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       showId, title, childName: show.childName?.trim() ?? "", age: show.age ?? null, profile, rounds,
       // Notes de Sarah pour l'animatrice, lues sur la régie le jour J (la TV les ignore).
       ...(show.notes?.trim() ? { notes: show.notes.trim().slice(0, 2000) } : {}),
-      quiz: { id: showId, title, questions },
+      // Chaque jeu s'ouvre sur son écran de présentation, que l'animatrice lance depuis la régie.
+      quiz: { id: showId, title, questions, intros: true },
     },
     problems,
   };
@@ -539,7 +607,9 @@ export function choiceImageList(q) {
 
 /** Réponses en images d'un programme (identifiants sans doublon), à copier dans la partie avant de l'envoyer. */
 export function choiceImageIds(questions) {
-  return [...new Set((questions ?? []).flatMap((q) => (Array.isArray(q?.choiceImages) ? q.choiceImages : [])).filter((id) => typeof id === "string" && IMAGE_ID.test(id)))];
+  // Rangées avec les réponses en images : aussi les photos des mots du Pictionary (lues par la tablette du dessinateur).
+  return [...new Set((questions ?? []).flatMap((q) => [...(Array.isArray(q?.choiceImages) ? q.choiceImages : []), ...(Array.isArray(q?.cards) ? q.cards.map((c) => c?.imageId) : [])])
+    .filter((id) => typeof id === "string" && IMAGE_ID.test(id)))];
 }
 
 /** Photos d'illustration d'un programme (identifiants sans doublon), à copier dans la partie avant de l'envoyer. */

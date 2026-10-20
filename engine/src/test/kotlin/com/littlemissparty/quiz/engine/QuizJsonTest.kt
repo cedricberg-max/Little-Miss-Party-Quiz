@@ -81,4 +81,20 @@ class QuizJsonTest {
         g.next(3_000, emptyMap())
         assertEquals("🦁", Codec.publicState(g)["image"])
     }
+
+    @Test
+    fun `Pictionary - la photo d'un mot passe jusqu'aux mots proposes, une photo mal formee est ignoree`() {
+        val quiz = QuizJson.parse(
+            """{"id":"p","questions":[{"id":"r1p","text":"Pictionary","kind":"pictionary","duration":90,"cards":[
+              {"word":"Toboggan","image":"🛝","imageId":"0123456789abcdef"},{"word":"Chat","imageId":"pas-une-photo"},{"word":"Lune"}]}]}""",
+        )
+        assertEquals(listOf("0123456789abcdef", null, null), quiz.questions[0].cards.map { it.imageId })
+        val g = Game(quiz)
+        g.next(1_000)
+        check(g.question?.isPicto == true)
+        checkNotNull(g.pictoShow("rose", 3_000))
+        @Suppress("UNCHECKED_CAST")
+        val offer = (Codec.publicState(g)["mime"] as Map<String, Any?>)["offer"] as List<Map<String, Any?>>
+        assertEquals("0123456789abcdef", offer.first { it["word"] == "Toboggan" }["imageId"])
+    }
 }

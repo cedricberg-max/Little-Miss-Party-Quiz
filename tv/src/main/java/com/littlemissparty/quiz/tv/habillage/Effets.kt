@@ -208,7 +208,7 @@ fun GeneriqueSalon(partie: String, prenom: String, titre: String) {
                 if (prenom.isNotBlank()) {
                     Text(
                         "$prenom !",
-                        style = TextStyle(
+                        style = TextStyle(fontFamily = PoliceLmp,
                             color = Color(0xFFFFF6E6), fontSize = 84.sp, lineHeight = 92.sp, fontWeight = FontWeight.Bold,
                             shadow = Shadow(Neon.Or, Offset.Zero, 36f),
                         ),
@@ -390,7 +390,7 @@ fun Tampon(
             texte,
             maxLines = 1,
             softWrap = false,
-            style = TextStyle(
+            style = TextStyle(fontFamily = PoliceLmp,
                 color = couleur, fontSize = tailleSp.sp, lineHeight = (tailleSp + 6).sp, fontWeight = FontWeight.Black,
                 letterSpacing = 4.sp, shadow = Shadow(couleur.copy(alpha = 0.8f), Offset.Zero, 28f),
             ),

@@ -2,6 +2,7 @@ package com.littlemissparty.quiz.engine
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -99,7 +100,7 @@ class PictionaryTest {
         assertEquals(MimeTurn("bleu", 0, 0, 1), g.state.mime?.last)
         assertEquals("Fusée", g.lastCard?.word)
         g.pictoShow("rose", t0 + 120_000)
-        assertEquals(listOf("Chat", "Maison", "Soleil"), g.offerCards.map { it.word }, "Le mot dessiné ne resservira pas, les autres si")
+        assertEquals(listOf("Soleil", "Pomme", "Vélo"), g.offerCards.map { it.word }, "Le mot dessiné ne resservira pas ; les mots déjà montrés attendent la fin du paquet")
     }
 
     @Test
@@ -108,7 +109,11 @@ class PictionaryTest {
         assertNull(g.mimePass(t0 + 8_000))
         g.pictoShow("rose", t0 + 10_000)
         g.pictoChoose(0, t0 + 11_000)
+        val avant = Codec.pickKey(g)
         assertNotNull(g.mimePass(t0 + 12_000))
+        // Nouveaux mots = nouvelle clé : la tablette remplace ses cartes, un choix fait sur les anciens mots
+        // (tablette en retard) ne peut pas désigner un des nouveaux (« Lapin » choisi, « Dinosaure » annoncé).
+        assertNotEquals(avant, Codec.pickKey(g))
         assertEquals(listOf("Soleil", "Pomme", "Vélo"), g.offerCards.map { it.word })
         assertNull(g.mimeCard, "Nouveaux mots : il choisit de nouveau")
         g.pictoChoose(2, t0 + 13_000)
@@ -140,6 +145,27 @@ class PictionaryTest {
         val remaining = g.remainingMs(t0 + 100_000 + RESUME_COUNTDOWN_MS)
         assertEquals(60_000L, remaining)
         assertEquals("Chat", g.mimeCard?.word)
+    }
+
+    @Test
+    fun `un mot déjà montré ou déjà dessiné ne revient pas chez l'équipe suivante`() {
+        val g = atPicto()
+        g.pictoShow("bleu", t0 + 10_000)
+        val montres = g.offerCards.map { it.word }
+        assertEquals(listOf("Chat", "Fusée", "Maison"), montres)
+        g.pictoChoose(1, t0 + 11_000)
+        g.pictoDraw(t0 + 12_000)
+        g.mimeFound(t0 + 30_000)
+        // Équipe suivante : trois mots qu'aucune équipe n'a encore vus.
+        g.pictoShow("rose", t0 + 40_000)
+        assertEquals(listOf("Soleil", "Pomme", "Vélo"), g.offerCards.map { it.word })
+        g.pictoChoose(0, t0 + 41_000)
+        g.pictoDraw(t0 + 42_000)
+        g.timeUp(t0 + 42_000 + 90_000)
+        // Ensuite seulement le dernier mot neuf, puis les mots montrés sans être dessinés ; jamais un mot dessiné.
+        g.pictoShow("bleu", t0 + 140_000)
+        assertEquals(listOf("Lune", "Chat", "Maison"), g.offerCards.map { it.word })
+        assertTrue(g.offerCards.none { it.word == "Fusée" || it.word == "Soleil" })
     }
 
     @Test

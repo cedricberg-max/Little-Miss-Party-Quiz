@@ -24,6 +24,15 @@ const val BLIND_END_MARGIN_MS = 1_000L
 /** Qui a disparu ? : le buzzer peut s'ouvrir un poil avant l'heure (minuterie de la box). */
 const val ARM_TOLERANCE_MS = 250L
 
+/**
+ * Première des dernières questions à points multipliés : la TV annonce « × N » en plein écran pendant ce temps,
+ * le chrono et les réponses partent ensuite (comme après le décompte d'une reprise).
+ */
+const val MULTIPLIER_INTRO_MS = 4_500L
+
+/** Blind test : une équipe qui s'est trompée peut rebuzzer sur le même morceau, 3 s après la reprise de la musique. */
+const val REBUZZ_DELAY_MS = 3_000L
+
 /** Vrai ou Faux express : temps de la révélation avant l'affirmation suivante. */
 const val EXPRESS_REVEAL_MS = 3_500L
 
@@ -76,8 +85,14 @@ data class GameState(
     val skipped: Set<String> = emptySet(),
     /** Blind test : morceau dont l'animatrice a raccourci la révélation. */
     val revealCut: String? = null,
+    /** Dernières questions du quiz : multiplicateur choisi par l'animatrice, par première question de la série. */
+    val factors: Map<Int, Int> = emptyMap(),
     /** Portes mystères : nombre de portes déjà ouvertes par l'animatrice (dans l'ordre de [Game.doorOrder]). */
     val doorsOpened: Int = 0,
+    /** Portes mystères : valeurs changées par l'animatrice, par question puis par porte. */
+    val doorValues: Map<String, Map<Int, Int>> = emptyMap(),
+    /** Écran de présentation du jeu qui commence : rien ne part avant le lancement de l'animatrice ([GameLaunched]). */
+    val intro: Boolean = false,
 ) {
     val paused: Boolean get() = hold != null
 
@@ -168,8 +183,11 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         return (q.durationMs - state.elapsedAt(now)).coerceAtLeast(0)
     }
 
-    /** Le chrono de [q] est en marche (ou en pause) : question ouverte, ou tour de mimes en cours. */
-    private fun timerRuns(q: Question) = state.phase == Phase.QUESTION && (!q.isTurns || state.mimeTurn) &&
+    /**
+     * Le chrono de [q] est en marche (ou en pause) : question ouverte, ou tour de mimes en cours. Portes mystères :
+     * jamais de chrono, chacun prend son temps et l'animatrice ferme les choix quand tout le monde est prêt.
+     */
+    private fun timerRuns(q: Question) = state.phase == Phase.QUESTION && !state.intro && !q.isPortes && (!q.isTurns || state.mimeTurn) &&
         (!q.isBlind || (state.buzz?.waiting == false && state.segments.isNotEmpty()))
 
     /**
@@ -217,20 +235,41 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         return true
     }
 
-    private fun reduce(s: GameState, e: GameEvent): GameState? = when (e) {
+    /**
+     * Pendant la présentation d'un jeu, seuls comptent le lancement, la pause, les points de la régie, le saut
+     * vers un autre jeu, la fin de partie et les réglages (multiplicateur, portes) : aucune réponse, aucun buzz.
+     */
+    private fun reduce(s: GameState, e: GameEvent): GameState? =
+        if (s.intro && e !is GameLaunched && e !is Paused && e !is Resumed && e !is ScoreAdjusted && e !is Undone &&
+            e !is Jumped && e !is GameEnded && e !is FactorChosen && e !is DoorSet) null
+        else reduceEvent(s, e)
+
+    /** Jeu qui commence à la question [index] : il s'ouvre sur son écran de présentation, sans chrono ni buzzer. */
+    private fun presented(s: GameState, index: Int): GameState =
+        if (quiz.intros && index in rounds) s.copy(intro = true, segments = emptyList(), resumeAt = null, mime = null, buzz = null)
+        else s.copy(intro = false)
+
+    private fun reduceEvent(s: GameState, e: GameEvent): GameState? = when (e) {
+        is GameLaunched -> {
+            val q = quiz.questions.getOrNull(s.index)
+            if (!s.intro || s.phase != Phase.QUESTION || q == null || s.paused) null else open(s.copy(intro = false), s.index, q, e.at)
+        }
         is QuestionOpened -> {
             val q = quiz.questions.getOrNull(e.index)
             val canOpen = s.phase == Phase.LOBBY || s.phase == Phase.SCORES || s.phase == Phase.REVEAL
             if (q == null || q.id != e.qid || !canOpen || e.index <= s.index || s.paused) null
             // Une manche de mimes s'ouvre sans chrono : il part au lancement du tour de chaque équipe.
-            else open(s, e.index, q, e.at)
+            else presented(open(s, e.index, q, e.at), e.index)
         }
         is Jumped -> {
             val q = quiz.questions.getOrNull(e.index)
             if (q == null || q.id != e.qid) null
-            else open(
-                s.copy(awards = s.awards - e.clear.toSet(), mimes = s.mimes - e.clear.toSet(), skipped = s.skipped - e.clear.toSet(), hold = null),
-                e.index, q, e.at,
+            else presented(
+                open(
+                    s.copy(awards = s.awards - e.clear.toSet(), mimes = s.mimes - e.clear.toSet(), skipped = s.skipped - e.clear.toSet(), hold = null),
+                    e.index, q, e.at,
+                ),
+                e.index,
             )
         }
         is Paused ->
@@ -251,7 +290,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                     resumeAt = start,
                     // Entre deux tours de mimes, ou pendant la réponse d'une équipe qui a buzzé, aucun chrono ne tourne.
                     // Blind test en attente du « Lancer » de l'animatrice : la musique ne repart pas toute seule.
-                    segments = if (s.phase == Phase.QUESTION && (s.mime == null || s.mimeTurn) && !s.buzzHeld && s.buzz?.waiting != true) s.segments + Segment(start) else s.segments,
+                    // Présentation d'un jeu : le chrono attend le lancement.
+                    segments = if (s.phase == Phase.QUESTION && !s.intro && (s.mime == null || s.mimeTurn) && !s.buzzHeld && s.buzz?.waiting != true) s.segments + Segment(start) else s.segments,
                 )
             }
         // Accepté en pause pour rejouer les journaux d'avant la pause générale (la fermeture levait la pause) ;
@@ -270,12 +310,20 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             else if (s.phase != Phase.CLOSED || e.qid != s.qid || s.paused) null
             // Une seule attribution par question : la clé est l'identifiant de la question.
             else s.copy(phase = Phase.REVEAL, awards = s.awards + (e.qid to e.awards))
+        is FactorChosen ->
+            if (e.factor !in FACTORS || doubleRunStart(e.start) != e.start) null else s.copy(factors = s.factors + (e.start to e.factor))
         is ScoresShown -> when {
             s.paused -> null
             s.phase == Phase.REVEAL -> s.copy(phase = Phase.SCORES)
             // Fin d'une manche de mimes, entre deux tours : les points sont déjà comptés, on passe au classement.
             s.phase == Phase.QUESTION && s.mime != null && !s.mimeTurn -> s.copy(phase = Phase.SCORES, mime = null)
             else -> null
+        }
+        is DoorSet -> {
+            val q = quiz.questions.getOrNull(s.index)
+            if (q == null || !q.isPortes || e.qid != s.qid || (s.phase != Phase.QUESTION && s.phase != Phase.CLOSED) ||
+                e.door !in q.choices.indices || e.value !in DOOR_VALUES) null
+            else s.copy(doorValues = s.doorValues + (e.qid to (s.doorValues[e.qid].orEmpty() + (e.door to e.value))))
         }
         is DoorOpened -> {
             val q = quiz.questions.getOrNull(s.index)
@@ -289,7 +337,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             if (e.target !in s.adjustments) null
             else s.copy(adjustments = s.adjustments - e.target)
         is GameEnded ->
-            if (s.phase == Phase.ENDED) null else s.copy(phase = Phase.ENDED, hold = null, mime = null)
+            if (s.phase == Phase.ENDED) null else s.copy(phase = Phase.ENDED, hold = null, mime = null, intro = false)
         is PictoShown -> {
             val m = s.mime
             val cards = quiz.questions.getOrNull(s.index)?.takeIf { it.isPicto }?.cards.orEmpty()
@@ -317,8 +365,9 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                 segments = listOf(Segment(e.at)), resumeAt = null,
                 // Paquet épuisé par les équipes précédentes : il est rebattu pour que chaque équipe ait son tour.
                 mime = m.copy(
-                    // Pictionary : le mot choisi passe en tête du paquet, les autres mots proposés resservent plus tard.
-                    deck = if (picto) listOf(m.pick!!) + (m.deck - m.pick) else m.deck.ifEmpty { cards.indices.toList() },
+                    // Pictionary : le mot choisi passe en tête du paquet ; les deux autres mots déjà montrés repartent tout
+                    // au fond, pour qu'aucune autre équipe ne les revoie avant que le paquet soit épuisé.
+                    deck = if (picto) listOf(m.pick!!) + (m.deck - m.offer.toSet()) + (m.offer - m.pick) else m.deck.ifEmpty { cards.indices.toList() },
                     team = e.team, found = 0, passed = 0, turns = m.turns + e.team, secret = null, offer = emptyList(), pick = null, started = e.at,
                 ),
             )
@@ -348,7 +397,9 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                 if (m.secret == null || m.team != null || m.deck.size <= m.offer.size) null
                 else {
                     val deck = m.deck.drop(m.offer.size) + m.deck.take(m.offer.size)
-                    s.copy(mime = m.copy(deck = deck, offer = deck.take(PICTO_OFFER), pick = null, passed = m.passed + 1))
+                    // Nouvelle heure de présentation = nouvelle clé de choix : la tablette remplace ses cartes, et un choix
+                    // fait sur les anciens mots ne peut jamais désigner un des nouveaux.
+                    s.copy(mime = m.copy(deck = deck, offer = deck.take(PICTO_OFFER), pick = null, passed = m.passed + 1, shownAt = e.at))
                 }
             }
             else if (m.team == null || m.deck.size < 2) null
@@ -379,7 +430,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         }
         is Buzzed -> {
             val b = s.buzz
-            if (s.phase != Phase.QUESTION || b == null || !b.armed || b.waiting || b.team != null || s.paused || e.team.isBlank() || e.team in b.blocked) null
+            if (s.phase != Phase.QUESTION || b == null || !b.armed || b.waiting || b.team != null || s.paused || e.team.isBlank() ||
+                (e.team in b.blocked && !rebuzzOpen(s, e.at))) null
             else s.copy(
                 buzz = b.copy(team = e.team),
                 segments = s.segments.map { if (it.end == null) it.copy(end = maxOf(e.at, it.start)) else it },
@@ -431,7 +483,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             val q = quiz.questions.getOrNull(s.index)
             if ((s.phase != Phase.QUESTION && s.phase != Phase.CLOSED) || q == null || !q.isStatues || s.paused || e.team.isBlank()) null
             else {
-                val factor = if (q.double) 2 else 1
+                val factor = factorIn(s, s.index)
                 val others = e.others.filter { it != e.team && it.isNotBlank() }.associateWith { Award(null, correct = false, points = Scoring.MINI_PLAYED * factor, bonus = 0) }
                 s.copy(
                     phase = Phase.REVEAL,
@@ -446,14 +498,14 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             val q = quiz.questions.getOrNull(s.index)
             if (s.phase != Phase.QUESTION || b == null || team == null || s.paused || q == null) null
             else if (e.ok) {
-                val factor = if (q.double) 2 else 1
+                val factor = if (q.isBlind) (if (q.double) 2 else 1) else factorIn(s, s.index)
                 // Blind test : la valeur du morceau, quel que soit le moment du buzz.
                 val points = if (q.isBlind) q.trackPoints * factor
                 else (if (b.blocked.isEmpty()) Scoring.BUZZ else Scoring.BUZZ_REBOUND) * factor
                 s.copy(phase = Phase.REVEAL, awards = s.awards + (q.id to mapOf(team to Award(q.correct, correct = true, points = points, bonus = 0))))
             }
-            // Blind test, mauvaise réponse : l'équipe est bloquée sur ce morceau, la musique attend la relance.
-            else if (q.isBlind) s.copy(buzz = b.copy(team = null, blocked = b.blocked + team, tries = b.tries + 1, waiting = true))
+            // Blind test, mauvaise réponse : la musique attend la relance ; l'équipe pourra rebuzzer 3 s après la reprise.
+            else if (q.isBlind) s.copy(buzz = b.copy(team = null, blocked = (b.blocked + team).distinct(), tries = b.tries + 1, waiting = true))
             // Mauvaise réponse : l'équipe est bloquée sur cette image, le chrono repart.
             else s.copy(buzz = b.copy(team = null, blocked = b.blocked + team, tries = b.tries + 1), segments = s.segments + Segment(e.at))
         }
@@ -475,10 +527,14 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null, mime = null,
             buzz = BuzzRound(waiting = true), revealCut = null,
         )
-        else s.copy(
-            phase = Phase.QUESTION, index = index, qid = q.id, segments = listOf(Segment(at)), resumeAt = null, mime = null,
-            buzz = if (q.isBuzz) BuzzRound(armed = q.buzzFromMs == 0L) else null, doorsOpened = 0,
-        )
+        else {
+            // Dernières questions multipliées : la première attend la fin de l'annonce « × N » de la TV.
+            val start = at + if (!q.isBuzz && doubleRunStart(index) == index) MULTIPLIER_INTRO_MS else 0L
+            s.copy(
+                phase = Phase.QUESTION, index = index, qid = q.id, segments = listOf(Segment(start)), resumeAt = start.takeIf { it > at }, mime = null,
+                buzz = if (q.isBuzz) BuzzRound(armed = q.buzzFromMs == 0L) else null, doorsOpened = 0,
+            )
+        }
 
     private fun closeSegments(s: GameState, at: Long) = s.segments.map { if (it.end == null) it.copy(end = maxOf(at, it.start)) else it }
 
@@ -504,6 +560,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         Phase.LOBBY -> openQuestion(0, now)
         // Mimes : « suivant » arrête le tour en cours, ou termine la manche entre deux tours.
         Phase.QUESTION -> when {
+            // Écran de présentation : l'animatrice lance le jeu (première question, premier tour ou premier morceau).
+            state.intro -> emit(GameLaunched(nextSeq, now))
             // Blind test à la télécommande : OK lance la musique, ou l'arrête.
             question?.isBlind == true -> if (state.buzz?.waiting == true) blindPlay(now) else blindStop(now)
             state.mime == null -> close(now)
@@ -534,6 +592,58 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         get() = quiz.questions.indices.filter { i ->
             i == 0 || quiz.questions[i].roundTitle == null || quiz.questions[i].roundTitle != quiz.questions[i - 1].roundTitle
         }
+
+    /**
+     * Première question de la série à points multipliés (dernières questions d'une manche de quiz) qui contient
+     * [index], ou null hors d'une telle série. Le blind test garde ses propres morceaux doublés, hors de ce réglage.
+     */
+    fun doubleRunStart(index: Int): Int? {
+        val q = quiz.questions.getOrNull(index)?.takeIf { it.double && !it.isBlind } ?: return null
+        var i = index
+        while (quiz.questions.getOrNull(i - 1)?.let { it.double && !it.isBlind && it.roundTitle == q.roundTitle } == true) i--
+        return i
+    }
+
+    /**
+     * Annonce « × N » en cours (première des questions multipliées, avant que le chrono parte) : l'heure de départ
+     * du chrono ; null sinon. Une pause pendant l'annonce la remplace par le décompte ordinaire de la reprise.
+     */
+    fun multiplierIntroUntil(): Long? {
+        val s = state
+        if (s.phase != Phase.QUESTION || s.index < 0 || doubleRunStart(s.index) != s.index) return null
+        return s.resumeAt?.takeIf { s.segments.size == 1 && it == s.openedAt && !s.paused }
+    }
+
+    /** Nombre de questions à points multipliés de la série en cours, à partir de la question [index] comprise. */
+    fun multipliedLeft(index: Int): Int {
+        val q = quiz.questions.getOrNull(index)?.takeIf { it.double && !it.isBlind } ?: return 0
+        var n = 0
+        while (quiz.questions.getOrNull(index + n)?.let { it.double && !it.isBlind && it.roundTitle == q.roundTitle } == true) n++
+        return n
+    }
+
+    /** Multiplicateur des points de la question [index] : 1, ou celui choisi pour sa série (×2 par défaut). */
+    fun factorOf(index: Int): Int = factorIn(state, index)
+
+    private fun factorIn(s: GameState, index: Int): Int =
+        quiz.questions.getOrNull(index)?.takeIf { it.isBlind }?.let { if (it.double) 2 else 1 }
+            ?: doubleRunStart(index)?.let { s.factors[it] ?: FACTORS.first() } ?: 1
+
+    /**
+     * Série à points multipliés dont l'animatrice peut encore choisir le multiplicateur : celle qui commence à la
+     * question suivante, entre deux questions (jamais pendant une question déjà affichée avec sa valeur).
+     */
+    fun factorChoice(): Int? {
+        if (state.phase != Phase.LOBBY && state.phase != Phase.REVEAL && state.phase != Phase.SCORES) return null
+        val next = state.index + 1
+        return next.takeIf { doubleRunStart(it) == it }
+    }
+
+    fun chooseFactor(factor: Int, now: Long): GameEvent? {
+        val start = factorChoice() ?: return null
+        if (factor !in FACTORS) return null
+        return emit(FactorChosen(nextSeq, now, start, factor))
+    }
 
     /** Questions du jeu (manche) qui commence ou contient la question [index]. */
     fun roundOf(index: Int): IntRange {
@@ -574,12 +684,12 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         if (state.phase != Phase.CLOSED) return null
         // Image floue : les points viennent du buzzer ; chrono écoulé sans bonne réponse, personne ne marque.
         val awards = if (q.isBuzz || q.isStatues) emptyMap()
-        else if (q.isPortes) Scoring.awardPortes(q, answers, state.scores())
-        else if (q.isNumber) Scoring.awardNumber(q, answers)
-        else if (q.isExpress) answers.mapValues { (_, a) -> Scoring.awardExpress(q, a) }
+        else if (q.isPortes) Scoring.awardPortes(q.copy(doors = doorsOf(q)), answers, state.scores())
+        else if (q.isNumber) Scoring.awardNumber(q, answers, factorOf(state.index))
+        else if (q.isExpress) answers.mapValues { (_, a) -> Scoring.awardExpress(q, a, factorOf(state.index)) }
         else answers.mapValues { (_, a) ->
             val remaining = (q.durationMs - state.elapsedAt(a.at)).coerceAtLeast(0)
-            Scoring.award(q, a, remaining.toDouble() / q.durationMs)
+            Scoring.award(q, a, remaining.toDouble() / q.durationMs, factorOf(state.index))
         }
         return emit(Revealed(nextSeq, now, q.id, awards))
     }
@@ -601,6 +711,17 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             }
             else -> null
         }
+    }
+
+    /** Portes mystères : valeurs derrière les portes de [q], avec celles changées par l'animatrice. */
+    fun doorsOf(q: Question): List<Int> = q.doors.mapIndexed { i, v -> state.doorValues[q.id]?.get(i) ?: v }
+
+    /** Portes mystères : change la valeur d'une porte, tant qu'aucune n'est ouverte (choix en cours ou fermés). */
+    fun setDoor(door: Int, value: Int, now: Long): GameEvent? {
+        val q = question ?: return null
+        if (!q.isPortes || (state.phase != Phase.QUESTION && state.phase != Phase.CLOSED)) return null
+        if (door !in q.choices.indices || value !in DOOR_VALUES || doorsOf(q).getOrNull(door) == value) return null
+        return emit(DoorSet(nextSeq, now, q.id, door, value))
     }
 
     /** Portes mystères : ouvre la porte suivante (rien hors de la révélation, ni quand toutes sont ouvertes). */
@@ -653,6 +774,21 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
 
     /** Blind test : toutes les équipes peuvent de nouveau buzzer sur ce morceau. */
     fun blindUnblock(now: Long): GameEvent? = emit(BuzzUnblocked(nextSeq, now))
+
+    /**
+     * Blind test : heure à partir de laquelle les équipes qui se sont trompées peuvent rebuzzer sur ce morceau
+     * (3 s après la reprise de la musique, après le décompte 3, 2, 1 s'il y en a un) ; null hors musique en cours.
+     */
+    fun rebuzzAt(): Long? = rebuzzAtIn(state)
+
+    private fun rebuzzAtIn(s: GameState): Long? {
+        val seg = s.segments.lastOrNull()
+        if (s.phase != Phase.QUESTION || quiz.questions.getOrNull(s.index)?.isBlind != true || s.buzz?.waiting != false || seg == null || seg.end != null) return null
+        return seg.start + REBUZZ_DELAY_MS
+    }
+
+    // Petite tolérance : l'heure du buzz vient de la tablette, celle de la reprise de la box.
+    private fun rebuzzOpen(s: GameState, at: Long): Boolean = rebuzzAtIn(s)?.let { at + ARM_TOLERANCE_MS >= it } == true
 
     /** Blind test : révèle le morceau sans gagnant (aucun point). */
     fun blindReveal(now: Long): GameEvent? {
@@ -734,6 +870,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
 
     /** Chrono à zéro : fin de la question, ou fin du tour de mimes. */
     fun timeUp(now: Long): GameEvent? = when {
+        state.intro -> null
         state.mime != null -> mimeStop(now)
         // Blind test : fin de l'extrait, la musique s'arrête et l'animatrice décide de la suite.
         question?.isBlind == true -> blindStop(now)

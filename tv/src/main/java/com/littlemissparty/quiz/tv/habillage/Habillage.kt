@@ -1,28 +1,14 @@
 package com.littlemissparty.quiz.tv.habillage
 
-import android.os.SystemClock
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -32,9 +18,6 @@ import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.engine.QuestionKind
 import com.littlemissparty.quiz.tv.UiState
 import com.littlemissparty.quiz.tv.etapeDisparu
-import kotlin.math.cos
-import kotlin.math.PI
-import kotlin.math.sin
 import kotlinx.coroutines.delay
 
 /** Couleurs du plateau « Néon chic » (démo validée le 18 octobre). */
@@ -90,21 +73,29 @@ fun HabillageTv(state: UiState) {
         onDispose { cycle.removeObserver(observateur) }
     }
     val urgent = chronoUrgent(state as? UiState.Playing)
+    val decompte = secondesRestantes(state as? UiState.Playing)
     val indices = indicesQuiSuis(state as? UiState.Playing)
     val statue = statueFigee(state as? UiState.Playing)
     // Qui a disparu ? : l'étape affichée par le plateau (mémoriser, tour de magie, chercher, réponse), de 1 à 4.
     val disparu = (state as? UiState.Playing)?.let { s -> s.question?.takeIf { it.isDisparu }?.let { etapeDisparu(it, s).ordinal + 1 } } ?: 0
-    val instant = remember(state, urgent, indices, statue, disparu) { instantDe(state, urgent, System.currentTimeMillis(), indices, statue, disparu) }
+    val instant = remember(state, urgent, indices, statue, disparu, decompte) { instantDe(state, urgent, System.currentTimeMillis(), indices, statue, disparu, decompte, presentation = (state as? UiState.Playing)?.intro == true) }
     LaunchedEffect(instant) { Sons.executer(Habillage.directeur.observer(instant)) }
-    DecorPlateau(chaud = urgent)
+    // Dernières questions du quiz à points multipliés : le plateau passe au doré, de la question à sa révélation.
+    val dore = (state as? UiState.Playing)?.let { it.question?.double == true && it.phase in listOf(Phase.QUESTION, Phase.CLOSED, Phase.REVEAL) } == true
+    DecorPlateau(chaud = urgent, dore = dore)
 }
 
-internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indices: Int = 0, statue: Boolean = false, disparu: Int = 0): Instant {
+/**
+ * [presentation] : la TV montre l'écran de présentation du jeu (avant sa première question, en attendant que
+ * Sarah le lance) ; musique douce, ni jingle de question ni bulles.
+ */
+internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indices: Int = 0, statue: Boolean = false, disparu: Int = 0, decompte: Int = 0, presentation: Boolean = false): Instant {
     val s = state as? UiState.Playing ?: return Instant(Ecran.HORS_PARTIE)
     val blind = s.blind?.takeIf { s.question?.isBlind == true }
     val ecran = when (s.phase) {
         Phase.LOBBY -> Ecran.SALON
         Phase.QUESTION -> when {
+            presentation -> Ecran.PRESENTATION
             s.mime == null -> Ecran.QUESTION
             s.mime.team != null -> Ecran.MIMES_TOUR
             else -> Ecran.MIMES
@@ -124,6 +115,7 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         enPause = s.paused,
         repriseDansMs = s.resumeAt?.let { it - (maintenant + s.serverOffset) }?.coerceAtLeast(0) ?: 0,
         urgent = urgent,
+        decompte = decompte,
         buzzeur = s.teams.indexOfFirst { it.uid == s.lastFunBuzz },
         buzzs = s.funTotal,
         premiere = s.index == 0,
@@ -259,117 +251,26 @@ private fun chronoUrgent(s: UiState.Playing?): Boolean {
 }
 
 /**
- * Le plateau : nuit violette, sol en perspective, deux projecteurs, et des halos et étincelles qui
- * respirent lentement (une respiration toutes les [RESPIRATION_MS], jamais au tempo : le battement à deux
- * coups par seconde faisait clignoter tout l'écran). Tout est dessiné une seule fois dans deux calques ; seule
- * l'opacité du calque lumineux change, pour rester fluide sur une petite box et laisser la main aux écrans du
- * jeu. Dans les 5 dernières secondes, les bords chauffent (orange).
+ * Secondes restantes (5 à 1) pendant les cinq dernières secondes du chrono affiché, 0 sinon : ne change qu'une fois
+ * par seconde. 0 pendant une pause, un buzz (chrono figé) et le décompte 3, 2, 1 d'une reprise.
  */
-private const val RESPIRATION_MS = 7_000L
-
 @Composable
-fun DecorPlateau(chaud: Boolean) {
-    val battement = remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(Unit) {
+private fun secondesRestantes(s: UiState.Playing?): Int {
+    var secondes by remember { mutableStateOf(0) }
+    val deadline = if (s != null && (s.phase == Phase.QUESTION) && !s.paused) s.deadline else null
+    LaunchedEffect(deadline, s?.resumeAt) {
+        if (s == null || deadline == null) {
+            secondes = 0
+            return@LaunchedEffect
+        }
+        val depart = s.resumeAt ?: 0L
         while (true) {
-            val phase = Math.floorMod(SystemClock.elapsedRealtime(), RESPIRATION_MS).toFloat() / RESPIRATION_MS
-            battement.floatValue = 0.5f - 0.5f * cos(2f * PI.toFloat() * phase)
-            delay(80)
+            val maintenant = System.currentTimeMillis() + s.serverOffset
+            val reste = deadline - maxOf(maintenant, depart)
+            secondes = if (maintenant >= depart && reste in 1..5_000) ((reste + 999) / 1_000).toInt() else 0
+            if (reste <= 0) break
+            delay(if (reste > 6_000) 500 else 50)
         }
     }
-    val chaleur by animateFloatAsState(if (chaud) 1f else 0f, tween(600), label = "chaleur")
-    Box(Modifier.fillMaxSize()) {
-        // Fond, sol et projecteurs : ne se redessinent jamais.
-        Box(
-            Modifier.fillMaxSize().drawWithCache {
-                val w = size.width
-                val h = size.height
-                val fond = Brush.radialGradient(listOf(Neon.FondHaut, Neon.Fond, Neon.FondBas), Offset(w / 2, 0f), w * 0.85f)
-                val lignes = sol(w, h)
-                val faisceaux = listOf(faisceau(w, h, 0.18f, 16f), faisceau(w, h, 0.82f, -16f))
-                onDrawBehind {
-                    drawRect(fond)
-                    lignes.forEach { (b, de, a) -> drawLine(b, de, a, 1.5f) }
-                    faisceaux.forEach { (chemin, lumiere) -> drawPath(chemin, lumiere) }
-                }
-            },
-        )
-        // Halos rose, violet et or, et étincelles : leur éclat suit le battement.
-        Box(
-            Modifier.fillMaxSize()
-                .graphicsLayer { alpha = 0.62f + 0.23f * battement.floatValue }
-                .drawWithCache {
-                    val w = size.width
-                    val h = size.height
-                    val halos = listOf(
-                        Triple(Neon.Halo.copy(alpha = 0.30f), Offset(w * 0.08f, h * 0.02f), w * 0.33f),
-                        Triple(Neon.Violet.copy(alpha = 0.55f), Offset(w * 0.9f, h * 0.05f), w * 0.31f),
-                        Triple(Neon.Or.copy(alpha = 0.26f), Offset(w * 0.5f, h * 1.08f), w * 0.4f),
-                    ).map { (c, o, r) -> Triple(Brush.radialGradient(listOf(c, Color.Transparent), o, r), o, r) }
-                    onDrawBehind {
-                        halos.forEach { (b, o, r) -> drawCircle(b, r, o) }
-                        etincelles()
-                    }
-                },
-        )
-        if (chaleur > 0.01f) {
-            Box(
-                Modifier.fillMaxSize()
-                    .graphicsLayer { alpha = chaleur * (0.8f + 0.2f * battement.floatValue) }
-                    .drawWithCache {
-                        val bords = Brush.radialGradient(
-                            0.55f to Color.Transparent,
-                            1f to Neon.Chaud.copy(alpha = 0.5f),
-                            center = Offset(size.width / 2, size.height / 2), radius = size.width * 0.62f,
-                        )
-                        onDrawBehind { drawRect(bords) }
-                    },
-            )
-        }
-    }
-}
-
-/** Lignes du sol : rayons qui fuient vers l'horizon et traverses de plus en plus serrées au loin. */
-private fun sol(w: Float, h: Float): List<Triple<Brush, Offset, Offset>> {
-    val haut = h * 0.8f
-    val fuite = Offset(w / 2, h * 0.45f)
-    val rayon = Brush.verticalGradient(listOf(Color.Transparent, Neon.Halo.copy(alpha = 0.32f)), haut, h)
-    val rayons = (-10..10).map { k ->
-        val xBas = w / 2 + k * w * 0.085f
-        val xHaut = fuite.x + (xBas - fuite.x) * ((haut - fuite.y) / (h - fuite.y))
-        Triple(rayon, Offset(xHaut, haut), Offset(xBas, h))
-    }
-    val traverses = (1..6).map { k ->
-        val u = k / 7f
-        val y = haut + (h - haut) * u * u
-        Triple<Brush, Offset, Offset>(SolidColor(Neon.Halo.copy(alpha = 0.32f * u)), Offset(0f, y), Offset(w, y))
-    }
-    return rayons + traverses
-}
-
-/** Faisceau de projecteur partant du bas de l'écran (en x, fraction de la largeur), incliné de `degres`. */
-private fun faisceau(w: Float, h: Float, x: Float, degres: Float): Pair<Path, Brush> {
-    val pied = Offset(w * x, h)
-    val l = h * 1.3f
-    val demi = w * 0.06f
-    val a = Math.toRadians(degres.toDouble())
-    val dx = (sin(a) * l).toFloat()
-    val dy = (cos(a) * l).toFloat()
-    val chemin = Path().apply {
-        moveTo(pied.x - demi * 0.25f, pied.y)
-        lineTo(pied.x + dx - demi, pied.y - dy)
-        lineTo(pied.x + dx + demi, pied.y - dy)
-        lineTo(pied.x + demi * 0.25f, pied.y)
-        close()
-    }
-    val lumiere = Brush.verticalGradient(listOf(Color.Transparent, Neon.Blanc.copy(alpha = 0.09f), Color.Transparent), pied.y - dy, pied.y)
-    return chemin to lumiere
-}
-
-private val positions = List(18) { i -> Offset(((i * 0.618f + 0.11f) % 1f), ((i * 0.377f + 0.07f) % 0.75f)) }
-
-private fun DrawScope.etincelles() {
-    positions.forEachIndexed { i, o ->
-        drawCircle(Neon.Blanc.copy(alpha = 0.25f + 0.15f * (i % 4)), size.minDimension * (0.0025f + 0.0015f * (i % 3)), Offset(o.x * size.width, o.y * size.height))
-    }
+    return secondes
 }
