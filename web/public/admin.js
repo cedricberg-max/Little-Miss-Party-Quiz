@@ -17,13 +17,16 @@ import {
   blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras, contentSlot, contentImages,
   pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches, isArchived, AUTO_ARCHIVE_DAYS, quizKind,
   roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS,
-  isStatuesList, statuesSongs, statuesChoices, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS,
+  isStatuesList, statuesSongs, statuesChoices, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS, builtinConcepts, isPhotoTheme,
 } from "./show.js";
+import { motDeLaBanque, PHOTOS_BANQUE } from "./banque-photos.js";
 import { shuffle } from "./mime-cards.js";
 import {
   MANCHE_TYPES, COLLECTION_UNIT, RANDOM_TYPES, RANDOM_COUNT, MIME_PER_TEAM, MIME_PER_TEAM_DEFAULT, LEVELS, collectionItems, collectionGroups,
   filterItems, drawItems, randomRound, cleanRound, mancheGroups, mancheSummary, defaultMancheTitle, mimeCardsNeeded,
+  itemConcepts, usedElsewhere,
 } from "./manches.js";
+import { concepts, neufsSiPossible } from "./jamais-deux-fois.js";
 import { PICTO_OWN_SERIES } from "./picto-cards.js";
 import { EXTRACT_SECONDS, guessTrack, defaultStart, decodeFile, makeExtract, synthTune, encodeMp3, soundId } from "./audio.js";
 import { REFRAIN_SEC, REFRAIN_KBPS, buzzOf, defaultRefrain, songList, songMatches, trackFromSong, songUpdates } from "./sons.js";
@@ -580,7 +583,11 @@ function formProfile() {
  * Écran qui édite des manches (la prestation, ou une manche seule dans la page d'un jeu) : ce que les sélecteurs
  * redessinent quand on change quelque chose, et l'âge qui règle leurs tirages au hasard.
  */
-let roundCtx = { refresh: () => refreshRounds(), summary: () => refreshSummary(), profile: () => formProfile() };
+let roundCtx = {
+  refresh: () => refreshRounds(), summary: () => refreshSummary(), profile: () => formProfile(),
+  // « Jamais deux fois » : ce que montrent les autres manches de la prestation (concept → nom du jeu).
+  elsewhere: (r) => (editing ? usedElsewhere(editing.rounds, editing.rounds.indexOf(r), { quizzes, mimes, contents }) : new Map()),
+};
 const prestationCtx = roundCtx;
 
 /** Mots du Pictionary tirés par « Tirer au hasard ». */
@@ -590,31 +597,60 @@ const PICTO_DRAW = 24;
  * Sélection modifiable d'une manche à cartes (mimes, mots, personnages, familles) : « Tirer au hasard » remplit la
  * liste, ✕ retire un élément, « Ajouter » en reprend un du catalogue. Liste vide : la box tire au hasard au lancement,
  * comme avant. [items] : tout ce qu'on peut choisir ({ key, label, group }) ; [get]/[set] : les clés choisies.
+ * « Jamais deux fois » : [round] et [conceptsOf] (ce que montre un élément, par sa clé) signalent en rouge un élément
+ * déjà utilisé dans une autre manche de la prestation ; le choisir reste permis, le tirage au hasard l'évite.
  */
-function selectionEditor({ items, get, set, draw, unit, empty, own }) {
+function selectionEditor({ items, get, set, draw, unit, empty, own, round = null, conceptsOf = null }) {
   const box = h("div", { class: "pick-box" });
+  // Recherche dans la liste « Ajouter » (des centaines de photos ou de cartes) : gardée d'un dessin à l'autre.
+  let cherche = "";
+  const plat = (t) => `${t ?? ""}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const paint = () => {
     const all = items();
     const byKey = new Map(all.map((x) => [x.key, x]));
     const chosen = get();
-    const change = (keys) => { set(keys); paint(); roundCtx.summary(); };
-    const groups = [...new Set(all.filter((x) => !chosen.includes(x.key)).map((x) => x.group ?? ""))];
+    const autres = round && conceptsOf ? roundCtx.elsewhere?.(round) ?? new Map() : new Map();
+    const ailleurs = (k) => {
+      if (!autres.size) return null;
+      const hit = conceptsOf(k).find((c) => autres.has(c));
+      return hit ? autres.get(hit) : null;
+    };
+    // Les autres manches lisent aussi ce choix : avec des signalements, toute la prestation se redessine.
+    const change = (keys) => { set(keys); if (round && roundCtx.elsewhere) roundCtx.refresh(); else paint(); roundCtx.summary(); };
+    const deja = chosen.map((k) => [k, ailleurs(k)]).filter(([, w]) => w);
     const e = unit === "carte" || unit === "famille" ? "e" : "";
     const n = chosen.length;
+    const addSelect = () => {
+      const q = plat(cherche).trim();
+      const libres = all.filter((x) => !chosen.includes(x.key) && (!q || plat(`${x.label} ${x.group ?? ""}`).includes(q)));
+      const groupes = [...new Set(libres.map((x) => x.group ?? ""))];
+      return h("select", { class: "pick-add", "aria-label": `Ajouter un${e} ${unit}`, onchange: (ev) => { if (ev.target.value) change([...chosen, ev.target.value]); } },
+        h("option", { value: "", text: q ? `＋ ${libres.length} trouvé${libres.length > 1 ? "s" : ""} : choisir…` : `＋ Ajouter un${e} ${unit}…` }),
+        ...groupes.map((g) => {
+          const opts = libres.filter((x) => (x.group ?? "") === g).map((x) => {
+            const where = ailleurs(x.key);
+            return h("option", { value: x.key, text: where ? `${x.label} (déjà utilisé dans ${where})` : x.label, class: where ? "deja" : null });
+          });
+          return g ? h("optgroup", { label: g }, ...opts) : opts;
+        }));
+    };
     box.replaceChildren(...[
       h("span", { class: "small", text: n ? `${n} ${unit}${n > 1 ? "s" : ""} choisi${e}${n > 1 ? "s" : ""} : la manche joue exactement cette liste.` : empty }),
       h("button", { type: "button", class: "chip pick-draw", text: "🎲 Tirer au hasard", onclick: () => change(draw()) }),
       chosen.length ? h("button", { type: "button", class: "chip", text: "Tout retirer (tirage au lancement)", onclick: () => change([]) }) : null,
-      h("div", { class: "pick-list" }, ...chosen.map((k) => h("button", {
-        type: "button", class: "chip pick-item", "data-key": k, title: "Retirer", text: `${byKey.get(k)?.label ?? k} ✕`,
-        onclick: () => change(chosen.filter((x) => x !== k)),
-      }))),
-      chosen.length < MAX_PICKS ? h("select", { class: "pick-add", "aria-label": `Ajouter un ${unit}`, onchange: (ev) => { if (ev.target.value) change([...chosen, ev.target.value]); } },
-        h("option", { value: "", text: `＋ Ajouter un${e} ${unit}…` }),
-        ...groups.map((g) => {
-          const opts = all.filter((x) => (x.group ?? "") === g && !chosen.includes(x.key)).map((x) => h("option", { value: x.key, text: x.label }));
-          return g ? h("optgroup", { label: g }, ...opts) : opts;
-        })) : null,
+      h("div", { class: "pick-list" }, ...chosen.map((k) => {
+        const where = ailleurs(k);
+        return h("button", {
+          type: "button", class: `chip pick-item${where ? " deja" : ""}`, "data-key": k, title: where ? `Déjà utilisé dans ${where}. Retirer ?` : "Retirer",
+          text: `${byKey.get(k)?.label ?? k} ✕`, onclick: () => change(chosen.filter((x) => x !== k)),
+        });
+      })),
+      deja.length ? h("p", { class: "pick-deja", text: `⚠ ${deja.map(([k, w]) => `${byKey.get(k)?.label ?? k} : déjà utilisé dans ${w}`).join(" · ")}. C'est permis, mais les enfants l'auront déjà vu.` }) : null,
+      chosen.length < MAX_PICKS ? addSelect() : null,
+      chosen.length < MAX_PICKS && all.length > 8 ? h("input", {
+        type: "search", class: "pick-search", placeholder: "🔎 Chercher…", "aria-label": `Chercher un${e} ${unit}`, value: cherche,
+        oninput: (ev) => { cherche = ev.target.value; box.querySelector(".pick-add")?.replaceWith(addSelect()); },
+      }) : null,
       own ? h("span", { class: "pick-own" },
         h("input", { type: "text", maxlength: 40, placeholder: "Ma carte (un mot à mimer)", "aria-label": "Ma carte" }),
         h("button", { type: "button", class: "chip", text: "Ajouter", onclick: (ev) => {
@@ -639,12 +675,16 @@ function mimeSelection(r) {
   };
   return selectionEditor({
     unit: "carte",
+    round: r,
+    conceptsOf: (k) => concepts(extra.get(k) ?? { word: k }),
     empty: r.deckId ? "Aucune carte choisie : tout le paquet, mélangé au lancement." : `Aucune carte choisie : ${MIME_RANDOM} cartes au hasard au lancement, selon l'âge.`,
     items: () => {
-      const list = pool().map((x) => ({ key: x.card.word.toLowerCase(), label: `${x.card.image ?? ""} ${x.card.word}`.trim(), group: x.group }));
+      // « 📷 Photos » : les cartes qui auront leur photo sont marquées.
+      const photo = (c) => (r.photos === true && motDeLaBanque(c.word) ? "📷 " : "");
+      const list = pool().map((x) => ({ key: x.card.word.toLowerCase(), label: `${photo(x.card)}${x.card.image ?? ""} ${x.card.word}`.trim(), group: x.group }));
       const keys = new Set(list.map((x) => x.key));
       // Cartes ajoutées à la main (absentes du paquet) : elles restent dans la liste.
-      mimeCards(r.cards).filter((c) => !keys.has(c.word.toLowerCase())).forEach((c) => list.push({ key: c.word.toLowerCase(), label: `${c.image ?? ""} ${c.word}`.trim(), group: "Mes cartes" }));
+      mimeCards(r.cards).filter((c) => !keys.has(c.word.toLowerCase())).forEach((c) => list.push({ key: c.word.toLowerCase(), label: `${photo(c)}${c.image ?? ""} ${c.word}`.trim(), group: "Mes cartes" }));
       return list;
     },
     get: () => mimeCards(r.cards).map((c) => c.word.toLowerCase()),
@@ -652,7 +692,8 @@ function mimeSelection(r) {
     draw: () => (r.deckId
       ? mimeDraw({ deckId: r.deckId }, mimes, roundCtx.profile()).map((c) => { extra.set(c.word.toLowerCase(), c); return c.word.toLowerCase(); })
       // Toutes les collections : autant de cartes que les équipes prévues en demandent (sinon le tirage habituel).
-      : drawItems(filterItems(collectionItems("mimes", { mimes }), { profile: roundCtx.profile() }), mimeCardsNeeded(r, ctxTeams()) || MIME_RANDOM).items
+      : drawItems(filterItems(collectionItems("mimes", { mimes }), { profile: roundCtx.profile() }), mimeCardsNeeded(r, ctxTeams()) || MIME_RANDOM,
+        { type: "mimes", avoidConcepts: roundCtx.elsewhere?.(r) }).items
         .map((x) => { extra.set(x.key, x.value); return x.key; })),
     own: (word) => {
       const c = mimeCards([{ word }])[0];
@@ -668,10 +709,19 @@ function picksSelection(r) {
   const game = CONTENT_GAMES[r.type];
   const builtin = BUILTIN_GAMES[r.type];
   const unit = r.type === "disparu" ? "famille" : game.unit;
+  let memo = null;
+  const byKey = () => {
+    if (!memo || memo.src !== contents[r.type]) memo = { src: contents[r.type], map: new Map(activeItems(r.type, contents[r.type]).map((x) => [game.key(x), x])) };
+    return memo.map;
+  };
   return selectionEditor({
     unit,
+    round: r,
+    conceptsOf: (k) => builtinConcepts(r.type, byKey().get(k)),
     empty: r.type === "pictionary" ? "Aucun mot choisi : tirage au hasard au lancement, dans les séries cochées." : unit === "famille" ? "Aucune famille choisie : tirage au hasard au lancement." : `Aucun ${unit} choisi : tirage au hasard au lancement.`,
-    items: () => activeItems(r.type, contents[r.type]).map((x) => ({ key: game.key(x), label: game.label(x), group: r.type === "pictionary" ? pictoSeriesOf(x) : undefined })),
+    // Qui a disparu ? en émojis : les familles en photos n'y sont pas (sauf celles déjà choisies).
+    items: () => activeItems(r.type, contents[r.type]).filter((x) => r.type !== "disparu" || r.photos === true || !isPhotoTheme(x) || roundPicks(r).includes(game.key(x)))
+      .map((x) => ({ key: game.key(x), label: game.label(x), group: r.type === "pictionary" ? pictoSeriesOf(x) : r.type === "disparu" ? (isPhotoTheme(x) ? "Photos de la banque" : "Émojis") : undefined })),
     get: () => roundPicks(r),
     set: (keys) => {
       const had = roundPicks(r).length > 0;
@@ -681,12 +731,16 @@ function picksSelection(r) {
     },
     draw: () => {
       const profile = roundCtx.profile();
+      // « Jamais deux fois » : rien de ce que montrent les autres manches, tant qu'il en reste assez.
+      const autres = roundCtx.elsewhere?.(r);
+      const neufs = (list, need) => neufsSiPossible(list, (x) => builtinConcepts(r.type, x), autres, need);
       if (r.type === "pictionary") {
         const series = pictoRoundSeries(r);
         const words = activeItems("pictionary", contents.pictionary).filter((w) => (profile !== "PETITS" || w.level !== 2) && (!series || series.includes(pictoSeriesOf(w))));
-        return shuffle(words).slice(0, PICTO_DRAW).map(game.key);
+        return shuffle(neufs(words, PICTO_DRAW)).slice(0, PICTO_DRAW).map(game.key);
       }
-      return shuffle(builtin.items(profile, Math.random, activeItems(r.type, contents[r.type]), r)).slice(0, r.count ?? builtin.count).map((x) => game.key(r.type === "disparu" ? { theme: x.theme } : x));
+      const count = r.count ?? builtin.count;
+      return shuffle(builtin.items(profile, Math.random, neufs(activeItems(r.type, contents[r.type]), count), r)).slice(0, count).map((x) => game.key(r.type === "disparu" ? { theme: x.theme } : x));
     },
   });
 }
@@ -856,6 +910,7 @@ function roundFields(r) {
           value: n, selected: (r.count ?? BUILTIN_GAMES[r.type].count) === n,
           text: `${n} ${BUILTIN_GAMES[r.type].unit}s (${BUILTIN_GAMES[r.type].rule})`,
         }))),
+      r.type === "disparu" ? photoSwitch(r) : null,
       picksSelection(r))
     : r.type === "statues"
     // Statues musicales : la durée de la musique et les chansons cochées (aucune : la musique de la fête).
@@ -905,6 +960,7 @@ function roundFields(r) {
       h("select", { class: "count", "aria-label": "Durée du tour", onchange: (e) => { r.duration = Number(e.target.value) || null; roundCtx.summary(); } },
         h("option", { value: "", text: `Tour : ${r.deckId && mimes[r.deckId]?.duration ? mimes[r.deckId].duration : MIME_TURN} s` }),
         ...[30, 45, 60, 90, 120].map((n) => h("option", { value: n, selected: r.duration === n, text: `Tour de ${n} s par équipe` }))),
+      photoSwitch(r),
       mimeNeedLine(r),
       r.deckId || r.random === true || mimeCards(r.cards).length ? mimeSelection(r) : null)
     : photos
@@ -947,17 +1003,48 @@ function modeSwitch(r, byItem, whole, items, set) {
   return h("div", { class: "chips mode-switch" }, chip(false, whole), chip(true, items));
 }
 
+/**
+ * Mimes, Qui a disparu ? : cartes en émojis, ou en photos (chaque carte dont le mot est dans la banque de photos
+ * montre sa photo ; les autres gardent leur émoji).
+ */
+function photoSwitch(r) {
+  // Pas encore de vraies photos sur le site : rien à choisir.
+  if (!PHOTOS_BANQUE.size && r.photos !== true) return null;
+  const on = r.photos === true;
+  return h("div", { class: "photo-switch" },
+    modeSwitch(r, on, "😀 Émojis", "📷 Photos", (photos) => {
+      r.photos = photos || null;
+      // Retour aux émojis : les familles en photos choisies sont retirées de Qui a disparu ?.
+      if (!photos && r.type === "disparu" && roundPicks(r).length) {
+        const enPhotos = new Set(activeItems("disparu", contents.disparu).filter(isPhotoTheme).map((x) => CONTENT_GAMES.disparu.key(x)));
+        const keep = roundPicks(r).filter((k) => !enPhotos.has(k));
+        r.picks = keep.length ? keep : null;
+      }
+    }),
+    on ? h("span", { class: "small hint", text: r.type === "disparu"
+      ? "Les familles « Photos » montrent de vraies photos ; dans les autres, chaque objet de la banque de photos a sa photo."
+      : "Chaque carte dont le mot est dans la banque de photos (📷) montre sa photo ; les autres gardent leur émoji." }) : null);
+}
+
 /** Photos (Zoom, Image floue) ou titres (blind test, quiz musical) choisis un par un dans toutes les collections. */
 function itemSelection(r, field) {
   const items = () => collectionItems(r.type, { quizzes, playlists });
   const unit = COLLECTION_UNIT[r.type][0];
+  const photos = r.type === "zoom" || r.type === "flou";
+  let memo = null;
+  const valueOf = (k) => {
+    if (!memo || memo.src !== quizzes) memo = { src: quizzes, map: new Map(items().map((x) => [x.key, x.value])) };
+    return memo.map.get(k) ?? {};
+  };
   return selectionEditor({
     unit,
+    round: photos ? r : null,
+    conceptsOf: (k) => itemConcepts(r.type, valueOf(k)),
     empty: `Aucun ${unit} choisi : cochez-en, ou « Tirer au hasard ».`,
     items: () => items().map((x) => ({ key: x.key, label: x.label, group: x.group })),
     get: () => (field === "tracks" ? roundTracks(r) : roundPicks(r)),
     set: (keys) => { r[field] = keys; },
-    draw: () => drawItems(items(), RANDOM_COUNT[r.type] ?? 6).items.map((x) => x.key),
+    draw: () => drawItems(items(), RANDOM_COUNT[r.type] ?? 6, { type: r.type, avoidConcepts: photos ? roundCtx.elsewhere?.(r) : null }).items.map((x) => x.key),
   });
 }
 

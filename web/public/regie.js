@@ -8,7 +8,7 @@ import {
   buildSnapshot, showTitle, playable, QUIZ_GAMES, BUILTIN_GAMES, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame, imageIds, choiceImageIds,
   soundIds, MUSIC_GAMES, playableTracks, STATUES_SEC, PICTO_SEC, isStatuesList, statuesSongs, MAX_STATUES_SONGS,
   isFutureRound, moveRound, removeRound, uniqueRoundTitle, roundQuizIds, mimePool, mimeCards, CONTENT_GAMES, activeItems, pictoSeriesOf,
-  isArchived,
+  isArchived, isPhotoTheme, statuesChoices,
 } from "./show.js";
 import { MIME_CATALOG } from "./mime-cards.js";
 import {
@@ -18,6 +18,7 @@ import {
 import { profileForAge } from "./profiles.js";
 import { setAwake } from "./awake.js";
 import { ouvrirDefis } from "./defis.js";
+import { BANQUE, PHOTOS_BANQUE, avecPhoto, resolveBanque, lirePhotoBanque, emojiEnImage } from "./banque-photos.js";
 
 // Régie de l'animatrice, ouverte depuis la page des pupitres (bouton « Accès régie »).
 // Elle n'écrit que des commandes : la box les vérifie, les applique et répond dans commandStatus/ ;
@@ -1459,13 +1460,16 @@ async function pick(game) {
     profile = show?.profile ?? (show?.age != null ? profileForAge(show.age) : null);
   } catch { profile = null; }
   picked = { game, source: { ...game.source } };
+  searchText = "";
   if (game.random) picked.random = randomSettings(game.source.type, { count: game.source.count, base: game.base });
   drawPicked();
 }
 
 /** Réglages du tirage au hasard d'un jeu : difficulté, catégories, cartes par équipe (mimes), manche à rejouer. */
 function randomSettings(type, { count = null, base = null } = {}) {
-  return { type, level: "moyen", groups: [], count, base, perTeam: type === "mimes" && !base ? MIME_PER_TEAM_DEFAULT : null };
+  // Mimes, Qui a disparu ? : en émojis ou en photos (« Rejouer » garde le choix de la manche jouée).
+  const photos = (type === "mimes" || type === "disparu") && (PHOTOS_BANQUE.size || base?.photos === true) ? { photos: base?.photos === true } : {};
+  return { type, level: "moyen", groups: [], count, base, perTeam: type === "mimes" && !base ? MIME_PER_TEAM_DEFAULT : null, ...photos };
 }
 
 /** Équipes de la partie (pour les cartes de mimes par équipe), null tant qu'il n'y en a aucune. */
@@ -1484,8 +1488,9 @@ function drawPicked() {
     // Tirage dans les collections du jeu, sans rien de ce que la fête a déjà au programme.
     const rnd = picked.random;
     const { round, exhausted, count } = randomRound(rnd.type, library, {
-      profile: profile ?? "MOYENS", level: rnd.level, groups: rnd.groups, avoid: avoid[avoidKey(rnd.type)], teams, base: rnd.base ?? undefined,
+      profile: profile ?? "MOYENS", level: rnd.level, groups: rnd.groups, avoid: avoid[avoidKey(rnd.type)], avoidConcepts: avoid.concepts, teams, base: rnd.base ?? undefined,
       ...(rnd.type === "mimes" && rnd.perTeam ? { perTeam: rnd.perTeam } : rnd.count ? { count: rnd.count } : {}), playlists: library.playlists,
+      ...(typeof rnd.photos === "boolean" ? { photos: rnd.photos } : {}),
     });
     if (!round) {
       Object.assign(picked, { questions: [], problems: ["Plus rien de nouveau à tirer : tout a déjà été joué pendant la fête (ou rien dans ces catégories)."] });
@@ -1494,8 +1499,9 @@ function drawPicked() {
     picked.source = round;
     if (exhausted) notes.push(`Liste plus courte : il ne restait que ${count} ${COLLECTION_UNIT[rnd.type][count > 1 ? 1 : 0]} à tirer pendant cette fête.`);
   }
-  // Un paquet, un quiz ou une manche choisis exprès se jouent tels quels ; seul le hasard écarte ce qui est déjà passé.
-  const { questions, problems } = gameQuestions(picked.source, library.quizzes, profile ?? "MOYENS", prefix, library.mimes, library.playlists, library.contents, picked.random ? avoid : {}, teams);
+  // Un paquet, un quiz ou une manche choisis exprès se jouent tels quels ; seul le hasard écarte ce qui est déjà passé
+  // (« jamais deux fois » : leurs parties tirées au hasard, comme les objets de Qui a disparu ?, évitent ce que la fête a montré).
+  const { questions, problems } = gameQuestions(picked.source, library.quizzes, profile ?? "MOYENS", prefix, library.mimes, library.playlists, library.contents, picked.random ? avoid : { concepts: avoid.concepts }, teams);
   Object.assign(picked, { questions, problems: [...notes, ...problems] });
   renderLibrary();
 }
@@ -1569,29 +1575,55 @@ function renderPickedEdit(questions) {
     sel.id = "lib-add";
     sel.className = "lib-add";
     sel.setAttribute("aria-label", "Ajouter à la main");
-    const first = document.createElement("option");
-    first.value = "";
-    first.textContent = source.type === "mimes" || source.type === "pictionary" ? "＋ Ajouter une carte…" : `＋ Ajouter un ${CONTENT_GAMES[source.type]?.unit ?? "élément"}…`;
-    sel.appendChild(first);
-    const groups = new Map();
-    choices.forEach((c, i) => {
-      let parent = sel;
-      if (c.group) {
-        if (!groups.has(c.group)) { const g = document.createElement("optgroup"); g.label = c.group; groups.set(c.group, g); sel.appendChild(g); }
-        parent = groups.get(c.group);
-      }
-      const o = document.createElement("option");
-      o.value = `${i}`;
-      o.textContent = c.label;
-      parent.appendChild(o);
-    });
+    const label = source.type === "mimes" || source.type === "pictionary" ? "＋ Ajouter une carte…"
+      : source.type === "zoom" || source.type === "flou" ? "＋ Ajouter une photo…"
+      : source.type === "statues" ? "＋ Choisir une chanson (jouée en premier)…"
+      : MUSIC_GAMES[source.type] ? "＋ Ajouter un titre…" : `＋ Ajouter un ${CONTENT_GAMES[source.type]?.unit ?? "élément"}…`;
+    // Liste remplie selon la recherche (des centaines de photos ou de cartes) : sans accents ni majuscules.
+    const fill = (text) => {
+      const q = plat(text).trim();
+      sel.replaceChildren();
+      const shown = choices.map((c, i) => [c, i]).filter(([c]) => !q || plat(`${c.label} ${c.group ?? ""}`).includes(q));
+      const first = document.createElement("option");
+      first.value = "";
+      first.textContent = q ? `＋ ${shown.length} trouvé${shown.length > 1 ? "s" : ""} : choisir…` : label;
+      sel.appendChild(first);
+      const groups = new Map();
+      shown.forEach(([c, i]) => {
+        let parent = sel;
+        if (c.group) {
+          if (!groups.has(c.group)) { const g = document.createElement("optgroup"); g.label = c.group; groups.set(c.group, g); sel.appendChild(g); }
+          parent = groups.get(c.group);
+        }
+        const o = document.createElement("option");
+        o.value = `${i}`;
+        o.textContent = c.label;
+        parent.appendChild(o);
+      });
+    };
+    fill(searchText);
     sel.onchange = () => {
       const c = choices[Number(sel.value)];
       if (c) { c.add(); renderLibrary(); }
     };
+    if (choices.length > 8) {
+      const search = document.createElement("input");
+      search.type = "search";
+      search.id = "lib-search";
+      search.className = "lib-search";
+      search.placeholder = "🔎 Chercher…";
+      search.setAttribute("aria-label", "Chercher");
+      search.value = searchText;
+      search.oninput = () => { searchText = search.value; fill(searchText); };
+      add(search);
+    }
     add(sel);
   }
 }
+
+/** Recherche dans « Ajouter à la main », gardée tant que le même jeu est ouvert. */
+let searchText = "";
+const plat = (t) => `${t ?? ""}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 /** Réglages du tirage, en puces : difficulté, catégories de la collection, cartes par équipe pour les mimes. */
 function randomPanel(rnd) {
@@ -1619,6 +1651,9 @@ function randomPanel(rnd) {
     chips(`Cartes par équipe (${teams} équipe${teams > 1 ? "s" : ""}, plus une réserve)`, [[0, `${RANDOM_COUNT.mimes} cartes`], ...MIME_PER_TEAM.map((n) => [n, `${n}`])],
       (n) => (rnd.perTeam ?? 0) === n, (n) => { rnd.perTeam = n || null; rnd.count = n ? null : RANDOM_COUNT.mimes; }, "lib-per-team");
   }
+  if (typeof rnd.photos === "boolean") {
+    chips("Images", [[false, "😀 Émojis"], [true, "📷 Photos"]], (v) => rnd.photos === v, (v) => { rnd.photos = v; }, "lib-photos");
+  }
   chips("Difficulté", Object.entries(LEVELS), (k) => rnd.level === k, (k) => { rnd.level = k; }, "lib-level");
   const groups = collectionGroups(collectionItems(rnd.type, library));
   if (groups.length > 1) {
@@ -1638,22 +1673,65 @@ function addChoices(questions) {
       ? activeItems("pictionary", library.contents?.pictionary).map((w) => ({ card: { word: w.word, ...(w.image ? { image: w.image } : {}), ...(w.imageId ? { imageId: w.imageId } : {}) }, group: pictoSeriesOf(w) }))
       : source.deckId ? mimePool(source, library.mimes, profile ?? "MOYENS").map((card) => ({ card }))
       : MIME_CATALOG.map((c) => ({ card: mimeCards([c])[0], group: c.theme }));
+    // Mimes en photos : la carte ajoutée a la photo de son mot, s'il est dans la banque.
+    const photos = deck.kind === "mime" && source.photos === true;
     return pool.filter((x) => !present.has(x.card.word.toLowerCase()))
-      .map((x) => ({ label: `${x.card.image ?? ""} ${x.card.word}`.trim(), group: x.group, add: () => { deck.cards.push(x.card); present.add(x.card.word.toLowerCase()); } }));
+      .map((x) => ({ label: `${x.card.image ?? ""} ${x.card.word}`.trim(), group: x.group, add: () => { deck.cards.push(photos ? avecPhoto(x.card) : x.card); present.add(x.card.word.toLowerCase()); } }));
+  }
+  // Le même chemin que la prestation : l'élément choisi devient une question (grille tirée pour Qui a disparu ?).
+  const ajoute = (round) => () => {
+    const { questions: one } = gameQuestions(round, library.quizzes, profile ?? "MOYENS", `a${Date.now().toString(36)}`, library.mimes, library.playlists, library.contents);
+    if (one[0]) questions.push({ ...one[0], id: `${one[0].id}x${questions.length + 1}` });
+  };
+  // Statues musicales : une chanson cherchée dans toutes les playlists, jouée en premier.
+  if (source.type === "statues") {
+    const q = questions[0];
+    const present = new Set(q?.audioIds ?? []);
+    return q ? statuesChoices(library.playlists).filter((t) => !present.has(t.audioId)).map((t) => ({
+      label: `${t.title}${t.artist ? ` · ${t.artist}` : ""}`, group: t.list,
+      add: () => { q.audioIds = [t.audioId, ...(q.audioIds ?? [])].slice(0, MAX_STATUES_SONGS); },
+    })) : [];
+  }
+  // Blind test, quiz musical : un titre de plus, cherché dans toutes les playlists ; le jeu est refait avec lui
+  // (les derniers morceaux gardent leur valeur double).
+  if (MUSIC_GAMES[source.type]) {
+    const tracks = questions.map((q) => q.audioId).filter(Boolean);
+    const present = new Set(tracks);
+    return collectionItems(source.type, library).filter((x) => !present.has(x.key)).map((x) => ({
+      label: x.label, group: x.group,
+      add: () => {
+        const next = { ...source, playlistId: null, tracks: [...tracks, x.key] };
+        const { questions: all } = gameQuestions(next, library.quizzes, profile ?? "MOYENS", `a${Date.now().toString(36)}`, library.mimes, library.playlists, library.contents);
+        if (all.length) { questions.splice(0, questions.length, ...all); picked.source = next; }
+      },
+    }));
+  }
+  // Zoom mystère, Image floue : une photo de plus, prise dans les quiz ou dans la banque de photos.
+  if (source.type === "zoom" || source.type === "flou") {
+    const present = new Set(questions.map((q) => q.imageId ?? (q.banque ? `${BANQUE}${q.banque}` : null)).filter(Boolean));
+    return collectionItems(source.type, library).filter((x) => !present.has(x.key))
+      .map((x) => ({ label: x.label, group: x.group, add: ajoute({ type: source.type, picks: [x.key] }) }));
   }
   const game = CONTENT_GAMES[source.type];
   if (!BUILTIN_GAMES[source.type] || !game) return [];
   const present = new Set(questions.map((q) => (q.kind === "quisuis" || q.kind === "chante" ? q.choices?.[0] : null)).filter(Boolean).map((x) => x.toLowerCase()));
+  // Qui a disparu ? : les familles en photos seulement en mode « 📷 Photos », qui donne aussi leur photo aux autres objets.
+  const photos = source.type === "disparu" && source.photos === true;
   return activeItems(source.type, library.contents?.[source.type])
-    .filter((x) => !present.has((x.answer ?? x.word ?? "").toLowerCase()))
+    .filter((x) => !present.has((x.answer ?? x.word ?? "").toLowerCase()) && (source.type !== "disparu" || photos || !isPhotoTheme(x)))
     .map((x) => ({
       label: game.label(x),
-      add: () => {
-        // Le même chemin que la prestation : l'élément choisi devient une question (grille tirée pour Qui a disparu ?).
-        const { questions: one } = gameQuestions({ type: source.type, picks: [game.key(x)] }, {}, profile ?? "MOYENS", `a${Date.now().toString(36)}`, {}, {}, library.contents);
-        if (one[0]) questions.push({ ...one[0], id: `${one[0].id}x${questions.length + 1}` });
-      },
+      group: source.type === "disparu" ? (isPhotoTheme(x) ? "Photos de la banque" : "Émojis") : undefined,
+      add: ajoute({ type: source.type, picks: [game.key(x)], ...(photos ? { photos: true } : {}) }),
     }));
+}
+
+/** Statues musicales : combien de chansons, et laquelle passe en premier (choisie avec « Choisir une chanson »). */
+function statuesMeta(q) {
+  const ids = q.audioIds ?? [];
+  if (!ids.length) return "Musique de la fête (aucune chanson choisie)";
+  const first = statuesChoices(library.playlists).find((t) => t.audioId === ids[0]);
+  return `${ids.length} chanson${ids.length > 1 ? "s" : ""} à la suite${first ? ` · en premier : ${first.title}` : ""}`;
 }
 
 function renderPreview() {
@@ -1664,6 +1742,7 @@ function renderPreview() {
   const mime = questions[0]?.kind === "mime" || questions[0]?.kind === "pictionary" ? questions[0] : null;
   $("lib-meta").textContent = mime
     ? `${mime.kind === "pictionary" ? "Pictionary" : "Mimes"} · ${mime.cards.length} ${mime.kind === "pictionary" ? "mots · un mot par équipe" : "cartes"} · tour de ${mime.duration} s par équipe`
+    : questions[0]?.kind === "statues" ? statuesMeta(questions[0])
     : [game.from, `${questions.length} question${questions.length > 1 ? "s" : ""}`].filter(Boolean).join(" · ");
   const list = $("lib-questions");
   list.innerHTML = "";
@@ -1764,11 +1843,11 @@ async function addPicked(where) {
   if (!picked || editing || adding) return;
   const refused = tvRefuses(picked.questions);
   if (refused) { toast(refused); return; }
-  const chosen = picked.questions;
   // Photos copiées avant l'envoi : la TV les cherche dès qu'elle accepte le programme. Les extraits,
   // plus lourds, suivent ; la TV les attend.
   adding = true;
-  try { await copyImages(chosen); } finally { adding = false; }
+  let chosen;
+  try { chosen = await copyImages(picked.questions); } finally { adding = false; }
   copySounds(chosen);
   if (!picked || editing) return;
   const st = live.state ?? { phase: "lobby" };
@@ -1791,7 +1870,7 @@ function liveManche({ random, source, questions }, title) {
   let round = { ...source };
   if (type === "mimes" && deck) round = { ...round, cards: deck.cards, duration: deck.duration };
   else if (type === "pictionary" && deck) round = { ...round, picks: deck.cards.map((c) => c.word.toLowerCase()), duration: deck.duration };
-  else if (type === "zoom" || type === "flou") round = { ...round, picks: (round.picks ?? []).filter((k) => questions.some((q) => q.imageId === k)) };
+  else if (type === "zoom" || type === "flou") round = { ...round, picks: (round.picks ?? []).filter((k) => questions.some((q) => q.imageId === k || (q.banque && `${BANQUE}${q.banque}` === k))) };
   else if (type === "blind" || type === "musical") round = { ...round, tracks: (round.tracks ?? []).filter((k) => questions.some((q) => q.audioId === k)) };
   else if (type === "chante" || type === "quisuis") round = { ...round, picks: questions.map((q) => q.choices?.[0]?.toLowerCase()).filter(Boolean), count: questions.length };
   return () => {
@@ -1954,7 +2033,17 @@ function renderShows(st) {
  * Photos d'illustration : copiées de la bibliothèque dans la partie, où la TV les lit à la révélation.
  * Jamais bloquant : une photo qui manque laisse simplement la question sans illustration.
  */
-async function copyImages(questions) {
+async function copyImages(list) {
+  // Photos de la banque des petits (Zoom, Image floue, Mimes et Qui a disparu ? en photos) : lues sur le site et
+  // copiées dans la partie d'abord ; chaque question y gagne son identifiant de photo, comme une photo de la bibliothèque.
+  const questions = await resolveBanque(list, {
+    photo: lirePhotoBanque,
+    secours: emojiEnImage,
+    ecrire: async (dir, id, data) => {
+      const target = ref(db, `games/${code}/${dir}/${id}`);
+      if (!(await get(target)).exists()) await set(target, data);
+    },
+  });
   // Réponses en images : rangées à part, lisibles par les pupitres (les photos d'illustration, elles, ne le sont pas).
   const all = [...imageIds(questions).map((id) => ["images", id]), ...choiceImageIds(questions).map((id) => ["choiceImages", id])];
   await Promise.all(all.map(async ([dir, id]) => {
@@ -1967,6 +2056,7 @@ async function copyImages(questions) {
       console.warn("Illustration non copiée", id, e);
     }
   }));
+  return questions;
 }
 
 /**
@@ -2017,7 +2107,7 @@ async function loadShow(id) {
     loadingShow = null;
     return render();
   }
-  await copyImages(snapshot.quiz?.questions);
+  if (snapshot.quiz) snapshot.quiz = { ...snapshot.quiz, questions: await copyImages(snapshot.quiz.questions) };
   const showId = push(ref(db, `games/${code}/show`)).key;
   const done = (message) => { loadingShow = null; if (message) toast(message); render(); };
   let stop = () => {};

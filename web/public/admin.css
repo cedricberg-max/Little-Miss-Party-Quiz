@@ -294,7 +294,13 @@ button.item { cursor: pointer; }
 .pick-list { width: 100%; display: flex; flex-wrap: wrap; gap: 6px; }
 .pick-list:empty { display: none; }
 .pick-item { background: var(--bg-2); }
+/* « Jamais deux fois » : élément déjà utilisé dans une autre manche de la prestation (permis, mais signalé). */
+.pick-item.deja { background: #fde8ee; border-color: var(--bad); color: var(--bad); }
+.pick-deja { width: 100%; margin: 0; color: var(--bad); font-size: 13px; font-weight: 600; }
+.pick-add option.deja { color: var(--bad); }
 .pick-add { max-width: 260px; }
+.pick-search { width: 160px; padding: 5px 10px; font-size: 14px; }
+.photo-switch { width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .pick-own { display: inline-flex; gap: 6px; align-items: center; }
 .pick-own input { width: 190px; }
 .quiz-picks { display: flex; flex-direction: column; gap: 6px; }

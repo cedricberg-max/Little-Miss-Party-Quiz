@@ -8,9 +8,11 @@ import {
   ROUND_TYPES, BUILTIN_GAMES, CONTENT_GAMES, MUSIC_GAMES, activeItems, pictoSeriesOf, playableTracks, isStatuesList,
   statuesSongs, statuesChoices, zoomQuestions, expressQuestions, playable, mimeCards, roundPicks, roundTracks, roundQuizIds, roundSongs,
   pictoRoundSeries, mimePerTeam, teamCount, MIME_TURN, MIME_RANDOM, STATUES_SEC, PICTO_SEC,
-  MAX_PICKS, MAX_STATUES_SONGS, quizKind,
+  MAX_PICKS, MAX_STATUES_SONGS, quizKind, builtinConcepts, fixedConcepts, isPhotoTheme,
 } from "./show.js";
 import { MIME_CATALOG, shuffle } from "./mime-cards.js";
+import { concepts, questionConcepts, neufsSiPossible } from "./jamais-deux-fois.js";
+import { BANQUE, banqueItems, motDeLaBanque } from "./banque-photos.js";
 
 /** Jeux qu'on peut enregistrer en manches, dans l'ordre de la page Jeux. */
 export const MANCHE_TYPES = ["quiz", "mimes", "blind", "musical", "statues", "express", "zoom", "flou", "chante", "quisuis", "disparu", "pictionary", "coffres", "patate", "gonfleur"];
@@ -55,11 +57,13 @@ export function collectionItems(type, lib = {}) {
     const game = CONTENT_GAMES[type];
     activeItems(type, lib.contents?.[type]).forEach((x) => add({
       key: game.key(x), label: game.label(x), level: x.level ?? 1, value: x,
-      group: type === "pictionary" ? pictoSeriesOf(x) : null,
+      group: type === "pictionary" ? pictoSeriesOf(x) : type === "disparu" ? (isPhotoTheme(x) ? "Photos de la banque" : "Émojis") : null,
     }));
   } else if (type === "zoom" || type === "flou") {
     Object.values(lib.quizzes ?? {}).filter((q) => q?.title).sort((a, b) => a.title.localeCompare(b.title, "fr"))
       .forEach((qz) => zoomQuestions(qz).forEach((q) => add({ key: q.imageId, label: q.choices?.[q.correct] ?? q.text, group: qz.title, level: 1, value: q })));
+    // Puis les photos de la banque, par famille (réponses en images pour ceux qui ne lisent pas encore).
+    banqueItems().forEach(add);
   } else if (MUSIC_GAMES[type]) {
     Object.values(lib.playlists ?? {}).filter((p) => p?.title && !isStatuesList(p)).sort((a, b) => a.title.localeCompare(b.title, "fr"))
       .forEach((p) => playableTracks(p).forEach((t) => add({ key: t.audioId, label: t.artist?.trim() ? `${t.title.trim()} (${t.artist.trim()})` : t.title.trim(), group: p.title, level: 1, value: t })));
@@ -86,12 +90,22 @@ export function filterItems(items, { groups = null, level = null, profile = null
   return inGroups;
 }
 
+/** Ce que montre un élément de collection (« jamais deux fois ») : son mot, son émoji, sa photo. */
+export function itemConcepts(type, value) {
+  if (type === "mimes") return concepts(value);
+  if (type === "zoom" || type === "flou") return questionConcepts({ ...value, kind: type });
+  return builtinConcepts(type, value);
+}
+
 /**
  * Tirage au hasard de [count] éléments : jamais un élément de [avoid] (déjà joué pendant la fête). En « difficile »,
  * les éléments les plus durs passent d'abord. `exhausted` : il n'en restait pas assez, la liste est plus courte.
+ * [avoidConcepts] (« jamais deux fois ») : ce que montrent déjà les autres activités de la prestation ; évité tant
+ * qu'il reste assez d'éléments neufs. [type] : le jeu, pour savoir ce que montre chaque élément.
  */
-export function drawItems(items, count, { level = null, avoid = null } = {}, random = Math.random) {
-  const fresh = items.filter((x) => !avoid?.has(x.key));
+export function drawItems(items, count, { level = null, avoid = null, avoidConcepts = null, type = null } = {}, random = Math.random) {
+  const unplayed = items.filter((x) => !avoid?.has(x.key));
+  const fresh = type ? neufsSiPossible(unplayed, (x) => itemConcepts(type, x.value), avoidConcepts, count) : unplayed;
   const mixed = shuffle(fresh, random);
   const ordered = level === "difficile" ? [...mixed.filter((x) => (x.level ?? 1) >= 2), ...mixed.filter((x) => (x.level ?? 1) < 2)] : mixed;
   return { items: ordered.slice(0, count), exhausted: fresh.length < count, left: fresh.length };
@@ -105,15 +119,16 @@ export function drawItems(items, count, { level = null, avoid = null } = {}, ran
  */
 export function randomRound(type, lib, opts = {}, random = Math.random) {
   const base = opts.base ?? {};
-  const items = filterItems(collectionItems(type, lib), opts);
   const settings = roundSettings(type, base, opts);
+  // Qui a disparu ? en émojis : pas les familles de photos de la banque.
+  const items = filterItems(collectionItems(type, lib), opts).filter((x) => type !== "disparu" || settings.photos || !isPhotoTheme(x.value));
   if (!RANDOM_TYPES.includes(type)) return { round: { type, ...settings }, exhausted: false, count: 0 };
   const perTeam = type === "mimes" ? mimePerTeam({ perTeam: opts.perTeam ?? base.perTeam }) : 0;
   const count = Math.max(1, Math.min(MAX_PICKS, opts.count
     ?? (perTeam ? perTeam * teamCount(opts.teams) : null)
     ?? baseCount(type, base)
     ?? RANDOM_COUNT[type] ?? BUILTIN_GAMES[type]?.count ?? 6));
-  const { items: picked, exhausted } = drawItems(items, count, opts, random);
+  const { items: picked, exhausted } = drawItems(items, count, { ...opts, type }, random);
   if (!picked.length) return { round: null, exhausted: true, count: 0 };
   const keys = picked.map((x) => x.key);
   const round = type === "mimes" ? { type, ...settings, cards: picked.map((x) => x.value), ...(perTeam ? { perTeam } : {}) }
@@ -132,9 +147,11 @@ function baseCount(type, base) {
 /** Réglages d'une manche (sans son contenu) : durée, objets par grille, séries… repris de [base] ou de [opts]. */
 function roundSettings(type, base, opts) {
   const pick = (k) => opts[k] ?? base[k];
-  if (type === "mimes") return { duration: pick("duration") ?? MIME_TURN };
+  // « 📷 Photos » (mimes, Qui a disparu ?) : les cartes dont le mot est dans la banque montrent sa photo.
+  const photos = pick("photos") === true ? { photos: true } : {};
+  if (type === "mimes") return { duration: pick("duration") ?? MIME_TURN, ...photos };
   if (type === "pictionary") return { duration: pick("duration") ?? PICTO_SEC, ...(pictoRoundSeries(base) ? { series: pictoRoundSeries(base) } : {}) };
-  if (type === "disparu") return pick("objects") ? { objects: pick("objects") } : {};
+  if (type === "disparu") return { ...(pick("objects") ? { objects: pick("objects") } : {}), ...photos };
   if (type === "statues") return { duration: pick("duration") ?? STATUES_SEC, songs: statuesSongs(opts.playlists ?? {}).map((t) => t.audioId).slice(0, MAX_STATUES_SONGS) };
   return {};
 }
@@ -145,6 +162,8 @@ function roundSettings(type, base, opts) {
  */
 export function playedKeys(questions, contents = {}) {
   const out = {};
+  // « Jamais deux fois » : tout ce que montre le programme (mots, émojis, photos), quel que soit le jeu.
+  out.concepts = new Set((questions ?? []).flatMap(questionConcepts));
   const add = (k, v) => { if (typeof v === "string" && v) (out[k] ??= new Set()).add(v.toLowerCase()); };
   const themes = activeItems("disparu", contents?.disparu);
   for (const q of questions ?? []) {
@@ -157,7 +176,12 @@ export function playedKeys(questions, contents = {}) {
       const words = new Set((q.cards ?? []).map((c) => c?.word));
       const theme = themes.find((t) => [...words].every((w) => t.objects.some((o) => o.word === w)));
       add("disparu", theme?.theme);
-    } else if ((q.kind === "zoom" || q.kind === "flou") && q.imageId) add("photos", q.imageId);
+    } else if (q.kind === "zoom" || q.kind === "flou") {
+      add("photos", q.imageId);
+      // La même chose en photo de la banque n'est pas retirée non plus (« jamais deux fois »).
+      const m = motDeLaBanque(q.choices?.[q.correct]);
+      if (m) add("photos", `${BANQUE}${m.cle}`);
+    }
     if (q.audioId) add("tracks", q.audioId);
   }
   return out;
@@ -183,14 +207,15 @@ export function cleanRound(r, playlists = {}) {
   const link = typeof r?.mancheId === "string" && r.mancheId ? { mancheId: r.mancheId.slice(0, 40) } : {};
   const title = typeof r?.title === "string" && r.title.trim() ? { title: r.title.trim().slice(0, 60) } : {};
   let out;
-  if (BUILTIN_GAMES[type]) out = { type, count: r.count ?? BUILTIN_GAMES[type].count, ...(type === "disparu" && r.objects ? { objects: r.objects } : {}), ...picks };
+  const photos = (type === "mimes" || type === "disparu") && r.photos === true ? { photos: true } : {};
+  if (BUILTIN_GAMES[type]) out = { type, count: r.count ?? BUILTIN_GAMES[type].count, ...(type === "disparu" && r.objects ? { objects: r.objects } : {}), ...photos, ...picks };
   // Mimes : un paquet, ou le catalogue au hasard ; cartes choisies (tirage modifié à la main) gardées dans la manche.
   else if (type === "mimes") {
     const cards = mimeCards(r.cards).slice(0, 200);
     out = {
       type, ...(r.deckId ? { deckId: r.deckId } : cards.length ? {} : { random: true }), ...(cards.length ? { cards } : {}),
       ...(Number.isInteger(r.duration) && r.duration >= 15 && r.duration <= 180 ? { duration: r.duration } : {}),
-      ...(mimePerTeam(r) ? { perTeam: mimePerTeam(r) } : {}),
+      ...(mimePerTeam(r) ? { perTeam: mimePerTeam(r) } : {}), ...photos,
     };
   } else if (type === "statues") out = { type, duration: r.duration ?? STATUES_SEC, ...(roundSongs(r, playlists).length ? { songs: roundSongs(r, playlists).map((t) => t.audioId) } : {}) };
   else if (type === "pictionary") out = { type, duration: r.duration ?? PICTO_SEC, ...(pictoRoundSeries(r) ? { series: pictoRoundSeries(r) } : {}), ...picks };
@@ -223,8 +248,9 @@ export function mancheSummary(round, lib = {}) {
     const cards = mimeCards(r.cards).length;
     const deck = r.deckId ? lib.mimes?.[r.deckId] : null;
     return [cards ? n(cards) : deck ? `${deck.title} (${(deck.cards ?? []).length} cartes)` : "cartes au hasard",
-      mimePerTeam(r) ? `${mimePerTeam(r)} par équipe` : "", `tour de ${r.duration ?? deck?.duration ?? MIME_TURN} s`].filter(Boolean).join(" · ");
+      mimePerTeam(r) ? `${mimePerTeam(r)} par équipe` : "", `tour de ${r.duration ?? deck?.duration ?? MIME_TURN} s`, r.photos === true ? "📷 photos" : ""].filter(Boolean).join(" · ");
   }
+  if (r.type === "disparu" && r.photos === true) return `${roundPicks(r).length ? n(roundPicks(r).length) : `${r.count ?? BUILTIN_GAMES.disparu.count} au hasard`} · 📷 photos`;
   if (MUSIC_GAMES[r.type]) return roundTracks(r).length ? n(roundTracks(r).length) : lib.playlists?.[r.playlistId]?.title ?? "playlist";
   if (r.type === "statues") return `${r.duration ?? STATUES_SEC} s · ${roundSongs(r, lib.playlists).length ? n(roundSongs(r, lib.playlists).length) : "musique de la fête"}`;
   if (r.type === "pictionary") return [roundPicks(r).length ? n(roundPicks(r).length) : "mots au hasard", `${r.duration ?? PICTO_SEC} s de dessin`].join(" · ");
@@ -243,3 +269,28 @@ export function defaultMancheTitle(type, date = new Date()) {
 /** Cartes à prévoir pour une manche de mimes dans une prestation : par équipe × équipes prévues. */
 export const mimeCardsNeeded = (round, teams) => (mimePerTeam(round) ? mimePerTeam(round) * teamCount(teams) : 0);
 
+
+/**
+ * « Jamais deux fois » pour les choix faits à la main : pour la manche [index] d'une prestation, ses éléments déjà
+ * utilisés dans une autre manche, `[{ label, other }]` (other : le nom de l'autre jeu). Un choix à la main reste
+ * permis : la Régie PC l'affiche en rouge « déjà utilisé dans … ».
+ */
+export function usedElsewhere(rounds, index, lib = {}) {
+  const others = new Map();
+  (rounds ?? []).forEach((r, j) => {
+    if (j === index || !r) return;
+    fixedConcepts(r, lib.quizzes, lib.mimes, lib.contents).forEach((k) => { if (!others.has(k)) others.set(k, ROUND_TYPES[r.type ?? "quiz"] ?? "une autre manche"); });
+  });
+  return others;
+}
+
+/** Les éléments d'une liste ({ key, value }) déjà utilisés ailleurs ([others] : usedElsewhere) : clé → nom de l'autre jeu. */
+export function conflictsOf(type, items, others) {
+  const out = new Map();
+  if (!others?.size) return out;
+  items.forEach((x) => {
+    const hit = itemConcepts(type, x.value).find((k) => others.has(k));
+    if (hit) out.set(x.key, others.get(hit));
+  });
+  return out;
+}
