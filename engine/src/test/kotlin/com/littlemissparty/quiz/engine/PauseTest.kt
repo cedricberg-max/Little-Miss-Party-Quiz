@@ -233,22 +233,42 @@ class PauseTest {
     @Test
     fun `box sans Internet, la question se fige une fois, l'animatrice garde la main`() {
         val g = Game(quiz)
-        assertNull(g.networkPause(t0, 60_000, null), "Salon d'attente : rien à figer")
+        assertNull(g.networkPause(t0, 60_000, false), "Salon d'attente : rien à figer")
         g.next(t0)
-        assertNull(g.networkPause(t0 + 2_000, NETWORK_GRACE_MS - 1, null), "Micro-coupure : on attend")
-        val paused = g.networkPause(t0 + 5_000, NETWORK_GRACE_MS, null)
+        assertNull(g.networkPause(t0 + 2_000, NETWORK_GRACE_MS - 1, false), "Micro-coupure : on attend")
+        val paused = g.networkPause(t0 + 5_000, NETWORK_GRACE_MS, false)
         assertTrue(paused is Paused && paused.reason == PAUSE_NETWORK)
         assertEquals(15_000, g.remainingMs(t0 + 60_000), "Chrono figé à 15 s")
-        assertNull(g.networkPause(t0 + 6_000, 10_000, null), "Déjà en pause")
-        // L'animatrice relance à la télécommande pendant la coupure : la box ne repause pas la même question.
+        assertNull(g.networkPause(t0 + 6_000, 10_000, false), "Déjà en pause")
+        // L'animatrice relance à la télécommande pendant la coupure : la box ne repause pas la question.
         g.resume(t0 + 7_000)
-        assertNull(g.networkPause(t0 + 12_000, 12_000, "q1"))
-        // Question suivante lancée hors connexion : elle se fige à son tour.
+        assertNull(g.networkPause(t0 + 12_000, 12_000, true))
+        // Question suivante lancée hors connexion : la fête continue (cartes A B C D), sans nouvelle pause.
         g.close(t0 + 13_000)
         g.next(t0 + 13_100, mapOf("rose" to Answer(1, t0 + 11_000)))
         g.next(t0 + 13_200)
         g.next(t0 + 13_300)
         assertEquals("q2", g.state.qid)
-        assertTrue(g.networkPause(t0 + 14_000, 14_000, "q1") is Paused)
+        assertNull(g.networkPause(t0 + 14_000, 14_000, true), "Même coupure : pas de nouvelle pause")
+        // Nouvelle coupure plus tard (Internet revenu entre-temps) : la question se fige à nouveau.
+        assertTrue(g.networkPause(t0 + 20_000, NETWORK_GRACE_MS, false) is Paused)
+    }
+
+    @Test
+    fun `points donnés à la télécommande hors connexion, sans jamais passer sous zéro`() {
+        val g = Game(quiz)
+        g.next(t0)
+        val bonus = g.remotePoints("rose", 150, t0 + 1_000)
+        assertTrue(bonus is ScoreAdjusted && bonus.reason == REASON_REMOTE)
+        assertEquals(150, g.state.scores()["rose"])
+        g.remotePoints("rose", -100, t0 + 1_100)
+        assertEquals(50, g.state.scores()["rose"])
+        // Malus plus gros que le score : l'équipe s'arrête à zéro.
+        g.remotePoints("rose", -100, t0 + 1_200)
+        assertEquals(0, g.state.scores()["rose"])
+        assertNull(g.remotePoints("bleu", -50, t0 + 1_300), "Déjà à zéro : rien ne part")
+        assertNull(g.remotePoints("bleu", 0, t0 + 1_400))
+        assertNull(g.remotePoints("bleu", Command.MAX_DELTA + 1, t0 + 1_500), "Montant hors limite")
+        assertEquals(0, g.state.scores()["bleu"] ?: 0)
     }
 }

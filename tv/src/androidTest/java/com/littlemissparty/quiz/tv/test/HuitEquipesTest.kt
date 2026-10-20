@@ -1,5 +1,6 @@
 package com.littlemissparty.quiz.tv.test
 
+import android.view.KeyEvent
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.littlemissparty.quiz.tv.TEAM_COLORS
 import org.junit.Test
@@ -42,5 +43,17 @@ class HuitEquipesTest : TestTv() {
         noms.forEach { ecran.voit(it) }
         ecran.entierementVisible("Question suivante")
         ecran.capture("classement-8-equipes")
+
+        // « Donner des points » (fête sans Internet) : les 8 équipes et tous les boutons restent à l'écran.
+        ecran.device.pressBack()
+        ecran.focusSur("Continuer la partie")
+        ecran.touche(KeyEvent.KEYCODE_DPAD_DOWN)
+        ecran.ok("Donner des points")
+        noms.forEach { ecran.entierementVisible(it) }
+        listOf("+300", "−100", "Choisissez les équipes, puis les points", "Fermer").forEach { ecran.entierementVisible(it) }
+        ecran.capture("donner-des-points-8-equipes")
+        ecran.device.pressBack()
+        ecran.neVoitPas("Donner des points")
+        ecran.voit("Classement")
     }
 }

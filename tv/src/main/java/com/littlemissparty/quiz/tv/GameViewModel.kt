@@ -702,6 +702,23 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun pause() = act { it.pause(serverNow()) }
     fun unpause() = act { it.resume(serverNow()) }
 
+    /**
+     * Points donnés à la télécommande (menu Retour), utiles surtout sans Internet : les équipes montrent leurs
+     * cartes A B C D et l'animatrice saisit les points. Même annonce sur la TV qu'un bonus de la régie.
+     */
+    fun givePoints(teamIds: List<String>, delta: Int) {
+        viewModelScope.launch { actions.withLock {
+            val g = game ?: return@withLock
+            val known = teams().map { it.uid }.toSet()
+            for (t in teamIds.distinct().filter { it in known }) {
+                val avant = g.state.scores()[t] ?: 0
+                val e = g.remotePoints(t, delta, serverNow()) ?: continue
+                commit(e)
+                (e as? ScoreAdjusted)?.let { montrerCoup(it, avant, g.state.scores()[t] ?: 0) }
+            }
+        } }
+    }
+
     private fun act(action: (Game) -> GameEvent?) {
         viewModelScope.launch { actions.withLock { game?.let { commit(action(it)) } } }
     }
@@ -908,6 +925,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             .forEach { prefetchImage(it, "choiceImages") }
         // Pictionary : photos des mots proposés (rangées avec les réponses en images), prêtes pour la révélation.
         (g.offerCards + listOfNotNull(g.lastCard)).mapNotNull { it.imageId }.forEach { prefetchImage(it, "choiceImages") }
+        // Photos : toutes celles du programme gardées sur la box, pour une fête qui continue sans Internet.
+        savePhotos(g)
         // Extraits musicaux : tous ceux du programme, dès son chargement, pour que la musique ne dépende
         // plus du réseau une fois la partie lancée.
         g.quiz.questions.flatMapTo(LinkedHashSet()) { listOfNotNull(it.audioId) + it.audioIds }.forEach(::prefetchSound)
@@ -999,20 +1018,76 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
     private val imagesLoading = mutableSetOf<String>()
 
-    /** Lit une photo d'illustration dans la partie ; absente, abîmée ou hors connexion : la question reste sans photo. */
+    /**
+     * Lit une photo d'illustration : d'abord sur la box (gardée dès le chargement du programme), sinon dans la
+     * partie. Absente, abîmée ou hors connexion sans copie : la question reste sans photo.
+     */
     private fun prefetchImage(id: String, dir: String = "images") {
         if (id in imageBytes || !imagesLoading.add(id)) return
         val ref = gameRef ?: return run { imagesLoading -= id }
         viewModelScope.launch {
-            val bytes = runCatching {
-                // Attente de la copie par la régie : une lecture unique pourrait renvoyer « absente » depuis le cache.
-                val data = ref.child("$dir/$id").readWhenPresent(PHOTO_WAIT_MS)?.getValue(String::class.java)
-                data?.substringAfter("base64,", "")?.takeIf { it.isNotEmpty() }?.let { Base64.decode(it, Base64.DEFAULT) }
-            }.getOrNull()
+            val bytes = photoOnBox(id) ?: downloadPhoto(ref, dir, id)
             imagesLoading -= id
             if (bytes == null) return@launch
             imageBytes[id] = bytes
             updatePlaying { it.copy(images = imageBytes.toMap()) }
+        }
+    }
+
+    /** Photos gardées sur la box (filesDir/photos/<empreinte>) : la fête garde ses images si Internet coupe. */
+    private val photoDir by lazy { java.io.File(getApplication<Application>().filesDir, "photos") }
+    private var photosSavedFor: Any? = null
+
+    private suspend fun photoOnBox(id: String): ByteArray? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        runCatching { java.io.File(photoDir, id).takeIf { it.isFile && it.length() > 0 }?.readBytes() }.getOrNull()
+    }
+
+    /** Copie une photo de la partie sur la box ; l'identifiant est l'empreinte du contenu, donc jamais périmé. */
+    private suspend fun downloadPhoto(ref: DatabaseReference, dir: String, id: String): ByteArray? {
+        val bytes = runCatching {
+            // Attente de la copie par la régie : une lecture unique pourrait renvoyer « absente » depuis le cache.
+            val data = ref.child("$dir/$id").readWhenPresent(PHOTO_WAIT_MS)?.getValue(String::class.java)
+            data?.substringAfter("base64,", "")?.takeIf { it.isNotEmpty() }?.let { Base64.decode(it, Base64.DEFAULT) }
+        }.getOrNull() ?: return null
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                photoDir.mkdirs()
+                val part = java.io.File(photoDir, "$id.part")
+                part.writeBytes(bytes)
+                part.renameTo(java.io.File(photoDir, id))
+            }
+        }
+        return bytes
+    }
+
+    /**
+     * Toutes les photos du programme copiées sur la box dès son chargement, une par une et sans les garder en
+     * mémoire : si Internet coupe ensuite, chaque question garde sa photo. Les plus anciennes copies sont
+     * effacées au-delà de [PHOTOS_MAX] fichiers (la Mi Box a peu de place).
+     */
+    private fun savePhotos(g: Game) {
+        if (photosSavedFor === g.quiz) return
+        photosSavedFor = g.quiz
+        val ref = gameRef ?: return
+        val wanted = LinkedHashMap<String, String>()
+        g.quiz.questions.forEach { q ->
+            q.imageId?.let { wanted.putIfAbsent(it, "images") }
+            q.choiceImages.filterNotNull().forEach { wanted.putIfAbsent(it, "choiceImages") }
+            q.cards.mapNotNull { it.imageId }.forEach { wanted.putIfAbsent(it, "choiceImages") }
+        }
+        viewModelScope.launch {
+            for ((id, dir) in wanted) {
+                if (gameRef != ref) return@launch
+                val there = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { java.io.File(photoDir, id).let { it.isFile && it.length() > 0 } }
+                if (!there && id !in imagesLoading) downloadPhoto(ref, dir, id)
+            }
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    val files = photoDir.listFiles()?.filter { it.isFile }.orEmpty()
+                    if (files.size > PHOTOS_MAX) files.sortedBy { it.lastModified() }.take(files.size - PHOTOS_MAX)
+                        .filter { it.name !in wanted }.forEach { it.delete() }
+                }
+            }
         }
     }
 
@@ -1591,8 +1666,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Box sans Internet : passé le délai de grâce, la question en cours se fige (pause écrite sur la box,
-     * envoyée au retour du réseau). À la reconnexion, rien ne repart seul : l'animatrice relance.
+     * Box sans Internet : passé le délai de grâce, la question en cours se fige une fois (pause écrite sur la box,
+     * envoyée au retour du réseau). L'animatrice relance quand elle veut et continue à la télécommande ;
+     * à la reconnexion, rien ne repart seul.
      */
     private fun onConnection(connected: Boolean) {
         offlineWatch?.cancel()
@@ -1600,14 +1676,15 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         if (connected) return
         val since = SystemClock.elapsedRealtime()
         offlineWatch = viewModelScope.launch {
-            var pausedFor: String? = null
+            // Une seule pause par coupure : si l'animatrice relance, la fête continue à la télécommande.
+            var paused = false
             while (true) {
                 delay(1000)
                 actions.withLock {
                     val g = game ?: return@withLock
-                    val event = g.networkPause(serverNow(), SystemClock.elapsedRealtime() - since, pausedFor)
+                    val event = g.networkPause(serverNow(), SystemClock.elapsedRealtime() - since, paused)
                     if (event != null) {
-                        pausedFor = g.state.qid
+                        paused = true
                         commit(event)
                     }
                 }
@@ -1765,6 +1842,8 @@ private suspend fun DatabaseReference.readWhenPresent(timeoutMs: Long = 60_000L)
 }
 
 private const val PHOTO_WAIT_MS = 30_000L
+/** Photos gardées sur la box au plus (environ 50 Ko chacune) ; celles du programme en cours ne sont jamais effacées. */
+private const val PHOTOS_MAX = 600
 
 private suspend fun DatabaseReference.readOnce(timeoutMs: Long = 8000L): DataSnapshot? = withTimeoutOrNull(timeoutMs) {
     suspendCancellableCoroutine { cont ->

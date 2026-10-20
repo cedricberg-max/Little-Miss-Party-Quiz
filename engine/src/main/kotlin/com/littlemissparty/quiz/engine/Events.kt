@@ -35,6 +35,9 @@ const val PAUSE_TEAM = "team"
 /** Pause automatique : la box a perdu Internet, les tablettes ne reçoivent plus la question. */
 const val PAUSE_NETWORK = "network"
 
+/** Raison d'une correction de points donnée à la télécommande de la box. */
+const val REASON_REMOTE = "télécommande"
+
 /** Coupure tolérée avant la pause automatique (micro-coupure du Wi-Fi, changement de borne). */
 const val NETWORK_GRACE_MS = 4000L
 

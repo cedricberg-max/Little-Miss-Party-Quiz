@@ -86,8 +86,7 @@ class NavigationTelecommandeTest : TestTv() {
         // Menu Retour → « Reconnecter une tablette » : QR code, puis attente de la nouvelle tablette.
         ecran.device.pressBack()
         ecran.focusSur("Continuer la partie")
-        ecran.touche(KeyEvent.KEYCODE_DPAD_DOWN)
-        ecran.touche(KeyEvent.KEYCODE_DPAD_DOWN)
+        repeat(3) { ecran.touche(KeyEvent.KEYCODE_DPAD_DOWN) }
         ecran.ok("Reconnecter une tablette")
         ecran.voit("En attente de la nouvelle tablette…")
         ecran.entierementVisible("Reconnecter une tablette")
@@ -115,7 +114,7 @@ class NavigationTelecommandeTest : TestTv() {
         // Descend avec la flèche bouton par bouton : chacun prend la sélection et reste lisible en entier,
         // jusqu'au dernier, qui était coupé sur la vraie TV.
         val cible = "Terminer et lancer une nouvelle partie"
-        val menu = listOf("Continuer la partie", "Reconnecter la régie", "Reconnecter une tablette", "Rechercher une mise à jour", "Quitter l'application", cible)
+        val menu = listOf("Continuer la partie", "Donner des points", "Reconnecter la régie", "Reconnecter une tablette", "Rechercher une mise à jour", "Quitter l'application", cible)
         menu.forEachIndexed { i, bouton ->
             if (i > 0) ecran.touche(KeyEvent.KEYCODE_DPAD_DOWN)
             ecran.focusSur(bouton)

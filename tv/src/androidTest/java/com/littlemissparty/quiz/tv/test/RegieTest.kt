@@ -402,6 +402,8 @@ class RegieTest : TestTv() {
             "duration" to 20, "kind" to "zoom", "double" to false, "round" to "Zoom mystère", "imageId" to photo,
         )
         assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(zoom) + avant))
+        // Fête sans Internet : la photo du programme est gardée sur la box dès son chargement.
+        attendreQue("photo gardée sur la box") { java.io.File(Boite.contexte.filesDir, "photos/$photo").takeIf { it.isFile && it.length() > 0 } }
 
         assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("ZOOM MYSTÈRE")
