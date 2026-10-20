@@ -1,13 +1,14 @@
 // Import des quiz : texte Gemini, tableur, CSV, JSON, et anomalies signalées à la relecture.
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { parseQuiz, checkQuestions, geminiPrompt, resolveCorrect, chatgptImagePrompt, imageKey, wordFromImage } from "../web/public/importer.js";
+import { parseQuiz, checkQuestions, geminiPrompt, resolveCorrect, chatgptImagePrompt, chatgptUrl, imageKey, wordFromImage } from "../web/public/importer.js";
 import { MIME_CATALOG } from "../web/public/mime-cards.js";
 import { DISPARU_THEMES } from "../web/public/buzz-cards.js";
 import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, roundFilled,
   readiness, upcoming, daysUntil, isoDay, duplicateShow, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
   soundIds, choiceImageIds, choiceImageList, pictoSeriesList, pictoSeriesOf, foldLegacyFinale,
   roundQuizIds, MIME_RANDOM,
+  statuesSongs, roundSongs, isStatuesList,
 } from "../web/public/show.js";
 import { PICTO_WORDS, PICTO_SERIES } from "../web/public/picto-cards.js";
 import { guessTrack, defaultStart, normalizeLevel } from "../web/public/audio.js";
@@ -157,6 +158,17 @@ Réponse : B`);
     const prompt = geminiPrompt({ theme: "Pokémon", age: 9, count: 10 });
     assert.match(prompt, /10 questions sur le thème « Pokémon », pour des enfants de 9 ans/);
     assert.match(prompt, /Réponse : <lettre/);
+    assert.match(prompt, /Niveau moyen/);
+  });
+
+  test("créer un quiz : la difficulté et les réponses en images changent la demande, sans nom d'IA dans la consigne", () => {
+    const facile = geminiPrompt({ theme: "La ferme", age: 5, count: 6, difficulty: "facile", answers: "images" });
+    assert.match(facile, /Niveau facile/);
+    assert.match(facile, /ne savent pas encore lire : chaque proposition est un seul mot simple/);
+    assert.match(facile, /jamais de Vrai \/ Faux/);
+    assert.match(geminiPrompt({ difficulty: "difficile" }), /Niveau difficile/);
+    assert.doesNotMatch(facile, /Gemini|ChatGPT/);
+    assert.equal(chatgptUrl("Crée un quiz « La ferme »"), "https://chatgpt.com/?q=Cr%C3%A9e%20un%20quiz%20%C2%AB%20La%20ferme%20%C2%BB");
   });
 });
 
@@ -608,6 +620,24 @@ describe("statues musicales", () => {
     assert.deepEqual(qs.map((q) => [q.kind, q.duration, q.choices, q.round]), [["statues", 60, undefined, "Statues musicales"], ["statues", 90, undefined, "Statues musicales"]]);
     assert.equal(roundFilled({ type: "statues" }), true);
     assert.equal(estimateMinutes(snapshot), 4);
+  });
+  test("chansons cochées : jouées dans l'ordre de la liste, à copier dans la partie ; absentes de la liste, ignorées", () => {
+    const A = "0123456789abcdef", B = "fedcba9876543210", C = "00000000000000aa";
+    const playlists = {
+      danse: { title: "Chansons des statues musicales", use: "statues", duration: 60, tracks: [{ title: "Canards", audioId: A }, { title: "Tourner", audioId: B }, { title: "Pirates", audioId: C }] },
+      blind: { title: "Dessins animés", duration: 25, tracks: [{ title: "Hakuna", audioId: "1111111111111111" }] },
+    };
+    const { snapshot } = buildSnapshot("s", { childName: "Léa", age: 7, rounds: [
+      { type: "statues", duration: 90, songs: [C, A, "2222222222222222"] },
+      { type: "statues", duration: 60, songs: [] },
+    ] }, {}, {}, Math.random, playlists);
+    const [avec, sans] = snapshot.quiz.questions;
+    assert.deepEqual(avec.audioIds, [A, C], "l'ordre de la liste, une chanson retirée de la liste ignorée");
+    assert.equal(sans.audioIds, undefined, "aucune chanson : la musique de la fête");
+    assert.deepEqual(soundIds(snapshot.quiz.questions), [A, C]);
+    assert.deepEqual(statuesSongs(playlists).map((t) => t.title), ["Canards", "Tourner", "Pirates"], "la playlist du blind test n'en fait pas partie");
+    assert.equal(isStatuesList(playlists.blind), false);
+    assert.deepEqual(roundSongs({ songs: [B] }, playlists).map((t) => t.title), ["Tourner"]);
   });
 });
 

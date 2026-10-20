@@ -1577,6 +1577,13 @@ async function respond(page, accept = true) {
   return text;
 }
 
+/** Régie PC : la bibliothèque de quiz s'ouvre depuis la page Jeux (plus d'onglet Quiz dans le menu). */
+async function openQuizzes(page) {
+  await page.click("#nav button[data-screen=games]");
+  await page.locator(".game-card[data-game=quiz] button", { hasText: "Gérer les quiz" }).click();
+  await page.locator("#screen-quizzes:not([hidden])").waitFor();
+}
+
 async function waitFor(fn, what, ms = 8000) {
   const end = Date.now() + ms;
   for (;;) {
@@ -1610,11 +1617,21 @@ describe("bibliothèque de quiz et prestations", () => {
 
   test("Sarah colle un quiz Gemini, corrige l'anomalie signalée, valide et enregistre", async () => {
     const page = await admin();
-    await page.click("#nav button[data-screen=quizzes]");
+    await openQuizzes(page);
     await page.click("#quiz-import-open");
     await page.fill("#gem-theme", "La jungle");
     await page.fill("#gem-age", "8");
     assert.match(await page.inputValue("#gem-prompt"), /thème « La jungle », pour des enfants de 8 ans/);
+    // Difficulté et réponses en images : la demande suit ; « Ouvrir ChatGPT » l'emporte, déjà écrite.
+    await page.selectOption("#gem-difficulty", "facile");
+    await page.locator("input[name=gem-answers][value=images]").check();
+    assert.match(await page.inputValue("#gem-prompt"), /Niveau facile[\s\S]*ne savent pas encore lire/);
+    await page.context().route("https://chatgpt.com/**", (r) => r.fulfill({ status: 200, contentType: "text/html", body: "<p>ChatGPT</p>" }));
+    const [tab] = await Promise.all([page.context().waitForEvent("page"), page.click("#gem-open")]);
+    await tab.waitForLoadState();
+    assert.match(decodeURIComponent(new URL(tab.url()).searchParams.get("q")), /thème « La jungle »[\s\S]*Niveau facile/);
+    await tab.close();
+    await page.locator("input[name=gem-answers][value=texte]").check();
     await page.fill("#import-text", [
       "Titre : La jungle", "",
       "1. Quel animal est le roi de la jungle ?", "A) Le tigre", "B) Le lion", "C) L'éléphant", "D) Le singe", "Réponse : B", "",
@@ -1640,7 +1657,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(saved[0].title, "La jungle");
     assert.equal(saved[0].source, "gemini");
     assert.deepEqual(saved[0].questions.map((q) => [q.correct, q.status]), [[1, "validee"], [1, "validee"], [0, "validee"]]);
-    await page.click("#nav button[data-screen=quizzes]");
+    await openQuizzes(page);
     await page.locator("#quiz-list .item", { hasText: "3 questions · 3 validées" }).waitFor();
     await page.context().close();
   });
@@ -1915,8 +1932,8 @@ describe("bibliothèque de quiz et prestations", () => {
   test("Le Juste Chiffre : préparé dans l'admin, refusé proprement par une TV trop ancienne", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     const page = await admin();
-    await page.click("#nav button[data-screen=quizzes]");
-    await page.locator('#quiz-list [data-quiz="animaux"]').getByRole("button", { name: "Relire" }).click();
+    await openQuizzes(page);
+    await page.locator('#quiz-list [data-quiz="animaux"]').getByRole("button", { name: "Éditer" }).click();
     await page.locator('[data-q="1"] .q-is-number').check();
     await page.locator('[data-q="1"] .q-number').fill("8");
     await page.locator('[data-q="1"] .q-valid:enabled').check();
@@ -2150,6 +2167,22 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Régie PC : l'accueil montre les 15 jeux par famille, chacun mène à ce qui se prépare", async () => {
+    const page = await admin();
+    assert.equal(await page.locator("#home-games .tile").count(), 15);
+    assert.equal(await page.locator("#home-games h3").count(), 4);
+    assert.equal(await page.locator("#home-import").count(), 0, "Importer un quiz : seulement dans la rubrique Quiz");
+    await page.locator('#home-games .tile[data-game=patate]', { hasText: "Rien à préparer" }).click();
+    await page.locator('#screen-games:not([hidden]) .game-card.flash[data-game=patate]').waitFor();
+    await page.click("#nav button[data-screen=home]");
+    await page.locator('#home-games .tile[data-game=chante]').click();
+    await page.locator("#screen-builtin:not([hidden])").waitFor();
+    await page.click("#nav button[data-screen=home]");
+    await page.locator('#home-games .tile[data-game=flou]').click();
+    await page.locator("#screen-quizzes:not([hidden])").waitFor();
+    await page.context().close();
+  });
+
   test("Régie PC : rechercher une prestation par prénom, âge, date ou jeu, archives comprises", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     await seedLibrary("shows", {
@@ -2179,9 +2212,56 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Régie PC : « Renommer » sur une prestation, un quiz, un paquet de mimes et une playlist, rien d'autre ne change", async () => {
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    await seedLibrary("mimes", { zoo: { title: "Zoo", duration: 60, cards: [{ word: "Chat", image: "🐱" }], updatedAt: 1 } });
+    await seedLibrary("playlists", { tubes: { title: "Tubes", duration: 20, tracks: [{ title: "Frère Jacques", audioId: "0123456789abcdef" }], updatedAt: 1 } });
+    await seedLibrary("shows", { lea: { childName: "Léa", age: 9, status: "brouillon", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 } });
+    const page = await admin();
+    const renommer = async (item, name) => {
+      page.once("dialog", (d) => d.accept(name));
+      await item.getByRole("button", { name: "Renommer" }).click();
+    };
+    await page.click("#nav button[data-screen=shows]");
+    await renommer(page.locator('#show-list [data-show="lea"]'), "  La grande fête   de Léa ");
+    await page.locator('#show-list [data-show="lea"] .card-title', { hasText: "La grande fête de Léa" }).waitFor();
+    const lea = (await library("shows")).lea;
+    assert.equal(lea.title, "La grande fête de Léa");
+    assert.deepEqual([lea.childName, lea.status, lea.rounds[0].quizId], ["Léa", "brouillon", "animaux"]);
+    // Annulé ou vide : rien n'est écrit.
+    page.once("dialog", (d) => d.dismiss());
+    await page.locator('#show-list [data-show="lea"]').getByRole("button", { name: "Renommer" }).click();
+    await renommer(page.locator('#show-list [data-show="lea"]'), "   ");
+    assert.equal((await library("shows")).lea.title, "La grande fête de Léa");
+
+    await openQuizzes(page);
+    await renommer(page.locator('#quiz-list [data-quiz="animaux"]'), "Les animaux de la ferme");
+    await page.locator('#quiz-list [data-quiz="animaux"]', { hasText: "Les animaux de la ferme" }).waitFor();
+    const quiz = (await library("quizzes")).animaux;
+    assert.equal(quiz.title, "Les animaux de la ferme");
+    assert.equal(quiz.questions.length, ANIMAUX.questions.length);
+    // « Éditer » ouvre le quiz (l'ancien « Relire »).
+    await page.locator('#quiz-list [data-quiz="animaux"]').getByRole("button", { name: "Éditer" }).click();
+    assert.equal(await page.inputValue("#rv-title"), "Les animaux de la ferme");
+    assert.equal(await page.locator("#screen-review .crumbs b").textContent(), "Éditer");
+
+    await page.click("#nav button[data-screen=home]");
+    await page.click(".tile[data-screen=mimes]");
+    await renommer(page.locator('#mime-list [data-deck="zoo"]'), "Animaux du zoo");
+    await page.locator('#mime-list [data-deck="zoo"]', { hasText: "Animaux du zoo" }).waitFor();
+    assert.deepEqual((await library("mimes")).zoo.cards, [{ word: "Chat", image: "🐱" }]);
+
+    await page.click("#nav button[data-screen=home]");
+    await page.click(".tile[data-screen=music]");
+    await renommer(page.locator('#playlist-list [data-playlist="tubes"]'), "Comptines");
+    await page.locator('#playlist-list [data-playlist="tubes"]', { hasText: "Comptines" }).waitFor();
+    assert.equal((await library("playlists")).tubes.tracks[0].title, "Frère Jacques");
+    await page.context().close();
+  });
+
   test("Régie PC : quiz de photos, le nom de chaque fichier devient sa réponse, puis il se choisit pour l'Image floue", async () => {
     const page = await admin();
-    await page.click("#nav button[data-screen=quizzes]");
+    await openQuizzes(page);
     await page.setInputFiles("#quiz-photos", [
       { name: "tour-eiffel.png", mimeType: "image/png", buffer: png([200, 40, 40]) },
       { name: "chat.png", mimeType: "image/png", buffer: png([40, 200, 40]) },
@@ -2356,7 +2436,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(shows.lea, LEA, "Ancienne prestation inchangée");
 
     // Dupliquer un quiz : la copie se modifie et s'enregistre à part.
-    await page.click("#nav button[data-screen=quizzes]");
+    await openQuizzes(page);
     await page.locator('#quiz-list [data-quiz="animaux"]').getByRole("button", { name: "Dupliquer" }).click();
     await page.locator("#screen-review:not([hidden])").waitFor();
     assert.equal(await page.inputValue("#rv-title"), "Animaux (copie)");
@@ -2454,8 +2534,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     await seedLibrary("shows", { ines: { childName: "Inès", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 } });
     const page = await admin();
-    await page.click("#nav button[data-screen=quizzes]");
-    await page.locator('#quiz-list [data-quiz="animaux"]').getByRole("button", { name: "Relire" }).click();
+    await openQuizzes(page);
+    await page.locator('#quiz-list [data-quiz="animaux"]').getByRole("button", { name: "Éditer" }).click();
     await page.locator('[data-q="1"]').waitFor();
     await page.locator('[data-q="0"] .q-emoji').fill("🦁");
     const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
@@ -2473,8 +2553,8 @@ describe("bibliothèque de quiz et prestations", () => {
     // Rouvert : la photo est toujours là, et on peut la retirer.
     await page.reload();
     await page.locator("#screen-home:not([hidden])").waitFor();
-    await page.click("#nav button[data-screen=quizzes]");
-    await page.locator('#quiz-list [data-quiz="animaux"]').getByRole("button", { name: "Relire" }).click();
+    await openQuizzes(page);
+    await page.locator('#quiz-list [data-quiz="animaux"]').getByRole("button", { name: "Éditer" }).click();
     await page.locator('[data-q="1"] .q-image:not([hidden])').waitFor();
     await page.context().close();
 
@@ -2498,7 +2578,7 @@ describe("bibliothèque de quiz et prestations", () => {
       { text: "Quelle est la capitale de la France ?", choices: ["Paris", "Rome"], correct: 0 },
     ] });
     const page = await admin();
-    await page.click("#nav button[data-screen=quizzes]");
+    await openQuizzes(page);
     await page.click("#quiz-import-open");
     await page.locator("#import-file").setInputFiles([
       { name: "quiz.json", mimeType: "application/json", buffer: Buffer.from(json) },
@@ -2567,8 +2647,8 @@ describe("bibliothèque de quiz et prestations", () => {
     // Dans l'administration : la prestation, puis ses 10 questions, dont Sarah corrige la première.
     await page.click("#nav button[data-screen=shows]");
     await page.locator('#screen-shows [data-show="test-lea-9-ans"]', { hasText: "ANNIVERSAIRE TEST – Léa, 9 ans" }).waitFor({ state: "attached" });
-    await page.click("#nav button[data-screen=quizzes]");
-    await page.locator('#quiz-list [data-quiz="test-lea-9-ans"]', { hasText: "10 questions · 10 validées" }).getByRole("button", { name: "Relire" }).click();
+    await openQuizzes(page);
+    await page.locator('#quiz-list [data-quiz="test-lea-9-ans"]', { hasText: "10 questions · 10 validées" }).getByRole("button", { name: "Éditer" }).click();
     await page.locator('[data-q="9"]').waitFor();
     await page.locator('[data-q="0"] .q-text').fill("Quelle est la capitale de la France ? (modifiée dans l'admin)");
     await page.click("#rv-save");
@@ -2693,6 +2773,67 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(qs.map((q) => q.kind), ["blind", "blind", "classic", "classic"]);
     assert.ok(qs.every((q) => pl.tracks.some((t) => t.audioId === q.audioId) && q.duration === 15));
     await waitFor(async () => Object.keys((await read("sounds")) ?? {}).length === 2, "extraits copiés dans la partie");
+    await regie.context().close();
+  });
+
+  test("Statues musicales : Sarah dépose ses chansons depuis la page Jeux, les coche dans la prestation, la TV les reçoit", async () => {
+    const page = await admin();
+    await page.click("#nav button[data-screen=games]");
+    await page.locator(".game-card[data-game=statues]", { hasText: "0 chanson" }).waitFor();
+    await page.locator(".game-card[data-game=statues] button", { hasText: "Gérer les chansons" }).click();
+    await page.locator("#screen-playlist-edit:not([hidden])").waitFor();
+    assert.equal(await page.locator("#playlist-crumb").textContent(), "Statues musicales");
+    assert.equal(await page.locator("#playlist-scale").isHidden(), true, "pas de barème de blind test");
+    assert.deepEqual(await page.locator("#playlist-duration option").allTextContents(), ["1 minute", "1 min 30"]);
+    await page.setInputFiles("#playlist-files", [
+      { name: "La danse des canards.wav", mimeType: "audio/wav", buffer: wav(440, 70) },
+      { name: "Tourner.wav", mimeType: "audio/wav", buffer: wav(330, 65) },
+    ]);
+    await page.locator(".track").nth(1).waitFor();
+    assert.equal(await page.locator(".track input[aria-label=Points]").count(), 0);
+    assert.equal(await page.locator(".track-note").count(), 0);
+    await page.click("#playlist-save");
+    await page.locator("#playlist-status", { hasText: "Enregistrée : 2 chansons" }).waitFor({ timeout: 60000 });
+    const [listId, list] = Object.entries(await library("playlists"))[0];
+    assert.deepEqual([list.use, list.duration, list.title, list.points], ["statues", 60, "Chansons des statues musicales", undefined]);
+    assert.deepEqual(list.tracks.map((t) => t.title), ["La danse des canards", "Tourner"]);
+    const sounds = await library("sounds");
+    assert.ok(list.tracks.every((t) => sounds[t.audioId]?.startsWith("data:audio/mpeg;base64,") && sounds[t.audioId].length <= 880000));
+    // La liste n'est pas une playlist de blind test.
+    await page.click("#nav button[data-screen=home]");
+    await page.click(".tile[data-screen=music]");
+    assert.equal(await page.locator(`#playlist-list [data-playlist="${listId}"]`).count(), 0);
+    await page.click("#nav button[data-screen=games]");
+    await page.locator(".game-card[data-game=statues]", { hasText: "2 chansons" }).waitFor();
+
+    // Prestation : la manche part avec toutes les chansons cochées ; Sarah en décoche une.
+    await page.click("#nav button[data-screen=home]");
+    await page.click("#home-new");
+    await page.fill("#show-child", "Léa");
+    await page.fill("#show-age", "7");
+    await page.click("#round-add");
+    await page.locator("#show-rounds .round").nth(0).locator("select").first().selectOption("statues");
+    const songs = page.locator("#show-rounds .statues-song input");
+    await songs.nth(1).waitFor();
+    assert.deepEqual(await songs.evaluateAll((els) => els.map((e) => e.checked)), [true, true]);
+    await songs.nth(0).uncheck();
+    await page.locator("#show-rounds .statues-songs", { hasText: "1 chanson cochée" }).waitFor();
+    await page.selectOption("#show-status", "publiee");
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
+    const [, saved] = Object.entries(await library("shows"))[0];
+    assert.deepEqual(saved.rounds, [{ type: "statues", duration: 90, songs: [list.tracks[1].audioId] }]);
+    await page.context().close();
+
+    box = startBox();
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator(".show-item", { hasText: "Léa" }).click();
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    const [q] = (await read("show")).quiz.questions;
+    assert.deepEqual([q.kind, q.audioIds], ["statues", [list.tracks[1].audioId]]);
+    await waitFor(async () => Object.keys((await read("sounds")) ?? {}).length === 1, "chanson copiée dans la partie");
     await regie.context().close();
   });
 

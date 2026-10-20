@@ -6,7 +6,7 @@ import { writeProof } from "./proof.js";
 import { passwordCandidates } from "./secret.js";
 import {
   buildSnapshot, showTitle, playable, QUIZ_GAMES, BUILTIN_GAMES, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame, imageIds, choiceImageIds,
-  soundIds, MUSIC_GAMES, playableTracks, STATUES_SEC, PICTO_SEC,
+  soundIds, MUSIC_GAMES, playableTracks, STATUES_SEC, PICTO_SEC, isStatuesList, statuesSongs, MAX_STATUES_SONGS,
   isFutureRound, moveRound, removeRound, uniqueRoundTitle, roundQuizIds, mimePool, mimeCards, CONTENT_GAMES, activeItems, pictoSeriesOf, MIME_RANDOM,
 } from "./show.js";
 import { MIME_CATALOG } from "./mime-cards.js";
@@ -1203,7 +1203,7 @@ async function fetchLibrary() {
     const contents = c.val() ?? {};
     // Blind test et quiz musical : proposés pour chaque playlist qui a des extraits.
     const music = Object.entries(MUSIC_GAMES).flatMap(([type]) => Object.entries(playlists)
-      .filter(([, pl]) => pl?.title && playableTracks(pl).length >= (type === "musical" ? 2 : 1))
+      .filter(([, pl]) => pl?.title && !isStatuesList(pl) && playableTracks(pl).length >= (type === "musical" ? 2 : 1))
       .sort((a, b) => a[1].title.localeCompare(b[1].title, "fr"))
       .map(([id, pl]) => ({ key: `${type}/${id}`, label: `${ROUND_TYPES[type]} : ${pl.title}`, source: { type, playlistId: id } })));
     const decks = Object.entries(mimes)
@@ -1234,7 +1234,8 @@ async function fetchLibrary() {
     // Jeux au buzzer intégrés : toujours disponibles, sans rien préparer.
     const builtins = [
       ...Object.entries(BUILTIN_GAMES).map(([type, game]) => ({ key: `builtin/${type}`, label: ROUND_TYPES[type], source: { type, count: game.count } })),
-      { key: "builtin/statues", label: ROUND_TYPES.statues, source: { type: "statues", duration: STATUES_SEC } },
+      // Statues musicales : toutes les chansons de la liste (page Jeux de la Régie PC), sinon la musique maison.
+      { key: "builtin/statues", label: ROUND_TYPES.statues, source: { type: "statues", duration: STATUES_SEC, songs: statuesSongs(playlists).map((t) => t.audioId).slice(0, MAX_STATUES_SONGS) } },
       { key: "builtin/pictionary", label: ROUND_TYPES.pictionary, source: { type: "pictionary", duration: PICTO_SEC } },
       { key: "builtin/coffres", label: ROUND_TYPES.coffres, source: { type: "coffres" } },
       { key: "builtin/gonfleur", label: ROUND_TYPES.gonfleur, source: { type: "gonfleur" } },
@@ -1327,7 +1328,8 @@ function renderLibrary() {
       return;
     }
     if (game.source.type === "statues") {
-      meta.textContent = `${game.source.duration} s de musique · on se fige à l'arrêt · vous désignez l'équipe gagnante`;
+      const n = game.source.songs?.length ?? 0;
+      meta.textContent = `${game.source.duration} s de musique (${n ? `${n} chanson${n > 1 ? "s" : ""}` : "musique de la fête"}) · on se fige à l'arrêt · vous désignez l'équipe gagnante`;
       b.append(title, meta);
       b.onclick = () => pick(game);
       box.appendChild(b);

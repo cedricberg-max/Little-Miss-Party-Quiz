@@ -252,6 +252,19 @@ class BlindTestTest {
     }
 
     @Test
+    fun `statues musicales, les chansons choisies sont lues dans l'ordre, sans doublon ni empreinte mal formée`() {
+        val quiz = QuizJson.parse(
+            """{"id":"p","questions":[
+              {"id":"s","text":"Statues musicales","kind":"statues","duration":90,"audioIds":["0123456789abcdef","pas-une-empreinte","fedcba9876543210","0123456789abcdef"]},
+              {"id":"s2","text":"Statues musicales","kind":"statues","duration":60},
+              {"id":"q","text":"Q ?","choices":["A","B"],"correct":0,"audioIds":["0123456789abcdef"]}]}""",
+        )
+        assertEquals(listOf("0123456789abcdef", "fedcba9876543210"), quiz.questions[0].audioIds)
+        assertEquals(emptyList<String>(), quiz.questions[1].audioIds, "sans chanson : la musique maison de la TV")
+        assertEquals(emptyList<String>(), quiz.questions[2].audioIds, "seules les statues ont une liste de chansons")
+    }
+
+    @Test
     fun `des mimes juste après le blind test, le chrono du tour tourne normalement`() {
         val mimes = Question("m1", "Mimes", emptyList(), -1, durationSec = 60, kind = QuestionKind.MIME, cards = listOf(MimeCard("chat"), MimeCard("chien")))
         val g = Game(Quiz("p", "P", listOf(track("b1", "Un"), mimes))).apply { next(t0) }

@@ -8,13 +8,18 @@ export const MAX_TEXT = 300;
 export const MAX_CHOICE = 120;
 
 /** Consigne à copier dans Gemini : elle produit exactement le format texte lu par [parseQuiz]. */
-export function geminiPrompt({ theme = "", age = "", count = 8 } = {}) {
+export function geminiPrompt({ theme = "", age = "", count = 8, difficulty = "moyen", answers = "texte" } = {}) {
   const sujet = theme.trim() ? `sur le thème « ${theme.trim()} »` : "sur des thèmes variés";
   const public_ = String(age).trim() ? `des enfants de ${String(age).trim()} ans` : "des enfants de 6 à 15 ans";
+  const images = answers === "images";
   return [
     `Crée un quiz de ${count} questions ${sujet}, pour ${public_}, à jouer en équipes lors d'un anniversaire.`,
+    DIFFICULTY[difficulty] ?? DIFFICULTY.moyen,
     "Questions courtes, vocabulaire simple, une seule bonne réponse, aucune question piège ni moqueuse.",
-    "Quatre propositions par question (ou Vrai / Faux), courtes et toutes plausibles.",
+    images
+      // Réponses en images : Sarah ajoute ensuite une image par proposition dans l'administration.
+      ? "Les enfants ne savent pas encore lire : chaque proposition est un seul mot simple (un animal, un objet, un aliment, un personnage…) facile à montrer en image. Quatre propositions par question, jamais de Vrai / Faux."
+      : "Quatre propositions par question (ou Vrai / Faux), courtes et toutes plausibles.",
     "Réponds uniquement dans ce format, sans aucun autre texte :",
     "",
     "Titre : <titre du quiz>",
@@ -30,6 +35,16 @@ export function geminiPrompt({ theme = "", age = "", count = 8 } = {}) {
     "…",
   ].join("\n");
 }
+
+/** Niveaux de difficulté proposés à la création d'un quiz, et la phrase ajoutée à la demande. */
+export const DIFFICULTY = {
+  facile: "Niveau facile : des questions que presque tous les enfants de cet âge réussissent.",
+  moyen: "Niveau moyen : la plupart des questions sont abordables, quelques-unes font réfléchir.",
+  difficile: "Niveau difficile : des questions qui demandent de bien connaître le sujet, sans être impossibles pour cet âge.",
+};
+
+/** Adresse qui ouvre ChatGPT avec la demande déjà écrite (Sarah n'a plus qu'à l'envoyer si besoin). */
+export const chatgptUrl = (prompt) => `https://chatgpt.com/?q=${encodeURIComponent(prompt)}`;
 
 /**
  * Consigne à copier dans ChatGPT pour un quiz en images (petits de 5-6 ans) : un fichier JSON lu par [parseQuiz]

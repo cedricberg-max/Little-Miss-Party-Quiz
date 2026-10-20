@@ -307,3 +307,23 @@ button.item { cursor: pointer; }
 /* Recherche dans les prestations. */
 .search-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 14px; }
 .search-row input { flex: 1; min-width: 240px; max-width: 560px; }
+
+/* Accueil : tous les jeux, par famille. */
+.home-games { display: flex; flex-direction: column; gap: 14px; }
+.home-group h3 { margin: 0 0 8px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: var(--soft); }
+.home-games .tiles { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.home-games .tile b { font-size: 16px; }
+.home-games .tile span:last-child { font-size: 14px; }
+.game-card.flash { outline: 3px solid var(--violet); outline-offset: 3px; transition: outline-color .3s; }
+
+/* Statues musicales : chansons cochées pour la manche, l'une sous l'autre. */
+.statues-songs { display: flex; flex-direction: column; gap: 4px; }
+.statues-songs .hint { margin: 4px 0 0; }
+.statues-song { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+.statues-song input { width: 18px; height: 18px; }
+.statues-songs .link { align-self: flex-start; }
+
+/* Créer un quiz : choix des réponses (texte ou images). */
+.answers-mode { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.answers-mode legend { font-weight: 600; margin-bottom: 4px; }
+.answers-mode .inline { display: flex; align-items: center; gap: 8px; }

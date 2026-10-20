@@ -770,7 +770,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         (g.offerCards + listOfNotNull(g.lastCard)).mapNotNull { it.imageId }.forEach { prefetchImage(it, "choiceImages") }
         // Extraits musicaux : tous ceux du programme, dès son chargement, pour que la musique ne dépende
         // plus du réseau une fois la partie lancée.
-        g.quiz.questions.mapNotNullTo(LinkedHashSet()) { it.audioId }.forEach(::prefetchSound)
+        g.quiz.questions.flatMapTo(LinkedHashSet()) { listOfNotNull(it.audioId) + it.audioIds }.forEach(::prefetchSound)
     }
 
     private fun blindUi(g: Game): BlindUi {
@@ -1561,6 +1561,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "gonfleur" to true,
             // Patate chaude : envois des tablettes dans potatoPass/, mèche et explosion par la box, envoi au hasard (potato_random).
             "patate" to true,
+            // Statues musicales : les chansons choisies (audioIds) jouées l'une après l'autre.
+            "statuesChansons" to true,
             "disparu" to true,
             "questions" to quiz.questions.map {
                 clean(mapOf(
@@ -1568,6 +1570,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     "duration" to it.durationSec, "kind" to it.kind.code, "double" to it.double, "round" to it.roundTitle,
                     "cards" to it.cards.ifEmpty { null }?.map { c -> clean(mapOf("word" to c.word, "image" to c.image, "imageId" to c.imageId)) },
                     "image" to it.emoji, "imageId" to it.imageId, "artist" to it.artist, "audioId" to it.audioId,
+                    "audioIds" to it.audioIds.ifEmpty { null },
                     "doors" to it.doors.ifEmpty { null },
                     "choiceImages" to it.choiceImages.ifEmpty { null }?.map { id -> id ?: "" },
                     // Blind test : valeur et durée de révélation du morceau, relues telles quelles après un redémarrage.

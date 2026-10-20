@@ -36,9 +36,23 @@ export const PATATE_RULE = "chaque équipe envoie la bombe à une autre depuis s
 export const roundType = (type) => (type === "portes" ? "coffres" : type);
 
 export const ROUND_TYPES = { quiz: "Quiz", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes", pictionary: "Pictionary", coffres: "La bombe cachée", portes: "La bombe cachée", gonfleur: "Le Gonfleur fou", patate: "La Patate chaude" };
-/** Statues musicales : durées proposées (secondes) et durée par défaut. Musique maison de la TV, rien à préparer. */
+/** Statues musicales : durées proposées (secondes) et durée par défaut. Sans chanson choisie : musique maison de la TV. */
 export const STATUES_SECONDS = [60, 90, 120];
 export const STATUES_SEC = 90;
+/** Statues musicales : longueur des chansons gardées (secondes) ; plus longues que les extraits du blind test. */
+export const STATUES_EXTRACTS = [60, 90];
+export const STATUES_EXTRACT = 60;
+/** Au plus autant de chansons dans une manche de statues (même limite que la TV). */
+export const MAX_STATUES_SONGS = 20;
+/** La liste des chansons des statues : une playlist marquée `use: "statues"`, gérée depuis la page Jeux. */
+export const isStatuesList = (p) => p?.use === "statues";
+/** Toutes les chansons des statues (titre et extrait enregistré), dans l'ordre de la liste. */
+export const statuesSongs = (playlists) => Object.values(playlists ?? {}).filter(isStatuesList).flatMap((p) => playableTracks(p));
+/** Chansons choisies pour une manche, dans l'ordre de la liste ; celles retirées de la liste depuis sont ignorées. */
+export function roundSongs(round, playlists) {
+  const chosen = new Set(Array.isArray(round?.songs) ? round.songs : []);
+  return statuesSongs(playlists).filter((t, i, all) => chosen.has(t.audioId) && all.findIndex((x) => x.audioId === t.audioId) === i).slice(0, MAX_STATUES_SONGS);
+}
 /**
  * Pictionary : équipe par équipe, un mot par tour ; temps de dessin proposés (secondes), celui par défaut, et
  * points d'un dessin trouvé. Les mots viennent du catalogue intégré (réglable dans la page Jeux).
@@ -380,8 +394,10 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     if (round.type === "statues") {
       // Un seul élément : la musique joue et s'arrête par moments, l'animatrice désigne l'équipe gagnante.
       const duration = STATUES_SECONDS.includes(round.duration) ? round.duration : STATUES_SEC;
+      // Chansons choisies dans la prestation, jouées l'une après l'autre ; aucune : la musique maison de la TV.
+      const songs = roundSongs(round, playlists).map((t) => t.audioId);
       rounds.push({ title: ROUND_TYPES.statues, count: 1 });
-      questions.push({ id: `r${i + 1}s`, text: ROUND_TYPES.statues, kind: "statues", duration, double: false, round: ROUND_TYPES.statues });
+      questions.push({ id: `r${i + 1}s`, text: ROUND_TYPES.statues, kind: "statues", duration, double: false, round: ROUND_TYPES.statues, ...(songs.length ? { audioIds: songs } : {}) });
       return;
     }
     if (round.type === "coffres" || round.type === "portes") {
@@ -712,7 +728,7 @@ export function uniqueRoundTitle(questions, title) {
 
 /** Extraits musicaux d'un programme (identifiants sans doublon), à copier dans la partie avant de l'envoyer. */
 export function soundIds(questions) {
-  return [...new Set((questions ?? []).map((q) => q?.audioId).filter((id) => typeof id === "string" && /^[0-9a-f]{16}$/.test(id)))];
+  return [...new Set((questions ?? []).flatMap((q) => [q?.audioId, ...(Array.isArray(q?.audioIds) ? q.audioIds : [])]).filter((id) => typeof id === "string" && /^[0-9a-f]{16}$/.test(id)))];
 }
 
 const IMAGE_ID = /^[0-9a-f]{16}$/;

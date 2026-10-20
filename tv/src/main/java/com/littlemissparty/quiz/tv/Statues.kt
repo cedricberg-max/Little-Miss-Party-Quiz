@@ -22,6 +22,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,24 +49,38 @@ fun statuesDanse(q: Question, state: UiState.Playing): Boolean {
 }
 
 /**
- * Musique des statues : une boucle de l'habillage (musique maison, sans droits), coupée net à chaque statue
- * et pendant une pause, reprise ensuite. Un son qui ne se charge pas ne bloque rien : la TV affiche quand même
- * « DANSEZ ! » et « STATUE ! ».
+ * Musique des statues : les chansons choisies par Sarah ([Question.audioIds], déposées dans l'administration et
+ * copiées sur la box), jouées l'une après l'autre puis de nouveau la première ; sans chanson, une boucle de
+ * l'habillage (musique maison, sans droits). Elle est coupée net à chaque statue et pendant une pause, puis reprend
+ * là où elle s'était arrêtée. Une chanson pas encore arrivée ou illisible est sautée ; si aucune n'est là, la musique
+ * maison joue : la partie n'attend jamais, et la TV affiche quand même « DANSEZ ! » et « STATUE ! ».
  */
 @Composable
-private fun MusiqueStatues(danse: Boolean) {
+private fun MusiqueStatues(danse: Boolean, chansons: List<String>) {
     val context = LocalContext.current
-    val player = remember {
+    var rang by remember(chansons) { mutableIntStateOf(0) }
+    var illisibles by remember(chansons) { mutableStateOf(emptySet<String>()) }
+    val jouables = chansons.filter { it !in illisibles }
+    val chanson = if (jouables.isEmpty()) null else jouables[rang % jouables.size]
+    val player = remember(chanson, jouables.size) {
         runCatching {
-            val id = context.resources.getIdentifier("lmp_bed_mimes", "raw", context.packageName)
             MediaPlayer().apply {
                 setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
-                context.resources.openRawResourceFd(id).use { setDataSource(it.fileDescriptor, it.startOffset, it.length) }
-                isLooping = true
+                if (chanson != null) setDataSource(chanson)
+                else {
+                    val id = context.resources.getIdentifier("lmp_bed_mimes", "raw", context.packageName)
+                    context.resources.openRawResourceFd(id).use { setDataSource(it.fileDescriptor, it.startOffset, it.length) }
+                }
+                // Une seule chanson (ou la musique maison) : en boucle ; plusieurs : la suivante à la fin de chacune.
+                isLooping = jouables.size <= 1
+                if (jouables.size > 1) setOnCompletionListener { rang++ }
                 prepare()
             }
         }.onFailure { Log.w("Statues", "Musique indisponible", it) }.getOrNull()
-    } ?: return
+    }
+    // Chanson illisible : écartée, la suivante joue ; plus aucune : la musique maison prend le relais.
+    LaunchedEffect(chanson, player) { if (player == null && chanson != null) illisibles = illisibles + chanson }
+    if (player == null) return
     DisposableEffect(player) { onDispose { runCatching { player.stop() }; runCatching { player.release() } } }
     LaunchedEffect(player, danse) {
         runCatching { if (danse) player.start() else if (player.isPlaying) player.pause() }
@@ -74,7 +91,8 @@ private fun MusiqueStatues(danse: Boolean) {
 @Composable
 fun StatuesBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modifier) {
     val danse = statuesDanse(q, state)
-    MusiqueStatues(danse)
+    // Seules les chansons déjà copiées sur la box ; aucune : la musique maison joue, la partie n'attend jamais.
+    MusiqueStatues(danse, q.audioIds.ifEmpty { listOfNotNull(q.audioId) }.mapNotNull { state.sounds[it] })
     val enCours = state.phase == Phase.QUESTION
     val anim = rememberInfiniteTransition(label = "danse")
     val balance by anim.animateFloat(-1f, 1f, infiniteRepeatable(tween(450, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "balance")

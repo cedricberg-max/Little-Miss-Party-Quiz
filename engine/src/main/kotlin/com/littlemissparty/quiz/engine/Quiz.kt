@@ -144,6 +144,11 @@ data class Question(
      * question de quiz musical à propositions. Absent ou introuvable : la question se joue sans musique.
      */
     val audioId: String? = null,
+    /**
+     * Statues musicales : les chansons choisies par Sarah, jouées l'une après l'autre (puis de nouveau la première).
+     * Vide : la musique maison de la TV.
+     */
+    val audioIds: List<String> = emptyList(),
     /** Blind test : valeur du morceau (points de l'équipe qui trouve), réglée dans l'administration. */
     val points: Int? = null,
     /** Blind test : durée de la séquence de révélation (extrait rejoué, pochette, titre, points), en secondes. */
