@@ -52,6 +52,9 @@ object Codec {
             is RevealCut -> mapOf("type" to "reveal_cut", "qid" to e.qid)
             is BuzzJudged -> if (e.bonus) mapOf("type" to "buzz_judge", "ok" to e.ok, "bonus" to true) else mapOf("type" to "buzz_judge", "ok" to e.ok)
             is StatuesWon -> mapOf("type" to "statues_win", "team" to e.team, "others" to e.others.ifEmpty { null })
+            is PotatoLit -> mapOf("type" to "potato", "qid" to e.qid, "holder" to e.holder, "fuseMs" to e.fuseMs, "teams" to e.teams)
+            is PotatoPassed -> mapOf("type" to "potato_pass", "qid" to e.qid, "from" to e.from, "to" to e.to)
+            is PotatoExploded -> mapOf("type" to "potato_boom", "qid" to e.qid, "holder" to e.holder)
             is BalloonBurst -> mapOf("type" to "balloon", "qid" to e.qid, "team" to e.team, "teams" to e.teams)
             is Jumped -> mapOf("type" to "goto", "index" to e.index, "qid" to e.qid, "clear" to e.clear.ifEmpty { null })
         }
@@ -104,6 +107,9 @@ object Codec {
             "buzz_unblock" -> BuzzUnblocked(seq, at)
             "blind_skip" -> BlindSkipped(seq, at, m["qid"] as String)
             "reveal_cut" -> RevealCut(seq, at, m["qid"] as String)
+            "potato" -> PotatoLit(seq, at, m["qid"] as String, m["holder"] as String, m.num("fuseMs").toLong(), (m["teams"] as List<*>).map { it as String })
+            "potato_pass" -> PotatoPassed(seq, at, m["qid"] as String, m["from"] as String, m["to"] as String)
+            "potato_boom" -> PotatoExploded(seq, at, m["qid"] as String, m["holder"] as String)
             "balloon" -> BalloonBurst(seq, at, m["qid"] as String, m["team"] as String, (m["teams"] as? List<*>).orEmpty().map { it as String })
             "statues_win" -> StatuesWon(seq, at, m["team"] as String, (m["others"] as? List<*>).orEmpty().map { it as String })
             "buzz_judge" -> BuzzJudged(seq, at, m["ok"] == true, m["bonus"] == true)
@@ -208,10 +214,11 @@ object Codec {
                 "choices" to if (q.isBuzz && !revealed) null else q.choices,
                 // Réponses en images : la photo de chaque proposition ("" pour une proposition en texte).
                 "choiceImages" to q.choiceImages.takeIf { q.hasChoiceImages && !(q.isBuzz && !revealed) }?.map { it ?: "" },
-                "durationMs" to q.durationMs,
-                "deadline" to game.deadline(),
-                "remainingMs" to if (!q.isPortes && !q.isCoffres && !q.isGonfleur && (s.paused || s.buzzHeld || s.buzz?.waiting == true)) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
-                "correct" to if (revealed && !q.isPortes && !q.isCoffres && !q.isGonfleur) q.correct else null,
+                // Patate chaude : la mèche reste un secret, même pour les tablettes.
+                "durationMs" to q.durationMs.takeIf { !q.isPatate },
+                "deadline" to game.deadline().takeIf { !q.isPatate },
+                "remainingMs" to if (!q.isPortes && !q.isCoffres && !q.isGonfleur && !q.isPatate && (s.paused || s.buzzHeld || s.buzz?.waiting == true)) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
+                "correct" to if (revealed && !q.isPortes && !q.isCoffres && !q.isGonfleur && !q.isPatate) q.correct else null,
                 // L'émoji d'illustration peut trahir la réponse : seulement une fois révélée.
                 "image" to if (revealed) q.emoji else null,
                 "artist" to if (revealed) q.artist else null,
@@ -221,6 +228,7 @@ object Codec {
             )
             if (q.isPortes) out["portes"] = portesState(game)
             if (q.isCoffres) out["chests"] = chestState(game)
+            if (q.isPatate) out["potato"] = potatoState(game)
             if (q.isGonfleur) out["pump"] = pumpKey(game)?.let { mapOf("key" to it, "goAt" to game.pumpGoAt, "target" to PUMP_TARGET) }
             if (q.isTurns) out["mime"] = mimeState(game, s.mime)
             if (q.isBlind) out["blind"] = blindState(game)
@@ -252,6 +260,34 @@ object Codec {
             "values" to game.doorsOf(q).mapIndexed { i, v -> if (i in open) v else null }.withIndex().filter { it.value != null }
                 .associate { it.index.toString() to it.value },
             "picks" to s.awards[q.id].orEmpty().mapValues { it.value.choice },
+        )
+    }
+
+    /** Patate chaude : clé où la tablette de l'équipe qui tient la bombe écrit son envoi (`potatoPass/`), une par réception. */
+    fun potatoKey(game: Game): String? {
+        val p = game.state.potato ?: return null
+        if (game.state.phase != Phase.QUESTION) return null
+        return "${game.state.qid.orEmpty().replace(Regex("[.#$\\[\\]/]"), "_")}-${p.since}"
+    }
+
+    /**
+     * Patate chaude, pour la TV, la régie et les tablettes : qui tient la bombe, qui l'a envoyée, à qui elle peut
+     * partir et à partir de quand, et qui l'a déjà eue. Jamais la durée de la mèche.
+     */
+    fun potatoState(game: Game): Map<String, Any?> {
+        val p = game.state.potato ?: return mapOf("lit" to false)
+        return mapOf(
+            "lit" to true,
+            "holder" to p.holder,
+            "from" to p.from,
+            "since" to p.since,
+            "readyAt" to p.readyAt,
+            "canReturn" to p.canReturn,
+            "targets" to p.targets,
+            "teams" to p.teams,
+            "hit" to p.teams.filter { it in p.hit },
+            "passes" to p.passes,
+            "key" to potatoKey(game),
         )
     }
 

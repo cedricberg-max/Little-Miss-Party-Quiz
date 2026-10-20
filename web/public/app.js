@@ -13,6 +13,7 @@ import { animationSpectateurs } from "./spectateurs.js";
 import { choisirPorte, ecranPorteOuverte } from "./portes.js";
 import { ecranCoffres, REVELATION_MS } from "./coffres.js";
 import { ecranGonfleur, ENVOI_MS, plafond } from "./gonfleur.js";
+import { ecranPatate } from "./patate.js";
 
 const $ = (id) => document.getElementById(id);
 /** Jeux au buzzer : un seul grand BUZZ, la réponse se donne à voix haute. */
@@ -68,7 +69,7 @@ function maybeReload() {
 watchVersion(() => { newVersion = true; maybeReload(); });
 
 /** Écrans où l'équipe joue (salon compris) : la tablette reste allumée, même si personne ne la touche. */
-const AWAKE_SCREENS = new Set(["waiting", "play", "question", "coffres", "gonfleur", "result", "pick", "draw", "watch"]);
+const AWAKE_SCREENS = new Set(["waiting", "play", "question", "coffres", "gonfleur", "patate", "result", "pick", "draw", "watch"]);
 /** Écrans où la partie est finie pour cet appareil : la veille normale d'Android reprend. */
 const SLEEP_SCREENS = new Set(["join", "ended", "replaced"]);
 
@@ -405,12 +406,14 @@ function render() {
   if (st.kind !== "pictionary" || !st.mime) stopPicto();
   if (st.kind !== "coffres" || !["question", "closed", "reveal", "scores"].includes(st.phase)) stopCoffres();
   if (st.kind !== "gonfleur" || st.phase !== "question") stopGonfleur();
+  if (st.kind !== "patate" || st.phase !== "question") stopPatate();
   $("play-intro").hidden = true;
   switch (st.phase) {
     case "question":
     case "closed":
       if (st.kind === "coffres") return renderCoffres(st);
       if (st.kind === "gonfleur") return renderGonfleur(st);
+      if (st.kind === "patate") return renderPatate(st);
       return st.mime ? (st.kind === "pictionary" ? renderPicto(st) : renderMime(st)) : st.kind === "statues" ? renderStatues(st) : BUZZ_KINDS.includes(st.kind) ? renderFlou(st) : renderQuestion(st);
     case "reveal":
     case "scores":
@@ -874,6 +877,19 @@ function renderResult(st) {
   const number = st.kind === "number";
   if (st.kind === "portes") return renderPortesResult(st, award);
   showPortesReveal(null);
+  if (st.kind === "patate") {
+    const boom = Object.keys(st.awards ?? {}).find((t) => st.awards[t] && !st.awards[t].correct);
+    const pts = award?.points ?? 0;
+    $("r-icon").textContent = boom === teamId ? "💥" : "😅";
+    $("r-icon").className = `result-icon ${boom === teamId ? "ko" : "ok"}`;
+    $("r-title").textContent = boom === teamId ? `BOUM ! La bombe a explosé chez vous${pts < 0 ? ` : −${-pts} points` : ""}`
+      : `Ouf ! +${pts} points`;
+    $("r-detail").textContent = boom && boom !== teamId ? `Elle a explosé chez l'équipe ${game.teams[boom]?.name ?? "adverse"}.` : "";
+    $("r-image").hidden = true;
+    const { mine, rank } = rankOf(st.scores);
+    $("r-total").textContent = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`;
+    return;
+  }
   if (st.kind === "gonfleur") {
     const winner = Object.keys(st.awards ?? {}).find((t) => st.awards[t]?.correct);
     $("r-icon").textContent = ok ? "🏆" : "🎈";
@@ -1148,6 +1164,69 @@ async function envoyerTapes() {
     g.envoi = false;
   }
   relance();
+}
+
+/** La Patate chaude (écran patate.js) : { ctl, cle, envoye, minuterie, message } de la réception en cours. */
+let patate = null;
+function stopPatate() {
+  if (!patate) return;
+  clearTimeout(patate.minuterie);
+  patate.ctl.detruire();
+  patate = null;
+}
+
+/** Patate chaude : chez nous, on choisit à qui envoyer la bombe ; sinon, on regarde chez qui elle est. */
+function renderPatate(st) {
+  clearInterval(timerHandle);
+  show("patate");
+  const p = st.potato ?? {};
+  patate ??= { ctl: ecranPatate($("patate-host"), { surEnvoi: envoyerPatate }), cle: null, envoye: null, minuterie: null, message: null };
+  // Nouvelle réception : rien d'envoyé.
+  if (patate.cle !== (p.key ?? null)) { patate.cle = p.key ?? null; patate.envoye = null; patate.message = null; }
+  const nom = (id) => game.teams[id]?.name ?? "une équipe";
+  const now = Date.now() + serverOffset;
+  const aMoi = p.lit === true && p.holder === teamId && !st.paused && !counting(st);
+  // Mèche qui colle : 2 secondes après la réception (et après le décompte d'une reprise).
+  const depuis = p.since ?? 0;
+  const pret = Math.max(p.readyAt ?? 0, st.resumeAt ?? 0);
+  const colle = pret <= now ? 1 : Math.max(0, Math.min(1, (now - depuis) / Math.max(1, pret - depuis)));
+  let titre; let texte;
+  if (p.lit !== true) { titre = "La Patate chaude"; texte = "La mèche va s'allumer… Regardez la TV !"; }
+  else if (st.paused) { titre = "Pause"; texte = "La partie reprend bientôt."; }
+  else if (counting(st)) { titre = p.holder === teamId ? "💣 La bombe est chez vous !" : `La bombe est chez l'équipe ${nom(p.holder)}`; texte = "Attention, ça va partir…"; }
+  else if (aMoi) {
+    titre = "💣 La bombe est chez vous !";
+    texte = patate.envoye ? `Envoyée à l'équipe ${nom(patate.envoye)} !` : colle < 1 ? "La mèche colle…" : "Vite, envoyez-la à une autre équipe !";
+  } else { titre = `La bombe est chez l'équipe ${nom(p.holder)} !`; texte = (p.hit ?? []).includes(teamId) ? "Attention, elle peut revenir chez vous !" : "Préparez-vous, elle peut arriver chez vous !"; }
+  if (patate.message) texte = patate.message;
+  const equipes = (p.teams ?? []).filter((id) => id !== teamId && game.teams[id]).map((id) => ({
+    id, nom: game.teams[id].name, couleur: game.teams[id].color,
+    permise: (p.targets ?? []).includes(id), envoyeur: id === p.from, neuve: !(p.hit ?? []).includes(id),
+  }));
+  patate.ctl.maj({ titre, texte, aMoi, envoye: patate.envoye, colle, equipes });
+  // Elle arrive chez nous : la tablette le signale.
+  if (aMoi && patate.vue !== p.key) { patate.vue = p.key; navigator.vibrate?.([80, 60, 80]); beep(988, 160); }
+  clearTimeout(patate.minuterie);
+  if (aMoi && colle < 1) patate.minuterie = setTimeout(render, 100);
+}
+
+async function envoyerPatate(to) {
+  const key = game.state?.potato?.key;
+  if (!key || !patate || patate.envoye) return;
+  patate.envoye = to;
+  patate.message = null;
+  beep(660, 120);
+  render();
+  try {
+    await set(ref(db, `games/${code}/potatoPass/${key}`), { to, at: serverTimestamp() });
+  } catch {
+    // Refusé (pause, mèche qui colle encore, réseau) : on peut renvoyer.
+    if (patate && game.state?.potato?.key === key) {
+      patate.envoye = null;
+      patate.message = "La bombe n'est pas partie : touchez encore une équipe.";
+    }
+    render();
+  }
 }
 
 function renderEnded(st) {

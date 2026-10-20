@@ -41,5 +41,6 @@ private fun familleDe(q: Question?): String = when (q?.kind) {
     QuestionKind.PORTES -> "portes"
     QuestionKind.COFFRES -> "bombe"
     QuestionKind.GONFLEUR -> "gonfleur"
+    QuestionKind.PATATE -> "patate"
     else -> if (q?.audioId != null) "musical" else "quiz"
 }

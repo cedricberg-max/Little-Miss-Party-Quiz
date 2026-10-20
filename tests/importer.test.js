@@ -638,6 +638,17 @@ describe("Le Gonfleur fou", () => {
   });
 });
 
+describe("La Patate chaude", () => {
+  test("rien à préparer : un seul élément, la mèche est tirée au sort par la box", () => {
+    const quiz = { title: "Quiz", questions: [{ text: "Roi ?", choices: ["Lion", "Tigre"], correct: 0, status: "validee" }] };
+    const { snapshot, problems } = buildSnapshot("s", { childName: "Léa", age: 9, rounds: [{ type: "quiz", quizId: "q" }, { type: "patate" }] }, { q: quiz });
+    assert.deepEqual(problems, []);
+    const p = snapshot.quiz.questions.at(-1);
+    assert.deepEqual([p.kind, p.text, p.round, p.correct, p.choices], ["patate", "La Patate chaude", "La Patate chaude", -1, []]);
+    assert.equal(roundFilled({ type: "patate" }), true);
+  });
+});
+
 describe("Super Finale : les dernières questions du quiz, pas un jeu à part", () => {
   const quiz = (title, n) => ({ title, questions: [...Array(n).keys()].map((i) => ({ text: `${title} ${i + 1} ?`, choices: ["Oui", "Non"], correct: 0, status: "validee" })) });
   const LIB = { a: quiz("Animaux", 2), b: quiz("Sport", 1), f: quiz("Finale", 2) };

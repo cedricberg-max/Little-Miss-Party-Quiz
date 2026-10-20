@@ -200,6 +200,15 @@ data class StatuesWon(override val seq: Int, override val at: Long, val team: St
  */
 data class BalloonBurst(override val seq: Int, override val at: Long, val qid: String, val team: String, val teams: List<String>) : GameEvent
 
+/** Patate chaude : la mèche s'allume ([fuseMs], tirée au sort), la bombe part de [holder] ; [teams] jouent. */
+data class PotatoLit(override val seq: Int, override val at: Long, val qid: String, val holder: String, val fuseMs: Long, val teams: List<String>) : GameEvent
+
+/** Patate chaude : [from] envoie la bombe à [to]. */
+data class PotatoPassed(override val seq: Int, override val at: Long, val qid: String, val from: String, val to: String) : GameEvent
+
+/** Patate chaude : la bombe explose chez [holder] ; révélation. */
+data class PotatoExploded(override val seq: Int, override val at: Long, val qid: String, val holder: String) : GameEvent
+
 data class BuzzJudged(override val seq: Int, override val at: Long, val ok: Boolean, val bonus: Boolean = false) : GameEvent
 
 /**

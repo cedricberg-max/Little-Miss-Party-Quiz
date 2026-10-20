@@ -382,6 +382,15 @@ class PupitreSimule(etiquette: String) : AutoCloseable {
         }
     }.onFailure { Log.i(TAG, "Tapes refusées : ${it.message}") }.isSuccess
 
+    /** Patate chaude : la tablette de l'équipe qui tient la bombe l'envoie à [vers] ; false si le serveur refuse. */
+    fun envoyerPatate(code: String, vers: String): Boolean = runCatching {
+        val cle = etat(code).child("potato/key").value?.toString() ?: error("pas de bombe en jeu")
+        bloquer {
+            base.getReference("games/$code/potatoPass/$cle")
+                .setValue(mapOf("to" to vers, "at" to ServerValue.TIMESTAMP)).await()
+        }
+    }.onFailure { Log.i(TAG, "Envoi de la bombe refusé : ${it.message}") }.isSuccess
+
     /** Pictionary : envoie un morceau de trait (« x,y x,y … » de 0 à 1000) ; renvoie false si le serveur refuse. */
     fun dessiner(code: String, points: String, couleur: String = "#F94144", epaisseur: Int = 3): Boolean = runCatching {
         val cle = etat(code).child("mime/drawKey").value.toString()

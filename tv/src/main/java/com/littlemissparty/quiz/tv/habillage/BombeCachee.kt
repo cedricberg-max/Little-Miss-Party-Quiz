@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -81,10 +82,22 @@ val MODELES_COFFRES = listOf(0, 3, 1, 5, 2, 4, 1, 5, 0, 4, 3, 2, 5, 0, 2, 4, 1, 
 
 fun modeleCoffre(index: Int): Int = MODELES_COFFRES[Math.floorMod(index, MODELES_COFFRES.size)]
 
-/** « +150 POINTS », « −100 POINTS » (signe moins U+2212) ; la bombe vaut [POINTS_BOMBE]. */
-fun textePointsCoffre(delta: Int?): String = texteValeur(delta ?: POINTS_BOMBE) + " POINTS"
+/**
+ * « +150 POINTS », « −100 POINTS » (signe moins U+2212), « 0 POINT » quand l'équipe n'avait rien à perdre ;
+ * la bombe ([delta] null) vaut [pointsBombe], les points vraiment retirés.
+ */
+fun textePointsCoffre(delta: Int?, pointsBombe: Int = POINTS_BOMBE): String {
+    val v = delta ?: pointsBombe
+    return if (v == 0) "0 POINT" else texteValeur(v) + " POINTS"
+}
+
+/** Un coffre gagnant : les bonus valent au moins 50 ; 0 est un malus qui n'a rien pu retirer. */
+private fun estBonus(delta: Int) = delta > 0
 
 const val POINTS_BOMBE = -300
+
+/** Durée d'une ouverture qui finit sur la carte BONUS / MALUS (verdict à 1,55 s + la carte). */
+const val OUVERTURE_CARTE_MS = 3_850L
 
 const val OUVERTURE_COFFRE_MS = 3_200L
 const val OUVERTURE_BOMBE_MS = 3_800L
@@ -370,10 +383,14 @@ private fun DrawScope.gradins(rangees: Int) {
 
 /**
  * Les coffres sur leurs gradins. [ouverts] : index → points gagnés ou perdus, null pour le coffre de la bombe.
- * [auTour] : l'équipe qui choisit (nom, couleur) ; [phaseDanger] : la bombe peut être dans n'importe quel coffre.
+ * [auTour] : l'équipe qui choisit (nom, couleur) ; [phaseDanger] : la bombe peut être dans n'importe quel coffre ;
+ * [bombe] : les points vraiment retirés par la bombe (affichés sur son coffre), ou null pour « 💣 » seul.
  */
 @Composable
-fun SceneCoffres(nombre: Int, ouverts: Map<Int, Int?>, auTour: Pair<String, Color>?, phaseDanger: Boolean, modifier: Modifier = Modifier) {
+fun SceneCoffres(
+    nombre: Int, ouverts: Map<Int, Int?>, auTour: Pair<String, Color>?, phaseDanger: Boolean,
+    modifier: Modifier = Modifier, bombe: Int? = null,
+) {
     val places = remember(nombre) { placesCoffres(nombre) }
     val rangees = remember(nombre) { repartitionCoffres(nombre).size }
     val boucle = rememberInfiniteTransition(label = "coffres")
@@ -401,7 +418,7 @@ fun SceneCoffres(nombre: Int, ouverts: Map<Int, Int?>, auTour: Pair<String, Colo
                     drawOval(Brush.radialGradient(listOf(Color.Black.copy(alpha = 0.55f), Color.Transparent)), Offset(-size.width * 0.08f, size.height - 6f * density * e), Size(size.width * 1.16f, 12f * density * e))
                     dessineCoffre(
                         modeleCoffre(i), if (ouvert) 1f else 0f,
-                        when { !ouvert -> null; delta == null -> LUEUR_BOMBE; delta >= 0 -> LUEUR_OR; else -> LUEUR_MALUS },
+                        when { !ouvert -> null; delta == null -> LUEUR_BOMBE; estBonus(delta) -> LUEUR_OR; else -> LUEUR_MALUS },
                         when { !ouvert -> 0f; delta == null -> 0.72f; else -> 0.28f },
                     )
                 }
@@ -416,9 +433,9 @@ fun SceneCoffres(nombre: Int, ouverts: Map<Int, Int?>, auTour: Pair<String, Colo
                 } else {
                     // Coffre ouvert : sa valeur s'affiche sur la face avant.
                     val (fond, encre, texte) = when {
-                        delta == null -> Triple(Color(0xFF2A0E1E), MALUS_CORAIL, "💣 " + texteValeur(POINTS_BOMBE))
-                        delta >= 0 -> Triple(BONUS_VERT, Neon.JusteTexte, texteValeur(delta))
-                        else -> Triple(MALUS_CORAIL, Color.White, texteValeur(delta))
+                        delta == null -> Triple(Color(0xFF2A0E1E), MALUS_CORAIL, if (bombe == null) "💣" else if (bombe == 0) "💣 0" else "💣 " + texteValeur(bombe))
+                        estBonus(delta) -> Triple(BONUS_VERT, Neon.JusteTexte, texteValeur(delta))
+                        else -> Triple(MALUS_CORAIL, Color.White, if (delta == 0) "0" else texteValeur(delta))
                     }
                     Text(
                         texte, maxLines = 1, softWrap = false,
@@ -485,19 +502,25 @@ internal fun rebondSortie(u: Float): Float = 1f + 2.4f * (u - 1f) * (u - 1f) * (
 /**
  * L'ouverture d'un coffre, par-dessus la scène (environ 3 s) : le coffre vient au premier plan sur une estrade,
  * tremble, son couvercle saute. Bonus : pluie d'or et « +150 POINTS ». Malus : nuage, « Oups ! » et
- * « −100 POINTS ». Bombe ([delta] null) : elle saute du coffre, se pose, la mèche grésille… BOUM ! « −300 POINTS ».
- * [onFini] est appelé une fois, à la fin.
+ * « −100 POINTS » (0 : « Oups ! » et « 0 POINT », l'équipe n'avait rien à perdre). Bombe ([delta] null) : elle
+ * saute du coffre, se pose, la mèche grésille… BOUM ! et [pointsBombe], les points vraiment retirés (« −300 POINTS »).
+ * Avec [avant] et [apres] (totaux de l'équipe lus dans la partie), un bonus ou un malus se termine sur la même carte
+ * que les ± Points de la régie (« BONUS ! », compteur du score) : l'ouverture dure alors [OUVERTURE_CARTE_MS].
+ * L'écran montre les points, il ne les calcule jamais. [onFini] est appelé une fois, à la fin.
  */
 @Composable
 fun OuvertureCoffre(
     index: Int, delta: Int?, equipe: String, couleur: Color, onFini: () -> Unit,
-    modifier: Modifier = Modifier, jouer: (Son) -> Unit = jouerSonBombe,
+    modifier: Modifier = Modifier, pointsBombe: Int = POINTS_BOMBE, avant: Int? = null, apres: Int? = null,
+    jouer: (Son) -> Unit = jouerSonBombe,
 ) {
     val t = remember(index) { Animatable(0f) }
     val fini by rememberUpdatedState(onFini)
     val joue by rememberUpdatedState(jouer)
     val bombe = delta == null
-    val total = (if (bombe) OUVERTURE_BOMBE_MS else OUVERTURE_COFFRE_MS).toFloat()
+    // Bonus ou malus réel avec les scores : verdict sur la carte BONUS / MALUS commune à toute l'appli.
+    val carte = !bombe && delta != 0 && avant != null && apres != null
+    val total = (if (bombe) OUVERTURE_BOMBE_MS else if (carte) OUVERTURE_CARTE_MS else OUVERTURE_COFFRE_MS).toFloat()
     LaunchedEffect(index) {
         suspend fun jusqua(ms: Float) = t.animateTo(ms, tween((ms - t.value).toInt().coerceAtLeast(0), easing = LinearEasing))
         jusqua(T_ENTREE); joue(Son.COFFRE_SECOUE)
@@ -507,7 +530,8 @@ fun OuvertureCoffre(
             jusqua(T_BOUM); joue(Son.BOMBE_BOUM)
         } else {
             jusqua(1_420f)
-            joue(if (delta!! >= PORTE_JACKPOT) Son.PORTES_JACKPOT else if (delta >= 0) Son.COFFRE_OR else Son.PORTES_TUILE)
+            // La carte joue elle-même son BONUS / MALUS : pas de second son par-dessus.
+            if (!carte) joue(if (delta!! >= PORTE_JACKPOT) Son.PORTES_JACKPOT else if (estBonus(delta)) Son.COFFRE_OR else Son.PORTES_TUILE)
         }
         jusqua(total)
         fini()
@@ -542,7 +566,7 @@ fun OuvertureCoffre(
             val solPx = sol * d + (1f - monte) * 60f * d
             estradeRonde(cx, solPx, cw * 0.8f * d, 26f * d, 22f * d)
             val ouv = ((ms - T_OUVRE) / 250f).coerceIn(0f, 1f).let { 1f - (1f - it) * (1f - it) }
-            val lueur = when { bombe -> LUEUR_BOMBE; delta!! >= 0 -> LUEUR_OR; else -> LUEUR_MALUS }
+            val lueur = when { bombe -> LUEUR_BOMBE; estBonus(delta!!) -> LUEUR_OR; else -> LUEUR_MALUS }
             // Faisceau de lumière qui monte du coffre ouvert.
             if (ouv > 0f) {
                 val haut = solPx - ch * d
@@ -556,7 +580,7 @@ fun OuvertureCoffre(
             val secoue = ((ms - T_ENTREE) / (T_OUVRE - T_ENTREE)).coerceIn(0f, 1f)
             val tremble = if (ms in T_ENTREE..T_OUVRE) secoue * secoue else 0f
             val saut = if (ms in T_ENTREE..T_OUVRE) abs(sin(ms / 70f)) * 7f * d * tremble else 0f
-            val ecrase = if (!bombe && delta!! < 0 && ms > T_OUVRE) 1f - 0.07f * sin(((ms - T_OUVRE) / 500f).coerceIn(0f, 1f) * PI.toFloat()) else 1f
+            val ecrase = if (!bombe && !estBonus(delta!!) && ms > T_OUVRE) 1f - 0.07f * sin(((ms - T_OUVRE) / 500f).coerceIn(0f, 1f) * PI.toFloat()) else 1f
             val brule = if (bombe && ms >= T_BOUM) 0.72f else 0f
             withTransform({
                 translate(cx - cw * d / 2, solPx - ch * d - saut)
@@ -577,7 +601,7 @@ fun OuvertureCoffre(
             val bouche = Offset(cx, solPx - ch * d * (1f - (if (modele == 4) 0.3f else m.couvercle)) - ch * d * m.couvercle * 0.2f)
             when {
                 // Bonus : pièces d'or qui jaillissent puis retombent.
-                !bombe && delta!! >= 0 && ms > T_OUVRE -> {
+                !bombe && estBonus(delta!!) && ms > T_OUVRE -> {
                     val s = (ms - T_OUVRE) / 1000f
                     pieces.forEachIndexed { k, p ->
                         val tt = s - (k % 8) * 0.03f
@@ -640,9 +664,11 @@ fun OuvertureCoffre(
                 if (eclair > 0f) drawRect(Color.White.copy(alpha = eclair * 0.95f))
             }
         }
-        // Qui ouvre quel coffre.
+        // Qui ouvre quel coffre (la carte BONUS / MALUS reprend le nom : le bandeau s'efface pour lui laisser la place).
         Row(
-            Modifier.align(Alignment.TopCenter).padding(top = 14.dp).apparition(0, index)
+            Modifier.align(Alignment.TopCenter).padding(top = 14.dp)
+                .graphicsLayer { alpha = if (carte) 1f - ((t.value - T_TEXTE) / 220f).coerceIn(0f, 1f) else 1f }
+                .apparition(0, index)
                 .background(Neon.Nuit2.copy(alpha = 0.9f), RoundedCornerShape(50)).border(2.5.dp, couleur, RoundedCornerShape(50))
                 .padding(horizontal = 22.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -650,8 +676,15 @@ fun OuvertureCoffre(
             Text(equipe, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false), style = styleBandeau.copy(fontSize = 22.sp, color = couleur))
             Text(" ouvre le coffre n° ${index + 1}", maxLines = 1, softWrap = false, style = styleBandeau.copy(fontSize = 22.sp, color = Neon.Blanc))
         }
+        if (carte) {
+            // La carte BONUS / MALUS, un peu réduite et au-dessus du coffre ouvert pour le laisser voir.
+            val montree by remember(index) { derivedStateOf { t.value >= T_TEXTE } }
+            if (montree) Box(Modifier.fillMaxSize().padding(bottom = 190.dp)) {
+                BonusMalus(equipe, couleur, delta!!, avant!!, apres!!, jouer = joue, onFini = {})
+            }
+        }
         // Le verdict : visible dès qu'il tombe et jusqu'à la fin.
-        val apparu = if (bombe) T_BOUM + 120f else T_TEXTE
+        val apparu = if (bombe) T_BOUM + 120f else if (carte) Float.MAX_VALUE else T_TEXTE
         Column(
             Modifier.align(Alignment.TopCenter).padding(top = 62.dp).graphicsLayer {
                 val u = ((t.value - apparu) / 380f).coerceIn(0f, 1f)
@@ -663,15 +696,15 @@ fun OuvertureCoffre(
         ) {
             val (titre, teinte) = when {
                 bombe -> "BOUM !" to Color(0xFFFFB347)
-                delta!! >= 0 -> "Bonus !" to Neon.OrClair
+                estBonus(delta!!) -> "Bonus !" to Neon.OrClair
                 else -> "Oups !" to Color(0xFFFFC2C4)
             }
             Text(titre, maxLines = 1, style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, fontSize = if (bombe) 76.sp else 46.sp, fontWeight = FontWeight.ExtraBold, color = teinte, shadow = Shadow(Color.Black.copy(alpha = 0.6f), Offset(0f, 4f), 14f)))
             Text(
-                textePointsCoffre(delta), maxLines = 1,
+                textePointsCoffre(delta, pointsBombe), maxLines = 1,
                 style = TextStyle(
                     fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, fontSize = 60.sp, fontWeight = FontWeight.ExtraBold,
-                    color = if (!bombe && delta!! >= 0) BONUS_VERT else MALUS_CORAIL,
+                    color = if (!bombe && estBonus(delta!!)) BONUS_VERT else MALUS_CORAIL,
                     shadow = Shadow(Color.Black.copy(alpha = 0.7f), Offset(0f, 4f), 16f),
                 ),
             )

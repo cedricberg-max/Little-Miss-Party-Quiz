@@ -1127,3 +1127,57 @@ describe("Le Gonfleur fou", () => {
     await assertFails(tape("intrus", 5), "équipe inconnue");
   });
 });
+
+describe("La Patate chaude", () => {
+  const bombe = (potato = {}, extra = {}) => seed({
+    kind: "patate", qid: "r9p", choices: null, deadline: null, resumeAt: Date.now() - 10_000,
+    potato: { lit: true, holder: "bleu", from: null, canReturn: false, key: "r9p-100", readyAt: Date.now() - 1000, ...potato }, ...extra,
+  });
+  const passe = (uid, to, key = "r9p-100", data = null) => set(ref(db(uid), `games/${CODE}/potatoPass/${key}`), data ?? { to, at: serverTimestamp() });
+  const troisEquipes = () => env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/teams/vert`), { name: "Les Verts", color: "#7CFF3A" }));
+
+  test("seule l'équipe qui tient la bombe l'envoie, une fois, à une autre équipe", async () => {
+    await bombe();
+    await assertFails(passe("rose", "bleu"), "pas la bombe des Roses");
+    await assertFails(passe("bleu", "bleu"), "pas à soi-même");
+    await assertFails(passe("bleu", "inconnus"), "équipe qui n'existe pas");
+    await assertFails(passe("bleu", "rose", "r9p-99"), "ancienne réception");
+    await assertFails(passe("bleu", "rose", "r9p-100", { to: "rose", at: 5 }), "heure du serveur obligatoire");
+    await assertFails(passe("bleu", "rose", "r9p-100", { to: "rose", at: serverTimestamp(), boom: true }));
+    await assertSucceeds(passe("bleu", "rose"));
+    await assertFails(passe("bleu", "rose"), "un seul envoi par réception");
+    await assertFails(set(ref(db("bleu"), `games/${CODE}/potatoPass`), null));
+    await assertSucceeds(set(ref(db(HOST), `games/${CODE}/potatoPass`), null));
+  });
+
+  test("pas de retour à l'envoyeur, sauf à 2 équipes", async () => {
+    await bombe({ from: "rose" });
+    await troisEquipes();
+    await assertFails(passe("bleu", "rose"), "retour à l'envoyeur");
+    await assertSucceeds(passe("bleu", "vert"));
+    await bombe({ from: "rose", canReturn: true });
+    await assertSucceeds(passe("bleu", "rose"));
+  });
+
+  test("la mèche qui colle, la pause, le décompte de reprise et les autres jeux bloquent l'envoi", async () => {
+    await bombe({ readyAt: Date.now() + 60_000 });
+    await assertFails(passe("bleu", "rose"), "mèche qui colle");
+    await bombe({}, { paused: true });
+    await assertFails(passe("bleu", "rose"), "pause");
+    await bombe({}, { resumeAt: Date.now() + 60_000 });
+    await assertFails(passe("bleu", "rose"), "décompte 3, 2, 1");
+    await bombe({}, { phase: "reveal" });
+    await assertFails(passe("bleu", "rose"), "déjà explosée");
+    await seed({ kind: "quiz", potato: { holder: "bleu", key: "r9p-100", readyAt: 0 } });
+    await assertFails(passe("bleu", "rose"), "pas dans ce jeu");
+  });
+
+  test("tablette remplacée : seul le nouvel appareil envoie ; la régie a son secours", async () => {
+    await bombe();
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/teams/bleu/device`), "tablette2"));
+    await assertFails(passe("bleu", "rose"));
+    await assertSucceeds(passe("tablette2", "rose"));
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));
+    await assertSucceeds(set(ref(db("tel"), `games/${CODE}/commands/cpot`), { type: "potato_random", expectSeq: 3, by: "tel", at: serverTimestamp() }));
+  });
+});

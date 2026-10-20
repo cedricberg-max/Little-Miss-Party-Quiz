@@ -261,7 +261,7 @@ function nextLabel(st, teamCount) {
     // Écran de présentation du jeu sur la TV : l'animatrice explique les règles, puis lance le jeu.
     case "intro": return "▶ Lancer l'épreuve";
     // La bombe cachée : ce sont les équipes qui ouvrent les coffres, le bouton principal attend l'explosion.
-    case "question": return st.kind === "coffres" ? "Coffres en cours… 💣" : st.kind === "gonfleur" ? "⏹ Arrêter la course" : st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? `Terminer ${st.kind === "pictionary" ? "le Pictionary" : "les mimes"}` : "Voir le classement") : st.kind === "portes" ? "Fermer les choix" : "Arrêter le chrono";
+    case "question": return st.kind === "coffres" ? "Coffres en cours… 💣" : st.kind === "gonfleur" ? "⏹ Arrêter la course" : st.kind === "patate" ? "Mèche allumée… 💣" : st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? `Terminer ${st.kind === "pictionary" ? "le Pictionary" : "les mimes"}` : "Voir le classement") : st.kind === "portes" ? "Fermer les choix" : "Arrêter le chrono";
     case "closed": return st.kind === "portes" ? "Aux portes ! 🚪" : "Révéler la réponse";
     // Portes mystères : l'animatrice ouvre les portes une à une, puis montre le classement final.
     case "reveal": return st.kind === "portes" ? ((st.portes?.opened ?? 0) < (st.portes?.count ?? 0) ? "🚪 Ouvrir la porte suivante" : "Classement final 🏆") : "Voir les scores";
@@ -307,7 +307,7 @@ function render() {
 
   const portes = (q?.kind ?? st.kind) === "portes";
   // Portes et bombe cachée : aucune réponse à montrer (le contenu des coffres est tiré à l'ouverture).
-  const correct = portes || ["coffres", "gonfleur"].includes(q?.kind ?? st.kind) ? null : q?.correct ?? st.correct;
+  const correct = portes || ["coffres", "gonfleur", "patate"].includes(q?.kind ?? st.kind) ? null : q?.correct ?? st.correct;
   const answerBtn = $("c-answer");
   answerBtn.hidden = intro || !inQuestion || (correct == null && !(portes && q?.doors));
   if (portes && q?.doors) {
@@ -323,7 +323,7 @@ function render() {
     answerBtn.classList.toggle("masked", answerMasked);
   }
   const answered = Object.keys(live.answers).filter((t) => live.teams[t]).length;
-  $("c-answered").textContent = BUZZ_KINDS.includes(st.kind) || st.kind === "statues" || st.kind === "gonfleur" ? "" : st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ${portes ? "ont choisi leur porte" : "ont répondu"}` : "";
+  $("c-answered").textContent = BUZZ_KINDS.includes(st.kind) || st.kind === "statues" || st.kind === "gonfleur" || st.kind === "patate" ? "" : st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ${portes ? "ont choisi leur porte" : "ont répondu"}` : "";
 
   renderGames(st);
   renderRequests(st, teams);
@@ -333,6 +333,7 @@ function render() {
   renderStatues(st, teams);
   renderCoffres(st);
   renderGonfleur(st, teams);
+  renderPatate(st);
   renderTeams(st, teams);
   renderPoints();
   renderPlan(st);
@@ -353,7 +354,7 @@ function render() {
   const countdown = st.phase === "question" && !st.paused && (st.resumeAt ?? 0) - (Date.now() + serverOffset);
   clearTimeout(countdownTimer);
   if (countdown > 0) countdownTimer = setTimeout(render, countdown + 50);
-  next.disabled = next.disabled || st.paused === true || countdown > 0 || (st.kind === "coffres" && st.phase === "question") || (blindMode(st) && st.phase === "question" && !!st.buzz?.team);
+  next.disabled = next.disabled || st.paused === true || countdown > 0 || ((st.kind === "coffres" || st.kind === "patate") && st.phase === "question") || (blindMode(st) && st.phase === "question" && !!st.buzz?.team);
   // Mimes : le gros bouton « Trouvé » est dans la rubrique ; le bas de l'écran arrête le tour ou la manche.
   if (st.phase === "question" && st.mime) next.classList.toggle("secondary", !!st.mime.team);
   else next.classList.remove("secondary");
@@ -865,6 +866,41 @@ function renderGonfleur(st, teams) {
   }));
 }
 
+/**
+ * Patate chaude : chez qui est la bombe, qui l'a déjà eue. Secours (deux appuis) : l'envoyer au hasard quand la
+ * tablette de l'équipe ne répond plus. La mèche reste secrète, même pour la régie.
+ */
+let patateArme = null;
+let patatePret = null;
+function renderPatate(st) {
+  const on = st.phase === "question" && st.kind === "patate";
+  $("patate").hidden = !on;
+  if (!on) { clearTimeout(patateArme); patateArme = null; return; }
+  const p = st.potato ?? {};
+  const name = (id) => live.teams[id]?.name ?? "Une équipe";
+  const hit = p.hit ?? [];
+  const pas = (p.teams ?? []).filter((id) => !hit.includes(id));
+  $("patate-info").textContent = p.lit !== true ? "La mèche s'allume sur la TV…"
+    : `💣 La bombe est chez ${name(p.holder)}${p.from ? ` (envoyée par ${name(p.from)})` : ""}. ${p.passes ?? 0} envoi${(p.passes ?? 0) > 1 ? "s" : ""}.`
+      + (pas.length ? ` Pas encore touchées : ${pas.map(name).join(", ")}.` : " Toutes les équipes l'ont eue.");
+  const btn = $("patate-random");
+  const wait = Math.max(p.readyAt ?? 0, st.resumeAt ?? 0) - (Date.now() + serverOffset);
+  btn.disabled = p.lit !== true || !!pending?.advance || st.paused === true || wait > 0;
+  clearTimeout(patatePret);
+  if (wait > 0) patatePret = setTimeout(render, wait + 50);
+  btn.textContent = patateArme ? `Touchez encore : la bombe part de chez ${name(p.holder)}` : `🎲 Envoyer la bombe au hasard pour ${name(p.holder)}`;
+}
+$("patate-random").onclick = () => {
+  if (!patateArme) {
+    patateArme = setTimeout(() => { patateArme = null; render(); }, 4000);
+    return render();
+  }
+  clearTimeout(patateArme);
+  patateArme = null;
+  navigator.vibrate?.(60);
+  send("potato_random", {}, { advance: true });
+};
+
 $("flou-ok").onclick = () => { navigator.vibrate?.(60); send("buzz_ok", {}, { advance: true }); };
 $("flou-ko").onclick = () => send("buzz_ko", {}, { advance: true });
 $("flou-bonus").onclick = () => { navigator.vibrate?.(60); send("buzz_bonus", {}, { advance: true }); };
@@ -1139,7 +1175,7 @@ function planItem(q, i, current) {
   const title = document.createElement("div");
   title.textContent = `${i + 1}. ${q.text}${q.double ? " · points ×2" : ""}`;
   const answer = document.createElement("b");
-  answer.textContent = q.kind === "gonfleur" ? "course de ballons · le premier qui éclate gagne" : q.kind === "coffres" ? "coffres chacun son tour · la bombe arrête le jeu" : q.kind === "portes" ? `${q.choices?.length ?? 0} portes · bonus ou malus` : q.kind === "number" ? `Juste Chiffre · ${q.correct}` : `${CHOICE_LETTERS[q.correct] ?? "?"} · ${q.choices?.[q.correct] ?? ""}`;
+  answer.textContent = q.kind === "patate" ? "bombe de tablette en tablette · mèche secrète" : q.kind === "gonfleur" ? "course de ballons · le premier qui éclate gagne" : q.kind === "coffres" ? "coffres chacun son tour · la bombe arrête le jeu" : q.kind === "portes" ? `${q.choices?.length ?? 0} portes · bonus ou malus` : q.kind === "number" ? `Juste Chiffre · ${q.correct}` : `${CHOICE_LETTERS[q.correct] ?? "?"} · ${q.choices?.[q.correct] ?? ""}`;
   item.append(title, answer);
   return item;
 }
@@ -1185,7 +1221,7 @@ async function fetchLibrary() {
     const rounds = Object.entries(s.val() ?? {})
       .filter(([, show]) => show)
       .sort((a, b) => (b[1].date ?? "").localeCompare(a[1].date ?? ""))
-      .flatMap(([id, show]) => (show.rounds ?? []).filter((r) => r && r.type !== "mimes" && r.type !== "statues" && r.type !== "pictionary" && r.type !== "portes" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "finale" && !BUILTIN_GAMES[r.type] && !MUSIC_GAMES[r.type]).map((round, i) => {
+      .flatMap(([id, show]) => (show.rounds ?? []).filter((r) => r && r.type !== "mimes" && r.type !== "statues" && r.type !== "pictionary" && r.type !== "portes" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "finale" && !BUILTIN_GAMES[r.type] && !MUSIC_GAMES[r.type]).map((round, i) => {
         const title = quizzes[round.quizId]?.title ?? `Manche ${i + 1}`;
         const label = QUIZ_GAMES[round.type] ? `${ROUND_TYPES[round.type]} : ${title}` : title;
         const date = show.date ? ` (${new Date(`${show.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })})` : "";
@@ -1199,6 +1235,7 @@ async function fetchLibrary() {
       { key: "builtin/pictionary", label: ROUND_TYPES.pictionary, source: { type: "pictionary", duration: PICTO_SEC } },
       { key: "builtin/coffres", label: ROUND_TYPES.coffres, source: { type: "coffres" } },
       { key: "builtin/gonfleur", label: ROUND_TYPES.gonfleur, source: { type: "gonfleur" } },
+      { key: "builtin/patate", label: ROUND_TYPES.patate, source: { type: "patate" } },
     ];
     library = { quizzes, mimes, playlists, contents, games, rounds, decks, quizGames, builtins, music };
   } catch (e) {
@@ -1260,6 +1297,13 @@ function renderLibrary() {
     }
     if (game.source.type === "coffres") {
       meta.textContent = "un coffre chacun son tour · bonus, malus, puis la bombe · idéal en dernier jeu";
+      b.append(title, meta);
+      b.onclick = () => pick(game);
+      box.appendChild(b);
+      return;
+    }
+    if (game.source.type === "patate") {
+      meta.textContent = "la bombe passe de tablette en tablette · mèche secrète · rien à préparer";
       b.append(title, meta);
       b.onclick = () => pick(game);
       box.appendChild(b);
@@ -1345,6 +1389,7 @@ function renderPreview() {
     const answer = document.createElement("b");
     // Chante le mot : le mot seul ; Qui suis-je : le personnage et son premier indice.
     if (q.kind === "chante") { answer.textContent = q.text; li.append(answer); list.appendChild(li); return; }
+    if (q.kind === "patate") { li.textContent = "La bombe passe de tablette en tablette ; à l'explosion, l'équipe qui la tient perd des points."; list.appendChild(li); return; }
     if (q.kind === "gonfleur") { li.textContent = "Chaque équipe tapote sa tablette pour gonfler son ballon : le premier qui éclate gagne."; list.appendChild(li); return; }
     if (q.kind === "coffres") { li.textContent = "Un coffre chacun son tour, bonus ou malus, puis la bombe qui arrête le jeu."; list.appendChild(li); return; }
     // Blind test et quiz musical : le titre (et l'artiste) de chaque extrait.
@@ -1380,6 +1425,7 @@ const OLD_TV_DISPARU = "La TV doit être mise à jour pour jouer à « Qui a dis
 const OLD_TV_PICTO = "La TV doit être mise à jour pour jouer au Pictionary : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_COFFRES = "La TV doit être mise à jour pour jouer à La bombe cachée : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_GONFLEUR = "La TV doit être mise à jour pour jouer au Gonfleur fou : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+const OLD_TV_PATATE = "La TV doit être mise à jour pour jouer à la Patate chaude : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_PORTES = "La TV doit être mise à jour pour jouer aux Portes mystères : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_BLIND = "La TV doit être mise à jour pour jouer au blind test : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 /** Jeu que la TV allumée ne sait pas encore jouer (ancienne version) : le message à montrer, sinon null. */
@@ -1398,6 +1444,7 @@ function tvRefuses(questions) {
   if (live.plan.portes !== true && questions.some((q) => q?.kind === "portes")) return OLD_TV_PORTES;
   if (live.plan.coffres !== true && questions.some((q) => q?.kind === "coffres")) return OLD_TV_COFFRES;
   if (live.plan.gonfleur !== true && questions.some((q) => q?.kind === "gonfleur")) return OLD_TV_GONFLEUR;
+  if (live.plan.patate !== true && questions.some((q) => q?.kind === "patate")) return OLD_TV_PATATE;
   // Quiz musical compris : une ancienne TV le jouerait sans musique.
   if (live.plan.blindPlay !== true && questions.some((q) => q?.kind === "blind")) return OLD_TV_BLIND;
   if (live.plan.blind !== true && questions.some((q) => q?.audioId)) return OLD_TV_BLIND;

@@ -34,6 +34,7 @@ import com.littlemissparty.quiz.engine.Scoring
 import com.littlemissparty.quiz.engine.ScoreAdjusted
 import com.littlemissparty.quiz.engine.PAUSE_TEAM
 import com.littlemissparty.quiz.engine.Phase
+import com.littlemissparty.quiz.engine.PotatoRound
 import com.littlemissparty.quiz.engine.Pump
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.engine.Quiz
@@ -154,6 +155,8 @@ sealed interface UiState {
         val pumps: Map<String, Int> = emptyMap(),
         /** Gonfleur fou : heure du serveur du « GONFLEZ ! » (le départ 3, 2, 1 remplace le décompte de reprise). */
         val pumpGoAt: Long? = null,
+        /** Patate chaude : la bombe (qui la tient, qui l'a envoyée, durée de la mèche), null avant l'allumage. */
+        val potato: PotatoRound? = null,
     ) : UiState {
         /** Total des appuis sur le buzzer de l'accueil, pour le son. */
         val funTotal: Int get() = funBuzzes.values.sum()
@@ -245,6 +248,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var pickListener: Pair<DatabaseReference, ValueEventListener>? = null
     private var chestListener: Pair<DatabaseReference, ValueEventListener>? = null
     private var pumpListener: Pair<DatabaseReference, ValueEventListener>? = null
+    private var potatoListener: Pair<DatabaseReference, ValueEventListener>? = null
 
     /** Gonfleur fou : dernières tapes reçues de chaque équipe, pour la course de [pumpListener]. */
     private var pumps: Map<String, Pump> = emptyMap()
@@ -526,6 +530,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     /** La bombe cachée, à la télécommande (pas de régie) : un coffre au hasard pour l'équipe qui joue. */
     fun chestRandom() = act { it.openRandomChest(serverNow()) }
 
+    /** Patate chaude, à la télécommande (pas de régie) : la bombe part au hasard chez une équipe permise. */
+    fun potatoRandom() = act { it.passPotatoRandom(serverNow()) }
+
     fun togglePause() = act { g -> if (g.state.paused) g.resume(serverNow()) else g.pause(serverNow()) }
 
     /** Mimes à la télécommande : lancer le tour de [team] (null : l'équipe qui a le moins joué). */
@@ -697,7 +704,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 pauseReason = s.hold?.reason,
                 resumeAt = s.resumeAt,
                 deadline = g.deadline(),
-                remainingMs = q?.let { it.durationMs - s.elapsedAt(Long.MAX_VALUE) }?.coerceAtLeast(0) ?: 0,
+                // Patate chaude : la mèche tirée au sort remplace la durée de la question.
+                remainingMs = q?.let { g.durationOf(it) - s.elapsedAt(Long.MAX_VALUE) }?.coerceAtLeast(0) ?: 0,
                 awards = revealedAwards,
                 scores = s.scores(),
                 buzzTeam = s.buzz?.team,
@@ -714,6 +722,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 factor = g.factorOf(s.index),
                 introUntil = g.multiplierIntroUntil(),
                 pumpGoAt = g.pumpGoAt,
+                potato = s.potato.takeIf { q?.isPatate == true && s.phase != Phase.LOBBY },
                 openedAt = s.openedAt,
                 multipliedLeft = g.multipliedLeft(s.index),
                 gameGains = g.gameGains(),
@@ -741,6 +750,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         watchChest(Codec.chestKey(g)?.takeIf { !s.paused })
         // Gonfleur fou : les tapes des tablettes, de la course au bilan (les ballons restent à leur taille).
         watchPumps(Codec.pumpKey(g))
+        // Patate chaude : la box allume la mèche dès le lancement du jeu (équipe de départ et durée tirées au sort),
+        // puis écoute l'envoi de la tablette de l'équipe qui tient la bombe.
+        if (g.needsPotato() && teams().size >= 2) act { it.lightPotato(teams().map { t -> t.uid }, serverNow()) }
+        watchPotato(Codec.potatoKey(g)?.takeIf { !s.paused })
         val blocked = s.buzz?.blocked.orEmpty()
         val teamIds = teams().map { it.uid }
         // Blind test : rien ne se ferme seul, la relance réautorise tout le monde.
@@ -1325,6 +1338,34 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
+     * Patate chaude : l'envoi de la tablette de l'équipe qui tient la bombe (games/<code>/potatoPass/<clé> =
+     * { to, at }). Les règles de la base n'acceptent que l'appareil de cette équipe, après la mèche qui colle, vers
+     * une équipe permise. Une clé par réception : un envoi ne peut servir qu'une fois.
+     */
+    private fun watchPotato(key: String?) {
+        if (key == potatoListener?.first?.key) return
+        potatoListener?.let { (r, l) -> r.removeEventListener(l) }
+        potatoListener = null
+        val ref = gameRef?.child("potatoPass")?.child(key ?: return) ?: return
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val to = snapshot.child("to").getValue(String::class.java) ?: return
+                val at = snapshot.child("at").getValue(Long::class.java) ?: serverNow()
+                act { g ->
+                    val holder = g.state.potato?.holder
+                    if (Codec.potatoKey(g) != key || holder == null) null else g.passPotato(holder, to, serverNow(), sentAt = at)
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e(TAG, "Envoi de la patate chaude : ${error.message}")
+            }
+        }
+        potatoListener = ref to listener
+        ref.addValueEventListener(listener)
+    }
+
+    /**
      * La bombe cachée : le coffre choisi par la tablette de l'équipe qui joue (games/<code>/chestChoice/<clé>). Les
      * règles de la base n'acceptent que l'appareil de cette équipe, une fois l'animation précédente finie. Le
      * contenu est tiré au sort ici, au moment de l'ouverture.
@@ -1448,6 +1489,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         watchPick(null)
         watchChest(null)
         watchPumps(null)
+        watchPotato(null)
         watchDrawing(null)
         commandsListener?.let { (r, l) -> r.removeEventListener(l) }
         commandsListener = null
@@ -1517,6 +1559,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "coffres" to true,
             // Gonfleur fou : tapes des tablettes dans pumps/, fin de la course par la box.
             "gonfleur" to true,
+            // Patate chaude : envois des tablettes dans potatoPass/, mèche et explosion par la box, envoi au hasard (potato_random).
+            "patate" to true,
             "disparu" to true,
             "questions" to quiz.questions.map {
                 clean(mapOf(

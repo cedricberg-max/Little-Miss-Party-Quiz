@@ -605,6 +605,8 @@ enum class Son(val fichier: String, val long: Boolean = false) {
     BOMBE_BOUM("lmp_bombe_boum", true),
     GONFLE_1("lmp_gonfle_1"), GONFLE_2("lmp_gonfle_2"), GONFLE_3("lmp_gonfle_3"),
     BALLON_ECLATE("lmp_ballon_eclate", true),
+    TIC_1("lmp_tic_1"), TIC_2("lmp_tic_2"), TIC_3("lmp_tic_3"),
+    PATATE_PASSE("lmp_patate_passe"),
     EQUIPE_1("lmp_team_sting_1"), EQUIPE_2("lmp_team_sting_2"), EQUIPE_3("lmp_team_sting_3"), EQUIPE_4("lmp_team_sting_4");
 
     companion object {

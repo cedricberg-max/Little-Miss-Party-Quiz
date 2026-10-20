@@ -121,6 +121,17 @@
             }
           }
         },
+        "potatoPass": {
+          ".read": "auth != null",
+          ".write": "auth != null && root.child('games').child($code).child('hostUid').val() === auth.uid && !newData.exists()",
+          "$key": {
+            ".write": "auth != null && newData.exists() && !data.exists() && root.child('games').child($code).child('state/kind').val() === 'patate' && root.child('games').child($code).child('state/phase').val() === 'question' && root.child('games').child($code).child('state/paused').val() !== true && root.child('games').child($code).child('state/potato/key').val() === $key && now >= root.child('games').child($code).child('state/potato/readyAt').val() && (!root.child('games').child($code).child('state/resumeAt').exists() || now >= root.child('games').child($code).child('state/resumeAt').val()) && (root.child('games').child($code).child('teams').child(root.child('games').child($code).child('state/potato/holder').val()).child('device').val() === auth.uid || (!root.child('games').child($code).child('teams').child(root.child('games').child($code).child('state/potato/holder').val()).child('device').exists() && auth.uid === root.child('games').child($code).child('state/potato/holder').val()))",
+            ".validate": "newData.child('to').isString() && root.child('games').child($code).child('teams').child(newData.child('to').val()).exists() && newData.child('to').val() !== root.child('games').child($code).child('state/potato/holder').val() && (root.child('games').child($code).child('state/potato/canReturn').val() === true || newData.child('to').val() !== root.child('games').child($code).child('state/potato/from').val()) && newData.child('at').val() === now",
+            "$other": {
+              ".validate": "$other === 'to' || $other === 'at'"
+            }
+          }
+        },
         "pumps": {
           ".read": "auth != null",
           ".write": "auth != null && root.child('games').child($code).child('hostUid').val() === auth.uid && !newData.exists()",
@@ -168,7 +179,7 @@
           ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
           "$cmd": {
             ".write": "auth != null && !data.exists() && newData.exists() && root.child('games').child($code).child('regie').child(auth.uid).exists()",
-            ".validate": "newData.child('type').isString() && newData.child('type').val().matches(/^(next|pause|resume|close|adjust|undo|end|admit|replace|mime_start|mime_found|mime_pass|mime_fix|mime_stop|goto|buzz_ok|buzz_ko|buzz_bonus|statues_win|blind_play|blind_unblock|blind_reveal|blind_skip|blind_cut|picto_show|picto_draw|factor|portes_set|chest_random)$/) && newData.child('expectSeq').isNumber() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
+            ".validate": "newData.child('type').isString() && newData.child('type').val().matches(/^(next|pause|resume|close|adjust|undo|end|admit|replace|mime_start|mime_found|mime_pass|mime_fix|mime_stop|goto|buzz_ok|buzz_ko|buzz_bonus|statues_win|blind_play|blind_unblock|blind_reveal|blind_skip|blind_cut|picto_show|picto_draw|factor|portes_set|chest_random|potato_random)$/) && newData.child('expectSeq').isNumber() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
             "team": {
               ".validate": "newData.isString() && newData.val().length <= 128"
             },

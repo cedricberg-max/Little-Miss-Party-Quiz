@@ -98,7 +98,13 @@ enum class QuestionKind(val code: String) {
      * Le Gonfleur fou : chaque équipe tapote sa tablette pour gonfler son ballon sur la TV ; le premier qui éclate
      * gagne. [Question.durationSec] est un chrono de secours : à la fin, le plus gros ballon gagne.
      */
-    GONFLEUR("gonfleur");
+    GONFLEUR("gonfleur"),
+
+    /**
+     * La Patate chaude : une bombe passe d'équipe en équipe depuis les tablettes ; sa mèche, tirée au sort, est
+     * cachée. L'équipe qui la tient à l'explosion perd des points, les autres en gagnent. Rien à préparer.
+     */
+    PATATE("patate");
 
     companion object {
         fun of(code: String?): QuestionKind = entries.firstOrNull { it.code == code } ?: CLASSIC
@@ -176,6 +182,8 @@ data class Question(
             require(durationSec in 10..120) { "Portes mystères $id : durée entre 10 et 120 s" }
         } else if (kind == QuestionKind.COFFRES) {
             require(choices.isEmpty()) { "La bombe cachée $id : pas de propositions" }
+        } else if (kind == QuestionKind.PATATE) {
+            require(choices.isEmpty()) { "Patate chaude $id : pas de propositions" }
         } else if (kind == QuestionKind.GONFLEUR) {
             require(choices.isEmpty()) { "Gonfleur fou $id : pas de propositions" }
             require(durationSec in 20..180) { "Gonfleur fou $id : durée entre 20 et 180 s" }
@@ -200,6 +208,7 @@ data class Question(
     val isPortes: Boolean get() = kind == QuestionKind.PORTES
     val isCoffres: Boolean get() = kind == QuestionKind.COFFRES
     val isGonfleur: Boolean get() = kind == QuestionKind.GONFLEUR
+    val isPatate: Boolean get() = kind == QuestionKind.PATATE
 
     /** Jeu joué équipe par équipe, tour après tour (mimes, Pictionary) : le chrono part au lancement de chaque tour. */
     val isTurns: Boolean get() = isMime || isPicto

@@ -369,6 +369,55 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
+  test("La Patate chaude : la bombe se renvoie d'un appui, la mèche colle, pas de retour à l'envoyeur, puis l'explosion", async () => {
+    const roses = await openPupitre();
+    await joinTeam(roses, "Les Roses");
+    const bleus = await openPupitre();
+    await joinTeam(bleus, "Les Bleus");
+    const verts = await openPupitre();
+    await joinTeam(verts, "Les Verts");
+    const teams = await read("teams");
+    const id = (name) => Object.keys(teams).find((t) => teams[t].name === name);
+    const [r, b, v] = [id("Les Roses"), id("Les Bleus"), id("Les Verts")];
+    const base = { qid: "pt", kind: "patate", text: "La Patate chaude", choices: null, correct: null, deadline: null, durationMs: null, game: { title: "La Patate chaude" } };
+    const potato = (extra) => ({ lit: true, teams: [r, b, v], canReturn: false, passes: 0, from: null, ...extra });
+    // Avant l'allumage : tout le monde regarde la TV.
+    await hostState(question({ ...base, potato: { lit: false } }));
+    await bleus.locator("#patate-host .pc-texte", { hasText: "La mèche va s'allumer" }).waitFor();
+    // La bombe démarre chez les Roses : elles choisissent à qui l'envoyer, les équipes pas encore touchées brillent.
+    let now = Date.now();
+    await hostState(question({ ...base, potato: potato({ holder: r, since: now - 3000, readyAt: now - 1000, targets: [b, v], hit: [r], key: "pt-a" }) }));
+    await roses.locator(".pc-titre", { hasText: "La bombe est chez vous !" }).waitFor();
+    await bleus.locator(".pc-titre", { hasText: "La bombe est chez l'équipe Les Roses !" }).waitFor();
+    assert.equal(await bleus.locator(".pc-equipe").count(), 0, "seule l'équipe qui tient la bombe l'envoie");
+    assert.equal(await roses.locator(".pc-equipe.pc-neuve").count(), 2);
+    await roses.locator(".pc-equipe", { hasText: "Les Bleus" }).click();
+    await waitFor(async () => (await read("potatoPass/pt-a"))?.to === b, "envoi aux Bleus reçu par la box");
+    await roses.locator(".pc-texte", { hasText: "Envoyée à l'équipe Les Bleus !" }).waitFor();
+    // Chez les Bleus : la mèche colle 2 s, puis seuls les Verts sont permis (pas de retour aux Roses).
+    now = Date.now();
+    await hostState(question({ ...base, potato: potato({ holder: b, from: r, since: now, readyAt: now + 2000, targets: [v], hit: [r, b], passes: 1, key: "pt-b" }) }));
+    await bleus.locator(".pc-texte", { hasText: "La mèche colle" }).waitFor();
+    assert.equal(await bleus.locator(".pc-equipe:not([disabled])").count(), 0, "rien avant la fin de la mèche qui colle");
+    await bleus.locator(".pc-equipe", { hasText: "Les Roses" }).locator("small", { hasText: "vient de vous l'envoyer" }).waitFor();
+    await waitFor(() => bleus.locator(".pc-equipe", { hasText: "Les Verts" }).isEnabled(), "Verts permis après la mèche qui colle", 6000);
+    assert.equal(await bleus.locator(".pc-equipe", { hasText: "Les Roses" }).isDisabled(), true, "pas de retour à l'envoyeur");
+    await bleus.locator(".pc-equipe", { hasText: "Les Verts" }).click();
+    await waitFor(async () => (await read("potatoPass/pt-b"))?.to === v, "envoi aux Verts reçu par la box");
+    // La mèche arrive au bout chez les Verts : ils perdent 150, les autres gagnent 150.
+    await hostState(question({ ...base, phase: "reveal", potato: potato({ holder: v, from: b, since: now, readyAt: now, targets: [r], hit: [r, b, v], passes: 2, key: null }),
+      awards: { [v]: { correct: false, points: -150, bonus: 0 }, [r]: { correct: true, points: 150, bonus: 0 }, [b]: { correct: true, points: 150, bonus: 0 } },
+      scores: { [r]: 450, [b]: 300, [v]: 150 } }));
+    await verts.locator("#r-title", { hasText: "BOUM ! La bombe a explosé chez vous : −150 points" }).waitFor();
+    await roses.locator("#r-title", { hasText: "Ouf ! +150 points" }).waitFor();
+    await roses.locator("#r-detail", { hasText: "Elle a explosé chez l'équipe Les Verts." }).waitFor();
+    await roses.locator("#r-total", { hasText: "450 points · 1re place" }).waitFor();
+    await hostState(question({ qid: "q9", text: "Couleur du ciel ?" }));
+    await bleus.locator(".choice .text", { hasText: "Bleu" }).waitFor();
+    assert.equal(await bleus.locator("#patate-host .pc").count(), 0, "écran de la patate retiré");
+    for (const p of [roses, bleus, verts]) await p.context().close();
+  });
+
   test("Le Juste Chiffre : l'équipe tape son nombre une seule fois et voit si elle est la plus proche", async () => {
     const page = await openPupitre();
     await joinTeam(page, "Les Roses");

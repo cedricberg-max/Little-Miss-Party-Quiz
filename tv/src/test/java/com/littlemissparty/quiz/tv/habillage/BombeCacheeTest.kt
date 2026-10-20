@@ -25,6 +25,10 @@ class BombeCacheeTest {
         assertEquals("+150 POINTS", textePointsCoffre(150))
         assertEquals("−100 POINTS", textePointsCoffre(-100))
         assertEquals("−300 POINTS", textePointsCoffre(null))
+        // La bombe affiche ce qu'elle a vraiment retiré ; 0 quand l'équipe n'avait rien à perdre.
+        assertEquals("−120 POINTS", textePointsCoffre(null, -120))
+        assertEquals("0 POINT", textePointsCoffre(null, 0))
+        assertEquals("0 POINT", textePointsCoffre(0))
     }
 
     @Test

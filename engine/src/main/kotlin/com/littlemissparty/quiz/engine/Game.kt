@@ -97,6 +97,8 @@ data class GameState(
     val intro: Boolean = false,
     /** La bombe cachée : les coffres de chaque manche jouée (points compris), par question. */
     val chests: Map<String, ChestRound> = emptyMap(),
+    /** Patate chaude en cours (null hors de ce jeu, ou avant que la mèche soit allumée). */
+    val potato: PotatoRound? = null,
 ) {
     val paused: Boolean get() = hold != null
 
@@ -185,7 +187,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     fun remainingMs(now: Long): Long {
         val q = question ?: return 0
         if (!timerRuns(q)) return 0
-        return (q.durationMs - state.elapsedAt(now)).coerceAtLeast(0)
+        return (durationOf(q) - state.elapsedAt(now)).coerceAtLeast(0)
     }
 
     /**
@@ -193,7 +195,11 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
      * jamais de chrono, chacun prend son temps et l'animatrice ferme les choix quand tout le monde est prêt.
      */
     private fun timerRuns(q: Question) = state.phase == Phase.QUESTION && !state.intro && !q.isPortes && !q.isCoffres && (!q.isTurns || state.mimeTurn) &&
+        (!q.isPatate || state.potato != null) &&
         (!q.isBlind || (state.buzz?.waiting == false && state.segments.isNotEmpty()))
+
+    /** Durée du chrono de [q] : la mèche tirée au sort pour la Patate chaude, sinon celle de la question. */
+    fun durationOf(q: Question): Long = if (q.isPatate) state.potato?.fuseMs ?: q.durationMs else q.durationMs
 
     /**
      * Le chrono vient de (re)partir, il y a moins de [ms] : un appui sur « Arrêter le chrono » à cet instant
@@ -225,7 +231,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         if (!timerRuns(q) || state.paused || state.buzzHeld) return null
         val running = state.segments.last()
         val before = state.elapsedAt(running.start)
-        return running.start + q.durationMs - before
+        return running.start + durationOf(q) - before
     }
 
     /**
@@ -337,6 +343,33 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             val q = quiz.questions.getOrNull(s.index)
             if (q == null || !q.isPortes || e.qid != s.qid || s.phase != Phase.REVEAL || s.doorsOpened >= q.choices.size) null
             else s.copy(doorsOpened = s.doorsOpened + 1)
+        }
+        is PotatoLit -> {
+            val q = quiz.questions.getOrNull(s.index)
+            if (s.phase != Phase.QUESTION || q == null || !q.isPatate || q.id != e.qid || s.potato != null || s.paused ||
+                e.teams.size < 2 || e.teams.distinct().size != e.teams.size || e.holder !in e.teams || e.fuseMs !in POTATO_FUSE_MIN_MS..POTATO_FUSE_MAX_MS) null
+            else (e.at + POTATO_GO_MS).let { go ->
+                s.copy(potato = PotatoRound(e.fuseMs, e.teams, e.holder, since = go), segments = listOf(Segment(go)), resumeAt = go)
+            }
+        }
+        is PotatoPassed -> {
+            val p = s.potato
+            if (s.phase != Phase.QUESTION || s.qid != e.qid || p == null || s.paused || p.holder != e.from || e.to !in p.targets) null
+            else s.copy(potato = p.copy(holder = e.to, from = e.from, since = e.at, hit = p.hit + e.to, passes = p.passes + 1))
+        }
+        is PotatoExploded -> {
+            val p = s.potato
+            val q = quiz.questions.getOrNull(s.index)
+            if (s.phase != Phase.QUESTION || s.qid != e.qid || p == null || q == null || p.holder != e.holder) null
+            else {
+                val factor = factorIn(s, s.index)
+                val lost = minOf(POTATO_POINTS * factor, (s.scores()[e.holder] ?: 0).coerceAtLeast(0))
+                val awards = p.teams.associateWith {
+                    if (it == e.holder) Award(null, correct = false, points = -lost, bonus = 0)
+                    else Award(null, correct = true, points = POTATO_POINTS * factor, bonus = 0)
+                }
+                s.copy(phase = Phase.REVEAL, hold = null, segments = closeSegments(s, e.at), awards = s.awards + (q.id to awards))
+            }
         }
         is ChestsDealt -> {
             val q = quiz.questions.getOrNull(s.index)
@@ -553,7 +586,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
      * Question [q] ouverte : chrono lancé, ou manche de mimes sans chrono (il part au tour de chaque équipe).
      * Une manche de mimes rouverte (jeu rejoué) repart de zéro : ses mimes ne comptent jamais deux fois.
      */
-    private fun open(s: GameState, index: Int, q: Question, at: Long): GameState =
+    private fun open(s0: GameState, index: Int, q: Question, at: Long): GameState = s0.copy(potato = null).let { s ->
         if (q.isTurns) s.copy(
             phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null,
             mimes = s.mimes - q.id, mime = MimeRound(deck = q.cards.indices.toList()), turnPoints = s.turnPoints + (q.id to q.foundPoints),
@@ -565,6 +598,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null, mime = null, buzz = null,
             chests = s.chests - q.id,
         )
+        // Patate chaude : pas de chrono tant que la box n'a pas allumé la mèche ([lightPotato]).
+        else if (q.isPatate) s.copy(phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null, mime = null, buzz = null)
         // Gonfleur fou : le chrono de secours part après le décompte 3, 2, 1 de la TV, comme après une reprise.
         else if (q.isGonfleur) (at + PUMP_GO_MS).let { go ->
             s.copy(
@@ -584,6 +619,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                 buzz = if (q.isBuzz) BuzzRound(armed = q.buzzFromMs == 0L) else null, doorsOpened = 0,
             )
         }
+    }
 
     private fun closeSegments(s: GameState, at: Long) = s.segments.map { if (it.end == null) it.copy(end = maxOf(at, it.start)) else it }
 
@@ -617,6 +653,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             question?.isCoffres == true -> null
             // Gonfleur fou : l'arrêt de la course a besoin des tapes des tablettes ([balloon]).
             question?.isGonfleur == true -> null
+            // Patate chaude : seule la mèche décide de la fin.
+            question?.isPatate == true -> null
             state.mime == null -> close(now)
             state.mimeTurn -> mimeStop(now)
             else -> emit(ScoresShown(nextSeq, now))
@@ -729,7 +767,48 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
 
     /** Reprise avec le décompte 3, 2, 1 : le chrono repart quand il se termine. */
     fun resume(now: Long, countdownMs: Long = RESUME_COUNTDOWN_MS): GameEvent? = emit(Resumed(nextSeq, now, countdownMs))
-    fun close(now: Long): GameEvent? = if (state.paused || question?.isGonfleur == true) null else emit(QuestionClosed(nextSeq, now))
+    fun close(now: Long): GameEvent? =
+        if (state.paused || question?.isGonfleur == true || question?.isPatate == true) null else emit(QuestionClosed(nextSeq, now))
+
+    /** Patate chaude : la mèche est à allumer (jeu lancé, pas encore de bombe). */
+    fun needsPotato(): Boolean {
+        val q = question ?: return false
+        return q.isPatate && state.phase == Phase.QUESTION && !state.intro && !state.paused && state.potato == null
+    }
+
+    /** Patate chaude : allume la mèche (durée tirée au sort) ; la bombe part d'une équipe tirée au sort parmi [teams]. */
+    fun lightPotato(teams: List<String>, now: Long, random: Random = Random.Default): GameEvent? {
+        val q = question ?: return null
+        val playing = teams.distinct()
+        if (!needsPotato() || playing.size < 2) return null
+        return emit(PotatoLit(nextSeq, now, q.id, playing.random(random), drawFuse(random), playing))
+    }
+
+    /**
+     * Patate chaude : [team] envoie la bombe à [to]. Refusé si [team] ne la tient pas, avant la fin de la mèche qui
+     * colle, vers l'envoyeur (sauf à 2 équipes), en pause ou pendant un décompte.
+     */
+    fun passPotato(team: String, to: String, now: Long, sentAt: Long = now): GameEvent? {
+        val p = state.potato ?: return null
+        if (state.paused || state.phase != Phase.QUESTION || p.holder != team || to !in p.targets) return null
+        if (now + ARM_TOLERANCE_MS < p.readyAt || (state.resumeAt ?: Long.MIN_VALUE) > now + ARM_TOLERANCE_MS) return null
+        // Envoi parti avant la fin de la mèche (heure du serveur de l'écriture) : il compte, même reçu un peu après.
+        if (remainingMs(minOf(sentAt, now)) == 0L) return null
+        return emit(PotatoPassed(nextSeq, maxOf(now, p.readyAt), state.qid!!, team, to))
+    }
+
+    /** Patate chaude, secours de la régie : la bombe part au hasard chez une équipe permise (tablette en panne). */
+    fun passPotatoRandom(now: Long, random: Random = Random.Default): GameEvent? {
+        val p = state.potato ?: return null
+        return passPotato(p.holder, p.targets.randomOrNull(random) ?: return null, now)
+    }
+
+    /** Patate chaude : la mèche est arrivée au bout, la bombe explose chez l'équipe qui la tient. */
+    fun explode(now: Long): GameEvent? {
+        val p = state.potato ?: return null
+        if (state.paused || state.phase != Phase.QUESTION || remainingMs(now) > 0) return null
+        return emit(PotatoExploded(nextSeq, now, state.qid!!, p.holder))
+    }
 
     /**
      * Gonfleur fou : fin de la course d'après les tapes des tablettes ([pumps], équipes inscrites [teams]). Un ballon
@@ -984,6 +1063,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         state.intro -> null
         // Gonfleur fou : la fin du chrono de secours a besoin des tapes des tablettes ([balloon]).
         question?.isGonfleur == true -> null
+        question?.isPatate == true -> explode(now)
         state.mime != null -> mimeStop(now)
         // Blind test : fin de l'extrait, la musique s'arrête et l'animatrice décide de la suite.
         question?.isBlind == true -> blindStop(now)
