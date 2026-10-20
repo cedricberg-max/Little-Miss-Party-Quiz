@@ -84,7 +84,27 @@ enum class QuestionKind(val code: String) {
      * derrière chacune, un bonus ou un malus ([Question.doors]) qui peut renverser le classement. L'animatrice
      * ouvre les portes une à une, puis montre le classement final. Plusieurs équipes peuvent prendre la même porte.
      */
-    PORTES("portes");
+    PORTES("portes"),
+
+    /**
+     * La bombe cachée : des coffres ouverts chacun son tour, depuis la tablette de l'équipe qui joue. Chaque coffre
+     * cache un bonus ou un malus, tiré au sort par la box à son ouverture. Après quelques tours sans danger, une bombe
+     * se cache dans un des coffres restants : l'équipe qui l'ouvre perd [BOMB_POINTS] points et le jeu s'arrête.
+     * Rien à préparer : ni propositions ni valeurs, tout se décide au hasard pendant la partie.
+     */
+    COFFRES("coffres"),
+
+    /**
+     * Le Gonfleur fou : chaque équipe tapote sa tablette pour gonfler son ballon sur la TV ; le premier qui éclate
+     * gagne. [Question.durationSec] est un chrono de secours : à la fin, le plus gros ballon gagne.
+     */
+    GONFLEUR("gonfleur"),
+
+    /**
+     * La Patate chaude : une bombe passe d'équipe en équipe depuis les tablettes ; sa mèche, tirée au sort, est
+     * cachée. L'équipe qui la tient à l'explosion perd des points, les autres en gagnent. Rien à préparer.
+     */
+    PATATE("patate");
 
     companion object {
         fun of(code: String?): QuestionKind = entries.firstOrNull { it.code == code } ?: CLASSIC
@@ -160,6 +180,13 @@ data class Question(
             require(doors.size == choices.size) { "Portes mystères $id : une valeur par porte" }
             require(doors.all { it in -MAX_DOOR_POINTS..MAX_DOOR_POINTS }) { "Portes mystères $id : valeur hors limites" }
             require(durationSec in 10..120) { "Portes mystères $id : durée entre 10 et 120 s" }
+        } else if (kind == QuestionKind.COFFRES) {
+            require(choices.isEmpty()) { "La bombe cachée $id : pas de propositions" }
+        } else if (kind == QuestionKind.PATATE) {
+            require(choices.isEmpty()) { "Patate chaude $id : pas de propositions" }
+        } else if (kind == QuestionKind.GONFLEUR) {
+            require(choices.isEmpty()) { "Gonfleur fou $id : pas de propositions" }
+            require(durationSec in 20..180) { "Gonfleur fou $id : durée entre 20 et 180 s" }
         } else if (kind == QuestionKind.NUMBER) {
             require(choices.isEmpty()) { "Juste Chiffre $id : pas de propositions" }
             require(correct in -MAX_NUMBER..MAX_NUMBER) { "Juste Chiffre $id : nombre hors limites" }
@@ -179,6 +206,9 @@ data class Question(
     val isMime: Boolean get() = kind == QuestionKind.MIME
     val isPicto: Boolean get() = kind == QuestionKind.PICTIONARY
     val isPortes: Boolean get() = kind == QuestionKind.PORTES
+    val isCoffres: Boolean get() = kind == QuestionKind.COFFRES
+    val isGonfleur: Boolean get() = kind == QuestionKind.GONFLEUR
+    val isPatate: Boolean get() = kind == QuestionKind.PATATE
 
     /** Jeu joué équipe par équipe, tour après tour (mimes, Pictionary) : le chrono part au lancement de chaque tour. */
     val isTurns: Boolean get() = isMime || isPicto

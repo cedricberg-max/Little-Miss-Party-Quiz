@@ -1,5 +1,7 @@
 package com.littlemissparty.quiz.engine
 
+import kotlin.random.Random
+
 enum class Phase(val code: String) {
     LOBBY("lobby"),
     QUESTION("question"),
@@ -93,6 +95,10 @@ data class GameState(
     val doorValues: Map<String, Map<Int, Int>> = emptyMap(),
     /** Écran de présentation du jeu qui commence : rien ne part avant le lancement de l'animatrice ([GameLaunched]). */
     val intro: Boolean = false,
+    /** La bombe cachée : les coffres de chaque manche jouée (points compris), par question. */
+    val chests: Map<String, ChestRound> = emptyMap(),
+    /** Patate chaude en cours (null hors de ce jeu, ou avant que la mèche soit allumée). */
+    val potato: PotatoRound? = null,
 ) {
     val paused: Boolean get() = hold != null
 
@@ -126,6 +132,7 @@ data class GameState(
         awards.values.forEach { perTeam -> perTeam.forEach { (team, a) -> totals.merge(team, a.points, Int::plus) } }
         adjustments.values.forEach { totals.merge(it.team, it.delta, Int::plus) }
         mimes.forEach { (qid, perTeam) -> perTeam.forEach { (team, n) -> totals.merge(team, n * pointsPerFound(qid), Int::plus) } }
+        chests.values.forEach { r -> r.opened.forEach { totals.merge(it.team, it.delta, Int::plus) } }
         return totals
     }
 }
@@ -180,15 +187,19 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     fun remainingMs(now: Long): Long {
         val q = question ?: return 0
         if (!timerRuns(q)) return 0
-        return (q.durationMs - state.elapsedAt(now)).coerceAtLeast(0)
+        return (durationOf(q) - state.elapsedAt(now)).coerceAtLeast(0)
     }
 
     /**
      * Le chrono de [q] est en marche (ou en pause) : question ouverte, ou tour de mimes en cours. Portes mystères :
      * jamais de chrono, chacun prend son temps et l'animatrice ferme les choix quand tout le monde est prêt.
      */
-    private fun timerRuns(q: Question) = state.phase == Phase.QUESTION && !state.intro && !q.isPortes && (!q.isTurns || state.mimeTurn) &&
+    private fun timerRuns(q: Question) = state.phase == Phase.QUESTION && !state.intro && !q.isPortes && !q.isCoffres && (!q.isTurns || state.mimeTurn) &&
+        (!q.isPatate || state.potato != null) &&
         (!q.isBlind || (state.buzz?.waiting == false && state.segments.isNotEmpty()))
+
+    /** Durée du chrono de [q] : la mèche tirée au sort pour la Patate chaude, sinon celle de la question. */
+    fun durationOf(q: Question): Long = if (q.isPatate) state.potato?.fuseMs ?: q.durationMs else q.durationMs
 
     /**
      * Le chrono vient de (re)partir, il y a moins de [ms] : un appui sur « Arrêter le chrono » à cet instant
@@ -220,7 +231,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         if (!timerRuns(q) || state.paused || state.buzzHeld) return null
         val running = state.segments.last()
         val before = state.elapsedAt(running.start)
-        return running.start + q.durationMs - before
+        return running.start + durationOf(q) - before
     }
 
     /**
@@ -266,7 +277,10 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             if (q == null || q.id != e.qid) null
             else presented(
                 open(
-                    s.copy(awards = s.awards - e.clear.toSet(), mimes = s.mimes - e.clear.toSet(), skipped = s.skipped - e.clear.toSet(), hold = null),
+                    s.copy(
+                        awards = s.awards - e.clear.toSet(), mimes = s.mimes - e.clear.toSet(), skipped = s.skipped - e.clear.toSet(),
+                        chests = s.chests - e.clear.toSet(), hold = null,
+                    ),
                     e.index, q, e.at,
                 ),
                 e.index,
@@ -329,6 +343,50 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             val q = quiz.questions.getOrNull(s.index)
             if (q == null || !q.isPortes || e.qid != s.qid || s.phase != Phase.REVEAL || s.doorsOpened >= q.choices.size) null
             else s.copy(doorsOpened = s.doorsOpened + 1)
+        }
+        is PotatoLit -> {
+            val q = quiz.questions.getOrNull(s.index)
+            if (s.phase != Phase.QUESTION || q == null || !q.isPatate || q.id != e.qid || s.potato != null || s.paused ||
+                e.teams.size < 2 || e.teams.distinct().size != e.teams.size || e.holder !in e.teams || e.fuseMs !in POTATO_FUSE_MIN_MS..POTATO_FUSE_MAX_MS) null
+            else (e.at + POTATO_GO_MS).let { go ->
+                s.copy(potato = PotatoRound(e.fuseMs, e.teams, e.holder, since = go), segments = listOf(Segment(go)), resumeAt = go)
+            }
+        }
+        is PotatoPassed -> {
+            val p = s.potato
+            if (s.phase != Phase.QUESTION || s.qid != e.qid || p == null || s.paused || p.holder != e.from || e.to !in p.targets) null
+            else s.copy(potato = p.copy(holder = e.to, from = e.from, since = e.at, hit = p.hit + e.to, passes = p.passes + 1))
+        }
+        is PotatoExploded -> {
+            val p = s.potato
+            val q = quiz.questions.getOrNull(s.index)
+            if (s.phase != Phase.QUESTION || s.qid != e.qid || p == null || q == null || p.holder != e.holder) null
+            else {
+                val factor = factorIn(s, s.index)
+                val lost = minOf(POTATO_POINTS * factor, (s.scores()[e.holder] ?: 0).coerceAtLeast(0))
+                val awards = p.teams.associateWith {
+                    if (it == e.holder) Award(null, correct = false, points = -lost, bonus = 0)
+                    else Award(null, correct = true, points = POTATO_POINTS * factor, bonus = 0)
+                }
+                s.copy(phase = Phase.REVEAL, hold = null, segments = closeSegments(s, e.at), awards = s.awards + (q.id to awards))
+            }
+        }
+        is ChestsDealt -> {
+            val q = quiz.questions.getOrNull(s.index)
+            if (s.phase != Phase.QUESTION || q == null || !q.isCoffres || q.id != e.qid || s.qid != e.qid || e.qid in s.chests || s.paused ||
+                e.order.isEmpty() || e.order.distinct().size != e.order.size || e.order.any { it.isBlank() } ||
+                e.count !in 2..MAX_CHESTS || e.safe !in 0 until e.count) null
+            else s.copy(chests = s.chests + (e.qid to ChestRound(e.count, e.order, e.safe, e.at)))
+        }
+        is ChestOpened -> {
+            val r = s.chests[e.qid]
+            if (s.phase != Phase.QUESTION || s.qid != e.qid || r == null || s.paused || r.team != e.team || e.chest !in r.closed ||
+                (e.bomb && !r.danger) || (e.bomb && e.delta > 0)) null
+            else {
+                val next = r.copy(opened = r.opened + ChestOpen(e.team, e.chest, e.delta, e.bomb, e.at))
+                // La bombe arrête le jeu : bilan des coffres, puis classement.
+                s.copy(chests = s.chests + (e.qid to next), phase = if (next.team == null) Phase.REVEAL else s.phase)
+            }
         }
         is ScoreAdjusted ->
             if (e.delta == 0 || e.team.isBlank()) null
@@ -492,6 +550,19 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                 )
             }
         }
+        is BalloonBurst -> {
+            val q = quiz.questions.getOrNull(s.index)
+            if (s.phase != Phase.QUESTION || q == null || !q.isGonfleur || q.id != e.qid || s.paused || e.teams.isEmpty() ||
+                (e.team != NO_WINNER && e.team !in e.teams)) null
+            else {
+                val factor = factorIn(s, s.index)
+                val awards = e.teams.filter { it.isNotBlank() }.associateWith {
+                    if (it == e.team) Award(null, correct = true, points = Scoring.MINI_WIN * factor, bonus = 0)
+                    else Award(null, correct = false, points = Scoring.MINI_PLAYED * factor, bonus = 0)
+                }
+                s.copy(phase = Phase.REVEAL, segments = closeSegments(s, e.at), awards = s.awards + (q.id to awards))
+            }
+        }
         is BuzzJudged -> {
             val b = s.buzz
             val team = b?.team
@@ -515,13 +586,26 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
      * Question [q] ouverte : chrono lancé, ou manche de mimes sans chrono (il part au tour de chaque équipe).
      * Une manche de mimes rouverte (jeu rejoué) repart de zéro : ses mimes ne comptent jamais deux fois.
      */
-    private fun open(s: GameState, index: Int, q: Question, at: Long): GameState =
+    private fun open(s0: GameState, index: Int, q: Question, at: Long): GameState = s0.copy(potato = null).let { s ->
         if (q.isTurns) s.copy(
             phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null,
             mimes = s.mimes - q.id, mime = MimeRound(deck = q.cards.indices.toList()), turnPoints = s.turnPoints + (q.id to q.foundPoints),
             // Le buzz d'un jeu précédent (équipe validée) ne doit jamais figer le chrono des mimes.
             buzz = null,
         )
+        // La bombe cachée : pas de chrono ; la box installe les coffres dès que le jeu est lancé.
+        else if (q.isCoffres) s.copy(
+            phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null, mime = null, buzz = null,
+            chests = s.chests - q.id,
+        )
+        // Patate chaude : pas de chrono tant que la box n'a pas allumé la mèche ([lightPotato]).
+        else if (q.isPatate) s.copy(phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null, mime = null, buzz = null)
+        // Gonfleur fou : le chrono de secours part après le décompte 3, 2, 1 de la TV, comme après une reprise.
+        else if (q.isGonfleur) (at + PUMP_GO_MS).let { go ->
+            s.copy(
+                phase = Phase.QUESTION, index = index, qid = q.id, segments = listOf(Segment(go)), resumeAt = go, mime = null, buzz = null,
+            )
+        }
         // Blind test : le morceau s'annonce, la musique attend le « Lancer le morceau » de l'animatrice.
         else if (q.isBlind) s.copy(
             phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null, mime = null,
@@ -535,6 +619,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                 buzz = if (q.isBuzz) BuzzRound(armed = q.buzzFromMs == 0L) else null, doorsOpened = 0,
             )
         }
+    }
 
     private fun closeSegments(s: GameState, at: Long) = s.segments.map { if (it.end == null) it.copy(end = maxOf(at, it.start)) else it }
 
@@ -564,6 +649,12 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             state.intro -> emit(GameLaunched(nextSeq, now))
             // Blind test à la télécommande : OK lance la musique, ou l'arrête.
             question?.isBlind == true -> if (state.buzz?.waiting == true) blindPlay(now) else blindStop(now)
+            // La bombe cachée : seules les équipes ouvrent les coffres, depuis leur tablette.
+            question?.isCoffres == true -> null
+            // Gonfleur fou : l'arrêt de la course a besoin des tapes des tablettes ([balloon]).
+            question?.isGonfleur == true -> null
+            // Patate chaude : seule la mèche décide de la fin.
+            question?.isPatate == true -> null
             state.mime == null -> close(now)
             state.mimeTurn -> mimeStop(now)
             else -> emit(ScoresShown(nextSeq, now))
@@ -676,7 +767,64 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
 
     /** Reprise avec le décompte 3, 2, 1 : le chrono repart quand il se termine. */
     fun resume(now: Long, countdownMs: Long = RESUME_COUNTDOWN_MS): GameEvent? = emit(Resumed(nextSeq, now, countdownMs))
-    fun close(now: Long): GameEvent? = if (state.paused) null else emit(QuestionClosed(nextSeq, now))
+    fun close(now: Long): GameEvent? =
+        if (state.paused || question?.isGonfleur == true || question?.isPatate == true) null else emit(QuestionClosed(nextSeq, now))
+
+    /** Patate chaude : la mèche est à allumer (jeu lancé, pas encore de bombe). */
+    fun needsPotato(): Boolean {
+        val q = question ?: return false
+        return q.isPatate && state.phase == Phase.QUESTION && !state.intro && !state.paused && state.potato == null
+    }
+
+    /** Patate chaude : allume la mèche (durée tirée au sort) ; la bombe part d'une équipe tirée au sort parmi [teams]. */
+    fun lightPotato(teams: List<String>, now: Long, random: Random = Random.Default): GameEvent? {
+        val q = question ?: return null
+        val playing = teams.distinct()
+        if (!needsPotato() || playing.size < 2) return null
+        return emit(PotatoLit(nextSeq, now, q.id, playing.random(random), drawFuse(random), playing))
+    }
+
+    /**
+     * Patate chaude : [team] envoie la bombe à [to]. Refusé si [team] ne la tient pas, avant la fin de la mèche qui
+     * colle, vers l'envoyeur (sauf à 2 équipes), en pause ou pendant un décompte.
+     */
+    fun passPotato(team: String, to: String, now: Long, sentAt: Long = now): GameEvent? {
+        val p = state.potato ?: return null
+        if (state.paused || state.phase != Phase.QUESTION || p.holder != team || to !in p.targets) return null
+        if (now + ARM_TOLERANCE_MS < p.readyAt || (state.resumeAt ?: Long.MIN_VALUE) > now + ARM_TOLERANCE_MS) return null
+        // Envoi parti avant la fin de la mèche (heure du serveur de l'écriture) : il compte, même reçu un peu après.
+        if (remainingMs(minOf(sentAt, now)) == 0L) return null
+        return emit(PotatoPassed(nextSeq, maxOf(now, p.readyAt), state.qid!!, team, to))
+    }
+
+    /** Patate chaude, secours de la régie : la bombe part au hasard chez une équipe permise (tablette en panne). */
+    fun passPotatoRandom(now: Long, random: Random = Random.Default): GameEvent? {
+        val p = state.potato ?: return null
+        return passPotato(p.holder, p.targets.randomOrNull(random) ?: return null, now)
+    }
+
+    /** Patate chaude : la mèche est arrivée au bout, la bombe explose chez l'équipe qui la tient. */
+    fun explode(now: Long): GameEvent? {
+        val p = state.potato ?: return null
+        if (state.paused || state.phase != Phase.QUESTION || remainingMs(now) > 0) return null
+        return emit(PotatoExploded(nextSeq, now, state.qid!!, p.holder))
+    }
+
+    /**
+     * Gonfleur fou : fin de la course d'après les tapes des tablettes ([pumps], équipes inscrites [teams]). Un ballon
+     * éclaté la termine toujours ; [stop] (arrêt de l'animatrice, fin du chrono de secours) donne la victoire au plus
+     * gros ballon. Rien pendant le décompte du départ ou d'une reprise, ni en pause.
+     */
+    fun balloon(pumps: Map<String, Pump>, teams: Collection<String>, now: Long, stop: Boolean): GameEvent? {
+        val q = question ?: return null
+        if (!q.isGonfleur || state.phase != Phase.QUESTION || state.intro || state.paused || teams.isEmpty()) return null
+        if (stop && (state.resumeAt ?: Long.MIN_VALUE) > now) return null
+        val winner = pumpWinner(pumps.filterKeys { it in teams }, teams, stop) ?: return null
+        return emit(BalloonBurst(nextSeq, now, q.id, winner, teams.toList()))
+    }
+
+    /** Gonfleur fou : heure du serveur du « GONFLEZ ! » de cette course (null hors course). */
+    val pumpGoAt: Long? get() = state.openedAt?.takeIf { question?.isGonfleur == true && !state.intro }
 
     /** Calcule les points à partir des réponses reçues. Les réponses des équipes inconnues sont ignorées par l'appelant. */
     fun reveal(now: Long, answers: Map<String, Answer>): GameEvent? {
@@ -736,6 +884,48 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
      * Le suspense vient des valeurs tirées au hasard, pas de l'ordre.
      */
     fun doorOrder(): List<Int> = question?.takeIf { it.isPortes }?.choices?.indices?.toList() ?: emptyList()
+
+    /** La bombe cachée : les coffres du jeu en cours, ou null (autre jeu, coffres pas encore installés). */
+    val chestRound: ChestRound? get() = state.qid?.let { state.chests[it] }?.takeIf { question?.isCoffres == true }
+
+    /** La bombe cachée : le jeu vient d'être lancé, la box doit installer les coffres ([dealChests]). */
+    fun needsChests(): Boolean {
+        val q = question ?: return false
+        return q.isCoffres && state.phase == Phase.QUESTION && !state.intro && !state.paused && q.id !in state.chests
+    }
+
+    /**
+     * La bombe cachée : installe les coffres pour les équipes [teams] (dans l'ordre d'inscription). L'équipe la plus en
+     * retard commence ; à égalité, l'ordre d'inscription.
+     */
+    fun dealChests(teams: List<String>, now: Long): GameEvent? {
+        val q = question ?: return null
+        if (!needsChests() || teams.isEmpty()) return null
+        val scores = state.scores()
+        val order = teams.distinct().sortedBy { scores[it] ?: 0 }
+        return emit(ChestsDealt(nextSeq, now, q.id, order, chestCount(order.size), order.size * safeRounds(order.size)))
+    }
+
+    /**
+     * La bombe cachée : l'équipe [team] ouvre le coffre [chest] ; son contenu est tiré au sort maintenant. Refusé
+     * avant la fin de l'animation précédente ([ChestRound.readyAt]), en pause, ou si ce n'est pas le tour de [team].
+     */
+    fun openChest(team: String, chest: Int, now: Long, random: Random = Random.Default): GameEvent? {
+        val r = chestRound ?: return null
+        if (state.paused || r.team != team || chest !in r.closed || now + ARM_TOLERANCE_MS < r.readyAt) return null
+        val score = (state.scores()[team] ?: 0).coerceAtLeast(0)
+        val value = drawChest(r, random)
+        val delta = if (value == null) -minOf(BOMB_POINTS, score) else if (value < 0) maxOf(value, -score) else value
+        return emit(ChestOpened(nextSeq, now, r.let { question!!.id }, team, chest, delta, bomb = value == null))
+    }
+
+    /** La bombe cachée, secours de la régie : un coffre fermé au hasard pour l'équipe qui joue (tablette en panne). */
+    fun openRandomChest(now: Long, random: Random = Random.Default): GameEvent? {
+        val r = chestRound ?: return null
+        val team = r.team ?: return null
+        val chest = r.closed.randomOrNull(random) ?: return null
+        return openChest(team, chest, now, random)
+    }
 
     /** Blind test : le morceau qui suit le morceau en cours dans la même playlist, s'il y en a un. */
     fun nextTrack(): Question? {
@@ -871,6 +1061,9 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     /** Chrono à zéro : fin de la question, ou fin du tour de mimes. */
     fun timeUp(now: Long): GameEvent? = when {
         state.intro -> null
+        // Gonfleur fou : la fin du chrono de secours a besoin des tapes des tablettes ([balloon]).
+        question?.isGonfleur == true -> null
+        question?.isPatate == true -> explode(now)
         state.mime != null -> mimeStop(now)
         // Blind test : fin de l'extrait, la musique s'arrête et l'animatrice décide de la suite.
         question?.isBlind == true -> blindStop(now)

@@ -265,6 +265,10 @@ private fun ResumeCountdown(state: UiState.Playing) {
     val resumeAt = state.resumeAt ?: return
     // Avant les dernières questions multipliées, c'est l'annonce « × N » qui occupe l'écran, pas le 3, 2, 1.
     if (resumeAt == state.introUntil) return
+    // Départ du Gonfleur fou : la TV montre son propre 3, 2, 1… « GONFLEZ ! ».
+    if (resumeAt == state.pumpGoAt) return
+    // Mèche de la patate chaude qui s'allume : la scène de la bombe occupe l'écran.
+    if (state.potato?.let { it.passes == 0 && resumeAt == it.since } == true) return
     var shown by remember(resumeAt) { mutableIntStateOf(secondsBefore(resumeAt, state.serverOffset)) }
     LaunchedEffect(resumeAt) {
         while (true) {

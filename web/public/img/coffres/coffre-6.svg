@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-6 -6 120 102" width="120" height="102">
+<defs><linearGradient id="c" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F8EEDF"/><stop offset="1" stop-color="#DCC5A2"/></linearGradient><linearGradient id="o" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF3D1"/><stop offset=".5" stop-color="#E9C27A"/><stop offset="1" stop-color="#A8782F"/></linearGradient><linearGradient id="oh" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#A8782F"/><stop offset=".35" stop-color="#FFF3D1"/><stop offset=".7" stop-color="#E9C27A"/><stop offset="1" stop-color="#A8782F"/></linearGradient><linearGradient id="s" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".1"/></linearGradient><radialGradient id="ombre"><stop offset="0" stop-color="#000" stop-opacity=".5"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient></defs>
+<ellipse cx="54.0" cy="89" rx="62.63999999999999" ry="5" fill="url(#ombre)"/>
+<clipPath id="cc"><path d="M0 32.4 H108 V83.52 Q108 90 101.52 90 H6.4799999999999995 Q0 90 0 83.52 Z"/></clipPath>
+<path d="M0 32.4 H108 V83.52 Q108 90 101.52 90 H6.4799999999999995 Q0 90 0 83.52 Z" fill="url(#c)"/><path d="M0 32.4 H108 V83.52 Q108 90 101.52 90 H6.4799999999999995 Q0 90 0 83.52 Z" fill="url(#s)"/>
+<g clip-path="url(#cc)"><rect x="0" y="65.41199999999999" width="108" height="5.3999999999999995" fill="#8E5BB5"/><rect x="0" y="79.236" width="108" height="5.3999999999999995" fill="#8E5BB5"/></g>
+<path d="M0 32.4 H108 V83.52 Q108 90 101.52 90 H6.4799999999999995 Q0 90 0 83.52 Z" fill="none" stroke="#8A6A44" stroke-opacity=".7" stroke-width="1.6"/>
+<clipPath id="cv"><path d="M-2.16 34.199999999999996 V32.4 A56.160000000000004 32.4 0 0 1 110.16 32.4 V34.199999999999996 Z"/></clipPath>
+<path d="M-2.16 34.199999999999996 V32.4 A56.160000000000004 32.4 0 0 1 110.16 32.4 V34.199999999999996 Z" fill="url(#c)"/><path d="M-2.16 34.199999999999996 V32.4 A56.160000000000004 32.4 0 0 1 110.16 32.4 V34.199999999999996 Z" fill="#fff" opacity=".14"/>
+<g clip-path="url(#cv)"><rect x="49.68" y="0" width="8.64" height="32.4" fill="#8E5BB5"/></g>
+<path d="M-2.16 34.199999999999996 V32.4 A56.160000000000004 32.4 0 0 1 110.16 32.4 V34.199999999999996 Z" fill="none" stroke="#8A6A44" stroke-opacity=".7" stroke-width="1.6"/>
+<rect x="-2.7" y="29.25" width="113.4" height="6.300000000000001" rx="2.16" fill="url(#o)"/>
+<rect x="34.56" y="45.395999999999994" width="38.879999999999995" height="27.0" rx="5.4" fill="url(#o)" stroke="#A8782F" stroke-opacity=".6" stroke-width="1.6"/>
+</svg>

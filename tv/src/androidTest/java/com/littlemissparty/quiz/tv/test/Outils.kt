@@ -364,6 +364,33 @@ class PupitreSimule(etiquette: String) : AutoCloseable {
         }
     }.onFailure { Log.i(TAG, "Choix du mot refusé : ${it.message}") }.isSuccess
 
+    /** La bombe cachée : l'équipe qui joue ouvre le coffre [choix] ; renvoie false si le serveur refuse. */
+    fun ouvrirCoffre(code: String, choix: Int): Boolean = runCatching {
+        val cle = etat(code).child("chests/key").value.toString()
+        bloquer {
+            base.getReference("games/$code/chestChoice/$cle")
+                .setValue(mapOf("i" to choix, "at" to ServerValue.TIMESTAMP)).await()
+        }
+    }.onFailure { Log.i(TAG, "Coffre refusé : ${it.message}") }.isSuccess
+
+    /** Gonfleur fou : envoie [n] tapes au total pour cette équipe ; renvoie false si le serveur refuse. */
+    fun gonfler(code: String, n: Int): Boolean = runCatching {
+        val cle = etat(code).child("pump/key").value.toString()
+        bloquer {
+            base.getReference("games/$code/pumps/$cle/$uid")
+                .setValue(mapOf("n" to n, "at" to ServerValue.TIMESTAMP)).await()
+        }
+    }.onFailure { Log.i(TAG, "Tapes refusées : ${it.message}") }.isSuccess
+
+    /** Patate chaude : la tablette de l'équipe qui tient la bombe l'envoie à [vers] ; false si le serveur refuse. */
+    fun envoyerPatate(code: String, vers: String): Boolean = runCatching {
+        val cle = etat(code).child("potato/key").value?.toString() ?: error("pas de bombe en jeu")
+        bloquer {
+            base.getReference("games/$code/potatoPass/$cle")
+                .setValue(mapOf("to" to vers, "at" to ServerValue.TIMESTAMP)).await()
+        }
+    }.onFailure { Log.i(TAG, "Envoi de la bombe refusé : ${it.message}") }.isSuccess
+
     /** Pictionary : envoie un morceau de trait (« x,y x,y … » de 0 à 1000) ; renvoie false si le serveur refuse. */
     fun dessiner(code: String, points: String, couleur: String = "#F94144", epaisseur: Int = 3): Boolean = runCatching {
         val cle = etat(code).child("mime/drawKey").value.toString()

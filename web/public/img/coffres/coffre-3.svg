@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-6 -6 92 76" width="92" height="76">
+<defs><linearGradient id="c" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C8EFDF"/><stop offset="1" stop-color="#86C8AD"/></linearGradient><linearGradient id="o" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF3D1"/><stop offset=".5" stop-color="#E9C27A"/><stop offset="1" stop-color="#A8782F"/></linearGradient><linearGradient id="oh" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#A8782F"/><stop offset=".35" stop-color="#FFF3D1"/><stop offset=".7" stop-color="#E9C27A"/><stop offset="1" stop-color="#A8782F"/></linearGradient><linearGradient id="s" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".1"/></linearGradient><radialGradient id="ombre"><stop offset="0" stop-color="#000" stop-opacity=".5"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient></defs>
+<ellipse cx="40.0" cy="63" rx="46.4" ry="5" fill="url(#ombre)"/>
+<circle cx="11.200000000000001" cy="59.52" r="4.4799999999999995" fill="url(#o)"/>
+<circle cx="68.8" cy="59.52" r="4.4799999999999995" fill="url(#o)"/>
+<clipPath id="cc"><path d="M0 28.16 H80 V52.800000000000004 Q80 57.6 75.2 57.6 H4.8 Q0 57.6 0 52.800000000000004 Z"/></clipPath>
+<path d="M0 28.16 H80 V52.800000000000004 Q80 57.6 75.2 57.6 H4.8 Q0 57.6 0 52.800000000000004 Z" fill="url(#c)"/><path d="M0 28.16 H80 V52.800000000000004 Q80 57.6 75.2 57.6 H4.8 Q0 57.6 0 52.800000000000004 Z" fill="url(#s)"/>
+<g clip-path="url(#cc)"><rect x="4.0" y="32.0" width="72.0" height="21.76" rx="3.2" fill="none" stroke="#E9C27A" stroke-width="1.6"/></g>
+<path d="M0 28.16 H80 V52.800000000000004 Q80 57.6 75.2 57.6 H4.8 Q0 57.6 0 52.800000000000004 Z" fill="none" stroke="#2F6E58" stroke-opacity=".7" stroke-width="1.6"/>
+<clipPath id="cv"><path d="M-1.6 29.44 V28.16 A41.6 28.16 0 0 1 81.6 28.16 V29.44 Z"/></clipPath>
+<path d="M-1.6 29.44 V28.16 A41.6 28.16 0 0 1 81.6 28.16 V29.44 Z" fill="url(#c)"/><path d="M-1.6 29.44 V28.16 A41.6 28.16 0 0 1 81.6 28.16 V29.44 Z" fill="#fff" opacity=".14"/>
+<g clip-path="url(#cv)"></g>
+<path d="M-1.6 29.44 V28.16 A41.6 28.16 0 0 1 81.6 28.16 V29.44 Z" fill="none" stroke="#2F6E58" stroke-opacity=".7" stroke-width="1.6"/>
+<rect x="-2.0" y="25.92" width="84.0" height="4.48" rx="1.6" fill="url(#o)"/>
+<circle cx="40.0" cy="3.84" r="5.2" fill="#F7A6C8" stroke="#E9C27A" stroke-width="1.6"/>
+<rect x="25.6" y="33.6128" width="28.799999999999997" height="19.2" rx="4.0" fill="url(#o)" stroke="#A8782F" stroke-opacity=".6" stroke-width="1.6"/>
+</svg>

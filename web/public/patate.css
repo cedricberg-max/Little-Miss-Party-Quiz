@@ -1,0 +1,28 @@
+/* La Patate chaude sur la tablette : la bombe, et chez nous, les équipes à qui l'envoyer. */
+#patate-host { width: 100%; }
+.pc { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; padding: 6px 8px; text-align: center; color: #fff; }
+.pc-bombe { font-size: clamp(56px, 16vw, 96px); line-height: 1; filter: drop-shadow(0 0 14px rgba(255, 140, 90, .55)); }
+.pc-chez-moi .pc-bombe { animation: pc-brule .5s ease-in-out infinite; }
+@keyframes pc-brule { 25% { transform: rotate(-8deg) scale(1.06); } 75% { transform: rotate(8deg) scale(1.06); } }
+.pc-titre { margin: 0; font: 900 clamp(24px, 5.6vw, 34px) system-ui, sans-serif; color: #f3d79c; text-shadow: 0 2px 0 rgba(26, 11, 46, .35); }
+.pc-chez-moi .pc-titre { color: #ffd2b8; }
+.pc-texte { margin: 0; font-size: clamp(16px, 3.6vw, 21px); font-weight: 700; opacity: .92; line-height: 1.35; max-width: 640px; }
+
+/* Mèche qui colle : la barre se remplit, puis les équipes s'allument. */
+.pc-colle { width: min(80%, 420px); height: 12px; border-radius: 99px; background: rgba(26, 11, 46, .55); overflow: hidden; }
+.pc-colle span { display: block; height: 100%; width: 0; border-radius: 99px; background: linear-gradient(90deg, #ffb35a, #ff5a5f); }
+
+.pc-equipes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; width: min(100%, 720px); }
+.pc-equipe { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 76px; padding: 8px 14px;
+  border: 0; border-radius: 22px; cursor: pointer; color: #fff; font: 900 clamp(19px, 4.4vw, 26px) system-ui, sans-serif;
+  background: rgba(26, 11, 46, .6); box-shadow: inset 0 0 0 3px var(--eq), 0 6px 16px rgba(0, 0, 0, .25); transition: transform .15s, opacity .2s; }
+.pc-equipe small { font-size: 14px; font-weight: 700; opacity: .85; min-height: 1em; }
+.pc-nom { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-equipe:disabled { opacity: .45; cursor: default; }
+.pc-equipe:not(:disabled):active { transform: scale(.96); }
+/* Pas encore touchée : elle brille un peu. */
+.pc-equipe.pc-neuve:not(:disabled) { animation: pc-brille 1.6s ease-in-out infinite; }
+@keyframes pc-brille { 50% { box-shadow: inset 0 0 0 3px var(--eq), 0 0 24px var(--eq); } }
+.pc-equipe.pc-choisie { opacity: 1; transform: scale(1.05); box-shadow: inset 0 0 0 4px #ffd166, 0 0 22px rgba(255, 209, 102, .8); }
+
+@media (prefers-reduced-motion: reduce) { .pc-bombe, .pc-equipe { animation: none !important; } }

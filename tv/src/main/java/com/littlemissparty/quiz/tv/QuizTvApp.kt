@@ -100,6 +100,10 @@ class TvActions(
     /** Blind test à la télécommande : révéler le morceau sans gagnant, le passer sans le révéler. */
     val blindReveal: () -> Unit = {},
     val blindSkip: () -> Unit = {},
+    /** La bombe cachée à la télécommande : un coffre au hasard pour l'équipe qui joue. */
+    val chestRandom: () -> Unit = {},
+    /** Patate chaude à la télécommande : la bombe part au hasard (tablette en panne). */
+    val potatoRandom: () -> Unit = {},
 )
 
 /** Mise à jour de l'appli depuis la TV : état de la fenêtre et version trouvée par la recherche discrète. */
@@ -192,6 +196,9 @@ private fun Playing(state: UiState.Playing, actions: TvActions) {
         Phase.LOBBY -> Lobby(state, actions)
         Phase.QUESTION, Phase.CLOSED, Phase.REVEAL ->
             if (state.intro) PresentationScreen(state, actions)
+            else if (state.coffres != null || state.question?.isCoffres == true) CoffresScreen(state, actions)
+            else if (state.question?.isGonfleur == true) GonfleurScreen(state, actions)
+            else if (state.question?.isPatate == true) PatateScreen(state, actions)
             else if (state.portes != null) PortesScreen(state, actions)
             else if (state.mime?.picto == true) PictionaryScreen(state, actions)
             else if (state.mime != null) MimeScreen(state, actions) else QuestionScreen(state, actions)

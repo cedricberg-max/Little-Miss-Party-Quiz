@@ -1337,6 +1337,137 @@ def portes_renversement():
         mx.add('bells', note('glockenspiel', m + 12, .3, .5, release=.8), 1.15 + k * .08)
     return mx.render(duck=0)
 
+# ---------------------------------------------------------------- La bombe cachée
+def coffre_secoue():
+    """Le coffre tremble : petits chocs de bois irréguliers et pièces qui tintent dedans, de plus en plus fort."""
+    mx = Mix(2, tail=.6)
+    temps = [0, .1, .17, .27, .33, .41, .48, .55, .61, .67, .72, .77]
+    for k, t in enumerate(temps):
+        mx.add('drums', note('woodblock', 55 + (k * 5) % 7, .06, .35 + .05 * k), t / B)
+        mx.add('bells', note('tinkle_bell', 96 + (k * 7) % 9, .05, .12 + .02 * k, release=.15), (t + .02) / B)
+    return mx.render(duck=0)
+
+def coffre_ouvre():
+    """Le couvercle saute : déclic de serrure, grincement court, souffle de lumière et arpège de célesta qui monte."""
+    mx = Mix(3, tail=1.5)
+    n = int(.03 * SR); t = np.arange(n) / SR
+    mx.add('fx', stereo(biquad(noise(n), 'hp', 3000) * np.exp(-t / .006) * .8, .4, 3), 0)
+    mx.add('drums', note('woodblock', 74, .08, .8), 0)
+    mx.add('fx', _glisse(lambda t: 140 + 120 * t / .3 + 22 * np.sin(2 * np.pi * 27 * t), .3, (1, .6, .4, .25), .25), .03 / B)
+    mx.add('fx', whoosh(.5, .45, .08, 1200, 7000), .05 / B)
+    mx.add('fx', reverse_swell(.25, .35), 0)
+    for k, m in enumerate([72, 76, 79, 84, 88]):
+        mx.add('bells', note('celesta', m, .2, .45, release=.6), (.08 + k * .05) / B)
+    return mx.render(duck=0)
+
+def coffre_or():
+    """Bonus : cascade de pièces d'or, clochettes et petit accord de cuivres joyeux."""
+    mx = Mix(4, tail=2)
+    r = np.random.default_rng(11)
+    for k in range(26):
+        t = .02 + k * .045 + r.uniform(0, .02)
+        mx.add('bells', note('tinkle_bell', int(94 + r.integers(0, 12)), .07, .22 + .1 * r.random(), release=.25), t / B)
+        if k % 3 == 0:
+            mx.add('bells', note('glockenspiel', int(96 + r.integers(0, 8)), .1, .2, release=.4), (t + .01) / B)
+    mx.add('brass', chord('brass_section', [60, 64, 67, 72], .7, .7, release=.5), .25 / B)
+    mx.add('drums', clap(.6), .25 / B)
+    mx.add('bells', note('celesta', 96, .3, .35, release=1.0), .3 / B)
+    return mx.render(duck=0)
+
+def bombe_alerte():
+    """Alerte : la bombe tombe au sol (« boum » sourd), accord grave inquiétant puis tic-tac."""
+    mx = Mix(6, tail=1.5)
+    mx.add('fx', _glisse(lambda t: 1500 * np.exp(-t * 2.4) + 200, .55, (1, .25), .3), 0)
+    mx.add('fx', sub_boom(.9, 1.2), .58 / B)
+    mx.add('drums', note('timpani', 31, 1.2, 1.0), .58 / B)
+    mx.add('kick', kick(.9), .58 / B)
+    mx.add('strings', chord('tremolo_strings', [38, 45, 50, 53], 2.0, .7, release=.6), .7 / B)
+    mx.add('brass', chord('brass_section', [38, 44, 50], .5, .8, release=.4), .7 / B)
+    mx.add('brass', chord('brass_section', [37, 43, 49], .9, .8, release=.6), 1.2 / B)
+    for k in range(5):
+        mx.add('drums', note('woodblock', 79 if k % 2 == 0 else 74, .05, .6), (1.6 + k * .26) / B)
+    return mx.render(duck=0)
+
+def bombe_meche():
+    """La mèche grésille : crépitements qui accélèrent, souffle qui monte."""
+    dur = 1.1
+    n = int(dur * SR); t = np.arange(n) / SR
+    y = biquad(noise(n), 'bp', 5200, .8) * (.25 + .5 * t / dur)
+    r = np.random.default_rng(5)
+    crep = np.zeros(n, np.float32)
+    k = 0.0
+    while k < dur - .01:
+        i = int(k * SR); m = int(.004 * SR)
+        crep[i:i + m] += r.uniform(.4, 1.0) * np.exp(-np.arange(m) / (.0012 * SR))
+        k += r.uniform(.015, .05) * (1 - .6 * k / dur)
+    crep = biquad(crep, 'hp', 1800)
+    return stereo((y + crep * .9) * np.minimum(1, t / .05), .4, 6)
+
+def bombe_boum():
+    """BOUM ! : grosse explosion de dessin animé (grave, crash, souffle), débris, puis trompette bouchée moqueuse."""
+    mx = Mix(6, tail=2.5)
+    n = int(1.6 * SR); t = np.arange(n) / SR
+    souffle = biquad(noise(n), 'lp', 1600) * np.exp(-t / .35) * 1.3
+    mx.add('fx', stereo(np.tanh(2 * souffle), .5, 9), 0)
+    mx.add('fx', sub_boom(1.0, 2.2), 0)
+    mx.add('kick', kick(1.0), 0)
+    mx.add('drums', note('taiko_drum', 36, 1.0, 1.0), 0)
+    mx.add('brass', note('orchestra_hit', 48, .6, .8), 0)
+    mx.add('fx', crash(.9, 2.5), .02 / B)
+    for k in range(9):
+        mx.add('drums', note('woodblock', 60 + (k * 5) % 12, .05, .35 - .025 * k), (.35 + k * .07 + .01 * (k % 3)) / B)
+    for k, (m, d) in enumerate(((60, .2), (59, .2), (58, .2), (57, .7))):
+        mx.add('brass', note('muted_trumpet', m, d, .6, release=.15), (1.25 + k * .24) / B)
+    return mx.render(duck=0)
+
+# ---------------------------------------------------------------- Le Gonfleur fou
+def gonfle(i):
+    """Coup de pompe : souffle d'air et caoutchouc qui couine, de plus en plus aigu (palier i = 0, 1, 2)."""
+    mx = Mix(1, tail=.4)
+    n = int(.28 * SR); t = np.arange(n) / SR
+    air = sweep_bp(noise(n), 900 + 500 * i, 2400 + 900 * i, 1.4) * np.sin(np.pi * t / .28) ** 1.5 * .8
+    mx.add('fx', stereo(air, .3, 5), 0)
+    f0 = 330 * 2 ** (i * 5 / 12)
+    mx.add('fx', _glisse(lambda t: f0 * (1 + .5 * t / .22) + 25 * np.sin(2 * np.pi * 31 * t), .22, (1, .6, .45, .3), .3), .04 / B)
+    return mx.render(duck=0)
+
+def ballon_eclate():
+    """POP ! : claquement sec, confettis (clochettes) et petite fanfare de victoire."""
+    mx = Mix(5, tail=2)
+    n = int(.12 * SR); t = np.arange(n) / SR
+    pop = biquad(noise(n), 'hp', 900) * np.exp(-t / .012) * 1.6 + np.sin(2 * np.pi * 140 * t) * np.exp(-t / .02) * .8
+    mx.add('fx', stereo(np.tanh(pop), .3, 4), 0)
+    mx.add('kick', kick(.8), 0)
+    mx.add('drums', clap(.8), 0)
+    for k in range(14):
+        mx.add('bells', note('tinkle_bell', 96 + (k * 5) % 12, .08, .25, release=.3), (.05 + k * .05) / B)
+    for k, m in enumerate([67, 72, 76]):
+        mx.add('brass', note('trumpet', m, .14, .7, release=.1), (.25 + k * .13) / B)
+    mx.add('brass', chord('brass_section', [60, 64, 67, 72, 79], 1.1, .9, release=.6), .64 / B)
+    mx.add('fx', crash(.5, 2), .64 / B)
+    return mx.render(duck=0)
+
+# ---------------------------------------------------------------- La patate chaude
+def tic(i):
+    """Tic-tac de la bombe, de plus en plus fort et sec (i = 0 doux, 1 moyen, 2 fort)."""
+    mx = Mix(1, tail=.3)
+    mx.add('drums', note('woodblock', 79 + 2 * i, .05, .45 + .25 * i), 0)
+    n = int(.03 * SR); t = np.arange(n) / SR
+    mx.add('fx', stereo(biquad(noise(n), 'hp', 4000) * np.exp(-t / .004) * (.2 + .25 * i), .2, 2), 0)
+    if i == 2:
+        mx.add('fx', sub_boom(.25, .25), 0)
+    return mx.render(duck=0)
+
+def patate_passe():
+    """La bombe change d'équipe : lancer (souffle qui traverse), réception (« ploc ») et petite note d'alerte."""
+    mx = Mix(3, tail=1)
+    mx.add('fx', whoosh(.55, .9, .25, 700, 5000), 0)
+    mx.add('drums', note('melodic_tom', 50, .2, .8), .5 / B)
+    mx.add('kick', kick(.5), .5 / B)
+    mx.add('brass', note('brass_section', 62, .18, .5, release=.1), .55 / B)
+    mx.add('brass', note('brass_section', 68, .3, .55, release=.2), .7 / B)
+    return mx.render(duck=0)
+
 PIECES = {
     'generique': (generique, -14.5), 'bed_full': (lambda: bed('full'), -15.5), 'bed_light': (lambda: bed('light'), -18.5),
     'tension': (tension, -16), 'riser_4b': (riser_4b, -17), 'impact': (impact, -15), 'round_sting': (round_sting, -15),
@@ -1357,12 +1488,18 @@ PIECES = {
     'pictio_crayon': (pictio_crayon, -24),
     'portes_ouvre': (portes_ouvre, -16), 'portes_jackpot': (portes_jackpot, -16), 'portes_tuile': (portes_tuile, -18),
     'portes_renversement': (portes_renversement, -15),
+    'coffre_secoue': (coffre_secoue, -20), 'coffre_ouvre': (coffre_ouvre, -17), 'coffre_or': (coffre_or, -17),
+    'bombe_alerte': (bombe_alerte, -15), 'bombe_meche': (bombe_meche, -21), 'bombe_boum': (bombe_boum, -14),
+    'ballon_eclate': (ballon_eclate, -15), 'patate_passe': (patate_passe, -16),
     'bed_mimes': (bed_mimes, -16.5), 'bed_pause': (bed_pause, -19), 'pause_in': (pause_in, -18), 'transition': (transition, -15),
 }
 for i in range(4):
     PIECES[f'pop_{i + 1}'] = ((lambda i=i: pop(i)), -22)
     PIECES[f'team_sting_{i + 1}'] = ((lambda i=i: team_sting(i)), -17)
     PIECES[f'fun_buzz_{i + 1}'] = ((lambda i=i: fun_buzz(i)), -20)
+for i in range(3):
+    PIECES[f'gonfle_{i + 1}'] = ((lambda i=i: gonfle(i)), -21)
+    PIECES[f'tic_{i + 1}'] = ((lambda i=i: tic(i)), (-26, -21, -17)[i])
 LOOPS = {'bed_full': 32, 'bed_light': 32, 'bed_mimes': 32, 'bed_pause': 32, 'bed_express': 32, 'bed_magie': 32, 'pictio_crayon': 4}
 
 if __name__ == '__main__':

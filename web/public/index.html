@@ -15,6 +15,9 @@
   <link rel="stylesheet" href="ardoise.css">
   <link rel="stylesheet" href="spectateurs.css">
   <link rel="stylesheet" href="portes.css">
+  <link rel="stylesheet" href="coffres.css">
+  <link rel="stylesheet" href="gonfleur.css">
+  <link rel="stylesheet" href="patate.css">
   <link rel="stylesheet" href="regie.css">
 </head>
 <body>
@@ -97,6 +100,21 @@
       <div id="choices" class="choices"></div>
       <div id="portes-host" hidden></div>
       <p id="q-status" class="hint">Regardez la question sur la TV !</p>
+    </section>
+
+    <section id="screen-coffres" class="screen">
+      <div class="team-banner small"><span class="dot"></span><span class="team-label"></span></div>
+      <div id="coffres-host"></div>
+    </section>
+
+    <section id="screen-gonfleur" class="screen">
+      <div class="team-banner small"><span class="dot"></span><span class="team-label"></span></div>
+      <div id="gonfleur-host"></div>
+    </section>
+
+    <section id="screen-patate" class="screen">
+      <div class="team-banner small"><span class="dot"></span><span class="team-label"></span></div>
+      <div id="patate-host"></div>
     </section>
 
     <section id="screen-result" class="screen">
@@ -199,6 +217,22 @@
         <p id="statues-info" class="mime-info"></p>
         <div id="statues-teams" class="statues-teams"></div>
         <p id="statues-points" class="hint"></p>
+      </section>
+      <!-- La bombe cachée : la régie suit les coffres ; elle ne voit ni ne choisit leur contenu (tiré à l'ouverture). -->
+      <section id="coffres" class="flou" hidden aria-label="La bombe cachée">
+        <p id="coffres-info" class="mime-info"></p>
+        <p id="coffres-opened" class="hint"></p>
+        <button id="coffres-random" class="btn secondary flou-ko">🎲 Ouvrir un coffre au hasard</button>
+        <p class="hint">Seulement si la tablette de l'équipe ne répond plus ou si l'équipe n'arrive pas à choisir.</p>
+      </section>
+      <section id="patate" class="flou" hidden aria-label="La Patate chaude">
+        <p id="patate-info" class="mime-info"></p>
+        <button id="patate-random" class="btn secondary flou-ko">🎲 Envoyer la bombe au hasard</button>
+        <p class="hint">Seulement si la tablette de l'équipe qui tient la bombe ne répond plus.</p>
+      </section>
+      <section id="gonfleur" class="flou" hidden aria-label="Le Gonfleur fou">
+        <p id="gonfleur-info" class="mime-info"></p>
+        <div id="gonfleur-teams" class="gonfleur-teams"></div>
       </section>
       <!-- Blind test : la régie lance chaque morceau, juge la réponse orale, relance, révèle ou passe. -->
       <section id="blind" class="flou blind" hidden aria-label="Blind test">

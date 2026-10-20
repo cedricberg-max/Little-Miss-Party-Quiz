@@ -1,6 +1,8 @@
 package com.littlemissparty.quiz.tv.test
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.littlemissparty.quiz.engine.POTATO_POINTS
+import com.littlemissparty.quiz.engine.PUMP_TARGET
 import com.littlemissparty.quiz.engine.Scoring
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -790,5 +792,190 @@ class RegieTest : TestTv() {
         assertEquals("applied", regie.commande(code, "next"))
         attendreQue("fin de partie") { licornes.etat(code).takeIf { it.child("phase").value == "ended" } }
         assertEquals(300L, points(dragons, code, dragons.uid))
+    }
+
+    @Test
+    fun bombeCacheeApresUnQuizChacunSonTourJusquALaBombePuisLaFin() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val dragons = pupitre("dragons").also { it.rejoindre(code, "Dragons", ROSE) }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        @Suppress("UNCHECKED_CAST")
+        val demo = regie.programme(code)["questions"] as List<Map<String, Any?>>
+        // Exactement ce qu'envoie la régie pour une manche « La bombe cachée » (web/public/show.js).
+        val bombe = mapOf(
+            "id" to "bc", "text" to "La bombe cachée", "choices" to emptyList<String>(), "correct" to -1,
+            "duration" to 20, "kind" to "coffres", "double" to false, "round" to "La bombe cachée",
+        )
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(demo[0] + ("round" to "Quiz"), bombe)))
+
+        // Un jeu avant : les Licornes marquent, les Dragons non.
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("question du quiz ouverte") { licornes.etat(code).takeIf { it.child("qid").value == demo[0]["id"] && it.child("phase").value == "question" } }
+        assertTrue(licornes.repondre(code, demo[0]["id"] as String, (demo[0]["correct"] as Number).toInt()))
+        attendreQue("points du quiz") { points(licornes, code, licornes.uid).takeIf { it >= Scoring.BASE } ?: run { regie.commande(code, "next"); null } }
+
+        // Jeu suivant : la bombe cachée. Les coffres sont installés dès le lancement, les Dragons (derniers) commencent.
+        attendreQue("coffres installés", 30_000) {
+            val e = licornes.etat(code)
+            if (e.child("qid").value == "bc" && e.child("phase").value == "question" && e.child("chests/ready").value == true) true
+            else { if (e.child("qid").value != "bc" || e.child("phase").value != "question") regie.commande(code, "next"); null }
+        }
+        ecran.voit("choisissez un coffre !")
+        ecran.voit("Encore 6 coffres sans danger")
+        ecran.capture("bombe-coffres")
+        assertEquals(dragons.uid, licornes.etat(code).child("chests/team").value)
+        assertEquals("pas le tour des Licornes", false, licornes.ouvrirCoffre(code, 0))
+        assertEquals("le bouton principal n'ouvre jamais de coffre", "refused", regie.commande(code, "next"))
+
+        // Chacun son tour, le premier coffre fermé, jusqu'à la bombe ; une fois avec le secours de la régie.
+        var ouvertures = 0
+        attendreQue("bombe trouvée", 150_000) {
+            val e = licornes.etat(code)
+            val c = e.child("chests")
+            if (c.child("exploded").value == true) return@attendreQue true
+            val equipe = c.child("team").value as? String ?: return@attendreQue null
+            val pret = (c.child("readyAt").value as Number).toLong()
+            if (System.currentTimeMillis() < pret + 500) return@attendreQue null
+            val ouverts = c.child("opened").children.map { (it.child("chest").value as Number).toInt() }.toSet()
+            val libre = (0 until (c.child("count").value as Number).toInt()).first { it !in ouverts }
+            val tour = (c.child("turn").value as Number).toInt()
+            // Refusé (horloges un peu décalées, animation pas tout à fait finie) : on réessaie au tour de boucle suivant.
+            val ok = if (tour == 2) regie.commande(code, "chest_random") == "applied"
+            else (if (equipe == licornes.uid) licornes else dragons).ouvrirCoffre(code, libre)
+            if (!ok) return@attendreQue null
+            attendreQue("coffre ouvert") { licornes.etat(code).takeIf { (it.child("chests/turn").value as Number).toInt() > tour } }
+            ouvertures++
+            if (tour == 0) ecran.capture("bombe-ouverture")
+            null
+        }
+        assertTrue("au moins les 6 coffres sans danger avant la bombe", ouvertures >= 6)
+        val e = licornes.etat(code)
+        assertEquals("reveal", e.child("phase").value)
+        ecran.voit("Le bilan de la bombe cachée", 15_000)
+        ecran.capture("bombe-bilan")
+        assertTrue("jamais sous 0", points(licornes, code, licornes.uid) >= 0 && points(dragons, code, dragons.uid) >= 0)
+
+        // Classement, puis la fin : scores gardés, rien ne bloque.
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("classement") { licornes.etat(code).takeIf { it.child("phase").value == "scores" } }
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("fin de partie") { licornes.etat(code).takeIf { it.child("phase").value == "ended" } }
+    }
+
+    @Test
+    fun gonfleurFouApresUnQuizLePremierBallonEclateGagnePuisLaFin() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val dragons = pupitre("dragons").also { it.rejoindre(code, "Dragons", ROSE) }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        @Suppress("UNCHECKED_CAST")
+        val demo = regie.programme(code)["questions"] as List<Map<String, Any?>>
+        // Exactement ce qu'envoie la régie pour une manche « Le Gonfleur fou » (web/public/show.js).
+        val ballon = mapOf(
+            "id" to "gf", "text" to "Le Gonfleur fou", "choices" to emptyList<String>(), "correct" to -1,
+            "duration" to 45, "kind" to "gonfleur", "double" to false, "round" to "Le Gonfleur fou",
+        )
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(demo[0] + ("round" to "Quiz"), ballon)))
+
+        // Un jeu avant : les Licornes marquent.
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("question du quiz ouverte") { licornes.etat(code).takeIf { it.child("qid").value == demo[0]["id"] && it.child("phase").value == "question" } }
+        assertTrue(licornes.repondre(code, demo[0]["id"] as String, (demo[0]["correct"] as Number).toInt()))
+        attendreQue("points du quiz") { points(licornes, code, licornes.uid).takeIf { it >= Scoring.BASE } ?: run { regie.commande(code, "next"); null } }
+        val avant = points(licornes, code, licornes.uid)
+
+        // Jeu suivant : le Gonfleur fou, lancé par l'animatrice, avec son départ 3, 2, 1.
+        attendreQue("course lancée", 30_000) {
+            val e = licornes.etat(code)
+            if (e.child("qid").value == "gf" && e.child("pump/key").value != null) true
+            else { if (e.child("qid").value != "gf" || e.child("phase").value != "question" || e.child("pump/key").value == null) regie.commande(code, "next"); null }
+        }
+        val goAt = (licornes.etat(code).child("pump/goAt").value as Number).toLong()
+        attendreQue("départ") { (System.currentTimeMillis() > goAt + 6_000).takeIf { it } }
+        ecran.voit("Tapez sur vos tablettes")
+        // Les Licornes tapent, les Dragons font éclater leur ballon : la box termine la course.
+        assertTrue(licornes.gonfler(code, 60))
+        assertTrue(dragons.gonfler(code, 80))
+        ecran.capture("gonfleur-course")
+        assertEquals("phase", "question", licornes.etat(code).child("phase").value)
+        assertTrue(dragons.gonfler(code, PUMP_TARGET))
+        attendreQue("ballon éclaté") { licornes.etat(code).takeIf { it.child("phase").value == "reveal" } }
+        ecran.voit("Dragons gagnent !", 15_000)
+        ecran.capture("gonfleur-gagnant")
+        assertEquals(Scoring.MINI_WIN.toLong(), points(licornes, code, dragons.uid))
+        assertEquals(avant + Scoring.MINI_PLAYED, points(licornes, code, licornes.uid))
+        assertEquals("plus de tapes après la course", false, licornes.gonfler(code, 90))
+
+        // Classement, puis la fin : scores gardés, rien ne bloque.
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("classement") { licornes.etat(code).takeIf { it.child("phase").value == "scores" } }
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("fin de partie") { licornes.etat(code).takeIf { it.child("phase").value == "ended" } }
+    }
+
+    @Test
+    fun patateChaudeApresUnQuizLaBombePasseLaMecheColleEtElleExplose() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val dragons = pupitre("dragons").also { it.rejoindre(code, "Dragons", ROSE) }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        @Suppress("UNCHECKED_CAST")
+        val demo = regie.programme(code)["questions"] as List<Map<String, Any?>>
+        // Exactement ce qu'envoie la régie pour une manche « La Patate chaude » (web/public/show.js).
+        val bombe = mapOf(
+            "id" to "pt", "text" to "La Patate chaude", "choices" to emptyList<String>(), "correct" to -1,
+            "duration" to 40, "kind" to "patate", "double" to false, "round" to "La Patate chaude",
+        )
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(demo[0] + ("round" to "Quiz"), bombe)))
+
+        // Un jeu avant : les Licornes marquent.
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("question du quiz ouverte") { licornes.etat(code).takeIf { it.child("qid").value == demo[0]["id"] && it.child("phase").value == "question" } }
+        assertTrue(licornes.repondre(code, demo[0]["id"] as String, (demo[0]["correct"] as Number).toInt()))
+        attendreQue("points du quiz") { points(licornes, code, licornes.uid).takeIf { it >= Scoring.BASE } ?: run { regie.commande(code, "next"); null } }
+
+        // Jeu suivant : la patate chaude, lancée par l'animatrice ; la box allume la mèche toute seule.
+        attendreQue("mèche allumée", 30_000) {
+            val e = licornes.etat(code)
+            if (e.child("qid").value == "pt" && e.child("potato/lit").value == true) true
+            else { if (e.child("qid").value != "pt" || e.child("phase").value != "question") regie.commande(code, "next"); null }
+        }
+        val e = licornes.etat(code)
+        assertEquals("la mèche reste secrète", null, e.child("deadline").value)
+        val porteur = if (e.child("potato/holder").value == licornes.uid) licornes else dragons
+        val autre = if (porteur === licornes) dragons else licornes
+        val pret = (e.child("potato/readyAt").value as Number).toLong()
+        attendreQue("départ") { (System.currentTimeMillis() > pret + 2_000).takeIf { it } }
+        ecran.voit("La bombe est chez")
+        // L'équipe qui la tient l'envoie : seule sa tablette le peut.
+        assertEquals("pas l'autre équipe", false, autre.envoyerPatate(code, porteur.uid))
+        assertTrue(porteur.envoyerPatate(code, autre.uid))
+        attendreQue("bombe passée") { licornes.etat(code).takeIf { it.child("potato/holder").value == autre.uid } }
+        ecran.capture("patate-passe")
+        // Mèche qui colle : pas de renvoi immédiat (vérifié seulement si l'émulateur est assez rapide pour tomber dedans).
+        val colle = (licornes.etat(code).child("potato/readyAt").value as Number).toLong()
+        if (System.currentTimeMillis() + 500 < colle) assertEquals("mèche qui colle", false, autre.envoyerPatate(code, porteur.uid))
+
+        // La mèche arrive au bout chez l'équipe qui tient la bombe : elle perd des points, l'autre en gagne.
+        val avant = mapOf(licornes.uid to points(licornes, code, licornes.uid), dragons.uid to points(licornes, code, dragons.uid))
+        attendreQue("explosion", 70_000) { licornes.etat(code).takeIf { it.child("phase").value == "reveal" } }
+        ecran.voit("BOUM !", 15_000)
+        ecran.capture("patate-boum")
+        val fin = licornes.etat(code).child("potato/holder").value as String
+        avant.forEach { (uid, pts) ->
+            val attendu = if (uid == fin) pts - minOf(POTATO_POINTS.toLong(), pts) else pts + POTATO_POINTS
+            assertEquals("points de $uid", attendu, points(licornes, code, uid))
+        }
+        assertEquals("plus d'envoi après l'explosion", false, licornes.envoyerPatate(code, dragons.uid))
+
+        // Classement, puis la fin : scores gardés, rien ne bloque.
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("classement") { licornes.etat(code).takeIf { it.child("phase").value == "scores" } }
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("fin de partie") { licornes.etat(code).takeIf { it.child("phase").value == "ended" } }
     }
 }

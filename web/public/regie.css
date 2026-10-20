@@ -281,4 +281,9 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
   .regie .flou .flou-bonus { min-height: 72px; font-size: 22px; }
   .regie .mime-found { min-height: 130px; font-size: 36px; }
   .regie .hold-info { margin-top: 6px; padding: 8px 10px; font-size: 14px; }
-}
+}/* Gonfleur fou : la course en direct, une barre par équipe. */
+.regie .gonfleur-teams { display: grid; gap: 8px; }
+.regie .gonfleur-team { display: grid; grid-template-columns: minmax(80px, 1fr) 2fr auto; align-items: center; gap: 10px; font-weight: 800; }
+.regie .gonfleur-team > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.regie .gonfleur-bar { height: 14px; border-radius: 99px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+.regie .gonfleur-bar i { display: block; height: 100%; border-radius: 99px; background: var(--team); transition: width .2s; }

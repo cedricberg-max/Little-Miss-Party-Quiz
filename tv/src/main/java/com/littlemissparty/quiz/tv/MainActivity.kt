@@ -71,6 +71,8 @@ class MainActivity : ComponentActivity() {
                     judgeBuzz = { ok -> viewModel.judgeBuzz(ok) },
                     blindReveal = viewModel::blindReveal,
                     blindSkip = viewModel::blindSkip,
+                    chestRandom = viewModel::chestRandom,
+                    potatoRandom = viewModel::potatoRandom,
                 ),
                 update = UpdateScreen(
                     ui = updateUi, open = updateOpen, available = updateAvailable, offer = updateOffer,

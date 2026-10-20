@@ -19,6 +19,7 @@ import com.littlemissparty.quiz.engine.Answer
 import com.littlemissparty.quiz.engine.Award
 import com.littlemissparty.quiz.engine.BlindStatus
 import com.littlemissparty.quiz.engine.BlindTrack
+import com.littlemissparty.quiz.engine.ChestRound
 import com.littlemissparty.quiz.engine.Codec
 import com.littlemissparty.quiz.engine.Command
 import com.littlemissparty.quiz.engine.CommandResult
@@ -33,6 +34,8 @@ import com.littlemissparty.quiz.engine.Scoring
 import com.littlemissparty.quiz.engine.ScoreAdjusted
 import com.littlemissparty.quiz.engine.PAUSE_TEAM
 import com.littlemissparty.quiz.engine.Phase
+import com.littlemissparty.quiz.engine.PotatoRound
+import com.littlemissparty.quiz.engine.Pump
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.engine.Quiz
 import com.littlemissparty.quiz.engine.QuizJson
@@ -146,6 +149,14 @@ sealed interface UiState {
         val blind: BlindUi? = null,
         /** Portes mystères : ordre d'ouverture, portes déjà ouvertes et valeurs (null hors de ce jeu). */
         val portes: PortesUi? = null,
+        /** La bombe cachée : les coffres du jeu en cours (null hors de ce jeu, ou avant leur installation). */
+        val coffres: ChestRound? = null,
+        /** Gonfleur fou : tapes reçues de chaque équipe pour la course en cours (vide hors de ce jeu). */
+        val pumps: Map<String, Int> = emptyMap(),
+        /** Gonfleur fou : heure du serveur du « GONFLEZ ! » (le départ 3, 2, 1 remplace le décompte de reprise). */
+        val pumpGoAt: Long? = null,
+        /** Patate chaude : la bombe (qui la tient, qui l'a envoyée, durée de la mèche), null avant l'allumage. */
+        val potato: PotatoRound? = null,
     ) : UiState {
         /** Total des appuis sur le buzzer de l'accueil, pour le son. */
         val funTotal: Int get() = funBuzzes.values.sum()
@@ -235,6 +246,12 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var answersListener: Pair<DatabaseReference, ValueEventListener>? = null
     private var buzzListener: Pair<DatabaseReference, ValueEventListener>? = null
     private var pickListener: Pair<DatabaseReference, ValueEventListener>? = null
+    private var chestListener: Pair<DatabaseReference, ValueEventListener>? = null
+    private var pumpListener: Pair<DatabaseReference, ValueEventListener>? = null
+    private var potatoListener: Pair<DatabaseReference, ValueEventListener>? = null
+
+    /** Gonfleur fou : dernières tapes reçues de chaque équipe, pour la course de [pumpListener]. */
+    private var pumps: Map<String, Pump> = emptyMap()
     private var drawListener: Pair<DatabaseReference, ChildEventListener>? = null
     private val _dessin = MutableStateFlow(Dessin())
 
@@ -453,10 +470,12 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
      */
     private fun recover() {
         val g = game ?: return
-        // Portes mystères : pas de chrono, rien ne se ferme seul.
-        if (g.state.phase == Phase.QUESTION && !g.state.paused && g.question?.isPortes != true && g.remainingMs(serverNow()) == 0L) {
+        // Portes mystères et bombe cachée : pas de chrono, rien ne se ferme seul.
+        if (g.state.phase == Phase.QUESTION && !g.state.paused && g.question?.isPortes != true && g.question?.isCoffres != true &&
+            g.remainingMs(serverNow()) == 0L
+        ) {
             // Comme à la fin du chrono : question fermée, tour de mimes terminé, extrait du blind test arrêté.
-            act { it.timeUp(serverNow()) }
+            act { it.timeUp(serverNow()) ?: it.balloon(pumps, teams().map { t -> t.uid }, serverNow(), stop = true) }
         } else {
             schedule()
         }
@@ -485,6 +504,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     if (g.state.buzz?.waiting == true) commit(g.blindPlay(serverNow(), unblock = allBlocked(g)))
                     else if (!g.justStarted(serverNow())) commit(g.blindStop(serverNow()))
                 }
+                // Gonfleur fou : OK arrête la course, le plus gros ballon gagne.
+                else if (g.question?.isGonfleur == true) {
+                    if (!g.justStarted(serverNow())) commit(g.balloon(pumps, teams().map { it.uid }, serverNow(), stop = true))
+                }
                 // Chrono qui vient de partir : second appui d'un double clic, même livré en retard par la box.
                 else if (!g.justStarted(serverNow())) commit(g.close(serverNow()))
                 Phase.CLOSED -> commit(g.reveal(serverNow(), collectAnswers()))
@@ -503,6 +526,12 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     /** Blind test à la télécommande : révéler sans gagnant, passer le morceau. */
     fun blindReveal() = act { it.blindReveal(serverNow()) }
     fun blindSkip() = act { it.blindSkip(serverNow()) }
+
+    /** La bombe cachée, à la télécommande (pas de régie) : un coffre au hasard pour l'équipe qui joue. */
+    fun chestRandom() = act { it.openRandomChest(serverNow()) }
+
+    /** Patate chaude, à la télécommande (pas de régie) : la bombe part au hasard chez une équipe permise. */
+    fun potatoRandom() = act { it.passPotatoRandom(serverNow()) }
 
     fun togglePause() = act { g -> if (g.state.paused) g.resume(serverNow()) else g.pause(serverNow()) }
 
@@ -608,7 +637,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 val done = actions.withLock {
                     if (g.state.phase == Phase.QUESTION && !g.state.paused && g.remainingMs(serverNow()) == 0L) {
                         // Fin de la question, ou fin du tour de mimes.
-                        commit(g.timeUp(serverNow()))
+                        // Gonfleur fou : au bout du chrono de secours, le plus gros ballon gagne.
+                        commit(g.timeUp(serverNow()) ?: g.balloon(pumps, teams().map { it.uid }, serverNow(), stop = true))
                         true
                     } else g.deadline() != deadline
                 }
@@ -674,13 +704,15 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 pauseReason = s.hold?.reason,
                 resumeAt = s.resumeAt,
                 deadline = g.deadline(),
-                remainingMs = q?.let { it.durationMs - s.elapsedAt(Long.MAX_VALUE) }?.coerceAtLeast(0) ?: 0,
+                // Patate chaude : la mèche tirée au sort remplace la durée de la question.
+                remainingMs = q?.let { g.durationOf(it) - s.elapsedAt(Long.MAX_VALUE) }?.coerceAtLeast(0) ?: 0,
                 awards = revealedAwards,
                 scores = s.scores(),
                 buzzTeam = s.buzz?.team,
                 buzzBlocked = s.buzz?.blocked.orEmpty(),
                 blind = q?.takeIf { it.isBlind && s.phase != Phase.LOBBY }?.let { blindUi(g) },
                 portes = q?.takeIf { it.isPortes && s.phase != Phase.LOBBY }?.let { PortesUi(g.doorOrder(), s.doorsOpened, g.doorsOf(it)) },
+                coffres = g.chestRound.takeIf { s.phase != Phase.LOBBY },
                 lastGain = if (q?.isTurns == true) mimeCounts.mapValues { it.value * s.pointsPerFound(q.id) } else revealedAwards.mapValues { it.value.points },
                 isLast = g.isLastQuestion,
                 nextGame = g.nextGameTitle(),
@@ -689,6 +721,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 gameTitle = g.gameStep()?.title,
                 factor = g.factorOf(s.index),
                 introUntil = g.multiplierIntroUntil(),
+                pumpGoAt = g.pumpGoAt,
+                potato = s.potato.takeIf { q?.isPatate == true && s.phase != Phase.LOBBY },
                 openedAt = s.openedAt,
                 multipliedLeft = g.multipliedLeft(s.index),
                 gameGains = g.gameGains(),
@@ -709,6 +743,17 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         // Pictionary : le choix du mot sur la tablette du dessinateur, puis son dessin en direct.
         watchPick(Codec.pickKey(g)?.takeIf { !s.paused })
         watchDrawing(Codec.drawKey(g))
+        // La bombe cachée : coffres installés dès le lancement du jeu, puis le choix de la tablette de l'équipe qui joue.
+        if (g.needsChests() && teams().isNotEmpty()) {
+            act { it.dealChests(teams().sortedBy { t -> t.joinedAt }.map { t -> t.uid }, serverNow()) }
+        }
+        watchChest(Codec.chestKey(g)?.takeIf { !s.paused })
+        // Gonfleur fou : les tapes des tablettes, de la course au bilan (les ballons restent à leur taille).
+        watchPumps(Codec.pumpKey(g))
+        // Patate chaude : la box allume la mèche dès le lancement du jeu (équipe de départ et durée tirées au sort),
+        // puis écoute l'envoi de la tablette de l'équipe qui tient la bombe.
+        if (g.needsPotato() && teams().size >= 2) act { it.lightPotato(teams().map { t -> t.uid }, serverNow()) }
+        watchPotato(Codec.potatoKey(g)?.takeIf { !s.paused })
         val blocked = s.buzz?.blocked.orEmpty()
         val teamIds = teams().map { it.uid }
         // Blind test : rien ne se ferme seul, la relance réautorise tout le monde.
@@ -991,7 +1036,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             }
             val answers = if (cmd is Command.Next && g.state.phase == Phase.CLOSED) collectAnswers() else emptyMap()
             val avant = g.state.scores()
-            val result = g.execute(cmd, serverNow(), teams().map { it.uid }.toSet(), answers)
+            val result = g.execute(cmd, serverNow(), teams().map { it.uid }.toSet(), answers, pumps)
             if (result.event != null) commit(result.event, statusOf(id, result))
             else gameRef?.updateChildren(statusOf(id, result))
             (result.event as? ScoreAdjusted)?.let { e -> montrerCoup(e, avant[e.team] ?: 0, g.state.scores()[e.team] ?: 0) }
@@ -1259,6 +1304,97 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
+     * Gonfleur fou : les tapes de chaque équipe (games/<code>/pumps/<clé>/<équipe> = { n, at }), envoyées par les
+     * tablettes. Les règles de la base n'acceptent que l'appareil de l'équipe, après le départ, hors pause, sans
+     * jamais redescendre. Un ballon qui éclate termine la course.
+     */
+    private fun watchPumps(key: String?) {
+        if (key == pumpListener?.first?.key) return
+        pumpListener?.let { (r, l) -> r.removeEventListener(l) }
+        pumpListener = null
+        pumps = emptyMap()
+        updatePlaying { it.copy(pumps = emptyMap()) }
+        val ref = gameRef?.child("pumps")?.child(key ?: return) ?: return
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val lus = snapshot.children.mapNotNull { c ->
+                    val n = c.child("n").getValue(Int::class.java) ?: return@mapNotNull null
+                    val at = c.child("at").getValue(Long::class.java) ?: return@mapNotNull null
+                    c.key!! to Pump(n, at)
+                }.toMap()
+                if (pumpListener?.first?.key != key) return
+                pumps = lus
+                updatePlaying { it.copy(pumps = lus.mapValues { e -> e.value.n }) }
+                act { g -> if (Codec.pumpKey(g) != key) null else g.balloon(lus, teams().map { it.uid }, serverNow(), stop = false) }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e(TAG, "Tapes du Gonfleur fou : ${error.message}")
+            }
+        }
+        // Clé posée avant le premier appel : une réponse en cache peut arriver tout de suite.
+        pumpListener = ref to listener
+        ref.addValueEventListener(listener)
+    }
+
+    /**
+     * Patate chaude : l'envoi de la tablette de l'équipe qui tient la bombe (games/<code>/potatoPass/<clé> =
+     * { to, at }). Les règles de la base n'acceptent que l'appareil de cette équipe, après la mèche qui colle, vers
+     * une équipe permise. Une clé par réception : un envoi ne peut servir qu'une fois.
+     */
+    private fun watchPotato(key: String?) {
+        if (key == potatoListener?.first?.key) return
+        potatoListener?.let { (r, l) -> r.removeEventListener(l) }
+        potatoListener = null
+        val ref = gameRef?.child("potatoPass")?.child(key ?: return) ?: return
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val to = snapshot.child("to").getValue(String::class.java) ?: return
+                val at = snapshot.child("at").getValue(Long::class.java) ?: serverNow()
+                act { g ->
+                    val holder = g.state.potato?.holder
+                    if (Codec.potatoKey(g) != key || holder == null) null else g.passPotato(holder, to, serverNow(), sentAt = at)
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e(TAG, "Envoi de la patate chaude : ${error.message}")
+            }
+        }
+        potatoListener = ref to listener
+        ref.addValueEventListener(listener)
+    }
+
+    /**
+     * La bombe cachée : le coffre choisi par la tablette de l'équipe qui joue (games/<code>/chestChoice/<clé>). Les
+     * règles de la base n'acceptent que l'appareil de cette équipe, une fois l'animation précédente finie. Le
+     * contenu est tiré au sort ici, au moment de l'ouverture.
+     */
+    private fun watchChest(key: String?) {
+        if (key == chestListener?.first?.key) return
+        chestListener?.let { (r, l) -> r.removeEventListener(l) }
+        chestListener = null
+        val ref = gameRef?.child("chestChoice")?.child(key ?: return) ?: return
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val i = snapshot.child("i").getValue(Int::class.java) ?: return
+                act { g ->
+                    val team = g.chestRound?.team
+                    if (Codec.chestKey(g) != key || team == null) null
+                    // L'écriture a été acceptée par la base : l'animation précédente était finie à l'heure du serveur.
+                    else g.openChest(team, i, maxOf(serverNow(), g.chestRound!!.readyAt))
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e(TAG, "Coffre de la bombe cachée : ${error.message}")
+            }
+        }
+        ref.addValueEventListener(listener)
+        chestListener = ref to listener
+    }
+
+    /**
      * Pictionary : le dessin du tour [key], paquet de traits par paquet de traits, dans l'ordre de la tablette.
      * Il reste affiché après le tour (avec le mot) jusqu'au tour suivant ; une box relancée le relit en entier.
      */
@@ -1351,6 +1487,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         buzzListener?.let { (r, l) -> r.removeEventListener(l) }
         buzzListener = null
         watchPick(null)
+        watchChest(null)
+        watchPumps(null)
+        watchPotato(null)
         watchDrawing(null)
         commandsListener?.let { (r, l) -> r.removeEventListener(l) }
         commandsListener = null
@@ -1416,6 +1555,12 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "portes" to true,
             // Portes mystères : l'animatrice peut changer les valeurs derrière les portes (commande portes_set).
             "portesSet" to true,
+            // La bombe cachée : coffres ouverts depuis les tablettes, coffre au hasard en secours (commande chest_random).
+            "coffres" to true,
+            // Gonfleur fou : tapes des tablettes dans pumps/, fin de la course par la box.
+            "gonfleur" to true,
+            // Patate chaude : envois des tablettes dans potatoPass/, mèche et explosion par la box, envoi au hasard (potato_random).
+            "patate" to true,
             "disparu" to true,
             "questions" to quiz.questions.map {
                 clean(mapOf(

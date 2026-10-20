@@ -37,6 +37,9 @@ sealed interface Command {
     /** Image floue : la réponse orale de l'équipe qui a buzzé est bonne ([ok]) ou mauvaise. */
     data class Judge(override val id: String, override val expectSeq: Int, val ok: Boolean, val bonus: Boolean = false) : Command
 
+    /** Patate chaude : secours, la bombe part au hasard chez une équipe permise (tablette en panne). */
+    data class PotatoRandom(override val id: String, override val expectSeq: Int) : Command
+
     /** Statues musicales : l'équipe gagnante désignée par l'animatrice. */
     data class StatuesWin(override val id: String, override val expectSeq: Int, val team: String) : Command
 
@@ -60,6 +63,9 @@ sealed interface Command {
 
     /** Portes mystères : nouvelle valeur derrière une porte, avant leur ouverture. */
     data class PortesSet(override val id: String, override val expectSeq: Int, val qid: String, val door: Int, val value: Int) : Command
+
+    /** La bombe cachée, secours : ouvrir un coffre au hasard pour l'équipe qui joue (tablette en panne, hésitation). */
+    data class ChestRandom(override val id: String, override val expectSeq: Int) : Command
 
     /** Régie : aller au jeu (manche) qui commence à la question [index], [qid] vérifiant le programme. */
     data class Goto(override val id: String, override val expectSeq: Int, val index: Int, val qid: String) : Command
@@ -98,6 +104,8 @@ sealed interface Command {
                 "blind_cut" -> BlindCut(id, seq)
                 "goto" -> Goto(id, seq, (m["index"] as Number).toInt(), m["qid"] as String)
                 "factor" -> Factor(id, seq, (m["factor"] as Number).toInt())
+                "chest_random" -> ChestRandom(id, seq)
+                "potato_random" -> PotatoRandom(id, seq)
                 "portes_set" -> PortesSet(id, seq, m["qid"] as String, (m["door"] as Number).toInt(), (m["value"] as Number).toInt())
                 else -> null
             }
@@ -127,13 +135,14 @@ fun Game.execute(
     now: Long,
     teams: Set<String>,
     answers: Map<String, Answer> = emptyMap(),
+    pumps: Map<String, Pump> = emptyMap(),
 ): CommandResult {
     // Un double appui sur « Trouvé » ne compte qu'un mime : chaque appui vise la carte que la régie affichait.
     val advances = cmd is Command.Next || cmd is Command.Close || cmd is Command.End || cmd is Command.MimeStart ||
         cmd is Command.MimeFound || cmd is Command.MimePass || cmd is Command.MimeStop || cmd is Command.Goto ||
         cmd is Command.Judge || cmd is Command.StatuesWin || cmd is Command.BlindPlay || cmd is Command.BlindUnblock ||
         cmd is Command.BlindReveal || cmd is Command.BlindSkip || cmd is Command.BlindCut ||
-        cmd is Command.PictoShow || cmd is Command.PictoDraw
+        cmd is Command.PictoShow || cmd is Command.PictoDraw || cmd is Command.ChestRandom || cmd is Command.PotatoRandom
     if (advances && cmd.expectSeq != state.lastSeq) return CommandResult(CommandStatus.STALE, reason = "stale")
     // En pause, rien n'avance : l'animatrice reprend d'abord (corrections de score et fin restent possibles).
     // Le saut de jeu reste possible en pause : c'est la commande de secours pour débloquer une prestation.
@@ -147,11 +156,14 @@ fun Game.execute(
         is Command.Next -> when (state.phase) {
             Phase.LOBBY -> if (teams.isEmpty()) return refused("no_teams") else next(now)
             // Blind test : le bouton principal lance ou relance la musique, comme « Lancer le morceau ».
-            Phase.QUESTION -> if (question?.isBlind == true && state.buzz?.waiting == true) blindPlay(now, allTried) else next(now)
+            Phase.QUESTION -> if (question?.isBlind == true && state.buzz?.waiting == true) blindPlay(now, allTried)
+            // Gonfleur fou : le bouton principal arrête la course, le plus gros ballon gagne.
+            else if (question?.isGonfleur == true && !state.intro) balloon(pumps, teams, now, stop = true)
+            else next(now)
             Phase.CLOSED -> reveal(now, answers.filterKeys { it in teams })
             else -> next(now)
         }
-        is Command.Close -> if (state.mime != null) mimeStop(now) else if (question?.isBlind == true) blindStop(now) else close(now)
+        is Command.Close -> if (question?.isGonfleur == true) balloon(pumps, teams, now, stop = true) else if (state.mime != null) mimeStop(now) else if (question?.isBlind == true) blindStop(now) else close(now)
         is Command.Pause -> pause(now)
         is Command.Resume -> resume(now)
         is Command.Adjust -> when {
@@ -176,6 +188,8 @@ fun Game.execute(
         is Command.BlindReveal -> blindReveal(now)
         is Command.BlindSkip -> blindSkip(now)
         is Command.BlindCut -> blindCut(now)
+        is Command.ChestRandom -> openRandomChest(now)
+        is Command.PotatoRandom -> passPotatoRandom(now)
         is Command.PortesSet -> if (question?.id != cmd.qid) return refused("stale_program") else setDoor(cmd.door, cmd.value, now)
         is Command.Factor -> if (cmd.factor !in FACTORS) return refused("bad_factor") else chooseFactor(cmd.factor, now)
         // Le programme a changé depuis l'affichage de la régie : rien n'est fait.
