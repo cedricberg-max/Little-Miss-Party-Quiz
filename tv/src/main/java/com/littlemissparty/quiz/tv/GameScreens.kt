@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -115,7 +116,8 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
             }
             Spacer(Modifier.height(12.dp))
             // Blind test : pas de question écrite (« Quel est ce titre ? »), la scène prend la place.
-            if (!q.isBlind) {
+            // Statues : le panneau porte déjà l'étiquette « STATUES MUSICALES », le titre en double lui volerait sa place.
+            if (!q.isBlind && !q.isStatues) {
                 Text(
                     q.text,
                     color = Palette.Ink, fontSize = 34.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
@@ -173,8 +175,10 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
             Spacer(Modifier.height(16.dp))
             // De 1 à 8 équipes : les pastilles passent au-dessus des boutons quand elles ne tiennent plus à côté.
             val gagnants = state.teams.filter { (state.awards[it.uid]?.points ?: 0) > 0 }
+            // Statues : pendant la danse et jusqu'au choix de l'animatrice, les pastilles ne disent rien (personne ne répond
+            // au pupitre) ; seuls les boutons restent, et « DANSEZ ! » garde sa place même à 8 équipes (banc du 20 octobre).
             BandeauEquipes(
-                nombre = state.teams.size,
+                nombre = if (q.isStatues && !revealed) 0 else state.teams.size,
                 modifier = Modifier.fillMaxWidth(),
                 actions = { BoutonsQuestion(state, q, actions) },
             ) { i, compacte, m ->
@@ -272,15 +276,22 @@ private fun ChoiceGrid(
     choices: List<String>, correct: Int?, modifier: Modifier, express: Boolean = false, photos: List<ByteArray?> = emptyList(),
     uneColonne: Boolean = false,
 ) {
-    val rows = choices.indices.chunked(if (uneColonne) 1 else 2)
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(if (uneColonne) 10.dp else 14.dp)) {
-        rows.forEach { row ->
-            Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                row.forEach { i ->
-                    ChoiceCard(
-                        i, choices[i], correct, Modifier.weight(1f).fillMaxHeight().apparition(Tempo.propositionApparait(i), Unit), express, photos.getOrNull(i),
-                        compacte = uneColonne,
-                    )
+    BoxWithConstraints(modifier) {
+        // Une colonne seulement si les 4 cartes y gardent une hauteur lisible. À 8 équipes, le bandeau prend deux rangs :
+        // l'illustration devient petite et il reste la place de 2 × 2 à côté (banc d'essai du 20 octobre).
+        val colonne = uneColonne && maxHeight >= 4 * 46.dp + 3 * 10.dp
+        val ecart = if (colonne) 10.dp else 14.dp
+        // Cartes basses (colonne, ou 2 × 2 serré à 8 équipes) : pastille et texte plus petits pour tenir.
+        val compacte = colonne || (maxHeight - ecart) / 2 < 64.dp
+        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(ecart)) {
+            choices.indices.chunked(if (colonne) 1 else 2).forEach { row ->
+                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    row.forEach { i ->
+                        ChoiceCard(
+                            i, choices[i], correct, Modifier.weight(1f).fillMaxHeight().apparition(Tempo.propositionApparait(i), Unit), express, photos.getOrNull(i),
+                            compacte = compacte,
+                        )
+                    }
                 }
             }
         }
