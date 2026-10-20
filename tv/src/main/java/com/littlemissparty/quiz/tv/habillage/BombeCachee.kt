@@ -266,7 +266,7 @@ private fun DrawScope.bande(cx: Float, larg: Float, y0: Float, y1: Float, or: Li
 }
 
 /** La bombe : boule prune laquée, culot doré, mèche dont il reste [meche] (0..1), étincelle au bout. */
-private fun DrawScope.dessineBombe(c: Offset, r: Float, t: Float, meche: Float, etincelle: Boolean = true) {
+internal fun DrawScope.dessineBombe(c: Offset, r: Float, t: Float, meche: Float, etincelle: Boolean = true) {
     drawCircle(Brush.radialGradient(listOf(Color(0xFF6A4A8E), Color(0xFF2A1B42), Color(0xFF0E0918)), c - Offset(r * 0.35f, r * 0.4f), r * 1.5f), r, c)
     drawCircle(Neon.Halo.copy(alpha = 0.35f), r, c, style = Stroke(r * 0.06f))
     drawOval(Color.White.copy(alpha = 0.32f), c - Offset(r * 0.62f, r * 0.68f), Size(r * 0.5f, r * 0.32f))
@@ -298,7 +298,7 @@ private fun DrawScope.dessineBombe(c: Offset, r: Float, t: Float, meche: Float, 
 }
 
 /** Petite estrade ronde laquée prune, bordée d'or, sur laquelle on pose un objet (coffre agrandi, bombe). */
-private fun DrawScope.estradeRonde(cx: Float, haut: Float, rx: Float, ry: Float, epaisseur: Float) {
+internal fun DrawScope.estradeRonde(cx: Float, haut: Float, rx: Float, ry: Float, epaisseur: Float) {
     drawOval(Brush.radialGradient(listOf(Neon.Or.copy(alpha = 0.25f), Color.Transparent), Offset(cx, haut + epaisseur), rx * 1.6f), Offset(cx - rx * 1.6f, haut - ry), Size(rx * 3.2f, ry * 2f + epaisseur * 3f))
     val face = Path().apply {
         moveTo(cx - rx, haut); lineTo(cx - rx, haut + epaisseur)
@@ -480,7 +480,7 @@ private fun projectiles(graine: Long, nombre: Int): List<Projectile> {
     }
 }
 
-private fun sortie(u: Float): Float = 1f + 2.4f * (u - 1f) * (u - 1f) * (u - 1f) + 1.4f * (u - 1f) * (u - 1f)
+internal fun rebondSortie(u: Float): Float = 1f + 2.4f * (u - 1f) * (u - 1f) * (u - 1f) + 1.4f * (u - 1f) * (u - 1f)
 
 /**
  * L'ouverture d'un coffre, par-dessus la scène (environ 3 s) : le coffre vient au premier plan sur une estrade,
@@ -537,7 +537,7 @@ fun OuvertureCoffre(
             val voile = (ms / 300f).coerceIn(0f, 1f)
             drawRect(Neon.Nuit.copy(alpha = 0.9f * voile))
             val entree = (ms / T_ENTREE).coerceIn(0f, 1f)
-            val monte = sortie(entree)
+            val monte = rebondSortie(entree)
             val cx = size.width / 2
             val solPx = sol * d + (1f - monte) * 60f * d
             estradeRonde(cx, solPx, cw * 0.8f * d, 26f * d, 22f * d)
@@ -656,7 +656,7 @@ fun OuvertureCoffre(
             Modifier.align(Alignment.TopCenter).padding(top = 62.dp).graphicsLayer {
                 val u = ((t.value - apparu) / 380f).coerceIn(0f, 1f)
                 alpha = if (u <= 0f) 0f else 1f
-                val s = if (u <= 0f) 0.5f else sortie(u)
+                val s = if (u <= 0f) 0.5f else rebondSortie(u)
                 scaleX = s; scaleY = s
             },
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -727,7 +727,7 @@ fun AlerteBombe(onFini: () -> Unit, modifier: Modifier = Modifier, jouer: (Son) 
                 modifier = Modifier.graphicsLayer {
                     val u = ((t.value - 1_250f) / 380f).coerceIn(0f, 1f)
                     alpha = if (u <= 0f) 0f else 1f
-                    val s = if (u <= 0f) 0.6f else sortie(u); scaleX = s; scaleY = s
+                    val s = if (u <= 0f) 0.6f else rebondSortie(u); scaleX = s; scaleY = s
                 },
                 style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.15.em, lineHeightStyle = LIGNE_LMP, fontSize = 50.sp, fontWeight = FontWeight.ExtraBold, color = Neon.Blanc, shadow = Shadow(Color(0xFFFF3B5C).copy(alpha = 0.6f), blurRadius = 24f)),
             )
