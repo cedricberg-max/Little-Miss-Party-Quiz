@@ -36,6 +36,7 @@ h2 { margin: 14px 0 0; font-size: 22px; color: var(--plum); }
 details.panel summary { cursor: pointer; font-weight: 800; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
 .grid .wide { grid-column: 1 / -1; }
+#playlist-duration-label { white-space: nowrap; }
 label { display: flex; flex-direction: column; gap: 8px; font-size: 16px; font-weight: 700; color: var(--plum); }
 label.check, label.inline { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); }
 label.file { font-size: 15px; }
@@ -269,7 +270,7 @@ button.item { cursor: pointer; }
 .game-card .small { font-size: 14px; }
 
 /* Contenu intégré : un bouton par élément, actif ou retiré */
-.content-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: 10px; align-items: start; }
+.content-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: 10px; }
 .content-item { display: flex; align-items: stretch; gap: 4px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); opacity: .55; }
 .content-item.on { opacity: 1; border-color: var(--violet); box-shadow: var(--shadow); }
 .content-item.custom { border-style: dashed; }
@@ -278,6 +279,7 @@ button.item { cursor: pointer; }
 .content-toggle .detail { color: var(--soft); font-size: 13px; line-height: 1.35; }
 .content-toggle .vignettes { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
 .content-toggle .vignettes img { width: 30px; height: 30px; object-fit: cover; border-radius: 6px; }
+.content-toggle .vignettes .plus { height: 30px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: 6px; background: var(--violet-pale); color: var(--violet); font-size: 13px; font-weight: 800; }
 .content-toggle .tag { font-size: 12px; font-weight: 800; padding: 1px 8px; border-radius: 999px; background: var(--gold-pale); color: var(--warn); }
 .illustration .tag.missing { font-size: 12px; padding: 1px 8px; border-radius: 999px; color: var(--soft); border: 1px dashed var(--line-2); }
 .illustration .tag.missing[hidden] { display: none; }

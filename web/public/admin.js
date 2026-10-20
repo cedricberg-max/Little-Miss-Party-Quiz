@@ -3087,9 +3087,13 @@ function renderBuiltin() {
     // Qui a disparu ? : une famille avec des photos (de la banque, ou à soi) montre ses photos, les autres leurs émojis.
     const enPhotos = type === "disparu" && (isPhotoTheme(item) || item.objects.some((o) => o.imageId));
     const detail = type === "quisuis" ? item.clues.join(" · ") : type === "disparu" && !enPhotos ? item.objects.map((o) => o.image).join(" ") : "";
+    // Au plus deux lignes de vignettes (les familles de la banque ont des dizaines de photos) : la carte garde la
+    // hauteur de ses voisines, le reste est compté.
+    const VIGNETTES = 14;
     const vignettes = enPhotos
-      ? h("span", { class: "detail vignettes" }, ...item.objects.map((o) => (o.imageId ? photoBibliotheque(o.imageId, { alt: o.word, title: o.word })
-        : o.banque ? h("img", { src: `banque/${o.banque}.jpg`, alt: o.word, title: o.word, loading: "lazy" }) : h("span", { title: o.word, text: o.image }))))
+      ? h("span", { class: "detail vignettes" }, ...item.objects.slice(0, VIGNETTES).map((o) => (o.imageId ? photoBibliotheque(o.imageId, { alt: o.word, title: o.word })
+        : o.banque ? h("img", { src: `banque/${o.banque}.jpg`, alt: o.word, title: o.word, loading: "lazy" }) : h("span", { title: o.word, text: o.image }))),
+        ...(item.objects.length > VIGNETTES ? [h("span", { class: "plus", text: `+${item.objects.length - VIGNETTES}` })] : []))
       : null;
     // Qui suis-je ? : image du personnage ; Pictionary : vraie photo du mot, à la place de son émoji.
     const photo = type === "quisuis" || type === "pictionary" ? contentPhoto(type, item, key, images) : null;
@@ -3251,11 +3255,14 @@ const COLLECTION_SCREEN = {
   chante: () => openBuiltin("chante"), quisuis: () => openBuiltin("quisuis"), disparu: () => openBuiltin("disparu"), pictionary: () => openBuiltin("pictionary"),
 };
 
+/** « de Quiz », « du Gonfleur fou », « de la bombe cachée » : l'article du nom du jeu se contracte. */
+const deJeu = (nom) => (nom.startsWith("Le ") ? `du ${nom.slice(3)}` : nom.startsWith("La ") ? `de la ${nom.slice(3)}` : `de ${nom}`);
+
 /** Les deux onglets d'un jeu : Manches, Collections. [active] : « manches » ou « collections ». */
 function gameTabs(type, active) {
   const tab = (key, text, fn) => h("button", { type: "button", class: `chip${active === key ? " active" : ""}`, "data-tab": key, "aria-pressed": active === key ? "true" : "false", text, onclick: fn });
   return [
-    tab("manches", `Manches de ${ROUND_TYPES[type]}`, () => openGame(type)),
+    tab("manches", `Manches ${deJeu(ROUND_TYPES[type])}`, () => openGame(type)),
     COLLECTION_SCREEN[type] ? tab("collections", `Collections (${COLLECTION_UNIT[type][1]})`, () => { gameType = type; COLLECTION_SCREEN[type](); }) : null,
   ].filter(Boolean);
 }
