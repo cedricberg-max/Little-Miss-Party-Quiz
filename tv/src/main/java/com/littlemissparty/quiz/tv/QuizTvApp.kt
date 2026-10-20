@@ -442,7 +442,7 @@ private fun Lobby(state: UiState.Playing, actions: TvActions) {
                     maxLines = 2, overflow = TextOverflow.Ellipsis,
                 )
             }
-            Spacer(Modifier.height(if (nombreuses) 12.dp else 32.dp))
+            Spacer(Modifier.height(if (nombreuses) 12.dp else if (state.teams.isEmpty()) 32.dp else 16.dp))
             Text(
                 when {
                     state.teams.isEmpty() -> "En attente des équipes…"
@@ -459,10 +459,15 @@ private fun Lobby(state: UiState.Playing, actions: TvActions) {
                     TeamChip(team, online = team.uid in state.online, buzz = state.funBuzzes[team.uid] ?: 0, compacte = compacte, modifier = m)
                 }
             }
-            // La consigne du buzzer cède sa place à la liste dès 4 équipes.
+            // La consigne du buzzer cède sa place à la liste dès 4 équipes. Une seule ligne, sous les équipes : sur une TV
+            // de 540 dp de haut, deux lignes rognaient la vignette de l'équipe (vu chez cedric en 0.1.414).
             if (state.teams.isNotEmpty() && state.teams.size <= 3) {
-                Text("En attendant : buzzez sur votre pupitre, autant que vous voulez !", color = Palette.Gold, fontSize = 22.sp)
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "En attendant, buzzez autant que vous voulez !", color = Palette.Gold, fontSize = 20.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(12.dp))
             }
             if (state.teams.isNotEmpty()) NextButton("Lancer la fête !", actions.next)
         }
