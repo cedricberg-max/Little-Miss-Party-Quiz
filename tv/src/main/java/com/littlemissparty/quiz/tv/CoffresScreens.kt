@@ -24,6 +24,7 @@ import com.littlemissparty.quiz.engine.CHEST_SHOW_MS
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.tv.habillage.AlerteBombe
 import com.littlemissparty.quiz.tv.habillage.BilanBombe
+import com.littlemissparty.quiz.tv.habillage.BonusMalus
 import com.littlemissparty.quiz.tv.habillage.Neon
 import com.littlemissparty.quiz.tv.habillage.OuvertureCoffre
 import com.littlemissparty.quiz.tv.habillage.SceneCoffres
@@ -36,6 +37,13 @@ import kotlinx.coroutines.delay
  * coffre, l'annonce de la bombe, puis le bilan. Les animations se calent sur l'heure du serveur : une box qui se
  * reconnecte après coup ne les rejoue pas.
  */
+
+/**
+ * Un coffre s'ouvre (comme sur les tablettes, qui montrent son contenu au même moment), puis l'animation BONUS ou
+ * MALUS de la régie prend le relais avec le vrai score de l'équipe (idée de cedric, 20 octobre). La bombe garde
+ * son explosion jusqu'au bout.
+ */
+private const val OUVERTURE_RELAIS_MS = 1_800L
 
 /** Heure du serveur, rafraîchie plusieurs fois par seconde pour caler animations et boutons. */
 @Composable
@@ -104,7 +112,8 @@ fun CoffresScreen(state: UiState.Playing, actions: TvActions) {
         }
         if (ouverture != null) key(ouverture.at, ouverture.chest) {
             val e = equipe(ouverture.team)
-            OuvertureCoffre(
+            val relais = !ouverture.bomb && ouverture.delta != 0 && maintenant >= ouverture.at + OUVERTURE_RELAIS_MS
+            if (!relais) OuvertureCoffre(
                 index = ouverture.chest,
                 delta = if (ouverture.bomb) null else ouverture.delta,
                 equipe = e?.name ?: "",
@@ -112,6 +121,19 @@ fun CoffresScreen(state: UiState.Playing, actions: TvActions) {
                 onFini = {},
                 modifier = Modifier.fillMaxSize(),
             )
+            else {
+                // Score de l'équipe juste après ce coffre (aucun autre coffre ne s'ouvre pendant l'animation).
+                val apres = state.scores[ouverture.team] ?: 0
+                BonusMalus(
+                    nom = e?.name ?: "",
+                    couleur = e?.color?.toColor() ?: Color.White,
+                    delta = ouverture.delta,
+                    avant = apres - ouverture.delta,
+                    apres = apres,
+                    modifier = Modifier.fillMaxSize(),
+                    onFini = {},
+                )
+            }
         }
         if (alerte) key(dernier?.at) { AlerteBombe(onFini = {}, modifier = Modifier.fillMaxSize()) }
     }

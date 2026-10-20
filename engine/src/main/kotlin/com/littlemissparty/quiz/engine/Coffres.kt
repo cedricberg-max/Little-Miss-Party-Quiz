@@ -22,8 +22,8 @@ const val CHEST_BONUS_IN_10 = 7
 /** Nombre de coffres au plus (8 équipes). */
 const val MAX_CHESTS = 20
 
-/** Temps de l'animation d'ouverture d'un coffre à la TV : l'équipe suivante ne peut pas ouvrir avant. */
-const val CHEST_SHOW_MS = 4_000L
+/** Ouverture d'un coffre à la TV, puis l'animation bonus ou malus de l'équipe : l'équipe suivante ne peut pas ouvrir avant. */
+const val CHEST_SHOW_MS = 4_500L
 
 /** Annonce « une bombe se cache… » à la TV, après le dernier tour sans danger. */
 const val BOMB_ALERT_MS = 4_000L
