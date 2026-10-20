@@ -126,6 +126,18 @@ export const QUIZ_GAMES = {
 };
 
 /**
+ * Type d'un quiz : « photo » (petits : chaque réponse est une photo avec son mot), « images » (photos à deviner,
+ * pour l'Image floue et le Zoom mystère) ou « classique » (réponses écrites, petite photo à la révélation).
+ * Les quiz enregistrés avant le choix du type le retrouvent d'après leur contenu.
+ */
+export function quizKind(quiz) {
+  if (["photo", "classique", "images"].includes(quiz?.kind)) return quiz.kind;
+  if (quiz?.source === "photos") return "images";
+  const photoAnswers = (quiz?.questions ?? []).some((q) => q?.choiceImages && Object.values(q.choiceImages).some(Boolean));
+  return quiz?.source === "banque" || photoAnswers ? "photo" : "classique";
+}
+
+/**
  * Jeux au buzzer à contenu intégré (inspirés de « Vendredi tout est permis ») : rien à préparer, la
  * manche tire [count] éléments au hasard dans le catalogue, adaptés à l'âge (level 2 : pas pour les Petits).
  */

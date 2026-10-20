@@ -375,3 +375,12 @@ button.item { cursor: pointer; }
 .pill.pin { background: var(--gold-pale); color: var(--warn); }
 .pinned { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; padding: 16px; border: 2px solid var(--gold-pale); border-radius: 22px; }
 .pinned h2 { margin: 0; }
+
+/* Créer un quiz : le type, puis la façon de le créer. */
+.kind-choice, .kind-ways { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.kind-card, .kind-way { font: inherit; text-align: left; display: flex; flex-direction: column; gap: 6px; padding: 16px 18px; border-radius: 18px; border: 2px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; }
+.kind-card b { font-size: 20px; }
+.kind-way b { font-size: 17px; }
+.kind-card span, .kind-way span { font-size: 14px; color: var(--muted, #6b6480); }
+.kind-card:hover, .kind-way:hover { border-color: var(--violet); }
+.kind-card.active, .kind-way.active { border-color: var(--violet); background: var(--violet-pale); }

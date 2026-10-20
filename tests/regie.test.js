@@ -1635,19 +1635,24 @@ describe("bibliothèque de quiz et prestations", () => {
     const page = await admin();
     await openQuizzes(page);
     await page.click("#quiz-import-open");
+    // D'abord le type de quiz, puis la façon de le créer : ChatGPT n'est proposé que pour le quiz classique.
+    assert.equal(await page.locator("#import-gem").isHidden(), true);
+    await page.click('.kind-card[data-kind=photo]');
+    assert.deepEqual(await page.locator("#kind-ways-list .kind-way").evaluateAll((b) => b.map((x) => x.dataset.way)), ["banque", "main", "json"]);
+    await page.click('.kind-card[data-kind=classique]');
+    await page.click('#kind-ways-list [data-way=chatgpt]');
     await page.fill("#gem-theme", "La jungle");
     await page.fill("#gem-age", "8");
     assert.match(await page.inputValue("#gem-prompt"), /thème « La jungle », pour des enfants de 8 ans/);
-    // Difficulté et réponses en images : la demande suit ; « Ouvrir ChatGPT » l'emporte, déjà écrite.
+    // Difficulté : la demande suit ; « Ouvrir ChatGPT » l'emporte, déjà écrite.
     await page.selectOption("#gem-difficulty", "facile");
-    await page.locator("input[name=gem-answers][value=images]").check();
-    assert.match(await page.inputValue("#gem-prompt"), /Niveau facile[\s\S]*ne savent pas encore lire/);
+    assert.match(await page.inputValue("#gem-prompt"), /Niveau facile/);
+    assert.doesNotMatch(await page.inputValue("#gem-prompt"), /ne savent pas encore lire/);
     await page.context().route("https://chatgpt.com/**", (r) => r.fulfill({ status: 200, contentType: "text/html", body: "<p>ChatGPT</p>" }));
     const [tab] = await Promise.all([page.context().waitForEvent("page"), page.click("#gem-open")]);
     await tab.waitForLoadState();
     assert.match(decodeURIComponent(new URL(tab.url()).searchParams.get("q")), /thème « La jungle »[\s\S]*Niveau facile/);
     await tab.close();
-    await page.locator("input[name=gem-answers][value=texte]").check();
     await page.fill("#import-text", [
       "Titre : La jungle", "",
       "1. Quel animal est le roi de la jungle ?", "A) Le tigre", "B) Le lion", "C) L'éléphant", "D) Le singe", "Réponse : B", "",
@@ -1672,6 +1677,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(saved.length, 1);
     assert.equal(saved[0].title, "La jungle");
     assert.equal(saved[0].source, "gemini");
+    assert.equal(saved[0].kind, "classique");
     assert.deepEqual(saved[0].questions.map((q) => [q.correct, q.status]), [[1, "validee"], [1, "validee"], [0, "validee"]]);
     await openQuizzes(page);
     await page.locator("#quiz-list .item", { hasText: "3 questions · 3 validées" }).waitFor();
@@ -2637,13 +2643,12 @@ describe("bibliothèque de quiz et prestations", () => {
     const page = await admin();
     await openQuizzes(page);
     await page.click("#quiz-import-open");
-    assert.equal(await page.locator("#gem-banque-hint").isHidden(), true);
-    await page.locator("input[name=gem-answers][value=images]").check();
-    await page.fill("#gem-theme", "Les animaux");
-    await page.click("#gem-banque");
+    await page.click('.kind-card[data-kind=photo]');
+    await page.click('#kind-ways-list [data-way=banque]');
     const panel = page.locator("#rv-banque-panel");
     await panel.locator(".banque-q").first().waitFor();
-    assert.equal(await page.inputValue("#rv-title"), "Les animaux");
+    assert.equal(await page.inputValue("#rv-title"), "Quiz photo");
+    await page.locator("#rv-kind", { hasText: "Quiz photo" }).waitFor();
     // Recherche d'un mot : les questions qui l'ont en réponse ou dans le texte.
     await page.fill("#rv-banque-cherche", "girafe");
     await panel.locator('.banque-q:has-text("Où est la girafe ?")').waitFor();
@@ -2665,6 +2670,13 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#rv-status", { hasText: "11 questions validées sur 11" }).waitFor();
     const [quiz] = Object.values(await library("quizzes"));
     assert.equal(quiz.source, "banque");
+    assert.equal(quiz.kind, "photo");
+    // La bibliothèque range les quiz par type : filtre « Quiz photo ».
+    await openQuizzes(page);
+    await page.locator("#quiz-kinds .chip", { hasText: "Quiz photo" }).click();
+    await page.locator("#quiz-list .item", { hasText: "Quiz photo" }).waitFor();
+    await page.locator("#quiz-kinds .chip", { hasText: "Quiz classique" }).click();
+    await page.locator("#quiz-list .item").first().waitFor({ state: "detached" });
     const tambour = quiz.questions.find((q) => q.text === "Sur quoi tape-t-on avec des baguettes ?");
     assert.equal(tambour.choices[tambour.correct], "Tambour");
     assert.ok(quiz.questions.every((q) => q.choices.length === 4 && q.choiceImages.length === 4 && q.choiceImages.every((id) => /^[0-9a-f]{16}$/.test(id))));
@@ -2695,8 +2707,8 @@ describe("bibliothèque de quiz et prestations", () => {
     // Nouveau quiz : la question « miaou » prend la photo de Sarah pour « Chat ».
     await openQuizzes(page);
     await page.click("#quiz-import-open");
-    await page.locator("input[name=gem-answers][value=images]").check();
-    await page.click("#gem-banque");
+    await page.click('.kind-card[data-kind=photo]');
+    await page.click('#kind-ways-list [data-way=banque]');
     await page.locator('#rv-banque-panel .banque-q:has-text("miaou") input').check();
     await page.click("#rv-banque-add");
     await page.locator("#rv-status", { hasText: "1 question ajoutée" }).waitFor({ timeout: 20000 });
@@ -2764,6 +2776,8 @@ describe("bibliothèque de quiz et prestations", () => {
     const page = await admin();
     await openQuizzes(page);
     await page.click("#quiz-import-open");
+    await page.click('.kind-card[data-kind=photo]');
+    await page.click('#kind-ways-list [data-way=json]');
     await page.locator("#import-file").setInputFiles([
       { name: "quiz.json", mimeType: "application/json", buffer: Buffer.from(json) },
       { name: "q1-lion.png", mimeType: "image/png", buffer: png([230, 160, 30]) },

@@ -15,7 +15,7 @@ import {
   buildSnapshot, estimateMinutes, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, BUILTIN_GAMES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
   roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC, PICTO_SECONDS, PICTO_SEC, PICTO_POINTS, PICTO_RULE,
   blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras, contentSlot, contentImages,
-  pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches, isArchived, AUTO_ARCHIVE_DAYS,
+  pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches, isArchived, AUTO_ARCHIVE_DAYS, quizKind,
   roundQuizIds, roundPicks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS,
   isStatuesList, statuesSongs, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS,
 } from "./show.js";
@@ -949,16 +949,40 @@ $("show-delete").onclick = async () => {
 
 // ---------- Bibliothèque de quiz ----------
 
+/** Filtre de la bibliothèque de quiz : null (tous), « photo », « classique » ou « images » (Image floue, Zoom mystère). */
+let quizFilter = null;
+const QUIZ_KINDS = { photo: "📷 Quiz photo", classique: "📝 Quiz classique", images: "🖼️ Image floue et Zoom" };
+const QUIZ_FILTERS = {
+  photo: (q) => quizKind(q) === "photo",
+  classique: (q) => quizKind(q) === "classique",
+  images: (q) => quizKind(q) === "images" || QUIZ_GAMES.zoom.questions(q).length > 0,
+};
+
+function showQuizzes(filter) {
+  quizFilter = filter;
+  show("quizzes");
+}
+
 function renderQuizzes() {
   const box = $("quiz-list");
   box.innerHTML = "";
-  const list = Object.entries(quizzes).sort(([, a], [, b]) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
-  if (!list.length) box.append(h("p", { class: "hint", text: "Aucun quiz pour l'instant : « Créer un quiz » vous guide pas à pas." }));
+  const all = Object.entries(quizzes).filter(([, q]) => q).sort(([, a], [, b]) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+  const chip = (label, filter) => h("button", {
+    type: "button", class: `chip${quizFilter === filter ? " active" : ""}`, "data-filter": filter ?? "tous",
+    text: `${label} (${filter ? all.filter(([, q]) => QUIZ_FILTERS[filter](q)).length : all.length})`,
+    onclick: () => { quizFilter = filter; renderQuizzes(); },
+  });
+  $("quiz-kinds").replaceChildren(chip("Tous", null), ...Object.entries(QUIZ_KINDS).map(([k, label]) => chip(label, k)));
+  $("quiz-photos-box").hidden = quizFilter !== "images";
+  const list = quizFilter ? all.filter(([, q]) => QUIZ_FILTERS[quizFilter](q)) : all;
+  if (!all.length) box.append(h("p", { class: "hint", text: "Aucun quiz pour l'instant : « Créer un quiz » vous guide pas à pas." }));
+  else if (!list.length) box.append(h("p", { class: "hint", text: "Aucun quiz de ce type pour l'instant." }));
   list.forEach(([id, q]) => {
     const total = (q.questions ?? []).filter(Boolean).length;
     const ok = playable(q).length;
     const ages = q.ageMin ? `${q.ageMin}${q.ageMax && q.ageMax !== q.ageMin ? ` à ${q.ageMax}` : ""} ans` : "";
-    box.append(h("div", { class: "item", "data-quiz": id },
+    box.append(h("div", { class: "item", "data-quiz": id, "data-kind": quizKind(q) },
+      h("span", { class: "pill", text: QUIZ_KINDS[quizKind(q)] }),
       h("b", { text: q.title }),
       h("span", { text: [q.theme, ages, SOURCES[q.source] ?? ""].filter(Boolean).join(" · ") }),
       h("span", { class: ok < total ? "warn" : "", text: `${total} questions · ${ok} validées` }),
@@ -1000,9 +1024,9 @@ $("quiz-photos").onchange = async () => {
     $("quiz-photos-open").textContent = `Préparation des photos… (${k + 1}/${files.length})`;
     try { kept.push({ ...questions[k], imageId: await storeIllustration(f) }); } catch (err) { console.error(err); }
   }
-  $("quiz-photos-open").textContent = "📷 Quiz de photos";
+  $("quiz-photos-open").textContent = "📷 Nouveau quiz de photos à deviner";
   if (!kept.length) return alert("Ces photos n'ont pas pu être lues : essayez des JPEG ou des PNG.");
-  review(null, { title: "Mes photos", theme: "", source: "photos", questions: kept });
+  review(null, { title: "Mes photos", theme: "", source: "photos", kind: "images", questions: kept });
   status("rv-status", `${kept.length} photo${kept.length > 1 ? "s" : ""} prête${kept.length > 1 ? "s" : ""} : vérifiez chaque réponse, puis enregistrez.`, true);
 };
 
@@ -1012,12 +1036,66 @@ $("quiz-import-open").onclick = () => {
   importImages.clear();
   $("import-images").textContent = "";
   status("import-status", "");
+  chooseKind(null);
   updatePrompt();
   show("import");
 };
 
-/** Réponses du quiz demandé : « texte » ou « images » (des mots simples, images ajoutées ensuite par Sarah). */
-const answersMode = () => document.querySelector("input[name=gem-answers]:checked")?.value ?? "texte";
+/**
+ * Créer un quiz : d'abord le type (quiz photo des petits ou quiz classique), puis la façon de le créer.
+ * Les deux types s'importent aussi en fichier JSON, avec leurs photos.
+ */
+let creationKind = null;
+const CREATION_WAYS = {
+  photo: [
+    ["banque", "🎲 Piocher dans la banque", "Des questions prêtes, avec leurs photos : un thème, un nombre, puis vous relisez."],
+    ["main", "✍️ À la main", "Vous tapez chaque question et ses 4 mots, et déposez une photo pour chaque réponse."],
+    ["json", "📄 Importer un fichier JSON", "Le fichier du quiz et ses photos, déposés ensemble."],
+  ],
+  classique: [
+    ["main", "✍️ À la main", "Vous tapez vos questions et vos réponses, et ajoutez les petites photos de révélation."],
+    ["chatgpt", "💬 Avec ChatGPT", "La demande est écrite pour vous ; vous collez sa réponse."],
+    ["json", "📄 Importer un fichier JSON", "Le fichier du quiz et ses images, déposés ensemble."],
+  ],
+};
+
+function chooseKind(kind) {
+  creationKind = kind;
+  document.querySelectorAll("#screen-import .kind-card").forEach((b) => b.classList.toggle("active", b.dataset.kind === kind));
+  $("kind-ways").hidden = !kind;
+  $("import-gem").hidden = true;
+  $("import-paste").hidden = true;
+  $("kind-ways-list").replaceChildren(...(CREATION_WAYS[kind] ?? []).map(([way, label, detail]) => h("button", {
+    type: "button", class: "kind-way", "data-way": way, onclick: () => chooseWay(way),
+  }, h("b", { text: label }), h("span", { text: detail }))));
+}
+document.querySelectorAll("#screen-import .kind-card").forEach((b) => { b.onclick = () => chooseKind(b.dataset.kind); });
+
+function chooseWay(way) {
+  document.querySelectorAll("#kind-ways-list .kind-way").forEach((b) => b.classList.toggle("active", b.dataset.way === way));
+  $("import-gem").hidden = way !== "chatgpt";
+  $("import-paste").hidden = way !== "chatgpt" && way !== "json";
+  if (way === "chatgpt") {
+    $("import-paste-label").textContent = "4. Coller la réponse";
+    $("import-paste-hint").textContent = "Collez la réponse de ChatGPT. Vous pouvez aussi coller des lignes d'un tableur (colonnes : Question, Réponse A, Réponse B, Réponse C, Réponse D, Bonne réponse, Durée).";
+    updatePrompt();
+  }
+  if (way === "json") {
+    $("import-paste-label").textContent = "3. Déposer le fichier";
+    $("import-paste-hint").textContent = creationKind === "photo"
+      ? "Déposez le fichier JSON du quiz et toutes ses photos ensemble : chaque photo est associée à la réponse qui porte son nom."
+      : "Déposez le fichier JSON (ou CSV) du quiz et ses images ensemble : chaque image est associée à la question qui porte son nom.";
+    $("import-paste").scrollIntoView({ block: "nearest" });
+  }
+  if (way === "main") {
+    review(null, { title: creationKind === "photo" ? "Nouveau quiz photo" : "Nouveau quiz", theme: "", ageMin: null, ageMax: null, source: "saisie", kind: creationKind, questions: [] });
+    $("rv-add").click();
+  }
+  if (way === "banque") openBanque();
+}
+
+/** Réponses du quiz demandé : « images » pour un quiz photo (des mots simples), sinon « texte ». */
+const answersMode = () => (creationKind === "photo" ? "images" : "texte");
 
 function updatePrompt() {
   $("gem-prompt").value = geminiPrompt({
@@ -1027,10 +1105,6 @@ function updatePrompt() {
 }
 ["gem-theme", "gem-age", "gem-count"].forEach((id) => $(id).addEventListener("input", updatePrompt));
 $("gem-difficulty").addEventListener("change", updatePrompt);
-document.querySelectorAll("input[name=gem-answers]").forEach((r) => r.addEventListener("change", () => {
-  updatePrompt();
-  $("gem-banque-hint").hidden = answersMode() !== "images";
-}));
 
 /** Copie la demande ; sans accès au presse-papiers, elle est sélectionnée pour un Ctrl+C. */
 async function copyPrompt() {
@@ -1130,6 +1204,7 @@ $("import-analyse").onclick = async () => {
     theme: parsed.theme || theme || "",
     ageMin: parsed.ageMin ?? age, ageMax: parsed.ageMax ?? age,
     source: parsed.format === "texte" ? "gemini" : parsed.format,
+    kind: creationKind ?? undefined,
     questions: parsed.questions.map((q) => ({ ...q, status: "brouillon" })),
   });
   if (answersMode() === "images" && !parsed.questions.some((q) => q.imageFiles)) {
@@ -1145,6 +1220,7 @@ function review(id, quiz) {
   draft = {
     id,
     quiz,
+    kind: quizKind(quiz),
     questions: (quiz.questions ?? []).filter(Boolean).map((q) => ({
       text: q.text ?? "", choices: [...(q.choices ?? [])], correct: q.correct ?? -1,
       duration: q.duration ?? null, double: q.double === true, status: q.status ?? "brouillon", marks: q.marks ?? 0,
@@ -1158,6 +1234,11 @@ function review(id, quiz) {
   $("rv-theme").value = quiz.theme ?? "";
   $("rv-age-min").value = quiz.ageMin ?? "";
   $("rv-age-max").value = quiz.ageMax ?? "";
+  // Quiz photo : questions de la banque et photo par réponse ; quiz classique : Vrai / Faux et Juste Chiffre.
+  $("rv-kind").textContent = QUIZ_KINDS[draft.kind];
+  $("rv-banque").hidden = draft.kind !== "photo";
+  $("rv-banque-panel").hidden = true;
+  $("rv-add-tf").hidden = draft.kind === "photo";
   status("rv-status", "");
   show("review");
   renderReview();
@@ -1197,7 +1278,7 @@ function renderReview() {
         h("label", { class: "check" }, h("input", { type: "checkbox", class: "q-valid", checked: q.status === "validee", onchange: (e) => { q.status = e.target.checked ? "validee" : "brouillon"; recheck(); } }), "Validée"),
         h("button", { type: "button", class: "icon", title: "Supprimer la question", text: "✕", onclick: () => { draft.questions.splice(i, 1); renderReview(); } })),
       h("textarea", { class: "q-text", rows: 2, value: q.text, oninput: (e) => { q.text = e.target.value.trim(); q.marks = 0; recheck(); } }),
-      h("label", { class: "check q-number-toggle" },
+      draft.kind === "photo" && q.kind !== "number" ? null : h("label", { class: "check q-number-toggle" },
         h("input", {
           type: "checkbox", class: "q-is-number", checked: q.kind === "number",
           onchange: (e) => {
@@ -1472,13 +1553,12 @@ $("rv-banque").onclick = () => {
   if (!panel.hidden) renderBanque();
 };
 
-/** Ouvre un nouveau quiz des tout-petits directement sur la banque (depuis « Créer un quiz »). */
-$("gem-banque").onclick = () => {
-  const age = Number($("gem-age").value) || null;
-  review(null, { title: $("gem-theme").value.trim() || "Quiz des tout-petits", theme: $("gem-theme").value.trim(), ageMin: age, ageMax: age, source: "banque", questions: [] });
+/** Ouvre un nouveau quiz photo directement sur la banque (depuis « Créer un quiz »). */
+function openBanque() {
+  review(null, { title: "Quiz photo", theme: "", ageMin: null, ageMax: null, source: "banque", kind: "photo", questions: [] });
   $("rv-banque-panel").hidden = false;
   renderBanque();
-};
+}
 
 function renderBanque() {
   const panel = $("rv-banque-panel");
@@ -1693,7 +1773,7 @@ $("rv-save").onclick = async () => {
     await set(ref(db, `library/quizzes/${id}`), {
       title, theme: $("rv-theme").value.trim() || null,
       ageMin: num($("rv-age-min").value), ageMax: num($("rv-age-max").value),
-      source: draft.quiz.source ?? "saisie",
+      source: draft.quiz.source ?? "saisie", kind: draft.kind,
       createdAt: draft.quiz.createdAt ?? Date.now(), updatedAt: serverTimestamp(),
       questions: questions.map((q) => ({
         text: q.text.slice(0, 300), choices: q.kind === "number" ? null : q.choices,
@@ -2355,7 +2435,7 @@ const GAME_GROUPS = [
   { title: "Avec vos contenus", hint: "Vous préparez le contenu dans la bibliothèque, une fois, et vous le réutilisez dans toutes les prestations.", games: [
     { type: "quiz", icon: "?", rule: "Questions à 2, 3 ou 4 propositions sur les pupitres ; toutes les équipes qui trouvent marquent. Une question peut aussi être un « Juste Chiffre » (réponse en nombre). Super Finale : dans la prestation, les dernières questions du quiz peuvent compter double.",
       status: () => { const ok = Object.values(quizzes).reduce((t, q) => t + playable(q).length, 0); return `${plural(Object.keys(quizzes).length, "quiz", "quiz")} · ${plural(ok, "question validée", "questions validées")}`; },
-      actions: () => [["Gérer les quiz", () => show("quizzes")], ["Créer un quiz", () => $("quiz-import-open").click()]] },
+      actions: () => [["Gérer les quiz", () => showQuizzes(null)], ["Créer un quiz", () => $("quiz-import-open").click()]] },
     { type: "mimes", icon: "🎭", rule: "Équipe par équipe : un enfant devine, ses coéquipiers miment l'image. 50 points par mime trouvé.",
       status: () => plural(Object.keys(mimes).length, "paquet de cartes", "paquets de cartes"),
       actions: () => [["Gérer les paquets", () => show("mimes")], ["Nouveau paquet", () => editDeck(null)]] },
@@ -2412,7 +2492,7 @@ function gameInfo(g) {
     : content ? builtinLine(g.type)
     : "Rien à préparer";
   const actions = g.actions ? g.actions()
-    : quizGame ? [["Voir les quiz", () => show("quizzes")]]
+    : quizGame ? [["Voir les quiz", () => showQuizzes(g.type === "express" ? null : "images")]]
     : content ? [[`Voir et modifier les ${CONTENT_GAMES[g.type].unit}s`, () => openBuiltin(g.type)]]
     : [];
   return { rule, line, actions };
