@@ -56,7 +56,7 @@ const testConfig = JSON.stringify({
   apiKey: "demo-key", authDomain: "demo-lmp.firebaseapp.com",
   databaseURL: "https://demo-lmp.firebaseio.com", projectId: "demo-lmp", appId: "demo",
 });
-const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".webmanifest": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".webp": "image/webp", ".ico": "image/x-icon" };
+const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".webmanifest": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp", ".ico": "image/x-icon" };
 
 let env, server, browser, baseUrl;
 let box = null;
@@ -385,6 +385,11 @@ afterEach(() => { box?.stop(); box = null; });
 async function addTeam(uid, name) {
   await env.withSecurityRulesDisabled((ctx) =>
     set(ref(ctx.database(), `games/${CODE}/teams/${uid}`), { name, color: "#FF2D8A", joinedAt: Date.now() }));
+}
+
+/** Capture d'écran pour relire une page à l'œil, seulement si CAPTURES=<dossier> est donné (rien n'est vérifié). */
+async function capture(page, nom) {
+  if (process.env.CAPTURES) await page.screenshot({ path: `${process.env.CAPTURES}/${nom}.png`, fullPage: true });
 }
 
 async function openRegie(context, query = `?g=${CODE}&emu=1`, path = "/") {
@@ -1739,7 +1744,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator('.game-card[data-game=gonfleur]').waitFor();
     await page.locator('.game-card[data-game=pictionary]').waitFor();
     await page.locator('.game-card[data-game=quiz]', { hasText: "1 quiz · 2 questions validées" }).waitFor();
-    await page.locator('.game-card[data-game=quiz]', { hasText: "les dernières questions du quiz peuvent compter double" }).waitFor();
+    await page.locator('.game-card[data-game=quiz]', { hasText: "les dernières questions du quiz peuvent compter ×2, ×3 ou ×5" }).waitFor();
     assert.equal(await page.locator('.game-card[data-game=finale]').count(), 0);
     // Mimes : la carte mène aux collections de cartes (ce que Sarah ne trouvait pas).
     await page.locator('.game-card[data-game=mimes] button', { hasText: "Collections de cartes" }).click();
@@ -2087,6 +2092,37 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
+  test("Régie PC « jamais deux fois » : un élément déjà utilisé dans une autre manche est signalé en rouge (permis), le tirage l'évite", async () => {
+    const page = await admin();
+    await page.click("#home-new");
+    await page.fill("#show-child", "Léa");
+    await page.fill("#show-age", "9");
+    await page.click("#round-add");
+    const mimes = page.locator("#show-rounds .round").nth(0);
+    await mimes.locator("select").first().selectOption("mimes");
+    await mimes.locator("select.grow").selectOption("hasard");
+    await mimes.locator(".pick-own input").fill("Chat");
+    await mimes.locator(".pick-own button").click();
+    await mimes.locator('button.pick-item[data-key="chat"]').waitFor();
+    await page.click("#round-add");
+    const chante = page.locator("#show-rounds .round").nth(1);
+    await chante.locator("select").first().selectOption("chante");
+    assert.match(await chante.locator('select.pick-add option[value="chat"]').textContent(), /déjà utilisé dans Mimes/);
+    await chante.locator("select.pick-add").selectOption("chat");
+    // Choisi à la main : permis, en rouge des deux côtés.
+    await chante.locator('button.pick-item.deja[data-key="chat"]').waitFor();
+    await chante.locator(".pick-deja", { hasText: "chat : déjà utilisé dans Mimes" }).waitFor();
+    await mimes.locator('button.pick-item.deja[data-key="chat"]').waitFor();
+    await mimes.locator(".pick-deja", { hasText: "déjà utilisé dans Chante le mot !" }).waitFor();
+    // 🎲 : le tirage ne reprend pas le chat des Mimes.
+    await chante.locator("button.pick-draw").click();
+    await chante.locator(".pick-box .small", { hasText: "6 mots choisis" }).waitFor();
+    assert.equal(await chante.locator('button.pick-item[data-key="chat"]').count(), 0);
+    await mimes.locator('button.pick-item[data-key="chat"]:not(.deja)').waitFor();
+    assert.equal(await page.locator(".pick-deja").count(), 0);
+    await page.context().close();
+  });
+
   test("à la volée : mimes au hasard retouchés avant l'ajout, et plusieurs quiz cochés dans un même jeu", async () => {
     const DINO = { title: "Dinosaures", source: "tableur", updatedAt: 1, questions: [{ text: "Le T-Rex mangeait de la viande", choices: ["Vrai", "Faux"], correct: 0, status: "validee" }] };
     await seedLibrary("quizzes", { animaux: ANIMAUX, dino: DINO });
@@ -2127,6 +2163,89 @@ describe("bibliothèque de quiz et prestations", () => {
     const added = (await read("conducteur")).questions.filter((q) => q.round === "Animaux + Dinosaures").map((q) => q.text);
     assert.deepEqual(added, ["Roi de la jungle ?", "Le T-Rex mangeait de la viande"]);
     assert.deepEqual((await library("quizzes")).animaux, ANIMAUX, "Quiz de la bibliothèque inchangé");
+    await regie.context().close();
+  });
+
+  test("à la volée : un blind test complété titre par titre avec la recherche, une chanson choisie pour ouvrir les Statues", async () => {
+    const hex = (k) => k.toString(16).padStart(16, "0");
+    const titres = ["Libérée, délivrée", "Hakuna Matata", "Thriller", "Billie Jean", "Toxic", "Africa", "Imagine", "Yesterday", "Respect", "Hello", "Dancing Queen", "Wannabe", "Fame", "Beat It"];
+    await seedLibrary("playlists", {
+      disney: { title: "Disney", duration: 20, tracks: titres.slice(0, 2).map((title, k) => ({ title, audioId: hex(k + 1) })), updatedAt: 1 },
+      tubes: { title: "Tubes", duration: 25, tracks: titres.slice(2).map((title, k) => ({ title, audioId: hex(k + 3) })), updatedAt: 1 },
+    });
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.click("#tab-plan");
+    await regie.click("#plan-add");
+    await regie.locator("#lib-list [data-game='blind/disney']").click();
+    await regie.locator("#lib-meta", { hasText: "2 questions" }).waitFor();
+    // La recherche (sans accents ni majuscules) ne garde que ce qui correspond, toutes playlists confondues.
+    await regie.fill("#lib-search", "THRILL");
+    await waitFor(async () => (await regie.locator("#lib-add option:not([value=''])").count()) === 1, "un seul titre trouvé");
+    await capture(regie, "regie-blind-recherche");
+    await regie.selectOption("#lib-add", { label: "Thriller" });
+    await regie.locator("#lib-meta", { hasText: "3 questions" }).waitFor();
+    await regie.click("#lib-end");
+    await regie.locator("#r-toast", { hasText: "est ajouté" }).waitFor();
+    const blind = (await read("conducteur")).questions.filter((q) => q.kind === "blind");
+    assert.deepEqual(blind.map((q) => q.choices[0]), ["Libérée, délivrée", "Hakuna Matata", "Thriller"]);
+    assert.equal(blind[2].duration, 25, "le titre garde la durée de sa playlist");
+
+    // Statues sans liste à elles : la musique de la fête, ou une chanson cherchée dans les playlists, jouée en premier.
+    await regie.click("#plan-add");
+    await regie.locator("#lib-list [data-game='builtin/statues']").click();
+    await regie.locator("#lib-meta", { hasText: "Musique de la fête" }).waitFor();
+    await regie.locator("#lib-add option", { hasText: "jouée en premier" }).waitFor({ state: "attached" });
+    await regie.fill("#lib-search", "hakuna");
+    await regie.selectOption("#lib-add", { label: "Hakuna Matata" });
+    await regie.locator("#lib-meta", { hasText: "1 chanson à la suite · en premier : Hakuna Matata" }).waitFor();
+    await capture(regie, "regie-statues-chanson");
+    await regie.click("#lib-end");
+    const statues = await waitFor(async () => (await read("conducteur")).questions.find((q) => q.kind === "statues"), "Statues ajoutées");
+    assert.deepEqual(statues.audioIds, [hex(2)]);
+    await regie.context().close();
+  });
+
+  test("en direct : Zoom mystère au hasard en photos de la banque et Qui a disparu ? en photos, photos copiées dans la partie", async () => {
+    const { PHOTOS_BANQUE } = await import("../web/public/banque-photos.js");
+    assert.ok(PHOTOS_BANQUE.size >= 5, "des photos de la banque sont sur le site");
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.click("#tab-plan");
+    await regie.click("#plan-add");
+    // Zoom mystère au hasard : sans aucun quiz, les photos de la banque, avec leurs réponses en images.
+    await regie.locator("#lib-list [data-game='hasard/zoom']").click();
+    await regie.locator("#lib-meta", { hasText: "questions" }).waitFor();
+    await capture(regie, "regie-zoom-photos");
+    await regie.click("#lib-end");
+    await regie.locator("#r-toast", { hasText: "est ajouté" }).waitFor();
+    const zoom = (await read("conducteur")).questions.filter((q) => q.kind === "zoom");
+    assert.ok(zoom.length >= 1);
+    for (const q of zoom) {
+      assert.match(q.imageId, /^[0-9a-f]{16}$/);
+      assert.equal(q.banque, undefined, "la TV ne reçoit que l'identifiant de la photo");
+      assert.equal(q.choices.length, 4);
+      assert.match(await read(`images/${q.imageId}`), /^data:image\/jpeg;base64,/, "photo copiée dans la partie");
+    }
+    // Qui a disparu ? : « 📷 Photos » dans le tirage ; les objets de la banque ont leur photo, lisible par la TV.
+    await regie.click("#plan-add");
+    await regie.locator("#lib-list [data-game='builtin/disparu']").click();
+    await regie.locator("#lib-edit .lib-photos", { hasText: "📷 Photos" }).click();
+    await regie.locator("#lib-edit .lib-photos.on", { hasText: "📷 Photos" }).waitFor();
+    await capture(regie, "regie-disparu-photos");
+    await regie.click("#lib-end");
+    await regie.locator("#r-toast", { hasText: "Qui a disparu" }).waitFor();
+    const grilles = (await read("conducteur")).questions.filter((q) => q.kind === "disparu");
+    const photos = grilles.flatMap((q) => q.cards).filter((c) => c.imageId);
+    assert.ok(photos.length > 0, "des objets en photos");
+    assert.ok(grilles.flatMap((q) => q.cards).every((c) => !c.banque));
+    assert.match(await read(`choiceImages/${photos[0].imageId}`), /^data:image\/jpeg;base64,/);
     await regie.context().close();
   });
 

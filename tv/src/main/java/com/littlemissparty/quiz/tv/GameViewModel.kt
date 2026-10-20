@@ -946,6 +946,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             .forEach { prefetchImage(it, "choiceImages") }
         // Pictionary : photos des mots proposés (rangées avec les réponses en images), prêtes pour la révélation.
         (g.offerCards + listOfNotNull(g.lastCard)).mapNotNull { it.imageId }.forEach { prefetchImage(it, "choiceImages") }
+        // Mimes et Qui a disparu ? en photos : la carte montrée et les deux suivantes ; toute la grille de la
+        // question en cours et de la suivante.
+        val cartesMime = s.mime?.deck.orEmpty().take(3).mapNotNull { q?.cards?.getOrNull(it) }
+        val grilles = listOfNotNull(q, g.quiz.questions.getOrNull(s.index + 1)).filter { it.isDisparu }.flatMap { it.cards }
+        (cartesMime + grilles).mapNotNull { it.imageId }.forEach { prefetchImage(it, "choiceImages") }
         // Photos : toutes celles du programme gardées sur la box, pour une fête qui continue sans Internet.
         savePhotos(g)
         // Extraits musicaux : tous ceux du programme, dès son chargement, pour que la musique ne dépende
@@ -1034,8 +1039,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private val imageBytes = object : LinkedHashMap<String, ByteArray>(8, 0.75f, true) {
-        // Quelques photos seulement en mémoire : la box ancienne a peu de place.
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ByteArray>?) = size > 4
+        // Quelques dizaines de photos seulement en mémoire (moins de 50 Ko chacune) : la box ancienne a peu de place,
+        // mais deux grilles de Qui a disparu ? en photos doivent y tenir.
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ByteArray>?) = size > 32
     }
     private val imagesLoading = mutableSetOf<String>()
 

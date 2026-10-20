@@ -1,6 +1,8 @@
 name: Build et publication
 
-# Une seule série de tests par version : la PR teste la branche, main publie après la fusion.
+# Une seule série de tests par version : la PR teste la branche ; après la fusion, main publie sans rejouer les
+# tests déjà passés sur la PR (cedric, 20 octobre : pas de tests en double). « Run workflow » les rejoue à la main.
+# Une PR n'est donc fusionnée qu'à jour avec main : ce qui est publié est exactement ce qui a été testé.
 on:
   push:
     branches: [main]
@@ -18,6 +20,7 @@ permissions:
 jobs:
   moteur:
     name: Tests du moteur de jeu
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,6 +34,7 @@ jobs:
 
   regles-pupitre:
     name: Tests des règles Firebase et du pupitre
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -54,8 +58,9 @@ jobs:
 
   apk:
     name: APK Android TV
-    # Aucun APK n'est publié si un test échoue.
+    # Aucun APK n'est publié si un test échoue (tests sautés sur main : déjà passés sur la PR).
     needs: [moteur, regles-pupitre]
+    if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -101,7 +106,7 @@ jobs:
   publish:
     name: Publication Firebase
     needs: apk
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}

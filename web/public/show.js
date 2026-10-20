@@ -4,6 +4,8 @@ import { PROFILES, profileForAge, defaultDuration, expressDuration } from "./pro
 import { shuffle, MIME_CATALOG } from "./mime-cards.js";
 import { CHANTE_WORDS, QUI_SUIS_JE, DISPARU_THEMES } from "./buzz-cards.js";
 import { PICTO_WORDS, PICTO_OWN_SERIES } from "./picto-cards.js";
+import { concepts, questionConcepts, neufsSiPossible } from "./jamais-deux-fois.js";
+import { BANQUE, questionBanque, avecPhoto, disparuPhotos } from "./banque-photos.js";
 
 /**
  * Portes mystères (jeu final) : 3 ou 4 portes, chacune cache un bonus ou un malus qui peut renverser le classement ;
@@ -167,7 +169,7 @@ export const BUILTIN_GAMES = {
   disparu: {
     unit: "grille", count: 4, duration: 45, rule: "on mémorise les objets, puis l'un d'eux disparaît",
     // Nombre d'objets par grille : réglé sur la manche (4 à 12), sinon selon l'âge.
-    items: (profile, random, list, round) => list.map((t) => disparuGrid(t, disparuObjects(round, profile), random)),
+    items: (profile, random, list, round, chosen, pris) => list.map((t) => disparuGrid(t, disparuObjects(round, profile), random, pris, round?.photos === true)),
     question: (g) => ({ text: "Qui a disparu ?", choices: [g.missing.word], correct: 0, kind: "disparu", cards: g.objects, image: g.missing.image, duration: g.duration }),
   },
 };
@@ -200,7 +202,8 @@ export const CONTENT_GAMES = {
       : null),
   },
   disparu: {
-    unit: "famille", catalog: DISPARU_THEMES, key: (t) => t.theme.toLowerCase(), label: (t) => t.theme,
+    // Familles en émojis, puis celles de la banque de photos (« Photos · Animaux »).
+    unit: "famille", get catalog() { return [...DISPARU_THEMES, ...disparuPhotos()]; }, key: (t) => t.theme.toLowerCase(), label: (t) => t.theme,
     clean: (x) => {
       const objects = (Array.isArray(x?.objects) ? x.objects : [])
         .filter((o) => typeof o?.word === "string" && o.word.trim() && typeof o.image === "string" && o.image.trim())
@@ -236,6 +239,31 @@ export function activeItems(type, content) {
     .map((x) => (images[contentSlot(game.key(x))] ? { ...x, imageId: images[contentSlot(game.key(x))] } : x));
 }
 
+/**
+ * Qui a disparu ? en « 📷 Photos » : au tirage, les grilles tout en photos d'abord (familles de la banque), puis celles
+ * qui en montrent au moins 3, puis les autres ; le hasard décide dans chaque groupe. Les autres jeux : inchangé.
+ */
+function parPhotos(round, grilles) {
+  if (round?.type !== "disparu" || round.photos !== true) return grilles;
+  return parPalierPhotos(grilles, (g) => g.objects);
+}
+
+/**
+ * Familles ou grilles de Qui a disparu ? rangées pour le mode « 📷 Photos » : tout en photos d'abord, puis au moins
+ * 3 photos, puis les autres ; l'ordre de départ (le hasard) est gardé dans chaque groupe. [objets](x) : ses objets.
+ */
+export function parPalierPhotos(liste, objets) {
+  const palier = (x) => {
+    const tous = objets(x) ?? [];
+    const n = tous.filter((o) => o?.banque || avecPhoto(o)?.banque).length;
+    return n && n === tous.length ? 2 : n >= 3 ? 1 : 0;
+  };
+  return liste.map((x, k) => [x, k, palier(x)]).sort(([, i, a], [, j, b]) => b - a || i - j).map(([x]) => x);
+}
+
+/** Famille de Qui a disparu ? faite de photos de la banque. */
+export const isPhotoTheme = (t) => (t?.objects ?? []).some((o) => o?.banque);
+
 /** Qui a disparu ? : objets par grille selon l'âge, et temps de recherche après la mémorisation. */
 const DISPARU_OBJECTS = { PETITS: 5, MOYENS: 7, GRANDS: 9, ADULTES: 9 };
 const DISPARU_SEARCH_SEC = 25;
@@ -248,8 +276,10 @@ export const disparuObjects = (round, profile) =>
  * Une grille de Qui a disparu ? : [n] objets de la famille et celui qui disparaîtra. La durée suit le
  * moteur de la TV : 2 s de mémorisation par objet (10 à 18 s), 3 s de tour de magie, puis la recherche.
  */
-function disparuGrid(theme, n, random) {
-  const objects = shuffle(theme.objects, random).slice(0, n);
+function disparuGrid(theme, n, random, pris = null, photos = false) {
+  // « Jamais deux fois » : pas d'objet déjà montré ailleurs dans la prestation, tant que la famille en a assez.
+  // « 📷 Photos » : chaque objet dont le mot est dans la banque montre sa photo (copiée dans la partie par la régie).
+  const objects = shuffle(neufsSiPossible(theme.objects, concepts, pris, n), random).slice(0, n).map((o) => (photos ? avecPhoto(o) : o));
   const missing = objects[Math.floor(random() * objects.length)];
   const memo = Math.min(18, Math.max(10, objects.length * 2));
   return { theme: theme.theme, objects, missing, duration: memo + 3 + DISPARU_SEARCH_SEC };
@@ -326,9 +356,13 @@ export function mimePool(round, mimes, profile) {
 }
 
 /** Tirage au hasard d'une manche de mimes : tout le paquet mélangé, ou [MIME_RANDOM] cartes du catalogue. */
-export function mimeDraw(round, mimes, profile, random = Math.random, avoid = null) {
-  const pool = shuffle(mimePool(round, mimes, profile).filter((c) => !avoid?.has(c.word.toLowerCase())), random);
-  return round?.deckId && mimes?.[round.deckId] ? pool : pool.slice(0, Number.isInteger(round?.count) && round.count > 0 ? round.count : MIME_RANDOM);
+export function mimeDraw(round, mimes, profile, random = Math.random, avoid = null, pris = null) {
+  const deck = round?.deckId && mimes?.[round.deckId];
+  const count = Number.isInteger(round?.count) && round.count > 0 ? round.count : MIME_RANDOM;
+  const fresh = mimePool(round, mimes, profile).filter((c) => !avoid?.has(c.word.toLowerCase()));
+  // Un paquet choisi se joue en entier ; un tirage dans le catalogue évite ce que montrent les autres activités.
+  const pool = shuffle(deck ? fresh : neufsSiPossible(fresh, concepts, pris, count), random);
+  return deck ? pool : pool.slice(0, count);
 }
 
 /** Au plus autant d'éléments choisis à la main dans une manche. */
@@ -342,6 +376,47 @@ export function pickedItems(type, content, picks) {
   const game = CONTENT_GAMES[type];
   const byKey = new Map(activeItems(type, content).map((x) => [game.key(x), x]));
   return picks.map((k) => byKey.get(k)).filter(Boolean);
+}
+
+/** Mots du Pictionary qu'on garde neufs (jamais montrés ailleurs) avant de reprendre tout le paquet. */
+const PICTO_MIN_FRESH = 24;
+
+/** Ce que montre un élément d'un jeu intégré ou du Pictionary (Qui a disparu ? : objet par objet, dans sa grille). */
+export function builtinConcepts(type, x) {
+  if (type === "chante") return concepts({ word: x?.word });
+  if (type === "quisuis") return concepts({ word: x?.answer, image: x?.emoji, imageId: x?.imageId });
+  if (type === "pictionary") return concepts(x);
+  return [];
+}
+
+/** Questions d'une manche Zoom mystère ou Image floue : les photos choisies une par une, sinon celles des quiz choisis. */
+export function zoomRoundQuestions(round, quizzes) {
+  if (roundPicks(round).length) {
+    const byImage = new Map();
+    Object.values(quizzes ?? {}).forEach((qz) => (qz ? zoomQuestions(qz) : []).forEach((q) => { if (!byImage.has(q.imageId)) byImage.set(q.imageId, q); }));
+    // « banque:vache » : une photo de la banque, avec ses réponses en images (émoji + mot).
+    return roundPicks(round).map((id) => (id.startsWith(BANQUE) ? questionBanque(id.slice(BANQUE.length)) : byImage.get(id))).filter(Boolean);
+  }
+  return roundQuizIds(round).flatMap((id) => (quizzes?.[id] ? zoomQuestions(quizzes[id]) : []));
+}
+
+/**
+ * « Jamais deux fois » : ce que montrent les contenus choisis à la main dans une manche (cartes de mimes, mots,
+ * personnages, photos du Zoom, de l'Image floue et des quiz photo). Les tirages au hasard des autres manches l'évitent.
+ */
+export function fixedConcepts(round, quizzes = {}, mimes = {}, contents = {}) {
+  const type = round?.type;
+  if (type === "mimes") {
+    const deck = round.deckId ? mimes?.[round.deckId] : null;
+    return [...mimeCards(round.cards), ...(deck ? mimeCards(deck.cards) : [])].flatMap(concepts);
+  }
+  if (type === "chante" || type === "quisuis" || type === "pictionary") {
+    return pickedItems(type, contents?.[type], roundPicks(round)).flatMap((x) => builtinConcepts(type, x));
+  }
+  if (type === "zoom" || type === "flou") return zoomRoundQuestions(round, quizzes).flatMap((q) => questionConcepts({ ...q, kind: type }));
+  // Quiz choisi : les photos de ses réponses (quiz photo) et ses illustrations.
+  if (type === "quiz" || type === "express") return roundQuizIds(round).flatMap((id) => Object.values(quizzes?.[id]?.questions ?? {})).flatMap(questionConcepts);
+  return [];
 }
 
 /** Morceaux jouables d'une playlist : un titre et un extrait enregistré. */
@@ -400,19 +475,19 @@ function musicQuestions(type, playlist, prefix, random) {
  * Manche de mimes : un seul élément du programme, avec le paquet de cartes mélangé (chaque prestation
  * a son ordre) et la durée d'un tour. Le paquet de la bibliothèque n'est pas modifié.
  */
-function mimeItem(round, deck, i, random, profile, mimes, teams, avoid) {
+function mimeItem(round, deck, i, random, profile, mimes, teams, avoid, pris = null) {
   // Cartes choisies dans la Régie PC (gardées dans la manche) ; sinon le paquet, ou un tirage dans le catalogue.
   const fixed = mimeCards(round.cards).slice(0, 200);
   const title = deck?.title ?? (typeof round.title === "string" && round.title.trim() ? round.title.trim().slice(0, 60) : ROUND_TYPES.mimes);
-  const cards = fixed.length ? shuffle(fixed, random) : mimeDraw(round, mimes, profile, random, avoid);
+  const cards = fixed.length ? shuffle(fixed, random) : mimeDraw(round, mimes, profile, random, avoid, pris);
   // Cartes par équipe : de quoi jouer pour les équipes prévues, plus une réserve tirée au hasard pour deux équipes de plus
   // le jour J (jouée seulement si besoin). Jamais une carte déjà jouée pendant la fête, jamais deux fois la même.
   const perTeam = mimePerTeam(round);
   if (perTeam) {
     const need = perTeam * (teamCount(teams) + MIME_SPARE_TEAMS);
     const taken = new Set(cards.map((c) => c.word.toLowerCase()));
-    const spare = shuffle(mimeCards(MIME_CATALOG.filter((c) => profile !== "PETITS" || c.level === 1)), random)
-      .filter((c) => !taken.has(c.word.toLowerCase()) && !avoid?.has(c.word.toLowerCase()));
+    const spare = neufsSiPossible(shuffle(mimeCards(MIME_CATALOG.filter((c) => profile !== "PETITS" || c.level === 1)), random)
+      .filter((c) => !taken.has(c.word.toLowerCase()) && !avoid?.has(c.word.toLowerCase())), concepts, pris, need - cards.length);
     cards.push(...spare.slice(0, Math.max(0, need - cards.length)));
   }
   return {
@@ -420,7 +495,8 @@ function mimeItem(round, deck, i, random, profile, mimes, teams, avoid) {
     text: title,
     kind: "mime",
     duration: round.duration ?? deck?.duration ?? MIME_TURN,
-    cards: cards.slice(0, 200),
+    // « 📷 Photos » : chaque carte dont le mot est dans la banque montre sa photo (copiée dans la partie par la régie).
+    cards: cards.slice(0, 200).map((c) => (round.photos === true ? avecPhoto(c) : c)),
     round: title,
   };
 }
@@ -446,15 +522,22 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
   // Un bloc par manche préparée : la Super Finale rejoint ensuite le quiz qu'elle termine.
   const blocks = [];
   let rounds, questions;
-  const begin = (type) => { rounds = []; questions = []; blocks.push({ type, rounds, questions }); };
   /** Éléments des jeux intégrés déjà tirés dans cette prestation (ou déjà joués pendant la fête : [avoid]), par jeu. */
   const used = Object.fromEntries(Object.entries(avoid ?? {}).map(([k, v]) => [k, new Set(v)]));
+  // « Jamais deux fois » : ce que montrent les contenus choisis à la main dans toute la prestation et ce qui a déjà
+  // été joué pendant la fête ([avoid].concepts) ; chaque tirage au hasard l'évite, et chaque manche construite s'y ajoute.
+  const pris = new Set(avoid?.concepts ?? []);
+  (show.rounds ?? []).filter(Boolean).forEach((round) => fixedConcepts(round, quizzes, mimes, contents).forEach((k) => pris.add(k)));
+  const begin = (type) => {
+    questions?.forEach((q) => questionConcepts(q).forEach((k) => pris.add(k)));
+    rounds = []; questions = []; blocks.push({ type, rounds, questions });
+  };
   (show.rounds ?? []).filter(Boolean).forEach((round, i) => {
     begin(round.type);
     if (round.type === "mimes") {
       const deck = round.deckId ? mimes[round.deckId] : null;
       if (!deck && round.random !== true && !mimeCards(round.cards).length) { problems.push(`Manche ${i + 1} : le paquet de mimes n'existe plus dans la bibliothèque.`); return; }
-      const item = mimeItem(round, deck, i, random, profile, mimes, show.teams, used.mimes);
+      const item = mimeItem(round, deck, i, random, profile, mimes, show.teams, used.mimes, pris);
       if (!item.cards.length) { problems.push(`Manche ${i + 1} (${item.text}) : aucune carte.`); return; }
       rounds.push({ title: item.text, count: 1, kind: "mime" });
       questions.push(item);
@@ -497,7 +580,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       const fresh = (w) => !used.pictionary?.has(w.word.toLowerCase());
       const all = activeItems("pictionary", contents?.pictionary)
         .filter((w) => (profile !== "PETITS" || w.level !== 2) && (!series || series.includes(pictoSeriesOf(w))));
-      const words = chosen.length ? chosen : all.some(fresh) ? all.filter(fresh) : all;
+      const words = chosen.length ? chosen : neufsSiPossible(all.some(fresh) ? all.filter(fresh) : all, concepts, pris, PICTO_MIN_FRESH);
       if (!words.length) { problems.push(`Manche ${i + 1} (Pictionary) : aucun mot actif${series ? " dans les séries choisies" : ""} (page Jeux de l'administration).`); return; }
       const duration = PICTO_SECONDS.includes(round.duration) ? round.duration : PICTO_SEC;
       rounds.push({ title: ROUND_TYPES.pictionary, count: 1, kind: "pictionary" });
@@ -527,14 +610,16 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       // Deux manches du même jeu dans une prestation : pas deux fois le même mot, personnage ou famille, tant qu'il en reste.
       const game = CONTENT_GAMES[round.type];
       const seen = (used[round.type] ??= new Set());
-      const all = activeItems(round.type, contents?.[round.type]);
+      // Qui a disparu ? en émojis : le hasard ne prend pas les familles de photos de la banque.
+      const all = activeItems(round.type, contents?.[round.type]).filter((x) => round.type !== "disparu" || round.photos === true || !isPhotoTheme(x));
       const fresh = all.filter((x) => !seen.has(game.key(x)));
-      const pool = fresh.length >= Math.min(count, all.length) ? fresh : all;
+      // Et rien de ce que montrent les autres activités (les familles de Qui a disparu ? trient leurs objets une à une).
+      const pool = neufsSiPossible(fresh.length >= Math.min(count, all.length) ? fresh : all, (x) => builtinConcepts(round.type, x), pris, count);
       // Éléments choisis un par un dans la Régie PC : ceux-là, dans cet ordre ; sinon le tirage au hasard.
       const chosen = pickedItems(round.type, contents?.[round.type], roundPicks(round));
       const picked = chosen.length
-        ? builtin.items(profile, random, chosen, round, true)
-        : shuffle(builtin.items(profile, random, pool, round), random).slice(0, count);
+        ? builtin.items(profile, random, chosen, round, true, pris)
+        : parPhotos(round, shuffle(builtin.items(profile, random, pool, round, false, pris), random)).slice(0, count);
       picked.forEach((x) => seen.add(game.key(x)));
       if (!picked.length) {
         problems.push(`Manche ${i + 1} (${ROUND_TYPES[round.type]}) : aucun ${CONTENT_GAMES[round.type].unit} actif (page Jeux de l'administration).`);
@@ -548,16 +633,16 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     }
     if ((round.type === "zoom" || round.type === "flou") && roundPicks(round).length) {
       // Photos choisies une par une, dans tous les quiz (la même photo n'est jouée qu'une fois).
-      const byImage = new Map();
-      Object.values(quizzes ?? {}).forEach((qz) => (qz ? zoomQuestions(qz) : []).forEach((q) => { if (!byImage.has(q.imageId)) byImage.set(q.imageId, q); }));
-      const list = roundPicks(round).map((id) => byImage.get(id)).filter(Boolean);
-      if (!list.length) { problems.push(`Manche ${i + 1} (${ROUND_TYPES[round.type]}) : les photos choisies n'existent plus dans les quiz.`); return; }
+      const list = zoomRoundQuestions(round, quizzes);
+      if (!list.length) { problems.push(`Manche ${i + 1} (${ROUND_TYPES[round.type]}) : les photos choisies n'existent plus.`); return; }
       const label = ROUND_TYPES[round.type];
       rounds.push({ title: label, count: list.length });
       list.forEach((q, j) => questions.push({
         id: `r${i + 1}q${j + 1}`, text: q.text, choices: q.choices, correct: q.correct,
         duration: round.type === "flou" ? FLOU_SEC : q.duration ?? defaultDuration(profile),
-        kind: round.type, double: false, round: label, ...(q.image ? { image: q.image } : {}), imageId: q.imageId,
+        kind: round.type, double: false, round: label, ...(q.image ? { image: q.image } : {}),
+        // Photo de la banque : copiée dans la partie par la régie au chargement, qui met alors son identifiant.
+        ...(q.banque ? { banque: q.banque } : { imageId: q.imageId }),
       }));
       return;
     }

@@ -21,7 +21,8 @@ const ouverts = new Set();
 
 /**
  * Historique d'un écran. [capturer] renvoie l'état modifiable de l'écran, [restaurer] le remet et redessine l'écran.
- * La barre (deux boutons) est ajoutée à la fin de [ecran] et reste visible en bas de la fenêtre.
+ * La barre (deux boutons) est ajoutée à la fin de [ecran] ; dès qu'il y a quelque chose à annuler, elle reste visible
+ * en bas de la fenêtre.
  * Les clics, choix et saisies dans l'écran sont notés tout seuls ; [noter] sert après une action qui finit plus tard.
  */
 export function historique({ ecran, capturer, restaurer }) {
@@ -45,6 +46,8 @@ export function historique({ ecran, capturer, restaurer }) {
   const maj = () => {
     retour.disabled = pile.length < 2;
     annuler.disabled = !depart || empreinte(pile[pile.length - 1]) === empreinte(depart);
+    // Rien à annuler : la barre reste à sa place en bas de l'écran, sans passer sur le contenu.
+    barre.classList.toggle("flottante", !(retour.disabled && annuler.disabled));
   };
   const appliquer = (etat) => { restaurer(cloner(etat)); maj(); };
   const h = {

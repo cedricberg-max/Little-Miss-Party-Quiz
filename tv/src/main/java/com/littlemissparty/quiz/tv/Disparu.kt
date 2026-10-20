@@ -1,11 +1,13 @@
 package com.littlemissparty.quiz.tv
 
+import android.graphics.BitmapFactory
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -18,21 +20,28 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.MimeCard
 import com.littlemissparty.quiz.engine.Phase
@@ -93,7 +102,7 @@ fun DisparuBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
                     ligne.forEach { i ->
                         val disparu = i == q.missingIndex
                         ObjetCase(
-                            q.cards[i], etape, disparu,
+                            q.cards[i], q.cards[i].imageId?.let { state.images[it] }, etape, disparu,
                             Modifier.weight(1f).fillMaxHeight().graphicsLayer { if (etape == EtapeDisparu.MAGIE) rotationZ = if (i % 2 == 0) tourne else -tourne },
                         )
                     }
@@ -105,7 +114,8 @@ fun DisparuBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
 }
 
 @Composable
-private fun ObjetCase(carte: MimeCard, etape: EtapeDisparu, disparu: Boolean, modifier: Modifier) {
+private fun ObjetCase(carte: MimeCard, octets: ByteArray?, etape: EtapeDisparu, disparu: Boolean, modifier: Modifier) {
+    val photo = photoCarte(octets, 240)
     val trou = disparu && etape == EtapeDisparu.CHERCHER
     val enOr = disparu && etape == EtapeDisparu.REPONSE
     Box(
@@ -127,8 +137,18 @@ private fun ObjetCase(carte: MimeCard, etape: EtapeDisparu, disparu: Boolean, mo
             else -> BoxWithConstraints(contentAlignment = Alignment.Center) {
                 // L'emoji se réduit dans les petites cases (beaucoup d'objets) : le nom reste toujours lisible dessous.
                 val taille = with(LocalDensity.current) { ((maxHeight - 34.dp) / 1.15f).coerceIn(16.dp, 52.dp).toSp() }
+                // En photos : la photo remplit la case au-dessus du nom (l'émoji reste en secours si elle manque).
+                val cote: Dp = min(maxWidth - 12.dp, maxHeight - 40.dp).coerceIn(24.dp, 160.dp)
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = if (enOr) Modifier.apparition(0, "retour") else Modifier) {
-                    Text(carte.image ?: "⭐", fontSize = taille, lineHeight = taille * 1.15f)
+                    if (photo != null) {
+                        Image(
+                            photo, contentDescription = null, contentScale = ContentScale.Crop,
+                            modifier = Modifier.size(cote).clip(RoundedCornerShape(12.dp)).border(2.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(12.dp)),
+                        )
+                        Spacer(Modifier.height(4.dp))
+                    } else {
+                        Text(carte.image ?: "⭐", fontSize = taille, lineHeight = taille * 1.15f)
+                    }
                     Text(
                         carte.word,
                         color = if (enOr) Palette.Gold else Palette.Ink, fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold,
@@ -138,5 +158,22 @@ private fun ObjetCase(carte: MimeCard, etape: EtapeDisparu, disparu: Boolean, mo
                 }
             }
         }
+    }
+}
+
+/**
+ * Photo d'une carte (Qui a disparu ?, Mimes) décodée une fois, réduite pour sa case : [cible] pixels de côté au
+ * moins (la Mi Box a peu de mémoire). Null tant qu'elle n'est pas arrivée, ou si elle est abîmée.
+ */
+@Composable
+internal fun photoCarte(octets: ByteArray?, cible: Int): ImageBitmap? = remember(octets, cible) {
+    octets?.let {
+        runCatching {
+            val bornes = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(it, 0, it.size, bornes)
+            var reduction = 1
+            while (minOf(bornes.outWidth, bornes.outHeight) / (reduction * 2) >= cible) reduction *= 2
+            BitmapFactory.decodeByteArray(it, 0, it.size, BitmapFactory.Options().apply { inSampleSize = reduction })?.asImageBitmap()
+        }.getOrNull()
     }
 }

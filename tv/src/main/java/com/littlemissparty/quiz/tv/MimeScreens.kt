@@ -9,6 +9,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -45,6 +46,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -125,7 +127,7 @@ private fun Turn(state: UiState.Playing, m: MimeUi, team: Team) {
         )
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-            MimeCardView(m, color)
+            MimeCardView(m, color, state.images)
             FoundCounter(m.found)
         }
     }
@@ -139,7 +141,7 @@ private class Sortie(val carte: MimeCard, val trouvee: Boolean)
  * (trouvée) ou file à gauche (passée). Un tampon « TROUVÉ ! » et une gerbe de confettis saluent chaque mime.
  */
 @Composable
-private fun MimeCardView(m: MimeUi, color: Color) {
+private fun MimeCardView(m: MimeUi, color: Color, photos: Map<String, ByteArray>) {
     val card = m.card ?: return
     val pop = remember(card.word, m.found, m.passed) { Animatable(0.6f) }
     LaunchedEffect(card.word, m.found, m.passed) {
@@ -162,7 +164,7 @@ private fun MimeCardView(m: MimeUi, color: Color) {
     Box(contentAlignment = Alignment.Center) {
         sortie?.let { s ->
             MimeCardFace(
-                s.carte, if (s.trouvee) Neon.Or else color,
+                s.carte, if (s.trouvee) Neon.Or else color, s.carte.imageId?.let { photos[it] },
                 Modifier.clearAndSetSemantics {}.graphicsLayer {
                     val v = depart.value
                     alpha = 1f - v
@@ -177,7 +179,7 @@ private fun MimeCardView(m: MimeUi, color: Color) {
                 },
             )
         }
-        MimeCardFace(card, color, Modifier.graphicsLayer { scaleX = pop.value; scaleY = pop.value; rotationZ = (1f - pop.value) * -12f })
+        MimeCardFace(card, color, card.imageId?.let { photos[it] }, Modifier.graphicsLayer { scaleX = pop.value; scaleY = pop.value; rotationZ = (1f - pop.value) * -12f })
         Gerbe(cle = m.found, actif = m.found > 0, modifier = Modifier.matchParentSize())
         Tampon("TROUVÉ !", cle = m.found, actif = m.found > 0, tailleSp = 56, dureeMs = 1_000, modifier = Modifier.matchParentSize())
     }
@@ -185,7 +187,9 @@ private fun MimeCardView(m: MimeUi, color: Color) {
 
 /** Face de la carte : verre sombre, liseré néon de la couleur de l'équipe, reflet de cette couleur en haut. */
 @Composable
-private fun MimeCardFace(card: MimeCard, color: Color, modifier: Modifier) {
+private fun MimeCardFace(card: MimeCard, color: Color, octets: ByteArray?, modifier: Modifier) {
+    // « 📷 Photos » : la photo du mot à la place de l'émoji (qui revient si la photo n'est pas arrivée).
+    val photo = photoCarte(octets, 320)
     Column(
         modifier
             .width(500.dp)
@@ -195,7 +199,15 @@ private fun MimeCardFace(card: MimeCard, color: Color, modifier: Modifier) {
             .padding(vertical = 12.dp, horizontal = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(card.image ?: "🎭", fontSize = 120.sp, lineHeight = 128.sp, textAlign = TextAlign.Center)
+        if (photo != null) {
+            Image(
+                photo, contentDescription = null, contentScale = ContentScale.Crop,
+                modifier = Modifier.padding(top = 4.dp, bottom = 6.dp).size(width = 200.dp, height = 140.dp)
+                    .clip(RoundedCornerShape(20.dp)).border(2.dp, Neon.Blanc.copy(alpha = 0.7f), RoundedCornerShape(20.dp)),
+            )
+        } else {
+            Text(card.image ?: "🎭", fontSize = 120.sp, lineHeight = 128.sp, textAlign = TextAlign.Center)
+        }
         Text(
             card.word, color = Neon.Blanc, fontSize = 42.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
             maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 46.sp,

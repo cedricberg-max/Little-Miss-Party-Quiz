@@ -1,5 +1,5 @@
 // Import des quiz : texte Gemini, tableur, CSV, JSON, et anomalies signalées à la relecture.
-import { describe, test } from "node:test";
+import { describe, test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { parseQuiz, checkQuestions, geminiPrompt, resolveCorrect, chatgptImagePrompt, chatgptUrl, imageKey, wordFromImage } from "../web/public/importer.js";
 import { MIME_CATALOG } from "../web/public/mime-cards.js";
@@ -1019,8 +1019,13 @@ describe("collections, manches et prestation", async () => {
     assert.equal(items.find((x) => x.key === "dragon volant").group, "Mes animaux");
   });
 
-  test("photos (Zoom, Image floue) et extraits (blind test) : toutes les collections, rangées par quiz ou playlist", () => {
-    assert.deepEqual(M.collectionItems("zoom", lib).map((x) => [x.label, x.group]), [["Lion", "Photos"], ["Chien", "Photos"]]);
+  test("photos (Zoom, Image floue) et extraits (blind test) : toutes les collections, rangées par quiz ou playlist", async () => {
+    const zoom = M.collectionItems("zoom", lib);
+    assert.deepEqual(zoom.slice(0, 2).map((x) => [x.label, x.group]), [["Lion", "Photos"], ["Chien", "Photos"]], "les photos des quiz d'abord");
+    const banque = zoom.slice(2);
+    const { PHOTOS_BANQUE } = await import("../web/public/banque-photos.js");
+    assert.equal(banque.length, PHOTOS_BANQUE.size, "puis les photos de la banque des petits (celles qui existent)");
+    assert.ok(banque.every((x) => x.key.startsWith("banque:") && x.group.startsWith("Photos · ") && x.value.choices.length === 4));
     const tracks = M.collectionItems("blind", lib);
     assert.deepEqual(tracks.map((x) => x.group), ["Années 80", "Disney", "Disney"], "les chansons des statues n'y sont pas");
     // Statues : la liste des statues d'abord, puis les chansons de toutes les playlists.
@@ -1040,7 +1045,7 @@ describe("collections, manches et prestation", async () => {
     const none = M.randomRound("mimes", lib, { avoid: all }, seq());
     assert.equal(none.round, null);
     assert.equal(none.exhausted, true);
-    const few = M.randomRound("zoom", lib, { count: 6 }, seq());
+    const few = M.randomRound("zoom", lib, { count: 6, groups: ["Photos"] }, seq());
     assert.equal(few.count, 2);
     assert.equal(few.exhausted, true, "seulement 2 photos : c'est dit");
   });
@@ -1078,7 +1083,7 @@ describe("collections, manches et prestation", async () => {
     const played = M.playedKeys(S.buildSnapshot("s", show, lib.quizzes, {}, seq(), lib.playlists).snapshot.quiz.questions);
     assert.deepEqual([...played.mimes].sort(), ["chat", "lion"]);
     assert.deepEqual([...played.chante].sort(), ["maman", "soleil"]);
-    assert.deepEqual([...played.photos], ["a".repeat(16)]);
+    assert.deepEqual([...played.photos], ["a".repeat(16), "banque:lion"], "le lion du quiz : la photo du lion de la banque n'est plus tirée non plus");
     assert.deepEqual([...played.tracks], ["1".repeat(16)]);
     const chante = S.gameQuestions({ type: "chante", count: 30 }, {}, null, "z", {}, {}, {}, played).questions;
     assert.ok(chante.every((q) => !played.chante.has(q.choices[0].toLowerCase())));
@@ -1116,6 +1121,109 @@ describe("collections, manches et prestation", async () => {
     assert.equal(M.mancheSummary({ type: "mimes", cards: [{ word: "A" }, { word: "B" }], perTeam: 3, duration: 45 }), "2 cartes · 3 par équipe · tour de 45 s");
     assert.equal(M.questionType({ kind: "classic", audioId: "1".repeat(16) }), "musical");
     assert.equal(M.questionType({ kind: "mime" }), "mimes");
+  });
+});
+
+describe("« jamais deux fois » : ce qu'une activité a montré ne revient pas au hasard dans une autre", async () => {
+  const J = await import("../web/public/jamais-deux-fois.js");
+  const M = await import("../web/public/manches.js");
+  const S = await import("../web/public/show.js");
+  const seq = () => { let i = 0; return () => ((i++ * 0.618) % 1); };
+  const mots = (cards) => cards.map((c) => J.motCle(c.word));
+  const quizzes = { q1: { title: "Photos", questions: [{ text: "Qui est-ce ?", choices: ["Lion", "Tigre"], correct: 0, status: "validee", imageId: "a".repeat(16) }] } };
+
+  test("un même mot au pluriel, avec un article ou des accents est reconnu ; un émoji aussi, avec ou sans variante", () => {
+    assert.equal(J.motCle("Les Cerises"), J.motCle("cerise"));
+    assert.equal(J.motCle("L\u2019Éléphant"), J.motCle("éléphant"));
+    assert.equal(J.motCle("Le Père Noël"), "pere-noel");
+    assert.equal(J.emojiCle("🐴\uFE0F"), "🐴");
+    assert.equal(J.emojiCle("👍🏽"), "👍");
+    assert.deepEqual(J.concepts({ word: "Coq", image: "🐓", imageId: "a".repeat(16) }), ["m:coq", "e:🐓", `i:${"a".repeat(16)}`]);
+    assert.deepEqual(J.concepts({ image: `data:image/jpeg;base64,${"x".repeat(40)}` }), [], "une photo n'est pas un émoji");
+  });
+
+  test("tirage : les éléments neufs s'il en reste assez, sinon tout (la fête n'est jamais bloquée)", () => {
+    const keys = (x) => [`m:${x}`];
+    assert.deepEqual(J.neufsSiPossible([1, 2, 3], keys, new Set(["m:1"]), 2), [2, 3]);
+    assert.deepEqual(J.neufsSiPossible([1, 2, 3], keys, new Set(["m:1", "m:2"]), 2), [1, 2, 3]);
+    assert.deepEqual(J.neufsSiPossible([1, 2, 3], keys, null, 2), [1, 2, 3]);
+  });
+
+  test("le petit coq des Mimes et le chat de Chante le mot ne reviennent pas dans Qui a disparu ?", () => {
+    const show = { rounds: [
+      { type: "mimes", cards: [{ word: "Coq", image: "🐓" }, { word: "Cochon", image: "🐷" }] },
+      { type: "chante", picks: ["chat"] },
+      { type: "disparu", picks: ["animaux de la ferme"], count: 1, objects: 9 },
+    ] };
+    for (let n = 0; n < 5; n++) {
+      const qs = S.buildSnapshot("s", show, {}, {}, () => Math.random()).snapshot.quiz.questions;
+      const grille = qs.find((q) => q.kind === "disparu");
+      assert.equal(grille.cards.length, 9);
+      assert.ok(mots(grille.cards).every((w) => !["coq", "cochon", "chat"].includes(w)), mots(grille.cards).join());
+    }
+  });
+
+  test("les mimes au hasard évitent le personnage de Qui suis-je ?, le mot de Chante le mot et la photo du Zoom", () => {
+    const show = { rounds: [
+      { type: "mimes", random: true, count: 100 },
+      { type: "quisuis", picks: ["le lion"] },
+      { type: "chante", picks: ["chat"] },
+      { type: "zoom", picks: ["a".repeat(16)] },
+    ] };
+    const cards = S.buildSnapshot("s", show, quizzes, {}, seq()).snapshot.quiz.questions[0].cards;
+    assert.equal(cards.length, 100);
+    assert.ok(!mots(cards).includes("lion") && !mots(cards).includes("chat"));
+  });
+
+  test("ce qu'une manche a tiré au hasard, les suivantes l'évitent aussi", () => {
+    const qs = S.buildSnapshot("s", { rounds: [{ type: "chante", count: 30 }, { type: "mimes", random: true, count: 100 }] }, {}, {}, seq()).snapshot.quiz.questions;
+    const chantes = new Set(qs.filter((q) => q.kind === "chante").map((q) => J.motCle(q.choices[0])));
+    const mime = qs.find((q) => q.kind === "mime");
+    assert.ok(mots(mime.cards).every((w) => !chantes.has(w)));
+  });
+
+  test("plus assez d'objets neufs : la grille se remplit quand même", () => {
+    const ferme = DISPARU_THEMES.find((t) => t.theme === "Animaux de la ferme");
+    const show = { rounds: [{ type: "mimes", cards: ferme.objects }, { type: "disparu", picks: ["animaux de la ferme"], count: 1, objects: 9 }] };
+    const grille = S.buildSnapshot("s", show, {}, {}, seq()).snapshot.quiz.questions.find((q) => q.kind === "disparu");
+    assert.equal(grille.cards.length, 9);
+  });
+
+  test("pendant la fête : ce qui a été montré n'est plus tiré pour « ＋ Ajouter un jeu » ou « 🔁 Rejouer avec d'autres »", () => {
+    const joue = S.buildSnapshot("s", { rounds: [{ type: "mimes", cards: [{ word: "Chat", image: "🐱" }] }, { type: "zoom", picks: ["a".repeat(16)] }] }, quizzes, {}, seq()).snapshot.quiz.questions;
+    const played = M.playedKeys(joue);
+    assert.ok(played.concepts.has("m:chat") && played.concepts.has("m:lion") && played.concepts.has(`i:${"a".repeat(16)}`));
+    const disparu = S.gameQuestions({ type: "disparu", picks: ["animaux sauvages"], count: 1, objects: 9 }, {}, null, "z", {}, {}, {}, played).questions[0];
+    assert.ok(!mots(disparu.cards).includes("lion"), "le lion du Zoom ne revient pas dans la grille");
+    const { round } = M.randomRound("mimes", {}, { count: 60, avoid: played.mimes, avoidConcepts: played.concepts }, seq());
+    assert.equal(round.cards.length, 60);
+    assert.ok(!mots(round.cards).includes("lion") && !mots(round.cards).includes("chat"));
+    const tout = new Set(M.collectionItems("mimes", {}).flatMap((x) => M.itemConcepts("mimes", x.value)));
+    assert.equal(M.randomRound("mimes", {}, { count: 10, avoidConcepts: tout }, seq()).round.cards.length, 10, "tout déjà vu : on tire quand même");
+  });
+
+  test("quiz photo : ses photos et leurs mots comptent aussi", () => {
+    const q = { text: "Lequel miaule ?", choices: ["Chat", "Chien", "Vache", "Coq"], correct: 0, choiceImages: { 0: "c".repeat(16), 1: "d".repeat(16) } };
+    assert.deepEqual(J.questionConcepts(q), ["m:chat", `i:${"c".repeat(16)}`, "m:chien", `i:${"d".repeat(16)}`]);
+    const show = { rounds: [{ type: "mimes", random: true, count: 100 }, { type: "quiz", quizId: "p" }] };
+    const cards = S.buildSnapshot("s", show, { p: { title: "Animaux", questions: [{ ...q, status: "validee" }] } }, {}, seq()).snapshot.quiz.questions[0].cards;
+    assert.ok(!mots(cards).includes("chat") && !mots(cards).includes("chien"));
+  });
+
+  test("choix à la main : permis, mais signalé « déjà utilisé dans … » avec le nom de l'autre jeu", () => {
+    const rounds = [
+      { type: "mimes", cards: [{ word: "Lion", image: "🦁" }, { word: "Chat", image: "🐱" }] },
+      { type: "chante", picks: ["chat"] },
+      { type: "zoom", picks: ["a".repeat(16)] },
+    ];
+    const autres = M.usedElsewhere(rounds, 0, { quizzes });
+    assert.equal(autres.get("m:chat"), "Chante le mot !");
+    assert.equal(autres.get("m:lion"), "Zoom mystère");
+    const conflits = M.conflictsOf("mimes", M.collectionItems("mimes", {}), autres);
+    assert.equal(conflits.get("lion"), "Zoom mystère");
+    assert.equal(conflits.get("chat"), "Chante le mot !");
+    assert.ok(!conflits.has("singe"));
+    assert.equal(M.usedElsewhere(rounds, 2, { quizzes }).get("m:lion"), "Mimes", "le Zoom voit le lion des Mimes");
   });
 });
 
@@ -1176,5 +1284,135 @@ describe("bibliothèque des sons du blind test", () => {
     assert.ok(defaultRefrain(400, 0, 30) + REFRAIN_SEC <= 400);
     assert.equal(buzzOf(60), 30);
     assert.equal(buzzOf(20), 20);
+  });
+});
+
+describe("photos de la banque dans les jeux (Mimes, Qui a disparu ?, Zoom mystère, Image floue)", async () => {
+  const P = await import("../web/public/banque-photos.js");
+  const S = await import("../web/public/show.js");
+  const M = await import("../web/public/manches.js");
+  const seq = () => { let i = 0; return () => ((i++ * 0.618) % 1); };
+  // Comme si toutes les photos de la banque étaient sur le site (la vraie liste suit les photos choisies).
+  const avant = new Set(P.PHOTOS_BANQUE);
+  before(() => BANQUE_MOTS.forEach((m) => P.PHOTOS_BANQUE.add(m.cle)));
+  after(() => { P.PHOTOS_BANQUE.clear(); avant.forEach((k) => P.PHOTOS_BANQUE.add(k)); });
+
+  test("un mot sans photo sur le site garde son émoji : jamais proposé en photo", () => {
+    P.PHOTOS_BANQUE.delete("chat");
+    try {
+      assert.equal(P.avecPhoto({ word: "Chat", image: "🐱" }).banque, undefined);
+      assert.ok(!P.banqueItems().some((x) => x.key === "banque:chat"));
+      assert.ok(P.disparuPhotos().every((t) => t.objects.every((o) => o.banque !== "chat")));
+    } finally {
+      P.PHOTOS_BANQUE.add("chat");
+    }
+    assert.ok(P.banqueItems().some((x) => x.key === "banque:chat"));
+  });
+
+  test("question en photo : « Qu'est-ce que c'est ? », 4 réponses en images de la même famille, toujours la même", () => {
+    const q = P.questionBanque("vache");
+    assert.equal(q.text, "Qu'est-ce que c'est ?");
+    assert.equal(q.choices.length, 4);
+    assert.equal(new Set(q.choices).size, 4);
+    assert.equal(q.choices[q.correct], "🐄 Vache");
+    assert.equal(q.banque, "vache");
+    const vache = BANQUE_MOTS.find((m) => m.cle === "vache");
+    const autres = q.choices.filter((_, k) => k !== q.correct).map((c) => BANQUE_MOTS.find((m) => c.endsWith(m.mot) && c.startsWith(m.emoji)));
+    assert.ok(autres.every((m) => m && m.famille === vache.famille), "les fausses réponses viennent de la même famille");
+    assert.deepEqual(P.questionBanque("vache"), q, "même mot, même question (aperçu = partie)");
+    assert.equal(P.questionBanque("n'existe pas"), null);
+    // Aucune question de la banque n'a deux réponses qui se ressemblent trop.
+    for (const m of BANQUE_MOTS) {
+      const qb = P.questionBanque(m.cle);
+      assert.equal(new Set(qb.choices).size, qb.choices.length, m.cle);
+      assert.ok(qb.choices.length >= 2, m.cle);
+    }
+  });
+
+  test("une carte prend la photo de son mot s'il est dans la banque, jamais à la place d'une photo choisie", () => {
+    assert.equal(P.avecPhoto({ word: "Chat", image: "🐱" }).banque, "chat");
+    assert.equal(P.avecPhoto({ word: "les Chats" }).banque, "chat", "pluriel et article");
+    assert.equal(P.avecPhoto({ word: "Dragon volant" }).banque, undefined);
+    assert.equal(P.avecPhoto({ word: "Chat", imageId: "a".repeat(16) }).banque, undefined);
+    assert.equal(P.motDeLaBanque(""), null);
+  });
+
+  test("Qui a disparu ? : familles en photos (5 objets au moins), tirées seulement en mode « 📷 Photos »", () => {
+    assert.ok(P.disparuPhotos().length >= 3);
+    assert.ok(P.disparuPhotos().every((t) => t.theme.startsWith("Photos · ") && t.objects.length >= 5 && t.objects.every((o) => o.banque && o.image && o.word)));
+    const lib = { mimes: {}, quizzes: {}, playlists: {}, contents: {} };
+    for (let k = 0; k < 10; k++) {
+      const { round } = M.randomRound("disparu", lib, { count: 4 });
+      assert.ok(round.picks.every((p) => !p.startsWith("photos")), "en émojis : jamais une famille en photos");
+    }
+    const tirages = Array.from({ length: 20 }, () => M.randomRound("disparu", lib, { count: 4, photos: true }).round);
+    assert.ok(tirages.every((r) => r.photos === true));
+    assert.ok(tirages.some((r) => r.picks.some((p) => p.startsWith("photos"))), "en photos : les familles en photos sont tirées");
+    // En photos, les objets en émojis dont le mot est dans la banque ont aussi leur photo.
+    const fruits = S.buildSnapshot("s", { rounds: [{ type: "disparu", picks: ["fruits"], count: 1, photos: true }] }, {}, {}, seq()).snapshot.quiz.questions[0];
+    assert.ok(fruits.cards.some((c) => c.banque));
+    const emojis = S.buildSnapshot("s", { rounds: [{ type: "disparu", picks: ["fruits"], count: 1 }] }, {}, {}, seq()).snapshot.quiz.questions[0];
+    assert.ok(emojis.cards.every((c) => !c.banque), "en émojis : aucune photo");
+    // Tirée au hasard en photos : les grilles tout en photos passent d'abord.
+    for (let k = 0; k < 5; k++) {
+      const grilles = S.buildSnapshot("s", { rounds: [{ type: "disparu", count: 2, photos: true }] }, {}, {}, Math.random).snapshot.quiz.questions;
+      assert.ok(grilles.length === 2 && grilles.every((q) => q.cards.every((c) => c.banque)), "en photos, au hasard : des grilles tout en photos");
+    }
+  });
+
+  test("Mimes en photos : les cartes de la banque ont leur photo ; le réglage est gardé dans la manche", () => {
+    const cards = [{ word: "Chat", image: "🐱" }, { word: "Dragon volant", image: "🐉" }, { word: "Lion", image: "🦁" }];
+    const q = S.buildSnapshot("s", { rounds: [{ type: "mimes", cards, photos: true }] }, {}, {}, seq()).snapshot.quiz.questions[0];
+    assert.deepEqual(Object.fromEntries(q.cards.map((c) => [c.word, c.banque ?? null])), { Chat: "chat", "Dragon volant": null, Lion: "lion" });
+    const sans = S.buildSnapshot("s", { rounds: [{ type: "mimes", cards }] }, {}, {}, seq()).snapshot.quiz.questions[0];
+    assert.ok(sans.cards.every((c) => !c.banque));
+    assert.equal(M.cleanRound({ type: "mimes", cards, photos: true }).photos, true);
+    assert.equal(M.cleanRound({ type: "disparu", picks: ["fruits"], photos: true }).photos, true);
+    assert.equal(M.cleanRound({ type: "mimes", cards }).photos, undefined);
+    const { round } = M.randomRound("mimes", { mimes: {}, quizzes: {}, playlists: {}, contents: {} }, { count: 6, base: { type: "mimes", photos: true } }, seq());
+    assert.equal(round.photos, true, "rejouer garde les photos");
+  });
+
+  test("Zoom mystère et Image floue : une photo de la banque choisie se joue, avec ses réponses en images", () => {
+    const qs = S.buildSnapshot("s", { rounds: [{ type: "zoom", picks: ["banque:vache", "banque:chat"] }] }, {}).snapshot.quiz.questions;
+    assert.deepEqual(qs.map((q) => [q.kind, q.banque, q.choices[q.correct]]), [["zoom", "vache", "🐄 Vache"], ["zoom", "chat", P.questionBanque("chat").choices[P.questionBanque("chat").correct]]]);
+    assert.ok(S.roundFilled({ type: "flou", picks: ["banque:vache"] }));
+    // Jouée pendant la fête : ni la photo, ni le même mot ne reviennent au hasard.
+    const played = M.playedKeys(qs);
+    assert.ok(played.photos.has("banque:vache"));
+  });
+
+  test("au chargement, la régie copie les photos dans la partie et met leur identifiant ; rien ne bloque si une photo manque", async () => {
+    const photos = { chat: "data:image/jpeg;base64,Q0hBVA==", vache: "data:image/jpeg;base64,VkFDSEU=" };
+    const lus = [];
+    const ecrits = [];
+    const questions = [
+      { kind: "zoom", text: "Qu'est-ce que c'est ?", banque: "vache", choices: ["a", "b"], correct: 0 },
+      { kind: "flou", text: "Qu'est-ce que c'est ?", banque: "lion", choices: ["a", "b"], correct: 0 },
+      { kind: "disparu", cards: [{ word: "Chat", banque: "chat" }, { word: "Lion", banque: "lion" }, { word: "Dragon" }] },
+      { kind: "mime", cards: [{ word: "Chat", banque: "chat" }] },
+      { kind: "qcm", text: "Rien à faire", choices: ["a", "b"], correct: 0 },
+    ];
+    const avant = JSON.stringify(questions);
+    const out = await P.resolveBanque(questions, {
+      photo: async (cle) => { lus.push(cle); return photos[cle] ?? null; },
+      secours: async (m) => (m ? `data:image/jpeg;base64,${m.cle.toUpperCase()}` : null),
+      ecrire: async (dir, id, data) => { ecrits.push([dir, id, data]); },
+    });
+    assert.equal(JSON.stringify(questions), avant, "les questions d'origine ne sont pas touchées");
+    assert.ok(out.every((q) => !q.banque && (q.cards ?? []).every((c) => !c.banque)), "plus aucune clé de la banque");
+    assert.match(out[0].imageId, /^[0-9a-f]{16}$/);
+    assert.match(out[1].imageId, /^[0-9a-f]{16}$/, "photo absente : l'émoji dessiné la remplace pour un Zoom");
+    assert.equal(out[2].cards[0].imageId, out[3].cards[0].imageId, "la même photo pour le même mot");
+    assert.equal(out[2].cards[1].imageId, undefined, "carte sans photo : elle garde son émoji");
+    assert.deepEqual(out[2].cards[2], { word: "Dragon" });
+    assert.equal(out[4], questions[4], "question sans photo de la banque : rendue telle quelle");
+    assert.equal(ecrits.filter(([dir]) => dir === "choiceImages").length, 1, "la photo du chat copiée une seule fois");
+    assert.deepEqual(ecrits.filter(([dir]) => dir === "images").map(([, , d]) => d), [photos.vache, "data:image/jpeg;base64,LION"]);
+    const { imageId } = await import("../web/public/illustration.js");
+    assert.equal(out[0].imageId, await imageId(photos.vache), "l'identifiant est l'empreinte de la photo");
+    // Une erreur d'écriture ne bloque pas : la question part sans photo.
+    const casse = await P.resolveBanque([{ kind: "zoom", banque: "chat" }], { photo: async () => photos.chat, ecrire: async () => { throw new Error("hors ligne"); } });
+    assert.deepEqual(casse, [{ kind: "zoom" }]);
   });
 });

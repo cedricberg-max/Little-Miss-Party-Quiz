@@ -120,6 +120,7 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .lib-chip:disabled { opacity: .5; cursor: default; }
 .regie .lib-x { min-width: 36px; min-height: 36px; margin-right: 8px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .1); color: inherit; font: inherit; cursor: pointer; }
 .regie .lib-add { min-height: 48px; font: inherit; font-size: 16px; border-radius: 12px; padding: 0 10px; }
+.regie .lib-search { min-height: 44px; font: inherit; font-size: 16px; border-radius: 12px; padding: 0 12px; border: 1px solid rgba(255, 255, 255, .25); background: rgba(255, 255, 255, .06); color: inherit; }
 .regie .lib-actions { display: flex; flex-direction: column; gap: 8px; margin-top: auto; padding-top: 8px; }
 .regie .soon { font-size: 12px; font-weight: 800; color: var(--night-deep); background: var(--gold); border-radius: 999px; padding: 2px 8px; align-self: flex-start; }
 
@@ -297,3 +298,6 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .gonfleur-team > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .regie .gonfleur-bar { height: 14px; border-radius: 99px; background: rgba(255, 255, 255, .12); overflow: hidden; }
 .regie .gonfleur-bar i { display: block; height: 100%; border-radius: 99px; background: var(--team); transition: width .2s; }
+
+/* « Ajouter un jeu » : vignettes des photos de la banque (Zoom mystère, Image floue, Qui a disparu ? en photos). */
+.regie .lib-thumb { width: 28px; height: 28px; object-fit: cover; border-radius: 6px; vertical-align: middle; }
