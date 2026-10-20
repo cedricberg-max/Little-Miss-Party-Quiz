@@ -1272,3 +1272,47 @@ describe("activation des box", () => {
     await assertFails(set(ref(db("tv1"), "games/NEW07"), { hostUid: "tv1", state: { phase: "lobby" } }));
   });
 });
+
+describe("manches enregistrées (Régie PC et régie)", () => {
+  const SALT = "sel-de-test-0123456789";
+  const hash = (password) => createHash("sha256").update(`${SALT}:${password}`).digest("hex");
+  beforeEach(() => seedAdmin(env, "sarah"));
+  async function regieByPassword(uid) {
+    await env.withSecurityRulesDisabled((ctx) =>
+      set(ref(ctx.database(), "settings/regie"), { salt: SALT, hash: hash("Licorne-2026"), updatedAt: 1 }));
+    const d = db(uid);
+    await set(ref(d, "regieGate/try"), { uid, at: serverTimestamp() });
+    const gateAt = (await get(ref(d, "regieGate/try/at"))).val();
+    await set(ref(d, `regieProof/${uid}`), { hash: hash("Licorne-2026"), gateAt, at: serverTimestamp() });
+  }
+  const manche = (extra = {}) => ({
+    type: "mimes", title: "Mimes du 20 octobre", origin: "admin", round: { type: "mimes", cards: [{ word: "Chat" }], perTeam: 3 },
+    updatedAt: serverTimestamp(), ...extra,
+  });
+
+  test("la Régie PC compose, épingle, archive et supprime une manche", async () => {
+    await assertSucceeds(set(ref(db("sarah"), "library/manches/m1"), manche({ createdAt: 1 })));
+    await assertSucceeds(set(ref(db("sarah"), "library/manches/m1"), manche({ pinned: true })));
+    await assertSucceeds(set(ref(db("sarah"), "library/manches/m1"), manche({ archived: true })));
+    await assertSucceeds(set(ref(db("sarah"), "library/manches/m1"), null));
+  });
+
+  test("la régie ajoute une manche tirée en direct, sans pouvoir modifier ni effacer", async () => {
+    await regieByPassword("tel");
+    await assertFails(set(ref(db("tel"), "library/manches/m2"), manche()));
+    await assertSucceeds(set(ref(db("tel"), "library/manches/m2"), manche({ origin: "direct" })));
+    await assertFails(set(ref(db("tel"), "library/manches/m2"), manche({ origin: "direct", pinned: true })));
+    await assertFails(set(ref(db("tel"), "library/manches/m2"), null));
+    await assertSucceeds(set(ref(db("sarah"), "library/manches/m3"), manche()));
+    await assertFails(set(ref(db("tel"), "library/manches/m3"), manche({ origin: "direct" })));
+  });
+
+  test("un inconnu ne lit ni n'écrit les manches ; manche mal formée refusée", async () => {
+    await assertFails(set(ref(db("intrus"), "library/manches/m4"), manche({ origin: "direct" })));
+    await assertFails(get(ref(db("intrus"), "library/manches")));
+    await assertFails(set(ref(db("sarah"), "library/manches/m5"), manche({ type: "inconnu" })));
+    await assertFails(set(ref(db("sarah"), "library/manches/m5"), manche({ round: { type: "quiz", quizId: "q" } })));
+    await assertFails(set(ref(db("sarah"), "library/manches/m5"), manche({ title: "" })));
+    await assertFails(set(ref(db("sarah"), "library/manches/m5"), manche({ pirate: true })));
+  });
+});

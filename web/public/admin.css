@@ -384,3 +384,25 @@ button.item { cursor: pointer; }
 .kind-card span, .kind-way span { font-size: 14px; color: var(--muted, #6b6480); }
 .kind-card:hover, .kind-way:hover { border-color: var(--violet); }
 .kind-card.active, .kind-way.active { border-color: var(--violet); background: var(--violet-pale); }
+
+/* Page d'un jeu : onglets Manches / Collections, cartes des manches, éditeur d'une manche. */
+.game-tabs { margin-bottom: 0; }
+.game-tabs .chip { font-size: 16px; }
+.manche-card { gap: 6px; }
+.manche-card.pinned { border-left: 6px solid var(--gold); }
+.manche-card .pill.pin { background: var(--gold-pale); color: var(--warn); }
+.manche-card .row .btn { font-size: 15px; padding: 9px 14px; }
+#manches-pinned, #manches-list, #manches-archived, #manches-shows { margin-top: 10px; }
+#screen-game details summary { cursor: pointer; font-weight: 800; color: var(--soft); }
+.manche-round { align-items: flex-start; }
+.manche-round > * { flex: 1 1 100%; }
+.manche-round select { width: 100%; max-width: 100%; }
+.manche-tools { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; }
+.manche-tools .manche-load { max-width: 100%; }
+.mode-switch { margin-bottom: 4px; flex: 1 1 100%; }
+.mode-chip { font-size: 15px; padding: 7px 12px; }
+.mime-need { flex: 1 1 100%; color: var(--violet); font-weight: 700; }
+.mime-need.warn { color: var(--warn); }
+.round .picto-round > select { width: 100%; max-width: 100%; }
+.round .manche-tools { flex: 1 1 260px; min-width: 0; }
+.round .manche-tools .manche-load { flex: 1; min-width: 0; max-width: none; }

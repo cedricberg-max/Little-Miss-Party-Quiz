@@ -283,7 +283,12 @@ export const pictoRoundSeries = (round) => {
 
 export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || round.type === "statues" || round.type === "pictionary" || round.type === "portes" || round.type === "coffres" || round.type === "gonfleur" || round.type === "patate" ? true
   : round.type === "mimes" ? round.deckId || round.random === true || mimeCards(round.cards).length
-  : MUSIC_GAMES[round.type] ? round.playlistId : roundQuizIds(round).length));
+  : MUSIC_GAMES[round.type] ? round.playlistId || roundTracks(round).length
+  : (round.type === "zoom" || round.type === "flou") && roundPicks(round).length ? true
+  : roundQuizIds(round).length));
+
+/** Extraits choisis un par un pour un blind test ou un quiz musical (`tracks`, leurs identifiants), dans plusieurs playlists. */
+export const roundTracks = (round) => [...new Set(listOf(round?.tracks).filter((id) => typeof id === "string" && /^[0-9a-f]{16}$/.test(id)))].slice(0, MAX_PICKS);
 
 /** Liste lue dans la base : un tableau, ou un objet indexé (tableau à trous). */
 const listOf = (x) => (Array.isArray(x) ? x : x && typeof x === "object" ? Object.values(x) : []);
@@ -310,8 +315,8 @@ export function mimePool(round, mimes, profile) {
 }
 
 /** Tirage au hasard d'une manche de mimes : tout le paquet mélangé, ou [MIME_RANDOM] cartes du catalogue. */
-export function mimeDraw(round, mimes, profile, random = Math.random) {
-  const pool = shuffle(mimePool(round, mimes, profile), random);
+export function mimeDraw(round, mimes, profile, random = Math.random, avoid = null) {
+  const pool = shuffle(mimePool(round, mimes, profile).filter((c) => !avoid?.has(c.word.toLowerCase())), random);
   return round?.deckId && mimes?.[round.deckId] ? pool : pool.slice(0, Number.isInteger(round?.count) && round.count > 0 ? round.count : MIME_RANDOM);
 }
 
@@ -330,6 +335,25 @@ export function pickedItems(type, content, picks) {
 
 /** Morceaux jouables d'une playlist : un titre et un extrait enregistré. */
 export const playableTracks = (playlist) => (playlist?.tracks ?? []).filter((t) => t?.title?.trim() && /^[0-9a-f]{16}$/.test(t.audioId ?? ""));
+
+/**
+ * Playlist d'une manche faite d'extraits choisis un par un (`tracks`), pris dans toutes les playlists (sauf les
+ * chansons des statues) : chaque extrait garde sa durée, son barème est celui de la première playlist trouvée.
+ * Null si aucun extrait n'existe plus.
+ */
+export function tracksPlaylist(ids, playlists, title = "") {
+  const found = new Map();
+  Object.values(playlists ?? {}).filter((p) => p && !isStatuesList(p)).forEach((p) => playableTracks(p).forEach((t) => {
+    if (!found.has(t.audioId)) found.set(t.audioId, { track: { ...t, duration: t.duration ?? p.duration ?? BLIND_SEC }, playlist: p });
+  }));
+  const picked = ids.map((id) => found.get(id)).filter(Boolean);
+  if (!picked.length) return null;
+  const first = picked[0].playlist;
+  return {
+    title: typeof title === "string" ? title.trim().slice(0, 60) : "", duration: first.duration ?? BLIND_SEC, tracks: picked.map((x) => x.track),
+    ...Object.fromEntries(["points", "finalPoints", "finalCount", "reveal"].filter((k) => first[k] != null).map((k) => [k, first[k]])),
+  };
+}
 
 /**
  * Questions d'un jeu musical. Blind test : les morceaux dans l'ordre de la playlist, un buzz par morceau,
@@ -363,19 +387,39 @@ function musicQuestions(type, playlist, prefix, random) {
  * Manche de mimes : un seul élément du programme, avec le paquet de cartes mélangé (chaque prestation
  * a son ordre) et la durée d'un tour. Le paquet de la bibliothèque n'est pas modifié.
  */
-function mimeItem(round, deck, i, random, profile, mimes) {
+function mimeItem(round, deck, i, random, profile, mimes, teams, avoid) {
   // Cartes choisies dans la Régie PC (gardées dans la manche) ; sinon le paquet, ou un tirage dans le catalogue.
   const fixed = mimeCards(round.cards).slice(0, 200);
-  const title = deck?.title ?? ROUND_TYPES.mimes;
+  const title = deck?.title ?? (typeof round.title === "string" && round.title.trim() ? round.title.trim().slice(0, 60) : ROUND_TYPES.mimes);
+  const cards = fixed.length ? shuffle(fixed, random) : mimeDraw(round, mimes, profile, random, avoid);
+  // Cartes par équipe : de quoi jouer pour les équipes prévues, plus une réserve tirée au hasard pour deux équipes de plus
+  // le jour J (jouée seulement si besoin). Jamais une carte déjà jouée pendant la fête, jamais deux fois la même.
+  const perTeam = mimePerTeam(round);
+  if (perTeam) {
+    const need = perTeam * (teamCount(teams) + MIME_SPARE_TEAMS);
+    const taken = new Set(cards.map((c) => c.word.toLowerCase()));
+    const spare = shuffle(mimeCards(MIME_CATALOG.filter((c) => profile !== "PETITS" || c.level === 1)), random)
+      .filter((c) => !taken.has(c.word.toLowerCase()) && !avoid?.has(c.word.toLowerCase()));
+    cards.push(...spare.slice(0, Math.max(0, need - cards.length)));
+  }
   return {
     id: `r${i + 1}m`,
     text: title,
     kind: "mime",
     duration: round.duration ?? deck?.duration ?? MIME_TURN,
-    cards: fixed.length ? shuffle(fixed, random) : mimeDraw(round, mimes, profile, random).slice(0, 200),
+    cards: cards.slice(0, 200),
     round: title,
   };
 }
+
+/** Cartes par équipe d'une manche de mimes (1 à 20), ou 0 quand la manche joue sa liste telle quelle. */
+export const mimePerTeam = (round) => (Number.isInteger(round?.perTeam) && round.perTeam >= 1 && round.perTeam <= 20 ? round.perTeam : 0);
+
+/** Équipes de rechange prévues par la réserve de cartes des mimes. */
+export const MIME_SPARE_TEAMS = 2;
+
+/** Nombre d'équipes de la prestation (1 à 8), 4 quand il n'est pas indiqué. */
+export const teamCount = (teams) => (Number.isInteger(teams) && teams >= 1 && teams <= 8 ? teams : 4);
 
 /**
  * Instantané que la box joue : un seul quiz, manches mises bout à bout, chrono du profil pour
@@ -383,21 +427,21 @@ function mimeItem(round, deck, i, random, profile, mimes) {
  * un seul élément qui porte son paquet de cartes.
  * Renvoie `{ snapshot, problems }` ; `snapshot` est nul si rien n'est jouable.
  */
-export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.random, playlists = {}, contents = {}) {
+export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.random, playlists = {}, contents = {}, avoid = {}) {
   const profile = PROFILES[show.profile] ? show.profile : profileForAge(show.age);
   const problems = [];
   // Un bloc par manche préparée : la Super Finale rejoint ensuite le quiz qu'elle termine.
   const blocks = [];
   let rounds, questions;
   const begin = (type) => { rounds = []; questions = []; blocks.push({ type, rounds, questions }); };
-  /** Éléments des jeux intégrés déjà tirés dans cette prestation, par jeu. */
-  const used = {};
+  /** Éléments des jeux intégrés déjà tirés dans cette prestation (ou déjà joués pendant la fête : [avoid]), par jeu. */
+  const used = Object.fromEntries(Object.entries(avoid ?? {}).map(([k, v]) => [k, new Set(v)]));
   (show.rounds ?? []).filter(Boolean).forEach((round, i) => {
     begin(round.type);
     if (round.type === "mimes") {
       const deck = round.deckId ? mimes[round.deckId] : null;
       if (!deck && round.random !== true && !mimeCards(round.cards).length) { problems.push(`Manche ${i + 1} : le paquet de mimes n'existe plus dans la bibliothèque.`); return; }
-      const item = mimeItem(round, deck, i, random, profile, mimes);
+      const item = mimeItem(round, deck, i, random, profile, mimes, show.teams, used.mimes);
       if (!item.cards.length) { problems.push(`Manche ${i + 1} (${item.text}) : aucune carte.`); return; }
       rounds.push({ title: item.text, count: 1, kind: "mime" });
       questions.push(item);
@@ -437,8 +481,10 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       const series = pictoRoundSeries(round);
       // Mots choisis un par un dans la Régie PC : ceux-là seulement (les séries et l'âge ne filtrent plus).
       const chosen = pickedItems("pictionary", contents?.pictionary, roundPicks(round));
-      const words = chosen.length ? chosen : activeItems("pictionary", contents?.pictionary)
+      const fresh = (w) => !used.pictionary?.has(w.word.toLowerCase());
+      const all = activeItems("pictionary", contents?.pictionary)
         .filter((w) => (profile !== "PETITS" || w.level !== 2) && (!series || series.includes(pictoSeriesOf(w))));
+      const words = chosen.length ? chosen : all.some(fresh) ? all.filter(fresh) : all;
       if (!words.length) { problems.push(`Manche ${i + 1} (Pictionary) : aucun mot actif${series ? " dans les séries choisies" : ""} (page Jeux de l'administration).`); return; }
       const duration = PICTO_SECONDS.includes(round.duration) ? round.duration : PICTO_SEC;
       rounds.push({ title: ROUND_TYPES.pictionary, count: 1, kind: "pictionary" });
@@ -449,7 +495,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       return;
     }
     if (MUSIC_GAMES[round.type]) {
-      const playlist = playlists[round.playlistId];
+      const playlist = roundTracks(round).length ? tracksPlaylist(roundTracks(round), playlists, round.title) : playlists[round.playlistId];
       if (!playlist) { problems.push(`Manche ${i + 1} : la playlist n'existe plus dans la bibliothèque.`); return; }
       const list = musicQuestions(round.type, playlist, `r${i + 1}q`, random);
       if (round.type === "musical" && new Set(list.map((q) => q.choices[q.correct])).size < 2) {
@@ -484,6 +530,21 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       rounds.push({ title: ROUND_TYPES[round.type], count: picked.length });
       picked.forEach((item, j) => questions.push({
         id: `r${i + 1}q${j + 1}`, duration: builtin.duration, double: false, round: ROUND_TYPES[round.type], ...builtin.question(item),
+      }));
+      return;
+    }
+    if ((round.type === "zoom" || round.type === "flou") && roundPicks(round).length) {
+      // Photos choisies une par une, dans tous les quiz (la même photo n'est jouée qu'une fois).
+      const byImage = new Map();
+      Object.values(quizzes ?? {}).forEach((qz) => (qz ? zoomQuestions(qz) : []).forEach((q) => { if (!byImage.has(q.imageId)) byImage.set(q.imageId, q); }));
+      const list = roundPicks(round).map((id) => byImage.get(id)).filter(Boolean);
+      if (!list.length) { problems.push(`Manche ${i + 1} (${ROUND_TYPES[round.type]}) : les photos choisies n'existent plus dans les quiz.`); return; }
+      const label = ROUND_TYPES[round.type];
+      rounds.push({ title: label, count: list.length });
+      list.forEach((q, j) => questions.push({
+        id: `r${i + 1}q${j + 1}`, text: q.text, choices: q.choices, correct: q.correct,
+        duration: round.type === "flou" ? FLOU_SEC : q.duration ?? defaultDuration(profile),
+        kind: round.type, double: false, round: label, ...(q.image ? { image: q.image } : {}), imageId: q.imageId,
       }));
       return;
     }
@@ -710,8 +771,8 @@ export function lockedUntil(questions, index) {
  * insérer : chrono du profil de la prestation, identifiants nouveaux (préfixe [prefix]) pour ne jamais
  * croiser une question déjà jouée. Le quiz de la bibliothèque n'est pas modifié.
  */
-export function gameQuestions(source, quizzes, profile, prefix, mimes = {}, playlists = {}, contents = {}) {
-  const { snapshot, problems } = buildSnapshot("ajout", { profile, rounds: [source] }, quizzes, mimes, Math.random, playlists, contents);
+export function gameQuestions(source, quizzes, profile, prefix, mimes = {}, playlists = {}, contents = {}, avoid = {}, teams = null) {
+  const { snapshot, problems } = buildSnapshot("ajout", { profile, teams, rounds: [source] }, quizzes, mimes, Math.random, playlists, contents, avoid);
   if (!snapshot) return { questions: [], problems };
   return { questions: snapshot.quiz.questions.map((q, j) => ({ ...q, id: `${prefix}${q.kind === "mime" ? "m" : "q"}${j + 1}` })), problems };
 }
