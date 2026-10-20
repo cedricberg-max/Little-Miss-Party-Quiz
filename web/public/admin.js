@@ -3323,7 +3323,8 @@ function paintRandomBox() {
   $("manche-count-box").hidden = type === "mimes";
   $("manche-teams-box").hidden = type !== "mimes";
   $("manche-count").value = RANDOM_COUNT[type] ?? BUILTIN_GAMES[type]?.count ?? 6;
-  const groups = collectionGroups(collectionItems(type, { mimes, contents, quizzes, playlists }));
+  // Qui a disparu ? : le choix émojis ou photos se fait dans « Contenu et réglages », pas de catégories en plus.
+  const groups = type === "disparu" ? [] : collectionGroups(collectionItems(type, { mimes, contents, quizzes, playlists }));
   $("manche-groups").replaceChildren(...groups.map((g) => h("button", {
     type: "button", class: "chip", "data-group": g, "aria-pressed": "false", text: g,
     onclick: (e) => { const on = e.target.getAttribute("aria-pressed") !== "true"; e.target.setAttribute("aria-pressed", on ? "true" : "false"); e.target.classList.toggle("active", on); },

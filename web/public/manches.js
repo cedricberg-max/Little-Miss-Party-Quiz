@@ -8,7 +8,7 @@ import {
   ROUND_TYPES, BUILTIN_GAMES, CONTENT_GAMES, MUSIC_GAMES, activeItems, pictoSeriesOf, playableTracks, isStatuesList,
   statuesSongs, statuesChoices, zoomQuestions, expressQuestions, playable, mimeCards, roundPicks, roundTracks, roundQuizIds, roundSongs,
   pictoRoundSeries, mimePerTeam, teamCount, MIME_TURN, MIME_RANDOM, STATUES_SEC, PICTO_SEC,
-  MAX_PICKS, MAX_STATUES_SONGS, quizKind, builtinConcepts, fixedConcepts, isPhotoTheme,
+  MAX_PICKS, MAX_STATUES_SONGS, quizKind, builtinConcepts, fixedConcepts, isPhotoTheme, parPalierPhotos,
 } from "./show.js";
 import { MIME_CATALOG, shuffle } from "./mime-cards.js";
 import { concepts, questionConcepts, neufsSiPossible } from "./jamais-deux-fois.js";
@@ -128,7 +128,11 @@ export function randomRound(type, lib, opts = {}, random = Math.random) {
     ?? (perTeam ? perTeam * teamCount(opts.teams) : null)
     ?? baseCount(type, base)
     ?? RANDOM_COUNT[type] ?? BUILTIN_GAMES[type]?.count ?? 6));
-  const { items: picked, exhausted } = drawItems(items, count, { ...opts, type }, random);
+  // Qui a disparu ? en « 📷 Photos » : les familles qui montrent le plus de photos d'abord (tirées au hasard entre elles).
+  const enPhotos = type === "disparu" && settings.photos === true;
+  const tirage = drawItems(items, enPhotos ? items.length : count, { ...opts, type }, random);
+  const picked = enPhotos ? parPalierPhotos(tirage.items, (x) => x.value?.objects).slice(0, count) : tirage.items;
+  const exhausted = enPhotos ? tirage.left < count : tirage.exhausted;
   if (!picked.length) return { round: null, exhausted: true, count: 0 };
   const keys = picked.map((x) => x.key);
   const round = type === "mimes" ? { type, ...settings, cards: picked.map((x) => x.value), ...(perTeam ? { perTeam } : {}) }

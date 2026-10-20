@@ -76,11 +76,12 @@ for (let k = 0; k < Math.min(prestations, 2); k++) {
   await page.locator("#screen-show-edit:not([hidden])").waitFor({ timeout: 5000 }).catch(() => {});
   await capture(`prestation-${k + 1}`);
 }
+const SEULS_AUTRES = process.env.AUTRES === "1";
 if (COURTE) { await browser.close(); server.close(); await env.cleanup(); process.exit(0); }
 await ecran("games");
 await capture("jeux");
 await ecran("home");
-const jeux = await page.locator("#screen-home .tile[data-game]").evaluateAll((els) => els.map((e) => e.dataset.game));
+const jeux = SEULS_AUTRES ? [] : await page.locator("#screen-home .tile[data-game]").evaluateAll((els) => els.map((e) => e.dataset.game));
 for (const jeu of jeux) {
   await ecran("home");
   await page.locator(`#screen-home .tile[data-game="${jeu}"]`).click();
@@ -100,6 +101,17 @@ for (const jeu of jeux) {
       await capture(`jeu-${jeu}-onglet-${k + 1}`);
     }
   }
+}
+// Écrans d'édition : un quiz, la banque des tout-petits, la création d'un quiz, une playlist et le réglage d'une chanson.
+const autres = [
+  ["quiz-edition", async () => { await ecran("games"); await page.locator(".game-card[data-game=quiz] button", { hasText: "Gérer les quiz" }).click(); await page.locator("#quiz-list .item").first().getByRole("button", { name: "Éditer" }).click(); }],
+  ["banque-des-petits", async () => { await ecran("games"); await page.locator(".game-card[data-game=quiz] button", { hasText: "Gérer les quiz" }).click(); await page.click("#banque-open"); }],
+  ["creer-un-quiz", async () => { await ecran("games"); await page.locator(".game-card[data-game=quiz] button", { hasText: "Gérer les quiz" }).click(); await page.click("#quiz-import-open"); }],
+  ["playlist-edition", async () => { await ecran("games"); await page.locator(".game-card[data-game=blind] button", { hasText: "Gérer les playlists" }).click(); await page.locator("#screen-music .item").first().getByRole("button", { name: "Éditer" }).click(); }],
+  ["chanson-reglages", async () => { await ecran("games"); await page.locator(".game-card[data-game=blind] button", { hasText: "Gérer les playlists" }).click(); await page.locator("button", { hasText: "Régler…" }).first().click(); }],
+];
+for (const [nom, aller] of autres) {
+  try { await aller(); await capture(nom); } catch (e) { erreurs.push(`visite ${nom} : ${e.message.split("\n")[0]}`); }
 }
 console.log(erreurs.length ? `Erreurs :\n${[...new Set(erreurs)].join("\n")}` : "Aucune erreur dans la page.");
 await browser.close();

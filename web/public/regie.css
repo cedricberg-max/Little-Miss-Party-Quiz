@@ -298,3 +298,6 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .gonfleur-team > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .regie .gonfleur-bar { height: 14px; border-radius: 99px; background: rgba(255, 255, 255, .12); overflow: hidden; }
 .regie .gonfleur-bar i { display: block; height: 100%; border-radius: 99px; background: var(--team); transition: width .2s; }
+
+/* « Ajouter un jeu » : vignettes des photos de la banque (Zoom mystère, Image floue, Qui a disparu ? en photos). */
+.regie .lib-thumb { width: 28px; height: 28px; object-fit: cover; border-radius: 6px; vertical-align: middle; }

@@ -179,7 +179,7 @@ button.item { cursor: pointer; }
 .qcard { display: flex; flex-direction: column; gap: 10px; background: var(--card); border: 2px solid var(--line); border-radius: 20px; padding: 18px; box-shadow: var(--shadow); }
 .qcard.valid { border-color: #9fd9b4; }
 .qcard.error { border-color: #f0a7bf; }
-.illustration .q-emoji { width: 110px; font-size: 20px; }
+.illustration .q-emoji, .illustration label.inline input.q-emoji { width: 140px; font-size: 20px; }
 .illustration .q-image { height: 72px; width: 96px; max-width: none; object-fit: cover; border-radius: 9%; border: 2px solid var(--line); }
 .illustration .q-image[hidden] { display: none; }
 .qhead { display: flex; align-items: center; gap: 12px; }

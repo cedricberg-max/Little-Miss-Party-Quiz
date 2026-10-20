@@ -387,6 +387,11 @@ async function addTeam(uid, name) {
     set(ref(ctx.database(), `games/${CODE}/teams/${uid}`), { name, color: "#FF2D8A", joinedAt: Date.now() }));
 }
 
+/** Capture d'écran pour relire une page à l'œil, seulement si CAPTURES=<dossier> est donné (rien n'est vérifié). */
+async function capture(page, nom) {
+  if (process.env.CAPTURES) await page.screenshot({ path: `${process.env.CAPTURES}/${nom}.png`, fullPage: true });
+}
+
 async function openRegie(context, query = `?g=${CODE}&emu=1`, path = "/") {
   context ??= await browser.newContext({ viewport: { width: 390, height: 844 } });
   await context.route("https://www.gstatic.com/firebasejs/11.1.0/*", (route) => {
@@ -2180,6 +2185,7 @@ describe("bibliothèque de quiz et prestations", () => {
     // La recherche (sans accents ni majuscules) ne garde que ce qui correspond, toutes playlists confondues.
     await regie.fill("#lib-search", "THRILL");
     await waitFor(async () => (await regie.locator("#lib-add option:not([value=''])").count()) === 1, "un seul titre trouvé");
+    await capture(regie, "regie-blind-recherche");
     await regie.selectOption("#lib-add", { label: "Thriller" });
     await regie.locator("#lib-meta", { hasText: "3 questions" }).waitFor();
     await regie.click("#lib-end");
@@ -2196,6 +2202,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.fill("#lib-search", "hakuna");
     await regie.selectOption("#lib-add", { label: "Hakuna Matata" });
     await regie.locator("#lib-meta", { hasText: "1 chanson à la suite · en premier : Hakuna Matata" }).waitFor();
+    await capture(regie, "regie-statues-chanson");
     await regie.click("#lib-end");
     const statues = await waitFor(async () => (await read("conducteur")).questions.find((q) => q.kind === "statues"), "Statues ajoutées");
     assert.deepEqual(statues.audioIds, [hex(2)]);
@@ -2215,6 +2222,7 @@ describe("bibliothèque de quiz et prestations", () => {
     // Zoom mystère au hasard : sans aucun quiz, les photos de la banque, avec leurs réponses en images.
     await regie.locator("#lib-list [data-game='hasard/zoom']").click();
     await regie.locator("#lib-meta", { hasText: "questions" }).waitFor();
+    await capture(regie, "regie-zoom-photos");
     await regie.click("#lib-end");
     await regie.locator("#r-toast", { hasText: "est ajouté" }).waitFor();
     const zoom = (await read("conducteur")).questions.filter((q) => q.kind === "zoom");
@@ -2230,6 +2238,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.locator("#lib-list [data-game='builtin/disparu']").click();
     await regie.locator("#lib-edit .lib-photos", { hasText: "📷 Photos" }).click();
     await regie.locator("#lib-edit .lib-photos.on", { hasText: "📷 Photos" }).waitFor();
+    await capture(regie, "regie-disparu-photos");
     await regie.click("#lib-end");
     await regie.locator("#r-toast", { hasText: "Qui a disparu" }).waitFor();
     const grilles = (await read("conducteur")).questions.filter((q) => q.kind === "disparu");

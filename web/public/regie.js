@@ -1578,7 +1578,7 @@ function renderPickedEdit(questions) {
     const label = source.type === "mimes" || source.type === "pictionary" ? "＋ Ajouter une carte…"
       : source.type === "zoom" || source.type === "flou" ? "＋ Ajouter une photo…"
       : source.type === "statues" ? "＋ Choisir une chanson (jouée en premier)…"
-      : MUSIC_GAMES[source.type] ? "＋ Ajouter un titre…" : `＋ Ajouter un ${CONTENT_GAMES[source.type]?.unit ?? "élément"}…`;
+      : MUSIC_GAMES[source.type] ? "＋ Ajouter un titre…" : `＋ Ajouter ${CONTENT_GAMES[source.type]?.unit === "famille" ? "une famille" : `un ${CONTENT_GAMES[source.type]?.unit ?? "élément"}`}…`;
     // Liste remplie selon la recherche (des centaines de photos ou de cartes) : sans accents ni majuscules.
     const fill = (text) => {
       const q = plat(text).trim();
@@ -1655,7 +1655,8 @@ function randomPanel(rnd) {
     chips("Images", [[false, "😀 Émojis"], [true, "📷 Photos"]], (v) => rnd.photos === v, (v) => { rnd.photos = v; }, "lib-photos");
   }
   chips("Difficulté", Object.entries(LEVELS), (k) => rnd.level === k, (k) => { rnd.level = k; }, "lib-level");
-  const groups = collectionGroups(collectionItems(rnd.type, library));
+  // Qui a disparu ? : « Images » (émojis ou photos) suffit, pas de catégories en plus.
+  const groups = rnd.type === "disparu" ? [] : collectionGroups(collectionItems(rnd.type, library));
   if (groups.length > 1) {
     chips("Catégories (aucune touchée : toutes)", groups.map((g) => [g, g]), (g) => rnd.groups.includes(g),
       (g) => { rnd.groups = rnd.groups.includes(g) ? rnd.groups.filter((x) => x !== g) : [...rnd.groups, g]; }, "lib-group");
@@ -1783,7 +1784,22 @@ function renderPreview() {
     // Blind test et quiz musical : le titre (et l'artiste) de chaque extrait.
     if (q.audioId) { answer.textContent = `♪ ${q.choices?.[q.correct] ?? ""}${q.artist ? ` · ${q.artist}` : ""}`; li.append(answer); list.appendChild(li); return; }
     answer.textContent = ` → ${q.kind === "number" ? q.correct : q.choices?.[q.correct] ?? ""}`;
-    if (q.kind === "disparu") { answer.textContent = ` → ${q.image ?? ""} ${q.choices?.[q.correct] ?? ""}`; li.append((q.cards ?? []).map((c) => c.image ?? c.word).join(" "), answer); list.appendChild(li); return; }
+    // Photos de la banque : leur vignette, pour voir tout de suite que ce sont des photos.
+    const vignette = (cle) => {
+      const img = document.createElement("img");
+      img.className = "lib-thumb";
+      img.src = `banque/${encodeURIComponent(cle)}.jpg`;
+      img.alt = "";
+      return img;
+    };
+    if (q.kind === "disparu") {
+      answer.textContent = ` → ${q.image ?? ""} ${q.choices?.[q.correct] ?? ""}`;
+      (q.cards ?? []).forEach((c, j) => li.append(j ? " " : "", c.banque ? vignette(c.banque) : c.image ?? c.word));
+      li.append(answer);
+      list.appendChild(li);
+      return;
+    }
+    if (q.banque) li.append(vignette(q.banque), " ");
     li.append(q.kind === "quisuis" ? `${q.image ?? ""} ${q.cards?.[0]?.word ?? ""}…`.trim() : q.text, answer);
     list.appendChild(li);
   });

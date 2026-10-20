@@ -245,11 +245,20 @@ export function activeItems(type, content) {
  */
 function parPhotos(round, grilles) {
   if (round?.type !== "disparu" || round.photos !== true) return grilles;
-  const palier = (g) => {
-    const n = (g.objects ?? []).filter((o) => o?.banque).length;
-    return n && n === g.objects.length ? 2 : n >= 3 ? 1 : 0;
+  return parPalierPhotos(grilles, (g) => g.objects);
+}
+
+/**
+ * Familles ou grilles de Qui a disparu ? rangées pour le mode « 📷 Photos » : tout en photos d'abord, puis au moins
+ * 3 photos, puis les autres ; l'ordre de départ (le hasard) est gardé dans chaque groupe. [objets](x) : ses objets.
+ */
+export function parPalierPhotos(liste, objets) {
+  const palier = (x) => {
+    const tous = objets(x) ?? [];
+    const n = tous.filter((o) => o?.banque || avecPhoto(o)?.banque).length;
+    return n && n === tous.length ? 2 : n >= 3 ? 1 : 0;
   };
-  return grilles.map((g, k) => [g, k]).sort(([a, i], [b, j]) => palier(b) - palier(a) || i - j).map(([g]) => g);
+  return liste.map((x, k) => [x, k, palier(x)]).sort(([, i, a], [, j, b]) => b - a || i - j).map(([x]) => x);
 }
 
 /** Famille de Qui a disparu ? faite de photos de la banque. */
