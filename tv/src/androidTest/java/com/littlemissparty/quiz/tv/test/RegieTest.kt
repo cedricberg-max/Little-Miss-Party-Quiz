@@ -957,8 +957,10 @@ class RegieTest : TestTv() {
         attendreQue("bombe passée") { licornes.etat(code).takeIf { it.child("potato/holder").value == autre.uid } }
         ecran.capture("patate-passe")
         // Mèche qui colle : pas de renvoi immédiat (vérifié seulement si l'émulateur est assez rapide pour tomber dedans).
+        // Large marge : l'horloge de l'émulateur et celle du serveur diffèrent, et l'envoi met parfois plus d'une seconde
+        // à arriver (le 20/10, un renvoi parti 500 ms avant la fin est arrivé 110 ms après et a été accepté, à raison).
         val colle = (licornes.etat(code).child("potato/readyAt").value as Number).toLong()
-        if (System.currentTimeMillis() + 500 < colle) assertEquals("mèche qui colle", false, autre.envoyerPatate(code, porteur.uid))
+        if (System.currentTimeMillis() + 1_500 < colle) assertEquals("mèche qui colle", false, autre.envoyerPatate(code, porteur.uid))
 
         // La mèche arrive au bout chez l'équipe qui tient la bombe : elle perd des points, l'autre en gagne.
         val avant = mapOf(licornes.uid to points(licornes, code, licornes.uid), dragons.uid to points(licornes, code, dragons.uid))
