@@ -556,6 +556,26 @@ describe("régie", () => {
     await admin.context().close();
   });
 
+  test("le petit œil montre le mot de passe tapé, puis le masque à nouveau ; masqué après l'envoi", async () => {
+    const admin = await openRegie(null, "?emu=1", "/admin.html");
+    await admin.fill("#admin-password", "SACHA-majuscules");
+    const oeil = admin.locator(".oeil-champ:has(#admin-password) .oeil-bouton");
+    assert.equal(await oeil.getAttribute("aria-label"), "Afficher le mot de passe");
+    await oeil.click();
+    assert.equal(await admin.locator("#admin-password").getAttribute("type"), "text", "caractères visibles");
+    assert.equal(await admin.locator("#admin-password").inputValue(), "SACHA-majuscules", "rien de perdu");
+    assert.equal(await oeil.getAttribute("aria-label"), "Masquer le mot de passe");
+    await oeil.click();
+    assert.equal(await admin.locator("#admin-password").getAttribute("type"), "password");
+    await oeil.click();
+    await admin.click("#login");
+    await admin.locator("#login-status", { hasText: "Mot de passe incorrect" }).waitFor();
+    assert.equal(await admin.locator("#admin-password").getAttribute("type"), "password", "masqué après l'envoi");
+    // Tous les champs de mot de passe de la page ont leur œil.
+    assert.equal(await admin.locator('input[type="password"]:not(.oeil-champ > input)').count(), 0);
+    await admin.context().close();
+  });
+
   test("première configuration, appareil reconnu après rechargement, changement du mot de passe administrateur", async () => {
     await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), "settings/admin"), null));
     const pc = await openRegie(null, "?emu=1", "/admin.html");

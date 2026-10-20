@@ -22,6 +22,10 @@ import { EXTRACT_SECONDS, guessTrack, defaultStart, decodeFile, makeExtract, syn
 import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
 import { watchVersion, showUpdateBanner } from "./version.js";
 import { compressImage, imageId, cleanEmoji, CHOICE_IMAGE } from "./illustration.js";
+import { afficherMotsDePasse } from "./oeil.js";
+
+// Petit œil sur les champs de mot de passe : voir ce qu'on tape (majuscules, caractère en trop).
+afficherMotsDePasse();
 
 // Nouvelle version publiée pendant que l'administration est ouverte : on propose de recharger, sans rien perdre d'office.
 watchVersion(() => showUpdateBanner("Une nouvelle version de l'administration est en ligne. Enregistrez votre travail, puis mettez à jour."));
