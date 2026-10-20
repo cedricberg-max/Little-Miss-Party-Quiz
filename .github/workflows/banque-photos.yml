@@ -1,5 +1,5 @@
 # Banque des tout-petits : photos candidates du domaine public pour chaque mot, à choisir avant de les ajouter à
-# web/public/banque/. Lancé à la main ou quand le script change ; ne publie rien sur le site ni sur la TV.
+# web/public/banque/. Lancé à la main ; ne publie rien sur le site ni sur la TV.
 # Résultat : une pré-version GitHub « banque-photos-candidats » (planches, candidates, sources), remplacée à chaque fois.
 name: Banque photos (candidates)
 
@@ -14,13 +14,14 @@ on:
         description: "Nom du lot (vide = le premier) : chaque lot a sa pré-version, les précédents sont gardés"
         required: false
         default: ""
+      par_mot:
+        description: "Nombre de photos candidates par mot"
+        required: false
+        default: "4"
       nettoyer:
         description: "« oui » = effacer toutes les pré-versions et branches de candidates (une fois les photos choisies)"
         required: false
         default: ""
-  push:
-    branches: [claude/project-thread-yygo7l]
-    paths: [scripts/banque-photos.mjs]
 
 permissions:
   contents: write
@@ -64,6 +65,7 @@ jobs:
       - name: Chercher et recadrer les photos
         env:
           MOTS: ${{ inputs.mots }}
+          PAR_MOT: ${{ inputs.par_mot }}
           BUDGET_MIN: "90"
         run: node scripts/banque-photos.mjs
       - name: Publier les candidates
