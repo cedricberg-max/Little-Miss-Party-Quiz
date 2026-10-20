@@ -49,6 +49,7 @@ input::placeholder, textarea::placeholder { color: #a99bb5; }
 textarea { resize: vertical; }
 input[type=checkbox], input[type=radio] { width: 22px; height: 22px; accent-color: var(--violet); }
 label.inline input { width: 90px; }
+label.inline input[type=checkbox], label.inline input[type=radio] { width: 22px; padding: 0; flex: none; }
 
 .btn {
   align-self: flex-start; font-size: 17px; font-weight: 800; padding: 14px 24px; border: 0; border-radius: 999px; cursor: pointer;
@@ -188,6 +189,7 @@ button.item { cursor: pointer; }
 .choice-photo { display: inline-flex; align-items: center; gap: 4px; }
 .choice-thumb { width: 44px; height: 44px; object-fit: contain; border-radius: 8px; background: #fff; border: 1px solid #ddd; }
 .drop-zone { border: 2px dashed transparent; border-radius: 12px; }
+.drop-zone textarea { display: block; width: 100%; box-sizing: border-box; }
 .drop-zone.over { border-color: var(--rose); background: rgba(255, 45, 138, .06); }
 
 @media (max-width: 640px) {
@@ -320,7 +322,6 @@ button.item { cursor: pointer; }
 .statues-songs { display: flex; flex-direction: column; gap: 4px; }
 .statues-songs .hint { margin: 4px 0 0; }
 .statues-song { display: flex; align-items: center; gap: 8px; font-weight: 500; }
-.statues-song input { width: 18px; height: 18px; }
 .statues-songs .link { align-self: flex-start; }
 
 /* Créer un quiz : choix des réponses (texte ou images). */

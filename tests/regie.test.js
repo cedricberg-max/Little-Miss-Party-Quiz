@@ -2817,7 +2817,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await songs.nth(1).waitFor();
     assert.deepEqual(await songs.evaluateAll((els) => els.map((e) => e.checked)), [true, true]);
     await songs.nth(0).uncheck();
-    await page.locator("#show-rounds .statues-songs", { hasText: "1 chanson cochée" }).waitFor();
+    await page.locator("#show-rounds .statues-songs", { hasText: "1 chanson cochée, jouée en boucle" }).waitFor();
     await page.selectOption("#show-status", "publiee");
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();

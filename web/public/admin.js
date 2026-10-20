@@ -635,7 +635,7 @@ function songsPicker(r) {
   const manage = h("button", { type: "button", class: "link", text: songs.length ? "Gérer les chansons" : "Ajouter vos chansons (page Jeux)", onclick: () => openStatuesSongs() });
   if (!songs.length) return h("p", { class: "hint small statues-songs" }, "Musique de la fête (aucune chanson dans la liste). ", manage);
   return h("div", { class: "statues-songs" },
-    h("p", { class: "hint small", text: chosen.size ? `${plural(roundSongs(r, playlists).length, "chanson cochée", "chansons cochées")}, jouées l'une après l'autre :` : "Aucune chanson cochée : musique de la fête." }),
+    h("p", { class: "hint small", text: !chosen.size ? "Aucune chanson cochée : musique de la fête." : roundSongs(r, playlists).length === 1 ? "1 chanson cochée, jouée en boucle :" : `${roundSongs(r, playlists).length} chansons cochées, jouées l'une après l'autre :` }),
     ...songs.map((t) => h("label", { class: "inline statues-song" },
       h("input", {
         type: "checkbox", value: t.audioId, checked: chosen.has(t.audioId),
@@ -1824,7 +1824,8 @@ function renderTracks() {
   const scale = scaleInputs();
   const n = playlist.tracks.length;
   $("playlist-tracks").replaceChildren(...playlist.tracks.map((t, i) => {
-    const label = h("span", { text: `Début de l'extrait : ${mmss(t.start ?? 0)}` });
+    const debut = playlist.use === "statues" ? "Début du passage" : "Début de l'extrait";
+    const label = h("span", { text: `${debut} : ${mmss(t.start ?? 0)}` });
     const length = t.duration ?? seconds;
     const max = Math.max(0, Math.floor((t.length ?? 0) - length));
     const auto = trackPoints(scale, null, i, n);
@@ -1848,7 +1849,7 @@ function renderTracks() {
       h("div", { class: "track-start" }, label,
         h("input", {
           type: "range", min: 0, max, step: 1, value: Math.min(t.start ?? 0, max), "aria-label": "Début de l'extrait",
-          oninput: (e) => { t.start = Number(e.target.value); label.textContent = `Début de l'extrait : ${mmss(t.start)}`; },
+          oninput: (e) => { t.start = Number(e.target.value); label.textContent = `${debut} : ${mmss(t.start)}`; },
           onchange: () => { if (preview) listen(t); },
         })),
       h("div", { class: "track-extra" },
