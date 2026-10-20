@@ -496,6 +496,56 @@ describe("pupitre", () => {
     for (const p of pages) await p.context().close();
   });
 
+  test("gros buzzer USB (vu comme un clavier) : un appui buzze comme l'écran, seulement quand le BUZZ est là ; le nom se tape sans buzzer", async () => {
+    const pages = [await openPupitre(), await openPupitre()];
+    // Buzzer déjà branché pendant l'inscription : les touches écrivent le nom, sans rien envoyer.
+    await pages[0].locator("#screen-join.active").waitFor();
+    await pages[0].click("#team-name");
+    await pages[0].keyboard.type("Les Roses");
+    await pages[0].keyboard.press("Space");
+    await pages[0].keyboard.press("Backspace");
+    await pages[0].click("#join");
+    await pages[0].locator("#screen-play.active").waitFor();
+    assert.equal(Object.values(await read("teams"))[0].name, "Les Roses");
+    assert.equal(await read("fun"), null, "taper son nom ne buzze pas");
+    await joinTeam(pages[1], "Les Bleus");
+    const uids = Object.fromEntries(Object.entries(await read("teams")).map(([uid, t]) => [t.name, uid]));
+    // Salon : le gros bouton fait le petit air, comme un toucher.
+    await pages[0].keyboard.press("Space");
+    await waitFor(async () => (await read("fun"))?.[uids["Les Roses"]]?.at, "buzz de l'accueil au gros bouton");
+    // Question à 4 réponses : pas de BUZZ à l'écran, le gros bouton ne fait rien, même sur une réponse restée
+    // sélectionnée (le gros bouton est souvent réglé sur Entrée).
+    await hostState(question());
+    await pages[0].locator("#screen-question.active").waitFor();
+    await pages[0].locator(".choice").nth(1).focus();
+    await pages[0].keyboard.press("Space");
+    await pages[0].keyboard.press("Enter");
+    await new Promise((r) => setTimeout(r, 500));
+    assert.equal(await read("answers"), null, "aucune réponse envoyée par le gros bouton");
+    // Image floue : le gros bouton des Roses (touche maintenue : un seul appui), puis celui des Bleus, refusé.
+    await hostState(question({ qid: "f1", kind: "flou", choices: null, text: "Qu'est-ce qui se cache sous le flou ?", round: "f1-1000-0", buzzOpen: true, buzz: { blocked: [] } }));
+    for (const p of pages) await p.locator("#play-status", { hasText: "buzzez dès que vous la reconnaissez" }).waitFor();
+    await pages[0].keyboard.down("Space");
+    await pages[0].keyboard.down("Space");
+    await pages[0].keyboard.up("Space");
+    await waitFor(async () => (await read("buzz/f1-1000-0"))?.team === uids["Les Roses"], "buzz des Roses au gros bouton");
+    assert.equal(await pages[0].locator("#buzz").isDisabled(), true);
+    await pages[1].keyboard.press("Enter");
+    await new Promise((r) => setTimeout(r, 400));
+    assert.equal((await read("buzz/f1-1000-0")).team, uids["Les Roses"], "la base garde le premier buzz");
+    // Buzzer réglé en usine comme un clic de souris : un clic à côté du BUZZ compte aussi.
+    await hostState(question({ qid: "f3", kind: "flou", choices: null, text: "Qu'est-ce qui se cache sous le flou ?", round: "f3-1000-0", buzzOpen: true, buzz: { blocked: [] } }));
+    await pages[0].locator("#buzz:not([disabled])").waitFor();
+    await pages[0].mouse.click(12, 12);
+    await waitFor(async () => (await read("buzz/f3-1000-0"))?.team === uids["Les Roses"], "buzz des Roses au clic de souris");
+    // Sans gros bouton, le BUZZ de l'écran marche comme avant.
+    await hostState(question({ qid: "f2", kind: "flou", choices: null, text: "Qu'est-ce qui se cache sous le flou ?", round: "f2-1000-0", buzzOpen: true, buzz: { blocked: [] } }));
+    await pages[1].locator("#buzz:not([disabled])").waitFor();
+    await pages[1].click("#buzz");
+    await waitFor(async () => (await read("buzz/f2-1000-0"))?.team === uids["Les Bleus"], "buzz des Bleus à l'écran");
+    for (const p of pages) await p.context().close();
+  });
+
   test("Chante le mot ! et Qui suis-je ? : le même grand BUZZ, la consigne du jeu, puis le mot ou le personnage", async () => {
     const page = await openPupitre();
     await joinTeam(page, "Les Roses");

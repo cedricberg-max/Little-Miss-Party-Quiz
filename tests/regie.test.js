@@ -3195,10 +3195,24 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator(".track input[aria-label=Droits]").nth(1).fill("CD de Sarah");
     await page.click("#playlist-save");
     await page.locator("#playlist-status", { hasText: "Enregistrée : 2 morceaux" }).waitFor({ timeout: 30000 });
+    // « Régler… » une chanson de la bibliothèque : un écran à son nom, sans ajout de fichiers ni retrait ;
+    // l'artiste corrigé suit dans la playlist.
+    await page.click("#playlist-crumb");
+    await page.locator("#song-list .song", { hasText: "Hakuna Matata" }).getByRole("button", { name: "Régler…" }).click();
+    await page.locator("#playlist-edit-title", { hasText: "Réglages de « Hakuna Matata »" }).waitFor();
+    assert.equal(await page.locator(".track").count(), 1);
+    for (const sel of ["#playlist-duration", "#playlist-files", "#playlist-count", ".track button[title^=Retirer]"]) {
+      assert.equal(await page.locator(sel).first().isVisible(), false, `${sel} caché pour une seule chanson`);
+    }
+    await page.locator(".track input[aria-label=Artiste]").fill("Le Roi lion");
+    assert.equal(await page.locator("#playlist-save").textContent(), "Enregistrer les réglages");
+    await page.click("#playlist-save");
+    await page.locator("#playlist-status", { hasText: "Réglages enregistrés" }).waitFor({ timeout: 30000 });
+    await waitFor(async () => Object.values(await library("playlists"))[0].tracks[1].artist === "Le Roi lion", "artiste suivi dans la playlist");
     await page.context().close();
     const [id, pl] = Object.entries(await library("playlists"))[0];
     assert.equal(pl.duration, 20);
-    assert.deepEqual(pl.tracks.map((t) => [t.title, t.artist ?? null, t.rights ?? null]), [["Libérée délivrée", "La Reine des neiges", null], ["Hakuna Matata", null, "CD de Sarah"]]);
+    assert.deepEqual(pl.tracks.map((t) => [t.title, t.artist ?? null, t.rights ?? null]), [["Libérée délivrée", "La Reine des neiges", null], ["Hakuna Matata", "Le Roi lion", "CD de Sarah"]]);
     const sounds = await library("sounds");
     for (const t of pl.tracks) {
       const data = sounds[t.audioId];

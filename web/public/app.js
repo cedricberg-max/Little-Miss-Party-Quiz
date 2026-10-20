@@ -1269,6 +1269,32 @@ $("buzz").onclick = async () => {
   }
 };
 
+// Gros buzzer USB branché sur la tablette : elle le voit comme un clavier d'une seule touche. Un appui sur n'importe
+// quelle touche fait comme un toucher du BUZZ de l'écran, seulement quand il est affiché ; sans buzzer, rien ne change.
+const buzzAffiche = () => !$("buzz").hidden && $("screen-play").classList.contains("active");
+const TOUCHES_SYSTEME = /^(Shift|Control|Alt|Meta|OS|Fn|Hyper|Super|CapsLock|NumLock|ScrollLock|Tab|Escape|Unidentified|Dead|Process|Audio|Media|Browser|Launch|Power|Brightness|Volume|Help|ContextMenu|PrintScreen)/;
+const enFrappe = (e) => e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable]");
+document.addEventListener("keydown", (e) => {
+  if (e.ctrlKey || e.altKey || e.metaKey || TOUCHES_SYSTEME.test(e.key)) return;
+  // Un nom d'équipe ou un mot de passe en cours de frappe : la touche sert à écrire. La régie n'a pas de gros bouton.
+  if (enFrappe(e) || document.body.classList.contains("regie-mode")) return;
+  // Le gros bouton est souvent réglé sur Entrée : il n'appuie jamais sur le bouton de l'écran touché en dernier
+  // (une réponse, une équipe à qui passer la patate…), ni deux fois si on le garde enfoncé.
+  e.preventDefault();
+  if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) document.activeElement.blur();
+  if (!e.repeat && buzzAffiche()) $("buzz").click();
+});
+// Espace appuie sur un bouton au relâché : même garde.
+document.addEventListener("keyup", (e) => { if (e.key === " " && !enFrappe(e) && !document.body.classList.contains("regie-mode")) e.preventDefault(); });
+// Buzzer réglé en usine comme un clic de souris : un clic n'importe où sur l'écran du BUZZ compte (sur le BUZZ lui-même,
+// c'est déjà un clic normal). Les doigts sur l'écran ne sont pas concernés.
+document.addEventListener("pointerdown", (e) => {
+  if (e.pointerType !== "mouse" || !buzzAffiche() || (e.target instanceof Element && e.target.closest("#buzz"))) return;
+  e.preventDefault();
+  $("buzz").click();
+}, true);
+document.addEventListener("contextmenu", (e) => { if (buzzAffiche()) e.preventDefault(); });
+
 // ---------- Accès régie ----------
 
 let usePin = false;

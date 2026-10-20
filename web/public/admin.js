@@ -323,7 +323,8 @@ function showCard(id, s) {
   const r = readiness(s, quizzes, mimes, playlists, contents);
   const { snapshot } = buildSnapshot(id, s, quizzes, mimes, Math.random, playlists, contents);
   const date = s.date ? shortDate(s.date) : null;
-  return h("article", { class: `card show-card ${r.level}`, "data-show": id },
+  // Un clic sur la carte (hors de ses boutons) l'ouvre, comme « Ouvrir ».
+  return h("article", { class: `card show-card ${r.level}`, "data-show": id, onclick: (e) => { if (!e.target.closest("button")) editShow(id); } },
     h("div", { class: "date-chip" }, date ? [h("b", { text: `${date.day}` }), h("span", { text: date.month })] : h("span", { text: "sans date" })),
     h("div", { class: "card-body" },
       h("b", { class: "card-title", text: showTitle(s) }),
@@ -2386,7 +2387,8 @@ $("song-files").onchange = async (e) => {
 
 /** Réglages de chansons de la bibliothèque, dans l'écran des playlists (sans nom ni barème). */
 function editSongs(list) {
-  editPlaylist(null, { use: "songs", title: "Bibliothèque des sons", tracks: list.map((x) => ({ ...trackFromSong(x), start: x.start, refrain: x.refrain, length: x.length })) });
+  // Une seule chanson (« Régler… ») : l'écran porte son nom.
+  editPlaylist(null, { use: "songs", single: list.length === 1, title: list.length === 1 ? `Réglages de « ${list[0].title} »` : "Bibliothèque des sons", tracks: list.map((x) => ({ ...trackFromSong(x), start: x.start, refrain: x.refrain, length: x.length })) });
 }
 
 /** Playlist : chercher une chanson dans la bibliothèque et l'ajouter avec ses réglages. */
@@ -2459,9 +2461,15 @@ function editPlaylist(id, fresh = {}) {
       };
     }),
   };
+  // Une seule chanson à régler : ni durée des nouvelles chansons, ni ajout de fichiers.
+  const single = library && fresh.single === true;
+  playlist.single = single;
+  $("playlist-count").closest("p").hidden = single;
   $("playlist-lib").hidden = true;
   $("playlist-from-lib").hidden = statues || library;
   $("playlist-title").closest("label").hidden = library;
+  $("playlist-duration").closest(".panel").hidden = single;
+  $("playlist-files").closest(".row").hidden = single;
   const scale = blindScale(p);
   $("playlist-points").value = `${scale.points}`;
   $("playlist-final-points").value = `${scale.finalPoints}`;
@@ -2472,13 +2480,13 @@ function editPlaylist(id, fresh = {}) {
   // Statues : pas de barème ni de pochette ; le fil d'Ariane ramène à la page Jeux.
   $("playlist-scale").hidden = statues || library;
   $("statues-hint").hidden = !statues;
-  $("playlist-hint").hidden = statues;
+  $("playlist-hint").hidden = statues || single;
   $("playlist-crumb").textContent = statues ? ROUND_TYPES.statues : "Musique";
   $("playlist-crumb").dataset.screen = statues ? "games" : "music";
   $("playlist-title-label").textContent = statues ? "Nom de la liste" : "Nom de la playlist";
   $("playlist-duration-label").textContent = statues ? "Longueur de chaque chanson" : library ? "Temps pour buzzer des nouvelles chansons" : "Temps pour buzzer (durée des extraits)";
   $("playlist-count-label").textContent = statues || library ? "Chansons" : "Morceaux";
-  $("playlist-save").textContent = statues ? "Enregistrer les chansons" : library ? "Enregistrer dans la bibliothèque" : "Enregistrer la playlist";
+  $("playlist-save").textContent = statues ? "Enregistrer les chansons" : single ? "Enregistrer les réglages" : library ? "Enregistrer dans la bibliothèque" : "Enregistrer la playlist";
   $("playlist-duration").replaceChildren(...extractChoices().map((n) => h("option", { value: n, text: extractText(n) })));
   $("playlist-duration").value = `${p.duration ?? (statues ? STATUES_EXTRACT : BLIND_SEC)}`;
   $("playlist-delete").hidden = !id;
@@ -2613,11 +2621,12 @@ function renderTracks() {
       h("input", { type: "text", maxlength: 80, placeholder: statues ? "Titre de la chanson" : "Titre (la réponse)", value: t.title, "aria-label": "Titre", oninput: (e) => { t.title = e.target.value; } }),
       h("input", { type: "text", maxlength: 80, placeholder: statues ? "Artiste (facultatif)" : "Artiste ou dessin animé (bonus, facultatif)", value: t.artist, "aria-label": "Artiste", oninput: (e) => { t.artist = e.target.value; } }),
       h("div", { class: "track-tools" },
-        h("button", { type: "button", class: "icon", title: "Plus tôt", disabled: i === 0, onclick: () => moveTrack(i, -1), text: "↑" }),
-        h("button", { type: "button", class: "icon", title: "Plus tard", disabled: i === n - 1, onclick: () => moveTrack(i, 1), text: "↓" }),
+        // La bibliothèque n'a pas d'ordre : pas de flèches.
+        library ? null : h("button", { type: "button", class: "icon", title: "Plus tôt", disabled: i === 0, onclick: () => moveTrack(i, -1), text: "↑" }),
+        library ? null : h("button", { type: "button", class: "icon", title: "Plus tard", disabled: i === n - 1, onclick: () => moveTrack(i, 1), text: "↓" }),
         h("button", { type: "button", class: "icon", title: "Écouter l'extrait", onclick: () => listen(t), text: "▶" }),
         statues ? null : h("button", { type: "button", class: "icon", title: "Écouter le refrain", onclick: () => listen(t, true), text: "🎤" }),
-        h("button", { type: "button", class: "icon", title: library ? "Retirer de cet écran (la chanson reste dans la bibliothèque)" : "Retirer", onclick: () => { stopPreview(); playlist.tracks.splice(i, 1); renderTracks(); }, text: "✕" })),
+        playlist.single ? null : h("button", { type: "button", class: "icon", title: library ? "Retirer de cet écran (la chanson reste dans la bibliothèque)" : "Retirer", onclick: () => { stopPreview(); playlist.tracks.splice(i, 1); renderTracks(); }, text: "✕" })),
       h("div", { class: "track-start" }, label,
         h("input", {
           type: "range", min: 0, max, step: 1, value: Math.min(t.start ?? 0, max), "aria-label": "Début de l'extrait",
@@ -2626,7 +2635,7 @@ function renderTracks() {
         })),
       statues ? null : refrainTools(t),
       h("div", { class: "track-extra" },
-        h("span", { class: "track-n", text: `${statues ? "Chanson" : "Morceau"} ${i + 1}` }),
+        library ? null : h("span", { class: "track-n", text: `${statues ? "Chanson" : "Morceau"} ${i + 1}` }),
         statues || library ? null : h("label", { class: "inline" }, "Points",
           h("input", {
             type: "number", class: "track-points", min: 1, max: 1000, step: 10, placeholder: `${auto}`, value: t.points ?? "",
@@ -2807,7 +2816,8 @@ $("playlist-save").onclick = async () => {
       histPlaylist.enregistre();
       renderTracks();
       await followSongs(changed, null);
-      return status("playlist-status", `Bibliothèque à jour : ${plural(playlist.tracks.length, "chanson")}. Les playlists qui les ont suivent ces réglages.`, true);
+      return status("playlist-status", playlist.single ? "Réglages enregistrés. Les playlists qui ont cette chanson les suivent."
+        : `Bibliothèque à jour : ${plural(playlist.tracks.length, "chanson")}. Les playlists qui les ont suivent ces réglages.`, true);
     }
     const id = playlist.id ?? push(ref(db, "library/playlists")).key;
     await set(ref(db, `library/playlists/${id}`), {
