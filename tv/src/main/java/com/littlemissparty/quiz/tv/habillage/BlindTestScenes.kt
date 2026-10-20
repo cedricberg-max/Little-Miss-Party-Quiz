@@ -204,6 +204,7 @@ fun BlindBuzz(equipe: String, couleur: Color, modifier: Modifier = Modifier) {
  * moteur garde l'écran affiché : rien ici n'attend ni ne déclenche la suite.
  *
  * @param cle identifiant du morceau, pour rejouer l'entrée à chaque nouvelle révélation
+ * @param chantons refrain préparé en boucle : « 🎤 Tous ensemble, on chante ! » en bas de la scène, trouvé ou non
  */
 @Composable
 fun BlindRevelation(
@@ -215,6 +216,7 @@ fun BlindRevelation(
     points: Int,
     double: Boolean,
     modifier: Modifier = Modifier,
+    chantons: Boolean = false,
 ) {
     val ms = horloge(cle)
     val retourne = remember(cle) { Animatable(0f) }
@@ -294,6 +296,14 @@ fun BlindRevelation(
             }
         }
         if (gagnant != null && points > 0) Gerbe(cle, actif = apres(1800, cle))
+        // Le moment le plus festif : toute la salle chante le refrain jusqu'au « Titre suivant ». Sous la platine et le
+        // titre (bande libre du bas de la scène), jamais par-dessus.
+        if (chantons) {
+            Text(
+                "🎤 Tous ensemble, on chante !", color = Neon.Or, fontSize = 40.sp, fontWeight = FontWeight.Black, maxLines = 1,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp).apparition(2_200, cle),
+            )
+        }
     }
 }
 

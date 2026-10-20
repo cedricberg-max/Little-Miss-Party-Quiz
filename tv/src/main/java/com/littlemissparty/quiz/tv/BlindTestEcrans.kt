@@ -72,6 +72,8 @@ fun BlindScene(q: Question, state: UiState.Playing, modifier: Modifier = Modifie
                 points = gagnant?.let { state.awards[it.uid]?.points } ?: 0,
                 double = b?.doubled == true,
                 modifier = modifier,
+                // Refrain préparé et prêt sur la box : il joue en boucle pendant toute la révélation.
+                chantons = state.phase == Phase.REVEAL && q.refrainId?.let { it in state.sounds } == true,
             )
         }
         state.phase == Phase.QUESTION && buzzer != null -> BlindBuzz(buzzer.name, buzzer.color.toColor(), modifier)
@@ -172,13 +174,6 @@ fun BlindPanel(q: Question, state: UiState.Playing, modifier: Modifier = Modifie
                     Text(
                         "Personne n'a trouvé, ce n'est pas grave !", color = Palette.Ink, fontSize = 22.sp, lineHeight = 28.sp,
                         fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.apparition(1100, q.id),
-                    )
-                }
-                // Refrain préparé : le moment le plus festif, toute la salle chante jusqu'au « Titre suivant ».
-                if (state.phase == Phase.REVEAL && q.refrainId?.let { it in state.sounds } == true) {
-                    Text(
-                        "🎤 Tous ensemble, on chante !", color = Palette.Gold, fontSize = 22.sp, fontWeight = FontWeight.Black,
-                        textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.padding(top = 8.dp).apparition(2_200, q.id),
                     )
                 }
             }
