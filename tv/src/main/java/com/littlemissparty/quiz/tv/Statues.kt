@@ -11,7 +11,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -96,46 +96,50 @@ fun StatuesBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
     val enCours = state.phase == Phase.QUESTION
     val anim = rememberInfiniteTransition(label = "danse")
     val balance by anim.animateFloat(-1f, 1f, infiniteRepeatable(tween(450, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "balance")
-    Box(
+    BoxWithConstraints(
         modifier.clip(RoundedCornerShape(28.dp)).background(if (enCours && !danse) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.08f)),
         contentAlignment = Alignment.Center,
     ) {
+        // Le panneau rétrécit avec le bandeau des équipes (jusqu'à 8) : les textes rapetissent pour tenir sous
+        // l'étiquette, jamais coupés en bas (vu sur le banc d'essai le 20 octobre).
+        val f = ((maxHeight - 52.dp) / 200.dp).coerceIn(0.45f, 1f)
+        fun t(v: Int) = (v * f).sp
         Text(
             "STATUES MUSICALES",
             color = Palette.Night, fontSize = 18.sp, fontWeight = FontWeight.Black,
             modifier = Modifier.align(Alignment.TopCenter).padding(top = 12.dp)
                 .clip(RoundedCornerShape(50)).background(Palette.Gold).padding(horizontal = 14.dp, vertical = 4.dp),
         )
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        Column(Modifier.padding(top = 44.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             when {
                 enCours && danse -> {
                     Text(
-                        "DANSEZ !", color = Palette.Gold, fontSize = 130.sp, lineHeight = 136.sp, fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
+                        "DANSEZ !", color = Palette.Gold, fontSize = t(130), lineHeight = t(136), fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
                         modifier = Modifier.graphicsLayer { rotationZ = 4f * balance; translationY = -10f * balance },
                     )
-                    Text("Bougez tant que la musique joue !", color = Palette.Ink, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+                    Text("Bougez tant que la musique joue !", color = Palette.Ink, fontSize = t(32), lineHeight = t(40), fontWeight = FontWeight.Bold, maxLines = 1)
                 }
                 enCours -> {
                     Text(
-                        "STATUE !", color = Palette.Ink, fontSize = 140.sp, lineHeight = 146.sp, fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
+                        "STATUE !", color = Palette.Ink, fontSize = t(140), lineHeight = t(146), fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
                         modifier = Modifier.apparition(0, "statue"),
                     )
-                    Text("Plus personne ne bouge…", color = Palette.Gold, fontSize = 34.sp, fontWeight = FontWeight.Black)
+                    Text("Plus personne ne bouge…", color = Palette.Gold, fontSize = t(34), lineHeight = t(42), fontWeight = FontWeight.Black, maxLines = 1)
                 }
                 state.phase == Phase.CLOSED -> {
-                    Text("Fin de la musique !", color = Palette.Gold, fontSize = 64.sp, fontWeight = FontWeight.Black)
-                    Spacer(Modifier.height(12.dp))
-                    Text("L'animatrice désigne l'équipe gagnante.", color = Palette.Ink, fontSize = 30.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                    Text("Fin de la musique !", color = Palette.Gold, fontSize = t(64), lineHeight = t(72), fontWeight = FontWeight.Black, maxLines = 1)
+                    Spacer(Modifier.height(12.dp * f))
+                    Text("L'animatrice désigne l'équipe gagnante.", color = Palette.Ink, fontSize = t(30), lineHeight = t(38), fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                 }
                 else -> {
                     val gagnant = state.teams.find { state.awards[it.uid]?.correct == true }
                     Text(
                         gagnant?.let { "Bravo ${it.name} !" } ?: "Bravo à tous les danseurs !",
-                        color = gagnant?.color?.toColor() ?: Palette.Gold, fontSize = 60.sp, lineHeight = 66.sp, fontWeight = FontWeight.Black,
+                        color = gagnant?.color?.toColor() ?: Palette.Gold, fontSize = t(60), lineHeight = t(66), fontWeight = FontWeight.Black,
                         textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 24.dp).apparition(0, gagnant?.uid),
                     )
-                    Spacer(Modifier.height(12.dp))
-                    Text("Les meilleures statues de la fête !", color = Palette.Ink, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(12.dp * f))
+                    Text("Les meilleures statues de la fête !", color = Palette.Ink, fontSize = t(30), lineHeight = t(38), fontWeight = FontWeight.Bold, maxLines = 1)
                 }
             }
         }
