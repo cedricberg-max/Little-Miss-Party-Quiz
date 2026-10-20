@@ -10,7 +10,7 @@ import { execFileSync } from "node:child_process";
 import { BANQUE_MOTS } from "../web/public/banque-petits.js";
 
 const OUT = "banque-candidats";
-const PAR_MOT = 4;
+const PAR_MOT = Number(process.env.PAR_MOT) || 4;
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let openverseRefuse = false;
@@ -29,13 +29,22 @@ async function json(url, essais = 3) {
   throw new Error(`Trop de refus : ${url}`);
 }
 
+// Banques de photos soignées sous CC0 (photos de stock, bien cadrées) : cherchées d'abord, avant tout Openverse.
+const SOURCES_SOIGNEES = "stocksnap,wordpress,nappy";
+// Le titre ou les mots-clés doivent contenir un mot de la recherche : écarte les photos sans rapport.
+const parle = (x, recherche) => {
+  const texte = `${x.title ?? ""} ${(x.tags ?? []).map((t) => t.name).join(" ")}`.toLowerCase();
+  return recherche.toLowerCase().split(/\s+/).some((mot) => mot.length > 2 && texte.includes(mot));
+};
+
 /** Openverse : photos CC0 ou domaine public. Après trop de refus (quota du jour), on passe à Commons seul. */
-async function openverse(recherche) {
+async function openverse(recherche, source = "") {
   if (openverseRefuse) return [];
-  const q = new URLSearchParams({ q: recherche, license: "cc0,pdm", category: "photograph", mature: "false", page_size: "12" });
+  const q = new URLSearchParams({ q: recherche, license: "cc0,pdm", category: "photograph", mature: "false", page_size: "20", ...(source ? { source } : {}) });
   try {
     const r = (await json(`https://api.openverse.org/v1/images/?${q}`, 3)).results ?? [];
-    return r.filter((x) => (x.width ?? 0) >= 400 && (x.height ?? 0) >= 300 && Math.max(x.width, x.height) / Math.min(x.width, x.height) <= 2.2)
+    return r.filter((x) => parle(x, recherche))
+      .filter((x) => (x.width ?? 0) >= 400 && (x.height ?? 0) >= 300 && Math.max(x.width, x.height) / Math.min(x.width, x.height) <= 2.2)
       .map((x) => ({ urls: [x.thumbnail, x.url].filter(Boolean), titre: x.title, auteur: x.creator, licence: `${x.license} ${x.license_version ?? ""}`.trim(), page: x.foreign_landing_url, source: `openverse/${x.source}` }));
   } catch (e) {
     if (/Trop de refus/.test(e.message)) openverseRefuse = true;
@@ -87,8 +96,10 @@ const manquants = [];
 const restants = [];
 for (const m of MOTS) {
   if (Date.now() - DEBUT > BUDGET_MS) { restants.push(m.cle); continue; }
-  let candidats = await openverse(m.recherche);
+  let candidats = await openverse(m.recherche, SOURCES_SOIGNEES);
+  if (candidats.length < PAR_MOT + 2) candidats = [...candidats, ...(await openverse(m.recherche))];
   if (candidats.length < PAR_MOT + 2) candidats = [...candidats, ...(await commons(m.recherche))];
+  candidats = candidats.filter((c, i) => candidats.findIndex((d) => d.page === c.page) === i);
   sources[m.cle] = [];
   let n = 0;
   for (const r of candidats) {
