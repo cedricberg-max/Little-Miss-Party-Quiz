@@ -529,7 +529,7 @@ describe("pupitre", () => {
     await pages[0].keyboard.down("Space");
     await pages[0].keyboard.up("Space");
     await waitFor(async () => (await read("buzz/f1-1000-0"))?.team === uids["Les Roses"], "buzz des Roses au gros bouton");
-    assert.equal(await pages[0].locator("#buzz").isDisabled(), true);
+    await pages[0].locator("#buzz[disabled]").waitFor({ state: "attached" });
     await pages[1].keyboard.press("Enter");
     await new Promise((r) => setTimeout(r, 400));
     assert.equal((await read("buzz/f1-1000-0")).team, uids["Les Roses"], "la base garde le premier buzz");

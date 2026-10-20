@@ -8,7 +8,7 @@ import {
   ROUND_TYPES, BUILTIN_GAMES, CONTENT_GAMES, MUSIC_GAMES, activeItems, pictoSeriesOf, playableTracks, isStatuesList,
   statuesSongs, statuesChoices, zoomQuestions, expressQuestions, playable, mimeCards, roundPicks, roundTracks, roundQuizIds, roundSongs,
   pictoRoundSeries, mimePerTeam, teamCount, MIME_TURN, MIME_RANDOM, STATUES_SEC, PICTO_SEC,
-  MAX_PICKS, MAX_STATUES_SONGS, quizKind, builtinConcepts, fixedConcepts, isPhotoTheme, parPalierPhotos,
+  MAX_PICKS, MAX_STATUES_SONGS, quizKind, builtinConcepts, fixedConcepts, isPhotoTheme, disparuGroup, parPalierPhotos,
 } from "./show.js";
 import { MIME_CATALOG, shuffle } from "./mime-cards.js";
 import { concepts, questionConcepts, neufsSiPossible } from "./jamais-deux-fois.js";
@@ -50,14 +50,20 @@ export function collectionItems(type, lib = {}) {
   const add = (x) => { if (x.key && !seen.has(x.key)) { seen.add(x.key); out.push(x); } };
   if (type === "mimes") {
     MIME_CATALOG.forEach((c) => add({ key: c.word.toLowerCase(), label: `${c.image ?? ""} ${c.word}`.trim(), group: c.theme, level: c.level ?? 1, value: mimeCards([c])[0] }));
-    // Les cartes de Sarah (anciens « paquets ») : une catégorie par paquet.
+    // Les cartes de Sarah (anciens « paquets ») : une catégorie par paquet. Sa photo d'un mot du catalogue prend la place
+    // de l'émoji de ce mot.
     Object.values(lib.mimes ?? {}).filter((d) => d?.title).sort((a, b) => a.title.localeCompare(b.title, "fr"))
-      .forEach((d) => mimeCards(d.cards).forEach((c) => add({ key: c.word.toLowerCase(), label: `${c.image ?? ""} ${c.word}`.trim(), group: d.title, level: 1, value: c })));
+      .forEach((d) => mimeCards(d.cards).forEach((c) => {
+        const x = { key: c.word.toLowerCase(), label: `${c.imageId ? "📷" : c.image ?? ""} ${c.word}`.trim(), group: d.title, level: 1, value: c };
+        const before = c.imageId ? out.findIndex((y) => y.key === x.key && !y.value.imageId) : -1;
+        if (before >= 0) out[before] = x;
+        else add(x);
+      }));
   } else if (CONTENT_GAMES[type]) {
     const game = CONTENT_GAMES[type];
     activeItems(type, lib.contents?.[type]).forEach((x) => add({
       key: game.key(x), label: game.label(x), level: x.level ?? 1, value: x,
-      group: type === "pictionary" ? pictoSeriesOf(x) : type === "disparu" ? (isPhotoTheme(x) ? "Photos de la banque" : "Émojis") : null,
+      group: type === "pictionary" ? pictoSeriesOf(x) : type === "disparu" ? disparuGroup(x) : null,
     }));
   } else if (type === "zoom" || type === "flou") {
     Object.values(lib.quizzes ?? {}).filter((q) => q?.title).sort((a, b) => a.title.localeCompare(b.title, "fr"))

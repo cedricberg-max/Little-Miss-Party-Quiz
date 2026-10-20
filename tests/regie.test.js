@@ -1934,6 +1934,76 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
+  test("Régie PC : ses propres photos sur des cartes de mimes et des objets de Qui a disparu ?, copiées dans la partie", async () => {
+    const page = await admin();
+    // Mimes : une carte avec sa photo (le mot vient du nom du fichier), puis plusieurs photos d'un coup.
+    await page.click(".tile[data-screen=mimes]");
+    await page.click("#game-tabs [data-tab=collections]");
+    await page.click("#mime-new");
+    await page.fill("#mime-title", "Les doudous de Léa");
+    await page.locator("#mime-photo").setInputFiles({ name: "lapin-rose.png", mimeType: "image/png", buffer: png([230, 120, 160]) });
+    await page.locator("#mime-photo-label", { hasText: "Photo choisie" }).waitFor();
+    assert.equal(await page.inputValue("#mime-word"), "Lapin rose");
+    await page.locator("#mime-custom button[type=submit]").click();
+    await page.locator("#mime-picked .mime-card .mime-photo").waitFor();
+    await page.locator("#mime-photos").setInputFiles([
+      { name: "ours-brun.png", mimeType: "image/png", buffer: png([140, 90, 40]) },
+      { name: "girafe.png", mimeType: "image/png", buffer: png([220, 190, 60]) },
+    ]);
+    await page.locator("#mime-status", { hasText: "2 photos ajoutées" }).waitFor();
+    // Une carte du catalogue garde son émoji ; une photo donnée pour un mot déjà là devient sa photo.
+    await page.locator("#mime-catalog .mime-card", { hasText: "Chat" }).click();
+    await page.fill("#mime-word", "girafe");
+    await page.locator("#mime-photo").setInputFiles({ name: "ma-girafe.png", mimeType: "image/png", buffer: png([250, 210, 90]) });
+    await page.locator("#mime-custom button[type=submit]").click();
+    await page.locator("#mime-status", { hasText: "Photo ajoutée à « Girafe »" }).waitFor();
+    assert.equal(await page.locator("#mime-count").textContent(), "4");
+    await page.click("#mime-save");
+    await page.locator("#mime-status", { hasText: "Enregistré : 4 cartes" }).waitFor();
+    const [deckId, deck] = Object.entries(await library("mimes"))[0];
+    assert.deepEqual(deck.cards.map((c) => [c.word, c.image ?? null, /^[0-9a-f]{16}$/.test(c.imageId ?? "")]),
+      [["Lapin rose", null, true], ["Ours brun", null, true], ["Girafe", null, true], ["Chat", "🐱", false]]);
+    assert.equal(new Set(deck.cards.map((c) => c.imageId).filter(Boolean)).size, 3, "trois photos différentes");
+    for (const c of deck.cards.filter((x) => x.imageId)) assert.equal(typeof (await library(`images/${c.imageId}`)), "string");
+
+    // Qui a disparu ? : une famille faite de ses photos, le mot de chaque objet tiré du nom du fichier.
+    await page.click("#nav button[data-screen=games]");
+    await page.locator(".game-card[data-game=disparu] button").first().click();
+    await page.fill("#bi-theme", "La chambre de Léa");
+    await page.click("#builtin-add button[type=submit]");
+    await page.locator("#builtin-status", { hasText: "ou sa photo" }).waitFor();
+    await page.locator("#bi-photos").setInputFiles(["lit", "lampe", "poupee", "tambour", "ballon"].map((n, k) => ({ name: `${n}.png`, mimeType: "image/png", buffer: png([40 * k, 100, 200 - 30 * k]) })));
+    await page.locator("#bi-photos-count", { hasText: "5 photos choisies" }).waitFor();
+    await page.click("#builtin-add button[type=submit]");
+    await page.locator("#builtin-status", { hasText: "« La chambre de Léa » est ajouté au jeu." }).waitFor();
+    await page.locator('#builtin-items .content-item.custom[data-key="la chambre de léa"] .vignettes img').nth(4).waitFor();
+    const chambre = (await library("contents")).disparu.extra[0];
+    assert.deepEqual(chambre.objects.map((o) => o.word), ["Lit", "Lampe", "Poupee", "Tambour", "Ballon"]);
+    assert.ok(chambre.objects.every((o) => /^[0-9a-f]{16}$/.test(o.imageId) && !o.image));
+    await page.context().close();
+
+    // La régie charge la prestation : les photos sont copiées dans la partie, la TV les montre à la place des émojis.
+    await seedLibrary("shows/photos", { childName: "Léa", age: 7, date: "2026-12-02", status: "publiee", teams: 2, updatedAt: 1,
+      rounds: [{ type: "mimes", deckId }, { type: "disparu", count: 1, picks: ["la chambre de léa"] }] });
+    box = startBox();
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator(".show-item", { hasText: "Léa" }).click();
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    const qs = (await read("show")).quiz.questions;
+    const mime = qs.find((q) => q.kind === "mime");
+    const disparu = qs.find((q) => q.kind === "disparu");
+    const mesPhotos = Object.fromEntries(deck.cards.filter((c) => c.imageId).map((c) => [c.word, c.imageId]));
+    for (const c of mime.cards.filter((x) => mesPhotos[x.word])) assert.equal(c.imageId, mesPhotos[c.word]);
+    assert.equal(mime.cards.find((c) => c.word === "Chat").imageId, undefined);
+    assert.equal(disparu.cards.length >= 5, true);
+    assert.ok(disparu.cards.every((c) => chambre.objects.some((o) => o.word === c.word && o.imageId === c.imageId)));
+    const wanted = [...new Set([...mime.cards, ...disparu.cards].map((c) => c.imageId).filter(Boolean))];
+    await waitFor(async () => { const copied = (await read("choiceImages")) ?? {}; return wanted.every((id) => typeof copied[id] === "string"); }, "photos copiées dans la partie");
+    await regie.context().close();
+  });
+
   test("TV trop ancienne pour les mimes : la régie le dit au lieu d'envoyer un programme refusé", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     await seedLibrary("mimes", { zoo: { title: "Zoo", duration: 60, cards: [{ word: "Chat", image: "🐱" }], updatedAt: 1 } });

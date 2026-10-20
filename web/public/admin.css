@@ -226,6 +226,9 @@ button.item { cursor: pointer; }
 .mime-custom { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .mime-custom input { flex: 1; min-width: 180px; }
 .mime-custom input.small { flex: 0 1 140px; min-width: 120px; }
+.mime-custom .file-btn.chosen { border-color: var(--violet); color: var(--violet); background: var(--violet-pale); }
+/* Photo à soi d'une carte de mimes (à la place de l'émoji). */
+.mime-card .mime-photo { width: 52px; height: 44px; object-fit: cover; border-radius: 10px; }
 
 /* Nouvelle version du site publiée pendant que la page était ouverte. */
 .update-banner {

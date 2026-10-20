@@ -17,7 +17,7 @@ import {
   blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras, contentSlot, contentImages,
   pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches, isArchived, AUTO_ARCHIVE_DAYS, quizKind,
   roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS,
-  isStatuesList, statuesSongs, statuesChoices, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS, builtinConcepts, isPhotoTheme,
+  isStatuesList, statuesSongs, statuesChoices, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS, builtinConcepts, isPhotoTheme, disparuGroup,
 } from "./show.js";
 import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE } from "./banque-photos.js";
 import { shuffle } from "./mime-cards.js";
@@ -684,8 +684,8 @@ function mimeSelection(r) {
     conceptsOf: (k) => concepts(extra.get(k) ?? { word: k }),
     empty: r.deckId ? "Aucune carte choisie : tout le paquet, mélangé au lancement." : `Aucune carte choisie : ${MIME_RANDOM} cartes au hasard au lancement, selon l'âge.`,
     items: () => {
-      // « 📷 Photos » : les cartes qui auront leur photo sont marquées.
-      const photo = (c) => (r.photos === true && motDeLaBanque(c.word) ? "📷 " : "");
+      // « 📷 Photos » : les cartes qui auront leur photo sont marquées ; une photo à soi l'est toujours.
+      const photo = (c) => (c.imageId || (r.photos === true && motDeLaBanque(c.word)) ? "📷 " : "");
       const list = pool().map((x) => ({ key: x.card.word.toLowerCase(), label: `${photo(x.card)}${x.card.image ?? ""} ${x.card.word}`.trim(), group: x.group }));
       const keys = new Set(list.map((x) => x.key));
       // Cartes ajoutées à la main (absentes du paquet) : elles restent dans la liste.
@@ -726,7 +726,7 @@ function picksSelection(r) {
     empty: r.type === "pictionary" ? "Aucun mot choisi : tirage au hasard au lancement, dans les séries cochées." : unit === "famille" ? "Aucune famille choisie : tirage au hasard au lancement." : `Aucun ${unit} choisi : tirage au hasard au lancement.`,
     // Qui a disparu ? en émojis : les familles en photos n'y sont pas (sauf celles déjà choisies).
     items: () => activeItems(r.type, contents[r.type]).filter((x) => r.type !== "disparu" || r.photos === true || !isPhotoTheme(x) || roundPicks(r).includes(game.key(x)))
-      .map((x) => ({ key: game.key(x), label: game.label(x), group: r.type === "pictionary" ? pictoSeriesOf(x) : r.type === "disparu" ? (isPhotoTheme(x) ? "Photos de la banque" : "Émojis") : undefined })),
+      .map((x) => ({ key: game.key(x), label: game.label(x), group: r.type === "pictionary" ? pictoSeriesOf(x) : r.type === "disparu" ? disparuGroup(x) : undefined })),
     get: () => roundPicks(r),
     set: (keys) => {
       const had = roundPicks(r).length > 0;
@@ -2209,7 +2209,7 @@ function renderMimes() {
     return h("div", { class: "item", "data-deck": id },
       h("b", { text: d.title }),
       h("span", { text: `${cards.length} carte${cards.length > 1 ? "s" : ""} · tour de ${d.duration ?? MIME_TURN} s` }),
-      h("span", { text: cards.slice(0, 8).map((c) => c.image ?? c.word).join(" ") }),
+      h("span", { text: cards.slice(0, 8).map((c) => (c.imageId ? "📷" : c.image ?? c.word)).join(" ") }),
       h("div", { class: "row" },
         h("button", { class: "btn secondary", onclick: () => editDeck(id), text: "Éditer" }),
         h("button", { class: "btn secondary", onclick: () => rename(`library/mimes/${id}`, d.title, "du paquet"), text: "Renommer" }),
@@ -2219,7 +2219,7 @@ function renderMimes() {
   if (!list.length) box.append(h("p", { class: "hint", text: "Aucun paquet pour l'instant : créez-en un en choisissant des images dans le catalogue." }));
 }
 
-let deck = null; // { id, cards: [{word, image}] }
+let deck = null; // { id, cards: [{word, image, imageId}] }
 let deckTheme = MIME_THEMES[0];
 const sameCard = (a, b) => a.word.toLowerCase() === b.word.toLowerCase();
 
@@ -2228,7 +2228,7 @@ $("mime-new").onclick = () => editDeck(null);
 /** Ouvre un paquet ; sans identifiant, un nouveau, vide ou copié d'un autre (`from`). */
 function editDeck(id, from = null) {
   const d = id ? mimes[id] : from ?? {};
-  deck = { id, cards: (d.cards ?? []).filter(Boolean).map((c) => ({ word: c.word, ...(c.image ? { image: c.image } : {}) })) };
+  deck = { id, cards: mimeCards(d.cards) };
   $("mime-edit-title").textContent = id ? d.title : from ? `Copie de « ${from.title} »` : "Nouvelle collection";
   $("mime-title").value = from ? `${from.title} (copie)`.slice(0, 120) : d.title ?? "";
   $("mime-duration").value = `${d.duration ?? MIME_TURN}`;
@@ -2253,13 +2253,25 @@ const histPaquet = historique({
 function toggleCard(card) {
   const i = deck.cards.findIndex((c) => sameCard(c, card));
   if (i >= 0) deck.cards.splice(i, 1);
-  else deck.cards.push({ word: card.word, ...(card.image ? { image: card.image } : {}) });
+  else deck.cards.push(...mimeCards([card]));
   renderDeck();
+}
+
+/** Vignette d'une photo de la bibliothèque : depuis le cache, sinon lue une fois dans la base. */
+function photoBibliotheque(id, props = {}) {
+  const img = h("img", { alt: "", ...props });
+  if (imageCache[id]) img.src = imageCache[id];
+  else get(ref(db, `library/images/${id}`)).then((snap) => {
+    if (typeof snap.val() === "string") { imageCache[id] = snap.val(); img.src = snap.val(); }
+  }).catch(() => {});
+  return img;
 }
 
 function cardButton(card, on, onclick, extra = null) {
   return h("button", { type: "button", class: `mime-card${on ? " on" : ""}`, onclick, "data-word": card.word },
-    h("span", { class: "emoji", text: card.image ?? "🎭" }), h("span", { class: "word", text: card.word }), extra);
+    // Photo à soi : elle remplace l'émoji, sur la TV comme ici.
+    card.imageId ? photoBibliotheque(card.imageId, { class: "mime-photo", alt: card.word }) : h("span", { class: "emoji", text: card.image ?? "🎭" }),
+    h("span", { class: "word", text: card.word }), extra);
 }
 
 function renderDeck() {
@@ -2278,18 +2290,60 @@ function renderDeck() {
     cardButton(c, deck.cards.some((x) => sameCard(x, c)), () => toggleCard(c))));
 }
 
-$("mime-custom").onsubmit = (e) => {
+/**
+ * Carte à soi : un mot, un émoji et/ou une photo. Une photo donnée pour un mot déjà dans le paquet devient la photo
+ * de cette carte. Rend le message à afficher.
+ */
+async function addOwnCard(word, image, file) {
+  word = word.trim().slice(0, 40);
+  const imageId = file ? await storeChoiceImage(file) : null;
+  const card = { word, ...(image ? { image: image.slice(0, 16) } : {}), ...(imageId ? { imageId } : {}) };
+  const same = deck.cards.find((c) => sameCard(c, card));
+  if (same && !imageId) return `« ${word} » est déjà dans le paquet.`;
+  if (same) { same.imageId = imageId; return `Photo ajoutée à « ${same.word} ».`; }
+  deck.cards.push(card);
+  return "";
+}
+
+$("mime-photo").onchange = (e) => {
+  const f = e.target.files?.[0];
+  $("mime-photo-btn").classList.toggle("chosen", !!f);
+  $("mime-photo-label").textContent = f ? "📷 Photo choisie ✓" : "📷 Photo…";
+  if (f && !$("mime-word").value.trim()) $("mime-word").value = wordFromImage(f.name);
+};
+
+$("mime-custom").onsubmit = async (e) => {
   e.preventDefault();
   const word = $("mime-word").value.trim();
-  const image = $("mime-emoji").value.trim();
-  if (!word) return;
-  if (deck.cards.some((c) => sameCard(c, { word }))) return status("mime-status", `« ${word} » est déjà dans le paquet.`);
-  deck.cards.push({ word: word.slice(0, 40), ...(image ? { image: image.slice(0, 16) } : {}) });
-  $("mime-word").value = "";
-  $("mime-emoji").value = "";
-  status("mime-status", "");
+  const file = $("mime-photo").files?.[0] ?? null;
+  if (!word) return status("mime-status", "Écrivez le mot de la carte.");
+  try {
+    status("mime-status", await addOwnCard(word, $("mime-emoji").value.trim(), file));
+  } catch (err) {
+    console.error(err);
+    return status("mime-status", "Photo refusée : essayez une autre image (JPEG ou PNG).");
+  }
+  e.target.reset();
+  $("mime-photo-btn").classList.remove("chosen");
+  $("mime-photo-label").textContent = "📷 Photo…";
   renderDeck();
+  histPaquet.noter();
   $("mime-word").focus();
+};
+
+// Plusieurs photos d'un coup : une carte par photo, le mot tiré du nom du fichier (« tour-eiffel.jpg » → « Tour eiffel »).
+$("mime-photos").onchange = async (e) => {
+  const files = [...(e.target.files ?? [])];
+  e.target.value = "";
+  let n = 0;
+  for (const [k, f] of files.entries()) {
+    status("mime-status", `Photo ${k + 1} / ${files.length}…`, true);
+    try { await addOwnCard(wordFromImage(f.name) || `Photo ${deck.cards.length + 1}`, "", f); n++; } catch (err) { console.error(err); }
+  }
+  renderDeck();
+  histPaquet.noter();
+  status("mime-status", n === files.length ? `${plural(n, "photo")} ajoutée${n > 1 ? "s" : ""}. Pensez à enregistrer le paquet.`
+    : `${n} photo${n > 1 ? "s" : ""} sur ${files.length} ajoutée${n > 1 ? "s" : ""} : les autres sont illisibles (JPEG ou PNG).`, n > 0);
 };
 
 $("mime-save").onclick = async () => {
@@ -3030,10 +3084,12 @@ function renderBuiltin() {
   const tile = (item, custom) => {
     const key = game.key(item);
     const on = !off.includes(key);
-    const detail = type === "quisuis" ? item.clues.join(" · ") : type === "disparu" && !isPhotoTheme(item) ? item.objects.map((o) => o.image).join(" ") : "";
-    // Qui a disparu ? : une famille en photos montre ses photos (celles copiées dans la partie).
-    const vignettes = type === "disparu" && isPhotoTheme(item)
-      ? h("span", { class: "detail vignettes" }, ...item.objects.map((o) => h("img", { src: `banque/${o.banque}.jpg`, alt: o.word, title: o.word, loading: "lazy" })))
+    // Qui a disparu ? : une famille avec des photos (de la banque, ou à soi) montre ses photos, les autres leurs émojis.
+    const enPhotos = type === "disparu" && (isPhotoTheme(item) || item.objects.some((o) => o.imageId));
+    const detail = type === "quisuis" ? item.clues.join(" · ") : type === "disparu" && !enPhotos ? item.objects.map((o) => o.image).join(" ") : "";
+    const vignettes = enPhotos
+      ? h("span", { class: "detail vignettes" }, ...item.objects.map((o) => (o.imageId ? photoBibliotheque(o.imageId, { alt: o.word, title: o.word })
+        : o.banque ? h("img", { src: `banque/${o.banque}.jpg`, alt: o.word, title: o.word, loading: "lazy" }) : h("span", { title: o.word, text: o.image }))))
       : null;
     // Qui suis-je ? : image du personnage ; Pictionary : vraie photo du mot, à la place de son émoji.
     const photo = type === "quisuis" || type === "pictionary" ? contentPhoto(type, item, key, images) : null;
@@ -3135,34 +3191,50 @@ function renderBuiltinForm() {
     : [
       field("Nom de la famille d'objets", "bi-theme", { placeholder: "Les jouets" }),
       field("Objets : un par ligne, le mot puis son émoji (5 à 12)", "bi-objects", { wide: true, area: true, rows: 6, max: 1200, placeholder: "Ours en peluche 🧸\nBallon ⚽\nDé 🎲" }),
+      // Ou ses propres photos : un objet par photo, le mot tiré du nom du fichier (« ours-en-peluche.jpg »).
+      h("div", { class: "wide row" },
+        h("label", { class: "btn secondary file-btn" }, "📷 Photos des objets…",
+          h("input", {
+            id: "bi-photos", type: "file", accept: "image/*", multiple: true, hidden: true,
+            onchange: (e) => { const n = e.target.files?.length ?? 0; $("bi-photos-count").textContent = n ? `${plural(n, "photo choisie", "photos choisies")} : un objet par photo, le mot vient du nom du fichier.` : ""; },
+          })),
+        h("span", { id: "bi-photos-count", class: "hint small" })),
     ];
   form.replaceChildren(h("p", { class: "label wide", text: `Ajouter ${type === "chante" || type === "pictionary" ? "un mot" : type === "quisuis" ? "un personnage" : "une famille d'objets"}` }),
     ...fields, h("div", { class: "wide" }, h("button", { class: "btn", type: "submit", text: "Ajouter" })));
 }
 
-$("builtin-add").onsubmit = (e) => {
+$("builtin-add").onsubmit = async (e) => {
   e.preventDefault();
+  const form = e.target;
   const type = builtinType;
   const game = CONTENT_GAMES[type];
   const val = (id) => $(id)?.value.trim() ?? "";
+  // Qui a disparu ? : les photos choisies deviennent des objets (rangées d'abord dans la bibliothèque).
+  const photos = [];
+  for (const f of type === "disparu" ? [...($("bi-photos")?.files ?? [])] : []) {
+    status("builtin-status", `Photo ${photos.length + 1}…`, true);
+    try { photos.push({ word: wordFromImage(f.name) || `Objet ${photos.length + 1}`, imageId: await storeChoiceImage(f) }); } catch (err) { console.error(err); }
+  }
   const raw = type === "chante" ? { word: val("bi-word") }
     : type === "pictionary" ? { word: val("bi-word"), image: val("bi-emoji"), series: val("bi-series") }
     : type === "quisuis" ? { answer: val("bi-answer"), emoji: val("bi-emoji"), clues: [1, 2, 3, 4].map((n) => val(`bi-clue${n}`)).filter(Boolean) }
-    : { theme: val("bi-theme"), objects: val("bi-objects").split("\n").map((line) => {
+    : { theme: val("bi-theme"), objects: [...val("bi-objects").split("\n").map((line) => {
       const m = line.trim().match(/^(.*\S)\s+(\S+)$/u);
       return m ? { word: m[1], image: m[2] } : null;
-    }).filter(Boolean) };
+    }).filter(Boolean), ...photos] };
   const item = game.clean(raw);
   if (!item) {
     return status("builtin-status", type === "chante" || type === "pictionary" ? "Écrivez le mot à ajouter."
       : type === "quisuis" ? "Il faut la réponse et au moins 2 indices."
-      : "Il faut un nom et au moins 5 objets, chacun avec son émoji (« Poupée 🪆 »).");
+      : "Il faut un nom et au moins 5 objets, chacun avec son émoji (« Poupée 🪆 ») ou sa photo.");
   }
   const { off, extra } = builtinState(type);
   const key = game.key(item);
   if ([...game.catalog, ...extra].some((x) => game.key(x) === key)) return status("builtin-status", `« ${game.label(item)} » existe déjà.`);
-  saveBuiltin(type, { off, extra: [...extra, item] }, `« ${game.label(item)} » est ajouté au jeu.`);
-  e.target.reset();
+  await saveBuiltin(type, { off, extra: [...extra, item] }, `« ${game.label(item)} » est ajouté au jeu.`);
+  form.reset();
+  if ($("bi-photos-count")) $("bi-photos-count").textContent = "";
 };
 
 // ---------- Page d'un jeu : ses manches ----------
