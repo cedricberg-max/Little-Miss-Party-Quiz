@@ -8,7 +8,7 @@ import {
   buildSnapshot, showTitle, playable, QUIZ_GAMES, BUILTIN_GAMES, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame, imageIds, choiceImageIds,
   soundIds, MUSIC_GAMES, playableTracks, STATUES_SEC, PICTO_SEC, isStatuesList, statuesSongs, MAX_STATUES_SONGS,
   isFutureRound, moveRound, removeRound, uniqueRoundTitle, roundQuizIds, mimePool, mimeCards, CONTENT_GAMES, activeItems, pictoSeriesOf,
-  isArchived, isPhotoTheme, statuesChoices,
+  isArchived, isPhotoTheme, disparuGroup, statuesChoices,
 } from "./show.js";
 import { MIME_CATALOG } from "./mime-cards.js";
 import {
@@ -1722,7 +1722,7 @@ function addChoices(questions) {
     .filter((x) => !present.has((x.answer ?? x.word ?? "").toLowerCase()) && (source.type !== "disparu" || photos || !isPhotoTheme(x)))
     .map((x) => ({
       label: game.label(x),
-      group: source.type === "disparu" ? (isPhotoTheme(x) ? "Photos de la banque" : "Émojis") : undefined,
+      group: source.type === "disparu" ? disparuGroup(x) : undefined,
       add: ajoute({ type: source.type, picks: [game.key(x)], ...(photos ? { photos: true } : {}) }),
     }));
 }

@@ -170,7 +170,8 @@ export const BUILTIN_GAMES = {
     unit: "grille", count: 4, duration: 45, rule: "on mémorise les objets, puis l'un d'eux disparaît",
     // Nombre d'objets par grille : réglé sur la manche (4 à 12), sinon selon l'âge.
     items: (profile, random, list, round, chosen, pris) => list.map((t) => disparuGrid(t, disparuObjects(round, profile), random, pris, round?.photos === true)),
-    question: (g) => ({ text: "Qui a disparu ?", choices: [g.missing.word], correct: 0, kind: "disparu", cards: g.objects, image: g.missing.image, duration: g.duration }),
+    // Objet en photo à soi, sans émoji : pas d'émoji de réponse (la TV montre sa photo).
+    question: (g) => ({ text: "Qui a disparu ?", choices: [g.missing.word], correct: 0, kind: "disparu", cards: g.objects, ...(g.missing.image ? { image: g.missing.image } : {}), duration: g.duration }),
   },
 };
 
@@ -205,9 +206,12 @@ export const CONTENT_GAMES = {
     // Familles en émojis, puis celles de la banque de photos (« Photos · Animaux »).
     unit: "famille", get catalog() { return [...DISPARU_THEMES, ...disparuPhotos()]; }, key: (t) => t.theme.toLowerCase(), label: (t) => t.theme,
     clean: (x) => {
+      // Chaque objet : son émoji, ou une photo à soi (choisie dans la Régie PC), ou les deux.
+      const photo = (o) => typeof o?.imageId === "string" && /^[0-9a-f]{16}$/.test(o.imageId);
+      const emoji = (o) => typeof o?.image === "string" && o.image.trim();
       const objects = (Array.isArray(x?.objects) ? x.objects : [])
-        .filter((o) => typeof o?.word === "string" && o.word.trim() && typeof o.image === "string" && o.image.trim())
-        .map((o) => ({ word: o.word.trim().slice(0, 40), image: o.image.trim().slice(0, 16) })).slice(0, 12);
+        .filter((o) => typeof o?.word === "string" && o.word.trim() && (emoji(o) || photo(o)))
+        .map((o) => ({ word: o.word.trim().slice(0, 40), ...(emoji(o) ? { image: o.image.trim().slice(0, 16) } : {}), ...(photo(o) ? { imageId: o.imageId } : {}) })).slice(0, 12);
       if (typeof x?.theme !== "string" || !x.theme.trim() || objects.length < 5) return null;
       return { theme: x.theme.trim().slice(0, 60), objects };
     },
@@ -255,7 +259,7 @@ function parPhotos(round, grilles) {
 export function parPalierPhotos(liste, objets) {
   const palier = (x) => {
     const tous = objets(x) ?? [];
-    const n = tous.filter((o) => o?.banque || avecPhoto(o)?.banque).length;
+    const n = tous.filter((o) => o?.banque || o?.imageId || avecPhoto(o)?.banque).length;
     return n && n === tous.length ? 2 : n >= 3 ? 1 : 0;
   };
   return liste.map((x, k) => [x, k, palier(x)]).sort(([, i, a], [, j, b]) => b - a || i - j).map(([x]) => x);
@@ -263,6 +267,9 @@ export function parPalierPhotos(liste, objets) {
 
 /** Famille de Qui a disparu ? faite de photos de la banque. */
 export const isPhotoTheme = (t) => (t?.objects ?? []).some((o) => o?.banque);
+
+/** Catégorie d'une famille de Qui a disparu ? dans les listes : photos de la banque, photos à soi, ou émojis. */
+export const disparuGroup = (t) => (isPhotoTheme(t) ? "Photos de la banque" : (t?.objects ?? []).some((o) => o?.imageId) ? "Mes photos" : "Émojis");
 
 /** Qui a disparu ? : objets par grille selon l'âge, et temps de recherche après la mémorisation. */
 const DISPARU_OBJECTS = { PETITS: 5, MOYENS: 7, GRANDS: 9, ADULTES: 9 };
@@ -343,7 +350,12 @@ export const roundQuizIds = (round) => [...new Set((listOf(round?.quizIds).lengt
 
 /** Cartes de mimes valables (un mot, une image facultative). */
 export const mimeCards = (list) => listOf(list).filter((c) => typeof c?.word === "string" && c.word.trim())
-  .map((c) => (typeof c.image === "string" && c.image.trim() ? { word: c.word.trim().slice(0, 40), image: c.image.trim().slice(0, 16) } : { word: c.word.trim().slice(0, 40) }));
+  .map((c) => ({
+    word: c.word.trim().slice(0, 40),
+    ...(typeof c.image === "string" && c.image.trim() ? { image: c.image.trim().slice(0, 16) } : {}),
+    // Photo à soi, choisie dans la Régie PC : elle remplace l'émoji sur la TV.
+    ...(typeof c.imageId === "string" && /^[0-9a-f]{16}$/.test(c.imageId) ? { imageId: c.imageId } : {}),
+  }));
 
 /** Cartes tirées par « Mimes au hasard » quand Sarah n'a rien précisé. */
 export const MIME_RANDOM = 30;

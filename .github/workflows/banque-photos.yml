@@ -14,6 +14,10 @@ on:
         description: "Nom du lot (vide = le premier) : chaque lot a sa pré-version, les précédents sont gardés"
         required: false
         default: ""
+      nettoyer:
+        description: "« oui » = effacer toutes les pré-versions et branches de candidates (une fois les photos choisies)"
+        required: false
+        default: ""
   push:
     branches: [claude/project-thread-yygo7l]
     paths: [scripts/banque-photos.mjs]
@@ -26,7 +30,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Les candidates viennent de recherches automatiques : certaines ne conviennent pas à des enfants. Une fois le choix
+  # fait (les photos retenues sont copiées dans web/public/banque/), on les efface du dépôt public.
+  nettoyer:
+    if: ${{ inputs.nettoyer == 'oui' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Effacer les pré-versions, étiquettes et branches de candidates
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          for tag in $(gh release list -R "$REPO" --limit 100 --json tagName -q '.[].tagName' | grep '^banque-photos-candidats'); do
+            gh release delete "$tag" -R "$REPO" --yes --cleanup-tag
+          done
+          for ref in $(gh api "repos/$REPO/git/matching-refs/heads/banque-photos-candidats" -q '.[].ref') $(gh api "repos/$REPO/git/matching-refs/tags/banque-photos-candidats" -q '.[].ref'); do
+            gh api -X DELETE "repos/$REPO/git/$ref"
+          done
+          echo "Restant :"; gh api "repos/$REPO/git/matching-refs/heads/banque-photos-candidats" -q '.[].ref'
   candidates:
+    if: ${{ inputs.nettoyer != 'oui' }}
     runs-on: ubuntu-latest
     # 388 mots × 4 photos de 480 px (moins de 45 Ko chacune) : 70 Mo au plus ; une heure environ avec les pauses (quotas des API).
     timeout-minutes: 120

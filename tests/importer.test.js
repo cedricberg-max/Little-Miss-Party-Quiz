@@ -1408,11 +1408,53 @@ describe("photos de la banque dans les jeux (Mimes, Qui a disparu ?, Zoom mystè
     assert.deepEqual(out[2].cards[2], { word: "Dragon" });
     assert.equal(out[4], questions[4], "question sans photo de la banque : rendue telle quelle");
     assert.equal(ecrits.filter(([dir]) => dir === "choiceImages").length, 1, "la photo du chat copiée une seule fois");
-    assert.deepEqual(ecrits.filter(([dir]) => dir === "images").map(([, , d]) => d), [photos.vache, "data:image/jpeg;base64,LION"]);
+    assert.deepEqual(ecrits.filter(([dir]) => dir === "images").map(([, , d]) => d).sort(), [photos.vache, "data:image/jpeg;base64,LION"].sort(), "copiées en parallèle : l'ordre ne compte pas");
     const { imageId } = await import("../web/public/illustration.js");
     assert.equal(out[0].imageId, await imageId(photos.vache), "l'identifiant est l'empreinte de la photo");
     // Une erreur d'écriture ne bloque pas : la question part sans photo.
     const casse = await P.resolveBanque([{ kind: "zoom", banque: "chat" }], { photo: async () => photos.chat, ecrire: async () => { throw new Error("hors ligne"); } });
     assert.deepEqual(casse, [{ kind: "zoom" }]);
+  });
+});
+
+describe("photos à soi sur les cartes de mimes et les objets de Qui a disparu ?", async () => {
+  const S = await import("../web/public/show.js");
+  const M = await import("../web/public/manches.js");
+  const ID = "0123456789abcdef";
+
+  test("une carte de mimes garde sa photo (identifiant valable seulement)", () => {
+    assert.deepEqual(S.mimeCards([{ word: " Lapin ", imageId: ID }, { word: "Chat", image: "🐱", imageId: "pas-un-id" }]),
+      [{ word: "Lapin", imageId: ID }, { word: "Chat", image: "🐱" }]);
+  });
+
+  test("une famille de Qui a disparu ? peut être faite de photos sans émoji ; un objet sans émoji ni photo est écarté", () => {
+    const objets = ["Lit", "Lampe", "Poupée", "Tambour", "Ballon"].map((word, k) => ({ word, imageId: `${ID.slice(0, 15)}${k}` }));
+    const [famille] = S.contentExtras("disparu", { extra: [{ theme: "La chambre", objects: [...objets, { word: "Rien" }] }] });
+    assert.deepEqual(famille.objects, objets);
+    assert.equal(S.disparuGroup(famille), "Mes photos");
+    assert.equal(S.disparuGroup(DISPARU_THEMES[0]), "Émojis");
+    assert.equal(S.contentExtras("disparu", { extra: [{ theme: "Trop peu", objects: objets.slice(0, 4) }] }).length, 0);
+    // Tirage en photos : une famille de photos à soi passe avec les familles tout en photos.
+    const rangees = S.parPalierPhotos([DISPARU_THEMES[0], famille], (t) => t.objects);
+    assert.equal(rangees[0], famille);
+  });
+
+  test("dans « toutes les collections », la photo de Sarah d'un mot du catalogue remplace son émoji", () => {
+    const chat = MIME_CATALOG.find((c) => c.word === "Chat");
+    const lib = { mimes: { d: { title: "Mes photos", cards: [{ word: "chat", imageId: ID }, { word: "Doudou", imageId: ID }] } } };
+    const items = M.collectionItems("mimes", lib);
+    const x = items.find((i) => i.key === "chat");
+    assert.equal(x.value.imageId, ID);
+    assert.equal(x.label, "📷 chat");
+    assert.equal(items.filter((i) => i.key === "chat").length, 1);
+    assert.ok(items.some((i) => i.key === "doudou" && i.value.imageId === ID));
+    assert.ok(chat, "le chat est bien au catalogue");
+  });
+
+  test("une carte en photo à soi garde sa photo, même en mode « 📷 Photos » de la banque", async () => {
+    const P = await import("../web/public/banque-photos.js");
+    const carte = { word: "Chat", image: "🐱", imageId: ID };
+    assert.deepEqual(P.avecPhoto(carte), carte);
+    assert.deepEqual(S.choiceImageIds([{ kind: "mime", cards: [carte, { word: "Lune" }] }]), [ID]);
   });
 });

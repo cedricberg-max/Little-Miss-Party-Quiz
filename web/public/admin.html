@@ -294,9 +294,17 @@
         <div id="mime-picked" class="mime-grid"></div>
         <form id="mime-custom" class="mime-custom">
           <input id="mime-word" maxlength="40" placeholder="Ajouter votre mot (ex. : Tour Eiffel)">
-          <input id="mime-emoji" maxlength="16" placeholder="Emoji (facultatif)" class="small">
+          <input id="mime-emoji" maxlength="16" placeholder="Émoji" title="Émoji (facultatif)" class="small">
+          <label id="mime-photo-btn" class="btn secondary file-btn"><span id="mime-photo-label">📷 Photo…</span>
+            <input id="mime-photo" type="file" accept="image/*" hidden>
+          </label>
           <button class="btn secondary" type="submit">Ajouter</button>
+          <label class="btn secondary file-btn">📷 Plusieurs photos…
+            <input id="mime-photos" type="file" accept="image/*" multiple hidden>
+          </label>
         </form>
+        <p class="hint small">Une photo à vous remplace l'émoji sur la TV (facultatif). « Plusieurs photos » fait une carte par photo,
+          avec le mot tiré du nom du fichier (« tour-eiffel.jpg » donne « Tour eiffel »).</p>
       </div>
       <div class="panel">
         <p class="label">Catalogue : touchez une image pour l'ajouter ou la retirer</p>

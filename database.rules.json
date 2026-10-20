@@ -415,9 +415,9 @@
           ".validate": "!newData.exists() || (newData.child('title').isString() && newData.child('title').val().length >= 1 && newData.child('title').val().length <= 120 && newData.child('cards').hasChildren() && newData.child('duration').isNumber() && newData.child('duration').val() >= 15 && newData.child('duration').val() <= 180 && newData.child('updatedAt').val() === now)",
           "cards": {
             "$i": {
-              ".validate": "newData.child('word').isString() && newData.child('word').val().length >= 1 && newData.child('word').val().length <= 40 && (!newData.child('image').exists() || (newData.child('image').isString() && newData.child('image').val().length <= 16))",
+              ".validate": "newData.child('word').isString() && newData.child('word').val().length >= 1 && newData.child('word').val().length <= 40 && (!newData.child('image').exists() || (newData.child('image').isString() && newData.child('image').val().length <= 16)) && (!newData.child('imageId').exists() || (newData.child('imageId').isString() && newData.child('imageId').val().matches(/^[0-9a-f]{16}$/)))",
               "$other": {
-                ".validate": "$other === 'word' || $other === 'image'"
+                ".validate": "$other === 'word' || $other === 'image' || $other === 'imageId'"
               }
             }
           }
