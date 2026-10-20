@@ -27,6 +27,8 @@ import { watchVersion, showUpdateBanner } from "./version.js";
 import { compressImage, imageId, cleanEmoji, CHOICE_IMAGE } from "./illustration.js";
 import { afficherMotsDePasse } from "./oeil.js";
 import { historique, noterEcran } from "./retour.js";
+import { ouvrirCadrage } from "./cadrage.js";
+import { FAMILLES_PETITS, BANQUE_MOTS, motBanque, cleMot, cataloguePetits, tirerPetits } from "./banque-petits.js";
 
 // Petit œil sur les champs de mot de passe : voir ce qu'on tape (majuscules, caractère en trop).
 afficherMotsDePasse();
@@ -110,11 +112,11 @@ function status(id, text, ok = false) {
   $(id).classList.toggle("ok", ok);
 }
 
-const SCREENS = ["login", "home", "shows", "show-edit", "games", "builtin", "quizzes", "import", "review", "settings", "mimes", "mime-edit", "music", "playlist-edit"];
+const SCREENS = ["login", "home", "shows", "show-edit", "games", "builtin", "quizzes", "import", "review", "settings", "mimes", "mime-edit", "music", "playlist-edit", "banque"];
 function show(name) {
   // Quiz, mimes et musique se rangent sous « Jeux » dans le menu (cedric) : c'est l'onglet Jeux qui reste allumé.
   if (["home", "shows", "games", "settings"].includes(name)) current = name;
-  if (["quizzes", "mimes", "music", "builtin", "import", "review", "mime-edit", "playlist-edit"].includes(name)) current = "games";
+  if (["quizzes", "mimes", "music", "builtin", "import", "review", "mime-edit", "playlist-edit", "banque"].includes(name)) current = "games";
   SCREENS.forEach((s) => { $(`screen-${s}`).hidden = s !== name; });
   document.querySelectorAll("#nav button").forEach((b) => b.classList.toggle("active", b.dataset.screen === current));
   window.scrollTo(0, 0);
@@ -211,6 +213,9 @@ function enter() {
   stops.push(onValue(ref(db, "library/mimes"), (s) => { mimes = s.val() ?? {}; refreshLists(); }, lost));
   stops.push(onValue(ref(db, "library/playlists"), (s) => { playlists = s.val() ?? {}; refreshLists(); }, lost));
   stops.push(onValue(ref(db, "library/contents"), (s) => { contents = s.val() ?? {}; refreshLists(); }, lost));
+  // Box : une lecture refusée ne doit pas fermer l'administration (règles pas encore publiées).
+  stops.push(onValue(ref(db, "boxes/requests"), (s) => { boxRequests = s.val() ?? {}; renderBoxes(); }, (e) => console.error(e)));
+  stops.push(onValue(ref(db, "boxes/allowed"), (s) => { boxAllowed = s.val() ?? {}; renderBoxes(); }, (e) => console.error(e)));
   show(current);
 }
 
@@ -220,6 +225,7 @@ function refreshLists() {
   if (!$("screen-home").hidden) renderHome();
   if (!$("screen-games").hidden) renderGames();
   if (!$("screen-builtin").hidden) renderBuiltin();
+  if (!$("screen-banque").hidden) renderBanqueMots();
   if (!$("screen-shows").hidden) renderShows();
   if (!$("screen-quizzes").hidden) renderQuizzes();
   if (!$("screen-mimes").hidden) renderMimes();
@@ -365,6 +371,100 @@ async function rename(path, current, what) {
     alert("Renommage refusé : vérifiez Internet ou reconnectez-vous.");
     return false;
   }
+}
+
+// ---------- Box TV ----------
+
+/** Demandes d'activation des box jamais vues, et box acceptées (Paramètres > Box TV). */
+let boxRequests = {};
+let boxAllowed = {};
+/** Nom tapé pour une demande pas encore acceptée : garde la saisie si la liste se redessine. */
+const boxNames = {};
+
+const BOX_NAME_MAX = 40;
+const boxName = (text) => text.trim().replace(/\s+/g, " ").slice(0, BOX_NAME_MAX);
+const sinceLabel = (at) => {
+  const min = Math.max(0, Math.round((Date.now() - (at ?? Date.now())) / 60000));
+  if (min < 1) return "à l'instant";
+  if (min < 60) return `il y a ${min} min`;
+  const hours = Math.round(min / 60);
+  return hours < 48 ? `il y a ${hours} h` : `le ${new Date(at).toLocaleDateString("fr-FR")}`;
+};
+
+function renderBoxes() {
+  const pending = Object.entries(boxRequests).sort(([, a], [, b]) => (b.at ?? 0) - (a.at ?? 0));
+  const allowed = Object.entries(boxAllowed).sort(([, a], [, b]) => (a.at ?? 0) - (b.at ?? 0));
+  const n = pending.length;
+  $("nav-boxes").hidden = n === 0;
+  $("nav-boxes").textContent = n;
+  $("home-boxes").hidden = n === 0;
+  $("home-boxes").textContent = n === 1
+    ? `📺 Une box attend son activation (code ${pending[0][1].code}) : l'accepter dans Paramètres`
+    : `📺 ${n} box attendent leur activation : les voir dans Paramètres`;
+
+  $("box-requests").replaceChildren(...(n ? pending.map(([id, r]) => {
+    const name = h("input", {
+      type: "text", maxlength: BOX_NAME_MAX, "aria-label": "Nom de la box",
+      value: boxNames[id] ?? boxName(r.model || "Box"),
+      oninput: (e) => { boxNames[id] = e.target.value; },
+    });
+    return h("div", { class: "box-row", "data-box": id },
+      h("span", { class: "box-code", text: r.code }),
+      h("div", { class: "box-info" }, h("b", { text: r.model || "Modèle inconnu" }), h("small", { text: `Demande ${sinceLabel(r.at)}` })),
+      name,
+      h("div", { class: "box-actions" },
+        h("button", { class: "btn small", type: "button", text: "Accepter", onclick: () => acceptBox(id, r, name.value) }),
+        h("button", { class: "btn small secondary", type: "button", text: "Refuser", onclick: () => refuseBox(id, r) })));
+  }) : [h("p", { class: "empty-line", text: "Aucune demande." })]));
+
+  $("box-allowed").replaceChildren(...(allowed.length ? allowed.map(([id, b]) => h("div", { class: "box-row", "data-box": id },
+    h("div", { class: "box-info" },
+      h("b", { text: b.name }),
+      h("small", { text: [b.model, b.at ? `acceptée le ${new Date(b.at).toLocaleDateString("fr-FR")}` : ""].filter(Boolean).join(" · ") })),
+    h("div", { class: "box-actions" },
+      h("button", { class: "btn small secondary", type: "button", text: "Renommer", onclick: () => renameBox(id, b) }),
+      h("button", { class: "btn small secondary", type: "button", text: "Retirer", onclick: () => removeBox(id, b) })))) :
+    [h("p", { class: "empty-line", text: "Aucune box autorisée pour l'instant." })]));
+}
+
+async function boxWrite(changes, done) {
+  try {
+    await update(ref(db, "boxes"), changes);
+    status("box-status", done, true);
+  } catch (err) {
+    console.error(err);
+    status("box-status", "Refusé : vérifiez Internet ou reconnectez-vous.");
+  }
+}
+
+function acceptBox(id, r, typed) {
+  const name = boxName(typed) || boxName(r.model || "") || "Box";
+  delete boxNames[id];
+  return boxWrite({
+    [`allowed/${id}`]: { name, model: (r.model || "").slice(0, 80), at: serverTimestamp() },
+    [`requests/${id}`]: null,
+    // Dès la première box acceptée, plus aucune box inconnue ne peut lancer de partie (définitif).
+    lockOn: true,
+  }, `« ${name} » est activée : elle s'ouvre toute seule.`);
+}
+
+function refuseBox(id, r) {
+  if (!confirm(`Refuser la box au code ${r.code} ? Elle restera bloquée.`)) return;
+  delete boxNames[id];
+  return boxWrite({ [`requests/${id}`]: null }, `Demande ${r.code} refusée.`);
+}
+
+function renameBox(id, b) {
+  const asked = prompt("Nouveau nom de la box :", b.name ?? "");
+  if (asked === null) return;
+  const name = boxName(asked);
+  if (!name || name === b.name) return;
+  return boxWrite({ [`allowed/${id}/name`]: name }, `Box renommée « ${name} ».`);
+}
+
+function removeBox(id, b) {
+  if (!confirm(`Retirer « ${b.name} » ? Elle se rebloquera dès qu'elle ne sera plus en pleine partie, et devra être acceptée à nouveau.`)) return;
+  return boxWrite({ [`allowed/${id}`]: null }, `« ${b.name} » est retirée.`);
 }
 
 /** Archiver range la prestation (elle disparaît de la régie) ; désarchiver la remet en brouillon. */
@@ -853,7 +953,7 @@ function renderQuizzes() {
         h("button", { class: "btn danger", onclick: () => deleteQuiz(id, q), text: "Supprimer" }))));
   });
 }
-const SOURCES = { gemini: "texte collé", tableur: "tableur", json: "fichier", saisie: "saisie", photos: "photos" };
+const SOURCES = { banque: "banque des tout-petits", gemini: "texte collé", tableur: "tableur", json: "fichier", saisie: "saisie", photos: "photos" };
 
 /** Copie à relire puis enregistrer comme nouveau quiz : l'original et ses prestations ne changent pas. */
 function duplicateQuiz(q) {
@@ -911,7 +1011,10 @@ function updatePrompt() {
 }
 ["gem-theme", "gem-age", "gem-count"].forEach((id) => $(id).addEventListener("input", updatePrompt));
 $("gem-difficulty").addEventListener("change", updatePrompt);
-document.querySelectorAll("input[name=gem-answers]").forEach((r) => r.addEventListener("change", updatePrompt));
+document.querySelectorAll("input[name=gem-answers]").forEach((r) => r.addEventListener("change", () => {
+  updatePrompt();
+  $("gem-banque-hint").hidden = answersMode() !== "images";
+}));
 
 /** Copie la demande ; sans accès au presse-papiers, elle est sélectionnée pour un Ctrl+C. */
 async function copyPrompt() {
@@ -1119,7 +1222,15 @@ const imageCache = {};
  * choisie sur le PC (réduite avant l'envoi). Sans illustration, la question se joue comme avant.
  */
 function illustrationRow(q, i) {
-  const preview = h("img", { class: "q-image", alt: "Photo de la question", hidden: !q.imageId });
+  // Bulle de la révélation, comme sur la TV (4:3, image qui la remplit) : un clic ouvre le cadrage.
+  const preview = h("img", {
+    class: "q-image bulle revelation", alt: "Photo de la question", hidden: !q.imageId, title: "Cliquer pour cadrer l'image comme sur la TV",
+    onclick: () => cadrer(q.imageFile ?? imageCache[q.imageId], "revelation", async (blob) => {
+      q.imageId = await storeIllustration(blob);
+      showPreview();
+      info.textContent = "Cadrage enregistré. Pensez à enregistrer le quiz.";
+    }),
+  });
   // Repère de préparation, jamais bloquant : sans illustration, la révélation montre seulement la réponse.
   const missing = h("span", { class: "tag missing", text: "illustration manquante" });
   const refreshMissing = () => { missing.hidden = !!(q.imageId || q.image); };
@@ -1149,10 +1260,12 @@ function illustrationRow(q, i) {
         const id = await storeIllustration(f);
         const data = imageCache[id];
         q.imageId = id;
+        // Le fichier d'origine sert au cadrage (meilleure qualité que la photo réduite).
+        q.imageFile = f;
         noterEcran();
         remove.hidden = false;
         showPreview();
-        info.textContent = `Photo prête (${Math.round(data.length / 1365)} Ko). Pensez à enregistrer le quiz.`;
+        info.textContent = `Photo prête (${Math.round(data.length / 1365)} Ko) : cliquez dessus pour la cadrer. Pensez à enregistrer le quiz.`;
       } catch (err) {
         console.error(err);
         info.textContent = "Photo refusée : essayez une autre image (JPEG ou PNG).";
@@ -1177,7 +1290,18 @@ function illustrationRow(q, i) {
  * Sur la TV et les tablettes, la photo remplace le texte ; le mot reste dessous, en petit.
  */
 function choicePhoto(q, slots, k) {
-  const thumb = h("img", { class: "choice-thumb", alt: `Image de la réponse ${LETTERS[k]}`, hidden: true });
+  // Vignette comme sur la TV (carré arrondi, image qui le remplit) : un clic ouvre le cadrage.
+  const thumb = h("img", {
+    class: "choice-thumb bulle vignette", alt: `Image de la réponse ${LETTERS[k]}`, hidden: true, title: "Cliquer pour cadrer l'image comme sur la TV",
+    onclick: (e) => {
+      e.preventDefault();
+      cadrer(q.slotFiles?.[k] ?? imageCache[q.slotImages?.[k]], "vignette", async (blob) => {
+        q.slotImages[k] = await storeChoiceImage(blob);
+        show_();
+        syncChoices(q, slots);
+      });
+    },
+  });
   const show_ = () => {
     const id = q.slotImages?.[k];
     thumb.hidden = !id;
@@ -1201,6 +1325,7 @@ function choicePhoto(q, slots, k) {
       try {
         const id = await storeChoiceImage(f);
         q.slotImages[k] = id;
+        (q.slotFiles ??= [])[k] = f;
         setTimeout(noterEcran, 0);
         if (!slots[k].trim()) {
           slots[k] = wordFromImage(f.name) || LETTERS[k];
@@ -1219,6 +1344,23 @@ function choicePhoto(q, slots, k) {
   return h("span", { class: "choice-photo" }, thumb, remove,
     h("button", { type: "button", class: "icon", title: "Mettre une image à la place du texte", text: "📷", onclick: (e) => { e.preventDefault(); file.click(); } }),
     file);
+}
+
+/**
+ * Cadrage d'une image (fichier d'origine ou image déjà rangée) dans sa bulle : [garder] reçoit l'image recadrée.
+ * Annuler ne change rien ; un échec est dit dans la barre d'état, jamais bloquant.
+ */
+async function cadrer(source, forme, garder) {
+  if (!source) return;
+  try {
+    const blob = await ouvrirCadrage(source, forme);
+    if (!blob) return;
+    await garder(blob);
+    noterEcran();
+  } catch (err) {
+    console.error(err);
+    status("rv-status", "Cadrage impossible pour cette image : essayez de la choisir à nouveau.");
+  }
 }
 
 /** Réduit une photo d'illustration (révélation) et la range dans la bibliothèque ; renvoie son identifiant. */
@@ -1294,6 +1436,225 @@ $("rv-add-tf").onclick = () => {
   renderReview();
   $("rv-list").lastElementChild?.querySelector(".q-text")?.focus();
 };
+
+// ---------- Banque des tout-petits : questions prêtes, réponses en photos ----------
+
+let banqueFamille = null;
+let banqueRecherche = "";
+/** Questions cochées : identifiant → question (avec ses 4 réponses, bonne réponse en premier). */
+let banqueCoches = new Map();
+/** Toutes les questions de la banque ; les mauvaises réponses sont tirées une fois par ouverture de la Régie PC. */
+let banqueCatalogue = null;
+/** Lignes montrées d'un coup : au-delà, Sarah choisit un thème ou cherche un mot. */
+const BANQUE_LIGNES = 300;
+/** Image rangée de chaque mot de la banque (mot → identifiant), pour ne la préparer qu'une fois. */
+const banqueImages = {};
+
+$("rv-banque").onclick = () => {
+  const panel = $("rv-banque-panel");
+  panel.hidden = !panel.hidden;
+  if (!panel.hidden) renderBanque();
+};
+
+/** Ouvre un nouveau quiz des tout-petits directement sur la banque (depuis « Créer un quiz »). */
+$("gem-banque").onclick = () => {
+  const age = Number($("gem-age").value) || null;
+  review(null, { title: $("gem-theme").value.trim() || "Quiz des tout-petits", theme: $("gem-theme").value.trim(), ageMin: age, ageMax: age, source: "banque", questions: [] });
+  $("rv-banque-panel").hidden = false;
+  renderBanque();
+};
+
+function renderBanque() {
+  const panel = $("rv-banque-panel");
+  banqueCatalogue ??= cataloguePetits();
+  const deja = new Set((draft?.questions ?? []).map((q) => q.text.trim()));
+  for (const [id, q] of banqueCoches) if (deja.has(q.text)) banqueCoches.delete(id);
+  const cherche = cleMot(banqueRecherche);
+  const correspond = (q) => !cherche || cleMot(q.text).includes(cherche) || q.choices.some((c) => cleMot(c).includes(cherche));
+  const duTheme = banqueCatalogue.filter((q) => !banqueFamille || q.famille === banqueFamille);
+  // Les questions cochées d'abord (même d'un autre thème), puis celles du thème.
+  const liste = [...banqueCoches.values(), ...duTheme.filter((q) => !banqueCoches.has(q.id) && correspond(q))];
+  const montrees = liste.slice(0, BANQUE_LIGNES);
+  const chip = (label, famille) => h("button", {
+    type: "button", class: `chip${banqueFamille === famille ? " active" : ""}`, text: label,
+    onclick: () => { banqueFamille = famille; renderBanque(); },
+  });
+  const bouton = h("button", { type: "button", id: "rv-banque-add", class: "btn", onclick: () => ajouterBanque() });
+  const majBouton = () => {
+    const n = banqueCoches.size;
+    bouton.disabled = !n;
+    bouton.textContent = n ? `Ajouter ${n > 1 ? `les ${n} questions cochées` : "la question cochée"}` : "Cochez des questions";
+  };
+  majBouton();
+  const recherche = h("input", {
+    type: "search", id: "rv-banque-cherche", placeholder: "Chercher une question ou un mot (girafe, voler, rouge…)", value: banqueRecherche,
+    oninput: (e) => {
+      banqueRecherche = e.target.value;
+      clearTimeout(recherche.timer);
+      recherche.timer = setTimeout(() => { renderBanque(); $("rv-banque-cherche")?.focus(); }, 250);
+    },
+  });
+  panel.replaceChildren(
+    h("p", { class: "label", text: "Questions des tout-petits" }),
+    h("p", { class: "hint small", text: `L'animatrice lit la question ; chaque réponse est une photo avec son mot. ${banqueCatalogue.length} questions : choisissez un thème, cochez, ou tirez-en 10 au hasard, puis relisez-les dans le quiz.` }),
+    h("div", { class: "chips" }, chip(`Tous les thèmes`, null),
+      ...Object.entries(FAMILLES_PETITS).map(([k, label]) => chip(label, k))),
+    recherche,
+    h("div", { class: "row" },
+      h("button", {
+        type: "button", class: "btn secondary", text: "🎲 10 au hasard",
+        onclick: () => {
+          const tirage = tirerPetits(10, { famille: banqueFamille, exclus: deja, catalogue: banqueCatalogue });
+          banqueCoches = new Map(tirage.map((q) => [q.id, q]));
+          banqueRecherche = "";
+          renderBanque();
+        },
+      }),
+      bouton,
+      h("span", { id: "rv-banque-status", class: "hint small" })),
+    h("div", { class: "banque-list" }, ...montrees.map((q) => h("label", { class: `banque-q${deja.has(q.text) ? " deja" : ""}`, "data-banque": q.id },
+      h("input", {
+        type: "checkbox", checked: banqueCoches.has(q.id), disabled: deja.has(q.text),
+        onchange: (e) => { if (e.target.checked) banqueCoches.set(q.id, q); else banqueCoches.delete(q.id); majBouton(); },
+      }),
+      h("span", { class: "banque-texte", text: q.text }),
+      h("span", { class: "banque-mots", text: q.choices.map((c) => `${motBanque(c)?.emoji ?? ""} ${c}`).join(" · ") }),
+      deja.has(q.text) ? h("span", { class: "tag", text: "déjà dans le quiz" }) : null)),
+      liste.length > montrees.length ? h("p", { class: "hint small", text: `… et ${liste.length - montrees.length} autres : choisissez un thème ou cherchez un mot.` }) : null,
+      liste.length ? null : h("p", { class: "hint small", text: "Aucune question ne correspond à cette recherche." })));
+}
+
+/** Photos de la banque, mot par mot, comme sur la TV ; Sarah peut mettre la sienne (rangée dans library/contents/petits). */
+$("banque-open").onclick = () => { show("banque"); renderBanqueMots(); };
+
+const banqueChoisies = () => ({ ...(contents.petits?.images ?? {}) });
+
+async function saveBanqueImages(images, message) {
+  try {
+    await set(ref(db, "library/contents/petits"), { images: Object.keys(images).length ? images : null, updatedAt: serverTimestamp() });
+    // Les prochaines questions ajoutées prennent la nouvelle photo.
+    Object.keys(banqueImages).forEach((k) => delete banqueImages[k]);
+    status("banque-status", message, true);
+  } catch (err) {
+    console.error(err);
+    status("banque-status", "Enregistrement refusé : vérifiez Internet ou reconnectez-vous.");
+  }
+}
+
+let banqueMotsFamille = "animaux";
+
+function renderBanqueMots() {
+  const box = $("banque-mots");
+  if ($("screen-banque").hidden) return;
+  const images = banqueChoisies();
+  $("banque-themes").replaceChildren(...Object.entries(FAMILLES_PETITS).map(([k, label]) => h("button", {
+    type: "button", class: `chip${banqueMotsFamille === k ? " active" : ""}`,
+    text: `${label} (${BANQUE_MOTS.filter((m) => m.famille === k).length})`,
+    onclick: () => { banqueMotsFamille = k; renderBanqueMots(); },
+  })));
+  box.replaceChildren(...BANQUE_MOTS.filter((m) => m.famille === banqueMotsFamille).map((m) => {
+    const slot = contentSlot(m.cle);
+    const id = images[slot];
+    const img = h("img", { class: "choice-thumb bulle vignette", alt: m.mot, loading: "lazy", title: "Cliquer pour cadrer la photo comme sur la TV" });
+    const montrer = (src) => { img.src = src; };
+    if (id) {
+      if (imageCache[id]) montrer(imageCache[id]);
+      else get(ref(db, `library/images/${id}`)).then((snap) => { if (typeof snap.val() === "string") { imageCache[id] = snap.val(); montrer(snap.val()); } }).catch(() => {});
+    } else {
+      img.src = `banque/${m.cle}.jpg`;
+      img.onerror = () => { img.onerror = null; emojiImage(m.emoji).then((b) => { img.src = URL.createObjectURL(b); }); };
+    }
+    img.onclick = () => cadrerBanque(m, img.src);
+    const file = h("input", {
+      type: "file", accept: "image/*", hidden: true,
+      onchange: async (e) => {
+        const f = e.target.files?.[0];
+        e.target.value = "";
+        if (!f) return;
+        try {
+          const newId = await storeChoiceImage(f);
+          await saveBanqueImages({ ...banqueChoisies(), [slot]: newId }, `« ${m.mot} » : votre photo est enregistrée. Cliquez dessus pour la cadrer.`);
+        } catch (err) {
+          console.error(err);
+          status("banque-status", "Photo refusée : essayez une autre image (JPEG ou PNG).");
+        }
+      },
+    });
+    return h("div", { class: "banque-mot", "data-mot": m.cle }, img, h("b", { text: m.mot }),
+      h("span", { class: "row" },
+        h("button", { type: "button", class: "icon", title: "Mettre ma photo", text: "📷", onclick: () => file.click() }),
+        id ? h("button", {
+          type: "button", class: "icon", title: "Remettre la photo de la banque", text: "↺",
+          onclick: () => { const { [slot]: _, ...rest } = banqueChoisies(); saveBanqueImages(rest, `« ${m.mot} » : photo de la banque remise.`); },
+        }) : null),
+      file);
+  }));
+}
+
+/** Cadrage d'une photo de la banque : le résultat devient la photo choisie pour ce mot. */
+function cadrerBanque(m, src) {
+  ouvrirCadrage(src, "vignette").then(async (blob) => {
+    if (!blob) return;
+    const newId = await storeChoiceImage(blob);
+    await saveBanqueImages({ ...banqueChoisies(), [contentSlot(m.cle)]: newId }, `« ${m.mot} » : cadrage enregistré.`);
+  }).catch((err) => { console.error(err); status("banque-status", "Cadrage impossible pour cette photo."); });
+}
+
+/** Image d'un mot : celle choisie par Sarah, sinon la photo de la banque, sinon son émoji dessiné ; rangée une fois. */
+async function imageBanque(mot) {
+  if (banqueImages[mot]) return banqueImages[mot];
+  const m = motBanque(mot);
+  const choisie = contents.petits?.images?.[contentSlot(m?.cle ?? cleMot(mot))];
+  if (IMAGE_ID.test(choisie ?? "")) return (banqueImages[mot] = choisie);
+  let blob = null;
+  try {
+    const res = await fetch(`banque/${m?.cle ?? cleMot(mot)}.jpg`);
+    if (res.ok && (res.headers.get("content-type") ?? "").startsWith("image/")) blob = await res.blob();
+  } catch { /* pas de photo : l'émoji */ }
+  blob ??= await emojiImage(m?.emoji ?? "❓");
+  return (banqueImages[mot] = await storeChoiceImage(blob));
+}
+
+/** Un émoji dessiné en grand sur fond blanc (480 px) : la réponse a une image même sans photo. */
+function emojiImage(emoji) {
+  const c = Object.assign(document.createElement("canvas"), { width: 480, height: 480 });
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, 480, 480);
+  ctx.font = "320px 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(emoji, 240, 260);
+  return new Promise((resolve) => c.toBlob(resolve, "image/png"));
+}
+
+/** Ajoute les questions cochées au quiz : propositions mélangées, une image par réponse, déjà validées (à relire). */
+async function ajouterBanque() {
+  const choisies = [...banqueCoches.values()];
+  if (!choisies.length) return;
+  $("rv-banque-add").disabled = true;
+  $("rv-banque-status").textContent = "Préparation des images…";
+  try {
+    for (const q of choisies) {
+      const choices = shuffle(q.choices);
+      const slotImages = await Promise.all(choices.map(imageBanque));
+      draft.questions.push({
+        text: q.text, choices, correct: choices.indexOf(q.choices[0]), duration: null, double: false, status: "validee", marks: 0,
+        image: "", imageId: null, kind: null, slotImages, missingImages: [],
+      });
+    }
+    if (!$("rv-title").value.trim()) $("rv-title").value = "Quiz des tout-petits";
+    banqueCoches.clear();
+    renderReview();
+    renderBanque();
+    noterEcran();
+    status("rv-status", `${choisies.length} question${choisies.length > 1 ? "s" : ""} ajoutée${choisies.length > 1 ? "s" : ""} : relisez-les, puis enregistrez le quiz.`, true);
+  } catch (err) {
+    console.error(err);
+    $("rv-banque-status").textContent = "Images refusées : vérifiez Internet ou reconnectez-vous, puis réessayez.";
+    $("rv-banque-add").disabled = false;
+  }
+}
 
 /** Ordre de passage des questions dans le quiz. */
 function moveQuestion(i, delta) {

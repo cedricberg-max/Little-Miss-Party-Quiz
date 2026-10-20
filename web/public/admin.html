@@ -19,7 +19,7 @@
       <button data-screen="home">Accueil</button>
       <button data-screen="shows">Prestations</button>
       <button data-screen="games">Jeux</button>
-      <button data-screen="settings">Paramètres</button>
+      <button data-screen="settings">Paramètres<span id="nav-boxes" class="nav-badge" hidden></span></button>
     </nav>
     <button id="logout" class="link" hidden>Se déconnecter</button>
   </header>
@@ -48,6 +48,7 @@
           <button id="home-new" class="btn big">＋ Créer une prestation</button>
         </div>
       </div>
+      <button id="home-boxes" class="box-alert" type="button" data-screen="settings" hidden></button>
       <div class="stats">
         <button class="stat" data-screen="shows"><b id="stat-upcoming">0</b><span>anniversaires à venir</span></button>
         <button class="stat ready" data-screen="shows"><b id="stat-ready">0</b><span>prêts pour la régie</span></button>
@@ -148,6 +149,18 @@
       <p id="builtin-status" class="status"></p>
     </section>
 
+    <!-- Banque des tout-petits : les photos des mots, que Sarah peut remplacer par les siennes. -->
+    <section id="screen-banque" class="screen" hidden>
+      <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <button class="link" data-screen="quizzes">Quiz</button> › <b>Banque des tout-petits</b></nav>
+      <h1>Banque des tout-petits</h1>
+      <p class="hint">Les photos des réponses des quiz des tout-petits, telles qu'elles apparaissent sur la TV. « 📷 » met votre photo à la place
+        (cliquez ensuite sur la bulle pour la cadrer), « ↺ » remet celle de la banque. Les quiz déjà enregistrés gardent leurs images ;
+        les questions ajoutées ensuite prennent la nouvelle photo.</p>
+      <div id="banque-themes" class="chips"></div>
+      <div id="banque-mots" class="banque-grid"></div>
+      <p id="banque-status" class="status"></p>
+    </section>
+
     <!-- Bibliothèque de quiz : création (demande à ChatGPT, tableur, fichier), édition, validation question par question. -->
     <section id="screen-quizzes" class="screen" hidden>
       <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <b>Quiz</b></nav>
@@ -155,6 +168,7 @@
         <h1>Bibliothèque de quiz</h1>
         <button id="quiz-import-open" class="btn">Créer un quiz</button>
         <button id="quiz-photos-open" class="btn secondary">📷 Quiz de photos</button>
+        <button id="banque-open" class="btn secondary">🧸 Banque des tout-petits</button>
         <input id="quiz-photos" type="file" accept="image/*" multiple hidden>
       </div>
       <p class="hint">« Quiz de photos » : choisissez vos photos d'un coup, le nom de chaque fichier devient sa réponse (vous la corrigez avant d’enregistrer). Ce quiz se choisit ensuite pour l'Image floue ou le Zoom mystère.</p>
@@ -297,6 +311,8 @@
           <button id="gem-open" type="button" class="btn">Ouvrir ChatGPT avec ma demande</button>
           <button id="gem-copy" type="button" class="btn secondary">Copier la demande</button>
         </div>
+        <p id="gem-banque-hint" class="hint small" hidden>Quiz des tout-petits sans rien fabriquer :
+          <button id="gem-banque" type="button" class="link">piochez dans la banque des tout-petits</button> (questions prêtes, réponses en photos).</p>
         <p class="hint small">La demande est aussi copiée : si elle n'apparaît pas dans ChatGPT, collez-la (Ctrl+V) et envoyez. Copiez ensuite toute sa réponse ci-dessous.</p>
         <details>
           <summary class="hint small">Voir la demande</summary>
@@ -332,7 +348,9 @@
       <div class="row">
         <button id="rv-add" type="button" class="btn secondary">Ajouter une question</button>
         <button id="rv-add-tf" type="button" class="btn secondary">Ajouter une question Vrai / Faux</button>
+        <button id="rv-banque" type="button" class="btn secondary">🧸 Questions des tout-petits</button>
       </div>
+      <div id="rv-banque-panel" class="panel banque-panel" hidden></div>
       <div class="actions sticky">
         <button id="rv-validate-all" type="button" class="btn secondary">Tout valider</button>
         <button id="rv-save" type="button" class="btn">Enregistrer dans la bibliothèque</button>
@@ -343,6 +361,20 @@
     <section id="screen-settings" class="screen" hidden>
       <h1>Paramètres</h1>
       <div class="settings">
+      <div class="panel" id="boxes-panel">
+      <h2>Box TV</h2>
+      <p class="hint">
+        Une box jamais vue affiche « Box en attente d'activation » avec un code de 4 caractères. Vérifiez que
+        c'est le même code ici, puis acceptez-la. Une box acceptée le reste, même sans Internet.
+        « Retirer » la rebloque, mais jamais en pleine partie.
+      </p>
+      <h3>Demandes en attente</h3>
+      <div id="box-requests" class="box-list"></div>
+      <h3>Box autorisées</h3>
+      <div id="box-allowed" class="box-list"></div>
+      <p id="box-status" class="status"></p>
+      </div>
+
       <div class="panel">
       <h2>Mot de passe administrateur</h2>
       <p class="hint">

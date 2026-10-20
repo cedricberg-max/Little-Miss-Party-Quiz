@@ -3,7 +3,7 @@
     "games": {
       "$code": {
         ".read": "auth != null && data.child('hostUid').val() === auth.uid",
-        ".write": "auth != null && !data.exists() && newData.child('hostUid').val() === auth.uid",
+        ".write": "auth != null && !data.exists() && newData.child('hostUid').val() === auth.uid && (!root.child('boxes/lockOn').exists() || root.child('boxes/allowed').child(auth.uid).exists())",
         "hostUid": {
           ".read": "auth != null"
         },
@@ -403,7 +403,7 @@
       "contents": {
         "$game": {
           ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
-          ".validate": "!newData.exists() || ($game.matches(/^(chante|quisuis|disparu|pictionary)$/) && newData.child('updatedAt').val() === now)",
+          ".validate": "!newData.exists() || ($game.matches(/^(chante|quisuis|disparu|pictionary|petits)$/) && newData.child('updatedAt').val() === now)",
           "off": {
             "$i": {
               ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 80"
@@ -460,6 +460,35 @@
     "adminAccess": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid && root.child('settings/admin/hash').isString() && root.child('adminProof').child($uid).child('hash').val() === root.child('settings/admin/hash').val()"
+      }
+    },
+    "boxes": {
+      "lockOn": {
+        ".read": "auth != null",
+        ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val() && newData.exists()",
+        ".validate": "newData.val() === true"
+      },
+      "requests": {
+        ".read": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": "(auth != null && auth.uid === $uid && newData.exists()) || (auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val() && !newData.exists())",
+          ".validate": "newData.hasChildren(['code', 'model', 'at']) && newData.child('code').isString() && newData.child('code').val().matches(/^[A-HJ-NP-Z2-9]{4}$/) && newData.child('model').isString() && newData.child('model').val().length <= 80 && newData.child('at').val() === now",
+          "$other": {
+            ".validate": "$other === 'code' || $other === 'model' || $other === 'at'"
+          }
+        }
+      },
+      "allowed": {
+        ".read": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
+          ".validate": "newData.hasChildren(['name', 'at']) && newData.child('name').isString() && newData.child('name').val().length >= 1 && newData.child('name').val().length <= 40 && (!newData.child('model').exists() || (newData.child('model').isString() && newData.child('model').val().length <= 80)) && newData.child('at').isNumber()",
+          "$other": {
+            ".validate": "$other === 'name' || $other === 'model' || $other === 'at'"
+          }
+        }
       }
     },
     "reports": {

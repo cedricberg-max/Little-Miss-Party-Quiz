@@ -13,6 +13,8 @@ import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, roundFille
 import { PICTO_WORDS, PICTO_SERIES } from "../web/public/picto-cards.js";
 import { guessTrack, defaultStart, normalizeLevel } from "../web/public/audio.js";
 import { FULL_SHOW, FULL_TUNES, tunePlaylist } from "../web/public/test-show.js";
+import { cadrageInitial, borner, zoomer, zoneGardee, BULLES } from "../web/public/cadrage.js";
+import { BANQUE_MOTS, QUESTIONS_PETITS, FAMILLES_PETITS, MODELES_PETITS, motBanque, cleMot, reponsesModele, fabriquerPetite, cataloguePetits, tirerPetits } from "../web/public/banque-petits.js";
 
 const GEMINI = `Titre : Les animaux de la jungle
 
@@ -883,5 +885,104 @@ describe("cartes et quiz choisis (à la volée et dans la Régie PC)", () => {
     assert.deepEqual(questions.map((q) => [q.kind, q.id, q.imageId]), [["flou", "xq1", "0123456789abcdef"], ["flou", "xq2", "fedcba9876543210"]]);
     const mimes = gameQuestions({ type: "mimes", random: true }, {}, "GRANDS", "x").questions;
     assert.equal(mimes[0].cards.length, MIME_RANDOM);
+  });
+});
+
+describe("cadrage des images comme sur la TV", () => {
+  test("l'image remplit toujours la bulle, centrée ; on ne peut pas la sortir de la bulle", () => {
+    // Photo en paysage 1200 × 600 dans une vignette carrée de 300 px : hauteur ajustée, centrée en largeur.
+    const c = cadrageInitial(1200, 600, 300, 300);
+    assert.equal(c.base, 0.5);
+    assert.deepEqual([c.x, c.y], [-150, 0]);
+    assert.deepEqual(zoneGardee(c, 300, 300), { sx: 300, sy: 0, sw: 600, sh: 600 });
+    // Glissée trop loin : arrêtée au bord, jamais de vide dans la bulle.
+    const loin = borner({ ...c, x: 200, y: 50 }, 1200, 600, 300, 300);
+    assert.deepEqual([loin.x, loin.y], [0, 0]);
+    const autre = borner({ ...c, x: -1000 }, 1200, 600, 300, 300);
+    assert.equal(autre.x, -300);
+    assert.deepEqual(zoneGardee(autre, 300, 300), { sx: 600, sy: 0, sw: 600, sh: 600 });
+  });
+  test("zoom autour de la souris, entre 1 et 4 fois ; bulle de révélation en 4:3", () => {
+    const c = cadrageInitial(800, 600, 400, 300);
+    const z = zoomer(c, 2, 200, 150, 800, 600, 400, 300);
+    assert.equal(z.zoom, 2);
+    assert.deepEqual(zoneGardee(z, 400, 300), { sx: 200, sy: 150, sw: 400, sh: 300 }, "le centre reste au centre");
+    assert.equal(zoomer(c, 10, 0, 0, 800, 600, 400, 300).zoom, 4);
+    assert.equal(zoomer(c, 0.2, 0, 0, 800, 600, 400, 300).zoom, 1);
+    assert.equal(BULLES.revelation.ratio, 4 / 3);
+    assert.equal(BULLES.vignette.width, BULLES.vignette.height);
+  });
+});
+
+describe("banque des tout-petits", () => {
+  test("chaque réponse est un mot de la banque, 4 réponses différentes, pas de question en double", () => {
+    assert.ok(QUESTIONS_PETITS.length >= 100, `${QUESTIONS_PETITS.length} questions`);
+    for (const q of QUESTIONS_PETITS) {
+      assert.equal(new Set(q.choices).size, 4, q.text);
+      assert.ok(q.choices.every((c) => motBanque(c)), `${q.text} : ${q.choices.filter((c) => !motBanque(c))}`);
+      assert.ok(FAMILLES_PETITS[q.famille], q.famille);
+    }
+    assert.equal(new Set(QUESTIONS_PETITS.map((q) => q.text)).size, QUESTIONS_PETITS.length);
+    assert.equal(new Set(QUESTIONS_PETITS.map((q) => q.id)).size, QUESTIONS_PETITS.length);
+    assert.equal(new Set(BANQUE_MOTS.map((m) => m.cle)).size, BANQUE_MOTS.length, "un nom de photo par mot");
+    assert.ok(BANQUE_MOTS.length >= 380, `${BANQUE_MOTS.length} mots`);
+    assert.ok(BANQUE_MOTS.every((m) => FAMILLES_PETITS[m.famille] && ["le", "la", "l'", "les"].includes(m.article) && m.emoji && m.recherche), "mot complet");
+    assert.equal(cleMot("Pomme de terre"), "pomme-de-terre");
+    assert.equal(cleMot("Œuf"), "oeuf");
+    assert.equal(cleMot("Éléphant"), "elephant");
+  });
+
+  test("questions fabriquées : chaque modèle a ses bonnes et mauvaises réponses, jamais deux mots trop proches", () => {
+    let seed = 7;
+    const rng = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+    for (const md of MODELES_PETITS) {
+      const { bonnes, mauvaises } = reponsesModele(md);
+      assert.ok(bonnes.length >= 2 && mauvaises.length >= 3, md.id);
+      for (const m of bonnes) {
+        const q = fabriquerPetite(md.id, m, rng);
+        assert.ok(q, `${md.id} : ${m.mot}`);
+        assert.equal(new Set(q.choices).size, 4);
+        // Aucune mauvaise réponse ne répond aussi à la question.
+        assert.ok(q.choices.slice(1).every((c) => !bonnes.includes(motBanque(c))), `${q.text} ${q.choices}`);
+      }
+    }
+    // Les vrais pièges sont exclus : le manchot ne vole pas, le canard n'est ni l'un ni l'autre.
+    const vole = reponsesModele(MODELES_PETITS.find((md) => md.id === "vole"));
+    assert.ok(vole.bonnes.some((m) => m.mot === "Avion") && vole.mauvaises.some((m) => m.mot === "Manchot"));
+    assert.ok(![...vole.bonnes, ...vole.mauvaises].some((m) => m.mot === "Canard"));
+    // « Où est … ? » pour chaque mot, avec le bon article, et jamais avec un mot qui lui ressemble trop.
+    assert.equal(fabriquerPetite("ou", motBanque("Éléphant"), rng).text, "Où est l'éléphant ?");
+    assert.equal(fabriquerPetite("ou", motBanque("Frites"), rng).text, "Où sont les frites ?");
+    assert.equal(fabriquerPetite("ou", motBanque("Pomme de terre"), rng).text, "Où est la pomme de terre ?");
+    for (let i = 0; i < 30; i++) {
+      const q = fabriquerPetite("ou", motBanque("Chaussure"), rng);
+      assert.ok(!q.choices.some((c) => ["Bottes", "Sandales", "Pantoufles"].includes(c)), q.choices.join());
+    }
+    for (const m of BANQUE_MOTS) assert.ok(fabriquerPetite("ou", m, rng), m.mot);
+    const catalogue = cataloguePetits(rng);
+    assert.ok(catalogue.length >= 2000, `${catalogue.length} questions`);
+    assert.equal(new Set(catalogue.map((q) => q.id)).size, catalogue.length);
+    assert.ok(catalogue.every((q) => q.choices.length === 4 && q.choices.every((c) => motBanque(c)) && FAMILLES_PETITS[q.famille]));
+  });
+
+  test("10 au hasard : variées, sans doublon de texte ni de bonne réponse, dans le thème choisi, sans ce qui est déjà pris", () => {
+    let seed = 11;
+    const rng = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+    const catalogue = cataloguePetits(rng);
+    for (let i = 0; i < 50; i++) {
+      const tirage = tirerPetits(10, { rng, catalogue });
+      assert.equal(tirage.length, 10);
+      assert.equal(new Set(tirage.map((q) => q.text)).size, 10);
+      assert.equal(new Set(tirage.map((q) => q.choices[0])).size, 10);
+    }
+    const sortes = new Set(Array.from({ length: 20 }, () => tirerPetits(10, { rng, catalogue })).flat()
+      .map((q) => (!q.fabriquee ? "rédigée" : q.id.startsWith("g-ou-") ? "où" : "modèle")));
+    assert.deepEqual([...sortes].sort(), ["modèle", "où", "rédigée"]);
+    for (const famille of Object.keys(FAMILLES_PETITS)) {
+      const tirage = tirerPetits(10, { famille, rng, catalogue });
+      assert.ok(tirage.length >= 8 && tirage.every((q) => q.famille === famille), famille);
+    }
+    const exclus = new Set(QUESTIONS_PETITS.map((q) => q.text));
+    assert.ok(tirerPetits(10, { exclus, rng, catalogue }).every((q) => q.fabriquee));
   });
 });

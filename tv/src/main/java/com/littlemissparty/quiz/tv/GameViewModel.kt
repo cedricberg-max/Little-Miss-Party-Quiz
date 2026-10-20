@@ -2,6 +2,7 @@ package com.littlemissparty.quiz.tv
 
 import android.app.Application
 import android.content.Context
+import android.os.Build
 import android.os.SystemClock
 import android.util.Base64
 import android.util.Log
@@ -70,6 +71,12 @@ sealed interface UiState {
     data object MissingConfig : UiState
     data object Connecting : UiState
     data class Error(val message: String) : UiState
+
+    /**
+     * Box jamais acceptée dans la Régie PC : rien d'autre que son code d'activation et son modèle.
+     * [sent] : la demande est arrivée dans Firebase ; [refused] : la Régie PC l'a refusée.
+     */
+    data class Locked(val code: String, val model: String, val sent: Boolean = false, val refused: Boolean = false) : UiState
 
     /** Une partie non terminée a été retrouvée au démarrage. */
     data class ResumeOffer(val code: String, val teamNames: List<String>, val secondsLeft: Int) : UiState
@@ -295,6 +302,30 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             prefs.edit().apply { if (value == null) remove("active_game") else putString("active_game", value) }.commit()
         }
 
+    // Déclarés avant `init` : le démarrage peut atteindre le verrou avant toute suspension.
+    /** Box acceptée dans la Régie PC (son identifiant Firebase) : elle s'ouvre ensuite même sans Internet. */
+    private var boxOk: String?
+        get() = prefs.getString("box_ok", null)
+        set(value) {
+            prefs.edit().apply { if (value == null) remove("box_ok") else putString("box_ok", value) }.commit()
+        }
+
+    /** Code court affiché sur la TV et dans la Régie PC, le même tant que la box n'est pas acceptée. */
+    private val boxCode: String
+        get() = prefs.getString("box_code", null)
+            ?: (1..4).map { CODE_CHARS.random() }.joinToString("").also { prefs.edit().putString("box_code", it).commit() }
+
+    private val boxModel: String
+        get() = listOf(Build.MANUFACTURER, Build.MODEL).filter { it.isNotBlank() }.distinct()
+            .joinToString(" ").ifBlank { "Box Android" }.take(80)
+
+    private var boxDb: FirebaseDatabase? = null
+    private val boxWatch = mutableListOf<Pair<DatabaseReference, ValueEventListener>>()
+    /** Verrou en place (une box au moins a été acceptée) : une box inconnue ne lance plus de partie. */
+    private var lockOn = false
+    private var boxRequested = false
+    private var requestSeen = false
+
     init {
         if (BuildConfig.FB_PROJECT_ID.isBlank()) {
             _state.value = UiState.MissingConfig
@@ -324,6 +355,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     }
                     activeCode = null
                 }
+                if (!boxMayPlay(db, uid)) return@launch
                 open(db, createGame(db, uid))
             } catch (e: Exception) {
                 fail(e)
@@ -365,11 +397,119 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
                 activeCode = null
-                open(db, createGame(db, FirebaseAuth.getInstance().currentUser!!.uid))
+                val uid = FirebaseAuth.getInstance().currentUser!!.uid
+                if (!boxMayPlay(db, uid)) return@launch
+                open(db, createGame(db, uid))
             } catch (e: Exception) {
                 fail(e)
             }
         }
+    }
+
+    // ---------- Activation de la box ----------
+
+    /**
+     * true : la box peut lancer une partie. false : l'écran d'activation est affiché.
+     * Tant qu'aucune box n'a été acceptée, les box déjà utilisées continuent de jouer : elles envoient
+     * seulement leur demande, pour que la Régie PC puisse les accepter.
+     */
+    private suspend fun boxMayPlay(db: FirebaseDatabase, uid: String): Boolean {
+        watchBox(db, uid)
+        if (boxOk == uid) return true
+        // Lecture refusée (règles pas encore publiées) : jamais de blocage pour autant.
+        val allowed = runCatching { db.getReference("boxes/allowed/$uid").readOnce() }.getOrElse { return true }
+        if (allowed?.exists() == true) {
+            boxOk = uid
+            return true
+        }
+        val lock = runCatching { db.getReference("boxes/lockOn").readOnce() }.getOrElse { return true }
+            ?: error("La base Firebase ne répond pas. Vérifiez Internet puis réessayez.")
+        lockOn = lock.value == true
+        requestActivation(db, uid)
+        if (!lockOn) return true
+        showLock()
+        return false
+    }
+
+    private fun showLock(refused: Boolean = false) {
+        stopListening()
+        timer?.cancel()
+        expressTimer?.cancel()
+        armTimer?.cancel()
+        _state.value = UiState.Locked(code = boxCode, model = boxModel, sent = requestSeen, refused = refused)
+    }
+
+    private fun requestActivation(db: FirebaseDatabase, uid: String) {
+        if (boxRequested) return
+        boxRequested = true
+        db.getReference("boxes/requests/$uid")
+            .setValue(mapOf("code" to boxCode, "model" to boxModel, "at" to ServerValue.TIMESTAMP))
+            .addOnFailureListener { e ->
+                boxRequested = false
+                Log.e(TAG, "Demande d'activation refusée", e)
+            }
+    }
+
+    /** « Redemander » après un refus de la Régie PC. */
+    fun requestAgain() {
+        val db = boxDb ?: return start()
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return start()
+        boxRequested = false
+        requestActivation(db, uid)
+        _state.update { if (it is UiState.Locked) it.copy(refused = false) else it }
+    }
+
+    /** Suit l'acceptation, le refus et le retrait de cette box, partie ou pas. */
+    private fun watchBox(db: FirebaseDatabase, uid: String) {
+        if (boxWatch.isNotEmpty()) return
+        boxDb = db
+        fun listen(path: String, onData: (DataSnapshot) -> Unit) {
+            val ref = db.getReference(path)
+            val listener = object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) = onData(snapshot)
+                override fun onCancelled(error: DatabaseError) {
+                    Log.e(TAG, "Lecture refusée $path : ${error.message}")
+                }
+            }
+            ref.addValueEventListener(listener)
+            boxWatch += ref to listener
+        }
+        listen("boxes/lockOn") { snap -> lockOn = snap.value == true }
+        listen("boxes/allowed/$uid") { snap ->
+            when {
+                snap.exists() -> {
+                    boxOk = uid
+                    if (_state.value is UiState.Locked) start()
+                }
+                boxOk == uid -> {
+                    // Retirée dans la Régie PC : jamais en pleine partie, seulement à l'accueil ou à la fin.
+                    boxOk = null
+                    boxRequested = false
+                    if (lockOn) lockIfIdle()
+                }
+                else -> Unit
+            }
+        }
+        listen("boxes/requests/$uid") { snap ->
+            if (snap.exists()) requestSeen = true
+            _state.update { if (it is UiState.Locked) it.copy(sent = snap.exists() || it.sent) else it }
+            if (!snap.exists() && requestSeen && _state.value is UiState.Locked) {
+                // Demande effacée : acceptée (l'autorisation arrive au même moment) ou refusée.
+                viewModelScope.launch {
+                    delay(BOX_REFUSAL_CHECK_MS)
+                    if (boxOk != uid) _state.update { if (it is UiState.Locked) it.copy(refused = true) else it }
+                }
+            }
+        }
+    }
+
+    private fun lockIfIdle() {
+        val s = _state.value
+        val idle = s is UiState.Error ||
+            (s is UiState.Playing && (s.phase == Phase.ENDED || (s.phase == Phase.LOBBY && s.teams.isEmpty())))
+        if (!idle) return
+        activeCode = null
+        showLock()
     }
 
     private fun fail(e: Exception) {
@@ -1498,6 +1638,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         stopListening()
+        boxWatch.forEach { (r, l) -> r.removeEventListener(l) }
+        boxWatch.clear()
     }
 
     companion object {
@@ -1524,6 +1666,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         /** Deux appuis sur OK plus rapprochés que cela ne font avancer que d'une étape. */
         private const val NEXT_GUARD_MS = 500L
         private const val CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+        /** Demande effacée sans autorisation au bout de ce délai : la Régie PC l'a refusée. */
+        private const val BOX_REFUSAL_CHECK_MS = 2_000L
 
         fun joinUrl(code: String) = "https://${BuildConfig.FB_PROJECT_ID}.web.app/?g=$code"
 

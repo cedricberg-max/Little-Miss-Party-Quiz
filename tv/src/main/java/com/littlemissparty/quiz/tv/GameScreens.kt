@@ -281,10 +281,12 @@ private fun ChoiceGrid(choices: List<String>, correct: Int?, modifier: Modifier,
 private fun PhotoChoix(i: Int, text: String, bytes: ByteArray, juste: Boolean, color: Color, modifier: Modifier = Modifier): Boolean {
     val photo = remember(bytes) { runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap() }.getOrNull() } ?: return false
     Column(modifier.padding(vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.weight(1f).fillMaxWidth()) {
+        // Bulle carrée aux coins très arrondis, image recadrée pour la remplir : le même rendu que l'aperçu et le
+        // cadrage de la Régie PC (une image déjà cadrée y apparaît à l'identique).
+        Box(Modifier.weight(1f).aspectRatio(1f, matchHeightConstraintsFirst = true)) {
             Image(
-                photo, contentDescription = "Réponse ${Palette.ChoiceLetters[i]} en image : $text", contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)),
+                photo, contentDescription = "Réponse ${Palette.ChoiceLetters[i]} en image : $text", contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(percent = 22)).background(Color.White),
             )
             Box(Modifier.align(Alignment.TopStart).size(46.dp).clip(CircleShape).background(color), contentAlignment = Alignment.Center) {
                 Text(Palette.ChoiceLetters[i], color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Black)

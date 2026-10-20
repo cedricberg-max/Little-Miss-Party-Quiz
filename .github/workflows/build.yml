@@ -1,9 +1,16 @@
 name: Build et publication
 
+# Une seule série de tests par version : la PR teste la branche, main publie après la fusion.
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
+
+# Une PR poussée à nouveau annule la série devenue inutile ; jamais une publication sur main.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: write
