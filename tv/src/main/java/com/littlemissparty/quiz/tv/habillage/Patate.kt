@@ -77,12 +77,12 @@ private fun mecheMontree(tension: Float): Float {
 /**
  * La bombe chez l'équipe [porteur]. [precedent] : l'équipe qui vient de l'envoyer ; [tension] : de 0 (début) à 1
  * (explosion imminente), d'après le temps écoulé ; [explosion] : la bombe explose chez le porteur, qui perd
- * [pointsPerdus] (affiché s'il est donné).
+ * [pointsPerdus] (affiché s'il est donné). [neuves] : les équipes que la bombe n'a pas encore touchées, qui scintillent.
  */
 @Composable
 fun ScenePatate(
     equipes: List<Pair<String, Color>>, porteur: Int, precedent: Int?, tension: Float, explosion: Boolean,
-    pointsPerdus: Int? = null, modifier: Modifier = Modifier, jouer: (Son) -> Unit = jouerSonPatate,
+    pointsPerdus: Int? = null, modifier: Modifier = Modifier, neuves: Set<Int> = emptySet(), jouer: (Son) -> Unit = jouerSonPatate,
 ) {
     val n = equipes.size.coerceAtLeast(1)
     val p = porteur.coerceIn(0, n - 1)
@@ -153,7 +153,22 @@ fun ScenePatate(
             // Socles en arc, laqués et bordés d'or.
             for (i in 0 until n) {
                 val (x, y, s) = placePatate(i, n)
+                // Équipe pas encore touchée : halo doré qui respire et petites étoiles qui scintillent.
+                val brille = i in neuves && i != p && !explosion
+                if (brille) {
+                    val r = 0.55f + 0.45f * sin(ms / 420f + i * 1.7f)
+                    drawOval(Brush.radialGradient(listOf(Neon.OrClair.copy(alpha = 0.38f * r), Color.Transparent)), Offset((x - 82f * s) * d, (y - 30f * s) * d), androidx.compose.ui.geometry.Size(164f * s * d, 60f * s * d))
+                }
                 estradeRonde(x * d, y * d, 50f * s * d, 13f * s * d, 15f * s * d)
+                if (brille) for (k in 0 until 3) {
+                    val ph = ((ms / 1_300f + i * 0.37f + k / 3f) % 1f)
+                    val a = sin(ph * PI.toFloat())
+                    val c = Offset((x + (k - 1) * 30f * s + 6f * sin(i + k * 2f)) * d, (y - (24f + 34f * ph + 10f * (k % 2)) * s) * d)
+                    val l = (4f + 5f * a) * s * d
+                    drawLine(Neon.OrClair.copy(alpha = a), c - Offset(l, 0f), c + Offset(l, 0f), 1.6f * d, StrokeCap.Round)
+                    drawLine(Neon.OrClair.copy(alpha = a), c - Offset(0f, l), c + Offset(0f, l), 1.6f * d, StrokeCap.Round)
+                    drawCircle(Color.White.copy(alpha = a), 1.6f * d, c)
+                }
                 if (i == p && !explosion) drawOval(Brush.radialGradient(listOf(equipes[i].second.copy(alpha = 0.45f), Color.Transparent)), Offset((x - 90f * s) * d, (y - 26f * s) * d), androidx.compose.ui.geometry.Size(180f * s * d, 52f * s * d))
             }
             // La bombe : posée sur le socle du porteur, ou en vol entre deux socles.

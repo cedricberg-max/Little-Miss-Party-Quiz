@@ -63,6 +63,8 @@ fun PatateScreen(state: UiState.Playing, actions: TvActions) {
                         explosion = revele,
                         pointsPerdus = state.awards[p.holder]?.points?.takeIf { revele && it < 0 },
                         modifier = Modifier.fillMaxSize(),
+                        // Équipes que la bombe n'a pas encore touchées : elles scintillent.
+                        neuves = joueuses.indices.filter { joueuses[it].uid !in p.hit }.toSet(),
                     )
                 }
             }
