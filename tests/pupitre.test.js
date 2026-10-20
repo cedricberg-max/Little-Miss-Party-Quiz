@@ -531,6 +531,11 @@ describe("pupitre", () => {
     await pages[1].keyboard.press("Enter");
     await new Promise((r) => setTimeout(r, 400));
     assert.equal((await read("buzz/f1-1000-0")).team, uids["Les Roses"], "la base garde le premier buzz");
+    // Buzzer réglé en usine comme un clic de souris : un clic à côté du BUZZ compte aussi.
+    await hostState(question({ qid: "f3", kind: "flou", choices: null, text: "Qu'est-ce qui se cache sous le flou ?", round: "f3-1000-0", buzzOpen: true, buzz: { blocked: [] } }));
+    await pages[0].locator("#buzz:not([disabled])").waitFor();
+    await pages[0].mouse.click(12, 12);
+    await waitFor(async () => (await read("buzz/f3-1000-0"))?.team === uids["Les Roses"], "buzz des Roses au clic de souris");
     // Sans gros bouton, le BUZZ de l'écran marche comme avant.
     await hostState(question({ qid: "f2", kind: "flou", choices: null, text: "Qu'est-ce qui se cache sous le flou ?", round: "f2-1000-0", buzzOpen: true, buzz: { blocked: [] } }));
     await pages[1].locator("#buzz:not([disabled])").waitFor();
