@@ -141,6 +141,7 @@ button.tile:hover { border-color: var(--violet); }
 .pill.warn { background: var(--gold-pale); color: var(--warn); }
 .todo ul { margin: 6px 0 0; padding-left: 20px; color: var(--warn); font-size: 15px; }
 .card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.show-card { cursor: pointer; }
 .card-actions .btn { font-size: 15px; padding: 9px 15px; }
 .archives summary { cursor: pointer; font-weight: 800; color: var(--soft); padding: 8px 0; }
 .archives .cards { margin-top: 10px; }
