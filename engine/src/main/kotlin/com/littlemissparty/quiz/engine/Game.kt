@@ -1,5 +1,7 @@
 package com.littlemissparty.quiz.engine
 
+import kotlin.random.Random
+
 enum class Phase(val code: String) {
     LOBBY("lobby"),
     QUESTION("question"),
@@ -93,6 +95,8 @@ data class GameState(
     val doorValues: Map<String, Map<Int, Int>> = emptyMap(),
     /** Écran de présentation du jeu qui commence : rien ne part avant le lancement de l'animatrice ([GameLaunched]). */
     val intro: Boolean = false,
+    /** La bombe cachée : les coffres de chaque manche jouée (points compris), par question. */
+    val chests: Map<String, ChestRound> = emptyMap(),
 ) {
     val paused: Boolean get() = hold != null
 
@@ -126,6 +130,7 @@ data class GameState(
         awards.values.forEach { perTeam -> perTeam.forEach { (team, a) -> totals.merge(team, a.points, Int::plus) } }
         adjustments.values.forEach { totals.merge(it.team, it.delta, Int::plus) }
         mimes.forEach { (qid, perTeam) -> perTeam.forEach { (team, n) -> totals.merge(team, n * pointsPerFound(qid), Int::plus) } }
+        chests.values.forEach { r -> r.opened.forEach { totals.merge(it.team, it.delta, Int::plus) } }
         return totals
     }
 }
@@ -187,7 +192,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
      * Le chrono de [q] est en marche (ou en pause) : question ouverte, ou tour de mimes en cours. Portes mystères :
      * jamais de chrono, chacun prend son temps et l'animatrice ferme les choix quand tout le monde est prêt.
      */
-    private fun timerRuns(q: Question) = state.phase == Phase.QUESTION && !state.intro && !q.isPortes && (!q.isTurns || state.mimeTurn) &&
+    private fun timerRuns(q: Question) = state.phase == Phase.QUESTION && !state.intro && !q.isPortes && !q.isCoffres && (!q.isTurns || state.mimeTurn) &&
         (!q.isBlind || (state.buzz?.waiting == false && state.segments.isNotEmpty()))
 
     /**
@@ -266,7 +271,10 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             if (q == null || q.id != e.qid) null
             else presented(
                 open(
-                    s.copy(awards = s.awards - e.clear.toSet(), mimes = s.mimes - e.clear.toSet(), skipped = s.skipped - e.clear.toSet(), hold = null),
+                    s.copy(
+                        awards = s.awards - e.clear.toSet(), mimes = s.mimes - e.clear.toSet(), skipped = s.skipped - e.clear.toSet(),
+                        chests = s.chests - e.clear.toSet(), hold = null,
+                    ),
                     e.index, q, e.at,
                 ),
                 e.index,
@@ -329,6 +337,23 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             val q = quiz.questions.getOrNull(s.index)
             if (q == null || !q.isPortes || e.qid != s.qid || s.phase != Phase.REVEAL || s.doorsOpened >= q.choices.size) null
             else s.copy(doorsOpened = s.doorsOpened + 1)
+        }
+        is ChestsDealt -> {
+            val q = quiz.questions.getOrNull(s.index)
+            if (s.phase != Phase.QUESTION || q == null || !q.isCoffres || q.id != e.qid || s.qid != e.qid || e.qid in s.chests || s.paused ||
+                e.order.isEmpty() || e.order.distinct().size != e.order.size || e.order.any { it.isBlank() } ||
+                e.count !in 2..MAX_CHESTS || e.safe !in 0 until e.count) null
+            else s.copy(chests = s.chests + (e.qid to ChestRound(e.count, e.order, e.safe, e.at)))
+        }
+        is ChestOpened -> {
+            val r = s.chests[e.qid]
+            if (s.phase != Phase.QUESTION || s.qid != e.qid || r == null || s.paused || r.team != e.team || e.chest !in r.closed ||
+                (e.bomb && !r.danger) || (e.bomb && e.delta > 0)) null
+            else {
+                val next = r.copy(opened = r.opened + ChestOpen(e.team, e.chest, e.delta, e.bomb, e.at))
+                // La bombe arrête le jeu : bilan des coffres, puis classement.
+                s.copy(chests = s.chests + (e.qid to next), phase = if (next.team == null) Phase.REVEAL else s.phase)
+            }
         }
         is ScoreAdjusted ->
             if (e.delta == 0 || e.team.isBlank()) null
@@ -522,6 +547,11 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             // Le buzz d'un jeu précédent (équipe validée) ne doit jamais figer le chrono des mimes.
             buzz = null,
         )
+        // La bombe cachée : pas de chrono ; la box installe les coffres dès que le jeu est lancé.
+        else if (q.isCoffres) s.copy(
+            phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null, mime = null, buzz = null,
+            chests = s.chests - q.id,
+        )
         // Blind test : le morceau s'annonce, la musique attend le « Lancer le morceau » de l'animatrice.
         else if (q.isBlind) s.copy(
             phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null, mime = null,
@@ -564,6 +594,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             state.intro -> emit(GameLaunched(nextSeq, now))
             // Blind test à la télécommande : OK lance la musique, ou l'arrête.
             question?.isBlind == true -> if (state.buzz?.waiting == true) blindPlay(now) else blindStop(now)
+            // La bombe cachée : seules les équipes ouvrent les coffres, depuis leur tablette.
+            question?.isCoffres == true -> null
             state.mime == null -> close(now)
             state.mimeTurn -> mimeStop(now)
             else -> emit(ScoresShown(nextSeq, now))
@@ -736,6 +768,48 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
      * Le suspense vient des valeurs tirées au hasard, pas de l'ordre.
      */
     fun doorOrder(): List<Int> = question?.takeIf { it.isPortes }?.choices?.indices?.toList() ?: emptyList()
+
+    /** La bombe cachée : les coffres du jeu en cours, ou null (autre jeu, coffres pas encore installés). */
+    val chestRound: ChestRound? get() = state.qid?.let { state.chests[it] }?.takeIf { question?.isCoffres == true }
+
+    /** La bombe cachée : le jeu vient d'être lancé, la box doit installer les coffres ([dealChests]). */
+    fun needsChests(): Boolean {
+        val q = question ?: return false
+        return q.isCoffres && state.phase == Phase.QUESTION && !state.intro && !state.paused && q.id !in state.chests
+    }
+
+    /**
+     * La bombe cachée : installe les coffres pour les équipes [teams] (dans l'ordre d'inscription). L'équipe la plus en
+     * retard commence ; à égalité, l'ordre d'inscription.
+     */
+    fun dealChests(teams: List<String>, now: Long): GameEvent? {
+        val q = question ?: return null
+        if (!needsChests() || teams.isEmpty()) return null
+        val scores = state.scores()
+        val order = teams.distinct().sortedBy { scores[it] ?: 0 }
+        return emit(ChestsDealt(nextSeq, now, q.id, order, chestCount(order.size), order.size * safeRounds(order.size)))
+    }
+
+    /**
+     * La bombe cachée : l'équipe [team] ouvre le coffre [chest] ; son contenu est tiré au sort maintenant. Refusé
+     * avant la fin de l'animation précédente ([ChestRound.readyAt]), en pause, ou si ce n'est pas le tour de [team].
+     */
+    fun openChest(team: String, chest: Int, now: Long, random: Random = Random.Default): GameEvent? {
+        val r = chestRound ?: return null
+        if (state.paused || r.team != team || chest !in r.closed || now + ARM_TOLERANCE_MS < r.readyAt) return null
+        val score = (state.scores()[team] ?: 0).coerceAtLeast(0)
+        val value = drawChest(r, random)
+        val delta = if (value == null) -minOf(BOMB_POINTS, score) else if (value < 0) maxOf(value, -score) else value
+        return emit(ChestOpened(nextSeq, now, r.let { question!!.id }, team, chest, delta, bomb = value == null))
+    }
+
+    /** La bombe cachée, secours de la régie : un coffre fermé au hasard pour l'équipe qui joue (tablette en panne). */
+    fun openRandomChest(now: Long, random: Random = Random.Default): GameEvent? {
+        val r = chestRound ?: return null
+        val team = r.team ?: return null
+        val chest = r.closed.randomOrNull(random) ?: return null
+        return openChest(team, chest, now, random)
+    }
 
     /** Blind test : le morceau qui suit le morceau en cours dans la même playlist, s'il y en a un. */
     fun nextTrack(): Question? {

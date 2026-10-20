@@ -31,6 +31,8 @@ object Codec {
             is DoorOpened -> mapOf("type" to "door", "qid" to e.qid)
             is DoorSet -> mapOf("type" to "doorset", "qid" to e.qid, "door" to e.door, "value" to e.value)
             is GameLaunched -> mapOf("type" to "launch")
+            is ChestsDealt -> mapOf("type" to "chests", "qid" to e.qid, "order" to e.order, "count" to e.count, "safe" to e.safe)
+            is ChestOpened -> mapOf("type" to "chest", "qid" to e.qid, "team" to e.team, "chest" to e.chest, "delta" to e.delta, "bomb" to e.bomb)
             is ScoreAdjusted -> mapOf("type" to "adjust", "team" to e.team, "delta" to e.delta, "reason" to e.reason)
             is Undone -> mapOf("type" to "undo", "target" to e.target)
             is GameEnded -> mapOf("type" to "end")
@@ -82,6 +84,8 @@ object Codec {
             "door" -> DoorOpened(seq, at, m["qid"] as String)
             "doorset" -> DoorSet(seq, at, m["qid"] as String, m.num("door").toInt(), m.num("value").toInt())
             "launch" -> GameLaunched(seq, at)
+            "chests" -> ChestsDealt(seq, at, m["qid"] as String, (m["order"] as List<*>).map { it as String }, m.num("count").toInt(), m.num("safe").toInt())
+            "chest" -> ChestOpened(seq, at, m["qid"] as String, m["team"] as String, m.num("chest").toInt(), m.num("delta").toInt(), m["bomb"] == true)
             "adjust" -> ScoreAdjusted(seq, at, m["team"] as String, m.num("delta").toInt(), m["reason"] as? String ?: "")
             "undo" -> Undone(seq, at, m.num("target").toInt())
             "end" -> GameEnded(seq, at)
@@ -204,8 +208,8 @@ object Codec {
                 "choiceImages" to q.choiceImages.takeIf { q.hasChoiceImages && !(q.isBuzz && !revealed) }?.map { it ?: "" },
                 "durationMs" to q.durationMs,
                 "deadline" to game.deadline(),
-                "remainingMs" to if (!q.isPortes && (s.paused || s.buzzHeld || s.buzz?.waiting == true)) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
-                "correct" to if (revealed && !q.isPortes) q.correct else null,
+                "remainingMs" to if (!q.isPortes && !q.isCoffres && (s.paused || s.buzzHeld || s.buzz?.waiting == true)) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
+                "correct" to if (revealed && !q.isPortes && !q.isCoffres) q.correct else null,
                 // L'émoji d'illustration peut trahir la réponse : seulement une fois révélée.
                 "image" to if (revealed) q.emoji else null,
                 "artist" to if (revealed) q.artist else null,
@@ -214,6 +218,7 @@ object Codec {
                 } else null,
             )
             if (q.isPortes) out["portes"] = portesState(game)
+            if (q.isCoffres) out["chests"] = chestState(game)
             if (q.isTurns) out["mime"] = mimeState(game, s.mime)
             if (q.isBlind) out["blind"] = blindState(game)
             s.buzz?.let {
@@ -244,6 +249,37 @@ object Codec {
             "values" to game.doorsOf(q).mapIndexed { i, v -> if (i in open) v else null }.withIndex().filter { it.value != null }
                 .associate { it.index.toString() to it.value },
             "picks" to s.awards[q.id].orEmpty().mapValues { it.value.choice },
+        )
+    }
+
+    /** La bombe cachée : clé où la tablette de l'équipe qui joue écrit le coffre choisi (`chestChoice/`), une par ouverture. */
+    fun chestKey(game: Game): String? {
+        val r = game.chestRound ?: return null
+        if (r.team == null) return null
+        return "${game.state.qid.orEmpty().replace(Regex("[.#$\\[\\]/]"), "_")}-${r.dealt}-${r.turn}"
+    }
+
+    /**
+     * La bombe cachée, pour la TV, la régie et les pupitres : les coffres ouverts (le contenu des autres n'existe pas
+     * encore), l'équipe qui joue et l'heure où elle pourra ouvrir, le danger, et les gains de chaque équipe.
+     */
+    fun chestState(game: Game): Map<String, Any?> {
+        val r = game.chestRound ?: return mapOf("ready" to false)
+        return mapOf(
+            "ready" to true,
+            "count" to r.count,
+            "order" to r.order,
+            "team" to r.team,
+            "turn" to r.turn,
+            "safe" to r.safe,
+            // Ouvertures sans danger qui restent avant l'arrivée de la bombe.
+            "safeLeft" to (r.safe - r.turn).coerceAtLeast(0),
+            "danger" to r.danger,
+            "exploded" to r.exploded,
+            "readyAt" to r.readyAt,
+            "key" to chestKey(game),
+            "opened" to r.opened.map { mapOf("team" to it.team, "chest" to it.chest, "delta" to it.delta, "bomb" to it.bomb, "at" to it.at) },
+            "gains" to r.gains(),
         )
     }
 

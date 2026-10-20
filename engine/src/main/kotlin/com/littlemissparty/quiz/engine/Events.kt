@@ -84,6 +84,33 @@ val FACTORS = listOf(2, 3, 5)
 /** Portes mystères : l'animatrice ouvre la porte suivante (dans l'ordre de [Game.doorOrder]). */
 data class DoorOpened(override val seq: Int, override val at: Long, val qid: String) : GameEvent
 
+/**
+ * La bombe cachée : la box installe les coffres de la manche [qid] dès le lancement du jeu. [order] : ordre de jeu
+ * des équipes (la plus en retard d'abord), [count] coffres, [safe] ouvertures sans bombe possible.
+ */
+data class ChestsDealt(
+    override val seq: Int,
+    override val at: Long,
+    val qid: String,
+    val order: List<String>,
+    val count: Int,
+    val safe: Int,
+) : GameEvent
+
+/**
+ * La bombe cachée : l'équipe [team] ouvre le coffre [chest]. Son contenu, tiré au sort par la box à cet instant, est
+ * inscrit ici une fois pour toutes : [delta] = points comptés (malus réduit au score), [bomb] = c'était la bombe.
+ */
+data class ChestOpened(
+    override val seq: Int,
+    override val at: Long,
+    val qid: String,
+    val team: String,
+    val chest: Int,
+    val delta: Int,
+    val bomb: Boolean,
+) : GameEvent
+
 /** Correction manuelle d'un score (régie). */
 data class ScoreAdjusted(
     override val seq: Int,
