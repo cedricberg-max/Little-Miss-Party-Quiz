@@ -141,6 +141,7 @@ button.tile:hover { border-color: var(--violet); }
 .pill.warn { background: var(--gold-pale); color: var(--warn); }
 .todo ul { margin: 6px 0 0; padding-left: 20px; color: var(--warn); font-size: 15px; }
 .card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.card-actions .btn { font-size: 15px; padding: 9px 15px; }
 .archives summary { cursor: pointer; font-weight: 800; color: var(--soft); padding: 8px 0; }
 .archives .cards { margin-top: 10px; }
 .ready-box { padding: 16px 18px; border-radius: 18px; background: var(--gold-pale); color: var(--warn); border: 1px solid #f5dfae; }
@@ -271,13 +272,15 @@ button.item { cursor: pointer; }
 .content-toggle { flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 12px; font: inherit; text-align: left; color: var(--ink); background: none; border: 0; cursor: pointer; min-width: 0; }
 .content-item:not(.on) .content-toggle b { text-decoration: line-through; }
 .content-toggle .detail { color: var(--soft); font-size: 13px; line-height: 1.35; }
+.content-toggle .vignettes { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+.content-toggle .vignettes img { width: 30px; height: 30px; object-fit: cover; border-radius: 6px; }
 .content-toggle .tag { font-size: 12px; font-weight: 800; padding: 1px 8px; border-radius: 999px; background: var(--gold-pale); color: var(--warn); }
 .illustration .tag.missing { font-size: 12px; padding: 1px 8px; border-radius: 999px; color: var(--soft); border: 1px dashed var(--line-2); }
 .illustration .tag.missing[hidden] { display: none; }
 .content-toggle .tag.missing { background: none; color: var(--soft); font-weight: 600; border: 1px dashed var(--line-2); }
 .content-item .choice-photo { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 6px; }
 .content-item .choice-photo .choice-thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 10px; }
-.round select.count, .round select.finale { flex: none; max-width: 190px; }
+.round select.count, .round select.finale { flex: none; max-width: 270px; }
 
 /* Pictionary : temps de dessin et séries de mots de la manche. */
 .picto-round { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
@@ -299,7 +302,9 @@ button.item { cursor: pointer; }
 .pick-deja { width: 100%; margin: 0; color: var(--bad); font-size: 13px; font-weight: 600; }
 .pick-add option.deja { color: var(--bad); }
 .pick-add { max-width: 260px; }
-.pick-search { width: 160px; padding: 5px 10px; font-size: 14px; }
+.pick-search { width: 220px; padding: 10px 14px; font-size: 15px; }
+.pick-own { display: flex; align-items: center; gap: 6px; flex: 1 1 320px; }
+.pick-own input { flex: 1; min-width: 0; }
 .photo-switch { width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .pick-own { display: inline-flex; gap: 6px; align-items: center; }
 .pick-own input { width: 190px; }
@@ -309,7 +314,8 @@ button.item { cursor: pointer; }
 .quiz-add { align-self: flex-start; padding: 5px 11px; font-size: 14px; }
 
 /* Retour et Annuler : toujours à portée de main, en bas de la fenêtre, sur chaque écran d'édition. */
-.retour-barre { position: sticky; bottom: 12px; z-index: 5; display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; pointer-events: none; }
+.retour-barre { z-index: 5; display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; pointer-events: none; }
+.retour-barre.flottante { position: sticky; bottom: 12px; }
 .retour-barre .btn { pointer-events: auto; box-shadow: 0 4px 16px rgba(60, 20, 90, .18); }
 .retour-barre .btn:disabled { opacity: .45; }
 
@@ -414,6 +420,20 @@ button.item { cursor: pointer; }
 .round .picto-round > select { width: 100%; max-width: 100%; }
 .round .manche-tools { flex: 1 1 260px; min-width: 0; }
 .round .manche-tools .manche-load { flex: 1; min-width: 0; max-width: none; }
+/* Manche d'une prestation : le jeu et ses boutons sur une ligne, ses réglages dessous sur toute la largeur. */
+.show-round { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 10px; }
+.show-round > .round-head, .show-round > .round-body { flex: none; }
+.round-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.round-head .round-type { flex: 0 1 260px; min-width: 0; }
+.round-head .manche-tools { flex: 1 1 260px; justify-content: flex-end; }
+.round-body { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; padding-left: 36px; }
+.round-body > .grow { flex: 1 1 420px; min-width: 0; }
+.round-body > select.count, .round-body > select.finale { flex: 0 1 auto; max-width: 320px; }
+.round-body .picto-round { flex-direction: row; flex-wrap: wrap; align-items: center; }
+.round-body .picto-round > select { flex: 1 1 260px; width: auto; max-width: none; }
+.round-body .picto-round > :not(select) { flex: 1 1 100%; }
+.round-body .quiz-picks > select { width: 100%; max-width: 100%; }
+@media (max-width: 640px) { .round-body { padding-left: 0; } }
 
 /* Bibliothèque des sons (blind test) : une ligne par chanson, recherche au-dessus. */
 .song-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
@@ -428,3 +448,11 @@ button.item { cursor: pointer; }
 .track .track-refrain input[type="range"] { flex: 1; min-width: 160px; }
 @media (max-width: 640px) { .track .track-refrain { grid-column: auto; } }
 .track .track-refrain .ok { color: var(--good); font-weight: 600; }
+
+/* Image floue et Zoom mystère : les photos de la banque, par famille. */
+.banque-galerie { margin-top: 14px; }
+.banque-galerie summary { cursor: pointer; font-weight: 800; color: var(--violet); padding: 6px 0; }
+.banque-galerie .vignettes { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+.banque-galerie figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.banque-galerie img { width: 96px; height: 96px; object-fit: cover; border-radius: 12px; background: var(--bg-2); }
+.banque-galerie figcaption { font-size: 13px; color: var(--soft); text-align: center; }

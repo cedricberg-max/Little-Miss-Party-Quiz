@@ -104,8 +104,8 @@
           <label>Date<input id="show-date" type="date"></label>
           <label>Statut
             <select id="show-status">
-              <option value="brouillon">Brouillon (invisible sur la régie)</option>
-              <option value="publiee">Prête (visible sur la régie)</option>
+              <option value="brouillon">Brouillon</option>
+              <option value="publiee">Prête pour la régie</option>
               <option value="archivee">Archivée</option>
             </select>
           </label>
@@ -151,8 +151,7 @@
       <h1 id="game-h1">Jeu</h1>
       <p id="game-rule" class="hint"></p>
       <div id="game-tabs" class="chips game-tabs"></div>
-      <p class="hint small">Une manche est ce qu'on joue : une sélection piochée dans les collections du jeu, avec ses réglages.
-        Composez-la ici une fois, puis chargez-la dans vos prestations ; épinglez celles qui marchent bien.</p>
+      <p id="game-manche-hint" class="hint small"></p>
       <div class="row">
         <button id="manche-new" type="button" class="btn">＋ Composer une manche</button>
         <button id="manche-random" type="button" class="btn secondary">🎲 Manche au hasard</button>
@@ -242,7 +241,7 @@
 
     <!-- Bibliothèque de quiz : création (demande à ChatGPT, tableur, fichier), édition, validation question par question. -->
     <section id="screen-quizzes" class="screen" hidden>
-      <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <b>Quiz</b></nav>
+      <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <b id="quizzes-crumb">Quiz</b></nav>
       <div class="chips game-tabs" data-tabs hidden></div>
       <div class="title-row">
         <h1>Bibliothèque de quiz</h1>
@@ -255,6 +254,7 @@
           (vous la corrigez avant d'enregistrer). Les quiz classiques qui ont des photos servent aussi à ces deux jeux.</p>
         <button id="quiz-photos-open" class="btn secondary">📷 Nouveau quiz de photos à deviner</button>
         <input id="quiz-photos" type="file" accept="image/*" multiple hidden>
+        <details id="banque-galerie" class="banque-galerie" hidden><summary></summary><div class="galerie"></div></details>
       </div>
       <p class="hint">Seules les questions validées sont jouées sur la TV.</p>
       <div id="quiz-list" class="cards"></div>
@@ -379,8 +379,8 @@
         </div>
         <p id="statues-hint" class="hint small" hidden>
           Le titre est deviné depuis le nom du fichier : corrigez-le si besoin. Choisissez avec le curseur le passage gardé
-          (1 minute ou 1 min 30, réglable chanson par chanson) et écoutez-le avant d'enregistrer. Dans chaque prestation, vous cochez
-          les chansons de la manche : la TV les joue l'une après l'autre, dans l'ordre de cette liste (flèches ↑ ↓).
+          (1 minute ou 1 min 30, réglable chanson par chanson) et écoutez-le avant d'enregistrer. Dans chaque manche, vous cochez
+          les chansons à jouer, celles de cette liste ou de n'importe quelle playlist : la TV les joue l'une après l'autre.
         </p>
         <p id="playlist-hint" class="hint small">
           Titre et artiste sont devinés depuis le nom du fichier (« Artiste - Titre.mp3 ») : corrigez-les si besoin.
@@ -537,7 +537,7 @@
       <p class="hint">
         Pour tout voir sur la TV : « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux » enchaîne un peu de chaque jeu
         (quiz illustré, Juste Chiffre, Vrai ou Faux express, Mimes, Zoom mystère, Chante le mot !, Image floue,
-        Qui suis-je ?, Qui a disparu ?, Blind test et Quiz musical sur des comptines libres de droits, Statues musicales, Pictionary, Portes mystères ; les dernières questions du quiz comptent double). Elle s'ajoute à
+        Qui suis-je ?, Qui a disparu ?, Blind test et Quiz musical sur des comptines libres de droits, Statues musicales, Pictionary, La bombe cachée ; les dernières questions du quiz comptent double). Elle s'ajoute à
         côté de la première, sans rien remplacer ; déjà ajoutée, le même bouton lui ajoute les nouveaux jeux.
       </p>
       <button id="test-full-create" class="btn" type="button">Ajouter la prestation de test « tous les jeux »</button>

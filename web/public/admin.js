@@ -19,7 +19,7 @@ import {
   roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS,
   isStatuesList, statuesSongs, statuesChoices, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS, builtinConcepts, isPhotoTheme,
 } from "./show.js";
-import { motDeLaBanque, PHOTOS_BANQUE } from "./banque-photos.js";
+import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE } from "./banque-photos.js";
 import { shuffle } from "./mime-cards.js";
 import {
   MANCHE_TYPES, COLLECTION_UNIT, RANDOM_TYPES, RANDOM_COUNT, MIME_PER_TEAM, MIME_PER_TEAM_DEFAULT, LEVELS, collectionItems, collectionGroups,
@@ -274,8 +274,11 @@ function renderHome() {
   // Les anniversaires passés ne comptent plus : seuls ceux à venir ou encore sans date.
   const today = isoDay();
   const pending = Object.values(shows).filter((s) => !s.date || s.date >= today);
+  const pret = coming.filter(([, s]) => readiness(s, quizzes, mimes, playlists, contents).level === "prete").length;
   $("stat-upcoming").textContent = coming.length;
-  $("stat-ready").textContent = coming.filter(([, s]) => readiness(s, quizzes, mimes, playlists, contents).level === "prete").length;
+  $("stat-upcoming").nextElementSibling.textContent = coming.length > 1 ? "anniversaires à venir" : "anniversaire à venir";
+  $("stat-ready").textContent = pret;
+  $("stat-ready").nextElementSibling.textContent = pret > 1 ? "prêts pour la régie" : "prêt pour la régie";
   $("stat-todo").textContent = pending.filter((s) => readiness(s, quizzes, mimes, playlists, contents).level === "a-completer").length;
   const box = $("home-upcoming");
   box.replaceChildren(...coming.slice(0, 6).map(([id, s]) => showCard(id, s)));
@@ -646,11 +649,12 @@ function selectionEditor({ items, get, set, draw, unit, empty, own, round = null
         });
       })),
       deja.length ? h("p", { class: "pick-deja", text: `⚠ ${deja.map(([k, w]) => `${byKey.get(k)?.label ?? k} : déjà utilisé dans ${w}`).join(" · ")}. C'est permis, mais les enfants l'auront déjà vu.` }) : null,
-      chosen.length < MAX_PICKS ? addSelect() : null,
+      // La recherche d'abord, puis la liste qu'elle filtre.
       chosen.length < MAX_PICKS && all.length > 8 ? h("input", {
         type: "search", class: "pick-search", placeholder: "🔎 Chercher…", "aria-label": `Chercher un${e} ${unit}`, value: cherche,
         oninput: (ev) => { cherche = ev.target.value; box.querySelector(".pick-add")?.replaceWith(addSelect()); },
       }) : null,
+      chosen.length < MAX_PICKS ? addSelect() : null,
       own ? h("span", { class: "pick-own" },
         h("input", { type: "text", maxlength: 40, placeholder: "Ma carte (un mot à mimer)", "aria-label": "Ma carte" }),
         h("button", { type: "button", class: "chip", text: "Ajouter", onclick: (ev) => {
@@ -848,18 +852,20 @@ function refreshRounds() {
   if (!editing.rounds.length) box.append(h("p", { class: "hint small", text: "Ajoutez au moins une manche." }));
   editing.rounds.forEach((r, i) => {
     const move = (d) => { const [x] = editing.rounds.splice(i, 1); editing.rounds.splice(i + d, 0, x); refreshRounds(); };
-    box.append(h("div", { class: "round" },
-      h("span", { class: "num", text: `${i + 1}` }),
-      h("select", { "aria-label": "Type de manche", onchange: (e) => { editing.rounds[i] = { type: e.target.value }; refreshRounds(); } },
-        // La Super Finale n'est pas un jeu : c'est un réglage de la manche Quiz (ses dernières questions ×2).
-        ...Object.entries(ROUND_TYPES).filter(([k]) => k !== "finale" && k !== "portes").map(([k, label]) => h("option", {
-          value: k, selected: (r.type ?? "quiz") === k, text: label,
-        }))),
-      ...roundFields(r),
-      mancheTools(r, (next) => { editing.rounds[i] = next; refreshRounds(); }),
-      h("button", { type: "button", class: "icon", title: "Monter", disabled: i === 0, onclick: () => move(-1), text: "↑" }),
-      h("button", { type: "button", class: "icon", title: "Descendre", disabled: i === editing.rounds.length - 1, onclick: () => move(1), text: "↓" }),
-      h("button", { type: "button", class: "icon", title: "Retirer", onclick: () => { editing.rounds.splice(i, 1); refreshRounds(); }, text: "✕" })));
+    // Une ligne pour le jeu et les boutons de la manche, puis ses réglages sur toute la largeur.
+    box.append(h("div", { class: "round show-round" },
+      h("div", { class: "round-head" },
+        h("span", { class: "num", text: `${i + 1}` }),
+        h("select", { class: "round-type", "aria-label": "Type de manche", onchange: (e) => { editing.rounds[i] = { type: e.target.value }; refreshRounds(); } },
+          // La Super Finale n'est pas un jeu : c'est un réglage de la manche Quiz (ses dernières questions ×2).
+          ...Object.entries(ROUND_TYPES).filter(([k]) => k !== "finale" && k !== "portes").map(([k, label]) => h("option", {
+            value: k, selected: (r.type ?? "quiz") === k, text: label,
+          }))),
+        mancheTools(r, (next) => { editing.rounds[i] = next; refreshRounds(); }),
+        h("button", { type: "button", class: "icon", title: "Monter", disabled: i === 0, onclick: () => move(-1), text: "↑" }),
+        h("button", { type: "button", class: "icon", title: "Descendre", disabled: i === editing.rounds.length - 1, onclick: () => move(1), text: "↓" }),
+        h("button", { type: "button", class: "icon", title: "Retirer", onclick: () => { editing.rounds.splice(i, 1); refreshRounds(); }, text: "✕" })),
+      h("div", { class: "round-body" }, ...roundFields(r))));
   });
   refreshSummary();
 }
@@ -989,7 +995,7 @@ function roundFields(r) {
     (r.type ?? "quiz") === "quiz"
       ? h("select", { class: "finale", "aria-label": "Super Finale", onchange: (e) => { r.finale = Number(e.target.value) || null; roundCtx.summary(); } },
         h("option", { value: "", text: "Sans Super Finale" }),
-        ...[1, 2, 3, 4, 5].map((n) => h("option", { value: n, selected: r.finale === n, text: n === 1 ? "Super Finale : la dernière question ×2" : `Super Finale : les ${n} dernières ×2` })))
+        ...[1, 2, 3, 4, 5].map((n) => h("option", { value: n, selected: r.finale === n, text: n === 1 ? "Super Finale : la dernière question" : `Super Finale : les ${n} dernières` })))
       : null,
   ];
 }
@@ -1062,7 +1068,7 @@ function refreshSummary() {
   const { snapshot, problems } = buildSnapshot(editing?.id ?? "nouvelle", s, quizzes, mimes, Math.random, playlists, contents);
   const profile = PROFILES[s.profile] ? s.profile : profileForAge(s.age);
   $("show-summary").textContent = snapshot
-    ? `${contentLabel(snapshot)} jouables · environ ${estimateMinutes(snapshot)} min · chrono ${defaultDuration(profile)} s par question (profil ${PROFILES[profile].label}) sauf durée imposée`
+    ? `${contentLabel(snapshot)} jouables · environ ${estimateMinutes(snapshot)} min · chrono ${defaultDuration(profile)} s par question pour les ${PROFILES[profile].label}, sauf durée imposée`
     : "";
   $("show-problems").replaceChildren(...problems.map((p) => h("li", { text: p })));
   const r = readiness(s, quizzes, mimes, playlists, contents);
@@ -1169,6 +1175,21 @@ function showQuizzes(filter) {
   show("quizzes");
 }
 
+/** Image floue et Zoom mystère : les photos de la banque, toujours disponibles, montrées par famille. */
+function renderBanqueGalerie() {
+  const items = banqueItems();
+  const box = $("banque-galerie");
+  box.hidden = !items.length;
+  box.querySelector("summary").textContent = `📷 ${plural(items.length, "photo de la banque", "photos de la banque")} : toujours disponibles, à choisir dans les manches`;
+  const groupes = [...new Set(items.map((x) => x.group))];
+  box.querySelector(".galerie").replaceChildren(...groupes.flatMap((g) => [
+    h("h3", { class: "content-series", text: g.replace(/^Photos · /, "") }),
+    h("div", { class: "vignettes" }, ...items.filter((x) => x.group === g).map((x) => h("figure", {},
+      h("img", { src: `banque/${x.key.slice(BANQUE.length)}.jpg`, alt: "", loading: "lazy" }),
+      h("figcaption", { text: x.label.replace(/^📷 \S+ /u, "") })))),
+  ]));
+}
+
 function renderQuizzes() {
   const box = $("quiz-list");
   box.innerHTML = "";
@@ -1180,6 +1201,8 @@ function renderQuizzes() {
   });
   $("quiz-kinds").replaceChildren(chip("Tous", null), ...Object.entries(QUIZ_KINDS).map(([k, label]) => chip(label, k)));
   $("quiz-photos-box").hidden = quizFilter !== "images";
+  $("quizzes-crumb").textContent = ["express", "zoom", "flou"].includes(gameType) ? ROUND_TYPES[gameType] : "Quiz";
+  if (quizFilter === "images") renderBanqueGalerie();
   const list = quizFilter ? all.filter(([, q]) => QUIZ_FILTERS[quizFilter](q)) : all;
   if (!all.length) box.append(h("p", { class: "hint", text: "Aucun quiz pour l'instant : « Créer un quiz » vous guide pas à pas." }));
   else if (!list.length) box.append(h("p", { class: "hint", text: "Aucun quiz de ce type pour l'instant." }));
@@ -2614,7 +2637,11 @@ function renderTracks() {
         ...(statues ? [] : coverTools(t))),
       statues ? null : h("input", { type: "text", class: "track-note", maxlength: 120, placeholder: "Droits (facultatif, pour information)", value: t.rights, "aria-label": "Droits", oninput: (e) => { t.rights = e.target.value; } }));
   }));
-  if (!playlist.tracks.length) $("playlist-tracks").append(h("p", { class: "hint small", text: playlist.use === "statues" ? "Aucune chanson : ajoutez vos fichiers musicaux. Sans chanson, la TV joue la musique de la fête." : "Aucun morceau : ajoutez vos fichiers musicaux." }));
+  if (!playlist.tracks.length) $("playlist-tracks").append(h("p", { class: "hint small", text: playlist.use === "statues"
+    ? `Aucune chanson rien qu'aux statues pour l'instant. ${statuesChoices(playlists).length === 1 ? "La chanson de vos playlists est déjà proposée dans les manches de statues."
+      : statuesChoices(playlists).length ? `Les ${statuesChoices(playlists).length} chansons de vos playlists sont déjà proposées dans les manches de statues.`
+      : "Sans chanson, la TV joue la musique de la fête."}`
+    : "Aucun morceau : ajoutez vos fichiers musicaux." }));
 }
 $("playlist-duration").onchange = () => renderTracks();
 
@@ -2856,7 +2883,7 @@ const plural = (n, word, many = `${word}s`) => `${n} ${n > 1 ? many : word}`;
 /** Les jeux par famille : ce qui se prépare dans la bibliothèque, ce qui vient d'un quiz, ce qui est intégré. */
 const GAME_GROUPS = [
   { title: "Avec vos contenus", hint: "Vous préparez le contenu dans la bibliothèque, une fois, et vous le réutilisez dans toutes les prestations.", games: [
-    { type: "quiz", icon: "?", rule: "Questions à 2, 3 ou 4 propositions sur les pupitres ; toutes les équipes qui trouvent marquent. Une question peut aussi être un « Juste Chiffre » (réponse en nombre). Super Finale : dans la prestation, les dernières questions du quiz peuvent compter double.",
+    { type: "quiz", icon: "?", rule: "Questions à 2, 3 ou 4 propositions sur les pupitres ; toutes les équipes qui trouvent marquent. Une question peut aussi être un « Juste Chiffre » (réponse en nombre). Super Finale : dans la prestation, les dernières questions du quiz peuvent compter ×2, ×3 ou ×5 (choisi en direct sur la régie).",
       status: () => { const ok = Object.values(quizzes).reduce((t, q) => t + playable(q).length, 0); return `${plural(Object.keys(quizzes).length, "quiz", "quiz")} · ${plural(ok, "question validée", "questions validées")}`; },
       actions: () => [["Gérer les quiz", () => showQuizzes(null)], ["Créer un quiz", () => $("quiz-import-open").click()]] },
     { type: "mimes", icon: "🎭", rule: "Équipe par équipe : un enfant devine, ses coéquipiers miment l'image. 50 points par mime trouvé.",
@@ -2869,13 +2896,13 @@ const GAME_GROUPS = [
       status: () => plural(Object.values(playlists).filter((p) => !isStatuesList(p) && playableTracks(p).length >= 2).length, "playlist utilisable", "playlists utilisables"),
       actions: () => [["Gérer les playlists", () => show("music")]] },
     { type: "statues", icon: "🗿", rule: "Vos chansons jouent sur la TV et s'arrêtent par moments : tout le monde se fige ! Vous désignez l'équipe gagnante depuis la régie. Dans la prestation : la durée et les chansons cochées (aucune : la musique de la fête).",
-      status: () => plural(statuesSongs(playlists).length, "chanson"),
+      status: () => plural(statuesChoices(playlists).length, "chanson disponible", "chansons disponibles"),
       actions: () => [["Gérer les chansons", () => openStatuesSongs()]] },
   ] },
   { title: "Tirés d'un quiz", hint: "Rien de plus à préparer : ces jeux reprennent les questions d'un quiz de la bibliothèque. Dans la prestation, choisissez le quiz et combien de questions.", games: [
     { type: "express", icon: "✔", rule: "Les questions Vrai / Faux d'un quiz, au chrono court du profil.", needs: "Vrai / Faux validées" },
-    { type: "zoom", icon: "🔍", rule: "Les questions avec photo d'un quiz : la photo se dévoile peu à peu.", needs: "photos" },
-    { type: "flou", icon: "🌫", rule: "Les questions avec photo d'un quiz : l'image devient nette, le premier qui buzze répond.", needs: "photos" },
+    { type: "zoom", icon: "🔍", rule: "Une photo d'un quiz ou de la banque se dévoile peu à peu.", needs: "photos" },
+    { type: "flou", icon: "🌫", rule: "Une photo d'un quiz ou de la banque devient nette peu à peu, le premier qui buzze répond.", needs: "photos" },
   ] },
   { title: "Contenu intégré", hint: "Prêts à jouer : la manche tire au hasard dans un catalogue adapté à l'âge. Vous pouvez retirer des éléments et ajouter les vôtres.", games: [
     { type: "chante", icon: "🎤" }, { type: "quisuis", icon: "🕵" }, { type: "disparu", icon: "🎩" },
@@ -2911,7 +2938,8 @@ function gameInfo(g) {
   const content = CONTENT_GAMES[g.type];
   const rule = g.rule ?? (content ? `${BUILTIN_GAMES[g.type].rule[0].toUpperCase()}${BUILTIN_GAMES[g.type].rule.slice(1)}.` : "");
   const line = g.status ? g.status()
-    : quizGame ? `${plural(Object.values(quizzes).filter((q) => (QUIZ_GAMES[g.type]?.questions ?? playable)(q).length).length, "quiz utilisable", "quiz utilisables")} (avec des ${g.needs})`
+    : quizGame ? [g.type === "zoom" || g.type === "flou" ? plural(PHOTOS_BANQUE.size, "photo de la banque", "photos de la banque") : "",
+      `${plural(Object.values(quizzes).filter((q) => (QUIZ_GAMES[g.type]?.questions ?? playable)(q).length).length, "quiz utilisable", "quiz utilisables")} (avec des ${g.needs})`].filter(Boolean).join(" · ")
     : content ? builtinLine(g.type)
     : "Rien à préparer";
   const actions = [...(g.actions ? g.actions()
@@ -2921,13 +2949,17 @@ function gameInfo(g) {
   return { rule, line, actions };
 }
 
+/** Accord des mots d'un jeu : « 3 familles actives », « 2 mots ajoutés ». */
+const accord = (unit, n, mot) => `${mot}${unit === "famille" ? "e" : ""}${n > 1 ? "s" : ""}`;
+const actifs = (unit, n) => `${n} ${unit}${n > 1 ? "s" : ""} ${accord(unit, n, "actif")}`;
+
 /** « 38 mots actifs dont 2 ajoutés · 3 retirés » */
 function builtinLine(type) {
   const game = CONTENT_GAMES[type];
   const active = activeItems(type, contents[type]).length;
   const added = contentExtras(type, contents[type]).length;
   const off = game.catalog.length + added - active;
-  return [`${plural(active, `${game.unit} actif`, `${game.unit}s actifs`)}${added ? ` dont ${added} ajouté${added > 1 ? "s" : ""}` : ""}`, off ? `${off} retiré${off > 1 ? "s" : ""}` : ""].filter(Boolean).join(" · ");
+  return [`${actifs(game.unit, active)}${added ? ` dont ${added} ${accord(game.unit, added, "ajouté")}` : ""}`, off ? `${off} ${accord(game.unit, off, "retiré")}` : ""].filter(Boolean).join(" · ");
 }
 
 // ---------- Contenu intégré d'un jeu (Chante le mot !, Qui suis-je ?, Qui a disparu ?) ----------
@@ -2983,12 +3015,16 @@ function renderBuiltin() {
   const game = CONTENT_GAMES[type];
   const { off, extra } = builtinState(type);
   const active = activeItems(type, contents[type]).length;
-  $("builtin-count").textContent = `${plural(active, `${game.unit} actif`, `${game.unit}s actifs`)} sur ${game.catalog.length + extra.length}`;
+  $("builtin-count").textContent = `${actifs(game.unit, active)} sur ${game.catalog.length + extra.length}`;
   const { images } = builtinState(type);
   const tile = (item, custom) => {
     const key = game.key(item);
     const on = !off.includes(key);
-    const detail = type === "quisuis" ? item.clues.join(" · ") : type === "disparu" ? item.objects.map((o) => o.image).join(" ") : "";
+    const detail = type === "quisuis" ? item.clues.join(" · ") : type === "disparu" && !isPhotoTheme(item) ? item.objects.map((o) => o.image).join(" ") : "";
+    // Qui a disparu ? : une famille en photos montre ses photos (celles copiées dans la partie).
+    const vignettes = type === "disparu" && isPhotoTheme(item)
+      ? h("span", { class: "detail vignettes" }, ...item.objects.map((o) => h("img", { src: `banque/${o.banque}.jpg`, alt: o.word, title: o.word, loading: "lazy" })))
+      : null;
     // Qui suis-je ? : image du personnage ; Pictionary : vraie photo du mot, à la place de son émoji.
     const photo = type === "quisuis" || type === "pictionary" ? contentPhoto(type, item, key, images) : null;
     // Repère de préparation, jamais bloquant : le personnage se révélera sans visuel.
@@ -3004,7 +3040,8 @@ function renderBuiltin() {
         item.level === 2 ? h("span", { class: "tag", text: "grands" }) : null,
         custom ? h("span", { class: "tag", text: "ajouté" }) : null,
         missing ? h("span", { class: "tag missing", text: "image ou émoji manquant" }) : null,
-        detail ? h("span", { class: "detail", text: detail }) : null),
+        detail ? h("span", { class: "detail", text: detail }) : null,
+        vignettes),
       photo,
       custom ? h("button", {
         type: "button", class: "icon", title: "Supprimer cet ajout", text: "✕",
@@ -3164,6 +3201,8 @@ function renderGame() {
   $("game-h1").textContent = `${g.icon ?? ""} ${ROUND_TYPES[type]}`.trim();
   $("game-rule").textContent = gameInfo(g).rule;
   $("game-tabs").replaceChildren(...gameTabs(type, "manches"));
+  $("game-manche-hint").textContent = `${COLLECTION_SCREEN[type] ? "Une manche est ce qu'on joue : une sélection piochée dans les collections du jeu, avec ses réglages."
+    : "Ce jeu n'a pas de contenu à préparer : une manche garde seulement ses réglages."} Composez-la ici une fois, puis chargez-la dans vos prestations ; épinglez celles qui marchent bien.`;
   $("manche-random").hidden = !RANDOM_TYPES.includes(type);
   const { pinned, active, archived } = mancheGroups(manches, type);
   $("manches-pinned-box").hidden = !pinned.length;

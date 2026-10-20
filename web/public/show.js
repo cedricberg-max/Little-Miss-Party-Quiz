@@ -239,6 +239,19 @@ export function activeItems(type, content) {
     .map((x) => (images[contentSlot(game.key(x))] ? { ...x, imageId: images[contentSlot(game.key(x))] } : x));
 }
 
+/**
+ * Qui a disparu ? en « 📷 Photos » : au tirage, les grilles tout en photos d'abord (familles de la banque), puis celles
+ * qui en montrent au moins 3, puis les autres ; le hasard décide dans chaque groupe. Les autres jeux : inchangé.
+ */
+function parPhotos(round, grilles) {
+  if (round?.type !== "disparu" || round.photos !== true) return grilles;
+  const palier = (g) => {
+    const n = (g.objects ?? []).filter((o) => o?.banque).length;
+    return n && n === g.objects.length ? 2 : n >= 3 ? 1 : 0;
+  };
+  return grilles.map((g, k) => [g, k]).sort(([a, i], [b, j]) => palier(b) - palier(a) || i - j).map(([g]) => g);
+}
+
 /** Famille de Qui a disparu ? faite de photos de la banque. */
 export const isPhotoTheme = (t) => (t?.objects ?? []).some((o) => o?.banque);
 
@@ -597,7 +610,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       const chosen = pickedItems(round.type, contents?.[round.type], roundPicks(round));
       const picked = chosen.length
         ? builtin.items(profile, random, chosen, round, true, pris)
-        : shuffle(builtin.items(profile, random, pool, round, false, pris), random).slice(0, count);
+        : parPhotos(round, shuffle(builtin.items(profile, random, pool, round, false, pris), random)).slice(0, count);
       picked.forEach((x) => seen.add(game.key(x)));
       if (!picked.length) {
         problems.push(`Manche ${i + 1} (${ROUND_TYPES[round.type]}) : aucun ${CONTENT_GAMES[round.type].unit} actif (page Jeux de l'administration).`);

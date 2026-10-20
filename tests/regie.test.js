@@ -1739,7 +1739,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator('.game-card[data-game=gonfleur]').waitFor();
     await page.locator('.game-card[data-game=pictionary]').waitFor();
     await page.locator('.game-card[data-game=quiz]', { hasText: "1 quiz · 2 questions validées" }).waitFor();
-    await page.locator('.game-card[data-game=quiz]', { hasText: "les dernières questions du quiz peuvent compter double" }).waitFor();
+    await page.locator('.game-card[data-game=quiz]', { hasText: "les dernières questions du quiz peuvent compter ×2, ×3 ou ×5" }).waitFor();
     assert.equal(await page.locator('.game-card[data-game=finale]').count(), 0);
     // Mimes : la carte mène aux collections de cartes (ce que Sarah ne trouvait pas).
     await page.locator('.game-card[data-game=mimes] button', { hasText: "Collections de cartes" }).click();

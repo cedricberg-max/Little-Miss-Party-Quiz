@@ -1353,6 +1353,11 @@ describe("photos de la banque dans les jeux (Mimes, Qui a disparu ?, Zoom mystè
     assert.ok(fruits.cards.some((c) => c.banque));
     const emojis = S.buildSnapshot("s", { rounds: [{ type: "disparu", picks: ["fruits"], count: 1 }] }, {}, {}, seq()).snapshot.quiz.questions[0];
     assert.ok(emojis.cards.every((c) => !c.banque), "en émojis : aucune photo");
+    // Tirée au hasard en photos : les grilles tout en photos passent d'abord.
+    for (let k = 0; k < 5; k++) {
+      const grilles = S.buildSnapshot("s", { rounds: [{ type: "disparu", count: 2, photos: true }] }, {}, {}, Math.random).snapshot.quiz.questions;
+      assert.ok(grilles.length === 2 && grilles.every((q) => q.cards.every((c) => c.banque)), "en photos, au hasard : des grilles tout en photos");
+    }
   });
 
   test("Mimes en photos : les cartes de la banque ont leur photo ; le réglage est gardé dans la manche", () => {
