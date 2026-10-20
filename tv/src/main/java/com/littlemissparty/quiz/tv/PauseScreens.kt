@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.PAUSE_NETWORK
 import com.littlemissparty.quiz.engine.PAUSE_TEAM
 import com.littlemissparty.quiz.engine.Phase
+import com.littlemissparty.quiz.tv.habillage.DecorPlateau
 import com.littlemissparty.quiz.tv.habillage.Echelle
 import com.littlemissparty.quiz.tv.habillage.LogoLmp
 import com.littlemissparty.quiz.tv.habillage.Neon
@@ -95,7 +96,10 @@ private fun Intermission(state: UiState.Playing, onResume: () -> Unit) {
     val twinkle by t.animateFloat(0f, (2 * PI).toFloat(), infiniteRepeatable(tween(4_000, easing = LinearEasing)), label = "twinkle")
     val chute = t.animateFloat(0f, 1f, infiniteRepeatable(tween(14_000, easing = LinearEasing)), label = "chute")
     val vague = t.animateFloat(0f, (2 * PI).toFloat(), infiniteRepeatable(tween(2_400, easing = LinearEasing)), label = "vague")
-    Box(Modifier.fillMaxSize().background(Neon.Fond.copy(alpha = 0.94f)), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        // 0. Le même plateau que partout (nuit violette, deux néons qui balaient, étoiles) : il cache l'écran en cours
+        // et garde les couleurs du classement (harmonisation demandée par cedric le 20 octobre).
+        DecorPlateau(chaud = false)
         // 1. Faisceaux de projecteurs : dessinés une fois, seule la rotation du calque change.
         Box(
             Modifier.fillMaxSize()

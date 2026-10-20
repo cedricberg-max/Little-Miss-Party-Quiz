@@ -122,7 +122,20 @@ fun ScenePatate(
     val temps = remember { Animatable(0f) }
     LaunchedEffect(Unit) { while (true) temps.animateTo(temps.value + 10_000f, tween(10_000, easing = LinearEasing)) }
 
-    Echelle(960.dp, 540.dp, modifier.fillMaxSize().graphicsLayer {
+    Box(modifier.fillMaxSize()) {
+    // Lueur chaude qui grandit avec la tension et bat avec le tic-tac, seulement sur les bords de tout l'écran : dessinée
+    // hors du calque de la scène (qui la couperait en rectangle), elle déborde jusqu'aux bords de la TV ; le violet du
+    // plateau reste intact au centre, sans voile rose (cedric, 20 octobre).
+    Canvas(Modifier.matchParentSize().clearAndSetSemantics {}) {
+        val rouge = if (explosion) 0.4f * (1f - boum.value) else 0.35f * tens * tens * (0.6f + 0.4f * pouls.value)
+        if (rouge > 0.01f) {
+            drawRect(
+                Brush.radialGradient(0.6f to Color.Transparent, 1f to Neon.Chaud.copy(alpha = rouge), center = Offset(size.width / 2, size.height / 2), radius = size.width * 0.72f),
+                Offset(-0.2f * size.width, -0.25f * size.height), androidx.compose.ui.geometry.Size(size.width * 1.4f, size.height * 1.6f),
+            )
+        }
+    }
+    Echelle(960.dp, 540.dp, Modifier.fillMaxSize().graphicsLayer {
         // La TV tremble au moment du BOUM.
         val sec = if (explosion) (1f - boum.value / 0.3f).coerceIn(0f, 1f) else 0f
         translationX = sec * 14f * density * sin(boum.value * 140f)
@@ -132,9 +145,6 @@ fun ScenePatate(
             val d = density
             val ms = temps.value
             val b = boum.value
-            // Lueur rouge qui grandit avec la tension et bat avec le tic-tac.
-            val rouge = if (explosion) 0.35f * (1f - b) else 0.05f + 0.3f * tens * (0.6f + 0.4f * pouls.value)
-            drawRect(Brush.radialGradient(listOf(Color.Transparent, Color(0xFFFF3B5C).copy(alpha = rouge)), Offset(size.width / 2, size.height / 2), size.width * 0.7f))
             // Une poursuite de scène suit la bombe d'un socle à l'autre.
             if (!explosion) {
                 val (xa, ya, sa) = placePatate(depart.coerceIn(0, n - 1), n)
@@ -164,10 +174,11 @@ fun ScenePatate(
                     val ph = ((ms / 1_300f + i * 0.37f + k / 3f) % 1f)
                     val a = sin(ph * PI.toFloat())
                     val c = Offset((x + (k - 1) * 30f * s + 6f * sin(i + k * 2f)) * d, (y - (24f + 34f * ph + 10f * (k % 2)) * s) * d)
-                    val l = (4f + 5f * a) * s * d
-                    drawLine(Neon.OrClair.copy(alpha = a), c - Offset(l, 0f), c + Offset(l, 0f), 1.6f * d, StrokeCap.Round)
-                    drawLine(Neon.OrClair.copy(alpha = a), c - Offset(0f, l), c + Offset(0f, l), 1.6f * d, StrokeCap.Round)
-                    drawCircle(Color.White.copy(alpha = a), 1.6f * d, c)
+                    // Étoile scintillante à quatre branches fines (✦), comme celles de la pause : plus de « + ».
+                    val l = (5f + 6f * a) * s * d
+                    drawCircle(Brush.radialGradient(listOf(Neon.OrClair.copy(alpha = 0.4f * a), Color.Transparent), c, l * 1.6f), l * 1.6f, c)
+                    drawPath(etoileFine(c, l), Neon.OrClair.copy(alpha = a))
+                    drawCircle(Color.White.copy(alpha = a), 1.2f * d, c)
                 }
                 if (i == p && !explosion) drawOval(Brush.radialGradient(listOf(equipes[i].second.copy(alpha = 0.45f), Color.Transparent)), Offset((x - 90f * s) * d, (y - 26f * s) * d), androidx.compose.ui.geometry.Size(180f * s * d, 52f * s * d))
             }
@@ -295,4 +306,16 @@ fun ScenePatate(
             }
         }
     }
+    }
+}
+
+/** Étoile à quatre branches fines (✦) : pointes longues, cœur étroit. */
+private fun etoileFine(c: Offset, r: Float) = androidx.compose.ui.graphics.Path().apply {
+    val creux = r * 0.18f
+    moveTo(c.x, c.y - r)
+    quadraticBezierTo(c.x + creux, c.y - creux, c.x + r, c.y)
+    quadraticBezierTo(c.x + creux, c.y + creux, c.x, c.y + r)
+    quadraticBezierTo(c.x - creux, c.y + creux, c.x - r, c.y)
+    quadraticBezierTo(c.x - creux, c.y - creux, c.x, c.y - r)
+    close()
 }
