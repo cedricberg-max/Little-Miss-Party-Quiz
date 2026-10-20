@@ -7,8 +7,9 @@ import { passwordCandidates } from "./secret.js";
 import {
   buildSnapshot, showTitle, playable, QUIZ_GAMES, BUILTIN_GAMES, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame, imageIds, choiceImageIds,
   soundIds, MUSIC_GAMES, playableTracks, STATUES_SEC, PICTO_SEC,
-  isFutureRound, moveRound, removeRound, uniqueRoundTitle,
+  isFutureRound, moveRound, removeRound, uniqueRoundTitle, roundQuizIds, mimePool, mimeCards, CONTENT_GAMES, activeItems, pictoSeriesOf, MIME_RANDOM,
 } from "./show.js";
+import { MIME_CATALOG } from "./mime-cards.js";
 import { profileForAge } from "./profiles.js";
 import { setAwake } from "./awake.js";
 import { ouvrirDefis } from "./defis.js";
@@ -1209,6 +1210,8 @@ async function fetchLibrary() {
       .filter(([, d]) => d?.title)
       .sort((a, b) => a[1].title.localeCompare(b[1].title, "fr"))
       .map(([id, d]) => ({ key: `mimes/${id}`, label: d.title, source: { type: "mimes", deckId: id } }));
+    // Mimes sans paquet préparé : la box pioche dans le catalogue selon l'âge, cartes modifiables avant l'ajout.
+    decks.unshift({ key: "mimes/hasard", label: "Mimes au hasard", source: { type: "mimes", random: true } });
     // Vrai ou Faux express et Zoom mystère : proposés pour chaque quiz qui a les questions qu'il faut.
     const quizGames = Object.entries(QUIZ_GAMES).flatMap(([type, game]) => Object.entries(quizzes)
       .filter(([, quiz]) => quiz?.title && game.questions(quiz).length)
@@ -1222,11 +1225,11 @@ async function fetchLibrary() {
       .filter(([, show]) => show)
       .sort((a, b) => (b[1].date ?? "").localeCompare(a[1].date ?? ""))
       .flatMap(([id, show]) => (show.rounds ?? []).filter((r) => r && r.type !== "mimes" && r.type !== "statues" && r.type !== "pictionary" && r.type !== "portes" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "finale" && !BUILTIN_GAMES[r.type] && !MUSIC_GAMES[r.type]).map((round, i) => {
-        const title = quizzes[round.quizId]?.title ?? `Manche ${i + 1}`;
+        const title = roundQuizIds(round).map((q) => quizzes[q]?.title).filter(Boolean).join(" + ") || `Manche ${i + 1}`;
         const label = QUIZ_GAMES[round.type] ? `${ROUND_TYPES[round.type]} : ${title}` : title;
         const date = show.date ? ` (${new Date(`${show.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })})` : "";
         // Les réglages de la manche suivent (nombre de questions, Super Finale à la fin du quiz).
-        return { key: `show/${id}/${i}`, label, from: `${showTitle(show)}${date}`, source: { type: round.type, quizId: round.quizId, ...(round.count > 0 ? { count: round.count } : {}), ...(round.finale > 0 ? { finale: round.finale } : {}) } };
+        return { key: `show/${id}/${i}`, label, from: `${showTitle(show)}${date}`, source: { type: round.type, quizId: round.quizId, ...(roundQuizIds(round).length > 1 ? { quizIds: roundQuizIds(round) } : {}), ...(round.count > 0 ? { count: round.count } : {}), ...(round.finale > 0 ? { finale: round.finale } : {}) } };
       }));
     // Jeux au buzzer intégrés : toujours disponibles, sans rien préparer.
     const builtins = [
@@ -1276,6 +1279,13 @@ function renderLibrary() {
     const title = document.createElement("b");
     title.textContent = game.label;
     const meta = document.createElement("span");
+    if (game.source.type === "mimes" && game.source.random) {
+      meta.textContent = `${MIME_RANDOM} cartes du catalogue, selon l'âge · à retirer ou compléter avant d'ajouter`;
+      b.append(title, meta);
+      b.onclick = () => pick(game);
+      box.appendChild(b);
+      return;
+    }
     if (game.source.type === "mimes") {
       const deck = library.mimes[game.source.deckId];
       const count = (deck?.cards ?? []).filter(Boolean).length;
@@ -1347,7 +1357,7 @@ function renderLibrary() {
   if (library.rounds.length) section("Manches d'anciennes prestations");
   library.rounds.forEach((g) => entry(g, g.from));
   section("Mini-jeux et blind tests");
-  if (!library.decks.length) hint("Mimes : aucun paquet de cartes pour l'instant (administration, Mimes).");
+  if (library.decks.length < 2) hint("Mimes : aucun paquet de cartes préparé pour l'instant (administration, Mimes).");
   library.decks.forEach((g) => entry(g, ""));
   library.quizGames.forEach((g) => entry(g, g.source.type === "express" ? "enchaînées toutes seules" : g.source.type === "flou" ? "au buzzer" : "dévoilées au fil du chrono"));
   library.builtins.forEach((g) => entry(g, ""));
@@ -1363,16 +1373,143 @@ async function pick(game) {
     const show = (await get(ref(db, `games/${code}/show`))).val();
     profile = show?.profile ?? (show?.age != null ? profileForAge(show.age) : null);
   } catch { profile = null; }
+  picked = { game, source: { ...game.source } };
+  drawPicked();
+}
+
+/** Questions du jeu choisi, d'après sa source (quiz cochés, tirage au hasard) : un nouveau tirage à chaque appel. */
+function drawPicked() {
   const prefix = `a${Date.now().toString(36)}`;
-  const { questions, problems } = gameQuestions(game.source, library.quizzes, profile ?? "MOYENS", prefix, library.mimes, library.playlists, library.contents);
-  picked = { game, questions, problems };
+  const { questions, problems } = gameQuestions(picked.source, library.quizzes, profile ?? "MOYENS", prefix, library.mimes, library.playlists, library.contents);
+  Object.assign(picked, { questions, problems });
   renderLibrary();
+}
+
+/** Jeux tirés au hasard (mimes du catalogue, jeux au buzzer intégrés, Pictionary) : « Nouveau tirage » possible. */
+const isDrawn = (source) => (source.type === "mimes" && source.random) || !!BUILTIN_GAMES[source.type] || source.type === "pictionary";
+
+/** Nom du jeu choisi : avec plusieurs quiz cochés, leurs titres réunis. */
+function pickedName() {
+  const { game, source } = picked;
+  const ids = roundQuizIds(source);
+  if (ids.length < 2) return game.label;
+  const titles = ids.map((id) => library.quizzes[id]?.title).filter(Boolean).join(" + ");
+  return QUIZ_GAMES[source.type] ? `${ROUND_TYPES[source.type]} : ${titles}` : titles;
+}
+
+/**
+ * Réglages du jeu choisi, avant de l'ajouter : cocher d'autres quiz (jamais de questions tirées au hasard),
+ * nouveau tirage, et une carte (ou un mot, un personnage) à ajouter à la main.
+ */
+function renderPickedEdit(questions) {
+  const box = $("lib-edit");
+  box.innerHTML = "";
+  const { source } = picked;
+  const add = (...nodes) => box.append(...nodes);
+  // Jeux tirés d'un quiz : les autres quiz qui conviennent, à cocher pour les enchaîner dans le même jeu.
+  if (source.type === "quiz" || QUIZ_GAMES[source.type]) {
+    const kind = QUIZ_GAMES[source.type];
+    const ids = roundQuizIds(source);
+    const others = Object.entries(library.quizzes)
+      .filter(([, q]) => q?.title && (kind ? kind.questions(q) : playable(q)).length)
+      .sort((a, b) => a[1].title.localeCompare(b[1].title, "fr"));
+    if (others.length > 1) {
+      const p = document.createElement("p");
+      p.className = "lib-section";
+      p.textContent = "Quiz du jeu (touchez pour en ajouter ou en retirer)";
+      const chips = document.createElement("div");
+      chips.className = "lib-chips";
+      others.forEach(([id, q]) => {
+        const on = ids.includes(id);
+        const c = document.createElement("button");
+        c.className = `lib-chip lib-quiz${on ? " on" : ""}`;
+        c.dataset.quiz = id;
+        c.setAttribute("aria-pressed", on ? "true" : "false");
+        const n = (kind ? kind.questions(q) : playable(q)).length;
+        c.textContent = `${on ? "✓ " : ""}${q.title} (${n})`;
+        // Toujours au moins un quiz : le dernier coché ne se retire pas.
+        c.disabled = on && ids.length === 1;
+        c.onclick = () => {
+          const next = on ? ids.filter((x) => x !== id) : [...ids, id];
+          picked.source = { ...source, quizId: next[0], quizIds: next };
+          drawPicked();
+        };
+        chips.appendChild(c);
+      });
+      add(p, chips);
+    }
+  }
+  if (isDrawn(source)) {
+    const b = document.createElement("button");
+    b.id = "lib-draw";
+    b.className = "btn secondary";
+    b.textContent = "🎲 Nouveau tirage";
+    b.onclick = drawPicked;
+    add(b);
+  }
+  const choices = addChoices(questions);
+  if (choices.length) {
+    const sel = document.createElement("select");
+    sel.id = "lib-add";
+    sel.className = "lib-add";
+    sel.setAttribute("aria-label", "Ajouter à la main");
+    const first = document.createElement("option");
+    first.value = "";
+    first.textContent = source.type === "mimes" || source.type === "pictionary" ? "＋ Ajouter une carte…" : `＋ Ajouter un ${CONTENT_GAMES[source.type]?.unit ?? "élément"}…`;
+    sel.appendChild(first);
+    const groups = new Map();
+    choices.forEach((c, i) => {
+      let parent = sel;
+      if (c.group) {
+        if (!groups.has(c.group)) { const g = document.createElement("optgroup"); g.label = c.group; groups.set(c.group, g); sel.appendChild(g); }
+        parent = groups.get(c.group);
+      }
+      const o = document.createElement("option");
+      o.value = `${i}`;
+      o.textContent = c.label;
+      parent.appendChild(o);
+    });
+    sel.onchange = () => {
+      const c = choices[Number(sel.value)];
+      if (c) { c.add(); renderLibrary(); }
+    };
+    add(sel);
+  }
+}
+
+/** Ce qu'on peut ajouter à la main au jeu choisi : cartes de mimes ou mots du Pictionary absents, éléments d'un jeu intégré. */
+function addChoices(questions) {
+  const { source } = picked;
+  const deck = questions[0]?.kind === "mime" || questions[0]?.kind === "pictionary" ? questions[0] : null;
+  if (deck) {
+    const present = new Set(deck.cards.map((c) => c.word.toLowerCase()));
+    const pool = deck.kind === "pictionary"
+      ? activeItems("pictionary", library.contents?.pictionary).map((w) => ({ card: { word: w.word, ...(w.image ? { image: w.image } : {}), ...(w.imageId ? { imageId: w.imageId } : {}) }, group: pictoSeriesOf(w) }))
+      : source.deckId ? mimePool(source, library.mimes, profile ?? "MOYENS").map((card) => ({ card }))
+      : MIME_CATALOG.map((c) => ({ card: mimeCards([c])[0], group: c.theme }));
+    return pool.filter((x) => !present.has(x.card.word.toLowerCase()))
+      .map((x) => ({ label: `${x.card.image ?? ""} ${x.card.word}`.trim(), group: x.group, add: () => { deck.cards.push(x.card); present.add(x.card.word.toLowerCase()); } }));
+  }
+  const game = CONTENT_GAMES[source.type];
+  if (!BUILTIN_GAMES[source.type] || !game) return [];
+  const present = new Set(questions.map((q) => (q.kind === "quisuis" || q.kind === "chante" ? q.choices?.[0] : null)).filter(Boolean).map((x) => x.toLowerCase()));
+  return activeItems(source.type, library.contents?.[source.type])
+    .filter((x) => !present.has((x.answer ?? x.word ?? "").toLowerCase()))
+    .map((x) => ({
+      label: game.label(x),
+      add: () => {
+        // Le même chemin que la prestation : l'élément choisi devient une question (grille tirée pour Qui a disparu ?).
+        const { questions: one } = gameQuestions({ type: source.type, picks: [game.key(x)] }, {}, profile ?? "MOYENS", `a${Date.now().toString(36)}`, {}, {}, library.contents);
+        if (one[0]) questions.push({ ...one[0], id: `${one[0].id}x${questions.length + 1}` });
+      },
+    }));
 }
 
 function renderPreview() {
   const { game, questions, problems } = picked;
   const st = live.state ?? { phase: "lobby" };
-  $("lib-name").textContent = game.label;
+  $("lib-name").textContent = pickedName();
+  renderPickedEdit(questions);
   const mime = questions[0]?.kind === "mime" || questions[0]?.kind === "pictionary" ? questions[0] : null;
   $("lib-meta").textContent = mime
     ? `${mime.kind === "pictionary" ? "Pictionary" : "Mimes"} · ${mime.cards.length} ${mime.kind === "pictionary" ? "mots · un mot par équipe" : "cartes"} · tour de ${mime.duration} s par équipe`
@@ -1380,12 +1517,33 @@ function renderPreview() {
   const list = $("lib-questions");
   list.innerHTML = "";
   if (mime) {
+    // Toutes les cartes, chacune avec ✕ pour la retirer (il en reste toujours une).
     const li = document.createElement("li");
-    li.textContent = mime.cards.slice(0, 12).map((c) => `${c.image ?? ""} ${c.word}`.trim()).join(" · ") + (mime.cards.length > 12 ? " …" : "");
+    li.className = "lib-cards";
+    mime.cards.forEach((c, k) => {
+      const chip = document.createElement("button");
+      chip.className = "lib-chip lib-card";
+      chip.dataset.word = c.word;
+      chip.textContent = `${`${c.image ?? ""} ${c.word}`.trim()} ✕`;
+      chip.setAttribute("aria-label", `Retirer ${c.word}`);
+      chip.disabled = mime.cards.length < 2;
+      chip.onclick = () => { mime.cards.splice(k, 1); renderLibrary(); };
+      li.appendChild(chip);
+    });
     list.appendChild(li);
   }
-  (mime ? [] : questions).slice(0, 5).forEach((q) => {
+  const removable = questions.length > 1 && !questions.some((q) => q.kind === "patate" || q.kind === "gonfleur" || q.kind === "coffres" || q.kind === "statues");
+  (mime ? [] : questions).forEach((q, k) => {
     const li = document.createElement("li");
+    // ✕ : la question (le mot, le personnage…) n'est pas ajoutée ; le quiz de la bibliothèque ne change pas.
+    if (removable) {
+      const x = document.createElement("button");
+      x.className = "lib-x";
+      x.textContent = "✕";
+      x.setAttribute("aria-label", "Retirer");
+      x.onclick = () => { questions.splice(k, 1); renderLibrary(); };
+      li.appendChild(x);
+    }
     const answer = document.createElement("b");
     // Chante le mot : le mot seul ; Qui suis-je : le personnage et son premier indice.
     if (q.kind === "chante") { answer.textContent = q.text; li.append(answer); list.appendChild(li); return; }
@@ -1399,7 +1557,6 @@ function renderPreview() {
     li.append(q.kind === "quisuis" ? `${q.image ?? ""} ${q.cards?.[0]?.word ?? ""}…`.trim() : q.text, answer);
     list.appendChild(li);
   });
-  if (questions.length > 5) list.insertAdjacentHTML("beforeend", `<li class="hint">… et ${questions.length - 5} autres</li>`);
   $("lib-problems").hidden = !problems.length;
   $("lib-problems").textContent = problems.join(" ");
   const lobby = st.phase === "lobby";

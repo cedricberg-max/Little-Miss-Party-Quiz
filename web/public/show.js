@@ -1,7 +1,7 @@
 // Prestation : ce que Sarah prépare dans l'administration (prénom, âge, profil, manches dans l'ordre)
 // et que la régie charge sur la TV. Fonctions pures, sans Firebase.
 import { PROFILES, profileForAge, defaultDuration, expressDuration } from "./profiles.js";
-import { shuffle } from "./mime-cards.js";
+import { shuffle, MIME_CATALOG } from "./mime-cards.js";
 import { CHANTE_WORDS, QUI_SUIS_JE, DISPARU_THEMES } from "./buzz-cards.js";
 import { PICTO_WORDS, PICTO_OWN_SERIES } from "./picto-cards.js";
 
@@ -118,12 +118,12 @@ export const QUIZ_GAMES = {
 export const BUILTIN_GAMES = {
   chante: {
     unit: "mot", count: 6, duration: 30, rule: "le premier qui buzze chante une chanson avec ce mot",
-    items: (profile, random, list) => list.filter((w) => profile !== "PETITS" || w.level === 1),
+    items: (profile, random, list, round, chosen) => (chosen ? list : list.filter((w) => profile !== "PETITS" || w.level === 1)),
     question: (w) => ({ text: w.word, choices: [w.word], correct: 0, kind: "chante" }),
   },
   quisuis: {
     unit: "personnage", count: 5, duration: 40, rule: "un indice de plus toutes les 10 secondes",
-    items: (profile, random, list) => list.filter((p) => profile !== "PETITS" || p.level === 1),
+    items: (profile, random, list, round, chosen) => (chosen ? list : list.filter((p) => profile !== "PETITS" || p.level === 1)),
     // Le personnage se montre à la révélation : son image (préparée dans l'administration), sinon son émoji.
     question: (p) => ({ text: "Qui suis-je ?", choices: [p.answer], correct: 0, kind: "quisuis", cards: p.clues.map((word) => ({ word })), image: p.emoji, ...(p.imageId ? { imageId: p.imageId } : {}) }),
   },
@@ -255,7 +255,52 @@ export const pictoRoundSeries = (round) => {
   return list.length ? list : null;
 };
 
-export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || round.type === "statues" || round.type === "pictionary" || round.type === "portes" || round.type === "coffres" || round.type === "gonfleur" || round.type === "patate" ? true : round.type === "mimes" ? round.deckId : MUSIC_GAMES[round.type] ? round.playlistId : round.quizId));
+export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || round.type === "statues" || round.type === "pictionary" || round.type === "portes" || round.type === "coffres" || round.type === "gonfleur" || round.type === "patate" ? true
+  : round.type === "mimes" ? round.deckId || round.random === true || mimeCards(round.cards).length
+  : MUSIC_GAMES[round.type] ? round.playlistId : roundQuizIds(round).length));
+
+/** Liste lue dans la base : un tableau, ou un objet indexé (tableau à trous). */
+const listOf = (x) => (Array.isArray(x) ? x : x && typeof x === "object" ? Object.values(x) : []);
+
+/**
+ * Quiz d'une manche tirée de quiz (Quiz, Vrai ou Faux, Zoom, Image floue) : un ou plusieurs, choisis par Sarah
+ * (`quizIds`), sinon le seul `quizId`. Leurs questions s'enchaînent dans cet ordre ; jamais de tirage au hasard.
+ */
+export const roundQuizIds = (round) => [...new Set((listOf(round?.quizIds).length ? listOf(round.quizIds) : [round?.quizId])
+  .filter((id) => typeof id === "string" && id))];
+
+/** Cartes de mimes valables (un mot, une image facultative). */
+export const mimeCards = (list) => listOf(list).filter((c) => typeof c?.word === "string" && c.word.trim())
+  .map((c) => (typeof c.image === "string" && c.image.trim() ? { word: c.word.trim().slice(0, 40), image: c.image.trim().slice(0, 16) } : { word: c.word.trim().slice(0, 40) }));
+
+/** Cartes tirées par « Mimes au hasard » quand Sarah n'a rien précisé. */
+export const MIME_RANDOM = 30;
+
+/** Cartes où piocher une manche de mimes : celles du paquet choisi, sinon le catalogue adapté à l'âge (pas de cartes difficiles pour les Petits). */
+export function mimePool(round, mimes, profile) {
+  const deck = round?.deckId ? mimes?.[round.deckId] : null;
+  if (deck) return mimeCards(deck.cards);
+  return mimeCards(MIME_CATALOG.filter((c) => profile !== "PETITS" || c.level === 1));
+}
+
+/** Tirage au hasard d'une manche de mimes : tout le paquet mélangé, ou [MIME_RANDOM] cartes du catalogue. */
+export function mimeDraw(round, mimes, profile, random = Math.random) {
+  const pool = shuffle(mimePool(round, mimes, profile), random);
+  return round?.deckId && mimes?.[round.deckId] ? pool : pool.slice(0, Number.isInteger(round?.count) && round.count > 0 ? round.count : MIME_RANDOM);
+}
+
+/** Au plus autant d'éléments choisis à la main dans une manche. */
+export const MAX_PICKS = 60;
+
+/** Éléments choisis un par un pour un jeu intégré ou le Pictionary (`picks`, leurs clés), dans l'ordre de Sarah. */
+export const roundPicks = (round) => [...new Set(listOf(round?.picks).filter((k) => typeof k === "string" && k).map((k) => k.toLowerCase()))].slice(0, MAX_PICKS);
+
+/** Les éléments actifs d'un jeu (page Jeux) qui correspondent aux clés choisies, dans l'ordre des clés. */
+export function pickedItems(type, content, picks) {
+  const game = CONTENT_GAMES[type];
+  const byKey = new Map(activeItems(type, content).map((x) => [game.key(x), x]));
+  return picks.map((k) => byKey.get(k)).filter(Boolean);
+}
 
 /** Morceaux jouables d'une playlist : un titre et un extrait enregistré. */
 export const playableTracks = (playlist) => (playlist?.tracks ?? []).filter((t) => t?.title?.trim() && /^[0-9a-f]{16}$/.test(t.audioId ?? ""));
@@ -292,15 +337,17 @@ function musicQuestions(type, playlist, prefix, random) {
  * Manche de mimes : un seul élément du programme, avec le paquet de cartes mélangé (chaque prestation
  * a son ordre) et la durée d'un tour. Le paquet de la bibliothèque n'est pas modifié.
  */
-function mimeItem(round, deck, i, random) {
-  const cards = (deck.cards ?? []).filter((c) => c?.word?.trim()).map((c) => (c.image ? { word: c.word.trim(), image: c.image } : { word: c.word.trim() }));
+function mimeItem(round, deck, i, random, profile, mimes) {
+  // Cartes choisies dans la Régie PC (gardées dans la manche) ; sinon le paquet, ou un tirage dans le catalogue.
+  const fixed = mimeCards(round.cards).slice(0, 200);
+  const title = deck?.title ?? ROUND_TYPES.mimes;
   return {
     id: `r${i + 1}m`,
-    text: deck.title,
+    text: title,
     kind: "mime",
-    duration: round.duration ?? deck.duration ?? MIME_TURN,
-    cards: shuffle(cards, random),
-    round: deck.title,
+    duration: round.duration ?? deck?.duration ?? MIME_TURN,
+    cards: fixed.length ? shuffle(fixed, random) : mimeDraw(round, mimes, profile, random).slice(0, 200),
+    round: title,
   };
 }
 
@@ -322,11 +369,11 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
   (show.rounds ?? []).filter(Boolean).forEach((round, i) => {
     begin(round.type);
     if (round.type === "mimes") {
-      const deck = mimes[round.deckId];
-      if (!deck) { problems.push(`Manche ${i + 1} : le paquet de mimes n'existe plus dans la bibliothèque.`); return; }
-      const item = mimeItem(round, deck, i, random);
-      if (!item.cards.length) { problems.push(`Manche ${i + 1} (${deck.title}) : aucune carte.`); return; }
-      rounds.push({ title: deck.title, count: 1, kind: "mime" });
+      const deck = round.deckId ? mimes[round.deckId] : null;
+      if (!deck && round.random !== true && !mimeCards(round.cards).length) { problems.push(`Manche ${i + 1} : le paquet de mimes n'existe plus dans la bibliothèque.`); return; }
+      const item = mimeItem(round, deck, i, random, profile, mimes);
+      if (!item.cards.length) { problems.push(`Manche ${i + 1} (${item.text}) : aucune carte.`); return; }
+      rounds.push({ title: item.text, count: 1, kind: "mime" });
       questions.push(item);
       return;
     }
@@ -360,7 +407,9 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       // Un seul élément : le paquet de mots mélangé (adapté à l'âge), joué équipe par équipe, un mot par tour.
       // Séries choisies pour la manche (aucune : toutes les séries).
       const series = pictoRoundSeries(round);
-      const words = activeItems("pictionary", contents?.pictionary)
+      // Mots choisis un par un dans la Régie PC : ceux-là seulement (les séries et l'âge ne filtrent plus).
+      const chosen = pickedItems("pictionary", contents?.pictionary, roundPicks(round));
+      const words = chosen.length ? chosen : activeItems("pictionary", contents?.pictionary)
         .filter((w) => (profile !== "PETITS" || w.level !== 2) && (!series || series.includes(pictoSeriesOf(w))));
       if (!words.length) { problems.push(`Manche ${i + 1} (Pictionary) : aucun mot actif${series ? " dans les séries choisies" : ""} (page Jeux de l'administration).`); return; }
       const duration = PICTO_SECONDS.includes(round.duration) ? round.duration : PICTO_SEC;
@@ -394,7 +443,11 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       const all = activeItems(round.type, contents?.[round.type]);
       const fresh = all.filter((x) => !seen.has(game.key(x)));
       const pool = fresh.length >= Math.min(count, all.length) ? fresh : all;
-      const picked = shuffle(builtin.items(profile, random, pool, round), random).slice(0, count);
+      // Éléments choisis un par un dans la Régie PC : ceux-là, dans cet ordre ; sinon le tirage au hasard.
+      const chosen = pickedItems(round.type, contents?.[round.type], roundPicks(round));
+      const picked = chosen.length
+        ? builtin.items(profile, random, chosen, round, true)
+        : shuffle(builtin.items(profile, random, pool, round), random).slice(0, count);
       picked.forEach((x) => seen.add(game.key(x)));
       if (!picked.length) {
         problems.push(`Manche ${i + 1} (${ROUND_TYPES[round.type]}) : aucun ${CONTENT_GAMES[round.type].unit} actif (page Jeux de l'administration).`);
@@ -406,13 +459,19 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       }));
       return;
     }
-    const quiz = quizzes[round.quizId];
+    const ids = roundQuizIds(round);
+    const found = ids.map((id) => quizzes[id]).filter(Boolean);
+    // Plusieurs quiz : un seul jeu, leurs questions à la suite, sous les titres réunis.
+    const quiz = found.length > 1
+      ? { title: found.map((x) => x.title).join(" + "), questions: found.flatMap((x) => (x.questions ?? []).filter(Boolean)) }
+      : found[0];
     const express = round.type === "express";
     const zoom = round.type === "zoom";
     const flou = round.type === "flou";
     const game = QUIZ_GAMES[round.type];
     const label = round.type === "finale" || game ? ROUND_TYPES[round.type] : quiz?.title ?? `Manche ${i + 1}`;
-    if (!quiz) { problems.push(`Manche ${i + 1} : le quiz n'existe plus dans la bibliothèque.`); return; }
+    if (found.length < ids.length) problems.push(`Manche ${i + 1} : ${ids.length > 1 ? "un des quiz choisis" : "le quiz"} n'existe plus dans la bibliothèque.`);
+    if (!quiz) { if (!ids.length) problems.push(`Manche ${i + 1} : le quiz n'existe plus dans la bibliothèque.`); return; }
     // Nombre de questions choisi dans la prestation : les premières du quiz, dans son ordre.
     const list = (game ? game.questions(quiz) : playable(quiz)).slice(0, round.count > 0 ? round.count : undefined);
     if (!list.length) {
@@ -526,6 +585,38 @@ export function readiness(show, quizzes, mimes = {}, playlists = {}, contents = 
   }
   if (!todo.length && show.status !== "publiee") todo.push("Passer le statut à « Prête »");
   return { level: todo.length ? "a-completer" : "prete", todo };
+}
+
+const sansAccent = (x) => `${x ?? ""}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const MOIS = ["janvier", "fevrier", "mars", "avril", "mai", "juin", "juillet", "aout", "septembre", "octobre", "novembre", "decembre"];
+const JOURS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+
+/**
+ * Recherche dans les prestations (Régie PC) : chaque mot tapé doit se retrouver dans la prestation, sans tenir compte
+ * des accents ni des majuscules. On cherche dans le titre, le prénom, l'âge (« 9 », « 9 ans »), la date (« 25/10 »,
+ * « 25 octobre », « 2026-10-25 », « octobre », « samedi »), le statut, les thèmes, les notes et les jeux (titres des quiz,
+ * paquets et playlists). Un nombre seul doit correspondre à un nombre entier (« 9 » ne trouve pas « 2019 »).
+ */
+export function showMatches(show, query, library = {}) {
+  const words = sansAccent(query).split(/[\s,;]+/).filter(Boolean);
+  if (!words.length) return true;
+  const parts = [showTitle(show), show.childName, show.title, show.themes, show.notes, show.age != null ? `${show.age} ans` : ""];
+  if (show.date) {
+    const [y, m, d] = show.date.split("-").map(Number);
+    const day = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+    const dd = `${d}`.padStart(2, "0"), mm = `${m}`.padStart(2, "0");
+    parts.push(show.date, `${dd}/${mm}/${y}`, `${d}/${m}/${y}`, `${d} ${MOIS[m - 1]} ${y}`, JOURS[day]);
+  }
+  parts.push({ publiee: "prete", brouillon: "brouillon", archivee: "archivee archive" }[show.status] ?? "");
+  for (const r of (show.rounds ?? []).filter(Boolean)) {
+    parts.push(ROUND_TYPES[r.type] ?? "");
+    roundQuizIds(r).forEach((id) => parts.push(library.quizzes?.[id]?.title));
+    if (r.deckId) parts.push(library.mimes?.[r.deckId]?.title);
+    if (r.playlistId) parts.push(library.playlists?.[r.playlistId]?.title);
+  }
+  const text = sansAccent(parts.filter(Boolean).join(" \n "));
+  const numbers = new Set(text.match(/\d+/g) ?? []);
+  return words.every((w) => (/^\d+$/.test(w) ? numbers.has(w) || numbers.has(w.replace(/^0+/, "")) : text.includes(w)));
 }
 
 /** Anniversaires à venir (aujourd'hui compris), du plus proche au plus lointain, archives exclues. */

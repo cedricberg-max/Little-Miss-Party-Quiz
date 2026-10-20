@@ -110,6 +110,15 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .lib-name { margin: 0; font-size: 20px; font-weight: 800; }
 .regie .lib-questions { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; font-size: 15px; }
 .regie .lib-questions b { color: var(--gold); font-weight: 700; }
+.regie .lib-edit { display: flex; flex-direction: column; gap: 8px; }
+.regie .lib-edit:empty { display: none; }
+.regie .lib-chips, .regie .lib-cards { display: flex; flex-wrap: wrap; gap: 6px; }
+.regie .lib-cards { list-style: none; margin-left: -22px; }
+.regie .lib-chip { font: inherit; font-size: 14px; font-weight: 700; min-height: 40px; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .25); background: transparent; color: inherit; cursor: pointer; }
+.regie .lib-chip.on { background: var(--gold); border-color: var(--gold); color: var(--night-deep); }
+.regie .lib-chip:disabled { opacity: .5; cursor: default; }
+.regie .lib-x { min-width: 36px; min-height: 36px; margin-right: 8px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .1); color: inherit; font: inherit; cursor: pointer; }
+.regie .lib-add { min-height: 48px; font: inherit; font-size: 16px; border-radius: 12px; padding: 0 10px; }
 .regie .lib-actions { display: flex; flex-direction: column; gap: 8px; margin-top: auto; padding-top: 8px; }
 .regie .soon { font-size: 12px; font-weight: 800; color: var(--night-deep); background: var(--gold); border-radius: 999px; padding: 2px 8px; align-self: flex-start; }
 

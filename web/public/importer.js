@@ -78,6 +78,23 @@ export function wordFromImage(name) {
   return base ? base[0].toUpperCase() + base.slice(1) : "";
 }
 
+/**
+ * Quiz de photos déposées (Image floue, Zoom mystère) : une question par photo, la réponse tirée du nom du fichier
+ * (« tour-eiffel.jpg » → « Tour eiffel », corrigeable à la relecture) et jusqu'à 3 autres propositions prises parmi
+ * les réponses des autres photos. Les questions arrivent validées : Sarah relit les réponses avant d'enregistrer.
+ */
+export function photoQuestions(names, text = "Qu'est-ce que c'est ?", random = Math.random) {
+  const answers = names.map((n, i) => wordFromImage(n) || `Photo ${i + 1}`);
+  return answers.map((answer, i) => {
+    const others = [...new Set(answers.filter((a, j) => j !== i && norm(a) !== norm(answer)))];
+    for (let k = others.length - 1; k > 0; k--) { const j = Math.floor(random() * (k + 1)); [others[k], others[j]] = [others[j], others[k]]; }
+    const choices = [answer, ...others.slice(0, 3)];
+    const correct = Math.floor(random() * choices.length);
+    [choices[0], choices[correct]] = [choices[correct], choices[0]];
+    return { text, choices, correct, duration: null, double: false, status: "validee", marks: 0 };
+  });
+}
+
 const norm = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 const words = (s) => String(s ?? "").trim().split(/\s+/).filter(Boolean).length;
 

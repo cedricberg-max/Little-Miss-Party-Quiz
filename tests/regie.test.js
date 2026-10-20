@@ -1985,6 +1985,232 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
+  test("Régie PC : plusieurs quiz dans une manche, mimes du catalogue tirés puis retouchés, mots choisis un par un", async () => {
+    await seedLibrary("quizzes", { animaux: ANIMAUX, finale: FINALE });
+    const page = await admin();
+    await page.click("#home-new");
+    await page.fill("#show-child", "Léa");
+    await page.fill("#show-age", "9");
+    // Quiz : un deuxième quiz enchaîné dans la même manche.
+    await page.click("#round-add");
+    const quiz = page.locator("#show-rounds .round").nth(0);
+    await quiz.locator("select.grow").first().selectOption("animaux");
+    await quiz.locator("button.quiz-add").click();
+    await quiz.locator(".quiz-more select").selectOption("finale");
+    await page.locator("#show-summary", { hasText: "3 questions" }).waitFor();
+    // Mimes : 30 cartes du catalogue au hasard, une retirée, une à soi ajoutée.
+    await page.click("#round-add");
+    const mimes = page.locator("#show-rounds .round").nth(1);
+    await mimes.locator("select").first().selectOption("mimes");
+    await mimes.locator("select.grow").selectOption("hasard");
+    await mimes.locator(".pick-box .small", { hasText: "30 cartes au hasard au lancement" }).waitFor();
+    await mimes.locator("button.pick-draw").click();
+    await mimes.locator(".pick-box .small", { hasText: "30 cartes choisies" }).waitFor();
+    const removed = await mimes.locator("button.pick-item").first().getAttribute("data-key");
+    await mimes.locator("button.pick-item").first().click();
+    await mimes.locator(".pick-box .small", { hasText: "29 cartes choisies" }).waitFor();
+    await mimes.locator(".pick-own input").fill("Le chat de Léa");
+    await mimes.locator(".pick-own button").click();
+    await mimes.locator('button.pick-item[data-key="le chat de léa"]').waitFor();
+    // Chante le mot ! : deux mots choisis à la main.
+    await page.click("#round-add");
+    const chante = page.locator("#show-rounds .round").nth(2);
+    await chante.locator("select").first().selectOption("chante");
+    await chante.locator("select.pick-add").selectOption("soleil");
+    await chante.locator("select.pick-add").selectOption("maman");
+    await chante.locator(".pick-box .small", { hasText: "2 mots choisis" }).waitFor();
+    await page.selectOption("#show-status", "publiee");
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
+    const saved = Object.values(await library("shows"))[0].rounds;
+    assert.deepEqual(saved[0], { type: "quiz", quizId: "animaux", quizIds: ["animaux", "finale"] });
+    assert.equal(saved[1].type, "mimes");
+    assert.equal(saved[1].random, true);
+    assert.equal(saved[1].cards.length, 30);
+    assert.ok(!saved[1].cards.some((c) => c.word.toLowerCase() === removed), "La carte retirée n'est plus là");
+    assert.deepEqual(saved[1].cards.at(-1), { word: "Le chat de Léa" });
+    assert.deepEqual(saved[2], { type: "chante", count: 6, picks: ["soleil", "maman"] });
+    await page.context().close();
+
+    box = startBox();
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "L'anniversaire de Léa" }).click();
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    const questions = (await read("show")).quiz.questions;
+    assert.deepEqual(questions.slice(0, 3).map((q) => q.round), ["Animaux + Finale", "Animaux + Finale", "Animaux + Finale"]);
+    assert.equal(questions[3].kind, "mime");
+    assert.deepEqual(questions[3].cards.map((c) => c.word).sort(), saved[1].cards.map((c) => c.word).sort());
+    assert.deepEqual(questions.slice(4).map((q) => q.text), ["soleil", "maman"]);
+    await regie.context().close();
+  });
+
+  test("à la volée : mimes au hasard retouchés avant l'ajout, et plusieurs quiz cochés dans un même jeu", async () => {
+    const DINO = { title: "Dinosaures", source: "tableur", updatedAt: 1, questions: [{ text: "Le T-Rex mangeait de la viande", choices: ["Vrai", "Faux"], correct: 0, status: "validee" }] };
+    await seedLibrary("quizzes", { animaux: ANIMAUX, dino: DINO });
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.click("#tab-plan");
+    await regie.click("#plan-add");
+    // Mimes au hasard : 30 cartes, une retirée, une ajoutée, puis l'ajout au programme.
+    await regie.locator("#lib-list [data-game='mimes/hasard']", { hasText: "Mimes au hasard" }).click();
+    await regie.locator("#lib-meta", { hasText: "Mimes · 30 cartes" }).waitFor();
+    const first = await regie.locator("#lib-questions .lib-card").first().getAttribute("data-word");
+    await regie.locator("#lib-questions .lib-card").first().click();
+    await regie.locator("#lib-meta", { hasText: "Mimes · 29 cartes" }).waitFor();
+    const extra = await regie.locator("#lib-add option:not([value=''])").first().getAttribute("value");
+    await regie.selectOption("#lib-add", extra);
+    await regie.locator("#lib-meta", { hasText: "Mimes · 30 cartes" }).waitFor();
+    const words = await regie.locator("#lib-questions .lib-card").evaluateAll((els) => els.map((e) => e.dataset.word));
+    assert.ok(!words.includes(first));
+    await regie.click("#lib-end");
+    await regie.locator("#r-toast", { hasText: "est ajouté" }).waitFor();
+    const mime = (await read("conducteur")).questions.find((q) => q.kind === "mime");
+    assert.deepEqual(mime.cards.map((c) => c.word), words, "La TV reçoit exactement les cartes retouchées");
+
+    // Quiz : Animaux, puis Dinosaures coché en plus ; une question retirée avant l'ajout.
+    await regie.click("#plan-add");
+    await regie.locator('#lib-list [data-game="quiz/animaux"]').click();
+    await regie.locator("#lib-name", { hasText: "Animaux" }).waitFor();
+    await regie.locator('#lib-edit .lib-quiz[data-quiz="dino"]').click();
+    await regie.locator("#lib-name", { hasText: "Animaux + Dinosaures" }).waitFor();
+    await regie.locator("#lib-meta", { hasText: "3 questions" }).waitFor();
+    await regie.locator("#lib-questions li", { hasText: "Combien de pattes" }).locator(".lib-x").click();
+    await regie.locator("#lib-meta", { hasText: "2 questions" }).waitFor();
+    await regie.click("#lib-end");
+    await regie.locator("#r-toast", { hasText: "« Animaux + Dinosaures » est ajouté" }).waitFor();
+    const added = (await read("conducteur")).questions.filter((q) => q.round === "Animaux + Dinosaures").map((q) => q.text);
+    assert.deepEqual(added, ["Roi de la jungle ?", "Le T-Rex mangeait de la viande"]);
+    assert.deepEqual((await library("quizzes")).animaux, ANIMAUX, "Quiz de la bibliothèque inchangé");
+    await regie.context().close();
+  });
+
+  test("Régie PC : « ↩ Retour » défait la dernière action, « Annuler les modifications » revient au dernier enregistrement", async () => {
+    const page = await admin();
+    // Paquet de mimes : des cartes ajoutées et retirées, rien n'est écrit avant « Enregistrer ».
+    await page.click(".tile[data-screen=mimes]");
+    await page.click("#mime-new");
+    const bar = page.locator("#screen-mime-edit .retour-barre");
+    const count = () => page.locator("#mime-count").textContent();
+    assert.equal(await bar.locator(".retour-dernier").isDisabled(), true);
+    await page.fill("#mime-title", "Animaux");
+    await page.locator("#mime-catalog .mime-card", { hasText: "Chat" }).click();
+    await page.locator("#mime-catalog .mime-card", { hasText: "Éléphant" }).click();
+    await page.locator("#mime-catalog .mime-card", { hasText: "Lapin" }).click();
+    await waitFor(async () => (await count()) === "3", "3 cartes");
+    await bar.locator(".retour-dernier").click();
+    await waitFor(async () => (await count()) === "2", "Retour : le lapin repart");
+    assert.equal(await page.locator("#mime-picked .mime-card", { hasText: "Lapin" }).count(), 0);
+    await page.click("#mime-save");
+    await page.locator("#mime-status", { hasText: "Enregistré : 2 cartes" }).waitFor();
+    assert.equal(await bar.locator(".retour-tout").isDisabled(), true, "Rien à annuler juste après l'enregistrement");
+    await page.locator("#mime-catalog .mime-card", { hasText: "Lapin" }).click();
+    await page.locator("#mime-picked .mime-card", { hasText: "Chat" }).click();
+    await page.fill("#mime-title", "Zoo");
+    await page.locator("#mime-title").blur();
+    await waitFor(async () => !(await bar.locator(".retour-tout").isDisabled()), "Annuler possible");
+    await bar.locator(".retour-tout").click();
+    await waitFor(async () => (await count()) === "2", "Annuler : retour aux 2 cartes enregistrées");
+    assert.equal(await page.inputValue("#mime-title"), "Animaux");
+    assert.deepEqual(Object.values(await library("mimes"))[0].cards.map((c) => c.word), ["Chat", "Éléphant"], "La bibliothèque n'a pas bougé");
+    // Annuler est une action comme une autre : un Retour rend les modifications.
+    await bar.locator(".retour-dernier").click();
+    await waitFor(async () => (await page.inputValue("#mime-title")) === "Zoo", "Retour après Annuler");
+    assert.equal(await count(), "2");
+    assert.equal(await page.locator("#mime-picked .mime-card", { hasText: "Lapin" }).count(), 1);
+
+    // Page Jeux (enregistrée à chaque touche) : Retour remet le mot retiré, dans la bibliothèque aussi.
+    await page.click("#nav button[data-screen=games]");
+    await page.locator('.game-card[data-game=chante] button', { hasText: "Voir et modifier les mots" }).click();
+    await page.locator('#builtin-items .content-item.on[data-key="soleil"] .content-toggle').click();
+    await page.locator("#builtin-status", { hasText: "« soleil » est retiré du jeu." }).waitFor();
+    assert.deepEqual((await library("contents")).chante.off, ["soleil"]);
+    await page.locator("#screen-builtin .retour-dernier").click();
+    await page.locator("#builtin-status", { hasText: "Modification annulée." }).waitFor();
+    await page.locator('#builtin-items .content-item.on[data-key="soleil"]').waitFor();
+    assert.equal((await library("contents")).chante.off ?? null, null);
+
+    // Prestation : une manche ajoutée puis défaite au clavier (Ctrl+Z hors d'un champ).
+    await page.click("#nav button[data-screen=home]");
+    await page.click("#home-new");
+    await page.fill("#show-child", "Léa");
+    await page.locator("#show-child").blur();
+    await page.click("#round-add");
+    await page.click("#round-add");
+    await waitFor(async () => (await page.locator("#show-rounds .round").count()) === 2, "2 manches");
+    await page.keyboard.press("Control+z");
+    await waitFor(async () => (await page.locator("#show-rounds .round").count()) === 1, "Ctrl+Z : une manche de moins");
+    await page.locator("#screen-show-edit .retour-tout").click();
+    await waitFor(async () => (await page.locator("#show-rounds .round").count()) === 0, "Annuler : fiche vide");
+    assert.equal(await page.inputValue("#show-child"), "");
+    await page.context().close();
+  });
+
+  test("Régie PC : rechercher une prestation par prénom, âge, date ou jeu, archives comprises", async () => {
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    await seedLibrary("shows", {
+      lea: { childName: "Léa", age: 9, date: "2099-12-02", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 },
+      hugo: { childName: "Hugo", age: 7, date: "2025-06-14", status: "archivee", rounds: [{ type: "patate" }], updatedAt: 1 },
+      zoe: { childName: "Zoé", age: 10, date: "2025-03-01", status: "brouillon", rounds: [], updatedAt: 1 },
+    });
+    const page = await admin();
+    await page.click("#nav button[data-screen=shows]");
+    const search = async (q) => { await page.fill("#show-search", q); return page.locator("#show-search-count").textContent(); };
+    assert.equal(await search("hugo"), "1 prestation trouvée");
+    assert.equal(await page.locator("#show-archives").getAttribute("open"), "", "Les archives s'ouvrent sur le résultat");
+    assert.equal(await page.locator("#show-archive-list", { hasText: "Hugo" }).count(), 1);
+    assert.equal(await page.locator("#show-list", { hasText: "Léa" }).count(), 0);
+    assert.equal(await search("juin"), "1 prestation trouvée");
+    assert.equal(await search("14/06"), "1 prestation trouvée");
+    assert.equal(await search("patate"), "1 prestation trouvée");
+    assert.equal(await search("lea 9"), "1 prestation trouvée");
+    await page.locator("#show-list", { hasText: "Léa" }).waitFor();
+    assert.equal(await search("animaux"), "1 prestation trouvée");
+    assert.equal(await search("2025"), "2 prestations trouvées");
+    assert.equal(await page.locator("#show-past-list", { hasText: "Zoé" }).count(), 1);
+    assert.equal(await search("zoe 11"), "0 prestation trouvée");
+    await page.locator("#show-list", { hasText: "Aucune prestation ne correspond" }).waitFor();
+    assert.equal(await search(""), "");
+    assert.equal(await page.locator("#show-list", { hasText: "Léa" }).count(), 1);
+    await page.context().close();
+  });
+
+  test("Régie PC : quiz de photos, le nom de chaque fichier devient sa réponse, puis il se choisit pour l'Image floue", async () => {
+    const page = await admin();
+    await page.click("#nav button[data-screen=quizzes]");
+    await page.setInputFiles("#quiz-photos", [
+      { name: "tour-eiffel.png", mimeType: "image/png", buffer: png([200, 40, 40]) },
+      { name: "chat.png", mimeType: "image/png", buffer: png([40, 200, 40]) },
+      { name: "lune.png", mimeType: "image/png", buffer: png([40, 40, 200]) },
+    ]);
+    await page.locator("#rv-status", { hasText: "3 photos prêtes" }).waitFor();
+    assert.equal(await page.inputValue("#rv-title"), "Mes photos");
+    assert.equal(await page.locator("#rv-list .qcard").count(), 3);
+    const first = page.locator('#rv-list .qcard[data-q="0"]');
+    const choices = await first.locator(".q-choice").evaluateAll((els) => els.map((e) => e.value).filter(Boolean));
+    assert.deepEqual([...choices].sort(), ["Chat", "Lune", "Tour eiffel"]);
+    await page.fill("#rv-title", "Monuments et animaux");
+    await page.click("#rv-save");
+    await page.locator("#rv-status", { hasText: "Enregistré : 3 questions validées sur 3" }).waitFor();
+    const [id, quiz] = Object.entries(await library("quizzes"))[0];
+    assert.equal(quiz.source, "photos");
+    assert.ok(quiz.questions.every((q) => /^[0-9a-f]{16}$/.test(q.imageId) && q.status === "validee"));
+    assert.deepEqual(quiz.questions.map((q) => q.choices[q.correct]), ["Tour eiffel", "Chat", "Lune"]);
+    // Image floue : le quiz est proposé avec ses 3 photos.
+    await page.click("#nav button[data-screen=home]");
+    await page.click("#home-new");
+    await page.click("#round-add");
+    await page.locator("#show-rounds .round").nth(0).locator("select").first().selectOption("flou");
+    await page.locator("#show-rounds .round").nth(0).locator("select.grow option", { hasText: "Monuments et animaux (3 avec photo)" }).waitFor({ state: "attached" });
+    await page.locator("#show-rounds .round").nth(0).locator("select.grow").selectOption(id);
+    await page.locator("#show-summary", { hasText: "3 questions" }).waitFor();
+    await page.context().close();
+  });
+
   test("Vrai ou Faux express : manche choisie dans l'admin, affirmations seules, ajout en direct, TV trop ancienne prévenue", async () => {
     const SCIENCES = {
       title: "Sciences", source: "tableur", updatedAt: 1,
