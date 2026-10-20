@@ -269,7 +269,7 @@ button.item { cursor: pointer; }
 .game-card .small { font-size: 14px; }
 
 /* Contenu intégré : un bouton par élément, actif ou retiré */
-.content-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: 10px; }
+.content-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: 10px; align-items: start; }
 .content-item { display: flex; align-items: stretch; gap: 4px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); opacity: .55; }
 .content-item.on { opacity: 1; border-color: var(--violet); box-shadow: var(--shadow); }
 .content-item.custom { border-style: dashed; }
