@@ -14,6 +14,10 @@ import { choisirPorte, ecranPorteOuverte } from "./portes.js";
 import { ecranCoffres, REVELATION_MS } from "./coffres.js";
 import { ecranGonfleur, ENVOI_MS, plafond } from "./gonfleur.js";
 import { ecranPatate } from "./patate.js";
+import { afficherMotsDePasse } from "./oeil.js";
+
+// Petit œil sur les champs de mot de passe : voir ce qu'on tape (majuscules, caractère en trop).
+afficherMotsDePasse();
 
 const $ = (id) => document.getElementById(id);
 /** Jeux au buzzer : un seul grand BUZZ, la réponse se donne à voix haute. */
