@@ -178,7 +178,7 @@ button.item { cursor: pointer; }
 .qcard.valid { border-color: #9fd9b4; }
 .qcard.error { border-color: #f0a7bf; }
 .illustration .q-emoji { width: 110px; font-size: 20px; }
-.illustration .q-image { height: 64px; max-width: 120px; object-fit: cover; border-radius: 10px; border: 2px solid var(--line); }
+.illustration .q-image { height: 72px; width: 96px; max-width: none; object-fit: cover; border-radius: 9%; border: 2px solid var(--line); }
 .illustration .q-image[hidden] { display: none; }
 .qhead { display: flex; align-items: center; gap: 12px; }
 .qhead b { flex: 1; }
@@ -187,7 +187,7 @@ button.item { cursor: pointer; }
 .choice .letter { width: 20px; font-weight: 900; color: var(--rose); }
 .choice .q-choice { flex: 1; min-width: 0; }
 .choice-photo { display: inline-flex; align-items: center; gap: 4px; }
-.choice-thumb { width: 44px; height: 44px; object-fit: contain; border-radius: 8px; background: #fff; border: 1px solid #ddd; }
+.choice-thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 22%; background: #fff; border: 1px solid #ddd; }
 .drop-zone { border: 2px dashed transparent; border-radius: 12px; }
 .drop-zone textarea { display: block; width: 100%; box-sizing: border-box; }
 .drop-zone.over { border-color: var(--rose); background: rgba(255, 45, 138, .06); }
@@ -328,3 +328,59 @@ button.item { cursor: pointer; }
 .answers-mode { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
 .answers-mode legend { font-weight: 600; margin-bottom: 4px; }
 .answers-mode .inline { display: flex; align-items: center; gap: 8px; }
+
+/* Bulles comme sur la TV : un clic ouvre le cadrage. */
+.bulle { cursor: zoom-in; box-shadow: 0 2px 8px rgba(80, 40, 110, .15); transition: transform .15s; }
+.bulle:hover { transform: scale(1.06); }
+
+/* Cadrage : la fenêtre a la forme de la bulle de la TV ; ce qui dépasse reste visible en transparence. */
+.cadre-voile { position: fixed; inset: 0; z-index: 50; background: rgba(40, 20, 60, .55); display: grid; place-items: center; padding: 16px; }
+.cadre-boite { background: #fff; border-radius: 22px; padding: 20px 24px; max-width: min(560px, 100%); display: flex; flex-direction: column; gap: 12px; align-items: center; box-shadow: 0 20px 60px rgba(40, 20, 60, .35); }
+.cadre-boite .label, .cadre-boite .hint { align-self: stretch; }
+.cadre-scene { position: relative; margin: 40px; touch-action: none; cursor: grab; user-select: none; }
+.cadre-scene:active { cursor: grabbing; }
+.cadre-fond, .cadre-net { position: absolute; left: 0; top: 0; max-width: none; transform-origin: 0 0; pointer-events: none; }
+.cadre-fond { opacity: .35; }
+.cadre-fenetre { position: absolute; inset: 0; overflow: hidden; outline: 3px solid #fff; box-shadow: 0 0 0 9999px rgba(255, 255, 255, 0), 0 6px 24px rgba(0, 0, 0, .3); }
+.cadre-zoom-label { align-self: stretch; }
+.cadre-zoom { flex: 1; width: auto !important; padding: 0 !important; }
+
+/* Banque des tout-petits : questions à cocher, avec les mots de leurs réponses. */
+.banque-panel .banque-list { display: flex; flex-direction: column; gap: 6px; max-height: 420px; overflow-y: auto; padding-right: 4px; }
+.banque-q { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; align-items: center; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--line); background: #fffdfc; cursor: pointer; }
+.banque-q input { grid-row: span 2; width: 22px; height: 22px; padding: 0; }
+.banque-q .banque-texte { font-weight: 700; }
+.banque-q .banque-mots { font-size: 14px; color: var(--muted, #7a6a88); }
+.banque-q.deja { opacity: .55; cursor: default; }
+.banque-q .tag { grid-column: 2; justify-self: start; }
+.banque-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }
+.banque-mot { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px; border-radius: 16px; background: #fffdfc; border: 1px solid var(--line); text-align: center; }
+.banque-mot .choice-thumb { width: 96px; height: 96px; }
+.banque-mot .row { gap: 6px; justify-content: center; }
+.banque-panel input[type=search] { width: 100%; margin-bottom: 10px; }
+
+/* Box TV : demandes d'activation et box autorisées (Paramètres). */
+.box-list { display: flex; flex-direction: column; gap: 10px; }
+.box-list .empty-line { margin: 0; color: var(--soft); }
+.box-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 16px; }
+.box-row .box-code { font-size: 30px; font-weight: 900; letter-spacing: .18em; font-family: ui-monospace, monospace; }
+.box-row .box-info { flex: 1 1 200px; display: flex; flex-direction: column; gap: 2px; }
+.box-row .box-info small { color: var(--soft); }
+.box-row input { flex: 1 1 180px; }
+.box-row .box-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.box-alert { display: block; width: 100%; margin: 0 0 16px; padding: 14px 18px; border: 2px solid var(--rose); border-radius: 18px; background: var(--rose-pale); color: var(--ink); font: inherit; font-weight: 800; text-align: left; cursor: pointer; }
+.nav-badge { display: inline-block; min-width: 1.4em; margin-left: 6px; padding: 0 6px; border-radius: 999px; background: var(--bad); color: #fff; font-size: 13px; line-height: 1.5; text-align: center; }
+
+/* Prestations épinglées : les modèles où piocher des jeux, en tête de l'onglet Prestations. */
+.pill.pin { background: var(--gold-pale); color: var(--warn); }
+.pinned { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; padding: 16px; border: 2px solid var(--gold-pale); border-radius: 22px; }
+.pinned h2 { margin: 0; }
+
+/* Créer un quiz : le type, puis la façon de le créer. */
+.kind-choice, .kind-ways { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.kind-card, .kind-way { font: inherit; text-align: left; display: flex; flex-direction: column; gap: 6px; padding: 16px 18px; border-radius: 18px; border: 2px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; }
+.kind-card b { font-size: 20px; }
+.kind-way b { font-size: 17px; }
+.kind-card span, .kind-way span { font-size: 14px; color: var(--muted, #6b6480); }
+.kind-card:hover, .kind-way:hover { border-color: var(--violet); }
+.kind-card.active, .kind-way.active { border-color: var(--violet); background: var(--violet-pale); }

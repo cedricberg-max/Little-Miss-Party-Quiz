@@ -15,7 +15,7 @@ import {
   buildSnapshot, estimateMinutes, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, BUILTIN_GAMES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
   roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC, PICTO_SECONDS, PICTO_SEC, PICTO_POINTS, PICTO_RULE,
   blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras, contentSlot, contentImages,
-  pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches,
+  pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches, isArchived, AUTO_ARCHIVE_DAYS, quizKind,
   roundQuizIds, roundPicks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS,
   isStatuesList, statuesSongs, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS,
 } from "./show.js";
@@ -27,6 +27,8 @@ import { watchVersion, showUpdateBanner } from "./version.js";
 import { compressImage, imageId, cleanEmoji, CHOICE_IMAGE } from "./illustration.js";
 import { afficherMotsDePasse } from "./oeil.js";
 import { historique, noterEcran } from "./retour.js";
+import { ouvrirCadrage } from "./cadrage.js";
+import { FAMILLES_PETITS, BANQUE_MOTS, motBanque, cleMot, cataloguePetits, tirerPetits } from "./banque-petits.js";
 
 // Petit œil sur les champs de mot de passe : voir ce qu'on tape (majuscules, caractère en trop).
 afficherMotsDePasse();
@@ -110,11 +112,11 @@ function status(id, text, ok = false) {
   $(id).classList.toggle("ok", ok);
 }
 
-const SCREENS = ["login", "home", "shows", "show-edit", "games", "builtin", "quizzes", "import", "review", "settings", "mimes", "mime-edit", "music", "playlist-edit"];
+const SCREENS = ["login", "home", "shows", "show-edit", "games", "builtin", "quizzes", "import", "review", "settings", "mimes", "mime-edit", "music", "playlist-edit", "banque"];
 function show(name) {
   // Quiz, mimes et musique se rangent sous « Jeux » dans le menu (cedric) : c'est l'onglet Jeux qui reste allumé.
   if (["home", "shows", "games", "settings"].includes(name)) current = name;
-  if (["quizzes", "mimes", "music", "builtin", "import", "review", "mime-edit", "playlist-edit"].includes(name)) current = "games";
+  if (["quizzes", "mimes", "music", "builtin", "import", "review", "mime-edit", "playlist-edit", "banque"].includes(name)) current = "games";
   SCREENS.forEach((s) => { $(`screen-${s}`).hidden = s !== name; });
   document.querySelectorAll("#nav button").forEach((b) => b.classList.toggle("active", b.dataset.screen === current));
   window.scrollTo(0, 0);
@@ -211,6 +213,9 @@ function enter() {
   stops.push(onValue(ref(db, "library/mimes"), (s) => { mimes = s.val() ?? {}; refreshLists(); }, lost));
   stops.push(onValue(ref(db, "library/playlists"), (s) => { playlists = s.val() ?? {}; refreshLists(); }, lost));
   stops.push(onValue(ref(db, "library/contents"), (s) => { contents = s.val() ?? {}; refreshLists(); }, lost));
+  // Box : une lecture refusée ne doit pas fermer l'administration (règles pas encore publiées).
+  stops.push(onValue(ref(db, "boxes/requests"), (s) => { boxRequests = s.val() ?? {}; renderBoxes(); }, (e) => console.error(e)));
+  stops.push(onValue(ref(db, "boxes/allowed"), (s) => { boxAllowed = s.val() ?? {}; renderBoxes(); }, (e) => console.error(e)));
   show(current);
 }
 
@@ -220,6 +225,7 @@ function refreshLists() {
   if (!$("screen-home").hidden) renderHome();
   if (!$("screen-games").hidden) renderGames();
   if (!$("screen-builtin").hidden) renderBuiltin();
+  if (!$("screen-banque").hidden) renderBanqueMots();
   if (!$("screen-shows").hidden) renderShows();
   if (!$("screen-quizzes").hidden) renderQuizzes();
   if (!$("screen-mimes").hidden) renderMimes();
@@ -308,6 +314,7 @@ function showCard(id, s) {
       h("b", { class: "card-title", text: showTitle(s) }),
       h("span", { class: "meta", text: [s.childName, s.age ? `${s.age} ans` : "", s.date ? `${dateLabel(s.date)} (${whenLabel(s.date)})` : ""].filter(Boolean).join(" · ") }),
       snapshot ? h("span", { class: "meta", text: `${contentLabel(snapshot)} · environ ${estimateMinutes(snapshot)} min` }) : null,
+      s.pinned ? h("span", { class: "pill pin", text: "⭐ Épinglée : ses jeux en premier dans la régie" }) : null,
       r.level === "prete"
         ? h("span", { class: "pill ok", text: "✓ Prête : visible sur la régie" })
         : r.level === "archivee"
@@ -317,9 +324,10 @@ function showCard(id, s) {
         h("button", { class: "btn small", onclick: () => editShow(id), text: "Ouvrir" }),
         h("button", { class: "btn small secondary", onclick: () => editShow(null, s), text: "Dupliquer" }),
         h("button", { class: "btn small secondary", onclick: () => rename(`library/shows/${id}`, showTitle(s), "de la prestation"), text: "Renommer" }),
-        s.status === "archivee"
-          ? h("button", { class: "btn small secondary", onclick: () => archive(id, false), text: "Désarchiver" })
-          : h("button", { class: "btn small secondary", onclick: () => archive(id, true), text: "Archiver" }))));
+        isArchived(s) ? h("button", { class: "btn small secondary", onclick: () => pin(id, !s.pinned), text: s.pinned ? "☆ Désépingler" : "⭐ Épingler" }) : null,
+        isArchived(s)
+          ? h("button", { class: "btn small secondary", onclick: () => archive(id, s, false), text: "Désarchiver" })
+          : h("button", { class: "btn small secondary", onclick: () => archive(id, s, true), text: "Archiver" }))));
 }
 
 function renderShows() {
@@ -327,20 +335,19 @@ function renderShows() {
   // Recherche : seules les prestations qui contiennent tous les mots tapés, archives et anniversaires passés compris.
   const query = $("show-search").value.trim();
   const list = Object.entries(shows).filter(([, s]) => s && showMatches(s, query, { quizzes, mimes, playlists })).sort(byDate);
-  const active = list.filter(([, s]) => s.status !== "archivee" && (!s.date || s.date >= today));
-  const past = list.filter(([, s]) => s.status !== "archivee" && s.date && s.date < today).reverse();
-  const archived = list.filter(([, s]) => s.status === "archivee");
+  // À venir d'abord ; puis les archivées étoilées (modèles où piocher des jeux) ; puis toutes les autres archivées.
+  const active = list.filter(([, s]) => !isArchived(s, today));
+  const pinned = list.filter(([, s]) => s.pinned && isArchived(s, today));
+  const archived = list.filter(([, s]) => !s.pinned && isArchived(s, today)).reverse();
+  $("show-pinned").hidden = !pinned.length;
+  $("show-pinned-list").replaceChildren(...pinned.map(([id, s]) => showCard(id, s)));
   $("show-list").replaceChildren(...active.map(([id, s]) => showCard(id, s)));
   if (!active.length) $("show-list").append(h("p", { class: "hint", text: "Aucune prestation en cours de préparation." }));
-  $("show-past").hidden = !past.length;
-  $("show-past-count").textContent = past.length;
-  $("show-past-list").replaceChildren(...past.map(([id, s]) => showCard(id, s)));
   $("show-archives").hidden = !archived.length;
   $("show-archive-count").textContent = archived.length;
   $("show-archive-list").replaceChildren(...archived.map(([id, s]) => showCard(id, s)));
   if (query) {
     // Les résultats rangés dans les anniversaires passés ou les archives s'ouvrent tout seuls.
-    $("show-past").open = past.length > 0;
     $("show-archives").open = archived.length > 0;
     if (!active.length) $("show-list").replaceChildren(h("p", { class: "hint", text: list.length ? "Rien en préparation pour cette recherche : voir plus bas." : "Aucune prestation ne correspond à cette recherche." }));
   }
@@ -367,10 +374,119 @@ async function rename(path, current, what) {
   }
 }
 
-/** Archiver range la prestation (elle disparaît de la régie) ; désarchiver la remet en brouillon. */
-async function archive(id, on) {
+// ---------- Box TV ----------
+
+/** Demandes d'activation des box jamais vues, et box acceptées (Paramètres > Box TV). */
+let boxRequests = {};
+let boxAllowed = {};
+/** Nom tapé pour une demande pas encore acceptée : garde la saisie si la liste se redessine. */
+const boxNames = {};
+
+const BOX_NAME_MAX = 40;
+const boxName = (text) => text.trim().replace(/\s+/g, " ").slice(0, BOX_NAME_MAX);
+const sinceLabel = (at) => {
+  const min = Math.max(0, Math.round((Date.now() - (at ?? Date.now())) / 60000));
+  if (min < 1) return "à l'instant";
+  if (min < 60) return `il y a ${min} min`;
+  const hours = Math.round(min / 60);
+  return hours < 48 ? `il y a ${hours} h` : `le ${new Date(at).toLocaleDateString("fr-FR")}`;
+};
+
+function renderBoxes() {
+  const pending = Object.entries(boxRequests).sort(([, a], [, b]) => (b.at ?? 0) - (a.at ?? 0));
+  const allowed = Object.entries(boxAllowed).sort(([, a], [, b]) => (a.at ?? 0) - (b.at ?? 0));
+  const n = pending.length;
+  $("nav-boxes").hidden = n === 0;
+  $("nav-boxes").textContent = n;
+  $("home-boxes").hidden = n === 0;
+  $("home-boxes").textContent = n === 1
+    ? `📺 Une box attend son activation (code ${pending[0][1].code}) : l'accepter dans Paramètres`
+    : `📺 ${n} box attendent leur activation : les voir dans Paramètres`;
+
+  $("box-requests").replaceChildren(...(n ? pending.map(([id, r]) => {
+    const name = h("input", {
+      type: "text", maxlength: BOX_NAME_MAX, "aria-label": "Nom de la box",
+      value: boxNames[id] ?? boxName(r.model || "Box"),
+      oninput: (e) => { boxNames[id] = e.target.value; },
+    });
+    return h("div", { class: "box-row", "data-box": id },
+      h("span", { class: "box-code", text: r.code }),
+      h("div", { class: "box-info" }, h("b", { text: r.model || "Modèle inconnu" }), h("small", { text: `Demande ${sinceLabel(r.at)}` })),
+      name,
+      h("div", { class: "box-actions" },
+        h("button", { class: "btn small", type: "button", text: "Accepter", onclick: () => acceptBox(id, r, name.value) }),
+        h("button", { class: "btn small secondary", type: "button", text: "Refuser", onclick: () => refuseBox(id, r) })));
+  }) : [h("p", { class: "empty-line", text: "Aucune demande." })]));
+
+  $("box-allowed").replaceChildren(...(allowed.length ? allowed.map(([id, b]) => h("div", { class: "box-row", "data-box": id },
+    h("div", { class: "box-info" },
+      h("b", { text: b.name }),
+      h("small", { text: [b.model, b.at ? `acceptée le ${new Date(b.at).toLocaleDateString("fr-FR")}` : ""].filter(Boolean).join(" · ") })),
+    h("div", { class: "box-actions" },
+      h("button", { class: "btn small secondary", type: "button", text: "Renommer", onclick: () => renameBox(id, b) }),
+      h("button", { class: "btn small secondary", type: "button", text: "Retirer", onclick: () => removeBox(id, b) })))) :
+    [h("p", { class: "empty-line", text: "Aucune box autorisée pour l'instant." })]));
+}
+
+async function boxWrite(changes, done) {
   try {
-    await update(ref(db, `library/shows/${id}`), { status: on ? "archivee" : "brouillon", updatedAt: serverTimestamp() });
+    await update(ref(db, "boxes"), changes);
+    status("box-status", done, true);
+  } catch (err) {
+    console.error(err);
+    status("box-status", "Refusé : vérifiez Internet ou reconnectez-vous.");
+  }
+}
+
+function acceptBox(id, r, typed) {
+  const name = boxName(typed) || boxName(r.model || "") || "Box";
+  delete boxNames[id];
+  return boxWrite({
+    [`allowed/${id}`]: { name, model: (r.model || "").slice(0, 80), at: serverTimestamp() },
+    [`requests/${id}`]: null,
+    // Dès la première box acceptée, plus aucune box inconnue ne peut lancer de partie (définitif).
+    lockOn: true,
+  }, `« ${name} » est activée : elle s'ouvre toute seule.`);
+}
+
+function refuseBox(id, r) {
+  if (!confirm(`Refuser la box au code ${r.code} ? Elle restera bloquée.`)) return;
+  delete boxNames[id];
+  return boxWrite({ [`requests/${id}`]: null }, `Demande ${r.code} refusée.`);
+}
+
+function renameBox(id, b) {
+  const asked = prompt("Nouveau nom de la box :", b.name ?? "");
+  if (asked === null) return;
+  const name = boxName(asked);
+  if (!name || name === b.name) return;
+  return boxWrite({ [`allowed/${id}/name`]: name }, `Box renommée « ${name} ».`);
+}
+
+function removeBox(id, b) {
+  if (!confirm(`Retirer « ${b.name} » ? Elle se rebloquera dès qu'elle ne sera plus en pleine partie, et devra être acceptée à nouveau.`)) return;
+  return boxWrite({ [`allowed/${id}`]: null }, `« ${b.name} » est retirée.`);
+}
+
+/**
+ * Archiver range la prestation (elle disparaît de la régie) ; désarchiver la remet en brouillon, et une
+ * prestation déjà passée ne retourne plus d'elle-même dans les archives.
+ */
+async function archive(id, s, on) {
+  const past = !!s.date && daysUntil(s.date) < -AUTO_ARCHIVE_DAYS;
+  await saveShowFields(id, on
+    ? { status: "archivee", keepActive: null }
+    : { status: "brouillon", keepActive: past ? true : null, pinned: null });
+}
+
+/** Épingler une prestation archivée : un modèle, dans sa propre rubrique, où piocher des jeux pendant une fête. */
+function pin(id, on) {
+  return saveShowFields(id, { pinned: on ? true : null });
+}
+
+async function saveShowFields(id, fields) {
+  try {
+    await update(ref(db, `library/shows/${id}`), { ...fields, updatedAt: serverTimestamp() });
   } catch (err) {
     console.error(err);
     alert("Modification refusée : vérifiez Internet ou reconnectez-vous.");
@@ -833,16 +949,40 @@ $("show-delete").onclick = async () => {
 
 // ---------- Bibliothèque de quiz ----------
 
+/** Filtre de la bibliothèque de quiz : null (tous), « photo », « classique » ou « images » (Image floue, Zoom mystère). */
+let quizFilter = null;
+const QUIZ_KINDS = { photo: "📷 Quiz photo", classique: "📝 Quiz classique", images: "🖼️ Image floue et Zoom" };
+const QUIZ_FILTERS = {
+  photo: (q) => quizKind(q) === "photo",
+  classique: (q) => quizKind(q) === "classique",
+  images: (q) => quizKind(q) === "images" || QUIZ_GAMES.zoom.questions(q).length > 0,
+};
+
+function showQuizzes(filter) {
+  quizFilter = filter;
+  show("quizzes");
+}
+
 function renderQuizzes() {
   const box = $("quiz-list");
   box.innerHTML = "";
-  const list = Object.entries(quizzes).sort(([, a], [, b]) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
-  if (!list.length) box.append(h("p", { class: "hint", text: "Aucun quiz pour l'instant : « Créer un quiz » vous guide pas à pas." }));
+  const all = Object.entries(quizzes).filter(([, q]) => q).sort(([, a], [, b]) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+  const chip = (label, filter) => h("button", {
+    type: "button", class: `chip${quizFilter === filter ? " active" : ""}`, "data-filter": filter ?? "tous",
+    text: `${label} (${filter ? all.filter(([, q]) => QUIZ_FILTERS[filter](q)).length : all.length})`,
+    onclick: () => { quizFilter = filter; renderQuizzes(); },
+  });
+  $("quiz-kinds").replaceChildren(chip("Tous", null), ...Object.entries(QUIZ_KINDS).map(([k, label]) => chip(label, k)));
+  $("quiz-photos-box").hidden = quizFilter !== "images";
+  const list = quizFilter ? all.filter(([, q]) => QUIZ_FILTERS[quizFilter](q)) : all;
+  if (!all.length) box.append(h("p", { class: "hint", text: "Aucun quiz pour l'instant : « Créer un quiz » vous guide pas à pas." }));
+  else if (!list.length) box.append(h("p", { class: "hint", text: "Aucun quiz de ce type pour l'instant." }));
   list.forEach(([id, q]) => {
     const total = (q.questions ?? []).filter(Boolean).length;
     const ok = playable(q).length;
     const ages = q.ageMin ? `${q.ageMin}${q.ageMax && q.ageMax !== q.ageMin ? ` à ${q.ageMax}` : ""} ans` : "";
-    box.append(h("div", { class: "item", "data-quiz": id },
+    box.append(h("div", { class: "item", "data-quiz": id, "data-kind": quizKind(q) },
+      h("span", { class: "pill", text: QUIZ_KINDS[quizKind(q)] }),
       h("b", { text: q.title }),
       h("span", { text: [q.theme, ages, SOURCES[q.source] ?? ""].filter(Boolean).join(" · ") }),
       h("span", { class: ok < total ? "warn" : "", text: `${total} questions · ${ok} validées` }),
@@ -853,7 +993,7 @@ function renderQuizzes() {
         h("button", { class: "btn danger", onclick: () => deleteQuiz(id, q), text: "Supprimer" }))));
   });
 }
-const SOURCES = { gemini: "texte collé", tableur: "tableur", json: "fichier", saisie: "saisie", photos: "photos" };
+const SOURCES = { banque: "banque des tout-petits", gemini: "texte collé", tableur: "tableur", json: "fichier", saisie: "saisie", photos: "photos" };
 
 /** Copie à relire puis enregistrer comme nouveau quiz : l'original et ses prestations ne changent pas. */
 function duplicateQuiz(q) {
@@ -884,9 +1024,9 @@ $("quiz-photos").onchange = async () => {
     $("quiz-photos-open").textContent = `Préparation des photos… (${k + 1}/${files.length})`;
     try { kept.push({ ...questions[k], imageId: await storeIllustration(f) }); } catch (err) { console.error(err); }
   }
-  $("quiz-photos-open").textContent = "📷 Quiz de photos";
+  $("quiz-photos-open").textContent = "📷 Nouveau quiz de photos à deviner";
   if (!kept.length) return alert("Ces photos n'ont pas pu être lues : essayez des JPEG ou des PNG.");
-  review(null, { title: "Mes photos", theme: "", source: "photos", questions: kept });
+  review(null, { title: "Mes photos", theme: "", source: "photos", kind: "images", questions: kept });
   status("rv-status", `${kept.length} photo${kept.length > 1 ? "s" : ""} prête${kept.length > 1 ? "s" : ""} : vérifiez chaque réponse, puis enregistrez.`, true);
 };
 
@@ -896,12 +1036,66 @@ $("quiz-import-open").onclick = () => {
   importImages.clear();
   $("import-images").textContent = "";
   status("import-status", "");
+  chooseKind(null);
   updatePrompt();
   show("import");
 };
 
-/** Réponses du quiz demandé : « texte » ou « images » (des mots simples, images ajoutées ensuite par Sarah). */
-const answersMode = () => document.querySelector("input[name=gem-answers]:checked")?.value ?? "texte";
+/**
+ * Créer un quiz : d'abord le type (quiz photo des petits ou quiz classique), puis la façon de le créer.
+ * Les deux types s'importent aussi en fichier JSON, avec leurs photos.
+ */
+let creationKind = null;
+const CREATION_WAYS = {
+  photo: [
+    ["banque", "🎲 Piocher dans la banque", "Des questions prêtes, avec leurs photos : un thème, un nombre, puis vous relisez."],
+    ["main", "✍️ À la main", "Vous tapez chaque question et ses 4 mots, et déposez une photo pour chaque réponse."],
+    ["json", "📄 Importer un fichier JSON", "Le fichier du quiz et ses photos, déposés ensemble."],
+  ],
+  classique: [
+    ["main", "✍️ À la main", "Vous tapez vos questions et vos réponses, et ajoutez les petites photos de révélation."],
+    ["chatgpt", "💬 Avec ChatGPT", "La demande est écrite pour vous ; vous collez sa réponse."],
+    ["json", "📄 Importer un fichier JSON", "Le fichier du quiz et ses images, déposés ensemble."],
+  ],
+};
+
+function chooseKind(kind) {
+  creationKind = kind;
+  document.querySelectorAll("#screen-import .kind-card").forEach((b) => b.classList.toggle("active", b.dataset.kind === kind));
+  $("kind-ways").hidden = !kind;
+  $("import-gem").hidden = true;
+  $("import-paste").hidden = true;
+  $("kind-ways-list").replaceChildren(...(CREATION_WAYS[kind] ?? []).map(([way, label, detail]) => h("button", {
+    type: "button", class: "kind-way", "data-way": way, onclick: () => chooseWay(way),
+  }, h("b", { text: label }), h("span", { text: detail }))));
+}
+document.querySelectorAll("#screen-import .kind-card").forEach((b) => { b.onclick = () => chooseKind(b.dataset.kind); });
+
+function chooseWay(way) {
+  document.querySelectorAll("#kind-ways-list .kind-way").forEach((b) => b.classList.toggle("active", b.dataset.way === way));
+  $("import-gem").hidden = way !== "chatgpt";
+  $("import-paste").hidden = way !== "chatgpt" && way !== "json";
+  if (way === "chatgpt") {
+    $("import-paste-label").textContent = "4. Coller la réponse";
+    $("import-paste-hint").textContent = "Collez la réponse de ChatGPT. Vous pouvez aussi coller des lignes d'un tableur (colonnes : Question, Réponse A, Réponse B, Réponse C, Réponse D, Bonne réponse, Durée).";
+    updatePrompt();
+  }
+  if (way === "json") {
+    $("import-paste-label").textContent = "3. Déposer le fichier";
+    $("import-paste-hint").textContent = creationKind === "photo"
+      ? "Déposez le fichier JSON du quiz et toutes ses photos ensemble : chaque photo est associée à la réponse qui porte son nom."
+      : "Déposez le fichier JSON (ou CSV) du quiz et ses images ensemble : chaque image est associée à la question qui porte son nom.";
+    $("import-paste").scrollIntoView({ block: "nearest" });
+  }
+  if (way === "main") {
+    review(null, { title: creationKind === "photo" ? "Nouveau quiz photo" : "Nouveau quiz", theme: "", ageMin: null, ageMax: null, source: "saisie", kind: creationKind, questions: [] });
+    $("rv-add").click();
+  }
+  if (way === "banque") openBanque();
+}
+
+/** Réponses du quiz demandé : « images » pour un quiz photo (des mots simples), sinon « texte ». */
+const answersMode = () => (creationKind === "photo" ? "images" : "texte");
 
 function updatePrompt() {
   $("gem-prompt").value = geminiPrompt({
@@ -911,7 +1105,6 @@ function updatePrompt() {
 }
 ["gem-theme", "gem-age", "gem-count"].forEach((id) => $(id).addEventListener("input", updatePrompt));
 $("gem-difficulty").addEventListener("change", updatePrompt);
-document.querySelectorAll("input[name=gem-answers]").forEach((r) => r.addEventListener("change", updatePrompt));
 
 /** Copie la demande ; sans accès au presse-papiers, elle est sélectionnée pour un Ctrl+C. */
 async function copyPrompt() {
@@ -1011,6 +1204,7 @@ $("import-analyse").onclick = async () => {
     theme: parsed.theme || theme || "",
     ageMin: parsed.ageMin ?? age, ageMax: parsed.ageMax ?? age,
     source: parsed.format === "texte" ? "gemini" : parsed.format,
+    kind: creationKind ?? undefined,
     questions: parsed.questions.map((q) => ({ ...q, status: "brouillon" })),
   });
   if (answersMode() === "images" && !parsed.questions.some((q) => q.imageFiles)) {
@@ -1026,6 +1220,7 @@ function review(id, quiz) {
   draft = {
     id,
     quiz,
+    kind: quizKind(quiz),
     questions: (quiz.questions ?? []).filter(Boolean).map((q) => ({
       text: q.text ?? "", choices: [...(q.choices ?? [])], correct: q.correct ?? -1,
       duration: q.duration ?? null, double: q.double === true, status: q.status ?? "brouillon", marks: q.marks ?? 0,
@@ -1039,6 +1234,11 @@ function review(id, quiz) {
   $("rv-theme").value = quiz.theme ?? "";
   $("rv-age-min").value = quiz.ageMin ?? "";
   $("rv-age-max").value = quiz.ageMax ?? "";
+  // Quiz photo : questions de la banque et photo par réponse ; quiz classique : Vrai / Faux et Juste Chiffre.
+  $("rv-kind").textContent = QUIZ_KINDS[draft.kind];
+  $("rv-banque").hidden = draft.kind !== "photo";
+  $("rv-banque-panel").hidden = true;
+  $("rv-add-tf").hidden = draft.kind === "photo";
   status("rv-status", "");
   show("review");
   renderReview();
@@ -1078,7 +1278,7 @@ function renderReview() {
         h("label", { class: "check" }, h("input", { type: "checkbox", class: "q-valid", checked: q.status === "validee", onchange: (e) => { q.status = e.target.checked ? "validee" : "brouillon"; recheck(); } }), "Validée"),
         h("button", { type: "button", class: "icon", title: "Supprimer la question", text: "✕", onclick: () => { draft.questions.splice(i, 1); renderReview(); } })),
       h("textarea", { class: "q-text", rows: 2, value: q.text, oninput: (e) => { q.text = e.target.value.trim(); q.marks = 0; recheck(); } }),
-      h("label", { class: "check q-number-toggle" },
+      draft.kind === "photo" && q.kind !== "number" ? null : h("label", { class: "check q-number-toggle" },
         h("input", {
           type: "checkbox", class: "q-is-number", checked: q.kind === "number",
           onchange: (e) => {
@@ -1119,7 +1319,15 @@ const imageCache = {};
  * choisie sur le PC (réduite avant l'envoi). Sans illustration, la question se joue comme avant.
  */
 function illustrationRow(q, i) {
-  const preview = h("img", { class: "q-image", alt: "Photo de la question", hidden: !q.imageId });
+  // Bulle de la révélation, comme sur la TV (4:3, image qui la remplit) : un clic ouvre le cadrage.
+  const preview = h("img", {
+    class: "q-image bulle revelation", alt: "Photo de la question", hidden: !q.imageId, title: "Cliquer pour cadrer l'image comme sur la TV",
+    onclick: () => cadrer(q.imageFile ?? imageCache[q.imageId], "revelation", async (blob) => {
+      q.imageId = await storeIllustration(blob);
+      showPreview();
+      info.textContent = "Cadrage enregistré. Pensez à enregistrer le quiz.";
+    }),
+  });
   // Repère de préparation, jamais bloquant : sans illustration, la révélation montre seulement la réponse.
   const missing = h("span", { class: "tag missing", text: "illustration manquante" });
   const refreshMissing = () => { missing.hidden = !!(q.imageId || q.image); };
@@ -1149,10 +1357,12 @@ function illustrationRow(q, i) {
         const id = await storeIllustration(f);
         const data = imageCache[id];
         q.imageId = id;
+        // Le fichier d'origine sert au cadrage (meilleure qualité que la photo réduite).
+        q.imageFile = f;
         noterEcran();
         remove.hidden = false;
         showPreview();
-        info.textContent = `Photo prête (${Math.round(data.length / 1365)} Ko). Pensez à enregistrer le quiz.`;
+        info.textContent = `Photo prête (${Math.round(data.length / 1365)} Ko) : cliquez dessus pour la cadrer. Pensez à enregistrer le quiz.`;
       } catch (err) {
         console.error(err);
         info.textContent = "Photo refusée : essayez une autre image (JPEG ou PNG).";
@@ -1177,7 +1387,18 @@ function illustrationRow(q, i) {
  * Sur la TV et les tablettes, la photo remplace le texte ; le mot reste dessous, en petit.
  */
 function choicePhoto(q, slots, k) {
-  const thumb = h("img", { class: "choice-thumb", alt: `Image de la réponse ${LETTERS[k]}`, hidden: true });
+  // Vignette comme sur la TV (carré arrondi, image qui le remplit) : un clic ouvre le cadrage.
+  const thumb = h("img", {
+    class: "choice-thumb bulle vignette", alt: `Image de la réponse ${LETTERS[k]}`, hidden: true, title: "Cliquer pour cadrer l'image comme sur la TV",
+    onclick: (e) => {
+      e.preventDefault();
+      cadrer(q.slotFiles?.[k] ?? imageCache[q.slotImages?.[k]], "vignette", async (blob) => {
+        q.slotImages[k] = await storeChoiceImage(blob);
+        show_();
+        syncChoices(q, slots);
+      });
+    },
+  });
   const show_ = () => {
     const id = q.slotImages?.[k];
     thumb.hidden = !id;
@@ -1201,6 +1422,7 @@ function choicePhoto(q, slots, k) {
       try {
         const id = await storeChoiceImage(f);
         q.slotImages[k] = id;
+        (q.slotFiles ??= [])[k] = f;
         setTimeout(noterEcran, 0);
         if (!slots[k].trim()) {
           slots[k] = wordFromImage(f.name) || LETTERS[k];
@@ -1219,6 +1441,23 @@ function choicePhoto(q, slots, k) {
   return h("span", { class: "choice-photo" }, thumb, remove,
     h("button", { type: "button", class: "icon", title: "Mettre une image à la place du texte", text: "📷", onclick: (e) => { e.preventDefault(); file.click(); } }),
     file);
+}
+
+/**
+ * Cadrage d'une image (fichier d'origine ou image déjà rangée) dans sa bulle : [garder] reçoit l'image recadrée.
+ * Annuler ne change rien ; un échec est dit dans la barre d'état, jamais bloquant.
+ */
+async function cadrer(source, forme, garder) {
+  if (!source) return;
+  try {
+    const blob = await ouvrirCadrage(source, forme);
+    if (!blob) return;
+    await garder(blob);
+    noterEcran();
+  } catch (err) {
+    console.error(err);
+    status("rv-status", "Cadrage impossible pour cette image : essayez de la choisir à nouveau.");
+  }
 }
 
 /** Réduit une photo d'illustration (révélation) et la range dans la bibliothèque ; renvoie son identifiant. */
@@ -1295,6 +1534,224 @@ $("rv-add-tf").onclick = () => {
   $("rv-list").lastElementChild?.querySelector(".q-text")?.focus();
 };
 
+// ---------- Banque des tout-petits : questions prêtes, réponses en photos ----------
+
+let banqueFamille = null;
+let banqueRecherche = "";
+/** Questions cochées : identifiant → question (avec ses 4 réponses, bonne réponse en premier). */
+let banqueCoches = new Map();
+/** Toutes les questions de la banque ; les mauvaises réponses sont tirées une fois par ouverture de la Régie PC. */
+let banqueCatalogue = null;
+/** Lignes montrées d'un coup : au-delà, Sarah choisit un thème ou cherche un mot. */
+const BANQUE_LIGNES = 300;
+/** Image rangée de chaque mot de la banque (mot → identifiant), pour ne la préparer qu'une fois. */
+const banqueImages = {};
+
+$("rv-banque").onclick = () => {
+  const panel = $("rv-banque-panel");
+  panel.hidden = !panel.hidden;
+  if (!panel.hidden) renderBanque();
+};
+
+/** Ouvre un nouveau quiz photo directement sur la banque (depuis « Créer un quiz »). */
+function openBanque() {
+  review(null, { title: "Quiz photo", theme: "", ageMin: null, ageMax: null, source: "banque", kind: "photo", questions: [] });
+  $("rv-banque-panel").hidden = false;
+  renderBanque();
+}
+
+function renderBanque() {
+  const panel = $("rv-banque-panel");
+  banqueCatalogue ??= cataloguePetits();
+  const deja = new Set((draft?.questions ?? []).map((q) => q.text.trim()));
+  for (const [id, q] of banqueCoches) if (deja.has(q.text)) banqueCoches.delete(id);
+  const cherche = cleMot(banqueRecherche);
+  const correspond = (q) => !cherche || cleMot(q.text).includes(cherche) || q.choices.some((c) => cleMot(c).includes(cherche));
+  const duTheme = banqueCatalogue.filter((q) => !banqueFamille || q.famille === banqueFamille);
+  // Les questions cochées d'abord (même d'un autre thème), puis celles du thème.
+  const liste = [...banqueCoches.values(), ...duTheme.filter((q) => !banqueCoches.has(q.id) && correspond(q))];
+  const montrees = liste.slice(0, BANQUE_LIGNES);
+  const chip = (label, famille) => h("button", {
+    type: "button", class: `chip${banqueFamille === famille ? " active" : ""}`, text: label,
+    onclick: () => { banqueFamille = famille; renderBanque(); },
+  });
+  const bouton = h("button", { type: "button", id: "rv-banque-add", class: "btn", onclick: () => ajouterBanque() });
+  const majBouton = () => {
+    const n = banqueCoches.size;
+    bouton.disabled = !n;
+    bouton.textContent = n ? `Ajouter ${n > 1 ? `les ${n} questions cochées` : "la question cochée"}` : "Cochez des questions";
+  };
+  majBouton();
+  const recherche = h("input", {
+    type: "search", id: "rv-banque-cherche", placeholder: "Chercher une question ou un mot (girafe, voler, rouge…)", value: banqueRecherche,
+    oninput: (e) => {
+      banqueRecherche = e.target.value;
+      clearTimeout(recherche.timer);
+      recherche.timer = setTimeout(() => { renderBanque(); $("rv-banque-cherche")?.focus(); }, 250);
+    },
+  });
+  panel.replaceChildren(
+    h("p", { class: "label", text: "Questions des tout-petits" }),
+    h("p", { class: "hint small", text: `L'animatrice lit la question ; chaque réponse est une photo avec son mot. ${banqueCatalogue.length} questions : choisissez un thème, cochez, ou tirez-en 10 au hasard, puis relisez-les dans le quiz.` }),
+    h("div", { class: "chips" }, chip(`Tous les thèmes`, null),
+      ...Object.entries(FAMILLES_PETITS).map(([k, label]) => chip(label, k))),
+    recherche,
+    h("div", { class: "row" },
+      h("button", {
+        type: "button", class: "btn secondary", text: "🎲 10 au hasard",
+        onclick: () => {
+          const tirage = tirerPetits(10, { famille: banqueFamille, exclus: deja, catalogue: banqueCatalogue });
+          banqueCoches = new Map(tirage.map((q) => [q.id, q]));
+          banqueRecherche = "";
+          renderBanque();
+        },
+      }),
+      bouton,
+      h("span", { id: "rv-banque-status", class: "hint small" })),
+    h("div", { class: "banque-list" }, ...montrees.map((q) => h("label", { class: `banque-q${deja.has(q.text) ? " deja" : ""}`, "data-banque": q.id },
+      h("input", {
+        type: "checkbox", checked: banqueCoches.has(q.id), disabled: deja.has(q.text),
+        onchange: (e) => { if (e.target.checked) banqueCoches.set(q.id, q); else banqueCoches.delete(q.id); majBouton(); },
+      }),
+      h("span", { class: "banque-texte", text: q.text }),
+      h("span", { class: "banque-mots", text: q.choices.map((c) => `${motBanque(c)?.emoji ?? ""} ${c}`).join(" · ") }),
+      deja.has(q.text) ? h("span", { class: "tag", text: "déjà dans le quiz" }) : null)),
+      liste.length > montrees.length ? h("p", { class: "hint small", text: `… et ${liste.length - montrees.length} autres : choisissez un thème ou cherchez un mot.` }) : null,
+      liste.length ? null : h("p", { class: "hint small", text: "Aucune question ne correspond à cette recherche." })));
+}
+
+/** Photos de la banque, mot par mot, comme sur la TV ; Sarah peut mettre la sienne (rangée dans library/contents/petits). */
+$("banque-open").onclick = () => { show("banque"); renderBanqueMots(); };
+
+const banqueChoisies = () => ({ ...(contents.petits?.images ?? {}) });
+
+async function saveBanqueImages(images, message) {
+  try {
+    await set(ref(db, "library/contents/petits"), { images: Object.keys(images).length ? images : null, updatedAt: serverTimestamp() });
+    // Les prochaines questions ajoutées prennent la nouvelle photo.
+    Object.keys(banqueImages).forEach((k) => delete banqueImages[k]);
+    status("banque-status", message, true);
+  } catch (err) {
+    console.error(err);
+    status("banque-status", "Enregistrement refusé : vérifiez Internet ou reconnectez-vous.");
+  }
+}
+
+let banqueMotsFamille = "animaux";
+
+function renderBanqueMots() {
+  const box = $("banque-mots");
+  if ($("screen-banque").hidden) return;
+  const images = banqueChoisies();
+  $("banque-themes").replaceChildren(...Object.entries(FAMILLES_PETITS).map(([k, label]) => h("button", {
+    type: "button", class: `chip${banqueMotsFamille === k ? " active" : ""}`,
+    text: `${label} (${BANQUE_MOTS.filter((m) => m.famille === k).length})`,
+    onclick: () => { banqueMotsFamille = k; renderBanqueMots(); },
+  })));
+  box.replaceChildren(...BANQUE_MOTS.filter((m) => m.famille === banqueMotsFamille).map((m) => {
+    const slot = contentSlot(m.cle);
+    const id = images[slot];
+    const img = h("img", { class: "choice-thumb bulle vignette", alt: m.mot, loading: "lazy", title: "Cliquer pour cadrer la photo comme sur la TV" });
+    const montrer = (src) => { img.src = src; };
+    if (id) {
+      if (imageCache[id]) montrer(imageCache[id]);
+      else get(ref(db, `library/images/${id}`)).then((snap) => { if (typeof snap.val() === "string") { imageCache[id] = snap.val(); montrer(snap.val()); } }).catch(() => {});
+    } else {
+      img.src = `banque/${m.cle}.jpg`;
+      img.onerror = () => { img.onerror = null; emojiImage(m.emoji).then((b) => { img.src = URL.createObjectURL(b); }); };
+    }
+    img.onclick = () => cadrerBanque(m, img.src);
+    const file = h("input", {
+      type: "file", accept: "image/*", hidden: true,
+      onchange: async (e) => {
+        const f = e.target.files?.[0];
+        e.target.value = "";
+        if (!f) return;
+        try {
+          const newId = await storeChoiceImage(f);
+          await saveBanqueImages({ ...banqueChoisies(), [slot]: newId }, `« ${m.mot} » : votre photo est enregistrée. Cliquez dessus pour la cadrer.`);
+        } catch (err) {
+          console.error(err);
+          status("banque-status", "Photo refusée : essayez une autre image (JPEG ou PNG).");
+        }
+      },
+    });
+    return h("div", { class: "banque-mot", "data-mot": m.cle }, img, h("b", { text: m.mot }),
+      h("span", { class: "row" },
+        h("button", { type: "button", class: "icon", title: "Mettre ma photo", text: "📷", onclick: () => file.click() }),
+        id ? h("button", {
+          type: "button", class: "icon", title: "Remettre la photo de la banque", text: "↺",
+          onclick: () => { const { [slot]: _, ...rest } = banqueChoisies(); saveBanqueImages(rest, `« ${m.mot} » : photo de la banque remise.`); },
+        }) : null),
+      file);
+  }));
+}
+
+/** Cadrage d'une photo de la banque : le résultat devient la photo choisie pour ce mot. */
+function cadrerBanque(m, src) {
+  ouvrirCadrage(src, "vignette").then(async (blob) => {
+    if (!blob) return;
+    const newId = await storeChoiceImage(blob);
+    await saveBanqueImages({ ...banqueChoisies(), [contentSlot(m.cle)]: newId }, `« ${m.mot} » : cadrage enregistré.`);
+  }).catch((err) => { console.error(err); status("banque-status", "Cadrage impossible pour cette photo."); });
+}
+
+/** Image d'un mot : celle choisie par Sarah, sinon la photo de la banque, sinon son émoji dessiné ; rangée une fois. */
+async function imageBanque(mot) {
+  if (banqueImages[mot]) return banqueImages[mot];
+  const m = motBanque(mot);
+  const choisie = contents.petits?.images?.[contentSlot(m?.cle ?? cleMot(mot))];
+  if (IMAGE_ID.test(choisie ?? "")) return (banqueImages[mot] = choisie);
+  let blob = null;
+  try {
+    const res = await fetch(`banque/${m?.cle ?? cleMot(mot)}.jpg`);
+    if (res.ok && (res.headers.get("content-type") ?? "").startsWith("image/")) blob = await res.blob();
+  } catch { /* pas de photo : l'émoji */ }
+  blob ??= await emojiImage(m?.emoji ?? "❓");
+  return (banqueImages[mot] = await storeChoiceImage(blob));
+}
+
+/** Un émoji dessiné en grand sur fond blanc (480 px) : la réponse a une image même sans photo. */
+function emojiImage(emoji) {
+  const c = Object.assign(document.createElement("canvas"), { width: 480, height: 480 });
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, 480, 480);
+  ctx.font = "320px 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(emoji, 240, 260);
+  return new Promise((resolve) => c.toBlob(resolve, "image/png"));
+}
+
+/** Ajoute les questions cochées au quiz : propositions mélangées, une image par réponse, déjà validées (à relire). */
+async function ajouterBanque() {
+  const choisies = [...banqueCoches.values()];
+  if (!choisies.length) return;
+  $("rv-banque-add").disabled = true;
+  $("rv-banque-status").textContent = "Préparation des images…";
+  try {
+    for (const q of choisies) {
+      const choices = shuffle(q.choices);
+      const slotImages = await Promise.all(choices.map(imageBanque));
+      draft.questions.push({
+        text: q.text, choices, correct: choices.indexOf(q.choices[0]), duration: null, double: false, status: "validee", marks: 0,
+        image: "", imageId: null, kind: null, slotImages, missingImages: [],
+      });
+    }
+    if (!$("rv-title").value.trim()) $("rv-title").value = "Quiz des tout-petits";
+    banqueCoches.clear();
+    renderReview();
+    renderBanque();
+    noterEcran();
+    status("rv-status", `${choisies.length} question${choisies.length > 1 ? "s" : ""} ajoutée${choisies.length > 1 ? "s" : ""} : relisez-les, puis enregistrez le quiz.`, true);
+  } catch (err) {
+    console.error(err);
+    $("rv-banque-status").textContent = "Images refusées : vérifiez Internet ou reconnectez-vous, puis réessayez.";
+    $("rv-banque-add").disabled = false;
+  }
+}
+
 /** Ordre de passage des questions dans le quiz. */
 function moveQuestion(i, delta) {
   const [q] = draft.questions.splice(i, 1);
@@ -1316,7 +1773,7 @@ $("rv-save").onclick = async () => {
     await set(ref(db, `library/quizzes/${id}`), {
       title, theme: $("rv-theme").value.trim() || null,
       ageMin: num($("rv-age-min").value), ageMax: num($("rv-age-max").value),
-      source: draft.quiz.source ?? "saisie",
+      source: draft.quiz.source ?? "saisie", kind: draft.kind,
       createdAt: draft.quiz.createdAt ?? Date.now(), updatedAt: serverTimestamp(),
       questions: questions.map((q) => ({
         text: q.text.slice(0, 300), choices: q.kind === "number" ? null : q.choices,
@@ -1970,7 +2427,7 @@ async function duplicatePlaylist(id) {
 
 // ---------- Jeux : tous les mini-jeux, leur règle et où gérer leur contenu ----------
 
-const usedIn = (type) => Object.values(shows).filter((s) => s && s.status !== "archivee" && (s.rounds ?? []).some((r) => r?.type === type)).length;
+const usedIn = (type) => Object.values(shows).filter((s) => s && !isArchived(s) && (s.rounds ?? []).some((r) => r?.type === type)).length;
 const plural = (n, word, many = `${word}s`) => `${n} ${n > 1 ? many : word}`;
 
 /** Les jeux par famille : ce qui se prépare dans la bibliothèque, ce qui vient d'un quiz, ce qui est intégré. */
@@ -1978,7 +2435,7 @@ const GAME_GROUPS = [
   { title: "Avec vos contenus", hint: "Vous préparez le contenu dans la bibliothèque, une fois, et vous le réutilisez dans toutes les prestations.", games: [
     { type: "quiz", icon: "?", rule: "Questions à 2, 3 ou 4 propositions sur les pupitres ; toutes les équipes qui trouvent marquent. Une question peut aussi être un « Juste Chiffre » (réponse en nombre). Super Finale : dans la prestation, les dernières questions du quiz peuvent compter double.",
       status: () => { const ok = Object.values(quizzes).reduce((t, q) => t + playable(q).length, 0); return `${plural(Object.keys(quizzes).length, "quiz", "quiz")} · ${plural(ok, "question validée", "questions validées")}`; },
-      actions: () => [["Gérer les quiz", () => show("quizzes")], ["Créer un quiz", () => $("quiz-import-open").click()]] },
+      actions: () => [["Gérer les quiz", () => showQuizzes(null)], ["Créer un quiz", () => $("quiz-import-open").click()]] },
     { type: "mimes", icon: "🎭", rule: "Équipe par équipe : un enfant devine, ses coéquipiers miment l'image. 50 points par mime trouvé.",
       status: () => plural(Object.keys(mimes).length, "paquet de cartes", "paquets de cartes"),
       actions: () => [["Gérer les paquets", () => show("mimes")], ["Nouveau paquet", () => editDeck(null)]] },
@@ -2035,7 +2492,7 @@ function gameInfo(g) {
     : content ? builtinLine(g.type)
     : "Rien à préparer";
   const actions = g.actions ? g.actions()
-    : quizGame ? [["Voir les quiz", () => show("quizzes")]]
+    : quizGame ? [["Voir les quiz", () => showQuizzes(g.type === "express" ? null : "images")]]
     : content ? [[`Voir et modifier les ${CONTENT_GAMES[g.type].unit}s`, () => openBuiltin(g.type)]]
     : [];
   return { rule, line, actions };

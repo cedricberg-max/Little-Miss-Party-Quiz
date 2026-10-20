@@ -8,6 +8,7 @@ import {
   buildSnapshot, showTitle, playable, QUIZ_GAMES, BUILTIN_GAMES, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame, imageIds, choiceImageIds,
   soundIds, MUSIC_GAMES, playableTracks, STATUES_SEC, PICTO_SEC, isStatuesList, statuesSongs, MAX_STATUES_SONGS,
   isFutureRound, moveRound, removeRound, uniqueRoundTitle, roundQuizIds, mimePool, mimeCards, CONTENT_GAMES, activeItems, pictoSeriesOf, MIME_RANDOM,
+  isArchived,
 } from "./show.js";
 import { MIME_CATALOG } from "./mime-cards.js";
 import { profileForAge } from "./profiles.js";
@@ -1241,7 +1242,29 @@ async function fetchLibrary() {
       { key: "builtin/gonfleur", label: ROUND_TYPES.gonfleur, source: { type: "gonfleur" } },
       { key: "builtin/patate", label: ROUND_TYPES.patate, source: { type: "patate" } },
     ];
-    library = { quizzes, mimes, playlists, contents, games, rounds, decks, quizGames, builtins, music };
+    // Prestations épinglées (modèles) : chacun de leurs jeux, dans leur ordre, proposé en premier.
+    const pinned = Object.entries(s.val() ?? {})
+      .filter(([, show]) => show?.pinned && isArchived(show))
+      .sort((a, b) => showTitle(a[1]).localeCompare(showTitle(b[1]), "fr"))
+      .flatMap(([id, show]) => (show.rounds ?? []).filter(Boolean).map((round, i) => {
+        const key = `pin/${id}/${i}`;
+        const from = showTitle(show);
+        const ids = roundQuizIds(round);
+        if (ids.length && round.type !== "mimes" && !MUSIC_GAMES[round.type]) {
+          if (!quizzes[ids[0]]) return null;
+          const title = ids.map((q) => quizzes[q]?.title).filter(Boolean).join(" + ");
+          const label = QUIZ_GAMES[round.type] ? `${ROUND_TYPES[round.type] ?? round.type} : ${title}` : title;
+          return { key, label, from, source: { type: round.type, quizId: ids[0], ...(ids.length > 1 ? { quizIds: ids } : {}), ...(round.count > 0 ? { count: round.count } : {}), ...(round.finale > 0 ? { finale: round.finale } : {}) } };
+        }
+        const same = (g) => g.source.type === round.type;
+        const found = round.deckId ? decks.find((g) => same(g) && g.source.deckId === round.deckId)
+          : round.playlistId ? music.find((g) => same(g) && g.source.playlistId === round.playlistId)
+          : round.type === "mimes" ? decks.find((g) => g.source.random)
+          : builtins.find(same);
+        return found ? { ...found, key, from } : null;
+      }))
+      .filter(Boolean);
+    library = { quizzes, mimes, playlists, contents, games, rounds, decks, quizGames, builtins, music, pinned };
   } catch (e) {
     console.error(e);
     library = { denied: /permission/i.test(String(e?.message ?? e)) };
@@ -1353,6 +1376,8 @@ function renderLibrary() {
     b.onclick = () => pick(game);
     box.appendChild(b);
   };
+  if (library.pinned?.length) section("⭐ Prestations épinglées");
+  library.pinned?.forEach((g) => entry(g, g.from));
   section("Quiz de la bibliothèque");
   if (!library.games.length) hint("Aucun quiz pour l'instant : Sarah les prépare dans l'administration.");
   library.games.forEach((g) => entry(g, ""));
@@ -1703,7 +1728,7 @@ async function readShows() {
   const contents = c.val() ?? {};
   const today = new Date().toISOString().slice(0, 10);
   return Object.entries(s.val() ?? {})
-    .filter(([, show]) => show.status === "publiee")
+    .filter(([, show]) => show.status === "publiee" && !isArchived(show))
     .map(([id, show]) => ({ id, show, ...buildSnapshot(id, show, quizzes, mimes, Math.random, playlists, contents) }))
     // Les prestations à venir d'abord, la plus proche en tête ; les passées ensuite.
     .sort((a, b) => {

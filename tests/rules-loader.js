@@ -21,3 +21,12 @@ export async function seedAdmin(env, ...uids) {
     for (const uid of uids) await set(ref(d, `adminProof/${uid}`), { hash: adminHash(), gateAt: 1, at: 1 });
   });
 }
+
+/** Box acceptées dans la Régie PC : seules elles peuvent créer une partie. */
+export async function allowBox(env, ...uids) {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const d = ctx.database();
+    await set(ref(d, "boxes/lockOn"), true);
+    for (const uid of uids) await set(ref(d, `boxes/allowed/${uid}`), { name: `Box ${uid}`, at: 1 });
+  });
+}

@@ -100,6 +100,8 @@ class TvActions(
     /** Blind test à la télécommande : révéler le morceau sans gagnant, le passer sans le révéler. */
     val blindReveal: () -> Unit = {},
     val blindSkip: () -> Unit = {},
+    /** Box refusée dans la Régie PC : renvoyer la demande d'activation. */
+    val requestAgain: () -> Unit = {},
     /** La bombe cachée à la télécommande : un coffre au hasard pour l'équipe qui joue. */
     val chestRandom: () -> Unit = {},
     /** Patate chaude à la télécommande : la bombe part au hasard (tablette en panne). */
@@ -156,6 +158,7 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null) 
             UiState.Connecting -> Connecting()
             is UiState.Error -> Message("Connexion impossible", state.message, actions.retry, actions.checkUpdate)
             is UiState.ResumeOffer -> ResumeOffer(state, actions.resume, actions.newGame)
+            is UiState.Locked -> Locked(state, actions.requestAgain, actions.checkUpdate)
             is UiState.Playing -> Playing(state, actions)
         }
         StatusCorner(state, update?.available?.takeIf { !gameInProgress(state) }, Modifier.align(Alignment.BottomStart))
@@ -284,6 +287,50 @@ private fun ResumeOffer(state: UiState.ResumeOffer, onResume: () -> Unit, onNewG
         )
     }
     LaunchedEffect(Unit) { focus.requestFocus() }
+}
+
+/** Box jamais acceptée : seulement son code, à retrouver dans la Régie PC (Paramètres > Box TV). */
+@Composable
+private fun Locked(state: UiState.Locked, onRequestAgain: () -> Unit, onUpdate: () -> Unit) {
+    val focus = remember { FocusRequester() }
+    // Tout tient sur un écran 720p, boutons côte à côte : rien ne doit sortir en bas de la TV.
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = 64.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        LogoQuiz(56.dp)
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "Box en attente d'activation", color = Color.White, fontSize = 40.sp, lineHeight = 46.sp,
+            fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            state.code, color = Palette.Gold, fontSize = 84.sp, lineHeight = 92.sp, fontWeight = FontWeight.Black,
+            letterSpacing = 14.sp,
+        )
+        Text(state.model, color = Color.White.copy(alpha = 0.75f), fontSize = 20.sp, lineHeight = 26.sp)
+        Spacer(Modifier.height(16.dp))
+        Text(
+            when {
+                state.refused -> "La demande a été refusée dans la Régie PC."
+                state.sent -> "Dans la Régie PC, ouvrez Paramètres, rubrique Box TV,\net acceptez la box qui affiche ce code."
+                else -> "Envoi de la demande d'activation… Vérifiez la connexion Internet."
+            },
+            color = Color.White.copy(alpha = 0.85f), fontSize = 22.sp, lineHeight = 30.sp, textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(20.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (state.refused) {
+                TvButton("Redemander l'activation", onRequestAgain, Modifier.focusRequester(focus), primary = true, fontSize = 20.sp)
+                TvButton("Rechercher une mise à jour", onUpdate, fontSize = 20.sp)
+            } else {
+                TvButton("Rechercher une mise à jour", onUpdate, Modifier.focusRequester(focus), fontSize = 20.sp)
+            }
+        }
+    }
+    LaunchedEffect(state.refused) { runCatching { focus.requestFocus() } }
 }
 
 @Composable

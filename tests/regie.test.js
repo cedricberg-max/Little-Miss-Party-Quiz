@@ -8,9 +8,9 @@ import { extname, join, normalize } from "node:path";
 import { after, afterEach, before, beforeEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { initializeTestEnvironment } from "@firebase/rules-unit-testing";
-import { ref, get, set, update, onValue } from "firebase/database";
+import { ref, get, set, update, onValue, serverTimestamp } from "firebase/database";
 import { chromium } from "playwright";
-import { loadRules, seedAdmin, ADMIN_PASSWORD } from "./rules-loader.js";
+import { loadRules, seedAdmin, allowBox, ADMIN_PASSWORD } from "./rules-loader.js";
 import { lockedUntil } from "../web/public/show.js";
 
 const ROOT = new URL("..", import.meta.url).pathname;
@@ -27,6 +27,21 @@ function png([r, g, b]) {
   };
   const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(8, 0); ihdr.writeUInt32BE(8, 4); ihdr[8] = 8; ihdr[9] = 2;
   const rows = Buffer.concat(Array.from({ length: 8 }, () => Buffer.from([0, ...Array.from({ length: 8 }, () => [r, g, b]).flat()])));
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", ihdr), chunk("IDAT", deflateSync(rows)), chunk("IEND", Buffer.alloc(0))]);
+}
+/** Image PNG [w] × [h] : moitié gauche de la couleur [left], moitié droite de la couleur [right]. */
+function pngHalves(w, h, left, right) {
+  const crcTable = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+  const crc = (buf) => { let c = 0xffffffff; for (const x of buf) c = crcTable[(c ^ x) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  const chunk = (type, data) => {
+    const body = Buffer.concat([Buffer.from(type), data]);
+    const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+    const sum = Buffer.alloc(4); sum.writeUInt32BE(crc(body));
+    return Buffer.concat([len, body, sum]);
+  };
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2;
+  const row = Buffer.from([0, ...Array.from({ length: w }, (_, x) => (x < w / 2 ? left : right)).flat()]);
+  const rows = Buffer.concat(Array.from({ length: h }, () => row));
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", ihdr), chunk("IDAT", deflateSync(rows)), chunk("IEND", Buffer.alloc(0))]);
 }
 const PUBLIC = join(ROOT, "web/public");
@@ -355,6 +370,7 @@ function startBox({ silent = false, held = false } = {}) {
 beforeEach(async () => {
   await env.clearDatabase();
   await seedAdmin(env);
+  await allowBox(env, HOST);
   await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), "settings/regie"), {
     salt: SALT, hash: createHash("sha256").update(`${SALT}:${PASSWORD}`).digest("hex"), updatedAt: 1,
   }));
@@ -515,12 +531,12 @@ describe("régie", () => {
     const admin = await openAdmin();
     await admin.click("#nav button[data-screen=settings]");
     await admin.locator("#screen-settings:not([hidden])").waitFor();
-    await admin.fill("#pw1", "sacha 100111");
-    await admin.fill("#pw2", "sacha100111 ");
+    await admin.fill("#pw1", "licorne 2468");
+    await admin.fill("#pw2", "licorne2468 ");
     await admin.click("#save");
     await admin.locator("#save-status", { hasText: "Mot de passe de la régie enregistré" }).waitFor();
     const phone = await openRegie();
-    await pair(phone, "sacha100111 ");
+    await pair(phone, "licorne2468 ");
     await inRegie(phone);
     // Un mot de passe enregistré avec un espace avant cette règle s'ouvre encore tel quel.
     const salt = "0123456789abcdef0123";
@@ -558,12 +574,12 @@ describe("régie", () => {
 
   test("le petit œil montre le mot de passe tapé, puis le masque à nouveau ; masqué après l'envoi", async () => {
     const admin = await openRegie(null, "?emu=1", "/admin.html");
-    await admin.fill("#admin-password", "SACHA-majuscules");
+    await admin.fill("#admin-password", "LICORNE-majuscules");
     const oeil = admin.locator(".oeil-champ:has(#admin-password) .oeil-bouton");
     assert.equal(await oeil.getAttribute("aria-label"), "Afficher le mot de passe");
     await oeil.click();
     assert.equal(await admin.locator("#admin-password").getAttribute("type"), "text", "caractères visibles");
-    assert.equal(await admin.locator("#admin-password").inputValue(), "SACHA-majuscules", "rien de perdu");
+    assert.equal(await admin.locator("#admin-password").inputValue(), "LICORNE-majuscules", "rien de perdu");
     assert.equal(await oeil.getAttribute("aria-label"), "Masquer le mot de passe");
     await oeil.click();
     assert.equal(await admin.locator("#admin-password").getAttribute("type"), "password");
@@ -1619,19 +1635,24 @@ describe("bibliothèque de quiz et prestations", () => {
     const page = await admin();
     await openQuizzes(page);
     await page.click("#quiz-import-open");
+    // D'abord le type de quiz, puis la façon de le créer : ChatGPT n'est proposé que pour le quiz classique.
+    assert.equal(await page.locator("#import-gem").isHidden(), true);
+    await page.click('.kind-card[data-kind=photo]');
+    assert.deepEqual(await page.locator("#kind-ways-list .kind-way").evaluateAll((b) => b.map((x) => x.dataset.way)), ["banque", "main", "json"]);
+    await page.click('.kind-card[data-kind=classique]');
+    await page.click('#kind-ways-list [data-way=chatgpt]');
     await page.fill("#gem-theme", "La jungle");
     await page.fill("#gem-age", "8");
     assert.match(await page.inputValue("#gem-prompt"), /thème « La jungle », pour des enfants de 8 ans/);
-    // Difficulté et réponses en images : la demande suit ; « Ouvrir ChatGPT » l'emporte, déjà écrite.
+    // Difficulté : la demande suit ; « Ouvrir ChatGPT » l'emporte, déjà écrite.
     await page.selectOption("#gem-difficulty", "facile");
-    await page.locator("input[name=gem-answers][value=images]").check();
-    assert.match(await page.inputValue("#gem-prompt"), /Niveau facile[\s\S]*ne savent pas encore lire/);
+    assert.match(await page.inputValue("#gem-prompt"), /Niveau facile/);
+    assert.doesNotMatch(await page.inputValue("#gem-prompt"), /ne savent pas encore lire/);
     await page.context().route("https://chatgpt.com/**", (r) => r.fulfill({ status: 200, contentType: "text/html", body: "<p>ChatGPT</p>" }));
     const [tab] = await Promise.all([page.context().waitForEvent("page"), page.click("#gem-open")]);
     await tab.waitForLoadState();
     assert.match(decodeURIComponent(new URL(tab.url()).searchParams.get("q")), /thème « La jungle »[\s\S]*Niveau facile/);
     await tab.close();
-    await page.locator("input[name=gem-answers][value=texte]").check();
     await page.fill("#import-text", [
       "Titre : La jungle", "",
       "1. Quel animal est le roi de la jungle ?", "A) Le tigre", "B) Le lion", "C) L'éléphant", "D) Le singe", "Réponse : B", "",
@@ -1656,6 +1677,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(saved.length, 1);
     assert.equal(saved[0].title, "La jungle");
     assert.equal(saved[0].source, "gemini");
+    assert.equal(saved[0].kind, "classique");
     assert.deepEqual(saved[0].questions.map((q) => [q.correct, q.status]), [[1, "validee"], [1, "validee"], [0, "validee"]]);
     await openQuizzes(page);
     await page.locator("#quiz-list .item", { hasText: "3 questions · 3 validées" }).waitFor();
@@ -2204,7 +2226,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#show-list", { hasText: "Léa" }).waitFor();
     assert.equal(await search("animaux"), "1 prestation trouvée");
     assert.equal(await search("2025"), "2 prestations trouvées");
-    assert.equal(await page.locator("#show-past-list", { hasText: "Zoé" }).count(), 1);
+    // Fête passée depuis plus de 2 jours : rangée d'elle-même dans les archives.
+    assert.equal(await page.locator("#show-archive-list", { hasText: "Zoé" }).count(), 1);
     assert.equal(await search("zoe 11"), "0 prestation trouvée");
     await page.locator("#show-list", { hasText: "Aucune prestation ne correspond" }).waitFor();
     assert.equal(await search(""), "");
@@ -2409,9 +2432,9 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator('#home-upcoming [data-show="tom"]').waitFor({ state: "detached" });
     assert.equal((await library("shows/tom/status")), "archivee");
     await page.click("#nav button[data-screen=shows]");
-    await page.locator("#show-archives summary", { hasText: "Prestations archivées (1)" }).waitFor();
+    // Tom archivé à la main, l'ancienne fête de 2020 rangée d'elle-même.
+    await page.locator("#show-archives summary", { hasText: "Prestations archivées (2)" }).waitFor();
     assert.equal(await page.locator('#show-list [data-show="tom"]').count(), 0);
-    await page.locator("#show-past summary", { hasText: "Anniversaires passés (1)" }).waitFor();
     assert.equal(await page.locator('#show-list [data-show="vieux"]').count(), 0);
     await page.context().close();
   });
@@ -2530,6 +2553,179 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
+  test("prestations : archivées toutes seules 2 jours après la fête ; l'étoile en fait un modèle dont les jeux passent en premier dans la régie", async () => {
+    const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    await seedLibrary("shows", {
+      hier: { childName: "Lina", age: 8, date: day(-1), status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 },
+      vieux: { childName: "Malo", age: 9, date: day(-3), status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }, { type: "patate" }], updatedAt: 1 },
+    });
+    const page = await admin();
+    await page.click("#nav button[data-screen=shows]");
+    // Hier : encore là (fête décalée possible) ; il y a 3 jours : dans les archives.
+    await page.locator('#show-list [data-show="hier"]').waitFor();
+    await page.locator("#show-archives summary", { hasText: "Prestations archivées (1)" }).waitFor();
+    assert.equal(await page.locator('#show-list [data-show="hier"]').getByRole("button", { name: "⭐ Épingler" }).count(), 0, "L'étoile se met dans les archives");
+    await page.click("#show-archives summary");
+    await page.locator('#show-archive-list [data-show="vieux"]').getByRole("button", { name: "⭐ Épingler" }).click();
+    await page.locator('#show-pinned:not([hidden]) [data-show="vieux"]').waitFor();
+    assert.equal(await library("shows/vieux/pinned"), true);
+    assert.equal(await library("shows/vieux/status"), "publiee", "Rien d'autre ne change");
+    await page.locator("#show-archives").waitFor({ state: "hidden" });
+    await page.context().close();
+
+    // Régie du téléphone : la prestation d'il y a 3 jours n'est plus proposée ; ses jeux passent en premier.
+    box = startBox();
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "Lina" }).waitFor();
+    assert.equal(await regie.locator("#panel-show .show-item", { hasText: "Malo" }).count(), 0);
+    await regie.locator("#panel-show .show-item", { hasText: "Lina" }).click();
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    await regie.click("#tab-plan");
+    await regie.click("#plan-add");
+    await regie.locator('#lib-list [data-game="pin/vieux/0"]', { hasText: "Animaux" }).waitFor();
+    await regie.locator('#lib-list [data-game="pin/vieux/1"]', { hasText: "Patate" }).waitFor();
+    assert.equal(await regie.locator("#lib-list .lib-section").first().textContent(), "⭐ Prestations épinglées");
+    await regie.context().close();
+  });
+
+  test("cadrage : l'image d'une réponse se cadre dans sa bulle à la souris ; la TV reçoit l'image recadrée", async () => {
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    const page = await admin();
+    await openQuizzes(page);
+    await page.locator('#quiz-list [data-quiz="animaux"]').getByRole("button", { name: "Éditer" }).click();
+    const q0 = page.locator('[data-q="0"]');
+    // Photo en largeur : moitié gauche rouge, moitié droite bleue.
+    await q0.locator(".choice-photo input[type=file]").first().setInputFiles({ name: "drapeau.png", mimeType: "image/png", buffer: pngHalves(400, 200, [220, 30, 30], [30, 60, 220]) });
+    const thumb = q0.locator(".choice-thumb:not([hidden])").first();
+    await thumb.waitFor();
+    // Bulle comme sur la TV : carrée et remplie (le centre, à cheval sur les deux couleurs).
+    assert.equal(await thumb.evaluate((e) => getComputedStyle(e).objectFit), "cover");
+    await thumb.click();
+    const scene = page.locator(".cadre-scene");
+    await scene.waitFor();
+    assert.equal(await page.locator(".cadre-fond").evaluate((e) => getComputedStyle(e).opacity), "0.35", "ce qui dépasse reste visible en transparence");
+    // Glissée vers la gauche jusqu'au bout : la bulle montre la moitié bleue.
+    const box_ = await scene.boundingBox();
+    await page.mouse.move(box_.x + box_.width / 2, box_.y + box_.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box_.x - 400, box_.y + box_.height / 2, { steps: 8 });
+    await page.mouse.up();
+    await page.click(".cadre-boite button:has-text('Valider le cadrage')");
+    await page.locator(".cadre-voile").waitFor({ state: "detached" });
+    await page.click("#rv-save");
+    await page.locator("#rv-status", { hasText: "Enregistré" }).waitFor();
+    const saved = (await library("quizzes")).animaux.questions[0];
+    const id = saved.choiceImages[0];
+    assert.match(id, /^[0-9a-f]{16}$/);
+    const data = await library(`images/${id}`);
+    const [w, h, r, g, b] = await page.evaluate(async (src) => {
+      const img = new Image();
+      img.src = src;
+      await img.decode();
+      const c = Object.assign(document.createElement("canvas"), { width: img.width, height: img.height });
+      const ctx = c.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+      return [img.width, img.height, ...ctx.getImageData(img.width / 2, img.height / 2, 1, 1).data.slice(0, 3)];
+    }, data);
+    assert.deepEqual([w, h], [480, 480], "vignette carrée, à la taille de la bulle");
+    assert.ok(b > 150 && r < 100, `centre bleu après le cadrage (${r}, ${g}, ${b})`);
+    // Annuler le cadrage ne change rien.
+    await page.locator('[data-q="0"] .choice-thumb:not([hidden])').first().click();
+    await page.click(".cadre-boite button:has-text('Annuler')");
+    await page.locator(".cadre-voile").waitFor({ state: "detached" });
+    await page.context().close();
+  });
+
+  test("banque des tout-petits : 10 questions au hasard, une image par réponse, relues puis enregistrées", async () => {
+    const page = await admin();
+    await openQuizzes(page);
+    await page.click("#quiz-import-open");
+    await page.click('.kind-card[data-kind=photo]');
+    await page.click('#kind-ways-list [data-way=banque]');
+    const panel = page.locator("#rv-banque-panel");
+    await panel.locator(".banque-q").first().waitFor();
+    assert.equal(await page.inputValue("#rv-title"), "Quiz photo");
+    await page.locator("#rv-kind", { hasText: "Quiz photo" }).waitFor();
+    // Recherche d'un mot : les questions qui l'ont en réponse ou dans le texte.
+    await page.fill("#rv-banque-cherche", "girafe");
+    await panel.locator('.banque-q:has-text("Où est la girafe ?")').waitFor();
+    await page.fill("#rv-banque-cherche", "");
+    await panel.locator('.banque-q:has-text("miaou")').waitFor();
+    await panel.locator("button.chip", { hasText: "Animaux" }).click();
+    await panel.locator("button", { hasText: "10 au hasard" }).click();
+    assert.equal(await panel.locator(".banque-q input:checked").count(), 10);
+    // Une de plus, cochée à la main hors des animaux.
+    await panel.locator("button.chip", { hasText: "Musique" }).click();
+    await panel.locator('.banque-q:has-text("Sur quoi tape-t-on avec des baguettes ?") input').check();
+    await panel.locator("#rv-banque-add", { hasText: "Ajouter les 11 questions cochées" }).click();
+    await page.locator("#rv-status", { hasText: "11 questions ajoutées" }).waitFor({ timeout: 30000 });
+    assert.equal(await page.locator("#rv-list .qcard").count(), 11);
+    await waitFor(async () => (await page.locator("#rv-list .choice-thumb:not([hidden])").count()) === 44, "44 images de réponses");
+    // Déjà dans le quiz : grisée, plus cochable.
+    assert.equal(await panel.locator('.banque-q.deja:has-text("Sur quoi tape-t-on avec des baguettes ?") input').isDisabled(), true);
+    await page.click("#rv-save");
+    await page.locator("#rv-status", { hasText: "11 questions validées sur 11" }).waitFor();
+    const [quiz] = Object.values(await library("quizzes"));
+    assert.equal(quiz.source, "banque");
+    assert.equal(quiz.kind, "photo");
+    // La bibliothèque range les quiz par type : filtre « Quiz photo ».
+    await openQuizzes(page);
+    await page.locator("#quiz-kinds .chip", { hasText: "Quiz photo" }).click();
+    await page.locator("#quiz-list .item", { hasText: "Quiz photo" }).waitFor();
+    await page.locator("#quiz-kinds .chip", { hasText: "Quiz classique" }).click();
+    await page.locator("#quiz-list .item").first().waitFor({ state: "detached" });
+    const tambour = quiz.questions.find((q) => q.text === "Sur quoi tape-t-on avec des baguettes ?");
+    assert.equal(tambour.choices[tambour.correct], "Tambour");
+    assert.ok(quiz.questions.every((q) => q.choices.length === 4 && q.choiceImages.length === 4 && q.choiceImages.every((id) => /^[0-9a-f]{16}$/.test(id))));
+    // Même mot, même image (rangée une seule fois).
+    const images = await library("images");
+    assert.ok(Object.keys(images).length <= new Set(quiz.questions.flatMap((q) => q.choices)).size);
+    await page.context().close();
+  });
+
+  test("banque des tout-petits : Sarah remplace la photo d'un mot, les questions ajoutées ensuite la prennent", async () => {
+    const page = await admin();
+    await openQuizzes(page);
+    await page.click("#banque-open");
+    const chat = page.locator('#banque-mots [data-mot="chat"]');
+    await chat.waitFor();
+    // Un thème à la fois (les animaux d'abord) ; le thème « Le corps » montre ses mots.
+    assert.ok((await page.locator("#banque-mots .banque-mot").count()) >= 60);
+    await page.locator("#banque-themes button", { hasText: "Le corps" }).click();
+    await page.locator('#banque-mots [data-mot="nez"]').waitFor();
+    assert.equal(await chat.count(), 0);
+    await page.locator("#banque-themes button", { hasText: "Animaux" }).click();
+    await chat.waitFor();
+    await chat.locator("input[type=file]").setInputFiles({ name: "minou.png", mimeType: "image/png", buffer: png([250, 200, 120]) });
+    await page.locator("#banque-status", { hasText: "« Chat » : votre photo est enregistrée" }).waitFor();
+    const id = (await library("contents/petits")).images.chat;
+    assert.match(id, /^[0-9a-f]{16}$/);
+    await chat.locator("button[title='Remettre la photo de la banque']").waitFor();
+    // Nouveau quiz : la question « miaou » prend la photo de Sarah pour « Chat ».
+    await openQuizzes(page);
+    await page.click("#quiz-import-open");
+    await page.click('.kind-card[data-kind=photo]');
+    await page.click('#kind-ways-list [data-way=banque]');
+    await page.locator('#rv-banque-panel .banque-q:has-text("miaou") input').check();
+    await page.click("#rv-banque-add");
+    await page.locator("#rv-status", { hasText: "1 question ajoutée" }).waitFor({ timeout: 20000 });
+    await page.click("#rv-save");
+    await page.locator("#rv-status", { hasText: "Enregistré" }).waitFor();
+    const [quiz] = Object.values(await library("quizzes"));
+    const q = quiz.questions[0];
+    assert.equal(q.choiceImages[q.choices.indexOf("Chat")], id);
+    // « ↺ » remet la photo de la banque.
+    await openQuizzes(page);
+    await page.click("#banque-open");
+    await page.locator('#banque-mots [data-mot="chat"] button[title="Remettre la photo de la banque"]').click();
+    await page.locator("#banque-status", { hasText: "photo de la banque remise" }).waitFor();
+    assert.equal((await library("contents/petits"))?.images, undefined);
+    await page.context().close();
+  });
+
   test("illustration : émoji et photo ajoutés dans l'admin, copiés dans la partie par la régie", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     await seedLibrary("shows", { ines: { childName: "Inès", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 } });
@@ -2580,6 +2776,8 @@ describe("bibliothèque de quiz et prestations", () => {
     const page = await admin();
     await openQuizzes(page);
     await page.click("#quiz-import-open");
+    await page.click('.kind-card[data-kind=photo]');
+    await page.click('#kind-ways-list [data-way=json]');
     await page.locator("#import-file").setInputFiles([
       { name: "quiz.json", mimeType: "application/json", buffer: Buffer.from(json) },
       { name: "q1-lion.png", mimeType: "image/png", buffer: png([230, 160, 30]) },
@@ -2894,6 +3092,55 @@ describe("défis de la pause", () => {
 
     await page.locator("#panel-defis .defi-effacer").first().click();
     await waitFor(async () => (await defis())?.length === 7 && (await defis())[0] !== "La ola, deux fois !", "défi effacé");
+    await page.context().close();
+  });
+});
+
+describe("activation des box", () => {
+  const boxes = async (path) => {
+    let value;
+    await env.withSecurityRulesDisabled(async (ctx) => { value = (await get(ref(ctx.database(), `boxes/${path}`))).val(); });
+    return value;
+  };
+  const demande = (uid, code, model) => set(ref(env.authenticatedContext(uid).database(), `boxes/requests/${uid}`), { code, model, at: serverTimestamp() });
+
+  test("la Régie PC signale une nouvelle box, l'accepte, la renomme et la retire", async () => {
+    const page = await openAdmin();
+    page.on("dialog", (d) => d.accept(d.type() === "prompt" ? "Mi Box de Sarah" : undefined));
+    await demande("tv-neuve", "KX7P", "TCL 55C735");
+    // Accueil : la demande saute aux yeux, avec le même code que sur la TV.
+    await page.locator("#home-boxes:not([hidden])", { hasText: "KX7P" }).waitFor();
+    assert.equal(await page.locator("#nav-boxes").textContent(), "1");
+    await page.click("#home-boxes");
+    const row = page.locator('#box-requests [data-box="tv-neuve"]');
+    await row.locator(".box-code", { hasText: "KX7P" }).waitFor();
+    assert.equal(await row.locator("input").inputValue(), "TCL 55C735");
+    await row.locator("input").fill("TV du salon");
+    await row.getByRole("button", { name: "Accepter" }).click();
+    await waitFor(async () => (await boxes("allowed/tv-neuve"))?.name === "TV du salon", "box acceptée");
+    assert.equal(await boxes("requests/tv-neuve"), null);
+    await page.locator("#nav-boxes[hidden]").waitFor({ state: "attached" });
+    await page.locator('#box-allowed [data-box="tv-neuve"]', { hasText: "TV du salon" }).waitFor();
+
+    await page.locator('#box-allowed [data-box="tv-neuve"]').getByRole("button", { name: "Renommer" }).click();
+    await waitFor(async () => (await boxes("allowed/tv-neuve/name")) === "Mi Box de Sarah", "box renommée");
+    await page.locator('#box-allowed [data-box="tv-neuve"]').getByRole("button", { name: "Retirer" }).click();
+    await waitFor(async () => (await boxes("allowed/tv-neuve")) === null, "box retirée");
+    await page.locator('#box-allowed [data-box="tv-neuve"]').waitFor({ state: "detached" });
+    await page.locator(`#box-allowed [data-box="${HOST}"]`).waitFor();
+    await page.context().close();
+  });
+
+  test("la Régie PC refuse la demande d'un inconnu", async () => {
+    const page = await openAdmin();
+    page.on("dialog", (d) => d.accept());
+    await page.click('#nav [data-screen="settings"]');
+    await demande("pirate", "ZZ99", "Box inconnue");
+    const row = page.locator('#box-requests [data-box="pirate"]');
+    await row.getByRole("button", { name: "Refuser" }).click();
+    await waitFor(async () => (await boxes("requests/pirate")) === null, "demande refusée");
+    assert.equal(await boxes("allowed/pirate"), null);
+    await page.locator("#box-requests", { hasText: "Aucune demande" }).waitFor();
     await page.context().close();
   });
 });

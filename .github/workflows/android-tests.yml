@@ -15,18 +15,8 @@ on:
       - "gradle.properties"
       - ".github/workflows/android-tests.yml"
       - ".github/android-tests/**"
-  push:
-    branches: [main]
-    paths:
-      - "tv/**"
-      - "engine/**"
-      - "database.rules.json"
-      - "firebase.json"
-      - "*.gradle.kts"
-      - "gradle/**"
-      - "gradle.properties"
-      - ".github/workflows/android-tests.yml"
-      - ".github/android-tests/**"
+  # Plus de relance sur main après la fusion : la PR a déjà joué ces tests sur le même code (≈ 12 % des minutes
+  # d'octobre). Une relance à la main reste possible avant une publication (« Run workflow »).
   workflow_dispatch:
 
 # Un nouvel envoi sur la même branche annule l'essai précédent (minutes GitHub économisées).
@@ -38,7 +28,8 @@ jobs:
   emulateur-tv:
     name: Émulateur Android TV
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # Les tests eux-mêmes prennent de 26 à 50 min (20/10) : 60 min coupait trop près.
+    timeout-minutes: 75
     env:
       API_LEVEL: 28
       # Version debug branchée sur l'émulateur Firebase du runner (la version release reste sur la vraie adresse).
@@ -116,7 +107,9 @@ jobs:
           # l'émulateur en demandait 7,4 Go par défaut et refusait de démarrer.
           disk-size: 2048M
           disable-animations: false
-          emulator-boot-timeout: 900
+          # Démarrage normal en 40 à 50 s : au-delà de 5 min, il a échoué (ex. « FATAL … userdata ») et attendre
+          # 15 min de plus ne servait à rien.
+          emulator-boot-timeout: 300
           # DNS volontairement inutilisable : l'émulateur ne peut pas joindre les vrais serveurs Firebase,
           # seulement l'émulateur local (adresse IP 10.0.2.2).
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -dns-server 192.0.2.1

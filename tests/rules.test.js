@@ -2,7 +2,7 @@
 // Lancé par `npm test` dans l'émulateur Firebase, jamais sur la vraie base.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { loadRules, seedAdmin, adminHash, ADMIN_PASSWORD, ADMIN_SALT } from "./rules-loader.js";
+import { loadRules, seedAdmin, allowBox, adminHash, ADMIN_PASSWORD, ADMIN_SALT } from "./rules-loader.js";
 import { after, before, beforeEach, describe, test } from "node:test";
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
 import { ref, get, set, update, serverTimestamp } from "firebase/database";
@@ -225,9 +225,17 @@ describe("pupitres : jamais de points ni de pilotage", () => {
     await assertFails(set(ref(db("rose"), `games/${CODE}`), { hostUid: "rose" }));
     await assertFails(set(ref(db(HOST), `games/${CODE}`), { hostUid: HOST }));
   });
-  test("un appareil peut créer une nouvelle partie dont il est l'hôte, pas pour un autre", async () => {
+  test("une box acceptée peut créer une nouvelle partie dont elle est l'hôte, pas pour une autre", async () => {
+    await allowBox(env, "box2");
     await assertSucceeds(set(ref(db("box2"), "games/NEW01"), { hostUid: "box2", state: { phase: "lobby" } }));
     await assertFails(set(ref(db("box2"), "games/NEW02"), { hostUid: "autre" }));
+  });
+  test("une box jamais acceptée ne peut pas créer de partie une fois le verrou en place", async () => {
+    await allowBox(env, "box2");
+    await assertFails(set(ref(db("inconnue"), "games/NEW03"), { hostUid: "inconnue", state: { phase: "lobby" } }));
+  });
+  test("tant qu'aucune box n'a été acceptée, les box déjà utilisées continuent de jouer", async () => {
+    await assertSucceeds(set(ref(db("tcl"), "games/NEW06"), { hostUid: "tcl", state: { phase: "lobby" } }));
   });
 });
 
@@ -1189,5 +1197,78 @@ describe("La Patate chaude", () => {
     await assertSucceeds(passe("tablette2", "rose"));
     await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));
     await assertSucceeds(set(ref(db("tel"), `games/${CODE}/commands/cpot`), { type: "potato_random", expectSeq: 3, by: "tel", at: serverTimestamp() }));
+  });
+});
+
+describe("activation des box", () => {
+  const admin = () => db("sarah");
+  beforeEach(() => seedAdmin(env, "sarah"));
+  const demande = (uid, extra = {}) =>
+    set(ref(db(uid), `boxes/requests/${uid}`), { code: "KX7P", model: "TCL Android TV", at: serverTimestamp(), ...extra });
+  const accepter = (uid) => update(ref(admin(), "boxes"), {
+    [`allowed/${uid}`]: { name: "TV du salon", model: "TCL Android TV", at: serverTimestamp() },
+    [`requests/${uid}`]: null,
+    lockOn: true,
+  });
+
+  test("une nouvelle box demande son activation, avec un code court et son modèle", async () => {
+    await assertSucceeds(demande("tv1"));
+    await assertSucceeds(get(ref(db("tv1"), "boxes/requests/tv1")));
+    await assertFails(demande("tv1", { code: "kx7p" }));
+    await assertFails(demande("tv1", { code: "KX7PQ" }));
+    await assertFails(demande("tv1", { code: "OI00" }));
+    await assertFails(demande("tv1", { model: "x".repeat(81) }));
+    await assertFails(demande("tv1", { extra: true }));
+    await assertFails(set(ref(db("tv1"), "boxes/requests/tv1"), { code: "KX7P", model: "TCL", at: 1 }));
+  });
+  test("une box ne peut ni demander pour une autre, ni lire les autres demandes", async () => {
+    await demande("tv1");
+    await assertFails(set(ref(db("tv2"), "boxes/requests/tv1"), { code: "AAAA", model: "Pirate", at: serverTimestamp() }));
+    await assertFails(get(ref(db("tv2"), "boxes/requests/tv1")));
+    await assertFails(get(ref(db("tv2"), "boxes/requests")));
+    await assertFails(set(ref(db("tv1"), "boxes/requests/tv1"), null));
+  });
+  test("une box ne peut pas s'accepter elle-même", async () => {
+    await assertFails(set(ref(db("tv1"), "boxes/allowed/tv1"), { name: "Moi", at: serverTimestamp() }));
+    await assertFails(get(ref(db("tv1"), "boxes/allowed")));
+  });
+  test("la Régie PC voit les demandes, accepte une box, et la box le voit", async () => {
+    await demande("tv1");
+    await assertSucceeds(get(ref(admin(), "boxes/requests")));
+    await assertSucceeds(accepter("tv1"));
+    assert.equal((await get(ref(db("tv1"), "boxes/allowed/tv1"))).val().name, "TV du salon");
+    assert.equal((await get(ref(admin(), "boxes/requests/tv1"))).val(), null);
+    await assertSucceeds(set(ref(db("tv1"), "games/NEW04"), { hostUid: "tv1", state: { phase: "lobby" } }));
+  });
+  test("la Régie PC refuse une demande, renomme puis retire une box", async () => {
+    await demande("tv1");
+    await assertSucceeds(set(ref(admin(), "boxes/requests/tv1"), null));
+    await demande("tv2");
+    await accepter("tv2");
+    await assertSucceeds(set(ref(admin(), "boxes/allowed/tv2/name"), "Mi Box de Sarah"));
+    await assertFails(set(ref(admin(), "boxes/allowed/tv2/name"), ""));
+    await assertSucceeds(set(ref(admin(), "boxes/allowed/tv2"), null));
+    await assertFails(set(ref(db("tv2"), "games/NEW05"), { hostUid: "tv2", state: { phase: "lobby" } }));
+  });
+  test("une box retirée garde sa partie en cours : rien ne s'arrête pendant une fête", async () => {
+    await allowBox(env, HOST);
+    await seed();
+    await assertSucceeds(set(ref(admin(), `boxes/allowed/${HOST}`), null));
+    await assertSucceeds(set(ref(db(HOST), `games/${CODE}/state/phase`), "reveal"));
+  });
+  test("sans mot de passe administrateur, personne ne gère les box", async () => {
+    await demande("tv1");
+    await assertFails(get(ref(db("tel"), "boxes/requests")));
+    await assertFails(set(ref(db("tel"), "boxes/requests/tv1"), null));
+    await assertFails(set(ref(db("tel"), "boxes/allowed/tel"), { name: "Pirate", at: serverTimestamp() }));
+    await assertFails(set(ref(db("tel"), "boxes/lockOn"), true));
+  });
+  test("le verrou, une fois en place, ne s'enlève pas", async () => {
+    await accepter("tv1");
+    assert.equal((await get(ref(db("tv1"), "boxes/lockOn"))).val(), true);
+    await assertFails(set(ref(admin(), "boxes/lockOn"), null));
+    await assertFails(set(ref(admin(), "boxes/lockOn"), false));
+    await assertSucceeds(set(ref(admin(), "boxes/allowed/tv1"), null));
+    await assertFails(set(ref(db("tv1"), "games/NEW07"), { hostUid: "tv1", state: { phase: "lobby" } }));
   });
 });

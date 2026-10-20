@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { initializeTestEnvironment } from "@firebase/rules-unit-testing";
 import { ref, get, set, update } from "firebase/database";
 import { chromium } from "playwright";
-import { loadRules } from "./rules-loader.js";
+import { loadRules, allowBox } from "./rules-loader.js";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const PUBLIC = join(ROOT, "web/public");
@@ -52,6 +52,7 @@ after(async () => {
 
 beforeEach(async () => {
   await env.clearDatabase();
+  await allowBox(env, HOST);
   await set(ref(hostDb(), `games/${CODE}`), { hostUid: HOST, state: { phase: "lobby", round: 1, buzzOpen: true, total: 3, scores: {} } });
 });
 
