@@ -7,10 +7,14 @@ import { passwordCandidates } from "./secret.js";
 import {
   buildSnapshot, showTitle, playable, QUIZ_GAMES, BUILTIN_GAMES, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame, imageIds, choiceImageIds,
   soundIds, MUSIC_GAMES, playableTracks, STATUES_SEC, PICTO_SEC, isStatuesList, statuesSongs, MAX_STATUES_SONGS,
-  isFutureRound, moveRound, removeRound, uniqueRoundTitle, roundQuizIds, mimePool, mimeCards, CONTENT_GAMES, activeItems, pictoSeriesOf, MIME_RANDOM,
+  isFutureRound, moveRound, removeRound, uniqueRoundTitle, roundQuizIds, mimePool, mimeCards, CONTENT_GAMES, activeItems, pictoSeriesOf,
   isArchived,
 } from "./show.js";
 import { MIME_CATALOG } from "./mime-cards.js";
+import {
+  RANDOM_TYPES, RANDOM_COUNT, LEVELS, MIME_PER_TEAM, MIME_PER_TEAM_DEFAULT, randomRound, playedKeys, questionType, avoidKey,
+  collectionItems, collectionGroups, mancheGroups, mancheSummary, cleanRound, defaultMancheTitle, COLLECTION_UNIT,
+} from "./manches.js";
 import { profileForAge } from "./profiles.js";
 import { setAwake } from "./awake.js";
 import { ouvrirDefis } from "./defis.js";
@@ -1144,6 +1148,16 @@ function roundHead(r, rounds, future, questions, index, editable) {
   state.textContent = r.end < index ? "jouée" : r.start <= index ? "en cours" : "";
   head.append(title, state);
   const k = future.indexOf(r);
+  // Jeu déjà commencé ou joué, tiré d'une collection : le rejouer avec d'autres cartes, mots, photos ou titres.
+  const type = questionType(questions[r.start]);
+  if (editable && k < 0 && r.start <= index && RANDOM_TYPES.includes(type)) {
+    const again = document.createElement("button");
+    again.className = "replay";
+    again.textContent = "🔁 Rejouer avec d'autres…";
+    again.disabled = editing;
+    again.onclick = () => replayWithOthers(type, questions.slice(r.start, r.end + 1), r.title);
+    head.appendChild(again);
+  }
   if (!editable || k < 0) return head;
   const button = (label, cls, disabled, action) => {
     const b = document.createElement("button");
@@ -1161,6 +1175,18 @@ function roundHead(r, rounds, future, questions, index, editable) {
     sendProgram(removeRound(questions, r.start, index), `« ${r.title} » est retirée du programme.`);
   });
   return head;
+}
+
+/** « Rejouer avec d'autres… » : le même jeu et ses réglages, tiré à nouveau sans rien de ce qui est au programme. */
+async function replayWithOthers(type, played, title) {
+  const deck = played.find((q) => q.kind === "mime" || q.kind === "pictionary");
+  const base = deck ? { duration: deck.duration, ...(type === "pictionary" ? {} : { cards: deck.cards }) } : {};
+  const count = deck ? (type === "pictionary" ? deck.cards.length : null) : played.length;
+  picked = null;
+  $("lib").hidden = false;
+  if (!library?.games) await fetchLibrary();
+  if (!library?.games) return;
+  await pick({ key: `rejouer/${type}`, label: title.replace(/ \(\d+\)$/, ""), random: true, base, source: { type, ...(count ? { count } : {}) } });
 }
 
 function planItem(q, i, current) {
@@ -1197,11 +1223,17 @@ async function fetchLibrary() {
   library = { loading: true };
   renderLibrary();
   try {
-    const [s, q, m, p, c] = await Promise.all(["shows", "quizzes", "mimes", "playlists", "contents"].map((k) => get(ref(db, `library/${k}`))));
+    const [s, q, m, p, c, sm] = await Promise.all(["shows", "quizzes", "mimes", "playlists", "contents", "manches"].map((k) => get(ref(db, `library/${k}`))));
     const quizzes = q.val() ?? {};
     const mimes = m.val() ?? {};
     const playlists = p.val() ?? {};
     const contents = c.val() ?? {};
+    // Manches enregistrées dans la Régie PC (page de chaque jeu) : les épinglées d'abord, jamais les archivées.
+    const saved = Object.keys(ROUND_TYPES).flatMap((type) => {
+      const { pinned: pins, active } = mancheGroups(sm.val() ?? {}, type);
+      return [...pins, ...active];
+    }).sort(([, a], [, b]) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0))
+      .map(([id, mc]) => ({ key: `manche/${id}`, label: mc.title, from: `${mc.pinned ? "⭐ " : ""}${ROUND_TYPES[mc.type] ?? mc.type}`, manche: true, source: cleanRound(mc.round, playlists) }));
     // Blind test et quiz musical : proposés pour chaque playlist qui a des extraits.
     const music = Object.entries(MUSIC_GAMES).flatMap(([type]) => Object.entries(playlists)
       .filter(([, pl]) => pl?.title && !isStatuesList(pl) && playableTracks(pl).length >= (type === "musical" ? 2 : 1))
@@ -1211,8 +1243,8 @@ async function fetchLibrary() {
       .filter(([, d]) => d?.title)
       .sort((a, b) => a[1].title.localeCompare(b[1].title, "fr"))
       .map(([id, d]) => ({ key: `mimes/${id}`, label: d.title, source: { type: "mimes", deckId: id } }));
-    // Mimes sans paquet préparé : la box pioche dans le catalogue selon l'âge, cartes modifiables avant l'ajout.
-    decks.unshift({ key: "mimes/hasard", label: "Mimes au hasard", source: { type: "mimes", random: true } });
+    // Mimes sans paquet préparé : tirés dans toutes les collections selon l'âge, cartes modifiables avant l'ajout.
+    decks.unshift({ key: "mimes/hasard", label: "Mimes au hasard", random: true, source: { type: "mimes", random: true } });
     // Vrai ou Faux express et Zoom mystère : proposés pour chaque quiz qui a les questions qu'il faut.
     const quizGames = Object.entries(QUIZ_GAMES).flatMap(([type, game]) => Object.entries(quizzes)
       .filter(([, quiz]) => quiz?.title && game.questions(quiz).length)
@@ -1234,10 +1266,10 @@ async function fetchLibrary() {
       }));
     // Jeux au buzzer intégrés : toujours disponibles, sans rien préparer.
     const builtins = [
-      ...Object.entries(BUILTIN_GAMES).map(([type, game]) => ({ key: `builtin/${type}`, label: ROUND_TYPES[type], source: { type, count: game.count } })),
+      ...Object.entries(BUILTIN_GAMES).map(([type, game]) => ({ key: `builtin/${type}`, label: ROUND_TYPES[type], random: true, source: { type, count: game.count } })),
       // Statues musicales : toutes les chansons de la liste (page Jeux de la Régie PC), sinon la musique maison.
       { key: "builtin/statues", label: ROUND_TYPES.statues, source: { type: "statues", duration: STATUES_SEC, songs: statuesSongs(playlists).map((t) => t.audioId).slice(0, MAX_STATUES_SONGS) } },
-      { key: "builtin/pictionary", label: ROUND_TYPES.pictionary, source: { type: "pictionary", duration: PICTO_SEC } },
+      { key: "builtin/pictionary", label: ROUND_TYPES.pictionary, random: true, source: { type: "pictionary", duration: PICTO_SEC } },
       { key: "builtin/coffres", label: ROUND_TYPES.coffres, source: { type: "coffres" } },
       { key: "builtin/gonfleur", label: ROUND_TYPES.gonfleur, source: { type: "gonfleur" } },
       { key: "builtin/patate", label: ROUND_TYPES.patate, source: { type: "patate" } },
@@ -1264,7 +1296,12 @@ async function fetchLibrary() {
         return found ? { ...found, key, from } : null;
       }))
       .filter(Boolean);
-    library = { quizzes, mimes, playlists, contents, games, rounds, decks, quizGames, builtins, music, pinned };
+    // Photos et extraits tirés au hasard dans toutes les collections (jamais une photo ou un titre déjà joué).
+    const drawn = ["zoom", "flou", "blind", "musical"]
+      .map((type) => ({ type, n: collectionItems(type, { quizzes, playlists }).length }))
+      .filter(({ n }) => n > 0)
+      .map(({ type, n }) => ({ key: `hasard/${type}`, label: `${ROUND_TYPES[type]} au hasard`, random: true, size: n, source: { type } }));
+    library = { quizzes, mimes, playlists, contents, games, rounds, decks, quizGames, builtins, music, pinned, saved, drawn };
   } catch (e) {
     console.error(e);
     library = { denied: /permission/i.test(String(e?.message ?? e)) };
@@ -1303,8 +1340,16 @@ function renderLibrary() {
     const title = document.createElement("b");
     title.textContent = game.label;
     const meta = document.createElement("span");
+    if (game.manche || game.size) {
+      meta.textContent = game.manche ? [detail, mancheSummary(game.source, library)].filter(Boolean).join(" · ")
+        : `${game.size} ${COLLECTION_UNIT[game.source.type][game.size > 1 ? 1 : 0]} dans les collections · jamais deux fois le même`;
+      b.append(title, meta);
+      b.onclick = () => pick(game);
+      box.appendChild(b);
+      return;
+    }
     if (game.source.type === "mimes" && game.source.random) {
-      meta.textContent = `${MIME_RANDOM} cartes du catalogue, selon l'âge · à retirer ou compléter avant d'ajouter`;
+      meta.textContent = `${MIME_PER_TEAM_DEFAULT} cartes par équipe, selon l'âge · jamais une carte déjà jouée`;
       b.append(title, meta);
       b.onclick = () => pick(game);
       box.appendChild(b);
@@ -1324,6 +1369,13 @@ function renderLibrary() {
       const pl = library.playlists[game.source.playlistId];
       const count = playableTracks(pl).length;
       meta.textContent = `${count} morceau${count > 1 ? "x" : ""} · extraits de ${pl?.duration ?? 25} s · ${MUSIC_GAMES[game.source.type].rule}`;
+      b.append(title, meta);
+      b.onclick = () => pick(game);
+      box.appendChild(b);
+      return;
+    }
+    if (game.source.type === "pictionary") {
+      meta.textContent = `${game.source.duration ?? PICTO_SEC} s de dessin par équipe · un mot par tour · jamais un mot déjà joué`;
       b.append(title, meta);
       b.onclick = () => pick(game);
       box.appendChild(b);
@@ -1378,16 +1430,18 @@ function renderLibrary() {
   };
   if (library.pinned?.length) section("⭐ Prestations épinglées");
   library.pinned?.forEach((g) => entry(g, g.from));
+  if (library.saved?.length) section("Manches préparées");
+  library.saved?.forEach((g) => entry(g, g.from));
   section("Quiz de la bibliothèque");
   if (!library.games.length) hint("Aucun quiz pour l'instant : Sarah les prépare dans l'administration.");
   library.games.forEach((g) => entry(g, ""));
   if (library.rounds.length) section("Manches d'anciennes prestations");
   library.rounds.forEach((g) => entry(g, g.from));
   section("Mini-jeux et blind tests");
-  if (library.decks.length < 2) hint("Mimes : aucun paquet de cartes préparé pour l'instant (administration, Mimes).");
   library.decks.forEach((g) => entry(g, ""));
   library.quizGames.forEach((g) => entry(g, g.source.type === "express" ? "enchaînées toutes seules" : g.source.type === "flou" ? "au buzzer" : "dévoilées au fil du chrono"));
   library.builtins.forEach((g) => entry(g, ""));
+  library.drawn?.forEach((g) => entry(g, ""));
   if (!library.music.length) hint("Blind test : aucune playlist pour l'instant (administration, Blind test).");
   library.music.forEach((g) => entry(g, ""));
 }
@@ -1401,19 +1455,49 @@ async function pick(game) {
     profile = show?.profile ?? (show?.age != null ? profileForAge(show.age) : null);
   } catch { profile = null; }
   picked = { game, source: { ...game.source } };
+  if (game.random) picked.random = randomSettings(game.source.type, { count: game.source.count, base: game.base });
   drawPicked();
 }
+
+/** Réglages du tirage au hasard d'un jeu : difficulté, catégories, cartes par équipe (mimes), manche à rejouer. */
+function randomSettings(type, { count = null, base = null } = {}) {
+  return { type, level: "moyen", groups: [], count, base, perTeam: type === "mimes" && !base ? MIME_PER_TEAM_DEFAULT : null };
+}
+
+/** Équipes de la partie (pour les cartes de mimes par équipe), null tant qu'il n'y en a aucune. */
+const teamsNow = () => Object.keys(live.teams ?? {}).length || null;
+
+/** Ce qui est déjà au programme de la fête (joué ou prévu) : jamais tiré une deuxième fois. */
+const alreadyPlayed = () => playedKeys(live.plan?.questions ?? [], library?.contents);
 
 /** Questions du jeu choisi, d'après sa source (quiz cochés, tirage au hasard) : un nouveau tirage à chaque appel. */
 function drawPicked() {
   const prefix = `a${Date.now().toString(36)}`;
-  const { questions, problems } = gameQuestions(picked.source, library.quizzes, profile ?? "MOYENS", prefix, library.mimes, library.playlists, library.contents);
-  Object.assign(picked, { questions, problems });
+  const avoid = alreadyPlayed();
+  const teams = teamsNow();
+  const notes = [];
+  if (picked.random) {
+    // Tirage dans les collections du jeu, sans rien de ce que la fête a déjà au programme.
+    const rnd = picked.random;
+    const { round, exhausted, count } = randomRound(rnd.type, library, {
+      profile: profile ?? "MOYENS", level: rnd.level, groups: rnd.groups, avoid: avoid[avoidKey(rnd.type)], teams, base: rnd.base ?? undefined,
+      ...(rnd.type === "mimes" && rnd.perTeam ? { perTeam: rnd.perTeam } : rnd.count ? { count: rnd.count } : {}), playlists: library.playlists,
+    });
+    if (!round) {
+      Object.assign(picked, { questions: [], problems: ["Plus rien de nouveau à tirer : tout a déjà été joué pendant la fête (ou rien dans ces catégories)."] });
+      return renderLibrary();
+    }
+    picked.source = round;
+    if (exhausted) notes.push(`Liste plus courte : il ne restait que ${count} ${COLLECTION_UNIT[rnd.type][count > 1 ? 1 : 0]} à tirer pendant cette fête.`);
+  }
+  // Un paquet, un quiz ou une manche choisis exprès se jouent tels quels ; seul le hasard écarte ce qui est déjà passé.
+  const { questions, problems } = gameQuestions(picked.source, library.quizzes, profile ?? "MOYENS", prefix, library.mimes, library.playlists, library.contents, picked.random ? avoid : {}, teams);
+  Object.assign(picked, { questions, problems: [...notes, ...problems] });
   renderLibrary();
 }
 
 /** Jeux tirés au hasard (mimes du catalogue, jeux au buzzer intégrés, Pictionary) : « Nouveau tirage » possible. */
-const isDrawn = (source) => (source.type === "mimes" && source.random) || !!BUILTIN_GAMES[source.type] || source.type === "pictionary";
+const isDrawn = (source) => !!picked?.random || (source.type === "mimes" && source.random) || !!BUILTIN_GAMES[source.type] || source.type === "pictionary";
 
 /** Nom du jeu choisi : avec plusieurs quiz cochés, leurs titres réunis. */
 function pickedName() {
@@ -1466,6 +1550,7 @@ function renderPickedEdit(questions) {
       add(p, chips);
     }
   }
+  if (picked.random) add(...randomPanel(picked.random));
   if (isDrawn(source)) {
     const b = document.createElement("button");
     b.id = "lib-draw";
@@ -1502,6 +1587,41 @@ function renderPickedEdit(questions) {
     };
     add(sel);
   }
+}
+
+/** Réglages du tirage, en puces : difficulté, catégories de la collection, cartes par équipe pour les mimes. */
+function randomPanel(rnd) {
+  const out = [];
+  const chips = (label, items, isOn, toggle, cls) => {
+    const p = document.createElement("p");
+    p.className = "lib-section";
+    p.textContent = label;
+    const row = document.createElement("div");
+    row.className = "lib-chips";
+    items.forEach(([value, text]) => {
+      const c = document.createElement("button");
+      const on = isOn(value);
+      c.className = `lib-chip ${cls}${on ? " on" : ""}`;
+      c.dataset.value = `${value}`;
+      c.setAttribute("aria-pressed", on ? "true" : "false");
+      c.textContent = text;
+      c.onclick = () => { toggle(value); drawPicked(); };
+      row.appendChild(c);
+    });
+    out.push(p, row);
+  };
+  if (rnd.type === "mimes") {
+    const teams = teamsNow() ?? 4;
+    chips(`Cartes par équipe (${teams} équipe${teams > 1 ? "s" : ""}, plus une réserve)`, [[0, `${RANDOM_COUNT.mimes} cartes`], ...MIME_PER_TEAM.map((n) => [n, `${n}`])],
+      (n) => (rnd.perTeam ?? 0) === n, (n) => { rnd.perTeam = n || null; rnd.count = n ? null : RANDOM_COUNT.mimes; }, "lib-per-team");
+  }
+  chips("Difficulté", Object.entries(LEVELS), (k) => rnd.level === k, (k) => { rnd.level = k; }, "lib-level");
+  const groups = collectionGroups(collectionItems(rnd.type, library));
+  if (groups.length > 1) {
+    chips("Catégories (aucune touchée : toutes)", groups.map((g) => [g, g]), (g) => rnd.groups.includes(g),
+      (g) => { rnd.groups = rnd.groups.includes(g) ? rnd.groups.filter((x) => x !== g) : [...rnd.groups, g]; }, "lib-group");
+  }
+  return out;
 }
 
 /** Ce qu'on peut ajouter à la main au jeu choisi : cartes de mimes ou mots du Pictionary absents, éléments d'un jeu intégré. */
@@ -1653,7 +1773,31 @@ async function addPicked(where) {
   const added = chosen.map((q) => ({ ...q, round: title }));
   const index = st.phase === "lobby" ? -1 : st.index ?? -1;
   const place = where === "end" ? "à la fin du programme" : index < 0 ? "au début du programme" : "après la manche en cours";
-  sendProgram(insertGame(current, added, where, index), `« ${title} » est ajouté ${place}.`, true);
+  const keep = picked.random ? liveManche(picked, title) : null;
+  sendProgram(insertGame(current, added, where, index), `« ${title} » est ajouté ${place}.`, true, keep);
+}
+
+/**
+ * Manche tirée en direct, telle que la TV la joue (cartes retirées ou ajoutées comprises) : gardée dans la page du jeu
+ * de la Régie PC (« Jouée en direct »), pour la retrouver ou l'épingler. La régie ne peut qu'en créer, jamais modifier.
+ */
+function liveManche({ random, source, questions }, title) {
+  const type = random.type;
+  const deck = questions.find((q) => q.kind === "mime" || q.kind === "pictionary");
+  let round = { ...source };
+  if (type === "mimes" && deck) round = { ...round, cards: deck.cards, duration: deck.duration };
+  else if (type === "pictionary" && deck) round = { ...round, picks: deck.cards.map((c) => c.word.toLowerCase()), duration: deck.duration };
+  else if (type === "zoom" || type === "flou") round = { ...round, picks: (round.picks ?? []).filter((k) => questions.some((q) => q.imageId === k)) };
+  else if (type === "blind" || type === "musical") round = { ...round, tracks: (round.tracks ?? []).filter((k) => questions.some((q) => q.audioId === k)) };
+  else if (type === "chante" || type === "quisuis") round = { ...round, picks: questions.map((q) => q.choices?.[0]?.toLowerCase()).filter(Boolean), count: questions.length };
+  return () => {
+    const showId = typeof live.plan?.id === "string" && live.plan.id.length <= 40 ? { showId: live.plan.id } : {};
+    const name = `${title} (en direct, ${new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "short" })})`.slice(0, 120);
+    set(push(ref(db, "library/manches")), {
+      type, title: name || defaultMancheTitle(type), round: cleanRound({ ...round, type, perTeam: null }, library?.playlists ?? {}),
+      origin: "direct", createdAt: Date.now(), updatedAt: serverTimestamp(), ...showId,
+    }).catch((e) => console.warn("manche en direct non gardée", e));
+  };
 }
 
 /**
@@ -1661,7 +1805,7 @@ async function addPicked(where) {
  * entre-temps ou si la manche en cours est touchée, et répond dans showStatus/. Rien n'est écrit dans la
  * bibliothèque : ses quiz restent tels quels.
  */
-async function sendProgram(questions, success, fromLibrary = false) {
+async function sendProgram(questions, success, fromLibrary = false, onApplied = null) {
   const plan = live.plan;
   if (editing || !questions || !plan?.rev) return;
   if (questions.length > MAX_QUESTIONS) { toast(`${MAX_QUESTIONS} questions au maximum dans une partie.`); return; }
@@ -1676,6 +1820,7 @@ async function sendProgram(questions, success, fromLibrary = false) {
   const { rounds, base, quiz, ...keep } = previous;
   const done = (message, applied) => {
     editing = false;
+    if (applied) onApplied?.();
     if (applied || fromLibrary) closeLibrary();
     toast(message);
     render();

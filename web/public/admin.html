@@ -94,6 +94,13 @@
         <div class="grid">
           <label>Prénom de l'enfant fêté<input id="show-child" maxlength="40" required></label>
           <label>Âge<input id="show-age" type="number" min="3" max="99"></label>
+          <label>Équipes prévues (devis)
+            <select id="show-teams">
+              <option value="">Non indiqué</option>
+              <option value="1">1 équipe</option><option value="2">2 équipes</option><option value="3">3 équipes</option><option value="4">4 équipes</option>
+              <option value="5">5 équipes</option><option value="6">6 équipes</option><option value="7">7 équipes</option><option value="8">8 équipes</option>
+            </select>
+          </label>
           <label>Date<input id="show-date" type="date"></label>
           <label>Statut
             <select id="show-status">
@@ -138,9 +145,80 @@
       <div id="games-list"></div>
     </section>
 
+    <!-- Page d'un jeu : ses manches (épinglées, les autres, archivées) ; ses collections dans l'onglet voisin. -->
+    <section id="screen-game" class="screen" hidden>
+      <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <b id="game-title">Jeu</b></nav>
+      <h1 id="game-h1">Jeu</h1>
+      <p id="game-rule" class="hint"></p>
+      <div id="game-tabs" class="chips game-tabs"></div>
+      <p class="hint small">Une manche est ce qu'on joue : une sélection piochée dans les collections du jeu, avec ses réglages.
+        Composez-la ici une fois, puis chargez-la dans vos prestations ; épinglez celles qui marchent bien.</p>
+      <div class="row">
+        <button id="manche-new" type="button" class="btn">＋ Composer une manche</button>
+        <button id="manche-random" type="button" class="btn secondary">🎲 Manche au hasard</button>
+      </div>
+      <div id="manches-pinned-box" hidden>
+        <h2>⭐ Manches épinglées</h2>
+        <div id="manches-pinned" class="cards"></div>
+      </div>
+      <h2>Mes manches</h2>
+      <div id="manches-list" class="cards"></div>
+      <details id="manches-archived-box" class="panel">
+        <summary>Manches archivées (<span id="manches-archived-count">0</span>)</summary>
+        <div id="manches-archived" class="cards"></div>
+      </details>
+      <details id="manches-shows-box" class="panel">
+        <summary>Manches des prestations (<span id="manches-shows-count">0</span>)</summary>
+        <p class="hint small">Les manches de ce jeu déjà placées dans une prestation. « Garder comme manche » l'ajoute à vos manches, sans toucher à la prestation.</p>
+        <div id="manches-shows" class="cards"></div>
+      </details>
+      <p id="game-status" class="status"></p>
+    </section>
+
+    <!-- Une manche : son nom, le tirage au hasard dans les collections, son contenu et ses réglages. -->
+    <section id="screen-manche-edit" class="screen" hidden>
+      <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <button id="manche-crumb" class="link" type="button">Jeu</button> › <b id="manche-edit-title">Nouvelle manche</b></nav>
+      <div class="panel grid">
+        <label class="wide">Nom de la manche<input id="manche-title" maxlength="60" placeholder="Mimes des animaux"></label>
+      </div>
+      <div id="manche-random-box" class="panel">
+        <p class="label">🎲 Tirer au hasard dans les collections</p>
+        <div class="grid">
+          <label>Âge des enfants<input id="manche-age" type="number" min="3" max="99" placeholder="8"></label>
+          <label>Difficulté
+            <select id="manche-level">
+              <option value="facile">Facile</option>
+              <option value="moyen" selected>Moyen</option>
+              <option value="difficile">Difficile</option>
+            </select>
+          </label>
+          <label id="manche-count-box">Nombre<input id="manche-count" type="number" min="1" max="60"></label>
+          <label id="manche-teams-box">Équipes prévues
+            <select id="manche-teams">
+              <option value="1">1 équipe</option><option value="2">2 équipes</option><option value="3">3 équipes</option><option value="4" selected>4 équipes</option>
+              <option value="5">5 équipes</option><option value="6">6 équipes</option><option value="7">7 équipes</option><option value="8">8 équipes</option>
+            </select>
+          </label>
+        </div>
+        <p class="hint small">Catégories (aucune cochée : toutes)</p>
+        <div id="manche-groups" class="chips"></div>
+        <div class="row"><button id="manche-draw" type="button" class="btn secondary">🎲 Tirer au hasard</button></div>
+      </div>
+      <div class="panel">
+        <p class="label">Contenu et réglages</p>
+        <div id="manche-fields" class="round manche-round"></div>
+      </div>
+      <div class="actions">
+        <button id="manche-save" type="button" class="btn">Enregistrer</button>
+        <button id="manche-delete" type="button" class="btn danger" hidden>Supprimer</button>
+      </div>
+      <p id="manche-status" class="status"></p>
+    </section>
+
     <!-- Contenu intégré d'un jeu au buzzer : retirer un élément du catalogue, ajouter les siens. -->
     <section id="screen-builtin" class="screen" hidden>
       <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <b id="builtin-title">Jeu</b></nav>
+      <div class="chips game-tabs" data-tabs hidden></div>
       <p id="builtin-rule" class="hint"></p>
       <div class="panel">
         <p class="label"><b id="builtin-count">0</b> · touchez un élément pour le retirer du jeu ou le remettre</p>
@@ -165,6 +243,7 @@
     <!-- Bibliothèque de quiz : création (demande à ChatGPT, tableur, fichier), édition, validation question par question. -->
     <section id="screen-quizzes" class="screen" hidden>
       <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <b>Quiz</b></nav>
+      <div class="chips game-tabs" data-tabs hidden></div>
       <div class="title-row">
         <h1>Bibliothèque de quiz</h1>
         <button id="quiz-import-open" class="btn">Créer un quiz</button>
@@ -184,19 +263,20 @@
     <!-- Mimes : paquets de cartes (image et mot) choisis dans le catalogue intégré, avec la durée d'un tour. -->
     <section id="screen-mimes" class="screen" hidden>
       <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <b>Mimes</b></nav>
+      <div class="chips game-tabs" data-tabs hidden></div>
       <div class="title-row">
-        <h1>Paquets de mimes</h1>
-        <button id="mime-new" class="btn">Nouveau paquet</button>
+        <h1>Collections de cartes</h1>
+        <button id="mime-new" class="btn">Nouvelle collection</button>
       </div>
       <p class="hint">
-        Une manche de mimes se joue équipe par équipe : l'enfant qui devine tourne le dos à la TV, ses
-        coéquipiers miment l'image affichée. Chaque mime trouvé rapporte 50 points.
+        Le catalogue intégré (animaux, métiers, sports…) est toujours disponible. Ajoutez ici vos propres collections de cartes :
+        elles apparaissent comme catégories quand vous composez une manche de mimes.
       </p>
       <div id="mime-list" class="cards"></div>
     </section>
 
     <section id="screen-mime-edit" class="screen" hidden>
-      <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <button class="link" data-screen="mimes">Mimes</button> › <b id="mime-edit-title">Nouveau paquet</b></nav>
+      <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <button class="link" data-screen="mimes">Mimes</button> › <b id="mime-edit-title">Nouvelle collection</b></nav>
       <div class="panel grid">
         <label class="wide">Nom du paquet<input id="mime-title" maxlength="120" placeholder="Animaux et métiers"></label>
         <label>Durée d'un tour
@@ -233,6 +313,7 @@
     <!-- Blind test : playlists d'extraits musicaux importés depuis les fichiers de Sarah. -->
     <section id="screen-music" class="screen" hidden>
       <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <b>Musique</b></nav>
+      <div class="chips game-tabs" data-tabs hidden></div>
       <div class="title-row">
         <h1>Blind test</h1>
         <button id="playlist-new" class="btn">Nouvelle playlist</button>

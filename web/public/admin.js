@@ -16,10 +16,14 @@ import {
   roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC, PICTO_SECONDS, PICTO_SEC, PICTO_POINTS, PICTO_RULE,
   blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras, contentSlot, contentImages,
   pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches, isArchived, AUTO_ARCHIVE_DAYS, quizKind,
-  roundQuizIds, roundPicks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS,
+  roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS,
   isStatuesList, statuesSongs, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS,
 } from "./show.js";
 import { shuffle } from "./mime-cards.js";
+import {
+  MANCHE_TYPES, COLLECTION_UNIT, RANDOM_TYPES, RANDOM_COUNT, MIME_PER_TEAM, MIME_PER_TEAM_DEFAULT, LEVELS, collectionItems, collectionGroups,
+  filterItems, drawItems, randomRound, cleanRound, mancheGroups, mancheSummary, defaultMancheTitle, mimeCardsNeeded,
+} from "./manches.js";
 import { PICTO_OWN_SERIES } from "./picto-cards.js";
 import { EXTRACT_SECONDS, guessTrack, defaultStart, decodeFile, makeExtract, synthTune, encodeMp3, soundId } from "./audio.js";
 import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
@@ -87,6 +91,8 @@ let shows = {};
 let mimes = {};
 let playlists = {};
 let contents = {};
+/** Manches enregistrées (page Manches de chaque jeu), par identifiant. */
+let manches = {};
 let stops = [];
 let current = "home";
 
@@ -112,11 +118,13 @@ function status(id, text, ok = false) {
   $(id).classList.toggle("ok", ok);
 }
 
-const SCREENS = ["login", "home", "shows", "show-edit", "games", "builtin", "quizzes", "import", "review", "settings", "mimes", "mime-edit", "music", "playlist-edit", "banque"];
+const SCREENS = ["login", "home", "shows", "show-edit", "games", "game", "manche-edit", "builtin", "quizzes", "import", "review", "settings", "mimes", "mime-edit", "music", "playlist-edit", "banque"];
 function show(name) {
   // Quiz, mimes et musique se rangent sous « Jeux » dans le menu (cedric) : c'est l'onglet Jeux qui reste allumé.
   if (["home", "shows", "games", "settings"].includes(name)) current = name;
-  if (["quizzes", "mimes", "music", "builtin", "import", "review", "mime-edit", "playlist-edit", "banque"].includes(name)) current = "games";
+  if (["game", "manche-edit", "quizzes", "mimes", "music", "builtin", "import", "review", "mime-edit", "playlist-edit", "banque"].includes(name)) current = "games";
+  // Le menu Jeux remet à zéro le jeu ouvert (plus d'onglets Manches / Collections).
+  if (name === "games") gameType = null;
   SCREENS.forEach((s) => { $(`screen-${s}`).hidden = s !== name; });
   document.querySelectorAll("#nav button").forEach((b) => b.classList.toggle("active", b.dataset.screen === current));
   window.scrollTo(0, 0);
@@ -126,6 +134,7 @@ function show(name) {
   if (name === "quizzes") renderQuizzes();
   if (name === "mimes") renderMimes();
   if (name === "music") renderPlaylists();
+  if (["quizzes", "mimes", "music", "builtin"].includes(name)) paintCollectionTabs(name);
   if (name !== "playlist-edit") stopPreview();
   if (name === "settings") showLastChange();
 }
@@ -213,6 +222,8 @@ function enter() {
   stops.push(onValue(ref(db, "library/mimes"), (s) => { mimes = s.val() ?? {}; refreshLists(); }, lost));
   stops.push(onValue(ref(db, "library/playlists"), (s) => { playlists = s.val() ?? {}; refreshLists(); }, lost));
   stops.push(onValue(ref(db, "library/contents"), (s) => { contents = s.val() ?? {}; refreshLists(); }, lost));
+  // Manches : une lecture refusée (règles pas encore publiées) ne ferme pas l'administration.
+  stops.push(onValue(ref(db, "library/manches"), (s) => { manches = s.val() ?? {}; refreshLists(); }, (e) => console.error(e)));
   // Box : une lecture refusée ne doit pas fermer l'administration (règles pas encore publiées).
   stops.push(onValue(ref(db, "boxes/requests"), (s) => { boxRequests = s.val() ?? {}; renderBoxes(); }, (e) => console.error(e)));
   stops.push(onValue(ref(db, "boxes/allowed"), (s) => { boxAllowed = s.val() ?? {}; renderBoxes(); }, (e) => console.error(e)));
@@ -231,6 +242,7 @@ function refreshLists() {
   if (!$("screen-mimes").hidden) renderMimes();
   if (!$("screen-music").hidden) renderPlaylists();
   if (!$("screen-show-edit").hidden) refreshRounds();
+  if (!$("screen-game").hidden) renderGame();
 }
 
 const byDate = ([, a], [, b]) => (a.date ?? "9999").localeCompare(b.date ?? "9999");
@@ -272,7 +284,8 @@ function renderHomeGames() {
     h("h3", { text: group.title }),
     h("div", { class: "tiles" }, ...group.games.map((g) => {
       const { line, actions } = gameInfo(g);
-      const open = actions[0]?.[1] ?? (() => openGameCard(g.type));
+      // Une tuile ouvre la page du jeu : ses manches, et ses collections dans l'onglet voisin.
+      const open = () => openGame(g.type);
       return h("button", { class: "tile", "data-game": g.type, ...(GAME_SCREENS[g.type] ? { "data-screen": GAME_SCREENS[g.type] } : {}), onclick: open },
         h("span", { class: "tile-icon", text: g.icon }), h("b", { text: ROUND_TYPES[g.type] }), h("span", { text: line }));
     })))));
@@ -280,16 +293,6 @@ function renderHomeGames() {
 
 /** Page de contenu des tuiles principales (repère pour les tests et l'aide). */
 const GAME_SCREENS = { quiz: "quizzes", mimes: "mimes", blind: "music" };
-
-/** Fiche d'un jeu sur la page Jeux (jeux sans contenu à préparer), mise en avant. */
-function openGameCard(type) {
-  show("games");
-  const card = document.querySelector(`.game-card[data-game="${type}"]`);
-  if (!card) return;
-  card.scrollIntoView({ block: "center" });
-  card.classList.add("flash");
-  setTimeout(() => card.classList.remove("flash"), 1600);
-}
 
 /** « 18 questions · 1 manche de mimes » : ce que contient une prestation. */
 function contentLabel(snapshot) {
@@ -511,6 +514,7 @@ function editShow(id, from = null) {
   $("show-edit-title").textContent = id ? showTitle(s) : from ? `Copie de « ${showTitle(from)} »` : "Nouvelle prestation";
   $("show-child").value = s.childName ?? "";
   $("show-age").value = s.age ?? "";
+  $("show-teams").value = s.teams ?? "";
   $("show-date").value = s.date ?? "";
   $("show-status").value = s.status ?? "brouillon";
   $("show-title").value = s.title ?? "";
@@ -528,7 +532,7 @@ function editShow(id, from = null) {
 }
 
 /** Champs de la fiche d'une prestation, gardés par « Retour » et « Annuler les modifications ». */
-const SHOW_FIELDS = ["show-child", "show-age", "show-date", "show-status", "show-title", "show-profile", "show-duration", "show-themes", "show-notes"];
+const SHOW_FIELDS = ["show-child", "show-age", "show-teams", "show-date", "show-status", "show-title", "show-profile", "show-duration", "show-themes", "show-notes"];
 const histPrestation = historique({
   ecran: $("screen-show-edit"),
   capturer: () => ({ rounds: editing?.rounds ?? [], champs: SHOW_FIELDS.map((id) => $(id).value) }),
@@ -551,16 +555,8 @@ function formShow() {
     durationMin: num($("show-duration").value),
     themes: $("show-themes").value.trim() || null,
     notes: $("show-notes").value.trim() || null,
-    rounds: editing.rounds.filter(roundFilled).map((r) => (BUILTIN_GAMES[r.type] ? { type: r.type, count: r.count ?? BUILTIN_GAMES[r.type].count, ...(r.type === "disparu" && r.objects ? { objects: r.objects } : {}), ...picksOf(r) }
-      // Mimes : un paquet, ou le catalogue au hasard ; cartes choisies (tirage modifié à la main) gardées dans la manche.
-      : r.type === "mimes" ? { type: "mimes", ...(r.deckId ? { deckId: r.deckId } : { random: true }), ...(mimeCards(r.cards).length ? { cards: mimeCards(r.cards).slice(0, 200) } : {}) }
-      : r.type === "statues" ? { type: "statues", duration: r.duration ?? STATUES_SEC, ...(roundSongs(r, playlists).length ? { songs: roundSongs(r, playlists).map((t) => t.audioId) } : {}) }
-      : r.type === "pictionary" ? { type: "pictionary", duration: r.duration ?? PICTO_SEC, ...(pictoRoundSeries(r) ? { series: pictoRoundSeries(r) } : {}), ...picksOf(r) }
-      : r.type === "coffres" ? { type: "coffres" }
-      : r.type === "gonfleur" ? { type: "gonfleur" }
-      : r.type === "patate" ? { type: "patate" }
-      : MUSIC_GAMES[r.type] ? { type: r.type, playlistId: r.playlistId }
-      : { type: r.type ?? "quiz", quizId: roundQuizIds(r)[0], ...(roundQuizIds(r).length > 1 ? { quizIds: roundQuizIds(r) } : {}), ...(r.count > 0 ? { count: r.count } : {}), ...((r.type ?? "quiz") === "quiz" && r.finale > 0 ? { finale: r.finale } : {}) })),
+    teams: num($("show-teams").value),
+    rounds: editing.rounds.filter(roundFilled).map((r) => cleanRound(r, playlists)),
   };
 }
 
@@ -573,6 +569,13 @@ function formProfile() {
   const age = $("show-age").value === "" ? null : Number($("show-age").value);
   return PROFILES[v] ? v : profileForAge(age);
 }
+
+/**
+ * Écran qui édite des manches (la prestation, ou une manche seule dans la page d'un jeu) : ce que les sélecteurs
+ * redessinent quand on change quelque chose, et l'âge qui règle leurs tirages au hasard.
+ */
+let roundCtx = { refresh: () => refreshRounds(), summary: () => refreshSummary(), profile: () => formProfile() };
+const prestationCtx = roundCtx;
 
 /** Mots du Pictionary tirés par « Tirer au hasard ». */
 const PICTO_DRAW = 24;
@@ -588,7 +591,7 @@ function selectionEditor({ items, get, set, draw, unit, empty, own }) {
     const all = items();
     const byKey = new Map(all.map((x) => [x.key, x]));
     const chosen = get();
-    const change = (keys) => { set(keys); paint(); refreshSummary(); };
+    const change = (keys) => { set(keys); paint(); roundCtx.summary(); };
     const groups = [...new Set(all.filter((x) => !chosen.includes(x.key)).map((x) => x.group ?? ""))];
     const e = unit === "carte" || unit === "famille" ? "e" : "";
     const n = chosen.length;
@@ -624,7 +627,7 @@ function mimeSelection(r) {
   const extra = new Map(mimeCards(r.cards).map((c) => [c.word.toLowerCase(), c]));
   const pool = () => {
     const deck = r.deckId ? mimes[r.deckId] : null;
-    const list = deck ? mimeCards(deck.cards).map((c) => ({ card: c })) : MIME_CATALOG.map((c) => ({ card: mimeCards([c])[0], group: c.theme }));
+    const list = deck ? mimeCards(deck.cards).map((c) => ({ card: c })) : collectionItems("mimes", { mimes }).map((x) => ({ card: x.value, group: x.group }));
     list.forEach((x) => extra.set(x.card.word.toLowerCase(), extra.get(x.card.word.toLowerCase()) ?? x.card));
     return list;
   };
@@ -640,7 +643,11 @@ function mimeSelection(r) {
     },
     get: () => mimeCards(r.cards).map((c) => c.word.toLowerCase()),
     set: (keys) => { r.cards = keys.map((k) => extra.get(k)).filter(Boolean); },
-    draw: () => mimeDraw({ deckId: r.deckId }, mimes, formProfile()).map((c) => { extra.set(c.word.toLowerCase(), c); return c.word.toLowerCase(); }),
+    draw: () => (r.deckId
+      ? mimeDraw({ deckId: r.deckId }, mimes, roundCtx.profile()).map((c) => { extra.set(c.word.toLowerCase(), c); return c.word.toLowerCase(); })
+      // Toutes les collections : autant de cartes que les équipes prévues en demandent (sinon le tirage habituel).
+      : drawItems(filterItems(collectionItems("mimes", { mimes }), { profile: roundCtx.profile() }), mimeCardsNeeded(r, ctxTeams()) || MIME_RANDOM).items
+        .map((x) => { extra.set(x.key, x.value); return x.key; })),
     own: (word) => {
       const c = mimeCards([{ word }])[0];
       if (!c) return null;
@@ -664,10 +671,10 @@ function picksSelection(r) {
       const had = roundPicks(r).length > 0;
       r.picks = keys.length ? keys : null;
       // Le nombre d'éléments ne sert qu'au tirage au lancement : caché dès qu'on choisit, remis sinon.
-      if (had !== keys.length > 0) queueMicrotask(refreshRounds);
+      if (had !== keys.length > 0) queueMicrotask(() => roundCtx.refresh());
     },
     draw: () => {
-      const profile = formProfile();
+      const profile = roundCtx.profile();
       if (r.type === "pictionary") {
         const series = pictoRoundSeries(r);
         const words = activeItems("pictionary", contents.pictionary).filter((w) => (profile !== "PETITS" || w.level !== 2) && (!series || series.includes(pictoSeriesOf(w))));
@@ -687,7 +694,7 @@ function quizSelection(r, options) {
     const clean = [...new Set(list.filter(Boolean))];
     r.quizId = clean[0] ?? "";
     r.quizIds = clean.length > 1 ? clean : null;
-    refreshRounds();
+    roundCtx.refresh();
   };
   const select = (current, k) => h("select", {
     class: "grow", "aria-label": k === 0 ? "Quiz de la manche" : `Quiz ${k + 1} de la manche`,
@@ -720,7 +727,7 @@ function pictoSeriesPicker(r) {
   const draw = () => {
     const chosen = pictoRoundSeries(r) ?? [];
     const count = words.filter((w) => !chosen.length || chosen.includes(pictoSeriesOf(w))).length;
-    const set = (list) => { r.series = list.length ? list : null; draw(); refreshSummary(); };
+    const set = (list) => { r.series = list.length ? list : null; draw(); roundCtx.summary(); };
     box.replaceChildren(...[
       h("span", { class: "small", text: chosen.length ? `Séries : ${count} mots` : `Toutes les séries : ${count} mots` }),
       ...all.map((name) => h("button", {
@@ -759,7 +766,7 @@ function songsPicker(r) {
           const keep = new Set(r.songs);
           if (e.target.checked) keep.add(t.audioId); else keep.delete(t.audioId);
           r.songs = songs.map((x) => x.audioId).filter((id) => keep.has(id)).slice(0, MAX_STATUES_SONGS);
-          refreshRounds();
+          roundCtx.refresh();
         },
       }),
       t.artist?.trim() ? `${t.title} (${t.artist.trim()})` : t.title)),
@@ -768,89 +775,187 @@ function songsPicker(r) {
 
 function refreshRounds() {
   if (!editing) return;
+  roundCtx = prestationCtx;
   refreshReuse();
   const box = $("show-rounds");
   box.innerHTML = "";
-  const options = Object.entries(quizzes).sort(([, a], [, b]) => a.title.localeCompare(b.title));
-  const decks = Object.entries(mimes).sort(([, a], [, b]) => a.title.localeCompare(b.title));
-  const lists = Object.entries(playlists).filter(([, p]) => !isStatuesList(p)).sort(([, a], [, b]) => a.title.localeCompare(b.title));
   if (!editing.rounds.length) box.append(h("p", { class: "hint small", text: "Ajoutez au moins une manche." }));
   editing.rounds.forEach((r, i) => {
     const move = (d) => { const [x] = editing.rounds.splice(i, 1); editing.rounds.splice(i + d, 0, x); refreshRounds(); };
     box.append(h("div", { class: "round" },
       h("span", { class: "num", text: `${i + 1}` }),
-      h("select", { "aria-label": "Type de manche", onchange: (e) => { r.type = e.target.value; refreshRounds(); } },
+      h("select", { "aria-label": "Type de manche", onchange: (e) => { editing.rounds[i] = { type: e.target.value }; refreshRounds(); } },
         // La Super Finale n'est pas un jeu : c'est un réglage de la manche Quiz (ses dernières questions ×2).
         ...Object.entries(ROUND_TYPES).filter(([k]) => k !== "finale" && k !== "portes").map(([k, label]) => h("option", {
           value: k, selected: (r.type ?? "quiz") === k, text: label,
         }))),
-      BUILTIN_GAMES[r.type]
-        // Jeux au buzzer intégrés : rien à préparer, seulement combien de mots ou de personnages.
-        ? h("div", { class: "grow picto-round" },
-          roundPicks(r).length ? null : h("select", { class: "grow", "aria-label": "Nombre", onchange: (e) => { r.count = Number(e.target.value); refreshSummary(); } },
-            ...[4, 5, 6, 8, 10].map((n) => h("option", {
-              value: n, selected: (r.count ?? BUILTIN_GAMES[r.type].count) === n,
-              text: `${n} ${BUILTIN_GAMES[r.type].unit}s (${BUILTIN_GAMES[r.type].rule})`,
-            }))),
-          picksSelection(r))
-        : r.type === "statues"
-        // Statues musicales : la durée de la musique et les chansons cochées (aucune : la musique de la fête).
-        ? h("div", { class: "grow picto-round" },
-          h("select", { class: "grow", "aria-label": "Durée", onchange: (e) => { r.duration = Number(e.target.value); refreshSummary(); } },
-            ...STATUES_SECONDS.map((n) => h("option", { value: n, selected: (r.duration ?? STATUES_SEC) === n, text: `${n} secondes de musique (on danse, on se fige à l'arrêt ; vous désignez l'équipe gagnante)` }))),
-          songsPicker(r))
-        : r.type === "pictionary"
-        // Pictionary : les mots viennent du catalogue (page Jeux) ; le temps de dessin et les séries de mots.
-        ? h("div", { class: "grow picto-round" },
-          h("select", { "aria-label": "Temps de dessin", onchange: (e) => { r.duration = Number(e.target.value); refreshSummary(); } },
-            ...PICTO_SECONDS.map((n) => h("option", { value: n, selected: (r.duration ?? PICTO_SEC) === n, text: `${n} secondes de dessin par équipe (un mot par tour, ${PICTO_POINTS} points s'il est trouvé)` }))),
-          pictoSeriesPicker(r),
-          picksSelection(r))
-        : r.type === "coffres"
-        // La bombe cachée : rien à préparer, le nombre de coffres suit le nombre d'équipes.
-        ? h("span", { class: "grow hint small", text: "Rien à préparer : le nombre de coffres suit le nombre d'équipes. Idéal en dernier jeu." })
-        : r.type === "patate"
-        ? h("span", { class: "grow hint small", text: "Rien à préparer : la TV tire la mèche au sort, la bombe part d'une équipe au hasard." })
-        : r.type === "gonfleur"
-        ? h("span", { class: "grow hint small", text: "Rien à préparer : chaque équipe tapote sa tablette, le premier ballon qui éclate gagne." })
-        : MUSIC_GAMES[r.type]
-        ? h("select", { class: "grow", "aria-label": "Playlist", onchange: (e) => { r.playlistId = e.target.value; refreshSummary(); } },
-          h("option", { value: "", text: lists.length ? "Choisir une playlist…" : "Aucune playlist : créez-en une dans Blind test" }),
-          ...lists.map(([pid, p]) => h("option", { value: pid, selected: r.playlistId === pid, text: `${p.title} (${playableTracks(p).length} morceaux, extraits de ${p.duration ?? BLIND_SEC} s)` })))
-        : r.type === "mimes"
-        ? h("div", { class: "grow picto-round" },
-          h("select", {
-            class: "grow", "aria-label": "Paquet de mimes",
-            // Changer de paquet repart d'un tirage au lancement : les cartes choisies venaient de l'autre.
-            onchange: (e) => { const v = e.target.value; r.random = v === "hasard"; r.deckId = v === "hasard" ? null : v; r.cards = null; refreshRounds(); },
-          },
-          h("option", { value: "", text: "Choisir un paquet de mimes…" }),
-          h("option", { value: "hasard", selected: !r.deckId && r.random === true, text: `🎲 Cartes du catalogue, selon l'âge (${MIME_RANDOM} au hasard, ou choisies ci-dessous)` }),
-          ...decks.map(([did, d]) => h("option", { value: did, selected: r.deckId === did, text: `${d.title} (${(d.cards ?? []).length} cartes, tour de ${d.duration ?? MIME_TURN} s)` }))),
-          r.deckId || r.random === true || mimeCards(r.cards).length ? mimeSelection(r) : null)
-        : quizSelection(r, options),
-      // Qui a disparu ? : objets par grille, pour régler la difficulté (par défaut selon l'âge de la prestation).
-      r.type === "disparu"
-        ? h("select", { class: "count", "aria-label": "Objets par grille", onchange: (e) => { r.objects = Number(e.target.value) || null; refreshSummary(); } },
-          h("option", { value: "", text: "Objets : selon l'âge" }),
-          ...[4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => h("option", { value: n, selected: r.objects === n, text: `${n} objets par grille` })))
-        : null,
-      // Jeux tirés d'un quiz : toutes ses questions retenues, ou seulement les premières.
-      !BUILTIN_GAMES[r.type] && r.type !== "statues" && r.type !== "pictionary" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "mimes" && !MUSIC_GAMES[r.type]
-        ? h("select", { class: "count", "aria-label": "Nombre de questions", onchange: (e) => { r.count = Number(e.target.value) || null; refreshSummary(); } },
-          h("option", { value: "", text: "Toutes les questions" }),
-          ...[1, 2, 3, 4, 5, 6, 8, 10, 12, 15].map((n) => h("option", { value: n, selected: r.count === n, text: n === 1 ? "La première seulement" : `Les ${n} premières` })))
-        : null,
-      (r.type ?? "quiz") === "quiz"
-        ? h("select", { class: "finale", "aria-label": "Super Finale", onchange: (e) => { r.finale = Number(e.target.value) || null; refreshSummary(); } },
-          h("option", { value: "", text: "Sans Super Finale" }),
-          ...[1, 2, 3, 4, 5].map((n) => h("option", { value: n, selected: r.finale === n, text: n === 1 ? "Super Finale : la dernière question ×2" : `Super Finale : les ${n} dernières ×2` })))
-        : null,
+      ...roundFields(r),
+      mancheTools(r, (next) => { editing.rounds[i] = next; refreshRounds(); }),
       h("button", { type: "button", class: "icon", title: "Monter", disabled: i === 0, onclick: () => move(-1), text: "↑" }),
       h("button", { type: "button", class: "icon", title: "Descendre", disabled: i === editing.rounds.length - 1, onclick: () => move(1), text: "↓" }),
       h("button", { type: "button", class: "icon", title: "Retirer", onclick: () => { editing.rounds.splice(i, 1); refreshRounds(); }, text: "✕" })));
   });
   refreshSummary();
+}
+
+/**
+ * Manche d'une prestation : « Charger une manche… » la remplace par une copie d'une manche enregistrée (les
+ * épinglées d'abord) ; « 💾 » enregistre celle qu'on vient de composer dans la page du jeu, pour la retrouver.
+ */
+function mancheTools(r, replace) {
+  const type = r.type ?? "quiz";
+  const { pinned, active } = mancheGroups(manches, type);
+  const list = [...pinned, ...active];
+  return h("span", { class: "manche-tools" },
+    list.length ? h("select", {
+      class: "manche-load", "aria-label": "Charger une manche enregistrée",
+      onchange: (e) => {
+        const m = manches[e.target.value];
+        if (m) replace({ ...cleanRound(m.round, playlists), mancheId: e.target.value, title: m.title });
+      },
+    },
+    h("option", { value: "", text: "Charger une manche…" }),
+    ...list.map(([id, m]) => h("option", { value: id, selected: r.mancheId === id, text: `${m.pinned ? "⭐ " : ""}${m.title} (${mancheSummary(m.round, { mimes, playlists, quizzes })})` }))) : null,
+    roundFilled(r) && type !== "coffres" && type !== "patate" && type !== "gonfleur" ? h("button", {
+      type: "button", class: "icon manche-save", title: "Enregistrer comme manche (page du jeu)", text: "💾",
+      onclick: async () => {
+        const title = prompt("Nom de la manche :", r.title ?? defaultMancheTitle(type));
+        if (!title?.trim()) return;
+        const id = await saveManche(null, { type, title: title.trim(), round: cleanRound(r, playlists) });
+        if (id) { r.mancheId = id; r.title = title.trim().slice(0, 60); refreshRounds(); status("show-status-msg", `Manche « ${title.trim()} » enregistrée dans la page ${ROUND_TYPES[type]}.`, true); }
+      },
+    }) : null);
+}
+
+/** Nombre d'équipes de l'écran en cours (prestation, ou réglage du tirage d'une manche seule). */
+const ctxTeams = () => (typeof roundCtx.teams === "function" ? roundCtx.teams() : $("show-teams").value === "" ? null : Number($("show-teams").value));
+
+/** Contenu et réglages d'une manche, selon son jeu : les mêmes dans une prestation et dans la page d'un jeu. */
+function roundFields(r) {
+  const options = Object.entries(quizzes).sort(([, a], [, b]) => a.title.localeCompare(b.title));
+  const decks = Object.entries(mimes).sort(([, a], [, b]) => a.title.localeCompare(b.title));
+  const lists = Object.entries(playlists).filter(([, p]) => !isStatuesList(p)).sort(([, a], [, b]) => a.title.localeCompare(b.title));
+  const photos = r.type === "zoom" || r.type === "flou";
+  const content = BUILTIN_GAMES[r.type]
+    // Jeux au buzzer intégrés : rien à préparer, seulement combien de mots ou de personnages.
+    ? h("div", { class: "grow picto-round" },
+      roundPicks(r).length ? null : h("select", { class: "grow", "aria-label": "Nombre", onchange: (e) => { r.count = Number(e.target.value); roundCtx.summary(); } },
+        ...[4, 5, 6, 8, 10].map((n) => h("option", {
+          value: n, selected: (r.count ?? BUILTIN_GAMES[r.type].count) === n,
+          text: `${n} ${BUILTIN_GAMES[r.type].unit}s (${BUILTIN_GAMES[r.type].rule})`,
+        }))),
+      picksSelection(r))
+    : r.type === "statues"
+    // Statues musicales : la durée de la musique et les chansons cochées (aucune : la musique de la fête).
+    ? h("div", { class: "grow picto-round" },
+      h("select", { class: "grow", "aria-label": "Durée", onchange: (e) => { r.duration = Number(e.target.value); roundCtx.summary(); } },
+        ...STATUES_SECONDS.map((n) => h("option", { value: n, selected: (r.duration ?? STATUES_SEC) === n, text: `${n} secondes de musique (on danse, on se fige à l'arrêt ; vous désignez l'équipe gagnante)` }))),
+      songsPicker(r))
+    : r.type === "pictionary"
+    // Pictionary : les mots viennent du catalogue (page Jeux) ; le temps de dessin et les séries de mots.
+    ? h("div", { class: "grow picto-round" },
+      h("select", { "aria-label": "Temps de dessin", onchange: (e) => { r.duration = Number(e.target.value); roundCtx.summary(); } },
+        ...PICTO_SECONDS.map((n) => h("option", { value: n, selected: (r.duration ?? PICTO_SEC) === n, text: `${n} secondes de dessin par équipe (un mot par tour, ${PICTO_POINTS} points s'il est trouvé)` }))),
+      pictoSeriesPicker(r),
+      picksSelection(r))
+    : r.type === "coffres"
+    // La bombe cachée : rien à préparer, le nombre de coffres suit le nombre d'équipes.
+    ? h("span", { class: "grow hint small", text: "Rien à préparer : le nombre de coffres suit le nombre d'équipes. Idéal en dernier jeu." })
+    : r.type === "patate"
+    ? h("span", { class: "grow hint small", text: "Rien à préparer : la TV tire la mèche au sort, la bombe part d'une équipe au hasard." })
+    : r.type === "gonfleur"
+    ? h("span", { class: "grow hint small", text: "Rien à préparer : chaque équipe tapote sa tablette, le premier ballon qui éclate gagne." })
+    : MUSIC_GAMES[r.type]
+    // Blind test, quiz musical : une playlist entière, ou des titres choisis un par un dans toutes les playlists.
+    ? h("div", { class: "grow picto-round" },
+      modeSwitch(r, roundTracks(r).length > 0 || r.byItem === true, "Une playlist entière", "Des titres au choix", (on) => {
+        r.byItem = on;
+        if (on) { r.tracks = r.playlistId ? playableTracks(playlists[r.playlistId]).map((t) => t.audioId).slice(0, MAX_PICKS) : []; r.playlistId = ""; } else r.tracks = null;
+      }),
+      roundTracks(r).length || r.byItem
+        ? itemSelection(r, "tracks")
+        : h("select", { class: "grow", "aria-label": "Playlist", onchange: (e) => { r.playlistId = e.target.value; roundCtx.summary(); } },
+          h("option", { value: "", text: lists.length ? "Choisir une playlist…" : "Aucune playlist : créez-en une dans Blind test" }),
+          ...lists.map(([pid, p]) => h("option", { value: pid, selected: r.playlistId === pid, text: `${p.title} (${playableTracks(p).length} morceaux, extraits de ${p.duration ?? BLIND_SEC} s)` }))))
+    : r.type === "mimes"
+    ? h("div", { class: "grow picto-round" },
+      h("select", {
+        class: "grow", "aria-label": "Paquet de mimes",
+        // Changer de paquet repart d'un tirage au lancement : les cartes choisies venaient de l'autre.
+        onchange: (e) => { const v = e.target.value; r.random = v === "hasard"; r.deckId = v === "hasard" ? null : v; r.cards = null; roundCtx.refresh(); },
+      },
+      h("option", { value: "", text: "Choisir les cartes…" }),
+      h("option", { value: "hasard", selected: !r.deckId && (r.random === true || mimeCards(r.cards).length > 0), text: "🎲 Toutes les collections (au hasard selon l'âge, ou choisies ci-dessous)" }),
+      ...decks.map(([did, d]) => h("option", { value: did, selected: r.deckId === did, text: `Toutes les cartes de « ${d.title} » (${(d.cards ?? []).length})` }))),
+      h("select", { class: "count mime-per-team", "aria-label": "Cartes par équipe", onchange: (e) => { r.perTeam = Number(e.target.value) || null; roundCtx.refresh(); } },
+        h("option", { value: "", text: "Cartes par équipe : la liste telle quelle" }),
+        ...MIME_PER_TEAM.map((n) => h("option", { value: n, selected: r.perTeam === n, text: `${n} cartes par équipe` }))),
+      h("select", { class: "count", "aria-label": "Durée du tour", onchange: (e) => { r.duration = Number(e.target.value) || null; roundCtx.summary(); } },
+        h("option", { value: "", text: `Tour : ${r.deckId && mimes[r.deckId]?.duration ? mimes[r.deckId].duration : MIME_TURN} s` }),
+        ...[30, 45, 60, 90, 120].map((n) => h("option", { value: n, selected: r.duration === n, text: `Tour de ${n} s par équipe` }))),
+      mimeNeedLine(r),
+      r.deckId || r.random === true || mimeCards(r.cards).length ? mimeSelection(r) : null)
+    : photos
+    // Zoom mystère, Image floue : un quiz entier, ou des photos choisies une par une dans tous les quiz.
+    ? h("div", { class: "grow picto-round" },
+      modeSwitch(r, roundPicks(r).length > 0 || r.byItem === true, "Les photos d'un quiz", "Des photos au choix", (on) => {
+        r.byItem = on;
+        if (on) { r.picks = roundQuizIds(r).flatMap((id) => (quizzes[id] ? zoomQuestions(quizzes[id]) : []).map((q) => q.imageId)).slice(0, MAX_PICKS); r.quizId = ""; r.quizIds = null; } else r.picks = null;
+      }),
+      roundPicks(r).length || r.byItem ? itemSelection(r, "picks") : quizSelection(r, options))
+    : quizSelection(r, options);
+  return [
+    content,
+    // Qui a disparu ? : objets par grille, pour régler la difficulté (par défaut selon l'âge de la prestation).
+    r.type === "disparu"
+      ? h("select", { class: "count", "aria-label": "Objets par grille", onchange: (e) => { r.objects = Number(e.target.value) || null; roundCtx.summary(); } },
+        h("option", { value: "", text: "Objets : selon l'âge" }),
+        ...[4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => h("option", { value: n, selected: r.objects === n, text: `${n} objets par grille` })))
+      : null,
+    // Jeux tirés d'un quiz : toutes ses questions retenues, ou seulement les premières.
+    !BUILTIN_GAMES[r.type] && r.type !== "statues" && r.type !== "pictionary" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "mimes" && !MUSIC_GAMES[r.type] && !(photos && (roundPicks(r).length || r.byItem))
+      ? h("select", { class: "count", "aria-label": "Nombre de questions", onchange: (e) => { r.count = Number(e.target.value) || null; roundCtx.summary(); } },
+        h("option", { value: "", text: "Toutes les questions" }),
+        ...[1, 2, 3, 4, 5, 6, 8, 10, 12, 15].map((n) => h("option", { value: n, selected: r.count === n, text: n === 1 ? "La première seulement" : `Les ${n} premières` })))
+      : null,
+    (r.type ?? "quiz") === "quiz"
+      ? h("select", { class: "finale", "aria-label": "Super Finale", onchange: (e) => { r.finale = Number(e.target.value) || null; roundCtx.summary(); } },
+        h("option", { value: "", text: "Sans Super Finale" }),
+        ...[1, 2, 3, 4, 5].map((n) => h("option", { value: n, selected: r.finale === n, text: n === 1 ? "Super Finale : la dernière question ×2" : `Super Finale : les ${n} dernières ×2` })))
+      : null,
+  ];
+}
+
+/** Deux façons de remplir une manche (une source entière, ou des éléments au choix) : deux puces. */
+function modeSwitch(r, byItem, whole, items, set) {
+  const chip = (on, text) => h("button", {
+    type: "button", class: `chip mode-chip${byItem === on ? " active" : ""}`, "aria-pressed": byItem === on ? "true" : "false", text,
+    onclick: () => { if (byItem !== on) { set(on); roundCtx.refresh(); } },
+  });
+  return h("div", { class: "chips mode-switch" }, chip(false, whole), chip(true, items));
+}
+
+/** Photos (Zoom, Image floue) ou titres (blind test, quiz musical) choisis un par un dans toutes les collections. */
+function itemSelection(r, field) {
+  const items = () => collectionItems(r.type, { quizzes, playlists });
+  const unit = COLLECTION_UNIT[r.type][0];
+  return selectionEditor({
+    unit,
+    empty: `Aucun ${unit} choisi : cochez-en, ou « Tirer au hasard ».`,
+    items: () => items().map((x) => ({ key: x.key, label: x.label, group: x.group })),
+    get: () => (field === "tracks" ? roundTracks(r) : roundPicks(r)),
+    set: (keys) => { r[field] = keys; },
+    draw: () => drawItems(items(), RANDOM_COUNT[r.type] ?? 6).items.map((x) => x.key),
+  });
+}
+
+/** Mimes : combien de cartes prévoir pour les équipes de la prestation, et combien sont choisies. */
+function mimeNeedLine(r) {
+  const need = mimeCardsNeeded(r, ctxTeams());
+  if (!need) return null;
+  const chosen = mimeCards(r.cards).length;
+  const teams = ctxTeams() ?? 4;
+  return h("span", { class: `small mime-need${chosen && chosen < need ? " warn" : ""}`, text: `${r.perTeam} par équipe × ${teams} équipe${teams > 1 ? "s" : ""}${ctxTeams() ? "" : " (nombre non indiqué)"} = ${need} cartes${chosen ? ` · ${chosen} choisies` : ""}${chosen && chosen < need ? " : le reste est tiré au hasard au lancement" : ""} · réserve pour 2 équipes de plus` });
 }
 
 function refreshSummary() {
@@ -870,6 +975,8 @@ function refreshSummary() {
       : h("div", {}, h("b", { text: "Reste à faire avant le jour J :" }), h("ul", {}, ...r.todo.map((t) => h("li", { text: t })))));
 }
 ["show-age", "show-profile", "show-child", "show-title", "show-date", "show-status"].forEach((id) => $(id).addEventListener("input", refreshSummary));
+// Le nombre d'équipes change ce qu'il faut prévoir pour les mimes : les manches sont redessinées.
+$("show-teams").addEventListener("change", refreshRounds);
 $("round-add").onclick = () => { editing.rounds.push({ type: "quiz", quizId: "" }); refreshRounds(); };
 
 /**
@@ -1999,7 +2106,7 @@ $("mime-new").onclick = () => editDeck(null);
 function editDeck(id, from = null) {
   const d = id ? mimes[id] : from ?? {};
   deck = { id, cards: (d.cards ?? []).filter(Boolean).map((c) => ({ word: c.word, ...(c.image ? { image: c.image } : {}) })) };
-  $("mime-edit-title").textContent = id ? d.title : from ? `Copie de « ${from.title} »` : "Nouveau paquet";
+  $("mime-edit-title").textContent = id ? d.title : from ? `Copie de « ${from.title} »` : "Nouvelle collection";
   $("mime-title").value = from ? `${from.title} (copie)`.slice(0, 120) : d.title ?? "";
   $("mime-duration").value = `${d.duration ?? MIME_TURN}`;
   $("mime-delete").hidden = !id;
@@ -2437,8 +2544,8 @@ const GAME_GROUPS = [
       status: () => { const ok = Object.values(quizzes).reduce((t, q) => t + playable(q).length, 0); return `${plural(Object.keys(quizzes).length, "quiz", "quiz")} · ${plural(ok, "question validée", "questions validées")}`; },
       actions: () => [["Gérer les quiz", () => showQuizzes(null)], ["Créer un quiz", () => $("quiz-import-open").click()]] },
     { type: "mimes", icon: "🎭", rule: "Équipe par équipe : un enfant devine, ses coéquipiers miment l'image. 50 points par mime trouvé.",
-      status: () => plural(Object.keys(mimes).length, "paquet de cartes", "paquets de cartes"),
-      actions: () => [["Gérer les paquets", () => show("mimes")], ["Nouveau paquet", () => editDeck(null)]] },
+      status: () => `${plural(Object.keys(mimes).length, "collection perso", "collections perso")} · ${plural(mancheGroups(manches, "mimes").pinned.length + mancheGroups(manches, "mimes").active.length, "manche")}`,
+      actions: () => [["Collections de cartes", () => show("mimes")]] },
     { type: "blind", icon: "🎵", rule: "Les morceaux d'une playlist, dans l'ordre : le premier qui buzze donne le titre à voix haute, vous validez.",
       status: () => plural(Object.values(playlists).filter((p) => !isStatuesList(p)).length, "playlist"),
       actions: () => [["Gérer les playlists", () => show("music")]] },
@@ -2491,10 +2598,10 @@ function gameInfo(g) {
     : quizGame ? `${plural(Object.values(quizzes).filter((q) => (QUIZ_GAMES[g.type]?.questions ?? playable)(q).length).length, "quiz utilisable", "quiz utilisables")} (avec des ${g.needs})`
     : content ? builtinLine(g.type)
     : "Rien à préparer";
-  const actions = g.actions ? g.actions()
+  const actions = [...(g.actions ? g.actions()
     : quizGame ? [["Voir les quiz", () => showQuizzes(g.type === "express" ? null : "images")]]
     : content ? [[`Voir et modifier les ${CONTENT_GAMES[g.type].unit}s`, () => openBuiltin(g.type)]]
-    : [];
+    : []), ["Manches", () => openGame(g.type)]];
   return { rule, line, actions };
 }
 
@@ -2693,4 +2800,220 @@ $("builtin-add").onsubmit = (e) => {
   if ([...game.catalog, ...extra].some((x) => game.key(x) === key)) return status("builtin-status", `« ${game.label(item)} » existe déjà.`);
   saveBuiltin(type, { off, extra: [...extra, item] }, `« ${game.label(item)} » est ajouté au jeu.`);
   e.target.reset();
+};
+
+// ---------- Page d'un jeu : ses manches ----------
+
+/** Jeu dont la page est ouverte (ses manches, ses collections). */
+let gameType = null;
+/** Manche en cours d'édition : { id, type, round }. */
+let mancheEdit = null;
+
+/** Écran des collections d'un jeu (onglet voisin de ses manches), ou null pour un jeu sans contenu. */
+const COLLECTION_SCREEN = {
+  quiz: () => showQuizzes(null), express: () => showQuizzes(null), zoom: () => showQuizzes("images"), flou: () => showQuizzes("images"),
+  mimes: () => show("mimes"), blind: () => show("music"), musical: () => show("music"), statues: () => openStatuesSongs(),
+  chante: () => openBuiltin("chante"), quisuis: () => openBuiltin("quisuis"), disparu: () => openBuiltin("disparu"), pictionary: () => openBuiltin("pictionary"),
+};
+
+/** Les deux onglets d'un jeu : Manches, Collections. [active] : « manches » ou « collections ». */
+function gameTabs(type, active) {
+  const tab = (key, text, fn) => h("button", { type: "button", class: `chip${active === key ? " active" : ""}`, "data-tab": key, "aria-pressed": active === key ? "true" : "false", text, onclick: fn });
+  return [
+    tab("manches", `Manches de ${ROUND_TYPES[type]}`, () => openGame(type)),
+    COLLECTION_SCREEN[type] ? tab("collections", `Collections (${COLLECTION_UNIT[type][1]})`, () => { gameType = type; COLLECTION_SCREEN[type](); }) : null,
+  ].filter(Boolean);
+}
+
+/** Onglets en haut des écrans de collections, quand on y arrive depuis la page d'un jeu. */
+function paintCollectionTabs(screen) {
+  document.querySelectorAll(`#screen-${screen} [data-tabs]`).forEach((box) => {
+    const ok = gameType && COLLECTION_SCREEN[gameType];
+    box.hidden = !ok;
+    box.replaceChildren(...(ok ? gameTabs(gameType, "collections") : []));
+  });
+}
+
+function openGame(type) {
+  gameType = type;
+  show("game");
+  renderGame();
+}
+
+function renderGame() {
+  const type = gameType;
+  if (!type) return;
+  const g = GAME_GROUPS.flatMap((x) => x.games).find((x) => x.type === type) ?? { type };
+  $("game-title").textContent = ROUND_TYPES[type];
+  $("game-h1").textContent = `${g.icon ?? ""} ${ROUND_TYPES[type]}`.trim();
+  $("game-rule").textContent = gameInfo(g).rule;
+  $("game-tabs").replaceChildren(...gameTabs(type, "manches"));
+  $("manche-random").hidden = !RANDOM_TYPES.includes(type);
+  const { pinned, active, archived } = mancheGroups(manches, type);
+  $("manches-pinned-box").hidden = !pinned.length;
+  $("manches-pinned").replaceChildren(...pinned.map(([id, m]) => mancheCard(id, m)));
+  $("manches-list").replaceChildren(...(active.length ? active.map(([id, m]) => mancheCard(id, m))
+    : [h("p", { class: "hint", text: pinned.length ? "Les autres manches s'afficheront ici." : "Aucune manche pour l'instant : « Composer une manche » vous guide." })]));
+  $("manches-archived-count").textContent = archived.length;
+  $("manches-archived").replaceChildren(...archived.map(([id, m]) => mancheCard(id, m)));
+  // Manches déjà placées dans les prestations : on peut les garder comme manches.
+  const fromShows = Object.entries(shows).filter(([, s]) => s)
+    .sort(([, a], [, b]) => (b.date ?? "").localeCompare(a.date ?? ""))
+    .flatMap(([sid, s]) => foldLegacyFinale(s.rounds).rounds.filter((r) => (r.type ?? "quiz") === type && roundFilled(r)).map((r) => [sid, s, r]));
+  $("manches-shows-count").textContent = fromShows.length;
+  $("manches-shows").replaceChildren(...fromShows.map(([sid, s, r]) => h("div", { class: "item manche-from-show" },
+    h("b", { text: showTitle(s) }),
+    h("span", { text: [s.date ? dateLabel(s.date) : "", mancheSummary(r, { mimes, playlists, quizzes })].filter(Boolean).join(" · ") }),
+    h("div", { class: "row" }, h("button", {
+      class: "btn secondary", text: "Garder comme manche",
+      onclick: async () => {
+        const id = await saveManche(null, { type, title: `${ROUND_TYPES[type]} · ${showTitle(s)}`.slice(0, 60), round: cleanRound({ ...r, mancheId: null }, playlists) });
+        if (id) status("game-status", "Manche ajoutée à vos manches.", true);
+      },
+    })))));
+}
+
+/** Carte d'une manche : ce qu'elle contient et ses actions. */
+function mancheCard(id, m) {
+  const path = `library/manches/${id}`;
+  const flag = (field, on, message) => saveManche(id, { ...m, [field]: on || null }).then((ok) => ok && status("game-status", message, true));
+  return h("div", { class: `item manche-card${m.pinned ? " pinned" : ""}`, "data-manche": id },
+    m.pinned ? h("span", { class: "pill pin", text: "⭐ Épinglée" }) : m.origin === "direct" ? h("span", { class: "pill", text: "Jouée en direct" }) : null,
+    h("b", { text: m.title }),
+    h("span", { text: mancheSummary(m.round, { mimes, playlists, quizzes }) }),
+    h("div", { class: "row" },
+      h("button", { class: "btn secondary", text: "Éditer", onclick: () => editManche(id) }),
+      h("button", { class: "btn secondary", text: "Renommer", onclick: () => rename(path, m.title, "de la manche") }),
+      h("button", { class: "btn secondary", text: "Dupliquer", onclick: () => editManche(null, { type: m.type, title: `Copie de ${m.title}`.slice(0, 60), round: JSON.parse(JSON.stringify(m.round)) }) }),
+      m.archived ? null : h("button", { class: "btn secondary", text: m.pinned ? "☆ Désépingler" : "⭐ Épingler", onclick: () => flag("pinned", !m.pinned, m.pinned ? "Manche désépinglée." : "Manche épinglée : elle est proposée en premier.") }),
+      h("button", { class: "btn secondary", text: m.archived ? "Désarchiver" : "Archiver", onclick: () => flag("archived", !m.archived, m.archived ? "Manche remise dans vos manches." : "Manche archivée.") }),
+      h("button", { class: "btn danger", text: "Supprimer", onclick: () => deleteManche(id, m) })));
+}
+
+/** Enregistre une manche (nouvelle si [id] est nul) ; renvoie son identifiant, ou null si c'est refusé. */
+async function saveManche(id, m) {
+  const key = id ?? push(ref(db, "library/manches")).key;
+  const prev = manches[key] ?? {};
+  try {
+    await set(ref(db, `library/manches/${key}`), {
+      type: m.type, title: `${m.title}`.trim().slice(0, 120) || defaultMancheTitle(m.type), round: cleanRound({ ...m.round, mancheId: null, title: null }, playlists),
+      origin: m.origin ?? prev.origin ?? "admin", ...(m.pinned ? { pinned: true } : {}), ...(m.archived ? { archived: true } : {}),
+      ...(m.showId ? { showId: m.showId } : {}), createdAt: prev.createdAt ?? Date.now(), updatedAt: serverTimestamp(),
+    });
+    return key;
+  } catch (err) {
+    console.error(err);
+    alert("Enregistrement de la manche refusé : vérifiez Internet ou reconnectez-vous.");
+    return null;
+  }
+}
+
+async function deleteManche(id, m) {
+  if (!confirm(`Supprimer la manche « ${m.title} » ? Les prestations qui l'ont chargée gardent leur copie.`)) return;
+  await set(ref(db, `library/manches/${id}`), null);
+  status("game-status", "Manche supprimée.", true);
+}
+
+/** Âge et équipes du tirage d'une manche seule (page du jeu). */
+const mancheCtx = {
+  refresh: () => renderMancheFields(),
+  summary: () => histManche.noter(),
+  profile: () => profileForAge($("manche-age").value === "" ? null : Number($("manche-age").value)),
+  teams: () => Number($("manche-teams").value) || 4,
+};
+
+/** Ouvre une manche ; sans identifiant, une nouvelle ([fresh] : son contenu de départ, sinon vide). */
+function editManche(id, fresh = null) {
+  const m = id ? manches[id] : fresh ?? { type: gameType, title: "", round: { type: gameType } };
+  gameType = m.type;
+  mancheEdit = { id, type: m.type, round: JSON.parse(JSON.stringify(m.round ?? { type: m.type })) };
+  if (m.type === "mimes" && !id && !fresh?.round?.perTeam && !mimeCards(mancheEdit.round.cards).length) {
+    mancheEdit.round.perTeam = MIME_PER_TEAM_DEFAULT;
+    mancheEdit.round.random = true;
+  }
+  $("manche-crumb").textContent = ROUND_TYPES[m.type];
+  $("manche-edit-title").textContent = id ? m.title : "Nouvelle manche";
+  $("manche-title").value = m.title ?? "";
+  $("manche-title").placeholder = defaultMancheTitle(m.type);
+  $("manche-delete").hidden = !id;
+  status("manche-status", "");
+  show("manche-edit");
+  paintRandomBox();
+  renderMancheFields();
+  histManche.depart();
+}
+$("manche-crumb").onclick = () => openGame(mancheEdit?.type ?? gameType);
+$("manche-new").onclick = () => editManche(null);
+$("manche-random").onclick = () => { editManche(null); drawManche(); };
+
+const histManche = historique({
+  ecran: $("screen-manche-edit"),
+  capturer: () => (mancheEdit ? { title: $("manche-title").value, round: mancheEdit.round } : null),
+  restaurer: (e) => { if (!mancheEdit || !e) return; $("manche-title").value = e.title; mancheEdit.round = e.round; renderMancheFields(); },
+});
+
+function renderMancheFields() {
+  if (!mancheEdit) return;
+  roundCtx = mancheCtx;
+  $("manche-fields").replaceChildren(...roundFields(mancheEdit.round).filter(Boolean));
+  histManche.noter();
+}
+
+/** Le tirage au hasard : catégories de la collection, nombre (cartes par équipe × équipes pour les mimes). */
+function paintRandomBox() {
+  const type = mancheEdit.type;
+  const random = RANDOM_TYPES.includes(type);
+  $("manche-random-box").hidden = !random;
+  if (!random) return;
+  $("manche-count-box").hidden = type === "mimes";
+  $("manche-teams-box").hidden = type !== "mimes";
+  $("manche-count").value = RANDOM_COUNT[type] ?? BUILTIN_GAMES[type]?.count ?? 6;
+  const groups = collectionGroups(collectionItems(type, { mimes, contents, quizzes, playlists }));
+  $("manche-groups").replaceChildren(...groups.map((g) => h("button", {
+    type: "button", class: "chip", "data-group": g, "aria-pressed": "false", text: g,
+    onclick: (e) => { const on = e.target.getAttribute("aria-pressed") !== "true"; e.target.setAttribute("aria-pressed", on ? "true" : "false"); e.target.classList.toggle("active", on); },
+  })));
+  $("manche-groups").previousElementSibling.hidden = !groups.length;
+}
+
+function drawManche() {
+  if (!mancheEdit) return;
+  const type = mancheEdit.type;
+  const groups = [...document.querySelectorAll("#manche-groups [aria-pressed=true]")].map((b) => b.dataset.group);
+  const { round, exhausted, count } = randomRound(type, { mimes, contents, quizzes, playlists }, {
+    profile: mancheCtx.profile(), level: $("manche-level").value, groups,
+    ...(type === "mimes" ? { perTeam: mancheEdit.round.perTeam || MIME_PER_TEAM_DEFAULT, teams: mancheCtx.teams() } : { count: Number($("manche-count").value) || undefined }),
+    base: mancheEdit.round, playlists,
+  });
+  if (!round) return status("manche-status", "Rien à tirer : la collection est vide pour ces catégories et cette difficulté.");
+  mancheEdit.round = { ...round, ...(type === "mimes" ? { random: true } : {}) };
+  if (!$("manche-title").value.trim()) $("manche-title").value = groups.length === 1 ? `${ROUND_TYPES[type]} · ${groups[0]}` : defaultMancheTitle(type);
+  renderMancheFields();
+  status("manche-status", exhausted ? `Seulement ${count} trouvés : élargissez les catégories ou la difficulté.` : `Tirage : ${count} ${COLLECTION_UNIT[type][count > 1 ? 1 : 0]} au hasard. Retirez ou ajoutez-en, puis enregistrez.`, !exhausted);
+}
+$("manche-draw").onclick = drawManche;
+
+$("manche-save").onclick = async () => {
+  if (!mancheEdit) return;
+  const r = mancheEdit.round;
+  if (!roundFilled(r) || (r.type === "mimes" && !r.deckId && !mimeCards(r.cards).length)) {
+    return status("manche-status", r.type === "mimes" ? "Choisissez des cartes, ou « Tirer au hasard »." : "La manche est vide : choisissez son contenu.");
+  }
+  const title = $("manche-title").value.trim() || defaultMancheTitle(mancheEdit.type);
+  const prev = mancheEdit.id ? manches[mancheEdit.id] ?? {} : {};
+  const id = await saveManche(mancheEdit.id, { ...prev, type: mancheEdit.type, title, round: r });
+  if (!id) return;
+  mancheEdit.id = id;
+  $("manche-title").value = title;
+  $("manche-edit-title").textContent = title;
+  $("manche-delete").hidden = false;
+  histManche.enregistre();
+  status("manche-status", "Manche enregistrée : chargez-la dans une prestation (« Charger une manche… »).", true);
+};
+$("manche-delete").onclick = async () => {
+  if (!mancheEdit?.id) return;
+  const m = manches[mancheEdit.id];
+  if (!m || !confirm(`Supprimer la manche « ${m.title} » ?`)) return;
+  await set(ref(db, `library/manches/${mancheEdit.id}`), null);
+  openGame(mancheEdit.type);
 };

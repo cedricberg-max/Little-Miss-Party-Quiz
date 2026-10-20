@@ -1741,8 +1741,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator('.game-card[data-game=quiz]', { hasText: "1 quiz · 2 questions validées" }).waitFor();
     await page.locator('.game-card[data-game=quiz]', { hasText: "les dernières questions du quiz peuvent compter double" }).waitFor();
     assert.equal(await page.locator('.game-card[data-game=finale]').count(), 0);
-    // Mimes : la carte mène aux paquets (ce que Sarah ne trouvait pas).
-    await page.locator('.game-card[data-game=mimes] button', { hasText: "Gérer les paquets" }).click();
+    // Mimes : la carte mène aux collections de cartes (ce que Sarah ne trouvait pas).
+    await page.locator('.game-card[data-game=mimes] button', { hasText: "Collections de cartes" }).click();
     await page.locator("#screen-mimes:not([hidden])").waitFor();
     await page.click("#nav button[data-screen=games]");
 
@@ -1762,7 +1762,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#builtin-status", { hasText: "« Soleil » existe déjà." }).waitFor();
     // Qui suis-je ? : un personnage sans assez d'indices est refusé avec la raison.
     await page.click("#screen-builtin .crumbs button");
-    await page.locator('.game-card[data-game=quisuis] button').click();
+    await page.locator('.game-card[data-game=quisuis] button').first().click();
     await page.fill("#bi-answer", "Le koala");
     await page.fill("#bi-clue1", "Je dors dans les eucalyptus");
     await page.click("#builtin-add button[type=submit]");
@@ -1868,6 +1868,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     const page = await admin();
     await page.click(".tile[data-screen=mimes]");
+    await page.click("#game-tabs [data-tab=collections]");
     await page.click("#mime-new");
     await page.fill("#mime-title", "Animaux à mimer");
     await page.selectOption("#mime-duration", "45");
@@ -2064,7 +2065,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const saved = Object.values(await library("shows"))[0].rounds;
     assert.deepEqual(saved[0], { type: "quiz", quizId: "animaux", quizIds: ["animaux", "finale"] });
     assert.equal(saved[1].type, "mimes");
-    assert.equal(saved[1].random, true);
+    assert.equal(saved[1].deckId, undefined, "Cartes choisies dans toutes les collections");
     assert.equal(saved[1].cards.length, 30);
     assert.ok(!saved[1].cards.some((c) => c.word.toLowerCase() === removed), "La carte retirée n'est plus là");
     assert.deepEqual(saved[1].cards.at(-1), { word: "Le chat de Léa" });
@@ -2095,15 +2096,15 @@ describe("bibliothèque de quiz et prestations", () => {
     await inRegie(regie);
     await regie.click("#tab-plan");
     await regie.click("#plan-add");
-    // Mimes au hasard : 30 cartes, une retirée, une ajoutée, puis l'ajout au programme.
+    // Mimes au hasard : 5 cartes par équipe (1 équipe, plus la réserve pour 2 équipes de plus), une retirée, une ajoutée.
     await regie.locator("#lib-list [data-game='mimes/hasard']", { hasText: "Mimes au hasard" }).click();
-    await regie.locator("#lib-meta", { hasText: "Mimes · 30 cartes" }).waitFor();
+    await regie.locator("#lib-meta", { hasText: "Mimes · 15 cartes" }).waitFor();
     const first = await regie.locator("#lib-questions .lib-card").first().getAttribute("data-word");
     await regie.locator("#lib-questions .lib-card").first().click();
-    await regie.locator("#lib-meta", { hasText: "Mimes · 29 cartes" }).waitFor();
+    await regie.locator("#lib-meta", { hasText: "Mimes · 14 cartes" }).waitFor();
     const extra = await regie.locator("#lib-add option:not([value=''])").first().getAttribute("value");
     await regie.selectOption("#lib-add", extra);
-    await regie.locator("#lib-meta", { hasText: "Mimes · 30 cartes" }).waitFor();
+    await regie.locator("#lib-meta", { hasText: "Mimes · 15 cartes" }).waitFor();
     const words = await regie.locator("#lib-questions .lib-card").evaluateAll((els) => els.map((e) => e.dataset.word));
     assert.ok(!words.includes(first));
     await regie.click("#lib-end");
@@ -2128,10 +2129,129 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
+  test("Régie PC : une manche de mimes composée dans la page du jeu, épinglée, puis chargée dans une prestation de 6 équipes", async () => {
+    const page = await admin();
+    // L'accueil mène à la page du jeu : ses manches, et ses collections dans l'onglet voisin.
+    await page.locator('#home-games .tile[data-game=mimes]').click();
+    await page.locator("#screen-game:not([hidden]) #game-h1", { hasText: "Mimes" }).waitFor();
+    await page.locator("#manches-list", { hasText: "Aucune manche pour l'instant" }).waitFor();
+    await page.click("#manche-new");
+    await page.locator("#screen-manche-edit:not([hidden])").waitFor();
+    // 5 cartes par équipe × 4 équipes prévues : 20 cartes tirées dans toutes les collections.
+    assert.equal(await page.inputValue("#manche-fields .mime-per-team"), "5");
+    await page.click("#manche-draw");
+    await page.locator("#manche-status", { hasText: "Tirage : 20 cartes au hasard" }).waitFor();
+    await page.locator("#manche-fields .pick-box .small", { hasText: "20 cartes choisies" }).waitFor();
+    await page.fill("#manche-title", "Mimes de Léa");
+    await page.click("#manche-save");
+    await page.locator("#manche-status", { hasText: "Manche enregistrée" }).waitFor();
+    const [id, saved] = Object.entries(await library("manches"))[0];
+    assert.equal(saved.type, "mimes");
+    assert.equal(saved.title, "Mimes de Léa");
+    assert.equal(saved.origin, "admin");
+    assert.equal(saved.round.perTeam, 5);
+    assert.equal(saved.round.cards.length, 20);
+    assert.equal(new Set(saved.round.cards.map((c) => c.word)).size, 20, "Jamais deux fois la même carte");
+    // Épinglée : en tête de la page du jeu.
+    await page.click("#manche-crumb");
+    await page.locator(`#manches-list [data-manche="${id}"] button`, { hasText: "⭐ Épingler" }).click();
+    await page.locator(`#manches-pinned [data-manche="${id}"]`, { hasText: "⭐ Épinglée" }).waitFor();
+    assert.equal((await library(`manches/${id}`)).pinned, true);
+
+    // Prestation de 6 équipes : la manche chargée garde ses 20 cartes ; le reste se tire au lancement.
+    await page.click("#nav button[data-screen=home]");
+    await page.click("#home-new");
+    await page.fill("#show-child", "Léa");
+    await page.fill("#show-age", "9");
+    await page.selectOption("#show-teams", "6");
+    await page.click("#round-add");
+    const round = page.locator("#show-rounds .round").nth(0);
+    await round.locator("select").first().selectOption("mimes");
+    await round.locator(".manche-load").selectOption(id);
+    await round.locator(".mime-need", { hasText: "5 par équipe × 6 équipes = 30 cartes · 20 choisies : le reste est tiré au hasard au lancement" }).waitFor();
+    await page.selectOption("#show-status", "publiee");
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
+    const show = Object.values(await library("shows"))[0];
+    assert.equal(show.teams, 6);
+    assert.equal(show.rounds[0].mancheId, id);
+    assert.equal(show.rounds[0].perTeam, 5);
+    assert.deepEqual(show.rounds[0].cards, saved.round.cards);
+    await page.context().close();
+  });
+
+  test("en direct : une manche préparée, puis « Au hasard » et « Rejouer avec d'autres… » sans jamais rejouer un mot ; la manche tirée est gardée", async () => {
+    await seedLibrary("manches", {
+      soleil: { type: "chante", title: "Chansons du soleil", origin: "admin", pinned: true, round: { type: "chante", count: 2, picks: ["soleil", "maman"] }, updatedAt: 1 },
+      vieille: { type: "chante", title: "Archivée", origin: "admin", archived: true, round: { type: "chante", count: 1, picks: ["chat"] }, updatedAt: 1 },
+    });
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.click("#tab-plan");
+    await regie.click("#plan-add");
+    // La manche épinglée est proposée, jamais l'archivée.
+    await regie.locator("#lib-list .lib-section", { hasText: "Manches préparées" }).waitFor();
+    await regie.locator("#lib-list [data-game='manche/soleil']", { hasText: "Chansons du soleil" }).locator("span", { hasText: "⭐ Chante le mot ! · 2 mots" }).waitFor();
+    assert.equal(await regie.locator("#lib-list [data-game='manche/vieille']").count(), 0);
+    await regie.locator("#lib-list [data-game='manche/soleil']").click();
+    await regie.click("#lib-end");
+    await regie.locator("#r-toast", { hasText: "est ajouté à la fin du programme" }).waitFor();
+    const words = async () => (await read("conducteur")).questions.filter((q) => q.kind === "chante").map((q) => q.text.toLowerCase());
+    assert.deepEqual(await words(), ["soleil", "maman"]);
+    assert.equal(Object.keys(await library("manches")).length, 2, "Une manche préparée n'est pas recopiée");
+
+    // « Chante le mot ! » au hasard : 6 mots, jamais soleil ni maman (déjà au programme) ; difficulté et nouveau tirage.
+    await regie.click("#plan-add");
+    await regie.locator("#lib-list [data-game='builtin/chante']").click();
+    await regie.locator("#lib-edit .lib-level.on", { hasText: "Moyen" }).waitFor();
+    await regie.locator("#lib-edit .lib-level", { hasText: "Facile" }).click();
+    await regie.locator("#lib-edit .lib-level.on", { hasText: "Facile" }).waitFor();
+    await regie.click("#lib-draw");
+    assert.equal(await regie.locator("#lib-questions li").count(), 6);
+    await regie.click("#lib-end");
+    await waitFor(async () => (await words()).length === 8, "6 mots ajoutés");
+    let all = await words();
+    assert.equal(all.length, 8);
+    assert.equal(new Set(all).size, 8, "Jamais deux fois le même mot pendant la fête");
+    // La manche tirée en direct est gardée dans la page du jeu (Régie PC), sans rien modifier d'autre.
+    const direct = await waitFor(async () => Object.values(await library("manches")).find((m) => m.origin === "direct"), "manche gardée");
+    assert.equal(direct.type, "chante");
+    assert.deepEqual(direct.round.picks, all.slice(2));
+    assert.match(direct.title, /^Chante le mot ! .*\(en direct, /);
+
+    // La manche se joue : « Rejouer avec d'autres… » tire 6 nouveaux mots, encore jamais au programme.
+    const plan = (await read("conducteur")).questions;
+    const at = plan.findIndex((q) => q.kind === "chante" && q.text.toLowerCase() === all[2]);
+    await box.set({ ...questionState(7), index: at, qid: plan[at].id, kind: "chante", text: plan[at].text, choices: plan[at].choices, total: plan.length });
+    const head = regie.locator(`#panel-plan .plan-head[data-round="${plan[at].round}"]`);
+    await head.locator(".state", { hasText: "en cours" }).waitFor();
+    await head.locator("button.replay", { hasText: "🔁 Rejouer avec d'autres…" }).click();
+    await regie.locator("#lib-preview:not([hidden])").waitFor();
+    assert.equal(await regie.locator("#lib-questions li").count(), 6);
+    await regie.click("#lib-end");
+    await waitFor(async () => (await words()).length === 14, "6 autres mots ajoutés");
+    all = await words();
+    assert.equal(all.length, 14);
+    assert.equal(new Set(all).size, 14, "Toujours aucun mot rejoué");
+    // Pictionary aussi s'ajoute en direct, ses mots tirés au hasard.
+    await regie.click("#plan-add");
+    await regie.locator("#lib-list [data-game='builtin/pictionary']", { hasText: "Pictionary" }).locator("span", { hasText: "s de dessin par équipe" }).waitFor();
+    await regie.locator("#lib-list [data-game='builtin/pictionary']").click();
+    await regie.locator("#lib-meta", { hasText: "Pictionary · 24 mots" }).waitFor();
+    await regie.click("#lib-end");
+    const picto = await waitFor(async () => (await read("conducteur")).questions.find((q) => q.kind === "pictionary"), "Pictionary ajouté");
+    assert.equal(new Set(picto.cards.map((c) => c.word)).size, 24);
+    await regie.context().close();
+  });
+
   test("Régie PC : « ↩ Retour » défait la dernière action, « Annuler les modifications » revient au dernier enregistrement", async () => {
     const page = await admin();
     // Paquet de mimes : des cartes ajoutées et retirées, rien n'est écrit avant « Enregistrer ».
     await page.click(".tile[data-screen=mimes]");
+    await page.click("#game-tabs [data-tab=collections]");
     await page.click("#mime-new");
     const bar = page.locator("#screen-mime-edit .retour-barre");
     const count = () => page.locator("#mime-count").textContent();
@@ -2194,13 +2314,19 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.locator("#home-games .tile").count(), 15);
     assert.equal(await page.locator("#home-games h3").count(), 4);
     assert.equal(await page.locator("#home-import").count(), 0, "Importer un quiz : seulement dans la rubrique Quiz");
+    // Chaque tuile ouvre la page du jeu (ses manches) ; l'onglet Collections mène à son contenu.
     await page.locator('#home-games .tile[data-game=patate]', { hasText: "Rien à préparer" }).click();
-    await page.locator('#screen-games:not([hidden]) .game-card.flash[data-game=patate]').waitFor();
+    await page.locator("#screen-game:not([hidden]) #game-h1", { hasText: "Patate chaude" }).waitFor();
+    assert.equal(await page.locator("#game-tabs [data-tab=collections]").count(), 0, "Rien à préparer : pas de collections");
     await page.click("#nav button[data-screen=home]");
     await page.locator('#home-games .tile[data-game=chante]').click();
+    await page.click("#game-tabs [data-tab=collections]");
     await page.locator("#screen-builtin:not([hidden])").waitFor();
+    await page.locator("#screen-builtin [data-tabs] [data-tab=manches]").click();
+    await page.locator("#screen-game:not([hidden]) #game-h1", { hasText: "Chante le mot" }).waitFor();
     await page.click("#nav button[data-screen=home]");
     await page.locator('#home-games .tile[data-game=flou]').click();
+    await page.click("#game-tabs [data-tab=collections]");
     await page.locator("#screen-quizzes:not([hidden])").waitFor();
     await page.context().close();
   });
@@ -2270,12 +2396,14 @@ describe("bibliothèque de quiz et prestations", () => {
 
     await page.click("#nav button[data-screen=home]");
     await page.click(".tile[data-screen=mimes]");
+    await page.click("#game-tabs [data-tab=collections]");
     await renommer(page.locator('#mime-list [data-deck="zoo"]'), "Animaux du zoo");
     await page.locator('#mime-list [data-deck="zoo"]', { hasText: "Animaux du zoo" }).waitFor();
     assert.deepEqual((await library("mimes")).zoo.cards, [{ word: "Chat", image: "🐱" }]);
 
     await page.click("#nav button[data-screen=home]");
     await page.click(".tile[data-screen=music]");
+    await page.click("#game-tabs [data-tab=collections]");
     await renommer(page.locator('#playlist-list [data-playlist="tubes"]'), "Comptines");
     await page.locator('#playlist-list [data-playlist="tubes"]', { hasText: "Comptines" }).waitFor();
     assert.equal((await library("playlists")).tubes.tracks[0].title, "Frère Jacques");
@@ -2928,6 +3056,7 @@ describe("bibliothèque de quiz et prestations", () => {
   test("Sarah importe ses fichiers musicaux : extraits réencodés en MP3 léger, titre et artiste devinés, chargés sur la TV", async () => {
     const page = await admin();
     await page.click(".tile[data-screen=music]");
+    await page.click("#game-tabs [data-tab=collections]");
     await page.click("#playlist-new");
     await page.fill("#playlist-title", "Dessins animés");
     await page.selectOption("#playlist-duration", "15");
@@ -3000,6 +3129,7 @@ describe("bibliothèque de quiz et prestations", () => {
     // La liste n'est pas une playlist de blind test.
     await page.click("#nav button[data-screen=home]");
     await page.click(".tile[data-screen=music]");
+    await page.click("#game-tabs [data-tab=collections]");
     assert.equal(await page.locator(`#playlist-list [data-playlist="${listId}"]`).count(), 0);
     await page.click("#nav button[data-screen=games]");
     await page.locator(".game-card[data-game=statues]", { hasText: "2 chansons" }).waitFor();

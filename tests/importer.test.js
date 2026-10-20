@@ -986,3 +986,129 @@ describe("banque des tout-petits", () => {
     assert.ok(tirerPetits(10, { exclus, rng, catalogue }).every((q) => q.fabriquee));
   });
 });
+
+describe("collections, manches et prestation", async () => {
+  const M = await import("../web/public/manches.js");
+  const S = await import("../web/public/show.js");
+  const seq = () => { let i = 0; return () => ((i++ * 0.618) % 1); };
+  const lib = {
+    mimes: { d1: { title: "Mes animaux", duration: 60, cards: [{ word: "Dragon volant", image: "🐉" }, { word: "Chat", image: "🐱" }] } },
+    quizzes: {
+      q1: { title: "Photos", questions: [
+        { text: "Qui est-ce ?", choices: ["Lion", "Tigre"], correct: 0, status: "validee", imageId: "a".repeat(16) },
+        { text: "Et lui ?", choices: ["Chat", "Chien"], correct: 1, status: "validee", imageId: "b".repeat(16) },
+      ] },
+    },
+    playlists: {
+      p1: { title: "Disney", duration: 20, points: 120, tracks: [{ title: "Libérée", audioId: "1".repeat(16) }, { title: "Hakuna", audioId: "2".repeat(16), duration: 30 }] },
+      p2: { title: "Années 80", duration: 25, tracks: [{ title: "Thriller", audioId: "3".repeat(16) }] },
+      s: { title: "Statues", use: "statues", duration: 60, tracks: [{ title: "Danse", audioId: "4".repeat(16) }] },
+    },
+    contents: {},
+  };
+
+  test("la collection des mimes : le catalogue par catégories, puis les cartes de Sarah, sans doublon", () => {
+    const items = M.collectionItems("mimes", lib);
+    assert.ok(M.collectionGroups(items).includes("Animaux"));
+    assert.ok(M.collectionGroups(items).includes("Mes animaux"));
+    assert.equal(items.filter((x) => x.key === "chat").length, 1, "le Chat du paquet n'est pas compté deux fois");
+    assert.equal(items.find((x) => x.key === "dragon volant").group, "Mes animaux");
+  });
+
+  test("photos (Zoom, Image floue) et extraits (blind test) : toutes les collections, rangées par quiz ou playlist", () => {
+    assert.deepEqual(M.collectionItems("zoom", lib).map((x) => [x.label, x.group]), [["Lion", "Photos"], ["Chien", "Photos"]]);
+    const tracks = M.collectionItems("blind", lib);
+    assert.deepEqual(tracks.map((x) => x.group), ["Années 80", "Disney", "Disney"], "les chansons des statues n'y sont pas");
+    assert.deepEqual(M.collectionItems("statues", lib).map((x) => x.label), ["Danse"]);
+  });
+
+  test("manche au hasard : catégories, difficulté, jamais un élément déjà joué, collection épuisée signalée", () => {
+    const { round } = M.randomRound("mimes", lib, { groups: ["Animaux"], level: "facile", count: 8 }, seq());
+    assert.equal(round.cards.length, 8);
+    const animaux = new Set(MIME_CATALOG.filter((c) => c.theme === "Animaux" && c.level === 1).map((c) => c.word));
+    assert.ok(round.cards.every((c) => animaux.has(c.word)));
+    const avoid = new Set(round.cards.map((c) => c.word.toLowerCase()));
+    const next = M.randomRound("mimes", lib, { groups: ["Animaux"], level: "facile", count: 8, avoid }, seq());
+    assert.ok(next.round.cards.every((c) => !avoid.has(c.word.toLowerCase())), "rejouer : d'autres cartes");
+    const all = new Set(M.collectionItems("mimes", lib).map((x) => x.key));
+    const none = M.randomRound("mimes", lib, { avoid: all }, seq());
+    assert.equal(none.round, null);
+    assert.equal(none.exhausted, true);
+    const few = M.randomRound("zoom", lib, { count: 6 }, seq());
+    assert.equal(few.count, 2);
+    assert.equal(few.exhausted, true, "seulement 2 photos : c'est dit");
+  });
+
+  test("Petits : pas de carte difficile ; « difficile » met les plus dures d'abord", () => {
+    const petits = M.randomRound("mimes", lib, { profile: "PETITS", count: 40 }, seq()).round.cards;
+    const hard = new Set(MIME_CATALOG.filter((c) => c.level === 2).map((c) => c.word));
+    assert.ok(petits.every((c) => !hard.has(c.word)));
+    const dur = M.randomRound("mimes", lib, { level: "difficile", count: 3 }, seq()).round.cards;
+    assert.ok(dur.every((c) => hard.has(c.word)));
+  });
+
+  test("mimes : cartes par équipe × équipes prévues, plus une réserve pour deux équipes de plus, aucune en double", () => {
+    const round = { type: "mimes", cards: MIME_CATALOG.slice(0, 12).map((c) => ({ word: c.word, image: c.image })), perTeam: 3 };
+    const { snapshot } = S.buildSnapshot("s", { teams: 4, rounds: [round] }, {}, {}, seq());
+    const cards = snapshot.quiz.questions[0].cards;
+    assert.equal(cards.length, 3 * (4 + 2));
+    assert.equal(new Set(cards.map((c) => c.word)).size, cards.length);
+    assert.ok(round.cards.every((c) => cards.slice(0, 12).some((x) => x.word === c.word)), "les cartes choisies passent d'abord");
+    const sans = S.buildSnapshot("s", { rounds: [{ type: "mimes", cards: round.cards }] }, {}, {}, seq()).snapshot.quiz.questions[0].cards;
+    assert.equal(sans.length, 12, "sans cartes par équipe : la liste telle quelle");
+  });
+
+  test("photos choisies une par une et extraits de plusieurs playlists se jouent", () => {
+    const zoom = S.buildSnapshot("s", { rounds: [{ type: "flou", picks: ["b".repeat(16), "a".repeat(16)] }] }, lib.quizzes).snapshot.quiz.questions;
+    assert.deepEqual(zoom.map((q) => [q.kind, q.choices[q.correct]]), [["flou", "Chien"], ["flou", "Lion"]]);
+    const blind = S.buildSnapshot("s", { rounds: [{ type: "blind", tracks: ["3".repeat(16), "2".repeat(16)] }] }, {}, {}, seq(), lib.playlists).snapshot.quiz.questions;
+    assert.deepEqual(blind.map((q) => [q.choices[0], q.duration]), [["Thriller", 25], ["Hakuna", 30]]);
+    assert.ok(S.roundFilled({ type: "blind", tracks: ["3".repeat(16)] }));
+    assert.ok(S.roundFilled({ type: "zoom", picks: ["a".repeat(16)] }));
+  });
+
+  test("ce qui a été joué pendant la fête n'est plus tiré, jeu par jeu", () => {
+    const show = { rounds: [{ type: "mimes", cards: [{ word: "Chat" }, { word: "Lion" }] }, { type: "chante", picks: ["soleil", "maman"] }, { type: "flou", picks: ["a".repeat(16)] }, { type: "blind", tracks: ["1".repeat(16)] }] };
+    const played = M.playedKeys(S.buildSnapshot("s", show, lib.quizzes, {}, seq(), lib.playlists).snapshot.quiz.questions);
+    assert.deepEqual([...played.mimes].sort(), ["chat", "lion"]);
+    assert.deepEqual([...played.chante].sort(), ["maman", "soleil"]);
+    assert.deepEqual([...played.photos], ["a".repeat(16)]);
+    assert.deepEqual([...played.tracks], ["1".repeat(16)]);
+    const chante = S.gameQuestions({ type: "chante", count: 30 }, {}, null, "z", {}, {}, {}, played).questions;
+    assert.ok(chante.every((q) => !played.chante.has(q.choices[0].toLowerCase())));
+    const disparu = S.buildSnapshot("s", { rounds: [{ type: "disparu", picks: ["fruits"], count: 1 }] }, {}, {}, seq()).snapshot.quiz.questions;
+    assert.deepEqual([...M.playedKeys(disparu).disparu], ["fruits"]);
+  });
+
+  test("rejouer avec d'autres : mêmes réglages, autant d'éléments, rien de déjà joué", () => {
+    const base = { type: "pictionary", duration: 60, series: ["Animaux"], picks: ["chat", "chien", "poisson"] };
+    const { round } = M.randomRound("pictionary", lib, { base, avoid: new Set(base.picks) }, seq());
+    assert.equal(round.duration, 60);
+    assert.deepEqual(round.series, ["Animaux"]);
+    assert.equal(round.picks.length, 3);
+    assert.ok(round.picks.every((k) => !base.picks.includes(k)));
+  });
+
+  test("manche propre : seulement les champs du jeu, le lien vers la manche d'origine gardé", () => {
+    assert.deepEqual(M.cleanRound({ type: "mimes", cards: [{ word: " Chat ", image: "🐱", x: 1 }], perTeam: 3, duration: 45, mancheId: "m1", junk: true }),
+      { type: "mimes", cards: [{ word: "Chat", image: "🐱" }], perTeam: 3, duration: 45, mancheId: "m1" });
+    assert.deepEqual(M.cleanRound({ type: "blind", tracks: ["1".repeat(16), "bad"], playlistId: "p1" }), { type: "blind", tracks: ["1".repeat(16)] });
+    assert.deepEqual(M.cleanRound({ type: "zoom", picks: ["A".repeat(16)], quizId: "q1" }), { type: "zoom", picks: ["a".repeat(16)] });
+    assert.deepEqual(M.cleanRound({ type: "quiz", quizIds: ["q1", "q2"], finale: 3 }), { type: "quiz", quizId: "q1", quizIds: ["q1", "q2"], finale: 3 });
+    assert.deepEqual(M.cleanRound({ type: "patate", count: 9 }), { type: "patate" });
+  });
+
+  test("page Manches d'un jeu : épinglées, puis les plus récentes, puis les archivées", () => {
+    const g = M.mancheGroups({
+      a: { type: "mimes", round: { type: "mimes" }, updatedAt: 1 },
+      b: { type: "mimes", round: { type: "mimes" }, updatedAt: 3 },
+      c: { type: "mimes", round: { type: "mimes" }, pinned: true, updatedAt: 2 },
+      d: { type: "mimes", round: { type: "mimes" }, archived: true },
+      e: { type: "quiz", round: { type: "quiz" } },
+    }, "mimes");
+    assert.deepEqual([g.pinned, g.active, g.archived].map((l) => l.map(([id]) => id)), [["c"], ["b", "a"], ["d"]]);
+    assert.equal(M.mancheSummary({ type: "mimes", cards: [{ word: "A" }, { word: "B" }], perTeam: 3, duration: 45 }), "2 cartes · 3 par équipe · tour de 45 s");
+    assert.equal(M.questionType({ kind: "classic", audioId: "1".repeat(16) }), "musical");
+    assert.equal(M.questionType({ kind: "mime" }), "mimes");
+  });
+});
