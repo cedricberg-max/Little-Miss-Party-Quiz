@@ -73,6 +73,7 @@ class MainActivity : ComponentActivity() {
                     blindSkip = viewModel::blindSkip,
                     chestRandom = viewModel::chestRandom,
                     potatoRandom = viewModel::potatoRandom,
+                    givePoints = viewModel::givePoints,
                     requestAgain = viewModel::requestAgain,
                 ),
                 update = UpdateScreen(

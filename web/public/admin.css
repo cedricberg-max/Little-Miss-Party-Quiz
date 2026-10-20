@@ -56,6 +56,7 @@ label.inline input[type=checkbox], label.inline input[type=radio] { width: 22px;
   color: #fff; background: linear-gradient(135deg, var(--rose), var(--violet)); box-shadow: 0 4px 14px rgba(232, 71, 143, .25);
   transition: transform .1s, box-shadow .15s;
 }
+a.btn { display: inline-block; text-decoration: none; }
 .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(232, 71, 143, .32); }
 .btn:active { transform: none; }
 .btn.big { font-size: 19px; padding: 17px 28px; }

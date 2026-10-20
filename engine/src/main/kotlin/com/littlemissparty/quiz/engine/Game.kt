@@ -215,13 +215,13 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
 
     /**
      * Box sans Internet depuis [offlineMs] : une question en cours (ou lancée hors connexion) se met en pause,
-     * car les tablettes ne la reçoivent plus et ne peuvent plus répondre. Une seule fois par question et par
-     * coupure ([alreadyFor] = question déjà mise en pause pendant cette coupure) : si l'animatrice relance
-     * quand même à la télécommande, la box ne la contredit pas.
+     * car les tablettes ne la reçoivent plus et ne peuvent plus répondre. Une seule fois par coupure
+     * ([alreadyPaused]) : l'écran de pause explique la suite (cartes A B C D, points à la télécommande) et,
+     * si l'animatrice relance, la fête continue hors connexion sans se figer à chaque question.
      */
-    fun networkPause(now: Long, offlineMs: Long, alreadyFor: String?): GameEvent? {
+    fun networkPause(now: Long, offlineMs: Long, alreadyPaused: Boolean): GameEvent? {
         if (offlineMs < NETWORK_GRACE_MS || state.phase != Phase.QUESTION || state.paused) return null
-        if (state.qid == alreadyFor || remainingMs(now) == 0L) return null
+        if (alreadyPaused || remainingMs(now) == 0L) return null
         return pause(now, PAUSE_NETWORK)
     }
 
@@ -1038,6 +1038,16 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
 
     fun adjust(team: String, delta: Int, reason: String, now: Long): GameEvent? =
         emit(ScoreAdjusted(nextSeq, now, team, delta, reason))
+
+    /**
+     * Points donnés à la télécommande (fête sans Internet : les équipes montrent leurs cartes A B C D) :
+     * un malus ne fait jamais passer l'équipe sous zéro, et au-delà de [Command.MAX_DELTA] rien ne part.
+     */
+    fun remotePoints(team: String, delta: Int, now: Long): GameEvent? {
+        if (delta == 0 || kotlin.math.abs(delta) > Command.MAX_DELTA) return null
+        val applied = if (delta < 0) maxOf(delta, -(state.scores()[team] ?: 0).coerceAtLeast(0)) else delta
+        return if (applied == 0) null else adjust(team, applied, REASON_REMOTE, now)
+    }
 
     fun undo(target: Int, now: Long): GameEvent? = emit(Undone(nextSeq, now, target))
 

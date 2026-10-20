@@ -531,6 +531,14 @@ describe("régie", () => {
     const admin = await openAdmin();
     await admin.click("#nav button[data-screen=settings]");
     await admin.locator("#screen-settings:not([hidden])").waitFor();
+    // Fête sans Internet : les cartes A B C D s'impriment depuis les Paramètres.
+    const [cartes] = await Promise.all([
+      admin.context().waitForEvent("page"),
+      admin.locator("#offline-panel a", { hasText: "Imprimer les cartes A B C D" }).click(),
+    ]);
+    await cartes.waitForLoadState();
+    assert.deepEqual(await cartes.locator(".rond").allTextContents(), ["A", "B", "C", "D"]);
+    await cartes.close();
     await admin.fill("#pw1", "licorne 2468");
     await admin.fill("#pw2", "licorne2468 ");
     await admin.click("#save");

@@ -106,6 +106,8 @@ class TvActions(
     val chestRandom: () -> Unit = {},
     /** Patate chaude à la télécommande : la bombe part au hasard (tablette en panne). */
     val potatoRandom: () -> Unit = {},
+    /** « Donner des points » (menu Retour) : équipes choisies, montant (fête sans Internet). */
+    val givePoints: (List<String>, Int) -> Unit = { _, _ -> },
 )
 
 /** Mise à jour de l'appli depuis la TV : état de la fenêtre et version trouvée par la recherche discrète. */
@@ -123,6 +125,7 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null) 
     // Bouton Retour pendant une partie : on met en pause et on demande confirmation au lieu de quitter.
     var confirmQuit by remember { mutableStateOf(false) }
     var pausedByDialog by remember { mutableStateOf(false) }
+    var pointsOpen by remember { mutableStateOf(false) }
     BackHandler(enabled = state is UiState.Playing) {
         val s = state as UiState.Playing
         if (s.phase == Phase.QUESTION && !s.paused) {
@@ -172,11 +175,25 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null) 
         QuitDialog(
             paused = state.paused,
             onContinue = close,
+            // La pause du menu dure jusqu'à la fermeture de la fenêtre des points.
+            onPoints = { confirmQuit = false; pointsOpen = true },
             onRegie = { close(); actions.showRegie() },
             onTablette = { close(); actions.showTablette() },
             onUpdate = { close(); actions.checkUpdate() },
             onNewGame = { confirmQuit = false; pausedByDialog = false; actions.newGame() },
             onQuit = { confirmQuit = false; actions.quit() },
+        )
+    }
+    if (pointsOpen && state is UiState.Playing) {
+        PointsDialog(
+            teams = state.teams,
+            scores = state.scores,
+            onValidate = actions.givePoints,
+            onClose = {
+                pointsOpen = false
+                if (pausedByDialog) actions.unpause()
+                pausedByDialog = false
+            },
         )
     }
     if (state is UiState.Playing && state.showRegie) {
@@ -187,7 +204,7 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null) 
     }
     if (update != null && update.open) {
         UpdateDialog(update.ui, busy = gameInProgress(state), actions = update.actions)
-    } else if (update?.offer != null && !gameInProgress(state) && !confirmQuit && !(state is UiState.Playing && (state.showRegie || state.showTablette))) {
+    } else if (update?.offer != null && !gameInProgress(state) && !confirmQuit && !pointsOpen && !(state is UiState.Playing && (state.showRegie || state.showTablette))) {
         // La proposition attend le retour à l'accueil : jamais par-dessus une partie ou une autre fenêtre.
         UpdateOfferDialog(update.offer, update.actions)
     }
@@ -337,6 +354,7 @@ private fun Locked(state: UiState.Locked, onRequestAgain: () -> Unit, onUpdate: 
 private fun QuitDialog(
     paused: Boolean,
     onContinue: () -> Unit,
+    onPoints: () -> Unit,
     onRegie: () -> Unit,
     onTablette: () -> Unit,
     onUpdate: () -> Unit,
@@ -367,6 +385,7 @@ private fun QuitDialog(
             Spacer(Modifier.height(4.dp))
             val wide = Modifier.fillMaxWidth()
             TvButton("Continuer la partie", onContinue, wide.focusRequester(focus), primary = true)
+            TvButton("Donner des points", onPoints, wide, fontSize = 20.sp)
             TvButton("Reconnecter la régie", onRegie, wide, fontSize = 20.sp)
             TvButton("Reconnecter une tablette", onTablette, wide, fontSize = 20.sp)
             TvButton("Rechercher une mise à jour", onUpdate, wide, fontSize = 20.sp)
