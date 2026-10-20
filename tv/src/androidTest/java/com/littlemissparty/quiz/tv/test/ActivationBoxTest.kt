@@ -6,6 +6,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.littlemissparty.quiz.tv.GameViewModel
 import com.littlemissparty.quiz.tv.MainActivity
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -56,6 +57,29 @@ class ActivationBoxTest : TestTv() {
         ecran.voit("Scannez pour jouer", 30_000)
         attendreQue("partie créée après l'activation", 30_000) { Boite.codeActif() }
         ecran.neVoitPas("Box en attente d'activation")
+    }
+
+    /**
+     * Sans verrou (aucune box encore acceptée), la box qui reprend sa partie au démarrage envoie quand même
+     * sa demande : sinon la première box, qui reprend toujours sa partie, n'apparaît jamais dans la Régie PC.
+     */
+    @Test
+    fun boxQuiRepriseSaPartieEnvoieSaDemande() {
+        val code = lancerBoite()
+        val uid = attendreQue("connexion de la box", 30_000) { FirebaseAuth.getInstance().currentUser?.uid }
+        attendreQue("demande à la création de la partie", 30_000) {
+            Proprietaire.lire("boxes/requests/$uid/code").takeIf { it.trim() != "null" }
+        }
+        // La demande a disparu (comme sur la TCL de cedric, jamais envoyée) : la reprise doit la renvoyer.
+        Proprietaire.envoyer("DELETE", "boxes/requests/$uid")
+        relancerBoite()
+        ecran.voit("Une partie est en cours", 30_000)
+        attendreQue("demande renvoyée à la reprise", 30_000) {
+            Proprietaire.lire("boxes/requests/$uid/code").trim('"').takeIf { it.matches(Regex("[A-Z2-9]{4}")) }
+        }
+        ecran.ok("Reprendre la partie")
+        ecran.voit("Scannez pour jouer", 30_000)
+        assertEquals("La reprise ne crée aucune nouvelle partie", code, Boite.codeActif())
     }
 
     @Test

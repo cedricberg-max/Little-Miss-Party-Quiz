@@ -350,6 +350,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 if (saved != null) {
                     val offer = resumableGame(db, uid, saved)
                     if (offer != null) {
+                        announceBox(db, uid)
                         offerResume(offer)
                         return@launch
                     }
@@ -370,7 +371,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = UiState.Connecting
         viewModelScope.launch {
             try {
-                open(connect(), code)
+                val db = connect()
+                FirebaseAuth.getInstance().currentUser?.uid?.let { announceBox(db, it) }
+                open(db, code)
             } catch (e: Exception) {
                 fail(e)
             }
@@ -429,6 +432,24 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         if (!lockOn) return true
         showLock()
         return false
+    }
+
+    /**
+     * Partie reprise : jamais bloquée (le verrou n'agit pas en pleine partie), mais la box envoie quand
+     * même sa demande, sinon une box qui reprend toujours sa partie n'apparaît jamais dans la Régie PC.
+     */
+    private fun announceBox(db: FirebaseDatabase, uid: String) {
+        viewModelScope.launch {
+            runCatching {
+                watchBox(db, uid)
+                if (boxOk == uid) return@runCatching
+                if (db.getReference("boxes/allowed/$uid").readOnce()?.exists() == true) {
+                    boxOk = uid
+                } else {
+                    requestActivation(db, uid)
+                }
+            }.onFailure { Log.e(TAG, "Demande d'activation non envoyée", it) }
+        }
     }
 
     private fun showLock(refused: Boolean = false) {
