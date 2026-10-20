@@ -26,11 +26,11 @@ import kotlin.math.sin
 /**
  * Le plateau (choix de cedric du 19 octobre : B + C, « doux, pas agressif ») : nuit violette, sol en perspective,
  * lumière fixe, deux projecteurs qui balaient lentement la scène de gauche à droite, et un ciel d'étoiles qui
- * s'allument et s'éteignent très doucement, chacune à son rythme. Rien ne clignote : un balayage dure
- * [BALAYAGE_MS], une étoile met 9 à 22 s à scintiller. Fond, faisceaux et étoiles sont dessinés une fois ; à chaque
+ * s'allument et s'éteignent, chacune à son rythme. Rien ne flashe : un balayage dure
+ * [BALAYAGE_MS], une étoile met 3,5 à 8,5 s à scintiller. Fond, faisceaux et étoiles sont dessinés une fois ; à chaque
  * image seuls l'angle des faisceaux (calque tourné) et l'éclat des étoiles changent, pour rester fluide sur une
  * petite box. Dans les 5 dernières secondes, les bords chauffent (orange) ; [dore] : dernières questions à points
- * multipliés, plateau doré et projecteurs plus vifs.
+ * multipliés, mêmes couleurs avec des paillettes d'or et des projecteurs plus vifs.
  */
 private const val BALAYAGE_MS = 11_000L
 private const val AMPLITUDE_DEGRES = 14f
@@ -81,7 +81,8 @@ fun DecorPlateau(chaud: Boolean, dore: Boolean = false) {
                     },
             )
         }
-        // Plateau doré : lumière d'or qui tombe d'en haut et monte du sol, et poussière d'or.
+        // Questions à points multipliés : mêmes couleurs que partout (choix de cedric du 20 octobre, un voile d'or
+        // sur le violet donnait un rose fade) ; seules des paillettes d'or s'ajoutent, et les projecteurs brillent plus.
         if (or > 0.01f) {
             Box(
                 Modifier.fillMaxSize()
@@ -89,19 +90,7 @@ fun DecorPlateau(chaud: Boolean, dore: Boolean = false) {
                     .drawWithCache {
                         val w = size.width
                         val h = size.height
-                        val haut = Brush.radialGradient(listOf(Neon.OrClair.copy(alpha = 0.28f), Color.Transparent), Offset(w / 2, -h * 0.1f), w * 0.6f)
-                        val sol = Brush.radialGradient(listOf(Neon.Or.copy(alpha = 0.24f), Color.Transparent), Offset(w / 2, h * 1.05f), w * 0.5f)
-                        // Pas de voile orange sur tout l'écran : mêlé au violet, il donnait un rose fade (retour de cedric
-                        // du 20 octobre). La nuit reste violette ; l'or vient seulement des bords, du haut et du sol.
-                        val cadre = Brush.radialGradient(
-                            0.6f to Color.Transparent,
-                            1f to Neon.Or.copy(alpha = 0.22f),
-                            center = Offset(w / 2, h / 2), radius = w * 0.62f,
-                        )
                         onDrawBehind {
-                            drawRect(cadre)
-                            drawRect(haut)
-                            drawRect(sol)
                             positionsOr.forEachIndexed { k, o ->
                                 drawCircle(Neon.OrClair.copy(alpha = 0.35f + 0.2f * (k % 3)), size.minDimension * (0.003f + 0.0015f * (k % 2)), Offset(o.x * w, o.y * h))
                             }
@@ -115,8 +104,8 @@ fun DecorPlateau(chaud: Boolean, dore: Boolean = false) {
                     .graphicsLayer { alpha = chaleur }
                     .drawWithCache {
                         val bords = Brush.radialGradient(
-                            0.55f to Color.Transparent,
-                            1f to Neon.Chaud.copy(alpha = 0.5f),
+                            0.7f to Color.Transparent,
+                            1f to Neon.Chaud.copy(alpha = 0.3f),
                             center = Offset(size.width / 2, size.height / 2), radius = size.width * 0.62f,
                         )
                         onDrawBehind { drawRect(bords) }
@@ -135,12 +124,12 @@ private val ciel = List(42) { i ->
         x = (0.5f + i * 0.7548777f) % 1f,
         y = 0.03f + 0.72f * ((0.5f + i * 0.5698403f) % 1f),
         rayon = 0.0018f + 0.0012f * (i % 3) + if (i % 7 == 0) 0.0016f else 0f,
-        periodeMs = 9_000f + 13_000f * ((i * 0.53f) % 1f),
+        periodeMs = 3_500f + 5_000f * ((i * 0.53f) % 1f),
         phase = (i * 2.399f) % (2f * PI.toFloat()),
     )
 }
 
-/** Les étoiles : chacune passe très lentement de presque éteinte à douce, sans jamais flasher ; les plus grosses ont un petit halo. */
+/** Les étoiles : chacune s'allume et s'éteint en 3,5 à 8,5 s, avec un éclat franc et bref (plus vives à la demande de cedric, 20 octobre) ; les plus grosses ont un petit halo. */
 @Composable
 private fun Etoiles(temps: () -> Long) {
     Box(
@@ -151,7 +140,7 @@ private fun Etoiles(temps: () -> Long) {
                 val t = temps().toFloat()
                 ciel.forEachIndexed { i, e ->
                     val onde = 0.5f + 0.5f * sin(2f * PI.toFloat() * t / e.periodeMs + e.phase)
-                    val eclat = 0.08f + 0.5f * onde * onde
+                    val eclat = 0.1f + 0.85f * onde * onde * onde
                     val centre = Offset(e.x * size.width, e.y * size.height)
                     if (e.rayon > 0.003f) drawCircle(halos[i], e.rayon * m * 5f, centre, alpha = eclat)
                     drawCircle(Neon.Blanc, e.rayon * m, centre, alpha = eclat)
