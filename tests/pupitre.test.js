@@ -513,9 +513,11 @@ describe("pupitre", () => {
     // Salon : le gros bouton fait le petit air, comme un toucher.
     await pages[0].keyboard.press("Space");
     await waitFor(async () => (await read("fun"))?.[uids["Les Roses"]]?.at, "buzz de l'accueil au gros bouton");
-    // Question à 4 réponses : pas de BUZZ à l'écran, le gros bouton ne fait rien.
+    // Question à 4 réponses : pas de BUZZ à l'écran, le gros bouton ne fait rien, même sur une réponse restée
+    // sélectionnée (le gros bouton est souvent réglé sur Entrée).
     await hostState(question());
     await pages[0].locator("#screen-question.active").waitFor();
+    await pages[0].locator(".choice").nth(1).focus();
     await pages[0].keyboard.press("Space");
     await pages[0].keyboard.press("Enter");
     await new Promise((r) => setTimeout(r, 500));
