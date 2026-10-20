@@ -66,6 +66,7 @@ import com.littlemissparty.quiz.tv.habillage.apparition
 import com.littlemissparty.quiz.tv.habillage.apres
 import com.littlemissparty.quiz.tv.habillage.rebond
 import com.littlemissparty.quiz.tv.habillage.reflet
+import com.littlemissparty.quiz.tv.habillage.styleCentre
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 
@@ -289,7 +290,7 @@ private fun PhotoChoix(i: Int, text: String, bytes: ByteArray, juste: Boolean, c
                 modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(percent = 22)).background(Color.White),
             )
             Box(Modifier.align(Alignment.TopStart).size(46.dp).clip(CircleShape).background(color), contentAlignment = Alignment.Center) {
-                Text(Palette.ChoiceLetters[i], color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Black)
+                Text(Palette.ChoiceLetters[i], style = styleCentre(24.sp, Color.White, FontWeight.Black))
             }
         }
         Text(
@@ -328,7 +329,7 @@ private fun ChoiceCard(i: Int, text: String, correct: Int?, modifier: Modifier, 
         val enImage = if (photo != null) PhotoChoix(i, text, photo, juste, color, Modifier.weight(1f).fillMaxHeight()) else false
         if (!enImage) {
             Box(Modifier.size(52.dp).clip(CircleShape).background(color), contentAlignment = Alignment.Center) {
-                Text(Palette.ChoiceLetters[i], color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Black)
+                Text(Palette.ChoiceLetters[i], style = styleCentre(28.sp, Color.White, FontWeight.Black))
             }
             Spacer(Modifier.width(18.dp))
             Text(
@@ -340,7 +341,7 @@ private fun ChoiceCard(i: Int, text: String, correct: Int?, modifier: Modifier, 
             juste -> Box(
                 Modifier.size(48.dp).apparition(100, Unit).clip(CircleShape).background(Color.White),
                 contentAlignment = Alignment.Center,
-            ) { Text("✓", color = Neon.JusteProfond, fontSize = 32.sp, fontWeight = FontWeight.Black) }
+            ) { Text("✓", style = styleCentre(32.sp, Neon.JusteProfond, FontWeight.Black)) }
             eteinte -> Text("✗", color = Neon.Faux, fontSize = 32.sp, fontWeight = FontWeight.Black)
         }
     }
@@ -413,7 +414,7 @@ private fun Countdown(state: UiState.Playing) {
         },
         contentAlignment = Alignment.Center,
     ) {
-        Text("$seconds", color = if (urgent) Color(0xFFFF4D6D) else Palette.Ink, fontSize = 34.sp, fontWeight = FontWeight.Black)
+        Text("$seconds", style = styleCentre(34.sp, if (urgent) Color(0xFFFF4D6D) else Palette.Ink, FontWeight.Black))
     }
 }
 

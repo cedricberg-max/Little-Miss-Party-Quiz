@@ -90,10 +90,16 @@ fun DecorPlateau(chaud: Boolean, dore: Boolean = false) {
                         val w = size.width
                         val h = size.height
                         val haut = Brush.radialGradient(listOf(Neon.OrClair.copy(alpha = 0.28f), Color.Transparent), Offset(w / 2, -h * 0.1f), w * 0.6f)
-                        val sol = Brush.radialGradient(listOf(Color(0xFFFFAA5A).copy(alpha = 0.30f), Color.Transparent), Offset(w / 2, h * 1.05f), w * 0.5f)
-                        val voile = Brush.verticalGradient(listOf(Color(0x33FF9A4A), Color(0x14F0CC92), Color(0x33FF9A4A)))
+                        val sol = Brush.radialGradient(listOf(Neon.Or.copy(alpha = 0.24f), Color.Transparent), Offset(w / 2, h * 1.05f), w * 0.5f)
+                        // Pas de voile orange sur tout l'écran : mêlé au violet, il donnait un rose fade (retour de cedric
+                        // du 20 octobre). La nuit reste violette ; l'or vient seulement des bords, du haut et du sol.
+                        val cadre = Brush.radialGradient(
+                            0.6f to Color.Transparent,
+                            1f to Neon.Or.copy(alpha = 0.22f),
+                            center = Offset(w / 2, h / 2), radius = w * 0.62f,
+                        )
                         onDrawBehind {
-                            drawRect(voile)
+                            drawRect(cadre)
                             drawRect(haut)
                             drawRect(sol)
                             positionsOr.forEachIndexed { k, o ->

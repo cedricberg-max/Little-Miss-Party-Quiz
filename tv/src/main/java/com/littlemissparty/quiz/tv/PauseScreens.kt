@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -60,6 +61,7 @@ import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.tv.habillage.Echelle
 import com.littlemissparty.quiz.tv.habillage.LogoLmp
 import com.littlemissparty.quiz.tv.habillage.Neon
+import com.littlemissparty.quiz.tv.habillage.styleCentre
 import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.cos
@@ -290,17 +292,16 @@ private fun ResumeCountdown(state: UiState.Playing) {
         ) {
             drawCircle(Palette.Gold.copy(alpha = 0.55f), radius = size.minDimension / 2 - 6f, style = Stroke(width = 6f))
         }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                "$shown",
-                style = TextStyle(
-                    fontFamily = PoliceLmp, color = Palette.Gold, fontSize = 200.sp, fontWeight = FontWeight.Black,
-                    shadow = Shadow(Palette.Gold.copy(alpha = 0.9f), blurRadius = 40f),
-                ),
-                modifier = Modifier.graphicsLayer { scaleX = pop.value; scaleY = pop.value; alpha = (2.2f - pop.value).coerceIn(0f, 1f) },
-            )
-            Text("C'est reparti !", color = Palette.Ink, fontSize = 34.sp, fontWeight = FontWeight.Black)
-        }
+        // Le chiffre seul au centre de l'anneau, centré au pixel (styleCentre) ; la phrase passe sous l'anneau.
+        Text(
+            "$shown",
+            style = styleCentre(200.sp, Palette.Gold, FontWeight.Black).copy(shadow = Shadow(Palette.Gold.copy(alpha = 0.9f), blurRadius = 40f)),
+            modifier = Modifier.graphicsLayer { scaleX = pop.value; scaleY = pop.value; alpha = (2.2f - pop.value).coerceIn(0f, 1f) },
+        )
+        Text(
+            "C'est reparti !", color = Palette.Ink, fontSize = 34.sp, fontWeight = FontWeight.Black,
+            modifier = Modifier.align(Alignment.Center).offset(y = 185.dp),
+        )
     }
 }
 
