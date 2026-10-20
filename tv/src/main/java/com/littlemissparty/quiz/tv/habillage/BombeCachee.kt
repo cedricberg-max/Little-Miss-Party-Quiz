@@ -1,0 +1,807 @@
+package com.littlemissparty.quiz.tv.habillage
+
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.inset
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.min
+import kotlin.math.sin
+
+/*
+ * La bombe cachée (remplace les Portes mystères) : des coffres de toutes formes posés sur les gradins d'une estrade
+ * laquée prune, ouverts chacun leur tour par les équipes. Bonus, malus… puis la bombe.
+ *
+ * Ces écrans ne font qu'animer ce que la partie leur donne : le contenu d'un coffre est tiré par la box au moment
+ * de l'ouverture, jamais par l'habillage. Les animations jouent leurs propres sons et préviennent par onFini ;
+ * si l'écran est remplacé avant la fin, rien n'est bloqué. Tout tient de 1 à 8 équipes et de 1 à 21 coffres.
+ */
+
+/** Modèle de chaque coffre d'après son index, le même sur la TV et sur les tablettes (coffre-<modèle+1>.svg). */
+val MODELES_COFFRES = listOf(0, 3, 1, 5, 2, 4, 1, 5, 0, 4, 3, 2, 5, 0, 2, 4, 1, 3)
+
+fun modeleCoffre(index: Int): Int = MODELES_COFFRES[Math.floorMod(index, MODELES_COFFRES.size)]
+
+/** « +150 POINTS », « −100 POINTS » (signe moins U+2212) ; la bombe vaut [POINTS_BOMBE]. */
+fun textePointsCoffre(delta: Int?): String = texteValeur(delta ?: POINTS_BOMBE) + " POINTS"
+
+const val POINTS_BOMBE = -300
+
+const val OUVERTURE_COFFRE_MS = 3_200L
+const val OUVERTURE_BOMBE_MS = 3_800L
+const val ALERTE_BOMBE_MS = 3_000L
+
+private const val T_ENTREE = 450f
+private const val T_OUVRE = 1_300f
+private const val T_TEXTE = 1_550f
+private const val T_POSE = 1_750f
+private const val T_BOUM = 2_350f
+
+/* ------------------------------------------------------------------ Modèles */
+
+/** Un modèle de coffre : taille (dp à l'échelle 1), hauteur du couvercle (part de la hauteur), forme et couleurs. */
+private class ModeleCoffre(
+    val largeur: Float, val hauteur: Float, val couvercle: Float, val bombe: Boolean,
+    val clair: Color, val fonce: Color, val trait: Color,
+)
+
+private val MODELES = listOf(
+    // 0 Grand coffre au trésor, rose poudré, bandes dorées.
+    ModeleCoffre(118f, 94f, 0.38f, true, Color(0xFFF6C6D5), Color(0xFFDC8EAC), Color(0xFF9C4F6E)),
+    // 1 Malle de voyage, bleu dragée, sangles et coins de laiton.
+    ModeleCoffre(100f, 106f, 0.2f, false, Color(0xFFC8DCF6), Color(0xFF8EAEDD), Color(0xFF3F5E8C)),
+    // 2 Petit écrin à pieds, vert d'eau, gemme sur le couvercle.
+    ModeleCoffre(80f, 64f, 0.44f, true, Color(0xFFC8EFDF), Color(0xFF86C8AD), Color(0xFF2F6E58)),
+    // 3 Coffre plat, lavande, clous dorés.
+    ModeleCoffre(126f, 70f, 0.3f, false, Color(0xFFDED2F7), Color(0xFFA895DC), Color(0xFF5A458F)),
+    // 4 Boîte à chapeau ronde, pêche, ruban crème et nœud.
+    ModeleCoffre(96f, 90f, 0.26f, false, Color(0xFFFFDCC2), Color(0xFFF2A97E), Color(0xFFA55A35)),
+    // 5 Coffre bombé crème à bandes prune.
+    ModeleCoffre(108f, 90f, 0.36f, true, Color(0xFFF8EEDF), Color(0xFFDCC5A2), Color(0xFF8A6A44)),
+)
+
+private val OR_CLAIR = Color(0xFFFFF3D1)
+private val OR_MOYEN = Color(0xFFE9C27A)
+private val OR_FONCE = Color(0xFFA8782F)
+private val PRUNE = Color(0xFF8E5BB5)
+private val INTERIEUR = Color(0xFF2A1640)
+private val SUIE = Color(0xFF231B2C)
+private val BONUS_VERT = Color(0xFF2EE86B)
+private val MALUS_CORAIL = Color(0xFFFF5A5F)
+private val LUEUR_OR = Color(0xFFFFD98A)
+private val LUEUR_MALUS = Color(0xFFB9A8D8)
+private val LUEUR_BOMBE = Color(0xFFFF6A3D)
+
+/** Position de la plaque numérotée sur la face avant (fractions de la largeur et de la hauteur du coffre). */
+private fun plaque(m: ModeleCoffre): Rect {
+    val l = if (m === MODELES[4]) 0.30f else m.couvercle
+    val pw = 0.36f
+    val ph = min(0.3f, (1f - l) * 0.56f)
+    val cy = l + (1f - l) * (if (m === MODELES[2]) 0.42f else 0.46f)
+    return Rect(0.5f - pw / 2, cy - ph / 2, 0.5f + pw / 2, cy + ph / 2)
+}
+
+/**
+ * Dessine un coffre qui remplit la zone ; sa base touche le bas de la zone. [ouverture] : 0 fermé, 1 couvercle
+ * relevé ; [lueur] : la lumière qui sort quand il est ouvert ; [assombri] : 0 neuf, 0,25 déjà ouvert, 0,75 brûlé.
+ */
+private fun DrawScope.dessineCoffre(modele: Int, ouverture: Float, lueur: Color?, assombri: Float) {
+    val m = MODELES[modele]
+    val w = size.width
+    val h = size.height
+    fun ton(c: Color) = if (assombri <= 0f) c else lerp(c, SUIE, assombri)
+    val clair = ton(m.clair)
+    val fonce = ton(m.fonce)
+    val trait = ton(m.trait).copy(alpha = 0.7f)
+    val or = listOf(ton(OR_CLAIR), ton(OR_MOYEN), ton(OR_FONCE))
+    val ep = 1.6f * density * (w / (m.largeur * density)).coerceAtLeast(0.6f)
+    val rond = modele == 4
+    val pied = if (modele == 2) 0.1f * h else 0f
+    val l = (if (rond) 0.30f else m.couvercle) * h
+    val bas = h - pied
+
+    // Corps.
+    val corps = Path().apply {
+        if (rond) {
+            addRect(Rect(0f, l - 0.02f * h, w, bas - 0.07f * h))
+            addOval(Rect(0f, bas - 0.14f * h, w, bas))
+        } else {
+            addRoundRect(RoundRect(0f, l, w, bas, CornerRadius.Zero, CornerRadius.Zero, CornerRadius(0.06f * w), CornerRadius(0.06f * w)))
+        }
+    }
+    // Pieds de l'écrin : il repose dessus.
+    if (pied > 0f) for (fx in listOf(0.14f, 0.86f)) {
+        drawOval(Brush.verticalGradient(or, bas - pied * 0.3f, h), Offset(w * fx - pied * 0.7f, bas - pied * 0.4f), Size(pied * 1.4f, pied * 1.4f))
+    }
+    drawPath(corps, Brush.verticalGradient(listOf(clair, fonce), l, bas))
+    drawPath(corps, Brush.horizontalGradient(listOf(Color.White.copy(alpha = 0.2f), Color.Transparent, Color.Black.copy(alpha = 0.1f)), 0f, w))
+    clipPath(corps) {
+        when (modele) {
+            0 -> listOf(0.18f, 0.82f).forEach { fx -> bande(fx * w, 0.08f * w, 0f, h, or) }
+            1 -> {
+                listOf(0.22f, 0.78f).forEach { fx -> drawRect(ton(lerp(m.fonce, m.trait, 0.45f)), Offset(fx * w - 0.035f * w, 0f), Size(0.07f * w, h)) }
+                listOf(0f, w - 0.1f * w).forEach { x -> drawRect(Brush.verticalGradient(or), Offset(x, bas - 0.1f * w), Size(0.1f * w, 0.1f * w)) }
+            }
+            2 -> drawRoundRect(or[1].copy(alpha = 0.9f), Offset(0.05f * w, l + 0.06f * h), Size(0.9f * w, bas - l - 0.12f * h), CornerRadius(0.04f * w), style = Stroke(ep))
+            3 -> for (k in 0..6) drawCircle(Brush.radialGradient(or.reversed()), 0.018f * w, Offset(w * (0.08f + k * 0.14f), bas - 0.08f * h))
+            4 -> drawRect(Brush.horizontalGradient(listOf(ton(Color(0xFFFFF4E4)), ton(Color(0xFFF1DFC6))), w * 0.43f, w * 0.57f), Offset(w * 0.43f, 0f), Size(w * 0.14f, h))
+            5 -> listOf(0.62f, 0.86f).forEach { fy -> drawRect(ton(PRUNE), Offset(0f, l + (bas - l) * fy - 0.03f * h), Size(w, 0.06f * h)) }
+        }
+    }
+    drawPath(corps, trait, style = Stroke(ep))
+
+    // Ouverture : l'intérieur sombre et la lumière qui en sort.
+    if (ouverture > 0f) {
+        val bouche = Rect(0.05f * w, l - 0.06f * h, 0.95f * w, l + 0.06f * h)
+        drawOval(INTERIEUR, bouche.topLeft, bouche.size)
+        if (lueur != null) {
+            val c = Offset(w / 2, l)
+            drawOval(Brush.radialGradient(listOf(lueur.copy(alpha = 0.95f), lueur.copy(alpha = 0.35f), Color.Transparent), c, 0.5f * w), Offset(0.12f * w, l - 0.05f * h), Size(0.76f * w, 0.1f * h))
+            drawCircle(Brush.radialGradient(listOf(lueur.copy(alpha = 0.55f * ouverture), Color.Transparent), c, 0.75f * w), 0.75f * w, c)
+        }
+    }
+
+    // Couvercle (relevé et basculé en arrière quand le coffre s'ouvre).
+    val levee = ouverture * 0.75f * l + ouverture * 0.12f * h
+    withTransform({
+        translate(top = -levee)
+        rotate(-16f * ouverture, Offset(w * 0.96f, l))
+    }) {
+        val couv = Path().apply {
+            when {
+                rond -> {
+                    addRect(Rect(-0.03f * w, 0.08f * h, 1.03f * w, l + 0.02f * h))
+                    addOval(Rect(-0.03f * w, l - 0.05f * h, 1.03f * w, l + 0.05f * h))
+                }
+                m.bombe -> addRoundRect(RoundRect(-0.02f * w, 0f, 1.02f * w, l + 0.02f * h, CornerRadius(0.52f * w, l), CornerRadius(0.52f * w, l), CornerRadius.Zero, CornerRadius.Zero))
+                else -> addRoundRect(RoundRect(-0.03f * w, 0f, 1.03f * w, l + 0.02f * h, CornerRadius(0.05f * w)))
+            }
+        }
+        drawPath(couv, Brush.verticalGradient(listOf(lerp(clair, Color.White, 0.18f), fonce), 0f, l))
+        clipPath(couv) {
+            when (modele) {
+                0 -> listOf(0.18f, 0.82f).forEach { fx -> bande(fx * w, 0.08f * w, 0f, l + 0.02f * h, or) }
+                1 -> listOf(0.22f, 0.78f).forEach { fx -> drawRect(ton(lerp(m.fonce, m.trait, 0.45f)), Offset(fx * w - 0.035f * w, 0f), Size(0.07f * w, l)) }
+                3 -> for (k in 0..6) drawCircle(Brush.radialGradient(or.reversed()), 0.016f * w, Offset(w * (0.08f + k * 0.14f), l - 0.07f * h))
+                4 -> drawRect(Brush.horizontalGradient(listOf(ton(Color(0xFFFFF4E4)), ton(Color(0xFFF1DFC6))), w * 0.43f, w * 0.57f), Offset(w * 0.43f, 0f), Size(w * 0.14f, l + 0.05f * h))
+                5 -> drawRect(ton(PRUNE), Offset(w * 0.46f, 0f), Size(w * 0.08f, l))
+            }
+        }
+        drawPath(couv, trait, style = Stroke(ep))
+        if (rond) {
+            drawOval(Brush.verticalGradient(listOf(lerp(clair, Color.White, 0.3f), clair), 0f, 0.16f * h), Offset(-0.03f * w, 0f), Size(1.06f * w, 0.16f * h))
+            drawOval(trait, Offset(-0.03f * w, 0f), Size(1.06f * w, 0.16f * h), style = Stroke(ep))
+            // Nœud du ruban.
+            val c = Offset(w / 2, 0.06f * h)
+            val creme = ton(Color(0xFFFFF4E4))
+            drawOval(creme, Offset(c.x - 0.2f * w, c.y - 0.07f * h), Size(0.19f * w, 0.1f * h))
+            drawOval(creme, Offset(c.x + 0.01f * w, c.y - 0.07f * h), Size(0.19f * w, 0.1f * h))
+            drawOval(trait.copy(alpha = 0.35f), Offset(c.x - 0.2f * w, c.y - 0.07f * h), Size(0.19f * w, 0.1f * h), style = Stroke(ep * 0.8f))
+            drawOval(trait.copy(alpha = 0.35f), Offset(c.x + 0.01f * w, c.y - 0.07f * h), Size(0.19f * w, 0.1f * h), style = Stroke(ep * 0.8f))
+            drawCircle(lerp(creme, ton(m.fonce), 0.25f), 0.045f * w, c)
+        } else {
+            // Liseré doré entre le couvercle et le corps.
+            drawRoundRect(Brush.verticalGradient(or, l - 0.035f * h, l + 0.035f * h), Offset(-0.025f * w, l - 0.035f * h), Size(1.05f * w, 0.07f * h), CornerRadius(0.02f * w))
+        }
+        if (modele == 2) {
+            val g = Offset(w / 2, 0.06f * h)
+            drawCircle(Brush.radialGradient(listOf(ton(Color.White), ton(Color(0xFFFFC4DD)), ton(Color(0xFFF27DB0))), g - Offset(0.02f * w, 0.02f * w), 0.08f * w), 0.065f * w, g)
+            drawCircle(or[1], 0.065f * w, g, style = Stroke(ep))
+        }
+    }
+
+    // Plaque de la serrure (le numéro ou la valeur sont écrits par-dessus).
+    if (ouverture <= 0f) {
+        val p = plaque(m)
+        val r = Rect(p.left * w, p.top * h, p.right * w, p.bottom * h)
+        drawRoundRect(Color.Black.copy(alpha = 0.18f), r.topLeft + Offset(0f, 0.012f * h), r.size, CornerRadius(0.05f * w))
+        drawRoundRect(Brush.verticalGradient(or, r.top, r.bottom), r.topLeft, r.size, CornerRadius(0.05f * w))
+        drawRoundRect(ton(OR_FONCE).copy(alpha = 0.6f), r.topLeft, r.size, CornerRadius(0.05f * w), style = Stroke(ep))
+    }
+}
+
+private fun DrawScope.bande(cx: Float, larg: Float, y0: Float, y1: Float, or: List<Color>) {
+    drawRect(Brush.horizontalGradient(listOf(or[2], or[0], or[1], or[2]), cx - larg / 2, cx + larg / 2), Offset(cx - larg / 2, y0), Size(larg, y1 - y0))
+    var y = y0 + larg * 0.8f
+    while (y < y1 - larg * 0.4f) { drawCircle(or[2].copy(alpha = 0.8f), larg * 0.13f, Offset(cx, y)); y += larg * 1.4f }
+}
+
+/** La bombe : boule prune laquée, culot doré, mèche dont il reste [meche] (0..1), étincelle au bout. */
+private fun DrawScope.dessineBombe(c: Offset, r: Float, t: Float, meche: Float, etincelle: Boolean = true) {
+    drawCircle(Brush.radialGradient(listOf(Color(0xFF6A4A8E), Color(0xFF2A1B42), Color(0xFF0E0918)), c - Offset(r * 0.35f, r * 0.4f), r * 1.5f), r, c)
+    drawCircle(Neon.Halo.copy(alpha = 0.35f), r, c, style = Stroke(r * 0.06f))
+    drawOval(Color.White.copy(alpha = 0.32f), c - Offset(r * 0.62f, r * 0.68f), Size(r * 0.5f, r * 0.32f))
+    // Culot doré, penché vers la droite.
+    rotate(35f, c) {
+        drawRoundRect(Brush.horizontalGradient(listOf(OR_FONCE, OR_CLAIR, OR_MOYEN, OR_FONCE), c.x - r * 0.28f, c.x + r * 0.28f), Offset(c.x - r * 0.28f, c.y - r * 1.16f), Size(r * 0.56f, r * 0.3f), CornerRadius(r * 0.06f))
+    }
+    if (meche <= 0f) return
+    val depart = c + Offset(r * 0.66f, -r * 0.92f)
+    val chemin = Path()
+    val pas = 18
+    var bout = depart
+    for (s in 0..pas) {
+        val f = s / pas.toFloat() * meche
+        val p = depart + Offset(r * 0.55f * f + r * 0.18f * sin(f * 5f), -r * 0.9f * f + r * 0.12f * (1 - cos(f * 4f)))
+        if (s == 0) chemin.moveTo(p.x, p.y) else chemin.lineTo(p.x, p.y)
+        bout = p
+    }
+    drawPath(chemin, Color(0xFFE8D8B8), style = Stroke(r * 0.1f, cap = StrokeCap.Round))
+    drawPath(chemin, Color(0xFF9A8460), style = Stroke(r * 0.1f, cap = StrokeCap.Round, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(r * 0.06f, r * 0.1f))))
+    if (!etincelle) return
+    val vibre = 0.75f + 0.25f * sin(t / 37f)
+    drawCircle(Brush.radialGradient(listOf(Color(0xFFFFF6C8), Color(0xFFFFB347).copy(alpha = 0.7f), Color.Transparent), bout, r * 0.7f * vibre), r * 0.7f * vibre, bout)
+    for (k in 0 until 7) {
+        val a = k * (2f * PI.toFloat() / 7f) + t / 120f
+        val lg = r * (0.35f + 0.25f * abs(sin(t / 53f + k)))
+        drawLine(Color(0xFFFFE9A0), bout, bout + Offset(cos(a) * lg, sin(a) * lg), r * 0.05f, StrokeCap.Round)
+    }
+}
+
+/** Petite estrade ronde laquée prune, bordée d'or, sur laquelle on pose un objet (coffre agrandi, bombe). */
+private fun DrawScope.estradeRonde(cx: Float, haut: Float, rx: Float, ry: Float, epaisseur: Float) {
+    drawOval(Brush.radialGradient(listOf(Neon.Or.copy(alpha = 0.25f), Color.Transparent), Offset(cx, haut + epaisseur), rx * 1.6f), Offset(cx - rx * 1.6f, haut - ry), Size(rx * 3.2f, ry * 2f + epaisseur * 3f))
+    val face = Path().apply {
+        moveTo(cx - rx, haut); lineTo(cx - rx, haut + epaisseur)
+        arcTo(Rect(cx - rx, haut + epaisseur - ry, cx + rx, haut + epaisseur + ry), 180f, -180f, false)
+        lineTo(cx + rx, haut); close()
+    }
+    drawPath(face, Brush.verticalGradient(listOf(Color(0xFF3A1A5E), Color(0xFF1C0C30)), haut, haut + epaisseur + ry))
+    drawArc(Neon.Or.copy(alpha = 0.8f), 0f, 180f, false, Offset(cx - rx, haut + epaisseur - ry), Size(rx * 2, ry * 2), style = Stroke(2f * density))
+    drawOval(Brush.verticalGradient(listOf(Color(0xFF5A2F86), Color(0xFF3A1B5E)), haut - ry, haut + ry), Offset(cx - rx, haut - ry), Size(rx * 2, ry * 2))
+    drawOval(Neon.Or, Offset(cx - rx, haut - ry), Size(rx * 2, ry * 2), style = Stroke(2.5f * density))
+    drawOval(Color.White.copy(alpha = 0.08f), Offset(cx - rx * 0.7f, haut - ry * 0.7f), Size(rx * 1.4f, ry * 1.0f))
+}
+
+/* ------------------------------------------------------------------ Gradins et coffres */
+
+/** Une marche de l'estrade : bord avant [avant], profondeur [prof], échelle des coffres posés dessus, étendue. */
+private class Marche(val avant: Float, val prof: Float, val echelle: Float, val gauche: Float, val droite: Float) {
+    val base get() = avant - prof * 0.42f
+}
+
+private fun marches(rangees: Int): List<Marche> = when (rangees) {
+    1 -> listOf(Marche(452f, 44f, 1.05f, 70f, 890f))
+    2 -> listOf(Marche(338f, 36f, 0.86f, 110f, 850f), Marche(464f, 42f, 1f, 50f, 910f))
+    else -> listOf(Marche(276f, 30f, 0.72f, 170f, 790f), Marche(370f, 34f, 0.85f, 110f, 850f), Marche(466f, 40f, 1f, 50f, 910f))
+}
+
+/** Nombre de coffres par rangée, du fond vers l'avant (l'avant reçoit les coffres en plus). */
+internal fun repartitionCoffres(nombre: Int): List<Int> {
+    if (nombre <= 0) return emptyList()
+    val rangees = when { nombre <= 6 -> 1; nombre <= 12 -> 2; else -> 3 }
+    val base = nombre / rangees
+    val reste = nombre % rangees
+    return List(rangees) { r -> base + if (r >= rangees - reste) 1 else 0 }
+}
+
+/** Place de chaque coffre (centre x, base y, échelle), numérotés de gauche à droite en partant du fond. */
+private fun placesCoffres(nombre: Int): List<Triple<Float, Float, Float>> {
+    val rep = repartitionCoffres(nombre)
+    val ms = marches(rep.size)
+    return rep.flatMapIndexed { r, n ->
+        val m = ms[r]
+        val g = m.gauche + 30f * m.echelle
+        val d = m.droite - 30f * m.echelle
+        List(n) { i -> Triple(g + (d - g) * (i + 0.5f) / n, m.base, m.echelle) }
+    }
+}
+
+private fun DrawScope.gradins(rangees: Int) {
+    val d = density
+    val ms = marches(rangees)
+    ms.forEachIndexed { k, m ->
+        val haut = (m.avant - m.prof) * d
+        val avant = m.avant * d
+        val bas = (if (k + 1 < ms.size) ms[k + 1].avant - ms[k + 1].prof else 540f) * d
+        val retrait = m.prof * 0.6f * d
+        // Dessus de la marche (laque prune) puis contremarche plus sombre.
+        val dessus = Path().apply {
+            moveTo(m.gauche * d + retrait, haut); lineTo(m.droite * d - retrait, haut); lineTo(m.droite * d, avant); lineTo(m.gauche * d, avant); close()
+        }
+        drawPath(dessus, Brush.verticalGradient(listOf(Color(0xFF55297F), Color(0xFF41206A)), haut, avant))
+        drawPath(dessus, Brush.horizontalGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.07f), Color.Transparent), m.gauche * d, m.droite * d))
+        drawRect(Brush.verticalGradient(listOf(Color(0xFF2A1244), Color(0xFF190A2C)), avant, bas), Offset(m.gauche * d, avant), Size((m.droite - m.gauche) * d, bas - avant))
+        // Bandeau lumineux doux sous le nez de marche, filet d'or sur le bord.
+        drawRect(Brush.verticalGradient(listOf(Neon.Halo.copy(alpha = 0.22f), Color.Transparent), avant, avant + 16f * d), Offset(m.gauche * d, avant), Size((m.droite - m.gauche) * d, 16f * d))
+        drawLine(Neon.Or.copy(alpha = 0.85f), Offset(m.gauche * d, avant), Offset(m.droite * d, avant), 2f * d)
+        drawLine(Neon.Or.copy(alpha = 0.35f), Offset(m.gauche * d + retrait, haut), Offset(m.droite * d - retrait, haut), 1f * d)
+    }
+}
+
+/**
+ * Les coffres sur leurs gradins. [ouverts] : index → points gagnés ou perdus, null pour le coffre de la bombe.
+ * [auTour] : l'équipe qui choisit (nom, couleur) ; [phaseDanger] : la bombe peut être dans n'importe quel coffre.
+ */
+@Composable
+fun SceneCoffres(nombre: Int, ouverts: Map<Int, Int?>, auTour: Pair<String, Color>?, phaseDanger: Boolean, modifier: Modifier = Modifier) {
+    val places = remember(nombre) { placesCoffres(nombre) }
+    val rangees = remember(nombre) { repartitionCoffres(nombre).size }
+    val boucle = rememberInfiniteTransition(label = "coffres")
+    val pouls by boucle.animateFloat(0f, 1f, infiniteRepeatable(tween(1_200), RepeatMode.Reverse), label = "pouls")
+    Echelle(960.dp, 540.dp, modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().clearAndSetSemantics {}.drawWithCache { onDrawBehind { gradins(rangees) } })
+        if (phaseDanger) {
+            // Lueur rouge-ambre qui respire lentement au pied des gradins : la tension monte, sans clignoter.
+            Box(
+                Modifier.fillMaxSize().clearAndSetSemantics {}.drawBehind {
+                    val c = Offset(size.width / 2, size.height * 1.05f)
+                    drawRect(Brush.radialGradient(listOf(Color(0xFFFF4D3D).copy(alpha = 0.16f + 0.12f * pouls), Color(0xFFFF8A3D).copy(alpha = 0.06f), Color.Transparent), c, size.width * 0.65f))
+                },
+            )
+        }
+        places.forEachIndexed { i, (cx, base, e) ->
+            val m = MODELES[modeleCoffre(i)]
+            val w = m.largeur * e
+            val h = m.hauteur * e
+            val ouvert = ouverts.containsKey(i)
+            val delta = ouverts[i]
+            Box(Modifier.offset(x = (cx - w / 2).dp, y = (base - h).dp).size(w.dp, h.dp)) {
+                Canvas(Modifier.fillMaxSize().clearAndSetSemantics {}) {
+                    // Ombre au sol : le coffre est posé.
+                    drawOval(Brush.radialGradient(listOf(Color.Black.copy(alpha = 0.55f), Color.Transparent)), Offset(-size.width * 0.08f, size.height - 6f * density * e), Size(size.width * 1.16f, 12f * density * e))
+                    dessineCoffre(
+                        modeleCoffre(i), if (ouvert) 1f else 0f,
+                        when { !ouvert -> null; delta == null -> LUEUR_BOMBE; delta >= 0 -> LUEUR_OR; else -> LUEUR_MALUS },
+                        when { !ouvert -> 0f; delta == null -> 0.72f; else -> 0.28f },
+                    )
+                }
+                val p = plaque(m)
+                if (!ouvert) {
+                    Box(
+                        Modifier.offset(x = (p.left * w).dp, y = (p.top * h).dp).size((p.width * w).dp, (p.height * h).dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("${i + 1}", maxLines = 1, softWrap = false, style = styleCentre(maxOf(p.height * h * 0.72f, 15f * e).sp, Color(0xFF3A1C00)))
+                    }
+                } else {
+                    // Coffre ouvert : sa valeur s'affiche sur la face avant.
+                    val (fond, encre, texte) = when {
+                        delta == null -> Triple(Color(0xFF2A0E1E), MALUS_CORAIL, "💣 " + texteValeur(POINTS_BOMBE))
+                        delta >= 0 -> Triple(BONUS_VERT, Neon.JusteTexte, texteValeur(delta))
+                        else -> Triple(MALUS_CORAIL, Color.White, texteValeur(delta))
+                    }
+                    Text(
+                        texte, maxLines = 1, softWrap = false,
+                        style = styleCentre((15f * e).sp, encre),
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = (h * 0.22f).dp)
+                            .background(fond, RoundedCornerShape(50)).border((1.5f * e).dp, Color.White.copy(alpha = 0.7f), RoundedCornerShape(50))
+                            .padding(horizontal = (8f * e).dp, vertical = (3f * e).dp),
+                    )
+                }
+            }
+        }
+        BandeauTour(auTour, Modifier.align(Alignment.TopCenter).padding(top = 14.dp))
+        if (phaseDanger) PastilleDanger(pouls, Modifier.align(Alignment.TopStart).padding(start = 18.dp, top = 18.dp))
+    }
+}
+
+private val styleBandeau = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
+
+@Composable
+private fun BandeauTour(auTour: Pair<String, Color>?, modifier: Modifier = Modifier) {
+    val couleur = auTour?.second ?: Neon.Or
+    Row(
+        modifier.widthIn(max = 700.dp).background(Neon.Nuit2.copy(alpha = 0.88f), RoundedCornerShape(50)).border(2.5.dp, couleur, RoundedCornerShape(50))
+            .padding(horizontal = 26.dp, vertical = 6.dp).apparition(0, auTour?.first),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (auTour == null) {
+            Text("La bombe cachée", maxLines = 1, style = styleBandeau.copy(color = Neon.OrClair))
+        } else {
+            Text(auTour.first, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false), style = styleBandeau.copy(color = couleur))
+            Text(", choisissez un coffre !", maxLines = 1, softWrap = false, style = styleBandeau.copy(color = Neon.Blanc))
+        }
+    }
+}
+
+@Composable
+private fun PastilleDanger(pouls: Float, modifier: Modifier = Modifier) {
+    Row(
+        modifier
+            .drawBehind { drawRoundRect(MALUS_CORAIL.copy(alpha = 0.18f + 0.22f * pouls), Offset(-6.dp.toPx(), -6.dp.toPx()), Size(size.width + 12.dp.toPx(), size.height + 12.dp.toPx()), CornerRadius(size.height)) }
+            .background(Color(0xFF2A0E1E).copy(alpha = 0.9f), RoundedCornerShape(50)).border(2.dp, MALUS_CORAIL, RoundedCornerShape(50))
+            .padding(horizontal = 14.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("💣", style = TextStyle(fontSize = 20.sp))
+        Spacer(Modifier.width(6.dp))
+        Text("Danger !", maxLines = 1, style = styleBandeau.copy(fontSize = 20.sp, color = Color(0xFFFFC2C4)))
+    }
+}
+
+/* ------------------------------------------------------------------ Ouverture d'un coffre */
+
+private class Projectile(val vx: Float, val vy: Float, val tourne: Float, val taille: Float, val teinte: Int)
+
+private fun projectiles(graine: Long, nombre: Int): List<Projectile> {
+    val r = java.util.Random(graine)
+    return List(nombre) {
+        Projectile((r.nextFloat() - 0.5f) * 520f, -(380f + r.nextFloat() * 520f), r.nextFloat() * 10f, 0.6f + r.nextFloat() * 0.8f, r.nextInt(3))
+    }
+}
+
+private fun sortie(u: Float): Float = 1f + 2.4f * (u - 1f) * (u - 1f) * (u - 1f) + 1.4f * (u - 1f) * (u - 1f)
+
+/**
+ * L'ouverture d'un coffre, par-dessus la scène (environ 3 s) : le coffre vient au premier plan sur une estrade,
+ * tremble, son couvercle saute. Bonus : pluie d'or et « +150 POINTS ». Malus : nuage, « Oups ! » et
+ * « −100 POINTS ». Bombe ([delta] null) : elle saute du coffre, se pose, la mèche grésille… BOUM ! « −300 POINTS ».
+ * [onFini] est appelé une fois, à la fin.
+ */
+@Composable
+fun OuvertureCoffre(
+    index: Int, delta: Int?, equipe: String, couleur: Color, onFini: () -> Unit,
+    modifier: Modifier = Modifier, jouer: (Son) -> Unit = jouerSonBombe,
+) {
+    val t = remember(index) { Animatable(0f) }
+    val fini by rememberUpdatedState(onFini)
+    val joue by rememberUpdatedState(jouer)
+    val bombe = delta == null
+    val total = (if (bombe) OUVERTURE_BOMBE_MS else OUVERTURE_COFFRE_MS).toFloat()
+    LaunchedEffect(index) {
+        suspend fun jusqua(ms: Float) = t.animateTo(ms, tween((ms - t.value).toInt().coerceAtLeast(0), easing = LinearEasing))
+        jusqua(T_ENTREE); joue(Son.COFFRE_SECOUE)
+        jusqua(T_OUVRE); joue(Son.COFFRE_OUVRE)
+        if (bombe) {
+            jusqua(T_POSE); joue(Son.BOMBE_MECHE)
+            jusqua(T_BOUM); joue(Son.BOMBE_BOUM)
+        } else {
+            jusqua(1_420f)
+            joue(if (delta!! >= PORTE_JACKPOT) Son.PORTES_JACKPOT else if (delta >= 0) Son.COFFRE_OR else Son.PORTES_TUILE)
+        }
+        jusqua(total)
+        fini()
+    }
+    val modele = modeleCoffre(index)
+    val m = MODELES[modele]
+    // Coffre agrandi : assez grand pour le spectacle, assez bas pour laisser le verdict lisible au-dessus.
+    val e = min(240f / m.largeur, 170f / m.hauteur)
+    val cw = m.largeur * e
+    val ch = m.hauteur * e
+    val sol = 455f
+    val pieces = remember(index) { projectiles(index * 31L + 7, 40) }
+    val debris = remember(index) { projectiles(index * 17L + 3, 16) }
+    Echelle(960.dp, 540.dp, modifier.fillMaxSize()) {
+        // Voile sombre, estrade, coffre, effets : une seule toile animée.
+        Canvas(
+            Modifier.fillMaxSize().clearAndSetSemantics {}.graphicsLayer {
+                val ms = t.value
+                if (bombe && ms in T_BOUM..(T_BOUM + 450f)) {
+                    val a = 1f - (ms - T_BOUM) / 450f
+                    translationX = 9f * density * a * sin(ms / 13f); translationY = 7f * density * a * cos(ms / 17f)
+                }
+            },
+        ) {
+            val ms = t.value
+            val d = density
+            val voile = (ms / 300f).coerceIn(0f, 1f)
+            drawRect(Neon.Nuit.copy(alpha = 0.9f * voile))
+            val entree = (ms / T_ENTREE).coerceIn(0f, 1f)
+            val monte = sortie(entree)
+            val cx = size.width / 2
+            val solPx = sol * d + (1f - monte) * 60f * d
+            estradeRonde(cx, solPx, cw * 0.8f * d, 26f * d, 22f * d)
+            val ouv = ((ms - T_OUVRE) / 250f).coerceIn(0f, 1f).let { 1f - (1f - it) * (1f - it) }
+            val lueur = when { bombe -> LUEUR_BOMBE; delta!! >= 0 -> LUEUR_OR; else -> LUEUR_MALUS }
+            // Faisceau de lumière qui monte du coffre ouvert.
+            if (ouv > 0f) {
+                val haut = solPx - ch * d
+                val faisceau = Path().apply {
+                    moveTo(cx - cw * 0.38f * d, haut + ch * 0.3f * d); lineTo(cx + cw * 0.38f * d, haut + ch * 0.3f * d)
+                    lineTo(cx + cw * 0.9f * d, 0f); lineTo(cx - cw * 0.9f * d, 0f); close()
+                }
+                drawPath(faisceau, Brush.verticalGradient(listOf(Color.Transparent, lueur.copy(alpha = 0.32f * ouv)), 0f, haut + ch * 0.3f * d))
+            }
+            // Le coffre : tremble avant d'ouvrir, s'écrase un peu sur un malus, noircit à l'explosion.
+            val secoue = ((ms - T_ENTREE) / (T_OUVRE - T_ENTREE)).coerceIn(0f, 1f)
+            val tremble = if (ms in T_ENTREE..T_OUVRE) secoue * secoue else 0f
+            val saut = if (ms in T_ENTREE..T_OUVRE) abs(sin(ms / 70f)) * 7f * d * tremble else 0f
+            val ecrase = if (!bombe && delta!! < 0 && ms > T_OUVRE) 1f - 0.07f * sin(((ms - T_OUVRE) / 500f).coerceIn(0f, 1f) * PI.toFloat()) else 1f
+            val brule = if (bombe && ms >= T_BOUM) 0.72f else 0f
+            withTransform({
+                translate(cx - cw * d / 2, solPx - ch * d - saut)
+                rotate(3.2f * tremble * sin(ms / 38f), Offset(cw * d / 2, ch * d))
+                scale(1f, ecrase, Offset(cw * d / 2, ch * d))
+            }) {
+                drawOval(Brush.radialGradient(listOf(Color.Black.copy(alpha = 0.6f), Color.Transparent)), Offset(-cw * 0.06f * d, ch * d - 10f * d), Size(cw * 1.12f * d, 20f * d))
+                // Rayons de lumière qui fuient par la fente du couvercle juste avant l'ouverture.
+                if (ms in 800f..T_OUVRE) {
+                    val a = ((ms - 800f) / 500f).coerceIn(0f, 1f)
+                    val ly = (if (modele == 4) 0.3f else m.couvercle) * ch * d
+                    drawOval(Brush.radialGradient(listOf(lueur.copy(alpha = 0.8f * a), Color.Transparent), Offset(cw * d / 2, ly), cw * 0.6f * d), Offset(-cw * 0.1f * d, ly - 14f * d), Size(cw * 1.2f * d, 28f * d))
+                }
+                inset(0f, 0f, size.width - cw * d, size.height - ch * d) {
+                    dessineCoffre(modele, ouv, if (ouv > 0f) lueur else null, brule)
+                }
+            }
+            val bouche = Offset(cx, solPx - ch * d * (1f - (if (modele == 4) 0.3f else m.couvercle)) - ch * d * m.couvercle * 0.2f)
+            when {
+                // Bonus : pièces d'or qui jaillissent puis retombent.
+                !bombe && delta!! >= 0 && ms > T_OUVRE -> {
+                    val s = (ms - T_OUVRE) / 1000f
+                    pieces.forEachIndexed { k, p ->
+                        val tt = s - (k % 8) * 0.03f
+                        if (tt <= 0f) return@forEachIndexed
+                        val x = bouche.x + p.vx * tt * d
+                        val y = bouche.y + (p.vy * tt + 0.5f * 1300f * tt * tt) * d
+                        if (y > size.height + 20f * d) return@forEachIndexed
+                        val r = 9f * p.taille * d
+                        val lg = abs(cos(p.tourne + tt * 9f))
+                        drawOval(Brush.verticalGradient(listOf(OR_CLAIR, OR_MOYEN, OR_FONCE), y - r, y + r), Offset(x - r * (0.25f + 0.75f * lg), y - r), Size(2 * r * (0.25f + 0.75f * lg), 2 * r))
+                        drawOval(OR_FONCE.copy(alpha = 0.7f), Offset(x - r * (0.25f + 0.75f * lg), y - r), Size(2 * r * (0.25f + 0.75f * lg), 2 * r), style = Stroke(1.2f * d))
+                    }
+                }
+                // Malus : petit nuage mauve qui s'échappe.
+                !bombe && ms > T_OUVRE -> {
+                    val s = ((ms - T_OUVRE) / 1300f).coerceIn(0f, 1f)
+                    for (k in 0 until 7) {
+                        val a = -PI.toFloat() / 2 + (k - 3) * 0.42f
+                        val c = bouche + Offset(cos(a) * 90f * s * d, sin(a) * 110f * s * d)
+                        val r = (24f + 10f * (k % 3)) * d * (0.4f + 0.8f * s)
+                        drawCircle(Color(0xFFB9A8D8).copy(alpha = 0.55f * (1f - s)), r, c)
+                    }
+                }
+            }
+            if (bombe && ms > T_OUVRE && ms < T_BOUM) {
+                // La bombe saute du coffre et se pose sur l'estrade, à droite du coffre ; la mèche raccourcit.
+                val r = 34f * d
+                val arrivee = Offset(cx + cw * 0.62f * d, solPx - r)
+                val u = ((ms - T_OUVRE) / (T_POSE - T_OUVRE)).coerceIn(0f, 1f)
+                val p = if (u < 1f) Offset(bouche.x + (arrivee.x - bouche.x) * u, bouche.y + (arrivee.y - bouche.y) * u - 170f * d * sin(u * PI.toFloat()))
+                else arrivee - Offset(0f, 12f * d * abs(sin(((ms - T_POSE) / 160f).coerceIn(0f, 1f) * PI.toFloat())))
+                drawOval(Brush.radialGradient(listOf(Color.Black.copy(alpha = 0.55f * u), Color.Transparent)), Offset(arrivee.x - r * 1.1f, solPx - 6f * d), Size(r * 2.2f, 12f * d))
+                val tension = ((ms - T_POSE) / (T_BOUM - T_POSE)).coerceIn(0f, 1f)
+                val gonfle = 1f + 0.08f * tension * abs(sin(ms / (60f - 30f * tension)))
+                dessineBombe(p, r * gonfle, ms, 1f - 0.85f * tension)
+            }
+            if (bombe && ms >= T_BOUM) {
+                val s = (ms - T_BOUM) / 1000f
+                val c = Offset(cx + cw * 0.3f * d, solPx - 60f * d)
+                // Boule de feu, onde de choc, fumée et débris.
+                val feu = (1f - s / 0.6f).coerceIn(0f, 1f)
+                if (feu > 0f) drawCircle(Brush.radialGradient(listOf(Color(0xFFFFF6C8), Color(0xFFFFB347), Color(0xFFFF5A8A).copy(alpha = 0.7f), Color.Transparent), c, (120f + 260f * s) * d), (120f + 260f * s) * d, c, alpha = feu)
+                for (k in 0..1) {
+                    val sk = s - k * 0.12f
+                    if (sk in 0f..0.9f) drawCircle(lerp(Color(0xFFFFB347), Neon.Halo, k.toFloat()).copy(alpha = 0.8f * (1f - sk / 0.9f)), (60f + 760f * sk) * d, c, style = Stroke((10f - 8f * sk) * d))
+                }
+                for (k in 0 until 9) {
+                    val a = -PI.toFloat() / 2 + (k - 4) * 0.32f
+                    val sf = (s - 0.05f).coerceAtLeast(0f)
+                    val f = Offset(c.x + cos(a) * 140f * sf * d, c.y + sin(a) * 120f * sf * d - 50f * sf * d)
+                    drawCircle(Color(0xFF3A2E48).copy(alpha = (0.75f - 0.45f * sf).coerceIn(0f, 1f)), (34f + 12f * (k % 3)) * d * (0.5f + sf), f)
+                }
+                debris.forEach { p ->
+                    val x = c.x + p.vx * 1.4f * s * d
+                    val y = c.y + (p.vy * 1.2f * s + 0.5f * 1500f * s * s) * d
+                    if (y < size.height) rotate(p.tourne * 40f + s * 500f, Offset(x, y)) { drawRect(Color(0xFF2A2030), Offset(x - 5f * d * p.taille, y - 3f * d * p.taille), Size(10f * d * p.taille, 6f * d * p.taille)) }
+                }
+                // Éclair blanc.
+                val eclair = (1f - s / 0.35f).coerceIn(0f, 1f)
+                if (eclair > 0f) drawRect(Color.White.copy(alpha = eclair * 0.95f))
+            }
+        }
+        // Qui ouvre quel coffre.
+        Row(
+            Modifier.align(Alignment.TopCenter).padding(top = 14.dp).apparition(0, index)
+                .background(Neon.Nuit2.copy(alpha = 0.9f), RoundedCornerShape(50)).border(2.5.dp, couleur, RoundedCornerShape(50))
+                .padding(horizontal = 22.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(equipe, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false), style = styleBandeau.copy(fontSize = 22.sp, color = couleur))
+            Text(" ouvre le coffre n° ${index + 1}", maxLines = 1, softWrap = false, style = styleBandeau.copy(fontSize = 22.sp, color = Neon.Blanc))
+        }
+        // Le verdict : visible dès qu'il tombe et jusqu'à la fin.
+        val apparu = if (bombe) T_BOUM + 120f else T_TEXTE
+        Column(
+            Modifier.align(Alignment.TopCenter).padding(top = 62.dp).graphicsLayer {
+                val u = ((t.value - apparu) / 380f).coerceIn(0f, 1f)
+                alpha = if (u <= 0f) 0f else 1f
+                val s = if (u <= 0f) 0.5f else sortie(u)
+                scaleX = s; scaleY = s
+            },
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            val (titre, teinte) = when {
+                bombe -> "BOUM !" to Color(0xFFFFB347)
+                delta!! >= 0 -> "Bonus !" to Neon.OrClair
+                else -> "Oups !" to Color(0xFFFFC2C4)
+            }
+            Text(titre, maxLines = 1, style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, fontSize = if (bombe) 76.sp else 46.sp, fontWeight = FontWeight.ExtraBold, color = teinte, shadow = Shadow(Color.Black.copy(alpha = 0.6f), Offset(0f, 4f), 14f)))
+            Text(
+                textePointsCoffre(delta), maxLines = 1,
+                style = TextStyle(
+                    fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, fontSize = 60.sp, fontWeight = FontWeight.ExtraBold,
+                    color = if (!bombe && delta!! >= 0) BONUS_VERT else MALUS_CORAIL,
+                    shadow = Shadow(Color.Black.copy(alpha = 0.7f), Offset(0f, 4f), 16f),
+                ),
+            )
+        }
+    }
+}
+
+private val jouerSonBombe: (Son) -> Unit = { Sons.executer(listOf(Ordre.Jouer(it))) }
+
+/* ------------------------------------------------------------------ Alerte */
+
+/**
+ * L'alerte (environ 3 s) : la bombe tombe et se pose sur une estrade, sa mèche s'allume, et le message
+ * « Attention… une bombe se cache dans un des coffres ! ». [onFini] est appelé une fois, à la fin.
+ */
+@Composable
+fun AlerteBombe(onFini: () -> Unit, modifier: Modifier = Modifier, jouer: (Son) -> Unit = jouerSonBombe) {
+    val t = remember { Animatable(0f) }
+    val fini by rememberUpdatedState(onFini)
+    val joue by rememberUpdatedState(jouer)
+    LaunchedEffect(Unit) {
+        joue(Son.BOMBE_ALERTE)
+        t.animateTo(ALERTE_BOMBE_MS.toFloat(), tween(ALERTE_BOMBE_MS.toInt(), easing = LinearEasing))
+        fini()
+    }
+    Echelle(960.dp, 540.dp, modifier.fillMaxSize()) {
+        Canvas(Modifier.fillMaxSize().clearAndSetSemantics {}) {
+            val ms = t.value
+            val d = density
+            drawRect(Neon.Nuit.copy(alpha = 0.82f * (ms / 250f).coerceIn(0f, 1f)))
+            // Vignette rouge qui respire doucement.
+            val pouls = 0.5f + 0.5f * sin(2f * PI.toFloat() * ms / 1_100f)
+            drawRect(Brush.radialGradient(listOf(Color.Transparent, Color.Transparent, Color(0xFFFF3B5C).copy(alpha = 0.18f + 0.14f * pouls)), Offset(size.width / 2, size.height / 2), size.width * 0.62f))
+            val sol = 470f * d
+            val cx = size.width / 2
+            estradeRonde(cx, sol, 120f * d, 22f * d, 20f * d)
+            val r = 62f * d
+            val chute = (ms / 580f).coerceIn(0f, 1f)
+            val y = if (chute < 1f) -r + (sol - r + r) * chute * chute
+            else sol - r - 22f * d * abs(sin(((ms - 580f) / 260f).coerceIn(0f, 1f) * PI.toFloat()))
+            drawOval(Brush.radialGradient(listOf(Color.Black.copy(alpha = 0.6f * chute), Color.Transparent)), Offset(cx - r * 1.2f, sol - 8f * d), Size(r * 2.4f, 16f * d))
+            dessineBombe(Offset(cx, y), r, ms, 1f - 0.25f * ((ms - 600f) / 2_400f).coerceIn(0f, 1f), etincelle = ms > 600f)
+        }
+        Column(Modifier.align(Alignment.TopCenter).padding(top = 64.dp, start = 40.dp, end = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                "Attention…", maxLines = 1,
+                modifier = Modifier.graphicsLayer { alpha = ((t.value - 750f) / 300f).coerceIn(0f, 1f) },
+                style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, fontSize = 40.sp, fontWeight = FontWeight.ExtraBold, color = Neon.OrClair, letterSpacing = 2.sp),
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Une bombe se cache dans un des coffres !", textAlign = TextAlign.Center, maxLines = 2,
+                modifier = Modifier.graphicsLayer {
+                    val u = ((t.value - 1_250f) / 380f).coerceIn(0f, 1f)
+                    alpha = if (u <= 0f) 0f else 1f
+                    val s = if (u <= 0f) 0.6f else sortie(u); scaleX = s; scaleY = s
+                },
+                style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.15.em, lineHeightStyle = LIGNE_LMP, fontSize = 50.sp, fontWeight = FontWeight.ExtraBold, color = Neon.Blanc, shadow = Shadow(Color(0xFFFF3B5C).copy(alpha = 0.6f), blurRadius = 24f)),
+            )
+        }
+    }
+}
+
+/* ------------------------------------------------------------------ Bilan */
+
+/** Le bilan : ce que chaque équipe a gagné ou perdu dans ce jeu (nom, couleur, points), lignes qui arrivent une à une. */
+@Composable
+fun BilanBombe(lignes: List<Triple<String, Color, Int>>, modifier: Modifier = Modifier, jouer: (Son) -> Unit = jouerSonBombe) {
+    val t = remember { Animatable(0f) }
+    val joue by rememberUpdatedState(jouer)
+    val pas = 320f
+    LaunchedEffect(lignes.size) {
+        for (i in lignes.indices) {
+            t.animateTo(500f + i * pas, tween(if (i == 0) 500 else pas.toInt(), easing = LinearEasing))
+            joue(Son.pop(i))
+        }
+        t.animateTo(500f + lignes.size * pas + 800f, tween(800, easing = LinearEasing))
+    }
+    val deuxColonnes = lignes.size > 4
+    Echelle(960.dp, 540.dp, modifier.fillMaxSize()) {
+        Column(Modifier.align(Alignment.TopCenter).padding(top = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(
+                Modifier.background(Neon.Nuit2.copy(alpha = 0.88f), RoundedCornerShape(50)).border(2.5.dp, Neon.Or, RoundedCornerShape(50)).padding(horizontal = 26.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("💣", style = TextStyle(fontSize = 24.sp))
+                Spacer(Modifier.width(10.dp))
+                Text("Le bilan de la bombe cachée", maxLines = 1, style = styleBandeau.copy(color = Neon.OrClair))
+            }
+            Spacer(Modifier.height(if (deuxColonnes) 22.dp else 30.dp))
+            val largeur: Dp = if (deuxColonnes) 420.dp else 620.dp
+            val hauteur: Dp = if (deuxColonnes) 64.dp else 72.dp
+            val colonnes = if (deuxColonnes) lignes.chunked((lignes.size + 1) / 2) else listOf(lignes)
+            Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                var i0 = 0
+                colonnes.forEach { col ->
+                    val debut = i0
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        col.forEachIndexed { j, (nom, couleur, points) ->
+                            LigneBilan(nom, couleur, points, debut + j, largeur, hauteur) { t.value }
+                        }
+                    }
+                    i0 += col.size
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LigneBilan(nom: String, couleur: Color, points: Int, i: Int, largeur: Dp, hauteur: Dp, ms: () -> Float) {
+    val debut = 500f + i * 320f - 320f
+    Row(
+        Modifier.width(largeur).height(hauteur)
+            .graphicsLayer {
+                val u = ((ms() - debut) / 380f).coerceIn(0f, 1f)
+                alpha = u
+                translationX = (1f - u) * 60f * density
+            }
+            .background(Neon.Nuit2.copy(alpha = 0.9f), RoundedCornerShape(20.dp)).border(3.dp, couleur, RoundedCornerShape(20.dp))
+            .padding(horizontal = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(22.dp).background(couleur, CircleShape).border(2.dp, Color.White.copy(alpha = 0.8f), CircleShape))
+        Spacer(Modifier.width(14.dp))
+        Text(nom, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f), style = styleBandeau.copy(fontSize = if (hauteur > 66.dp) 28.sp else 24.sp, color = Neon.Blanc))
+        val teinte = when { points > 0 -> BONUS_VERT; points < 0 -> MALUS_CORAIL; else -> Neon.OrClair }
+        Text(
+            if (points == 0) "0" else texteValeur(points), maxLines = 1, softWrap = false,
+            style = styleBandeau.copy(fontSize = if (hauteur > 66.dp) 34.sp else 30.sp, color = teinte),
+        )
+    }
+}

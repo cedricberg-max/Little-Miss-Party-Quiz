@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-6 -6 112 118" width="112" height="118">
+<defs><linearGradient id="c" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C8DCF6"/><stop offset="1" stop-color="#8EAEDD"/></linearGradient><linearGradient id="o" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF3D1"/><stop offset=".5" stop-color="#E9C27A"/><stop offset="1" stop-color="#A8782F"/></linearGradient><linearGradient id="oh" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#A8782F"/><stop offset=".35" stop-color="#FFF3D1"/><stop offset=".7" stop-color="#E9C27A"/><stop offset="1" stop-color="#A8782F"/></linearGradient><linearGradient id="s" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".1"/></linearGradient><radialGradient id="ombre"><stop offset="0" stop-color="#000" stop-opacity=".5"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient></defs>
+<ellipse cx="50.0" cy="105" rx="57.99999999999999" ry="5" fill="url(#ombre)"/>
+<clipPath id="cc"><path d="M0 21.200000000000003 H100 V100.0 Q100 106 94.0 106 H6.0 Q0 106 0 100.0 Z"/></clipPath>
+<path d="M0 21.200000000000003 H100 V100.0 Q100 106 94.0 106 H6.0 Q0 106 0 100.0 Z" fill="url(#c)"/><path d="M0 21.200000000000003 H100 V100.0 Q100 106 94.0 106 H6.0 Q0 106 0 100.0 Z" fill="url(#s)"/>
+<g clip-path="url(#cc)"><rect x="18.5" y="0" width="7.000000000000001" height="106" fill="#3F5E8C" opacity=".55"/><rect x="74.5" y="0" width="7.000000000000001" height="106" fill="#3F5E8C" opacity=".55"/><rect x="0" y="96.0" width="10.0" height="10.0" fill="url(#o)"/><rect x="90.0" y="96.0" width="10.0" height="10.0" fill="url(#o)"/></g>
+<path d="M0 21.200000000000003 H100 V100.0 Q100 106 94.0 106 H6.0 Q0 106 0 100.0 Z" fill="none" stroke="#3F5E8C" stroke-opacity=".7" stroke-width="1.6"/>
+<clipPath id="cv"><path d="M2.0 0 H98.0 Q103.0 0 103.0 5.0 V23.320000000000004 H-3.0 V5.0 Q-3.0 0 2.0 0 Z"/></clipPath>
+<path d="M2.0 0 H98.0 Q103.0 0 103.0 5.0 V23.320000000000004 H-3.0 V5.0 Q-3.0 0 2.0 0 Z" fill="url(#c)"/><path d="M2.0 0 H98.0 Q103.0 0 103.0 5.0 V23.320000000000004 H-3.0 V5.0 Q-3.0 0 2.0 0 Z" fill="#fff" opacity=".14"/>
+<g clip-path="url(#cv)"><rect x="18.5" y="0" width="7.000000000000001" height="21.200000000000003" fill="#3F5E8C" opacity=".55"/><rect x="74.5" y="0" width="7.000000000000001" height="21.200000000000003" fill="#3F5E8C" opacity=".55"/></g>
+<path d="M2.0 0 H98.0 Q103.0 0 103.0 5.0 V23.320000000000004 H-3.0 V5.0 Q-3.0 0 2.0 0 Z" fill="none" stroke="#3F5E8C" stroke-opacity=".7" stroke-width="1.6"/>
+<rect x="-2.5" y="17.490000000000002" width="105.0" height="7.420000000000001" rx="2.0" fill="url(#o)"/>
+<rect x="32.0" y="44.30800000000001" width="36.0" height="31.799999999999997" rx="5.0" fill="url(#o)" stroke="#A8782F" stroke-opacity=".6" stroke-width="1.6"/>
+</svg>
