@@ -76,12 +76,13 @@
         <span id="show-search-count" class="hint small"></span>
       </div>
       <div id="show-list" class="cards"></div>
-      <details id="show-past" class="archives" hidden>
-        <summary>Anniversaires passés (<span id="show-past-count">0</span>)</summary>
-        <div id="show-past-list" class="cards"></div>
-      </details>
+      <div id="show-pinned" class="pinned" hidden>
+        <h2>⭐ Prestations épinglées</h2>
+        <p class="hint small">Les prestations archivées dont l'étoile est cochée : leurs jeux sont proposés en premier dans « ＋ Ajouter un jeu » de la régie, et « Dupliquer » en fait un nouvel anniversaire.</p>
+        <div id="show-pinned-list" class="cards"></div>
+      </div>
       <details id="show-archives" class="archives" hidden>
-        <summary>Prestations archivées (<span id="show-archive-count">0</span>)</summary>
+        <summary>Prestations archivées (<span id="show-archive-count">0</span>) : rangées toutes seules 2 jours après la fête</summary>
         <div id="show-archive-list" class="cards"></div>
       </details>
     </section>

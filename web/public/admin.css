@@ -370,3 +370,8 @@ button.item { cursor: pointer; }
 .box-row .box-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .box-alert { display: block; width: 100%; margin: 0 0 16px; padding: 14px 18px; border: 2px solid var(--rose); border-radius: 18px; background: var(--rose-pale); color: var(--ink); font: inherit; font-weight: 800; text-align: left; cursor: pointer; }
 .nav-badge { display: inline-block; min-width: 1.4em; margin-left: 6px; padding: 0 6px; border-radius: 999px; background: var(--bad); color: #fff; font-size: 13px; line-height: 1.5; text-align: center; }
+
+/* Prestations épinglées : les modèles où piocher des jeux, en tête de l'onglet Prestations. */
+.pill.pin { background: var(--gold-pale); color: var(--warn); }
+.pinned { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; padding: 16px; border: 2px solid var(--gold-pale); border-radius: 22px; }
+.pinned h2 { margin: 0; }

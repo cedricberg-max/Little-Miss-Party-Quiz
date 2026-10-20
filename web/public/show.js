@@ -584,12 +584,27 @@ export function daysUntil(date, today = isoDay()) {
   return Math.round((Date.parse(`${date}T12:00:00Z`) - Date.parse(`${today}T12:00:00Z`)) / 86400000);
 }
 
+/** Jours après la date au-delà desquels une prestation passée se range d'elle-même dans les archives. */
+export const AUTO_ARCHIVE_DAYS = 2;
+
+/**
+ * Archivée : à la main, ou d'elle-même [AUTO_ARCHIVE_DAYS] jours après sa date. Une prestation désarchivée à la
+ * main après sa date ne s'archive plus toute seule. Une archivée peut être épinglée (`pinned`) : un modèle
+ * où piocher des jeux.
+ */
+export function isArchived(show, today = isoDay()) {
+  if (!show) return false;
+  if (show.status === "archivee") return true;
+  if (show.keepActive) return false;
+  return !!show.date && daysUntil(show.date, today) < -AUTO_ARCHIVE_DAYS;
+}
+
 /**
  * État de préparation d'une prestation, pour le tableau de bord : « prete » quand elle est
  * complète et visible sur la régie, sinon la liste de ce qui reste à faire.
  */
 export function readiness(show, quizzes, mimes = {}, playlists = {}, contents = {}) {
-  if (show.status === "archivee") return { level: "archivee", todo: [] };
+  if (isArchived(show)) return { level: "archivee", todo: [] };
   const todo = [];
   if (!show.date) todo.push("Ajouter la date");
   if (!show.age) todo.push("Indiquer l'âge");
@@ -624,6 +639,8 @@ export function showMatches(show, query, library = {}) {
     parts.push(show.date, `${dd}/${mm}/${y}`, `${d}/${m}/${y}`, `${d} ${MOIS[m - 1]} ${y}`, JOURS[day]);
   }
   parts.push({ publiee: "prete", brouillon: "brouillon", archivee: "archivee archive" }[show.status] ?? "");
+  if (show.status !== "archivee" && isArchived(show)) parts.push("archivee archive");
+  if (show.pinned) parts.push("epinglee");
   for (const r of (show.rounds ?? []).filter(Boolean)) {
     parts.push(ROUND_TYPES[r.type] ?? "");
     roundQuizIds(r).forEach((id) => parts.push(library.quizzes?.[id]?.title));
@@ -638,7 +655,7 @@ export function showMatches(show, query, library = {}) {
 /** Anniversaires à venir (aujourd'hui compris), du plus proche au plus lointain, archives exclues. */
 export function upcoming(shows, today = isoDay()) {
   return Object.entries(shows)
-    .filter(([, s]) => s && s.status !== "archivee" && s.date && s.date >= today)
+    .filter(([, s]) => s && !isArchived(s, today) && s.date && s.date >= today)
     .sort(([, a], [, b]) => a.date.localeCompare(b.date));
 }
 
@@ -647,7 +664,7 @@ export function upcoming(shows, today = isoDay()) {
  * sont repris tels quels, sans être modifiés), prénom, date et âge à saisir, en brouillon.
  */
 export function duplicateShow(show) {
-  const { childName, age, date, title, status, createdAt, updatedAt, origin, ...rest } = show;
+  const { childName, age, date, title, status, createdAt, updatedAt, origin, pinned, keepActive, ...rest } = show;
   return { ...rest, status: "brouillon", rounds: (show.rounds ?? []).filter(Boolean).map((r) => ({ ...r })) };
 }
 

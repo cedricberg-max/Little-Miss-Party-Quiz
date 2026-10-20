@@ -15,7 +15,7 @@ import {
   buildSnapshot, estimateMinutes, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, BUILTIN_GAMES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
   roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC, PICTO_SECONDS, PICTO_SEC, PICTO_POINTS, PICTO_RULE,
   blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras, contentSlot, contentImages,
-  pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches,
+  pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches, isArchived, AUTO_ARCHIVE_DAYS,
   roundQuizIds, roundPicks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS,
   isStatuesList, statuesSongs, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS,
 } from "./show.js";
@@ -314,6 +314,7 @@ function showCard(id, s) {
       h("b", { class: "card-title", text: showTitle(s) }),
       h("span", { class: "meta", text: [s.childName, s.age ? `${s.age} ans` : "", s.date ? `${dateLabel(s.date)} (${whenLabel(s.date)})` : ""].filter(Boolean).join(" · ") }),
       snapshot ? h("span", { class: "meta", text: `${contentLabel(snapshot)} · environ ${estimateMinutes(snapshot)} min` }) : null,
+      s.pinned ? h("span", { class: "pill pin", text: "⭐ Épinglée : ses jeux en premier dans la régie" }) : null,
       r.level === "prete"
         ? h("span", { class: "pill ok", text: "✓ Prête : visible sur la régie" })
         : r.level === "archivee"
@@ -323,9 +324,10 @@ function showCard(id, s) {
         h("button", { class: "btn small", onclick: () => editShow(id), text: "Ouvrir" }),
         h("button", { class: "btn small secondary", onclick: () => editShow(null, s), text: "Dupliquer" }),
         h("button", { class: "btn small secondary", onclick: () => rename(`library/shows/${id}`, showTitle(s), "de la prestation"), text: "Renommer" }),
-        s.status === "archivee"
-          ? h("button", { class: "btn small secondary", onclick: () => archive(id, false), text: "Désarchiver" })
-          : h("button", { class: "btn small secondary", onclick: () => archive(id, true), text: "Archiver" }))));
+        isArchived(s) ? h("button", { class: "btn small secondary", onclick: () => pin(id, !s.pinned), text: s.pinned ? "☆ Désépingler" : "⭐ Épingler" }) : null,
+        isArchived(s)
+          ? h("button", { class: "btn small secondary", onclick: () => archive(id, s, false), text: "Désarchiver" })
+          : h("button", { class: "btn small secondary", onclick: () => archive(id, s, true), text: "Archiver" }))));
 }
 
 function renderShows() {
@@ -333,20 +335,19 @@ function renderShows() {
   // Recherche : seules les prestations qui contiennent tous les mots tapés, archives et anniversaires passés compris.
   const query = $("show-search").value.trim();
   const list = Object.entries(shows).filter(([, s]) => s && showMatches(s, query, { quizzes, mimes, playlists })).sort(byDate);
-  const active = list.filter(([, s]) => s.status !== "archivee" && (!s.date || s.date >= today));
-  const past = list.filter(([, s]) => s.status !== "archivee" && s.date && s.date < today).reverse();
-  const archived = list.filter(([, s]) => s.status === "archivee");
+  // À venir d'abord ; puis les archivées étoilées (modèles où piocher des jeux) ; puis toutes les autres archivées.
+  const active = list.filter(([, s]) => !isArchived(s, today));
+  const pinned = list.filter(([, s]) => s.pinned && isArchived(s, today));
+  const archived = list.filter(([, s]) => !s.pinned && isArchived(s, today)).reverse();
+  $("show-pinned").hidden = !pinned.length;
+  $("show-pinned-list").replaceChildren(...pinned.map(([id, s]) => showCard(id, s)));
   $("show-list").replaceChildren(...active.map(([id, s]) => showCard(id, s)));
   if (!active.length) $("show-list").append(h("p", { class: "hint", text: "Aucune prestation en cours de préparation." }));
-  $("show-past").hidden = !past.length;
-  $("show-past-count").textContent = past.length;
-  $("show-past-list").replaceChildren(...past.map(([id, s]) => showCard(id, s)));
   $("show-archives").hidden = !archived.length;
   $("show-archive-count").textContent = archived.length;
   $("show-archive-list").replaceChildren(...archived.map(([id, s]) => showCard(id, s)));
   if (query) {
     // Les résultats rangés dans les anniversaires passés ou les archives s'ouvrent tout seuls.
-    $("show-past").open = past.length > 0;
     $("show-archives").open = archived.length > 0;
     if (!active.length) $("show-list").replaceChildren(h("p", { class: "hint", text: list.length ? "Rien en préparation pour cette recherche : voir plus bas." : "Aucune prestation ne correspond à cette recherche." }));
   }
@@ -467,10 +468,25 @@ function removeBox(id, b) {
   return boxWrite({ [`allowed/${id}`]: null }, `« ${b.name} » est retirée.`);
 }
 
-/** Archiver range la prestation (elle disparaît de la régie) ; désarchiver la remet en brouillon. */
-async function archive(id, on) {
+/**
+ * Archiver range la prestation (elle disparaît de la régie) ; désarchiver la remet en brouillon, et une
+ * prestation déjà passée ne retourne plus d'elle-même dans les archives.
+ */
+async function archive(id, s, on) {
+  const past = !!s.date && daysUntil(s.date) < -AUTO_ARCHIVE_DAYS;
+  await saveShowFields(id, on
+    ? { status: "archivee", keepActive: null }
+    : { status: "brouillon", keepActive: past ? true : null, pinned: null });
+}
+
+/** Épingler une prestation archivée : un modèle, dans sa propre rubrique, où piocher des jeux pendant une fête. */
+function pin(id, on) {
+  return saveShowFields(id, { pinned: on ? true : null });
+}
+
+async function saveShowFields(id, fields) {
   try {
-    await update(ref(db, `library/shows/${id}`), { status: on ? "archivee" : "brouillon", updatedAt: serverTimestamp() });
+    await update(ref(db, `library/shows/${id}`), { ...fields, updatedAt: serverTimestamp() });
   } catch (err) {
     console.error(err);
     alert("Modification refusée : vérifiez Internet ou reconnectez-vous.");
@@ -2331,7 +2347,7 @@ async function duplicatePlaylist(id) {
 
 // ---------- Jeux : tous les mini-jeux, leur règle et où gérer leur contenu ----------
 
-const usedIn = (type) => Object.values(shows).filter((s) => s && s.status !== "archivee" && (s.rounds ?? []).some((r) => r?.type === type)).length;
+const usedIn = (type) => Object.values(shows).filter((s) => s && !isArchived(s) && (s.rounds ?? []).some((r) => r?.type === type)).length;
 const plural = (n, word, many = `${word}s`) => `${n} ${n > 1 ? many : word}`;
 
 /** Les jeux par famille : ce qui se prépare dans la bibliothèque, ce qui vient d'un quiz, ce qui est intégré. */

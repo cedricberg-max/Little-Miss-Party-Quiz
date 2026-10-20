@@ -2220,7 +2220,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#show-list", { hasText: "Léa" }).waitFor();
     assert.equal(await search("animaux"), "1 prestation trouvée");
     assert.equal(await search("2025"), "2 prestations trouvées");
-    assert.equal(await page.locator("#show-past-list", { hasText: "Zoé" }).count(), 1);
+    // Fête passée depuis plus de 2 jours : rangée d'elle-même dans les archives.
+    assert.equal(await page.locator("#show-archive-list", { hasText: "Zoé" }).count(), 1);
     assert.equal(await search("zoe 11"), "0 prestation trouvée");
     await page.locator("#show-list", { hasText: "Aucune prestation ne correspond" }).waitFor();
     assert.equal(await search(""), "");
@@ -2425,9 +2426,9 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator('#home-upcoming [data-show="tom"]').waitFor({ state: "detached" });
     assert.equal((await library("shows/tom/status")), "archivee");
     await page.click("#nav button[data-screen=shows]");
-    await page.locator("#show-archives summary", { hasText: "Prestations archivées (1)" }).waitFor();
+    // Tom archivé à la main, l'ancienne fête de 2020 rangée d'elle-même.
+    await page.locator("#show-archives summary", { hasText: "Prestations archivées (2)" }).waitFor();
     assert.equal(await page.locator('#show-list [data-show="tom"]').count(), 0);
-    await page.locator("#show-past summary", { hasText: "Anniversaires passés (1)" }).waitFor();
     assert.equal(await page.locator('#show-list [data-show="vieux"]').count(), 0);
     await page.context().close();
   });
@@ -2543,6 +2544,44 @@ describe("bibliothèque de quiz et prestations", () => {
     const lib = await library("quizzes");
     assert.deepEqual(lib.dino, DINO, "Quiz de la bibliothèque inchangé");
     assert.deepEqual(lib.animaux, ANIMAUX);
+    await regie.context().close();
+  });
+
+  test("prestations : archivées toutes seules 2 jours après la fête ; l'étoile en fait un modèle dont les jeux passent en premier dans la régie", async () => {
+    const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    await seedLibrary("shows", {
+      hier: { childName: "Lina", age: 8, date: day(-1), status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 },
+      vieux: { childName: "Malo", age: 9, date: day(-3), status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }, { type: "patate" }], updatedAt: 1 },
+    });
+    const page = await admin();
+    await page.click("#nav button[data-screen=shows]");
+    // Hier : encore là (fête décalée possible) ; il y a 3 jours : dans les archives.
+    await page.locator('#show-list [data-show="hier"]').waitFor();
+    await page.locator("#show-archives summary", { hasText: "Prestations archivées (1)" }).waitFor();
+    assert.equal(await page.locator('#show-list [data-show="hier"]').getByRole("button", { name: "⭐ Épingler" }).count(), 0, "L'étoile se met dans les archives");
+    await page.click("#show-archives summary");
+    await page.locator('#show-archive-list [data-show="vieux"]').getByRole("button", { name: "⭐ Épingler" }).click();
+    await page.locator('#show-pinned:not([hidden]) [data-show="vieux"]').waitFor();
+    assert.equal(await library("shows/vieux/pinned"), true);
+    assert.equal(await library("shows/vieux/status"), "publiee", "Rien d'autre ne change");
+    await page.locator("#show-archives").waitFor({ state: "hidden" });
+    await page.context().close();
+
+    // Régie du téléphone : la prestation d'il y a 3 jours n'est plus proposée ; ses jeux passent en premier.
+    box = startBox();
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "Lina" }).waitFor();
+    assert.equal(await regie.locator("#panel-show .show-item", { hasText: "Malo" }).count(), 0);
+    await regie.locator("#panel-show .show-item", { hasText: "Lina" }).click();
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    await regie.click("#tab-plan");
+    await regie.click("#plan-add");
+    await regie.locator('#lib-list [data-game="pin/vieux/0"]', { hasText: "Animaux" }).waitFor();
+    await regie.locator('#lib-list [data-game="pin/vieux/1"]', { hasText: "Patate" }).waitFor();
+    assert.equal(await regie.locator("#lib-list .lib-section").first().textContent(), "⭐ Prestations épinglées");
     await regie.context().close();
   });
 
