@@ -3060,7 +3060,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#game-tabs [data-tab=collections]");
     await page.click("#playlist-new");
     await page.fill("#playlist-title", "Dessins animés");
-    await page.selectOption("#playlist-duration", "15");
+    await page.selectOption("#playlist-duration", "20");
     await page.setInputFiles("#playlist-files", [
       { name: "La Reine des neiges - Libérée délivrée.wav", mimeType: "audio/wav", buffer: wav(440, 40) },
       { name: "Hakuna Matata.wav", mimeType: "audio/wav", buffer: wav(330, 30) },
@@ -3078,16 +3078,22 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#playlist-status", { hasText: "Enregistrée : 2 morceaux" }).waitFor({ timeout: 30000 });
     await page.context().close();
     const [id, pl] = Object.entries(await library("playlists"))[0];
-    assert.equal(pl.duration, 15);
+    assert.equal(pl.duration, 20);
     assert.deepEqual(pl.tracks.map((t) => [t.title, t.artist ?? null, t.rights ?? null]), [["Libérée délivrée", "La Reine des neiges", null], ["Hakuna Matata", null, "CD de Sarah"]]);
     const sounds = await library("sounds");
     for (const t of pl.tracks) {
       const data = sounds[t.audioId];
       assert.ok(data?.startsWith("data:audio/mpeg;base64,"), "extrait MP3 rangé");
       assert.equal(createHash("sha256").update(data).digest("hex").slice(0, 16), t.audioId);
-      // 15 s de MP3 mono : bien plus léger que le fichier d'origine.
-      assert.ok(data.length < 300000, `extrait léger (${data.length})`);
+      // 20 s de MP3 mono : bien plus léger que le fichier d'origine.
+      assert.ok(data.length < 350000, `extrait léger (${data.length})`);
+      // Le refrain de la révélation, rangé à part, sous la limite d'un extrait.
+      assert.ok(sounds[t.refrainId]?.startsWith("data:audio/mpeg;base64,") && sounds[t.refrainId].length <= 880000, "refrain rangé");
     }
+    // Bibliothèque des sons : une chanson par morceau, avec ses préréglages ; les morceaux la désignent.
+    const songs = await library("songs");
+    assert.deepEqual(pl.tracks.map((t) => songs[t.songId]?.title), ["Libérée délivrée", "Hakuna Matata"]);
+    assert.ok(pl.tracks.every((t) => songs[t.songId].buzz === 20 && songs[t.songId].refrainId === t.refrainId && Number.isFinite(songs[t.songId].refrain)));
 
     await seedLibrary("shows/musique", { childName: "Tom", age: 8, date: "2026-12-02", status: "publiee", updatedAt: 1,
       rounds: [{ type: "blind", playlistId: id }, { type: "musical", playlistId: id }] });
@@ -3099,8 +3105,10 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const qs = (await read("show")).quiz.questions;
     assert.deepEqual(qs.map((q) => q.kind), ["blind", "blind", "classic", "classic"]);
-    assert.ok(qs.every((q) => pl.tracks.some((t) => t.audioId === q.audioId) && q.duration === 15));
-    await waitFor(async () => Object.keys((await read("sounds")) ?? {}).length === 2, "extraits copiés dans la partie");
+    assert.ok(qs.every((q) => pl.tracks.some((t) => t.audioId === q.audioId) && q.duration === 20));
+    // Extraits et refrains (joués à la révélation du blind test) copiés dans la partie.
+    await waitFor(async () => Object.keys((await read("sounds")) ?? {}).length === 4, "extraits et refrains copiés dans la partie");
+    assert.ok(qs.filter((q) => q.kind === "blind").every((q) => pl.tracks.some((t) => t.refrainId === q.refrainId)));
     await regie.context().close();
   });
 

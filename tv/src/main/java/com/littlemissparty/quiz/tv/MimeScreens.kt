@@ -62,6 +62,7 @@ import com.littlemissparty.quiz.tv.habillage.Tempo
 import com.littlemissparty.quiz.tv.habillage.apparition
 import com.littlemissparty.quiz.tv.habillage.apres
 import com.littlemissparty.quiz.tv.habillage.rebond
+import com.littlemissparty.quiz.tv.habillage.styleCentre
 import kotlinx.coroutines.delay
 import com.littlemissparty.quiz.tv.habillage.PoliceLmp
 
@@ -358,7 +359,7 @@ internal fun MimeCountdown(state: UiState.Playing) {
         },
         contentAlignment = Alignment.Center,
     ) {
-        Text("$seconds", color = if (urgent) Neon.Chaud else Palette.Ink, fontSize = 34.sp, fontWeight = FontWeight.Black)
+        Text("$seconds", style = styleCentre(34.sp, if (urgent) Neon.Chaud else Palette.Ink, FontWeight.Black))
     }
 }
 

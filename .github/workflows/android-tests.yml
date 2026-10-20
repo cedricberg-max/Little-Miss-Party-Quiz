@@ -107,6 +107,10 @@ jobs:
           # l'émulateur en demandait 7,4 Go par défaut et refusait de démarrer.
           disk-size: 2048M
           disable-animations: false
+          # Version de l'émulateur figée (37.2.12, build 16428233 : celle des runs verts du 20/10, avec la place
+          # libérée plus haut). Sans elle, chaque run prenait la dernière version, qui a déjà changé nos besoins en
+          # disque du jour au lendemain. À remonter à la main, dans une PR qui prouve le nouveau démarrage.
+          emulator-build: 16428233
           # Démarrage normal en 40 à 50 s : au-delà de 5 min, il a échoué (ex. « FATAL … userdata ») et attendre
           # 15 min de plus ne servait à rien.
           emulator-boot-timeout: 300

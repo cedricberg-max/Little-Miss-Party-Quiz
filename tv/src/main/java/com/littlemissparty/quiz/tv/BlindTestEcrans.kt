@@ -72,6 +72,8 @@ fun BlindScene(q: Question, state: UiState.Playing, modifier: Modifier = Modifie
                 points = gagnant?.let { state.awards[it.uid]?.points } ?: 0,
                 double = b?.doubled == true,
                 modifier = modifier,
+                // Refrain préparé et prêt sur la box : il joue en boucle pendant toute la révélation.
+                chantons = state.phase == Phase.REVEAL && q.refrainId?.let { it in state.sounds } == true,
             )
         }
         state.phase == Phase.QUESTION && buzzer != null -> BlindBuzz(buzzer.name, buzzer.color.toColor(), modifier)

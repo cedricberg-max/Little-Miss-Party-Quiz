@@ -350,6 +350,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 if (saved != null) {
                     val offer = resumableGame(db, uid, saved)
                     if (offer != null) {
+                        announceBox(db, uid)
                         offerResume(offer)
                         return@launch
                     }
@@ -370,7 +371,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = UiState.Connecting
         viewModelScope.launch {
             try {
-                open(connect(), code)
+                val db = connect()
+                FirebaseAuth.getInstance().currentUser?.uid?.let { announceBox(db, it) }
+                open(db, code)
             } catch (e: Exception) {
                 fail(e)
             }
@@ -429,6 +432,24 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         if (!lockOn) return true
         showLock()
         return false
+    }
+
+    /**
+     * Partie reprise : jamais bloquée (le verrou n'agit pas en pleine partie), mais la box envoie quand
+     * même sa demande, sinon une box qui reprend toujours sa partie n'apparaît jamais dans la Régie PC.
+     */
+    private fun announceBox(db: FirebaseDatabase, uid: String) {
+        viewModelScope.launch {
+            runCatching {
+                watchBox(db, uid)
+                if (boxOk == uid) return@runCatching
+                if (db.getReference("boxes/allowed/$uid").readOnce()?.exists() == true) {
+                    boxOk = uid
+                } else {
+                    requestActivation(db, uid)
+                }
+            }.onFailure { Log.e(TAG, "Demande d'activation non envoyée", it) }
+        }
     }
 
     private fun showLock(refused: Boolean = false) {
@@ -929,7 +950,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         savePhotos(g)
         // Extraits musicaux : tous ceux du programme, dès son chargement, pour que la musique ne dépende
         // plus du réseau une fois la partie lancée.
-        g.quiz.questions.flatMapTo(LinkedHashSet()) { listOfNotNull(it.audioId) + it.audioIds }.forEach(::prefetchSound)
+        g.quiz.questions.flatMapTo(LinkedHashSet()) { listOfNotNull(it.audioId, it.refrainId) + it.audioIds }.forEach(::prefetchSound)
     }
 
     private fun blindUi(g: Game): BlindUi {
@@ -1791,7 +1812,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     "duration" to it.durationSec, "kind" to it.kind.code, "double" to it.double, "round" to it.roundTitle,
                     "cards" to it.cards.ifEmpty { null }?.map { c -> clean(mapOf("word" to c.word, "image" to c.image, "imageId" to c.imageId)) },
                     "image" to it.emoji, "imageId" to it.imageId, "artist" to it.artist, "audioId" to it.audioId,
-                    "audioIds" to it.audioIds.ifEmpty { null },
+                    "refrainId" to it.refrainId, "audioIds" to it.audioIds.ifEmpty { null },
                     "doors" to it.doors.ifEmpty { null },
                     "choiceImages" to it.choiceImages.ifEmpty { null }?.map { id -> id ?: "" },
                     // Blind test : valeur et durée de révélation du morceau, relues telles quelles après un redémarrage.

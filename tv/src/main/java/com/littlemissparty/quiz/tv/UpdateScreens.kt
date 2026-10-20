@@ -6,9 +6,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
@@ -27,9 +31,11 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.littlemissparty.quiz.engine.Release
 import java.util.Locale
 import com.littlemissparty.quiz.tv.habillage.Neon
@@ -62,13 +68,15 @@ private fun mb(bytes: Long) = String.format(Locale.FRANCE, "%.1f Mo", bytes / 1_
 @Composable
 fun UpdateDialog(ui: UpdateUi, busy: Boolean, actions: UpdateActions) {
     val focus = remember { FocusRequester() }
-    Dialog(onDismissRequest = actions.close) {
+    Dialog(onDismissRequest = actions.close, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
             Modifier
+                .padding(horizontal = 40.dp, vertical = 16.dp)
+                .widthIn(max = 760.dp)
                 .clip(RoundedCornerShape(32.dp))
                 .background(Neon.Fond)
-                .padding(40.dp)
-                .width(720.dp),
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 36.dp, vertical = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text("Mise à jour de l'appli", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold)
@@ -96,22 +104,26 @@ fun UpdateDialog(ui: UpdateUi, busy: Boolean, actions: UpdateActions) {
 @Composable
 fun UpdateOfferDialog(release: Release, actions: UpdateActions) {
     val focus = remember { FocusRequester() }
-    Dialog(onDismissRequest = actions.declineOffer) {
+    // Pleine largeur utile et défilement de secours : sur une TV de 540 dp de haut, avec une longue
+    // description, « Installer maintenant » doit rester visible (il était coupé en 0.1.414).
+    Dialog(onDismissRequest = actions.declineOffer, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
             Modifier
+                .padding(horizontal = 40.dp, vertical = 16.dp)
+                .widthIn(max = 820.dp)
                 .clip(RoundedCornerShape(32.dp))
                 .background(Brush.verticalGradient(listOf(Neon.FondHaut, Neon.Fond)))
                 .border(2.dp, Brush.horizontalGradient(listOf(OfferHalo, Palette.Gold, OfferHalo)), RoundedCornerShape(32.dp))
-                .padding(44.dp)
-                .width(720.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 40.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text("✨ LITTLE MISS PARTY QUIZ ✨", color = OfferHalo, fontSize = 18.sp, fontWeight = FontWeight.Black, letterSpacing = 6.sp)
             Text(
                 "Une nouvelle version est prête !",
                 style = TextStyle(
-                    fontFamily = PoliceLmp, color = Palette.Gold, fontSize = 38.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
+                    fontFamily = PoliceLmp, color = Palette.Gold, fontSize = 34.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                     shadow = Shadow(Palette.Gold.copy(alpha = 0.6f), blurRadius = 18f),
                 ),
             )
@@ -119,10 +131,15 @@ fun UpdateOfferDialog(release: Release, actions: UpdateActions) {
                 "Version ${release.versionName} (installée : ${BuildConfig.VERSION_NAME}), ${mb(release.size)}",
                 color = Palette.InkSoft, fontSize = 18.sp,
             )
-            if (release.notes.isNotBlank()) Text(release.notes, color = Color.White, fontSize = 20.sp, textAlign = TextAlign.Center)
+            if (release.notes.isNotBlank()) {
+                Text(
+                    release.notes, color = Color.White, fontSize = 18.sp, textAlign = TextAlign.Center,
+                    maxLines = 3, overflow = TextOverflow.Ellipsis,
+                )
+            }
             Text(
                 "Les parties, réglages et codes sont conservés. Android demandera de confirmer l'installation.",
-                color = Color.White, fontSize = 20.sp, textAlign = TextAlign.Center,
+                color = Palette.InkSoft, fontSize = 18.sp, textAlign = TextAlign.Center,
             )
             Buttons {
                 Primary("Installer maintenant", actions.acceptOffer, focus)
@@ -171,7 +188,7 @@ private fun Content(ui: UpdateUi, actions: UpdateActions, focus: FocusRequester)
         is UpdateUi.Downloading -> {
             val p = (ui.done.toFloat() / ui.release.size).coerceIn(0f, 1f)
             Body("Téléchargement de la version ${ui.release.versionName}… ${(p * 100).toInt()} %")
-            LinearProgressIndicator(progress = { p }, color = Palette.Gold, trackColor = Palette.Panel, modifier = Modifier.width(640.dp).height(12.dp))
+            LinearProgressIndicator(progress = { p }, color = Palette.Gold, trackColor = Palette.Panel, modifier = Modifier.fillMaxWidth().height(12.dp))
             Text("${mb(ui.done)} sur ${mb(ui.release.size)}", color = Palette.InkSoft, fontSize = 18.sp)
             Buttons { Secondary("Annuler", actions.cancelDownload, focus) }
         }

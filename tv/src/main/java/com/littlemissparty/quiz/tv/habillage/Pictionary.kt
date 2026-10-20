@@ -300,7 +300,7 @@ fun ChronoPictionary(secondes: Int, fraction: Float, modifier: Modifier = Modifi
         },
         contentAlignment = Alignment.Center,
     ) {
-        Text("${secondes.coerceAtLeast(0)}", color = if (urgent) Neon.Chaud else Neon.Blanc, fontSize = 32.sp, fontWeight = FontWeight.Black)
+        Text("${secondes.coerceAtLeast(0)}", style = styleCentre(32.sp, if (urgent) Neon.Chaud else Neon.Blanc, FontWeight.Black))
     }
 }
 

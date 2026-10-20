@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -60,6 +61,7 @@ import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.tv.habillage.Echelle
 import com.littlemissparty.quiz.tv.habillage.LogoLmp
 import com.littlemissparty.quiz.tv.habillage.Neon
+import com.littlemissparty.quiz.tv.habillage.styleCentre
 import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.cos
@@ -126,7 +128,7 @@ private fun Intermission(state: UiState.Playing, onResume: () -> Unit) {
                     onDrawBehind { drawCircle(brush) }
                 },
         )
-        // 3. Étincelles à quatre branches sur les bords, chacune scintille à son rythme.
+        // 3. Étoiles scintillantes sur les bords (✦, plus de « + » : demande de cedric), chacune à son rythme.
         Sparkles { twinkle }
         // 4. Confettis qui tombent doucement, en boucle : la pause peut durer, l'écran reste vivant.
         Paillettes { chute.value }
@@ -243,17 +245,32 @@ private fun Paillettes(phase: () -> Float) {
 private fun Sparkles(phase: () -> Float) {
     Canvas(Modifier.fillMaxSize()) {
         SPARKS.forEachIndexed { i, (fx, fy) ->
-            val a = (0.35f + 0.65f * (0.5f + 0.5f * sin(phase() + i * 1.7f))).coerceIn(0f, 1f)
+            // Chaque étoile s'allume d'un coup puis s'éteint doucement, à son rythme : un vrai scintillement, pas un « + ».
+            val onde = 0.5f + 0.5f * sin(phase() * (1 + i % 3) + i * 1.7f)
+            val eclat = onde * onde * onde
             val cx = size.width * fx
             val cy = size.height * fy
-            val r = size.minDimension * (0.012f + 0.006f * (i % 3))
+            val r = size.minDimension * (0.016f + 0.007f * (i % 3)) * (0.55f + 0.45f * eclat)
             val color = if (i % 3 == 0) Palette.Gold else Color.White
-            // Étoile à quatre branches : deux losanges croisés.
-            drawLine(color.copy(alpha = a), Offset(cx - r, cy), Offset(cx + r, cy), strokeWidth = r / 3)
-            drawLine(color.copy(alpha = a), Offset(cx, cy - r), Offset(cx, cy + r), strokeWidth = r / 3)
-            drawCircle(color.copy(alpha = a * 0.5f), radius = r / 3, center = Offset(cx, cy))
+            val centre = Offset(cx, cy)
+            drawCircle(
+                Brush.radialGradient(listOf(color.copy(alpha = 0.45f * eclat), Color.Transparent), centre, r * 1.6f),
+                radius = r * 1.6f, center = centre,
+            )
+            rotate(i * 11f, centre) { drawPath(etoile(cx, cy, r), color.copy(alpha = 0.25f + 0.75f * eclat)) }
         }
     }
+}
+
+/** Étoile scintillante à quatre branches fines (✦) : pointes longues, cœur étroit. */
+private fun etoile(cx: Float, cy: Float, r: Float) = Path().apply {
+    val creux = r * 0.18f
+    moveTo(cx, cy - r)
+    quadraticBezierTo(cx + creux, cy - creux, cx + r, cy)
+    quadraticBezierTo(cx + creux, cy + creux, cx, cy + r)
+    quadraticBezierTo(cx - creux, cy + creux, cx - r, cy)
+    quadraticBezierTo(cx - creux, cy - creux, cx, cy - r)
+    close()
 }
 
 /**
@@ -290,17 +307,16 @@ private fun ResumeCountdown(state: UiState.Playing) {
         ) {
             drawCircle(Palette.Gold.copy(alpha = 0.55f), radius = size.minDimension / 2 - 6f, style = Stroke(width = 6f))
         }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                "$shown",
-                style = TextStyle(
-                    fontFamily = PoliceLmp, color = Palette.Gold, fontSize = 200.sp, fontWeight = FontWeight.Black,
-                    shadow = Shadow(Palette.Gold.copy(alpha = 0.9f), blurRadius = 40f),
-                ),
-                modifier = Modifier.graphicsLayer { scaleX = pop.value; scaleY = pop.value; alpha = (2.2f - pop.value).coerceIn(0f, 1f) },
-            )
-            Text("C'est reparti !", color = Palette.Ink, fontSize = 34.sp, fontWeight = FontWeight.Black)
-        }
+        // Le chiffre seul au centre de l'anneau, centré au pixel (styleCentre) ; la phrase passe sous l'anneau.
+        Text(
+            "$shown",
+            style = styleCentre(200.sp, Palette.Gold, FontWeight.Black).copy(shadow = Shadow(Palette.Gold.copy(alpha = 0.9f), blurRadius = 40f)),
+            modifier = Modifier.graphicsLayer { scaleX = pop.value; scaleY = pop.value; alpha = (2.2f - pop.value).coerceIn(0f, 1f) },
+        )
+        Text(
+            "C'est reparti !", color = Palette.Ink, fontSize = 34.sp, fontWeight = FontWeight.Black,
+            modifier = Modifier.align(Alignment.Center).offset(y = 185.dp),
+        )
     }
 }
 

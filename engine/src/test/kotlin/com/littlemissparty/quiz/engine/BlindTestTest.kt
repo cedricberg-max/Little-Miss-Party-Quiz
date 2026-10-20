@@ -158,16 +158,10 @@ class BlindTestTest {
         assertEquals(CommandStatus.APPLIED, g.cmd("blind_unblock", t0 + 4_000).status)
         assertEquals(emptyList(), g.state.buzz!!.blocked)
         g.cmd("blind_play", t0 + 5_000)
-        // L'extrait arrive au bout sans buzz : la musique s'arrête, l'animatrice décide.
         assertEquals(t0 + 5_000 + 23_000, g.deadline())
-        g.timeUp(t0 + 28_000)
-        assertEquals(true, g.blind()["waiting"])
-        assertEquals(Phase.QUESTION, g.state.phase)
-        // Relancé après la fin : il repart du début.
-        g.cmd("blind_play", t0 + 30_000)
-        assertEquals(t0 + 30_000 + 25_000, g.deadline())
-        // Personne ne trouve : révélation sans points, pochette et titre quand même.
-        assertEquals(CommandStatus.APPLIED, g.cmd("blind_reveal", t0 + 35_000).status)
+        assertNull(g.timeUp(t0 + 20_000), "le chrono n'est pas à zéro")
+        // Chrono à zéro sans bonne réponse : « Personne n'a trouvé », révélation sans points, pochette et titre quand même.
+        assertNotNull(g.timeUp(t0 + 28_000))
         assertEquals(Phase.REVEAL, g.state.phase)
         assertEquals(listOf("Un"), Codec.publicState(g)["choices"])
         assertEquals(emptyMap(), g.state.scores())
@@ -187,6 +181,31 @@ class BlindTestTest {
         g.cmd("next", t0 + 50_000)
         assertEquals(Phase.SCORES, g.state.phase)
         assertEquals(mapOf("vert" to 200), g.state.scores())
+    }
+
+    @Test
+    fun `chrono à zéro, jamais pendant l'attente du Lancer, ni pendant une réponse, refrain lu depuis le programme`() {
+        val g = game()
+        assertNull(g.timeUp(t0 + 60_000), "musique pas encore lancée : rien ne se révèle")
+        g.cmd("blind_play", t0)
+        g.buzz("rose", t0 + 20_000)
+        assertNull(g.timeUp(t0 + 40_000), "une équipe répond : on attend le verdict")
+        g.cmd("buzz_ko", t0 + 41_000)
+        assertNull(g.timeUp(t0 + 50_000), "musique arrêtée après l'erreur : on attend la relance")
+        assertEquals(Phase.QUESTION, g.state.phase)
+        g.cmd("blind_play", t0 + 51_000)
+        // Il restait 5 s de musique : à zéro, révélation sans points.
+        assertNull(g.timeUp(t0 + 55_000))
+        assertNotNull(g.timeUp(t0 + 56_000))
+        assertEquals(Phase.REVEAL, g.state.phase)
+        assertEquals(emptyMap(), g.state.scores())
+
+        val json = """{"id":"q","title":"Q","questions":[{"id":"b1","text":"Quel est ce titre ?","choices":["Un"],"correct":0,
+            "kind":"blind","audioId":"0123456789abcdef","refrainId":"fedcba9876543210","duration":30},
+            {"id":"q2","text":"Deux ?","choices":["a","b"],"correct":0,"refrainId":"fedcba9876543210"}]}"""
+        val quiz = QuizJson.parse(json)
+        assertEquals("fedcba9876543210", quiz.questions[0].refrainId)
+        assertNull(quiz.questions[1].refrainId, "refrain réservé au blind test")
     }
 
     @Test

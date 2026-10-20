@@ -26,6 +26,7 @@ import {
 } from "./manches.js";
 import { PICTO_OWN_SERIES } from "./picto-cards.js";
 import { EXTRACT_SECONDS, guessTrack, defaultStart, decodeFile, makeExtract, synthTune, encodeMp3, soundId } from "./audio.js";
+import { REFRAIN_SEC, REFRAIN_KBPS, buzzOf, defaultRefrain, songList, songMatches, trackFromSong, songUpdates } from "./sons.js";
 import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
 import { watchVersion, showUpdateBanner } from "./version.js";
 import { compressImage, imageId, cleanEmoji, CHOICE_IMAGE } from "./illustration.js";
@@ -90,6 +91,8 @@ let quizzes = {};
 let shows = {};
 let mimes = {};
 let playlists = {};
+/** Bibliothèque des sons du blind test (library/songs) : chansons et leurs préréglages. */
+let songs = {};
 let contents = {};
 /** Manches enregistrées (page Manches de chaque jeu), par identifiant. */
 let manches = {};
@@ -222,6 +225,8 @@ function enter() {
   stops.push(onValue(ref(db, "library/mimes"), (s) => { mimes = s.val() ?? {}; refreshLists(); }, lost));
   stops.push(onValue(ref(db, "library/playlists"), (s) => { playlists = s.val() ?? {}; refreshLists(); }, lost));
   stops.push(onValue(ref(db, "library/contents"), (s) => { contents = s.val() ?? {}; refreshLists(); }, lost));
+  // Bibliothèque des sons : une lecture refusée (règles pas encore publiées) ne ferme pas l'administration.
+  stops.push(onValue(ref(db, "library/songs"), (s) => { songs = s.val() ?? {}; refreshLists(); }, (e) => console.error(e)));
   // Manches : une lecture refusée (règles pas encore publiées) ne ferme pas l'administration.
   stops.push(onValue(ref(db, "library/manches"), (s) => { manches = s.val() ?? {}; refreshLists(); }, (e) => console.error(e)));
   // Box : une lecture refusée ne doit pas fermer l'administration (règles pas encore publiées).
@@ -241,6 +246,7 @@ function refreshLists() {
   if (!$("screen-quizzes").hidden) renderQuizzes();
   if (!$("screen-mimes").hidden) renderMimes();
   if (!$("screen-music").hidden) renderPlaylists();
+  if (!$("screen-playlist-edit").hidden && !$("playlist-lib").hidden) renderLibPicker();
   if (!$("screen-show-edit").hidden) refreshRounds();
   if (!$("screen-game").hidden) renderGame();
 }
@@ -2231,7 +2237,73 @@ function renderPlaylists() {
         h("button", { class: "btn danger", onclick: () => deletePlaylist(id), text: "Supprimer" })));
   }));
   if (!list.length) box.append(h("p", { class: "hint", text: "Aucune playlist pour l'instant : créez-en une avec vos fichiers musicaux." }));
+  renderSongs();
 }
+
+/** Ligne d'une chanson de la bibliothèque : titre, réglages, playlists où elle est, et ses boutons. */
+function songRow(song, tools) {
+  const meta = [
+    song.artist, `${song.buzz} s pour buzzer`, song.refrainId ? "refrain réglé ✓" : "pas encore de refrain",
+    song.lists.length ? `dans : ${song.lists.map((l) => l.title).join(", ")}` : "",
+  ].filter(Boolean).join(" · ");
+  return h("div", { class: "song", "data-song": song.audioId },
+    h("div", { class: "song-name" }, h("b", { text: song.title }), h("span", { class: "song-meta", text: meta })),
+    h("div", { class: "song-tools" }, ...tools));
+}
+
+const MAX_SONGS_SHOWN = 60;
+
+/** Bibliothèque des sons (page Blind test) : recherche, écoute, réglages. */
+function renderSongs() {
+  const all = songList(songs, playlists, isStatuesList);
+  const found = all.filter((x) => songMatches(x, $("song-search").value));
+  $("song-count").textContent = found.length === all.length ? `${all.length} chanson${all.length > 1 ? "s" : ""}` : `${found.length} sur ${all.length}`;
+  $("song-list").replaceChildren(...found.slice(0, MAX_SONGS_SHOWN).map((x) => songRow(x, [
+    h("button", { type: "button", class: "btn secondary", title: "Écouter l'extrait du buzz", onclick: () => listen({ audioId: x.audioId, title: x.title }), text: "▶ Extrait" }),
+    x.refrainId ? h("button", { type: "button", class: "btn secondary", title: "Écouter le refrain", onclick: () => listen({ audioId: x.refrainId, title: x.title }), text: "▶ Refrain" }) : null,
+    h("button", { type: "button", class: "btn secondary", onclick: () => editSongs([x]), text: "Régler…" }),
+  ])));
+  if (found.length > MAX_SONGS_SHOWN) $("song-list").append(h("p", { class: "hint small", text: `… et ${found.length - MAX_SONGS_SHOWN} autres : précisez la recherche.` }));
+  if (!all.length) $("song-list").append(h("p", { class: "hint", text: "Aucune chanson pour l'instant : ajoutez vos fichiers musicaux." }));
+}
+$("song-search").oninput = () => renderSongs();
+$("song-files").onchange = async (e) => {
+  const files = [...e.target.files];
+  e.target.value = "";
+  editSongs([]);
+  await addFiles(files);
+};
+
+/** Réglages de chansons de la bibliothèque, dans l'écran des playlists (sans nom ni barème). */
+function editSongs(list) {
+  editPlaylist(null, { use: "songs", title: "Bibliothèque des sons", tracks: list.map((x) => ({ ...trackFromSong(x), start: x.start, refrain: x.refrain, length: x.length })) });
+}
+
+/** Playlist : chercher une chanson dans la bibliothèque et l'ajouter avec ses réglages. */
+function renderLibPicker() {
+  const inList = new Set(playlist?.tracks.map((t) => t.audioId).filter(Boolean));
+  const all = songList(songs, playlists, isStatuesList);
+  const found = all.filter((x) => songMatches(x, $("playlist-lib-search").value));
+  $("playlist-lib-count").textContent = `${found.length} chanson${found.length > 1 ? "s" : ""}`;
+  $("playlist-lib-list").replaceChildren(...found.slice(0, 40).map((x) => songRow(x, [
+    h("button", { type: "button", class: "btn secondary", onclick: () => listen({ audioId: x.audioId, title: x.title }), text: "▶" }),
+    h("button", {
+      type: "button", class: "btn", disabled: inList.has(x.audioId), text: inList.has(x.audioId) ? "Déjà dedans" : "Ajouter",
+      onclick: () => {
+        playlist.tracks.push({ ...trackFromSong(x), artist: x.artist ?? "", rights: x.rights ?? "", points: null, start: x.start, refrain: x.refrain, length: x.length });
+        noterEcran();
+        renderTracks();
+        renderLibPicker();
+      },
+    }),
+  ])));
+  if (!all.length) $("playlist-lib-list").append(h("p", { class: "hint small", text: "La bibliothèque est vide : ajoutez des musiques à une playlist, elles y seront rangées." }));
+}
+$("playlist-from-lib").onclick = () => {
+  $("playlist-lib").hidden = !$("playlist-lib").hidden;
+  if (!$("playlist-lib").hidden) { renderLibPicker(); $("playlist-lib-search").focus(); }
+};
+$("playlist-lib-search").oninput = () => renderLibPicker();
 
 let playlist = null; // { id, tracks: [{ title, artist, rights, points?, imageId?, duration?, audioId? | file, length, start }] }
 let preview = null; // { audio, url, timer }
@@ -2263,30 +2335,40 @@ function openStatuesSongs() {
 function editPlaylist(id, fresh = {}) {
   const p = id ? playlists[id] : fresh;
   const statues = isStatuesList(p);
+  const library = !id && fresh.use === "songs";
   playlist = {
-    id, use: statues ? "statues" : null,
-    tracks: (p.tracks ?? []).filter(Boolean).map((t) => ({
-      title: t.title ?? "", artist: t.artist ?? "", rights: t.rights ?? "", audioId: t.audioId,
-      points: t.points ?? null, imageId: t.imageId ?? null, duration: t.duration ?? null,
-    })),
+    id, use: statues ? "statues" : library ? "songs" : null,
+    tracks: (p.tracks ?? []).filter(Boolean).map((t) => {
+      // Réglages gardés par la chanson dans la bibliothèque : ils reviennent quand on rechoisit le fichier.
+      const song = t.songId ? songs[t.songId] : null;
+      return {
+        title: t.title ?? "", artist: t.artist ?? "", rights: t.rights ?? "", audioId: t.audioId,
+        points: t.points ?? null, imageId: t.imageId ?? null, duration: t.duration ?? null,
+        refrainId: t.refrainId ?? null, songId: t.songId ?? null,
+        start: t.start ?? song?.start ?? null, refrain: t.refrain ?? song?.refrain ?? null, length: t.length ?? song?.length ?? null,
+      };
+    }),
   };
+  $("playlist-lib").hidden = true;
+  $("playlist-from-lib").hidden = statues || library;
+  $("playlist-title").closest("label").hidden = library;
   const scale = blindScale(p);
   $("playlist-points").value = `${scale.points}`;
   $("playlist-final-points").value = `${scale.finalPoints}`;
   $("playlist-final-count").value = `${scale.finalCount}`;
   $("playlist-reveal").value = `${scale.reveal}`;
-  $("playlist-edit-title").textContent = id || statues ? p.title : "Nouvelle playlist";
+  $("playlist-edit-title").textContent = id || statues || library ? p.title : "Nouvelle playlist";
   $("playlist-title").value = p.title ?? "";
   // Statues : pas de barème ni de pochette ; le fil d'Ariane ramène à la page Jeux.
-  $("playlist-scale").hidden = statues;
+  $("playlist-scale").hidden = statues || library;
   $("statues-hint").hidden = !statues;
   $("playlist-hint").hidden = statues;
   $("playlist-crumb").textContent = statues ? ROUND_TYPES.statues : "Musique";
   $("playlist-crumb").dataset.screen = statues ? "games" : "music";
   $("playlist-title-label").textContent = statues ? "Nom de la liste" : "Nom de la playlist";
-  $("playlist-duration-label").textContent = statues ? "Longueur de chaque chanson" : "Durée des extraits";
-  $("playlist-count-label").textContent = statues ? "Chansons" : "Morceaux";
-  $("playlist-save").textContent = statues ? "Enregistrer les chansons" : "Enregistrer la playlist";
+  $("playlist-duration-label").textContent = statues ? "Longueur de chaque chanson" : library ? "Temps pour buzzer des nouvelles chansons" : "Temps pour buzzer (durée des extraits)";
+  $("playlist-count-label").textContent = statues || library ? "Chansons" : "Morceaux";
+  $("playlist-save").textContent = statues ? "Enregistrer les chansons" : library ? "Enregistrer dans la bibliothèque" : "Enregistrer la playlist";
   $("playlist-duration").replaceChildren(...extractChoices().map((n) => h("option", { value: n, text: extractText(n) })));
   $("playlist-duration").value = `${p.duration ?? (statues ? STATUES_EXTRACT : BLIND_SEC)}`;
   $("playlist-delete").hidden = !id;
@@ -2316,19 +2398,27 @@ function stopPreview() {
   preview = null;
 }
 
-/** Écoute : l'extrait enregistré, ou le fichier à partir du début choisi pendant la durée de l'extrait. */
-async function listen(t) {
+/** Durée de l'écoute du refrain avant l'enregistrement (le refrain enregistré, lui, dure jusqu'à 90 s). */
+const REFRAIN_PREVIEW_SEC = 20;
+
+/**
+ * Écoute : l'extrait enregistré, ou le fichier à partir du début choisi pendant la durée de l'extrait.
+ * [refrain] : le refrain de la révélation (enregistré, ou le fichier à partir du moment choisi).
+ */
+async function listen(t, refrain = false) {
   stopPreview();
   try {
     if (t.file) {
       const url = URL.createObjectURL(t.file);
       const audio = new Audio(url);
       preview = { audio, url };
-      audio.currentTime = t.start;
+      audio.currentTime = refrain ? t.refrain ?? 0 : t.start;
       await audio.play();
-      preview.timer = setTimeout(stopPreview, (t.duration ?? Number($("playlist-duration").value)) * 1000);
+      preview.timer = setTimeout(stopPreview, (refrain ? REFRAIN_PREVIEW_SEC : t.duration ?? Number($("playlist-duration").value)) * 1000);
     } else {
-      const data = (await get(ref(db, `library/sounds/${t.audioId}`))).val();
+      const id = refrain ? t.refrainId : t.audioId;
+      if (!id) return status("playlist-status", `« ${t.title} » n'a pas encore de refrain : rechoisissez son fichier avec « Régler les moments… ».`);
+      const data = (await get(ref(db, `library/sounds/${id}`))).val();
       if (typeof data !== "string") return status("playlist-status", `Extrait de « ${t.title} » introuvable.`);
       const audio = new Audio(data);
       preview = { audio };
@@ -2408,6 +2498,7 @@ function renderTracks() {
       h("option", { value: "", text: `comme ${playlist.use === "statues" ? "la liste" : "la playlist"} (${seconds} s)`, selected: t.duration == null }),
       ...extractChoices().map((s) => h("option", { value: s, text: `${s} s`, selected: t.duration === s })))) : null;
     const statues = playlist.use === "statues";
+    const library = playlist.use === "songs";
     return h("div", { class: `track${t.file ? "" : " saved"}`, "data-track": i },
       h("input", { type: "text", maxlength: 80, placeholder: statues ? "Titre de la chanson" : "Titre (la réponse)", value: t.title, "aria-label": "Titre", oninput: (e) => { t.title = e.target.value; } }),
       h("input", { type: "text", maxlength: 80, placeholder: statues ? "Artiste (facultatif)" : "Artiste ou dessin animé (bonus, facultatif)", value: t.artist, "aria-label": "Artiste", oninput: (e) => { t.artist = e.target.value; } }),
@@ -2415,16 +2506,18 @@ function renderTracks() {
         h("button", { type: "button", class: "icon", title: "Plus tôt", disabled: i === 0, onclick: () => moveTrack(i, -1), text: "↑" }),
         h("button", { type: "button", class: "icon", title: "Plus tard", disabled: i === n - 1, onclick: () => moveTrack(i, 1), text: "↓" }),
         h("button", { type: "button", class: "icon", title: "Écouter l'extrait", onclick: () => listen(t), text: "▶" }),
-        h("button", { type: "button", class: "icon", title: "Retirer", onclick: () => { stopPreview(); playlist.tracks.splice(i, 1); renderTracks(); }, text: "✕" })),
+        statues ? null : h("button", { type: "button", class: "icon", title: "Écouter le refrain", onclick: () => listen(t, true), text: "🎤" }),
+        h("button", { type: "button", class: "icon", title: library ? "Retirer de cet écran (la chanson reste dans la bibliothèque)" : "Retirer", onclick: () => { stopPreview(); playlist.tracks.splice(i, 1); renderTracks(); }, text: "✕" })),
       h("div", { class: "track-start" }, label,
         h("input", {
           type: "range", min: 0, max, step: 1, value: Math.min(t.start ?? 0, max), "aria-label": "Début de l'extrait",
           oninput: (e) => { t.start = Number(e.target.value); label.textContent = `${debut} : ${mmss(t.start)}`; },
           onchange: () => { if (preview) listen(t); },
         })),
+      statues ? null : refrainTools(t),
       h("div", { class: "track-extra" },
         h("span", { class: "track-n", text: `${statues ? "Chanson" : "Morceau"} ${i + 1}` }),
-        statues ? null : h("label", { class: "inline" }, "Points",
+        statues || library ? null : h("label", { class: "inline" }, "Points",
           h("input", {
             type: "number", class: "track-points", min: 1, max: 1000, step: 10, placeholder: `${auto}`, value: t.points ?? "",
             "aria-label": "Points du morceau", title: `Vide : ${auto} points (barème de la playlist)`,
@@ -2437,6 +2530,90 @@ function renderTracks() {
   if (!playlist.tracks.length) $("playlist-tracks").append(h("p", { class: "hint small", text: playlist.use === "statues" ? "Aucune chanson : ajoutez vos fichiers musicaux. Sans chanson, la TV joue la musique de la fête." : "Aucun morceau : ajoutez vos fichiers musicaux." }));
 }
 $("playlist-duration").onchange = () => renderTracks();
+
+/**
+ * Refrain d'un morceau du blind test (joué en boucle à la révélation, « on chante tous ensemble ») : réglé sur le
+ * fichier avant l'enregistrement ; ensuite, rechoisir le fichier permet de changer les moments.
+ */
+function refrainTools(t) {
+  if (!t.file) {
+    const pick = h("input", {
+      type: "file", accept: "audio/*", hidden: true,
+      onchange: async (e) => {
+        const f = e.target.files?.[0];
+        e.target.value = "";
+        if (!f) return;
+        withFile(t, f, await fileDuration(f));
+        noterEcran();
+        renderTracks();
+      },
+    });
+    return h("div", { class: "track-refrain" },
+      h("span", { class: t.refrainId ? "ok" : "hint small", text: t.refrainId ? "Refrain réglé ✓" : "Pas encore de refrain pour la révélation." }),
+      h("label", { class: "link", title: "Rechoisir le fichier sur le PC pour changer le début, le refrain ou le temps pour buzzer" }, "Régler les moments…", pick));
+  }
+  const label = h("span", { text: `Refrain (chanté à la révélation) : ${mmss(t.refrain ?? 0)}` });
+  return h("div", { class: "track-refrain" }, label,
+    h("input", {
+      type: "range", min: 0, max: Math.max(0, Math.floor((t.length ?? 0) - 10)), step: 1, value: t.refrain ?? 0, "aria-label": "Moment du refrain",
+      oninput: (e) => { t.refrain = Number(e.target.value); label.textContent = `Refrain (chanté à la révélation) : ${mmss(t.refrain)}`; },
+      onchange: () => { if (preview) listen(t, true); },
+    }),
+    h("button", {
+      type: "button", class: "link", title: "Revenir au début, au refrain et au temps pour buzzer proposés",
+      onclick: () => { t.duration = null; delete t.start; delete t.refrain; withFile(t, t.file, t.length); noterEcran(); renderTracks(); },
+      text: "Effacer les préréglages",
+    }));
+}
+
+/** Fichier choisi pour un morceau : les moments déjà réglés sont gardés s'ils tiennent dans le fichier, sinon proposés. */
+function withFile(t, file, length) {
+  const buzz = t.duration ?? Number($("playlist-duration").value);
+  t.file = file;
+  t.length = length;
+  t.start = Number.isFinite(t.start) && t.start <= Math.max(0, length - buzz) ? t.start : defaultStart(length, buzz);
+  if (playlist.use !== "statues") t.refrain = Number.isFinite(t.refrain) && t.refrain <= Math.max(0, length - 10) ? t.refrain : defaultRefrain(length, t.start, buzz);
+  return t;
+}
+
+const sansAccents = (x) => `${x ?? ""}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
+/**
+ * Fichiers musicaux ajoutés : une chanson déjà dans la bibliothèque (même titre, même artiste) revient avec ses
+ * préréglages ; sinon le début et le refrain sont proposés.
+ */
+async function addFiles(files) {
+  const statues = playlist.use === "statues";
+  const library = statues ? [] : songList(songs, {}, isStatuesList);
+  for (const file of files) {
+    const length = await fileDuration(file);
+    const { title, artist } = guessTrack(file.name);
+    const known = library.find((x) => sansAccents(x.title) === sansAccents(title) && sansAccents(x.artist) === sansAccents(artist));
+    const already = known && playlist.tracks.find((t) => t.songId === known.id);
+    if (already) { withFile(already, file, length); continue; }
+    const base = known
+      ? { ...trackFromSong(known), artist: known.artist ?? "", rights: known.rights ?? "", points: null, start: known.start, refrain: known.refrain ?? undefined }
+      : { title, artist, rights: "", points: null };
+    playlist.tracks.push(withFile(base, file, length));
+  }
+  renderTracks();
+  noterEcran();
+}
+
+/** Chanson de la bibliothèque tirée d'un morceau enregistré : titre, extraits et préréglages. */
+function songData(t, seconds) {
+  const out = { title: t.title.trim().slice(0, 80), audioId: t.audioId, buzz: buzzOf(t.duration ?? seconds) };
+  if (t.artist?.trim()) out.artist = t.artist.trim().slice(0, 80);
+  if (t.rights?.trim()) out.rights = t.rights.trim().slice(0, 120);
+  if (t.imageId) out.imageId = t.imageId;
+  if (t.refrainId) out.refrainId = t.refrainId;
+  [["start", 3600], ["refrain", 3600], ["length", 7200]].forEach(([k, max]) => {
+    if (Number.isFinite(t[k])) out[k] = Math.min(max, Math.max(0, Math.round(t[k])));
+  });
+  return out;
+}
+const SONG_FIELDS = ["title", "artist", "rights", "imageId", "audioId", "refrainId", "buzz", "start", "refrain", "length"];
+const sameSong = (a, b) => SONG_FIELDS.every((k) => (a?.[k] ?? null) === (b?.[k] ?? null));
 
 /** Durée d'un fichier, lue par le navigateur sans le décoder en entier. */
 function fileDuration(file) {
@@ -2453,18 +2630,14 @@ function fileDuration(file) {
 $("playlist-files").onchange = async (e) => {
   const files = [...e.target.files];
   e.target.value = "";
-  for (const file of files) {
-    const length = await fileDuration(file);
-    const { title, artist } = guessTrack(file.name);
-    playlist.tracks.push({ title, artist, rights: "", file, length, start: defaultStart(length, Number($("playlist-duration").value)) });
-  }
-  renderTracks();
-  noterEcran();
+  await addFiles(files);
 };
 
 $("playlist-save").onclick = async () => {
-  const title = $("playlist-title").value.trim();
   const statues = playlist.use === "statues";
+  // Bibliothèque des sons : les chansons seulement, sans playlist à enregistrer.
+  const library = playlist.use === "songs";
+  const title = library ? "Bibliothèque des sons" : $("playlist-title").value.trim();
   if (!title) return status("playlist-status", statues ? "Donnez un nom à la liste." : "Donnez un nom à la playlist.");
   if (!playlist.tracks.length) return status("playlist-status", statues ? "Ajoutez au moins une chanson." : "Ajoutez au moins un morceau.");
   const untitled = playlist.tracks.findIndex((t) => !t.title.trim());
@@ -2473,21 +2646,54 @@ $("playlist-save").onclick = async () => {
   const seconds = Number($("playlist-duration").value);
   $("playlist-save").disabled = true;
   try {
-    // Chaque nouveau morceau : extrait découpé et réencodé ici, rangé une seule fois dans la bibliothèque.
+    // Chaque nouveau morceau : extrait découpé et réencodé ici, rangé une seule fois dans la bibliothèque ; au blind
+    // test, aussi le refrain de la révélation (90 s, joué en boucle sur la TV).
     const fresh = playlist.tracks.filter((t) => t.file);
+    const before = new Map(); // morceau → son ancien extrait (pour retrouver les anciens morceaux des autres playlists)
     for (const [k, t] of fresh.entries()) {
       status("playlist-status", `Préparation de l'extrait ${k + 1} / ${fresh.length} : ${t.title}…`, true);
       let extract;
+      let refrain = null;
       try {
-        extract = await makeExtract(await decodeFile(t.file), t.start ?? 0, t.duration ?? seconds);
+        const buffer = await decodeFile(t.file);
+        extract = await makeExtract(buffer, t.start ?? 0, t.duration ?? seconds);
+        if (!statues) {
+          status("playlist-status", `Préparation du refrain ${k + 1} / ${fresh.length} : ${t.title}…`, true);
+          refrain = await makeExtract(buffer, t.refrain ?? defaultRefrain(t.length, t.start ?? 0, t.duration ?? seconds), REFRAIN_SEC, REFRAIN_KBPS);
+        }
       } catch (err) {
         console.error(err);
         return status("playlist-status", `« ${t.title} » : fichier illisible. Essayez un autre format (MP3 de préférence).`);
       }
-      const target = ref(db, `library/sounds/${extract.id}`);
-      if (!(await get(target)).exists()) await set(target, extract.data);
+      for (const x of [extract, refrain].filter(Boolean)) {
+        const target = ref(db, `library/sounds/${x.id}`);
+        if (!(await get(target)).exists()) await set(target, x.data);
+      }
+      if (t.audioId) before.set(t, t.audioId);
       t.audioId = extract.id;
+      if (refrain) t.refrainId = refrain.id;
       delete t.file;
+    }
+    // Bibliothèque des sons : chaque morceau du blind test y est rangé avec ses préréglages ; une chanson changée
+    // met à jour les autres playlists qui la reprennent.
+    const changed = [];
+    if (!statues) {
+      for (const t of playlist.tracks) {
+        const songId = t.songId && songs[t.songId] ? t.songId : push(ref(db, "library/songs")).key;
+        const song = songData(t, seconds);
+        const old = songs[songId];
+        if (!sameSong(old, song)) {
+          await set(ref(db, `library/songs/${songId}`), { ...song, createdAt: old?.createdAt ?? Date.now(), updatedAt: serverTimestamp() });
+          changed.push({ songId, song, audioIds: [before.get(t), t.audioId, old?.audioId].filter(Boolean) });
+        }
+        t.songId = songId;
+      }
+    }
+    if (library) {
+      histPlaylist.enregistre();
+      renderTracks();
+      await followSongs(changed, null);
+      return status("playlist-status", `Bibliothèque à jour : ${plural(playlist.tracks.length, "chanson")}. Les playlists qui les ont suivent ces réglages.`, true);
     }
     const id = playlist.id ?? push(ref(db, "library/playlists")).key;
     await set(ref(db, `library/playlists/${id}`), {
@@ -2499,10 +2705,13 @@ $("playlist-save").onclick = async () => {
         ...(t.points ? { points: t.points } : {}),
         ...(t.imageId ? { imageId: t.imageId } : {}),
         ...(t.duration && t.duration !== seconds ? { duration: t.duration } : {}),
+        ...(!statues && t.refrainId ? { refrainId: t.refrainId } : {}),
+        ...(!statues && t.songId ? { songId: t.songId } : {}),
       })),
       createdAt: playlists[id]?.createdAt ?? Date.now(), updatedAt: serverTimestamp(),
     });
     playlist.id = id;
+    await followSongs(changed, id);
     histPlaylist.enregistre();
     $("playlist-delete").hidden = false;
     $("playlist-edit-title").textContent = title;
@@ -2517,6 +2726,20 @@ $("playlist-save").onclick = async () => {
     $("playlist-save").disabled = false;
   }
 };
+
+/** Chansons changées : les morceaux des autres playlists qui les reprennent suivent (sauf la playlist [exceptId]). */
+async function followSongs(changed, exceptId) {
+  const others = Object.fromEntries(Object.entries(playlists).filter(([pid]) => pid !== exceptId));
+  const paths = {};
+  changed.forEach(({ songId, song, audioIds }) => Object.assign(paths, songUpdates(songId, song, others, serverTimestamp(), audioIds, isStatuesList)));
+  if (!Object.keys(paths).length) return;
+  try {
+    await update(ref(db), paths);
+  } catch (err) {
+    console.error(err);
+    status("playlist-status", "Enregistré ; les autres playlists n'ont pas pu suivre ces réglages (Internet ?). Réessayez d'enregistrer.");
+  }
+}
 
 $("playlist-delete").onclick = async () => {
   if (playlist?.id && await deletePlaylist(playlist.id)) show(playlist.use === "statues" ? "games" : "music");

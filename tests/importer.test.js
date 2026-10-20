@@ -12,6 +12,7 @@ import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, roundFille
 } from "../web/public/show.js";
 import { PICTO_WORDS, PICTO_SERIES } from "../web/public/picto-cards.js";
 import { guessTrack, defaultStart, normalizeLevel } from "../web/public/audio.js";
+import { songList, songMatches, trackFromSong, songUpdates, defaultRefrain, buzzOf, REFRAIN_SEC } from "../web/public/sons.js";
 import { FULL_SHOW, FULL_TUNES, tunePlaylist } from "../web/public/test-show.js";
 import { cadrageInitial, borner, zoomer, zoneGardee, BULLES } from "../web/public/cadrage.js";
 import { BANQUE_MOTS, QUESTIONS_PETITS, FAMILLES_PETITS, MODELES_PETITS, motBanque, cleMot, reponsesModele, fabriquerPetite, cataloguePetits, tirerPetits } from "../web/public/banque-petits.js";
@@ -1115,5 +1116,65 @@ describe("collections, manches et prestation", async () => {
     assert.equal(M.mancheSummary({ type: "mimes", cards: [{ word: "A" }, { word: "B" }], perTeam: 3, duration: 45 }), "2 cartes · 3 par équipe · tour de 45 s");
     assert.equal(M.questionType({ kind: "classic", audioId: "1".repeat(16) }), "musical");
     assert.equal(M.questionType({ kind: "mime" }), "mimes");
+  });
+});
+
+describe("bibliothèque des sons du blind test", () => {
+  const A = "0123456789abcdef";
+  const B = "fedcba9876543210";
+  const C = "aaaaaaaaaaaaaaaa";
+  const songs = { s1: { title: "Hakuna Matata", artist: "Le Roi lion", audioId: A, refrainId: B, buzz: 35, start: 10, refrain: 70, length: 210 } };
+  const playlists = {
+    p1: { title: "Disney", tracks: [{ title: "Hakuna Matata", audioId: A, songId: "s1", points: 300 }, { title: "Libérée, délivrée", audioId: C, duration: 25 }] },
+    p2: { title: "Anciens tubes", tracks: { 0: { title: "Libérée délivrée (bis)", audioId: C } } },
+    st: { title: "Statues", use: "statues", tracks: [{ title: "Danse", audioId: B }] },
+  };
+
+  test("une chanson par extrait, avec ses playlists ; les statues restent à part", () => {
+    const list = songList(songs, playlists);
+    assert.deepEqual(list.map((x) => x.title), ["Hakuna Matata", "Libérée, délivrée"]);
+    const [hakuna, liberee] = list;
+    assert.equal(hakuna.id, "s1");
+    assert.equal(hakuna.refrainId, B);
+    assert.equal(hakuna.buzz, 35);
+    assert.deepEqual(hakuna.lists, [{ id: "p1", title: "Disney" }]);
+    assert.equal(liberee.id, null, "ancien morceau pas encore rangé");
+    assert.equal(liberee.buzz, 25);
+    assert.deepEqual(liberee.lists.map((l) => l.id), ["p1", "p2"]);
+  });
+
+  test("la recherche ignore les accents et cherche aussi le nom des playlists", () => {
+    const [hakuna, liberee] = songList(songs, playlists);
+    assert.ok(songMatches(liberee, "liberee"));
+    assert.ok(songMatches(hakuna, "roi HAKUNA"));
+    assert.ok(songMatches(hakuna, "disney"));
+    assert.ok(!songMatches(hakuna, "reine"));
+    assert.ok(songMatches(hakuna, "  "));
+  });
+
+  test("un morceau tiré de la bibliothèque garde extraits, refrain et temps pour buzzer", () => {
+    const [hakuna] = songList(songs, playlists);
+    assert.deepEqual(trackFromSong(hakuna), { title: "Hakuna Matata", audioId: A, artist: "Le Roi lion", refrainId: B, songId: "s1", duration: 35 });
+  });
+
+  test("une chanson changée : ses morceaux suivent, points gardés ; anciens morceaux retrouvés par leur extrait", () => {
+    const changed = { title: "Hakuna Matata", audioId: C, refrainId: A, buzz: 40 };
+    const out = songUpdates("s1", changed, playlists, "maintenant", [C]);
+    assert.deepEqual(out["library/playlists/p1/tracks/0"], { title: "Hakuna Matata", audioId: C, refrainId: A, songId: "s1", duration: 40, points: 300 });
+    assert.equal(out["library/playlists/p1/tracks/1"].songId, "s1", "ancien morceau avec le même extrait");
+    assert.equal(out["library/playlists/p2/tracks/0"].songId, "s1");
+    assert.equal(out["library/playlists/p1/updatedAt"], "maintenant");
+    assert.ok(!Object.keys(out).some((k) => k.includes("/st/")), "les statues ne changent pas");
+    assert.deepEqual(songUpdates("s9", changed, playlists, 1), {});
+  });
+
+  test("refrain proposé après l'extrait du buzz, assez tôt pour tenir ; temps pour buzzer borné", () => {
+    assert.equal(defaultRefrain(200, 10, 30), 80);
+    assert.equal(defaultRefrain(100, 0, 30), 10);
+    assert.equal(defaultRefrain(60, 0, 30), 0, "chanson plus courte que le refrain");
+    assert.equal(defaultRefrain(Number.NaN), 0);
+    assert.ok(defaultRefrain(400, 0, 30) + REFRAIN_SEC <= 400);
+    assert.equal(buzzOf(60), 30);
+    assert.equal(buzzOf(20), 20);
   });
 });

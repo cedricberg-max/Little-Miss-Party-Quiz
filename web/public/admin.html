@@ -325,6 +325,21 @@
         (4 titres proposés sur les pupitres).
       </p>
       <div id="playlist-list" class="cards"></div>
+      <div class="title-row">
+        <h2>Bibliothèque des sons</h2>
+        <label class="btn secondary file-btn">Ajouter des chansons…
+          <input id="song-files" type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" multiple hidden>
+        </label>
+      </div>
+      <p class="hint small">
+        Chaque chanson garde ses réglages (début de l'extrait, temps pour buzzer, refrain chanté à la révélation),
+        d'une playlist à l'autre. « Régler… » les change partout : rechoisissez le fichier sur le PC pour déplacer les moments.
+      </p>
+      <div class="search-row">
+        <input id="song-search" type="search" placeholder="Rechercher : titre, artiste, playlist…" aria-label="Rechercher une chanson" autocomplete="off">
+        <span id="song-count" class="hint small"></span>
+      </div>
+      <div id="song-list" class="song-list"></div>
     </section>
 
     <section id="screen-playlist-edit" class="screen" hidden>
@@ -349,9 +364,19 @@
       <div class="panel">
         <p class="label"><span id="playlist-count-label">Morceaux</span> : <b id="playlist-count">0</b></p>
         <div id="playlist-tracks" class="tracks"></div>
-        <label class="btn secondary file-btn">Ajouter des musiques…
-          <input id="playlist-files" type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" multiple hidden>
-        </label>
+        <div class="row">
+          <label class="btn secondary file-btn">Ajouter des musiques…
+            <input id="playlist-files" type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" multiple hidden>
+          </label>
+          <button id="playlist-from-lib" type="button" class="btn secondary">＋ Depuis la bibliothèque</button>
+        </div>
+        <div id="playlist-lib" class="lib-picker" hidden>
+          <div class="search-row">
+            <input id="playlist-lib-search" type="search" placeholder="Rechercher dans la bibliothèque : titre, artiste…" aria-label="Rechercher dans la bibliothèque" autocomplete="off">
+            <span id="playlist-lib-count" class="hint small"></span>
+          </div>
+          <div id="playlist-lib-list" class="song-list"></div>
+        </div>
         <p id="statues-hint" class="hint small" hidden>
           Le titre est deviné depuis le nom du fichier : corrigez-le si besoin. Choisissez avec le curseur le passage gardé
           (1 minute ou 1 min 30, réglable chanson par chanson) et écoutez-le avant d'enregistrer. Dans chaque prestation, vous cochez

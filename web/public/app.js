@@ -114,8 +114,12 @@ function beep(freq = 880, ms = 180) {
 
 /** Plein écran au premier toucher (l'écran allumé, lui, suit l'état de la partie : voir show()). */
 async function keepAwake() {
+  if (document.fullscreenElement) return;
   try { await document.documentElement.requestFullscreen?.(); } catch { /* iOS : pas de plein écran */ }
 }
+// Plein écran perdu (téléphone tourné, volet des notifications, page rechargée) : le navigateur ne le rend que sur
+// un toucher, alors chaque toucher le redemande ; la barre d'adresse et celle du téléphone repartent aussitôt.
+document.addEventListener("click", () => { if (code && !document.fullscreenElement) keepAwake(); }, true);
 
 async function start() {
   show("loading");

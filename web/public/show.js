@@ -77,8 +77,8 @@ export const MUSIC_GAMES = {
   blind: { rule: "le premier qui buzze donne le titre ; les derniers morceaux valent double" },
   musical: { rule: "4 titres proposés sur les pupitres, toutes les équipes répondent" },
 };
-/** Durée d'un extrait de blind test par défaut (secondes). */
-export const BLIND_SEC = 25;
+/** Durée d'un extrait de blind test par défaut (secondes) : le temps de buzzer, chrono compris. */
+export const BLIND_SEC = 30;
 /**
  * Barème d'un blind test par défaut : valeur d'un morceau, valeur des derniers morceaux, combien de derniers
  * morceaux valent plus, et secondes de révélation (pochette, titre, extrait rejoué). Réglable par playlist.
@@ -386,6 +386,8 @@ function musicQuestions(type, playlist, prefix, random) {
         points: trackPoints(playlist, t, j, tracks.length), reveal: scale.reveal,
         ...(t.artist?.trim() ? { artist: t.artist.trim() } : {}),
         ...(/^[0-9a-f]{16}$/.test(t.imageId ?? "") ? { imageId: t.imageId } : {}),
+        // Refrain (environ 90 s) : joué en boucle à la révélation, « on chante tous ensemble ».
+        ...(/^[0-9a-f]{16}$/.test(t.refrainId ?? "") ? { refrainId: t.refrainId } : {}),
       };
     }
     const others = shuffle(titles.filter((x) => x !== title), random).slice(0, 3);
@@ -829,7 +831,7 @@ export function uniqueRoundTitle(questions, title) {
 
 /** Extraits musicaux d'un programme (identifiants sans doublon), à copier dans la partie avant de l'envoyer. */
 export function soundIds(questions) {
-  return [...new Set((questions ?? []).flatMap((q) => [q?.audioId, ...(Array.isArray(q?.audioIds) ? q.audioIds : [])]).filter((id) => typeof id === "string" && /^[0-9a-f]{16}$/.test(id)))];
+  return [...new Set((questions ?? []).flatMap((q) => [q?.audioId, q?.refrainId, ...(Array.isArray(q?.audioIds) ? q.audioIds : [])]).filter((id) => typeof id === "string" && /^[0-9a-f]{16}$/.test(id)))];
 }
 
 const IMAGE_ID = /^[0-9a-f]{16}$/;

@@ -164,7 +164,7 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null) 
             is UiState.Locked -> Locked(state, actions.requestAgain, actions.checkUpdate)
             is UiState.Playing -> Playing(state, actions)
         }
-        StatusCorner(state, update?.available?.takeIf { !gameInProgress(state) }, Modifier.align(Alignment.BottomStart))
+        StatusCorner(state, Modifier.align(Alignment.BottomStart))
     }
     if (confirmQuit && state is UiState.Playing) {
         val close = {
@@ -240,26 +240,17 @@ private fun Playing(state: UiState.Playing, actions: TvActions) {
 
 /**
  * Pastille en bas à gauche : verte quand la régie est reliée, rouge sinon (régie absente ou connexion perdue).
- * La version installée s'ajoute seulement hors partie (accueil, salon) : en pleine partie elle n'apporte rien,
- * elle reste lisible dans le menu Retour.
+ * Aucun numéro de version à l'écran (choix de cedric) : il se lit dans le menu Retour, « Rechercher une mise à jour ».
  */
 @Composable
-private fun StatusCorner(state: UiState, available: Release?, modifier: Modifier) {
+private fun StatusCorner(state: UiState, modifier: Modifier) {
     val connected = (state as? UiState.Playing)?.connected ?: true
     val regies = (state as? UiState.Playing)?.regies ?: 0
     val reliee = connected && regies > 0
-    val enPartie = (state as? UiState.Playing)?.let { it.phase != Phase.LOBBY && it.phase != Phase.ENDED } ?: false
     // Lue par les tests sur émulateur (et les lecteurs d'écran) : l'état exact derrière la couleur.
     val etat = listOfNotNull("Hors connexion".takeIf { !connected }, if (reliee) "Régie reliée" else "Régie non reliée").joinToString(" · ")
     Row(modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(12.dp).clip(CircleShape).background(if (reliee) Palette.Good else Color.Red).semantics { contentDescription = etat })
-        if (!enPartie) {
-            Spacer(Modifier.width(8.dp))
-            Text(
-                "v${BuildConfig.VERSION_NAME}" + (available?.let { " · mise à jour ${it.versionName} disponible (menu Retour)" } ?: ""),
-                color = Palette.InkSoft, fontSize = 13.sp,
-            )
-        }
     }
 }
 
@@ -451,7 +442,7 @@ private fun Lobby(state: UiState.Playing, actions: TvActions) {
                     maxLines = 2, overflow = TextOverflow.Ellipsis,
                 )
             }
-            Spacer(Modifier.height(if (nombreuses) 12.dp else 32.dp))
+            Spacer(Modifier.height(if (nombreuses) 12.dp else if (state.teams.isEmpty()) 32.dp else 16.dp))
             Text(
                 when {
                     state.teams.isEmpty() -> "En attente des équipes…"
@@ -468,10 +459,15 @@ private fun Lobby(state: UiState.Playing, actions: TvActions) {
                     TeamChip(team, online = team.uid in state.online, buzz = state.funBuzzes[team.uid] ?: 0, compacte = compacte, modifier = m)
                 }
             }
-            // La consigne du buzzer cède sa place à la liste dès 4 équipes.
+            // La consigne du buzzer cède sa place à la liste dès 4 équipes. Une seule ligne, sous les équipes : sur une TV
+            // de 540 dp de haut, deux lignes rognaient la vignette de l'équipe (vu chez cedric en 0.1.414).
             if (state.teams.isNotEmpty() && state.teams.size <= 3) {
-                Text("En attendant : buzzez sur votre pupitre, autant que vous voulez !", color = Palette.Gold, fontSize = 22.sp)
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "En attendant, buzzez autant que vous voulez !", color = Palette.Gold, fontSize = 20.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(12.dp))
             }
             if (state.teams.isNotEmpty()) NextButton("Lancer la fête !", actions.next)
         }

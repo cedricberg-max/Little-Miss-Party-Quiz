@@ -655,7 +655,7 @@ private fun PorteMystere(index: Int, valeur: Int, ouverture: () -> Float, trembl
                     .background(Brush.radialGradient(listOf(OR_CLAIR, OR_MOYEN, OR_FONCE)), CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("${index + 1}", style = TextStyle(color = Color(0xFF24103D), fontSize = 26.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.ExtraBold))
+                Text("${index + 1}", style = styleCentre(26.sp, Color(0xFF24103D)).copy(fontFamily = FontFamily.Serif))
             }
         }
     }

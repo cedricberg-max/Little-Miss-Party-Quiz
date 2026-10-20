@@ -1075,8 +1075,11 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         question?.isGonfleur == true -> null
         question?.isPatate == true -> explode(now)
         state.mime != null -> mimeStop(now)
-        // Blind test : fin de l'extrait, la musique s'arrête et l'animatrice décide de la suite.
-        question?.isBlind == true -> blindStop(now)
+        // Blind test : chrono à zéro sans bonne réponse, « Personne n'a trouvé » puis la révélation (titre, pochette,
+        // refrain pour chanter tous ensemble), sans points.
+        // Seulement musique en cours et extrait joué jusqu'au bout : jamais pendant l'attente du « Lancer » (reprise
+        // après une pause) ni pendant la réponse d'une équipe qui a buzzé.
+        question?.isBlind == true -> if (state.buzz?.waiting == false && state.buzz?.team == null && remainingMs(now) == 0L) blindReveal(now) else null
         else -> close(now)
     }
 

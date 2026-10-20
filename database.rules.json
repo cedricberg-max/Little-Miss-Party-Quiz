@@ -368,7 +368,13 @@
             "$i": {
               ".validate": "newData.child('title').isString() && newData.child('title').val().length >= 1 && newData.child('title').val().length <= 80 && newData.child('audioId').isString() && newData.child('audioId').val().matches(/^[0-9a-f]{16}$/) && (!newData.child('artist').exists() || (newData.child('artist').isString() && newData.child('artist').val().length <= 80)) && (!newData.child('rights').exists() || (newData.child('rights').isString() && newData.child('rights').val().length <= 120))",
               "$other": {
-                ".validate": "$other === 'title' || $other === 'artist' || $other === 'audioId' || $other === 'rights' || $other === 'source' || $other === 'points' || $other === 'imageId' || $other === 'duration'"
+                ".validate": "$other === 'title' || $other === 'artist' || $other === 'audioId' || $other === 'rights' || $other === 'source' || $other === 'points' || $other === 'imageId' || $other === 'duration' || $other === 'refrainId' || $other === 'songId'"
+              },
+              "refrainId": {
+                ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{16}$/)"
+              },
+              "songId": {
+                ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40"
               },
               "source": {
                 ".validate": "newData.isString() && newData.val().length <= 200"
@@ -383,6 +389,23 @@
                 ".validate": "newData.isNumber() && newData.val() >= 10 && (newData.val() <= 45 || (newData.parent().parent().parent().child('use').val() === 'statues' && newData.val() <= 90))"
               }
             }
+          }
+        }
+      },
+      "songs": {
+        "$id": {
+          ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
+          ".validate": "!newData.exists() || (newData.child('title').isString() && newData.child('title').val().length >= 1 && newData.child('title').val().length <= 80 && newData.child('audioId').isString() && newData.child('audioId').val().matches(/^[0-9a-f]{16}$/) && newData.child('buzz').isNumber() && newData.child('buzz').val() >= 10 && newData.child('buzz').val() <= 45 && newData.child('updatedAt').val() === now)",
+          "artist": { ".validate": "newData.isString() && newData.val().length <= 80" },
+          "rights": { ".validate": "newData.isString() && newData.val().length <= 120" },
+          "imageId": { ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{16}$/)" },
+          "refrainId": { ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{16}$/)" },
+          "start": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 3600" },
+          "refrain": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 3600" },
+          "length": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 7200" },
+          "createdAt": { ".validate": "newData.isNumber()" },
+          "$other": {
+            ".validate": "$other === 'title' || $other === 'audioId' || $other === 'buzz' || $other === 'updatedAt'"
           }
         }
       },

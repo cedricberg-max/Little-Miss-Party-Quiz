@@ -10,6 +10,10 @@ on:
         description: "Seulement ces mots (clés séparées par des virgules), vide = tous"
         required: false
         default: ""
+      lot:
+        description: "Nom du lot (vide = le premier) : chaque lot a sa pré-version, les précédents sont gardés"
+        required: false
+        default: ""
   push:
     branches: [claude/project-thread-yygo7l]
     paths: [scripts/banque-photos.mjs]
@@ -18,7 +22,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: banque-photos
+  group: banque-photos-${{ inputs.lot }}
   cancel-in-progress: true
 
 jobs:
@@ -36,16 +40,31 @@ jobs:
       - name: Chercher et recadrer les photos
         env:
           MOTS: ${{ inputs.mots }}
+          BUDGET_MIN: "90"
         run: node scripts/banque-photos.mjs
       - name: Publier les candidates
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: banque-photos-candidats${{ inputs.lot && format('-{0}', inputs.lot) || '' }}
         run: |
           cd banque-candidats
           rm -f ./*.orig
           zip -q candidates.zip ./*-[0-9].jpg sources.json
-          gh release delete banque-photos-candidats --yes --cleanup-tag 2>/dev/null || true
-          gh release create banque-photos-candidats --prerelease --target "$GITHUB_SHA" \
+          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$TAG" --prerelease --target "$GITHUB_SHA" \
             --title "Banque des tout-petits : photos candidates" \
             --notes "Photos du domaine public (Openverse, CC0 / PDM) à choisir. Outil interne : ne pas installer." \
             planche-*.jpg candidates.zip sources.json
+      # Même contenu sur une branche à part (jamais fusionnée) : Claude la lit avec git pour choisir les photos.
+      - name: Copier les candidates sur une branche
+        env:
+          BRANCHE: banque-photos-candidats${{ inputs.lot && format('-{0}', inputs.lot) || '' }}
+        run: |
+          cd banque-candidats
+          rm -f candidates.zip
+          git init -q -b "$BRANCHE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -qm "Photos candidates ($GITHUB_SHA)"
+          git push -q --force "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "HEAD:refs/heads/$BRANCHE"
