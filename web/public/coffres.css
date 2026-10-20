@@ -23,41 +23,30 @@
 .bc-envoye .bc-coffre { animation: bc-tremble .5s ease-in-out infinite; }
 @keyframes bc-tremble { 25% { transform: rotate(-3deg); } 75% { transform: rotate(3deg); } }
 
-/* Coffre (mesures en % de la case, via cqw) : corps, couvercle bombé, cerclages et plaque d'or numérotée. */
-.bc-coffre { --or: linear-gradient(90deg, #a8782f, #fff3d1 30%, #e9c27a 55%, #a8782f);
-  position: relative; display: block; width: calc(100cqw * var(--t, 1)); margin: 0 auto; aspect-ratio: 5 / 4; }
-.bc-lueur { position: absolute; left: -8%; right: -8%; bottom: -9cqw; height: 18cqw; border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, .45), transparent); }
-.bc-corps { position: absolute; left: 0; right: 0; bottom: 0; height: 60%; border-radius: 3cqw 3cqw 6cqw 6cqw;
-  background: linear-gradient(90deg, transparent 12%, rgba(233, 194, 122, .95) 12% 18%, transparent 18% 82%, rgba(233, 194, 122, .95) 82% 88%, transparent 88%),
-    linear-gradient(180deg, var(--c1), var(--c2));
-  box-shadow: inset 0 -3cqw 0 rgba(0, 0, 0, .18), inset 0 0 0 1.4cqw rgba(233, 194, 122, .9); }
-.bc-plaque { position: absolute; left: 50%; top: 14%; transform: translateX(-50%); min-width: 26cqw; height: 26cqw; padding: 0 3cqw; border-radius: 6cqw; display: grid; place-items: center;
-  background: radial-gradient(circle at 35% 30%, #fff3d1, #e9c27a 55%, #a8782f); color: #24103d; font: 800 17cqw system-ui, sans-serif; line-height: 1;
-  box-shadow: 0 1cqw 2cqw rgba(0, 0, 0, .4); }
-.bc-couvercle { position: absolute; left: -2%; right: -2%; top: 4%; height: 40%; border-radius: 40cqw 40cqw 2cqw 2cqw / 18cqw 18cqw 2cqw 2cqw; transform-origin: 50% 0;
-  background: linear-gradient(90deg, transparent 11%, rgba(233, 194, 122, .95) 11% 17%, transparent 17% 83%, rgba(233, 194, 122, .95) 83% 89%, transparent 89%),
-    linear-gradient(180deg, var(--c0), var(--c1));
-  box-shadow: inset 0 0 0 1.4cqw rgba(233, 194, 122, .9), inset 0 2cqw 0 rgba(255, 255, 255, .25); transition: transform .7s cubic-bezier(.3, 1.6, .5, 1); }
-.bc-contenu { position: absolute; left: 0; right: 0; top: 18%; display: grid; place-items: center; font: 900 25cqw system-ui, sans-serif; line-height: 1; opacity: 0; transform: scale(.4); transition: opacity .3s .25s, transform .4s .25s cubic-bezier(.2, 1.8, .4, 1); }
+/* Coffre : le dessin de la TV (img/coffres), son numéro sur la plaque dorée ; ouvert, ce qu'il contenait par-dessus. */
+.bc-coffre { position: relative; display: block; width: calc(100cqw * var(--t, 1)); margin: 0 auto; }
+.bc-image { display: block; width: 100%; height: auto; pointer-events: none; transition: filter .3s; }
+.bc-lueur { position: absolute; left: -4%; right: -4%; bottom: -5cqw; height: 14cqw; border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, .45), transparent); }
+.bc-plaque { position: absolute; left: 50%; transform: translate(-50%, -50%); display: grid; place-items: center; min-width: 20cqw;
+  color: #3a1c00; font: 900 15cqw system-ui, sans-serif; line-height: 1; }
+.bc-contenu { position: absolute; left: 50%; top: 55%; transform: translate(-50%, -50%) scale(.4); padding: 1cqw 5cqw; border-radius: 99px; white-space: nowrap;
+  font: 900 18cqw system-ui, sans-serif; line-height: 1.1; opacity: 0; transition: opacity .3s .25s, transform .4s .25s cubic-bezier(.2, 1.8, .4, 1); }
 
-/* Coffre ouvert : couvercle relevé, ce qu'il contenait au-dessus, liseré de l'équipe qui l'a ouvert. */
-.bc-ouvert .bc-couvercle { transform: translateY(-18%) rotate(-14deg) scaleY(.55); }
-.bc-ouvert .bc-corps { box-shadow: inset 0 -3cqw 0 rgba(0, 0, 0, .18), inset 0 0 0 1.4cqw rgba(233, 194, 122, .9), 0 0 0 1.2cqw var(--eq); }
-.bc-ouvert .bc-contenu { opacity: 1; transform: none; }
-.bc-attente .bc-contenu { color: #fff3d1; animation: bc-suspense .8s ease-in-out infinite; }
-@keyframes bc-suspense { 50% { transform: scale(1.15); } }
-.bc-plus .bc-contenu { color: #2ee86b; text-shadow: 0 2px 0 #0b3d1c, 0 0 10px rgba(46, 232, 107, .6); }
-.bc-moins .bc-contenu { color: #ff5a5f; text-shadow: 0 2px 0 #4a0d10, 0 0 10px rgba(255, 90, 95, .5); }
-.bc-bombe .bc-corps, .bc-bombe .bc-couvercle { filter: grayscale(.8) brightness(.45); }
-.bc-bombe .bc-contenu { font-size: 34cqw; filter: drop-shadow(0 0 8px rgba(255, 120, 60, .9)); }
+/* Coffre ouvert : dessin assombri, liseré de l'équipe qui l'a ouvert, et ce qu'il contenait. */
+.bc-ouvert .bc-image { filter: brightness(.55) saturate(.7); }
+.bc-ouvert .bc-plaque { opacity: 0; }
+.bc-ouvert .bc-coffre::after { content: ""; position: absolute; left: 6%; right: 6%; bottom: -3cqw; height: 2cqw; border-radius: 2cqw; background: var(--eq); }
+.bc-ouvert .bc-contenu { opacity: 1; transform: translate(-50%, -50%); }
+.bc-attente .bc-contenu { color: #fff3d1; background: rgba(26, 11, 46, .8); animation: bc-suspense .8s ease-in-out infinite; }
+@keyframes bc-suspense { 50% { transform: translate(-50%, -50%) scale(1.15); } }
+.bc-plus .bc-contenu { color: #08240f; background: #2ee86b; }
+.bc-moins .bc-contenu { color: #fff; background: #ff5a5f; }
+.bc-bombe .bc-image { filter: grayscale(1) brightness(.35); }
+.bc-bombe .bc-contenu { font-size: 30cqw; background: none; filter: drop-shadow(0 0 8px rgba(255, 120, 60, .9)); }
 
-/* Six modèles : couleurs pastel et tailles un peu différentes. */
-.bc-m0 { --c0: #f7d9a8; --c1: #d9a86a; --c2: #8f5f2e; --t: 1; }
-.bc-m1 { --c0: #ffd1e3; --c1: #f29ac0; --c2: #a8507a; --t: .88; }
-.bc-m2 { --c0: #b9d3ff; --c1: #6f8fe0; --c2: #2b3f8a; --t: .96; }
-.bc-m3 { --c0: #c8f5e0; --c1: #6fd1a8; --c2: #23775a; --t: .84; }
-.bc-m4 { --c0: #e3d1ff; --c1: #a98ae6; --c2: #563a92; --t: .92; }
-.bc-m5 { --c0: #ffd9c7; --c1: #f2a07f; --c2: #a34f33; --t: .9; }
+/* Tailles un peu différentes selon le modèle (les dessins ont déjà leurs proportions). */
+.bc-m0 { --t: 1; } .bc-m1 { --t: .86; } .bc-m2 { --t: .8; } .bc-m3 { --t: 1; } .bc-m4 { --t: .84; } .bc-m5 { --t: .9; }
+.bc-grille { align-items: end; }
 
 .bc-ouvrir { min-height: 58px; padding: 0 28px; border: 0; border-radius: 999px; font: 900 clamp(19px, 4.2vw, 24px) system-ui, sans-serif; cursor: pointer;
   background: linear-gradient(180deg, #fff3d1, #e9c27a); color: #24103d; box-shadow: 0 6px 16px rgba(233, 194, 122, .45); }

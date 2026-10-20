@@ -5,8 +5,11 @@
  */
 
 /** Apparence de chaque coffre, la même que sur la TV (habillage/BombeCachee.kt, modeleCoffre). */
-const MODELES = [0, 3, 1, 5, 2, 4, 4, 1, 5, 0, 3, 2, 2, 5, 0, 4, 1, 3];
+const MODELES = [0, 3, 1, 5, 2, 4, 1, 5, 0, 4, 3, 2, 5, 0, 2, 4, 1, 3];
 export const modeleCoffre = (i) => MODELES[i % MODELES.length];
+
+/** Plaque dorée de chaque dessin (img/coffres/coffre-N.svg) : centre vertical et hauteur, en % de l'image. */
+const PLAQUES = [[64.6, 26.6], [56.1, 26.9], [64.8, 25.3], [60.4, 25.6], [60.8, 26.5], [63.6, 26.5]];
 
 /** Le contenu d'un coffre ne s'affiche sur la tablette qu'une fois montré par la TV (pas de suspense gâché). */
 export const REVELATION_MS = 1800;
@@ -14,13 +17,17 @@ export const REVELATION_MS = 1800;
 /** « +150 », « −100 » (vrai signe moins), comme sur la TV. */
 export const signe = (v) => `${v < 0 ? "−" : "+"}${Math.abs(v)}`;
 
-const coffreHTML = (i) => `
-  <span class="bc-coffre bc-m${modeleCoffre(i)}">
+const coffreHTML = (i) => {
+  const m = modeleCoffre(i);
+  const [y, h] = PLAQUES[m];
+  return `
+  <span class="bc-coffre bc-m${m}">
     <span class="bc-lueur"></span>
-    <span class="bc-corps"><span class="bc-plaque">${i + 1}</span></span>
-    <span class="bc-couvercle"></span>
+    <img class="bc-image" src="img/coffres/coffre-${m + 1}.svg" alt="" draggable="false">
+    <span class="bc-plaque" style="top:${y}%;height:${h}%">${i + 1}</span>
     <span class="bc-contenu"></span>
   </span>`;
+};
 
 /**
  * hote : l'élément qui reçoit l'écran. surChoix(i) envoie le coffre choisi (une promesse) ; maj(v) redessine :

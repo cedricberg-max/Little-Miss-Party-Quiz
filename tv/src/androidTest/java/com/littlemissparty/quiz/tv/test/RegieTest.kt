@@ -820,7 +820,7 @@ class RegieTest : TestTv() {
             if (e.child("qid").value == "bc" && e.child("phase").value == "question" && e.child("chests/ready").value == true) true
             else { if (e.child("qid").value != "bc" || e.child("phase").value != "question") regie.commande(code, "next"); null }
         }
-        ecran.voit("Au tour de l'équipe Dragons")
+        ecran.voit("choisissez un coffre !")
         ecran.voit("Encore 6 coffres sans danger")
         ecran.capture("bombe-coffres")
         assertEquals(dragons.uid, licornes.etat(code).child("chests/team").value)
@@ -851,7 +851,7 @@ class RegieTest : TestTv() {
         assertTrue("au moins les 6 coffres sans danger avant la bombe", ouvertures >= 6)
         val e = licornes.etat(code)
         assertEquals("reveal", e.child("phase").value)
-        ecran.voit("BOUM ! Le bilan", 15_000)
+        ecran.voit("Le bilan de la bombe cachée", 15_000)
         ecran.capture("bombe-bilan")
         assertTrue("jamais sous 0", points(licornes, code, licornes.uid) >= 0 && points(dragons, code, dragons.uid) >= 0)
 
