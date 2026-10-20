@@ -38,8 +38,8 @@ val MONTANTS_TELECOMMANDE = listOf(50, 100, 150, 200, 300, -50, -100)
 fun montantTexte(delta: Int) = if (delta > 0) "+$delta" else "−${-delta}"
 
 /**
- * « Donner des points » à la télécommande (menu Retour) : la fête continue sans Internet, les équipes
- * montrent leurs cartes A B C D et l'animatrice choisit les équipes, le montant, puis « Valider ».
+ * « Donner des points » à la télécommande (menu Retour) : utile si le téléphone de l'animatrice lâche.
+ * Elle choisit les équipes, le montant, puis « Valider ».
  * Un malus ne fait jamais passer une équipe sous zéro (moteur). De 1 à 8 équipes, quatre par ligne.
  */
 @Composable
