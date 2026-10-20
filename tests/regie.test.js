@@ -1262,7 +1262,8 @@ describe("régie", () => {
     const page = await openRegie();
     await pair(page);
     await inRegie(page);
-    await set(gameRef("teams"), { rose: { name: "Les Roses", color: "#FF3CAC", joinedAt: 1 }, bleu: { name: "Les Bleus", color: "#2B86C5", joinedAt: 2 } });
+    await addTeam("rose", "Les Roses");
+    await addTeam("bleu", "Les Bleus");
     const plan = (await read("conducteur")) ?? { questions: [] };
     const bombe = { id: "b1", text: "La bombe cachée", kind: "coffres", choices: [], correct: -1, round: "La bombe cachée" };
     await set(gameRef("conducteur"), { ...plan, coffres: true, questions: [...plan.questions, bombe] });

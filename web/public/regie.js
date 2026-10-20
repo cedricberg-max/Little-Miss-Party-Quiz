@@ -288,7 +288,8 @@ function render() {
   $("c-question").textContent = intro ? "La TV présente le jeu. Expliquez les règles, puis lancez l'épreuve." : inQuestion ? st.text ?? q?.text ?? "" : st.phase === "ended" ? (gamesOf(st).next ? "Bravo à toutes les équipes ! Un jeu a été ajouté : la partie peut reprendre." : "Bravo à toutes les équipes ! Pour continuer, ajoutez un jeu (onglet Programme) ou rejouez-en un (⏭ Changer de jeu).") : `${teams.length} équipe${teams.length > 1 ? "s" : ""} inscrite${teams.length > 1 ? "s" : ""}`;
 
   const portes = (q?.kind ?? st.kind) === "portes";
-  const correct = portes ? null : q?.correct ?? st.correct;
+  // Portes et bombe cachée : aucune réponse à montrer (le contenu des coffres est tiré à l'ouverture).
+  const correct = portes || (q?.kind ?? st.kind) === "coffres" ? null : q?.correct ?? st.correct;
   const answerBtn = $("c-answer");
   answerBtn.hidden = intro || !inQuestion || (correct == null && !(portes && q?.doors));
   if (portes && q?.doors) {
