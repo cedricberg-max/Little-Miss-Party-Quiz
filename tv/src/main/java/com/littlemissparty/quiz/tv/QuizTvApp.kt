@@ -293,39 +293,41 @@ private fun ResumeOffer(state: UiState.ResumeOffer, onResume: () -> Unit, onNewG
 @Composable
 private fun Locked(state: UiState.Locked, onRequestAgain: () -> Unit, onUpdate: () -> Unit) {
     val focus = remember { FocusRequester() }
+    // Tout tient sur un écran 720p, boutons côte à côte : rien ne doit sortir en bas de la TV.
     Column(
-        Modifier.fillMaxSize().padding(horizontal = 64.dp, vertical = 32.dp),
+        Modifier.fillMaxSize().padding(horizontal = 64.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        LogoQuiz(72.dp)
-        Spacer(Modifier.height(20.dp))
+        LogoQuiz(56.dp)
+        Spacer(Modifier.height(12.dp))
         Text(
-            "Box en attente d'activation", color = Color.White, fontSize = 44.sp, lineHeight = 52.sp,
+            "Box en attente d'activation", color = Color.White, fontSize = 40.sp, lineHeight = 46.sp,
             fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(8.dp))
         Text(
-            state.code, color = Palette.Gold, fontSize = 96.sp, lineHeight = 104.sp, fontWeight = FontWeight.Black,
-            letterSpacing = 16.sp,
+            state.code, color = Palette.Gold, fontSize = 84.sp, lineHeight = 92.sp, fontWeight = FontWeight.Black,
+            letterSpacing = 14.sp,
         )
-        Text(state.model, color = Color.White.copy(alpha = 0.75f), fontSize = 22.sp, lineHeight = 28.sp)
-        Spacer(Modifier.height(24.dp))
+        Text(state.model, color = Color.White.copy(alpha = 0.75f), fontSize = 20.sp, lineHeight = 26.sp)
+        Spacer(Modifier.height(16.dp))
         Text(
             when {
                 state.refused -> "La demande a été refusée dans la Régie PC."
                 state.sent -> "Dans la Régie PC, ouvrez Paramètres, rubrique Box TV,\net acceptez la box qui affiche ce code."
                 else -> "Envoi de la demande d'activation… Vérifiez la connexion Internet."
             },
-            color = Color.White.copy(alpha = 0.85f), fontSize = 24.sp, lineHeight = 32.sp, textAlign = TextAlign.Center,
+            color = Color.White.copy(alpha = 0.85f), fontSize = 22.sp, lineHeight = 30.sp, textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(28.dp))
-        if (state.refused) {
-            TvButton("Redemander l'activation", onRequestAgain, Modifier.focusRequester(focus), primary = true)
-            Spacer(Modifier.height(16.dp))
-            TvButton("Rechercher une mise à jour", onUpdate, fontSize = 20.sp)
-        } else {
-            TvButton("Rechercher une mise à jour", onUpdate, Modifier.focusRequester(focus), fontSize = 20.sp)
+        Spacer(Modifier.height(20.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (state.refused) {
+                TvButton("Redemander l'activation", onRequestAgain, Modifier.focusRequester(focus), primary = true, fontSize = 20.sp)
+                TvButton("Rechercher une mise à jour", onUpdate, fontSize = 20.sp)
+            } else {
+                TvButton("Rechercher une mise à jour", onUpdate, Modifier.focusRequester(focus), fontSize = 20.sp)
+            }
         }
     }
     LaunchedEffect(state.refused) { runCatching { focus.requestFocus() } }
