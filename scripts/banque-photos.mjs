@@ -2,6 +2,7 @@
 // Mark ») dans Openverse, puis Wikimedia Commons pour compléter, les recadre en carré 480 px (moins de 45 Ko, la
 // taille des vignettes de réponse) et prépare des planches pour choisir la meilleure.
 // MOTS=chat,chien node scripts/banque-photos.mjs : seulement ces mots (clés), pour refaire ceux qui sont ratés.
+// BUDGET_MIN=90 : au-delà, la recherche s'arrête et publie ce qu'elle a ; les mots restants sont listés (lot suivant).
 // Lancé par .github/workflows/banque-photos.yml (le conteneur de développement n'a pas accès à ces sites).
 // Sortie : banque-candidats/<clé>-<n>.jpg, banque-candidats/sources.json, banque-candidats/planche-<k>.jpg.
 import { mkdir, writeFile } from "node:fs/promises";
@@ -13,11 +14,15 @@ const PAR_MOT = 4;
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let openverseRefuse = false;
+const DEBUT = Date.now();
+const BUDGET_MS = (Number(process.env.BUDGET_MIN) || 90) * 60000;
+const minutes = () => ((Date.now() - DEBUT) / 60000).toFixed(1);
 
-async function json(url, essais = 6) {
+async function json(url, essais = 3) {
   for (let essai = 0; essai < essais; essai++) {
     const res = await fetch(url, { headers: { "User-Agent": "little-miss-party-quiz/1.0 (banque d'images pour enfants; https://github.com/cedricberg-max/Little-Miss-Party-Quiz)" } });
-    if (res.status === 429) { await pause(15000 * (essai + 1)); continue; }
+    // Quota dépassé : on attend un peu, sans jamais bloquer toute la recherche (budget de temps ci-dessous).
+    if (res.status === 429) { console.warn(`429 (${minutes()} min) ${url.slice(0, 80)}`); await pause(8000 * (essai + 1)); continue; }
     if (!res.ok) throw new Error(`${res.status} ${url}`);
     return res.json();
   }
@@ -79,7 +84,9 @@ const seulement = new Set((process.env.MOTS ?? "").split(",").map((x) => x.trim(
 const MOTS = BANQUE_MOTS.filter((m) => !seulement.size || seulement.has(m.cle));
 const sources = {};
 const manquants = [];
+const restants = [];
 for (const m of MOTS) {
+  if (Date.now() - DEBUT > BUDGET_MS) { restants.push(m.cle); continue; }
   let candidats = await openverse(m.recherche);
   if (candidats.length < PAR_MOT + 2) candidats = [...candidats, ...(await commons(m.recherche))];
   sources[m.cle] = [];
@@ -102,16 +109,17 @@ for (const m of MOTS) {
     await pause(300);
   }
   if (!n) manquants.push(m.mot);
-  console.log(`${m.mot} : ${n} photo(s)`);
+  console.log(`${m.mot} : ${n} photo(s) (${minutes()} min)`);
   await pause(openverseRefuse ? 600 : 3000);
 }
-await writeFile(`${OUT}/sources.json`, JSON.stringify({ manquants, sources }, null, 1));
+await writeFile(`${OUT}/sources.json`, JSON.stringify({ manquants, restants, sources }, null, 1));
 
 // Planches : 10 mots par planche, une ligne par mot (ses candidates numérotées).
 const parPlanche = 10;
-for (let k = 0; k * parPlanche < MOTS.length; k++) {
+const FAITS = MOTS.filter((m) => sources[m.cle]);
+for (let k = 0; k * parPlanche < FAITS.length; k++) {
   const fichiers = [];
-  for (const m of MOTS.slice(k * parPlanche, (k + 1) * parPlanche)) {
+  for (const m of FAITS.slice(k * parPlanche, (k + 1) * parPlanche)) {
     for (let n = 1; n <= PAR_MOT; n++) {
       const f = `${OUT}/${m.cle}-${n}.jpg`;
       fichiers.push("-label", `${m.cle} ${n}`, (sources[m.cle] ?? []).some((s) => s.n === n) ? f : "xc:white");
@@ -120,3 +128,4 @@ for (let k = 0; k * parPlanche < MOTS.length; k++) {
   execFileSync("montage", [...fichiers, "-tile", `${PAR_MOT}x`, "-geometry", "180x180+4+4", "-pointsize", "14", `${OUT}/planche-${String(k + 1).padStart(2, "0")}.jpg`]);
 }
 console.log(`Manquants : ${manquants.join(", ") || "aucun"}`);
+console.log(`Restants (lot suivant, entrée « mots ») : ${restants.join(",") || "aucun"}`);
