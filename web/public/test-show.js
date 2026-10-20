@@ -277,6 +277,7 @@ export const FULL_NEW_ROUNDS = [
   { type: "statues", duration: 60 },
   { type: "pictionary", duration: 90 },
   { type: "quiz", quizId: FULL_KEYS.images },
+  { type: "gonfleur" },
   // Jeu final : toujours en dernier.
   { type: "coffres" },
 ];
@@ -284,7 +285,7 @@ export const FULL_NEW_ROUNDS = [
 export const FULL_SHOW = {
   childName: "Léa", age: 9, date: "2026-10-25", status: "publiee", title: FULL_TITLE, profile: "MOYENS", durationMin: 25,
   themes: "Tous les jeux (test)",
-  notes: "Prestation de TEST : un peu de chaque jeu (quiz illustré, Juste Chiffre, Vrai ou Faux express, Mimes, Zoom mystère, Chante le mot !, Image floue, Qui suis-je ?, Qui a disparu ?, Blind test, Quiz musical, Statues musicales, Pictionary, quiz en images des petits, Portes mystères pour finir ; les 3 dernières questions du quiz comptent double (Super Finale)). Elle peut être archivée sans risque.",
+  notes: "Prestation de TEST : un peu de chaque jeu (quiz illustré, Juste Chiffre, Vrai ou Faux express, Mimes, Zoom mystère, Chante le mot !, Image floue, Qui suis-je ?, Qui a disparu ?, Blind test, Quiz musical, Statues musicales, Pictionary, quiz en images des petits, Gonfleur fou, La bombe cachée pour finir ; les 3 dernières questions du quiz comptent double (Super Finale)). Elle peut être archivée sans risque.",
   rounds: [
     // Super Finale : les 3 dernières questions de ce quiz comptent double (un réglage du quiz, pas un jeu).
     { type: "quiz", quizId: FULL_KEYS.quiz, finale: 3 },

@@ -195,6 +195,7 @@ private fun Playing(state: UiState.Playing, actions: TvActions) {
         Phase.QUESTION, Phase.CLOSED, Phase.REVEAL ->
             if (state.intro) PresentationScreen(state, actions)
             else if (state.coffres != null || state.question?.isCoffres == true) CoffresScreen(state, actions)
+            else if (state.question?.isGonfleur == true) GonfleurScreen(state, actions)
             else if (state.portes != null) PortesScreen(state, actions)
             else if (state.mime?.picto == true) PictionaryScreen(state, actions)
             else if (state.mime != null) MimeScreen(state, actions) else QuestionScreen(state, actions)

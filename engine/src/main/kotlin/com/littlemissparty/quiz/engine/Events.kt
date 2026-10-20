@@ -194,6 +194,12 @@ data class Buzzed(override val seq: Int, override val at: Long, val team: String
  */
 data class StatuesWon(override val seq: Int, override val at: Long, val team: String, val others: List<String>) : GameEvent
 
+/**
+ * Le Gonfleur fou : fin de la course de [qid]. [team] = le ballon gagnant ([NO_WINNER] si personne n'a tapé) ;
+ * [teams] = toutes les équipes qui jouaient (les autres marquent leurs points de participation). Révélation.
+ */
+data class BalloonBurst(override val seq: Int, override val at: Long, val qid: String, val team: String, val teams: List<String>) : GameEvent
+
 data class BuzzJudged(override val seq: Int, override val at: Long, val ok: Boolean, val bonus: Boolean = false) : GameEvent
 
 /**

@@ -52,6 +52,7 @@ object Codec {
             is RevealCut -> mapOf("type" to "reveal_cut", "qid" to e.qid)
             is BuzzJudged -> if (e.bonus) mapOf("type" to "buzz_judge", "ok" to e.ok, "bonus" to true) else mapOf("type" to "buzz_judge", "ok" to e.ok)
             is StatuesWon -> mapOf("type" to "statues_win", "team" to e.team, "others" to e.others.ifEmpty { null })
+            is BalloonBurst -> mapOf("type" to "balloon", "qid" to e.qid, "team" to e.team, "teams" to e.teams)
             is Jumped -> mapOf("type" to "goto", "index" to e.index, "qid" to e.qid, "clear" to e.clear.ifEmpty { null })
         }
         return base + body
@@ -103,6 +104,7 @@ object Codec {
             "buzz_unblock" -> BuzzUnblocked(seq, at)
             "blind_skip" -> BlindSkipped(seq, at, m["qid"] as String)
             "reveal_cut" -> RevealCut(seq, at, m["qid"] as String)
+            "balloon" -> BalloonBurst(seq, at, m["qid"] as String, m["team"] as String, (m["teams"] as? List<*>).orEmpty().map { it as String })
             "statues_win" -> StatuesWon(seq, at, m["team"] as String, (m["others"] as? List<*>).orEmpty().map { it as String })
             "buzz_judge" -> BuzzJudged(seq, at, m["ok"] == true, m["bonus"] == true)
             "goto" -> Jumped(seq, at, m.num("index").toInt(), m["qid"] as String, (m["clear"] as? List<*>).orEmpty().map { it as String })
@@ -208,8 +210,8 @@ object Codec {
                 "choiceImages" to q.choiceImages.takeIf { q.hasChoiceImages && !(q.isBuzz && !revealed) }?.map { it ?: "" },
                 "durationMs" to q.durationMs,
                 "deadline" to game.deadline(),
-                "remainingMs" to if (!q.isPortes && !q.isCoffres && (s.paused || s.buzzHeld || s.buzz?.waiting == true)) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
-                "correct" to if (revealed && !q.isPortes && !q.isCoffres) q.correct else null,
+                "remainingMs" to if (!q.isPortes && !q.isCoffres && !q.isGonfleur && (s.paused || s.buzzHeld || s.buzz?.waiting == true)) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
+                "correct" to if (revealed && !q.isPortes && !q.isCoffres && !q.isGonfleur) q.correct else null,
                 // L'émoji d'illustration peut trahir la réponse : seulement une fois révélée.
                 "image" to if (revealed) q.emoji else null,
                 "artist" to if (revealed) q.artist else null,
@@ -219,6 +221,7 @@ object Codec {
             )
             if (q.isPortes) out["portes"] = portesState(game)
             if (q.isCoffres) out["chests"] = chestState(game)
+            if (q.isGonfleur) out["pump"] = pumpKey(game)?.let { mapOf("key" to it, "goAt" to game.pumpGoAt, "target" to PUMP_TARGET) }
             if (q.isTurns) out["mime"] = mimeState(game, s.mime)
             if (q.isBlind) out["blind"] = blindState(game)
             s.buzz?.let {
@@ -250,6 +253,12 @@ object Codec {
                 .associate { it.index.toString() to it.value },
             "picks" to s.awards[q.id].orEmpty().mapValues { it.value.choice },
         )
+    }
+
+    /** Gonfleur fou : clé où les tablettes écrivent leurs tapes (`pumps/`), une par course (un jeu rejoué repart de zéro). */
+    fun pumpKey(game: Game): String? {
+        val go = game.pumpGoAt ?: return null
+        return "${game.state.qid.orEmpty().replace(Regex("[.#$\\[\\]/]"), "_")}-$go"
     }
 
     /** La bombe cachée : clé où la tablette de l'équipe qui joue écrit le coffre choisi (`chestChoice/`), une par ouverture. */

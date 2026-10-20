@@ -627,6 +627,17 @@ describe("La bombe cachée", () => {
   });
 });
 
+describe("Le Gonfleur fou", () => {
+  test("rien à préparer : un seul élément, lu tel quel par la TV", () => {
+    const quiz = { title: "Quiz", questions: [{ text: "Roi ?", choices: ["Lion", "Tigre"], correct: 0, status: "validee" }] };
+    const { snapshot, problems } = buildSnapshot("s", { childName: "Léa", age: 9, rounds: [{ type: "quiz", quizId: "q" }, { type: "gonfleur" }] }, { q: quiz });
+    assert.deepEqual(problems, []);
+    const g = snapshot.quiz.questions.at(-1);
+    assert.deepEqual([g.kind, g.text, g.round, g.correct, g.choices, g.duration], ["gonfleur", "Le Gonfleur fou", "Le Gonfleur fou", -1, [], 45]);
+    assert.equal(roundFilled({ type: "gonfleur" }), true);
+  });
+});
+
 describe("Super Finale : les dernières questions du quiz, pas un jeu à part", () => {
   const quiz = (title, n) => ({ title, questions: [...Array(n).keys()].map((i) => ({ text: `${title} ${i + 1} ?`, choices: ["Oui", "Non"], correct: 0, status: "validee" })) });
   const LIB = { a: quiz("Animaux", 2), b: quiz("Sport", 1), f: quiz("Finale", 2) };

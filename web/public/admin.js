@@ -369,6 +369,7 @@ function formShow() {
       : r.type === "statues" ? { type: "statues", duration: r.duration ?? STATUES_SEC }
       : r.type === "pictionary" ? { type: "pictionary", duration: r.duration ?? PICTO_SEC, ...(pictoRoundSeries(r) ? { series: pictoRoundSeries(r) } : {}) }
       : r.type === "coffres" ? { type: "coffres" }
+      : r.type === "gonfleur" ? { type: "gonfleur" }
       : MUSIC_GAMES[r.type] ? { type: r.type, playlistId: r.playlistId }
       : { type: r.type ?? "quiz", quizId: r.quizId, ...(r.count > 0 ? { count: r.count } : {}), ...((r.type ?? "quiz") === "quiz" && r.finale > 0 ? { finale: r.finale } : {}) })),
   };
@@ -446,6 +447,8 @@ function refreshRounds() {
         : r.type === "coffres"
         // La bombe cachée : rien à préparer, le nombre de coffres suit le nombre d'équipes.
         ? h("span", { class: "grow hint small", text: "Rien à préparer : le nombre de coffres suit le nombre d'équipes. Idéal en dernier jeu." })
+        : r.type === "gonfleur"
+        ? h("span", { class: "grow hint small", text: "Rien à préparer : chaque équipe tapote sa tablette, le premier ballon qui éclate gagne." })
         : MUSIC_GAMES[r.type]
         ? h("select", { class: "grow", "aria-label": "Playlist", onchange: (e) => { r.playlistId = e.target.value; refreshSummary(); } },
           h("option", { value: "", text: lists.length ? "Choisir une playlist…" : "Aucune playlist : créez-en une dans Blind test" }),
@@ -468,7 +471,7 @@ function refreshRounds() {
           ...[4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => h("option", { value: n, selected: r.objects === n, text: `${n} objets par grille` })))
         : null,
       // Jeux tirés d'un quiz : toutes ses questions retenues, ou seulement les premières.
-      !BUILTIN_GAMES[r.type] && r.type !== "statues" && r.type !== "pictionary" && r.type !== "coffres" && r.type !== "mimes" && !MUSIC_GAMES[r.type]
+      !BUILTIN_GAMES[r.type] && r.type !== "statues" && r.type !== "pictionary" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "mimes" && !MUSIC_GAMES[r.type]
         ? h("select", { class: "count", "aria-label": "Nombre de questions", onchange: (e) => { r.count = Number(e.target.value) || null; refreshSummary(); } },
           h("option", { value: "", text: "Toutes les questions" }),
           ...[1, 2, 3, 4, 5, 6, 8, 10, 12, 15].map((n) => h("option", { value: n, selected: r.count === n, text: n === 1 ? "La première seulement" : `Les ${n} premières` })))
@@ -526,7 +529,7 @@ function refreshReuse() {
 /** Contenu d'une manche (titre du quiz, du paquet, de la playlist), "" pour un jeu sans contenu, null s'il n'existe plus. */
 function roundContent(r) {
   if (!r?.type && !r?.quizId) return null;
-  if (BUILTIN_GAMES[r.type] || r.type === "statues" || r.type === "pictionary" || r.type === "coffres" || r.type === "portes") return "";
+  if (BUILTIN_GAMES[r.type] || r.type === "statues" || r.type === "pictionary" || r.type === "coffres" || r.type === "portes" || r.type === "gonfleur") return "";
   if (r.type === "mimes") return mimes[r.deckId]?.title ?? null;
   if (MUSIC_GAMES[r.type]) return playlists[r.playlistId]?.title ?? null;
   return quizzes[r.quizId]?.title ?? null;
@@ -1637,6 +1640,7 @@ const GAME_GROUPS = [
   ] },
   { title: "Sans contenu", hint: "Rien à préparer.", games: [
     { type: "coffres", icon: "💣", rule: "Chaque équipe à son tour ouvre un coffre sur sa tablette : bonus ou malus, tirés au sort à l'ouverture. Après quelques tours sans danger, une bombe se cache dans un des coffres : l'équipe qui l'ouvre perd 300 points (jamais sous 0) et le jeu s'arrête sur le bilan. Personne ne connaît le contenu des coffres, régie comprise. Idéal en dernier jeu." },
+    { type: "gonfleur", icon: "🎈", rule: "Chaque équipe tapote sa tablette le plus vite possible pour gonfler son ballon sur la TV ; on peut se relayer. Le premier ballon qui éclate gagne 300 points, les autres équipes 150. Depuis la régie, « Arrêter la course » donne la victoire au plus gros ballon." },
     { type: "statues", icon: "🗿", rule: "La musique s'arrête par moments : tout le monde se fige ! Vous désignez l'équipe gagnante depuis la régie. La durée se choisit dans la prestation." },
   ] },
 ];

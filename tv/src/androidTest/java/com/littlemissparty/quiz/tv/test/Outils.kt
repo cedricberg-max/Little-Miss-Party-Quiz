@@ -373,6 +373,15 @@ class PupitreSimule(etiquette: String) : AutoCloseable {
         }
     }.onFailure { Log.i(TAG, "Coffre refusé : ${it.message}") }.isSuccess
 
+    /** Gonfleur fou : envoie [n] tapes au total pour cette équipe ; renvoie false si le serveur refuse. */
+    fun gonfler(code: String, n: Int): Boolean = runCatching {
+        val cle = etat(code).child("pump/key").value.toString()
+        bloquer {
+            base.getReference("games/$code/pumps/$cle/$uid")
+                .setValue(mapOf("n" to n, "at" to ServerValue.TIMESTAMP)).await()
+        }
+    }.onFailure { Log.i(TAG, "Tapes refusées : ${it.message}") }.isSuccess
+
     /** Pictionary : envoie un morceau de trait (« x,y x,y … » de 0 à 1000) ; renvoie false si le serveur refuse. */
     fun dessiner(code: String, points: String, couleur: String = "#F94144", epaisseur: Int = 3): Boolean = runCatching {
         val cle = etat(code).child("mime/drawKey").value.toString()

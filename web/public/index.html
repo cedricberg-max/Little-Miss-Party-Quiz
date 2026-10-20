@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="spectateurs.css">
   <link rel="stylesheet" href="portes.css">
   <link rel="stylesheet" href="coffres.css">
+  <link rel="stylesheet" href="gonfleur.css">
   <link rel="stylesheet" href="regie.css">
 </head>
 <body>
@@ -103,6 +104,11 @@
     <section id="screen-coffres" class="screen">
       <div class="team-banner small"><span class="dot"></span><span class="team-label"></span></div>
       <div id="coffres-host"></div>
+    </section>
+
+    <section id="screen-gonfleur" class="screen">
+      <div class="team-banner small"><span class="dot"></span><span class="team-label"></span></div>
+      <div id="gonfleur-host"></div>
     </section>
 
     <section id="screen-result" class="screen">
@@ -212,6 +218,10 @@
         <p id="coffres-opened" class="hint"></p>
         <button id="coffres-random" class="btn secondary flou-ko">🎲 Ouvrir un coffre au hasard</button>
         <p class="hint">Seulement si la tablette de l'équipe ne répond plus ou si l'équipe n'arrive pas à choisir.</p>
+      </section>
+      <section id="gonfleur" class="flou" hidden aria-label="Le Gonfleur fou">
+        <p id="gonfleur-info" class="mime-info"></p>
+        <div id="gonfleur-teams" class="gonfleur-teams"></div>
       </section>
       <!-- Blind test : la régie lance chaque morceau, juge la réponse orale, relance, révèle ou passe. -->
       <section id="blind" class="flou blind" hidden aria-label="Blind test">

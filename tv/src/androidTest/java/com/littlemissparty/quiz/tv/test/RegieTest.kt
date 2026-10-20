@@ -1,6 +1,7 @@
 package com.littlemissparty.quiz.tv.test
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.littlemissparty.quiz.engine.PUMP_TARGET
 import com.littlemissparty.quiz.engine.Scoring
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -854,6 +855,58 @@ class RegieTest : TestTv() {
         ecran.voit("Le bilan de la bombe cachée", 15_000)
         ecran.capture("bombe-bilan")
         assertTrue("jamais sous 0", points(licornes, code, licornes.uid) >= 0 && points(dragons, code, dragons.uid) >= 0)
+
+        // Classement, puis la fin : scores gardés, rien ne bloque.
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("classement") { licornes.etat(code).takeIf { it.child("phase").value == "scores" } }
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("fin de partie") { licornes.etat(code).takeIf { it.child("phase").value == "ended" } }
+    }
+
+    @Test
+    fun gonfleurFouApresUnQuizLePremierBallonEclateGagnePuisLaFin() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val dragons = pupitre("dragons").also { it.rejoindre(code, "Dragons", ROSE) }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        @Suppress("UNCHECKED_CAST")
+        val demo = regie.programme(code)["questions"] as List<Map<String, Any?>>
+        // Exactement ce qu'envoie la régie pour une manche « Le Gonfleur fou » (web/public/show.js).
+        val ballon = mapOf(
+            "id" to "gf", "text" to "Le Gonfleur fou", "choices" to emptyList<String>(), "correct" to -1,
+            "duration" to 45, "kind" to "gonfleur", "double" to false, "round" to "Le Gonfleur fou",
+        )
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(demo[0] + ("round" to "Quiz"), ballon)))
+
+        // Un jeu avant : les Licornes marquent.
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("question du quiz ouverte") { licornes.etat(code).takeIf { it.child("qid").value == demo[0]["id"] && it.child("phase").value == "question" } }
+        assertTrue(licornes.repondre(code, demo[0]["id"] as String, (demo[0]["correct"] as Number).toInt()))
+        attendreQue("points du quiz") { points(licornes, code, licornes.uid).takeIf { it >= Scoring.BASE } ?: run { regie.commande(code, "next"); null } }
+        val avant = points(licornes, code, licornes.uid)
+
+        // Jeu suivant : le Gonfleur fou, lancé par l'animatrice, avec son départ 3, 2, 1.
+        attendreQue("course lancée", 30_000) {
+            val e = licornes.etat(code)
+            if (e.child("qid").value == "gf" && e.child("pump/key").value != null) true
+            else { if (e.child("qid").value != "gf" || e.child("phase").value != "question" || e.child("pump/key").value == null) regie.commande(code, "next"); null }
+        }
+        val goAt = (licornes.etat(code).child("pump/goAt").value as Number).toLong()
+        attendreQue("départ") { (System.currentTimeMillis() > goAt + 6_000).takeIf { it } }
+        ecran.voit("Tapez sur vos tablettes")
+        // Les Licornes tapent, les Dragons font éclater leur ballon : la box termine la course.
+        assertTrue(licornes.gonfler(code, 60))
+        assertTrue(dragons.gonfler(code, 80))
+        ecran.capture("gonfleur-course")
+        assertEquals("phase", "question", licornes.etat(code).child("phase").value)
+        assertTrue(dragons.gonfler(code, PUMP_TARGET))
+        attendreQue("ballon éclaté") { licornes.etat(code).takeIf { it.child("phase").value == "reveal" } }
+        ecran.voit("Dragons gagnent !", 15_000)
+        ecran.capture("gonfleur-gagnant")
+        assertEquals(Scoring.MINI_WIN.toLong(), points(licornes, code, dragons.uid))
+        assertEquals(avant + Scoring.MINI_PLAYED, points(licornes, code, licornes.uid))
+        assertEquals("plus de tapes après la course", false, licornes.gonfler(code, 90))
 
         // Classement, puis la fin : scores gardés, rien ne bloque.
         assertEquals("applied", regie.commande(code, "next"))

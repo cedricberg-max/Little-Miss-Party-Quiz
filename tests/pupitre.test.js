@@ -334,6 +334,41 @@ describe("pupitre", () => {
     await bleus.context().close();
   });
 
+  test("Le Gonfleur fou : les tapes attendent le départ, partent régulièrement, s'arrêtent à l'éclatement, puis le résultat", async () => {
+    const page = await openPupitre();
+    await joinTeam(page, "Les Roses");
+    const uid = Object.keys(await read("teams"))[0];
+    const base = { qid: "gf", kind: "gonfleur", text: "Le Gonfleur fou", choices: null, correct: null, game: { title: "Le Gonfleur fou" } };
+    // Départ dans 3 s : le bouton attend « GONFLEZ ! », comme la TV.
+    const goAt = Date.now() + 3000;
+    await hostState(question({ ...base, resumeAt: goAt, deadline: goAt + 45000, pump: { key: "gf-1", goAt, target: 12 } }));
+    await page.locator("#gonfleur-host .gf-texte", { hasText: "Préparez vos doigts" }).waitFor();
+    assert.equal(await page.locator(".gf-pompe").isDisabled(), true, "pas avant le départ");
+    await waitFor(() => page.locator(".gf-pompe").isEnabled(), "départ", 8000);
+    // Dix tapes : envoyées à la base peu après, sans attendre chaque tape.
+    for (let i = 0; i < 10; i++) await page.locator(".gf-pompe").click();
+    await waitFor(async () => (await read(`pumps/gf-1/${uid}`))?.n === 10, "10 tapes reçues");
+    // Le ballon éclate à 12 : au-delà, plus rien ne compte et le bouton disparaît.
+    for (let i = 0; i < 2; i++) await page.locator(".gf-pompe").click();
+    await waitFor(async () => (await read(`pumps/gf-1/${uid}`))?.n === 12, "ballon éclaté envoyé tout de suite");
+    await page.locator(".gf-titre", { hasText: "BOUM !" }).waitFor();
+    assert.equal(await page.locator(".gf-pompe").isVisible(), false);
+    // La box termine la course : le ballon des Roses a gagné.
+    await hostState(question({ ...base, phase: "reveal", pump: { key: "gf-1", goAt, target: 12 }, awards: { [uid]: { correct: true, points: 300, bonus: 0 } }, scores: { [uid]: 300 } }));
+    await page.locator("#r-title", { hasText: "Votre ballon a gagné ! +300 points" }).waitFor();
+    await page.locator("#r-total", { hasText: "300 points · 1re place" }).waitFor();
+    // Jeu rejoué depuis la régie : nouvelle course, tablette remise à zéro.
+    const go2 = Date.now() - 1000;
+    await hostState(question({ ...base, resumeAt: go2, pump: { key: "gf-2", goAt: go2, target: 12 } }));
+    await waitFor(() => page.locator(".gf-pompe").isEnabled(), "nouvelle course");
+    await page.locator(".gf-pompe").click();
+    await waitFor(async () => (await read(`pumps/gf-2/${uid}`))?.n === 1, "on repart de zéro");
+    await hostState(question({ qid: "q9", text: "Couleur du ciel ?" }));
+    await page.locator(".choice .text", { hasText: "Bleu" }).waitFor();
+    assert.equal(await page.locator("#gonfleur-host .gf").count(), 0, "écran du Gonfleur retiré");
+    await page.context().close();
+  });
+
   test("Le Juste Chiffre : l'équipe tape son nombre une seule fois et voit si elle est la plus proche", async () => {
     const page = await openPupitre();
     await joinTeam(page, "Les Roses");

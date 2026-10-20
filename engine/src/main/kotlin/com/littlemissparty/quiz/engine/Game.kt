@@ -517,6 +517,19 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                 )
             }
         }
+        is BalloonBurst -> {
+            val q = quiz.questions.getOrNull(s.index)
+            if (s.phase != Phase.QUESTION || q == null || !q.isGonfleur || q.id != e.qid || s.paused || e.teams.isEmpty() ||
+                (e.team != NO_WINNER && e.team !in e.teams)) null
+            else {
+                val factor = factorIn(s, s.index)
+                val awards = e.teams.filter { it.isNotBlank() }.associateWith {
+                    if (it == e.team) Award(null, correct = true, points = Scoring.MINI_WIN * factor, bonus = 0)
+                    else Award(null, correct = false, points = Scoring.MINI_PLAYED * factor, bonus = 0)
+                }
+                s.copy(phase = Phase.REVEAL, segments = closeSegments(s, e.at), awards = s.awards + (q.id to awards))
+            }
+        }
         is BuzzJudged -> {
             val b = s.buzz
             val team = b?.team
@@ -552,6 +565,12 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null, mime = null, buzz = null,
             chests = s.chests - q.id,
         )
+        // Gonfleur fou : le chrono de secours part après le décompte 3, 2, 1 de la TV, comme après une reprise.
+        else if (q.isGonfleur) (at + PUMP_GO_MS).let { go ->
+            s.copy(
+                phase = Phase.QUESTION, index = index, qid = q.id, segments = listOf(Segment(go)), resumeAt = go, mime = null, buzz = null,
+            )
+        }
         // Blind test : le morceau s'annonce, la musique attend le « Lancer le morceau » de l'animatrice.
         else if (q.isBlind) s.copy(
             phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null, mime = null,
@@ -596,6 +615,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             question?.isBlind == true -> if (state.buzz?.waiting == true) blindPlay(now) else blindStop(now)
             // La bombe cachée : seules les équipes ouvrent les coffres, depuis leur tablette.
             question?.isCoffres == true -> null
+            // Gonfleur fou : l'arrêt de la course a besoin des tapes des tablettes ([balloon]).
+            question?.isGonfleur == true -> null
             state.mime == null -> close(now)
             state.mimeTurn -> mimeStop(now)
             else -> emit(ScoresShown(nextSeq, now))
@@ -708,7 +729,23 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
 
     /** Reprise avec le décompte 3, 2, 1 : le chrono repart quand il se termine. */
     fun resume(now: Long, countdownMs: Long = RESUME_COUNTDOWN_MS): GameEvent? = emit(Resumed(nextSeq, now, countdownMs))
-    fun close(now: Long): GameEvent? = if (state.paused) null else emit(QuestionClosed(nextSeq, now))
+    fun close(now: Long): GameEvent? = if (state.paused || question?.isGonfleur == true) null else emit(QuestionClosed(nextSeq, now))
+
+    /**
+     * Gonfleur fou : fin de la course d'après les tapes des tablettes ([pumps], équipes inscrites [teams]). Un ballon
+     * éclaté la termine toujours ; [stop] (arrêt de l'animatrice, fin du chrono de secours) donne la victoire au plus
+     * gros ballon. Rien pendant le décompte du départ ou d'une reprise, ni en pause.
+     */
+    fun balloon(pumps: Map<String, Pump>, teams: Collection<String>, now: Long, stop: Boolean): GameEvent? {
+        val q = question ?: return null
+        if (!q.isGonfleur || state.phase != Phase.QUESTION || state.intro || state.paused || teams.isEmpty()) return null
+        if (stop && (state.resumeAt ?: Long.MIN_VALUE) > now) return null
+        val winner = pumpWinner(pumps.filterKeys { it in teams }, teams, stop) ?: return null
+        return emit(BalloonBurst(nextSeq, now, q.id, winner, teams.toList()))
+    }
+
+    /** Gonfleur fou : heure du serveur du « GONFLEZ ! » de cette course (null hors course). */
+    val pumpGoAt: Long? get() = state.openedAt?.takeIf { question?.isGonfleur == true && !state.intro }
 
     /** Calcule les points à partir des réponses reçues. Les réponses des équipes inconnues sont ignorées par l'appelant. */
     fun reveal(now: Long, answers: Map<String, Answer>): GameEvent? {
@@ -945,6 +982,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     /** Chrono à zéro : fin de la question, ou fin du tour de mimes. */
     fun timeUp(now: Long): GameEvent? = when {
         state.intro -> null
+        // Gonfleur fou : la fin du chrono de secours a besoin des tapes des tablettes ([balloon]).
+        question?.isGonfleur == true -> null
         state.mime != null -> mimeStop(now)
         // Blind test : fin de l'extrait, la musique s'arrête et l'animatrice décide de la suite.
         question?.isBlind == true -> blindStop(now)

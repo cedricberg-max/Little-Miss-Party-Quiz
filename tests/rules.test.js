@@ -1072,3 +1072,58 @@ describe("La bombe cachée", () => {
     await assertFails(cmd("chest_open"));
   });
 });
+
+describe("Le Gonfleur fou", () => {
+  const course = (extra = {}) => seed({
+    kind: "gonfleur", qid: "r9g", choices: null, resumeAt: Date.now() - 10_000,
+    pump: { key: "r9g-100", goAt: Date.now() - 10_000, target: 100 }, ...extra,
+  });
+  const tape = (uid, n, team = uid, key = "r9g-100", data = null) =>
+    set(ref(db(uid), `games/${CODE}/pumps/${key}/${team}`), data ?? { n, at: serverTimestamp() });
+
+  test("chaque équipe envoie ses tapes, qui ne font que monter, sans dépasser l'éclatement", async () => {
+    await course();
+    await assertSucceeds(tape("bleu", 20));
+    await assertSucceeds(tape("bleu", 20), "même nombre renvoyé");
+    await assertSucceeds(tape("bleu", 55));
+    await assertFails(tape("bleu", 40), "jamais en arrière");
+    await assertFails(tape("bleu", 101), "au-delà de l'éclatement");
+    await assertFails(tape("bleu", 60.5));
+    await assertFails(tape("bleu", 60, "bleu", "r9g-100", { n: 60, at: 5 }), "heure du serveur obligatoire");
+    await assertFails(tape("bleu", 60, "bleu", "r9g-100", { n: 60, at: serverTimestamp(), gagne: true }), "rien d'autre que les tapes");
+    await assertFails(tape("rose", 30, "bleu"), "pas pour une autre équipe");
+    await assertFails(tape("bleu", 30, "bleu", "r9g-99"), "ancienne course");
+    await assertSucceeds(tape("bleu", 100));
+    await assertSucceeds(tape("rose", 12));
+    // La box efface les tapes ; personne d'autre.
+    await assertFails(set(ref(db("bleu"), `games/${CODE}/pumps`), null));
+    await assertSucceeds(set(ref(db(HOST), `games/${CODE}/pumps`), null));
+  });
+
+  test("pas plus de 20 tapes par seconde depuis le départ", async () => {
+    await course({ pump: { key: "r9g-100", goAt: Date.now() - 1_000, target: 100 } });
+    await assertSucceeds(tape("bleu", 25));
+    await assertFails(tape("bleu", 60), "impossible en une seconde");
+  });
+
+  test("rien ne compte avant le départ, en pause, au décompte de reprise, ni hors de la course", async () => {
+    await course({ pump: { key: "r9g-100", goAt: Date.now() + 3_000, target: 100 } });
+    await assertFails(tape("bleu", 1), "avant « GONFLEZ ! »");
+    await course({ paused: true });
+    await assertFails(tape("bleu", 1), "pause");
+    await course({ resumeAt: Date.now() + 60_000 });
+    await assertFails(tape("bleu", 1), "décompte 3, 2, 1");
+    await course({ phase: "reveal" });
+    await assertFails(tape("bleu", 1), "course finie");
+    await seed({ kind: "quiz", pump: { key: "r9g-100", goAt: 0, target: 100 } });
+    await assertFails(tape("bleu", 1), "pas dans ce jeu");
+  });
+
+  test("tablette remplacée : seul le nouvel appareil de l'équipe tape", async () => {
+    await course();
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/teams/bleu/device`), "tablette2"));
+    await assertFails(tape("bleu", 5));
+    await assertSucceeds(tape("tablette2", 5, "bleu"));
+    await assertFails(tape("intrus", 5), "équipe inconnue");
+  });
+});

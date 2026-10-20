@@ -12,6 +12,7 @@ import { creerArdoise, choisirMot } from "./ardoise.js";
 import { animationSpectateurs } from "./spectateurs.js";
 import { choisirPorte, ecranPorteOuverte } from "./portes.js";
 import { ecranCoffres, REVELATION_MS } from "./coffres.js";
+import { ecranGonfleur, ENVOI_MS, plafond } from "./gonfleur.js";
 
 const $ = (id) => document.getElementById(id);
 /** Jeux au buzzer : un seul grand BUZZ, la réponse se donne à voix haute. */
@@ -67,7 +68,7 @@ function maybeReload() {
 watchVersion(() => { newVersion = true; maybeReload(); });
 
 /** Écrans où l'équipe joue (salon compris) : la tablette reste allumée, même si personne ne la touche. */
-const AWAKE_SCREENS = new Set(["waiting", "play", "question", "coffres", "result", "pick", "draw", "watch"]);
+const AWAKE_SCREENS = new Set(["waiting", "play", "question", "coffres", "gonfleur", "result", "pick", "draw", "watch"]);
 /** Écrans où la partie est finie pour cet appareil : la veille normale d'Android reprend. */
 const SLEEP_SCREENS = new Set(["join", "ended", "replaced"]);
 
@@ -403,11 +404,13 @@ function render() {
   // Saut vers un autre jeu en plein Pictionary : l'ardoise, les mots et l'animation s'arrêtent.
   if (st.kind !== "pictionary" || !st.mime) stopPicto();
   if (st.kind !== "coffres" || !["question", "closed", "reveal", "scores"].includes(st.phase)) stopCoffres();
+  if (st.kind !== "gonfleur" || st.phase !== "question") stopGonfleur();
   $("play-intro").hidden = true;
   switch (st.phase) {
     case "question":
     case "closed":
       if (st.kind === "coffres") return renderCoffres(st);
+      if (st.kind === "gonfleur") return renderGonfleur(st);
       return st.mime ? (st.kind === "pictionary" ? renderPicto(st) : renderMime(st)) : st.kind === "statues" ? renderStatues(st) : BUZZ_KINDS.includes(st.kind) ? renderFlou(st) : renderQuestion(st);
     case "reveal":
     case "scores":
@@ -822,7 +825,8 @@ function runResumeCountdown(st) {
     if (ms > 0) {
       $("resume-num").textContent = `${Math.min(9, Math.ceil(ms / 1000))}`;
       // Avant les dernières questions multipliées, la TV annonce « × N » : le décompte le dit aussi.
-      $("resume-text").textContent = st.intro != null && st.intro === st.resumeAt ? `Points ×${st.factor ?? 2} !` : "C'est reparti !";
+      $("resume-text").textContent = st.intro != null && st.intro === st.resumeAt ? `Points ×${st.factor ?? 2} !`
+        : st.kind === "gonfleur" && st.pump?.goAt === st.resumeAt ? "Prêts à gonfler ?" : "C'est reparti !";
     } else { clearInterval(countdownHandle); countdownHandle = null; if (st.phase === "question") render(); }
   };
   const ms = st.paused || st.resumeAt == null ? 0 : st.resumeAt - (Date.now() + serverOffset);
@@ -870,6 +874,18 @@ function renderResult(st) {
   const number = st.kind === "number";
   if (st.kind === "portes") return renderPortesResult(st, award);
   showPortesReveal(null);
+  if (st.kind === "gonfleur") {
+    const winner = Object.keys(st.awards ?? {}).find((t) => st.awards[t]?.correct);
+    $("r-icon").textContent = ok ? "🏆" : "🎈";
+    $("r-icon").className = "result-icon ok";
+    $("r-title").textContent = ok ? `Votre ballon a gagné ! +${award.points} points`
+      : award?.points ? `Bien gonflé ! +${award.points} points` : "Bien gonflé !";
+    $("r-detail").textContent = !ok && winner ? `Le ballon des ${game.teams[winner]?.name ?? "autres"} a gagné.` : "";
+    $("r-image").hidden = true;
+    const { mine, rank } = rankOf(st.scores);
+    $("r-total").textContent = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`;
+    return;
+  }
   if (st.kind === "statues") {
     $("r-icon").textContent = ok ? "🏆" : "♪";
     $("r-icon").className = "result-icon ok";
@@ -1057,6 +1073,81 @@ async function chooseChest(i) {
     }
     render();
   }
+}
+
+/**
+ * Le Gonfleur fou (écran gonfleur.js) : { ctl, cle, n, envoye, envoi, minuterie, ecoute } de la course en cours.
+ * [n] = tapes de cette tablette depuis le départ, [envoye] = dernier nombre accepté par la base.
+ */
+let gonfleur = null;
+function stopGonfleur() {
+  if (!gonfleur) return;
+  clearTimeout(gonfleur.minuterie);
+  gonfleur.ecoute?.();
+  gonfleur.ctl.detruire();
+  gonfleur = null;
+}
+
+/** Ballon de l'équipe : tapes comptées ici, envoyées régulièrement ; la box décide du gagnant. */
+function renderGonfleur(st) {
+  clearInterval(timerHandle);
+  show("gonfleur");
+  const p = st.pump ?? null;
+  gonfleur ??= { ctl: ecranGonfleur($("gonfleur-host"), { surTape: tapeGonfleur }), cle: null, n: 0, envoye: 0, envoi: false, minuterie: null, ecoute: null };
+  // Nouvelle course (jeu rejoué) : on repart de zéro, en reprenant ce que la base a déjà reçu (tablette rechargée).
+  if (p?.key && gonfleur.cle !== p.key) {
+    gonfleur.ecoute?.();
+    Object.assign(gonfleur, { cle: p.key, n: 0, envoye: 0 });
+    const cle = p.key;
+    gonfleur.ecoute = onValue(ref(db, `games/${code}/pumps/${cle}/${teamId}`), (s) => {
+      const n = s.val()?.n ?? 0;
+      if (!gonfleur || gonfleur.cle !== cle || n <= gonfleur.envoye) return;
+      gonfleur.envoye = n;
+      gonfleur.n = Math.max(gonfleur.n, n);
+      render();
+    });
+  }
+  const cible = p?.target ?? 100;
+  const actif = !!p?.key && !st.paused && !counting(st) && gonfleur.n < cible;
+  let titre = "Le Gonfleur fou"; let texte;
+  if (!p?.key) texte = "Regardez la TV !";
+  else if (st.paused) { titre = "Pause"; texte = "La partie reprend bientôt."; }
+  else if (counting(st)) texte = "Préparez vos doigts…";
+  else if (gonfleur.n >= cible) { titre = "BOUM !"; texte = "Votre ballon a éclaté : regardez la TV !"; }
+  else texte = "Tapez le plus vite possible pour gonfler votre ballon. Relayez-vous !";
+  gonfleur.ctl.maj({ n: gonfleur.n, cible, actif, titre, texte, couleur: game.teams[teamId]?.color });
+}
+
+function tapeGonfleur() {
+  const st = game.state ?? {};
+  const cible = st.pump?.target ?? 100;
+  if (!gonfleur || st.kind !== "gonfleur" || st.paused || counting(st) || gonfleur.n >= cible) return;
+  gonfleur.n += 1;
+  if (gonfleur.n % 5 === 0) navigator.vibrate?.(8);
+  render();
+  // Ballon éclaté : envoi immédiat ; sinon au plus toutes les ENVOI_MS.
+  if (gonfleur.n >= cible) { clearTimeout(gonfleur.minuterie); gonfleur.minuterie = null; envoyerTapes(); }
+  else gonfleur.minuterie ??= setTimeout(() => { if (gonfleur) { gonfleur.minuterie = null; envoyerTapes(); } }, ENVOI_MS);
+}
+
+async function envoyerTapes() {
+  const g = gonfleur;
+  const p = game.state?.pump;
+  if (!g || !p?.key || g.cle !== p.key || g.envoi || g.n <= g.envoye) return;
+  // Jamais plus que ce que les règles acceptent maintenant : le reste part à l'envoi suivant.
+  const n = Math.min(g.n, plafond(p.goAt ?? 0, Date.now() + serverOffset));
+  const relance = () => { if (gonfleur === g && g.n > g.envoye) g.minuterie ??= setTimeout(() => { g.minuterie = null; envoyerTapes(); }, ENVOI_MS); };
+  if (n <= g.envoye) return relance();
+  g.envoi = true;
+  try {
+    await set(ref(db, `games/${code}/pumps/${p.key}/${teamId}`), { n, at: serverTimestamp() });
+    g.envoye = Math.max(g.envoye, n);
+  } catch {
+    // Refusé (pause, réseau) : les tapes restent comptées, elles repartent au prochain envoi.
+  } finally {
+    g.envoi = false;
+  }
+  relance();
 }
 
 function renderEnded(st) {

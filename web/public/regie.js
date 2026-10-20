@@ -123,6 +123,9 @@ function stopListening() {
   answersUnsub?.();
   answersUnsub = null;
   answersQid = null;
+  pumpsUnsub?.();
+  pumpsUnsub = null;
+  pumpsKey = null;
   clearInterval(timerHandle);
 }
 
@@ -181,6 +184,7 @@ function control() {
   listen(`games/${code}/state`, (s) => {
     live.state = s.val();
     watchAnswers();
+    watchPumps();
     // En arrivant dans le salon d'attente, la première chose à faire est de charger la prestation.
     if (first && !tabChosen && live.state?.phase === "lobby") switchTab("show");
     first = false;
@@ -210,6 +214,20 @@ function watchAnswers() {
   live.answers = {};
   if (!qid) return;
   answersUnsub = onValue(ref(db, `games/${code}/answers/${qid}`), (s) => { live.answers = s.val() ?? {}; render(); });
+}
+
+/** Gonfleur fou : les tapes de chaque équipe (games/<code>/pumps/<clé>), pour suivre la course sur la régie. */
+let pumpsUnsub = null;
+let pumpsKey = null;
+function watchPumps() {
+  const key = live.state?.kind === "gonfleur" ? live.state?.pump?.key ?? null : null;
+  if (key === pumpsKey) return;
+  pumpsUnsub?.();
+  pumpsUnsub = null;
+  pumpsKey = key;
+  live.pumps = {};
+  if (!key) return;
+  pumpsUnsub = onValue(ref(db, `games/${code}/pumps/${key}`), (s) => { live.pumps = s.val() ?? {}; render(); });
 }
 
 /** Jeux au buzzer : la première équipe qui buzze répond à voix haute (ou chante), la régie juge. */
@@ -243,7 +261,7 @@ function nextLabel(st, teamCount) {
     // Écran de présentation du jeu sur la TV : l'animatrice explique les règles, puis lance le jeu.
     case "intro": return "▶ Lancer l'épreuve";
     // La bombe cachée : ce sont les équipes qui ouvrent les coffres, le bouton principal attend l'explosion.
-    case "question": return st.kind === "coffres" ? "Coffres en cours… 💣" : st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? `Terminer ${st.kind === "pictionary" ? "le Pictionary" : "les mimes"}` : "Voir le classement") : st.kind === "portes" ? "Fermer les choix" : "Arrêter le chrono";
+    case "question": return st.kind === "coffres" ? "Coffres en cours… 💣" : st.kind === "gonfleur" ? "⏹ Arrêter la course" : st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? `Terminer ${st.kind === "pictionary" ? "le Pictionary" : "les mimes"}` : "Voir le classement") : st.kind === "portes" ? "Fermer les choix" : "Arrêter le chrono";
     case "closed": return st.kind === "portes" ? "Aux portes ! 🚪" : "Révéler la réponse";
     // Portes mystères : l'animatrice ouvre les portes une à une, puis montre le classement final.
     case "reveal": return st.kind === "portes" ? ((st.portes?.opened ?? 0) < (st.portes?.count ?? 0) ? "🚪 Ouvrir la porte suivante" : "Classement final 🏆") : "Voir les scores";
@@ -289,7 +307,7 @@ function render() {
 
   const portes = (q?.kind ?? st.kind) === "portes";
   // Portes et bombe cachée : aucune réponse à montrer (le contenu des coffres est tiré à l'ouverture).
-  const correct = portes || (q?.kind ?? st.kind) === "coffres" ? null : q?.correct ?? st.correct;
+  const correct = portes || ["coffres", "gonfleur"].includes(q?.kind ?? st.kind) ? null : q?.correct ?? st.correct;
   const answerBtn = $("c-answer");
   answerBtn.hidden = intro || !inQuestion || (correct == null && !(portes && q?.doors));
   if (portes && q?.doors) {
@@ -305,7 +323,7 @@ function render() {
     answerBtn.classList.toggle("masked", answerMasked);
   }
   const answered = Object.keys(live.answers).filter((t) => live.teams[t]).length;
-  $("c-answered").textContent = BUZZ_KINDS.includes(st.kind) || st.kind === "statues" ? "" : st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ${portes ? "ont choisi leur porte" : "ont répondu"}` : "";
+  $("c-answered").textContent = BUZZ_KINDS.includes(st.kind) || st.kind === "statues" || st.kind === "gonfleur" ? "" : st.phase === "question" || st.phase === "closed" ? `${answered} / ${teams.length} équipes ${portes ? "ont choisi leur porte" : "ont répondu"}` : "";
 
   renderGames(st);
   renderRequests(st, teams);
@@ -314,6 +332,7 @@ function render() {
   renderFlou(st);
   renderStatues(st, teams);
   renderCoffres(st);
+  renderGonfleur(st, teams);
   renderTeams(st, teams);
   renderPoints();
   renderPlan(st);
@@ -816,6 +835,36 @@ $("coffres-random").onclick = () => {
   send("chest_random", {}, { advance: true });
 };
 
+/** Gonfleur fou : la course en direct, ballon par ballon ; le bouton principal l'arrête (le plus gros ballon gagne). */
+function renderGonfleur(st, teams) {
+  const on = st.phase === "question" && st.kind === "gonfleur";
+  $("gonfleur").hidden = !on;
+  if (!on) return;
+  const target = st.pump?.target ?? 100;
+  const counting = !st.paused && (st.resumeAt ?? 0) > Date.now() + serverOffset;
+  $("gonfleur-info").textContent = !st.pump?.key ? "Les ballons arrivent sur la TV…"
+    : counting ? "3, 2, 1… Les équipes se préparent à taper."
+    : "Les équipes tapent sur leur tablette : le premier ballon qui éclate gagne. « Arrêter la course » donne la victoire au plus gros ballon.";
+  const box = $("gonfleur-teams");
+  box.replaceChildren(...teams.map(([id, t]) => {
+    const n = Math.min(target, live.pumps?.[id]?.n ?? 0);
+    const row = document.createElement("div");
+    row.className = "gonfleur-team";
+    row.style.setProperty("--team", t.color);
+    const name = document.createElement("span");
+    name.textContent = t.name;
+    const bar = document.createElement("span");
+    bar.className = "gonfleur-bar";
+    const fill = document.createElement("i");
+    fill.style.width = `${Math.round((n / target) * 100)}%`;
+    bar.appendChild(fill);
+    const pct = document.createElement("b");
+    pct.textContent = `${Math.round((n / target) * 100)} %`;
+    row.append(name, bar, pct);
+    return row;
+  }));
+}
+
 $("flou-ok").onclick = () => { navigator.vibrate?.(60); send("buzz_ok", {}, { advance: true }); };
 $("flou-ko").onclick = () => send("buzz_ko", {}, { advance: true });
 $("flou-bonus").onclick = () => { navigator.vibrate?.(60); send("buzz_bonus", {}, { advance: true }); };
@@ -1090,7 +1139,7 @@ function planItem(q, i, current) {
   const title = document.createElement("div");
   title.textContent = `${i + 1}. ${q.text}${q.double ? " · points ×2" : ""}`;
   const answer = document.createElement("b");
-  answer.textContent = q.kind === "coffres" ? "coffres chacun son tour · la bombe arrête le jeu" : q.kind === "portes" ? `${q.choices?.length ?? 0} portes · bonus ou malus` : q.kind === "number" ? `Juste Chiffre · ${q.correct}` : `${CHOICE_LETTERS[q.correct] ?? "?"} · ${q.choices?.[q.correct] ?? ""}`;
+  answer.textContent = q.kind === "gonfleur" ? "course de ballons · le premier qui éclate gagne" : q.kind === "coffres" ? "coffres chacun son tour · la bombe arrête le jeu" : q.kind === "portes" ? `${q.choices?.length ?? 0} portes · bonus ou malus` : q.kind === "number" ? `Juste Chiffre · ${q.correct}` : `${CHOICE_LETTERS[q.correct] ?? "?"} · ${q.choices?.[q.correct] ?? ""}`;
   item.append(title, answer);
   return item;
 }
@@ -1136,7 +1185,7 @@ async function fetchLibrary() {
     const rounds = Object.entries(s.val() ?? {})
       .filter(([, show]) => show)
       .sort((a, b) => (b[1].date ?? "").localeCompare(a[1].date ?? ""))
-      .flatMap(([id, show]) => (show.rounds ?? []).filter((r) => r && r.type !== "mimes" && r.type !== "statues" && r.type !== "pictionary" && r.type !== "portes" && r.type !== "coffres" && r.type !== "finale" && !BUILTIN_GAMES[r.type] && !MUSIC_GAMES[r.type]).map((round, i) => {
+      .flatMap(([id, show]) => (show.rounds ?? []).filter((r) => r && r.type !== "mimes" && r.type !== "statues" && r.type !== "pictionary" && r.type !== "portes" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "finale" && !BUILTIN_GAMES[r.type] && !MUSIC_GAMES[r.type]).map((round, i) => {
         const title = quizzes[round.quizId]?.title ?? `Manche ${i + 1}`;
         const label = QUIZ_GAMES[round.type] ? `${ROUND_TYPES[round.type]} : ${title}` : title;
         const date = show.date ? ` (${new Date(`${show.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })})` : "";
@@ -1149,6 +1198,7 @@ async function fetchLibrary() {
       { key: "builtin/statues", label: ROUND_TYPES.statues, source: { type: "statues", duration: STATUES_SEC } },
       { key: "builtin/pictionary", label: ROUND_TYPES.pictionary, source: { type: "pictionary", duration: PICTO_SEC } },
       { key: "builtin/coffres", label: ROUND_TYPES.coffres, source: { type: "coffres" } },
+      { key: "builtin/gonfleur", label: ROUND_TYPES.gonfleur, source: { type: "gonfleur" } },
     ];
     library = { quizzes, mimes, playlists, contents, games, rounds, decks, quizGames, builtins, music };
   } catch (e) {
@@ -1210,6 +1260,13 @@ function renderLibrary() {
     }
     if (game.source.type === "coffres") {
       meta.textContent = "un coffre chacun son tour · bonus, malus, puis la bombe · idéal en dernier jeu";
+      b.append(title, meta);
+      b.onclick = () => pick(game);
+      box.appendChild(b);
+      return;
+    }
+    if (game.source.type === "gonfleur") {
+      meta.textContent = "chaque équipe tapote sa tablette · le premier ballon qui éclate gagne";
       b.append(title, meta);
       b.onclick = () => pick(game);
       box.appendChild(b);
@@ -1288,6 +1345,7 @@ function renderPreview() {
     const answer = document.createElement("b");
     // Chante le mot : le mot seul ; Qui suis-je : le personnage et son premier indice.
     if (q.kind === "chante") { answer.textContent = q.text; li.append(answer); list.appendChild(li); return; }
+    if (q.kind === "gonfleur") { li.textContent = "Chaque équipe tapote sa tablette pour gonfler son ballon : le premier qui éclate gagne."; list.appendChild(li); return; }
     if (q.kind === "coffres") { li.textContent = "Un coffre chacun son tour, bonus ou malus, puis la bombe qui arrête le jeu."; list.appendChild(li); return; }
     // Blind test et quiz musical : le titre (et l'artiste) de chaque extrait.
     if (q.audioId) { answer.textContent = `♪ ${q.choices?.[q.correct] ?? ""}${q.artist ? ` · ${q.artist}` : ""}`; li.append(answer); list.appendChild(li); return; }
@@ -1321,6 +1379,7 @@ const OLD_TV_STATUES = "La TV doit être mise à jour pour jouer aux statues mus
 const OLD_TV_DISPARU = "La TV doit être mise à jour pour jouer à « Qui a disparu ? » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_PICTO = "La TV doit être mise à jour pour jouer au Pictionary : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_COFFRES = "La TV doit être mise à jour pour jouer à La bombe cachée : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+const OLD_TV_GONFLEUR = "La TV doit être mise à jour pour jouer au Gonfleur fou : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_PORTES = "La TV doit être mise à jour pour jouer aux Portes mystères : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_BLIND = "La TV doit être mise à jour pour jouer au blind test : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 /** Jeu que la TV allumée ne sait pas encore jouer (ancienne version) : le message à montrer, sinon null. */
@@ -1338,6 +1397,7 @@ function tvRefuses(questions) {
   if (live.plan.disparu !== true && questions.some((q) => q?.kind === "disparu")) return OLD_TV_DISPARU;
   if (live.plan.portes !== true && questions.some((q) => q?.kind === "portes")) return OLD_TV_PORTES;
   if (live.plan.coffres !== true && questions.some((q) => q?.kind === "coffres")) return OLD_TV_COFFRES;
+  if (live.plan.gonfleur !== true && questions.some((q) => q?.kind === "gonfleur")) return OLD_TV_GONFLEUR;
   // Quiz musical compris : une ancienne TV le jouerait sans musique.
   if (live.plan.blindPlay !== true && questions.some((q) => q?.kind === "blind")) return OLD_TV_BLIND;
   if (live.plan.blind !== true && questions.some((q) => q?.audioId)) return OLD_TV_BLIND;

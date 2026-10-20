@@ -131,6 +131,7 @@ fun Game.execute(
     now: Long,
     teams: Set<String>,
     answers: Map<String, Answer> = emptyMap(),
+    pumps: Map<String, Pump> = emptyMap(),
 ): CommandResult {
     // Un double appui sur « Trouvé » ne compte qu'un mime : chaque appui vise la carte que la régie affichait.
     val advances = cmd is Command.Next || cmd is Command.Close || cmd is Command.End || cmd is Command.MimeStart ||
@@ -151,11 +152,14 @@ fun Game.execute(
         is Command.Next -> when (state.phase) {
             Phase.LOBBY -> if (teams.isEmpty()) return refused("no_teams") else next(now)
             // Blind test : le bouton principal lance ou relance la musique, comme « Lancer le morceau ».
-            Phase.QUESTION -> if (question?.isBlind == true && state.buzz?.waiting == true) blindPlay(now, allTried) else next(now)
+            Phase.QUESTION -> if (question?.isBlind == true && state.buzz?.waiting == true) blindPlay(now, allTried)
+            // Gonfleur fou : le bouton principal arrête la course, le plus gros ballon gagne.
+            else if (question?.isGonfleur == true && !state.intro) balloon(pumps, teams, now, stop = true)
+            else next(now)
             Phase.CLOSED -> reveal(now, answers.filterKeys { it in teams })
             else -> next(now)
         }
-        is Command.Close -> if (state.mime != null) mimeStop(now) else if (question?.isBlind == true) blindStop(now) else close(now)
+        is Command.Close -> if (question?.isGonfleur == true) balloon(pumps, teams, now, stop = true) else if (state.mime != null) mimeStop(now) else if (question?.isBlind == true) blindStop(now) else close(now)
         is Command.Pause -> pause(now)
         is Command.Resume -> resume(now)
         is Command.Adjust -> when {

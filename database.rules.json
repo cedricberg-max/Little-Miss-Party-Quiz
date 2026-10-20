@@ -121,6 +121,19 @@
             }
           }
         },
+        "pumps": {
+          ".read": "auth != null",
+          ".write": "auth != null && root.child('games').child($code).child('hostUid').val() === auth.uid && !newData.exists()",
+          "$key": {
+            "$team": {
+              ".write": "auth != null && newData.exists() && root.child('games').child($code).child('state/kind').val() === 'gonfleur' && root.child('games').child($code).child('state/phase').val() === 'question' && root.child('games').child($code).child('state/paused').val() !== true && root.child('games').child($code).child('state/pump/key').val() === $key && now >= root.child('games').child($code).child('state/pump/goAt').val() && (!root.child('games').child($code).child('state/resumeAt').exists() || now >= root.child('games').child($code).child('state/resumeAt').val()) && (root.child('games').child($code).child('teams').child($team).child('device').val() === auth.uid || (!root.child('games').child($code).child('teams').child($team).child('device').exists() && root.child('games').child($code).child('teams').child($team).exists() && auth.uid === $team))",
+              ".validate": "newData.child('n').isNumber() && newData.child('n').val() % 1 === 0 && newData.child('n').val() >= 0 && newData.child('n').val() <= root.child('games').child($code).child('state/pump/target').val() && (!data.exists() || newData.child('n').val() >= data.child('n').val()) && newData.child('n').val() <= (now - root.child('games').child($code).child('state/pump/goAt').val()) / 50 + 10 && newData.child('at').val() === now",
+              "$other": {
+                ".validate": "$other === 'n' || $other === 'at'"
+              }
+            }
+          }
+        },
         "pairing": {
           "$uid": {
             ".read": "auth != null && auth.uid === $uid",

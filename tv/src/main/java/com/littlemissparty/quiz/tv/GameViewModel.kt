@@ -34,6 +34,7 @@ import com.littlemissparty.quiz.engine.Scoring
 import com.littlemissparty.quiz.engine.ScoreAdjusted
 import com.littlemissparty.quiz.engine.PAUSE_TEAM
 import com.littlemissparty.quiz.engine.Phase
+import com.littlemissparty.quiz.engine.Pump
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.engine.Quiz
 import com.littlemissparty.quiz.engine.QuizJson
@@ -149,6 +150,10 @@ sealed interface UiState {
         val portes: PortesUi? = null,
         /** La bombe cachée : les coffres du jeu en cours (null hors de ce jeu, ou avant leur installation). */
         val coffres: ChestRound? = null,
+        /** Gonfleur fou : tapes reçues de chaque équipe pour la course en cours (vide hors de ce jeu). */
+        val pumps: Map<String, Int> = emptyMap(),
+        /** Gonfleur fou : heure du serveur du « GONFLEZ ! » (le départ 3, 2, 1 remplace le décompte de reprise). */
+        val pumpGoAt: Long? = null,
     ) : UiState {
         /** Total des appuis sur le buzzer de l'accueil, pour le son. */
         val funTotal: Int get() = funBuzzes.values.sum()
@@ -239,6 +244,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var buzzListener: Pair<DatabaseReference, ValueEventListener>? = null
     private var pickListener: Pair<DatabaseReference, ValueEventListener>? = null
     private var chestListener: Pair<DatabaseReference, ValueEventListener>? = null
+    private var pumpListener: Pair<DatabaseReference, ValueEventListener>? = null
+
+    /** Gonfleur fou : dernières tapes reçues de chaque équipe, pour la course de [pumpListener]. */
+    private var pumps: Map<String, Pump> = emptyMap()
     private var drawListener: Pair<DatabaseReference, ChildEventListener>? = null
     private val _dessin = MutableStateFlow(Dessin())
 
@@ -462,7 +471,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             g.remainingMs(serverNow()) == 0L
         ) {
             // Comme à la fin du chrono : question fermée, tour de mimes terminé, extrait du blind test arrêté.
-            act { it.timeUp(serverNow()) }
+            act { it.timeUp(serverNow()) ?: it.balloon(pumps, teams().map { t -> t.uid }, serverNow(), stop = true) }
         } else {
             schedule()
         }
@@ -490,6 +499,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     if (g.state.buzz?.team != null) return@withLock
                     if (g.state.buzz?.waiting == true) commit(g.blindPlay(serverNow(), unblock = allBlocked(g)))
                     else if (!g.justStarted(serverNow())) commit(g.blindStop(serverNow()))
+                }
+                // Gonfleur fou : OK arrête la course, le plus gros ballon gagne.
+                else if (g.question?.isGonfleur == true) {
+                    if (!g.justStarted(serverNow())) commit(g.balloon(pumps, teams().map { it.uid }, serverNow(), stop = true))
                 }
                 // Chrono qui vient de partir : second appui d'un double clic, même livré en retard par la box.
                 else if (!g.justStarted(serverNow())) commit(g.close(serverNow()))
@@ -617,7 +630,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 val done = actions.withLock {
                     if (g.state.phase == Phase.QUESTION && !g.state.paused && g.remainingMs(serverNow()) == 0L) {
                         // Fin de la question, ou fin du tour de mimes.
-                        commit(g.timeUp(serverNow()))
+                        // Gonfleur fou : au bout du chrono de secours, le plus gros ballon gagne.
+                        commit(g.timeUp(serverNow()) ?: g.balloon(pumps, teams().map { it.uid }, serverNow(), stop = true))
                         true
                     } else g.deadline() != deadline
                 }
@@ -699,6 +713,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 gameTitle = g.gameStep()?.title,
                 factor = g.factorOf(s.index),
                 introUntil = g.multiplierIntroUntil(),
+                pumpGoAt = g.pumpGoAt,
                 openedAt = s.openedAt,
                 multipliedLeft = g.multipliedLeft(s.index),
                 gameGains = g.gameGains(),
@@ -724,6 +739,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             act { it.dealChests(teams().sortedBy { t -> t.joinedAt }.map { t -> t.uid }, serverNow()) }
         }
         watchChest(Codec.chestKey(g)?.takeIf { !s.paused })
+        // Gonfleur fou : les tapes des tablettes, de la course au bilan (les ballons restent à leur taille).
+        watchPumps(Codec.pumpKey(g))
         val blocked = s.buzz?.blocked.orEmpty()
         val teamIds = teams().map { it.uid }
         // Blind test : rien ne se ferme seul, la relance réautorise tout le monde.
@@ -1006,7 +1023,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             }
             val answers = if (cmd is Command.Next && g.state.phase == Phase.CLOSED) collectAnswers() else emptyMap()
             val avant = g.state.scores()
-            val result = g.execute(cmd, serverNow(), teams().map { it.uid }.toSet(), answers)
+            val result = g.execute(cmd, serverNow(), teams().map { it.uid }.toSet(), answers, pumps)
             if (result.event != null) commit(result.event, statusOf(id, result))
             else gameRef?.updateChildren(statusOf(id, result))
             (result.event as? ScoreAdjusted)?.let { e -> montrerCoup(e, avant[e.team] ?: 0, g.state.scores()[e.team] ?: 0) }
@@ -1274,6 +1291,40 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
+     * Gonfleur fou : les tapes de chaque équipe (games/<code>/pumps/<clé>/<équipe> = { n, at }), envoyées par les
+     * tablettes. Les règles de la base n'acceptent que l'appareil de l'équipe, après le départ, hors pause, sans
+     * jamais redescendre. Un ballon qui éclate termine la course.
+     */
+    private fun watchPumps(key: String?) {
+        if (key == pumpListener?.first?.key) return
+        pumpListener?.let { (r, l) -> r.removeEventListener(l) }
+        pumpListener = null
+        pumps = emptyMap()
+        updatePlaying { it.copy(pumps = emptyMap()) }
+        val ref = gameRef?.child("pumps")?.child(key ?: return) ?: return
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val lus = snapshot.children.mapNotNull { c ->
+                    val n = c.child("n").getValue(Int::class.java) ?: return@mapNotNull null
+                    val at = c.child("at").getValue(Long::class.java) ?: return@mapNotNull null
+                    c.key!! to Pump(n, at)
+                }.toMap()
+                if (pumpListener?.first?.key != key) return
+                pumps = lus
+                updatePlaying { it.copy(pumps = lus.mapValues { e -> e.value.n }) }
+                act { g -> if (Codec.pumpKey(g) != key) null else g.balloon(lus, teams().map { it.uid }, serverNow(), stop = false) }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e(TAG, "Tapes du Gonfleur fou : ${error.message}")
+            }
+        }
+        // Clé posée avant le premier appel : une réponse en cache peut arriver tout de suite.
+        pumpListener = ref to listener
+        ref.addValueEventListener(listener)
+    }
+
+    /**
      * La bombe cachée : le coffre choisi par la tablette de l'équipe qui joue (games/<code>/chestChoice/<clé>). Les
      * règles de la base n'acceptent que l'appareil de cette équipe, une fois l'animation précédente finie. Le
      * contenu est tiré au sort ici, au moment de l'ouverture.
@@ -1396,6 +1447,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         buzzListener = null
         watchPick(null)
         watchChest(null)
+        watchPumps(null)
         watchDrawing(null)
         commandsListener?.let { (r, l) -> r.removeEventListener(l) }
         commandsListener = null
@@ -1463,6 +1515,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "portesSet" to true,
             // La bombe cachée : coffres ouverts depuis les tablettes, coffre au hasard en secours (commande chest_random).
             "coffres" to true,
+            // Gonfleur fou : tapes des tablettes dans pumps/, fin de la course par la box.
+            "gonfleur" to true,
             "disparu" to true,
             "questions" to quiz.questions.map {
                 clean(mapOf(
