@@ -323,6 +323,7 @@ button.item { cursor: pointer; }
 .statues-songs { display: flex; flex-direction: column; gap: 4px; }
 .statues-songs .hint { margin: 4px 0 0; }
 .statues-song { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+.statues-list { margin: 10px 0 2px; font-size: 14px; font-weight: 800; color: var(--violet); }
 .statues-songs .link { align-self: flex-start; }
 
 /* Créer un quiz : choix des réponses (texte ou images). */

@@ -531,14 +531,6 @@ describe("régie", () => {
     const admin = await openAdmin();
     await admin.click("#nav button[data-screen=settings]");
     await admin.locator("#screen-settings:not([hidden])").waitFor();
-    // Fête sans Internet : les cartes A B C D s'impriment depuis les Paramètres.
-    const [cartes] = await Promise.all([
-      admin.context().waitForEvent("page"),
-      admin.locator("#offline-panel a", { hasText: "Imprimer les cartes A B C D" }).click(),
-    ]);
-    await cartes.waitForLoadState();
-    assert.deepEqual(await cartes.locator(".rond").allTextContents(), ["A", "B", "C", "D"]);
-    await cartes.close();
     await admin.fill("#pw1", "licorne 2468");
     await admin.fill("#pw2", "licorne2468 ");
     await admin.click("#save");
@@ -1923,8 +1915,9 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(mime.cards.map((c) => c.word).sort(), ["Chat", "Le chat de Léa", "Éléphant"]);
     await regie.click("#tab-plan");
     await regie.locator("#panel-plan .plan-item", { hasText: "Mimes : Animaux à mimer" }).waitFor();
-    // En direct : « Ajouter un jeu » propose le paquet dans les mini-jeux.
-    await regie.click("#plan-add");
+    // En direct : « ＋ Jeu », toujours sur l'écran principal, ouvre le même « Ajouter un jeu » que le conducteur.
+    assert.equal(await regie.locator("#c-add").isVisible(), true);
+    await regie.click("#c-add");
     await regie.locator("#lib-list [data-game^='mimes/']", { hasText: "Animaux à mimer" }).click();
     await regie.locator("#lib-meta", { hasText: "Mimes · 3 cartes · tour de 45 s" }).waitFor();
     await regie.click("#lib-end");
@@ -3142,7 +3135,10 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#nav button[data-screen=games]");
     await page.locator(".game-card[data-game=statues]", { hasText: "2 chansons" }).waitFor();
 
-    // Prestation : la manche part avec toutes les chansons cochées ; Sarah en décoche une.
+    // Une playlist de blind test : ses chansons se cochent aussi pour les statues, sans l'être d'office.
+    await seedLibrary("playlists/blind", { title: "Dessins animés", duration: 25, tracks: [{ title: "Hakuna", audioId: list.tracks[0].audioId }, { title: "Libérée", audioId: "1111111111111111" }] });
+
+    // Prestation : la manche part avec les chansons de la liste cochées ; Sarah en décoche une, en ajoute une d'une playlist.
     await page.click("#nav button[data-screen=home]");
     await page.click("#home-new");
     await page.fill("#show-child", "Léa");
@@ -3150,8 +3146,9 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#round-add");
     await page.locator("#show-rounds .round").nth(0).locator("select").first().selectOption("statues");
     const songs = page.locator("#show-rounds .statues-song input");
-    await songs.nth(1).waitFor();
-    assert.deepEqual(await songs.evaluateAll((els) => els.map((e) => e.checked)), [true, true]);
+    await songs.nth(2).waitFor();
+    assert.deepEqual(await page.locator("#show-rounds .statues-list").allTextContents(), ["Chansons des statues", "Dessins animés"]);
+    assert.deepEqual(await songs.evaluateAll((els) => els.map((e) => e.checked)), [true, true, false], "même chanson dans deux listes : une seule case");
     await songs.nth(0).uncheck();
     await page.locator("#show-rounds .statues-songs", { hasText: "1 chanson cochée, jouée en boucle" }).waitFor();
     await page.selectOption("#show-status", "publiee");

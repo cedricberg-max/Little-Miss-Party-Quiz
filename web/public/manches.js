@@ -6,7 +6,7 @@
 // Fonctions pures, sans Firebase.
 import {
   ROUND_TYPES, BUILTIN_GAMES, CONTENT_GAMES, MUSIC_GAMES, activeItems, pictoSeriesOf, playableTracks, isStatuesList,
-  statuesSongs, zoomQuestions, expressQuestions, playable, mimeCards, roundPicks, roundTracks, roundQuizIds, roundSongs,
+  statuesSongs, statuesChoices, zoomQuestions, expressQuestions, playable, mimeCards, roundPicks, roundTracks, roundQuizIds, roundSongs,
   pictoRoundSeries, mimePerTeam, teamCount, MIME_TURN, MIME_RANDOM, STATUES_SEC, PICTO_SEC,
   MAX_PICKS, MAX_STATUES_SONGS, quizKind,
 } from "./show.js";
@@ -64,7 +64,7 @@ export function collectionItems(type, lib = {}) {
     Object.values(lib.playlists ?? {}).filter((p) => p?.title && !isStatuesList(p)).sort((a, b) => a.title.localeCompare(b.title, "fr"))
       .forEach((p) => playableTracks(p).forEach((t) => add({ key: t.audioId, label: t.artist?.trim() ? `${t.title.trim()} (${t.artist.trim()})` : t.title.trim(), group: p.title, level: 1, value: t })));
   } else if (type === "statues") {
-    statuesSongs(lib.playlists).forEach((t) => add({ key: t.audioId, label: t.title.trim(), group: null, level: 1, value: t }));
+    statuesChoices(lib.playlists).forEach((t) => add({ key: t.audioId, label: t.artist?.trim() ? `${t.title.trim()} (${t.artist.trim()})` : t.title.trim(), group: t.list, level: 1, value: t }));
   } else if (type === "quiz" || type === "express") {
     Object.entries(lib.quizzes ?? {}).filter(([, q]) => q?.title && (type === "express" ? expressQuestions(q) : playable(q)).length)
       .sort((a, b) => a[1].title.localeCompare(b[1].title, "fr"))

@@ -17,7 +17,7 @@ import {
   blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras, contentSlot, contentImages,
   pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches, isArchived, AUTO_ARCHIVE_DAYS, quizKind,
   roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS,
-  isStatuesList, statuesSongs, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS,
+  isStatuesList, statuesSongs, statuesChoices, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS,
 } from "./show.js";
 import { shuffle } from "./mime-cards.js";
 import {
@@ -748,28 +748,34 @@ function pictoSeriesPicker(r) {
 }
 
 /**
- * Statues musicales : les chansons de la liste (page Jeux), à cocher pour la manche ; jouées dans l'ordre de la liste.
- * Aucune cochée : la musique de la fête, sur la TV. Une nouvelle manche part avec toutes les chansons cochées.
+ * Statues musicales : les chansons de la liste des statues, puis celles de toutes les playlists, à cocher pour la
+ * manche ; jouées dans cet ordre. Aucune cochée : la musique de la fête, sur la TV. Une nouvelle manche part avec
+ * les chansons de la liste des statues cochées.
  */
 function songsPicker(r) {
-  const songs = statuesSongs(playlists);
-  if (!Array.isArray(r.songs)) r.songs = songs.map((t) => t.audioId).slice(0, MAX_STATUES_SONGS);
+  const songs = statuesChoices(playlists);
+  if (!Array.isArray(r.songs)) r.songs = statuesSongs(playlists).map((t) => t.audioId).slice(0, MAX_STATUES_SONGS);
   const chosen = new Set(r.songs);
-  const manage = h("button", { type: "button", class: "link", text: songs.length ? "Gérer les chansons" : "Ajouter vos chansons (page Jeux)", onclick: () => openStatuesSongs() });
-  if (!songs.length) return h("p", { class: "hint small statues-songs" }, "Musique de la fête (aucune chanson dans la liste). ", manage);
+  const manage = h("button", { type: "button", class: "link", text: statuesSongs(playlists).length ? "Gérer les chansons des statues" : "Ajouter des chansons pour les statues (page Jeux)", onclick: () => openStatuesSongs() });
+  if (!songs.length) return h("p", { class: "hint small statues-songs" }, "Musique de la fête (aucune chanson dans vos playlists). ", manage);
+  const count = roundSongs(r, playlists).length;
+  const groups = [...new Set(songs.map((t) => t.list))];
   return h("div", { class: "statues-songs" },
-    h("p", { class: "hint small", text: !chosen.size ? "Aucune chanson cochée : musique de la fête." : roundSongs(r, playlists).length === 1 ? "1 chanson cochée, jouée en boucle :" : `${roundSongs(r, playlists).length} chansons cochées, jouées l'une après l'autre :` }),
-    ...songs.map((t) => h("label", { class: "inline statues-song" },
-      h("input", {
-        type: "checkbox", value: t.audioId, checked: chosen.has(t.audioId),
-        onchange: (e) => {
-          const keep = new Set(r.songs);
-          if (e.target.checked) keep.add(t.audioId); else keep.delete(t.audioId);
-          r.songs = songs.map((x) => x.audioId).filter((id) => keep.has(id)).slice(0, MAX_STATUES_SONGS);
-          roundCtx.refresh();
-        },
-      }),
-      t.artist?.trim() ? `${t.title} (${t.artist.trim()})` : t.title)),
+    h("p", { class: "hint small", text: !count ? "Aucune chanson cochée : musique de la fête." : count === 1 ? "1 chanson cochée, jouée en boucle :" : `${count} chansons cochées, jouées l'une après l'autre (${MAX_STATUES_SONGS} au plus) :` }),
+    ...groups.flatMap((list) => [
+      h("p", { class: "statues-list", text: list }),
+      ...songs.filter((t) => t.list === list).map((t) => h("label", { class: "inline statues-song" },
+        h("input", {
+          type: "checkbox", value: t.audioId, checked: chosen.has(t.audioId),
+          onchange: (e) => {
+            const keep = new Set(r.songs);
+            if (e.target.checked) keep.add(t.audioId); else keep.delete(t.audioId);
+            r.songs = songs.map((x) => x.audioId).filter((id) => keep.has(id)).slice(0, MAX_STATUES_SONGS);
+            roundCtx.refresh();
+          },
+        }),
+        t.artist?.trim() ? `${t.title} (${t.artist.trim()})` : t.title)),
+    ]),
     manage);
 }
 

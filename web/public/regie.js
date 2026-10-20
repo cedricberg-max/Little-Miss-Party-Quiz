@@ -986,6 +986,9 @@ function renderGames(st) {
     }
   }
   renderDemo(st);
+  // « ＋ Jeu » toujours à portée de main : un jeu oublié s'ajoute sans chercher l'onglet Conducteur.
+  $("c-add").hidden = !live.plan?.rev || !rounds.length;
+  $("c-add").disabled = editing;
   // Le secours n'a de sens qu'une fois la partie commencée (au salon, « Lancer la fête ! » suffit).
   $("c-rescue").hidden = st.phase === "lobby" || !rounds.length || !live.plan?.rev;
   if (rescueOpen && $("c-rescue").hidden) rescueOpen = false;
@@ -1060,6 +1063,7 @@ async function jumpTo(r, st) {
 }
 
 $("c-rescue").onclick = () => { rescueOpen = true; render(); };
+$("c-add").onclick = () => openLibrary();
 $("rescue-close").onclick = () => { rescueOpen = false; render(); };
 
 function renderTeams(st, teams) {

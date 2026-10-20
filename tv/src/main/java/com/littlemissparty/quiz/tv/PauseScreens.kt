@@ -152,31 +152,12 @@ private fun Intermission(state: UiState.Playing, onResume: () -> Unit) {
                     Text("Le chrono est arrêté", color = Palette.InkSoft, fontSize = 22.sp)
                 }
                 Spacer(Modifier.height(24.dp))
-                // Sans Internet, les tablettes ne répondent plus : la fête continue avec les cartes A B C D.
-                if (state.pauseReason == PAUSE_NETWORK) SecoursSansInternet() else DefiPause(state.childName)
+                DefiPause(state.childName)
                 Spacer(Modifier.height(24.dp))
                 // Secours à la télécommande ; avec la régie, c'est l'animatrice qui relance depuis son téléphone.
                 NextButton("Reprendre", onResume, key = "pause")
             }
         }
-    }
-}
-
-/** Mode de secours sans Internet, expliqué à tous : cartes A B C D pour les équipes, points à la télécommande. */
-@Composable
-private fun SecoursSansInternet() {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            "Pas de souci, la fête continue : montrez vos cartes A B C D !",
-            color = Palette.Gold, fontSize = 26.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 48.dp),
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "Animatrice : « Reprendre », puis touche Retour › « Donner des points ».",
-            color = Palette.InkSoft, fontSize = 20.sp, textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 48.dp),
-        )
     }
 }
 
