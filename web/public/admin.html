@@ -49,7 +49,6 @@
         </div>
         <div class="hero-actions">
           <button id="home-new" class="btn big">＋ Créer une prestation</button>
-          <button id="home-import" class="btn secondary big">Importer un quiz</button>
         </div>
       </div>
       <div class="stats">
@@ -78,6 +77,10 @@
         Une prestation « Prête » apparaît sur la régie de l'animatrice (onglet Prestation, dans le salon
         d'attente) : une touche la charge sur la TV.
       </p>
+      <div class="search-row">
+        <input id="show-search" type="search" placeholder="Rechercher : prénom, âge, date (25/10, octobre…), jeu…" aria-label="Rechercher une prestation" autocomplete="off">
+        <span id="show-search-count" class="hint small"></span>
+      </div>
       <div id="show-list" class="cards"></div>
       <details id="show-past" class="archives" hidden>
         <summary>Anniversaires passés (<span id="show-past-count">0</span>)</summary>
@@ -157,7 +160,10 @@
       <div class="title-row">
         <h1>Bibliothèque de quiz</h1>
         <button id="quiz-import-open" class="btn">Importer un quiz</button>
+        <button id="quiz-photos-open" class="btn secondary">📷 Quiz de photos</button>
+        <input id="quiz-photos" type="file" accept="image/*" multiple hidden>
       </div>
+      <p class="hint">« Quiz de photos » : choisissez vos photos d'un coup, le nom de chaque fichier devient sa réponse (vous la corrigez à la relecture). Ce quiz se choisit ensuite pour l'Image floue ou le Zoom mystère.</p>
       <p class="hint">Seules les questions validées sont jouées sur la TV.</p>
       <div id="quiz-list" class="cards"></div>
     </section>

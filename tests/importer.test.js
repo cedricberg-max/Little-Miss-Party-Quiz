@@ -7,6 +7,7 @@ import { DISPARU_THEMES } from "../web/public/buzz-cards.js";
 import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, roundFilled,
   readiness, upcoming, daysUntil, isoDay, duplicateShow, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
   soundIds, choiceImageIds, choiceImageList, pictoSeriesList, pictoSeriesOf, foldLegacyFinale,
+  roundQuizIds, MIME_RANDOM,
 } from "../web/public/show.js";
 import { PICTO_WORDS, PICTO_SERIES } from "../web/public/picto-cards.js";
 import { guessTrack, defaultStart, normalizeLevel } from "../web/public/audio.js";
@@ -771,5 +772,86 @@ describe("Régie PC : contenus intégrés réglés, nombre de questions, notes",
   test("les notes de la prestation partent avec le programme, pour la régie", () => {
     assert.equal(buildSnapshot("s", { age: 9, notes: "  Gâteau à 16 h  ", rounds: [{ type: "quiz", quizId: "a" }] }, { a: quiz }).snapshot.notes, "Gâteau à 16 h");
     assert.equal("notes" in buildSnapshot("s", { age: 9, rounds: [{ type: "quiz", quizId: "a" }] }, { a: quiz }).snapshot, false);
+  });
+});
+
+describe("cartes et quiz choisis (à la volée et dans la Régie PC)", () => {
+  const A = { title: "Animaux", questions: [
+    { text: "Roi ?", choices: ["Lion", "Tigre"], correct: 0, status: "validee" },
+    { text: "Le chat miaule", choices: ["Vrai", "Faux"], correct: 0, status: "validee" },
+  ] };
+  const B = { title: "Espace", questions: [{ text: "La Lune est une planète", choices: ["Vrai", "Faux"], correct: 1, status: "validee" }] };
+
+  test("plusieurs quiz dans un même jeu : leurs questions à la suite, dans l'ordre choisi, jamais au hasard", () => {
+    const show = { childName: "Léa", age: 9, rounds: [{ type: "quiz", quizId: "b", quizIds: ["b", "a"] }] };
+    for (let k = 0; k < 3; k++) {
+      const { snapshot, problems } = buildSnapshot("s", show, { a: A, b: B });
+      assert.deepEqual(problems, []);
+      assert.deepEqual(snapshot.quiz.questions.map((q) => [q.text, q.round]), [
+        ["La Lune est une planète", "Espace + Animaux"], ["Roi ?", "Espace + Animaux"], ["Le chat miaule", "Espace + Animaux"]]);
+      assert.deepEqual(snapshot.rounds, [{ title: "Espace + Animaux", count: 3 }]);
+    }
+    // Vrai ou Faux express sur deux quiz : les affirmations des deux ; « les N premières » compte sur l'ensemble.
+    const vf = buildSnapshot("s", { age: 9, rounds: [{ type: "express", quizIds: ["a", "b"], count: 2 }] }, { a: A, b: B }).snapshot.quiz.questions;
+    assert.deepEqual(vf.map((q) => [q.kind, q.text]), [["express", "Le chat miaule"], ["express", "La Lune est une planète"]]);
+    assert.deepEqual(roundQuizIds({ quizId: "a" }), ["a"]);
+    assert.deepEqual(roundQuizIds({ quizId: "a", quizIds: { 0: "a", 1: "b", 2: "a" } }), ["a", "b"], "Lu dans la base (objet), sans doublon");
+    assert.equal(roundFilled({ type: "zoom", quizIds: ["a"] }), true);
+  });
+
+  test("un des quiz choisis supprimé : signalé, les autres se jouent quand même", () => {
+    const { snapshot, problems } = buildSnapshot("s", { age: 9, rounds: [{ type: "quiz", quizIds: ["a", "parti"] }] }, { a: A });
+    assert.match(problems[0], /un des quiz choisis n'existe plus/);
+    assert.equal(snapshot.quiz.questions.length, 2);
+  });
+
+  test("Mimes au hasard : cartes du catalogue selon l'âge, sans paquet à préparer", () => {
+    const petits = buildSnapshot("s", { age: 7, rounds: [{ type: "mimes", random: true }] }, {}, {}).snapshot.quiz.questions[0];
+    assert.equal(petits.kind, "mime");
+    assert.equal(petits.round, "Mimes");
+    assert.equal(petits.cards.length, MIME_RANDOM);
+    const easy = new Set(MIME_CATALOG.filter((c) => c.level === 1).map((c) => c.word));
+    assert.ok(petits.cards.every((c) => easy.has(c.word)), "Pas de carte difficile pour les Petits");
+    assert.equal(new Set(petits.cards.map((c) => c.word)).size, MIME_RANDOM, "Pas de doublon");
+    assert.equal(roundFilled({ type: "mimes", random: true }), true);
+    assert.equal(roundFilled({ type: "mimes" }), false);
+  });
+
+  test("cartes de mimes choisies : la manche joue exactement celles-là, même si le paquet a disparu", () => {
+    const cards = [{ word: "Chat", image: "🐱" }, { word: "Le chat de Léa" }, { word: " " }];
+    const one = buildSnapshot("s", { age: 9, rounds: [{ type: "mimes", random: true, cards }] }, {}, {}).snapshot.quiz.questions[0];
+    assert.deepEqual(one.cards.map((c) => c.word).sort(), ["Chat", "Le chat de Léa"]);
+    const lost = buildSnapshot("s", { age: 9, rounds: [{ type: "mimes", deckId: "parti", cards }] }, {}, {});
+    assert.deepEqual(lost.problems, []);
+    assert.equal(lost.snapshot.quiz.questions[0].cards.length, 2);
+  });
+
+  test("jeux intégrés : éléments choisis un par un, joués dans cet ordre (même un mot « grands » chez les Petits)", () => {
+    const show = { age: 7, rounds: [{ type: "chante", count: 6, picks: ["Bonheur", "soleil", "inconnu"] }] };
+    const { snapshot, problems } = buildSnapshot("s", show, {}, {});
+    assert.deepEqual(problems, []);
+    assert.deepEqual(snapshot.quiz.questions.map((q) => q.text), ["bonheur", "soleil"]);
+    // Plus rien de choisi n'existe : tirage au hasard comme avant, la fête n'est jamais bloquée.
+    const lost = buildSnapshot("s", { age: 9, rounds: [{ type: "chante", count: 4, picks: ["inconnu"] }] }, {}, {}).snapshot.quiz.questions;
+    assert.equal(lost.length, 4);
+    const disparu = buildSnapshot("s", { age: 9, rounds: [{ type: "disparu", picks: [DISPARU_THEMES[1].theme.toLowerCase()] }] }, {}, {}).snapshot.quiz.questions;
+    assert.equal(disparu.length, 1);
+    assert.ok(DISPARU_THEMES[1].objects.some((o) => o.word === disparu[0].choices[0]));
+  });
+
+  test("Pictionary : mots choisis un par un, les seuls du paquet", () => {
+    const words = PICTO_WORDS.slice(0, 3).map((w) => w.word.toLowerCase());
+    const q = buildSnapshot("s", { age: 9, rounds: [{ type: "pictionary", series: ["Rien"], picks: words }] }, {}, {}).snapshot.quiz.questions[0];
+    assert.deepEqual(q.cards.map((c) => c.word.toLowerCase()).sort(), [...words].sort());
+  });
+
+  test("à la volée : un jeu ajouté depuis la régie suit les mêmes règles", () => {
+    const { questions } = gameQuestions({ type: "flou", quizIds: ["a", "b"] }, {
+      a: { title: "A", questions: [{ text: "Qui ?", choices: ["Chat", "Chien"], correct: 0, status: "validee", imageId: "0123456789abcdef" }] },
+      b: { title: "B", questions: [{ text: "Quoi ?", choices: ["Tour", "Pont"], correct: 1, status: "validee", imageId: "fedcba9876543210" }] },
+    }, "MOYENS", "x");
+    assert.deepEqual(questions.map((q) => [q.kind, q.id, q.imageId]), [["flou", "xq1", "0123456789abcdef"], ["flou", "xq2", "fedcba9876543210"]]);
+    const mimes = gameQuestions({ type: "mimes", random: true }, {}, "GRANDS", "x").questions;
+    assert.equal(mimes[0].cards.length, MIME_RANDOM);
   });
 });

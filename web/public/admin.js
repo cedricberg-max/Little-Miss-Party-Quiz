@@ -9,20 +9,23 @@ import {
   FULL_TUNES, FULL_TUNE_SEC, FULL_NEW_ROUNDS, tunePlaylist, FULL_CHOICE_PHOTOS, imageQuiz,
 } from "./test-show.js";
 import { writeProof, isAdmin } from "./proof.js";
-import { parseQuiz, checkQuestions, geminiPrompt, chatgptImagePrompt, imageKey, wordFromImage, LETTERS } from "./importer.js";
+import { parseQuiz, checkQuestions, geminiPrompt, chatgptImagePrompt, imageKey, wordFromImage, photoQuestions, LETTERS } from "./importer.js";
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
 import {
   buildSnapshot, estimateMinutes, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, BUILTIN_GAMES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
   roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC, PICTO_SECONDS, PICTO_SEC, PICTO_POINTS, PICTO_RULE,
   blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras, contentSlot, contentImages,
-  pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale,
+  pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches,
+  roundQuizIds, roundPicks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS,
 } from "./show.js";
+import { shuffle } from "./mime-cards.js";
 import { PICTO_OWN_SERIES } from "./picto-cards.js";
 import { EXTRACT_SECONDS, guessTrack, defaultStart, decodeFile, makeExtract, synthTune, encodeMp3, soundId } from "./audio.js";
 import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
 import { watchVersion, showUpdateBanner } from "./version.js";
 import { compressImage, imageId, cleanEmoji, CHOICE_IMAGE } from "./illustration.js";
 import { afficherMotsDePasse } from "./oeil.js";
+import { historique, noterEcran } from "./retour.js";
 
 // Petit œil sur les champs de mot de passe : voir ce qu'on tape (majuscules, caractère en trop).
 afficherMotsDePasse();
@@ -269,7 +272,6 @@ function contentLabel(snapshot) {
   return [q ? `${q} question${q > 1 ? "s" : ""}` : "", m ? `${m} manche${m > 1 ? "s" : ""} de mimes` : "", p ? `${p} Pictionary` : ""].filter(Boolean).join(" · ");
 }
 $("home-new").onclick = () => editShow(null);
-$("home-import").onclick = () => $("quiz-import-open").click();
 
 // ---------- Prestations ----------
 
@@ -299,7 +301,9 @@ function showCard(id, s) {
 
 function renderShows() {
   const today = isoDay();
-  const list = Object.entries(shows).sort(byDate);
+  // Recherche : seules les prestations qui contiennent tous les mots tapés, archives et anniversaires passés compris.
+  const query = $("show-search").value.trim();
+  const list = Object.entries(shows).filter(([, s]) => s && showMatches(s, query, { quizzes, mimes, playlists })).sort(byDate);
   const active = list.filter(([, s]) => s.status !== "archivee" && (!s.date || s.date >= today));
   const past = list.filter(([, s]) => s.status !== "archivee" && s.date && s.date < today).reverse();
   const archived = list.filter(([, s]) => s.status === "archivee");
@@ -311,7 +315,15 @@ function renderShows() {
   $("show-archives").hidden = !archived.length;
   $("show-archive-count").textContent = archived.length;
   $("show-archive-list").replaceChildren(...archived.map(([id, s]) => showCard(id, s)));
+  if (query) {
+    // Les résultats rangés dans les anniversaires passés ou les archives s'ouvrent tout seuls.
+    $("show-past").open = past.length > 0;
+    $("show-archives").open = archived.length > 0;
+    if (!active.length) $("show-list").replaceChildren(h("p", { class: "hint", text: list.length ? "Rien en préparation pour cette recherche : voir plus bas." : "Aucune prestation ne correspond à cette recherche." }));
+  }
+  $("show-search-count").textContent = query ? `${list.length} prestation${list.length > 1 ? "s" : ""} trouvée${list.length > 1 ? "s" : ""}` : "";
 }
+$("show-search").addEventListener("input", () => renderShows());
 
 /** Archiver range la prestation (elle disparaît de la régie) ; désarchiver la remet en brouillon. */
 async function archive(id, on) {
@@ -353,8 +365,21 @@ function editShow(id, from = null) {
     : folded ? "L'ancienne manche « Super Finale » est devenue le réglage du quiz (ses dernières questions ×2). Enregistrez pour garder ce changement." : "", !!from || !!folded);
   show("show-edit");
   refreshRounds();
+  histPrestation.depart();
   if (from) $("show-child").focus();
 }
+
+/** Champs de la fiche d'une prestation, gardés par « Retour » et « Annuler les modifications ». */
+const SHOW_FIELDS = ["show-child", "show-age", "show-date", "show-status", "show-title", "show-profile", "show-duration", "show-themes", "show-notes"];
+const histPrestation = historique({
+  ecran: $("screen-show-edit"),
+  capturer: () => ({ rounds: editing?.rounds ?? [], champs: SHOW_FIELDS.map((id) => $(id).value) }),
+  restaurer: (e) => {
+    SHOW_FIELDS.forEach((id, k) => { $(id).value = e.champs[k]; });
+    if (editing) editing.rounds = e.rounds;
+    refreshRounds();
+  },
+});
 
 function formShow() {
   const num = (v) => (v === "" ? null : Number(v));
@@ -368,16 +393,159 @@ function formShow() {
     durationMin: num($("show-duration").value),
     themes: $("show-themes").value.trim() || null,
     notes: $("show-notes").value.trim() || null,
-    rounds: editing.rounds.filter(roundFilled).map((r) => (BUILTIN_GAMES[r.type] ? { type: r.type, count: r.count ?? BUILTIN_GAMES[r.type].count, ...(r.type === "disparu" && r.objects ? { objects: r.objects } : {}) }
-      : r.type === "mimes" ? { type: "mimes", deckId: r.deckId }
+    rounds: editing.rounds.filter(roundFilled).map((r) => (BUILTIN_GAMES[r.type] ? { type: r.type, count: r.count ?? BUILTIN_GAMES[r.type].count, ...(r.type === "disparu" && r.objects ? { objects: r.objects } : {}), ...picksOf(r) }
+      // Mimes : un paquet, ou le catalogue au hasard ; cartes choisies (tirage modifié à la main) gardées dans la manche.
+      : r.type === "mimes" ? { type: "mimes", ...(r.deckId ? { deckId: r.deckId } : { random: true }), ...(mimeCards(r.cards).length ? { cards: mimeCards(r.cards).slice(0, 200) } : {}) }
       : r.type === "statues" ? { type: "statues", duration: r.duration ?? STATUES_SEC }
-      : r.type === "pictionary" ? { type: "pictionary", duration: r.duration ?? PICTO_SEC, ...(pictoRoundSeries(r) ? { series: pictoRoundSeries(r) } : {}) }
+      : r.type === "pictionary" ? { type: "pictionary", duration: r.duration ?? PICTO_SEC, ...(pictoRoundSeries(r) ? { series: pictoRoundSeries(r) } : {}), ...picksOf(r) }
       : r.type === "coffres" ? { type: "coffres" }
       : r.type === "gonfleur" ? { type: "gonfleur" }
       : r.type === "patate" ? { type: "patate" }
       : MUSIC_GAMES[r.type] ? { type: r.type, playlistId: r.playlistId }
-      : { type: r.type ?? "quiz", quizId: r.quizId, ...(r.count > 0 ? { count: r.count } : {}), ...((r.type ?? "quiz") === "quiz" && r.finale > 0 ? { finale: r.finale } : {}) })),
+      : { type: r.type ?? "quiz", quizId: roundQuizIds(r)[0], ...(roundQuizIds(r).length > 1 ? { quizIds: roundQuizIds(r) } : {}), ...(r.count > 0 ? { count: r.count } : {}), ...((r.type ?? "quiz") === "quiz" && r.finale > 0 ? { finale: r.finale } : {}) })),
   };
+}
+
+/** Éléments choisis un par un, à enregistrer dans la manche (rien : tirage au hasard au lancement). */
+const picksOf = (r) => (roundPicks(r).length ? { picks: roundPicks(r) } : {});
+
+/** Profil d'âge de la prestation en cours de saisie. */
+function formProfile() {
+  const v = $("show-profile").value;
+  const age = $("show-age").value === "" ? null : Number($("show-age").value);
+  return PROFILES[v] ? v : profileForAge(age);
+}
+
+/** Mots du Pictionary tirés par « Tirer au hasard ». */
+const PICTO_DRAW = 24;
+
+/**
+ * Sélection modifiable d'une manche à cartes (mimes, mots, personnages, familles) : « Tirer au hasard » remplit la
+ * liste, ✕ retire un élément, « Ajouter » en reprend un du catalogue. Liste vide : la box tire au hasard au lancement,
+ * comme avant. [items] : tout ce qu'on peut choisir ({ key, label, group }) ; [get]/[set] : les clés choisies.
+ */
+function selectionEditor({ items, get, set, draw, unit, empty, own }) {
+  const box = h("div", { class: "pick-box" });
+  const paint = () => {
+    const all = items();
+    const byKey = new Map(all.map((x) => [x.key, x]));
+    const chosen = get();
+    const change = (keys) => { set(keys); paint(); refreshSummary(); };
+    const groups = [...new Set(all.filter((x) => !chosen.includes(x.key)).map((x) => x.group ?? ""))];
+    const e = unit === "carte" || unit === "famille" ? "e" : "";
+    const n = chosen.length;
+    box.replaceChildren(...[
+      h("span", { class: "small", text: n ? `${n} ${unit}${n > 1 ? "s" : ""} choisi${e}${n > 1 ? "s" : ""} : la manche joue exactement cette liste.` : empty }),
+      h("button", { type: "button", class: "chip pick-draw", text: "🎲 Tirer au hasard", onclick: () => change(draw()) }),
+      chosen.length ? h("button", { type: "button", class: "chip", text: "Tout retirer (tirage au lancement)", onclick: () => change([]) }) : null,
+      h("div", { class: "pick-list" }, ...chosen.map((k) => h("button", {
+        type: "button", class: "chip pick-item", "data-key": k, title: "Retirer", text: `${byKey.get(k)?.label ?? k} ✕`,
+        onclick: () => change(chosen.filter((x) => x !== k)),
+      }))),
+      chosen.length < MAX_PICKS ? h("select", { class: "pick-add", "aria-label": `Ajouter un ${unit}`, onchange: (ev) => { if (ev.target.value) change([...chosen, ev.target.value]); } },
+        h("option", { value: "", text: `＋ Ajouter un${e} ${unit}…` }),
+        ...groups.map((g) => {
+          const opts = all.filter((x) => (x.group ?? "") === g && !chosen.includes(x.key)).map((x) => h("option", { value: x.key, text: x.label }));
+          return g ? h("optgroup", { label: g }, ...opts) : opts;
+        })) : null,
+      own ? h("span", { class: "pick-own" },
+        h("input", { type: "text", maxlength: 40, placeholder: "Ma carte (un mot à mimer)", "aria-label": "Ma carte" }),
+        h("button", { type: "button", class: "chip", text: "Ajouter", onclick: (ev) => {
+          const input = ev.target.previousElementSibling;
+          const k = own(input.value);
+          if (k && !chosen.includes(k)) change([...chosen, k]);
+        } })) : null,
+    ].filter(Boolean));
+  };
+  paint();
+  return box;
+}
+
+/** Mimes : cartes de la manche, choisies dans le paquet (ou le catalogue) ; ses propres mots aussi. */
+function mimeSelection(r) {
+  const extra = new Map(mimeCards(r.cards).map((c) => [c.word.toLowerCase(), c]));
+  const pool = () => {
+    const deck = r.deckId ? mimes[r.deckId] : null;
+    const list = deck ? mimeCards(deck.cards).map((c) => ({ card: c })) : MIME_CATALOG.map((c) => ({ card: mimeCards([c])[0], group: c.theme }));
+    list.forEach((x) => extra.set(x.card.word.toLowerCase(), extra.get(x.card.word.toLowerCase()) ?? x.card));
+    return list;
+  };
+  return selectionEditor({
+    unit: "carte",
+    empty: r.deckId ? "Aucune carte choisie : tout le paquet, mélangé au lancement." : `Aucune carte choisie : ${MIME_RANDOM} cartes au hasard au lancement, selon l'âge.`,
+    items: () => {
+      const list = pool().map((x) => ({ key: x.card.word.toLowerCase(), label: `${x.card.image ?? ""} ${x.card.word}`.trim(), group: x.group }));
+      const keys = new Set(list.map((x) => x.key));
+      // Cartes ajoutées à la main (absentes du paquet) : elles restent dans la liste.
+      mimeCards(r.cards).filter((c) => !keys.has(c.word.toLowerCase())).forEach((c) => list.push({ key: c.word.toLowerCase(), label: `${c.image ?? ""} ${c.word}`.trim(), group: "Mes cartes" }));
+      return list;
+    },
+    get: () => mimeCards(r.cards).map((c) => c.word.toLowerCase()),
+    set: (keys) => { r.cards = keys.map((k) => extra.get(k)).filter(Boolean); },
+    draw: () => mimeDraw({ deckId: r.deckId }, mimes, formProfile()).map((c) => { extra.set(c.word.toLowerCase(), c); return c.word.toLowerCase(); }),
+    own: (word) => {
+      const c = mimeCards([{ word }])[0];
+      if (!c) return null;
+      extra.set(c.word.toLowerCase(), extra.get(c.word.toLowerCase()) ?? c);
+      return c.word.toLowerCase();
+    },
+  });
+}
+
+/** Jeux intégrés et Pictionary : éléments choisis un par un parmi ceux de la page Jeux. */
+function picksSelection(r) {
+  const game = CONTENT_GAMES[r.type];
+  const builtin = BUILTIN_GAMES[r.type];
+  const unit = r.type === "disparu" ? "famille" : game.unit;
+  return selectionEditor({
+    unit,
+    empty: r.type === "pictionary" ? "Aucun mot choisi : tirage au hasard au lancement, dans les séries cochées." : unit === "famille" ? "Aucune famille choisie : tirage au hasard au lancement." : `Aucun ${unit} choisi : tirage au hasard au lancement.`,
+    items: () => activeItems(r.type, contents[r.type]).map((x) => ({ key: game.key(x), label: game.label(x), group: r.type === "pictionary" ? pictoSeriesOf(x) : undefined })),
+    get: () => roundPicks(r),
+    set: (keys) => {
+      const had = roundPicks(r).length > 0;
+      r.picks = keys.length ? keys : null;
+      // Le nombre d'éléments ne sert qu'au tirage au lancement : caché dès qu'on choisit, remis sinon.
+      if (had !== keys.length > 0) queueMicrotask(refreshRounds);
+    },
+    draw: () => {
+      const profile = formProfile();
+      if (r.type === "pictionary") {
+        const series = pictoRoundSeries(r);
+        const words = activeItems("pictionary", contents.pictionary).filter((w) => (profile !== "PETITS" || w.level !== 2) && (!series || series.includes(pictoSeriesOf(w))));
+        return shuffle(words).slice(0, PICTO_DRAW).map(game.key);
+      }
+      return shuffle(builtin.items(profile, Math.random, activeItems(r.type, contents[r.type]), r)).slice(0, r.count ?? builtin.count).map((x) => game.key(r.type === "disparu" ? { theme: x.theme } : x));
+    },
+  });
+}
+
+/** Quiz d'une manche : un ou plusieurs, leurs questions à la suite dans le même jeu (jamais tirées au hasard). */
+function quizSelection(r, options) {
+  const ids = roundQuizIds(r);
+  const label = (q) => (r.type === "express" ? `${q.title} (${expressQuestions(q).length} Vrai / Faux)`
+    : r.type === "zoom" || r.type === "flou" ? `${q.title} (${zoomQuestions(q).length} avec photo)` : `${q.title} (${playable(q).length} validées)`);
+  const setIds = (list) => {
+    const clean = [...new Set(list.filter(Boolean))];
+    r.quizId = clean[0] ?? "";
+    r.quizIds = clean.length > 1 ? clean : null;
+    refreshRounds();
+  };
+  const select = (current, k) => h("select", {
+    class: "grow", "aria-label": k === 0 ? "Quiz de la manche" : `Quiz ${k + 1} de la manche`,
+    onchange: (e) => { const next = [...ids]; next[k] = e.target.value; setIds(next); },
+  },
+  h("option", { value: "", text: "Choisir un quiz…" }),
+  ...options.filter(([qid]) => qid === current || !ids.includes(qid)).map(([qid, q]) => h("option", { value: qid, selected: current === qid, text: label(q) })));
+  return h("div", { class: "grow quiz-picks" },
+    ...(ids.length ? ids : [""]).map((id, k) => (k === 0 ? select(id, 0)
+      : h("span", { class: "quiz-more" }, select(id, k), h("button", { type: "button", class: "icon", title: "Retirer ce quiz", text: "✕", onclick: () => setIds(ids.filter((x) => x !== id)) })))),
+    ids.length > 0 && ids.length < options.length
+      ? h("button", { type: "button", class: "chip quiz-add", text: "＋ Enchaîner un autre quiz", onclick: () => {
+        const next = options.find(([qid]) => !ids.includes(qid));
+        if (next) setIds([...ids, next[0]]);
+      } })
+      : null);
 }
 
 /** Nombre de séries tirées par « Au hasard ». */
@@ -395,7 +563,7 @@ function pictoSeriesPicker(r) {
     const chosen = pictoRoundSeries(r) ?? [];
     const count = words.filter((w) => !chosen.length || chosen.includes(pictoSeriesOf(w))).length;
     const set = (list) => { r.series = list.length ? list : null; draw(); refreshSummary(); };
-    box.replaceChildren(
+    box.replaceChildren(...[
       h("span", { class: "small", text: chosen.length ? `Séries : ${count} mots` : `Toutes les séries : ${count} mots` }),
       ...all.map((name) => h("button", {
         type: "button", class: `chip${chosen.includes(name) ? " active" : ""}`, "aria-pressed": chosen.includes(name) ? "true" : "false",
@@ -408,7 +576,7 @@ function pictoSeriesPicker(r) {
         onclick: () => set([...all].sort(() => Math.random() - 0.5).slice(0, Math.min(PICTO_RANDOM_SERIES, all.length))),
       }),
       chosen.length ? h("button", { type: "button", class: "chip", text: "Toutes", onclick: () => set([]) }) : null,
-    );
+    ].filter(Boolean));
   };
   draw();
   return box;
@@ -434,11 +602,13 @@ function refreshRounds() {
         }))),
       BUILTIN_GAMES[r.type]
         // Jeux au buzzer intégrés : rien à préparer, seulement combien de mots ou de personnages.
-        ? h("select", { class: "grow", "aria-label": "Nombre", onchange: (e) => { r.count = Number(e.target.value); refreshSummary(); } },
-          ...[4, 5, 6, 8, 10].map((n) => h("option", {
-            value: n, selected: (r.count ?? BUILTIN_GAMES[r.type].count) === n,
-            text: `${n} ${BUILTIN_GAMES[r.type].unit}s (${BUILTIN_GAMES[r.type].rule})`,
-          })))
+        ? h("div", { class: "grow picto-round" },
+          roundPicks(r).length ? null : h("select", { class: "grow", "aria-label": "Nombre", onchange: (e) => { r.count = Number(e.target.value); refreshSummary(); } },
+            ...[4, 5, 6, 8, 10].map((n) => h("option", {
+              value: n, selected: (r.count ?? BUILTIN_GAMES[r.type].count) === n,
+              text: `${n} ${BUILTIN_GAMES[r.type].unit}s (${BUILTIN_GAMES[r.type].rule})`,
+            }))),
+          picksSelection(r))
         : r.type === "statues"
         // Statues musicales : rien à préparer, seulement la durée de la musique.
         ? h("select", { class: "grow", "aria-label": "Durée", onchange: (e) => { r.duration = Number(e.target.value); refreshSummary(); } },
@@ -448,7 +618,8 @@ function refreshRounds() {
         ? h("div", { class: "grow picto-round" },
           h("select", { "aria-label": "Temps de dessin", onchange: (e) => { r.duration = Number(e.target.value); refreshSummary(); } },
             ...PICTO_SECONDS.map((n) => h("option", { value: n, selected: (r.duration ?? PICTO_SEC) === n, text: `${n} secondes de dessin par équipe (un mot par tour, ${PICTO_POINTS} points s'il est trouvé)` }))),
-          pictoSeriesPicker(r))
+          pictoSeriesPicker(r),
+          picksSelection(r))
         : r.type === "coffres"
         // La bombe cachée : rien à préparer, le nombre de coffres suit le nombre d'équipes.
         ? h("span", { class: "grow hint small", text: "Rien à préparer : le nombre de coffres suit le nombre d'équipes. Idéal en dernier jeu." })
@@ -461,16 +632,17 @@ function refreshRounds() {
           h("option", { value: "", text: lists.length ? "Choisir une playlist…" : "Aucune playlist : créez-en une dans Blind test" }),
           ...lists.map(([pid, p]) => h("option", { value: pid, selected: r.playlistId === pid, text: `${p.title} (${playableTracks(p).length} morceaux, extraits de ${p.duration ?? BLIND_SEC} s)` })))
         : r.type === "mimes"
-        ? h("select", { class: "grow", "aria-label": "Paquet de mimes", onchange: (e) => { r.deckId = e.target.value; refreshSummary(); } },
-          h("option", { value: "", text: decks.length ? "Choisir un paquet de mimes…" : "Aucun paquet : créez-en un dans Mimes" }),
-          ...decks.map(([did, d]) => h("option", { value: did, selected: r.deckId === did, text: `${d.title} (${(d.cards ?? []).length} cartes, tour de ${d.duration ?? MIME_TURN} s)` })))
-        : h("select", { class: "grow", "aria-label": "Quiz de la manche", onchange: (e) => { r.quizId = e.target.value; refreshSummary(); } },
-          h("option", { value: "", text: "Choisir un quiz…" }),
-          ...options.map(([qid, q]) => h("option", {
-            value: qid, selected: r.quizId === qid,
-            text: r.type === "express" ? `${q.title} (${expressQuestions(q).length} Vrai / Faux)`
-              : r.type === "zoom" || r.type === "flou" ? `${q.title} (${zoomQuestions(q).length} avec photo)` : `${q.title} (${playable(q).length} validées)`,
-          }))),
+        ? h("div", { class: "grow picto-round" },
+          h("select", {
+            class: "grow", "aria-label": "Paquet de mimes",
+            // Changer de paquet repart d'un tirage au lancement : les cartes choisies venaient de l'autre.
+            onchange: (e) => { const v = e.target.value; r.random = v === "hasard"; r.deckId = v === "hasard" ? null : v; r.cards = null; refreshRounds(); },
+          },
+          h("option", { value: "", text: "Choisir un paquet de mimes…" }),
+          h("option", { value: "hasard", selected: !r.deckId && r.random === true, text: `🎲 Cartes du catalogue, selon l'âge (${MIME_RANDOM} au hasard, ou choisies ci-dessous)` }),
+          ...decks.map(([did, d]) => h("option", { value: did, selected: r.deckId === did, text: `${d.title} (${(d.cards ?? []).length} cartes, tour de ${d.duration ?? MIME_TURN} s)` }))),
+          r.deckId || r.random === true || mimeCards(r.cards).length ? mimeSelection(r) : null)
+        : quizSelection(r, options),
       // Qui a disparu ? : objets par grille, pour régler la difficulté (par défaut selon l'âge de la prestation).
       r.type === "disparu"
         ? h("select", { class: "count", "aria-label": "Objets par grille", onchange: (e) => { r.objects = Number(e.target.value) || null; refreshSummary(); } },
@@ -537,9 +709,10 @@ function refreshReuse() {
 function roundContent(r) {
   if (!r?.type && !r?.quizId) return null;
   if (BUILTIN_GAMES[r.type] || r.type === "statues" || r.type === "pictionary" || r.type === "coffres" || r.type === "portes" || r.type === "gonfleur" || r.type === "patate") return "";
-  if (r.type === "mimes") return mimes[r.deckId]?.title ?? null;
+  if (r.type === "mimes") return r.deckId ? mimes[r.deckId]?.title ?? null : "cartes au hasard";
   if (MUSIC_GAMES[r.type]) return playlists[r.playlistId]?.title ?? null;
-  return quizzes[r.quizId]?.title ?? null;
+  const titles = roundQuizIds(r).map((id) => quizzes[id]?.title);
+  return titles.length && titles.every(Boolean) ? titles.join(" + ") : null;
 }
 $("round-reuse").onchange = (e) => {
   const r = reuseChoices.get(e.target.value);
@@ -570,6 +743,7 @@ $("show-form").onsubmit = async (e) => {
       updatedAt: serverTimestamp(),
     });
     editing.id = id;
+    histPrestation.enregistre();
     $("show-delete").hidden = false;
     $("show-edit-title").textContent = showTitle(s);
     status("show-status-msg", s.status === "publiee" ? "Enregistrée. Elle est visible sur la régie." : "Enregistrée.", true);
@@ -608,7 +782,7 @@ function renderQuizzes() {
         h("button", { class: "btn danger", onclick: () => deleteQuiz(id, q), text: "Supprimer" }))));
   });
 }
-const SOURCES = { gemini: "Gemini", tableur: "tableur", json: "fichier", saisie: "saisie" };
+const SOURCES = { gemini: "Gemini", tableur: "tableur", json: "fichier", saisie: "saisie", photos: "photos" };
 
 /** Copie à relire puis enregistrer comme nouveau quiz : l'original et ses prestations ne changent pas. */
 function duplicateQuiz(q) {
@@ -618,11 +792,32 @@ function duplicateQuiz(q) {
 }
 
 async function deleteQuiz(id, q) {
-  const used = Object.values(shows).filter((s) => (s.rounds ?? []).some((r) => r?.quizId === id)).map(showTitle);
+  const used = Object.values(shows).filter((s) => (s.rounds ?? []).some((r) => roundQuizIds(r).includes(id))).map(showTitle);
   const warning = used.length ? `\n\nAttention, il est utilisé par : ${used.join(", ")}.` : "";
   if (!confirm(`Supprimer le quiz « ${q.title} » ?${warning}`)) return;
   await set(ref(db, `library/quizzes/${id}`), null);
 }
+
+/** Au plus autant de photos d'un coup (chacune pèse dans la base). */
+const MAX_PHOTOS = 40;
+
+/** Quiz de photos : chaque photo choisie est réduite et rangée, puis le quiz s'ouvre à la relecture avant d'être enregistré. */
+$("quiz-photos-open").onclick = () => $("quiz-photos").click();
+$("quiz-photos").onchange = async () => {
+  const files = [...$("quiz-photos").files].filter((f) => f.type.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(f.name)).slice(0, MAX_PHOTOS);
+  $("quiz-photos").value = "";
+  if (!files.length) return;
+  const questions = photoQuestions(files.map((f) => f.name));
+  const kept = [];
+  for (const [k, f] of files.entries()) {
+    $("quiz-photos-open").textContent = `Préparation des photos… (${k + 1}/${files.length})`;
+    try { kept.push({ ...questions[k], imageId: await storeIllustration(f) }); } catch (err) { console.error(err); }
+  }
+  $("quiz-photos-open").textContent = "📷 Quiz de photos";
+  if (!kept.length) return alert("Ces photos n'ont pas pu être lues : essayez des JPEG ou des PNG.");
+  review(null, { title: "Mes photos", theme: "", source: "photos", questions: kept });
+  status("rv-status", `${kept.length} photo${kept.length > 1 ? "s" : ""} prête${kept.length > 1 ? "s" : ""} : vérifiez chaque réponse, puis enregistrez.`, true);
+};
 
 $("quiz-import-open").onclick = () => {
   $("import-text").value = "";
@@ -763,7 +958,19 @@ function review(id, quiz) {
   status("rv-status", "");
   show("review");
   renderReview();
+  histRelecture.depart();
 }
+
+const REVIEW_FIELDS = ["rv-title", "rv-theme", "rv-age-min", "rv-age-max"];
+const histRelecture = historique({
+  ecran: $("screen-review"),
+  capturer: () => ({ questions: draft?.questions ?? [], champs: REVIEW_FIELDS.map((id) => $(id).value) }),
+  restaurer: (e) => {
+    REVIEW_FIELDS.forEach((id, k) => { $(id).value = e.champs[k]; });
+    if (draft) draft.questions = e.questions;
+    renderReview();
+  },
+});
 
 function profileOfDraft() {
   const age = Number($("rv-age-min").value);
@@ -858,6 +1065,7 @@ function illustrationRow(q, i) {
         const id = await storeIllustration(f);
         const data = imageCache[id];
         q.imageId = id;
+        noterEcran();
         remove.hidden = false;
         showPreview();
         info.textContent = `Photo prête (${Math.round(data.length / 1365)} Ko). Pensez à enregistrer le quiz.`;
@@ -909,6 +1117,7 @@ function choicePhoto(q, slots, k) {
       try {
         const id = await storeChoiceImage(f);
         q.slotImages[k] = id;
+        setTimeout(noterEcran, 0);
         if (!slots[k].trim()) {
           slots[k] = wordFromImage(f.name) || LETTERS[k];
           const input = $("rv-list").querySelector(`[data-q="${draft.questions.indexOf(q)}"]`)?.querySelectorAll(".q-choice")[k];
@@ -1034,6 +1243,7 @@ $("rv-save").onclick = async () => {
       })),
     });
     draft.id = id;
+    histRelecture.enregistre();
     const ok = questions.filter((q) => q.status === "validee").length;
     status("rv-status", `Enregistré : ${ok} question${ok > 1 ? "s" : ""} validée${ok > 1 ? "s" : ""} sur ${questions.length}.`, true);
   } catch (err) {
@@ -1254,7 +1464,19 @@ function editDeck(id, from = null) {
   status("mime-status", "");
   show("mime-edit");
   renderDeck();
+  histPaquet.depart();
 }
+
+const histPaquet = historique({
+  ecran: $("screen-mime-edit"),
+  capturer: () => ({ cards: deck?.cards ?? [], title: $("mime-title").value, duration: $("mime-duration").value }),
+  restaurer: (e) => {
+    if (deck) deck.cards = e.cards;
+    $("mime-title").value = e.title;
+    $("mime-duration").value = e.duration;
+    renderDeck();
+  },
+});
 
 function toggleCard(card) {
   const i = deck.cards.findIndex((c) => sameCard(c, card));
@@ -1310,6 +1532,7 @@ $("mime-save").onclick = async () => {
       createdAt: mimes[id]?.createdAt ?? Date.now(), updatedAt: serverTimestamp(),
     });
     deck.id = id;
+    histPaquet.enregistre();
     $("mime-delete").hidden = false;
     $("mime-edit-title").textContent = title;
     status("mime-status", `Enregistré : ${deck.cards.length} carte${deck.cards.length > 1 ? "s" : ""}. Ajoutez-le à une prestation comme manche « Mimes ».`, true);
@@ -1391,7 +1614,20 @@ function editPlaylist(id) {
   status("playlist-status", "");
   show("playlist-edit");
   renderTracks();
+  histPlaylist.depart();
 }
+
+const PLAYLIST_FIELDS = ["playlist-title", "playlist-duration", "playlist-points", "playlist-final-points", "playlist-final-count", "playlist-reveal"];
+const histPlaylist = historique({
+  ecran: $("screen-playlist-edit"),
+  capturer: () => ({ tracks: playlist?.tracks ?? [], champs: PLAYLIST_FIELDS.map((id) => $(id).value) }),
+  restaurer: (e) => {
+    stopPreview();
+    PLAYLIST_FIELDS.forEach((id, k) => { $(id).value = e.champs[k]; });
+    if (playlist) playlist.tracks = e.tracks;
+    renderTracks();
+  },
+});
 
 function stopPreview() {
   if (!preview) return;
@@ -1460,6 +1696,7 @@ function coverTools(t) {
         if (!(await get(target)).exists()) await set(target, data);
         imageCache[id] = data;
         t.imageId = id;
+        noterEcran();
         remove.hidden = false;
         showCover();
       } catch (err) {
@@ -1541,6 +1778,7 @@ $("playlist-files").onchange = async (e) => {
     playlist.tracks.push({ title, artist, rights: "", file, length, start: defaultStart(length, Number($("playlist-duration").value)) });
   }
   renderTracks();
+  noterEcran();
 };
 
 $("playlist-save").onclick = async () => {
@@ -1584,6 +1822,7 @@ $("playlist-save").onclick = async () => {
       createdAt: playlists[id]?.createdAt ?? Date.now(), updatedAt: serverTimestamp(),
     });
     playlist.id = id;
+    histPlaylist.enregistre();
     $("playlist-delete").hidden = false;
     $("playlist-edit-title").textContent = title;
     renderTracks();
@@ -1702,7 +1941,15 @@ function openBuiltin(type) {
   renderBuiltinForm();
   show("builtin");
   renderBuiltin();
+  histJeu.depart();
 }
+
+/** Page d'un jeu (page Jeux) : chaque touche est enregistrée tout de suite ; Retour et Annuler réenregistrent l'état d'avant. */
+const histJeu = historique({
+  ecran: $("screen-builtin"),
+  capturer: () => (builtinType ? builtinState(builtinType) : null),
+  restaurer: (e) => { if (builtinType && e) saveBuiltin(builtinType, e, "Modification annulée."); },
+});
 
 /** État enregistré du jeu, en listes simples : clés retirées et ajouts valables. */
 function builtinState(type) {
@@ -1721,6 +1968,7 @@ async function saveBuiltin(type, next, message) {
       updatedAt: serverTimestamp(),
     });
     status("builtin-status", message, true);
+    histJeu.noter();
   } catch (err) {
     console.error(err);
     status("builtin-status", "Enregistrement refusé : vérifiez Internet ou reconnectez-vous.");
