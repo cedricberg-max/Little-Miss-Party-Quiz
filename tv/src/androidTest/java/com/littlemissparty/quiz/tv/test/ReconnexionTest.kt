@@ -51,8 +51,8 @@ class ReconnexionTest : TestTv() {
     }
 
     /**
-     * Fête sans Internet : la box se fige une seule fois et explique les cartes A B C D ; l'animatrice relance,
-     * donne les points à la télécommande, et la question suivante n'est pas figée à nouveau.
+     * Coupure d'Internet : la box se fige une seule fois ; l'animatrice relance, donne des points à la
+     * télécommande, et la question suivante n'est pas figée à nouveau.
      */
     @Test
     fun feteSansInternetALaTelecommande() {
@@ -65,8 +65,7 @@ class ReconnexionTest : TestTv() {
             ecran.voit("Hors connexion")
             ecran.ok("Lancer la fête !")
             ecran.voit("on attend le retour d'Internet")
-            ecran.voit("montrez vos cartes A B C D")
-            ecran.capture("pause-sans-internet-cartes")
+            ecran.capture("pause-sans-internet")
             ecran.ok("Reprendre")
             Thread.sleep(4_000)
 

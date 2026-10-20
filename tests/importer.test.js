@@ -8,7 +8,7 @@ import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, roundFille
   readiness, upcoming, daysUntil, isoDay, duplicateShow, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
   soundIds, choiceImageIds, choiceImageList, pictoSeriesList, pictoSeriesOf, foldLegacyFinale,
   roundQuizIds, MIME_RANDOM,
-  statuesSongs, roundSongs, isStatuesList,
+  statuesSongs, statuesChoices, roundSongs, isStatuesList,
 } from "../web/public/show.js";
 import { PICTO_WORDS, PICTO_SERIES } from "../web/public/picto-cards.js";
 import { guessTrack, defaultStart, normalizeLevel } from "../web/public/audio.js";
@@ -623,21 +623,24 @@ describe("statues musicales", () => {
     assert.equal(roundFilled({ type: "statues" }), true);
     assert.equal(estimateMinutes(snapshot), 4);
   });
-  test("chansons cochées : jouées dans l'ordre de la liste, à copier dans la partie ; absentes de la liste, ignorées", () => {
+  test("chansons cochées dans la liste des statues ou dans toutes les playlists : jouées dans l'ordre, à copier dans la partie ; retirées, ignorées", () => {
     const A = "0123456789abcdef", B = "fedcba9876543210", C = "00000000000000aa";
     const playlists = {
       danse: { title: "Chansons des statues musicales", use: "statues", duration: 60, tracks: [{ title: "Canards", audioId: A }, { title: "Tourner", audioId: B }, { title: "Pirates", audioId: C }] },
       blind: { title: "Dessins animés", duration: 25, tracks: [{ title: "Hakuna", audioId: "1111111111111111" }] },
     };
     const { snapshot } = buildSnapshot("s", { childName: "Léa", age: 7, rounds: [
-      { type: "statues", duration: 90, songs: [C, A, "2222222222222222"] },
+      { type: "statues", duration: 90, songs: ["1111111111111111", C, A, "2222222222222222"] },
       { type: "statues", duration: 60, songs: [] },
     ] }, {}, {}, Math.random, playlists);
     const [avec, sans] = snapshot.quiz.questions;
-    assert.deepEqual(avec.audioIds, [A, C], "l'ordre de la liste, une chanson retirée de la liste ignorée");
+    assert.deepEqual(avec.audioIds, [A, C, "1111111111111111"], "la liste des statues d'abord, puis les playlists ; une chanson retirée ignorée");
     assert.equal(sans.audioIds, undefined, "aucune chanson : la musique de la fête");
-    assert.deepEqual(soundIds(snapshot.quiz.questions), [A, C]);
-    assert.deepEqual(statuesSongs(playlists).map((t) => t.title), ["Canards", "Tourner", "Pirates"], "la playlist du blind test n'en fait pas partie");
+    assert.deepEqual(soundIds(snapshot.quiz.questions), [A, C, "1111111111111111"]);
+    assert.deepEqual(statuesSongs(playlists).map((t) => t.title), ["Canards", "Tourner", "Pirates"], "cochées d'office : la liste des statues seule");
+    assert.deepEqual(statuesChoices(playlists).map((t) => [t.title, t.list]), [
+      ["Canards", "Chansons des statues"], ["Tourner", "Chansons des statues"], ["Pirates", "Chansons des statues"], ["Hakuna", "Dessins animés"],
+    ], "au choix : toutes les playlists, chaque chanson une fois");
     assert.equal(isStatuesList(playlists.blind), false);
     assert.deepEqual(roundSongs({ songs: [B] }, playlists).map((t) => t.title), ["Tourner"]);
   });
@@ -1019,7 +1022,9 @@ describe("collections, manches et prestation", async () => {
     assert.deepEqual(M.collectionItems("zoom", lib).map((x) => [x.label, x.group]), [["Lion", "Photos"], ["Chien", "Photos"]]);
     const tracks = M.collectionItems("blind", lib);
     assert.deepEqual(tracks.map((x) => x.group), ["Années 80", "Disney", "Disney"], "les chansons des statues n'y sont pas");
-    assert.deepEqual(M.collectionItems("statues", lib).map((x) => x.label), ["Danse"]);
+    // Statues : la liste des statues d'abord, puis les chansons de toutes les playlists.
+    assert.deepEqual(M.collectionItems("statues", lib).map((x) => [x.label, x.group]),
+      [["Danse", "Chansons des statues"], ["Thriller", "Années 80"], ["Libérée", "Disney"], ["Hakuna", "Disney"]]);
   });
 
   test("manche au hasard : catégories, difficulté, jamais un élément déjà joué, collection épuisée signalée", () => {

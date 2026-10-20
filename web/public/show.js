@@ -48,10 +48,21 @@ export const MAX_STATUES_SONGS = 20;
 export const isStatuesList = (p) => p?.use === "statues";
 /** Toutes les chansons des statues (titre et extrait enregistré), dans l'ordre de la liste. */
 export const statuesSongs = (playlists) => Object.values(playlists ?? {}).filter(isStatuesList).flatMap((p) => playableTracks(p));
-/** Chansons choisies pour une manche, dans l'ordre de la liste ; celles retirées de la liste depuis sont ignorées. */
+/**
+ * Chansons que les statues peuvent jouer : celles de la liste des statues d'abord, puis celles de toutes les autres
+ * playlists (titre de la playlist dans `list`), chacune une seule fois. Une nouvelle manche ne coche que la liste.
+ */
+export function statuesChoices(playlists) {
+  const seen = new Set();
+  const lists = Object.values(playlists ?? {}).filter((p) => p?.title || isStatuesList(p))
+    .sort((a, b) => (isStatuesList(b) ? 1 : 0) - (isStatuesList(a) ? 1 : 0) || (a.title ?? "").localeCompare(b.title ?? "", "fr"));
+  return lists.flatMap((p) => playableTracks(p).map((t) => ({ ...t, list: isStatuesList(p) ? "Chansons des statues" : p.title })))
+    .filter((t) => !seen.has(t.audioId) && seen.add(t.audioId));
+}
+/** Chansons choisies pour une manche, dans l'ordre des listes ; celles retirées des playlists depuis sont ignorées. */
 export function roundSongs(round, playlists) {
   const chosen = new Set(Array.isArray(round?.songs) ? round.songs : []);
-  return statuesSongs(playlists).filter((t, i, all) => chosen.has(t.audioId) && all.findIndex((x) => x.audioId === t.audioId) === i).slice(0, MAX_STATUES_SONGS);
+  return statuesChoices(playlists).filter((t) => chosen.has(t.audioId)).slice(0, MAX_STATUES_SONGS);
 }
 /**
  * Pictionary : équipe par équipe, un mot par tour ; temps de dessin proposés (secondes), celui par défaut, et
