@@ -11,6 +11,7 @@ import { envoyeurDessin } from "./picto.js";
 import { creerArdoise, choisirMot } from "./ardoise.js";
 import { animationSpectateurs } from "./spectateurs.js";
 import { choisirPorte, ecranPorteOuverte } from "./portes.js";
+import { ecranCoffres, REVELATION_MS } from "./coffres.js";
 
 const $ = (id) => document.getElementById(id);
 /** Jeux au buzzer : un seul grand BUZZ, la réponse se donne à voix haute. */
@@ -66,7 +67,7 @@ function maybeReload() {
 watchVersion(() => { newVersion = true; maybeReload(); });
 
 /** Écrans où l'équipe joue (salon compris) : la tablette reste allumée, même si personne ne la touche. */
-const AWAKE_SCREENS = new Set(["waiting", "play", "question", "result", "pick", "draw", "watch"]);
+const AWAKE_SCREENS = new Set(["waiting", "play", "question", "coffres", "result", "pick", "draw", "watch"]);
 /** Écrans où la partie est finie pour cet appareil : la veille normale d'Android reprend. */
 const SLEEP_SCREENS = new Set(["join", "ended", "replaced"]);
 
@@ -401,14 +402,17 @@ function render() {
   runResumeCountdown(st);
   // Saut vers un autre jeu en plein Pictionary : l'ardoise, les mots et l'animation s'arrêtent.
   if (st.kind !== "pictionary" || !st.mime) stopPicto();
+  if (st.kind !== "coffres" || !["question", "closed", "reveal", "scores"].includes(st.phase)) stopCoffres();
   $("play-intro").hidden = true;
   switch (st.phase) {
     case "question":
     case "closed":
+      if (st.kind === "coffres") return renderCoffres(st);
       return st.mime ? (st.kind === "pictionary" ? renderPicto(st) : renderMime(st)) : st.kind === "statues" ? renderStatues(st) : BUZZ_KINDS.includes(st.kind) ? renderFlou(st) : renderQuestion(st);
     case "reveal":
     case "scores":
       stopPicto();
+      if (st.kind === "coffres") return renderCoffres(st);
       return st.mime ? renderMimeResult(st) : renderResult(st);
     case "ended":
       stopPicto();
@@ -968,6 +972,91 @@ function renderPortesResult(st, award) {
     const { mine, rank } = rankOf(st.scores);
     $("r-total").textContent = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`;
   } else $("r-total").textContent = "Classement à la fin des portes !";
+}
+
+/** La bombe cachée (écran coffres.js) : { ctl, cle, envoi, tour, alarme } du jeu en cours. */
+let coffres = null;
+function stopCoffres() {
+  if (!coffres) return;
+  clearTimeout(coffres.alarme);
+  coffres.ctl.detruire();
+  coffres = null;
+}
+
+/**
+ * La bombe cachée : l'équipe qui joue choisit un coffre et l'ouvre, les autres regardent. Le contenu d'un coffre
+ * n'apparaît qu'une fois montré par la TV ; le bilan du jeu arrive après l'explosion.
+ */
+function renderCoffres(st) {
+  clearInterval(timerHandle);
+  show("coffres");
+  const c = st.chests ?? {};
+  coffres ??= { ctl: ecranCoffres($("coffres-host"), { surChoix: chooseChest }), cle: null, envoi: null, tour: null, alarme: null, message: null };
+  // Nouvelle ouverture : plus rien d'envoyé.
+  if (coffres.cle !== (c.key ?? null)) { coffres.cle = c.key ?? null; coffres.envoi = null; coffres.message = null; }
+  const now = Date.now() + serverOffset;
+  const equipe = (id) => game.teams[id] ? { nom: game.teams[id].name, couleur: game.teams[id].color } : { nom: "Une équipe", couleur: "#fff" };
+  const ouverts = (Array.isArray(c.opened) ? c.opened : Object.values(c.opened ?? {})).map((o) => ({
+    ...o, ...equipe(o.team), couleur: equipe(o.team).couleur, visible: now >= (o.at ?? 0) + REVELATION_MS,
+  }));
+  const dernier = ouverts[ouverts.length - 1];
+  const suspense = dernier != null && !dernier.visible;
+  const aMoi = st.phase === "question" && c.team === teamId;
+  // C'est notre tour (nouvelle ouverture) : la tablette le signale.
+  if (aMoi && coffres.tour !== c.key) { coffres.tour = c.key; navigator.vibrate?.([60, 60, 60]); beep(988, 140); }
+  const pret = c.ready === true;
+  const attente = Math.max(0, (c.readyAt ?? 0) + 300 - now);
+  const peutOuvrir = aMoi && !st.paused && !counting(st) && attente === 0;
+  const fini = st.phase === "scores" || (c.exploded === true && !suspense);
+  const joue = c.team ? equipe(c.team) : null;
+  let titre; let texte;
+  if (!pret) { titre = "La bombe cachée"; texte = "Les coffres arrivent sur la TV…"; }
+  else if (fini) { titre = "BOUM ! Le bilan"; texte = `${equipe(dernier?.team).nom} a trouvé la bombe !`; }
+  else if (suspense) { titre = `Coffre ${dernier.chest + 1}…`; texte = `${dernier.nom} ouvre son coffre : regardez la TV !`; }
+  else if (st.paused) { titre = "Pause"; texte = "La partie reprend bientôt."; }
+  else if (aMoi) {
+    titre = `À vous, ${joue.nom} !`;
+    texte = coffres.envoi != null ? `Coffre ${coffres.envoi + 1} choisi : regardez la TV !`
+      : attente > 0 ? "Préparez-vous, la TV termine…" : "Choisissez un coffre, puis ouvrez-le !";
+  } else if (joue) { titre = `Au tour de l'équipe ${joue.nom}`; texte = "Quel coffre va-t-elle choisir ? Regardez bien !"; }
+  else { titre = "La bombe cachée"; texte = "Regardez la TV !"; }
+  if (pret && !fini && !suspense && !st.paused) {
+    texte += c.danger ? " Attention, la bombe peut être dans n'importe quel coffre !"
+      : ` Encore ${c.safeLeft} coffre${c.safeLeft > 1 ? "s" : ""} sans danger.`;
+  }
+  if (coffres.message) texte = coffres.message;
+  const gains = c.gains ?? {};
+  const bilan = fini ? Object.keys(gains).map((id) => ({ ...equipe(id), gain: gains[id] ?? 0, moi: id === teamId })).sort((a, b) => b.gain - a.gain) : null;
+  let total = "";
+  if (fini) { const { mine, rank } = rankOf(st.scores); total = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`; }
+  coffres.ctl.maj({
+    pret, cle: c.key ?? null, count: c.count ?? 0, ouverts, joue, aMoi, peutOuvrir, envoye: coffres.envoi,
+    titre, texte, danger: c.danger === true, bilan, total,
+  });
+  // Prochain moment où l'écran change sans nouvel état : fin de l'animation (bouton) ou contenu montré par la TV.
+  clearTimeout(coffres.alarme);
+  const prochains = [aMoi && attente > 0 ? attente : null, suspense ? dernier.at + REVELATION_MS - now : null].filter((ms) => ms != null && ms > 0);
+  if (prochains.length) coffres.alarme = setTimeout(render, Math.min(...prochains) + 50);
+}
+
+async function chooseChest(i) {
+  const key = game.state?.chests?.key;
+  if (i == null || !key || !coffres) return;
+  coffres.envoi = i;
+  coffres.message = null;
+  beep(660, 120);
+  navigator.vibrate?.(40);
+  render();
+  try {
+    await set(ref(db, `games/${code}/chestChoice/${key}`), { i, at: serverTimestamp() });
+  } catch {
+    // Refusé (connexion, pause, animation pas finie) : on peut choisir et ouvrir de nouveau.
+    if (coffres && game.state?.chests?.key === key) {
+      coffres.envoi = null;
+      coffres.message = "Le coffre ne s'est pas ouvert : touchez encore « Ouvrir » dans un instant.";
+    }
+    render();
+  }
 }
 
 function renderEnded(st) {

@@ -110,6 +110,17 @@
             }
           }
         },
+        "chestChoice": {
+          ".read": "auth != null",
+          ".write": "auth != null && root.child('games').child($code).child('hostUid').val() === auth.uid && !newData.exists()",
+          "$key": {
+            ".write": "auth != null && newData.exists() && !data.exists() && root.child('games').child($code).child('state/kind').val() === 'coffres' && root.child('games').child($code).child('state/phase').val() === 'question' && root.child('games').child($code).child('state/paused').val() !== true && root.child('games').child($code).child('state/chests/key').val() === $key && root.child('games').child($code).child('state/chests/team').isString() && now >= root.child('games').child($code).child('state/chests/readyAt').val() && (!root.child('games').child($code).child('state/resumeAt').exists() || now >= root.child('games').child($code).child('state/resumeAt').val()) && (root.child('games').child($code).child('teams').child(root.child('games').child($code).child('state/chests/team').val()).child('device').val() === auth.uid || (!root.child('games').child($code).child('teams').child(root.child('games').child($code).child('state/chests/team').val()).child('device').exists() && auth.uid === root.child('games').child($code).child('state/chests/team').val()))",
+            ".validate": "newData.child('i').isNumber() && newData.child('i').val() % 1 === 0 && newData.child('i').val() >= 0 && newData.child('i').val() < root.child('games').child($code).child('state/chests/count').val() && newData.child('at').val() === now",
+            "$other": {
+              ".validate": "$other === 'i' || $other === 'at'"
+            }
+          }
+        },
         "pairing": {
           "$uid": {
             ".read": "auth != null && auth.uid === $uid",
@@ -144,7 +155,7 @@
           ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
           "$cmd": {
             ".write": "auth != null && !data.exists() && newData.exists() && root.child('games').child($code).child('regie').child(auth.uid).exists()",
-            ".validate": "newData.child('type').isString() && newData.child('type').val().matches(/^(next|pause|resume|close|adjust|undo|end|admit|replace|mime_start|mime_found|mime_pass|mime_fix|mime_stop|goto|buzz_ok|buzz_ko|buzz_bonus|statues_win|blind_play|blind_unblock|blind_reveal|blind_skip|blind_cut|picto_show|picto_draw|factor|portes_set)$/) && newData.child('expectSeq').isNumber() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
+            ".validate": "newData.child('type').isString() && newData.child('type').val().matches(/^(next|pause|resume|close|adjust|undo|end|admit|replace|mime_start|mime_found|mime_pass|mime_fix|mime_stop|goto|buzz_ok|buzz_ko|buzz_bonus|statues_win|blind_play|blind_unblock|blind_reveal|blind_skip|blind_cut|picto_show|picto_draw|factor|portes_set|chest_random)$/) && newData.child('expectSeq').isNumber() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
             "team": {
               ".validate": "newData.isString() && newData.val().length <= 128"
             },

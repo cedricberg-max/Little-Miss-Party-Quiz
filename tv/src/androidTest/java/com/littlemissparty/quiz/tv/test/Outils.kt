@@ -364,6 +364,15 @@ class PupitreSimule(etiquette: String) : AutoCloseable {
         }
     }.onFailure { Log.i(TAG, "Choix du mot refusé : ${it.message}") }.isSuccess
 
+    /** La bombe cachée : l'équipe qui joue ouvre le coffre [choix] ; renvoie false si le serveur refuse. */
+    fun ouvrirCoffre(code: String, choix: Int): Boolean = runCatching {
+        val cle = etat(code).child("chests/key").value.toString()
+        bloquer {
+            base.getReference("games/$code/chestChoice/$cle")
+                .setValue(mapOf("i" to choix, "at" to ServerValue.TIMESTAMP)).await()
+        }
+    }.onFailure { Log.i(TAG, "Coffre refusé : ${it.message}") }.isSuccess
+
     /** Pictionary : envoie un morceau de trait (« x,y x,y … » de 0 à 1000) ; renvoie false si le serveur refuse. */
     fun dessiner(code: String, points: String, couleur: String = "#F94144", epaisseur: Int = 3): Boolean = runCatching {
         val cle = etat(code).child("mime/drawKey").value.toString()

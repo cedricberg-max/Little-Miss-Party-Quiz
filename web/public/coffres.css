@@ -1,0 +1,76 @@
+/* La bombe cachée sur la tablette : des coffres pastel cerclés d'or, posés sur le sol, comme sur la TV. */
+.bc { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; padding: 6px 8px; text-align: center; color: #fff; }
+.bc-tete { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; }
+.bc-titre { font: 800 clamp(22px, 5vw, 32px) system-ui, sans-serif; line-height: 1.15; color: #f3d79c; text-shadow: 0 2px 0 rgba(26, 11, 46, .35); }
+.bc-titre.bc-equipe { color: #fff; padding: 2px 18px; border-radius: 99px; background: rgba(26, 11, 46, .55); box-shadow: 0 0 0 3px var(--eq), 0 0 18px var(--eq); }
+.bc-danger { padding: 4px 14px; border-radius: 99px; font-weight: 900; font-size: clamp(15px, 3.4vw, 19px); color: #ffe7c2; background: rgba(120, 30, 20, .55); box-shadow: 0 0 0 2px rgba(255, 140, 90, .7); animation: bc-braise 2.4s ease-in-out infinite; }
+@keyframes bc-braise { 50% { box-shadow: 0 0 0 2px rgba(255, 140, 90, .7), 0 0 18px rgba(255, 120, 60, .55); } }
+.bc-texte { margin: 0; font-size: clamp(16px, 3.6vw, 21px); font-weight: 700; opacity: .92; line-height: 1.35; max-width: 640px; }
+
+/* Grille : 4 à 7 coffres par ligne selon la largeur, jamais plus haut que l'écran. */
+.bc-grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(clamp(66px, 17vw, 112px), 1fr)); gap: 14px 10px; width: min(100%, 860px); padding: 8px 4px 14px; }
+.bc-case { position: relative; padding: 0; border: 0; background: none; color: #fff; font: inherit; cursor: pointer; container-type: inline-size; transition: transform .2s, opacity .2s, filter .2s; }
+.bc-case:disabled { cursor: default; }
+.bc-case:focus-visible { outline: 3px solid #ffd166; outline-offset: 4px; border-radius: 14px; }
+/* Le coffre (pas le bouton) sautille : le bouton reste immobile sous le doigt. */
+.bc-a-moi .bc-case:not(:disabled) .bc-coffre { animation: bc-invite 2.2s ease-in-out infinite; }
+.bc-a-moi .bc-case:nth-child(3n+2):not(:disabled) .bc-coffre { animation-delay: -.7s; }
+.bc-a-moi .bc-case:nth-child(3n):not(:disabled) .bc-coffre { animation-delay: -1.4s; }
+@keyframes bc-invite { 50% { transform: translateY(-4px); } }
+.bc-une-choisie .bc-case[aria-pressed="false"]:not(.bc-ouvert) { opacity: .55; transform: scale(.93); }
+.bc-une-choisie .bc-case .bc-coffre, .bc-case[aria-pressed="true"] .bc-coffre { animation: none; }
+.bc-case[aria-pressed="true"] { transform: translateY(-6px) scale(1.08); filter: drop-shadow(0 0 12px rgba(255, 209, 102, .9)); }
+.bc-envoye .bc-coffre { animation: bc-tremble .5s ease-in-out infinite; }
+@keyframes bc-tremble { 25% { transform: rotate(-3deg); } 75% { transform: rotate(3deg); } }
+
+/* Coffre (mesures en % de la case, via cqw) : corps, couvercle bombé, cerclages et plaque d'or numérotée. */
+.bc-coffre { --or: linear-gradient(90deg, #a8782f, #fff3d1 30%, #e9c27a 55%, #a8782f);
+  position: relative; display: block; width: calc(100cqw * var(--t, 1)); margin: 0 auto; aspect-ratio: 5 / 4; }
+.bc-lueur { position: absolute; left: -8%; right: -8%; bottom: -9cqw; height: 18cqw; border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, .45), transparent); }
+.bc-corps { position: absolute; left: 0; right: 0; bottom: 0; height: 60%; border-radius: 3cqw 3cqw 6cqw 6cqw;
+  background: linear-gradient(90deg, transparent 12%, rgba(233, 194, 122, .95) 12% 18%, transparent 18% 82%, rgba(233, 194, 122, .95) 82% 88%, transparent 88%),
+    linear-gradient(180deg, var(--c1), var(--c2));
+  box-shadow: inset 0 -3cqw 0 rgba(0, 0, 0, .18), inset 0 0 0 1.4cqw rgba(233, 194, 122, .9); }
+.bc-plaque { position: absolute; left: 50%; top: 14%; transform: translateX(-50%); min-width: 26cqw; height: 26cqw; padding: 0 3cqw; border-radius: 6cqw; display: grid; place-items: center;
+  background: radial-gradient(circle at 35% 30%, #fff3d1, #e9c27a 55%, #a8782f); color: #24103d; font: 800 17cqw system-ui, sans-serif; line-height: 1;
+  box-shadow: 0 1cqw 2cqw rgba(0, 0, 0, .4); }
+.bc-couvercle { position: absolute; left: -2%; right: -2%; top: 4%; height: 40%; border-radius: 40cqw 40cqw 2cqw 2cqw / 18cqw 18cqw 2cqw 2cqw; transform-origin: 50% 0;
+  background: linear-gradient(90deg, transparent 11%, rgba(233, 194, 122, .95) 11% 17%, transparent 17% 83%, rgba(233, 194, 122, .95) 83% 89%, transparent 89%),
+    linear-gradient(180deg, var(--c0), var(--c1));
+  box-shadow: inset 0 0 0 1.4cqw rgba(233, 194, 122, .9), inset 0 2cqw 0 rgba(255, 255, 255, .25); transition: transform .7s cubic-bezier(.3, 1.6, .5, 1); }
+.bc-contenu { position: absolute; left: 0; right: 0; top: 18%; display: grid; place-items: center; font: 900 25cqw system-ui, sans-serif; line-height: 1; opacity: 0; transform: scale(.4); transition: opacity .3s .25s, transform .4s .25s cubic-bezier(.2, 1.8, .4, 1); }
+
+/* Coffre ouvert : couvercle relevé, ce qu'il contenait au-dessus, liseré de l'équipe qui l'a ouvert. */
+.bc-ouvert .bc-couvercle { transform: translateY(-18%) rotate(-14deg) scaleY(.55); }
+.bc-ouvert .bc-corps { box-shadow: inset 0 -3cqw 0 rgba(0, 0, 0, .18), inset 0 0 0 1.4cqw rgba(233, 194, 122, .9), 0 0 0 1.2cqw var(--eq); }
+.bc-ouvert .bc-contenu { opacity: 1; transform: none; }
+.bc-attente .bc-contenu { color: #fff3d1; animation: bc-suspense .8s ease-in-out infinite; }
+@keyframes bc-suspense { 50% { transform: scale(1.15); } }
+.bc-plus .bc-contenu { color: #2ee86b; text-shadow: 0 2px 0 #0b3d1c, 0 0 10px rgba(46, 232, 107, .6); }
+.bc-moins .bc-contenu { color: #ff5a5f; text-shadow: 0 2px 0 #4a0d10, 0 0 10px rgba(255, 90, 95, .5); }
+.bc-bombe .bc-corps, .bc-bombe .bc-couvercle { filter: grayscale(.8) brightness(.45); }
+.bc-bombe .bc-contenu { font-size: 34cqw; filter: drop-shadow(0 0 8px rgba(255, 120, 60, .9)); }
+
+/* Six modèles : couleurs pastel et tailles un peu différentes. */
+.bc-m0 { --c0: #f7d9a8; --c1: #d9a86a; --c2: #8f5f2e; --t: 1; }
+.bc-m1 { --c0: #ffd1e3; --c1: #f29ac0; --c2: #a8507a; --t: .88; }
+.bc-m2 { --c0: #b9d3ff; --c1: #6f8fe0; --c2: #2b3f8a; --t: .96; }
+.bc-m3 { --c0: #c8f5e0; --c1: #6fd1a8; --c2: #23775a; --t: .84; }
+.bc-m4 { --c0: #e3d1ff; --c1: #a98ae6; --c2: #563a92; --t: .92; }
+.bc-m5 { --c0: #ffd9c7; --c1: #f2a07f; --c2: #a34f33; --t: .9; }
+
+.bc-ouvrir { min-height: 58px; padding: 0 28px; border: 0; border-radius: 999px; font: 900 clamp(19px, 4.2vw, 24px) system-ui, sans-serif; cursor: pointer;
+  background: linear-gradient(180deg, #fff3d1, #e9c27a); color: #24103d; box-shadow: 0 6px 16px rgba(233, 194, 122, .45); }
+.bc-ouvrir:disabled { opacity: .5; cursor: default; }
+
+/* Bilan : ce que chaque équipe a gagné ou perdu dans ce jeu. */
+.bc-bilan { display: flex; flex-direction: column; gap: 8px; width: min(100%, 520px); }
+.bc-ligne { display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-radius: 16px; background: rgba(26, 11, 46, .5); box-shadow: inset 4px 0 0 var(--eq); font-weight: 900; font-size: clamp(18px, 4vw, 24px); }
+.bc-ligne.bc-moi { box-shadow: inset 4px 0 0 var(--eq), 0 0 0 2px var(--eq); }
+.bc-nom { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bc-g-plus { color: #2ee86b; } .bc-g-moins { color: #ff5a5f; }
+.bc-total { margin: 0; font-weight: 900; font-size: clamp(18px, 4vw, 22px); }
+.bc-total:empty { display: none; }
+
+@media (prefers-reduced-motion: reduce) { .bc-case, .bc-coffre, .bc-danger, .bc-contenu { animation: none !important; } }
+#coffres-host { width: 100%; }

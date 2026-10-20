@@ -791,4 +791,74 @@ class RegieTest : TestTv() {
         attendreQue("fin de partie") { licornes.etat(code).takeIf { it.child("phase").value == "ended" } }
         assertEquals(300L, points(dragons, code, dragons.uid))
     }
+
+    @Test
+    fun bombeCacheeApresUnQuizChacunSonTourJusquALaBombePuisLaFin() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val dragons = pupitre("dragons").also { it.rejoindre(code, "Dragons", ROSE) }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        @Suppress("UNCHECKED_CAST")
+        val demo = regie.programme(code)["questions"] as List<Map<String, Any?>>
+        // Exactement ce qu'envoie la régie pour une manche « La bombe cachée » (web/public/show.js).
+        val bombe = mapOf(
+            "id" to "bc", "text" to "La bombe cachée", "choices" to emptyList<String>(), "correct" to -1,
+            "duration" to 20, "kind" to "coffres", "double" to false, "round" to "La bombe cachée",
+        )
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(demo[0] + ("round" to "Quiz"), bombe)))
+
+        // Un jeu avant : les Licornes marquent, les Dragons non.
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("question du quiz ouverte") { licornes.etat(code).takeIf { it.child("qid").value == demo[0]["id"] && it.child("phase").value == "question" } }
+        assertTrue(licornes.repondre(code, demo[0]["id"] as String, (demo[0]["correct"] as Number).toInt()))
+        attendreQue("points du quiz") { points(licornes, code, licornes.uid).takeIf { it >= Scoring.BASE } ?: run { regie.commande(code, "next"); null } }
+
+        // Jeu suivant : la bombe cachée. Les coffres sont installés dès le lancement, les Dragons (derniers) commencent.
+        attendreQue("coffres installés", 30_000) {
+            val e = licornes.etat(code)
+            if (e.child("qid").value == "bc" && e.child("phase").value == "question" && e.child("chests/ready").value == true) true
+            else { if (e.child("qid").value != "bc" || e.child("phase").value != "question") regie.commande(code, "next"); null }
+        }
+        ecran.voit("Au tour de l'équipe Dragons")
+        ecran.voit("Encore 6 coffres sans danger")
+        ecran.capture("bombe-coffres")
+        assertEquals(dragons.uid, licornes.etat(code).child("chests/team").value)
+        assertEquals("pas le tour des Licornes", false, licornes.ouvrirCoffre(code, 0))
+        assertEquals("le bouton principal n'ouvre jamais de coffre", "refused", regie.commande(code, "next"))
+
+        // Chacun son tour, le premier coffre fermé, jusqu'à la bombe ; une fois avec le secours de la régie.
+        var ouvertures = 0
+        attendreQue("bombe trouvée", 150_000) {
+            val e = licornes.etat(code)
+            val c = e.child("chests")
+            if (c.child("exploded").value == true) return@attendreQue true
+            val equipe = c.child("team").value as? String ?: return@attendreQue null
+            val pret = (c.child("readyAt").value as Number).toLong()
+            if (System.currentTimeMillis() < pret + 500) return@attendreQue null
+            val ouverts = c.child("opened").children.map { (it.child("chest").value as Number).toInt() }.toSet()
+            val libre = (0 until (c.child("count").value as Number).toInt()).first { it !in ouverts }
+            val tour = (c.child("turn").value as Number).toInt()
+            // Refusé (horloges un peu décalées, animation pas tout à fait finie) : on réessaie au tour de boucle suivant.
+            val ok = if (tour == 2) regie.commande(code, "chest_random") == "applied"
+            else (if (equipe == licornes.uid) licornes else dragons).ouvrirCoffre(code, libre)
+            if (!ok) return@attendreQue null
+            attendreQue("coffre ouvert") { licornes.etat(code).takeIf { (it.child("chests/turn").value as Number).toInt() > tour } }
+            ouvertures++
+            if (tour == 0) ecran.capture("bombe-ouverture")
+            null
+        }
+        assertTrue("au moins les 6 coffres sans danger avant la bombe", ouvertures >= 6)
+        val e = licornes.etat(code)
+        assertEquals("reveal", e.child("phase").value)
+        ecran.voit("BOUM ! Le bilan", 15_000)
+        ecran.capture("bombe-bilan")
+        assertTrue("jamais sous 0", points(licornes, code, licornes.uid) >= 0 && points(dragons, code, dragons.uid) >= 0)
+
+        // Classement, puis la fin : scores gardés, rien ne bloque.
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("classement") { licornes.etat(code).takeIf { it.child("phase").value == "scores" } }
+        assertEquals("applied", regie.commande(code, "next"))
+        attendreQue("fin de partie") { licornes.etat(code).takeIf { it.child("phase").value == "ended" } }
+    }
 }

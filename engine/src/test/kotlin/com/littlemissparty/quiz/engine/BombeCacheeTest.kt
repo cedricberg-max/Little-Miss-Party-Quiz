@@ -183,6 +183,15 @@ class BombeCacheeTest {
     }
 
     @Test
+    fun `la prestation envoyée par la régie se lit, et la commande de secours aussi`() {
+        // Exactement ce qu'écrit web/public/show.js pour une manche « La bombe cachée » (ou d'anciennes Portes).
+        val quiz = QuizJson.parse("""{"id":"p","questions":[{"id":"r1c","text":"La bombe cachée","kind":"coffres","choices":[],"correct":-1,"duration":20,"double":false,"round":"La bombe cachée"}]}""")
+        assertTrue(quiz.questions.single().isCoffres)
+        assertEquals("La bombe cachée", quiz.questions.single().roundTitle)
+        assertEquals(Command.ChestRandom("c", 4), Command.decode("c", mapOf("type" to "chest_random", "expectSeq" to 4)))
+    }
+
+    @Test
     fun `de 1 à 8 équipes, assez de coffres pour finir sur la bombe`() {
         (1..8).forEach { n ->
             val safe = n * safeRounds(n)

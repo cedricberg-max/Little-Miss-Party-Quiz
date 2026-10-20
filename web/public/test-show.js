@@ -278,7 +278,7 @@ export const FULL_NEW_ROUNDS = [
   { type: "pictionary", duration: 90 },
   { type: "quiz", quizId: FULL_KEYS.images },
   // Jeu final : toujours en dernier.
-  { type: "portes", doors: 4 },
+  { type: "coffres" },
 ];
 
 export const FULL_SHOW = {

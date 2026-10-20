@@ -1018,3 +1018,57 @@ describe("défis de la pause", () => {
     await assertSucceeds(avec(Array.from({ length: 30 }, (_, i) => `Défi ${i}`)));
   });
 });
+
+describe("La bombe cachée", () => {
+  const chests = (extra = {}) => seed({
+    kind: "coffres", qid: "r9c", choices: null, deadline: null,
+    chests: { ready: true, count: 10, team: "bleu", key: "r9c-100-2", readyAt: Date.now() - 1000, ...extra },
+  });
+  const open = (uid, key, i, data = null) => set(ref(db(uid), `games/${CODE}/chestChoice/${key}`), data ?? { i, at: serverTimestamp() });
+
+  test("seule l'équipe qui joue ouvre un coffre, une seule fois, sur l'ouverture en cours", async () => {
+    await chests();
+    await assertFails(open("rose", "r9c-100-2", 1), "pas le tour des Roses");
+    await assertFails(open("bleu", "r9c-100-1", 1), "ancienne ouverture");
+    await assertFails(open("bleu", "r9c-100-2", 10), "coffre qui n'existe pas");
+    await assertFails(open("bleu", "r9c-100-2", 1.5));
+    await assertFails(open("bleu", "r9c-100-2", 1, { i: 1, at: 5 }), "heure du serveur obligatoire");
+    await assertFails(open("bleu", "r9c-100-2", 1, { i: 1, at: serverTimestamp(), delta: 300 }), "rien d'autre que le coffre choisi");
+    await assertSucceeds(open("bleu", "r9c-100-2", 4));
+    await assertFails(open("bleu", "r9c-100-2", 5), "un seul coffre par ouverture");
+    // La box efface les choix ; personne d'autre.
+    await assertFails(set(ref(db("bleu"), `games/${CODE}/chestChoice`), null));
+    await assertSucceeds(set(ref(db(HOST), `games/${CODE}/chestChoice`), null));
+  });
+
+  test("rien ne s'ouvre pendant l'animation du coffre précédent, en pause, au décompte de reprise, ni hors du jeu", async () => {
+    await chests({ readyAt: Date.now() + 60_000 });
+    await assertFails(open("bleu", "r9c-100-2", 1), "animation pas finie");
+    await chests();
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/state/paused`), true));
+    await assertFails(open("bleu", "r9c-100-2", 1), "pause");
+    await chests();
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/state/resumeAt`), Date.now() + 60_000));
+    await assertFails(open("bleu", "r9c-100-2", 1), "décompte 3, 2, 1");
+    await chests();
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/state/phase`), "reveal"));
+    await assertFails(open("bleu", "r9c-100-2", 1), "bombe déjà ouverte");
+    await seed({ kind: "quiz", chests: { team: "bleu", key: "r9c-100-2", readyAt: 0, count: 10 } });
+    await assertFails(open("bleu", "r9c-100-2", 1), "pas dans ce jeu");
+  });
+
+  test("tablette remplacée : seul le nouvel appareil de l'équipe ouvre", async () => {
+    await chests();
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/teams/bleu/device`), "tablette2"));
+    await assertFails(open("bleu", "r9c-100-2", 1));
+    await assertSucceeds(open("tablette2", "r9c-100-2", 1));
+  });
+
+  test("la régie envoie le coffre au hasard de secours", async () => {
+    await chests();
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));
+    const cmd = (type) => set(ref(db("tel"), `games/${CODE}/commands/c${Math.random().toString(36).slice(2)}`), { type, expectSeq: 3, by: "tel", at: serverTimestamp() });
+    await assertSucceeds(cmd("chest_random"));
+    await assertFails(cmd("chest_open"));
+  });
+});

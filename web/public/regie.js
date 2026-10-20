@@ -6,7 +6,7 @@ import { writeProof } from "./proof.js";
 import { passwordCandidates } from "./secret.js";
 import {
   buildSnapshot, showTitle, playable, QUIZ_GAMES, BUILTIN_GAMES, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame, imageIds, choiceImageIds,
-  soundIds, MUSIC_GAMES, playableTracks, STATUES_SEC, PICTO_SEC, PORTES_DEFAULT,
+  soundIds, MUSIC_GAMES, playableTracks, STATUES_SEC, PICTO_SEC,
   isFutureRound, moveRound, removeRound, uniqueRoundTitle,
 } from "./show.js";
 import { profileForAge } from "./profiles.js";
@@ -242,7 +242,8 @@ function nextLabel(st, teamCount) {
     case "lobby": return teamCount ? "Lancer la fête !" : "En attente des équipes";
     // Écran de présentation du jeu sur la TV : l'animatrice explique les règles, puis lance le jeu.
     case "intro": return "▶ Lancer l'épreuve";
-    case "question": return st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? `Terminer ${st.kind === "pictionary" ? "le Pictionary" : "les mimes"}` : "Voir le classement") : st.kind === "portes" ? "Fermer les choix" : "Arrêter le chrono";
+    // La bombe cachée : ce sont les équipes qui ouvrent les coffres, le bouton principal attend l'explosion.
+    case "question": return st.kind === "coffres" ? "Coffres en cours… 💣" : st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? `Terminer ${st.kind === "pictionary" ? "le Pictionary" : "les mimes"}` : "Voir le classement") : st.kind === "portes" ? "Fermer les choix" : "Arrêter le chrono";
     case "closed": return st.kind === "portes" ? "Aux portes ! 🚪" : "Révéler la réponse";
     // Portes mystères : l'animatrice ouvre les portes une à une, puis montre le classement final.
     case "reveal": return st.kind === "portes" ? ((st.portes?.opened ?? 0) < (st.portes?.count ?? 0) ? "🚪 Ouvrir la porte suivante" : "Classement final 🏆") : "Voir les scores";
@@ -311,6 +312,7 @@ function render() {
   renderBlind(st, teams);
   renderFlou(st);
   renderStatues(st, teams);
+  renderCoffres(st);
   renderTeams(st, teams);
   renderPoints();
   renderPlan(st);
@@ -331,7 +333,7 @@ function render() {
   const countdown = st.phase === "question" && !st.paused && (st.resumeAt ?? 0) - (Date.now() + serverOffset);
   clearTimeout(countdownTimer);
   if (countdown > 0) countdownTimer = setTimeout(render, countdown + 50);
-  next.disabled = next.disabled || st.paused === true || countdown > 0 || (blindMode(st) && st.phase === "question" && !!st.buzz?.team);
+  next.disabled = next.disabled || st.paused === true || countdown > 0 || (st.kind === "coffres" && st.phase === "question") || (blindMode(st) && st.phase === "question" && !!st.buzz?.team);
   // Mimes : le gros bouton « Trouvé » est dans la rubrique ; le bas de l'écran arrête le tour ou la manche.
   if (st.phase === "question" && st.mime) next.classList.toggle("secondary", !!st.mime.team);
   else next.classList.remove("secondary");
@@ -776,6 +778,43 @@ function renderStatues(st, teams) {
   $("statues-points").textContent = `${st.double ? "600" : "300"} points pour l'équipe gagnante, ${st.double ? "300" : "150"} pour les autres.`;
 }
 
+/**
+ * La bombe cachée : à qui le tour, combien de coffres sans danger, ce qui est sorti. Secours : ouvrir un coffre au
+ * hasard pour l'équipe qui joue (deux appuis). Jamais de contenu à l'avance : il est tiré par la box à l'ouverture.
+ */
+let coffresArme = null;
+let coffresPret = null;
+function renderCoffres(st) {
+  const on = st.phase === "question" && st.kind === "coffres";
+  $("coffres").hidden = !on;
+  if (!on) { clearTimeout(coffresArme); coffresArme = null; return; }
+  const c = st.chests ?? {};
+  const name = (id) => live.teams[id]?.name ?? "Une équipe";
+  const opened = Array.isArray(c.opened) ? c.opened : Object.values(c.opened ?? {});
+  $("coffres-info").textContent = c.ready !== true ? "Les coffres arrivent sur la TV…"
+    : `Au tour de l'équipe ${name(c.team)} : elle choisit un coffre sur sa tablette. `
+      + (c.danger ? "💣 La bombe est cachée dans un des coffres !" : `Encore ${c.safeLeft} coffre${c.safeLeft > 1 ? "s" : ""} sans danger.`);
+  $("coffres-opened").textContent = opened.length
+    ? opened.slice(-4).map((o) => `${name(o.team)} : coffre ${o.chest + 1} ${o.bomb ? "💣" : `${o.delta < 0 ? "−" : "+"}${Math.abs(o.delta)}`}`).join(" · ")
+    : `${c.count ?? 0} coffres fermés.`;
+  const btn = $("coffres-random");
+  const wait = (c.readyAt ?? 0) - (Date.now() + serverOffset);
+  btn.disabled = c.ready !== true || !c.team || !!pending?.advance || st.paused === true || wait > 0;
+  clearTimeout(coffresPret);
+  if (wait > 0) coffresPret = setTimeout(render, wait + 50);
+  btn.textContent = coffresArme ? `Touchez encore : coffre au hasard pour ${name(c.team)}` : `🎲 Ouvrir un coffre au hasard pour ${name(c.team)}`;
+}
+$("coffres-random").onclick = () => {
+  if (!coffresArme) {
+    coffresArme = setTimeout(() => { coffresArme = null; render(); }, 4000);
+    return render();
+  }
+  clearTimeout(coffresArme);
+  coffresArme = null;
+  navigator.vibrate?.(60);
+  send("chest_random", {}, { advance: true });
+};
+
 $("flou-ok").onclick = () => { navigator.vibrate?.(60); send("buzz_ok", {}, { advance: true }); };
 $("flou-ko").onclick = () => send("buzz_ko", {}, { advance: true });
 $("flou-bonus").onclick = () => { navigator.vibrate?.(60); send("buzz_bonus", {}, { advance: true }); };
@@ -1050,7 +1089,7 @@ function planItem(q, i, current) {
   const title = document.createElement("div");
   title.textContent = `${i + 1}. ${q.text}${q.double ? " · points ×2" : ""}`;
   const answer = document.createElement("b");
-  answer.textContent = q.kind === "portes" ? `${q.choices?.length ?? 0} portes · bonus ou malus` : q.kind === "number" ? `Juste Chiffre · ${q.correct}` : `${CHOICE_LETTERS[q.correct] ?? "?"} · ${q.choices?.[q.correct] ?? ""}`;
+  answer.textContent = q.kind === "coffres" ? "coffres chacun son tour · la bombe arrête le jeu" : q.kind === "portes" ? `${q.choices?.length ?? 0} portes · bonus ou malus` : q.kind === "number" ? `Juste Chiffre · ${q.correct}` : `${CHOICE_LETTERS[q.correct] ?? "?"} · ${q.choices?.[q.correct] ?? ""}`;
   item.append(title, answer);
   return item;
 }
@@ -1096,7 +1135,7 @@ async function fetchLibrary() {
     const rounds = Object.entries(s.val() ?? {})
       .filter(([, show]) => show)
       .sort((a, b) => (b[1].date ?? "").localeCompare(a[1].date ?? ""))
-      .flatMap(([id, show]) => (show.rounds ?? []).filter((r) => r && r.type !== "mimes" && r.type !== "statues" && r.type !== "pictionary" && r.type !== "portes" && r.type !== "finale" && !BUILTIN_GAMES[r.type] && !MUSIC_GAMES[r.type]).map((round, i) => {
+      .flatMap(([id, show]) => (show.rounds ?? []).filter((r) => r && r.type !== "mimes" && r.type !== "statues" && r.type !== "pictionary" && r.type !== "portes" && r.type !== "coffres" && r.type !== "finale" && !BUILTIN_GAMES[r.type] && !MUSIC_GAMES[r.type]).map((round, i) => {
         const title = quizzes[round.quizId]?.title ?? `Manche ${i + 1}`;
         const label = QUIZ_GAMES[round.type] ? `${ROUND_TYPES[round.type]} : ${title}` : title;
         const date = show.date ? ` (${new Date(`${show.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })})` : "";
@@ -1108,7 +1147,7 @@ async function fetchLibrary() {
       ...Object.entries(BUILTIN_GAMES).map(([type, game]) => ({ key: `builtin/${type}`, label: ROUND_TYPES[type], source: { type, count: game.count } })),
       { key: "builtin/statues", label: ROUND_TYPES.statues, source: { type: "statues", duration: STATUES_SEC } },
       { key: "builtin/pictionary", label: ROUND_TYPES.pictionary, source: { type: "pictionary", duration: PICTO_SEC } },
-      { key: "builtin/portes", label: ROUND_TYPES.portes, source: { type: "portes", doors: PORTES_DEFAULT } },
+      { key: "builtin/coffres", label: ROUND_TYPES.coffres, source: { type: "coffres" } },
     ];
     library = { quizzes, mimes, playlists, contents, games, rounds, decks, quizGames, builtins, music };
   } catch (e) {
@@ -1168,8 +1207,8 @@ function renderLibrary() {
       box.appendChild(b);
       return;
     }
-    if (game.source.type === "portes") {
-      meta.textContent = `${game.source.doors} portes · bonus ou malus · à jouer en dernier`;
+    if (game.source.type === "coffres") {
+      meta.textContent = "un coffre chacun son tour · bonus, malus, puis la bombe · idéal en dernier jeu";
       b.append(title, meta);
       b.onclick = () => pick(game);
       box.appendChild(b);
@@ -1248,6 +1287,7 @@ function renderPreview() {
     const answer = document.createElement("b");
     // Chante le mot : le mot seul ; Qui suis-je : le personnage et son premier indice.
     if (q.kind === "chante") { answer.textContent = q.text; li.append(answer); list.appendChild(li); return; }
+    if (q.kind === "coffres") { li.textContent = "Un coffre chacun son tour, bonus ou malus, puis la bombe qui arrête le jeu."; list.appendChild(li); return; }
     // Blind test et quiz musical : le titre (et l'artiste) de chaque extrait.
     if (q.audioId) { answer.textContent = `♪ ${q.choices?.[q.correct] ?? ""}${q.artist ? ` · ${q.artist}` : ""}`; li.append(answer); list.appendChild(li); return; }
     answer.textContent = ` → ${q.kind === "number" ? q.correct : q.choices?.[q.correct] ?? ""}`;
@@ -1279,6 +1319,7 @@ const OLD_TV_QUISUIS = "La TV doit être mise à jour pour jouer à « Qui suis-
 const OLD_TV_STATUES = "La TV doit être mise à jour pour jouer aux statues musicales : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_DISPARU = "La TV doit être mise à jour pour jouer à « Qui a disparu ? » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_PICTO = "La TV doit être mise à jour pour jouer au Pictionary : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+const OLD_TV_COFFRES = "La TV doit être mise à jour pour jouer à La bombe cachée : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_PORTES = "La TV doit être mise à jour pour jouer aux Portes mystères : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_BLIND = "La TV doit être mise à jour pour jouer au blind test : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 /** Jeu que la TV allumée ne sait pas encore jouer (ancienne version) : le message à montrer, sinon null. */
@@ -1295,6 +1336,7 @@ function tvRefuses(questions) {
   if (live.plan.statues !== true && questions.some((q) => q?.kind === "statues")) return OLD_TV_STATUES;
   if (live.plan.disparu !== true && questions.some((q) => q?.kind === "disparu")) return OLD_TV_DISPARU;
   if (live.plan.portes !== true && questions.some((q) => q?.kind === "portes")) return OLD_TV_PORTES;
+  if (live.plan.coffres !== true && questions.some((q) => q?.kind === "coffres")) return OLD_TV_COFFRES;
   // Quiz musical compris : une ancienne TV le jouerait sans musique.
   if (live.plan.blindPlay !== true && questions.some((q) => q?.kind === "blind")) return OLD_TV_BLIND;
   if (live.plan.blind !== true && questions.some((q) => q?.audioId)) return OLD_TV_BLIND;

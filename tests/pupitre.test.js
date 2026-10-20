@@ -276,6 +276,64 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
+  test("La bombe cachée : l'équipe qui joue ouvre un coffre, les autres regardent, le contenu attend la TV, puis le bilan", async () => {
+    const roses = await openPupitre();
+    await joinTeam(roses, "Les Roses");
+    const bleus = await openPupitre();
+    await joinTeam(bleus, "Les Bleus");
+    const teams = await read("teams");
+    const r = Object.keys(teams).find((id) => teams[id].name === "Les Roses");
+    const b = Object.keys(teams).find((id) => teams[id].name === "Les Bleus");
+    const base = { qid: "bc", kind: "coffres", text: "La bombe cachée", choices: null, correct: null, deadline: null, game: { title: "La bombe cachée" } };
+    const chests = (extra) => ({ ready: true, count: 10, order: [r, b], safe: 6, danger: false, exploded: false, opened: [], gains: { [r]: 0, [b]: 0 }, ...extra });
+    await hostState(question({ ...base, chests: chests({ team: r, turn: 0, safeLeft: 6, key: "bc-1-0", readyAt: Date.now() - 1000 }) }));
+    await roses.locator("#coffres-host .bc-titre", { hasText: "À vous, Les Roses !" }).waitFor();
+    await bleus.locator("#coffres-host .bc-titre", { hasText: "Au tour de l'équipe Les Roses" }).waitFor();
+    await bleus.locator(".bc-texte", { hasText: "Encore 6 coffres sans danger" }).waitFor();
+    assert.equal(await roses.locator(".bc-case").count(), 10);
+    assert.equal(await bleus.locator(".bc-ouvrir").isVisible(), false, "seule l'équipe qui joue ouvre");
+    assert.equal(await bleus.locator(".bc-case:not([disabled])").count(), 0);
+    // Les Roses choisissent le coffre 3, puis l'ouvrent.
+    assert.equal(await roses.locator(".bc-ouvrir").isDisabled(), true, "d'abord choisir un coffre");
+    await roses.locator(".bc-case").nth(2).click();
+    await roses.locator(".bc-ouvrir", { hasText: "Ouvrir le coffre 3 !" }).click();
+    await waitFor(async () => (await read("chestChoice/bc-1-0"))?.i === 2, "coffre 3 envoyé à la box");
+    await roses.locator(".bc-texte", { hasText: "Coffre 3 choisi : regardez la TV !" }).waitFor();
+    // La box l'ouvre : +150 pour les Roses, montré sur la tablette seulement quand la TV l'a montré.
+    const at = Date.now();
+    const ouvert = { team: r, chest: 2, delta: 150, bomb: false, at };
+    await hostState(question({ ...base, chests: chests({ team: b, turn: 1, safeLeft: 5, key: "bc-1-1", readyAt: at + 4000, opened: [ouvert], gains: { [r]: 150, [b]: 0 } }) }));
+    await bleus.locator(".bc-case.bc-attente").waitFor();
+    assert.equal(await bleus.locator(".bc-case").nth(2).locator(".bc-contenu").textContent(), "?", "suspense pendant l'animation de la TV");
+    await bleus.locator(".bc-titre", { hasText: "Coffre 3…" }).waitFor();
+    await bleus.locator(".bc-case.bc-plus .bc-contenu", { hasText: "+150" }).waitFor({ timeout: 5000 });
+    // Au tour des Bleus : le bouton attend la fin de l'animation sur la TV.
+    await bleus.locator(".bc-titre", { hasText: "À vous, Les Bleus !" }).waitFor();
+    await bleus.locator(".bc-case").nth(5).click();
+    assert.equal(await bleus.locator(".bc-case").nth(2).isDisabled(), true, "un coffre ouvert ne se rouvre pas");
+    if (Date.now() < at + 3500) assert.equal(await bleus.locator(".bc-ouvrir").isDisabled(), true, "pas avant la fin de l'animation");
+    await waitFor(() => bleus.locator(".bc-ouvrir").isEnabled(), "bouton prêt après l'animation", 8000);
+    await bleus.locator(".bc-ouvrir").click();
+    await waitFor(async () => (await read("chestChoice/bc-1-1"))?.i === 5, "coffre 6 envoyé à la box");
+    // La bombe : bilan du jeu sur les deux tablettes, une fois l'explosion montrée par la TV.
+    const bombe = { team: b, chest: 5, delta: 0, bomb: true, at: Date.now() - 3000 };
+    await hostState(question({ ...base, phase: "reveal", scores: { [r]: 150, [b]: 0 }, chests: chests({ team: null, key: null, turn: 2, safeLeft: 4, danger: true, exploded: true, opened: [ouvert, bombe], gains: { [r]: 150, [b]: 0 } }) }));
+    for (const page of [roses, bleus]) {
+      await page.locator(".bc-titre", { hasText: "BOUM ! Le bilan" }).waitFor();
+      await page.locator(".bc-texte", { hasText: "Les Bleus a trouvé la bombe" }).waitFor();
+      assert.deepEqual(await page.locator(".bc-ligne").allTextContents(), ["Les Roses+150", "Les Bleus0"]);
+    }
+    await roses.locator(".bc-total", { hasText: "150 points · 1re place" }).waitFor();
+    // Classement, puis jeu suivant ordinaire : les boutons habituels reviennent.
+    await hostState(question({ ...base, phase: "scores", scores: { [r]: 150, [b]: 0 }, chests: chests({ team: null, exploded: true, opened: [ouvert, bombe], gains: { [r]: 150, [b]: 0 } }) }));
+    await bleus.locator(".bc-total", { hasText: "0 points · 2e place" }).waitFor();
+    await hostState(question({ qid: "q9", text: "Couleur du ciel ?" }));
+    await roses.locator(".choice .text", { hasText: "Bleu" }).waitFor();
+    assert.equal(await roses.locator("#coffres-host .bc").count(), 0, "écran des coffres retiré");
+    await roses.context().close();
+    await bleus.context().close();
+  });
+
   test("Le Juste Chiffre : l'équipe tape son nombre une seule fois et voit si elle est la plus proche", async () => {
     const page = await openPupitre();
     await joinTeam(page, "Les Roses");

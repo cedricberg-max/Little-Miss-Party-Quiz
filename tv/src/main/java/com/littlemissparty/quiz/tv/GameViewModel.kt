@@ -19,6 +19,7 @@ import com.littlemissparty.quiz.engine.Answer
 import com.littlemissparty.quiz.engine.Award
 import com.littlemissparty.quiz.engine.BlindStatus
 import com.littlemissparty.quiz.engine.BlindTrack
+import com.littlemissparty.quiz.engine.ChestRound
 import com.littlemissparty.quiz.engine.Codec
 import com.littlemissparty.quiz.engine.Command
 import com.littlemissparty.quiz.engine.CommandResult
@@ -146,6 +147,8 @@ sealed interface UiState {
         val blind: BlindUi? = null,
         /** Portes mystères : ordre d'ouverture, portes déjà ouvertes et valeurs (null hors de ce jeu). */
         val portes: PortesUi? = null,
+        /** La bombe cachée : les coffres du jeu en cours (null hors de ce jeu, ou avant leur installation). */
+        val coffres: ChestRound? = null,
     ) : UiState {
         /** Total des appuis sur le buzzer de l'accueil, pour le son. */
         val funTotal: Int get() = funBuzzes.values.sum()
@@ -235,6 +238,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var answersListener: Pair<DatabaseReference, ValueEventListener>? = null
     private var buzzListener: Pair<DatabaseReference, ValueEventListener>? = null
     private var pickListener: Pair<DatabaseReference, ValueEventListener>? = null
+    private var chestListener: Pair<DatabaseReference, ValueEventListener>? = null
     private var drawListener: Pair<DatabaseReference, ChildEventListener>? = null
     private val _dessin = MutableStateFlow(Dessin())
 
@@ -453,8 +457,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
      */
     private fun recover() {
         val g = game ?: return
-        // Portes mystères : pas de chrono, rien ne se ferme seul.
-        if (g.state.phase == Phase.QUESTION && !g.state.paused && g.question?.isPortes != true && g.remainingMs(serverNow()) == 0L) {
+        // Portes mystères et bombe cachée : pas de chrono, rien ne se ferme seul.
+        if (g.state.phase == Phase.QUESTION && !g.state.paused && g.question?.isPortes != true && g.question?.isCoffres != true &&
+            g.remainingMs(serverNow()) == 0L
+        ) {
             // Comme à la fin du chrono : question fermée, tour de mimes terminé, extrait du blind test arrêté.
             act { it.timeUp(serverNow()) }
         } else {
@@ -503,6 +509,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     /** Blind test à la télécommande : révéler sans gagnant, passer le morceau. */
     fun blindReveal() = act { it.blindReveal(serverNow()) }
     fun blindSkip() = act { it.blindSkip(serverNow()) }
+
+    /** La bombe cachée, à la télécommande (pas de régie) : un coffre au hasard pour l'équipe qui joue. */
+    fun chestRandom() = act { it.openRandomChest(serverNow()) }
 
     fun togglePause() = act { g -> if (g.state.paused) g.resume(serverNow()) else g.pause(serverNow()) }
 
@@ -681,6 +690,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 buzzBlocked = s.buzz?.blocked.orEmpty(),
                 blind = q?.takeIf { it.isBlind && s.phase != Phase.LOBBY }?.let { blindUi(g) },
                 portes = q?.takeIf { it.isPortes && s.phase != Phase.LOBBY }?.let { PortesUi(g.doorOrder(), s.doorsOpened, g.doorsOf(it)) },
+                coffres = g.chestRound.takeIf { s.phase != Phase.LOBBY },
                 lastGain = if (q?.isTurns == true) mimeCounts.mapValues { it.value * s.pointsPerFound(q.id) } else revealedAwards.mapValues { it.value.points },
                 isLast = g.isLastQuestion,
                 nextGame = g.nextGameTitle(),
@@ -709,6 +719,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         // Pictionary : le choix du mot sur la tablette du dessinateur, puis son dessin en direct.
         watchPick(Codec.pickKey(g)?.takeIf { !s.paused })
         watchDrawing(Codec.drawKey(g))
+        // La bombe cachée : coffres installés dès le lancement du jeu, puis le choix de la tablette de l'équipe qui joue.
+        if (g.needsChests() && teams().isNotEmpty()) {
+            act { it.dealChests(teams().sortedBy { t -> t.joinedAt }.map { t -> t.uid }, serverNow()) }
+        }
+        watchChest(Codec.chestKey(g)?.takeIf { !s.paused })
         val blocked = s.buzz?.blocked.orEmpty()
         val teamIds = teams().map { it.uid }
         // Blind test : rien ne se ferme seul, la relance réautorise tout le monde.
@@ -1259,6 +1274,35 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
+     * La bombe cachée : le coffre choisi par la tablette de l'équipe qui joue (games/<code>/chestChoice/<clé>). Les
+     * règles de la base n'acceptent que l'appareil de cette équipe, une fois l'animation précédente finie. Le
+     * contenu est tiré au sort ici, au moment de l'ouverture.
+     */
+    private fun watchChest(key: String?) {
+        if (key == chestListener?.first?.key) return
+        chestListener?.let { (r, l) -> r.removeEventListener(l) }
+        chestListener = null
+        val ref = gameRef?.child("chestChoice")?.child(key ?: return) ?: return
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val i = snapshot.child("i").getValue(Int::class.java) ?: return
+                act { g ->
+                    val team = g.chestRound?.team
+                    if (Codec.chestKey(g) != key || team == null) null
+                    // L'écriture a été acceptée par la base : l'animation précédente était finie à l'heure du serveur.
+                    else g.openChest(team, i, maxOf(serverNow(), g.chestRound!!.readyAt))
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e(TAG, "Coffre de la bombe cachée : ${error.message}")
+            }
+        }
+        ref.addValueEventListener(listener)
+        chestListener = ref to listener
+    }
+
+    /**
      * Pictionary : le dessin du tour [key], paquet de traits par paquet de traits, dans l'ordre de la tablette.
      * Il reste affiché après le tour (avec le mot) jusqu'au tour suivant ; une box relancée le relit en entier.
      */
@@ -1351,6 +1395,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         buzzListener?.let { (r, l) -> r.removeEventListener(l) }
         buzzListener = null
         watchPick(null)
+        watchChest(null)
         watchDrawing(null)
         commandsListener?.let { (r, l) -> r.removeEventListener(l) }
         commandsListener = null
@@ -1416,6 +1461,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "portes" to true,
             // Portes mystères : l'animatrice peut changer les valeurs derrière les portes (commande portes_set).
             "portesSet" to true,
+            // La bombe cachée : coffres ouverts depuis les tablettes, coffre au hasard en secours (commande chest_random).
+            "coffres" to true,
             "disparu" to true,
             "questions" to quiz.questions.map {
                 clean(mapOf(

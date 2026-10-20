@@ -15,7 +15,16 @@ export const PORTES_SEC = 30;
 export const PORTES_VALUES = { 3: [300, 100, -150], 4: [300, 150, 50, -150] };
 export const PORTES_RULE = "chaque équipe choisit une porte sur sa tablette : derrière, un bonus ou un malus qui peut tout renverser ! Plusieurs équipes peuvent prendre la même porte";
 
-export const ROUND_TYPES = { quiz: "Quiz", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes", pictionary: "Pictionary", portes: "Portes mystères" };
+/**
+ * La bombe cachée (remplace les Portes mystères) : chaque équipe à son tour ouvre un coffre sur sa tablette, bonus ou
+ * malus tirés au sort par la TV à l'ouverture ; après quelques tours sans danger, une bombe se cache dans un coffre et
+ * arrête le jeu. Rien à préparer. Les manches « portes » déjà enregistrées se jouent en bombe cachée.
+ */
+export const COFFRES_RULE = "chaque équipe à son tour ouvre un coffre sur sa tablette : bonus ou malus, puis une bombe se cache dans un des coffres. L'équipe qui l'ouvre perd 300 points et le jeu s'arrête";
+/** Type de manche joué : les anciennes Portes mystères deviennent La bombe cachée. */
+export const roundType = (type) => (type === "portes" ? "coffres" : type);
+
+export const ROUND_TYPES = { quiz: "Quiz", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes", pictionary: "Pictionary", coffres: "La bombe cachée", portes: "La bombe cachée" };
 /** Statues musicales : durées proposées (secondes) et durée par défaut. Musique maison de la TV, rien à préparer. */
 export const STATUES_SECONDS = [60, 90, 120];
 export const STATUES_SEC = 90;
@@ -216,14 +225,17 @@ export const SUPER_FINALE_LAST = 3;
 export function foldLegacyFinale(list) {
   const rounds = [];
   let folded = 0;
+  let converted = 0;
   for (const r of (list ?? []).filter(Boolean)) {
+    // Les Portes mystères sont remplacées par La bombe cachée (cedric, 20 octobre).
+    if (r.type === "portes") { rounds.push({ type: "coffres" }); converted++; continue; }
     if (r.type !== "finale") { rounds.push({ ...r }); continue; }
     folded++;
     const host = [...rounds].reverse().find((x) => (x.type ?? "quiz") === "quiz");
     if (host) { if (!(host.finale > 0)) host.finale = SUPER_FINALE_LAST; }
     else rounds.push({ type: "quiz", quizId: r.quizId, finale: SUPER_FINALE_LAST });
   }
-  return { rounds, folded };
+  return { rounds, folded, converted };
 }
 
 /** Séries retenues pour une manche de Pictionary, ou null pour toutes. */
@@ -232,7 +244,7 @@ export const pictoRoundSeries = (round) => {
   return list.length ? list : null;
 };
 
-export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || round.type === "statues" || round.type === "pictionary" || round.type === "portes" ? true : round.type === "mimes" ? round.deckId : MUSIC_GAMES[round.type] ? round.playlistId : round.quizId));
+export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || round.type === "statues" || round.type === "pictionary" || round.type === "portes" || round.type === "coffres" ? true : round.type === "mimes" ? round.deckId : MUSIC_GAMES[round.type] ? round.playlistId : round.quizId));
 
 /** Morceaux jouables d'une playlist : un titre et un extrait enregistré. */
 export const playableTracks = (playlist) => (playlist?.tracks ?? []).filter((t) => t?.title?.trim() && /^[0-9a-f]{16}$/.test(t.audioId ?? ""));
@@ -314,14 +326,11 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       questions.push({ id: `r${i + 1}s`, text: ROUND_TYPES.statues, kind: "statues", duration, double: false, round: ROUND_TYPES.statues });
       return;
     }
-    if (round.type === "portes") {
-      // Un seul élément : chaque équipe choisit une porte, les valeurs sont mélangées ici (jamais deux fois pareil).
-      const count = PORTES_DOORS.includes(round.doors) ? round.doors : PORTES_DEFAULT;
-      rounds.push({ title: ROUND_TYPES.portes, count: 1 });
-      questions.push({
-        id: `r${i + 1}d`, text: ROUND_TYPES.portes, kind: "portes", choices: Array.from({ length: count }, (_, k) => `Porte ${k + 1}`),
-        correct: -1, duration: PORTES_SEC, double: false, round: ROUND_TYPES.portes, doors: shuffle(PORTES_VALUES[count], random),
-      });
+    if (round.type === "coffres" || round.type === "portes") {
+      // Un seul élément : la TV distribue les coffres selon le nombre d'équipes et tire chaque contenu à l'ouverture.
+      // Les Portes mystères déjà enregistrées se jouent en bombe cachée (cedric, 20 octobre).
+      rounds.push({ title: ROUND_TYPES.coffres, count: 1 });
+      questions.push({ id: `r${i + 1}c`, text: ROUND_TYPES.coffres, kind: "coffres", choices: [], correct: -1, duration: 20, double: false, round: ROUND_TYPES.coffres });
       return;
     }
     if (round.type === "pictionary") {
@@ -463,7 +472,7 @@ function assemble(blocks) {
 export function estimateMinutes(snapshot) {
   if (!snapshot) return 0;
   // Mimes : deux tours d'équipe environ, plus les changements d'équipe. Pictionary : un tour pour chacune de 4 équipes.
-  const sec = snapshot.quiz.questions.reduce((t, q) => t + (q.kind === "mime" ? 2 * q.duration + 60 : q.kind === "pictionary" ? 4 * (q.duration + 30) : q.kind === "portes" ? 120 : q.kind === "express" ? q.duration + 5 : q.duration + 30), 0);
+  const sec = snapshot.quiz.questions.reduce((t, q) => t + (q.kind === "mime" ? 2 * q.duration + 60 : q.kind === "pictionary" ? 4 * (q.duration + 30) : q.kind === "portes" ? 120 : q.kind === "coffres" ? 300 : q.kind === "express" ? q.duration + 5 : q.duration + 30), 0);
   return Math.round(sec / 60);
 }
 
