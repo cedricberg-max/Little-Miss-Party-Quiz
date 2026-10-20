@@ -279,7 +279,7 @@ private fun ChoiceGrid(
     BoxWithConstraints(modifier) {
         // Une colonne seulement si les 4 cartes y gardent une hauteur lisible. À 8 équipes, le bandeau prend deux rangs :
         // l'illustration devient petite et il reste la place de 2 × 2 à côté (banc d'essai du 20 octobre).
-        val colonne = uneColonne && maxHeight >= 4 * 46.dp + 3 * 10.dp
+        val colonne = uneColonne && maxHeight >= 46.dp * 4 + 10.dp * 3
         val ecart = if (colonne) 10.dp else 14.dp
         // Cartes basses (colonne, ou 2 × 2 serré à 8 équipes) : pastille et texte plus petits pour tenir.
         val compacte = colonne || (maxHeight - ecart) / 2 < 64.dp
