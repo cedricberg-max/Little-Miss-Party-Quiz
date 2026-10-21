@@ -3890,6 +3890,36 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
+  test("blind test démo : 10 chansons de la bibliothèque au hasard (refrain d'abord), en premier jeu de la prestation de test ; un nouveau clic en tire d'autres", async () => {
+    const hex = (n) => n.toString(16).padStart(16, "0");
+    // 12 chansons : 10 avec leur refrain, 2 sans (jamais tirées tant qu'il y en a assez avec refrain).
+    const songs = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`s${i}`, {
+      title: `Chanson ${i}`, artist: "Artiste", audioId: hex(100 + i), buzz: 30, createdAt: 1, updatedAt: 1,
+      ...(i < 10 ? { refrainId: hex(200 + i), refrain: 60, paroles: `0|La la ${i}` } : {}),
+    }]));
+    await seedLibrary("songs", songs);
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    const fete = { ...FULL_SHOW, origin: "test", updatedAt: 1, rounds: [{ type: "quiz", quizId: "animaux" }, { type: "coffres" }] };
+    await seedLibrary("shows/test-lea-tous-les-jeux", fete);
+    const page = await admin();
+    await page.click("#nav button[data-screen=settings]");
+    await page.click("#test-blind-demo");
+    await page.locator("#test-blind-status", { hasText: "Blind test démo prêt : 10 chansons tirées au hasard, en premier jeu de « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux »" }).waitFor();
+    const demo = await library("playlists/test-lea-tous-les-jeux-blind-demo");
+    assert.equal(demo.title, "TEST – Blind test démo");
+    assert.equal(demo.tracks.length, 10);
+    assert.ok(demo.tracks.every((t) => /^[0-9a-f]{16}$/.test(t.refrainId) && t.paroles.startsWith("0|La la")), "les chansons avec refrain d'abord, avec leurs paroles");
+    let show = await library("shows/test-lea-tous-les-jeux");
+    assert.deepEqual(show.rounds, [{ type: "blind", playlistId: "test-lea-tous-les-jeux-blind-demo" }, ...fete.rounds]);
+    // Un nouveau clic : un autre tirage, toujours un seul blind test démo dans la prestation.
+    await page.click("#test-blind-demo");
+    await waitFor(async () => (await library("playlists/test-lea-tous-les-jeux-blind-demo")).updatedAt !== demo.updatedAt, "nouveau tirage");
+    show = await library("shows/test-lea-tous-les-jeux");
+    assert.equal(show.rounds.filter((r) => r.playlistId === "test-lea-tous-les-jeux-blind-demo").length, 1);
+    assert.equal(show.rounds.length, 3);
+    await page.context().close();
+  });
+
   test("prestation de test « tous les jeux » d'une version précédente : le bouton lui ajoute les nouveaux jeux et retire l'ancienne manche Super Finale", async () => {
     const old = { childName: "Léa", age: 9, status: "publiee", title: "ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux", origin: "test", updatedAt: 1,
       rounds: [{ type: "quiz", quizId: "animaux" }, { type: "chante", count: 3 }, { type: "finale", quizId: "finale" }] };

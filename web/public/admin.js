@@ -2403,6 +2403,42 @@ $("test-create").onclick = async () => {
   }
 };
 
+/** Playlist du blind test démo, à clé fixe : un nouveau tirage la remplace. */
+const DEMO_PLAYLIST = `${FULL_ID}-blind-demo`;
+/**
+ * Blind test démo (cedric, 21/10) : 10 chansons de la bibliothèque des sons tirées au hasard, celles qui ont leur
+ * refrain d'abord (« on chante tous ensemble » à chaque révélation), en premier jeu de la prestation de test « tous les
+ * jeux ». Un nouveau clic tire 10 autres chansons ; rien d'autre de la prestation ne change.
+ */
+$("test-blind-demo").onclick = async () => {
+  const btn = $("test-blind-demo");
+  const toutes = songList(songs, {}, isStatuesList);
+  if (!toutes.length) return status("test-blind-status", "La bibliothèque des sons est vide : ajoutez d'abord vos chansons (Bibliothèque, onglet Sons).");
+  const tirage = [...shuffle(toutes.filter((x) => x.refrainId)), ...shuffle(toutes.filter((x) => !x.refrainId))].slice(0, PLAYLIST_HASARD);
+  btn.disabled = true;
+  try {
+    await set(ref(db, `library/playlists/${DEMO_PLAYLIST}`), {
+      title: "TEST – Blind test démo", duration: BLIND_SEC, tracks: tirage.map((x) => trackFromSong(x)),
+      createdAt: playlists[DEMO_PLAYLIST]?.createdAt ?? Date.now(), updatedAt: serverTimestamp(),
+    });
+    const fete = (await get(ref(db, `library/shows/${FULL_ID}`))).val();
+    const chansons = `${plural(tirage.length, "chanson")} tirée${tirage.length > 1 ? "s" : ""} au hasard`;
+    if (!fete) {
+      return status("test-blind-status", `Playlist « TEST – Blind test démo » prête : ${chansons}. Ajoutez la prestation de test « tous les jeux » (bouton au-dessus), puis recliquez ici.`, true);
+    }
+    const rounds = Array.isArray(fete.rounds) ? fete.rounds : Object.values(fete.rounds ?? {});
+    if (!rounds.some((r) => r?.type === "blind" && r.playlistId === DEMO_PLAYLIST)) {
+      await set(ref(db, `library/shows/${FULL_ID}`), { ...fete, rounds: [{ type: "blind", playlistId: DEMO_PLAYLIST }, ...rounds], updatedAt: serverTimestamp() });
+    }
+    status("test-blind-status", `Blind test démo prêt : ${chansons}, en premier jeu de « ${FULL_SHOW.title} ». Rechargez la prestation dans la régie.`, true);
+  } catch (err) {
+    console.error(err);
+    status("test-blind-status", "Échec : vérifiez la connexion puis réessayez.");
+  } finally {
+    btn.disabled = false;
+  }
+};
+
 /**
  * Prestation de test « tous les jeux » : photos dessinées ici, puis quiz, paquet de mimes et enfin la
  * prestation. Chaque contenu déjà présent est gardé tel quel : rien n'est jamais remplacé.
