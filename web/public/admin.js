@@ -2790,13 +2790,12 @@ function ligneChanson(x, i) {
       h("button", { type: "button", class: "btn secondary", title: "Écouter l'extrait du buzz", onclick: () => listen({ audioId: x.audioId, title: x.title }), text: "▶ Extrait" }),
       x.refrainId ? h("button", { type: "button", class: "btn secondary", title: "Écouter le refrain", onclick: () => listen({ audioId: x.refrainId, title: x.title }), text: "▶ Refrain" }) : null,
       h("button", { type: "button", class: "btn secondary", onclick: () => editSongs([x]), text: "Régler…" })));
-  if (momentsOuverts.has(cle) && !x.auto && x.refrainId) {
+  if (momentsOuverts.has(cle) && x.refrainId) {
     ligne.append(h("div", { class: "song-detail" },
-      h("span", { text: `Début de l'extrait : ${mmss(x.start ?? 0)} · ${x.buzz} s pour buzzer${Number.isFinite(x.refrain) ? ` · Refrain : ${mmss(x.refrain)}` : ""}` }),
-      h("button", {
-        type: "button", class: "btn small secondary", title: "Les moments seront à régler de nouveau dans la prochaine playlist qui prend cette chanson.",
-        onclick: () => effacerMoments(x), text: "Effacer les préréglages",
-      })));
+      h("span", { text: `Début de l'extrait : ${mmss(x.start ?? 0)} · ${x.buzz} s pour buzzer${Number.isFinite(x.refrain) ? ` · Refrain : ${mmss(x.refrain)}` : ""} · ${x.auto ? "trouvé automatiquement" : "réglé à la main"}` }),
+      fichierPourRegler(x, false),
+      fichierPourRegler(x, true),
+      h("span", { class: "hint small", text: "Choisissez le MP3 de la chanson sur le PC : seuls ses extraits sont gardés en ligne." })));
   }
   return ligne;
 }
@@ -2850,14 +2849,19 @@ function cellParoles(x) {
     x.lrc ? "✓ Paroles" : "＋ Paroles (.lrc)", input);
 }
 
-/** Moments du blind test (début de l'extrait, refrain) : réglés (cliquable, pour les effacer) ou à régler. */
+/**
+ * Moments du blind test (début de l'extrait, refrain) : une chanson rangée est réglée d'office, son refrain trouvé
+ * automatiquement (cedric, 21/10) ; un clic montre les moments et permet de les changer. Seule une ancienne chanson
+ * sans extrait du refrain est « à régler ».
+ */
 function cellMoments(x) {
-  if (x.auto || !x.refrainId) {
-    return h("span", { class: "song-moments vide", title: "Le début et le refrain se règlent dans une playlist du blind test.", text: "⏱ À régler" });
+  if (!x.refrainId) {
+    return h("span", { class: "song-moments vide", title: "Pas encore de refrain : « Régler… » puis choisissez le MP3 sur le PC.", text: "⏱ À régler" });
   }
   const cle = cleChanson(x);
   return h("button", {
-    type: "button", class: `song-moments ok${momentsOuverts.has(cle) ? " ouvert" : ""}`, title: "Début et refrain réglés : cliquez pour les voir ou les effacer",
+    type: "button", class: `song-moments ok${momentsOuverts.has(cle) ? " ouvert" : ""}`,
+    title: `${x.auto ? "Refrain trouvé automatiquement" : "Refrain réglé à la main"} : cliquez pour voir les moments ou les changer`,
     onclick: () => { if (momentsOuverts.has(cle)) momentsOuverts.delete(cle); else momentsOuverts.add(cle); renderSongs(); },
     text: "⏱ Réglé ✓",
   });
@@ -2967,16 +2971,33 @@ async function attacherParoles(x, texte) {
   await followSongs([{ songId: id, song: { ...x, id, lrc: true, paroles }, audioIds: [x.audioId] }], null);
 }
 
-/** « Effacer les préréglages » : les moments de la chanson seront à régler dans la prochaine playlist. */
-async function effacerMoments(x) {
-  try {
-    await majChanson(x, { auto: true });
-    momentsOuverts.delete(cleChanson(x));
-    status("song-status", `Moments de « ${x.title} » effacés : ils se régleront dans la prochaine playlist du blind test.`, true);
-  } catch (err) {
-    console.error(err);
-    status("song-status", "Refusé : vérifiez Internet ou reconnectez-vous.");
-  }
+/**
+ * « ⏱ Changer le réglage… » et « ↺ Réidentifier le hook… » d'une chanson de la bibliothèque : Sarah rechoisit son MP3
+ * (seuls les extraits sont gardés en ligne), l'écran des réglages s'ouvre avec le curseur du refrain, sur le réglage
+ * actuel ou sur le hook trouvé de nouveau ; elle écoute, ajuste si besoin, puis enregistre.
+ */
+function fichierPourRegler(x, hook) {
+  return h("label", {
+    class: "btn small secondary file-btn",
+    title: hook ? "Retrouver le refrain dans les paroles (le passage le plus chanté), sinon le milieu du morceau" : "Déplacer le début de l'extrait ou le refrain",
+  }, hook ? "↺ Réidentifier le hook…" : "⏱ Changer le réglage…",
+  h("input", {
+    type: "file", accept: "audio/*", hidden: true, "aria-label": hook ? `Réidentifier le hook de « ${x.title} »` : `Changer le réglage de « ${x.title} »`,
+    onchange: async (e) => {
+      const f = e.target.files?.[0];
+      e.target.value = "";
+      if (!f) return;
+      editSongs([x]);
+      const t = playlist.tracks[0];
+      await chargerParoles(t);
+      if (hook) { delete t.refrain; t.regle = false; }
+      withFile(t, f, await fileDuration(f));
+      noterEcran();
+      renderTracks();
+      status("playlist-status", hook ? "Hook trouvé de nouveau : écoutez le refrain, ajustez si besoin, puis « Enregistrer les réglages »."
+        : "Déplacez le début ou le refrain, écoutez, puis « Enregistrer les réglages ».", true);
+    },
+  }));
 }
 
 /**
@@ -3019,8 +3040,8 @@ async function remettreChanson(x) {
 /**
  * « Ajouter des chansons… » (cedric, 21/10) : il sélectionne toute sa bibliothèque d'un coup (MP3 et .lrc mêlés) ; chaque
  * chanson se range seule, avec ses paroles (le .lrc du même nom) et la pochette de son MP3, sans rien à cliquer de plus.
- * L'écran des réglages montre l'avancement, puis la liste des sons revient avec le bilan. Les moments (début, refrain)
- * restent « à régler » : ils se règlent en faisant une playlist.
+ * L'écran des réglages montre l'avancement, puis la liste des sons revient avec le bilan. Chaque chanson est réglée
+ * d'office (son refrain trouvé dans les paroles) ; « ⏱ Réglé ✓ » permet de changer le réglage.
  */
 $("song-files").onchange = async (e) => {
   const files = [...e.target.files];
@@ -3129,6 +3150,9 @@ function editPlaylist(id, fresh = {}) {
         points: t.points ?? null, imageId: t.imageId ?? null, duration: t.duration ?? null,
         refrainId: t.refrainId ?? null, songId: t.songId ?? null,
         start: t.start ?? song?.start ?? null, refrain: t.refrain ?? song?.refrain ?? null, length: t.length ?? song?.length ?? null,
+        // Paroles du refrain : gardées quand on réenregistre la playlist (sans elles, la TV ne les montrerait plus).
+        ...(typeof t.paroles === "string" && t.paroles ? { paroles: t.paroles } : {}),
+        lrc: t.lrc ?? song?.lrc === true, auto: t.auto ?? song?.auto === true,
       };
     }),
   };
@@ -3347,13 +3371,29 @@ function refrainTools(t) {
         renderTracks();
       },
     });
-    const aRegler = t.auto || !t.refrainId;
+    // « ↺ Réidentifier le hook… » : le même fichier, le refrain retrouvé dans les paroles (sinon le milieu).
+    const hook = h("input", {
+      type: "file", accept: "audio/*", hidden: true,
+      onchange: async (e) => {
+        const f = e.target.files?.[0];
+        e.target.value = "";
+        if (!f) return;
+        await chargerParoles(t);
+        delete t.refrain;
+        t.regle = false;
+        withFile(t, f, await fileDuration(f));
+        noterEcran();
+        renderTracks();
+      },
+    });
+    // Une chanson rangée est réglée d'office (cedric, 21/10) : on peut seulement changer le réglage.
     return h("div", { class: "track-refrain" },
       h("span", {
-        class: aRegler ? "track-a-regler" : "ok",
-        text: t.auto ? "⏱ Moments à régler : choisissez le fichier sur le PC." : t.refrainId ? "Refrain réglé ✓" : "Pas encore de refrain pour la révélation.",
+        class: t.refrainId ? "ok" : "track-a-regler",
+        text: t.refrainId ? `Refrain réglé ✓${Number.isFinite(t.refrain) ? ` à ${mmss(t.refrain)}` : ""}${t.auto ? " (trouvé automatiquement)" : ""}` : "Pas encore de refrain pour la révélation.",
       }),
-      h("label", { class: "link", title: "Rechoisir le fichier sur le PC pour changer le début, le refrain ou le temps pour buzzer" }, "Régler les moments…", pick));
+      h("label", { class: "link", title: "Rechoisir le fichier sur le PC pour changer le début, le refrain ou le temps pour buzzer" }, t.refrainId ? "Changer le réglage…" : "Régler les moments…", pick),
+      t.refrainId ? h("label", { class: "link", title: "Rechoisir le fichier sur le PC : le refrain est retrouvé dans les paroles (le passage le plus chanté), sinon au milieu du morceau" }, "↺ Réidentifier le hook…", hook) : null);
   }
   const label = h("span", { text: `Refrain (chanté à la révélation) : ${mmss(t.refrain ?? 0)}` });
   return h("div", { class: "track-refrain" }, label,
@@ -3363,9 +3403,9 @@ function refrainTools(t) {
       onchange: () => { if (preview) listen(t, true); },
     }),
     h("button", {
-      type: "button", class: "link", title: "Revenir au début, au refrain et au temps pour buzzer proposés",
-      onclick: () => { t.duration = null; delete t.start; delete t.refrain; t.regle = false; withFile(t, t.file, t.length); noterEcran(); renderTracks(); },
-      text: "Effacer les préréglages",
+      type: "button", class: "link", title: "Retrouver le refrain dans les paroles (le passage le plus chanté), sinon le milieu du morceau",
+      onclick: () => { delete t.refrain; t.regle = false; withFile(t, t.file, t.length); noterEcran(); renderTracks(); if (preview) listen(t, true); },
+      text: "↺ Réidentifier le hook",
     }));
 }
 
@@ -3374,10 +3414,8 @@ function withFile(t, file, length) {
   const buzz = t.duration ?? Number($("playlist-duration").value);
   t.file = file;
   t.length = length;
-  // Moments effacés dans la bibliothèque (« à régler ») : de nouveaux moments sont proposés.
-  const garde = !t.auto;
-  t.start = garde && Number.isFinite(t.start) && t.start <= Math.max(0, length - buzz) ? t.start : defaultStart(length, buzz);
-  if (playlist.use !== "statues") t.refrain = garde && Number.isFinite(t.refrain) && t.refrain <= Math.max(0, length - 10) ? t.refrain : refrainPropose(t, length, t.start, buzz);
+  t.start = Number.isFinite(t.start) && t.start <= Math.max(0, length - buzz) ? t.start : defaultStart(length, buzz);
+  if (playlist.use !== "statues") t.refrain = Number.isFinite(t.refrain) && t.refrain <= Math.max(0, length - 10) ? t.refrain : refrainPropose(t, length, t.start, buzz);
   return t;
 }
 
@@ -3632,8 +3670,8 @@ async function enregistrerPlaylist() {
         // Paroles calées sur ce nouveau refrain (rien si la chanson n'a pas de paroles).
         if (!t.lignes) await chargerParoles(t);
         t.paroles = t.lignes ? parolesDuRefrain(t.lignes, refrainAt, REFRAIN_SEC) : "";
-        // Moments : réglés dans une playlist ; dans la bibliothèque, seulement si Sarah a bougé un curseur.
-        t.auto = library && !t.regle;
+        // Refrain trouvé automatiquement, sauf si Sarah a bougé un curseur : la chanson est réglée dans les deux cas.
+        t.auto = !t.regle;
       }
       delete t.file;
       if (library) await rangerChanson(t, seconds, before, changed);
