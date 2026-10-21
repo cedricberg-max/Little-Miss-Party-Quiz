@@ -119,7 +119,8 @@ games/$code
   show         { id, showId, title, childName, age, profile, rounds[], quiz { id, title, questions[] }, by, at }
                // instantané de prestation écrit par une régie, salon d'attente seulement ; la box le vérifie
   showStatus   { id, status: applied|refused, reason?, at }   // réponse de la box ; un id jugé n'est jamais rejugé
-  public       { title, childName? }                           // écrit par la box, lisible par les pupitres
+  public       { title, childName?, changeBox? }               // écrit par la box, lisible par les pupitres
+               // changeBox : cette box sait reprendre la fête d'une box en panne (exigé par « Changer de box »)
   commands/$cmdId { type: next|pause|resume|close|adjust|undo|end, expectSeq, by, at, team?, delta?, target? }
   commandStatus/$cmdId { status: applied|stale|refused, reason?, seq?, at }   // même écriture que l'événement
 reports/$id    { kind, text, version, device, at }  // plantages de la box : écriture seule, lus par le workflow « Rapports »
@@ -277,7 +278,8 @@ passe administrateur commun (`adminProof`), partout où cette section dit « `ad
   `games/A/hostUid` = hôte de B, `games/A/takeover` = `{to: B, from: ancien hôte, by: son uid, at: now}`,
   `games/B/handoff` = A. Les règles exigent : régie reliée à A ; B au salon (`state/phase` = lobby), sans
   équipe, sans `show`, sans `handoff`, sans téléphone relié autre que le sien (`regie` absent ou
-  `regie/<son uid>`) ; box de B acceptée si `boxes/lockOn` ; codes `[A-Z0-9]{5}` (aucun chemin forgé). Ni
+  `regie/<son uid>`), appli à jour (`public/changeBox` = true) ; box de B acceptée si `boxes/lockOn` ;
+  codes `[A-Z0-9]{5}` (aucun chemin forgé). Ni
   `takeover` ni `handoff` ne s'effacent ; ils ne se lisent que par l'hôte. Une régie entrée par mot de
   passe lit `boxes/allowed/<uid>` pour expliquer un refus.
   - Box B (`GameViewModel.onHandoff`) : seulement depuis un salon vide ; relit A sur le serveur jusqu'à

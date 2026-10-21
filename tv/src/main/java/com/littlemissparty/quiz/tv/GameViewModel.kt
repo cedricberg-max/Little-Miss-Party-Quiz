@@ -1367,11 +1367,16 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         } }
     }
 
-    /** Titre et prénom de l'enfant fêté, lisibles par les pupitres pour l'accueil. */
+    /**
+     * Titre et prénom de l'enfant fêté, lisibles par les pupitres pour l'accueil. `changeBox` : cette box sait
+     * reprendre la fête d'une box en panne ; la régie (et les règles) ne confient jamais une fête à une box plus ancienne.
+     */
     private fun publishPublic() {
         val s = _state.value as? UiState.Playing ?: return
         val title = s.title.ifBlank { game?.quiz?.title.orEmpty() }
-        gameRef?.child("public")?.setValue(clean(mapOf("title" to title.take(120), "childName" to s.childName.take(40).ifBlank { null })))
+        gameRef?.child("public")?.setValue(
+            clean(mapOf("title" to title.take(120), "childName" to s.childName.take(40).ifBlank { null }, "changeBox" to true))
+        )
     }
 
     /** Les commandes arrivent dans l'ordre de leurs clés et passent une par une, comme les boutons de la box. */

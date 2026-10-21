@@ -1368,6 +1368,8 @@ describe("changer de box : la fête continue sur une box de secours", () => {
   const NEW = "SECUR";
   const REGIE = "tel";
   const LOBBY = { phase: "lobby", round: 1, buzzOpen: true };
+  /** Publié par une box qui sait reprendre la fête d'une autre (version à jour). */
+  const A_JOUR = { title: "Quiz", changeBox: true };
   /** Partie en cours (équipes, journal, scores) reliée à la régie, et le salon d'attente vide de la box de secours. */
   async function prepare({ lobby = { state: LOBBY }, host = SECOURS, to = NEW } = {}) {
     await seed({ phase: "scores", scores: { rose: 100 } });
@@ -1375,7 +1377,7 @@ describe("changer de box : la fête continue sur une box de secours", () => {
       const d = ctx.database();
       await set(ref(d, `games/${CODE}/regie/${REGIE}`), { pairedAt: 1, via: "password" });
       await set(ref(d, `games/${CODE}/log/000001`), { seq: 1, at: 1, type: "reveal" });
-      await set(ref(d, `games/${to}`), { hostUid: host, ...lobby });
+      await set(ref(d, `games/${to}`), { hostUid: host, public: A_JOUR, ...lobby });
     });
   }
   /** Ce que fait la régie : la nouvelle box, la trace du changement et le relais du salon, en une seule écriture. */
@@ -1445,7 +1447,7 @@ describe("changer de box : la fête continue sur une box de secours", () => {
     await assertSucceeds(changer(REGIE));
   });
 
-  test("la box de secours montre son salon d'attente vide ; acceptée dans la Régie PC dès que le verrou est en place", async () => {
+  test("la box de secours montre son salon d'attente vide, avec une appli à jour ; acceptée dans la Régie PC dès que le verrou est en place", async () => {
     await allowBox(env, HOST);
     await prepare({ lobby: { state: { ...LOBBY, phase: "question" } } });
     await assertFails(changer(REGIE), "partie déjà lancée");
@@ -1459,6 +1461,12 @@ describe("changer de box : la fête continue sur une box de secours", () => {
     await assertFails(changer(REGIE, { to: "SEC/R" }), "code mal formé");
     await assertFails(changer(REGIE), "box pas encore acceptée");
     await allowBox(env, SECOURS);
+    // Box d'une version plus ancienne : elle n'écouterait pas son relais, la fête resterait sans box.
+    await prepare({ lobby: { state: LOBBY, public: { title: "Quiz" } } });
+    await assertFails(changer(REGIE), "appli pas à jour");
+    await prepare({ lobby: { state: LOBBY, public: null } });
+    await assertFails(changer(REGIE), "appli bien plus ancienne");
+    await prepare();
     await assertSucceeds(changer(REGIE));
   });
 
@@ -1530,8 +1538,8 @@ describe("changer de box : la fête continue sur une box de secours", () => {
     await assertSucceeds(changer(REGIE));
     await env.withSecurityRulesDisabled(async (ctx) => {
       const d = ctx.database();
-      await set(ref(d, "games/PLAN2"), { hostUid: "box3", state: LOBBY });
-      await set(ref(d, "games/RETOU"), { hostUid: HOST, state: LOBBY });
+      await set(ref(d, "games/PLAN2"), { hostUid: "box3", state: LOBBY, public: A_JOUR });
+      await set(ref(d, "games/RETOU"), { hostUid: HOST, state: LOBBY, public: A_JOUR });
     });
     await assertSucceeds(changer(REGIE, { to: "PLAN2", host: "box3", from: SECOURS }));
     await assertFails(set(ref(db(SECOURS), `games/${CODE}/state/phase`), "reveal"));

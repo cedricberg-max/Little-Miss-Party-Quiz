@@ -1556,7 +1556,9 @@ describe("changer de box (box en panne)", () => {
   const LOBBY = { phase: "lobby", seq: 0, round: 1, buzzOpen: true };
   /** Box de secours allumée sur « Nouvelle partie » : son salon d'attente, vide (ou déjà pris par une autre fête). */
   const salon = (state = LOBBY, extra = {}) =>
-    env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${NEW}`), { hostUid: SECOURS, state, ...extra }));
+    env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${NEW}`), {
+      hostUid: SECOURS, state, public: { title: "Quiz", changeBox: true }, ...extra,
+    }));
   const lireComme = async (uid, path) => (await get(ref(env.authenticatedContext(uid).database(), path))).val();
   async function essayer(page, saisie, message) {
     await page.fill("#box-code", saisie);
@@ -1598,6 +1600,9 @@ describe("changer de box (box en panne)", () => {
     await salon();
     await essayer(page, NEW, "Cette box n'est pas acceptée");
     await allowBox(env, SECOURS);
+    // Box restée sur une ancienne version de l'appli : elle n'écouterait pas, la fête resterait sans box.
+    await salon(LOBBY, { public: { title: "Quiz" } });
+    await essayer(page, NEW, "Cette box n'a pas la dernière version de l'appli");
     // Jamais la box d'une autre fête : une autre animatrice y est reliée (refus des règles), ou une prestation y est
     // chargée (ici depuis ce téléphone, relié aussi à la box de secours).
     await salon(LOBBY, { regie: { autre: { pairedAt: 1, via: "password" } } });

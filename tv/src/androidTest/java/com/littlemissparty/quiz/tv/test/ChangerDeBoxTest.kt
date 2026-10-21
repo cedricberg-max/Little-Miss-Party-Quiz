@@ -155,6 +155,8 @@ class BoxSimulee : AutoCloseable {
                     "createdAt" to ServerValue.TIMESTAMP,
                     "quizId" to "demo",
                     "state" to mapOf("phase" to "lobby", "round" to 1, "buzzOpen" to true),
+                    // Appli à jour : elle sait reprendre la fête d'une autre box (sinon la régie refuse de la lui confier).
+                    "public" to mapOf("title" to "Quiz", "changeBox" to true),
                 ),
             ).await()
         }

@@ -689,6 +689,7 @@ const BOX_MESSAGES = {
   autreFete: "Cette box est déjà utilisée pour une autre fête. Vérifiez le code affiché sur la TV de secours.",
   siAcceptee: "Si c'est bien elle, vérifiez qu'elle est acceptée dans la Régie PC (Paramètres > Box TV).",
   prestation: "Une prestation est déjà chargée sur cette box : sur la TV de secours, choisissez « Nouvelle partie », puis tapez le nouveau code ici.",
+  ancienne: "Cette box n'a pas la dernière version de l'appli : sur la TV de secours, bouton Retour, « Rechercher une mise à jour », puis réessayez ici.",
   reseau: "Pas d'Internet sur ce téléphone : reconnectez-le, puis réessayez.",
   refus: "Changement refusé : ce téléphone n'est peut-être plus relié à la fête.",
   lent: "Toujours en attente du serveur… Vérifiez Internet sur ce téléphone.",
@@ -749,7 +750,7 @@ function fermerBox() {
  * Vérifie le code tapé, puis confie la fête à la box de ce salon. Les règles Firebase refont toutes ces vérifications :
  * partie existante, autre que celle-ci et pilotée par une autre box, salon d'attente sans équipe, sans prestation
  * chargée et sans le téléphone d'une autre animatrice (jamais la box d'une autre fête, même sur une faute de frappe),
- * box acceptée dans la Régie PC quand le verrou est en place.
+ * appli de la box à jour, box acceptée dans la Régie PC quand le verrou est en place.
  */
 async function changerDeBox(saisie) {
   const nouveau = saisie.toUpperCase().replace(/[\s-]/g, "");
@@ -771,6 +772,8 @@ async function changerDeBox(saisie) {
     const [etat, equipes] = await Promise.all([lire(`games/${nouveau}/state/phase`), lire(`games/${nouveau}/teams`)]);
     return etat === "lobby" && !Object.keys(equipes ?? {}).length;
   };
+  /** Box qui sait reprendre la fête d'une autre : une version plus ancienne n'écouterait pas, la fête resterait sans box. */
+  const aJour = async () => (await lire(`games/${nouveau}/public/changeBox`)) === true;
   /** Ce téléphone est relié à la box de secours (QR scanné par habitude) : il voit si une prestation y est chargée. */
   const prestationChargee = async () =>
     !!await lire(`games/${nouveau}/regie/${uid}`) && await lire(`games/${nouveau}/show/id`) != null;
@@ -783,6 +786,7 @@ async function changerDeBox(saisie) {
     if (hote === ancien) return fin(BOX_MESSAGES.dejaLa);
     if (!await salonVide()) return fin(BOX_MESSAGES.accueil);
     if (await prestationChargee()) return fin(BOX_MESSAGES.prestation);
+    if (!await aJour()) return fin(BOX_MESSAGES.ancienne);
     if ((await lire("boxes/lockOn")) === true) {
       // Lisible avec le mot de passe de régie ; refusé à un téléphone relié par le code de secours.
       acceptee = await get(ref(db, `boxes/allowed/${hote}`)).then((s) => s.exists(), (e) => {
@@ -811,8 +815,10 @@ async function changerDeBox(saisie) {
     // Refus des règles : le salon a changé entre-temps (une tablette, une prestation), ou une autre animatrice y est
     // reliée (ses données ne se lisent pas d'ici), ou la box n'est pas acceptée (seulement si on n'a pas pu le lire).
     const raison = await (async () => {
+      if (!await lire(`games/${code}/regie/${uid}`)) return BOX_MESSAGES.refus;
       if (!await salonVide()) return BOX_MESSAGES.accueil;
       if (await prestationChargee()) return BOX_MESSAGES.prestation;
+      if (!await aJour()) return BOX_MESSAGES.ancienne;
       if (!await lire(`games/${nouveau}/regie/${uid}`)) {
         return acceptee === undefined && (await lire("boxes/lockOn")) === true
           ? `${BOX_MESSAGES.autreFete} ${BOX_MESSAGES.siAcceptee}` : BOX_MESSAGES.autreFete;
