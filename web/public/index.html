@@ -155,6 +155,7 @@
   <div id="regie" class="regie" hidden>
     <div id="r-offline" class="banner" hidden>Reconnexion…</div>
     <div id="r-alerte" class="r-alerte" role="alert" hidden></div>
+    <div id="r-tv" class="r-alerte r-tv" role="alert" hidden></div>
     <section class="control">
       <header class="top">
         <span id="c-dot" class="dot on"></span>
@@ -190,6 +191,7 @@
           <button id="c-replay" class="btn secondary rescue-open" hidden>🔁 Rejouer</button>
           <button id="c-points" class="btn secondary rescue-open">± Points</button>
           <button id="c-rescue" class="btn secondary rescue-open" hidden>⏭ Changer de jeu</button>
+          <button id="c-box" class="btn secondary rescue-open">📺 Changer de box</button>
         </div>
         <details id="c-notes" class="notes" hidden>
           <summary>📝 Notes de la prestation</summary>
@@ -334,6 +336,20 @@
         <div id="tablette-demandes" class="tablette-demandes"></div>
         <p class="hint">Tablette bloquée ? Fermez complètement son navigateur et rouvrez-le : elle revient seule dans son équipe.</p>
       </div>
+    </section>
+    <!-- « 📺 Changer de box » (cedric, 21/10) : la box de la fête est en panne ; la fête continue sur une box de secours,
+         avec les mêmes équipes et les mêmes points. Ce téléphone et les tablettes restent sur la même partie. -->
+    <section id="box" class="lib" hidden aria-label="Changer de box">
+      <header class="lib-top">
+        <b>Changer de box</b>
+        <button id="box-close" class="btn secondary" type="button">Fermer</button>
+      </header>
+      <form id="box-form" class="lib-body box-form" autocomplete="off">
+        <p class="tablette-consigne">Sur la nouvelle box, choisissez « Nouvelle partie », puis tapez ici le code affiché sur sa TV : la fête y continue avec les mêmes équipes et les mêmes points.</p>
+        <input id="box-code" class="box-code" type="text" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="7" placeholder="Code de la nouvelle TV" aria-label="Code affiché sur la nouvelle TV">
+        <p id="box-status" class="modal-status" role="status"></p>
+        <button id="box-go" class="btn main" type="submit">Continuer sur cette box</button>
+      </form>
     </section>
     <!-- Points d'une équipe en deux temps : l'animatrice prépare le montant (rien ne bouge), puis valide une fois. -->
     <div id="pts" class="modal ask" hidden>

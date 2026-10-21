@@ -1,5 +1,5 @@
 import {
-  ref, get, set, push, onValue, serverTimestamp, query, limitToFirst,
+  ref, get, set, update, push, onValue, serverTimestamp, query, limitToFirst,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { CHOICE_LETTERS } from "./theme.js";
 import { writeProof } from "./proof.js";
@@ -173,6 +173,7 @@ function listen(path, fn) {
 function control() {
   stopListening();
   live = { state: null, teams: {}, presence: {}, plan: null, answers: {}, requests: {}, media: {}, connected: true };
+  tvMuette = null;
   shows = null;
   library = null;
   closeLibrary();
@@ -192,6 +193,8 @@ function control() {
   tabChosen = false;
   listen(`games/${code}/state`, (s) => {
     live.state = s.val();
+    // La TV a fait avancer la partie : elle répond de nouveau, le bandeau « La TV ne répond pas » s'en va.
+    if (tvMuette != null && (live.state?.seq ?? 0) !== tvMuette) tvMuette = null;
     watchAnswers();
     watchPumps();
     // En arrivant dans le salon d'attente, la première chose à faire est de charger la prestation.
@@ -338,6 +341,7 @@ function render() {
   renderGames(st);
   renderRequests(st, teams);
   renderTablette(st);
+  renderBox();
   renderMime(st, teams);
   renderBlind(st, teams);
   renderFlou(st);
@@ -655,6 +659,182 @@ function ouvrirTablette(e) {
 }
 $("c-tablette").onclick = ouvrirTablette;
 $("tablette-close").onclick = () => { tabletteOpen = false; render(); };
+
+// ---------- Changer de box ----------
+
+/**
+ * « 📺 Changer de box » (cedric, 21/10) : la box de la fête est en panne, ou ses données ont été effacées. Sarah branche
+ * une box de secours (acceptée dans la Régie PC), touche « Nouvelle partie » et tape ici le code de son salon d'attente.
+ * La régie confie alors la fête à cette box en une seule écriture, vérifiée par les règles Firebase : nouvel hôte,
+ * trace du changement (takeover) et relais vers le salon (handoff). La nouvelle box ferme son salon vide et rouvre la
+ * fête là où elle en était (équipes, points et programme sont dans Firebase). Les tablettes ne changent rien et ce
+ * téléphone reste sur la même partie. Toujours dans les boutons de la carte, et dans le bandeau « La TV ne répond pas ».
+ */
+let boxOpen = false;
+let boxBusy = false;
+/** Numéro d'étape affiché quand la TV s'est tue (commande sans réponse) ; null tant qu'elle répond. */
+let tvMuette = null;
+
+/** Codes de partie écrits par les box (sans I, O, 0 ni 1, comme CODE_CHARS de la TV). */
+const CODE_PARTIE = /^[A-HJ-NP-Z2-9]{5}$/;
+
+const BOX_MESSAGES = {
+  format: "Tapez le code à 5 caractères affiché en bas du QR code, sur la nouvelle TV.",
+  activation: "Ce code à 4 caractères est celui d'une box pas encore acceptée : acceptez-la dans la Régie PC (Paramètres > Box TV), puis tapez le code à 5 caractères de sa partie.",
+  meme: `C'est le code de cette fête : tapez celui affiché sur la nouvelle TV.`,
+  inconnu: "Code inconnu : vérifiez le code affiché sur la nouvelle TV.",
+  dejaLa: "Cette TV pilote déjà cette fête : rien à changer.",
+  accueil: "Cette TV n'est pas sur son écran d'accueil. Sur la nouvelle box, choisissez « Nouvelle partie », puis tapez le nouveau code.",
+  nonAcceptee: "Cette box n'est pas acceptée : acceptez-la dans la Régie PC (Paramètres > Box TV), puis réessayez.",
+  autreFete: "Cette box est déjà utilisée pour une autre fête. Vérifiez le code affiché sur la TV de secours.",
+  siAcceptee: "Si c'est bien elle, vérifiez qu'elle est acceptée dans la Régie PC (Paramètres > Box TV).",
+  prestation: "Une prestation est déjà chargée sur cette box : sur la TV de secours, choisissez « Nouvelle partie », puis tapez le nouveau code ici.",
+  reseau: "Pas d'Internet sur ce téléphone : reconnectez-le, puis réessayez.",
+  refus: "Changement refusé : ce téléphone n'est peut-être plus relié à la fête.",
+  lent: "Toujours en attente du serveur… Vérifiez Internet sur ce téléphone.",
+};
+
+/** Une commande est restée sans réponse : la TV est peut-être en panne (jamais quand c'est ce téléphone qui a perdu Internet). */
+function tvSilencieuse() {
+  if (!live.connected) return;
+  tvMuette = live.state?.seq ?? 0;
+  render();
+}
+
+function tvRepond() {
+  if (tvMuette == null) return;
+  tvMuette = null;
+  render();
+}
+
+function boxStatus(text, info = false) {
+  $("box-status").textContent = text;
+  $("box-status").classList.toggle("info", info);
+}
+
+function renderBox() {
+  $("box").hidden = !boxOpen;
+  $("box-go").disabled = boxBusy;
+  $("box-go").textContent = boxBusy ? "Envoi…" : "Continuer sur cette box";
+  $("box-code").disabled = boxBusy;
+  // Bandeau « La TV ne répond pas » : rien à dire tant que la TV répond, ou pendant le changement de box.
+  const alerte = $("r-tv");
+  alerte.hidden = tvMuette == null || boxOpen;
+  if (alerte.hidden || alerte.childNodes.length) return;
+  const changer = Object.assign(document.createElement("button"), { type: "button", className: "r-alerte-reconnecter", textContent: "📺 Changer de box" });
+  changer.onclick = ouvrirBox;
+  alerte.replaceChildren("📺 La TV ne répond pas",
+    Object.assign(document.createElement("small"), { textContent: "Vérifiez qu'elle est allumée et reliée à Internet. En panne ? La fête continue sur une autre box, avec ses équipes et ses points. Touchez pour masquer." }),
+    changer);
+  alerte.onclick = () => { tvMuette = null; render(); };
+}
+
+function ouvrirBox(e) {
+  e?.stopPropagation();
+  if (boxBusy) return;
+  boxOpen = true;
+  $("box-code").value = "";
+  boxStatus("");
+  render();
+  $("box-code").focus();
+}
+
+function fermerBox() {
+  if (boxBusy) return;
+  boxOpen = false;
+  render();
+}
+
+/**
+ * Vérifie le code tapé, puis confie la fête à la box de ce salon. Les règles Firebase refont toutes ces vérifications :
+ * partie existante, autre que celle-ci et pilotée par une autre box, salon d'attente sans équipe, sans prestation
+ * chargée et sans le téléphone d'une autre animatrice (jamais la box d'une autre fête, même sur une faute de frappe),
+ * box acceptée dans la Régie PC quand le verrou est en place.
+ */
+async function changerDeBox(saisie) {
+  const nouveau = saisie.toUpperCase().replace(/[\s-]/g, "");
+  if (nouveau === code) return boxStatus(BOX_MESSAGES.meme);
+  if (/^[A-Z0-9]{4}$/.test(nouveau)) return boxStatus(BOX_MESSAGES.activation);
+  if (!CODE_PARTIE.test(nouveau)) return boxStatus(BOX_MESSAGES.format);
+  if (!live.connected) return boxStatus(BOX_MESSAGES.reseau);
+  boxBusy = true;
+  boxStatus("Vérification…", true);
+  render();
+  const fin = (message) => {
+    boxBusy = false;
+    if (message) boxStatus(message);
+    render();
+  };
+  const lire = (path) => get(ref(db, path)).then((s) => s.val());
+  /** Salon d'attente vide : la box vient d'être allumée sur « Nouvelle partie », aucune tablette ne l'a rejoint. */
+  const salonVide = async () => {
+    const [etat, equipes] = await Promise.all([lire(`games/${nouveau}/state/phase`), lire(`games/${nouveau}/teams`)]);
+    return etat === "lobby" && !Object.keys(equipes ?? {}).length;
+  };
+  /** Ce téléphone est relié à la box de secours (QR scanné par habitude) : il voit si une prestation y est chargée. */
+  const prestationChargee = async () =>
+    !!await lire(`games/${nouveau}/regie/${uid}`) && await lire(`games/${nouveau}/show/id`) != null;
+  let hote, ancien;
+  /** Box acceptée dans la Régie PC : true, false, ou undefined si ce téléphone ne peut pas le lire (code de secours). */
+  let acceptee;
+  try {
+    [hote, ancien] = await Promise.all([lire(`games/${nouveau}/hostUid`), lire(`games/${code}/hostUid`)]);
+    if (!hote) return fin(BOX_MESSAGES.inconnu);
+    if (hote === ancien) return fin(BOX_MESSAGES.dejaLa);
+    if (!await salonVide()) return fin(BOX_MESSAGES.accueil);
+    if (await prestationChargee()) return fin(BOX_MESSAGES.prestation);
+    if ((await lire("boxes/lockOn")) === true) {
+      // Lisible avec le mot de passe de régie ; refusé à un téléphone relié par le code de secours.
+      acceptee = await get(ref(db, `boxes/allowed/${hote}`)).then((s) => s.exists(), (e) => {
+        if (e?.code === "PERMISSION_DENIED" || /permission/i.test(e?.message ?? "")) return undefined;
+        throw e;
+      });
+      if (acceptee === false) return fin(BOX_MESSAGES.nonAcceptee);
+    }
+  } catch (e) {
+    console.error(e);
+    return fin(BOX_MESSAGES.reseau);
+  }
+  boxStatus("Envoi…", true);
+  // Réseau très lent : l'écriture part dès que possible ; on le dit sans l'annuler (la fête changerait quand même de box).
+  const lent = setTimeout(() => boxStatus(BOX_MESSAGES.lent, true), 8000);
+  try {
+    await update(ref(db), {
+      [`games/${code}/hostUid`]: hote,
+      [`games/${code}/takeover`]: { to: nouveau, from: ancien, by: uid, at: serverTimestamp() },
+      [`games/${nouveau}/handoff`]: code,
+    });
+  } catch (e) {
+    clearTimeout(lent);
+    console.error("Changement de box refusé", e);
+    if (e?.code !== "PERMISSION_DENIED") return fin(BOX_MESSAGES.reseau);
+    // Refus des règles : le salon a changé entre-temps (une tablette, une prestation), ou une autre animatrice y est
+    // reliée (ses données ne se lisent pas d'ici), ou la box n'est pas acceptée (seulement si on n'a pas pu le lire).
+    const raison = await (async () => {
+      if (!await salonVide()) return BOX_MESSAGES.accueil;
+      if (await prestationChargee()) return BOX_MESSAGES.prestation;
+      if (!await lire(`games/${nouveau}/regie/${uid}`)) {
+        return acceptee === undefined && (await lire("boxes/lockOn")) === true
+          ? `${BOX_MESSAGES.autreFete} ${BOX_MESSAGES.siAcceptee}` : BOX_MESSAGES.autreFete;
+      }
+      return acceptee === undefined && (await lire("boxes/lockOn")) === true ? BOX_MESSAGES.nonAcceptee : BOX_MESSAGES.refus;
+    })().catch(() => BOX_MESSAGES.refus);
+    return fin(raison);
+  }
+  clearTimeout(lent);
+  boxBusy = false;
+  boxOpen = false;
+  tvMuette = null;
+  render();
+  toast("✓ La fête continue sur la nouvelle TV : mêmes équipes, mêmes points. Les tablettes suivent toutes seules.");
+}
+
+$("c-box").onclick = ouvrirBox;
+$("box-close").onclick = fermerBox;
+$("box-form").onsubmit = (e) => {
+  e.preventDefault();
+  if (!boxBusy) changerDeBox($("box-code").value);
+};
 
 // ---------- Mimes ----------
 
@@ -2172,10 +2352,11 @@ async function sendProgram(questions, success, fromLibrary = false, onApplied = 
     render();
   };
   let stop = () => {};
-  const timeout = setTimeout(() => { stop(); done("La TV ne répond pas. Vérifiez qu'elle est allumée et connectée à Internet.", false); }, 8000);
+  const timeout = setTimeout(() => { stop(); done("La TV ne répond pas. Vérifiez qu'elle est allumée et connectée à Internet.", false); tvSilencieuse(); }, 8000);
   stop = onValue(ref(db, `games/${code}/showStatus`), (s) => {
     const status = s.val();
     if (status?.id !== id) return;
+    tvRepond();
     clearTimeout(timeout);
     stop();
     const applied = status.status === "applied";
@@ -2375,10 +2556,11 @@ async function loadShow(id) {
   const showId = push(ref(db, `games/${code}/show`)).key;
   const done = (message) => { loadingShow = null; if (message) toast(message); render(); };
   let stop = () => {};
-  const timeout = setTimeout(() => { stop(); done("La TV ne répond pas. Vérifiez qu'elle est allumée et connectée à Internet."); }, 8000);
+  const timeout = setTimeout(() => { stop(); done("La TV ne répond pas. Vérifiez qu'elle est allumée et connectée à Internet."); tvSilencieuse(); }, 8000);
   stop = onValue(ref(db, `games/${code}/showStatus`), (s) => {
     const status = s.val();
     if (status?.id !== showId) return;
+    tvRepond();
     clearTimeout(timeout);
     stop();
     done(status.status === "applied" ? `« ${snapshot.title} » est chargée sur la TV : ${snapshot.rounds.length} jeu${snapshot.rounds.length > 1 ? "x" : ""}.` : SHOW_MESSAGES[status.reason] ?? "La TV a refusé cette prestation.");
@@ -2461,10 +2643,12 @@ async function send(type, extra = {}, { advance = false } = {}) {
     const timeout = setTimeout(() => {
       toast("La TV ne répond pas. Vérifiez qu'elle est allumée et connectée à Internet.");
       done(null);
+      tvSilencieuse();
     }, BOX_TIMEOUT_MS);
     stop = onValue(ref(db, `games/${code}/commandStatus/${cmdRef.key}`), (s) => {
       const status = s.val();
       if (!status) return;
+      tvRepond();
       if (status.status !== "applied") toast(STATUS_MESSAGES[status.reason] ?? STATUS_MESSAGES[status.status] ?? "Commande refusée.");
       done(status);
     });

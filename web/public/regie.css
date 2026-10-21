@@ -336,3 +336,9 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .tablette-consigne { margin: 0; font-size: 17px; font-weight: 700; text-align: center; }
 .regie .tablette-demandes { display: flex; flex-direction: column; gap: 8px; }
 .regie .tablette-demandes:empty { display: none; }
+
+/* « 📺 Changer de box » : le code de la nouvelle TV en grand, comme sur l'écran du salon d'attente. */
+.regie .box-form { justify-content: flex-start; gap: 14px; }
+.regie .box-code { align-self: center; max-width: 320px; font-size: 34px; font-weight: 900; letter-spacing: 8px; text-transform: uppercase; }
+.regie .box-code::placeholder { letter-spacing: 0; text-transform: none; }
+.regie #box .modal-status { text-align: center; line-height: 1.4; }
