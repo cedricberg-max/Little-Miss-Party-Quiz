@@ -29,10 +29,11 @@ import {
 } from "./manches.js";
 import { concepts, neufsSiPossible } from "./jamais-deux-fois.js";
 import { PICTO_OWN_SERIES } from "./picto-cards.js";
-import { EXTRACT_SECONDS, guessTrack, defaultStart, decodeFile, makeExtract, synthTune, encodeMp3, soundId } from "./audio.js";
+import { EXTRACT_SECONDS, guessTrack, decodeFile, cutExtract, makeExtract, synthTune, encodeMp3, soundId } from "./audio.js";
 import { REFRAIN_SEC, REFRAIN_KBPS, buzzOf, defaultRefrain, songList, songsRetirees, songMatches, trackFromSong, songUpdates } from "./sons.js";
-import { lireLrc, refrainDesParoles, parolesDuRefrain, associerParoles, nomSimple, MAX_LRC } from "./paroles.js";
+import { lireLrc, refrainDesParoles, debutDesParoles, parolesDuRefrain, associerParoles, nomSimple, MAX_LRC } from "./paroles.js";
 import { etiquettesMp3 } from "./id3.js";
+import { garderFichier, fichierGarde, oublierFichier } from "./sons-locaux.js";
 import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
 import { watchVersion, showUpdateBanner } from "./version.js";
 import { compressImage, imageId, cleanEmoji, CHOICE_IMAGE } from "./illustration.js";
@@ -2766,8 +2767,6 @@ const choisies = new Set();
 let chansonsTrouvees = [];
 /** Dernière case cochée : Maj + clic coche tout jusqu'à elle. */
 let dernierCoche = null;
-/** Chansons dont le détail des moments est ouvert. */
-const momentsOuverts = new Set();
 const cleChanson = (x) => x.id ?? `a:${x.audioId}`;
 
 /** Ligne d'une chanson de la bibliothèque, de gauche à droite : case, pochette, artiste, titre, paroles, moments. */
@@ -2788,15 +2787,7 @@ function ligneChanson(x, i) {
     vide ? h("span", { class: "song-alerte", role: "img", "aria-label": "Ni pochette ni paroles", title: "Ni pochette ni paroles : au blind test, la TV montrera seulement le titre et le disque. Ajoutez une pochette ou un fichier .lrc.", text: "⚠" }) : h("span"),
     h("div", { class: "song-tools" },
       h("button", { type: "button", class: "btn secondary", title: "Écouter l'extrait du buzz", onclick: () => listen({ audioId: x.audioId, title: x.title }), text: "▶ Extrait" }),
-      x.refrainId ? h("button", { type: "button", class: "btn secondary", title: "Écouter le refrain", onclick: () => listen({ audioId: x.refrainId, title: x.title }), text: "▶ Refrain" }) : null,
-      h("button", { type: "button", class: "btn secondary", onclick: () => editSongs([x]), text: "Régler…" })));
-  if (momentsOuverts.has(cle) && x.refrainId) {
-    ligne.append(h("div", { class: "song-detail" },
-      h("span", { text: `Début de l'extrait : ${mmss(x.start ?? 0)} · ${x.buzz} s pour buzzer${Number.isFinite(x.refrain) ? ` · Refrain : ${mmss(x.refrain)}` : ""} · ${x.auto ? "trouvé automatiquement" : "réglé à la main"}` }),
-      fichierPourRegler(x, false),
-      fichierPourRegler(x, true),
-      h("span", { class: "hint small", text: "Choisissez le MP3 de la chanson sur le PC : seuls ses extraits sont gardés en ligne." })));
-  }
+      x.refrainId ? h("button", { type: "button", class: "btn secondary", title: "Écouter le refrain", onclick: () => listen({ audioId: x.refrainId, title: x.title }), text: "▶ Refrain" }) : null));
   return ligne;
 }
 
@@ -2850,20 +2841,16 @@ function cellParoles(x) {
 }
 
 /**
- * Moments du blind test (début de l'extrait, refrain) : une chanson rangée est réglée d'office, son refrain trouvé
- * automatiquement (cedric, 21/10) ; un clic montre les moments et permet de les changer. Seule une ancienne chanson
- * sans extrait du refrain est « à régler ».
+ * Moments du blind test (début, hook) : une chanson rangée est réglée d'office (cedric, 21/10 : début 2 s avant les
+ * premiers mots chantés, hook trouvé dans les paroles). Un clic ouvre ses réglages.
  */
 function cellMoments(x) {
-  if (!x.refrainId) {
-    return h("span", { class: "song-moments vide", title: "Pas encore de refrain : « Régler… » puis choisissez le MP3 sur le PC.", text: "⏱ À régler" });
-  }
-  const cle = cleChanson(x);
+  const hook = Number.isFinite(x.refrain) ? ` à ${mmss(x.refrain)}` : "";
   return h("button", {
-    type: "button", class: `song-moments ok${momentsOuverts.has(cle) ? " ouvert" : ""}`,
-    title: `${x.auto ? "Refrain trouvé automatiquement" : "Refrain réglé à la main"} : cliquez pour voir les moments ou les changer`,
-    onclick: () => { if (momentsOuverts.has(cle)) momentsOuverts.delete(cle); else momentsOuverts.add(cle); renderSongs(); },
-    text: "⏱ Réglé ✓",
+    type: "button", class: `song-moments${x.refrainId ? " ok" : ""}`,
+    title: x.refrainId ? `Début à ${mmss(x.start ?? 0)}, hook${hook} ${x.auto ? "trouvé automatiquement" : "réglé à la main"} : cliquez pour changer le réglage` : "Pas encore de hook : cliquez pour régler",
+    onclick: () => editSongs([x]),
+    text: x.refrainId ? "⏱ Réglé ✓" : "⏱ Régler",
   });
 }
 
@@ -2894,7 +2881,7 @@ function renderSelection(total) {
   $("song-barre").hidden = voirRetirees || !total;
   $("song-barre").replaceChildren(
     h("label", { class: "inline song-tout" }, tout, n ? `${n} sélectionnée${n > 1 ? "s" : ""}` : "Tout sélectionner"),
-    n ? h("button", { type: "button", class: "btn small secondary", onclick: () => cocherTout(false), text: "Désélectionner" }) : null,
+    n ? h("button", { type: "button", class: "btn small secondary", onclick: () => cocherTout(false), text: "Désélectionner" }) : "",
     h("button", { type: "button", class: "btn small danger", disabled: !n, onclick: () => supprimerChansons(), text: n ? `🗑 Supprimer (${n})` : "🗑 Supprimer" }),
     h("span", { class: "hint small", text: "Maj + clic : plusieurs d'un coup · Ctrl + A : tout · Suppr : supprimer" }));
 }
@@ -2913,12 +2900,16 @@ function renderSongs() {
   [...choisies].forEach((k) => { if (!cles.has(k)) choisies.delete(k); });
   $("song-count").textContent = found.length === all.length ? `${all.length} chanson${all.length > 1 ? "s" : ""}${voirRetirees ? ` supprimée${all.length > 1 ? "s" : ""}` : ""}` : `${found.length} sur ${all.length}`;
   renderSelection(all.length);
-  $("song-list").replaceChildren(...(voirRetirees ? [] : found.length ? [h("div", { class: "song song-entete", "aria-hidden": "true" },
+  $("song-list").replaceChildren(...(voirRetirees ? (all.length > 1 ? [h("div", { class: "song-effacer-tout" },
+    h("button", { type: "button", class: "btn small danger", onclick: () => effacerPourDeBon(all), text: `Tout effacer pour de bon (${all.length})` }),
+    h("span", { class: "hint small", text: "Effacées pour de bon, les chansons libèrent leur place en ligne et ne peuvent plus être remises." }))] : []) : found.length ? [h("div", { class: "song song-entete", "aria-hidden": "true" },
     h("span"), h("span", { text: "Pochette" }), h("span", { text: "Artiste" }), h("span", { text: "Titre" }), h("span", { text: "Paroles" }), h("span", { text: "Moments" }), h("span"), h("span"))] : []),
   ...found.slice(0, MAX_SONGS_SHOWN).map((x, i) => (voirRetirees
     ? h("div", { class: "song", "data-song": x.id },
       h("div", { class: "song-name" }, h("b", { text: x.title }), h("span", { class: "song-meta", text: x.artist })),
-      h("div", { class: "song-tools" }, h("button", { type: "button", class: "btn", onclick: () => remettreChanson(x), text: "Remettre" })))
+      h("div", { class: "song-tools" },
+        h("button", { type: "button", class: "btn", onclick: () => remettreChanson(x), text: "Remettre" }),
+        h("button", { type: "button", class: "btn danger", onclick: () => effacerPourDeBon([x]), text: "Effacer pour de bon" })))
     : ligneChanson(x, i))));
   if (found.length > MAX_SONGS_SHOWN) $("song-list").append(h("p", { class: "hint small", text: `… et ${found.length - MAX_SONGS_SHOWN} autres : précisez la recherche.` }));
   if (!all.length && !voirRetirees) {
@@ -2972,35 +2963,6 @@ async function attacherParoles(x, texte) {
 }
 
 /**
- * « ⏱ Changer le réglage… » et « ↺ Réidentifier le hook… » d'une chanson de la bibliothèque : Sarah rechoisit son MP3
- * (seuls les extraits sont gardés en ligne), l'écran des réglages s'ouvre avec le curseur du refrain, sur le réglage
- * actuel ou sur le hook trouvé de nouveau ; elle écoute, ajuste si besoin, puis enregistre.
- */
-function fichierPourRegler(x, hook) {
-  return h("label", {
-    class: "btn small secondary file-btn",
-    title: hook ? "Retrouver le refrain dans les paroles (le passage le plus chanté), sinon le milieu du morceau" : "Déplacer le début de l'extrait ou le refrain",
-  }, hook ? "↺ Réidentifier le hook…" : "⏱ Changer le réglage…",
-  h("input", {
-    type: "file", accept: "audio/*", hidden: true, "aria-label": hook ? `Réidentifier le hook de « ${x.title} »` : `Changer le réglage de « ${x.title} »`,
-    onchange: async (e) => {
-      const f = e.target.files?.[0];
-      e.target.value = "";
-      if (!f) return;
-      editSongs([x]);
-      const t = playlist.tracks[0];
-      await chargerParoles(t);
-      if (hook) { delete t.refrain; t.regle = false; }
-      withFile(t, f, await fileDuration(f));
-      noterEcran();
-      renderTracks();
-      status("playlist-status", hook ? "Hook trouvé de nouveau : écoutez le refrain, ajustez si besoin, puis « Enregistrer les réglages »."
-        : "Déplacez le début ou le refrain, écoutez, puis « Enregistrer les réglages ».", true);
-    },
-  }));
-}
-
-/**
  * Supprime les chansons cochées de la bibliothèque (cedric, 21/10), après confirmation ; toute la bibliothèque cochée :
  * un avertissement clair. Les playlists qui les ont les gardent, aucun extrait n'est effacé, et « 🗑 Supprimées »
  * permet de les remettre.
@@ -3024,6 +2986,36 @@ async function supprimerChansons() {
   } catch (err) {
     console.error(err);
     status("song-status", "Suppression refusée : vérifiez Internet ou reconnectez-vous.");
+  }
+}
+
+/**
+ * « Effacer pour de bon » des chansons supprimées (cedric, 21/10) : en ligne, la chanson, sa chanson entière et ses
+ * paroles sont effacées, et ses extraits aussi, sauf ceux qu'une playlist, une manche, une prestation ou un quiz utilise
+ * encore. Le fichier gardé sur ce PC est oublié. On ne peut plus la remettre.
+ */
+async function effacerPourDeBon(liste) {
+  if (!liste.length) return;
+  const nom = liste.length === 1 ? `« ${liste[0].title} »` : `ces ${liste.length} chansons`;
+  if (!confirm(`Effacer ${nom} pour de bon ?\n\nLa chanson entière, les paroles et les extraits sont effacés en ligne (sauf les extraits qu'une playlist utilise encore). On ne pourra plus ${liste.length === 1 ? "la" : "les"} remettre.`)) return;
+  const ids = new Set(liste.map((x) => x.id));
+  // Extraits encore utilisés ailleurs : toute empreinte d'extrait citée par une playlist, une manche, une prestation,
+  // un quiz ou une autre chanson (en trop, un extrait reste ; jamais l'inverse).
+  const utilises = new Set(JSON.stringify([playlists, manches, shows, quizzes]).match(/[0-9a-f]{16}/g) ?? []);
+  Object.entries(songs).forEach(([id, x]) => { if (!ids.has(id)) [x?.audioId, x?.refrainId].forEach((a) => a && utilises.add(a)); });
+  const chemins = {};
+  liste.forEach((x) => {
+    const song = songs[x.id] ?? {};
+    Object.assign(chemins, { [`library/songs/${x.id}`]: null, [`library/lyrics/${x.id}`]: null, [`library/entieres/${x.id}`]: null });
+    [song.audioId, song.refrainId].filter((a) => a && !utilises.has(a)).forEach((a) => { chemins[`library/sounds/${a}`] = null; });
+  });
+  try {
+    await update(ref(db), chemins);
+    for (const x of liste) { sourcesLocales.delete(x.id); await oublierFichier(x.id); }
+    status("song-status", liste.length === 1 ? `« ${liste[0].title} » est effacée pour de bon.` : `${liste.length} chansons effacées pour de bon.`, true);
+  } catch (err) {
+    console.error(err);
+    status("song-status", "Effacement refusé : vérifiez Internet ou reconnectez-vous.");
   }
 }
 
@@ -3191,6 +3183,7 @@ function editPlaylist(id, fresh = {}) {
   show("playlist-edit");
   renderTracks();
   histPlaylist.depart();
+  chargerSources();
 }
 
 const PLAYLIST_FIELDS = ["playlist-title", "playlist-duration", "playlist-points", "playlist-final-points", "playlist-final-count", "playlist-reveal"];
@@ -3205,6 +3198,115 @@ const histPlaylist = historique({
     renderTracks();
   },
 });
+
+/**
+ * Chansons entières (cedric, 21/10) : pour que les curseurs « Début » et « Hook » parcourent toute la chanson depuis
+ * n'importe quel PC, chaque chanson de la bibliothèque est aussi rangée en entier en ligne (library/entieres/<chanson>,
+ * en MP3 mono, coupée en parts sous la taille maximale d'une écriture), à côté de ses deux extraits. Le PC qui
+ * l'importe garde en plus le fichier d'origine (sons-locaux.js), et un PC qui la télécharge la garde aussi : elle n'est
+ * téléchargée qu'une fois par PC. Les extraits sont redécoupés depuis elle quand un réglage bouge.
+ */
+const sourcesLocales = new Map();
+/** Chansons en cours de téléchargement (écran des réglages). */
+const enChargement = new Set();
+/** Fichier entier d'un morceau : celui qu'on vient de choisir ou de glisser, sinon la chanson entière déjà chargée. */
+const sourceDe = (t) => t.file ?? (t.songId ? sourcesLocales.get(t.songId) : null) ?? null;
+const ENTIERE_PART = 800_000;
+const ENTIERE_PARTS_MAX = 24;
+const ENTIERE_KBPS = [96, 64];
+
+/** La chanson entière est-elle déjà en ligne ? */
+async function entiereEnLigne(songId) {
+  if (!songId) return false;
+  return typeof (await get(ref(db, `library/entieres/${songId}/n`))).val() === "number";
+}
+
+/** Chanson entière à ranger en ligne : MP3 mono (base64 sans en-tête), ou null si elle est trop longue. */
+async function encoderEntiere(buffer) {
+  const mono = await cutExtract(buffer, 0, buffer.duration);
+  for (const kbps of ENTIERE_KBPS) {
+    const data = (await encodeMp3(mono, kbps)).slice("data:audio/mpeg;base64,".length);
+    if (data.length <= ENTIERE_PART * ENTIERE_PARTS_MAX) return { data, kbps, length: buffer.duration };
+  }
+  return null;
+}
+
+/** Range la chanson entière en ligne, part après part ; le nombre de parts, écrit en dernier, dit qu'elle est complète. */
+async function envoyerEntiere(songId, { data, kbps, length }) {
+  const n = Math.ceil(data.length / ENTIERE_PART);
+  for (let i = 0; i < n; i++) await set(ref(db, `library/entieres/${songId}/p/${i}`), data.slice(i * ENTIERE_PART, (i + 1) * ENTIERE_PART));
+  await update(ref(db, `library/entieres/${songId}`), { n, kbps, length: Math.min(7200, Math.round(length)), at: serverTimestamp() });
+}
+
+/** Chanson entière téléchargée, en fichier MP3 ; null si elle n'est pas (ou pas entièrement) en ligne. */
+async function telechargerEntiere(songId) {
+  const x = (await get(ref(db, `library/entieres/${songId}`))).val();
+  if (!Number.isInteger(x?.n) || !x.p) return null;
+  const parts = Array.from({ length: x.n }, (_, i) => x.p[i]);
+  if (parts.some((p) => typeof p !== "string")) return null;
+  const binaire = atob(parts.join(""));
+  const octets = new Uint8Array(binaire.length);
+  for (let i = 0; i < binaire.length; i++) octets[i] = binaire.charCodeAt(i);
+  return new File([octets], `${songId}.mp3`, { type: "audio/mpeg" });
+}
+
+/** Garde sur ce PC le fichier d'une chanson de la bibliothèque. */
+async function garderSurCePC(songId, fichier) {
+  if (!songId || !fichier || sourcesLocales.get(songId) === fichier) return;
+  sourcesLocales.set(songId, fichier);
+  await garderFichier(songId, fichier);
+}
+
+/**
+ * Chanson entière d'un morceau : déjà là, gardée sur ce PC, sinon téléchargée (et gardée sur ce PC pour la prochaine
+ * fois). [enLigne] : faux pour regarder seulement sur ce PC. Rend null si elle n'est nulle part.
+ */
+async function chargerSource(t, enLigne = true) {
+  if (sourceDe(t) || !t.songId) return sourceDe(t);
+  let f = await fichierGarde(t.songId);
+  if (!f && enLigne) {
+    try {
+      f = await telechargerEntiere(t.songId);
+    } catch (e) {
+      console.warn("Chanson entière introuvable", e);
+    }
+    if (f) await garderFichier(t.songId, f);
+  }
+  if (f) sourcesLocales.set(t.songId, f);
+  return f;
+}
+
+/** Un réglage a bougé : le morceau sera redécoupé à l'enregistrement, depuis la chanson entière. */
+function aRedecouper(t) {
+  if (!t.file) t.file = sourceDe(t);
+}
+
+/**
+ * Écran des playlists ouvert : les chansons entières gardées sur ce PC arrivent, et les curseurs avec elles. Réglages
+ * d'une seule chanson : elle est téléchargée si besoin.
+ */
+async function chargerSources() {
+  const p = playlist;
+  if (!p || p.use === "statues") return;
+  let trouvees = 0;
+  for (const t of p.tracks) {
+    if (sourceDe(t) || !t.songId) continue;
+    if (p.single) { enChargement.add(t.songId); renderTracks(); }
+    if (await chargerSource(t, p.single)) trouvees++;
+    enChargement.delete(t.songId);
+  }
+  if (playlist !== p) return;
+  // Une chanson sans durée connue (rangée avant le 21/10) : lue dans le fichier, sans compter comme une modification.
+  const avant = histPlaylist.modifie;
+  let durees = 0;
+  for (const t of p.tracks) {
+    const f = sourceDe(t);
+    if (f && !(t.length > 0)) { t.length = await fileDuration(f); durees++; }
+  }
+  if (playlist !== p) return;
+  if (durees && !avant) histPlaylist.depart();
+  if (trouvees || durees || p.single) renderTracks();
+}
 
 function stopPreview() {
   if (!preview) return;
@@ -3224,8 +3326,9 @@ const REFRAIN_PREVIEW_SEC = 20;
 async function listen(t, refrain = false) {
   stopPreview();
   try {
-    if (t.file) {
-      const url = URL.createObjectURL(t.file);
+    const fichier = sourceDe(t);
+    if (fichier) {
+      const url = URL.createObjectURL(fichier);
       const audio = new Audio(url);
       preview = { audio, url };
       audio.currentTime = refrain ? t.refrain ?? 0 : t.start;
@@ -3233,7 +3336,7 @@ async function listen(t, refrain = false) {
       preview.timer = setTimeout(stopPreview, (refrain ? REFRAIN_PREVIEW_SEC : t.duration ?? Number($("playlist-duration").value)) * 1000);
     } else {
       const id = refrain ? t.refrainId : t.audioId;
-      if (!id) return status("playlist-status", `« ${t.title} » n'a pas encore de refrain : rechoisissez son fichier avec « Régler les moments… ».`);
+      if (!id) return status("playlist-status", `« ${t.title} » n'a pas encore de hook : glissez son MP3 sur la chanson pour le régler.`);
       const data = (await get(ref(db, `library/sounds/${id}`))).val();
       if (typeof data !== "string") return status("playlist-status", `Extrait de « ${t.title} » introuvable.`);
       const audio = new Audio(data);
@@ -3294,28 +3397,62 @@ function coverTools(t) {
   return [img, h("label", { class: "link" }, "Pochette…", input), remove];
 }
 
+/** Le hook du morceau est-il celui trouvé automatiquement (pas déplacé à la main) ? */
+const hookAuto = (t) => (t.regle === undefined ? t.auto === true : !t.regle);
+
+/** Le morceau [t] accepte qu'on lui glisse son fichier musical, sans passer par l'explorateur de fichiers. */
+function deposable(t) {
+  const audio = (f) => /^audio\//.test(f.type) || /\.(mp3|m4a|aac|wav|ogg|oga|opus|flac)$/i.test(f.name);
+  return {
+    ondragover: (e) => {
+      if (!e.dataTransfer?.types?.includes("Files")) return;
+      e.preventDefault();
+      e.currentTarget.classList.add("depot");
+    },
+    ondragleave: (e) => e.currentTarget.classList.remove("depot"),
+    ondrop: async (e) => {
+      e.currentTarget.classList.remove("depot");
+      const f = [...(e.dataTransfer?.files ?? [])].find(audio);
+      if (!f) return;
+      e.preventDefault();
+      e.stopPropagation();
+      await chargerParoles(t);
+      withFile(t, f, await fileDuration(f));
+      noterEcran();
+      renderTracks();
+    },
+  };
+}
+// Un fichier lâché à côté d'une zone prévue ne remplace pas la Régie PC par le fichier.
+["dragover", "drop"].forEach((type) => window.addEventListener(type, (e) => { if (e.dataTransfer?.types?.includes("Files")) e.preventDefault(); }));
+
 function renderTracks() {
   $("playlist-count").textContent = playlist.tracks.length;
+  if (playlist.single) {
+    $("playlist-tracks").replaceChildren(...playlist.tracks.map((t) => ecranReglage(t)));
+    return;
+  }
   const seconds = Number($("playlist-duration").value);
   const scale = scaleInputs();
   const n = playlist.tracks.length;
   $("playlist-tracks").replaceChildren(...playlist.tracks.map((t, i) => {
+    const fichier = sourceDe(t);
     const debut = playlist.use === "statues" ? "Début du passage" : "Début de l'extrait";
     const label = h("span", { text: `${debut} : ${mmss(t.start ?? 0)}` });
     const length = t.duration ?? seconds;
     const max = Math.max(0, Math.floor((t.length ?? 0) - length));
     const auto = trackPoints(scale, null, i, n);
-    // Durée propre au morceau : seulement avant l'enregistrement (l'extrait est découpé à ce moment-là).
-    const duration = t.file ? h("label", { class: "inline" }, "Durée",
+    // Durée propre au morceau : seulement avec la chanson entière (l'extrait est redécoupé à l'enregistrement).
+    const duration = fichier ? h("label", { class: "inline" }, "Durée",
       h("select", {
         class: "track-duration", "aria-label": "Durée de l'extrait",
-        onchange: (e) => { t.duration = e.target.value ? Number(e.target.value) : null; renderTracks(); },
+        onchange: (e) => { t.duration = e.target.value ? Number(e.target.value) : null; aRedecouper(t); renderTracks(); },
       },
       h("option", { value: "", text: `comme ${playlist.use === "statues" ? "la liste" : "la playlist"} (${seconds} s)`, selected: t.duration == null }),
       ...extractChoices().map((s) => h("option", { value: s, text: `${s} s`, selected: t.duration === s })))) : null;
     const statues = playlist.use === "statues";
     const library = playlist.use === "songs";
-    return h("div", { class: `track${t.file ? "" : " saved"}`, "data-track": i },
+    return h("div", { class: `track${fichier ? "" : " saved"}`, "data-track": i, ...deposable(t) },
       h("input", { type: "text", maxlength: 80, placeholder: statues ? "Titre de la chanson" : "Titre (la réponse)", value: t.title, "aria-label": "Titre", oninput: (e) => { t.title = e.target.value; } }),
       h("input", { type: "text", maxlength: 80, placeholder: statues ? "Artiste (facultatif)" : "Artiste ou dessin animé (bonus, facultatif)", value: t.artist, "aria-label": "Artiste", oninput: (e) => { t.artist = e.target.value; } }),
       h("div", { class: "track-tools" },
@@ -3323,12 +3460,12 @@ function renderTracks() {
         library ? null : h("button", { type: "button", class: "icon", title: "Plus tôt", disabled: i === 0, onclick: () => moveTrack(i, -1), text: "↑" }),
         library ? null : h("button", { type: "button", class: "icon", title: "Plus tard", disabled: i === n - 1, onclick: () => moveTrack(i, 1), text: "↓" }),
         h("button", { type: "button", class: "icon", title: "Écouter l'extrait", onclick: () => listen(t), text: "▶" }),
-        statues ? null : h("button", { type: "button", class: "icon", title: "Écouter le refrain", onclick: () => listen(t, true), text: "🎤" }),
-        playlist.single ? null : h("button", { type: "button", class: "icon", title: library ? "Retirer de cet écran (la chanson reste dans la bibliothèque)" : "Retirer", onclick: () => { stopPreview(); playlist.tracks.splice(i, 1); renderTracks(); }, text: "✕" })),
+        statues ? null : h("button", { type: "button", class: "icon", title: "Écouter le hook", onclick: () => listen(t, true), text: "🎤" }),
+        h("button", { type: "button", class: "icon", title: library ? "Retirer de cet écran (la chanson reste dans la bibliothèque)" : "Retirer", onclick: () => { stopPreview(); playlist.tracks.splice(i, 1); renderTracks(); }, text: "✕" })),
       h("div", { class: "track-start" }, label,
         h("input", {
           type: "range", min: 0, max, step: 1, value: Math.min(t.start ?? 0, max), "aria-label": "Début de l'extrait",
-          oninput: (e) => { t.start = Number(e.target.value); t.regle = true; label.textContent = `${debut} : ${mmss(t.start)}`; },
+          oninput: (e) => { t.start = Number(e.target.value); t.debutMain = true; aRedecouper(t); label.textContent = `${debut} : ${mmss(t.start)}`; },
           onchange: () => { if (preview) listen(t); },
         })),
       statues ? null : refrainTools(t),
@@ -3354,68 +3491,154 @@ function renderTracks() {
 $("playlist-duration").onchange = () => renderTracks();
 
 /**
- * Refrain d'un morceau du blind test (joué en boucle à la révélation, « on chante tous ensemble ») : réglé sur le
- * fichier avant l'enregistrement ; ensuite, rechoisir le fichier permet de changer les moments.
+ * « Régler… » une chanson (cedric, 21/10) : sa pochette, son titre et son artiste (à renommer si besoin), et deux
+ * curseurs sur toute la chanson : le début (d'office 2 s avant les premiers mots chantés) et le hook.
+ * Lâcher un curseur joue la chanson à cet endroit. Les curseurs se servent de la chanson entière, rangée en ligne.
  */
-function refrainTools(t) {
-  if (!t.file) {
-    const pick = h("input", {
-      type: "file", accept: "audio/*", hidden: true,
-      onchange: async (e) => {
-        const f = e.target.files?.[0];
-        e.target.value = "";
-        if (!f) return;
-        await chargerParoles(t);
-        withFile(t, f, await fileDuration(f));
-        noterEcran();
-        renderTracks();
-      },
-    });
-    // « ↺ Réidentifier le hook… » : le même fichier, le refrain retrouvé dans les paroles (sinon le milieu).
-    const hook = h("input", {
-      type: "file", accept: "audio/*", hidden: true,
-      onchange: async (e) => {
-        const f = e.target.files?.[0];
-        e.target.value = "";
-        if (!f) return;
-        await chargerParoles(t);
-        delete t.refrain;
-        t.regle = false;
-        withFile(t, f, await fileDuration(f));
-        noterEcran();
-        renderTracks();
-      },
-    });
-    // Une chanson rangée est réglée d'office (cedric, 21/10) : on peut seulement changer le réglage.
-    return h("div", { class: "track-refrain" },
-      h("span", {
-        class: t.refrainId ? "ok" : "track-a-regler",
-        text: t.refrainId ? `Refrain réglé ✓${Number.isFinite(t.refrain) ? ` à ${mmss(t.refrain)}` : ""}${t.auto ? " (trouvé automatiquement)" : ""}` : "Pas encore de refrain pour la révélation.",
-      }),
-      h("label", { class: "link", title: "Rechoisir le fichier sur le PC pour changer le début, le refrain ou le temps pour buzzer" }, t.refrainId ? "Changer le réglage…" : "Régler les moments…", pick),
-      t.refrainId ? h("label", { class: "link", title: "Rechoisir le fichier sur le PC : le refrain est retrouvé dans les paroles (le passage le plus chanté), sinon au milieu du morceau" }, "↺ Réidentifier le hook…", hook) : null);
-  }
-  const label = h("span", { text: `Refrain (chanté à la révélation) : ${mmss(t.refrain ?? 0)}` });
-  return h("div", { class: "track-refrain" }, label,
-    h("input", {
-      type: "range", min: 0, max: Math.max(0, Math.floor((t.length ?? 0) - 10)), step: 1, value: t.refrain ?? 0, "aria-label": "Moment du refrain",
-      oninput: (e) => { t.refrain = Number(e.target.value); t.regle = true; label.textContent = `Refrain (chanté à la révélation) : ${mmss(t.refrain)}`; },
-      onchange: () => { if (preview) listen(t, true); },
-    }),
-    h("button", {
-      type: "button", class: "link", title: "Retrouver le refrain dans les paroles (le passage le plus chanté), sinon le milieu du morceau",
-      onclick: () => { delete t.refrain; t.regle = false; withFile(t, t.file, t.length); noterEcran(); renderTracks(); if (preview) listen(t, true); },
-      text: "↺ Réidentifier le hook",
+function ecranReglage(t) {
+  const fichier = sourceDe(t);
+  const buzz = t.duration ?? Number($("playlist-duration").value);
+  const longueur = Math.floor(t.length ?? 0);
+  const maxDebut = Math.max(0, longueur - buzz);
+  const maxHook = Math.max(0, longueur - 10);
+  const [pochette, choisir, retirer] = coverTools(t);
+  pochette.classList.add("reglage-pochette");
+  const tempsDebut = h("b", { class: "reglage-temps", text: mmss(t.start ?? 0) });
+  const tempsHook = h("b", { class: "reglage-temps", text: Number.isFinite(t.refrain) ? mmss(t.refrain) : "—" });
+  const origine = h("span", { class: "reglage-origine", text: t.refrainId || fichier ? (hookAuto(t) ? "trouvé automatiquement" : "réglé à la main") : "" });
+  const curseur = (nom, valeur, max, bouger, ecouter) => h("input", {
+    type: "range", class: "reglage-range", min: 0, max, step: 1, value: Math.min(valeur ?? 0, max), "aria-label": nom, disabled: !fichier,
+    oninput: (e) => bouger(Number(e.target.value)), onchange: ecouter,
+  });
+  const bornes = (max) => h("div", { class: "reglage-bornes", "aria-hidden": "true" }, h("span", { text: "0:00" }), h("span", { text: mmss(max) }));
+  const ecouter = (refrain) => h("button", { type: "button", class: "btn small secondary", title: refrain ? "Écouter le hook" : "Écouter à partir du début", onclick: () => listen(t, refrain), text: "▶ Écouter" });
+  return h("div", { class: `track reglage${fichier ? "" : " sans-fichier"}`, "data-track": 0, ...deposable(t) },
+    h("div", { class: "reglage-tete" },
+      h("div", { class: "reglage-cadre", title: "Pochette" }, pochette),
+      h("div", { class: "reglage-noms" },
+        h("label", {}, "Titre",
+          h("input", { type: "text", maxlength: 80, value: t.title, placeholder: "Titre (la réponse)", "aria-label": "Titre", oninput: (e) => { t.title = e.target.value; } })),
+        h("label", {}, "Artiste",
+          h("input", { type: "text", maxlength: 80, value: t.artist, placeholder: "Artiste (facultatif)", "aria-label": "Artiste", oninput: (e) => { t.artist = e.target.value; } })),
+        h("div", { class: "reglage-liens" }, choisir, retirer, lyricsTools(t)))),
+    h("div", { class: "reglage-curseur", "data-curseur": "debut" },
+      h("div", { class: "reglage-ligne" }, h("span", { class: "reglage-nom", text: "Début de la chanson" }), tempsDebut, ecouter(false)),
+      curseur("Début de la chanson", t.start, maxDebut, (v) => { t.start = v; t.debutMain = true; aRedecouper(t); tempsDebut.textContent = mmss(v); }, () => listen(t)),
+      bornes(maxDebut),
+      h("p", { class: "hint small", text: `Réglé d'office 2 s avant les premiers mots chantés (0:00 sans paroles). Les équipes ont ensuite ${buzz} s pour buzzer.` })),
+    h("div", { class: "reglage-curseur", "data-curseur": "hook" },
+      h("div", { class: "reglage-ligne" }, h("span", { class: "reglage-nom", text: "Hook" }), tempsHook, origine, ecouter(true),
+        h("button", {
+          type: "button", class: "btn small secondary", disabled: !fichier, onclick: () => reidentifierHook(t), text: "↺ Réidentifier le hook",
+          title: "Retrouver le hook dans les paroles (le passage le plus chanté), sinon vers le milieu de la chanson",
+        })),
+      curseur("Hook", t.refrain, maxHook, (v) => { t.refrain = v; t.regle = true; aRedecouper(t); tempsHook.textContent = mmss(v); origine.textContent = "réglé à la main"; }, () => listen(t, true)),
+      bornes(maxHook),
+      h("p", { class: "hint small", text: "Le passage que tout le monde chante à la révélation (« on chante tous ensemble »)." })),
+    h("div", { class: "reglage-plus" },
+      h("label", { class: "inline" }, "Temps pour buzzer",
+        h("select", {
+          class: "track-duration", "aria-label": "Temps pour buzzer", disabled: !fichier,
+          onchange: (e) => { t.duration = Number(e.target.value); aRedecouper(t); renderTracks(); },
+        }, ...EXTRACT_SECONDS.map((s) => h("option", { value: s, text: `${s} s`, selected: s === buzz })))),
+      h("input", { type: "text", class: "track-note", maxlength: 120, placeholder: "Droits (facultatif, pour information)", value: t.rights, "aria-label": "Droits", oninput: (e) => { t.rights = e.target.value; } })),
+    fichier ? null : h("p", {
+      class: "reglage-manque",
+      text: enChargement.has(t.songId) ? "Chargement de la chanson entière…"
+        : "Les curseurs attendent la chanson entière, pas encore en ligne : glissez son MP3 ici, ou redéposez-la une fois avec « Ajouter des chansons… ». Le titre, l'artiste et la pochette se changent déjà.",
     }));
 }
 
-/** Fichier choisi pour un morceau : les moments déjà réglés sont gardés s'ils tiennent dans le fichier, sinon proposés. */
+/**
+ * Hook d'un morceau du blind test (chanté à la révélation, « on chante tous ensemble ») : un curseur sur la chanson
+ * entière ; sans elle sur ce PC, « ⏱ Changer le réglage » la télécharge (ou on glisse son MP3 sur le morceau).
+ */
+function refrainTools(t) {
+  if (!sourceDe(t)) {
+    const charge = enChargement.has(t.songId);
+    return h("div", { class: "track-refrain" },
+      h("span", {
+        class: t.refrainId ? "ok" : "track-sans-hook",
+        text: t.refrainId ? `Hook réglé ✓${Number.isFinite(t.refrain) ? ` à ${mmss(t.refrain)}` : ""}${hookAuto(t) ? " (trouvé automatiquement)" : ""}` : "Pas encore de hook pour la révélation.",
+      }),
+      t.songId ? h("button", {
+        type: "button", class: "btn small secondary", disabled: charge, text: charge ? "Chargement…" : "⏱ Changer le réglage",
+        title: "Déplacer le début ou le hook, sur la chanson entière",
+        onclick: async () => {
+          enChargement.add(t.songId);
+          renderTracks();
+          const f = await chargerSource(t);
+          enChargement.delete(t.songId);
+          if (!f) status("playlist-status", `« ${t.title} » n'est pas encore entière en ligne : glissez son MP3 sur la chanson, ou redéposez-la une fois avec « Ajouter des chansons… ».`);
+          renderTracks();
+        },
+      }) : h("span", { class: "hint small", text: "Glissez son MP3 ici pour le régler." }));
+  }
+  const nom = "Hook (chanté à la révélation)";
+  const label = h("span", { text: `${nom} : ${mmss(t.refrain ?? 0)}` });
+  return h("div", { class: "track-refrain" }, label,
+    h("input", {
+      type: "range", min: 0, max: Math.max(0, Math.floor((t.length ?? 0) - 10)), step: 1, value: t.refrain ?? 0, "aria-label": "Moment du refrain",
+      oninput: (e) => { t.refrain = Number(e.target.value); t.regle = true; aRedecouper(t); label.textContent = `${nom} : ${mmss(t.refrain)}`; },
+      onchange: () => { if (preview) listen(t, true); },
+    }),
+    h("button", {
+      type: "button", class: "link", title: "Retrouver le hook dans les paroles (le passage le plus chanté), sinon vers le milieu du morceau",
+      onclick: () => reidentifierHook(t), text: "↺ Réidentifier le hook",
+    }));
+}
+
+/**
+ * « ↺ Réidentifier le hook » : retrouvé dans les paroles (le passage le plus chanté), sinon vers le milieu ; le début
+ * de l'extrait est recalé aussi.
+ */
+async function reidentifierHook(t) {
+  if (!sourceDe(t)) return;
+  await chargerParoles(t);
+  aRedecouper(t);
+  t.regle = false;
+  const buzz = t.duration ?? Number($("playlist-duration").value);
+  // Le début est recalé avec le hook (avant les premiers mots chantés).
+  if (DEBUT_AVANT_PAROLES) { t.start = debutPropose(t, t.length, buzz); delete t.debutMain; }
+  t.refrain = refrainPropose(t, t.length, t.start ?? 0, buzz);
+  noterEcran();
+  renderTracks();
+  listen(t, true);
+}
+
+/**
+ * Début que la Régie PC proposait avant le 21/10 (le tiers du morceau, 45 s au plus, sans regarder la chanson). Une
+ * chanson qui l'a encore reçoit le nouveau début proposé quand son fichier revient.
+ */
+const ancienDebutPropose = (length, buzz) => Math.max(0, Math.min(Math.floor(Math.min(45, length / 3)), Math.floor(length - buzz)));
+const debutAncienPropose = (t, length, buzz) => hookAuto(t) && t.start > 0 && Number.isFinite(length) && Math.abs(t.start - ancienDebutPropose(length, buzz)) <= 1;
+
+/**
+ * Où démarre l'extrait du buzz quand la Régie PC règle seule une chanson (cedric, 21/10) : 2 s avant les premiers mots
+ * chantés (d'après ses paroles), ou 0:00 sans paroles. Faux : toujours 0:00.
+ */
+const DEBUT_AVANT_PAROLES = true;
+
+/** Début proposé d'un morceau : avant les premiers mots chantés, sinon 0:00 ; l'extrait tient dans le morceau. */
+function debutPropose(t, length, buzz) {
+  const mots = DEBUT_AVANT_PAROLES && t.lignes ? debutDesParoles(t.lignes) : null;
+  if (mots == null || mots < 3) return 0;
+  return Math.max(0, Math.min(Math.floor(mots - 2), Math.floor(length - buzz)));
+}
+
+/**
+ * Fichier choisi ou glissé pour un morceau : les moments déjà réglés sont gardés s'ils tiennent dans le fichier ; sinon
+ * le début et le hook sont proposés (seul cedric décale le début à la main).
+ */
 function withFile(t, file, length) {
   const buzz = t.duration ?? Number($("playlist-duration").value);
   t.file = file;
   t.length = length;
-  t.start = Number.isFinite(t.start) && t.start <= Math.max(0, length - buzz) ? t.start : defaultStart(length, buzz);
-  if (playlist.use !== "statues") t.refrain = Number.isFinite(t.refrain) && t.refrain <= Math.max(0, length - 10) ? t.refrain : refrainPropose(t, length, t.start, buzz);
+  if (!(Number.isFinite(t.start) && t.start <= Math.max(0, length - buzz)) || debutAncienPropose(t, length, buzz)) t.start = debutPropose(t, length, buzz);
+  if (playlist.use !== "statues" && !(Number.isFinite(t.refrain) && t.refrain <= Math.max(0, length - 10))) {
+    t.refrain = refrainPropose(t, length, t.start, buzz);
+    t.regle = false;
+  }
   return t;
 }
 
@@ -3467,7 +3690,12 @@ function lyricsTools(t) {
       if (!f) return;
       if (!avecParoles(t, (await f.text()).slice(0, MAX_LRC))) return status("playlist-status", `« ${f.name} » ne contient pas de paroles minutées (fichier .lrc attendu).`);
       // Paroles arrivées après le fichier : le refrain proposé suit les paroles, tant qu'il n'a pas été réglé.
-      if (t.file && !t.regle) t.refrain = refrainPropose(t, t.length, t.start, t.duration ?? Number($("playlist-duration").value));
+      if (sourceDe(t) && hookAuto(t)) {
+        const buzz = t.duration ?? Number($("playlist-duration").value);
+        aRedecouper(t);
+        if (!t.debutMain && !(t.start > 0)) t.start = debutPropose(t, t.length, buzz);
+        t.refrain = refrainPropose(t, t.length, t.start ?? 0, buzz);
+      }
       noterEcran();
       renderTracks();
     },
@@ -3495,6 +3723,7 @@ async function addFiles(files) {
   // reviennent (toute la bibliothèque redéposée après un envoi coupé) ; elle prend seulement ses paroles ou sa pochette.
   const enVrac = playlist.use === "songs" && !playlist.single;
   let dejaLa = 0;
+  let auDebut = 0;
   for (const [k, { musique: file, lrc }] of paires.entries()) {
     if (paires.length > 2) status("playlist-status", `Lecture des fichiers ${k + 1} / ${paires.length} : ${file.name}…`, true);
     // Titre, artiste et pochette rangés dans le MP3 ; sinon le nom du fichier « Artiste - Titre ».
@@ -3505,7 +3734,12 @@ async function addFiles(files) {
     const meme = (a, b) => (x) => sansAccents(x.title) === sansAccents(a) && sansAccents(x.artist) === sansAccents(b);
     const known = library.find(meme(title, artist)) ?? library.find(meme(devine.title, devine.artist));
     const already = known && playlist.tracks.find((t) => t.songId === known.id);
-    if (enVrac && known?.id && known.audioId && known.refrainId && !already) {
+    // Une chanson déjà rangée revient : son fichier est gardé sur ce PC ; sans sa chanson entière en ligne, ou avec
+    // l'ancien début proposé, elle est préparée de nouveau (les extraits déjà rangés ne sont pas renvoyés).
+    if (enVrac && known?.id && known.audioId && known.refrainId && !already) await garderSurCePC(known.id, file);
+    const ancienDebut = Boolean(known) && debutAncienPropose(known, known.length, known.buzz);
+    if (ancienDebut && enVrac) auDebut += 1;
+    if (enVrac && known?.id && known.audioId && known.refrainId && !already && !ancienDebut && (await entiereEnLigne(known.id).catch(() => true))) {
       dejaLa += 1;
       try {
         if (lrc && !known.lrc) { await attacherParoles(known, (await lrc.text()).slice(0, MAX_LRC)); paroles += 1; }
@@ -3548,6 +3782,7 @@ async function addFiles(files) {
       rangees ? `paroles ajoutées à ${plural(rangees, "chanson")} de la bibliothèque` : "",
       seuls.length > rangees ? `${plural(seuls.length - rangees, "fichier .lrc")} sans chanson du même nom` : "",
       dejaLa ? `${plural(dejaLa, "chanson")} déjà dans la bibliothèque` : "",
+      auDebut ? `${plural(auDebut, "chanson")} au nouveau début` : "",
     ].filter(Boolean).join(" · ");
     status("playlist-status", `${bilan}.${paires.length > dejaLa && !enVrac ? " Vérifiez, puis enregistrez." : ""}`, true);
     return `${bilan}.`;
@@ -3636,6 +3871,8 @@ async function enregistrerPlaylist() {
     // Chaque nouveau morceau : extrait découpé et réencodé ici, rangé une seule fois dans la bibliothèque ; au blind
     // test, aussi le refrain de la révélation (90 s, joué en boucle sur la TV).
     const fresh = playlist.tracks.filter((t) => t.file);
+    const fichiers = new Map(); // morceau → son fichier entier (gardé sur ce PC une fois la chanson rangée)
+    const entieres = new Map(); // morceau → sa chanson entière à ranger en ligne
     const before = new Map(); // morceau → son ancien extrait (pour retrouver les anciens morceaux des autres playlists)
     const changed = [];
     // Un fichier illisible est laissé de côté, les autres continuent (cedric, 21/10 : toute sa bibliothèque d'un coup).
@@ -3647,15 +3884,27 @@ async function enregistrerPlaylist() {
       let extract;
       let refrain = null;
       const refrainAt = t.refrain ?? defaultRefrain(t.length, t.start ?? 0, t.duration ?? seconds);
+      // Hook inchangé (seul le début ou le temps pour buzzer a bougé) : son extrait, déjà rangé, n'est pas redécoupé.
+      const song = t.songId ? songs[t.songId] : null;
+      const hookIntact = !statues && Boolean(t.refrainId) && song?.refrainId === t.refrainId && song.refrain === refrainAt;
+      const enLigne = statues || (await entiereEnLigne(t.songId).catch(() => false));
+      fichiers.set(t, t.file);
       try {
         const buffer = await decodeFile(t.file);
         extract = await makeExtract(buffer, t.start ?? 0, t.duration ?? seconds);
-        if (!statues) {
+        if (!statues && !hookIntact) {
           status("playlist-status", `Préparation du refrain ${k + 1} / ${fresh.length} : ${t.title}…${deja}`, true);
           refrain = await makeExtract(buffer, refrainAt, REFRAIN_SEC, REFRAIN_KBPS);
         }
+        // La chanson entière, rangée en ligne une seule fois : ses réglages se changent depuis n'importe quel PC.
+        if (!enLigne) {
+          status("playlist-status", `Préparation de la chanson entière ${k + 1} / ${fresh.length} : ${t.title}…${deja}`, true);
+          const entiere = await encoderEntiere(buffer);
+          if (entiere) entieres.set(t, entiere);
+        }
       } catch (err) {
         console.error(err);
+        fichiers.delete(t);
         illisibles.push(t);
         continue;
       }
@@ -3670,11 +3919,16 @@ async function enregistrerPlaylist() {
         // Paroles calées sur ce nouveau refrain (rien si la chanson n'a pas de paroles).
         if (!t.lignes) await chargerParoles(t);
         t.paroles = t.lignes ? parolesDuRefrain(t.lignes, refrainAt, REFRAIN_SEC) : "";
-        // Refrain trouvé automatiquement, sauf si Sarah a bougé un curseur : la chanson est réglée dans les deux cas.
-        t.auto = !t.regle;
+      } else if (hookIntact && t.lrcNeuf && t.lignes) {
+        t.paroles = parolesDuRefrain(t.lignes, refrainAt, REFRAIN_SEC);
       }
+      // Hook trouvé automatiquement, sauf s'il a été déplacé à la main : la chanson est réglée dans les deux cas.
+      if (!statues && t.regle !== undefined) t.auto = !t.regle;
       delete t.file;
-      if (library) await rangerChanson(t, seconds, before, changed);
+      if (library) {
+        await rangerChanson(t, seconds, before, changed);
+        await rangerEntiere(t, fichiers, entieres, `${k + 1} / ${fresh.length}`);
+      }
     }
     // Fichiers illisibles : retirés de l'écran, nommés à la fin.
     const nonLus = illisibles.length
@@ -3689,6 +3943,8 @@ async function enregistrerPlaylist() {
     // met à jour les autres playlists qui la reprennent.
     if (!statues) {
       for (const t of playlist.tracks) await rangerChanson(t, seconds, before, changed);
+      const reste = [...fichiers.keys()];
+      for (const [k, t] of reste.entries()) await rangerEntiere(t, fichiers, entieres, `${k + 1} / ${reste.length}`);
     }
     if (library) {
       histPlaylist.enregistre();
@@ -3731,6 +3987,22 @@ async function enregistrerPlaylist() {
   } finally {
     $("playlist-save").disabled = false;
   }
+}
+
+/**
+ * Chanson rangée dans la bibliothèque : son fichier entier est gardé sur ce PC, et la chanson entière préparée est
+ * envoyée en ligne (une seule fois). [ou] : « 3 / 10 », pour l'avancement.
+ */
+async function rangerEntiere(t, fichiers, entieres, ou) {
+  if (!t.songId || !fichiers.has(t)) return;
+  const fichier = fichiers.get(t);
+  fichiers.delete(t);
+  await garderSurCePC(t.songId, fichier);
+  const entiere = entieres.get(t);
+  if (!entiere) return;
+  entieres.delete(t);
+  status("playlist-status", `Envoi de la chanson entière ${ou} : ${t.title}…`, true);
+  await envoyerEntiere(t.songId, entiere);
 }
 
 /**

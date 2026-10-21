@@ -2071,13 +2071,24 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await hakuna.locator(".song-artiste").innerText(), "Le Roi lion");
     assert.equal(await hakuna.locator(".song-paroles").innerText(), "＋ Paroles (.lrc)");
     assert.equal(await hakuna.locator(".song-alerte").count(), 1);
-    // Moments réglés : un clic les montre, avec « Changer le réglage » et « Réidentifier le hook » (le MP3 à rechoisir).
+    // Plus de bouton « Régler… » : « ⏱ Réglé ✓ » ouvre les réglages. Sans chanson entière en ligne (rangée avant le
+    // 21/10), les curseurs attendent son MP3 ; le titre se renomme déjà, et la playlist suit.
+    assert.equal(await hakuna.getByRole("button", { name: "Régler…" }).count(), 0);
     await hakuna.getByRole("button", { name: "⏱ Réglé ✓" }).click();
-    await hakuna.locator(".song-detail", { hasText: "Début de l'extrait : 0:12 · 30 s pour buzzer · Refrain : 1:01 · réglé à la main" }).waitFor();
-    await hakuna.locator(".song-detail label", { hasText: "⏱ Changer le réglage…" }).waitFor();
-    await hakuna.locator(".song-detail label", { hasText: "↺ Réidentifier le hook…" }).waitFor();
-    await hakuna.getByRole("button", { name: "⏱ Réglé ✓" }).click();
-    await hakuna.locator(".song-detail").waitFor({ state: "detached" });
+    await page.locator("#playlist-edit-title", { hasText: "Réglages de « Hakuna Matata »" }).waitFor();
+    const reglage = page.locator(".track.reglage");
+    await reglage.locator(".reglage-manque", { hasText: "Les curseurs attendent la chanson entière" }).waitFor();
+    await capture(page, "reglage-sans-chanson-entiere");
+    assert.deepEqual(await reglage.locator(".reglage-temps").allInnerTexts(), ["0:12", "1:01"]);
+    assert.equal(await reglage.locator(".reglage-origine").innerText(), "réglé à la main");
+    assert.equal(await reglage.locator('input[aria-label="Début de la chanson"]').isDisabled(), true);
+    assert.equal(await reglage.locator('input[aria-label="Hook"]').isDisabled(), true);
+    await reglage.locator("input[aria-label=Titre]").fill("Hakuna Matata !");
+    await page.click("#playlist-save");
+    await page.locator("#playlist-status", { hasText: "Réglages enregistrés" }).waitFor({ timeout: 30000 });
+    await waitFor(async () => (await library("songs/s1")).title === "Hakuna Matata !" && (await library("playlists/p1")).tracks[0].title === "Hakuna Matata !", "titre renommé, la playlist suit");
+    assert.deepEqual([(await library("songs/s1")).start, (await library("songs/s1")).refrain, (await library("songs/s1")).audioId], [12, 61, A]);
+    await page.click("#playlist-crumb");
     // Une case, puis Maj + clic : toutes les chansons entre les deux ; « Désélectionner ».
     await hakuna.locator(".song-check").click();
     await page.locator("#song-barre", { hasText: "1 sélectionnée" }).waitFor();
@@ -2089,7 +2100,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await hakuna.locator(".song-check").click();
     let question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.dismiss(); }));
     await page.locator("#song-barre").getByRole("button", { name: "🗑 Supprimer (1)" }).click();
-    assert.match(await question, /^Supprimer « Hakuna Matata » de la bibliothèque des sons \?\n\nLes playlists déjà faites les gardent\./);
+    assert.match(await question, /^Supprimer « Hakuna Matata ! » de la bibliothèque des sons \?\n\nLes playlists déjà faites les gardent\./);
     assert.equal((await library("songs/s1")).retiree, undefined);
     // Ctrl + A coche toute la bibliothèque : l'avertissement le dit clairement ; la touche Suppr supprime.
     await page.keyboard.press("Control+a");
@@ -2108,8 +2119,37 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#song-list .song", { hasText: "Hakuna Matata" }).getByRole("button", { name: "Remettre" }).click();
     await waitFor(async () => (await library("songs/s1")).retiree === undefined, "chanson remise");
     await page.click("#song-retirees");
-    await page.locator("#song-list .song", { hasText: "Hakuna Matata" }).getByRole("button", { name: "Régler…" }).waitFor();
+    await page.locator("#song-list .song", { hasText: "Hakuna Matata" }).getByRole("button", { name: "⏱ Réglé ✓" }).waitFor();
     assert.equal(await page.locator("#song-list .song", { hasText: "Libérée" }).count(), 0);
+
+    // « Effacer pour de bon » (cedric, 21/10) : depuis « 🗑 Supprimées », après confirmation ; la chanson, sa chanson
+    // entière, ses paroles et ses extraits sont effacés en ligne, sauf un extrait qu'une playlist ou une chanson utilise.
+    const C = "00112233445566ff";
+    for (const x of [A, B, C]) await seedLibrary(`sounds/${x}`, "data:audio/mpeg;base64,SUQz");
+    await seedLibrary("songs/s3", { title: "Vieille chanson", audioId: C, buzz: 30, retiree: true, updatedAt: 1 });
+    await seedLibrary("entieres/s3", { n: 1, kbps: 96, length: 60, at: 1, p: ["SUQz"] });
+    await seedLibrary("lyrics/s3", "[00:01.00]La la");
+    await page.locator("#song-retirees", { hasText: "🗑 Supprimées (2)" }).click();
+    await page.locator("#song-list .song-effacer-tout").getByRole("button", { name: "Tout effacer pour de bon (2)" }).waitFor();
+    await capture(page, "sons-supprimees");
+    question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.dismiss(); }));
+    await page.locator("#song-list .song", { hasText: "Vieille chanson" }).getByRole("button", { name: "Effacer pour de bon" }).click();
+    assert.match(await question, /^Effacer « Vieille chanson » pour de bon \?\n\nLa chanson entière, les paroles et les extraits sont effacés en ligne/);
+    assert.equal((await library("songs/s3")).title, "Vieille chanson", "rien n'est effacé sans confirmation");
+    question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.accept(); }));
+    await page.locator("#song-list .song", { hasText: "Vieille chanson" }).getByRole("button", { name: "Effacer pour de bon" }).click();
+    await question;
+    await page.locator("#song-status", { hasText: "« Vieille chanson » est effacée pour de bon." }).waitFor();
+    await waitFor(async () => (await library("songs/s3")) == null, "chanson effacée");
+    assert.deepEqual([await library("entieres/s3"), await library("lyrics/s3"), await library(`sounds/${C}`)], [null, null, null]);
+    // « Libérée, délivrée » effacée : son extrait reste, la playlist « Disney » et Hakuna Matata (son refrain) s'en servent.
+    question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.accept(); }));
+    await page.locator("#song-list .song", { hasText: "Libérée" }).getByRole("button", { name: "Effacer pour de bon" }).click();
+    await question;
+    await waitFor(async () => !Object.values((await library("songs")) ?? {}).some((x) => x.title === "Libérée, délivrée"), "chanson effacée");
+    assert.ok(await library(`sounds/${B}`), "extrait encore utilisé : gardé");
+    assert.ok(await library(`sounds/${A}`), "extrait d'une chanson gardée : gardé");
+    assert.equal((await library("playlists/p1")).tracks.length, 2);
     await page.context().close();
   });
 
@@ -2129,50 +2169,95 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.locator("#screen-library").isVisible(), true);
     const songs = await library("songs");
     const [id, song] = Object.entries(songs).find(([, x]) => x.title === "On chante");
-    // Le refrain proposé : la phrase la plus répétée (20 s), une seconde avant.
-    assert.deepEqual([song.artist, song.refrain, song.lrc, song.auto], ["Les Licornes", 19, true, true]);
+    // Le refrain proposé : la phrase la plus répétée (20 s), une seconde avant ; le début, 2 s avant les premiers mots
+    // chantés (5 s), et 0:00 sans paroles.
+    assert.deepEqual([song.artist, song.refrain, song.lrc, song.auto, song.start, song.length], ["Les Licornes", 19, true, true, 3, 60]);
     assert.equal(song.paroles.split("\n")[0], "1000|On chante tous ensemble");
     assert.equal(await library(`lyrics/${id}`), LRC);
     const [idInstru, instru] = Object.entries(songs).find(([, x]) => x.title === "Instrumental");
-    assert.equal(instru.lrc, undefined);
+    assert.deepEqual([instru.lrc, instru.start], [undefined, 0]);
+    // Les chansons entières sont rangées en ligne (cedric, 21/10), pour les régler depuis n'importe quel PC.
+    for (const x of [id, idInstru]) {
+      const entiere = await library(`entieres/${x}`);
+      assert.deepEqual([entiere.kbps, Object.values(entiere.p).length], [96, entiere.n]);
+    }
+    assert.equal((await library(`entieres/${id}`)).length, 60);
 
-    // La bibliothèque : paroles ✓ ; la chanson est réglée d'office (cedric, 21/10), son refrain trouvé automatiquement ;
+    // La bibliothèque : paroles ✓ ; la chanson est réglée d'office (cedric, 21/10), son hook trouvé automatiquement ;
     // l'instrumental signalé (ni pochette ni paroles).
     const ligne = page.locator("#song-list .song-ligne", { hasText: "On chante" });
     await ligne.locator(".song-paroles.ok", { hasText: "✓ Paroles" }).waitFor();
+    await capture(page, "sons-liste");
+    if (process.env.CAPTURES) {
+      const taille = page.viewportSize();
+      await page.setViewportSize({ width: 1366, height: 900 });
+      await capture(page, "sons-liste-pc");
+      await page.setViewportSize(taille);
+    }
+    // « ⏱ Réglé ✓ » ouvre les réglages : pochette, titre, artiste et deux curseurs sur toute la chanson, sans rechoisir
+    // le fichier. Le hook déplacé : la chanson est réglée à la main, ses paroles suivent le nouveau hook.
     await ligne.getByRole("button", { name: "⏱ Réglé ✓" }).click();
-    await ligne.locator(".song-detail", { hasText: "Refrain : 0:19 · trouvé automatiquement" }).waitFor();
-    // « Changer le réglage » : le MP3 rechoisi, le curseur du refrain part du réglage actuel ; déplacé, la chanson est
-    // réglée à la main, ses paroles suivent le nouveau refrain.
-    await ligne.locator(".song-detail label", { hasText: "⏱ Changer le réglage…" }).locator("input[type=file]").setInputFiles({ name: "Les Licornes - On chante.wav", mimeType: "audio/wav", buffer: wav(440, 60) });
     await page.locator("#playlist-edit-title", { hasText: "Réglages de « On chante »" }).waitFor();
-    const curseur = page.locator('.track input[aria-label="Moment du refrain"]');
-    assert.equal(await curseur.inputValue(), "19");
-    await curseur.fill("30");
+    const reglage = page.locator(".track.reglage");
+    const debut = reglage.locator('input[aria-label="Début de la chanson"]');
+    const hook = reglage.locator('input[aria-label="Hook"]');
+    await reglage.locator('input[aria-label="Hook"]:not([disabled])').waitFor();
+    assert.equal(await reglage.locator(".reglage-manque").count(), 0);
+    assert.deepEqual([await reglage.locator("input[aria-label=Titre]").inputValue(), await reglage.locator("input[aria-label=Artiste]").inputValue()], ["On chante", "Les Licornes"]);
+    assert.deepEqual([await debut.inputValue(), await debut.getAttribute("max"), await hook.inputValue(), await hook.getAttribute("max")], ["3", "30", "19", "50"]);
+    assert.equal(await reglage.locator(".reglage-origine").innerText(), "trouvé automatiquement");
+    assert.deepEqual(await reglage.locator(".reglage-bornes").allInnerTexts(), ["0:00\n0:30", "0:00\n0:50"]);
+    await capture(page, "reglage-chanson");
+    if (process.env.CAPTURES) {
+      const taille = page.viewportSize();
+      await page.setViewportSize({ width: 1366, height: 900 });
+      await capture(page, "reglage-chanson-pc");
+      await page.setViewportSize(taille);
+    }
+    await hook.fill("30");
+    assert.deepEqual([await reglage.locator(".reglage-temps").nth(1).innerText(), await reglage.locator(".reglage-origine").innerText()], ["0:30", "réglé à la main"]);
+    await reglage.locator("input[aria-label=Titre]").fill("On chante fort");
     await page.click("#playlist-save");
     await page.locator("#playlist-status", { hasText: "Réglages enregistrés." }).waitFor({ timeout: 30000 });
-    await waitFor(async () => (await library(`songs/${id}`)).refrain === 30, "refrain réglé à la main");
+    await waitFor(async () => (await library(`songs/${id}`)).refrain === 30, "hook réglé à la main");
     const reglee = await library(`songs/${id}`);
-    assert.equal(reglee.auto, undefined);
+    assert.deepEqual([reglee.title, reglee.auto, reglee.start, reglee.audioId], ["On chante fort", undefined, 3, song.audioId], "début inchangé : même extrait du buzz");
+    assert.notEqual(reglee.refrainId, song.refrainId);
     assert.equal(reglee.paroles.split("\n")[0], "0|Deuxième couplet");
-    // « ↺ Réidentifier le hook » : le refrain retrouvé dans les paroles.
-    await page.click("#playlist-crumb");
-    // Le détail reste ouvert au retour.
-    await ligne.locator(".song-detail", { hasText: "Refrain : 0:30 · réglé à la main" }).waitFor();
-    await ligne.locator(".song-detail label", { hasText: "↺ Réidentifier le hook…" }).locator("input[type=file]").setInputFiles({ name: "Les Licornes - On chante.wav", mimeType: "audio/wav", buffer: wav(440, 60) });
-    await page.locator("#playlist-status", { hasText: "Hook trouvé de nouveau" }).waitFor();
-    assert.equal(await curseur.inputValue(), "19");
-    await page.click("#playlist-save");
-    await page.locator("#playlist-status", { hasText: "Réglages enregistrés." }).waitFor({ timeout: 30000 });
+    await page.context().close();
+
+    // Depuis un autre PC : la chanson entière est téléchargée, les curseurs marchent. « ↺ Réidentifier le hook » le
+    // retrouve dans les paroles et recale le début de l'extrait.
+    const autre = await admin();
+    await autre.click("#nav button[data-screen=library]");
+    await autre.click('#library-tabs [data-lib-tab="sons"]');
+    await autre.locator("#song-list .song-ligne", { hasText: "On chante fort" }).getByRole("button", { name: "⏱ Réglé ✓" }).click();
+    const ailleurs = autre.locator(".track.reglage");
+    await ailleurs.locator('input[aria-label="Hook"]:not([disabled])').waitFor({ timeout: 30000 });
+    assert.equal(await ailleurs.locator('input[aria-label="Hook"]').inputValue(), "30");
+    await ailleurs.locator('input[aria-label="Début de la chanson"]').fill("8");
+    assert.equal(await ailleurs.locator(".reglage-temps").first().innerText(), "0:08");
+    assert.equal(await ailleurs.locator(".reglage-origine").innerText(), "réglé à la main");
+    await ailleurs.getByRole("button", { name: "↺ Réidentifier le hook" }).click();
+    await ailleurs.locator(".reglage-origine", { hasText: "trouvé automatiquement" }).waitFor();
+    assert.deepEqual([await ailleurs.locator('input[aria-label="Hook"]').inputValue(), await ailleurs.locator('input[aria-label="Début de la chanson"]').inputValue()], ["19", "3"]);
+    await autre.click("#playlist-save");
+    await autre.locator("#playlist-status", { hasText: "Réglages enregistrés." }).waitFor({ timeout: 30000 });
     await waitFor(async () => (await library(`songs/${id}`)).refrain === 19, "hook retrouvé");
     assert.equal((await library(`songs/${id}`)).auto, true);
     assert.equal((await library(`songs/${id}`)).paroles.split("\n")[0], "1000|On chante tous ensemble");
-    await page.click("#playlist-crumb");
-    const ligneInstru = page.locator("#song-list .song-ligne", { hasText: "Instrumental" });
+    // Le début déplacé à la main, puis enregistré : un nouvel extrait du buzz.
+    await ailleurs.locator('input[aria-label="Début de la chanson"]').fill("10");
+    await autre.click("#playlist-save");
+    await waitFor(async () => (await library(`songs/${id}`)).start === 10, "début réglé à la main");
+    assert.notEqual((await library(`songs/${id}`)).audioId, song.audioId);
+    assert.equal((await library(`songs/${id}`)).refrain, 19);
+    await autre.click("#playlist-crumb");
+    const ligneInstru = autre.locator("#song-list .song-ligne", { hasText: "Instrumental" });
     await ligneInstru.locator(".song-alerte").waitFor();
     // Un .lrc ajouté plus tard, en cliquant dans la case des paroles.
     await ligneInstru.locator(".song-paroles input[type=file]").setInputFiles({ name: "instrumental.lrc", mimeType: "text/plain", buffer: Buffer.from("[00:01.00]La la la\n[00:15.00]Encore") });
-    await page.locator("#song-status", { hasText: "Paroles de « Instrumental » enregistrées." }).waitFor();
+    await autre.locator("#song-status", { hasText: "Paroles de « Instrumental » enregistrées." }).waitFor();
     await waitFor(async () => (await library(`songs/${idInstru}`)).lrc === true, "paroles ajoutées");
     assert.match(await library(`lyrics/${idInstru}`), /La la la/);
     // La pochette se choisit en cliquant sur la case vide ; l'alerte rouge disparaît.
@@ -2180,7 +2265,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await waitFor(async () => /^[0-9a-f]{16}$/.test((await library(`songs/${idInstru}`)).imageId ?? ""), "pochette enregistrée");
     await ligneInstru.locator(".song-pochette img").waitFor();
     assert.equal(await ligneInstru.locator(".song-alerte").count(), 0);
-    await page.context().close();
+    await autre.context().close();
   });
 
   test("Sons : toute la bibliothèque d'un coup ; un fichier illisible laissé de côté, les chansons déjà là pas redécoupées ; « 🎲 10 au hasard » dans une playlist", async () => {
@@ -2229,22 +2314,59 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(Object.values(liste.tracks).length, tirees);
     assert.ok(Object.values(liste.tracks).some((t) => t.title === "Premier" && /^[0-9a-f]{16}$/.test(t.refrainId)));
     assert.match(Object.values(liste.tracks).find((t) => t.title === "Premier").paroles, /Un deux trois/);
-    // Rouverte puis réenregistrée : ses morceaux gardent leurs paroles ; chaque morceau dit son refrain, trouvé
-    // automatiquement, avec « Changer le réglage… » et « ↺ Réidentifier le hook… ».
+    // Rouverte puis réenregistrée : ses morceaux gardent leurs paroles ; chaque morceau a les curseurs du début et du
+    // hook (ses chansons entières sont sur ce PC), avec « ↺ Réidentifier le hook ».
     await page.click("#nav button[data-screen=home]");
     await page.click(".tile[data-screen=music]");
     await page.click("#game-tabs [data-tab=collections]");
     await page.locator("#playlist-list .item", { hasText: "Blind test démo" }).getByRole("button", { name: "Éditer" }).click();
-    await page.locator(".track-refrain .ok", { hasText: "Refrain réglé ✓ à 0:00 (trouvé automatiquement)" }).first().waitFor();
-    assert.equal(await page.locator(".track-refrain .ok", { hasText: "(trouvé automatiquement)" }).count(), tirees);
-    assert.equal(await page.locator(".track-refrain label", { hasText: "Changer le réglage…" }).count(), tirees);
-    assert.equal(await page.locator(".track-refrain label", { hasText: "↺ Réidentifier le hook…" }).count(), tirees);
+    await page.locator('.track-refrain input[aria-label="Moment du refrain"]').nth(tirees - 1).waitFor();
+    assert.equal(await page.locator(".track-refrain button", { hasText: "↺ Réidentifier le hook" }).count(), tirees);
     await page.click("#playlist-save");
     await page.locator("#playlist-status", { hasText: `Enregistrée : ${tirees} morceaux` }).waitFor({ timeout: 30000 });
     await waitFor(async () => {
       const p = Object.values(await library("playlists")).find((x) => x.title === "Blind test démo");
       return /Un deux trois/.test(Object.values(p.tracks).find((t) => t.title === "Premier").paroles ?? "") && p.updatedAt > liste.updatedAt;
     }, "paroles gardées");
+    await page.context().close();
+
+    // Depuis un autre PC, sans les chansons : « ⏱ Changer le réglage » télécharge la chanson entière, puis les curseurs.
+    const autre = await admin();
+    await autre.click(".tile[data-screen=music]");
+    await autre.click("#game-tabs [data-tab=collections]");
+    await autre.locator("#playlist-list .item", { hasText: "Blind test démo" }).getByRole("button", { name: "Éditer" }).click();
+    const morceau = autre.locator(".track").first();
+    await morceau.locator(".track-refrain .ok", { hasText: /^Hook réglé ✓ à \d:\d\d \(trouvé automatiquement\)$/ }).waitFor();
+    assert.equal(await autre.locator('.track-refrain input[aria-label="Moment du refrain"]').count(), 0);
+    await morceau.getByRole("button", { name: "⏱ Changer le réglage" }).click();
+    await morceau.locator('.track-refrain input[aria-label="Moment du refrain"]').waitFor({ timeout: 30000 });
+    await autre.context().close();
+  });
+
+  test("Sons : une chanson réglée avant le 21/10 (début au tiers) redéposée revient au nouveau début, avec sa chanson entière", async () => {
+    const page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="sons"]');
+    // Rangée le matin du 21/10 : début proposé au tiers du morceau (40 s : 10 s, pour 30 s à buzzer), pas de chanson entière.
+    await page.setInputFiles("#song-files", [{ name: "Les Anciens - Vieux.wav", mimeType: "audio/wav", buffer: wav(392, 40) }]);
+    await page.locator("#song-status", { hasText: "Bibliothèque à jour : 1 chanson rangée." }).waitFor({ timeout: 60000 });
+    const [id, neuve] = Object.entries(await library("songs")).find(([, x]) => x.title === "Vieux");
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const d = ctx.database();
+      await set(ref(d, `library/songs/${id}/start`), 10);
+      await set(ref(d, `library/entieres/${id}`), null);
+    });
+    await page.locator("#song-list .song-ligne", { hasText: "Vieux" }).getByRole("button", { name: "⏱ Réglé ✓" }).waitFor();
+    await page.setInputFiles("#song-files", [{ name: "Les Anciens - Vieux.wav", mimeType: "audio/wav", buffer: wav(392, 40) }]);
+    await page.locator("#song-status", { hasText: "1 chanson au nouveau début" }).waitFor({ timeout: 60000 });
+    await waitFor(async () => (await library(`songs/${id}`)).start === 0, "début remis à 0:00");
+    const apres = await library(`songs/${id}`);
+    assert.equal(apres.refrainId, neuve.refrainId, "hook inchangé : pas redécoupé");
+    assert.equal(apres.auto, true);
+    assert.equal((await library(`entieres/${id}`)).kbps, 96);
+    // Redéposée encore : rien à refaire.
+    await page.setInputFiles("#song-files", [{ name: "Les Anciens - Vieux.wav", mimeType: "audio/wav", buffer: wav(392, 40) }]);
+    await page.locator("#song-status", { hasText: "1 chanson déjà dans la bibliothèque" }).waitFor({ timeout: 60000 });
     await page.context().close();
   });
 
@@ -4042,7 +4164,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#music-songs");
     await page.locator("#library-sons:not([hidden])").waitFor();
     assert.equal(await page.locator("#nav button.active").textContent(), "Bibliothèque");
-    await page.locator("#song-list .song", { hasText: "Hakuna Matata" }).getByRole("button", { name: "Régler…" }).click();
+    await page.locator("#song-list .song", { hasText: "Hakuna Matata" }).getByRole("button", { name: "⏱ Réglé ✓" }).click();
     assert.equal(await page.locator("#playlist-crumb").textContent(), "Bibliothèque");
     await page.locator("#playlist-edit-title", { hasText: "Réglages de « Hakuna Matata »" }).waitFor();
     assert.equal(await page.locator(".track").count(), 1);
@@ -4071,6 +4193,8 @@ describe("bibliothèque de quiz et prestations", () => {
     // Bibliothèque des sons : une chanson par morceau, avec ses préréglages ; les morceaux la désignent.
     const songs = await library("songs");
     assert.deepEqual(pl.tracks.map((t) => songs[t.songId]?.title), ["Libérée délivrée", "Hakuna Matata"]);
+    // Leurs chansons entières aussi, pour les régler depuis n'importe quel PC.
+    for (const t of pl.tracks) assert.equal((await library(`entieres/${t.songId}`))?.kbps, 96);
     assert.ok(pl.tracks.every((t) => songs[t.songId].buzz === 20 && songs[t.songId].refrainId === t.refrainId && Number.isFinite(songs[t.songId].refrain)));
 
     await seedLibrary("shows/musique", { childName: "Tom", age: 8, date: "2026-12-02", status: "publiee", updatedAt: 1,

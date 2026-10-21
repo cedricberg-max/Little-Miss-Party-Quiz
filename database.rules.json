@@ -408,6 +408,22 @@
           }
         }
       },
+      "entieres": {
+        "$id": {
+          ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
+          ".validate": "!newData.exists() || $id.matches(/^[A-Za-z0-9_-]{1,40}$/)",
+          "n": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 24 && newData.val() % 1 === 0" },
+          "kbps": { ".validate": "newData.isNumber() && newData.val() >= 32 && newData.val() <= 128" },
+          "length": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 7200" },
+          "at": { ".validate": "newData.val() === now" },
+          "p": {
+            "$i": {
+              ".validate": "$i.matches(/^([0-9]|1[0-9]|2[0-3])$/) && newData.isString() && newData.val().length >= 1 && newData.val().length <= 800000"
+            }
+          },
+          "$other": { ".validate": false }
+        }
+      },
       "lyrics": {
         "$id": {
           ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
