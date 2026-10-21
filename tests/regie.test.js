@@ -3450,6 +3450,72 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
+  test("en direct : « 🔁 Rejouer » un Quiz illustré (cedric, 21/10) : réponses en photos de la banque ou en émojis, jamais les images de cedric", async () => {
+    const PNG = `data:image/png;base64,${png([200, 120, 60]).toString("base64")}`;
+    const siennes = (n) => [0, 1, 2, 3].map((k) => `${n}${k}`.repeat(8));
+    const q = (text, choices, n) => ({ text, choices, correct: 0, status: "validee", choiceImages: siennes(n) });
+    await seedLibrary("quizzes/petits", { title: "Les petits", kind: "photo", source: "banque", updatedAt: 1, questions: [
+      q("Où est le chat ?", ["Chat", "Chien", "Vache", "Lion"], 1),
+      q("Où est le lion ?", ["Lion", "Chat", "Chien", "Vache"], 2),
+      // Ni dans la banque ni émoji : jamais reprise au hasard.
+      q("Où est le doudou ?", ["Doudou", "Chien", "Vache", "Lion"], 3),
+      // Le poisson n'a pas de photo sur le site : son émoji dessiné.
+      q("Où est le poisson ?", ["Poisson", "Cochon", "Lapin", "Canard"], 4),
+      q("Où est le mouton ?", ["Mouton", "Poule", "Ours", "Coq"], 5),
+    ] });
+    const toutes = [1, 2, 3, 4, 5].flatMap(siennes);
+    await seedLibrary("images", Object.fromEntries(toutes.map((id) => [id, PNG])));
+    await seedLibrary("manches/petits", { type: "illustre", title: "Deux pour les petits", origin: "admin", updatedAt: 1, round: { type: "illustre", quizId: "petits", count: 2 } });
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.click("#tab-plan");
+    await regie.click("#plan-add");
+    await regie.locator("#lib-list [data-game='manche/petits']").click();
+    await regie.click("#lib-end");
+    await regie.locator("#r-toast", { hasText: "est ajouté à la fin du programme" }).waitFor();
+    const petits = async () => (await read("conducteur")).questions.filter((x) => x.text?.startsWith("Où est"));
+    // Choisi à la main : les images de cedric, copiées dans la partie.
+    assert.deepEqual((await petits()).map((x) => [x.text, x.choiceImages]), [["Où est le chat ?", siennes(1)], ["Où est le lion ?", siennes(2)]]);
+    await waitFor(async () => { const c = (await read("choiceImages")) ?? {}; return [...siennes(1), ...siennes(2)].every((id) => c[id] === PNG); }, "ses images copiées");
+    // Le Quiz illustré est en cours : « 🔁 Rejouer » reprend 2 questions au hasard, sans celle du doudou.
+    const plan = (await read("conducteur")).questions;
+    const at = plan.findIndex((x) => x.text === "Où est le chat ?");
+    await box.set({ ...questionState(7), index: at, qid: plan[at].id, text: plan[at].text, choices: plan[at].choices, total: plan.length });
+    const jeu = regie.locator(`#panel-plan .plan-head[data-round="${plan[at].round}"]`);
+    await jeu.locator(".state", { hasText: "en cours" }).waitFor();
+    await jeu.locator("button.replay", { hasText: "🔁 Rejouer" }).click();
+    await regie.locator("#lib-preview:not([hidden])").waitFor();
+    assert.deepEqual(await regie.locator("#lib-questions li").allTextContents().then((l) => l.map((x) => x.match(/Où est le \w+ \?/)?.[0])), ["Où est le poisson ?", "Où est le mouton ?"]);
+    assert.equal(await regie.locator("#lib-problems").isHidden(), true);
+    await regie.click("#lib-after");
+    await waitFor(async () => (await petits()).length === 4, "2 questions reprises");
+    const rejouees = (await petits()).slice(2);
+    assert.deepEqual(rejouees.map((x) => x.text), ["Où est le poisson ?", "Où est le mouton ?"]);
+    // Dans le programme de la TV : seulement des identifiants d'images libres, toutes copiées dans la partie (la TV et les
+    // pupitres les lisent dans games/<code>/choiceImages, comme celles d'un quiz choisi à la main).
+    const copiees = (await read("choiceImages")) ?? {};
+    for (const x of rejouees) {
+      assert.equal(x.choiceBanque, undefined);
+      assert.equal(x.choiceImages.length, 4);
+      for (const id of x.choiceImages) {
+        assert.match(id, /^[0-9a-f]{16}$/);
+        assert.ok(!toutes.includes(id), `jamais une image de cedric (${x.text})`);
+        assert.match(copiees[id] ?? "", /^data:image\/jpeg;base64,/, "copiée dans la partie");
+      }
+    }
+    // Les photos de la banque du site (leur empreinte) ; le poisson, sans photo sur le site : son émoji dessiné.
+    const empreinte = (cle) => createHash("sha256").update(`data:image/jpeg;base64,${readFileSync(join(PUBLIC, `banque/${cle}.jpg`)).toString("base64")}`).digest("hex").slice(0, 16);
+    assert.deepEqual(rejouees[1].choiceImages, ["mouton", "poule", "ours", "coq"].map(empreinte));
+    assert.deepEqual(rejouees[0].choiceImages.slice(1), ["cochon", "lapin", "canard"].map(empreinte));
+    assert.equal(existsSync(join(PUBLIC, "banque/poisson.jpg")), false);
+    assert.equal(new Set(rejouees.flatMap((x) => x.choiceImages)).size, 8);
+    await capture(regie, "rejouer-quiz-illustre");
+    await regie.context().close();
+  });
+
   test("« 🔁 Rejouer » de l'écran principal (cedric, 21/10) : les jeux déjà lancés, un quiz sans quiz à cocher, ✕, « ▶ Rejouer maintenant »", async () => {
     await seedLibrary("quizzes", {
       animaux: { title: "Animaux", updatedAt: 1, questions: Array.from({ length: 6 }, (_, i) => ({ text: `Animal ${i} ?`, choices: ["Oui", "Non"], correct: 0, status: "validee" })) },

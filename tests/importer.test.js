@@ -1159,6 +1159,54 @@ describe("Quiz illustré : un jeu à part, les quiz à réponses en images", asy
     assert.deepEqual(M.cleanRound({ type: "illustre", quizId: "petits", finale: 2, count: 5 }), { type: "illustre", quizId: "petits", count: 5, finale: 2 });
   });
 
+  test("tiré au hasard (« 🔁 Rejouer », cedric, 21/10) : chaque réponse en photo de la banque ou en émoji, jamais une image téléversée ; à la main, ses images", async () => {
+    const P = await import("../web/public/banque-photos.js");
+    const mes = (n) => [0, 1, 2, 3].map((k) => `${n}${k}`.repeat(8));
+    const q = (text, choices, n) => ({ text, choices, correct: 0, status: "validee", choiceImages: mes(n) });
+    const LEA = { title: "Les petits de Léa", kind: "photo", questions: [
+      q("Où est le chat ?", ["Chat", "Chien", "Vache", "Lion"], 1),
+      q("Où est la vache ?", ["Chat", "Chien", "Vache", "Lion"], 2),
+      // « Doudou » : ni dans la banque, ni émoji.
+      q("Où est le doudou ?", ["Doudou", "Chien", "Vache", "Lion"], 3),
+      // « Poisson » : dans la banque sans photo (son émoji) ; « 🦄 Licorne » : l'émoji écrit dans la réponse.
+      q("Où est le poisson ?", ["Poisson", "🦄 Licorne", "Cochon", "Lapin"], 4),
+      q("Où est le mouton ?", ["Mouton", "Canard", "Poule", "Ours"], 5),
+    ] };
+    const lib = { lea: LEA };
+    const siennes = new Set(LEA.questions.flatMap((x) => x.choiceImages));
+    const avait = P.PHOTOS_BANQUE.delete("poisson");
+    try {
+      // Choisies à la main : ses images, exactement comme il les a mises.
+      const main = S.buildSnapshot("s", { rounds: [{ type: "illustre", quizId: "lea", count: 2 }] }, lib).snapshot.quiz.questions;
+      assert.deepEqual(main.map((x) => x.choiceImages), [mes(1), mes(2)]);
+      assert.ok(main.every((x) => x.choiceBanque === undefined));
+      // « 🔁 Rejouer » : 2 autres questions ; celle du doudou (rien de libre à montrer) est sautée, la suivante la remplace.
+      const source = M.sourceRejouee("quiz", main, lib);
+      assert.deepEqual(source, { type: "illustre", quizId: "lea", count: 2, hasard: true });
+      const { questions, problems } = S.gameQuestions(source, lib, "PETITS", "x", {}, {}, {}, M.playedKeys(main));
+      assert.deepEqual(problems, []);
+      assert.deepEqual(questions.map((x) => x.text), ["Où est le poisson ?", "Où est le mouton ?"]);
+      assert.ok(questions.every((x) => x.choiceImages === undefined && x.imageId === undefined && x.round === "Quiz illustré"), "jamais une image téléversée");
+      assert.ok(!JSON.stringify(questions).match(new RegExp([...siennes].join("|"))), "aucun identifiant de ses images");
+      assert.deepEqual(questions[0].choiceBanque, [{ emoji: "🐟" }, { emoji: "🦄" }, { cle: "cochon", emoji: "🐷" }, { cle: "lapin", emoji: "🐰" }]);
+      assert.deepEqual(questions[1].choiceBanque.map((x) => x.cle), ["mouton", "canard", "poule", "ours"]);
+      assert.deepEqual(P.imageLibre("Doudou"), null);
+      // Plus assez de questions : la liste est plus courte, et le dit.
+      const court = S.gameQuestions({ ...source, count: 4 }, lib, "PETITS", "x", {}, {}, {}, M.playedKeys(main));
+      assert.deepEqual(court.questions.map((x) => x.text), ["Où est le poisson ?", "Où est le mouton ?"]);
+      assert.match(court.problems.join(), /^Liste plus courte : il ne restait que 2 questions à reprendre au hasard \(1 écartée : une réponse en photo sans photo dans la banque ni émoji\)\.$/);
+      // Rien de libre à montrer : rien n'est repris, et c'est dit.
+      const rien = S.gameQuestions(source, { lea: { ...LEA, questions: [LEA.questions[2]] } }, "PETITS", "x");
+      assert.equal(rien.questions.length, 0);
+      assert.match(rien.problems.join(), /aucune question à reprendre au hasard/);
+      // Le même quiz choisi à la main (même la question du doudou) : ses images.
+      const tout = S.buildSnapshot("s", { rounds: [{ type: "illustre", quizId: "lea" }] }, lib).snapshot.quiz.questions;
+      assert.deepEqual(tout.map((x) => x.choiceImages), [1, 2, 3, 4, 5].map(mes));
+    } finally {
+      if (avait) P.PHOTOS_BANQUE.add("poisson");
+    }
+  });
+
   test("prestation de test « tous les jeux » : le quiz des petits est un Quiz illustré, plus de quiz classique nommé « illustré »", () => {
     assert.ok(T.FULL_SHOW.rounds.some((r) => r.type === "illustre" && r.quizId === T.FULL_KEYS.images));
     assert.equal(T.imageQuiz([[img(1), img(2), img(3), img(4)], [img(1), img(2), img(3), img(4)]]).title, "TEST – Quiz illustré des petits");
@@ -1315,13 +1363,14 @@ describe("collections, manches et prestation", async () => {
     assert.ok(M.REJOUES_TELS_QUELS.includes("statues"));
   });
 
-  test("« 🔁 Rejouer » un quiz (cedric, 21/10) : les questions reprises ne montrent jamais ses images, le Quiz illustré garde ses réponses en photos", () => {
+  test("« 🔁 Rejouer » un quiz (cedric, 21/10) : les questions reprises ne montrent jamais ses images, le Quiz illustré prend les photos de la banque", () => {
     const photo = "c".repeat(16);
     const reponses = { 0: "d".repeat(16), 1: "e".repeat(16) };
-    const q = (i) => ({ text: `Q${i} ?`, choices: ["Oui", "Non"], correct: 0, status: "validee", image: "🐶", imageId: photo, choiceImages: reponses });
+    const q = (i, choices = ["Oui", "Non"]) => ({ text: `Q${i} ?`, choices, correct: 0, status: "validee", image: "🐶", imageId: photo, choiceImages: reponses });
+    const animaux = ["Chat", "Chien"];
     const quizzes = {
       a: { title: "Pochettes", kind: "classique", questions: [q(0), q(1), q(2), q(3)] },
-      p: { title: "Les petits", kind: "photo", questions: [q(4), q(5), q(6), q(7)] },
+      p: { title: "Les petits", kind: "photo", questions: [q(4, animaux), q(5, animaux), q(6, animaux), q(7, animaux)] },
     };
     // À la main, dans la prestation : ses images, comme il les a mises.
     const main = S.buildSnapshot("s", { rounds: [{ type: "quiz", quizId: "a", count: 2 }] }, quizzes).snapshot.quiz.questions;
@@ -1330,13 +1379,16 @@ describe("collections, manches et prestation", async () => {
     assert.deepEqual(rejoue.map((x) => x.text), ["Q2 ?", "Q3 ?"]);
     assert.ok(rejoue.every((x) => x.imageId === undefined && x.choiceImages === undefined), "ni sa photo ni ses réponses en photos");
     assert.ok(rejoue.every((x) => x.image === "🐶" && x.choices.length === 2), "l'émoji et les réponses écrites restent");
-    // Quiz illustré : rejoué comme Quiz illustré, ses réponses en photos (la banque des tout-petits) restent.
+    // Quiz illustré : rejoué comme Quiz illustré, chaque réponse en photo avec la photo libre de son mot dans la banque,
+    // jamais celle téléversée (cedric, 21/10).
     const petits = S.buildSnapshot("s", { rounds: [{ type: "illustre", quizId: "p", count: 2 }] }, quizzes).snapshot.quiz.questions;
+    assert.ok(petits.every((x) => x.choiceImages?.join() === `${"d".repeat(16)},${"e".repeat(16)}`), "à la main : ses photos");
     const source = M.sourceRejouee("quiz", petits, quizzes);
     assert.equal(source.type, "illustre");
     const illustre = S.gameQuestions(source, quizzes, "PETITS", "x", {}, {}, {}, M.playedKeys(petits)).questions;
     assert.deepEqual(illustre.map((x) => x.text), ["Q6 ?", "Q7 ?"]);
-    assert.ok(illustre.every((x) => x.imageId === undefined && x.choiceImages?.length === 2 && x.round === "Quiz illustré"));
+    assert.ok(illustre.every((x) => x.imageId === undefined && x.choiceImages === undefined && x.round === "Quiz illustré"), "jamais ses photos");
+    assert.ok(illustre.every((x) => x.choiceBanque.map((c) => c.cle).join() === "chat,chien"), "les photos de la banque");
   });
 
   test("Petits : pas de carte difficile ; « difficile » met les plus dures d'abord", () => {
@@ -1497,6 +1549,29 @@ describe("« jamais deux fois » : ce qu'une activité a montré ne revient pas 
     const show = { rounds: [{ type: "mimes", random: true, count: 100 }, { type: "quiz", quizId: "p" }] };
     const cards = S.buildSnapshot("s", show, { p: { title: "Animaux", questions: [{ ...q, status: "validee" }] } }, {}, seq()).snapshot.quiz.questions[0].cards;
     assert.ok(!mots(cards).includes("chat") && !mots(cards).includes("chien"));
+  });
+
+  test("Quiz illustré tiré au hasard : il évite ce que la fête a montré, et ce qu'il montre est évité ensuite", () => {
+    const mes = (n) => [0, 1, 2, 3].map((k) => `${n}${k}`.repeat(8));
+    const lib = { lea: { title: "Les petits", kind: "photo", questions: [
+      { text: "Où est le lapin ?", choices: ["Lapin", "Chat", "Chien", "Vache"], correct: 0, status: "validee", choiceImages: mes(1) },
+      { text: "Où est la girafe ?", choices: ["Girafe", "Singe", "Éléphant", "Lion"], correct: 0, status: "validee", choiceImages: mes(2) },
+    ] } };
+    const hasard = { type: "illustre", quizId: "lea", count: 1, hasard: true };
+    assert.deepEqual(S.gameQuestions(hasard, lib, "PETITS", "x").questions.map((q) => q.text), ["Où est le lapin ?"], "rien de vu : dans l'ordre du quiz");
+    // Le lapin a été mimé pendant la fête : la question de la girafe passe d'abord.
+    const vu = M.playedKeys(S.buildSnapshot("s", { rounds: [{ type: "mimes", cards: [{ word: "Lapin", image: "🐰" }] }] }, {}).snapshot.quiz.questions);
+    const [girafe] = S.gameQuestions(hasard, lib, "PETITS", "x", {}, {}, {}, vu).questions;
+    assert.equal(girafe.text, "Où est la girafe ?");
+    assert.ok(["m:girafe", "e:🦒", "m:lion", "e:🦁"].every((k) => J.questionConcepts(girafe).includes(k)), "ses réponses comptent, avec leurs émojis");
+    // Tout est déjà vu : la question vient quand même.
+    const tout = new Set([...vu.concepts, "m:girafe"]);
+    assert.equal(S.gameQuestions(hasard, lib, "PETITS", "x", {}, {}, {}, { concepts: tout }).questions.length, 1);
+    // Dans un même programme : les mimes tirés ensuite ne reprennent pas les animaux de ses réponses.
+    const show = { rounds: [{ type: "mimes", cards: [{ word: "Lapin", image: "🐰" }] }, hasard, { type: "mimes", random: true, count: 100 }] };
+    const qs = S.buildSnapshot("s", show, lib, {}, seq()).snapshot.quiz.questions;
+    assert.equal(qs[1].text, "Où est la girafe ?");
+    assert.ok(mots(qs[2].cards).every((w) => !["girafe", "singe", "elephant", "lion", "lapin"].includes(w)), mots(qs[2].cards).join());
   });
 
   test("choix à la main : permis, mais signalé « déjà utilisé dans … » avec le nom de l'autre jeu", () => {
@@ -1863,6 +1938,38 @@ describe("photos de la banque dans les jeux (Mimes, Qui a disparu ?, Zoom mystè
     // Une erreur d'écriture ne bloque pas : la question part sans photo.
     const casse = await P.resolveBanque([{ kind: "zoom", banque: "chat" }], { photo: async () => photos.chat, ecrire: async () => { throw new Error("hors ligne"); } });
     assert.deepEqual(casse, [{ kind: "zoom" }]);
+  });
+
+  test("Quiz illustré tiré au hasard : au chargement, chaque réponse prend la photo de la banque ou l'émoji dessiné, rangés avec les réponses en images", async () => {
+    const { imageId } = await import("../web/public/illustration.js");
+    const photos = { chat: "data:image/jpeg;base64,Q0hBVA==" };
+    const ecrits = [];
+    const dessins = [];
+    const questions = [
+      // Le chien en carte de Mimes (sans photo : la carte garde son émoji) et en réponse (sans photo : son émoji dessiné).
+      { kind: "mime", cards: [{ word: "Chien", image: "🐶", banque: "chien" }] },
+      { kind: "classic", text: "Où est le chat ?", choices: ["Chat", "Chien", "🦄 Licorne", "Bla"], correct: 0,
+        choiceBanque: [{ cle: "chat", emoji: "🐱" }, { cle: "chien", emoji: "🐶" }, { emoji: "🦄" }, null] },
+    ];
+    const avant = JSON.stringify(questions);
+    const [carte, out] = await P.resolveBanque(questions, {
+      photo: async (cle) => photos[cle] ?? null,
+      secours: async (m) => { dessins.push(m.emoji); return `data:image/jpeg;base64,${Buffer.from(m.emoji).toString("base64")}`; },
+      ecrire: async (dir, id, data) => { ecrits.push([dir, id, data]); },
+    });
+    assert.equal(JSON.stringify(questions), avant, "les questions d'origine ne sont pas touchées");
+    assert.equal(out.choiceBanque, undefined, "la TV et les pupitres ne reçoivent que des identifiants");
+    assert.equal(out.choiceImages.length, 4);
+    assert.equal(out.choiceImages[0], await imageId(photos.chat), "la photo du chat de la banque");
+    assert.ok(out.choiceImages.slice(0, 3).every((id) => /^[0-9a-f]{16}$/.test(id)));
+    assert.equal(out.choiceImages[3], "", "réponse sans image : écrite");
+    assert.deepEqual(dessins.sort(), ["🐶", "🦄"].sort(), "photo absente : l'émoji dessiné");
+    assert.deepEqual(carte.cards, [{ word: "Chien", image: "🐶" }], "la carte de mimes garde son émoji");
+    assert.equal(ecrits.length, 3);
+    assert.ok(ecrits.every(([dir]) => dir === "choiceImages"), "rangées avec les réponses en images");
+    // Rien à copier : la question reste écrite.
+    const [ecrite] = await P.resolveBanque([{ kind: "classic", choices: ["Bla", "Bli"], choiceBanque: [null, null] }], { photo: async () => null, ecrire: async () => {} });
+    assert.deepEqual(ecrite, { kind: "classic", choices: ["Bla", "Bli"] });
   });
 });
 
