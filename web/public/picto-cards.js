@@ -1,7 +1,7 @@
 // Catalogue intégré du Pictionary : des mots faciles à dessiner pour des enfants, chacun avec son image (un
 // émoji affiché en grand sur la tablette du dessinateur, puis sur la TV à la fin du tour). Émojis d'avant 2019
 // (Emoji 11) seulement : une box sous Android 9 les affiche tous. Les mots marqués « grands » (level 2) ne
-// sortent pas pour les 6-8 ans. Sarah retire des mots ou ajoute les siens dans l'administration (page Jeux).
+// sortent pas pour les 6-8 ans. Sarah retire des mots ou ajoute les siens dans l'administration (page du jeu).
 
 // Les mots sont rangés en séries (thèmes) : une manche peut n'en garder que quelques-unes, choisies ou tirées au hasard.
 const T = (series, list) => list.map(([word, image, hard]) => ({ word, image, level: hard ? 2 : 1, series }));

@@ -46,7 +46,7 @@ export const STATUES_EXTRACTS = [60, 90];
 export const STATUES_EXTRACT = 60;
 /** Au plus autant de chansons dans une manche de statues (même limite que la TV). */
 export const MAX_STATUES_SONGS = 20;
-/** La liste des chansons des statues : une playlist marquée `use: "statues"`, gérée depuis la page Jeux. */
+/** La liste des chansons des statues : une playlist marquée `use: "statues"`, gérée depuis la page du jeu. */
 export const isStatuesList = (p) => p?.use === "statues";
 /** Toutes les chansons des statues (titre et extrait enregistré), dans l'ordre de la liste. */
 export const statuesSongs = (playlists) => Object.values(playlists ?? {}).filter(isStatuesList).flatMap((p) => playableTracks(p));
@@ -68,7 +68,7 @@ export function roundSongs(round, playlists) {
 }
 /**
  * Pictionary : équipe par équipe, un mot par tour ; temps de dessin proposés (secondes), celui par défaut, et
- * points d'un dessin trouvé. Les mots viennent du catalogue intégré (réglable dans la page Jeux).
+ * points d'un dessin trouvé. Les mots viennent du catalogue intégré (réglable dans la page du jeu).
  */
 export const PICTO_SECONDS = [60, 90, 120];
 export const PICTO_SEC = 90;
@@ -176,7 +176,7 @@ export const BUILTIN_GAMES = {
 };
 
 /**
- * Contenus des jeux intégrés réglables dans l'administration (page Jeux) : `library/contents/<jeu>` garde
+ * Contenus des jeux intégrés réglables dans l'administration (page du jeu) : `library/contents/<jeu>` garde
  * les éléments du catalogue retirés (`off`, leurs clés) et les ajouts de Sarah (`extra`). Le catalogue du
  * code n'est jamais modifié ; un ajout mal formé est ignoré, il n'empêche jamais de jouer.
  */
@@ -383,7 +383,7 @@ export const MAX_PICKS = 60;
 /** Éléments choisis un par un pour un jeu intégré ou le Pictionary (`picks`, leurs clés), dans l'ordre de Sarah. */
 export const roundPicks = (round) => [...new Set(listOf(round?.picks).filter((k) => typeof k === "string" && k).map((k) => k.toLowerCase()))].slice(0, MAX_PICKS);
 
-/** Les éléments actifs d'un jeu (page Jeux) qui correspondent aux clés choisies, dans l'ordre des clés. */
+/** Les éléments actifs d'un jeu (page du jeu) qui correspondent aux clés choisies, dans l'ordre des clés. */
 export function pickedItems(type, content, picks) {
   const game = CONTENT_GAMES[type];
   const byKey = new Map(activeItems(type, content).map((x) => [game.key(x), x]));
@@ -593,7 +593,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       const all = activeItems("pictionary", contents?.pictionary)
         .filter((w) => (profile !== "PETITS" || w.level !== 2) && (!series || series.includes(pictoSeriesOf(w))));
       const words = chosen.length ? chosen : neufsSiPossible(all.some(fresh) ? all.filter(fresh) : all, concepts, pris, PICTO_MIN_FRESH);
-      if (!words.length) { problems.push(`Manche ${i + 1} (Pictionary) : aucun mot actif${series ? " dans les séries choisies" : ""} (page Jeux de l'administration).`); return; }
+      if (!words.length) { problems.push(`Manche ${i + 1} (Pictionary) : aucun mot actif${series ? " dans les séries choisies" : ""} (page du jeu dans l'administration).`); return; }
       const duration = PICTO_SECONDS.includes(round.duration) ? round.duration : PICTO_SEC;
       rounds.push({ title: ROUND_TYPES.pictionary, count: 1, kind: "pictionary" });
       questions.push({
@@ -634,7 +634,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
         : parPhotos(round, shuffle(builtin.items(profile, random, pool, round, false, pris), random)).slice(0, count);
       picked.forEach((x) => seen.add(game.key(x)));
       if (!picked.length) {
-        problems.push(`Manche ${i + 1} (${ROUND_TYPES[round.type]}) : aucun ${CONTENT_GAMES[round.type].unit} actif (page Jeux de l'administration).`);
+        problems.push(`Manche ${i + 1} (${ROUND_TYPES[round.type]}) : aucun ${CONTENT_GAMES[round.type].unit} actif (page du jeu dans l'administration).`);
         return;
       }
       rounds.push({ title: ROUND_TYPES[round.type], count: picked.length });

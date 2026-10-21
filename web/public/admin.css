@@ -462,3 +462,37 @@ button.item { cursor: pointer; }
 .banque-galerie figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .banque-galerie img { width: 96px; height: 96px; object-fit: cover; border-radius: 12px; background: var(--bg-2); }
 .banque-galerie figcaption { font-size: 13px; color: var(--soft); text-align: center; }
+
+/* Bibliothèque : images en trois groupes (émojis, photos libres, les siennes), fiches de ses images. */
+.media-group { margin: 18px 0 6px; }
+.media-group .title-row { justify-content: flex-start; margin-bottom: 8px; }
+.media-group h2 { margin: 0; }
+.media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; margin-bottom: 8px; }
+.media-tile { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); font: inherit; color: var(--ink); min-width: 0; }
+button.media-tile { cursor: pointer; }
+button.media-tile:hover { border-color: var(--violet); }
+.media-tile .emoji { font-size: 44px; line-height: 1.25; }
+.media-grid > p { grid-column: 1 / -1; margin: 4px 0; }
+.media-tile img { width: 88px; height: 88px; object-fit: cover; border-radius: 10px; background: var(--bg-2); }
+.media-tile span:not(.emoji) { font-size: 13px; text-align: center; overflow-wrap: anywhere; }
+.media-cats .chip { padding: 5px 11px; font-size: 14px; }
+.media-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; margin-bottom: 10px; }
+.media-card { display: flex; flex-direction: column; gap: 6px; padding: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; min-width: 0; }
+.media-card img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 12px; background: var(--bg-2); }
+.media-card input, .media-card select { width: 100%; box-sizing: border-box; }
+.media-card .small { color: var(--soft); font-size: 13px; overflow-wrap: anywhere; }
+.media-card .row { margin: 0; }
+.media-card.retiree img { opacity: .45; }
+.media-upload { flex-direction: row; flex-wrap: wrap; align-items: flex-end; gap: 10px 16px; margin-bottom: 12px; padding: 16px 20px; }
+.media-upload select { min-width: 240px; }
+.media-upload > b { flex-basis: 100%; }
+.media-upload label.wide { flex: 1 1 260px; }
+.media-upload p { flex-basis: 100%; margin: 0; }
+.media-note { position: sticky; bottom: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 8px 14px; box-shadow: var(--shadow); }
+.media-note:empty { display: none; }
+
+/* Fenêtre « 🖼️ Bibliothèque » : choisir une image en fabriquant un quiz. */
+.choix-boite { width: min(860px, 100%); max-width: min(860px, 100%); max-height: calc(100vh - 32px); align-items: stretch; overflow: hidden; }
+.choix-boite .choix-recherche { width: 100%; box-sizing: border-box; }
+.choix-boite .chips { margin: 0; }
+.choix-grille { overflow-y: auto; min-height: 120px; max-height: 56vh; padding: 2px; }

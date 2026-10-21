@@ -339,6 +339,19 @@
           ".validate": "!newData.exists() || ($id.matches(/^[0-9a-f]{16}$/) && newData.isString() && newData.val().beginsWith('data:image/') && newData.val().length <= 150000)"
         }
       },
+      "medias": {
+        "$id": {
+          ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
+          ".validate": "!newData.exists() || ($id.matches(/^[0-9a-f]{16}$/) && newData.child('name').isString() && newData.child('name').val().length >= 1 && newData.child('name').val().length <= 80 && newData.child('updatedAt').val() === now)",
+          "cat": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
+          "tags": { ".validate": "newData.isString() && newData.val().length <= 300" },
+          "hidden": { ".validate": "newData.isBoolean()" },
+          "createdAt": { ".validate": "newData.isNumber()" },
+          "$other": {
+            ".validate": "$other === 'name' || $other === 'updatedAt'"
+          }
+        }
+      },
       "sounds": {
         "$id": {
           ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val() && (!data.exists() || !newData.exists())",

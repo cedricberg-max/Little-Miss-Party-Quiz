@@ -834,6 +834,21 @@ describe("illustrations des questions", () => {
     await assertFails(set(ref(db("rose"), "library/images/fedcba9876543210"), PHOTO));
     await assertSucceeds(set(ref(db("sarah"), `library/images/${ID}`), null));
   });
+  test("bibliothèque : la fiche d'une image (nom, catégorie, mots-clés, retirée) s'écrit depuis l'administration seule, champs bornés", async () => {
+    const fiche = (who, id, f) => set(ref(db(who), `library/medias/${id}`), { updatedAt: serverTimestamp(), ...f });
+    await assertSucceeds(fiche("sarah", ID, { name: "Elsa", cat: "Dessins animés", tags: "reine, neige", createdAt: 1 }));
+    await assertSucceeds(fiche("sarah", ID, { name: "Elsa", tags: "", hidden: true }));
+    await assertFails(fiche("sarah", ID, { name: "" }));
+    await assertFails(fiche("sarah", ID, { name: "x".repeat(81) }));
+    await assertFails(fiche("sarah", ID, { name: "Elsa", cat: "x".repeat(41) }));
+    await assertFails(fiche("sarah", ID, { name: "Elsa", tags: "x".repeat(301) }));
+    await assertFails(fiche("sarah", ID, { name: "Elsa", hidden: "oui" }));
+    await assertFails(fiche("sarah", ID, { name: "Elsa", data: PHOTO }));
+    await assertFails(fiche("sarah", "pas-un-id", { name: "Elsa" }));
+    await assertFails(set(ref(db("sarah"), `library/medias/${ID}`), { name: "Elsa", updatedAt: 5 }));
+    await assertFails(fiche("rose", ID, { name: "Elsa" }));
+    await assertSucceeds(set(ref(db("sarah"), `library/medias/${ID}`), null));
+  });
   test("une question garde un émoji court et un identifiant de photo valide", async () => {
     const quiz = (q) => set(ref(db("sarah"), "library/quizzes/z"), {
       title: "Z", updatedAt: serverTimestamp(), questions: [{ text: "?", choices: ["a", "b"], correct: 0, status: "validee", ...q }],
