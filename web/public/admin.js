@@ -506,8 +506,10 @@ function showCard(id, s, { accueil = false } = {}) {
         isArchived(s) && !accueil ? h("button", { class: "btn small secondary", onclick: () => pin(id, !s.pinned), text: s.pinned ? "☆ Désépingler" : "⭐ Épingler" }) : null,
         // Pas de « Désarchiver » (cedric, 21/10) : une fête archivée se réutilise avec « Dupliquer ».
         isArchived(s) ? null : h("button", { class: "btn small secondary", onclick: () => archiver(id, s), text: "Archiver" }),
-        // Un brouillon en trop se supprime depuis sa carte (cedric, 21/10) ; les fêtes à venir ou passées s'archivent.
-        etat === "acompleter" && !accueil ? h("button", { class: "btn small danger", onclick: () => supprimerPrestation(id, s), text: "Supprimer" }) : null)));
+        // « Supprimer » seulement sur un brouillon ou une archivée (cedric, 21/10) : une fête annoncée ne s'efface
+        // jamais, elle s'archive d'abord.
+        (etat === "acompleter" || etat === "archivee") && !accueil
+          ? h("button", { class: "btn small danger", onclick: () => supprimerPrestation(id, s), text: "Supprimer" }) : null)));
 }
 
 /** Supprime une prestation après confirmation ; renvoie vrai si elle est supprimée. */
@@ -758,7 +760,6 @@ function editShow(id) {
   $("show-duration").value = s.durationMin ?? "";
   $("show-themes").value = s.themes ?? "";
   $("show-notes").value = s.notes ?? "";
-  $("show-delete").hidden = !id;
   status("show-status-msg", s.copieDe && !s.childName ? "Copie : indiquez le prénom, l'âge et la date du nouvel anniversaire, puis enregistrez."
     : folded ? "L'ancienne manche « Super Finale » est devenue le réglage du quiz (ses dernières questions ×2). Enregistrez pour garder ce changement." : "", !!s.copieDe || !!folded);
   show("show-edit");
@@ -779,6 +780,9 @@ const histPrestation = historique({
     refreshRounds();
   },
 });
+// « Enregistrer » aussi en haut de la fiche (cedric, 21/10) : une retouche de dernière minute sans descendre tout en bas.
+$("screen-show-edit").querySelector(".retour-barre.haut")
+  .append(h("button", { id: "show-save-haut", class: "btn", type: "button", onclick: () => $("show-save").click(), text: "Enregistrer" }));
 
 function formShow() {
   const num = (v) => (v === "" ? null : Number(v));
@@ -1453,7 +1457,6 @@ $("show-form").onsubmit = async (e) => {
     editing.id = id;
     refreshRounds();
     histPrestation.enregistre();
-    $("show-delete").hidden = false;
     $("show-edit-title").textContent = showTitle({ ...s, copieDe: prev.copieDe });
     showsEtat = etatPrestation(s);
     $("show-edit-crumb").textContent = LISTES[showsEtat].titre;
@@ -1465,13 +1468,6 @@ $("show-form").onsubmit = async (e) => {
   } finally {
     $("show-save").disabled = false;
   }
-};
-
-$("show-delete").onclick = async () => {
-  if (!editing?.id || !shows[editing.id] || !await supprimerPrestation(editing.id, shows[editing.id])) return;
-  // Supprimée : ses modifications pas enregistrées partent avec elle, sans autre question.
-  histPrestation.abandonner();
-  openShows(showsEtat);
 };
 
 // ---------- Bibliothèque de quiz ----------

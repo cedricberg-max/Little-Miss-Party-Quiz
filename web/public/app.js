@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
 import { getAuth, signInAnonymously, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
 import {
-  getDatabase, ref, get, set, update, onValue, onDisconnect, serverTimestamp, connectDatabaseEmulator,
+  getDatabase, ref, get, set, update, onValue, onDisconnect, serverTimestamp, connectDatabaseEmulator, goOffline, goOnline,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { TEAM_COLORS, CHOICE_COLORS, CHOICE_LETTERS, MAX_TEAMS } from "./theme.js";
 import { hasAccess, loginWithPassword, loginWithPin, startRegie } from "./regie.js";
@@ -112,14 +112,48 @@ function beep(freq = 880, ms = 180) {
   } catch { /* son indisponible : on continue sans */ }
 }
 
+/** Demande de plein écran en cours : un même geste (toucher puis clic) ne la fait qu'une fois. */
+let pleinEcranDemande = null;
 /** Plein écran au premier toucher (l'écran allumé, lui, suit l'état de la partie : voir show()). */
 async function keepAwake() {
-  if (document.fullscreenElement) return;
-  try { await document.documentElement.requestFullscreen?.(); } catch { /* iOS : pas de plein écran */ }
+  if (document.fullscreenElement || pleinEcranDemande) return;
+  try {
+    pleinEcranDemande = document.documentElement.requestFullscreen?.();
+    await pleinEcranDemande;
+  } catch { /* iPhone : Apple ne donne pas le plein écran à un site */ } finally { pleinEcranDemande = null; }
 }
-// Plein écran perdu (téléphone tourné, volet des notifications, page rechargée) : le navigateur ne le rend que sur
-// un toucher, alors chaque toucher le redemande ; la barre d'adresse et celle du téléphone repartent aussitôt.
-document.addEventListener("click", () => { if (code && !document.fullscreenElement) keepAwake(); }, true);
+// Plein écran perdu (retour d'une autre appli, téléphone tourné, volet des notifications, page rechargée) : le
+// navigateur ne le rend que sur un geste, alors chaque geste le redemande (cedric, 21/10) : un toucher n'importe où,
+// même sur une réponse déjà verrouillée (elle ne fait pas de clic), un clic ou le gros buzzer USB. Pas pendant la
+// frappe d'un nom (le clavier de l'écran se fermerait), ni sur Échap, qui sert justement à en sortir.
+const redemanderPleinEcran = (e) => {
+  if (!code || document.fullscreenElement) return;
+  if (e.type === "keydown" && (e.key === "Escape" || enFrappe(e))) return;
+  keepAwake();
+};
+for (const type of ["touchend", "click", "keydown"]) document.addEventListener(type, redemanderPleinEcran, true);
+
+// Retour dans la page après un passage dans une autre appli (cedric, 21/10, iPhone de Sacha) : le téléphone a pu couper
+// la connexion sans que la page le sache. Elle se croit connectée, ne reçoit plus rien et reste figée sur l'écran
+// d'avant. On repart donc sur une connexion neuve : la page relit l'état de la partie, la réponse pas encore partie
+// est renvoyée, et la présence se remet d'elle-même (« .info/connected »). Un coup d'œil de moins de 2 s ne compte pas.
+const RECONNEXION_APRES_MS = 2000;
+let cacheeDepuis = null;
+function reconnecter() {
+  if (!db) return;
+  goOffline(db);
+  goOnline(db);
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") {
+    cacheeDepuis = Date.now();
+    return;
+  }
+  if (cacheeDepuis != null && Date.now() - cacheeDepuis >= RECONNEXION_APRES_MS) reconnecter();
+  cacheeDepuis = null;
+});
+// Page gardée telle quelle par le navigateur puis rouverte (bouton retour) : même chose.
+window.addEventListener("pageshow", (e) => { if (e.persisted) reconnecter(); });
 
 async function start() {
   show("loading");
