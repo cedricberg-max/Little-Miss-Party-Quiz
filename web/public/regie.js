@@ -310,6 +310,7 @@ function render() {
   $("c-phase").textContent = st.paused ? `En pause · ${PHASES[st.phase] ?? ""}` : PHASES[st.phase] ?? "";
   $("c-phase").classList.toggle("on-hold", st.paused === true);
   renderHold(st, teams);
+  renderAlerte(st, teams);
   renderFactor(st);
   renderDoors(st, q);
   $("c-question").textContent = intro ? "La TV présente le jeu. Expliquez les règles, puis lancez l'épreuve." : inQuestion ? st.text ?? q?.text ?? "" : st.phase === "ended" ? (gamesOf(st).next ? "Bravo à toutes les équipes ! Un jeu a été ajouté : la partie peut reprendre." : "Bravo à toutes les équipes ! Pour continuer, ajoutez un jeu (onglet Programme) ou rejouez-en un (⏭ Changer de jeu).") : `${teams.length} équipe${teams.length > 1 ? "s" : ""} inscrite${teams.length > 1 ? "s" : ""}`;
@@ -429,6 +430,55 @@ function renderDoors(st, q) {
     label.append(`🚪 Porte ${k + 1}`, select);
     return label;
   }));
+}
+
+/** Bandeau d'alerte : une tablette d'équipe coupée depuis 4 s (comme la pause de la TV), à tout moment de la fête. */
+const ALERTE_APRES_MS = 4000;
+const REVENUE_MS = 3000;
+const horsLigneDepuis = new Map();
+let alertees = new Set();
+let masquees = new Set();
+let revenue = { noms: [], jusqua: 0 };
+let alerteTimer = null;
+
+function renderAlerte(st, teams) {
+  const box = $("r-alerte");
+  clearTimeout(alerteTimer);
+  const now = Date.now();
+  const name = (id) => live.teams[id]?.name ?? "Une équipe";
+  const enLigne = (id) => live.presence[id]?.online === true;
+  const ids = new Set(teams.map(([id]) => id));
+  for (const id of [...horsLigneDepuis.keys()]) if (!ids.has(id) || enLigne(id)) horsLigneDepuis.delete(id);
+  for (const id of ids) if (!enLigne(id) && !horsLigneDepuis.has(id)) horsLigneDepuis.set(id, now);
+  masquees = new Set([...masquees].filter((id) => horsLigneDepuis.has(id)));
+  // La régie elle-même hors ligne ne sait plus qui est connecté : pas d'alerte. Fête finie : plus d'alerte non plus.
+  const coupees = live.connected && st.phase !== "ended"
+    ? teams.map(([id]) => id).filter((id) => horsLigneDepuis.has(id) && now - horsLigneDepuis.get(id) >= ALERTE_APRES_MS)
+    : [];
+  const revenues = [...alertees].filter((id) => ids.has(id) && enLigne(id));
+  if (revenues.length) revenue = { noms: revenues.map(name), jusqua: now + REVENUE_MS };
+  // Une tablette de plus vient de lâcher : le téléphone vibre (dans la poche ou posé, Sarah le sent).
+  if (coupees.some((id) => !alertees.has(id) && !masquees.has(id))) navigator.vibrate?.([200, 100, 200]);
+  alertees = new Set(coupees);
+  const visibles = coupees.filter((id) => !masquees.has(id));
+  const pluriel = visibles.length > 1 ? "s" : "";
+  if (visibles.length) {
+    box.className = "r-alerte";
+    box.replaceChildren(`📵 Tablette${pluriel} déconnectée${pluriel} : ${visibles.map(name).join(", ")}`,
+      Object.assign(document.createElement("small"), { textContent: `${pluriel ? "Elles se reconnectent seules" : "Elle se reconnecte seule"}. Touchez pour masquer.` }));
+    // Une équipe partie pour de bon : Sarah masque le bandeau ; il revient si une autre tablette lâche.
+    box.onclick = () => { masquees = new Set([...masquees, ...visibles]); render(); };
+    box.hidden = false;
+  } else if (revenue.jusqua > now) {
+    box.className = "r-alerte revenue";
+    box.replaceChildren(`✓ Tablette${revenue.noms.length > 1 ? "s" : ""} revenue${revenue.noms.length > 1 ? "s" : ""} : ${revenue.noms.join(", ")}`);
+    box.onclick = null;
+    box.hidden = false;
+  } else box.hidden = true;
+  // Prochain changement à montrer : une coupure qui atteint 4 s, ou la fin du bandeau vert.
+  const prochains = [...horsLigneDepuis.values()].map((t) => t + ALERTE_APRES_MS).filter((t) => t > now);
+  if (revenue.jusqua > now) prochains.push(revenue.jusqua);
+  if (prochains.length) alerteTimer = setTimeout(render, Math.min(...prochains) - now + 50);
 }
 
 function renderHold(st, teams) {

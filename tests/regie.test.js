@@ -1075,6 +1075,46 @@ describe("régie", () => {
     await page.context().close();
   });
 
+  test("tablette déconnectée (cedric, 21/10) : bandeau rouge en haut de la régie dans tous les jeux, vert à son retour, masquable", async () => {
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    await addTeam("bleu", "Les Bleus");
+    await setPresence("rose", true);
+    await setPresence("bleu", true);
+    // Blind test en cours, sans pause : rien ne prévenait Sarah avant.
+    await update(gameRef(), { state: { ...questionState(4), kind: "blind" } });
+    const page = await openRegie();
+    await pair(page);
+    const alerte = page.locator("#r-alerte");
+    assert.equal(await alerte.isHidden(), true);
+    await setPresence("bleu", false);
+    // Une micro-coupure (moins de 4 s) ne dit rien ; au-delà, le bandeau nomme l'équipe.
+    await page.waitForTimeout(2000);
+    assert.equal(await alerte.isHidden(), true, "pas d'alerte avant 4 s");
+    await page.locator("#r-alerte:not(.revenue)", { hasText: "📵 Tablette déconnectée : Les Bleus" }).waitFor({ timeout: 6000 });
+    // Il reste en haut de l'écran même quand Sarah descend dans la page.
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    const haut = await alerte.boundingBox();
+    assert.ok(haut && haut.y >= -1 && haut.y < 40, `bandeau visible en haut : ${JSON.stringify(haut)}`);
+    await setPresence("bleu", true);
+    await page.locator("#r-alerte.revenue", { hasText: "✓ Tablette revenue : Les Bleus" }).waitFor();
+    await alerte.waitFor({ state: "hidden", timeout: 6000 });
+    // Deux équipes coupées : les deux noms ; un toucher masque le bandeau (une équipe partie pour de bon).
+    await setPresence("bleu", false);
+    await setPresence("rose", false);
+    await page.locator("#r-alerte", { hasText: "📵 Tablettes déconnectées : Les Roses, Les Bleus" }).waitFor({ timeout: 8000 });
+    await alerte.click();
+    await alerte.waitFor({ state: "hidden" });
+    // Fête finie : plus d'alerte.
+    await update(gameRef(), { state: { ...questionState(4), phase: "ended" } });
+    await setPresence("rose", true);
+    await page.waitForTimeout(500);
+    await setPresence("rose", false);
+    await page.waitForTimeout(5000);
+    assert.equal(await alerte.isHidden(), true, "pas d'alerte une fois la fête finie");
+    await page.context().close();
+  });
+
   test("pause automatique de la box sans Internet : la régie le dit et laisse la reprise à l'animatrice", async () => {
     box = startBox();
     await addTeam("rose", "Les Roses");

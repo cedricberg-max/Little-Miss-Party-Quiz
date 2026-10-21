@@ -146,6 +146,16 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .actions .row .btn { flex: 1; }
 
 .regie .banner { position: fixed; top: 0; left: 0; right: 0; z-index: 5; text-align: center; font-size: 14px; padding: 6px; background: var(--trait); color: var(--ink); }
+/* Tablette d'une équipe déconnectée (cedric, 21/10) : un bandeau rouge toujours visible en haut, dans tous les jeux,
+   sans cacher les boutons. Vert quelques secondes quand elle revient. */
+.regie .r-alerte {
+  position: sticky; top: 0; z-index: 6; margin: 0 0 10px; padding: 10px 14px; border-radius: 0 0 16px 16px;
+  background: var(--danger); color: #fff; font-size: 18px; font-weight: 900; line-height: 1.25; text-align: center;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .35); cursor: pointer; overflow-wrap: anywhere; animation: r-alerte 1.2s ease-in-out infinite alternate;
+}
+.regie .r-alerte small { display: block; font-size: 13px; font-weight: 700; opacity: .85; }
+.regie .r-alerte.revenue { background: var(--ok); color: #1a0b2e; animation: none; cursor: default; }
+@keyframes r-alerte { to { box-shadow: 0 6px 26px rgba(255, 90, 95, .75); } }
 .regie .toast { background: var(--panel); border-radius: 12px; padding: 10px 12px; font-size: 15px; }
 .regie .undo { display: flex; align-items: center; gap: 10px; background: var(--panel); border-radius: 12px; padding: 6px 6px 6px 12px; font-size: 15px; }
 .regie .undo span { flex: 1; }
