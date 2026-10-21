@@ -13,7 +13,8 @@ import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, roundFille
 import { PICTO_WORDS, PICTO_SERIES } from "../web/public/picto-cards.js";
 import { guessTrack, normalizeLevel } from "../web/public/audio.js";
 import { songList, songsRetirees, songMatches, trackFromSong, songUpdates, defaultRefrain, buzzOf, REFRAIN_SEC } from "../web/public/sons.js";
-import { lireLrc, refrainDesParoles, debutDesParoles, parolesDuRefrain, associerParoles, nomSimple } from "../web/public/paroles.js";
+import { lireLrc, refrainDesParoles, refrainsDesParoles, debutDesParoles, parolesDuRefrain, associerParoles, nomSimple } from "../web/public/paroles.js";
+import { volumes, explosionDuVolume, refrainAuVolume, PAS_VOLUME } from "../web/public/volume.js";
 import { lireId3 } from "../web/public/id3.js";
 import { FULL_SHOW, FULL_TUNES, tunePlaylist } from "../web/public/test-show.js";
 import { cadrageInitial, borner, zoomer, zoneGardee, BULLES } from "../web/public/cadrage.js";
@@ -1539,7 +1540,67 @@ describe("paroles (.lrc) et étiquettes des MP3", () => {
   test("le refrain est le passage le plus répété, à sa première venue", () => {
     assert.equal(refrainDesParoles(lireLrc(LRC)), 20);
     assert.equal(refrainDesParoles(lireLrc("[00:01.00]Une\n[00:02.00]Deux\n[00:03.00]Trois\n[00:04.00]Quatre")), null, "rien ne se répète");
+    // Couplet, pré-refrain (chanté 2 fois), refrain (3 fois) : le hook tombe sur le refrain, pas sur le passage calme
+    // juste avant (cedric, 21/10).
+    const chanson = (t0, lignes) => lignes.map((x, i) => `[${String(Math.floor((t0 + i * 4) / 60)).padStart(2, "0")}:${String((t0 + i * 4) % 60).padStart(2, "0")}.00]${x}`);
+    const pre = ["Le coeur qui bat si fort", "Dans le silence du soir"];
+    const refrain = ["Tout le monde chante", "Les mains en l'air ce soir", "Encore une fois"];
+    const structure = [
+      ...chanson(10, ["Premier couplet ligne un", "Premier couplet ligne deux"]), ...chanson(18, pre), ...chanson(26, refrain),
+      ...chanson(60, ["Second couplet ligne un", "Second couplet ligne deux"]), ...chanson(68, pre), ...chanson(76, refrain),
+      ...chanson(120, refrain),
+    ].join("\n");
+    assert.equal(refrainDesParoles(lireLrc(structure)), 26, "le refrain, pas le pré-refrain");
     assert.equal(refrainDesParoles([]), null);
+  });
+
+  test("chaque fois que le refrain est chanté : la première phrase du refrain, une fois par refrain", () => {
+    const l = (t, text) => ({ t, text });
+    const refrain = (t0) => [l(t0, "Tout le monde chante"), l(t0 + 4, "Les mains en l'air"), l(t0 + 8, "Tout le monde chante")];
+    const lignes = [l(10, "Premier couplet ici"), l(14, "La suite du couplet"), ...refrain(30), l(50, "Second couplet ici"), ...refrain(70), ...refrain(100)];
+    // « Tout le monde chante » est reprise dans le même refrain (4 s après) : comptée une fois par refrain.
+    assert.deepEqual(refrainsDesParoles(lignes), [30, 70, 100]);
+    assert.equal(refrainDesParoles(lignes), 30);
+    assert.deepEqual(refrainsDesParoles([l(1, "Une phrase"), l(2, "Deux phrases")]), []);
+  });
+
+  test("volume d'une chanson : là où elle explose (cedric, 21/10 : le vrai refrain, où qu'il soit)", () => {
+    // Un son de 90 s mesuré par demi-seconde : [secondes, dB] par passage.
+    const son = (...passages) => passages.flatMap(([s, db]) => Array(Math.round(s / PAS_VOLUME)).fill(db));
+    // Couplet calme (-30 dB) jusqu'à 40 s, refrain fort (-12 dB) de 40 à 60 s, couplet, refrain de 70 à 90 s.
+    const chanson = son([40, -30], [20, -12], [10, -30], [20, -12]);
+    assert.equal(explosionDuVolume(chanson, { min: 15, max: 65 }), 40, "le premier refrain fort");
+    assert.equal(explosionDuVolume(chanson, { min: 45, max: 65 }), null, "rien qui explose entre 45 et 65 s");
+    // Un refrain final encore plus fort : le premier refrain reste choisi s'il sonne presque aussi fort.
+    assert.equal(explosionDuVolume(son([40, -30], [20, -13], [10, -30], [20, -12]), { min: 15, max: 65 }), 40);
+    // Volume égal partout (rien n'explose) : pas de proposition, la Régie PC prend le milieu.
+    assert.equal(explosionDuVolume(son([90, -14]), { min: 15, max: 65 }), null);
+    assert.equal(explosionDuVolume([], {}), null);
+
+    // Avec les paroles : le refrain chanté à 30 et 70 s, mais la musique n'explose qu'à 36 et 76 s (les mots du refrain
+    // commencent sur une montée douce) : le hook va sur l'explosion, une demi-seconde avant.
+    const montee = son([36, -30], [14, -12], [26, -30], [14, -12]);
+    assert.equal(refrainAuVolume(montee, [30, 70]), 35.5);
+    // La musique explose 1 s avant les mots : le hook part de l'explosion.
+    const pile = son([29, -30], [21, -12], [19, -30], [21, -12]);
+    assert.equal(refrainAuVolume(pile, [30, 70]), 28.5);
+    // Un premier refrain chanté doucement (piano-voix), le second fort : le second.
+    const doux = son([30, -30], [20, -24], [20, -30], [20, -12]);
+    assert.equal(refrainAuVolume(doux, [30, 70]), 69.5);
+    // Sans volume (fichier illisible) : 1 s avant les mots, comme avant.
+    assert.equal(refrainAuVolume(null, [30, 70]), 29);
+    assert.equal(refrainAuVolume(montee, []), null);
+  });
+
+  test("volume d'un son : décibels par demi-seconde, sur tous les canaux", () => {
+    const rate = 1000;
+    const plein = new Float32Array(rate * 2).fill(0.5);
+    const silence = new Float32Array(rate * 2);
+    const db = volumes([plein, silence], rate);
+    assert.equal(db.length, 4);
+    // Moitié des échantillons à 0,5 : RMS 0,354, soit -9 dB.
+    assert.ok(db.every((x) => Math.abs(x + 9) < 0.1), JSON.stringify(db));
+    assert.deepEqual(volumes([silence], rate), [-90, -90, -90, -90]);
   });
 
   test("les premiers mots chantés : la première vraie phrase, sans les petits bruits", () => {

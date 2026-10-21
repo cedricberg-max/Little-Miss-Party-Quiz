@@ -1718,6 +1718,20 @@ function wav(hz, seconds) {
   return buf;
 }
 
+/** Fichier WAV mono 22 kHz fait de passages [secondes, amplitude] d'un bip de [hz] : une chanson calme puis forte. */
+function wavPassages(hz, passages) {
+  const rate = 22050, n = rate * passages.reduce((s, [sec]) => s + sec, 0);
+  const buf = Buffer.alloc(44 + n * 2);
+  buf.write("RIFF", 0); buf.writeUInt32LE(36 + n * 2, 4); buf.write("WAVE", 8); buf.write("fmt ", 12);
+  buf.writeUInt32LE(16, 16); buf.writeUInt16LE(1, 20); buf.writeUInt16LE(1, 22); buf.writeUInt32LE(rate, 24);
+  buf.writeUInt32LE(rate * 2, 28); buf.writeUInt16LE(2, 32); buf.writeUInt16LE(16, 34); buf.write("data", 36); buf.writeUInt32LE(n * 2, 40);
+  let i = 0;
+  for (const [sec, amp] of passages) {
+    for (const fin = i + rate * sec; i < fin; i++) buf.writeInt16LE(Math.round(amp * Math.sin((2 * Math.PI * hz * i) / rate)), 44 + i * 2);
+  }
+  return buf;
+}
+
 /** Confirmation de la régie (fenêtre à ses couleurs) : renvoie la question posée, puis confirme ou renonce. */
 async function respond(page, accept = true) {
   await page.locator("#ask:not([hidden])").waitFor();
@@ -2509,6 +2523,82 @@ describe("bibliothèque de quiz et prestations", () => {
     // Redéposée encore : rien à refaire.
     await page.setInputFiles("#song-files", [{ name: "Les Anciens - Vieux.wav", mimeType: "audio/wav", buffer: wav(392, 40) }]);
     await page.locator("#song-status", { hasText: "1 chanson déjà dans la bibliothèque" }).waitFor({ timeout: 60000 });
+    await page.context().close();
+  });
+
+  test("Sons (cedric, 21/10) : le hook vise le refrain là où la musique explose ; « ☁ » et compteur sans chanson entière en ligne ; « ▶ » devient « ⏸ Pause »", async () => {
+    // « Ça explose » : couplet calme, refrain chanté à 30 et 70 s mais la musique n'explose qu'à 36 et 76 s.
+    const LRC = ["[00:08.00]Premier couplet tout doux", "[00:12.00]La suite du couplet",
+      "[00:30.00]Tout le monde saute", "[00:34.00]Les mains en l'air", "[00:38.00]Tout le monde saute", "[00:42.00]Les mains en l'air",
+      "[00:55.00]Second couplet tout doux",
+      "[01:10.00]Tout le monde saute", "[01:14.00]Les mains en l'air", "[01:18.00]Tout le monde saute", "[01:22.00]Les mains en l'air"].join("\n");
+    const fichiers = () => [
+      { name: "Les Volcans - Ça explose.wav", mimeType: "audio/wav", buffer: wavPassages(440, [[36, 1500], [14, 12000], [26, 1500], [14, 12000]]) },
+      { name: "Les Volcans - Ça explose.lrc", mimeType: "text/plain", buffer: Buffer.from(LRC) },
+      // Sans paroles : calme jusqu'à 45 s, fort de 45 à 75 s.
+      { name: "Les Volcans - Sans paroles.wav", mimeType: "audio/wav", buffer: wavPassages(330, [[45, 1500], [30, 12000], [15, 1500]]) },
+    ];
+    let page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="sons"]');
+    await page.setInputFiles("#song-files", fichiers());
+    await page.locator("#song-status", { hasText: "Bibliothèque à jour : 2 chansons rangées." }).waitFor({ timeout: 90000 });
+    const songs = await library("songs");
+    const [idExplose, explose] = Object.entries(songs).find(([, x]) => x.title === "Ça explose");
+    const [idSans, sans] = Object.entries(songs).find(([, x]) => x.title === "Sans paroles");
+    // Les paroles seules donnaient 29 s (1 s avant les mots) ; le volume pousse sur l'explosion. Sans paroles : là où
+    // le volume explose, au lieu du milieu. Le début reste 2 s avant les premiers mots chantés (0:00 sans paroles).
+    assert.deepEqual([explose.refrain, explose.start, explose.auto], [35, 6, true]);
+    assert.deepEqual([sans.refrain, sans.start, sans.auto], [45, 0, true]);
+    assert.equal(await page.locator("#song-entieres").isVisible(), false, "toutes les chansons entières sont en ligne");
+    assert.equal(await page.locator("#song-list .song-nuage").count(), 0);
+
+    // « ▶ Extrait » joue, devient « ⏸ Pause », et l'arrête au clic suivant.
+    const ligneSans = page.locator("#song-list .song-ligne", { hasText: "Sans paroles" });
+    await ligneSans.getByRole("button", { name: "▶ Extrait" }).click();
+    await ligneSans.getByRole("button", { name: "⏸ Pause" }).waitFor();
+    await ligneSans.getByRole("button", { name: "⏸ Pause" }).click();
+    await ligneSans.getByRole("button", { name: "▶ Extrait" }).waitFor();
+    // Réglages : lâcher le curseur du hook joue la chanson à cet endroit, « ▶ Écouter » devient « ⏸ Pause ».
+    await page.locator("#song-list .song-ligne", { hasText: "Ça explose" }).getByRole("button", { name: "⏱ Réglé ✓" }).click();
+    const reglage = page.locator(".track.reglage");
+    await reglage.locator('input[aria-label="Hook"]:not([disabled])').waitFor({ timeout: 30000 });
+    await reglage.locator('input[aria-label="Hook"]').fill("40");
+    const ecouteHook = reglage.locator('[data-curseur="hook"] .reglage-ligne button', { hasText: /Écouter|Pause/ });
+    await ecouteHook.filter({ hasText: "⏸ Pause" }).waitFor();
+    await ecouteHook.click();
+    await ecouteHook.filter({ hasText: "▶ Écouter" }).waitFor();
+    // Le « ▶ Écouter » du début arrête celui du hook.
+    await reglage.locator('[data-curseur="hook"] .reglage-ligne button', { hasText: "▶ Écouter" }).click();
+    await ecouteHook.filter({ hasText: "⏸ Pause" }).waitFor();
+    await reglage.locator('[data-curseur="debut"] .reglage-ligne button', { hasText: "▶ Écouter" }).click();
+    await reglage.locator('[data-curseur="debut"] .reglage-ligne button', { hasText: "⏸ Pause" }).waitFor();
+    assert.equal(await ecouteHook.innerText(), "▶ Écouter");
+    await page.context().close();
+
+    // Rangées avant le 21/10 (sans chanson entière en ligne) : un hook trouvé tout seul mais faux, un hook réglé à la main.
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const d = ctx.database();
+      await set(ref(d, `library/songs/${idExplose}/refrain`), 12);
+      await set(ref(d, `library/songs/${idSans}/refrain`), 20);
+      await set(ref(d, `library/songs/${idSans}/auto`), null);
+      await set(ref(d, `library/entieres/${idExplose}`), null);
+      await set(ref(d, `library/entieres/${idSans}`), null);
+    });
+    page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="sons"]');
+    await page.locator("#song-entieres", { hasText: "☁ 2 chansons ne sont pas encore entières en ligne" }).waitFor({ timeout: 20000 });
+    assert.equal(await page.locator("#song-list .song-ligne", { hasText: "Ça explose" }).locator(".song-nuage").count(), 1);
+    await capture(page, "sons-a-redeposer");
+    // Redéposées une fois : le hook trouvé tout seul est recherché de nouveau, celui réglé à la main est gardé ; les
+    // chansons entières partent en ligne et le « ☁ » s'en va.
+    await page.setInputFiles("#song-files", fichiers());
+    await waitFor(async () => (await library(`entieres/${idExplose}`))?.n > 0 && (await library(`entieres/${idSans}`))?.n > 0, "chansons entières en ligne", 90000);
+    await waitFor(async () => (await library(`songs/${idExplose}`)).refrain === 35, "hook trouvé tout seul, recherché de nouveau");
+    assert.deepEqual([(await library(`songs/${idSans}`)).refrain, (await library(`songs/${idSans}`)).auto], [20, undefined], "hook réglé à la main gardé");
+    await page.locator("#song-entieres").waitFor({ state: "hidden", timeout: 20000 });
+    assert.equal(await page.locator("#song-list .song-nuage").count(), 0);
     await page.context().close();
   });
 

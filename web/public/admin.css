@@ -482,7 +482,7 @@ button.item { cursor: pointer; }
 .song .song-tools { display: flex; flex-wrap: wrap; gap: 6px; }
 .song .song-tools .btn { padding: 6px 12px; font-size: 14px; }
 /* Bibliothèque des sons : une ligne par chanson, de gauche à droite (cedric, 21/10). */
-.song.song-ligne, .song.song-entete { display: grid; grid-template-columns: 26px 52px minmax(90px, 1fr) minmax(120px, 1.4fr) 132px 112px 24px 216px; gap: 6px 12px; padding: 8px 12px; }
+.song.song-ligne, .song.song-entete { display: grid; grid-template-columns: 26px 52px minmax(90px, 1fr) minmax(120px, 1.4fr) 132px 112px 44px 216px; gap: 6px 12px; padding: 8px 12px; }
 .song-ligne .song-tools { justify-content: flex-end; }
 .song.song-entete { background: none; border: none; padding-top: 0; padding-bottom: 0; color: var(--soft); font-size: 13px; font-weight: 700; }
 .song-ligne.choisie { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(217, 164, 65, 0.35); }
@@ -500,6 +500,12 @@ button.song-moments { border: 1px dashed var(--line-2); color: var(--soft); back
 button.song-moments.ok { border: 1px solid var(--good); color: var(--good); font-weight: 700; }
 button.song-moments:hover { background: var(--good-pale); }
 .song-alerte { color: var(--bad); font-size: 20px; font-weight: 900; text-align: center; cursor: help; }
+.song-alertes { display: flex; justify-content: center; align-items: center; gap: 4px; }
+/* Chanson entière pas encore en ligne : à redéposer une fois depuis un PC qui a le MP3. */
+.song-nuage { color: var(--warn); font-size: 20px; font-weight: 900; cursor: help; }
+.song-entieres { margin: 0 0 10px; padding: 10px 14px; border: 1px solid var(--gold); border-radius: 14px; background: var(--gold-pale); color: var(--warn); font-weight: 600; overflow-wrap: anywhere; }
+/* Bouton d'écoute pendant la lecture : « ⏸ Pause ». */
+.btn.en-lecture, button.icon.en-lecture { border-color: var(--violet); background: var(--violet-pale); color: var(--violet); }
 .song-ligne.incomplete { border-left: 4px solid var(--bad); }
 .song-barre { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 8px; }
 .song-barre .song-tout { font-weight: 700; }
