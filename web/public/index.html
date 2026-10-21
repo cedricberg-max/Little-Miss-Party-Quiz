@@ -154,6 +154,7 @@
 
   <div id="regie" class="regie" hidden>
     <div id="r-offline" class="banner" hidden>Reconnexion…</div>
+    <div id="r-alerte" class="r-alerte" role="alert" hidden></div>
     <section class="control">
       <header class="top">
         <span id="c-dot" class="dot on"></span>
@@ -241,7 +242,7 @@
         <p id="blind-info" class="mime-info"></p>
         <div id="blind-judge" class="flou-judge">
           <button id="blind-ok" class="mime-found">BONNE RÉPONSE<small></small></button>
-          <button id="blind-ko" class="btn secondary flou-ko">Mauvaise réponse</button>
+          <button id="blind-ko" class="btn secondary flou-ko mauvaise">Mauvaise réponse</button>
         </div>
         <div id="blind-row" class="mime-row">
           <button id="blind-unblock" class="btn secondary">Laisser rebuzzer tout de suite</button>
@@ -256,7 +257,7 @@
         <div id="flou-judge" class="flou-judge">
           <button id="flou-ok" class="mime-found">BONNE RÉPONSE<small></small></button>
           <button id="flou-bonus" class="mime-found flou-bonus" hidden>TITRE + ARTISTE<small></small></button>
-          <button id="flou-ko" class="btn secondary flou-ko">Mauvaise réponse</button>
+          <button id="flou-ko" class="btn secondary flou-ko mauvaise">Mauvaise réponse</button>
         </div>
       </section>
 
@@ -277,6 +278,7 @@
       <footer class="actions">
         <div class="row">
           <button id="c-pause" class="btn secondary">Pause</button>
+          <button id="c-tablette" class="btn secondary" aria-label="Reconnecter une tablette" title="Reconnecter une tablette"><span class="icone" aria-hidden="true">📱</span>Tablette</button>
           <button id="c-end" class="btn danger hold" title="Appui long pour terminer la partie"><span class="fill"></span><span class="label">Terminer</span></button>
         </div>
         <button id="c-next" class="btn main"></button>
@@ -314,6 +316,21 @@
           <button id="lib-end" class="btn secondary">Ajouter à la fin</button>
           <button id="lib-back" class="link">Choisir un autre jeu</button>
         </div>
+      </div>
+    </section>
+    <!-- « Reconnecter une tablette » (cedric, 21/10) : le QR code du menu Retour de la TV, ici sur le téléphone de
+         l'animatrice ; la tablette le scanne, touche son équipe, et l'animatrice la lui confie. -->
+    <section id="tablette" class="lib" hidden aria-label="Reconnecter une tablette">
+      <header class="lib-top">
+        <b>Reconnecter une tablette</b>
+        <button id="tablette-close" class="btn secondary">Fermer</button>
+      </header>
+      <div class="lib-body">
+        <div id="tablette-qr" class="tablette-qr" role="img" aria-label="QR code pour reprendre une équipe"></div>
+        <p class="tablette-consigne">Scannez ce QR code avec la tablette, puis touchez le nom de l'équipe. Elle garde son nom, sa couleur et ses points.</p>
+        <p id="tablette-attente" class="hint">En attente de la tablette…</p>
+        <div id="tablette-demandes" class="tablette-demandes"></div>
+        <p class="hint">Tablette bloquée ? Fermez complètement son navigateur et rouvrez-le : elle revient seule dans son équipe.</p>
       </div>
     </section>
     <!-- Points d'une équipe en deux temps : l'animatrice prépare le montant (rien ne bouge), puis valide une fois. -->

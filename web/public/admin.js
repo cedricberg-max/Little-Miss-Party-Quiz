@@ -18,7 +18,7 @@ import {
   pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches, isArchived, AUTO_ARCHIVE_DAYS, quizKind,
   roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS,
   isStatuesList, statuesSongs, statuesChoices, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS, builtinConcepts, isPhotoTheme, disparuGroup,
-  illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, alerteEquipes, EQUIPES_PAR_DEFAUT, pourLeHasard,
+  illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, alerteEquipes, EQUIPES_PAR_DEFAUT, pourLeHasard, premierQuiz,
 } from "./show.js";
 import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE } from "./banque-photos.js";
 import { shuffle } from "./mime-cards.js";
@@ -1299,6 +1299,12 @@ function roundFields(r) {
       ? h("select", { class: "finale", "aria-label": "Super Finale", onchange: (e) => { r.finale = Number(e.target.value) || null; roundCtx.summary(); } },
         h("option", { value: "", text: "Sans Super Finale" }),
         ...[1, 2, 3, 4, 5].map((n) => h("option", { value: n, selected: r.finale === n, text: n === 1 ? "Super Finale : la dernière question" : `Super Finale : les ${n} dernières` })))
+      : null,
+    // Question des bougies (cedric, 21/10) : d'office dans le premier Quiz de la prestation ; décocher l'enlève.
+    roundCtx === prestationCtx && editing && premierQuiz(editing.rounds, quizzes) === r
+      ? h("label", { class: "check bougies", title: "« Combien de bougies sur le gâteau de … cette année ? » : l'âge de l'enfant, au Juste Chiffre, juste avant la Super Finale" },
+        h("input", { type: "checkbox", checked: r.bougies !== false, onchange: (e) => { r.bougies = e.target.checked ? null : false; roundCtx.summary(); } }),
+        "🎂 Question des bougies")
       : null,
   ];
 }

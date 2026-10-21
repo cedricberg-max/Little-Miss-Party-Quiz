@@ -373,9 +373,11 @@ describe("prestation de test", () => {
     assert.equal(snapshot.title, "ANNIVERSAIRE TEST – Léa, 9 ans");
     assert.equal(snapshot.profile, "MOYENS");
     const q = snapshot.quiz.questions;
-    assert.equal(q.length, 10);
-    assert.deepEqual(q.map((x) => x.duration), [20, 20, 15, 20, 20, 20, 15, 20, 20, 25]);
-    assert.deepEqual(q.map((x) => x.double), [false, false, false, false, false, false, false, false, false, true]);
+    assert.equal(q.length, 11);
+    assert.deepEqual(q.map((x) => x.duration), [20, 20, 15, 20, 20, 20, 15, 20, 20, 20, 25]);
+    assert.deepEqual(q.map((x) => x.double), [false, false, false, false, false, false, false, false, false, false, true]);
+    // La question des bougies (cedric, 21/10), juste avant la Super Finale.
+    assert.deepEqual([q[9].kind, q[9].text, q[9].correct], ["number", "Le Juste Chiffre : combien de bougies sur le gâteau de Léa cette année ?", 9]);
     assert.equal(q.filter((x) => x.kind === "true_false").length, 2);
     const report = checkQuestions(TEST_QUIZ.questions, { profile: "MOYENS" });
     assert.deepEqual(report.flatMap((r) => [...r.errors, ...r.warnings]), []);
@@ -389,7 +391,7 @@ describe("mimes", () => {
   const QUIZ = { title: "Quiz", questions: [{ text: "Roi ?", choices: ["Lion", "Tigre"], correct: 0, status: "validee" }] };
 
   test("une manche de mimes devient un seul élément du programme, avec son paquet et la durée d'un tour", () => {
-    const show = { childName: "Léa", age: 9, rounds: [{ type: "quiz", quizId: "q" }, { type: "mimes", deckId: "d" }] };
+    const show = { age: 9, rounds: [{ type: "quiz", quizId: "q" }, { type: "mimes", deckId: "d" }] };
     const { snapshot, problems } = buildSnapshot("s", show, { q: QUIZ }, { d: DECK }, () => 0);
     assert.deepEqual(problems, []);
     const mime = snapshot.quiz.questions[1];
@@ -704,7 +706,7 @@ describe("statues musicales", () => {
 describe("Les Coffres mystères", () => {
   const QUIZ = { title: "Quiz", questions: [{ text: "Roi ?", choices: ["Lion", "Tigre"], correct: 0, status: "validee" }] };
   test("rien à préparer, à la suite d'un quiz ; les anciennes Portes mystères se jouent en coffres mystères", () => {
-    const show = { childName: "Léa", age: 9, rounds: [{ type: "quiz", quizId: "q" }, { type: "coffres" }, { type: "portes", doors: 3 }] };
+    const show = { age: 9, rounds: [{ type: "quiz", quizId: "q" }, { type: "coffres" }, { type: "portes", doors: 3 }] };
     const { snapshot, problems } = buildSnapshot("s", show, { q: QUIZ });
     assert.deepEqual(problems, []);
     assert.deepEqual(snapshot.quiz.questions.map((q) => q.kind), ["classic", "coffres", "coffres"]);
@@ -743,7 +745,7 @@ describe("Ça va exploser !", () => {
 describe("Super Finale : les dernières questions du quiz, pas un jeu à part", () => {
   const quiz = (title, n) => ({ title, questions: [...Array(n).keys()].map((i) => ({ text: `${title} ${i + 1} ?`, choices: ["Oui", "Non"], correct: 0, status: "validee" })) });
   const LIB = { a: quiz("Animaux", 2), b: quiz("Sport", 1), f: quiz("Finale", 2) };
-  const play = (rounds) => buildSnapshot("s", { childName: "Léa", age: 9, rounds }, LIB, { d: { title: "Mimes", cards: [{ word: "Chat" }] } }, () => 0);
+  const play = (rounds) => buildSnapshot("s", { age: 9, rounds }, LIB, { d: { title: "Mimes", cards: [{ word: "Chat" }] } }, () => 0);
 
   test("réglage de la manche Quiz : ses N dernières questions comptent double, dans le même jeu", () => {
     const two = play([{ type: "quiz", quizId: "a", finale: 2 }, { type: "mimes", deckId: "d" }]).snapshot;
@@ -778,6 +780,52 @@ describe("Super Finale : les dernières questions du quiz, pas un jeu à part", 
     const { snapshot, problems } = play([{ type: "mimes", deckId: "d" }, { type: "finale", quizId: "f" }]);
     assert.deepEqual(problems, []);
     assert.deepEqual(snapshot.quiz.questions.map((q) => [q.round, q.double ?? false]), [["Mimes", false], ["Super Finale", true], ["Super Finale", true]]);
+  });
+});
+
+describe("question des bougies (cedric, 21/10)", () => {
+  const quiz = (title, n) => ({ title, questions: [...Array(n).keys()].map((i) => ({ text: `${title} ${i + 1} ?`, choices: ["Oui", "Non"], correct: 0, status: "validee" })) });
+  const LIB = { a: quiz("Animaux", 3), b: quiz("Sport", 2), p: { ...quiz("Petits", 2), kind: "photo" } };
+  const TEXTE = "Le Juste Chiffre : combien de bougies sur le gâteau de Léa cette année ?";
+  const play = (rounds, show = {}) => buildSnapshot("s", { childName: " Léa ", age: 9, rounds, ...show }, LIB, {}, () => 0);
+  const bougies = (snapshot) => snapshot.quiz.questions.filter((q) => q.text === TEXTE);
+
+  test("d'office dans le premier Quiz : l'âge au Juste Chiffre, juste avant la Super Finale, sans compter double", () => {
+    const { snapshot, problems } = play([{ type: "quiz", quizId: "a", finale: 1 }, { type: "quiz", quizId: "b" }]);
+    assert.deepEqual(problems, []);
+    assert.deepEqual(snapshot.quiz.questions.map((q) => [q.round, q.text, q.double ?? false]), [
+      ["Animaux", "Animaux 1 ?", false], ["Animaux", "Animaux 2 ?", false], ["Animaux", TEXTE, false], ["Animaux", "Animaux 3 ?", true],
+      ["Sport", "Sport 1 ?", false], ["Sport", "Sport 2 ?", false],
+    ]);
+    const [b] = bougies(snapshot);
+    assert.deepEqual([b.kind, b.correct, b.duration, b.choices], ["number", 9, 20, undefined]);
+    assert.deepEqual(snapshot.rounds[0], { title: "Animaux", count: 4, finale: 1 });
+    // Sans Super Finale : la dernière question du quiz.
+    assert.equal(play([{ type: "quiz", quizId: "a" }]).snapshot.quiz.questions.at(-1).text, TEXTE);
+  });
+
+  test("pas de question des bougies : case décochée, sans prénom ou sans âge, Quiz illustré, ni deux fois", () => {
+    assert.deepEqual(bougies(play([{ type: "quiz", quizId: "a", bougies: false }]).snapshot), []);
+    assert.deepEqual(bougies(play([{ type: "quiz", quizId: "a" }], { childName: "" }).snapshot), []);
+    assert.deepEqual(bougies(play([{ type: "quiz", quizId: "a" }], { age: null }).snapshot), []);
+    // Le Quiz illustré (tout-petits) n'est pas le premier Quiz : la question va au Quiz qui suit.
+    const apres = play([{ type: "quiz", quizId: "p" }, { type: "quiz", quizId: "b" }]).snapshot;
+    assert.deepEqual(apres.quiz.questions.filter((q) => q.text === TEXTE).map((q) => q.round), ["Sport"]);
+    // Le quiz a déjà sa question des bougies (prestation de test « tous les jeux ») : pas une deuxième.
+    const avec = { ...LIB.b, questions: [...LIB.b.questions, { text: "Combien de bougies pour Léa ?", kind: "number", correct: 9, status: "validee" }] };
+    assert.equal(buildSnapshot("s", { childName: "Léa", age: 9, rounds: [{ type: "quiz", quizId: "b" }] }, { b: avec }).snapshot.quiz.questions.filter((q) => /bougie/i.test(q.text)).length, 1);
+    // « 🔁 Rejouer » pendant la fête : jamais la question des bougies une deuxième fois.
+    assert.deepEqual(bougies(play([{ type: "quiz", quizId: "a", hasard: true }]).snapshot), []);
+    const deja = buildSnapshot("s", { childName: "Léa", age: 9, rounds: [{ type: "quiz", quizId: "a" }] }, LIB, {}, () => 0, {}, {}, { questions: [TEXTE.toLowerCase()] });
+    assert.deepEqual(bougies(deja.snapshot), []);
+  });
+
+  test("la case décochée est enregistrée avec la manche, cochée elle n'est pas écrite", async () => {
+    const M = await import("../web/public/manches.js");
+    const S = await import("../web/public/show.js");
+    assert.equal(M.cleanRound({ type: "quiz", quizId: "a", bougies: false }).bougies, false);
+    assert.equal("bougies" in M.cleanRound({ type: "quiz", quizId: "a", bougies: null }), false);
+    assert.equal(S.premierQuiz([{ type: "mimes" }, { type: "quiz", quizId: "p" }, { type: "quiz", quizId: "b" }], LIB)?.quizId, "b");
   });
 });
 
@@ -878,7 +926,7 @@ describe("cartes et quiz choisis (à la volée et dans la Régie PC)", () => {
   const B = { title: "Espace", questions: [{ text: "La Lune est une planète", choices: ["Vrai", "Faux"], correct: 1, status: "validee" }] };
 
   test("plusieurs quiz dans un même jeu : leurs questions à la suite, dans l'ordre choisi, jamais au hasard", () => {
-    const show = { childName: "Léa", age: 9, rounds: [{ type: "quiz", quizId: "b", quizIds: ["b", "a"] }] };
+    const show = { age: 9, rounds: [{ type: "quiz", quizId: "b", quizIds: ["b", "a"] }] };
     for (let k = 0; k < 3; k++) {
       const { snapshot, problems } = buildSnapshot("s", show, { a: A, b: B });
       assert.deepEqual(problems, []);
@@ -1078,7 +1126,7 @@ describe("Quiz illustré : un jeu à part, les quiz à réponses en images", asy
   });
 
   test("sur la TV : le jeu s'appelle « Quiz illustré », réponses en images, même barème et Super Finale possible", () => {
-    const show = { childName: "Léa", age: 5, rounds: [{ type: "illustre", quizId: "petits", finale: 1 }, { type: "quiz", quizId: "culture" }] };
+    const show = { age: 5, rounds: [{ type: "illustre", quizId: "petits", finale: 1 }, { type: "quiz", quizId: "culture" }] };
     const { snapshot, problems } = S.buildSnapshot("s", show, quizzes);
     assert.deepEqual(problems, []);
     assert.deepEqual(snapshot.rounds, [{ title: "Quiz illustré", count: 2, finale: 1 }, { title: "Culture", count: 1 }]);

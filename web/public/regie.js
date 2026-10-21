@@ -310,6 +310,7 @@ function render() {
   $("c-phase").textContent = st.paused ? `En pause · ${PHASES[st.phase] ?? ""}` : PHASES[st.phase] ?? "";
   $("c-phase").classList.toggle("on-hold", st.paused === true);
   renderHold(st, teams);
+  renderAlerte(st, teams);
   renderFactor(st);
   renderDoors(st, q);
   $("c-question").textContent = intro ? "La TV présente le jeu. Expliquez les règles, puis lancez l'épreuve." : inQuestion ? st.text ?? q?.text ?? "" : st.phase === "ended" ? (gamesOf(st).next ? "Bravo à toutes les équipes ! Un jeu a été ajouté : la partie peut reprendre." : "Bravo à toutes les équipes ! Pour continuer, ajoutez un jeu (onglet Programme) ou rejouez-en un (⏭ Changer de jeu).") : `${teams.length} équipe${teams.length > 1 ? "s" : ""} inscrite${teams.length > 1 ? "s" : ""}`;
@@ -336,6 +337,7 @@ function render() {
 
   renderGames(st);
   renderRequests(st, teams);
+  renderTablette(st);
   renderMime(st, teams);
   renderBlind(st, teams);
   renderFlou(st);
@@ -431,6 +433,58 @@ function renderDoors(st, q) {
   }));
 }
 
+/** Bandeau d'alerte : une tablette d'équipe coupée depuis 4 s (comme la pause de la TV), à tout moment de la fête. */
+const ALERTE_APRES_MS = 4000;
+const REVENUE_MS = 3000;
+const horsLigneDepuis = new Map();
+let alertees = new Set();
+let masquees = new Set();
+let revenue = { noms: [], jusqua: 0 };
+let alerteTimer = null;
+
+function renderAlerte(st, teams) {
+  const box = $("r-alerte");
+  clearTimeout(alerteTimer);
+  const now = Date.now();
+  const name = (id) => live.teams[id]?.name ?? "Une équipe";
+  const enLigne = (id) => live.presence[id]?.online === true;
+  const ids = new Set(teams.map(([id]) => id));
+  for (const id of [...horsLigneDepuis.keys()]) if (!ids.has(id) || enLigne(id)) horsLigneDepuis.delete(id);
+  for (const id of ids) if (!enLigne(id) && !horsLigneDepuis.has(id)) horsLigneDepuis.set(id, now);
+  masquees = new Set([...masquees].filter((id) => horsLigneDepuis.has(id)));
+  // La régie elle-même hors ligne ne sait plus qui est connecté : pas d'alerte. Fête finie : plus d'alerte non plus.
+  const coupees = live.connected && st.phase !== "ended"
+    ? teams.map(([id]) => id).filter((id) => horsLigneDepuis.has(id) && now - horsLigneDepuis.get(id) >= ALERTE_APRES_MS)
+    : [];
+  const revenues = [...alertees].filter((id) => ids.has(id) && enLigne(id));
+  if (revenues.length) revenue = { noms: revenues.map(name), jusqua: now + REVENUE_MS };
+  // Une tablette de plus vient de lâcher : le téléphone vibre (dans la poche ou posé, Sarah le sent).
+  if (coupees.some((id) => !alertees.has(id) && !masquees.has(id))) navigator.vibrate?.([200, 100, 200]);
+  alertees = new Set(coupees);
+  const visibles = coupees.filter((id) => !masquees.has(id));
+  const pluriel = visibles.length > 1 ? "s" : "";
+  if (visibles.length) {
+    box.className = "r-alerte";
+    const reconnecter = Object.assign(document.createElement("button"), { type: "button", className: "r-alerte-reconnecter", textContent: "📱 Reconnecter" });
+    reconnecter.onclick = ouvrirTablette;
+    box.replaceChildren(`📵 Tablette${pluriel} déconnectée${pluriel} : ${visibles.map(name).join(", ")}`,
+      Object.assign(document.createElement("small"), { textContent: `${pluriel ? "Elles se reconnectent seules" : "Elle se reconnecte seule"}. Touchez pour masquer.` }),
+      reconnecter);
+    // Une équipe partie pour de bon : Sarah masque le bandeau ; il revient si une autre tablette lâche.
+    box.onclick = () => { masquees = new Set([...masquees, ...visibles]); render(); };
+    box.hidden = false;
+  } else if (revenue.jusqua > now) {
+    box.className = "r-alerte revenue";
+    box.replaceChildren(`✓ Tablette${revenue.noms.length > 1 ? "s" : ""} revenue${revenue.noms.length > 1 ? "s" : ""} : ${revenue.noms.join(", ")}`);
+    box.onclick = null;
+    box.hidden = false;
+  } else box.hidden = true;
+  // Prochain changement à montrer : une coupure qui atteint 4 s, ou la fin du bandeau vert.
+  const prochains = [...horsLigneDepuis.values()].map((t) => t + ALERTE_APRES_MS).filter((t) => t > now);
+  if (revenue.jusqua > now) prochains.push(revenue.jusqua);
+  if (prochains.length) alerteTimer = setTimeout(render, Math.min(...prochains) - now + 50);
+}
+
 function renderHold(st, teams) {
   const box = $("c-hold");
   box.hidden = !st.paused;
@@ -510,19 +564,97 @@ function renderRequests(st, teams) {
 async function replaceDevice(device, team) {
   const name = live.teams[team]?.name ?? "l'équipe";
   // Irréversible : l'ancien appareil ne pourra plus jamais jouer dans cette partie.
-  if (!await demander({ title: `Confier « ${name} » à ce nouvel appareil ?`, text: "Ses points sont gardés. L'ancien appareil ne pourra plus jouer.", ok: "Confier l'équipe" })) return;
-  admit(device, "replace", { team }, `« ${name} » continue sur le nouvel appareil, avec ses points.`);
+  if (!await demander({ title: `Confier « ${name} » à ce nouvel appareil ?`, text: "Ses points sont gardés. L'ancien appareil ne pourra plus jouer.", ok: "Confier l'équipe" })) return false;
+  return admit(device, "replace", { team }, `« ${name} » continue sur le nouvel appareil, avec ses points.`);
 }
 
+/** Vrai si la box a fait entrer l'appareil. */
 async function admit(device, type, extra, success) {
-  if (admitting.has(device)) return;
+  if (admitting.has(device)) return false;
   admitting.add(device);
   render();
   const status = await send(type, { device, ...extra });
   admitting.delete(device);
-  if (status?.status === "applied") toast(success);
+  const fait = status?.status === "applied";
+  if (fait) toast(success);
+  render();
+  return fait;
+}
+
+// ---------- Reconnecter une tablette ----------
+
+/**
+ * « Reconnecter une tablette » (cedric, 21/10), comme le menu Retour de la TV mais sur le téléphone : un QR code
+ * que la tablette scanne, elle touche le nom de son équipe, et l'animatrice la lui confie ici. Toujours en bas de
+ * la régie, et dans le bandeau rouge quand une tablette est coupée.
+ */
+let tabletteOpen = false;
+
+/** Lien du QR code : la page des pupitres de cette partie, en mode « reprendre une équipe ». */
+function lienReprise() {
+  const lien = new URL("./", location.href);
+  lien.searchParams.set("g", code);
+  lien.searchParams.set("reprise", "1");
+  const emu = new URLSearchParams(location.search).get("emu");
+  if (emu) lien.searchParams.set("emu", emu);
+  return lien.href;
+}
+
+async function dessinerQr(box, texte) {
+  if (box.dataset.texte === texte) return;
+  box.dataset.texte = texte;
+  const { qrcode } = await import("./vendor/qrcode.js");
+  const qr = qrcode(0, "M");
+  qr.addData(texte);
+  qr.make();
+  const n = qr.getModuleCount();
+  const marge = 4;
+  let trace = "";
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) trace += `M${c + marge} ${r + marge}h1v1h-1z`;
+  const svg = (nom, attributs) => {
+    const el = document.createElementNS("http://www.w3.org/2000/svg", nom);
+    for (const [k, v] of Object.entries(attributs)) el.setAttribute(k, v);
+    return el;
+  };
+  const cote = n + 2 * marge;
+  const dessin = svg("svg", { viewBox: `0 0 ${cote} ${cote}`, "shape-rendering": "crispEdges" });
+  dessin.append(svg("rect", { width: cote, height: cote, fill: "#fff" }), svg("path", { d: trace, fill: "#000" }));
+  box.replaceChildren(dessin);
+}
+
+function renderTablette(st) {
+  $("c-tablette").disabled = st.phase === "ended";
+  if (st.phase === "ended") tabletteOpen = false;
+  $("tablette").hidden = !tabletteOpen;
+  if (!tabletteOpen) return;
+  dessinerQr($("tablette-qr"), lienReprise()).catch((e) => console.error(e));
+  // Les tablettes qui ont touché le nom d'une équipe : un toucher (puis la confirmation) la leur confie.
+  const demandes = Object.entries(live.requests).filter(([, r]) => r?.replace && live.teams[r.replace])
+    .sort((a, b) => (a[1].at ?? 0) - (b[1].at ?? 0));
+  $("tablette-attente").hidden = demandes.length > 0;
+  const box = $("tablette-demandes");
+  const key = JSON.stringify([demandes, [...admitting]]);
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
+  box.replaceChildren(...demandes.map(([device, r]) => {
+    const b = document.createElement("button");
+    b.className = "btn main";
+    b.dataset.device = device;
+    b.textContent = `Confier « ${live.teams[r.replace].name} » à la nouvelle tablette`;
+    b.disabled = admitting.has(device);
+    // Tablette confiée : la fenêtre se referme, comme sur la TV.
+    b.onclick = async () => { if (await replaceDevice(device, r.replace)) { tabletteOpen = false; render(); } };
+    return b;
+  }));
+}
+
+function ouvrirTablette(e) {
+  e?.stopPropagation();
+  tabletteOpen = true;
   render();
 }
+$("c-tablette").onclick = ouvrirTablette;
+$("tablette-close").onclick = () => { tabletteOpen = false; render(); };
 
 // ---------- Mimes ----------
 

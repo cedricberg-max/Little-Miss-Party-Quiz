@@ -341,7 +341,7 @@ async function askTakeover(id, team) {
   keepAwake();
   try {
     await set(ref(db, `games/${code}/joinRequests/${uid}`), { name: team.name, color: team.color, replace: id, at: serverTimestamp() });
-    waitForAdmission(`Sur la TV, l'animatrice confirme que cette tablette reprend « ${team.name} ».`);
+    waitForAdmission(`L'animatrice confirme sur son téléphone (ou sur la TV) que cette tablette reprend « ${team.name} ».`);
   } catch (e) {
     console.error(e);
     fail("Impossible d'envoyer la demande. Vérifiez Internet puis réessayez.");
