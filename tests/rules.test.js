@@ -1005,6 +1005,23 @@ describe("blind test : extraits musicaux et playlists", () => {
     }));
     await assertSucceeds(set(ref(db("sarah"), "library/songs/s1"), null));
   });
+  test("paroles des chansons (.lrc) : le fichier rangé par l'administration, les paroles du refrain dans la chanson et ses morceaux", async () => {
+    const REFRAIN = "fedcba9876543210";
+    const song = (extra = {}) => set(ref(db("sarah"), "library/songs/s1"), { title: "On chante", audioId: ID, buzz: 30, updatedAt: serverTimestamp(), ...extra });
+    await assertSucceeds(song({ refrainId: REFRAIN, lrc: true, paroles: "1000|On chante tous ensemble", auto: true }));
+    await assertFails(song({ lrc: false }));
+    await assertFails(song({ auto: "oui" }));
+    await assertFails(song({ paroles: "x".repeat(8001) }));
+    const lrc = "[00:20.00]On chante tous ensemble";
+    await assertSucceeds(set(ref(db("sarah"), "library/lyrics/s1"), lrc));
+    await assertFails(set(ref(db("sarah"), "library/lyrics/s1"), "x".repeat(60001)));
+    await assertFails(set(ref(db("sarah"), "library/lyrics/s1"), 12));
+    await assertFails(set(ref(db("rose"), "library/lyrics/s2"), lrc));
+    await assertFails(get(ref(db("rose"), "library/lyrics/s1")));
+    await assertSucceeds(set(ref(db("sarah"), "library/lyrics/s1"), null));
+    await assertSucceeds(playlist([{ title: "On chante", audioId: ID, refrainId: REFRAIN, songId: "s1", paroles: "1000|On chante tous ensemble" }]));
+    await assertFails(playlist([{ title: "On chante", audioId: ID, paroles: "x".repeat(8001) }]));
+  });
   test("la régie copie un extrait dans la partie une seule fois ; la box le lit, les pupitres non", async () => {
     await seed({ phase: "lobby" });
     await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));

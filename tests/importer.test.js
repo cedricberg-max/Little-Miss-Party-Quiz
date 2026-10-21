@@ -13,6 +13,8 @@ import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, roundFille
 import { PICTO_WORDS, PICTO_SERIES } from "../web/public/picto-cards.js";
 import { guessTrack, defaultStart, normalizeLevel } from "../web/public/audio.js";
 import { songList, songsRetirees, songMatches, trackFromSong, songUpdates, defaultRefrain, buzzOf, REFRAIN_SEC } from "../web/public/sons.js";
+import { lireLrc, refrainDesParoles, parolesDuRefrain, associerParoles, nomSimple } from "../web/public/paroles.js";
+import { lireId3 } from "../web/public/id3.js";
 import { FULL_SHOW, FULL_TUNES, tunePlaylist } from "../web/public/test-show.js";
 import { cadrageInitial, borner, zoomer, zoneGardee, BULLES } from "../web/public/cadrage.js";
 import { BANQUE_MOTS, QUESTIONS_PETITS, FAMILLES_PETITS, MODELES_PETITS, motBanque, cleMot, reponsesModele, fabriquerPetite, cataloguePetits, tirerPetits } from "../web/public/banque-petits.js";
@@ -537,8 +539,8 @@ describe("blind test et quiz musical", () => {
     title: "Dessins animés", duration: 25,
     tracks: [
       { title: "Libérée, délivrée", artist: "La Reine des neiges", audioId: ID(0) },
-      { title: "Hakuna Matata", artist: "Le Roi lion", audioId: ID(1) },
-      { title: "Sous l'océan", audioId: ID(2) },
+      { title: "Hakuna Matata", artist: "Le Roi lion", audioId: ID(1), refrainId: ID(5), paroles: "0|Hakuna matata" },
+      { title: "Sous l'océan", audioId: ID(2), paroles: "0|Sans refrain, pas de paroles" },
       { title: "Je voudrais déjà être roi", audioId: ID(3) },
       { title: "Sans extrait" },
     ],
@@ -554,13 +556,16 @@ describe("blind test et quiz musical", () => {
     assert.equal(musical.length, 4);
     assert.ok(blind.every((q) => q.choices.length === 1 && q.correct === 0 && q.duration === 25 && /^[0-9]123456789abcdef$/.test(q.audioId)));
     assert.equal(blind.find((q) => q.choices[0] === "Hakuna Matata").artist, "Le Roi lion");
+    // Paroles du refrain : dans la question, seulement avec le refrain.
+    assert.equal(blind.find((q) => q.choices[0] === "Hakuna Matata").lyrics, "0|Hakuna matata");
+    assert.equal(blind.find((q) => q.choices[0] === "Sous l'océan").lyrics, undefined);
     assert.ok(musical.every((q) => q.choices.length === 4 && new Set(q.choices).size === 4 && q.audioId));
     for (const q of musical) {
       const track = playlist.tracks.find((t) => t.audioId === q.audioId);
       assert.equal(q.choices[q.correct], track.title, "la bonne réponse est le titre de l'extrait joué");
     }
     assert.deepEqual(programRounds(qs).map((r) => r.title), ["Blind test · Dessins animés", "Quiz musical · Dessins animés"]);
-    assert.equal(soundIds(qs).length, 4);
+    assert.equal(soundIds(qs).length, 5, "4 extraits et 1 refrain");
     assert.equal(roundFilled({ type: "blind" }), false);
     assert.equal(roundFilled({ type: "blind", playlistId: "p" }), true);
   });
@@ -1314,6 +1319,82 @@ describe("« jamais deux fois » : ce qu'une activité a montré ne revient pas 
   });
 });
 
+describe("paroles (.lrc) et étiquettes des MP3", () => {
+  const LRC = [
+    "[ar:Les Licornes]", "[ti:On chante]",
+    "[00:05.00]Premier couplet ici", "[00:10.00]La suite du couplet",
+    "[00:20.00]On chante tous ensemble", "[00:24.00]Tous ensemble ce soir",
+    "[00:30.00]Deuxième couplet", "[00:40.00]On chante tous ensemble", "[00:44.00]Tous ensemble ce soir",
+    "[00:50.00]", "[01:00.00]<01:00.00>Hey <01:00.50>ho",
+  ].join("\n");
+
+  test("un .lrc se lit phrase par phrase, avec les temps des mots quand il en a", () => {
+    const l = lireLrc(LRC);
+    assert.equal(l.length, 9);
+    assert.deepEqual(l.slice(0, 2).map((x) => [x.t, x.text]), [[5, "Premier couplet ici"], [10, "La suite du couplet"]]);
+    assert.equal(l[7].text, "", "pause instrumentale");
+    assert.deepEqual(l[8].words, [{ t: 60, w: "Hey" }, { t: 60.5, w: "ho" }]);
+    // Plusieurs temps sur une ligne, décalage du fichier, BOM et fins de ligne Windows.
+    const l2 = lireLrc("\uFEFF[offset:+500]\r\n[00:10.00][00:30.50]Refrain\r\n");
+    assert.deepEqual(l2.map((x) => [x.t, x.text]), [[9.5, "Refrain"], [30, "Refrain"]]);
+    assert.deepEqual(lireLrc("pas de paroles"), []);
+  });
+
+  test("le refrain est le passage le plus répété, à sa première venue", () => {
+    assert.equal(refrainDesParoles(lireLrc(LRC)), 20);
+    assert.equal(refrainDesParoles(lireLrc("[00:01.00]Une\n[00:02.00]Deux\n[00:03.00]Trois\n[00:04.00]Quatre")), null, "rien ne se répète");
+    assert.equal(refrainDesParoles([]), null);
+  });
+
+  test("les paroles de l'extrait du refrain : temps en ms depuis son début, phrase commencée gardée", () => {
+    const court = parolesDuRefrain(lireLrc(LRC), 19, 90);
+    assert.equal(court.split("\n")[0], "1000|On chante tous ensemble");
+    assert.ok(court.includes("41000|Hey ho|41000,41500"), "temps des mots gardés");
+    assert.ok(court.split("\n").some((x) => x === "31000|"), "pause gardée");
+    // L'extrait commence au milieu d'une phrase : elle est gardée, calée au début.
+    assert.equal(parolesDuRefrain(lireLrc(LRC), 31, 10).split("\n")[0], "0|Deuxième couplet");
+    assert.equal(parolesDuRefrain(lireLrc(LRC), 200, 90), "", "rien à chanter");
+  });
+
+  test("chaque MP3 retrouve son .lrc : « Artiste - Titre.mp3 » et « Artiste_Titre.lrc »", () => {
+    const f = (name) => ({ name });
+    const { paires, seuls } = associerParoles([
+      f("Black Eyed Peas - GIRL LIKE ME.mp3"), f("Betsy_Sigma Boy - Сигма Бой.lrc"), f("Black Eyed Peas_GIRL LIKE ME.lrc"),
+      f("Betsy - Sigma Boy - Сигма Бой.mp3"), f("DJ TN Beat - Apaga Luz.mp3"), f("Orpheline.lrc"),
+    ]);
+    assert.deepEqual(paires.map((p) => [p.musique.name, p.lrc?.name ?? null]), [
+      ["Black Eyed Peas - GIRL LIKE ME.mp3", "Black Eyed Peas_GIRL LIKE ME.lrc"],
+      ["Betsy - Sigma Boy - Сигма Бой.mp3", "Betsy_Sigma Boy - Сигма Бой.lrc"],
+      ["DJ TN Beat - Apaga Luz.mp3", null],
+    ]);
+    assert.deepEqual(seuls.map((x) => x.name), ["Orpheline.lrc"]);
+    assert.equal(nomSimple("Diam's - Confessions Nocturnes.mp3"), nomSimple("Diam's_Confessions Nocturnes.lrc"));
+  });
+
+  test("étiquettes ID3 : titre, artiste et pochette de face, en ID3v2.3 et 2.4 ; rien sans étiquettes", () => {
+    const enc = (x) => [...Buffer.from(x, "utf8")];
+    const utf16 = (x) => [0xff, 0xfe, ...[...Buffer.from(x, "utf16le")]];
+    const taille = (n, sur7) => (sur7 ? [(n >> 21) & 0x7f, (n >> 14) & 0x7f, (n >> 7) & 0x7f, n & 0x7f] : [(n >>> 24) & 255, (n >> 16) & 255, (n >> 8) & 255, n & 255]);
+    const cadre = (id, corps, v4) => [...enc(id), ...taille(corps.length, v4), 0, 0, ...corps];
+    for (const v of [3, 4]) {
+      const image = Array(300).fill(9);
+      const corps = [
+        ...cadre("TIT2", [1, ...utf16("Сигма Бой")], v === 4),
+        ...cadre("TPE1", [3, ...enc("Beyoncé")], v === 4),
+        ...cadre("APIC", [0, ...enc("image/png"), 0, 4, ...enc("dos"), 0, ...Array(200).fill(1)], v === 4),
+        ...cadre("APIC", [0, ...enc("image/jpeg"), 0, 3, 0, ...image], v === 4),
+      ];
+      const tag = Uint8Array.from([0x49, 0x44, 0x33, v, 0, 0, ...taille(corps.length + 16, true), ...corps, ...Array(16).fill(0)]);
+      const r = lireId3(tag);
+      assert.equal(r.title, "Сигма Бой");
+      assert.equal(r.artist, "Beyoncé");
+      assert.equal(r.picture.mime, "image/jpeg", "la pochette de face passe avant le dos");
+      assert.equal(r.picture.data.length, 300);
+    }
+    assert.deepEqual(lireId3(new Uint8Array(20)), {});
+  });
+});
+
 describe("bibliothèque des sons du blind test", () => {
   const A = "0123456789abcdef";
   const B = "fedcba9876543210";
@@ -1357,6 +1438,16 @@ describe("bibliothèque des sons du blind test", () => {
   test("un morceau tiré de la bibliothèque garde extraits, refrain et temps pour buzzer", () => {
     const [hakuna] = songList(songs, playlists);
     assert.deepEqual(trackFromSong(hakuna), { title: "Hakuna Matata", audioId: A, artist: "Le Roi lion", refrainId: B, songId: "s1", duration: 35 });
+  });
+
+  test("paroles du refrain : gardées avec la chanson et ses morceaux, seulement avec l'extrait du refrain", () => {
+    const avec = { ...songs, s1: { ...songs.s1, lrc: true, paroles: "0|Hakuna matata", auto: true } };
+    const [hakuna] = songList(avec, playlists);
+    assert.deepEqual([hakuna.lrc, hakuna.paroles, hakuna.auto], [true, "0|Hakuna matata", true]);
+    assert.equal(trackFromSong(hakuna).paroles, "0|Hakuna matata");
+    assert.equal(trackFromSong({ ...hakuna, refrainId: null }).paroles, undefined, "sans refrain, pas de paroles");
+    const [sans] = songList(songs, playlists);
+    assert.deepEqual([sans.lrc, sans.paroles, sans.auto], [false, "", false]);
   });
 
   test("une chanson changée : ses morceaux suivent, points gardés ; anciens morceaux retrouvés par leur extrait", () => {

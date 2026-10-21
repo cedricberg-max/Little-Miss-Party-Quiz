@@ -2049,10 +2049,10 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
-  test("Sons : « Retirer » une chanson (les playlists la gardent) puis la remettre ; « ← Retour » sur la page d'un jeu", async () => {
+  test("Sons : une ligne par chanson ; cocher (un, Maj + clic, Ctrl + A) puis « Supprimer » (les playlists les gardent) et les remettre ; « ← Retour » sur la page d'un jeu", async () => {
     const A = "0123456789abcdef";
     const B = "fedcba9876543210";
-    await seedLibrary("songs", { s1: { title: "Hakuna Matata", artist: "Le Roi lion", audioId: A, buzz: 30, updatedAt: 1 } });
+    await seedLibrary("songs", { s1: { title: "Hakuna Matata", artist: "Le Roi lion", audioId: A, refrainId: B, refrain: 61, start: 12, buzz: 30, updatedAt: 1 } });
     await seedLibrary("playlists", { p1: { title: "Disney", duration: 30, tracks: [{ title: "Hakuna Matata", audioId: A, songId: "s1" }, { title: "Libérée, délivrée", audioId: B }], updatedAt: 1 } });
     const page = await admin();
     // Page d'un jeu ouverte depuis l'Accueil : « ← Retour » en haut et en bas y ramène.
@@ -2063,33 +2063,102 @@ describe("bibliothèque de quiz et prestations", () => {
 
     await page.click("#nav button[data-screen=library]");
     await page.click('#library-tabs [data-lib-tab="sons"]');
-    const hakuna = page.locator("#song-list .song", { hasText: "Hakuna Matata" });
-    // Retirer demande d'abord ; « Annuler » ne touche à rien.
+    const hakuna = page.locator("#song-list .song-ligne", { hasText: "Hakuna Matata" });
+    const liberee = page.locator("#song-list .song-ligne", { hasText: "Libérée, délivrée" });
+    // De gauche à droite : case, pochette (vide : à cliquer), artiste, titre, paroles, moments ; ni pochette ni
+    // paroles : signalé en rouge.
+    await hakuna.locator(".song-pochette.vide").waitFor();
+    assert.equal(await hakuna.locator(".song-artiste").innerText(), "Le Roi lion");
+    assert.equal(await hakuna.locator(".song-paroles").innerText(), "＋ Paroles (.lrc)");
+    assert.equal(await hakuna.locator(".song-alerte").count(), 1);
+    // Moments réglés : cliquables, ils s'effacent pour être réglés de nouveau dans une playlist.
+    await hakuna.getByRole("button", { name: "⏱ Réglé ✓" }).click();
+    await hakuna.locator(".song-detail", { hasText: "Début de l'extrait : 0:12 · 30 s pour buzzer · Refrain : 1:01" }).waitFor();
+    await hakuna.getByRole("button", { name: "Effacer les préréglages" }).click();
+    await waitFor(async () => (await library("songs/s1")).auto === true, "moments à régler");
+    await hakuna.locator(".song-moments.vide", { hasText: "⏱ À régler" }).waitFor();
+    // Une case, puis Maj + clic : toutes les chansons entre les deux ; « Désélectionner ».
+    await hakuna.locator(".song-check").click();
+    await page.locator("#song-barre", { hasText: "1 sélectionnée" }).waitFor();
+    await liberee.locator(".song-check").click({ modifiers: ["Shift"] });
+    await page.locator("#song-barre", { hasText: "2 sélectionnées" }).waitFor();
+    await page.locator("#song-barre").getByRole("button", { name: "Désélectionner" }).click();
+    await page.locator("#song-barre", { hasText: "Tout sélectionner" }).waitFor();
+    // Supprimer demande d'abord ; « Annuler » ne touche à rien.
+    await hakuna.locator(".song-check").click();
     let question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.dismiss(); }));
-    await hakuna.getByRole("button", { name: "Retirer" }).click();
-    assert.match(await question, /^Retirer « Hakuna Matata » de la bibliothèque des sons \?\n\nLes playlists qui l'ont la gardent : Disney\./);
+    await page.locator("#song-barre").getByRole("button", { name: "🗑 Supprimer (1)" }).click();
+    assert.match(await question, /^Supprimer « Hakuna Matata » de la bibliothèque des sons \?\n\nLes playlists déjà faites les gardent\./);
     assert.equal((await library("songs/s1")).retiree, undefined);
+    // Ctrl + A coche toute la bibliothèque : l'avertissement le dit clairement ; la touche Suppr supprime.
+    await page.keyboard.press("Control+a");
+    await page.locator("#song-barre", { hasText: "2 sélectionnées" }).waitFor();
     question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.accept(); }));
-    await hakuna.getByRole("button", { name: "Retirer" }).click();
-    await question;
-    await hakuna.waitFor({ state: "detached" });
-    await page.locator("#song-status", { hasText: "« Hakuna Matata » est retirée de la bibliothèque" }).waitFor();
+    await page.keyboard.press("Delete");
+    assert.match(await question, /^Attention : cette action va supprimer tous les morceaux de votre bibliothèque \(2 chansons\)\./);
+    await page.locator("#song-list", { hasText: "Toutes vos chansons sont supprimées" }).waitFor();
     assert.equal((await library("songs/s1")).retiree, true);
-    assert.equal((await library("playlists/p1")).tracks.length, 2, "la playlist garde la chanson");
-    // Un ancien morceau de playlist pas encore rangé : il est rangé dans la bibliothèque, retiré.
-    question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.accept(); }));
-    await page.locator("#song-list .song", { hasText: "Libérée, délivrée" }).getByRole("button", { name: "Retirer" }).click();
-    await question;
-    await page.locator("#song-list", { hasText: "Toutes vos chansons sont retirées" }).waitFor();
+    assert.equal((await library("playlists/p1")).tracks.length, 2, "la playlist garde ses morceaux");
+    // Un ancien morceau de playlist pas encore rangé : il est rangé dans la bibliothèque, supprimé.
     const rangee = Object.values(await library("songs")).find((s) => s.audioId === B);
     assert.deepEqual([rangee.title, rangee.retiree], ["Libérée, délivrée", true]);
-    // « 🚫 Retirées » : on les remet.
-    await page.locator("#song-retirees", { hasText: "🚫 Retirées (2)" }).click();
+    // « 🗑 Supprimées » : on les remet.
+    await page.locator("#song-retirees", { hasText: "🗑 Supprimées (2)" }).click();
     await page.locator("#song-list .song", { hasText: "Hakuna Matata" }).getByRole("button", { name: "Remettre" }).click();
     await waitFor(async () => (await library("songs/s1")).retiree === undefined, "chanson remise");
     await page.click("#song-retirees");
     await page.locator("#song-list .song", { hasText: "Hakuna Matata" }).getByRole("button", { name: "Régler…" }).waitFor();
     assert.equal(await page.locator("#song-list .song", { hasText: "Libérée" }).count(), 0);
+    await page.context().close();
+  });
+
+  test("Sons : MP3 et .lrc déposés ensemble ; refrain deviné par les paroles, paroles du refrain gardées ; un .lrc ajouté plus tard ; la pochette se choisit", async () => {
+    const LRC = ["[00:05.00]Premier couplet ici", "[00:10.00]La suite du couplet", "[00:20.00]On chante tous ensemble", "[00:24.00]Tous ensemble ce soir",
+      "[00:30.00]Deuxième couplet", "[00:40.00]On chante tous ensemble", "[00:44.00]Tous ensemble ce soir"].join("\n");
+    const page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="sons"]');
+    await page.setInputFiles("#song-files", [
+      { name: "Les Licornes - On chante.wav", mimeType: "audio/wav", buffer: wav(440, 60) },
+      { name: "Les Licornes_On chante.lrc", mimeType: "text/plain", buffer: Buffer.from(LRC) },
+      { name: "Les Dragons - Instrumental.wav", mimeType: "audio/wav", buffer: wav(330, 40) },
+    ]);
+    await page.locator(".track").nth(1).waitFor();
+    await page.locator("#playlist-status", { hasText: "2 fichiers musicaux lus · paroles de 1 chanson" }).waitFor();
+    const chante = page.locator(".track").first();
+    assert.equal(await chante.locator("input[aria-label=Titre]").inputValue(), "On chante");
+    assert.equal(await chante.locator("input[aria-label=Artiste]").inputValue(), "Les Licornes");
+    // Le refrain proposé : la phrase la plus répétée (20 s), une seconde avant.
+    await chante.locator(".track-refrain", { hasText: "Refrain (chanté à la révélation) : 0:19" }).waitFor();
+    await chante.locator(".track-paroles.ok", { hasText: "Paroles ✓" }).waitFor();
+    await page.click("#playlist-save");
+    await page.locator("#playlist-status", { hasText: "Bibliothèque à jour : 2 chansons" }).waitFor({ timeout: 60000 });
+    const songs = await library("songs");
+    const [id, song] = Object.entries(songs).find(([, x]) => x.title === "On chante");
+    assert.deepEqual([song.artist, song.refrain, song.lrc, song.auto], ["Les Licornes", 19, true, true]);
+    assert.equal(song.paroles.split("\n")[0], "1000|On chante tous ensemble");
+    assert.equal(await library(`lyrics/${id}`), LRC);
+    const [idInstru, instru] = Object.entries(songs).find(([, x]) => x.title === "Instrumental");
+    assert.equal(instru.lrc, undefined);
+
+    // La bibliothèque : paroles ✓, moments à régler ; l'instrumental signalé (ni pochette ni paroles).
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="sons"]');
+    const ligne = page.locator("#song-list .song-ligne", { hasText: "On chante" });
+    await ligne.locator(".song-paroles.ok", { hasText: "✓ Paroles" }).waitFor();
+    await ligne.locator(".song-moments.vide", { hasText: "⏱ À régler" }).waitFor();
+    const ligneInstru = page.locator("#song-list .song-ligne", { hasText: "Instrumental" });
+    await ligneInstru.locator(".song-alerte").waitFor();
+    // Un .lrc ajouté plus tard, en cliquant dans la case des paroles.
+    await ligneInstru.locator(".song-paroles input[type=file]").setInputFiles({ name: "instrumental.lrc", mimeType: "text/plain", buffer: Buffer.from("[00:01.00]La la la\n[00:15.00]Encore") });
+    await page.locator("#song-status", { hasText: "Paroles de « Instrumental » enregistrées." }).waitFor();
+    await waitFor(async () => (await library(`songs/${idInstru}`)).lrc === true, "paroles ajoutées");
+    assert.match(await library(`lyrics/${idInstru}`), /La la la/);
+    // La pochette se choisit en cliquant sur la case vide ; l'alerte rouge disparaît.
+    await ligneInstru.locator(".song-pochette input[type=file]").setInputFiles({ name: "pochette.png", mimeType: "image/png", buffer: png([200, 80, 160]) });
+    await waitFor(async () => /^[0-9a-f]{16}$/.test((await library(`songs/${idInstru}`)).imageId ?? ""), "pochette enregistrée");
+    await ligneInstru.locator(".song-pochette img").waitFor();
+    assert.equal(await ligneInstru.locator(".song-alerte").count(), 0);
     await page.context().close();
   });
 

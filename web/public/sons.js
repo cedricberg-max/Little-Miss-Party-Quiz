@@ -47,6 +47,8 @@ export function songList(songs, playlists, isStatuesList = (p) => p?.use === "st
       audioId: s.audioId, refrainId: HEX.test(s.refrainId ?? "") ? s.refrainId : null, buzz: buzzOf(s.buzz),
       start: bounded(s.start, 0, 3600, 0), refrain: bounded(s.refrain, 0, 3600, null), length: bounded(s.length, 0, 7200, null),
       rights: s.rights ?? "", lists: [],
+      // Paroles (fichier .lrc rangé dans library/lyrics) et celles de l'extrait du refrain ; moments pas encore réglés.
+      lrc: s.lrc === true, paroles: typeof s.paroles === "string" ? s.paroles : "", auto: s.auto === true,
     };
     byAudio.set(s.audioId, song);
     out.push(song);
@@ -62,6 +64,7 @@ export function songList(songs, playlists, isStatuesList = (p) => p?.use === "st
           id: null, title: t.title.trim(), artist: t.artist ?? "", imageId: HEX.test(t.imageId ?? "") ? t.imageId : null,
           audioId: t.audioId, refrainId: HEX.test(t.refrainId ?? "") ? t.refrainId : null, buzz: buzzOf(t.duration ?? p.duration),
           start: 0, refrain: null, length: null, rights: t.rights ?? "", lists: [],
+          lrc: false, paroles: typeof t.paroles === "string" ? t.paroles : "", auto: false,
         };
         byAudio.set(t.audioId, song);
         out.push(song);
@@ -96,6 +99,8 @@ export function trackFromSong(song) {
     ...(song.rights?.trim() ? { rights: song.rights.trim().slice(0, 120) } : {}),
     ...(HEX.test(song.imageId ?? "") ? { imageId: song.imageId } : {}),
     ...(HEX.test(song.refrainId ?? "") ? { refrainId: song.refrainId } : {}),
+    // Paroles du refrain (forme courte de la TV) : seulement avec l'extrait du refrain.
+    ...(HEX.test(song.refrainId ?? "") && typeof song.paroles === "string" && song.paroles && song.paroles.length <= 8000 ? { paroles: song.paroles } : {}),
     ...(song.id ? { songId: song.id } : {}),
     duration: buzzOf(song.buzz),
   };

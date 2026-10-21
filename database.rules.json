@@ -381,10 +381,13 @@
             "$i": {
               ".validate": "newData.child('title').isString() && newData.child('title').val().length >= 1 && newData.child('title').val().length <= 80 && newData.child('audioId').isString() && newData.child('audioId').val().matches(/^[0-9a-f]{16}$/) && (!newData.child('artist').exists() || (newData.child('artist').isString() && newData.child('artist').val().length <= 80)) && (!newData.child('rights').exists() || (newData.child('rights').isString() && newData.child('rights').val().length <= 120))",
               "$other": {
-                ".validate": "$other === 'title' || $other === 'artist' || $other === 'audioId' || $other === 'rights' || $other === 'source' || $other === 'points' || $other === 'imageId' || $other === 'duration' || $other === 'refrainId' || $other === 'songId'"
+                ".validate": "$other === 'title' || $other === 'artist' || $other === 'audioId' || $other === 'rights' || $other === 'source' || $other === 'points' || $other === 'imageId' || $other === 'duration' || $other === 'refrainId' || $other === 'songId' || $other === 'paroles'"
               },
               "refrainId": {
                 ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{16}$/)"
+              },
+              "paroles": {
+                ".validate": "newData.isString() && newData.val().length <= 8000"
               },
               "songId": {
                 ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40"
@@ -405,6 +408,12 @@
           }
         }
       },
+      "lyrics": {
+        "$id": {
+          ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
+          ".validate": "!newData.exists() || ($id.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.isString() && newData.val().length >= 1 && newData.val().length <= 60000)"
+        }
+      },
       "songs": {
         "$id": {
           ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
@@ -418,6 +427,9 @@
           "length": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 7200" },
           "createdAt": { ".validate": "newData.isNumber()" },
           "retiree": { ".validate": "newData.val() === true" },
+          "lrc": { ".validate": "newData.val() === true" },
+          "auto": { ".validate": "newData.val() === true" },
+          "paroles": { ".validate": "newData.isString() && newData.val().length <= 8000" },
           "$other": {
             ".validate": "$other === 'title' || $other === 'audioId' || $other === 'buzz' || $other === 'updatedAt'"
           }

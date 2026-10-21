@@ -501,6 +501,8 @@ function musicQuestions(type, playlist, prefix, random) {
         ...(/^[0-9a-f]{16}$/.test(t.imageId ?? "") ? { imageId: t.imageId } : {}),
         // Refrain (environ 90 s) : joué en boucle à la révélation, « on chante tous ensemble ».
         ...(/^[0-9a-f]{16}$/.test(t.refrainId ?? "") ? { refrainId: t.refrainId } : {}),
+        // Paroles du refrain (cedric, 21/10) : elles apparaissent sur la TV au rythme de la chanson.
+        ...(/^[0-9a-f]{16}$/.test(t.refrainId ?? "") && typeof t.paroles === "string" && t.paroles ? { lyrics: t.paroles.slice(0, 8000) } : {}),
       };
     }
     const others = shuffle(titles.filter((x) => x !== title), random).slice(0, 3);
