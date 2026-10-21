@@ -74,6 +74,26 @@ class RegieSimulee : AutoCloseable {
         bloquer { base.getReference("games/$code/commandStatus/$id/status").lireUneFois() }.value as? String
     }
 
+    /** Raison d'un refus de la box (too_old, invalid…), null sinon. */
+    fun raison(code: String, id: String): String? =
+        bloquer { base.getReference("games/$code/commandStatus/$id/reason").lireUneFois() }.value as? String
+
+    /**
+     * Comme « 📺 Changer de box » : la partie [code] confiée à la box qui affiche le salon [nouveau], en une seule
+     * écriture (nouvel hôte, trace du changement, relais du salon). Renvoie false si le serveur refuse.
+     */
+    fun changerDeBox(code: String, nouveau: String): Boolean = runCatching {
+        val hote = bloquer { base.getReference("games/$nouveau/hostUid").lireUneFois() }.value as String
+        val ancien = bloquer { base.getReference("games/$code/hostUid").lireUneFois() }.value as String
+        bloquer {
+            base.reference.updateChildren(mapOf(
+                "games/$code/hostUid" to hote,
+                "games/$code/takeover" to mapOf("to" to nouveau, "from" to ancien, "by" to uid, "at" to ServerValue.TIMESTAMP),
+                "games/$nouveau/handoff" to code,
+            )).await()
+        }
+    }.onFailure { Log.i(TAG, "Changement de box refusé : ${it.message}") }.isSuccess
+
     fun commande(code: String, type: String, extra: Map<String, Any> = emptyMap()): String {
         val id = envoyer(code, type, extra = extra) ?: throw AssertionError("Commande « $type » refusée par le serveur")
         return verdict(code, id)

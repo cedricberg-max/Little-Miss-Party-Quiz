@@ -81,6 +81,15 @@ sealed interface UiState {
     /** Une partie non terminée a été retrouvée au démarrage. */
     data class ResumeOffer(val code: String, val teamNames: List<String>, val secondsLeft: Int) : UiState
 
+    /** Box de secours : la régie vient de lui confier la partie [code], qui s'ouvre avec ses équipes et ses points. */
+    data class TakingOver(val code: String) : UiState
+
+    /**
+     * La régie a confié la partie [code] à une autre box pendant que celle-ci ne répondait plus :
+     * cette box ne la pilote plus, elle le dit et ne relance rien d'elle-même.
+     */
+    data class Moved(val code: String) : UiState
+
     /** Partie ouverte, du salon d'attente jusqu'aux résultats. */
     data class Playing(
         val code: String,
@@ -295,6 +304,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var offlineWatch: Job? = null
     /** Dernier appui sur OK pris en compte (anti double appui). */
     private var lastNextAt = -NEXT_GUARD_MS
+    /** Partie que la régie vient de confier au salon de cette box, en cours d'ouverture (jamais deux fois). */
+    private var handoff: String? = null
     private val prefs = app.getSharedPreferences("partie", Context.MODE_PRIVATE)
 
     /** Code de la partie en cours, mémorisé sur la box pour survivre à un crash ou un redémarrage. */
@@ -350,13 +361,21 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 val uid = FirebaseAuth.getInstance().currentUser!!.uid
                 val saved = activeCode
                 if (saved != null) {
-                    val offer = resumableGame(db, uid, saved)
-                    if (offer != null) {
-                        announceBox(db, uid)
-                        offerResume(offer)
-                        return@launch
+                    when (val found = resumableGame(db, uid, saved)) {
+                        is UiState.ResumeOffer -> {
+                            announceBox(db, uid)
+                            offerResume(found)
+                            return@launch
+                        }
+                        // Partie confiée à une autre box pendant que celle-ci était éteinte : on le dit, rien ne se relance.
+                        is UiState.Moved -> {
+                            showMoved(saved)
+                            return@launch
+                        }
+                        else -> {
+                            activeCode = null
+                        }
                     }
-                    activeCode = null
                 }
                 if (!boxMayPlay(db, uid)) return@launch
                 open(db, createGame(db, uid))
@@ -377,7 +396,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 FirebaseAuth.getInstance().currentUser?.uid?.let { announceBox(db, it) }
                 open(db, code)
             } catch (e: Exception) {
-                fail(e)
+                // Lecture refusée : la régie a confié la partie à une autre box pendant que celle-ci ne répondait plus.
+                if (!showIfMoved(code)) fail(e)
             }
         }
     }
@@ -528,7 +548,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun lockIfIdle() {
         val s = _state.value
-        val idle = s is UiState.Error ||
+        val idle = s is UiState.Error || s is UiState.Moved ||
             (s is UiState.Playing && (s.phase == Phase.ENDED || (s.phase == Phase.LOBBY && s.teams.isEmpty())))
         if (!idle) return
         activeCode = null
@@ -540,16 +560,39 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = UiState.Error(e.message ?: e.javaClass.simpleName)
     }
 
-    private suspend fun resumableGame(db: FirebaseDatabase, uid: String, code: String): UiState.ResumeOffer? {
+    /** Partie [code] à reprendre ([UiState.ResumeOffer]), confiée à une autre box ([UiState.Moved]), ou rien. */
+    private suspend fun resumableGame(db: FirebaseDatabase, uid: String, code: String): UiState? {
         val read = runCatching { db.getReference("games/$code").readOnce() }
-        // Lecture refusée : cette box n'est plus l'hôte de la partie (données effacées, autre compte).
-        if (read.exceptionOrNull()?.message?.contains("ermission") == true) return null
+        // Lecture refusée : cette box n'est plus l'hôte de la partie (confiée à une autre box, données effacées, autre compte).
+        if (read.exceptionOrNull()?.message?.contains("ermission") == true) return movedTo(db, uid, code)
         // Sans réseau ni copie locale (ou base muette), on fait confiance au code mémorisé.
         val snap = read.getOrNull() ?: return UiState.ResumeOffer(code, emptyList(), AUTO_RESUME_SECONDS)
-        if (snap.child("hostUid").getValue(String::class.java) != uid) return null
+        if (snap.child("hostUid").getValue(String::class.java) != uid) return movedTo(db, uid, code)
         if (snap.child("state/phase").getValue(String::class.java) == Phase.ENDED.code) return null
         val names = snap.child("teams").children.mapNotNull { it.child("name").getValue(String::class.java) }
         return UiState.ResumeOffer(code, names, AUTO_RESUME_SECONDS)
+    }
+
+    private suspend fun movedTo(db: FirebaseDatabase, uid: String, code: String): UiState.Moved? =
+        if (movedAway(db, uid, code)) UiState.Moved(code) else null
+
+    /**
+     * La partie [code] a été confiée à une autre box (`hostUid` reste lisible quand la partie ne l'est plus).
+     * Lu sur le serveur si possible : la copie locale de la box peut dater d'avant le changement.
+     */
+    private suspend fun movedAway(db: FirebaseDatabase, uid: String, code: String): Boolean {
+        val ref = db.getReference("games/$code/hostUid")
+        val host = runCatching { withTimeoutOrNull(MOVED_CHECK_MS) { ref.get().await() } ?: ref.readOnce() }.getOrNull()
+            ?.getValue(String::class.java)
+        return host != null && host != uid
+    }
+
+    /** Reprise impossible : si la partie [code] a été confiée à une autre box, l'écran le dit au lieu d'une erreur. */
+    private suspend fun showIfMoved(code: String): Boolean {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return false
+        if (!movedAway(FirebaseDatabase.getInstance(databaseUrl()), uid, code)) return false
+        showMoved(code)
+        return true
     }
 
     private fun offerResume(offer: UiState.ResumeOffer) {
@@ -571,12 +614,16 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         return QuizJson.parse(json)
     }
 
-    /** Ouvre une partie : relit le journal, reconstruit l'état, reprend là où on en était. */
-    private suspend fun open(db: FirebaseDatabase, code: String) {
+    /**
+     * Ouvre une partie : relit le journal, reconstruit l'état, reprend là où on en était.
+     * [given] : la partie déjà lue sur le serveur (partie confiée par la régie à cette box de secours).
+     */
+    private suspend fun open(db: FirebaseDatabase, code: String, given: DataSnapshot? = null) {
         stopListening()
         timer?.cancel()
         expressTimer?.cancel()
         armTimer?.cancel()
+        handoff = null
         val ref = db.getReference("games/$code")
         gameRef = ref
         soundMarks.clear()
@@ -584,7 +631,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         coups.vider()
         _coup.value = null
         activeCode = code
-        val snap = ref.readOnce() ?: error("La base Firebase ne répond pas. Vérifiez Internet puis réessayez.")
+        val snap = given ?: ref.readOnce() ?: error("La base Firebase ne répond pas. Vérifiez Internet puis réessayez.")
         // Programme en vigueur, écrit par la box elle-même (prestation et modifications acceptées) ;
         // à défaut (partie d'une version plus ancienne), la prestation chargée par la régie et acceptée.
         val program = snap.child("conducteur").takeIf { it.child("id").value != null && it.child("rev").value != null }
@@ -606,6 +653,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         // Commandes de la régie déjà traitées avant un redémarrage : jamais appliquées deux fois.
         handledCommands.clear()
         snap.child("commandStatus").children.mapNotNullTo(handledCommands) { it.key }
+        refuseBeforeTakeover(ref, snap)
         regieUids = snap.child("regie").children.mapNotNull { it.key }.toSet()
         pinFailures = snap.child("pairingLock/failures").getValue(Int::class.java) ?: 0
         pinLockedUntil = snap.child("pairingLock/until").getValue(Long::class.java) ?: 0L
@@ -625,6 +673,91 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         listenCommands(ref)
         refresh()
         recover()
+    }
+
+    /**
+     * Partie reprise sur une autre box : ce que la régie avait envoyé à l'ancienne box sans réponse (elle a vu
+     * « La TV ne répond pas ») n'est jamais appliqué ici, même un « Suivant » encore valable ou un programme
+     * modifié. Chacun reçoit la réponse « trop ancien », une seule fois.
+     */
+    private fun refuseBeforeTakeover(ref: DatabaseReference, snap: DataSnapshot) {
+        val takeoverAt = snap.child("takeover/at").getValue(Long::class.java) ?: return
+        val updates = mutableMapOf<String, Any?>()
+        for (c in snap.child("commands").children) {
+            val id = c.key ?: continue
+            if (id in handledCommands || (c.child("at").getValue(Long::class.java) ?: 0L) > takeoverAt) continue
+            handledCommands += id
+            updates += statusOf(id, CommandResult(CommandStatus.REFUSED, reason = "too_old"))
+        }
+        val show = snap.child("show")
+        val showId = show.child("id").getValue(String::class.java)
+        if (showId != null && showId != judgedShow && (show.child("at").getValue(Long::class.java) ?: 0L) <= takeoverAt) {
+            judgedShow = showId
+            updates["showStatus"] = mapOf("id" to showId, "status" to "refused", "reason" to "too_old", "at" to ServerValue.TIMESTAMP)
+        }
+        if (updates.isNotEmpty()) ref.updateChildren(updates).addOnFailureListener { Log.e(TAG, "Envois d'avant le changement de box", it) }
+    }
+
+    /**
+     * La régie a confié cette partie à une autre box (celle-ci ne répondait plus) : la box arrête tout, oublie
+     * la partie et l'annonce. Les règles Firebase ne la laissent de toute façon plus rien lire ni écrire.
+     */
+    private fun onMoved(code: String) {
+        if (gameRef?.key != code) return
+        showMoved(code)
+    }
+
+    private fun showMoved(code: String) {
+        Log.w(TAG, "Partie $code confiée à une autre box")
+        countdown?.cancel()
+        timer?.cancel()
+        expressTimer?.cancel()
+        armTimer?.cancel()
+        stopListening()
+        game = null
+        gameRef = null
+        coups.vider()
+        _coup.value = null
+        if (activeCode == code) activeCode = null
+        _state.value = UiState.Moved(code)
+    }
+
+    /**
+     * Box de secours : la régie a confié la partie [target] au salon [lobby] de cette box, dans la même écriture
+     * que le changement d'hôte (vérifié par les règles). Seulement depuis un salon encore vide ; la box relit la
+     * partie sur le serveur (jamais une vieille copie locale), termine son salon puis l'ouvre comme une reprise.
+     */
+    private fun onHandoff(db: FirebaseDatabase, lobby: DatabaseReference, target: String) {
+        val g = game ?: return
+        val code = lobby.key ?: return
+        if (handoff != null || gameRef?.key != code) return
+        if (g.state.phase != Phase.LOBBY || g.state.index >= 0 || teams().isNotEmpty() || programRev != "initial") {
+            Log.w(TAG, "Partie $target refusée : le salon $code n'est plus vide")
+            return
+        }
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        handoff = target
+        viewModelScope.launch {
+            val read = runCatching { db.getReference("games/$target").readHandedOver(code, uid, HANDOFF_WAIT_MS) }
+            // Lecture refusée : la partie a déjà été confiée à une autre box. Le salon reste tel quel.
+            read.exceptionOrNull()?.let {
+                Log.w(TAG, "Partie $target illisible", it)
+                return@launch
+            }
+            if (handoff != target || gameRef?.key != code) return@launch
+            Log.i(TAG, "Partie $target reprise depuis le salon $code")
+            _state.value = UiState.TakingOver(target)
+            // D'abord le code de la partie : un redémarrage à partir d'ici rouvre la fête, jamais le salon.
+            activeCode = target
+            lobby.child("state").updateChildren(mapOf("phase" to Phase.ENDED.code, "endedAt" to ServerValue.TIMESTAMP))
+                .addOnFailureListener { Log.e(TAG, "Salon $code non terminé", it) }
+            try {
+                // Serveur muet au-delà du délai : lecture ordinaire, comme une reprise.
+                open(db, target, read.getOrNull())
+            } catch (e: Exception) {
+                fail(e)
+            }
+        }
     }
 
     /**
@@ -1448,6 +1581,16 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             // Une régie vient d'être reliée : on referme l'écran du QR code.
             updatePlaying { it.copy(regies = uids.size, showRegie = it.showRegie && added.isEmpty()) }
         }
+        // « Changer de box » : la régie a confié cette partie à une autre box (lisible même quand la partie ne l'est plus).
+        val uid = FirebaseAuth.getInstance().currentUser?.uid
+        observe(ref.child("hostUid")) { snap ->
+            val host = snap.getValue(String::class.java)
+            if (uid != null && host != null && host != uid) onMoved(ref.key ?: return@observe)
+        }
+        // Salon d'attente de cette box : la régie vient de lui confier la partie d'une box en panne.
+        observe(ref.child("handoff")) { snap ->
+            snap.getValue(String::class.java)?.let { onHandoff(db, ref, it) }
+        }
     }
 
     /**
@@ -1780,6 +1923,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         private const val CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
         /** Demande effacée sans autorisation au bout de ce délai : la Régie PC l'a refusée. */
         private const val BOX_REFUSAL_CHECK_MS = 2_000L
+        /** Box de secours : attente de la partie confiée, telle que le serveur la connaît, avant une lecture ordinaire. */
+        private const val HANDOFF_WAIT_MS = 15_000L
+        /** Lecture sur le serveur de l'hôte d'une partie à reprendre, avant de se contenter de la copie locale. */
+        private const val MOVED_CHECK_MS = 4_000L
 
         fun joinUrl(code: String) = "https://${BuildConfig.FB_PROJECT_ID}.web.app/?g=$code"
 
@@ -1879,6 +2026,29 @@ private suspend fun DatabaseReference.readWhenPresent(timeoutMs: Long = 60_000L)
 private const val PHOTO_WAIT_MS = 30_000L
 /** Photos gardées sur la box au plus (environ 50 Ko chacune) ; celles du programme en cours ne sont jamais effacées. */
 private const val PHOTOS_MAX = 600
+
+/**
+ * Partie confiée par la régie au salon [lobby] : attend la version du serveur où cette box ([uid]) est l'hôte et
+ * où le changement vise bien ce salon. Une copie locale plus ancienne (box d'origine qui retrouve sa partie) est
+ * ignorée. Null au-delà de [timeoutMs] ; exception si la lecture est refusée (partie confiée ailleurs entre-temps).
+ */
+private suspend fun DatabaseReference.readHandedOver(lobby: String, uid: String, timeoutMs: Long): DataSnapshot? = withTimeoutOrNull(timeoutMs) {
+    suspendCancellableCoroutine { cont ->
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val fresh = snapshot.child("hostUid").getValue(String::class.java) == uid &&
+                    snapshot.child("takeover/to").getValue(String::class.java) == lobby
+                if (fresh && cont.isActive) { removeEventListener(this); cont.resume(snapshot) }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                if (cont.isActive) cont.resumeWithException(error.toException())
+            }
+        }
+        addValueEventListener(listener)
+        cont.invokeOnCancellation { removeEventListener(listener) }
+    }
+}
 
 private suspend fun DatabaseReference.readOnce(timeoutMs: Long = 8000L): DataSnapshot? = withTimeoutOrNull(timeoutMs) {
     suspendCancellableCoroutine { cont ->

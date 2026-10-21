@@ -161,6 +161,8 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null) 
             UiState.Connecting -> Connecting()
             is UiState.Error -> Message("Connexion impossible", state.message, actions.retry, actions.checkUpdate)
             is UiState.ResumeOffer -> ResumeOffer(state, actions.resume, actions.newGame)
+            is UiState.TakingOver -> TakingOver(state)
+            is UiState.Moved -> Moved(state, actions.newGame)
             is UiState.Locked -> Locked(state, actions.requestAgain, actions.checkUpdate)
             is UiState.Playing -> Playing(state, actions)
         }
@@ -295,6 +297,59 @@ private fun ResumeOffer(state: UiState.ResumeOffer, onResume: () -> Unit, onNewG
         )
     }
     LaunchedEffect(Unit) { focus.requestFocus() }
+}
+
+/** Box de secours : la partie que la régie vient de lui confier s'ouvre (quelques secondes). */
+@Composable
+private fun TakingOver(state: UiState.TakingOver) {
+    Column(
+        Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        CircularProgressIndicator(color = Color.White)
+        Spacer(Modifier.height(24.dp))
+        Text("Reprise de la fête…", color = Color.White, fontSize = 36.sp, lineHeight = 42.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "Code ${state.code}",
+            color = Palette.Gold, fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.Black, letterSpacing = 6.sp,
+        )
+    }
+}
+
+/**
+ * Ancienne box : la régie a confié la fête à une autre box pendant que celle-ci ne répondait plus.
+ * Elle ne pilote plus rien ; « Nouvelle partie » ouvre un nouveau salon sans toucher à la fête.
+ */
+@Composable
+private fun Moved(state: UiState.Moved, onNewGame: () -> Unit) {
+    val focus = remember { FocusRequester() }
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = 64.dp, vertical = 32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        LogoQuiz(56.dp)
+        Spacer(Modifier.height(16.dp))
+        Text(
+            "Cette fête continue sur une autre box", color = Color.White, fontSize = 44.sp, lineHeight = 52.sp,
+            fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "Code ${state.code}",
+            color = Palette.Gold, fontSize = 32.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black, letterSpacing = 6.sp,
+        )
+        Spacer(Modifier.height(16.dp))
+        Text(
+            "La régie l'a confiée à une autre TV, avec les mêmes équipes et les mêmes points.\nCette box ne la pilote plus.",
+            color = Color.White.copy(alpha = 0.85f), fontSize = 22.sp, lineHeight = 30.sp, textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(28.dp))
+        TvButton("Nouvelle partie", onNewGame, Modifier.focusRequester(focus), primary = true, fontSize = 24.sp)
+    }
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 }
 
 /** Box jamais acceptée : seulement son code, à retrouver dans la Régie PC (Paramètres > Box TV). */
