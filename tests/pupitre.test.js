@@ -460,6 +460,50 @@ describe("pupitre", () => {
     for (const p of [roses, bleus, verts]) await p.context().close();
   });
 
+  test("« Ça va exploser ! » : 3 secondes pour l'envoyer, un gros 3, 2, 1 sur la tablette, sinon BOUM « Gardée plus de 3 secondes » (cedric, 21/10)", async () => {
+    const roses = await openPupitre();
+    await joinTeam(roses, "Les Roses");
+    const bleus = await openPupitre();
+    await joinTeam(bleus, "Les Bleus");
+    const teams = await read("teams");
+    const id = (name) => Object.keys(teams).find((t) => teams[t].name === name);
+    const [r, b] = [id("Les Roses"), id("Les Bleus")];
+    const base = { qid: "pt", kind: "patate", text: "Ça va exploser !", choices: null, correct: null, deadline: null, durationMs: null, game: { title: "Ça va exploser !" } };
+    const potato = (extra) => ({ lit: true, teams: [r, b], canReturn: true, passes: 0, from: null, targets: [b], hit: [r], bomb: 1, bombs: 3, ...extra });
+    const chiffre = (page) => page.locator(".pc-decompte:not([hidden])");
+    // La mèche colle encore : pas de décompte.
+    let now = Date.now();
+    await hostState(question({ ...base, potato: potato({ holder: r, since: now, readyAt: now + 1500, holdUntil: now + 4500, key: "pt-a" }) }));
+    await roses.locator(".pc-texte", { hasText: "La mèche colle" }).waitFor();
+    assert.equal(await chiffre(roses).count(), 0, "pas de décompte pendant la mèche qui colle");
+    // Elle peut partir : 3, 2, 1 en grand sur la bombe, chez les Roses seulement.
+    await chiffre(roses).filter({ hasText: /^3$/ }).waitFor({ timeout: 4000 });
+    if (process.env.CAPTURES) await roses.screenshot({ path: `${process.env.CAPTURES}/patate-decompte-portrait.png` });
+    assert.equal(await chiffre(bleus).count(), 0, "seule l'équipe qui tient la bombe voit le décompte");
+    await chiffre(roses).filter({ hasText: /^2$/ }).waitFor({ timeout: 2500 });
+    await roses.setViewportSize({ width: 1280, height: 800 });
+    await chiffre(roses).filter({ hasText: /^1$/ }).waitFor({ timeout: 2500 });
+    if (process.env.CAPTURES) await roses.screenshot({ path: `${process.env.CAPTURES}/patate-decompte-paysage.png` });
+    // Le chiffre reste dans la bombe, entier, et ne cache pas les équipes.
+    const cadre = await roses.evaluate(() => {
+      const r = (s) => document.querySelector(s).getBoundingClientRect();
+      const c = r(".pc-decompte"); const bombe = r(".pc-bombe"); const eq = r(".pc-equipe");
+      return { dedans: c.left >= bombe.left - 1 && c.right <= bombe.right + 1 && c.top >= bombe.top - 1 && c.bottom <= bombe.bottom + 1, chevauche: !(c.right <= eq.left || c.left >= eq.right || c.bottom <= eq.top || c.top >= eq.bottom) };
+    });
+    assert.deepEqual(cadre, { dedans: true, chevauche: false });
+    // En pause : plus de décompte (la TV redonne 3 secondes à la reprise).
+    await hostState(question({ ...base, paused: true, potato: potato({ holder: r, since: now, readyAt: now + 1500, holdUntil: null, key: "pt-a" }) }));
+    await waitFor(async () => (await chiffre(roses).count()) === 0, "plus de décompte en pause");
+    // Gardée trop longtemps : BOUM chez les Roses, avant la fin de la mèche.
+    now = Date.now();
+    await hostState(question({ ...base, potato: potato({ holder: r, since: now - 6000, readyAt: now - 4000, key: null, exploded: true, booms: [{ holder: r, at: now, lost: 0, gain: 100, held: true }] }) }));
+    await roses.locator(".pc-titre", { hasText: "BOUM ! Gardée plus de 3 secondes" }).waitFor();
+    await bleus.locator(".pc-titre", { hasText: "BOUM ! L'équipe Les Roses l'a gardée trop longtemps" }).waitFor();
+    await bleus.locator(".pc-texte", { hasText: "+100 points pour vous !" }).waitFor();
+    assert.equal(await chiffre(roses).count(), 0);
+    for (const p of [roses, bleus]) await p.context().close();
+  });
+
   test("Le Juste Chiffre : l'équipe tape son nombre une seule fois et voit si elle est la plus proche", async () => {
     const page = await openPupitre();
     await joinTeam(page, "Les Roses");

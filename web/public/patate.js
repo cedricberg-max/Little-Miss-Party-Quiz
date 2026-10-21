@@ -1,7 +1,8 @@
 /**
  * « Ça va exploser ! » sur la tablette. L'équipe qui tient la bombe choisit à qui l'envoyer (un appui sur l'équipe) ; la
  * mèche colle 2 secondes après la réception, l'envoyeur ne peut pas la récupérer (sauf à 2 équipes), et les équipes
- * qui ne l'ont pas encore eue brillent. Les autres voient chez qui elle est. Module autonome, sans Firebase : la page
+ * qui ne l'ont pas encore eue brillent. Ensuite l'équipe a 3 secondes pour l'envoyer : un gros 3, 2, 1 sur la bombe,
+ * sinon elle explose chez elle. Les autres voient chez qui elle est. Module autonome, sans Firebase : la page
  * pupitre envoie le choix (surEnvoi) et passe l'état à maj().
  *
  * Habillage : la même bombe que sur la TV, posée sur son socle. Elle tombe chez nous (lueur rouge qui bat autour de
@@ -65,7 +66,8 @@ export function rythmeBombe(brule) {
  *   titre, texte, aMoi, chaude (la bombe est chez nous), envoye (équipe choisie, en cours d'envoi, ou null),
  *   colle (0 à 1 : mèche qui colle, 1 = on peut envoyer), equipes: [{ id, nom, couleur, permise, envoyeur, neuve }],
  *   compteur (« Bombe 2 sur 3 » ou ""), brule (heure de la tablette où la mèche a commencé à brûler, ou null),
- *   boum (la bombe vient d'exploser), boumChezMoi (chez nous)
+ *   boum (la bombe vient d'exploser), boumChezMoi (chez nous),
+ *   decompte (3, 2 ou 1 : secondes qu'il reste pour l'envoyer, ou null)
  * }
  */
 export function ecranPatate(hote, { surEnvoi }) {
@@ -73,7 +75,7 @@ export function ecranPatate(hote, { surEnvoi }) {
     <div class="pc">
       <div class="pc-scene">
         <p class="pc-compteur" hidden></p>
-        <div class="pc-bombe" aria-hidden="true"><div class="pc-halo"></div>${BOMBE_SVG}</div>
+        <div class="pc-bombe" aria-hidden="true"><div class="pc-halo"></div>${BOMBE_SVG}<p class="pc-decompte" hidden></p></div>
         <p class="pc-titre"></p>
         <p class="pc-texte"></p>
         <div class="pc-colle"><span></span></div>
@@ -124,6 +126,12 @@ export function ecranPatate(hote, { surEnvoi }) {
     const bat = aMoi && !v.envoye && v.brule != null;
     if (bat && battement == null) battement = setTimeout(battre, avant.aMoi ? 0 : 760);
     if (!bat) { clearTimeout(battement); battement = null; racine.classList.remove("pc-bat"); }
+    // 3, 2, 1 sur la bombe : il reste si peu pour l'envoyer ; chaque chiffre arrive en grand.
+    const chiffre = q(".pc-decompte");
+    const n = aMoi && !v.envoye && v.decompte != null ? String(v.decompte) : "";
+    chiffre.hidden = !n;
+    if (n && chiffre.textContent !== n) { chiffre.textContent = n; rejouer(chiffre, "pc-tic"); }
+    if (!n) chiffre.textContent = "";
     q(".pc-titre").textContent = v.titre ?? "";
     q(".pc-texte").textContent = v.texte ?? "";
     const colle = Math.max(0, Math.min(1, v.colle ?? 1));

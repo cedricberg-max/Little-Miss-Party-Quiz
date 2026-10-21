@@ -235,6 +235,28 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     }
 
     /**
+     * « Ça va exploser ! » : heure du serveur où la bombe explose chez l'équipe qui la garde trop longtemps,
+     * [POTATO_HOLD_MS] après la mèche qui colle ; après une pause, l'équipe a de nouveau [POTATO_HOLD_MS] à la fin du
+     * décompte (tablette coupée, partie arrêtée : jamais sa faute). Null en pause, entre deux bombes ou hors de ce jeu.
+     * Ne dit rien de la mèche, qui reste secrète.
+     */
+    fun holdDeadline(): Long? {
+        val p = state.potato ?: return null
+        if (question?.isPatate != true || state.phase != Phase.QUESTION || state.paused || p.exploded) return null
+        val running = state.segments.lastOrNull()?.takeIf { it.end == null } ?: return null
+        return maxOf(p.readyAt, running.start) + POTATO_HOLD_MS
+    }
+
+    /** « Ça va exploser ! » : la bombe est restée trop longtemps chez l'équipe qui la tient. */
+    fun heldTooLong(now: Long): Boolean = holdDeadline()?.let { now >= it } == true
+
+    /** Chrono à zéro, ou bombe gardée trop longtemps : la box doit agir ([timeUp]). */
+    fun timeOver(now: Long): Boolean = remainingMs(now) == 0L || heldTooLong(now)
+
+    /** Prochain réveil de la box : fin du chrono, ou bombe gardée trop longtemps (la plus proche). */
+    fun wakeAt(): Long? = listOfNotNull(deadline(), holdDeadline()).minOrNull()
+
+    /**
      * Ajoute un événement au journal s'il est valide. Un événement déjà vu (même numéro)
      * ou impossible dans l'état courant est ignoré : rejouer deux fois le journal ne change rien.
      */
@@ -377,7 +399,9 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                     val points = (before[it]?.points ?: 0) + if (it == e.holder) -lost else POTATO_POINTS * factor
                     Award(null, correct = points > 0, points = points, bonus = 0)
                 }
-                val next = p.copy(booms = p.booms + PotatoBoom(e.holder, e.at, lost, POTATO_POINTS * factor))
+                // Avant la fin de la mèche : l'équipe l'a gardée trop longtemps.
+                val held = s.elapsedAt(e.at) < p.fuseMs
+                val next = p.copy(booms = p.booms + PotatoBoom(e.holder, e.at, lost, POTATO_POINTS * factor, held))
                 s.copy(
                     // Après la dernière bombe, le bilan ; sinon la box allume la mèche de la suivante.
                     phase = if (next.last) Phase.REVEAL else s.phase, hold = null, segments = closeSegments(s, e.at),
@@ -813,8 +837,9 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         val p = state.potato ?: return null
         if (state.paused || state.phase != Phase.QUESTION || p.exploded || p.holder != team || to !in p.targets) return null
         if (now + ARM_TOLERANCE_MS < p.readyAt || (state.resumeAt ?: Long.MIN_VALUE) > now + ARM_TOLERANCE_MS) return null
-        // Envoi parti avant la fin de la mèche (heure du serveur de l'écriture) : il compte, même reçu un peu après.
-        if (remainingMs(minOf(sentAt, now)) == 0L) return null
+        // Envoi parti avant la fin de la mèche et dans les 3 secondes (heure du serveur de l'écriture) : il compte, même
+        // reçu un peu après.
+        if (timeOver(minOf(sentAt, now))) return null
         return emit(PotatoPassed(nextSeq, maxOf(now, p.readyAt), state.qid!!, team, to))
     }
 
@@ -824,10 +849,13 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         return passPotato(p.holder, p.targets.randomOrNull(random) ?: return null, now)
     }
 
-    /** « Ça va exploser ! » : la mèche est arrivée au bout, la bombe explose chez l'équipe qui la tient. */
+    /**
+     * « Ça va exploser ! » : la mèche est arrivée au bout, ou l'équipe a gardé la bombe plus de [POTATO_HOLD_MS] ; la
+     * bombe explose chez l'équipe qui la tient.
+     */
     fun explode(now: Long): GameEvent? {
         val p = state.potato ?: return null
-        if (state.paused || state.phase != Phase.QUESTION || p.exploded || remainingMs(now) > 0) return null
+        if (state.paused || state.phase != Phase.QUESTION || p.exploded || !timeOver(now)) return null
         return emit(PotatoExploded(nextSeq, now, state.qid!!, p.holder))
     }
 

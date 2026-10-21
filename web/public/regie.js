@@ -1619,7 +1619,7 @@ function renderLibrary() {
       return;
     }
     if (game.source.type === "patate") {
-      meta.textContent = "la bombe passe de tablette en tablette · mèche secrète · rien à préparer";
+      meta.textContent = "la bombe passe de tablette en tablette · 3 s au plus par équipe · mèche secrète · rien à préparer";
       b.append(title, meta);
       b.onclick = () => pick(game);
       box.appendChild(b);
@@ -2005,7 +2005,7 @@ function renderPreview() {
     const answer = document.createElement("b");
     // Chante le mot : le mot seul ; Qui suis-je : le personnage et son premier indice.
     if (q.kind === "chante") { answer.textContent = q.text; li.append(answer); list.appendChild(li); return; }
-    if (q.kind === "patate") { li.textContent = "La bombe passe de tablette en tablette ; à l'explosion, l'équipe qui la tient perd des points."; list.appendChild(li); return; }
+    if (q.kind === "patate") { li.textContent = "La bombe passe de tablette en tablette ; une équipe qui la garde plus de 3 secondes la voit exploser. À l'explosion, l'équipe qui la tient perd des points."; list.appendChild(li); return; }
     if (q.kind === "gonfleur") { li.textContent = "Chaque équipe tapote sa tablette pour gonfler son ballon : le premier qui éclate gagne."; list.appendChild(li); return; }
     if (q.kind === "coffres") { li.textContent = "Un coffre chacun son tour, bonus ou malus, puis la bombe qui arrête le jeu."; list.appendChild(li); return; }
     // Blind test et quiz musical : le titre (et l'artiste) de chaque extrait.

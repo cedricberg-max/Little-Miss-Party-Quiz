@@ -885,7 +885,7 @@ private fun LigneBilan(nom: String, couleur: Color, points: Int, i: Int, largeur
 /**
  * Le classement entre deux coffres (environ 3 s) : les équipes à leur place d'avant, le score de celle qui vient
  * d'ouvrir un coffre qui monte ou descend, puis les lignes qui glissent à leur nouvelle place et ce qui arrive à
- * chacune (« +1 place ! », « Nouveau n°1 ! », « Ça tient ! »). [lignes] : scores et rangs calculés par la partie,
+ * chacune (« +1 place ! », « Nouveau n°1 ! », « Garde sa place ! »). [lignes] : scores et rangs calculés par la partie,
  * [joue] : l'index (dans [lignes]) de l'équipe qui a ouvert le coffre.
  */
 @Composable

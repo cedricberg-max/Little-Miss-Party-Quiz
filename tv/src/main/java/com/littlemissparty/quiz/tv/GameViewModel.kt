@@ -164,6 +164,8 @@ sealed interface UiState {
         val pumpGoAt: Long? = null,
         /** « Ça va exploser ! » : la bombe (qui la tient, qui l'a envoyée, durée de la mèche), null avant l'allumage. */
         val potato: PotatoRound? = null,
+        /** « Ça va exploser ! » : heure du serveur où la bombe explose si l'équipe ne l'a pas envoyée (null en pause). */
+        val holdUntil: Long? = null,
     ) : UiState {
         /** Total des appuis sur le buzzer de l'accueil, pour le son. */
         val funTotal: Int get() = funBuzzes.values.sum()
@@ -633,7 +635,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val g = game ?: return
         // Portes mystères et coffres mystères : pas de chrono, rien ne se ferme seul.
         if (g.state.phase == Phase.QUESTION && !g.state.paused && g.question?.isPortes != true && g.question?.isCoffres != true &&
-            g.remainingMs(serverNow()) == 0L
+            g.timeOver(serverNow())
         ) {
             // Comme à la fin du chrono : question fermée, tour de mimes terminé, extrait du blind test arrêté.
             act { it.timeUp(serverNow()) ?: it.balloon(pumps, teams().map { t -> t.uid }, serverNow(), stop = true) }
@@ -807,18 +809,23 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         scheduleExpress()
         scheduleArm()
         val g = game ?: return
-        val deadline = g.deadline() ?: return
+        // Fin du chrono, ou (« Ça va exploser ! ») bombe gardée plus de 3 secondes.
+        val deadline = g.wakeAt() ?: return
         timer = viewModelScope.launch {
             // Réveil trop tôt (heure du serveur corrigée entre-temps) : on attend encore, sans jamais abandonner.
-            while (game === g && g.deadline() == deadline) {
+            while (game === g && g.wakeAt() == deadline) {
                 delay((deadline - serverNow() + CLOSE_GRACE_MS).coerceAtLeast(100))
                 val done = actions.withLock {
-                    if (g.state.phase == Phase.QUESTION && !g.state.paused && g.remainingMs(serverNow()) == 0L) {
+                    val now = serverNow()
+                    // Bombe gardée trop longtemps par une équipe dont la tablette vient de se couper : jamais sa faute, on
+                    // attend la pause automatique (après la reprise, l'équipe a de nouveau 3 secondes) ou son retour.
+                    val coupee = g.remainingMs(now) > 0 && g.state.potato?.holder?.let { it !in online } == true
+                    if (g.state.phase == Phase.QUESTION && !g.state.paused && g.timeOver(now) && !coupee) {
                         // Fin de la question, ou fin du tour de mimes.
                         // Gonfleur fou : au bout du chrono de secours, le plus gros ballon gagne.
                         commit(g.timeUp(serverNow()) ?: g.balloon(pumps, teams().map { it.uid }, serverNow(), stop = true))
                         true
-                    } else g.deadline() != deadline
+                    } else g.wakeAt() != deadline
                 }
                 if (done) return@launch
             }
@@ -901,6 +908,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 introUntil = g.multiplierIntroUntil(),
                 pumpGoAt = g.pumpGoAt,
                 potato = s.potato.takeIf { q?.isPatate == true && s.phase != Phase.LOBBY },
+                holdUntil = g.holdDeadline(),
                 openedAt = s.openedAt,
                 multipliedLeft = g.multipliedLeft(s.index),
                 gameGains = g.gameGains(),
@@ -1455,10 +1463,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 delay(DROP_GRACE_MS)
                 dropTimers.remove(uid)
                 act { g ->
-                    // Pendant les mimes, les pupitres ne servent pas : un pupitre qui décroche ne bloque rien.
-                    // Blind test : seulement pendant la musique (en attente de relance, rien ne court).
+                    // Pendant les mimes et les Statues musicales, les pupitres ne servent pas : un pupitre qui décroche ne
+                    // bloque rien. Blind test : seulement pendant la musique (en attente de relance, rien ne court).
                     val waited = g.state.phase == Phase.QUESTION && !g.state.paused && g.remainingMs(serverNow()) > 0 &&
-                        g.question?.isTurns != true && g.state.buzz?.waiting != true
+                        g.question?.isTurns != true && g.question?.isStatues != true && g.state.buzz?.waiting != true
                     if (waited && uid !in online && uid !in answers && teams().any { it.uid == uid }) {
                         g.pause(serverNow(), PAUSE_TEAM, uid)
                     } else null

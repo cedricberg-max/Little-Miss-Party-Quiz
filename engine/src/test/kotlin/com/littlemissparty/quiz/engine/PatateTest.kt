@@ -35,6 +35,20 @@ class PatateTest {
 
     private val go = t0 + 7_000 + POTATO_GO_MS
 
+    /**
+     * Les équipes se renvoient la bombe 500 ms après la mèche qui colle (jamais plus de 3 secondes chez elles) ; la
+     * dernière la reçoit au plus tard [jusqua] − [POTATO_STICKY_MS] : à [jusqua], elle peut l'envoyer et ne l'a pas
+     * gardée trop longtemps.
+     */
+    private fun Game.fairePasser(jusqua: Long) {
+        while (true) {
+            val p = state.potato!!
+            val t = p.readyAt + 500
+            if (t + POTATO_STICKY_MS > jusqua) return
+            assertNotNull(passPotato(p.holder, p.targets.first(), t))
+        }
+    }
+
     @Test
     fun `la mèche s'allume en secret, la bombe colle 2 secondes, puis passe sans retour à l'envoyeur`() {
         val g = partie()
@@ -79,16 +93,20 @@ class PatateTest {
         val fin = go + lit.fuseMs
         assertNotNull(g.deadline())
         assertEquals(fin, g.deadline())
+        g.fairePasser(fin)
+        val porteur = g.state.potato!!.holder
+        assertEquals(fin, g.wakeAt(), "la bombe a toujours été renvoyée à temps : c'est la mèche qui décide")
         assertNull(g.explode(fin - 1_000), "pas avant la fin")
         assertNull(g.next(fin - 1_000), "le bouton principal ne fait pas exploser la bombe")
         val boom = g.timeUp(fin) as PotatoExploded
-        assertEquals(lit.holder, boom.holder)
+        assertEquals(porteur, boom.holder)
+        assertTrue(!g.state.potato!!.booms.single().held, "au bout de la mèche")
         assertEquals(Phase.QUESTION, g.state.phase, "deux autres bombes à venir")
         val awards = g.state.awards["p1"]!!
-        trois.filter { it != lit.holder }.forEach { assertEquals(POTATO_POINTS, awards[it]!!.points) }
-        assertEquals(-minOf(POTATO_POINTS, avant[lit.holder] ?: 0), awards[lit.holder]!!.points, "jamais sous 0")
+        trois.filter { it != porteur }.forEach { assertEquals(POTATO_POINTS, awards[it]!!.points) }
+        assertEquals(-minOf(POTATO_POINTS, avant[porteur] ?: 0), awards[porteur]!!.points, "jamais sous 0")
         assertTrue(g.state.scores().values.all { it >= 0 })
-        assertNull(g.passPotato(lit.holder, (trois - lit.holder).first(), fin + 100), "plus rien ne passe")
+        assertNull(g.passPotato(porteur, g.state.potato!!.targets.first(), fin + 100), "plus rien ne passe")
         assertNull(g.explode(fin + 100), "elle n'explose qu'une fois")
         assertNull(g.deadline(), "plus de mèche entre deux bombes")
         assertNull(Codec.potatoKey(g), "les tablettes n'envoient plus rien")
@@ -114,6 +132,7 @@ class PatateTest {
                 assertNull(g.passPotato(lit.holder, (trois - lit.holder).first(), depart - 1_000), "pas pendant l'annonce")
                 val fin = depart + lit.fuseMs
                 assertEquals(fin, g.deadline())
+                g.fairePasser(fin)
                 val boom = g.timeUp(fin) as PotatoExploded
                 perdants += boom.holder
                 assertEquals(n, g.state.potato!!.booms.size)
@@ -176,9 +195,11 @@ class PatateTest {
         val g = partie()
         val lit = g.allumer()
         val fin = go + lit.fuseMs
-        val cible = (trois - lit.holder).first()
+        g.fairePasser(fin - 200)
+        val porteur = g.state.potato!!.holder
+        val cible = g.state.potato!!.targets.first()
         // Écrit 200 ms avant la fin, reçu 300 ms après : l'équipe s'en est débarrassée à temps.
-        assertNotNull(g.passPotato(lit.holder, cible, fin + 300, sentAt = fin - 200))
+        assertNotNull(g.passPotato(porteur, cible, fin + 300, sentAt = fin - 200))
         assertEquals(cible, g.state.potato!!.holder)
         val g2 = partie()
         val lit2 = g2.allumer()
@@ -188,6 +209,59 @@ class PatateTest {
         g2.resume(go + 60_000)
         assertNull(g2.passPotato(lit2.holder, (trois - lit2.holder).first(), go + 60_500), "décompte de reprise")
         assertEquals(lit2.fuseMs - 10_000, g2.remainingMs(g2.state.resumeAt!!))
+    }
+
+    @Test
+    fun `bombe gardée plus de 3 secondes, elle explose chez l'équipe avant la fin de la mèche, même pénalité`() {
+        val g = partie()
+        val avant = g.state.scores()
+        val lit = g.allumer()
+        val limite = go + POTATO_STICKY_MS + POTATO_HOLD_MS
+        assertEquals(limite, g.holdDeadline())
+        assertEquals(limite, g.wakeAt(), "la box se réveille pour la faire exploser")
+        assertEquals(go + lit.fuseMs, g.deadline(), "la mèche, elle, ne change pas")
+        @Suppress("UNCHECKED_CAST")
+        fun etat() = Codec.publicState(g)["potato"] as Map<String, Any?>
+        assertEquals(limite, etat()["holdUntil"], "la tablette compte 3, 2, 1 jusque-là")
+        assertNull(Codec.publicState(g)["deadline"], "la mèche reste secrète")
+        assertNull(g.explode(limite - 100), "encore 100 ms pour l'envoyer")
+        // Écrit avant la limite, reçu après : il compte. Écrit après : refusé.
+        val g2 = partie()
+        val lit2 = g2.allumer()
+        assertNotNull(g2.passPotato(lit2.holder, (trois - lit2.holder).first(), limite + 300, sentAt = limite - 100))
+        assertNull(g.passPotato(lit.holder, (trois - lit.holder).first(), limite + 300, sentAt = limite + 50))
+        val boom = g.timeUp(limite) as PotatoExploded
+        assertEquals(lit.holder, boom.holder)
+        assertTrue(g.state.potato!!.booms.single().held, "gardée trop longtemps")
+        val awards = g.state.awards["p1"]!!
+        trois.filter { it != lit.holder }.forEach { assertEquals(POTATO_POINTS, awards[it]!!.points) }
+        assertEquals(-minOf(POTATO_POINTS, avant[lit.holder] ?: 0), awards[lit.holder]!!.points)
+        @Suppress("UNCHECKED_CAST")
+        assertEquals(true, (etat()["booms"] as List<Map<String, Any?>>).single()["held"])
+        assertNull(etat()["holdUntil"])
+        assertTrue(g.needsPotato(), "la bombe suivante s'allume, avec une nouvelle mèche")
+        val relu = Game(g.quiz, g.events.map { Codec.decode(Codec.encode(it))!! })
+        assertEquals(g.state, relu.state, "relue à l'identique")
+    }
+
+    @Test
+    fun `chaque réception redonne 3 secondes, une pause aussi (tablette coupée, jamais la faute de l'équipe)`() {
+        val g = partie()
+        val lit = g.allumer()
+        val cible = (trois - lit.holder).first()
+        assertNotNull(g.passPotato(lit.holder, cible, go + 4_000))
+        assertEquals(go + 4_000 + POTATO_STICKY_MS + POTATO_HOLD_MS, g.holdDeadline())
+        // Pause 1 s avant la limite : rien n'explose ; à la reprise, 3 secondes après la fin du décompte.
+        g.pause(go + 8_000)
+        assertNull(g.holdDeadline())
+        assertNull(g.explode(go + 20_000))
+        g.resume(go + 30_000)
+        val reprise = g.state.resumeAt!!
+        assertEquals(reprise + POTATO_HOLD_MS, g.holdDeadline())
+        assertNull(g.explode(reprise + POTATO_HOLD_MS - 100))
+        val boom = g.timeUp(reprise + POTATO_HOLD_MS) as PotatoExploded
+        assertEquals(cible, boom.holder)
+        assertTrue(g.state.potato!!.booms.single().held)
     }
 
     @Test

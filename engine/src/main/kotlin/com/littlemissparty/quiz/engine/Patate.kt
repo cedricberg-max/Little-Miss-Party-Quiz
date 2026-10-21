@@ -6,13 +6,21 @@ import kotlin.random.Random
  * « Ça va exploser ! » : une bombe passe d'équipe en équipe, chaque équipe choisit sur sa tablette à qui l'envoyer.
  * La mèche brûle pendant une durée tirée au sort par la box, que personne ne connaît (la TV la montre qui raccourcit,
  * sans secondes). Pas de retour à l'envoyeur (sauf à 2 équipes) ; « mèche qui colle » : on ne peut renvoyer la bombe
- * que [POTATO_STICKY_MS] après l'avoir reçue, donc la vitesse du réseau ne désigne jamais le perdant. À l'explosion,
+ * que [POTATO_STICKY_MS] après l'avoir reçue, donc la vitesse du réseau ne désigne jamais le perdant. Contre la triche
+ * (garder la bombe et l'envoyer au dernier moment), l'équipe a ensuite [POTATO_HOLD_MS] pour l'envoyer, sinon elle lui
+ * explose dans les mains (cedric, 21 octobre, 20 h 58). À l'explosion,
  * l'équipe qui tient la bombe perd [POTATO_POINTS] (jamais sous 0), toutes les autres gagnent autant. [POTATO_BOMBS]
  * bombes par partie : après chaque explosion sauf la dernière, une nouvelle mèche s'allume (cedric, 21 octobre).
  */
 
 /** Mèche qui colle : délai avant de pouvoir renvoyer la bombe reçue. */
 const val POTATO_STICKY_MS = 2_000L
+
+/**
+ * Bombe gardée trop longtemps : une fois la mèche qui colle passée, l'équipe a ce temps (de jeu, pauses exclues) pour
+ * l'envoyer ; sinon elle explose chez elle, avec la même pénalité qu'au bout de la mèche. Sa tablette compte 3, 2, 1.
+ */
+const val POTATO_HOLD_MS = 3_000L
 
 /** Durée de la mèche, tirée au sort entre ces bornes (millisecondes de jeu, pauses exclues). */
 const val POTATO_FUSE_MIN_MS = 25_000L
@@ -34,8 +42,11 @@ const val POTATO_BOMBS = 3
 const val POTATO_BOOM_MS = 3_500L
 const val POTATO_NEXT_MS = 7_000L
 
-/** Une explosion : chez quelle équipe, à quelle heure, les points vraiment perdus (réduits au score) et ceux gagnés par les autres. */
-data class PotatoBoom(val holder: String, val at: Long, val lost: Int, val gain: Int = POTATO_POINTS)
+/**
+ * Une explosion : chez quelle équipe, à quelle heure, les points vraiment perdus (réduits au score) et ceux gagnés par les
+ * autres ; [held] = avant la fin de la mèche, parce que l'équipe a gardé la bombe plus de [POTATO_HOLD_MS].
+ */
+data class PotatoBoom(val holder: String, val at: Long, val lost: Int, val gain: Int = POTATO_POINTS, val held: Boolean = false)
 
 /**
  * Bombe en cours de « Ça va exploser ! » : [teams] = équipes qui jouent, [holder] = équipe qui tient la bombe, [from] =
