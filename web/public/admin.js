@@ -503,7 +503,23 @@ function showCard(id, s, { accueil = false } = {}) {
         isArchived(s) && !accueil ? h("button", { class: "btn small secondary", onclick: () => pin(id, !s.pinned), text: s.pinned ? "☆ Désépingler" : "⭐ Épingler" }) : null,
         isArchived(s)
           ? h("button", { class: "btn small secondary", onclick: () => archive(id, s, false), text: "Désarchiver" })
-          : h("button", { class: "btn small secondary", onclick: () => archive(id, s, true), text: "Archiver" }))));
+          : h("button", { class: "btn small secondary", onclick: () => archive(id, s, true), text: "Archiver" }),
+        // Un brouillon en trop se supprime depuis sa carte (cedric, 21/10) ; les fêtes à venir ou passées s'archivent.
+        etat === "acompleter" && !accueil ? h("button", { class: "btn small danger", onclick: () => supprimerPrestation(id, s), text: "Supprimer" }) : null)));
+}
+
+/** Supprime une prestation après confirmation ; renvoie vrai si elle est supprimée. */
+async function supprimerPrestation(id, s) {
+  if (!confirm(`Supprimer « ${showTitle(s)} » ? Elle sera effacée pour de bon. Les parties déjà jouées ne changent pas.`)) return false;
+  try {
+    await set(ref(db, `library/shows/${id}`), null);
+  } catch (err) {
+    console.error(err);
+    alert("Suppression refusée : vérifiez Internet ou reconnectez-vous.");
+    return false;
+  }
+  if (!$("screen-shows").hidden) status("shows-status", `« ${showTitle(s)} » est supprimée.`, true);
+  return true;
 }
 
 /**
@@ -1352,7 +1368,8 @@ $("show-form").onsubmit = async (e) => {
       ...s, origin: prev.origin ?? "admin", createdAt: prev.createdAt ?? Date.now(),
       // L'étoile d'une archivée et le « ne plus archiver toute seule » d'une désarchivée ne se perdent pas.
       ...(s.status === "archivee" && prev.pinned ? { pinned: true } : {}),
-      ...(s.status !== "archivee" && prev.keepActive ? { keepActive: true } : {}),
+      // Seulement tant que sa date est passée : reprogrammée, elle s'archive de nouveau le lendemain de la fête.
+      ...(s.status !== "archivee" && prev.keepActive && s.date && daysUntil(s.date) < -AUTO_ARCHIVE_DAYS ? { keepActive: true } : {}),
       // Une copie garde le nom de son modèle (« Copie de … ») tant qu'elle n'a ni prénom ni titre.
       ...(prev.copieDe ? { copieDe: prev.copieDe } : {}),
       updatedAt: serverTimestamp(),
@@ -1374,8 +1391,7 @@ $("show-form").onsubmit = async (e) => {
 };
 
 $("show-delete").onclick = async () => {
-  if (!editing?.id || !confirm("Supprimer cette prestation ? Les parties déjà jouées ne changent pas.")) return;
-  await set(ref(db, `library/shows/${editing.id}`), null);
+  if (!editing?.id || !shows[editing.id] || !await supprimerPrestation(editing.id, shows[editing.id])) return;
   // Supprimée : ses modifications pas enregistrées partent avec elle, sans autre question.
   histPrestation.abandonner();
   openShows(showsEtat);

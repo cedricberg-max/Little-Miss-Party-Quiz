@@ -3183,6 +3183,60 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("un brouillon se supprime depuis sa carte ; une fête désarchivée revient « À compléter », reprogrammée elle s'archivera de nouveau", async () => {
+    const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
+    const rounds = [{ type: "quiz", quizId: "animaux" }];
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    await seedLibrary("shows", {
+      brouillon: { childName: "Tom", status: "brouillon", rounds, updatedAt: 1 },
+      prete: { childName: "Léa", age: 7, date: day(10), status: "publiee", rounds, updatedAt: 1 },
+      passee: { childName: "Malo", age: 9, date: day(-3), status: "publiee", rounds, updatedAt: 1 },
+    });
+    const page = await admin();
+    // À compléter : « Supprimer » sur la carte, avec une confirmation ; « Annuler » ne touche à rien.
+    await page.click('#screen-home [data-etat="acompleter"]');
+    const tom = page.locator('#show-list [data-show="brouillon"]');
+    let question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.dismiss(); }));
+    await tom.getByRole("button", { name: "Supprimer" }).click();
+    assert.match(await question, /Supprimer « L'anniversaire de Tom » \?/);
+    assert.equal((await library("shows/brouillon")).childName, "Tom");
+    question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.accept(); }));
+    await tom.getByRole("button", { name: "Supprimer" }).click();
+    await question;
+    await page.locator("#shows-status", { hasText: "« L'anniversaire de Tom » est supprimée." }).waitFor();
+    await tom.waitFor({ state: "detached" });
+    assert.equal(await library("shows/brouillon"), null);
+    // Pas de « Supprimer » sur les cartes « À venir » ni « Archivées » (on les archive, on ne les efface pas d'un clic).
+    await page.click('#shows-tabs [data-etat="avenir"]');
+    await page.locator('#show-list [data-show="prete"]').waitFor();
+    assert.equal(await page.locator('#show-list [data-show="prete"]').getByRole("button", { name: "Supprimer" }).count(), 0);
+    await page.click('#shows-tabs [data-etat="archivee"]');
+    const malo = page.locator('#show-list [data-show="passee"]');
+    await malo.waitFor();
+    assert.equal(await malo.getByRole("button", { name: "Supprimer" }).count(), 0);
+    // Désarchiver : elle revient dans « À compléter », sans repartir toute seule tant que sa date est passée.
+    await malo.getByRole("button", { name: "Désarchiver" }).click();
+    await malo.waitFor({ state: "detached" });
+    const desarchivee = await library("shows/passee");
+    assert.deepEqual([desarchivee.status, desarchivee.keepActive], ["brouillon", true]);
+    await page.click('#shows-tabs [data-etat="acompleter"]');
+    await page.locator('#show-list [data-show="passee"]').getByRole("button", { name: "Ouvrir" }).click();
+    // Reprogrammée et remise « À venir » : le lendemain de la nouvelle date, elle s'archivera de nouveau.
+    await page.fill("#show-date", day(5));
+    await page.selectOption("#show-status", "publiee");
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée « À venir »" }).waitFor();
+    const reprogrammee = await library("shows/passee");
+    assert.deepEqual([reprogrammee.status, reprogrammee.keepActive ?? null], ["publiee", null]);
+    // « Supprimer » en bas de la fiche, pour toutes : même confirmation, puis retour à la liste.
+    question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.accept(); }));
+    await page.click("#show-delete");
+    assert.match(await question, /Supprimer « L'anniversaire de Malo » \?/);
+    await page.locator("#screen-shows:not([hidden])").waitFor();
+    assert.equal(await library("shows/passee"), null);
+    await page.context().close();
+  });
+
   test("reprendre une manche d'une ancienne prestation et dupliquer un quiz, sans toucher aux originaux", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX, finale: FINALE });
     const LEA = { childName: "Léa", age: 7, date: "2026-03-01", status: "archivee", rounds: [{ type: "quiz", quizId: "animaux" }, { type: "finale", quizId: "finale" }], updatedAt: 1 };
