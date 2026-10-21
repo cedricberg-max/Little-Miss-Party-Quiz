@@ -1878,7 +1878,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await ajouterJeu(page, "chante");
     await page.locator("#show-rounds .round").nth(1).locator("select.grow").selectOption("4");
     await page.fill("#show-notes", "Gâteau à 16 h.\nLéa adore les licornes.");
-    await page.locator("#show-summary", { hasText: "5 questions" }).waitFor();
+    // 1 question du quiz + celle des bougies (Léa, 9 ans) + 4 mots.
+    await page.locator("#show-summary", { hasText: "6 questions" }).waitFor();
     await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
@@ -1892,7 +1893,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "L'anniversaire de Léa" }).click();
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const show = await read("show");
-    assert.deepEqual(show.quiz.questions.map((q) => q.round), ["Animaux", "Chante le mot !", "Chante le mot !", "Chante le mot !", "Chante le mot !"]);
+    assert.deepEqual(show.quiz.questions.map((q) => q.round), ["Animaux", "Animaux", "Chante le mot !", "Chante le mot !", "Chante le mot !", "Chante le mot !"]);
+    assert.equal(show.quiz.questions[1].text, "Le Juste Chiffre : combien de bougies sur le gâteau de Léa cette année ?");
     assert.ok(!show.quiz.questions.some((q) => q.text === "soleil"), "Un mot retiré ne sort plus");
     await regie.locator("#c-notes:not([hidden])", { hasText: "Léa adore les licornes." }).waitFor();
     await regie.context().close();
@@ -1967,7 +1969,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#show-rounds select.grow").nth(0).selectOption("animaux");
     await ajouterJeu(page, "mimes");
     await page.locator("#show-rounds .round").nth(1).locator("select.grow").selectOption(deckId);
-    await page.locator("#show-summary", { hasText: "2 questions · 1 manche de mimes jouables" }).waitFor();
+    await page.locator("#show-summary", { hasText: "3 questions · 1 manche de mimes jouables" }).waitFor();
     await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
@@ -1980,7 +1982,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await inRegie(regie);
     await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "L'anniversaire de Léa" }).click();
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
-    const mime = (await read("show")).quiz.questions[2];
+    const mime = (await read("show")).quiz.questions[3];
     assert.equal(mime.kind, "mime");
     assert.equal(mime.duration, 45);
     assert.equal(mime.round, "Animaux à mimer");
@@ -1995,9 +1997,9 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.click("#lib-end");
     await regie.locator("#r-toast", { hasText: "est ajouté à la fin du programme" }).waitFor();
     const plan = (await read("conducteur")).questions;
-    assert.equal(plan.length, 4);
-    assert.equal(plan[3].kind, "mime");
-    assert.equal(plan[3].round, "Animaux à mimer · 2");
+    assert.equal(plan.length, 5);
+    assert.equal(plan[4].kind, "mime");
+    assert.equal(plan[4].round, "Animaux à mimer · 2");
     await regie.context().close();
   });
 
@@ -2613,7 +2615,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await quiz.locator("select.grow").first().selectOption("animaux");
     await quiz.locator("button.quiz-add").click();
     await quiz.locator(".quiz-more select").selectOption("finale");
-    await page.locator("#show-summary", { hasText: "3 questions" }).waitFor();
+    await page.locator("#show-summary", { hasText: "4 questions" }).waitFor();
     // Mimes : 30 cartes du catalogue au hasard, une retirée, une à soi ajoutée.
     await ajouterJeu(page, "mimes");
     const mimes = page.locator("#show-rounds .round").nth(1);
@@ -2653,10 +2655,10 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "L'anniversaire de Léa" }).click();
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const questions = (await read("show")).quiz.questions;
-    assert.deepEqual(questions.slice(0, 3).map((q) => q.round), ["Animaux + Finale", "Animaux + Finale", "Animaux + Finale"]);
-    assert.equal(questions[3].kind, "mime");
-    assert.deepEqual(questions[3].cards.map((c) => c.word).sort(), saved[1].cards.map((c) => c.word).sort());
-    assert.deepEqual(questions.slice(4).map((q) => q.text), ["soleil", "maman"]);
+    assert.deepEqual(questions.slice(0, 4).map((q) => q.round), ["Animaux + Finale", "Animaux + Finale", "Animaux + Finale", "Animaux + Finale"]);
+    assert.equal(questions[4].kind, "mime");
+    assert.deepEqual(questions[4].cards.map((c) => c.word).sort(), saved[1].cards.map((c) => c.word).sort());
+    assert.deepEqual(questions.slice(5).map((q) => q.text), ["soleil", "maman"]);
     await regie.context().close();
   });
 
@@ -3532,7 +3534,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const show = await read("show");
     assert.deepEqual(show.rounds.map((r) => r.title), ["Quiz illustré", "Animaux"]);
-    assert.deepEqual(show.quiz.questions.map((q) => [q.round, q.choiceImages?.length ?? 0, !!q.finale]), [["Quiz illustré", 4, false], ["Quiz illustré", 4, true], ["Animaux", 0, false], ["Animaux", 0, false]]);
+    // La question des bougies va dans le premier Quiz classique, jamais dans le Quiz illustré.
+    assert.deepEqual(show.quiz.questions.map((q) => [q.round, q.choiceImages?.length ?? 0, !!q.finale, !!q.bougies]), [["Quiz illustré", 4, false, false], ["Quiz illustré", 4, true, false], ["Animaux", 0, false, false], ["Animaux", 0, false, false], ["Animaux", 0, false, true]]);
     await waitFor(async () => Object.keys((await read("choiceImages")) ?? {}).length === 4, "réponses en images copiées dans la partie");
     // En direct : le quiz illustré est proposé en Quiz illustré (avec sa manche), jamais en Quiz.
     await regie.click("#tab-plan");
@@ -3792,7 +3795,8 @@ describe("bibliothèque de quiz et prestations", () => {
     const DINO = { title: "Dinosaures", source: "tableur", updatedAt: 1, questions: [{ text: "Le T-Rex mangeait de la viande", choices: ["Vrai", "Faux"], correct: 0, status: "validee" }] };
     await seedLibrary("quizzes", { animaux: ANIMAUX, finale: FINALE, dino: DINO });
     await seedLibrary("shows", {
-      lea: { childName: "Léa", age: 7, date: "2099-12-02", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }, { type: "finale", quizId: "finale" }], updatedAt: 1 },
+      // Question des bougies décochée : elle n'est pas posée.
+      lea: { childName: "Léa", age: 7, date: "2099-12-02", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux", bougies: false }, { type: "finale", quizId: "finale" }], updatedAt: 1 },
       hugo: { childName: "Hugo", age: 9, date: "2025-06-01", status: "archivee", rounds: [{ type: "quiz", quizId: "dino" }], updatedAt: 1 },
     });
     box = startBox();
@@ -4167,10 +4171,12 @@ describe("bibliothèque de quiz et prestations", () => {
     await inRegie(regie);
     await regie.locator(".show-item", { hasText: "ANNIVERSAIRE TEST – Léa, 9 ans" }).click();
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    // Ses 10 questions, plus celle des bougies juste avant la dernière (qui compte double).
     const q = (await read("show")).quiz.questions;
-    assert.equal(q.length, 10);
+    assert.equal(q.length, 11);
     assert.equal(q[0].text, "Quelle est la capitale de la France ? (modifiée dans l'admin)");
-    assert.equal(q[9].double, true);
+    assert.deepEqual([q[9].kind, q[9].correct, q[9].text], ["number", 9, "Le Juste Chiffre : combien de bougies sur le gâteau de Léa cette année ?"]);
+    assert.equal(q[10].double, true);
     await regie.context().close();
   });
 
