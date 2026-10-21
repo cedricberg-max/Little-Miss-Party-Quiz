@@ -205,10 +205,18 @@ export const FULL_CHOICE_PHOTOS = [
   },
 ];
 
-/** Quiz en images, une fois les photos dessinées et rangées ([ids] : une liste d'identifiants par question). */
+/**
+ * Noms des quiz de test : « Quiz illustré » ne désigne plus que le jeu des réponses en images (cedric, 21 octobre).
+ * Les anciens noms sont remplacés par le bouton de la prestation de test.
+ */
+export const IMAGE_QUIZ_TITLE = "TEST – Quiz illustré des petits";
+export const FULL_QUIZ_TITLE = "TEST – Quiz classique de Léa";
+export const OLD_TEST_TITLES = { "TEST – Quiz en images des petits": IMAGE_QUIZ_TITLE, "TEST – Quiz illustré de Léa": FULL_QUIZ_TITLE };
+
+/** Quiz illustré, une fois les photos dessinées et rangées ([ids] : une liste d'identifiants par question). */
 export function imageQuiz(ids) {
   return {
-    title: "TEST – Quiz en images des petits", theme: "Réponses en images (test)", ageMin: 5, ageMax: 6, source: "saisie",
+    title: IMAGE_QUIZ_TITLE, theme: "Réponses en images (test)", ageMin: 5, ageMax: 6, source: "saisie", kind: "photo",
     questions: FULL_CHOICE_PHOTOS.map((p, i) => ({
       ...v(p.text, p.choices.map((c) => c.word), p.correct, { duration: 25 }),
       choiceImages: Object.fromEntries(ids[i].map((id, k) => [String(k), id])),
@@ -218,7 +226,7 @@ export function imageQuiz(ids) {
 
 export const FULL_QUIZZES = {
   [FULL_KEYS.quiz]: {
-    title: "TEST – Quiz illustré de Léa", theme: "Culture générale (test)", ageMin: 9, ageMax: 9, source: "saisie",
+    title: FULL_QUIZ_TITLE, theme: "Culture générale (test)", ageMin: 9, ageMax: 9, source: "saisie",
     questions: [
       v("Quel animal fait « miaou » ?", ["Le chien", "Le chat", "La vache", "Le canard"], 1, { image: "🐱", duration: 20 }),
       v("Quelle planète est surnommée la planète rouge ?", ["Vénus", "Jupiter", "Mars", "Saturne"], 2, { image: "🔴", duration: 20 }),
@@ -276,7 +284,7 @@ export const FULL_NEW_ROUNDS = [
   { type: "musical", playlistId: FULL_KEYS.playlist },
   { type: "statues", duration: 60 },
   { type: "pictionary", duration: 90 },
-  { type: "quiz", quizId: FULL_KEYS.images },
+  { type: "illustre", quizId: FULL_KEYS.images },
   { type: "gonfleur" },
   { type: "patate" },
   // Jeu final : toujours en dernier.
@@ -286,7 +294,7 @@ export const FULL_NEW_ROUNDS = [
 export const FULL_SHOW = {
   childName: "Léa", age: 9, date: "2026-10-25", status: "publiee", title: FULL_TITLE, profile: "MOYENS", durationMin: 25,
   themes: "Tous les jeux (test)",
-  notes: "Prestation de TEST : un peu de chaque jeu (quiz illustré, Juste Chiffre, Vrai ou Faux express, Mimes, Zoom mystère, Chante le mot !, Image floue, Qui suis-je ?, Qui a disparu ?, Blind test, Quiz musical, Statues musicales, Pictionary, quiz en images des petits, Gonfleur fou, Patate chaude, La bombe cachée pour finir ; les 3 dernières questions du quiz comptent double (Super Finale)). Elle peut être archivée sans risque.",
+  notes: "Prestation de TEST : un peu de chaque jeu (quiz classique, Juste Chiffre, Vrai ou Faux express, Mimes, Zoom mystère, Chante le mot !, Image floue, Qui suis-je ?, Qui a disparu ?, Blind test, Quiz musical, Statues musicales, Pictionary, Quiz illustré des petits, Gonfleur fou, Patate chaude, La bombe cachée pour finir ; les 3 dernières questions du quiz comptent double (Super Finale)). Elle peut être archivée sans risque.",
   rounds: [
     // Super Finale : les 3 dernières questions de ce quiz comptent double (un réglage du quiz, pas un jeu).
     { type: "quiz", quizId: FULL_KEYS.quiz, finale: 3 },

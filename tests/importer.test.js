@@ -1009,6 +1009,75 @@ describe("banque des tout-petits", () => {
   });
 });
 
+describe("Quiz illustré : un jeu à part, les quiz à réponses en images", async () => {
+  const M = await import("../web/public/manches.js");
+  const S = await import("../web/public/show.js");
+  const T = await import("../web/public/test-show.js");
+  const img = (n) => `${n}`.repeat(16);
+  const PETITS = { title: "Animaux des petits", kind: "photo", questions: [
+    { text: "Où est le chat ?", choices: ["Chat", "Chien", "Vache", "Lion"], correct: 0, status: "validee", choiceImages: [img(1), img(2), img(3), img(4)] },
+    { text: "Où est le lion ?", choices: ["Chat", "Chien", "Vache", "Lion"], correct: 3, status: "validee", choiceImages: [img(1), img(2), img(3), img(4)] },
+    { text: "Pas relue", choices: ["Chat", "Chien"], correct: 0, status: "brouillon", choiceImages: [img(1), img(2)] },
+  ] };
+  // Ancien quiz illustré, sans type enregistré : reconnu à ses réponses en images.
+  const ANCIEN = { title: "Ancien", questions: [{ text: "Où est le chien ?", choices: ["Chat", "Chien"], correct: 1, status: "validee", choiceImages: { 0: img(1), 1: img(2) } }] };
+  const CULTURE = { title: "Culture", questions: [{ text: "Capitale ?", choices: ["Paris", "Rome"], correct: 0, status: "validee", image: "🗼" }] };
+  const quizzes = { petits: PETITS, ancien: ANCIEN, culture: CULTURE };
+
+  test("le Quiz illustré ne joue que les quiz illustrés, le Quiz que les autres", () => {
+    assert.equal(S.ROUND_TYPES.illustre, "Quiz illustré");
+    assert.equal(S.illustreQuestions(PETITS).length, 2);
+    assert.equal(S.illustreQuestions(ANCIEN).length, 1);
+    assert.equal(S.illustreQuestions(CULTURE).length, 0);
+    assert.equal(S.quizQuestions(CULTURE).length, 1);
+    assert.equal(S.quizQuestions(PETITS).length, 0);
+    assert.deepEqual(M.collectionItems("illustre", { quizzes }).map((x) => x.key), ["ancien", "petits"]);
+    assert.deepEqual(M.collectionItems("quiz", { quizzes }).map((x) => x.key), ["culture"]);
+    assert.ok(M.MANCHE_TYPES.includes("illustre"));
+  });
+
+  test("sur la TV : le jeu s'appelle « Quiz illustré », réponses en images, même barème et Super Finale possible", () => {
+    const show = { childName: "Léa", age: 5, rounds: [{ type: "illustre", quizId: "petits", finale: 1 }, { type: "quiz", quizId: "culture" }] };
+    const { snapshot, problems } = S.buildSnapshot("s", show, quizzes);
+    assert.deepEqual(problems, []);
+    assert.deepEqual(snapshot.rounds, [{ title: "Quiz illustré", count: 2, finale: 1 }, { title: "Culture", count: 1 }]);
+    const [a, b, c] = snapshot.quiz.questions;
+    assert.deepEqual([a.round, a.kind, a.choiceImages.length, a.double], ["Quiz illustré", "classic", 4, false]);
+    assert.deepEqual([b.double, b.finale], [true, true]);
+    assert.equal(c.round, "Culture");
+    // Un quiz classique ne se joue pas en Quiz illustré : le problème est dit, rien n'est joué.
+    const faux = S.buildSnapshot("s", { rounds: [{ type: "illustre", quizId: "culture" }] }, quizzes);
+    assert.equal(faux.snapshot, null);
+    assert.match(faux.problems[0], /choisissez un quiz illustré/);
+  });
+
+  test("une ancienne manche « Quiz » faite de quiz illustrés devient un Quiz illustré, les autres ne changent pas", () => {
+    assert.deepEqual(S.jeuDeLaManche({ type: "quiz", quizId: "petits", finale: 2 }, quizzes), { type: "illustre", quizId: "petits", finale: 2 });
+    assert.deepEqual(S.jeuDeLaManche({ quizIds: ["petits", "ancien"] }, quizzes).type, "illustre");
+    assert.deepEqual(S.jeuDeLaManche({ type: "quiz", quizIds: ["petits", "culture"] }, quizzes).type, "quiz");
+    assert.deepEqual(S.jeuDeLaManche({ type: "quiz", quizId: "inconnu" }, quizzes).type, "quiz");
+    assert.deepEqual(S.jeuDeLaManche({ type: "express", quizId: "petits" }, quizzes).type, "express");
+    assert.equal(S.jeuDeLaManche(null, quizzes), null);
+    const { snapshot } = S.buildSnapshot("s", { rounds: [{ type: "quiz", quizId: "petits" }] }, quizzes);
+    assert.equal(snapshot.rounds[0].title, "Quiz illustré");
+    // Recherche par jeu : « illustré » la retrouve.
+    assert.equal(S.showMatches({ childName: "Léa", rounds: [{ type: "quiz", quizId: "petits" }] }, "illustré", { quizzes }), true);
+    // Page des manches : rangée avec le Quiz illustré.
+    const manches = { m1: { type: "quiz", title: "Petits", round: { type: "quiz", quizId: "petits" } }, m2: { type: "quiz", title: "Culture", round: { type: "quiz", quizId: "culture" } } };
+    assert.deepEqual(M.mancheGroups(manches, "illustre", quizzes).active.map(([id]) => id), ["m1"]);
+    assert.deepEqual(M.mancheGroups(manches, "quiz", quizzes).active.map(([id]) => id), ["m2"]);
+    assert.deepEqual(M.cleanRound({ type: "illustre", quizId: "petits", finale: 2, count: 5 }), { type: "illustre", quizId: "petits", count: 5, finale: 2 });
+  });
+
+  test("prestation de test « tous les jeux » : le quiz des petits est un Quiz illustré, plus de quiz classique nommé « illustré »", () => {
+    assert.ok(T.FULL_SHOW.rounds.some((r) => r.type === "illustre" && r.quizId === T.FULL_KEYS.images));
+    assert.equal(T.imageQuiz([[img(1), img(2), img(3), img(4)], [img(1), img(2), img(3), img(4)]]).title, "TEST – Quiz illustré des petits");
+    assert.equal(T.FULL_QUIZZES[T.FULL_KEYS.quiz].title, "TEST – Quiz classique de Léa");
+    assert.equal(S.quizKind(T.FULL_QUIZZES[T.FULL_KEYS.quiz]), "classique");
+    assert.deepEqual(T.OLD_TEST_TITLES, { "TEST – Quiz en images des petits": "TEST – Quiz illustré des petits", "TEST – Quiz illustré de Léa": "TEST – Quiz classique de Léa" });
+  });
+});
+
 describe("collections, manches et prestation", async () => {
   const M = await import("../web/public/manches.js");
   const S = await import("../web/public/show.js");

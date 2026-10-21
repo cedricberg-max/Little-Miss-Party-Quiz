@@ -37,7 +37,10 @@ export const PATATE_RULE = "chaque équipe envoie la bombe à une autre depuis s
 /** Type de manche joué : les anciennes Portes mystères deviennent La bombe cachée. */
 export const roundType = (type) => (type === "portes" ? "coffres" : type);
 
-export const ROUND_TYPES = { quiz: "Quiz", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes", pictionary: "Pictionary", coffres: "La bombe cachée", portes: "La bombe cachée", gonfleur: "Le Gonfleur fou", patate: "La Patate chaude" };
+/** Jeux dont les dernières questions peuvent compter double (Super Finale) : le Quiz et le Quiz illustré. */
+export const hasFinale = (type) => (type ?? "quiz") === "quiz" || type === "illustre";
+
+export const ROUND_TYPES = { quiz: "Quiz", illustre: "Quiz illustré", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes", pictionary: "Pictionary", coffres: "La bombe cachée", portes: "La bombe cachée", gonfleur: "Le Gonfleur fou", patate: "La Patate chaude" };
 /** Statues musicales : durées proposées (secondes) et durée par défaut. Sans chanson choisie : musique maison de la TV. */
 export const STATUES_SECONDS = [60, 90, 120];
 export const STATUES_SEC = 90;
@@ -128,11 +131,21 @@ const isYesNo = (q) => q.kind !== "number" && q.choices?.length === 2 && q.choic
 /** Affirmations jouables au Vrai ou Faux express : les questions Vrai / Faux validées du quiz. */
 export const expressQuestions = (quiz) => playable(quiz).filter(isYesNo);
 
+/**
+ * Questions jouables au Quiz illustré (les petits, dès 5 ans) : celles d'un quiz illustré, chaque réponse est une
+ * photo avec son mot. Un quiz classique n'en a pas : il se joue au Quiz.
+ */
+export const illustreQuestions = (quiz) => (quizKind(quiz) === "photo" ? playable(quiz) : []);
+
+/** Questions jouables au Quiz (réponses écrites) : celles d'un quiz qui n'est pas un quiz illustré. */
+export const quizQuestions = (quiz) => (quizKind(quiz) === "photo" ? [] : playable(quiz));
+
 /** Questions jouables au Zoom mystère : les questions à propositions validées qui ont une photo. */
 export const zoomQuestions = (quiz) => playable(quiz).filter((q) => q.kind !== "number" && /^[0-9a-f]{16}$/.test(q.imageId ?? ""));
 
 /** Mini-jeux construits à partir d'un quiz : les questions retenues et ce qui manque quand il n'y en a pas. */
 export const QUIZ_GAMES = {
+  illustre: { questions: illustreQuestions, unit: "question", missing: "aucune question validée à réponses en images (choisissez un quiz illustré)" },
   express: { questions: expressQuestions, unit: "affirmation", missing: "aucune question Vrai / Faux validée pour le Vrai ou Faux express" },
   zoom: { questions: zoomQuestions, unit: "photo", missing: "aucune question avec photo pour le Zoom mystère (ajoutez des photos dans le quiz)" },
   flou: { questions: zoomQuestions, unit: "photo", missing: "aucune question avec photo pour l'Image floue (ajoutez des photos dans le quiz)" },
@@ -148,6 +161,17 @@ export function quizKind(quiz) {
   if (quiz?.source === "photos") return "images";
   const photoAnswers = (quiz?.questions ?? []).some((q) => q?.choiceImages && Object.values(q.choiceImages).some(Boolean));
   return quiz?.source === "banque" || photoAnswers ? "photo" : "classique";
+}
+
+/**
+ * Une manche « Quiz » faite seulement de quiz illustrés (préparée avant que le Quiz illustré ait sa tuile, le
+ * 21 octobre) est un Quiz illustré : même écran d'ouverture sur la TV, même page dans la Régie PC. Les autres
+ * manches sont rendues telles quelles.
+ */
+export function jeuDeLaManche(round, quizzes = {}) {
+  const ids = roundQuizIds(round);
+  if (!round || (round.type ?? "quiz") !== "quiz" || !ids.length) return round;
+  return ids.every((id) => quizzes?.[id] && quizKind(quizzes[id]) === "photo") ? { ...round, type: "illustre" } : round;
 }
 
 /**
@@ -414,7 +438,7 @@ export function zoomRoundQuestions(round, quizzes) {
 
 /**
  * « Jamais deux fois » : ce que montrent les contenus choisis à la main dans une manche (cartes de mimes, mots,
- * personnages, photos du Zoom, de l'Image floue et des quiz photo). Les tirages au hasard des autres manches l'évitent.
+ * personnages, photos du Zoom, de l'Image floue et des quiz illustrés). Les tirages au hasard des autres manches l'évitent.
  */
 export function fixedConcepts(round, quizzes = {}, mimes = {}, contents = {}) {
   const type = round?.type;
@@ -426,8 +450,8 @@ export function fixedConcepts(round, quizzes = {}, mimes = {}, contents = {}) {
     return pickedItems(type, contents?.[type], roundPicks(round)).flatMap((x) => builtinConcepts(type, x));
   }
   if (type === "zoom" || type === "flou") return zoomRoundQuestions(round, quizzes).flatMap((q) => questionConcepts({ ...q, kind: type }));
-  // Quiz choisi : les photos de ses réponses (quiz photo) et ses illustrations.
-  if (type === "quiz" || type === "express") return roundQuizIds(round).flatMap((id) => Object.values(quizzes?.[id]?.questions ?? {})).flatMap(questionConcepts);
+  // Quiz choisi : les photos de ses réponses (quiz illustré) et ses illustrations.
+  if (type === "quiz" || type === "illustre" || type === "express") return roundQuizIds(round).flatMap((id) => Object.values(quizzes?.[id]?.questions ?? {})).flatMap(questionConcepts);
   return [];
 }
 
@@ -544,7 +568,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     questions?.forEach((q) => questionConcepts(q).forEach((k) => pris.add(k)));
     rounds = []; questions = []; blocks.push({ type, rounds, questions });
   };
-  (show.rounds ?? []).filter(Boolean).forEach((round, i) => {
+  (show.rounds ?? []).filter(Boolean).map((r) => jeuDeLaManche(r, quizzes)).forEach((round, i) => {
     begin(round.type);
     if (round.type === "mimes") {
       const deck = round.deckId ? mimes[round.deckId] : null;
@@ -677,8 +701,8 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       problems.push(`Manche ${i + 1} (${quiz.title}) : ${game?.missing ?? "aucune question validée"}.`);
       return;
     }
-    // Super Finale : réglage d'une manche Quiz, ses N dernières questions comptent double (ce n'est pas un jeu à part).
-    const finale = (round.type ?? "quiz") === "quiz" ? Math.max(0, Math.min(list.length, Math.floor(Number(round.finale) || 0))) : 0;
+    // Super Finale : réglage d'une manche Quiz (ou Quiz illustré), ses N dernières questions comptent double (ce n'est pas un jeu à part).
+    const finale = hasFinale(round.type) ? Math.max(0, Math.min(list.length, Math.floor(Number(round.finale) || 0))) : 0;
     rounds.push({ title: label, count: list.length, ...(finale ? { finale } : {}) });
     list.forEach((q, j) => {
       const last = j >= list.length - finale;
@@ -842,8 +866,8 @@ export function showMatches(show, query, library = {}) {
   parts.push({ publiee: "a venir prete", brouillon: "a completer brouillon", archivee: "archivee archive" }[show.status] ?? "");
   if (show.status !== "archivee" && isArchived(show)) parts.push("archivee archive");
   if (show.pinned) parts.push("epinglee");
-  for (const r of (show.rounds ?? []).filter(Boolean)) {
-    parts.push(ROUND_TYPES[r.type] ?? "");
+  for (const r of (show.rounds ?? []).filter(Boolean).map((x) => jeuDeLaManche(x, library.quizzes))) {
+    parts.push(ROUND_TYPES[r.type ?? "quiz"] ?? "");
     roundQuizIds(r).forEach((id) => parts.push(library.quizzes?.[id]?.title));
     if (r.deckId) parts.push(library.mimes?.[r.deckId]?.title);
     if (r.playlistId) parts.push(library.playlists?.[r.playlistId]?.title);
