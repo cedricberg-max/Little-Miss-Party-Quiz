@@ -11,7 +11,7 @@ import { initializeTestEnvironment } from "@firebase/rules-unit-testing";
 import { ref, get, set, update, push, onValue, serverTimestamp } from "firebase/database";
 import { chromium } from "playwright";
 import { loadRules, seedAdmin, allowBox, ADMIN_PASSWORD } from "./rules-loader.js";
-import { lockedUntil } from "../web/public/show.js";
+import { lockedUntil, isoDay, heureCourte, jourHeure } from "../web/public/show.js";
 import { FULL_SHOW, FULL_KEYS, FULL_QUIZZES } from "../web/public/test-show.js";
 
 const ROOT = new URL("..", import.meta.url).pathname;
@@ -183,7 +183,7 @@ function startBox({ silent = false, held = false, host = HOST, from = null, seen
           state = { ...state, seq, paused: false, pauseReason: null, pauseTeam: null, resumeAt, deadline: resumeAt + (state.remainingMs ?? 0), remainingMs: null };
         }
         else if (cmd.type === "next" && state.paused) status = { status: "refused", reason: "paused" };
-        else if (cmd.type === "adjust") state = { ...state, seq, scores: { ...state.scores, [cmd.team]: (state.scores[cmd.team] ?? 0) + cmd.delta } };
+        else if (cmd.type === "adjust") state = { ...state, seq, scored: true, scores: { ...state.scores, [cmd.team]: (state.scores[cmd.team] ?? 0) + cmd.delta } };
         else if (cmd.type === "undo") state = { ...state, seq };
         else if (cmd.type === "factor") {
           // Dernières questions du quiz : même règle que Command.Factor (entre deux questions seulement).
@@ -299,10 +299,18 @@ function startBox({ silent = false, held = false, host = HOST, from = null, seen
     judgedShow = show.id;
     const plan = (await read("conducteur")) ?? { questions: [] };
     if (show.base == null) {
+      // Mauvaise prestation : partie commencée, remplacée seulement si aucun point n'a été donné (retour au salon).
+      const started = state.phase !== "lobby";
+      if (started && (state.scored || state.phase === "ended")) {
+        await update(ref(db, `games/${CODE}`), { showStatus: { id: show.id, status: "refused", reason: state.scored ? "points" : "not_now", at: Date.now() } });
+        return;
+      }
+      if (started) state = { phase: "lobby", seq: state.seq + 1, total: show.quiz.questions.length, scores: {}, round: 1, buzzOpen: true };
       await update(ref(db, `games/${CODE}`), {
         showStatus: { id: show.id, status: "applied", at: Date.now() },
-        conducteur: { id: show.quiz.id, title: show.title, rev: show.id, mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, blindPlay: true, statues: true, disparu: true, pictionary: true, portes: true, coffres: true, gonfleur: true, patate: true, questions: show.quiz.questions },
-        public: { title: show.title, childName: show.childName },
+        conducteur: { id: show.quiz.id, title: show.title, rev: show.id, mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, blind: true, blindPlay: true, statues: true, disparu: true, pictionary: true, portes: true, coffres: true, gonfleur: true, patate: true, programReset: true, questions: show.quiz.questions },
+        public: { title: show.title, ...(show.childName ? { childName: show.childName } : {}), ...(show.prestation ? { prestation: show.prestation } : {}) },
+        ...(started ? { state } : {}),
       });
       return;
     }
@@ -1662,6 +1670,336 @@ describe("changer de box (box en panne)", () => {
   });
 });
 
+describe("lancement des prestations : un anniversaire sur une seule box (cedric, 21/10)", () => {
+  const seedLib = (path, value) => env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `library/${path}`), value));
+  const raw = async (path) => {
+    let value;
+    await env.withSecurityRulesDisabled(async (ctx) => { value = (await get(ref(ctx.database(), path))).val(); });
+    return value;
+  };
+  const writeRaw = (path, value) => env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), path), value));
+  const QUIZ = {
+    title: "Animaux", source: "gemini", updatedAt: 1,
+    questions: [
+      { text: "Roi de la jungle ?", choices: ["Lion", "Tigre"], correct: 0, status: "validee" },
+      { text: "Combien de pattes a une araignée ?", choices: ["6", "8"], correct: 1, status: "validee" },
+    ],
+  };
+  const prestation = (childName, date, extra = {}) =>
+    ({ childName, age: 7, date, status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1, ...extra });
+  async function seedShows(shows) {
+    await seedLib("quizzes/animaux", QUIZ);
+    await seedLib("shows", shows);
+  }
+  const item = (page, text) => page.locator("#panel-show:not([hidden]) .show-item", { hasText: text });
+  /** Autre partie, sur une autre box : son état, la prestation qu'elle joue, sa box et la présence de celle-ci. */
+  const autrePartie = (code, { phase = "question", prestation: p, host = `box-${code}`, online, at = Date.now(), endedAt } = {}) =>
+    writeRaw(`games/${code}`, {
+      hostUid: host,
+      state: { phase, round: 1, ...(endedAt ? { endedAt } : {}) },
+      public: { title: "Quiz", changeBox: true, ...(p ? { prestation: p } : {}) },
+      ...(online == null ? {} : { hostOnline: { online, at, uid: host } }),
+    });
+  /** Petite box qui accepte toute prestation chargée sur sa partie [code] (comme GameViewModel.judgeShow au salon). */
+  function boxAuSalon(code, host) {
+    const d = env.authenticatedContext(host).database();
+    return onValue(ref(d, `games/${code}/show`), async (s) => {
+      const show = s.val();
+      if (!show) return;
+      await update(ref(d, `games/${code}`), {
+        showStatus: { id: show.id, status: "applied", at: Date.now() },
+        conducteur: { id: show.quiz.id, title: show.title, rev: show.id, questions: show.quiz.questions },
+        public: { title: show.title, prestation: show.prestation },
+      });
+    });
+  }
+
+  test("lancer : la fenêtre du téléphone dit prénom, âge et date ; « Annuler » n'envoie rien ; au salon, une autre prestation remplace la première", async () => {
+    box = startBox();
+    await seedShows({ lea: prestation("Léa", isoDay()), chloe: prestation("Chloé", "2099-10-24") });
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await item(regie, "Chloé").locator(".show-run", { hasText: "Préparée" }).waitFor();
+
+    // Chloé : sa fête n'est pas aujourd'hui, la fenêtre le signale sans crier ; « Annuler » a le focus.
+    await item(regie, "Chloé").click();
+    await regie.locator("#ask:not([hidden])").waitFor();
+    assert.equal(await regie.textContent("#ask-title"), "Lancer l'anniversaire de Chloé ?");
+    const date = new Date("2099-10-24T12:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+    assert.equal(await regie.textContent("#ask-line"), `7 ans – ${date}`);
+    assert.equal(await regie.textContent("#ask-warn"), "⚠ Ce n'est pas la date d'aujourd'hui.");
+    assert.equal(await regie.textContent("#ask-ok"), "Lancer");
+    assert.equal(await regie.evaluate(() => document.activeElement?.id), "ask-cancel");
+    await capture(regie, "lancement-fenetre", { pleinePage: false });
+    await regie.click("#ask-cancel");
+    await regie.locator("#ask").waitFor({ state: "hidden" });
+    assert.equal(await read("show"), null, "Annuler : rien n'est envoyé à la TV");
+    assert.equal(await raw("launches"), null);
+
+    // Léa : c'est aujourd'hui, pas d'avertissement. « Lancer » : programme et lancement en une seule écriture.
+    await item(regie, "Léa").click();
+    await regie.locator("#ask:not([hidden])").waitFor();
+    assert.equal(await regie.textContent("#ask-title"), "Lancer l'anniversaire de Léa ?");
+    assert.equal(await regie.locator("#ask-warn").isHidden(), true);
+    await regie.click("#ask-ok");
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    assert.equal((await read("show")).prestation, "lea");
+    assert.equal((await raw("launches/lea")).code, CODE);
+    await item(regie, "Léa").locator(".show-run", { hasText: "✓ Sur cette TV" }).waitFor();
+
+    // Au salon d'attente, Chloé remplace Léa : la prestation de Léa est libérée dans la même écriture.
+    await addTeam("rose", "Les Roses");
+    await item(regie, "Chloé").click();
+    assert.equal(await respond(regie), "Remplacer l'anniversaire de Léa par celui de Chloé ? Les équipes restent.");
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    assert.equal((await read("show")).prestation, "chloe");
+    assert.equal(await raw("launches/lea"), null);
+    assert.equal((await raw("launches/chloe")).code, CODE);
+    assert.ok(await read("teams/rose"), "les équipes restent");
+    await item(regie, "Léa").locator(".show-run", { hasText: "Préparée" }).waitFor();
+    await regie.context().close();
+  });
+
+  test("mauvaise prestation : première question ouverte sans point, la bonne la remplace et la fête repart du salon ; après un point, plus rien", async () => {
+    box = startBox();
+    await seedShows({ lea: prestation("Léa", isoDay()), chloe: prestation("Chloé", isoDay()) });
+    await addTeam("rose", "Les Roses");
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await item(regie, "Léa").click();
+    await respond(regie);
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    await regie.locator("#c-next", { hasText: "Lancer la fête !" }).click();
+    await regie.locator("#c-phase", { hasText: "Question en cours" }).waitFor();
+
+    // Aucun point : « Mauvaise prestation ? », discret, dans les jeux de la prestation.
+    await regie.click("#c-rescue");
+    await regie.locator("#rescue-wrong:not([hidden])").click();
+    await regie.locator("#panel-show:not([hidden]) .hint", { hasText: "Mauvaise prestation ?" }).waitFor();
+    await item(regie, "Chloé").click();
+    assert.equal(await respond(regie), "Remplacer l'anniversaire de Léa par celui de Chloé ? Les équipes restent, on repart au début.");
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    assert.equal(await read("state/phase"), "lobby", "la fête repart du salon d'attente");
+    assert.equal((await read("public")).childName, "Chloé");
+    assert.equal((await raw("launches/chloe")).code, CODE);
+    assert.equal(await raw("launches/lea"), null);
+    assert.ok(await read("teams/rose"), "les équipes restent");
+
+    // Un point donné : « Mauvaise prestation ? » disparaît.
+    await regie.locator("#c-next", { hasText: "Lancer la fête !" }).click();
+    await regie.locator("#c-phase", { hasText: "Question en cours" }).waitFor();
+    await regie.click("#tab-teams");
+    await givePoints(regie, "rose", 10);
+    await waitFor(async () => (await read("state/scored")) === true, "point compté par la box");
+    await regie.click("#c-rescue");
+    await regie.locator("#rescue:not([hidden])").waitFor();
+    assert.equal(await regie.locator("#rescue-wrong").isHidden(), true);
+    await regie.click("#rescue-close");
+
+    // Point donné au même instant (l'écran ne le savait pas encore) : la box refuse, le téléphone le dit simplement.
+    await writeRaw(`games/${CODE}/state/scored`, null);
+    await regie.click("#c-rescue");
+    await regie.locator("#rescue-wrong:not([hidden])").click();
+    await item(regie, "Léa").click();
+    await respond(regie);
+    await regie.locator("#r-toast", { hasText: "Des points ont déjà été donnés : la prestation ne peut plus changer. Pour repartir de zéro, choisissez « Nouvelle partie » sur la TV." }).waitFor();
+    await waitFor(async () => (await raw("launches/lea")) === null && (await raw("launches/chloe"))?.code === CODE, "la prestation de Chloé reprend sa place");
+    assert.equal((await read("public")).prestation, "chloe");
+    await regie.context().close();
+  });
+
+  test("la liste dit où en est chaque prestation ; une archivée encore en cours y reste ; une fête terminée se relance", async () => {
+    box = startBox();
+    const debut = Date.now() - 3_600_000;
+    const coupure = Date.now() - 600_000;
+    const fin = Date.now() - 86_400_000;
+    await seedShows({
+      ici: prestation("Inès", isoDay()),
+      salon: prestation("Sacha", isoDay()),
+      cours: prestation("Chloé", isoDay()),
+      // Fête d'hier, rangée dans les archives, mais la partie n'est pas finie : elle reste dans la liste.
+      pause: prestation("Malo", "2020-01-05", { status: "archivee" }),
+      finie: prestation("Tom", isoDay()),
+      vieille: prestation("Zoé", "2020-01-05", { status: "archivee" }),
+      abandon: prestation("Lou", isoDay()),
+    });
+    await autrePartie("SALO2", { phase: "lobby", prestation: "salon", online: true });
+    await autrePartie("COUR2", { prestation: "cours", online: true });
+    await autrePartie("PAUS2", { prestation: "pause", online: false, at: coupure });
+    await autrePartie("FINI2", { phase: "ended", prestation: "finie", endedAt: fin });
+    await autrePartie("ABAN2", { phase: "lobby", prestation: "autre" });
+    await writeRaw("launches", {
+      ici: { code: CODE, by: "x", at: debut },
+      salon: { code: "SALO2", by: "x", at: debut },
+      cours: { code: "COUR2", by: "x", at: debut },
+      pause: { code: "PAUS2", by: "x", at: debut },
+      finie: { code: "FINI2", by: "x", at: debut },
+      // Box qui n'a jamais chargé la prestation : son lancement ne tient plus.
+      abandon: { code: "ABAN2", by: "x", at: debut },
+    });
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    const etat = async (text) => {
+      const el = item(regie, text);
+      await el.waitFor();
+      return [await el.getAttribute("data-run"), await el.locator(".show-run").textContent()];
+    };
+    assert.deepEqual(await etat("Inès"), ["ici", "✓ Sur cette TV"]);
+    assert.deepEqual(await etat("Sacha"), ["salon", "📺 Chargée sur une autre box (salon d'attente)"]);
+    assert.deepEqual(await etat("Chloé"), ["encours", `🟢 En cours sur une autre box depuis ${heureCourte(debut)}`]);
+    assert.deepEqual(await etat("Malo"), ["interrompue", `⏸ Interrompue : l'autre box ne répond plus depuis ${heureCourte(coupure)}`]);
+    assert.deepEqual(await etat("Tom"), ["terminee", `✓ Terminée le ${jourHeure(fin)}`]);
+    assert.deepEqual(await etat("Lou"), ["preparee", "Préparée"]);
+    assert.equal(await item(regie, "Zoé").count(), 0, "archivée et jamais lancée : pas sur la régie");
+    await capture(regie, "liste-etats");
+
+    // En cours ailleurs : jamais une seconde fête ; ce salon a déjà sa prestation, la fenêtre dit quoi faire.
+    await item(regie, "Chloé").click();
+    await regie.locator("#ask:not([hidden])").waitFor();
+    assert.equal(await regie.textContent("#ask-title"), "L'anniversaire de Chloé est déjà en cours sur une autre box.");
+    assert.equal(await regie.locator("#ask-ok").isHidden(), true);
+    assert.match(await regie.textContent("#ask-text"), /« Nouvelle partie »/);
+    await regie.click("#ask-cancel");
+    assert.equal((await raw("launches/cours")).code, "COUR2");
+
+    // Fête terminée : elle se relance depuis le début sur cette TV.
+    await item(regie, "Tom").click();
+    await regie.locator("#ask:not([hidden])").waitFor();
+    assert.equal(await regie.textContent("#ask-title"), `Cette fête est terminée le ${jourHeure(fin)}.`);
+    assert.equal(await regie.textContent("#ask-text"), "La relancer depuis le début sur cette TV ?");
+    await regie.click("#ask-ok");
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    assert.equal((await raw("launches/finie")).code, CODE);
+    assert.equal(await raw("launches/ici"), null, "la prestation remplacée est libérée");
+    // Lancement abandonné : la prestation se lance ici comme une autre.
+    await item(regie, "Lou").click();
+    await respond(regie);
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    assert.equal((await raw("launches/abandon")).code, CODE);
+    await regie.context().close();
+  });
+
+  test("deux régies lancent le même anniversaire au même instant : une seule TV le reçoit, l'autre téléphone le dit", async () => {
+    box = startBox();
+    const AUTRE = "DEUX2";
+    await allowBox(env, "box2");
+    await writeRaw(`games/${AUTRE}`, { hostUid: "box2", state: { phase: "lobby", seq: 0, round: 1 }, public: { title: "Quiz", changeBox: true } });
+    const stopAutre = boxAuSalon(AUTRE, "box2");
+    await seedShows({ lea: prestation("Léa", isoDay()) });
+    const [a, b] = [await openRegie(), await openRegie(null, `?g=${AUTRE}&emu=1`)];
+    for (const page of [a, b]) {
+      await pair(page);
+      await inRegie(page);
+      await item(page, "Léa").click();
+      await page.locator("#ask:not([hidden])").waitFor();
+    }
+    await Promise.all([a.click("#ask-ok"), b.click("#ask-ok")]);
+    const verdict = async (page) => {
+      const toast = page.locator("#r-toast:not([hidden])");
+      await toast.waitFor();
+      return toast.textContent();
+    };
+    const textes = await Promise.all([verdict(a), verdict(b)]);
+    const gagnant = (await raw("launches/lea")).code;
+    const [g, p] = gagnant === CODE ? [0, 1] : [1, 0];
+    assert.match(textes[g], /est chargée sur la TV/);
+    assert.equal(textes[p], "Cet anniversaire vient d'être lancé sur une autre box.");
+    assert.equal(await raw(`games/${gagnant === CODE ? AUTRE : CODE}/show`), null, "la TV perdante ne reçoit rien");
+    // Le téléphone perdant voit aussitôt la fête chargée sur l'autre box.
+    await item([a, b][p], "Léa").locator(".show-run", { hasText: "Chargée sur une autre box" }).waitFor();
+    stopAutre();
+    await a.context().close();
+    await b.context().close();
+  });
+
+  test("« Continuer la fête sur cette TV » : la fête d'une box en panne reprend sur le salon de ce téléphone ; l'ancienne box ne pilote plus rien", async () => {
+    const NEW = "NEUVB";
+    const SECOURS = "secours";
+    await allowBox(env, SECOURS);
+    await seedShows({ lea: prestation("Léa", isoDay()) });
+    // La fête de Léa tourne sur la box CODE : deux équipes, des points, sa box encore en ligne.
+    await addTeam("rose", "Les Roses");
+    await writeRaw(`games/${CODE}/state`, { ...questionState(4), scores: { rose: 150 } });
+    await writeRaw(`games/${CODE}/public`, { title: "L'anniversaire de Léa", childName: "Léa", changeBox: true, prestation: "lea" });
+    await writeRaw(`games/${CODE}/hostOnline`, { online: true, at: Date.now(), uid: HOST });
+    await writeRaw("launches/lea", { code: CODE, by: "x", at: Date.now() - 3_600_000 });
+    // Ce téléphone est sur le salon d'attente tout neuf d'une box de secours.
+    await writeRaw(`games/${NEW}`, { hostUid: SECOURS, state: { phase: "lobby", seq: 0, round: 1 }, public: { title: "Quiz", changeBox: true } });
+    const regie = await openRegie(null, `?g=${NEW}&emu=1`);
+    await pair(regie);
+    await inRegie(regie);
+    await item(regie, "Léa").locator(".show-run", { hasText: "🟢 En cours sur une autre box" }).waitFor();
+
+    // Box encore allumée : avertissement en rouge.
+    await item(regie, "Léa").click();
+    await regie.locator("#ask:not([hidden])").waitFor();
+    assert.equal(await regie.textContent("#ask-title"), "L'anniversaire de Léa est déjà en cours sur une autre box.");
+    assert.equal(await regie.textContent("#ask-danger"), "L'autre box est encore allumée et connectée : à faire seulement si elle est en panne.");
+    assert.equal(await regie.textContent("#ask-ok"), "📺 Continuer la fête sur cette TV");
+    await capture(regie, "continuer-ici-alerte", { pleinePage: false });
+    await regie.click("#ask-cancel");
+    assert.equal(await read("hostUid"), HOST);
+
+    // La box tombe en panne : plus d'avertissement ; un mauvais mot de passe laisse la fenêtre ouverte.
+    await writeRaw(`games/${CODE}/hostOnline`, { online: false, at: Date.now(), uid: HOST });
+    await regie.click("#panel-show button.link:has-text('Actualiser la liste')");
+    await item(regie, "Léa").locator(".show-run", { hasText: "⏸ Interrompue" }).waitFor();
+    await item(regie, "Léa").click();
+    await regie.locator("#ask:not([hidden])").waitFor();
+    assert.equal(await regie.locator("#ask-danger").isHidden(), true);
+    await regie.fill("#ask-pass", "Pas-le-bon");
+    await regie.click("#ask-ok");
+    await regie.locator("#ask-error", { hasText: "Mot de passe de régie incorrect." }).waitFor({ timeout: 15000 });
+    assert.equal(await read("hostUid"), HOST);
+    await regie.fill("#ask-pass", PASSWORD);
+    await regie.click("#ask-ok");
+    await regie.locator("#r-toast", { hasText: "La fête continue sur cette TV" }).waitFor({ timeout: 15000 });
+
+    // La fête est confiée à la box de secours (même écriture que « Changer de box ») ; ce téléphone la pilote.
+    assert.equal(await raw(`games/${CODE}/hostUid`), SECOURS);
+    assert.equal((await raw(`games/${CODE}/takeover`)).to, NEW);
+    assert.equal(await raw(`games/${NEW}/handoff`), CODE);
+    await regie.locator("#c-code", { hasText: CODE }).waitFor();
+    assert.equal(new URL(regie.url()).searchParams.get("g"), CODE);
+    assert.equal((await raw(`games/${CODE}/state/scores`)).rose, 150, "les points restent");
+    // L'ancienne box ne pilote plus rien, même sa présence.
+    const ancienne = env.authenticatedContext(HOST).database();
+    await assert.rejects(set(ref(ancienne, `games/${CODE}/state/phase`), "ended"));
+    await assert.rejects(set(ref(ancienne, `games/${CODE}/hostOnline`), { online: true, at: Date.now(), uid: HOST }));
+    await regie.context().close();
+  });
+
+  test("« Recommencer » ou « Aller à ce jeu » recopie dans la partie les photos et extraits du jeu qui y manquent", async () => {
+    box = startBox();
+    const PHOTO = "abcdef0123456789";
+    const SON = "0123456789abcdef";
+    const PNG = `data:image/png;base64,${png([200, 40, 90]).toString("base64")}`;
+    const MP3 = "data:audio/mpeg;base64,SUQz";
+    await seedLib(`images/${PHOTO}`, PNG);
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `library/sounds/${SON}`), MP3));
+    await set(gameRef("conducteur"), {
+      id: "p", title: "L'anniversaire de Léa", rev: "s1", mimes: true, programReset: true,
+      questions: [
+        { id: "q1", text: "Couleur du ciel ?", choices: ["Vert", "Bleu"], correct: 1, round: "Couleurs" },
+        { id: "q2", text: "Qui rugit ?", choices: ["Lion", "Chat"], correct: 0, round: "Animaux", imageId: PHOTO, audioId: SON },
+      ],
+    });
+    await box.set(questionState(2));
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.click("#c-rescue");
+    await regie.locator('#rescue-list [data-start="1"] button', { hasText: "Aller à ce jeu" }).click();
+    await respond(regie);
+    await regie.locator("#r-toast", { hasText: "C'est parti pour « Animaux »" }).waitFor();
+    await waitFor(async () => (await read(`images/${PHOTO}`)) === PNG && (await read(`sounds/${SON}`)) === MP3, "photo et extrait recopiés dans la partie");
+    await regie.context().close();
+  });
+});
+
 describe("remplacement d'un appareil en cours de partie", () => {
   /** Tablette d'équipe : rejoint la partie par le QR code habituel. */
   async function tablet(name) {
@@ -2058,6 +2396,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await inRegie(regie);
     // Dans le salon d'attente, la régie ouvre directement la liste des prestations prêtes.
     await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "L'anniversaire de Léa" }).click();
+    // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
+    await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     await regie.locator("#c-step", { hasText: "L'anniversaire de Léa" }).waitFor();
     const show = await read("show");
@@ -2168,6 +2508,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await pair(regie);
     await inRegie(regie);
     await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "L'anniversaire de Léa" }).click();
+    // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
+    await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const show = await read("show");
     assert.deepEqual(show.quiz.questions.map((q) => q.round), ["Animaux", "Animaux", "Chante le mot !", "Chante le mot !", "Chante le mot !", "Chante le mot !"]);
@@ -2258,6 +2600,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await pair(regie);
     await inRegie(regie);
     await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "L'anniversaire de Léa" }).click();
+    // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
+    await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const mime = (await read("show")).quiz.questions[3];
     assert.equal(mime.kind, "mime");
@@ -2846,6 +3190,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await pair(regie);
     await inRegie(regie);
     await regie.locator(".show-item", { hasText: "Léa" }).click();
+    // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
+    await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const qs = (await read("show")).quiz.questions;
     const mime = qs.find((q) => q.kind === "mime");
@@ -2933,6 +3279,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await pair(regie);
     await inRegie(regie);
     await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "L'anniversaire de Léa" }).click();
+    // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
+    await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const questions = (await read("show")).quiz.questions;
     assert.deepEqual(questions.map((q) => q.kind), ["chante", "chante", "chante", "chante"]);
@@ -3006,6 +3354,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await pair(regie);
     await inRegie(regie);
     await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "L'anniversaire de Léa" }).click();
+    // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
+    await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const questions = (await read("show")).quiz.questions;
     assert.deepEqual(questions.slice(0, 4).map((q) => q.round), ["Animaux + Finale", "Animaux + Finale", "Animaux + Finale", "Animaux + Finale"]);
@@ -4027,6 +4377,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await pair(regie);
     await inRegie(regie);
     await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "L'anniversaire de Léa" }).click();
+    // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
+    await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const questions = (await read("show")).quiz.questions;
     assert.deepEqual(questions.map((q) => [q.kind, q.duration, q.round]), [["express", 9, "Vrai ou Faux express"], ["express", 9, "Vrai ou Faux express"]]);
@@ -4057,6 +4409,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await pair(regie);
     await inRegie(regie);
     await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "Léa" }).click();
+    // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
+    await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const [q] = (await read("show")).quiz.questions;
     assert.deepEqual([q.kind, q.imageId, q.round], ["zoom", PHOTO, "Zoom mystère"]);
@@ -4128,6 +4482,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await pair(regie);
     await inRegie(regie);
     await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "Léa" }).click();
+    // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
+    await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const show = await read("show");
     assert.deepEqual(show.rounds.map((r) => r.title), ["Quiz illustré", "Animaux"]);
@@ -4402,6 +4758,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await pair(regie);
     await inRegie(regie);
     await regie.locator(".show-item", { hasText: "L'anniversaire de Léa" }).click();
+    // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
+    await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     await regie.click("#c-next");
     await regie.locator("#c-phase", { hasText: "Question en cours" }).waitFor();
@@ -4488,6 +4846,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "Lina" }).waitFor();
     assert.equal(await regie.locator("#panel-show .show-item", { hasText: "Malo" }).count(), 0);
     await regie.locator("#panel-show .show-item", { hasText: "Lina" }).click();
+    // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
+    await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     await regie.click("#tab-plan");
     await regie.click("#plan-add");
@@ -4666,6 +5026,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await pair(regie);
     await inRegie(regie);
     await regie.locator(".show-item", { hasText: "Inès" }).click();
+    // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
+    await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const q = (await read("show")).quiz.questions;
     assert.equal(q[0].image, "🦁");
@@ -4724,6 +5086,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await pair(regie);
     await inRegie(regie);
     await regie.locator(".show-item", { hasText: "Lou" }).click();
+    // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
+    await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const q = (await read("show")).quiz.questions;
     assert.deepEqual(q[0].choiceImages, ids);
@@ -4767,6 +5131,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await pair(regie);
     await inRegie(regie);
     await regie.locator(".show-item", { hasText: "ANNIVERSAIRE TEST – Léa, 9 ans" }).click();
+    // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
+    await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     // Ses 10 questions, plus celle des bougies juste avant la dernière (qui compte double).
     const q = (await read("show")).quiz.questions;
@@ -4804,6 +5170,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await pair(regie);
     await inRegie(regie);
     await regie.locator(".show-item", { hasText: "tous les jeux" }).click();
+    // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
+    await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const kinds = [...new Set((await read("show")).quiz.questions.map((q) => q.kind))];
     assert.deepEqual(kinds, ["classic", "number", "express", "mime", "zoom", "chante", "flou", "quisuis", "disparu", "blind", "statues", "pictionary", "gonfleur", "patate", "coffres"]);
@@ -4961,6 +5329,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await pair(regie);
     await inRegie(regie);
     await regie.locator(".show-item", { hasText: "Tom" }).click();
+    // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
+    await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const qs = (await read("show")).quiz.questions;
     assert.deepEqual(qs.map((q) => q.kind), ["blind", "blind", "classic", "classic"]);
@@ -5028,6 +5398,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await pair(regie);
     await inRegie(regie);
     await regie.locator(".show-item", { hasText: "Léa" }).click();
+    // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
+    await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const [q] = (await read("show")).quiz.questions;
     assert.deepEqual([q.kind, q.audioIds], ["statues", [list.tracks[1].audioId]]);

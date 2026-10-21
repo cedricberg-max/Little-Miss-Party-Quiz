@@ -19,6 +19,7 @@ import {
   roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS,
   isStatuesList, statuesSongs, statuesChoices, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS, builtinConcepts, isPhotoTheme, disparuGroup,
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, alerteEquipes, EQUIPES_PAR_DEFAUT, pourLeHasard, premierQuiz,
+  launchStates, launchLabelPc,
 } from "./show.js";
 import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE } from "./banque-photos.js";
 import { shuffle } from "./mime-cards.js";
@@ -110,6 +111,10 @@ let contents = {};
 let manches = {};
 /** Fiches des images de la bibliothèque (nom, catégorie, mots-clés, retirée), par identifiant d'image. */
 let medias = {};
+/** Où en est chaque prestation lancée (launches/ et ce que publie sa partie), par identifiant de prestation. */
+let runs = {};
+let launches = {};
+let runsTimer = null;
 let stops = [];
 let current = "home";
 
@@ -360,9 +365,25 @@ function enter() {
   // Box : une lecture refusée ne doit pas fermer l'administration (règles pas encore publiées).
   stops.push(onValue(ref(db, "boxes/requests"), (s) => { boxRequests = s.val() ?? {}; renderBoxes(); }, (e) => console.error(e)));
   stops.push(onValue(ref(db, "boxes/allowed"), (s) => { boxAllowed = s.val() ?? {}; renderBoxes(); }, (e) => console.error(e)));
+  // Prestations lancées sur une box (en cours, interrompue, terminée) : une lecture refusée (règles pas encore
+  // publiées) ne ferme pas l'administration. Relu chaque minute : une box peut se couper sans que rien d'autre change.
+  stops.push(onValue(ref(db, "launches"), (s) => { launches = s.val() ?? {}; refreshRuns(); }, (e) => console.error(e)));
+  clearInterval(runsTimer);
+  runsTimer = setInterval(refreshRuns, 60_000);
+  stops.push(() => clearInterval(runsTimer));
   show(current);
   // Copies des fêtes terminées : effacées en arrière-plan, sans retarder l'ouverture (une fois par heure au plus).
   setTimeout(passageAutomatique, 1500);
+}
+
+/** Relit l'état des prestations lancées : quelques petites lectures par partie concernée, jamais toute la partie. */
+async function refreshRuns() {
+  if (!Object.keys(launches).length && !Object.keys(runs).length) return;
+  const lire = (path) => get(ref(db, path)).then((x) => x.val(), () => null);
+  const next = await launchStates(launches, lire).catch((e) => { console.error(e); return runs; });
+  if (JSON.stringify(next) === JSON.stringify(runs)) return;
+  runs = next;
+  refreshLists();
 }
 
 route();
@@ -504,6 +525,8 @@ function showCard(id, s, { accueil = false } = {}) {
       h("span", { class: "meta", text: [s.childName, s.age ? `${s.age} ans` : "", s.date ? `${dateLabel(s.date)} (${whenLabel(s.date)})` : ""].filter(Boolean).join(" · ") }),
       snapshot ? h("span", { class: "meta", text: `${contentLabel(snapshot)} · environ ${estimateMinutes(snapshot)} min` }) : null,
       s.pinned ? h("span", { class: "pill pin", text: "⭐ Épinglée : ses jeux en premier dans la régie" }) : null,
+      // Fête lancée sur une box : en cours, interrompue (reprise possible), terminée. Archiver n'y change rien.
+      launchLabelPc(runs[id]) ? h("span", { class: `pill run ${runs[id].etat}`, "data-run": runs[id].etat, text: launchLabelPc(runs[id]) }) : null,
       etat === "archivee"
         ? h("span", { class: "pill", text: "Archivée : plus sur la régie" })
         : etat === "avenir" && r.level === "prete"

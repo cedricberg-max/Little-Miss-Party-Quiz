@@ -236,13 +236,24 @@
         "public": {
           ".read": "auth != null",
           ".write": "auth != null && root.child('games').child($code).child('hostUid').val() === auth.uid",
-          ".validate": "newData.child('title').isString() && newData.child('title').val().length <= 120 && (!newData.child('childName').exists() || (newData.child('childName').isString() && newData.child('childName').val().length <= 40))"
+          ".validate": "newData.child('title').isString() && newData.child('title').val().length <= 120 && (!newData.child('childName').exists() || (newData.child('childName').isString() && newData.child('childName').val().length <= 40)) && (!newData.child('prestation').exists() || (newData.child('prestation').isString() && newData.child('prestation').val().length <= 40))"
+        },
+        "hostOnline": {
+          ".read": "auth != null",
+          ".write": "auth != null && root.child('games').child($code).child('hostUid').val() === auth.uid",
+          ".validate": "newData.child('online').isBoolean() && newData.child('at').isNumber() && newData.child('uid').val() === auth.uid",
+          "$other": {
+            ".validate": "$other === 'online' || $other === 'at' || $other === 'uid'"
+          }
         },
         "show": {
           ".read": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists()",
-          ".write": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists() && (root.child('games').child($code).child('state/phase').val() === 'lobby' || newData.child('base').isString())",
-          ".validate": "newData.hasChildren(['id', 'title', 'quiz', 'by', 'at']) && newData.child('id').isString() && newData.child('id').val().length <= 40 && newData.child('title').isString() && newData.child('title').val().length <= 120 && newData.child('quiz/questions').exists() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
+          ".write": "auth != null && root.child('games').child($code).child('regie').child(auth.uid).exists() && (root.child('games').child($code).child('state/phase').val() !== 'ended' || newData.child('base').isString())",
+          ".validate": "newData.hasChildren(['id', 'title', 'quiz', 'by', 'at']) && newData.child('id').isString() && newData.child('id').val().length <= 40 && newData.child('title').isString() && newData.child('title').val().length <= 120 && newData.child('quiz/questions').exists() && newData.child('by').val() === auth.uid && newData.child('at').val() === now && (newData.child('base').isString() || (newData.child('prestation').isString() && newData.parent().parent().parent().child('launches').child(newData.child('prestation').val()).child('code').val() === $code))",
           "childName": {
+            ".validate": "newData.isString() && newData.val().length <= 40"
+          },
+          "prestation": {
             ".validate": "newData.isString() && newData.val().length <= 40"
           },
           "base": {
@@ -530,6 +541,16 @@
           "$other": {
             ".validate": "$other === 'type' || $other === 'round' || $other === 'title' || $other === 'updatedAt' || $other === 'origin'"
           }
+        }
+      }
+    },
+    "launches": {
+      ".read": "(auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()) || (auth != null && root.child('settings/regie/hash').isString() && root.child('regieProof').child(auth.uid).child('hash').val() === root.child('settings/regie/hash').val())",
+      "$showId": {
+        ".write": "auth != null && ((newData.exists() && newData.child('code').isString() && newData.child('code').val().matches(/^[A-Z0-9]{5}$/) && root.child('games').child(newData.child('code').val()).child('regie').child(auth.uid).exists() && ((newData.parent().parent().child('games').child(newData.child('code').val()).child('show/prestation').val() === $showId && newData.parent().parent().child('games').child(newData.child('code').val()).child('show/at').val() === now && !newData.parent().parent().child('games').child(newData.child('code').val()).child('show/base').exists()) || root.child('games').child(newData.child('code').val()).child('public/prestation').val() === $showId) && (!data.exists() || !data.child('code').isString() || data.child('code').val() === newData.child('code').val() || !root.child('games').child(data.child('code').val()).child('hostUid').exists() || root.child('games').child(data.child('code').val()).child('state/phase').val() === 'ended' || (data.child('at').val() < now - 120000 && root.child('games').child(data.child('code').val()).child('public/prestation').val() !== $showId))) || (!newData.exists() && data.child('code').isString() && root.child('games').child(data.child('code').val()).child('regie').child(auth.uid).exists() && ((newData.parent().parent().child('games').child(data.child('code').val()).child('show/at').val() === now && newData.parent().parent().child('games').child(data.child('code').val()).child('show/prestation').val() !== $showId) || root.child('games').child(data.child('code').val()).child('public/prestation').val() !== $showId)))",
+        ".validate": "$showId.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['code', 'by', 'at']) && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
+        "$other": {
+          ".validate": "$other === 'code' || $other === 'by' || $other === 'at'"
         }
       }
     },

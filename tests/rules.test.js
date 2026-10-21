@@ -656,8 +656,17 @@ describe("bibliothèque, prestations et chargement sur la TV", () => {
     await set(ref(d, `regieProof/${uid}`), { hash: hash("Licorne-2026"), gateAt, at: serverTimestamp() });
     await set(ref(d, `games/${CODE}/regie/${uid}`), { pairedAt: serverTimestamp(), via: "password" });
   }
-  const regieByPin = (uid) => env.withSecurityRulesDisabled((ctx) =>
-    set(ref(ctx.database(), `games/${CODE}/regie/${uid}`), { pairedAt: 1, via: "pin" }));
+  const regieByPin = (uid, code = CODE) => env.withSecurityRulesDisabled((ctx) =>
+    set(ref(ctx.database(), `games/${code}/regie/${uid}`), { pairedAt: 1, via: "pin" }));
+  /**
+   * Comme « Lancer » sur la régie : le programme pour la box et le lancement de la prestation, en une seule écriture
+   * (un anniversaire n'est jamais lancé sur deux box). [extra] : autres chemins de la même écriture (libération…).
+   */
+  const launch = (uid, prestation = "show1", { code = CODE, id = "s1", extra = {} } = {}) => update(ref(db(uid)), {
+    [`games/${code}/show`]: { ...SNAPSHOT(uid), id, prestation },
+    [`launches/${prestation}`]: { code, by: uid, at: serverTimestamp() },
+    ...extra,
+  });
 
   test("seul un administrateur enregistre ou supprime un quiz et une prestation", async () => {
     await assertSucceeds(set(ref(admin(), "library/quizzes/q1"), QUIZ));
@@ -732,29 +741,35 @@ describe("bibliothèque, prestations et chargement sur la TV", () => {
     await assertFails(get(ref(db(HOST), "library/quizzes")));
     await assertFails(get(ref(db("secours"), "library/shows")));
   });
-  test("la régie charge une prestation au salon d'attente ; en partie et après la fin, elle ne modifie que le programme", async () => {
+  test("la régie charge une prestation au salon d'attente ; en partie, la box juge ; après la fin, elle ne modifie que le programme", async () => {
     await seed({ phase: "lobby" });
     await regieByPin("tel");
-    await assertSucceeds(set(ref(db("tel"), `games/${CODE}/show`), SNAPSHOT("tel")));
+    // Une prestation se charge toujours avec son lancement : sans lui, le serveur refuse.
+    await assertFails(set(ref(db("tel"), `games/${CODE}/show`), SNAPSHOT("tel")));
+    await assertFails(set(ref(db("tel"), `games/${CODE}/show`), { ...SNAPSHOT("tel"), prestation: "show1" }));
+    await assertSucceeds(launch("tel"));
     await assertSucceeds(get(ref(db("tel"), `games/${CODE}/show`)));
     await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/state/phase`), "question"));
-    await assertFails(set(ref(db("tel"), `games/${CODE}/show`), { ...SNAPSHOT("tel"), id: "s2" }));
-    // En pleine partie, seule une modification du programme (préparée sur une version précise) passe.
-    await assertSucceeds(set(ref(db("tel"), `games/${CODE}/show`), { ...SNAPSHOT("tel"), id: "s3", base: "s1" }));
+    // Mauvaise prestation : en pleine partie, une autre prestation passe encore ; la box la refuse si un point a été donné.
+    await assertSucceeds(launch("tel", "show2", { id: "s2", extra: { "launches/show1": null } }));
+    await assertSucceeds(set(ref(db("tel"), `games/${CODE}/show`), { ...SNAPSHOT("tel"), id: "s3", base: "s2" }));
     await assertFails(set(ref(db("rose"), `games/${CODE}/show`), { ...SNAPSHOT("rose"), id: "s4", base: "s3" }));
     await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/state/phase`), "ended"));
     // Après la fin, un jeu ajouté au programme permet de reprendre la partie ; recharger une autre prestation, non.
     await assertSucceeds(set(ref(db("tel"), `games/${CODE}/show`), { ...SNAPSHOT("tel"), id: "s5", base: "s3" }));
-    await assertFails(set(ref(db("tel"), `games/${CODE}/show`), { ...SNAPSHOT("tel"), id: "s6" }));
+    await assertFails(launch("tel", "show3", { id: "s6" }));
   });
   test("une équipe ne charge rien et ne lit pas les réponses de la prestation", async () => {
     await seed({ phase: "lobby" });
-    await assertFails(set(ref(db("rose"), `games/${CODE}/show`), SNAPSHOT("rose")));
+    await assertFails(launch("rose"));
     await regieByPin("tel");
-    await set(ref(db("tel"), `games/${CODE}/show`), SNAPSHOT("tel"));
+    await launch("tel");
     await assertFails(get(ref(db("rose"), `games/${CODE}/show`)));
     await assertFails(set(ref(db("tel"), `games/${CODE}/showStatus`), { id: "s1", status: "applied" }));
-    await assertFails(set(ref(db("tel"), `games/${CODE}/show`), { ...SNAPSHOT("rose") }));
+    await assertFails(update(ref(db("tel")), {
+      [`games/${CODE}/show`]: { ...SNAPSHOT("rose"), id: "s7", prestation: "show1" },
+      "launches/show1": { code: CODE, by: "tel", at: serverTimestamp() },
+    }));
   });
   test("la box publie le titre et le prénom, lisibles par tous les pupitres", async () => {
     await seed({ phase: "lobby" });
@@ -762,6 +777,143 @@ describe("bibliothèque, prestations et chargement sur la TV", () => {
     await assertSucceeds(set(ref(db(HOST), `games/${CODE}/showStatus`), { id: "s1", status: "applied" }));
     await assertSucceeds(get(ref(db("rose"), `games/${CODE}/public`)));
     await assertFails(set(ref(db("rose"), `games/${CODE}/public`), { title: "Pirate" }));
+    // La prestation jouée (régie et règles des lancements) ; jamais un texte démesuré.
+    await assertSucceeds(set(ref(db(HOST), `games/${CODE}/public`), { title: "L'anniversaire de Léa", prestation: "show1" }));
+    await assertFails(set(ref(db(HOST), `games/${CODE}/public`), { title: "L'anniversaire de Léa", prestation: "x".repeat(41) }));
+  });
+
+  describe("lancements : un anniversaire sur une seule box à la fois", () => {
+    const AUTRE = "FGHJK";
+    /** Deux salons d'attente, chacun avec sa box et le téléphone de son animatrice (relié par le mot de passe). */
+    async function twoLobbies({ prestation = null } = {}) {
+      await seed({ phase: "lobby" });
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        const d = ctx.database();
+        await set(ref(d, `games/${AUTRE}`), { hostUid: "box2", state: { phase: "lobby", round: 1 }, public: { title: "Quiz", changeBox: true } });
+        if (prestation) await set(ref(d, `games/${CODE}/public`), { title: "Quiz", prestation });
+      });
+      await regieByPassword("tel");
+      await regieByPin("tel2", AUTRE);
+    }
+    const seeLaunch = async (prestation) => (await get(ref(db("tel"), `launches/${prestation}`))).val();
+    const writeRaw = (path, value) => env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), path), value));
+
+    test("lancée sur une partie, la prestation ne se lance pas sur une autre box ; une autre prestation, si", async () => {
+      await twoLobbies();
+      await assertSucceeds(launch("tel"));
+      assert.equal((await seeLaunch("show1")).code, CODE);
+      await assertFails(launch("tel2", "show1", { code: AUTRE }));
+      await assertSucceeds(launch("tel2", "show2", { code: AUTRE }));
+      // Le même téléphone relance sa prestation sur sa propre partie (TV qui n'a pas répondu) : rien ne bloque.
+      await assertSucceeds(launch("tel", "show1", { id: "s2" }));
+    });
+
+    test("deux régies lancent la même prestation au même instant : une seule écriture passe", async () => {
+      await twoLobbies();
+      const results = await Promise.allSettled([launch("tel"), launch("tel2", "show1", { code: AUTRE })]);
+      assert.equal(results.filter((r) => r.status === "fulfilled").length, 1, "exactement une box gagne");
+      const winner = (await seeLaunch("show1")).code;
+      const loser = winner === CODE ? AUTRE : CODE;
+      // Écriture refusée en entier : la box perdante ne reçoit jamais le programme.
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        const d = ctx.database();
+        assert.equal((await get(ref(d, `games/${loser}/show`))).exists(), false);
+        assert.equal((await get(ref(d, `games/${winner}/show/prestation`))).val(), "show1");
+      });
+    });
+
+    test("pas de programme sans son lancement, pas de lancement sans son programme, jamais pour la partie d'une autre", async () => {
+      await twoLobbies();
+      await assertFails(set(ref(db("tel"), "launches/show1"), { code: CODE, by: "tel", at: serverTimestamp() }));
+      await assertFails(update(ref(db("tel")), {
+        [`games/${CODE}/show`]: { ...SNAPSHOT("tel"), prestation: "show1" },
+        "launches/show1": { code: AUTRE, by: "tel", at: serverTimestamp() },
+      }));
+      await assertFails(update(ref(db("tel")), {
+        [`games/${CODE}/show`]: { ...SNAPSHOT("tel"), prestation: "show1" },
+        "launches/show2": { code: CODE, by: "tel", at: serverTimestamp() },
+      }));
+      // Une modification du programme en cours de partie (base) n'a pas besoin de lancement.
+      await assertSucceeds(set(ref(db("tel"), `games/${CODE}/show`), { ...SNAPSHOT("tel"), base: "initial" }));
+      await assertFails(launch("tel", "x".repeat(41)));
+      await assertFails(update(ref(db("tel")), {
+        [`games/${CODE}/show`]: { ...SNAPSHOT("tel"), prestation: "show1" },
+        "launches/show1": { code: CODE, by: "tel", at: serverTimestamp(), pirate: true },
+      }));
+    });
+
+    test("remplacer la prestation libère la précédente dans la même écriture ; seule sa partie peut la libérer", async () => {
+      await twoLobbies();
+      await assertSucceeds(launch("tel"));
+      await assertFails(set(ref(db("tel2"), "launches/show1"), null), "pas la partie de ce téléphone");
+      await writeRaw(`games/${CODE}/public/prestation`, "show1");
+      await assertFails(set(ref(db("tel"), "launches/show1"), null), "la TV la joue encore");
+      await assertSucceeds(launch("tel", "show2", { id: "s2", extra: { "launches/show1": null } }));
+      assert.equal(await seeLaunch("show1"), null);
+      await assertSucceeds(launch("tel2", "show1", { code: AUTRE }));
+    });
+
+    test("TV qui refuse : la régie libère la prestation refusée et rend sa place à la précédente", async () => {
+      await twoLobbies({ prestation: "show1" });
+      await writeRaw("launches/show1", { code: CODE, by: "tel", at: Date.now() });
+      await assertSucceeds(launch("tel", "show2", { id: "s2", extra: { "launches/show1": null } }));
+      // La TV a refusé (des points avaient été donnés) : elle joue toujours show1.
+      await assertSucceeds(update(ref(db("tel")), {
+        "launches/show2": null,
+        "launches/show1": { code: CODE, by: "tel", at: serverTimestamp() },
+      }));
+      assert.equal((await seeLaunch("show1")).code, CODE);
+      assert.equal(await seeLaunch("show2"), null);
+      // Jamais pour une prestation que la TV ne joue pas.
+      await assertFails(update(ref(db("tel")), { "launches/show3": { code: CODE, by: "tel", at: serverTimestamp() } }));
+    });
+
+    test("une prestation se relance ailleurs quand sa fête est terminée, sa partie effacée, ou son lancement abandonné", async () => {
+      await twoLobbies();
+      await assertSucceeds(launch("tel"));
+      await writeRaw(`games/${CODE}/state/phase`, "ended");
+      await assertSucceeds(launch("tel2", "show1", { code: AUTRE }), "fête terminée");
+      await writeRaw("launches/show2", { code: "ZZZZZ", by: "tel", at: Date.now() });
+      await assertSucceeds(launch("tel2", "show2", { code: AUTRE, id: "s2" }), "partie effacée");
+      // Box qui n'a jamais chargé la prestation (éteinte, refus) : libre au bout de 2 minutes, jamais avant.
+      await writeRaw(`games/${CODE}/state/phase`, "question");
+      await writeRaw("launches/show3", { code: CODE, by: "tel", at: Date.now() - 30_000 });
+      await assertFails(launch("tel2", "show3", { code: AUTRE, id: "s3" }));
+      await writeRaw("launches/show3/at", Date.now() - 200_000);
+      await writeRaw(`games/${CODE}/public`, { title: "Quiz", prestation: "show3" });
+      await assertFails(launch("tel2", "show3", { code: AUTRE, id: "s3" }), "la box la joue : fête en cours");
+      await writeRaw(`games/${CODE}/public`, { title: "Quiz", prestation: "show9" });
+      await assertSucceeds(launch("tel2", "show3", { code: AUTRE, id: "s3" }));
+    });
+
+    test("les lancements se lisent par la régie (mot de passe) et la Régie PC ; ni une équipe, ni une box, ni le code de secours", async () => {
+      await twoLobbies();
+      await launch("tel");
+      await assertSucceeds(get(ref(db("tel"), "launches")));
+      await assertSucceeds(get(ref(admin(), "launches")));
+      await assertFails(get(ref(db("tel2"), "launches")));
+      await assertFails(get(ref(db("rose"), "launches/show1")));
+      await assertFails(get(ref(db(HOST), "launches")));
+    });
+
+    test("présence de la box : seule la box hôte l'écrit, tout le monde la lit ; après un changement de box, l'ancienne n'écrit plus rien", async () => {
+      await twoLobbies();
+      const here = { online: true, at: serverTimestamp(), uid: HOST };
+      await assertSucceeds(set(ref(db(HOST), `games/${CODE}/hostOnline`), here));
+      await assertSucceeds(set(ref(db(HOST), `games/${CODE}/hostOnline`), { ...here, online: false, at: Date.now() }));
+      await assertFails(set(ref(db(HOST), `games/${CODE}/hostOnline`), { ...here, uid: "box2" }));
+      await assertFails(set(ref(db(HOST), `games/${CODE}/hostOnline`), { ...here, pirate: 1 }));
+      await assertFails(set(ref(db("rose"), `games/${CODE}/hostOnline`), { ...here, uid: "rose" }));
+      await assertFails(set(ref(db("tel"), `games/${CODE}/hostOnline`), { ...here, uid: "tel" }));
+      await assertSucceeds(get(ref(db("rose"), `games/${CODE}/hostOnline`)));
+      await assertSucceeds(get(ref(db("tel2"), `games/${CODE}/hostOnline`)));
+      // La fête a été confiée à la box 2 : l'ancienne box ne pilote plus rien, même sa présence.
+      await writeRaw(`games/${CODE}/hostUid`, "box2");
+      await assertFails(set(ref(db(HOST), `games/${CODE}/hostOnline`), here));
+      await assertFails(set(ref(db(HOST), `games/${CODE}/state/phase`), "question"));
+      await assertFails(set(ref(db(HOST), `games/${CODE}/public`), { title: "Quiz", prestation: "show1" }));
+      await assertSucceeds(set(ref(db("box2"), `games/${CODE}/hostOnline`), { ...here, uid: "box2" }));
+    });
   });
 });
 

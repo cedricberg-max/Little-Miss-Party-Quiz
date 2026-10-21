@@ -971,6 +971,94 @@ export function etatPrestation(show, today = isoDay()) {
 }
 
 /**
+ * Lancement abandonné (la box n'a jamais chargé la prestation : TV éteinte, refus) : la prestation redevient libre au
+ * bout de ce délai. Même valeur dans les règles Firebase (launches/).
+ */
+export const LAUNCH_STALE_MS = 120_000;
+
+/**
+ * Où en est une prestation de la bibliothèque (cedric, 21/10), d'après son lancement ([launch] : launches/<id>, code
+ * de la partie et heure) et ce que publie sa partie ([game] : état, prestation jouée, box hôte et sa présence).
+ * Mêmes états sur la régie et dans la Régie PC ; archiver une prestation n'y change rien. Une date passée ne veut
+ * jamais dire « terminée » : seule la fin de la partie le dit. [here] : la partie de ce téléphone.
+ * - « preparee » : jamais lancée, ou lancement qui ne tient plus (partie effacée, box qui ne l'a jamais chargée) ;
+ * - « ici » : sur la TV de ce téléphone ;
+ * - « salon » : chargée sur une autre box, au salon d'attente ;
+ * - « encours » : partie commencée, box en ligne (ou présence inconnue : box d'une version plus ancienne) ;
+ * - « interrompue » : partie commencée, box muette (reprise possible avec « Changer de box ») ;
+ * - « terminee » : partie terminée ([at] : heure de la fin).
+ * [online] : la box hôte est en ligne (true), muette (false) ou on ne sait pas (null).
+ */
+export function launchState(id, launch, game, { here = null, now = Date.now() } = {}) {
+  if (!launch?.code) return { etat: "preparee" };
+  const code = launch.code;
+  if (game?.state?.phase === "ended") return { etat: "terminee", code, at: game.state.endedAt ?? null };
+  if (code === here) return { etat: "ici", code };
+  if (!game?.hostUid) return { etat: "preparee" };
+  if (game.prestation !== id && now - (launch.at ?? 0) > LAUNCH_STALE_MS) return { etat: "preparee" };
+  // Seule la présence écrite par la box hôte actuelle compte (après un changement de box, l'ancienne se tait).
+  const presence = game.hostOnline?.uid === game.hostUid ? game.hostOnline : null;
+  const online = presence ? presence.online === true : null;
+  if (!game.state || game.state.phase === "lobby") return { etat: "salon", code, online };
+  if (online === false) return { etat: "interrompue", code, online, at: presence.at ?? null };
+  return { etat: "encours", code, online, at: launch.at ?? null };
+}
+
+/** États des prestations lancées (launches/) : quelques petites lectures par partie concernée, jamais toute la partie. */
+export async function launchStates(launches, lire, { here = null, now = Date.now() } = {}) {
+  const games = new Map();
+  const gameOf = (code) => {
+    if (!games.has(code)) {
+      const paths = ["state/phase", "state/endedAt", "public/prestation", "hostOnline", "hostUid"];
+      games.set(code, Promise.all(paths.map((p) => lire(`games/${code}/${p}`)))
+        .then(([phase, endedAt, prestation, hostOnline, hostUid]) => ({ state: phase ? { phase, endedAt } : null, prestation, hostOnline, hostUid })));
+    }
+    return games.get(code);
+  };
+  const out = {};
+  await Promise.all(Object.entries(launches ?? {}).map(async ([id, launch]) => {
+    if (typeof launch?.code !== "string") return;
+    out[id] = launchState(id, launch, launch.code === here ? null : await gameOf(launch.code), { here, now });
+  }));
+  return out;
+}
+
+/** « 14 h 05 » */
+export function heureCourte(ms) {
+  const d = new Date(ms);
+  return `${d.getHours()} h ${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/** « 24 octobre à 17 h 10 » */
+export function jourHeure(ms) {
+  return `${new Date(ms).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })} à ${heureCourte(ms)}`;
+}
+
+/** Ce que la régie affiche pour un état de [launchState]. */
+export function launchLabel(run) {
+  switch (run?.etat) {
+    case "ici": return "✓ Sur cette TV";
+    case "salon": return "📺 Chargée sur une autre box (salon d'attente)";
+    case "encours": return `🟢 En cours sur une autre box${run.at ? ` depuis ${heureCourte(run.at)}` : ""}`;
+    case "interrompue": return `⏸ Interrompue : l'autre box ne répond plus${run.at ? ` depuis ${heureCourte(run.at)}` : ""}`;
+    case "terminee": return `✓ Terminée${run.at ? ` le ${jourHeure(run.at)}` : ""}`;
+    default: return "Préparée";
+  }
+}
+
+/** Ce que la Régie PC affiche sur la carte d'une prestation lancée ; rien pour une prestation seulement préparée. */
+export function launchLabelPc(run) {
+  switch (run?.etat) {
+    case "ici":
+    case "salon": return "📺 Chargée sur une box (salon d'attente)";
+    case "encours": return "🟢 En cours";
+    case "interrompue": return "⏸ Interrompue (reprise possible)";
+    case "terminee": return `✓ Terminée${run.at ? ` le ${jourHeure(run.at)}` : ""}`;
+    default: return "";
+  }
+}
+
+/**
  * État de préparation d'une prestation, pour le tableau de bord : « prete » quand elle est
  * complète et visible sur la régie, sinon la liste de ce qui reste à faire.
  */

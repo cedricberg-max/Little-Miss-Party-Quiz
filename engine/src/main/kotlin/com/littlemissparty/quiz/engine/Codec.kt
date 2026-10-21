@@ -57,6 +57,7 @@ object Codec {
             is PotatoExploded -> mapOf("type" to "potato_boom", "qid" to e.qid, "holder" to e.holder)
             is BalloonBurst -> mapOf("type" to "balloon", "qid" to e.qid, "team" to e.team, "teams" to e.teams)
             is Jumped -> mapOf("type" to "goto", "index" to e.index, "qid" to e.qid, "clear" to e.clear.ifEmpty { null })
+            is ProgramReset -> mapOf("type" to "reset")
         }
         return base + body
     }
@@ -117,6 +118,7 @@ object Codec {
             "statues_win" -> StatuesWon(seq, at, m["team"] as String, (m["others"] as? List<*>).orEmpty().map { it as String })
             "buzz_judge" -> BuzzJudged(seq, at, m["ok"] == true, m["bonus"] == true)
             "goto" -> Jumped(seq, at, m.num("index").toInt(), m["qid"] as String, (m["clear"] as? List<*>).orEmpty().map { it as String })
+            "reset" -> ProgramReset(seq, at)
             else -> null
         }
     }.getOrNull()
@@ -197,6 +199,8 @@ object Codec {
         )
         // Partie terminée : son heure de fin (serveur), pour le ménage des copies des médias par la Régie PC.
         if (s.phase == Phase.ENDED) s.endedAt?.let { out["endedAt"] = it }
+        // Un point a déjà été donné : la régie ne propose plus « Mauvaise prestation ? » (la box la refuserait).
+        if (s.scored) out["scored"] = true
         // Dernières questions du quiz : la régie propose le multiplicateur juste avant la première.
         game.factorChoice()?.let { start -> out["factorChoice"] = mapOf("start" to start, "factor" to (s.factors[start] ?: FACTORS.first())) }
         if (q != null && s.intro) {

@@ -130,6 +130,14 @@ data class Undone(override val seq: Int, override val at: Long, val target: Int)
 
 data class GameEnded(override val seq: Int, override val at: Long) : GameEvent
 
+/**
+ * Mauvaise prestation lancée (cedric, 21/10) : la régie en a choisi une autre alors que la partie avait commencé, mais
+ * qu'aucun point n'avait encore été donné ([Game.mayReplaceProgram]). La partie repart du salon d'attente avec le
+ * nouveau programme ; tout ce qui précède dans le journal est ignoré (progression, réglages), la numérotation continue.
+ * Les équipes, rangées hors du journal, restent.
+ */
+data class ProgramReset(override val seq: Int, override val at: Long) : GameEvent
+
 /** Réponse d'une équipe : proposition choisie et heure du serveur à la réception. */
 data class Answer(val choice: Int, val at: Long)
 
