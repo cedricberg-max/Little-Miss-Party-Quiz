@@ -2980,11 +2980,22 @@ async function remettreChanson(x) {
     status("song-status", "Refusé : vérifiez Internet ou reconnectez-vous.");
   }
 }
+/**
+ * « Ajouter des chansons… » (cedric, 21/10) : il sélectionne toute sa bibliothèque d'un coup (MP3 et .lrc mêlés) ; chaque
+ * chanson se range seule, avec ses paroles (le .lrc du même nom) et la pochette de son MP3, sans rien à cliquer de plus.
+ * L'écran des réglages montre l'avancement, puis la liste des sons revient avec le bilan. Les moments (début, refrain)
+ * restent « à régler » : ils se règlent en faisant une playlist.
+ */
 $("song-files").onchange = async (e) => {
   const files = [...e.target.files];
   e.target.value = "";
   editSongs([]);
-  await addFiles(files);
+  const bilan = await addFiles(files);
+  // Envoi coupé (Internet) : on reste sur l'écran, « Enregistrer » reprend là où il s'est arrêté.
+  if (playlist.tracks.some((t) => t.file) && !(await enregistrerPlaylist())) return;
+  const range = $("playlist-status").textContent;
+  show("library", { force: true });
+  status("song-status", [bilan, playlist.tracks.length ? range : ""].filter(Boolean).join(" "), !/illisible/.test(range));
 };
 
 /** Réglages de chansons de la bibliothèque, dans l'écran des playlists (sans nom ni barème). */
@@ -3018,6 +3029,27 @@ $("playlist-from-lib").onclick = () => {
   if (!$("playlist-lib").hidden) { renderLibPicker(); $("playlist-lib-search").focus(); }
 };
 $("playlist-lib-search").oninput = () => renderLibPicker();
+
+/** Chansons tirées par « 🎲 10 au hasard ». */
+const PLAYLIST_HASARD = 10;
+/**
+ * « 🎲 10 au hasard » (cedric, 21/10 : un blind test démo pioché dans la bibliothèque) : dix chansons pas encore dans
+ * la playlist, celles qui ont leur refrain d'abord (« on chante tous ensemble » à chaque révélation). On peut ensuite
+ * en retirer ou en ajouter avant d'enregistrer.
+ */
+$("playlist-hasard").onclick = () => {
+  const inList = new Set(playlist.tracks.map((t) => t.audioId).filter(Boolean));
+  const libres = songList(songs, playlists, isStatuesList).filter((x) => !inList.has(x.audioId));
+  const tirage = [...shuffle(libres.filter((x) => x.refrainId)), ...shuffle(libres.filter((x) => !x.refrainId))].slice(0, PLAYLIST_HASARD);
+  if (!tirage.length) {
+    return status("playlist-status", inList.size ? "Toutes les chansons de la bibliothèque sont déjà dans la playlist." : "La bibliothèque des sons est vide : ajoutez d'abord vos chansons.");
+  }
+  tirage.forEach((x) => playlist.tracks.push({ ...trackFromSong(x), artist: x.artist ?? "", rights: x.rights ?? "", points: null, start: x.start, refrain: x.refrain, length: x.length, lrc: x.lrc, auto: x.auto }));
+  noterEcran();
+  renderTracks();
+  if (!$("playlist-lib").hidden) renderLibPicker();
+  status("playlist-status", `${plural(tirage.length, "chanson")} tirée${tirage.length > 1 ? "s" : ""} au hasard dans la bibliothèque. Retirez-en ou ajoutez-en, puis enregistrez.`, true);
+};
 
 let playlist = null; // { id, tracks: [{ title, artist, rights, points?, imageId?, duration?, audioId? | file, length, start }] }
 let preview = null; // { audio, url, timer }
@@ -3070,6 +3102,7 @@ function editPlaylist(id, fresh = {}) {
   $("playlist-count").closest("p").hidden = single;
   $("playlist-lib").hidden = true;
   $("playlist-from-lib").hidden = statues || library;
+  $("playlist-hasard").hidden = statues || library;
   $("playlist-title").closest("label").hidden = library;
   $("playlist-duration").closest(".panel").hidden = single;
   $("playlist-files").closest(".row").hidden = single;
@@ -3384,9 +3417,12 @@ async function addFiles(files) {
     : associerParoles(files);
   let pochettes = 0;
   let paroles = 0;
+  // Bibliothèque des sons : une chanson déjà rangée (extraits et refrain) n'est pas redécoupée quand ses fichiers
+  // reviennent (toute la bibliothèque redéposée après un envoi coupé) ; elle prend seulement ses paroles ou sa pochette.
+  const enVrac = playlist.use === "songs" && !playlist.single;
+  let dejaLa = 0;
   for (const [k, { musique: file, lrc }] of paires.entries()) {
     if (paires.length > 2) status("playlist-status", `Lecture des fichiers ${k + 1} / ${paires.length} : ${file.name}…`, true);
-    const length = await fileDuration(file);
     // Titre, artiste et pochette rangés dans le MP3 ; sinon le nom du fichier « Artiste - Titre ».
     const tags = statues ? {} : await etiquettesMp3(file);
     const devine = guessTrack(file.name);
@@ -3395,6 +3431,20 @@ async function addFiles(files) {
     const meme = (a, b) => (x) => sansAccents(x.title) === sansAccents(a) && sansAccents(x.artist) === sansAccents(b);
     const known = library.find(meme(title, artist)) ?? library.find(meme(devine.title, devine.artist));
     const already = known && playlist.tracks.find((t) => t.songId === known.id);
+    if (enVrac && known?.id && known.audioId && known.refrainId && !already) {
+      dejaLa += 1;
+      try {
+        if (lrc && !known.lrc) { await attacherParoles(known, (await lrc.text()).slice(0, MAX_LRC)); paroles += 1; }
+        if (!known.imageId && tags.picture) {
+          await majChanson(known, { imageId: await rangerPochette(new Blob([tags.picture.data], { type: tags.picture.mime })) });
+          pochettes += 1;
+        }
+      } catch (e) {
+        console.warn("Paroles ou pochette refusées", file.name, e);
+      }
+      continue;
+    }
+    const length = await fileDuration(file);
     const t = already ?? (known
       ? { ...trackFromSong(known), artist: known.artist ?? "", rights: known.rights ?? "", points: null, start: known.start, refrain: known.refrain ?? undefined, lrc: known.lrc, auto: known.auto }
       : { title, artist, rights: "", points: null });
@@ -3423,9 +3473,12 @@ async function addFiles(files) {
       paroles ? `paroles de ${plural(paroles, "chanson")}` : "",
       rangees ? `paroles ajoutées à ${plural(rangees, "chanson")} de la bibliothèque` : "",
       seuls.length > rangees ? `${plural(seuls.length - rangees, "fichier .lrc")} sans chanson du même nom` : "",
+      dejaLa ? `${plural(dejaLa, "chanson")} déjà dans la bibliothèque` : "",
     ].filter(Boolean).join(" · ");
-    status("playlist-status", `${bilan}.${paires.length ? " Vérifiez, puis enregistrez." : ""}`, true);
+    status("playlist-status", `${bilan}.${paires.length > dejaLa && !enVrac ? " Vérifiez, puis enregistrez." : ""}`, true);
+    return `${bilan}.`;
   }
+  return "";
 }
 
 /**
@@ -3490,7 +3543,10 @@ $("playlist-files").onchange = async (e) => {
   await addFiles(files);
 };
 
-$("playlist-save").onclick = async () => {
+$("playlist-save").onclick = () => enregistrerPlaylist();
+
+/** Enregistre l'écran des playlists (extraits découpés ici) ; rend vrai quand tout est rangé. */
+async function enregistrerPlaylist() {
   const statues = playlist.use === "statues";
   // Bibliothèque des sons : les chansons seulement, sans playlist à enregistrer.
   const library = playlist.use === "songs";
@@ -3507,8 +3563,13 @@ $("playlist-save").onclick = async () => {
     // test, aussi le refrain de la révélation (90 s, joué en boucle sur la TV).
     const fresh = playlist.tracks.filter((t) => t.file);
     const before = new Map(); // morceau → son ancien extrait (pour retrouver les anciens morceaux des autres playlists)
+    const changed = [];
+    // Un fichier illisible est laissé de côté, les autres continuent (cedric, 21/10 : toute sa bibliothèque d'un coup).
+    const illisibles = [];
+    // Bibliothèque : chaque chanson est rangée dès qu'elle est prête ; un envoi coupé en route garde les précédentes.
+    const deja = library && fresh.length > 1 ? " Les chansons prêtes sont déjà rangées." : "";
     for (const [k, t] of fresh.entries()) {
-      status("playlist-status", `Préparation de l'extrait ${k + 1} / ${fresh.length} : ${t.title}…`, true);
+      status("playlist-status", `Préparation de l'extrait ${k + 1} / ${fresh.length} : ${t.title}…${deja}`, true);
       let extract;
       let refrain = null;
       const refrainAt = t.refrain ?? defaultRefrain(t.length, t.start ?? 0, t.duration ?? seconds);
@@ -3516,12 +3577,13 @@ $("playlist-save").onclick = async () => {
         const buffer = await decodeFile(t.file);
         extract = await makeExtract(buffer, t.start ?? 0, t.duration ?? seconds);
         if (!statues) {
-          status("playlist-status", `Préparation du refrain ${k + 1} / ${fresh.length} : ${t.title}…`, true);
+          status("playlist-status", `Préparation du refrain ${k + 1} / ${fresh.length} : ${t.title}…${deja}`, true);
           refrain = await makeExtract(buffer, refrainAt, REFRAIN_SEC, REFRAIN_KBPS);
         }
       } catch (err) {
         console.error(err);
-        return status("playlist-status", `« ${t.title} » : fichier illisible. Essayez un autre format (MP3 de préférence).`);
+        illisibles.push(t);
+        continue;
       }
       for (const x of [extract, refrain].filter(Boolean)) {
         const target = ref(db, `library/sounds/${x.id}`);
@@ -3538,33 +3600,29 @@ $("playlist-save").onclick = async () => {
         t.auto = library && !t.regle;
       }
       delete t.file;
+      if (library) await rangerChanson(t, seconds, before, changed);
+    }
+    // Fichiers illisibles : retirés de l'écran, nommés à la fin.
+    const nonLus = illisibles.length
+      ? ` ${illisibles.length > 1 ? `${illisibles.length} fichiers illisibles laissés de côté` : "Un fichier illisible laissé de côté"} (essayez un autre format, MP3 de préférence) : ${illisibles.map((t) => `« ${t.title} »`).join(", ")}.`
+      : "";
+    if (illisibles.length) {
+      playlist.tracks = playlist.tracks.filter((t) => !illisibles.includes(t));
+      renderTracks();
+      if (!playlist.tracks.length) return status("playlist-status", nonLus.trim());
     }
     // Bibliothèque des sons : chaque morceau du blind test y est rangé avec ses préréglages ; une chanson changée
     // met à jour les autres playlists qui la reprennent.
-    const changed = [];
     if (!statues) {
-      for (const t of playlist.tracks) {
-        const songId = t.songId && songs[t.songId] ? t.songId : push(ref(db, "library/songs")).key;
-        const old = songs[songId];
-        const song = songData(t, seconds, old);
-        // Le fichier .lrc entier, gardé pour recaler les paroles quand le refrain change.
-        if (t.lrcNeuf && t.lrcTexte) {
-          await set(ref(db, `library/lyrics/${songId}`), t.lrcTexte);
-          delete t.lrcNeuf;
-        }
-        if (!sameSong(old, song)) {
-          await set(ref(db, `library/songs/${songId}`), { ...song, ...(old?.retiree === true ? { retiree: true } : {}), createdAt: old?.createdAt ?? Date.now(), updatedAt: serverTimestamp() });
-          changed.push({ songId, song, audioIds: [before.get(t), t.audioId, old?.audioId].filter(Boolean) });
-        }
-        t.songId = songId;
-      }
+      for (const t of playlist.tracks) await rangerChanson(t, seconds, before, changed);
     }
     if (library) {
       histPlaylist.enregistre();
       renderTracks();
       await followSongs(changed, null);
-      return status("playlist-status", playlist.single ? "Réglages enregistrés. Les playlists qui ont cette chanson les suivent."
-        : `Bibliothèque à jour : ${plural(playlist.tracks.length, "chanson")}. Les playlists qui les ont suivent ces réglages.`, true);
+      status("playlist-status", playlist.single ? "Réglages enregistrés. Les playlists qui ont cette chanson les suivent."
+        : `Bibliothèque à jour : ${plural(playlist.tracks.length, "chanson")} rangée${playlist.tracks.length > 1 ? "s" : ""}.${nonLus}`, !illisibles.length);
+      return true;
     }
     const id = playlist.id ?? push(ref(db, "library/playlists")).key;
     await set(ref(db, `library/playlists/${id}`), {
@@ -3588,16 +3646,40 @@ $("playlist-save").onclick = async () => {
     $("playlist-delete").hidden = false;
     $("playlist-edit-title").textContent = title;
     renderTracks();
-    status("playlist-status", statues
+    status("playlist-status", (statues
       ? `Enregistrée : ${plural(playlist.tracks.length, "chanson")}. Cochez-les dans une manche « Statues musicales » de la prestation.`
-      : `Enregistrée : ${playlist.tracks.length} morceau${playlist.tracks.length > 1 ? "x" : ""}. Ajoutez-la à une prestation comme manche « Blind test » ou « Quiz musical ».`, true);
+      : `Enregistrée : ${playlist.tracks.length} morceau${playlist.tracks.length > 1 ? "x" : ""}. Ajoutez-la à une prestation comme manche « Blind test » ou « Quiz musical ».`) + nonLus, !illisibles.length);
+    return true;
   } catch (err) {
     console.error(err);
-    status("playlist-status", "Enregistrement refusé : vérifiez Internet ou reconnectez-vous.");
+    status("playlist-status", "Enregistrement refusé : vérifiez Internet ou reconnectez-vous, puis « Enregistrer » reprend où il s'est arrêté.");
+    return false;
   } finally {
     $("playlist-save").disabled = false;
   }
-};
+}
+
+/**
+ * Range un morceau prêt (extraits découpés) dans la bibliothèque des sons : sa chanson est créée ou mise à jour, avec
+ * le fichier .lrc entier s'il est nouveau. Sans changement, rien n'est écrit. Note la chanson dans [changed].
+ */
+async function rangerChanson(t, seconds, before, changed) {
+  if (!t.audioId) return;
+  const songId = t.songId && songs[t.songId] ? t.songId : push(ref(db, "library/songs")).key;
+  const old = songs[songId];
+  const song = songData(t, seconds, old);
+  // Le fichier .lrc entier, gardé pour recaler les paroles quand le refrain change.
+  if (t.lrcNeuf && t.lrcTexte) {
+    await set(ref(db, `library/lyrics/${songId}`), t.lrcTexte);
+    delete t.lrcNeuf;
+  }
+  if (!sameSong(old, song)) {
+    await set(ref(db, `library/songs/${songId}`), { ...song, ...(old?.retiree === true ? { retiree: true } : {}), createdAt: old?.createdAt ?? Date.now(), updatedAt: serverTimestamp() });
+    if (!changed.some((c) => c.songId === songId)) changed.push({ songId, song, audioIds: [before.get(t), t.audioId, old?.audioId].filter(Boolean) });
+    else Object.assign(changed.find((c) => c.songId === songId), { song });
+  }
+  t.songId = songId;
+}
 
 /** Chansons changées : les morceaux des autres playlists qui les reprennent suivent (sauf la playlist [exceptId]). */
 async function followSongs(changed, exceptId) {

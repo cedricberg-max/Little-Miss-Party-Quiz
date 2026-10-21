@@ -2112,7 +2112,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
-  test("Sons : MP3 et .lrc déposés ensemble ; refrain deviné par les paroles, paroles du refrain gardées ; un .lrc ajouté plus tard ; la pochette se choisit", async () => {
+  test("Sons : MP3 et .lrc sélectionnés ensemble se rangent seuls ; refrain deviné par les paroles, paroles du refrain gardées ; un .lrc ajouté plus tard ; la pochette se choisit", async () => {
     const LRC = ["[00:05.00]Premier couplet ici", "[00:10.00]La suite du couplet", "[00:20.00]On chante tous ensemble", "[00:24.00]Tous ensemble ce soir",
       "[00:30.00]Deuxième couplet", "[00:40.00]On chante tous ensemble", "[00:44.00]Tous ensemble ce soir"].join("\n");
     const page = await admin();
@@ -2123,18 +2123,12 @@ describe("bibliothèque de quiz et prestations", () => {
       { name: "Les Licornes_On chante.lrc", mimeType: "text/plain", buffer: Buffer.from(LRC) },
       { name: "Les Dragons - Instrumental.wav", mimeType: "audio/wav", buffer: wav(330, 40) },
     ]);
-    await page.locator(".track").nth(1).waitFor();
-    await page.locator("#playlist-status", { hasText: "2 fichiers musicaux lus · paroles de 1 chanson" }).waitFor();
-    const chante = page.locator(".track").first();
-    assert.equal(await chante.locator("input[aria-label=Titre]").inputValue(), "On chante");
-    assert.equal(await chante.locator("input[aria-label=Artiste]").inputValue(), "Les Licornes");
-    // Le refrain proposé : la phrase la plus répétée (20 s), une seconde avant.
-    await chante.locator(".track-refrain", { hasText: "Refrain (chanté à la révélation) : 0:19" }).waitFor();
-    await chante.locator(".track-paroles.ok", { hasText: "Paroles ✓" }).waitFor();
-    await page.click("#playlist-save");
-    await page.locator("#playlist-status", { hasText: "Bibliothèque à jour : 2 chansons" }).waitFor({ timeout: 60000 });
+    // Tout se range seul (cedric, 21/10 : rien à cliquer de plus) ; la liste des sons revient avec le bilan.
+    await page.locator("#song-status", { hasText: "2 fichiers musicaux lus · paroles de 1 chanson. Bibliothèque à jour : 2 chansons rangées." }).waitFor({ timeout: 60000 });
+    assert.equal(await page.locator("#screen-library").isVisible(), true);
     const songs = await library("songs");
     const [id, song] = Object.entries(songs).find(([, x]) => x.title === "On chante");
+    // Le refrain proposé : la phrase la plus répétée (20 s), une seconde avant.
     assert.deepEqual([song.artist, song.refrain, song.lrc, song.auto], ["Les Licornes", 19, true, true]);
     assert.equal(song.paroles.split("\n")[0], "1000|On chante tous ensemble");
     assert.equal(await library(`lyrics/${id}`), LRC);
@@ -2142,8 +2136,6 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(instru.lrc, undefined);
 
     // La bibliothèque : paroles ✓, moments à régler ; l'instrumental signalé (ni pochette ni paroles).
-    await page.click("#nav button[data-screen=library]");
-    await page.click('#library-tabs [data-lib-tab="sons"]');
     const ligne = page.locator("#song-list .song-ligne", { hasText: "On chante" });
     await ligne.locator(".song-paroles.ok", { hasText: "✓ Paroles" }).waitFor();
     await ligne.locator(".song-moments.vide", { hasText: "⏱ À régler" }).waitFor();
@@ -2159,6 +2151,54 @@ describe("bibliothèque de quiz et prestations", () => {
     await waitFor(async () => /^[0-9a-f]{16}$/.test((await library(`songs/${idInstru}`)).imageId ?? ""), "pochette enregistrée");
     await ligneInstru.locator(".song-pochette img").waitFor();
     assert.equal(await ligneInstru.locator(".song-alerte").count(), 0);
+    await page.context().close();
+  });
+
+  test("Sons : toute la bibliothèque d'un coup ; un fichier illisible laissé de côté, les chansons déjà là pas redécoupées ; « 🎲 10 au hasard » dans une playlist", async () => {
+    const page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="sons"]');
+    const avant = Object.keys((await library("songs")) ?? {}).length;
+    await page.setInputFiles("#song-files", [
+      { name: "Les Comètes - Premier.wav", mimeType: "audio/wav", buffer: wav(392, 40) },
+      { name: "Les Pirates - Abîmé.mp3", mimeType: "audio/mpeg", buffer: Buffer.from("pas une musique du tout") },
+      { name: "Les Ninjas - Deuxième.wav", mimeType: "audio/wav", buffer: wav(294, 40) },
+    ]);
+    await page.locator("#song-status", { hasText: "Bibliothèque à jour : 2 chansons rangées. Un fichier illisible laissé de côté" }).waitFor({ timeout: 60000 });
+    await page.locator("#song-status", { hasText: "« Abîmé »" }).waitFor();
+    let songs = await library("songs");
+    assert.equal(Object.keys(songs).length, avant + 2);
+    const premier = Object.values(songs).find((x) => x.title === "Premier");
+    assert.match(premier.refrainId, /^[0-9a-f]{16}$/);
+    // Redéposée avec son .lrc : rien n'est redécoupé, les paroles s'ajoutent à la chanson déjà rangée.
+    await page.setInputFiles("#song-files", [
+      { name: "Les Comètes - Premier.wav", mimeType: "audio/wav", buffer: wav(392, 40) },
+      { name: "Les Comètes_Premier.lrc", mimeType: "text/plain", buffer: Buffer.from("[00:02.00]Un deux trois\n[00:20.00]Soleil") },
+    ]);
+    await page.locator("#song-status", { hasText: "1 fichier musical lu · paroles de 1 chanson · 1 chanson déjà dans la bibliothèque." }).waitFor({ timeout: 30000 });
+    songs = await library("songs");
+    assert.equal(Object.keys(songs).length, avant + 2);
+    const encore = Object.values(songs).find((x) => x.title === "Premier");
+    assert.deepEqual([encore.audioId, encore.refrainId, encore.lrc], [premier.audioId, premier.refrainId, true]);
+
+    // Une playlist du blind test : « 🎲 10 au hasard » pioche dans la bibliothèque (ici, moins de 10 chansons).
+    await page.click("#nav button[data-screen=home]");
+    await page.click(".tile[data-screen=music]");
+    await page.click("#game-tabs [data-tab=collections]");
+    await page.click("#playlist-new");
+    await page.fill("#playlist-title", "Blind test démo");
+    await page.click("#playlist-hasard");
+    const tirees = avant + 2;
+    await page.locator("#playlist-status", { hasText: `${tirees} chansons tirées au hasard dans la bibliothèque` }).waitFor();
+    assert.equal(await page.locator(".track").count(), tirees);
+    // Une seconde fois : toutes sont déjà dedans.
+    await page.click("#playlist-hasard");
+    await page.locator("#playlist-status", { hasText: "Toutes les chansons de la bibliothèque sont déjà dans la playlist." }).waitFor();
+    await page.click("#playlist-save");
+    await page.locator("#playlist-status", { hasText: `Enregistrée : ${tirees} morceaux` }).waitFor({ timeout: 30000 });
+    const liste = Object.values(await library("playlists")).find((p) => p.title === "Blind test démo");
+    assert.equal(Object.values(liste.tracks).length, tirees);
+    assert.ok(Object.values(liste.tracks).some((t) => t.title === "Premier" && /^[0-9a-f]{16}$/.test(t.refrainId)));
     await page.context().close();
   });
 
