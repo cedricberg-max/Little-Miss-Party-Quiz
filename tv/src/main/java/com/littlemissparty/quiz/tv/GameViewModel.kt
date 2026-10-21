@@ -577,15 +577,21 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         if (movedAway(db, uid, code)) UiState.Moved(code) else null
 
     /**
-     * La partie [code] a été confiée à une autre box (`hostUid` reste lisible quand la partie ne l'est plus).
+     * La partie [code] a été confiée par la régie à une autre box, et c'est bien cette box-ci qui a été remplacée.
+     * `hostUid` reste lisible quand la partie ne l'est plus ; `takeover/from` ne se lit que par la box remplacée.
+     * Une box qui garde le code d'une fête qu'elle n'a jamais tenue (mémoire restaurée, identifiant perdu) n'est pas
+     * concernée : elle oublie ce code et crée sa propre partie, sans rien annoncer.
      * Lu sur le serveur si possible : la copie locale de la box peut dater d'avant le changement.
      */
     private suspend fun movedAway(db: FirebaseDatabase, uid: String, code: String): Boolean {
-        val ref = db.getReference("games/$code/hostUid")
-        val host = runCatching { withTimeoutOrNull(MOVED_CHECK_MS) { ref.get().await() } ?: ref.readOnce() }.getOrNull()
-            ?.getValue(String::class.java)
-        return host != null && host != uid
+        val host = readFresh(db.getReference("games/$code/hostUid"))?.getValue(String::class.java)
+        if (host == null || host == uid) return false
+        return readFresh(db.getReference("games/$code/takeover/from"))?.getValue(String::class.java) == uid
     }
+
+    /** Valeur du serveur, à défaut la copie locale ; null si la lecture est refusée. */
+    private suspend fun readFresh(ref: DatabaseReference): DataSnapshot? =
+        runCatching { withTimeoutOrNull(MOVED_CHECK_MS) { ref.get().await() } ?: ref.readOnce() }.getOrNull()
 
     /** Reprise impossible : si la partie [code] a été confiée à une autre box, l'écran le dit au lieu d'une erreur. */
     private suspend fun showIfMoved(code: String): Boolean {

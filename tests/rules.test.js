@@ -1412,6 +1412,10 @@ describe("changer de box : la fête continue sur une box de secours", () => {
     await assertFails(set(ref(ancienne, `games/${CODE}/log/000003`), { seq: 3, at: 3, type: "close" }));
     await assertFails(set(ref(ancienne, `games/${CODE}/conducteur`), { title: "Ancien" }));
     await assertFails(set(ref(ancienne, `games/${CODE}/commandStatus/c0`), { status: "applied" }));
+    // Seule l'ancienne box apprend que c'est elle qui a été remplacée ; une autre box qui aurait gardé le code, non.
+    assert.equal((await get(ref(ancienne, `games/${CODE}/takeover/from`))).val(), HOST);
+    await assertFails(get(ref(ancienne, `games/${CODE}/takeover`)));
+    await assertFails(get(ref(db("autre-box"), `games/${CODE}/takeover/from`)));
     // La régie commande toujours la même partie ; la trace et le relais ne se lisent que par la box qui pilote.
     await assertSucceeds(set(ref(db(REGIE), `games/${CODE}/commands/c1`), { type: "next", expectSeq: 2, by: REGIE, at: serverTimestamp() }));
     await assertFails(get(ref(db(REGIE), `games/${CODE}/takeover`)));

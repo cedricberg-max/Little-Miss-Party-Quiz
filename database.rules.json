@@ -12,6 +12,9 @@
         "takeover": {
           ".write": "auth != null && newData.exists() && root.child('games').child($code).child('regie').child(auth.uid).exists() && newData.parent().child('hostUid').val() !== root.child('games').child($code).child('hostUid').val()",
           ".validate": "newData.hasChildren(['to', 'from', 'by', 'at']) && newData.child('to').isString() && newData.child('to').val().matches(/^[A-Z0-9]{5}$/) && newData.child('to').val() !== $code && newData.child('from').val() === root.child('games').child($code).child('hostUid').val() && newData.child('by').val() === auth.uid && newData.child('at').val() === now",
+          "from": {
+            ".read": "auth != null && data.val() === auth.uid"
+          },
           "$other": {
             ".validate": "$other === 'to' || $other === 'from' || $other === 'by' || $other === 'at'"
           }
