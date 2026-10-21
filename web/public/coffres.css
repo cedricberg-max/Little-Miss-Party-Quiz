@@ -41,6 +41,9 @@
 @keyframes bc-suspense { 50% { transform: translate(-50%, -50%) scale(1.15); } }
 .bc-plus .bc-contenu { color: #08240f; background: #2ee86b; }
 .bc-moins .bc-contenu { color: #fff; background: #ff5a5f; }
+/* Le coffre en or : pastille dorée qui brille. */
+.bc-or .bc-image { filter: brightness(1.05) saturate(1.1) drop-shadow(0 0 10px rgba(255, 209, 102, .9)); }
+.bc-or .bc-contenu { color: #3a1c00; background: linear-gradient(180deg, #fff1b8, #e8b04a); box-shadow: 0 0 14px rgba(255, 209, 102, .9); }
 .bc-bombe .bc-image { filter: grayscale(1) brightness(.35); }
 .bc-bombe .bc-contenu { font-size: 30cqw; background: none; filter: drop-shadow(0 0 8px rgba(255, 120, 60, .9)); }
 

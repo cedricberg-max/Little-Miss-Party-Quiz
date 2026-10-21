@@ -32,7 +32,7 @@ const coffreHTML = (i) => {
 /**
  * hote : l'élément qui reçoit l'écran. surChoix(i) envoie le coffre choisi (une promesse) ; maj(v) redessine :
  * v = {
- *   pret, cle (une par ouverture), count, ouverts: [{ chest, delta, bomb, team, visible }],
+ *   pret, cle (une par ouverture), count, ouverts: [{ chest, delta, bomb, gold, team, visible }],
  *   joue: { nom, couleur } | null (équipe qui ouvre), aMoi, peutOuvrir, envoye (coffre envoyé ou null),
  *   titre, texte, danger, bilan: [{ nom, couleur, gain, moi }] | null, total
  * }
@@ -105,13 +105,14 @@ export function ecranCoffres(hote, { surChoix }) {
       b.classList.toggle("bc-ouvert", !!o);
       b.classList.toggle("bc-attente", !!o && !visible);
       b.classList.toggle("bc-bombe", visible && o.bomb);
+      b.classList.toggle("bc-or", visible && o.gold === true);
       b.classList.toggle("bc-plus", visible && !o.bomb && o.delta > 0);
       b.classList.toggle("bc-moins", visible && !o.bomb && o.delta <= 0);
       b.style.setProperty("--eq", o?.couleur ?? "transparent");
       const contenu = b.querySelector(".bc-contenu");
-      const texte = !o ? "" : !visible ? "?" : o.bomb ? "💣" : signe(o.delta);
+      const texte = !o ? "" : !visible ? "?" : o.bomb ? "💣" : o.gold === true ? `⭐ ${signe(o.delta)}` : signe(o.delta);
       if (contenu.textContent !== texte) contenu.textContent = texte;
-      b.title = o ? `${o.nom ?? ""}${visible ? ` : ${o.bomb ? "la bombe" : signe(o.delta)}` : ""}` : "";
+      b.title = o ? `${o.nom ?? ""}${visible ? ` : ${o.bomb ? "la bombe" : o.gold === true ? `le coffre en or, ${signe(o.delta)}` : signe(o.delta)}` : ""}` : "";
     });
     bouton.hidden = !actif;
     bouton.disabled = choix == null || !v.peutOuvrir;

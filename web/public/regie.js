@@ -822,9 +822,10 @@ function renderCoffres(st) {
   const opened = Array.isArray(c.opened) ? c.opened : Object.values(c.opened ?? {});
   $("coffres-info").textContent = c.ready !== true ? "Les coffres arrivent sur la TV…"
     : `Au tour de l'équipe ${name(c.team)} : elle choisit un coffre sur sa tablette. `
-      + (c.danger ? "💣 La bombe est cachée dans un des coffres !" : `Encore ${c.safeLeft} coffre${c.safeLeft > 1 ? "s" : ""} sans danger.`);
+      + (!c.danger ? `Encore ${c.safeLeft} coffre${c.safeLeft > 1 ? "s" : ""} sans danger.`
+        : `💣 La bombe est cachée dans un des coffres !${c.goldLeft === true ? " ⭐ Le coffre en or (+500) aussi." : ""}`);
   $("coffres-opened").textContent = opened.length
-    ? opened.slice(-4).map((o) => `${name(o.team)} : coffre ${o.chest + 1} ${o.bomb ? "💣" : `${o.delta < 0 ? "−" : "+"}${Math.abs(o.delta)}`}`).join(" · ")
+    ? opened.slice(-4).map((o) => `${name(o.team)} : coffre ${o.chest + 1} ${o.bomb ? "💣" : `${o.gold === true ? "⭐ " : ""}${o.delta < 0 ? "−" : "+"}${Math.abs(o.delta)}`}`).join(" · ")
     : `${c.count ?? 0} coffres fermés.`;
   const btn = $("coffres-random");
   const wait = (c.readyAt ?? 0) - (Date.now() + serverOffset);
@@ -888,12 +889,17 @@ function renderPatate(st) {
   const name = (id) => live.teams[id]?.name ?? "Une équipe";
   const hit = p.hit ?? [];
   const pas = (p.teams ?? []).filter((id) => !hit.includes(id));
+  const booms = Array.isArray(p.booms) ? p.booms : Object.values(p.booms ?? {});
+  const boom = booms[booms.length - 1];
+  const numero = (p.bombs ?? 1) > 1 ? `Bombe ${p.bomb ?? 1} sur ${p.bombs}. ` : "";
   $("patate-info").textContent = p.lit !== true ? "La mèche s'allume sur la TV…"
-    : `💣 La bombe est chez ${name(p.holder)}${p.from ? ` (envoyée par ${name(p.from)})` : ""}. ${p.passes ?? 0} envoi${(p.passes ?? 0) > 1 ? "s" : ""}.`
-      + (pas.length ? ` Pas encore touchées : ${pas.map(name).join(", ")}.` : " Toutes les équipes l'ont eue.");
+    : p.exploded === true ? `💥 BOUM chez ${name(boom?.holder)} ! La bombe ${(p.bomb ?? 1) + 1} s'allume…`
+      : `${numero}💣 La bombe est chez ${name(p.holder)}${p.from ? ` (envoyée par ${name(p.from)})` : ""}. ${p.passes ?? 0} envoi${(p.passes ?? 0) > 1 ? "s" : ""}.`
+        + (pas.length ? ` Pas encore touchées : ${pas.map(name).join(", ")}.` : " Toutes les équipes l'ont eue.")
+        + (booms.length ? ` Déjà explosées chez : ${booms.map((x) => name(x.holder)).join(", ")}.` : "");
   const btn = $("patate-random");
   const wait = Math.max(p.readyAt ?? 0, st.resumeAt ?? 0) - (Date.now() + serverOffset);
-  btn.disabled = p.lit !== true || !!pending?.advance || st.paused === true || wait > 0;
+  btn.disabled = p.lit !== true || p.exploded === true || !!pending?.advance || st.paused === true || wait > 0;
   clearTimeout(patatePret);
   if (wait > 0) patatePret = setTimeout(render, wait + 50);
   btn.textContent = patateArme ? `Touchez encore : la bombe part de chez ${name(p.holder)}` : `🎲 Envoyer la bombe au hasard pour ${name(p.holder)}`;

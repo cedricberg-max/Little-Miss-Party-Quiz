@@ -303,31 +303,39 @@ describe("pupitre", () => {
     // La box l'ouvre : +150 pour les Roses, montré sur la tablette seulement quand la TV l'a montré.
     const at = Date.now();
     const ouvert = { team: r, chest: 2, delta: 150, bomb: false, at };
-    await hostState(question({ ...base, chests: chests({ team: b, turn: 1, safeLeft: 5, key: "bc-1-1", readyAt: at + 4000, opened: [ouvert], gains: { [r]: 150, [b]: 0 } }) }));
+    // (La bombe est arrivée : le coffre en or, pas encore trouvé, se cache avec elle.)
+    await hostState(question({ ...base, chests: chests({ team: b, turn: 1, safeLeft: 0, danger: true, goldLeft: true, key: "bc-1-1", readyAt: at + 4000, opened: [ouvert], gains: { [r]: 150, [b]: 0 } }) }));
     await bleus.locator(".bc-case.bc-attente").waitFor();
     assert.equal(await bleus.locator(".bc-case").nth(2).locator(".bc-contenu").textContent(), "?", "suspense pendant l'animation de la TV");
     await bleus.locator(".bc-titre", { hasText: "Coffre 3…" }).waitFor();
     await bleus.locator(".bc-case.bc-plus .bc-contenu", { hasText: "+150" }).waitFor({ timeout: 5000 });
     // Au tour des Bleus : le bouton attend la fin de l'animation sur la TV.
     await bleus.locator(".bc-titre", { hasText: "À vous, Les Bleus !" }).waitFor();
+    await roses.locator(".bc-texte", { hasText: "la bombe peut être dans n'importe quel coffre… et le coffre en or (+500) aussi !" }).waitFor();
     await bleus.locator(".bc-case").nth(5).click();
     assert.equal(await bleus.locator(".bc-case").nth(2).isDisabled(), true, "un coffre ouvert ne se rouvre pas");
     if (Date.now() < at + 3500) assert.equal(await bleus.locator(".bc-ouvrir").isDisabled(), true, "pas avant la fin de l'animation");
     await waitFor(() => bleus.locator(".bc-ouvrir").isEnabled(), "bouton prêt après l'animation", 8000);
     await bleus.locator(".bc-ouvrir").click();
     await waitFor(async () => (await read("chestChoice/bc-1-1"))?.i === 5, "coffre 6 envoyé à la box");
+    // Le coffre 6 était le coffre en or : +500 pour les Bleus, une pastille dorée sur toutes les tablettes.
+    const or = { team: b, chest: 5, delta: 500, bomb: false, gold: true, at: Date.now() - 3000 };
+    await hostState(question({ ...base, chests: chests({ team: r, turn: 2, safeLeft: 0, danger: true, goldLeft: false, key: "bc-1-2", readyAt: Date.now() + 60000, opened: [ouvert, or], gains: { [r]: 150, [b]: 500 } }) }));
+    await roses.locator(".bc-case.bc-or .bc-contenu", { hasText: "⭐ +500" }).waitFor();
+    await bleus.locator(".bc-texte", { hasText: "Attention, la bombe peut être dans n'importe quel coffre !" }).waitFor();
+    assert.equal(await bleus.locator(".bc-texte", { hasText: "coffre en or" }).count(), 0, "le coffre en or est trouvé");
     // La bombe : bilan du jeu sur les deux tablettes, une fois l'explosion montrée par la TV.
-    const bombe = { team: b, chest: 5, delta: 0, bomb: true, at: Date.now() - 3000 };
-    await hostState(question({ ...base, phase: "reveal", scores: { [r]: 150, [b]: 0 }, chests: chests({ team: null, key: null, turn: 2, safeLeft: 4, danger: true, exploded: true, opened: [ouvert, bombe], gains: { [r]: 150, [b]: 0 } }) }));
+    const bombe = { team: r, chest: 7, delta: -150, bomb: true, at: Date.now() - 3000 };
+    await hostState(question({ ...base, phase: "reveal", scores: { [r]: 0, [b]: 500 }, chests: chests({ team: null, key: null, turn: 3, safeLeft: 0, danger: true, exploded: true, opened: [ouvert, or, bombe], gains: { [r]: 0, [b]: 500 } }) }));
     for (const page of [roses, bleus]) {
       await page.locator(".bc-titre", { hasText: "BOUM ! Le bilan" }).waitFor();
-      await page.locator(".bc-texte", { hasText: "Les Bleus a trouvé la bombe" }).waitFor();
-      assert.deepEqual(await page.locator(".bc-ligne").allTextContents(), ["Les Roses+150", "Les Bleus0"]);
+      await page.locator(".bc-texte", { hasText: "Les Roses a trouvé la bombe" }).waitFor();
+      assert.deepEqual(await page.locator(".bc-ligne").allTextContents(), ["Les Bleus+500", "Les Roses0"]);
     }
-    await roses.locator(".bc-total", { hasText: "150 points · 1re place" }).waitFor();
+    await bleus.locator(".bc-total", { hasText: "500 points · 1re place" }).waitFor();
     // Classement, puis jeu suivant ordinaire : les boutons habituels reviennent.
-    await hostState(question({ ...base, phase: "scores", scores: { [r]: 150, [b]: 0 }, chests: chests({ team: null, exploded: true, opened: [ouvert, bombe], gains: { [r]: 150, [b]: 0 } }) }));
-    await bleus.locator(".bc-total", { hasText: "0 points · 2e place" }).waitFor();
+    await hostState(question({ ...base, phase: "scores", scores: { [r]: 0, [b]: 500 }, chests: chests({ team: null, exploded: true, opened: [ouvert, or, bombe], gains: { [r]: 0, [b]: 500 } }) }));
+    await roses.locator(".bc-total", { hasText: "0 points · 2e place" }).waitFor();
     await hostState(question({ qid: "q9", text: "Couleur du ciel ?" }));
     await roses.locator(".choice .text", { hasText: "Bleu" }).waitFor();
     assert.equal(await roses.locator("#coffres-host .bc").count(), 0, "écran des coffres retiré");
@@ -370,7 +378,7 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
-  test("« Ça va exploser ! » : la bombe se renvoie d'un appui, la mèche colle, pas de retour à l'envoyeur, puis l'explosion", async () => {
+  test("« Ça va exploser ! » : la bombe se renvoie d'un appui, la mèche colle, pas de retour à l'envoyeur, trois bombes puis le bilan", async () => {
     const roses = await openPupitre();
     await joinTeam(roses, "Les Roses");
     const bleus = await openPupitre();
@@ -405,14 +413,46 @@ describe("pupitre", () => {
     assert.equal(await bleus.locator(".pc-equipe", { hasText: "Les Roses" }).isDisabled(), true, "pas de retour à l'envoyeur");
     await bleus.locator(".pc-equipe", { hasText: "Les Verts" }).click();
     await waitFor(async () => (await read("potatoPass/pt-b"))?.to === v, "envoi aux Verts reçu par la box");
-    // La mèche arrive au bout chez les Verts : ils perdent 150, les autres gagnent 150.
-    await hostState(question({ ...base, phase: "reveal", potato: potato({ holder: v, from: b, since: now, readyAt: now, targets: [r], hit: [r, b, v], passes: 2, key: null }),
-      awards: { [v]: { correct: false, points: -150, bonus: 0 }, [r]: { correct: true, points: 150, bonus: 0 }, [b]: { correct: true, points: 150, bonus: 0 } },
-      scores: { [r]: 450, [b]: 300, [v]: 150 } }));
-    await verts.locator("#r-title", { hasText: "BOUM ! La bombe a explosé chez vous : −150 points" }).waitFor();
-    await roses.locator("#r-title", { hasText: "Ouf ! +150 points" }).waitFor();
-    await roses.locator("#r-detail", { hasText: "Elle a explosé chez l'équipe Les Verts." }).waitFor();
-    await roses.locator("#r-total", { hasText: "450 points · 1re place" }).waitFor();
+    // La première bombe explose chez les Verts : ils perdent 100, les autres gagnent 100, et une autre bombe arrive.
+    now = Date.now();
+    const boom1 = { holder: v, at: now, lost: 100, gain: 100 };
+    await hostState(question({ ...base, potato: potato({ holder: v, from: b, since: now - 5000, readyAt: now - 3000, targets: [r], hit: [r, b, v], passes: 2, key: null, bomb: 1, bombs: 3, exploded: true, booms: [boom1] }) }));
+    await verts.locator(".pc-titre", { hasText: "BOUM ! La bombe a explosé chez vous" }).waitFor();
+    await verts.locator(".pc-texte", { hasText: "−100 points. Attention, une autre bombe arrive…" }).waitFor();
+    await verts.locator(".pc.pc-boum.pc-boum-moi").waitFor();
+    await roses.locator(".pc-titre", { hasText: "BOUM chez l'équipe Les Verts !" }).waitFor();
+    await roses.locator(".pc-texte", { hasText: "+100 points pour vous !" }).waitFor();
+    assert.equal(await verts.locator(".pc-equipe").count(), 0, "plus rien ne s'envoie");
+    // La bombe 2 s'allume chez les Roses (jamais chez les Verts qui viennent d'exploser) et part après l'annonce.
+    now = Date.now();
+    const go = now + 2500;
+    await hostState(question({ ...base, resumeAt: go, potato: potato({ holder: r, since: go, readyAt: go + 2000, targets: [b, v], hit: [r], key: "pt-c", bomb: 2, bombs: 3, exploded: false, booms: [{ ...boom1, at: now - 4000 }] }) }));
+    await roses.locator(".pc-titre", { hasText: "Bombe 2 sur 3 !" }).waitFor();
+    await roses.locator(".pc-texte", { hasText: "Elle part de chez vous" }).waitFor();
+    await bleus.locator(".pc-texte", { hasText: "Elle part de chez l'équipe Les Roses" }).waitFor();
+    await roses.locator(".pc-compteur", { hasText: "Bombe 2 sur 3" }).waitFor();
+    // Elle part : chez les Roses, le rouge bat et la tablette vibre, de plus en plus vite pendant que la mèche brûle.
+    await roses.evaluate(() => {
+      window.vibrations = [];
+      Object.defineProperty(navigator, "vibrate", { configurable: true, value: (ms) => { if (typeof ms === "number") window.vibrations.push(ms); return true; } });
+    });
+    await hostState(question({ ...base, resumeAt: go, potato: potato({ holder: r, since: go, readyAt: go + 2000, targets: [b, v], hit: [r], key: "pt-c", bomb: 2, bombs: 3, exploded: false, burnFrom: go - 40000, booms: [{ ...boom1, at: now - 4000 }] }) }));
+    await roses.locator(".pc-titre", { hasText: "La bombe est chez vous !" }).waitFor({ timeout: 6000 });
+    await roses.locator(".pc.pc-chez-moi.pc-bat").waitFor();
+    await waitFor(() => roses.evaluate(() => window.vibrations.length >= 3), "la tablette vibre à chaque coup", 4000);
+    // 40 s de mèche déjà brûlés : les coups sont serrés (moins d'une demi-seconde) et les vibrations plus longues.
+    assert.ok(await roses.evaluate(() => window.vibrations.every((ms) => ms >= 100)), "vibrations fortes au bout de la mèche");
+    assert.equal(await bleus.locator(".pc.pc-bat").count(), 0, "seule l'équipe qui tient la bombe bat");
+    // La troisième bombe explose chez les Verts : le bilan des trois bombes.
+    const booms = [boom1, { holder: b, at: now - 2000, lost: 100, gain: 100 }, { holder: v, at: Date.now(), lost: 100, gain: 100 }];
+    await hostState(question({ ...base, phase: "reveal", potato: potato({ holder: v, from: b, since: now, readyAt: now, targets: [r], hit: [r, b, v], passes: 2, key: null, bomb: 3, bombs: 3, exploded: true, booms }),
+      awards: { [v]: { correct: false, points: -100, bonus: 0 }, [r]: { correct: true, points: 300, bonus: 0 }, [b]: { correct: true, points: 100, bonus: 0 } },
+      scores: { [r]: 600, [b]: 300, [v]: 100 } }));
+    await verts.locator("#r-title", { hasText: "BOUM ! La dernière bombe a explosé chez vous : −100 points" }).waitFor();
+    await verts.locator("#r-detail", { hasText: "Sur les 3 bombes : −100 points." }).waitFor();
+    await roses.locator("#r-title", { hasText: "Ouf ! +100 points" }).waitFor();
+    await roses.locator("#r-detail", { hasText: "Elle a explosé chez l'équipe Les Verts. Sur les 3 bombes : +300 points." }).waitFor();
+    await roses.locator("#r-total", { hasText: "600 points · 1re place" }).waitFor();
     await hostState(question({ qid: "q9", text: "Couleur du ciel ?" }));
     await bleus.locator(".choice .text", { hasText: "Bleu" }).waitFor();
     assert.equal(await bleus.locator("#patate-host .pc").count(), 0, "écran de la patate retiré");

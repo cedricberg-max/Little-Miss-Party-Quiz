@@ -1336,6 +1336,13 @@ describe("régie", () => {
     const opened = [{ team: "bleu", chest: 4, delta: 150, bomb: false, at: Date.now() }];
     await box.set({ ...box.state, seq: box.state.seq + 1, chests: { ...chests, team: "rose", turn: 1, safeLeft: 5, key: "b1-1-1", opened } });
     await page.locator("#coffres-opened", { hasText: "Les Bleus : coffre 5 +150" }).waitFor();
+    // La bombe arrive, cachée avec le coffre en or ; puis les Roses trouvent le coffre en or.
+    await box.set({ ...box.state, seq: box.state.seq + 1, chests: { ...chests, team: "bleu", turn: 6, safeLeft: 0, danger: true, goldLeft: true, key: "b1-1-6", opened } });
+    await page.locator("#coffres-info", { hasText: "La bombe est cachée dans un des coffres ! ⭐ Le coffre en or (+500) aussi." }).waitFor();
+    const or = { team: "rose", chest: 8, delta: 500, bomb: false, gold: true, at: Date.now() };
+    await box.set({ ...box.state, seq: box.state.seq + 1, chests: { ...chests, team: "bleu", turn: 7, safeLeft: 0, danger: true, goldLeft: false, key: "b1-1-7", opened: [...opened, or] } });
+    await page.locator("#coffres-opened", { hasText: "Les Roses : coffre 9 ⭐ +500" }).waitFor();
+    assert.equal(await page.locator("#coffres-info", { hasText: "coffre en or" }).count(), 0, "le coffre en or est trouvé");
     // La bombe : jeu fini, le bouton principal mène au classement.
     await box.set({ ...box.state, seq: box.state.seq + 1, phase: "reveal", chests: { ...chests, team: null, key: null, exploded: true, opened: [...opened, { team: "rose", chest: 1, delta: -300, bomb: true, at: Date.now() }] } });
     await page.locator("#coffres[hidden]").waitFor({ state: "attached" });
@@ -1391,7 +1398,17 @@ describe("régie", () => {
     await page.locator("#patate-random", { hasText: "Envoyer la bombe au hasard pour Les Roses" }).click();
     await page.locator("#patate-random", { hasText: "Touchez encore" }).click();
     await waitFor(async () => (await commands()).some((c) => c.type === "potato_random"), "envoi au hasard demandé à la box");
-    await box.set({ ...box.state, seq: box.state.seq + 1, phase: "reveal", awards: { rose: { correct: false, points: -150, bonus: 0 }, bleu: { correct: true, points: 150, bonus: 0 } } });
+    // Trois bombes : la première explose chez les Roses, le secours attend la bombe suivante.
+    const boom = { holder: "rose", at: Date.now(), lost: 100, gain: 100 };
+    await box.set({ ...box.state, seq: box.state.seq + 1, potato: { ...potato, bomb: 1, bombs: 3, exploded: true, key: null, booms: [boom] } });
+    await page.locator("#patate-info", { hasText: "BOUM chez Les Roses ! La bombe 2 s'allume…" }).waitFor();
+    assert.equal(await page.locator("#patate-random").isDisabled(), true, "rien à envoyer entre deux bombes");
+    const go = Date.now() - 3000;
+    await box.set({ ...box.state, seq: box.state.seq + 1, potato: { ...potato, holder: "bleu", targets: ["rose"], hit: ["bleu"], since: go, readyAt: go + 2000, bomb: 2, bombs: 3, exploded: false, key: "p1-2", booms: [boom] } });
+    await page.locator("#patate-info", { hasText: "Bombe 2 sur 3. 💣 La bombe est chez Les Bleus" }).waitFor();
+    await page.locator("#patate-info", { hasText: "Déjà explosées chez : Les Roses." }).waitFor();
+    await waitFor(() => page.locator("#patate-random").isEnabled(), "secours prêt pour la bombe 2", 6000);
+    await box.set({ ...box.state, seq: box.state.seq + 1, phase: "reveal", awards: { rose: { correct: false, points: -100, bonus: 0 }, bleu: { correct: true, points: 100, bonus: 0 } } });
     await page.locator("#patate[hidden]").waitFor({ state: "attached" });
     await page.locator("#c-next", { hasText: "Voir les scores" }).waitFor();
     await page.context().close();

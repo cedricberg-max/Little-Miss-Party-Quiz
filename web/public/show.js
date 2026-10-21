@@ -22,7 +22,7 @@ export const PORTES_RULE = "chaque équipe choisit une porte sur sa tablette : d
  * malus tirés au sort par la TV à l'ouverture ; après quelques tours sans danger, une bombe se cache dans un coffre et
  * arrête le jeu. Rien à préparer. Les manches « portes » déjà enregistrées se jouent en coffres mystères.
  */
-export const COFFRES_RULE = "chaque équipe à son tour ouvre un coffre sur sa tablette : un bonus pour remonter au classement, ou un malus qui fait descendre ! Vers la fin, une bombe se cache dans un des coffres : l'équipe qui l'ouvre perd 300 points et le jeu s'arrête";
+export const COFFRES_RULE = "chaque équipe à son tour ouvre un coffre sur sa tablette : un bonus pour remonter au classement, ou un malus qui fait descendre ! Vers la fin, une bombe se cache dans un des coffres, et un coffre en or qui rapporte 500 points : l'équipe qui ouvre la bombe perd 300 points et le jeu s'arrête";
 /**
  * Le Gonfleur fou : chaque équipe tapote sa tablette pour gonfler son ballon sur la TV ; le premier qui éclate gagne.
  * Rien à préparer. GONFLEUR_SEC = chrono de secours (le plus gros ballon gagne s'il arrive au bout).
@@ -33,7 +33,7 @@ export const GONFLEUR_SEC = 45;
  * « Ça va exploser ! » : une bombe passe d'équipe en équipe depuis les tablettes, sa mèche (tirée au sort par la TV)
  * reste secrète. Rien à préparer.
  */
-export const PATATE_RULE = "la bombe peut exploser à tout moment ! Chaque équipe s'en débarrasse en l'envoyant à une autre depuis sa tablette ; à l'explosion, l'équipe qui la tient perd 150 points et toutes les autres en gagnent 150";
+export const PATATE_RULE = "la bombe peut exploser à tout moment ! Chaque équipe s'en débarrasse en l'envoyant à une autre depuis sa tablette ; à chaque explosion, l'équipe qui la tient perd 100 points et toutes les autres en gagnent 100. Trois bombes par partie";
 /** Type de manche joué : les anciennes Portes mystères deviennent les Coffres mystères. */
 export const roundType = (type) => (type === "portes" ? "coffres" : type);
 
