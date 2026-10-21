@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.tv.habillage.Neon
 import com.littlemissparty.quiz.tv.habillage.PoliceLmp
 import com.littlemissparty.quiz.tv.habillage.couleurTexteNeonDore
+import com.littlemissparty.quiz.tv.habillage.styleCentre
 
 private val Shape = RoundedCornerShape(50)
 private const val FOCUS_MS = 160
@@ -87,12 +88,9 @@ fun TvButton(
     ) {
         Text(
             label,
-            color = ink,
-            fontSize = fontSize,
-            // Le bouton Material impose sa propre police : celle de l'appli est redonnée ici.
-            fontFamily = PoliceLmp,
-            fontWeight = if (focused || primary) FontWeight.ExtraBold else FontWeight.SemiBold,
-            textAlign = TextAlign.Center,
+            // Le bouton Material impose sa propre police et une hauteur de ligne plus petite que le texte : celle de
+            // l'appli est redonnée ici, centrée au pixel (sinon Baloo 2 tombe trop bas, « Trouvé ! » le 21/10).
+            style = styleCentre(fontSize, ink, if (focused || primary) FontWeight.ExtraBold else FontWeight.SemiBold).copy(textAlign = TextAlign.Center),
         )
     }
 }

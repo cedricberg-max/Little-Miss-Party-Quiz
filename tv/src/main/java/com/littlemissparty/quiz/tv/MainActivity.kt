@@ -11,6 +11,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.runtime.Composable
@@ -112,11 +114,19 @@ class MainActivity : ComponentActivity() {
  * les textes qui fixent le leur (habillage) ne changent pas.
  */
 @Composable
-private fun PoliceDesEcrans(contenu: @Composable () -> Unit) = AvecPoliceLmp {
-    ProvideTextStyle(
-        LocalTextStyle.current.merge(
-            TextStyle(lineHeight = 1.2.em, lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None)),
-        ),
-        contenu,
-    )
+private fun PoliceDesEcrans(contenu: @Composable () -> Unit) {
+    // Taille de police de la TV ignorée : les écrans sont dessinés au millimètre pour 960 × 540. Sur une TV réglée en
+    // « grande police » (TCL de cedric, 21/10), les textes grossissaient mais pas les cadres : noms d'équipe coupés
+    // en bas des pastilles des mimes, textes décentrés dans les boutons.
+    val d = LocalDensity.current
+    CompositionLocalProvider(LocalDensity provides Density(d.density, 1f)) {
+        AvecPoliceLmp {
+            ProvideTextStyle(
+                LocalTextStyle.current.merge(
+                    TextStyle(lineHeight = 1.2.em, lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None)),
+                ),
+                contenu,
+            )
+        }
+    }
 }
