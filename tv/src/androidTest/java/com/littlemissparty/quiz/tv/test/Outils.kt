@@ -364,7 +364,7 @@ class PupitreSimule(etiquette: String) : AutoCloseable {
         }
     }.onFailure { Log.i(TAG, "Choix du mot refusé : ${it.message}") }.isSuccess
 
-    /** La bombe cachée : l'équipe qui joue ouvre le coffre [choix] ; renvoie false si le serveur refuse. */
+    /** Les coffres mystères : l'équipe qui joue ouvre le coffre [choix] ; renvoie false si le serveur refuse. */
     fun ouvrirCoffre(code: String, choix: Int): Boolean = runCatching {
         val cle = etat(code).child("chests/key").value.toString()
         bloquer {
@@ -382,7 +382,7 @@ class PupitreSimule(etiquette: String) : AutoCloseable {
         }
     }.onFailure { Log.i(TAG, "Tapes refusées : ${it.message}") }.isSuccess
 
-    /** Patate chaude : la tablette de l'équipe qui tient la bombe l'envoie à [vers] ; false si le serveur refuse. */
+    /** « Ça va exploser ! » : la tablette de l'équipe qui tient la bombe l'envoie à [vers] ; false si le serveur refuse. */
     fun envoyerPatate(code: String, vers: String): Boolean = runCatching {
         val cle = etat(code).child("potato/key").value?.toString() ?: error("pas de bombe en jeu")
         bloquer {

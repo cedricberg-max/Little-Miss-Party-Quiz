@@ -1081,7 +1081,7 @@ describe("défis de la pause", () => {
   });
 });
 
-describe("La bombe cachée", () => {
+describe("Les Coffres mystères", () => {
   const chests = (extra = {}) => seed({
     kind: "coffres", qid: "r9c", choices: null, deadline: null,
     chests: { ready: true, count: 10, team: "bleu", key: "r9c-100-2", readyAt: Date.now() - 1000, ...extra },
@@ -1190,7 +1190,7 @@ describe("Le Gonfleur fou", () => {
   });
 });
 
-describe("La Patate chaude", () => {
+describe("Ça va exploser !", () => {
   const bombe = (potato = {}, extra = {}) => seed({
     kind: "patate", qid: "r9p", choices: null, deadline: null, resumeAt: Date.now() - 10_000,
     potato: { lit: true, holder: "bleu", from: null, canReturn: false, key: "r9p-100", readyAt: Date.now() - 1000, ...potato }, ...extra,

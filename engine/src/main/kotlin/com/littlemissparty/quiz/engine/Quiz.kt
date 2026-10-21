@@ -87,7 +87,7 @@ enum class QuestionKind(val code: String) {
     PORTES("portes"),
 
     /**
-     * La bombe cachée : des coffres ouverts chacun son tour, depuis la tablette de l'équipe qui joue. Chaque coffre
+     * Les coffres mystères : des coffres ouverts chacun son tour, depuis la tablette de l'équipe qui joue. Chaque coffre
      * cache un bonus ou un malus, tiré au sort par la box à son ouverture. Après quelques tours sans danger, une bombe
      * se cache dans un des coffres restants : l'équipe qui l'ouvre perd [BOMB_POINTS] points et le jeu s'arrête.
      * Rien à préparer : ni propositions ni valeurs, tout se décide au hasard pendant la partie.
@@ -101,7 +101,7 @@ enum class QuestionKind(val code: String) {
     GONFLEUR("gonfleur"),
 
     /**
-     * La Patate chaude : une bombe passe d'équipe en équipe depuis les tablettes ; sa mèche, tirée au sort, est
+     * « Ça va exploser ! » : une bombe passe d'équipe en équipe depuis les tablettes ; sa mèche, tirée au sort, est
      * cachée. L'équipe qui la tient à l'explosion perd des points, les autres en gagnent. Rien à préparer.
      */
     PATATE("patate");
@@ -191,9 +191,9 @@ data class Question(
             require(doors.all { it in -MAX_DOOR_POINTS..MAX_DOOR_POINTS }) { "Portes mystères $id : valeur hors limites" }
             require(durationSec in 10..120) { "Portes mystères $id : durée entre 10 et 120 s" }
         } else if (kind == QuestionKind.COFFRES) {
-            require(choices.isEmpty()) { "La bombe cachée $id : pas de propositions" }
+            require(choices.isEmpty()) { "Coffres mystères $id : pas de propositions" }
         } else if (kind == QuestionKind.PATATE) {
-            require(choices.isEmpty()) { "Patate chaude $id : pas de propositions" }
+            require(choices.isEmpty()) { "Ça va exploser $id : pas de propositions" }
         } else if (kind == QuestionKind.GONFLEUR) {
             require(choices.isEmpty()) { "Gonfleur fou $id : pas de propositions" }
             require(durationSec in 20..180) { "Gonfleur fou $id : durée entre 20 et 180 s" }

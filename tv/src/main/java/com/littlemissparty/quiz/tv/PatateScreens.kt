@@ -24,7 +24,7 @@ import com.littlemissparty.quiz.tv.habillage.styleCentre
 import kotlinx.coroutines.delay
 
 /*
- * La patate chaude sur la TV. L'écran ne décide rien : la box allume la mèche (durée tirée au sort, jamais
+ * « Ça va exploser ! » sur la TV. L'écran ne décide rien : la box allume la mèche (durée tirée au sort, jamais
  * affichée), les tablettes envoient la bombe, la partie la fait exploser. Ici : la scène de la bombe
  * (habillage/Patate.kt) avec une tension qui monte d'après le temps de mèche écoulé, puis l'explosion.
  */
@@ -51,7 +51,7 @@ fun PatateScreen(state: UiState.Playing, actions: TvActions) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 if (p == null || porteur < 0) {
                     Text(
-                        if (state.teams.size < 2) "Il faut au moins 2 équipes pour la patate chaude" else "La mèche s'allume…",
+                        if (state.teams.size < 2) "Il faut au moins 2 équipes pour « Ça va exploser ! »" else "La mèche s'allume…",
                         style = styleCentre(40.sp, Neon.OrClair),
                     )
                 } else {

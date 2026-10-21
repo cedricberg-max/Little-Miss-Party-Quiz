@@ -1337,7 +1337,7 @@ def portes_renversement():
         mx.add('bells', note('glockenspiel', m + 12, .3, .5, release=.8), 1.15 + k * .08)
     return mx.render(duck=0)
 
-# ---------------------------------------------------------------- La bombe cachée
+# ---------------------------------------------------------------- Les coffres mystères
 def coffre_secoue():
     """Le coffre tremble : petits chocs de bois irréguliers et pièces qui tintent dedans, de plus en plus fort."""
     mx = Mix(2, tail=.6)
@@ -1447,7 +1447,7 @@ def ballon_eclate():
     mx.add('fx', crash(.5, 2), .64 / B)
     return mx.render(duck=0)
 
-# ---------------------------------------------------------------- La patate chaude
+# ---------------------------------------------------------------- « Ça va exploser ! »
 def tic(i):
     """Tic-tac de la bombe, de plus en plus fort et sec (i = 0 doux, 1 moyen, 2 fort)."""
     mx = Mix(1, tail=.3)

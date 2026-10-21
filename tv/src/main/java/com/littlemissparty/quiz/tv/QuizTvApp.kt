@@ -102,9 +102,9 @@ class TvActions(
     val blindSkip: () -> Unit = {},
     /** Box refusée dans la Régie PC : renvoyer la demande d'activation. */
     val requestAgain: () -> Unit = {},
-    /** La bombe cachée à la télécommande : un coffre au hasard pour l'équipe qui joue. */
+    /** Les coffres mystères à la télécommande : un coffre au hasard pour l'équipe qui joue. */
     val chestRandom: () -> Unit = {},
-    /** Patate chaude à la télécommande : la bombe part au hasard (tablette en panne). */
+    /** « Ça va exploser ! » à la télécommande : la bombe part au hasard (tablette en panne). */
     val potatoRandom: () -> Unit = {},
     /** « Donner des points » (menu Retour) : équipes choisies, montant (fête sans Internet). */
     val givePoints: (List<String>, Int) -> Unit = { _, _ -> },

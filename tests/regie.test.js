@@ -1305,7 +1305,7 @@ describe("régie", () => {
     await page.context().close();
   });
 
-  test("La bombe cachée : la régie suit les coffres sans jamais voir leur contenu, et ouvre un coffre au hasard en secours", async () => {
+  test("Les coffres mystères : la régie suit les coffres sans jamais voir leur contenu, et ouvre un coffre au hasard en secours", async () => {
     box = startBox();
     const page = await openRegie();
     await pair(page);
@@ -1313,10 +1313,10 @@ describe("régie", () => {
     await addTeam("rose", "Les Roses");
     await addTeam("bleu", "Les Bleus");
     const plan = (await read("conducteur")) ?? { questions: [] };
-    const bombe = { id: "b1", text: "La bombe cachée", kind: "coffres", choices: [], correct: -1, round: "La bombe cachée" };
+    const bombe = { id: "b1", text: "Les Coffres mystères", kind: "coffres", choices: [], correct: -1, round: "Les Coffres mystères" };
     await set(gameRef("conducteur"), { ...plan, coffres: true, questions: [...plan.questions, bombe] });
     const chests = { ready: true, count: 10, order: ["bleu", "rose"], team: "bleu", turn: 0, safe: 6, safeLeft: 6, danger: false, exploded: false, key: "b1-1-0", readyAt: Date.now() + 2500, opened: [], gains: { bleu: 0, rose: 0 } };
-    await box.set({ ...questionState(box.state.seq + 1, 0), index: 2, qid: "b1", kind: "coffres", text: "La bombe cachée", choices: null, deadline: null, total: 3, chests });
+    await box.set({ ...questionState(box.state.seq + 1, 0), index: 2, qid: "b1", kind: "coffres", text: "Les Coffres mystères", choices: null, deadline: null, total: 3, chests });
     await page.locator("#coffres-info", { hasText: "Au tour de l'équipe Les Bleus" }).waitFor();
     await page.locator("#coffres-info", { hasText: "Encore 6 coffres sans danger" }).waitFor();
     // Le bouton principal n'ouvre jamais de coffre : ce sont les équipes qui jouent.
@@ -1370,7 +1370,7 @@ describe("régie", () => {
     await page.context().close();
   });
 
-  test("La Patate chaude : la régie voit chez qui est la bombe et peut l'envoyer au hasard en deux appuis", async () => {
+  test("« Ça va exploser ! » : la régie voit chez qui est la bombe et peut l'envoyer au hasard en deux appuis", async () => {
     box = startBox();
     const page = await openRegie();
     await pair(page);
@@ -1378,11 +1378,11 @@ describe("régie", () => {
     await addTeam("rose", "Les Roses");
     await addTeam("bleu", "Les Bleus");
     const plan = (await read("conducteur")) ?? { questions: [] };
-    const bombe = { id: "p1", text: "La Patate chaude", kind: "patate", choices: [], correct: -1, round: "La Patate chaude" };
+    const bombe = { id: "p1", text: "Ça va exploser !", kind: "patate", choices: [], correct: -1, round: "Ça va exploser !" };
     await set(gameRef("conducteur"), { ...plan, patate: true, questions: [...plan.questions, bombe] });
     const now = Date.now();
     const potato = { lit: true, holder: "rose", from: null, since: now - 3000, readyAt: now - 1000, canReturn: true, targets: ["bleu"], teams: ["rose", "bleu"], hit: ["rose"], passes: 0, key: "p1-1" };
-    await box.set({ ...questionState(box.state.seq + 1, 0), index: 2, qid: "p1", kind: "patate", text: "La Patate chaude", choices: null, deadline: null, total: 3, potato });
+    await box.set({ ...questionState(box.state.seq + 1, 0), index: 2, qid: "p1", kind: "patate", text: "Ça va exploser !", choices: null, deadline: null, total: 3, potato });
     await page.locator("#patate-info", { hasText: "La bombe est chez Les Roses" }).waitFor();
     await page.locator("#patate-info", { hasText: "Pas encore touchées : Les Bleus" }).waitFor();
     assert.equal(await page.locator("#c-next").isDisabled(), true, "la mèche décide de la fin, pas la régie");
@@ -1761,7 +1761,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const page = await admin();
     // Le menu : Accueil, Bibliothèque, Paramètres (plus de page Jeux ni Prestations : tout part de l'Accueil).
     assert.deepEqual(await page.locator("#nav button").allInnerTexts(), ["Accueil", "Bibliothèque", "Paramètres"]);
-    // 16 jeux (dont le Quiz illustré, le Pictionary, la bombe cachée, le Gonfleur fou et la patate chaude) : la Super Finale n'en est pas un, c'est la fin du quiz (réglage de la manche Quiz).
+    // 16 jeux (dont le Quiz illustré, le Pictionary, les Coffres mystères, le Gonfleur fou et Ça va exploser !) : la Super Finale n'en est pas un, c'est la fin du quiz (réglage de la manche Quiz).
     const tile = (type) => page.locator(`#screen-home .tile[data-game="${type}"]`);
     assert.equal(await page.locator("#screen-home .tile[data-game]").count(), 16);
     await tile("illustre").waitFor();
@@ -2735,7 +2735,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#screen-manche-edit:not([hidden])").waitFor();
     await page.locator("#screen-manche-edit .retour-barre.bas .retour-page").click();
     await page.locator("#screen-game:not([hidden])").waitFor();
-    assert.equal(await page.textContent("#game-title"), "La Patate chaude");
+    assert.equal(await page.textContent("#game-title"), "Ça va exploser !");
     // Après un rechargement, les pages d'avant ne rouvrent rien d'autre que l'Accueil.
     await page.reload();
     await page.locator("#screen-home:not([hidden])").waitFor();
@@ -2787,7 +2787,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.locator("#home-import").count(), 0, "Importer un quiz : seulement dans la rubrique Quiz");
     // Chaque tuile ouvre la page du jeu (ses manches) ; l'onglet Collections mène à son contenu.
     await page.locator('#home-games .tile[data-game=patate]', { hasText: "Rien à préparer" }).click();
-    await page.locator("#screen-game:not([hidden]) #game-h1", { hasText: "Patate chaude" }).waitFor();
+    await page.locator("#screen-game:not([hidden]) #game-h1", { hasText: "Ça va exploser" }).waitFor();
     assert.equal(await page.locator("#game-tabs [data-tab=collections]").count(), 0, "Rien à préparer : pas de collections");
     await page.click("#nav button[data-screen=home]");
     await page.locator('#home-games .tile[data-game=chante]').click();
@@ -3399,7 +3399,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.click("#tab-plan");
     await regie.click("#plan-add");
     await regie.locator('#lib-list [data-game="pin/vieux/0"]', { hasText: "Animaux" }).waitFor();
-    await regie.locator('#lib-list [data-game="pin/vieux/1"]', { hasText: "Patate" }).waitFor();
+    await regie.locator('#lib-list [data-game="pin/vieux/1"]', { hasText: "Ça va exploser" }).waitFor();
     assert.equal(await regie.locator("#lib-list .lib-section").first().textContent(), "⭐ Prestations épinglées");
     await regie.context().close();
   });

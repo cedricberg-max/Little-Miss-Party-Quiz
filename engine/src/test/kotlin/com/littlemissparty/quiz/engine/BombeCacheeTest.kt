@@ -8,19 +8,19 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** La bombe cachée : coffres ouverts chacun son tour, tours sans danger, puis la bombe arrête le jeu. */
+/** Les coffres mystères : coffres ouverts chacun son tour, tours sans danger, puis la bombe arrête le jeu. */
 class BombeCacheeTest {
 
     private val t0 = 1_000_000L
     private val quiz = Question("q1", "Capitale ?", listOf("Paris", "Rome"), 0, durationSec = 20, roundTitle = "Quiz")
-    private val bombe = Question("b1", "La bombe cachée", emptyList(), -1, kind = QuestionKind.COFFRES, roundTitle = "La bombe cachée")
+    private val bombe = Question("b1", "Les Coffres mystères", emptyList(), -1, kind = QuestionKind.COFFRES, roundTitle = "Les Coffres mystères")
     private val apres = Question("q2", "Couleur du ciel ?", listOf("Bleu", "Vert"), 0, durationSec = 20, roundTitle = "Quiz 2")
     private val equipes = listOf("licornes", "dragons")
 
     /** Tirage qui donne toujours 0 : la bombe dès qu'elle est possible. */
     private val toujoursBombe = TirageZero()
 
-    /** Quiz joué (Licornes 100 et plus, Dragons 0), puis la bombe cachée, présentée puis lancée. */
+    /** Quiz joué (Licornes 100 et plus, Dragons 0), puis les coffres mystères, présentés puis lancés. */
     private fun partie(intros: Boolean = true): Game = Game(Quiz("p", "P", listOf(quiz, bombe, apres), intros = intros)).apply {
         next(t0)
         if (intros) next(t0 + 100)
@@ -156,7 +156,7 @@ class BombeCacheeTest {
     }
 
     @Test
-    fun `rejouée depuis la régie, la bombe cachée repart à zéro sans compter deux fois`() {
+    fun `rejoués depuis la régie, les coffres mystères repartent à zéro sans compter deux fois`() {
         val g = partie(intros = false)
         val avant = g.state.scores()
         g.dealChests(equipes, t0 + 7_000)
@@ -184,10 +184,10 @@ class BombeCacheeTest {
 
     @Test
     fun `la prestation envoyée par la régie se lit, et la commande de secours aussi`() {
-        // Exactement ce qu'écrit web/public/show.js pour une manche « La bombe cachée » (ou d'anciennes Portes).
-        val quiz = QuizJson.parse("""{"id":"p","questions":[{"id":"r1c","text":"La bombe cachée","kind":"coffres","choices":[],"correct":-1,"duration":20,"double":false,"round":"La bombe cachée"}]}""")
+        // Exactement ce qu'écrit web/public/show.js pour une manche « Les Coffres mystères » (ou d'anciennes Portes).
+        val quiz = QuizJson.parse("""{"id":"p","questions":[{"id":"r1c","text":"Les Coffres mystères","kind":"coffres","choices":[],"correct":-1,"duration":20,"double":false,"round":"Les Coffres mystères"}]}""")
         assertTrue(quiz.questions.single().isCoffres)
-        assertEquals("La bombe cachée", quiz.questions.single().roundTitle)
+        assertEquals("Les Coffres mystères", quiz.questions.single().roundTitle)
         assertEquals(Command.ChestRandom("c", 4), Command.decode("c", mapOf("type" to "chest_random", "expectSeq" to 4)))
     }
 

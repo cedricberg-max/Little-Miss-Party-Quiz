@@ -88,7 +88,7 @@ val FACTORS = listOf(2, 3, 5)
 data class DoorOpened(override val seq: Int, override val at: Long, val qid: String) : GameEvent
 
 /**
- * La bombe cachée : la box installe les coffres de la manche [qid] dès le lancement du jeu. [order] : ordre de jeu
+ * Les coffres mystères : la box installe les coffres de la manche [qid] dès le lancement du jeu. [order] : ordre de jeu
  * des équipes (la plus en retard d'abord), [count] coffres, [safe] ouvertures sans bombe possible.
  */
 data class ChestsDealt(
@@ -101,7 +101,7 @@ data class ChestsDealt(
 ) : GameEvent
 
 /**
- * La bombe cachée : l'équipe [team] ouvre le coffre [chest]. Son contenu, tiré au sort par la box à cet instant, est
+ * Les coffres mystères : l'équipe [team] ouvre le coffre [chest]. Son contenu, tiré au sort par la box à cet instant, est
  * inscrit ici une fois pour toutes : [delta] = points comptés (malus réduit au score), [bomb] = c'était la bombe.
  */
 data class ChestOpened(
@@ -203,13 +203,13 @@ data class StatuesWon(override val seq: Int, override val at: Long, val team: St
  */
 data class BalloonBurst(override val seq: Int, override val at: Long, val qid: String, val team: String, val teams: List<String>) : GameEvent
 
-/** Patate chaude : la mèche s'allume ([fuseMs], tirée au sort), la bombe part de [holder] ; [teams] jouent. */
+/** « Ça va exploser ! » : la mèche s'allume ([fuseMs], tirée au sort), la bombe part de [holder] ; [teams] jouent. */
 data class PotatoLit(override val seq: Int, override val at: Long, val qid: String, val holder: String, val fuseMs: Long, val teams: List<String>) : GameEvent
 
-/** Patate chaude : [from] envoie la bombe à [to]. */
+/** « Ça va exploser ! » : [from] envoie la bombe à [to]. */
 data class PotatoPassed(override val seq: Int, override val at: Long, val qid: String, val from: String, val to: String) : GameEvent
 
-/** Patate chaude : la bombe explose chez [holder] ; révélation. */
+/** « Ça va exploser ! » : la bombe explose chez [holder] ; révélation. */
 data class PotatoExploded(override val seq: Int, override val at: Long, val qid: String, val holder: String) : GameEvent
 
 data class BuzzJudged(override val seq: Int, override val at: Long, val ok: Boolean, val bonus: Boolean = false) : GameEvent

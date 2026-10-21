@@ -178,7 +178,7 @@ Réponse : B`);
 describe("Super Finale", () => {
   test("une ancienne manche « Super Finale » devient le réglage ×2 du quiz qui la précède, jamais une manche à part", () => {
     const old = [{ type: "quiz", quizId: "a" }, { type: "chante", count: 3 }, { type: "finale", quizId: "f" }, { type: "portes", doors: 4 }];
-    // Les Portes mystères enregistrées deviennent La bombe cachée (cedric, 20 octobre).
+    // Les Portes mystères enregistrées deviennent les Coffres mystères (cedric, 20 octobre).
     assert.deepEqual(foldLegacyFinale(old), { rounds: [{ type: "quiz", quizId: "a", finale: 3 }, { type: "chante", count: 3 }, { type: "coffres" }], folded: 1, converted: 1 });
     assert.equal(old[0].finale, undefined, "l'original n'est pas modifié");
     // Un réglage déjà choisi est gardé ; sans quiz avant elle, elle devient une manche Quiz ordinaire.
@@ -665,20 +665,20 @@ describe("statues musicales", () => {
   });
 });
 
-describe("La bombe cachée", () => {
+describe("Les Coffres mystères", () => {
   const QUIZ = { title: "Quiz", questions: [{ text: "Roi ?", choices: ["Lion", "Tigre"], correct: 0, status: "validee" }] };
-  test("rien à préparer, à la suite d'un quiz ; les anciennes Portes mystères se jouent en bombe cachée", () => {
+  test("rien à préparer, à la suite d'un quiz ; les anciennes Portes mystères se jouent en coffres mystères", () => {
     const show = { childName: "Léa", age: 9, rounds: [{ type: "quiz", quizId: "q" }, { type: "coffres" }, { type: "portes", doors: 3 }] };
     const { snapshot, problems } = buildSnapshot("s", show, { q: QUIZ });
     assert.deepEqual(problems, []);
     assert.deepEqual(snapshot.quiz.questions.map((q) => q.kind), ["classic", "coffres", "coffres"]);
     const bombes = snapshot.quiz.questions.filter((q) => q.kind === "coffres");
     // Exactement ce que lit la TV : pas de propositions, ni de contenu des coffres (tiré à l'ouverture).
-    assert.deepEqual(bombes.map((q) => [q.text, q.round, q.correct, q.choices, q.doors]), Array(2).fill(["La bombe cachée", "La bombe cachée", -1, [], undefined]));
+    assert.deepEqual(bombes.map((q) => [q.text, q.round, q.correct, q.choices, q.doors]), Array(2).fill(["Les Coffres mystères", "Les Coffres mystères", -1, [], undefined]));
     assert.equal(new Set(snapshot.quiz.questions.map((q) => q.id)).size, snapshot.quiz.questions.length, "identifiants uniques");
     assert.equal(roundFilled({ type: "coffres" }), true, "rien à préparer");
     assert.equal(roundFilled({ type: "portes" }), true);
-    assert.ok(estimateMinutes(snapshot) >= 10, "environ 5 minutes par bombe cachée");
+    assert.ok(estimateMinutes(snapshot) >= 10, "environ 5 minutes par partie de coffres mystères");
   });
 });
 
@@ -693,13 +693,13 @@ describe("Le Gonfleur fou", () => {
   });
 });
 
-describe("La Patate chaude", () => {
+describe("Ça va exploser !", () => {
   test("rien à préparer : un seul élément, la mèche est tirée au sort par la box", () => {
     const quiz = { title: "Quiz", questions: [{ text: "Roi ?", choices: ["Lion", "Tigre"], correct: 0, status: "validee" }] };
     const { snapshot, problems } = buildSnapshot("s", { childName: "Léa", age: 9, rounds: [{ type: "quiz", quizId: "q" }, { type: "patate" }] }, { q: quiz });
     assert.deepEqual(problems, []);
     const p = snapshot.quiz.questions.at(-1);
-    assert.deepEqual([p.kind, p.text, p.round, p.correct, p.choices], ["patate", "La Patate chaude", "La Patate chaude", -1, []]);
+    assert.deepEqual([p.kind, p.text, p.round, p.correct, p.choices], ["patate", "Ça va exploser !", "Ça va exploser !", -1, []]);
     assert.equal(roundFilled({ type: "patate" }), true);
   });
 });

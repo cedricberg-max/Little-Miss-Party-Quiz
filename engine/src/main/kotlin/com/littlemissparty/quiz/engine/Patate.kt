@@ -3,7 +3,7 @@ package com.littlemissparty.quiz.engine
 import kotlin.random.Random
 
 /*
- * La Patate chaude : une bombe passe d'équipe en équipe, chaque équipe choisit sur sa tablette à qui l'envoyer.
+ * « Ça va exploser ! » : une bombe passe d'équipe en équipe, chaque équipe choisit sur sa tablette à qui l'envoyer.
  * La mèche brûle pendant une durée tirée au sort par la box, que personne ne connaît (la TV la montre qui raccourcit,
  * sans secondes). Pas de retour à l'envoyeur (sauf à 2 équipes) ; « mèche qui colle » : on ne peut renvoyer la bombe
  * que [POTATO_STICKY_MS] après l'avoir reçue, donc la vitesse du réseau ne désigne jamais le perdant. À l'explosion,
@@ -24,7 +24,7 @@ const val POTATO_GO_MS = 3_500L
 const val POTATO_POINTS = 150
 
 /**
- * Partie de patate chaude : [teams] = équipes qui jouent, [holder] = équipe qui tient la bombe, [from] = celle qui
+ * Partie de « Ça va exploser ! » : [teams] = équipes qui jouent, [holder] = équipe qui tient la bombe, [from] = celle qui
  * vient de l'envoyer (null au départ), [since] = heure du serveur où [holder] l'a reçue, [hit] = équipes qui l'ont
  * déjà eue, [passes] = nombre d'envois.
  */

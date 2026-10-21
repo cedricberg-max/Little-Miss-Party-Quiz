@@ -50,7 +50,7 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /*
- * La patate chaude : la bombe passe d'équipe en équipe, sa mèche brûle sans qu'on sache quand elle explosera.
+ * « Ça va exploser ! » : la bombe passe d'équipe en équipe, sa mèche brûle sans qu'on sache quand elle explosera.
  * L'habillage montre qui l'a, fait monter la tension (mèche, tic-tac qui accélère et forcit, lueur rouge) et
  * joue l'explosion. Le moment de l'explosion et les points sont décidés par la partie, jamais par l'écran.
  */

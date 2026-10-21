@@ -62,9 +62,9 @@ fun emblemeJeu(famille: String): EmblemeJeu = when (famille.lowercase()) {
     "statues" -> EmblemeJeu("🗿", Color(0xFF6FA8FF))
     "pictionary" -> EmblemeJeu("🎨", Color(0xFFFF2D8A))
     "portes" -> EmblemeJeu("🚪", Color(0xFFF0CC92))
-    "bombe", "coffres", "bombecachee" -> EmblemeJeu("💣", Color(0xFFFF8A8F))
+    "bombe", "coffres", "bombecachee" -> EmblemeJeu("🗝️", Color(0xFFF0CC92))
     "gonfleur", "ballons" -> EmblemeJeu("🎈", Color(0xFFFF2D8A))
-    "patate", "patatechaude" -> EmblemeJeu("🧨", Color(0xFFFF5A1F))
+    "patate", "patatechaude" -> EmblemeJeu("💣", Color(0xFFFF5A1F))
     else -> EmblemeJeu("❓", Color(0xFFF0CC92))
 }
 

@@ -214,7 +214,7 @@ object Codec {
                 "choices" to if (q.isBuzz && !revealed) null else q.choices,
                 // Réponses en images : la photo de chaque proposition ("" pour une proposition en texte).
                 "choiceImages" to q.choiceImages.takeIf { q.hasChoiceImages && !(q.isBuzz && !revealed) }?.map { it ?: "" },
-                // Patate chaude : la mèche reste un secret, même pour les tablettes.
+                // « Ça va exploser ! » : la mèche reste un secret, même pour les tablettes.
                 "durationMs" to q.durationMs.takeIf { !q.isPatate },
                 "deadline" to game.deadline().takeIf { !q.isPatate },
                 "remainingMs" to if (!q.isPortes && !q.isCoffres && !q.isGonfleur && !q.isPatate && (s.paused || s.buzzHeld || s.buzz?.waiting == true)) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
@@ -263,7 +263,7 @@ object Codec {
         )
     }
 
-    /** Patate chaude : clé où la tablette de l'équipe qui tient la bombe écrit son envoi (`potatoPass/`), une par réception. */
+    /** « Ça va exploser ! » : clé où la tablette de l'équipe qui tient la bombe écrit son envoi (`potatoPass/`), une par réception. */
     fun potatoKey(game: Game): String? {
         val p = game.state.potato ?: return null
         if (game.state.phase != Phase.QUESTION) return null
@@ -271,7 +271,7 @@ object Codec {
     }
 
     /**
-     * Patate chaude, pour la TV, la régie et les tablettes : qui tient la bombe, qui l'a envoyée, à qui elle peut
+     * « Ça va exploser ! », pour la TV, la régie et les tablettes : qui tient la bombe, qui l'a envoyée, à qui elle peut
      * partir et à partir de quand, et qui l'a déjà eue. Jamais la durée de la mèche.
      */
     fun potatoState(game: Game): Map<String, Any?> {
@@ -297,7 +297,7 @@ object Codec {
         return "${game.state.qid.orEmpty().replace(Regex("[.#$\\[\\]/]"), "_")}-$go"
     }
 
-    /** La bombe cachée : clé où la tablette de l'équipe qui joue écrit le coffre choisi (`chestChoice/`), une par ouverture. */
+    /** Les coffres mystères : clé où la tablette de l'équipe qui joue écrit le coffre choisi (`chestChoice/`), une par ouverture. */
     fun chestKey(game: Game): String? {
         val r = game.chestRound ?: return null
         if (r.team == null) return null
@@ -305,7 +305,7 @@ object Codec {
     }
 
     /**
-     * La bombe cachée, pour la TV, la régie et les pupitres : les coffres ouverts (le contenu des autres n'existe pas
+     * Les coffres mystères, pour la TV, la régie et les pupitres : les coffres ouverts (le contenu des autres n'existe pas
      * encore), l'équipe qui joue et l'heure où elle pourra ouvrir, le danger, et les gains de chaque équipe.
      */
     fun chestState(game: Game): Map<String, Any?> {

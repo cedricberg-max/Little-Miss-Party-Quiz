@@ -95,9 +95,9 @@ data class GameState(
     val doorValues: Map<String, Map<Int, Int>> = emptyMap(),
     /** Écran de présentation du jeu qui commence : rien ne part avant le lancement de l'animatrice ([GameLaunched]). */
     val intro: Boolean = false,
-    /** La bombe cachée : les coffres de chaque manche jouée (points compris), par question. */
+    /** Les coffres mystères : les coffres de chaque manche jouée (points compris), par question. */
     val chests: Map<String, ChestRound> = emptyMap(),
-    /** Patate chaude en cours (null hors de ce jeu, ou avant que la mèche soit allumée). */
+    /** « Ça va exploser ! » en cours (null hors de ce jeu, ou avant que la mèche soit allumée). */
     val potato: PotatoRound? = null,
 ) {
     val paused: Boolean get() = hold != null
@@ -198,7 +198,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         (!q.isPatate || state.potato != null) &&
         (!q.isBlind || (state.buzz?.waiting == false && state.segments.isNotEmpty()))
 
-    /** Durée du chrono de [q] : la mèche tirée au sort pour la Patate chaude, sinon celle de la question. */
+    /** Durée du chrono de [q] : la mèche tirée au sort pour « Ça va exploser ! », sinon celle de la question. */
     fun durationOf(q: Question): Long = if (q.isPatate) state.potato?.fuseMs ?: q.durationMs else q.durationMs
 
     /**
@@ -593,12 +593,12 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             // Le buzz d'un jeu précédent (équipe validée) ne doit jamais figer le chrono des mimes.
             buzz = null,
         )
-        // La bombe cachée : pas de chrono ; la box installe les coffres dès que le jeu est lancé.
+        // Les coffres mystères : pas de chrono ; la box installe les coffres dès que le jeu est lancé.
         else if (q.isCoffres) s.copy(
             phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null, mime = null, buzz = null,
             chests = s.chests - q.id,
         )
-        // Patate chaude : pas de chrono tant que la box n'a pas allumé la mèche ([lightPotato]).
+        // « Ça va exploser ! » : pas de chrono tant que la box n'a pas allumé la mèche ([lightPotato]).
         else if (q.isPatate) s.copy(phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null, mime = null, buzz = null)
         // Gonfleur fou : le chrono de secours part après le décompte 3, 2, 1 de la TV, comme après une reprise.
         else if (q.isGonfleur) (at + PUMP_GO_MS).let { go ->
@@ -649,11 +649,11 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             state.intro -> emit(GameLaunched(nextSeq, now))
             // Blind test à la télécommande : OK lance la musique, ou l'arrête.
             question?.isBlind == true -> if (state.buzz?.waiting == true) blindPlay(now) else blindStop(now)
-            // La bombe cachée : seules les équipes ouvrent les coffres, depuis leur tablette.
+            // Les coffres mystères : seules les équipes ouvrent les coffres, depuis leur tablette.
             question?.isCoffres == true -> null
             // Gonfleur fou : l'arrêt de la course a besoin des tapes des tablettes ([balloon]).
             question?.isGonfleur == true -> null
-            // Patate chaude : seule la mèche décide de la fin.
+            // « Ça va exploser ! » : seule la mèche décide de la fin.
             question?.isPatate == true -> null
             state.mime == null -> close(now)
             state.mimeTurn -> mimeStop(now)
@@ -770,13 +770,13 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     fun close(now: Long): GameEvent? =
         if (state.paused || question?.isGonfleur == true || question?.isPatate == true) null else emit(QuestionClosed(nextSeq, now))
 
-    /** Patate chaude : la mèche est à allumer (jeu lancé, pas encore de bombe). */
+    /** « Ça va exploser ! » : la mèche est à allumer (jeu lancé, pas encore de bombe). */
     fun needsPotato(): Boolean {
         val q = question ?: return false
         return q.isPatate && state.phase == Phase.QUESTION && !state.intro && !state.paused && state.potato == null
     }
 
-    /** Patate chaude : allume la mèche (durée tirée au sort) ; la bombe part d'une équipe tirée au sort parmi [teams]. */
+    /** « Ça va exploser ! » : allume la mèche (durée tirée au sort) ; la bombe part d'une équipe tirée au sort parmi [teams]. */
     fun lightPotato(teams: List<String>, now: Long, random: Random = Random.Default): GameEvent? {
         val q = question ?: return null
         val playing = teams.distinct()
@@ -785,7 +785,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     }
 
     /**
-     * Patate chaude : [team] envoie la bombe à [to]. Refusé si [team] ne la tient pas, avant la fin de la mèche qui
+     * « Ça va exploser ! » : [team] envoie la bombe à [to]. Refusé si [team] ne la tient pas, avant la fin de la mèche qui
      * colle, vers l'envoyeur (sauf à 2 équipes), en pause ou pendant un décompte.
      */
     fun passPotato(team: String, to: String, now: Long, sentAt: Long = now): GameEvent? {
@@ -797,13 +797,13 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         return emit(PotatoPassed(nextSeq, maxOf(now, p.readyAt), state.qid!!, team, to))
     }
 
-    /** Patate chaude, secours de la régie : la bombe part au hasard chez une équipe permise (tablette en panne). */
+    /** « Ça va exploser ! », secours de la régie : la bombe part au hasard chez une équipe permise (tablette en panne). */
     fun passPotatoRandom(now: Long, random: Random = Random.Default): GameEvent? {
         val p = state.potato ?: return null
         return passPotato(p.holder, p.targets.randomOrNull(random) ?: return null, now)
     }
 
-    /** Patate chaude : la mèche est arrivée au bout, la bombe explose chez l'équipe qui la tient. */
+    /** « Ça va exploser ! » : la mèche est arrivée au bout, la bombe explose chez l'équipe qui la tient. */
     fun explode(now: Long): GameEvent? {
         val p = state.potato ?: return null
         if (state.paused || state.phase != Phase.QUESTION || remainingMs(now) > 0) return null
@@ -885,17 +885,17 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
      */
     fun doorOrder(): List<Int> = question?.takeIf { it.isPortes }?.choices?.indices?.toList() ?: emptyList()
 
-    /** La bombe cachée : les coffres du jeu en cours, ou null (autre jeu, coffres pas encore installés). */
+    /** Les coffres mystères : les coffres du jeu en cours, ou null (autre jeu, coffres pas encore installés). */
     val chestRound: ChestRound? get() = state.qid?.let { state.chests[it] }?.takeIf { question?.isCoffres == true }
 
-    /** La bombe cachée : le jeu vient d'être lancé, la box doit installer les coffres ([dealChests]). */
+    /** Les coffres mystères : le jeu vient d'être lancé, la box doit installer les coffres ([dealChests]). */
     fun needsChests(): Boolean {
         val q = question ?: return false
         return q.isCoffres && state.phase == Phase.QUESTION && !state.intro && !state.paused && q.id !in state.chests
     }
 
     /**
-     * La bombe cachée : installe les coffres pour les équipes [teams] (dans l'ordre d'inscription). L'équipe la plus en
+     * Les coffres mystères : installe les coffres pour les équipes [teams] (dans l'ordre d'inscription). L'équipe la plus en
      * retard commence ; à égalité, l'ordre d'inscription.
      */
     fun dealChests(teams: List<String>, now: Long): GameEvent? {
@@ -907,7 +907,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     }
 
     /**
-     * La bombe cachée : l'équipe [team] ouvre le coffre [chest] ; son contenu est tiré au sort maintenant. Refusé
+     * Les coffres mystères : l'équipe [team] ouvre le coffre [chest] ; son contenu est tiré au sort maintenant. Refusé
      * avant la fin de l'animation précédente ([ChestRound.readyAt]), en pause, ou si ce n'est pas le tour de [team].
      */
     fun openChest(team: String, chest: Int, now: Long, random: Random = Random.Default): GameEvent? {
@@ -919,7 +919,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         return emit(ChestOpened(nextSeq, now, r.let { question!!.id }, team, chest, delta, bomb = value == null))
     }
 
-    /** La bombe cachée, secours de la régie : un coffre fermé au hasard pour l'équipe qui joue (tablette en panne). */
+    /** Les coffres mystères, secours de la régie : un coffre fermé au hasard pour l'équipe qui joue (tablette en panne). */
     fun openRandomChest(now: Long, random: Random = Random.Default): GameEvent? {
         val r = chestRound ?: return null
         val team = r.team ?: return null

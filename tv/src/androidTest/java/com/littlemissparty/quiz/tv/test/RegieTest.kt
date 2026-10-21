@@ -811,10 +811,10 @@ class RegieTest : TestTv() {
         assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
         @Suppress("UNCHECKED_CAST")
         val demo = regie.programme(code)["questions"] as List<Map<String, Any?>>
-        // Exactement ce qu'envoie la régie pour une manche « La bombe cachée » (web/public/show.js).
+        // Exactement ce qu'envoie la régie pour une manche « Les Coffres mystères » (web/public/show.js).
         val bombe = mapOf(
-            "id" to "bc", "text" to "La bombe cachée", "choices" to emptyList<String>(), "correct" to -1,
-            "duration" to 20, "kind" to "coffres", "double" to false, "round" to "La bombe cachée",
+            "id" to "bc", "text" to "Les Coffres mystères", "choices" to emptyList<String>(), "correct" to -1,
+            "duration" to 20, "kind" to "coffres", "double" to false, "round" to "Les Coffres mystères",
         )
         assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(demo[0] + ("round" to "Quiz"), bombe)))
 
@@ -824,7 +824,7 @@ class RegieTest : TestTv() {
         assertTrue(licornes.repondre(code, demo[0]["id"] as String, (demo[0]["correct"] as Number).toInt()))
         attendreQue("points du quiz") { points(licornes, code, licornes.uid).takeIf { it >= Scoring.BASE } ?: run { regie.commande(code, "next"); null } }
 
-        // Jeu suivant : la bombe cachée. Les coffres sont installés dès le lancement, les Dragons (derniers) commencent.
+        // Jeu suivant : les coffres mystères. Les coffres sont installés dès le lancement, les Dragons (derniers) commencent.
         attendreQue("coffres installés", 30_000) {
             val e = licornes.etat(code)
             if (e.child("qid").value == "bc" && e.child("phase").value == "question" && e.child("chests/ready").value == true) true
@@ -861,7 +861,7 @@ class RegieTest : TestTv() {
         assertTrue("au moins les 6 coffres sans danger avant la bombe", ouvertures >= 6)
         val e = licornes.etat(code)
         assertEquals("reveal", e.child("phase").value)
-        ecran.voit("Le bilan de la bombe cachée", 15_000)
+        ecran.voit("Le bilan des Coffres mystères", 15_000)
         ecran.capture("bombe-bilan")
         assertTrue("jamais sous 0", points(licornes, code, licornes.uid) >= 0 && points(dragons, code, dragons.uid) >= 0)
 
@@ -933,10 +933,10 @@ class RegieTest : TestTv() {
         assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
         @Suppress("UNCHECKED_CAST")
         val demo = regie.programme(code)["questions"] as List<Map<String, Any?>>
-        // Exactement ce qu'envoie la régie pour une manche « La Patate chaude » (web/public/show.js).
+        // Exactement ce qu'envoie la régie pour une manche « Ça va exploser ! » (web/public/show.js).
         val bombe = mapOf(
-            "id" to "pt", "text" to "La Patate chaude", "choices" to emptyList<String>(), "correct" to -1,
-            "duration" to 40, "kind" to "patate", "double" to false, "round" to "La Patate chaude",
+            "id" to "pt", "text" to "Ça va exploser !", "choices" to emptyList<String>(), "correct" to -1,
+            "duration" to 40, "kind" to "patate", "double" to false, "round" to "Ça va exploser !",
         )
         assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(demo[0] + ("round" to "Quiz"), bombe)))
 
@@ -946,7 +946,7 @@ class RegieTest : TestTv() {
         assertTrue(licornes.repondre(code, demo[0]["id"] as String, (demo[0]["correct"] as Number).toInt()))
         attendreQue("points du quiz") { points(licornes, code, licornes.uid).takeIf { it >= Scoring.BASE } ?: run { regie.commande(code, "next"); null } }
 
-        // Jeu suivant : la patate chaude, lancée par l'animatrice ; la box allume la mèche toute seule.
+        // Jeu suivant : « Ça va exploser ! », lancé par l'animatrice ; la box allume la mèche toute seule.
         attendreQue("mèche allumée", 30_000) {
             val e = licornes.etat(code)
             if (e.child("qid").value == "pt" && e.child("potato/lit").value == true) true

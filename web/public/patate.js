@@ -1,5 +1,5 @@
 /**
- * La Patate chaude sur la tablette. L'équipe qui tient la bombe choisit à qui l'envoyer (un appui sur l'équipe) ; la
+ * « Ça va exploser ! » sur la tablette. L'équipe qui tient la bombe choisit à qui l'envoyer (un appui sur l'équipe) ; la
  * mèche colle 2 secondes après la réception, l'envoyeur ne peut pas la récupérer (sauf à 2 équipes), et les équipes
  * qui ne l'ont pas encore eue brillent. Les autres voient chez qui elle est. Module autonome, sans Firebase : la page
  * pupitre envoie le choix (surEnvoi) et passe l'état à maj().

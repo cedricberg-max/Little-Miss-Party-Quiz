@@ -1157,7 +1157,7 @@ function roundFields(r) {
       pictoSeriesPicker(r),
       picksSelection(r))
     : r.type === "coffres"
-    // La bombe cachée : rien à préparer, le nombre de coffres suit le nombre d'équipes.
+    // Les coffres mystères : rien à préparer, le nombre de coffres suit le nombre d'équipes.
     ? h("span", { class: "grow hint small", text: "Rien à préparer : le nombre de coffres suit le nombre d'équipes. Idéal en dernier jeu." })
     : r.type === "patate"
     ? h("span", { class: "grow hint small", text: "Rien à préparer : la TV tire la mèche au sort, la bombe part d'une équipe au hasard." })
@@ -2455,15 +2455,15 @@ $("test-full-create").onclick = async () => {
       for (const k of renommer) await update(ref(db, `library/quizzes/${k}`), { title: OLD_TEST_TITLES[quizzes[k].title], updatedAt: serverTimestamp() });
       if (missing.some((m) => m.playlistId)) await addTunes(Date.now());
       if (missing.some((m) => m.quizId === FULL_KEYS.images)) await addImageQuiz(Date.now());
-      // La bombe cachée reste le jeu final : tout à la fin.
+      // Les coffres mystères restent le jeu final : tout à la fin.
       const last = missing.filter((m) => m.type === "coffres");
       const middle = missing.filter((m) => m.type !== "coffres");
-      // Bombe cachée déjà là (anciennes Portes mystères comprises) : les nouveaux jeux passent juste avant elle.
+      // Coffres mystères déjà là (anciennes Portes mystères comprises) : les nouveaux jeux passent juste avant eux.
       const at = rounds.findIndex((r) => r.type === "coffres");
       const next = [...(at < 0 ? [...rounds, ...middle] : [...rounds.slice(0, at), ...middle, ...rounds.slice(at)]), ...last];
       await set(ref(db, `library/shows/${FULL_ID}`), { ...existing, rounds: next, notes: FULL_SHOW.notes, updatedAt: serverTimestamp() });
       const added = missing.map((m) => ROUND_TYPES[m.type]).join(", ");
-      status("test-full-status", `Mise à jour de « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux » :${added ? ` ${added} ajouté(s).` : ""}${folded ? " L'ancienne manche « Super Finale » est retirée : les 3 dernières questions du quiz comptent double." : ""}${converted ? " Les Portes mystères deviennent La bombe cachée." : ""}${illustre ? " Le quiz en images des petits devient un Quiz illustré." : ""}${renommer.length ? " Quiz de test renommés : « TEST – Quiz classique de Léa » et « TEST – Quiz illustré des petits »." : ""} Rechargez la prestation dans la régie.`, true);
+      status("test-full-status", `Mise à jour de « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux » :${added ? ` ${added} ajouté(s).` : ""}${folded ? " L'ancienne manche « Super Finale » est retirée : les 3 dernières questions du quiz comptent double." : ""}${converted ? " Les Portes mystères deviennent les Coffres mystères." : ""}${illustre ? " Le quiz en images des petits devient un Quiz illustré." : ""}${renommer.length ? " Quiz de test renommés : « TEST – Quiz classique de Léa » et « TEST – Quiz illustré des petits »." : ""} Rechargez la prestation dans la régie.`, true);
       return;
     }
     status("test-full-status", "Préparation des photos, des musiques et des jeux…", true);
@@ -3564,8 +3564,8 @@ const GAME_GROUPS = [
     { type: "pictionary", icon: "✏️", rule: `Équipe par équipe : vous montrez un mot sur la tablette de l'équipe, un enfant le dessine et le dessin s'affiche en direct sur la TV. ${PICTO_POINTS} points si son équipe trouve avant la fin du chrono. Le temps de dessin se choisit dans la prestation.` },
   ] },
   { title: "Sans contenu", hint: "Rien à préparer.", games: [
-    { type: "coffres", icon: "💣", rule: "Chaque équipe à son tour ouvre un coffre sur sa tablette : bonus ou malus, tirés au sort à l'ouverture. Après quelques tours sans danger, une bombe se cache dans un des coffres : l'équipe qui l'ouvre perd 300 points (jamais sous 0) et le jeu s'arrête sur le bilan. Personne ne connaît le contenu des coffres, régie comprise. Idéal en dernier jeu." },
-    { type: "patate", icon: "🥔", rule: "Une bombe passe d'équipe en équipe : sur sa tablette, l'équipe qui la tient choisit à qui l'envoyer (jamais tout de suite à l'équipe qui vient de l'envoyer, sauf à 2 équipes ; on ne peut la renvoyer que 2 secondes après l'avoir reçue). La mèche, tirée au sort, reste secrète : à l'explosion, l'équipe qui tient la bombe perd 150 points (jamais sous 0), toutes les autres en gagnent 150." },
+    { type: "coffres", icon: "🗝️", rule: "Une chance de se refaire… ou de dégringoler ! Chaque équipe à son tour ouvre un coffre sur sa tablette : bonus ou malus, tirés au sort à l'ouverture (l'équipe la plus en retard commence). Après quelques tours sans danger, une bombe se cache dans un des coffres : l'équipe qui l'ouvre perd 300 points (jamais sous 0) et le jeu s'arrête sur le bilan. Personne ne connaît le contenu des coffres, régie comprise. Idéal en dernier jeu." },
+    { type: "patate", icon: "💣", rule: "La bombe peut exploser à tout moment ! Elle passe d'équipe en équipe : sur sa tablette, l'équipe qui la tient choisit à qui l'envoyer (jamais tout de suite à l'équipe qui vient de l'envoyer, sauf à 2 équipes ; on ne peut la renvoyer que 2 secondes après l'avoir reçue). La mèche, tirée au sort, reste secrète : à l'explosion, l'équipe qui tient la bombe perd 150 points (jamais sous 0), toutes les autres en gagnent 150." },
     { type: "gonfleur", icon: "🎈", rule: "Chaque équipe tapote sa tablette le plus vite possible pour gonfler son ballon sur la TV ; on peut se relayer. Le premier ballon qui éclate gagne 300 points, les autres équipes 150. Depuis la régie, « Arrêter la course » donne la victoire au plus gros ballon." },
   ] },
 ];
@@ -3835,8 +3835,12 @@ const COLLECTION_SCREEN = {
   chante: () => openBuiltin("chante"), quisuis: () => openBuiltin("quisuis"), disparu: () => openBuiltin("disparu"), pictionary: () => openBuiltin("pictionary"),
 };
 
-/** « de Quiz », « du Gonfleur fou », « de la bombe cachée » : l'article du nom du jeu se contracte. */
-const deJeu = (nom) => (nom.startsWith("Le ") ? `du ${nom.slice(3)}` : nom.startsWith("La ") ? `de la ${nom.slice(3)}` : `de ${nom}`);
+/**
+ * « de Quiz », « du Gonfleur fou », « des Coffres mystères » : l'article du nom du jeu se contracte. Un nom qui est une
+ * phrase (« Ça va exploser ! », « Qui suis-je ? ») reste entre guillemets.
+ */
+const deJeu = (nom) => (/[!?]$/.test(nom) ? `de « ${nom} »` : nom.startsWith("Le ") ? `du ${nom.slice(3)}`
+  : nom.startsWith("La ") ? `de la ${nom.slice(3)}` : nom.startsWith("Les ") ? `des ${nom.slice(4)}` : `de ${nom}`);
 
 /** Les deux onglets d'un jeu : Manches, Collections. [active] : « manches » ou « collections ». */
 function gameTabs(type, active) {

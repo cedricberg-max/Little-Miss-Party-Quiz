@@ -37,7 +37,7 @@ sealed interface Command {
     /** Image floue : la réponse orale de l'équipe qui a buzzé est bonne ([ok]) ou mauvaise. */
     data class Judge(override val id: String, override val expectSeq: Int, val ok: Boolean, val bonus: Boolean = false) : Command
 
-    /** Patate chaude : secours, la bombe part au hasard chez une équipe permise (tablette en panne). */
+    /** « Ça va exploser ! » : secours, la bombe part au hasard chez une équipe permise (tablette en panne). */
     data class PotatoRandom(override val id: String, override val expectSeq: Int) : Command
 
     /** Statues musicales : l'équipe gagnante désignée par l'animatrice. */
@@ -64,7 +64,7 @@ sealed interface Command {
     /** Portes mystères : nouvelle valeur derrière une porte, avant leur ouverture. */
     data class PortesSet(override val id: String, override val expectSeq: Int, val qid: String, val door: Int, val value: Int) : Command
 
-    /** La bombe cachée, secours : ouvrir un coffre au hasard pour l'équipe qui joue (tablette en panne, hésitation). */
+    /** Les coffres mystères, secours : ouvrir un coffre au hasard pour l'équipe qui joue (tablette en panne, hésitation). */
     data class ChestRandom(override val id: String, override val expectSeq: Int) : Command
 
     /** Régie : aller au jeu (manche) qui commence à la question [index], [qid] vérifiant le programme. */

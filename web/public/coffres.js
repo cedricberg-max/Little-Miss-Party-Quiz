@@ -1,5 +1,5 @@
 /**
- * La bombe cachée sur la tablette : les coffres de la TV, chacun son tour. L'équipe qui joue choisit un coffre fermé
+ * Les coffres mystères sur la tablette : les coffres de la TV, chacun son tour. L'équipe qui joue choisit un coffre fermé
  * et l'ouvre ; les autres regardent qui joue et ce qui sort. Module autonome, sans Firebase : la page pupitre envoie
  * le choix et passe l'état de la partie à maj().
  */

@@ -1,4 +1,4 @@
-/* La Patate chaude sur la tablette : la bombe de la TV sur son socle, et chez nous, les équipes à qui l'envoyer.
+/* « Ça va exploser ! » sur la tablette : la bombe de la TV sur son socle, et chez nous, les équipes à qui l'envoyer.
    Téléphone droit : tout en colonne. Tablette posée ou téléphone couché : la bombe à gauche, les équipes à droite. */
 #patate-host { width: 100%; }
 .pc { --rouge: 255, 59, 92; display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%; padding: 6px 8px 12px; text-align: center; color: #fff; }

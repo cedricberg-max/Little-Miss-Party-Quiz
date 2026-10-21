@@ -3,7 +3,7 @@ package com.littlemissparty.quiz.engine
 import kotlin.random.Random
 
 /*
- * La bombe cachée : les équipes ouvrent des coffres chacune son tour, sur leur tablette. Bonus ou malus, tirés au
+ * Les coffres mystères : les équipes ouvrent des coffres chacune son tour, sur leur tablette. Bonus ou malus, tirés au
  * sort par la box à l'ouverture : le contenu d'un coffre n'existe nulle part avant, personne ne peut le lire ni
  * le choisir, régie comprise. Après quelques tours sans danger, une bombe se cache dans un des coffres restants ;
  * l'équipe qui l'ouvre perd des points et le jeu s'arrête sur le bilan.
@@ -42,7 +42,7 @@ fun chestCount(teams: Int): Int = (teams * safeRounds(teams) + teams + 2).coerce
 data class ChestOpen(val team: String, val chest: Int, val delta: Int, val bomb: Boolean, val at: Long)
 
 /**
- * Partie de bombe cachée : [order] = ordre de jeu des équipes (la plus en retard d'abord), [safe] = nombre
+ * Partie de coffres mystères : [order] = ordre de jeu des équipes (la plus en retard d'abord), [safe] = nombre
  * d'ouvertures sans bombe possible, [dealt] = heure de la distribution (clé des choix des tablettes).
  */
 data class ChestRound(

@@ -1,4 +1,4 @@
-"""Little Miss Party : les 6 coffres de « La bombe cachée » pour les tablettes (mêmes formes et couleurs que la TV).
+"""Little Miss Party : les 6 coffres de « Les Coffres mystères » pour les tablettes (mêmes formes et couleurs que la TV).
 
 Usage : python3 tools/habillage/coffres_svg.py  → web/public/img/coffres/coffre-1..6.svg
 La plaque dorée de chaque coffre est vide : la tablette écrit le numéro par-dessus (centre donné par PLAQUES).

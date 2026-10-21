@@ -69,7 +69,7 @@ import kotlin.math.min
 import kotlin.math.sin
 
 /*
- * La bombe cachée (remplace les Portes mystères) : des coffres de toutes formes posés sur les gradins d'une estrade
+ * Les coffres mystères (remplacent les Portes mystères) : des coffres de toutes formes posés sur les gradins d'une estrade
  * laquée prune, ouverts chacun leur tour par les équipes. Bonus, malus… puis la bombe.
  *
  * Ces écrans ne font qu'animer ce que la partie leur donne : le contenu d'un coffre est tiré par la box au moment
@@ -463,7 +463,7 @@ private fun BandeauTour(auTour: Pair<String, Color>?, modifier: Modifier = Modif
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (auTour == null) {
-            Text("La bombe cachée", maxLines = 1, style = styleBandeau.copy(color = Neon.OrClair))
+            Text("Les Coffres mystères", maxLines = 1, style = styleBandeau.copy(color = Neon.OrClair))
         } else {
             Text(auTour.first, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false), style = styleBandeau.copy(color = couleur))
             Text(", choisissez un coffre !", maxLines = 1, softWrap = false, style = styleBandeau.copy(color = Neon.Blanc))
@@ -792,7 +792,7 @@ fun BilanBombe(lignes: List<Triple<String, Color, Int>>, modifier: Modifier = Mo
             ) {
                 Text("💣", style = TextStyle(fontSize = 24.sp))
                 Spacer(Modifier.width(10.dp))
-                Text("Le bilan de la bombe cachée", maxLines = 1, style = styleBandeau.copy(color = Neon.OrClair))
+                Text("Le bilan des Coffres mystères", maxLines = 1, style = styleBandeau.copy(color = Neon.OrClair))
             }
             Spacer(Modifier.height(if (deuxColonnes) 22.dp else 30.dp))
             val largeur: Dp = if (deuxColonnes) 420.dp else 620.dp

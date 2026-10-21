@@ -277,7 +277,7 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
-  test("La bombe cachée : l'équipe qui joue ouvre un coffre, les autres regardent, le contenu attend la TV, puis le bilan", async () => {
+  test("Les coffres mystères : l'équipe qui joue ouvre un coffre, les autres regardent, le contenu attend la TV, puis le bilan", async () => {
     const roses = await openPupitre();
     await joinTeam(roses, "Les Roses");
     const bleus = await openPupitre();
@@ -285,7 +285,7 @@ describe("pupitre", () => {
     const teams = await read("teams");
     const r = Object.keys(teams).find((id) => teams[id].name === "Les Roses");
     const b = Object.keys(teams).find((id) => teams[id].name === "Les Bleus");
-    const base = { qid: "bc", kind: "coffres", text: "La bombe cachée", choices: null, correct: null, deadline: null, game: { title: "La bombe cachée" } };
+    const base = { qid: "bc", kind: "coffres", text: "Les Coffres mystères", choices: null, correct: null, deadline: null, game: { title: "Les Coffres mystères" } };
     const chests = (extra) => ({ ready: true, count: 10, order: [r, b], safe: 6, danger: false, exploded: false, opened: [], gains: { [r]: 0, [b]: 0 }, ...extra });
     await hostState(question({ ...base, chests: chests({ team: r, turn: 0, safeLeft: 6, key: "bc-1-0", readyAt: Date.now() - 1000 }) }));
     await roses.locator("#coffres-host .bc-titre", { hasText: "À vous, Les Roses !" }).waitFor();
@@ -370,7 +370,7 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
-  test("La Patate chaude : la bombe se renvoie d'un appui, la mèche colle, pas de retour à l'envoyeur, puis l'explosion", async () => {
+  test("« Ça va exploser ! » : la bombe se renvoie d'un appui, la mèche colle, pas de retour à l'envoyeur, puis l'explosion", async () => {
     const roses = await openPupitre();
     await joinTeam(roses, "Les Roses");
     const bleus = await openPupitre();
@@ -380,7 +380,7 @@ describe("pupitre", () => {
     const teams = await read("teams");
     const id = (name) => Object.keys(teams).find((t) => teams[t].name === name);
     const [r, b, v] = [id("Les Roses"), id("Les Bleus"), id("Les Verts")];
-    const base = { qid: "pt", kind: "patate", text: "La Patate chaude", choices: null, correct: null, deadline: null, durationMs: null, game: { title: "La Patate chaude" } };
+    const base = { qid: "pt", kind: "patate", text: "Ça va exploser !", choices: null, correct: null, deadline: null, durationMs: null, game: { title: "Ça va exploser !" } };
     const potato = (extra) => ({ lit: true, teams: [r, b, v], canReturn: false, passes: 0, from: null, ...extra });
     // Avant l'allumage : tout le monde regarde la TV.
     await hostState(question({ ...base, potato: { lit: false } }));

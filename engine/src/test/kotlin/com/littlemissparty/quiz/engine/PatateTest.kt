@@ -7,16 +7,16 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** La Patate chaude : la bombe passe de tablette en tablette, la mèche cachée décide de l'explosion. */
+/** « Ça va exploser ! » : la bombe passe de tablette en tablette, la mèche cachée décide de l'explosion. */
 class PatateTest {
 
     private val t0 = 1_000_000L
     private val quiz = Question("q1", "Capitale ?", listOf("Paris", "Rome"), 0, durationSec = 20, roundTitle = "Quiz")
-    private val patate = Question("p1", "La Patate chaude", emptyList(), -1, kind = QuestionKind.PATATE, roundTitle = "La Patate chaude")
+    private val patate = Question("p1", "Ça va exploser !", emptyList(), -1, kind = QuestionKind.PATATE, roundTitle = "Ça va exploser !")
     private val apres = Question("q2", "Couleur du ciel ?", listOf("Bleu", "Vert"), 0, durationSec = 20, roundTitle = "Quiz 2")
     private val trois = listOf("licornes", "dragons", "pandas")
 
-    /** Quiz joué (Licornes 100 et plus), puis la Patate chaude présentée et lancée. */
+    /** Quiz joué (Licornes 100 et plus), puis « Ça va exploser ! » présenté et lancé. */
     private fun partie(): Game = Game(Quiz("p", "P", listOf(quiz, patate, apres), intros = true)).apply {
         next(t0)
         next(t0 + 100)
@@ -130,7 +130,7 @@ class PatateTest {
         assertNull(g.state.potato, "nouvelle mèche à allumer")
         g.next(go + 91_000)
         assertTrue(g.needsPotato())
-        val q = QuizJson.parse("""{"id":"p","questions":[{"id":"r1p","text":"La Patate chaude","kind":"patate","choices":[],"correct":-1,"duration":40,"double":false,"round":"La Patate chaude"}]}""")
+        val q = QuizJson.parse("""{"id":"p","questions":[{"id":"r1p","text":"Ça va exploser !","kind":"patate","choices":[],"correct":-1,"duration":40,"double":false,"round":"Ça va exploser !"}]}""")
         assertTrue(q.questions.single().isPatate)
     }
 }

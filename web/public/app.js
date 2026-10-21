@@ -1014,7 +1014,7 @@ function renderPortesResult(st, award) {
   } else $("r-total").textContent = "Classement à la fin des portes !";
 }
 
-/** La bombe cachée (écran coffres.js) : { ctl, cle, envoi, tour, alarme } du jeu en cours. */
+/** Les coffres mystères (écran coffres.js) : { ctl, cle, envoi, tour, alarme } du jeu en cours. */
 let coffres = null;
 function stopCoffres() {
   if (!coffres) return;
@@ -1024,7 +1024,7 @@ function stopCoffres() {
 }
 
 /**
- * La bombe cachée : l'équipe qui joue choisit un coffre et l'ouvre, les autres regardent. Le contenu d'un coffre
+ * Les coffres mystères : l'équipe qui joue choisit un coffre et l'ouvre, les autres regardent. Le contenu d'un coffre
  * n'apparaît qu'une fois montré par la TV ; le bilan du jeu arrive après l'explosion.
  */
 function renderCoffres(st) {
@@ -1050,7 +1050,7 @@ function renderCoffres(st) {
   const fini = st.phase === "scores" || (c.exploded === true && !suspense);
   const joue = c.team ? equipe(c.team) : null;
   let titre; let texte;
-  if (!pret) { titre = "La bombe cachée"; texte = "Les coffres arrivent sur la TV…"; }
+  if (!pret) { titre = "Les Coffres mystères"; texte = "Les coffres arrivent sur la TV…"; }
   else if (fini) { titre = "BOUM ! Le bilan"; texte = `${equipe(dernier?.team).nom} a trouvé la bombe !`; }
   else if (suspense) { titre = `Coffre ${dernier.chest + 1}…`; texte = `${dernier.nom} ouvre son coffre : regardez la TV !`; }
   else if (st.paused) { titre = "Pause"; texte = "La partie reprend bientôt."; }
@@ -1059,7 +1059,7 @@ function renderCoffres(st) {
     texte = coffres.envoi != null ? `Coffre ${coffres.envoi + 1} choisi : regardez la TV !`
       : attente > 0 ? "Préparez-vous, la TV termine…" : "Choisissez un coffre, puis ouvrez-le !";
   } else if (joue) { titre = `Au tour de l'équipe ${joue.nom}`; texte = "Quel coffre va-t-elle choisir ? Regardez bien !"; }
-  else { titre = "La bombe cachée"; texte = "Regardez la TV !"; }
+  else { titre = "Les Coffres mystères"; texte = "Regardez la TV !"; }
   if (pret && !fini && !suspense && !st.paused) {
     texte += c.danger ? " Attention, la bombe peut être dans n'importe quel coffre !"
       : ` Encore ${c.safeLeft} coffre${c.safeLeft > 1 ? "s" : ""} sans danger.`;
@@ -1174,7 +1174,7 @@ async function envoyerTapes() {
   relance();
 }
 
-/** La Patate chaude (écran patate.js) : { ctl, cle, envoye, minuterie, message } de la réception en cours. */
+/** « Ça va exploser ! » (écran patate.js) : { ctl, cle, envoye, minuterie, message } de la réception en cours. */
 let patate = null;
 function stopPatate() {
   if (!patate) return;
@@ -1183,7 +1183,7 @@ function stopPatate() {
   patate = null;
 }
 
-/** Patate chaude : chez nous, on choisit à qui envoyer la bombe ; sinon, on regarde chez qui elle est. */
+/** « Ça va exploser ! » : chez nous, on choisit à qui envoyer la bombe ; sinon, on regarde chez qui elle est. */
 function renderPatate(st) {
   clearInterval(timerHandle);
   show("patate");
@@ -1199,7 +1199,7 @@ function renderPatate(st) {
   const pret = Math.max(p.readyAt ?? 0, st.resumeAt ?? 0);
   const colle = pret <= now ? 1 : Math.max(0, Math.min(1, (now - depuis) / Math.max(1, pret - depuis)));
   let titre; let texte;
-  if (p.lit !== true) { titre = "La Patate chaude"; texte = "La mèche va s'allumer… Regardez la TV !"; }
+  if (p.lit !== true) { titre = "Ça va exploser !"; texte = "La mèche va s'allumer… Regardez la TV !"; }
   else if (st.paused) { titre = "Pause"; texte = "La partie reprend bientôt."; }
   else if (counting(st)) { titre = p.holder === teamId ? "💣 La bombe est chez vous !" : `La bombe est chez l'équipe ${nom(p.holder)}`; texte = "Attention, ça va partir…"; }
   else if (aMoi) {

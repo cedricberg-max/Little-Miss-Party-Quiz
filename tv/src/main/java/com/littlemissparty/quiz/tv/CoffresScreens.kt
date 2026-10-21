@@ -31,7 +31,7 @@ import com.littlemissparty.quiz.tv.habillage.styleCentre
 import kotlinx.coroutines.delay
 
 /*
- * La bombe cachée sur la TV. L'écran ne décide rien : les coffres sont choisis sur les tablettes et leur contenu est
+ * Les coffres mystères sur la TV. L'écran ne décide rien : les coffres sont choisis sur les tablettes et leur contenu est
  * tiré par la partie à l'ouverture. Ici : la scène des coffres (habillage/BombeCachee.kt), l'ouverture du dernier
  * coffre, l'annonce de la bombe, puis le bilan. Les animations se calent sur l'heure du serveur : une box qui se
  * reconnecte après coup ne les rejoue pas.
