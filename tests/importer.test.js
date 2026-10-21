@@ -7,7 +7,7 @@ import { DISPARU_THEMES } from "../web/public/buzz-cards.js";
 import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, roundFilled,
   readiness, upcoming, daysUntil, isoDay, duplicateShow, etatPrestation, isArchived, ETATS, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
   soundIds, choiceImageIds, choiceImageList, pictoSeriesList, pictoSeriesOf, foldLegacyFinale,
-  roundQuizIds, MIME_RANDOM,
+  roundQuizIds, MIME_RANDOM, alerteEquipes, EQUIPES_PAR_DEFAUT, PAR_EQUIPE_MIN,
   statuesSongs, statuesChoices, roundSongs, isStatuesList,
 } from "../web/public/show.js";
 import { PICTO_WORDS, PICTO_SERIES } from "../web/public/picto-cards.js";
@@ -224,6 +224,40 @@ describe("quiz en images (ChatGPT)", () => {
     assert.deepEqual(choiceImageIds(snapshot.quiz.questions), [LION, CHIEN]);
     assert.equal(snapshot.quiz.intros, true, "chaque jeu de la prestation s'ouvre sur son écran de présentation");
     assert.deepEqual(choiceImageList({ choices: ["a", "b"], choiceImages: [null, "../x"] }), [], "aucune photo valable : texte");
+  });
+});
+
+describe("équipes d'une prestation (cedric, 21/10)", () => {
+  const mots = (n) => PICTO_WORDS.slice(0, n).map((w) => w.word.toLowerCase());
+  const cartes = (n) => MIME_CATALOG.slice(0, n).map((c) => ({ word: c.word, image: c.image }));
+
+  test("4 équipes par défaut, au moins 3 mots ou cartes par équipe", () => {
+    assert.equal(EQUIPES_PAR_DEFAUT, 4);
+    assert.equal(PAR_EQUIPE_MIN, 3);
+  });
+
+  test("Pictionary choisi à la main : alerte sous 3 mots par équipe, jamais pour un tirage au hasard", () => {
+    assert.equal(alerteEquipes({ type: "pictionary" }, 8), null, "Mots au hasard : tous les mots actifs");
+    assert.equal(alerteEquipes({ type: "pictionary", picks: mots(12) }, 4), null);
+    assert.equal(alerteEquipes({ type: "pictionary", picks: mots(11) }, 4), "Pictionary : 11 mots choisis pour 4 équipes, il en faut au moins 12 (3 par équipe).");
+    assert.equal(alerteEquipes({ type: "pictionary", picks: mots(1) }, 2), "Pictionary : 1 mot choisi pour 2 équipes, il en faut au moins 6 (3 par équipe).");
+    assert.match(alerteEquipes({ type: "pictionary", picks: mots(6) }, null), /pour 4 équipes/, "Nombre non indiqué : 4 équipes");
+    assert.equal(alerteEquipes({ type: "pictionary", picks: ["pas-un-mot"] }, 8), null, "Aucun mot actif choisi : tirage au hasard");
+  });
+
+  test("Mimes : la liste telle quelle peut manquer, les cartes par équipe se complètent au lancement", () => {
+    assert.equal(alerteEquipes({ type: "mimes", cards: cartes(5), perTeam: 3 }, 8), null, "Complétée au hasard au lancement");
+    assert.equal(alerteEquipes({ type: "mimes" }, 8), null, `${MIME_RANDOM} cartes au hasard`);
+    assert.equal(alerteEquipes({ type: "mimes", cards: cartes(9) }, 3), null);
+    assert.equal(alerteEquipes({ type: "mimes", cards: cartes(8) }, 3), "Mimes : 8 cartes pour 3 équipes, il en faut au moins 9 (3 par équipe).");
+    const paquet = { p1: { title: "Animaux", cards: cartes(4) } };
+    assert.match(alerteEquipes({ type: "mimes", deckId: "p1" }, 2, { mimes: paquet }), /^Mimes : 4 cartes pour 2 équipes/);
+  });
+
+  test("Ça va exploser ! : 2 équipes au moins ; les autres jeux n'ont pas d'alerte", () => {
+    assert.match(alerteEquipes({ type: "patate" }, 1), /2 équipes au moins/);
+    assert.equal(alerteEquipes({ type: "patate" }, 2), null);
+    for (const type of ["quiz", "coffres", "gonfleur", "blind", "statues"]) assert.equal(alerteEquipes({ type }, 1), null, type);
   });
 });
 

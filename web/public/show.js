@@ -550,6 +550,36 @@ export const MIME_SPARE_TEAMS = 2;
 /** Nombre d'équipes de la prestation (1 à 8), 4 quand il n'est pas indiqué. */
 export const teamCount = (teams) => (Number.isInteger(teams) && teams >= 1 && teams <= 8 ? teams : 4);
 
+/** Nombre d'équipes d'une nouvelle prestation (cedric, 21/10). */
+export const EQUIPES_PAR_DEFAUT = 4;
+
+/** Mots ou cartes à prévoir au moins par équipe, aux jeux joués équipe par équipe. */
+export const PAR_EQUIPE_MIN = 3;
+
+/**
+ * Alerte rouge d'une manche quand son contenu ne suffit pas aux équipes prévues (cedric, 21/10). Aucun jeu ne demande
+ * une manche par équipe : aux Mimes et au Pictionary, les équipes jouent à tour de rôle dans la même manche, en piochant
+ * dans le même paquet. Il faut donc assez de mots ou de cartes pour toutes. Un tirage au hasard au lancement suffit
+ * toujours (tous les mots actifs, ou de quoi jouer pour chaque équipe) ; seule une liste faite à la main peut manquer.
+ * Rend le message, ou null.
+ */
+export function alerteEquipes(round, teams, { mimes = {}, contents = {}, profile = null } = {}) {
+  const n = teamCount(teams);
+  const besoin = PAR_EQUIPE_MIN * n;
+  const pour = `pour ${n} équipe${n > 1 ? "s" : ""}, il en faut au moins ${besoin} (${PAR_EQUIPE_MIN} par équipe)`;
+  if (round?.type === "patate" && n < 2) return "« Ça va exploser ! » se joue à 2 équipes au moins : une seule équipe est prévue.";
+  if (round?.type === "pictionary") {
+    const mots = pickedItems("pictionary", contents?.pictionary, roundPicks(round)).length;
+    if (mots && mots < besoin) return `Pictionary : ${mots} mot${mots > 1 ? "s" : ""} choisi${mots > 1 ? "s" : ""} ${pour}.`;
+  }
+  if (round?.type === "mimes" && !mimePerTeam(round)) {
+    // Liste telle quelle : les cartes choisies, sinon le paquet entier ; sans l'une ni l'autre, le tirage suffit.
+    const cartes = mimeCards(round.cards).length || (round.deckId ? mimePool(round, mimes, profile).length : 0);
+    if (cartes && cartes < besoin) return `Mimes : ${cartes} carte${cartes > 1 ? "s" : ""} ${pour}.`;
+  }
+  return null;
+}
+
 /**
  * Instantané que la box joue : un seul quiz, manches mises bout à bout, chrono du profil pour
  * les questions sans durée imposée, points doublés pour la Super Finale ; une manche de mimes y est

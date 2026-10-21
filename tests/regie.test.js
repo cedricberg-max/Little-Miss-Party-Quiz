@@ -2847,6 +2847,41 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Régie PC : 4 équipes par défaut, alerte rouge quand une manche n'a pas assez de mots pour les équipes (cedric, 21/10)", async () => {
+    await seedLibrary("manches/peu", { type: "pictionary", title: "Cinq animaux", origin: "admin", updatedAt: 1,
+      round: { type: "pictionary", duration: 60, picks: ["chat", "chien", "poisson", "serpent", "escargot"] } });
+    const page = await admin();
+    await page.click("#home-new");
+    assert.equal(await page.locator("#show-teams").inputValue(), "4", "Nouvelle prestation : 4 équipes");
+    await page.fill("#show-child", "Léa");
+    await page.fill("#show-age", "9");
+    await page.click("#round-add");
+    const round = page.locator("#show-rounds .round").nth(0);
+    await round.locator("select").first().selectOption("pictionary");
+    assert.equal(await round.locator(".alerte-equipes").count(), 0, "Mots au hasard : pas d'alerte");
+    await round.locator(".manche-load").selectOption("peu");
+    await round.locator(".alerte-equipes", { hasText: "⚠ Pictionary : 5 mots choisis pour 4 équipes, il en faut au moins 12 (3 par équipe)." }).waitFor();
+    await capture(page, "alerte-equipes");
+    // Moins d'équipes : l'alerte suit, puis disparaît.
+    await page.selectOption("#show-teams", "2");
+    await round.locator(".alerte-equipes", { hasText: "pour 2 équipes, il en faut au moins 6" }).waitFor();
+    await page.selectOption("#show-teams", "1");
+    await round.locator(".alerte-equipes").waitFor({ state: "detached" });
+    // « Ça va exploser ! » à une seule équipe.
+    await page.click("#round-add");
+    const bombe = page.locator("#show-rounds .round").nth(1);
+    await bombe.locator("select").first().selectOption("patate");
+    await bombe.locator(".alerte-equipes", { hasText: "« Ça va exploser ! » se joue à 2 équipes au moins" }).waitFor();
+    // L'alerte n'empêche pas d'enregistrer.
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "enregistrée" }).waitFor();
+    const show = Object.values(await library("shows"))[0];
+    assert.equal(show.teams, 1);
+    await page.selectOption("#show-teams", "4");
+    await bombe.locator(".alerte-equipes").waitFor({ state: "detached" });
+    await page.context().close();
+  });
+
   test("Régie PC : recherche à chaque lettre dans les manches d'un jeu et les images, les noms qui commencent par le texte d'abord", async () => {
     await seedLibrary("manches", {
       t: { type: "chante", title: "Tomates et salades", origin: "admin", round: { type: "chante", count: 1, picks: ["soleil"] }, updatedAt: 4 },

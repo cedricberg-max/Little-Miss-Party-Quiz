@@ -18,7 +18,7 @@ import {
   pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches, isArchived, AUTO_ARCHIVE_DAYS, quizKind,
   roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS,
   isStatuesList, statuesSongs, statuesChoices, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS, builtinConcepts, isPhotoTheme, disparuGroup,
-  illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale,
+  illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, alerteEquipes, EQUIPES_PAR_DEFAUT,
 } from "./show.js";
 import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE } from "./banque-photos.js";
 import { shuffle } from "./mime-cards.js";
@@ -738,7 +738,8 @@ $("show-edit-crumb").onclick = () => openShows(showsEtat);
 
 /** Ouvre une prestation ; sans identifiant, une nouvelle. */
 function editShow(id) {
-  const s = id ? shows[id] : { status: "brouillon", rounds: [] };
+  // Une nouvelle prestation compte 4 équipes (cedric, 21/10), à changer de 1 à 8.
+  const s = id ? shows[id] : { status: "brouillon", rounds: [], teams: EQUIPES_PAR_DEFAUT };
   // Une ancienne manche « Super Finale » n'est pas un jeu : elle devient le réglage ×2 du quiz qui la précède.
   const { rounds, folded } = foldLegacyFinale(s.rounds);
   // Une ancienne manche « Quiz » de quiz illustrés s'affiche (et s'enregistre) en Quiz illustré.
@@ -1093,9 +1094,16 @@ function refreshRounds() {
         h("button", { type: "button", class: "icon", title: "Monter", disabled: i === 0, onclick: () => move(-1), text: "↑" }),
         h("button", { type: "button", class: "icon", title: "Descendre", disabled: i === editing.rounds.length - 1, onclick: () => move(1), text: "↓" }),
         h("button", { type: "button", class: "icon", title: "Retirer", onclick: () => { editing.rounds.splice(i, 1); refreshRounds(); }, text: "✕" })),
-      h("div", { class: "round-body" }, ...roundFields(r))));
+      h("div", { class: "round-body" }, ...roundFields(r)),
+      alerteManche(r)));
   });
   refreshSummary();
+}
+
+/** Alerte rouge sous une manche dont le contenu ne suffit pas aux équipes prévues (cedric, 21/10). */
+function alerteManche(r) {
+  const texte = alerteEquipes(r, ctxTeams(), { mimes, contents, profile: roundCtx.profile?.() });
+  return texte ? h("p", { class: "alerte-equipes", role: "alert", text: `⚠ ${texte}` }) : null;
 }
 
 /**
