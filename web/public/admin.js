@@ -176,6 +176,8 @@ let pageActuelle = -1;
 /** Retour ou avance du navigateur en cours : l'écran rouvert ne fait pas une nouvelle page. */
 let depuisHistorique = false;
 let ignorerRetour = false;
+/** Pages notées depuis l'ouverture de la Régie PC : celles d'avant un rechargement ne sont plus connues. */
+const OUVERTURE = Math.random().toString(36).slice(2);
 
 /** Ce qui est en cours d'édition dans chaque écran d'édition, et comment le rouvrir. */
 const EDITEURS = {
@@ -204,8 +206,8 @@ function noterPage(name, avant) {
   pages.length = pageActuelle + 1;
   pages.push(page);
   pageActuelle = pages.length - 1;
-  if (pageActuelle === 0) history.replaceState({ page: 0 }, "");
-  else history.pushState({ page: pageActuelle }, "");
+  if (pageActuelle === 0) history.replaceState({ page: 0, ouverture: OUVERTURE }, "");
+  else history.pushState({ page: pageActuelle, ouverture: OUVERTURE }, "");
 }
 
 /** Rouvre une page de l'historique telle qu'on l'a laissée. */
@@ -228,10 +230,20 @@ function rouvrirPage({ ecran, ctx }) {
 
 window.addEventListener("popstate", (e) => {
   if (ignorerRetour) { ignorerRetour = false; return; }
+  if ($("nav").hidden) return;
   const i = e.state?.page;
-  if (typeof i !== "number" || !pages[i] || $("nav").hidden) return;
+  const connue = e.state?.ouverture === OUVERTURE && typeof i === "number" && pages[i];
   // Modifications pas enregistrées et on reste : le navigateur revient sur la page affichée.
-  if (!quitterEcran()) { ignorerRetour = true; history.go(pageActuelle - i); return; }
+  if (!quitterEcran()) {
+    if (connue) { ignorerRetour = true; history.go(pageActuelle - i); } else history.pushState({ page: pageActuelle, ouverture: OUVERTURE }, "");
+    return;
+  }
+  if (!connue) {
+    // Page d'avant un rechargement : on revient à l'Accueil (la flèche suivante quitte le site).
+    depuisHistorique = true;
+    try { show("home"); } finally { depuisHistorique = false; }
+    return;
+  }
   pageActuelle = i;
   rouvrirPage(pages[i]);
 });

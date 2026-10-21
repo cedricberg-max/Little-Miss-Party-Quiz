@@ -2736,6 +2736,16 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#screen-manche-edit .retour-barre.bas .retour-page").click();
     await page.locator("#screen-game:not([hidden])").waitFor();
     assert.equal(await page.textContent("#game-title"), "La Patate chaude");
+    // Après un rechargement, les pages d'avant ne rouvrent rien d'autre que l'Accueil.
+    await page.reload();
+    await page.locator("#screen-home:not([hidden])").waitFor();
+    await page.click('#screen-home [data-etat="avenir"]');
+    await page.locator("#screen-shows:not([hidden])").waitFor();
+    await page.goBack();
+    await page.locator("#screen-home:not([hidden])").waitFor();
+    await page.goBack();
+    await page.waitForTimeout(300);
+    assert.equal(await page.locator("#screen-home").isVisible(), true, "Une page d'avant le rechargement ramène à l'Accueil");
     await page.context().close();
   });
 
