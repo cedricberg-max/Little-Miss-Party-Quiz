@@ -2872,7 +2872,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.textContent("#show-search-count"), "1 prestation trouvée");
     assert.equal(await search("juin"), "1 prestation trouvée");
     assert.equal(await search("14/06"), "1 prestation trouvée");
-    assert.equal(await search("patate"), "1 prestation trouvée");
+    assert.equal(await search("exploser"), "1 prestation trouvée");
     assert.equal(await search("2025"), "2 prestations trouvées");
     // Zoé : brouillon dont la fête est passée, rangée d'elle-même dans les archivées.
     await page.locator('#show-list [data-show="zoe"]').waitFor();
