@@ -3169,9 +3169,15 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "il manque : Choisir une date à venir (celle-ci est passée)." }).waitFor();
 
-    // Archiver depuis l'Accueil : Léa quitte les prochains anniversaires et rejoint les archivées.
+    // Archiver depuis l'Accueil, après confirmation : Léa quitte les prochains anniversaires et rejoint les archivées.
     await page.click("#brand");
+    let question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.dismiss(); }));
     await page.locator('#home-upcoming [data-show="lea"]').getByRole("button", { name: "Archiver" }).click();
+    assert.match(await question, /^Archiver « .*Léa.* » \?\n\nElle quittera la régie/);
+    assert.equal((await library("shows/lea/status")), "publiee");
+    question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.accept(); }));
+    await page.locator('#home-upcoming [data-show="lea"]').getByRole("button", { name: "Archiver" }).click();
+    await question;
     await page.locator('#home-upcoming [data-show="lea"]').waitFor({ state: "detached" });
     assert.equal((await library("shows/lea/status")), "archivee");
     // Léa archivée à la main ; l'ancienne fête de 2020 et Noé (date passée) rangées d'elles-mêmes.
@@ -3183,7 +3189,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
-  test("un brouillon se supprime depuis sa carte ; une fête désarchivée revient « À compléter », reprogrammée elle s'archivera de nouveau", async () => {
+  test("un brouillon se supprime depuis sa carte ; pas de « Désarchiver » ; une fête reprogrammée s'archivera de nouveau", async () => {
     const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
     const rounds = [{ type: "quiz", quizId: "animaux" }];
     await seedLibrary("quizzes", { animaux: ANIMAUX });
@@ -3191,6 +3197,8 @@ describe("bibliothèque de quiz et prestations", () => {
       brouillon: { childName: "Tom", status: "brouillon", rounds, updatedAt: 1 },
       prete: { childName: "Léa", age: 7, date: day(10), status: "publiee", rounds, updatedAt: 1 },
       passee: { childName: "Malo", age: 9, date: day(-3), status: "publiee", rounds, updatedAt: 1 },
+      // Désarchivée avant la décision du 21/10 : gardée hors des archives malgré sa date passée.
+      remise: { childName: "Nina", age: 8, date: day(-3), status: "brouillon", keepActive: true, rounds, updatedAt: 1 },
     });
     const page = await admin();
     // À compléter : « Supprimer » sur la carte, avec une confirmation ; « Annuler » ne touche à rien.
@@ -3214,26 +3222,24 @@ describe("bibliothèque de quiz et prestations", () => {
     const malo = page.locator('#show-list [data-show="passee"]');
     await malo.waitFor();
     assert.equal(await malo.getByRole("button", { name: "Supprimer" }).count(), 0);
-    // Désarchiver : elle revient dans « À compléter », sans repartir toute seule tant que sa date est passée.
-    await malo.getByRole("button", { name: "Désarchiver" }).click();
-    await malo.waitFor({ state: "detached" });
-    const desarchivee = await library("shows/passee");
-    assert.deepEqual([desarchivee.status, desarchivee.keepActive], ["brouillon", true]);
+    // Pas de « Désarchiver » non plus (cedric, 21/10) : une fête archivée se réutilise avec « Dupliquer ».
+    assert.deepEqual(await malo.locator(".card-actions button").allInnerTexts(), ["Ouvrir", "Dupliquer", "Renommer", "⭐ Épingler"]);
+    // Une fête désarchivée avant cette décision reste « À compléter » tant que sa date est passée.
     await page.click('#shows-tabs [data-etat="acompleter"]');
-    await page.locator('#show-list [data-show="passee"]').getByRole("button", { name: "Ouvrir" }).click();
+    await page.locator('#show-list [data-show="remise"]').getByRole("button", { name: "Ouvrir" }).click();
     // Reprogrammée et remise « À venir » : le lendemain de la nouvelle date, elle s'archivera de nouveau.
     await page.fill("#show-date", day(5));
     await page.selectOption("#show-status", "publiee");
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "Enregistrée « À venir »" }).waitFor();
-    const reprogrammee = await library("shows/passee");
+    const reprogrammee = await library("shows/remise");
     assert.deepEqual([reprogrammee.status, reprogrammee.keepActive ?? null], ["publiee", null]);
     // « Supprimer » en bas de la fiche, pour toutes : même confirmation, puis retour à la liste.
     question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.accept(); }));
     await page.click("#show-delete");
-    assert.match(await question, /Supprimer « L'anniversaire de Malo » \?/);
+    assert.match(await question, /Supprimer « L'anniversaire de Nina » \?/);
     await page.locator("#screen-shows:not([hidden])").waitFor();
-    assert.equal(await library("shows/passee"), null);
+    assert.equal(await library("shows/remise"), null);
     await page.context().close();
   });
 
