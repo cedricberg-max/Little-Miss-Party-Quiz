@@ -1818,7 +1818,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     "duration" to it.durationSec, "kind" to it.kind.code, "double" to it.double, "round" to it.roundTitle,
                     "cards" to it.cards.ifEmpty { null }?.map { c -> clean(mapOf("word" to c.word, "image" to c.image, "imageId" to c.imageId)) },
                     "image" to it.emoji, "imageId" to it.imageId, "artist" to it.artist, "audioId" to it.audioId,
-                    "refrainId" to it.refrainId, "audioIds" to it.audioIds.ifEmpty { null },
+                    "refrainId" to it.refrainId, "lyrics" to it.lyrics, "audioIds" to it.audioIds.ifEmpty { null },
                     "doors" to it.doors.ifEmpty { null },
                     "choiceImages" to it.choiceImages.ifEmpty { null }?.map { id -> id ?: "" },
                     // Blind test : valeur et durée de révélation du morceau, relues telles quelles après un redémarrage.

@@ -155,11 +155,19 @@ data class Question(
      * « Titre suivant » de l'animatrice (« on chante tous ensemble »). Absent : l'extrait du morceau est rejoué.
      */
     val refrainId: String? = null,
+    /**
+     * Blind test : paroles du refrain sous leur forme courte (voir Paroles.kt), temps depuis le début de l'extrait du
+     * refrain. Absentes : la révélation montre la pochette et le disque, sans paroles.
+     */
+    val lyrics: String? = null,
     /** Blind test : valeur du morceau (points de l'équipe qui trouve), réglée dans l'administration. */
     val points: Int? = null,
     /** Blind test : durée de la séquence de révélation (extrait rejoué, pochette, titre, points), en secondes. */
     val revealSec: Int = BLIND_REVEAL_SEC,
 ) {
+    /** Paroles du refrain, phrase par phrase et mot par mot (vide : pas de paroles). */
+    val paroles: List<LigneParole> by lazy { lireParoles(lyrics) }
+
     init {
         require(id.isNotBlank()) { "Question sans identifiant" }
         require(text.isNotBlank()) { "Question $id : texte vide" }

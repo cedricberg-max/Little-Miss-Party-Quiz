@@ -88,6 +88,19 @@ fun ExtraitMusical(q: Question, state: UiState.Playing) {
 private const val FONDU_REFRAIN_MS = 2_000L
 
 /**
+ * Où en est le refrain qu'on entend (millisecondes depuis le début de son extrait) : les paroles de la révélation se
+ * calent dessus à chaque image. Null quand aucun refrain ne joue. À chaque boucle, la position repart de zéro.
+ */
+object PositionRefrain {
+    @Volatile private var lecteur: MediaPlayer? = null
+
+    fun ms(): Long? = lecteur?.let { runCatching { if (it.isPlaying) it.currentPosition.toLong() else null }.getOrNull() }
+
+    internal fun suivre(l: MediaPlayer?) { lecteur = l }
+    internal fun lacher(l: MediaPlayer) { if (lecteur === l) lecteur = null }
+}
+
+/**
  * Blind test, révélation : le refrain (environ 90 s) joue plus fort que l'extrait et repart en boucle, avec un
  * fondu enchaîné, jusqu'au « Titre suivant » de l'animatrice (le composant disparaît alors, la musique s'arrête).
  * Deux lecteurs se relaient : le second démarre en fondu pendant que le premier s'éteint.
@@ -110,6 +123,7 @@ fun RefrainEnBoucle(cle: String, path: String) {
     DisposableEffect(lecteurs) {
         val volumes = lecteurs.map { boosterExtrait(it, GAIN_REFRAIN_MB) }
         onDispose {
+            lecteurs.forEach { PositionRefrain.lacher(it) }
             volumes.forEach { runCatching { it?.release() } }
             lecteurs.forEach { runCatching { it.stop() }; runCatching { it.release() } }
         }
@@ -119,6 +133,7 @@ fun RefrainEnBoucle(cle: String, path: String) {
             var i = 0
             lecteurs[0].setVolume(1f, 1f)
             lecteurs[0].start()
+            PositionRefrain.suivre(lecteurs[0])
             while (true) {
                 val actuel = lecteurs[i]
                 val suivant = lecteurs[1 - i]
@@ -127,6 +142,8 @@ fun RefrainEnBoucle(cle: String, path: String) {
                 suivant.seekTo(0)
                 suivant.setVolume(0f, 0f)
                 suivant.start()
+                // Les paroles suivent le passage qui commence : elles repartent au début du refrain.
+                PositionRefrain.suivre(suivant)
                 val pas = 10
                 for (k in 1..pas) {
                     delay(FONDU_REFRAIN_MS / pas)
