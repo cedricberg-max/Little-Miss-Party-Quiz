@@ -327,6 +327,13 @@ button.item { cursor: pointer; }
 .retour-barre.flottante { position: sticky; bottom: 12px; }
 .retour-barre .btn { pointer-events: auto; box-shadow: 0 4px 16px rgba(60, 20, 90, .18); }
 .retour-barre .btn:disabled { opacity: .45; }
+/* En haut de l'écran, sous le fil d'Ariane : les mêmes boutons, à portée sans descendre. */
+.retour-barre.haut { justify-content: flex-start; margin: 0 0 14px; }
+.retour-barre.haut .btn { box-shadow: none; }
+
+/* Copie que l'on vient de faire (Dupliquer) : en tête de sa liste, mise en avant un moment. */
+.copie-recente { outline: 3px solid var(--gold); outline-offset: 2px; background: var(--gold-pale); animation: copie-recente 1.2s ease-out; }
+@keyframes copie-recente { from { box-shadow: 0 0 0 10px rgba(226, 169, 59, .45); } to { box-shadow: 0 0 0 0 rgba(226, 169, 59, 0); } }
 
 /* Recherche dans les prestations. */
 .search-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 14px; }

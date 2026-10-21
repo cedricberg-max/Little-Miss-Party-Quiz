@@ -2620,22 +2620,25 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
-  test("Régie PC : « ↩ Retour » défait la dernière action, « Annuler les modifications » revient au dernier enregistrement", async () => {
+  test("Régie PC : Ctrl+Z défait la dernière action, « Annuler les modifications » revient au dernier enregistrement", async () => {
     const page = await admin();
     // Paquet de mimes : des cartes ajoutées et retirées, rien n'est écrit avant « Enregistrer ».
     await page.click(".tile[data-screen=mimes]");
     await page.click("#game-tabs [data-tab=collections]");
     await page.click("#mime-new");
-    const bar = page.locator("#screen-mime-edit .retour-barre");
+    const bar = page.locator("#screen-mime-edit .retour-barre.bas");
     const count = () => page.locator("#mime-count").textContent();
-    assert.equal(await bar.locator(".retour-dernier").isDisabled(), true);
+    // En haut et en bas : « ← Retour » (page précédente) et « Annuler les modifications », rien à annuler pour l'instant.
+    assert.deepEqual(await page.locator("#screen-mime-edit .retour-barre.haut button").allInnerTexts(), ["← Retour", "Annuler les modifications"]);
+    assert.deepEqual(await bar.locator("button").allInnerTexts(), ["← Retour", "Annuler les modifications"]);
+    assert.equal(await bar.locator(".retour-tout").isDisabled(), true);
     await page.fill("#mime-title", "Animaux");
     await page.locator("#mime-catalog .mime-card", { hasText: "Chat" }).click();
     await page.locator("#mime-catalog .mime-card", { hasText: "Éléphant" }).click();
     await page.locator("#mime-catalog .mime-card", { hasText: "Lapin" }).click();
     await waitFor(async () => (await count()) === "3", "3 cartes");
-    await bar.locator(".retour-dernier").click();
-    await waitFor(async () => (await count()) === "2", "Retour : le lapin repart");
+    await page.keyboard.press("Control+z");
+    await waitFor(async () => (await count()) === "2", "Ctrl+Z : le lapin repart");
     assert.equal(await page.locator("#mime-picked .mime-card", { hasText: "Lapin" }).count(), 0);
     await page.click("#mime-save");
     await page.locator("#mime-status", { hasText: "Enregistré : 2 cartes" }).waitFor();
@@ -2649,18 +2652,21 @@ describe("bibliothèque de quiz et prestations", () => {
     await waitFor(async () => (await count()) === "2", "Annuler : retour aux 2 cartes enregistrées");
     assert.equal(await page.inputValue("#mime-title"), "Animaux");
     assert.deepEqual(Object.values(await library("mimes"))[0].cards.map((c) => c.word), ["Chat", "Éléphant"], "La bibliothèque n'a pas bougé");
-    // Annuler est une action comme une autre : un Retour rend les modifications.
-    await bar.locator(".retour-dernier").click();
-    await waitFor(async () => (await page.inputValue("#mime-title")) === "Zoo", "Retour après Annuler");
+    // Annuler est une action comme une autre : un Ctrl+Z rend les modifications.
+    await page.keyboard.press("Control+z");
+    await waitFor(async () => (await page.inputValue("#mime-title")) === "Zoo", "Ctrl+Z après Annuler");
     assert.equal(await count(), "2");
     assert.equal(await page.locator("#mime-picked .mime-card", { hasText: "Lapin" }).count(), 1);
 
-    // Page Jeux (enregistrée à chaque touche) : Retour remet le mot retiré, dans la bibliothèque aussi.
+    // Quitter avec des modifications pas enregistrées : la Régie PC demande d'abord.
+    const question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.accept(); }));
+    // Page Jeux (enregistrée à chaque touche) : Ctrl+Z remet le mot retiré, dans la bibliothèque aussi.
     await openGamePage(page, "chante", "collections");
+    assert.match(await question, /Quitter sans enregistrer \?/);
     await page.locator('#builtin-items .content-item.on[data-key="soleil"] .content-toggle').click();
     await page.locator("#builtin-status", { hasText: "« soleil » est retiré du jeu." }).waitFor();
     assert.deepEqual((await library("contents")).chante.off, ["soleil"]);
-    await page.locator("#screen-builtin .retour-dernier").click();
+    await page.keyboard.press("Control+z");
     await page.locator("#builtin-status", { hasText: "Modification annulée." }).waitFor();
     await page.locator('#builtin-items .content-item.on[data-key="soleil"]').waitFor();
     assert.equal((await library("contents")).chante.off ?? null, null);
@@ -2675,9 +2681,92 @@ describe("bibliothèque de quiz et prestations", () => {
     await waitFor(async () => (await page.locator("#show-rounds .round").count()) === 2, "2 manches");
     await page.keyboard.press("Control+z");
     await waitFor(async () => (await page.locator("#show-rounds .round").count()) === 1, "Ctrl+Z : une manche de moins");
-    await page.locator("#screen-show-edit .retour-tout").click();
+    await page.locator("#screen-show-edit .retour-barre.bas .retour-tout").click();
     await waitFor(async () => (await page.locator("#show-rounds .round").count()) === 0, "Annuler : fiche vide");
     assert.equal(await page.inputValue("#show-child"), "");
+    await page.context().close();
+  });
+
+  test("Régie PC : la flèche du navigateur et « ← Retour » ramènent à la page précédente ; quitter une page modifiée demande d'abord", async () => {
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    await seedLibrary("shows", { lea: { childName: "Léa", age: 7, date: "2099-12-02", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 } });
+    const page = await admin();
+    // Accueil → liste « À venir » → la prestation de Léa.
+    await page.click('#screen-home [data-etat="avenir"]');
+    await page.locator('#show-list [data-show="lea"]').getByRole("button", { name: "Ouvrir" }).click();
+    await page.locator("#screen-show-edit:not([hidden])").waitFor();
+    // Flèche du navigateur : la liste, puis l'Accueil, sans quitter le site ; la flèche « avancer » revient.
+    await page.goBack();
+    await page.locator("#screen-shows:not([hidden])").waitFor();
+    assert.equal(await page.textContent("#shows-h1"), "Anniversaires à venir");
+    await page.goBack();
+    await page.locator("#screen-home:not([hidden])").waitFor();
+    await page.goForward();
+    await page.locator("#screen-shows:not([hidden])").waitFor();
+    await page.goForward();
+    await page.locator("#screen-show-edit:not([hidden])").waitFor();
+    assert.equal(await page.inputValue("#show-child"), "Léa");
+    // Une modification pas enregistrée : la flèche demande ; « Rester » garde la page et la modification.
+    await page.fill("#show-age", "8");
+    let question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.dismiss(); }));
+    await page.goBack();
+    assert.match(await question, /Quitter sans enregistrer \?/);
+    await page.waitForTimeout(300);
+    assert.equal(await page.locator("#screen-show-edit").isVisible(), true);
+    assert.equal(await page.inputValue("#show-age"), "8");
+    // « ← Retour » en haut, puis « Quitter » : la liste, et rien n'est enregistré.
+    question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.accept(); }));
+    await page.locator("#screen-show-edit .retour-barre.haut .retour-page").click();
+    await question;
+    await page.locator("#screen-shows:not([hidden])").waitFor();
+    assert.equal((await library("shows/lea")).age, 7);
+    // Rouverte : la modification abandonnée n'est pas restée. « ← Retour » en bas, sans modification : pas de question.
+    await page.locator('#show-list [data-show="lea"]').getByRole("button", { name: "Ouvrir" }).click();
+    assert.equal(await page.inputValue("#show-age"), "7");
+    await page.locator("#screen-show-edit .retour-barre.bas .retour-page").click();
+    await page.locator("#screen-shows:not([hidden])").waitFor();
+    // Les autres pages aussi : création d'un quiz, puis une manche d'un jeu.
+    await openQuizzes(page);
+    await page.click("#quiz-import-open");
+    await page.locator("#screen-import .retour-barre.haut .retour-page").click();
+    await page.locator("#screen-quizzes:not([hidden])").waitFor();
+    await openGamePage(page, "patate");
+    await page.click("#manche-new");
+    await page.locator("#screen-manche-edit:not([hidden])").waitFor();
+    await page.locator("#screen-manche-edit .retour-barre.bas .retour-page").click();
+    await page.locator("#screen-game:not([hidden])").waitFor();
+    assert.equal(await page.textContent("#game-title"), "La Patate chaude");
+    await page.context().close();
+  });
+
+  test("Régie PC : Dupliquer une manche ou une collection de cartes ajoute la copie à sa liste, sans l'ouvrir", async () => {
+    const page = await admin();
+    await openGamePage(page, "patate");
+    await page.click("#manche-new");
+    await page.fill("#manche-title", "Patate du goûter");
+    await page.click("#manche-save");
+    await page.locator("#manche-status", { hasText: "Enregistr" }).waitFor();
+    await openGamePage(page, "patate");
+    await page.locator(".manche-card", { hasText: "Patate du goûter" }).getByRole("button", { name: "Dupliquer" }).click();
+    await page.locator("#game-status", { hasText: "« Copie de Patate du goûter » est ajoutée à vos manches." }).waitFor();
+    await page.locator(".manche-card.copie-recente", { hasText: "Copie de Patate du goûter" }).waitFor();
+    assert.equal(await page.locator("#screen-manche-edit").isHidden(), true);
+    const titres = Object.values(await library("manches")).map((m) => [m.title, m.type, m.origin]).sort();
+    assert.deepEqual(titres, [["Copie de Patate du goûter", "patate", "admin"], ["Patate du goûter", "patate", "admin"]]);
+    // Une collection de cartes de mimes.
+    await openGamePage(page, "mimes", "collections");
+    await page.click("#mime-new");
+    await page.fill("#mime-title", "Animaux");
+    await page.locator("#mime-catalog .mime-card", { hasText: "Chat" }).click();
+    await page.click("#mime-save");
+    await page.locator("#mime-status", { hasText: "Enregistré" }).waitFor();
+    await page.locator("#screen-mime-edit .retour-barre.haut .retour-page").click();
+    await page.locator("#screen-mimes:not([hidden])").waitFor();
+    await page.locator("#mime-list .item", { hasText: "Animaux" }).getByRole("button", { name: "Dupliquer" }).click();
+    await page.locator("#mime-list .item.copie-recente", { hasText: "Copie de Animaux" }).waitFor();
+    assert.equal(await page.locator("#mime-list .item").first().locator("b").textContent(), "Copie de Animaux");
+    assert.equal(await page.locator("#screen-mime-edit").isHidden(), true);
+    assert.deepEqual(Object.values(await library("mimes")).map((d) => [d.title, d.cards.map((c) => c.word)]).sort(), [["Animaux", ["Chat"]], ["Copie de Animaux", ["Chat"]]]);
     await page.context().close();
   });
 
@@ -3006,13 +3095,34 @@ describe("bibliothèque de quiz et prestations", () => {
     await tom.locator(".todo", { hasText: "Indiquer l'âge" }).waitFor();
     assert.match(await tom.textContent(), /dans 3 jours/);
 
-    // Dupliquer, depuis la liste « À venir » : un nouveau brouillon avec les mêmes manches, l'original ne bouge pas.
+    // Dupliquer, depuis la liste « À venir » : la copie (mêmes manches) apparaît en tête de « À compléter », sans
+    // s'ouvrir ; l'original ne bouge pas.
     await page.click('#shows-tabs [data-etat="avenir"]');
     await page.locator('#show-list [data-show="lea"]').getByRole("button", { name: "Dupliquer" }).click();
-    assert.equal(await page.textContent("#show-edit-crumb"), "À compléter");
-    await page.locator("#show-edit-title", { hasText: "Copie de « L'anniversaire de Léa »" }).waitFor();
+    await page.locator("#shows-status", { hasText: "« Copie de « L'anniversaire de Léa » » est ajoutée ici." }).waitFor();
+    assert.equal(await page.textContent("#shows-h1"), "À compléter");
+    assert.equal(await page.locator("#screen-show-edit").isHidden(), true, "La copie ne s'ouvre pas");
+    const premiere = page.locator("#show-list .show-card").first();
+    assert.match(await premiere.getAttribute("class"), /copie-recente/);
+    assert.equal(await premiere.locator(".card-title").textContent(), "Copie de « L'anniversaire de Léa »");
+    const copieId = await premiere.getAttribute("data-show");
+    const copiee = await library(`shows/${copieId}`);
+    assert.deepEqual([copiee.status, copiee.childName, copiee.age, copiee.date, copiee.themes, copiee.copieDe], ["brouillon", undefined, undefined, undefined, "Licornes", "L'anniversaire de Léa"]);
+    assert.deepEqual(copiee.rounds, LEA.rounds);
+    // Une copie s'enregistre même incomplète, et garde son nom tant qu'elle n'a pas de prénom.
+    await premiere.getByRole("button", { name: "Ouvrir" }).click();
     assert.equal(await page.inputValue("#show-child"), "");
     assert.equal(await page.inputValue("#show-themes"), "Licornes");
+    await page.fill("#show-notes", "Pour qui ?");
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée." }).waitFor();
+    assert.equal(await page.textContent("#show-edit-title"), "Copie de « L'anniversaire de Léa »");
+    assert.deepEqual([(await library(`shows/${copieId}`)).notes, (await library(`shows/${copieId}`)).copieDe], ["Pour qui ?", "L'anniversaire de Léa"]);
+    // « À venir » sans prénom, âge ni date : refusé, elle reste « À compléter » et le message dit ce qui manque.
+    await page.selectOption("#show-status", "publiee");
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "il manque : Indiquer le prénom de l'enfant · Ajouter la date · Indiquer l'âge." }).waitFor();
+    assert.equal(await page.inputValue("#show-status"), "brouillon");
     await page.fill("#show-child", "Zoé");
     await page.fill("#show-age", "9");
     await page.fill("#show-date", day(20));
@@ -3082,18 +3192,22 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(Object.values(shows).find((s) => s.childName === "Zoé").rounds, [{ type: "quiz", quizId: "animaux" }]);
     assert.deepEqual(shows.lea, LEA, "Ancienne prestation inchangée");
 
-    // Dupliquer un quiz : la copie se modifie et s'enregistre à part.
+    // Dupliquer un quiz : la copie apparaît en tête de la liste, sans s'ouvrir ; elle se modifie et s'enregistre à part.
     await openQuizzes(page);
     await page.locator('#quiz-list [data-quiz="animaux"]').getByRole("button", { name: "Dupliquer" }).click();
-    await page.locator("#screen-review:not([hidden])").waitFor();
-    assert.equal(await page.inputValue("#rv-title"), "Animaux (copie)");
+    const copie = page.locator("#quiz-list .item.copie-recente");
+    await copie.locator("b", { hasText: "Copie de Animaux" }).waitFor();
+    assert.equal(await page.locator("#screen-review").isHidden(), true, "La copie ne s'ouvre pas");
+    assert.equal(await page.locator("#quiz-list .item").first().getAttribute("data-quiz"), await copie.getAttribute("data-quiz"));
+    await copie.getByRole("button", { name: "Éditer" }).click();
+    assert.equal(await page.inputValue("#rv-title"), "Copie de Animaux");
     await page.locator('[data-q="0"] .q-text').fill("Qui est le roi de la savane ?");
     await page.click("#rv-save");
     await page.locator("#rv-status", { hasText: "Enregistré" }).waitFor();
     const quizzes = await library("quizzes");
     assert.equal(Object.keys(quizzes).length, 3);
     assert.equal(quizzes.animaux.questions[0].text, "Roi de la jungle ?", "Quiz d'origine inchangé");
-    const copy = Object.values(quizzes).find((q) => q.title === "Animaux (copie)");
+    const copy = Object.values(quizzes).find((q) => q.title === "Copie de Animaux");
     assert.equal(copy.questions[0].text, "Qui est le roi de la savane ?");
     await page.context().close();
   });

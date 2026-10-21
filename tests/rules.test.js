@@ -689,6 +689,13 @@ describe("bibliothèque, prestations et chargement sur la TV", () => {
     await assertFails(set(ref(admin(), "library/shows/s1"), { ...SHOW, childName: "" }));
     await assertFails(set(ref(admin(), "library/shows/s1"), { ...SHOW, status: "en ligne" }));
   });
+  test("prestation « À compléter » sans prénom acceptée (brouillon, copie) ; « À venir » sans prénom refusée", async () => {
+    const { childName, ...sansPrenom } = SHOW;
+    await assertSucceeds(set(ref(admin(), "library/shows/s1"), { ...sansPrenom, status: "brouillon" }));
+    await assertSucceeds(set(ref(admin(), "library/shows/s2"), { ...sansPrenom, status: "brouillon", copieDe: "L'anniversaire de Léa" }));
+    await assertFails(set(ref(admin(), "library/shows/s3"), { ...sansPrenom, status: "publiee" }));
+    await assertFails(set(ref(admin(), "library/shows/s4"), { ...sansPrenom, status: "brouillon", copieDe: "x".repeat(121) }));
+  });
   test("contenus intégrés : l'administration retire et ajoute, la régie les lit sans pouvoir les changer", async () => {
     await seed({ phase: "lobby" });
     const ok = { off: ["soleil"], extra: [{ word: "arc-en-ciel" }], updatedAt: serverTimestamp() };

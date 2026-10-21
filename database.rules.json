@@ -464,7 +464,7 @@
       "shows": {
         "$id": {
           ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
-          ".validate": "!newData.exists() || (newData.child('childName').isString() && newData.child('childName').val().length >= 1 && newData.child('childName').val().length <= 40 && newData.child('status').isString() && newData.child('status').val().matches(/^(brouillon|publiee|archivee)$/) && newData.child('updatedAt').val() === now)"
+          ".validate": "!newData.exists() || ((!newData.child('childName').exists() || (newData.child('childName').isString() && newData.child('childName').val().length >= 1 && newData.child('childName').val().length <= 40)) && (newData.child('status').val() !== 'publiee' || newData.child('childName').exists()) && (!newData.child('copieDe').exists() || (newData.child('copieDe').isString() && newData.child('copieDe').val().length <= 120)) && newData.child('status').isString() && newData.child('status').val().matches(/^(brouillon|publiee|archivee)$/) && newData.child('updatedAt').val() === now)"
         }
       },
       "manches": {

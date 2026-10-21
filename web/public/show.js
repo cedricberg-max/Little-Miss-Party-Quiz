@@ -116,7 +116,9 @@ export const MIME_TURN = 60;
 export const MAX_QUESTIONS = 200;
 
 export function showTitle(show) {
-  return show.title?.trim() || (show.childName?.trim() ? `L'anniversaire de ${show.childName.trim()}` : "Prestation");
+  return show.title?.trim() || (show.childName?.trim() ? `L'anniversaire de ${show.childName.trim()}`
+    // Copie pas encore complétée : le nom de son modèle (Dupliquer).
+    : show.copieDe?.trim() ? `Copie de « ${show.copieDe.trim()} »` : "Prestation");
 }
 
 /** Questions jouables d'un quiz : celles que Sarah a validées et sans anomalie bloquante. */
@@ -830,6 +832,7 @@ export function etatPrestation(show, today = isoDay()) {
 export function readiness(show, quizzes, mimes = {}, playlists = {}, contents = {}, today = isoDay()) {
   if (isArchived(show, today)) return { level: "archivee", todo: [] };
   const todo = [];
+  if (!show.childName?.trim()) todo.push("Indiquer le prénom de l'enfant");
   if (!show.date) todo.push("Ajouter la date");
   else if (show.date < today) todo.push("Choisir une date à venir (celle-ci est passée)");
   if (!show.age) todo.push("Indiquer l'âge");
@@ -889,7 +892,7 @@ export function upcoming(shows, today = isoDay()) {
  * sont repris tels quels, sans être modifiés), prénom, date et âge à saisir, en brouillon.
  */
 export function duplicateShow(show) {
-  const { childName, age, date, title, status, createdAt, updatedAt, origin, pinned, keepActive, ...rest } = show;
+  const { childName, age, date, title, status, createdAt, updatedAt, origin, pinned, keepActive, copieDe, ...rest } = show;
   return { ...rest, status: "brouillon", rounds: (show.rounds ?? []).filter(Boolean).map((r) => ({ ...r })) };
 }
 
