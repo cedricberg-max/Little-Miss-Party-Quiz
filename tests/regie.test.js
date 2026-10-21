@@ -3535,7 +3535,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const show = await read("show");
     assert.deepEqual(show.rounds.map((r) => r.title), ["Quiz illustré", "Animaux"]);
     // La question des bougies va dans le premier Quiz classique, jamais dans le Quiz illustré.
-    assert.deepEqual(show.quiz.questions.map((q) => [q.round, q.choiceImages?.length ?? 0, !!q.finale, !!q.bougies]), [["Quiz illustré", 4, false, false], ["Quiz illustré", 4, true, false], ["Animaux", 0, false, false], ["Animaux", 0, false, false], ["Animaux", 0, false, true]]);
+    assert.deepEqual(show.quiz.questions.map((q) => [q.round, q.choiceImages?.length ?? 0, !!q.finale, /bougies/.test(q.text)]), [["Quiz illustré", 4, false, false], ["Quiz illustré", 4, true, false], ["Animaux", 0, false, false], ["Animaux", 0, false, false], ["Animaux", 0, false, true]]);
     await waitFor(async () => Object.keys((await read("choiceImages")) ?? {}).length === 4, "réponses en images copiées dans la partie");
     // En direct : le quiz illustré est proposé en Quiz illustré (avec sa manche), jamais en Quiz.
     await regie.click("#tab-plan");
