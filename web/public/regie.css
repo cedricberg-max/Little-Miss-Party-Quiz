@@ -98,9 +98,9 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .plan-head button.replay { font-size: 14px; color: var(--gold); border-color: rgba(255, 210, 120, .5); }
 .regie .plan-head button:disabled { opacity: .35; }
 
-/* Bibliothèque « Ajouter un jeu », plein écran au-dessus de la régie. */
+/* Bibliothèque « Ajouter un jeu », plein écran au-dessus de la régie (et du bandeau rouge, qui cachait « Fermer »). */
 .regie .lib {
-  position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; gap: 10px;
+  position: absolute; inset: 0; z-index: 7; display: flex; flex-direction: column; gap: 10px;
   padding: calc(10px + env(safe-area-inset-top)) 16px calc(12px + env(safe-area-inset-bottom)); background: var(--fond-bas);
 }
 .regie .lib-top { display: flex; align-items: center; gap: 10px; font-size: 20px; }
@@ -144,8 +144,13 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 
 .regie .actions .row { display: flex; gap: 8px; }
 .regie .actions .row .btn { flex: 1; }
+/* « 📱 Tablette » (reconnecter une tablette) entre Pause et Terminer : toujours là, étroit, pour que « Reprendre (3, 2, 1) »
+   et « Terminer » tiennent encore sur un petit téléphone (360 px). */
+.regie .actions .row .btn { padding: 0 10px; line-height: 1.15; }
+.regie .actions .row #c-tablette { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 0 10px; font-size: 13px; }
+.regie .actions .row #c-tablette .icone { font-size: 22px; line-height: 1; }
 
-.regie .banner { position: fixed; top: 0; left: 0; right: 0; z-index: 5; text-align: center; font-size: 14px; padding: 6px; background: var(--trait); color: var(--ink); }
+.regie .banner { position: fixed; top: 0; left: 0; right: 0; z-index: 8; text-align: center; font-size: 14px; padding: 6px; background: var(--trait); color: var(--ink); }
 /* Tablette d'une équipe déconnectée (cedric, 21/10) : un bandeau rouge toujours visible en haut, dans tous les jeux,
    sans cacher les boutons. Vert quelques secondes quand elle revient. */
 .regie .r-alerte {
@@ -154,6 +159,10 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
   box-shadow: 0 6px 18px rgba(0, 0, 0, .35); cursor: pointer; overflow-wrap: anywhere; animation: r-alerte 1.2s ease-in-out infinite alternate;
 }
 .regie .r-alerte small { display: block; font-size: 13px; font-weight: 700; opacity: .85; }
+.regie .r-alerte-reconnecter {
+  display: inline-block; margin-top: 8px; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 2px solid #fff;
+  background: #fff; color: var(--danger); font: inherit; font-size: 16px; font-weight: 900; cursor: pointer;
+}
 .regie .r-alerte.revenue { background: var(--ok); color: #1a0b2e; animation: none; cursor: default; }
 @keyframes r-alerte { to { box-shadow: 0 6px 26px rgba(255, 90, 95, .75); } }
 .regie .toast { background: var(--panel); border-radius: 12px; padding: 10px 12px; font-size: 15px; }
@@ -315,3 +324,10 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 
 /* « Ajouter un jeu » : vignettes des photos de la banque (Zoom mystère, Image floue, Qui a disparu ? en photos). */
 .regie .lib-thumb { width: 28px; height: 28px; object-fit: cover; border-radius: 6px; vertical-align: middle; }
+
+/* « Reconnecter une tablette » : le QR code bien grand sur fond blanc (lisible par l'appareil photo d'une tablette). */
+.regie .tablette-qr { align-self: center; width: min(78vw, 46vh, 320px); aspect-ratio: 1; border-radius: 16px; overflow: hidden; background: #fff; flex: none; }
+.regie .tablette-qr svg { display: block; width: 100%; height: 100%; }
+.regie .tablette-consigne { margin: 0; font-size: 17px; font-weight: 700; text-align: center; }
+.regie .tablette-demandes { display: flex; flex-direction: column; gap: 8px; }
+.regie .tablette-demandes:empty { display: none; }

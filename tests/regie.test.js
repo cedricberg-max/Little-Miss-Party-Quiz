@@ -1600,6 +1600,65 @@ describe("remplacement d'un appareil en cours de partie", () => {
     for (const p of [regie, fresh]) await p.context().close();
   });
 
+  test("« 📱 Reconnecter » sur le téléphone régie (cedric, 21/10) : QR code, la tablette touche son équipe, Sarah la lui confie ; aussi depuis le bandeau rouge", async () => {
+    const { regie, old, blue } = await startedGame();
+    await regie.locator("#panel-teams [data-team] .pts-open").first().waitFor();
+    await givePoints(regie, blue, 10);
+    await waitFor(async () => (await read("state"))?.scores?.[blue] === 10, "points avant la reconnexion");
+
+    // Toujours en bas de la régie, entre Pause et Terminer : le QR code de la partie, en mode « reprendre une équipe ».
+    assert.deepEqual(await regie.locator(".actions .row .btn").evaluateAll((l) => l.map((b) => b.getAttribute("aria-label") ?? b.innerText)), ["Pause", "Reconnecter une tablette", "Terminer"]);
+    await regie.click("#c-tablette");
+    await regie.locator("#tablette:not([hidden]) #tablette-qr svg path").waitFor();
+    const lien = await regie.locator("#tablette-qr").getAttribute("data-texte");
+    assert.equal(lien, `${baseUrl}/?g=${CODE}&reprise=1&emu=1`);
+    assert.ok((await regie.locator("#tablette-qr path").getAttribute("d")).split("M").length > 200, "un vrai QR code");
+    const qr = await regie.locator("#tablette-qr").boundingBox();
+    assert.ok(qr.width >= 250 && qr.width === qr.height, `QR code carré et grand : ${JSON.stringify(qr)}`);
+    await regie.locator("#tablette-attente", { hasText: "En attente de la tablette" }).waitFor();
+    await capture(regie, "regie-reconnecter-tablette");
+
+    // La nouvelle tablette scanne, touche « Les Bleus » ; Sarah la lui confie depuis cette fenêtre, qui se referme.
+    const fresh = await openRegie(null, new URL(lien).search);
+    await fresh.locator("#screen-takeover.active").waitFor();
+    await fresh.locator("#takeover-list button", { hasText: "Les Bleus" }).click();
+    await fresh.locator("#waiting-text", { hasText: "sur son téléphone" }).waitFor();
+    await regie.locator("#tablette-demandes button", { hasText: "Confier « Les Bleus » à la nouvelle tablette" }).click();
+    assert.match(await respond(regie), /Confier « Les Bleus » à ce nouvel appareil/);
+    await regie.locator("#r-toast", { hasText: "continue sur le nouvel appareil" }).waitFor();
+    await regie.locator("#tablette").waitFor({ state: "hidden" });
+    await fresh.locator("#screen-question.active").waitFor();
+    assert.equal(await fresh.locator("#screen-question .team-label").textContent(), "Les Bleus");
+    await old.locator("#screen-replaced.active").waitFor();
+    assert.equal((await read("state")).scores[blue], 10, "points gardés");
+
+    // Une tablette coupée : le bandeau rouge a son bouton « 📱 Reconnecter » (le bandeau, lui, reste affiché).
+    await old.context().close();
+    const [rose] = Object.entries(await read("teams")).find(([, t]) => t.name === "Les Roses");
+    await setPresence(rose, true);
+    await setPresence(rose, false);
+    const bouton = regie.locator("#r-alerte .r-alerte-reconnecter", { hasText: "📱 Reconnecter" });
+    await bouton.waitFor({ timeout: 8000 });
+    await capture(regie, "regie-bandeau-reconnecter");
+    await bouton.click();
+    // La fenêtre passe au-dessus du bandeau (qui cachait « Fermer ») ; refermée, le bandeau est toujours là.
+    await regie.locator("#tablette:not([hidden])").waitFor();
+    await regie.click("#tablette-close");
+    await regie.locator("#tablette").waitFor({ state: "hidden" });
+    assert.equal(await regie.locator("#r-alerte:not(.revenue)").isVisible(), true, "le bandeau n'est pas masqué par le bouton");
+    // Petit téléphone (360 px), partie en pause : « Reprendre (3, 2, 1) », « 📱 Tablette » et « Terminer » tiennent sur la ligne.
+    await regie.setViewportSize({ width: 360, height: 740 });
+    await regie.click("#c-pause");
+    await regie.locator("#c-pause", { hasText: "Reprendre (3, 2, 1)" }).waitFor();
+    const boutons = await regie.locator(".actions .row .btn").evaluateAll((l) => l.map((b) => {
+      const r = b.getBoundingClientRect();
+      return { texte: b.innerText, deborde: b.scrollWidth > b.clientWidth + 1, gauche: r.left, droite: r.right };
+    }));
+    assert.ok(boutons.every((b) => !b.deborde && b.gauche >= 0 && b.droite <= 360), `boutons du bas : ${JSON.stringify(boutons)}`);
+    await capture(regie, "regie-bas-360-pause");
+    for (const p of [regie, fresh]) await p.context().close();
+  });
+
   test("nouvelle équipe en cours de partie, ou demande ignorée", async () => {
     const { regie, old } = await startedGame();
     const late = await tablet("Les Tard-Venus");
