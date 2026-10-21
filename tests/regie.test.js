@@ -107,14 +107,17 @@ function questionState(seq, index = 0) {
 /**
  * Box simulée, avec les mêmes décisions que la vraie : PIN comparé côté box, commande
  * d'avancement refusée si expectSeq ne correspond plus, réponse dans commandStatus/.
+ * [host] : la box qui pilote (une box de secours après « Changer de box »), qui reprend la partie à l'état
+ * [from] ; les commandes [seen], restées sans réponse avant le changement de box, ne sont jamais rejouées.
  */
-function startBox({ silent = false, held = false } = {}) {
+function startBox({ silent = false, held = false, host = HOST, from = null, seen = [] } = {}) {
   /** Verdict imposé à la prochaine modification du programme (pour vérifier ce qu'affiche la régie). */
   let refuseProgram = null;
-  const db = hostDb();
+  const db = env.authenticatedContext(host).database();
+  const read = async (path) => (await get(ref(db, `games/${CODE}/${path}`))).val();
   let latest = {};
-  let state = { phase: "lobby", seq: 0, total: QUESTIONS.length, scores: {}, round: 1, buzzOpen: true };
-  const handled = new Set();
+  let state = from ?? { phase: "lobby", seq: 0, total: QUESTIONS.length, scores: {}, round: 1, buzzOpen: true };
+  const handled = new Set(seen);
   const stops = [];
   /** Manche de mimes en cours (paquet restant), comme le moteur : MimeRound. */
   let deck = [];
@@ -1095,6 +1098,18 @@ describe("régie", () => {
     await page.waitForTimeout(2000);
     assert.equal(await alerte.isHidden(), true, "pas d'alerte avant 4 s");
     await page.locator("#r-alerte:not(.revenue)", { hasText: "📵 Tablette déconnectée : Les Bleus" }).waitFor({ timeout: 6000 });
+    // Le bas de la régie (Pause, Tablette, Terminer, gros bouton) reste dans l'écran sous le bandeau (audit du 21/10 :
+    // il sortait de l'écran de la hauteur du bandeau, « Reprendre » caché pendant une pause).
+    const basDansEcran = async (quand) => {
+      const bas = await page.locator(".control .actions").boundingBox();
+      assert.ok(bas && bas.y + bas.height <= 844 + 1, `${quand} : bas de la régie hors de l'écran ${JSON.stringify(bas)}`);
+    };
+    await basDansEcran("bandeau rouge");
+    await update(gameRef(), { state: { ...questionState(4), kind: "blind", paused: true, pauseReason: "team", pauseTeam: "bleu", deadline: null, remainingMs: 12000 } });
+    await page.getByRole("button", { name: /Reprendre/ }).first().waitFor();
+    await basDansEcran("pause automatique avec le bandeau");
+    assert.ok(await page.getByRole("button", { name: /Reprendre/ }).first().isVisible());
+    await update(gameRef(), { state: { ...questionState(4), kind: "blind" } });
     // Il reste en haut de l'écran même quand Sarah descend dans la page.
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     const haut = await alerte.boundingBox();
@@ -1531,6 +1546,118 @@ describe("régie", () => {
     await page.locator("#c-next", { hasText: "Lancer la fête !" }).click();
     await page.locator("#r-toast", { hasText: "La TV ne répond pas" }).waitFor({ timeout: 10000 });
     assert.equal(await page.locator("#c-next").isDisabled(), false);
+    await page.context().close();
+  });
+});
+
+describe("changer de box (box en panne)", () => {
+  const NEW = "NEUVB";
+  const SECOURS = "secours";
+  const LOBBY = { phase: "lobby", seq: 0, round: 1, buzzOpen: true };
+  /** Box de secours allumée sur « Nouvelle partie » : son salon d'attente, vide (ou déjà pris par une autre fête). */
+  const salon = (state = LOBBY, extra = {}) =>
+    env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${NEW}`), {
+      hostUid: SECOURS, state, public: { title: "Quiz", changeBox: true }, ...extra,
+    }));
+  const lireComme = async (uid, path) => (await get(ref(env.authenticatedContext(uid).database(), path))).val();
+  async function essayer(page, saisie, message) {
+    await page.fill("#box-code", saisie);
+    await page.click("#box-go");
+    await page.locator("#box-status", { hasText: message }).waitFor();
+  }
+
+  test("la TV ne répond plus : « 📺 Changer de box », code du salon de secours, la fête continue avec ses équipes et ses points", async () => {
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    await addTeam("bleu", "Les Bleus");
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    const [tel] = Object.keys(await read("regie"));
+    await page.locator("#c-next", { hasText: "Lancer la fête !" }).click();
+    await page.locator("#c-phase", { hasText: "Question en cours" }).waitFor();
+    await page.click("#tab-teams");
+    await givePoints(page, "rose", 100);
+    await page.locator('#panel-teams [data-team="rose"] .score', { hasText: "100" }).waitFor();
+    // Panne : la box ne répond plus. La régie le dit en haut de l'écran et propose de changer de box.
+    box.stop();
+    assert.equal(await page.locator("#r-tv").isHidden(), true);
+    await page.click("#c-pause");
+    const alerte = page.locator("#r-tv", { hasText: "La TV ne répond pas" });
+    await alerte.waitFor({ timeout: 10000 });
+    await capture(page, "changer-de-box-alerte");
+    await alerte.getByRole("button", { name: "📺 Changer de box" }).click();
+    await page.locator("#box:not([hidden])", { hasText: "« Nouvelle partie »" }).waitFor();
+    // Codes faux : rien n'est écrit, un message clair.
+    await essayer(page, "ZZZZZ", "Code inconnu");
+    await essayer(page, CODE, "C'est le code de cette fête");
+    await essayer(page, "KX7P", "pas encore acceptée");
+    await essayer(page, "AB", "code à 5 caractères");
+    // Box de secours qui n'est pas sur son salon d'attente (une partie y est déjà lancée).
+    await salon({ ...LOBBY, phase: "question", seq: 3 });
+    await essayer(page, NEW, "pas sur son écran d'accueil");
+    // Salon d'attente, mais box jamais acceptée dans la Régie PC (verrou en place).
+    await salon();
+    await essayer(page, NEW, "Cette box n'est pas acceptée");
+    await allowBox(env, SECOURS);
+    // Box restée sur une ancienne version de l'appli : elle n'écouterait pas, la fête resterait sans box.
+    await salon(LOBBY, { public: { title: "Quiz" } });
+    await essayer(page, NEW, "Cette box n'a pas la dernière version de l'appli");
+    // Jamais la box d'une autre fête : une autre animatrice y est reliée (refus des règles), ou une prestation y est
+    // chargée (ici depuis ce téléphone, relié aussi à la box de secours).
+    await salon(LOBBY, { regie: { autre: { pairedAt: 1, via: "password" } } });
+    await essayer(page, NEW, "Cette box est déjà utilisée pour une autre fête. Vérifiez le code affiché sur la TV de secours.");
+    await salon(LOBBY, {
+      regie: { [tel]: { pairedAt: 1, via: "password" } },
+      show: { id: "s1", title: "Anniversaire de Léa", quiz: { questions: [{ text: "?" }] }, by: tel, at: 1 },
+    });
+    await essayer(page, NEW, "Une prestation est déjà chargée sur cette box");
+    assert.equal(await read("hostUid"), HOST);
+    // Salon tout neuf d'une box acceptée (ce téléphone y est relié par habitude) : la fête change de box.
+    await salon(LOBBY, { regie: { [tel]: { pairedAt: 1, via: "password" } } });
+    await page.fill("#box-code", "neu vb");
+    await capture(page, "changer-de-box-code", { pleinePage: false });
+    await page.click("#box-go");
+    await page.locator("#r-toast", { hasText: "La fête continue sur la nouvelle TV" }).waitFor();
+    assert.equal(await page.locator("#box").isHidden(), true);
+    assert.equal(await page.locator("#r-tv").isHidden(), true);
+    assert.equal(await read("hostUid"), SECOURS);
+    const partie = await lireComme(SECOURS, `games/${CODE}`);
+    assert.deepEqual({ ...partie.takeover, at: typeof partie.takeover.at }, { to: NEW, from: HOST, by: tel, at: "number" });
+    assert.equal(await lireComme(SECOURS, `games/${NEW}/handoff`), CODE);
+    assert.deepEqual(Object.keys(partie.teams).sort(), ["bleu", "rose"]);
+    assert.equal(partie.state.scores.rose, 100);
+    // Le téléphone reste sur la même partie : la box de secours reçoit ses commandes et les applique.
+    assert.equal(await page.textContent("#c-code"), CODE);
+    box = startBox({ host: SECOURS, from: partie.state, seen: Object.keys(partie.commands ?? {}) });
+    await page.click("#c-pause");
+    await page.locator("#c-phase", { hasText: "En pause" }).waitFor();
+    const pauses = Object.values(await lireComme(SECOURS, `games/${CODE}/commands`)).filter((c) => c.type === "pause" && c.by === tel);
+    assert.equal(pauses.length, 2, "la pause restée sans réponse, puis celle appliquée par la box de secours");
+    await page.context().close();
+  });
+
+  test("« 📺 Changer de box » est toujours dans la carte ; sans Internet sur le téléphone rien n'est envoyé, puis le changement passe", async () => {
+    box = startBox();
+    await allowBox(env, SECOURS);
+    await salon();
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    await page.click("#c-box");
+    await page.locator("#box:not([hidden])").waitFor();
+    await page.click("#box-close");
+    await page.locator("#box").waitFor({ state: "hidden" });
+    await page.click("#c-box");
+    await page.context().setOffline(true);
+    await page.locator("#r-offline").waitFor();
+    await essayer(page, NEW, "Pas d'Internet sur ce téléphone");
+    assert.equal(await read("hostUid"), HOST);
+    await page.context().setOffline(false);
+    await page.locator("#r-offline").waitFor({ state: "hidden", timeout: 15000 });
+    await page.click("#box-go");
+    await page.locator("#r-toast", { hasText: "La fête continue sur la nouvelle TV" }).waitFor();
+    assert.equal(await read("hostUid"), SECOURS);
     await page.context().close();
   });
 });

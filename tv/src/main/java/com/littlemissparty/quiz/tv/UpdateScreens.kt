@@ -55,7 +55,7 @@ class UpdateActions(
 )
 
 /** Partie en cours (équipes déjà là ou question jouée) : aucune mise à jour pendant une prestation. */
-fun gameInProgress(state: UiState): Boolean = state is UiState.ResumeOffer ||
+fun gameInProgress(state: UiState): Boolean = state is UiState.ResumeOffer || state is UiState.TakingOver ||
     (state is UiState.Playing && when (state.phase) {
         com.littlemissparty.quiz.engine.Phase.ENDED -> false
         com.littlemissparty.quiz.engine.Phase.LOBBY -> state.teams.isNotEmpty()

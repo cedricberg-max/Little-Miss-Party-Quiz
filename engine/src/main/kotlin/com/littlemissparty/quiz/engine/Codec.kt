@@ -195,6 +195,8 @@ object Codec {
             "pauseTeam" to s.hold?.team,
             "resumeAt" to s.resumeAt,
         )
+        // Partie terminée : son heure de fin (serveur), pour le ménage des copies des médias par la Régie PC.
+        if (s.phase == Phase.ENDED) s.endedAt?.let { out["endedAt"] = it }
         // Dernières questions du quiz : la régie propose le multiplicateur juste avant la première.
         game.factorChoice()?.let { start -> out["factorChoice"] = mapOf("start" to start, "factor" to (s.factors[start] ?: FACTORS.first())) }
         if (q != null && s.intro) {
@@ -298,7 +300,9 @@ object Codec {
             // tient la bombe en tire un rouge qui bat de plus en plus vite, sans jamais connaître la durée de la mèche.
             "burnFrom" to game.state.segments.lastOrNull()?.takeIf { it.end == null && !p.exploded }
                 ?.let { it.start - game.state.elapsedAt(it.start) },
-            "booms" to p.booms.map { mapOf("holder" to it.holder, "at" to it.at, "lost" to it.lost, "gain" to it.gain) },
+            // L'équipe qui tient la bombe doit l'avoir envoyée avant cette heure (null en pause) : sa tablette compte 3, 2, 1.
+            "holdUntil" to game.holdDeadline(),
+            "booms" to p.booms.map { mapOf("holder" to it.holder, "at" to it.at, "lost" to it.lost, "gain" to it.gain, "held" to it.held) },
             "key" to potatoKey(game),
         )
     }

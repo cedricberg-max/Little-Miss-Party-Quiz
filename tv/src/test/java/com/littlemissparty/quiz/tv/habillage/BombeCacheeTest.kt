@@ -1,5 +1,7 @@
 package com.littlemissparty.quiz.tv.habillage
 
+import com.littlemissparty.quiz.engine.BOMB_ALERT_MS
+import com.littlemissparty.quiz.engine.CHEST_SHOW_MS
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -44,5 +46,14 @@ class BombeCacheeTest {
                 i += k
             }
         }
+    }
+
+    @Test
+    fun `chaque animation tient dans le temps que la partie lui laisse`() {
+        // La partie laisse CHEST_SHOW_MS à l'ouverture d'un coffre, BOMB_ALERT_MS à l'annonce : sinon la fin serait coupée.
+        for (ms in listOf(OUVERTURE_COFFRE_MS, OUVERTURE_CARTE_MS, OUVERTURE_MALUS_MS, OUVERTURE_OR_MS, OUVERTURE_BOMBE_MS)) {
+            assertTrue("$ms ms > $CHEST_SHOW_MS ms", ms <= CHEST_SHOW_MS)
+        }
+        assertTrue(ALERTE_BOMBE_MS <= BOMB_ALERT_MS)
     }
 }

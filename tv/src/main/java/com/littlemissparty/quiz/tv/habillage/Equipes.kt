@@ -78,12 +78,42 @@ fun BandeauEquipes(
                 }
             }
         }
-        val finales = largeurs ?: List(n) { largeur(w, n) }
-        val sources = if (compacte) (0 until n).map { i -> subcompose("compacte$i") { puce(i, true, Modifier) } } else normales
+        // Plan retenu, puis deux replis si la place manque en hauteur (écran déjà chargé au-dessus) : puces compactes
+        // au-dessus des boutons, puis un rang de puces compactes au-dessus et les autres sur la ligne des boutons. Sans
+        // ces replis, la hauteur était rognée et les boutons recouvraient le second rang (mimes à 8 équipes, 21/10).
+        val compactes = (0 until n).map { i -> subcompose("compacte$i") { puce(i, true, Modifier) } }
+        /** [tailles] : nombre de puces de chaque rang, de haut en bas. */
+        class Plan(val largeurs: List<Int>, val tailles: List<Int>, val memeLigne: Boolean, val compacte: Boolean)
+        fun rangsDe(t: Int) = List((n + t - 1) / t.coerceAtLeast(1)) { r -> minOf(t, n - r * t) }
+        fun hauteur(p: Plan): Int {
+            val src = if (p.compacte) compactes else normales
+            var k = 0
+            val hr = p.tailles.map { t -> (0 until t).maxOf { src[k + it].maxOfOrNull { m -> m.maxIntrinsicHeight(p.largeurs[k + it]) } ?: 0 }.also { k += t } }.toMutableList()
+            if (hr.isEmpty()) return bh
+            if (p.memeLigne) hr[hr.lastIndex] = maxOf(hr.last(), bh)
+            val hp = hr.sum() + gap * (hr.size - 1)
+            return if (p.memeLigne) hp else hp + if (bh > 0) gap + bh else 0
+        }
+        val deux = ((n + 1) / 2).coerceAtLeast(1)
+        // Dernier repli : le plus de puces possible à côté des boutons, chacune encore lisible, les autres au-dessus.
+        val lisible = (largeurConfort * 0.75f).roundToPx()
+        val aLaLigne = (n - 1 downTo 1).firstOrNull { m -> largeur(aCote, m) >= lisible && largeur(w, n - m) >= lisible } ?: deux
+        val plans = if (n == 0) listOf(Plan(emptyList(), emptyList(), memeLigne, compacte)) else listOf(
+            Plan(largeurs ?: List(n) { largeur(w, n) }, rangsDe(parRang), memeLigne, compacte),
+            Plan(List(n) { largeur(w, deux) }, rangsDe(deux), false, true),
+            Plan(List(n) { i -> if (i < n - aLaLigne) largeur(w, n - aLaLigne) else largeur(aCote, aLaLigne) }, listOf(n - aLaLigne, aLaLigne).filter { it > 0 }, true, true),
+        )
+        val hauteurs = plans.map { hauteur(it) }
+        val choisi = plans.indices.firstOrNull { hauteurs[it] <= c.maxHeight } ?: hauteurs.indices.minBy { hauteurs[it] }
+        val plan = plans[choisi]
+        memeLigne = plan.memeLigne
+        val finales = plan.largeurs
+        val sources = if (plan.compacte) compactes else normales
         val puces = sources.mapIndexed { i, m ->
             m.map { it.measure(Constraints(minWidth = finales[i], maxWidth = finales[i], maxHeight = c.maxHeight)) }
         }
-        val rangs = puces.chunked(parRang.coerceAtLeast(1))
+        var debut = 0
+        val rangs = plan.tailles.map { t -> puces.subList(debut, debut + t).also { debut += t } }
         val hauteurRang = rangs.map { r -> r.maxOfOrNull { p -> p.maxOfOrNull { it.height } ?: 0 } ?: 0 }.toMutableList()
         // Le dernier rang partage la ligne des boutons : il prend leur hauteur s'ils sont plus hauts.
         if (memeLigne && hauteurRang.isNotEmpty()) hauteurRang[hauteurRang.lastIndex] = maxOf(hauteurRang.last(), bh)

@@ -108,6 +108,8 @@ class TvActions(
     val potatoRandom: () -> Unit = {},
     /** « Donner des points » (menu Retour) : équipes choisies, montant (fête sans Internet). */
     val givePoints: (List<String>, Int) -> Unit = { _, _ -> },
+    /** « Vider le cache des médias » (menu Retour), une fois confirmé. */
+    val viderCache: () -> Unit = {},
 )
 
 /** Mise à jour de l'appli depuis la TV : état de la fenêtre et version trouvée par la recherche discrète. */
@@ -121,11 +123,12 @@ class UpdateScreen(
 )
 
 @Composable
-fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null) {
+fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null, vidage: VidageCache = VidageCache.Pret) {
     // Bouton Retour pendant une partie : on met en pause et on demande confirmation au lieu de quitter.
     var confirmQuit by remember { mutableStateOf(false) }
     var pausedByDialog by remember { mutableStateOf(false) }
     var pointsOpen by remember { mutableStateOf(false) }
+    var cacheOpen by remember { mutableStateOf(false) }
     BackHandler(enabled = state is UiState.Playing) {
         val s = state as UiState.Playing
         if (s.phase == Phase.QUESTION && !s.paused) {
@@ -161,6 +164,8 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null) 
             UiState.Connecting -> Connecting()
             is UiState.Error -> Message("Connexion impossible", state.message, actions.retry, actions.checkUpdate)
             is UiState.ResumeOffer -> ResumeOffer(state, actions.resume, actions.newGame)
+            is UiState.TakingOver -> TakingOver(state)
+            is UiState.Moved -> Moved(state, actions.newGame)
             is UiState.Locked -> Locked(state, actions.requestAgain, actions.checkUpdate)
             is UiState.Playing -> Playing(state, actions)
         }
@@ -180,6 +185,8 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null) 
             onRegie = { close(); actions.showRegie() },
             onTablette = { close(); actions.showTablette() },
             onUpdate = { close(); actions.checkUpdate() },
+            // Comme les points : la pause du menu dure jusqu'à la fermeture de la fenêtre.
+            onCache = { confirmQuit = false; cacheOpen = true },
             onNewGame = { confirmQuit = false; pausedByDialog = false; actions.newGame() },
             onQuit = { confirmQuit = false; actions.quit() },
         )
@@ -196,6 +203,18 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null) 
             },
         )
     }
+    if (cacheOpen && state is UiState.Playing) {
+        ViderCacheDialog(
+            raison = vidageImpossible(state),
+            vidage = vidage,
+            onVider = actions.viderCache,
+            onClose = {
+                cacheOpen = false
+                if (pausedByDialog) actions.unpause()
+                pausedByDialog = false
+            },
+        )
+    }
     if (state is UiState.Playing && state.showRegie) {
         RegieDialog(state, onClose = actions.hideRegie, onRemove = actions.removeRegies)
     }
@@ -204,7 +223,7 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null) 
     }
     if (update != null && update.open) {
         UpdateDialog(update.ui, busy = gameInProgress(state), actions = update.actions)
-    } else if (update?.offer != null && !gameInProgress(state) && !confirmQuit && !pointsOpen && !(state is UiState.Playing && (state.showRegie || state.showTablette))) {
+    } else if (update?.offer != null && !gameInProgress(state) && !confirmQuit && !pointsOpen && !cacheOpen && !(state is UiState.Playing && (state.showRegie || state.showTablette))) {
         // La proposition attend le retour à l'accueil : jamais par-dessus une partie ou une autre fenêtre.
         UpdateOfferDialog(update.offer, update.actions)
     }
@@ -297,6 +316,59 @@ private fun ResumeOffer(state: UiState.ResumeOffer, onResume: () -> Unit, onNewG
     LaunchedEffect(Unit) { focus.requestFocus() }
 }
 
+/** Box de secours : la partie que la régie vient de lui confier s'ouvre (quelques secondes). */
+@Composable
+private fun TakingOver(state: UiState.TakingOver) {
+    Column(
+        Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        CircularProgressIndicator(color = Color.White)
+        Spacer(Modifier.height(24.dp))
+        Text("Reprise de la fête…", color = Color.White, fontSize = 36.sp, lineHeight = 42.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "Code ${state.code}",
+            color = Palette.Gold, fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.Black, letterSpacing = 6.sp,
+        )
+    }
+}
+
+/**
+ * Ancienne box : la régie a confié la fête à une autre box pendant que celle-ci ne répondait plus.
+ * Elle ne pilote plus rien ; « Nouvelle partie » ouvre un nouveau salon sans toucher à la fête.
+ */
+@Composable
+private fun Moved(state: UiState.Moved, onNewGame: () -> Unit) {
+    val focus = remember { FocusRequester() }
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = 64.dp, vertical = 32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        LogoQuiz(56.dp)
+        Spacer(Modifier.height(16.dp))
+        Text(
+            "Cette fête continue sur une autre box", color = Color.White, fontSize = 44.sp, lineHeight = 52.sp,
+            fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "Code ${state.code}",
+            color = Palette.Gold, fontSize = 32.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black, letterSpacing = 6.sp,
+        )
+        Spacer(Modifier.height(16.dp))
+        Text(
+            "La régie l'a confiée à une autre TV, avec les mêmes équipes et les mêmes points.\nCette box ne la pilote plus.",
+            color = Color.White.copy(alpha = 0.85f), fontSize = 22.sp, lineHeight = 30.sp, textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(28.dp))
+        TvButton("Nouvelle partie", onNewGame, Modifier.focusRequester(focus), primary = true, fontSize = 24.sp)
+    }
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+}
+
 /** Box jamais acceptée : seulement son code, à retrouver dans la Régie PC (Paramètres > Box TV). */
 @Composable
 private fun Locked(state: UiState.Locked, onRequestAgain: () -> Unit, onUpdate: () -> Unit) {
@@ -349,6 +421,7 @@ private fun QuitDialog(
     onRegie: () -> Unit,
     onTablette: () -> Unit,
     onUpdate: () -> Unit,
+    onCache: () -> Unit,
     onNewGame: () -> Unit,
     onQuit: () -> Unit,
 ) {
@@ -380,6 +453,7 @@ private fun QuitDialog(
             TvButton("Reconnecter la régie", onRegie, wide, fontSize = 20.sp)
             TvButton("Reconnecter une tablette", onTablette, wide, fontSize = 20.sp)
             TvButton("Rechercher une mise à jour", onUpdate, wide, fontSize = 20.sp)
+            TvButton("Vider le cache des médias", onCache, wide, fontSize = 20.sp)
             TvButton("Quitter l'application", onQuit, wide, fontSize = 20.sp)
             TvButton("Terminer et lancer une nouvelle partie", onNewGame, wide, accent = Palette.Pink, fontSize = 20.sp)
         }

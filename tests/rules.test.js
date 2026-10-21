@@ -1363,6 +1363,194 @@ describe("activation des box", () => {
   });
 });
 
+describe("changer de box : la fête continue sur une box de secours", () => {
+  const SECOURS = "secours";
+  const NEW = "SECUR";
+  const REGIE = "tel";
+  const LOBBY = { phase: "lobby", round: 1, buzzOpen: true };
+  /** Publié par une box qui sait reprendre la fête d'une autre (version à jour). */
+  const A_JOUR = { title: "Quiz", changeBox: true };
+  /** Partie en cours (équipes, journal, scores) reliée à la régie, et le salon d'attente vide de la box de secours. */
+  async function prepare({ lobby = { state: LOBBY }, host = SECOURS, to = NEW } = {}) {
+    await seed({ phase: "scores", scores: { rose: 100 } });
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const d = ctx.database();
+      await set(ref(d, `games/${CODE}/regie/${REGIE}`), { pairedAt: 1, via: "password" });
+      await set(ref(d, `games/${CODE}/log/000001`), { seq: 1, at: 1, type: "reveal" });
+      await set(ref(d, `games/${to}`), { hostUid: host, public: A_JOUR, ...lobby });
+    });
+  }
+  /** Ce que fait la régie : la nouvelle box, la trace du changement et le relais du salon, en une seule écriture. */
+  const changer = (uid, { to = NEW, host = SECOURS, from = HOST, by = uid, code = CODE, extra = {} } = {}) =>
+    update(ref(db(uid)), {
+      [`games/${code}/hostUid`]: host,
+      [`games/${code}/takeover`]: { to, from, by, at: serverTimestamp(), ...extra },
+      [`games/${to}/handoff`]: code,
+    });
+  const hote = async (code = CODE) => (await get(ref(db("rose"), `games/${code}/hostUid`))).val();
+
+  test("la régie confie la fête au salon d'une box acceptée : la nouvelle box la pilote, l'ancienne plus du tout", async () => {
+    await allowBox(env, HOST, SECOURS);
+    await prepare();
+    await assertSucceeds(changer(REGIE));
+    assert.equal(await hote(), SECOURS);
+    // La nouvelle box lit toute la partie (équipes, journal, trace du changement) et le relais de son salon.
+    const nouvelle = db(SECOURS);
+    const partie = (await get(ref(nouvelle, `games/${CODE}`))).val();
+    assert.deepEqual(Object.keys(partie.teams).sort(), ["bleu", "rose"]);
+    assert.equal(partie.log["000001"].type, "reveal");
+    assert.equal(partie.state.scores.rose, 100);
+    assert.deepEqual({ ...partie.takeover, at: typeof partie.takeover.at }, { to: NEW, from: HOST, by: REGIE, at: "number" });
+    assert.equal((await get(ref(nouvelle, `games/${NEW}/handoff`))).val(), CODE);
+    await assertSucceeds(update(ref(nouvelle, `games/${CODE}`), { "state/phase": "question", "log/000002": { seq: 2, at: 2, type: "open" } }));
+    await assertSucceeds(update(ref(nouvelle, `games/${NEW}/state`), { phase: "ended", endedAt: serverTimestamp() }));
+    // L'ancienne box, revenue après la panne : elle voit qui pilote, mais ne lit ni n'écrit plus rien.
+    const ancienne = db(HOST);
+    assert.equal((await get(ref(ancienne, `games/${CODE}/hostUid`))).val(), SECOURS);
+    await assertFails(get(ref(ancienne, `games/${CODE}`)));
+    await assertFails(set(ref(ancienne, `games/${CODE}/state/phase`), "reveal"));
+    await assertFails(set(ref(ancienne, `games/${CODE}/log/000003`), { seq: 3, at: 3, type: "close" }));
+    await assertFails(set(ref(ancienne, `games/${CODE}/conducteur`), { title: "Ancien" }));
+    await assertFails(set(ref(ancienne, `games/${CODE}/commandStatus/c0`), { status: "applied" }));
+    // La régie commande toujours la même partie ; la trace et le relais ne se lisent que par la box qui pilote.
+    await assertSucceeds(set(ref(db(REGIE), `games/${CODE}/commands/c1`), { type: "next", expectSeq: 2, by: REGIE, at: serverTimestamp() }));
+    await assertFails(get(ref(db(REGIE), `games/${CODE}/takeover`)));
+    await assertFails(get(ref(db("rose"), `games/${NEW}/handoff`)));
+    // Ni la trace ni le relais ne s'effacent.
+    await assertFails(set(ref(db(REGIE), `games/${CODE}/takeover`), null));
+    await assertFails(set(ref(db(REGIE), `games/${NEW}/handoff`), null));
+    await assertFails(set(ref(nouvelle, `games/${NEW}/handoff`), null));
+  });
+
+  test("seule une régie de la partie la confie, jamais à elle-même ni à un identifiant inventé", async () => {
+    await allowBox(env, HOST, SECOURS);
+    await seedAdmin(env, "sarah");
+    await prepare();
+    // Régie d'une autre partie seulement.
+    await env.withSecurityRulesDisabled((ctx) =>
+      set(ref(ctx.database(), "games/AUTR2"), { hostUid: "tv2", state: LOBBY, regie: { tel2: { pairedAt: 1, via: "pin" } } }));
+    for (const uid of ["rose", "tel2", "sarah", HOST, SECOURS, "inconnu"]) await assertFails(changer(uid), uid);
+    await assertFails(changer(REGIE, { host: REGIE }), "la régie se déclare hôte");
+    await assertFails(changer(REGIE, { host: "pirate" }), "identifiant inventé");
+    await assertFails(changer(REGIE, { by: "autre" }), "signée par un autre");
+    await assertFails(changer(REGIE, { from: "autre" }), "ancienne box inexacte");
+    await assertFails(changer(REGIE, { extra: { scores: 999 } }), "champ en plus");
+    await assertFails(update(ref(db(REGIE)), {
+      [`games/${CODE}/hostUid`]: SECOURS,
+      [`games/${CODE}/takeover`]: { to: NEW, from: HOST, by: REGIE, at: 1 },
+      [`games/${NEW}/handoff`]: CODE,
+    }), "heure du téléphone");
+    await assertFails(set(ref(db("sarah"), `games/${CODE}/hostUid`), SECOURS), "administration");
+    await assertFails(set(ref(db(REGIE), `games/${CODE}/hostUid`), REGIE));
+    assert.equal(await hote(), HOST);
+    // Témoin : la même écriture, faite par la régie de la partie, passe.
+    await assertSucceeds(changer(REGIE));
+  });
+
+  test("la box de secours montre son salon d'attente vide, avec une appli à jour ; acceptée dans la Régie PC dès que le verrou est en place", async () => {
+    await allowBox(env, HOST);
+    await prepare({ lobby: { state: { ...LOBBY, phase: "question" } } });
+    await assertFails(changer(REGIE), "partie déjà lancée");
+    await prepare({ lobby: { state: LOBBY, teams: { vert: { name: "Les Verts", color: "#06D6A0" } } } });
+    await assertFails(changer(REGIE), "salon avec une équipe");
+    await prepare({ lobby: { state: { ...LOBBY, phase: "ended" } } });
+    await assertFails(changer(REGIE), "salon terminé");
+    await prepare();
+    await assertFails(changer(REGIE, { to: CODE }), "la partie elle-même");
+    await assertFails(changer(REGIE, { to: "ZZZZZ" }), "code inconnu");
+    await assertFails(changer(REGIE, { to: "SEC/R" }), "code mal formé");
+    await assertFails(changer(REGIE), "box pas encore acceptée");
+    await allowBox(env, SECOURS);
+    // Box d'une version plus ancienne : elle n'écouterait pas son relais, la fête resterait sans box.
+    await prepare({ lobby: { state: LOBBY, public: { title: "Quiz" } } });
+    await assertFails(changer(REGIE), "appli pas à jour");
+    await prepare({ lobby: { state: LOBBY, public: null } });
+    await assertFails(changer(REGIE), "appli bien plus ancienne");
+    await prepare();
+    await assertSucceeds(changer(REGIE));
+  });
+
+  test("jamais la box d'une autre fête : salon relié au téléphone d'une autre animatrice, ou prestation déjà chargée", async () => {
+    await allowBox(env, HOST, SECOURS);
+    const relie = (...uids) => Object.fromEntries(uids.map((uid) => [uid, { pairedAt: 1, via: "password" }]));
+    const prestation = { id: "s1", title: "Anniversaire de Léa", quiz: { questions: [{ text: "Couleur ?" }] }, by: "autre", at: 1 };
+    await prepare({ lobby: { state: LOBBY, regie: relie("autre") } });
+    await assertFails(changer(REGIE), "salon relié à une autre animatrice");
+    await prepare({ lobby: { state: LOBBY, regie: relie(REGIE), show: prestation } });
+    await assertFails(changer(REGIE), "prestation déjà chargée, même par ce téléphone");
+    // Sarah a scanné le QR de la box de secours par habitude : son propre téléphone relié ne gêne pas.
+    await prepare({ lobby: { state: LOBBY, regie: relie(REGIE) } });
+    await assertSucceeds(changer(REGIE));
+  });
+
+  test("une régie entrée avec le mot de passe voit si une box est acceptée ; ni un pupitre, ni une régie par code de secours", async () => {
+    const SALT = "sel-de-test-0123456789";
+    const hash = createHash("sha256").update(`${SALT}:Licorne-2026`).digest("hex");
+    await allowBox(env, SECOURS);
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const d = ctx.database();
+      await set(ref(d, "settings/regie"), { salt: SALT, hash, updatedAt: 1 });
+      await set(ref(d, `regieProof/${REGIE}`), { hash, gateAt: 1, at: 1 });
+      await set(ref(d, "regieProof/faux"), { hash: "b".repeat(64), gateAt: 1, at: 1 });
+    });
+    assert.equal((await get(ref(db(REGIE), `boxes/allowed/${SECOURS}/name`))).val(), `Box ${SECOURS}`);
+    await assertSucceeds(get(ref(db(REGIE), "boxes/allowed/inconnue")));
+    await assertFails(get(ref(db(REGIE), "boxes/allowed")));
+    await assertFails(get(ref(db("faux"), `boxes/allowed/${SECOURS}`)));
+    await assertFails(get(ref(db("rose"), `boxes/allowed/${SECOURS}`)));
+    await assertFails(set(ref(db(REGIE), "boxes/allowed/tel"), { name: "Pirate", at: 1 }));
+  });
+
+  test("tant qu'aucune box n'est acceptée, une box déjà utilisée sert aussi de secours ; jamais la box qui pilote déjà", async () => {
+    await prepare({ host: HOST });
+    await assertFails(changer(REGIE, { host: HOST }), "même box");
+    await prepare();
+    await assertSucceeds(changer(REGIE));
+  });
+
+  test("jamais en morceaux : ni la box, ni la trace, ni le relais seuls ; un salon de secours ne reçoit qu'une fête", async () => {
+    await allowBox(env, HOST, SECOURS);
+    await prepare();
+    const regie = db(REGIE);
+    const trace = { to: NEW, from: HOST, by: REGIE, at: serverTimestamp() };
+    await assertFails(set(ref(regie, `games/${CODE}/hostUid`), SECOURS), "box seule");
+    await assertFails(update(ref(regie, `games/${CODE}`), { hostUid: SECOURS, takeover: trace }), "sans relais");
+    await assertFails(set(ref(regie, `games/${CODE}/takeover`), trace), "trace seule");
+    await assertFails(set(ref(regie, `games/${NEW}/handoff`), CODE), "relais seul");
+    await assertFails(update(ref(regie), { [`games/${CODE}/takeover`]: trace, [`games/${NEW}/handoff`]: CODE }), "trace et relais sans changer de box");
+    await assertFails(update(ref(regie), { [`games/${CODE}/hostUid`]: SECOURS, [`games/${NEW}/handoff`]: CODE }), "box et relais sans trace");
+    assert.equal(await hote(), HOST);
+    await assertSucceeds(changer(REGIE));
+    // Relais vers une partie dont la box n'a pas changé dans cette écriture (même hôte que le salon) : refusé.
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), "games/SALN2"), { hostUid: SECOURS, state: LOBBY }));
+    await assertFails(set(ref(regie, "games/SALN2/handoff"), CODE));
+    // Une autre fête de la même régie ne peut pas atterrir dans le salon qui a déjà reçu celle-ci.
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), "games/AUTRE"), {
+      hostUid: "box3", state: { phase: "question" }, regie: { [REGIE]: { pairedAt: 1, via: "pin" } },
+    }));
+    await allowBox(env, "box3");
+    await assertFails(changer(REGIE, { code: "AUTRE", from: "box3" }));
+  });
+
+  test("la fête change de box autant qu'il faut, et peut revenir sur la box d'origine", async () => {
+    await allowBox(env, HOST, SECOURS, "box3");
+    await prepare();
+    await assertSucceeds(changer(REGIE));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const d = ctx.database();
+      await set(ref(d, "games/PLAN2"), { hostUid: "box3", state: LOBBY, public: A_JOUR });
+      await set(ref(d, "games/RETOU"), { hostUid: HOST, state: LOBBY, public: A_JOUR });
+    });
+    await assertSucceeds(changer(REGIE, { to: "PLAN2", host: "box3", from: SECOURS }));
+    await assertFails(set(ref(db(SECOURS), `games/${CODE}/state/phase`), "reveal"));
+    await assertSucceeds(changer(REGIE, { to: "RETOU", host: HOST, from: "box3" }));
+    assert.equal(await hote(), HOST);
+    await assertSucceeds(set(ref(db(HOST), `games/${CODE}/log/000002`), { seq: 2, at: 2, type: "open" }));
+    // Le journal est resté intact d'une box à l'autre.
+    assert.equal((await get(ref(db(HOST), `games/${CODE}/log/000001/type`))).val(), "reveal");
+  });
+});
+
 describe("manches enregistrées (Régie PC et régie)", () => {
   const SALT = "sel-de-test-0123456789";
   const hash = (password) => createHash("sha256").update(`${SALT}:${password}`).digest("hex");
