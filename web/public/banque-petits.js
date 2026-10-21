@@ -71,7 +71,7 @@ const MOTS = {
     Flamant rose|le|🦩|flamingo|sauvage plumes vole x-eau rose g-oiseau
     Paon|le|🦚|peacock|plumes x-vole g-oiseau
     Autruche|l'|🐦|ostrich|sauvage plumes g-oiseau
-    Chauve-souris|la|🦇|bat animal|sauvage vole
+    Chauve-souris|la|🦇|fruit bat|sauvage vole
     Escargot|l'|🐌|snail|petit
     Papillon|le|🦋|butterfly|insecte vole petit
     Abeille|l'|🐝|honey bee|insecte vole petit
@@ -83,8 +83,8 @@ const MOTS = {
     Sauterelle|la|🦗|grasshopper|insecte x-vole petit
     Chenille|la|🐛|caterpillar|x-insecte petit
     Araignée|l'|🕷️|spider|petit
-    Ver de terre|le|🪱|earthworm|petit
-    Poisson|le|🐟|fish|eau g-poisson
+    Ver de terre|le|🪱|earthworm soil|petit
+    Poisson|le|🐟|goldfish|eau g-poisson
     Poisson-clown|le|🐠|clownfish|eau orange g-poisson
     Requin|le|🦈|shark|eau geant g-poisson g-baleine
     Baleine|la|🐋|whale|eau geant g-baleine
@@ -112,7 +112,7 @@ const MOTS = {
     Poire|la|🍐|pear|fruit
     Kiwi|le|🥝|kiwi fruit|fruit
     Pêche|la|🍑|peach fruit|fruit g-peche
-    Abricot|l'|🍑|apricot|fruit g-peche
+    Abricot|l'|🍑|apricots fruit|fruit g-peche
     Mangue|la|🥭|mango|fruit g-peche
     Prune|la|🍑|plum fruit|fruit g-raisin
     Myrtilles|les|🫐|blueberries|fruit bleu g-raisin
@@ -138,10 +138,10 @@ const MOTS = {
     Oignon|l'|🧅|onion|legume g-oignon
     Ail|l'|🧄|garlic|legume g-oignon
     Radis|le|🥕|radish|legume
-    Poireau|le|🥬|leek|legume
+    Poireau|le|🥬|leeks vegetable|legume
     Pain|le|🍞|bread loaf|sale g-pain
     Fromage|le|🧀|cheese|sale g-beurre
-    Beurre|le|🧈|butter|g-beurre
+    Beurre|le|🧈|butter block|g-beurre
     Œuf|l'|🥚|egg|
     Lait|le|🥛|glass of milk|boisson x-manger blanc g-lait
     Yaourt|le|🥛|yogurt|x-boisson g-lait
@@ -162,28 +162,28 @@ const MOTS = {
     Riz|le|🍚|rice bowl|sale blanc
     Soupe|la|🍲|soup bowl|sale chaud x-boisson g-bol
     Céréales|les|🥣|breakfast cereal bowl|g-bol
-    Crêpe|la|🥞|crepe|sucre
+    Crêpe|la|🥞|crepes|sucre
     Gaufre|la|🧇|waffle|sucre
     Biscuit|le|🍪|cookie|sucre
     Beignet|le|🍩|donut|sucre
-    Barbe à papa|la|🍭|cotton candy|sucre rose
+    Barbe à papa|la|🍭|cotton candy pink|sucre rose
     Sandwich|le|🥪|sandwich|sale g-pain
     Hamburger|le|🍔|hamburger|sale g-pain
     Saucisse|la|🌭|sausage|sale
-    Jambon|le|🥓|ham|sale rose
+    Jambon|le|🥓|sliced ham|sale rose
     Pop-corn|le|🍿|popcorn|
   `,
   transports: `
     Voiture|la|🚗|car|roues g-voiture
     Taxi|le|🚕|taxi car|roues g-voiture
     Voiture de police|la|🚓|police car|roues g-voiture
-    Ambulance|l'|🚑|ambulance|roues g-voiture
+    Ambulance|l'|🚑|ambulance vehicle|roues g-voiture
     Camping-car|le|🚐|camper van|roues g-voiture
     Bus|le|🚌|bus|roues
     Vélo|le|🚲|bicycle|roues
     Moto|la|🏍️|motorcycle|roues
     Trottinette|la|🛴|kick scooter|roues
-    Skateboard|le|🛹|skateboard|roues
+    Skateboard|le|🛹|skateboard deck|roues
     Poussette|la|👶|baby stroller|roues
     Train|le|🚂|train|roues g-train
     Métro|le|🚇|subway train|roues g-train
@@ -197,7 +197,7 @@ const MOTS = {
     Montgolfière|la|🎈|hot air balloon|vole
     Bateau|le|⛵|sailboat|flotte g-bateau
     Paquebot|le|🛳️|cruise ship|flotte g-bateau
-    Canoë|le|🛶|canoe|flotte g-bateau
+    Canoë|le|🛶|red canoe|flotte g-bateau
     Sous-marin|le|🚢|submarine|x-flotte g-bateau
   `,
   maison: `
@@ -205,7 +205,7 @@ const MOTS = {
     Lit|le|🛏️|bed|chambre g-lit
     Oreiller|l'|🛏️|pillow|chambre g-lit
     Chaise|la|🪑|chair|
-    Table|la|🪑|table furniture|
+    Table|la|🪑|wooden dining table|
     Canapé|le|🛋️|sofa|
     Porte|la|🚪|door|
     Fenêtre|la|🪟|window|
@@ -229,32 +229,32 @@ const MOTS = {
     Stylo|le|🖊️|pen|ecole g-crayon
     Feutres|les|🖍️|felt pens markers|ecole g-crayon
     Pinceau|le|🖌️|paintbrush|ecole g-crayon
-    Gomme|la|🧽|eraser|ecole
+    Gomme|la|🧽|pencil eraser|ecole
     Règle|la|📏|ruler|ecole
     Colle|la|🧴|glue stick|ecole
     Cahier|le|📓|notebook|ecole
-    Ciseaux|les|✂️|scissors|ecole
-    Trousse|la|👝|pencil case|ecole
+    Ciseaux|les|✂️|pair of scissors|ecole
+    Trousse|la|👝|pencil case school|ecole
     Cuillère|la|🥄|spoon|cuisine
     Fourchette|la|🍴|fork|cuisine
-    Assiette|l'|🍽️|plate dish|cuisine
-    Tasse|la|☕|cup|cuisine g-tasse
+    Assiette|l'|🍽️|empty white plate|cuisine
+    Tasse|la|☕|coffee cup saucer|cuisine g-tasse
     Verre|le|🥛|drinking glass|cuisine g-tasse
     Bol|le|🥣|bowl|cuisine g-tasse
     Casserole|la|🍳|saucepan|cuisine g-casserole
     Poêle|la|🍳|frying pan|cuisine g-casserole
-    Réfrigérateur|le|🧊|refrigerator|cuisine
-    Four|le|🔥|kitchen oven|cuisine
+    Réfrigérateur|le|🧊|fridge kitchen|cuisine
+    Four|le|🔥|oven baking|cuisine
     Brosse à dents|la|🪥|toothbrush|toilette g-brosse
-    Dentifrice|le|🪥|toothpaste|toilette g-brosse
-    Peigne|le|💇|comb|toilette g-brosse
+    Dentifrice|le|🪥|toothpaste tube|toilette g-brosse
+    Peigne|le|💇|hair comb|toilette g-brosse
     Savon|le|🧼|soap|toilette
     Serviette|la|🧻|bath towel|toilette
-    Baignoire|la|🛁|bathtub|toilette g-baignoire
-    Douche|la|🚿|shower|toilette g-baignoire
+    Baignoire|la|🛁|bathtub bathroom|toilette g-baignoire
+    Douche|la|🚿|shower head water|toilette g-baignoire
     Miroir|le|🪞|mirror|toilette
     Balai|le|🧹|broom|
-    Aspirateur|l'|🧹|vacuum cleaner|
+    Aspirateur|l'|🧹|vacuum cleaner floor|
     Machine à laver|la|🧺|washing machine|
     Poubelle|la|🗑️|trash bin|
     Panier|le|🧺|basket|
@@ -270,22 +270,22 @@ const MOTS = {
     Chaussette|la|🧦|socks|pieds
     Casquette|la|🧢|cap hat|tete ete g-chapeau
     Chapeau|le|👒|sun hat|tete ete g-chapeau
-    Bonnet|le|🧣|wool beanie hat|tete hiver g-chapeau
+    Bonnet|le|🧣|knit hat|tete hiver g-chapeau
     Couronne|la|👑|crown|tete x-vetements
     Pantalon|le|👖|jeans|g-pantalon
-    Short|le|🩳|shorts|ete g-pantalon
-    Pyjama|le|🛌|pajamas|g-pantalon
+    Short|le|🩳|denim shorts|ete g-pantalon
+    Pyjama|le|🛌|children pajamas|g-pantalon
     Robe|la|👗|dress|g-robe
     Jupe|la|👗|skirt|g-robe
     T-shirt|le|👕|t-shirt|ete g-tshirt
-    Pull|le|🧶|sweater|hiver g-tshirt
-    Manteau|le|🧥|winter coat|hiver
+    Pull|le|🧶|knitted sweater|hiver g-tshirt
+    Manteau|le|🧥|winter jacket|hiver
     Écharpe|l'|🧣|scarf|hiver
-    Gants|les|🧤|gloves|hiver
-    Maillot de bain|le|🩱|swimsuit|ete
+    Gants|les|🧤|winter gloves|hiver
+    Maillot de bain|le|🩱|swim trunks|ete
     Cravate|la|👔|necktie|x-vetements
-    Ceinture|la|👖|belt|x-vetements
-    Lunettes|les|👓|glasses|x-vetements g-lunettes
+    Ceinture|la|👖|leather belt|x-vetements
+    Lunettes|les|👓|eyeglasses|x-vetements g-lunettes
     Lunettes de soleil|les|🕶️|sunglasses|ete x-vetements g-lunettes
     Sac à main|le|👜|handbag|x-vetements
     Montre|la|⌚|wristwatch|x-vetements
@@ -295,17 +295,17 @@ const MOTS = {
     Main|la|✋|hand|
     Pied|le|🦶|foot|
     Œil|l'|👁️|eye|
-    Nez|le|👃|nose|
+    Nez|le|👃|nose close up|
     Bouche|la|👄|mouth lips|g-bouche
     Dents|les|🦷|teeth smile|g-bouche
     Langue|la|👅|tongue|g-bouche
-    Oreille|l'|👂|ear|
+    Oreille|l'|👂|human ear|
     Cheveux|les|💇|hair|
   `,
   nature: `
     Soleil|le|☀️|sun|ciel chaud jaune
     Lune|la|🌙|moon|ciel
-    Étoile|l'|⭐|star sky|ciel
+    Étoile|l'|⭐|gold star decoration|ciel
     Nuage|le|☁️|cloud|ciel blanc g-nuage
     Pluie|la|🌧️|rain|x-ciel g-nuage
     Éclair|l'|⚡|lightning|ciel g-nuage
@@ -317,7 +317,7 @@ const MOTS = {
     Volcan|le|🌋|volcano|chaud g-montagne
     Montagne|la|⛰️|mountain|g-montagne
     Arbre|l'|🌳|tree|g-arbre
-    Sapin|le|🌲|fir tree|vert g-arbre
+    Sapin|le|🌲|christmas tree|vert g-arbre
     Forêt|la|🌲|forest|g-arbre
     Fleur|la|🌸|flower|g-fleur
     Rose|la|🌹|red rose flower|rouge x-rose g-fleur
@@ -329,7 +329,7 @@ const MOTS = {
     Mer|la|🌊|sea|bleu g-mer
     Plage|la|🏖️|beach|g-mer g-sable
     Île|l'|🏝️|island|g-mer
-    Sable|le|⏳|sand|g-sable
+    Sable|le|⏳|sand dunes|g-sable
     Désert|le|🏜️|desert|g-sable
     Rivière|la|🏞️|river|g-riviere
     Cascade|la|💦|waterfall|g-riviere
@@ -357,17 +357,17 @@ const MOTS = {
   `,
   jouets: `
     Poupée|la|🪆|doll|g-poupee
-    Marionnette|la|🧸|puppet|g-poupee
+    Marionnette|la|🧸|hand puppet|g-poupee
     Robot|le|🤖|toy robot|
     Toupie|la|🌀|spinning top toy|
     Cubes|les|🧱|toy blocks|
     Puzzle|le|🧩|jigsaw puzzle|
     Dé|le|🎲|dice|
     Cartes à jouer|les|🃏|playing cards|
-    Billes|les|🔮|glass marbles toy|
-    Yo-yo|le|🪀|yo-yo|
-    Pâte à modeler|la|🎨|play dough|
-    Bulles de savon|les|🫧|soap bubbles|
+    Billes|les|🔮|marbles glass|
+    Yo-yo|le|🪀|yoyo toy|
+    Pâte à modeler|la|🎨|playdough|
+    Bulles de savon|les|🫧|blowing bubbles|
     Corde à sauter|la|🪢|jump rope|
     Château de sable|le|🏰|sandcastle|
     Balançoire|la|🎠|playground swing|
@@ -376,7 +376,7 @@ const MOTS = {
     Manège|le|🎠|carousel merry-go-round|
     Chapeau de fête|le|🥳|party hat|fete
     Masque|le|🎭|carnival mask|fete x-jouets
-    Guirlande|la|🎊|party garland|fete x-jouets g-fete
+    Guirlande|la|🎊|bunting flags|fete x-jouets g-fete
     Confettis|les|🎊|confetti|fete x-jouets g-fete
     Feux d'artifice|les|🎆|fireworks|fete x-jouets
     Piñata|la|🪅|pinata|fete
@@ -384,9 +384,9 @@ const MOTS = {
   sport: `
     Ballon de basket|le|🏀|basketball|g-ballon
     Ballon de rugby|le|🏉|rugby ball|g-ballon
-    Raquette|la|🎾|tennis racket|g-tennis
+    Raquette|la|🎾|tennis racquet ball|g-tennis
     Balle de tennis|la|🎾|tennis ball|jaune g-tennis g-ballon
-    Skis|les|🎿|skis|
+    Skis|les|🎿|skis snow|
     Luge|la|🛷|sled|
     Patins à glace|les|⛸️|ice skates|g-patins
     Rollers|les|🛼|roller skates|g-patins
@@ -404,26 +404,26 @@ const MOTS = {
     Échelle|l'|🪜|ladder|
     Brouette|la|🛒|wheelbarrow|jardin
     Pelle|la|⛏️|garden shovel|jardin
-    Râteau|le|🧹|garden rake|jardin
+    Râteau|le|🧹|rake leaves|jardin
     Arrosoir|l'|🚿|watering can|jardin
     Tondeuse|la|🚜|lawn mower|jardin
     Cadenas|le|🔒|padlock|x-outils
-    Lampe de poche|la|🔦|flashlight|x-outils g-lampe
+    Lampe de poche|la|🔦|flashlight torch|x-outils g-lampe
     Loupe|la|🔍|magnifying glass|x-outils
-    Aimant|l'|🧲|magnet|x-outils
+    Aimant|l'|🧲|horseshoe magnet|x-outils
   `,
   lieux: `
     Château|le|🏰|castle|
     École|l'|🏫|school building|
-    Ferme|la|🏡|farm barn|
-    Cabane|la|🛖|tree house|
+    Ferme|la|🏡|red barn farm|
+    Cabane|la|🛖|treehouse|
     Tente|la|⛺|camping tent|
-    Igloo|l'|🧊|igloo|g-neige
+    Igloo|l'|🧊|igloo snow|g-neige
     Phare|le|🗼|lighthouse|
     Pont|le|🌉|bridge|
     Tour Eiffel|la|🗼|eiffel tower|
     Moulin à vent|le|🌬️|windmill|
-    Hôpital|l'|🏥|hospital|
+    Hôpital|l'|🏥|hospital building|
     Gratte-ciel|le|🏙️|skyscraper|
     Magasin|le|🏪|shop store front|
   `,
