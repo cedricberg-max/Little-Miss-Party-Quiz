@@ -2032,6 +2032,50 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Sons : « Retirer » une chanson (les playlists la gardent) puis la remettre ; « ← Retour » sur la page d'un jeu", async () => {
+    const A = "0123456789abcdef";
+    const B = "fedcba9876543210";
+    await seedLibrary("songs", { s1: { title: "Hakuna Matata", artist: "Le Roi lion", audioId: A, buzz: 30, updatedAt: 1 } });
+    await seedLibrary("playlists", { p1: { title: "Disney", duration: 30, tracks: [{ title: "Hakuna Matata", audioId: A, songId: "s1" }, { title: "Libérée, délivrée", audioId: B }], updatedAt: 1 } });
+    const page = await admin();
+    // Page d'un jeu ouverte depuis l'Accueil : « ← Retour » en haut et en bas y ramène.
+    await openGamePage(page, "coffres");
+    assert.deepEqual(await page.locator("#screen-game .retour-barre.haut button").allInnerTexts(), ["← Retour"]);
+    await page.locator("#screen-game .retour-barre.bas .retour-page").click();
+    await page.locator("#screen-home:not([hidden])").waitFor();
+
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="sons"]');
+    const hakuna = page.locator("#song-list .song", { hasText: "Hakuna Matata" });
+    // Retirer demande d'abord ; « Annuler » ne touche à rien.
+    let question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.dismiss(); }));
+    await hakuna.getByRole("button", { name: "Retirer" }).click();
+    assert.match(await question, /^Retirer « Hakuna Matata » de la bibliothèque des sons \?\n\nLes playlists qui l'ont la gardent : Disney\./);
+    assert.equal((await library("songs/s1")).retiree, undefined);
+    question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.accept(); }));
+    await hakuna.getByRole("button", { name: "Retirer" }).click();
+    await question;
+    await hakuna.waitFor({ state: "detached" });
+    await page.locator("#song-status", { hasText: "« Hakuna Matata » est retirée de la bibliothèque" }).waitFor();
+    assert.equal((await library("songs/s1")).retiree, true);
+    assert.equal((await library("playlists/p1")).tracks.length, 2, "la playlist garde la chanson");
+    // Un ancien morceau de playlist pas encore rangé : il est rangé dans la bibliothèque, retiré.
+    question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.accept(); }));
+    await page.locator("#song-list .song", { hasText: "Libérée, délivrée" }).getByRole("button", { name: "Retirer" }).click();
+    await question;
+    await page.locator("#song-list", { hasText: "Toutes vos chansons sont retirées" }).waitFor();
+    const rangee = Object.values(await library("songs")).find((s) => s.audioId === B);
+    assert.deepEqual([rangee.title, rangee.retiree], ["Libérée, délivrée", true]);
+    // « 🚫 Retirées » : on les remet.
+    await page.locator("#song-retirees", { hasText: "🚫 Retirées (2)" }).click();
+    await page.locator("#song-list .song", { hasText: "Hakuna Matata" }).getByRole("button", { name: "Remettre" }).click();
+    await waitFor(async () => (await library("songs/s1")).retiree === undefined, "chanson remise");
+    await page.click("#song-retirees");
+    await page.locator("#song-list .song", { hasText: "Hakuna Matata" }).getByRole("button", { name: "Régler…" }).waitFor();
+    assert.equal(await page.locator("#song-list .song", { hasText: "Libérée" }).count(), 0);
+    await page.context().close();
+  });
+
   test("Bibliothèque en fabriquant un quiz : « 🖼️ » cherche la bonne réponse et pose un émoji, une de ses images ou une photo libre", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     const lea = "abcdef0123456789";

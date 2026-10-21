@@ -988,6 +988,10 @@ describe("blind test : extraits musicaux et playlists", () => {
     await assertFails(song({ refrainId: "../sounds" }));
     await assertFails(song({ refrain: -3 }));
     await assertFails(song({ volume: 11 }));
+    // Retirée de la bibliothèque (les playlists la gardent), puis remise.
+    await assertSucceeds(song({ retiree: true }));
+    await assertFails(song({ retiree: false }));
+    await assertSucceeds(song());
     await assertFails(set(ref(db("sarah"), "library/songs/s1"), { title: "Sans date", audioId: ID, buzz: 30 }));
     await assertFails(set(ref(db("rose"), "library/songs/s2"), { title: "X", audioId: ID, buzz: 30, updatedAt: serverTimestamp() }));
     // Morceau de playlist : son refrain et sa chanson.

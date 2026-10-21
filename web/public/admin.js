@@ -30,7 +30,7 @@ import {
 import { concepts, neufsSiPossible } from "./jamais-deux-fois.js";
 import { PICTO_OWN_SERIES } from "./picto-cards.js";
 import { EXTRACT_SECONDS, guessTrack, defaultStart, decodeFile, makeExtract, synthTune, encodeMp3, soundId } from "./audio.js";
-import { REFRAIN_SEC, REFRAIN_KBPS, buzzOf, defaultRefrain, songList, songMatches, trackFromSong, songUpdates } from "./sons.js";
+import { REFRAIN_SEC, REFRAIN_KBPS, buzzOf, defaultRefrain, songList, songsRetirees, songMatches, trackFromSong, songUpdates } from "./sons.js";
 import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
 import { watchVersion, showUpdateBanner } from "./version.js";
 import { compressImage, imageId, cleanEmoji, CHOICE_IMAGE } from "./illustration.js";
@@ -1491,6 +1491,10 @@ $("quiz-photos").onchange = async () => {
 // Créer un quiz et la banque des petits : « ← Retour » en haut et en bas, comme les pages d'édition.
 barresRetour($("screen-import"), pagePrecedente);
 barresRetour($("screen-banque"), pagePrecedente);
+// Pages des jeux, de leurs collections, des listes de prestations, Bibliothèque et Paramètres : « ← Retour » en haut et
+// en bas aussi (cedric, 21/10).
+["screen-game", "screen-quizzes", "screen-mimes", "screen-music", "screen-shows", "screen-library", "screen-settings"]
+  .forEach((id) => barresRetour($(id), pagePrecedente));
 
 $("quiz-import-open").onclick = () => {
   $("import-text").value = "";
@@ -2715,20 +2719,70 @@ function songRow(song, tools) {
 
 const MAX_SONGS_SHOWN = 60;
 
-/** Bibliothèque des sons (menu Bibliothèque, onglet Sons) : recherche, écoute, réglages. */
+/** Bibliothèque des sons : on y regarde les chansons retirées (pour les remettre) au lieu des autres. */
+let voirRetirees = false;
+
+/** Bibliothèque des sons (menu Bibliothèque, onglet Sons) : recherche, écoute, réglages, retirer et remettre. */
 function renderSongs() {
-  const all = songList(songs, playlists, isStatuesList);
+  const retirees = songsRetirees(songs);
+  if (!retirees.length) voirRetirees = false;
+  $("song-retirees").hidden = !retirees.length;
+  $("song-retirees").textContent = voirRetirees ? "← Toutes les chansons" : `🚫 Retirées (${retirees.length})`;
+  const all = voirRetirees ? retirees : songList(songs, playlists, isStatuesList);
   const found = parPertinence(all.filter((x) => songMatches(x, $("song-search").value)), $("song-search").value, (x) => [x.title, x.artist], (x) => x.lists.map((l) => l.title));
-  $("song-count").textContent = found.length === all.length ? `${all.length} chanson${all.length > 1 ? "s" : ""}` : `${found.length} sur ${all.length}`;
-  $("song-list").replaceChildren(...found.slice(0, MAX_SONGS_SHOWN).map((x) => songRow(x, [
-    h("button", { type: "button", class: "btn secondary", title: "Écouter l'extrait du buzz", onclick: () => listen({ audioId: x.audioId, title: x.title }), text: "▶ Extrait" }),
-    x.refrainId ? h("button", { type: "button", class: "btn secondary", title: "Écouter le refrain", onclick: () => listen({ audioId: x.refrainId, title: x.title }), text: "▶ Refrain" }) : null,
-    h("button", { type: "button", class: "btn secondary", onclick: () => editSongs([x]), text: "Régler…" }),
-  ])));
+  $("song-count").textContent = found.length === all.length ? `${all.length} chanson${all.length > 1 ? "s" : ""}${voirRetirees ? ` retirée${all.length > 1 ? "s" : ""}` : ""}` : `${found.length} sur ${all.length}`;
+  $("song-list").replaceChildren(...found.slice(0, MAX_SONGS_SHOWN).map((x) => (voirRetirees
+    ? h("div", { class: "song", "data-song": x.id },
+      h("div", { class: "song-name" }, h("b", { text: x.title }), h("span", { class: "song-meta", text: x.artist })),
+      h("div", { class: "song-tools" }, h("button", { type: "button", class: "btn", onclick: () => remettreChanson(x), text: "Remettre" })))
+    : songRow(x, [
+      h("button", { type: "button", class: "btn secondary", title: "Écouter l'extrait du buzz", onclick: () => listen({ audioId: x.audioId, title: x.title }), text: "▶ Extrait" }),
+      x.refrainId ? h("button", { type: "button", class: "btn secondary", title: "Écouter le refrain", onclick: () => listen({ audioId: x.refrainId, title: x.title }), text: "▶ Refrain" }) : null,
+      h("button", { type: "button", class: "btn secondary", onclick: () => editSongs([x]), text: "Régler…" }),
+      h("button", { type: "button", class: "btn secondary", title: "Elle disparaît de la bibliothèque ; les playlists qui l'ont la gardent.", onclick: () => retirerChanson(x), text: "Retirer" }),
+    ]))));
   if (found.length > MAX_SONGS_SHOWN) $("song-list").append(h("p", { class: "hint small", text: `… et ${found.length - MAX_SONGS_SHOWN} autres : précisez la recherche.` }));
-  if (!all.length) $("song-list").append(h("p", { class: "hint", text: "Aucune chanson pour l'instant : ajoutez vos fichiers musicaux." }));
+  if (!all.length && !voirRetirees) {
+    $("song-list").append(h("p", { class: "hint", text: retirees.length ? "Toutes vos chansons sont retirées : « 🚫 Retirées » pour les remettre."
+      : "Aucune chanson pour l'instant : ajoutez vos fichiers musicaux." }));
+  }
 }
 $("song-search").oninput = () => renderSongs();
+$("song-retirees").onclick = () => { voirRetirees = !voirRetirees; renderSongs(); };
+
+/**
+ * Retire une chanson de la bibliothèque des sons (cedric, 21/10), après confirmation : elle n'est plus proposée, mais les
+ * playlists qui l'ont la gardent et aucun fichier n'est effacé. Un ancien morceau de playlist pas encore rangé dans la
+ * bibliothèque y est rangé, retiré.
+ */
+async function retirerChanson(x) {
+  const dans = x.lists.length ? `\n\nLes playlists qui l'ont la gardent : ${x.lists.map((l) => l.title).join(", ")}.` : "";
+  if (!confirm(`Retirer « ${x.title} » de la bibliothèque des sons ?${dans}\n\nVous pourrez la remettre depuis « 🚫 Retirées ».`)) return;
+  try {
+    if (x.id && songs[x.id]) await update(ref(db, `library/songs/${x.id}`), { retiree: true, updatedAt: serverTimestamp() });
+    else {
+      await set(push(ref(db, "library/songs")), {
+        title: x.title.slice(0, 80), audioId: x.audioId, buzz: x.buzz, retiree: true, createdAt: Date.now(), updatedAt: serverTimestamp(),
+        ...(x.artist ? { artist: x.artist.slice(0, 80) } : {}),
+      });
+    }
+    status("song-status", `« ${x.title} » est retirée de la bibliothèque : retrouvez-la dans « 🚫 Retirées ».`, true);
+  } catch (err) {
+    console.error(err);
+    status("song-status", "Retrait refusé : vérifiez Internet ou reconnectez-vous.");
+  }
+}
+
+/** Remet une chanson retirée dans la bibliothèque des sons. */
+async function remettreChanson(x) {
+  try {
+    await update(ref(db, `library/songs/${x.id}`), { retiree: null, updatedAt: serverTimestamp() });
+    status("song-status", `« ${x.title} » est remise dans la bibliothèque.`, true);
+  } catch (err) {
+    console.error(err);
+    status("song-status", "Refusé : vérifiez Internet ou reconnectez-vous.");
+  }
+}
 $("song-files").onchange = async (e) => {
   const files = [...e.target.files];
   e.target.value = "";
@@ -3160,7 +3214,7 @@ $("playlist-save").onclick = async () => {
         const song = songData(t, seconds);
         const old = songs[songId];
         if (!sameSong(old, song)) {
-          await set(ref(db, `library/songs/${songId}`), { ...song, createdAt: old?.createdAt ?? Date.now(), updatedAt: serverTimestamp() });
+          await set(ref(db, `library/songs/${songId}`), { ...song, ...(old?.retiree === true ? { retiree: true } : {}), createdAt: old?.createdAt ?? Date.now(), updatedAt: serverTimestamp() });
           changed.push({ songId, song, audioIds: [before.get(t), t.audioId, old?.audioId].filter(Boolean) });
         }
         t.songId = songId;

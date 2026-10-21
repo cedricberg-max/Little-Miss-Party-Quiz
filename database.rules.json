@@ -417,6 +417,7 @@
           "refrain": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 3600" },
           "length": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 7200" },
           "createdAt": { ".validate": "newData.isNumber()" },
+          "retiree": { ".validate": "newData.val() === true" },
           "$other": {
             ".validate": "$other === 'title' || $other === 'audioId' || $other === 'buzz' || $other === 'updatedAt'"
           }

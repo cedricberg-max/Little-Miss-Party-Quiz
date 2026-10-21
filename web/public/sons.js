@@ -32,13 +32,16 @@ export function defaultRefrain(length, start = 0, buzz = BUZZ_DEFAULT) {
 /**
  * Toutes les chansons connues, triées par titre : celles de la bibliothèque (library/songs), puis les morceaux des
  * playlists qui n'y sont pas encore (même extrait = même chanson). Chaque chanson dit dans quelles playlists elle est.
- * Les chansons des statues restent à part : elles n'ont ni refrain ni temps pour buzzer.
+ * Les chansons des statues restent à part : elles n'ont ni refrain ni temps pour buzzer. Les chansons retirées
+ * (cedric, 21/10) n'y sont plus, même si une playlist les garde : voir [songsRetirees].
  */
 export function songList(songs, playlists, isStatuesList = (p) => p?.use === "statues") {
   const byAudio = new Map();
   const out = [];
+  const retirees = new Set();
   Object.entries(songs ?? {}).forEach(([id, s]) => {
     if (!s?.title || !HEX.test(s.audioId ?? "")) return;
+    if (s.retiree === true) { retirees.add(s.audioId); return; }
     const song = {
       id, title: s.title, artist: s.artist ?? "", imageId: HEX.test(s.imageId ?? "") ? s.imageId : null,
       audioId: s.audioId, refrainId: HEX.test(s.refrainId ?? "") ? s.refrainId : null, buzz: buzzOf(s.buzz),
@@ -53,6 +56,7 @@ export function songList(songs, playlists, isStatuesList = (p) => p?.use === "st
     listOf(p.tracks).forEach((t) => {
       if (!t?.title?.trim() || !HEX.test(t.audioId ?? "")) return;
       let song = (t.songId && songs?.[t.songId] ? out.find((x) => x.id === t.songId) : null) ?? byAudio.get(t.audioId);
+      if (!song && (retirees.has(t.audioId) || songs?.[t.songId]?.retiree === true)) return;
       if (!song) {
         song = {
           id: null, title: t.title.trim(), artist: t.artist ?? "", imageId: HEX.test(t.imageId ?? "") ? t.imageId : null,
@@ -66,6 +70,14 @@ export function songList(songs, playlists, isStatuesList = (p) => p?.use === "st
     });
   });
   return out.sort((a, b) => a.title.localeCompare(b.title, "fr"));
+}
+
+/** Chansons retirées de la bibliothèque, triées par titre : { id, title, artist }, pour les remettre. */
+export function songsRetirees(songs) {
+  return Object.entries(songs ?? {})
+    .filter(([, s]) => s?.retiree === true && s.title && HEX.test(s.audioId ?? ""))
+    .map(([id, s]) => ({ id, title: s.title, artist: s.artist ?? "", lists: [] }))
+    .sort((a, b) => a.title.localeCompare(b.title, "fr"));
 }
 
 /** La recherche de Sarah : chaque mot doit se trouver dans le titre, l'artiste ou le nom d'une playlist. */

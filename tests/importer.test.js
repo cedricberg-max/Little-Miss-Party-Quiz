@@ -12,7 +12,7 @@ import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, roundFille
 } from "../web/public/show.js";
 import { PICTO_WORDS, PICTO_SERIES } from "../web/public/picto-cards.js";
 import { guessTrack, defaultStart, normalizeLevel } from "../web/public/audio.js";
-import { songList, songMatches, trackFromSong, songUpdates, defaultRefrain, buzzOf, REFRAIN_SEC } from "../web/public/sons.js";
+import { songList, songsRetirees, songMatches, trackFromSong, songUpdates, defaultRefrain, buzzOf, REFRAIN_SEC } from "../web/public/sons.js";
 import { FULL_SHOW, FULL_TUNES, tunePlaylist } from "../web/public/test-show.js";
 import { cadrageInitial, borner, zoomer, zoneGardee, BULLES } from "../web/public/cadrage.js";
 import { BANQUE_MOTS, QUESTIONS_PETITS, FAMILLES_PETITS, MODELES_PETITS, motBanque, cleMot, reponsesModele, fabriquerPetite, cataloguePetits, tirerPetits } from "../web/public/banque-petits.js";
@@ -1336,6 +1336,13 @@ describe("bibliothèque des sons du blind test", () => {
     assert.equal(liberee.id, null, "ancien morceau pas encore rangé");
     assert.equal(liberee.buzz, 25);
     assert.deepEqual(liberee.lists.map((l) => l.id), ["p1", "p2"]);
+  });
+
+  test("une chanson retirée n'est plus dans la liste, même si une playlist la garde ; elle est dans les retirées", () => {
+    const retiree = { ...songs, s1: { ...songs.s1, retiree: true }, s2: { title: "Libérée, délivrée", audioId: C, buzz: 25, retiree: true } };
+    assert.deepEqual(songList(retiree, playlists).map((x) => x.title), []);
+    assert.deepEqual(songsRetirees(retiree).map((x) => [x.id, x.title]), [["s1", "Hakuna Matata"], ["s2", "Libérée, délivrée"]]);
+    assert.deepEqual(songsRetirees(songs), []);
   });
 
   test("la recherche ignore les accents et cherche aussi le nom des playlists", () => {
