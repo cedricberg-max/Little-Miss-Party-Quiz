@@ -553,12 +553,15 @@ class RegieTest : TestTv() {
         regie.copierExtrait(code, id, EXTRAIT_MP3)
         @Suppress("UNCHECKED_CAST")
         val avant = regie.programme(code)["questions"] as List<Map<String, Any?>>
-        fun morceau(qid: String, titre: String, points: Int, refrain: String? = null) = mapOf(
+        fun morceau(qid: String, titre: String, points: Int, refrain: String? = null, paroles: String? = null) = mapOf(
             "id" to qid, "text" to "Quel est ce titre ?", "choices" to listOf(titre), "correct" to 0, "artist" to "Comptine",
             "duration" to 20, "kind" to "blind", "double" to false, "round" to "Blind test · Comptines", "audioId" to id, "points" to points,
-        ) + (refrain?.let { mapOf("refrainId" to it) } ?: emptyMap())
-        // Le dernier morceau a son refrain (ici le même extrait) : à la révélation, toute la salle chante.
-        val playlist = listOf(morceau("b1", "Frère Jacques", 100), morceau("b2", "Au clair de la lune", 200, refrain = id))
+        ) + (refrain?.let { mapOf("refrainId" to it) } ?: emptyMap()) + (paroles?.let { mapOf("lyrics" to it) } ?: emptyMap())
+        // Le dernier morceau a son refrain (ici le même extrait) et ses paroles : à la révélation, toute la salle chante.
+        val playlist = listOf(
+            morceau("b1", "Frère Jacques", 100),
+            morceau("b2", "Au clair de la lune", 200, refrain = id, paroles = "0|Mon ami Pierrot\n1500|Prête-moi ta plume"),
+        )
         assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, playlist + avant))
         val cache = java.io.File(androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext.filesDir, "extraits/$id.mp3")
         attendreQue("extrait copié dans le cache de la box") { cache.takeIf { it.isFile && it.length() > 0 } }
@@ -615,9 +618,12 @@ class RegieTest : TestTv() {
         ecran.voit("Au clair de la lune")
         ecran.voit("Personne n'a trouvé, ce n'est pas grave !")
         ecran.entierementVisible("Personne n'a trouvé, ce n'est pas grave !")
-        // Même sans gagnant, le refrain repart en boucle : « on chante tous ensemble » jusqu'au titre suivant.
-        ecran.voit("Tous ensemble, on chante !")
-        ecran.entierementVisible("Tous ensemble, on chante !")
+        // Même sans gagnant, le refrain repart en boucle : « on chante tous ensemble » jusqu'au titre suivant, avec
+        // les paroles du refrain au rythme de la musique (cedric, 21/10).
+        ecran.voit("TOUS ENSEMBLE, ON CHANTE !")
+        ecran.entierementVisible("TOUS ENSEMBLE, ON CHANTE !")
+        ecran.voit("Pierrot")
+        ecran.entierementVisible("Pierrot")
         ecran.capture("blind-test-refrain")
         assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("Bilan du blind test")
