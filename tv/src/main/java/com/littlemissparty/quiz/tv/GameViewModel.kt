@@ -963,7 +963,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         savePhotos(g)
         // Extraits musicaux : tous ceux du programme, dès son chargement, pour que la musique ne dépende
         // plus du réseau une fois la partie lancée.
-        g.quiz.questions.flatMapTo(LinkedHashSet()) { listOfNotNull(it.audioId, it.refrainId) + it.audioIds }.forEach(::prefetchSound)
+        programSounds(g.quiz).forEach(::prefetchSound)
+        // Ménage du cache des médias de la box, au salon d'attente ou à la fin seulement.
+        rangerMedias()
     }
 
     private fun blindUi(g: Game): BlindUi {
@@ -1011,9 +1013,13 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
         if (!soundsLoading.add(id)) return
         markSound(id, "loading")
-        val dir = java.io.File(getApplication<Application>().filesDir, "extraits")
-        val file = java.io.File(dir, "$id.mp3")
-        if (file.isFile && file.length() > 0) return publishSound(id, file)
+        val dir = medias.extraits
+        val file = medias.extrait(id)
+        if (file.isFile && file.length() > 0) {
+            // Déjà sur la box (partie précédente, redémarrage) : il resservira, le ménage le garde plus longtemps.
+            medias.toucher(file)
+            return publishSound(id, file)
+        }
         val ref = gameRef ?: return run { soundsLoading -= id }
         viewModelScope.launch {
             // La régie copie les extraits pendant que la TV reçoit le programme : on attend qu'ils arrivent.
@@ -1070,11 +1076,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Photos gardées sur la box (filesDir/photos/<empreinte>) : la fête garde ses images si Internet coupe. */
-    private val photoDir by lazy { java.io.File(getApplication<Application>().filesDir, "photos") }
+    private val photoDir by lazy { medias.photos }
     private var photosSavedFor: Any? = null
 
     private suspend fun photoOnBox(id: String): ByteArray? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-        runCatching { java.io.File(photoDir, id).takeIf { it.isFile && it.length() > 0 }?.readBytes() }.getOrNull()
+        runCatching { java.io.File(photoDir, id).takeIf { it.isFile && it.length() > 0 }?.also { medias.toucher(it) }?.readBytes() }.getOrNull()
     }
 
     /** Copie une photo de la partie sur la box ; l'identifiant est l'empreinte du contenu, donc jamais périmé. */
@@ -1097,32 +1103,122 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     /**
      * Toutes les photos du programme copiées sur la box dès son chargement, une par une et sans les garder en
-     * mémoire : si Internet coupe ensuite, chaque question garde sa photo. Les plus anciennes copies sont
-     * effacées au-delà de [PHOTOS_MAX] fichiers (la Mi Box a peu de place).
+     * mémoire : si Internet coupe ensuite, chaque question garde sa photo. Le ménage du cache ([rangerMedias])
+     * efface les plus anciennes copies des autres fêtes (la Mi Box a peu de place).
      */
     private fun savePhotos(g: Game) {
         if (photosSavedFor === g.quiz) return
         photosSavedFor = g.quiz
         val ref = gameRef ?: return
+        val wanted = programPhotos(g.quiz)
+        viewModelScope.launch {
+            for ((id, dir) in wanted) {
+                if (gameRef != ref) return@launch
+                // Déjà sur la box : elle resservira, le ménage la garde plus longtemps.
+                val there = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    java.io.File(photoDir, id).takeIf { it.isFile && it.length() > 0 }?.also { medias.toucher(it) } != null
+                }
+                if (!there && id !in imagesLoading) downloadPhoto(ref, dir, id)
+            }
+        }
+    }
+
+    /** Extraits musicaux du programme (blind test, quiz musical, statues) : extrait, refrain et chansons. */
+    private fun programSounds(quiz: Quiz): Set<String> =
+        quiz.questions.flatMapTo(LinkedHashSet()) { listOfNotNull(it.audioId, it.refrainId) + it.audioIds }
+
+    /** Photos du programme, avec le dossier de la partie où la régie les copie. */
+    private fun programPhotos(quiz: Quiz): Map<String, String> {
         val wanted = LinkedHashMap<String, String>()
-        g.quiz.questions.forEach { q ->
+        quiz.questions.forEach { q ->
             q.imageId?.let { wanted.putIfAbsent(it, "images") }
             q.choiceImages.filterNotNull().forEach { wanted.putIfAbsent(it, "choiceImages") }
             q.cards.mapNotNull { it.imageId }.forEach { wanted.putIfAbsent(it, "choiceImages") }
         }
-        viewModelScope.launch {
-            for ((id, dir) in wanted) {
-                if (gameRef != ref) return@launch
-                val there = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { java.io.File(photoDir, id).let { it.isFile && it.length() > 0 } }
-                if (!there && id !in imagesLoading) downloadPhoto(ref, dir, id)
-            }
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                runCatching {
-                    val files = photoDir.listFiles()?.filter { it.isFile }.orEmpty()
-                    if (files.size > PHOTOS_MAX) files.sortedBy { it.lastModified() }.take(files.size - PHOTOS_MAX)
-                        .filter { it.name !in wanted }.forEach { it.delete() }
+        return wanted
+    }
+
+    // ---------- Cache des médias de la box ----------
+
+    /** Extraits et photos gardés sur la box, retéléchargeables depuis la partie. */
+    private val medias by lazy { MediasBox(getApplication<Application>().filesDir) }
+    /** Un seul ménage ou vidage du cache à la fois. */
+    private val mediasLock = Mutex()
+    /** Partie dont le cache a déjà été rangé : une seule fois par partie ouverte. */
+    private var rangePour: String? = null
+    private var rangement: Job? = null
+    private val _vidage = MutableStateFlow<VidageCache>(VidageCache.Pret)
+
+    /** « Vider le cache des médias » (menu Retour) : où en est la dernière demande. */
+    val vidage: StateFlow<VidageCache> = _vidage
+
+    /** Moment calme pour le ménage : salon d'attente ou fin de partie, aucune musique ne peut jouer. */
+    private fun momentDeRangement(): Boolean =
+        (_state.value as? UiState.Playing)?.phase.let { it == Phase.LOBBY || it == Phase.ENDED }
+
+    /**
+     * Ménage du cache des médias de la box ([CacheMedias][com.littlemissparty.quiz.engine.CacheMedias]) : une fois par
+     * partie ouverte, au salon d'attente ou à la fin, jamais pendant une présentation, une question, une révélation
+     * ou une musique. En tâche de fond, quelques millisecondes ; une erreur est notée et oubliée, la fête continue.
+     */
+    private fun rangerMedias() {
+        val code = (_state.value as? UiState.Playing)?.code ?: return
+        if (code == rangePour || rangement?.isActive == true || !momentDeRangement()) return
+        rangement = viewModelScope.launch {
+            // La partie s'ouvre et ses copies partent d'abord ; la partie ouverte à ce moment-là est celle rangée.
+            delay(RANGEMENT_DELAI_MS)
+            val g = game ?: return@launch
+            val ouverte = (_state.value as? UiState.Playing)?.code ?: return@launch
+            if (ouverte == rangePour || !momentDeRangement()) return@launch
+            rangePour = ouverte
+            val perdus = mediasLock.withLock {
+                // Médias de la partie ouverte et téléchargements en cours : jamais effacés.
+                val sons = programSounds(g.quiz) + soundsLoading
+                val images = programPhotos(g.quiz).keys + imagesLoading
+                val publies = soundFiles.toMap()
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    runCatching { medias.ranger(sons, images) }
+                        .onSuccess { if (it.fichiers > 0) Log.i(TAG, "Cache des médias rangé : ${it.fichiers} fichier(s), ${it.octets / 1_048_576} Mo libérés") }
+                        .onFailure { Log.w(TAG, "Ménage du cache des médias impossible", it) }
+                    // Extraits déjà connus dont le fichier n'est plus là (autres fêtes) : à recopier s'ils resservent.
+                    publies.filterValues { !java.io.File(it).isFile }.keys
                 }
             }
+            if (perdus.isEmpty()) return@launch
+            perdus.forEach { soundFiles.remove(it) }
+            updatePlaying { it.copy(sounds = soundFiles.toMap()) }
+            programSounds(g.quiz).filter { it in perdus }.forEach(::prefetchSound)
+        }
+    }
+
+    /**
+     * « Vider le cache des médias » (menu Retour) : efface les extraits et les photos gardés sur la box, rien d'autre
+     * (ni la partie, ni les scores, ni les réglages), puis recopie aussitôt ceux de la partie ouverte depuis ses
+     * copies. Seulement quand aucune musique ne peut jouer, et avec Internet pour que tout revienne.
+     */
+    fun viderCacheMedias() {
+        val s = _state.value as? UiState.Playing ?: return run { _vidage.value = VidageCache.Refuse("Aucune partie ouverte.") }
+        vidageImpossible(s)?.let { _vidage.value = VidageCache.Refuse(it); return }
+        if (_vidage.value == VidageCache.EnCours) return
+        _vidage.value = VidageCache.EnCours
+        viewModelScope.launch {
+            val r = mediasLock.withLock {
+                // Les téléchargements en cours se terminent normalement.
+                val sonsEnCours = soundsLoading.toSet()
+                val imagesEnCours = imagesLoading.toSet()
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { medias.vider(sonsEnCours, imagesEnCours) } }
+            }
+            r.onSuccess { Log.i(TAG, "Cache des médias vidé : ${it.fichiers} fichier(s), ${it.octets / 1_048_576} Mo") }
+                .onFailure { Log.e(TAG, "Cache des médias pas entièrement vidé", it) }
+            // Les extraits connus n'ont plus de fichier : la partie ouverte recopie les siens et ses photos tout de suite.
+            soundFiles.clear()
+            updatePlaying { it.copy(sounds = emptyMap()) }
+            photosSavedFor = null
+            game?.let { g ->
+                savePhotos(g)
+                programSounds(g.quiz).forEach(::prefetchSound)
+            }
+            _vidage.value = r.getOrNull()?.let { VidageCache.Fait(it) } ?: VidageCache.Echec
         }
     }
 
@@ -1877,8 +1973,8 @@ private suspend fun DatabaseReference.readWhenPresent(timeoutMs: Long = 60_000L)
 }
 
 private const val PHOTO_WAIT_MS = 30_000L
-/** Photos gardées sur la box au plus (environ 50 Ko chacune) ; celles du programme en cours ne sont jamais effacées. */
-private const val PHOTOS_MAX = 600
+/** Ménage du cache des médias : laissé à la partie qui s'ouvre le temps de démarrer et de lancer ses copies. */
+private const val RANGEMENT_DELAI_MS = 15_000L
 
 private suspend fun DatabaseReference.readOnce(timeoutMs: Long = 8000L): DataSnapshot? = withTimeoutOrNull(timeoutMs) {
     suspendCancellableCoroutine { cont ->

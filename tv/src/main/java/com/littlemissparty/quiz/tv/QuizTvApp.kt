@@ -108,6 +108,8 @@ class TvActions(
     val potatoRandom: () -> Unit = {},
     /** « Donner des points » (menu Retour) : équipes choisies, montant (fête sans Internet). */
     val givePoints: (List<String>, Int) -> Unit = { _, _ -> },
+    /** « Vider le cache des médias » (menu Retour), une fois confirmé. */
+    val viderCache: () -> Unit = {},
 )
 
 /** Mise à jour de l'appli depuis la TV : état de la fenêtre et version trouvée par la recherche discrète. */
@@ -121,11 +123,12 @@ class UpdateScreen(
 )
 
 @Composable
-fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null) {
+fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null, vidage: VidageCache = VidageCache.Pret) {
     // Bouton Retour pendant une partie : on met en pause et on demande confirmation au lieu de quitter.
     var confirmQuit by remember { mutableStateOf(false) }
     var pausedByDialog by remember { mutableStateOf(false) }
     var pointsOpen by remember { mutableStateOf(false) }
+    var cacheOpen by remember { mutableStateOf(false) }
     BackHandler(enabled = state is UiState.Playing) {
         val s = state as UiState.Playing
         if (s.phase == Phase.QUESTION && !s.paused) {
@@ -180,6 +183,8 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null) 
             onRegie = { close(); actions.showRegie() },
             onTablette = { close(); actions.showTablette() },
             onUpdate = { close(); actions.checkUpdate() },
+            // Comme les points : la pause du menu dure jusqu'à la fermeture de la fenêtre.
+            onCache = { confirmQuit = false; cacheOpen = true },
             onNewGame = { confirmQuit = false; pausedByDialog = false; actions.newGame() },
             onQuit = { confirmQuit = false; actions.quit() },
         )
@@ -196,6 +201,18 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null) 
             },
         )
     }
+    if (cacheOpen && state is UiState.Playing) {
+        ViderCacheDialog(
+            raison = vidageImpossible(state),
+            vidage = vidage,
+            onVider = actions.viderCache,
+            onClose = {
+                cacheOpen = false
+                if (pausedByDialog) actions.unpause()
+                pausedByDialog = false
+            },
+        )
+    }
     if (state is UiState.Playing && state.showRegie) {
         RegieDialog(state, onClose = actions.hideRegie, onRemove = actions.removeRegies)
     }
@@ -204,7 +221,7 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null) 
     }
     if (update != null && update.open) {
         UpdateDialog(update.ui, busy = gameInProgress(state), actions = update.actions)
-    } else if (update?.offer != null && !gameInProgress(state) && !confirmQuit && !pointsOpen && !(state is UiState.Playing && (state.showRegie || state.showTablette))) {
+    } else if (update?.offer != null && !gameInProgress(state) && !confirmQuit && !pointsOpen && !cacheOpen && !(state is UiState.Playing && (state.showRegie || state.showTablette))) {
         // La proposition attend le retour à l'accueil : jamais par-dessus une partie ou une autre fenêtre.
         UpdateOfferDialog(update.offer, update.actions)
     }
@@ -349,6 +366,7 @@ private fun QuitDialog(
     onRegie: () -> Unit,
     onTablette: () -> Unit,
     onUpdate: () -> Unit,
+    onCache: () -> Unit,
     onNewGame: () -> Unit,
     onQuit: () -> Unit,
 ) {
@@ -380,6 +398,7 @@ private fun QuitDialog(
             TvButton("Reconnecter la régie", onRegie, wide, fontSize = 20.sp)
             TvButton("Reconnecter une tablette", onTablette, wide, fontSize = 20.sp)
             TvButton("Rechercher une mise à jour", onUpdate, wide, fontSize = 20.sp)
+            TvButton("Vider le cache des médias", onCache, wide, fontSize = 20.sp)
             TvButton("Quitter l'application", onQuit, wide, fontSize = 20.sp)
             TvButton("Terminer et lancer une nouvelle partie", onNewGame, wide, accent = Palette.Pink, fontSize = 20.sp)
         }
