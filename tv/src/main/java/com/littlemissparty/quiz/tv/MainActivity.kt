@@ -40,6 +40,7 @@ class MainActivity : ComponentActivity() {
             val updateAvailable by updates.available.collectAsState()
             val updateOffer by updates.offer.collectAsState()
             val coup by viewModel.coup.collectAsState()
+            val vidage by viewModel.vidage.collectAsState()
             val busy = gameInProgress(state)
             LaunchedEffect(busy) { updates.setBusy(busy) }
             // Police Baloo 2 « cartes néon » (choix de cedric) pour tous les textes qui n'en imposent pas une autre.
@@ -77,6 +78,7 @@ class MainActivity : ComponentActivity() {
                     potatoRandom = viewModel::potatoRandom,
                     givePoints = viewModel::givePoints,
                     requestAgain = viewModel::requestAgain,
+                    viderCache = viewModel::viderCacheMedias,
                 ),
                 update = UpdateScreen(
                     ui = updateUi, open = updateOpen, available = updateAvailable, offer = updateOffer,
@@ -91,6 +93,7 @@ class MainActivity : ComponentActivity() {
                         declineOffer = updates::declineOffer,
                     ),
                 ),
+                vidage = vidage,
             )
             }
             // BONUS / MALUS de la régie, par-dessus le jeu sans rien arrêter (chrono, musique, pupitres).

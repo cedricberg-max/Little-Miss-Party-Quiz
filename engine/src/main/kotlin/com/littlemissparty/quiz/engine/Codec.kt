@@ -195,6 +195,8 @@ object Codec {
             "pauseTeam" to s.hold?.team,
             "resumeAt" to s.resumeAt,
         )
+        // Partie terminée : son heure de fin (serveur), pour le ménage des copies des médias par la Régie PC.
+        if (s.phase == Phase.ENDED) s.endedAt?.let { out["endedAt"] = it }
         // Dernières questions du quiz : la régie propose le multiplicateur juste avant la première.
         game.factorChoice()?.let { start -> out["factorChoice"] = mapOf("start" to start, "factor" to (s.factors[start] ?: FACTORS.first())) }
         if (q != null && s.intro) {
