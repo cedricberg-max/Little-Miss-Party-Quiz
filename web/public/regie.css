@@ -15,6 +15,8 @@
   --danger: #ff5a5f;
   --ok: #7cff3a;
   position: fixed; inset: 0; z-index: 20; overflow: hidden;
+  /* Bandeaux (reconnexion, tablette déconnectée) puis le reste : le bas de la régie reste toujours dans l'écran. */
+  display: flex; flex-direction: column;
   padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color: var(--ink); text-align: left;
@@ -41,7 +43,7 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .hold.pressing .fill { width: 100%; transition: width 1s linear; }
 .regie .hold .label { position: relative; }
 
-.regie .control { display: flex; flex-direction: column; height: 100%; gap: 10px; padding-top: 10px; }
+.regie .control { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 10px; padding-top: 10px; }
 .regie .top { display: flex; align-items: center; gap: 10px; font-size: 15px; color: var(--ink-soft); }
 .regie .top .code { font-weight: 800; color: var(--ink); letter-spacing: 2px; }
 .regie .top .step { flex: 1; }

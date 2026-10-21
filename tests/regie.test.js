@@ -1095,6 +1095,18 @@ describe("régie", () => {
     await page.waitForTimeout(2000);
     assert.equal(await alerte.isHidden(), true, "pas d'alerte avant 4 s");
     await page.locator("#r-alerte:not(.revenue)", { hasText: "📵 Tablette déconnectée : Les Bleus" }).waitFor({ timeout: 6000 });
+    // Le bas de la régie (Pause, Tablette, Terminer, gros bouton) reste dans l'écran sous le bandeau (audit du 21/10 :
+    // il sortait de l'écran de la hauteur du bandeau, « Reprendre » caché pendant une pause).
+    const basDansEcran = async (quand) => {
+      const bas = await page.locator(".control .actions").boundingBox();
+      assert.ok(bas && bas.y + bas.height <= 844 + 1, `${quand} : bas de la régie hors de l'écran ${JSON.stringify(bas)}`);
+    };
+    await basDansEcran("bandeau rouge");
+    await update(gameRef(), { state: { ...questionState(4), kind: "blind", paused: true, pauseReason: "team", pauseTeam: "bleu", deadline: null, remainingMs: 12000 } });
+    await page.getByRole("button", { name: /Reprendre/ }).first().waitFor();
+    await basDansEcran("pause automatique avec le bandeau");
+    assert.ok(await page.getByRole("button", { name: /Reprendre/ }).first().isVisible());
+    await update(gameRef(), { state: { ...questionState(4), kind: "blind" } });
     // Il reste en haut de l'écran même quand Sarah descend dans la page.
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     const haut = await alerte.boundingBox();
