@@ -105,6 +105,11 @@ data class GameState(
      * copies des médias de la partie 24 h après.
      */
     val endedAt: Long? = null,
+    /**
+     * Un point a déjà été donné ou retiré depuis le début de la partie (question, mime, coffre, ballon, statue, bombe,
+     * correction de la régie…), même annulé ensuite : la prestation ne peut plus être remplacée ([Game.mayReplaceProgram]).
+     */
+    val scored: Boolean = false,
 ) {
     val paused: Boolean get() = hold != null
 
@@ -183,7 +188,9 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     val events: List<GameEvent> get() = log
 
     init {
-        history.sortedBy { it.seq }.forEach { record(it) }
+        val sorted = history.sortedBy { it.seq }
+        // Prestation remplacée avant le premier point : la partie repart de la dernière remise à zéro, le reste est ignoré.
+        sorted.drop(sorted.indexOfLast { it is ProgramReset }.coerceAtLeast(0)).forEach { record(it) }
     }
 
     val question: Question? get() = state.index.takeIf { it >= 0 }?.let { quiz.questions.getOrNull(it) }
@@ -269,8 +276,12 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     fun record(event: GameEvent): Boolean {
         if (event.seq <= state.lastSeq) return false
         val next = reduce(state, event) ?: return false
+        // Un score qui bouge, quel que soit le jeu : la prestation ne pourra plus être remplacée.
+        val scored = next.scored || next.scores().filterValues { it != 0 } != state.scores().filterValues { it != 0 }
         // Heure de fin gardée seulement tant que la partie reste terminée (reprise après la fin : plus de fin).
-        state = next.copy(lastSeq = event.seq, endedAt = next.endedAt.takeIf { next.phase == Phase.ENDED })
+        state = next.copy(lastSeq = event.seq, endedAt = next.endedAt.takeIf { next.phase == Phase.ENDED }, scored = scored)
+        // Remise à zéro : le journal de la partie repart d'elle (un jeu de l'ancien programme n'est jamais « rejoué »).
+        if (event is ProgramReset) log.clear()
         log += event
         return true
     }
@@ -281,7 +292,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
      */
     private fun reduce(s: GameState, e: GameEvent): GameState? =
         if (s.intro && e !is GameLaunched && e !is Paused && e !is Resumed && e !is ScoreAdjusted && e !is Undone &&
-            e !is Jumped && e !is GameEnded && e !is FactorChosen && e !is DoorSet) null
+            e !is Jumped && e !is GameEnded && e !is FactorChosen && e !is DoorSet && e !is ProgramReset) null
         else reduceEvent(s, e)
 
     /** Jeu qui commence à la question [index] : il s'ouvre sur son écran de présentation, sans chrono ni buzzer. */
@@ -442,6 +453,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             else s.copy(adjustments = s.adjustments - e.target)
         is GameEnded ->
             if (s.phase == Phase.ENDED) null else s.copy(phase = Phase.ENDED, hold = null, mime = null, intro = false, endedAt = e.at)
+        // Mauvaise prestation : retour au salon d'attente, comme une partie neuve (jamais après un point, ni après la fin).
+        is ProgramReset -> if (!replaceable(s)) null else GameState()
         is PictoShown -> {
             val m = s.mime
             val cards = quiz.questions.getOrNull(s.index)?.takeIf { it.isPicto }?.cards.orEmpty()
@@ -1108,6 +1121,18 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     fun undo(target: Int, now: Long): GameEvent? = emit(Undone(nextSeq, now, target))
 
     fun end(now: Long): GameEvent? = emit(GameEnded(nextSeq, now))
+
+    /**
+     * La prestation peut encore être remplacée par une autre (mauvaise prestation lancée) : aucun point donné ni retiré
+     * depuis le début de la partie, de quelque façon que ce soit, et partie pas terminée. Au salon d'attente, avant la
+     * première question, c'est toujours vrai.
+     */
+    fun mayReplaceProgram(): Boolean = replaceable(state)
+
+    private fun replaceable(s: GameState) = !s.scored && s.phase != Phase.ENDED
+
+    /** Mauvaise prestation : la partie repart du salon d'attente (null dès qu'un point a été donné). */
+    fun resetProgram(now: Long): GameEvent? = emit(ProgramReset(nextSeq, now))
 
     fun mimeStart(team: String, now: Long): GameEvent? = emit(MimeTurnStarted(nextSeq, now, team))
 
