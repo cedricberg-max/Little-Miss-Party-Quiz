@@ -177,6 +177,25 @@ export function jeuDeLaManche(round, quizzes = {}) {
 }
 
 /**
+ * Question des bougies (cedric, 21/10) : « Combien de bougies sur le gâteau de Léa cette année ? », au Juste Chiffre,
+ * mise d'office dans le premier Quiz de chaque prestation (réponse : l'âge de l'enfant fêté). Une case de la manche
+ * l'enlève ([round].bougies false). Sans prénom ou sans âge, pas de question.
+ */
+export const BOUGIES_SEC = 20;
+export const texteBougies = (prenom) => `Le Juste Chiffre : combien de bougies sur le gâteau de ${prenom} cette année ?`;
+
+/** Le premier Quiz (classique) de la prestation : celui qui reçoit la question des bougies. */
+export const premierQuiz = (rounds, quizzes = {}) => (rounds ?? []).find((r) => r && jeuDeLaManche(r, quizzes).type === "quiz") ?? null;
+
+/** La question des bougies de [show], ou null (pas de prénom ou d'âge, case décochée). */
+export function questionBougies(show, round) {
+  const prenom = show?.childName?.trim();
+  const age = Number(show?.age);
+  if (!prenom || !Number.isInteger(age) || age < 1 || age > 99 || round?.bougies === false) return null;
+  return { text: texteBougies(prenom), kind: "number", correct: age, duration: BOUGIES_SEC, status: "validee", bougies: true };
+}
+
+/**
  * Jeux au buzzer à contenu intégré (inspirés de « Vendredi tout est permis ») : rien à préparer, la
  * manche tire [count] éléments au hasard dans le catalogue, adaptés à l'âge (level 2 : pas pour les Petits).
  */
@@ -635,7 +654,8 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     questions?.forEach((q) => questionConcepts(q).forEach((k) => pris.add(k)));
     rounds = []; questions = []; blocks.push({ type, rounds, questions });
   };
-  (show.rounds ?? []).filter(Boolean).map((r) => jeuDeLaManche(r, quizzes)).forEach((round, i) => {
+  const quizDesBougies = premierQuiz(show.rounds, quizzes);
+  (show.rounds ?? []).filter(Boolean).map((r) => [r, jeuDeLaManche(r, quizzes)]).forEach(([prepare, round], i) => {
     begin(round.type);
     if (round.type === "mimes") {
       const deck = round.deckId ? mimes[round.deckId] : null;
@@ -787,6 +807,16 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     }
     // Super Finale : réglage d'une manche Quiz (ou Quiz illustré), ses N dernières questions comptent double (ce n'est pas un jeu à part).
     const finale = hasFinale(round.type) ? Math.max(0, Math.min(list.length, Math.floor(Number(round.finale) || 0))) : 0;
+    // Les bougies, juste avant les questions de la Super Finale (elles ne comptent pas double). Pas deux fois : ni si
+    // le quiz a déjà sa question des bougies, ni si elle a déjà été posée pendant la fête.
+    const bougies = prepare === quizDesBougies && !round.hasard ? questionBougies(show, round) : null;
+    const dejaLa = (q) => q.kind === "number" && /bougie/i.test(q.text ?? "");
+    if (bougies && !list.some(dejaLa) && !posees?.has(bougies.text.toLowerCase())) {
+      // Avant aussi les dernières questions marquées ×2 une par une dans le quiz (l'ancienne façon de finir en finale).
+      let place = list.length - finale;
+      while (place > 0 && list[place - 1].double === true) place--;
+      list.splice(place, 0, bougies);
+    }
     rounds.push({ title: label, count: list.length, ...(finale ? { finale } : {}) });
     list.forEach((q, j) => {
       const last = j >= list.length - finale;

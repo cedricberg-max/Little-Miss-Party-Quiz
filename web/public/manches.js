@@ -266,7 +266,9 @@ export function cleanRound(r, playlists = {}) {
   else if ((type === "zoom" || type === "flou") && roundPicks(r).length) out = { type, ...picks };
   else {
     const ids = roundQuizIds(r);
-    out = { type, quizId: ids[0], ...(ids.length > 1 ? { quizIds: ids } : {}), ...(r.count > 0 ? { count: r.count } : {}), ...(hasFinale(type) && r.finale > 0 ? { finale: r.finale } : {}) };
+    out = { type, quizId: ids[0], ...(ids.length > 1 ? { quizIds: ids } : {}), ...(r.count > 0 ? { count: r.count } : {}), ...(hasFinale(type) && r.finale > 0 ? { finale: r.finale } : {}),
+      // Question des bougies enlevée de ce quiz (elle y est d'office, voir questionBougies).
+      ...(type === "quiz" && r.bougies === false ? { bougies: false } : {}) };
   }
   return { ...out, ...title, ...link };
 }

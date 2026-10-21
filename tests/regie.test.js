@@ -1759,7 +1759,14 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator('#show-rounds .jeu-bloc[data-jeu="quiz"] .jeu-nom', { hasText: "Quiz" }).waitFor();
     await page.locator("#show-rounds select.grow").nth(0).selectOption("animaux");
     await page.locator("#show-rounds select.finale").selectOption("1");
+    // La question des bougies (cedric, 21/10) : cochée d'office dans le premier Quiz ; la décocher l'enlève.
+    const bougies = page.locator("#show-rounds label.bougies input");
+    assert.equal(await bougies.isChecked(), true);
+    await page.locator("#show-summary", { hasText: "3 questions jouables" }).waitFor();
+    await bougies.uncheck();
     await page.locator("#show-summary", { hasText: "2 questions jouables" }).waitFor();
+    await bougies.check();
+    await page.locator("#show-summary", { hasText: "3 questions jouables" }).waitFor();
     await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
@@ -1781,10 +1788,11 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(show.profile, "PETITS");
     const q = show.quiz.questions;
     // Brouillon écarté, chrono du profil Petits (25 s + 10 s de lecture),
-    // Super Finale : la dernière question du quiz compte double, dans le même jeu.
+    // Super Finale : la dernière question du quiz compte double, dans le même jeu. Juste avant : les bougies de Léa.
     assert.deepEqual(q.map((x) => [x.id, x.duration, x.double, x.round]), [
-      ["r1q1", 35, false, "Animaux"], ["r1q2", 35, true, "Animaux"],
+      ["r1q1", 35, false, "Animaux"], ["r1q2", 20, false, "Animaux"], ["r1q3", 35, true, "Animaux"],
     ]);
+    assert.deepEqual([q[1].kind, q[1].text, q[1].correct], ["number", "Le Juste Chiffre : combien de bougies sur le gâteau de Léa cette année ?", 7]);
     await regie.locator("#c-games", { hasText: "Programme sur la TV (1 jeu)" }).waitFor();
     await regie.click("#tab-plan");
     assert.equal(await regie.locator("#panel-plan .plan-round").count(), 1);

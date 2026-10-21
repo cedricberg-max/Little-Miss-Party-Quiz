@@ -227,6 +227,10 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .flou-judge { display: flex; flex-direction: column; gap: 10px; }
 .regie .flou .mime-found { min-height: 130px; font-size: 34px; }
 .regie .flou-ko { min-height: 72px; font-size: 22px; }
+/* « Mauvaise réponse » en rouge (cedric, 21/10) : d'un coup d'œil, le bon en vert, le mauvais en rouge. */
+.regie .btn.mauvaise { background: var(--danger); border-color: transparent; color: #fff; box-shadow: 0 6px 0 #a3222a; touch-action: manipulation; }
+.regie .btn.mauvaise:active { transform: translateY(3px); box-shadow: 0 3px 0 #a3222a; }
+.regie .btn.mauvaise:disabled { opacity: .5; }
 .regie .flou .flou-bonus { min-height: 96px; font-size: 26px; }
 .regie .statues-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .regie .statues-team { min-height: 88px; font-size: 22px; font-weight: 800; }
