@@ -47,16 +47,33 @@ const cle = (x) => `${x ?? ""}`.normalize("NFD").replace(/[̀-ͯ]/g, "").toLower
  * la chanson (une phrase chantée au moins deux fois), en remontant au début de son groupe de phrases répétées.
  */
 export function refrainDesParoles(lignes) {
+  return refrainsDesParoles(lignes)[0] ?? null;
+}
+
+/**
+ * Chaque fois que le refrain est chanté (secondes, dans l'ordre) : les moments de la première phrase du passage le
+ * plus répété (voir refrainDesParoles). La même phrase reprise dans le même refrain (moins de 12 s après) ne compte
+ * qu'une fois. Vide sans refrain.
+ */
+export function refrainsDesParoles(lignes) {
   const chantees = (lignes ?? []).filter((l) => cle(l.text).length >= 4);
-  if (chantees.length < 4) return null;
+  if (chantees.length < 4) return [];
   const compte = new Map();
   chantees.forEach((l) => compte.set(cle(l.text), (compte.get(cle(l.text)) ?? 0) + 1));
   const max = Math.max(...compte.values());
-  if (max < 2) return null;
+  if (max < 2) return [];
   let k = chantees.findIndex((l) => compte.get(cle(l.text)) === max);
-  // Début du refrain : les phrases répétées juste avant font partie du même passage.
-  while (k > 0 && compte.get(cle(chantees[k - 1].text)) >= 2 && chantees[k].t - chantees[k - 1].t < 12) k -= 1;
-  return chantees[k].t;
+  // Début du refrain : les phrases chantées juste avant aussi souvent que lui font partie du même passage. Un refrain
+  // chanté 3 fois ou plus ne remonte pas sur le pré-refrain, chanté seulement 2 fois (cedric, 21/10 : le hook tombait
+  // sur le passage calme juste avant le vrai refrain).
+  const seuil = Math.min(3, max);
+  while (k > 0 && compte.get(cle(chantees[k - 1].text)) >= seuil && chantees[k].t - chantees[k - 1].t < 12) k -= 1;
+  const premiere = cle(chantees[k].text);
+  const fois = [];
+  for (const l of chantees.slice(k)) {
+    if (cle(l.text) === premiere && (!fois.length || l.t - fois[fois.length - 1] >= 12)) fois.push(l.t);
+  }
+  return fois;
 }
 
 /**
