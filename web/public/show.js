@@ -409,6 +409,39 @@ export const MAX_PICKS = 60;
 /** Éléments choisis un par un pour un jeu intégré ou le Pictionary (`picks`, leurs clés), dans l'ordre de Sarah. */
 export const roundPicks = (round) => [...new Set(listOf(round?.picks).filter((k) => typeof k === "string" && k).map((k) => k.toLowerCase()))].slice(0, MAX_PICKS);
 
+/** Clés d'une manche tirées au hasard (`hasard`) parmi ses éléments choisis : elles ne montrent jamais d'image téléversée. */
+export const roundHasard = (round) => {
+  const picks = new Set(roundPicks(round));
+  return [...new Set(listOf(round?.hasard).filter((k) => typeof k === "string" && k).map((k) => k.toLowerCase()))].filter((k) => picks.has(k));
+};
+
+/** Image téléversée (« Mes images », photo d'un quiz ou d'une carte), par opposition aux émojis et à la banque de photos. */
+export const imageTeleversee = (x) => /^[0-9a-f]{16}$/.test(x?.imageId ?? "");
+
+/** Objets au moins d'une famille de Qui a disparu ?. */
+const DISPARU_MIN_OBJETS = 5;
+
+/**
+ * Ce qu'un tirage au hasard peut montrer (cedric, 21/10) : les émojis et la banque de photos libres, jamais une image
+ * téléversée (une pochette d'album, une image très spécifique). L'élément perd son image téléversée et garde son émoji ;
+ * sans rien d'autre à montrer, il n'est pas tiré (null). Une photo de quiz (Zoom, Image floue) n'est jamais tirée ; une
+ * famille de Qui a disparu ? garde ses objets en émojis ou en photos de la banque, s'il lui en reste assez. Choisis à
+ * la main, les éléments gardent leurs images.
+ */
+export function pourLeHasard(type, x) {
+  if (!x) return null;
+  if (type === "zoom" || type === "flou") return imageTeleversee(x) ? null : x;
+  if (type === "disparu" && Array.isArray(x.objects)) {
+    const objects = x.objects.map((o) => pourLeHasard("objet", o)).filter(Boolean);
+    if (objects.length < DISPARU_MIN_OBJETS) return null;
+    return objects.length === x.objects.length && objects.every((o, i) => o === x.objects[i]) ? x : { ...x, objects };
+  }
+  if (!imageTeleversee(x)) return x;
+  const { imageId, ...reste } = x;
+  // Une carte de mimes ou un objet se montrent en image (émoji ou photo de la banque) ; un mot ou un personnage, non.
+  return (type === "mimes" || type === "objet") && !reste.image && !reste.banque ? null : reste;
+}
+
 /** Les éléments actifs d'un jeu (page du jeu) qui correspondent aux clés choisies, dans l'ordre des clés. */
 export function pickedItems(type, content, picks) {
   const game = CONTENT_GAMES[type];
@@ -550,6 +583,36 @@ export const MIME_SPARE_TEAMS = 2;
 /** Nombre d'équipes de la prestation (1 à 8), 4 quand il n'est pas indiqué. */
 export const teamCount = (teams) => (Number.isInteger(teams) && teams >= 1 && teams <= 8 ? teams : 4);
 
+/** Nombre d'équipes d'une nouvelle prestation (cedric, 21/10). */
+export const EQUIPES_PAR_DEFAUT = 4;
+
+/** Mots ou cartes à prévoir au moins par équipe, aux jeux joués équipe par équipe. */
+export const PAR_EQUIPE_MIN = 3;
+
+/**
+ * Alerte rouge d'une manche quand son contenu ne suffit pas aux équipes prévues (cedric, 21/10). Aucun jeu ne demande
+ * une manche par équipe : aux Mimes et au Pictionary, les équipes jouent à tour de rôle dans la même manche, en piochant
+ * dans le même paquet. Il faut donc assez de mots ou de cartes pour toutes. Un tirage au hasard au lancement suffit
+ * toujours (tous les mots actifs, ou de quoi jouer pour chaque équipe) ; seule une liste faite à la main peut manquer.
+ * Rend le message, ou null.
+ */
+export function alerteEquipes(round, teams, { mimes = {}, contents = {}, profile = null } = {}) {
+  const n = teamCount(teams);
+  const besoin = PAR_EQUIPE_MIN * n;
+  const pour = `pour ${n} équipe${n > 1 ? "s" : ""}, il en faut au moins ${besoin} (${PAR_EQUIPE_MIN} par équipe)`;
+  if (round?.type === "patate" && n < 2) return "« Ça va exploser ! » se joue à 2 équipes au moins : une seule équipe est prévue.";
+  if (round?.type === "pictionary") {
+    const mots = pickedItems("pictionary", contents?.pictionary, roundPicks(round)).length;
+    if (mots && mots < besoin) return `Pictionary : ${mots} mot${mots > 1 ? "s" : ""} choisi${mots > 1 ? "s" : ""} ${pour}.`;
+  }
+  if (round?.type === "mimes" && !mimePerTeam(round)) {
+    // Liste telle quelle : les cartes choisies, sinon le paquet entier ; sans l'une ni l'autre, le tirage suffit.
+    const cartes = mimeCards(round.cards).length || (round.deckId ? mimePool(round, mimes, profile).length : 0);
+    if (cartes && cartes < besoin) return `Mimes : ${cartes} carte${cartes > 1 ? "s" : ""} ${pour}.`;
+  }
+  return null;
+}
+
 /**
  * Instantané que la box joue : un seul quiz, manches mises bout à bout, chrono du profil pour
  * les questions sans durée imposée, points doublés pour la Super Finale ; une manche de mimes y est
@@ -616,10 +679,14 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       // Séries choisies pour la manche (aucune : toutes les séries).
       const series = pictoRoundSeries(round);
       // Mots choisis un par un dans la Régie PC : ceux-là seulement (les séries et l'âge ne filtrent plus).
-      const chosen = pickedItems("pictionary", contents?.pictionary, roundPicks(round));
+      // Mots tirés au hasard (dans la Régie PC, sur la régie ou au lancement) : sans image téléversée (cedric, 21/10).
+      const hasard = new Set(roundHasard(round));
+      const chosen = pickedItems("pictionary", contents?.pictionary, roundPicks(round))
+        .map((w) => (hasard.has(w.word.toLowerCase()) ? pourLeHasard("pictionary", w) : w)).filter(Boolean);
       const fresh = (w) => !used.pictionary?.has(w.word.toLowerCase());
       const all = activeItems("pictionary", contents?.pictionary)
-        .filter((w) => (profile !== "PETITS" || w.level !== 2) && (!series || series.includes(pictoSeriesOf(w))));
+        .filter((w) => (profile !== "PETITS" || w.level !== 2) && (!series || series.includes(pictoSeriesOf(w))))
+        .map((w) => pourLeHasard("pictionary", w)).filter(Boolean);
       const words = chosen.length ? chosen : neufsSiPossible(all.some(fresh) ? all.filter(fresh) : all, concepts, pris, PICTO_MIN_FRESH);
       if (!words.length) { problems.push(`Manche ${i + 1} (Pictionary) : aucun mot actif${series ? " dans les séries choisies" : ""} (page du jeu dans l'administration).`); return; }
       const duration = PICTO_SECONDS.includes(round.duration) ? round.duration : PICTO_SEC;
@@ -651,12 +718,17 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       const game = CONTENT_GAMES[round.type];
       const seen = (used[round.type] ??= new Set());
       // Qui a disparu ? en émojis : le hasard ne prend pas les familles de photos de la banque.
-      const all = activeItems(round.type, contents?.[round.type]).filter((x) => round.type !== "disparu" || round.photos === true || !isPhotoTheme(x));
+      // Et seulement des émojis ou des photos de la banque, jamais une image téléversée (cedric, 21/10).
+      const all = activeItems(round.type, contents?.[round.type]).filter((x) => round.type !== "disparu" || round.photos === true || !isPhotoTheme(x))
+        .map((x) => pourLeHasard(round.type, x)).filter(Boolean);
       const fresh = all.filter((x) => !seen.has(game.key(x)));
       // Et rien de ce que montrent les autres activités (les familles de Qui a disparu ? trient leurs objets une à une).
       const pool = neufsSiPossible(fresh.length >= Math.min(count, all.length) ? fresh : all, (x) => builtinConcepts(round.type, x), pris, count);
       // Éléments choisis un par un dans la Régie PC : ceux-là, dans cet ordre ; sinon le tirage au hasard.
-      const chosen = pickedItems(round.type, contents?.[round.type], roundPicks(round));
+      // Choisis à la main : avec leurs images ; tirés au hasard (Régie PC ou régie) : sans image téléversée.
+      const hasard = new Set(roundHasard(round));
+      const chosen = pickedItems(round.type, contents?.[round.type], roundPicks(round))
+        .map((x) => (hasard.has(game.key(x)) ? pourLeHasard(round.type, x) : x)).filter(Boolean);
       const picked = chosen.length
         ? builtin.items(profile, random, chosen, round, true, pris)
         : parPhotos(round, shuffle(builtin.items(profile, random, pool, round, false, pris), random)).slice(0, count);
@@ -699,10 +771,18 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     const label = round.type === "finale" || game ? ROUND_TYPES[round.type] : quiz?.title ?? `Manche ${i + 1}`;
     if (found.length < ids.length) problems.push(`Manche ${i + 1} : ${ids.length > 1 ? "un des quiz choisis" : "le quiz"} n'existe plus dans la bibliothèque.`);
     if (!quiz) { if (!ids.length) problems.push(`Manche ${i + 1} : le quiz n'existe plus dans la bibliothèque.`); return; }
-    // Nombre de questions choisi dans la prestation : les premières du quiz, dans son ordre.
-    const list = (game ? game.questions(quiz) : playable(quiz)).slice(0, round.count > 0 ? round.count : undefined);
+    // Nombre de questions choisi dans la prestation : les premières du quiz, dans son ordre. « 🔁 Rejouer » sur la
+    // régie (cedric, 21/10) : jamais une question déjà posée pendant la fête ([avoid].questions).
+    const toutes = game ? game.questions(quiz) : playable(quiz);
+    // Questions reprises par le hasard (« 🔁 Rejouer », cedric, 21/10) : jamais ses images téléversées (photo de la
+    // réponse, réponses en photos), les émojis restent. Le Quiz illustré garde ses réponses en photos (celles de la
+    // banque des tout-petits) : sans elles, il ne se joue pas.
+    const sansMesImages = round.hasard === true;
+    const illustre = found.every((x) => quizKind(x) === "photo");
+    const posees = used.questions;
+    const list = (posees ? toutes.filter((q) => !posees.has(`${q.text ?? ""}`.toLowerCase())) : toutes).slice(0, round.count > 0 ? round.count : undefined);
     if (!list.length) {
-      problems.push(`Manche ${i + 1} (${quiz.title}) : ${game?.missing ?? "aucune question validée"}.`);
+      problems.push(`Manche ${i + 1} (${quiz.title}) : ${posees && toutes.length ? "toutes ses questions ont déjà été posées pendant la fête" : game?.missing ?? "aucune question validée"}.`);
       return;
     }
     // Super Finale : réglage d'une manche Quiz (ou Quiz illustré), ses N dernières questions comptent double (ce n'est pas un jeu à part).
@@ -726,9 +806,9 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
         round: label,
         // Illustration facultative montrée à la révélation (émoji, ou photo copiée dans la partie par la régie).
         ...(q.image ? { image: q.image } : {}),
-        ...(q.imageId ? { imageId: q.imageId } : {}),
+        ...(q.imageId && !sansMesImages ? { imageId: q.imageId } : {}),
         // Réponses en images (QCM et Vrai / Faux) : une photo par proposition, "" pour une proposition en texte.
-        ...(!number && !express && !zoom && !flou && choiceImageList(q).length ? { choiceImages: choiceImageList(q) } : {}),
+        ...(!number && !express && !zoom && !flou && (!sansMesImages || illustre) && choiceImageList(q).length ? { choiceImages: choiceImageList(q) } : {}),
       });
     });
   });

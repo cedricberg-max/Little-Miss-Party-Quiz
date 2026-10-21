@@ -14,6 +14,7 @@ import {
 import { MIME_CATALOG } from "./mime-cards.js";
 import {
   RANDOM_TYPES, RANDOM_COUNT, LEVELS, MIME_PER_TEAM, MIME_PER_TEAM_DEFAULT, randomRound, playedKeys, questionType, avoidKey,
+  sourceRejouee, REJOUES_TELS_QUELS,
   collectionItems, collectionGroups, mancheGroups, mancheSummary, cleanRound, defaultMancheTitle, COLLECTION_UNIT,
 } from "./manches.js";
 import { profileForAge } from "./profiles.js";
@@ -1160,14 +1161,16 @@ function roundHead(r, rounds, future, questions, index, editable) {
   state.textContent = r.end < index ? "jouée" : r.start <= index ? "en cours" : "";
   head.append(title, state);
   const k = future.indexOf(r);
-  // Jeu déjà commencé ou joué, tiré d'une collection : le rejouer avec d'autres cartes, mots, photos ou titres.
+  // Jeu déjà commencé ou joué : « 🔁 Rejouer » dans tous les jeux (cedric, 21/10). Tiré d'une collection : avec
+  // d'autres cartes, mots, photos ou titres ; un quiz : avec d'autres questions ; un mini-jeu : le même, tel quel.
   const type = questionType(questions[r.start]);
-  if (editable && k < 0 && r.start <= index && RANDOM_TYPES.includes(type)) {
+  const telQuel = REJOUES_TELS_QUELS.includes(type);
+  if (editable && k < 0 && r.start <= index && type) {
     const again = document.createElement("button");
     again.className = "replay";
-    again.textContent = "🔁 Rejouer avec d'autres…";
+    again.textContent = telQuel ? "🔁 Rejouer" : "🔁 Rejouer avec d'autres…";
     again.disabled = editing;
-    again.onclick = () => replayWithOthers(type, questions.slice(r.start, r.end + 1), r.title);
+    again.onclick = () => (RANDOM_TYPES.includes(type) ? replayWithOthers : rejouer)(type, questions.slice(r.start, r.end + 1), r.title);
     head.appendChild(again);
   }
   if (!editable || k < 0) return head;
@@ -1199,6 +1202,24 @@ async function replayWithOthers(type, played, title) {
   if (!library?.games) await fetchLibrary();
   if (!library?.games) return;
   await pick({ key: `rejouer/${type}`, label: title.replace(/ \(\d+\)$/, ""), random: true, base, source: { type, ...(count ? { count } : {}) } });
+}
+
+/**
+ * « 🔁 Rejouer » un jeu qui ne se tire pas dans les collections : un mini-jeu ou les Statues tels quels, un quiz ou un
+ * Vrai ou Faux avec d'autres questions du même quiz (jamais une question déjà posée pendant la fête).
+ */
+async function rejouer(type, played, title) {
+  picked = null;
+  $("lib").hidden = false;
+  if (!library?.games) await fetchLibrary();
+  if (!library?.games) return;
+  const source = sourceRejouee(type, played, library.quizzes);
+  const label = title.replace(/ \(\d+\)$/, "");
+  if (!source) {
+    picked = { game: { key: `rejouer/${type}`, label, source: { type } }, source: { type }, questions: [], problems: ["Ce quiz n'est plus dans la bibliothèque : choisissez-en un autre avec « ＋ Jeu »."] };
+    return renderLibrary();
+  }
+  await pick({ key: `rejouer/${type}`, label, rejouer: true, source });
 }
 
 function planItem(q, i, current) {
@@ -1311,7 +1332,7 @@ async function fetchLibrary() {
       .filter(Boolean);
     // Photos et extraits tirés au hasard dans toutes les collections (jamais une photo ou un titre déjà joué).
     const drawn = ["zoom", "flou", "blind", "musical"]
-      .map((type) => ({ type, n: collectionItems(type, { quizzes, playlists }).length }))
+      .map((type) => ({ type, n: collectionItems(type, { quizzes, playlists }, { hasard: true }).length }))
       .filter(({ n }) => n > 0)
       .map(({ type, n }) => ({ key: `hasard/${type}`, label: `${ROUND_TYPES[type]} au hasard`, random: true, size: n, source: { type } }));
     library = { quizzes, mimes, playlists, contents, games, rounds, decks, quizGames, builtins, music, pinned, saved, drawn };
@@ -1509,7 +1530,7 @@ function drawPicked() {
   }
   // Un paquet, un quiz ou une manche choisis exprès se jouent tels quels ; seul le hasard écarte ce qui est déjà passé
   // (« jamais deux fois » : leurs parties tirées au hasard, comme les objets de Qui a disparu ?, évitent ce que la fête a montré).
-  const { questions, problems } = gameQuestions(picked.source, library.quizzes, profile ?? "MOYENS", prefix, library.mimes, library.playlists, library.contents, picked.random ? avoid : { concepts: avoid.concepts }, teams);
+  const { questions, problems } = gameQuestions(picked.source, library.quizzes, profile ?? "MOYENS", prefix, library.mimes, library.playlists, library.contents, picked.random || picked.game.rejouer ? avoid : { concepts: avoid.concepts }, teams);
   Object.assign(picked, { questions, problems: [...notes, ...problems] });
   renderLibrary();
 }
@@ -1664,7 +1685,7 @@ function randomPanel(rnd) {
   }
   chips("Difficulté", Object.entries(LEVELS), (k) => rnd.level === k, (k) => { rnd.level = k; }, "lib-level");
   // Qui a disparu ? : « Images » (émojis ou photos) suffit, pas de catégories en plus.
-  const groups = rnd.type === "disparu" ? [] : collectionGroups(collectionItems(rnd.type, library));
+  const groups = rnd.type === "disparu" ? [] : collectionGroups(collectionItems(rnd.type, library, { hasard: true }));
   if (groups.length > 1) {
     chips("Catégories (aucune touchée : toutes)", groups.map((g) => [g, g]), (g) => rnd.groups.includes(g),
       (g) => { rnd.groups = rnd.groups.includes(g) ? rnd.groups.filter((x) => x !== g) : [...rnd.groups, g]; }, "lib-group");

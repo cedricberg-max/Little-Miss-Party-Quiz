@@ -7,7 +7,7 @@ import { DISPARU_THEMES } from "../web/public/buzz-cards.js";
 import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, roundFilled,
   readiness, upcoming, daysUntil, isoDay, duplicateShow, etatPrestation, isArchived, ETATS, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
   soundIds, choiceImageIds, choiceImageList, pictoSeriesList, pictoSeriesOf, foldLegacyFinale,
-  roundQuizIds, MIME_RANDOM,
+  roundQuizIds, MIME_RANDOM, alerteEquipes, EQUIPES_PAR_DEFAUT, PAR_EQUIPE_MIN,
   statuesSongs, statuesChoices, roundSongs, isStatuesList,
 } from "../web/public/show.js";
 import { PICTO_WORDS, PICTO_SERIES } from "../web/public/picto-cards.js";
@@ -224,6 +224,40 @@ describe("quiz en images (ChatGPT)", () => {
     assert.deepEqual(choiceImageIds(snapshot.quiz.questions), [LION, CHIEN]);
     assert.equal(snapshot.quiz.intros, true, "chaque jeu de la prestation s'ouvre sur son écran de présentation");
     assert.deepEqual(choiceImageList({ choices: ["a", "b"], choiceImages: [null, "../x"] }), [], "aucune photo valable : texte");
+  });
+});
+
+describe("équipes d'une prestation (cedric, 21/10)", () => {
+  const mots = (n) => PICTO_WORDS.slice(0, n).map((w) => w.word.toLowerCase());
+  const cartes = (n) => MIME_CATALOG.slice(0, n).map((c) => ({ word: c.word, image: c.image }));
+
+  test("4 équipes par défaut, au moins 3 mots ou cartes par équipe", () => {
+    assert.equal(EQUIPES_PAR_DEFAUT, 4);
+    assert.equal(PAR_EQUIPE_MIN, 3);
+  });
+
+  test("Pictionary choisi à la main : alerte sous 3 mots par équipe, jamais pour un tirage au hasard", () => {
+    assert.equal(alerteEquipes({ type: "pictionary" }, 8), null, "Mots au hasard : tous les mots actifs");
+    assert.equal(alerteEquipes({ type: "pictionary", picks: mots(12) }, 4), null);
+    assert.equal(alerteEquipes({ type: "pictionary", picks: mots(11) }, 4), "Pictionary : 11 mots choisis pour 4 équipes, il en faut au moins 12 (3 par équipe).");
+    assert.equal(alerteEquipes({ type: "pictionary", picks: mots(1) }, 2), "Pictionary : 1 mot choisi pour 2 équipes, il en faut au moins 6 (3 par équipe).");
+    assert.match(alerteEquipes({ type: "pictionary", picks: mots(6) }, null), /pour 4 équipes/, "Nombre non indiqué : 4 équipes");
+    assert.equal(alerteEquipes({ type: "pictionary", picks: ["pas-un-mot"] }, 8), null, "Aucun mot actif choisi : tirage au hasard");
+  });
+
+  test("Mimes : la liste telle quelle peut manquer, les cartes par équipe se complètent au lancement", () => {
+    assert.equal(alerteEquipes({ type: "mimes", cards: cartes(5), perTeam: 3 }, 8), null, "Complétée au hasard au lancement");
+    assert.equal(alerteEquipes({ type: "mimes" }, 8), null, `${MIME_RANDOM} cartes au hasard`);
+    assert.equal(alerteEquipes({ type: "mimes", cards: cartes(9) }, 3), null);
+    assert.equal(alerteEquipes({ type: "mimes", cards: cartes(8) }, 3), "Mimes : 8 cartes pour 3 équipes, il en faut au moins 9 (3 par équipe).");
+    const paquet = { p1: { title: "Animaux", cards: cartes(4) } };
+    assert.match(alerteEquipes({ type: "mimes", deckId: "p1" }, 2, { mimes: paquet }), /^Mimes : 4 cartes pour 2 équipes/);
+  });
+
+  test("Ça va exploser ! : 2 équipes au moins ; les autres jeux n'ont pas d'alerte", () => {
+    assert.match(alerteEquipes({ type: "patate" }, 1), /2 équipes au moins/);
+    assert.equal(alerteEquipes({ type: "patate" }, 2), null);
+    for (const type of ["quiz", "coffres", "gonfleur", "blind", "statues"]) assert.equal(alerteEquipes({ type }, 1), null, type);
   });
 });
 
@@ -771,9 +805,13 @@ describe("Régie PC : contenus intégrés réglés, nombre de questions, notes",
 
   test("Qui suis-je ? : l'image d'un personnage préparée dans l'administration part avec la question", () => {
     const contents = { quisuis: { off: activeItems("quisuis", {}).map((p) => p.answer.toLowerCase()), extra: [{ answer: "Le koala", clues: ["Eucalyptus", "Australie"] }], images: { "le koala": "0123456789abcdef", autre: "pas-un-id" } } };
-    const { snapshot } = buildSnapshot("s", { age: 9, rounds: [{ type: "quisuis" }] }, {}, {}, Math.random, {}, contents);
+    // Choisi à la main : son image part avec lui ; tiré au hasard, jamais une image téléversée (cedric, 21/10).
+    const { snapshot } = buildSnapshot("s", { age: 9, rounds: [{ type: "quisuis", picks: ["le koala"] }] }, {}, {}, Math.random, {}, contents);
     assert.equal(snapshot.quiz.questions[0].imageId, "0123456789abcdef");
     assert.equal(snapshot.quiz.questions[0].choices[0], "Le koala");
+    const auHasard = buildSnapshot("s", { age: 9, rounds: [{ type: "quisuis" }] }, {}, {}, Math.random, {}, contents).snapshot.quiz.questions[0];
+    assert.equal(auHasard.choices[0], "Le koala");
+    assert.equal(auHasard.imageId, undefined);
   });
 
   test("Qui a disparu ? : objets par grille réglés sur la manche, et jamais deux fois la même famille", () => {
@@ -805,7 +843,8 @@ describe("Régie PC : contenus intégrés réglés, nombre de questions, notes",
 
   test("Pictionary : la vraie photo d'un mot part avec sa carte et se copie avec les réponses en images", () => {
     const contents = { pictionary: { extra: [{ word: "Toboggan", image: "🛝" }], images: { toboggan: "0123456789abcdef", chat: "pas-une-photo" } } };
-    const { snapshot } = buildSnapshot("s", { age: 9, rounds: [{ type: "pictionary" }] }, {}, {}, Math.random, {}, contents);
+    // Mots choisis à la main : leurs photos partent avec eux (au hasard, jamais une photo téléversée).
+    const { snapshot } = buildSnapshot("s", { age: 9, rounds: [{ type: "pictionary", picks: ["toboggan", "chat"] }] }, {}, {}, Math.random, {}, contents);
     const cards = snapshot.quiz.questions[0].cards;
     assert.deepEqual(cards.find((c) => c.word === "Toboggan"), { word: "Toboggan", image: "🛝", imageId: "0123456789abcdef" });
     assert.equal(cards.find((c) => c.word === "Chat")?.imageId, undefined, "une photo mal formée est ignorée");
@@ -1134,9 +1173,121 @@ describe("collections, manches et prestation", async () => {
     const none = M.randomRound("mimes", lib, { avoid: all }, seq());
     assert.equal(none.round, null);
     assert.equal(none.exhausted, true);
+    // Les photos des quiz sont téléversées : jamais tirées au hasard (cedric, 21/10).
     const few = M.randomRound("zoom", lib, { count: 6, groups: ["Photos"] }, seq());
-    assert.equal(few.count, 2);
-    assert.equal(few.exhausted, true, "seulement 2 photos : c'est dit");
+    assert.equal(few.round, null);
+    assert.equal(few.exhausted, true, "plus rien à tirer : c'est dit");
+  });
+
+  test("hasard (cedric, 21/10) : seulement les émojis et la banque de photos, jamais une image téléversée", () => {
+    const photo = "c".repeat(16);
+    assert.equal(S.imageTeleversee({ imageId: photo }), true);
+    assert.equal(S.imageTeleversee({ banque: "chat" }), false);
+    // Une carte perd sa photo et garde son émoji ; sans émoji ni photo de la banque, elle n'est pas tirée.
+    assert.deepEqual(S.pourLeHasard("mimes", { word: "Chat", image: "🐱", imageId: photo }), { word: "Chat", image: "🐱" });
+    assert.equal(S.pourLeHasard("mimes", { word: "Pochette", imageId: photo }), null);
+    assert.deepEqual(S.pourLeHasard("pictionary", { word: "Pochette", imageId: photo }), { word: "Pochette" }, "un mot se dessine sans image");
+    assert.equal(S.pourLeHasard("zoom", { text: "?", imageId: photo }), null, "photo d'un quiz : jamais");
+    const banque = { text: "?", banque: "chat" };
+    assert.equal(S.pourLeHasard("flou", banque), banque);
+    const objets = (n, avecPhoto) => Array.from({ length: n }, (_, i) => ({ word: `Objet ${i}`, ...(avecPhoto ? { imageId: photo } : { image: "🍎" }) }));
+    assert.equal(S.pourLeHasard("disparu", { theme: "Mes photos", objects: objets(6, true) }), null, "famille faite de mes photos");
+    assert.deepEqual(S.pourLeHasard("disparu", { theme: "Mixte", objects: [...objets(5, false), { word: "X", image: "🎁", imageId: photo }] }).objects.at(-1), { word: "X", image: "🎁" });
+
+    // Mimes : la photo de Sarah sur une carte du catalogue n'est jamais tirée, l'émoji du catalogue reste.
+    const avecPhotos = { ...lib, mimes: { d: { title: "Mes photos", cards: [{ word: "Chat", imageId: photo }, { word: "Mon chien", imageId: photo }, { word: "Ma fusée", image: "🚀", imageId: photo }] } } };
+    assert.ok(M.collectionItems("mimes", avecPhotos).find((x) => x.key === "chat").value.imageId, "à la main : sa photo");
+    const auHasard = M.collectionItems("mimes", avecPhotos, { hasard: true });
+    assert.ok(auHasard.every((x) => !x.value.imageId));
+    assert.equal(auHasard.find((x) => x.key === "chat").value.image, "🐱");
+    assert.equal(auHasard.find((x) => x.key === "mon chien"), undefined, "sans émoji : pas tirée");
+    assert.deepEqual(auHasard.find((x) => x.key === "ma fusée").value, { word: "Ma fusée", image: "🚀" });
+    const tirees = M.randomRound("mimes", avecPhotos, { count: 400 }, seq()).round.cards;
+    assert.ok(tirees.length > 50 && tirees.every((c) => !c.imageId));
+    // Zoom, Image floue : la banque seulement.
+    assert.ok(M.collectionItems("zoom", lib, { hasard: true }).every((x) => x.key.startsWith("banque:")));
+    assert.ok(M.randomRound("flou", lib, { count: 6 }, seq()).round.picks.every((k) => k.startsWith("banque:")));
+  });
+
+  test("hasard : un mot tiré ne montre pas l'image téléversée, le même mot choisi à la main la garde", () => {
+    const photo = "d".repeat(16);
+    const contents = { pictionary: { images: { chat: photo, pochette: photo }, extra: [{ word: "Pochette", series: "Mes mots" }] } };
+    const libP = { ...lib, contents };
+    const { round } = M.randomRound("pictionary", libP, { count: 60, groups: ["Animaux", "Mes mots"] }, seq());
+    assert.deepEqual(round.hasard, round.picks, "les mots tirés sont notés");
+    assert.ok(round.picks.includes("chat") && round.picks.includes("pochette"));
+    const joue = (r) => S.buildSnapshot("s", { rounds: [r] }, {}, {}, seq(), {}, contents).snapshot.quiz.questions[0].cards;
+    const auHasard = joue(round);
+    assert.ok(auHasard.every((c) => !c.imageId), "aucune image téléversée");
+    assert.equal(auHasard.find((c) => c.word === "Chat").image, "🐱");
+    const aLaMain = joue({ type: "pictionary", picks: ["chat", "pochette"] });
+    assert.ok(aLaMain.every((c) => c.imageId === photo), "choisis à la main : leurs images");
+    // Mélange : tiré puis complété à la main.
+    const melange = joue({ type: "pictionary", picks: ["chat", "pochette"], hasard: ["chat"] });
+    assert.equal(melange.find((c) => c.word === "Chat").imageId, undefined);
+    assert.equal(melange.find((c) => c.word === "Pochette").imageId, photo);
+    // Tirage au lancement (aucun mot choisi) : jamais d'image téléversée.
+    assert.ok(joue({ type: "pictionary" }).every((c) => !c.imageId));
+    // Gardé dans la manche enregistrée.
+    assert.deepEqual(M.cleanRound({ type: "pictionary", picks: ["chat", "pochette"], hasard: ["chat", "lune"] }).hasard, ["chat"]);
+    assert.equal(M.cleanRound({ type: "pictionary", picks: ["chat"] }).hasard, undefined);
+    // Qui suis-je ? (jeu intégré) : pareil.
+    const qs = { quisuis: { images: Object.fromEntries(S.activeItems("quisuis", {}).map((x) => [S.contentSlot(x.answer.toLowerCase()), photo])) } };
+    const builtin = S.buildSnapshot("s", { rounds: [{ type: "quisuis", count: 4 }] }, {}, {}, seq(), {}, qs).snapshot.quiz.questions;
+    assert.equal(builtin.length, 4);
+    assert.ok(builtin.every((q) => !q.imageId));
+  });
+
+  test("« 🔁 Rejouer » dans tous les jeux (cedric, 21/10) : mini-jeux tels quels, quiz avec d'autres questions", () => {
+    assert.deepEqual(M.sourceRejouee("patate", [{ kind: "patate" }]), { type: "patate" });
+    assert.deepEqual(M.sourceRejouee("coffres", [{ kind: "coffres" }]), { type: "coffres" });
+    assert.deepEqual(M.sourceRejouee("gonfleur", [{ kind: "gonfleur" }]), { type: "gonfleur" });
+    assert.deepEqual(M.sourceRejouee("statues", [{ kind: "statues", duration: 90, audioIds: ["4".repeat(16)] }]), { type: "statues", duration: 90, songs: ["4".repeat(16)] });
+    assert.equal(M.sourceRejouee("mimes", [{ kind: "mime" }]), null, "tiré dans les collections : ailleurs");
+    const quizzes = {
+      a: { title: "Animaux", questions: Array.from({ length: 6 }, (_, i) => ({ text: `Animal ${i} ?`, choices: ["Oui", "Non"], correct: 0, status: "validee" })) },
+      b: { title: "Autre", questions: [{ text: "Autre ?", choices: ["A", "B"], correct: 0, status: "validee" }] },
+    };
+    const show = { rounds: [{ type: "quiz", quizId: "a", count: 3 }] };
+    const joues = S.buildSnapshot("s", show, quizzes).snapshot.quiz.questions;
+    const source = M.sourceRejouee("quiz", joues, quizzes);
+    assert.deepEqual(source, { type: "quiz", quizId: "a", count: 3, hasard: true });
+    const avoid = M.playedKeys(joues);
+    assert.deepEqual([...avoid.questions], ["animal 0 ?", "animal 1 ?", "animal 2 ?"]);
+    const { questions } = S.gameQuestions(source, quizzes, "MOYENS", "x", {}, {}, {}, avoid);
+    assert.deepEqual(questions.map((q) => q.text), ["Animal 3 ?", "Animal 4 ?", "Animal 5 ?"], "d'autres questions du même quiz");
+    const tout = M.playedKeys([...joues, ...questions]);
+    const fini = S.gameQuestions(source, quizzes, "MOYENS", "x", {}, {}, {}, tout);
+    assert.equal(fini.questions.length, 0);
+    assert.match(fini.problems.join(), /toutes ses questions ont déjà été posées pendant la fête/);
+    // Sans [avoid] (prestation, quiz choisi à la main) : les premières questions, comme avant.
+    assert.deepEqual(S.gameQuestions(source, quizzes, "MOYENS", "x").questions.map((q) => q.text), ["Animal 0 ?", "Animal 1 ?", "Animal 2 ?"]);
+    assert.equal(M.sourceRejouee("quiz", joues, { b: quizzes.b }), null, "quiz effacé de la bibliothèque");
+    assert.ok(M.REJOUES_TELS_QUELS.includes("statues"));
+  });
+
+  test("« 🔁 Rejouer » un quiz (cedric, 21/10) : les questions reprises ne montrent jamais ses images, le Quiz illustré garde ses réponses en photos", () => {
+    const photo = "c".repeat(16);
+    const reponses = { 0: "d".repeat(16), 1: "e".repeat(16) };
+    const q = (i) => ({ text: `Q${i} ?`, choices: ["Oui", "Non"], correct: 0, status: "validee", image: "🐶", imageId: photo, choiceImages: reponses });
+    const quizzes = {
+      a: { title: "Pochettes", kind: "classique", questions: [q(0), q(1), q(2), q(3)] },
+      p: { title: "Les petits", kind: "photo", questions: [q(4), q(5), q(6), q(7)] },
+    };
+    // À la main, dans la prestation : ses images, comme il les a mises.
+    const main = S.buildSnapshot("s", { rounds: [{ type: "quiz", quizId: "a", count: 2 }] }, quizzes).snapshot.quiz.questions;
+    assert.ok(main.every((x) => x.imageId === photo && x.choiceImages?.length === 2));
+    const rejoue = S.gameQuestions(M.sourceRejouee("quiz", main, quizzes), quizzes, "MOYENS", "x", {}, {}, {}, M.playedKeys(main)).questions;
+    assert.deepEqual(rejoue.map((x) => x.text), ["Q2 ?", "Q3 ?"]);
+    assert.ok(rejoue.every((x) => x.imageId === undefined && x.choiceImages === undefined), "ni sa photo ni ses réponses en photos");
+    assert.ok(rejoue.every((x) => x.image === "🐶" && x.choices.length === 2), "l'émoji et les réponses écrites restent");
+    // Quiz illustré : rejoué comme Quiz illustré, ses réponses en photos (la banque des tout-petits) restent.
+    const petits = S.buildSnapshot("s", { rounds: [{ type: "illustre", quizId: "p", count: 2 }] }, quizzes).snapshot.quiz.questions;
+    const source = M.sourceRejouee("quiz", petits, quizzes);
+    assert.equal(source.type, "illustre");
+    const illustre = S.gameQuestions(source, quizzes, "PETITS", "x", {}, {}, {}, M.playedKeys(petits)).questions;
+    assert.deepEqual(illustre.map((x) => x.text), ["Q6 ?", "Q7 ?"]);
+    assert.ok(illustre.every((x) => x.imageId === undefined && x.choiceImages?.length === 2 && x.round === "Quiz illustré"));
   });
 
   test("Petits : pas de carte difficile ; « difficile » met les plus dures d'abord", () => {
