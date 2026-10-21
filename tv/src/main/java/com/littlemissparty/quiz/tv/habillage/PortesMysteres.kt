@@ -155,6 +155,7 @@ fun texteRecit(e: Evolution): String? = when (e.recit) {
     Recit.TUILE_DU_PREMIER -> "Aïe, la tuile !"
     Recit.MONTE -> "+${e.places} place${if (e.places > 1) "s" else ""} !"
     Recit.DESCEND -> "−${-e.places} place${if (e.places < -1) "s" else ""}"
+    // « Ça tient ! » n'était pas clair (cedric, 21/10) : l'équipe a marqué des points mais reste à la même place.
     Recit.TIENT -> "Garde sa place !"
     Recit.AUCUN -> null
 }
