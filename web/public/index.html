@@ -187,6 +187,7 @@
         <div class="games-row">
           <p id="c-games" class="games"></p>
           <button id="c-add" class="btn secondary rescue-open" aria-label="Ajouter un jeu" hidden>＋ Jeu</button>
+          <button id="c-replay" class="btn secondary rescue-open" hidden>🔁 Rejouer</button>
           <button id="c-points" class="btn secondary rescue-open">± Points</button>
           <button id="c-rescue" class="btn secondary rescue-open" hidden>⏭ Changer de jeu</button>
         </div>
@@ -301,7 +302,7 @@
     <!-- « Ajouter un jeu » : bibliothèque ouverte par-dessus la régie, sans quitter la partie. -->
     <section id="lib" class="lib" hidden aria-label="Ajouter un jeu">
       <header class="lib-top">
-        <b>Ajouter un jeu</b>
+        <b id="lib-title">Ajouter un jeu</b>
         <button id="lib-close" class="btn secondary">Fermer</button>
       </header>
       <div id="lib-list" class="lib-body"></div>
@@ -312,6 +313,7 @@
         <ol id="lib-questions" class="lib-questions"></ol>
         <p id="lib-problems" class="hold-info" hidden></p>
         <div class="lib-actions">
+          <button id="lib-now" class="btn main" hidden>▶ Rejouer maintenant</button>
           <button id="lib-after" class="btn main">Ajouter après la manche actuelle</button>
           <button id="lib-end" class="btn secondary">Ajouter à la fin</button>
           <button id="lib-back" class="link">Choisir un autre jeu</button>

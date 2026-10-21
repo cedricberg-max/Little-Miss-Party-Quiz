@@ -256,8 +256,11 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .flou .flou-bonus[hidden] { display: none; }
 
 /* Jeu en cours, jeu suivant et secours */
-.regie .games-row { display: flex; align-items: center; gap: 8px; }
-.regie .games { flex: 1; margin: 0; font-size: 14px; color: var(--ink-soft, #cbb8e8); }
+/* Le jeu en cours sur sa ligne, les boutons (＋ Jeu, 🔁 Rejouer, ⏭ Changer de jeu…) dessous : rien d'écrasé sur un petit téléphone. */
+.regie .games-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.regie .games { flex: 1 1 100%; margin: 0; font-size: 14px; color: var(--ink-soft, #cbb8e8); }
+.regie .games:empty { display: none; }
+.regie .games-row .rescue-open { flex: 1 1 auto; }
 .regie .games b { color: var(--gold); }
 .regie .notes { margin-top: 10px; font-size: 15px; }
 .regie .factor { margin-top: 10px; padding: 10px 12px; border-radius: 14px; background: rgba(255, 214, 10, 0.12); border: 1px solid var(--gold); }
