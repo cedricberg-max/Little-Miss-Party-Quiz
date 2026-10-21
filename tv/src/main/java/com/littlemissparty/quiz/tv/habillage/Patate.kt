@@ -319,3 +319,38 @@ private fun etoileFine(c: Offset, r: Float) = androidx.compose.ui.graphics.Path(
     quadraticBezierTo(c.x - creux, c.y - creux, c.x, c.y - r)
     close()
 }
+
+/**
+ * Entre deux bombes : « BOMBE 2 SUR 3 » qui claque par-dessus la scène, puis « La mèche se rallume… ». La bombe part
+ * ensuite d'elle-même (la partie décide du moment, jamais l'écran).
+ */
+@Composable
+fun AnnonceBombe(numero: Int, total: Int, modifier: Modifier = Modifier, jouer: (Son) -> Unit = jouerSonPatate) {
+    val t = remember(numero) { Animatable(0f) }
+    val joue by rememberUpdatedState(jouer)
+    LaunchedEffect(numero) {
+        joue(Son.BOMBE_ALERTE)
+        t.animateTo(1_200f, tween(1_200, easing = LinearEasing))
+    }
+    Box(modifier.fillMaxSize().clearAndSetSemantics {}.background(Neon.Nuit.copy(alpha = 0.6f)))
+    Echelle(960.dp, 540.dp, modifier.fillMaxSize()) {
+        Column(
+            Modifier.align(Alignment.Center).graphicsLayer {
+                val u = (t.value / 420f).coerceIn(0f, 1f)
+                alpha = if (u <= 0f) 0f else 1f
+                val sc = if (u <= 0f) 0.5f else rebondSortie(u); scaleX = sc; scaleY = sc
+            },
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                "BOMBE $numero SUR $total", maxLines = 1,
+                style = stylePatate.copy(fontSize = 76.sp, color = Color(0xFFFFB347), shadow = Shadow(Color.Black.copy(alpha = 0.6f), Offset(0f, 4f), 14f)),
+            )
+            Text(
+                "La mèche se rallume…", maxLines = 1,
+                modifier = Modifier.graphicsLayer { alpha = ((t.value - 600f) / 300f).coerceIn(0f, 1f) },
+                style = stylePatate.copy(fontSize = 34.sp, color = Neon.Blanc),
+            )
+        }
+    }
+}

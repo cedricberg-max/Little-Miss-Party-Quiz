@@ -298,7 +298,7 @@ object Codec {
             // tient la bombe en tire un rouge qui bat de plus en plus vite, sans jamais connaître la durée de la mèche.
             "burnFrom" to game.state.segments.lastOrNull()?.takeIf { it.end == null && !p.exploded }
                 ?.let { it.start - game.state.elapsedAt(it.start) },
-            "booms" to p.booms.map { mapOf("holder" to it.holder, "at" to it.at, "lost" to it.lost) },
+            "booms" to p.booms.map { mapOf("holder" to it.holder, "at" to it.at, "lost" to it.lost, "gain" to it.gain) },
             "key" to potatoKey(game),
         )
     }

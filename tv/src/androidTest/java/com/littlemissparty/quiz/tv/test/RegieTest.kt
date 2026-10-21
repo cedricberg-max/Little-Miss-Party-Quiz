@@ -1,6 +1,7 @@
 package com.littlemissparty.quiz.tv.test
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.littlemissparty.quiz.engine.POTATO_BOMBS
 import com.littlemissparty.quiz.engine.POTATO_POINTS
 import com.littlemissparty.quiz.engine.PUMP_TARGET
 import com.littlemissparty.quiz.engine.Scoring
@@ -837,9 +838,10 @@ class RegieTest : TestTv() {
         assertEquals("pas le tour des Licornes", false, licornes.ouvrirCoffre(code, 0))
         assertEquals("le bouton principal n'ouvre jamais de coffre", "refused", regie.commande(code, "next"))
 
-        // Chacun son tour, le premier coffre fermé, jusqu'à la bombe ; une fois avec le secours de la régie.
+        // Chacun son tour, le premier coffre fermé, jusqu'à la bombe ; une fois avec le secours de la régie. Chaque coffre :
+        // l'ouverture puis le classement (7,5 s), jusqu'à 14 coffres à 2 équipes.
         var ouvertures = 0
-        attendreQue("bombe trouvée", 150_000) {
+        attendreQue("bombe trouvée", 240_000) {
             val e = licornes.etat(code)
             val c = e.child("chests")
             if (c.child("exploded").value == true) return@attendreQue true
@@ -855,7 +857,12 @@ class RegieTest : TestTv() {
             if (!ok) return@attendreQue null
             attendreQue("coffre ouvert") { licornes.etat(code).takeIf { (it.child("chests/turn").value as Number).toInt() > tour } }
             ouvertures++
-            if (tour == 0) ecran.capture("bombe-ouverture")
+            if (tour == 0) {
+                ecran.capture("bombe-ouverture")
+                // Après l'ouverture, le classement de toutes les équipes.
+                ecran.voit("Le classement", 12_000)
+                ecran.capture("coffres-classement")
+            }
             null
         }
         assertTrue("au moins les 6 coffres sans danger avant la bombe", ouvertures >= 6)
@@ -970,16 +977,24 @@ class RegieTest : TestTv() {
         val colle = (licornes.etat(code).child("potato/readyAt").value as Number).toLong()
         if (System.currentTimeMillis() + 1_500 < colle) assertEquals("mèche qui colle", false, autre.envoyerPatate(code, porteur.uid))
 
-        // La mèche arrive au bout chez l'équipe qui tient la bombe : elle perd des points, l'autre en gagne.
+        // Trois bombes : chacune explose au bout de sa mèche chez l'équipe qui la tient (elle perd des points, l'autre en
+        // gagne) ; entre deux, la box allume toute seule la suivante, annoncée « Bombe 2 sur 3 ».
         val avant = mapOf(licornes.uid to points(licornes, code, licornes.uid), dragons.uid to points(licornes, code, dragons.uid))
-        attendreQue("explosion", 70_000) { licornes.etat(code).takeIf { it.child("phase").value == "reveal" } }
-        ecran.voit("BOUM !", 15_000)
+        attendreQue("première explosion", 70_000) { licornes.etat(code).takeIf { it.child("potato/booms").childrenCount >= 1 } }
         ecran.capture("patate-boum")
-        val fin = licornes.etat(code).child("potato/holder").value as String
+        attendreQue("bombe 2 allumée", 20_000) { licornes.etat(code).takeIf { (it.child("potato/bomb").value as? Number)?.toInt() == 2 } }
+        ecran.voit("Bombe 2 sur 3", 15_000)
+        ecran.capture("patate-bombe-2")
+        attendreQue("explosion de la dernière bombe", 170_000) { licornes.etat(code).takeIf { it.child("phase").value == "reveal" } }
+        ecran.voit("BOUM !", 15_000)
+        ecran.capture("patate-bilan")
+        val booms = licornes.etat(code).child("potato/booms").children.map { it.child("holder").value as String to (it.child("lost").value as Number).toLong() }
+        assertEquals("trois bombes", POTATO_BOMBS, booms.size)
         avant.forEach { (uid, pts) ->
-            val attendu = if (uid == fin) pts - minOf(POTATO_POINTS.toLong(), pts) else pts + POTATO_POINTS
+            val attendu = pts + booms.sumOf { (holder, perdu) -> if (holder == uid) -perdu else POTATO_POINTS.toLong() }
             assertEquals("points de $uid", attendu, points(licornes, code, uid))
         }
+        assertTrue("jamais plus de $POTATO_POINTS perdus par bombe", booms.all { it.second in 0..POTATO_POINTS.toLong() })
         assertEquals("plus d'envoi après l'explosion", false, licornes.envoyerPatate(code, dragons.uid))
 
         // Classement, puis la fin : scores gardés, rien ne bloque.

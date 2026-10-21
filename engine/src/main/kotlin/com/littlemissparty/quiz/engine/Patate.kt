@@ -34,8 +34,8 @@ const val POTATO_BOMBS = 3
 const val POTATO_BOOM_MS = 3_500L
 const val POTATO_NEXT_MS = 7_000L
 
-/** Une explosion : chez quelle équipe, à quelle heure, et les points vraiment perdus (réduits au score). */
-data class PotatoBoom(val holder: String, val at: Long, val lost: Int)
+/** Une explosion : chez quelle équipe, à quelle heure, les points vraiment perdus (réduits au score) et ceux gagnés par les autres. */
+data class PotatoBoom(val holder: String, val at: Long, val lost: Int, val gain: Int = POTATO_POINTS)
 
 /**
  * Bombe en cours de « Ça va exploser ! » : [teams] = équipes qui jouent, [holder] = équipe qui tient la bombe, [from] =

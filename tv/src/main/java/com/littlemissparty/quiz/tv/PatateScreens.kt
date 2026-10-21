@@ -1,5 +1,7 @@
 package com.littlemissparty.quiz.tv
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,16 +10,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.littlemissparty.quiz.engine.POTATO_BOMBS
+import com.littlemissparty.quiz.engine.POTATO_BOOM_MS
 import com.littlemissparty.quiz.engine.Phase
+import com.littlemissparty.quiz.tv.habillage.AnnonceBombe
 import com.littlemissparty.quiz.tv.habillage.Neon
 import com.littlemissparty.quiz.tv.habillage.ScenePatate
 import com.littlemissparty.quiz.tv.habillage.styleCentre
@@ -26,7 +33,8 @@ import kotlinx.coroutines.delay
 /*
  * « Ça va exploser ! » sur la TV. L'écran ne décide rien : la box allume la mèche (durée tirée au sort, jamais
  * affichée), les tablettes envoient la bombe, la partie la fait exploser. Ici : la scène de la bombe
- * (habillage/Patate.kt) avec une tension qui monte d'après le temps de mèche écoulé, puis l'explosion.
+ * (habillage/Patate.kt) avec une tension qui monte d'après le temps de mèche écoulé, puis l'explosion. Trois bombes par
+ * partie : après chaque explosion sauf la dernière, « Bombe 2 sur 3 », et la nouvelle bombe part.
  */
 
 @Composable
@@ -43,8 +51,13 @@ fun PatateScreen(state: UiState.Playing, actions: TvActions) {
     val reste = state.deadline?.let { (it - maintenant).coerceAtLeast(0) } ?: state.remainingMs
     val tension = if (p == null) 0f else (1f - reste.toFloat() / p.fuseMs).coerceIn(0f, 1f)
     val joueuses = p?.teams.orEmpty().mapNotNull { uid -> state.teams.find { it.uid == uid } }
-    val porteur = joueuses.indexOfFirst { it.uid == p?.holder }
-    val pret = p != null && maintenant >= p.readyAt && (state.resumeAt ?: 0L) <= maintenant
+    // La dernière explosion : jouée tant que la bombe suivante n'est pas allumée, et le temps de l'animation.
+    val boom = p?.booms?.lastOrNull()
+    val explosion = p != null && boom != null && (revele || p.exploded || maintenant < boom.at + POTATO_BOOM_MS)
+    // La bombe suivante est allumée mais pas encore partie : « Bombe 2 sur 3 ».
+    val annonce = p != null && !explosion && p.bomb > 1 && maintenant < p.since
+    val porteur = joueuses.indexOfFirst { it.uid == (if (explosion) boom?.holder else p?.holder) }
+    val pret = p != null && !p.exploded && maintenant >= p.readyAt && (state.resumeAt ?: 0L) <= maintenant
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 20.dp)) {
@@ -58,10 +71,10 @@ fun PatateScreen(state: UiState.Playing, actions: TvActions) {
                     ScenePatate(
                         equipes = joueuses.map { it.name to it.color.toColor() },
                         porteur = porteur,
-                        precedent = joueuses.indexOfFirst { it.uid == p.from }.takeIf { it >= 0 },
-                        tension = if (revele) 1f else tension,
-                        explosion = revele,
-                        pointsPerdus = state.awards[p.holder]?.points?.takeIf { revele && it < 0 },
+                        precedent = joueuses.indexOfFirst { it.uid == p.from }.takeIf { it >= 0 && !explosion },
+                        tension = if (explosion) 1f else tension,
+                        explosion = explosion,
+                        pointsPerdus = boom?.lost?.takeIf { explosion && it > 0 }?.let { -it },
                         modifier = Modifier.fillMaxSize(),
                         // Équipes que la bombe n'a pas encore touchées : elles scintillent.
                         neuves = joueuses.indices.filter { joueuses[it].uid !in p.hit }.toSet(),
@@ -73,7 +86,8 @@ fun PatateScreen(state: UiState.Playing, actions: TvActions) {
                 Text(
                     when {
                         p == null -> ""
-                        revele -> "Toutes les autres équipes gagnent des points !"
+                        explosion -> "Toutes les autres équipes gagnent ${boom?.gain ?: 0} points !"
+                        annonce -> "Attention, une nouvelle bombe arrive !"
                         else -> "Vite, envoyez la bombe à une autre équipe sur votre tablette !"
                     },
                     style = styleCentre(26.sp, Neon.OrClair),
@@ -83,10 +97,22 @@ fun PatateScreen(state: UiState.Playing, actions: TvActions) {
                 )
                 if (!state.paused) when {
                     revele -> NextButton("Voir les scores", actions.next, key = "patate-bilan-${state.index}")
+                    explosion || annonce -> {}
                     // Sans régie, à la télécommande : la bombe part au hasard (tablette en panne).
                     state.regies == 0 && pret -> TvButton("🎲 Envoyer au hasard", actions.potatoRandom, fontSize = 22.sp)
                 }
             }
         }
+        // Quelle bombe joue : petit compteur en haut à gauche, au-dessus de la mèche.
+        if (p != null && !revele) {
+            Text(
+                "💣 Bombe ${p.bomb} sur $POTATO_BOMBS", maxLines = 1,
+                style = styleCentre(20.sp, Neon.OrClair),
+                modifier = Modifier.align(Alignment.TopStart).padding(start = 24.dp, top = 16.dp)
+                    .background(Neon.Nuit2.copy(alpha = 0.88f), RoundedCornerShape(50)).border(2.dp, Neon.Or, RoundedCornerShape(50))
+                    .padding(horizontal = 14.dp, vertical = 4.dp),
+            )
+        }
+        if (annonce) key(p?.bomb) { AnnonceBombe(p!!.bomb, POTATO_BOMBS, Modifier.fillMaxSize()) }
     }
 }

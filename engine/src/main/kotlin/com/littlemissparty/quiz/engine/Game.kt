@@ -377,7 +377,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                     val points = (before[it]?.points ?: 0) + if (it == e.holder) -lost else POTATO_POINTS * factor
                     Award(null, correct = points > 0, points = points, bonus = 0)
                 }
-                val next = p.copy(booms = p.booms + PotatoBoom(e.holder, e.at, lost))
+                val next = p.copy(booms = p.booms + PotatoBoom(e.holder, e.at, lost, POTATO_POINTS * factor))
                 s.copy(
                     // Après la dernière bombe, le bilan ; sinon la box allume la mèche de la suivante.
                     phase = if (next.last) Phase.REVEAL else s.phase, hold = null, segments = closeSegments(s, e.at),
