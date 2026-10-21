@@ -78,11 +78,13 @@ private fun mecheMontree(tension: Float): Float {
  * La bombe chez l'équipe [porteur]. [precedent] : l'équipe qui vient de l'envoyer ; [tension] : de 0 (début) à 1
  * (explosion imminente), d'après le temps écoulé ; [explosion] : la bombe explose chez le porteur, qui perd
  * [pointsPerdus] (affiché s'il est donné). [neuves] : les équipes que la bombe n'a pas encore touchées, qui scintillent.
+ * [bandeau] : false cache « La bombe est chez … » (pendant l'annonce de la bombe suivante).
  */
 @Composable
 fun ScenePatate(
     equipes: List<Pair<String, Color>>, porteur: Int, precedent: Int?, tension: Float, explosion: Boolean,
     pointsPerdus: Int? = null, modifier: Modifier = Modifier, neuves: Set<Int> = emptySet(), jouer: (Son) -> Unit = jouerSonPatate,
+    bandeau: Boolean = true,
 ) {
     val n = equipes.size.coerceAtLeast(1)
     val p = porteur.coerceIn(0, n - 1)
@@ -265,7 +267,7 @@ fun ScenePatate(
         }
         val (nomP, couleurP) = equipes[p]
         if (!explosion) {
-            Row(
+            if (bandeau) Row(
                 Modifier.align(Alignment.TopCenter).padding(top = 136.dp).widthIn(max = 820.dp)
                     .graphicsLayer {
                         val u = annonce.value
@@ -332,14 +334,18 @@ fun AnnonceBombe(numero: Int, total: Int, modifier: Modifier = Modifier, jouer: 
         joue(Son.BOMBE_ALERTE)
         t.animateTo(1_200f, tween(1_200, easing = LinearEasing))
     }
-    Box(modifier.fillMaxSize().clearAndSetSemantics {}.background(Neon.Nuit.copy(alpha = 0.6f)))
+    // Voile sombre : la bombe et les socles s'effacent derrière l'annonce.
+    Box(modifier.fillMaxSize().clearAndSetSemantics {}.background(Neon.Nuit.copy(alpha = 0.8f)))
     Echelle(960.dp, 540.dp, modifier.fillMaxSize()) {
         Column(
             Modifier.align(Alignment.Center).graphicsLayer {
                 val u = (t.value / 420f).coerceIn(0f, 1f)
                 alpha = if (u <= 0f) 0f else 1f
                 val sc = if (u <= 0f) 0.5f else rebondSortie(u); scaleX = sc; scaleY = sc
-            },
+            }
+                // Sur un panneau : le message ne chevauche jamais les socles ni les noms des équipes.
+                .background(Neon.Nuit2.copy(alpha = 0.94f), RoundedCornerShape(32.dp)).border(3.dp, Color(0xFFFFB347), RoundedCornerShape(32.dp))
+                .padding(horizontal = 48.dp, vertical = 18.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(

@@ -88,13 +88,16 @@ fun CoffresScreen(state: UiState.Playing, actions: TvActions) {
                         modifier = Modifier.fillMaxSize(),
                         bombe = r.opened.firstOrNull { it.bomb }?.delta,
                         or = r.opened.firstOrNull { it.gold && it !== ouverture }?.chest,
+                        // Le classement et l'alerte ont leur titre en haut : le bandeau du tour se cache derrière eux.
+                        bandeau = classement == null && !alerte,
                     )
                 }
             }
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth().height(64.dp), verticalAlignment = Alignment.CenterVertically) {
                 val bas = when {
-                    r == null || r.exploded -> ""
+                    // Pendant le classement et l'alerte, rien en bas : le texte passerait derrière leur voile et l'estrade.
+                    r == null || r.exploded || classement != null || alerte -> ""
                     r.danger && !r.goldFound -> "💣 La bombe et ⭐ le coffre en or (+500) se cachent !"
                     r.danger -> "💣 La bombe peut être dans n'importe quel coffre !"
                     else -> "Encore ${r.safe - r.turn} coffre${if (r.safe - r.turn > 1) "s" else ""} sans danger"

@@ -78,6 +78,8 @@ fun PatateScreen(state: UiState.Playing, actions: TvActions) {
                         modifier = Modifier.fillMaxSize(),
                         // Équipes que la bombe n'a pas encore touchées : elles scintillent.
                         neuves = joueuses.indices.filter { joueuses[it].uid !in p.hit }.toSet(),
+                        // « Bombe 2 sur 3 » : pas de « La bombe est chez … » en même temps.
+                        bandeau = !annonce,
                     )
                 }
             }

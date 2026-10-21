@@ -391,12 +391,13 @@ private fun DrawScope.gradins(rangees: Int) {
  * Les coffres sur leurs gradins. [ouverts] : index → points gagnés ou perdus, null pour le coffre de la bombe.
  * [auTour] : l'équipe qui choisit (nom, couleur) ; [phaseDanger] : la bombe peut être dans n'importe quel coffre ;
  * [bombe] : les points vraiment retirés par la bombe (affichés sur son coffre), ou null pour « 💣 » seul ;
- * [or] : le coffre en or, une fois ouvert (pastille dorée « ⭐ +500 »).
+ * [or] : le coffre en or, une fois ouvert (pastille dorée « ⭐ +500 ») ; [bandeau] : false cache le bandeau du tour
+ * (pendant le classement et l'alerte, qui ont leur propre titre en haut).
  */
 @Composable
 fun SceneCoffres(
     nombre: Int, ouverts: Map<Int, Int?>, auTour: Pair<String, Color>?, phaseDanger: Boolean,
-    modifier: Modifier = Modifier, bombe: Int? = null, or: Int? = null,
+    modifier: Modifier = Modifier, bombe: Int? = null, or: Int? = null, bandeau: Boolean = true,
 ) {
     val places = remember(nombre) { placesCoffres(nombre) }
     val rangees = remember(nombre) { repartitionCoffres(nombre).size }
@@ -455,7 +456,7 @@ fun SceneCoffres(
                 }
             }
         }
-        BandeauTour(auTour, Modifier.align(Alignment.TopCenter).padding(top = 14.dp))
+        if (bandeau) BandeauTour(auTour, Modifier.align(Alignment.TopCenter).padding(top = 14.dp))
         if (phaseDanger) PastilleDanger(pouls, Modifier.align(Alignment.TopStart).padding(start = 18.dp, top = 18.dp))
     }
 }
@@ -762,7 +763,8 @@ fun AlerteBombe(onFini: () -> Unit, modifier: Modifier = Modifier, jouer: (Son) 
         Canvas(Modifier.fillMaxSize().clearAndSetSemantics {}) {
             val ms = t.value
             val d = density
-            drawRect(Neon.Nuit.copy(alpha = 0.82f * (ms / 250f).coerceIn(0f, 1f)))
+            // Voile plein dès la première image : l'alerte suit le classement, déjà sombre.
+            drawRect(Neon.Nuit.copy(alpha = 0.82f))
             // Vignette rouge qui respire doucement.
             val pouls = 0.5f + 0.5f * sin(2f * PI.toFloat() * ms / 1_100f)
             drawRect(Brush.radialGradient(listOf(Color.Transparent, Color.Transparent, Color(0xFFFF3B5C).copy(alpha = 0.18f + 0.14f * pouls)), Offset(size.width / 2, size.height / 2), size.width * 0.62f))
@@ -906,10 +908,11 @@ fun ClassementCoffre(lignes: List<LignePortes>, joue: Int, modifier: Modifier = 
     val n = lignes.size.coerceAtLeast(1)
     val hauteur = minOf(56f, 380f / n)
     Echelle(960.dp, 540.dp, modifier.fillMaxSize()) {
-        // Voile sombre : le classement passe devant les coffres.
-        Box(Modifier.fillMaxSize().clearAndSetSemantics {}.graphicsLayer { alpha = (t.value / 250f).coerceIn(0f, 1f) }.background(Neon.Nuit.copy(alpha = 0.86f)))
+        // Voile sombre dès la première image (l'ouverture juste avant est déjà sombre : pas d'éclair des coffres),
+        // puis le titre et les lignes apparaissent en fondu.
+        Box(Modifier.fillMaxSize().clearAndSetSemantics {}.background(Neon.Nuit.copy(alpha = 0.86f)))
         Row(
-            Modifier.align(Alignment.TopCenter).padding(top = 22.dp)
+            Modifier.align(Alignment.TopCenter).padding(top = 22.dp).graphicsLayer { alpha = (t.value / 250f).coerceIn(0f, 1f) }
                 .background(Neon.Nuit2.copy(alpha = 0.9f), RoundedCornerShape(50)).border(2.5.dp, Neon.Or, RoundedCornerShape(50))
                 .padding(horizontal = 26.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -921,7 +924,7 @@ fun ClassementCoffre(lignes: List<LignePortes>, joue: Int, modifier: Modifier = 
         Box(
             Modifier.align(Alignment.TopCenter).padding(top = 92.dp)
                 // Décalé vers la gauche : les étiquettes s'affichent à droite des lignes.
-                .offset(x = (-90).dp).width(580.dp).height((hauteur * n).dp),
+                .offset(x = (-90).dp).width(580.dp).height((hauteur * n).dp).graphicsLayer { alpha = (t.value / 250f).coerceIn(0f, 1f) },
         ) {
             lignes.forEachIndexed { i, l -> LigneClassementCoffre(l, evo[i], i == joue, hauteur) { t.value } }
         }
