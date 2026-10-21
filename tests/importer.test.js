@@ -1537,3 +1537,45 @@ describe("bibliothèque d'images de la Régie PC (émojis, photos libres, ses im
     assert.deepEqual(B.categoriesDe([{ cat: "Films et séries" }, { cat: B.A_RANGER }, { cat: "Films et séries" }]), [B.A_RANGER, "Films et séries"]);
   });
 });
+
+describe("recherche « filtre » : les meilleurs résultats d'abord, rien de caché", async () => {
+  const R = await import("../web/public/recherche.js");
+
+  test("avec « ma » : Maison, puis La marelle, puis Tomate, puis ce qui n'a « ma » que dans ses mots-clés", () => {
+    const items = [
+      { nom: "Tomate" }, { nom: "Soleil", tags: ["Matin"] }, { nom: "La marelle" }, { nom: "Maison" }, { nom: "Chat", tags: ["animal"] },
+    ];
+    const ranges = R.parPertinence(items, "ma", (x) => x.nom, (x) => x.tags ?? []).map((x) => x.nom);
+    assert.deepEqual(ranges, ["Maison", "La marelle", "Tomate", "Soleil", "Chat"]);
+    assert.equal(R.rangRecherche("Maison", "ma"), 0);
+    assert.equal(R.rangRecherche("La marelle", "ma"), 1);
+    assert.equal(R.rangRecherche("Tomate", "ma"), 2);
+    assert.equal(R.rangRecherche("Soleil", "ma", ["Matin"]), 3);
+    assert.equal(R.rangRecherche("Soleil", "ma", ["Le Rhum"]), 5);
+    assert.equal(R.rangRecherche("Soleil", "ma", ["Le Rhuma"]), 4);
+  });
+
+  test("sans accents ni majuscules, au début d'un mot après une apostrophe ou un tiret, plusieurs noms (titre, artiste)", () => {
+    assert.equal(R.rangRecherche("Élephant", "ele"), 0);
+    assert.equal(R.rangRecherche("L'éléphant", "ELE"), 1);
+    assert.equal(R.rangRecherche("Pomme-de-terre", "terre"), 1);
+    assert.equal(R.rangRecherche("Œuf", "oeuf"), 0);
+    assert.equal(R.rangRecherche(["Dernière danse", "Indila"], "ind"), 0, "l'artiste compte autant que le titre");
+    assert.equal(R.rangRecherche("Maison", "  "), 0);
+    assert.equal(R.rangRecherche([null, undefined, ""], "ma"), 5);
+  });
+
+  test("l'ordre d'origine est gardé entre résultats aussi bons (dates, groupes) ; recherche vide : liste inchangée", () => {
+    const items = ["Mardi gras", "Tomates", "Matin calme", "Pommes", "Mamie"];
+    assert.deepEqual(R.parPertinence(items, "ma", (x) => x), ["Mardi gras", "Matin calme", "Mamie", "Tomates", "Pommes"]);
+    assert.equal(R.parPertinence(items, "", (x) => x), items);
+    assert.deepEqual(items, ["Mardi gras", "Tomates", "Matin calme", "Pommes", "Mamie"], "la liste d'origine n'est pas touchée");
+  });
+
+  test("contientTout : chaque mot tapé, dans n'importe quel ordre, n'importe où", () => {
+    assert.ok(R.contientTout(["Mimes de Léa", "20 cartes · tour de 60 s"], "lea mimes"));
+    assert.ok(R.contientTout(["Mimes de Léa"], "  "));
+    assert.ok(R.contientTout(["Mimes de Léa", null], "ime"));
+    assert.ok(!R.contientTout(["Mimes de Léa"], "lea chat"));
+  });
+});
