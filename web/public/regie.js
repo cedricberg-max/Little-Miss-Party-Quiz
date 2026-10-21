@@ -3,6 +3,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { CHOICE_LETTERS } from "./theme.js";
 import { writeProof } from "./proof.js";
+import { parPertinence } from "./recherche.js";
 import { passwordCandidates } from "./secret.js";
 import {
   buildSnapshot, showTitle, playable, QUIZ_GAMES, BUILTIN_GAMES, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame, imageIds, choiceImageIds,
@@ -1583,7 +1584,7 @@ function renderPickedEdit(questions) {
     const fill = (text) => {
       const q = plat(text).trim();
       sel.replaceChildren();
-      const shown = choices.map((c, i) => [c, i]).filter(([c]) => !q || plat(`${c.label} ${c.group ?? ""}`).includes(q));
+      const shown = parPertinence(choices.map((c, i) => [c, i]).filter(([c]) => !q || plat(`${c.label} ${c.group ?? ""}`).includes(q)), q, ([c]) => c.label, ([c]) => c.group);
       const first = document.createElement("option");
       first.value = "";
       first.textContent = q ? `＋ ${shown.length} trouvé${shown.length > 1 ? "s" : ""} : choisir…` : label;

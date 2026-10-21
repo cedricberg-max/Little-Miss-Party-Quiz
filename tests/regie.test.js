@@ -2029,10 +2029,11 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator('#quiz-list [data-quiz="animaux"]').getByRole("button", { name: "Éditer" }).click();
     const q0 = page.locator('[data-q="0"]');
     const fenetre = page.locator(".choix-boite");
-    // Illustration : la recherche part de la bonne réponse (« Lion ») ; ses images en premier.
+    // Illustration : la recherche part de la bonne réponse (« Lion ») ; les noms qui commencent par « Lion » d'abord
+    // (l'émoji, puis la photo libre), puis « Le lion de Léa » ; à égalité, ses images passent avant.
     await q0.getByRole("button", { name: "🖼️ Bibliothèque…" }).click();
     assert.equal(await fenetre.locator(".choix-recherche").inputValue(), "Lion");
-    assert.equal(await fenetre.locator(".media-tile").first().getAttribute("data-media"), lea);
+    assert.deepEqual((await fenetre.locator(".media-tile").evaluateAll((l) => l.map((x) => x.dataset.media))).slice(0, 3), ["emoji:🦁", "banque:lion", lea]);
     await fenetre.locator('.media-tile[data-media="emoji:🦁"]').click();
     await page.locator(".choix-voile").waitFor({ state: "detached" });
     assert.equal(await q0.locator(".q-emoji").inputValue(), "🦁");
@@ -2492,6 +2493,50 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(show.rounds[0].mancheId, id);
     assert.equal(show.rounds[0].perTeam, 5);
     assert.deepEqual(show.rounds[0].cards, saved.round.cards);
+    await page.context().close();
+  });
+
+  test("Régie PC : recherche à chaque lettre dans les manches d'un jeu et les images, les noms qui commencent par le texte d'abord", async () => {
+    await seedLibrary("manches", {
+      t: { type: "chante", title: "Tomates et salades", origin: "admin", round: { type: "chante", count: 1, picks: ["soleil"] }, updatedAt: 4 },
+      m: { type: "chante", title: "La marelle", origin: "admin", round: { type: "chante", count: 1, picks: ["chat"] }, updatedAt: 3 },
+      a: { type: "chante", title: "Maman et moi", origin: "admin", round: { type: "chante", count: 1, picks: ["maman"] }, updatedAt: 2 },
+      s: { type: "chante", title: "Soleil", origin: "admin", round: { type: "chante", count: 1, picks: ["lune"] }, updatedAt: 1 },
+      v: { type: "chante", title: "Mamie", origin: "admin", archived: true, round: { type: "chante", count: 1, picks: ["chat"] }, updatedAt: 1 },
+    });
+    await seedLibrary("shows/zoe", { childName: "Zoé", date: "2026-11-12", status: "brouillon", updatedAt: 1, rounds: [{ type: "chante", count: 2, picks: ["chat", "lune"] }] });
+    const page = await admin();
+    await page.locator("#home-games .tile[data-game=chante]").click();
+    await page.locator("#screen-game:not([hidden]) #game-h1", { hasText: "Chante le mot" }).waitFor();
+    const ordre = () => page.locator("#manches-list [data-manche]").evaluateAll((l) => l.map((x) => x.dataset.manche));
+    await page.locator('#manches-list [data-manche="s"]').waitFor();
+    assert.deepEqual(await ordre(), ["t", "m", "a", "s"], "sans recherche : les plus récentes d'abord");
+    // « ma » : Maman (commence par), La marelle (un mot commence par), Tomates (contient) ; Soleil disparaît.
+    await page.locator("#manche-search").pressSequentially("ma");
+    await page.locator("#manche-search-count", { hasText: "4 manches trouvées" }).waitFor();
+    assert.deepEqual(await ordre(), ["a", "m", "t"]);
+    assert.equal(await page.locator("#manches-archived-box").evaluate((d) => d.open), true, "l'archivée trouvée s'ouvre toute seule");
+    await page.locator('#manches-archived [data-manche="v"]').waitFor();
+    assert.equal(await page.locator("#manches-shows-count").textContent(), "0");
+    // Le prénom d'une prestation retrouve ses manches.
+    await page.fill("#manche-search", "zoe");
+    await page.locator("#manche-search-count", { hasText: "1 manche trouvée" }).waitFor();
+    await page.locator("#manches-list", { hasText: "Aucune de vos manches ne correspond" }).waitFor();
+    assert.equal(await page.locator("#manches-shows-box").evaluate((d) => d.open), true);
+    await page.locator("#manches-shows .manche-from-show", { hasText: "L'anniversaire de Zoé" }).waitFor();
+    await page.fill("#manche-search", "");
+    await page.locator('#manches-list [data-manche="s"]').waitFor();
+    assert.deepEqual(await ordre(), ["t", "m", "a", "s"]);
+    assert.equal(await page.locator("#manche-search-count").textContent(), "");
+
+    // Images : avec « ma », les noms qui commencent par « ma » d'abord, Tomate ensuite (pas cachée).
+    await page.click("#nav button[data-screen=library]");
+    await page.locator("#media-search").pressSequentially("ma");
+    await page.locator("#media-count", { hasText: "images trouvées" }).waitFor();
+    const noms = await page.locator('#media-list .media-group[data-groupe="photos"] .media-tile > span:last-child').allInnerTexts();
+    assert.match(noms[0], /^ma/i);
+    assert.ok(noms.includes("Tomate") && noms.indexOf("Maison") < noms.indexOf("Tomate"), noms.join(", "));
+    assert.ok(noms.indexOf("Sous-marin") < noms.indexOf("Tomate"), "un mot qui commence par « ma » avant « contient ma »");
     await page.context().close();
   });
 

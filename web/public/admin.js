@@ -37,6 +37,7 @@ import { afficherMotsDePasse } from "./oeil.js";
 import { historique, noterEcran } from "./retour.js";
 import { ouvrirCadrage } from "./cadrage.js";
 import { FAMILLES_PETITS, BANQUE_MOTS, motBanque, cleMot, cataloguePetits, tirerPetits } from "./banque-petits.js";
+import { parPertinence, contientTout } from "./recherche.js";
 import { GROUPES_IMAGES, A_RANGER, emojisBibliotheque, photosLibres, imagesUtilisees, mesImages, correspond, categoriesDe, categoriesPerso, ficheImage, motsCles } from "./mediatheque.js";
 
 // Petit œil sur les champs de mot de passe : voir ce qu'on tape (majuscules, caractère en trop).
@@ -360,9 +361,10 @@ function renderShows() {
   const query = $("show-search").value.trim();
   const list = Object.entries(shows).filter(([, s]) => s && showMatches(s, query, { quizzes, mimes, playlists })).sort(byDate);
   // À venir d'abord ; puis les archivées étoilées (modèles où piocher des jeux) ; puis toutes les autres archivées.
-  const active = list.filter(([, s]) => !isArchived(s, today));
-  const pinned = list.filter(([, s]) => s.pinned && isArchived(s, today));
-  const archived = list.filter(([, s]) => !s.pinned && isArchived(s, today)).reverse();
+  const range = (l) => parPertinence(l, query, ([, s]) => [showTitle(s), s.childName], ([, s]) => [s.themes, s.notes]);
+  const active = range(list.filter(([, s]) => !isArchived(s, today)));
+  const pinned = range(list.filter(([, s]) => s.pinned && isArchived(s, today)));
+  const archived = range(list.filter(([, s]) => !s.pinned && isArchived(s, today)).reverse());
   $("show-pinned").hidden = !pinned.length;
   $("show-pinned-list").replaceChildren(...pinned.map(([id, s]) => showCard(id, s)));
   $("show-list").replaceChildren(...active.map(([id, s]) => showCard(id, s)));
@@ -634,7 +636,7 @@ function selectionEditor({ items, get, set, draw, unit, empty, own, round = null
     const n = chosen.length;
     const addSelect = () => {
       const q = plat(cherche).trim();
-      const libres = all.filter((x) => !chosen.includes(x.key) && (!q || plat(`${x.label} ${x.group ?? ""}`).includes(q)));
+      const libres = parPertinence(all.filter((x) => !chosen.includes(x.key) && (!q || plat(`${x.label} ${x.group ?? ""}`).includes(q))), q, (x) => x.label, (x) => x.group);
       const groupes = [...new Set(libres.map((x) => x.group ?? ""))];
       return h("select", { class: "pick-add", "aria-label": `Ajouter un${e} ${unit}`, onchange: (ev) => { if (ev.target.value) change([...chosen, ev.target.value]); } },
         h("option", { value: "", text: q ? `＋ ${libres.length} trouvé${libres.length > 1 ? "s" : ""} : choisir…` : `＋ Ajouter un${e} ${unit}…` }),
@@ -1858,7 +1860,7 @@ function renderBanque() {
   const correspond = (q) => !cherche || cleMot(q.text).includes(cherche) || q.choices.some((c) => cleMot(c).includes(cherche));
   const duTheme = banqueCatalogue.filter((q) => !banqueFamille || q.famille === banqueFamille);
   // Les questions cochées d'abord (même d'un autre thème), puis celles du thème.
-  const liste = [...banqueCoches.values(), ...duTheme.filter((q) => !banqueCoches.has(q.id) && correspond(q))];
+  const liste = [...banqueCoches.values(), ...parPertinence(duTheme.filter((q) => !banqueCoches.has(q.id) && correspond(q)), banqueRecherche, (q) => q.choices, (q) => q.text)];
   const montrees = liste.slice(0, BANQUE_LIGNES);
   const chip = (label, famille) => h("button", {
     type: "button", class: `chip${banqueFamille === famille ? " active" : ""}`, text: label,
@@ -2479,7 +2481,7 @@ const MAX_SONGS_SHOWN = 60;
 /** Bibliothèque des sons (menu Bibliothèque, onglet Sons) : recherche, écoute, réglages. */
 function renderSongs() {
   const all = songList(songs, playlists, isStatuesList);
-  const found = all.filter((x) => songMatches(x, $("song-search").value));
+  const found = parPertinence(all.filter((x) => songMatches(x, $("song-search").value)), $("song-search").value, (x) => [x.title, x.artist], (x) => x.lists.map((l) => l.title));
   $("song-count").textContent = found.length === all.length ? `${all.length} chanson${all.length > 1 ? "s" : ""}` : `${found.length} sur ${all.length}`;
   $("song-list").replaceChildren(...found.slice(0, MAX_SONGS_SHOWN).map((x) => songRow(x, [
     h("button", { type: "button", class: "btn secondary", title: "Écouter l'extrait du buzz", onclick: () => listen({ audioId: x.audioId, title: x.title }), text: "▶ Extrait" }),
@@ -2507,7 +2509,7 @@ function editSongs(list) {
 function renderLibPicker() {
   const inList = new Set(playlist?.tracks.map((t) => t.audioId).filter(Boolean));
   const all = songList(songs, playlists, isStatuesList);
-  const found = all.filter((x) => songMatches(x, $("playlist-lib-search").value));
+  const found = parPertinence(all.filter((x) => songMatches(x, $("playlist-lib-search").value)), $("playlist-lib-search").value, (x) => [x.title, x.artist], (x) => x.lists.map((l) => l.title));
   $("playlist-lib-count").textContent = `${found.length} chanson${found.length > 1 ? "s" : ""}`;
   $("playlist-lib-list").replaceChildren(...found.slice(0, 40).map((x) => songRow(x, [
     h("button", { type: "button", class: "btn secondary", onclick: () => listen({ audioId: x.audioId, title: x.title }), text: "▶" }),
@@ -3039,6 +3041,10 @@ function groupesImages() {
   return { emojis: emojisBibliotheque(), photos: photosLibres(), miennes: miennes.filter((x) => !x.retiree), [RETIREES]: miennes.filter((x) => x.retiree) };
 }
 
+/** Ce que la recherche lit d'une image : son nom d'abord, puis sa catégorie, ses mots-clés et où elle sert. */
+const nomMedia = (x) => x.nom;
+const autresMedia = (x) => [x.cat, ...(x.tags ?? []), ...(x.ou ?? [])];
+
 /**
  * Fiches en cours de saisie ou d'enregistrement : un changement venu de la base attend qu'on quitte la liste pour la
  * redessiner (sinon le champ suivant disparaîtrait sous le curseur).
@@ -3054,12 +3060,13 @@ function renderMedias(force = false) {
   mediasEnAttente = false;
   const g = groupesImages();
   const recherche = $("media-search").value.trim();
-  const trouve = (list) => list.filter((x) => correspond(x, recherche));
+  const filtre = (list) => list.filter((x) => correspond(x, recherche));
+  const trouve = (list) => parPertinence(filtre(list), recherche, nomMedia, autresMedia);
   const chip = (key, label, n) => h("button", {
     type: "button", class: `chip${mediaGroupe === key ? " active" : ""}`, "data-groupe": key ?? "tout", text: `${label} (${n})`,
     onclick: () => { mediaGroupe = key; mediaCat = null; renderMedias(true); },
   });
-  const total = (k) => trouve(g[k]).length;
+  const total = (k) => filtre(g[k]).length;
   $("media-groups").replaceChildren(chip(null, "Tout", total("emojis") + total("photos") + total("miennes")),
     ...Object.entries(GROUPES_IMAGES).map(([k, label]) => chip(k, label, total(k))));
   $("media-count").textContent = recherche ? `${plural(total("emojis") + total("photos") + total("miennes"), "image trouvée", "images trouvées")}` : "";
@@ -3222,8 +3229,8 @@ function choisirDansBibliotheque({ titre, groupes = Object.keys(GROUPES_IMAGES),
         type: "button", class: `chip${groupe === k ? " active" : ""}`, "data-groupe": k ?? "tout", text: `${k ? GROUPES_IMAGES[k] : "Tout"} (${n(k)})`,
         onclick: () => { groupe = k; dessiner(); },
       })));
-      // Ses images d'abord : c'est là qu'on cherche un personnage ou un film.
-      const items = (groupe ? listes[groupe] : [...groupes].sort((a, b) => (b === "miennes") - (a === "miennes")).flatMap((k) => listes[k])).slice(0, 120);
+      // Les meilleurs résultats d'abord ; à égalité, ses images avant les autres (on y cherche un personnage, un film).
+      const items = parPertinence(groupe ? listes[groupe] : [...groupes].sort((a, b) => (b === "miennes") - (a === "miennes")).flatMap((k) => listes[k]), q, nomMedia, autresMedia).slice(0, 120);
       grille.replaceChildren(...items.map((x) => h("button", { type: "button", class: "media-tile", "data-media": x.id, title: [x.cat, ...(x.tags ?? [])].filter(Boolean).join(" · "), onclick: () => fermer(x) },
         ...imageDeMedia(x), h("span", { text: x.nom || "Sans nom" }))));
       if (!items.length) grille.append(h("p", { class: "hint", text: q ? "Aucune image pour cette recherche : essayez un autre mot." : "Aucune image." }));
@@ -3605,6 +3612,7 @@ function paintCollectionTabs(screen) {
 }
 
 function openGame(type) {
+  if (type !== gameType) $("manche-search").value = "";
   gameType = type;
   show("game");
   renderGame();
@@ -3621,21 +3629,34 @@ function renderGame() {
   $("game-manche-hint").textContent = `${COLLECTION_SCREEN[type] ? "Une manche est ce qu'on joue : une sélection piochée dans les collections du jeu, avec ses réglages."
     : "Ce jeu n'a pas de contenu à préparer : une manche garde seulement ses réglages."} Composez-la ici une fois, puis chargez-la dans vos prestations ; épinglez celles qui marchent bien.`;
   $("manche-random").hidden = !RANDOM_TYPES.includes(type);
-  const { pinned, active, archived } = mancheGroups(manches, type);
+  // Recherche : chaque mot tapé dans le nom ou le contenu de la manche ; les noms qui commencent par elle d'abord.
+  const query = $("manche-search").value.trim();
+  const lib = { mimes, playlists, quizzes };
+  const trouve = (l) => parPertinence(l.filter(([, m]) => contientTout([m.title, mancheSummary(m.round, lib)], query)), query, ([, m]) => m.title, ([, m]) => mancheSummary(m.round, lib));
+  const groupes = mancheGroups(manches, type);
+  const [pinned, active, archived] = [trouve(groupes.pinned), trouve(groupes.active), trouve(groupes.archived)];
   $("manches-pinned-box").hidden = !pinned.length;
   $("manches-pinned").replaceChildren(...pinned.map(([id, m]) => mancheCard(id, m)));
   $("manches-list").replaceChildren(...(active.length ? active.map(([id, m]) => mancheCard(id, m))
-    : [h("p", { class: "hint", text: pinned.length ? "Les autres manches s'afficheront ici." : "Aucune manche pour l'instant : « Composer une manche » vous guide." })]));
+    : [h("p", { class: "hint", text: query ? "Aucune de vos manches ne correspond : voir aussi plus bas." : pinned.length ? "Les autres manches s'afficheront ici." : "Aucune manche pour l'instant : « Composer une manche » vous guide." })]));
   $("manches-archived-count").textContent = archived.length;
   $("manches-archived").replaceChildren(...archived.map(([id, m]) => mancheCard(id, m)));
   // Manches déjà placées dans les prestations : on peut les garder comme manches.
   const fromShows = Object.entries(shows).filter(([, s]) => s)
     .sort(([, a], [, b]) => (b.date ?? "").localeCompare(a.date ?? ""))
-    .flatMap(([sid, s]) => foldLegacyFinale(s.rounds).rounds.filter((r) => (r.type ?? "quiz") === type && roundFilled(r)).map((r) => [sid, s, r]));
+    .flatMap(([sid, s]) => foldLegacyFinale(s.rounds).rounds.filter((r) => (r.type ?? "quiz") === type && roundFilled(r)).map((r) => [sid, s, r]))
+    .filter(([, s, r]) => contientTout([showTitle(s), s.date ? dateLabel(s.date) : "", r.title, mancheSummary(r, lib)], query));
+  // Les résultats rangés dans les archives ou les prestations s'ouvrent tout seuls.
+  if (query) {
+    $("manches-archived-box").open = archived.length > 0;
+    $("manches-shows-box").open = fromShows.length > 0;
+  }
+  const n = pinned.length + active.length + archived.length + fromShows.length;
+  $("manche-search-count").textContent = query ? plural(n, "manche trouvée", "manches trouvées") : "";
   $("manches-shows-count").textContent = fromShows.length;
   $("manches-shows").replaceChildren(...fromShows.map(([sid, s, r]) => h("div", { class: "item manche-from-show" },
     h("b", { text: showTitle(s) }),
-    h("span", { text: [s.date ? dateLabel(s.date) : "", mancheSummary(r, { mimes, playlists, quizzes })].filter(Boolean).join(" · ") }),
+    h("span", { text: [s.date ? dateLabel(s.date) : "", mancheSummary(r, lib)].filter(Boolean).join(" · ") }),
     h("div", { class: "row" }, h("button", {
       class: "btn secondary", text: "Garder comme manche",
       onclick: async () => {
@@ -3644,6 +3665,8 @@ function renderGame() {
       },
     })))));
 }
+
+$("manche-search").addEventListener("input", () => renderGame());
 
 /** Carte d'une manche : ce qu'elle contient et ses actions. */
 function mancheCard(id, m) {
