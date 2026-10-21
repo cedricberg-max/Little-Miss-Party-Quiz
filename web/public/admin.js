@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
 import { getAuth, signInAnonymously, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
 import {
-  getDatabase, ref, get, set, update, push, onValue, serverTimestamp, connectDatabaseEmulator,
+  getDatabase, ref, get, set, update, push, onValue, serverTimestamp, connectDatabaseEmulator, query, orderByKey, limitToLast,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { passwordHash, newSalt, cleanPassword, passwordCandidates, MIN_PASSWORD_LENGTH } from "./secret.js";
 import {
@@ -45,6 +45,7 @@ import { ouvrirCadrage } from "./cadrage.js";
 import { FAMILLES_PETITS, BANQUE_MOTS, motBanque, cleMot, cataloguePetits, tirerPetits } from "./banque-petits.js";
 import { parPertinence, contientTout } from "./recherche.js";
 import { GROUPES_IMAGES, A_RANGER, emojisBibliotheque, photosLibres, imagesUtilisees, mesImages, correspond, categoriesDe, categoriesPerso, ficheImage, motsCles } from "./mediatheque.js";
+import { DOSSIERS, classerPartie, bilan, effacements, passageAFaire, moDe, texteMo, texteGardees } from "./nettoyage.js";
 
 // Petit œil sur les champs de mot de passe : voir ce qu'on tape (majuscules, caractère en trop).
 afficherMotsDePasse();
@@ -169,7 +170,7 @@ function show(name, { force = false } = {}) {
   if (name === "music") renderPlaylists();
   if (["quizzes", "mimes", "music", "builtin"].includes(name)) paintCollectionTabs(name);
   if (name !== "playlist-edit") stopPreview();
-  if (name === "settings") showLastChange();
+  if (name === "settings") { showLastChange(); afficherJournal(); }
   noterPage(name, avant);
   return true;
 }
@@ -360,6 +361,8 @@ function enter() {
   stops.push(onValue(ref(db, "boxes/requests"), (s) => { boxRequests = s.val() ?? {}; renderBoxes(); }, (e) => console.error(e)));
   stops.push(onValue(ref(db, "boxes/allowed"), (s) => { boxAllowed = s.val() ?? {}; renderBoxes(); }, (e) => console.error(e)));
   show(current);
+  // Copies des fêtes terminées : effacées en arrière-plan, sans retarder l'ouverture (une fois par heure au plus).
+  setTimeout(passageAutomatique, 1500);
 }
 
 route();
@@ -2467,6 +2470,264 @@ passwordForm({
     status("admin-save-status", "Mot de passe administrateur changé. Les autres appareils devront le saisir à nouveau.", true);
   },
 });
+
+// ---------- Paramètres : nettoyage des copies des fêtes terminées ----------
+
+/*
+ * Les copies des extraits et des photos dans les parties terminées s'effacent toutes seules (cedric, 21/10) : à chaque
+ * ouverture de la Régie PC, une fois par heure au plus, un passage en arrière-plan vérifie chaque partie et chaque copie
+ * (voir nettoyage.js), puis efface seulement les copies vérifiées. Le tout premier passage ne fait que compter (contrôle,
+ * rien d'effacé) ; les suivants effacent. « Vérifier maintenant » montre le détail sans rien effacer.
+ */
+/** Parties lues en même temps : quelques centaines de parties restent rapides sans charger le PC ni la base. */
+const PARTIES_EN_MEME_TEMPS = 4;
+
+/** Adresse de l'API REST de la base de la page (l'émulateur des tests veut en plus le nom de la base). */
+function adresseRest(chemin, params) {
+  const q = new URLSearchParams(params);
+  if (emulator) q.set("ns", new URL(config.databaseURL).hostname.split(".")[0]);
+  const base = emulator ? "http://127.0.0.1:9000" : config.databaseURL.replace(/\/+$/, "");
+  return `${base}/${chemin.split("/").map(encodeURIComponent).join("/")}.json?${q}`;
+}
+
+/**
+ * Clés d'un nœud seulement (« shallow » de l'API REST) : jamais les extraits ni les photos eux-mêmes. Le jeton de
+ * connexion de cet appareil prouve aux règles qu'il est administrateur.
+ */
+async function clesDe(chemin) {
+  const jeton = await auth.currentUser.getIdToken();
+  const reponse = await fetch(adresseRest(chemin, { shallow: "true", auth: jeton }), { cache: "no-store" });
+  if (!reponse.ok) throw new Error(`Lecture refusée (${reponse.status}) : ${chemin}`);
+  const valeur = await reponse.json();
+  return valeur && typeof valeur === "object" ? Object.keys(valeur) : [];
+}
+
+/** Heure du serveur Firebase : l'horloge du PC peut avancer ou retarder. */
+const heureServeur = () => new Promise((ok) => {
+  onValue(ref(db, ".info/serverTimeOffset"), (s) => ok(Date.now() + (Number(s.val()) || 0)), () => ok(Date.now()), { onlyOnce: true });
+});
+
+/** [fn] sur chaque élément, [n] à la fois au plus ; les résultats dans l'ordre. */
+async function parPaquets(elements, n, fn) {
+  const sortie = new Array(elements.length);
+  let suivant = 0;
+  const ouvrier = async () => {
+    while (suivant < elements.length) {
+      const i = suivant++;
+      sortie[i] = await fn(elements[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(n, elements.length) }, ouvrier));
+  return sortie;
+}
+
+/** Une partie : état, dates et titre (de petites valeurs) et les identifiants de ses copies, jamais leur contenu. */
+async function lirePartie(code) {
+  const enfants = new Set(await clesDe(`games/${code}`));
+  const petit = (chemin) => get(ref(db, `games/${code}/${chemin}`)).then((s) => s.val());
+  const si = (enfant, lire) => (enfants.has(enfant) ? lire() : null);
+  const [phase, endedAt, createdAt, title, childName, ...copies] = await Promise.all([
+    si("state", () => petit("state/phase")), si("state", () => petit("state/endedAt")), si("createdAt", () => petit("createdAt")),
+    si("public", () => petit("public/title")), si("public", () => petit("public/childName")),
+    ...DOSSIERS.map((d) => (enfants.has(d) ? clesDe(`games/${code}/${d}`) : [])),
+  ]);
+  return { code, phase, endedAt, createdAt, title, childName, ...Object.fromEntries(DOSSIERS.map((d, i) => [d, copies[i]])) };
+}
+
+/**
+ * Un passage de contrôle : toutes les parties en ligne, chacune classée « à nettoyer » ou « gardée » avec sa raison.
+ * Ne touche à rien. [progres](faites, total) pour l'écran.
+ */
+async function controlerParties(progres = () => {}) {
+  const [codes, sons, images, maintenant] = await Promise.all([clesDe("games"), clesDe("library/sounds"), clesDe("library/images"), heureServeur()]);
+  const bibliotheque = { sounds: new Set(sons), images: new Set(images) };
+  let faites = 0;
+  progres(0, codes.length);
+  return parPaquets(codes, PARTIES_EN_MEME_TEMPS, async (code) => {
+    const partie = await lirePartie(code);
+    progres(++faites, codes.length);
+    return { ...partie, ...classerPartie(partie, { maintenant, bibliotheque }) };
+  });
+}
+
+const dateHeure = (t) => new Date(t).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
+const leA = (t) => `le ${new Date(t).toLocaleDateString("fr-FR")} à ${new Date(t).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
+/**
+ * État d'une partie en clair (cedric, 21/10) : seule la fin notée par la TV compte, jamais la date ni l'archivage de la
+ * prestation.
+ */
+const etatPartie = (r) => (r.phase !== "ended" ? "En cours ou interrompue (reprise possible)"
+  : typeof r.endedAt === "number" ? `Terminée ${leA(r.endedAt)}` : "Terminée (heure de fin inconnue)");
+const nCopies = (n, un, plusieurs) => `${n} ${n > 1 ? plusieurs : un}`;
+
+/** Heure de fin de la partie, sinon de sa création (pour ranger le tableau, les plus récentes d'abord). */
+const quand = (r) => (typeof r.endedAt === "number" ? r.endedAt : typeof r.createdAt === "number" ? r.createdAt : 0);
+
+/** Bilan du contrôle : chiffres, raisons des parties gardées, puis une ligne par partie qui a des copies. */
+function afficherBilan(parties) {
+  const b = bilan(parties);
+  const sansCopie = parties.filter((r) => !DOSSIERS.some((d) => r.copies[d].length)).length;
+  const avec = parties.filter((r) => DOSSIERS.some((d) => r.copies[d].length)).sort((x, y) =>
+    (x.decision === y.decision ? 0 : x.decision === "nettoyer" ? -1 : 1) || quand(y) - quand(x));
+  const chiffre = (n, texte, cle) => h("div", { class: "nettoyage-chiffre", "data-chiffre": cle }, h("b", { text: n }), h("span", { text: texte }));
+  const ligne = (r) => {
+    const date = typeof r.createdAt === "number" ? dateHeure(r.createdAt) : "—";
+    const images = r.copies.images.length + r.copies.choiceImages.length;
+    const cellule = (label, ...contenu) => h("td", { "data-label": label }, h("div", {}, ...contenu));
+    return h("tr", { "data-code": r.code, class: r.decision },
+      cellule("Créée le", date),
+      cellule("Code", h("b", { text: r.code })),
+      cellule("Prestation", [r.title, r.childName].filter((x) => typeof x === "string" && x).join(" · ") || "—"),
+      cellule("État", etatPartie(r)),
+      cellule("Copies", `${nCopies(r.copies.sounds.length, "son", "sons")} · ${nCopies(images, "image", "images")}`),
+      cellule("≈ Mo", texteMo(moDe(r.copies))),
+      cellule("Décision",
+        h("b", { class: "decision", text: r.decision === "nettoyer" ? "À nettoyer" : "Gardée" }),
+        h("small", { class: "raison", text: r.raison }),
+        ...r.notes.map((n) => h("small", { class: "note", text: n }))));
+  };
+  $("nettoyage-bilan").replaceChildren(
+    h("div", { class: "nettoyage-chiffres" },
+      chiffre(b.parties, b.parties > 1 ? "parties en ligne" : "partie en ligne", "parties"),
+      chiffre(b.aNettoyer, "à nettoyer", "a-nettoyer"),
+      chiffre(`≈ ${texteMo(b.mo)}`, "à libérer (environ)", "mo")),
+    b.gardees.length ? h("ul", { class: "nettoyage-raisons" },
+      ...b.gardees.map(([raison, n]) => h("li", { "data-raison": raison }, h("b", { text: `${n} gardée${n > 1 ? "s" : ""}` }), ` : ${raison}`))) : null,
+    b.extraitsGardes ? h("p", { class: "hint small", "data-extraits-gardes": b.extraitsGardes, text: `En tout, ${b.extraitsGardes > 1 ? `${b.extraitsGardes} extraits gardés` : "1 extrait gardé"} : la chanson n'est plus dans la bibliothèque.` }) : null,
+    b.prochain ? h("p", { class: "hint small", text: `Prochaine fête bonne à nettoyer ${leA(b.prochain)}.` }) : null,
+    avec.length ? h("div", { class: "nettoyage-table" }, h("table", {},
+      h("thead", {}, h("tr", {}, ...["Créée le", "Code", "Prestation", "État", "Copies", "≈ Mo", "Décision"].map((t) => h("th", { text: t })))),
+      h("tbody", {}, ...avec.map(ligne)))) : null,
+    sansCopie ? h("p", { class: "hint small", text: "Les parties sans aucune copie ne sont pas dans le tableau." }) : null);
+  $("nettoyage-bilan").hidden = false;
+}
+
+/** « Vérifier maintenant » : le détail partie par partie, sans rien effacer. */
+$("nettoyage-verifier").onclick = async () => {
+  const bouton = $("nettoyage-verifier");
+  bouton.disabled = true;
+  $("nettoyage-bilan").hidden = true;
+  status("nettoyage-status", "Vérification en cours…", true);
+  try {
+    const parties = await controlerParties((faites, total) => status("nettoyage-status", `Vérification en cours : ${faites} / ${total} parties…`, true));
+    afficherBilan(parties);
+    status("nettoyage-status", "Vérification terminée : rien n'a été effacé.", true);
+  } catch (err) {
+    console.error(err);
+    status("nettoyage-status", "Vérification impossible : vérifiez Internet ou reconnectez-vous, puis recommencez.");
+  } finally {
+    bouton.disabled = false;
+  }
+};
+
+/** Efface les copies d'une partie et le note dans le journal, en une seule écriture : tout ou rien. */
+async function nettoyerPartie(r) {
+  const cle = push(ref(db, "maintenance/nettoyages")).key;
+  await update(ref(db), {
+    ...effacements(r.code, r.effacer),
+    [`maintenance/nettoyages/${cle}`]: {
+      at: serverTimestamp(), code: r.code, mo: arrondi(r.mo),
+      sounds: r.effacer.sounds.length, images: r.effacer.images.length, choiceImages: r.effacer.choiceImages.length,
+      ...(r.gardes.length ? { gardes: r.gardes.length } : {}),
+    },
+  });
+}
+
+/** Les [n] dernières entrées d'un journal, les plus récentes d'abord. */
+async function derniers(chemin, n) {
+  const s = await get(query(ref(db, chemin), orderByKey(), limitToLast(n)));
+  const liste = [];
+  s.forEach((x) => { liste.unshift(x.val()); });
+  return liste;
+}
+
+/** Où en est le passage automatique de cette ouverture (montré dans Paramètres). */
+let passageAuto = null;
+let passageLance = false;
+const arrondi = (mo) => Math.round(mo * 100) / 100;
+const INTERROMPU = "Nettoyage automatique interrompu : il sera refait à la prochaine ouverture de la Régie PC.";
+
+/**
+ * Passage automatique, après la connexion, en arrière-plan (l'administration reste utilisable), une fois par heure au
+ * plus : les copies d'une fête partent à la première ouverture après les 24 h. Chaque passage vérifie d'abord toutes
+ * les parties et chaque copie, puis efface exactement les copies vérifiées, partie par partie, avec leur trace dans le
+ * journal. Le tout premier passage (journal vide) est un contrôle : il compte, n'efface rien, et le note. Une erreur
+ * reste dans la console : le passage n'est pas noté et se refait à la prochaine ouverture.
+ */
+async function passageAutomatique() {
+  if (passageLance) return;
+  passageLance = true;
+  try {
+    const [[dernier], maintenant] = await Promise.all([derniers("maintenance/passages", 1), heureServeur()]);
+    if (!passageAFaire(dernier, maintenant)) { passageAuto = "Nettoyage automatique : déjà fait il y a moins d'une heure."; return; }
+    passageAuto = "Nettoyage automatique en cours…";
+    afficherJournal();
+    const parties = await controlerParties();
+    const b = bilan(parties);
+    const trace = { at: serverTimestamp(), parties: parties.length, ...(Object.keys(b.copiesGardees).length ? { gardees: b.copiesGardees } : {}) };
+    if (!dernier) {
+      // Premier passage de contrôle : on compte ce qui serait effacé, rien n'est touché.
+      await set(push(ref(db, "maintenance/passages")), { ...trace, type: "controle", nettoyees: 0, copies: b.copiesAEffacer, mo: arrondi(b.mo) });
+      passageAuto = `Premier passage de contrôle : ${nCopies(b.copiesAEffacer, "copie", "copies")} à effacer, rien effacé. Le nettoyage commence à la prochaine ouverture, dans une heure au moins.`;
+      return;
+    }
+    const faites = [];
+    let refus = 0;
+    for (const r of parties.filter((x) => x.decision === "nettoyer")) {
+      try {
+        await nettoyerPartie(r);
+        faites.push(r);
+      } catch (err) {
+        refus++;
+        console.warn("Copies non effacées, réessai à la prochaine ouverture :", r.code, err);
+      }
+    }
+    if (refus) { passageAuto = INTERROMPU; return; }
+    const mo = faites.reduce((t, r) => t + r.mo, 0);
+    await set(push(ref(db, "maintenance/passages")), { ...trace, type: "nettoyage", nettoyees: faites.length, copies: b.copiesAEffacer, mo: arrondi(mo) });
+    passageAuto = faites.length
+      ? `Nettoyage automatique fait : ${faites.length > 1 ? `${faites.length} parties nettoyées` : "1 partie nettoyée"}, ${nCopies(b.copiesAEffacer, "copie effacée", "copies effacées")}, environ ${texteMo(mo)} libérés.`
+      : "Nettoyage automatique fait : aucune copie à effacer.";
+  } catch (err) {
+    console.warn("Nettoyage des copies remis à la prochaine ouverture :", err);
+    passageAuto = INTERROMPU;
+  } finally {
+    afficherJournal();
+  }
+}
+
+/** Un passage du journal, en clair : date, ce qui a été effacé (ou compté au contrôle), copies gardées et pourquoi. */
+function lignePassage(p) {
+  const fait = p.type === "controle"
+    ? `Contrôle : ${nCopies(p.copies ?? 0, "copie", "copies")} à effacer (environ ${texteMo(p.mo ?? 0)}), rien effacé`
+    : `${nCopies(p.nettoyees ?? 0, "partie nettoyée", "parties nettoyées")}, ${nCopies(p.copies ?? 0, "copie effacée", "copies effacées")}, environ ${texteMo(p.mo ?? 0)} libérés`;
+  const gardees = texteGardees(p.gardees);
+  return h("li", { "data-type": p.type ?? "" },
+    h("b", { text: dateHeure(p.at) }), ` · ${fait} (${nCopies(p.parties ?? 0, "partie vérifiée", "parties vérifiées")})`,
+    gardees ? h("small", { text: `Copies gardées : ${gardees}` }) : null);
+}
+
+/** Lecture du journal la plus récente : seule elle s'affiche (deux ouvertures de Paramètres coup sur coup). */
+let tourJournal = 0;
+/** Journal du nettoyage : où en est cette ouverture, les derniers passages, puis les dernières parties nettoyées. */
+async function afficherJournal() {
+  const box = $("nettoyage-journal");
+  const tour = ++tourJournal;
+  try {
+    const [passages, nettoyages] = await Promise.all([derniers("maintenance/passages", 5), derniers("maintenance/nettoyages", 10)]);
+    if (tour !== tourJournal) return;
+    box.replaceChildren(
+      h("h3", { text: "Derniers passages" }),
+      passageAuto ? h("p", { id: "nettoyage-auto", class: "hint small", text: passageAuto }) : null,
+      h("ul", { class: "nettoyage-passages" }, ...(passages.length ? passages.map(lignePassage) : [h("li", { text: "Aucun passage pour l'instant." })])),
+      nettoyages.length ? h("h3", { text: "Dernières parties nettoyées" }) : null,
+      nettoyages.length ? h("ul", { class: "nettoyage-faits" }, ...nettoyages.map((n) => h("li", { "data-code": n.code, text:
+        `${dateHeure(n.at)} · ${n.code} : ${nCopies(n.sounds, "son", "sons")}, ${nCopies(n.images + n.choiceImages, "image", "images")} effacés · environ ${texteMo(n.mo)}${n.gardes ? ` · ${nCopies(n.gardes, "extrait gardé", "extraits gardés")} (chanson plus dans la bibliothèque)` : ""}` }))) : null);
+    box.hidden = false;
+  } catch (err) {
+    console.warn("Journal du nettoyage illisible :", err);
+  }
+}
 
 // ---------- Prestation de test ----------
 

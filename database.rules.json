@@ -1,6 +1,7 @@
 {
   "rules": {
     "games": {
+      ".read": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
       "$code": {
         ".read": "auth != null && data.child('hostUid').val() === auth.uid",
         ".write": "auth != null && !data.exists() && newData.child('hostUid').val() === auth.uid && (!root.child('boxes/lockOn').exists() || root.child('boxes/allowed').child(auth.uid).exists())",
@@ -237,21 +238,21 @@
         "images": {
           "$id": {
             ".read": "auth != null && (root.child('games').child($code).child('hostUid').val() === auth.uid || root.child('games').child($code).child('regie').child(auth.uid).exists())",
-            ".write": "auth != null && !data.exists() && root.child('games').child($code).child('regie').child(auth.uid).exists()",
+            ".write": "(auth != null && !data.exists() && root.child('games').child($code).child('regie').child(auth.uid).exists()) || (!newData.exists() && auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val() && root.child('games').child($code).child('state/phase').val() === 'ended' && ((root.child('games').child($code).child('state/endedAt').isNumber() && root.child('games').child($code).child('state/endedAt').val() < now - 86400000) || (!root.child('games').child($code).child('state/endedAt').exists() && root.child('games').child($code).child('createdAt').isNumber() && root.child('games').child($code).child('createdAt').val() < now - 172800000)))",
             ".validate": "$id.matches(/^[0-9a-f]{16}$/) && newData.isString() && newData.val().beginsWith('data:image/') && newData.val().length <= 150000"
           }
         },
         "choiceImages": {
           "$id": {
             ".read": "auth != null",
-            ".write": "auth != null && !data.exists() && root.child('games').child($code).child('regie').child(auth.uid).exists()",
+            ".write": "(auth != null && !data.exists() && root.child('games').child($code).child('regie').child(auth.uid).exists()) || (!newData.exists() && auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val() && root.child('games').child($code).child('state/phase').val() === 'ended' && ((root.child('games').child($code).child('state/endedAt').isNumber() && root.child('games').child($code).child('state/endedAt').val() < now - 86400000) || (!root.child('games').child($code).child('state/endedAt').exists() && root.child('games').child($code).child('createdAt').isNumber() && root.child('games').child($code).child('createdAt').val() < now - 172800000)))",
             ".validate": "$id.matches(/^[0-9a-f]{16}$/) && newData.isString() && newData.val().beginsWith('data:image/') && newData.val().length <= 150000"
           }
         },
         "sounds": {
           "$id": {
             ".read": "auth != null && (root.child('games').child($code).child('hostUid').val() === auth.uid || root.child('games').child($code).child('regie').child(auth.uid).exists())",
-            ".write": "auth != null && !data.exists() && root.child('games').child($code).child('regie').child(auth.uid).exists()",
+            ".write": "(auth != null && !data.exists() && root.child('games').child($code).child('regie').child(auth.uid).exists()) || (!newData.exists() && auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val() && root.child('games').child($code).child('state/phase').val() === 'ended' && ((root.child('games').child($code).child('state/endedAt').isNumber() && root.child('games').child($code).child('state/endedAt').val() < now - 86400000) || (!root.child('games').child($code).child('state/endedAt').exists() && root.child('games').child($code).child('createdAt').isNumber() && root.child('games').child($code).child('createdAt').val() < now - 172800000)))",
             ".validate": "$id.matches(/^[0-9a-f]{16}$/) && newData.isString() && newData.val().beginsWith('data:audio/mpeg;base64,') && newData.val().length <= 900000"
           }
         },
@@ -574,6 +575,27 @@
           "$other": {
             ".validate": "$other === 'name' || $other === 'model' || $other === 'at'"
           }
+        }
+      }
+    },
+    "maintenance": {
+      ".read": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val()",
+      "nettoyages": {
+        "$id": {
+          ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val() && !data.exists() && newData.exists()",
+          ".validate": "newData.child('at').val() === now && newData.child('code').isString() && newData.child('code').val().matches(/^[A-Za-z0-9]{1,12}$/) && newData.child('sounds').isNumber() && newData.child('sounds').val() >= 0 && newData.child('sounds').val() <= 10000 && newData.child('images').isNumber() && newData.child('images').val() >= 0 && newData.child('images').val() <= 10000 && newData.child('choiceImages').isNumber() && newData.child('choiceImages').val() >= 0 && newData.child('choiceImages').val() <= 10000 && newData.child('mo').isNumber() && newData.child('mo').val() >= 0 && newData.child('mo').val() <= 100000",
+          "gardes": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000" },
+          "$other": { ".validate": "$other === 'at' || $other === 'code' || $other === 'sounds' || $other === 'images' || $other === 'choiceImages' || $other === 'mo'" }
+        }
+      },
+      "passages": {
+        "$id": {
+          ".write": "auth != null && root.child('settings/admin/hash').isString() && root.child('adminProof').child(auth.uid).child('hash').val() === root.child('settings/admin/hash').val() && !data.exists() && newData.exists()",
+          ".validate": "newData.child('at').val() === now && newData.child('type').isString() && newData.child('type').val().matches(/^(controle|nettoyage)$/) && newData.child('parties').isNumber() && newData.child('parties').val() >= 0 && newData.child('parties').val() <= 100000 && newData.child('nettoyees').isNumber() && newData.child('nettoyees').val() >= 0 && newData.child('nettoyees').val() <= 100000 && newData.child('copies').isNumber() && newData.child('copies').val() >= 0 && newData.child('copies').val() <= 10000000 && newData.child('mo').isNumber() && newData.child('mo').val() >= 0 && newData.child('mo').val() <= 1000000 && (newData.child('type').val() === 'nettoyage' || newData.child('nettoyees').val() === 0)",
+          "gardees": {
+            "$raison": { ".validate": "$raison.matches(/^(enCours|recente|recenteSansFin|sansDate|codeInconnu|orphelins)$/) && newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000" }
+          },
+          "$other": { ".validate": "$other === 'at' || $other === 'type' || $other === 'parties' || $other === 'nettoyees' || $other === 'copies' || $other === 'mo'" }
         }
       }
     },

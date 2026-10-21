@@ -409,6 +409,35 @@ button.item { cursor: pointer; }
 .box-row .box-info small { color: var(--soft); }
 .box-row input { flex: 1 1 180px; }
 .box-row .box-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Nettoyage des copies des fêtes terminées (Paramètres) : toute la largeur ; le tableau devient des fiches sur téléphone. */
+.settings .nettoyage { grid-column: 1 / -1; min-width: 0; }
+.nettoyage h3 { margin: 4px 0 0; color: var(--plum); }
+.nettoyage-bilan, .nettoyage-journal { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.nettoyage-chiffres { display: flex; flex-wrap: wrap; gap: 10px; }
+.nettoyage-chiffre { display: flex; flex-direction: column; gap: 2px; padding: 10px 16px; border-radius: 16px; background: var(--violet-pale); }
+.nettoyage-chiffre b { font-size: 24px; color: var(--plum); }
+.nettoyage-chiffre span { font-size: 14px; color: var(--soft); font-weight: 600; }
+.nettoyage-chiffre[data-chiffre="a-nettoyer"] { background: var(--good-pale); }
+.nettoyage-raisons, .nettoyage-passages, .nettoyage-faits { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; }
+.nettoyage-passages small { display: block; color: var(--soft); font-size: 14px; }
+.nettoyage-table { overflow-x: auto; }
+.nettoyage-table table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.nettoyage-table th, .nettoyage-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.nettoyage-table th { color: var(--soft); font-size: 14px; white-space: nowrap; }
+.nettoyage-table td > div { display: flex; flex-direction: column; gap: 2px; overflow-wrap: break-word; }
+.nettoyage-table td[data-label="Code"], .nettoyage-table td[data-label="≈ Mo"] { white-space: nowrap; }
+.nettoyage-table small { color: var(--soft); }
+.nettoyage-table tr.nettoyer .decision { color: var(--good); }
+.nettoyage-table tr.garder .decision { color: var(--violet); }
+@media (max-width: 640px) {
+  .nettoyage-table thead { display: none; }
+  .nettoyage-table table, .nettoyage-table tbody { display: block; }
+  .nettoyage-table tr { display: block; padding: 10px 12px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: 16px; }
+  .nettoyage-table td { display: flex; gap: 10px; padding: 3px 0; border: 0; }
+  .nettoyage-table td::before { content: attr(data-label); flex: 0 0 84px; color: var(--soft); font-weight: 700; }
+  .nettoyage-table td > div { flex: 1; min-width: 0; }
+}
 .box-alert { display: block; width: 100%; margin: 0 0 16px; padding: 14px 18px; border: 2px solid var(--rose); border-radius: 18px; background: var(--rose-pale); color: var(--ink); font: inherit; font-weight: 800; text-align: left; cursor: pointer; }
 .nav-badge { display: inline-block; min-width: 1.4em; margin-left: 6px; padding: 0 6px; border-radius: 999px; background: var(--bad); color: #fff; font-size: 13px; line-height: 1.5; text-align: center; }
 

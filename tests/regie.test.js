@@ -8,7 +8,7 @@ import { extname, join, normalize } from "node:path";
 import { after, afterEach, before, beforeEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { initializeTestEnvironment } from "@firebase/rules-unit-testing";
-import { ref, get, set, update, onValue, serverTimestamp } from "firebase/database";
+import { ref, get, set, update, push, onValue, serverTimestamp } from "firebase/database";
 import { chromium } from "playwright";
 import { loadRules, seedAdmin, allowBox, ADMIN_PASSWORD } from "./rules-loader.js";
 import { lockedUntil } from "../web/public/show.js";
@@ -4949,6 +4949,248 @@ describe("activation des box", () => {
     await waitFor(async () => (await boxes("requests/pirate")) === null, "demande refusée");
     assert.equal(await boxes("allowed/pirate"), null);
     await page.locator("#box-requests", { hasText: "Aucune demande" }).waitFor();
+    await page.context().close();
+  });
+});
+
+describe("Régie PC : nettoyage des copies des fêtes terminées (cedric, 21/10)", () => {
+  const H = 3600_000;
+  const S1 = "1111111111111111", S2 = "2222222222222222", PERDU = "dddddddddddddddd";
+  const I1 = "aaaaaaaaaaaaaaaa", C1 = "cccccccccccccccc", B1 = "bbbbbbbbbbbbbbbb", B2 = "eeeeeeeeeeeeeeee";
+  const MP3 = "data:audio/mpeg;base64,SUQzBAAAAAAA", JPG = "data:image/jpeg;base64,/9j/4AAQ";
+  /** Prestation archivée toute seule le lendemain de sa date, déjà passée : ne compte jamais pour le nettoyage. */
+  const LEA_ARCHIVEE = { childName: "Léa", age: 7, date: "2026-09-12", status: "archivee", rounds: [{ type: "quiz", quizId: "q" }], updatedAt: 1 };
+  const brut = async (path = "") => {
+    let v;
+    await env.withSecurityRulesDisabled(async (ctx) => { v = (await get(ref(ctx.database(), path))).val(); });
+    return v;
+  };
+  const table = (ids, data) => (ids.length ? Object.fromEntries(ids.map((id) => [id, data])) : undefined);
+  /** Une partie complète (équipes, scores, journal, programme, régie) et ses copies. */
+  const partie = ({ phase = "ended", endedAt, createdAt, title, childName, sounds = [], images = [], choiceImages = [] }) => JSON.parse(JSON.stringify({
+    hostUid: HOST, createdAt, appVersion: "1.0",
+    state: { phase, seq: 7, scores: { rose: 250, bleu: 120 }, endedAt },
+    teams: { rose: { name: "Les Roses", color: "#FF2D8A" }, bleu: { name: "Les Bleus", color: "#2B86C5" } },
+    log: { "000001": { seq: 1, at: 1, type: "game_started" }, "000002": { seq: 2, at: 2, type: "awarded", team: "rose", points: 250 } },
+    conducteur: { id: "lea", title: title ?? "Démo", rev: "r1", questions: [{ id: "q1", text: "Couleur ?", audioId: S1 }] },
+    show: { id: "s1", title: title ?? "Démo", quiz: { questions: [{ text: "Couleur ?" }] }, by: "tel", at: 1 },
+    regie: { tel: { pairedAt: 1, via: "pin" } }, media: { [S1]: "ok" },
+    public: title ? { title, childName } : undefined,
+    sounds: table(sounds, MP3), images: table(images, JPG), choiceImages: table(choiceImages, JPG),
+  }));
+  let fetes;
+  /**
+   * Six parties : une à nettoyer, une terminée il y a 2 h, une interrompue depuis un mois (sa prestation est archivée, sa
+   * date passée, et la partie a été confiée à une autre box), une terminée sans heure de fin il y a plus de 48 h avec un
+   * extrait dont la chanson a quitté la bibliothèque, une sans copie (et REGI2, au salon).
+   */
+  async function seedFetes() {
+    const now = Date.now();
+    fetes = {
+      FETE1: partie({ endedAt: now - 25 * H, createdAt: now - 27 * H, title: "L'anniversaire de Léa", childName: "Léa", sounds: [S1, S2], images: [I1, B1], choiceImages: [C1] }),
+      FETE2: partie({ endedAt: now - 2 * H, createdAt: now - 5 * H, title: "L'anniversaire de Tom", childName: "Tom", sounds: [S1], images: [I1] }),
+      FETE3: { ...partie({ phase: "question", createdAt: now - 30 * 24 * H, sounds: [S2], choiceImages: [C1] }), takeover: { to: "box2", at: now - 29 * 24 * H } },
+      FETE4: partie({ createdAt: now - 49 * H, sounds: [S1, PERDU], images: [B2] }),
+      FETE5: partie({ endedAt: now - 72 * H, createdAt: now - 75 * H }),
+    };
+    fetes.FETE3.show.id = fetes.FETE3.conducteur.id = "lea-sept";
+    await env.withSecurityRulesDisabled((ctx) => update(ref(ctx.database()), {
+      [`library/sounds/${S1}`]: MP3, [`library/sounds/${S2}`]: MP3, [`library/images/${I1}`]: JPG, [`library/images/${C1}`]: JPG, "library/shows/lea-sept": LEA_ARCHIVEE,
+      ...Object.fromEntries(Object.entries(fetes).map(([code, g]) => [`games/${code}`, g])),
+    }));
+    fetes.REGI2 = await brut(`games/${CODE}`);
+  }
+
+  /** Un passage déjà noté dans le journal, [depuis] ms avant maintenant (clé de journal comme celles de la Régie PC). */
+  async function passageNote(depuis, type = "nettoyage") {
+    let cle;
+    await env.withSecurityRulesDisabled((ctx) => {
+      const r = push(ref(ctx.database(), "maintenance/passages"));
+      cle = r.key;
+      return set(r, { at: Date.now() - depuis, type, parties: 6, nettoyees: 0, copies: 7, mo: 2.09 });
+    });
+    return cle;
+  }
+
+  /**
+   * Régie PC ouverte en notant ce qu'elle lit : adresses REST de la base, et chemins lus avec le SDK (trames du
+   * websocket). [context] : le même navigateur qu'avant (déjà reconnu, il entre sans mot de passe).
+   */
+  async function ouvrir(context = null) {
+    context ??= await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const vu = { rest: [], sdk: [] };
+    context.removeAllListeners("page");
+    context.on("page", (p) => {
+      p.on("request", (r) => { if (/:9000\/.*\.json/.test(r.url())) vu.rest.push(r.url()); });
+      p.on("websocket", (ws) => ws.on("framesent", ({ payload }) => {
+        try {
+          const m = JSON.parse(payload);
+          if (["g", "q"].includes(m?.d?.a)) vu.sdk.push(m.d.b.p);
+        } catch { /* trame non JSON */ }
+      }));
+    });
+    const page = await openRegie(context, "?emu=1", "/admin.html");
+    return { page, vu };
+  }
+  const connecter = async (page) => {
+    await page.fill("#admin-password", ADMIN_PASSWORD);
+    await page.click("#login");
+    await page.locator("#screen-home:not([hidden])").waitFor();
+  };
+  /** Rien n'a bougé dans ces parties. */
+  async function intactes(codes) {
+    for (const code of codes) assert.deepEqual(await brut(`games/${code}`), fetes[code], `${code} intacte`);
+  }
+  const passages = async () => Object.values((await brut("maintenance/passages")) ?? {}).sort((a, b) => a.at - b.at);
+  const GARDEES = { enCours: 2, recente: 2, orphelins: 1 };
+  const TEXTE_GARDEES = "Copies gardées : 2 (partie en cours ou interrompue), 2 (terminée depuis moins de 24 h), 1 (chanson plus dans la bibliothèque)";
+
+  /** Après le nettoyage : FETE1 sans copies, FETE4 avec son seul extrait sans chanson ; tout le reste intact. */
+  async function nettoyees() {
+    assert.deepEqual([await brut("games/FETE1/sounds"), await brut("games/FETE1/images"), await brut("games/FETE1/choiceImages")], [null, null, null]);
+    assert.deepEqual(await brut("games/FETE4/sounds"), { [PERDU]: MP3 });
+    assert.equal(await brut("games/FETE4/images"), null);
+    // Tout le reste de ces parties est là : état, scores, journal, équipes, programme, régie, titre.
+    for (const code of ["FETE1", "FETE4"]) {
+      const { sounds, images, choiceImages, ...reste } = fetes[code];
+      const { sounds: s2, images: i2, choiceImages: c2, ...apres } = await brut(`games/${code}`);
+      assert.deepEqual(apres, reste, `${code} : seulement les copies effacées`);
+    }
+    // La partie interrompue (prestation archivée, date passée), celle finie il y a 2 h et les autres : intactes.
+    await intactes(["FETE2", "FETE3", "FETE5", CODE]);
+    assert.deepEqual(await brut("library"), { sounds: { [S1]: MP3, [S2]: MP3 }, images: { [I1]: JPG, [C1]: JPG }, shows: { "lea-sept": LEA_ARCHIVEE } });
+  }
+
+  test("premier passage à l'ouverture : un contrôle qui compte sans rien effacer ; « Vérifier maintenant » montre le détail, sans rien télécharger", async () => {
+    await seedFetes();
+    const { page, vu } = await ouvrir();
+    await connecter(page);
+    await waitFor(async () => (await passages()).length === 1, "premier passage noté", 20000);
+    const [controle] = await passages();
+    assert.deepEqual({ ...controle, at: 0, mo: Math.round(controle.mo * 10) / 10 }, { at: 0, type: "controle", parties: 6, nettoyees: 0, copies: 7, mo: 2.1, gardees: GARDEES });
+    // Rien n'est effacé ni écrit d'autre ; la Régie PC n'a lu que des listes de clés et de petites valeurs.
+    await intactes(["FETE1", "FETE2", "FETE3", "FETE4", "FETE5", CODE]);
+    assert.equal(await brut("maintenance/nettoyages"), null);
+    assert.ok(vu.rest.length >= 9 && vu.rest.every((u) => new URL(u).searchParams.get("shallow") === "true"), `listes de clés seulement : ${vu.rest.join(" ")}`);
+    const lus = () => vu.sdk.map((p) => p.replace(/^\//, "")).filter((p) => p.startsWith("games"));
+    assert.ok(lus().length > 0 && lus().every((p) => /^games\/[A-Z0-9]+\/(state\/phase|state\/endedAt|createdAt|public\/title|public\/childName)$/.test(p)), `petites valeurs seulement : ${lus().join(" ")}`);
+
+    // Paramètres : l'explication, ce que le contrôle a compté et pourquoi des copies restent.
+    await page.click("#nav button[data-screen=settings]");
+    assert.match(await page.locator("#nettoyage-panel .hint").first().textContent(), /à la première ouverture de la Régie PC après les\s+24 h/);
+    await page.locator("#nettoyage-auto", { hasText: "Premier passage de contrôle : 7 copies à effacer, rien effacé." }).waitFor();
+    const ligne = page.locator('.nettoyage-passages li[data-type="controle"]');
+    assert.match(await ligne.innerText(), /^\d\d\/\d\d\/\d{4} \d\d:\d\d · Contrôle : 7 copies à effacer \(environ 2,1 Mo\), rien effacé \(6 parties vérifiées\)\n/);
+    assert.equal(await ligne.locator("small").innerText(), TEXTE_GARDEES);
+
+    await page.click("#nettoyage-verifier");
+    await page.locator("#nettoyage-status", { hasText: "Vérification terminée : rien n'a été effacé." }).waitFor({ timeout: 20000 });
+    const chiffres = await page.locator(".nettoyage-chiffre").evaluateAll((l) => l.map((x) => [x.dataset.chiffre, x.querySelector("b").textContent, x.querySelector("span").textContent]));
+    assert.deepEqual(chiffres, [["parties", "6", "parties en ligne"], ["a-nettoyer", "2", "à nettoyer"], ["mo", "≈ 2,1 Mo", "à libérer (environ)"]]);
+    assert.deepEqual(await page.locator(".nettoyage-raisons li").allInnerTexts(), [
+      "1 gardée : Partie en cours ou interrompue : elle peut encore être reprise",
+      "1 gardée : Terminée depuis moins de 24 h",
+      "2 gardées : Aucune copie à effacer",
+    ]);
+    await page.locator("[data-extraits-gardes='1']", { hasText: "1 extrait gardé : la chanson n'est plus dans la bibliothèque" }).waitFor();
+    // Une ligne par partie qui a des copies : à nettoyer d'abord, puis les plus récentes.
+    const lignes = await page.locator(".nettoyage-table tbody tr").evaluateAll((l) => l.map((tr) => [tr.dataset.code, ...[...tr.cells].map((td) => td.innerText.replace(/\s*\n\s*/g, " | "))]));
+    assert.deepEqual(lignes.map((l) => l[0]), ["FETE1", "FETE4", "FETE2", "FETE3"]);
+    const [fete1, fete4, fete2, fete3] = lignes;
+    const date = /^\d\d\/\d\d\/\d{4} \d\d:\d\d$/;
+    assert.match(fete1[1], date);
+    assert.match(fete1[4], /^Terminée le \d\d\/\d\d\/\d{4} à \d\d:\d\d$/);
+    assert.deepEqual([...fete1.slice(2, 4), ...fete1.slice(5)], ["FETE1", "L'anniversaire de Léa · Léa", "2 sons · 3 images", "1,4 Mo",
+      "À nettoyer | Terminée depuis plus de 24 h | 1 photo de la banque du site ou émoji dessiné : refaits au prochain lancement"]);
+    assert.match(fete4[1], date);
+    assert.deepEqual(fete4.slice(2), ["FETE4", "—", "Terminée (heure de fin inconnue)", "2 sons · 1 image", "1,3 Mo",
+      "À nettoyer | Terminée sans heure de fin, créée il y a plus de 48 h | 1 extrait gardé : la chanson n'est plus dans la bibliothèque | 1 photo de la banque du site ou émoji dessiné : refaits au prochain lancement"]);
+    assert.match(fete2[4], /^Terminée le /);
+    assert.deepEqual(fete2.slice(5), ["1 son · 1 image", "0,7 Mo", "Gardée | Terminée depuis moins de 24 h"]);
+    // Prestation archivée, date passée : la partie n'a jamais été terminée sur la TV, elle reste reprenable.
+    assert.deepEqual(fete3.slice(4), ["En cours ou interrompue (reprise possible)", "1 son · 1 image", "0,6 Mo", "Gardée | Partie en cours ou interrompue : elle peut encore être reprise"]);
+    await capture(page, "nettoyage-verifier-pc");
+    await intactes(["FETE1", "FETE2", "FETE3", "FETE4", "FETE5", CODE]);
+    assert.equal((await passages()).length, 1, "« Vérifier maintenant » n'écrit rien");
+    assert.ok(lus().every((p) => /^games\/[A-Z0-9]+\/(state\/phase|state\/endedAt|createdAt|public\/title|public\/childName)$/.test(p)));
+
+    // Sur un téléphone : des fiches au lieu du tableau, rien ne dépasse de l'écran.
+    await page.setViewportSize({ width: 360, height: 740 });
+    assert.equal(await page.locator(".nettoyage-table thead").isVisible(), false);
+    const deborde = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+    assert.ok(deborde <= 0, `pas de défilement de côté (${deborde} px)`);
+    await capture(page, "nettoyage-verifier-telephone");
+    await page.context().close();
+  });
+
+  test("passages suivants : seules les copies vérifiées des fêtes finies depuis 24 h partent ; une panne ne bloque rien et le passage est refait à l'ouverture suivante", async () => {
+    await seedFetes();
+    await passageNote(2 * 3600_000, "controle");
+    // Première ouverture : la base ne répond pas à la liste des parties.
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const panne = /:9000\/games\.json/;
+    await context.route(panne, (route) => route.abort("internetdisconnected"));
+    const { page } = await ouvrir(context);
+    await connecter(page);
+    await page.click("#nav button[data-screen=settings]");
+    await page.locator("#nettoyage-auto", { hasText: "Nettoyage automatique interrompu : il sera refait à la prochaine ouverture de la Régie PC." }).waitFor({ timeout: 20000 });
+    // L'administration reste utilisable ; rien n'est effacé ni noté.
+    await page.click("#nav button[data-screen=library]");
+    await page.locator("#screen-library:not([hidden])").waitFor();
+    await intactes(["FETE1", "FETE2", "FETE3", "FETE4", "FETE5", CODE]);
+    assert.equal((await passages()).length, 1);
+    assert.equal(await brut("maintenance/nettoyages"), null);
+    await page.close();
+
+    // Ouverture suivante : le passage est refait, et efface cette fois.
+    await context.unroute(panne);
+    const second = await ouvrir(context);
+    await second.page.locator("#screen-home:not([hidden])").waitFor();
+    await waitFor(async () => (await passages()).length === 2, "passage de nettoyage noté", 20000);
+    await nettoyees();
+    const nettoyages = Object.values(await brut("maintenance/nettoyages")).sort((a, b) => a.code.localeCompare(b.code));
+    assert.deepEqual(nettoyages.map(({ at, mo, ...n }) => n), [
+      { code: "FETE1", sounds: 2, images: 2, choiceImages: 1 },
+      { code: "FETE4", sounds: 1, images: 1, choiceImages: 0, gardes: 1 },
+    ]);
+    assert.ok(Math.abs(nettoyages[0].mo - 1.405) < 0.011 && Math.abs(nettoyages[1].mo - 0.68) < 0.011);
+    const [, passage] = await passages();
+    assert.deepEqual({ ...passage, at: 0, mo: Math.round(passage.mo * 10) / 10 }, { at: 0, type: "nettoyage", parties: 6, nettoyees: 2, copies: 7, mo: 2.1, gardees: GARDEES });
+    // Paramètres : les derniers passages et les parties nettoyées.
+    await second.page.click("#nav button[data-screen=settings]");
+    await second.page.locator("#nettoyage-auto", { hasText: "Nettoyage automatique fait : 2 parties nettoyées, 7 copies effacées, environ 2,1 Mo libérés." }).waitFor();
+    const ligne = second.page.locator('.nettoyage-passages li[data-type="nettoyage"]');
+    assert.match(await ligne.innerText(), /^\d\d\/\d\d\/\d{4} \d\d:\d\d · 2 parties nettoyées, 7 copies effacées, environ 2,1 Mo libérés \(6 parties vérifiées\)\n/);
+    assert.equal(await ligne.locator("small").innerText(), TEXTE_GARDEES);
+    assert.deepEqual((await second.page.locator(".nettoyage-faits li").allInnerTexts()).map((t) => t.replace(/^\d\d\/\d\d\/\d{4} \d\d:\d\d · /, "")).sort(), [
+      "FETE1 : 2 sons, 3 images effacés · environ 1,4 Mo",
+      "FETE4 : 1 son, 1 image effacés · environ 0,7 Mo · 1 extrait gardé (chanson plus dans la bibliothèque)",
+    ]);
+    // « Vérifier maintenant » : plus rien à nettoyer, l'extrait sans chanson reste.
+    await second.page.click("#nettoyage-verifier");
+    await second.page.locator("#nettoyage-status", { hasText: "Vérification terminée : rien n'a été effacé." }).waitFor({ timeout: 20000 });
+    await second.page.locator('.nettoyage-chiffre[data-chiffre="a-nettoyer"] b', { hasText: "0" }).waitFor();
+    await second.page.locator(".nettoyage-raisons li", { hasText: "1 gardée : 1 extrait gardé : la chanson n'est plus dans la bibliothèque" }).waitFor();
+    await capture(second.page, "nettoyage-journal");
+    await context.close();
+  });
+
+  test("une fois par heure au plus : une ouverture moins d'une heure après le dernier passage ne lit même pas les parties", async () => {
+    await seedFetes();
+    const cle = await passageNote(30 * 60_000);
+    const { page, vu } = await ouvrir();
+    await connecter(page);
+    await page.click("#nav button[data-screen=settings]");
+    await page.locator("#nettoyage-auto", { hasText: "Nettoyage automatique : déjà fait il y a moins d'une heure." }).waitFor();
+    assert.deepEqual(vu.rest, []);
+    await intactes(["FETE1", "FETE2", "FETE3", "FETE4", "FETE5", CODE]);
+    // Une heure plus tard : la prochaine ouverture nettoie.
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `maintenance/passages/${cle}/at`), Date.now() - 61 * 60_000));
+    const second = await ouvrir(page.context());
+    await second.page.locator("#screen-home:not([hidden])").waitFor();
+    await waitFor(async () => (await passages()).length === 2, "passage d'une heure plus tard noté", 20000);
+    await nettoyees();
+    assert.ok(second.vu.rest.length >= 9);
     await page.context().close();
   });
 });
