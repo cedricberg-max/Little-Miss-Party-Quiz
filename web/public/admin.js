@@ -35,7 +35,7 @@ import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
 import { watchVersion, showUpdateBanner } from "./version.js";
 import { compressImage, imageId, cleanEmoji, CHOICE_IMAGE } from "./illustration.js";
 import { afficherMotsDePasse } from "./oeil.js";
-import { historique, noterEcran } from "./retour.js";
+import { historique, noterEcran, barresRetour, quitterEcran } from "./retour.js";
 import { ouvrirCadrage } from "./cadrage.js";
 import { FAMILLES_PETITS, BANQUE_MOTS, motBanque, cleMot, cataloguePetits, tirerPetits } from "./banque-petits.js";
 import { parPertinence, contientTout } from "./recherche.js";
@@ -130,7 +130,16 @@ function status(id, text, ok = false) {
 }
 
 const SCREENS = ["login", "home", "shows", "show-edit", "library", "game", "manche-edit", "builtin", "quizzes", "import", "review", "settings", "mimes", "mime-edit", "music", "playlist-edit", "banque"];
-function show(name) {
+/** Écran affiché en ce moment. */
+const ecranAffiche = () => SCREENS.find((s) => !$(`screen-${s}`).hidden);
+
+/**
+ * Ouvre un écran. Quitter un écran d'édition aux modifications pas enregistrées demande d'abord (cedric, 21/10) :
+ * renvoie faux si on reste. [force] : sans demander (retour à la connexion).
+ */
+function show(name, { force = false } = {}) {
+  const avant = ecranAffiche();
+  if (avant !== name && !force && !depuisHistorique && !quitterEcran()) return false;
   // Les jeux s'ouvrent depuis leur tuile de l'accueil (cedric) : leurs pages gardent l'onglet Accueil allumé ; les
   // réglages des chansons, l'onglet Bibliothèque.
   if (["home", "library", "settings"].includes(name)) current = name;
@@ -151,6 +160,99 @@ function show(name) {
   if (["quizzes", "mimes", "music", "builtin"].includes(name)) paintCollectionTabs(name);
   if (name !== "playlist-edit") stopPreview();
   if (name === "settings") showLastChange();
+  noterPage(name, avant);
+  return true;
+}
+
+// ---------- Page précédente ----------
+
+/*
+ * Flèche « retour » du navigateur et bouton « ← Retour » des pages d'édition : la page précédente de la Régie PC, au
+ * lieu de quitter le site (cedric, 21/10). Chaque écran ouvert est noté dans l'historique du navigateur, avec de quoi
+ * le rouvrir tel qu'on l'a laissé : la liste, le jeu, l'onglet, et ce qui était en cours d'édition.
+ */
+const pages = [];
+let pageActuelle = -1;
+/** Retour ou avance du navigateur en cours : l'écran rouvert ne fait pas une nouvelle page. */
+let depuisHistorique = false;
+let ignorerRetour = false;
+/** Pages notées depuis l'ouverture de la Régie PC : celles d'avant un rechargement ne sont plus connues. */
+const OUVERTURE = Math.random().toString(36).slice(2);
+
+/** Ce qui est en cours d'édition dans chaque écran d'édition, et comment le rouvrir. */
+const EDITEURS = {
+  "show-edit": { id: () => editing?.id, rouvrir: (id) => shows[id] && editShow(id), parent: "shows" },
+  review: { id: () => draft?.id, rouvrir: (id) => quizzes[id] && review(id, quizzes[id]), parent: "quizzes" },
+  "manche-edit": { id: () => mancheEdit?.id, rouvrir: (id) => manches[id] && editManche(id), parent: "game" },
+  "mime-edit": { id: () => deck?.id, rouvrir: (id) => mimes[id] && editDeck(id), parent: "mimes" },
+  "playlist-edit": { id: () => playlist?.id, rouvrir: (id) => playlists[id] && editPlaylist(id), parent: "music" },
+};
+const contexte = (ecran) => ({ showsEtat, gameType, quizFilter, builtinType, libTab, mediaGroupe, mediaCat, ouvert: EDITEURS[ecran]?.id() ?? null });
+
+function noterPage(name, avant) {
+  if (name === "login") { pages.length = 0; pageActuelle = -1; return; }
+  if (depuisHistorique) return;
+  const page = { ecran: name, ctx: contexte(name) };
+  // Même écran (autre liste, autre onglet) : la page est mise à jour, pas ajoutée.
+  if (pageActuelle >= 0 && pages[pageActuelle].ecran === name) {
+    pages[pageActuelle] = page;
+    return;
+  }
+  // La page quittée garde ce qu'on y a fait depuis (onglet de la bibliothèque, enregistrement d'une nouvelle).
+  if (pageActuelle >= 0 && pages[pageActuelle].ecran === avant) {
+    const quittee = pages[pageActuelle];
+    quittee.ctx = { ...quittee.ctx, libTab, mediaGroupe, mediaCat, ouvert: EDITEURS[avant]?.id() ?? quittee.ctx.ouvert };
+  }
+  pages.length = pageActuelle + 1;
+  pages.push(page);
+  pageActuelle = pages.length - 1;
+  if (pageActuelle === 0) history.replaceState({ page: 0, ouverture: OUVERTURE }, "");
+  else history.pushState({ page: pageActuelle, ouverture: OUVERTURE }, "");
+}
+
+/** Rouvre une page de l'historique telle qu'on l'a laissée. */
+function rouvrirPage({ ecran, ctx }) {
+  depuisHistorique = true;
+  try {
+    ({ showsEtat, gameType, quizFilter, builtinType, libTab, mediaGroupe, mediaCat } = ctx);
+    const editeur = EDITEURS[ecran];
+    if (editeur && ctx.ouvert && editeur.id() !== ctx.ouvert) {
+      // Ce qui était en cours d'édition a été remplacé : on le rouvre tel qu'enregistré (ou sa liste, s'il n'existe plus).
+      if (!editeur.rouvrir(ctx.ouvert)) show(editeur.parent);
+      return;
+    }
+    if (ecran === "builtin" && builtinType) return openBuiltin(builtinType);
+    show(ecran);
+  } finally {
+    depuisHistorique = false;
+  }
+}
+
+window.addEventListener("popstate", (e) => {
+  if (ignorerRetour) { ignorerRetour = false; return; }
+  if ($("nav").hidden) return;
+  const i = e.state?.page;
+  const connue = e.state?.ouverture === OUVERTURE && typeof i === "number" && pages[i];
+  // Modifications pas enregistrées et on reste : le navigateur revient sur la page affichée.
+  if (!quitterEcran()) {
+    if (connue) { ignorerRetour = true; history.go(pageActuelle - i); } else history.pushState({ page: pageActuelle, ouverture: OUVERTURE }, "");
+    return;
+  }
+  if (!connue) {
+    // Page d'avant un rechargement : on revient à l'Accueil (la flèche suivante quitte le site).
+    depuisHistorique = true;
+    try { show("home"); } finally { depuisHistorique = false; }
+    return;
+  }
+  pageActuelle = i;
+  rouvrirPage(pages[i]);
+});
+
+/** « ← Retour » : la page précédente, comme la flèche du navigateur (sinon la page au-dessus, puis l'Accueil). */
+function pagePrecedente() {
+  if (pageActuelle > 0) return history.back();
+  const ecran = ecranAffiche();
+  show(EDITEURS[ecran]?.parent ?? "home");
 }
 document.querySelectorAll("[data-screen]").forEach((b) => { b.onclick = () => show(b.dataset.screen); });
 // Le logo ramène à l'Accueil, comme le bouton « Accueil » du menu (rien avant la connexion).
@@ -174,7 +276,7 @@ async function route() {
   $("nav").hidden = true;
   $("logout").hidden = true;
   $("login").disabled = false;
-  show("login");
+  show("login", { force: true });
   $("admin-password").focus();
 }
 
@@ -288,7 +390,7 @@ function prestationsEtat(etat, today = isoDay()) {
   return etat === "archivee" ? list.reverse() : list;
 }
 
-const COMPTEURS = { avenir: ["anniversaire à venir", "anniversaires à venir"], acompleter: ["à compléter", "à compléter"], archivee: ["archivée", "archivées"] };
+const COMPTEURS = { avenir: ["Anniversaire à venir", "Anniversaires à venir"], acompleter: ["À compléter", "À compléter"], archivee: ["Archivée", "Archivées"] };
 
 function renderHome() {
   for (const [etat, [un, plusieurs]] of Object.entries(COMPTEURS)) {
@@ -336,6 +438,40 @@ function contentLabel(snapshot) {
 $("home-new").onclick = () => editShow(null);
 document.querySelectorAll("#screen-home [data-etat]").forEach((b) => { b.onclick = () => openShows(b.dataset.etat); });
 
+// ---------- Copies ----------
+
+/**
+ * « Dupliquer » fait seulement la copie (cedric, 21/10) : rien ne s'ouvre. La copie apparaît en tête de sa liste, mise
+ * en avant un moment, libre d'être ouverte, renommée, éditée ou rangée.
+ */
+let copie = null; // { id, jusqua }
+const COPIE_MS = 8000;
+const titreCopie = (titre) => `Copie de ${titre}`.slice(0, 120);
+const copieRecente = (id) => (copie?.id === id && Date.now() < copie.jusqua ? " copie-recente" : "");
+/** La copie récente d'abord ; les autres dans leur ordre. */
+const copieEnTete = (list) => [...list.filter(([id]) => copieRecente(id)), ...list.filter(([id]) => !copieRecente(id))];
+
+function signalerCopie(id) {
+  copie = { id, jusqua: Date.now() + COPIE_MS };
+  requestAnimationFrame(() => document.querySelector(".screen:not([hidden]) .copie-recente")?.scrollIntoView({ block: "center", behavior: "smooth" }));
+}
+
+/** Copie d'un élément de la bibliothèque (quiz, collection de cartes, playlist) : l'original ne change pas. */
+async function copierDansBibliotheque(dossier, original) {
+  const { createdAt, updatedAt, ...rest } = original;
+  const id = push(ref(db, `library/${dossier}`)).key;
+  try {
+    await set(ref(db, `library/${dossier}/${id}`), { ...rest, title: titreCopie(original.title), createdAt: Date.now(), updatedAt: serverTimestamp() });
+  } catch (err) {
+    console.error(err);
+    alert("Copie refusée : vérifiez Internet ou reconnectez-vous.");
+    return null;
+  }
+  signalerCopie(id);
+  refreshLists();
+  return id;
+}
+
 // ---------- Prestations ----------
 
 /**
@@ -348,7 +484,7 @@ function showCard(id, s, { accueil = false } = {}) {
   const { snapshot } = buildSnapshot(id, s, quizzes, mimes, Math.random, playlists, contents);
   const date = s.date ? shortDate(s.date) : null;
   // Un clic sur la carte (hors de ses boutons) l'ouvre, comme « Ouvrir ».
-  return h("article", { class: `card show-card ${r.level}`, "data-show": id, onclick: (e) => { if (!e.target.closest("button")) editShow(id); } },
+  return h("article", { class: `card show-card ${r.level}${copieRecente(id)}`, "data-show": id, onclick: (e) => { if (!e.target.closest("button")) editShow(id); } },
     h("div", { class: "date-chip" }, date ? [h("b", { text: `${date.day}` }), h("span", { text: date.month })] : h("span", { text: "sans date" })),
     h("div", { class: "card-body" },
       h("b", { class: "card-title", text: showTitle(s) }),
@@ -362,12 +498,30 @@ function showCard(id, s, { accueil = false } = {}) {
           : h("div", { class: "todo" }, h("span", { class: "pill warn", text: etat === "avenir" ? "⚠ Sur la régie, mais il manque :" : "À compléter" }), h("ul", {}, ...r.todo.map((t) => h("li", { text: t })))),
       h("div", { class: "card-actions" },
         h("button", { class: "btn small", onclick: () => editShow(id), text: "Ouvrir" }),
-        accueil ? null : h("button", { class: "btn small secondary", onclick: () => editShow(null, s), text: "Dupliquer" }),
+        accueil ? null : h("button", { class: "btn small secondary", onclick: () => duplicatePrestation(s), text: "Dupliquer" }),
         h("button", { class: "btn small secondary", onclick: () => rename(`library/shows/${id}`, showTitle(s), "de la prestation"), text: "Renommer" }),
         isArchived(s) && !accueil ? h("button", { class: "btn small secondary", onclick: () => pin(id, !s.pinned), text: s.pinned ? "☆ Désépingler" : "⭐ Épingler" }) : null,
         isArchived(s)
           ? h("button", { class: "btn small secondary", onclick: () => archive(id, s, false), text: "Désarchiver" })
           : h("button", { class: "btn small secondary", onclick: () => archive(id, s, true), text: "Archiver" }))));
+}
+
+/**
+ * Dupliquer une prestation : une copie « À compléter » avec les mêmes manches, sans prénom, âge ni date, nommée
+ * « Copie de … » jusqu'à ce qu'on la complète. L'originale ne change pas. La liste « À compléter » s'ouvre, la copie en tête.
+ */
+async function duplicatePrestation(s) {
+  const id = push(ref(db, "library/shows")).key;
+  const copiee = { ...duplicateShow(s), copieDe: showTitle(s).slice(0, 120), origin: "admin", createdAt: Date.now() };
+  try {
+    await set(ref(db, `library/shows/${id}`), { ...copiee, updatedAt: serverTimestamp() });
+  } catch (err) {
+    console.error(err);
+    return alert("Copie refusée : vérifiez Internet ou reconnectez-vous.");
+  }
+  signalerCopie(id);
+  openShows("acompleter");
+  status("shows-status", `« ${showTitle(copiee)} » est ajoutée ici. Ouvrez-la pour indiquer le prénom, l'âge et la date.`, true);
 }
 
 /** Liste ouverte : « avenir », « acompleter » ou « archivee ». */
@@ -381,6 +535,7 @@ const LISTES = {
 /** Ouvre une liste ; [garderRecherche] : « Aussi trouvé dans » garde le texte cherché. */
 function openShows(etat, garderRecherche = false) {
   if (etat !== showsEtat && !garderRecherche) $("show-search").value = "";
+  status("shows-status", "");
   showsEtat = etat;
   show("shows");
 }
@@ -400,7 +555,7 @@ function renderShows() {
     type: "button", class: `chip${e === etat ? " active" : ""}`, "data-etat": e, text: `${LISTES[e].titre} (${prestationsEtat(e, today).length})`,
     onclick: () => openShows(e),
   })));
-  const list = trouve(etat);
+  const list = copieEnTete(trouve(etat));
   // Archivées : les épinglées (leurs jeux sont proposés en premier dans la régie) en tête.
   const pinned = etat === "archivee" ? list.filter(([, s]) => s.pinned) : [];
   const autres = etat === "archivee" ? list.filter(([, s]) => !s.pinned) : list;
@@ -565,15 +720,15 @@ $("show-profile").append(
 $("show-new").onclick = () => editShow(null);
 $("show-edit-crumb").onclick = () => openShows(showsEtat);
 
-/** Ouvre une prestation ; sans identifiant, une nouvelle, vide ou copiée d'une autre (`from`). */
-function editShow(id, from = null) {
-  const s = id ? shows[id] : from ? duplicateShow(from) : { status: "brouillon", rounds: [] };
+/** Ouvre une prestation ; sans identifiant, une nouvelle. */
+function editShow(id) {
+  const s = id ? shows[id] : { status: "brouillon", rounds: [] };
   // Une ancienne manche « Super Finale » n'est pas un jeu : elle devient le réglage ×2 du quiz qui la précède.
   const { rounds, folded } = foldLegacyFinale(s.rounds);
   // Une ancienne manche « Quiz » de quiz illustrés s'affiche (et s'enregistre) en Quiz illustré.
   editing = { id, rounds: rounds.map((r) => jeuDeLaManche(r, quizzes)) };
-  $("show-edit-title").textContent = id ? showTitle(s) : from ? `Copie de « ${showTitle(from)} »` : "Nouvelle prestation";
-  // Fil d'Ariane : la liste de son état (une nouvelle ou une copie commence « À compléter »).
+  $("show-edit-title").textContent = id ? showTitle(s) : "Nouvelle prestation";
+  // Fil d'Ariane : la liste de son état (une nouvelle commence « À compléter »).
   showsEtat = id ? etatPrestation(s) : "acompleter";
   $("show-edit-crumb").textContent = LISTES[showsEtat].titre;
   $("show-child").value = s.childName ?? "";
@@ -588,18 +743,19 @@ function editShow(id, from = null) {
   $("show-themes").value = s.themes ?? "";
   $("show-notes").value = s.notes ?? "";
   $("show-delete").hidden = !id;
-  status("show-status-msg", from ? "Copie prête : indiquez le prénom, l'âge et la date du nouvel anniversaire, puis enregistrez."
-    : folded ? "L'ancienne manche « Super Finale » est devenue le réglage du quiz (ses dernières questions ×2). Enregistrez pour garder ce changement." : "", !!from || !!folded);
+  status("show-status-msg", s.copieDe && !s.childName ? "Copie : indiquez le prénom, l'âge et la date du nouvel anniversaire, puis enregistrez."
+    : folded ? "L'ancienne manche « Super Finale » est devenue le réglage du quiz (ses dernières questions ×2). Enregistrez pour garder ce changement." : "", !!s.copieDe || !!folded);
   show("show-edit");
   refreshRounds();
   histPrestation.depart();
-  if (from) $("show-child").focus();
+  if (s.copieDe && !s.childName) $("show-child").focus();
 }
 
 /** Champs de la fiche d'une prestation, gardés par « Retour » et « Annuler les modifications ». */
 const SHOW_FIELDS = ["show-child", "show-age", "show-teams", "show-date", "show-status", "show-title", "show-profile", "show-duration", "show-themes", "show-notes"];
 const histPrestation = historique({
   ecran: $("screen-show-edit"),
+  precedent: pagePrecedente,
   capturer: () => ({ rounds: editing?.rounds ?? [], champs: SHOW_FIELDS.map((id) => $(id).value) }),
   restaurer: (e) => {
     SHOW_FIELDS.forEach((id, k) => { $(id).value = e.champs[k]; });
@@ -611,7 +767,7 @@ const histPrestation = historique({
 function formShow() {
   const num = (v) => (v === "" ? null : Number(v));
   return {
-    childName: $("show-child").value.trim(),
+    childName: $("show-child").value.trim() || null,
     age: num($("show-age").value),
     date: $("show-date").value || null,
     status: $("show-status").value,
@@ -1180,8 +1336,8 @@ $("round-reuse").onchange = (e) => {
 $("show-form").onsubmit = async (e) => {
   e.preventDefault();
   const s = formShow();
-  if (!s.childName) return status("show-status-msg", "Indiquez le prénom de l'enfant fêté.");
-  // « À venir » = prête pour la régie (cedric) : s'il manque quelque chose, elle est gardée « À compléter ».
+  // « À compléter » s'enregistre même incomplète (cedric, 21/10). « À venir » = prête pour la régie : s'il manque
+  // quelque chose (prénom, âge, date, jeu prêt), elle est gardée « À compléter » et le message dit quoi.
   // Une date passée le dit aussi (sans cela, elle filerait directement dans les archivées).
   const manque = s.status === "publiee" ? readiness({ ...s, keepActive: true }, quizzes, mimes, playlists, contents).todo : [];
   if (manque.length) {
@@ -1197,12 +1353,14 @@ $("show-form").onsubmit = async (e) => {
       // L'étoile d'une archivée et le « ne plus archiver toute seule » d'une désarchivée ne se perdent pas.
       ...(s.status === "archivee" && prev.pinned ? { pinned: true } : {}),
       ...(s.status !== "archivee" && prev.keepActive ? { keepActive: true } : {}),
+      // Une copie garde le nom de son modèle (« Copie de … ») tant qu'elle n'a ni prénom ni titre.
+      ...(prev.copieDe ? { copieDe: prev.copieDe } : {}),
       updatedAt: serverTimestamp(),
     });
     editing.id = id;
     histPrestation.enregistre();
     $("show-delete").hidden = false;
-    $("show-edit-title").textContent = showTitle(s);
+    $("show-edit-title").textContent = showTitle({ ...s, copieDe: prev.copieDe });
     showsEtat = etatPrestation(s);
     $("show-edit-crumb").textContent = LISTES[showsEtat].titre;
     if (manque.length) status("show-status-msg", `Enregistrée en « À compléter » : pour passer en « À venir », il manque : ${manque.join(" · ")}.`);
@@ -1218,6 +1376,8 @@ $("show-form").onsubmit = async (e) => {
 $("show-delete").onclick = async () => {
   if (!editing?.id || !confirm("Supprimer cette prestation ? Les parties déjà jouées ne changent pas.")) return;
   await set(ref(db, `library/shows/${editing.id}`), null);
+  // Supprimée : ses modifications pas enregistrées partent avec elle, sans autre question.
+  histPrestation.abandonner();
   openShows(showsEtat);
 };
 
@@ -1267,13 +1427,13 @@ function renderQuizzes() {
   document.querySelectorAll(".quizzes-link").forEach((b) => { b.textContent = ROUND_TYPES[gameType] ?? "Quiz"; });
   $("quizzes-h1").textContent = QUIZ_COLLECTIONS[quizFilter] ?? "Tous les quiz";
   if (quizFilter === "images") renderBanqueGalerie();
-  const list = quizFilter ? all.filter(([, q]) => QUIZ_FILTERS[quizFilter](q)) : all;
+  const list = copieEnTete(quizFilter ? all.filter(([, q]) => QUIZ_FILTERS[quizFilter](q)) : all);
   if (!list.length) box.append(h("p", { class: "hint", text: "Aucun quiz pour l'instant : « Créer un quiz » vous guide pas à pas." }));
   list.forEach(([id, q]) => {
     const total = (q.questions ?? []).filter(Boolean).length;
     const ok = playable(q).length;
     const ages = q.ageMin ? `${q.ageMin}${q.ageMax && q.ageMax !== q.ageMin ? ` à ${q.ageMax}` : ""} ans` : "";
-    box.append(h("div", { class: "item", "data-quiz": id, "data-kind": quizKind(q) },
+    box.append(h("div", { class: `item${copieRecente(id)}`, "data-quiz": id, "data-kind": quizKind(q) },
       h("span", { class: "pill", text: QUIZ_KINDS[quizKind(q)] }),
       h("b", { text: q.title }),
       h("span", { text: [q.theme, ages, SOURCES[q.source] ?? ""].filter(Boolean).join(" · ") }),
@@ -1281,18 +1441,11 @@ function renderQuizzes() {
       h("div", { class: "row" },
         h("button", { class: "btn secondary", onclick: () => review(id, q), text: "Éditer" }),
         h("button", { class: "btn secondary", onclick: () => rename(`library/quizzes/${id}`, q.title, "du quiz"), text: "Renommer" }),
-        h("button", { class: "btn secondary", onclick: () => duplicateQuiz(q), text: "Dupliquer" }),
+        h("button", { class: "btn secondary", onclick: () => copierDansBibliotheque("quizzes", q), text: "Dupliquer" }),
         h("button", { class: "btn danger", onclick: () => deleteQuiz(id, q), text: "Supprimer" }))));
   });
 }
 const SOURCES = { banque: "banque des tout-petits", gemini: "texte collé", tableur: "tableur", json: "fichier", saisie: "saisie", photos: "photos" };
-
-/** Copie à relire puis enregistrer comme nouveau quiz : l'original et ses prestations ne changent pas. */
-function duplicateQuiz(q) {
-  const { createdAt, updatedAt, ...rest } = q;
-  review(null, { ...rest, title: `${q.title} (copie)`.slice(0, 120) });
-  status("rv-status", "Copie : modifiez-la puis enregistrez-la, l'original ne change pas.", true);
-}
 
 async function deleteQuiz(id, q) {
   const used = Object.values(shows).filter((s) => (s.rounds ?? []).some((r) => roundQuizIds(r).includes(id))).map(showTitle);
@@ -1321,6 +1474,10 @@ $("quiz-photos").onchange = async () => {
   review(null, { title: "Mes photos", theme: "", source: "photos", kind: "images", questions: kept });
   status("rv-status", `${kept.length} photo${kept.length > 1 ? "s" : ""} prête${kept.length > 1 ? "s" : ""} : vérifiez chaque réponse, puis enregistrez.`, true);
 };
+
+// Créer un quiz et la banque des petits : « ← Retour » en haut et en bas, comme les pages d'édition.
+barresRetour($("screen-import"), pagePrecedente);
+barresRetour($("screen-banque"), pagePrecedente);
 
 $("quiz-import-open").onclick = () => {
   $("import-text").value = "";
@@ -1538,12 +1695,14 @@ function review(id, quiz) {
   status("rv-status", "");
   show("review");
   renderReview();
-  histRelecture.depart();
+  // Un nouveau quiz (importé, photos, banque) n'est pas encore enregistré : le quitter demande d'abord.
+  histRelecture.depart({ nouveau: !id });
 }
 
 const REVIEW_FIELDS = ["rv-title", "rv-theme", "rv-age-min", "rv-age-max"];
 const histRelecture = historique({
   ecran: $("screen-review"),
+  precedent: pagePrecedente,
   capturer: () => ({ questions: draft?.questions ?? [], champs: REVIEW_FIELDS.map((id) => $(id).value) }),
   restaurer: (e) => {
     REVIEW_FIELDS.forEach((id, k) => { $(id).value = e.champs[k]; });
@@ -2326,17 +2485,17 @@ $("test-full-create").onclick = async () => {
 
 function renderMimes() {
   const box = $("mime-list");
-  const list = Object.entries(mimes).sort(([, a], [, b]) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+  const list = copieEnTete(Object.entries(mimes).sort(([, a], [, b]) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0)));
   box.replaceChildren(...list.map(([id, d]) => {
     const cards = (d.cards ?? []).filter(Boolean);
-    return h("div", { class: "item", "data-deck": id },
+    return h("div", { class: `item${copieRecente(id)}`, "data-deck": id },
       h("b", { text: d.title }),
       h("span", { text: `${cards.length} carte${cards.length > 1 ? "s" : ""} · tour de ${d.duration ?? MIME_TURN} s` }),
       h("span", { text: cards.slice(0, 8).map((c) => (c.imageId ? "📷" : c.image ?? c.word)).join(" ") }),
       h("div", { class: "row" },
         h("button", { class: "btn secondary", onclick: () => editDeck(id), text: "Éditer" }),
         h("button", { class: "btn secondary", onclick: () => rename(`library/mimes/${id}`, d.title, "du paquet"), text: "Renommer" }),
-        h("button", { class: "btn secondary", onclick: () => editDeck(null, d), text: "Dupliquer" }),
+        h("button", { class: "btn secondary", onclick: () => copierDansBibliotheque("mimes", d), text: "Dupliquer" }),
         h("button", { class: "btn danger", onclick: () => deleteDeck(id), text: "Supprimer" })));
   }));
   if (!list.length) box.append(h("p", { class: "hint", text: "Aucun paquet pour l'instant : créez-en un en choisissant des images dans le catalogue." }));
@@ -2348,12 +2507,12 @@ const sameCard = (a, b) => a.word.toLowerCase() === b.word.toLowerCase();
 
 $("mime-new").onclick = () => editDeck(null);
 
-/** Ouvre un paquet ; sans identifiant, un nouveau, vide ou copié d'un autre (`from`). */
-function editDeck(id, from = null) {
-  const d = id ? mimes[id] : from ?? {};
+/** Ouvre un paquet ; sans identifiant, un nouveau. */
+function editDeck(id) {
+  const d = id ? mimes[id] : {};
   deck = { id, cards: mimeCards(d.cards) };
-  $("mime-edit-title").textContent = id ? d.title : from ? `Copie de « ${from.title} »` : "Nouvelle collection";
-  $("mime-title").value = from ? `${from.title} (copie)`.slice(0, 120) : d.title ?? "";
+  $("mime-edit-title").textContent = id ? d.title : "Nouvelle collection";
+  $("mime-title").value = d.title ?? "";
   $("mime-duration").value = `${d.duration ?? MIME_TURN}`;
   $("mime-delete").hidden = !id;
   status("mime-status", "");
@@ -2364,6 +2523,7 @@ function editDeck(id, from = null) {
 
 const histPaquet = historique({
   ecran: $("screen-mime-edit"),
+  precedent: pagePrecedente,
   capturer: () => ({ cards: deck?.cards ?? [], title: $("mime-title").value, duration: $("mime-duration").value }),
   restaurer: (e) => {
     if (deck) deck.cards = e.cards;
@@ -2494,7 +2654,9 @@ $("mime-save").onclick = async () => {
 };
 
 $("mime-delete").onclick = async () => {
-  if (deck?.id && await deleteDeck(deck.id)) show("mimes");
+  if (!deck?.id || !await deleteDeck(deck.id)) return;
+  histPaquet.abandonner();
+  show("mimes");
 };
 
 async function deleteDeck(id) {
@@ -2511,17 +2673,17 @@ const mmss = (sec) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).pa
 
 function renderPlaylists() {
   const box = $("playlist-list");
-  const list = Object.entries(playlists).filter(([, p]) => !isStatuesList(p)).sort(([, a], [, b]) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+  const list = copieEnTete(Object.entries(playlists).filter(([, p]) => !isStatuesList(p)).sort(([, a], [, b]) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0)));
   box.replaceChildren(...list.map(([id, p]) => {
     const tracks = playableTracks(p);
-    return h("div", { class: "item", "data-playlist": id },
+    return h("div", { class: `item${copieRecente(id)}`, "data-playlist": id },
       h("b", { text: p.title }),
       h("span", { text: `${tracks.length} morceau${tracks.length > 1 ? "x" : ""} · extraits de ${p.duration ?? BLIND_SEC} s` }),
       h("span", { text: tracks.slice(0, 5).map((t) => t.title).join(" · ") + (tracks.length > 5 ? " …" : "") }),
       h("div", { class: "row" },
         h("button", { class: "btn secondary", onclick: () => editPlaylist(id), text: "Éditer" }),
         h("button", { class: "btn secondary", onclick: () => rename(`library/playlists/${id}`, p.title, "de la playlist"), text: "Renommer" }),
-        h("button", { class: "btn secondary", onclick: () => duplicatePlaylist(id), text: "Dupliquer" }),
+        h("button", { class: "btn secondary", onclick: () => copierDansBibliotheque("playlists", playlists[id]), text: "Dupliquer" }),
         h("button", { class: "btn danger", onclick: () => deletePlaylist(id), text: "Supprimer" })));
   }));
   if (!list.length) box.append(h("p", { class: "hint", text: "Aucune playlist pour l'instant : créez-en une avec vos fichiers musicaux." }));
@@ -2677,6 +2839,7 @@ function editPlaylist(id, fresh = {}) {
 const PLAYLIST_FIELDS = ["playlist-title", "playlist-duration", "playlist-points", "playlist-final-points", "playlist-final-count", "playlist-reveal"];
 const histPlaylist = historique({
   ecran: $("screen-playlist-edit"),
+  precedent: pagePrecedente,
   capturer: () => ({ tracks: playlist?.tracks ?? [], champs: PLAYLIST_FIELDS.map((id) => $(id).value) }),
   restaurer: (e) => {
     stopPreview();
@@ -3044,7 +3207,9 @@ async function followSongs(changed, exceptId) {
 }
 
 $("playlist-delete").onclick = async () => {
-  if (playlist?.id && await deletePlaylist(playlist.id)) show(playlist.use === "statues" ? "game" : "music");
+  if (!playlist?.id || !await deletePlaylist(playlist.id)) return;
+  histPlaylist.abandonner();
+  show(playlist.use === "statues" ? "game" : "music");
 };
 
 async function deletePlaylist(id) {
@@ -3054,13 +3219,6 @@ async function deletePlaylist(id) {
   if (!confirm(`Supprimer ${isStatuesList(playlists[id]) ? "la liste des chansons des statues" : "la playlist"} « ${playlists[id]?.title ?? ""} » ?${warning}`)) return false;
   await set(ref(db, `library/playlists/${id}`), null);
   return true;
-}
-
-/** Copie d'une playlist (mêmes extraits, déjà enregistrés) : l'originale et ses prestations ne changent pas. */
-async function duplicatePlaylist(id) {
-  const { createdAt, updatedAt, ...rest } = playlists[id];
-  const copy = push(ref(db, "library/playlists")).key;
-  await set(ref(db, `library/playlists/${copy}`), { ...rest, title: `${rest.title} (copie)`.slice(0, 120), createdAt: Date.now(), updatedAt: serverTimestamp() });
 }
 
 // ---------- Bibliothèque : images (émojis, photos libres, les siennes) et sons ----------
@@ -3451,6 +3609,8 @@ function openBuiltin(type) {
 /** Page d'un jeu (page du jeu) : chaque touche est enregistrée tout de suite ; Retour et Annuler réenregistrent l'état d'avant. */
 const histJeu = historique({
   ecran: $("screen-builtin"),
+  precedent: pagePrecedente,
+  enregistreSeul: true,
   capturer: () => (builtinType ? builtinState(builtinType) : null),
   restaurer: (e) => { if (builtinType && e) saveBuiltin(builtinType, e, "Modification annulée."); },
 });
@@ -3744,14 +3904,14 @@ $("manche-search").addEventListener("input", () => renderGame());
 function mancheCard(id, m) {
   const path = `library/manches/${id}`;
   const flag = (field, on, message) => saveManche(id, { ...m, [field]: on || null }).then((ok) => ok && status("game-status", message, true));
-  return h("div", { class: `item manche-card${m.pinned ? " pinned" : ""}`, "data-manche": id },
+  return h("div", { class: `item manche-card${m.pinned ? " pinned" : ""}${copieRecente(id)}`, "data-manche": id },
     m.pinned ? h("span", { class: "pill pin", text: "⭐ Épinglée" }) : m.origin === "direct" ? h("span", { class: "pill", text: "Jouée en direct" }) : null,
     h("b", { text: m.title }),
     h("span", { text: mancheSummary(m.round, { mimes, playlists, quizzes }) }),
     h("div", { class: "row" },
       h("button", { class: "btn secondary", text: "Éditer", onclick: () => editManche(id) }),
       h("button", { class: "btn secondary", text: "Renommer", onclick: () => rename(path, m.title, "de la manche") }),
-      h("button", { class: "btn secondary", text: "Dupliquer", onclick: () => editManche(null, { type: m.type, title: `Copie de ${m.title}`.slice(0, 60), round: JSON.parse(JSON.stringify(m.round)) }) }),
+      h("button", { class: "btn secondary", text: "Dupliquer", onclick: () => duplicateManche(m) }),
       m.archived ? null : h("button", { class: "btn secondary", text: m.pinned ? "☆ Désépingler" : "⭐ Épingler", onclick: () => flag("pinned", !m.pinned, m.pinned ? "Manche désépinglée." : "Manche épinglée : elle est proposée en premier.") }),
       h("button", { class: "btn secondary", text: m.archived ? "Désarchiver" : "Archiver", onclick: () => flag("archived", !m.archived, m.archived ? "Manche remise dans vos manches." : "Manche archivée.") }),
       h("button", { class: "btn danger", text: "Supprimer", onclick: () => deleteManche(id, m) })));
@@ -3773,6 +3933,15 @@ async function saveManche(id, m) {
     alert("Enregistrement de la manche refusé : vérifiez Internet ou reconnectez-vous.");
     return null;
   }
+}
+
+/** Copie d'une manche (même contenu, mêmes réglages), parmi les manches du jeu, ni épinglée ni archivée. */
+async function duplicateManche(m) {
+  const id = await saveManche(null, { type: m.type, title: titreCopie(m.title), round: JSON.parse(JSON.stringify(m.round)) });
+  if (!id) return;
+  signalerCopie(id);
+  refreshLists();
+  status("game-status", `« ${titreCopie(m.title)} » est ajoutée à vos manches.`, true);
 }
 
 async function deleteManche(id, m) {
@@ -3818,6 +3987,7 @@ $("manche-random").onclick = () => { editManche(null); drawManche(); };
 
 const histManche = historique({
   ecran: $("screen-manche-edit"),
+  precedent: pagePrecedente,
   capturer: () => (mancheEdit ? { title: $("manche-title").value, round: mancheEdit.round } : null),
   restaurer: (e) => { if (!mancheEdit || !e) return; $("manche-title").value = e.title; mancheEdit.round = e.round; renderMancheFields(); },
 });
@@ -3886,5 +4056,6 @@ $("manche-delete").onclick = async () => {
   const m = manches[mancheEdit.id];
   if (!m || !confirm(`Supprimer la manche « ${m.title} » ?`)) return;
   await set(ref(db, `library/manches/${mancheEdit.id}`), null);
+  histManche.abandonner();
   openGame(mancheEdit.type);
 };

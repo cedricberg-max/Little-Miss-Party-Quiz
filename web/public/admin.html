@@ -51,9 +51,9 @@
       <button id="home-boxes" class="box-alert" type="button" data-screen="settings" hidden></button>
       <div class="stats">
         <!-- Les trois états d'une prestation : chaque compteur ouvre sa liste. -->
-        <button class="stat ready" type="button" data-etat="avenir"><b id="stat-avenir">0</b><span>à venir</span></button>
-        <button class="stat todo" type="button" data-etat="acompleter"><b id="stat-acompleter">0</b><span>à compléter</span></button>
-        <button class="stat archive" type="button" data-etat="archivee"><b id="stat-archivee">0</b><span>archivées</span></button>
+        <button class="stat ready" type="button" data-etat="avenir"><b id="stat-avenir">0</b><span>Anniversaires à venir</span></button>
+        <button class="stat todo" type="button" data-etat="acompleter"><b id="stat-acompleter">0</b><span>À compléter</span></button>
+        <button class="stat archive" type="button" data-etat="archivee"><b id="stat-archivee">0</b><span>Archivées</span></button>
       </div>
       <h2>Prochains anniversaires</h2>
       <div id="home-upcoming" class="cards"></div>
@@ -80,6 +80,7 @@
         <p class="hint small">Leurs jeux sont proposés en premier dans « ＋ Ajouter un jeu » de la régie.</p>
         <div id="show-pinned-list" class="cards"></div>
       </div>
+      <p id="shows-status" class="status" aria-live="polite"></p>
       <div id="show-list" class="cards"></div>
       <p id="show-ailleurs" class="hint"></p>
     </section>
@@ -89,7 +90,7 @@
       <div id="show-ready" class="ready-box"></div>
       <form id="show-form" class="panel">
         <div class="grid">
-          <label>Prénom de l'enfant fêté<input id="show-child" maxlength="40" required></label>
+          <label>Prénom de l'enfant fêté<input id="show-child" maxlength="40"></label>
           <label>Âge<input id="show-age" type="number" min="3" max="99"></label>
           <label>Équipes prévues (devis)
             <select id="show-teams">
