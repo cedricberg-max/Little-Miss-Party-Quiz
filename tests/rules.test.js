@@ -1408,3 +1408,162 @@ describe("manches enregistrées (Régie PC et régie)", () => {
     await assertFails(set(ref(db("sarah"), "library/manches/m5"), manche({ pirate: true })));
   });
 });
+
+describe("nettoyage des copies des fêtes terminées (Régie PC, cedric, 21/10)", () => {
+  const H = 3600_000;
+  const SALT = "sel-de-test-0123456789";
+  const hash = (password) => createHash("sha256").update(`${SALT}:${password}`).digest("hex");
+  const S = "0123456789abcdef", I = "fedcba9876543210", C = "00112233445566ff";
+  const MP3 = "data:audio/mpeg;base64,SUQz", JPG = "data:image/jpeg;base64,/9j/";
+  beforeEach(() => seedAdmin(env, "sarah"));
+
+  /** Partie avec ses copies, sa régie, son journal, ses équipes et son programme, sans passer par les règles. */
+  async function fete(code, { phase = "ended", endedAt, createdAt, paused } = {}) {
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${code}`), {
+      hostUid: HOST, ...(createdAt != null ? { createdAt } : {}),
+      state: { phase, seq: 9, scores: { rose: 300 }, ...(endedAt != null ? { endedAt } : {}), ...(paused ? { paused } : {}) },
+      regie: { tel: { pairedAt: 1, via: "pin" } },
+      teams: { rose: { name: "Les Roses", color: "#FF3CAC" } },
+      log: { 1: { seq: 1, at: 1, type: "game_started" } },
+      conducteur: { id: "lea", title: "Léa", rev: "r1" },
+      show: { id: "s1", title: "Léa", quiz: { questions: [{ text: "?" }] }, by: "tel", at: 1 },
+      public: { title: "L'anniversaire de Léa", childName: "Léa" },
+      sounds: { [S]: MP3 }, images: { [I]: JPG }, choiceImages: { [C]: JPG },
+    }));
+  }
+  const copies = (code) => ({ [`sounds/${S}`]: null, [`images/${I}`]: null, [`choiceImages/${C}`]: null });
+  const effacer = (uid, code) => update(ref(db(uid), `games/${code}`), copies(code));
+  const reste = async (path) => {
+    let v;
+    await env.withSecurityRulesDisabled(async (ctx) => { v = (await get(ref(ctx.database(), path))).val(); });
+    return v;
+  };
+
+  test("la Régie PC liste les parties ; ni la régie, ni la box, ni une équipe, ni un inconnu", async () => {
+    await fete("FETE1", { endedAt: Date.now() - 25 * H });
+    await env.withSecurityRulesDisabled((ctx) => update(ref(ctx.database()), {
+      "settings/regie": { salt: SALT, hash: hash("Licorne-2026"), updatedAt: 1 },
+      "regieProof/mdp": { hash: hash("Licorne-2026"), gateAt: 1, at: 1 },
+    }));
+    await assertSucceeds(get(ref(db("sarah"), "games")));
+    for (const uid of ["tel", "mdp", HOST, "rose", "intrus"]) await assertFails(get(ref(db(uid), "games")));
+    await assertFails(get(ref(db(null), "games")));
+  });
+
+  test("copies effacées 24 h après la fin notée, ou 48 h après la création sans heure de fin", async () => {
+    await fete("FETE1", { endedAt: Date.now() - 25 * H, createdAt: Date.now() - 27 * H });
+    await fete("FETE2", { createdAt: Date.now() - 49 * H });
+    // Une à une, ou toutes ensemble avec le journal (la même écriture que la Régie PC).
+    await assertSucceeds(set(ref(db("sarah"), `games/FETE1/sounds/${S}`), null));
+    await assertSucceeds(update(ref(db("sarah")), {
+      [`games/FETE1/images/${I}`]: null, [`games/FETE1/choiceImages/${C}`]: null,
+      "maintenance/nettoyages/n1": { at: serverTimestamp(), code: "FETE1", sounds: 1, images: 1, choiceImages: 1, mo: 0.73 },
+    }));
+    await assertSucceeds(effacer("sarah", "FETE2"));
+    for (const code of ["FETE1", "FETE2"]) {
+      assert.deepEqual([await reste(`games/${code}/sounds`), await reste(`games/${code}/images`), await reste(`games/${code}/choiceImages`)], [null, null, null]);
+      // Tout le reste de la partie est là : état, scores, journal, équipes, programme, régie.
+      const g = await reste(`games/${code}`);
+      assert.deepEqual(Object.keys(g).sort(), ["conducteur", "hostUid", "log", "public", "regie", "show", "state", "teams", ...(g.createdAt ? ["createdAt"] : [])].sort());
+      assert.equal(g.state.scores.rose, 300);
+    }
+  });
+
+  test("jamais avant : fin il y a 23 h, partie au salon, en question ou en pause même ancienne, sans heure de fin créée il y a 47 h, sans date", async () => {
+    const vieux = Date.now() - 30 * 24 * H;
+    await fete("RECEN", { endedAt: Date.now() - 23 * H, createdAt: vieux });
+    await fete("SALON", { phase: "lobby", endedAt: vieux, createdAt: vieux });
+    await fete("QUEST", { phase: "question", createdAt: vieux });
+    await fete("PAUSE", { phase: "question", paused: true, endedAt: vieux, createdAt: vieux });
+    await fete("JEUNE", { createdAt: Date.now() - 47 * H });
+    await fete("NODAT", {});
+    for (const code of ["RECEN", "SALON", "QUEST", "PAUSE", "JEUNE", "NODAT"]) {
+      await assertFails(effacer("sarah", code));
+      await assertFails(set(ref(db("sarah"), `games/${code}/sounds/${S}`), null));
+      assert.equal(await reste(`games/${code}/sounds/${S}`), MP3, `${code} : copie gardée`);
+    }
+    // Heure de fin plus récente que 24 h, même si la partie a été créée il y a longtemps : c'est la fin qui compte.
+    await assertFails(set(ref(db("sarah"), `games/RECEN/choiceImages/${C}`), null));
+  });
+
+  test("une prestation archivée dont la date est passée ne compte pas : sa partie interrompue garde ses copies", async () => {
+    // Seul l'état de la partie compte (fin définitive notée par la TV), jamais le statut ni la date de la prestation.
+    const vieux = Date.now() - 60 * 24 * H;
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), "library/shows/vieille"),
+      { childName: "Léa", date: "2026-08-20", status: "archivee", rounds: [{ type: "quiz", quizId: "q" }], updatedAt: 1 }));
+    await fete("INTER", { phase: "question", createdAt: vieux });
+    await env.withSecurityRulesDisabled((ctx) => update(ref(ctx.database(), "games/INTER"), { "show/id": "vieille", "conducteur/id": "vieille", takeover: { to: "box2", at: 1 } }));
+    await assertFails(effacer("sarah", "INTER"));
+    for (const path of [`sounds/${S}`, `images/${I}`, `choiceImages/${C}`]) await assertFails(set(ref(db("sarah"), `games/INTER/${path}`), null));
+    assert.equal(await reste(`games/INTER/sounds/${S}`), MP3);
+  });
+
+  test("la Régie PC n'écrit jamais une copie, ni rien d'autre de la partie, même terminée depuis longtemps", async () => {
+    await fete("FETE1", { endedAt: Date.now() - 25 * H, createdAt: Date.now() - 27 * H });
+    await assertFails(set(ref(db("sarah"), `games/FETE1/sounds/${S}`), MP3 + "AA"));
+    await assertFails(set(ref(db("sarah"), "games/FETE1/sounds/aaaaaaaaaaaaaaaa"), MP3));
+    await assertFails(set(ref(db("sarah"), "games/FETE1/images/aaaaaaaaaaaaaaaa"), JPG));
+    // Tout un dossier ou toute la partie d'un coup : refusé (une copie à la fois, chacune vérifiée).
+    await assertFails(set(ref(db("sarah"), "games/FETE1/sounds"), null));
+    await assertFails(set(ref(db("sarah"), "games/FETE1"), null));
+    for (const path of ["state", "state/phase", "state/endedAt", "log", "log/1", "teams", "teams/rose", "conducteur", "show", "public", "regie/tel", "hostUid", "createdAt"]) {
+      await assertFails(set(ref(db("sarah"), `games/FETE1/${path}`), null));
+    }
+    await assertFails(set(ref(db("sarah"), "games/FETE1/state/endedAt"), 1));
+    await assertFails(set(ref(db("sarah"), "games/FETE1/state/phase"), "ended"));
+    // Une copie avec autre chose dans la même écriture : tout est refusé.
+    await assertFails(update(ref(db("sarah"), "games/FETE1"), { [`sounds/${S}`]: null, "log/1": null }));
+    assert.equal(await reste(`games/FETE1/sounds/${S}`), MP3);
+  });
+
+  test("ni la régie, ni la box, ni une équipe n'effacent les copies ; la bibliothèque garde ses règles", async () => {
+    await fete("FETE1", { endedAt: Date.now() - 25 * H });
+    await env.withSecurityRulesDisabled((ctx) => update(ref(ctx.database()), {
+      [`library/sounds/${S}`]: MP3,
+      "settings/regie": { salt: SALT, hash: hash("Licorne-2026"), updatedAt: 1 },
+      "regieProof/mdp": { hash: hash("Licorne-2026"), gateAt: 1, at: 1 },
+    }));
+    for (const uid of ["tel", "mdp", HOST, "rose", "intrus"]) {
+      await assertFails(effacer(uid, "FETE1"));
+      await assertFails(set(ref(db(uid), `library/sounds/${S}`), null));
+    }
+    assert.equal(await reste(`games/FETE1/sounds/${S}`), MP3);
+    // La régie continue de copier une seule fois ; l'administration ne remplace pas un original rangé.
+    await assertFails(set(ref(db("tel"), `games/FETE1/sounds/${S}`), MP3));
+    await assertSucceeds(set(ref(db("tel"), "games/FETE1/sounds/aaaaaaaaaaaaaaaa"), MP3));
+    await assertFails(set(ref(db("sarah"), `library/sounds/${S}`), MP3 + "AA"));
+  });
+
+  test("journal du nettoyage : écrit et lu par la Régie PC seule, jamais réécrit ni effacé, bien formé", async () => {
+    const entree = (extra = {}) => ({ at: serverTimestamp(), code: "FETE1", sounds: 2, images: 1, choiceImages: 0, mo: 1.28, ...extra });
+    const passage = (extra = {}) => ({ at: serverTimestamp(), type: "nettoyage", parties: 6, nettoyees: 2, copies: 7, mo: 2.05, ...extra });
+    await assertSucceeds(set(ref(db("sarah"), "maintenance/nettoyages/n1"), entree({ gardes: 1 })));
+    // Premier passage : un contrôle, qui n'a rien nettoyé ; puis les nettoyages, avec les copies gardées par raison.
+    await assertSucceeds(set(ref(db("sarah"), "maintenance/passages/p1"), passage({ type: "controle", nettoyees: 0, gardees: { enCours: 2, recente: 2, orphelins: 1 } })));
+    await assertSucceeds(set(ref(db("sarah"), "maintenance/passages/p2"), passage()));
+    await assertSucceeds(get(ref(db("sarah"), "maintenance")));
+    // Jamais réécrit ni effacé.
+    await assertFails(set(ref(db("sarah"), "maintenance/nettoyages/n1"), entree()));
+    await assertFails(set(ref(db("sarah"), "maintenance/nettoyages/n1"), null));
+    await assertFails(set(ref(db("sarah"), "maintenance/passages/p1"), null));
+    // Mal formé : heure du PC, champ en plus ou manquant, nombres faux, code étrange.
+    for (const bad of [entree({ at: 1 }), entree({ pirate: true }), entree({ sounds: -1 }), entree({ mo: "1" }), entree({ code: "../x" }), entree({ gardes: "1" })]) {
+      await assertFails(set(ref(db("sarah"), "maintenance/nettoyages/n2"), bad));
+    }
+    const { images, ...sansImages } = entree();
+    await assertFails(set(ref(db("sarah"), "maintenance/nettoyages/n2"), sansImages));
+    for (const bad of [passage({ pirate: 1 }), passage({ at: 1 }), passage({ type: "autre" }), passage({ type: "controle" }), passage({ copies: -1 }),
+      passage({ gardees: { pirate: 1 } }), passage({ gardees: { enCours: "2" } })]) {
+      await assertFails(set(ref(db("sarah"), "maintenance/passages/p3"), bad));
+    }
+    const { type, ...sansType } = passage();
+    await assertFails(set(ref(db("sarah"), "maintenance/passages/p3"), sansType));
+    // Personne d'autre.
+    for (const uid of ["tel", HOST, "intrus"]) {
+      await assertFails(get(ref(db(uid), "maintenance")));
+      await assertFails(get(ref(db(uid), "maintenance/nettoyages/n1")));
+      await assertFails(set(ref(db(uid), "maintenance/nettoyages/n3"), entree()));
+      await assertFails(set(ref(db(uid), "maintenance/passages/p4"), passage()));
+    }
+  });
+});

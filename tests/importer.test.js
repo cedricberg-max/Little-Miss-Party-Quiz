@@ -2028,3 +2028,86 @@ describe("recherche « filtre » : les meilleurs résultats d'abord, rien de cac
     assert.ok(!R.contientTout(["Mimes de Léa"], "lea chat"));
   });
 });
+
+describe("nettoyage des copies des fêtes terminées (Régie PC, cedric, 21/10)", async () => {
+  const N = await import("../web/public/nettoyage.js");
+  const H = 3600_000;
+  const MAINTENANT = Date.parse("2026-10-21T12:00:00Z");
+  const S1 = "1111111111111111", S2 = "2222222222222222", PERDU = "dddddddddddddddd";
+  const I1 = "aaaaaaaaaaaaaaaa", BANQUE = "bbbbbbbbbbbbbbbb", C1 = "cccccccccccccccc";
+  const bibliotheque = { sounds: new Set([S1, S2]), images: new Set([I1, C1]) };
+  const classer = (partie) => N.classerPartie({ code: "FETE1", sounds: [S1], images: [I1], choiceImages: [C1], ...partie }, { maintenant: MAINTENANT, bibliotheque });
+
+  test("24 h après la fin notée, ou 48 h après la création sans heure de fin ; jamais une partie en cours ou interrompue", () => {
+    const fin = classer({ phase: "ended", endedAt: MAINTENANT - 25 * H, createdAt: MAINTENANT - 28 * H });
+    assert.equal(fin.decision, "nettoyer");
+    assert.equal(fin.raison, "Terminée depuis plus de 24 h");
+    assert.deepEqual(fin.effacer, { sounds: [S1], images: [I1], choiceImages: [C1] });
+    assert.equal(classer({ phase: "ended", createdAt: MAINTENANT - 49 * H }).raison, "Terminée sans heure de fin, créée il y a plus de 48 h");
+    // Gardées, avec la raison en clair ; une fête terminée dit quand elle deviendra bonne à nettoyer.
+    const recente = classer({ phase: "ended", endedAt: MAINTENANT - 23 * H, createdAt: MAINTENANT - 100 * H });
+    assert.deepEqual([recente.decision, recente.raison, recente.mo], ["garder", "Terminée depuis moins de 24 h", 0]);
+    assert.equal(recente.prochain, MAINTENANT + H + N.MARGE_MS);
+    assert.equal(classer({ phase: "ended", createdAt: MAINTENANT - 47 * H }).raison, "Terminée sans heure de fin, créée il y a moins de 48 h");
+    for (const phase of ["lobby", "question", "reveal", null]) {
+      const r = classer({ phase, endedAt: MAINTENANT - 30 * 24 * H, createdAt: MAINTENANT - 31 * 24 * H });
+      assert.deepEqual([r.decision, r.raison, r.prochain], ["garder", "Partie en cours ou interrompue : elle peut encore être reprise", null], `phase ${phase}`);
+    }
+    // Prestation archivée, date passée depuis longtemps : sans fin notée par la TV, la partie reste reprenable.
+    assert.equal(classer({ phase: "question", createdAt: MAINTENANT - 90 * 24 * H, status: "archivee", date: "2026-07-01", takeover: { to: "box2" } }).raison,
+      "Partie en cours ou interrompue : elle peut encore être reprise");
+    assert.equal(classer({ phase: "ended" }).raison, "Terminée sans date lisible : gardée par prudence");
+    assert.equal(classer({ phase: "ended", endedAt: "hier", createdAt: MAINTENANT - 100 * H }).decision, "garder");
+    assert.equal(classer({ phase: "ended", endedAt: MAINTENANT - 25 * H, sounds: [], images: [], choiceImages: [] }).raison, "Aucune copie à effacer");
+    // Juste à la limite : la marge laisse au serveur le temps de la trouver assez ancienne lui aussi.
+    assert.equal(classer({ phase: "ended", endedAt: MAINTENANT - 24 * H - 60_000 }).decision, "garder");
+  });
+
+  test("seulement ce qu'un prochain lancement refera : un extrait dont la chanson a quitté la bibliothèque est gardé", () => {
+    const r = classer({ phase: "ended", endedAt: MAINTENANT - 30 * H, sounds: [S1, PERDU], images: [I1, BANQUE], choiceImages: [C1] });
+    assert.equal(r.decision, "nettoyer");
+    assert.deepEqual(r.effacer, { sounds: [S1], images: [I1, BANQUE], choiceImages: [C1] });
+    assert.deepEqual(r.gardes, [PERDU]);
+    assert.deepEqual(r.notes, ["1 extrait gardé : la chanson n'est plus dans la bibliothèque",
+      "1 photo de la banque du site ou émoji dessiné : refaits au prochain lancement"]);
+    assert.equal(r.mo, N.MO_MOYEN.sounds + 2 * N.MO_MOYEN.images + N.MO_MOYEN.choiceImages);
+    // Rien d'autre que des extraits orphelins : la partie est gardée, pour cette raison.
+    const seuls = classer({ phase: "ended", endedAt: MAINTENANT - 30 * H, sounds: [PERDU, "eeeeeeeeeeeeeeee"], images: [], choiceImages: [] });
+    assert.deepEqual([seuls.decision, seuls.raison, seuls.gardes.length], ["garder", "2 extraits gardés : la chanson n'est plus dans la bibliothèque", 2]);
+    // Un code que le journal refuserait : gardée.
+    assert.equal(classer({ code: "A.B", phase: "ended", endedAt: MAINTENANT - 30 * H }).raison, "Code de partie inattendu : gardée par prudence");
+  });
+
+  test("bilan : parties, à nettoyer, Mo environ, gardées par raison, extraits gardés ; une seule écriture par partie", () => {
+    const parties = [
+      classer({ phase: "ended", endedAt: MAINTENANT - 30 * H }),
+      classer({ phase: "ended", createdAt: MAINTENANT - 50 * H, sounds: [S1, PERDU], images: [], choiceImages: [] }),
+      classer({ phase: "ended", endedAt: MAINTENANT - 2 * H }),
+      classer({ phase: "question" }),
+      classer({ phase: "lobby", sounds: [], images: [], choiceImages: [] }),
+      classer({ phase: "ended", endedAt: MAINTENANT - 2 * H, sounds: [], images: [], choiceImages: [] }),
+    ];
+    const b = N.bilan(parties);
+    assert.deepEqual({ ...b, mo: Math.round(b.mo * 1000) / 1000 }, {
+      parties: 6, aNettoyer: 2, copiesAEffacer: 4, mo: Math.round((2 * N.MO_MOYEN.sounds + N.MO_MOYEN.images + N.MO_MOYEN.choiceImages) * 1000) / 1000,
+      gardees: [["Partie en cours ou interrompue : elle peut encore être reprise", 1], ["Terminée depuis moins de 24 h", 1], ["Aucune copie à effacer", 2]],
+      copiesGardees: { enCours: 3, recente: 3, orphelins: 1 },
+      extraitsGardes: 1, prochain: MAINTENANT + 22 * H + N.MARGE_MS,
+    });
+    // Journal : les copies gardées en clair, dans l'ordre des raisons.
+    assert.equal(N.texteGardees(b.copiesGardees), "3 (partie en cours ou interrompue), 3 (terminée depuis moins de 24 h), 1 (chanson plus dans la bibliothèque)");
+    assert.equal(N.texteGardees({ pirate: 2 }), "");
+    assert.deepEqual(N.effacements("FETE1", parties[0].effacer), {
+      [`games/FETE1/sounds/${S1}`]: null, [`games/FETE1/images/${I1}`]: null, [`games/FETE1/choiceImages/${C1}`]: null,
+    });
+    assert.equal(N.texteMo(1.3449), "1,3 Mo");
+    assert.equal(N.texteMo(0.02), "moins de 0,1 Mo");
+    assert.equal(N.texteMo(0), "0,0 Mo");
+  });
+
+  test("passage automatique à l'ouverture : une fois par heure au plus, le premier quand le journal est vide", () => {
+    assert.equal(N.passageAFaire(undefined, MAINTENANT), true);
+    assert.equal(N.passageAFaire({ at: MAINTENANT - 59 * 60_000 }, MAINTENANT), false);
+    assert.equal(N.passageAFaire({ at: MAINTENANT - H }, MAINTENANT), true);
+  });
+});

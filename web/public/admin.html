@@ -592,6 +592,23 @@
       <button id="test-blind-demo" class="btn" type="button">🎵 Blind test démo avec mes chansons</button>
       <p id="test-blind-status" class="status"></p>
       </div>
+
+      <!-- Copies des extraits et des photos dans les parties terminées : contrôle, puis effacement 24 h après la fin. -->
+      <div class="panel nettoyage" id="nettoyage-panel">
+      <h2>Nettoyage des copies des fêtes terminées</h2>
+      <p class="hint">
+        Au lancement d'une fête, la régie copie dans la partie les extraits et les photos dont la TV a besoin. Ces copies
+        s'effacent toutes seules 24 h après la fin de la fête sur la TV, à la première ouverture de la Régie PC après les
+        24 h. Seules les copies partent : la bibliothèque, les prestations, les scores et les journaux des parties ne sont
+        jamais touchés, une partie interrompue garde tout, et une prestation relancée refait ses copies toute seule à
+        partir des originaux.
+      </p>
+      <p class="hint small">« Vérifier maintenant » montre le détail partie par partie, sans rien effacer.</p>
+      <button id="nettoyage-verifier" class="btn secondary" type="button">Vérifier maintenant</button>
+      <p id="nettoyage-status" class="status"></p>
+      <div id="nettoyage-bilan" class="nettoyage-bilan" hidden></div>
+      <div id="nettoyage-journal" class="nettoyage-journal" hidden></div>
+      </div>
       </div>
     </section>
   </main>
