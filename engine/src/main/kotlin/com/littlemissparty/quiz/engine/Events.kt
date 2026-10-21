@@ -102,7 +102,8 @@ data class ChestsDealt(
 
 /**
  * Les coffres mystères : l'équipe [team] ouvre le coffre [chest]. Son contenu, tiré au sort par la box à cet instant, est
- * inscrit ici une fois pour toutes : [delta] = points comptés (malus réduit au score), [bomb] = c'était la bombe.
+ * inscrit ici une fois pour toutes : [delta] = points comptés (malus réduit au score), [bomb] = c'était la bombe,
+ * [gold] = c'était le coffre en or.
  */
 data class ChestOpened(
     override val seq: Int,
@@ -112,6 +113,7 @@ data class ChestOpened(
     val chest: Int,
     val delta: Int,
     val bomb: Boolean,
+    val gold: Boolean = false,
 ) : GameEvent
 
 /** Correction manuelle d'un score (régie). */
@@ -203,13 +205,24 @@ data class StatuesWon(override val seq: Int, override val at: Long, val team: St
  */
 data class BalloonBurst(override val seq: Int, override val at: Long, val qid: String, val team: String, val teams: List<String>) : GameEvent
 
-/** « Ça va exploser ! » : la mèche s'allume ([fuseMs], tirée au sort), la bombe part de [holder] ; [teams] jouent. */
-data class PotatoLit(override val seq: Int, override val at: Long, val qid: String, val holder: String, val fuseMs: Long, val teams: List<String>) : GameEvent
+/**
+ * « Ça va exploser ! » : la mèche de la bombe n° [bomb] s'allume ([fuseMs], tirée au sort), la bombe part de [holder] ;
+ * [teams] jouent.
+ */
+data class PotatoLit(
+    override val seq: Int,
+    override val at: Long,
+    val qid: String,
+    val holder: String,
+    val fuseMs: Long,
+    val teams: List<String>,
+    val bomb: Int = 1,
+) : GameEvent
 
 /** « Ça va exploser ! » : [from] envoie la bombe à [to]. */
 data class PotatoPassed(override val seq: Int, override val at: Long, val qid: String, val from: String, val to: String) : GameEvent
 
-/** « Ça va exploser ! » : la bombe explose chez [holder] ; révélation. */
+/** « Ça va exploser ! » : la bombe explose chez [holder] ; après la dernière bombe, révélation. */
 data class PotatoExploded(override val seq: Int, override val at: Long, val qid: String, val holder: String) : GameEvent
 
 data class BuzzJudged(override val seq: Int, override val at: Long, val ok: Boolean, val bonus: Boolean = false) : GameEvent

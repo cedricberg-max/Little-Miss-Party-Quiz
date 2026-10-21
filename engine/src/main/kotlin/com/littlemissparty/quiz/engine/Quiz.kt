@@ -89,8 +89,9 @@ enum class QuestionKind(val code: String) {
     /**
      * Les coffres mystères : des coffres ouverts chacun son tour, depuis la tablette de l'équipe qui joue. Chaque coffre
      * cache un bonus ou un malus, tiré au sort par la box à son ouverture. Après quelques tours sans danger, une bombe
-     * se cache dans un des coffres restants : l'équipe qui l'ouvre perd [BOMB_POINTS] points et le jeu s'arrête.
-     * Rien à préparer : ni propositions ni valeurs, tout se décide au hasard pendant la partie.
+     * se cache dans un des coffres restants, avec un coffre en or ([GOLD_POINTS]) : l'équipe qui ouvre la bombe perd
+     * [BOMB_POINTS] points et le jeu s'arrête. Rien à préparer : ni propositions ni valeurs, tout se décide au hasard
+     * pendant la partie.
      */
     COFFRES("coffres"),
 

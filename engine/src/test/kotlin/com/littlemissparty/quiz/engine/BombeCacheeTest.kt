@@ -49,7 +49,7 @@ class BombeCacheeTest {
         val d = g.dealChests(equipes, t0 + 7_000) as ChestsDealt
         assertEquals(listOf("dragons", "licornes"), d.order, "les Dragons (0 point) commencent")
         assertEquals(chestCount(2), d.count)
-        assertEquals(10, d.count)
+        assertEquals(14, d.count, "6 coffres sans danger, puis 8 coffres fermés quand la bombe arrive")
         assertEquals(6, d.safe, "3 tours sans danger à 2 équipes")
         assertNull(g.dealChests(equipes, t0 + 7_100), "une seule distribution")
         assertEquals("dragons", g.chestRound!!.team)
@@ -75,6 +75,9 @@ class BombeCacheeTest {
             val r = g.chestRound!!
             assertTrue(r.exploded, "la partie se termine toujours sur la bombe")
             assertEquals(1, r.opened.count { it.bomb })
+            assertTrue(r.opened.count { it.gold } <= 1, "un seul coffre en or")
+            r.opened.filter { it.gold }.forEach { assertEquals(GOLD_POINTS, it.delta) }
+            assertTrue(r.opened.take(r.safe).none { it.gold }, "pas de coffre en or pendant les tours sans danger")
             assertEquals(Phase.REVEAL, g.state.phase, "bilan")
             assertTrue(g.state.scores().values.all { it >= 0 }, "jamais sous 0")
         }
@@ -109,12 +112,12 @@ class BombeCacheeTest {
         g.dealChests(equipes, t0 + 7_000)
         val premier = g.ouvrir()
         val r = g.chestRound!!
-        assertEquals(premier.at + CHEST_SHOW_MS, r.readyAt)
+        assertEquals(premier.at + CHEST_SHOW_MS + CHEST_RANKING_MS, r.readyAt, "l'ouverture, puis le classement")
         assertNull(g.openChest(r.team!!, r.closed.first(), r.readyAt - 1_000), "trop tôt : l'animation n'est pas finie")
         repeat(r.safe - 1) { g.ouvrir() }
         val dernier = g.chestRound!!.opened.last()
         assertTrue(g.chestRound!!.danger)
-        assertEquals(dernier.at + CHEST_SHOW_MS + BOMB_ALERT_MS, g.chestRound!!.readyAt, "le temps de l'annonce")
+        assertEquals(dernier.at + CHEST_SHOW_MS + CHEST_RANKING_MS + BOMB_ALERT_MS, g.chestRound!!.readyAt, "le temps de l'annonce")
     }
 
     @Test
@@ -192,18 +195,87 @@ class BombeCacheeTest {
     }
 
     @Test
-    fun `de 1 à 8 équipes, assez de coffres pour finir sur la bombe`() {
+    fun `de 1 à 8 équipes, la bombe et le coffre en or restent noyés parmi au moins 8 coffres`() {
+        // La règle annoncée à cedric le 21/10 : coffres au départ, ouverts sans danger, fermés quand la bombe arrive.
+        val attendu = mapOf(2 to Triple(14, 6, 8), 3 to Triple(17, 9, 8), 4 to Triple(16, 8, 8), 5 to Triple(19, 10, 9), 6 to Triple(16, 6, 10), 8 to Triple(20, 8, 12))
+        attendu.forEach { (n, t) ->
+            assertEquals(t.first, chestCount(n), "coffres au départ, $n équipes")
+            assertEquals(t.second, n * safeRounds(n), "ouverts sans danger, $n équipes")
+            assertEquals(t.third, chestCount(n) - n * safeRounds(n), "fermés quand la bombe arrive, $n équipes")
+        }
         (1..8).forEach { n ->
-            val safe = n * safeRounds(n)
-            assertTrue(chestCount(n) >= safe + 2, "$n équipes")
+            assertTrue(chestCount(n) - n * safeRounds(n) >= 8, "$n équipes")
             assertTrue(chestCount(n) <= MAX_CHESTS)
         }
+    }
+
+    @Test
+    fun `le coffre en or vaut 500, une seule fois, seulement avec la bombe`() {
+        // Tirage « 1 » sur les coffres restants : le coffre en or dès qu'il est possible, puis plus jamais.
+        val g = partie(intros = false)
+        g.dealChests(equipes, t0 + 7_000)
+        val r = g.chestRound!!
+        repeat(r.safe) { assertFalse(g.ouvrir(TirageUn()).gold, "pas pendant les tours sans danger") }
+        val team = g.chestRound!!.team!!
+        val avant = g.state.scores()[team] ?: 0
+        val or = g.ouvrir(TirageUn())
+        assertTrue(or.gold)
+        assertFalse(or.bomb)
+        assertEquals(GOLD_POINTS, or.delta)
+        assertEquals(avant + GOLD_POINTS, g.state.scores()[team])
+        assertTrue(g.chestRound!!.goldFound)
+        @Suppress("UNCHECKED_CAST")
+        val c = Codec.publicState(g)["chests"] as Map<String, Any?>
+        assertEquals(false, c["goldLeft"], "les tablettes savent qu'il est trouvé")
+        assertEquals(true, (c["opened"] as List<Map<String, Any?>>).last()["gold"])
+        val ensuite = g.ouvrir(TirageUn())
+        assertFalse(ensuite.gold, "un seul coffre en or")
+        // Le journal rejoué garde le coffre en or ; un faux coffre en or (pas 500, ou avant le danger) est refusé.
+        val relu = Game(g.quiz, g.events.map { Codec.decode(Codec.encode(it))!! })
+        assertEquals(g.chestRound, relu.chestRound)
+        val faux = ChestOpened(g.state.lastSeq + 1, t0 + 999_000, "b1", g.chestRound!!.team!!, g.chestRound!!.closed.first(), GOLD_POINTS, bomb = false, gold = true)
+        assertFalse(Game(g.quiz, g.events).record(faux), "déjà trouvé")
+        val tot = partie(intros = false)
+        tot.dealChests(equipes, t0 + 7_000)
+        val r0 = tot.chestRound!!
+        val avantDanger = ChestOpened(tot.state.lastSeq + 1, r0.readyAt, "b1", r0.team!!, 0, GOLD_POINTS, bomb = false, gold = true)
+        assertFalse(tot.record(avantDanger), "pas de coffre en or pendant les tours sans danger")
+        repeat(r0.safe) { tot.ouvrir(TirageDeux()) }
+        val r1 = tot.chestRound!!
+        val pasCinqCents = ChestOpened(tot.state.lastSeq + 1, r1.readyAt, "b1", r1.team!!, r1.closed.first(), 300, bomb = false, gold = true)
+        assertFalse(tot.record(pasCinqCents), "le coffre en or vaut toujours 500")
+    }
+
+    @Test
+    fun `avec la bombe, le coffre en or sort une partie sur deux environ`() {
+        var or = 0
+        val parties = 400
+        repeat(parties) { graine ->
+            val random = Random(graine)
+            val g = partie(intros = false)
+            g.dealChests(equipes, t0 + 7_000)
+            while (g.chestRound!!.team != null) g.ouvrir(random)
+            if (g.chestRound!!.goldFound) or++
+        }
+        assertTrue(or in parties * 35 / 100..parties * 65 / 100, "coffre en or trouvé dans $or parties sur $parties")
     }
 }
 
 /** Tirage toujours à 0 (noms de classes en ASCII : certains systèmes de fichiers refusent les accents). */
 private class TirageZero : Random() {
     override fun nextBits(bitCount: Int) = 0
+}
+
+/** Tirage toujours à 1 (sauf quand une seule valeur est possible) : jamais la bombe tant qu'il reste 2 coffres. */
+private class TirageUn : Random() {
+    override fun nextBits(bitCount: Int) = 0
+    override fun nextInt(until: Int) = if (until > 1) 1 else 0
+}
+
+/** Tirage toujours à 2 (ou moins) : ni la bombe ni le coffre en or tant qu'il reste 3 coffres. */
+private class TirageDeux : Random() {
+    override fun nextBits(bitCount: Int) = 0
+    override fun nextInt(until: Int) = minOf(2, until - 1)
 }
 
 /** Premier tirage sur 10 = 9 (un malus), puis 0 (le premier malus de la liste). */
