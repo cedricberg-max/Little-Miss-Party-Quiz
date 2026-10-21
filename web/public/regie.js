@@ -14,7 +14,7 @@ import {
 import { MIME_CATALOG } from "./mime-cards.js";
 import {
   RANDOM_TYPES, RANDOM_COUNT, LEVELS, MIME_PER_TEAM, MIME_PER_TEAM_DEFAULT, randomRound, playedKeys, questionType, avoidKey,
-  sourceRejouee, REJOUES_TELS_QUELS,
+  sourceRejouee,
   collectionItems, collectionGroups, mancheGroups, mancheSummary, cleanRound, defaultMancheTitle, COLLECTION_UNIT,
 } from "./manches.js";
 import { profileForAge } from "./profiles.js";
@@ -1089,7 +1089,7 @@ function gamesOf(st) {
   return { questions, rounds, index, current, next };
 }
 
-/** Jeu déjà commencé (ou joué) : y aller, c'est le rejouer. */
+/** Jeu déjà commencé (ou joué) : y aller, c'est le recommencer. */
 const played = (r, st, index) => r.start <= index && st.phase !== "lobby";
 
 function gameName(r, questions) {
@@ -1130,6 +1130,9 @@ function renderGames(st) {
   // « ＋ Jeu » toujours à portée de main : un jeu oublié s'ajoute sans chercher l'onglet Conducteur.
   $("c-add").hidden = !live.plan?.rev || !rounds.length;
   $("c-add").disabled = editing;
+  // « 🔁 Rejouer » (cedric, 21/10) : dès qu'un jeu a été lancé, la liste des jeux de la fête à rejouer.
+  $("c-replay").hidden = !live.plan?.rev || !rejouables(st).length;
+  $("c-replay").disabled = editing;
   // Le secours n'a de sens qu'une fois la partie commencée (au salon, « Lancer la fête ! » suffit).
   $("c-rescue").hidden = st.phase === "lobby" || !rounds.length || !live.plan?.rev;
   if (rescueOpen && $("c-rescue").hidden) rescueOpen = false;
@@ -1178,7 +1181,8 @@ function renderRescue(st) {
     name.append(small);
     const b = document.createElement("button");
     b.className = done ? "btn secondary" : "btn";
-    b.textContent = done ? "Rejouer" : "Aller à ce jeu";
+    // « Recommencer » (mêmes questions, points du jeu retirés), pour ne pas le confondre avec « 🔁 Rejouer » (d'autres questions).
+    b.textContent = done ? "Recommencer" : "Aller à ce jeu";
     b.disabled = busy;
     b.onclick = () => jumpTo(r, st);
     row.append(name, b);
@@ -1186,25 +1190,26 @@ function renderRescue(st) {
   }));
 }
 
-/** Saut vers le début du jeu [r], après confirmation adaptée (aller plus loin, ou rejouer). */
+/** Saut vers le début du jeu [r], après confirmation adaptée (aller plus loin, ou recommencer). */
 async function jumpTo(r, st) {
   const { questions, index } = gamesOf(st);
   const name = gameName(r, questions);
   const replay = played(r, st, index);
   const ok = await demander(replay
-    ? { title: `Rejouer « ${name} » ?`, text: "Le jeu repart de sa première question. Les points gagnés dans ce jeu sont retirés puis rejoués : rien n'est compté deux fois. Les équipes et les points des autres jeux sont gardés.", ok: "Rejouer ce jeu", alert: true }
+    ? { title: `Recommencer « ${name} » ?`, text: "Le jeu repart de sa première question, avec les mêmes questions. Les points gagnés dans ce jeu sont retirés puis rejoués : rien n'est compté deux fois. Les équipes et les points des autres jeux sont gardés.", ok: "Recommencer ce jeu", alert: true }
     : { title: `Passer à « ${name} » ?`, text: st.phase === "ended" ? "La partie reprend avec ce jeu. Les équipes et leurs points sont gardés." : `Le jeu en cours s'arrête là, ses points déjà gagnés sont gardés. Si « ${name} » avait déjà été commencé, il repart de zéro sans compter deux fois.`, ok: `Aller à « ${name} »` });
   if (!ok) return;
   const status = await send("goto", { index: r.start, qid: questions[r.start].id }, { advance: true });
   if (status?.status === "applied") {
     rescueOpen = false;
-    toast(replay ? `« ${name} » est relancé.` : `C'est parti pour « ${name} » !`);
+    toast(replay ? `« ${name} » recommence.` : `C'est parti pour « ${name} » !`);
     render();
   }
 }
 
 $("c-rescue").onclick = () => { rescueOpen = true; render(); };
 $("c-add").onclick = () => openLibrary();
+$("c-replay").onclick = () => openRejouer();
 $("rescue-close").onclick = () => { rescueOpen = false; render(); };
 
 function renderTeams(st, teams) {
@@ -1295,14 +1300,12 @@ function roundHead(r, rounds, future, questions, index, editable) {
   const k = future.indexOf(r);
   // Jeu déjà commencé ou joué : « 🔁 Rejouer » dans tous les jeux (cedric, 21/10). Tiré d'une collection : avec
   // d'autres cartes, mots, photos ou titres ; un quiz : avec d'autres questions ; un mini-jeu : le même, tel quel.
-  const type = questionType(questions[r.start]);
-  const telQuel = REJOUES_TELS_QUELS.includes(type);
-  if (editable && k < 0 && r.start <= index && type) {
+  if (editable && k < 0 && r.start <= index && questionType(questions[r.start])) {
     const again = document.createElement("button");
     again.className = "replay";
-    again.textContent = telQuel ? "🔁 Rejouer" : "🔁 Rejouer avec d'autres…";
+    again.textContent = "🔁 Rejouer";
     again.disabled = editing;
-    again.onclick = () => (RANDOM_TYPES.includes(type) ? replayWithOthers : rejouer)(type, questions.slice(r.start, r.end + 1), r.title);
+    again.onclick = () => rejouerJeu(r, questions);
     head.appendChild(again);
   }
   if (!editable || k < 0) return head;
@@ -1323,6 +1326,63 @@ function roundHead(r, rounds, future, questions, index, editable) {
   });
   return head;
 }
+
+/**
+ * « 🔁 Rejouer » (cedric, 21/10) : la liste des jeux déjà lancés de la fête ; un jeu touché montre ce qui sera joué
+ * (d'autres questions, cartes ou photos, ✕ pour en retirer), puis « ▶ Rejouer maintenant » ou « Après le jeu en cours ».
+ * Pas de quiz à cocher ni de réglages du tirage : ceux-là restent dans « ＋ Jeu ».
+ */
+let libRejouer = false;
+
+/** Jeux de la fête qui ont déjà commencé (ou ont été joués), dans l'ordre du programme, avec leur type. */
+function rejouables(st) {
+  const { questions, rounds, index } = gamesOf(st);
+  return rounds.filter((r) => played(r, st, index) && questionType(questions[r.start]));
+}
+
+function openRejouer() {
+  picked = null;
+  libRejouer = true;
+  $("lib").hidden = false;
+  if (!library || library.denied || library.error) fetchLibrary();
+  else renderLibrary();
+}
+
+/** Liste « Rejouer un jeu » : un bouton par jeu déjà lancé. */
+function renderRejouables(box) {
+  const st = live.state ?? { phase: "lobby" };
+  const { questions, current } = gamesOf(st);
+  const jeux = rejouables(st);
+  if (!jeux.length) {
+    const p = document.createElement("p");
+    p.className = "hint";
+    p.textContent = "Aucun jeu n'a encore été lancé.";
+    box.appendChild(p);
+    return;
+  }
+  jeux.forEach((r) => {
+    const b = document.createElement("button");
+    b.className = "show-item rejouable";
+    b.dataset.start = r.start;
+    const title = document.createElement("b");
+    title.textContent = gameName(r, questions);
+    const meta = document.createElement("span");
+    meta.textContent = r.start === current?.start ? "En cours" : "Déjà joué";
+    b.append(title, meta);
+    b.onclick = () => rejouerJeu(r, questions);
+    box.appendChild(b);
+  });
+}
+
+/** Un jeu de la fête à rejouer : tiré à nouveau dans ses collections, ou d'autres questions de son quiz. */
+function rejouerJeu(r, questions) {
+  libRejouer = true;
+  const type = questionType(questions[r.start]);
+  (RANDOM_TYPES.includes(type) ? replayWithOthers : rejouer)(type, questions.slice(r.start, r.end + 1), r.title);
+}
+
+/** Jeu ouvert depuis « 🔁 Rejouer » (ou le conducteur) : écran simplifié. */
+const enRejeu = () => libRejouer && !!picked?.game?.key?.startsWith("rejouer/");
 
 /** « Rejouer avec d'autres… » : le même jeu et ses réglages, tiré à nouveau sans rien de ce qui est au programme. */
 async function replayWithOthers(type, played, title) {
@@ -1477,6 +1537,7 @@ async function fetchLibrary() {
 
 function openLibrary() {
   picked = null;
+  libRejouer = false;
   $("lib").hidden = false;
   if (!library || library.denied || library.error) fetchLibrary();
   else renderLibrary();
@@ -1484,11 +1545,13 @@ function openLibrary() {
 
 function closeLibrary() {
   picked = null;
+  libRejouer = false;
   $("lib").hidden = true;
 }
 
 function renderLibrary() {
   if ($("lib").hidden) return;
+  $("lib-title").textContent = libRejouer ? "Rejouer un jeu" : "Ajouter un jeu";
   $("lib-list").hidden = !!picked;
   $("lib-preview").hidden = !picked;
   if (picked) return renderPreview();
@@ -1499,6 +1562,7 @@ function renderLibrary() {
   if (library?.loading) return hint("Chargement de la bibliothèque…");
   if (library?.denied) return hint("Pour ouvrir la bibliothèque, entrez dans la régie avec le mot de passe (pas avec le code de la TV).");
   if (!library?.games) return hint("Impossible de lire la bibliothèque. Vérifiez la connexion.");
+  if (libRejouer) return renderRejouables(box);
   const entry = (game, detail) => {
     const b = document.createElement("button");
     b.className = "show-item";
@@ -1689,7 +1753,9 @@ function renderPickedEdit(questions) {
   const { source } = picked;
   const add = (...nodes) => box.append(...nodes);
   // Jeux tirés d'un quiz : les autres quiz qui conviennent, à cocher pour les enchaîner dans le même jeu.
-  if (source.type === "quiz" || QUIZ_GAMES[source.type]) {
+  // Pas pendant un rejeu (cedric, 21/10) : on regarde ce qui sera joué, on retire, on lance.
+  const rejeu = enRejeu();
+  if (!rejeu && (source.type === "quiz" || QUIZ_GAMES[source.type])) {
     const kind = QUIZ_GAMES[source.type];
     const ids = roundQuizIds(source);
     const others = Object.entries(library.quizzes)
@@ -1721,7 +1787,7 @@ function renderPickedEdit(questions) {
       add(p, chips);
     }
   }
-  if (picked.random) add(...randomPanel(picked.random));
+  if (picked.random && !rejeu) add(...randomPanel(picked.random));
   if (isDrawn(source)) {
     const b = document.createElement("button");
     b.id = "lib-draw";
@@ -1730,7 +1796,7 @@ function renderPickedEdit(questions) {
     b.onclick = drawPicked;
     add(b);
   }
-  const choices = addChoices(questions);
+  const choices = rejeu ? [] : addChoices(questions);
   if (choices.length) {
     const sel = document.createElement("select");
     sel.id = "lib-add";
@@ -1967,9 +2033,19 @@ function renderPreview() {
   $("lib-problems").hidden = !problems.length;
   $("lib-problems").textContent = problems.join(" ");
   const lobby = st.phase === "lobby";
+  const rejeu = enRejeu();
   const after = $("lib-after");
-  after.textContent = editing ? "Envoi à la TV…" : lobby ? "Ajouter au début" : "Ajouter après la manche actuelle";
+  after.textContent = editing ? "Envoi à la TV…" : rejeu ? "Après le jeu en cours" : lobby ? "Ajouter au début" : "Ajouter après la manche actuelle";
   after.disabled = editing || !questions.length;
+  // Rejeu : « ▶ Rejouer maintenant » en premier, « Après le jeu en cours » ensuite (rien à attendre une fois la fête finie).
+  after.classList.toggle("main", !rejeu);
+  after.classList.toggle("secondary", rejeu);
+  after.hidden = rejeu && st.phase === "ended";
+  const now = $("lib-now");
+  now.hidden = !rejeu;
+  now.textContent = editing ? "Envoi à la TV…" : "▶ Rejouer maintenant";
+  now.disabled = editing || !questions.length;
+  $("lib-end").hidden = rejeu;
   $("lib-end").disabled = editing || !questions.length;
 }
 
@@ -2018,6 +2094,7 @@ function tvRefuses(questions) {
 let adding = false;
 async function addPicked(where) {
   if (!picked || editing || adding) return;
+  const rejeuEnCours = enRejeu();
   const refused = tvRefuses(picked.questions);
   if (refused) { toast(refused); return; }
   // Photos copiées avant l'envoi : la TV les cherche dès qu'elle accepte le programme. Les extraits,
@@ -2032,9 +2109,18 @@ async function addPicked(where) {
   const title = uniqueRoundTitle(current, chosen[0]?.round ?? picked.game.label);
   const added = chosen.map((q) => ({ ...q, round: title }));
   const index = st.phase === "lobby" ? -1 : st.index ?? -1;
-  const place = where === "end" ? "à la fin du programme" : index < 0 ? "au début du programme" : "après la manche en cours";
+  const now = where === "now";
+  const program = insertGame(current, added, now ? "after" : where, index);
+  const place = where === "end" ? "à la fin du programme" : index < 0 ? "au début du programme" : now || rejeuEnCours ? "après le jeu en cours" : "après la manche en cours";
   const keep = picked.random ? liveManche(picked, title) : null;
-  sendProgram(insertGame(current, added, where, index), `« ${title} » est ajouté ${place}.`, true, keep);
+  // « ▶ Rejouer maintenant » : le jeu en cours s'arrête là (ses points sont gardés) et la TV ouvre le jeu rejoué.
+  const lancer = now ? async () => {
+    const start = program.findIndex((q) => q.id === added[0]?.id);
+    if (start < 0) return;
+    const status = await send("goto", { index: start, qid: added[0].id }, { advance: true });
+    if (status?.status === "applied") toast(`C'est reparti pour « ${title} » !`);
+  } : null;
+  sendProgram(program, now ? `« ${title} » arrive sur la TV…` : `« ${title} » est ajouté ${place}.`, true, () => { keep?.(); lancer?.(); });
 }
 
 /**
@@ -2111,6 +2197,7 @@ async function sendProgram(questions, success, fromLibrary = false, onApplied = 
 $("lib-close").onclick = closeLibrary;
 $("lib-back").onclick = () => { picked = null; renderLibrary(); };
 $("lib-after").onclick = () => addPicked("after");
+$("lib-now").onclick = () => addPicked("now");
 $("lib-end").onclick = () => addPicked("end");
 
 // ---------- Prestations (salon d'attente) ----------

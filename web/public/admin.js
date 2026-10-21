@@ -1298,7 +1298,7 @@ function roundFields(r) {
     hasFinale(r.type)
       ? h("select", { class: "finale", "aria-label": "Super Finale", onchange: (e) => { r.finale = Number(e.target.value) || null; roundCtx.summary(); } },
         h("option", { value: "", text: "Sans Super Finale" }),
-        ...[1, 2, 3, 4, 5].map((n) => h("option", { value: n, selected: r.finale === n, text: n === 1 ? "Super Finale : la dernière question" : `Super Finale : les ${n} dernières` })))
+        ...[1, 2, 3, 4, 5].map((n) => h("option", { value: n, selected: r.finale === n, text: n === 1 ? "Super Finale : la dernière" : `Super Finale : ${n} dernières` })))
       : null,
     // Question des bougies (cedric, 21/10) : d'office dans le premier Quiz de la prestation ; décocher l'enlève.
     roundCtx === prestationCtx && editing && premierQuiz(editing.rounds, quizzes) === r
