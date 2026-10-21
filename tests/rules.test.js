@@ -1022,6 +1022,31 @@ describe("blind test : extraits musicaux et playlists", () => {
     await assertSucceeds(playlist([{ title: "On chante", audioId: ID, refrainId: REFRAIN, songId: "s1", paroles: "1000|On chante tous ensemble" }]));
     await assertFails(playlist([{ title: "On chante", audioId: ID, paroles: "x".repeat(8001) }]));
   });
+  test("chansons entières (21/10) : rangées par l'administration en parts, lues par l'administration et la régie, effacées pour de bon", async () => {
+    const PART = "SUQzBAAAAAAA".repeat(1000);
+    await assertSucceeds(set(ref(db("sarah"), "library/entieres/s1/p/0"), PART));
+    await assertSucceeds(set(ref(db("sarah"), "library/entieres/s1/p/23"), PART));
+    await assertSucceeds(update(ref(db("sarah"), "library/entieres/s1"), { n: 2, kbps: 96, length: 213, at: serverTimestamp() }));
+    // Une part trop lourde, en trop, vide, ou pas du texte ; un nombre de parts faux ; une date inventée ; un champ inconnu.
+    await assertFails(set(ref(db("sarah"), "library/entieres/s1/p/1"), "A".repeat(800001)));
+    await assertFails(set(ref(db("sarah"), "library/entieres/s1/p/24"), PART));
+    await assertFails(set(ref(db("sarah"), "library/entieres/s1/p/1"), ""));
+    await assertFails(set(ref(db("sarah"), "library/entieres/s1/p/1"), 12));
+    await assertFails(update(ref(db("sarah"), "library/entieres/s1"), { n: 25 }));
+    await assertFails(update(ref(db("sarah"), "library/entieres/s1"), { n: 1.5 }));
+    await assertFails(update(ref(db("sarah"), "library/entieres/s1"), { at: 12 }));
+    await assertFails(update(ref(db("sarah"), "library/entieres/s1"), { volume: 11 }));
+    await assertFails(set(ref(db("sarah"), `library/entieres/${"x".repeat(41)}/p/0`), PART));
+    // Personne d'autre n'écrit ; un pupitre ne lit pas.
+    await assertFails(set(ref(db("rose"), "library/entieres/s2/p/0"), PART));
+    await assertFails(get(ref(db("rose"), "library/entieres/s1")));
+    await assertSucceeds(get(ref(db("sarah"), "library/entieres/s1")));
+    // « Effacer pour de bon » : la chanson, sa chanson entière, ses paroles et son extrait, d'un coup.
+    await assertSucceeds(set(ref(db("sarah"), "library/songs/s1"), { title: "On chante", audioId: ID, buzz: 30, updatedAt: serverTimestamp() }));
+    await assertSucceeds(set(ref(db("sarah"), `library/sounds/${ID}`), SOUND));
+    await assertSucceeds(update(ref(db("sarah")), { "library/songs/s1": null, "library/entieres/s1": null, "library/lyrics/s1": null, [`library/sounds/${ID}`]: null }));
+    assert.equal((await get(ref(db("sarah"), "library/entieres/s1"))).exists(), false);
+  });
   test("la régie copie un extrait dans la partie une seule fois ; la box le lit, les pupitres non", async () => {
     await seed({ phase: "lobby" });
     await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/regie/tel`), { pairedAt: 1, via: "pin" }));

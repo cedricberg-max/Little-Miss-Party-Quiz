@@ -25,12 +25,6 @@ export function guessTrack(fileName) {
   return { artist: "", title: base.slice(0, 80) };
 }
 
-/** Début d'extrait proposé : le refrain arrive souvent vers le premier tiers du morceau. */
-export function defaultStart(durationSec, extractSec = DEFAULT_EXTRACT) {
-  const start = Math.min(45, Math.max(0, durationSec / 3));
-  return Math.max(0, Math.min(Math.floor(start), Math.floor(durationSec - extractSec)));
-}
-
 /** Lit un fichier audio choisi sur le PC (tout format que le navigateur sait lire). */
 export async function decodeFile(file) {
   const data = await file.arrayBuffer();

@@ -11,9 +11,9 @@ import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, roundFille
   statuesSongs, statuesChoices, roundSongs, isStatuesList,
 } from "../web/public/show.js";
 import { PICTO_WORDS, PICTO_SERIES } from "../web/public/picto-cards.js";
-import { guessTrack, defaultStart, normalizeLevel } from "../web/public/audio.js";
+import { guessTrack, normalizeLevel } from "../web/public/audio.js";
 import { songList, songsRetirees, songMatches, trackFromSong, songUpdates, defaultRefrain, buzzOf, REFRAIN_SEC } from "../web/public/sons.js";
-import { lireLrc, refrainDesParoles, parolesDuRefrain, associerParoles, nomSimple } from "../web/public/paroles.js";
+import { lireLrc, refrainDesParoles, debutDesParoles, parolesDuRefrain, associerParoles, nomSimple } from "../web/public/paroles.js";
 import { lireId3 } from "../web/public/id3.js";
 import { FULL_SHOW, FULL_TUNES, tunePlaylist } from "../web/public/test-show.js";
 import { cadrageInitial, borner, zoomer, zoneGardee, BULLES } from "../web/public/cadrage.js";
@@ -602,13 +602,10 @@ describe("blind test et quiz musical", () => {
     assert.equal(blind.snapshot.quiz.questions.length, 1);
     assert.deepEqual(readiness({ childName: "Tom", age: 8, date: "2026-12-02", status: "publiee", rounds: [{ type: "blind", playlistId: "o" }] }, {}, {}, { o: one }), { level: "prete", todo: [] });
   });
-  test("titre et artiste devinés depuis le nom du fichier, début d'extrait proposé dans le morceau", () => {
+  test("titre et artiste devinés depuis le nom du fichier", () => {
     assert.deepEqual(guessTrack("Stromae - Alors on danse.mp3"), { artist: "Stromae", title: "Alors on danse" });
     assert.deepEqual(guessTrack("03 - Angèle – Balance ton quoi.m4a"), { artist: "Angèle", title: "Balance ton quoi" });
     assert.deepEqual(guessTrack("libérée_délivrée.wav"), { artist: "", title: "libérée délivrée" });
-    assert.equal(defaultStart(210, 25), 45);
-    assert.equal(defaultStart(60, 25), 20);
-    assert.equal(defaultStart(20, 25), 0);
   });
   test("chaque extrait est mis au même niveau sonore, sans jamais dépasser la pleine échelle", () => {
     const sine = (amp) => Float32Array.from({ length: 44_100 }, (_, i) => amp * Math.sin(i / 7));
@@ -1344,6 +1341,13 @@ describe("paroles (.lrc) et étiquettes des MP3", () => {
     assert.equal(refrainDesParoles(lireLrc(LRC)), 20);
     assert.equal(refrainDesParoles(lireLrc("[00:01.00]Une\n[00:02.00]Deux\n[00:03.00]Trois\n[00:04.00]Quatre")), null, "rien ne se répète");
     assert.equal(refrainDesParoles([]), null);
+  });
+
+  test("les premiers mots chantés : la première vraie phrase, sans les petits bruits", () => {
+    assert.equal(debutDesParoles(lireLrc(LRC)), 5);
+    assert.equal(debutDesParoles(lireLrc("[00:02.00]♪\n[00:04.00]Oh\n[00:17.50]Voici les premiers mots")), 17.5);
+    assert.equal(debutDesParoles(lireLrc("[00:03.00]♪♪")), null);
+    assert.equal(debutDesParoles([]), null);
   });
 
   test("les paroles de l'extrait du refrain : temps en ms depuis son début, phrase commencée gardée", () => {

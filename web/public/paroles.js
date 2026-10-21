@@ -60,6 +60,15 @@ export function refrainDesParoles(lignes) {
 }
 
 /**
+ * Premiers mots chantés (secondes) : la première phrase des paroles, sans les petits bruits (« ♪ », « oh »). Null
+ * sans paroles chantées.
+ */
+export function debutDesParoles(lignes) {
+  const l = (lignes ?? []).find((x) => cle(x.text).length >= 3);
+  return l ? l.t : null;
+}
+
+/**
  * Paroles de l'extrait du refrain sous la forme courte de la TV : les phrases chantées entre [debut] et
  * [debut] + [duree] secondes, temps en millisecondes depuis [debut]. La phrase déjà commencée au début de l'extrait
  * est gardée (calée à 0). Rend "" s'il n'y a rien à chanter dans ce passage.
