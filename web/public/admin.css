@@ -17,6 +17,8 @@ header {
   padding: 12px 24px; background: rgba(255, 247, 243, .92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line);
 }
 .brand { margin: 0; flex: 1; min-width: 200px; display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; color: var(--rose); }
+/* Le logo est un bouton (retour à l'Accueil) : sans fond ni bordure, aligné à gauche. */
+button.brand { background: none; border: 0; padding: 0; font-family: inherit; text-align: left; cursor: pointer; }
 .brand img { border-radius: 9px; }
 .brand small { color: var(--soft); font-weight: 600; font-size: 14px; }
 .brand-mark { color: var(--gold); }
@@ -107,6 +109,7 @@ a.btn { display: inline-block; text-decoration: none; }
 .stat b { font-size: 38px; color: var(--violet); }
 .stat.ready b { color: var(--good); }
 .stat.todo b { color: #b7791f; }
+.stat.archive b { color: var(--soft); }
 .stat span { color: var(--soft); font-weight: 600; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 .tile {

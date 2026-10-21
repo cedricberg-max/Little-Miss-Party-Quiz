@@ -73,11 +73,20 @@ for (const id of ["test-create", "test-full-create"]) {
 await capture("parametres");
 await ecran("home");
 await capture("accueil");
-await ecran("shows");
-await capture("prestations");
+/** Une liste de prestations, ouverte par son compteur de l'Accueil (plus d'onglet Prestations). */
+const liste = async (etat) => {
+  await ecran("home");
+  await page.click(`#screen-home [data-etat="${etat}"]`);
+  await page.locator("#screen-shows:not([hidden])").waitFor();
+};
+for (const etat of ["avenir", "acompleter", "archivee"]) {
+  await liste(etat);
+  await capture(`prestations-${etat}`);
+}
+await liste("avenir");
 const prestations = await page.locator("#screen-shows .show-card").count();
 for (let k = 0; k < Math.min(prestations, 2); k++) {
-  await ecran("shows");
+  await liste("avenir");
   await page.locator("#screen-shows .show-card").nth(k).getByRole("button", { name: "Ouvrir" }).click();
   await page.locator("#screen-show-edit:not([hidden])").waitFor({ timeout: 5000 }).catch(() => {});
   await capture(`prestation-${k + 1}`);
