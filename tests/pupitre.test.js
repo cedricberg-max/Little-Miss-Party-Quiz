@@ -71,8 +71,9 @@ async function waitFor(fn, what, ms = 8000) {
 }
 
 /** Un pupitre = un navigateur séparé (son propre identifiant d'équipe). */
-async function openPupitre(extra = "") {
+async function openPupitre(extra = "", preparer = null) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await preparer?.(context);
   // Le SDK Firebase est servi depuis les fichiers locaux au lieu du CDN de Google.
   await context.route("https://www.gstatic.com/firebasejs/11.1.0/*", (route) => {
     const name = new URL(route.request().url()).pathname.split("/").pop();
@@ -886,6 +887,78 @@ describe("pupitre", () => {
     assert.ok(titre, "le titre « Pause fun ! » tient sur l'écran");
     await hostState(question({ phase: "scores", deadline: null }));
     await page.locator("#paused[hidden]").waitFor({ state: "attached" });
+    await page.context().close();
+  });
+
+  test("plein écran perdu (retour d'une autre appli, notification) : redemandé au toucher, même sur une réponse verrouillée, au clic et au gros buzzer", async () => {
+    const page = await openPupitre();
+    // Le navigateur de test n'a pas de vrai plein écran : on compte les demandes, sans jamais l'obtenir.
+    await page.evaluate(() => { window.demandes = 0; Element.prototype.requestFullscreen = function () { window.demandes++; return Promise.resolve(); }; });
+    const demandes = () => page.evaluate(() => window.demandes);
+    await page.locator("#screen-join.active").waitFor();
+    // Pendant la frappe du nom, le clavier sert à écrire : pas de demande (le clavier de l'écran se fermerait).
+    await page.locator("#team-name").focus();
+    await page.keyboard.type("Les Lys");
+    assert.equal(await demandes(), 0);
+    await page.click("#join");
+    await page.locator("#screen-play.active").waitFor();
+    assert.ok(await demandes() >= 1, "le toucher sur « Rejoindre » demande le plein écran");
+    await hostState(question());
+    await page.locator(".choice").nth(1).click();
+    await waitFor(async () => page.locator(".choice").first().isDisabled(), "réponses verrouillées après l'envoi");
+    // Un doigt sur une réponse verrouillée ne fait pas de clic : le toucher seul suffit.
+    let avant = await demandes();
+    await page.locator(".choice").first().dispatchEvent("touchend");
+    await waitFor(async () => (await demandes()) > avant, "plein écran redemandé au toucher d'une réponse verrouillée");
+    // Le gros buzzer USB (une touche de clavier) aussi ; Échap, lui, sert à sortir du plein écran.
+    avant = await demandes();
+    await page.keyboard.press("Enter");
+    await waitFor(async () => (await demandes()) > avant, "plein écran redemandé au gros buzzer");
+    avant = await demandes();
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(200);
+    assert.equal(await demandes(), avant, "Échap ne redemande pas le plein écran");
+    await page.context().close();
+  });
+
+  test("retour d'une autre appli : la connexion coupée en douce par le téléphone est refaite, l'écran suit de nouveau la partie", async () => {
+    // Le téléphone coupe la connexion sans prévenir la page (iPhone de Sacha, 21/10) : plus rien ne passe, ni dans un
+    // sens ni dans l'autre, mais la page se croit toujours connectée. Une nouvelle connexion, elle, passe.
+    const gelees = new Set();
+    let courante = null;
+    const page = await openPupitre("", (context) => context.routeWebSocket(/\/\.ws/, (ws) => {
+      const id = {};
+      courante = id;
+      const serveur = ws.connectToServer();
+      ws.onMessage((m) => { if (!gelees.has(id)) serveur.send(m); });
+      serveur.onMessage((m) => { if (!gelees.has(id)) ws.send(m); });
+    }));
+    await joinTeam(page, "Les Iris");
+    const uid = Object.keys(await read("teams"))[0];
+    await hostState(question());
+    await page.locator("#screen-question.active .choice", { hasText: "Bleu" }).waitFor();
+    gelees.add(courante);
+    await hostState(question({ qid: "q2", index: 1, choices: ["Vénus", "Jupiter", "Mars", "Saturne"] }));
+    await page.waitForTimeout(1500);
+    assert.equal(await page.locator(".choice", { hasText: "Vénus" }).count(), 0, "connexion figée : la page ne voit pas la question suivante");
+    const visibilite = (etat) => page.evaluate((etat) => {
+      Object.defineProperty(document, "visibilityState", { configurable: true, get: () => etat });
+      document.dispatchEvent(new Event("visibilitychange"));
+    }, etat);
+    // Un coup d'œil de moins de 2 s ailleurs ne refait pas la connexion.
+    await visibilite("hidden");
+    await page.waitForTimeout(300);
+    await visibilite("visible");
+    await page.waitForTimeout(1500);
+    assert.equal(await page.locator(".choice", { hasText: "Vénus" }).count(), 0);
+    // Deux minutes dans une autre appli (ici 2,5 s), puis retour : connexion neuve, question en cours, présence remise.
+    await visibilite("hidden");
+    await page.waitForTimeout(2500);
+    await visibilite("visible");
+    await page.locator("#screen-question.active .choice", { hasText: "Vénus" }).waitFor({ timeout: 8000 });
+    await page.locator(".choice").nth(2).click();
+    await waitFor(async () => (await read(`answers/q2/${uid}`))?.choice === 2, "réponse envoyée sur la nouvelle connexion");
+    await waitFor(async () => (await read(`presence/${uid}`))?.online === true, "présence remise");
     await page.context().close();
   });
 
