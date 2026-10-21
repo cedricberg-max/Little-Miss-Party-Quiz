@@ -3647,7 +3647,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
-  test("un brouillon se supprime depuis sa carte ; pas de « Désarchiver » ; une fête reprogrammée s'archivera de nouveau", async () => {
+  test("un brouillon ou une archivée se supprime depuis sa carte, jamais une fête à venir ; pas de « Désarchiver » ; une fête reprogrammée s'archivera de nouveau", async () => {
     const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
     const rounds = [{ type: "quiz", quizId: "animaux" }];
     await seedLibrary("quizzes", { animaux: ANIMAUX });
@@ -3672,32 +3672,46 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#shows-status", { hasText: "« L'anniversaire de Tom » est supprimée." }).waitFor();
     await tom.waitFor({ state: "detached" });
     assert.equal(await library("shows/brouillon"), null);
-    // Pas de « Supprimer » sur les cartes « À venir » ni « Archivées » (on les archive, on ne les efface pas d'un clic).
+    // Pas de « Supprimer » sur une fête annoncée (cedric, 21/10) : ni dans « À venir », ni dans les prochains anniversaires.
     await page.click('#shows-tabs [data-etat="avenir"]');
     await page.locator('#show-list [data-show="prete"]').waitFor();
     assert.equal(await page.locator('#show-list [data-show="prete"]').getByRole("button", { name: "Supprimer" }).count(), 0);
-    await page.click('#shows-tabs [data-etat="archivee"]');
+    await page.click("#brand");
+    await page.locator('#home-upcoming [data-show="prete"]').waitFor();
+    assert.equal(await page.locator('#home-upcoming [data-show="prete"]').getByRole("button", { name: "Supprimer" }).count(), 0);
+    // Elle s'archive d'abord ; dans les archives, « Supprimer » l'efface, après une confirmation.
+    await page.click('#screen-home [data-etat="archivee"]');
     const malo = page.locator('#show-list [data-show="passee"]');
     await malo.waitFor();
-    assert.equal(await malo.getByRole("button", { name: "Supprimer" }).count(), 0);
-    // Pas de « Désarchiver » non plus (cedric, 21/10) : une fête archivée se réutilise avec « Dupliquer ».
-    assert.deepEqual(await malo.locator(".card-actions button").allInnerTexts(), ["Ouvrir", "Dupliquer", "Renommer", "⭐ Épingler"]);
+    // Pas de « Désarchiver » (cedric, 21/10) : une fête archivée se réutilise avec « Dupliquer ».
+    assert.deepEqual(await malo.locator(".card-actions button").allInnerTexts(), ["Ouvrir", "Dupliquer", "Renommer", "⭐ Épingler", "Supprimer"]);
+    question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.dismiss(); }));
+    await malo.getByRole("button", { name: "Supprimer" }).click();
+    assert.match(await question, /Supprimer « L'anniversaire de Malo » \? Elle sera effacée pour de bon\./);
+    assert.equal((await library("shows/passee")).childName, "Malo");
+    question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.accept(); }));
+    await malo.getByRole("button", { name: "Supprimer" }).click();
+    await question;
+    await malo.waitFor({ state: "detached" });
+    assert.equal(await library("shows/passee"), null);
     // Une fête désarchivée avant cette décision reste « À compléter » tant que sa date est passée.
     await page.click('#shows-tabs [data-etat="acompleter"]');
     await page.locator('#show-list [data-show="remise"]').getByRole("button", { name: "Ouvrir" }).click();
     // Reprogrammée et remise « À venir » : le lendemain de la nouvelle date, elle s'archivera de nouveau.
+    // « Enregistrer » est aussi en haut de la fiche (cedric, 21/10) : il enregistre comme celui du bas.
     await page.fill("#show-date", day(5));
     await page.selectOption("#show-status", "publiee");
-    await page.click("#show-save");
+    await page.click("#screen-show-edit .retour-barre.haut #show-save-haut");
     await page.locator("#show-status-msg", { hasText: "Enregistrée « À venir »" }).waitFor();
     const reprogrammee = await library("shows/remise");
     assert.deepEqual([reprogrammee.status, reprogrammee.keepActive ?? null], ["publiee", null]);
-    // « Supprimer » en bas de la fiche, pour toutes : même confirmation, puis retour à la liste.
-    question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.accept(); }));
-    await page.click("#show-delete");
-    assert.match(await question, /Supprimer « L'anniversaire de Nina » \?/);
-    await page.locator("#screen-shows:not([hidden])").waitFor();
-    assert.equal(await library("shows/remise"), null);
+    // Plus de « Supprimer » dans la fiche d'une prestation, quel que soit son état.
+    assert.equal(await page.locator("#screen-show-edit").getByRole("button", { name: "Supprimer", exact: true }).count(), 0);
+    await capture(page, "prestation-enregistrer-haut-telephone");
+    if (process.env.CAPTURES) {
+      await page.setViewportSize({ width: 1366, height: 900 });
+      await capture(page, "prestation-enregistrer-haut-pc");
+    }
     await page.context().close();
   });
 
