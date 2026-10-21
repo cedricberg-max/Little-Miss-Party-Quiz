@@ -471,18 +471,27 @@ describe("pupitre", () => {
     const base = { qid: "pt", kind: "patate", text: "Ça va exploser !", choices: null, correct: null, deadline: null, durationMs: null, game: { title: "Ça va exploser !" } };
     const potato = (extra) => ({ lit: true, teams: [r, b], canReturn: true, passes: 0, from: null, targets: [b], hit: [r], bomb: 1, bombs: 3, ...extra });
     const chiffre = (page) => page.locator(".pc-decompte:not([hidden])");
+    // Chaque chiffre affiché est noté (la machine de test peut être lente : on ne rate aucun chiffre).
+    await roses.evaluate(() => {
+      window.chiffres = [];
+      new MutationObserver(() => {
+        const c = document.querySelector(".pc-decompte");
+        const t = c && !c.hidden ? c.textContent : "";
+        if (t && window.chiffres.at(-1) !== t) window.chiffres.push(t);
+      }).observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true });
+    });
     // La mèche colle encore : pas de décompte.
     let now = Date.now();
-    await hostState(question({ ...base, potato: potato({ holder: r, since: now, readyAt: now + 1500, holdUntil: now + 4500, key: "pt-a" }) }));
+    await hostState(question({ ...base, potato: potato({ holder: r, since: now, readyAt: now + 2500, holdUntil: now + 5500, key: "pt-a" }) }));
     await roses.locator(".pc-texte", { hasText: "La mèche colle" }).waitFor();
     assert.equal(await chiffre(roses).count(), 0, "pas de décompte pendant la mèche qui colle");
     // Elle peut partir : 3, 2, 1 en grand sur la bombe, chez les Roses seulement.
-    await chiffre(roses).filter({ hasText: /^3$/ }).waitFor({ timeout: 4000 });
+    await chiffre(roses).waitFor({ timeout: 5000 });
     if (process.env.CAPTURES) await roses.screenshot({ path: `${process.env.CAPTURES}/patate-decompte-portrait.png` });
     assert.equal(await chiffre(bleus).count(), 0, "seule l'équipe qui tient la bombe voit le décompte");
-    await chiffre(roses).filter({ hasText: /^2$/ }).waitFor({ timeout: 2500 });
     await roses.setViewportSize({ width: 1280, height: 800 });
-    await chiffre(roses).filter({ hasText: /^1$/ }).waitFor({ timeout: 2500 });
+    await chiffre(roses).filter({ hasText: /^1$/ }).waitFor({ timeout: 6000 });
+    assert.deepEqual(await roses.evaluate(() => window.chiffres), ["3", "2", "1"], "3, 2, 1 dans l'ordre");
     if (process.env.CAPTURES) await roses.screenshot({ path: `${process.env.CAPTURES}/patate-decompte-paysage.png` });
     // Le chiffre reste dans la bombe, entier, et ne cache pas les équipes.
     const cadre = await roses.evaluate(() => {
@@ -492,7 +501,7 @@ describe("pupitre", () => {
     });
     assert.deepEqual(cadre, { dedans: true, chevauche: false });
     // En pause : plus de décompte (la TV redonne 3 secondes à la reprise).
-    await hostState(question({ ...base, paused: true, potato: potato({ holder: r, since: now, readyAt: now + 1500, holdUntil: null, key: "pt-a" }) }));
+    await hostState(question({ ...base, paused: true, potato: potato({ holder: r, since: now, readyAt: now + 2500, holdUntil: null, key: "pt-a" }) }));
     await waitFor(async () => (await chiffre(roses).count()) === 0, "plus de décompte en pause");
     // Gardée trop longtemps : BOUM chez les Roses, avant la fin de la mèche.
     now = Date.now();
