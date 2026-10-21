@@ -296,6 +296,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
      * Une modification préparée sur une autre version est refusée : deux téléphones ne se marchent pas dessus.
      */
     private var programRev: String = "initial"
+    /**
+     * Prestation de la bibliothèque chargée sur cette partie (son identifiant), publiée dans public/ : la régie
+     * et les règles Firebase s'en servent pour qu'un anniversaire ne soit jamais lancé sur deux box à la fois.
+     */
+    private var prestation: String? = null
+    /** Partie dont la box annonce la présence (hostOnline) à chaque connexion ; « hors ligne » écrit par le serveur à la coupure. */
+    private var hostRef: DatabaseReference? = null
+    private var hostRecheck: Job? = null
     /** Pupitres connectés au dernier relevé, et pupitres tout juste décrochés (délai de grâce en cours). */
     private var online: Set<String> = emptySet()
     private var funSeen: Map<String, Long>? = null
@@ -645,6 +653,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             ?: loadQuiz(snap.child("quizId").getValue(String::class.java))
         programRev = program?.second ?: if (showApplied) show.child("id").getValue(String::class.java)!! else "initial"
         val named = program != null || showApplied
+        // Prestation publiée par la box elle-même ; à défaut (partie d'une version plus ancienne), celle chargée par la régie.
+        prestation = snap.child("public/prestation").getValue(String::class.java)
+            ?: show.child("prestation").getValue(String::class.java)?.takeIf { showApplied && show.child("base").value == null }
         judgedShow = snap.child("showStatus/id").getValue(String::class.java)
         val history = snap.child("log").children.mapNotNull { (it.value as? Map<*, *>)?.let(Codec::decode) }
         val g = Game(quiz, history)
@@ -1419,7 +1430,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
      * Prestation choisie sur la régie, ou programme modifié en cours de partie (jeu ajouté, manches futures
      * déplacées ou retirées). La box vérifie le quiz, remplace celui de la partie, republie le conducteur et
      * répond dans showStatus/. Le journal est gardé tel quel : équipes, scores et progression ne bougent pas.
-     * - Sans `base` : une prestation complète, seulement au salon d'attente, avant toute question.
+     * - Sans `base` : une prestation complète, au salon d'attente avant toute question. Partie déjà commencée
+     *   (mauvaise prestation lancée) : seulement tant qu'aucun point n'a été donné ([Game.mayReplaceProgram]) ;
+     *   la partie repart alors du salon d'attente avec la nouvelle prestation, les équipes restent.
      * - Avec `base` : une modification préparée sur le programme [programRev] ; la question et la manche en
      *   cours ne changent jamais ([programProblem]).
      */
@@ -1434,44 +1447,62 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             val quiz = runCatching { QuizJson.fromValue(snap.child("quiz").value) }
             val lobby = g.state.phase == Phase.LOBBY && g.state.index < 0
             val q = quiz.getOrNull()
+            // Mauvaise prestation lancée : la partie a commencé, elle repartira du salon d'attente.
+            val reset = base == null && !lobby
             var reason = when {
                 quiz.isFailure -> "invalid".also { Log.e(TAG, "Prestation refusée", quiz.exceptionOrNull()) }
-                base == null && !lobby -> "not_now"
+                reset && g.state.phase == Phase.ENDED -> "not_now"
+                // Un point a déjà été donné : la prestation ne change plus (« Nouvelle partie » sur la TV pour repartir de zéro).
+                reset && !g.mayReplaceProgram() -> "points"
                 base != null && base != programRev -> "stale"
                 base != null -> g.programProblem(q!!)
                 else -> null
             }
+            val restart = if (reason == null && reset) g.resetProgram(serverNow()) else null
+            if (reset && restart == null && reason == null) reason = "points"
             val next = if (reason == null) (if (base == null) Game(q!!, g.events) else g.withProgram(q!!)) else null
             if (reason == null && next == null) reason = "invalid"
+            val status = clean(mapOf("id" to id, "status" to if (reason == null) "applied" else "refused", "reason" to reason, "at" to ServerValue.TIMESTAMP))
             if (next != null) {
                 game = next
                 programRev = id
+                if (base == null) prestation = snap.child("prestation").getValue(String::class.java)
                 updatePlaying {
                     if (base == null) it.copy(title = q!!.title, childName = snap.child("childName").getValue(String::class.java).orEmpty())
                     else it
                 }
                 gameRef?.child("conducteur")?.setValue(conducteur(next.quiz, programRev))
                 publishPublic()
+                if (restart != null) {
+                    // Retour au salon : journal, état et réponse à la régie en une seule écriture (rafraîchit l'écran et
+                    // relance les minuteries). Les annonces de points de l'ancien programme ne se rejouent pas.
+                    coups.vider()
+                    _coup.value = null
+                    commit(restart, mapOf("showStatus" to status))
+                    return@withLock
+                }
                 publishState()
                 refresh()
                 // Le chrono en cours était surveillé sur l'ancienne partie : on le reprend sur la nouvelle.
                 schedule()
             }
-            gameRef?.child("showStatus")?.setValue(
-                clean(mapOf("id" to id, "status" to if (reason == null) "applied" else "refused", "reason" to reason, "at" to ServerValue.TIMESTAMP))
-            )
+            gameRef?.child("showStatus")?.setValue(status)
         } }
     }
 
     /**
      * Titre et prénom de l'enfant fêté, lisibles par les pupitres pour l'accueil. `changeBox` : cette box sait
      * reprendre la fête d'une box en panne ; la régie (et les règles) ne confient jamais une fête à une box plus ancienne.
+     * `prestation` : la prestation de la bibliothèque jouée ici (liste des prestations de la régie, règles des lancements).
      */
     private fun publishPublic() {
         val s = _state.value as? UiState.Playing ?: return
         val title = s.title.ifBlank { game?.quiz?.title.orEmpty() }
         gameRef?.child("public")?.setValue(
-            clean(mapOf("title" to title.take(120), "childName" to s.childName.take(40).ifBlank { null }, "changeBox" to true))
+            clean(mapOf(
+                "title" to title.take(120), "childName" to s.childName.take(40).ifBlank { null }, "changeBox" to true,
+                "prestation" to prestation?.take(40),
+            ))
         )
     }
 
@@ -1628,6 +1659,18 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             val connected = snap.getValue(Boolean::class.java) == true
             updatePlaying { it.copy(connected = connected) }
             onConnection(connected)
+            if (connected) announceHost(ref)
+        }
+        // Une box remplacée peut écrire « hors ligne » après coup (coupure vue tard par le serveur) : la box hôte se
+        // réannonce, au plus toutes les 2 secondes (écriture refusée si la partie vient d'être confiée à une autre box).
+        observe(ref.child("hostOnline")) { snap ->
+            val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return@observe
+            if (snap.child("online").getValue(Boolean::class.java) == true && snap.child("uid").getValue(String::class.java) == uid) return@observe
+            if (hostRecheck?.isActive == true) return@observe
+            hostRecheck = viewModelScope.launch {
+                delay(HOST_RECHECK_MS)
+                if (hostRef?.key == ref.key && (_state.value as? UiState.Playing)?.connected == true) announceHost(ref)
+            }
         }
         observe(ref.child("teams")) { snap ->
             val teams = parseTeams(snap)
@@ -1971,9 +2014,29 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * La box hôte est en ligne : lu par les régies (liste des prestations, Régie PC) pour distinguer une fête en
+     * cours d'une fête interrompue. À la coupure, le serveur écrit lui-même « hors ligne » avec l'heure. `uid` :
+     * seule la parole de l'hôte actuel compte (après un changement de box, celle de l'ancienne est ignorée).
+     */
+    private fun announceHost(ref: DatabaseReference) {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val host = ref.child("hostOnline")
+        hostRef = ref
+        host.onDisconnect().setValue(mapOf("online" to false, "at" to ServerValue.TIMESTAMP, "uid" to uid))
+            .addOnFailureListener { Log.w(TAG, "Présence de la box (coupure)", it) }
+        host.setValue(mapOf("online" to true, "at" to ServerValue.TIMESTAMP, "uid" to uid))
+            .addOnFailureListener { Log.w(TAG, "Présence de la box", it) }
+    }
+
     private fun stopListening() {
         offlineWatch?.cancel()
         offlineWatch = null
+        // Partie quittée (nouvelle partie, partie confiée à une autre box) : le serveur n'écrira plus rien pour elle.
+        hostRef?.child("hostOnline")?.onDisconnect()?.cancel()
+        hostRef = null
+        hostRecheck?.cancel()
+        hostRecheck = null
         dropTimers.values.forEach { it.cancel() }
         dropTimers.clear()
         listeners.forEach { (ref, l) -> ref.removeEventListener(l) }
@@ -2028,6 +2091,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         private const val HANDOFF_WAIT_MS = 15_000L
         /** Lecture sur le serveur de l'hôte d'une partie à reprendre, avant de se contenter de la copie locale. */
         private const val MOVED_CHECK_MS = 4_000L
+        /** Présence de la box effacée par une autre écriture : nouvelle annonce au bout de ce délai. */
+        private const val HOST_RECHECK_MS = 2_000L
 
         fun joinUrl(code: String) = "https://${BuildConfig.FB_PROJECT_ID}.web.app/?g=$code"
 
@@ -2068,6 +2133,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             // Statues musicales : les chansons choisies (audioIds) jouées l'une après l'autre.
             "statuesChansons" to true,
             "disparu" to true,
+            // Mauvaise prestation : une autre prestation remplace celle-ci tant qu'aucun point n'a été donné (retour au salon).
+            "programReset" to true,
             "questions" to quiz.questions.map {
                 clean(mapOf(
                     "id" to it.id, "text" to it.text, "choices" to it.choices.ifEmpty { null }, "correct" to it.correct,
