@@ -407,6 +407,12 @@ async function openRegie(context, query = `?g=${CODE}&emu=1`, path = "/") {
   return page;
 }
 
+/** Statut « À venir » (prête pour la régie) : il lui faut une date à venir, sinon elle resterait « À compléter ». */
+async function aVenir(page) {
+  if (!(await page.inputValue("#show-date"))) await page.fill("#show-date", "2099-12-02");
+  await page.selectOption("#show-status", "publiee");
+}
+
 /** Administration : le mot de passe commun, saisi sur le PC familial. */
 async function openAdmin() {
   const page = await openRegie(null, "?emu=1", "/admin.html");
@@ -1712,7 +1718,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#show-rounds select.grow").nth(0).selectOption("animaux");
     await page.locator("#show-rounds select.finale").selectOption("1");
     await page.locator("#show-summary", { hasText: "2 questions jouables" }).waitFor();
-    await page.selectOption("#show-status", "publiee");
+    await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
     const saved = Object.values(await library("shows"))[0];
@@ -1747,8 +1753,8 @@ describe("bibliothèque de quiz et prestations", () => {
   test("Régie PC : l'accueil montre chaque jeu, un contenu intégré se règle, une prestation choisit son nombre de questions et ses notes arrivent en régie", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     const page = await admin();
-    // Le menu : Accueil, Prestations, Bibliothèque, Paramètres (plus de page Jeux : les jeux sont sur l'accueil).
-    assert.deepEqual(await page.locator("#nav button").allInnerTexts(), ["Accueil", "Prestations", "Bibliothèque", "Paramètres"]);
+    // Le menu : Accueil, Bibliothèque, Paramètres (plus de page Jeux ni Prestations : tout part de l'Accueil).
+    assert.deepEqual(await page.locator("#nav button").allInnerTexts(), ["Accueil", "Bibliothèque", "Paramètres"]);
     // 15 jeux (dont le Pictionary, la bombe cachée, le Gonfleur fou et la patate chaude) : la Super Finale n'en est pas un, c'est la fin du quiz (réglage de la manche Quiz).
     const tile = (type) => page.locator(`#screen-home .tile[data-game="${type}"]`);
     assert.equal(await page.locator("#screen-home .tile[data-game]").count(), 15);
@@ -1823,7 +1829,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#show-rounds .round").nth(1).locator("select.grow").selectOption("4");
     await page.fill("#show-notes", "Gâteau à 16 h.\nLéa adore les licornes.");
     await page.locator("#show-summary", { hasText: "5 questions" }).waitFor();
-    await page.selectOption("#show-status", "publiee");
+    await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
     assert.deepEqual(Object.values(await library("shows"))[0].rounds, [{ type: "quiz", quizId: "animaux", count: 1 }, { type: "chante", count: 4 }]);
@@ -1875,7 +1881,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await picker.locator("button", { hasText: "Animaux (18)" }).click();
     await picker.locator("button", { hasText: "Au parc (1)" }).click();
     await picker.locator("span", { hasText: "Séries : 19 mots" }).waitFor();
-    await page.selectOption("#show-status", "publiee");
+    await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
     assert.deepEqual(Object.values(await library("shows"))[0].rounds, [{ type: "pictionary", duration: 90, series: ["Animaux", "Au parc"] }]);
@@ -1914,7 +1920,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#show-rounds .round").nth(1).locator("select").first().selectOption("mimes");
     await page.locator("#show-rounds .round").nth(1).locator("select.grow").selectOption(deckId);
     await page.locator("#show-summary", { hasText: "2 questions · 1 manche de mimes jouables" }).waitFor();
-    await page.selectOption("#show-status", "publiee");
+    await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
     assert.deepEqual(Object.values(await library("shows"))[0].rounds, [{ type: "quiz", quizId: "animaux" }, { type: "mimes", deckId }]);
@@ -2192,7 +2198,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const round = page.locator("#show-rounds .round").nth(0);
     await round.locator("select").first().selectOption("chante");
     await round.locator("select.grow").selectOption("4");
-    await page.selectOption("#show-status", "publiee");
+    await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
     assert.deepEqual(Object.values(await library("shows"))[0].rounds, [{ type: "chante", count: 4 }]);
@@ -2261,7 +2267,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await chante.locator("select.pick-add").selectOption("soleil");
     await chante.locator("select.pick-add").selectOption("maman");
     await chante.locator(".pick-box .small", { hasText: "2 mots choisis" }).waitFor();
-    await page.selectOption("#show-status", "publiee");
+    await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
     const saved = Object.values(await library("shows"))[0].rounds;
@@ -2485,7 +2491,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await round.locator("select").first().selectOption("mimes");
     await round.locator(".manche-load").selectOption(id);
     await round.locator(".mime-need", { hasText: "5 par équipe × 6 équipes = 30 cartes · 20 choisies : le reste est tiré au hasard au lancement" }).waitFor();
-    await page.selectOption("#show-status", "publiee");
+    await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
     const show = Object.values(await library("shows"))[0];
@@ -2690,7 +2696,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
-  test("Régie PC : rechercher une prestation par prénom, âge, date ou jeu, archives comprises", async () => {
+  test("Régie PC : trois listes (À venir, À compléter, Archivées) ouvertes par les compteurs ; rechercher par prénom, âge, date ou jeu", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     await seedLibrary("shows", {
       lea: { childName: "Léa", age: 9, date: "2099-12-02", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 },
@@ -2698,25 +2704,41 @@ describe("bibliothèque de quiz et prestations", () => {
       zoe: { childName: "Zoé", age: 10, date: "2025-03-01", status: "brouillon", rounds: [], updatedAt: 1 },
     });
     const page = await admin();
-    await page.click("#nav button[data-screen=shows]");
+    // Plus d'onglet « Prestations » : trois compteurs sur l'Accueil, un par état.
+    assert.deepEqual(await page.locator("#nav button").allInnerTexts(), ["Accueil", "Bibliothèque", "Paramètres"]);
+    await page.locator("#stat-avenir", { hasText: "1" }).waitFor();
+    assert.equal(await page.textContent("#stat-acompleter"), "0");
+    assert.equal(await page.textContent("#stat-archivee"), "2", "Hugo archivé, et Zoé dont la date est passée");
+    await page.click('#screen-home [data-etat="avenir"]');
+    await page.locator("#shows-h1", { hasText: "Anniversaires à venir" }).waitFor();
+    assert.equal(await page.textContent("#shows-crumb"), "Anniversaires à venir");
     const search = async (q) => { await page.fill("#show-search", q); return page.locator("#show-search-count").textContent(); };
-    assert.equal(await search("hugo"), "1 prestation trouvée");
-    assert.equal(await page.locator("#show-archives").getAttribute("open"), "", "Les archives s'ouvrent sur le résultat");
-    assert.equal(await page.locator("#show-archive-list", { hasText: "Hugo" }).count(), 1);
-    assert.equal(await page.locator("#show-list", { hasText: "Léa" }).count(), 0);
+    // Hugo n'est pas à venir : la liste le dit, et mène aux archivées en un clic, la recherche gardée.
+    assert.equal(await search("hugo"), "0 prestation trouvée");
+    await page.locator('#show-ailleurs [data-ailleurs="archivee"]', { hasText: "Archivées (1)" }).click();
+    await page.locator("#shows-h1", { hasText: "Archivées" }).waitFor();
+    assert.equal(await page.inputValue("#show-search"), "hugo");
+    await page.locator('#show-list [data-show="hugo"]').waitFor();
+    assert.equal(await page.textContent("#show-search-count"), "1 prestation trouvée");
     assert.equal(await search("juin"), "1 prestation trouvée");
     assert.equal(await search("14/06"), "1 prestation trouvée");
     assert.equal(await search("patate"), "1 prestation trouvée");
-    assert.equal(await search("lea 9"), "1 prestation trouvée");
-    await page.locator("#show-list", { hasText: "Léa" }).waitFor();
-    assert.equal(await search("animaux"), "1 prestation trouvée");
     assert.equal(await search("2025"), "2 prestations trouvées");
-    // Fête passée depuis plus de 2 jours : rangée d'elle-même dans les archives.
-    assert.equal(await page.locator("#show-archive-list", { hasText: "Zoé" }).count(), 1);
+    // Zoé : brouillon dont la fête est passée, rangée d'elle-même dans les archivées.
+    await page.locator('#show-list [data-show="zoe"]').waitFor();
     assert.equal(await search("zoe 11"), "0 prestation trouvée");
-    await page.locator("#show-list", { hasText: "Aucune prestation ne correspond" }).waitFor();
-    assert.equal(await search(""), "");
-    assert.equal(await page.locator("#show-list", { hasText: "Léa" }).count(), 1);
+    await page.locator("#show-list", { hasText: "Aucune prestation de cette liste ne correspond" }).waitFor();
+    // Les onglets passent d'une liste à l'autre ; une autre liste repart d'une recherche vide.
+    await page.click('#shows-tabs [data-etat="avenir"]');
+    await page.locator("#shows-h1", { hasText: "Anniversaires à venir" }).waitFor();
+    assert.equal(await page.inputValue("#show-search"), "");
+    assert.equal(await search("lea 9"), "1 prestation trouvée");
+    await page.locator('#show-list [data-show="lea"]').waitFor();
+    assert.equal(await search("animaux"), "1 prestation trouvée");
+    // Le logo ramène à l'Accueil, comme le bouton « Accueil ».
+    await page.click("#brand");
+    await page.locator("#screen-home:not([hidden])").waitFor();
+    assert.equal(await page.locator("#brand small").textContent(), "Administration");
     await page.context().close();
   });
 
@@ -2730,7 +2752,7 @@ describe("bibliothèque de quiz et prestations", () => {
       page.once("dialog", (d) => d.accept(name));
       await item.getByRole("button", { name: "Renommer" }).click();
     };
-    await page.click("#nav button[data-screen=shows]");
+    await page.click('#screen-home [data-etat="acompleter"]');
     await renommer(page.locator('#show-list [data-show="lea"]'), "  La grande fête   de Léa ");
     await page.locator('#show-list [data-show="lea"] .card-title', { hasText: "La grande fête de Léa" }).waitFor();
     const lea = (await library("shows")).lea;
@@ -2819,7 +2841,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#show-rounds .round").nth(0).locator("select").first().selectOption("express");
     await page.locator("#show-rounds .round").nth(0).locator("select.grow option", { hasText: "Sciences (2 Vrai / Faux)" }).waitFor({ state: "attached" });
     await page.locator("#show-rounds .round").nth(0).locator("select.grow").selectOption("sciences");
-    await page.selectOption("#show-status", "publiee");
+    await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
     assert.deepEqual(Object.values(await library("shows"))[0].rounds, [{ type: "express", quizId: "sciences" }]);
@@ -2874,7 +2896,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
-  test("tableau de bord : anniversaires à venir et leur état, dupliquer sans toucher l'original, archiver", async () => {
+  test("tableau de bord : trois compteurs, les prochains anniversaires « À venir », dupliquer depuis une liste sans toucher l'original, archiver", async () => {
     const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     const LEA = { childName: "Léa", age: 7, date: day(10), status: "publiee", themes: "Licornes", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 };
@@ -2884,20 +2906,27 @@ describe("bibliothèque de quiz et prestations", () => {
       vieux: { childName: "Ancien", age: 8, date: "2020-01-01", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 },
     });
     const page = await admin();
-    await page.locator("#stat-upcoming", { hasText: "2" }).waitFor();
-    assert.equal(await page.textContent("#stat-ready"), "1", "L'anniversaire passé ne compte pas");
-    assert.equal(await page.textContent("#stat-todo"), "1");
-    // Du plus proche au plus lointain, l'ancien anniversaire n'y est pas.
-    assert.deepEqual(await page.locator("#home-upcoming .show-card").evaluateAll((els) => els.map((e) => e.dataset.show)), ["tom", "lea"]);
-    const tom = page.locator('#home-upcoming [data-show="tom"]');
-    await tom.locator(".todo", { hasText: "Indiquer l'âge" }).waitFor();
-    assert.match(await tom.textContent(), /dans 3 jours/);
-    await page.locator('#home-upcoming [data-show="lea"] .pill', { hasText: "Prête" }).waitFor();
+    // À venir : Léa (prête) ; à compléter : Tom (brouillon) ; archivée : l'ancienne fête de 2020.
+    await page.locator("#stat-avenir", { hasText: "1" }).waitFor();
+    assert.equal(await page.textContent("#stat-acompleter"), "1");
+    assert.equal(await page.textContent("#stat-archivee"), "1");
+    // Prochains anniversaires : seulement les « À venir », avec Ouvrir, Renommer, Archiver (pas Dupliquer).
+    assert.deepEqual(await page.locator("#home-upcoming .show-card").evaluateAll((els) => els.map((e) => e.dataset.show)), ["lea"]);
+    const carte = page.locator('#home-upcoming [data-show="lea"]');
+    await carte.locator(".pill", { hasText: "✓ À venir : visible sur la régie" }).waitFor();
+    assert.deepEqual(await carte.locator(".card-actions button").allInnerTexts(), ["Ouvrir", "Renommer", "Archiver"]);
     // Sur téléphone, rien ne dépasse de l'écran.
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "Défilement horizontal sur téléphone");
+    // À compléter : Tom, avec ce qui lui manque.
+    await page.click('#screen-home [data-etat="acompleter"]');
+    const tom = page.locator('#show-list [data-show="tom"]');
+    await tom.locator(".todo", { hasText: "Indiquer l'âge" }).waitFor();
+    assert.match(await tom.textContent(), /dans 3 jours/);
 
-    // Dupliquer : un nouveau brouillon avec les mêmes manches, l'original ne bouge pas.
-    await page.locator('#home-upcoming [data-show="lea"]').getByRole("button", { name: "Dupliquer" }).click();
+    // Dupliquer, depuis la liste « À venir » : un nouveau brouillon avec les mêmes manches, l'original ne bouge pas.
+    await page.click('#shows-tabs [data-etat="avenir"]');
+    await page.locator('#show-list [data-show="lea"]').getByRole("button", { name: "Dupliquer" }).click();
+    assert.equal(await page.textContent("#show-edit-crumb"), "À compléter");
     await page.locator("#show-edit-title", { hasText: "Copie de « L'anniversaire de Léa »" }).waitFor();
     assert.equal(await page.inputValue("#show-child"), "");
     assert.equal(await page.inputValue("#show-themes"), "Licornes");
@@ -2911,18 +2940,43 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(zoe.status, "brouillon");
     assert.deepEqual(zoe.rounds, LEA.rounds);
     assert.deepEqual(shows.lea, LEA, "Prestation d'origine inchangée");
-    await page.locator("#show-ready", { hasText: "Passer le statut à « Prête »" }).waitFor();
+    await page.locator("#show-ready", { hasText: "Passer le statut à « À venir »" }).waitFor();
+    // « À venir » avec tout rempli : enregistrée et visible sur la régie.
+    await aVenir(page);
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée « À venir » : elle est visible sur la régie." }).waitFor();
+    assert.equal(await page.textContent("#show-edit-crumb"), "Anniversaires à venir");
 
-    // Archiver : Tom quitte les anniversaires à venir et rejoint les archives.
-    await page.click("#nav button[data-screen=home]");
-    await page.locator('#home-upcoming [data-show="tom"]').getByRole("button", { name: "Archiver" }).click();
-    await page.locator('#home-upcoming [data-show="tom"]').waitFor({ state: "detached" });
-    assert.equal((await library("shows/tom/status")), "archivee");
-    await page.click("#nav button[data-screen=shows]");
-    // Tom archivé à la main, l'ancienne fête de 2020 rangée d'elle-même.
-    await page.locator("#show-archives summary", { hasText: "Prestations archivées (2)" }).waitFor();
-    assert.equal(await page.locator('#show-list [data-show="tom"]').count(), 0);
-    assert.equal(await page.locator('#show-list [data-show="vieux"]').count(), 0);
+    // Une prestation incomplète ne passe pas « À venir » : elle reste « À compléter », rien n'est perdu.
+    await page.click("#brand");
+    await page.click("#home-new");
+    await page.fill("#show-child", "Noé");
+    await page.selectOption("#show-status", "publiee");
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée en « À compléter » : pour passer en « À venir », il manque : Ajouter la date · Indiquer l'âge · Ajouter une manche." }).waitFor();
+    assert.equal(await page.inputValue("#show-status"), "brouillon");
+    const noe = Object.values(await library("shows")).find((s) => s.childName === "Noé");
+    assert.equal(noe.status, "brouillon");
+    // Une date passée non plus (elle filerait directement dans les archivées).
+    await page.fill("#show-age", "6");
+    await page.fill("#show-date", day(-5));
+    await page.click("#round-add");
+    await page.locator("#show-rounds select.grow").nth(0).selectOption("animaux");
+    await page.selectOption("#show-status", "publiee");
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "il manque : Choisir une date à venir (celle-ci est passée)." }).waitFor();
+
+    // Archiver depuis l'Accueil : Léa quitte les prochains anniversaires et rejoint les archivées.
+    await page.click("#brand");
+    await page.locator('#home-upcoming [data-show="lea"]').getByRole("button", { name: "Archiver" }).click();
+    await page.locator('#home-upcoming [data-show="lea"]').waitFor({ state: "detached" });
+    assert.equal((await library("shows/lea/status")), "archivee");
+    // Léa archivée à la main ; l'ancienne fête de 2020 et Noé (date passée) rangées d'elles-mêmes.
+    await page.locator("#stat-archivee", { hasText: "3" }).waitFor();
+    await page.click('#screen-home [data-etat="archivee"]');
+    await page.locator('#show-list [data-show="lea"]').waitFor();
+    await page.locator('#show-list [data-show="vieux"]').waitFor();
+    assert.equal(await page.locator("#show-list .show-card").count(), 3);
     await page.context().close();
   });
 
@@ -3040,25 +3094,30 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
-  test("prestations : archivées toutes seules 2 jours après la fête ; l'étoile en fait un modèle dont les jeux passent en premier dans la régie", async () => {
+  test("prestations : archivées toutes seules le lendemain de la fête ; l'étoile en fait un modèle dont les jeux passent en premier dans la régie", async () => {
     const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     await seedLibrary("shows", {
-      hier: { childName: "Lina", age: 8, date: day(-1), status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 },
-      vieux: { childName: "Malo", age: 9, date: day(-3), status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }, { type: "patate" }], updatedAt: 1 },
+      hier: { childName: "Lina", age: 8, date: day(0), status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 },
+      vieux: { childName: "Malo", age: 9, date: day(-1), status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }, { type: "patate" }], updatedAt: 1 },
     });
     const page = await admin();
-    await page.click("#nav button[data-screen=shows]");
-    // Hier : encore là (fête décalée possible) ; il y a 3 jours : dans les archives.
+    // Le jour de la fête : encore à venir ; la veille : déjà dans les archivées (plus de trou de 2 jours).
+    await page.click('#screen-home [data-etat="avenir"]');
     await page.locator('#show-list [data-show="hier"]').waitFor();
-    await page.locator("#show-archives summary", { hasText: "Prestations archivées (1)" }).waitFor();
-    assert.equal(await page.locator('#show-list [data-show="hier"]').getByRole("button", { name: "⭐ Épingler" }).count(), 0, "L'étoile se met dans les archives");
-    await page.click("#show-archives summary");
-    await page.locator('#show-archive-list [data-show="vieux"]').getByRole("button", { name: "⭐ Épingler" }).click();
+    assert.equal(await page.locator('#show-list [data-show="hier"]').getByRole("button", { name: "⭐ Épingler" }).count(), 0, "L'étoile se met dans les archivées");
+    await page.click('#shows-tabs [data-etat="archivee"]');
+    await page.locator('#show-list [data-show="vieux"]').getByRole("button", { name: "⭐ Épingler" }).click();
     await page.locator('#show-pinned:not([hidden]) [data-show="vieux"]').waitFor();
     assert.equal(await library("shows/vieux/pinned"), true);
     assert.equal(await library("shows/vieux/status"), "publiee", "Rien d'autre ne change");
-    await page.locator("#show-archives").waitFor({ state: "hidden" });
+    // Ouverte puis enregistrée telle quelle, elle garde son étoile.
+    await page.locator('#show-pinned [data-show="vieux"]').getByRole("button", { name: "Ouvrir" }).click();
+    assert.equal(await page.textContent("#show-edit-crumb"), "Archivées");
+    assert.equal(await page.inputValue("#show-status"), "archivee", "Archivée d'elle-même : le statut le dit");
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée." }).waitFor();
+    assert.equal(await library("shows/vieux/pinned"), true);
     await page.context().close();
 
     // Régie du téléphone : la prestation d'il y a 3 jours n'est plus proposée ; ses jeux passent en premier.
@@ -3330,8 +3389,11 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual((await library("quizzes")).animaux, ANIMAUX, "Quiz existant intact");
 
     // Dans l'administration : la prestation, puis ses 10 questions, dont Sarah corrige la première.
-    await page.click("#nav button[data-screen=shows]");
-    await page.locator('#screen-shows [data-show="test-lea-9-ans"]', { hasText: "ANNIVERSAIRE TEST – Léa, 9 ans" }).waitFor({ state: "attached" });
+    // Elle est dans une des listes (« À venir » jusqu'au lendemain de sa date, puis « Archivées »).
+    await page.click("#nav button[data-screen=home]");
+    await page.click('#screen-home [data-etat="avenir"]');
+    await page.fill("#show-search", "ANNIVERSAIRE TEST");
+    await page.locator('#show-list [data-show="test-lea-9-ans"], #show-ailleurs [data-ailleurs="archivee"]').first().waitFor();
     await openQuizzes(page);
     await page.locator('#quiz-list [data-quiz="test-lea-9-ans"]', { hasText: "10 questions · 10 validées" }).getByRole("button", { name: "Éditer" }).click();
     await page.locator('[data-q="9"]').waitFor();
@@ -3535,7 +3597,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(await songs.evaluateAll((els) => els.map((e) => e.checked)), [true, true, false], "même chanson dans deux listes : une seule case");
     await songs.nth(0).uncheck();
     await page.locator("#show-rounds .statues-songs", { hasText: "1 chanson cochée, jouée en boucle" }).waitFor();
-    await page.selectOption("#show-status", "publiee");
+    await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
     const [, saved] = Object.entries(await library("shows"))[0];

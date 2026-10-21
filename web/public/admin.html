@@ -14,10 +14,10 @@
 </head>
 <body>
   <header>
-    <p class="brand"><img src="img/favicon.svg" alt="" width="34" height="34"> Little Miss Party <small>Quiz · Administration</small></p>
+    <!-- Le logo ramène à l'Accueil, comme le bouton « Accueil » du menu (une fois connecté). -->
+    <button id="brand" class="brand" type="button" title="Accueil"><img src="img/favicon.svg" alt="" width="34" height="34"> Little Miss Party <small>Administration</small></button>
     <nav id="nav" hidden>
       <button data-screen="home">Accueil</button>
-      <button data-screen="shows">Prestations</button>
       <button data-screen="library">Bibliothèque</button>
       <button data-screen="settings">Paramètres<span id="nav-boxes" class="nav-badge" hidden></span></button>
     </nav>
@@ -50,9 +50,10 @@
       </div>
       <button id="home-boxes" class="box-alert" type="button" data-screen="settings" hidden></button>
       <div class="stats">
-        <button class="stat" data-screen="shows"><b id="stat-upcoming">0</b><span>anniversaires à venir</span></button>
-        <button class="stat ready" data-screen="shows"><b id="stat-ready">0</b><span>prêts pour la régie</span></button>
-        <button class="stat todo" data-screen="shows"><b id="stat-todo">0</b><span>à compléter</span></button>
+        <!-- Les trois états d'une prestation : chaque compteur ouvre sa liste. -->
+        <button class="stat ready" type="button" data-etat="avenir"><b id="stat-avenir">0</b><span>à venir</span></button>
+        <button class="stat todo" type="button" data-etat="acompleter"><b id="stat-acompleter">0</b><span>à compléter</span></button>
+        <button class="stat archive" type="button" data-etat="archivee"><b id="stat-archivee">0</b><span>archivées</span></button>
       </div>
       <h2>Prochains anniversaires</h2>
       <div id="home-upcoming" class="cards"></div>
@@ -61,34 +62,30 @@
       <div id="home-games" class="home-games"></div>
     </section>
 
-    <!-- Prestations : ce que la régie charge sur la TV le jour J. -->
+    <!-- Une liste de prestations, ouverte par un compteur de l'Accueil : À venir, À compléter ou Archivées. -->
     <section id="screen-shows" class="screen" hidden>
+      <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <b id="shows-crumb">À venir</b></nav>
       <div class="title-row">
-        <h1>Prestations</h1>
-        <button id="show-new" class="btn">Nouvelle prestation</button>
+        <h1 id="shows-h1">Anniversaires à venir</h1>
+        <button id="show-new" class="btn">＋ Créer une prestation</button>
       </div>
-      <p class="hint">
-        Une prestation « Prête » apparaît sur la régie de l'animatrice (onglet Prestation, dans le salon
-        d'attente) : une touche la charge sur la TV.
-      </p>
+      <div id="shows-tabs" class="chips"></div>
+      <p id="shows-hint" class="hint"></p>
       <div class="search-row">
         <input id="show-search" type="search" placeholder="Rechercher : prénom, âge, date (25/10, octobre…), jeu…" aria-label="Rechercher une prestation" autocomplete="off">
         <span id="show-search-count" class="hint small"></span>
       </div>
-      <div id="show-list" class="cards"></div>
       <div id="show-pinned" class="pinned" hidden>
-        <h2>⭐ Prestations épinglées</h2>
-        <p class="hint small">Les prestations archivées dont l'étoile est cochée : leurs jeux sont proposés en premier dans « ＋ Ajouter un jeu » de la régie, et « Dupliquer » en fait un nouvel anniversaire.</p>
+        <h2>⭐ Épinglées</h2>
+        <p class="hint small">Leurs jeux sont proposés en premier dans « ＋ Ajouter un jeu » de la régie.</p>
         <div id="show-pinned-list" class="cards"></div>
       </div>
-      <details id="show-archives" class="archives" hidden>
-        <summary>Prestations archivées (<span id="show-archive-count">0</span>) : rangées toutes seules 2 jours après la fête</summary>
-        <div id="show-archive-list" class="cards"></div>
-      </details>
+      <div id="show-list" class="cards"></div>
+      <p id="show-ailleurs" class="hint"></p>
     </section>
 
     <section id="screen-show-edit" class="screen" hidden>
-      <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <button class="link" data-screen="shows">Prestations</button> › <b id="show-edit-title">Nouvelle prestation</b></nav>
+      <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <button id="show-edit-crumb" class="link" type="button">À compléter</button> › <b id="show-edit-title">Nouvelle prestation</b></nav>
       <div id="show-ready" class="ready-box"></div>
       <form id="show-form" class="panel">
         <div class="grid">
@@ -104,8 +101,8 @@
           <label>Date<input id="show-date" type="date"></label>
           <label>Statut
             <select id="show-status">
-              <option value="brouillon">Brouillon</option>
-              <option value="publiee">Prête pour la régie</option>
+              <option value="brouillon">À compléter</option>
+              <option value="publiee">À venir</option>
               <option value="archivee">Archivée</option>
             </select>
           </label>

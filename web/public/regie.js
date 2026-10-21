@@ -2010,7 +2010,7 @@ function renderShows(st) {
   if (shows.loading) return hint("Chargement des prestations…");
   if (shows.denied) return hint("Pour charger une prestation, entrez dans la régie avec le mot de passe (pas avec le code de la TV).");
   if (shows.error || !shows.list) return hint("Impossible de lire les prestations. Vérifiez la connexion.");
-  if (!shows.list.length) hint("Aucune prestation prête. Sarah les prépare dans l'administration (statut « Prête »).");
+  if (!shows.list.length) hint("Aucune prestation à venir. Sarah les prépare dans l'administration (statut « À venir »).");
   shows.list.forEach(({ id, show, snapshot, problems }) => {
     const item = document.createElement("button");
     item.className = "show-item";

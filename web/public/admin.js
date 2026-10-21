@@ -12,7 +12,7 @@ import { writeProof, isAdmin } from "./proof.js";
 import { parseQuiz, checkQuestions, geminiPrompt, chatgptUrl, imageKey, wordFromImage, photoQuestions, LETTERS } from "./importer.js";
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
 import {
-  buildSnapshot, estimateMinutes, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, BUILTIN_GAMES, readiness, upcoming, daysUntil, duplicateShow, isoDay,
+  buildSnapshot, estimateMinutes, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, BUILTIN_GAMES, readiness, daysUntil, duplicateShow, isoDay, ETATS, etatPrestation,
   roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC, PICTO_SECONDS, PICTO_SEC, PICTO_POINTS, PICTO_RULE,
   blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras, contentSlot, contentImages,
   pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches, isArchived, AUTO_ARCHIVE_DAYS, quizKind,
@@ -132,8 +132,8 @@ const SCREENS = ["login", "home", "shows", "show-edit", "library", "game", "manc
 function show(name) {
   // Les jeux s'ouvrent depuis leur tuile de l'accueil (cedric) : leurs pages gardent l'onglet Accueil allumé ; les
   // réglages des chansons, l'onglet Bibliothèque.
-  if (["home", "shows", "library", "settings"].includes(name)) current = name;
-  if (["game", "manche-edit", "quizzes", "mimes", "music", "builtin", "import", "review", "mime-edit", "playlist-edit", "banque"].includes(name)) current = "home";
+  if (["home", "library", "settings"].includes(name)) current = name;
+  if (["shows", "show-edit", "game", "manche-edit", "quizzes", "mimes", "music", "builtin", "import", "review", "mime-edit", "playlist-edit", "banque"].includes(name)) current = "home";
   if (name === "playlist-edit" && playlist?.use === "songs") current = "library";
   // L'accueil remet à zéro le jeu ouvert (plus d'onglets Manches / Collections).
   if (name === "home") gameType = null;
@@ -152,6 +152,8 @@ function show(name) {
   if (name === "settings") showLastChange();
 }
 document.querySelectorAll("[data-screen]").forEach((b) => { b.onclick = () => show(b.dataset.screen); });
+// Le logo ramène à l'Accueil, comme le bouton « Accueil » du menu (rien avant la connexion).
+$("brand").onclick = () => { if (!$("nav").hidden) show("home"); };
 
 // ---------- Connexion ----------
 
@@ -265,7 +267,7 @@ function refreshLists() {
 
 const byDate = ([, a], [, b]) => (a.date ?? "9999").localeCompare(b.date ?? "9999");
 const dateLabel = (d) => (d ? new Date(`${d}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "sans date");
-const STATUS_LABELS = { brouillon: "Brouillon", publiee: "Prête", archivee: "Archivée" };
+const STATUS_LABELS = { brouillon: ETATS.acompleter, publiee: ETATS.avenir, archivee: ETATS.archivee };
 
 // ---------- Tableau de bord ----------
 
@@ -278,19 +280,26 @@ const whenLabel = (d) => {
   return n === 0 ? "aujourd'hui" : n === 1 ? "demain" : n > 1 ? `dans ${n} jours` : "passée";
 };
 
+/** Les prestations d'un état (« avenir », « acompleter », « archivee »), dans leur ordre de liste. */
+function prestationsEtat(etat, today = isoDay()) {
+  const list = Object.entries(shows).filter(([, s]) => s && etatPrestation(s, today) === etat).sort(byDate);
+  // Archivées : les plus récentes d'abord.
+  return etat === "archivee" ? list.reverse() : list;
+}
+
+const COMPTEURS = { avenir: ["anniversaire à venir", "anniversaires à venir"], acompleter: ["à compléter", "à compléter"], archivee: ["archivée", "archivées"] };
+
 function renderHome() {
-  const coming = upcoming(shows);
-  // Les anniversaires passés ne comptent plus : seuls ceux à venir ou encore sans date.
-  const today = isoDay();
-  const pending = Object.values(shows).filter((s) => !s.date || s.date >= today);
-  const pret = coming.filter(([, s]) => readiness(s, quizzes, mimes, playlists, contents).level === "prete").length;
-  $("stat-upcoming").textContent = coming.length;
-  $("stat-upcoming").nextElementSibling.textContent = coming.length > 1 ? "anniversaires à venir" : "anniversaire à venir";
-  $("stat-ready").textContent = pret;
-  $("stat-ready").nextElementSibling.textContent = pret > 1 ? "prêts pour la régie" : "prêt pour la régie";
-  $("stat-todo").textContent = pending.filter((s) => readiness(s, quizzes, mimes, playlists, contents).level === "a-completer").length;
+  for (const [etat, [un, plusieurs]] of Object.entries(COMPTEURS)) {
+    const n = prestationsEtat(etat).length;
+    $(`stat-${etat}`).textContent = n;
+    $(`stat-${etat}`).nextElementSibling.textContent = n > 1 ? plusieurs : un;
+  }
+  // Prochains anniversaires : les prestations « À venir » (prêtes, sur la régie), les plus proches d'abord.
+  const coming = prestationsEtat("avenir");
   const box = $("home-upcoming");
-  box.replaceChildren(...coming.slice(0, 6).map(([id, s]) => showCard(id, s)));
+  box.replaceChildren(...coming.slice(0, 6).map(([id, s]) => showCard(id, s, { accueil: true })));
+  if (coming.length > 6) box.append(h("button", { type: "button", class: "btn secondary", text: `Voir les ${coming.length} anniversaires à venir`, onclick: () => openShows("avenir") }));
   if (!coming.length) {
     box.append(h("div", { class: "empty" },
       h("p", { text: "Aucun anniversaire à venir pour l'instant." }),
@@ -324,12 +333,17 @@ function contentLabel(snapshot) {
   return [q ? `${q} question${q > 1 ? "s" : ""}` : "", m ? `${m} manche${m > 1 ? "s" : ""} de mimes` : "", p ? `${p} Pictionary` : ""].filter(Boolean).join(" · ");
 }
 $("home-new").onclick = () => editShow(null);
+document.querySelectorAll("#screen-home [data-etat]").forEach((b) => { b.onclick = () => openShows(b.dataset.etat); });
 
 // ---------- Prestations ----------
 
-/** Carte d'une prestation : date, prénom, âge, état de préparation et actions. */
-function showCard(id, s) {
+/**
+ * Carte d'une prestation : date, prénom, âge, état et actions. [accueil] : la carte des prochains anniversaires,
+ * avec seulement Ouvrir, Renommer et Archiver (« Dupliquer » se fait depuis les listes).
+ */
+function showCard(id, s, { accueil = false } = {}) {
   const r = readiness(s, quizzes, mimes, playlists, contents);
+  const etat = etatPrestation(s);
   const { snapshot } = buildSnapshot(id, s, quizzes, mimes, Math.random, playlists, contents);
   const date = s.date ? shortDate(s.date) : null;
   // Un clic sur la carte (hors de ses boutons) l'ouvre, comme « Ouvrir ».
@@ -340,43 +354,64 @@ function showCard(id, s) {
       h("span", { class: "meta", text: [s.childName, s.age ? `${s.age} ans` : "", s.date ? `${dateLabel(s.date)} (${whenLabel(s.date)})` : ""].filter(Boolean).join(" · ") }),
       snapshot ? h("span", { class: "meta", text: `${contentLabel(snapshot)} · environ ${estimateMinutes(snapshot)} min` }) : null,
       s.pinned ? h("span", { class: "pill pin", text: "⭐ Épinglée : ses jeux en premier dans la régie" }) : null,
-      r.level === "prete"
-        ? h("span", { class: "pill ok", text: "✓ Prête : visible sur la régie" })
-        : r.level === "archivee"
-          ? h("span", { class: "pill", text: "Archivée" })
-          : h("div", { class: "todo" }, h("span", { class: "pill warn", text: "À compléter" }), h("ul", {}, ...r.todo.map((t) => h("li", { text: t })))),
+      etat === "archivee"
+        ? h("span", { class: "pill", text: "Archivée : plus sur la régie" })
+        : etat === "avenir" && r.level === "prete"
+          ? h("span", { class: "pill ok", text: "✓ À venir : visible sur la régie" })
+          : h("div", { class: "todo" }, h("span", { class: "pill warn", text: etat === "avenir" ? "⚠ Sur la régie, mais il manque :" : "À compléter" }), h("ul", {}, ...r.todo.map((t) => h("li", { text: t })))),
       h("div", { class: "card-actions" },
         h("button", { class: "btn small", onclick: () => editShow(id), text: "Ouvrir" }),
-        h("button", { class: "btn small secondary", onclick: () => editShow(null, s), text: "Dupliquer" }),
+        accueil ? null : h("button", { class: "btn small secondary", onclick: () => editShow(null, s), text: "Dupliquer" }),
         h("button", { class: "btn small secondary", onclick: () => rename(`library/shows/${id}`, showTitle(s), "de la prestation"), text: "Renommer" }),
-        isArchived(s) ? h("button", { class: "btn small secondary", onclick: () => pin(id, !s.pinned), text: s.pinned ? "☆ Désépingler" : "⭐ Épingler" }) : null,
+        isArchived(s) && !accueil ? h("button", { class: "btn small secondary", onclick: () => pin(id, !s.pinned), text: s.pinned ? "☆ Désépingler" : "⭐ Épingler" }) : null,
         isArchived(s)
           ? h("button", { class: "btn small secondary", onclick: () => archive(id, s, false), text: "Désarchiver" })
           : h("button", { class: "btn small secondary", onclick: () => archive(id, s, true), text: "Archiver" }))));
 }
 
+/** Liste ouverte : « avenir », « acompleter » ou « archivee ». */
+let showsEtat = "avenir";
+const LISTES = {
+  avenir: { titre: "Anniversaires à venir", hint: "Prêtes : elles sont sur la régie du téléphone, une touche les charge sur la TV. Le lendemain de la fête, elles passent toutes seules dans les archivées.", vide: "Aucun anniversaire à venir : complétez une prestation puis passez son statut à « À venir »." },
+  acompleter: { titre: "À compléter", hint: "Brouillons : pas encore sur la régie. Complétez-les, puis passez leur statut à « À venir ».", vide: "Rien à compléter." },
+  archivee: { titre: "Archivées", hint: "Fêtes passées ou rangées à la main : elles ne sont plus sur la régie. « Dupliquer » en fait un nouvel anniversaire.", vide: "Aucune prestation archivée." },
+};
+
+/** Ouvre une liste ; [garderRecherche] : « Aussi trouvé dans » garde le texte cherché. */
+function openShows(etat, garderRecherche = false) {
+  if (etat !== showsEtat && !garderRecherche) $("show-search").value = "";
+  showsEtat = etat;
+  show("shows");
+}
+
 function renderShows() {
   const today = isoDay();
-  // Recherche : seules les prestations qui contiennent tous les mots tapés, archives et anniversaires passés compris.
+  const etat = showsEtat;
+  const liste = LISTES[etat];
+  $("shows-crumb").textContent = liste.titre;
+  $("shows-h1").textContent = liste.titre;
+  $("shows-hint").textContent = liste.hint;
   const query = $("show-search").value.trim();
-  const list = Object.entries(shows).filter(([, s]) => s && showMatches(s, query, { quizzes, mimes, playlists })).sort(byDate);
-  // À venir d'abord ; puis les archivées étoilées (modèles où piocher des jeux) ; puis toutes les autres archivées.
-  const range = (l) => parPertinence(l, query, ([, s]) => [showTitle(s), s.childName], ([, s]) => [s.themes, s.notes]);
-  const active = range(list.filter(([, s]) => !isArchived(s, today)));
-  const pinned = range(list.filter(([, s]) => s.pinned && isArchived(s, today)));
-  const archived = range(list.filter(([, s]) => !s.pinned && isArchived(s, today)).reverse());
+  // Recherche : chaque mot tapé (prénom, âge, date, jeu…) ; les titres qui commencent par le texte d'abord.
+  const trouve = (e) => parPertinence(prestationsEtat(e, today).filter(([, s]) => showMatches(s, query, { quizzes, mimes, playlists })), query,
+    ([, s]) => [showTitle(s), s.childName], ([, s]) => [s.themes, s.notes]);
+  $("shows-tabs").replaceChildren(...Object.keys(LISTES).map((e) => h("button", {
+    type: "button", class: `chip${e === etat ? " active" : ""}`, "data-etat": e, text: `${LISTES[e].titre} (${prestationsEtat(e, today).length})`,
+    onclick: () => openShows(e),
+  })));
+  const list = trouve(etat);
+  // Archivées : les épinglées (leurs jeux sont proposés en premier dans la régie) en tête.
+  const pinned = etat === "archivee" ? list.filter(([, s]) => s.pinned) : [];
+  const autres = etat === "archivee" ? list.filter(([, s]) => !s.pinned) : list;
   $("show-pinned").hidden = !pinned.length;
   $("show-pinned-list").replaceChildren(...pinned.map(([id, s]) => showCard(id, s)));
-  $("show-list").replaceChildren(...active.map(([id, s]) => showCard(id, s)));
-  if (!active.length) $("show-list").append(h("p", { class: "hint", text: "Aucune prestation en cours de préparation." }));
-  $("show-archives").hidden = !archived.length;
-  $("show-archive-count").textContent = archived.length;
-  $("show-archive-list").replaceChildren(...archived.map(([id, s]) => showCard(id, s)));
-  if (query) {
-    // Les résultats rangés dans les anniversaires passés ou les archives s'ouvrent tout seuls.
-    $("show-archives").open = archived.length > 0;
-    if (!active.length) $("show-list").replaceChildren(h("p", { class: "hint", text: list.length ? "Rien en préparation pour cette recherche : voir plus bas." : "Aucune prestation ne correspond à cette recherche." }));
-  }
+  $("show-list").replaceChildren(...autres.map(([id, s]) => showCard(id, s)));
+  if (!list.length) $("show-list").append(h("p", { class: "hint", text: query ? "Aucune prestation de cette liste ne correspond à cette recherche." : liste.vide }));
+  // Rien ici ? Les autres listes qui ont des résultats, en un clic.
+  const ailleurs = query ? Object.keys(LISTES).filter((e) => e !== etat).map((e) => [e, trouve(e).length]).filter(([, n]) => n) : [];
+  $("show-ailleurs").replaceChildren(...(ailleurs.length ? [h("span", { text: "Aussi trouvé dans : " }), ...ailleurs.map(([e, n]) => h("button", {
+    type: "button", class: "chip", "data-ailleurs": e, text: `${LISTES[e].titre} (${n})`, onclick: () => openShows(e, true),
+  }))] : []));
   $("show-search-count").textContent = query ? `${list.length} prestation${list.length > 1 ? "s" : ""} trouvée${list.length > 1 ? "s" : ""}` : "";
 }
 $("show-search").addEventListener("input", () => renderShows());
@@ -527,6 +562,7 @@ $("show-profile").append(
   ...Object.entries(PROFILES).map(([k, p]) => h("option", { value: k, text: p.label })),
 );
 $("show-new").onclick = () => editShow(null);
+$("show-edit-crumb").onclick = () => openShows(showsEtat);
 
 /** Ouvre une prestation ; sans identifiant, une nouvelle, vide ou copiée d'une autre (`from`). */
 function editShow(id, from = null) {
@@ -535,11 +571,15 @@ function editShow(id, from = null) {
   const { rounds, folded } = foldLegacyFinale(s.rounds);
   editing = { id, rounds };
   $("show-edit-title").textContent = id ? showTitle(s) : from ? `Copie de « ${showTitle(from)} »` : "Nouvelle prestation";
+  // Fil d'Ariane : la liste de son état (une nouvelle ou une copie commence « À compléter »).
+  showsEtat = id ? etatPrestation(s) : "acompleter";
+  $("show-edit-crumb").textContent = LISTES[showsEtat].titre;
   $("show-child").value = s.childName ?? "";
   $("show-age").value = s.age ?? "";
   $("show-teams").value = s.teams ?? "";
   $("show-date").value = s.date ?? "";
-  $("show-status").value = s.status ?? "brouillon";
+  // Le statut montré est son état réel : une fête passée, archivée d'elle-même, se lit « Archivée ».
+  $("show-status").value = id && isArchived(s) ? "archivee" : s.status ?? "brouillon";
   $("show-title").value = s.title ?? "";
   $("show-profile").value = s.profile ?? "";
   $("show-duration").value = s.durationMin ?? "";
@@ -1085,7 +1125,7 @@ function refreshSummary() {
   const r = readiness(s, quizzes, mimes, playlists, contents);
   $("show-ready").className = `ready-box ${r.level}`;
   $("show-ready").replaceChildren(r.level === "prete"
-    ? h("b", { text: "✓ Prestation prête : elle est visible sur la régie." })
+    ? h("b", { text: "✓ À venir : prête, elle est visible sur la régie." })
     : r.level === "archivee"
       ? h("b", { text: "Prestation archivée : elle n'apparaît plus sur la régie." })
       : h("div", {}, h("b", { text: "Reste à faire avant le jour J :" }), h("ul", {}, ...r.todo.map((t) => h("li", { text: t })))));
@@ -1136,12 +1176,12 @@ $("show-form").onsubmit = async (e) => {
   e.preventDefault();
   const s = formShow();
   if (!s.childName) return status("show-status-msg", "Indiquez le prénom de l'enfant fêté.");
-  if (s.status === "publiee") {
-    const { snapshot, problems } = buildSnapshot("x", s, quizzes, mimes, Math.random, playlists, contents);
-    if (!snapshot) {
-      const why = problems.filter((p) => p.startsWith("Manche"));
-      return status("show-status-msg", `Elle ne peut pas encore être « Prête » : ${why.length ? why.join(" ") : "ajoutez une manche jouable (quiz avec des questions validées, mimes, musique ou jeu intégré)."}`);
-    }
+  // « À venir » = prête pour la régie (cedric) : s'il manque quelque chose, elle est gardée « À compléter ».
+  // Une date passée le dit aussi (sans cela, elle filerait directement dans les archivées).
+  const manque = s.status === "publiee" ? readiness({ ...s, keepActive: true }, quizzes, mimes, playlists, contents).todo : [];
+  if (manque.length) {
+    s.status = "brouillon";
+    $("show-status").value = "brouillon";
   }
   const id = editing.id ?? push(ref(db, "library/shows")).key;
   const prev = shows[id] ?? {};
@@ -1149,13 +1189,19 @@ $("show-form").onsubmit = async (e) => {
   try {
     await set(ref(db, `library/shows/${id}`), {
       ...s, origin: prev.origin ?? "admin", createdAt: prev.createdAt ?? Date.now(),
+      // L'étoile d'une archivée et le « ne plus archiver toute seule » d'une désarchivée ne se perdent pas.
+      ...(s.status === "archivee" && prev.pinned ? { pinned: true } : {}),
+      ...(s.status !== "archivee" && prev.keepActive ? { keepActive: true } : {}),
       updatedAt: serverTimestamp(),
     });
     editing.id = id;
     histPrestation.enregistre();
     $("show-delete").hidden = false;
     $("show-edit-title").textContent = showTitle(s);
-    status("show-status-msg", s.status === "publiee" ? "Enregistrée. Elle est visible sur la régie." : "Enregistrée.", true);
+    showsEtat = etatPrestation(s);
+    $("show-edit-crumb").textContent = LISTES[showsEtat].titre;
+    if (manque.length) status("show-status-msg", `Enregistrée en « À compléter » : pour passer en « À venir », il manque : ${manque.join(" · ")}.`);
+    else status("show-status-msg", s.status === "publiee" ? "Enregistrée « À venir » : elle est visible sur la régie." : "Enregistrée.", true);
   } catch (err) {
     console.error(err);
     status("show-status-msg", "Enregistrement refusé : vérifiez les champs ou vos droits d'administration.");
@@ -1167,7 +1213,7 @@ $("show-form").onsubmit = async (e) => {
 $("show-delete").onclick = async () => {
   if (!editing?.id || !confirm("Supprimer cette prestation ? Les parties déjà jouées ne changent pas.")) return;
   await set(ref(db, `library/shows/${editing.id}`), null);
-  show("shows");
+  openShows(showsEtat);
 };
 
 // ---------- Bibliothèque de quiz ----------

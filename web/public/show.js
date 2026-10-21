@@ -767,13 +767,16 @@ export function daysUntil(date, today = isoDay()) {
   return Math.round((Date.parse(`${date}T12:00:00Z`) - Date.parse(`${today}T12:00:00Z`)) / 86400000);
 }
 
-/** Jours après la date au-delà desquels une prestation passée se range d'elle-même dans les archives. */
-export const AUTO_ARCHIVE_DAYS = 2;
+/**
+ * Jours après la date au-delà desquels une prestation passée se range d'elle-même dans les archives : 0, elle
+ * passe de « À venir » à « Archivée » le lendemain de la fête (cedric, 21 octobre). Une fête en cours n'est pas
+ * coupée : la TV garde son programme jusqu'au bout.
+ */
+export const AUTO_ARCHIVE_DAYS = 0;
 
 /**
- * Archivée : à la main, ou d'elle-même [AUTO_ARCHIVE_DAYS] jours après sa date. Une prestation désarchivée à la
- * main après sa date ne s'archive plus toute seule. Une archivée peut être épinglée (`pinned`) : un modèle
- * où piocher des jeux.
+ * Archivée : à la main, ou d'elle-même le lendemain de sa date. Une prestation désarchivée à la main après sa date
+ * ne s'archive plus toute seule. Une archivée peut être épinglée (`pinned`) : un modèle où piocher des jeux.
  */
 export function isArchived(show, today = isoDay()) {
   if (!show) return false;
@@ -783,13 +786,28 @@ export function isArchived(show, today = isoDay()) {
 }
 
 /**
+ * Les trois états d'une prestation, avec les mêmes mots partout (cedric, 21 octobre) : « À compléter » (brouillon,
+ * pas sur la régie), « À venir » (prête, sur la régie et dans les prochains anniversaires), « Archivée » (passée ou
+ * rangée à la main, plus sur la régie). Les valeurs enregistrées ne changent pas : brouillon, publiee, archivee.
+ */
+export const ETATS = { avenir: "À venir", acompleter: "À compléter", archivee: "Archivée" };
+export const STATUT_ETAT = { brouillon: "acompleter", publiee: "avenir", archivee: "archivee" };
+
+/** État d'une prestation : « archivee », « avenir » ou « acompleter ». */
+export function etatPrestation(show, today = isoDay()) {
+  if (isArchived(show, today)) return "archivee";
+  return show?.status === "publiee" ? "avenir" : "acompleter";
+}
+
+/**
  * État de préparation d'une prestation, pour le tableau de bord : « prete » quand elle est
  * complète et visible sur la régie, sinon la liste de ce qui reste à faire.
  */
-export function readiness(show, quizzes, mimes = {}, playlists = {}, contents = {}) {
-  if (isArchived(show)) return { level: "archivee", todo: [] };
+export function readiness(show, quizzes, mimes = {}, playlists = {}, contents = {}, today = isoDay()) {
+  if (isArchived(show, today)) return { level: "archivee", todo: [] };
   const todo = [];
   if (!show.date) todo.push("Ajouter la date");
+  else if (show.date < today) todo.push("Choisir une date à venir (celle-ci est passée)");
   if (!show.age) todo.push("Indiquer l'âge");
   if (!(show.rounds ?? []).filter(roundFilled).length) todo.push("Ajouter une manche");
   else {
@@ -797,7 +815,7 @@ export function readiness(show, quizzes, mimes = {}, playlists = {}, contents = 
     todo.push(...problems.filter((p) => snapshot || !p.startsWith("Aucune question jouable")));
     if (!snapshot && !problems.some((p) => p.startsWith("Manche"))) todo.push("Valider des questions");
   }
-  if (!todo.length && show.status !== "publiee") todo.push("Passer le statut à « Prête »");
+  if (!todo.length && show.status !== "publiee") todo.push("Passer le statut à « À venir »");
   return { level: todo.length ? "a-completer" : "prete", todo };
 }
 
@@ -821,7 +839,7 @@ export function showMatches(show, query, library = {}) {
     const dd = `${d}`.padStart(2, "0"), mm = `${m}`.padStart(2, "0");
     parts.push(show.date, `${dd}/${mm}/${y}`, `${d}/${m}/${y}`, `${d} ${MOIS[m - 1]} ${y}`, JOURS[day]);
   }
-  parts.push({ publiee: "prete", brouillon: "brouillon", archivee: "archivee archive" }[show.status] ?? "");
+  parts.push({ publiee: "a venir prete", brouillon: "a completer brouillon", archivee: "archivee archive" }[show.status] ?? "");
   if (show.status !== "archivee" && isArchived(show)) parts.push("archivee archive");
   if (show.pinned) parts.push("epinglee");
   for (const r of (show.rounds ?? []).filter(Boolean)) {

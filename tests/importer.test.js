@@ -5,7 +5,7 @@ import { parseQuiz, checkQuestions, geminiPrompt, resolveCorrect, chatgptImagePr
 import { MIME_CATALOG } from "../web/public/mime-cards.js";
 import { DISPARU_THEMES } from "../web/public/buzz-cards.js";
 import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, roundFilled,
-  readiness, upcoming, daysUntil, isoDay, duplicateShow, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
+  readiness, upcoming, daysUntil, isoDay, duplicateShow, etatPrestation, isArchived, ETATS, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
   soundIds, choiceImageIds, choiceImageList, pictoSeriesList, pictoSeriesOf, foldLegacyFinale,
   roundQuizIds, MIME_RANDOM,
   statuesSongs, statuesChoices, roundSongs, isStatuesList,
@@ -233,13 +233,30 @@ describe("tableau de bord des prestations", () => {
   test("état de préparation : prête seulement quand tout est complet et visible sur la régie", () => {
     const ok = { childName: "Léa", age: 7, date: "2026-12-02", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }] };
     assert.deepEqual(readiness(ok, quizzes), { level: "prete", todo: [] });
-    assert.deepEqual(readiness({ ...ok, status: "brouillon" }, quizzes).todo, ["Passer le statut à « Prête »"]);
+    assert.deepEqual(readiness({ ...ok, status: "brouillon" }, quizzes).todo, ["Passer le statut à « À venir »"]);
     assert.deepEqual(readiness({ childName: "Tom", status: "brouillon" }, quizzes).todo, ["Ajouter la date", "Indiquer l'âge", "Ajouter une manche"]);
     const draftOnly = readiness({ ...ok, rounds: [{ type: "quiz", quizId: "draft" }] }, quizzes);
     assert.equal(draftOnly.level, "a-completer");
     assert.match(draftOnly.todo.join(), /aucune question validée/);
     assert.match(readiness({ ...ok, rounds: [{ type: "quiz", quizId: "efface" }] }, quizzes).todo.join(), /n'existe plus/);
     assert.equal(readiness({ ...ok, status: "archivee" }, quizzes).level, "archivee");
+  });
+
+  test("trois états, mêmes mots partout : À compléter, À venir, Archivée ; archivée toute seule le lendemain de la fête", () => {
+    assert.deepEqual(ETATS, { avenir: "À venir", acompleter: "À compléter", archivee: "Archivée" });
+    const fete = { childName: "Léa", date: "2026-10-25", status: "publiee" };
+    assert.equal(etatPrestation(fete, "2026-10-24"), "avenir");
+    assert.equal(etatPrestation(fete, "2026-10-25"), "avenir", "le jour de la fête, elle reste sur la régie");
+    assert.equal(etatPrestation(fete, "2026-10-26"), "archivee", "le lendemain, archivée : plus de trou de 2 jours");
+    assert.equal(etatPrestation({ ...fete, status: "brouillon" }, "2026-10-24"), "acompleter");
+    assert.equal(etatPrestation({ childName: "Tom", status: "brouillon" }, "2026-10-24"), "acompleter", "sans date : à compléter");
+    assert.equal(etatPrestation({ ...fete, status: "archivee" }, "2026-10-01"), "archivee", "archivée à la main avant la date");
+    // Désarchivée à la main après sa date : elle ne repart pas toute seule dans les archives.
+    assert.equal(isArchived({ ...fete, status: "brouillon", keepActive: true }, "2026-11-30"), false);
+    // « À venir » demande une date à venir : une date passée est signalée (sinon elle filerait dans les archives).
+    const ok = { childName: "Léa", age: 7, date: "2026-10-20", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }] };
+    assert.deepEqual(readiness({ ...ok, keepActive: true }, quizzes, {}, {}, {}, "2026-10-21").todo, ["Choisir une date à venir (celle-ci est passée)"]);
+    assert.deepEqual(readiness(ok, quizzes, {}, {}, {}, "2026-10-20"), { level: "prete", todo: [] });
   });
 
   test("anniversaires à venir : du plus proche au plus lointain, sans les passés ni les archivés", () => {
@@ -326,7 +343,8 @@ describe("prestation de test", () => {
     assert.equal(q.filter((x) => x.kind === "true_false").length, 2);
     const report = checkQuestions(TEST_QUIZ.questions, { profile: "MOYENS" });
     assert.deepEqual(report.flatMap((r) => [...r.errors, ...r.warnings]), []);
-    assert.equal(readiness(TEST_SHOW, quizzes).level, "prete");
+    // Avant sa date (elle s'archive toute seule le lendemain de la fête) : prête.
+    assert.equal(readiness(TEST_SHOW, quizzes, {}, {}, {}, "2026-10-21").level, "prete");
   });
 });
 
