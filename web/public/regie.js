@@ -1577,6 +1577,8 @@ async function replayWithOthers(type, played, title) {
   const count = deck ? (type === "pictionary" ? deck.cards.length : null) : played.length;
   picked = null;
   $("lib").hidden = false;
+  // Jamais l'aperçu du jeu choisi la fois d'avant pendant que le nouveau tirage se prépare.
+  $("lib-preview").hidden = true;
   if (!library?.games) await fetchLibrary();
   if (!library?.games) return;
   await pick({ key: `rejouer/${type}`, label: title.replace(/ \(\d+\)$/, ""), random: true, base, source: { type, ...(count ? { count } : {}) } });
@@ -1589,6 +1591,8 @@ async function replayWithOthers(type, played, title) {
 async function rejouer(type, played, title) {
   picked = null;
   $("lib").hidden = false;
+  // Jamais l'aperçu du jeu choisi la fois d'avant (ses questions déjà posées) pendant que les autres se préparent.
+  $("lib-preview").hidden = true;
   if (!library?.games) await fetchLibrary();
   if (!library?.games) return;
   const source = sourceRejouee(type, played, library.quizzes);
