@@ -2993,6 +2993,54 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
+  test("en direct : « 🔁 Rejouer » dans tous les jeux (cedric, 21/10) : un quiz avec d'autres questions, Ça va exploser ! tel quel", async () => {
+    await seedLibrary("quizzes/animaux", { title: "Animaux", updatedAt: 1,
+      questions: Array.from({ length: 6 }, (_, i) => ({ text: `Animal ${i} ?`, choices: ["Oui", "Non"], correct: 0, status: "validee" })) });
+    await seedLibrary("manches/trois", { type: "quiz", title: "Trois animaux", origin: "admin", updatedAt: 1, round: { type: "quiz", quizId: "animaux", count: 3 } });
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.click("#tab-plan");
+    await regie.click("#plan-add");
+    await regie.locator("#lib-list [data-game='manche/trois']").click();
+    await regie.click("#lib-end");
+    await regie.locator("#r-toast", { hasText: "est ajouté à la fin du programme" }).waitFor();
+    const textes = async () => (await read("conducteur")).questions.filter((q) => q.text?.startsWith("Animal")).map((q) => q.text);
+    assert.deepEqual(await textes(), ["Animal 0 ?", "Animal 1 ?", "Animal 2 ?"]);
+    // Le quiz est en cours : « Rejouer avec d'autres… » pose les 3 questions suivantes, jamais une déjà posée.
+    let plan = (await read("conducteur")).questions;
+    let at = plan.findIndex((q) => q.text === "Animal 0 ?");
+    await box.set({ ...questionState(7), index: at, qid: plan[at].id, text: plan[at].text, choices: plan[at].choices, total: plan.length });
+    const quiz = regie.locator(`#panel-plan .plan-head[data-round="${plan[at].round}"]`);
+    await quiz.locator(".state", { hasText: "en cours" }).waitFor();
+    await quiz.locator("button.replay", { hasText: "🔁 Rejouer avec d'autres…" }).click();
+    await regie.locator("#lib-preview:not([hidden])").waitFor();
+    assert.deepEqual(await regie.locator("#lib-questions li").allTextContents().then((l) => l.map((x) => x.match(/Animal \d/)?.[0])), ["Animal 3", "Animal 4", "Animal 5"]);
+    await regie.click("#lib-end");
+    await waitFor(async () => (await textes()).length === 6, "3 autres questions ajoutées");
+    assert.equal(new Set(await textes()).size, 6, "Jamais deux fois la même question");
+
+    // Ça va exploser ! joué : « 🔁 Rejouer » le relance tel quel.
+    await regie.click("#plan-add");
+    await regie.locator("#lib-list [data-game='builtin/patate']").click();
+    await regie.click("#lib-end");
+    const bombes = async () => (await read("conducteur")).questions.filter((q) => q.kind === "patate");
+    await waitFor(async () => (await bombes()).length === 1, "Ça va exploser ! ajouté");
+    plan = (await read("conducteur")).questions;
+    at = plan.findIndex((q) => q.kind === "patate");
+    await box.set({ ...questionState(9), index: at, qid: plan[at].id, kind: "patate", text: plan[at].text, choices: [], total: plan.length });
+    const bombe = regie.locator(`#panel-plan .plan-head[data-round="${plan[at].round}"]`);
+    await bombe.locator(".state", { hasText: "en cours" }).waitFor();
+    await bombe.locator("button.replay", { hasText: /^🔁 Rejouer$/ }).click();
+    await regie.locator("#lib-preview:not([hidden])").waitFor();
+    await capture(regie, "rejouer-bombe");
+    await regie.click("#lib-end");
+    await waitFor(async () => (await bombes()).length === 2, "Ça va exploser ! relancé");
+    await regie.context().close();
+  });
+
   test("Régie PC : Ctrl+Z défait la dernière action, « Annuler les modifications » revient au dernier enregistrement", async () => {
     const page = await admin();
     // Paquet de mimes : des cartes ajoutées et retirées, rien n'est écrit avant « Enregistrer ».
@@ -3711,7 +3759,9 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(await rounds(), ["Animaux", "Animaux", "Animaux", "Dinosaures", "Dinosaures · 2"]);
 
     // La manche en cours n'a ni flèches ni « Retirer » ; une manche future se déplace et se retire.
-    assert.equal(await regie.locator('.plan-head[data-round="Animaux"] button').count(), 0);
+    // (« 🔁 Rejouer avec d'autres… » oui : le jeu a commencé.)
+    assert.equal(await regie.locator('.plan-head[data-round="Animaux"] button:not(.replay)').count(), 0);
+    await regie.locator('.plan-head[data-round="Animaux"] button.replay', { hasText: "🔁 Rejouer avec d'autres…" }).waitFor();
     await regie.click('.plan-head[data-round="Dinosaures · 2"] button.up');
     await regie.locator("#r-toast", { hasText: "« Dinosaures · 2 » avancée d'un cran." }).waitFor();
     assert.deepEqual(await rounds(), ["Animaux", "Animaux", "Animaux", "Dinosaures · 2", "Dinosaures"]);

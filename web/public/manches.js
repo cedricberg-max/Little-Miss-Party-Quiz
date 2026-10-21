@@ -9,7 +9,7 @@ import {
   statuesSongs, statuesChoices, zoomQuestions, expressQuestions, mimeCards, roundPicks, roundTracks, roundQuizIds, roundSongs,
   pictoRoundSeries, mimePerTeam, teamCount, MIME_TURN, MIME_RANDOM, STATUES_SEC, PICTO_SEC,
   MAX_PICKS, MAX_STATUES_SONGS, quizKind, builtinConcepts, fixedConcepts, isPhotoTheme, disparuGroup, parPalierPhotos,
-  illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale,
+  illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, pourLeHasard, roundHasard,
 } from "./show.js";
 import { MIME_CATALOG, shuffle } from "./mime-cards.js";
 import { concepts, questionConcepts, neufsSiPossible } from "./jamais-deux-fois.js";
@@ -43,9 +43,10 @@ export const avoidKey = (type) => (type === "zoom" || type === "flou" ? "photos"
 
 /**
  * Éléments de la collection d'un jeu : `{ key, label, group, level, value }`, sans doublon (la première occurrence
- * l'emporte). [lib] : `{ mimes, contents, quizzes, playlists }` lus dans la bibliothèque.
+ * l'emporte). [lib] : `{ mimes, contents, quizzes, playlists }` lus dans la bibliothèque. [hasard] : pour un tirage au
+ * hasard, seulement les émojis et la banque de photos libres, jamais une image téléversée (cedric, 21/10).
  */
-export function collectionItems(type, lib = {}) {
+export function collectionItems(type, lib = {}, { hasard = false } = {}) {
   const out = [];
   const seen = new Set();
   const add = (x) => { if (x.key && !seen.has(x.key)) { seen.add(x.key); out.push(x); } };
@@ -55,6 +56,8 @@ export function collectionItems(type, lib = {}) {
     // de l'émoji de ce mot.
     Object.values(lib.mimes ?? {}).filter((d) => d?.title).sort((a, b) => a.title.localeCompare(b.title, "fr"))
       .forEach((d) => mimeCards(d.cards).forEach((c) => {
+        // Au hasard : sa carte sans sa photo (l'émoji du catalogue reste en place).
+        if (hasard) { const v = pourLeHasard("mimes", c); if (v) add({ key: v.word.toLowerCase(), label: `${v.image ?? ""} ${v.word}`.trim(), group: d.title, level: 1, value: v }); return; }
         const x = { key: c.word.toLowerCase(), label: `${c.imageId ? "📷" : c.image ?? ""} ${c.word}`.trim(), group: d.title, level: 1, value: c };
         const before = c.imageId ? out.findIndex((y) => y.key === x.key && !y.value.imageId) : -1;
         if (before >= 0) out[before] = x;
@@ -62,12 +65,13 @@ export function collectionItems(type, lib = {}) {
       }));
   } else if (CONTENT_GAMES[type]) {
     const game = CONTENT_GAMES[type];
-    activeItems(type, lib.contents?.[type]).forEach((x) => add({
+    activeItems(type, lib.contents?.[type]).map((x) => (hasard ? pourLeHasard(type, x) : x)).filter(Boolean).forEach((x) => add({
       key: game.key(x), label: game.label(x), level: x.level ?? 1, value: x,
       group: type === "pictionary" ? pictoSeriesOf(x) : type === "disparu" ? disparuGroup(x) : null,
     }));
   } else if (type === "zoom" || type === "flou") {
-    Object.values(lib.quizzes ?? {}).filter((q) => q?.title).sort((a, b) => a.title.localeCompare(b.title, "fr"))
+    // Au hasard : pas les photos des quiz (téléversées), seulement celles de la banque.
+    if (!hasard) Object.values(lib.quizzes ?? {}).filter((q) => q?.title).sort((a, b) => a.title.localeCompare(b.title, "fr"))
       .forEach((qz) => zoomQuestions(qz).forEach((q) => add({ key: q.imageId, label: q.choices?.[q.correct] ?? q.text, group: qz.title, level: 1, value: q })));
     // Puis les photos de la banque, par famille (réponses en images pour ceux qui ne lisent pas encore).
     banqueItems().forEach(add);
@@ -129,7 +133,8 @@ export function randomRound(type, lib, opts = {}, random = Math.random) {
   const base = opts.base ?? {};
   const settings = roundSettings(type, base, opts);
   // Qui a disparu ? en émojis : pas les familles de photos de la banque.
-  const items = filterItems(collectionItems(type, lib), opts).filter((x) => type !== "disparu" || settings.photos || !isPhotoTheme(x.value));
+  // Jamais une image téléversée : seulement les émojis et la banque de photos libres (cedric, 21/10).
+  const items = filterItems(collectionItems(type, lib, { hasard: true }), opts).filter((x) => type !== "disparu" || settings.photos || !isPhotoTheme(x.value));
   if (!RANDOM_TYPES.includes(type)) return { round: { type, ...settings }, exhausted: false, count: 0 };
   const perTeam = type === "mimes" ? mimePerTeam({ perTeam: opts.perTeam ?? base.perTeam }) : 0;
   const count = Math.max(1, Math.min(MAX_PICKS, opts.count
@@ -145,7 +150,7 @@ export function randomRound(type, lib, opts = {}, random = Math.random) {
   const keys = picked.map((x) => x.key);
   const round = type === "mimes" ? { type, ...settings, cards: picked.map((x) => x.value), ...(perTeam ? { perTeam } : {}) }
     : MUSIC_GAMES[type] ? { type, ...settings, tracks: keys }
-    : { type, ...settings, picks: keys, ...(BUILTIN_GAMES[type] ? { count: keys.length } : {}) };
+    : { type, ...settings, picks: keys, ...(CONTENT_GAMES[type] ? { hasard: keys } : {}), ...(BUILTIN_GAMES[type] ? { count: keys.length } : {}) };
   return { round, exhausted, count: keys.length };
 }
 
@@ -195,6 +200,8 @@ export function playedKeys(questions, contents = {}) {
       if (m) add("photos", `${BANQUE}${m.cle}`);
     }
     if (q.audioId) add("tracks", q.audioId);
+    // Questions de quiz déjà posées (« 🔁 Rejouer » en pose d'autres).
+    if (["classic", "number", "true_false", "express"].includes(q.kind)) add("questions", q.text);
   }
   return out;
 }
@@ -209,13 +216,36 @@ export function questionType(q) {
   return "quiz";
 }
 
+/** Jeux relancés tels quels par « 🔁 Rejouer » : rien à tirer, les mêmes réglages. */
+export const REJOUES_TELS_QUELS = ["coffres", "patate", "gonfleur", "statues"];
+
+/**
+ * « 🔁 Rejouer » sur la régie (cedric, 21/10 : dans tous les jeux), pour un jeu qui ne se tire pas dans les collections :
+ * la source du jeu à relancer, d'après ses questions au programme ([played]). Ça va exploser !, Coffres mystères,
+ * Gonfleur fou, Statues : le même jeu, mêmes réglages. Quiz, Quiz illustré, Vrai ou Faux : le ou les mêmes quiz
+ * (retrouvés par leurs questions), autant de questions, jamais celles déjà posées (la régie passe ce qui est joué).
+ * Null quand le quiz n'est plus dans la bibliothèque.
+ */
+export function sourceRejouee(type, played, quizzes = {}) {
+  const q = (played ?? []).find(Boolean);
+  if (type === "coffres" || type === "patate" || type === "gonfleur") return { type };
+  if (type === "statues") return { type, ...(q?.duration ? { duration: q.duration } : {}), songs: (q?.audioIds ?? []).filter((id) => typeof id === "string") };
+  if (type !== "quiz" && type !== "express") return null;
+  const textes = new Set((played ?? []).map((x) => x?.text).filter(Boolean));
+  const ids = Object.entries(quizzes ?? {}).filter(([, qz]) => (qz?.questions ?? []).some((x) => x && textes.has(x.text))).map(([id]) => id);
+  if (!ids.length) return null;
+  // Questions reprises par le hasard (`hasard`) : jamais une image téléversée par cedric (voir buildSnapshot).
+  return jeuDeLaManche({ type, quizId: ids[0], ...(ids.length > 1 ? { quizIds: ids } : {}), count: (played ?? []).length, hasard: true }, quizzes);
+}
+
 /**
  * Manche propre, telle qu'enregistrée dans une prestation ou dans `library/manches` : seulement les champs du jeu,
  * dans leurs limites. [playlists] sert aux chansons des statues. Le lien `mancheId` vers la manche d'origine est gardé.
  */
 export function cleanRound(r, playlists = {}) {
   const type = r?.type ?? "quiz";
-  const picks = roundPicks(r).length ? { picks: roundPicks(r) } : {};
+  // Éléments tirés au hasard : notés, pour ne jamais leur montrer d'image téléversée.
+  const picks = roundPicks(r).length ? { picks: roundPicks(r), ...(CONTENT_GAMES[type] && roundHasard(r).length ? { hasard: roundHasard(r) } : {}) } : {};
   const link = typeof r?.mancheId === "string" && r.mancheId ? { mancheId: r.mancheId.slice(0, 40) } : {};
   const title = typeof r?.title === "string" && r.title.trim() ? { title: r.title.trim().slice(0, 60) } : {};
   let out;

@@ -18,7 +18,7 @@ import {
   pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches, isArchived, AUTO_ARCHIVE_DAYS, quizKind,
   roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS,
   isStatuesList, statuesSongs, statuesChoices, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS, builtinConcepts, isPhotoTheme, disparuGroup,
-  illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, alerteEquipes, EQUIPES_PAR_DEFAUT,
+  illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, alerteEquipes, EQUIPES_PAR_DEFAUT, pourLeHasard,
 } from "./show.js";
 import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE } from "./banque-photos.js";
 import { shuffle } from "./mime-cards.js";
@@ -922,7 +922,8 @@ function mimeSelection(r) {
     draw: () => (r.deckId
       ? mimeDraw({ deckId: r.deckId }, mimes, roundCtx.profile()).map((c) => { extra.set(c.word.toLowerCase(), c); return c.word.toLowerCase(); })
       // Toutes les collections : autant de cartes que les équipes prévues en demandent (sinon le tirage habituel).
-      : drawItems(filterItems(collectionItems("mimes", { mimes }), { profile: roundCtx.profile() }), mimeCardsNeeded(r, ctxTeams()) || MIME_RANDOM,
+      // Au hasard : émojis et banque de photos seulement, jamais une photo téléversée (cedric, 21/10).
+      : drawItems(filterItems(collectionItems("mimes", { mimes }, { hasard: true }), { profile: roundCtx.profile() }), mimeCardsNeeded(r, ctxTeams()) || MIME_RANDOM,
         { type: "mimes", avoidConcepts: roundCtx.elsewhere?.(r) }).items
         .map((x) => { extra.set(x.key, x.value); return x.key; })),
     own: (word) => {
@@ -964,13 +965,17 @@ function picksSelection(r) {
       // « Jamais deux fois » : rien de ce que montrent les autres manches, tant qu'il en reste assez.
       const autres = roundCtx.elsewhere?.(r);
       const neufs = (list, need) => neufsSiPossible(list, (x) => builtinConcepts(r.type, x), autres, need);
+      // Au hasard : émojis et banque de photos seulement, jamais une image téléversée (cedric, 21/10) ; les éléments
+      // tirés sont notés dans la manche (`hasard`), ceux ajoutés ensuite à la main gardent leurs images.
+      const libres = activeItems(r.type, contents[r.type]).map((x) => pourLeHasard(r.type, x)).filter(Boolean);
+      const tires = (keys) => { r.hasard = keys; return keys; };
       if (r.type === "pictionary") {
         const series = pictoRoundSeries(r);
-        const words = activeItems("pictionary", contents.pictionary).filter((w) => (profile !== "PETITS" || w.level !== 2) && (!series || series.includes(pictoSeriesOf(w))));
-        return shuffle(neufs(words, PICTO_DRAW)).slice(0, PICTO_DRAW).map(game.key);
+        const words = libres.filter((w) => (profile !== "PETITS" || w.level !== 2) && (!series || series.includes(pictoSeriesOf(w))));
+        return tires(shuffle(neufs(words, PICTO_DRAW)).slice(0, PICTO_DRAW).map(game.key));
       }
       const count = r.count ?? builtin.count;
-      return shuffle(builtin.items(profile, Math.random, neufs(activeItems(r.type, contents[r.type]), count), r)).slice(0, count).map((x) => game.key(r.type === "disparu" ? { theme: x.theme } : x));
+      return tires(shuffle(builtin.items(profile, Math.random, neufs(libres, count), r)).slice(0, count).map((x) => game.key(r.type === "disparu" ? { theme: x.theme } : x)));
     },
   });
 }
@@ -1286,7 +1291,8 @@ function itemSelection(r, field) {
     items: () => items().map((x) => ({ key: x.key, label: x.label, group: x.group })),
     get: () => (field === "tracks" ? roundTracks(r) : roundPicks(r)),
     set: (keys) => { r[field] = keys; },
-    draw: () => drawItems(items(), RANDOM_COUNT[r.type] ?? 6, { type: r.type, avoidConcepts: photos ? roundCtx.elsewhere?.(r) : null }).items.map((x) => x.key),
+    // Au hasard : les photos de la banque seulement, jamais celles des quiz (téléversées).
+    draw: () => drawItems(collectionItems(r.type, { quizzes, playlists }, { hasard: true }), RANDOM_COUNT[r.type] ?? 6, { type: r.type, avoidConcepts: photos ? roundCtx.elsewhere?.(r) : null }).items.map((x) => x.key),
   });
 }
 
