@@ -50,7 +50,7 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /*
- * La patate chaude : la bombe passe d'équipe en équipe, sa mèche brûle sans qu'on sache quand elle explosera.
+ * « Ça va exploser ! » : la bombe passe d'équipe en équipe, sa mèche brûle sans qu'on sache quand elle explosera.
  * L'habillage montre qui l'a, fait monter la tension (mèche, tic-tac qui accélère et forcit, lueur rouge) et
  * joue l'explosion. Le moment de l'explosion et les points sont décidés par la partie, jamais par l'écran.
  */
@@ -78,11 +78,13 @@ private fun mecheMontree(tension: Float): Float {
  * La bombe chez l'équipe [porteur]. [precedent] : l'équipe qui vient de l'envoyer ; [tension] : de 0 (début) à 1
  * (explosion imminente), d'après le temps écoulé ; [explosion] : la bombe explose chez le porteur, qui perd
  * [pointsPerdus] (affiché s'il est donné). [neuves] : les équipes que la bombe n'a pas encore touchées, qui scintillent.
+ * [bandeau] : false cache « La bombe est chez … » (pendant l'annonce de la bombe suivante).
  */
 @Composable
 fun ScenePatate(
     equipes: List<Pair<String, Color>>, porteur: Int, precedent: Int?, tension: Float, explosion: Boolean,
     pointsPerdus: Int? = null, modifier: Modifier = Modifier, neuves: Set<Int> = emptySet(), jouer: (Son) -> Unit = jouerSonPatate,
+    bandeau: Boolean = true,
 ) {
     val n = equipes.size.coerceAtLeast(1)
     val p = porteur.coerceIn(0, n - 1)
@@ -265,7 +267,7 @@ fun ScenePatate(
         }
         val (nomP, couleurP) = equipes[p]
         if (!explosion) {
-            Row(
+            if (bandeau) Row(
                 Modifier.align(Alignment.TopCenter).padding(top = 136.dp).widthIn(max = 820.dp)
                     .graphicsLayer {
                         val u = annonce.value
@@ -318,4 +320,43 @@ private fun etoileFine(c: Offset, r: Float) = androidx.compose.ui.graphics.Path(
     quadraticBezierTo(c.x - creux, c.y + creux, c.x - r, c.y)
     quadraticBezierTo(c.x - creux, c.y - creux, c.x, c.y - r)
     close()
+}
+
+/**
+ * Entre deux bombes : « BOMBE 2 SUR 3 » qui claque par-dessus la scène, puis « La mèche se rallume… ». La bombe part
+ * ensuite d'elle-même (la partie décide du moment, jamais l'écran).
+ */
+@Composable
+fun AnnonceBombe(numero: Int, total: Int, modifier: Modifier = Modifier, jouer: (Son) -> Unit = jouerSonPatate) {
+    val t = remember(numero) { Animatable(0f) }
+    val joue by rememberUpdatedState(jouer)
+    LaunchedEffect(numero) {
+        joue(Son.BOMBE_ALERTE)
+        t.animateTo(1_200f, tween(1_200, easing = LinearEasing))
+    }
+    // Voile sombre : la bombe et les socles s'effacent derrière l'annonce.
+    Box(modifier.fillMaxSize().clearAndSetSemantics {}.background(Neon.Nuit.copy(alpha = 0.8f)))
+    Echelle(960.dp, 540.dp, modifier.fillMaxSize()) {
+        Column(
+            Modifier.align(Alignment.Center).graphicsLayer {
+                val u = (t.value / 420f).coerceIn(0f, 1f)
+                alpha = if (u <= 0f) 0f else 1f
+                val sc = if (u <= 0f) 0.5f else rebondSortie(u); scaleX = sc; scaleY = sc
+            }
+                // Sur un panneau : le message ne chevauche jamais les socles ni les noms des équipes.
+                .background(Neon.Nuit2.copy(alpha = 0.94f), RoundedCornerShape(32.dp)).border(3.dp, Color(0xFFFFB347), RoundedCornerShape(32.dp))
+                .padding(horizontal = 48.dp, vertical = 18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                "BOMBE $numero SUR $total", maxLines = 1,
+                style = stylePatate.copy(fontSize = 76.sp, color = Color(0xFFFFB347), shadow = Shadow(Color.Black.copy(alpha = 0.6f), Offset(0f, 4f), 14f)),
+            )
+            Text(
+                "La mèche se rallume…", maxLines = 1,
+                modifier = Modifier.graphicsLayer { alpha = ((t.value - 600f) / 300f).coerceIn(0f, 1f) },
+                style = stylePatate.copy(fontSize = 34.sp, color = Neon.Blanc),
+            )
+        }
+    }
 }

@@ -169,18 +169,21 @@
         <div class="title-row">
           <h2>Bibliothèque des sons</h2>
           <label class="btn secondary file-btn">Ajouter des chansons…
-            <input id="song-files" type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" multiple hidden>
+            <input id="song-files" type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac,.lrc" multiple hidden>
           </label>
         </div>
         <p class="hint small">
-          Chaque chanson garde ses réglages (début de l'extrait, temps pour buzzer, refrain chanté à la révélation),
-          d'une playlist à l'autre. « Régler… » les change partout : rechoisissez le fichier sur le PC pour déplacer les moments.
-          Les playlists du blind test se composent sur la page du jeu (Accueil › Blind test › Collections).
+          Choisissez les MP3 et leurs fichiers de paroles .lrc ensemble (même nom) : la pochette, l'artiste et le titre
+          sont lus dans le MP3, les paroles s'affichent sur la TV au refrain. Chaque chanson garde ses moments (début de
+          l'extrait, refrain), réglés dans les playlists du blind test (Accueil › Blind test › Collections).
         </p>
         <div class="search-row">
           <input id="song-search" type="search" placeholder="Rechercher : titre, artiste, playlist…" aria-label="Rechercher une chanson" autocomplete="off">
           <span id="song-count" class="hint small"></span>
+          <button id="song-retirees" type="button" class="chip" hidden>🗑 Supprimées</button>
         </div>
+        <p id="song-status" class="status" aria-live="polite"></p>
+        <div id="song-barre" class="song-barre" hidden></div>
         <div id="song-list" class="song-list"></div>
       </div>
     </section>
@@ -406,9 +409,10 @@
         <div id="playlist-tracks" class="tracks"></div>
         <div class="row">
           <label class="btn secondary file-btn">Ajouter des musiques…
-            <input id="playlist-files" type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" multiple hidden>
+            <input id="playlist-files" type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac,.lrc" multiple hidden>
           </label>
           <button id="playlist-from-lib" type="button" class="btn secondary">＋ Depuis la bibliothèque</button>
+          <button id="playlist-hasard" type="button" class="btn secondary" title="Ajouter 10 chansons de la bibliothèque tirées au hasard">🎲 10 au hasard</button>
         </div>
         <div id="playlist-lib" class="lib-picker" hidden>
           <div class="search-row">
@@ -577,11 +581,17 @@
       <p class="hint">
         Pour tout voir sur la TV : « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux » enchaîne un peu de chaque jeu
         (quiz illustré, Juste Chiffre, Vrai ou Faux express, Mimes, Zoom mystère, Chante le mot !, Image floue,
-        Qui suis-je ?, Qui a disparu ?, Blind test et Quiz musical sur des comptines libres de droits, Statues musicales, Pictionary, La bombe cachée ; les dernières questions du quiz comptent double). Elle s'ajoute à
+        Qui suis-je ?, Qui a disparu ?, Blind test et Quiz musical sur des comptines libres de droits, Statues musicales, Pictionary, Les Coffres mystères ; les dernières questions du quiz comptent double). Elle s'ajoute à
         côté de la première, sans rien remplacer ; déjà ajoutée, le même bouton lui ajoute les nouveaux jeux.
       </p>
       <button id="test-full-create" class="btn" type="button">Ajouter la prestation de test « tous les jeux »</button>
       <p id="test-full-status" class="status"></p>
+      <p class="hint">
+        Blind test démo avec vos chansons : 10 chansons de la bibliothèque des sons tirées au hasard (celles qui ont leur
+        refrain d'abord), en premier jeu de « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux ». Un nouveau clic en tire 10 autres.
+      </p>
+      <button id="test-blind-demo" class="btn" type="button">🎵 Blind test démo avec mes chansons</button>
+      <p id="test-blind-status" class="status"></p>
       </div>
       </div>
     </section>

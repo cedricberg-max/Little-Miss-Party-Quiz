@@ -268,8 +268,8 @@ function nextLabel(st, teamCount) {
     case "lobby": return teamCount ? "Lancer la fête !" : "En attente des équipes";
     // Écran de présentation du jeu sur la TV : l'animatrice explique les règles, puis lance le jeu.
     case "intro": return "▶ Lancer l'épreuve";
-    // La bombe cachée : ce sont les équipes qui ouvrent les coffres, le bouton principal attend l'explosion.
-    case "question": return st.kind === "coffres" ? "Coffres en cours… 💣" : st.kind === "gonfleur" ? "⏹ Arrêter la course" : st.kind === "patate" ? "Mèche allumée… 💣" : st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? `Terminer ${st.kind === "pictionary" ? "le Pictionary" : "les mimes"}` : "Voir le classement") : st.kind === "portes" ? "Fermer les choix" : "Arrêter le chrono";
+    // Les coffres mystères : ce sont les équipes qui ouvrent les coffres, le bouton principal attend l'explosion.
+    case "question": return st.kind === "coffres" ? "Coffres en cours… 🗝️" : st.kind === "gonfleur" ? "⏹ Arrêter la course" : st.kind === "patate" ? "Mèche allumée… 💣" : st.mime ? (st.mime.team ? "Arrêter le tour" : mimeRemaining(st).length ? `Terminer ${st.kind === "pictionary" ? "le Pictionary" : "les mimes"}` : "Voir le classement") : st.kind === "portes" ? "Fermer les choix" : "Arrêter le chrono";
     case "closed": return st.kind === "portes" ? "Aux portes ! 🚪" : "Révéler la réponse";
     // Portes mystères : l'animatrice ouvre les portes une à une, puis montre le classement final.
     case "reveal": return st.kind === "portes" ? ((st.portes?.opened ?? 0) < (st.portes?.count ?? 0) ? "🚪 Ouvrir la porte suivante" : "Classement final 🏆") : "Voir les scores";
@@ -314,7 +314,7 @@ function render() {
   $("c-question").textContent = intro ? "La TV présente le jeu. Expliquez les règles, puis lancez l'épreuve." : inQuestion ? st.text ?? q?.text ?? "" : st.phase === "ended" ? (gamesOf(st).next ? "Bravo à toutes les équipes ! Un jeu a été ajouté : la partie peut reprendre." : "Bravo à toutes les équipes ! Pour continuer, ajoutez un jeu (onglet Programme) ou rejouez-en un (⏭ Changer de jeu).") : `${teams.length} équipe${teams.length > 1 ? "s" : ""} inscrite${teams.length > 1 ? "s" : ""}`;
 
   const portes = (q?.kind ?? st.kind) === "portes";
-  // Portes et bombe cachée : aucune réponse à montrer (le contenu des coffres est tiré à l'ouverture).
+  // Portes et coffres mystères : aucune réponse à montrer (le contenu des coffres est tiré à l'ouverture).
   const correct = portes || ["coffres", "gonfleur", "patate"].includes(q?.kind ?? st.kind) ? null : q?.correct ?? st.correct;
   const answerBtn = $("c-answer");
   answerBtn.hidden = intro || !inQuestion || (correct == null && !(portes && q?.doors));
@@ -808,7 +808,7 @@ function renderStatues(st, teams) {
 }
 
 /**
- * La bombe cachée : à qui le tour, combien de coffres sans danger, ce qui est sorti. Secours : ouvrir un coffre au
+ * Les coffres mystères : à qui le tour, combien de coffres sans danger, ce qui est sorti. Secours : ouvrir un coffre au
  * hasard pour l'équipe qui joue (deux appuis). Jamais de contenu à l'avance : il est tiré par la box à l'ouverture.
  */
 let coffresArme = null;
@@ -822,9 +822,10 @@ function renderCoffres(st) {
   const opened = Array.isArray(c.opened) ? c.opened : Object.values(c.opened ?? {});
   $("coffres-info").textContent = c.ready !== true ? "Les coffres arrivent sur la TV…"
     : `Au tour de l'équipe ${name(c.team)} : elle choisit un coffre sur sa tablette. `
-      + (c.danger ? "💣 La bombe est cachée dans un des coffres !" : `Encore ${c.safeLeft} coffre${c.safeLeft > 1 ? "s" : ""} sans danger.`);
+      + (!c.danger ? `Encore ${c.safeLeft} coffre${c.safeLeft > 1 ? "s" : ""} sans danger.`
+        : `💣 La bombe est cachée dans un des coffres !${c.goldLeft === true ? " ⭐ Le coffre en or (+500) aussi." : ""}`);
   $("coffres-opened").textContent = opened.length
-    ? opened.slice(-4).map((o) => `${name(o.team)} : coffre ${o.chest + 1} ${o.bomb ? "💣" : `${o.delta < 0 ? "−" : "+"}${Math.abs(o.delta)}`}`).join(" · ")
+    ? opened.slice(-4).map((o) => `${name(o.team)} : coffre ${o.chest + 1} ${o.bomb ? "💣" : `${o.gold === true ? "⭐ " : ""}${o.delta < 0 ? "−" : "+"}${Math.abs(o.delta)}`}`).join(" · ")
     : `${c.count ?? 0} coffres fermés.`;
   const btn = $("coffres-random");
   const wait = (c.readyAt ?? 0) - (Date.now() + serverOffset);
@@ -875,7 +876,7 @@ function renderGonfleur(st, teams) {
 }
 
 /**
- * Patate chaude : chez qui est la bombe, qui l'a déjà eue. Secours (deux appuis) : l'envoyer au hasard quand la
+ * « Ça va exploser ! » : chez qui est la bombe, qui l'a déjà eue. Secours (deux appuis) : l'envoyer au hasard quand la
  * tablette de l'équipe ne répond plus. La mèche reste secrète, même pour la régie.
  */
 let patateArme = null;
@@ -888,12 +889,17 @@ function renderPatate(st) {
   const name = (id) => live.teams[id]?.name ?? "Une équipe";
   const hit = p.hit ?? [];
   const pas = (p.teams ?? []).filter((id) => !hit.includes(id));
+  const booms = Array.isArray(p.booms) ? p.booms : Object.values(p.booms ?? {});
+  const boom = booms[booms.length - 1];
+  const numero = (p.bombs ?? 1) > 1 ? `Bombe ${p.bomb ?? 1} sur ${p.bombs}. ` : "";
   $("patate-info").textContent = p.lit !== true ? "La mèche s'allume sur la TV…"
-    : `💣 La bombe est chez ${name(p.holder)}${p.from ? ` (envoyée par ${name(p.from)})` : ""}. ${p.passes ?? 0} envoi${(p.passes ?? 0) > 1 ? "s" : ""}.`
-      + (pas.length ? ` Pas encore touchées : ${pas.map(name).join(", ")}.` : " Toutes les équipes l'ont eue.");
+    : p.exploded === true ? `💥 BOUM chez ${name(boom?.holder)} ! La bombe ${(p.bomb ?? 1) + 1} s'allume…`
+      : `${numero}💣 La bombe est chez ${name(p.holder)}${p.from ? ` (envoyée par ${name(p.from)})` : ""}. ${p.passes ?? 0} envoi${(p.passes ?? 0) > 1 ? "s" : ""}.`
+        + (pas.length ? ` Pas encore touchées : ${pas.map(name).join(", ")}.` : " Toutes les équipes l'ont eue.")
+        + (booms.length ? ` Déjà explosées chez : ${booms.map((x) => name(x.holder)).join(", ")}.` : "");
   const btn = $("patate-random");
   const wait = Math.max(p.readyAt ?? 0, st.resumeAt ?? 0) - (Date.now() + serverOffset);
-  btn.disabled = p.lit !== true || !!pending?.advance || st.paused === true || wait > 0;
+  btn.disabled = p.lit !== true || p.exploded === true || !!pending?.advance || st.paused === true || wait > 0;
   clearTimeout(patatePret);
   if (wait > 0) patatePret = setTimeout(render, wait + 50);
   btn.textContent = patateArme ? `Touchez encore : la bombe part de chez ${name(p.holder)}` : `🎲 Envoyer la bombe au hasard pour ${name(p.holder)}`;
@@ -1828,9 +1834,9 @@ const OLD_TV_QUISUIS = "La TV doit être mise à jour pour jouer à « Qui suis-
 const OLD_TV_STATUES = "La TV doit être mise à jour pour jouer aux statues musicales : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_DISPARU = "La TV doit être mise à jour pour jouer à « Qui a disparu ? » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_PICTO = "La TV doit être mise à jour pour jouer au Pictionary : sur la TV, menu Retour → « Rechercher une mise à jour ».";
-const OLD_TV_COFFRES = "La TV doit être mise à jour pour jouer à La bombe cachée : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+const OLD_TV_COFFRES = "La TV doit être mise à jour pour jouer aux Coffres mystères : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_GONFLEUR = "La TV doit être mise à jour pour jouer au Gonfleur fou : sur la TV, menu Retour → « Rechercher une mise à jour ».";
-const OLD_TV_PATATE = "La TV doit être mise à jour pour jouer à la Patate chaude : sur la TV, menu Retour → « Rechercher une mise à jour ».";
+const OLD_TV_PATATE = "La TV doit être mise à jour pour jouer à « Ça va exploser ! » : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_PORTES = "La TV doit être mise à jour pour jouer aux Portes mystères : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 const OLD_TV_BLIND = "La TV doit être mise à jour pour jouer au blind test : sur la TV, menu Retour → « Rechercher une mise à jour ».";
 /** Jeu que la TV allumée ne sait pas encore jouer (ancienne version) : le message à montrer, sinon null. */

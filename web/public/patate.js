@@ -1,11 +1,13 @@
 /**
- * La Patate chaude sur la tablette. L'équipe qui tient la bombe choisit à qui l'envoyer (un appui sur l'équipe) ; la
+ * « Ça va exploser ! » sur la tablette. L'équipe qui tient la bombe choisit à qui l'envoyer (un appui sur l'équipe) ; la
  * mèche colle 2 secondes après la réception, l'envoyeur ne peut pas la récupérer (sauf à 2 équipes), et les équipes
  * qui ne l'ont pas encore eue brillent. Les autres voient chez qui elle est. Module autonome, sans Firebase : la page
  * pupitre envoie le choix (surEnvoi) et passe l'état à maj().
  *
  * Habillage : la même bombe que sur la TV, posée sur son socle. Elle tombe chez nous (lueur rouge qui bat autour de
- * l'écran), les équipes s'allument une à une quand la mèche ne colle plus, et la bombe s'envole vers l'équipe choisie.
+ * l'écran, de plus en plus vite pendant que la mèche brûle, et la tablette vibre à chaque coup si elle a un vibreur),
+ * les équipes s'allument une à une quand la mèche ne colle plus, et la bombe s'envole vers l'équipe choisie. Trois
+ * bombes par partie : l'explosion se voit aussi sur la tablette, et un petit compteur dit quelle bombe joue.
  * Téléphone droit : tout en colonne ; tablette posée ou téléphone couché : la bombe à gauche, les équipes à droite.
  */
 
@@ -45,17 +47,32 @@ const BOMBE_SVG = `
   </g>
 </svg>`;
 
+/** Mèche la plus longue possible (POTATO_FUSE_MAX_MS du moteur) : le rouge bat le plus vite à ce moment-là. */
+const MECHE_MAX_MS = 45000;
+
+/**
+ * Rythme du rouge qui bat chez l'équipe qui tient la bombe, d'après le temps de mèche déjà brûlé : de 900 ms entre
+ * deux coups au départ à 280 ms au bout de la mèche la plus longue. Ne dit jamais quand la bombe explosera.
+ */
+export function rythmeBombe(brule) {
+  const tension = Math.max(0, Math.min(1, brule / MECHE_MAX_MS));
+  return { periode: Math.round(900 - 620 * tension), vibre: Math.round(40 + 80 * tension) };
+}
+
 /**
  * hote : l'élément qui reçoit l'écran. surEnvoi(equipe) envoie la bombe (une promesse). maj(v) redessine :
  * v = {
  *   titre, texte, aMoi, chaude (la bombe est chez nous), envoye (équipe choisie, en cours d'envoi, ou null),
- *   colle (0 à 1 : mèche qui colle, 1 = on peut envoyer), equipes: [{ id, nom, couleur, permise, envoyeur, neuve }]
+ *   colle (0 à 1 : mèche qui colle, 1 = on peut envoyer), equipes: [{ id, nom, couleur, permise, envoyeur, neuve }],
+ *   compteur (« Bombe 2 sur 3 » ou ""), brule (heure de la tablette où la mèche a commencé à brûler, ou null),
+ *   boum (la bombe vient d'exploser), boumChezMoi (chez nous)
  * }
  */
 export function ecranPatate(hote, { surEnvoi }) {
   hote.innerHTML = `
     <div class="pc">
       <div class="pc-scene">
+        <p class="pc-compteur" hidden></p>
         <div class="pc-bombe" aria-hidden="true"><div class="pc-halo"></div>${BOMBE_SVG}</div>
         <p class="pc-titre"></p>
         <p class="pc-texte"></p>
@@ -70,6 +87,7 @@ export function ecranPatate(hote, { surEnvoi }) {
   let dernier = null;
   let signature = "";
   let avant = { aMoi: false, pret: false, envoye: null };
+  let battement = null;
 
   /** Rejoue une animation CSS ponctuelle (classe retirée puis remise). */
   function rejouer(el, classe) {
@@ -78,10 +96,34 @@ export function ecranPatate(hote, { surEnvoi }) {
     el.classList.add(classe);
   }
 
+  /**
+   * Un coup du rouge qui bat (et une vibration), puis le suivant, plus tôt à mesure que la mèche brûle. S'arrête dès
+   * que la bombe n'est plus chez nous, part, ou que la mèche ne brûle plus (pause, explosion).
+   */
+  function battre() {
+    battement = null;
+    const d = dernier;
+    if (!d?.aMoi || d.envoye || d.brule == null) return;
+    const { periode, vibre } = rythmeBombe(Date.now() - d.brule);
+    racine.style.setProperty("--pc-coup", `${Math.min(periode - 40, 520)}ms`);
+    rejouer(racine, "pc-bat");
+    // Pas de vibreur (la plupart des tablettes) : navigator.vibrate n'existe pas ou ne fait rien, le rouge suffit.
+    try { navigator.vibrate?.(vibre); } catch { /* vibreur refusé : rien */ }
+    battement = setTimeout(battre, periode);
+  }
+
   function maj(v) {
     dernier = v;
     const aMoi = v.aMoi === true;
     racine.classList.toggle("pc-chez-moi", aMoi);
+    racine.classList.toggle("pc-boum", v.boum === true);
+    racine.classList.toggle("pc-boum-moi", v.boum === true && v.boumChezMoi === true);
+    q(".pc-compteur").textContent = v.compteur ?? "";
+    q(".pc-compteur").hidden = !v.compteur;
+    // Le rouge bat dès que la bombe a fini de tomber chez nous, tant que la mèche brûle.
+    const bat = aMoi && !v.envoye && v.brule != null;
+    if (bat && battement == null) battement = setTimeout(battre, avant.aMoi ? 0 : 760);
+    if (!bat) { clearTimeout(battement); battement = null; racine.classList.remove("pc-bat"); }
     q(".pc-titre").textContent = v.titre ?? "";
     q(".pc-texte").textContent = v.texte ?? "";
     const colle = Math.max(0, Math.min(1, v.colle ?? 1));
@@ -129,6 +171,8 @@ export function ecranPatate(hote, { surEnvoi }) {
     if (aMoi && !avant.aMoi) {
       racine.classList.remove("pc-partie");
       rejouer(bombe, "pc-arrive");
+      // Posée : elle peut battre.
+      setTimeout(() => bombe.classList.remove("pc-arrive"), 720);
     }
     if (pret && !avant.pret) rejouer(liste, "pc-allume");
     if (aMoi && v.envoye && v.envoye !== avant.envoye) {
@@ -148,5 +192,5 @@ export function ecranPatate(hote, { surEnvoi }) {
     avant = { aMoi, pret, envoye: v.envoye ?? null };
   }
 
-  return { maj, detruire: () => { hote.innerHTML = ""; } };
+  return { maj, detruire: () => { clearTimeout(battement); battement = null; hote.innerHTML = ""; } };
 }

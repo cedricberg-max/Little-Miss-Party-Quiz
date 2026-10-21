@@ -1,4 +1,4 @@
-/* La bombe cachée sur la tablette : des coffres pastel cerclés d'or, posés sur le sol, comme sur la TV. */
+/* Les coffres mystères sur la tablette : des coffres pastel cerclés d'or, posés sur le sol, comme sur la TV. */
 .bc { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; padding: 6px 8px; text-align: center; color: #fff; }
 .bc-tete { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; }
 .bc-titre { font: 800 clamp(22px, 5vw, 32px) system-ui, sans-serif; line-height: 1.15; color: #f3d79c; text-shadow: 0 2px 0 rgba(26, 11, 46, .35); }
@@ -41,6 +41,9 @@
 @keyframes bc-suspense { 50% { transform: translate(-50%, -50%) scale(1.15); } }
 .bc-plus .bc-contenu { color: #08240f; background: #2ee86b; }
 .bc-moins .bc-contenu { color: #fff; background: #ff5a5f; }
+/* Le coffre en or : pastille dorée qui brille. */
+.bc-or .bc-image { filter: brightness(1.05) saturate(1.1) drop-shadow(0 0 10px rgba(255, 209, 102, .9)); }
+.bc-or .bc-contenu { color: #3a1c00; background: linear-gradient(180deg, #fff1b8, #e8b04a); box-shadow: 0 0 14px rgba(255, 209, 102, .9); }
 .bc-bombe .bc-image { filter: grayscale(1) brightness(.35); }
 .bc-bombe .bc-contenu { font-size: 30cqw; background: none; filter: drop-shadow(0 0 8px rgba(255, 120, 60, .9)); }
 

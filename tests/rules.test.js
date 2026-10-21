@@ -988,6 +988,10 @@ describe("blind test : extraits musicaux et playlists", () => {
     await assertFails(song({ refrainId: "../sounds" }));
     await assertFails(song({ refrain: -3 }));
     await assertFails(song({ volume: 11 }));
+    // Retirée de la bibliothèque (les playlists la gardent), puis remise.
+    await assertSucceeds(song({ retiree: true }));
+    await assertFails(song({ retiree: false }));
+    await assertSucceeds(song());
     await assertFails(set(ref(db("sarah"), "library/songs/s1"), { title: "Sans date", audioId: ID, buzz: 30 }));
     await assertFails(set(ref(db("rose"), "library/songs/s2"), { title: "X", audioId: ID, buzz: 30, updatedAt: serverTimestamp() }));
     // Morceau de playlist : son refrain et sa chanson.
@@ -1000,6 +1004,23 @@ describe("blind test : extraits musicaux et playlists", () => {
       "library/playlists/p/updatedAt": serverTimestamp(),
     }));
     await assertSucceeds(set(ref(db("sarah"), "library/songs/s1"), null));
+  });
+  test("paroles des chansons (.lrc) : le fichier rangé par l'administration, les paroles du refrain dans la chanson et ses morceaux", async () => {
+    const REFRAIN = "fedcba9876543210";
+    const song = (extra = {}) => set(ref(db("sarah"), "library/songs/s1"), { title: "On chante", audioId: ID, buzz: 30, updatedAt: serverTimestamp(), ...extra });
+    await assertSucceeds(song({ refrainId: REFRAIN, lrc: true, paroles: "1000|On chante tous ensemble", auto: true }));
+    await assertFails(song({ lrc: false }));
+    await assertFails(song({ auto: "oui" }));
+    await assertFails(song({ paroles: "x".repeat(8001) }));
+    const lrc = "[00:20.00]On chante tous ensemble";
+    await assertSucceeds(set(ref(db("sarah"), "library/lyrics/s1"), lrc));
+    await assertFails(set(ref(db("sarah"), "library/lyrics/s1"), "x".repeat(60001)));
+    await assertFails(set(ref(db("sarah"), "library/lyrics/s1"), 12));
+    await assertFails(set(ref(db("rose"), "library/lyrics/s2"), lrc));
+    await assertFails(get(ref(db("rose"), "library/lyrics/s1")));
+    await assertSucceeds(set(ref(db("sarah"), "library/lyrics/s1"), null));
+    await assertSucceeds(playlist([{ title: "On chante", audioId: ID, refrainId: REFRAIN, songId: "s1", paroles: "1000|On chante tous ensemble" }]));
+    await assertFails(playlist([{ title: "On chante", audioId: ID, paroles: "x".repeat(8001) }]));
   });
   test("la régie copie un extrait dans la partie une seule fois ; la box le lit, les pupitres non", async () => {
     await seed({ phase: "lobby" });
@@ -1081,7 +1102,7 @@ describe("défis de la pause", () => {
   });
 });
 
-describe("La bombe cachée", () => {
+describe("Les Coffres mystères", () => {
   const chests = (extra = {}) => seed({
     kind: "coffres", qid: "r9c", choices: null, deadline: null,
     chests: { ready: true, count: 10, team: "bleu", key: "r9c-100-2", readyAt: Date.now() - 1000, ...extra },
@@ -1190,7 +1211,7 @@ describe("Le Gonfleur fou", () => {
   });
 });
 
-describe("La Patate chaude", () => {
+describe("Ça va exploser !", () => {
   const bombe = (potato = {}, extra = {}) => seed({
     kind: "patate", qid: "r9p", choices: null, deadline: null, resumeAt: Date.now() - 10_000,
     potato: { lit: true, holder: "bleu", from: null, canReturn: false, key: "r9p-100", readyAt: Date.now() - 1000, ...potato }, ...extra,

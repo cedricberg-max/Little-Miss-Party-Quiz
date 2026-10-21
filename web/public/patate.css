@@ -1,4 +1,4 @@
-/* La Patate chaude sur la tablette : la bombe de la TV sur son socle, et chez nous, les équipes à qui l'envoyer.
+/* « Ça va exploser ! » sur la tablette : la bombe de la TV sur son socle, et chez nous, les équipes à qui l'envoyer.
    Téléphone droit : tout en colonne. Tablette posée ou téléphone couché : la bombe à gauche, les équipes à droite. */
 #patate-host { width: 100%; }
 .pc { --rouge: 255, 59, 92; display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%; padding: 6px 8px 12px; text-align: center; color: #fff; }
@@ -14,20 +14,34 @@
 .pc-etincelle { transform-box: fill-box; transform-origin: center; animation: pc-gresille .22s steps(2) infinite; }
 @keyframes pc-gresille { 50% { transform: scale(.78) rotate(22deg); opacity: .85; } }
 
-/* Chez nous : la bombe bat, la lueur vire au rouge, et le bord de l'écran rougeoie au même rythme. */
-.pc-chez-moi .pc-halo { background: radial-gradient(closest-side, rgba(var(--rouge), .5), rgba(255, 140, 90, .18) 60%, transparent); animation: pc-pouls .9s ease-in-out infinite; }
-.pc-chez-moi .pc-corps { animation: pc-bat .9s ease-in-out infinite; }
-@keyframes pc-bat { 0%, 100% { transform: scale(1); } 12% { transform: scale(1.07); } 26% { transform: scale(.99); } }
-@keyframes pc-pouls { 12% { transform: translate(-50%, -50%) scale(1.12); opacity: 1; } 50% { opacity: .7; } }
-.pc-chez-moi::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
-  box-shadow: inset 0 0 clamp(50px, 12vmin, 120px) rgba(var(--rouge), .7); animation: pc-bord .9s ease-in-out infinite; }
-@keyframes pc-bord { 0%, 50%, 100% { opacity: .55; } 12% { opacity: 1; } }
+/* Chez nous : la lueur vire au rouge et le bord de l'écran rougeoie. À chaque coup (pc-bat, relancé par patate.js de
+   plus en plus vite pendant que la mèche brûle), la bombe bat et tout l'écran clignote en rouge. */
+.pc-chez-moi .pc-halo { background: radial-gradient(closest-side, rgba(var(--rouge), .5), rgba(255, 140, 90, .18) 60%, transparent); }
+.pc-chez-moi.pc-bat .pc-halo { animation: pc-pouls var(--pc-coup, .5s) ease-out; }
+.pc-chez-moi.pc-bat:not(.pc-partie) .pc-bombe:not(.pc-arrive) .pc-corps { animation: pc-bat var(--pc-coup, .5s) ease-out; }
+@keyframes pc-bat { 0%, 100% { transform: scale(1); } 22% { transform: scale(1.08); } 45% { transform: scale(.99); } }
+@keyframes pc-pouls { 22% { transform: translate(-50%, -50%) scale(1.14); opacity: 1; } 100% { opacity: .7; } }
+.pc-chez-moi::before, .pc-boum-moi::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  box-shadow: inset 0 0 clamp(50px, 12vmin, 120px) rgba(var(--rouge), .7); opacity: .55; }
+.pc-chez-moi.pc-bat::before { animation: pc-bord var(--pc-coup, .5s) ease-out; }
+@keyframes pc-bord { 0% { opacity: 1; background: rgba(var(--rouge), .3); } 100% { opacity: .55; background: rgba(var(--rouge), 0); } }
+
+/* Petit compteur « Bombe 2 sur 3 ». */
+.pc-compteur { margin: 0; padding: 3px 14px; border-radius: 99px; font: 900 clamp(14px, 3.2vw, 18px) system-ui, sans-serif; color: #ffe9a0;
+  background: rgba(26, 11, 46, .65); box-shadow: inset 0 0 0 2px rgba(232, 176, 74, .7); }
+
+/* BOUM : la bombe se volatilise dans un éclair doré ; chez nous, tout l'écran vire au rouge. */
+.pc-boum .pc-corps { animation: pc-explose .6s ease-out forwards; }
+.pc-boum .pc-halo { background: radial-gradient(closest-side, #fff6c8, rgba(255, 179, 71, .8) 45%, transparent); animation: pc-eclair .9s ease-out forwards; }
+@keyframes pc-explose { 0% { transform: scale(1); opacity: 1; } 30% { transform: scale(1.35); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
+@keyframes pc-eclair { 0% { transform: translate(-50%, -50%) scale(.6); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; } }
+.pc-boum-moi::before { opacity: 1; background: rgba(var(--rouge), .22); box-shadow: inset 0 0 clamp(60px, 16vmin, 160px) rgba(var(--rouge), .9); }
 .pc > * { position: relative; z-index: 1; }
 /* La bombe passe par-dessus les boutons quand elle s'envole vers l'équipe choisie. */
 .pc-scene { z-index: 2; }
 
-/* Elle tombe chez nous et rebondit sur son socle. */
-.pc-bombe.pc-arrive .pc-corps { animation: pc-tombe .7s cubic-bezier(.3, 0, .5, 1) both, pc-bat .9s .7s ease-in-out infinite; }
+/* Elle tombe chez nous et rebondit sur son socle (puis elle bat au rythme de la mèche). */
+.pc-bombe.pc-arrive .pc-corps { animation: pc-tombe .7s cubic-bezier(.3, 0, .5, 1) both; }
 @keyframes pc-tombe { 0% { transform: translateY(-120%) scale(.8); opacity: 0; } 55% { transform: translateY(0) scaleY(.88) scaleX(1.08); opacity: 1; } 75% { transform: translateY(-8%); } 100% { transform: none; } }
 
 /* Envoyée : elle s'envole vers l'équipe choisie et disparaît dedans. */
@@ -127,5 +141,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pc-corps, .pc-etincelle, .pc-halo, .pc-equipe, .pc-equipe::before, .pc-equipe::after, .pc-chez-moi::before, .pc-colle span::after, .pc-bombe { animation: none !important; }
+  .pc-corps, .pc-etincelle, .pc-halo, .pc-equipe, .pc-equipe::before, .pc-equipe::after, .pc-chez-moi::before, .pc-colle span::after, .pc-bombe,
+  .pc-chez-moi.pc-bat .pc-corps, .pc-chez-moi.pc-bat .pc-halo, .pc-chez-moi.pc-bat::before { animation: none !important; }
 }

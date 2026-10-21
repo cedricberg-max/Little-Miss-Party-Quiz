@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -20,20 +21,25 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.BOMB_ALERT_MS
+import com.littlemissparty.quiz.engine.CHEST_RANKING_MS
 import com.littlemissparty.quiz.engine.CHEST_SHOW_MS
+import com.littlemissparty.quiz.engine.ChestOpen
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.tv.habillage.AlerteBombe
 import com.littlemissparty.quiz.tv.habillage.BilanBombe
+import com.littlemissparty.quiz.tv.habillage.ClassementCoffre
+import com.littlemissparty.quiz.tv.habillage.LignePortes
 import com.littlemissparty.quiz.tv.habillage.Neon
 import com.littlemissparty.quiz.tv.habillage.OuvertureCoffre
 import com.littlemissparty.quiz.tv.habillage.SceneCoffres
+import com.littlemissparty.quiz.tv.habillage.rangs
 import com.littlemissparty.quiz.tv.habillage.styleCentre
 import kotlinx.coroutines.delay
 
 /*
- * La bombe cachée sur la TV. L'écran ne décide rien : les coffres sont choisis sur les tablettes et leur contenu est
+ * Les coffres mystères sur la TV. L'écran ne décide rien : les coffres sont choisis sur les tablettes et leur contenu est
  * tiré par la partie à l'ouverture. Ici : la scène des coffres (habillage/BombeCachee.kt), l'ouverture du dernier
- * coffre, l'annonce de la bombe, puis le bilan. Les animations se calent sur l'heure du serveur : une box qui se
+ * coffre, le classement qui bouge, l'annonce de la bombe (et du coffre en or), puis le bilan. Les animations se calent sur l'heure du serveur : une box qui se
  * reconnecte après coup ne les rejoue pas.
  */
 
@@ -55,11 +61,13 @@ fun CoffresScreen(state: UiState.Playing, actions: TvActions) {
     val maintenant = heureServeur(state.serverOffset)
     val equipe = { uid: String? -> state.teams.find { it.uid == uid } }
     val dernier = r?.opened?.lastOrNull()
-    // Ouverture en cours (le dernier coffre, pendant son animation), puis l'annonce de la bombe juste après le
-    // dernier tour sans danger.
+    // Ouverture en cours (le dernier coffre, pendant son animation), puis le classement (sauf après la bombe : le bilan
+    // arrive), puis l'annonce de la bombe juste après le dernier tour sans danger.
     val ouverture = dernier?.takeIf { maintenant < it.at + CHEST_SHOW_MS }
+    val classement = dernier?.takeIf { !it.bomb && maintenant >= it.at + CHEST_SHOW_MS && maintenant < it.at + CHEST_SHOW_MS + CHEST_RANKING_MS }
+    val apresClassement = (dernier?.at ?: 0L) + CHEST_SHOW_MS + CHEST_RANKING_MS
     val alerte = r != null && dernier != null && r.turn == r.safe && !r.exploded &&
-        maintenant >= dernier.at + CHEST_SHOW_MS && maintenant < dernier.at + CHEST_SHOW_MS + BOMB_ALERT_MS
+        maintenant >= apresClassement && maintenant < apresClassement + BOMB_ALERT_MS
     val bilan = r != null && r.exploded && ouverture == null
 
     Box(Modifier.fillMaxSize()) {
@@ -79,18 +87,25 @@ fun CoffresScreen(state: UiState.Playing, actions: TvActions) {
                         phaseDanger = r.danger && !r.exploded,
                         modifier = Modifier.fillMaxSize(),
                         bombe = r.opened.firstOrNull { it.bomb }?.delta,
+                        or = r.opened.firstOrNull { it.gold && it !== ouverture }?.chest,
+                        // Le classement et l'alerte ont leur titre en haut : le bandeau du tour se cache derrière eux.
+                        bandeau = classement == null && !alerte,
                     )
                 }
             }
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth().height(64.dp), verticalAlignment = Alignment.CenterVertically) {
+                val bas = when {
+                    // Pendant l'ouverture, le classement et l'alerte, rien en bas : le texte passerait derrière leur voile et l'estrade.
+                    r == null || r.exploded || ouverture != null || classement != null || alerte -> ""
+                    r.danger && !r.goldFound -> "💣 La bombe et ⭐ le coffre en or (+500) se cachent !"
+                    r.danger -> "💣 La bombe peut être dans n'importe quel coffre !"
+                    else -> "Encore ${r.safe - r.turn} coffre${if (r.safe - r.turn > 1) "s" else ""} sans danger"
+                }
                 Text(
-                    when {
-                        r == null || r.exploded -> ""
-                        r.danger -> "💣 La bombe peut être dans n'importe quel coffre !"
-                        else -> "Encore ${r.safe - r.turn} coffre${if (r.safe - r.turn > 1) "s" else ""} sans danger"
-                    },
-                    style = styleCentre(26.sp, Neon.OrClair),
+                    bas,
+                    // Texte long : un peu plus petit, pour tenir sur une ligne à côté du bouton de secours.
+                    style = styleCentre(if (bas.length > 46) 22.sp else 26.sp, Neon.OrClair),
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -118,8 +133,26 @@ fun CoffresScreen(state: UiState.Playing, actions: TvActions) {
                 pointsBombe = ouverture.delta,
                 avant = apres - ouverture.delta,
                 apres = apres,
+                or = ouverture.gold,
             )
+        }
+        if (classement != null) key(classement.at, classement.chest) {
+            val lignes = remember(classement, state.scores, state.teams) { lignesClassement(state, classement) }
+            ClassementCoffre(lignes, state.teams.indexOfFirst { it.uid == classement.team }, Modifier.fillMaxSize())
         }
         if (alerte) key(dernier?.at) { AlerteBombe(onFini = {}, modifier = Modifier.fillMaxSize()) }
     }
+}
+
+/**
+ * Le classement juste après le coffre [o] : les scores d'avant (sans le coffre) et d'après, et les rangs. À égalité,
+ * l'ancien rang départage, puis l'ordre des équipes.
+ */
+private fun lignesClassement(state: UiState.Playing, o: ChestOpen): List<LignePortes> {
+    val equipes = state.teams
+    val apres = equipes.map { state.scores[it.uid] ?: 0 }
+    val avant = equipes.mapIndexed { i, t -> apres[i] - if (t.uid == o.team) o.delta else 0 }
+    val rangsAvant = rangs(avant)
+    val rangsApres = rangs(apres, rangsAvant)
+    return equipes.mapIndexed { i, t -> LignePortes(t.name, t.color.toColor(), avant[i], apres[i], rangsAvant[i] + 1, rangsApres[i] + 1) }
 }

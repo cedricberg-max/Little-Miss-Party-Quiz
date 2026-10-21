@@ -88,6 +88,8 @@ object QuizJson {
             artist = q.optString("artist").trim().takeIf { it.isNotEmpty() && kind == QuestionKind.BLIND }?.take(MAX_ARTIST),
             audioId = q.optString("audioId").takeIf { it.matches(IMAGE_ID) && !turns },
             refrainId = q.optString("refrainId").takeIf { it.matches(IMAGE_ID) && kind == QuestionKind.BLIND },
+            // Paroles du refrain : seulement avec un refrain, et jamais trop longues.
+            lyrics = q.optString("lyrics").takeIf { it.isNotBlank() && it.length <= MAX_PAROLES && kind == QuestionKind.BLIND && q.optString("refrainId").matches(IMAGE_ID) },
             audioIds = q.optJSONArray("audioIds")?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty()
                 .filter { it.matches(IMAGE_ID) && kind == QuestionKind.STATUES }.distinct().take(MAX_STATUES_SONGS),
             points = q.optInt("points", 0).takeIf { it > 0 && (kind == QuestionKind.BLIND || kind == QuestionKind.PICTIONARY) }?.coerceAtMost(MAX_TRACK_POINTS),

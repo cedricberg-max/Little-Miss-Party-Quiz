@@ -95,9 +95,9 @@ data class GameState(
     val doorValues: Map<String, Map<Int, Int>> = emptyMap(),
     /** Écran de présentation du jeu qui commence : rien ne part avant le lancement de l'animatrice ([GameLaunched]). */
     val intro: Boolean = false,
-    /** La bombe cachée : les coffres de chaque manche jouée (points compris), par question. */
+    /** Les coffres mystères : les coffres de chaque manche jouée (points compris), par question. */
     val chests: Map<String, ChestRound> = emptyMap(),
-    /** Patate chaude en cours (null hors de ce jeu, ou avant que la mèche soit allumée). */
+    /** « Ça va exploser ! » en cours (null hors de ce jeu, ou avant que la mèche soit allumée). */
     val potato: PotatoRound? = null,
 ) {
     val paused: Boolean get() = hold != null
@@ -195,10 +195,10 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
      * jamais de chrono, chacun prend son temps et l'animatrice ferme les choix quand tout le monde est prêt.
      */
     private fun timerRuns(q: Question) = state.phase == Phase.QUESTION && !state.intro && !q.isPortes && !q.isCoffres && (!q.isTurns || state.mimeTurn) &&
-        (!q.isPatate || state.potato != null) &&
+        (!q.isPatate || state.potato?.exploded == false) &&
         (!q.isBlind || (state.buzz?.waiting == false && state.segments.isNotEmpty()))
 
-    /** Durée du chrono de [q] : la mèche tirée au sort pour la Patate chaude, sinon celle de la question. */
+    /** Durée du chrono de [q] : la mèche tirée au sort pour « Ça va exploser ! », sinon celle de la question. */
     fun durationOf(q: Question): Long = if (q.isPatate) state.potato?.fuseMs ?: q.durationMs else q.durationMs
 
     /**
@@ -346,29 +346,43 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         }
         is PotatoLit -> {
             val q = quiz.questions.getOrNull(s.index)
-            if (s.phase != Phase.QUESTION || q == null || !q.isPatate || q.id != e.qid || s.potato != null || s.paused ||
+            val p = s.potato
+            // La première bombe, ou la suivante une fois la précédente explosée (jamais plus de POTATO_BOMBS).
+            val suite = if (p == null) e.bomb == 1 else p.exploded && e.bomb == p.bomb + 1 && e.bomb <= POTATO_BOMBS
+            if (s.phase != Phase.QUESTION || q == null || !q.isPatate || q.id != e.qid || !suite || s.paused ||
                 e.teams.size < 2 || e.teams.distinct().size != e.teams.size || e.holder !in e.teams || e.fuseMs !in POTATO_FUSE_MIN_MS..POTATO_FUSE_MAX_MS) null
-            else (e.at + POTATO_GO_MS).let { go ->
-                s.copy(potato = PotatoRound(e.fuseMs, e.teams, e.holder, since = go), segments = listOf(Segment(go)), resumeAt = go)
+            // Bombe suivante : le temps de l'explosion et de l'annonce « Bombe 2 sur 3 » avant qu'elle parte.
+            else (e.at + if (p == null) POTATO_GO_MS else POTATO_NEXT_MS).let { go ->
+                s.copy(
+                    potato = PotatoRound(e.fuseMs, e.teams, e.holder, since = go, bomb = e.bomb, booms = p?.booms.orEmpty()),
+                    segments = listOf(Segment(go)), resumeAt = go,
+                )
             }
         }
         is PotatoPassed -> {
             val p = s.potato
-            if (s.phase != Phase.QUESTION || s.qid != e.qid || p == null || s.paused || p.holder != e.from || e.to !in p.targets) null
+            if (s.phase != Phase.QUESTION || s.qid != e.qid || p == null || p.exploded || s.paused || p.holder != e.from || e.to !in p.targets) null
             else s.copy(potato = p.copy(holder = e.to, from = e.from, since = e.at, hit = p.hit + e.to, passes = p.passes + 1))
         }
         is PotatoExploded -> {
             val p = s.potato
             val q = quiz.questions.getOrNull(s.index)
-            if (s.phase != Phase.QUESTION || s.qid != e.qid || p == null || q == null || p.holder != e.holder) null
+            if (s.phase != Phase.QUESTION || s.qid != e.qid || p == null || p.exploded || q == null || p.holder != e.holder) null
             else {
                 val factor = factorIn(s, s.index)
                 val lost = minOf(POTATO_POINTS * factor, (s.scores()[e.holder] ?: 0).coerceAtLeast(0))
-                val awards = p.teams.associateWith {
-                    if (it == e.holder) Award(null, correct = false, points = -lost, bonus = 0)
-                    else Award(null, correct = true, points = POTATO_POINTS * factor, bonus = 0)
+                // Les points de chaque bombe s'ajoutent à ceux des bombes précédentes du même jeu.
+                val before = s.awards[q.id].orEmpty()
+                val awards = before + p.teams.associateWith {
+                    val points = (before[it]?.points ?: 0) + if (it == e.holder) -lost else POTATO_POINTS * factor
+                    Award(null, correct = points > 0, points = points, bonus = 0)
                 }
-                s.copy(phase = Phase.REVEAL, hold = null, segments = closeSegments(s, e.at), awards = s.awards + (q.id to awards))
+                val next = p.copy(booms = p.booms + PotatoBoom(e.holder, e.at, lost, POTATO_POINTS * factor))
+                s.copy(
+                    // Après la dernière bombe, le bilan ; sinon la box allume la mèche de la suivante.
+                    phase = if (next.last) Phase.REVEAL else s.phase, hold = null, segments = closeSegments(s, e.at),
+                    awards = s.awards + (q.id to awards), potato = next,
+                )
             }
         }
         is ChestsDealt -> {
@@ -381,9 +395,10 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         is ChestOpened -> {
             val r = s.chests[e.qid]
             if (s.phase != Phase.QUESTION || s.qid != e.qid || r == null || s.paused || r.team != e.team || e.chest !in r.closed ||
-                (e.bomb && !r.danger) || (e.bomb && e.delta > 0)) null
+                (e.bomb && !r.danger) || (e.bomb && e.delta > 0) ||
+                (e.gold && (e.bomb || !r.danger || r.goldFound || e.delta != GOLD_POINTS))) null
             else {
-                val next = r.copy(opened = r.opened + ChestOpen(e.team, e.chest, e.delta, e.bomb, e.at))
+                val next = r.copy(opened = r.opened + ChestOpen(e.team, e.chest, e.delta, e.bomb, e.at, e.gold))
                 // La bombe arrête le jeu : bilan des coffres, puis classement.
                 s.copy(chests = s.chests + (e.qid to next), phase = if (next.team == null) Phase.REVEAL else s.phase)
             }
@@ -593,12 +608,12 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             // Le buzz d'un jeu précédent (équipe validée) ne doit jamais figer le chrono des mimes.
             buzz = null,
         )
-        // La bombe cachée : pas de chrono ; la box installe les coffres dès que le jeu est lancé.
+        // Les coffres mystères : pas de chrono ; la box installe les coffres dès que le jeu est lancé.
         else if (q.isCoffres) s.copy(
             phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null, mime = null, buzz = null,
             chests = s.chests - q.id,
         )
-        // Patate chaude : pas de chrono tant que la box n'a pas allumé la mèche ([lightPotato]).
+        // « Ça va exploser ! » : pas de chrono tant que la box n'a pas allumé la mèche ([lightPotato]), ni entre deux bombes.
         else if (q.isPatate) s.copy(phase = Phase.QUESTION, index = index, qid = q.id, segments = emptyList(), resumeAt = null, mime = null, buzz = null)
         // Gonfleur fou : le chrono de secours part après le décompte 3, 2, 1 de la TV, comme après une reprise.
         else if (q.isGonfleur) (at + PUMP_GO_MS).let { go ->
@@ -649,11 +664,11 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             state.intro -> emit(GameLaunched(nextSeq, now))
             // Blind test à la télécommande : OK lance la musique, ou l'arrête.
             question?.isBlind == true -> if (state.buzz?.waiting == true) blindPlay(now) else blindStop(now)
-            // La bombe cachée : seules les équipes ouvrent les coffres, depuis leur tablette.
+            // Les coffres mystères : seules les équipes ouvrent les coffres, depuis leur tablette.
             question?.isCoffres == true -> null
             // Gonfleur fou : l'arrêt de la course a besoin des tapes des tablettes ([balloon]).
             question?.isGonfleur == true -> null
-            // Patate chaude : seule la mèche décide de la fin.
+            // « Ça va exploser ! » : seule la mèche décide de la fin.
             question?.isPatate == true -> null
             state.mime == null -> close(now)
             state.mimeTurn -> mimeStop(now)
@@ -770,43 +785,49 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     fun close(now: Long): GameEvent? =
         if (state.paused || question?.isGonfleur == true || question?.isPatate == true) null else emit(QuestionClosed(nextSeq, now))
 
-    /** Patate chaude : la mèche est à allumer (jeu lancé, pas encore de bombe). */
+    /** « Ça va exploser ! » : une mèche est à allumer (jeu lancé, pas encore de bombe, ou la précédente vient d'exploser). */
     fun needsPotato(): Boolean {
         val q = question ?: return false
-        return q.isPatate && state.phase == Phase.QUESTION && !state.intro && !state.paused && state.potato == null
+        val p = state.potato
+        return q.isPatate && state.phase == Phase.QUESTION && !state.intro && !state.paused && (p == null || (p.exploded && !p.last))
     }
 
-    /** Patate chaude : allume la mèche (durée tirée au sort) ; la bombe part d'une équipe tirée au sort parmi [teams]. */
+    /**
+     * « Ça va exploser ! » : allume la mèche (durée tirée au sort) ; la bombe part d'une équipe tirée au sort parmi [teams],
+     * jamais celle chez qui la bombe précédente vient d'exploser.
+     */
     fun lightPotato(teams: List<String>, now: Long, random: Random = Random.Default): GameEvent? {
         val q = question ?: return null
         val playing = teams.distinct()
         if (!needsPotato() || playing.size < 2) return null
-        return emit(PotatoLit(nextSeq, now, q.id, playing.random(random), drawFuse(random), playing))
+        val p = state.potato
+        val start = playing.filter { it != p?.booms?.lastOrNull()?.holder }.random(random)
+        return emit(PotatoLit(nextSeq, now, q.id, start, drawFuse(random), playing, bomb = (p?.bomb ?: 0) + 1))
     }
 
     /**
-     * Patate chaude : [team] envoie la bombe à [to]. Refusé si [team] ne la tient pas, avant la fin de la mèche qui
+     * « Ça va exploser ! » : [team] envoie la bombe à [to]. Refusé si [team] ne la tient pas, avant la fin de la mèche qui
      * colle, vers l'envoyeur (sauf à 2 équipes), en pause ou pendant un décompte.
      */
     fun passPotato(team: String, to: String, now: Long, sentAt: Long = now): GameEvent? {
         val p = state.potato ?: return null
-        if (state.paused || state.phase != Phase.QUESTION || p.holder != team || to !in p.targets) return null
+        if (state.paused || state.phase != Phase.QUESTION || p.exploded || p.holder != team || to !in p.targets) return null
         if (now + ARM_TOLERANCE_MS < p.readyAt || (state.resumeAt ?: Long.MIN_VALUE) > now + ARM_TOLERANCE_MS) return null
         // Envoi parti avant la fin de la mèche (heure du serveur de l'écriture) : il compte, même reçu un peu après.
         if (remainingMs(minOf(sentAt, now)) == 0L) return null
         return emit(PotatoPassed(nextSeq, maxOf(now, p.readyAt), state.qid!!, team, to))
     }
 
-    /** Patate chaude, secours de la régie : la bombe part au hasard chez une équipe permise (tablette en panne). */
+    /** « Ça va exploser ! », secours de la régie : la bombe part au hasard chez une équipe permise (tablette en panne). */
     fun passPotatoRandom(now: Long, random: Random = Random.Default): GameEvent? {
         val p = state.potato ?: return null
         return passPotato(p.holder, p.targets.randomOrNull(random) ?: return null, now)
     }
 
-    /** Patate chaude : la mèche est arrivée au bout, la bombe explose chez l'équipe qui la tient. */
+    /** « Ça va exploser ! » : la mèche est arrivée au bout, la bombe explose chez l'équipe qui la tient. */
     fun explode(now: Long): GameEvent? {
         val p = state.potato ?: return null
-        if (state.paused || state.phase != Phase.QUESTION || remainingMs(now) > 0) return null
+        if (state.paused || state.phase != Phase.QUESTION || p.exploded || remainingMs(now) > 0) return null
         return emit(PotatoExploded(nextSeq, now, state.qid!!, p.holder))
     }
 
@@ -885,17 +906,17 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
      */
     fun doorOrder(): List<Int> = question?.takeIf { it.isPortes }?.choices?.indices?.toList() ?: emptyList()
 
-    /** La bombe cachée : les coffres du jeu en cours, ou null (autre jeu, coffres pas encore installés). */
+    /** Les coffres mystères : les coffres du jeu en cours, ou null (autre jeu, coffres pas encore installés). */
     val chestRound: ChestRound? get() = state.qid?.let { state.chests[it] }?.takeIf { question?.isCoffres == true }
 
-    /** La bombe cachée : le jeu vient d'être lancé, la box doit installer les coffres ([dealChests]). */
+    /** Les coffres mystères : le jeu vient d'être lancé, la box doit installer les coffres ([dealChests]). */
     fun needsChests(): Boolean {
         val q = question ?: return false
         return q.isCoffres && state.phase == Phase.QUESTION && !state.intro && !state.paused && q.id !in state.chests
     }
 
     /**
-     * La bombe cachée : installe les coffres pour les équipes [teams] (dans l'ordre d'inscription). L'équipe la plus en
+     * Les coffres mystères : installe les coffres pour les équipes [teams] (dans l'ordre d'inscription). L'équipe la plus en
      * retard commence ; à égalité, l'ordre d'inscription.
      */
     fun dealChests(teams: List<String>, now: Long): GameEvent? {
@@ -907,7 +928,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     }
 
     /**
-     * La bombe cachée : l'équipe [team] ouvre le coffre [chest] ; son contenu est tiré au sort maintenant. Refusé
+     * Les coffres mystères : l'équipe [team] ouvre le coffre [chest] ; son contenu est tiré au sort maintenant. Refusé
      * avant la fin de l'animation précédente ([ChestRound.readyAt]), en pause, ou si ce n'est pas le tour de [team].
      */
     fun openChest(team: String, chest: Int, now: Long, random: Random = Random.Default): GameEvent? {
@@ -916,10 +937,10 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         val score = (state.scores()[team] ?: 0).coerceAtLeast(0)
         val value = drawChest(r, random)
         val delta = if (value == null) -minOf(BOMB_POINTS, score) else if (value < 0) maxOf(value, -score) else value
-        return emit(ChestOpened(nextSeq, now, r.let { question!!.id }, team, chest, delta, bomb = value == null))
+        return emit(ChestOpened(nextSeq, now, r.let { question!!.id }, team, chest, delta, bomb = value == null, gold = value == GOLD_POINTS))
     }
 
-    /** La bombe cachée, secours de la régie : un coffre fermé au hasard pour l'équipe qui joue (tablette en panne). */
+    /** Les coffres mystères, secours de la régie : un coffre fermé au hasard pour l'équipe qui joue (tablette en panne). */
     fun openRandomChest(now: Long, random: Random = Random.Default): GameEvent? {
         val r = chestRound ?: return null
         val team = r.team ?: return null

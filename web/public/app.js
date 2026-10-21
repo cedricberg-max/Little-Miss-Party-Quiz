@@ -837,7 +837,10 @@ function runResumeCountdown(st) {
       $("resume-num").textContent = `${Math.min(9, Math.ceil(ms / 1000))}`;
       // Avant les dernières questions multipliées, la TV annonce « × N » : le décompte le dit aussi.
       $("resume-text").textContent = st.intro != null && st.intro === st.resumeAt ? `Points ×${st.factor ?? 2} !`
-        : st.kind === "gonfleur" && st.pump?.goAt === st.resumeAt ? "Prêts à gonfler ?" : "C'est reparti !";
+        : st.kind === "gonfleur" && st.pump?.goAt === st.resumeAt ? "Prêts à gonfler ?"
+          : bombeSuivante(st) ? `Bombe ${st.potato.bomb} sur ${st.potato.bombs} !` : "C'est reparti !";
+      // « Ça va exploser ! » : la bombe suivante attend la fin de l'explosion pour s'annoncer.
+      if (bombeSuivante(st) && ms > PATATE_ANNONCE_MS) box.hidden = true;
     } else { clearInterval(countdownHandle); countdownHandle = null; if (st.phase === "question") render(); }
   };
   const ms = st.paused || st.resumeAt == null ? 0 : st.resumeAt - (Date.now() + serverOffset);
@@ -886,13 +889,22 @@ function renderResult(st) {
   if (st.kind === "portes") return renderPortesResult(st, award);
   showPortesReveal(null);
   if (st.kind === "patate") {
-    const boom = Object.keys(st.awards ?? {}).find((t) => st.awards[t] && !st.awards[t].correct);
+    // La dernière bombe : chez qui elle a explosé, ce qu'elle a coûté ou rapporté ; puis le total des trois bombes.
+    const booms = liste(st.potato?.booms);
+    const derniere = booms[booms.length - 1];
+    const boom = derniere?.holder ?? Object.keys(st.awards ?? {}).find((t) => st.awards[t] && !st.awards[t].correct);
     const pts = award?.points ?? 0;
+    const perdu = derniere ? -(derniere.lost ?? 0) : pts;
+    const gagne = derniere ? derniere.gain ?? 0 : pts;
+    const plusieurs = booms.length > 1;
     $("r-icon").textContent = boom === teamId ? "💥" : "😅";
     $("r-icon").className = `result-icon ${boom === teamId ? "ko" : "ok"}`;
-    $("r-title").textContent = boom === teamId ? `BOUM ! La bombe a explosé chez vous${pts < 0 ? ` : −${-pts} points` : ""}`
-      : `Ouf ! +${pts} points`;
-    $("r-detail").textContent = boom && boom !== teamId ? `Elle a explosé chez l'équipe ${game.teams[boom]?.name ?? "adverse"}.` : "";
+    $("r-title").textContent = boom === teamId ? `BOUM ! La ${plusieurs ? "dernière " : ""}bombe a explosé chez vous${perdu < 0 ? ` : −${-perdu} points` : ""}`
+      : `Ouf ! +${gagne} points`;
+    $("r-detail").textContent = [
+      boom && boom !== teamId ? `Elle a explosé chez l'équipe ${game.teams[boom]?.name ?? "adverse"}.` : "",
+      plusieurs ? `Sur les ${booms.length} bombes : ${pts < 0 ? "−" : "+"}${Math.abs(pts)} points.` : "",
+    ].filter(Boolean).join(" ");
     $("r-image").hidden = true;
     const { mine, rank } = rankOf(st.scores);
     $("r-total").textContent = `${mine} points · ${rank === 1 ? "1re place" : `${rank}e place`}`;
@@ -1014,7 +1026,7 @@ function renderPortesResult(st, award) {
   } else $("r-total").textContent = "Classement à la fin des portes !";
 }
 
-/** La bombe cachée (écran coffres.js) : { ctl, cle, envoi, tour, alarme } du jeu en cours. */
+/** Les coffres mystères (écran coffres.js) : { ctl, cle, envoi, tour, alarme } du jeu en cours. */
 let coffres = null;
 function stopCoffres() {
   if (!coffres) return;
@@ -1024,7 +1036,7 @@ function stopCoffres() {
 }
 
 /**
- * La bombe cachée : l'équipe qui joue choisit un coffre et l'ouvre, les autres regardent. Le contenu d'un coffre
+ * Les coffres mystères : l'équipe qui joue choisit un coffre et l'ouvre, les autres regardent. Le contenu d'un coffre
  * n'apparaît qu'une fois montré par la TV ; le bilan du jeu arrive après l'explosion.
  */
 function renderCoffres(st) {
@@ -1050,7 +1062,7 @@ function renderCoffres(st) {
   const fini = st.phase === "scores" || (c.exploded === true && !suspense);
   const joue = c.team ? equipe(c.team) : null;
   let titre; let texte;
-  if (!pret) { titre = "La bombe cachée"; texte = "Les coffres arrivent sur la TV…"; }
+  if (!pret) { titre = "Les Coffres mystères"; texte = "Les coffres arrivent sur la TV…"; }
   else if (fini) { titre = "BOUM ! Le bilan"; texte = `${equipe(dernier?.team).nom} a trouvé la bombe !`; }
   else if (suspense) { titre = `Coffre ${dernier.chest + 1}…`; texte = `${dernier.nom} ouvre son coffre : regardez la TV !`; }
   else if (st.paused) { titre = "Pause"; texte = "La partie reprend bientôt."; }
@@ -1059,10 +1071,11 @@ function renderCoffres(st) {
     texte = coffres.envoi != null ? `Coffre ${coffres.envoi + 1} choisi : regardez la TV !`
       : attente > 0 ? "Préparez-vous, la TV termine…" : "Choisissez un coffre, puis ouvrez-le !";
   } else if (joue) { titre = `Au tour de l'équipe ${joue.nom}`; texte = "Quel coffre va-t-elle choisir ? Regardez bien !"; }
-  else { titre = "La bombe cachée"; texte = "Regardez la TV !"; }
+  else { titre = "Les Coffres mystères"; texte = "Regardez la TV !"; }
   if (pret && !fini && !suspense && !st.paused) {
-    texte += c.danger ? " Attention, la bombe peut être dans n'importe quel coffre !"
-      : ` Encore ${c.safeLeft} coffre${c.safeLeft > 1 ? "s" : ""} sans danger.`;
+    texte += !c.danger ? ` Encore ${c.safeLeft} coffre${c.safeLeft > 1 ? "s" : ""} sans danger.`
+      : c.goldLeft === true ? " Attention, la bombe peut être dans n'importe quel coffre… et le coffre en or (+500) aussi !"
+        : " Attention, la bombe peut être dans n'importe quel coffre !";
   }
   if (coffres.message) texte = coffres.message;
   const gains = c.gains ?? {};
@@ -1174,8 +1187,14 @@ async function envoyerTapes() {
   relance();
 }
 
-/** La Patate chaude (écran patate.js) : { ctl, cle, envoye, minuterie, message } de la réception en cours. */
+/** « Ça va exploser ! » (écran patate.js) : { ctl, cle, envoye, minuterie, message } de la réception en cours. */
 let patate = null;
+/** « Ça va exploser ! » : l'explosion à la TV (POTATO_BOOM_MS du moteur), puis l'annonce de la bombe suivante. */
+const PATATE_BOUM_MS = 3500;
+const PATATE_ANNONCE_MS = 3500;
+/** Bombe 2 ou 3 allumée, pas encore partie (son départ est le décompte en cours). */
+const bombeSuivante = (st) => st.kind === "patate" && (st.potato?.bomb ?? 1) > 1 && st.potato?.exploded !== true && st.potato?.since === st.resumeAt;
+const liste = (x) => (Array.isArray(x) ? x : Object.values(x ?? {}));
 function stopPatate() {
   if (!patate) return;
   clearTimeout(patate.minuterie);
@@ -1183,7 +1202,7 @@ function stopPatate() {
   patate = null;
 }
 
-/** Patate chaude : chez nous, on choisit à qui envoyer la bombe ; sinon, on regarde chez qui elle est. */
+/** « Ça va exploser ! » : chez nous, on choisit à qui envoyer la bombe ; sinon, on regarde chez qui elle est. */
 function renderPatate(st) {
   clearInterval(timerHandle);
   show("patate");
@@ -1193,15 +1212,30 @@ function renderPatate(st) {
   if (patate.cle !== (p.key ?? null)) { patate.cle = p.key ?? null; patate.envoye = null; patate.message = null; }
   const nom = (id) => game.teams[id]?.name ?? "une équipe";
   const now = Date.now() + serverOffset;
-  const aMoi = p.lit === true && p.holder === teamId && !st.paused && !counting(st);
+  // Trois bombes par partie : la dernière explosion se montre le temps que la TV la joue (et tant que la suivante n'est
+  // pas allumée), puis la bombe suivante s'annonce avant de partir.
+  const booms = liste(p.booms);
+  const boom = booms[booms.length - 1];
+  const finBoum = (boom?.at ?? 0) + PATATE_BOUM_MS;
+  const boum = p.lit === true && boom != null && (p.exploded === true || now < finBoum);
+  const compteur = p.lit === true && (p.bombs ?? 1) > 1 ? `Bombe ${p.bomb ?? 1} sur ${p.bombs}` : "";
+  const aMoi = p.lit === true && !boum && p.holder === teamId && !st.paused && !counting(st);
   // Mèche qui colle : 2 secondes après la réception (et après le décompte d'une reprise).
   const depuis = p.since ?? 0;
   const pret = Math.max(p.readyAt ?? 0, st.resumeAt ?? 0);
   const colle = pret <= now ? 1 : Math.max(0, Math.min(1, (now - depuis) / Math.max(1, pret - depuis)));
   let titre; let texte;
-  if (p.lit !== true) { titre = "La Patate chaude"; texte = "La mèche va s'allumer… Regardez la TV !"; }
+  if (p.lit !== true) { titre = "Ça va exploser !"; texte = "La mèche va s'allumer… Regardez la TV !"; }
   else if (st.paused) { titre = "Pause"; texte = "La partie reprend bientôt."; }
-  else if (counting(st)) { titre = p.holder === teamId ? "💣 La bombe est chez vous !" : `La bombe est chez l'équipe ${nom(p.holder)}`; texte = "Attention, ça va partir…"; }
+  else if (boum) {
+    const chezMoi = boom.holder === teamId;
+    titre = chezMoi ? "💥 BOUM ! La bombe a explosé chez vous" : `💥 BOUM chez l'équipe ${nom(boom.holder)} !`;
+    texte = chezMoi ? ((boom.lost ?? 0) > 0 ? `−${boom.lost} points.` : "Vous n'aviez aucun point à perdre.") : `+${boom.gain ?? 0} points pour vous !`;
+    if ((p.bomb ?? 1) < (p.bombs ?? 1) || p.exploded !== true) texte += " Attention, une autre bombe arrive…";
+  } else if (bombeSuivante(st) && counting(st)) {
+    titre = `💣 Bombe ${p.bomb} sur ${p.bombs} !`;
+    texte = p.holder === teamId ? "Elle part de chez vous : préparez-vous à l'envoyer !" : `Elle part de chez l'équipe ${nom(p.holder)}…`;
+  } else if (counting(st)) { titre = p.holder === teamId ? "💣 La bombe est chez vous !" : `La bombe est chez l'équipe ${nom(p.holder)}`; texte = "Attention, ça va partir…"; }
   else if (aMoi) {
     titre = "💣 La bombe est chez vous !";
     texte = patate.envoye ? `Envoyée à l'équipe ${nom(patate.envoye)} !` : colle < 1 ? "La mèche colle…" : "Vite, envoyez-la à une autre équipe !";
@@ -1211,11 +1245,20 @@ function renderPatate(st) {
     id, nom: game.teams[id].name, couleur: game.teams[id].color,
     permise: (p.targets ?? []).includes(id), envoyeur: id === p.from, neuve: !(p.hit ?? []).includes(id),
   }));
-  patate.ctl.maj({ titre, texte, aMoi, envoye: patate.envoye, colle, equipes });
+  // La mèche brûle (heure de la tablette) : chez nous, le rouge bat et la tablette vibre de plus en plus vite.
+  const brule = aMoi && p.burnFrom != null ? p.burnFrom - serverOffset : null;
+  patate.ctl.maj({ titre, texte, aMoi, envoye: patate.envoye, colle, equipes, compteur, brule, boum, boumChezMoi: boum && boom.holder === teamId });
   // Elle arrive chez nous : la tablette le signale.
   if (aMoi && patate.vue !== p.key) { patate.vue = p.key; navigator.vibrate?.([80, 60, 80]); beep(988, 160); }
+  // Elle explose chez nous : longue vibration.
+  if (boum && boom.holder === teamId && patate.boum !== boom.at) { patate.boum = boom.at; navigator.vibrate?.([500]); beep(180, 400); }
   clearTimeout(patate.minuterie);
   if (aMoi && colle < 1) patate.minuterie = setTimeout(render, 100);
+  // Fin de l'explosion, puis départ de la bombe suivante : l'écran change tout seul.
+  else {
+    const prochain = [boum ? finBoum : null, counting(st) ? st.resumeAt : null].filter((t) => t != null && t > now);
+    if (prochain.length) patate.minuterie = setTimeout(render, Math.min(...prochain) - now + 50);
+  }
 }
 
 async function envoyerPatate(to) {

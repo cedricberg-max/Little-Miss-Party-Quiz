@@ -156,13 +156,13 @@ sealed interface UiState {
         val blind: BlindUi? = null,
         /** Portes mystères : ordre d'ouverture, portes déjà ouvertes et valeurs (null hors de ce jeu). */
         val portes: PortesUi? = null,
-        /** La bombe cachée : les coffres du jeu en cours (null hors de ce jeu, ou avant leur installation). */
+        /** Les coffres mystères : les coffres du jeu en cours (null hors de ce jeu, ou avant leur installation). */
         val coffres: ChestRound? = null,
         /** Gonfleur fou : tapes reçues de chaque équipe pour la course en cours (vide hors de ce jeu). */
         val pumps: Map<String, Int> = emptyMap(),
         /** Gonfleur fou : heure du serveur du « GONFLEZ ! » (le départ 3, 2, 1 remplace le décompte de reprise). */
         val pumpGoAt: Long? = null,
-        /** Patate chaude : la bombe (qui la tient, qui l'a envoyée, durée de la mèche), null avant l'allumage. */
+        /** « Ça va exploser ! » : la bombe (qui la tient, qui l'a envoyée, durée de la mèche), null avant l'allumage. */
         val potato: PotatoRound? = null,
     ) : UiState {
         /** Total des appuis sur le buzzer de l'accueil, pour le son. */
@@ -631,7 +631,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
      */
     private fun recover() {
         val g = game ?: return
-        // Portes mystères et bombe cachée : pas de chrono, rien ne se ferme seul.
+        // Portes mystères et coffres mystères : pas de chrono, rien ne se ferme seul.
         if (g.state.phase == Phase.QUESTION && !g.state.paused && g.question?.isPortes != true && g.question?.isCoffres != true &&
             g.remainingMs(serverNow()) == 0L
         ) {
@@ -688,10 +688,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun blindReveal() = act { it.blindReveal(serverNow()) }
     fun blindSkip() = act { it.blindSkip(serverNow()) }
 
-    /** La bombe cachée, à la télécommande (pas de régie) : un coffre au hasard pour l'équipe qui joue. */
+    /** Les coffres mystères, à la télécommande (pas de régie) : un coffre au hasard pour l'équipe qui joue. */
     fun chestRandom() = act { it.openRandomChest(serverNow()) }
 
-    /** Patate chaude, à la télécommande (pas de régie) : la bombe part au hasard chez une équipe permise. */
+    /** « Ça va exploser ! », à la télécommande (pas de régie) : la bombe part au hasard chez une équipe permise. */
     fun potatoRandom() = act { it.passPotatoRandom(serverNow()) }
 
     fun togglePause() = act { g -> if (g.state.paused) g.resume(serverNow()) else g.pause(serverNow()) }
@@ -882,7 +882,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 pauseReason = s.hold?.reason,
                 resumeAt = s.resumeAt,
                 deadline = g.deadline(),
-                // Patate chaude : la mèche tirée au sort remplace la durée de la question.
+                // « Ça va exploser ! » : la mèche tirée au sort remplace la durée de la question.
                 remainingMs = q?.let { g.durationOf(it) - s.elapsedAt(Long.MAX_VALUE) }?.coerceAtLeast(0) ?: 0,
                 awards = revealedAwards,
                 scores = s.scores(),
@@ -921,14 +921,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         // Pictionary : le choix du mot sur la tablette du dessinateur, puis son dessin en direct.
         watchPick(Codec.pickKey(g)?.takeIf { !s.paused })
         watchDrawing(Codec.drawKey(g))
-        // La bombe cachée : coffres installés dès le lancement du jeu, puis le choix de la tablette de l'équipe qui joue.
+        // Les coffres mystères : coffres installés dès le lancement du jeu, puis le choix de la tablette de l'équipe qui joue.
         if (g.needsChests() && teams().isNotEmpty()) {
             act { it.dealChests(teams().sortedBy { t -> t.joinedAt }.map { t -> t.uid }, serverNow()) }
         }
         watchChest(Codec.chestKey(g)?.takeIf { !s.paused })
         // Gonfleur fou : les tapes des tablettes, de la course au bilan (les ballons restent à leur taille).
         watchPumps(Codec.pumpKey(g))
-        // Patate chaude : la box allume la mèche dès le lancement du jeu (équipe de départ et durée tirées au sort),
+        // « Ça va exploser ! » : la box allume la mèche dès le lancement du jeu (équipe de départ et durée tirées au sort),
         // puis écoute l'envoi de la tablette de l'équipe qui tient la bombe.
         if (g.needsPotato() && teams().size >= 2) act { it.lightPotato(teams().map { t -> t.uid }, serverNow()) }
         watchPotato(Codec.potatoKey(g)?.takeIf { !s.paused })
@@ -1580,7 +1580,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Patate chaude : l'envoi de la tablette de l'équipe qui tient la bombe (games/<code>/potatoPass/<clé> =
+     * « Ça va exploser ! » : l'envoi de la tablette de l'équipe qui tient la bombe (games/<code>/potatoPass/<clé> =
      * { to, at }). Les règles de la base n'acceptent que l'appareil de cette équipe, après la mèche qui colle, vers
      * une équipe permise. Une clé par réception : un envoi ne peut servir qu'une fois.
      */
@@ -1600,7 +1600,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             }
 
             override fun onCancelled(error: DatabaseError) {
-                Log.e(TAG, "Envoi de la patate chaude : ${error.message}")
+                Log.e(TAG, "Envoi de la bombe (Ça va exploser) : ${error.message}")
             }
         }
         potatoListener = ref to listener
@@ -1608,7 +1608,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * La bombe cachée : le coffre choisi par la tablette de l'équipe qui joue (games/<code>/chestChoice/<clé>). Les
+     * Les coffres mystères : le coffre choisi par la tablette de l'équipe qui joue (games/<code>/chestChoice/<clé>). Les
      * règles de la base n'acceptent que l'appareil de cette équipe, une fois l'animation précédente finie. Le
      * contenu est tiré au sort ici, au moment de l'ouverture.
      */
@@ -1629,7 +1629,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             }
 
             override fun onCancelled(error: DatabaseError) {
-                Log.e(TAG, "Coffre de la bombe cachée : ${error.message}")
+                Log.e(TAG, "Coffre choisi (Coffres mystères) : ${error.message}")
             }
         }
         ref.addValueEventListener(listener)
@@ -1803,11 +1803,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             "portes" to true,
             // Portes mystères : l'animatrice peut changer les valeurs derrière les portes (commande portes_set).
             "portesSet" to true,
-            // La bombe cachée : coffres ouverts depuis les tablettes, coffre au hasard en secours (commande chest_random).
+            // Les coffres mystères : coffres ouverts depuis les tablettes, coffre au hasard en secours (commande chest_random).
             "coffres" to true,
             // Gonfleur fou : tapes des tablettes dans pumps/, fin de la course par la box.
             "gonfleur" to true,
-            // Patate chaude : envois des tablettes dans potatoPass/, mèche et explosion par la box, envoi au hasard (potato_random).
+            // « Ça va exploser ! » : envois des tablettes dans potatoPass/, mèche et explosion par la box, envoi au hasard (potato_random).
             "patate" to true,
             // Statues musicales : les chansons choisies (audioIds) jouées l'une après l'autre.
             "statuesChansons" to true,
@@ -1818,7 +1818,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     "duration" to it.durationSec, "kind" to it.kind.code, "double" to it.double, "round" to it.roundTitle,
                     "cards" to it.cards.ifEmpty { null }?.map { c -> clean(mapOf("word" to c.word, "image" to c.image, "imageId" to c.imageId)) },
                     "image" to it.emoji, "imageId" to it.imageId, "artist" to it.artist, "audioId" to it.audioId,
-                    "refrainId" to it.refrainId, "audioIds" to it.audioIds.ifEmpty { null },
+                    "refrainId" to it.refrainId, "lyrics" to it.lyrics, "audioIds" to it.audioIds.ifEmpty { null },
                     "doors" to it.doors.ifEmpty { null },
                     "choiceImages" to it.choiceImages.ifEmpty { null }?.map { id -> id ?: "" },
                     // Blind test : valeur et durée de révélation du morceau, relues telles quelles après un redémarrage.

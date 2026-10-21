@@ -7,16 +7,16 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** La Patate chaude : la bombe passe de tablette en tablette, la mèche cachée décide de l'explosion. */
+/** « Ça va exploser ! » : la bombe passe de tablette en tablette, la mèche cachée décide de l'explosion. */
 class PatateTest {
 
     private val t0 = 1_000_000L
     private val quiz = Question("q1", "Capitale ?", listOf("Paris", "Rome"), 0, durationSec = 20, roundTitle = "Quiz")
-    private val patate = Question("p1", "La Patate chaude", emptyList(), -1, kind = QuestionKind.PATATE, roundTitle = "La Patate chaude")
+    private val patate = Question("p1", "Ça va exploser !", emptyList(), -1, kind = QuestionKind.PATATE, roundTitle = "Ça va exploser !")
     private val apres = Question("q2", "Couleur du ciel ?", listOf("Bleu", "Vert"), 0, durationSec = 20, roundTitle = "Quiz 2")
     private val trois = listOf("licornes", "dragons", "pandas")
 
-    /** Quiz joué (Licornes 100 et plus), puis la Patate chaude présentée et lancée. */
+    /** Quiz joué (Licornes 100 et plus), puis « Ça va exploser ! » présenté et lancé. */
     private fun partie(): Game = Game(Quiz("p", "P", listOf(quiz, patate, apres), intros = true)).apply {
         next(t0)
         next(t0 + 100)
@@ -83,16 +83,92 @@ class PatateTest {
         assertNull(g.next(fin - 1_000), "le bouton principal ne fait pas exploser la bombe")
         val boom = g.timeUp(fin) as PotatoExploded
         assertEquals(lit.holder, boom.holder)
-        assertEquals(Phase.REVEAL, g.state.phase)
+        assertEquals(Phase.QUESTION, g.state.phase, "deux autres bombes à venir")
         val awards = g.state.awards["p1"]!!
         trois.filter { it != lit.holder }.forEach { assertEquals(POTATO_POINTS, awards[it]!!.points) }
         assertEquals(-minOf(POTATO_POINTS, avant[lit.holder] ?: 0), awards[lit.holder]!!.points, "jamais sous 0")
         assertTrue(g.state.scores().values.all { it >= 0 })
         assertNull(g.passPotato(lit.holder, (trois - lit.holder).first(), fin + 100), "plus rien ne passe")
-        g.next(fin + 5_000)
-        assertEquals(Phase.SCORES, g.state.phase)
-        g.next(fin + 6_000)
-        assertEquals("q2", g.question?.id, "le jeu suivant s'enchaîne")
+        assertNull(g.explode(fin + 100), "elle n'explose qu'une fois")
+        assertNull(g.deadline(), "plus de mèche entre deux bombes")
+        assertNull(Codec.potatoKey(g), "les tablettes n'envoient plus rien")
+    }
+
+    @Test
+    fun `trois bombes par partie, les points s'ajoutent, puis le bilan`() {
+        repeat(30) { graine ->
+            val random = Random(graine)
+            val g = partie()
+            val avant = g.state.scores()
+            var t = t0 + 7_000
+            val perdants = mutableListOf<String>()
+            for (n in 1..POTATO_BOMBS) {
+                assertTrue(g.needsPotato(), "bombe $n à allumer")
+                val lit = g.lightPotato(trois, t, random) as PotatoLit
+                assertEquals(n, lit.bomb)
+                assertNull(g.lightPotato(trois, t + 10, random), "une seule mèche à la fois")
+                // La bombe suivante ne repart jamais de l'équipe chez qui la précédente vient d'exploser.
+                if (n > 1) assertTrue(lit.holder != perdants.last(), "partie $graine")
+                val depart = t + if (n == 1) POTATO_GO_MS else POTATO_NEXT_MS
+                assertEquals(depart, g.state.potato!!.since, "l'explosion et l'annonce avant de repartir")
+                assertNull(g.passPotato(lit.holder, (trois - lit.holder).first(), depart - 1_000), "pas pendant l'annonce")
+                val fin = depart + lit.fuseMs
+                assertEquals(fin, g.deadline())
+                val boom = g.timeUp(fin) as PotatoExploded
+                perdants += boom.holder
+                assertEquals(n, g.state.potato!!.booms.size)
+                t = fin + 50
+            }
+            assertEquals(Phase.REVEAL, g.state.phase, "le bilan après la troisième bombe")
+            assertTrue(!g.needsPotato(), "jamais de quatrième bombe")
+            assertNull(g.lightPotato(trois, t + 1_000, random))
+            // Chaque équipe : +100 par bombe chez les autres, −100 (réduit au score) par bombe chez elle.
+            val gains = g.gameGains()
+            trois.forEach { e ->
+                val ailleurs = perdants.count { it != e } * POTATO_POINTS
+                assertTrue(gains[e]!! <= ailleurs, "partie $graine, $e")
+                assertEquals((g.state.scores()[e] ?: 0) - (avant[e] ?: 0), gains[e] ?: 0)
+            }
+            assertTrue(g.state.scores().values.all { it >= 0 }, "jamais sous 0")
+            assertTrue(trois.all { (gains[it] ?: 0) <= POTATO_BOMBS * POTATO_POINTS }, "au plus 300 sur la partie")
+            val relu = Game(g.quiz, g.events.map { Codec.decode(Codec.encode(it))!! })
+            assertEquals(g.state, relu.state, "partie $graine relue à l'identique")
+            g.next(t + 5_000)
+            assertEquals(Phase.SCORES, g.state.phase)
+            g.next(t + 6_000)
+            assertEquals("q2", g.question?.id, "le jeu suivant s'enchaîne")
+        }
+    }
+
+    @Test
+    fun `l'état publié dit quelle bombe et où elles ont explosé, jamais la mèche`() {
+        val g = partie()
+        val lit = g.allumer()
+        @Suppress("UNCHECKED_CAST")
+        fun etat() = Codec.publicState(g)["potato"] as Map<String, Any?>
+        assertEquals(1, etat()["bomb"])
+        assertEquals(POTATO_BOMBS, etat()["bombs"])
+        assertEquals(false, etat()["exploded"])
+        assertEquals(go, etat()["burnFrom"])
+        // Une pause de 30 s : la mèche a brûlé 10 s, elle repart comme si elle avait été allumée 10 s avant la reprise.
+        g.pause(go + 10_000)
+        assertNull(etat()["burnFrom"], "en pause, rien ne bat")
+        g.resume(go + 40_000)
+        assertEquals(g.state.resumeAt!! - 10_000, etat()["burnFrom"])
+        g.timeUp(go + 30_000 + lit.fuseMs + 60_000)
+        assertEquals(true, etat()["exploded"])
+        @Suppress("UNCHECKED_CAST")
+        val booms = etat()["booms"] as List<Map<String, Any?>>
+        assertEquals(lit.holder, booms.single()["holder"])
+        assertNull(etat()["burnFrom"], "entre deux bombes, rien ne bat")
+        g.lightPotato(trois, go + lit.fuseMs + 100_000, Random(1))
+        assertEquals(2, etat()["bomb"])
+        assertEquals(false, etat()["exploded"])
+        assertEquals(1, (etat()["booms"] as List<*>).size, "l'explosion précédente reste connue")
+        assertNull(Codec.publicState(g)["deadline"], "la mèche reste secrète")
+        // Une bombe en trop ou hors d'ordre est refusée.
+        val g2 = partie()
+        assertTrue(!g2.record(PotatoLit(g2.state.lastSeq + 1, t0 + 7_000, "p1", "licornes", POTATO_FUSE_MIN_MS, trois, bomb = 2)))
     }
 
     @Test
@@ -130,7 +206,7 @@ class PatateTest {
         assertNull(g.state.potato, "nouvelle mèche à allumer")
         g.next(go + 91_000)
         assertTrue(g.needsPotato())
-        val q = QuizJson.parse("""{"id":"p","questions":[{"id":"r1p","text":"La Patate chaude","kind":"patate","choices":[],"correct":-1,"duration":40,"double":false,"round":"La Patate chaude"}]}""")
+        val q = QuizJson.parse("""{"id":"p","questions":[{"id":"r1p","text":"Ça va exploser !","kind":"patate","choices":[],"correct":-1,"duration":40,"double":false,"round":"Ça va exploser !"}]}""")
         assertTrue(q.questions.single().isPatate)
     }
 }

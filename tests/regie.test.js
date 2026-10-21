@@ -1305,7 +1305,7 @@ describe("régie", () => {
     await page.context().close();
   });
 
-  test("La bombe cachée : la régie suit les coffres sans jamais voir leur contenu, et ouvre un coffre au hasard en secours", async () => {
+  test("Les coffres mystères : la régie suit les coffres sans jamais voir leur contenu, et ouvre un coffre au hasard en secours", async () => {
     box = startBox();
     const page = await openRegie();
     await pair(page);
@@ -1313,10 +1313,10 @@ describe("régie", () => {
     await addTeam("rose", "Les Roses");
     await addTeam("bleu", "Les Bleus");
     const plan = (await read("conducteur")) ?? { questions: [] };
-    const bombe = { id: "b1", text: "La bombe cachée", kind: "coffres", choices: [], correct: -1, round: "La bombe cachée" };
+    const bombe = { id: "b1", text: "Les Coffres mystères", kind: "coffres", choices: [], correct: -1, round: "Les Coffres mystères" };
     await set(gameRef("conducteur"), { ...plan, coffres: true, questions: [...plan.questions, bombe] });
     const chests = { ready: true, count: 10, order: ["bleu", "rose"], team: "bleu", turn: 0, safe: 6, safeLeft: 6, danger: false, exploded: false, key: "b1-1-0", readyAt: Date.now() + 2500, opened: [], gains: { bleu: 0, rose: 0 } };
-    await box.set({ ...questionState(box.state.seq + 1, 0), index: 2, qid: "b1", kind: "coffres", text: "La bombe cachée", choices: null, deadline: null, total: 3, chests });
+    await box.set({ ...questionState(box.state.seq + 1, 0), index: 2, qid: "b1", kind: "coffres", text: "Les Coffres mystères", choices: null, deadline: null, total: 3, chests });
     await page.locator("#coffres-info", { hasText: "Au tour de l'équipe Les Bleus" }).waitFor();
     await page.locator("#coffres-info", { hasText: "Encore 6 coffres sans danger" }).waitFor();
     // Le bouton principal n'ouvre jamais de coffre : ce sont les équipes qui jouent.
@@ -1336,6 +1336,13 @@ describe("régie", () => {
     const opened = [{ team: "bleu", chest: 4, delta: 150, bomb: false, at: Date.now() }];
     await box.set({ ...box.state, seq: box.state.seq + 1, chests: { ...chests, team: "rose", turn: 1, safeLeft: 5, key: "b1-1-1", opened } });
     await page.locator("#coffres-opened", { hasText: "Les Bleus : coffre 5 +150" }).waitFor();
+    // La bombe arrive, cachée avec le coffre en or ; puis les Roses trouvent le coffre en or.
+    await box.set({ ...box.state, seq: box.state.seq + 1, chests: { ...chests, team: "bleu", turn: 6, safeLeft: 0, danger: true, goldLeft: true, key: "b1-1-6", opened } });
+    await page.locator("#coffres-info", { hasText: "La bombe est cachée dans un des coffres ! ⭐ Le coffre en or (+500) aussi." }).waitFor();
+    const or = { team: "rose", chest: 8, delta: 500, bomb: false, gold: true, at: Date.now() };
+    await box.set({ ...box.state, seq: box.state.seq + 1, chests: { ...chests, team: "bleu", turn: 7, safeLeft: 0, danger: true, goldLeft: false, key: "b1-1-7", opened: [...opened, or] } });
+    await page.locator("#coffres-opened", { hasText: "Les Roses : coffre 9 ⭐ +500" }).waitFor();
+    assert.equal(await page.locator("#coffres-info", { hasText: "coffre en or" }).count(), 0, "le coffre en or est trouvé");
     // La bombe : jeu fini, le bouton principal mène au classement.
     await box.set({ ...box.state, seq: box.state.seq + 1, phase: "reveal", chests: { ...chests, team: null, key: null, exploded: true, opened: [...opened, { team: "rose", chest: 1, delta: -300, bomb: true, at: Date.now() }] } });
     await page.locator("#coffres[hidden]").waitFor({ state: "attached" });
@@ -1370,7 +1377,7 @@ describe("régie", () => {
     await page.context().close();
   });
 
-  test("La Patate chaude : la régie voit chez qui est la bombe et peut l'envoyer au hasard en deux appuis", async () => {
+  test("« Ça va exploser ! » : la régie voit chez qui est la bombe et peut l'envoyer au hasard en deux appuis", async () => {
     box = startBox();
     const page = await openRegie();
     await pair(page);
@@ -1378,11 +1385,11 @@ describe("régie", () => {
     await addTeam("rose", "Les Roses");
     await addTeam("bleu", "Les Bleus");
     const plan = (await read("conducteur")) ?? { questions: [] };
-    const bombe = { id: "p1", text: "La Patate chaude", kind: "patate", choices: [], correct: -1, round: "La Patate chaude" };
+    const bombe = { id: "p1", text: "Ça va exploser !", kind: "patate", choices: [], correct: -1, round: "Ça va exploser !" };
     await set(gameRef("conducteur"), { ...plan, patate: true, questions: [...plan.questions, bombe] });
     const now = Date.now();
     const potato = { lit: true, holder: "rose", from: null, since: now - 3000, readyAt: now - 1000, canReturn: true, targets: ["bleu"], teams: ["rose", "bleu"], hit: ["rose"], passes: 0, key: "p1-1" };
-    await box.set({ ...questionState(box.state.seq + 1, 0), index: 2, qid: "p1", kind: "patate", text: "La Patate chaude", choices: null, deadline: null, total: 3, potato });
+    await box.set({ ...questionState(box.state.seq + 1, 0), index: 2, qid: "p1", kind: "patate", text: "Ça va exploser !", choices: null, deadline: null, total: 3, potato });
     await page.locator("#patate-info", { hasText: "La bombe est chez Les Roses" }).waitFor();
     await page.locator("#patate-info", { hasText: "Pas encore touchées : Les Bleus" }).waitFor();
     assert.equal(await page.locator("#c-next").isDisabled(), true, "la mèche décide de la fin, pas la régie");
@@ -1391,7 +1398,17 @@ describe("régie", () => {
     await page.locator("#patate-random", { hasText: "Envoyer la bombe au hasard pour Les Roses" }).click();
     await page.locator("#patate-random", { hasText: "Touchez encore" }).click();
     await waitFor(async () => (await commands()).some((c) => c.type === "potato_random"), "envoi au hasard demandé à la box");
-    await box.set({ ...box.state, seq: box.state.seq + 1, phase: "reveal", awards: { rose: { correct: false, points: -150, bonus: 0 }, bleu: { correct: true, points: 150, bonus: 0 } } });
+    // Trois bombes : la première explose chez les Roses, le secours attend la bombe suivante.
+    const boom = { holder: "rose", at: Date.now(), lost: 100, gain: 100 };
+    await box.set({ ...box.state, seq: box.state.seq + 1, potato: { ...potato, bomb: 1, bombs: 3, exploded: true, key: null, booms: [boom] } });
+    await page.locator("#patate-info", { hasText: "BOUM chez Les Roses ! La bombe 2 s'allume…" }).waitFor();
+    assert.equal(await page.locator("#patate-random").isDisabled(), true, "rien à envoyer entre deux bombes");
+    const go = Date.now() - 3000;
+    await box.set({ ...box.state, seq: box.state.seq + 1, potato: { ...potato, holder: "bleu", targets: ["rose"], hit: ["bleu"], since: go, readyAt: go + 2000, bomb: 2, bombs: 3, exploded: false, key: "p1-2", booms: [boom] } });
+    await page.locator("#patate-info", { hasText: "Bombe 2 sur 3. 💣 La bombe est chez Les Bleus" }).waitFor();
+    await page.locator("#patate-info", { hasText: "Déjà explosées chez : Les Roses." }).waitFor();
+    await waitFor(() => page.locator("#patate-random").isEnabled(), "secours prêt pour la bombe 2", 6000);
+    await box.set({ ...box.state, seq: box.state.seq + 1, phase: "reveal", awards: { rose: { correct: false, points: -100, bonus: 0 }, bleu: { correct: true, points: 100, bonus: 0 } } });
     await page.locator("#patate[hidden]").waitFor({ state: "attached" });
     await page.locator("#c-next", { hasText: "Voir les scores" }).waitFor();
     await page.context().close();
@@ -1761,7 +1778,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const page = await admin();
     // Le menu : Accueil, Bibliothèque, Paramètres (plus de page Jeux ni Prestations : tout part de l'Accueil).
     assert.deepEqual(await page.locator("#nav button").allInnerTexts(), ["Accueil", "Bibliothèque", "Paramètres"]);
-    // 16 jeux (dont le Quiz illustré, le Pictionary, la bombe cachée, le Gonfleur fou et la patate chaude) : la Super Finale n'en est pas un, c'est la fin du quiz (réglage de la manche Quiz).
+    // 16 jeux (dont le Quiz illustré, le Pictionary, les Coffres mystères, le Gonfleur fou et Ça va exploser !) : la Super Finale n'en est pas un, c'est la fin du quiz (réglage de la manche Quiz).
     const tile = (type) => page.locator(`#screen-home .tile[data-game="${type}"]`);
     assert.equal(await page.locator("#screen-home .tile[data-game]").count(), 16);
     await tile("illustre").waitFor();
@@ -2029,6 +2046,159 @@ describe("bibliothèque de quiz et prestations", () => {
     // Onglet Sons : la bibliothèque des chansons.
     await page.click('#library-tabs [data-lib-tab="sons"]');
     await page.locator("#library-sons:not([hidden]) #song-list", { hasText: "Aucune chanson pour l'instant" }).waitFor();
+    await page.context().close();
+  });
+
+  test("Sons : une ligne par chanson ; cocher (un, Maj + clic, Ctrl + A) puis « Supprimer » (les playlists les gardent) et les remettre ; « ← Retour » sur la page d'un jeu", async () => {
+    const A = "0123456789abcdef";
+    const B = "fedcba9876543210";
+    await seedLibrary("songs", { s1: { title: "Hakuna Matata", artist: "Le Roi lion", audioId: A, refrainId: B, refrain: 61, start: 12, buzz: 30, updatedAt: 1 } });
+    await seedLibrary("playlists", { p1: { title: "Disney", duration: 30, tracks: [{ title: "Hakuna Matata", audioId: A, songId: "s1" }, { title: "Libérée, délivrée", audioId: B }], updatedAt: 1 } });
+    const page = await admin();
+    // Page d'un jeu ouverte depuis l'Accueil : « ← Retour » en haut et en bas y ramène.
+    await openGamePage(page, "coffres");
+    assert.deepEqual(await page.locator("#screen-game .retour-barre.haut button").allInnerTexts(), ["← Retour"]);
+    await page.locator("#screen-game .retour-barre.bas .retour-page").click();
+    await page.locator("#screen-home:not([hidden])").waitFor();
+
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="sons"]');
+    const hakuna = page.locator("#song-list .song-ligne", { hasText: "Hakuna Matata" });
+    const liberee = page.locator("#song-list .song-ligne", { hasText: "Libérée, délivrée" });
+    // De gauche à droite : case, pochette (vide : à cliquer), artiste, titre, paroles, moments ; ni pochette ni
+    // paroles : signalé en rouge.
+    await hakuna.locator(".song-pochette.vide").waitFor();
+    assert.equal(await hakuna.locator(".song-artiste").innerText(), "Le Roi lion");
+    assert.equal(await hakuna.locator(".song-paroles").innerText(), "＋ Paroles (.lrc)");
+    assert.equal(await hakuna.locator(".song-alerte").count(), 1);
+    // Moments réglés : cliquables, ils s'effacent pour être réglés de nouveau dans une playlist.
+    await hakuna.getByRole("button", { name: "⏱ Réglé ✓" }).click();
+    await hakuna.locator(".song-detail", { hasText: "Début de l'extrait : 0:12 · 30 s pour buzzer · Refrain : 1:01" }).waitFor();
+    await hakuna.getByRole("button", { name: "Effacer les préréglages" }).click();
+    await waitFor(async () => (await library("songs/s1")).auto === true, "moments à régler");
+    await hakuna.locator(".song-moments.vide", { hasText: "⏱ À régler" }).waitFor();
+    // Une case, puis Maj + clic : toutes les chansons entre les deux ; « Désélectionner ».
+    await hakuna.locator(".song-check").click();
+    await page.locator("#song-barre", { hasText: "1 sélectionnée" }).waitFor();
+    await liberee.locator(".song-check").click({ modifiers: ["Shift"] });
+    await page.locator("#song-barre", { hasText: "2 sélectionnées" }).waitFor();
+    await page.locator("#song-barre").getByRole("button", { name: "Désélectionner" }).click();
+    await page.locator("#song-barre", { hasText: "Tout sélectionner" }).waitFor();
+    // Supprimer demande d'abord ; « Annuler » ne touche à rien.
+    await hakuna.locator(".song-check").click();
+    let question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.dismiss(); }));
+    await page.locator("#song-barre").getByRole("button", { name: "🗑 Supprimer (1)" }).click();
+    assert.match(await question, /^Supprimer « Hakuna Matata » de la bibliothèque des sons \?\n\nLes playlists déjà faites les gardent\./);
+    assert.equal((await library("songs/s1")).retiree, undefined);
+    // Ctrl + A coche toute la bibliothèque : l'avertissement le dit clairement ; la touche Suppr supprime.
+    await page.keyboard.press("Control+a");
+    await page.locator("#song-barre", { hasText: "2 sélectionnées" }).waitFor();
+    question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.accept(); }));
+    await page.keyboard.press("Delete");
+    assert.match(await question, /^Attention : cette action va supprimer tous les morceaux de votre bibliothèque \(2 chansons\)\./);
+    await page.locator("#song-list", { hasText: "Toutes vos chansons sont supprimées" }).waitFor();
+    assert.equal((await library("songs/s1")).retiree, true);
+    assert.equal((await library("playlists/p1")).tracks.length, 2, "la playlist garde ses morceaux");
+    // Un ancien morceau de playlist pas encore rangé : il est rangé dans la bibliothèque, supprimé.
+    const rangee = Object.values(await library("songs")).find((s) => s.audioId === B);
+    assert.deepEqual([rangee.title, rangee.retiree], ["Libérée, délivrée", true]);
+    // « 🗑 Supprimées » : on les remet.
+    await page.locator("#song-retirees", { hasText: "🗑 Supprimées (2)" }).click();
+    await page.locator("#song-list .song", { hasText: "Hakuna Matata" }).getByRole("button", { name: "Remettre" }).click();
+    await waitFor(async () => (await library("songs/s1")).retiree === undefined, "chanson remise");
+    await page.click("#song-retirees");
+    await page.locator("#song-list .song", { hasText: "Hakuna Matata" }).getByRole("button", { name: "Régler…" }).waitFor();
+    assert.equal(await page.locator("#song-list .song", { hasText: "Libérée" }).count(), 0);
+    await page.context().close();
+  });
+
+  test("Sons : MP3 et .lrc sélectionnés ensemble se rangent seuls ; refrain deviné par les paroles, paroles du refrain gardées ; un .lrc ajouté plus tard ; la pochette se choisit", async () => {
+    const LRC = ["[00:05.00]Premier couplet ici", "[00:10.00]La suite du couplet", "[00:20.00]On chante tous ensemble", "[00:24.00]Tous ensemble ce soir",
+      "[00:30.00]Deuxième couplet", "[00:40.00]On chante tous ensemble", "[00:44.00]Tous ensemble ce soir"].join("\n");
+    const page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="sons"]');
+    await page.setInputFiles("#song-files", [
+      { name: "Les Licornes - On chante.wav", mimeType: "audio/wav", buffer: wav(440, 60) },
+      { name: "Les Licornes_On chante.lrc", mimeType: "text/plain", buffer: Buffer.from(LRC) },
+      { name: "Les Dragons - Instrumental.wav", mimeType: "audio/wav", buffer: wav(330, 40) },
+    ]);
+    // Tout se range seul (cedric, 21/10 : rien à cliquer de plus) ; la liste des sons revient avec le bilan.
+    await page.locator("#song-status", { hasText: "2 fichiers musicaux lus · paroles de 1 chanson. Bibliothèque à jour : 2 chansons rangées." }).waitFor({ timeout: 60000 });
+    assert.equal(await page.locator("#screen-library").isVisible(), true);
+    const songs = await library("songs");
+    const [id, song] = Object.entries(songs).find(([, x]) => x.title === "On chante");
+    // Le refrain proposé : la phrase la plus répétée (20 s), une seconde avant.
+    assert.deepEqual([song.artist, song.refrain, song.lrc, song.auto], ["Les Licornes", 19, true, true]);
+    assert.equal(song.paroles.split("\n")[0], "1000|On chante tous ensemble");
+    assert.equal(await library(`lyrics/${id}`), LRC);
+    const [idInstru, instru] = Object.entries(songs).find(([, x]) => x.title === "Instrumental");
+    assert.equal(instru.lrc, undefined);
+
+    // La bibliothèque : paroles ✓, moments à régler ; l'instrumental signalé (ni pochette ni paroles).
+    const ligne = page.locator("#song-list .song-ligne", { hasText: "On chante" });
+    await ligne.locator(".song-paroles.ok", { hasText: "✓ Paroles" }).waitFor();
+    await ligne.locator(".song-moments.vide", { hasText: "⏱ À régler" }).waitFor();
+    const ligneInstru = page.locator("#song-list .song-ligne", { hasText: "Instrumental" });
+    await ligneInstru.locator(".song-alerte").waitFor();
+    // Un .lrc ajouté plus tard, en cliquant dans la case des paroles.
+    await ligneInstru.locator(".song-paroles input[type=file]").setInputFiles({ name: "instrumental.lrc", mimeType: "text/plain", buffer: Buffer.from("[00:01.00]La la la\n[00:15.00]Encore") });
+    await page.locator("#song-status", { hasText: "Paroles de « Instrumental » enregistrées." }).waitFor();
+    await waitFor(async () => (await library(`songs/${idInstru}`)).lrc === true, "paroles ajoutées");
+    assert.match(await library(`lyrics/${idInstru}`), /La la la/);
+    // La pochette se choisit en cliquant sur la case vide ; l'alerte rouge disparaît.
+    await ligneInstru.locator(".song-pochette input[type=file]").setInputFiles({ name: "pochette.png", mimeType: "image/png", buffer: png([200, 80, 160]) });
+    await waitFor(async () => /^[0-9a-f]{16}$/.test((await library(`songs/${idInstru}`)).imageId ?? ""), "pochette enregistrée");
+    await ligneInstru.locator(".song-pochette img").waitFor();
+    assert.equal(await ligneInstru.locator(".song-alerte").count(), 0);
+    await page.context().close();
+  });
+
+  test("Sons : toute la bibliothèque d'un coup ; un fichier illisible laissé de côté, les chansons déjà là pas redécoupées ; « 🎲 10 au hasard » dans une playlist", async () => {
+    const page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="sons"]');
+    const avant = Object.keys((await library("songs")) ?? {}).length;
+    await page.setInputFiles("#song-files", [
+      { name: "Les Comètes - Premier.wav", mimeType: "audio/wav", buffer: wav(392, 40) },
+      { name: "Les Pirates - Abîmé.mp3", mimeType: "audio/mpeg", buffer: Buffer.from("pas une musique du tout") },
+      { name: "Les Ninjas - Deuxième.wav", mimeType: "audio/wav", buffer: wav(294, 40) },
+    ]);
+    await page.locator("#song-status", { hasText: "Bibliothèque à jour : 2 chansons rangées. Un fichier illisible laissé de côté" }).waitFor({ timeout: 60000 });
+    await page.locator("#song-status", { hasText: "« Abîmé »" }).waitFor();
+    let songs = await library("songs");
+    assert.equal(Object.keys(songs).length, avant + 2);
+    const premier = Object.values(songs).find((x) => x.title === "Premier");
+    assert.match(premier.refrainId, /^[0-9a-f]{16}$/);
+    // Redéposée avec son .lrc : rien n'est redécoupé, les paroles s'ajoutent à la chanson déjà rangée.
+    await page.setInputFiles("#song-files", [
+      { name: "Les Comètes - Premier.wav", mimeType: "audio/wav", buffer: wav(392, 40) },
+      { name: "Les Comètes_Premier.lrc", mimeType: "text/plain", buffer: Buffer.from("[00:02.00]Un deux trois\n[00:20.00]Soleil") },
+    ]);
+    await page.locator("#song-status", { hasText: "1 fichier musical lu · paroles de 1 chanson · 1 chanson déjà dans la bibliothèque." }).waitFor({ timeout: 30000 });
+    songs = await library("songs");
+    assert.equal(Object.keys(songs).length, avant + 2);
+    const encore = Object.values(songs).find((x) => x.title === "Premier");
+    assert.deepEqual([encore.audioId, encore.refrainId, encore.lrc], [premier.audioId, premier.refrainId, true]);
+
+    // Une playlist du blind test : « 🎲 10 au hasard » pioche dans la bibliothèque (ici, moins de 10 chansons).
+    await page.click("#nav button[data-screen=home]");
+    await page.click(".tile[data-screen=music]");
+    await page.click("#game-tabs [data-tab=collections]");
+    await page.click("#playlist-new");
+    await page.fill("#playlist-title", "Blind test démo");
+    await page.click("#playlist-hasard");
+    const tirees = avant + 2;
+    await page.locator("#playlist-status", { hasText: `${tirees} chansons tirées au hasard dans la bibliothèque` }).waitFor();
+    assert.equal(await page.locator(".track").count(), tirees);
+    // Une seconde fois : toutes sont déjà dedans.
+    await page.click("#playlist-hasard");
+    await page.locator("#playlist-status", { hasText: "Toutes les chansons de la bibliothèque sont déjà dans la playlist." }).waitFor();
+    await page.click("#playlist-save");
+    await page.locator("#playlist-status", { hasText: `Enregistrée : ${tirees} morceaux` }).waitFor({ timeout: 30000 });
+    const liste = Object.values(await library("playlists")).find((p) => p.title === "Blind test démo");
+    assert.equal(Object.values(liste.tracks).length, tirees);
+    assert.ok(Object.values(liste.tracks).some((t) => t.title === "Premier" && /^[0-9a-f]{16}$/.test(t.refrainId)));
     await page.context().close();
   });
 
@@ -2735,7 +2905,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#screen-manche-edit:not([hidden])").waitFor();
     await page.locator("#screen-manche-edit .retour-barre.bas .retour-page").click();
     await page.locator("#screen-game:not([hidden])").waitFor();
-    assert.equal(await page.textContent("#game-title"), "La Patate chaude");
+    assert.equal(await page.textContent("#game-title"), "Ça va exploser !");
     // Après un rechargement, les pages d'avant ne rouvrent rien d'autre que l'Accueil.
     await page.reload();
     await page.locator("#screen-home:not([hidden])").waitFor();
@@ -2787,7 +2957,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.locator("#home-import").count(), 0, "Importer un quiz : seulement dans la rubrique Quiz");
     // Chaque tuile ouvre la page du jeu (ses manches) ; l'onglet Collections mène à son contenu.
     await page.locator('#home-games .tile[data-game=patate]', { hasText: "Rien à préparer" }).click();
-    await page.locator("#screen-game:not([hidden]) #game-h1", { hasText: "Patate chaude" }).waitFor();
+    await page.locator("#screen-game:not([hidden]) #game-h1", { hasText: "Ça va exploser" }).waitFor();
     assert.equal(await page.locator("#game-tabs [data-tab=collections]").count(), 0, "Rien à préparer : pas de collections");
     await page.click("#nav button[data-screen=home]");
     await page.locator('#home-games .tile[data-game=chante]').click();
@@ -2828,7 +2998,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.textContent("#show-search-count"), "1 prestation trouvée");
     assert.equal(await search("juin"), "1 prestation trouvée");
     assert.equal(await search("14/06"), "1 prestation trouvée");
-    assert.equal(await search("patate"), "1 prestation trouvée");
+    assert.equal(await search("exploser"), "1 prestation trouvée");
     assert.equal(await search("2025"), "2 prestations trouvées");
     // Zoé : brouillon dont la fête est passée, rangée d'elle-même dans les archivées.
     await page.locator('#show-list [data-show="zoe"]').waitFor();
@@ -3399,7 +3569,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.click("#tab-plan");
     await regie.click("#plan-add");
     await regie.locator('#lib-list [data-game="pin/vieux/0"]', { hasText: "Animaux" }).waitFor();
-    await regie.locator('#lib-list [data-game="pin/vieux/1"]', { hasText: "Patate" }).waitFor();
+    await regie.locator('#lib-list [data-game="pin/vieux/1"]', { hasText: "Ça va exploser" }).waitFor();
     assert.equal(await regie.locator("#lib-list .lib-section").first().textContent(), "⭐ Prestations épinglées");
     await regie.context().close();
   });
@@ -3718,6 +3888,36 @@ describe("bibliothèque de quiz et prestations", () => {
     await waitFor(async () => Object.keys((await read("choiceImages")) ?? {}).length === 8, "réponses en images copiées dans la partie");
     await waitFor(async () => Object.keys((await read("sounds")) ?? {}).length === 4, "comptines copiées dans la partie", 15000);
     await regie.context().close();
+  });
+
+  test("blind test démo : 10 chansons de la bibliothèque au hasard (refrain d'abord), en premier jeu de la prestation de test ; un nouveau clic en tire d'autres", async () => {
+    const hex = (n) => n.toString(16).padStart(16, "0");
+    // 12 chansons : 10 avec leur refrain, 2 sans (jamais tirées tant qu'il y en a assez avec refrain).
+    const songs = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`s${i}`, {
+      title: `Chanson ${i}`, artist: "Artiste", audioId: hex(100 + i), buzz: 30, createdAt: 1, updatedAt: 1,
+      ...(i < 10 ? { refrainId: hex(200 + i), refrain: 60, paroles: `0|La la ${i}` } : {}),
+    }]));
+    await seedLibrary("songs", songs);
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    const fete = { ...FULL_SHOW, origin: "test", updatedAt: 1, rounds: [{ type: "quiz", quizId: "animaux" }, { type: "coffres" }] };
+    await seedLibrary("shows/test-lea-tous-les-jeux", fete);
+    const page = await admin();
+    await page.click("#nav button[data-screen=settings]");
+    await page.click("#test-blind-demo");
+    await page.locator("#test-blind-status", { hasText: "Blind test démo prêt : 10 chansons tirées au hasard, en premier jeu de « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux »" }).waitFor();
+    const demo = await library("playlists/test-lea-tous-les-jeux-blind-demo");
+    assert.equal(demo.title, "TEST – Blind test démo");
+    assert.equal(demo.tracks.length, 10);
+    assert.ok(demo.tracks.every((t) => /^[0-9a-f]{16}$/.test(t.refrainId) && t.paroles.startsWith("0|La la")), "les chansons avec refrain d'abord, avec leurs paroles");
+    let show = await library("shows/test-lea-tous-les-jeux");
+    assert.deepEqual(show.rounds, [{ type: "blind", playlistId: "test-lea-tous-les-jeux-blind-demo" }, ...fete.rounds]);
+    // Un nouveau clic : un autre tirage, toujours un seul blind test démo dans la prestation.
+    await page.click("#test-blind-demo");
+    await waitFor(async () => (await library("playlists/test-lea-tous-les-jeux-blind-demo")).updatedAt !== demo.updatedAt, "nouveau tirage");
+    show = await library("shows/test-lea-tous-les-jeux");
+    assert.equal(show.rounds.filter((r) => r.playlistId === "test-lea-tous-les-jeux-blind-demo").length, 1);
+    assert.equal(show.rounds.length, 3);
+    await page.context().close();
   });
 
   test("prestation de test « tous les jeux » d'une version précédente : le bouton lui ajoute les nouveaux jeux et retire l'ancienne manche Super Finale", async () => {

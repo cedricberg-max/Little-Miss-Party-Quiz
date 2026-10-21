@@ -32,7 +32,7 @@ object Codec {
             is DoorSet -> mapOf("type" to "doorset", "qid" to e.qid, "door" to e.door, "value" to e.value)
             is GameLaunched -> mapOf("type" to "launch")
             is ChestsDealt -> mapOf("type" to "chests", "qid" to e.qid, "order" to e.order, "count" to e.count, "safe" to e.safe)
-            is ChestOpened -> mapOf("type" to "chest", "qid" to e.qid, "team" to e.team, "chest" to e.chest, "delta" to e.delta, "bomb" to e.bomb)
+            is ChestOpened -> mapOf("type" to "chest", "qid" to e.qid, "team" to e.team, "chest" to e.chest, "delta" to e.delta, "bomb" to e.bomb, "gold" to e.gold)
             is ScoreAdjusted -> mapOf("type" to "adjust", "team" to e.team, "delta" to e.delta, "reason" to e.reason)
             is Undone -> mapOf("type" to "undo", "target" to e.target)
             is GameEnded -> mapOf("type" to "end")
@@ -52,7 +52,7 @@ object Codec {
             is RevealCut -> mapOf("type" to "reveal_cut", "qid" to e.qid)
             is BuzzJudged -> if (e.bonus) mapOf("type" to "buzz_judge", "ok" to e.ok, "bonus" to true) else mapOf("type" to "buzz_judge", "ok" to e.ok)
             is StatuesWon -> mapOf("type" to "statues_win", "team" to e.team, "others" to e.others.ifEmpty { null })
-            is PotatoLit -> mapOf("type" to "potato", "qid" to e.qid, "holder" to e.holder, "fuseMs" to e.fuseMs, "teams" to e.teams)
+            is PotatoLit -> mapOf("type" to "potato", "qid" to e.qid, "holder" to e.holder, "fuseMs" to e.fuseMs, "teams" to e.teams, "bomb" to e.bomb)
             is PotatoPassed -> mapOf("type" to "potato_pass", "qid" to e.qid, "from" to e.from, "to" to e.to)
             is PotatoExploded -> mapOf("type" to "potato_boom", "qid" to e.qid, "holder" to e.holder)
             is BalloonBurst -> mapOf("type" to "balloon", "qid" to e.qid, "team" to e.team, "teams" to e.teams)
@@ -89,7 +89,7 @@ object Codec {
             "doorset" -> DoorSet(seq, at, m["qid"] as String, m.num("door").toInt(), m.num("value").toInt())
             "launch" -> GameLaunched(seq, at)
             "chests" -> ChestsDealt(seq, at, m["qid"] as String, (m["order"] as List<*>).map { it as String }, m.num("count").toInt(), m.num("safe").toInt())
-            "chest" -> ChestOpened(seq, at, m["qid"] as String, m["team"] as String, m.num("chest").toInt(), m.num("delta").toInt(), m["bomb"] == true)
+            "chest" -> ChestOpened(seq, at, m["qid"] as String, m["team"] as String, m.num("chest").toInt(), m.num("delta").toInt(), m["bomb"] == true, m["gold"] == true)
             "adjust" -> ScoreAdjusted(seq, at, m["team"] as String, m.num("delta").toInt(), m["reason"] as? String ?: "")
             "undo" -> Undone(seq, at, m.num("target").toInt())
             "end" -> GameEnded(seq, at)
@@ -107,7 +107,10 @@ object Codec {
             "buzz_unblock" -> BuzzUnblocked(seq, at)
             "blind_skip" -> BlindSkipped(seq, at, m["qid"] as String)
             "reveal_cut" -> RevealCut(seq, at, m["qid"] as String)
-            "potato" -> PotatoLit(seq, at, m["qid"] as String, m["holder"] as String, m.num("fuseMs").toLong(), (m["teams"] as List<*>).map { it as String })
+            "potato" -> PotatoLit(
+                seq, at, m["qid"] as String, m["holder"] as String, m.num("fuseMs").toLong(), (m["teams"] as List<*>).map { it as String },
+                (m["bomb"] as? Number)?.toInt() ?: 1,
+            )
             "potato_pass" -> PotatoPassed(seq, at, m["qid"] as String, m["from"] as String, m["to"] as String)
             "potato_boom" -> PotatoExploded(seq, at, m["qid"] as String, m["holder"] as String)
             "balloon" -> BalloonBurst(seq, at, m["qid"] as String, m["team"] as String, (m["teams"] as? List<*>).orEmpty().map { it as String })
@@ -214,7 +217,7 @@ object Codec {
                 "choices" to if (q.isBuzz && !revealed) null else q.choices,
                 // Réponses en images : la photo de chaque proposition ("" pour une proposition en texte).
                 "choiceImages" to q.choiceImages.takeIf { q.hasChoiceImages && !(q.isBuzz && !revealed) }?.map { it ?: "" },
-                // Patate chaude : la mèche reste un secret, même pour les tablettes.
+                // « Ça va exploser ! » : la mèche reste un secret, même pour les tablettes.
                 "durationMs" to q.durationMs.takeIf { !q.isPatate },
                 "deadline" to game.deadline().takeIf { !q.isPatate },
                 "remainingMs" to if (!q.isPortes && !q.isCoffres && !q.isGonfleur && !q.isPatate && (s.paused || s.buzzHeld || s.buzz?.waiting == true)) (q.durationMs - s.elapsedAt(Long.MAX_VALUE)).coerceAtLeast(0) else null,
@@ -263,15 +266,15 @@ object Codec {
         )
     }
 
-    /** Patate chaude : clé où la tablette de l'équipe qui tient la bombe écrit son envoi (`potatoPass/`), une par réception. */
+    /** « Ça va exploser ! » : clé où la tablette de l'équipe qui tient la bombe écrit son envoi (`potatoPass/`), une par réception. */
     fun potatoKey(game: Game): String? {
         val p = game.state.potato ?: return null
-        if (game.state.phase != Phase.QUESTION) return null
+        if (game.state.phase != Phase.QUESTION || p.exploded) return null
         return "${game.state.qid.orEmpty().replace(Regex("[.#$\\[\\]/]"), "_")}-${p.since}"
     }
 
     /**
-     * Patate chaude, pour la TV, la régie et les tablettes : qui tient la bombe, qui l'a envoyée, à qui elle peut
+     * « Ça va exploser ! », pour la TV, la régie et les tablettes : qui tient la bombe, qui l'a envoyée, à qui elle peut
      * partir et à partir de quand, et qui l'a déjà eue. Jamais la durée de la mèche.
      */
     fun potatoState(game: Game): Map<String, Any?> {
@@ -287,6 +290,15 @@ object Codec {
             "teams" to p.teams,
             "hit" to p.teams.filter { it in p.hit },
             "passes" to p.passes,
+            // Bombe n° [bomb] sur [bombs] ; les explosions déjà arrivées (la TV et les tablettes les montrent un moment).
+            "bomb" to p.bomb,
+            "bombs" to POTATO_BOMBS,
+            "exploded" to p.exploded,
+            // Heure où la mèche aurait été allumée sans les pauses (null en pause ou entre deux bombes) : la tablette qui
+            // tient la bombe en tire un rouge qui bat de plus en plus vite, sans jamais connaître la durée de la mèche.
+            "burnFrom" to game.state.segments.lastOrNull()?.takeIf { it.end == null && !p.exploded }
+                ?.let { it.start - game.state.elapsedAt(it.start) },
+            "booms" to p.booms.map { mapOf("holder" to it.holder, "at" to it.at, "lost" to it.lost, "gain" to it.gain) },
             "key" to potatoKey(game),
         )
     }
@@ -297,7 +309,7 @@ object Codec {
         return "${game.state.qid.orEmpty().replace(Regex("[.#$\\[\\]/]"), "_")}-$go"
     }
 
-    /** La bombe cachée : clé où la tablette de l'équipe qui joue écrit le coffre choisi (`chestChoice/`), une par ouverture. */
+    /** Les coffres mystères : clé où la tablette de l'équipe qui joue écrit le coffre choisi (`chestChoice/`), une par ouverture. */
     fun chestKey(game: Game): String? {
         val r = game.chestRound ?: return null
         if (r.team == null) return null
@@ -305,7 +317,7 @@ object Codec {
     }
 
     /**
-     * La bombe cachée, pour la TV, la régie et les pupitres : les coffres ouverts (le contenu des autres n'existe pas
+     * Les coffres mystères, pour la TV, la régie et les pupitres : les coffres ouverts (le contenu des autres n'existe pas
      * encore), l'équipe qui joue et l'heure où elle pourra ouvrir, le danger, et les gains de chaque équipe.
      */
     fun chestState(game: Game): Map<String, Any?> {
@@ -321,9 +333,11 @@ object Codec {
             "safeLeft" to (r.safe - r.turn).coerceAtLeast(0),
             "danger" to r.danger,
             "exploded" to r.exploded,
+            // Le coffre en or (+500) est caché avec la bombe tant que personne ne l'a ouvert.
+            "goldLeft" to (!r.goldFound && !r.exploded),
             "readyAt" to r.readyAt,
             "key" to chestKey(game),
-            "opened" to r.opened.map { mapOf("team" to it.team, "chest" to it.chest, "delta" to it.delta, "bomb" to it.bomb, "at" to it.at) },
+            "opened" to r.opened.map { mapOf("team" to it.team, "chest" to it.chest, "delta" to it.delta, "bomb" to it.bomb, "gold" to it.gold, "at" to it.at) },
             "gains" to r.gains(),
         )
     }

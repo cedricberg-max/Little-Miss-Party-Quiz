@@ -74,6 +74,9 @@ fun BlindScene(q: Question, state: UiState.Playing, modifier: Modifier = Modifie
                 modifier = modifier,
                 // Refrain préparé et prêt sur la box : il joue en boucle pendant toute la révélation.
                 chantons = state.phase == Phase.REVEAL && q.refrainId?.let { it in state.sounds } == true,
+                // Ses paroles (fichier .lrc de la Régie PC), au rythme du refrain qu'on entend.
+                paroles = q.paroles,
+                positionMs = PositionRefrain::ms,
             )
         }
         state.phase == Phase.QUESTION && buzzer != null -> BlindBuzz(buzzer.name, buzzer.color.toColor(), modifier)

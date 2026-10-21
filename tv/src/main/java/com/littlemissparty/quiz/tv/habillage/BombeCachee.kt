@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -69,8 +70,9 @@ import kotlin.math.min
 import kotlin.math.sin
 
 /*
- * La bombe cachée (remplace les Portes mystères) : des coffres de toutes formes posés sur les gradins d'une estrade
- * laquée prune, ouverts chacun leur tour par les équipes. Bonus, malus… puis la bombe.
+ * Les coffres mystères (remplacent les Portes mystères) : des coffres de toutes formes posés sur les gradins d'une estrade
+ * laquée prune, ouverts chacun leur tour par les équipes. Bonus, malus, le classement après chaque coffre… puis la bombe,
+ * cachée avec un coffre en or.
  *
  * Ces écrans ne font qu'animer ce que la partie leur donne : le contenu d'un coffre est tiré par la box au moment
  * de l'ouverture, jamais par l'habillage. Les animations jouent leurs propres sons et préviennent par onFini ;
@@ -101,7 +103,11 @@ const val OUVERTURE_CARTE_MS = 3_850L
 
 const val OUVERTURE_COFFRE_MS = 3_200L
 const val OUVERTURE_BOMBE_MS = 3_800L
-const val ALERTE_BOMBE_MS = 3_000L
+const val OUVERTURE_OR_MS = 4_200L
+const val ALERTE_BOMBE_MS = 4_200L
+
+/** Le classement après un coffre (CHEST_RANKING_MS dans la partie). */
+const val CLASSEMENT_COFFRE_MS = 2_900L
 
 private const val T_ENTREE = 450f
 private const val T_OUVRE = 1_300f
@@ -384,12 +390,14 @@ private fun DrawScope.gradins(rangees: Int) {
 /**
  * Les coffres sur leurs gradins. [ouverts] : index → points gagnés ou perdus, null pour le coffre de la bombe.
  * [auTour] : l'équipe qui choisit (nom, couleur) ; [phaseDanger] : la bombe peut être dans n'importe quel coffre ;
- * [bombe] : les points vraiment retirés par la bombe (affichés sur son coffre), ou null pour « 💣 » seul.
+ * [bombe] : les points vraiment retirés par la bombe (affichés sur son coffre), ou null pour « 💣 » seul ;
+ * [or] : le coffre en or, une fois ouvert (pastille dorée « ⭐ +500 ») ; [bandeau] : false cache le bandeau du tour
+ * (pendant le classement et l'alerte, qui ont leur propre titre en haut).
  */
 @Composable
 fun SceneCoffres(
     nombre: Int, ouverts: Map<Int, Int?>, auTour: Pair<String, Color>?, phaseDanger: Boolean,
-    modifier: Modifier = Modifier, bombe: Int? = null,
+    modifier: Modifier = Modifier, bombe: Int? = null, or: Int? = null, bandeau: Boolean = true,
 ) {
     val places = remember(nombre) { placesCoffres(nombre) }
     val rangees = remember(nombre) { repartitionCoffres(nombre).size }
@@ -434,6 +442,7 @@ fun SceneCoffres(
                     // Coffre ouvert : sa valeur s'affiche sur la face avant.
                     val (fond, encre, texte) = when {
                         delta == null -> Triple(Color(0xFF2A0E1E), MALUS_CORAIL, if (bombe == null) "💣" else if (bombe == 0) "💣 0" else "💣 " + texteValeur(bombe))
+                        i == or -> Triple(LUEUR_OR, Color(0xFF3A1C00), "⭐ " + texteValeur(delta))
                         estBonus(delta) -> Triple(BONUS_VERT, Neon.JusteTexte, texteValeur(delta))
                         else -> Triple(MALUS_CORAIL, Color.White, if (delta == 0) "0" else texteValeur(delta))
                     }
@@ -447,7 +456,7 @@ fun SceneCoffres(
                 }
             }
         }
-        BandeauTour(auTour, Modifier.align(Alignment.TopCenter).padding(top = 14.dp))
+        if (bandeau) BandeauTour(auTour, Modifier.align(Alignment.TopCenter).padding(top = 14.dp))
         if (phaseDanger) PastilleDanger(pouls, Modifier.align(Alignment.TopStart).padding(start = 18.dp, top = 18.dp))
     }
 }
@@ -463,7 +472,7 @@ private fun BandeauTour(auTour: Pair<String, Color>?, modifier: Modifier = Modif
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (auTour == null) {
-            Text("La bombe cachée", maxLines = 1, style = styleBandeau.copy(color = Neon.OrClair))
+            Text("Les Coffres mystères", maxLines = 1, style = styleBandeau.copy(color = Neon.OrClair))
         } else {
             Text(auTour.first, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false), style = styleBandeau.copy(color = couleur))
             Text(", choisissez un coffre !", maxLines = 1, softWrap = false, style = styleBandeau.copy(color = Neon.Blanc))
@@ -506,21 +515,22 @@ internal fun rebondSortie(u: Float): Float = 1f + 2.4f * (u - 1f) * (u - 1f) * (
  * saute du coffre, se pose, la mèche grésille… BOUM ! et [pointsBombe], les points vraiment retirés (« −300 POINTS »).
  * Avec [avant] et [apres] (totaux de l'équipe lus dans la partie), un bonus ou un malus se termine sur la même carte
  * que les ± Points de la régie (« BONUS ! », compteur du score) : l'ouverture dure alors [OUVERTURE_CARTE_MS].
+ * Le coffre en or ([or]) : rayons dorés, double pluie d'or, « COFFRE EN OR ! » et « +500 POINTS » ([OUVERTURE_OR_MS]).
  * L'écran montre les points, il ne les calcule jamais. [onFini] est appelé une fois, à la fin.
  */
 @Composable
 fun OuvertureCoffre(
     index: Int, delta: Int?, equipe: String, couleur: Color, onFini: () -> Unit,
     modifier: Modifier = Modifier, pointsBombe: Int = POINTS_BOMBE, avant: Int? = null, apres: Int? = null,
-    jouer: (Son) -> Unit = jouerSonBombe,
+    jouer: (Son) -> Unit = jouerSonBombe, or: Boolean = false,
 ) {
     val t = remember(index) { Animatable(0f) }
     val fini by rememberUpdatedState(onFini)
     val joue by rememberUpdatedState(jouer)
     val bombe = delta == null
     // Bonus ou malus réel avec les scores : verdict sur la carte BONUS / MALUS commune à toute l'appli.
-    val carte = !bombe && delta != 0 && avant != null && apres != null
-    val total = (if (bombe) OUVERTURE_BOMBE_MS else if (carte) OUVERTURE_CARTE_MS else OUVERTURE_COFFRE_MS).toFloat()
+    val carte = !bombe && !or && delta != 0 && avant != null && apres != null
+    val total = (if (bombe) OUVERTURE_BOMBE_MS else if (or) OUVERTURE_OR_MS else if (carte) OUVERTURE_CARTE_MS else OUVERTURE_COFFRE_MS).toFloat()
     LaunchedEffect(index) {
         suspend fun jusqua(ms: Float) = t.animateTo(ms, tween((ms - t.value).toInt().coerceAtLeast(0), easing = LinearEasing))
         jusqua(T_ENTREE); joue(Son.COFFRE_SECOUE)
@@ -531,7 +541,7 @@ fun OuvertureCoffre(
         } else {
             jusqua(1_420f)
             // La carte joue elle-même son BONUS / MALUS : pas de second son par-dessus.
-            if (!carte) joue(if (delta!! >= PORTE_JACKPOT) Son.PORTES_JACKPOT else if (estBonus(delta)) Son.COFFRE_OR else Son.PORTES_TUILE)
+            if (!carte) joue(if (or || delta!! >= PORTE_JACKPOT) Son.PORTES_JACKPOT else if (estBonus(delta)) Son.COFFRE_OR else Son.PORTES_TUILE)
         }
         jusqua(total)
         fini()
@@ -543,7 +553,7 @@ fun OuvertureCoffre(
     val cw = m.largeur * e
     val ch = m.hauteur * e
     val sol = 455f
-    val pieces = remember(index) { projectiles(index * 31L + 7, 40) }
+    val pieces = remember(index, or) { projectiles(index * 31L + 7, if (or) 80 else 40) }
     val debris = remember(index) { projectiles(index * 17L + 3, 16) }
     Echelle(960.dp, 540.dp, modifier.fillMaxSize()) {
         // Voile sombre, estrade, coffre, effets : une seule toile animée.
@@ -599,6 +609,23 @@ fun OuvertureCoffre(
                 }
             }
             val bouche = Offset(cx, solPx - ch * d * (1f - (if (modele == 4) 0.3f else m.couvercle)) - ch * d * m.couvercle * 0.2f)
+            // Le coffre en or : une couronne de rayons dorés qui tourne derrière la pluie d'or.
+            if (or && ms > T_OUVRE) {
+                val s = ((ms - T_OUVRE) / 400f).coerceIn(0f, 1f)
+                val longueur = 520f * d * s
+                rotate(ms / 40f, bouche) {
+                    for (k in 0 until 14) {
+                        val a = k * (2f * PI.toFloat() / 14f)
+                        val rayon = Path().apply {
+                            moveTo(bouche.x, bouche.y)
+                            lineTo(bouche.x + cos(a - 0.07f) * longueur, bouche.y + sin(a - 0.07f) * longueur)
+                            lineTo(bouche.x + cos(a + 0.07f) * longueur, bouche.y + sin(a + 0.07f) * longueur)
+                            close()
+                        }
+                        drawPath(rayon, Brush.radialGradient(listOf(LUEUR_OR.copy(alpha = 0.55f), LUEUR_OR.copy(alpha = 0f)), bouche, longueur.coerceAtLeast(1f)))
+                    }
+                }
+            }
             when {
                 // Bonus : pièces d'or qui jaillissent puis retombent.
                 !bombe && estBonus(delta!!) && ms > T_OUVRE -> {
@@ -696,15 +723,16 @@ fun OuvertureCoffre(
         ) {
             val (titre, teinte) = when {
                 bombe -> "BOUM !" to Color(0xFFFFB347)
+                or -> "COFFRE EN OR !" to LUEUR_OR
                 estBonus(delta!!) -> "Bonus !" to Neon.OrClair
                 else -> "Oups !" to Color(0xFFFFC2C4)
             }
-            Text(titre, maxLines = 1, style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, fontSize = if (bombe) 76.sp else 46.sp, fontWeight = FontWeight.ExtraBold, color = teinte, shadow = Shadow(Color.Black.copy(alpha = 0.6f), Offset(0f, 4f), 14f)))
+            Text(titre, maxLines = 1, style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, fontSize = if (bombe) 76.sp else if (or) 62.sp else 46.sp, fontWeight = FontWeight.ExtraBold, color = teinte, shadow = Shadow(Color.Black.copy(alpha = 0.6f), Offset(0f, 4f), 14f)))
             Text(
                 textePointsCoffre(delta, pointsBombe), maxLines = 1,
                 style = TextStyle(
                     fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, fontSize = 60.sp, fontWeight = FontWeight.ExtraBold,
-                    color = if (!bombe && estBonus(delta!!)) BONUS_VERT else MALUS_CORAIL,
+                    color = if (or) OR_CLAIR else if (!bombe && estBonus(delta!!)) BONUS_VERT else MALUS_CORAIL,
                     shadow = Shadow(Color.Black.copy(alpha = 0.7f), Offset(0f, 4f), 16f),
                 ),
             )
@@ -717,8 +745,9 @@ private val jouerSonBombe: (Son) -> Unit = { Sons.executer(listOf(Ordre.Jouer(it
 /* ------------------------------------------------------------------ Alerte */
 
 /**
- * L'alerte (environ 3 s) : la bombe tombe et se pose sur une estrade, sa mèche s'allume, et le message
- * « Attention… une bombe se cache dans un des coffres ! ». [onFini] est appelé une fois, à la fin.
+ * L'alerte (environ 4 s) : la bombe tombe et se pose sur une estrade, sa mèche s'allume, et le message
+ * « Attention… une bombe se cache dans un des coffres ! », puis « …et un coffre en or à +500 points ! ». [onFini]
+ * est appelé une fois, à la fin.
  */
 @Composable
 fun AlerteBombe(onFini: () -> Unit, modifier: Modifier = Modifier, jouer: (Son) -> Unit = jouerSonBombe) {
@@ -734,25 +763,27 @@ fun AlerteBombe(onFini: () -> Unit, modifier: Modifier = Modifier, jouer: (Son) 
         Canvas(Modifier.fillMaxSize().clearAndSetSemantics {}) {
             val ms = t.value
             val d = density
-            drawRect(Neon.Nuit.copy(alpha = 0.82f * (ms / 250f).coerceIn(0f, 1f)))
+            // Voile plein dès la première image : l'alerte suit le classement, déjà sombre.
+            drawRect(Neon.Nuit.copy(alpha = 0.82f))
             // Vignette rouge qui respire doucement.
             val pouls = 0.5f + 0.5f * sin(2f * PI.toFloat() * ms / 1_100f)
             drawRect(Brush.radialGradient(listOf(Color.Transparent, Color.Transparent, Color(0xFFFF3B5C).copy(alpha = 0.18f + 0.14f * pouls)), Offset(size.width / 2, size.height / 2), size.width * 0.62f))
             val sol = 470f * d
             val cx = size.width / 2
             estradeRonde(cx, sol, 120f * d, 22f * d, 20f * d)
-            val r = 62f * d
+            // Bombe un peu plus petite qu'avant : sa mèche reste sous les trois lignes du message.
+            val r = 54f * d
             val chute = (ms / 580f).coerceIn(0f, 1f)
             val y = if (chute < 1f) -r + (sol - r + r) * chute * chute
             else sol - r - 22f * d * abs(sin(((ms - 580f) / 260f).coerceIn(0f, 1f) * PI.toFloat()))
             drawOval(Brush.radialGradient(listOf(Color.Black.copy(alpha = 0.6f * chute), Color.Transparent)), Offset(cx - r * 1.2f, sol - 8f * d), Size(r * 2.4f, 16f * d))
             dessineBombe(Offset(cx, y), r, ms, 1f - 0.25f * ((ms - 600f) / 2_400f).coerceIn(0f, 1f), etincelle = ms > 600f)
         }
-        Column(Modifier.align(Alignment.TopCenter).padding(top = 64.dp, start = 40.dp, end = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.align(Alignment.TopCenter).padding(top = 44.dp, start = 40.dp, end = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 "Attention…", maxLines = 1,
                 modifier = Modifier.graphicsLayer { alpha = ((t.value - 750f) / 300f).coerceIn(0f, 1f) },
-                style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, fontSize = 40.sp, fontWeight = FontWeight.ExtraBold, color = Neon.OrClair, letterSpacing = 2.sp),
+                style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, fontSize = 36.sp, fontWeight = FontWeight.ExtraBold, color = Neon.OrClair, letterSpacing = 2.sp),
             )
             Spacer(Modifier.height(6.dp))
             Text(
@@ -762,7 +793,17 @@ fun AlerteBombe(onFini: () -> Unit, modifier: Modifier = Modifier, jouer: (Son) 
                     alpha = if (u <= 0f) 0f else 1f
                     val s = if (u <= 0f) 0.6f else rebondSortie(u); scaleX = s; scaleY = s
                 },
-                style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.15.em, lineHeightStyle = LIGNE_LMP, fontSize = 50.sp, fontWeight = FontWeight.ExtraBold, color = Neon.Blanc, shadow = Shadow(Color(0xFFFF3B5C).copy(alpha = 0.6f), blurRadius = 24f)),
+                style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.15.em, lineHeightStyle = LIGNE_LMP, fontSize = 44.sp, fontWeight = FontWeight.ExtraBold, color = Neon.Blanc, shadow = Shadow(Color(0xFFFF3B5C).copy(alpha = 0.6f), blurRadius = 24f)),
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "…et un coffre en or à +500 points !", textAlign = TextAlign.Center, maxLines = 1,
+                modifier = Modifier.graphicsLayer {
+                    val u = ((t.value - 2_300f) / 380f).coerceIn(0f, 1f)
+                    alpha = if (u <= 0f) 0f else 1f
+                    val s = if (u <= 0f) 0.6f else rebondSortie(u); scaleX = s; scaleY = s
+                },
+                style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.15.em, lineHeightStyle = LIGNE_LMP, fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, color = LUEUR_OR, shadow = Shadow(LUEUR_OR.copy(alpha = 0.6f), blurRadius = 22f)),
             )
         }
     }
@@ -792,7 +833,7 @@ fun BilanBombe(lignes: List<Triple<String, Color, Int>>, modifier: Modifier = Mo
             ) {
                 Text("💣", style = TextStyle(fontSize = 24.sp))
                 Spacer(Modifier.width(10.dp))
-                Text("Le bilan de la bombe cachée", maxLines = 1, style = styleBandeau.copy(color = Neon.OrClair))
+                Text("Le bilan des Coffres mystères", maxLines = 1, style = styleBandeau.copy(color = Neon.OrClair))
             }
             Spacer(Modifier.height(if (deuxColonnes) 22.dp else 30.dp))
             val largeur: Dp = if (deuxColonnes) 420.dp else 620.dp
@@ -836,5 +877,128 @@ private fun LigneBilan(nom: String, couleur: Color, points: Int, i: Int, largeur
             if (points == 0) "0" else texteValeur(points), maxLines = 1, softWrap = false,
             style = styleBandeau.copy(fontSize = if (hauteur > 66.dp) 34.sp else 30.sp, color = teinte),
         )
+    }
+}
+
+/* ------------------------------------------------------------------ Classement après un coffre */
+
+/**
+ * Le classement entre deux coffres (environ 3 s) : les équipes à leur place d'avant, le score de celle qui vient
+ * d'ouvrir un coffre qui monte ou descend, puis les lignes qui glissent à leur nouvelle place et ce qui arrive à
+ * chacune (« +1 place ! », « Nouveau n°1 ! », « Ça tient ! »). [lignes] : scores et rangs calculés par la partie,
+ * [joue] : l'index (dans [lignes]) de l'équipe qui a ouvert le coffre.
+ */
+@Composable
+fun ClassementCoffre(lignes: List<LignePortes>, joue: Int, modifier: Modifier = Modifier, jouer: (Son) -> Unit = jouerSonBombe) {
+    val evo = remember(lignes) { evolutions(lignes) }
+    val renverse = evo.any { it.recit == Recit.NOUVEAU_PREMIER }
+    val bouge = evo.any { it.rangAvant != it.rangApres }
+    val t = remember(lignes) { Animatable(0f) }
+    val sonne by rememberUpdatedState(jouer)
+    LaunchedEffect(lignes) {
+        sonne(Son.WHOOSH)
+        t.animateTo(C_COMPTE, tween(C_COMPTE.toInt(), easing = LinearEasing))
+        sonne(Son.COMPTEUR)
+        t.animateTo(C_BASCULE, tween((C_BASCULE - C_COMPTE).toInt(), easing = LinearEasing))
+        if (bouge) sonne(Son.WHOOSH)
+        t.animateTo(C_RECIT, tween((C_RECIT - C_BASCULE).toInt(), easing = LinearEasing))
+        if (renverse) sonne(Son.PORTES_RENVERSEMENT) else if (evo.getOrNull(joue)?.recit == Recit.MONTE) sonne(Son.pop(0))
+        t.animateTo(CLASSEMENT_COFFRE_MS.toFloat(), tween((CLASSEMENT_COFFRE_MS - C_RECIT).toInt(), easing = LinearEasing))
+    }
+    val n = lignes.size.coerceAtLeast(1)
+    val hauteur = minOf(56f, 380f / n)
+    Echelle(960.dp, 540.dp, modifier.fillMaxSize()) {
+        // Voile sombre dès la première image (l'ouverture juste avant est déjà sombre : pas d'éclair des coffres),
+        // puis le titre et les lignes apparaissent en fondu.
+        Box(Modifier.fillMaxSize().clearAndSetSemantics {}.background(Neon.Nuit.copy(alpha = 0.86f)))
+        Row(
+            Modifier.align(Alignment.TopCenter).padding(top = 22.dp).graphicsLayer { alpha = (t.value / 250f).coerceIn(0f, 1f) }
+                .background(Neon.Nuit2.copy(alpha = 0.9f), RoundedCornerShape(50)).border(2.5.dp, Neon.Or, RoundedCornerShape(50))
+                .padding(horizontal = 26.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("🏆", style = TextStyle(fontSize = 24.sp))
+            Spacer(Modifier.width(10.dp))
+            Text("Le classement", maxLines = 1, style = styleBandeau.copy(color = Neon.OrClair))
+        }
+        Box(
+            Modifier.align(Alignment.TopCenter).padding(top = 92.dp)
+                // Décalé vers la gauche : les étiquettes s'affichent à droite des lignes.
+                .offset(x = (-90).dp).width(580.dp).height((hauteur * n).dp).graphicsLayer { alpha = (t.value / 250f).coerceIn(0f, 1f) },
+        ) {
+            lignes.forEachIndexed { i, l -> LigneClassementCoffre(l, evo[i], i == joue, hauteur) { t.value } }
+        }
+    }
+}
+
+private const val C_COMPTE = 350f
+private const val C_BASCULE = 1_250f
+private const val C_RECIT = 1_950f
+
+@Composable
+private fun LigneClassementCoffre(e: LignePortes, evo: Evolution, joue: Boolean, hauteur: Float, ms: () -> Float) {
+    val gain = e.apres - e.avant
+    val taille = (hauteur * 0.4f).sp
+    val apres by remember(evo) { derivedStateOf { ms() >= C_BASCULE + 500f } }
+    val rang = if (apres) evo.rangApres else evo.rangAvant
+    Row(
+        Modifier.fillMaxWidth().height((hauteur - 6f).dp)
+            .graphicsLayer {
+                // Glissement de l'ancienne place à la nouvelle, avec un léger dépassement.
+                val u = ((ms() - C_BASCULE) / 900f).coerceIn(0f, 1f)
+                val e2 = if (u >= 1f) 1f else 1f - (1f - u) * (1f - u) * (1f - u) * (1f - 2.2f * u)
+                translationY = (evo.rangAvant + (evo.rangApres - evo.rangAvant) * e2) * hauteur * density
+            }
+            .background(
+                if (rang == 0) Brush.horizontalGradient(listOf(Color(0x59FFD166), Color(0x14FFD166))) else Brush.horizontalGradient(listOf(Color(0x21FFFFFF), Color(0x0DFFFFFF))),
+                RoundedCornerShape(12.dp),
+            )
+            .border(if (joue) 3.dp else if (rang == 0) 2.dp else 0.dp, if (joue) e.couleur else if (rang == 0) Color(0xFFFFD166) else Color.Transparent, RoundedCornerShape(12.dp))
+            .drawBehind { drawRect(e.couleur, size = Size(6.dp.toPx(), size.height)) }
+            .padding(start = 16.dp, end = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("${rang + 1}", maxLines = 1, style = styleBandeau.copy(color = Neon.Or, fontSize = taille), modifier = Modifier.width((hauteur * 0.7f).dp))
+        Text(e.nom, maxLines = 1, overflow = TextOverflow.Ellipsis, style = styleBandeau.copy(color = Neon.Blanc, fontSize = taille), modifier = Modifier.weight(1f))
+        if (joue) {
+            Text(
+                if (gain == 0) "0" else texteValeur(gain), maxLines = 1, softWrap = false,
+                style = styleBandeau.copy(color = if (gain > 0) Neon.JusteTexte else Color.White, fontSize = taille * 0.72f),
+                modifier = Modifier
+                    .graphicsLayer {
+                        val p = ((ms() - 150f) / 250f).coerceIn(0f, 1f)
+                        alpha = p; scaleX = 0.5f + 0.5f * p; scaleY = 0.5f + 0.5f * p
+                    }
+                    .background(if (gain > 0) Neon.JusteClair else Neon.Faux, RoundedCornerShape(50))
+                    .padding(horizontal = 8.dp, vertical = 1.dp),
+            )
+            Spacer(Modifier.width(12.dp))
+        }
+        val score by remember(e) { derivedStateOf { valeurCompteur(e.avant, e.apres, (ms() - C_COMPTE) / 800f) } }
+        Text(espaceMilliers(score), maxLines = 1, softWrap = false, textAlign = TextAlign.End, style = styleBandeau.copy(color = Neon.Blanc, fontSize = taille), modifier = Modifier.widthIn(min = (hauteur * 1.6f).dp))
+    }
+    val texte = texteRecit(evo)?.takeIf { joue || evo.rangAvant != evo.rangApres }
+    if (texte != null) {
+        val montre by remember(evo) { derivedStateOf { ms() >= C_RECIT } }
+        if (montre) {
+            Box(
+                Modifier.offset(x = 590.dp).width(190.dp).height((hauteur - 6f).dp)
+                    .graphicsLayer { translationY = evo.rangApres * hauteur * density },
+            ) {
+                val (fond, encre) = when (evo.recit) {
+                    Recit.TOUJOURS_EN_TETE, Recit.NOUVEAU_PREMIER -> Color(0xFFFFD166) to Neon.Nuit2
+                    Recit.TUILE_DU_PREMIER -> Neon.Faux to Color.White
+                    Recit.MONTE -> Neon.JusteClair to Neon.JusteTexte
+                    Recit.DESCEND -> Color(0xFFFFD0D1) to Color(0xFF8A0F1C)
+                    else -> Color.White to Neon.Nuit2
+                }
+                Text(
+                    texte, maxLines = 1, softWrap = false,
+                    style = styleBandeau.copy(color = encre, fontSize = taille * 0.7f),
+                    modifier = Modifier.align(Alignment.CenterStart).apparition(0, texte)
+                        .background(fond, RoundedCornerShape(50)).padding(horizontal = 12.dp, vertical = 3.dp),
+                )
+            }
+        }
     }
 }

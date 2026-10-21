@@ -18,11 +18,11 @@ export const PORTES_VALUES = { 3: [300, 100, -150], 4: [300, 150, 50, -150] };
 export const PORTES_RULE = "chaque équipe choisit une porte sur sa tablette : derrière, un bonus ou un malus qui peut tout renverser ! Plusieurs équipes peuvent prendre la même porte";
 
 /**
- * La bombe cachée (remplace les Portes mystères) : chaque équipe à son tour ouvre un coffre sur sa tablette, bonus ou
+ * Les coffres mystères (remplacent les Portes mystères) : chaque équipe à son tour ouvre un coffre sur sa tablette, bonus ou
  * malus tirés au sort par la TV à l'ouverture ; après quelques tours sans danger, une bombe se cache dans un coffre et
- * arrête le jeu. Rien à préparer. Les manches « portes » déjà enregistrées se jouent en bombe cachée.
+ * arrête le jeu. Rien à préparer. Les manches « portes » déjà enregistrées se jouent en coffres mystères.
  */
-export const COFFRES_RULE = "chaque équipe à son tour ouvre un coffre sur sa tablette : bonus ou malus, puis une bombe se cache dans un des coffres. L'équipe qui l'ouvre perd 300 points et le jeu s'arrête";
+export const COFFRES_RULE = "chaque équipe à son tour ouvre un coffre sur sa tablette : un bonus pour remonter au classement, ou un malus qui fait descendre ! Vers la fin, une bombe se cache dans un des coffres, et un coffre en or qui rapporte 500 points : l'équipe qui ouvre la bombe perd 300 points et le jeu s'arrête";
 /**
  * Le Gonfleur fou : chaque équipe tapote sa tablette pour gonfler son ballon sur la TV ; le premier qui éclate gagne.
  * Rien à préparer. GONFLEUR_SEC = chrono de secours (le plus gros ballon gagne s'il arrive au bout).
@@ -30,17 +30,17 @@ export const COFFRES_RULE = "chaque équipe à son tour ouvre un coffre sur sa t
 export const GONFLEUR_RULE = "chaque équipe tapote sa tablette le plus vite possible pour gonfler son ballon sur la TV : le premier qui éclate gagne 300 points, les autres 150";
 export const GONFLEUR_SEC = 45;
 /**
- * La Patate chaude : une bombe passe d'équipe en équipe depuis les tablettes, sa mèche (tirée au sort par la TV)
+ * « Ça va exploser ! » : une bombe passe d'équipe en équipe depuis les tablettes, sa mèche (tirée au sort par la TV)
  * reste secrète. Rien à préparer.
  */
-export const PATATE_RULE = "chaque équipe envoie la bombe à une autre depuis sa tablette ; quand la mèche arrive au bout, l'équipe qui la tient perd 150 points et toutes les autres en gagnent 150";
-/** Type de manche joué : les anciennes Portes mystères deviennent La bombe cachée. */
+export const PATATE_RULE = "la bombe peut exploser à tout moment ! Chaque équipe s'en débarrasse en l'envoyant à une autre depuis sa tablette ; à chaque explosion, l'équipe qui la tient perd 100 points et toutes les autres en gagnent 100. Trois bombes par partie";
+/** Type de manche joué : les anciennes Portes mystères deviennent les Coffres mystères. */
 export const roundType = (type) => (type === "portes" ? "coffres" : type);
 
 /** Jeux dont les dernières questions peuvent compter double (Super Finale) : le Quiz et le Quiz illustré. */
 export const hasFinale = (type) => (type ?? "quiz") === "quiz" || type === "illustre";
 
-export const ROUND_TYPES = { quiz: "Quiz", illustre: "Quiz illustré", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes", pictionary: "Pictionary", coffres: "La bombe cachée", portes: "La bombe cachée", gonfleur: "Le Gonfleur fou", patate: "La Patate chaude" };
+export const ROUND_TYPES = { quiz: "Quiz", illustre: "Quiz illustré", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes", pictionary: "Pictionary", coffres: "Les Coffres mystères", portes: "Les Coffres mystères", gonfleur: "Le Gonfleur fou", patate: "Ça va exploser !" };
 /** Statues musicales : durées proposées (secondes) et durée par défaut. Sans chanson choisie : musique maison de la TV. */
 export const STATUES_SECONDS = [60, 90, 120];
 export const STATUES_SEC = 90;
@@ -338,7 +338,7 @@ export function foldLegacyFinale(list) {
   let folded = 0;
   let converted = 0;
   for (const r of (list ?? []).filter(Boolean)) {
-    // Les Portes mystères sont remplacées par La bombe cachée (cedric, 20 octobre).
+    // Les Portes mystères sont remplacées par les Coffres mystères (cedric, 20 octobre).
     if (r.type === "portes") { rounds.push({ type: "coffres" }); converted++; continue; }
     if (r.type !== "finale") { rounds.push({ ...r }); continue; }
     folded++;
@@ -501,6 +501,8 @@ function musicQuestions(type, playlist, prefix, random) {
         ...(/^[0-9a-f]{16}$/.test(t.imageId ?? "") ? { imageId: t.imageId } : {}),
         // Refrain (environ 90 s) : joué en boucle à la révélation, « on chante tous ensemble ».
         ...(/^[0-9a-f]{16}$/.test(t.refrainId ?? "") ? { refrainId: t.refrainId } : {}),
+        // Paroles du refrain (cedric, 21/10) : elles apparaissent sur la TV au rythme de la chanson.
+        ...(/^[0-9a-f]{16}$/.test(t.refrainId ?? "") && typeof t.paroles === "string" && t.paroles ? { lyrics: t.paroles.slice(0, 8000) } : {}),
       };
     }
     const others = shuffle(titles.filter((x) => x !== title), random).slice(0, 3);
@@ -592,7 +594,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     }
     if (round.type === "coffres" || round.type === "portes") {
       // Un seul élément : la TV distribue les coffres selon le nombre d'équipes et tire chaque contenu à l'ouverture.
-      // Les Portes mystères déjà enregistrées se jouent en bombe cachée (cedric, 20 octobre).
+      // Les Portes mystères déjà enregistrées se jouent en coffres mystères (cedric, 20 octobre).
       rounds.push({ title: ROUND_TYPES.coffres, count: 1 });
       questions.push({ id: `r${i + 1}c`, text: ROUND_TYPES.coffres, kind: "coffres", choices: [], correct: -1, duration: 20, double: false, round: ROUND_TYPES.coffres });
       return;
