@@ -18,7 +18,7 @@
     <nav id="nav" hidden>
       <button data-screen="home">Accueil</button>
       <button data-screen="shows">Prestations</button>
-      <button data-screen="games">Jeux</button>
+      <button data-screen="library">Bibliothèque</button>
       <button data-screen="settings">Paramètres<span id="nav-boxes" class="nav-badge" hidden></span></button>
     </nav>
     <button id="logout" class="link" hidden>Se déconnecter</button>
@@ -56,8 +56,8 @@
       </div>
       <h2>Prochains anniversaires</h2>
       <div id="home-upcoming" class="cards"></div>
-      <h2>Bibliothèque des jeux</h2>
-      <!-- Tous les jeux, rangés comme sur la page Jeux : un appui ouvre ce qui se prépare pour ce jeu. -->
+      <h2>Les jeux</h2>
+      <!-- Tous les jeux, par famille : un appui ouvre la page du jeu (ses manches, ses collections). -->
       <div id="home-games" class="home-games"></div>
     </section>
 
@@ -135,19 +135,61 @@
       </form>
     </section>
 
-    <!-- Jeux : chaque mini-jeu, sa règle, où se trouve son contenu et dans quelles prestations il sert. -->
-    <section id="screen-games" class="screen" hidden>
-      <h1>Jeux</h1>
-      <p class="hint">
-        Tous les jeux de la plateforme et où gérer leur contenu. Pour en jouer un, ajoutez-le comme manche
-        dans une prestation (onglet Prestations), ou en direct depuis la régie (« ＋ Ajouter un jeu »).
-      </p>
-      <div id="games-list"></div>
+    <!-- Bibliothèque : toutes les images (émojis, photos libres, les siennes) et tous les sons, à retrouver et ranger. -->
+    <section id="screen-library" class="screen" hidden>
+      <h1>Bibliothèque</h1>
+      <div id="library-tabs" class="chips game-tabs">
+        <button type="button" class="chip" data-lib-tab="images">🖼️ Images</button>
+        <button type="button" class="chip" data-lib-tab="sons">🎵 Sons</button>
+      </div>
+      <div id="library-images">
+        <p class="hint">
+          Toutes les images des jeux, en trois groupes : les émojis, les photos libres de droits de la banque et vos
+          propres images. Rangez chacune de vos images (nom, catégorie, mots-clés) : la recherche les retrouve ensuite
+          en un mot pendant que vous préparez un quiz.
+        </p>
+        <div class="search-row">
+          <input id="media-search" type="search" placeholder="Chercher : chat, princesse, Disney…" aria-label="Rechercher une image" autocomplete="off">
+          <span id="media-count" class="hint small"></span>
+        </div>
+        <div id="media-groups" class="chips"></div>
+        <div id="media-upload" class="panel media-upload" hidden>
+          <b>＋ Ajouter mes images</b>
+          <label>Catégorie<select id="media-new-cat"></select></label>
+          <label class="wide">Mots-clés pour toutes (séparés par des virgules)<input id="media-new-tags" maxlength="300" placeholder="princesse, Disney" autocomplete="off"></label>
+          <label class="btn file-btn">Choisir des images sur le PC…
+            <input id="media-files" type="file" accept="image/*" multiple hidden>
+          </label>
+          <p class="hint small">Le nom de chaque image vient du nom de son fichier ; tout se modifie ensuite, image par image.</p>
+          <p id="media-status" class="status"></p>
+        </div>
+        <div id="media-cats" class="chips media-cats"></div>
+        <div id="media-list"></div>
+        <p id="media-note" class="status media-note" aria-live="polite"></p>
+      </div>
+      <div id="library-sons" hidden>
+        <div class="title-row">
+          <h2>Bibliothèque des sons</h2>
+          <label class="btn secondary file-btn">Ajouter des chansons…
+            <input id="song-files" type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" multiple hidden>
+          </label>
+        </div>
+        <p class="hint small">
+          Chaque chanson garde ses réglages (début de l'extrait, temps pour buzzer, refrain chanté à la révélation),
+          d'une playlist à l'autre. « Régler… » les change partout : rechoisissez le fichier sur le PC pour déplacer les moments.
+          Les playlists du blind test se composent sur la page du jeu (Accueil › Blind test › Collections).
+        </p>
+        <div class="search-row">
+          <input id="song-search" type="search" placeholder="Rechercher : titre, artiste, playlist…" aria-label="Rechercher une chanson" autocomplete="off">
+          <span id="song-count" class="hint small"></span>
+        </div>
+        <div id="song-list" class="song-list"></div>
+      </div>
     </section>
 
     <!-- Page d'un jeu : ses manches (épinglées, les autres, archivées) ; ses collections dans l'onglet voisin. -->
     <section id="screen-game" class="screen" hidden>
-      <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <b id="game-title">Jeu</b></nav>
+      <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <b id="game-title">Jeu</b></nav>
       <h1 id="game-h1">Jeu</h1>
       <p id="game-rule" class="hint"></p>
       <div id="game-tabs" class="chips game-tabs"></div>
@@ -176,7 +218,7 @@
 
     <!-- Une manche : son nom, le tirage au hasard dans les collections, son contenu et ses réglages. -->
     <section id="screen-manche-edit" class="screen" hidden>
-      <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <button id="manche-crumb" class="link" type="button">Jeu</button> › <b id="manche-edit-title">Nouvelle manche</b></nav>
+      <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <button id="manche-crumb" class="link" type="button">Jeu</button> › <b id="manche-edit-title">Nouvelle manche</b></nav>
       <div class="panel grid">
         <label class="wide">Nom de la manche<input id="manche-title" maxlength="60" placeholder="Mimes des animaux"></label>
       </div>
@@ -216,7 +258,7 @@
 
     <!-- Contenu intégré d'un jeu au buzzer : retirer un élément du catalogue, ajouter les siens. -->
     <section id="screen-builtin" class="screen" hidden>
-      <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <b id="builtin-title">Jeu</b></nav>
+      <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <b id="builtin-title">Jeu</b></nav>
       <div class="chips game-tabs" data-tabs hidden></div>
       <p id="builtin-rule" class="hint"></p>
       <div class="panel">
@@ -229,7 +271,7 @@
 
     <!-- Banque des tout-petits : les photos des mots, que Sarah peut remplacer par les siennes. -->
     <section id="screen-banque" class="screen" hidden>
-      <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <button class="link" data-screen="quizzes">Quiz</button> › <b>Banque des tout-petits</b></nav>
+      <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <button class="link" data-screen="quizzes">Quiz</button> › <b>Banque des tout-petits</b></nav>
       <h1>Banque des tout-petits</h1>
       <p class="hint">Les photos des réponses des quiz des tout-petits, telles qu'elles apparaissent sur la TV. « 📷 » met votre photo à la place
         (cliquez ensuite sur la bulle pour la cadrer), « ↺ » remet celle de la banque. Les quiz déjà enregistrés gardent leurs images ;
@@ -241,7 +283,7 @@
 
     <!-- Bibliothèque de quiz : création (demande à ChatGPT, tableur, fichier), édition, validation question par question. -->
     <section id="screen-quizzes" class="screen" hidden>
-      <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <b id="quizzes-crumb">Quiz</b></nav>
+      <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <b id="quizzes-crumb">Quiz</b></nav>
       <div class="chips game-tabs" data-tabs hidden></div>
       <div class="title-row">
         <h1>Bibliothèque de quiz</h1>
@@ -262,7 +304,7 @@
 
     <!-- Mimes : paquets de cartes (image et mot) choisis dans le catalogue intégré, avec la durée d'un tour. -->
     <section id="screen-mimes" class="screen" hidden>
-      <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <b>Mimes</b></nav>
+      <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <b>Mimes</b></nav>
       <div class="chips game-tabs" data-tabs hidden></div>
       <div class="title-row">
         <h1>Collections de cartes</h1>
@@ -276,7 +318,7 @@
     </section>
 
     <section id="screen-mime-edit" class="screen" hidden>
-      <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <button class="link" data-screen="mimes">Mimes</button> › <b id="mime-edit-title">Nouvelle collection</b></nav>
+      <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <button class="link" data-screen="mimes">Mimes</button> › <b id="mime-edit-title">Nouvelle collection</b></nav>
       <div class="panel grid">
         <label class="wide">Nom du paquet<input id="mime-title" maxlength="120" placeholder="Animaux et métiers"></label>
         <label>Durée d'un tour
@@ -320,7 +362,7 @@
 
     <!-- Blind test : playlists d'extraits musicaux importés depuis les fichiers de Sarah. -->
     <section id="screen-music" class="screen" hidden>
-      <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <b>Musique</b></nav>
+      <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <b>Musique</b></nav>
       <div class="chips game-tabs" data-tabs hidden></div>
       <div class="title-row">
         <h1>Playlists</h1>
@@ -333,25 +375,14 @@
         (4 titres proposés sur les pupitres).
       </p>
       <div id="playlist-list" class="cards"></div>
-      <div class="title-row">
-        <h2>Bibliothèque des sons</h2>
-        <label class="btn secondary file-btn">Ajouter des chansons…
-          <input id="song-files" type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" multiple hidden>
-        </label>
-      </div>
       <p class="hint small">
-        Chaque chanson garde ses réglages (début de l'extrait, temps pour buzzer, refrain chanté à la révélation),
-        d'une playlist à l'autre. « Régler… » les change partout : rechoisissez le fichier sur le PC pour déplacer les moments.
+        Toutes vos chansons, leurs réglages et l'ajout de nouvelles chansons :
+        <button id="music-songs" class="link" type="button">Bibliothèque › 🎵 Sons</button>.
       </p>
-      <div class="search-row">
-        <input id="song-search" type="search" placeholder="Rechercher : titre, artiste, playlist…" aria-label="Rechercher une chanson" autocomplete="off">
-        <span id="song-count" class="hint small"></span>
-      </div>
-      <div id="song-list" class="song-list"></div>
     </section>
 
     <section id="screen-playlist-edit" class="screen" hidden>
-      <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <button id="playlist-crumb" class="link" data-screen="music">Musique</button> › <b id="playlist-edit-title">Nouvelle playlist</b></nav>
+      <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <button id="playlist-crumb" class="link" data-screen="music">Musique</button> › <b id="playlist-edit-title">Nouvelle playlist</b></nav>
       <div class="panel grid">
         <label class="wide"><span id="playlist-title-label">Nom de la playlist</span><input id="playlist-title" maxlength="120" placeholder="Dessins animés"></label>
         <label><span id="playlist-duration-label">Durée des extraits</span>
@@ -405,7 +436,7 @@
     </section>
 
     <section id="screen-import" class="screen" hidden>
-      <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <button class="link" data-screen="quizzes">Quiz</button> › <b>Créer un quiz</b></nav>
+      <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <button class="link" data-screen="quizzes">Quiz</button> › <b>Créer un quiz</b></nav>
       <h1>Créer un quiz</h1>
       <div class="panel">
         <p class="label">1. Quel type de quiz ?</p>
@@ -461,7 +492,7 @@
     </section>
 
     <section id="screen-review" class="screen" hidden>
-      <nav class="crumbs"><button class="link" data-screen="games">Jeux</button> › <button class="link" data-screen="quizzes">Quiz</button> › <b>Éditer</b> <span id="rv-kind" class="pill"></span></nav>
+      <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <button class="link" data-screen="quizzes">Quiz</button> › <b>Éditer</b> <span id="rv-kind" class="pill"></span></nav>
       <div class="panel grid">
         <label class="wide">Titre du quiz<input id="rv-title" maxlength="120"></label>
         <label>Thème<input id="rv-theme" maxlength="80"></label>

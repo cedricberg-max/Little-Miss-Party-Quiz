@@ -37,6 +37,7 @@ import { afficherMotsDePasse } from "./oeil.js";
 import { historique, noterEcran } from "./retour.js";
 import { ouvrirCadrage } from "./cadrage.js";
 import { FAMILLES_PETITS, BANQUE_MOTS, motBanque, cleMot, cataloguePetits, tirerPetits } from "./banque-petits.js";
+import { GROUPES_IMAGES, A_RANGER, emojisBibliotheque, photosLibres, imagesUtilisees, mesImages, correspond, categoriesDe, categoriesPerso, ficheImage, motsCles } from "./mediatheque.js";
 
 // Petit œil sur les champs de mot de passe : voir ce qu'on tape (majuscules, caractère en trop).
 afficherMotsDePasse();
@@ -99,6 +100,8 @@ let songs = {};
 let contents = {};
 /** Manches enregistrées (page Manches de chaque jeu), par identifiant. */
 let manches = {};
+/** Fiches des images de la bibliothèque (nom, catégorie, mots-clés, retirée), par identifiant d'image. */
+let medias = {};
 let stops = [];
 let current = "home";
 
@@ -124,18 +127,21 @@ function status(id, text, ok = false) {
   $(id).classList.toggle("ok", ok);
 }
 
-const SCREENS = ["login", "home", "shows", "show-edit", "games", "game", "manche-edit", "builtin", "quizzes", "import", "review", "settings", "mimes", "mime-edit", "music", "playlist-edit", "banque"];
+const SCREENS = ["login", "home", "shows", "show-edit", "library", "game", "manche-edit", "builtin", "quizzes", "import", "review", "settings", "mimes", "mime-edit", "music", "playlist-edit", "banque"];
 function show(name) {
-  // Quiz, mimes et musique se rangent sous « Jeux » dans le menu (cedric) : c'est l'onglet Jeux qui reste allumé.
-  if (["home", "shows", "games", "settings"].includes(name)) current = name;
-  if (["game", "manche-edit", "quizzes", "mimes", "music", "builtin", "import", "review", "mime-edit", "playlist-edit", "banque"].includes(name)) current = "games";
-  // Le menu Jeux remet à zéro le jeu ouvert (plus d'onglets Manches / Collections).
-  if (name === "games") gameType = null;
+  // Les jeux s'ouvrent depuis leur tuile de l'accueil (cedric) : leurs pages gardent l'onglet Accueil allumé ; les
+  // réglages des chansons, l'onglet Bibliothèque.
+  if (["home", "shows", "library", "settings"].includes(name)) current = name;
+  if (["game", "manche-edit", "quizzes", "mimes", "music", "builtin", "import", "review", "mime-edit", "playlist-edit", "banque"].includes(name)) current = "home";
+  if (name === "playlist-edit" && playlist?.use === "songs") current = "library";
+  // L'accueil remet à zéro le jeu ouvert (plus d'onglets Manches / Collections).
+  if (name === "home") gameType = null;
   SCREENS.forEach((s) => { $(`screen-${s}`).hidden = s !== name; });
   document.querySelectorAll("#nav button").forEach((b) => b.classList.toggle("active", b.dataset.screen === current));
   window.scrollTo(0, 0);
   if (name === "home") renderHome();
-  if (name === "games") renderGames();
+  if (name === "library") renderLibrary();
+  if (name === "game") renderGame();
   if (name === "shows") renderShows();
   if (name === "quizzes") renderQuizzes();
   if (name === "mimes") renderMimes();
@@ -232,6 +238,8 @@ function enter() {
   stops.push(onValue(ref(db, "library/songs"), (s) => { songs = s.val() ?? {}; refreshLists(); }, (e) => console.error(e)));
   // Manches : une lecture refusée (règles pas encore publiées) ne ferme pas l'administration.
   stops.push(onValue(ref(db, "library/manches"), (s) => { manches = s.val() ?? {}; refreshLists(); }, (e) => console.error(e)));
+  // Fiches des images de la bibliothèque : même tolérance (règles pas encore publiées).
+  stops.push(onValue(ref(db, "library/medias"), (s) => { medias = s.val() ?? {}; refreshLists(); }, (e) => console.error(e)));
   // Box : une lecture refusée ne doit pas fermer l'administration (règles pas encore publiées).
   stops.push(onValue(ref(db, "boxes/requests"), (s) => { boxRequests = s.val() ?? {}; renderBoxes(); }, (e) => console.error(e)));
   stops.push(onValue(ref(db, "boxes/allowed"), (s) => { boxAllowed = s.val() ?? {}; renderBoxes(); }, (e) => console.error(e)));
@@ -242,7 +250,7 @@ route();
 
 function refreshLists() {
   if (!$("screen-home").hidden) renderHome();
-  if (!$("screen-games").hidden) renderGames();
+  if (!$("screen-library").hidden) renderLibrary();
   if (!$("screen-builtin").hidden) renderBuiltin();
   if (!$("screen-banque").hidden) renderBanqueMots();
   if (!$("screen-shows").hidden) renderShows();
@@ -295,7 +303,7 @@ function renderHomeGames() {
   $("home-games").replaceChildren(...GAME_GROUPS.map((group) => h("div", { class: "home-group" },
     h("h3", { text: group.title }),
     h("div", { class: "tiles" }, ...group.games.map((g) => {
-      const { line, actions } = gameInfo(g);
+      const { line } = gameInfo(g);
       // Une tuile ouvre la page du jeu : ses manches, et ses collections dans l'onglet voisin.
       const open = () => openGame(g.type);
       return h("button", { class: "tile", "data-game": g.type, ...(GAME_SCREENS[g.type] ? { "data-screen": GAME_SCREENS[g.type] } : {}), onclick: open },
@@ -709,7 +717,7 @@ function mimeSelection(r) {
   });
 }
 
-/** Jeux intégrés et Pictionary : éléments choisis un par un parmi ceux de la page Jeux. */
+/** Jeux intégrés et Pictionary : éléments choisis un par un parmi ceux de la page du jeu. */
 function picksSelection(r) {
   const game = CONTENT_GAMES[r.type];
   const builtin = BUILTIN_GAMES[r.type];
@@ -821,7 +829,7 @@ function songsPicker(r) {
   const songs = statuesChoices(playlists);
   if (!Array.isArray(r.songs)) r.songs = statuesSongs(playlists).map((t) => t.audioId).slice(0, MAX_STATUES_SONGS);
   const chosen = new Set(r.songs);
-  const manage = h("button", { type: "button", class: "link", text: statuesSongs(playlists).length ? "Gérer les chansons des statues" : "Ajouter des chansons pour les statues (page Jeux)", onclick: () => openStatuesSongs() });
+  const manage = h("button", { type: "button", class: "link", text: statuesSongs(playlists).length ? "Gérer les chansons des statues" : "Ajouter des chansons pour les statues", onclick: () => openStatuesSongs() });
   if (!songs.length) return h("p", { class: "hint small statues-songs" }, "Musique de la fête (aucune chanson dans vos playlists). ", manage);
   const count = roundSongs(r, playlists).length;
   const groups = [...new Set(songs.map((t) => t.list))];
@@ -926,7 +934,7 @@ function roundFields(r) {
         ...STATUES_SECONDS.map((n) => h("option", { value: n, selected: (r.duration ?? STATUES_SEC) === n, text: `${n} secondes de musique (on danse, on se fige à l'arrêt ; vous désignez l'équipe gagnante)` }))),
       songsPicker(r))
     : r.type === "pictionary"
-    // Pictionary : les mots viennent du catalogue (page Jeux) ; le temps de dessin et les séries de mots.
+    // Pictionary : les mots viennent du catalogue (page du jeu) ; le temps de dessin et les séries de mots.
     ? h("div", { class: "grow picto-round" },
       h("select", { "aria-label": "Temps de dessin", onchange: (e) => { r.duration = Number(e.target.value); roundCtx.summary(); } },
         ...PICTO_SECONDS.map((n) => h("option", { value: n, selected: (r.duration ?? PICTO_SEC) === n, text: `${n} secondes de dessin par équipe (un mot par tour, ${PICTO_POINTS} points s'il est trouvé)` }))),
@@ -1601,7 +1609,7 @@ function illustrationRow(q, i) {
   });
   showPreview();
   refreshMissing();
-  return h("div", { class: "row illustration", "data-illustration": i },
+  const row = h("div", { class: "row illustration", "data-illustration": i },
     missing,
     h("label", { class: "inline" }, "Illustration",
       h("input", {
@@ -1609,7 +1617,35 @@ function illustrationRow(q, i) {
         oninput: (e) => { q.image = cleanEmoji(e.target.value); refreshMissing(); },
       })),
     h("button", { type: "button", class: "btn small secondary", text: "📷 Photo…", onclick: () => file.click() }),
+    h("button", {
+      type: "button", class: "btn small secondary", text: "🖼️ Bibliothèque…", title: "Choisir un émoji, une photo libre ou une de vos images",
+      onclick: async () => {
+        const x = await choisirDansBibliotheque({ titre: "Illustration de la question", recherche: nomReponse(q) });
+        if (!x) return;
+        if (x.groupe === "emojis") {
+          q.image = cleanEmoji(x.emoji);
+          row.querySelector(".q-emoji").value = q.image;
+          refreshMissing();
+          noterEcran();
+          info.textContent = `Émoji ${x.emoji} choisi. Pensez à enregistrer le quiz.`;
+          return;
+        }
+        info.textContent = "Préparation de la photo…";
+        try {
+          q.imageId = x.groupe === "miennes" ? x.id : await storeIllustration(await blobDe(x));
+          q.imageFile = null;
+          noterEcran();
+          remove.hidden = false;
+          showPreview();
+          info.textContent = `« ${x.nom} » choisie dans la bibliothèque : cliquez dessus pour la cadrer. Pensez à enregistrer le quiz.`;
+        } catch (err) {
+          console.error(err);
+          info.textContent = "Image illisible : choisissez-en une autre.";
+        }
+      },
+    }),
     file, preview, remove, info);
+  return row;
 }
 
 /**
@@ -1670,6 +1706,29 @@ function choicePhoto(q, slots, k) {
   show_();
   return h("span", { class: "choice-photo" }, thumb, remove,
     h("button", { type: "button", class: "icon", title: "Mettre une image à la place du texte", text: "📷", onclick: (e) => { e.preventDefault(); file.click(); } }),
+    h("button", {
+      type: "button", class: "icon", title: "Choisir l'image dans la bibliothèque (photos libres, vos images)", text: "🖼️",
+      onclick: async (e) => {
+        e.preventDefault();
+        const x = await choisirDansBibliotheque({ titre: `Image de la réponse ${LETTERS[k]}`, groupes: ["photos", "miennes"], recherche: slots[k].replace(/^[^\p{L}\p{N}]+/u, "").trim() });
+        if (!x) return;
+        try {
+          (q.slotImages ??= [])[k] = x.groupe === "miennes" ? x.id : await storeChoiceImage(await blobDe(x));
+          if (q.slotFiles) q.slotFiles[k] = null;
+          setTimeout(noterEcran, 0);
+          if (!slots[k].trim()) {
+            slots[k] = x.nom;
+            const input = $("rv-list").querySelector(`[data-q="${draft.questions.indexOf(q)}"]`)?.querySelectorAll(".q-choice")[k];
+            if (input) input.value = slots[k];
+          }
+          show_();
+          syncChoices(q, slots);
+        } catch (err) {
+          console.error(err);
+          status("rv-status", "Image illisible : choisissez-en une autre.");
+        }
+      },
+    }),
     file);
 }
 
@@ -2402,7 +2461,6 @@ function renderPlaylists() {
         h("button", { class: "btn danger", onclick: () => deletePlaylist(id), text: "Supprimer" })));
   }));
   if (!list.length) box.append(h("p", { class: "hint", text: "Aucune playlist pour l'instant : créez-en une avec vos fichiers musicaux." }));
-  renderSongs();
 }
 
 /** Ligne d'une chanson de la bibliothèque : titre, réglages, playlists où elle est, et ses boutons. */
@@ -2418,7 +2476,7 @@ function songRow(song, tools) {
 
 const MAX_SONGS_SHOWN = 60;
 
-/** Bibliothèque des sons (page Blind test) : recherche, écoute, réglages. */
+/** Bibliothèque des sons (menu Bibliothèque, onglet Sons) : recherche, écoute, réglages. */
 function renderSongs() {
   const all = songList(songs, playlists, isStatuesList);
   const found = all.filter((x) => songMatches(x, $("song-search").value));
@@ -2490,10 +2548,11 @@ function scaleInputs() {
 $("playlist-new").onclick = () => editPlaylist(null);
 
 /**
- * Chansons des statues musicales (page Jeux) : une seule liste, ouverte dans l'écran des playlists sans le barème
+ * Chansons des statues musicales (page du jeu) : une seule liste, ouverte dans l'écran des playlists sans le barème
  * du blind test. Elle est créée au premier enregistrement.
  */
 function openStatuesSongs() {
+  gameType = "statues";
   const [found] = Object.entries(playlists).filter(([, p]) => isStatuesList(p)).sort(([, a], [, b]) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
   editPlaylist(found ? found[0] : null, { use: "statues", title: "Chansons des statues musicales" });
 }
@@ -2531,12 +2590,13 @@ function editPlaylist(id, fresh = {}) {
   $("playlist-reveal").value = `${scale.reveal}`;
   $("playlist-edit-title").textContent = id || statues || library ? p.title : "Nouvelle playlist";
   $("playlist-title").value = p.title ?? "";
-  // Statues : pas de barème ni de pochette ; le fil d'Ariane ramène à la page Jeux.
+  // Statues : pas de barème ni de pochette ; le fil d'Ariane ramène à la page du jeu. Réglages des chansons : à la
+  // bibliothèque des sons.
   $("playlist-scale").hidden = statues || library;
   $("statues-hint").hidden = !statues;
   $("playlist-hint").hidden = statues || single;
-  $("playlist-crumb").textContent = statues ? ROUND_TYPES.statues : "Musique";
-  $("playlist-crumb").dataset.screen = statues ? "games" : "music";
+  $("playlist-crumb").textContent = statues ? ROUND_TYPES.statues : library ? "Bibliothèque" : "Musique";
+  $("playlist-crumb").dataset.screen = statues ? "game" : library ? "library" : "music";
   $("playlist-title-label").textContent = statues ? "Nom de la liste" : "Nom de la playlist";
   $("playlist-duration-label").textContent = statues ? "Longueur de chaque chanson" : library ? "Temps pour buzzer des nouvelles chansons" : "Temps pour buzzer (durée des extraits)";
   $("playlist-count-label").textContent = statues || library ? "Chansons" : "Morceaux";
@@ -2920,7 +2980,7 @@ async function followSongs(changed, exceptId) {
 }
 
 $("playlist-delete").onclick = async () => {
-  if (playlist?.id && await deletePlaylist(playlist.id)) show(playlist.use === "statues" ? "games" : "music");
+  if (playlist?.id && await deletePlaylist(playlist.id)) show(playlist.use === "statues" ? "game" : "music");
 };
 
 async function deletePlaylist(id) {
@@ -2939,29 +2999,318 @@ async function duplicatePlaylist(id) {
   await set(ref(db, `library/playlists/${copy}`), { ...rest, title: `${rest.title} (copie)`.slice(0, 120), createdAt: Date.now(), updatedAt: serverTimestamp() });
 }
 
-// ---------- Jeux : tous les mini-jeux, leur règle et où gérer leur contenu ----------
+// ---------- Bibliothèque : images (émojis, photos libres, les siennes) et sons ----------
 
-const usedIn = (type) => Object.values(shows).filter((s) => s && !isArchived(s) && (s.rounds ?? []).some((r) => r?.type === type)).length;
+/** Onglet ouvert de la bibliothèque : « images » ou « sons ». */
+let libTab = "images";
+/** Groupe d'images ouvert : null (les trois en aperçu), « emojis », « photos » ou « miennes ». */
+let mediaGroupe = null;
+/** Catégorie choisie dans le groupe ouvert (null : toutes) ; RETIREES : ses images retirées. */
+let mediaCat = null;
+const RETIREES = "retirees";
+/** Images montrées par groupe dans l'aperçu ; fiches de ses images montrées d'un coup (la recherche trouve les autres). */
+const APERCU = 20;
+const MAX_FICHES = 120;
+const NOUVELLE_CAT = "＋ Nouvelle catégorie…";
+
+function openLibrary(tab) {
+  libTab = tab;
+  show("library");
+}
+$("music-songs").onclick = () => openLibrary("sons");
+document.querySelectorAll("#library-tabs [data-lib-tab]").forEach((b) => { b.onclick = () => { libTab = b.dataset.libTab; renderLibrary(true); }; });
+
+/** [force] : redessiner même si une fiche est en cours de saisie (choix de Sarah, pas un changement venu de la base). */
+function renderLibrary(force = false) {
+  document.querySelectorAll("#library-tabs [data-lib-tab]").forEach((b) => {
+    const on = b.dataset.libTab === libTab;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+  $("library-images").hidden = libTab !== "images";
+  $("library-sons").hidden = libTab !== "sons";
+  if (libTab === "sons") renderSongs();
+  else renderMedias(force);
+}
+
+/** Les trois groupes d'images ; ses images retirées à part. */
+function groupesImages() {
+  const miennes = mesImages(medias, imagesUtilisees({ quizzes, mimes, contents, songs, playlists }));
+  return { emojis: emojisBibliotheque(), photos: photosLibres(), miennes: miennes.filter((x) => !x.retiree), [RETIREES]: miennes.filter((x) => x.retiree) };
+}
+
+/**
+ * Fiches en cours de saisie ou d'enregistrement : un changement venu de la base attend qu'on quitte la liste pour la
+ * redessiner (sinon le champ suivant disparaîtrait sous le curseur).
+ */
+let mediasEnAttente = false;
+let fichesEnregistrement = 0;
+const listeOccupee = () => fichesEnregistrement > 0 || ($("media-list").contains(document.activeElement) && document.activeElement !== document.body);
+const rattraperMedias = () => { if (mediasEnAttente && !listeOccupee()) { mediasEnAttente = false; renderMedias(true); } };
+$("media-list").addEventListener("focusout", () => setTimeout(rattraperMedias, 0));
+
+function renderMedias(force = false) {
+  if (!force && listeOccupee()) { mediasEnAttente = true; return; }
+  mediasEnAttente = false;
+  const g = groupesImages();
+  const recherche = $("media-search").value.trim();
+  const trouve = (list) => list.filter((x) => correspond(x, recherche));
+  const chip = (key, label, n) => h("button", {
+    type: "button", class: `chip${mediaGroupe === key ? " active" : ""}`, "data-groupe": key ?? "tout", text: `${label} (${n})`,
+    onclick: () => { mediaGroupe = key; mediaCat = null; renderMedias(true); },
+  });
+  const total = (k) => trouve(g[k]).length;
+  $("media-groups").replaceChildren(chip(null, "Tout", total("emojis") + total("photos") + total("miennes")),
+    ...Object.entries(GROUPES_IMAGES).map(([k, label]) => chip(k, label, total(k))));
+  $("media-count").textContent = recherche ? `${plural(total("emojis") + total("photos") + total("miennes"), "image trouvée", "images trouvées")}` : "";
+  $("media-upload").hidden = mediaGroupe !== "miennes";
+  if (mediaGroupe === "miennes") remplirCategoriesEnvoi(g.miennes);
+  const box = $("media-list");
+  // Aperçu : les trois groupes l'un sous l'autre, quelques images chacun.
+  if (!mediaGroupe) {
+    $("media-cats").replaceChildren();
+    box.replaceChildren(...Object.entries(GROUPES_IMAGES).map(([k, label]) => {
+      const list = trouve(g[k]);
+      const voir = h("button", { type: "button", class: "btn small secondary", text: recherche ? `Voir les ${plural(list.length, "résultat")}` : `Tout voir (${list.length})`, onclick: () => { mediaGroupe = k; mediaCat = null; renderMedias(true); } });
+      return h("section", { class: "media-group", "data-groupe": k },
+        h("div", { class: "title-row" }, h("h2", { text: label }), list.length ? voir : null,
+          k === "miennes" && !recherche ? h("button", { type: "button", class: "btn small", text: "＋ Ajouter mes images", onclick: () => { mediaGroupe = "miennes"; mediaCat = null; renderMedias(true); } }) : null),
+        list.length ? h("div", { class: "media-grid" }, ...list.slice(0, APERCU).map(vignetteMedia))
+          : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : k === "miennes" ? "Aucune image à vous pour l'instant : « ＋ Ajouter mes images »." : "" }));
+    }));
+    return;
+  }
+  // Un groupe : ses catégories, puis ses images rangées par catégorie.
+  const tout = trouve(g[mediaGroupe]);
+  const retirees = mediaGroupe === "miennes" ? trouve(g[RETIREES]) : [];
+  const cats = categoriesDe(tout);
+  if (mediaCat && mediaCat !== RETIREES && !cats.includes(mediaCat)) mediaCat = null;
+  if (mediaCat === RETIREES && !retirees.length) mediaCat = null;
+  const catChip = (key, label, n) => h("button", {
+    type: "button", class: `chip${mediaCat === key ? " active" : ""}`, "data-cat": key ?? "toutes", text: `${label} (${n})`,
+    onclick: () => { mediaCat = key; renderMedias(true); },
+  });
+  $("media-cats").replaceChildren(...(cats.length > 1 || retirees.length ? [catChip(null, "Toutes", tout.length),
+    ...cats.map((c) => catChip(c, c, tout.filter((x) => x.cat === c).length)),
+    retirees.length ? catChip(RETIREES, "🚫 Retirées", retirees.length) : null] : []).filter(Boolean));
+  const list = mediaCat === RETIREES ? retirees : mediaCat ? tout.filter((x) => x.cat === mediaCat) : tout;
+  if (!list.length) {
+    box.replaceChildren(h("p", { class: "hint", text: recherche ? "Aucune image ne correspond à cette recherche." : mediaGroupe === "miennes" ? "Aucune image à vous pour l'instant : ajoutez-en avec « Choisir des images sur le PC… »." : "Aucune image." }));
+    return;
+  }
+  const fiches = mediaGroupe === "miennes";
+  const montrees = fiches ? list.slice(0, MAX_FICHES) : list;
+  const parCat = mediaCat ? [[mediaCat === RETIREES ? "🚫 Retirées" : mediaCat, montrees]] : categoriesDe(montrees).map((c) => [c, montrees.filter((x) => x.cat === c)]);
+  box.replaceChildren(...parCat.flatMap(([c, items]) => [
+    h("h3", { class: "content-series", text: `${c} · ${items.length}` }),
+    fiches ? h("div", { class: "media-cards" }, ...items.map((x) => ficheMedia(x, g.miennes.concat(g[RETIREES]))))
+      : h("div", { class: "media-grid" }, ...items.map(vignetteMedia)),
+  ]));
+  if (list.length > montrees.length) box.append(h("p", { class: "hint small", text: `… et ${list.length - montrees.length} autres : précisez la recherche.` }));
+}
+$("media-search").oninput = () => renderMedias(true);
+
+/** L'image d'une vignette : l'émoji en grand, la photo libre, ou la sienne lue dans la base. */
+const imageDeMedia = (x) => [x.groupe === "emojis" ? h("span", { class: "emoji", text: x.emoji })
+  : x.groupe === "photos" ? h("img", { src: x.src, alt: "", loading: "lazy" })
+    : photoBibliotheque(x.id, { loading: "lazy" })];
+
+/** Vignette d'une image (émoji, photo libre, la sienne) : son nom dessous, ses mots-clés au survol. */
+function vignetteMedia(x) {
+  const titre = [x.cat, ...(x.tags ?? [])].filter(Boolean).join(" · ");
+  const [image] = imageDeMedia(x);
+  // Un émoji se copie d'un clic, pour le coller dans une question ou une carte.
+  if (x.groupe === "emojis") {
+    return h("button", {
+      type: "button", class: "media-tile", "data-media": x.id, title: `${titre}\nCliquer pour copier l'émoji`,
+      onclick: async () => {
+        try { await navigator.clipboard.writeText(x.emoji); status("media-note", `${x.emoji} copié : collez-le dans une question ou une carte (Ctrl+V).`, true); }
+        catch { status("media-note", `Copie impossible : sélectionnez l'émoji ${x.emoji} à la main.`); }
+      },
+    }, image, h("span", { text: x.nom }));
+  }
+  if (x.groupe === "miennes") {
+    return h("button", { type: "button", class: "media-tile", "data-media": x.id, title: titre, onclick: () => { mediaGroupe = "miennes"; mediaCat = x.cat; renderMedias(true); } }, image, h("span", { text: x.nom || "Sans nom" }));
+  }
+  return h("figure", { class: "media-tile", "data-media": x.id, title: titre }, image, h("span", { text: x.nom }));
+}
+
+/** Fiche d'une de ses images : nom, catégorie, mots-clés, où elle sert ; chaque champ s'enregistre en le quittant. */
+function ficheMedia(x, toutes) {
+  const enregistrer = async (champs, message) => {
+    const f = ficheImage({ nom: x.nom, cat: x.cat, tags: x.tags, retiree: x.retiree, ...champs }, medias[x.id]);
+    if (!f) return status("media-note", "Donnez un nom à l'image.");
+    fichesEnregistrement++;
+    try {
+      await set(ref(db, `library/medias/${x.id}`), { ...f, updatedAt: serverTimestamp() });
+      Object.assign(x, champs);
+      status("media-note", message ?? `« ${f.name} » enregistrée.`, true);
+    } catch (err) {
+      console.error(err);
+      status("media-note", "Enregistrement impossible : vérifiez Internet puis réessayez.");
+    } finally {
+      fichesEnregistrement--;
+    }
+    // Retirée ou remise : la fiche change de place tout de suite ; sinon, dès qu'on quitte la liste.
+    if ("retiree" in champs) renderMedias(true);
+    else rattraperMedias();
+  };
+  const nom = h("input", {
+    class: "media-name", value: x.nom, maxlength: 80, "aria-label": "Nom de l'image", placeholder: "Nom (ex. Elsa)",
+    onchange: (e) => { if (e.target.value.trim()) enregistrer({ nom: e.target.value }); else { e.target.value = x.nom; status("media-note", "Une image garde toujours un nom."); } },
+  });
+  const options = [...(x.cat === A_RANGER ? [A_RANGER] : []), ...categoriesPerso(toutes)];
+  if (!options.includes(x.cat)) options.unshift(x.cat);
+  const cat = h("select", {
+    class: "media-cat", "aria-label": "Catégorie",
+    onchange: (e) => {
+      let c = e.target.value;
+      if (c === NOUVELLE_CAT) {
+        c = (prompt("Nom de la nouvelle catégorie (ex. Pokémon, Super-héros…) :") ?? "").trim().slice(0, 40);
+        if (!c) { e.target.value = x.cat; return; }
+      }
+      enregistrer({ cat: c }, `« ${x.nom} » rangée dans « ${c} ».`);
+    },
+  }, ...options.map((c) => h("option", { value: c, text: c })), h("option", { value: NOUVELLE_CAT, text: NOUVELLE_CAT }));
+  cat.value = x.cat;
+  const tags = h("input", {
+    class: "media-tags", value: x.tags.join(", "), maxlength: 300, "aria-label": "Mots-clés", placeholder: "Mots-clés…", title: "Mots-clés, séparés par des virgules (princesse, Disney…)",
+    onchange: (e) => enregistrer({ tags: motsCles(e.target.value) }),
+  });
+  const bouton = x.retiree
+    ? h("button", { type: "button", class: "btn small", text: "Remettre", onclick: () => enregistrer({ retiree: false }, `« ${x.nom} » est remise dans vos images.`) })
+    : h("button", { type: "button", class: "btn small secondary", text: "Retirer", title: "Elle disparaît de vos images ; les quiz et les jeux qui l'utilisent la gardent.", onclick: () => enregistrer({ retiree: true }, `« ${x.nom} » est retirée : retrouvez-la dans « 🚫 Retirées ». Les quiz et les jeux qui l'utilisent la gardent.`) });
+  return h("div", { class: `media-card${x.retiree ? " retiree" : ""}`, "data-media": x.id },
+    photoBibliotheque(x.id, { loading: "lazy" }),
+    nom, cat, tags,
+    x.ou.length ? h("span", { class: "small", text: `Utilisée dans : ${x.ou.join(", ")}` }) : null,
+    h("div", { class: "row" }, bouton));
+}
+
+/** Mot à chercher pour illustrer une question : sa bonne réponse, sans émoji (« 🐱 Chat » → « Chat ») ; rien pour Vrai / Faux. */
+const nomReponse = (q) => {
+  const r = `${q.choices?.[q.correct] ?? ""}`.replace(/^[^\p{L}\p{N}]+/u, "").trim();
+  return /^(vrai|faux)$/i.test(r) ? "" : r;
+};
+
+/** Octets d'une image de la bibliothèque : une photo libre lue sur le site, une des siennes dans la base. */
+async function blobDe(x) {
+  if (x.groupe === "photos") return (await fetch(x.src)).blob();
+  const data = imageCache[x.id] ?? (await get(ref(db, `library/images/${x.id}`))).val();
+  if (typeof data !== "string") throw new Error("Image introuvable");
+  imageCache[x.id] = data;
+  return (await fetch(data)).blob();
+}
+
+/**
+ * Fenêtre « 🖼️ Bibliothèque » : la recherche de la page Bibliothèque, pour choisir une image en fabriquant un quiz.
+ * [groupes] : ceux proposés ; [recherche] : le mot cherché d'abord. Rend l'image choisie, ou null (Annuler, Échap).
+ */
+function choisirDansBibliotheque({ titre, groupes = Object.keys(GROUPES_IMAGES), recherche = "" }) {
+  return new Promise((resolve) => {
+    const g = groupesImages();
+    let groupe = null;
+    const champ = h("input", { type: "search", class: "choix-recherche", value: recherche, placeholder: "Rechercher : nom, catégorie, mot-clé…", "aria-label": "Rechercher une image", autocomplete: "off" });
+    const puces = h("div", { class: "chips media-cats" });
+    const grille = h("div", { class: "media-grid choix-grille" });
+    const fermer = (x) => { voile.remove(); resolve(x); };
+    const dessiner = () => {
+      const q = champ.value.trim();
+      const listes = Object.fromEntries(groupes.map((k) => [k, g[k].filter((x) => correspond(x, q))]));
+      const n = (k) => (k ? listes[k].length : groupes.reduce((t, x) => t + listes[x].length, 0));
+      puces.replaceChildren(...[null, ...groupes].map((k) => h("button", {
+        type: "button", class: `chip${groupe === k ? " active" : ""}`, "data-groupe": k ?? "tout", text: `${k ? GROUPES_IMAGES[k] : "Tout"} (${n(k)})`,
+        onclick: () => { groupe = k; dessiner(); },
+      })));
+      // Ses images d'abord : c'est là qu'on cherche un personnage ou un film.
+      const items = (groupe ? listes[groupe] : [...groupes].sort((a, b) => (b === "miennes") - (a === "miennes")).flatMap((k) => listes[k])).slice(0, 120);
+      grille.replaceChildren(...items.map((x) => h("button", { type: "button", class: "media-tile", "data-media": x.id, title: [x.cat, ...(x.tags ?? [])].filter(Boolean).join(" · "), onclick: () => fermer(x) },
+        ...imageDeMedia(x), h("span", { text: x.nom || "Sans nom" }))));
+      if (!items.length) grille.append(h("p", { class: "hint", text: q ? "Aucune image pour cette recherche : essayez un autre mot." : "Aucune image." }));
+    };
+    champ.oninput = dessiner;
+    // Rien pour le mot proposé : on montre toutes les images plutôt qu'une fenêtre vide.
+    if (recherche && !groupes.some((k) => g[k].some((x) => correspond(x, recherche)))) champ.value = "";
+    const voile = h("div", {
+      class: "cadre-voile choix-voile", onclick: (e) => { if (e.target === voile) fermer(null); },
+      onkeydown: (e) => { if (e.key === "Escape") fermer(null); },
+    }, h("div", { class: "cadre-boite choix-boite", role: "dialog", "aria-label": titre },
+      h("p", { class: "label", text: `🖼️ ${titre}` }),
+      h("p", { class: "hint small", text: "Cherchez par nom, catégorie ou mot-clé ; un clic choisit l'image. Vos images se rangent dans Bibliothèque › Images." }),
+      champ, puces, grille,
+      h("div", { class: "row" }, h("button", { type: "button", class: "btn secondary", text: "Annuler", onclick: () => fermer(null) }))));
+    document.body.append(voile);
+    dessiner();
+    champ.focus();
+  });
+}
+
+/** Catégorie des images envoyées : celle ouverte, sinon « À ranger » ; on peut en créer une. */
+function remplirCategoriesEnvoi(miennes) {
+  const sel = $("media-new-cat");
+  const avant = sel.value;
+  const cats = categoriesPerso(miennes);
+  if (avant && avant !== A_RANGER && avant !== NOUVELLE_CAT && !cats.includes(avant)) cats.unshift(avant);
+  sel.replaceChildren(h("option", { value: A_RANGER, text: "À ranger (sans catégorie)" }), ...cats.map((c) => h("option", { value: c, text: c })), h("option", { value: NOUVELLE_CAT, text: NOUVELLE_CAT }));
+  sel.value = mediaCat && mediaCat !== RETIREES && mediaCat !== A_RANGER ? mediaCat : avant && avant !== NOUVELLE_CAT ? avant : A_RANGER;
+}
+$("media-new-cat").onchange = (e) => {
+  if (e.target.value !== NOUVELLE_CAT) return;
+  const c = (prompt("Nom de la nouvelle catégorie (ex. Pokémon, Super-héros…) :") ?? "").trim().slice(0, 40);
+  if (!c) { e.target.value = A_RANGER; return; }
+  e.target.prepend(h("option", { value: c, text: c }));
+  e.target.value = c;
+};
+
+// Ses images : chacune réduite comme une illustration de question, rangée une seule fois, avec sa fiche.
+$("media-files").onchange = async (e) => {
+  const files = [...(e.target.files ?? [])].filter((f) => f.type.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(f.name)).slice(0, MAX_PHOTOS);
+  e.target.value = "";
+  if (!files.length) return;
+  const cat = $("media-new-cat").value;
+  const tags = motsCles($("media-new-tags").value);
+  let n = 0;
+  for (const [k, f] of files.entries()) {
+    status("media-status", `Image ${k + 1} / ${files.length}…`, true);
+    try {
+      const data = await compressImage(f);
+      const id = await imageId(data);
+      const target = ref(db, `library/images/${id}`);
+      if (!(await get(target)).exists()) await set(target, data);
+      imageCache[id] = data;
+      // Une image déjà là garde son nom et sa catégorie ; elle reçoit les nouveaux mots-clés et revient si elle était retirée.
+      const avant = medias[id];
+      const fiche = ficheImage({ nom: avant?.name ?? (wordFromImage(f.name) || `Image ${n + 1}`), cat: avant?.cat ?? cat, tags: [...motsCles(avant?.tags), ...tags] }, avant);
+      await set(ref(db, `library/medias/${id}`), { ...fiche, updatedAt: serverTimestamp() });
+      n++;
+    } catch (err) {
+      console.error(err);
+    }
+  }
+  const ou = cat && cat !== A_RANGER ? ` dans « ${cat} »` : "";
+  status("media-status", n === files.length ? `${plural(n, "image ajoutée", "images ajoutées")}${ou}. Vérifiez leur nom et leurs mots-clés ci-dessous.`
+    : `${n} image${n > 1 ? "s" : ""} sur ${files.length} ajoutée${n > 1 ? "s" : ""}${ou} : les autres sont illisibles (JPEG ou PNG).`, n > 0);
+  mediaCat = n && cat !== A_RANGER ? cat : n ? A_RANGER : mediaCat;
+  renderMedias(true);
+};
+
+// ---------- Jeux : les mini-jeux par famille (tuiles de l'accueil, page de chaque jeu) ----------
+
 const plural = (n, word, many = `${word}s`) => `${n} ${n > 1 ? many : word}`;
 
 /** Les jeux par famille : ce qui se prépare dans la bibliothèque, ce qui vient d'un quiz, ce qui est intégré. */
 const GAME_GROUPS = [
   { title: "Avec vos contenus", hint: "Vous préparez le contenu dans la bibliothèque, une fois, et vous le réutilisez dans toutes les prestations.", games: [
     { type: "quiz", icon: "?", rule: "Questions à 2, 3 ou 4 propositions sur les pupitres ; toutes les équipes qui trouvent marquent. Une question peut aussi être un « Juste Chiffre » (réponse en nombre). Super Finale : dans la prestation, les dernières questions du quiz peuvent compter ×2, ×3 ou ×5 (choisi en direct sur la régie).",
-      status: () => { const ok = Object.values(quizzes).reduce((t, q) => t + playable(q).length, 0); return `${plural(Object.keys(quizzes).length, "quiz", "quiz")} · ${plural(ok, "question validée", "questions validées")}`; },
-      actions: () => [["Gérer les quiz", () => showQuizzes(null)], ["Créer un quiz", () => $("quiz-import-open").click()]] },
+      status: () => { const ok = Object.values(quizzes).reduce((t, q) => t + playable(q).length, 0); return `${plural(Object.keys(quizzes).length, "quiz", "quiz")} · ${plural(ok, "question validée", "questions validées")}`; }, },
     { type: "mimes", icon: "🎭", rule: "Équipe par équipe : un enfant devine, ses coéquipiers miment l'image. 50 points par mime trouvé.",
-      status: () => `${plural(Object.keys(mimes).length, "collection perso", "collections perso")} · ${plural(mancheGroups(manches, "mimes").pinned.length + mancheGroups(manches, "mimes").active.length, "manche")}`,
-      actions: () => [["Collections de cartes", () => show("mimes")]] },
+      status: () => `${plural(Object.keys(mimes).length, "collection perso", "collections perso")} · ${plural(mancheGroups(manches, "mimes").pinned.length + mancheGroups(manches, "mimes").active.length, "manche")}`, },
     { type: "blind", icon: "🎵", rule: "Les morceaux d'une playlist, dans l'ordre : le premier qui buzze donne le titre à voix haute, vous validez.",
-      status: () => plural(Object.values(playlists).filter((p) => !isStatuesList(p)).length, "playlist"),
-      actions: () => [["Gérer les playlists", () => show("music")]] },
+      status: () => plural(Object.values(playlists).filter((p) => !isStatuesList(p)).length, "playlist"), },
     { type: "musical", icon: "🎶", rule: "Un extrait d'une playlist et 4 titres sur les pupitres ; même playlist que le blind test.",
-      status: () => plural(Object.values(playlists).filter((p) => !isStatuesList(p) && playableTracks(p).length >= 2).length, "playlist utilisable", "playlists utilisables"),
-      actions: () => [["Gérer les playlists", () => show("music")]] },
+      status: () => plural(Object.values(playlists).filter((p) => !isStatuesList(p) && playableTracks(p).length >= 2).length, "playlist utilisable", "playlists utilisables"), },
     { type: "statues", icon: "🗿", rule: "Vos chansons jouent sur la TV et s'arrêtent par moments : tout le monde se fige ! Vous désignez l'équipe gagnante depuis la régie. Dans la prestation : la durée et les chansons cochées (aucune : la musique de la fête).",
-      status: () => plural(statuesChoices(playlists).length, "chanson disponible", "chansons disponibles"),
-      actions: () => [["Gérer les chansons", () => openStatuesSongs()]] },
+      status: () => plural(statuesChoices(playlists).length, "chanson disponible", "chansons disponibles"), },
   ] },
   { title: "Tirés d'un quiz", hint: "Rien de plus à préparer : ces jeux reprennent les questions d'un quiz de la bibliothèque. Dans la prestation, choisissez le quiz et combien de questions.", games: [
     { type: "express", icon: "✔", rule: "Les questions Vrai / Faux d'un quiz, au chrono court du profil.", needs: "Vrai / Faux validées" },
@@ -2979,24 +3328,7 @@ const GAME_GROUPS = [
   ] },
 ];
 
-function renderGames() {
-  const box = $("games-list");
-  box.replaceChildren(...GAME_GROUPS.map((group) => h("section", { class: "game-group" },
-    h("h2", { text: group.title }),
-    h("p", { class: "hint small", text: group.hint }),
-    h("div", { class: "cards" }, ...group.games.map((g) => {
-      const { rule, line, actions } = gameInfo(g);
-      const n = usedIn(g.type);
-      return h("div", { class: "item game-card", "data-game": g.type },
-        h("b", {}, h("span", { class: "game-icon", text: g.icon }), ROUND_TYPES[g.type]),
-        h("span", { class: "rule", text: rule }),
-        h("span", { text: line }),
-        h("span", { class: "small", text: n ? `Dans ${plural(n, "prestation")} en cours` : "Dans aucune prestation en cours" }),
-        actions.length ? h("div", { class: "row" }, ...actions.map(([label, fn], k) => h("button", { class: `btn${k ? " secondary" : ""}`, onclick: fn, text: label }))) : null);
-    })))));
-}
-
-/** Règle, état du contenu et actions d'un jeu : les mêmes sur la page Jeux et sur l'accueil. */
+/** Règle et état du contenu d'un jeu : sur sa tuile de l'accueil et sur sa page. */
 function gameInfo(g) {
   const quizGame = QUIZ_GAMES[g.type];
   const content = CONTENT_GAMES[g.type];
@@ -3006,11 +3338,7 @@ function gameInfo(g) {
       `${plural(Object.values(quizzes).filter((q) => (QUIZ_GAMES[g.type]?.questions ?? playable)(q).length).length, "quiz utilisable", "quiz utilisables")} (avec des ${g.needs})`].filter(Boolean).join(" · ")
     : content ? builtinLine(g.type)
     : "Rien à préparer";
-  const actions = [...(g.actions ? g.actions()
-    : quizGame ? [["Voir les quiz", () => showQuizzes(g.type === "express" ? null : "images")]]
-    : content ? [[`Voir et modifier les ${CONTENT_GAMES[g.type].unit}s`, () => openBuiltin(g.type)]]
-    : []), ["Manches", () => openGame(g.type)]];
-  return { rule, line, actions };
+  return { rule, line };
 }
 
 /** Accord des mots d'un jeu : « 3 familles actives », « 2 mots ajoutés ». */
@@ -3042,7 +3370,7 @@ function openBuiltin(type) {
   histJeu.depart();
 }
 
-/** Page d'un jeu (page Jeux) : chaque touche est enregistrée tout de suite ; Retour et Annuler réenregistrent l'état d'avant. */
+/** Page d'un jeu (page du jeu) : chaque touche est enregistrée tout de suite ; Retour et Annuler réenregistrent l'état d'avant. */
 const histJeu = historique({
   ecran: $("screen-builtin"),
   capturer: () => (builtinType ? builtinState(builtinType) : null),

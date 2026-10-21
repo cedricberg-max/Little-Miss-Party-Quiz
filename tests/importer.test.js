@@ -1460,3 +1460,80 @@ describe("photos à soi sur les cartes de mimes et les objets de Qui a disparu ?
     assert.deepEqual(S.choiceImageIds([{ kind: "mime", cards: [carte, { word: "Lune" }] }]), [ID]);
   });
 });
+
+describe("bibliothèque d'images de la Régie PC (émojis, photos libres, ses images)", async () => {
+  const B = await import("../web/public/mediatheque.js");
+  const ID = "0123456789abcdef";
+  const ID2 = "fedcba9876543210";
+
+  test("les émojis de tous les jeux, une fois chacun, rangés par famille, les autres mots en mots-clés", () => {
+    const e = B.emojisBibliotheque();
+    const glyphes = e.map((x) => x.emoji.replace(/️/g, ""));
+    assert.equal(new Set(glyphes).size, e.length, "pas deux fois le même émoji");
+    assert.ok(e.length >= 450, `${e.length} émojis`);
+    assert.ok(e.every((x) => x.nom && x.cat && x.groupe === "emojis"));
+    // 🐄 de la banque (Vache) : « Animaux de la ferme » de Qui a disparu ? devient un mot-clé.
+    const vache = e.find((x) => x.emoji === "🐄");
+    assert.equal(vache.nom, "Vache");
+    assert.ok(vache.tags.includes("Animaux de la ferme"));
+    // Les émojis hors de la banque trouvent une famille lisible (jamais « mime:… »).
+    assert.equal(e.find((x) => x.nom === "Fantôme").cat, "Imaginaire");
+    assert.equal(e.find((x) => x.nom === "Pompier").cat, "Métiers");
+    assert.ok(!B.categoriesDe(e).some((c) => /:/.test(c)));
+  });
+
+  test("les photos libres : une par mot de la banque qui a sa photo, avec ses étiquettes lisibles", async () => {
+    const { PHOTOS_BANQUE } = await import("../web/public/banque-photos.js");
+    const p = B.photosLibres();
+    assert.equal(p.length, PHOTOS_BANQUE.size);
+    const chat = p.find((x) => x.nom === "Chat");
+    assert.deepEqual([chat.id, chat.src, chat.cat], ["banque:chat", "banque/chat.jpg", "Animaux"]);
+    assert.ok(chat.tags.includes("4 pattes"));
+    assert.ok(p.every((x) => x.tags.every((t) => !/^[gx]-/.test(t))), "pas d'étiquette de tirage");
+  });
+
+  test("ses images : celles qui ont une fiche d'abord, puis celles déjà utilisées sans fiche, « À ranger »", () => {
+    const lib = {
+      quizzes: { a: { title: "Léa", questions: [{ text: "?", choices: ["🐱 chat", "Chien"], correct: 0, imageId: ID, choiceImages: { 1: ID2 } }] } },
+      contents: { quisuis: { images: { "le koala": "1111111111111111" } } },
+      songs: { s: { title: "Hakuna Matata", imageId: "2222222222222222" } },
+    };
+    const u = B.imagesUtilisees(lib);
+    assert.deepEqual(u.get(ID), { nom: "Chat", ou: ["Quiz « Léa »"] });
+    assert.equal(u.get(ID2).nom, "Chien");
+    assert.deepEqual(u.get("1111111111111111"), { nom: "Le koala", ou: ["Qui suis-je ?"] });
+    assert.deepEqual(u.get("2222222222222222").ou, ["Pochettes des chansons"]);
+    const mes = B.mesImages({ [ID2]: { name: "Toutou", cat: "Famille et amis", tags: "chien, doudou", createdAt: 5 }, [ID]: { name: "Minou", hidden: true, createdAt: 9 } }, u);
+    assert.deepEqual(mes.map((x) => [x.nom, x.cat, x.retiree, x.fiche]), [
+      ["Minou", "À ranger", true, true], ["Toutou", "Famille et amis", false, true],
+      ["Le koala", "À ranger", false, false], ["Hakuna Matata", "À ranger", false, false],
+    ]);
+    assert.deepEqual(mes[1].tags, ["chien", "doudou"]);
+    assert.deepEqual(mes[1].ou, ["Quiz « Léa »"]);
+  });
+
+  test("la recherche : chaque mot dans le nom, la catégorie ou les mots-clés, sans accents ni majuscules", () => {
+    const elsa = { nom: "Elsa", cat: "Dessins animés", tags: ["princesse", "Reine des neiges"], ou: [] };
+    assert.ok(B.correspond(elsa, ""));
+    assert.ok(B.correspond(elsa, "reine NEIGES"));
+    assert.ok(B.correspond(elsa, "dessins anime"));
+    assert.ok(!B.correspond(elsa, "princesse pirate"));
+  });
+
+  test("la fiche enregistrée : nom obligatoire, mots-clés nettoyés, catégorie « À ranger » jamais écrite", () => {
+    assert.equal(B.ficheImage({ nom: "  " }), null);
+    const f = B.ficheImage({ nom: "  Elsa   la reine ", cat: "Dessins animés", tags: "princesse, Disney ; princesse,, reine" }, { createdAt: 7 });
+    assert.deepEqual(f, { name: "Elsa la reine", cat: "Dessins animés", tags: "princesse, Disney, reine", createdAt: 7 });
+    assert.deepEqual(B.ficheImage({ nom: "Toto", cat: B.A_RANGER, tags: [], retiree: true }, { createdAt: 1 }), { name: "Toto", tags: "", hidden: true, createdAt: 1 });
+    // Jamais plus long que ce que la base accepte.
+    const long = B.ficheImage({ nom: "x".repeat(200), cat: "c".repeat(80), tags: Array.from({ length: 80 }, (_, i) => `mot${i}`).join(",") });
+    assert.ok(long.name.length <= B.FICHE.nom && long.cat.length <= B.FICHE.cat && long.tags.length <= B.FICHE.tags);
+  });
+
+  test("les catégories proposées : les suggestions, les siennes, « Autres » en dernier ; « À ranger » toujours en tête des filtres", () => {
+    const cats = B.categoriesPerso([{ cat: "Pokémon" }, { cat: B.A_RANGER }, { cat: "Dessins animés" }]);
+    assert.equal(cats.at(-1), "Autres");
+    assert.ok(cats.includes("Pokémon") && cats.includes("Célébrités") && !cats.includes(B.A_RANGER));
+    assert.deepEqual(B.categoriesDe([{ cat: "Films et séries" }, { cat: B.A_RANGER }, { cat: "Films et séries" }]), [B.A_RANGER, "Films et séries"]);
+  });
+});

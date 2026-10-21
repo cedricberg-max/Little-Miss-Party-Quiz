@@ -1598,10 +1598,20 @@ async function respond(page, accept = true) {
   return text;
 }
 
-/** Régie PC : la bibliothèque de quiz s'ouvre depuis la page Jeux (plus d'onglet Quiz dans le menu). */
+/**
+ * Régie PC : la page d'un jeu s'ouvre depuis sa tuile de l'accueil (plus de page Jeux dans le menu) ; l'onglet
+ * « collections » mène à son contenu.
+ */
+async function openGamePage(page, type, tab = null) {
+  await page.click("#nav button[data-screen=home]");
+  await page.locator(`#screen-home .tile[data-game="${type}"]`).click();
+  await page.locator("#screen-game:not([hidden])").waitFor();
+  if (tab) await page.click(`#game-tabs [data-tab=${tab}]`);
+}
+
+/** Régie PC : la bibliothèque de quiz, onglet Collections de la page du jeu Quiz. */
 async function openQuizzes(page) {
-  await page.click("#nav button[data-screen=games]");
-  await page.locator(".game-card[data-game=quiz] button", { hasText: "Gérer les quiz" }).click();
+  await openGamePage(page, "quiz", "collections");
   await page.locator("#screen-quizzes:not([hidden])").waitFor();
 }
 
@@ -1734,25 +1744,31 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
-  test("Régie PC : la page Jeux montre chaque jeu, un contenu intégré se règle, une prestation choisit son nombre de questions et ses notes arrivent en régie", async () => {
+  test("Régie PC : l'accueil montre chaque jeu, un contenu intégré se règle, une prestation choisit son nombre de questions et ses notes arrivent en régie", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     const page = await admin();
-    await page.click("#nav button[data-screen=games]");
+    // Le menu : Accueil, Prestations, Bibliothèque, Paramètres (plus de page Jeux : les jeux sont sur l'accueil).
+    assert.deepEqual(await page.locator("#nav button").allInnerTexts(), ["Accueil", "Prestations", "Bibliothèque", "Paramètres"]);
     // 15 jeux (dont le Pictionary, la bombe cachée, le Gonfleur fou et la patate chaude) : la Super Finale n'en est pas un, c'est la fin du quiz (réglage de la manche Quiz).
-    assert.equal(await page.locator(".game-card").count(), 15);
-    await page.locator('.game-card[data-game=patate]').waitFor();
-    await page.locator('.game-card[data-game=gonfleur]').waitFor();
-    await page.locator('.game-card[data-game=pictionary]').waitFor();
-    await page.locator('.game-card[data-game=quiz]', { hasText: "1 quiz · 2 questions validées" }).waitFor();
-    await page.locator('.game-card[data-game=quiz]', { hasText: "les dernières questions du quiz peuvent compter ×2, ×3 ou ×5" }).waitFor();
-    assert.equal(await page.locator('.game-card[data-game=finale]').count(), 0);
-    // Mimes : la carte mène aux collections de cartes (ce que Sarah ne trouvait pas).
-    await page.locator('.game-card[data-game=mimes] button', { hasText: "Collections de cartes" }).click();
+    const tile = (type) => page.locator(`#screen-home .tile[data-game="${type}"]`);
+    assert.equal(await page.locator("#screen-home .tile[data-game]").count(), 15);
+    await tile("patate").waitFor();
+    await tile("gonfleur").waitFor();
+    await tile("pictionary").waitFor();
+    await page.locator('#screen-home .tile[data-game="quiz"]', { hasText: "1 quiz · 2 questions validées" }).waitFor();
+    assert.equal(await tile("finale").count(), 0);
+    await openGamePage(page, "quiz");
+    await page.locator("#game-rule", { hasText: "les dernières questions du quiz peuvent compter ×2, ×3 ou ×5" }).waitFor();
+    // Les pages d'un jeu gardent l'onglet Accueil allumé ; son fil d'Ariane y ramène.
+    assert.equal(await page.locator("#nav button.active").textContent(), "Accueil");
+    // Mimes : l'onglet Collections mène aux collections de cartes (ce que Sarah ne trouvait pas).
+    await openGamePage(page, "mimes", "collections");
     await page.locator("#screen-mimes:not([hidden])").waitFor();
-    await page.click("#nav button[data-screen=games]");
+    await page.click("#screen-mimes .crumbs button[data-screen=home]");
+    await page.locator("#screen-home:not([hidden])").waitFor();
 
     // Chante le mot ! : un mot du catalogue retiré, un mot à soi ajouté, puis remis et supprimé.
-    await page.locator('.game-card[data-game=chante] button', { hasText: "Voir et modifier les mots" }).click();
+    await openGamePage(page, "chante", "collections");
     await page.locator('#builtin-items .content-item.on[data-key="soleil"] .content-toggle').click();
     await page.locator("#builtin-status", { hasText: "« soleil » est retiré du jeu." }).waitFor();
     await page.fill("#bi-word", "arc-en-ciel");
@@ -1766,8 +1782,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#builtin-add button[type=submit]");
     await page.locator("#builtin-status", { hasText: "« Soleil » existe déjà." }).waitFor();
     // Qui suis-je ? : un personnage sans assez d'indices est refusé avec la raison.
-    await page.click("#screen-builtin .crumbs button");
-    await page.locator('.game-card[data-game=quisuis] button').first().click();
+    await openGamePage(page, "quisuis", "collections");
     await page.fill("#bi-answer", "Le koala");
     await page.fill("#bi-clue1", "Je dors dans les eucalyptus");
     await page.click("#builtin-add button[type=submit]");
@@ -1786,14 +1801,13 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.match(portrait, /^[0-9a-f]{16}$/);
     assert.equal(typeof (await library(`images/${portrait}`)), "string");
     // Pictionary : un mot à soi s'enregistre comme pour les autres jeux.
-    await page.click("#nav button[data-screen=games]");
-    await page.locator('.game-card[data-game=pictionary] button').first().click();
+    await openGamePage(page, "pictionary", "collections");
     await page.fill("#bi-word", "Toboggan");
     await page.click("#builtin-add button[type=submit]");
     await page.locator("#builtin-status", { hasText: "« Toboggan » est ajouté au jeu." }).waitFor();
     assert.deepEqual((await library("contents")).pictionary.extra, [{ word: "Toboggan" }]);
-    await page.click("#nav button[data-screen=games]");
-    await page.locator('.game-card[data-game=chante]', { hasText: "dont 1 ajouté · 1 retiré" }).waitFor();
+    await page.click("#nav button[data-screen=home]");
+    await page.locator('#screen-home .tile[data-game="chante"]', { hasText: "dont 1 ajouté · 1 retiré" }).waitFor();
 
     // Prestation : la première question seulement du quiz, 4 mots, et des notes pour l'animatrice.
     await page.click("#nav button[data-screen=home]");
@@ -1830,8 +1844,7 @@ describe("bibliothèque de quiz et prestations", () => {
 
   test("Régie PC : Pictionary rangé en séries, un mot à soi dans sa série, une manche choisit ses séries ou les tire au hasard", async () => {
     const page = await admin();
-    await page.click("#nav button[data-screen=games]");
-    await page.locator('.game-card[data-game=pictionary] button').first().click();
+    await openGamePage(page, "pictionary", "collections");
     await page.locator("#builtin-items h3.content-series", { hasText: "Animaux" }).waitFor();
     await page.locator("#builtin-items h3.content-series", { hasText: "À manger" }).waitFor();
     await page.fill("#bi-word", "Toboggan");
@@ -1934,6 +1947,119 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
+  test("Régie PC : la Bibliothèque range ses images (nom, catégorie, mots-clés) et les retrouve avec les émojis et les photos libres", async () => {
+    // Une photo déjà utilisée dans un quiz, d'avant la bibliothèque : elle apparaît « À ranger ».
+    const ancienne = "0123456789abcdef";
+    await seedLibrary(`images/${ancienne}`, `data:image/png;base64,${png([90, 160, 90]).toString("base64")}`);
+    await seedLibrary("quizzes/doudous", { title: "Les doudous", updatedAt: 1, questions: [
+      { text: "Qui est-ce ?", choices: ["🐰 Pinpin", "Nounours"], correct: 0, status: "validee", imageId: ancienne },
+    ] });
+    const page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.locator("#library-images:not([hidden])").waitFor();
+    assert.equal(await page.locator("#nav button.active").textContent(), "Bibliothèque");
+    // Aperçu : les trois groupes ; les émojis et les photos libres de la banque sont là d'office.
+    await page.locator('#media-list .media-group[data-groupe="emojis"] .media-tile').first().waitFor();
+    await page.locator('#media-list .media-group[data-groupe="photos"] .media-tile img').first().waitFor();
+    await page.locator('#media-list .media-group[data-groupe="miennes"] .media-tile', { hasText: "Pinpin" }).waitFor();
+
+    // Ses images : une catégorie et des mots-clés pour tout l'envoi, le nom de chacune tiré de son fichier.
+    await page.click('#media-groups [data-groupe="miennes"]');
+    await page.locator('.media-card[data-media="0123456789abcdef"]', { hasText: "Utilisée dans : Quiz « Les doudous »" }).waitFor();
+    await page.selectOption("#media-new-cat", "Dessins animés");
+    await page.fill("#media-new-tags", "princesse, Disney");
+    await page.setInputFiles("#media-files", [
+      { name: "elsa-reine.png", mimeType: "image/png", buffer: png([120, 180, 230]) },
+      { name: "raiponce.png", mimeType: "image/png", buffer: png([230, 200, 90]) },
+    ]);
+    await page.locator("#media-status", { hasText: "2 images ajoutées dans « Dessins animés »" }).waitFor();
+    const fiches = Object.entries(await library("medias")).sort(([, a], [, b]) => a.name.localeCompare(b.name));
+    assert.deepEqual(fiches.map(([, f]) => [f.name, f.cat, f.tags]), [["Elsa reine", "Dessins animés", "princesse, Disney"], ["Raiponce", "Dessins animés", "princesse, Disney"]]);
+    const [[elsa], [raiponce]] = fiches;
+    for (const id of [elsa, raiponce]) assert.match(await library(`images/${id}`), /^data:image\/jpeg;base64,/);
+
+    // Une fiche se corrige : nom, mots-clés, nouvelle catégorie ; chaque champ s'enregistre en le quittant.
+    const carte = page.locator(`.media-card[data-media="${elsa}"]`);
+    await carte.locator(".media-name").fill("Elsa");
+    await carte.locator(".media-tags").fill("princesse, Disney, reine des neiges");
+    await page.locator("#screen-library h1").click();
+    await waitFor(async () => (await library(`medias/${elsa}`))?.tags === "princesse, Disney, reine des neiges", "mots-clés enregistrés");
+    assert.equal((await library(`medias/${elsa}`)).name, "Elsa");
+    page.once("dialog", (d) => d.accept("Reines et princesses"));
+    await carte.locator(".media-cat").selectOption("＋ Nouvelle catégorie…");
+    await waitFor(async () => (await library(`medias/${elsa}`))?.cat === "Reines et princesses", "nouvelle catégorie");
+    await page.locator('#media-cats [data-cat="Reines et princesses"]').waitFor();
+
+    // Une seule recherche pour les trois groupes, sans accents ni majuscules.
+    await page.click('#media-groups [data-groupe="tout"]');
+    await page.fill("#media-search", "reine des neiges");
+    await page.locator('#media-list .media-group[data-groupe="miennes"] .media-tile', { hasText: "Elsa" }).waitFor();
+    assert.equal(await page.locator('#media-list .media-group[data-groupe="miennes"] .media-tile').count(), 1);
+    await page.fill("#media-search", "PRINCESSE");
+    await page.locator('#media-list .media-group[data-groupe="emojis"] .media-tile', { hasText: "Princesse" }).waitFor();
+    await waitFor(async () => await page.locator('#media-list .media-group[data-groupe="miennes"] .media-tile').count() === 2, "ses deux princesses trouvées");
+    await page.fill("#media-search", "elephant");
+    await page.locator('#media-list .media-group[data-groupe="photos"] .media-tile', { hasText: "Éléphant" }).waitFor();
+    await page.locator('#media-list .media-group[data-groupe="emojis"] .media-tile', { hasText: "Éléphant" }).waitFor();
+
+    // Retirer cache l'image sans l'effacer (les quiz qui l'utilisent la gardent) ; « Remettre » la rend.
+    await page.fill("#media-search", "");
+    await page.click('#media-groups [data-groupe="miennes"]');
+    await page.locator(`.media-card[data-media="${raiponce}"]`).getByRole("button", { name: "Retirer" }).click();
+    await page.locator("#media-note", { hasText: "« Raiponce » est retirée" }).waitFor();
+    await waitFor(async () => (await library(`medias/${raiponce}`))?.hidden === true, "image retirée");
+    assert.match(await library(`images/${raiponce}`), /^data:image\//);
+    await page.click('#media-cats [data-cat="retirees"]');
+    await page.locator(`.media-card.retiree[data-media="${raiponce}"]`).getByRole("button", { name: "Remettre" }).click();
+    await waitFor(async () => (await library(`medias/${raiponce}`))?.hidden === undefined, "image remise");
+
+    // Onglet Sons : la bibliothèque des chansons.
+    await page.click('#library-tabs [data-lib-tab="sons"]');
+    await page.locator("#library-sons:not([hidden]) #song-list", { hasText: "Aucune chanson pour l'instant" }).waitFor();
+    await page.context().close();
+  });
+
+  test("Bibliothèque en fabriquant un quiz : « 🖼️ » cherche la bonne réponse et pose un émoji, une de ses images ou une photo libre", async () => {
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    const lea = "abcdef0123456789";
+    await seedLibrary(`images/${lea}`, `data:image/png;base64,${png([200, 160, 60]).toString("base64")}`);
+    await seedLibrary(`medias/${lea}`, { name: "Le lion de Léa", cat: "Famille et amis", tags: "doudou", createdAt: 1, updatedAt: 1 });
+    const page = await admin();
+    await openQuizzes(page);
+    await page.locator('#quiz-list [data-quiz="animaux"]').getByRole("button", { name: "Éditer" }).click();
+    const q0 = page.locator('[data-q="0"]');
+    const fenetre = page.locator(".choix-boite");
+    // Illustration : la recherche part de la bonne réponse (« Lion ») ; ses images en premier.
+    await q0.getByRole("button", { name: "🖼️ Bibliothèque…" }).click();
+    assert.equal(await fenetre.locator(".choix-recherche").inputValue(), "Lion");
+    assert.equal(await fenetre.locator(".media-tile").first().getAttribute("data-media"), lea);
+    await fenetre.locator('.media-tile[data-media="emoji:🦁"]').click();
+    await page.locator(".choix-voile").waitFor({ state: "detached" });
+    assert.equal(await q0.locator(".q-emoji").inputValue(), "🦁");
+    // Échap ferme sans rien changer.
+    await q0.getByRole("button", { name: "🖼️ Bibliothèque…" }).click();
+    await fenetre.locator(".choix-recherche").press("Escape");
+    await page.locator(".choix-voile").waitFor({ state: "detached" });
+    assert.equal(await q0.locator(".q-image:not([hidden])").count(), 0);
+    await q0.getByRole("button", { name: "🖼️ Bibliothèque…" }).click();
+    await fenetre.locator(`.media-tile[data-media="${lea}"]`).click();
+    await q0.locator(".q-image:not([hidden])").waitFor();
+    // Réponse B en image : la photo libre du tigre ; pas d'émoji proposé pour une réponse en image.
+    await q0.locator(".choice-photo").nth(1).locator('button[title^="Choisir l\'image"]').click();
+    assert.equal(await fenetre.locator(".choix-recherche").inputValue(), "Tigre");
+    assert.equal(await fenetre.locator('[data-groupe="emojis"]').count(), 0);
+    await fenetre.locator('.media-tile[data-media="banque:tigre"]').click();
+    await q0.locator(".choice-photo").nth(1).locator(".choice-thumb:not([hidden])").waitFor();
+    await page.click("#rv-save");
+    await page.locator("#rv-status", { hasText: "Enregistré" }).waitFor();
+    const q = (await library("quizzes")).animaux.questions[0];
+    assert.equal(q.image, "🦁");
+    assert.equal(q.imageId, lea, "sa propre image, sans copie");
+    assert.match(q.choiceImages[1], /^[0-9a-f]{16}$/);
+    assert.match(await library(`images/${q.choiceImages[1]}`), /^data:image\/jpeg;base64,/);
+    await page.context().close();
+  });
+
   test("Régie PC : ses propres photos sur des cartes de mimes et des objets de Qui a disparu ?, copiées dans la partie", async () => {
     const page = await admin();
     // Mimes : une carte avec sa photo (le mot vient du nom du fichier), puis plusieurs photos d'un coup.
@@ -1967,8 +2093,7 @@ describe("bibliothèque de quiz et prestations", () => {
     for (const c of deck.cards.filter((x) => x.imageId)) assert.equal(typeof (await library(`images/${c.imageId}`)), "string");
 
     // Qui a disparu ? : une famille faite de ses photos, le mot de chaque objet tiré du nom du fichier.
-    await page.click("#nav button[data-screen=games]");
-    await page.locator(".game-card[data-game=disparu] button").first().click();
+    await openGamePage(page, "disparu", "collections");
     await page.fill("#bi-theme", "La chambre de Léa");
     await page.click("#builtin-add button[type=submit]");
     await page.locator("#builtin-status", { hasText: "ou sa photo" }).waitFor();
@@ -2473,8 +2598,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.locator("#mime-picked .mime-card", { hasText: "Lapin" }).count(), 1);
 
     // Page Jeux (enregistrée à chaque touche) : Retour remet le mot retiré, dans la bibliothèque aussi.
-    await page.click("#nav button[data-screen=games]");
-    await page.locator('.game-card[data-game=chante] button', { hasText: "Voir et modifier les mots" }).click();
+    await openGamePage(page, "chante", "collections");
     await page.locator('#builtin-items .content-item.on[data-key="soleil"] .content-toggle').click();
     await page.locator("#builtin-status", { hasText: "« soleil » est retiré du jeu." }).waitFor();
     assert.deepEqual((await library("contents")).chante.off, ["soleil"]);
@@ -3267,8 +3391,13 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#playlist-status", { hasText: "Enregistrée : 2 morceaux" }).waitFor({ timeout: 30000 });
     // « Régler… » une chanson de la bibliothèque : un écran à son nom, sans ajout de fichiers ni retrait ;
     // l'artiste corrigé suit dans la playlist.
+    // Les chansons sont rangées dans Bibliothèque › Sons (lien depuis les playlists).
     await page.click("#playlist-crumb");
+    await page.click("#music-songs");
+    await page.locator("#library-sons:not([hidden])").waitFor();
+    assert.equal(await page.locator("#nav button.active").textContent(), "Bibliothèque");
     await page.locator("#song-list .song", { hasText: "Hakuna Matata" }).getByRole("button", { name: "Régler…" }).click();
+    assert.equal(await page.locator("#playlist-crumb").textContent(), "Bibliothèque");
     await page.locator("#playlist-edit-title", { hasText: "Réglages de « Hakuna Matata »" }).waitFor();
     assert.equal(await page.locator(".track").count(), 1);
     for (const sel of ["#playlist-duration", "#playlist-files", "#playlist-count", ".track button[title^=Retirer]"]) {
@@ -3315,11 +3444,10 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
-  test("Statues musicales : Sarah dépose ses chansons depuis la page Jeux, les coche dans la prestation, la TV les reçoit", async () => {
+  test("Statues musicales : Sarah dépose ses chansons depuis la page du jeu, les coche dans la prestation, la TV les reçoit", async () => {
     const page = await admin();
-    await page.click("#nav button[data-screen=games]");
-    await page.locator(".game-card[data-game=statues]", { hasText: "0 chanson" }).waitFor();
-    await page.locator(".game-card[data-game=statues] button", { hasText: "Gérer les chansons" }).click();
+    await page.locator('#screen-home .tile[data-game="statues"]', { hasText: "0 chanson" }).waitFor();
+    await openGamePage(page, "statues", "collections");
     await page.locator("#screen-playlist-edit:not([hidden])").waitFor();
     assert.equal(await page.locator("#playlist-crumb").textContent(), "Statues musicales");
     assert.equal(await page.locator("#playlist-scale").isHidden(), true, "pas de barème de blind test");
@@ -3343,8 +3471,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click(".tile[data-screen=music]");
     await page.click("#game-tabs [data-tab=collections]");
     assert.equal(await page.locator(`#playlist-list [data-playlist="${listId}"]`).count(), 0);
-    await page.click("#nav button[data-screen=games]");
-    await page.locator(".game-card[data-game=statues]", { hasText: "2 chansons" }).waitFor();
+    await page.click("#nav button[data-screen=home]");
+    await page.locator('#screen-home .tile[data-game="statues"]', { hasText: "2 chansons" }).waitFor();
 
     // Une playlist de blind test : ses chansons se cochent aussi pour les statues, sans l'être d'office.
     await seedLibrary("playlists/blind", { title: "Dessins animés", duration: 25, tracks: [{ title: "Hakuna", audioId: list.tracks[0].audioId }, { title: "Libérée", audioId: "1111111111111111" }] });

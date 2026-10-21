@@ -1272,7 +1272,7 @@ async function fetchLibrary() {
     // Jeux au buzzer intégrés : toujours disponibles, sans rien préparer.
     const builtins = [
       ...Object.entries(BUILTIN_GAMES).map(([type, game]) => ({ key: `builtin/${type}`, label: ROUND_TYPES[type], random: true, source: { type, count: game.count } })),
-      // Statues musicales : toutes les chansons de la liste (page Jeux de la Régie PC), sinon la musique maison.
+      // Statues musicales : toutes les chansons de la liste (page du jeu dans la Régie PC), sinon la musique maison.
       { key: "builtin/statues", label: ROUND_TYPES.statues, source: { type: "statues", duration: STATUES_SEC, songs: statuesSongs(playlists).map((t) => t.audioId).slice(0, MAX_STATUES_SONGS) } },
       { key: "builtin/pictionary", label: ROUND_TYPES.pictionary, random: true, source: { type: "pictionary", duration: PICTO_SEC } },
       { key: "builtin/coffres", label: ROUND_TYPES.coffres, source: { type: "coffres" } },

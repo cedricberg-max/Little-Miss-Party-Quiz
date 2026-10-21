@@ -14,7 +14,7 @@ import { MIME_CATALOG, shuffle } from "./mime-cards.js";
 import { concepts, questionConcepts, neufsSiPossible } from "./jamais-deux-fois.js";
 import { BANQUE, banqueItems, motDeLaBanque } from "./banque-photos.js";
 
-/** Jeux qu'on peut enregistrer en manches, dans l'ordre de la page Jeux. */
+/** Jeux qu'on peut enregistrer en manches, dans l'ordre des tuiles de l'accueil. */
 export const MANCHE_TYPES = ["quiz", "mimes", "blind", "musical", "statues", "express", "zoom", "flou", "chante", "quisuis", "disparu", "pictionary", "coffres", "patate", "gonfleur"];
 
 /** Ce que contient la collection d'un jeu (null : jeu sans contenu à choisir). */

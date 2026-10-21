@@ -53,6 +53,12 @@ const ecran = async (id) => {
   await page.click(`#nav button[data-screen=${id}]`);
   await page.locator(`#screen-${id}:not([hidden])`).waitFor();
 };
+/** Les collections d'un jeu : sa tuile de l'accueil, puis l'onglet Collections de sa page. */
+const collections = async (jeu) => {
+  await ecran("home");
+  await page.locator(`#screen-home .tile[data-game="${jeu}"]`).click();
+  await page.click("#game-tabs [data-tab=collections]");
+};
 
 await page.goto(`${base}/admin.html?emu=1`);
 await page.fill("#admin-password", ADMIN_PASSWORD);
@@ -78,8 +84,17 @@ for (let k = 0; k < Math.min(prestations, 2); k++) {
 }
 const SEULS_AUTRES = process.env.AUTRES === "1";
 if (COURTE) { await browser.close(); server.close(); await env.cleanup(); process.exit(0); }
-await ecran("games");
-await capture("jeux");
+// Bibliothèque : l'aperçu des images, chaque groupe, puis les sons.
+await ecran("library");
+await capture("bibliotheque-images");
+for (const groupe of ["emojis", "photos", "miennes"]) {
+  await page.click(`#media-groups [data-groupe="${groupe}"]`);
+  await capture(`bibliotheque-${groupe}`);
+}
+await page.click('#library-tabs [data-lib-tab="sons"]');
+await capture("bibliotheque-sons");
+await page.click('#library-tabs [data-lib-tab="images"]');
+await page.click('#media-groups [data-groupe="tout"]');
 await ecran("home");
 const jeux = SEULS_AUTRES ? [] : await page.locator("#screen-home .tile[data-game]").evaluateAll((els) => els.map((e) => e.dataset.game));
 for (const jeu of jeux) {
@@ -104,11 +119,12 @@ for (const jeu of jeux) {
 }
 // Écrans d'édition : un quiz, la banque des tout-petits, la création d'un quiz, une playlist et le réglage d'une chanson.
 const autres = [
-  ["quiz-edition", async () => { await ecran("games"); await page.locator(".game-card[data-game=quiz] button", { hasText: "Gérer les quiz" }).click(); await page.locator("#quiz-list .item").first().getByRole("button", { name: "Éditer" }).click(); }],
-  ["banque-des-petits", async () => { await ecran("games"); await page.locator(".game-card[data-game=quiz] button", { hasText: "Gérer les quiz" }).click(); await page.click("#banque-open"); }],
-  ["creer-un-quiz", async () => { await ecran("games"); await page.locator(".game-card[data-game=quiz] button", { hasText: "Gérer les quiz" }).click(); await page.click("#quiz-import-open"); }],
-  ["playlist-edition", async () => { await ecran("games"); await page.locator(".game-card[data-game=blind] button", { hasText: "Gérer les playlists" }).click(); await page.locator("#screen-music .item").first().getByRole("button", { name: "Éditer" }).click(); }],
-  ["chanson-reglages", async () => { await ecran("games"); await page.locator(".game-card[data-game=blind] button", { hasText: "Gérer les playlists" }).click(); await page.locator("button", { hasText: "Régler…" }).first().click(); }],
+  ["quiz-edition", async () => { await collections("quiz"); await page.locator("#quiz-list .item").first().getByRole("button", { name: "Éditer" }).click(); }],
+  ["quiz-choisir-dans-la-bibliotheque", async () => { await collections("quiz"); await page.locator("#quiz-list .item").first().getByRole("button", { name: "Éditer" }).click(); await page.getByRole("button", { name: "🖼️ Bibliothèque…" }).first().click(); await page.locator(".choix-boite").waitFor(); }],
+  ["banque-des-petits", async () => { await page.keyboard.press("Escape"); await collections("quiz"); await page.click("#banque-open"); }],
+  ["creer-un-quiz", async () => { await collections("quiz"); await page.click("#quiz-import-open"); }],
+  ["playlist-edition", async () => { await collections("blind"); await page.locator("#screen-music .item").first().getByRole("button", { name: "Éditer" }).click(); }],
+  ["chanson-reglages", async () => { await ecran("library"); await page.click('#library-tabs [data-lib-tab="sons"]'); await page.locator("#song-list button", { hasText: "Régler…" }).first().click(); }],
   // Ses propres photos : un paquet de mimes et une famille de Qui a disparu ? (photos de la banque prises comme exemples).
   ["mimes-mes-photos", async () => {
     await ecran("home"); await page.click(".tile[data-screen=mimes]"); await page.click("#game-tabs [data-tab=collections]"); await page.click("#mime-new");
@@ -117,7 +133,7 @@ const autres = [
     await page.locator("#mime-status", { hasText: "photos ajoutées" }).waitFor();
   }],
   ["disparu-mes-photos", async () => {
-    await ecran("games"); await page.locator(".game-card[data-game=disparu] button").first().click();
+    await collections("disparu");
     await page.fill("#bi-theme", "Le panier de Léa");
     await page.locator("#bi-photos").setInputFiles(["pomme", "orange", "cerise", "melon", "ananas"].map((m) => join(PUBLIC, "banque", `${m}.jpg`)));
     await page.click("#builtin-add button[type=submit]");
