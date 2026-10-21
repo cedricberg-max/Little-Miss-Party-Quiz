@@ -130,8 +130,9 @@ for (const jeu of jeux) {
 const autres = [
   ["quiz-edition", async () => { await collections("quiz"); await page.locator("#quiz-list .item").first().getByRole("button", { name: "Éditer" }).click(); }],
   ["quiz-choisir-dans-la-bibliotheque", async () => { await collections("quiz"); await page.locator("#quiz-list .item").first().getByRole("button", { name: "Éditer" }).click(); await page.getByRole("button", { name: "🖼️ Bibliothèque…" }).first().click(); await page.locator(".choix-boite").waitFor(); }],
-  ["banque-des-petits", async () => { await page.keyboard.press("Escape"); await collections("quiz"); await page.click("#banque-open"); }],
+  ["banque-des-petits", async () => { await page.keyboard.press("Escape"); await collections("illustre"); await page.click("#banque-open"); }],
   ["creer-un-quiz", async () => { await collections("quiz"); await page.click("#quiz-import-open"); }],
+  ["creer-un-quiz-illustre", async () => { await collections("illustre"); await page.click("#quiz-import-open"); }],
   ["playlist-edition", async () => { await collections("blind"); await page.locator("#screen-music .item").first().getByRole("button", { name: "Éditer" }).click(); }],
   ["chanson-reglages", async () => { await ecran("library"); await page.click('#library-tabs [data-lib-tab="sons"]'); await page.locator("#song-list button", { hasText: "Régler…" }).first().click(); }],
   // Ses propres photos : un paquet de mimes et une famille de Qui a disparu ? (photos de la banque prises comme exemples).

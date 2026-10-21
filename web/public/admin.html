@@ -272,7 +272,7 @@
 
     <!-- Banque des tout-petits : les photos des mots, que Sarah peut remplacer par les siennes. -->
     <section id="screen-banque" class="screen" hidden>
-      <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <button class="link" data-screen="quizzes">Quiz</button> › <b>Banque des tout-petits</b></nav>
+      <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <button class="link quizzes-link" data-screen="quizzes">Quiz</button> › <b>Banque des tout-petits</b></nav>
       <h1>Banque des tout-petits</h1>
       <p class="hint">Les photos des réponses des quiz des tout-petits, telles qu'elles apparaissent sur la TV. « 📷 » met votre photo à la place
         (cliquez ensuite sur la bulle pour la cadrer), « ↺ » remet celle de la banque. Les quiz déjà enregistrés gardent leurs images ;
@@ -287,11 +287,10 @@
       <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <b id="quizzes-crumb">Quiz</b></nav>
       <div class="chips game-tabs" data-tabs hidden></div>
       <div class="title-row">
-        <h1>Bibliothèque de quiz</h1>
+        <h1 id="quizzes-h1">Quiz à réponses écrites</h1>
         <button id="quiz-import-open" class="btn">Créer un quiz</button>
         <button id="banque-open" class="btn secondary">🧸 Photos de la banque</button>
       </div>
-      <div id="quiz-kinds" class="chips"></div>
       <div id="quiz-photos-box" class="panel" hidden>
         <p class="hint">Image floue et Zoom mystère : choisissez vos photos d'un coup, le nom de chaque fichier devient sa réponse
           (vous la corrigez avant d'enregistrer). Les quiz classiques qui ont des photos servent aussi à ces deux jeux.</p>
@@ -437,23 +436,23 @@
     </section>
 
     <section id="screen-import" class="screen" hidden>
-      <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <button class="link" data-screen="quizzes">Quiz</button> › <b>Créer un quiz</b></nav>
-      <h1>Créer un quiz</h1>
-      <div class="panel">
-        <p class="label">1. Quel type de quiz ?</p>
+      <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <button class="link quizzes-link" data-screen="quizzes">Quiz</button> › <b>Créer un quiz</b></nav>
+      <h1 id="import-h1">Créer un quiz</h1>
+      <div id="kind-panel" class="panel">
+        <p class="label">Quel type de quiz ?</p>
         <div class="kind-choice">
-          <button type="button" class="kind-card" data-kind="photo"><b>📷 Quiz photo</b>
+          <button type="button" class="kind-card" data-kind="photo"><b>📷 Quiz illustré</b>
             <span>Pour les petits, dès 5 ans : l'animatrice lit la question, chaque réponse est une photo avec son mot, sur la TV et les tablettes.</span></button>
           <button type="button" class="kind-card" data-kind="classique"><b>📝 Quiz classique</b>
             <span>Une question et 4 réponses écrites, avec une petite photo montrée à la révélation.</span></button>
         </div>
       </div>
       <div id="kind-ways" class="panel" hidden>
-        <p class="label">2. Comment le créer ?</p>
+        <p class="label">Comment le créer ?</p>
         <div id="kind-ways-list" class="kind-ways"></div>
       </div>
       <div id="import-gem" class="panel" hidden>
-        <p class="label">3. Votre demande à ChatGPT</p>
+        <p class="label">Votre demande à ChatGPT</p>
         <div class="grid">
           <label class="wide">Thème<input id="gem-theme" placeholder="Les animaux de la jungle"></label>
           <label>Âge des enfants<input id="gem-age" placeholder="8"></label>
@@ -477,7 +476,7 @@
         </details>
       </div>
       <div id="import-paste" class="panel" hidden>
-        <p id="import-paste-label" class="label">4. Coller la réponse</p>
+        <p id="import-paste-label" class="label">Coller la réponse</p>
         <p id="import-paste-hint" class="hint small">
           Collez la réponse de ChatGPT. Vous pouvez aussi coller des lignes d'un tableur (colonnes : Question, Réponse A, Réponse B,
           Réponse C, Réponse D, Bonne réponse, Durée), ou déposer un fichier de quiz (CSV, JSON) avec ses images.
@@ -493,7 +492,7 @@
     </section>
 
     <section id="screen-review" class="screen" hidden>
-      <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <button class="link" data-screen="quizzes">Quiz</button> › <b>Éditer</b> <span id="rv-kind" class="pill"></span></nav>
+      <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <button class="link quizzes-link" data-screen="quizzes">Quiz</button> › <b>Éditer</b> <span id="rv-kind" class="pill"></span></nav>
       <div class="panel grid">
         <label class="wide">Titre du quiz<input id="rv-title" maxlength="120"></label>
         <label>Thème<input id="rv-theme" maxlength="80"></label>

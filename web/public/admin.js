@@ -6,7 +6,7 @@ import {
 import { passwordHash, newSalt, cleanPassword, passwordCandidates, MIN_PASSWORD_LENGTH } from "./secret.js";
 import {
   TEST_ID, TEST_QUIZ, TEST_SHOW, FULL_ID, FULL_KEYS, FULL_QUIZZES, FULL_MIMES, FULL_SHOW, FULL_PHOTOS, photoQuiz, drawPhoto,
-  FULL_TUNES, FULL_TUNE_SEC, FULL_NEW_ROUNDS, tunePlaylist, FULL_CHOICE_PHOTOS, imageQuiz,
+  FULL_TUNES, FULL_TUNE_SEC, FULL_NEW_ROUNDS, tunePlaylist, FULL_CHOICE_PHOTOS, imageQuiz, OLD_TEST_TITLES,
 } from "./test-show.js";
 import { writeProof, isAdmin } from "./proof.js";
 import { parseQuiz, checkQuestions, geminiPrompt, chatgptUrl, imageKey, wordFromImage, photoQuestions, LETTERS } from "./importer.js";
@@ -18,6 +18,7 @@ import {
   pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches, isArchived, AUTO_ARCHIVE_DAYS, quizKind,
   roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS,
   isStatuesList, statuesSongs, statuesChoices, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS, builtinConcepts, isPhotoTheme, disparuGroup,
+  illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale,
 } from "./show.js";
 import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE } from "./banque-photos.js";
 import { shuffle } from "./mime-cards.js";
@@ -569,7 +570,8 @@ function editShow(id, from = null) {
   const s = id ? shows[id] : from ? duplicateShow(from) : { status: "brouillon", rounds: [] };
   // Une ancienne manche « Super Finale » n'est pas un jeu : elle devient le réglage ×2 du quiz qui la précède.
   const { rounds, folded } = foldLegacyFinale(s.rounds);
-  editing = { id, rounds };
+  // Une ancienne manche « Quiz » de quiz illustrés s'affiche (et s'enregistre) en Quiz illustré.
+  editing = { id, rounds: rounds.map((r) => jeuDeLaManche(r, quizzes)) };
   $("show-edit-title").textContent = id ? showTitle(s) : from ? `Copie de « ${showTitle(from)} »` : "Nouvelle prestation";
   // Fil d'Ariane : la liste de son état (une nouvelle ou une copie commence « À compléter »).
   showsEtat = id ? etatPrestation(s) : "acompleter";
@@ -801,8 +803,11 @@ function picksSelection(r) {
 }
 
 /** Quiz d'une manche : un ou plusieurs, leurs questions à la suite dans le même jeu (jamais tirées au hasard). */
-function quizSelection(r, options) {
+function quizSelection(r, all) {
   const ids = roundQuizIds(r);
+  // Quiz : les quiz classiques ; Quiz illustré : les quiz illustrés (un quiz déjà choisi reste proposé).
+  const fits = { quiz: quizQuestions, illustre: illustreQuestions }[r.type ?? "quiz"];
+  const options = fits ? all.filter(([qid, q]) => ids.includes(qid) || fits(q).length || !playable(q).length && (quizKind(q) === "photo") === (r.type === "illustre")) : all;
   const label = (q) => (r.type === "express" ? `${q.title} (${expressQuestions(q).length} Vrai / Faux)`
     : r.type === "zoom" || r.type === "flou" ? `${q.title} (${zoomQuestions(q).length} avec photo)` : `${q.title} (${playable(q).length} validées)`);
   const setIds = (list) => {
@@ -815,7 +820,7 @@ function quizSelection(r, options) {
     class: "grow", "aria-label": k === 0 ? "Quiz de la manche" : `Quiz ${k + 1} de la manche`,
     onchange: (e) => { const next = [...ids]; next[k] = e.target.value; setIds(next); },
   },
-  h("option", { value: "", text: "Choisir un quiz…" }),
+  h("option", { value: "", text: options.length ? "Choisir un quiz…" : r.type === "illustre" ? "Aucun quiz illustré : créez-en un dans la page du Quiz illustré" : "Aucun quiz : créez-en un dans la page du Quiz" }),
   ...options.filter(([qid]) => qid === current || !ids.includes(qid)).map(([qid, q]) => h("option", { value: qid, selected: current === qid, text: label(q) })));
   return h("div", { class: "grow quiz-picks" },
     ...(ids.length ? ids : [""]).map((id, k) => (k === 0 ? select(id, 0)
@@ -927,7 +932,7 @@ function refreshRounds() {
  */
 function mancheTools(r, replace) {
   const type = r.type ?? "quiz";
-  const { pinned, active } = mancheGroups(manches, type);
+  const { pinned, active } = mancheGroups(manches, type, quizzes);
   const list = [...pinned, ...active];
   return h("span", { class: "manche-tools" },
     list.length ? h("select", {
@@ -1043,7 +1048,7 @@ function roundFields(r) {
         h("option", { value: "", text: "Toutes les questions" }),
         ...[1, 2, 3, 4, 5, 6, 8, 10, 12, 15].map((n) => h("option", { value: n, selected: r.count === n, text: n === 1 ? "La première seulement" : `Les ${n} premières` })))
       : null,
-    (r.type ?? "quiz") === "quiz"
+    hasFinale(r.type)
       ? h("select", { class: "finale", "aria-label": "Super Finale", onchange: (e) => { r.finale = Number(e.target.value) || null; roundCtx.summary(); } },
         h("option", { value: "", text: "Sans Super Finale" }),
         ...[1, 2, 3, 4, 5].map((n) => h("option", { value: n, selected: r.finale === n, text: n === 1 ? "Super Finale : la dernière question" : `Super Finale : les ${n} dernières` })))
@@ -1144,7 +1149,7 @@ function refreshReuse() {
     .filter(([id]) => id !== editing?.id)
     .sort(([, a], [, b]) => (b.date ?? "").localeCompare(a.date ?? ""))
     // Une ancienne manche « Super Finale » ne se reprend pas : ce n'est pas un jeu.
-    .flatMap(([id, s]) => (s.rounds ?? []).map((r, i) => [r, i]).filter(([r]) => r && r.type !== "finale" && roundContent(r) != null).map(([r, i]) => ({
+    .flatMap(([id, s]) => (s.rounds ?? []).map((r, i) => [jeuDeLaManche(r, quizzes), i]).filter(([r]) => r && r.type !== "finale" && roundContent(r) != null).map(([r, i]) => ({
       value: `${id}/${i}`, round: r,
       text: `${showTitle(s)}${s.date ? ` (${new Date(`${s.date}T12:00:00`).toLocaleDateString("fr-FR")})` : ""} · ${ROUND_TYPES[r.type] && r.type !== "quiz" ? ROUND_TYPES[r.type] : "Manche"}${roundContent(r) ? ` : ${roundContent(r)}` : ""}`,
     })));
@@ -1218,12 +1223,15 @@ $("show-delete").onclick = async () => {
 
 // ---------- Bibliothèque de quiz ----------
 
-/** Filtre de la bibliothèque de quiz : null (tous), « photo », « classique » ou « images » (Image floue, Zoom mystère). */
+/** Filtre de la bibliothèque de quiz : null (tous), « photo » (Quiz illustré), « classique » (Quiz) ou « images » (Image floue, Zoom mystère). */
 let quizFilter = null;
-const QUIZ_KINDS = { photo: "📷 Quiz photo", classique: "📝 Quiz classique", images: "🖼️ Image floue et Zoom" };
+const QUIZ_KINDS = { photo: "📷 Quiz illustré", classique: "📝 Quiz classique", images: "🖼️ Image floue et Zoom" };
+/** Titre des collections de quiz, selon le jeu dont on vient (chacun ne montre que ses quiz). */
+const QUIZ_COLLECTIONS = { photo: "Quiz illustrés", classique: "Quiz à réponses écrites", images: "Photos à deviner" };
 const QUIZ_FILTERS = {
   photo: (q) => quizKind(q) === "photo",
-  classique: (q) => quizKind(q) === "classique",
+  // Le Quiz joue tout ce qui n'est pas un quiz illustré (les photos à deviner aussi).
+  classique: (q) => quizKind(q) !== "photo",
   images: (q) => quizKind(q) === "images" || QUIZ_GAMES.zoom.questions(q).length > 0,
 };
 
@@ -1251,18 +1259,16 @@ function renderQuizzes() {
   const box = $("quiz-list");
   box.innerHTML = "";
   const all = Object.entries(quizzes).filter(([, q]) => q).sort(([, a], [, b]) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
-  const chip = (label, filter) => h("button", {
-    type: "button", class: `chip${quizFilter === filter ? " active" : ""}`, "data-filter": filter ?? "tous",
-    text: `${label} (${filter ? all.filter(([, q]) => QUIZ_FILTERS[filter](q)).length : all.length})`,
-    onclick: () => { quizFilter = filter; renderQuizzes(); },
-  });
-  $("quiz-kinds").replaceChildren(chip("Tous", null), ...Object.entries(QUIZ_KINDS).map(([k, label]) => chip(label, k)));
+  // Chaque jeu ne montre que ses quiz : classiques pour le Quiz, illustrés pour le Quiz illustré, photos à deviner
+  // pour le Zoom mystère et l'Image floue.
   $("quiz-photos-box").hidden = quizFilter !== "images";
-  $("quizzes-crumb").textContent = ["express", "zoom", "flou"].includes(gameType) ? ROUND_TYPES[gameType] : "Quiz";
+  $("banque-open").hidden = quizFilter !== "photo";
+  $("quizzes-crumb").textContent = ROUND_TYPES[gameType] ?? "Quiz";
+  document.querySelectorAll(".quizzes-link").forEach((b) => { b.textContent = ROUND_TYPES[gameType] ?? "Quiz"; });
+  $("quizzes-h1").textContent = QUIZ_COLLECTIONS[quizFilter] ?? "Tous les quiz";
   if (quizFilter === "images") renderBanqueGalerie();
   const list = quizFilter ? all.filter(([, q]) => QUIZ_FILTERS[quizFilter](q)) : all;
-  if (!all.length) box.append(h("p", { class: "hint", text: "Aucun quiz pour l'instant : « Créer un quiz » vous guide pas à pas." }));
-  else if (!list.length) box.append(h("p", { class: "hint", text: "Aucun quiz de ce type pour l'instant." }));
+  if (!list.length) box.append(h("p", { class: "hint", text: "Aucun quiz pour l'instant : « Créer un quiz » vous guide pas à pas." }));
   list.forEach(([id, q]) => {
     const total = (q.questions ?? []).filter(Boolean).length;
     const ok = playable(q).length;
@@ -1322,13 +1328,17 @@ $("quiz-import-open").onclick = () => {
   importImages.clear();
   $("import-images").textContent = "";
   status("import-status", "");
-  chooseKind(null);
+  // Depuis le Quiz ou le Quiz illustré, le type est déjà choisi : on passe directement à la façon de le créer.
+  const kind = { quiz: "classique", express: "classique", illustre: "photo" }[gameType] ?? null;
+  $("kind-panel").hidden = !!kind;
+  $("import-h1").textContent = kind === "photo" ? "Créer un quiz illustré" : kind ? "Créer un quiz classique" : "Créer un quiz";
+  chooseKind(kind);
   updatePrompt();
   show("import");
 };
 
 /**
- * Créer un quiz : d'abord le type (quiz photo des petits ou quiz classique), puis la façon de le créer.
+ * Créer un quiz : d'abord le type (quiz illustré des petits ou quiz classique), puis la façon de le créer.
  * Les deux types s'importent aussi en fichier JSON, avec leurs photos.
  */
 let creationKind = null;
@@ -1362,25 +1372,25 @@ function chooseWay(way) {
   $("import-gem").hidden = way !== "chatgpt";
   $("import-paste").hidden = way !== "chatgpt" && way !== "json";
   if (way === "chatgpt") {
-    $("import-paste-label").textContent = "4. Coller la réponse";
+    $("import-paste-label").textContent = "Coller la réponse";
     $("import-paste-hint").textContent = "Collez la réponse de ChatGPT. Vous pouvez aussi coller des lignes d'un tableur (colonnes : Question, Réponse A, Réponse B, Réponse C, Réponse D, Bonne réponse, Durée).";
     updatePrompt();
   }
   if (way === "json") {
-    $("import-paste-label").textContent = "3. Déposer le fichier";
+    $("import-paste-label").textContent = "Déposer le fichier";
     $("import-paste-hint").textContent = creationKind === "photo"
       ? "Déposez le fichier JSON du quiz et toutes ses photos ensemble : chaque photo est associée à la réponse qui porte son nom."
       : "Déposez le fichier JSON (ou CSV) du quiz et ses images ensemble : chaque image est associée à la question qui porte son nom.";
     $("import-paste").scrollIntoView({ block: "nearest" });
   }
   if (way === "main") {
-    review(null, { title: creationKind === "photo" ? "Nouveau quiz photo" : "Nouveau quiz", theme: "", ageMin: null, ageMax: null, source: "saisie", kind: creationKind, questions: [] });
+    review(null, { title: creationKind === "photo" ? "Nouveau quiz illustré" : "Nouveau quiz", theme: "", ageMin: null, ageMax: null, source: "saisie", kind: creationKind, questions: [] });
     $("rv-add").click();
   }
   if (way === "banque") openBanque();
 }
 
-/** Réponses du quiz demandé : « images » pour un quiz photo (des mots simples), sinon « texte ». */
+/** Réponses du quiz demandé : « images » pour un quiz illustré (des mots simples), sinon « texte ». */
 const answersMode = () => (creationKind === "photo" ? "images" : "texte");
 
 function updatePrompt() {
@@ -1520,7 +1530,7 @@ function review(id, quiz) {
   $("rv-theme").value = quiz.theme ?? "";
   $("rv-age-min").value = quiz.ageMin ?? "";
   $("rv-age-max").value = quiz.ageMax ?? "";
-  // Quiz photo : questions de la banque et photo par réponse ; quiz classique : Vrai / Faux et Juste Chiffre.
+  // Quiz illustré : questions de la banque et photo par réponse ; quiz classique : Vrai / Faux et Juste Chiffre.
   $("rv-kind").textContent = QUIZ_KINDS[draft.kind];
   $("rv-banque").hidden = draft.kind !== "photo";
   $("rv-banque-panel").hidden = true;
@@ -1890,9 +1900,9 @@ $("rv-banque").onclick = () => {
   if (!panel.hidden) renderBanque();
 };
 
-/** Ouvre un nouveau quiz photo directement sur la banque (depuis « Créer un quiz »). */
+/** Ouvre un nouveau quiz illustré directement sur la banque (depuis « Créer un quiz »). */
 function openBanque() {
-  review(null, { title: "Quiz photo", theme: "", ageMin: null, ageMax: null, source: "banque", kind: "photo", questions: [] });
+  review(null, { title: "Quiz illustré", theme: "", ageMin: null, ageMax: null, source: "banque", kind: "photo", questions: [] });
   $("rv-banque-panel").hidden = false;
   renderBanque();
 }
@@ -2200,13 +2210,13 @@ $("test-create").onclick = async () => {
   try {
     const [q, s] = await Promise.all([get(ref(db, `library/quizzes/${TEST_ID}`)), get(ref(db, `library/shows/${TEST_ID}`))]);
     if (q.exists() || s.exists()) {
-      status("test-status", "Elle existe déjà : retrouvez-la dans Prestations (rien n'a été modifié).", true);
+      status("test-status", "Elle existe déjà : retrouvez-la dans les listes de l'Accueil (rien n'a été modifié).", true);
       return;
     }
     const now = Date.now();
     await set(ref(db, `library/quizzes/${TEST_ID}`), { ...TEST_QUIZ, createdAt: now, updatedAt: serverTimestamp() });
     await set(ref(db, `library/shows/${TEST_ID}`), { ...TEST_SHOW, createdAt: now, updatedAt: serverTimestamp() });
-    status("test-status", "Ajoutée : « ANNIVERSAIRE TEST – Léa, 9 ans » est dans Prestations et sur la régie.", true);
+    status("test-status", "Ajoutée : « ANNIVERSAIRE TEST – Léa, 9 ans » est dans « À venir » et sur la régie.", true);
   } catch (err) {
     console.error(err);
     status("test-status", "Échec de l'ajout. Vérifiez la connexion puis réessayez.");
@@ -2258,13 +2268,19 @@ $("test-full-create").onclick = async () => {
       // Prestation de test d'une version précédente : on lui ajoute seulement les jeux qui lui manquent
       // (avant la Super Finale), sans rien retirer ni modifier d'autre.
       // L'ancienne manche « Super Finale » disparaît : les dernières questions du quiz comptent double à la place.
-      const { rounds, folded, converted } = foldLegacyFinale(existing.rounds);
+      const { rounds: anciennes, folded, converted } = foldLegacyFinale(existing.rounds);
+      // Le quiz en images des petits devient un Quiz illustré, avec son écran d'ouverture.
+      const illustre = anciennes.some((r) => (r.type ?? "quiz") === "quiz" && r.quizId === FULL_KEYS.images);
+      const rounds = anciennes.map((r) => ((r.type ?? "quiz") === "quiz" && r.quizId === FULL_KEYS.images ? { ...r, type: "illustre" } : r));
+      // Anciens noms des quiz de test (« Quiz illustré » ne désigne plus que le jeu des réponses en images).
+      const renommer = [FULL_KEYS.quiz, FULL_KEYS.images].filter((k) => OLD_TEST_TITLES[quizzes[k]?.title]);
       const missing = FULL_NEW_ROUNDS.filter((m) => !rounds.some((r) => r.type === m.type && (!m.quizId || r.quizId === m.quizId)));
-      if (existing.origin !== "test" || (!missing.length && !folded && !converted)) {
-        status("test-full-status", "Elle existe déjà : retrouvez-la dans Prestations (rien n'a été modifié).", true);
+      if (existing.origin !== "test" || (!missing.length && !folded && !converted && !illustre && !renommer.length)) {
+        status("test-full-status", "Elle existe déjà : retrouvez-la dans les listes de l'Accueil (rien n'a été modifié).", true);
         return;
       }
       status("test-full-status", "Ajout des nouveaux jeux à la prestation de test…", true);
+      for (const k of renommer) await update(ref(db, `library/quizzes/${k}`), { title: OLD_TEST_TITLES[quizzes[k].title], updatedAt: serverTimestamp() });
       if (missing.some((m) => m.playlistId)) await addTunes(Date.now());
       if (missing.some((m) => m.quizId === FULL_KEYS.images)) await addImageQuiz(Date.now());
       // La bombe cachée reste le jeu final : tout à la fin.
@@ -2274,8 +2290,8 @@ $("test-full-create").onclick = async () => {
       const at = rounds.findIndex((r) => r.type === "coffres");
       const next = [...(at < 0 ? [...rounds, ...middle] : [...rounds.slice(0, at), ...middle, ...rounds.slice(at)]), ...last];
       await set(ref(db, `library/shows/${FULL_ID}`), { ...existing, rounds: next, notes: FULL_SHOW.notes, updatedAt: serverTimestamp() });
-      const added = missing.map((m) => (m.quizId === FULL_KEYS.images ? "Quiz en images" : ROUND_TYPES[m.type])).join(", ");
-      status("test-full-status", `Mise à jour de « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux » :${added ? ` ${added} ajouté(s).` : ""}${folded ? " L'ancienne manche « Super Finale » est retirée : les 3 dernières questions du quiz comptent double." : ""}${converted ? " Les Portes mystères deviennent La bombe cachée." : ""} Rechargez la prestation dans la régie.`, true);
+      const added = missing.map((m) => ROUND_TYPES[m.type]).join(", ");
+      status("test-full-status", `Mise à jour de « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux » :${added ? ` ${added} ajouté(s).` : ""}${folded ? " L'ancienne manche « Super Finale » est retirée : les 3 dernières questions du quiz comptent double." : ""}${converted ? " Les Portes mystères deviennent La bombe cachée." : ""}${illustre ? " Le quiz en images des petits devient un Quiz illustré." : ""}${renommer.length ? " Quiz de test renommés : « TEST – Quiz classique de Léa » et « TEST – Quiz illustré des petits »." : ""} Rechargez la prestation dans la régie.`, true);
       return;
     }
     status("test-full-status", "Préparation des photos, des musiques et des jeux…", true);
@@ -2297,7 +2313,7 @@ $("test-full-create").onclick = async () => {
     }
     await addIfMissing(`library/mimes/${FULL_KEYS.mimes}`, { ...FULL_MIMES, createdAt: now, updatedAt: serverTimestamp() });
     await set(ref(db, `library/shows/${FULL_ID}`), { ...FULL_SHOW, createdAt: now, updatedAt: serverTimestamp() });
-    status("test-full-status", "Ajoutée : « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux » est dans Prestations et sur la régie.", true);
+    status("test-full-status", "Ajoutée : « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux » est dans « À venir » et sur la régie.", true);
   } catch (err) {
     console.error(err);
     status("test-full-status", "Échec de l'ajout. Vérifiez la connexion puis réessayez.");
@@ -3354,8 +3370,10 @@ const plural = (n, word, many = `${word}s`) => `${n} ${n > 1 ? many : word}`;
 /** Les jeux par famille : ce qui se prépare dans la bibliothèque, ce qui vient d'un quiz, ce qui est intégré. */
 const GAME_GROUPS = [
   { title: "Avec vos contenus", hint: "Vous préparez le contenu dans la bibliothèque, une fois, et vous le réutilisez dans toutes les prestations.", games: [
-    { type: "quiz", icon: "?", rule: "Questions à 2, 3 ou 4 propositions sur les pupitres ; toutes les équipes qui trouvent marquent. Une question peut aussi être un « Juste Chiffre » (réponse en nombre). Super Finale : dans la prestation, les dernières questions du quiz peuvent compter ×2, ×3 ou ×5 (choisi en direct sur la régie).",
-      status: () => { const ok = Object.values(quizzes).reduce((t, q) => t + playable(q).length, 0); return `${plural(Object.keys(quizzes).length, "quiz", "quiz")} · ${plural(ok, "question validée", "questions validées")}`; }, },
+    { type: "quiz", icon: "?", rule: "Questions à 2, 3 ou 4 réponses écrites sur les pupitres ; toutes les équipes qui trouvent marquent. Une question peut aussi être un « Juste Chiffre » (réponse en nombre) et montrer une petite photo à la révélation. Super Finale : dans la prestation, les dernières questions du quiz peuvent compter ×2, ×3 ou ×5 (choisi en direct sur la régie).",
+      status: () => quizTileLine(quizQuestions), },
+    { type: "illustre", icon: "📷", rule: "Pour les petits, dès 5 ans : l'animatrice lit la question, chaque réponse est une photo avec son mot, sur la TV et les tablettes. Toutes les équipes qui trouvent marquent, comme au Quiz. Les questions se piochent dans la banque des tout-petits (388 mots en photos) ou se font à la main.",
+      status: () => quizTileLine(illustreQuestions), },
     { type: "mimes", icon: "🎭", rule: "Équipe par équipe : un enfant devine, ses coéquipiers miment l'image. 50 points par mime trouvé.",
       status: () => `${plural(Object.keys(mimes).length, "collection perso", "collections perso")} · ${plural(mancheGroups(manches, "mimes").pinned.length + mancheGroups(manches, "mimes").active.length, "manche")}`, },
     { type: "blind", icon: "🎵", rule: "Les morceaux d'une playlist, dans l'ordre : le premier qui buzze donne le titre à voix haute, vous validez.",
@@ -3380,6 +3398,13 @@ const GAME_GROUPS = [
     { type: "gonfleur", icon: "🎈", rule: "Chaque équipe tapote sa tablette le plus vite possible pour gonfler son ballon sur la TV ; on peut se relayer. Le premier ballon qui éclate gagne 300 points, les autres équipes 150. Depuis la régie, « Arrêter la course » donne la victoire au plus gros ballon." },
   ] },
 ];
+
+/** « 3 quiz · 26 questions validées » : les quiz d'un jeu ([questions] : celles qu'il joue). */
+function quizTileLine(questions) {
+  const used = Object.values(quizzes).filter((q) => q && questions(q).length);
+  const ok = used.reduce((t, q) => t + questions(q).length, 0);
+  return `${plural(used.length, "quiz", "quiz")} · ${plural(ok, "question validée", "questions validées")}`;
+}
 
 /** Règle et état du contenu d'un jeu : sur sa tuile de l'accueil et sur sa page. */
 function gameInfo(g) {
@@ -3631,7 +3656,8 @@ let mancheEdit = null;
 
 /** Écran des collections d'un jeu (onglet voisin de ses manches), ou null pour un jeu sans contenu. */
 const COLLECTION_SCREEN = {
-  quiz: () => showQuizzes(null), express: () => showQuizzes(null), zoom: () => showQuizzes("images"), flou: () => showQuizzes("images"),
+  quiz: () => showQuizzes("classique"), illustre: () => showQuizzes("photo"), express: () => showQuizzes("classique"),
+  zoom: () => showQuizzes("images"), flou: () => showQuizzes("images"),
   mimes: () => show("mimes"), blind: () => show("music"), musical: () => show("music"), statues: () => openStatuesSongs(),
   chante: () => openBuiltin("chante"), quisuis: () => openBuiltin("quisuis"), disparu: () => openBuiltin("disparu"), pictionary: () => openBuiltin("pictionary"),
 };
@@ -3679,7 +3705,7 @@ function renderGame() {
   const query = $("manche-search").value.trim();
   const lib = { mimes, playlists, quizzes };
   const trouve = (l) => parPertinence(l.filter(([, m]) => contientTout([m.title, mancheSummary(m.round, lib)], query)), query, ([, m]) => m.title, ([, m]) => mancheSummary(m.round, lib));
-  const groupes = mancheGroups(manches, type);
+  const groupes = mancheGroups(manches, type, quizzes);
   const [pinned, active, archived] = [trouve(groupes.pinned), trouve(groupes.active), trouve(groupes.archived)];
   $("manches-pinned-box").hidden = !pinned.length;
   $("manches-pinned").replaceChildren(...pinned.map(([id, m]) => mancheCard(id, m)));
@@ -3690,7 +3716,7 @@ function renderGame() {
   // Manches déjà placées dans les prestations : on peut les garder comme manches.
   const fromShows = Object.entries(shows).filter(([, s]) => s)
     .sort(([, a], [, b]) => (b.date ?? "").localeCompare(a.date ?? ""))
-    .flatMap(([sid, s]) => foldLegacyFinale(s.rounds).rounds.filter((r) => (r.type ?? "quiz") === type && roundFilled(r)).map((r) => [sid, s, r]))
+    .flatMap(([sid, s]) => foldLegacyFinale(s.rounds).rounds.map((r) => jeuDeLaManche(r, quizzes)).filter((r) => (r.type ?? "quiz") === type && roundFilled(r)).map((r) => [sid, s, r]))
     .filter(([, s, r]) => contientTout([showTitle(s), s.date ? dateLabel(s.date) : "", r.title, mancheSummary(r, lib)], query));
   // Les résultats rangés dans les archives ou les prestations s'ouvrent tout seuls.
   if (query) {
@@ -3765,9 +3791,12 @@ const mancheCtx = {
 
 /** Ouvre une manche ; sans identifiant, une nouvelle ([fresh] : son contenu de départ, sinon vide). */
 function editManche(id, fresh = null) {
-  const m = id ? manches[id] : fresh ?? { type: gameType, title: "", round: { type: gameType } };
+  const saved = id ? manches[id] : fresh ?? { type: gameType, title: "", round: { type: gameType } };
+  // Une ancienne manche « Quiz » de quiz illustrés s'ouvre (et s'enregistre) en Quiz illustré.
+  const round = jeuDeLaManche(saved.round ?? { type: saved.type }, quizzes);
+  const m = { ...saved, type: round.type ?? saved.type, round };
   gameType = m.type;
-  mancheEdit = { id, type: m.type, round: JSON.parse(JSON.stringify(m.round ?? { type: m.type })) };
+  mancheEdit = { id, type: m.type, round: JSON.parse(JSON.stringify(m.round)) };
   if (m.type === "mimes" && !id && !fresh?.round?.perTeam && !mimeCards(mancheEdit.round.cards).length) {
     mancheEdit.round.perTeam = MIME_PER_TEAM_DEFAULT;
     mancheEdit.round.random = true;

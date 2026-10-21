@@ -12,6 +12,7 @@ import { ref, get, set, update, onValue, serverTimestamp } from "firebase/databa
 import { chromium } from "playwright";
 import { loadRules, seedAdmin, allowBox, ADMIN_PASSWORD } from "./rules-loader.js";
 import { lockedUntil } from "../web/public/show.js";
+import { FULL_SHOW, FULL_KEYS, FULL_QUIZZES } from "../web/public/test-show.js";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 
@@ -1615,9 +1616,9 @@ async function openGamePage(page, type, tab = null) {
   if (tab) await page.click(`#game-tabs [data-tab=${tab}]`);
 }
 
-/** Régie PC : la bibliothèque de quiz, onglet Collections de la page du jeu Quiz. */
-async function openQuizzes(page) {
-  await openGamePage(page, "quiz", "collections");
+/** Régie PC : les quiz d'un jeu, onglet Collections de sa page (le Quiz, ou le Quiz illustré). */
+async function openQuizzes(page, type = "quiz") {
+  await openGamePage(page, type, "collections");
   await page.locator("#screen-quizzes:not([hidden])").waitFor();
 }
 
@@ -1654,13 +1655,18 @@ describe("bibliothèque de quiz et prestations", () => {
 
   test("Sarah colle un quiz Gemini, corrige l'anomalie signalée, valide et enregistre", async () => {
     const page = await admin();
+    // Le type de quiz vient du jeu : Quiz illustré (banque, à la main, fichier), Quiz (ChatGPT en plus).
+    await openQuizzes(page, "illustre");
+    await page.click("#quiz-import-open");
+    assert.equal(await page.locator("#kind-panel").isHidden(), true);
+    assert.equal(await page.textContent("#import-h1"), "Créer un quiz illustré");
+    assert.deepEqual(await page.locator("#kind-ways-list .kind-way").evaluateAll((b) => b.map((x) => x.dataset.way)), ["banque", "main", "json"]);
     await openQuizzes(page);
     await page.click("#quiz-import-open");
-    // D'abord le type de quiz, puis la façon de le créer : ChatGPT n'est proposé que pour le quiz classique.
+    assert.equal(await page.locator("#kind-panel").isHidden(), true);
+    assert.equal(await page.textContent("#import-h1"), "Créer un quiz classique");
     assert.equal(await page.locator("#import-gem").isHidden(), true);
-    await page.click('.kind-card[data-kind=photo]');
-    assert.deepEqual(await page.locator("#kind-ways-list .kind-way").evaluateAll((b) => b.map((x) => x.dataset.way)), ["banque", "main", "json"]);
-    await page.click('.kind-card[data-kind=classique]');
+    assert.deepEqual(await page.locator("#kind-ways-list .kind-way").evaluateAll((b) => b.map((x) => x.dataset.way)), ["main", "chatgpt", "json"]);
     await page.click('#kind-ways-list [data-way=chatgpt]');
     await page.fill("#gem-theme", "La jungle");
     await page.fill("#gem-age", "8");
@@ -1755,9 +1761,10 @@ describe("bibliothèque de quiz et prestations", () => {
     const page = await admin();
     // Le menu : Accueil, Bibliothèque, Paramètres (plus de page Jeux ni Prestations : tout part de l'Accueil).
     assert.deepEqual(await page.locator("#nav button").allInnerTexts(), ["Accueil", "Bibliothèque", "Paramètres"]);
-    // 15 jeux (dont le Pictionary, la bombe cachée, le Gonfleur fou et la patate chaude) : la Super Finale n'en est pas un, c'est la fin du quiz (réglage de la manche Quiz).
+    // 16 jeux (dont le Quiz illustré, le Pictionary, la bombe cachée, le Gonfleur fou et la patate chaude) : la Super Finale n'en est pas un, c'est la fin du quiz (réglage de la manche Quiz).
     const tile = (type) => page.locator(`#screen-home .tile[data-game="${type}"]`);
-    assert.equal(await page.locator("#screen-home .tile[data-game]").count(), 15);
+    assert.equal(await page.locator("#screen-home .tile[data-game]").count(), 16);
+    await tile("illustre").waitFor();
     await tile("patate").waitFor();
     await tile("gonfleur").waitFor();
     await tile("pictionary").waitFor();
@@ -2674,9 +2681,9 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
-  test("Régie PC : l'accueil montre les 15 jeux par famille, chacun mène à ce qui se prépare", async () => {
+  test("Régie PC : l'accueil montre les 16 jeux par famille, chacun mène à ce qui se prépare", async () => {
     const page = await admin();
-    assert.equal(await page.locator("#home-games .tile").count(), 15);
+    assert.equal(await page.locator("#home-games .tile").count(), 16);
     assert.equal(await page.locator("#home-games h3").count(), 4);
     assert.equal(await page.locator("#home-import").count(), 0, "Importer un quiz : seulement dans la rubrique Quiz");
     // Chaque tuile ouvre la page du jeu (ses manches) ; l'onglet Collections mène à son contenu.
@@ -2893,6 +2900,82 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.locator("#lib-list [data-game='zoom/zoo']").click();
     await regie.click("#lib-end");
     await regie.locator("#r-toast", { hasText: "pour jouer au Zoom mystère" }).waitFor();
+    await regie.context().close();
+  });
+
+  test("Quiz illustré : sa tuile et ses quiz à part, sa manche dans une prestation, la TV l'ouvre sur « Quiz illustré » ; une ancienne manche Quiz d'un quiz illustré en devient un", async () => {
+    const PNG = `data:image/png;base64,${png([200, 120, 60]).toString("base64")}`;
+    const ids = ["1111111111111111", "2222222222222222", "3333333333333333", "4444444444444444"];
+    const PETITS = {
+      title: "Les animaux des petits", kind: "photo", source: "banque", updatedAt: 1,
+      questions: [
+        { text: "Où est le chat ?", choices: ["Chat", "Chien", "Vache", "Lion"], correct: 0, status: "validee", choiceImages: ids },
+        { text: "Où est le lion ?", choices: ["Chat", "Chien", "Vache", "Lion"], correct: 3, status: "validee", choiceImages: ids },
+      ],
+    };
+    await seedLibrary("quizzes", { animaux: ANIMAUX, petits: PETITS });
+    await seedLibrary("images", Object.fromEntries(ids.map((id) => [id, PNG])));
+    // Prestation d'avant la tuile : le quiz illustré était dans une manche « Quiz ».
+    await seedLibrary("shows", { lea: { childName: "Léa", age: 5, date: "2099-12-02", status: "publiee", rounds: [{ type: "quiz", quizId: "petits", finale: 1 }, { type: "quiz", quizId: "animaux" }], updatedAt: 1 } });
+    const page = await admin();
+    // Chaque tuile compte ses quiz ; chaque page ne montre que les siens.
+    await page.locator('#screen-home .tile[data-game="illustre"]', { hasText: "1 quiz · 2 questions validées" }).waitFor();
+    await page.locator('#screen-home .tile[data-game="quiz"]', { hasText: "1 quiz · 2 questions validées" }).waitFor();
+    await openQuizzes(page, "illustre");
+    assert.deepEqual(await page.locator("#quiz-list .item").evaluateAll((els) => els.map((e) => e.dataset.quiz)), ["petits"]);
+    assert.equal(await page.textContent("#quizzes-crumb"), "Quiz illustré");
+    await page.locator("#banque-open").waitFor();
+    await openQuizzes(page);
+    assert.deepEqual(await page.locator("#quiz-list .item").evaluateAll((els) => els.map((e) => e.dataset.quiz)), ["animaux"]);
+
+    // Une manche composée dans la page du jeu : seuls les quiz illustrés se choisissent.
+    await openGamePage(page, "illustre");
+    await page.locator("#game-h1", { hasText: "📷 Quiz illustré" }).waitFor();
+    await page.click("#manche-new");
+    const choix = page.locator("#manche-fields .quiz-picks select").first();
+    assert.deepEqual(await choix.locator("option").evaluateAll((o) => o.map((x) => x.value)), ["", "petits"]);
+    await choix.selectOption("petits");
+    await page.fill("#manche-title", "Les petits animaux");
+    await page.click("#manche-save");
+    await page.locator("#manche-status", { hasText: "Manche enregistrée" }).waitFor();
+    const [mancheId, manche] = Object.entries(await library("manches"))[0];
+    assert.equal(manche.type, "illustre");
+    assert.deepEqual(manche.round, { type: "illustre", quizId: "petits" });
+
+    // L'ancienne prestation s'ouvre avec un Quiz illustré (Super Finale gardée) et s'enregistre ainsi.
+    await page.click("#nav button[data-screen=home]");
+    await page.click('#screen-home [data-etat="avenir"]');
+    await page.locator('#show-list [data-show="lea"]').getByRole("button", { name: "Ouvrir" }).click();
+    const premiere = page.locator("#show-rounds .round").nth(0);
+    assert.equal(await premiere.locator("select.round-type").inputValue(), "illustre");
+    assert.equal(await premiere.locator("select.finale").inputValue(), "1");
+    assert.deepEqual(await premiere.locator(".quiz-picks select").first().locator("option").evaluateAll((o) => o.map((x) => x.value)), ["", "petits"]);
+    // Le Quiz ne propose pas le quiz illustré.
+    const seconde = page.locator("#show-rounds .round").nth(1);
+    assert.deepEqual(await seconde.locator(".quiz-picks select").first().locator("option").evaluateAll((o) => o.map((x) => x.value)), ["", "animaux"]);
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
+    assert.deepEqual((await library("shows/lea")).rounds[0], { type: "illustre", quizId: "petits", finale: 1 });
+    await page.context().close();
+
+    // La TV : le jeu s'appelle « Quiz illustré » (écran d'ouverture), réponses en images copiées dans la partie.
+    box = startBox();
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "Léa" }).click();
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    const show = await read("show");
+    assert.deepEqual(show.rounds.map((r) => r.title), ["Quiz illustré", "Animaux"]);
+    assert.deepEqual(show.quiz.questions.map((q) => [q.round, q.choiceImages?.length ?? 0, !!q.finale]), [["Quiz illustré", 4, false], ["Quiz illustré", 4, true], ["Animaux", 0, false], ["Animaux", 0, false]]);
+    await waitFor(async () => Object.keys((await read("choiceImages")) ?? {}).length === 4, "réponses en images copiées dans la partie");
+    // En direct : le quiz illustré est proposé en Quiz illustré (avec sa manche), jamais en Quiz.
+    await regie.click("#tab-plan");
+    await regie.click("#plan-add");
+    await regie.locator("#lib-list [data-game='illustre/petits']", { hasText: "Quiz illustré : Les animaux des petits" }).waitFor();
+    await regie.locator(`#lib-list [data-game='manche/${mancheId}']`, { hasText: "Quiz illustré" }).waitFor();
+    await regie.locator("#lib-list [data-game='quiz/animaux']").waitFor();
+    assert.equal(await regie.locator("#lib-list [data-game='quiz/petits']").count(), 0);
     await regie.context().close();
   });
 
@@ -3187,14 +3270,13 @@ describe("bibliothèque de quiz et prestations", () => {
 
   test("banque des tout-petits : 10 questions au hasard, une image par réponse, relues puis enregistrées", async () => {
     const page = await admin();
-    await openQuizzes(page);
+    await openQuizzes(page, "illustre");
     await page.click("#quiz-import-open");
-    await page.click('.kind-card[data-kind=photo]');
     await page.click('#kind-ways-list [data-way=banque]');
     const panel = page.locator("#rv-banque-panel");
     await panel.locator(".banque-q").first().waitFor();
-    assert.equal(await page.inputValue("#rv-title"), "Quiz photo");
-    await page.locator("#rv-kind", { hasText: "Quiz photo" }).waitFor();
+    assert.equal(await page.inputValue("#rv-title"), "Quiz illustré");
+    await page.locator("#rv-kind", { hasText: "Quiz illustré" }).waitFor();
     // Recherche d'un mot : les questions qui l'ont en réponse ou dans le texte.
     await page.fill("#rv-banque-cherche", "girafe");
     await panel.locator('.banque-q:has-text("Où est la girafe ?")').waitFor();
@@ -3217,12 +3299,14 @@ describe("bibliothèque de quiz et prestations", () => {
     const [quiz] = Object.values(await library("quizzes"));
     assert.equal(quiz.source, "banque");
     assert.equal(quiz.kind, "photo");
-    // La bibliothèque range les quiz par type : filtre « Quiz photo ».
+    // Chaque jeu montre ses quiz : celui-ci est dans le Quiz illustré, pas dans le Quiz.
+    await openQuizzes(page, "illustre");
+    assert.equal(await page.textContent("#quizzes-h1"), "Quiz illustrés");
+    await page.locator("#quiz-list .item", { hasText: "Quiz illustré" }).waitFor();
     await openQuizzes(page);
-    await page.locator("#quiz-kinds .chip", { hasText: "Quiz photo" }).click();
-    await page.locator("#quiz-list .item", { hasText: "Quiz photo" }).waitFor();
-    await page.locator("#quiz-kinds .chip", { hasText: "Quiz classique" }).click();
-    await page.locator("#quiz-list .item").first().waitFor({ state: "detached" });
+    assert.equal(await page.textContent("#quizzes-h1"), "Quiz à réponses écrites");
+    assert.equal(await page.locator("#quiz-list .item").count(), 0);
+    assert.equal(await page.locator("#banque-open").isHidden(), true, "la banque des tout-petits est dans le Quiz illustré");
     const tambour = quiz.questions.find((q) => q.text === "Sur quoi tape-t-on avec des baguettes ?");
     assert.equal(tambour.choices[tambour.correct], "Tambour");
     assert.ok(quiz.questions.every((q) => q.choices.length === 4 && q.choiceImages.length === 4 && q.choiceImages.every((id) => /^[0-9a-f]{16}$/.test(id))));
@@ -3234,7 +3318,7 @@ describe("bibliothèque de quiz et prestations", () => {
 
   test("banque des tout-petits : Sarah remplace la photo d'un mot, les questions ajoutées ensuite la prennent", async () => {
     const page = await admin();
-    await openQuizzes(page);
+    await openQuizzes(page, "illustre");
     await page.click("#banque-open");
     const chat = page.locator('#banque-mots [data-mot="chat"]');
     await chat.waitFor();
@@ -3251,9 +3335,8 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.match(id, /^[0-9a-f]{16}$/);
     await chat.locator("button[title='Remettre la photo de la banque']").waitFor();
     // Nouveau quiz : la question « miaou » prend la photo de Sarah pour « Chat ».
-    await openQuizzes(page);
+    await openQuizzes(page, "illustre");
     await page.click("#quiz-import-open");
-    await page.click('.kind-card[data-kind=photo]');
     await page.click('#kind-ways-list [data-way=banque]');
     await page.locator('#rv-banque-panel .banque-q:has-text("miaou") input').check();
     await page.click("#rv-banque-add");
@@ -3264,7 +3347,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const q = quiz.questions[0];
     assert.equal(q.choiceImages[q.choices.indexOf("Chat")], id);
     // « ↺ » remet la photo de la banque.
-    await openQuizzes(page);
+    await openQuizzes(page, "illustre");
     await page.click("#banque-open");
     await page.locator('#banque-mots [data-mot="chat"] button[title="Remettre la photo de la banque"]').click();
     await page.locator("#banque-status", { hasText: "photo de la banque remise" }).waitFor();
@@ -3320,9 +3403,8 @@ describe("bibliothèque de quiz et prestations", () => {
       { text: "Quelle est la capitale de la France ?", choices: ["Paris", "Rome"], correct: 0 },
     ] });
     const page = await admin();
-    await openQuizzes(page);
+    await openQuizzes(page, "illustre");
     await page.click("#quiz-import-open");
-    await page.click('.kind-card[data-kind=photo]');
     await page.click('#kind-ways-list [data-way=json]');
     await page.locator("#import-file").setInputFiles([
       { name: "quiz.json", mimeType: "application/json", buffer: Buffer.from(json) },
@@ -3448,7 +3530,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(kinds, ["classic", "number", "express", "mime", "zoom", "chante", "flou", "quisuis", "disparu", "blind", "statues", "pictionary", "gonfleur", "patate", "coffres"]);
     assert.equal((await read("show")).quiz.questions.filter((q) => q.kind === "classic" && q.audioId).length, 4, "quiz musical sur les comptines");
     await waitFor(async () => Object.keys((await read("images")) ?? {}).length === 4, "photos copiées dans la partie");
-    assert.equal((await read("show")).quiz.questions.filter((q) => q.choiceImages?.length === 4).length, 2, "quiz en images des petits");
+    assert.equal((await read("show")).quiz.questions.filter((q) => q.choiceImages?.length === 4 && q.round === "Quiz illustré").length, 2, "Quiz illustré des petits");
     await waitFor(async () => Object.keys((await read("choiceImages")) ?? {}).length === 8, "réponses en images copiées dans la partie");
     await waitFor(async () => Object.keys((await read("sounds")) ?? {}).length === 4, "comptines copiées dans la partie", 15000);
     await regie.context().close();
@@ -3466,12 +3548,39 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
     const show = await library("shows/test-lea-tous-les-jeux");
     // L'ancienne manche « Super Finale » disparaît : les 3 dernières questions du quiz comptent double.
-    assert.deepEqual(show.rounds.map((r) => r.type), ["quiz", "chante", "disparu", "blind", "musical", "statues", "pictionary", "quiz", "gonfleur", "patate", "coffres"]);
+    assert.deepEqual(show.rounds.map((r) => r.type), ["quiz", "chante", "disparu", "blind", "musical", "statues", "pictionary", "illustre", "gonfleur", "patate", "coffres"]);
     assert.equal(show.rounds[0].finale, 3);
     assert.equal(show.rounds[7].quizId, "test-lea-tous-les-jeux-images");
     assert.equal((await library("quizzes"))["test-lea-tous-les-jeux-images"].questions.length, 2);
     assert.equal(show.childName, "Léa");
     assert.equal(Object.keys(await library("sounds")).length, 4);
+  });
+
+  test("prestation de test « tous les jeux » d'hier : le quiz des petits devient un Quiz illustré, les quiz de test sont renommés, rien d'autre ne change", async () => {
+    // Version du 20 octobre : le quiz des petits dans une manche « Quiz », un quiz classique nommé « Quiz illustré ».
+    const hier = { ...FULL_SHOW, origin: "test", updatedAt: 1, rounds: FULL_SHOW.rounds.map((r) => (r.type === "illustre" ? { ...r, type: "quiz" } : r)) };
+    await seedLibrary("shows/test-lea-tous-les-jeux", hier);
+    await seedLibrary("quizzes", {
+      [FULL_KEYS.quiz]: { ...FULL_QUIZZES[FULL_KEYS.quiz], title: "TEST – Quiz illustré de Léa", updatedAt: 1 },
+      [FULL_KEYS.images]: { title: "TEST – Quiz en images des petits", source: "saisie", updatedAt: 1, questions: [{ text: "Où est le chat ?", choices: ["Chat", "Chien"], correct: 0, status: "validee", choiceImages: ["1111111111111111", "2222222222222222"] }] },
+      animaux: ANIMAUX,
+    });
+    const page = await admin();
+    await page.click("#nav button[data-screen=settings]");
+    await page.click("#test-full-create");
+    await page.locator("#test-full-status", { hasText: "Le quiz en images des petits devient un Quiz illustré." }).waitFor({ timeout: 20000 });
+    await page.locator("#test-full-status", { hasText: "Quiz de test renommés" }).waitFor();
+    const show = await library("shows/test-lea-tous-les-jeux");
+    assert.deepEqual(show.rounds, FULL_SHOW.rounds, "seule la manche des petits change de jeu");
+    const quizzes = await library("quizzes");
+    assert.equal(quizzes[FULL_KEYS.quiz].title, "TEST – Quiz classique de Léa");
+    assert.equal(quizzes[FULL_KEYS.images].title, "TEST – Quiz illustré des petits");
+    assert.deepEqual(quizzes[FULL_KEYS.quiz].questions, FULL_QUIZZES[FULL_KEYS.quiz].questions, "questions intactes");
+    assert.deepEqual(quizzes.animaux, ANIMAUX, "quiz de Sarah intact");
+    // Une seconde fois : plus rien à faire.
+    await page.click("#test-full-create");
+    await page.locator("#test-full-status", { hasText: "existe déjà" }).waitFor();
+    await page.context().close();
   });
 
   test("Sarah importe ses fichiers musicaux : extraits réencodés en MP3 léger, titre et artiste devinés, chargés sur la TV", async () => {

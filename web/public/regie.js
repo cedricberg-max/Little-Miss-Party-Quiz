@@ -9,7 +9,7 @@ import {
   buildSnapshot, showTitle, playable, QUIZ_GAMES, BUILTIN_GAMES, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame, imageIds, choiceImageIds,
   soundIds, MUSIC_GAMES, playableTracks, STATUES_SEC, PICTO_SEC, isStatuesList, statuesSongs, MAX_STATUES_SONGS,
   isFutureRound, moveRound, removeRound, uniqueRoundTitle, roundQuizIds, mimePool, mimeCards, CONTENT_GAMES, activeItems, pictoSeriesOf,
-  isArchived, isPhotoTheme, disparuGroup, statuesChoices,
+  isArchived, isPhotoTheme, disparuGroup, statuesChoices, quizQuestions, jeuDeLaManche, quizKind,
 } from "./show.js";
 import { MIME_CATALOG } from "./mime-cards.js";
 import {
@@ -1236,10 +1236,10 @@ async function fetchLibrary() {
     const contents = c.val() ?? {};
     // Manches enregistrées dans la Régie PC (page de chaque jeu) : les épinglées d'abord, jamais les archivées.
     const saved = Object.keys(ROUND_TYPES).flatMap((type) => {
-      const { pinned: pins, active } = mancheGroups(sm.val() ?? {}, type);
-      return [...pins, ...active];
+      const { pinned: pins, active } = mancheGroups(sm.val() ?? {}, type, quizzes);
+      return [...pins, ...active].map(([id, mc]) => [id, mc, type]);
     }).sort(([, a], [, b]) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0))
-      .map(([id, mc]) => ({ key: `manche/${id}`, label: mc.title, from: `${mc.pinned ? "⭐ " : ""}${ROUND_TYPES[mc.type] ?? mc.type}`, manche: true, source: cleanRound(mc.round, playlists) }));
+      .map(([id, mc, type]) => ({ key: `manche/${id}`, label: mc.title, from: `${mc.pinned ? "⭐ " : ""}${ROUND_TYPES[type] ?? type}`, manche: true, source: cleanRound(mc.round, playlists) }));
     // Blind test et quiz musical : proposés pour chaque playlist qui a des extraits.
     const music = Object.entries(MUSIC_GAMES).flatMap(([type]) => Object.entries(playlists)
       .filter(([, pl]) => pl?.title && !isStatuesList(pl) && playableTracks(pl).length >= (type === "musical" ? 2 : 1))
@@ -1251,19 +1251,20 @@ async function fetchLibrary() {
       .map(([id, d]) => ({ key: `mimes/${id}`, label: d.title, source: { type: "mimes", deckId: id } }));
     // Mimes sans paquet préparé : tirés dans toutes les collections selon l'âge, cartes modifiables avant l'ajout.
     decks.unshift({ key: "mimes/hasard", label: "Mimes au hasard", random: true, source: { type: "mimes", random: true } });
-    // Vrai ou Faux express et Zoom mystère : proposés pour chaque quiz qui a les questions qu'il faut.
+    // Quiz illustré, Vrai ou Faux express, Zoom mystère, Image floue : proposés pour chaque quiz qui a les questions qu'il faut.
     const quizGames = Object.entries(QUIZ_GAMES).flatMap(([type, game]) => Object.entries(quizzes)
       .filter(([, quiz]) => quiz?.title && game.questions(quiz).length)
       .sort((a, b) => a[1].title.localeCompare(b[1].title, "fr"))
       .map(([id, quiz]) => ({ key: `${type}/${id}`, label: `${ROUND_TYPES[type]} : ${quiz.title}`, source: { type, quizId: id } })));
+    // Quiz : les quiz classiques (les quiz illustrés sont proposés en Quiz illustré).
     const games = Object.entries(quizzes)
-      .filter(([, quiz]) => quiz?.title)
+      .filter(([, quiz]) => quiz?.title && quizKind(quiz) !== "photo")
       .sort((a, b) => a[1].title.localeCompare(b[1].title, "fr"))
       .map(([id, quiz]) => ({ key: `quiz/${id}`, label: quiz.title, source: { type: "quiz", quizId: id } }));
     const rounds = Object.entries(s.val() ?? {})
       .filter(([, show]) => show)
       .sort((a, b) => (b[1].date ?? "").localeCompare(a[1].date ?? ""))
-      .flatMap(([id, show]) => (show.rounds ?? []).filter((r) => r && r.type !== "mimes" && r.type !== "statues" && r.type !== "pictionary" && r.type !== "portes" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "finale" && !BUILTIN_GAMES[r.type] && !MUSIC_GAMES[r.type]).map((round, i) => {
+      .flatMap(([id, show]) => (show.rounds ?? []).map((r) => jeuDeLaManche(r, quizzes)).filter((r) => r && r.type !== "mimes" && r.type !== "statues" && r.type !== "pictionary" && r.type !== "portes" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "finale" && !BUILTIN_GAMES[r.type] && !MUSIC_GAMES[r.type]).map((round, i) => {
         const title = roundQuizIds(round).map((q) => quizzes[q]?.title).filter(Boolean).join(" + ") || `Manche ${i + 1}`;
         const label = QUIZ_GAMES[round.type] ? `${ROUND_TYPES[round.type]} : ${title}` : title;
         const date = show.date ? ` (${new Date(`${show.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })})` : "";
@@ -1284,7 +1285,7 @@ async function fetchLibrary() {
     const pinned = Object.entries(s.val() ?? {})
       .filter(([, show]) => show?.pinned && isArchived(show))
       .sort((a, b) => showTitle(a[1]).localeCompare(showTitle(b[1]), "fr"))
-      .flatMap(([id, show]) => (show.rounds ?? []).filter(Boolean).map((round, i) => {
+      .flatMap(([id, show]) => (show.rounds ?? []).filter(Boolean).map((r) => jeuDeLaManche(r, quizzes)).map((round, i) => {
         const key = `pin/${id}/${i}`;
         const from = showTitle(show);
         const ids = roundQuizIds(round);
@@ -1533,7 +1534,7 @@ function renderPickedEdit(questions) {
     const kind = QUIZ_GAMES[source.type];
     const ids = roundQuizIds(source);
     const others = Object.entries(library.quizzes)
-      .filter(([, q]) => q?.title && (kind ? kind.questions(q) : playable(q)).length)
+      .filter(([, q]) => q?.title && (kind ? kind.questions(q) : quizQuestions(q)).length)
       .sort((a, b) => a[1].title.localeCompare(b[1].title, "fr"));
     if (others.length > 1) {
       const p = document.createElement("p");
@@ -1547,7 +1548,7 @@ function renderPickedEdit(questions) {
         c.className = `lib-chip lib-quiz${on ? " on" : ""}`;
         c.dataset.quiz = id;
         c.setAttribute("aria-pressed", on ? "true" : "false");
-        const n = (kind ? kind.questions(q) : playable(q)).length;
+        const n = (kind ? kind.questions(q) : quizQuestions(q)).length;
         c.textContent = `${on ? "✓ " : ""}${q.title} (${n})`;
         // Toujours au moins un quiz : le dernier coché ne se retire pas.
         c.disabled = on && ids.length === 1;

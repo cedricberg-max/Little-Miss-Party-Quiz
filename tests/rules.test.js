@@ -1332,6 +1332,8 @@ describe("manches enregistrées (Régie PC et régie)", () => {
     await assertSucceeds(set(ref(db("sarah"), "library/manches/m1"), manche({ pinned: true })));
     await assertSucceeds(set(ref(db("sarah"), "library/manches/m1"), manche({ archived: true })));
     await assertSucceeds(set(ref(db("sarah"), "library/manches/m1"), null));
+    // Quiz illustré : un jeu à part, ses manches aussi.
+    await assertSucceeds(set(ref(db("sarah"), "library/manches/m6"), manche({ type: "illustre", title: "Les petits animaux", round: { type: "illustre", quizId: "petits" } })));
   });
 
   test("la régie ajoute une manche tirée en direct, sans pouvoir modifier ni effacer", async () => {

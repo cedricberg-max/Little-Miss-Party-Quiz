@@ -6,22 +6,23 @@
 // Fonctions pures, sans Firebase.
 import {
   ROUND_TYPES, BUILTIN_GAMES, CONTENT_GAMES, MUSIC_GAMES, activeItems, pictoSeriesOf, playableTracks, isStatuesList,
-  statuesSongs, statuesChoices, zoomQuestions, expressQuestions, playable, mimeCards, roundPicks, roundTracks, roundQuizIds, roundSongs,
+  statuesSongs, statuesChoices, zoomQuestions, expressQuestions, mimeCards, roundPicks, roundTracks, roundQuizIds, roundSongs,
   pictoRoundSeries, mimePerTeam, teamCount, MIME_TURN, MIME_RANDOM, STATUES_SEC, PICTO_SEC,
   MAX_PICKS, MAX_STATUES_SONGS, quizKind, builtinConcepts, fixedConcepts, isPhotoTheme, disparuGroup, parPalierPhotos,
+  illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale,
 } from "./show.js";
 import { MIME_CATALOG, shuffle } from "./mime-cards.js";
 import { concepts, questionConcepts, neufsSiPossible } from "./jamais-deux-fois.js";
 import { BANQUE, banqueItems, motDeLaBanque } from "./banque-photos.js";
 
 /** Jeux qu'on peut enregistrer en manches, dans l'ordre des tuiles de l'accueil. */
-export const MANCHE_TYPES = ["quiz", "mimes", "blind", "musical", "statues", "express", "zoom", "flou", "chante", "quisuis", "disparu", "pictionary", "coffres", "patate", "gonfleur"];
+export const MANCHE_TYPES = ["quiz", "illustre", "mimes", "blind", "musical", "statues", "express", "zoom", "flou", "chante", "quisuis", "disparu", "pictionary", "coffres", "patate", "gonfleur"];
 
 /** Ce que contient la collection d'un jeu (null : jeu sans contenu à choisir). */
 export const COLLECTION_UNIT = {
   mimes: ["carte", "cartes"], pictionary: ["mot", "mots"], chante: ["mot", "mots"], quisuis: ["personnage", "personnages"],
   disparu: ["famille", "familles"], zoom: ["photo", "photos"], flou: ["photo", "photos"], blind: ["titre", "titres"],
-  musical: ["titre", "titres"], statues: ["chanson", "chansons"], quiz: ["quiz", "quiz"], express: ["quiz", "quiz"],
+  musical: ["titre", "titres"], statues: ["chanson", "chansons"], quiz: ["quiz", "quiz"], illustre: ["quiz", "quiz"], express: ["quiz", "quiz"],
 };
 
 /** Jeux où « Au hasard » et « Rejouer avec d'autres… » piochent dans la collection. */
@@ -75,10 +76,11 @@ export function collectionItems(type, lib = {}) {
       .forEach((p) => playableTracks(p).forEach((t) => add({ key: t.audioId, label: t.artist?.trim() ? `${t.title.trim()} (${t.artist.trim()})` : t.title.trim(), group: p.title, level: 1, value: t })));
   } else if (type === "statues") {
     statuesChoices(lib.playlists).forEach((t) => add({ key: t.audioId, label: t.artist?.trim() ? `${t.title.trim()} (${t.artist.trim()})` : t.title.trim(), group: t.list, level: 1, value: t }));
-  } else if (type === "quiz" || type === "express") {
-    Object.entries(lib.quizzes ?? {}).filter(([, q]) => q?.title && (type === "express" ? expressQuestions(q) : playable(q)).length)
+  } else if (type === "quiz" || type === "illustre" || type === "express") {
+    const questions = { quiz: quizQuestions, illustre: illustreQuestions, express: expressQuestions }[type];
+    Object.entries(lib.quizzes ?? {}).filter(([, q]) => q?.title && questions(q).length)
       .sort((a, b) => a[1].title.localeCompare(b[1].title, "fr"))
-      .forEach(([id, q]) => add({ key: id, label: q.title, group: { photo: "Quiz photo", classique: "Quiz classique", images: "Photos à deviner" }[quizKind(q)], level: 1, value: q }));
+      .forEach(([id, q]) => add({ key: id, label: q.title, group: { photo: "Quiz illustré", classique: "Quiz classique", images: "Photos à deviner" }[quizKind(q)], level: 1, value: q }));
   }
   return out;
 }
@@ -234,14 +236,18 @@ export function cleanRound(r, playlists = {}) {
   else if ((type === "zoom" || type === "flou") && roundPicks(r).length) out = { type, ...picks };
   else {
     const ids = roundQuizIds(r);
-    out = { type, quizId: ids[0], ...(ids.length > 1 ? { quizIds: ids } : {}), ...(r.count > 0 ? { count: r.count } : {}), ...(type === "quiz" && r.finale > 0 ? { finale: r.finale } : {}) };
+    out = { type, quizId: ids[0], ...(ids.length > 1 ? { quizIds: ids } : {}), ...(r.count > 0 ? { count: r.count } : {}), ...(hasFinale(type) && r.finale > 0 ? { finale: r.finale } : {}) };
   }
   return { ...out, ...title, ...link };
 }
 
-/** Groupes de la page Manches d'un jeu : épinglées, les autres (plus récentes d'abord), archivées. */
-export function mancheGroups(manches, type) {
-  const list = Object.entries(manches ?? {}).filter(([, m]) => m?.round && (m.type ?? m.round.type) === type)
+/**
+ * Groupes de la page Manches d'un jeu : épinglées, les autres (plus récentes d'abord), archivées. Avec [quizzes],
+ * une ancienne manche « Quiz » faite de quiz illustrés est rangée avec le Quiz illustré (voir jeuDeLaManche).
+ */
+export function mancheGroups(manches, type, quizzes = null) {
+  const jeu = (m) => (quizzes && (m.type ?? m.round.type) === "quiz" ? jeuDeLaManche(m.round, quizzes).type : m.type ?? m.round.type);
+  const list = Object.entries(manches ?? {}).filter(([, m]) => m?.round && jeu(m) === type)
     .sort(([, a], [, b]) => (b.updatedAt ?? b.createdAt ?? 0) - (a.updatedAt ?? a.createdAt ?? 0));
   return {
     pinned: list.filter(([, m]) => m.pinned && !m.archived),
