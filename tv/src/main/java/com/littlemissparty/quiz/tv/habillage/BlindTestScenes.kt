@@ -55,6 +55,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.littlemissparty.quiz.engine.LigneParole
 import kotlinx.coroutines.delay
 
 /*
@@ -205,6 +206,9 @@ fun BlindBuzz(equipe: String, couleur: Color, modifier: Modifier = Modifier) {
  *
  * @param cle identifiant du morceau, pour rejouer l'entrée à chaque nouvelle révélation
  * @param chantons refrain préparé en boucle : « 🎤 Tous ensemble, on chante ! » en bas de la scène, trouvé ou non
+ * @param paroles paroles du refrain, synchronisées : avec [chantons], la scène des paroles ([SceneParoles]) remplace
+ *   la révélation classique ; vides, la pochette et son vinyle (ou le vinyle seul) restent au centre
+ * @param positionMs position du refrain qu'on entend (ms depuis le début de l'extrait), null s'il ne joue pas
  */
 @Composable
 fun BlindRevelation(
@@ -217,27 +221,53 @@ fun BlindRevelation(
     double: Boolean,
     modifier: Modifier = Modifier,
     chantons: Boolean = false,
+    paroles: List<LigneParole> = emptyList(),
+    positionMs: () -> Long? = { null },
 ) {
     val ms = horloge(cle)
+    if (chantons && paroles.isNotEmpty()) {
+        Echelle(LARGEUR, HAUTEUR, modifier) {
+            Scene { Rayons(ms) }
+            SceneParoles(cle, pochette, titre, artiste, gagnant, points, double, paroles, positionMs)
+            if (gagnant != null && points > 0) Gerbe(cle, actif = apres(500, cle))
+        }
+        return
+    }
     val retourne = remember(cle) { Animatable(0f) }
-    LaunchedEffect(cle) { retourne.animateTo(1f, spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessLow)) }
+    val sortie = remember(cle) { Animatable(0f) }
+    LaunchedEffect(cle) {
+        retourne.animateTo(1f, spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessLow))
+        sortie.animateTo(1f, tween(800, easing = FastOutSlowInEasing))
+    }
     Echelle(LARGEUR, HAUTEUR, modifier) {
         Scene { Rayons(ms) }
-        Row(Modifier.fillMaxSize().padding(horizontal = 72.dp, vertical = 40.dp), verticalAlignment = Alignment.CenterVertically) {
+        // Avec « Tous ensemble, on chante ! » en bas, le contenu remonte pour ne jamais passer dessous.
+        Row(
+            Modifier.fillMaxSize().padding(start = 72.dp, end = 72.dp, top = 40.dp, bottom = if (chantons) 84.dp else 40.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Box(
-                Modifier.fillMaxHeight(0.86f).aspectRatio(if (pochette != null) 1f else 1.2f, matchHeightConstraintsFirst = true)
+                Modifier.fillMaxHeight(0.8f).aspectRatio(if (pochette != null) 1.26f else 1.2f, matchHeightConstraintsFirst = true)
                     .graphicsLayer {
                         rotationY = (1f - retourne.value) * 90f
                         val e = 0.7f + 0.3f * retourne.value
                         scaleX = e; scaleY = e
                         cameraDistance = 16f * density
                     },
-                contentAlignment = Alignment.Center,
+                contentAlignment = Alignment.CenterStart,
             ) {
                 if (pochette != null) {
+                    // Le vinyle sort de derrière la pochette une fois retournée, et tourne.
+                    Vinyle(
+                        angle = { ms() / 1000f * 198f },
+                        modifier = Modifier.fillMaxHeight(0.94f).align(Alignment.CenterEnd).graphicsLayer {
+                            translationX = -(1f - sortie.value) * size.width * 0.3f
+                        },
+                    )
                     Image(
                         pochette, contentDescription = null, contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(18.dp)).border(6.dp, Neon.Or, RoundedCornerShape(18.dp)),
+                        modifier = Modifier.fillMaxHeight().aspectRatio(1f, matchHeightConstraintsFirst = true)
+                            .clip(RoundedCornerShape(18.dp)).border(6.dp, Neon.Or, RoundedCornerShape(18.dp)),
                     )
                 } else {
                     // Pas de pochette : le disque à l'étiquette dorée tourne sous le bras posé.
