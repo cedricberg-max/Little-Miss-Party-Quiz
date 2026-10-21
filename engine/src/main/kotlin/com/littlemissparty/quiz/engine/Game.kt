@@ -99,6 +99,12 @@ data class GameState(
     val chests: Map<String, ChestRound> = emptyMap(),
     /** « Ça va exploser ! » en cours (null hors de ce jeu, ou avant que la mèche soit allumée). */
     val potato: PotatoRound? = null,
+    /**
+     * Heure du serveur de la fin de partie ([GameEnded]), seulement tant que la partie est terminée : une partie
+     * reprise après la fin (jeu ajouté) n'en a plus, et la fin suivante donne la sienne. La Régie PC efface les
+     * copies des médias de la partie 24 h après.
+     */
+    val endedAt: Long? = null,
 ) {
     val paused: Boolean get() = hold != null
 
@@ -263,7 +269,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     fun record(event: GameEvent): Boolean {
         if (event.seq <= state.lastSeq) return false
         val next = reduce(state, event) ?: return false
-        state = next.copy(lastSeq = event.seq)
+        // Heure de fin gardée seulement tant que la partie reste terminée (reprise après la fin : plus de fin).
+        state = next.copy(lastSeq = event.seq, endedAt = next.endedAt.takeIf { next.phase == Phase.ENDED })
         log += event
         return true
     }
@@ -434,7 +441,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
             if (e.target !in s.adjustments) null
             else s.copy(adjustments = s.adjustments - e.target)
         is GameEnded ->
-            if (s.phase == Phase.ENDED) null else s.copy(phase = Phase.ENDED, hold = null, mime = null, intro = false)
+            if (s.phase == Phase.ENDED) null else s.copy(phase = Phase.ENDED, hold = null, mime = null, intro = false, endedAt = e.at)
         is PictoShown -> {
             val m = s.mime
             val cards = quiz.questions.getOrNull(s.index)?.takeIf { it.isPicto }?.cards.orEmpty()
