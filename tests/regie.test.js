@@ -2,7 +2,7 @@
 // Ce script joue le rôle de la box : il juge les demandes d'appairage et répond aux commandes.
 import { createHash } from "node:crypto";
 import { deflateSync } from "node:zlib";
-import { createReadStream, existsSync } from "node:fs";
+import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { extname, join, normalize } from "node:path";
 import { after, afterEach, before, beforeEach, describe, test } from "node:test";
@@ -388,9 +388,12 @@ async function addTeam(uid, name) {
     set(ref(ctx.database(), `games/${CODE}/teams/${uid}`), { name, color: "#FF2D8A", joinedAt: Date.now() }));
 }
 
-/** Capture d'écran pour relire une page à l'œil, seulement si CAPTURES=<dossier> est donné (rien n'est vérifié). */
-async function capture(page, nom) {
-  if (process.env.CAPTURES) await page.screenshot({ path: `${process.env.CAPTURES}/${nom}.png`, fullPage: true });
+/**
+ * Capture d'écran pour relire une page à l'œil, seulement si CAPTURES=<dossier> est donné (rien n'est vérifié).
+ * [pleinePage] : toute la page ; sinon, ce qu'on voit dans l'écran (une fenêtre ouverte, par exemple).
+ */
+async function capture(page, nom, { pleinePage = true } = {}) {
+  if (process.env.CAPTURES) await page.screenshot({ path: `${process.env.CAPTURES}/${nom}.png`, fullPage: pleinePage });
 }
 
 async function openRegie(context, query = `?g=${CODE}&emu=1`, path = "/") {
@@ -1742,6 +1745,23 @@ async function respond(page, accept = true) {
 }
 
 /**
+ * Fenêtre de la Régie PC (aux couleurs du site, plus la fenêtre grise du navigateur) : attend qu'elle s'ouvre, rend son
+ * message (paragraphes séparés par une ligne vide, comme avant), remplit le champ si [texte] est donné, puis choisit
+ * OK ([accepter]) ou Annuler, et attend qu'elle soit fermée.
+ */
+async function repondreFenetre(page, { accepter = true, texte } = {}) {
+  const fenetre = page.locator("dialog[data-fenetre][open]");
+  await fenetre.waitFor();
+  const ouverte = await fenetre.elementHandle();
+  const message = await fenetre.locator(".fenetre-message").innerText();
+  if (texte !== undefined) await fenetre.locator("[data-fenetre-texte]").fill(texte);
+  await fenetre.locator(accepter ? "[data-fenetre-ok]" : "[data-fenetre-annuler]").click();
+  await ouverte.waitForElementState("hidden");
+  await ouverte.dispose();
+  return message;
+}
+
+/**
  * Régie PC : la page d'un jeu s'ouvre depuis sa tuile de l'accueil (plus de page Jeux dans le menu) ; l'onglet
  * « collections » mène à son contenu.
  */
@@ -2171,8 +2191,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#screen-library h1").click();
     await waitFor(async () => (await library(`medias/${elsa}`))?.tags === "princesse, Disney, reine des neiges", "mots-clés enregistrés");
     assert.equal((await library(`medias/${elsa}`)).name, "Elsa");
-    page.once("dialog", (d) => d.accept("Reines et princesses"));
     await carte.locator(".media-cat").selectOption("＋ Nouvelle catégorie…");
+    assert.equal(await repondreFenetre(page, { texte: "Reines et princesses" }), "Nom de la nouvelle catégorie (ex. Pokémon, Super-héros…) :");
     await waitFor(async () => (await library(`medias/${elsa}`))?.cat === "Reines et princesses", "nouvelle catégorie");
     await page.locator('#media-cats [data-cat="Reines et princesses"]').waitFor();
 
@@ -2254,14 +2274,14 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#song-barre", { hasText: "Tout sélectionner" }).waitFor();
     // Supprimer demande d'abord ; « Annuler » ne touche à rien.
     await hakuna.locator(".song-check").click();
-    let question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.dismiss(); }));
+    let question = repondreFenetre(page, { accepter: false });
     await page.locator("#song-barre").getByRole("button", { name: "🗑 Supprimer (1)" }).click();
     assert.match(await question, /^Supprimer « Hakuna Matata ! » de la bibliothèque des sons \?\n\nLes playlists déjà faites les gardent\./);
     assert.equal((await library("songs/s1")).retiree, undefined);
     // Ctrl + A coche toute la bibliothèque : l'avertissement le dit clairement ; la touche Suppr supprime.
     await page.keyboard.press("Control+a");
     await page.locator("#song-barre", { hasText: "2 sélectionnées" }).waitFor();
-    question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.accept(); }));
+    question = repondreFenetre(page);
     await page.keyboard.press("Delete");
     assert.match(await question, /^Attention : cette action va supprimer tous les morceaux de votre bibliothèque \(2 chansons\)\./);
     await page.locator("#song-list", { hasText: "Toutes vos chansons sont supprimées" }).waitFor();
@@ -2288,18 +2308,18 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#song-retirees", { hasText: "🗑 Supprimées (2)" }).click();
     await page.locator("#song-list .song-effacer-tout").getByRole("button", { name: "Tout effacer pour de bon (2)" }).waitFor();
     await capture(page, "sons-supprimees");
-    question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.dismiss(); }));
+    question = repondreFenetre(page, { accepter: false });
     await page.locator("#song-list .song", { hasText: "Vieille chanson" }).getByRole("button", { name: "Effacer pour de bon" }).click();
     assert.match(await question, /^Effacer « Vieille chanson » pour de bon \?\n\nLa chanson entière, les paroles et les extraits sont effacés en ligne/);
     assert.equal((await library("songs/s3")).title, "Vieille chanson", "rien n'est effacé sans confirmation");
-    question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.accept(); }));
+    question = repondreFenetre(page);
     await page.locator("#song-list .song", { hasText: "Vieille chanson" }).getByRole("button", { name: "Effacer pour de bon" }).click();
     await question;
     await page.locator("#song-status", { hasText: "« Vieille chanson » est effacée pour de bon." }).waitFor();
     await waitFor(async () => (await library("songs/s3")) == null, "chanson effacée");
     assert.deepEqual([await library("entieres/s3"), await library("lyrics/s3"), await library(`sounds/${C}`)], [null, null, null]);
     // « Libérée, délivrée » effacée : son extrait reste, la playlist « Disney » et Hakuna Matata (son refrain) s'en servent.
-    question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.accept(); }));
+    question = repondreFenetre(page);
     await page.locator("#song-list .song", { hasText: "Libérée" }).getByRole("button", { name: "Effacer pour de bon" }).click();
     await question;
     await waitFor(async () => !Object.values((await library("songs")) ?? {}).some((x) => x.title === "Libérée, délivrée"), "chanson effacée");
@@ -3408,7 +3428,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.locator("#mime-picked .mime-card", { hasText: "Lapin" }).count(), 1);
 
     // Quitter avec des modifications pas enregistrées : la Régie PC demande d'abord.
-    const question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.accept(); }));
+    const question = repondreFenetre(page);
     // Page Jeux (enregistrée à chaque touche) : Ctrl+Z remet le mot retiré, dans la bibliothèque aussi.
     await openGamePage(page, "chante", "collections");
     assert.match(await question, /Quitter sans enregistrer \?/);
@@ -3457,14 +3477,14 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.inputValue("#show-child"), "Léa");
     // Une modification pas enregistrée : la flèche demande ; « Rester » garde la page et la modification.
     await page.fill("#show-age", "8");
-    let question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.dismiss(); }));
+    let question = repondreFenetre(page, { accepter: false });
     await page.goBack();
     assert.match(await question, /Quitter sans enregistrer \?/);
     await page.waitForTimeout(300);
     assert.equal(await page.locator("#screen-show-edit").isVisible(), true);
     assert.equal(await page.inputValue("#show-age"), "8");
     // « ← Retour » en haut, puis « Quitter » : la liste, et rien n'est enregistré.
-    question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.accept(); }));
+    question = repondreFenetre(page);
     await page.locator("#screen-show-edit .retour-barre.haut .retour-page").click();
     await question;
     await page.locator("#screen-shows:not([hidden])").waitFor();
@@ -3594,6 +3614,118 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Régie PC : plus de confirm(), alert() ni prompt() du navigateur dans admin.js et retour.js", () => {
+    for (const fichier of ["admin.js", "retour.js"]) {
+      const restes = readFileSync(join(PUBLIC, fichier), "utf8").split("\n").map((l, i) => `${i + 1} : ${l.trim()}`).filter((l) => /\b(confirm|alert|prompt)\(/.test(l));
+      assert.deepEqual(restes, [], `${fichier} : fenêtres du navigateur restantes`);
+    }
+  });
+
+  test("Régie PC : les questions s'ouvrent dans une fenêtre aux couleurs du site, plus celle du navigateur ; Annuler et Échap ne touchent à rien ; elle tient sur un téléphone", async () => {
+    const C = "00112233445566ff";
+    await seedLibrary(`sounds/${C}`, "data:audio/mpeg;base64,SUQz");
+    await seedLibrary("songs/s9", { title: "Vieille chanson", audioId: C, buzz: 30, retiree: true, updatedAt: 1 });
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    await seedLibrary("shows", {
+      tom: { childName: "Tom", status: "brouillon", rounds: [], updatedAt: 1 },
+      lea: { childName: "Léa", status: "brouillon", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 },
+    });
+    const page = await admin();
+    // Aucune fenêtre grise du navigateur (« … indique ») : notée ici si jamais elle revenait.
+    const natives = [];
+    page.on("dialog", (d) => { natives.push(d.message()); d.dismiss().catch(() => {}); });
+    const fenetre = page.locator("dialog[data-fenetre][open]");
+    // Sur le PC d'abord.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="sons"]');
+    await page.locator("#song-retirees", { hasText: "🗑 Supprimées (1)" }).click();
+    const effacer = page.locator("#song-list .song", { hasText: "Vieille chanson" }).getByRole("button", { name: "Effacer pour de bon" });
+
+    // « Effacer pour de bon » : la question en titre, l'explication dessous ; le bouton rouge dit ce qu'il fait et a le
+    // focus ; fond blanc des cartes, coins arrondis et voile violet du site.
+    await effacer.click();
+    await fenetre.waitFor();
+    assert.deepEqual(await fenetre.locator(".fenetre-message p").allInnerTexts(), ["Effacer « Vieille chanson » pour de bon ?",
+      "La chanson entière, les paroles et les extraits sont effacés en ligne (sauf les extraits qu'une playlist utilise encore). On ne pourra plus la remettre."]);
+    assert.equal(await fenetre.locator(".fenetre-message p").first().getAttribute("class"), "fenetre-titre");
+    assert.deepEqual(await fenetre.locator(".fenetre-boutons .btn").allInnerTexts(), ["Effacer pour de bon", "Annuler"]);
+    assert.equal(await fenetre.locator("[data-fenetre-ok]").getAttribute("class"), "btn danger");
+    assert.equal(await page.evaluate(() => document.activeElement?.hasAttribute("data-fenetre-ok")), true);
+    assert.deepEqual(await fenetre.evaluate((d) => [getComputedStyle(d).backgroundColor, getComputedStyle(d).borderRadius, getComputedStyle(d, "::backdrop").backgroundColor]),
+      ["rgb(255, 255, 255)", "22px", "rgba(40, 20, 60, 0.55)"]);
+    await capture(page, "fenetre-pc", { pleinePage: false });
+    // Annuler : rien n'est effacé.
+    await fenetre.locator("[data-fenetre-annuler]").click();
+    await fenetre.waitFor({ state: "detached" });
+    assert.equal((await library("songs/s9")).title, "Vieille chanson", "Annuler : rien n'est effacé");
+    // Échap : comme Annuler.
+    await effacer.click();
+    await fenetre.waitFor();
+    await page.keyboard.press("Escape");
+    await fenetre.waitFor({ state: "detached" });
+    assert.equal((await library("songs/s9")).title, "Vieille chanson", "Échap : rien n'est effacé");
+
+    // Sur un téléphone (360 px de large) : la fenêtre tient dans l'écran, sans rien de coupé ni qui dépasse.
+    await page.setViewportSize({ width: 360, height: 740 });
+    await effacer.click();
+    await fenetre.waitFor();
+    const mesure = await fenetre.evaluate((d) => {
+      const r = d.getBoundingClientRect();
+      const coupes = [...d.querySelectorAll("p, button")].filter((x) => {
+        const b = x.getBoundingClientRect();
+        return b.left < r.left || b.right > r.right + 0.5 || x.scrollWidth > x.clientWidth + 1;
+      }).map((x) => x.textContent);
+      return { gauche: r.left, droite: r.right, haut: r.top, bas: r.bottom, largeur: innerWidth, hauteur: innerHeight, deborde: d.scrollWidth > d.clientWidth, coupes };
+    });
+    assert.ok(mesure.gauche >= 8 && mesure.droite <= mesure.largeur - 8 && mesure.haut >= 0 && mesure.bas <= mesure.hauteur, `fenêtre dans l'écran : ${JSON.stringify(mesure)}`);
+    assert.equal(mesure.deborde, false, "rien ne dépasse sur le côté");
+    assert.deepEqual(mesure.coupes, [], "aucun texte coupé");
+    await capture(page, "fenetre-telephone", { pleinePage: false });
+    // Le bouton rouge efface pour de bon.
+    await fenetre.locator("[data-fenetre-ok]").click();
+    await page.locator("#song-status", { hasText: "« Vieille chanson » est effacée pour de bon." }).waitFor();
+    assert.equal(await library("songs/s9"), null);
+
+    // Retirer un jeu rempli d'une prestation : la fenêtre demande ; le retrait est noté aussitôt (« Annuler les
+    // modifications » s'allume, Ctrl+Z remet le jeu).
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.click("#nav button[data-screen=home]");
+    await page.click('#screen-home [data-etat="acompleter"]');
+    await page.locator('#show-list [data-show="lea"]').getByRole("button", { name: "Ouvrir" }).click();
+    await page.locator("#screen-show-edit:not([hidden])").waitFor();
+    const annulerTout = page.locator("#screen-show-edit .retour-barre.bas .retour-tout");
+    assert.equal(await annulerTout.isDisabled(), true);
+    const retirerJeu = page.locator('#show-rounds .jeu-bloc[data-jeu="quiz"] button[title="Retirer ce jeu"]');
+    await retirerJeu.click();
+    assert.match(await repondreFenetre(page, { accepter: false }), /^Retirer « .+ » et sa manche de la prestation \?$/);
+    assert.equal(await page.locator("#show-rounds .round").count(), 1, "Annuler : le jeu reste");
+    await retirerJeu.click();
+    await repondreFenetre(page);
+    await waitFor(async () => (await page.locator("#show-rounds .round").count()) === 0, "jeu retiré");
+    await waitFor(async () => !(await annulerTout.isDisabled()), "« Annuler les modifications » possible aussitôt");
+    await page.keyboard.press("Control+z");
+    await waitFor(async () => (await page.locator("#show-rounds .round").count()) === 1, "Ctrl+Z : le jeu revient");
+    assert.equal(await annulerTout.isDisabled(), true);
+    await page.click("#show-edit-crumb");
+
+    // Renommer : le nom actuel tout sélectionné, prêt à être remplacé ; Entrée vaut OK.
+    await page.locator('#show-list [data-show="tom"]').getByRole("button", { name: "Renommer" }).click();
+    await fenetre.waitFor();
+    const champ = fenetre.locator("[data-fenetre-texte]");
+    assert.equal(await champ.inputValue(), "L'anniversaire de Tom");
+    assert.equal(await champ.evaluate((c) => document.activeElement === c && c.selectionStart === 0 && c.selectionEnd === c.value.length), true);
+    assert.deepEqual(await fenetre.locator(".fenetre-boutons .btn").allInnerTexts(), ["Renommer", "Annuler"]);
+    await capture(page, "fenetre-renommer", { pleinePage: false });
+    await page.keyboard.type("La fête de Tom");
+    await page.keyboard.press("Enter");
+    await fenetre.waitFor({ state: "detached" });
+    await page.locator('#show-list [data-show="tom"] .card-title', { hasText: "La fête de Tom" }).waitFor();
+    assert.equal((await library("shows/tom")).title, "La fête de Tom");
+    assert.deepEqual(natives, [], "aucune fenêtre du navigateur");
+    await page.context().close();
+  });
+
   test("Régie PC : « Renommer » sur une prestation, un quiz, un paquet de mimes et une playlist, rien d'autre ne change", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     await seedLibrary("mimes", { zoo: { title: "Zoo", duration: 60, cards: [{ word: "Chat", image: "🐱" }], updatedAt: 1 } });
@@ -3601,8 +3733,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await seedLibrary("shows", { lea: { childName: "Léa", age: 9, status: "brouillon", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 } });
     const page = await admin();
     const renommer = async (item, name) => {
-      page.once("dialog", (d) => d.accept(name));
       await item.getByRole("button", { name: "Renommer" }).click();
+      await repondreFenetre(page, { texte: name });
     };
     await page.click('#screen-home [data-etat="acompleter"]');
     await renommer(page.locator('#show-list [data-show="lea"]'), "  La grande fête   de Léa ");
@@ -3611,8 +3743,8 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(lea.title, "La grande fête de Léa");
     assert.deepEqual([lea.childName, lea.status, lea.rounds[0].quizId], ["Léa", "brouillon", "animaux"]);
     // Annulé ou vide : rien n'est écrit.
-    page.once("dialog", (d) => d.dismiss());
     await page.locator('#show-list [data-show="lea"]').getByRole("button", { name: "Renommer" }).click();
+    await repondreFenetre(page, { accepter: false });
     await renommer(page.locator('#show-list [data-show="lea"]'), "   ");
     assert.equal((await library("shows")).lea.title, "La grande fête de Léa");
 
@@ -3912,11 +4044,11 @@ describe("bibliothèque de quiz et prestations", () => {
 
     // Archiver depuis l'Accueil, après confirmation : Léa quitte les prochains anniversaires et rejoint les archivées.
     await page.click("#brand");
-    let question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.dismiss(); }));
+    let question = repondreFenetre(page, { accepter: false });
     await page.locator('#home-upcoming [data-show="lea"]').getByRole("button", { name: "Archiver" }).click();
     assert.match(await question, /^Archiver « .*Léa.* » \?\n\nElle quittera la régie/);
     assert.equal((await library("shows/lea/status")), "publiee");
-    question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.accept(); }));
+    question = repondreFenetre(page);
     await page.locator('#home-upcoming [data-show="lea"]').getByRole("button", { name: "Archiver" }).click();
     await question;
     await page.locator('#home-upcoming [data-show="lea"]').waitFor({ state: "detached" });
@@ -3945,11 +4077,11 @@ describe("bibliothèque de quiz et prestations", () => {
     // À compléter : « Supprimer » sur la carte, avec une confirmation ; « Annuler » ne touche à rien.
     await page.click('#screen-home [data-etat="acompleter"]');
     const tom = page.locator('#show-list [data-show="brouillon"]');
-    let question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.dismiss(); }));
+    let question = repondreFenetre(page, { accepter: false });
     await tom.getByRole("button", { name: "Supprimer" }).click();
     assert.match(await question, /Supprimer « L'anniversaire de Tom » \?/);
     assert.equal((await library("shows/brouillon")).childName, "Tom");
-    question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.accept(); }));
+    question = repondreFenetre(page);
     await tom.getByRole("button", { name: "Supprimer" }).click();
     await question;
     await page.locator("#shows-status", { hasText: "« L'anniversaire de Tom » est supprimée." }).waitFor();
@@ -3968,11 +4100,11 @@ describe("bibliothèque de quiz et prestations", () => {
     await malo.waitFor();
     // Pas de « Désarchiver » (cedric, 21/10) : une fête archivée se réutilise avec « Dupliquer ».
     assert.deepEqual(await malo.locator(".card-actions button").allInnerTexts(), ["Ouvrir", "Dupliquer", "Renommer", "⭐ Épingler", "Supprimer"]);
-    question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.dismiss(); }));
+    question = repondreFenetre(page, { accepter: false });
     await malo.getByRole("button", { name: "Supprimer" }).click();
     assert.match(await question, /Supprimer « L'anniversaire de Malo » \? Elle sera effacée pour de bon\./);
     assert.equal((await library("shows/passee")).childName, "Malo");
-    question = new Promise((r) => page.once("dialog", (d) => { r(d.message()); d.accept(); }));
+    question = repondreFenetre(page);
     await malo.getByRole("button", { name: "Supprimer" }).click();
     await question;
     await malo.waitFor({ state: "detached" });
@@ -4781,7 +4913,6 @@ describe("activation des box", () => {
 
   test("la Régie PC signale une nouvelle box, l'accepte, la renomme et la retire", async () => {
     const page = await openAdmin();
-    page.on("dialog", (d) => d.accept(d.type() === "prompt" ? "Mi Box de Sarah" : undefined));
     await demande("tv-neuve", "KX7P", "TCL 55C735");
     // Accueil : la demande saute aux yeux, avec le même code que sur la TV.
     await page.locator("#home-boxes:not([hidden])", { hasText: "KX7P" }).waitFor();
@@ -4798,8 +4929,10 @@ describe("activation des box", () => {
     await page.locator('#box-allowed [data-box="tv-neuve"]', { hasText: "TV du salon" }).waitFor();
 
     await page.locator('#box-allowed [data-box="tv-neuve"]').getByRole("button", { name: "Renommer" }).click();
+    assert.equal(await repondreFenetre(page, { texte: "Mi Box de Sarah" }), "Nouveau nom de la box :");
     await waitFor(async () => (await boxes("allowed/tv-neuve/name")) === "Mi Box de Sarah", "box renommée");
     await page.locator('#box-allowed [data-box="tv-neuve"]').getByRole("button", { name: "Retirer" }).click();
+    assert.match(await repondreFenetre(page), /^Retirer « Mi Box de Sarah » \?/);
     await waitFor(async () => (await boxes("allowed/tv-neuve")) === null, "box retirée");
     await page.locator('#box-allowed [data-box="tv-neuve"]').waitFor({ state: "detached" });
     await page.locator(`#box-allowed [data-box="${HOST}"]`).waitFor();
@@ -4808,11 +4941,11 @@ describe("activation des box", () => {
 
   test("la Régie PC refuse la demande d'un inconnu", async () => {
     const page = await openAdmin();
-    page.on("dialog", (d) => d.accept());
     await page.click('#nav [data-screen="settings"]');
     await demande("pirate", "ZZ99", "Box inconnue");
     const row = page.locator('#box-requests [data-box="pirate"]');
     await row.getByRole("button", { name: "Refuser" }).click();
+    assert.equal(await repondreFenetre(page), "Refuser la box au code ZZ99 ? Elle restera bloquée.");
     await waitFor(async () => (await boxes("requests/pirate")) === null, "demande refusée");
     assert.equal(await boxes("allowed/pirate"), null);
     await page.locator("#box-requests", { hasText: "Aucune demande" }).waitFor();

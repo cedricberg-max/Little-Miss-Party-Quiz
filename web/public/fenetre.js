@@ -1,0 +1,78 @@
+/**
+ * Fenêtres de la Régie PC aux couleurs du site, à la place des fenêtres grises du navigateur (confirm, alert, prompt)
+ * (cedric, 21/10). Chacune rend une promesse : confirmer → vrai ou faux, avertir → rien, demanderTexte → le texte
+ * tapé, ou null (Annuler, Échap). Une seule fenêtre à la fois : celles demandées entre-temps attendent leur tour.
+ * Le message peut avoir plusieurs paragraphes, séparés par une ligne vide : le premier sert de titre.
+ */
+
+/** Fenêtre ouverte (ou dernière demandée) : la suivante s'ouvre quand elle est fermée. */
+let file = Promise.resolve();
+
+function el(tag, props = {}, ...enfants) {
+  const e = Object.assign(document.createElement(tag), props);
+  e.append(...enfants.filter(Boolean));
+  return e;
+}
+
+/** Paragraphes d'un message : une ligne vide les sépare ; un simple retour à la ligne reste dans son paragraphe. */
+const paragraphes = (message) => `${message ?? ""}`.split(/\n[ \t]*\n/).map((p) => p.trim()).filter(Boolean);
+
+/**
+ * Ouvre une fenêtre et attend la réponse : { ok, texte }. [annuler] : texte du second bouton (aucun s'il est nul) ;
+ * [texte] : valeur de départ d'un champ à remplir (aucun champ s'il est nul).
+ */
+function ouvrir(message, { ok, annuler = null, danger = false, texte = null, maxlength = null }) {
+  const tour = file.then(() => new Promise((resolve) => {
+    const lignes = paragraphes(message);
+    const champ = texte === null ? null : el("input", { type: "text", className: "fenetre-texte", value: texte, autocomplete: "off" });
+    if (champ) {
+      champ.dataset.fenetreTexte = "";
+      champ.setAttribute("aria-label", lignes[0] ?? "Texte");
+      if (maxlength) champ.maxLength = maxlength;
+    }
+    const boutonOk = el("button", { type: "button", className: `btn${danger ? " danger" : ""}`, textContent: ok });
+    boutonOk.dataset.fenetreOk = "";
+    const boutonAnnuler = annuler ? el("button", { type: "button", className: "btn secondary", textContent: annuler }) : null;
+    if (boutonAnnuler) boutonAnnuler.dataset.fenetreAnnuler = "";
+    const d = el("dialog", { className: "fenetre", tabIndex: -1 },
+      el("div", { className: "fenetre-message", id: "fenetre-message" },
+        ...lignes.map((p, i) => el("p", { className: i === 0 ? "fenetre-titre" : "", textContent: p }))),
+      champ,
+      el("div", { className: "fenetre-boutons" }, boutonOk, boutonAnnuler));
+    d.dataset.fenetre = "";
+    d.setAttribute("role", annuler ? "alertdialog" : "dialog");
+    d.setAttribute("aria-labelledby", "fenetre-message");
+
+    let oui = false;
+    const fermer = (reponse) => { oui = reponse; d.close(); };
+    boutonOk.onclick = () => fermer(true);
+    if (boutonAnnuler) boutonAnnuler.onclick = () => fermer(false);
+    // Entrée dans le champ : comme OK.
+    champ?.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); fermer(true); } });
+    // Les touches restent à la fenêtre : les raccourcis de la page (Suppr, Ctrl+A, Ctrl+Z, Échap) n'agissent pas
+    // derrière elle. Échap ferme quand même la fenêtre (le navigateur s'en charge : comme Annuler).
+    d.addEventListener("keydown", (e) => e.stopPropagation());
+    d.addEventListener("close", () => { d.remove(); resolve({ ok: oui, texte: champ?.value ?? null }); }, { once: true });
+    document.body.append(d);
+    d.showModal();
+    if (champ) { champ.focus(); champ.select(); } else boutonOk.focus();
+  }));
+  file = tour.then(() => {}, () => {});
+  return tour;
+}
+
+/** Question oui / non (à la place de confirm) : vrai si on choisit [ok]. [danger] : bouton rouge, pour effacer ou retirer. */
+export async function confirmer(message, { ok = "OK", annuler = "Annuler", danger = false } = {}) {
+  return (await ouvrir(message, { ok, annuler, danger })).ok;
+}
+
+/** Simple message (à la place de alert) : se ferme avec [ok] ou Échap. */
+export async function avertir(message, { ok = "OK" } = {}) {
+  await ouvrir(message, { ok });
+}
+
+/** Texte à taper (à la place de prompt), [valeur] tout sélectionnée au départ : le texte, ou null si on annule. */
+export async function demanderTexte(message, valeur = "", { ok = "OK", annuler = "Annuler", maxlength } = {}) {
+  const r = await ouvrir(message, { ok, annuler, texte: `${valeur ?? ""}`, maxlength });
+  return r.ok ? r.texte : null;
+}

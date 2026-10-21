@@ -591,3 +591,27 @@ button.media-tile:hover { border-color: var(--violet); }
 .track.depot { outline: 3px dashed var(--gold); outline-offset: 3px; }
 .song-effacer-tout { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
 @media (max-width: 640px) { .reglage-ligne .btn:first-of-type { margin-left: 0; } .reglage-cadre { width: 96px; height: 96px; } }
+
+/* Fenêtres de la Régie PC (confirmer, avertir, renommer) : à la place des fenêtres grises du navigateur, centrées sur
+   un voile comme le cadrage ; sur un téléphone, les boutons prennent toute la largeur. */
+.fenetre {
+  width: min(92vw, 460px); max-width: min(92vw, 460px); max-height: calc(100% - 32px); margin: auto; padding: 24px;
+  overflow-y: auto; border: 1px solid var(--line); border-radius: 22px; background: var(--card); color: var(--ink);
+  font: inherit; box-shadow: 0 20px 60px rgba(40, 20, 60, .35);
+}
+.fenetre[open] { display: flex; flex-direction: column; gap: 18px; }
+.fenetre:focus { outline: none; }
+.fenetre::backdrop { background: rgba(40, 20, 60, .55); }
+.fenetre-message { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.fenetre-message p { margin: 0; line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere; }
+.fenetre-message .fenetre-titre { font-size: 19px; font-weight: 800; line-height: 1.35; color: var(--plum); }
+.fenetre-texte { width: 100%; min-width: 0; }
+.fenetre-boutons { display: flex; flex-wrap: wrap; gap: 10px; }
+.fenetre-boutons .btn { align-self: auto; max-width: 100%; }
+.fenetre .btn.danger { background: var(--bad); color: #fff; border-color: var(--bad); box-shadow: 0 4px 14px rgba(198, 47, 95, .25); }
+.fenetre .btn:focus-visible { outline: 2px solid var(--violet); outline-offset: 3px; }
+@media (max-width: 480px) {
+  .fenetre { padding: 20px 18px; }
+  .fenetre-message .fenetre-titre { font-size: 18px; }
+  .fenetre-boutons .btn { flex: 1 1 100%; }
+}
