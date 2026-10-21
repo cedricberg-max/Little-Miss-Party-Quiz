@@ -25,7 +25,7 @@ import { shuffle } from "./mime-cards.js";
 import {
   MANCHE_TYPES, COLLECTION_UNIT, RANDOM_TYPES, RANDOM_COUNT, MIME_PER_TEAM, MIME_PER_TEAM_DEFAULT, LEVELS, collectionItems, collectionGroups,
   filterItems, drawItems, randomRound, cleanRound, mancheGroups, mancheSummary, defaultMancheTitle, mimeCardsNeeded,
-  itemConcepts, usedElsewhere,
+  itemConcepts, usedElsewhere, blocsDeJeu,
 } from "./manches.js";
 import { concepts, neufsSiPossible } from "./jamais-deux-fois.js";
 import { PICTO_OWN_SERIES } from "./picto-cards.js";
@@ -727,7 +727,6 @@ async function saveShowFields(id, fields) {
 }
 
 let editing = null; // { id, rounds }
-let reuseChoices = new Map(); // manches reprises d'autres prestations, par « prestation/n° »
 
 $("show-profile").append(
   h("option", { value: "", text: "Automatique, selon l'âge" }),
@@ -1077,30 +1076,62 @@ function songsPicker(r) {
     manage);
 }
 
+/** Jeux que « ＋ Ajouter un jeu » propose, par famille, dans l'ordre des tuiles de l'Accueil. */
+const jeuxProposes = () => GAME_GROUPS.map((g) => ({ title: g.title, games: g.games.filter((x) => ROUND_TYPES[x.type]) }));
+// Le « ? » de la tuile du Quiz devient ❓ hors de sa tuile (comme l'écran d'ouverture de la TV).
+const iconeJeu = (type) => (type === "quiz" ? "❓" : GAME_GROUPS.flatMap((g) => g.games).find((x) => x.type === type)?.icon ?? "");
+const SANS_CONTENU = ["coffres", "patate", "gonfleur"];
+
+/**
+ * Prestation (cedric, 21/10) : on ajoute un JEU, puis ses manches. Un bloc = les manches qui se suivent du même jeu,
+ * avec « ＋ Manche » ; chaque manche se remplit sur place (reprendre une manche gardée, tirer au hasard, choisir à la
+ * main). Les manches restent enregistrées à la suite dans la prestation, comme avant (TV, régie et téléphone inchangés).
+ */
 function refreshRounds() {
   if (!editing) return;
   roundCtx = prestationCtx;
-  refreshReuse();
   const box = $("show-rounds");
   box.innerHTML = "";
-  if (!editing.rounds.length) box.append(h("p", { class: "hint small", text: "Ajoutez au moins une manche." }));
-  editing.rounds.forEach((r, i) => {
-    const move = (d) => { const [x] = editing.rounds.splice(i, 1); editing.rounds.splice(i + d, 0, x); refreshRounds(); };
-    // Une ligne pour le jeu et les boutons de la manche, puis ses réglages sur toute la largeur.
-    box.append(h("div", { class: "round show-round" },
-      h("div", { class: "round-head" },
-        h("span", { class: "num", text: `${i + 1}` }),
-        h("select", { class: "round-type", "aria-label": "Type de manche", onchange: (e) => { editing.rounds[i] = { type: e.target.value }; refreshRounds(); } },
-          // La Super Finale n'est pas un jeu : c'est un réglage de la manche Quiz (ses dernières questions ×2).
-          ...Object.entries(ROUND_TYPES).filter(([k]) => k !== "finale" && k !== "portes").map(([k, label]) => h("option", {
-            value: k, selected: (r.type ?? "quiz") === k, text: label,
-          }))),
-        mancheTools(r, (next) => { editing.rounds[i] = next; refreshRounds(); }),
-        h("button", { type: "button", class: "icon", title: "Monter", disabled: i === 0, onclick: () => move(-1), text: "↑" }),
-        h("button", { type: "button", class: "icon", title: "Descendre", disabled: i === editing.rounds.length - 1, onclick: () => move(1), text: "↓" }),
-        h("button", { type: "button", class: "icon", title: "Retirer", onclick: () => { editing.rounds.splice(i, 1); refreshRounds(); }, text: "✕" })),
-      h("div", { class: "round-body" }, ...roundFields(r)),
-      alerteManche(r)));
+  if (!editing.rounds.length) box.append(h("p", { class: "hint small", text: "Ajoutez un premier jeu avec « ＋ Ajouter un jeu »." }));
+  const blocs = blocsDeJeu(editing.rounds);
+  blocs.forEach((b, k) => {
+    const [debut, fin] = [b.indices[0], b.indices[b.indices.length - 1] + 1];
+    // Le bloc passe avant (ou après) le bloc voisin ; deux blocs du même jeu qui se touchent n'en font plus qu'un.
+    const deplacer = (d) => {
+      const v = blocs[k + d];
+      const [a, z] = [v.indices[0], v.indices[v.indices.length - 1] + 1];
+      const rs = editing.rounds;
+      editing.rounds = d < 0
+        ? [...rs.slice(0, a), ...rs.slice(debut, fin), ...rs.slice(a, debut), ...rs.slice(fin)]
+        : [...rs.slice(0, debut), ...rs.slice(fin, z), ...rs.slice(debut, fin), ...rs.slice(z)];
+      refreshRounds();
+    };
+    const retirerJeu = () => {
+      const remplies = b.indices.filter((i) => roundFilled(editing.rounds[i]) && !SANS_CONTENU.includes(b.type)).length;
+      if (remplies && !confirm(`Retirer « ${ROUND_TYPES[b.type]} » et ${remplies > 1 ? `ses ${remplies} manches` : "sa manche"} de la prestation ?`)) return;
+      editing.rounds.splice(debut, fin - debut);
+      refreshRounds();
+    };
+    const ajouterManche = () => { editing.rounds.splice(fin, 0, { type: b.type }); refreshRounds(); };
+    const n = b.indices.length;
+    box.append(h("div", { class: "jeu-bloc", "data-jeu": b.type },
+      h("div", { class: "jeu-tete" },
+        h("span", { class: "jeu-nom", text: `${iconeJeu(b.type)} ${ROUND_TYPES[b.type]}`.trim() }),
+        h("span", { class: "jeu-nb", text: n > 1 ? `${n} manches` : "1 manche" }),
+        h("button", { type: "button", class: "chip jeu-plus", text: "＋ Manche", title: `Ajouter une manche de ${ROUND_TYPES[b.type]}`, onclick: ajouterManche }),
+        h("button", { type: "button", class: "icon", title: "Monter ce jeu", disabled: k === 0, onclick: () => deplacer(-1), text: "↑" }),
+        h("button", { type: "button", class: "icon", title: "Descendre ce jeu", disabled: k === blocs.length - 1, onclick: () => deplacer(1), text: "↓" }),
+        h("button", { type: "button", class: "icon", title: "Retirer ce jeu", onclick: retirerJeu, text: "✕" })),
+      ...b.indices.map((i) => {
+        const r = editing.rounds[i];
+        return h("div", { class: "round show-round", "data-manche": i },
+          h("div", { class: "round-head" },
+            h("span", { class: "num", title: `Manche ${i + 1} de la prestation`, text: `${i + 1}` }),
+            SANS_CONTENU.includes(b.type) ? h("span", { class: "grow hint small", text: n > 1 ? `Partie ${b.indices.indexOf(i) + 1}` : "" }) : mancheTools(r, (next) => { editing.rounds[i] = next; refreshRounds(); }),
+            n > 1 ? h("button", { type: "button", class: "icon", title: "Retirer cette manche", onclick: () => { editing.rounds.splice(i, 1); refreshRounds(); }, text: "✕" }) : null),
+          h("div", { class: "round-body" }, ...roundFields(r)),
+          alerteManche(r));
+      })));
   });
   refreshSummary();
 }
@@ -1111,33 +1142,60 @@ function alerteManche(r) {
   return texte ? h("p", { class: "alerte-equipes", role: "alert", text: `⚠ ${texte}` }) : null;
 }
 
+/** « ＋ Ajouter un jeu » : les jeux en tuiles, par famille ; un clic ajoute le jeu (une manche) en fin de prestation. */
+function ouvrirChoixJeu() {
+  const box = $("jeu-choix");
+  if (!box.hidden) { box.hidden = true; return; }
+  box.replaceChildren(...jeuxProposes().map((g) => h("div", { class: "jeu-famille" },
+    h("p", { class: "small", text: g.title }),
+    h("div", { class: "jeu-tuiles" }, ...g.games.map((x) => h("button", {
+      type: "button", class: "jeu-tuile", "data-jeu": x.type, text: `${iconeJeu(x.type)} ${ROUND_TYPES[x.type]}`,
+      onclick: () => {
+        box.hidden = true;
+        editing.rounds.push({ type: x.type });
+        refreshRounds();
+        $("show-rounds").lastElementChild?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      },
+    }))))));
+  box.hidden = false;
+}
+
 /**
- * Manche d'une prestation : « Charger une manche… » la remplace par une copie d'une manche enregistrée (les
- * épinglées d'abord) ; « 💾 » enregistre celle qu'on vient de composer dans la page du jeu, pour la retrouver.
+ * Manche d'une prestation : « Reprendre une manche… » la remplace par une copie d'une manche gardée dans la page de
+ * son jeu (les épinglées d'abord) ou d'une manche d'une autre prestation. La manche reprise ne change pas.
  */
 function mancheTools(r, replace) {
   const type = r.type ?? "quiz";
   const { pinned, active } = mancheGroups(manches, type, quizzes);
-  const list = [...pinned, ...active];
+  const gardees = [...pinned, ...active];
+  const dejaGardees = new Set(gardees.map(([id]) => id));
+  // Manches des autres prestations pas encore gardées (prestations d'avant le 21 octobre).
+  const autres = Object.entries(shows).filter(([sid, s]) => s && sid !== editing?.id)
+    .sort(([, a], [, b]) => (b.date ?? "").localeCompare(a.date ?? ""))
+    // Une ancienne manche « Super Finale » ne se reprend pas : ce n'est pas un jeu.
+    .flatMap(([sid, s]) => (s.rounds ?? []).map((x, i) => [x ? jeuDeLaManche(x, quizzes) : null, i, sid, s]))
+    .filter(([x]) => x && x.type !== "finale" && (x.type ?? "quiz") === type && roundFilled(x) && roundContent(x) != null && !(x.mancheId && dejaGardees.has(x.mancheId)));
+  if (!gardees.length && !autres.length) return h("span", { class: "manche-tools" });
+  const lib = { mimes, playlists, quizzes };
+  const choix = new Map();
   return h("span", { class: "manche-tools" },
-    list.length ? h("select", {
-      class: "manche-load", "aria-label": "Charger une manche enregistrée",
+    h("select", {
+      class: "manche-load", "aria-label": "Reprendre une manche",
       onchange: (e) => {
-        const m = manches[e.target.value];
-        if (m) replace({ ...cleanRound(m.round, playlists), mancheId: e.target.value, title: m.title });
+        const v = e.target.value;
+        const m = manches[v];
+        if (m) replace({ ...cleanRound(m.round, playlists), mancheId: v, title: m.title });
+        else if (choix.has(v)) replace(JSON.parse(JSON.stringify(choix.get(v))));
       },
     },
-    h("option", { value: "", text: "Charger une manche…" }),
-    ...list.map(([id, m]) => h("option", { value: id, selected: r.mancheId === id, text: `${m.pinned ? "⭐ " : ""}${m.title} (${mancheSummary(m.round, { mimes, playlists, quizzes })})` }))) : null,
-    roundFilled(r) && type !== "coffres" && type !== "patate" && type !== "gonfleur" ? h("button", {
-      type: "button", class: "icon manche-save", title: "Enregistrer comme manche (page du jeu)", text: "💾",
-      onclick: async () => {
-        const title = prompt("Nom de la manche :", r.title ?? defaultMancheTitle(type));
-        if (!title?.trim()) return;
-        const id = await saveManche(null, { type, title: title.trim(), round: cleanRound(r, playlists) });
-        if (id) { r.mancheId = id; r.title = title.trim().slice(0, 60); refreshRounds(); status("show-status-msg", `Manche « ${title.trim()} » enregistrée dans la page ${ROUND_TYPES[type]}.`, true); }
-      },
-    }) : null);
+    h("option", { value: "", text: "Reprendre une manche…" }),
+    gardees.length ? h("optgroup", { label: `Manches ${deJeu(ROUND_TYPES[type])}` },
+      ...gardees.map(([id, m]) => h("option", { value: id, selected: r.mancheId === id, text: `${m.pinned ? "⭐ " : ""}${m.title} (${mancheSummary(m.round, lib)})` }))) : null,
+    autres.length ? h("optgroup", { label: "Dans les autres prestations" },
+      ...autres.map(([x, i, sid, s]) => {
+        choix.set(`${sid}/${i}`, x);
+        return h("option", { value: `${sid}/${i}`, text: `${showTitle(s)}${s.date ? ` (${new Date(`${s.date}T12:00:00`).toLocaleDateString("fr-FR")})` : ""} : ${mancheSummary(x, lib)}` });
+      })) : null));
 }
 
 /** Nombre d'équipes de l'écran en cours (prestation, ou réglage du tirage d'une manche seule). */
@@ -1324,27 +1382,8 @@ function refreshSummary() {
 ["show-age", "show-profile", "show-child", "show-title", "show-date", "show-status"].forEach((id) => $(id).addEventListener("input", refreshSummary));
 // Le nombre d'équipes change ce qu'il faut prévoir pour les mimes : les manches sont redessinées.
 $("show-teams").addEventListener("change", refreshRounds);
-$("round-add").onclick = () => { editing.rounds.push({ type: "quiz", quizId: "" }); refreshRounds(); };
+$("round-add").onclick = () => ouvrirChoixJeu();
 
-/**
- * Manches des autres prestations, à reprendre telles quelles : la nouvelle manche pointe vers le même
- * quiz de la bibliothèque, l'ancienne prestation et le quiz ne sont pas modifiés.
- */
-function refreshReuse() {
-  const options = Object.entries(shows)
-    .filter(([id]) => id !== editing?.id)
-    .sort(([, a], [, b]) => (b.date ?? "").localeCompare(a.date ?? ""))
-    // Une ancienne manche « Super Finale » ne se reprend pas : ce n'est pas un jeu.
-    .flatMap(([id, s]) => (s.rounds ?? []).map((r, i) => [jeuDeLaManche(r, quizzes), i]).filter(([r]) => r && r.type !== "finale" && roundContent(r) != null).map(([r, i]) => ({
-      value: `${id}/${i}`, round: r,
-      text: `${showTitle(s)}${s.date ? ` (${new Date(`${s.date}T12:00:00`).toLocaleDateString("fr-FR")})` : ""} · ${ROUND_TYPES[r.type] && r.type !== "quiz" ? ROUND_TYPES[r.type] : "Manche"}${roundContent(r) ? ` : ${roundContent(r)}` : ""}`,
-    })));
-  reuseChoices = new Map(options.map((o) => [o.value, o.round]));
-  $("round-reuse").replaceChildren(
-    h("option", { value: "", text: options.length ? "Choisir une manche…" : "Aucune autre prestation" }),
-    ...options.map((o) => h("option", { value: o.value, text: o.text })));
-  $("round-reuse").disabled = !options.length;
-}
 /** Contenu d'une manche (titre du quiz, du paquet, de la playlist), "" pour un jeu sans contenu, null s'il n'existe plus. */
 function roundContent(r) {
   if (!r?.type && !r?.quizId) return null;
@@ -1354,14 +1393,35 @@ function roundContent(r) {
   const titles = roundQuizIds(r).map((id) => quizzes[id]?.title);
   return titles.length && titles.every(Boolean) ? titles.join(" + ") : null;
 }
-$("round-reuse").onchange = (e) => {
-  const r = reuseChoices.get(e.target.value);
-  if (!r) return;
-  // Copie de la manche (même contenu de la bibliothèque, mêmes réglages) : l'autre prestation ne change pas.
-  editing.rounds.push(JSON.parse(JSON.stringify(r)));
-  e.target.value = "";
-  refreshRounds();
-};
+/**
+ * Chaque manche composée dans la prestation est gardée dans la page de son jeu (cedric, 21/10), pour la réutiliser :
+ * créée au premier enregistrement, rattachée à la prestation, mise à jour ensuite. Une manche reprise telle quelle ne
+ * crée rien ; reprise puis changée, elle devient une nouvelle manche de cette prestation (l'originale ne bouge pas).
+ * Les jeux sans contenu ne sont pas gardés. Rend le nombre de manches écrites.
+ */
+async function garderManches(showId, s) {
+  const pareil = (a, b) => JSON.stringify(cleanRound({ ...a, mancheId: null, title: null }, playlists)) === JSON.stringify(cleanRound({ ...b, mancheId: null, title: null }, playlists));
+  const parJeu = new Map();
+  let n = 0;
+  for (const r of editing.rounds) {
+    const type = r.type ?? "quiz";
+    if (!roundFilled(r) || SANS_CONTENU.includes(type)) continue;
+    parJeu.set(type, (parJeu.get(type) ?? 0) + 1);
+    const m = r.mancheId ? manches[r.mancheId] : null;
+    if (m && pareil(m.round, r)) continue;
+    // Déjà gardée pour cette prestation (« Garder comme manche » de l'historique) : le lien suffit.
+    const meme = Object.entries(manches).find(([, x]) => x?.showId === showId && x.round && pareil(x.round, r));
+    if (meme) { r.mancheId = meme[0]; n++; continue; }
+    if (m && m.showId === showId) {
+      if (await saveManche(r.mancheId, { ...m, round: r })) n++;
+      continue;
+    }
+    const titre = `${ROUND_TYPES[type]}${parJeu.get(type) > 1 ? ` ${parJeu.get(type)}` : ""} · ${showTitle(s)}`;
+    const id = await saveManche(null, { type, title: titre, round: r, showId });
+    if (id) { r.mancheId = id; delete r.title; n++; }
+  }
+  return n;
+}
 
 $("show-form").onsubmit = async (e) => {
   e.preventDefault();
@@ -1378,6 +1438,8 @@ $("show-form").onsubmit = async (e) => {
   const prev = shows[id] ?? {};
   $("show-save").disabled = true;
   try {
+    // Chaque manche composée ici est aussi gardée dans la page de son jeu ; la prestation garde le lien vers elle.
+    if (await garderManches(id, s)) s.rounds = editing.rounds.filter(roundFilled).map((r) => cleanRound(r, playlists));
     await set(ref(db, `library/shows/${id}`), {
       ...s, origin: prev.origin ?? "admin", createdAt: prev.createdAt ?? Date.now(),
       // L'étoile d'une archivée et le « ne plus archiver toute seule » d'une désarchivée ne se perdent pas.
@@ -1389,6 +1451,7 @@ $("show-form").onsubmit = async (e) => {
       updatedAt: serverTimestamp(),
     });
     editing.id = id;
+    refreshRounds();
     histPrestation.enregistre();
     $("show-delete").hidden = false;
     $("show-edit-title").textContent = showTitle({ ...s, copieDe: prev.copieDe });
@@ -4711,9 +4774,18 @@ function renderGame() {
   $("game-h1").textContent = `${g.icon ?? ""} ${ROUND_TYPES[type]}`.trim();
   $("game-rule").textContent = gameInfo(g).rule;
   $("game-tabs").replaceChildren(...gameTabs(type, "manches"));
-  $("game-manche-hint").textContent = `${COLLECTION_SCREEN[type] ? "Une manche est ce qu'on joue : une sélection piochée dans les collections du jeu, avec ses réglages."
-    : "Ce jeu n'a pas de contenu à préparer : une manche garde seulement ses réglages."} Composez-la ici une fois, puis chargez-la dans vos prestations ; épinglez celles qui marchent bien.`;
-  $("manche-random").hidden = !RANDOM_TYPES.includes(type);
+  // Aperçu de l'écran d'ouverture du jeu sur la TV (vidéo en boucle, l'image en attendant).
+  const apercu = $("game-apercu");
+  if (apercu.dataset.jeu !== type) {
+    apercu.dataset.jeu = type;
+    apercu.poster = `apercus-jeux/${type}.webp`;
+    apercu.src = `apercus-jeux/${type}.mp4`;
+    apercu.play?.()?.catch?.(() => {});
+  }
+  // Les manches se composent dans les prestations (cedric, 21/10) : ici, celles qui y ont été faites, à réutiliser.
+  $("game-manche-hint").textContent = SANS_CONTENU.includes(type)
+    ? "Rien à préparer : ajoutez ce jeu à une prestation avec « ＋ Ajouter un jeu »."
+    : "Les manches se composent dans une prestation, avec « ＋ Ajouter un jeu ». Chacune est gardée ici toute seule, pour la reprendre dans une autre prestation ; épinglez celles qui marchent bien.";
   // Recherche : chaque mot tapé dans le nom ou le contenu de la manche ; les noms qui commencent par elle d'abord.
   const query = $("manche-search").value.trim();
   const lib = { mimes, playlists, quizzes };
@@ -4723,7 +4795,8 @@ function renderGame() {
   $("manches-pinned-box").hidden = !pinned.length;
   $("manches-pinned").replaceChildren(...pinned.map(([id, m]) => mancheCard(id, m)));
   $("manches-list").replaceChildren(...(active.length ? active.map(([id, m]) => mancheCard(id, m))
-    : [h("p", { class: "hint", text: query ? "Aucune de vos manches ne correspond : voir aussi plus bas." : pinned.length ? "Les autres manches s'afficheront ici." : "Aucune manche pour l'instant : « Composer une manche » vous guide." })]));
+    : [h("p", { class: "hint", text: query ? "Aucune de vos manches ne correspond : voir aussi plus bas." : pinned.length ? "Les autres manches s'afficheront ici."
+      : "Aucune manche pour l'instant : elles arrivent ici quand vous composez une prestation." })]));
   $("manches-archived-count").textContent = archived.length;
   $("manches-archived").replaceChildren(...archived.map(([id, m]) => mancheCard(id, m)));
   // Manches déjà placées dans les prestations : on peut les garder comme manches.
@@ -4739,16 +4812,22 @@ function renderGame() {
   const n = pinned.length + active.length + archived.length + fromShows.length;
   $("manche-search-count").textContent = query ? plural(n, "manche trouvée", "manches trouvées") : "";
   $("manches-shows-count").textContent = fromShows.length;
-  $("manches-shows").replaceChildren(...fromShows.map(([sid, s, r]) => h("div", { class: "item manche-from-show" },
-    h("b", { text: showTitle(s) }),
-    h("span", { text: [s.date ? dateLabel(s.date) : "", mancheSummary(r, lib)].filter(Boolean).join(" · ") }),
-    h("div", { class: "row" }, h("button", {
-      class: "btn secondary", text: "Garder comme manche",
-      onclick: async () => {
-        const id = await saveManche(null, { type, title: `${ROUND_TYPES[type]} · ${showTitle(s)}`.slice(0, 60), round: cleanRound({ ...r, mancheId: null }, playlists) });
-        if (id) status("game-status", "Manche ajoutée à vos manches.", true);
-      },
-    })))));
+  // Historique (cedric, 21/10) : chaque manche jouée dans une prestation, la plus récente d'abord ; gardée ou à garder.
+  $("manches-shows").replaceChildren(...fromShows.map(([sid, s, r]) => {
+    const gardee = r.mancheId ? manches[r.mancheId] : null;
+    return h("div", { class: "item manche-from-show" },
+      h("b", { text: showTitle(s) }),
+      h("span", { text: [s.date ? dateLabel(s.date) : "", mancheSummary(r, lib)].filter(Boolean).join(" · ") }),
+      gardee ? h("span", { class: "small hint", text: `Gardée : « ${gardee.title} »` })
+        : SANS_CONTENU.includes(type) ? null
+          : h("div", { class: "row" }, h("button", {
+            class: "btn secondary", text: "Garder comme manche",
+            onclick: async () => {
+              const id = await saveManche(null, { type, title: `${ROUND_TYPES[type]} · ${showTitle(s)}`.slice(0, 60), round: cleanRound({ ...r, mancheId: null }, playlists), showId: sid });
+              if (id) status("game-status", "Manche ajoutée à vos manches.", true);
+            },
+          })));
+  }));
 }
 
 $("manche-search").addEventListener("input", () => renderGame());
@@ -4835,8 +4914,6 @@ function editManche(id, fresh = null) {
   histManche.depart();
 }
 $("manche-crumb").onclick = () => openGame(mancheEdit?.type ?? gameType);
-$("manche-new").onclick = () => editManche(null);
-$("manche-random").onclick = () => { editManche(null); drawManche(); };
 
 const histManche = historique({
   ecran: $("screen-manche-edit"),

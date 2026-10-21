@@ -307,6 +307,21 @@ export function mancheSummary(round, lib = {}) {
   return titles.length ? titles.join(" + ") : "quiz à choisir";
 }
 
+/**
+ * Jeux d'une prestation (cedric, 21/10 : on ajoute un jeu, puis ses manches) : les manches qui se suivent du même jeu
+ * forment un bloc, { type, indices } (indices des manches dans la prestation, dans l'ordre).
+ */
+export function blocsDeJeu(rounds) {
+  const blocs = [];
+  (rounds ?? []).forEach((r, i) => {
+    const type = r?.type ?? "quiz";
+    const last = blocs[blocs.length - 1];
+    if (last && last.type === type) last.indices.push(i);
+    else blocs.push({ type, indices: [i] });
+  });
+  return blocs;
+}
+
 /** Nom proposé pour une nouvelle manche : « Mimes du 20 octobre ». */
 export function defaultMancheTitle(type, date = new Date()) {
   return `${ROUND_TYPES[type] ?? "Manche"} du ${date.toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}`;

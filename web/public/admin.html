@@ -114,14 +114,12 @@
           <label>Durée prévue (minutes)<input id="show-duration" type="number" min="10" max="240" step="5"></label>
           <label class="wide">Thèmes<input id="show-themes" maxlength="200" placeholder="Licornes, Disney…"></label>
         </div>
-        <h2>Manches, dans l'ordre</h2>
+        <h2>Jeux, dans l'ordre</h2>
         <div id="show-rounds" class="rounds"></div>
         <div class="round-tools">
-          <button id="round-add" type="button" class="btn secondary">Ajouter une manche</button>
-          <label class="reuse">Ou reprendre une manche d'une autre prestation
-            <select id="round-reuse"></select>
-          </label>
+          <button id="round-add" type="button" class="btn secondary">＋ Ajouter un jeu</button>
         </div>
+        <div id="jeu-choix" class="panel jeu-choix" hidden></div>
         <p id="show-summary" class="hint"></p>
         <ul id="show-problems" class="problems"></ul>
         <label class="wide">Notes pour l'animatrice<textarea id="show-notes" rows="3" maxlength="2000"></textarea></label>
@@ -194,13 +192,12 @@
     <section id="screen-game" class="screen" hidden>
       <nav class="crumbs"><button class="link" data-screen="home">Accueil</button> › <b id="game-title">Jeu</b></nav>
       <h1 id="game-h1">Jeu</h1>
-      <p id="game-rule" class="hint"></p>
+      <div class="game-haut">
+        <video id="game-apercu" class="game-apercu" autoplay muted loop playsinline disablepictureinpicture aria-label="Aperçu de l'écran d'ouverture du jeu sur la TV"></video>
+        <p id="game-rule" class="hint"></p>
+      </div>
       <div id="game-tabs" class="chips game-tabs"></div>
       <p id="game-manche-hint" class="hint small"></p>
-      <div class="row">
-        <button id="manche-new" type="button" class="btn">＋ Composer une manche</button>
-        <button id="manche-random" type="button" class="btn secondary">🎲 Manche au hasard</button>
-      </div>
       <div class="search-row">
         <input id="manche-search" type="search" placeholder="Rechercher une manche : nom, contenu…" aria-label="Rechercher une manche" autocomplete="off">
         <span id="manche-search-count" class="hint small"></span>
@@ -215,9 +212,9 @@
         <summary>Manches archivées (<span id="manches-archived-count">0</span>)</summary>
         <div id="manches-archived" class="cards"></div>
       </details>
-      <details id="manches-shows-box" class="panel">
-        <summary>Manches des prestations (<span id="manches-shows-count">0</span>)</summary>
-        <p class="hint small">Les manches de ce jeu déjà placées dans une prestation. « Garder comme manche » l'ajoute à vos manches, sans toucher à la prestation.</p>
+      <details id="manches-shows-box" class="panel" open>
+        <summary>Historique : joué dans les prestations (<span id="manches-shows-count">0</span>)</summary>
+        <p class="hint small">Chaque manche de ce jeu dans vos prestations, les plus récentes d'abord. Une ancienne manche pas encore gardée : « Garder comme manche » l'ajoute à vos manches.</p>
         <div id="manches-shows" class="cards"></div>
       </details>
       <p id="game-status" class="status"></p>

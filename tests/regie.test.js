@@ -414,6 +414,12 @@ async function aVenir(page) {
   await page.selectOption("#show-status", "publiee");
 }
 
+/** Prestation : « ＋ Ajouter un jeu », puis la tuile du jeu (cedric, 21/10) ; le jeu arrive avec une manche. */
+async function ajouterJeu(page, type = "quiz") {
+  await page.click("#round-add");
+  await page.click(`#jeu-choix .jeu-tuile[data-jeu="${type}"]`);
+}
+
 /** Administration : le mot de passe commun, saisi sur le PC familial. */
 async function openAdmin() {
   const page = await openRegie(null, "?emu=1", "/admin.html");
@@ -1657,6 +1663,15 @@ describe("bibliothèque de quiz et prestations", () => {
     return value;
   };
   const seedLibrary = (path, value) => env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `library/${path}`), value));
+  // Une manche faite dans une prestation est gardée dans la page de son jeu (`mancheId`, cedric, 21/10) : vérifié, puis
+  // retiré pour comparer le contenu.
+  const sansManche = async (rounds) => {
+    const gardees = (await library("manches")) ?? {};
+    return rounds.map(({ mancheId, ...r }) => {
+      assert.ok(gardees[mancheId], `manche ${r.type} gardée dans la page de son jeu`);
+      return r;
+    });
+  };
   const ANIMAUX = {
     title: "Animaux", source: "gemini", updatedAt: 1, ageMin: 6, ageMax: 8,
     questions: [
@@ -1735,9 +1750,13 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.fill("#show-child", "Léa");
     await page.fill("#show-age", "7");
     await page.fill("#show-date", "2026-12-02");
+    // « ＋ Ajouter un jeu » : les jeux en tuiles. La Super Finale n'en est pas un : c'est un réglage de la manche Quiz.
     await page.click("#round-add");
-    // La Super Finale n'est pas un jeu qu'on ajoute : c'est un réglage de la manche Quiz.
-    assert.equal(await page.locator('#show-rounds .round select').first().locator('option[value="finale"]').count(), 0);
+    assert.equal(await page.locator('#jeu-choix .jeu-tuile[data-jeu="finale"]').count(), 0);
+    assert.equal(await page.locator("#jeu-choix .jeu-tuile").count(), 16);
+    await page.click('#jeu-choix .jeu-tuile[data-jeu="quiz"]');
+    await page.locator("#jeu-choix").waitFor({ state: "hidden" });
+    await page.locator('#show-rounds .jeu-bloc[data-jeu="quiz"] .jeu-nom', { hasText: "Quiz" }).waitFor();
     await page.locator("#show-rounds select.grow").nth(0).selectOption("animaux");
     await page.locator("#show-rounds select.finale").selectOption("1");
     await page.locator("#show-summary", { hasText: "2 questions jouables" }).waitFor();
@@ -1746,7 +1765,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
     const saved = Object.values(await library("shows"))[0];
     assert.equal(saved.childName, "Léa");
-    assert.deepEqual(saved.rounds, [{ type: "quiz", quizId: "animaux", finale: 1 }]);
+    assert.deepEqual(await sansManche(saved.rounds), [{ type: "quiz", quizId: "animaux", finale: 1 }]);
     await page.context().close();
 
     box = startBox();
@@ -1845,18 +1864,17 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.fill("#show-child", "Léa");
     await page.fill("#show-age", "9");
     await page.fill("#show-date", "2026-12-02");
-    await page.click("#round-add");
+    await ajouterJeu(page);
     await page.locator("#show-rounds select.grow").nth(0).selectOption("animaux");
     await page.locator("#show-rounds select.count").selectOption("1");
-    await page.click("#round-add");
-    await page.locator("#show-rounds .round").nth(1).locator("select").first().selectOption("chante");
+    await ajouterJeu(page, "chante");
     await page.locator("#show-rounds .round").nth(1).locator("select.grow").selectOption("4");
     await page.fill("#show-notes", "Gâteau à 16 h.\nLéa adore les licornes.");
     await page.locator("#show-summary", { hasText: "5 questions" }).waitFor();
     await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
-    assert.deepEqual(Object.values(await library("shows"))[0].rounds, [{ type: "quiz", quizId: "animaux", count: 1 }, { type: "chante", count: 4 }]);
+    assert.deepEqual(await sansManche(Object.values(await library("shows"))[0].rounds), [{ type: "quiz", quizId: "animaux", count: 1 }, { type: "chante", count: 4 }]);
     await page.context().close();
 
     box = startBox();
@@ -1894,8 +1912,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#home-new");
     await page.fill("#show-child", "Léa");
     await page.fill("#show-age", "9");
-    await page.click("#round-add");
-    await page.locator("#show-rounds .round").nth(0).locator("select").first().selectOption("pictionary");
+    await ajouterJeu(page, "pictionary");
     const picker = page.locator("#show-rounds .picto-series");
     await picker.locator("span", { hasText: "Toutes les séries : 77 mots" }).waitFor();
     await picker.locator("button", { hasText: "🎲 Au hasard" }).click();
@@ -1908,7 +1925,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
-    assert.deepEqual(Object.values(await library("shows"))[0].rounds, [{ type: "pictionary", duration: 90, series: ["Animaux", "Au parc"] }]);
+    assert.deepEqual(await sansManche(Object.values(await library("shows"))[0].rounds), [{ type: "pictionary", duration: 90, series: ["Animaux", "Au parc"] }]);
     await page.context().close();
   });
 
@@ -1938,16 +1955,15 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#home-new");
     await page.fill("#show-child", "Léa");
     await page.fill("#show-age", "9");
-    await page.click("#round-add");
+    await ajouterJeu(page);
     await page.locator("#show-rounds select.grow").nth(0).selectOption("animaux");
-    await page.click("#round-add");
-    await page.locator("#show-rounds .round").nth(1).locator("select").first().selectOption("mimes");
+    await ajouterJeu(page, "mimes");
     await page.locator("#show-rounds .round").nth(1).locator("select.grow").selectOption(deckId);
     await page.locator("#show-summary", { hasText: "2 questions · 1 manche de mimes jouables" }).waitFor();
     await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
-    assert.deepEqual(Object.values(await library("shows"))[0].rounds, [{ type: "quiz", quizId: "animaux" }, { type: "mimes", deckId }]);
+    assert.deepEqual(await sansManche(Object.values(await library("shows"))[0].rounds), [{ type: "quiz", quizId: "animaux" }, { type: "mimes", deckId }]);
     await page.context().close();
 
     box = startBox();
@@ -2539,14 +2555,13 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#home-new");
     await page.fill("#show-child", "Léa");
     await page.fill("#show-age", "9");
-    await page.click("#round-add");
+    await ajouterJeu(page, "chante");
     const round = page.locator("#show-rounds .round").nth(0);
-    await round.locator("select").first().selectOption("chante");
     await round.locator("select.grow").selectOption("4");
     await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
-    assert.deepEqual(Object.values(await library("shows"))[0].rounds, [{ type: "chante", count: 4 }]);
+    assert.deepEqual(await sansManche(Object.values(await library("shows"))[0].rounds), [{ type: "chante", count: 4 }]);
     await page.context().close();
 
     box = startBox();
@@ -2585,16 +2600,15 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.fill("#show-child", "Léa");
     await page.fill("#show-age", "9");
     // Quiz : un deuxième quiz enchaîné dans la même manche.
-    await page.click("#round-add");
+    await ajouterJeu(page);
     const quiz = page.locator("#show-rounds .round").nth(0);
     await quiz.locator("select.grow").first().selectOption("animaux");
     await quiz.locator("button.quiz-add").click();
     await quiz.locator(".quiz-more select").selectOption("finale");
     await page.locator("#show-summary", { hasText: "3 questions" }).waitFor();
     // Mimes : 30 cartes du catalogue au hasard, une retirée, une à soi ajoutée.
-    await page.click("#round-add");
+    await ajouterJeu(page, "mimes");
     const mimes = page.locator("#show-rounds .round").nth(1);
-    await mimes.locator("select").first().selectOption("mimes");
     await mimes.locator("select.grow").selectOption("hasard");
     await mimes.locator(".pick-box .small", { hasText: "30 cartes au hasard au lancement" }).waitFor();
     await mimes.locator("button.pick-draw").click();
@@ -2606,16 +2620,15 @@ describe("bibliothèque de quiz et prestations", () => {
     await mimes.locator(".pick-own button").click();
     await mimes.locator('button.pick-item[data-key="le chat de léa"]').waitFor();
     // Chante le mot ! : deux mots choisis à la main.
-    await page.click("#round-add");
+    await ajouterJeu(page, "chante");
     const chante = page.locator("#show-rounds .round").nth(2);
-    await chante.locator("select").first().selectOption("chante");
     await chante.locator("select.pick-add").selectOption("soleil");
     await chante.locator("select.pick-add").selectOption("maman");
     await chante.locator(".pick-box .small", { hasText: "2 mots choisis" }).waitFor();
     await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
-    const saved = Object.values(await library("shows"))[0].rounds;
+    const saved = await sansManche(Object.values(await library("shows"))[0].rounds);
     assert.deepEqual(saved[0], { type: "quiz", quizId: "animaux", quizIds: ["animaux", "finale"] });
     assert.equal(saved[1].type, "mimes");
     assert.equal(saved[1].deckId, undefined, "Cartes choisies dans toutes les collections");
@@ -2644,16 +2657,14 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#home-new");
     await page.fill("#show-child", "Léa");
     await page.fill("#show-age", "9");
-    await page.click("#round-add");
+    await ajouterJeu(page, "mimes");
     const mimes = page.locator("#show-rounds .round").nth(0);
-    await mimes.locator("select").first().selectOption("mimes");
     await mimes.locator("select.grow").selectOption("hasard");
     await mimes.locator(".pick-own input").fill("Chat");
     await mimes.locator(".pick-own button").click();
     await mimes.locator('button.pick-item[data-key="chat"]').waitFor();
-    await page.click("#round-add");
+    await ajouterJeu(page, "chante");
     const chante = page.locator("#show-rounds .round").nth(1);
-    await chante.locator("select").first().selectOption("chante");
     assert.match(await chante.locator('select.pick-add option[value="chat"]').textContent(), /déjà utilisé dans Mimes/);
     await chante.locator("select.pick-add").selectOption("chat");
     // Choisi à la main : permis, en rouge des deux côtés.
@@ -2796,34 +2807,70 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
-  test("Régie PC : une manche de mimes composée dans la page du jeu, épinglée, puis chargée dans une prestation de 6 équipes", async () => {
+  test("Régie PC : une manche de mimes composée dans une prestation, gardée toute seule dans la page du jeu, épinglée, puis reprise dans une prestation de 6 équipes", async () => {
     const page = await admin();
-    // L'accueil mène à la page du jeu : ses manches, et ses collections dans l'onglet voisin.
+    // La page du jeu : son aperçu, ses manches, son historique ; on n'y compose plus de manche (cedric, 21/10).
     await page.locator('#home-games .tile[data-game=mimes]').click();
     await page.locator("#screen-game:not([hidden]) #game-h1", { hasText: "Mimes" }).waitFor();
-    await page.locator("#manches-list", { hasText: "Aucune manche pour l'instant" }).waitFor();
-    await page.click("#manche-new");
-    await page.locator("#screen-manche-edit:not([hidden])").waitFor();
-    // 5 cartes par équipe × 4 équipes prévues : 20 cartes tirées dans toutes les collections.
-    assert.equal(await page.inputValue("#manche-fields .mime-per-team"), "5");
-    await page.click("#manche-draw");
-    await page.locator("#manche-status", { hasText: "Tirage : 20 cartes au hasard" }).waitFor();
-    await page.locator("#manche-fields .pick-box .small", { hasText: "20 cartes choisies" }).waitFor();
-    await page.fill("#manche-title", "Mimes de Léa");
-    await page.click("#manche-save");
-    await page.locator("#manche-status", { hasText: "Manche enregistrée" }).waitFor();
+    await page.locator("#manches-list", { hasText: "Aucune manche pour l'instant : elles arrivent ici quand vous composez une prestation." }).waitFor();
+    assert.equal(await page.locator("#manche-new").count(), 0);
+    assert.match(await page.locator("#game-apercu").getAttribute("src"), /apercus-jeux\/mimes\.mp4$/);
+    assert.match(await page.locator("#game-manche-hint").textContent(), /« ＋ Ajouter un jeu »/);
+
+    // Composée dans une prestation : 5 cartes par équipe × 4 équipes prévues = 20 cartes tirées au hasard.
+    await page.click("#nav button[data-screen=home]");
+    await page.click("#home-new");
+    await page.fill("#show-child", "Léa");
+    await page.fill("#show-age", "9");
+    await page.click("#round-add");
+    await capture(page, "prestation-ajouter-un-jeu");
+    await page.click('#jeu-choix .jeu-tuile[data-jeu="mimes"]');
+    const composee = page.locator("#show-rounds .round").nth(0);
+    await composee.locator("select.grow").selectOption("hasard");
+    await composee.locator(".mime-per-team").selectOption("5");
+    await composee.locator("button.pick-draw").click();
+    await composee.locator(".pick-box .small", { hasText: "20 cartes choisies" }).waitFor();
+    await page.locator('#show-rounds .jeu-bloc[data-jeu="mimes"] .jeu-plus').click();
+    await page.locator("#show-rounds .round").nth(1).waitFor();
+    await capture(page, "prestation-bloc-mimes");
+    await page.locator("#show-rounds .round").nth(1).getByRole("button", { name: "✕", exact: true }).click();
+    await waitFor(async () => (await page.locator("#show-rounds .round").count()) === 1, "manche retirée");
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée." }).waitFor();
+    await waitFor(async () => Object.keys((await library("manches")) ?? {}).length === 1, "manche gardée");
     const [id, saved] = Object.entries(await library("manches"))[0];
+    const [showId] = Object.keys(await library("shows"));
     assert.equal(saved.type, "mimes");
-    assert.equal(saved.title, "Mimes de Léa");
+    assert.equal(saved.title, "Mimes · L'anniversaire de Léa");
     assert.equal(saved.origin, "admin");
+    assert.equal(saved.showId, showId);
     assert.equal(saved.round.perTeam, 5);
     assert.equal(saved.round.cards.length, 20);
     assert.equal(new Set(saved.round.cards.map((c) => c.word)).size, 20, "Jamais deux fois la même carte");
-    // Épinglée : en tête de la page du jeu.
-    await page.click("#manche-crumb");
+    assert.equal((await library(`shows/${showId}`)).rounds[0].mancheId, id);
+    // Réenregistrée sans changement : rien de plus ; changée : la même manche suit.
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée." }).waitFor();
+    await composee.locator(".mime-per-team").selectOption("4");
+    await composee.locator("button.pick-draw").click();
+    await composee.locator(".pick-box .small", { hasText: "16 cartes choisies" }).waitFor();
+    await composee.locator(".mime-per-team").selectOption("5");
+    await composee.locator("button.pick-draw").click();
+    await composee.locator(".pick-box .small", { hasText: "20 cartes choisies" }).waitFor();
+    await page.click("#show-save");
+    await waitFor(async () => JSON.stringify((await library(`manches/${id}`)).round.cards) !== JSON.stringify(saved.round.cards), "manche mise à jour");
+    assert.equal(Object.keys(await library("manches")).length, 1);
+    const tiree = (await library(`manches/${id}`)).round.cards;
+    await waitFor(async () => JSON.stringify((await library(`shows/${showId}`)).rounds[0].cards) === JSON.stringify(tiree), "prestation enregistrée");
+    await page.locator("#show-save:not([disabled])").waitFor();
+
+    // Dans la page du jeu : la manche, épinglée en tête ; l'historique dit qu'elle est gardée.
+    await openGamePage(page, "mimes");
     await page.locator(`#manches-list [data-manche="${id}"] button`, { hasText: "⭐ Épingler" }).click();
     await page.locator(`#manches-pinned [data-manche="${id}"]`, { hasText: "⭐ Épinglée" }).waitFor();
     assert.equal((await library(`manches/${id}`)).pinned, true);
+    await page.locator("#manches-shows .manche-from-show", { hasText: "Gardée : « Mimes · L'anniversaire de Léa »" }).waitFor();
+    await capture(page, "page-jeu-mimes");
 
     // Prestation de 6 équipes : la manche chargée garde ses 20 cartes ; le reste se tire au lancement.
     await page.click("#nav button[data-screen=home]");
@@ -2831,19 +2878,20 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.fill("#show-child", "Léa");
     await page.fill("#show-age", "9");
     await page.selectOption("#show-teams", "6");
-    await page.click("#round-add");
+    await ajouterJeu(page, "mimes");
     const round = page.locator("#show-rounds .round").nth(0);
-    await round.locator("select").first().selectOption("mimes");
     await round.locator(".manche-load").selectOption(id);
     await round.locator(".mime-need", { hasText: "5 par équipe × 6 équipes = 30 cartes · 20 choisies : le reste est tiré au hasard au lancement" }).waitFor();
     await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
-    const show = Object.values(await library("shows"))[0];
+    const show = Object.entries(await library("shows")).find(([k]) => k !== showId)[1];
     assert.equal(show.teams, 6);
     assert.equal(show.rounds[0].mancheId, id);
     assert.equal(show.rounds[0].perTeam, 5);
-    assert.deepEqual(show.rounds[0].cards, saved.round.cards);
+    assert.deepEqual(show.rounds[0].cards, tiree);
+    // Reprise telle quelle : pas de nouvelle manche.
+    assert.equal(Object.keys(await library("manches")).length, 1);
     await page.context().close();
   });
 
@@ -2855,9 +2903,8 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.locator("#show-teams").inputValue(), "4", "Nouvelle prestation : 4 équipes");
     await page.fill("#show-child", "Léa");
     await page.fill("#show-age", "9");
-    await page.click("#round-add");
+    await ajouterJeu(page, "pictionary");
     const round = page.locator("#show-rounds .round").nth(0);
-    await round.locator("select").first().selectOption("pictionary");
     assert.equal(await round.locator(".alerte-equipes").count(), 0, "Mots au hasard : pas d'alerte");
     await round.locator(".manche-load").selectOption("peu");
     await round.locator(".alerte-equipes", { hasText: "⚠ Pictionary : 5 mots choisis pour 4 équipes, il en faut au moins 12 (3 par équipe)." }).waitFor();
@@ -2868,9 +2915,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.selectOption("#show-teams", "1");
     await round.locator(".alerte-equipes").waitFor({ state: "detached" });
     // « Ça va exploser ! » à une seule équipe.
-    await page.click("#round-add");
+    await ajouterJeu(page, "patate");
     const bombe = page.locator("#show-rounds .round").nth(1);
-    await bombe.locator("select").first().selectOption("patate");
     await bombe.locator(".alerte-equipes", { hasText: "« Ça va exploser ! » se joue à 2 équipes au moins" }).waitFor();
     // L'alerte n'empêche pas d'enregistrer.
     await page.click("#show-save");
@@ -3097,8 +3143,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#home-new");
     await page.fill("#show-child", "Léa");
     await page.locator("#show-child").blur();
-    await page.click("#round-add");
-    await page.click("#round-add");
+    await ajouterJeu(page);
+    await ajouterJeu(page);
     await waitFor(async () => (await page.locator("#show-rounds .round").count()) === 2, "2 manches");
     await page.keyboard.press("Control+z");
     await waitFor(async () => (await page.locator("#show-rounds .round").count()) === 1, "Ctrl+Z : une manche de moins");
@@ -3151,12 +3197,13 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#quiz-import-open");
     await page.locator("#screen-import .retour-barre.haut .retour-page").click();
     await page.locator("#screen-quizzes:not([hidden])").waitFor();
-    await openGamePage(page, "patate");
-    await page.click("#manche-new");
+    await seedLibrary("manches/gouter", { type: "chante", title: "Chansons du goûter", origin: "admin", round: { type: "chante", count: 4 }, updatedAt: 1 });
+    await openGamePage(page, "chante");
+    await page.locator('.manche-card[data-manche="gouter"]').getByRole("button", { name: "Éditer" }).click();
     await page.locator("#screen-manche-edit:not([hidden])").waitFor();
     await page.locator("#screen-manche-edit .retour-barre.bas .retour-page").click();
     await page.locator("#screen-game:not([hidden])").waitFor();
-    assert.equal(await page.textContent("#game-title"), "Ça va exploser !");
+    assert.equal(await page.textContent("#game-title"), "Chante le mot !");
     // Après un rechargement, les pages d'avant ne rouvrent rien d'autre que l'Accueil.
     await page.reload();
     await page.locator("#screen-home:not([hidden])").waitFor();
@@ -3172,11 +3219,7 @@ describe("bibliothèque de quiz et prestations", () => {
 
   test("Régie PC : Dupliquer une manche ou une collection de cartes ajoute la copie à sa liste, sans l'ouvrir", async () => {
     const page = await admin();
-    await openGamePage(page, "patate");
-    await page.click("#manche-new");
-    await page.fill("#manche-title", "Patate du goûter");
-    await page.click("#manche-save");
-    await page.locator("#manche-status", { hasText: "Enregistr" }).waitFor();
+    await seedLibrary("manches/gouter", { type: "patate", title: "Patate du goûter", origin: "admin", round: { type: "patate" }, updatedAt: 1 });
     await openGamePage(page, "patate");
     await page.locator(".manche-card", { hasText: "Patate du goûter" }).getByRole("button", { name: "Dupliquer" }).click();
     await page.locator("#game-status", { hasText: "« Copie de Patate du goûter » est ajoutée à vos manches." }).waitFor();
@@ -3342,8 +3385,7 @@ describe("bibliothèque de quiz et prestations", () => {
     // Image floue : le quiz est proposé avec ses 3 photos.
     await page.click("#nav button[data-screen=home]");
     await page.click("#home-new");
-    await page.click("#round-add");
-    await page.locator("#show-rounds .round").nth(0).locator("select").first().selectOption("flou");
+    await ajouterJeu(page, "flou");
     await page.locator("#show-rounds .round").nth(0).locator("select.grow option", { hasText: "Monuments et animaux (3 avec photo)" }).waitFor({ state: "attached" });
     await page.locator("#show-rounds .round").nth(0).locator("select.grow").selectOption(id);
     await page.locator("#show-summary", { hasText: "3 questions" }).waitFor();
@@ -3364,14 +3406,13 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#home-new");
     await page.fill("#show-child", "Léa");
     await page.fill("#show-age", "9");
-    await page.click("#round-add");
-    await page.locator("#show-rounds .round").nth(0).locator("select").first().selectOption("express");
+    await ajouterJeu(page, "express");
     await page.locator("#show-rounds .round").nth(0).locator("select.grow option", { hasText: "Sciences (2 Vrai / Faux)" }).waitFor({ state: "attached" });
     await page.locator("#show-rounds .round").nth(0).locator("select.grow").selectOption("sciences");
     await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
-    assert.deepEqual(Object.values(await library("shows"))[0].rounds, [{ type: "express", quizId: "sciences" }]);
+    assert.deepEqual(await sansManche(Object.values(await library("shows"))[0].rounds), [{ type: "express", quizId: "sciences" }]);
     await page.context().close();
 
     box = startBox();
@@ -3448,26 +3489,17 @@ describe("bibliothèque de quiz et prestations", () => {
     await openQuizzes(page);
     assert.deepEqual(await page.locator("#quiz-list .item").evaluateAll((els) => els.map((e) => e.dataset.quiz)), ["animaux"]);
 
-    // Une manche composée dans la page du jeu : seuls les quiz illustrés se choisissent.
+    // La page du jeu : son aperçu, pas de création de manche (elles se composent dans les prestations).
     await openGamePage(page, "illustre");
     await page.locator("#game-h1", { hasText: "📷 Quiz illustré" }).waitFor();
-    await page.click("#manche-new");
-    const choix = page.locator("#manche-fields .quiz-picks select").first();
-    assert.deepEqual(await choix.locator("option").evaluateAll((o) => o.map((x) => x.value)), ["", "petits"]);
-    await choix.selectOption("petits");
-    await page.fill("#manche-title", "Les petits animaux");
-    await page.click("#manche-save");
-    await page.locator("#manche-status", { hasText: "Manche enregistrée" }).waitFor();
-    const [mancheId, manche] = Object.entries(await library("manches"))[0];
-    assert.equal(manche.type, "illustre");
-    assert.deepEqual(manche.round, { type: "illustre", quizId: "petits" });
+    assert.match(await page.locator("#game-apercu").getAttribute("src"), /apercus-jeux\/illustre\.mp4$/);
 
     // L'ancienne prestation s'ouvre avec un Quiz illustré (Super Finale gardée) et s'enregistre ainsi.
     await page.click("#nav button[data-screen=home]");
     await page.click('#screen-home [data-etat="avenir"]');
     await page.locator('#show-list [data-show="lea"]').getByRole("button", { name: "Ouvrir" }).click();
     const premiere = page.locator("#show-rounds .round").nth(0);
-    assert.equal(await premiere.locator("select.round-type").inputValue(), "illustre");
+    assert.deepEqual(await page.locator("#show-rounds .jeu-bloc").evaluateAll((l) => l.map((x) => x.dataset.jeu)), ["illustre", "quiz"]);
     assert.equal(await premiere.locator("select.finale").inputValue(), "1");
     assert.deepEqual(await premiere.locator(".quiz-picks select").first().locator("option").evaluateAll((o) => o.map((x) => x.value)), ["", "petits"]);
     // Le Quiz ne propose pas le quiz illustré.
@@ -3475,7 +3507,12 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(await seconde.locator(".quiz-picks select").first().locator("option").evaluateAll((o) => o.map((x) => x.value)), ["", "animaux"]);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
-    assert.deepEqual((await library("shows/lea")).rounds[0], { type: "illustre", quizId: "petits", finale: 1 });
+    // Ses deux manches sont gardées dans la page de leur jeu ; la prestation garde le lien.
+    await waitFor(async () => Object.keys((await library("manches")) ?? {}).length === 2, "manches gardées");
+    const [mancheId, manche] = Object.entries(await library("manches")).find(([, m]) => m.type === "illustre");
+    assert.deepEqual([manche.round, manche.showId], [{ type: "illustre", quizId: "petits", finale: 1 }, "lea"]);
+    await waitFor(async () => (await library("shows/lea")).rounds[0].mancheId === mancheId, "lien vers la manche");
+    assert.deepEqual((await library("shows/lea")).rounds[0], { type: "illustre", quizId: "petits", finale: 1, mancheId });
     await page.context().close();
 
     // La TV : le jeu s'appelle « Quiz illustré » (écran d'ouverture), réponses en images copiées dans la partie.
@@ -3562,7 +3599,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const shows = await library("shows");
     const zoe = Object.values(shows).find((s) => s.childName === "Zoé");
     assert.equal(zoe.status, "brouillon");
-    assert.deepEqual(zoe.rounds, LEA.rounds);
+    assert.deepEqual(await sansManche(zoe.rounds), LEA.rounds);
     assert.deepEqual(shows.lea, LEA, "Prestation d'origine inchangée");
     await page.locator("#show-ready", { hasText: "Passer le statut à « À venir »" }).waitFor();
     // « À venir » avec tout rempli : enregistrée et visible sur la régie.
@@ -3584,7 +3621,7 @@ describe("bibliothèque de quiz et prestations", () => {
     // Une date passée non plus (elle filerait directement dans les archivées).
     await page.fill("#show-age", "6");
     await page.fill("#show-date", day(-5));
-    await page.click("#round-add");
+    await ajouterJeu(page);
     await page.locator("#show-rounds select.grow").nth(0).selectOption("animaux");
     await page.selectOption("#show-status", "publiee");
     await page.click("#show-save");
@@ -3671,16 +3708,23 @@ describe("bibliothèque de quiz et prestations", () => {
     const page = await admin();
     await page.click("#home-new");
     await page.fill("#show-child", "Zoé");
-    await page.locator('#round-reuse option[value="lea/0"]').waitFor({ state: "attached" });
+    // Le Quiz ajouté : « Reprendre une manche… » propose celles des autres prestations.
+    await ajouterJeu(page);
+    const reprise = page.locator("#show-rounds .round").nth(0).locator(".manche-load");
+    await reprise.locator('optgroup[label="Dans les autres prestations"] option[value="lea/0"]').waitFor({ state: "attached" });
     // L'ancienne manche « Super Finale » n'est pas un jeu : elle ne se reprend pas.
-    assert.equal(await page.locator('#round-reuse option[value="lea/1"]').count(), 0);
-    assert.equal(await page.locator("#round-reuse option", { hasText: "Super Finale" }).count(), 0);
-    await page.selectOption("#round-reuse", "lea/0");
+    assert.equal(await reprise.locator('option[value="lea/1"]').count(), 0);
+    assert.equal(await reprise.locator("option", { hasText: "Super Finale" }).count(), 0);
+    await reprise.selectOption("lea/0");
     assert.equal(await page.locator("#show-rounds select.grow").inputValue(), "animaux");
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "Enregistrée." }).waitFor();
+    // Elle est gardée dans la page du Quiz, rattachée à la nouvelle prestation ; l'ancienne prestation ne change pas.
     const shows = await library("shows");
-    assert.deepEqual(Object.values(shows).find((s) => s.childName === "Zoé").rounds, [{ type: "quiz", quizId: "animaux" }]);
+    const [zoeId, zoe] = Object.entries(shows).find(([, s]) => s.childName === "Zoé");
+    const [mid, manche] = Object.entries(await library("manches"))[0];
+    assert.deepEqual(zoe.rounds, [{ type: "quiz", quizId: "animaux", mancheId: mid }]);
+    assert.deepEqual([manche.round, manche.showId, manche.title], [{ type: "quiz", quizId: "animaux" }, zoeId, "Quiz · L'anniversaire de Zoé"]);
     assert.deepEqual(shows.lea, LEA, "Ancienne prestation inchangée");
 
     // Dupliquer un quiz : la copie apparaît en tête de la liste, sans s'ouvrir ; elle se modifie et s'enregistre à part.
@@ -3709,13 +3753,16 @@ describe("bibliothèque de quiz et prestations", () => {
     const page = await admin();
     await page.locator('#home-upcoming [data-show="vieille"]').getByRole("button", { name: "Ouvrir" }).click();
     await page.locator("#show-status-msg", { hasText: "L'ancienne manche « Super Finale » est devenue le réglage du quiz" }).waitFor();
+    // Un seul jeu, le Quiz, avec une manche ; la Super Finale n'est plus proposée comme jeu.
     assert.equal(await page.locator("#show-rounds .round").count(), 1);
-    assert.equal(await page.locator("#show-rounds .round select").first().inputValue(), "quiz");
+    assert.deepEqual(await page.locator("#show-rounds .jeu-bloc").evaluateAll((els) => els.map((e) => e.dataset.jeu)), ["quiz"]);
     assert.equal(await page.locator("#show-rounds select.finale").inputValue(), "3");
-    assert.equal(await page.locator('#show-rounds .round select').first().locator('option[value="finale"]').count(), 0);
+    await page.click("#round-add");
+    assert.equal(await page.locator('#jeu-choix .jeu-tuile[data-jeu="finale"]').count(), 0);
+    await page.click("#round-add");
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
-    assert.deepEqual((await library("shows")).vieille.rounds, [{ type: "quiz", quizId: "animaux", finale: 3 }]);
+    assert.deepEqual(await sansManche((await library("shows")).vieille.rounds), [{ type: "quiz", quizId: "animaux", finale: 3 }]);
     await page.context().close();
   });
 
@@ -4337,8 +4384,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#home-new");
     await page.fill("#show-child", "Léa");
     await page.fill("#show-age", "7");
-    await page.click("#round-add");
-    await page.locator("#show-rounds .round").nth(0).locator("select").first().selectOption("statues");
+    await ajouterJeu(page, "statues");
     const songs = page.locator("#show-rounds .statues-song input");
     await songs.nth(2).waitFor();
     assert.deepEqual(await page.locator("#show-rounds .statues-list").allTextContents(), ["Chansons des statues", "Dessins animés"]);
@@ -4349,7 +4395,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
     const [, saved] = Object.entries(await library("shows"))[0];
-    assert.deepEqual(saved.rounds, [{ type: "statues", duration: 90, songs: [list.tracks[1].audioId] }]);
+    assert.deepEqual(await sansManche(saved.rounds), [{ type: "statues", duration: 90, songs: [list.tracks[1].audioId] }]);
     await page.context().close();
 
     box = startBox();
