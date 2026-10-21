@@ -75,7 +75,8 @@ import kotlin.math.sin
  * (halo de la pochette, égaliseur) : l'écran bat avec la chanson.
  *
  * Tout se lit sur la position du lecteur du refrain ([positionMs], lue à chaque image) : aucun minuteur à part, donc
- * aucun décalage, et le retour au début de l'extrait (boucle) remet les paroles au début tout seul.
+ * aucun décalage, et le retour au début de l'extrait (boucle) remet les paroles au début tout seul. Si le lecteur ne
+ * donne jamais sa position, une horloge partie avec la révélation prend le relais.
  *
  * Léger pour la Mi Box : pochette, vinyle et mots sont des calques ; à chaque image seuls l'échelle, la position et
  * l'opacité changent. On ne recompose qu'au changement de ligne.
@@ -112,6 +113,7 @@ private fun dernierAvant(t: LongArray, x: Long): Int {
  * révélation : le titre et l'artiste sous la pochette, l'équipe gagnante et ses points en haut des paroles.
  *
  * @param positionMs position du refrain qu'on entend, en ms depuis le début de l'extrait ; null s'il ne joue pas
+ *   (jamais de position : horloge locale depuis l'arrivée de la scène)
  */
 @Composable
 internal fun SceneParoles(
@@ -129,7 +131,19 @@ internal fun SceneParoles(
     val lecteur by rememberUpdatedState(positionMs)
     val pos = remember(cle) { mutableLongStateOf(-1L) }
     LaunchedEffect(cle) {
-        while (true) withFrameMillis { pos.longValue = lecteur() ?: -1L }
+        // Tant que le lecteur n'a jamais donné sa position (refrain pas encore parti, ou lecteur muet), les paroles
+        // défilent sur une horloge partie avec la révélation ; ensuite on suit le lecteur, et un trou passager
+        // (changement de boucle) garde la dernière position au lieu de sauter.
+        var debut = -1L
+        var suivi = false
+        while (true) withFrameMillis { t ->
+            if (debut < 0) debut = t
+            val p = lecteur()
+            when {
+                p != null -> { suivi = true; pos.longValue = p }
+                !suivi -> pos.longValue = t - debut
+            }
+        }
     }
     val arrivees = remember(paroles) { entrees(paroles) }
     // Tous les mots, dans l'ordre, pour la pulsation : chaque mot chanté fait battre la scène.
