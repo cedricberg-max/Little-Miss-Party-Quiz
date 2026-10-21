@@ -501,9 +501,8 @@ function showCard(id, s, { accueil = false } = {}) {
         accueil ? null : h("button", { class: "btn small secondary", onclick: () => duplicatePrestation(s), text: "Dupliquer" }),
         h("button", { class: "btn small secondary", onclick: () => rename(`library/shows/${id}`, showTitle(s), "de la prestation"), text: "Renommer" }),
         isArchived(s) && !accueil ? h("button", { class: "btn small secondary", onclick: () => pin(id, !s.pinned), text: s.pinned ? "☆ Désépingler" : "⭐ Épingler" }) : null,
-        isArchived(s)
-          ? h("button", { class: "btn small secondary", onclick: () => archive(id, s, false), text: "Désarchiver" })
-          : h("button", { class: "btn small secondary", onclick: () => archive(id, s, true), text: "Archiver" }),
+        // Pas de « Désarchiver » (cedric, 21/10) : une fête archivée se réutilise avec « Dupliquer ».
+        isArchived(s) ? null : h("button", { class: "btn small secondary", onclick: () => archiver(id, s), text: "Archiver" }),
         // Un brouillon en trop se supprime depuis sa carte (cedric, 21/10) ; les fêtes à venir ou passées s'archivent.
         etat === "acompleter" && !accueil ? h("button", { class: "btn small danger", onclick: () => supprimerPrestation(id, s), text: "Supprimer" }) : null)));
 }
@@ -702,14 +701,12 @@ function removeBox(id, b) {
 }
 
 /**
- * Archiver range la prestation (elle disparaît de la régie) ; désarchiver la remet en brouillon, et une
- * prestation déjà passée ne retourne plus d'elle-même dans les archives.
+ * Archiver range la prestation, après confirmation : elle disparaît de la régie. Elle ne se désarchive pas depuis sa
+ * carte (cedric, 21/10) : « Dupliquer » en fait un nouvel anniversaire ; son statut reste modifiable dans sa fiche.
  */
-async function archive(id, s, on) {
-  const past = !!s.date && daysUntil(s.date) < -AUTO_ARCHIVE_DAYS;
-  await saveShowFields(id, on
-    ? { status: "archivee", keepActive: null }
-    : { status: "brouillon", keepActive: past ? true : null, pinned: null });
+async function archiver(id, s) {
+  if (!confirm(`Archiver « ${showTitle(s)} » ?\n\nElle quittera la régie et rejoindra les « Archivées ». Pour la réutiliser ensuite : « Dupliquer ».`)) return;
+  await saveShowFields(id, { status: "archivee", keepActive: null });
 }
 
 /** Épingler une prestation archivée : un modèle, dans sa propre rubrique, où piocher des jeux pendant une fête. */
