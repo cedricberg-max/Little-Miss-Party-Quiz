@@ -39,7 +39,8 @@ import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
 import { watchVersion, showUpdateBanner } from "./version.js";
 import { compressImage, imageId, cleanEmoji, CHOICE_IMAGE } from "./illustration.js";
 import { afficherMotsDePasse } from "./oeil.js";
-import { historique, noterEcran, barresRetour, quitterEcran } from "./retour.js";
+import { historique, noterEcran, barresRetour, quitterEcran, ecranModifie } from "./retour.js";
+import { confirmer, avertir, demanderTexte } from "./fenetre.js";
 import { ouvrirCadrage } from "./cadrage.js";
 import { FAMILLES_PETITS, BANQUE_MOTS, motBanque, cleMot, cataloguePetits, tirerPetits } from "./banque-petits.js";
 import { parPertinence, contientTout } from "./recherche.js";
@@ -138,12 +139,17 @@ const SCREENS = ["login", "home", "shows", "show-edit", "library", "game", "manc
 const ecranAffiche = () => SCREENS.find((s) => !$(`screen-${s}`).hidden);
 
 /**
- * Ouvre un écran. Quitter un écran d'édition aux modifications pas enregistrées demande d'abord (cedric, 21/10) :
- * renvoie faux si on reste. [force] : sans demander (retour à la connexion).
+ * Ouvre un écran. Quitter un écran d'édition aux modifications pas enregistrées demande d'abord (cedric, 21/10), dans
+ * une fenêtre : renvoie faux tout de suite, et l'écran s'ouvre ensuite si on choisit de quitter. [force] : sans
+ * demander (retour à la connexion).
  */
 function show(name, { force = false } = {}) {
   const avant = ecranAffiche();
-  if (avant !== name && !force && !depuisHistorique && !quitterEcran()) return false;
+  if (avant !== name && !force && !depuisHistorique && ecranModifie()) {
+    // Toujours sur l'écran quitté au moment de répondre (pas renvoyé à la connexion entre-temps) : on y va.
+    quitterEcran().then((quitter) => { if (quitter && ecranAffiche() === avant) show(name, { force: true }); });
+    return false;
+  }
   // Les jeux s'ouvrent depuis leur tuile de l'accueil (cedric) : leurs pages gardent l'onglet Accueil allumé ; les
   // réglages des chansons, l'onglet Bibliothèque.
   if (["home", "library", "settings"].includes(name)) current = name;
@@ -232,13 +238,13 @@ function rouvrirPage({ ecran, ctx }) {
   }
 }
 
-window.addEventListener("popstate", (e) => {
+window.addEventListener("popstate", async (e) => {
   if (ignorerRetour) { ignorerRetour = false; return; }
   if ($("nav").hidden) return;
   const i = e.state?.page;
   const connue = e.state?.ouverture === OUVERTURE && typeof i === "number" && pages[i];
   // Modifications pas enregistrées et on reste : le navigateur revient sur la page affichée.
-  if (!quitterEcran()) {
+  if (ecranModifie() && !(await quitterEcran())) {
     if (connue) { ignorerRetour = true; history.go(pageActuelle - i); } else history.pushState({ page: pageActuelle, ouverture: OUVERTURE }, "");
     return;
   }
@@ -468,7 +474,7 @@ async function copierDansBibliotheque(dossier, original) {
     await set(ref(db, `library/${dossier}/${id}`), { ...rest, title: titreCopie(original.title), createdAt: Date.now(), updatedAt: serverTimestamp() });
   } catch (err) {
     console.error(err);
-    alert("Copie refusée : vérifiez Internet ou reconnectez-vous.");
+    await avertir("Copie refusée : vérifiez Internet ou reconnectez-vous.");
     return null;
   }
   signalerCopie(id);
@@ -515,12 +521,12 @@ function showCard(id, s, { accueil = false } = {}) {
 
 /** Supprime une prestation après confirmation ; renvoie vrai si elle est supprimée. */
 async function supprimerPrestation(id, s) {
-  if (!confirm(`Supprimer « ${showTitle(s)} » ? Elle sera effacée pour de bon. Les parties déjà jouées ne changent pas.`)) return false;
+  if (!(await confirmer(`Supprimer « ${showTitle(s)} » ? Elle sera effacée pour de bon. Les parties déjà jouées ne changent pas.`, { ok: "Supprimer", danger: true }))) return false;
   try {
     await set(ref(db, `library/shows/${id}`), null);
   } catch (err) {
     console.error(err);
-    alert("Suppression refusée : vérifiez Internet ou reconnectez-vous.");
+    await avertir("Suppression refusée : vérifiez Internet ou reconnectez-vous.");
     return false;
   }
   if (!$("screen-shows").hidden) status("shows-status", `« ${showTitle(s)} » est supprimée.`, true);
@@ -538,7 +544,7 @@ async function duplicatePrestation(s) {
     await set(ref(db, `library/shows/${id}`), { ...copiee, updatedAt: serverTimestamp() });
   } catch (err) {
     console.error(err);
-    return alert("Copie refusée : vérifiez Internet ou reconnectez-vous.");
+    return avertir("Copie refusée : vérifiez Internet ou reconnectez-vous.");
   }
   signalerCopie(id);
   openShows("acompleter");
@@ -598,7 +604,7 @@ $("show-search").addEventListener("input", () => renderShows());
  * changer d'autre. Les prestations qui s'en servent affichent tout de suite le nouveau nom.
  */
 async function rename(path, current, what) {
-  const asked = prompt(`Nouveau nom ${what} :`, current ?? "");
+  const asked = await demanderTexte(`Nouveau nom ${what} :`, current ?? "", { ok: "Renommer", maxlength: 120 });
   if (asked === null) return false;
   const title = asked.trim().replace(/\s+/g, " ").slice(0, 120);
   if (!title || title === current) return false;
@@ -607,7 +613,7 @@ async function rename(path, current, what) {
     return true;
   } catch (err) {
     console.error(err);
-    alert("Renommage refusé : vérifiez Internet ou reconnectez-vous.");
+    await avertir("Renommage refusé : vérifiez Internet ou reconnectez-vous.");
     return false;
   }
 }
@@ -687,22 +693,22 @@ function acceptBox(id, r, typed) {
   }, `« ${name} » est activée : elle s'ouvre toute seule.`);
 }
 
-function refuseBox(id, r) {
-  if (!confirm(`Refuser la box au code ${r.code} ? Elle restera bloquée.`)) return;
+async function refuseBox(id, r) {
+  if (!(await confirmer(`Refuser la box au code ${r.code} ? Elle restera bloquée.`, { ok: "Refuser", danger: true }))) return;
   delete boxNames[id];
   return boxWrite({ [`requests/${id}`]: null }, `Demande ${r.code} refusée.`);
 }
 
-function renameBox(id, b) {
-  const asked = prompt("Nouveau nom de la box :", b.name ?? "");
+async function renameBox(id, b) {
+  const asked = await demanderTexte("Nouveau nom de la box :", b.name ?? "", { ok: "Renommer", maxlength: BOX_NAME_MAX });
   if (asked === null) return;
   const name = boxName(asked);
   if (!name || name === b.name) return;
   return boxWrite({ [`allowed/${id}/name`]: name }, `Box renommée « ${name} ».`);
 }
 
-function removeBox(id, b) {
-  if (!confirm(`Retirer « ${b.name} » ? Elle se rebloquera dès qu'elle ne sera plus en pleine partie, et devra être acceptée à nouveau.`)) return;
+async function removeBox(id, b) {
+  if (!(await confirmer(`Retirer « ${b.name} » ? Elle se rebloquera dès qu'elle ne sera plus en pleine partie, et devra être acceptée à nouveau.`, { ok: "Retirer", danger: true }))) return;
   return boxWrite({ [`allowed/${id}`]: null }, `« ${b.name} » est retirée.`);
 }
 
@@ -711,7 +717,7 @@ function removeBox(id, b) {
  * carte (cedric, 21/10) : « Dupliquer » en fait un nouvel anniversaire ; son statut reste modifiable dans sa fiche.
  */
 async function archiver(id, s) {
-  if (!confirm(`Archiver « ${showTitle(s)} » ?\n\nElle quittera la régie et rejoindra les « Archivées ». Pour la réutiliser ensuite : « Dupliquer ».`)) return;
+  if (!(await confirmer(`Archiver « ${showTitle(s)} » ?\n\nElle quittera la régie et rejoindra les « Archivées ». Pour la réutiliser ensuite : « Dupliquer ».`, { ok: "Archiver" }))) return;
   await saveShowFields(id, { status: "archivee", keepActive: null });
 }
 
@@ -725,7 +731,7 @@ async function saveShowFields(id, fields) {
     await update(ref(db, `library/shows/${id}`), { ...fields, updatedAt: serverTimestamp() });
   } catch (err) {
     console.error(err);
-    alert("Modification refusée : vérifiez Internet ou reconnectez-vous.");
+    await avertir("Modification refusée : vérifiez Internet ou reconnectez-vous.");
   }
 }
 
@@ -1111,11 +1117,13 @@ function refreshRounds() {
         : [...rs.slice(0, debut), ...rs.slice(fin, z), ...rs.slice(debut, fin), ...rs.slice(z)];
       refreshRounds();
     };
-    const retirerJeu = () => {
+    const retirerJeu = async () => {
       const remplies = b.indices.filter((i) => roundFilled(editing.rounds[i]) && !SANS_CONTENU.includes(b.type)).length;
-      if (remplies && !confirm(`Retirer « ${ROUND_TYPES[b.type]} » et ${remplies > 1 ? `ses ${remplies} manches` : "sa manche"} de la prestation ?`)) return;
+      if (remplies && !(await confirmer(`Retirer « ${ROUND_TYPES[b.type]} » et ${remplies > 1 ? `ses ${remplies} manches` : "sa manche"} de la prestation ?`, { ok: "Retirer", danger: true }))) return;
       editing.rounds.splice(debut, fin - debut);
       refreshRounds();
+      // Confirmé dans la fenêtre, hors de l'écran : l'action est notée ici (Ctrl+Z, « Annuler les modifications »).
+      noterEcran();
     };
     const ajouterManche = () => { editing.rounds.splice(fin, 0, { type: b.type }); refreshRounds(); };
     const n = b.indices.length;
@@ -1546,7 +1554,7 @@ const SOURCES = { banque: "banque des tout-petits", gemini: "texte collé", tabl
 async function deleteQuiz(id, q) {
   const used = Object.values(shows).filter((s) => (s.rounds ?? []).some((r) => roundQuizIds(r).includes(id))).map(showTitle);
   const warning = used.length ? `\n\nAttention, il est utilisé par : ${used.join(", ")}.` : "";
-  if (!confirm(`Supprimer le quiz « ${q.title} » ?${warning}`)) return;
+  if (!(await confirmer(`Supprimer le quiz « ${q.title} » ?${warning}`, { ok: "Supprimer", danger: true }))) return;
   await set(ref(db, `library/quizzes/${id}`), null);
 }
 
@@ -1566,7 +1574,7 @@ $("quiz-photos").onchange = async () => {
     try { kept.push({ ...questions[k], imageId: await storeIllustration(f) }); } catch (err) { console.error(err); }
   }
   $("quiz-photos-open").textContent = "📷 Nouveau quiz de photos à deviner";
-  if (!kept.length) return alert("Ces photos n'ont pas pu être lues : essayez des JPEG ou des PNG.");
+  if (!kept.length) return avertir("Ces photos n'ont pas pu être lues : essayez des JPEG ou des PNG.");
   review(null, { title: "Mes photos", theme: "", source: "photos", kind: "images", questions: kept });
   status("rv-status", `${kept.length} photo${kept.length > 1 ? "s" : ""} prête${kept.length > 1 ? "s" : ""} : vérifiez chaque réponse, puis enregistrez.`, true);
 };
@@ -2798,7 +2806,7 @@ $("mime-delete").onclick = async () => {
 async function deleteDeck(id) {
   const used = Object.values(shows).filter((s) => (s.rounds ?? []).some((r) => r?.deckId === id)).map(showTitle);
   const warning = used.length ? `\n\nAttention, il est utilisé par : ${used.join(", ")}.` : "";
-  if (!confirm(`Supprimer le paquet « ${mimes[id]?.title ?? ""} » ?${warning}`)) return false;
+  if (!(await confirmer(`Supprimer le paquet « ${mimes[id]?.title ?? ""} » ?${warning}`, { ok: "Supprimer", danger: true }))) return false;
   await set(ref(db, `library/mimes/${id}`), null);
   return true;
 }
@@ -3065,7 +3073,7 @@ async function supprimerChansons() {
   const message = liste.length === toutes.length && toutes.length > 1
     ? `Attention : cette action va supprimer tous les morceaux de votre bibliothèque (${toutes.length} chansons).\n\nLes playlists déjà faites les gardent. Vous pourrez les remettre depuis « 🗑 Supprimées ».`
     : `Supprimer ${nom} de la bibliothèque des sons ?\n\nLes playlists déjà faites les gardent. Vous pourrez les remettre depuis « 🗑 Supprimées ».`;
-  if (!confirm(message)) return;
+  if (!(await confirmer(message, { ok: "Supprimer", danger: true }))) return;
   try {
     const chemins = {};
     liste.forEach((x) => Object.assign(chemins, cheminsChanson(x, { retiree: true })[1]));
@@ -3087,7 +3095,7 @@ async function supprimerChansons() {
 async function effacerPourDeBon(liste) {
   if (!liste.length) return;
   const nom = liste.length === 1 ? `« ${liste[0].title} »` : `ces ${liste.length} chansons`;
-  if (!confirm(`Effacer ${nom} pour de bon ?\n\nLa chanson entière, les paroles et les extraits sont effacés en ligne (sauf les extraits qu'une playlist utilise encore). On ne pourra plus ${liste.length === 1 ? "la" : "les"} remettre.`)) return;
+  if (!(await confirmer(`Effacer ${nom} pour de bon ?\n\nLa chanson entière, les paroles et les extraits sont effacés en ligne (sauf les extraits qu'une playlist utilise encore). On ne pourra plus ${liste.length === 1 ? "la" : "les"} remettre.`, { ok: "Effacer pour de bon", danger: true }))) return;
   const ids = new Set(liste.map((x) => x.id));
   // Extraits encore utilisés ailleurs : toute empreinte d'extrait citée par une playlist, une manche, une prestation,
   // un quiz ou une autre chanson (en trop, un extrait reste ; jamais l'inverse).
@@ -4222,7 +4230,7 @@ async function deletePlaylist(id) {
   const ids = new Set(playableTracks(playlists[id]).map((t) => t.audioId));
   const used = Object.values(shows).filter((s) => (s.rounds ?? []).some((r) => r?.playlistId === id || (r?.type === "statues" && (r.songs ?? []).some((x) => ids.has(x))))).map(showTitle);
   const warning = used.length ? `\n\nAttention, elle est utilisée par : ${used.join(", ")}.` : "";
-  if (!confirm(`Supprimer ${isStatuesList(playlists[id]) ? "la liste des chansons des statues" : "la playlist"} « ${playlists[id]?.title ?? ""} » ?${warning}`)) return false;
+  if (!(await confirmer(`Supprimer ${isStatuesList(playlists[id]) ? "la liste des chansons des statues" : "la playlist"} « ${playlists[id]?.title ?? ""} » ?${warning}`, { ok: "Supprimer", danger: true }))) return false;
   await set(ref(db, `library/playlists/${id}`), null);
   return true;
 }
@@ -4396,11 +4404,12 @@ function ficheMedia(x, toutes) {
   if (!options.includes(x.cat)) options.unshift(x.cat);
   const cat = h("select", {
     class: "media-cat", "aria-label": "Catégorie",
-    onchange: (e) => {
-      let c = e.target.value;
+    onchange: async (e) => {
+      const choix = e.target;
+      let c = choix.value;
       if (c === NOUVELLE_CAT) {
-        c = (prompt("Nom de la nouvelle catégorie (ex. Pokémon, Super-héros…) :") ?? "").trim().slice(0, 40);
-        if (!c) { e.target.value = x.cat; return; }
+        c = ((await demanderTexte("Nom de la nouvelle catégorie (ex. Pokémon, Super-héros…) :", "", { ok: "Créer", maxlength: 40 })) ?? "").trim().slice(0, 40);
+        if (!c) { choix.value = x.cat; return; }
       }
       enregistrer({ cat: c }, `« ${x.nom} » rangée dans « ${c} ».`);
     },
@@ -4487,12 +4496,13 @@ function remplirCategoriesEnvoi(miennes) {
   sel.replaceChildren(h("option", { value: A_RANGER, text: "À ranger (sans catégorie)" }), ...cats.map((c) => h("option", { value: c, text: c })), h("option", { value: NOUVELLE_CAT, text: NOUVELLE_CAT }));
   sel.value = mediaCat && mediaCat !== RETIREES && mediaCat !== A_RANGER ? mediaCat : avant && avant !== NOUVELLE_CAT ? avant : A_RANGER;
 }
-$("media-new-cat").onchange = (e) => {
-  if (e.target.value !== NOUVELLE_CAT) return;
-  const c = (prompt("Nom de la nouvelle catégorie (ex. Pokémon, Super-héros…) :") ?? "").trim().slice(0, 40);
-  if (!c) { e.target.value = A_RANGER; return; }
-  e.target.prepend(h("option", { value: c, text: c }));
-  e.target.value = c;
+$("media-new-cat").onchange = async (e) => {
+  const choix = e.target;
+  if (choix.value !== NOUVELLE_CAT) return;
+  const c = ((await demanderTexte("Nom de la nouvelle catégorie (ex. Pokémon, Super-héros…) :", "", { ok: "Créer", maxlength: 40 })) ?? "").trim().slice(0, 40);
+  if (!c) { choix.value = A_RANGER; return; }
+  choix.prepend(h("option", { value: c, text: c }));
+  choix.value = c;
 };
 
 // Ses images : chacune réduite comme une illustration de question, rangée une seule fois, avec sa fiche.
@@ -4687,8 +4697,8 @@ function renderBuiltin() {
       photo,
       custom ? h("button", {
         type: "button", class: "icon", title: "Supprimer cet ajout", text: "✕",
-        onclick: () => {
-          if (!confirm(`Supprimer « ${game.label(item)} » ?`)) return;
+        onclick: async () => {
+          if (!(await confirmer(`Supprimer « ${game.label(item)} » ?`, { ok: "Supprimer", danger: true }))) return;
           saveBuiltin(type, { off: off.filter((k) => k !== key), extra: extra.filter((x) => game.key(x) !== key) }, `« ${game.label(item)} » est supprimé.`);
         },
       }) : null);
@@ -4956,7 +4966,7 @@ async function saveManche(id, m) {
     return key;
   } catch (err) {
     console.error(err);
-    alert("Enregistrement de la manche refusé : vérifiez Internet ou reconnectez-vous.");
+    await avertir("Enregistrement de la manche refusé : vérifiez Internet ou reconnectez-vous.");
     return null;
   }
 }
@@ -4971,7 +4981,7 @@ async function duplicateManche(m) {
 }
 
 async function deleteManche(id, m) {
-  if (!confirm(`Supprimer la manche « ${m.title} » ? Les prestations qui l'ont chargée gardent leur copie.`)) return;
+  if (!(await confirmer(`Supprimer la manche « ${m.title} » ? Les prestations qui l'ont chargée gardent leur copie.`, { ok: "Supprimer", danger: true }))) return;
   await set(ref(db, `library/manches/${id}`), null);
   status("game-status", "Manche supprimée.", true);
 }
@@ -5078,7 +5088,7 @@ $("manche-save").onclick = async () => {
 $("manche-delete").onclick = async () => {
   if (!mancheEdit?.id) return;
   const m = manches[mancheEdit.id];
-  if (!m || !confirm(`Supprimer la manche « ${m.title} » ?`)) return;
+  if (!m || !(await confirmer(`Supprimer la manche « ${m.title} » ?`, { ok: "Supprimer", danger: true }))) return;
   await set(ref(db, `library/manches/${mancheEdit.id}`), null);
   histManche.abandonner();
   openGame(mancheEdit.type);

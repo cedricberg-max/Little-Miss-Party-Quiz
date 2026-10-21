@@ -6,6 +6,8 @@
  * rend les modifications. Enregistrer fixe le nouveau point de départ.
  */
 
+import { confirmer } from "./fenetre.js";
+
 /** Copie profonde des objets et tableaux simples ; les fichiers (photos, morceaux pas encore envoyés) gardés tels quels. */
 const cloner = (v) => (Array.isArray(v) ? v.map(cloner)
   : v && typeof v === "object" && Object.getPrototypeOf(v) === Object.prototype
@@ -142,13 +144,13 @@ export function ecranModifie() {
 }
 
 /**
- * Avant de quitter l'écran affiché : s'il a des modifications pas enregistrées, on demande (cedric, 21/10).
- * Quitter quand même remet l'écran à son dernier enregistrement. Renvoie faux pour rester.
+ * Avant de quitter l'écran affiché : s'il a des modifications pas enregistrées, on demande dans une fenêtre
+ * (cedric, 21/10). Quitter quand même remet l'écran à son dernier enregistrement. Rend une promesse : faux pour rester.
  */
-export function quitterEcran() {
+export async function quitterEcran() {
   const h = [...ouverts].find((x) => x.modifie);
   if (!h) return true;
-  if (!confirm("Des modifications ne sont pas enregistrées.\n\nQuitter sans enregistrer ? Elles seront perdues.")) return false;
+  if (!(await confirmer("Des modifications ne sont pas enregistrées.\n\nQuitter sans enregistrer ? Elles seront perdues.", { ok: "Quitter sans enregistrer", annuler: "Rester", danger: true }))) return false;
   h.abandonner();
   return true;
 }
