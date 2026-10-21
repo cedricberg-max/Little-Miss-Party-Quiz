@@ -887,8 +887,9 @@ const CONTINUER_MESSAGES = {
 };
 
 /** « L'anniversaire de Chloé », ou le titre de la prestation entre guillemets. */
+/** Le prénom d'abord (cedric : « Lancer l'anniversaire de Chloé ? ») ; le titre seulement sans prénom. */
 function nomFete(show) {
-  return !show.title?.trim() && show.childName?.trim() ? `L'anniversaire de ${show.childName.trim()}` : `« ${showTitle(show)} »`;
+  return show.childName?.trim() ? `L'anniversaire de ${show.childName.trim()}` : `« ${showTitle(show)} »`;
 }
 
 /**
@@ -2718,7 +2719,7 @@ async function confirmationLancement({ show, snapshot, problems, run }) {
     ? await get(ref(db, `games/${code}/public`)).then((x) => x.val(), () => null) : null;
   if (avant?.title && run?.etat !== "ici") {
     const ancien = avant.childName ? `l'anniversaire de ${avant.childName}` : `« ${avant.title} »`;
-    const nouveau = !show.title?.trim() && show.childName?.trim() ? `celui de ${show.childName.trim()}` : `« ${showTitle(show)} »`;
+    const nouveau = show.childName?.trim() ? `celui de ${show.childName.trim()}` : `« ${showTitle(show)} »`;
     const suite = st.phase === "lobby" ? "Les équipes restent." : "Les équipes restent, on repart au début.";
     return { title: `Remplacer ${ancien} par ${nouveau} ?`, text: [suite, soucis].filter(Boolean).join("\n\n"), line, warn, ok: "Remplacer", safe: true };
   }

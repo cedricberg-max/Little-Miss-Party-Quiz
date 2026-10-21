@@ -350,6 +350,9 @@ const uidRegie = async (fete) => Object.keys((await lire(fete, "regie")) ?? {})[
 async function chargerPrestations(regies) {
   await Promise.all(regies.map(async (p, i) => {
     await p.locator("#panel-show:not([hidden]) .show-item", { hasText: FETES[i].nom }).click();
+    // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
+    await p.locator("#ask-title", { hasText: `Lancer l'anniversaire de ${FETES[i].nom} ?` }).waitFor();
+    await p.click("#ask-ok");
     await p.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
   }));
 }

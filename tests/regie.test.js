@@ -1685,6 +1685,7 @@ describe("lancement des prestations : un anniversaire sur une seule box (cedric,
       { text: "Combien de pattes a une araignée ?", choices: ["6", "8"], correct: 1, status: "validee" },
     ],
   };
+  // Chloé porte un titre à elle : la fenêtre de lancement dit quand même le prénom (cedric : « Lancer l'anniversaire de Chloé ? »).
   const prestation = (childName, date, extra = {}) =>
     ({ childName, age: 7, date, status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1, ...extra });
   async function seedShows(shows) {
@@ -1716,7 +1717,7 @@ describe("lancement des prestations : un anniversaire sur une seule box (cedric,
 
   test("lancer : la fenêtre du téléphone dit prénom, âge et date ; « Annuler » n'envoie rien ; au salon, une autre prestation remplace la première", async () => {
     box = startBox();
-    await seedShows({ lea: prestation("Léa", isoDay()), chloe: prestation("Chloé", "2099-10-24") });
+    await seedShows({ lea: prestation("Léa", isoDay()), chloe: prestation("Chloé", "2099-10-24", { title: "ANNIVERSAIRE – Chloé" }) });
     const regie = await openRegie();
     await pair(regie);
     await inRegie(regie);
