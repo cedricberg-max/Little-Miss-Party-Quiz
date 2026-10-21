@@ -1435,7 +1435,9 @@ describe("photos à soi sur les cartes de mimes et les objets de Qui a disparu ?
     assert.equal(S.disparuGroup(DISPARU_THEMES[0]), "Émojis");
     assert.equal(S.contentExtras("disparu", { extra: [{ theme: "Trop peu", objects: objets.slice(0, 4) }] }).length, 0);
     // Tirage en photos : une famille de photos à soi passe avec les familles tout en photos.
-    const rangees = S.parPalierPhotos([DISPARU_THEMES[0], famille], (t) => t.objects);
+    // (famille d'émojis inventée : la banque de photos grandit, une vraie famille peut devenir tout en photos)
+    const emojis = { theme: "Formes", objects: ["Zigzag", "Spirale", "Losange", "Pentagone", "Hexagone"].map((word) => ({ word, image: "🔷" })) };
+    const rangees = S.parPalierPhotos([emojis, famille], (t) => t.objects);
     assert.equal(rangees[0], famille);
   });
 
