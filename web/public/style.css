@@ -124,11 +124,16 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
 /* Portes mystères : de grandes portes à toucher. */
 .choice.door { min-height: 96px; font-size: 24px; }
 .choice.door .letter { background: var(--gold, #FFE61F); font-size: 26px; }
-/* Réponses en images : deux colonnes, la photo en grand, la lettre en pastille, le mot dessous. */
+/* Réponses en images : deux colonnes, la photo en grand, puis la lettre et le mot sur la ligne dessous —
+   jamais la lettre posée sur la photo (retour de cedric le 21/10, comme sur la TV). */
 .choices.pictures { grid-template-columns: 1fr 1fr; }
-.choice.with-photo { position: relative; flex-direction: column; justify-content: center; gap: 6px; padding: 8px; text-align: center; font-size: 17px; }
-.choice.with-photo .photo { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 22%; background: #fff; }
-.choice.with-photo .letter { position: absolute; top: 6px; left: 6px; width: 38px; height: 38px; font-size: 20px; }
+.choice.with-photo {
+  display: grid; grid-template-columns: 1fr auto minmax(0, max-content) 1fr; grid-template-areas: "photo photo photo photo" ". letter text .";
+  align-content: center; align-items: center; gap: 6px 8px; padding: 8px; text-align: left; font-size: 17px;
+}
+.choice.with-photo .photo { grid-area: photo; justify-self: center; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 22%; background: #fff; }
+.choice.with-photo .letter { grid-area: letter; width: 30px; height: 30px; font-size: 17px; }
+.choice.with-photo .text { grid-area: text; min-width: 0; overflow-wrap: normal; word-break: normal; hyphens: none; line-height: 1.1; }
 
 /* Résultat */
 .result-icon { font-size: 110px; font-weight: 900; line-height: 1; }
@@ -277,7 +282,7 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
   #app .choices.two .choice { min-height: 170px; font-size: 38px; }
   #app .choice.door { min-height: 130px; font-size: 32px; }
   #app .choice.with-photo { font-size: 24px; padding: 12px; }
-  #app .choice.with-photo .letter { width: 50px; height: 50px; font-size: 26px; }
+  #app .choice.with-photo .letter { width: 40px; height: 40px; font-size: 22px; }
   #app .intro-jeu { padding: 26px 48px; gap: 10px; border-radius: 36px; }
   #app .intro-jeu-label { font-size: 22px; }
   #app .intro-jeu-titre { font-size: 72px; }
@@ -301,7 +306,7 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
   #app .choice { min-height: clamp(110px, 22vh, 200px); }
   #app .choices.two .choice { min-height: clamp(170px, 46vh, 360px); }
   #app .choice.with-photo { min-height: 0; }
-  #app .choice.with-photo .photo { height: clamp(120px, 28vh, 260px); }
+  #app .choice.with-photo .photo { height: clamp(120px, 33vh, 300px); }
   #app .number-screen { min-height: clamp(70px, 11vh, 100px); font-size: clamp(44px, 7vh, 62px); }
   #app .number-key { min-height: clamp(60px, 10vh, 88px); font-size: clamp(32px, 5.4vh, 42px); }
   #app .choices.number { max-width: 640px; }

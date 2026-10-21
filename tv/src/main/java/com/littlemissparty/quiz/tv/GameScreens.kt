@@ -42,9 +42,12 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
@@ -277,6 +280,10 @@ private fun ChoiceGrid(
     uneColonne: Boolean = false,
 ) {
     BoxWithConstraints(modifier) {
+        if (photos.any { it != null }) {
+            GrilleImages(choices, correct, photos, express, maxWidth, maxHeight)
+            return@BoxWithConstraints
+        }
         // Une colonne seulement si les 4 cartes y gardent une hauteur lisible. À 8 équipes, le bandeau prend deux rangs :
         // l'illustration devient petite et il reste la place de 2 × 2 à côté (banc d'essai du 20 octobre).
         val colonne = uneColonne && maxHeight >= 46.dp * 4 + 10.dp * 3
@@ -299,34 +306,70 @@ private fun ChoiceGrid(
 }
 
 /**
- * Réponse en image (quiz des petits) : la photo en grand, la lettre et sa couleur en pastille, le mot en petit
- * dessous. Une photo pas encore chargée ou illisible : la proposition s'affiche en texte, la partie ne l'attend pas.
+ * Quiz illustré : les réponses en images, aussi grandes que la place le permet (retour de cedric le 21/10 : petites
+ * vignettes perdues au milieu de grandes cartes, lettre collée sur l'image). On compare quatre dispositions — une
+ * rangée de cartes ou une grille 2 × 2, image au-dessus du mot ou à côté — et on garde celle où l'image est la plus
+ * grande. La lettre et le mot restent hors de l'image, sous elle ou à côté.
  */
 @Composable
-private fun PhotoChoix(i: Int, text: String, bytes: ByteArray, juste: Boolean, color: Color, modifier: Modifier = Modifier): Boolean {
-    val photo = remember(bytes) { runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap() }.getOrNull() } ?: return false
-    Column(modifier.padding(vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        // Bulle carrée aux coins très arrondis, image recadrée pour la remplir : le même rendu que l'aperçu et le
-        // cadrage de la Régie PC (une image déjà cadrée y apparaît à l'identique).
-        Box(Modifier.weight(1f).aspectRatio(1f, matchHeightConstraintsFirst = true)) {
-            Image(
-                photo, contentDescription = "Réponse ${Palette.ChoiceLetters[i]} en image : $text", contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(percent = 22)).background(Color.White),
-            )
-            Box(Modifier.align(Alignment.TopStart).size(46.dp).clip(CircleShape).background(color), contentAlignment = Alignment.Center) {
-                Text(Palette.ChoiceLetters[i], style = styleCentre(24.sp, Color.White, FontWeight.Black))
+private fun GrilleImages(choices: List<String>, correct: Int?, photos: List<ByteArray?>, express: Boolean, largeur: Dp, hauteur: Dp) {
+    val n = choices.size.coerceAtLeast(1)
+    val ecart = 14.dp
+    val marge = 8.dp
+    val etiquette = 40.dp
+    fun cote(colonnes: Int, rangs: Int, dessus: Boolean): Dp {
+        val cw = (largeur - ecart * (colonnes - 1)) / colonnes
+        val ch = (hauteur - ecart * (rangs - 1)) / rangs
+        return if (dessus) minOf(cw - marge * 2, ch - etiquette - marge * 3) else minOf(ch - marge * 2, cw * 0.42f)
+    }
+    val dispositions = buildList {
+        add(Triple(n, 1, true)); add(Triple(n, 1, false))
+        if (n == 4) { add(Triple(2, 2, true)); add(Triple(2, 2, false)) }
+    }
+    val (colonnes, _, dessus) = dispositions.maxBy { (c, r, d) -> cote(c, r, d) }
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(ecart)) {
+        choices.indices.chunked(colonnes).forEach { rang ->
+            Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(ecart)) {
+                rang.forEach { i ->
+                    ChoiceCard(
+                        i, choices[i], correct, Modifier.weight(1f).fillMaxHeight().apparition(Tempo.propositionApparait(i), Unit), express,
+                        photos.getOrNull(i), imageDessus = dessus, tous = choices,
+                    )
+                }
             }
         }
-        Text(
-            text, color = if (juste) Neon.JusteTexte else Palette.Ink, fontSize = 22.sp, lineHeight = 26.sp, fontWeight = FontWeight.Bold,
-            maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
-        )
     }
-    return true
+}
+
+/**
+ * Le mot d'une réponse en image, sur une seule ligne : on part de [max] et on réduit jusqu'à ce qu'il tienne en
+ * entier dans la place qui reste (jamais coupé au milieu, règle « texte jamais coupé »). Les quatre réponses gardent
+ * la même taille quand c'est possible ; une réponse bien plus longue que les autres (« Camion de pompiers ») se
+ * réduit seule plutôt que de rapetisser toutes les autres.
+ */
+@Composable
+private fun MotQuiTient(mot: String, tous: List<String>, couleur: Color, max: TextUnit, modifier: Modifier = Modifier) {
+    val mesure = rememberTextMeasurer()
+    BoxWithConstraints(modifier, contentAlignment = Alignment.CenterStart) {
+        val dispo = constraints.maxWidth
+        val taille = remember(tous, mot, dispo, max) {
+            fun tient(mots: List<String>): Float {
+                var t = max.value
+                while (t > 12f && mots.any { mesure.measure(it, styleCentre(t.sp, couleur, FontWeight.Bold), maxLines = 1, softWrap = false).size.width > dispo }) t -= 1f
+                return t
+            }
+            val commune = maxOf(tient((tous + mot).distinct()), minOf(20f, max.value))
+            minOf(commune, tient(listOf(mot))).sp
+        }
+        Text(mot, style = styleCentre(taille, couleur, FontWeight.Bold), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+    }
 }
 
 @Composable
-private fun ChoiceCard(i: Int, text: String, correct: Int?, modifier: Modifier, express: Boolean = false, photo: ByteArray? = null, compacte: Boolean = false) {
+private fun ChoiceCard(
+    i: Int, text: String, correct: Int?, modifier: Modifier, express: Boolean = false, photo: ByteArray? = null, compacte: Boolean = false,
+    imageDessus: Boolean = true, tous: List<String> = emptyList(),
+) {
     val isCorrect = correct == i
     // Révélation au rythme du roulement : les mauvaises s'éteignent une à une (✗ corail), puis la bonne passe au vert.
     val rangMauvaise = if (correct == null) 0 else (0 until i).count { it != correct }
@@ -336,6 +379,22 @@ private fun ChoiceCard(i: Int, text: String, correct: Int?, modifier: Modifier, 
     val color = Palette.Choices[i % Palette.Choices.size]
     val forme = RoundedCornerShape(24.dp)
     // Palette A (audit du 19 octobre) : vert plein = juste, corail = faux ; ✓ et ✗ disent la même chose sans la couleur.
+    // Une photo pas encore chargée ou illisible : la proposition s'affiche en texte, la partie ne l'attend pas.
+    val image = photo?.let { remember(it) { runCatching { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() } }
+    val cadre = modifier
+        .rebond(juste)
+        .alpha(dim)
+        .clip(forme)
+        .then(
+            if (juste) Modifier.background(Brush.verticalGradient(listOf(Neon.JusteClair, Neon.JusteProfond)))
+            else Modifier.background(Palette.Panel),
+        )
+        .border(if (juste) 5.dp else 3.dp, if (juste) Color.White else if (eteinte) Neon.Faux else color, forme)
+        .reflet(juste)
+    if (image != null) {
+        CarteImage(i, text, tous, image, juste, eteinte, color, imageDessus, cadre)
+        return
+    }
     Row(
         modifier
             .rebond(juste)
@@ -350,8 +409,7 @@ private fun ChoiceCard(i: Int, text: String, correct: Int?, modifier: Modifier, 
             .padding(horizontal = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val enImage = if (photo != null) PhotoChoix(i, text, photo, juste, color, Modifier.weight(1f).fillMaxHeight()) else false
-        if (!enImage) {
+        run {
             // Une colonne de 4 cartes basses (illustration à côté) : pastille et texte un peu plus petits pour tenir.
             Box(Modifier.size(if (compacte) 42.dp else 52.dp).clip(CircleShape).background(color), contentAlignment = Alignment.Center) {
                 Text(Palette.ChoiceLetters[i], style = styleCentre(if (compacte) 23.sp else 28.sp, Color.White, FontWeight.Black))
@@ -369,6 +427,64 @@ private fun ChoiceCard(i: Int, text: String, correct: Int?, modifier: Modifier, 
                 contentAlignment = Alignment.Center,
             ) { Text("✓", style = styleCentre(if (compacte) 27.sp else 32.sp, Neon.JusteProfond, FontWeight.Black)) }
             eteinte -> Text("✗", color = Neon.Faux, fontSize = 32.sp, fontWeight = FontWeight.Black)
+        }
+    }
+}
+
+/** Carte d'une réponse en image : l'image en grand (recadrée comme dans la Régie PC), la lettre et le mot dessous ou à côté. */
+@Composable
+private fun CarteImage(i: Int, text: String, tous: List<String>, image: ImageBitmap, juste: Boolean, eteinte: Boolean, color: Color, dessus: Boolean, modifier: Modifier) {
+    val lettre = Palette.ChoiceLetters[i]
+    val encre = if (juste) Neon.JusteTexte else Palette.Ink
+    @Composable
+    fun Image() = androidx.compose.foundation.Image(
+        image, contentDescription = "Réponse $lettre en image : $text", contentScale = ContentScale.Crop,
+        modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(percent = 18)).background(Color.White),
+    )
+    @Composable
+    fun Pastille(d: Dp) = Box(Modifier.size(d).clip(CircleShape).background(color), contentAlignment = Alignment.Center) {
+        Text(lettre, style = styleCentre(if (d > 32.dp) 21.sp else 18.sp, Color.White, FontWeight.Black))
+    }
+    @Composable
+    fun Verdict(d: Dp) {
+        when {
+            juste -> Box(Modifier.size(d).apparition(100, Unit).clip(CircleShape).background(Color.White), contentAlignment = Alignment.Center) {
+                Text("✓", style = styleCentre(if (d > 32.dp) 24.sp else 21.sp, Neon.JusteProfond, FontWeight.Black))
+            }
+            eteinte -> Text("✗", style = styleCentre(26.sp, Neon.Faux, FontWeight.Black))
+        }
+    }
+    Box(modifier) {
+        if (dessus) {
+            Column(Modifier.fillMaxSize().padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(Modifier.weight(1f).aspectRatio(1f, matchHeightConstraintsFirst = true)) { Image() }
+                Spacer(Modifier.height(6.dp))
+                // Lettre, mot et verdict sur la ligne sous l'image : rien ne se pose sur l'image.
+                Row(Modifier.height(34.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Pastille(30.dp)
+                    Spacer(Modifier.width(8.dp))
+                    MotQuiTient(text, tous, encre, 26.sp, Modifier.weight(1f, fill = false))
+                    if (juste || eteinte) { Spacer(Modifier.width(8.dp)); Verdict(30.dp) }
+                }
+            }
+        } else {
+            BoxWithConstraints(Modifier.fillMaxSize().padding(8.dp)) {
+            // L'image ne prend jamais plus de 45 % de la largeur : le mot garde sa place.
+            val cote = minOf(maxHeight, maxWidth * 0.45f)
+            Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(cote)) { Image() }
+                Spacer(Modifier.width(10.dp))
+                // Cartes basses (8 équipes) : la lettre et le verdict au-dessus du mot, pour lui laisser toute la largeur.
+                Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Pastille(28.dp)
+                        if (juste || eteinte) { Spacer(Modifier.width(8.dp)); Verdict(28.dp) }
+                    }
+                    Spacer(Modifier.height(2.dp))
+                    MotQuiTient(text, tous, encre, 26.sp, Modifier.fillMaxWidth())
+                }
+            }
+            }
         }
     }
 }
