@@ -1,0 +1,1663 @@
+{
+ "manquants": [
+  "qc-quelles-sont-les-couleurs-du-drapeau-allemand",
+  "qc-quel-pays-a-le-plus-d-habitants"
+ ],
+ "restants": [
+  "qc-que-porte-un-roi-sur-la-tete",
+  "qc-dans-quoi-vivaient-les-rois-et-les-chevaliers-au-moyen-age",
+  "qc-qui-fut-le-premier-empereur-des-francais",
+  "qc-quel-roi-de-france-etait-surnomme-le-roi-soleil",
+  "qc-quel-chateau-louis-xiv-a-t-il-fait-agrandir-pour-y-vivre-avec-sa-cour",
+  "qc-qui-est-surnommee-la-pucelle-d-orleans",
+  "qc-comment-appelait-on-les-rois-de-l-egypte-ancienne",
+  "qc-comment-appelait-on-le-guerrier-a-cheval-en-armure-du-moyen-age",
+  "qc-comment-s-appelle-le-fosse-rempli-d-eau-autour-d-un-chateau-fort",
+  "qc-comment-s-appelaient-les-guerriers-navigateurs-venus-de-scandinavie",
+  "qc-comment-s-appelaient-les-combattants-des-arenes-romaines",
+  "qc-comment-s-appelaient-les-guerriers-du-japon-ancien",
+  "qc-dans-quelle-grotte-francaise-trouve-t-on-de-celebres-peintures-prehistor",
+  "qc-quel-objet-thomas-edison-a-t-il-rendu-celebre",
+  "qc-comment-s-appelle-le-ballon-a-air-chaud-invente-en-france-en-1783",
+  "qc-quel-empereur-selon-la-chanson-a-invente-l-ecole",
+  "qc-quel-chef-romain-a-conquis-la-gaule",
+  "qc-quel-celebre-paquebot-a-coule-en-1912-apres-avoir-heurte-un-iceberg",
+  "qc-quel-grand-animal-poilu-vivait-pendant-la-prehistoire",
+  "qc-quel-dinosaure-carnivore-avait-de-tout-petits-bras",
+  "qc-quel-dinosaure-avait-trois-cornes-sur-la-tete",
+  "qc-quel-dinosaure-herbivore-avait-un-tres-long-cou",
+  "qc-qu-ont-appris-a-faire-les-hommes-prehistoriques-en-frappant-des-silex",
+  "qc-dans-quoi-les-grecs-se-cachent-ils-pour-entrer-dans-la-ville-de-troie",
+  "qc-quel-heros-grec-est-celebre-pour-sa-force-et-ses-douze-travaux",
+  "qc-quel-monstre-de-la-mythologie-a-des-serpents-a-la-place-des-cheveux",
+  "qc-comment-s-appelle-le-cheval-aile-de-la-mythologie-grecque",
+  "qc-comment-s-appelle-un-corps-conserve-et-entoure-de-bandelettes-en-egypte-",
+  "qc-comment-s-appelle-l-ecriture-en-petits-dessins-des-anciens-egyptiens",
+  "qc-quel-pont-romain-celebre-transportait-de-l-eau-dans-le-sud-de-la-france",
+  "qc-quel-navigateur-a-atteint-l-amerique-en-1492",
+  "qc-quels-freres-francais-ont-invente-le-cinema",
+  "qc-qui-a-trouve-le-vaccin-contre-la-rage",
+  "qc-qui-a-construit-la-tour-eiffel",
+  "qc-quelle-invention-de-gutenberg-a-permis-de-fabriquer-des-livres-plus-vite",
+  "qc-quelle-savante-a-recu-deux-prix-nobel",
+  "qc-qui-a-fait-voler-le-premier-avion-a-moteur-en-1903",
+  "qc-qui-a-invente-le-telephone",
+  "qc-pour-quel-evenement-la-tour-eiffel-a-t-elle-ete-construite",
+  "qc-quel-chef-gaulois-a-affronte-jules-cesar-a-alesia",
+  "qc-quel-monstre-mi-homme-mi-taureau-vivait-dans-un-labyrinthe",
+  "qc-quel-est-le-roi-des-dieux-grecs",
+  "qc-quel-dieu-grec-regne-sur-la-mer-avec-son-trident",
+  "qc-quel-heros-grec-a-mis-dix-ans-a-rentrer-chez-lui-apres-la-guerre-de-troi",
+  "qc-quel-mur-est-tombe-en-1989",
+  "qc-en-quelle-annee-l-euro-est-il-arrive-dans-les-porte-monnaie-francais",
+  "qc-quel-general-a-lance-l-appel-du-18-juin-1940-a-la-radio",
+  "qc-quel-pays-a-offert-la-statue-de-la-liberte-aux-etats-unis",
+  "qc-laquelle-des-sept-merveilles-du-monde-antique-existe-encore",
+  "qc-quel-navigateur-a-mene-la-premiere-expedition-autour-du-monde",
+  "qc-quelle-pierre-a-permis-a-champollion-de-dechiffrer-les-hieroglyphes",
+  "qc-en-quelle-annee-a-commence-la-premiere-guerre-mondiale",
+  "qc-quel-vehicule-rouge-utilisent-les-pompiers",
+  "qc-quel-vehicule-le-fermier-utilise-t-il-dans-les-champs",
+  "qc-quel-vehicule-roule-sur-des-rails",
+  "qc-quel-engin-vole-grace-a-une-grande-helice-sur-le-toit",
+  "qc-au-feu-quelle-couleur-veut-dire-stop",
+  "qc-quel-vehicule-a-deux-roues-et-des-pedales",
+  "qc-comment-s-appelle-le-train-a-grande-vitesse-francais",
+  "qc-quel-bateau-peut-naviguer-sous-l-eau",
+  "qc-quel-bateau-avance-grace-au-vent",
+  "qc-comment-s-appelle-un-velo-a-deux-places",
+  "qc-comment-s-appelle-un-velo-a-une-seule-roue",
+  "qc-sous-quoi-passe-le-tunnel-qui-relie-la-france-a-l-angleterre",
+  "qc-quel-transport-en-cabine-suspendue-monte-les-skieurs-en-haut-des-pistes",
+  "qc-comment-s-appellent-les-bandes-blanches-pour-traverser-la-rue",
+  "qc-que-jette-t-on-au-fond-de-l-eau-pour-qu-un-bateau-ne-bouge-plus",
+  "qc-quelle-tour-au-bord-de-la-mer-guide-les-bateaux-la-nuit",
+  "qc-comment-s-appelle-le-train-qui-roule-sous-les-rues-de-paris",
+  "qc-ou-les-avions-decollent-ils-et-atterrissent-ils",
+  "qc-ou-les-bateaux-s-arretent-ils-pour-etre-a-l-abri",
+  "qc-quel-long-bateau-plat-transporte-des-marchandises-sur-les-canaux",
+  "qc-quel-vehicule-emmene-les-malades-a-l-hopital-avec-sa-sirene",
+  "qc-de-quoi-a-besoin-une-voiture-electrique-pour-rouler",
+  "qc-avec-quoi-avancaient-les-anciennes-locomotives-a-vapeur",
+  "qc-avec-quoi-le-conducteur-tourne-t-il-les-roues-de-la-voiture",
+  "qc-dans-quoi-le-conducteur-regarde-t-il-pour-voir-derriere-lui",
+  "qc-qu-attache-t-on-des-qu-on-monte-en-voiture",
+  "qc-comment-s-appelait-l-avion-supersonique-franco-britannique",
+  "qc-qui-a-traverse-la-manche-en-avion-le-premier-en-1909",
+  "qc-quel-est-le-plus-haut-pont-de-france-dans-l-aveyron",
+  "qc-quel-canal-relie-l-ocean-atlantique-a-l-ocean-pacifique",
+  "qc-quel-canal-relie-la-mer-mediterranee-a-la-mer-rouge",
+  "qc-dans-quelle-ville-francaise-sont-assembles-de-nombreux-avions-airbus",
+  "qc-qui-eteint-les-incendies",
+  "qc-qui-soigne-les-malades",
+  "qc-qui-prepare-les-repas-au-restaurant",
+  "qc-qui-apporte-les-lettres-dans-la-boite-aux-lettres",
+  "qc-qui-coupe-les-cheveux",
+  "qc-qui-fait-la-classe-aux-eleves",
+  "qc-qui-fait-rire-les-enfants-au-cirque-avec-son-nez-rouge",
+  "qc-comment-s-appelle-la-personne-qui-fait-le-pain",
+  "qc-qui-soigne-les-dents",
+  "qc-qui-soigne-les-animaux",
+  "qc-comment-s-appelle-la-personne-qui-conduit-un-avion",
+  "qc-qui-fouille-le-sol-pour-retrouver-des-objets-tres-anciens",
+  "qc-comment-s-appelle-la-personne-qui-eleve-des-abeilles",
+  "qc-qui-garde-les-moutons",
+  "qc-qui-travaille-le-bois-pour-fabriquer-des-meubles",
+  "qc-qui-construit-des-murs-avec-des-briques",
+  "qc-qui-frappe-le-fer-chauffe-sur-une-enclume",
+  "qc-qui-fabrique-des-vases-et-des-bols-avec-de-l-argile",
+  "qc-chez-qui-achete-t-on-des-lunettes",
+  "qc-qui-prevoit-le-temps-qu-il-fera",
+  "qc-qui-dirige-une-commune-en-france",
+  "qc-qui-repare-les-tuyaux-et-les-fuites-d-eau",
+  "qc-qui-installe-les-fils-et-les-prises-electriques",
+  "qc-qui-part-en-mer-pour-attraper-des-poissons",
+  "qc-ou-achete-t-on-des-medicaments",
+  "qc-ou-peut-on-emprunter-des-livres-gratuitement",
+  "qc-qui-cultive-les-champs-et-eleve-des-animaux-a-la-ferme",
+  "qc-chez-qui-achete-t-on-de-la-viande",
+  "qc-qui-surveille-les-nageurs-a-la-plage",
+  "qc-qui-decide-de-la-peine-au-tribunal",
+  "qc-qui-lance-et-rattrape-plusieurs-balles-en-meme-temps-au-cirque",
+  "qc-comment-s-appelle-le-scientifique-qui-etudie-les-fossiles-et-les-dinosau",
+  "qc-comment-s-appelle-la-personne-qui-dessine-des-cartes-geographiques",
+  "qc-comment-s-appelle-la-personne-qui-invente-les-pas-d-un-spectacle-de-dans",
+  "qc-comment-s-appelle-le-specialiste-des-oiseaux",
+  "qc-comment-s-appelle-le-specialiste-des-insectes",
+  "qc-comment-s-appelle-le-scientifique-qui-etudie-les-plantes",
+  "qc-comment-s-appelle-le-scientifique-qui-etudie-les-volcans",
+  "qc-quel-objet-fait-paraitre-les-choses-plus-grosses",
+  "qc-que-devient-la-glace-quand-il-fait-chaud",
+  "qc-qu-est-ce-qu-un-aimant-attire",
+  "qc-quel-instrument-permet-de-voir-les-choses-minuscules",
+  "qc-qu-est-ce-qui-donne-de-l-electricite-a-une-lampe-de-poche",
+  "qc-quel-objet-indique-toujours-le-nord",
+  "qc-que-transforment-les-panneaux-solaires-en-electricite",
+  "qc-quelle-machine-fabrique-de-l-electricite-avec-le-vent",
+  "qc-quel-ouvrage-fabrique-de-l-electricite-avec-l-eau-d-une-riviere",
+  "qc-que-devient-l-eau-quand-on-la-fait-bouillir",
+  "qc-comment-s-appelle-un-son-qui-revient-quand-on-crie-face-a-une-montagne",
+  "qc-qu-est-ce-qui-va-le-plus-vite",
+  "qc-comment-s-appelle-le-fait-de-transformer-un-dechet-pour-le-reutiliser",
+  "qc-quel-metal-precieux-est-jaune-et-brillant",
+  "qc-comment-s-appelle-le-fer-abime-par-l-eau-et-l-air",
+  "qc-que-se-forme-t-il-derriere-un-objet-eclaire-par-une-lampe",
+  "qc-quel-objet-renvoie-notre-image",
+  "qc-que-plante-t-on-dans-la-terre-pour-faire-pousser-une-plante",
+  "qc-avec-quoi-mesure-t-on-le-poids",
+  "qc-quel-objet-ralentit-la-chute-de-quelqu-un-qui-saute-d-un-avion",
+  "qc-quelles-sont-les-trois-formes-de-l-eau",
+  "qc-quel-objet-sur-les-toits-indique-d-ou-vient-le-vent",
+  "qc-quel-gaz-de-l-air-nous-permet-de-vivre",
+  "qc-quel-objet-en-verre-decompose-la-lumiere-en-arc-en-ciel",
+  "qc-quelle-est-la-formule-chimique-de-l-eau",
+  "qc-quel-savant-aurait-compris-la-gravite-en-voyant-tomber-une-pomme",
+  "qc-quel-savant-est-celebre-pour-sa-theorie-de-la-relativite",
+  "qc-quel-savant-italien-a-observe-les-lunes-de-jupiter-avec-sa-lunette",
+  "qc-quel-savant-a-explique-l-evolution-des-especes",
+  "qc-de-quoi-est-fait-un-diamant",
+  "qc-quel-gaz-fait-flotter-les-ballons-dans-l-air",
+  "qc-pourquoi-voit-on-l-eclair-avant-d-entendre-le-tonnerre",
+  "qc-quel-objet-sur-les-toits-protege-les-maisons-de-la-foudre"
+ ],
+ "sources": {
+  "qc-quel-legume-vert-ressemble-a-un-petit-arbre": [
+   {
+    "n": 1,
+    "titre": "File:Basket of broccoli in Singapore market.jpg",
+    "auteur": "David",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Basket_of_broccoli_in_Singapore_market.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Broccoli Green Flower.jpg",
+    "auteur": "စာကလေး SarKaLay",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Broccoli_Green_Flower.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Broccoli Flower.jpg",
+    "auteur": "စာကလေး SarKaLay",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Broccoli_Flower.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-fruit-vert-a-un-gros-noyau-et-sert-a-faire-le-guacamole": [
+   {
+    "n": 1,
+    "titre": "File:Persea americana from Canadian supermarket.jpg",
+    "auteur": "Wilfredor",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Persea_americana_from_Canadian_supermarket.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-fruit-se-ramasse-en-automne-dans-une-bogue-piquante": [
+   {
+    "n": 1,
+    "titre": "Menlo Park 1968: Crane and Chestnut Streets",
+    "auteur": "menloparkplanning",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/154882784@N02/36202877125",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 2,
+    "titre": "Erie & Beautiful Chestnuts",
+    "auteur": "Unworn Mirror",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/194214437@N03/51797272298",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "Water Chestnuts",
+    "auteur": "chooyutshing",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/25802865@N08/55424702529",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-pour-les-botanistes-la-tomate-est": [
+   {
+    "n": 1,
+    "titre": "Mature Tomato Plants and Young Cucumber Plants in Dutch Buckets",
+    "auteur": "Alabama Extension",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/184594136@N08/51859296315",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 2,
+    "titre": "The Emperor Joseph Looking Out at My Tomato Plants, with Steps",
+    "auteur": "Billy Quinn 1954",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/9453335@N02/54724612313",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "Tomato Plant",
+    "auteur": "Elaine Casap",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/tomato-plant-Q2I2YQDSFR",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quelle-epice-vient-d-une-orchidee": [
+   {
+    "n": 1,
+    "titre": "Vanilla Ice Cream",
+    "auteur": "Tremi Dkhar",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/97963297b5/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 2,
+    "titre": "Vanilla Cloud",
+    "auteur": "Nusrat",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/52963a96e1/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 3,
+    "titre": "Icecream Cone",
+    "auteur": "Patryk Dziejma",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/icecream-cone-1BSDXCRZG3",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quelle-epice-tres-chere-vient-d-une-fleur-de-crocus": [
+   {
+    "n": 1,
+    "titre": "Saffron faced blue dart - mating",
+    "auteur": "Venkat Mangudi",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/80441498@N00/52310314933",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 2,
+    "titre": "Saffron",
+    "auteur": "GaoFeiWings",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/169022792@N02/54703156479",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "Saffron-winged Meadowhawk on Seedhead Lake Andes Wetland Management District South Dakota",
+    "auteur": "USFWS Mountain Prairie",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/51986662@N05/52390785358",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-avec-le-lait-de-quel-animal-fait-on-le-roquefort": [
+   {
+    "n": 1,
+    "titre": "Sheep Animals",
+    "auteur": "Blake Verdoorn",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/sheep-animals-9NRW55A25D",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Sheep Animals",
+    "auteur": "Jonas Nilsson Lee",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/sheep-animals-4F944F6A71",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Animals Sheep",
+    "auteur": "Matthias Zomer",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/animals-sheep-TXRK85IP8S",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quelle-epice-est-faite-avec-l-ecorce-d-un-arbre": [
+   {
+    "n": 1,
+    "titre": "Cinnamon Sticks",
+    "auteur": "Daria Shevtsova",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/cinnamon-sticks-ZAJBMRKJRJ",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Cinnamon Sticks",
+    "auteur": "Foodie Girl",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/cinnamon-sticks-JRENBKQ5RE",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Closeup cinnamon stick Christmas decoration",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/6041368/photo-image-xmas-public-domain-tree",
+    "source": "openverse/rawpixel"
+   }
+  ],
+  "qc-avec-quoi-fabrique-t-on-le-tofu": [
+   {
+    "n": 1,
+    "titre": "Mapo Tofu with steamed rice",
+    "auteur": "gastronomicslc",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/76761c35f3/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 2,
+    "titre": "Modern Desk Setup with Tofu 60 and Logitech MX Master 3 and a wooden wrist rest",
+    "auteur": "Shamayel",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/7263ccd59f/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 3,
+    "titre": "Tofu Soup with Meat Balls",
+    "auteur": "chooyutshing",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/25802865@N08/55461330807",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-avec-quel-legume-sec-fait-on-le-houmous": [
+   {
+    "n": 1,
+    "titre": "Hummus clear bowl",
+    "auteur": "U.S. Department of Agriculture",
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/8733890/photo-image-healthy-cream",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 2,
+    "titre": "Free chickpea bowl table image",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/5928374/photo-image-public-domain-food-free",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 3,
+    "titre": "File:Rouhi AlAqili hummus restaurant.png",
+    "auteur": "Iainsimpsonstewart",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Rouhi_AlAqili_hummus_restaurant.png",
+    "source": "commons"
+   }
+  ],
+  "qc-de-quel-poisson-viennent-les-ufs-du-caviar": [
+   {
+    "n": 1,
+    "titre": "Cargo ships laid up for winter maintenance in Sturgeon Bay, Wisconsin",
+    "auteur": "asternecky",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/5856392031/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 2,
+    "titre": "Spawning a Pallid Sturgeon",
+    "auteur": "USFWS Mountain Prairie",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/51986662@N05/52309960381",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "Tagging shovelnose sturgeon",
+    "auteur": "USFWS Mountain Prairie",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/51986662@N05/49959010758",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-quelle-est-la-capitale-de-la-france": [
+   {
+    "n": 1,
+    "titre": "073 Models Of Eiffel Tower & A Ferris Wheel In Museum, Made Of Toothpicks",
+    "auteur": "The Fun Chronicles",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/196406308@N04/52344521101",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 2,
+    "titre": "Eiffel Tower with the colors of the Ukrainian flag",
+    "auteur": "Pierre Blaché",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/141783395@N02/51910907605",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "Eiffel Tower in pink, Paris",
+    "auteur": "Pierre Blaché",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/141783395@N02/51541894248",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-quelles-sont-les-couleurs-du-drapeau-francais": [
+   {
+    "n": 1,
+    "titre": "French flag, blue sky",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/6037717/photo-image-public-domain-blue-sky",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 2,
+    "titre": "Free national French flag image",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/5905136/photo-image-public-domain-banner-sky",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 3,
+    "titre": "Free national French flag image",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/5905505/photo-image-public-domain-banner-sky",
+    "source": "openverse/rawpixel"
+   }
+  ],
+  "qc-quelle-est-la-capitale-de-l-italie": [
+   {
+    "n": 1,
+    "titre": "Trevifountain Rome",
+    "auteur": "Dave Meier",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/trevifountain-rome-231C6AE6F6",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Colosseum Rome",
+    "auteur": "Chantel Lucas",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/colosseum-rome-X42222FEL1",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Colosseum Rome",
+    "auteur": "Travel Coffee Book",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/colosseum-rome-9EE966E52F",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quelle-est-la-capitale-de-l-espagne": [
+   {
+    "n": 1,
+    "titre": "Caixaforum Madrid museum. Hall stairs and ceiling",
+    "auteur": "Patricia Navarro Sanz",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/153638efc0/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 2,
+    "titre": "Ornate ceiling in Catedral de la Almudena (Almudena Cathedral), Madrid, Spain",
+    "auteur": "Michael Burridge",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/19662053f3/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 3,
+    "titre": "Interior view of Catedral de la Almudena (Almudena Cathedral), Madrid, Spain",
+    "auteur": "Michael Burridge",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/66062053ef/",
+    "source": "openverse/wordpress"
+   }
+  ],
+  "qc-quelle-est-la-capitale-de-l-angleterre": [
+   {
+    "n": 1,
+    "titre": "The Big Ben",
+    "auteur": "Hardeep Asrani",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/896298b63d/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 2,
+    "titre": "Architecture Building",
+    "auteur": "Maile Ortiz",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/architecture-building-UC244P42EX",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Elizabeth Tower (Big Ben) London",
+    "auteur": "too_old_for_swinging",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/134415343@N02/19050439999",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-dans-quel-pays-se-trouvent-les-grandes-pyramides-de-gizeh": [
+   {
+    "n": 1,
+    "titre": "The Great Pyramid of Giza lit up at night.",
+    "auteur": "Harish Chouhan",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/57161eb6d8/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 2,
+    "titre": "Free Great Pyramid Giza image",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/5914694/image-public-domain-free-pyramids",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 3,
+    "titre": "Great Pyramid Giza",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/5905163/photo-image-public-domain-shadow-sky",
+    "source": "openverse/rawpixel"
+   }
+  ],
+  "qc-dans-quel-pays-se-trouve-la-grande-muraille": [
+   {
+    "n": 1,
+    "titre": "Great Wall",
+    "auteur": "Diego Jimenez",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/great-wall-7RM6M6VDOX",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Great Wall China Beijing",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/6036966/photo-image-public-domain-green-nature",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 3,
+    "titre": "Free Great Wall China photo",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/5905287/photo-image-public-domain-wall-free",
+    "source": "openverse/rawpixel"
+   }
+  ],
+  "qc-quel-pays-a-la-forme-d-une-botte": [
+   {
+    "n": 1,
+    "titre": "Italy: map. Coloured engraving J",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/13962363/image-paper-world-map-person",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 2,
+    "titre": "Little Italy, San Diego pre Interstate 5",
+    "auteur": "Frank_Bruce",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/38677544@N00/51324687971",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "Spread of Early Christianity",
+    "auteur": "SGC-library",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/196441349@N05/52344342814",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-quelle-monnaie-utilise-t-on-en-france": [
+   {
+    "n": 1,
+    "titre": "Euro Coin",
+    "auteur": "Michal Jarmoluk",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/euro-coin-GVK5G8BT96",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Euro Coin",
+    "auteur": "Michal Jarmoluk",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/euro-coin-EVC3N6560W",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Euro Coin",
+    "auteur": "Michal Jarmoluk",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/euro-coin-KSSK8FBJ8E",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quel-fleuve-traverse-paris": [
+   {
+    "n": 1,
+    "titre": "Architecture Structure",
+    "auteur": "John Towner",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/architecture-structure-DM2WA4ETNT",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "galerie 55 seine paris HARADA 3mai22-6juin22-7",
+    "auteur": "Annie HARADA",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/50785745@N06/52082090893",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "galerie 55 seine paris HARADA 3mai22-6juin22-19",
+    "auteur": "Annie HARADA",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/50785745@N06/52082565685",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-dans-quelle-ville-se-trouve-la-statue-de-la-liberte": [
+   {
+    "n": 1,
+    "titre": "The Statue of Liberty from one of the ferry boats",
+    "auteur": "mdburnette",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/23461f8671/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 2,
+    "titre": "Architecture Infrastructure",
+    "auteur": "Ferdinand%20St%F6hr",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/architecture-infrastructure-G559WUN5EQ",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Liberty Statue",
+    "auteur": "Maarten van den Heuvel",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/liberty-statue-GBNCO9YZ8H",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quelle-est-la-capitale-de-l-allemagne": [
+   {
+    "n": 1,
+    "titre": "Berlin Germany",
+    "auteur": "Travel Coffee Book",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/berlin-germany-8A981F99AC",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Sonycentre Berlin",
+    "auteur": "Dave Meier",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/sonycentre-berlin-1AE1F86F1B",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "World Time Clock, AlexanderPlatz, Berlin, Germany",
+    "auteur": "Michael Burridge",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/29661f3cc6/",
+    "source": "openverse/wordpress"
+   }
+  ],
+  "qc-quelle-est-la-capitale-du-japon": [
+   {
+    "n": 1,
+    "titre": "Shibuyacrossing Tokyo",
+    "auteur": "Negative Space",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/shibuyacrossing-tokyo-1ZJSU7ORAZ",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Tokyo Japan",
+    "auteur": "Aaron Ang",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/tokyo-japan-7JBL5TC3S7",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Neon Tokyo",
+    "auteur": "Burst",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/neon-tokyo-VWWBOFQBGZ",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-dans-quel-pays-se-trouve-la-tour-penchee-de-pise": [
+   {
+    "n": 1,
+    "titre": "Building Leaning",
+    "auteur": "Bob Richards",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/building-leaning-U4H4JZKVUP",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Leaning Tower Pisa Italy",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/6033709/photo-image-public-domain-free-city",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 3,
+    "titre": "Closeup Leaning Tower Pisa Italy",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/6033436/photo-image-public-domain-free-city",
+    "source": "openverse/rawpixel"
+   }
+  ],
+  "qc-dans-quel-pays-se-trouve-l-opera-de-sydney": [
+   {
+    "n": 1,
+    "titre": "Sydney Opera",
+    "auteur": "Frances Gunn",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/sydney-opera-4AQEUP2PRE",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "The Sydney Opera House.",
+    "auteur": "Bernard Spragg",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/88123769@N02/51812034355",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "Sydney Opera House.",
+    "auteur": "Bernard Spragg",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/88123769@N02/54956911139",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-dans-quel-pays-se-trouve-le-taj-mahal": [
+   {
+    "n": 1,
+    "titre": "Taj Mahal",
+    "auteur": "JLB88",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/taj-mahal-65IZ00R6EP",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Taj Mahal",
+    "auteur": "Varshesh Joshi",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/taj-mahal-2EJYQBPJUU",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "The Taj Mahal Palace, Mumbai, India",
+    "auteur": "Meher Bala",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/87562a8d38/",
+    "source": "openverse/wordpress"
+   }
+  ],
+  "qc-quelle-est-la-capitale-de-la-russie": [
+   {
+    "n": 1,
+    "titre": "Guy Man",
+    "auteur": "Stefan Stefancik",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/guy-man-50H5YN86K5",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Radon AGAT Tantal Novoexport RAF-2203 Soviet Union Moscow Olympics Game Bicycle transport van",
+    "auteur": "orangechallenger",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/41518892@N03/51619700485",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "If there is no really painful package of sanctions against Russia, it will be considered by Moscow as a permission to attack - address by President Volodymyr Zelenskyy.",
+    "auteur": "President Of Ukraine",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/165930373@N06/51987568479",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-quelle-est-la-capitale-de-la-belgique": [
+   {
+    "n": 1,
+    "titre": "Traditional Thanksgiving dinner spread",
+    "auteur": "mdburnette",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/246202c5f4/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 2,
+    "titre": "je-suis Brussels stone",
+    "auteur": "daridawn",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/11416049@N03/25974464600",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "brussels-prayer-2022-0787",
+    "auteur": "usagbenelux",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/135840597@N02/52064415325",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-quelle-est-la-capitale-du-portugal": [
+   {
+    "n": 1,
+    "titre": "Lisbon Portugal",
+    "auteur": "Skitter Photo",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/lisbon-portugal-B9F8B43531",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Tiles in Lisbon / Azulejos em Lisboa",
+    "auteur": "bruxonama",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/52162f6297/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 3,
+    "titre": "Lisbon postcards – Postais de Lisboa",
+    "auteur": "Marco Almeida | Webdados",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/93630c9176/",
+    "source": "openverse/wordpress"
+   }
+  ],
+  "qc-quelle-est-la-capitale-de-la-grece": [
+   {
+    "n": 1,
+    "titre": "Ancient Gold Coins at the Acropolis Museum. Athens, Greece.",
+    "auteur": "Vagelis",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/14162e79fa/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 2,
+    "titre": "Architecture Building",
+    "auteur": "Sergei Gussev",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/architecture-building-DO54WMU8K3",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Acropolis with the Beulé Gate, 1905",
+    "auteur": "Αρχείο Baldwin-Edwards",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/77434771@N08/51823496920",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-quelle-est-la-capitale-des-pays-bas": [
+   {
+    "n": 1,
+    "titre": "Amsterdam Bike",
+    "auteur": "Thi",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/amsterdam-bike-DRAIDVOPDD",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Amsterdam- City of Canals",
+    "auteur": "Afshana Diya",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/6516298c35/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 3,
+    "titre": "Enneüs Heerma Bridge to IJburg, neighborhood of Amsterdam",
+    "auteur": "Gerard van Enk",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/98162b8363/",
+    "source": "openverse/wordpress"
+   }
+  ],
+  "qc-quelle-ville-italienne-a-des-canaux-et-des-gondoles": [
+   {
+    "n": 1,
+    "titre": "Gondola Venice",
+    "auteur": "Travel Coffee Book",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/gondola-venice-47431FB037",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Gondola Venice",
+    "auteur": "Dave Meier",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/gondola-venice-ZWBB4XCZT9",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "File:Félix Ziem - The Grand Canal, Venice (Gondola before San Giorgio) - 1955.903 - Clark Art Institute.tiff",
+    "auteur": "Félix Ziem",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:F%C3%A9lix_Ziem_-_The_Grand_Canal,_Venice_(Gondola_before_San_Giorgio)_-_1955.903_-_Clark_Art_Institute.tiff",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quel-pays-se-trouve-le-mont-fuji": [
+   {
+    "n": 1,
+    "titre": "Snowy Mount Fuji",
+    "auteur": "Hiromi Ito",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/96064244b8/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 2,
+    "titre": "Lake Kawaguchi-ko, Mount Fuji ,Japan",
+    "auteur": "chsyang",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/77874836@N04/52153852844",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "Der Mount Fuji in Japan durch eine Wolkenlücke gesehen",
+    "auteur": "DLR_next",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/143220073@N04/51715393926",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-quelle-est-la-capitale-de-l-egypte": [
+   {
+    "n": 1,
+    "titre": "File:Map of Misr al-Gadida (Heliopolis) district, Cairo, Egypt (Arabic).jpg",
+    "auteur": "Cairo Governorate",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Map_of_Misr_al-Gadida_(Heliopolis)_district,_Cairo,_Egypt_(Arabic).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Duweika rockslide aftermath, Cairo, Egypt.jpg",
+    "auteur": "Egyptian Red Crescent Society",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Duweika_rockslide_aftermath,_Cairo,_Egypt.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Cairo, Egypt (ASTER).jpg",
+    "auteur": "NASA/METI/AIST/Japan Space Systems, and U.S./Japan ASTER Science Team",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Cairo,_Egypt_(ASTER).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-pays-a-un-drapeau-vert-blanc-et-rouge": [
+   {
+    "n": 1,
+    "titre": "Free Italian flag image",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/5905491/photo-image-public-domain-banner-blue",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 2,
+    "titre": "Free Italian flag image",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/5905716/photo-image-public-domain-banner-blue",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 3,
+    "titre": "Free Italian flag image",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/5903037/photo-image-public-domain-banner-free",
+    "source": "openverse/rawpixel"
+   }
+  ],
+  "qc-quelles-sont-les-couleurs-du-drapeau-allemand": [],
+  "qc-quel-pays-a-un-drapeau-blanc-avec-un-rond-rouge": [
+   {
+    "n": 1,
+    "titre": "File:Flag-of-Japan-Postcard-1910-Exhibition.png",
+    "auteur": "Flags of the Nations' Series",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Flag-of-Japan-Postcard-1910-Exhibition.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Japan flag square.png",
+    "auteur": "Ideophagous",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Japan_flag_square.png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Flag-for-the-Emperor-Birthday-Japan-Tenchosetsu-Toyohara-Kunichika.png",
+    "auteur": "Toyohara Kunichika",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Flag-for-the-Emperor-Birthday-Japan-Tenchosetsu-Toyohara-Kunichika.png",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-monument-francais-est-entoure-par-la-mer-a-maree-haute": [
+   {
+    "n": 1,
+    "titre": "File:Mont St Michel 3, Brittany, France - July 2011.jpg",
+    "auteur": "Diliff",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Mont_St_Michel_3,_Brittany,_France_-_July_2011.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Mont St. Michel Spire.JPG",
+    "auteur": "Nilington",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Mont_St._Michel_Spire.JPG",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-monument-se-trouve-en-haut-des-champs-elysees": [
+   {
+    "n": 1,
+    "titre": "Arc de Triomphe, Wrapped, Paris",
+    "auteur": "Pierre Blaché",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/141783395@N02/51549547634",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 2,
+    "titre": "Arc de Triomphe du Carrousel, Paris",
+    "auteur": "Pierre Blaché",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/141783395@N02/50399305587",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "The Avenue des Champs-Élysées and the Arc de Triomphe, Paris",
+    "auteur": "Pierre Blaché",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/141783395@N02/51804472014",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-dans-quel-musee-de-paris-peut-on-voir-la-joconde": [
+   {
+    "n": 1,
+    "titre": "Louvre Pyramid",
+    "auteur": "We Like Sharing",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/192018235@N04/53539801403",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 2,
+    "titre": "20240619_105424 - Louvre Pyramid",
+    "auteur": "ccs89.euro",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/201002004@N04/55316975139",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "20240619_110144 - Louvre Pyramid",
+    "auteur": "ccs89.euro",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/201002004@N04/55316749866",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-quelle-grande-ville-francaise-est-au-bord-de-la-mediterranee": [
+   {
+    "n": 1,
+    "titre": "File:Marseille port.jpg",
+    "auteur": "Szombat78",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Marseille_port.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Vue sur le grand port maritime de Marseille 2.jpg",
+    "auteur": "Gabriel from92",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Vue_sur_le_grand_port_maritime_de_Marseille_2.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Bogolyubov Marseille Port.jpg",
+    "auteur": "Alexey Bogolyubov",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Bogolyubov_Marseille_Port.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-grande-ile-francaise-se-trouve-en-mediterranee": [
+   {
+    "n": 1,
+    "titre": "File:Clam Shell Machine (49924802087).jpg",
+    "auteur": "Ashtabula Archive",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Clam_Shell_Machine_(49924802087).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Corsica and Sardinia - blank.png",
+    "auteur": "Pikkupapupata",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Corsica_and_Sardinia_-_blank.png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Corsica prospettiva nasa.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Corsica_prospettiva_nasa.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-est-le-plus-grand-pays-du-monde": [
+   {
+    "n": 1,
+    "titre": "Crypto-fascism",
+    "auteur": "₡ґǘșϯγ Ɗᶏ Ⱪᶅṏⱳդ",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/148598741@N02/53513168453",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 2,
+    "titre": "An attempt",
+    "auteur": "₡ґǘșϯγ Ɗᶏ Ⱪᶅṏⱳդ",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/148598741@N02/53578901486",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "Shattered",
+    "auteur": "₡ґǘșϯγ Ɗᶏ Ⱪᶅṏⱳդ",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/148598741@N02/53589961510",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-dans-quelle-ville-roulent-les-celebres-bus-rouges-a-deux-etages": [
+   {
+    "n": 1,
+    "titre": "Old-fashioned London bus",
+    "auteur": "Michael Burridge",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/138620e40b/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 2,
+    "titre": "Red Bus",
+    "auteur": "Burst",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/red-bus-IFZYRGBZZS",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Architecture Building",
+    "auteur": "Tamara Menzi",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/architecture-building-DSE87E4Q27",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quel-pays-est-celebre-pour-ses-montres-son-chocolat-et-ses-montagnes": [
+   {
+    "n": 1,
+    "titre": "View on the Swiss Alps through a window from Rigi Kulm near Lucerne",
+    "auteur": "Martin Sauter",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/53961c56e1/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 2,
+    "titre": "A pond and some cows in the Swiss Alps near the Glärnisch mountain massif.",
+    "auteur": "Martin Sauter",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/68861c6da0/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 3,
+    "titre": "Piglets in the Swiss Alps",
+    "auteur": "Martin Sauter",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/64861dfd7b/",
+    "source": "openverse/wordpress"
+   }
+  ],
+  "qc-quelle-est-la-capitale-des-etats-unis": [
+   {
+    "n": 1,
+    "titre": "File:US Capitol 1814c.jpg",
+    "auteur": "George Munger",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:US_Capitol_1814c.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Official Program Woman Suffrage Procession - March 3, 1913.jpg",
+    "auteur": "Adam Cuerden",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Official_Program_Woman_Suffrage_Procession_-_March_3,_1913.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:United States Capitol west front edit2.jpg",
+    "auteur": "United_States_Capitol_-_west_front.jpg: Architect of the Capitol\nderivative work: O.J.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:United_States_Capitol_west_front_edit2.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-langue-parle-t-on-au-bresil": [
+   {
+    "n": 1,
+    "titre": "File:Living room in apartment of Condomínio do Edifício Zaher, Le Blond, Rio de Janeiro, Brazil.jpg",
+    "auteur": "Wilfredor",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Living_room_in_apartment_of_Condom%C3%ADnio_do_Edif%C3%ADcio_Zaher,_Le_Blond,_Rio_de_Janeiro,_Brazil.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Ipanema and Leblon as seen from Morro Dois Irmãos, with Lagoa and Cantagalo in the background, Rio de Janeiro, Brazil.jpg",
+    "auteur": "Wilfredor",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Ipanema_and_Leblon_as_seen_from_Morro_Dois_Irm%C3%A3os,_with_Lagoa_and_Cantagalo_in_the_background,_Rio_de_Janeiro,_Brazil.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Bell 206L-4 LongRanger IV over Botafogo Bay, Rio de Janeiro.jpg",
+    "auteur": "Wilfredor",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Bell_206L-4_LongRanger_IV_over_Botafogo_Bay,_Rio_de_Janeiro.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-surnom-donne-t-on-a-la-france-a-cause-de-sa-forme": [
+   {
+    "n": 1,
+    "titre": "File:1794 Samuel Dunn Wall Map of the World in Hemispheres - Geographicus - World2-dunn-1794.jpg",
+    "auteur": "Thomas Kitchin",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:1794_Samuel_Dunn_Wall_Map_of_the_World_in_Hemispheres_-_Geographicus_-_World2-dunn-1794.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:1635 Blaeu Map Guiana, Venezuela, and El Dorado - Geographicus - Guiana-blaeu-1635.jpg",
+    "auteur": "Willem Blaeu",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:1635_Blaeu_Map_Guiana,_Venezuela,_and_El_Dorado_-_Geographicus_-_Guiana-blaeu-1635.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:1730 Homann Map of Scandinavia, Norway, Sweden, Denmark, Finland and the Baltics - Geographicus - Scandinavia-homann-1730.jpg",
+    "auteur": "Johann Homann",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:1730_Homann_Map_of_Scandinavia,_Norway,_Sweden,_Denmark,_Finland_and_the_Baltics_-_Geographicus_-_Scandinavia-homann-1730.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quelle-ville-se-trouve-la-grande-statue-du-christ-redempteur": [
+   {
+    "n": 1,
+    "titre": "File:Rio skyline and Cristo Redentor from Sugarloaf Mountain, Brazil.jpg",
+    "auteur": "Wilfredor",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Rio_skyline_and_Cristo_Redentor_from_Sugarloaf_Mountain,_Brazil.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Christ In Glory - Correggio - Pinacoteca Vaticana.jpg",
+    "auteur": "Antonio da Correggio",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Christ_In_Glory_-_Correggio_-_Pinacoteca_Vaticana.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Andrea del Sarto - Christ the Redeemer - WGA00379.jpg",
+    "auteur": "Andrea del Sarto",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Andrea_del_Sarto_-_Christ_the_Redeemer_-_WGA00379.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-est-la-capitale-de-la-suisse": [
+   {
+    "n": 1,
+    "titre": "File:Federal Palace of Switzerland Bundeshaus im Bern by Robbie Conceptuel.png",
+    "auteur": "Conceptuel",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Federal_Palace_of_Switzerland_Bundeshaus_im_Bern_by_Robbie_Conceptuel.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Bern luftaufnahme.png",
+    "auteur": "de:Benutzer:Reaast",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Bern_luftaufnahme.png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Aare river in Bern.jpg",
+    "auteur": "Paranoid",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Aare_river_in_Bern.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-est-la-capitale-du-canada": [
+   {
+    "n": 1,
+    "titre": "File:Downtown Ottawa Canada.jpg",
+    "auteur": "Salwa Farwaneh Dameh",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Downtown_Ottawa_Canada.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Ottawa Sign.jpg",
+    "auteur": "QueerGLAM",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Ottawa_Sign.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Ottawa from the Peace Tower.jpg",
+    "auteur": "Salwa Farwaneh Dameh",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Ottawa_from_the_Peace_Tower.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-est-la-capitale-de-l-australie": [
+   {
+    "n": 1,
+    "titre": "File:Canberra in the 1920s.jpg",
+    "auteur": "John Robert McPherson",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Canberra_in_the_1920s.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-est-la-capitale-du-maroc": [
+   {
+    "n": 1,
+    "titre": "File:Commune de Rabat Logo.png",
+    "auteur": "Mairie de Rabat",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Commune_de_Rabat_Logo.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:March 2007 Rabat in Malta 28.jpg",
+    "auteur": "Syced",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:March_2007_Rabat_in_Malta_28.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:March 2007 Rabat in Malta 56.jpg",
+    "auteur": "Syced",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:March_2007_Rabat_in_Malta_56.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quelle-ville-francaise-siege-le-parlement-europeen": [
+   {
+    "n": 1,
+    "titre": "File:European Parliament Hemicycle - Brussels 2024.jpg",
+    "auteur": "Profpcde",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:European_Parliament_Hemicycle_-_Brussels_2024.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:European Parliament MEP Seats Detail - Brussels 2024.jpg",
+    "auteur": "Profpcde",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:European_Parliament_MEP_Seats_Detail_-_Brussels_2024.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quel-ocean-se-trouve-l-ile-de-la-reunion": [
+   {
+    "n": 1,
+    "titre": "File:ISS-65 Mauritius and Réunion Island in the Indian Ocean nighttime view.jpg",
+    "auteur": "NASA / ISS Astronauts",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:ISS-65_Mauritius_and_R%C3%A9union_Island_in_the_Indian_Ocean_nighttime_view.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Agama agama female in Reunion Island.jpg",
+    "auteur": "Parchaco",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Agama_agama_female_in_Reunion_Island.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Agama agama male in Reunion Island.jpg",
+    "auteur": "Parchaco",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Agama_agama_male_in_Reunion_Island.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-pays-a-le-plus-d-habitants": [],
+  "qc-quel-est-le-plus-petit-pays-du-monde": [
+   {
+    "n": 1,
+    "titre": "File:Relief CoA Pope Urbanus VIII Vatican 8.jpg",
+    "auteur": "Jebulon",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Relief_CoA_Pope_Urbanus_VIII_Vatican_8.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Spiral staircase in the Vatican Museums from bottom 02.jpg",
+    "auteur": "Wilfredor",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Spiral_staircase_in_the_Vatican_Museums_from_bottom_02.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Ceiling niche Vatican 9.jpg",
+    "auteur": "Jebulon",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Ceiling_niche_Vatican_9.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-cathedrale-de-paris-a-brule-en-2019": [
+   {
+    "n": 1,
+    "titre": "File:Notre-Dame de Montréal Basilica 12.jpg",
+    "auteur": "Louis-Philippe Hébert",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Notre-Dame_de_Montr%C3%A9al_Basilica_12.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Notre-Dame de Montréal Basilica 01.jpg",
+    "auteur": "Wilfredor",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Notre-Dame_de_Montr%C3%A9al_Basilica_01.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Intérieur de la basilique-cathédrale Notre-Dame de Québec 01.jpg",
+    "auteur": "Wilfredor",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Int%C3%A9rieur_de_la_basilique-cath%C3%A9drale_Notre-Dame_de_Qu%C3%A9bec_01.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-ou-habite-le-president-de-la-republique-francaise": [
+   {
+    "n": 1,
+    "titre": "File:Secretary Pompeo Arrives to Meet with French Foreign Minister Le Drian in Paris (50610423656) (cropped).jpg",
+    "auteur": "U.S. Department of State from United States",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Secretary_Pompeo_Arrives_to_Meet_with_French_Foreign_Minister_Le_Drian_in_Paris_(50610423656)_(cropped).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Émile Eddé at the Élysée Palace.jpg",
+    "auteur": "Unknown photographer",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:%C3%89mile_Edd%C3%A9_at_the_%C3%89lys%C3%A9e_Palace.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Elysée Palace Hôtel publicité.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Elys%C3%A9e_Palace_H%C3%B4tel_publicit%C3%A9.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quelle-region-trouve-t-on-de-nombreux-chateaux-comme-chambord": [
+   {
+    "n": 1,
+    "titre": "File:Zentralbibliothek Zürich - Dorfkirche in Chambord - 991098543599705501.jpg",
+    "auteur": "Johann Rudolf Rahn",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Zentralbibliothek_Z%C3%BCrich_-_Dorfkirche_in_Chambord_-_991098543599705501.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quels-animaux-geants-ont-disparu-il-y-a-des-millions-d-annees": [
+   {
+    "n": 1,
+    "titre": "File:Dinosaur Garage sign, Dinosaur, Colorado LCCN2017707731.tif",
+    "auteur": "John Margolies",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Dinosaur_Garage_sign,_Dinosaur,_Colorado_LCCN2017707731.tif",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Dino sign, grocery laundromat, Dinosaur, Colorado LCCN2017706945.tif",
+    "auteur": "John Margolies",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Dino_sign,_grocery_laundromat,_Dinosaur,_Colorado_LCCN2017706945.tif",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Dinosaur Pinata.jpg",
+    "auteur": "Klaus-Dieter Keller",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Dinosaur_Pinata.jpg",
+    "source": "commons"
+   }
+  ]
+ }
+}
