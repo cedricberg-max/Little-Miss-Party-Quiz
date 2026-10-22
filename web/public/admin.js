@@ -50,7 +50,7 @@ import {
 } from "./mediatheque.js";
 import { DOSSIERS, classerPartie, bilan, effacements, passageAFaire, moDe, texteMo, texteGardees } from "./nettoyage.js";
 import { GROUPES_QUESTIONS, questionsClassiquesPretes, questionsIllustreesPretes, mesQuestions, mesPacks, questionsDeTest, questionCorrespond, lirePacks, illustration, retirerQuestions, packsParTheme } from "./questions.js";
-import { chiffreConvient, tirerChiffres } from "./banque-chiffres.js";
+import { NIVEAUX_CHIFFRES, libelleNiveau, niveauPourAge, tirerChiffres } from "./banque-chiffres.js";
 import { QUESTIONS_TOUT_PRETES, THEMES_TOUT_PRETS, estJusteChiffre } from "./banque-classiques.js";
 
 // Petit œil sur les champs de mot de passe : voir ce qu'on tape (majuscules, caractère en trop).
@@ -2277,7 +2277,7 @@ function renderBanque() {
 const TYPES_TOUT_PRETS = { qcm: ["❓ 4 réponses", (x) => !estJusteChiffre(x)], nombre: ["🔢 Juste Chiffre", estJusteChiffre] };
 let chiffresType = null;
 let chiffresTheme = null;
-let chiffresAge = null;
+let chiffresNiveau = null;
 let chiffresRecherche = "";
 /** Questions cochées : identifiant → question de la banque, dans l'ordre où elles ont été cochées. */
 const chiffresCoches = new Map();
@@ -2286,9 +2286,8 @@ $("rv-chiffres").onclick = () => {
   const panel = $("rv-chiffres-panel");
   panel.hidden = !panel.hidden;
   if (panel.hidden) return;
-  // L'âge du quiz, s'il est rempli, choisit d'avance les questions qui lui conviennent.
-  const age = Number.parseInt($("rv-age-min").value, 10);
-  chiffresAge = Number.isFinite(age) && age >= 5 && age <= 15 ? age : null;
+  // L'âge du quiz, s'il est rempli, choisit d'avance son niveau (Facile, Moyen ou Difficile).
+  chiffresNiveau = niveauPourAge(Number.parseInt($("rv-age-min").value, 10));
   renderChiffres();
 };
 
@@ -2297,8 +2296,9 @@ function renderChiffres() {
   const deja = new Set((draft?.questions ?? []).map((q) => q.text.trim()));
   for (const [id, q] of chiffresCoches) if (deja.has(q.text)) chiffresCoches.delete(id);
   const duType = (x) => !chiffresType || TYPES_TOUT_PRETS[chiffresType][1](x);
-  // Les thèmes qui ont des questions de cette sorte pour cet âge.
-  const pourAge = QUESTIONS_TOUT_PRETES.filter((x) => duType(x) && chiffreConvient(x, chiffresAge));
+  const duNiveau = (x) => !chiffresNiveau || x.niveau === chiffresNiveau;
+  // Les thèmes qui ont des questions de cette sorte à ce niveau.
+  const pourAge = QUESTIONS_TOUT_PRETES.filter((x) => duType(x) && duNiveau(x));
   const themes = Object.entries(THEMES_TOUT_PRETS).filter(([k]) => pourAge.some((x) => x.theme === k));
   if (chiffresTheme && !themes.some(([k]) => k === chiffresTheme)) chiffresTheme = null;
   const choix = pourAge.filter((x) => !chiffresTheme || x.theme === chiffresTheme);
@@ -2329,25 +2329,29 @@ function renderChiffres() {
       recherche.timer = setTimeout(() => { renderChiffres(); $("rv-chiffres-cherche")?.focus(); }, 250);
     },
   });
-  const age = h("select", { id: "rv-chiffres-age", onchange: (e) => { chiffresAge = e.target.value === "" ? null : Number(e.target.value); renderChiffres(); } },
-    h("option", { value: "", text: "Tous les âges", selected: chiffresAge === null }),
-    ...Array.from({ length: 11 }, (_, k) => k + 5).map((a) => h("option", { value: a, text: `${a} ans`, selected: chiffresAge === a })));
+  // Trois niveaux sans chevauchement (cedric, 22/10) : une puce chacun, avec son nombre de questions.
+  const chipNiveau = (label, niveau) => h("button", {
+    type: "button", class: `chip${chiffresNiveau === niveau ? " active" : ""}`, "data-niveau": niveau ?? "tous",
+    text: `${label} (${QUESTIONS_TOUT_PRETES.filter((x) => duType(x) && (!niveau || x.niveau === niveau)).length})`,
+    onclick: () => { chiffresNiveau = niveau; renderChiffres(); },
+  });
   panel.replaceChildren(
     h("p", { class: "label", text: "Quiz classique tout prêt" }),
-    h("p", { class: "hint small", text: `${plural(QUESTIONS_TOUT_PRETES.filter(TYPES_TOUT_PRETS.qcm[1]).length, "question")} à 4 réponses, avec leur image montrée à la révélation, et ${QUESTIONS_TOUT_PRETES.filter(estJusteChiffre).length} Juste Chiffre (chaque équipe tape un nombre, la plus proche gagne ; la TV montre son compteur, sans image). Choisissez la sorte, le thème et l'âge, cochez, ou tirez-en 5 au hasard.` }),
+    h("p", { class: "hint small", text: `${plural(QUESTIONS_TOUT_PRETES.filter(TYPES_TOUT_PRETS.qcm[1]).length, "question")} à 4 réponses, avec leur image montrée à la révélation, et ${QUESTIONS_TOUT_PRETES.filter(estJusteChiffre).length} Juste Chiffre (chaque équipe tape un nombre, la plus proche gagne ; la TV montre son compteur, sans image). Choisissez la sorte, le niveau et le thème, cochez, ou tirez-en 5 au hasard.` }),
     h("div", { class: "chips" }, chipType("Toutes", null), ...Object.entries(TYPES_TOUT_PRETS).map(([k, [label]]) => chipType(label, k))),
+    h("div", { class: "chips niveaux" }, chipNiveau("Tous les niveaux", null), ...Object.keys(NIVEAUX_CHIFFRES).map(Number).map((n) => chipNiveau(libelleNiveau(n), n))),
     h("div", { class: "chips" }, chip("Tous les thèmes", null), ...themes.map(([k, label]) => chip(label, k))),
-    h("div", { class: "row" }, h("label", { class: "inline" }, "Âge des enfants", age), recherche),
+    h("div", { class: "row" }, recherche),
     h("div", { class: "row" },
       h("button", {
         type: "button", id: "rv-chiffres-hasard", class: "btn secondary", text: "🎲 5 au hasard",
         onclick: () => {
-          const tirage = tirerChiffres(5, { theme: chiffresTheme, age: chiffresAge, exclus: deja, liste: QUESTIONS_TOUT_PRETES.filter(duType) });
+          const tirage = tirerChiffres(5, { theme: chiffresTheme, niveau: chiffresNiveau, exclus: deja, liste: QUESTIONS_TOUT_PRETES.filter(duType) });
           chiffresCoches.clear();
           tirage.forEach((x) => chiffresCoches.set(x.id, x));
           chiffresRecherche = "";
           renderChiffres();
-          if (!tirage.length) $("rv-chiffres-status").textContent = "Plus aucune question libre pour ce thème et cet âge.";
+          if (!tirage.length) $("rv-chiffres-status").textContent = "Plus aucune question libre pour ce thème et ce niveau.";
         },
       }),
       bouton,
@@ -2357,28 +2361,40 @@ function renderChiffres() {
         type: "checkbox", checked: chiffresCoches.has(x.id), disabled: deja.has(x.text),
         onchange: (e) => { if (e.target.checked) chiffresCoches.set(x.id, x); else chiffresCoches.delete(x.id); majBouton(); },
       }),
-      // Juste Chiffre : 🔢, jamais d'émoji (cedric, 22/10) ; 4 réponses : l'image de la révélation et les réponses, la bonne marquée.
-      h("span", { class: "banque-texte", text: `${estJusteChiffre(x) ? "🔢" : x.emoji} ${x.text}` }),
+      // Juste Chiffre : 🔢, jamais d'émoji (cedric, 22/10) ; 4 réponses : l'image de la révélation (sa photo, sinon son
+      // émoji au niveau Facile) et les réponses, la bonne marquée.
+      h("span", { class: "banque-texte" }, x.photo ? h("img", { class: "q-mini", src: x.photo, alt: "", loading: "lazy" }) : null,
+        `${estJusteChiffre(x) ? "🔢 " : x.photo ? "" : x.emoji ? `${x.emoji} ` : "⚠ "}${x.text}`),
       h("span", { class: "banque-mots", text: [
         estJusteChiffre(x) ? `Juste Chiffre · réponse : ${x.correct.toLocaleString("fr-FR")}` : x.choices.map((c, k) => (k === x.correct ? `✓ ${c}` : c)).join(" · "),
-        THEMES_TOUT_PRETS[x.theme], `${x.ageMin} à ${x.ageMax} ans`].join(" · ") }),
+        THEMES_TOUT_PRETS[x.theme], libelleNiveau(x.niveau)].join(" · ") }),
       deja.has(x.text) ? h("span", { class: "tag", text: "déjà dans le quiz" }) : null)),
-      liste.length ? null : h("p", { class: "hint small", text: chiffresRecherche ? "Aucune question ne correspond à cette recherche." : "Aucune question pour ce thème et cet âge." })));
+      liste.length ? null : h("p", { class: "hint small", text: chiffresRecherche ? "Aucune question ne correspond à cette recherche." : "Aucune question pour ce thème et ce niveau." })));
 }
 
 /**
  * Ajoute les questions cochées au quiz, déjà validées (à relire) : un Juste Chiffre sans image ; une question à
- * 4 réponses avec son émoji pour la révélation, ses réponses mélangées (la bonne n'est pas toujours la A).
+ * 4 réponses avec sa photo pour la révélation (rangée une fois dans la bibliothèque des images), sinon son émoji
+ * (niveau Facile), ses réponses mélangées (la bonne n'est pas toujours la A).
  */
-function ajouterChiffres() {
+async function ajouterChiffres() {
   const choisies = [...chiffresCoches.values()];
   if (!choisies.length) return;
+  $("rv-chiffres-add").disabled = true;
+  if (choisies.some((x) => x.photo)) status("rv-status", "Ajout des photos…", true);
   for (const x of choisies) {
     const nombre = estJusteChiffre(x);
     const choices = nombre ? [] : shuffle(x.choices);
+    let imageId = null;
+    if (x.photo) {
+      try {
+        const res = await fetch(x.photo);
+        if (res.ok && (res.headers.get("content-type") ?? "").startsWith("image/")) imageId = await storeIllustration(await res.blob());
+      } catch (err) { console.error(err); /* sans photo : l'émoji s'il y en a un, sinon l'alerte « Pas d'illustration » */ }
+    }
     draft.questions.push({
       text: x.text, choices, correct: nombre ? x.correct : choices.indexOf(x.choices[x.correct]), duration: null, double: false,
-      status: "validee", marks: 0, image: nombre ? "" : x.emoji, imageId: null, kind: nombre ? "number" : null,
+      status: "validee", marks: 0, image: nombre || imageId ? "" : x.emoji ?? "", imageId, kind: nombre ? "number" : null,
       slotImages: [null, null, null, null], missingImages: [],
     });
   }
@@ -4766,8 +4782,9 @@ function renderLibrary(force = false) {
 let qGroupe = null;
 let qPack = null;
 let qCategorie = null;
-/** Quiz classique tout prêt : toutes, les questions à 4 réponses (« qcm ») ou les Juste Chiffre (« nombre »). */
+/** Quiz classique tout prêt : toutes, les questions à 4 réponses (« qcm ») ou les Juste Chiffre (« nombre ») ; un niveau. */
 let qType = null;
+let qNiveau = null;
 /** Packs importés à l'instant : encadrés quelques secondes en tête de liste. */
 let packsNouveaux = new Set();
 /** Questions toutes prêtes du quiz illustré : fabriquées une fois (leurs mauvaises réponses sont tirées au hasard). */
@@ -4798,6 +4815,7 @@ function groupesQuestions() {
 /** Vignette de l'illustration : sa photo, son émoji, la photo de la banque de la bonne réponse, sinon « ⚠ ». */
 function illustrationQuestion(x) {
   if (x.imageId) return photoBibliotheque(x.imageId, { class: "q-illus" });
+  if (x.photo) return h("img", { class: "q-illus", src: x.photo, alt: "", loading: "lazy" });
   if (x.image) return h("span", { class: "q-illus emoji", text: x.image });
   const photo = x.choiceImages?.[x.correct] ?? null;
   if (photo) return photoBibliotheque(photo, { class: "q-illus" });
@@ -4927,7 +4945,7 @@ function dessinerQuestions() {
   if (qPack && !quizzes[qPack]) qPack = null;
   const chip = (key, label, n) => h("button", {
     type: "button", class: `chip${qGroupe === key ? " active" : ""}`, "data-groupe": key ?? "tout", text: `${label} (${n})`,
-    onclick: () => { qGroupe = key; qPack = null; qCategorie = null; qType = null; qSelection.clear(); status("q-status", ""); renderQuestions(); },
+    onclick: () => { qGroupe = key; qPack = null; qCategorie = null; qType = null; qNiveau = null; qSelection.clear(); status("q-status", ""); renderQuestions(); },
   });
   const total = Object.values(compte).reduce((a, b) => a + b, 0);
   $("q-groups").replaceChildren(chip(null, "Tout", total), ...groupes.map(([k, label]) => chip(k, label, compte[k])));
@@ -4980,7 +4998,10 @@ function dessinerQuestions() {
   const tousTypes = filtre(g[qGroupe]);
   const types = qGroupe === "classiques" ? { qcm: ["❓ Questions à 4 réponses", (x) => !x.nombre], nombre: ["🔢 Juste Chiffre", (x) => x.nombre] } : {};
   if (!types[qType]) qType = null;
-  const tout = qType ? tousTypes.filter(types[qType][1]) : tousTypes;
+  const duType = qType ? tousTypes.filter(types[qType][1]) : tousTypes;
+  // Quiz classique : trois niveaux sans chevauchement (cedric, 22/10), Facile, Moyen et Difficile.
+  if (qGroupe !== "classiques") qNiveau = null;
+  const tout = qNiveau ? duType.filter((x) => x.niveau === qNiveau) : duType;
   const categories = [...new Set(tout.map((x) => x.categorie).filter(Boolean))];
   if (qCategorie && !categories.includes(qCategorie)) qCategorie = null;
   const liste = qCategorie ? tout.filter((x) => x.categorie === qCategorie) : tout;
@@ -4993,6 +5014,12 @@ function dessinerQuestions() {
       ...Object.entries(types).map(([k, [label, garde]]) => h("button", {
         type: "button", class: `chip${qType === k ? " active" : ""}`, "data-type": k, text: `${label} (${tousTypes.filter(garde).length})`,
         onclick: () => { qType = k; renderQuestions(); },
+      }))) : null,
+    qGroupe === "classiques" ? h("div", { class: "chips q-niveaux" },
+      h("button", { type: "button", class: `chip${qNiveau ? "" : " active"}`, "data-niveau": "tous", text: `Tous les niveaux (${duType.length})`, onclick: () => { qNiveau = null; renderQuestions(); } }),
+      ...Object.keys(NIVEAUX_CHIFFRES).map(Number).map((n) => h("button", {
+        type: "button", class: `chip${qNiveau === n ? " active" : ""}`, "data-niveau": n, text: `${libelleNiveau(n)} (${duType.filter((x) => x.niveau === n).length})`,
+        onclick: () => { qNiveau = n; renderQuestions(); },
       }))) : null,
     qGroupe === "illustrees" ? h("p", { class: "hint small", text: "Quiz illustré des tout-petits : une image par réponse. Une réponse sans photo reçoit l'émoji de son mot, dessiné en image. Pour en mettre dans un quiz illustré : « Éditer », puis « 🎲 Questions de la banque »." }) : null,
     qGroupe === "tests" ? h("p", { class: "hint small", text: "Les questions des prestations de test (Paramètres) : rangées ici pour ne pas se mélanger aux vôtres." }) : null,

@@ -2804,7 +2804,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
-  test("Quiz classique tout prêt (cedric, 22/10) : questions à 4 réponses et Juste Chiffre sans émoji, dans la rubrique et dans un quiz classique (sorte, âge, thème, 5 au hasard), et les quiz de test à part", async () => {
+  test("Quiz classique tout prêt (cedric, 22/10) : questions à 4 réponses et Juste Chiffre sans émoji, trois niveaux, de vraies photos, dans la rubrique et dans un quiz classique (sorte, niveau, thème, 5 au hasard), et les quiz de test à part", async () => {
     const { QUESTIONS_CHIFFRES } = await import("../web/public/banque-chiffres.js");
     const { QUESTIONS_CLASSIQUES, QUESTIONS_TOUT_PRETES, estJusteChiffre } = await import("../web/public/banque-classiques.js");
     await seedLibrary("quizzes", {
@@ -2839,10 +2839,26 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.locator("#q-list .q-item").count(), QUESTIONS_TOUT_PRETES.length);
     assert.equal(await page.locator("#q-list .q-item.sans-illus").count(), 0);
     assert.equal(await page.locator("#q-list .q-mini").count(), 0, "pas de réponses en images ici");
-    const premiere = page.locator(`#q-list .q-item[data-question="${QUESTIONS_CLASSIQUES[0].id}"]`);
-    assert.equal(await premiere.locator(".q-illus.emoji").innerText(), QUESTIONS_CLASSIQUES[0].emoji);
+    // Niveau Facile : son émoji, ou sa photo ; niveaux Moyen et Difficile : une vraie photo, jamais d'émoji.
+    const facile = QUESTIONS_CLASSIQUES.find((x) => x.niveau === 1 && !x.photo);
+    const premiere = page.locator(`#q-list .q-item[data-question="${facile.id}"]`);
+    assert.equal(await premiere.locator(".q-illus.emoji").innerText(), facile.emoji);
     assert.equal(await premiere.locator(".q-reponses li").count(), 4);
-    assert.equal(await premiere.locator(".q-reponses li.juste").innerText(), `✓ ${QUESTIONS_CLASSIQUES[0].choices[0]}`);
+    assert.equal(await premiere.locator(".q-reponses li.juste").innerText(), `✓ ${facile.choices[0]}`);
+    const moyen = QUESTIONS_CLASSIQUES.find((x) => x.niveau === 2);
+    const enPhoto = page.locator(`#q-list .q-item[data-question="${moyen.id}"] img.q-illus`);
+    assert.equal(await enPhoto.getAttribute("src"), moyen.photo);
+    await waitFor(async () => await enPhoto.evaluate((img) => img.complete && img.naturalWidth === 640), "la photo s'affiche");
+    assert.equal(await page.locator("#q-list .q-item .q-illus.emoji").count(),
+      QUESTIONS_CLASSIQUES.filter((x) => !x.photo).length + QUESTIONS_CHIFFRES.length, "émojis seulement au niveau Facile (et 🔢)");
+    // Trois niveaux sans chevauchement : une puce chacun.
+    assert.equal(await page.locator('.q-niveaux [data-niveau="2"]').innerText(), `Moyen · 9 à 11 ans (${QUESTIONS_TOUT_PRETES.filter((x) => x.niveau === 2).length})`);
+    await page.click('.q-niveaux [data-niveau="2"]');
+    await waitFor(async () => await page.locator("#q-list .q-item").count() === QUESTIONS_TOUT_PRETES.filter((x) => x.niveau === 2).length, "le niveau Moyen");
+    assert.match(await page.locator("#q-list .q-item .hint.small").first().innerText(), /· Moyen · 9 à 11 ans$/);
+    await capture(page, "quiz-classique-moyen");
+    await page.click('.q-niveaux [data-niveau="tous"]');
+    await waitFor(async () => await page.locator("#q-list .q-item").count() === QUESTIONS_TOUT_PRETES.length, "tous les niveaux");
     const chiffre = page.locator(`#q-list .q-item[data-question="${QUESTIONS_CHIFFRES[0].id}"]`);
     assert.equal(await chiffre.locator(".q-illus.compteur").innerText(), "🔢");
     assert.equal(await chiffre.locator(".q-nombre").innerText(), `Le Juste Chiffre · réponse : ${QUESTIONS_CHIFFRES[0].correct}`);
@@ -2877,20 +2893,20 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.fill("#q-search", "");
     await capture(page, "quiz-illustre-tout-pret");
 
-    // Dans le quiz de Jade (7 ans) : l'âge vient du quiz ; la question déjà là ne se coche pas.
+    // Dans le quiz de Jade (7 ans) : le niveau Facile vient de l'âge du quiz ; la question déjà là ne se coche pas.
     await page.click('#q-groups [data-groupe="miennes"]');
     await page.locator('.q-item[data-question="mien/0"]').getByRole("button", { name: "Éditer" }).click();
     await page.locator("#rv-chiffres:not([hidden])", { hasText: "📝 Questions toutes prêtes" }).click();
     const panel = page.locator("#rv-chiffres-panel");
     await panel.locator(".banque-q").first().waitFor();
-    assert.equal(await page.locator("#rv-chiffres-age").inputValue(), "7");
-    const pourSept = QUESTIONS_TOUT_PRETES.filter((x) => x.ageMin <= 7 && x.ageMax >= 7);
+    await panel.locator('.chips.niveaux .chip.active[data-niveau="1"]', { hasText: "Facile · 5 à 8 ans" }).waitFor();
+    const pourSept = QUESTIONS_TOUT_PRETES.filter((x) => x.niveau === 1);
     assert.equal(await panel.locator(".banque-q").count(), pourSept.length);
     const araignee = panel.locator(".banque-q", { hasText: "Combien de pattes a une araignée ?" });
     assert.equal(await araignee.locator("input").isDisabled(), true);
     await araignee.locator(".tag", { hasText: "déjà dans le quiz" }).waitFor();
     assert.equal(await araignee.locator(".banque-texte").innerText(), "🔢 Combien de pattes a une araignée ?", "jamais d'émoji sur un Juste Chiffre");
-    // Les Juste Chiffre, un thème, puis 5 au hasard : 5 cochées, toutes de cette sorte, de ce thème et de cet âge.
+    // Les Juste Chiffre, un thème, puis 5 au hasard : 5 cochées, toutes de cette sorte, de ce thème et de ce niveau.
     await panel.locator('.chip[data-type="nombre"]').click();
     await panel.locator('.chip.active[data-type="nombre"]').waitFor();
     await panel.locator('.chip[data-theme="animaux"]').click();
@@ -2899,40 +2915,55 @@ describe("bibliothèque de quiz et prestations", () => {
     await waitFor(async () => await panel.locator(".banque-q input:checked").count() === 5, "5 cochées");
     const cochees = await panel.locator(".banque-q:has(input:checked)").evaluateAll((els) => els.map((e) => e.dataset.chiffre));
     const tirees = cochees.map((id) => QUESTIONS_TOUT_PRETES.find((x) => x.id === id));
-    assert.ok(tirees.every((x) => estJusteChiffre(x) && x.theme === "animaux" && x.ageMin <= 7 && x.ageMax >= 7), "sorte, thème et âge respectés");
+    assert.ok(tirees.every((x) => estJusteChiffre(x) && x.theme === "animaux" && x.niveau === 1), "sorte, thème et niveau respectés");
     assert.ok(!tirees.some((x) => x.text === "Combien de pattes a une araignée ?"), "jamais celle déjà dans le quiz");
     await capture(page, "juste-chiffre-dans-un-quiz");
     // Plus une question à 4 réponses, trouvée en cherchant : ses réponses, la bonne marquée.
     await panel.locator('.chip[data-type="qcm"]').click();
     await panel.locator('.chip.active[data-type="qcm"]').waitFor();
     await page.fill("#rv-chiffres-cherche", "toile");
-    const toile = panel.locator(".banque-q", { hasText: "Quel animal fabrique une toile ?" });
+    const araigneeQ = QUESTIONS_CLASSIQUES.find((x) => x.text === "Quel animal fabrique une toile ?");
+    const toile = panel.locator(".banque-q", { hasText: araigneeQ.text });
     await toile.waitFor();
-    assert.equal(await toile.locator(".banque-texte").innerText(), "🕷️ Quel animal fabrique une toile ?");
-    assert.match(await toile.locator(".banque-mots").innerText(), /^✓ L'araignée · La fourmi · L'abeille · La mouche · Animaux · 5 à 9 ans$/);
+    assert.equal(await toile.locator(".banque-texte").innerText(), `${araigneeQ.photo ? "" : "🕷️ "}${araigneeQ.text}`);
+    assert.match(await toile.locator(".banque-mots").innerText(), /^✓ L'araignée · La fourmi · L'abeille · La mouche · Animaux · Facile · 5 à 8 ans$/);
     await toile.locator("input").check();
+    // Et une question Moyen, avec sa vraie photo.
+    const moyenne = QUESTIONS_CLASSIQUES.find((x) => x.niveau === 2 && x.theme === "animaux");
+    await panel.locator('.chip[data-niveau="2"]').click();
+    await panel.locator('.chip.active[data-niveau="2"]').waitFor();
+    await page.fill("#rv-chiffres-cherche", moyenne.text.slice(0, 30));
+    const ligneMoyenne = panel.locator(`.banque-q[data-chiffre="${moyenne.id}"]`);
+    assert.equal(await ligneMoyenne.locator(".banque-texte img.q-mini").getAttribute("src"), moyenne.photo);
+    assert.equal(await ligneMoyenne.locator(".banque-texte").innerText(), moyenne.text, "pas d'émoji au niveau Moyen");
+    await ligneMoyenne.locator("input").check();
     await capture(page, "question-4-reponses-dans-un-quiz");
-    assert.equal(await page.locator("#rv-chiffres-add").innerText(), "Ajouter les 6 questions cochées");
+    assert.equal(await page.locator("#rv-chiffres-add").innerText(), "Ajouter les 7 questions cochées");
     await page.click("#rv-chiffres-add");
-    await page.locator("#rv-status", { hasText: "6 questions toutes prêtes ajoutées" }).waitFor();
-    assert.equal(await page.locator("#rv-list .qcard").count(), 7);
+    await page.locator("#rv-status", { hasText: "7 questions toutes prêtes ajoutées" }).waitFor();
+    assert.equal(await page.locator("#rv-list .qcard").count(), 8);
     assert.equal(await page.locator('#rv-list .qcard[data-q="5"] .q-number').inputValue(), `${tirees[4].correct}`);
     // Ajoutées : elles ne se cochent plus.
     await page.fill("#rv-chiffres-cherche", "");
     await panel.locator('.chip[data-type="tous"]').click();
-    await waitFor(async () => await panel.locator(".banque-q.deja").count() === 7, "déjà dans le quiz");
+    await panel.locator('.chip[data-niveau="tous"]').click();
+    await waitFor(async () => await panel.locator(".banque-q.deja").count() === 8, "déjà dans le quiz");
     await page.click("#rv-save");
     await page.locator("#rv-status", { hasText: "Enregistré" }).waitFor();
     const enregistrees = (await library("quizzes/mien/questions")).slice(1);
     // Les Juste Chiffre : leur nombre, sans image.
     assert.deepEqual(enregistrees.slice(0, 5).map((q) => [q.text, q.kind, q.correct, q.image ?? null, q.status]),
       tirees.map((x) => [x.text, "number", x.correct, null, "validee"]));
-    // La question à 4 réponses : ses réponses mélangées, la bonne bien repérée, son émoji pour la révélation.
-    const [q4] = enregistrees.slice(5);
-    const araigneeQ = QUESTIONS_CLASSIQUES.find((x) => x.text === "Quel animal fabrique une toile ?");
-    assert.deepEqual([q4.text, q4.kind ?? null, q4.image, q4.status, [...q4.choices].sort()],
-      [araigneeQ.text, null, "🕷️", "validee", [...araigneeQ.choices].sort()]);
+    // Les questions à 4 réponses : leurs réponses mélangées, la bonne bien repérée, leur image pour la révélation : la
+    // photo rangée une fois dans la bibliothèque des images, sinon l'émoji (niveau Facile seulement).
+    const [q4, q5] = enregistrees.slice(5);
+    assert.deepEqual([q4.text, q4.kind ?? null, q4.status, [...q4.choices].sort()], [araigneeQ.text, null, "validee", [...araigneeQ.choices].sort()]);
     assert.equal(q4.choices[q4.correct], "L'araignée");
+    if (araigneeQ.photo) assert.match(q4.imageId, /^[0-9a-f]{16}$/);
+    else assert.equal(q4.image, "🕷️");
+    assert.deepEqual([q5.text, q5.image ?? "", q5.choices[q5.correct]], [moyenne.text, "", moyenne.choices[0]]);
+    assert.match(q5.imageId, /^[0-9a-f]{16}$/);
+    assert.match(await library(`images/${q5.imageId}`), /^data:image\/(jpeg|webp);base64,/, "la photo est dans la bibliothèque des images");
     await page.context().close();
   });
 

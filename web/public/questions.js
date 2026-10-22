@@ -11,6 +11,7 @@ import { parseQuiz } from "./importer.js";
 import { cataloguePetits, FAMILLES_PETITS, motBanque } from "./banque-petits.js";
 import { PHOTOS_BANQUE } from "./banque-photos.js";
 import { QUESTIONS_TOUT_PRETES, THEMES_TOUT_PRETS, estJusteChiffre } from "./banque-classiques.js";
+import { libelleNiveau } from "./banque-chiffres.js";
 import { quizKind } from "./show.js";
 
 export const GROUPES_QUESTIONS = {
@@ -71,11 +72,13 @@ function fiche(q, kind, extra) {
 export function questionsClassiquesPretes(liste = QUESTIONS_TOUT_PRETES) {
   return liste.map((x) => {
     const nombre = estJusteChiffre(x);
-    const illustree = nombre || !!x.emoji;
+    // La photo de la banque passe avant l'émoji ; aux niveaux Moyen et Difficile, il n'y a que des photos.
+    const photo = nombre ? null : x.photo ?? null;
+    const illustree = nombre || !!photo || !!x.emoji;
     return {
-      groupe: "classiques", cle: x.id, text: x.text, choices: nombre ? [] : [...x.choices], correct: x.correct, nombre,
-      image: nombre ? null : x.emoji ?? null, imageId: null, categorie: THEMES_TOUT_PRETS[x.theme] ?? x.theme,
-      source: `${nombre ? `${JUSTE_CHIFFRE} tout prêt` : QUESTION_4_REPONSES} · ${x.ageMin} à ${x.ageMax} ans`,
+      groupe: "classiques", cle: x.id, text: x.text, choices: nombre ? [] : [...x.choices], correct: x.correct, nombre, niveau: x.niveau,
+      photo, image: nombre || photo ? null : x.emoji ?? null, imageId: null, categorie: THEMES_TOUT_PRETS[x.theme] ?? x.theme,
+      source: `${nombre ? `${JUSTE_CHIFFRE} tout prêt` : QUESTION_4_REPONSES} · ${libelleNiveau(x.niveau)}`,
       validee: true, ok: illustree, manque: illustree ? null : "Pas d'illustration",
     };
   });

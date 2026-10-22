@@ -1,5 +1,5 @@
 // Le Juste Chiffre tout prêt (cedric, 22/10 : « tu ne pourrais pas en développer d'autres pour enrichir la
-// bibliothèque de questions toutes prêtes ? ») : des questions dont la réponse est un nombre, par thème et par âge.
+// bibliothèque de questions toutes prêtes ? ») : des questions dont la réponse est un nombre, par thème et par niveau.
 // Pas d'émoji (cedric, 22/10 : « pour les questions chiffrées, les émojis n'interviennent pas, c'est juste une animation
 // avec les chiffres ») : la TV montre son compteur qui tourne, donc pas d'alerte « Pas d'illustration » non plus.
 // Faits simples et sûrs ; quand la réponse est approchée, la question dit « environ » (l'équipe la plus proche gagne,
@@ -10,8 +10,16 @@ export const THEMES_CHIFFRES = {
   jeux: "Jeux et nombres", musique: "Musique", contes: "Contes, livres et dessins animés", monde: "Monde et nature",
 };
 
-/** Âges conseillés : 1 = les petits (5 à 9 ans), 2 = les moyens (8 à 12 ans), 3 = les grands (11 à 15 ans). */
-export const NIVEAUX_CHIFFRES = { 1: [5, 9], 2: [8, 12], 3: [11, 15] };
+/**
+ * Trois niveaux sans chevauchement (cedric, 22/10 : « une rubrique d'âge pour les petits, une pour les moyens et une
+ * pour les grands sans chevauchement ») : 1 = Facile (5 à 8 ans), 2 = Moyen (9 à 11 ans), 3 = Difficile (12 à 15 ans).
+ */
+export const NIVEAUX_CHIFFRES = { 1: [5, 8], 2: [9, 11], 3: [12, 15] };
+export const NOMS_NIVEAUX = { 1: "Facile", 2: "Moyen", 3: "Difficile" };
+/** « Moyen · 9 à 11 ans » */
+export const libelleNiveau = (n) => `${NOMS_NIVEAUX[n]} · ${NIVEAUX_CHIFFRES[n][0]} à ${NIVEAUX_CHIFFRES[n][1]} ans`;
+/** Le niveau d'un âge : moins de 9 ans Facile, 9 à 11 ans Moyen, 12 ans et plus Difficile ; sans âge, aucun. */
+export const niveauPourAge = (age) => (!Number.isFinite(age) ? null : age <= NIVEAUX_CHIFFRES[1][1] ? 1 : age <= NIVEAUX_CHIFFRES[2][1] ? 2 : 3);
 
 const slug = (t) => `${t}`.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48);
 const c = (theme, niveau, text, correct) => {
@@ -161,17 +169,18 @@ export const QUESTIONS_CHIFFRES = [
   c("monde", 3, "Combien d'étoiles y a-t-il sur le drapeau des États-Unis ?", 50),
 ];
 
-/** Une question convient à [age] si l'âge est dans sa tranche ; sans âge, toutes conviennent. */
-export const chiffreConvient = (x, age) => !Number.isFinite(age) || (age >= x.ageMin && age <= x.ageMax);
+/** Une question convient à [age] si elle est de son niveau ; sans âge, toutes conviennent. */
+export const chiffreConvient = (x, age) => !Number.isFinite(age) || x.niveau === niveauPourAge(age);
 
 /**
- * Tire [n] questions au hasard : du [theme] s'il est donné, pour [age] s'il est donné, jamais une question dont le
+ * Tire [n] questions au hasard : du [theme] s'il est donné, pour [age] ou du [niveau] s'il est donné, jamais une question dont le
  * texte est dans [exclus]. Pour varier, on évite d'abord deux fois la même réponse (ou le même émoji, pour celles qui
  * en ont) ; s'il n'y en a pas assez, on complète avec les autres. Marche aussi sur un mélange de Juste Chiffre et de
  * questions à 4 réponses ([liste]). Fonction pure (à [rng] près), testée.
  */
-export function tirerChiffres(n, { theme = null, age = null, exclus = new Set(), rng = Math.random, liste = QUESTIONS_CHIFFRES } = {}) {
-  const libres = liste.filter((x) => (!theme || x.theme === theme) && chiffreConvient(x, age) && !exclus.has(x.text));
+export function tirerChiffres(n, { theme = null, age = null, niveau = null, exclus = new Set(), rng = Math.random, liste = QUESTIONS_CHIFFRES } = {}) {
+  const libres = liste.filter((x) => (!theme || x.theme === theme) && chiffreConvient(x, age) && (!niveau || x.niveau === niveau)
+    && !exclus.has(x.text));
   for (let i = libres.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
     [libres[i], libres[j]] = [libres[j], libres[i]];

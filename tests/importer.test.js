@@ -2336,46 +2336,72 @@ describe("Le quiz classique tout prêt : Juste Chiffre et questions à 4 répons
       0x1f9ba, 0x1f9bb, 0x1f9bc, 0x1f9bd, 0x1f9be, 0x1f9bf, 0x1f9c3, 0x1f9c4, 0x1f9c5, 0x1f9c6, 0x1f9c7, 0x1f9c8, 0x1f9c9, 0x1f9ca, 0x1f9cb, 0x1f9cd, 0x1f9ce, 0x1f9cf].includes(c);
   });
 
-  test("le Juste Chiffre : plus de 100 questions, chacune avec son thème, ses âges, un nombre entier et aucun émoji", () => {
+  test("le Juste Chiffre : plus de 100 questions, chacune avec son thème, son niveau, un nombre entier et aucun émoji", () => {
     const liste = B.QUESTIONS_CHIFFRES;
     assert.ok(liste.length >= 100, `${liste.length} questions`);
     assert.equal(new Set(liste.map((x) => x.id)).size, liste.length, "identifiants uniques");
     assert.equal(new Set(liste.map((x) => x.text)).size, liste.length, "pas deux fois la même question");
     for (const x of liste) {
       assert.ok(B.THEMES_CHIFFRES[x.theme], `thème de « ${x.text} »`);
-      assert.ok(x.ageMin >= 5 && x.ageMax <= 15 && x.ageMin < x.ageMax, `âges de « ${x.text} »`);
+      assert.deepEqual([x.ageMin, x.ageMax], B.NIVEAUX_CHIFFRES[x.niveau], `âges du niveau de « ${x.text} »`);
       assert.ok(Number.isInteger(x.correct) && Math.abs(x.correct) <= 999999999, `réponse de « ${x.text} » (9 chiffres au plus sur le pupitre)`);
       assert.ok(x.text.length <= 120 && x.text.endsWith(" ?"), `texte de « ${x.text} »`);
       // Pas d'émoji (cedric, 22/10 : « c'est juste une animation avec les chiffres ») : la TV montre son compteur.
       assert.equal(x.emoji, undefined, `pas d'émoji pour « ${x.text} »`);
       assert.equal(C.estJusteChiffre(x), true);
     }
-    // Tous les âges ont de quoi jouer, dans chaque tranche.
-    for (const age of [5, 7, 9, 10, 12, 15]) assert.ok(liste.filter((x) => B.chiffreConvient(x, age)).length >= 25, `${age} ans`);
+    // Chaque niveau a de quoi jouer.
+    for (const n of [1, 2, 3]) assert.ok(liste.filter((x) => x.niveau === n).length >= 25, B.NOMS_NIVEAUX[n]);
     assert.equal(B.chiffreConvient(liste[0], null), true);
     assert.equal(tropRecent("🪐"), true);
     assert.equal(tropRecent("🕷️"), false);
   });
 
-  test("les questions à 4 réponses : plus de 150, quatre réponses différentes et courtes, la bonne en premier, un émoji pour la révélation qui passe partout", () => {
+  test("trois niveaux sans chevauchement (cedric, 22/10) : Facile 5 à 8 ans, Moyen 9 à 11 ans, Difficile 12 à 15 ans", () => {
+    assert.deepEqual(B.NIVEAUX_CHIFFRES, { 1: [5, 8], 2: [9, 11], 3: [12, 15] });
+    assert.deepEqual(Object.values(B.NOMS_NIVEAUX), ["Facile", "Moyen", "Difficile"]);
+    assert.equal(B.libelleNiveau(2), "Moyen · 9 à 11 ans");
+    // Chaque âge tombe dans un seul niveau ; avant 5 ans Facile, après 15 ans Difficile ; sans âge, aucun.
+    assert.deepEqual([4, 5, 8, 9, 11, 12, 15, 16].map(B.niveauPourAge), [1, 1, 1, 2, 2, 3, 3, 3]);
+    assert.equal(B.niveauPourAge(Number.NaN), null);
+    for (let age = 5; age <= 15; age++) {
+      const niveaux = Object.entries(B.NIVEAUX_CHIFFRES).filter(([, [a, b]]) => age >= a && age <= b);
+      assert.equal(niveaux.length, 1, `${age} ans`);
+    }
+    // Une question convient à un âge seulement si elle est de son niveau.
+    const x = C.QUESTIONS_TOUT_PRETES.find((q) => q.niveau === 2);
+    assert.deepEqual([7, 9, 11, 12].map((age) => B.chiffreConvient(x, age)), [false, true, true, false]);
+  });
+
+  test("les questions à 4 réponses : plus de 600, surtout au niveau Moyen, quatre réponses différentes et courtes, la bonne en premier ; un émoji au niveau Facile, de vraies photos seulement aux niveaux Moyen et Difficile", () => {
     const liste = C.QUESTIONS_CLASSIQUES;
-    assert.ok(liste.length >= 150, `${liste.length} questions`);
+    assert.ok(liste.length >= 600, `${liste.length} questions`);
     assert.equal(new Set(liste.map((x) => x.id)).size, liste.length, "identifiants uniques");
     const textes = [...liste, ...B.QUESTIONS_CHIFFRES].map((x) => x.text);
     assert.equal(new Set(textes).size, textes.length, "pas deux fois la même question, Juste Chiffre compris");
     for (const x of liste) {
       assert.ok(C.THEMES_TOUT_PRETS[x.theme], `thème de « ${x.text} »`);
-      assert.ok(x.ageMin >= 5 && x.ageMax <= 15 && x.ageMin < x.ageMax, `âges de « ${x.text} »`);
+      assert.deepEqual([x.ageMin, x.ageMax], B.NIVEAUX_CHIFFRES[x.niveau], `âges du niveau de « ${x.text} »`);
       assert.ok(x.text.length <= 120 && /[?…]$/.test(x.text), `texte de « ${x.text} »`);
       assert.equal(x.choices.length, 4, `4 réponses pour « ${x.text} »`);
       assert.equal(new Set(x.choices.map((c) => c.toLowerCase())).size, 4, `4 réponses différentes pour « ${x.text} »`);
       assert.ok(x.choices.every((c) => c.trim() === c && c.length >= 1 && c.length <= 30), `réponses courtes pour « ${x.text} »`);
       assert.equal(x.correct, 0, "la bonne réponse est écrite en premier");
       assert.equal(C.estJusteChiffre(x), false);
-      assert.ok(x.emoji && cleanEmoji(x.emoji) === x.emoji, `émoji de « ${x.text} » gardé tel quel à l'enregistrement`);
-      assert.equal(tropRecent(x.emoji), false, `émoji de « ${x.text} » trop récent pour la Mi Box`);
+      if (x.niveau === 1) {
+        assert.ok(x.emoji && cleanEmoji(x.emoji) === x.emoji, `émoji de « ${x.text} » gardé tel quel à l'enregistrement`);
+        assert.equal(tropRecent(x.emoji), false, `émoji de « ${x.text} » trop récent pour la Mi Box`);
+      } else {
+        // « On abandonne les emoji. Je ne veux voir que des vrais images » (cedric, 22/10).
+        assert.equal(x.emoji, undefined, `pas d'émoji pour « ${x.text} »`);
+        assert.ok(x.recherche, `recherche de la photo de « ${x.text} »`);
+      }
+      if (x.photo) assert.equal(x.photo, `banque-quiz/${x.id}.jpg`);
     }
-    for (const age of [5, 7, 9, 10, 12, 15]) assert.ok(liste.filter((x) => B.chiffreConvient(x, age)).length >= 40, `${age} ans`);
+    // « Charge à mort les questions moyennes » : le niveau Moyen est le plus fourni, et chaque niveau a de quoi jouer.
+    const parNiveau = [1, 2, 3].map((n) => liste.filter((x) => x.niveau === n).length);
+    assert.ok(parNiveau[1] >= 400 && parNiveau[1] > parNiveau[0] + parNiveau[2], `${parNiveau}`);
+    assert.ok(parNiveau[0] >= 100 && parNiveau[2] >= 100, `${parNiveau}`);
     // Ensemble, thème par thème : les questions à 4 réponses, puis les Juste Chiffre du même thème.
     const tout = C.QUESTIONS_TOUT_PRETES;
     assert.equal(tout.length, liste.length + B.QUESTIONS_CHIFFRES.length);
@@ -2384,7 +2410,26 @@ describe("Le quiz classique tout prêt : Juste Chiffre et questions à 4 répons
     assert.deepEqual(tout.slice(0, 2).map((x) => x.id), [liste[0].id, liste[1].id]);
   });
 
-  test("tirer au hasard : le thème, l'âge, jamais ce qui est déjà dans le quiz, des réponses variées, aussi en mélangeant les deux sortes", () => {
+  test("les photos de révélation du quiz classique : chacune est sur le site, d'une question de la banque, libre de droits, et les niveaux Moyen et Difficile en ont toutes une", async () => {
+    const { PHOTOS_QUIZ } = await import("../web/public/banque-quiz/liste.js");
+    const { readFile, stat } = await import("node:fs/promises");
+    const ids = new Set(C.QUESTIONS_CLASSIQUES.map((x) => x.id));
+    assert.equal(new Set(PHOTOS_QUIZ).size, PHOTOS_QUIZ.length, "une photo par question");
+    const sources = PHOTOS_QUIZ.length ? JSON.parse(await readFile(new URL("../web/public/banque-quiz/sources.json", import.meta.url), "utf8")) : {};
+    for (const id of PHOTOS_QUIZ) {
+      assert.ok(ids.has(id), `question de la photo ${id}`);
+      const { size } = await stat(new URL(`../web/public/banque-quiz/${id}.jpg`, import.meta.url));
+      assert.ok(size > 5000 && size <= 64 * 1024, `taille de ${id}.jpg : ${size}`);
+      assert.match(`${sources[id]?.licence ?? ""}`, /cc0|pdm|public domain|^pd/i, `licence de ${id}`);
+    }
+    const sansPhoto = C.QUESTIONS_CLASSIQUES.filter((x) => x.niveau > 1 && !x.photo);
+    assert.deepEqual(sansPhoto.map((x) => x.text), [], "questions Moyen ou Difficile sans photo");
+    // Au niveau Facile, un mélange : des photos et des émojis.
+    const faciles = C.QUESTIONS_CLASSIQUES.filter((x) => x.niveau === 1);
+    assert.ok(faciles.some((x) => x.photo) && faciles.some((x) => !x.photo), "Facile : photos et émojis");
+  });
+
+  test("tirer au hasard : le thème, l'âge ou le niveau, jamais ce qui est déjà dans le quiz, des réponses variées, aussi en mélangeant les deux sortes", () => {
     for (let graine = 1; graine <= 30; graine++) {
       const t = B.tirerChiffres(5, { theme: "animaux", age: 7, exclus: new Set(["Combien de pattes a une araignée ?"]), rng: rng(graine) });
       assert.equal(t.length, 5);
@@ -2403,35 +2448,41 @@ describe("Le quiz classique tout prêt : Juste Chiffre et questions à 4 répons
     }
     // Pas assez de réponses différentes : on complète quand même ; plus rien de libre : rien.
     const liste = [
-      { id: "a", theme: "x", ageMin: 5, ageMax: 9, text: "A ?", correct: 4, emoji: "🐶" },
-      { id: "b", theme: "x", ageMin: 5, ageMax: 9, text: "B ?", correct: 4, emoji: "🐱" },
-      { id: "c", theme: "x", ageMin: 11, ageMax: 15, text: "C ?", correct: 2, emoji: "🐭" },
+      { id: "a", theme: "x", niveau: 1, text: "A ?", correct: 4, emoji: "🐶" },
+      { id: "b", theme: "x", niveau: 1, text: "B ?", correct: 4, emoji: "🐱" },
+      { id: "c", theme: "x", niveau: 3, text: "C ?", correct: 2, emoji: "🐭" },
     ];
     assert.deepEqual(B.tirerChiffres(5, { liste, rng: rng(3) }).map((x) => x.id).sort(), ["a", "b", "c"]);
     assert.deepEqual(B.tirerChiffres(5, { liste, age: 6, rng: rng(3) }).map((x) => x.id).sort(), ["a", "b"]);
+    assert.deepEqual(B.tirerChiffres(5, { liste, niveau: 3, rng: rng(3) }).map((x) => x.id), ["c"]);
+    assert.deepEqual(B.tirerChiffres(5, { liste, age: 10, rng: rng(3) }), [], "aucune question Moyen ici");
     assert.deepEqual(B.tirerChiffres(5, { liste, age: 6, exclus: new Set(["A ?", "B ?"]) }), []);
     assert.equal(B.tirerChiffres(200).length, B.QUESTIONS_CHIFFRES.length);
   });
 
-  test("rubrique « Quiz classique tout prêt » : les questions à 4 réponses avec leur émoji, les Juste Chiffre sans émoji, par thème, sans alerte", () => {
+  test("rubrique « Quiz classique tout prêt » : les questions à 4 réponses avec leur photo (ou leur émoji au niveau Facile), les Juste Chiffre sans émoji, par thème et par niveau, sans alerte", () => {
     const pretes = Q.questionsClassiquesPretes();
     assert.equal(pretes.length, C.QUESTIONS_CLASSIQUES.length + B.QUESTIONS_CHIFFRES.length);
-    assert.ok(pretes.every((x) => x.groupe === "classiques" && x.ok && x.validee));
-    const qcm = pretes.find((x) => x.cle === C.QUESTIONS_CLASSIQUES[0].id);
-    const a = C.QUESTIONS_CLASSIQUES[0];
-    assert.deepEqual([qcm.text, qcm.nombre, qcm.choices, qcm.correct, qcm.image, qcm.categorie, qcm.manque],
-      [a.text, false, a.choices, 0, a.emoji, C.THEMES_TOUT_PRETS[a.theme], null]);
-    assert.equal(qcm.source, `❓ Question à 4 réponses toute prête · ${a.ageMin} à ${a.ageMax} ans`);
+    assert.deepEqual(pretes.filter((x) => !x.ok).map((x) => x.text), [], "sans alerte");
+    assert.ok(pretes.every((x) => x.groupe === "classiques" && x.validee && [1, 2, 3].includes(x.niveau)));
+    const a = { ...C.QUESTIONS_CLASSIQUES.find((x) => x.niveau === 1), photo: undefined };
+    const [qcm] = Q.questionsClassiquesPretes([a]);
+    assert.deepEqual([qcm.text, qcm.nombre, qcm.choices, qcm.correct, qcm.image, qcm.photo, qcm.categorie, qcm.manque, qcm.niveau],
+      [a.text, false, a.choices, 0, a.emoji, null, C.THEMES_TOUT_PRETS[a.theme], null, 1]);
+    assert.equal(qcm.source, "❓ Question à 4 réponses toute prête · Facile · 5 à 8 ans");
     assert.notEqual(qcm.choices, a.choices, "une copie : la banque ne bouge pas");
+    // Sa photo passe avant son émoji.
+    const [avecPhoto] = Q.questionsClassiquesPretes([{ ...a, photo: "banque-quiz/x.jpg" }]);
+    assert.deepEqual([avecPhoto.photo, avecPhoto.image, avecPhoto.ok], ["banque-quiz/x.jpg", null, true]);
     const jc = pretes.find((x) => x.cle === B.QUESTIONS_CHIFFRES[0].id);
     const b = B.QUESTIONS_CHIFFRES[0];
-    assert.deepEqual([jc.text, jc.nombre, jc.correct, jc.image, jc.categorie, jc.choices], [b.text, true, b.correct, null, B.THEMES_CHIFFRES[b.theme], []]);
-    assert.equal(jc.source, `🔢 Juste Chiffre tout prêt · ${b.ageMin} à ${b.ageMax} ans`);
+    assert.deepEqual([jc.text, jc.nombre, jc.correct, jc.image, jc.photo, jc.categorie, jc.choices], [b.text, true, b.correct, null, null, B.THEMES_CHIFFRES[b.theme], []]);
+    assert.equal(jc.source, `🔢 Juste Chiffre tout prêt · ${B.libelleNiveau(b.niveau)}`);
     assert.equal(Q.questionCorrespond(jc, "juste chiffre animaux"), true);
-    assert.equal(Q.questionCorrespond(qcm, "girafe"), true, "on cherche aussi dans les réponses");
+    assert.equal(Q.questionCorrespond(qcm, a.choices[1]), true, "on cherche aussi dans les réponses");
     assert.equal(Q.questionCorrespond(qcm, "juste chiffre"), false);
-    // Une question à 4 réponses sans émoji aurait son alerte (la banque n'en a pas).
-    const [sans] = Q.questionsClassiquesPretes([{ ...a, emoji: undefined }]);
-    assert.deepEqual([sans.ok, sans.manque, sans.image], [false, "Pas d'illustration", null]);
+    // Une question Moyen sans photo aurait son alerte (jamais d'émoji à ce niveau).
+    const [sans] = Q.questionsClassiquesPretes([{ ...C.QUESTIONS_CLASSIQUES.find((x) => x.niveau === 2), photo: undefined }]);
+    assert.deepEqual([sans.ok, sans.manque, sans.image, sans.photo], [false, "Pas d'illustration", null, null]);
   });
 });
