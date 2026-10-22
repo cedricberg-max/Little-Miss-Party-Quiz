@@ -50,7 +50,8 @@ import {
 } from "./mediatheque.js";
 import { DOSSIERS, classerPartie, bilan, effacements, passageAFaire, moDe, texteMo, texteGardees } from "./nettoyage.js";
 import { GROUPES_QUESTIONS, questionsClassiquesPretes, questionsIllustreesPretes, mesQuestions, mesPacks, questionsDeTest, questionCorrespond, lirePacks, illustration, retirerQuestions, packsParTheme } from "./questions.js";
-import { QUESTIONS_CHIFFRES, THEMES_CHIFFRES, chiffreConvient, tirerChiffres } from "./banque-chiffres.js";
+import { chiffreConvient, tirerChiffres } from "./banque-chiffres.js";
+import { QUESTIONS_TOUT_PRETES, THEMES_TOUT_PRETS, estJusteChiffre } from "./banque-classiques.js";
 
 // Petit œil sur les champs de mot de passe : voir ce qu'on tape (majuscules, caractère en trop).
 afficherMotsDePasse();
@@ -1817,6 +1818,7 @@ function review(id, quiz) {
   $("rv-chiffres-panel").hidden = true;
   chiffresCoches.clear();
   chiffresRecherche = "";
+  chiffresType = null;
   status("rv-status", "");
   show("review");
   renderReview();
@@ -2268,8 +2270,12 @@ function renderBanque() {
       liste.length ? null : h("p", { class: "hint small", text: "Aucune question ne correspond à cette recherche." })));
 }
 
-// ---------- Le Juste Chiffre tout prêt dans un quiz classique (cedric, 22/10) ----------
+// ---------- Le quiz classique tout prêt dans un quiz classique (cedric, 22/10) ----------
+// Les questions à 4 réponses (avec leur émoji pour la révélation) et les Juste Chiffre (sans émoji : le compteur).
 
+/** Les deux sortes de questions toutes prêtes : une puce chacune. */
+const TYPES_TOUT_PRETS = { qcm: ["❓ 4 réponses", (x) => !estJusteChiffre(x)], nombre: ["🔢 Juste Chiffre", estJusteChiffre] };
+let chiffresType = null;
 let chiffresTheme = null;
 let chiffresAge = null;
 let chiffresRecherche = "";
@@ -2290,13 +2296,23 @@ function renderChiffres() {
   const panel = $("rv-chiffres-panel");
   const deja = new Set((draft?.questions ?? []).map((q) => q.text.trim()));
   for (const [id, q] of chiffresCoches) if (deja.has(q.text)) chiffresCoches.delete(id);
-  const choix = QUESTIONS_CHIFFRES.filter((x) => (!chiffresTheme || x.theme === chiffresTheme) && chiffreConvient(x, chiffresAge));
-  const trouvees = parPertinence(choix.filter((x) => contientTout([x.text, THEMES_CHIFFRES[x.theme]], chiffresRecherche)), chiffresRecherche, (x) => [x.text]);
+  const duType = (x) => !chiffresType || TYPES_TOUT_PRETS[chiffresType][1](x);
+  // Les thèmes qui ont des questions de cette sorte pour cet âge.
+  const pourAge = QUESTIONS_TOUT_PRETES.filter((x) => duType(x) && chiffreConvient(x, chiffresAge));
+  const themes = Object.entries(THEMES_TOUT_PRETS).filter(([k]) => pourAge.some((x) => x.theme === k));
+  if (chiffresTheme && !themes.some(([k]) => k === chiffresTheme)) chiffresTheme = null;
+  const choix = pourAge.filter((x) => !chiffresTheme || x.theme === chiffresTheme);
+  const trouvees = parPertinence(choix.filter((x) => contientTout([x.text, ...(x.choices ?? []), THEMES_TOUT_PRETS[x.theme]], chiffresRecherche)),
+    chiffresRecherche, (x) => [x.text]);
   // Les questions cochées d'abord (même d'un autre thème), puis les autres.
   const liste = [...chiffresCoches.values(), ...trouvees.filter((x) => !chiffresCoches.has(x.id))];
   const chip = (label, theme) => h("button", {
     type: "button", class: `chip${chiffresTheme === theme ? " active" : ""}`, "data-theme": theme ?? "tous", text: label,
     onclick: () => { chiffresTheme = theme; renderChiffres(); },
+  });
+  const chipType = (label, type) => h("button", {
+    type: "button", class: `chip${chiffresType === type ? " active" : ""}`, "data-type": type ?? "tous", text: label,
+    onclick: () => { chiffresType = type; renderChiffres(); },
   });
   const bouton = h("button", { type: "button", id: "rv-chiffres-add", class: "btn", onclick: () => ajouterChiffres() });
   const majBouton = () => {
@@ -2306,7 +2322,7 @@ function renderChiffres() {
   };
   majBouton();
   const recherche = h("input", {
-    type: "search", id: "rv-chiffres-cherche", placeholder: "Chercher (pattes, planète, Disney…)", value: chiffresRecherche,
+    type: "search", id: "rv-chiffres-cherche", placeholder: "Chercher (pattes, planète, Disney, Paris…)", value: chiffresRecherche,
     oninput: (e) => {
       chiffresRecherche = e.target.value;
       clearTimeout(recherche.timer);
@@ -2317,15 +2333,16 @@ function renderChiffres() {
     h("option", { value: "", text: "Tous les âges", selected: chiffresAge === null }),
     ...Array.from({ length: 11 }, (_, k) => k + 5).map((a) => h("option", { value: a, text: `${a} ans`, selected: chiffresAge === a })));
   panel.replaceChildren(
-    h("p", { class: "label", text: "Le Juste Chiffre tout prêt" }),
-    h("p", { class: "hint small", text: `Chaque équipe tape un nombre sur son pupitre ; la plus proche gagne. ${QUESTIONS_CHIFFRES.length} questions, chacune avec son émoji montré à la révélation : choisissez un thème et l'âge, cochez, ou tirez-en 5 au hasard.` }),
-    h("div", { class: "chips" }, chip("Tous les thèmes", null), ...Object.entries(THEMES_CHIFFRES).map(([k, label]) => chip(label, k))),
+    h("p", { class: "label", text: "Quiz classique tout prêt" }),
+    h("p", { class: "hint small", text: `${plural(QUESTIONS_TOUT_PRETES.filter(TYPES_TOUT_PRETS.qcm[1]).length, "question")} à 4 réponses, avec leur image montrée à la révélation, et ${QUESTIONS_TOUT_PRETES.filter(estJusteChiffre).length} Juste Chiffre (chaque équipe tape un nombre, la plus proche gagne ; la TV montre son compteur, sans image). Choisissez la sorte, le thème et l'âge, cochez, ou tirez-en 5 au hasard.` }),
+    h("div", { class: "chips" }, chipType("Toutes", null), ...Object.entries(TYPES_TOUT_PRETS).map(([k, [label]]) => chipType(label, k))),
+    h("div", { class: "chips" }, chip("Tous les thèmes", null), ...themes.map(([k, label]) => chip(label, k))),
     h("div", { class: "row" }, h("label", { class: "inline" }, "Âge des enfants", age), recherche),
     h("div", { class: "row" },
       h("button", {
         type: "button", id: "rv-chiffres-hasard", class: "btn secondary", text: "🎲 5 au hasard",
         onclick: () => {
-          const tirage = tirerChiffres(5, { theme: chiffresTheme, age: chiffresAge, exclus: deja });
+          const tirage = tirerChiffres(5, { theme: chiffresTheme, age: chiffresAge, exclus: deja, liste: QUESTIONS_TOUT_PRETES.filter(duType) });
           chiffresCoches.clear();
           tirage.forEach((x) => chiffresCoches.set(x.id, x));
           chiffresRecherche = "";
@@ -2340,27 +2357,36 @@ function renderChiffres() {
         type: "checkbox", checked: chiffresCoches.has(x.id), disabled: deja.has(x.text),
         onchange: (e) => { if (e.target.checked) chiffresCoches.set(x.id, x); else chiffresCoches.delete(x.id); majBouton(); },
       }),
-      h("span", { class: "banque-texte", text: `${x.emoji} ${x.text}` }),
-      h("span", { class: "banque-mots", text: `Réponse : ${x.correct.toLocaleString("fr-FR")} · ${THEMES_CHIFFRES[x.theme]} · ${x.ageMin} à ${x.ageMax} ans` }),
+      // Juste Chiffre : 🔢, jamais d'émoji (cedric, 22/10) ; 4 réponses : l'image de la révélation et les réponses, la bonne marquée.
+      h("span", { class: "banque-texte", text: `${estJusteChiffre(x) ? "🔢" : x.emoji} ${x.text}` }),
+      h("span", { class: "banque-mots", text: [
+        estJusteChiffre(x) ? `Juste Chiffre · réponse : ${x.correct.toLocaleString("fr-FR")}` : x.choices.map((c, k) => (k === x.correct ? `✓ ${c}` : c)).join(" · "),
+        THEMES_TOUT_PRETS[x.theme], `${x.ageMin} à ${x.ageMax} ans`].join(" · ") }),
       deja.has(x.text) ? h("span", { class: "tag", text: "déjà dans le quiz" }) : null)),
       liste.length ? null : h("p", { class: "hint small", text: chiffresRecherche ? "Aucune question ne correspond à cette recherche." : "Aucune question pour ce thème et cet âge." })));
 }
 
-/** Ajoute les questions cochées au quiz : Juste Chiffre, avec leur émoji, déjà validées (à relire). */
+/**
+ * Ajoute les questions cochées au quiz, déjà validées (à relire) : un Juste Chiffre sans image ; une question à
+ * 4 réponses avec son émoji pour la révélation, ses réponses mélangées (la bonne n'est pas toujours la A).
+ */
 function ajouterChiffres() {
   const choisies = [...chiffresCoches.values()];
   if (!choisies.length) return;
   for (const x of choisies) {
+    const nombre = estJusteChiffre(x);
+    const choices = nombre ? [] : shuffle(x.choices);
     draft.questions.push({
-      text: x.text, choices: [], correct: x.correct, duration: null, double: false, status: "validee", marks: 0,
-      image: x.emoji, imageId: null, kind: "number", slotImages: [null, null, null, null], missingImages: [],
+      text: x.text, choices, correct: nombre ? x.correct : choices.indexOf(x.choices[x.correct]), duration: null, double: false,
+      status: "validee", marks: 0, image: nombre ? "" : x.emoji, imageId: null, kind: nombre ? "number" : null,
+      slotImages: [null, null, null, null], missingImages: [],
     });
   }
   chiffresCoches.clear();
   renderReview();
   renderChiffres();
   noterEcran();
-  status("rv-status", `${choisies.length} Juste Chiffre ajouté${choisies.length > 1 ? "s" : ""} : relisez-les, puis enregistrez le quiz.`, true);
+  status("rv-status", `${plural(choisies.length, "question toute prête ajoutée", "questions toutes prêtes ajoutées")} : relisez-les, puis enregistrez le quiz.`, true);
 }
 
 /** Photos de la banque, mot par mot, comme sur la TV ; Sarah peut mettre la sienne (rangée dans library/contents/petits). */
@@ -4716,6 +4742,8 @@ function renderLibrary(force = false) {
 let qGroupe = null;
 let qPack = null;
 let qCategorie = null;
+/** Quiz classique tout prêt : toutes, les questions à 4 réponses (« qcm ») ou les Juste Chiffre (« nombre »). */
+let qType = null;
 /** Packs importés à l'instant : encadrés quelques secondes en tête de liste. */
 let packsNouveaux = new Set();
 /** Questions toutes prêtes du quiz illustré : fabriquées une fois (leurs mauvaises réponses sont tirées au hasard). */
@@ -4725,7 +4753,7 @@ const classiquesPretes = questionsClassiquesPretes();
 const qSelection = new Set();
 let qListees = [];
 const QUESTIONS_APERCU = 4;
-const QUESTIONS_MAX = 200;
+const QUESTIONS_MAX = 300;
 const EXEMPLE_PACK = {
   packs: [{
     title: "Les animaux de la savane", theme: "Animaux",
@@ -4875,7 +4903,7 @@ function dessinerQuestions() {
   if (qPack && !quizzes[qPack]) qPack = null;
   const chip = (key, label, n) => h("button", {
     type: "button", class: `chip${qGroupe === key ? " active" : ""}`, "data-groupe": key ?? "tout", text: `${label} (${n})`,
-    onclick: () => { qGroupe = key; qPack = null; qCategorie = null; qSelection.clear(); status("q-status", ""); renderQuestions(); },
+    onclick: () => { qGroupe = key; qPack = null; qCategorie = null; qType = null; qSelection.clear(); status("q-status", ""); renderQuestions(); },
   });
   const total = Object.values(compte).reduce((a, b) => a + b, 0);
   $("q-groups").replaceChildren(chip(null, "Tout", total), ...groupes.map(([k, label]) => chip(k, label, compte[k])));
@@ -4924,14 +4952,24 @@ function dessinerQuestions() {
   }
 
   // Toutes prêtes (par thème ou par famille), en vrac ou de test (par thème) : une puce par famille ou par thème, puis la liste.
-  const tout = filtre(g[qGroupe]);
+  // Quiz classique : une puce pour les questions à 4 réponses, une pour les Juste Chiffre (cedric, 22/10).
+  const tousTypes = filtre(g[qGroupe]);
+  const types = qGroupe === "classiques" ? { qcm: ["❓ Questions à 4 réponses", (x) => !x.nombre], nombre: ["🔢 Juste Chiffre", (x) => x.nombre] } : {};
+  if (!types[qType]) qType = null;
+  const tout = qType ? tousTypes.filter(types[qType][1]) : tousTypes;
   const categories = [...new Set(tout.map((x) => x.categorie).filter(Boolean))];
   if (qCategorie && !categories.includes(qCategorie)) qCategorie = null;
   const liste = qCategorie ? tout.filter((x) => x.categorie === qCategorie) : tout;
   const sans = liste.filter((x) => !x.ok).length;
   if (qGroupe === "miennes" || qGroupe === "tests") qListees = liste.slice(0, QUESTIONS_MAX);
   remplir(box,
-    qGroupe === "classiques" ? h("p", { class: "hint small", text: "Quiz classique : une seule illustration, montrée à la révélation de la réponse. Pour en mettre dans un quiz classique : « Éditer », puis « 🔢 Juste Chiffre tout prêt »." }) : null,
+    qGroupe === "classiques" ? h("p", { class: "hint small", text: "Quiz classique : des questions à 4 réponses écrites, avec une seule image, montrée à la révélation de la réponse, et des Juste Chiffre (réponse en nombre : la TV montre son compteur, sans image). Pour en mettre dans un quiz classique : « Éditer », puis « 📝 Questions toutes prêtes »." }) : null,
+    Object.keys(types).length ? h("div", { class: "chips q-types" },
+      h("button", { type: "button", class: `chip${qType ? "" : " active"}`, "data-type": "tous", text: `Toutes (${tousTypes.length})`, onclick: () => { qType = null; renderQuestions(); } }),
+      ...Object.entries(types).map(([k, [label, garde]]) => h("button", {
+        type: "button", class: `chip${qType === k ? " active" : ""}`, "data-type": k, text: `${label} (${tousTypes.filter(garde).length})`,
+        onclick: () => { qType = k; renderQuestions(); },
+      }))) : null,
     qGroupe === "illustrees" ? h("p", { class: "hint small", text: "Quiz illustré des tout-petits : une image par réponse. Une réponse sans photo reçoit l'émoji de son mot, dessiné en image. Pour en mettre dans un quiz illustré : « Éditer », puis « 🎲 Questions de la banque »." }) : null,
     qGroupe === "tests" ? h("p", { class: "hint small", text: "Les questions des prestations de test (Paramètres) : rangées ici pour ne pas se mélanger aux vôtres." }) : null,
     categories.length > 1 ? h("div", { class: "chips q-categories" },

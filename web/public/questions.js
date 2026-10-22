@@ -1,6 +1,7 @@
 // Bibliothèque › Questions de la Régie PC (cedric, 22/10) : des groupes et une seule recherche.
 // - Les questions toutes prêtes de l'appli, jamais modifiées ici, en deux rubriques à ne pas mélanger (cedric, 22/10) :
-//   « Quiz classique » (le Juste Chiffre tout prêt, banque-chiffres.js : une illustration pour la révélation) et
+//   « Quiz classique » (questions à 4 réponses écrites, banque-classiques.js, avec une illustration pour la révélation,
+//   et le Juste Chiffre tout prêt, banque-chiffres.js, sans illustration : la TV montre son compteur) et
 //   « Quiz illustré » (banque des tout-petits : une image par réponse).
 // - « Mes questions » : celles écrites à la main dans la Régie PC, avec leur illustration.
 // - « Mes packs » : les quiz importés (fichier JSON, tableur, texte collé), un pack par thème.
@@ -9,13 +10,14 @@
 import { parseQuiz } from "./importer.js";
 import { cataloguePetits, FAMILLES_PETITS, motBanque } from "./banque-petits.js";
 import { PHOTOS_BANQUE } from "./banque-photos.js";
-import { QUESTIONS_CHIFFRES, THEMES_CHIFFRES } from "./banque-chiffres.js";
+import { QUESTIONS_TOUT_PRETES, THEMES_TOUT_PRETS, estJusteChiffre } from "./banque-classiques.js";
 import { quizKind } from "./show.js";
 
 export const GROUPES_QUESTIONS = {
   classiques: "📝 Quiz classique tout prêt", illustrees: "🖼️ Quiz illustré tout prêt", miennes: "✍️ Mes questions en vrac", packs: "📥 Mes packs par thème", tests: "🧪 Questions de test",
 };
 export const JUSTE_CHIFFRE = "🔢 Juste Chiffre";
+export const QUESTION_4_REPONSES = "❓ Question à 4 réponses toute prête";
 
 const IMAGE_ID = /^[0-9a-f]{16}$/;
 /** Les questions d'un quiz, dans l'ordre, sans les cases vides (la base rend parfois un objet au lieu d'une liste). */
@@ -63,15 +65,20 @@ function fiche(q, kind, extra) {
 }
 
 /**
- * Quiz classique tout prêt : le Juste Chiffre tout prêt, par thème. Une question de quiz classique n'a besoin que
- * d'une illustration pour la révélation : chacune a son émoji.
+ * Quiz classique tout prêt, par thème (cedric, 22/10) : les questions à 4 réponses écrites, qui n'ont besoin que d'une
+ * illustration pour la révélation (leur émoji), et les Juste Chiffre, sans émoji (la TV montre son compteur).
  */
-export function questionsClassiquesPretes(chiffres = QUESTIONS_CHIFFRES) {
-  return chiffres.map((x) => ({
-    groupe: "classiques", cle: x.id, text: x.text, choices: [], correct: x.correct, nombre: true, image: x.emoji, imageId: null,
-    categorie: THEMES_CHIFFRES[x.theme] ?? x.theme, source: `${JUSTE_CHIFFRE} tout prêt · ${x.ageMin} à ${x.ageMax} ans`,
-    validee: true, ok: true, manque: null,
-  }));
+export function questionsClassiquesPretes(liste = QUESTIONS_TOUT_PRETES) {
+  return liste.map((x) => {
+    const nombre = estJusteChiffre(x);
+    const illustree = nombre || !!x.emoji;
+    return {
+      groupe: "classiques", cle: x.id, text: x.text, choices: nombre ? [] : [...x.choices], correct: x.correct, nombre,
+      image: nombre ? null : x.emoji ?? null, imageId: null, categorie: THEMES_TOUT_PRETS[x.theme] ?? x.theme,
+      source: `${nombre ? `${JUSTE_CHIFFRE} tout prêt` : QUESTION_4_REPONSES} · ${x.ageMin} à ${x.ageMax} ans`,
+      validee: true, ok: illustree, manque: illustree ? null : "Pas d'illustration",
+    };
+  });
 }
 
 /**

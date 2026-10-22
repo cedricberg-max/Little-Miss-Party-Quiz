@@ -2322,8 +2322,9 @@ describe("Mes questions : supprimer, en vrac par thème, packs rangés par thèm
   });
 });
 
-describe("Le Juste Chiffre tout prêt (cedric, 22/10)", async () => {
+describe("Le quiz classique tout prêt : Juste Chiffre et questions à 4 réponses (cedric, 22/10)", async () => {
   const B = await import("../web/public/banque-chiffres.js");
+  const C = await import("../web/public/banque-classiques.js");
   const Q = await import("../web/public/questions.js");
   const { cleanEmoji } = await import("../web/public/illustration.js");
   const rng = (graine) => () => { graine = (graine * 16807) % 2147483647; return (graine - 1) / 2147483646; };
@@ -2335,7 +2336,7 @@ describe("Le Juste Chiffre tout prêt (cedric, 22/10)", async () => {
       0x1f9ba, 0x1f9bb, 0x1f9bc, 0x1f9bd, 0x1f9be, 0x1f9bf, 0x1f9c3, 0x1f9c4, 0x1f9c5, 0x1f9c6, 0x1f9c7, 0x1f9c8, 0x1f9c9, 0x1f9ca, 0x1f9cb, 0x1f9cd, 0x1f9ce, 0x1f9cf].includes(c);
   });
 
-  test("la banque : plus de 100 questions, chacune avec son thème, ses âges, un nombre entier et un émoji qui passe partout", () => {
+  test("le Juste Chiffre : plus de 100 questions, chacune avec son thème, ses âges, un nombre entier et aucun émoji", () => {
     const liste = B.QUESTIONS_CHIFFRES;
     assert.ok(liste.length >= 100, `${liste.length} questions`);
     assert.equal(new Set(liste.map((x) => x.id)).size, liste.length, "identifiants uniques");
@@ -2345,8 +2346,9 @@ describe("Le Juste Chiffre tout prêt (cedric, 22/10)", async () => {
       assert.ok(x.ageMin >= 5 && x.ageMax <= 15 && x.ageMin < x.ageMax, `âges de « ${x.text} »`);
       assert.ok(Number.isInteger(x.correct) && Math.abs(x.correct) <= 999999999, `réponse de « ${x.text} » (9 chiffres au plus sur le pupitre)`);
       assert.ok(x.text.length <= 120 && x.text.endsWith(" ?"), `texte de « ${x.text} »`);
-      assert.ok(x.emoji && cleanEmoji(x.emoji) === x.emoji, `émoji de « ${x.text} » gardé tel quel à l'enregistrement`);
-      assert.equal(tropRecent(x.emoji), false, `émoji de « ${x.text} » trop récent pour la Mi Box`);
+      // Pas d'émoji (cedric, 22/10 : « c'est juste une animation avec les chiffres ») : la TV montre son compteur.
+      assert.equal(x.emoji, undefined, `pas d'émoji pour « ${x.text} »`);
+      assert.equal(C.estJusteChiffre(x), true);
     }
     // Tous les âges ont de quoi jouer, dans chaque tranche.
     for (const age of [5, 7, 9, 10, 12, 15]) assert.ok(liste.filter((x) => B.chiffreConvient(x, age)).length >= 25, `${age} ans`);
@@ -2355,17 +2357,34 @@ describe("Le Juste Chiffre tout prêt (cedric, 22/10)", async () => {
     assert.equal(tropRecent("🕷️"), false);
   });
 
-  test("l'émoji ne montre jamais ce qu'on compte (cedric, 22/10 : on compterait les pattes de l'araignée dessinée)", () => {
-    // Émojis où l'on peut compter des pattes, des côtés, des couleurs, des étoiles, ou qui affichent un nombre.
-    const seCompte = ["🕷️", "🕷", "🕸️", "🐞", "🐜", "🐪", "🐫", "🐍", "🐔", "⭐", "🦀", "🦂", "🦋", "🐝", "🖐️", "✋", "🦶", "🙌", "😁", "🕐", "🕛", "⏰", "⏱️",
-      "💯", "🔢", "🌙", "🥇", "🎲", "🔺", "📦", "🛑", "🚸", "🎸", "🎻", "🎼", "🐷", "🐻", "🐺", "👽", "📚", "🌈", "🇫🇷", "🚦", "🚲", "❄️", "🇪🇺", "🇺🇸",
-      "🐾", "🧤", "🌸", "🌼", "✊", "🤘", "📅", "📆", "🧩", "📐"];
-    const fautifs = B.QUESTIONS_CHIFFRES.filter((x) => seCompte.includes(x.emoji) && !(x.emoji === "❄️" && x.correct === 1));
-    assert.deepEqual(fautifs.map((x) => `${x.emoji} ${x.text}`), []);
-    assert.equal(new Set(B.QUESTIONS_CHIFFRES.map((x) => x.emoji)).size, B.QUESTIONS_CHIFFRES.length, "un émoji différent par question");
+  test("les questions à 4 réponses : plus de 150, quatre réponses différentes et courtes, la bonne en premier, un émoji pour la révélation qui passe partout", () => {
+    const liste = C.QUESTIONS_CLASSIQUES;
+    assert.ok(liste.length >= 150, `${liste.length} questions`);
+    assert.equal(new Set(liste.map((x) => x.id)).size, liste.length, "identifiants uniques");
+    const textes = [...liste, ...B.QUESTIONS_CHIFFRES].map((x) => x.text);
+    assert.equal(new Set(textes).size, textes.length, "pas deux fois la même question, Juste Chiffre compris");
+    for (const x of liste) {
+      assert.ok(C.THEMES_TOUT_PRETS[x.theme], `thème de « ${x.text} »`);
+      assert.ok(x.ageMin >= 5 && x.ageMax <= 15 && x.ageMin < x.ageMax, `âges de « ${x.text} »`);
+      assert.ok(x.text.length <= 120 && /[?…]$/.test(x.text), `texte de « ${x.text} »`);
+      assert.equal(x.choices.length, 4, `4 réponses pour « ${x.text} »`);
+      assert.equal(new Set(x.choices.map((c) => c.toLowerCase())).size, 4, `4 réponses différentes pour « ${x.text} »`);
+      assert.ok(x.choices.every((c) => c.trim() === c && c.length >= 1 && c.length <= 30), `réponses courtes pour « ${x.text} »`);
+      assert.equal(x.correct, 0, "la bonne réponse est écrite en premier");
+      assert.equal(C.estJusteChiffre(x), false);
+      assert.ok(x.emoji && cleanEmoji(x.emoji) === x.emoji, `émoji de « ${x.text} » gardé tel quel à l'enregistrement`);
+      assert.equal(tropRecent(x.emoji), false, `émoji de « ${x.text} » trop récent pour la Mi Box`);
+    }
+    for (const age of [5, 7, 9, 10, 12, 15]) assert.ok(liste.filter((x) => B.chiffreConvient(x, age)).length >= 40, `${age} ans`);
+    // Ensemble, thème par thème : les questions à 4 réponses, puis les Juste Chiffre du même thème.
+    const tout = C.QUESTIONS_TOUT_PRETES;
+    assert.equal(tout.length, liste.length + B.QUESTIONS_CHIFFRES.length);
+    const ordre = Object.keys(C.THEMES_TOUT_PRETS);
+    assert.ok(tout.every((x, i) => !i || ordre.indexOf(tout[i - 1].theme) <= ordre.indexOf(x.theme)), "rangées par thème");
+    assert.deepEqual(tout.slice(0, 2).map((x) => x.id), [liste[0].id, liste[1].id]);
   });
 
-  test("tirer au hasard : le thème, l'âge, jamais ce qui est déjà dans le quiz, des émojis et des réponses variés", () => {
+  test("tirer au hasard : le thème, l'âge, jamais ce qui est déjà dans le quiz, des réponses variées, aussi en mélangeant les deux sortes", () => {
     for (let graine = 1; graine <= 30; graine++) {
       const t = B.tirerChiffres(5, { theme: "animaux", age: 7, exclus: new Set(["Combien de pattes a une araignée ?"]), rng: rng(graine) });
       assert.equal(t.length, 5);
@@ -2373,7 +2392,14 @@ describe("Le Juste Chiffre tout prêt (cedric, 22/10)", async () => {
       assert.ok(!t.some((x) => x.text === "Combien de pattes a une araignée ?"));
       assert.equal(new Set(t.map((x) => x.id)).size, 5);
       assert.equal(new Set(t.map((x) => x.correct)).size, 5, "cinq réponses différentes quand c'est possible");
-      assert.equal(new Set(t.map((x) => x.emoji)).size, 5);
+      // Les deux sortes ensemble : jamais deux fois la même bonne réponse ni le même émoji.
+      const m = B.tirerChiffres(8, { theme: "espace", liste: C.QUESTIONS_TOUT_PRETES, rng: rng(graine) });
+      assert.equal(m.length, 8);
+      assert.ok(m.every((x) => x.theme === "espace"));
+      const emojis = m.filter((x) => x.emoji).map((x) => x.emoji);
+      assert.equal(new Set(emojis).size, emojis.length, "émojis variés");
+      const reponses = m.map((x) => (C.estJusteChiffre(x) ? `n:${x.correct}` : `t:${x.choices[0]}`));
+      assert.equal(new Set(reponses).size, 8, "réponses variées");
     }
     // Pas assez de réponses différentes : on complète quand même ; plus rien de libre : rien.
     const liste = [
@@ -2387,15 +2413,25 @@ describe("Le Juste Chiffre tout prêt (cedric, 22/10)", async () => {
     assert.equal(B.tirerChiffres(200).length, B.QUESTIONS_CHIFFRES.length);
   });
 
-  test("rubrique « Quiz classique tout prêt » : par thème, avec son émoji pour la révélation (pas d'alerte), à part du quiz illustré", () => {
+  test("rubrique « Quiz classique tout prêt » : les questions à 4 réponses avec leur émoji, les Juste Chiffre sans émoji, par thème, sans alerte", () => {
     const pretes = Q.questionsClassiquesPretes();
-    assert.equal(pretes.length, B.QUESTIONS_CHIFFRES.length);
-    assert.ok(pretes.every((x) => x.groupe === "classiques" && x.nombre && x.ok));
-    const [x] = pretes;
+    assert.equal(pretes.length, C.QUESTIONS_CLASSIQUES.length + B.QUESTIONS_CHIFFRES.length);
+    assert.ok(pretes.every((x) => x.groupe === "classiques" && x.ok && x.validee));
+    const qcm = pretes.find((x) => x.cle === C.QUESTIONS_CLASSIQUES[0].id);
+    const a = C.QUESTIONS_CLASSIQUES[0];
+    assert.deepEqual([qcm.text, qcm.nombre, qcm.choices, qcm.correct, qcm.image, qcm.categorie, qcm.manque],
+      [a.text, false, a.choices, 0, a.emoji, C.THEMES_TOUT_PRETS[a.theme], null]);
+    assert.equal(qcm.source, `❓ Question à 4 réponses toute prête · ${a.ageMin} à ${a.ageMax} ans`);
+    assert.notEqual(qcm.choices, a.choices, "une copie : la banque ne bouge pas");
+    const jc = pretes.find((x) => x.cle === B.QUESTIONS_CHIFFRES[0].id);
     const b = B.QUESTIONS_CHIFFRES[0];
-    assert.deepEqual([x.cle, x.text, x.nombre, x.correct, x.image, x.categorie, x.ok, x.validee, x.choices],
-      [b.id, b.text, true, b.correct, b.emoji, B.THEMES_CHIFFRES[b.theme], true, true, []]);
-    assert.equal(x.source, `🔢 Juste Chiffre tout prêt · ${b.ageMin} à ${b.ageMax} ans`);
-    assert.equal(Q.questionCorrespond(x, "juste chiffre animaux"), true);
+    assert.deepEqual([jc.text, jc.nombre, jc.correct, jc.image, jc.categorie, jc.choices], [b.text, true, b.correct, null, B.THEMES_CHIFFRES[b.theme], []]);
+    assert.equal(jc.source, `🔢 Juste Chiffre tout prêt · ${b.ageMin} à ${b.ageMax} ans`);
+    assert.equal(Q.questionCorrespond(jc, "juste chiffre animaux"), true);
+    assert.equal(Q.questionCorrespond(qcm, "girafe"), true, "on cherche aussi dans les réponses");
+    assert.equal(Q.questionCorrespond(qcm, "juste chiffre"), false);
+    // Une question à 4 réponses sans émoji aurait son alerte (la banque n'en a pas).
+    const [sans] = Q.questionsClassiquesPretes([{ ...a, emoji: undefined }]);
+    assert.deepEqual([sans.ok, sans.manque, sans.image], [false, "Pas d'illustration", null]);
   });
 });
