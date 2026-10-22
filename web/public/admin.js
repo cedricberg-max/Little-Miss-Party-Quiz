@@ -4442,7 +4442,13 @@ $("playlist-files").onchange = async (e) => {
   await addFiles(files);
 };
 
-$("playlist-save").onclick = () => enregistrerPlaylist();
+$("playlist-save").onclick = async () => {
+  if (!(await enregistrerPlaylist()) || !playlist?.single) return;
+  // Réglages d'une chanson (cedric, 22/10) : une fois enregistrés, retour à la liste des sons, comme « ← Retour ».
+  const titre = playlist.tracks[0]?.title?.trim() ?? "";
+  pagePrecedente();
+  status("song-status", `Réglages de « ${titre} » enregistrés. Les playlists qui ont cette chanson les suivent.`, true);
+};
 
 /** Enregistre l'écran des playlists (extraits découpés ici) ; rend vrai quand tout est rangé. */
 async function enregistrerPlaylist() {
