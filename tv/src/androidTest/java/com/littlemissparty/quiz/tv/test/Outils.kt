@@ -29,6 +29,8 @@ import com.littlemissparty.quiz.engine.QuizJson
 import com.littlemissparty.quiz.tv.GameViewModel
 import com.littlemissparty.quiz.tv.MainActivity
 import java.io.ByteArrayOutputStream
+import java.net.InetSocketAddress
+import java.net.Socket
 import java.util.UUID
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -98,8 +100,24 @@ object Boite {
      * connexion à part : la box doit faire elle-même sa première connexion, comme sur la vraie Mi Box.
      */
     fun verifierEmulateur() {
+        attendreHote()
         if (controle.lire("games/${Emulateur.MARQUEUR}/hostUid") != Emulateur.VALEUR_MARQUEUR) {
             throw AssertionError("Émulateur Firebase introuvable : tests arrêtés pour ne pas toucher la vraie base")
+        }
+    }
+
+    /**
+     * Juste après le démarrage de l'émulateur Android, l'ordinateur hôte (10.0.2.2) peut refuser les connexions quelques
+     * secondes (CI du 22/10 : les 9 premiers tests refusés, les 38 suivants verts) : on attend que l'émulateur Firebase
+     * réponde, 60 s au plus, avant la première connexion.
+     */
+    private fun attendreHote() {
+        val fin = SystemClock.elapsedRealtime() + 60_000
+        for (port in listOf(Emulateur.PORT_AUTH, Emulateur.PORT_BASE)) {
+            while (runCatching { Socket().use { it.connect(InetSocketAddress(Emulateur.HOTE, port), 1_000) } }.isFailure) {
+                if (SystemClock.elapsedRealtime() > fin) throw AssertionError("Émulateur Firebase injoignable sur ${Emulateur.HOTE}:$port")
+                SystemClock.sleep(500)
+            }
         }
     }
 

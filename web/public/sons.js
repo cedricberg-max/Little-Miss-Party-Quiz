@@ -58,7 +58,9 @@ export function songList(songs, playlists, isStatuesList = (p) => p?.use === "st
     listOf(p.tracks).forEach((t) => {
       if (!t?.title?.trim() || !HEX.test(t.audioId ?? "")) return;
       let song = (t.songId && songs?.[t.songId] ? out.find((x) => x.id === t.songId) : null) ?? byAudio.get(t.audioId);
-      if (!song && (retirees.has(t.audioId) || songs?.[t.songId]?.retiree === true)) return;
+      // Pas dans la bibliothèque : une chanson retirée, une chanson effacée pour de bon (le morceau garde son numéro,
+      // voir [marquerEffacees]) ou une comptine des prestations de test (cedric, 22/10 : ce ne sont pas ses chansons).
+      if (!song && (retirees.has(t.audioId) || t.songId || PLAYLIST_TEST.test(pid))) return;
       if (!song) {
         song = {
           id: null, title: t.title.trim(), artist: t.artist ?? "", imageId: HEX.test(t.imageId ?? "") ? t.imageId : null,
@@ -73,6 +75,27 @@ export function songList(songs, playlists, isStatuesList = (p) => p?.use === "st
     });
   });
   return out.sort((a, b) => a.title.localeCompare(b.title, "fr"));
+}
+
+/** Playlists des prestations de test (Paramètres) : leurs comptines n'entrent pas dans la bibliothèque des sons. */
+const PLAYLIST_TEST = /^test-/;
+
+/**
+ * Chanson [songId] effacée pour de bon : les anciens morceaux des playlists qui ont son extrait [audioId] sans dire de
+ * quelle chanson ils viennent reçoivent son numéro, pour qu'elle ne revienne pas dans la bibliothèque. Les morceaux et
+ * leurs extraits restent dans les playlists. Rend les chemins à écrire, avec la date [stamp] de chaque playlist touchée.
+ */
+export function marquerEffacees(songId, audioId, playlists, stamp, isStatuesList = (p) => p?.use === "statues") {
+  const out = {};
+  Object.entries(playlists ?? {}).forEach(([pid, p]) => {
+    if (!p || isStatuesList(p)) return;
+    Object.entries(Array.isArray(p.tracks) ? { ...p.tracks } : p.tracks ?? {}).forEach(([i, t]) => {
+      if (t?.audioId !== audioId || t.songId) return;
+      out[`library/playlists/${pid}/tracks/${i}/songId`] = songId;
+      out[`library/playlists/${pid}/updatedAt`] = stamp;
+    });
+  });
+  return out;
 }
 
 /** Chansons retirées de la bibliothèque, triées par titre : { id, title, artist }, pour les remettre. */

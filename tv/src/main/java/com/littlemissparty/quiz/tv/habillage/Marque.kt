@@ -39,6 +39,16 @@ fun LogoLmp(hauteur: Dp, modifier: Modifier = Modifier) {
     )
 }
 
+/**
+ * Logo seul de la marque, à la place du logo officiel sur les écrans de fête (pause, victoire, présentation de manche) :
+ * en design Game Show, le logo « THE GAME SHOW by Little Miss Party », à peu près à la même hauteur.
+ */
+@Composable
+fun LogoMarque(hauteur: Dp, modifier: Modifier = Modifier) {
+    if (Look.gs) return LogoGameShow(hauteur * 0.5f, modifier, Alignment.CenterHorizontally)
+    LogoLmp(hauteur, modifier)
+}
+
 /** « QUIZ » en or sous le logo, puisque le logo officiel ne le contient pas. */
 @Composable
 fun MotQuiz(taille: TextUnit, modifier: Modifier = Modifier) {
@@ -58,6 +68,8 @@ fun MotQuiz(taille: TextUnit, modifier: Modifier = Modifier) {
 /** Logo du salon : le logo officiel, et « QUIZ » centré dessous, collé au trait de PARTY. */
 @Composable
 fun LogoQuiz(hauteurLogo: Dp, modifier: Modifier = Modifier) {
+    // Design « The Game Show » : le logo du kit, à peu près à la même hauteur que le logo et « QUIZ ».
+    if (Look.gs) return LogoGameShow(hauteurLogo * 0.7f, modifier)
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         LogoLmp(hauteurLogo)
         MotQuiz((hauteurLogo.value * 0.36f).sp, Modifier.offset(y = -hauteurLogo * 0.04f))

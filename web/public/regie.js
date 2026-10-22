@@ -1,5 +1,5 @@
 import {
-  ref, get, set, push, onValue, serverTimestamp, query, limitToFirst,
+  ref, get, set, update, push, onValue, serverTimestamp, query, limitToFirst,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { CHOICE_LETTERS } from "./theme.js";
 import { writeProof } from "./proof.js";
@@ -10,6 +10,7 @@ import {
   soundIds, MUSIC_GAMES, playableTracks, STATUES_SEC, PICTO_SEC, isStatuesList, statuesSongs, MAX_STATUES_SONGS,
   isFutureRound, moveRound, removeRound, uniqueRoundTitle, roundQuizIds, mimePool, mimeCards, CONTENT_GAMES, activeItems, pictoSeriesOf,
   isArchived, isPhotoTheme, disparuGroup, statuesChoices, quizQuestions, jeuDeLaManche, quizKind,
+  launchStates, launchLabel, jourHeure, isoDay,
 } from "./show.js";
 import { MIME_CATALOG } from "./mime-cards.js";
 import {
@@ -50,6 +51,8 @@ let tabChosen = false;
 /** Prestations publiées par Sarah : null tant qu'elles ne sont pas lues. */
 let shows = null;
 let loadingShow = null;
+/** « Mauvaise prestation ? » : la liste des prestations reste ouverte en pleine partie pour choisir la bonne. */
+let wrongShow = false;
 /** Bibliothèque de « Ajouter un jeu » (quiz et manches d'anciennes prestations) : null tant qu'elle n'est pas lue. */
 let library = null;
 /** Jeu choisi dans la bibliothèque, en aperçu avant de l'ajouter. */
@@ -141,28 +144,60 @@ function stopListening() {
 /**
  * Confirmation aux couleurs de la régie, à la place de la boîte du navigateur : titre, explication, gros
  * bouton d'action et « Annuler ». [alert] : action qui retire quelque chose (bouton en couleur d'alerte).
- * Renvoie une promesse : vrai si l'animatrice confirme.
+ * [line] : ligne en gras sous le titre (âge, date) ; [warn] : avertissement discret ; [danger] : avertissement en rouge.
+ * [safe] : « Annuler » a le focus, un appui distrait ne lance rien. [ok] null : rien à faire, un seul bouton « Fermer ».
+ * [password] : champ du mot de passe de la régie, passé à [action]. [action] : faite avant de refermer la fenêtre ;
+ * elle renvoie un message affiché dans la fenêtre, qui reste ouverte (mot de passe faux…), ou rien si tout va bien.
+ * Renvoie une promesse : vrai si l'animatrice confirme (et que l'action a réussi).
  */
-function demander({ title, text = "", ok = "Confirmer", alert = false }) {
+function demander({ title, text = "", ok = "Confirmer", alert = false, line = "", warn = "", danger = "", safe = false, password = false, action = null }) {
   return new Promise((resolve) => {
     const box = $("ask");
+    const show = (id, value) => { $(id).textContent = value; $(id).hidden = !value; };
     $("ask-title").textContent = title;
-    $("ask-text").textContent = text;
-    $("ask-text").hidden = !text;
+    show("ask-text", text);
+    show("ask-line", line);
+    show("ask-warn", warn);
+    show("ask-danger", danger);
+    show("ask-error", "");
+    $("ask-pass-row").hidden = !password;
+    $("ask-pass").value = "";
     const okBtn = $("ask-ok");
-    okBtn.textContent = ok;
+    const cancelBtn = $("ask-cancel");
+    okBtn.hidden = ok == null;
+    okBtn.textContent = ok ?? "";
+    okBtn.disabled = false;
     okBtn.classList.toggle("alert", alert);
+    cancelBtn.textContent = ok == null ? "Fermer" : "Annuler";
+    let busy = false;
     const close = (answer) => {
+      if (busy) return;
       box.hidden = true;
-      okBtn.onclick = $("ask-cancel").onclick = box.onclick = null;
+      okBtn.onclick = cancelBtn.onclick = box.onclick = $("ask-pass").onkeydown = null;
       resolve(answer);
     };
-    okBtn.onclick = () => close(true);
-    $("ask-cancel").onclick = () => close(false);
+    okBtn.onclick = async () => {
+      if (busy) return;
+      if (!action) return close(true);
+      busy = true;
+      okBtn.disabled = true;
+      show("ask-error", "");
+      const label = okBtn.textContent;
+      okBtn.textContent = "Patientez…";
+      const error = await Promise.resolve().then(() => action(password ? $("ask-pass").value : undefined))
+        .catch((e) => { console.error(e); return "Pas de réponse : vérifiez Internet sur ce téléphone, puis réessayez."; });
+      busy = false;
+      okBtn.disabled = false;
+      okBtn.textContent = label;
+      if (error) return show("ask-error", error);
+      close(true);
+    };
+    cancelBtn.onclick = () => close(false);
+    $("ask-pass").onkeydown = (e) => { if (e.key === "Enter") okBtn.click(); };
     // Toucher à côté de la fenêtre = annuler.
     box.onclick = (e) => { if (e.target === box) close(false); };
     box.hidden = false;
-    okBtn.focus();
+    (password ? $("ask-pass") : safe || ok == null ? cancelBtn : okBtn).focus();
   });
 }
 
@@ -173,6 +208,7 @@ function listen(path, fn) {
 function control() {
   stopListening();
   live = { state: null, teams: {}, presence: {}, plan: null, answers: {}, requests: {}, media: {}, connected: true };
+  tvMuette = null;
   shows = null;
   library = null;
   closeLibrary();
@@ -192,6 +228,8 @@ function control() {
   tabChosen = false;
   listen(`games/${code}/state`, (s) => {
     live.state = s.val();
+    // La TV a fait avancer la partie : elle répond de nouveau, le bandeau « La TV ne répond pas » s'en va.
+    if (tvMuette != null && (live.state?.seq ?? 0) !== tvMuette) tvMuette = null;
     watchAnswers();
     watchPumps();
     // En arrivant dans le salon d'attente, la première chose à faire est de charger la prestation.
@@ -338,6 +376,7 @@ function render() {
   renderGames(st);
   renderRequests(st, teams);
   renderTablette(st);
+  renderBox();
   renderMime(st, teams);
   renderBlind(st, teams);
   renderFlou(st);
@@ -655,6 +694,264 @@ function ouvrirTablette(e) {
 }
 $("c-tablette").onclick = ouvrirTablette;
 $("tablette-close").onclick = () => { tabletteOpen = false; render(); };
+
+// ---------- Changer de box ----------
+
+/**
+ * « 📺 Changer de box » (cedric, 21/10) : la box de la fête est en panne, ou ses données ont été effacées. Sarah branche
+ * une box de secours (acceptée dans la Régie PC), touche « Nouvelle partie » et tape ici le code de son salon d'attente.
+ * La régie confie alors la fête à cette box en une seule écriture, vérifiée par les règles Firebase : nouvel hôte,
+ * trace du changement (takeover) et relais vers le salon (handoff). La nouvelle box ferme son salon vide et rouvre la
+ * fête là où elle en était (équipes, points et programme sont dans Firebase). Les tablettes ne changent rien et ce
+ * téléphone reste sur la même partie. Toujours dans les boutons de la carte, et dans le bandeau « La TV ne répond pas ».
+ */
+let boxOpen = false;
+let boxBusy = false;
+/** Numéro d'étape affiché quand la TV s'est tue (commande sans réponse) ; null tant qu'elle répond. */
+let tvMuette = null;
+
+/** Codes de partie écrits par les box (sans I, O, 0 ni 1, comme CODE_CHARS de la TV). */
+const CODE_PARTIE = /^[A-HJ-NP-Z2-9]{5}$/;
+
+const BOX_MESSAGES = {
+  format: "Tapez le code à 5 caractères affiché en bas du QR code, sur la nouvelle TV.",
+  activation: "Ce code à 4 caractères est celui d'une box pas encore acceptée : acceptez-la dans la Régie PC (Paramètres > Box TV), puis tapez le code à 5 caractères de sa partie.",
+  meme: `C'est le code de cette fête : tapez celui affiché sur la nouvelle TV.`,
+  inconnu: "Code inconnu : vérifiez le code affiché sur la nouvelle TV.",
+  dejaLa: "Cette TV pilote déjà cette fête : rien à changer.",
+  accueil: "Cette TV n'est pas sur son écran d'accueil. Sur la nouvelle box, choisissez « Nouvelle partie », puis tapez le nouveau code.",
+  nonAcceptee: "Cette box n'est pas acceptée : acceptez-la dans la Régie PC (Paramètres > Box TV), puis réessayez.",
+  autreFete: "Cette box est déjà utilisée pour une autre fête. Vérifiez le code affiché sur la TV de secours.",
+  siAcceptee: "Si c'est bien elle, vérifiez qu'elle est acceptée dans la Régie PC (Paramètres > Box TV).",
+  prestation: "Une prestation est déjà chargée sur cette box : sur la TV de secours, choisissez « Nouvelle partie », puis tapez le nouveau code ici.",
+  ancienne: "Cette box n'a pas la dernière version de l'appli : sur la TV de secours, bouton Retour, « Rechercher une mise à jour », puis réessayez ici.",
+  reseau: "Pas d'Internet sur ce téléphone : reconnectez-le, puis réessayez.",
+  refus: "Changement refusé : ce téléphone n'est peut-être plus relié à la fête.",
+  lent: "Toujours en attente du serveur… Vérifiez Internet sur ce téléphone.",
+};
+
+/** Une commande est restée sans réponse : la TV est peut-être en panne (jamais quand c'est ce téléphone qui a perdu Internet). */
+function tvSilencieuse() {
+  if (!live.connected) return;
+  tvMuette = live.state?.seq ?? 0;
+  render();
+}
+
+function tvRepond() {
+  if (tvMuette == null) return;
+  tvMuette = null;
+  render();
+}
+
+function boxStatus(text, info = false) {
+  $("box-status").textContent = text;
+  $("box-status").classList.toggle("info", info);
+}
+
+function renderBox() {
+  $("box").hidden = !boxOpen;
+  $("box-go").disabled = boxBusy;
+  $("box-go").textContent = boxBusy ? "Envoi…" : "Continuer sur cette box";
+  $("box-code").disabled = boxBusy;
+  // Bandeau « La TV ne répond pas » : rien à dire tant que la TV répond, ou pendant le changement de box.
+  const alerte = $("r-tv");
+  alerte.hidden = tvMuette == null || boxOpen;
+  if (alerte.hidden || alerte.childNodes.length) return;
+  const changer = Object.assign(document.createElement("button"), { type: "button", className: "r-alerte-reconnecter", textContent: "📺 Changer de box" });
+  changer.onclick = ouvrirBox;
+  alerte.replaceChildren("📺 La TV ne répond pas",
+    Object.assign(document.createElement("small"), { textContent: "Vérifiez qu'elle est allumée et reliée à Internet. En panne ? La fête continue sur une autre box, avec ses équipes et ses points. Touchez pour masquer." }),
+    changer);
+  alerte.onclick = () => { tvMuette = null; render(); };
+}
+
+function ouvrirBox(e) {
+  e?.stopPropagation();
+  if (boxBusy) return;
+  boxOpen = true;
+  $("box-code").value = "";
+  boxStatus("");
+  render();
+  $("box-code").focus();
+}
+
+function fermerBox() {
+  if (boxBusy) return;
+  boxOpen = false;
+  render();
+}
+
+/**
+ * Confie la fête [fete] à la box du salon d'attente [salon], en une seule écriture : nouvel hôte, trace du changement
+ * (takeover) et relais vers le salon (handoff). Les règles Firebase refont toutes ces vérifications : partie existante,
+ * autre que celle-ci et pilotée par une autre box, salon d'attente sans équipe, sans prestation chargée et sans le
+ * téléphone d'une autre animatrice (jamais la box d'une autre fête, même sur une faute de frappe), appli de la box à
+ * jour, box acceptée dans la Régie PC quand le verrou est en place. Renvoie null si c'est fait, sinon le message à
+ * afficher. [etape] : avancement (« Envoi… », réseau lent). Sert à « 📺 Changer de box » (depuis la fête) comme à
+ * « Continuer la fête sur cette TV » (depuis la nouvelle box).
+ */
+async function confierFete(fete, salon, etape = () => {}) {
+  const lire = (path) => get(ref(db, path)).then((s) => s.val());
+  /** Salon d'attente vide : la box vient d'être allumée sur « Nouvelle partie », aucune tablette ne l'a rejoint. */
+  const salonVide = async () => {
+    const [etat, equipes] = await Promise.all([lire(`games/${salon}/state/phase`), lire(`games/${salon}/teams`)]);
+    return etat === "lobby" && !Object.keys(equipes ?? {}).length;
+  };
+  /** Box qui sait reprendre la fête d'une autre : une version plus ancienne n'écouterait pas, la fête resterait sans box. */
+  const aJour = async () => (await lire(`games/${salon}/public/changeBox`)) === true;
+  /** Ce téléphone est relié à la box de secours (QR scanné par habitude) : il voit si une prestation y est chargée. */
+  const prestationChargee = async () =>
+    !!await lire(`games/${salon}/regie/${uid}`) && await lire(`games/${salon}/show/id`) != null;
+  let hote, ancien;
+  /** Box acceptée dans la Régie PC : true, false, ou undefined si ce téléphone ne peut pas le lire (code de secours). */
+  let acceptee;
+  try {
+    [hote, ancien] = await Promise.all([lire(`games/${salon}/hostUid`), lire(`games/${fete}/hostUid`)]);
+    if (!hote) return BOX_MESSAGES.inconnu;
+    if (hote === ancien) return BOX_MESSAGES.dejaLa;
+    if (!await salonVide()) return BOX_MESSAGES.accueil;
+    if (await prestationChargee()) return BOX_MESSAGES.prestation;
+    if (!await aJour()) return BOX_MESSAGES.ancienne;
+    if ((await lire("boxes/lockOn")) === true) {
+      // Lisible avec le mot de passe de régie ; refusé à un téléphone relié par le code de secours.
+      acceptee = await get(ref(db, `boxes/allowed/${hote}`)).then((s) => s.exists(), (e) => {
+        if (e?.code === "PERMISSION_DENIED" || /permission/i.test(e?.message ?? "")) return undefined;
+        throw e;
+      });
+      if (acceptee === false) return BOX_MESSAGES.nonAcceptee;
+    }
+  } catch (e) {
+    console.error(e);
+    return BOX_MESSAGES.reseau;
+  }
+  etape("Envoi…");
+  // Réseau très lent : l'écriture part dès que possible ; on le dit sans l'annuler (la fête changerait quand même de box).
+  const lent = setTimeout(() => etape(BOX_MESSAGES.lent), 8000);
+  try {
+    await update(ref(db), {
+      [`games/${fete}/hostUid`]: hote,
+      [`games/${fete}/takeover`]: { to: salon, from: ancien, by: uid, at: serverTimestamp() },
+      [`games/${salon}/handoff`]: fete,
+    });
+  } catch (e) {
+    clearTimeout(lent);
+    console.error("Changement de box refusé", e);
+    if (e?.code !== "PERMISSION_DENIED") return BOX_MESSAGES.reseau;
+    // Refus des règles : le salon a changé entre-temps (une tablette, une prestation), ou une autre animatrice y est
+    // reliée (ses données ne se lisent pas d'ici), ou la box n'est pas acceptée (seulement si on n'a pas pu le lire).
+    return (async () => {
+      if (!await lire(`games/${fete}/regie/${uid}`)) return BOX_MESSAGES.refus;
+      if (!await salonVide()) return BOX_MESSAGES.accueil;
+      if (await prestationChargee()) return BOX_MESSAGES.prestation;
+      if (!await aJour()) return BOX_MESSAGES.ancienne;
+      if (!await lire(`games/${salon}/regie/${uid}`)) {
+        return acceptee === undefined && (await lire("boxes/lockOn")) === true
+          ? `${BOX_MESSAGES.autreFete} ${BOX_MESSAGES.siAcceptee}` : BOX_MESSAGES.autreFete;
+      }
+      return acceptee === undefined && (await lire("boxes/lockOn")) === true ? BOX_MESSAGES.nonAcceptee : BOX_MESSAGES.refus;
+    })().catch(() => BOX_MESSAGES.refus);
+  }
+  clearTimeout(lent);
+  return null;
+}
+
+/** Vérifie le code tapé, puis confie la fête à la box de ce salon. */
+async function changerDeBox(saisie) {
+  const nouveau = saisie.toUpperCase().replace(/[\s-]/g, "");
+  if (nouveau === code) return boxStatus(BOX_MESSAGES.meme);
+  if (/^[A-Z0-9]{4}$/.test(nouveau)) return boxStatus(BOX_MESSAGES.activation);
+  if (!CODE_PARTIE.test(nouveau)) return boxStatus(BOX_MESSAGES.format);
+  if (!live.connected) return boxStatus(BOX_MESSAGES.reseau);
+  boxBusy = true;
+  boxStatus("Vérification…", true);
+  render();
+  const raison = await confierFete(code, nouveau, (texte) => boxStatus(texte, true));
+  boxBusy = false;
+  if (raison) {
+    boxStatus(raison);
+    return render();
+  }
+  boxOpen = false;
+  tvMuette = null;
+  render();
+  toast("✓ La fête continue sur la nouvelle TV : mêmes équipes, mêmes points. Les tablettes suivent toutes seules.");
+}
+
+/** Réponses de loginWithPassword, dans la fenêtre « Continuer la fête sur cette TV ». */
+const CONTINUER_MESSAGES = {
+  wrong: "Mot de passe de régie incorrect.",
+  ended: "Cette fête vient de se terminer : elle ne change plus de box.",
+  refused: "Mot de passe correct, mais la fête a refusé l'accès. Réessayez.",
+  unset: "Aucun mot de passe de régie n'est enregistré.",
+  busy: "Trop d'essais en même temps. Réessayez dans quelques secondes.",
+};
+
+/** « L'anniversaire de Chloé », ou le titre de la prestation entre guillemets. */
+/** Le prénom d'abord (cedric : « Lancer l'anniversaire de Chloé ? ») ; le titre seulement sans prénom. */
+function nomFete(show) {
+  return show.childName?.trim() ? `L'anniversaire de ${show.childName.trim()}` : `« ${showTitle(show)} »`;
+}
+
+/**
+ * L'anniversaire touché est déjà chargé ou en cours sur une autre box (cedric, 21/10) : jamais une seconde fête en
+ * parallèle. Box de la fête en panne : « Continuer la fête sur cette TV » la confie à la TV de ce téléphone (le même
+ * changement de box, vu depuis la nouvelle box). Ce téléphone devient la régie de la fête (mot de passe redemandé et
+ * vérifié par le serveur), la fête reprend ici avec ses équipes et ses points, l'ancienne box ne pilote plus rien.
+ * Seulement depuis un salon d'attente neuf : aucune équipe, aucune prestation chargée, appli à jour.
+ */
+async function continuerIci({ show, run }) {
+  const fete = run.code;
+  const title = `${nomFete(show)} est déjà ${run.etat === "salon" ? "chargé" : "en cours"} sur une autre box.`;
+  const line = launchLabel(run);
+  const lire = (path) => get(ref(db, path)).then((s) => s.val(), () => null);
+  const salonNeuf = live.state?.phase === "lobby" && !Object.keys(live.teams ?? {}).length
+    && await lire(`games/${code}/show/id`) == null && await lire(`games/${code}/public/changeBox`) === true;
+  if (!salonNeuf) {
+    await demander({
+      title, line, ok: null,
+      text: "L'autre box est en panne ? Sur cette TV, choisissez « Nouvelle partie », puis touchez à nouveau l'anniversaire ici : la fête continuera sur cette TV.",
+    });
+    return;
+  }
+  const ok = await demander({
+    title, line, safe: true, password: true, ok: "📺 Continuer la fête sur cette TV",
+    text: "La fête continue sur cette TV, avec ses équipes et ses points. L'autre box ne pilotera plus rien.",
+    danger: run.online !== false ? "L'autre box est encore allumée et connectée : à faire seulement si elle est en panne." : "",
+    action: async (password) => {
+      if (!password) return "Tapez le mot de passe de la régie.";
+      if (!live.connected) return BOX_MESSAGES.reseau;
+      const acces = await loginWithPassword({ db, uid }, fete, password);
+      if (acces !== "ok") return CONTINUER_MESSAGES[acces] ?? CONTINUER_MESSAGES.refused;
+      return confierFete(fete, code);
+    },
+  });
+  if (!ok) return;
+  basculerVers(fete);
+  toast("✓ La fête continue sur cette TV : mêmes équipes, mêmes points. Les tablettes suivent toutes seules.");
+}
+
+/** Ce téléphone pilote désormais la fête [fete] : même page, autre partie (aussi après un rechargement). */
+function basculerVers(fete) {
+  code = fete;
+  try {
+    const url = new URL(location.href);
+    url.searchParams.set("g", fete);
+    history.replaceState(history.state, "", url);
+  } catch (e) {
+    console.warn("Adresse de la page non mise à jour", e);
+  }
+  wrongShow = false;
+  rescueOpen = false;
+  boxOpen = false;
+  control();
+}
+
+$("c-box").onclick = ouvrirBox;
+$("box-close").onclick = fermerBox;
+$("box-form").onsubmit = (e) => {
+  e.preventDefault();
+  if (!boxBusy) changerDeBox($("box-code").value);
+};
 
 // ---------- Mimes ----------
 
@@ -1188,6 +1485,15 @@ function renderRescue(st) {
     row.append(name, b);
     return row;
   }));
+  // Mauvaise prestation lancée (cedric, 21/10) : discret, et seulement tant qu'aucun point n'a été donné.
+  const wrong = $("rescue-wrong");
+  wrong.hidden = !mayReplaceShow(st);
+  wrong.onclick = () => {
+    rescueOpen = false;
+    wrongShow = true;
+    tabChosen = true;
+    switchTab("show");
+  };
 }
 
 /** Saut vers le début du jeu [r], après confirmation adaptée (aller plus loin, ou recommencer). */
@@ -1199,6 +1505,11 @@ async function jumpTo(r, st) {
     ? { title: `Recommencer « ${name} » ?`, text: "Le jeu repart de sa première question, avec les mêmes questions. Les points gagnés dans ce jeu sont retirés puis rejoués : rien n'est compté deux fois. Les équipes et les points des autres jeux sont gardés.", ok: "Recommencer ce jeu", alert: true }
     : { title: `Passer à « ${name} » ?`, text: st.phase === "ended" ? "La partie reprend avec ce jeu. Les équipes et leurs points sont gardés." : `Le jeu en cours s'arrête là, ses points déjà gagnés sont gardés. Si « ${name} » avait déjà été commencé, il repart de zéro sans compter deux fois.`, ok: `Aller à « ${name} »` });
   if (!ok) return;
+  // Photos et extraits du jeu recopiés dans la partie s'ils y manquent (copies effacées après la fête, partie reprise
+  // sur une autre box) : jamais bloquant, une copie déjà là n'est pas refaite.
+  const jeu = questions.slice(r.start, r.end + 1);
+  copyImages(jeu).catch((e) => console.warn("Illustrations non recopiées", e));
+  copySounds(jeu);
   const status = await send("goto", { index: r.start, qid: questions[r.start].id }, { advance: true });
   if (status?.status === "applied") {
     rescueOpen = false;
@@ -1391,6 +1702,8 @@ async function replayWithOthers(type, played, title) {
   const count = deck ? (type === "pictionary" ? deck.cards.length : null) : played.length;
   picked = null;
   $("lib").hidden = false;
+  // Jamais l'aperçu du jeu choisi la fois d'avant pendant que le nouveau tirage se prépare.
+  $("lib-preview").hidden = true;
   if (!library?.games) await fetchLibrary();
   if (!library?.games) return;
   await pick({ key: `rejouer/${type}`, label: title.replace(/ \(\d+\)$/, ""), random: true, base, source: { type, ...(count ? { count } : {}) } });
@@ -1403,6 +1716,8 @@ async function replayWithOthers(type, played, title) {
 async function rejouer(type, played, title) {
   picked = null;
   $("lib").hidden = false;
+  // Jamais l'aperçu du jeu choisi la fois d'avant (ses questions déjà posées) pendant que les autres se préparent.
+  $("lib-preview").hidden = true;
   if (!library?.games) await fetchLibrary();
   if (!library?.games) return;
   const source = sourceRejouee(type, played, library.quizzes);
@@ -1619,7 +1934,7 @@ function renderLibrary() {
       return;
     }
     if (game.source.type === "patate") {
-      meta.textContent = "la bombe passe de tablette en tablette · mèche secrète · rien à préparer";
+      meta.textContent = "la bombe passe de tablette en tablette · 3 s au plus par équipe · mèche secrète · rien à préparer";
       b.append(title, meta);
       b.onclick = () => pick(game);
       box.appendChild(b);
@@ -2005,7 +2320,7 @@ function renderPreview() {
     const answer = document.createElement("b");
     // Chante le mot : le mot seul ; Qui suis-je : le personnage et son premier indice.
     if (q.kind === "chante") { answer.textContent = q.text; li.append(answer); list.appendChild(li); return; }
-    if (q.kind === "patate") { li.textContent = "La bombe passe de tablette en tablette ; à l'explosion, l'équipe qui la tient perd des points."; list.appendChild(li); return; }
+    if (q.kind === "patate") { li.textContent = "La bombe passe de tablette en tablette ; une équipe qui la garde plus de 3 secondes la voit exploser. À l'explosion, l'équipe qui la tient perd des points."; list.appendChild(li); return; }
     if (q.kind === "gonfleur") { li.textContent = "Chaque équipe tapote sa tablette pour gonfler son ballon : le premier qui éclate gagne."; list.appendChild(li); return; }
     if (q.kind === "coffres") { li.textContent = "Un coffre chacun son tour, bonus ou malus, puis la bombe qui arrête le jeu."; list.appendChild(li); return; }
     // Blind test et quiz musical : le titre (et l'artiste) de chaque extrait.
@@ -2172,10 +2487,11 @@ async function sendProgram(questions, success, fromLibrary = false, onApplied = 
     render();
   };
   let stop = () => {};
-  const timeout = setTimeout(() => { stop(); done("La TV ne répond pas. Vérifiez qu'elle est allumée et connectée à Internet.", false); }, 8000);
+  const timeout = setTimeout(() => { stop(); done("La TV ne répond pas. Vérifiez qu'elle est allumée et connectée à Internet.", false); tvSilencieuse(); }, 8000);
   stop = onValue(ref(db, `games/${code}/showStatus`), (s) => {
     const status = s.val();
     if (status?.id !== id) return;
+    tvRepond();
     clearTimeout(timeout);
     stop();
     const applied = status.status === "applied";
@@ -2204,13 +2520,27 @@ $("lib-end").onclick = () => addPicked("end");
 
 const SHOW_MESSAGES = {
   not_now: "La partie a déjà commencé : la prestation ne peut plus changer.",
+  points: "Des points ont déjà été donnés : la prestation ne peut plus changer. Pour repartir de zéro, choisissez « Nouvelle partie » sur la TV.",
   invalid: "La TV n'a pas pu lire cette prestation. Vérifiez-la dans l'administration.",
 };
+
+/** Deux régies ont lancé le même anniversaire au même instant : le serveur n'a gardé que l'autre. */
+const SHOW_TAKEN = "Cet anniversaire vient d'être lancé sur une autre box.";
+
+/** États d'une prestation lancée ailleurs : la toucher ne lance jamais une seconde fête en parallèle. */
+const AILLEURS = ["salon", "encours", "interrompue"];
+
+/**
+ * « Mauvaise prestation ? » (cedric, 21/10) : partie commencée mais aucun point donné, et TV qui sait remplacer
+ * la prestation (sinon elle la refuserait). Dès le premier point, la proposition disparaît.
+ */
+const mayReplaceShow = (st) => st.phase !== "lobby" && st.phase !== "ended" && st.scored !== true && live.plan?.programReset === true;
 
 /**
  * Lit les prestations publiées et la bibliothèque, et prépare le programme de chacune (réservé au mot de
  * passe de régie). Toujours relu depuis la base : une prestation modifiée dans l'administration après
- * l'ouverture de la régie n'est jamais lancée dans son ancienne version.
+ * l'ouverture de la régie n'est jamais lancée dans son ancienne version. Chacune dit où elle en est (lancements,
+ * launches/) ; une prestation archivée ou passée reste dans la liste tant que sa fête n'est pas terminée.
  */
 async function readShows() {
   const [s, q, m, p, c] = await Promise.all(["shows", "quizzes", "mimes", "playlists", "contents"].map((k) => get(ref(db, `library/${k}`))));
@@ -2218,23 +2548,27 @@ async function readShows() {
   const mimes = m.val() ?? {};
   const playlists = p.val() ?? {};
   const contents = c.val() ?? {};
+  const lire = (path) => get(ref(db, path)).then((x) => x.val(), () => null);
+  const launches = await lire("launches") ?? {};
+  const runs = await launchStates(launches, lire, { here: code, now: Date.now() + serverOffset });
   const today = new Date().toISOString().slice(0, 10);
-  return Object.entries(s.val() ?? {})
-    .filter(([, show]) => show.status === "publiee" && !isArchived(show))
-    .map(([id, show]) => ({ id, show, ...buildSnapshot(id, show, quizzes, mimes, Math.random, playlists, contents) }))
+  const list = Object.entries(s.val() ?? {})
+    .filter(([id, show]) => (show.status === "publiee" && !isArchived(show)) || runs[id]?.etat === "ici" || AILLEURS.includes(runs[id]?.etat))
+    .map(([id, show]) => ({ id, show, run: runs[id] ?? { etat: "preparee" }, ...buildSnapshot(id, show, quizzes, mimes, Math.random, playlists, contents) }))
     // Les prestations à venir d'abord, la plus proche en tête ; les passées ensuite.
     .sort((a, b) => {
       const da = a.show.date ?? "9999", dbb = b.show.date ?? "9999";
       const pa = da < today, pb = dbb < today;
       return pa !== pb ? (pa ? 1 : -1) : pa ? dbb.localeCompare(da) : da.localeCompare(dbb);
     });
+  return { list, launches };
 }
 
 async function fetchShows() {
   shows = { loading: true };
   render();
   try {
-    shows = { list: await readShows() };
+    shows = { list: (await readShows()).list };
   } catch (e) {
     console.error(e);
     shows = { denied: /permission/i.test(String(e?.message ?? e)) };
@@ -2244,12 +2578,15 @@ async function fetchShows() {
 
 function renderShows(st) {
   const lobby = st.phase === "lobby";
-  $("tab-show").hidden = !lobby;
-  if (!lobby && tab === "show") switchTab("teams");
-  if (!lobby || tab !== "show") return;
+  // Mauvaise prestation : la liste reste ouverte en pleine partie, tant que la TV peut encore la remplacer.
+  if (wrongShow && (lobby || !mayReplaceShow(st))) wrongShow = false;
+  const open = lobby || wrongShow;
+  $("tab-show").hidden = !open;
+  if (!open && tab === "show") switchTab("teams");
+  if (!open || tab !== "show") return;
   if (shows === null) { fetchShows(); return; }
   const box = $("panel-show");
-  const key = JSON.stringify([shows.loading, shows.denied, shows.list?.map((s) => s.id), loadingShow, live.plan?.title]);
+  const key = JSON.stringify([shows.loading, shows.denied, shows.list?.map((s) => [s.id, s.run]), loadingShow, live.plan?.title, wrongShow]);
   if (box.dataset.key === key) return;
   box.dataset.key = key;
   box.innerHTML = "";
@@ -2257,8 +2594,17 @@ function renderShows(st) {
   if (shows.loading) return hint("Chargement des prestations…");
   if (shows.denied) return hint("Pour charger une prestation, entrez dans la régie avec le mot de passe (pas avec le code de la TV).");
   if (shows.error || !shows.list) return hint("Impossible de lire les prestations. Vérifiez la connexion.");
+  if (wrongShow) {
+    hint("Mauvaise prestation ? Touchez la bonne : la partie repart du salon d'attente, avec les mêmes équipes.");
+    const keep = document.createElement("button");
+    keep.className = "link";
+    keep.id = "show-keep";
+    keep.textContent = "Garder la prestation en cours";
+    keep.onclick = () => { wrongShow = false; switchTab("teams"); };
+    box.appendChild(keep);
+  }
   if (!shows.list.length) hint("Aucune prestation à venir. Sarah les prépare dans l'administration (statut « À venir »).");
-  shows.list.forEach(({ id, show, snapshot, problems }) => {
+  shows.list.forEach(({ id, show, snapshot, problems, run }) => {
     const item = document.createElement("button");
     item.className = "show-item";
     item.dataset.show = id;
@@ -2272,7 +2618,14 @@ function renderShows(st) {
     detail.textContent = snapshot
       ? `${snapshot.rounds.length} jeu${snapshot.rounds.length > 1 ? "x" : ""}${asked ? ` · ${asked} questions` : ""}`
       : problems[problems.length - 1];
-    item.append(title, meta, detail);
+    // Où en est la prestation : préparée, sur cette TV, sur une autre box, interrompue, terminée.
+    const where = document.createElement("span");
+    where.className = "show-run";
+    where.textContent = launchLabel(run);
+    item.classList.toggle("ici", run.etat === "ici");
+    item.classList.toggle("ailleurs", AILLEURS.includes(run.etat));
+    item.dataset.run = run.etat;
+    item.append(title, meta, where, detail);
     // Un jeu qui ne peut pas être préparé ne disparaît jamais en silence : la régie le dit avant le lancement.
     if (snapshot && problems.length) {
       const warn = document.createElement("span");
@@ -2340,14 +2693,49 @@ async function copySounds(questions) {
   }
 }
 
+/** « l'anniversaire de Chloé », ou le titre de la prestation entre guillemets (dans une phrase). */
+function nomDansPhrase(show) {
+  const nom = nomFete(show);
+  return nom.startsWith("L'") ? `l'${nom.slice(2)}` : nom;
+}
+
+/**
+ * Fenêtre de lancement (cedric, 21/10), sur le téléphone seulement : « Lancer l'anniversaire de Chloé ? », âge et date,
+ * date qui n'est pas aujourd'hui signalée sans crier, jeux impossibles à préparer. « Annuler » par défaut. Une
+ * prestation déjà sur la TV est remplacée (« Les équipes restent. ») ; une fête terminée se relance depuis le début.
+ */
+async function confirmationLancement({ show, snapshot, problems, run }) {
+  const date = show.date ? new Date(`${show.date}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) : "";
+  const line = [show.age ? `${show.age} ans` : "", date].filter(Boolean).join(" – ");
+  const warn = show.date && show.date !== isoDay() ? "⚠ Ce n'est pas la date d'aujourd'hui." : "";
+  const soucis = problems.length
+    ? `⚠ ${problems.join("\n")}\n\nProgramme qui sera joué : ${snapshot.rounds.map((r) => r.title).join(" → ")}.` : "";
+  const st = live.state ?? {};
+  if (run?.etat === "terminee") {
+    return { title: `Cette fête est terminée${run.at ? ` le ${jourHeure(run.at)}` : ""}.`, text: ["La relancer depuis le début sur cette TV ?", soucis].filter(Boolean).join("\n\n"), line, warn, ok: "Relancer", safe: true };
+  }
+  // Prestation déjà chargée sur cette TV (salon d'attente), ou mauvaise prestation en pleine partie : elle est remplacée.
+  const avant = live.plan?.rev && live.plan.rev !== "initial" && !isDemo()
+    ? await get(ref(db, `games/${code}/public`)).then((x) => x.val(), () => null) : null;
+  if (avant?.title && run?.etat !== "ici") {
+    const ancien = avant.childName ? `l'anniversaire de ${avant.childName}` : `« ${avant.title} »`;
+    const nouveau = show.childName?.trim() ? `celui de ${show.childName.trim()}` : `« ${showTitle(show)} »`;
+    const suite = st.phase === "lobby" ? "Les équipes restent." : "Les équipes restent, on repart au début.";
+    return { title: `Remplacer ${ancien} par ${nouveau} ?`, text: [suite, soucis].filter(Boolean).join("\n\n"), line, warn, ok: "Remplacer", safe: true };
+  }
+  return { title: `Lancer ${nomDansPhrase(show)} ?`, text: soucis, line, warn, ok: problems.length ? "Lancer quand même" : "Lancer", safe: true };
+}
+
 async function loadShow(id) {
   if (loadingShow) return;
   loadingShow = id;
   render();
   // La prestation est relue à l'instant du lancement : jamais la version gardée depuis l'ouverture de la page.
-  let fresh;
+  let fresh, launches;
   try {
-    fresh = (await readShows()).find((x) => x.id === id);
+    const read = await readShows();
+    launches = read.launches;
+    fresh = read.list.find((x) => x.id === id);
   } catch (e) {
     console.error(e);
     loadingShow = null;
@@ -2363,33 +2751,67 @@ async function loadShow(id) {
   }
   const refused = tvRefuses(snapshot.quiz?.questions ?? []);
   if (refused) { loadingShow = null; toast(refused); return render(); }
-  if (problems.length && !await demander({
-    title: "Un jeu ne pourra pas être joué",
-    text: `${problems.join("\n")}\n\nProgramme qui sera joué : ${snapshot.rounds.map((r) => r.title).join(" → ")}.`,
-    ok: "Lancer quand même",
-  })) {
+  // Déjà sur une autre box (lancée entre-temps, ou liste pas encore à jour) : jamais une seconde fête en parallèle.
+  if (AILLEURS.includes(fresh.run.etat)) {
+    loadingShow = null;
+    render();
+    return continuerIci(fresh);
+  }
+  if (!await demander(await confirmationLancement(fresh))) {
     loadingShow = null;
     return render();
   }
   if (snapshot.quiz) snapshot.quiz = { ...snapshot.quiz, questions: await copyImages(snapshot.quiz.questions) };
   const showId = push(ref(db, `games/${code}/show`)).key;
+  // Prestations encore rattachées à cette partie (celle qu'on remplace) : libérées dans la même écriture.
+  const anciennes = Object.entries(launches ?? {}).filter(([pid, l]) => l?.code === code && pid !== id).map(([pid]) => pid);
   const done = (message) => { loadingShow = null; if (message) toast(message); render(); };
+  /** Refus de la TV : la prestation refusée est libérée, celle que la TV joue encore reprend sa place. */
+  const annuler = async () => {
+    const joue = await get(ref(db, `games/${code}/public/prestation`)).then((x) => x.val(), () => null);
+    if (joue === id) return;
+    const retour = { [`launches/${id}`]: null };
+    if (joue && anciennes.includes(joue)) retour[`launches/${joue}`] = { code, by: uid, at: serverTimestamp() };
+    await update(ref(db), retour).catch((e) => console.warn("Lancement non annulé", e));
+  };
   let stop = () => {};
-  const timeout = setTimeout(() => { stop(); done("La TV ne répond pas. Vérifiez qu'elle est allumée et connectée à Internet."); }, 8000);
+  const timeout = setTimeout(() => { stop(); done("La TV ne répond pas. Vérifiez qu'elle est allumée et connectée à Internet."); tvSilencieuse(); }, 8000);
   stop = onValue(ref(db, `games/${code}/showStatus`), (s) => {
     const status = s.val();
     if (status?.id !== showId) return;
+    tvRepond();
     clearTimeout(timeout);
     stop();
-    done(status.status === "applied" ? `« ${snapshot.title} » est chargée sur la TV : ${snapshot.rounds.length} jeu${snapshot.rounds.length > 1 ? "x" : ""}.` : SHOW_MESSAGES[status.reason] ?? "La TV a refusé cette prestation.");
+    if (status.status === "applied") {
+      wrongShow = false;
+      // La liste le montre aussitôt : celle-ci sur cette TV, celle qu'elle remplace de nouveau libre.
+      if (shows?.list) {
+        shows = { list: shows.list.map((x) => (x.id === id ? { ...x, run: { etat: "ici", code } }
+          : x.run?.etat === "ici" ? { ...x, run: { etat: "preparee" } } : x)) };
+      }
+      return done(`« ${snapshot.title} » est chargée sur la TV : ${snapshot.rounds.length} jeu${snapshot.rounds.length > 1 ? "x" : ""}.`);
+    }
+    annuler();
+    done(SHOW_MESSAGES[status.reason] ?? "La TV a refusé cette prestation.");
   });
   copySounds(snapshot.quiz?.questions);
   try {
-    await set(ref(db, `games/${code}/show`), { ...snapshot, id: showId, by: uid, at: serverTimestamp() });
+    // Le programme pour la TV et le lancement de la prestation en une seule écriture : si une autre box vient de la
+    // lancer, le serveur refuse tout, rien n'arrive sur cette TV.
+    await update(ref(db), {
+      [`games/${code}/show`]: { ...snapshot, id: showId, prestation: id, by: uid, at: serverTimestamp() },
+      [`launches/${id}`]: { code, by: uid, at: serverTimestamp() },
+      ...Object.fromEntries(anciennes.map((pid) => [`launches/${pid}`, null])),
+    });
   } catch (e) {
     console.error(e);
     clearTimeout(timeout);
     stop();
+    const ailleurs = await get(ref(db, `launches/${id}/code`)).then((x) => x.val(), () => null);
+    if (ailleurs && ailleurs !== code) {
+      done(SHOW_TAKEN);
+      return fetchShows();
+    }
     done("Chargement refusé : la partie a peut-être déjà commencé.");
   }
 }
@@ -2461,10 +2883,12 @@ async function send(type, extra = {}, { advance = false } = {}) {
     const timeout = setTimeout(() => {
       toast("La TV ne répond pas. Vérifiez qu'elle est allumée et connectée à Internet.");
       done(null);
+      tvSilencieuse();
     }, BOX_TIMEOUT_MS);
     stop = onValue(ref(db, `games/${code}/commandStatus/${cmdRef.key}`), (s) => {
       const status = s.val();
       if (!status) return;
+      tvRepond();
       if (status.status !== "applied") toast(STATUS_MESSAGES[status.reason] ?? STATUS_MESSAGES[status.status] ?? "Commande refusée.");
       done(status);
     });

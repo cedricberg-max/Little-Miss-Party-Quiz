@@ -49,8 +49,11 @@ export function questionConcepts(q) {
       return concepts({ word: q.choices?.[q.correct], imageId: q.imageId });
     default: {
       // Quiz photo : les photos des réponses et leurs mots ; puis l'illustration de la révélation (ou la pochette).
+      // Quiz illustré tiré au hasard, avant le chargement : la photo de la banque ou l'émoji de chaque réponse (`choiceBanque`).
       const photos = q.choiceImages && typeof q.choiceImages === "object" ? q.choiceImages : null;
-      const answers = photos ? (q.choices ?? []).flatMap((c, k) => (IMAGE_ID.test(photos[k] ?? "") ? concepts({ word: c, imageId: photos[k] }) : [])) : [];
+      const libres = Array.isArray(q.choiceBanque) ? q.choiceBanque : null;
+      const answers = photos || libres ? (q.choices ?? []).flatMap((c, k) => (IMAGE_ID.test(photos?.[k] ?? "") ? concepts({ word: c, imageId: photos[k] })
+        : libres?.[k] ? concepts({ word: c, image: libres[k].emoji }) : [])) : [];
       return [...answers, ...concepts({ imageId: q.imageId })];
     }
   }

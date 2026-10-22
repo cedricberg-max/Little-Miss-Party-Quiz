@@ -642,6 +642,17 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `chaque son du Game Show remplace un son classique qui existe`() {
+        val noms = (Son.entries.map { it.fichier } + Lit.entries.map { it.fichier }).toSet()
+        // Les sons seulement : les clips du robot (gs_robot_*.webp) vivent aussi dans res/raw.
+        val gs = java.io.File("src/main/res/raw").listFiles().orEmpty().filter { it.extension in setOf("ogg", "mp3", "wav") }
+            .map { it.nameWithoutExtension }.filter { it.startsWith("gs_") }
+        assertTrue("Aucun son du Game Show", gs.isNotEmpty())
+        val orphelins = gs.filterNot { it.replaceFirst("gs_", "lmp_") in noms }
+        assertTrue("Sons du Game Show sans son classique : $orphelins", orphelins.isEmpty())
+    }
+
+    @Test
     fun `presentation d'un jeu en musique douce, le jingle de manche seulement quand Sarah le lance`() {
         val d = DirecteurSonore()
         d.observer(salon)

@@ -41,6 +41,8 @@ class PortesMysteresTest {
         assertEquals(Recit.NOUVEAU_PREMIER, evo[1].recit)
         assertEquals("+1 place !", texteRecit(evo[2]))
         assertEquals(Recit.TIENT, evo[3].recit)
+        // « Ça tient ! » n'était pas clair pour cedric : l'équipe a marqué mais reste à sa place.
+        assertEquals("Garde sa place !", texteRecit(evo[3]))
         assertTrue(renversement(l))
     }
 

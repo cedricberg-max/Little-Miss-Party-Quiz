@@ -154,6 +154,9 @@ button.tile:hover { border-color: var(--violet); }
 .pill { align-self: flex-start; font-size: 14px; font-weight: 800; padding: 4px 12px; border-radius: 999px; background: var(--violet-pale); color: var(--violet); }
 .pill.ok { background: var(--good-pale); color: var(--good); }
 .pill.warn { background: var(--gold-pale); color: var(--warn); }
+/* Fête lancée sur une box : en cours, interrompue (reprise possible), terminée. */
+.pill.run.encours { background: var(--good-pale); color: var(--good); }
+.pill.run.interrompue { background: var(--gold-pale); color: var(--warn); }
 .todo ul { margin: 6px 0 0; padding-left: 20px; color: var(--warn); font-size: 15px; }
 .card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 .show-card { cursor: pointer; }
@@ -536,6 +539,8 @@ body.essai::before {
 .song.song-ligne, .song.song-entete { display: grid; grid-template-columns: 26px 52px minmax(90px, 1fr) minmax(120px, 1.4fr) 132px 112px 44px 216px; gap: 6px 12px; padding: 8px 12px; }
 .song-ligne .song-tools { justify-content: flex-end; }
 .song.song-entete { background: none; border: none; padding-top: 0; padding-bottom: 0; color: var(--soft); font-size: 13px; font-weight: 700; }
+.song-tri { all: unset; cursor: pointer; text-align: left; }
+.song-tri:hover, .song-tri.actif { color: var(--ink); text-decoration: underline; }
 .song-ligne.choisie { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(217, 164, 65, 0.35); }
 .song-ligne .song-check { width: 18px; height: 18px; cursor: pointer; }
 .song-ligne .song-artiste { color: var(--soft); overflow-wrap: anywhere; }
@@ -546,6 +551,9 @@ body.essai::before {
 .song-pochette.vide:hover, .song-paroles:hover { border-color: var(--gold); }
 .song-paroles { cursor: pointer; font-size: 14px; border: 1px dashed var(--line); border-radius: 999px; padding: 4px 10px; text-align: center; white-space: nowrap; }
 .song-paroles.ok { border-style: solid; border-color: var(--good); color: var(--good); font-weight: 700; }
+.song-paroles-cellule { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.song-paroles-cellule .song-paroles { flex: 1 1 auto; min-width: 0; }
+button.icon.song-paroles-retirer { flex: none; width: 28px; height: 28px; padding: 0; font-size: 13px; }
 .song-moments { font-size: 14px; border-radius: 999px; padding: 4px 10px; white-space: nowrap; text-align: center; }
 button.song-moments { border: 1px dashed var(--line-2); color: var(--soft); background: none; cursor: pointer; font: inherit; font-size: 14px; }
 button.song-moments.ok { border: 1px solid var(--good); color: var(--good); font-weight: 700; }

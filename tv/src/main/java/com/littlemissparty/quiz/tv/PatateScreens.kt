@@ -34,7 +34,8 @@ import kotlinx.coroutines.delay
  * « Ça va exploser ! » sur la TV. L'écran ne décide rien : la box allume la mèche (durée tirée au sort, jamais
  * affichée), les tablettes envoient la bombe, la partie la fait exploser. Ici : la scène de la bombe
  * (habillage/Patate.kt) avec une tension qui monte d'après le temps de mèche écoulé, puis l'explosion. Trois bombes par
- * partie : après chaque explosion sauf la dernière, « Bombe 2 sur 3 », et la nouvelle bombe part.
+ * partie : après chaque explosion sauf la dernière, « Bombe 2 sur 3 », et la nouvelle bombe part. Une équipe qui garde
+ * la bombe plus de 3 secondes la voit exploser chez elle (le bas de l'écran compte 3, 2, 1).
  */
 
 @Composable
@@ -58,6 +59,8 @@ fun PatateScreen(state: UiState.Playing, actions: TvActions) {
     val annonce = p != null && !explosion && p.bomb > 1 && maintenant < p.since
     val porteur = joueuses.indexOfFirst { it.uid == (if (explosion) boom?.holder else p?.holder) }
     val pret = p != null && !p.exploded && maintenant >= p.readyAt && (state.resumeAt ?: 0L) <= maintenant
+    // Anti-triche : 3 secondes pour l'envoyer, sinon elle explose chez l'équipe qui la garde (3, 2, 1 aussi sur sa tablette).
+    val secondes = state.holdUntil?.takeIf { pret }?.let { ((it - maintenant + 999) / 1000).coerceIn(1, 3) }
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 20.dp)) {
@@ -88,8 +91,10 @@ fun PatateScreen(state: UiState.Playing, actions: TvActions) {
                 Text(
                     when {
                         p == null -> ""
+                        explosion && boom?.held == true -> "Gardée plus de 3 secondes ! Toutes les autres équipes gagnent ${boom?.gain ?: 0} points !"
                         explosion -> "Toutes les autres équipes gagnent ${boom?.gain ?: 0} points !"
                         annonce -> "Attention, une nouvelle bombe arrive !"
+                        secondes != null -> "Vite, envoyez la bombe ! Elle explose dans $secondes…"
                         else -> "Vite, envoyez la bombe à une autre équipe sur votre tablette !"
                     },
                     style = styleCentre(26.sp, Neon.OrClair),

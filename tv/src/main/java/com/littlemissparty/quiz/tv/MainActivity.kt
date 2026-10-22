@@ -11,6 +11,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.runtime.Composable
@@ -19,6 +21,8 @@ import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.em
 import com.littlemissparty.quiz.tv.habillage.AvecPoliceLmp
 import com.littlemissparty.quiz.tv.habillage.BonusMalus
+import com.littlemissparty.quiz.tv.habillage.Design
+import com.littlemissparty.quiz.tv.habillage.Look
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 
@@ -31,6 +35,9 @@ class MainActivity : ComponentActivity() {
         CrashReporter.install(applicationContext)
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // Design choisi dans le menu Retour (Classique par défaut), gardé sur la box.
+        val reglages = getSharedPreferences(PREFS_DESIGN, MODE_PRIVATE)
+        Look.design = Design.depuis(reglages.getString(CLE_DESIGN, null))
         setContent {
             val state by viewModel.state.collectAsState()
             val updateUi by updates.ui.collectAsState()
@@ -38,6 +45,7 @@ class MainActivity : ComponentActivity() {
             val updateAvailable by updates.available.collectAsState()
             val updateOffer by updates.offer.collectAsState()
             val coup by viewModel.coup.collectAsState()
+            val vidage by viewModel.vidage.collectAsState()
             val busy = gameInProgress(state)
             LaunchedEffect(busy) { updates.setBusy(busy) }
             // Police Baloo 2 « cartes néon » (choix de cedric) pour tous les textes qui n'en imposent pas une autre.
@@ -75,6 +83,14 @@ class MainActivity : ComponentActivity() {
                     potatoRandom = viewModel::potatoRandom,
                     givePoints = viewModel::givePoints,
                     requestAgain = viewModel::requestAgain,
+                    viderCache = viewModel::viderCacheMedias,
+                    changerDesign = {
+                        val d = if (Look.gs) Design.CLASSIQUE else Design.GAME_SHOW
+                        Look.design = d
+                        reglages.edit().putString(CLE_DESIGN, d.cle).apply()
+                        // Les sons suivent le design (sons sci-fi du Game Show).
+                        com.littlemissparty.quiz.tv.habillage.Sons.recharger(this@MainActivity)
+                    },
                 ),
                 update = UpdateScreen(
                     ui = updateUi, open = updateOpen, available = updateAvailable, offer = updateOffer,
@@ -89,6 +105,7 @@ class MainActivity : ComponentActivity() {
                         declineOffer = updates::declineOffer,
                     ),
                 ),
+                vidage = vidage,
             )
             }
             // BONUS / MALUS de la régie, par-dessus le jeu sans rien arrêter (chrono, musique, pupitres).
@@ -112,11 +129,22 @@ class MainActivity : ComponentActivity() {
  * les textes qui fixent le leur (habillage) ne changent pas.
  */
 @Composable
-private fun PoliceDesEcrans(contenu: @Composable () -> Unit) = AvecPoliceLmp {
-    ProvideTextStyle(
-        LocalTextStyle.current.merge(
-            TextStyle(lineHeight = 1.2.em, lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None)),
-        ),
-        contenu,
-    )
+private fun PoliceDesEcrans(contenu: @Composable () -> Unit) {
+    // Taille de police de la TV ignorée : les écrans sont dessinés au millimètre pour 960 × 540. Sur une TV réglée en
+    // « grande police » (TCL de cedric, 21/10), les textes grossissaient mais pas les cadres : noms d'équipe coupés
+    // en bas des pastilles des mimes, textes décentrés dans les boutons.
+    val d = LocalDensity.current
+    CompositionLocalProvider(LocalDensity provides Density(d.density, 1f)) {
+        AvecPoliceLmp {
+            ProvideTextStyle(
+                LocalTextStyle.current.merge(
+                    TextStyle(lineHeight = 1.2.em, lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None)),
+                ),
+                contenu,
+            )
+        }
+    }
 }
+
+private const val PREFS_DESIGN = "lmp_design"
+private const val CLE_DESIGN = "design"

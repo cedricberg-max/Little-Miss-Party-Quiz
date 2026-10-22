@@ -19,6 +19,7 @@ import {
   roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS,
   isStatuesList, statuesSongs, statuesChoices, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS, builtinConcepts, isPhotoTheme, disparuGroup,
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, alerteEquipes, EQUIPES_PAR_DEFAUT, pourLeHasard, premierQuiz,
+  launchStates, launchLabelPc,
 } from "./show.js";
 import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE } from "./banque-photos.js";
 import { shuffle } from "./mime-cards.js";
@@ -30,7 +31,7 @@ import {
 import { concepts, neufsSiPossible } from "./jamais-deux-fois.js";
 import { PICTO_OWN_SERIES } from "./picto-cards.js";
 import { EXTRACT_SECONDS, guessTrack, decodeFile, cutExtract, makeExtract, synthTune, encodeMp3, soundId } from "./audio.js";
-import { REFRAIN_SEC, REFRAIN_KBPS, buzzOf, defaultRefrain, songList, songsRetirees, songMatches, trackFromSong, songUpdates } from "./sons.js";
+import { REFRAIN_SEC, REFRAIN_KBPS, buzzOf, defaultRefrain, songList, songsRetirees, songMatches, trackFromSong, songUpdates, marquerEffacees } from "./sons.js";
 import { lireLrc, refrainsDesParoles, debutDesParoles, parolesDuRefrain, associerParoles, nomSimple, MAX_LRC } from "./paroles.js";
 import { volumes, explosionDuVolume, refrainAuVolume } from "./volume.js";
 import { etiquettesMp3 } from "./id3.js";
@@ -115,6 +116,10 @@ let contents = {};
 let manches = {};
 /** Fiches des images de la bibliothèque (nom, catégorie, mots-clés, retirée), par identifiant d'image. */
 let medias = {};
+/** Où en est chaque prestation lancée (launches/ et ce que publie sa partie), par identifiant de prestation. */
+let runs = {};
+let launches = {};
+let runsTimer = null;
 let stops = [];
 let current = "home";
 
@@ -365,9 +370,25 @@ function enter() {
   // Box : une lecture refusée ne doit pas fermer l'administration (règles pas encore publiées).
   stops.push(onValue(ref(db, "boxes/requests"), (s) => { boxRequests = s.val() ?? {}; renderBoxes(); }, (e) => console.error(e)));
   stops.push(onValue(ref(db, "boxes/allowed"), (s) => { boxAllowed = s.val() ?? {}; renderBoxes(); }, (e) => console.error(e)));
+  // Prestations lancées sur une box (en cours, interrompue, terminée) : une lecture refusée (règles pas encore
+  // publiées) ne ferme pas l'administration. Relu chaque minute : une box peut se couper sans que rien d'autre change.
+  stops.push(onValue(ref(db, "launches"), (s) => { launches = s.val() ?? {}; refreshRuns(); }, (e) => console.error(e)));
+  clearInterval(runsTimer);
+  runsTimer = setInterval(refreshRuns, 60_000);
+  stops.push(() => clearInterval(runsTimer));
   show(current);
   // Copies des fêtes terminées : effacées en arrière-plan, sans retarder l'ouverture (une fois par heure au plus).
   setTimeout(passageAutomatique, 1500);
+}
+
+/** Relit l'état des prestations lancées : quelques petites lectures par partie concernée, jamais toute la partie. */
+async function refreshRuns() {
+  if (!Object.keys(launches).length && !Object.keys(runs).length) return;
+  const lire = (path) => get(ref(db, path)).then((x) => x.val(), () => null);
+  const next = await launchStates(launches, lire).catch((e) => { console.error(e); return runs; });
+  if (JSON.stringify(next) === JSON.stringify(runs)) return;
+  runs = next;
+  refreshLists();
 }
 
 route();
@@ -509,6 +530,8 @@ function showCard(id, s, { accueil = false } = {}) {
       h("span", { class: "meta", text: [s.childName, s.age ? `${s.age} ans` : "", s.date ? `${dateLabel(s.date)} (${whenLabel(s.date)})` : ""].filter(Boolean).join(" · ") }),
       snapshot ? h("span", { class: "meta", text: `${contentLabel(snapshot)} · environ ${estimateMinutes(snapshot)} min` }) : null,
       s.pinned ? h("span", { class: "pill pin", text: "⭐ Épinglée : ses jeux en premier dans la régie" }) : null,
+      // Fête lancée sur une box : en cours, interrompue (reprise possible), terminée. Archiver n'y change rien.
+      launchLabelPc(runs[id]) ? h("span", { class: `pill run ${runs[id].etat}`, "data-run": runs[id].etat, text: launchLabelPc(runs[id]) }) : null,
       etat === "archivee"
         ? h("span", { class: "pill", text: "Archivée : plus sur la régie" })
         : etat === "avenir" && r.level === "prete"
@@ -3226,8 +3249,33 @@ function cellParoles(x) {
       }
     },
   });
-  return h("label", { class: `song-paroles${x.lrc ? " ok" : ""}`, title: x.lrc ? "Paroles incluses : cliquez pour remplacer le fichier .lrc" : "Cliquez pour ajouter le fichier .lrc des paroles" },
+  const label = h("label", { class: `song-paroles${x.lrc ? " ok" : ""}`, title: x.lrc ? "Paroles incluses : cliquez pour remplacer le fichier .lrc" : "Cliquez pour ajouter le fichier .lrc des paroles" },
     x.lrc ? "✓ Paroles" : "＋ Paroles (.lrc)", input);
+  if (!x.lrc) return label;
+  // Un .lrc mis par erreur se retire (cedric, 22/10).
+  return h("span", { class: "song-paroles-cellule" }, label,
+    h("button", { type: "button", class: "icon song-paroles-retirer", title: "Retirer les paroles", "aria-label": `Retirer les paroles de « ${x.title} »`, onclick: () => retirerParoles([x]), text: "✕" }));
+}
+
+/**
+ * Retire les paroles de chansons de la bibliothèque (cedric, 22/10 : un .lrc mis par erreur) : le fichier .lrc rangé et
+ * les paroles du refrain sont effacés, les playlists qui ont ces chansons suivent. Le début et le hook ne bougent pas.
+ */
+async function retirerParoles(liste) {
+  liste = liste.filter((x) => x.id && x.lrc);
+  if (!liste.length) return;
+  const nom = liste.length === 1 ? `de « ${liste[0].title} »` : `de ces ${liste.length} chansons`;
+  if (!(await confirmer(`Retirer les paroles ${nom} ?\n\nVous pourrez ajouter le bon fichier .lrc ensuite.`, { ok: "Retirer les paroles", danger: true }))) return;
+  try {
+    const chemins = {};
+    liste.forEach((x) => Object.assign(chemins, cheminsChanson(x, { lrc: null, paroles: null })[1], { [`library/lyrics/${x.id}`]: null }));
+    await update(ref(db), chemins);
+    await followSongs(liste.map((x) => ({ songId: x.id, song: { ...x, lrc: false, paroles: "" }, audioIds: [x.audioId] })), null);
+    status("song-status", liste.length === 1 ? `Paroles de « ${liste[0].title} » retirées.` : `Paroles de ${liste.length} chansons retirées.`, true);
+  } catch (err) {
+    console.error(err);
+    status("song-status", "Refusé : vérifiez Internet ou reconnectez-vous.");
+  }
 }
 
 /**
@@ -3266,6 +3314,7 @@ function cocherTout(coche) {
 /** Barre de la sélection : tout cocher, combien de chansons cochées, désélectionner, supprimer. */
 function renderSelection(total) {
   const n = chansonsTrouvees.filter((x) => choisies.has(cleChanson(x))).length;
+  const avecParoles = chansonsTrouvees.filter((x) => choisies.has(cleChanson(x)) && x.id && x.lrc).length;
   const tout = h("input", { type: "checkbox", "aria-label": "Tout sélectionner", checked: n > 0 && n === chansonsTrouvees.length, onclick: (e) => cocherTout(e.target.checked) });
   if (n > 0 && n < chansonsTrouvees.length) tout.indeterminate = true;
   $("song-barre").hidden = voirRetirees || !total;
@@ -3273,8 +3322,29 @@ function renderSelection(total) {
     h("label", { class: "inline song-tout" }, tout, n ? `${n} sélectionnée${n > 1 ? "s" : ""}` : "Tout sélectionner"),
     n ? h("button", { type: "button", class: "btn small secondary", onclick: () => cocherTout(false), text: "Désélectionner" }) : "",
     h("button", { type: "button", class: "btn small danger", disabled: !n, onclick: () => supprimerChansons(), text: n ? `🗑 Supprimer (${n})` : "🗑 Supprimer" }),
+    avecParoles ? h("button", { type: "button", class: "btn small secondary", onclick: () => retirerParoles(chansonsTrouvees.filter((x) => choisies.has(cleChanson(x)))), text: `Retirer les paroles (${avecParoles})` }) : "",
     h("span", { class: "hint small", text: "Maj + clic : plusieurs d'un coup · Ctrl + A : tout · Suppr : supprimer" }));
 }
+
+/**
+ * Ordre de la liste des sons (cedric, 22/10) : alphabétique par artiste (la première colonne), puis par titre ; un clic
+ * sur l'en-tête « Titre » range par titre. Les chansons sans artiste viennent à la fin.
+ */
+let triSons = "artiste";
+const alpha = (a, b) => a.localeCompare(b, "fr", { sensitivity: "base", numeric: true });
+function trierSons(liste) {
+  const cles = (x) => (triSons === "titre" ? [x.title, x.artist ?? ""] : [x.artist ?? "", x.title]);
+  return [...liste].sort((a, b) => {
+    const [a1, a2] = cles(a);
+    const [b1, b2] = cles(b);
+    if (!a1.trim() !== !b1.trim()) return a1.trim() ? -1 : 1;
+    return alpha(a1, b1) || alpha(a2, b2);
+  });
+}
+const enteteTri = (tri, nom) => h("button", {
+  type: "button", class: `song-tri${triSons === tri ? " actif" : ""}`, "data-tri": tri, title: `Ranger par ${nom.toLowerCase()} (A → Z)`,
+  onclick: () => { triSons = tri; renderSongs(); }, text: `${nom}${triSons === tri ? " ▾" : ""}`,
+});
 
 /** Bibliothèque des sons (menu Bibliothèque, onglet Sons) : une ligne par chanson, recherche, sélection, suppression. */
 function renderSongs() {
@@ -3282,7 +3352,7 @@ function renderSongs() {
   if (!retirees.length) voirRetirees = false;
   $("song-retirees").hidden = !retirees.length;
   $("song-retirees").textContent = voirRetirees ? "← Toutes les chansons" : `🗑 Supprimées (${retirees.length})`;
-  const all = voirRetirees ? retirees : songList(songs, playlists, isStatuesList);
+  const all = voirRetirees ? retirees : trierSons(songList(songs, playlists, isStatuesList));
   const found = parPertinence(all.filter((x) => songMatches(x, $("song-search").value)), $("song-search").value, (x) => [x.title, x.artist], (x) => x.lists.map((l) => l.title));
   chansonsTrouvees = voirRetirees ? [] : found;
   // Une chanson qui n'existe plus n'est plus cochée.
@@ -3292,8 +3362,8 @@ function renderSongs() {
   renderSelection(all.length);
   $("song-list").replaceChildren(...(voirRetirees ? (all.length > 1 ? [h("div", { class: "song-effacer-tout" },
     h("button", { type: "button", class: "btn small danger", onclick: () => effacerPourDeBon(all), text: `Tout effacer pour de bon (${all.length})` }),
-    h("span", { class: "hint small", text: "Effacées pour de bon, les chansons libèrent leur place en ligne et ne peuvent plus être remises." }))] : []) : found.length ? [h("div", { class: "song song-entete", "aria-hidden": "true" },
-    h("span"), h("span", { text: "Pochette" }), h("span", { text: "Artiste" }), h("span", { text: "Titre" }), h("span", { text: "Paroles" }), h("span", { text: "Moments" }), h("span"), h("span"))] : []),
+    h("span", { class: "hint small", text: "Effacées pour de bon, les chansons libèrent leur place en ligne et ne peuvent plus être remises." }))] : []) : found.length ? [h("div", { class: "song song-entete" },
+    h("span"), h("span", { text: "Pochette" }), enteteTri("artiste", "Artiste"), enteteTri("titre", "Titre"), h("span", { text: "Paroles" }), h("span", { text: "Moments" }), h("span"), h("span"))] : []),
   ...found.slice(0, MAX_SONGS_SHOWN).map((x, i) => (voirRetirees
     ? h("div", { class: "song", "data-song": x.id },
       h("div", { class: "song-name" }, h("b", { text: x.title }), h("span", { class: "song-meta", text: x.artist })),
@@ -3409,7 +3479,13 @@ async function effacerPourDeBon(liste) {
     [song.audioId, song.refrainId].filter((a) => a && !utilises.has(a)).forEach((a) => { chemins[`library/sounds/${a}`] = null; });
     Object.assign(chemins, fichePochetteGardee(song, chemins));
   });
+  // Les playlists qui gardent un ancien morceau de ces chansons (sans numéro de chanson) le marquent, pour qu'elles ne
+  // reviennent pas dans la liste (cedric, 22/10). Une playlist à la fois : une ancienne refusée ne bloque pas les autres.
+  const marques = {};
+  liste.forEach((x) => Object.entries(marquerEffacees(x.id, songs[x.id]?.audioId, playlists, serverTimestamp(), isStatuesList))
+    .forEach(([chemin, v]) => { (marques[chemin.split("/")[2]] ??= {})[chemin] = v; }));
   try {
+    for (const groupe of Object.values(marques)) await update(ref(db), groupe).catch((err) => console.error(err));
     await update(ref(db), chemins);
     for (const x of liste) { sourcesLocales.delete(x.id); await oublierFichier(x.id); }
     status("song-status", liste.length === 1 ? `« ${liste[0].title} » est effacée pour de bon.` : `${liste.length} chansons effacées pour de bon.`, true);
@@ -3571,7 +3647,8 @@ function editPlaylist(id, fresh = {}) {
   $("playlist-from-lib").hidden = statues || library;
   $("playlist-hasard").hidden = statues || library;
   $("playlist-title").closest("label").hidden = library;
-  $("playlist-duration").closest(".panel").hidden = single;
+  // Bibliothèque des sons : rien à régler côté temps (cedric, 22/10) ; le temps pour buzzer se choisit dans la manche.
+  $("playlist-duration").closest(".panel").hidden = single || library;
   $("playlist-files").closest(".row").hidden = single;
   const scale = blindScale(p);
   $("playlist-points").value = `${scale.points}`;
@@ -3911,7 +3988,7 @@ function renderTracks() {
     const max = Math.max(0, Math.floor((t.length ?? 0) - length));
     const auto = trackPoints(scale, null, i, n);
     // Durée propre au morceau : seulement avec la chanson entière (l'extrait est redécoupé à l'enregistrement).
-    const duration = fichier ? h("label", { class: "inline" }, "Durée",
+    const duration = fichier && playlist.use !== "songs" ? h("label", { class: "inline" }, "Durée",
       h("select", {
         class: "track-duration", "aria-label": "Durée de l'extrait",
         onchange: (e) => { t.duration = e.target.value ? Number(e.target.value) : null; aRedecouper(t); renderTracks(); },
@@ -3996,7 +4073,7 @@ function ecranReglage(t) {
       h("div", { class: "reglage-ligne" }, h("span", { class: "reglage-nom", text: "Début de la chanson" }), tempsDebut, ecouteDebut),
       curseur("Début de la chanson", t.start, maxDebut, (v) => { t.start = v; t.debutMain = true; aRedecouper(t); tempsDebut.textContent = mmss(v); }, () => listen(t, false, ecouteDebut)),
       bornes(maxDebut),
-      h("p", { class: "hint small", text: `Réglé d'office 2 s avant les premiers mots chantés (0:00 sans paroles). Les équipes ont ensuite ${buzz} s pour buzzer.` })),
+      h("p", { class: "hint small", text: "Réglé d'office 2 s avant les premiers mots chantés (0:00 sans paroles)." })),
     h("div", { class: "reglage-curseur", "data-curseur": "hook" },
       h("div", { class: "reglage-ligne" }, h("span", { class: "reglage-nom", text: "Hook" }), tempsHook, origine, ecouteHook,
         h("button", {
@@ -4007,11 +4084,6 @@ function ecranReglage(t) {
       bornes(maxHook),
       h("p", { class: "hint small", text: "Le passage que tout le monde chante à la révélation (« on chante tous ensemble »)." })),
     h("div", { class: "reglage-plus" },
-      h("label", { class: "inline" }, "Temps pour buzzer",
-        h("select", {
-          class: "track-duration", "aria-label": "Temps pour buzzer", disabled: !fichier,
-          onchange: (e) => { t.duration = Number(e.target.value); aRedecouper(t); renderTracks(); },
-        }, ...EXTRACT_SECONDS.map((s) => h("option", { value: s, text: `${s} s`, selected: s === buzz })))),
       h("input", { type: "text", class: "track-note", maxlength: 120, placeholder: "Droits (facultatif, pour information)", value: t.rights, "aria-label": "Droits", oninput: (e) => { t.rights = e.target.value; } })),
     fichier ? null : h("p", {
       class: "reglage-manque",
@@ -4130,17 +4202,19 @@ function refrainPropose(t, length, start, buzz) {
 
 /**
  * Volume du fichier d'un morceau, mesuré une fois (pour trouver où la chanson explose) : gardé sur ce PC le temps de
- * l'écran, jamais rangé en ligne. Rien si le fichier est illisible.
+ * l'écran, jamais rangé en ligne. Rien si le fichier est illisible. Rend la durée du fichier décodé (0 si illisible).
  */
 async function mesurerVolume(t, file) {
-  if (!file || playlist?.use === "statues") return;
+  if (!file || playlist?.use === "statues") return 0;
   try {
     const buffer = await decodeFile(file);
     const canaux = Array.from({ length: Math.min(2, buffer.numberOfChannels) }, (_, c) => buffer.getChannelData(c));
     t.volume = volumes(canaux, buffer.sampleRate);
+    return buffer.duration;
   } catch (e) {
     console.warn("Volume illisible", e);
     delete t.volume;
+    return 0;
   }
 }
 
@@ -4199,6 +4273,22 @@ function lyricsTools(t) {
     t.lrc ? "Paroles ✓" : "Paroles (.lrc)…", input);
 }
 
+/**
+ * Délai de chaque étape de l'import des chansons, en secondes (cedric, 22/10 : import bloqué à 62 / 204 sur un fichier).
+ * Une étape qui ne répond plus (fichier abîmé, Internet coupé) est abandonnée et l'import passe à la suite.
+ */
+const DELAIS_IMPORT = { etiquettes: 15, duree: 20, paroles: 15, reseau: 30, volume: 90, decodage: 120 };
+
+/** [promesse], ou une erreur si l'étape [etape] dépasse son délai. Les tests raccourcissent les délais (lmpDelaisImport). */
+function avantDelai(promesse, etape) {
+  const ms = DELAIS_IMPORT[etape] * 1000 * (Number(globalThis.lmpDelaisImport) || 1);
+  let minuteur;
+  return Promise.race([
+    promesse,
+    new Promise((_, refus) => { minuteur = setTimeout(() => refus(new Error(`Import : « ${etape} » sans réponse après ${ms / 1000} s`)), ms); }),
+  ]).finally(() => clearTimeout(minuteur));
+}
+
 const sansAccents = (x) => `${x ?? ""}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 
 /**
@@ -4222,7 +4312,7 @@ async function addFiles(files) {
   for (const [k, { musique: file, lrc }] of paires.entries()) {
     if (paires.length > 2) status("playlist-status", `Lecture des fichiers ${k + 1} / ${paires.length} : ${file.name}…`, true);
     // Titre, artiste et pochette rangés dans le MP3 ; sinon le nom du fichier « Artiste - Titre ».
-    const tags = statues ? {} : await etiquettesMp3(file);
+    const tags = statues ? {} : await avantDelai(etiquettesMp3(file), "etiquettes").catch((e) => { console.warn(file.name, e); return {}; });
     const devine = guessTrack(file.name);
     const title = (tags.title || devine.title || "").slice(0, 80);
     const artist = (tags.artist || devine.artist || "").slice(0, 80);
@@ -4231,15 +4321,15 @@ async function addFiles(files) {
     const already = known && playlist.tracks.find((t) => t.songId === known.id);
     // Une chanson déjà rangée revient : son fichier est gardé sur ce PC ; sans sa chanson entière en ligne, ou avec
     // l'ancien début proposé, elle est préparée de nouveau (les extraits déjà rangés ne sont pas renvoyés).
-    if (enVrac && known?.id && known.audioId && known.refrainId && !already) await garderSurCePC(known.id, file);
+    if (enVrac && known?.id && known.audioId && known.refrainId && !already) await avantDelai(garderSurCePC(known.id, file), "reseau").catch((e) => console.warn(file.name, e));
     const ancienDebut = Boolean(known) && debutAncienPropose(known, known.length, known.buzz);
     if (ancienDebut && enVrac) auDebut += 1;
-    if (enVrac && known?.id && known.audioId && known.refrainId && !already && !ancienDebut && (await entiereEnLigne(known.id).catch(() => true))) {
+    if (enVrac && known?.id && known.audioId && known.refrainId && !already && !ancienDebut && (await avantDelai(entiereEnLigne(known.id), "reseau").catch(() => true))) {
       dejaLa += 1;
       try {
-        if (lrc && !known.lrc) { await attacherParoles(known, (await lrc.text()).slice(0, MAX_LRC)); paroles += 1; }
+        if (lrc && !known.lrc) { await avantDelai(attacherParoles(known, (await lrc.text()).slice(0, MAX_LRC)), "reseau"); paroles += 1; }
         if (!known.imageId && tags.picture) {
-          await majChanson(known, { imageId: await rangerPochette(new Blob([tags.picture.data], { type: tags.picture.mime })) });
+          await avantDelai(majChanson(known, { imageId: await avantDelai(rangerPochette(new Blob([tags.picture.data], { type: tags.picture.mime })), "reseau") }), "reseau");
           pochettes += 1;
         }
       } catch (e) {
@@ -4247,24 +4337,26 @@ async function addFiles(files) {
       }
       continue;
     }
-    const length = await fileDuration(file);
+    const length = await avantDelai(fileDuration(file), "duree").catch((e) => { console.warn(file.name, e); return 0; });
     const t = already ?? (known
       ? { ...trackFromSong(known), artist: known.artist ?? "", rights: known.rights ?? "", points: null, start: known.start, refrain: known.refrain ?? undefined, lrc: known.lrc, auto: known.auto }
       : { title, artist, rights: "", points: null });
     if (!statues) {
-      if (lrc && avecParoles(t, (await lrc.text()).slice(0, MAX_LRC))) paroles += 1;
-      else await chargerParoles(t);
+      const texte = lrc ? await avantDelai(lrc.text(), "paroles").catch(() => "") : "";
+      if (texte && avecParoles(t, texte.slice(0, MAX_LRC))) paroles += 1;
+      else await avantDelai(chargerParoles(t), "reseau").catch((e) => console.warn(file.name, e));
       if (!t.imageId && tags.picture) {
         try {
-          t.imageId = await rangerPochette(new Blob([tags.picture.data], { type: tags.picture.mime }));
+          t.imageId = await avantDelai(rangerPochette(new Blob([tags.picture.data], { type: tags.picture.mime })), "reseau");
           pochettes += 1;
         } catch (e) {
           console.warn("Pochette du MP3 illisible", e);
         }
       }
     }
-    if (!statues) await mesurerVolume(t, file);
-    withFile(t, file, length);
+    // Durée illisible par le lecteur du navigateur : celle du fichier décodé pour le volume.
+    const lue = statues ? 0 : await avantDelai(mesurerVolume(t, file), "volume").catch((e) => { console.warn(file.name, e); return 0; });
+    withFile(t, file, length || lue || 0);
     if (!already) playlist.tracks.push(t);
   }
   const rangees = statues ? 0 : await parolesSeules(seuls);
@@ -4335,7 +4427,15 @@ function fileDuration(file) {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file);
     const audio = new Audio();
-    const done = (d) => { URL.revokeObjectURL(url); resolve(Number.isFinite(d) ? d : 0); };
+    // Le lecteur est rendu aussitôt : le navigateur n'en garde qu'un nombre limité à la fois (des centaines de fichiers).
+    const done = (d) => {
+      audio.onloadedmetadata = audio.onerror = null;
+      audio.removeAttribute("src");
+      audio.load();
+      URL.revokeObjectURL(url);
+      resolve(Number.isFinite(d) ? d : 0);
+    };
+    audio.preload = "metadata";
     audio.onloadedmetadata = () => done(audio.duration);
     audio.onerror = () => done(0);
     audio.src = url;
@@ -4348,7 +4448,13 @@ $("playlist-files").onchange = async (e) => {
   await addFiles(files);
 };
 
-$("playlist-save").onclick = () => enregistrerPlaylist();
+$("playlist-save").onclick = async () => {
+  if (!(await enregistrerPlaylist()) || !playlist?.single) return;
+  // Réglages d'une chanson (cedric, 22/10) : une fois enregistrés, retour à la liste des sons, comme « ← Retour ».
+  const titre = playlist.tracks[0]?.title?.trim() ?? "";
+  pagePrecedente();
+  status("song-status", `Réglages de « ${titre} » enregistrés. Les playlists qui ont cette chanson les suivent.`, true);
+};
 
 /** Enregistre l'écran des playlists (extraits découpés ici) ; rend vrai quand tout est rangé. */
 async function enregistrerPlaylist() {
@@ -4386,7 +4492,7 @@ async function enregistrerPlaylist() {
       const enLigne = statues || (await entiereEnLigne(t.songId).catch(() => false));
       fichiers.set(t, t.file);
       try {
-        const buffer = await decodeFile(t.file);
+        const buffer = await avantDelai(decodeFile(t.file), "decodage");
         extract = await makeExtract(buffer, t.start ?? 0, t.duration ?? seconds);
         if (!statues && !hookIntact) {
           status("playlist-status", `Préparation du refrain ${k + 1} / ${fresh.length} : ${t.title}…${deja}`, true);
