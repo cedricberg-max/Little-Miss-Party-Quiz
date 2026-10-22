@@ -2870,10 +2870,10 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.locator("#q-list .q-alerte").count(), 0);
     assert.equal(await page.locator("#q-list .q-nombre").count(), 0);
     assert.doesNotMatch(await page.locator("#q-list").innerText(), /\bnull\b/);
-    await page.fill("#q-search", "vit dans la mer");
-    const mer = page.locator("#q-list .q-item", { hasText: "Quel animal vit dans la mer ?" }).first();
-    assert.equal(await mer.locator(".q-illus.emoji").innerText(), "🐟");
-    assert.equal(await mer.locator("li.juste .q-mini.emoji").innerText(), "🐟");
+    await page.fill("#q-search", "la tête en bas");
+    const nuit = page.locator("#q-list .q-item", { hasText: "Quel animal dort la tête en bas ?" }).first();
+    assert.equal(await nuit.locator(".q-illus.emoji").innerText(), "🦇");
+    assert.equal(await nuit.locator("li.juste .q-mini.emoji").innerText(), "🦇");
     await page.fill("#q-search", "");
     await capture(page, "quiz-illustre-tout-pret");
 

@@ -2248,8 +2248,8 @@ describe("Bibliothèque › Questions : toutes prêtes, mes questions, mes packs
     assert.deepEqual([pretes[1].ok, pretes[1].manque], [false, "1 réponse sans image"]);
     assert.deepEqual(pretes.map((x) => x.groupe), ["illustrees", "illustrees"]);
     // Sans photo, la réponse a l'émoji de son mot (il devient son image dans le quiz) : pas d'alerte (cedric, 22/10).
-    const [mer] = Q.questionsIllustreesPretes([{ id: "p002", famille: "animaux", text: "Quel animal vit dans la mer ?", choices: ["Poisson", "Vache"] }]);
-    assert.deepEqual([mer.banque[0], mer.banqueEmojis, mer.ok, mer.manque], [null, ["🐟", null], true, null]);
+    const [mer] = Q.questionsIllustreesPretes([{ id: "p002", famille: "animaux", text: "Quel animal dort la tête en bas ?", choices: ["Chauve-souris", "Vache"] }]);
+    assert.deepEqual([mer.banque[0], mer.banqueEmojis, mer.ok, mer.manque], [null, ["🦇", null], true, null]);
     assert.equal(Q.questionCorrespond(pretes[0], "MIAOU chat"), true);
     assert.equal(Q.questionCorrespond(pretes[1], "ou dort"), true);
     assert.equal(Q.questionCorrespond(pretes[0], "girafe"), false);

@@ -6,6 +6,13 @@
   "page": "https://www.flickr.com/photos/97839409@N00/51365733927",
   "source": "openverse/flickr"
  },
+ "abricot": {
+  "titre": "File:Apricots-824626.jpg",
+  "auteur": "夏沐沐",
+  "licence": "CC0",
+  "page": "https://commons.wikimedia.org/wiki/File:Apricots-824626.jpg",
+  "source": "commons"
+ },
  "accordeon": {
   "titre": "Accordion",
   "auteur": "themet",
@@ -174,6 +181,20 @@
   "page": "https://www.flickr.com/photos/47121680@N00/52537353720",
   "source": "openverse/flickr"
  },
+ "beurre": {
+  "titre": "File:Butter block.JPG",
+  "auteur": "Meanos",
+  "licence": "Public domain",
+  "page": "https://commons.wikimedia.org/wiki/File:Butter_block.JPG",
+  "source": "commons"
+ },
+ "billes": {
+  "titre": "File:Several marbles.jpg",
+  "auteur": "Conrad 7",
+  "licence": "CC0",
+  "page": "https://commons.wikimedia.org/wiki/File:Several_marbles.jpg",
+  "source": "commons"
+ },
  "biscuit": {
   "titre": "Chocolatechip Cookies",
   "auteur": "PICSELI",
@@ -335,6 +356,13 @@
   "page": "https://www.flickr.com/photos/106602675@N05/52045341231",
   "source": "openverse/flickr"
  },
+ "canoe": {
+  "titre": "File:Red Canoes (20630729829).jpg",
+  "auteur": "Rob Mitchell",
+  "licence": "CC0",
+  "page": "https://commons.wikimedia.org/wiki/File:Red_Canoes_(20630729829).jpg",
+  "source": "commons"
+ },
  "carotte": {
   "titre": "Carrot Vegetables",
   "auteur": "Suzy Hazelwood",
@@ -383,6 +411,13 @@
   "licence": "cc0 1.0",
   "page": "https://wordpress.org/photos/photo/7062a8e649/",
   "source": "openverse/wordpress"
+ },
+ "ceinture": {
+  "titre": "Brown Leather",
+  "auteur": "Piotr Lohunko",
+  "licence": "cc0 1.0",
+  "page": "https://stocksnap.io/photo/brown-leather-DFDGN6Q757",
+  "source": "openverse/stocksnap"
  },
  "cereales": {
   "titre": "20210902-FNS-UNC-0042",
@@ -537,6 +572,13 @@
   "licence": "cc0 1.0",
   "page": "https://www.flickr.com/photos/184594136@N08/51299735504",
   "source": "openverse/flickr"
+ },
+ "ciseaux": {
+  "titre": "File:Safety scissors blue.jpg",
+  "auteur": "Karen Arnold",
+  "licence": "CC0",
+  "page": "https://commons.wikimedia.org/wiki/File:Safety_scissors_blue.jpg",
+  "source": "commons"
  },
  "citron": {
   "titre": "Yellow Lemons",
@@ -755,6 +797,13 @@
   "page": "https://stocksnap.io/photo/wild-turkey-SQ03NNGSB0",
   "source": "openverse/stocksnap"
  },
+ "douche": {
+  "titre": "Shower head",
+  "auteur": null,
+  "licence": "cc0 1.0",
+  "page": "https://www.rawpixel.com/image/5911916/shower-head-free-public-domain-cc0-image",
+  "source": "openverse/rawpixel"
+ },
  "eau": {
   "titre": "File:Glass of water ouside.jpg",
   "auteur": "Kurt Kaiser",
@@ -803,6 +852,13 @@
   "licence": "cc0 1.0",
   "page": "https://www.flickr.com/photos/55128416@N05/21116406284",
   "source": "openverse/flickr"
+ },
+ "etoile": {
+  "titre": "Stars Desk",
+  "auteur": "Jess Watters",
+  "licence": "cc0 1.0",
+  "page": "https://stocksnap.io/photo/stars-desk-NIQLR7LWXY",
+  "source": "openverse/stocksnap"
  },
  "etoile-de-mer": {
   "titre": "File:Asterias rubens 307854603.jpg",
@@ -1070,6 +1126,13 @@
   "page": "https://stocksnap.io/photo/palmtrees-island-2BOH5W1C8O",
   "source": "openverse/stocksnap"
  },
+ "jambon": {
+  "titre": "Free ham slice onion tomato",
+  "auteur": null,
+  "licence": "cc0 1.0",
+  "page": "https://www.rawpixel.com/image/5923318/photo-image-public-domain-kitchen-food",
+  "source": "openverse/rawpixel"
+ },
  "jupe": {
   "titre": "People Woman",
   "auteur": "Zeny Rosalina",
@@ -1203,6 +1266,13 @@
   "page": "https://www.flickr.com/photos/40870180@N02/21552531850",
   "source": "openverse/flickr"
  },
+ "lunettes": {
+  "titre": "Eyeglasses Frames",
+  "auteur": "Patryk Dziejma",
+  "licence": "cc0 1.0",
+  "page": "https://stocksnap.io/photo/eyeglasses-frames-AZ0PLK4N8J",
+  "source": "openverse/stocksnap"
+ },
  "lunettes-de-soleil": {
   "titre": "Sunglasses Summer",
   "auteur": "Jakub Rostkowski",
@@ -1223,6 +1293,13 @@
   "licence": "cc0 1.0",
   "page": "https://www.flickr.com/photos/89918055@N05/51861890423",
   "source": "openverse/flickr"
+ },
+ "maillot-de-bain": {
+  "titre": "Teal men's swim shorts pink",
+  "auteur": null,
+  "licence": "cc0 1.0",
+  "page": "https://www.rawpixel.com/image/11515784/teal-mens-swim-shorts-pink-background",
+  "source": "openverse/rawpixel"
  },
  "main": {
   "titre": "Thumbsup Hand",
@@ -1749,6 +1826,20 @@
   "page": "https://commons.wikimedia.org/wiki/File:Pears.jpg",
   "source": "commons"
  },
+ "poireau": {
+  "titre": "Leek vegetable",
+  "auteur": null,
+  "licence": "cc0 1.0",
+  "page": "https://www.rawpixel.com/image/6021915/leek-vegetable-free-public-domain-cc0-photo",
+  "source": "openverse/rawpixel"
+ },
+ "poisson": {
+  "titre": "File:Carassius wild golden fish 2013 G1.jpg",
+  "auteur": "George Chernilevsky",
+  "licence": "Public domain",
+  "page": "https://commons.wikimedia.org/wiki/File:Carassius_wild_golden_fish_2013_G1.jpg",
+  "source": "commons"
+ },
  "poisson-clown": {
   "titre": "Swimming clownfish close up",
   "auteur": null,
@@ -1847,6 +1938,13 @@
   "page": "https://www.rawpixel.com/image/6037376/photo-image-public-domain-leaf-tree",
   "source": "openverse/rawpixel"
  },
+ "pull": {
+  "titre": "Sweater table",
+  "auteur": null,
+  "licence": "cc0 1.0",
+  "page": "https://www.rawpixel.com/image/3301353/free-photo-image-animal-apparel-blanket",
+  "source": "openverse/rawpixel"
+ },
  "puzzle": {
   "titre": "Blue jigsaw puzzle",
   "auteur": null,
@@ -1867,6 +1965,13 @@
   "licence": "pdm 1.0",
   "page": "https://www.flickr.com/photos/82995800@N06/51424346135",
   "source": "openverse/flickr"
+ },
+ "refrigerateur": {
+  "titre": "File:Ms Girlees Kitchen RVA Community Fridge.jpg",
+  "auteur": "Kobenon",
+  "licence": "CC0",
+  "page": "https://commons.wikimedia.org/wiki/File:Ms_Girlees_Kitchen_RVA_Community_Fridge.jpg",
+  "source": "commons"
  },
  "regle": {
   "titre": "Ruler Measurement",
@@ -1945,6 +2050,13 @@
   "page": "https://www.flickr.com/photos/186236561@N02/49615932746",
   "source": "openverse/flickr"
  },
+ "sable": {
+  "titre": "Sand Dunes",
+  "auteur": "Fabio Rose",
+  "licence": "cc0 1.0",
+  "page": "https://stocksnap.io/photo/sand-dunes-7C5AC54FE3",
+  "source": "openverse/stocksnap"
+ },
  "sac-a-main": {
   "titre": "Woman's Handbag",
   "auteur": "lacma",
@@ -1979,6 +2091,13 @@
   "licence": "pdm 1.0",
   "page": "https://www.flickr.com/photos/64249609@N08/55066236156",
   "source": "openverse/flickr"
+ },
+ "sapin": {
+  "titre": "Christmas Tree",
+  "auteur": "Pawel Kadysz",
+  "licence": "cc0 1.0",
+  "page": "https://stocksnap.io/photo/christmas-tree-O7R5XV5J2W",
+  "source": "openverse/stocksnap"
  },
  "saucisse": {
   "titre": "Sausages Barbecue",
@@ -2043,6 +2162,13 @@
   "page": "https://stocksnap.io/photo/monkey-animal-6X0PULZQ5K",
   "source": "openverse/stocksnap"
  },
+ "skateboard": {
+  "titre": "File:Skateboard on side.JPG",
+  "auteur": "Ncapamaggio",
+  "licence": "Public domain",
+  "page": "https://commons.wikimedia.org/wiki/File:Skateboard_on_side.JPG",
+  "source": "commons"
+ },
  "soleil": {
   "titre": "The highest resolution image of the Sun (Enhanced)",
   "auteur": "@hipydeus",
@@ -2092,6 +2218,13 @@
   "page": "https://www.flickr.com/photos/57794015@N05/51974969566",
   "source": "openverse/flickr"
  },
+ "table": {
+  "titre": "File:Dinner table side pine wood large table side.png",
+  "auteur": "Kurtkaiser",
+  "licence": "CC0",
+  "page": "https://commons.wikimedia.org/wiki/File:Dinner_table_side_pine_wood_large_table_side.png",
+  "source": "commons"
+ },
  "tambour": {
   "titre": "Drums Cymbals",
   "auteur": "Brad Stallcup",
@@ -2105,6 +2238,13 @@
   "licence": "pdm 1.0",
   "page": "https://www.flickr.com/photos/142495273@N04/52569197607",
   "source": "openverse/flickr"
+ },
+ "tasse": {
+  "titre": "Still Items",
+  "auteur": "Clem Onojeghuo",
+  "licence": "cc0 1.0",
+  "page": "https://stocksnap.io/photo/still-items-XF3EEHX92J",
+  "source": "openverse/stocksnap"
  },
  "taxi": {
   "titre": "Free taxi cars road image",
@@ -2266,6 +2406,13 @@
   "licence": "pdm 1.0",
   "page": "https://www.flickr.com/photos/149556095@N03/48019235328",
   "source": "openverse/flickr"
+ },
+ "ver-de-terre": {
+  "titre": "Free earthworm soil closeup image",
+  "auteur": null,
+  "licence": "cc0 1.0",
+  "page": "https://www.rawpixel.com/image/5914077/image-public-domain-free-animal",
+  "source": "openverse/rawpixel"
  },
  "verre": {
   "titre": "Drinking Glass",
