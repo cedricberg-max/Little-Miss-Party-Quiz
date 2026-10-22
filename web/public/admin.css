@@ -536,6 +536,8 @@ body.essai::before {
 .song.song-ligne, .song.song-entete { display: grid; grid-template-columns: 26px 52px minmax(90px, 1fr) minmax(120px, 1.4fr) 132px 112px 44px 216px; gap: 6px 12px; padding: 8px 12px; }
 .song-ligne .song-tools { justify-content: flex-end; }
 .song.song-entete { background: none; border: none; padding-top: 0; padding-bottom: 0; color: var(--soft); font-size: 13px; font-weight: 700; }
+.song-tri { all: unset; cursor: pointer; text-align: left; }
+.song-tri:hover, .song-tri.actif { color: var(--ink); text-decoration: underline; }
 .song-ligne.choisie { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(217, 164, 65, 0.35); }
 .song-ligne .song-check { width: 18px; height: 18px; cursor: pointer; }
 .song-ligne .song-artiste { color: var(--soft); overflow-wrap: anywhere; }

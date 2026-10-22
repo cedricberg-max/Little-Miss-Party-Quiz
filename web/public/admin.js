@@ -3440,12 +3440,32 @@ function renderSelection(total) {
 }
 
 /** Bibliothèque des sons (menu Bibliothèque, onglet Sons) : une ligne par chanson, recherche, sélection, suppression. */
+/**
+ * Ordre de la liste des sons (cedric, 22/10) : alphabétique par artiste (la première colonne), puis par titre ; un clic
+ * sur l'en-tête « Titre » range par titre. Les chansons sans artiste viennent à la fin.
+ */
+let triSons = "artiste";
+const alpha = (a, b) => a.localeCompare(b, "fr", { sensitivity: "base", numeric: true });
+function trierSons(liste) {
+  const cles = (x) => (triSons === "titre" ? [x.title, x.artist ?? ""] : [x.artist ?? "", x.title]);
+  return [...liste].sort((a, b) => {
+    const [a1, a2] = cles(a);
+    const [b1, b2] = cles(b);
+    if (!a1.trim() !== !b1.trim()) return a1.trim() ? -1 : 1;
+    return alpha(a1, b1) || alpha(a2, b2);
+  });
+}
+const enteteTri = (tri, nom) => h("button", {
+  type: "button", class: `song-tri${triSons === tri ? " actif" : ""}`, "data-tri": tri, title: `Ranger par ${nom.toLowerCase()} (A → Z)`,
+  onclick: () => { triSons = tri; renderSongs(); }, text: `${nom}${triSons === tri ? " ▾" : ""}`,
+});
+
 function renderSongs() {
   const retirees = songsRetirees(songs);
   if (!retirees.length) voirRetirees = false;
   $("song-retirees").hidden = !retirees.length;
   $("song-retirees").textContent = voirRetirees ? "← Toutes les chansons" : `🗑 Supprimées (${retirees.length})`;
-  const all = voirRetirees ? retirees : songList(songs, playlists, isStatuesList);
+  const all = voirRetirees ? retirees : trierSons(songList(songs, playlists, isStatuesList));
   const found = parPertinence(all.filter((x) => songMatches(x, $("song-search").value)), $("song-search").value, (x) => [x.title, x.artist], (x) => x.lists.map((l) => l.title));
   chansonsTrouvees = voirRetirees ? [] : found;
   // Une chanson qui n'existe plus n'est plus cochée.
@@ -3455,8 +3475,8 @@ function renderSongs() {
   renderSelection(all.length);
   $("song-list").replaceChildren(...(voirRetirees ? (all.length > 1 ? [h("div", { class: "song-effacer-tout" },
     h("button", { type: "button", class: "btn small danger", onclick: () => effacerPourDeBon(all), text: `Tout effacer pour de bon (${all.length})` }),
-    h("span", { class: "hint small", text: "Effacées pour de bon, les chansons libèrent leur place en ligne et ne peuvent plus être remises." }))] : []) : found.length ? [h("div", { class: "song song-entete", "aria-hidden": "true" },
-    h("span"), h("span", { text: "Pochette" }), h("span", { text: "Artiste" }), h("span", { text: "Titre" }), h("span", { text: "Paroles" }), h("span", { text: "Moments" }), h("span"), h("span"))] : []),
+    h("span", { class: "hint small", text: "Effacées pour de bon, les chansons libèrent leur place en ligne et ne peuvent plus être remises." }))] : []) : found.length ? [h("div", { class: "song song-entete" },
+    h("span"), h("span", { text: "Pochette" }), enteteTri("artiste", "Artiste"), enteteTri("titre", "Titre"), h("span", { text: "Paroles" }), h("span", { text: "Moments" }), h("span"), h("span"))] : []),
   ...found.slice(0, MAX_SONGS_SHOWN).map((x, i) => (voirRetirees
     ? h("div", { class: "song", "data-song": x.id },
       h("div", { class: "song-name" }, h("b", { text: x.title }), h("span", { class: "song-meta", text: x.artist })),

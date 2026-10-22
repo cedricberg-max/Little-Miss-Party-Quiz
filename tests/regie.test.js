@@ -2291,6 +2291,33 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Sons (cedric, 22/10) : la liste est rangée par artiste de A à Z, puis par titre ; « Titre » la range par titre", async () => {
+    const A = "0123456789abcdef";
+    const chanson = (title, artist, n) => ({ title, ...(artist ? { artist } : {}), audioId: `${A.slice(0, 15)}${n}`, buzz: 30, updatedAt: 1 });
+    await seedLibrary("songs", {
+      a: chanson("Les sunlights des tropiques", "Gilbert Montagné", 1),
+      b: chanson("Alexandrie Alexandra", "Claude François", 2),
+      c: chanson("Zombie", "the Cranberries", 3),
+      d: chanson("Sans artiste", "", 4),
+      e: chanson("Belle", "Claude François", 5),
+      f: chanson("Éléphant", "Bénabar", 6),
+    });
+    const page = await admin();
+    // Sur le PC : l'en-tête des colonnes est visible.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="sons"]');
+    await page.locator("#song-list .song-ligne").nth(5).waitFor();
+    assert.deepEqual(await page.locator("#song-list .song-ligne .song-titre").allInnerTexts(),
+      ["Éléphant", "Alexandrie Alexandra", "Belle", "Les sunlights des tropiques", "Zombie", "Sans artiste"]);
+    await page.locator('#song-list .song-tri[data-tri="titre"]').click();
+    assert.deepEqual(await page.locator("#song-list .song-ligne .song-titre").allInnerTexts(),
+      ["Alexandrie Alexandra", "Belle", "Éléphant", "Les sunlights des tropiques", "Sans artiste", "Zombie"]);
+    await page.locator('#song-list .song-tri[data-tri="artiste"]').click();
+    assert.equal(await page.locator("#song-list .song-ligne .song-titre").first().innerText(), "Éléphant");
+    await page.context().close();
+  });
+
   test("Sons : une ligne par chanson ; cocher (un, Maj + clic, Ctrl + A) puis « Supprimer » (les playlists les gardent) et les remettre ; « ← Retour » sur la page d'un jeu", async () => {
     const A = "0123456789abcdef";
     const B = "fedcba9876543210";
