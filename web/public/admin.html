@@ -136,12 +136,14 @@
       <div id="library-tabs" class="chips game-tabs">
         <button type="button" class="chip" data-lib-tab="images">🖼️ Images</button>
         <button type="button" class="chip" data-lib-tab="sons">🎵 Sons</button>
+        <button type="button" class="chip" data-lib-tab="questions">❓ Questions</button>
       </div>
       <div id="library-images">
         <p class="hint">
           Toutes les images des jeux, en quatre groupes : les émojis, les photos libres de droits de la banque, vos
           propres images et les pochettes des chansons. Rangez chacune de vos images (nom, catégorie, mots-clés) : la
-          recherche les retrouve ensuite en un mot pendant que vous préparez un quiz.
+          recherche les retrouve ensuite en un mot pendant que vous préparez un quiz. Un clic montre l'image en grand ;
+          « 📋 » la copie pour une question (puis « 📋 Coller » dans la question).
         </p>
         <div class="search-row">
           <input id="media-search" type="search" placeholder="Chercher : chat, princesse, Disney…" aria-label="Rechercher une image" autocomplete="off">
@@ -186,6 +188,66 @@
         <div id="song-barre" class="song-barre" hidden></div>
         <div id="song-list" class="song-list"></div>
       </div>
+      <!-- Questions (cedric, 22/10) : toutes prêtes, écrites à la main, packs importés ; l'illustration manquante est signalée. -->
+      <div id="library-questions" hidden>
+        <p class="hint">
+          Toutes les questions des quiz : celles toutes prêtes de l'appli (quiz classique et quiz illustré, séparés), les
+          vôtres écrites en vrac (tous thèmes mélangés) et vos packs importés, rangés par thème. Une question sans
+          illustration est signalée par « ⚠ » (quiz classique : une image pour la révélation ; quiz illustré : une par réponse).
+          Vos questions se suppriment une par une (« Supprimer ») ou plusieurs à la fois (cochez-les).
+        </p>
+        <div class="search-row">
+          <input id="q-search" type="search" placeholder="Chercher : lion, planète, Disney…" aria-label="Rechercher une question" autocomplete="off">
+          <span id="q-count" class="hint small"></span>
+        </div>
+        <div id="q-groups" class="chips"></div>
+        <p id="q-status" class="status" role="status"></p>
+        <div id="pack-import" class="panel pack-import" hidden>
+          <div class="title-row">
+            <h2>Importer des packs</h2>
+            <label class="btn file-btn">📥 Importer des packs JSON…
+              <input id="pack-file" type="file" multiple accept=".json,application/json,image/*" hidden>
+            </label>
+          </div>
+          <p class="hint small">
+            Un fichier JSON par pack, ou plusieurs packs dans un même fichier (« packs »). Chaque pack a son titre, son
+            thème et ses questions. Déposez les images avec le fichier : elles rejoignent les questions qui les nomment.
+          </p>
+          <details class="hint small">
+            <summary>Voir un exemple de pack</summary>
+            <pre id="pack-exemple" class="pack-exemple"></pre>
+          </details>
+          <p id="pack-status" class="status"></p>
+        </div>
+        <div id="q-list" class="q-list"></div>
+        <!-- Questions cochées : supprimées ensemble (après confirmation). -->
+        <div id="q-selection" class="q-selection" hidden>
+          <b id="q-selection-n"></b>
+          <button id="q-tout" type="button" class="btn small secondary">Tout cocher ici</button>
+          <button id="q-aucune" type="button" class="btn small secondary">Tout décocher</button>
+          <button id="q-supprimer" type="button" class="btn small danger">🗑 Supprimer la sélection</button>
+        </div>
+      </div>
+      <!-- Une image de la Bibliothèque en grand (cedric, 22/10) : ‹ › pour passer à la voisine, Échap pour fermer. -->
+      <dialog id="visionneuse" class="visionneuse" aria-label="Image en grand">
+        <div class="vis-scene">
+          <button id="vis-prec" type="button" class="vis-nav" aria-label="Image précédente">‹</button>
+          <div id="vis-image" class="vis-image"></div>
+          <button id="vis-suiv" type="button" class="vis-nav" aria-label="Image suivante">›</button>
+        </div>
+        <div class="vis-infos">
+          <b id="vis-nom"></b>
+          <span id="vis-details" class="hint small"></span>
+          <span id="vis-ou" class="hint small"></span>
+          <div class="vis-boutons">
+            <button id="vis-copier" type="button" class="btn small">📋 Copier pour une question</button>
+            <button id="vis-fiche" type="button" class="btn small secondary" hidden>✏️ Sa fiche</button>
+            <button id="vis-fermer" type="button" class="btn small secondary">✕ Fermer</button>
+            <span id="vis-pos" class="hint small"></span>
+          </div>
+          <p id="vis-status" class="status" role="status"></p>
+        </div>
+      </dialog>
     </section>
 
     <!-- Page d'un jeu : ses manches (épinglées, les autres, archivées) ; ses collections dans l'onglet voisin. -->
@@ -509,8 +571,10 @@
         <button id="rv-add" type="button" class="btn secondary">Ajouter une question</button>
         <button id="rv-add-tf" type="button" class="btn secondary">Ajouter une question Vrai / Faux</button>
         <button id="rv-banque" type="button" class="btn secondary">🎲 Questions de la banque</button>
+        <button id="rv-chiffres" type="button" class="btn secondary">📝 Questions toutes prêtes</button>
       </div>
       <div id="rv-banque-panel" class="panel banque-panel" hidden></div>
+      <div id="rv-chiffres-panel" class="panel banque-panel" hidden></div>
       <div class="actions sticky">
         <button id="rv-validate-all" type="button" class="btn secondary">Tout valider</button>
         <button id="rv-save" type="button" class="btn">Enregistrer dans la bibliothèque</button>
