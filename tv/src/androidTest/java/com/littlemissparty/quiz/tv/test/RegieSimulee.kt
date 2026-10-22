@@ -138,6 +138,7 @@ class RegieSimulee : AutoCloseable {
      * une prestation complète, dont chaque jeu s'ouvre sur son écran de présentation (comme celles préparées dans la
      * Régie PC). Comme la page web, une seule écriture : le programme pour la box, le lancement de la prestation
      * [prestation] (un anniversaire n'est jamais lancé sur deux box), la libération de la prestation remplacée.
+     * [couleurs] : les couleurs des équipes choisies dans la prestation, que la box publie pour les tablettes.
      * Renvoie le verdict de la box : "applied", ou la raison du refus (points, not_now…).
      */
     fun chargerPrestation(
@@ -146,13 +147,14 @@ class RegieSimulee : AutoCloseable {
         questions: List<Map<String, Any?>>,
         prenom: String? = null,
         prestation: String = "presta-${UUID.randomUUID().toString().take(8)}",
+        couleurs: List<String>? = null,
     ): String {
         val ref = this.base.getReference("games/$code/show")
         val id = ref.push().key!!
         val programme = mapOf(
             "id" to id, "title" to titre, "by" to uid, "at" to ServerValue.TIMESTAMP, "prestation" to prestation,
             "quiz" to mapOf("id" to "presta", "title" to titre, "questions" to questions, "intros" to true),
-        ) + (prenom?.let { mapOf("childName" to it) } ?: emptyMap())
+        ) + (prenom?.let { mapOf("childName" to it) } ?: emptyMap()) + (couleurs?.let { mapOf("teamColors" to it) } ?: emptyMap())
         val ecriture = mutableMapOf<String, Any?>(
             "games/$code/show" to programme,
             "launches/$prestation" to mapOf("code" to code, "by" to uid, "at" to ServerValue.TIMESTAMP),

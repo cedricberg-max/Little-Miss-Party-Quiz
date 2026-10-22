@@ -78,13 +78,14 @@ class MauvaisePrestationTest : TestTv() {
         assertEquals("applied", regie.chargerPrestation(code, "L'anniversaire de Léa", lea, prenom = "Léa", prestation = idLea))
         ecran.voit("Joyeux anniversaire Léa !")
         assertEquals(code, regie.lancement(idLea))
+        assertNull("sans couleurs choisies, les tablettes proposent celles des bracelets", Boite.controle.lire("games/$code/public/teamColors"))
         assertEquals(idLea, Boite.controle.lire("games/$code/public/prestation"))
         premiereQuestion(regie, code, licornes, "Quel animal miaule ?")
         assertNull("aucun point donné", licornes.etat(code).child("scored").value)
         assertEquals(true, (regie.programme(code)["programReset"]))
 
         // Mauvaise prestation : celle de Chloé la remplace, la TV repart du salon avec la même équipe.
-        assertEquals("applied", regie.chargerPrestation(code, "L'anniversaire de Chloé", chloe, prenom = "Chloé", prestation = idChloe))
+        assertEquals("applied", regie.chargerPrestation(code, "L'anniversaire de Chloé", chloe, prenom = "Chloé", prestation = idChloe, couleurs = listOf("#FF6B1A", "#39FF14")))
         ecran.voit("Joyeux anniversaire Chloé !")
         ecran.voit("Licornes")
         ecran.neVoitPas("Quel animal miaule ?")
@@ -95,6 +96,8 @@ class MauvaisePrestationTest : TestTv() {
         assertEquals("L'anniversaire de Chloé", regie.programme(code)["title"])
         assertEquals("Chloé", Boite.controle.lire("games/$code/public/childName"))
         assertEquals(idChloe, Boite.controle.lire("games/$code/public/prestation"))
+        // Les couleurs choisies dans la prestation de Chloé (2 équipes, orange et vert) sont publiées pour les tablettes.
+        assertEquals(listOf("#FF6B1A", "#39FF14"), Boite.controle.lire("games/$code/public/teamColors"))
         assertEquals(code, regie.lancement(idChloe))
         assertNull("la prestation de Léa est libérée", regie.lancement(idLea))
 
