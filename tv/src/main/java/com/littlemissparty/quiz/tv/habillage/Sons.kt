@@ -28,6 +28,8 @@ object Sons {
     private const val CRAYON_VOLUME = 0.7f
     private const val CRAYON_ENTREE_MS = 80L
     private const val CRAYON_SORTIE_MS = 200L
+    /** Versions d'un même son long au plus (gs_tension_2 … gs_tension_5). */
+    private const val MAX_VARIANTES = 5
 
     private val fil = HandlerThread("habillage-son").apply { start() }
     private val h = Handler(fil.looper)
@@ -39,6 +41,12 @@ object Sons {
     private var pool: SoundPool? = null
     private val courts = mutableMapOf<Son, Int>()
     private val longs = mutableMapOf<Son, MediaPlayer>()
+    /**
+     * Game Show : toutes les versions d'un son long qui en a plusieurs (gs_tension, gs_tension_2, gs_tension_3…).
+     * Chaque lancement en tire une au hasard, jamais la même deux fois de suite ; [longs] pointe sur celle en cours.
+     */
+    private val variantes = mutableMapOf<Son, List<MediaPlayer>>()
+    private val derniereVariante = mutableMapOf<Son, Int>()
     /** Numéro du dernier lancement de chaque son long : un fondu de sortie ne coupe jamais un son relancé entre-temps. */
     private val lancements = mutableMapOf<Son, Int>()
     private val lits = mutableMapOf<Lit, Boucle>()
@@ -105,7 +113,14 @@ object Sons {
         h.post { enchainer(etapes) }
     }
 
-    private fun chargerLong(app: Context, s: Son) = essayer(s.name) { lecteur(app, s.fichier, boucle = false)?.let { longs[s] = it } }
+    private fun chargerLong(app: Context, s: Son) = essayer(s.name) {
+        val principal = lecteur(app, s.fichier, boucle = false) ?: return@essayer
+        longs[s] = principal
+        if (!Look.gs) return@essayer
+        val gs = s.fichier.replaceFirst("lmp_", "gs_")
+        val autres = (2..MAX_VARIANTES).mapNotNull { k -> brut(app, "${gs}_$k")?.let { lecteur(app, "${gs}_$k", boucle = false) } }
+        if (autres.isNotEmpty()) variantes[s] = listOf(principal) + autres
+    }
 
     /** Une boucle chargée après un ordre de musique prend tout de suite le volume de l'ambiance en cours. */
     private fun chargerLit(app: Context, l: Lit) = essayer(l.name) {
@@ -182,6 +197,12 @@ object Sons {
 
     private fun jouer(s: Son) {
         if (s.long) {
+            variantes[s]?.let { v ->
+                longs[s]?.takeIf { it.isPlaying }?.pause()
+                val i = (v.indices - (derniereVariante[s] ?: -1)).random()
+                derniereVariante[s] = i
+                longs[s] = v[i]
+            }
             val mp = longs[s] ?: return
             lancements[s] = (lancements[s] ?: 0) + 1
             if (mp.isPlaying) mp.pause()
@@ -340,7 +361,8 @@ object Sons {
     private fun reconstruire(context: Context, nom: String, boucle: Boolean, ancien: MediaPlayer) {
         essayer("reconstruire") { ancien.release() }
         val neuf = try { lecteur(context, nom, boucle) } catch (e: Exception) { null } ?: return
-        Son.entries.find { it.fichier == nom && longs[it] === ancien }?.let { longs[it] = neuf }
+        Son.entries.find { longs[it] === ancien }?.let { longs[it] = neuf }
+        for (s in variantes.keys.toList()) variantes[s] = variantes.getValue(s).map { if (it === ancien) neuf else it }
         if (crayon === ancien) {
             crayon = neuf
             volumeCrayon = 0f
@@ -377,8 +399,10 @@ object Sons {
             h.removeCallbacksAndMessages(prevus)
             h.removeCallbacksAndMessages(fondus)
             h.removeCallbacksAndMessages(fonduCrayon)
-            longs.values.forEach { essayer("recharger") { it.release() } }
+            (longs.values + variantes.values.flatten()).toSet().forEach { essayer("recharger") { it.release() } }
             longs.clear()
+            variantes.clear()
+            derniereVariante.clear()
             lits.values.forEach { essayer("recharger") { it.liberer() } }
             lits.clear()
             essayer("recharger") { crayon?.release() }
