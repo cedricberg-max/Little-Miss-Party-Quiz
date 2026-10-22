@@ -708,3 +708,32 @@ button.media-tile:hover { border-color: var(--violet); }
 .q-themes { display: flex; flex-direction: column; gap: 18px; }
 .q-theme { display: flex; flex-direction: column; gap: 10px; }
 .q-theme h3 { margin: 0; font-size: 15px; text-transform: uppercase; letter-spacing: 1px; color: var(--violet); }
+
+/* Bibliothèque › Images : un clic montre l'image en grand ; « 📋 » dans le coin la copie pour une question. */
+.media-tile.voir { position: relative; cursor: zoom-in; }
+.media-tile.voir:hover, .media-tile.voir:focus-visible { border-color: var(--violet); outline: none; }
+.media-copier {
+  position: absolute; top: 4px; right: 4px; width: 30px; height: 30px; padding: 0; display: grid; place-items: center;
+  border-radius: 10px; border: 1px solid var(--line-2); background: rgba(255, 255, 255, .92); font-size: 15px; cursor: pointer;
+  opacity: .8; transition: opacity .15s, transform .15s;
+}
+.media-copier:hover, .media-copier:focus-visible { opacity: 1; transform: scale(1.08); border-color: var(--violet); }
+.media-card img.voir { cursor: zoom-in; }
+.visionneuse {
+  width: min(96vw, 980px); max-width: min(96vw, 980px); max-height: calc(100% - 24px); margin: auto; padding: 18px;
+  border: 1px solid var(--line); border-radius: 24px; background: var(--card); color: var(--ink); overflow-y: auto;
+  box-shadow: 0 24px 70px rgba(40, 20, 60, .45);
+}
+.visionneuse[open] { display: flex; flex-direction: column; gap: 14px; }
+.visionneuse::backdrop { background: rgba(30, 14, 46, .78); }
+.vis-scene { display: flex; align-items: center; gap: 10px; min-height: 0; }
+.vis-image { flex: 1; min-width: 0; display: grid; place-items: center; min-height: 240px; border-radius: 18px; background: var(--bg-2); overflow: hidden; }
+.vis-image img { display: block; max-width: 100%; max-height: min(66vh, 620px); object-fit: contain; }
+.vis-image .emoji { font-size: min(40vh, 260px); line-height: 1.15; }
+.vis-nav { flex: none; width: 48px; height: 48px; border-radius: 50%; border: 1.5px solid var(--line-2); background: var(--card); color: var(--violet); font-size: 30px; line-height: 1; cursor: pointer; }
+.vis-nav:hover, .vis-nav:focus-visible { border-color: var(--violet); outline: none; }
+.vis-infos { display: flex; flex-direction: column; gap: 4px; }
+.vis-infos > b { font-size: 20px; color: var(--plum); overflow-wrap: anywhere; }
+.vis-boutons { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 8px; }
+.vis-boutons #vis-pos { margin-left: auto; }
+@media (max-width: 640px) { .visionneuse { padding: 12px; } .vis-nav { width: 38px; height: 38px; font-size: 24px; } .vis-image { min-height: 180px; } }

@@ -1955,31 +1955,40 @@ function illustrationRow(q, i) {
       type: "button", class: "btn small secondary", text: "🖼️ Bibliothèque…", title: "Choisir un émoji, une photo libre ou une de vos images",
       onclick: async () => {
         const x = await choisirDansBibliotheque({ titre: "Illustration de la question", recherche: nomReponse(q) });
-        if (!x) return;
-        if (x.groupe === "emojis") {
-          q.image = cleanEmoji(x.emoji);
-          row.querySelector(".q-emoji").value = q.image;
-          refreshMissing();
-          noterEcran();
-          info.textContent = `Émoji ${x.emoji} choisi. Pensez à enregistrer le quiz.`;
-          return;
-        }
-        info.textContent = "Préparation de la photo…";
-        try {
-          q.imageId = dansLaBase(x) ? x.id : await storeIllustration(await blobDe(x));
-          q.imageFile = null;
-          noterEcran();
-          remove.hidden = false;
-          showPreview();
-          info.textContent = `« ${x.nom} » choisie dans la bibliothèque : cliquez dessus pour la cadrer. Pensez à enregistrer le quiz.`;
-        } catch (err) {
-          console.error(err);
-          info.textContent = "Image illisible : choisissez-en une autre.";
-        }
+        if (x) await poser(x);
       },
     }),
+    // L'image copiée dans la Bibliothèque (« 📋 », cedric 22/10) se pose ici d'un clic.
+    imageCopiee ? h("button", {
+      type: "button", class: "btn small secondary q-coller", text: `📋 Coller « ${nomCopie(imageCopiee)} »`, title: "L'image copiée dans la Bibliothèque",
+      onclick: () => poser(imageCopiee),
+    }) : null,
     file, preview, remove, info);
   return row;
+
+  /** Pose une image de la Bibliothèque (choisie ou copiée) : l'émoji dans sa case, une photo comme illustration. */
+  async function poser(x) {
+    if (x.groupe === "emojis") {
+      q.image = cleanEmoji(x.emoji);
+      row.querySelector(".q-emoji").value = q.image;
+      refreshMissing();
+      noterEcran();
+      info.textContent = `Émoji ${x.emoji} choisi. Pensez à enregistrer le quiz.`;
+      return;
+    }
+    info.textContent = "Préparation de la photo…";
+    try {
+      q.imageId = dansLaBase(x) ? x.id : await storeIllustration(await blobDe(x));
+      q.imageFile = null;
+      noterEcran();
+      remove.hidden = false;
+      showPreview();
+      info.textContent = `« ${x.nom} » choisie dans la bibliothèque : cliquez dessus pour la cadrer. Pensez à enregistrer le quiz.`;
+    } catch (err) {
+      console.error(err);
+      info.textContent = "Image illisible : choisissez-en une autre.";
+    }
+  }
 }
 
 /**
@@ -2045,25 +2054,33 @@ function choicePhoto(q, slots, k) {
       onclick: async (e) => {
         e.preventDefault();
         const x = await choisirDansBibliotheque({ titre: `Image de la réponse ${LETTERS[k]}`, groupes: ["photos", "miennes", "pochettes"], recherche: slots[k].replace(/^[^\p{L}\p{N}]+/u, "").trim() });
-        if (!x) return;
-        try {
-          (q.slotImages ??= [])[k] = dansLaBase(x) ? x.id : await storeChoiceImage(await blobDe(x));
-          if (q.slotFiles) q.slotFiles[k] = null;
-          setTimeout(noterEcran, 0);
-          if (!slots[k].trim()) {
-            slots[k] = x.nom;
-            const input = $("rv-list").querySelector(`[data-q="${draft.questions.indexOf(q)}"]`)?.querySelectorAll(".q-choice")[k];
-            if (input) input.value = slots[k];
-          }
-          show_();
-          syncChoices(q, slots);
-        } catch (err) {
-          console.error(err);
-          status("rv-status", "Image illisible : choisissez-en une autre.");
-        }
+        if (x) await poserReponse(x);
       },
     }),
+    // La photo copiée dans la Bibliothèque (« 📋 ») ; pas un émoji : une réponse en image est une photo.
+    imageCopiee && imageCopiee.groupe !== "emojis" ? h("button", {
+      type: "button", class: "icon q-coller", title: `Coller « ${nomCopie(imageCopiee)} » (copiée dans la Bibliothèque)`, text: "📋",
+      onclick: (e) => { e.preventDefault(); poserReponse(imageCopiee); },
+    }) : null,
     file);
+  /** Pose une photo de la Bibliothèque (choisie ou copiée) comme image de la réponse ; son nom si la case est vide. */
+  async function poserReponse(x) {
+    try {
+      (q.slotImages ??= [])[k] = dansLaBase(x) ? x.id : await storeChoiceImage(await blobDe(x));
+      if (q.slotFiles) q.slotFiles[k] = null;
+      setTimeout(noterEcran, 0);
+      if (!slots[k].trim()) {
+        slots[k] = x.nom;
+        const input = $("rv-list").querySelector(`[data-q="${draft.questions.indexOf(q)}"]`)?.querySelectorAll(".q-choice")[k];
+        if (input) input.value = slots[k];
+      }
+      show_();
+      syncChoices(q, slots);
+    } catch (err) {
+      console.error(err);
+      status("rv-status", "Image illisible : choisissez-en une autre.");
+    }
+  }
 }
 
 /**
@@ -4944,7 +4961,7 @@ function renderMedias(force = false) {
       return h("section", { class: "media-group", "data-groupe": k },
         h("div", { class: "title-row" }, h("h2", { text: label }), list.length ? voir : null,
           k === "miennes" && !recherche ? h("button", { type: "button", class: "btn small", text: "＋ Ajouter mes images", onclick: () => { mediaGroupe = "miennes"; mediaCat = null; renderMedias(true); } }) : null),
-        list.length ? h("div", { class: "media-grid" }, ...list.slice(0, APERCU).map(vignetteMedia))
+        list.length ? h("div", { class: "media-grid" }, ...list.slice(0, APERCU).map((x, i, l) => vignetteMedia(x, i, l)))
           : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : k === "miennes" ? "Aucune image à vous pour l'instant : « ＋ Ajouter mes images »." : k === "pochettes" ? AUCUNE_POCHETTE : "" }));
     }));
     return;
@@ -4972,8 +4989,8 @@ function renderMedias(force = false) {
   const parCat = mediaCat ? [[mediaCat === RETIREES ? "🚫 Retirées" : mediaCat, montrees]] : categoriesDe(montrees).map((c) => [c, montrees.filter((x) => x.cat === c)]);
   box.replaceChildren(...parCat.flatMap(([c, items]) => [
     h("h3", { class: "content-series", text: `${c} · ${items.length}` }),
-    fiches ? h("div", { class: "media-cards" }, ...items.map((x) => ficheMedia(x, g.miennes.concat(g[RETIREES].miennes))))
-      : h("div", { class: "media-grid" }, ...items.map(vignetteMedia)),
+    fiches ? h("div", { class: "media-cards" }, ...items.map((x, i) => ficheMedia(x, g.miennes.concat(g[RETIREES].miennes), items, i)))
+      : h("div", { class: "media-grid" }, ...items.map((x, i) => vignetteMedia(x, i, items))),
   ]));
   if (list.length > montrees.length) box.append(h("p", { class: "hint small", text: `… et ${list.length - montrees.length} autres : précisez la recherche.` }));
 }
@@ -4984,31 +5001,89 @@ const imageDeMedia = (x) => [x.groupe === "emojis" ? h("span", { class: "emoji",
   : x.groupe === "photos" ? h("img", { src: x.src, alt: "", loading: "lazy" })
     : photoBibliotheque(x.id, { loading: "lazy" })];
 
-/** Vignette d'une image (émoji, photo libre, la sienne) : son nom dessous, ses mots-clés au survol. */
-function vignetteMedia(x) {
+/**
+ * Vignette d'une image (émoji, photo libre, la sienne, pochette) : son nom dessous, ses mots-clés au survol. Un clic la
+ * montre en grand ([liste] : ses voisines, pour ‹ ›) ; « 📋 » dans le coin la copie pour une question (cedric, 22/10).
+ */
+function vignetteMedia(x, i = 0, liste = [x]) {
   const titre = [x.cat, ...(x.tags ?? [])].filter(Boolean).join(" · ");
   const [image] = imageDeMedia(x);
-  // Un émoji se copie d'un clic, pour le coller dans une question ou une carte.
-  if (x.groupe === "emojis") {
-    return h("button", {
-      type: "button", class: "media-tile", "data-media": x.id, title: `${titre}\nCliquer pour copier l'émoji`,
-      onclick: async () => {
-        try { await navigator.clipboard.writeText(x.emoji); status("media-note", `${x.emoji} copié : collez-le dans une question ou une carte (Ctrl+V).`, true); }
-        catch { status("media-note", `Copie impossible : sélectionnez l'émoji ${x.emoji} à la main.`); }
-      },
-    }, image, h("span", { text: x.nom }));
-  }
-  if (dansLaBase(x)) {
-    return h("button", { type: "button", class: "media-tile", "data-media": x.id, title: titre, onclick: () => { mediaGroupe = x.groupe; mediaCat = x.groupe === "miennes" ? x.cat : null; renderMedias(true); } }, image, h("span", { text: x.nom || "Sans nom" }));
-  }
-  return h("figure", { class: "media-tile", "data-media": x.id, title: titre }, image, h("span", { text: x.nom }));
+  const voir = () => voirEnGrand(liste, i);
+  return h("div", {
+    class: "media-tile voir", "data-media": x.id, title: `${titre ? `${titre}\n` : ""}Cliquer pour voir en grand`, role: "button", tabindex: "0",
+    onclick: voir, onkeydown: (e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); voir(); } },
+  },
+  h("button", {
+    type: "button", class: "media-copier", text: "📋", title: "Copier pour une question", "aria-label": `Copier « ${nomCopie(x)} » pour une question`,
+    onclick: (e) => { e.stopPropagation(); copierImage(x, "media-note"); },
+  }),
+  image, h("span", { text: x.nom || "Sans nom" }));
 }
+
+/** Image copiée pour une question (« 📋 ») : « 📋 Coller » la pose ensuite dans la question ouverte. */
+let imageCopiee = null;
+const nomCopie = (x) => x.nom || x.emoji || "l'image";
+async function copierImage(x, statut) {
+  imageCopiee = x;
+  if (x.groupe === "emojis") {
+    // Aussi dans le presse-papiers du PC : Ctrl+V le colle dans une case d'émoji ou une carte.
+    let pressePapiers = true;
+    try { await navigator.clipboard.writeText(x.emoji); } catch { pressePapiers = false; }
+    return status(statut, `${x.emoji} copié : dans une question, « 📋 Coller »${pressePapiers ? ", ou Ctrl+V dans la case de l'émoji" : ""}.`, true);
+  }
+  status(statut, `« ${nomCopie(x)} » copiée : dans une question, « 📋 Coller » à côté de « 🖼️ Bibliothèque… », ou 📋 sur une réponse en image.`, true);
+}
+
+/** Image ouverte en grand : ses voisines dans la liste affichée, et sa place. */
+let vis = null;
+function voirEnGrand(liste, i) {
+  vis = { liste, i };
+  dessinerVisionneuse();
+  if (!$("visionneuse").open) $("visionneuse").showModal();
+  $("vis-fermer").focus();
+}
+function dessinerVisionneuse() {
+  const x = vis.liste[vis.i];
+  $("vis-image").replaceChildren(x.groupe === "emojis" ? h("span", { class: "emoji", text: x.emoji })
+    : x.groupe === "photos" ? h("img", { src: x.src, alt: x.nom ?? "" }) : photoBibliotheque(x.id, { alt: x.nom ?? "" }));
+  $("vis-nom").textContent = x.nom || "Sans nom";
+  $("vis-details").textContent = [GROUPES_IMAGES[x.groupe], x.cat, ...(x.tags ?? [])].filter(Boolean).join(" · ");
+  $("vis-ou").textContent = x.ou?.length ? `Utilisée dans : ${x.ou.join(", ")}` : "";
+  const plusieurs = vis.liste.length > 1;
+  $("vis-prec").hidden = !plusieurs;
+  $("vis-suiv").hidden = !plusieurs;
+  $("vis-pos").textContent = plusieurs ? `${vis.i + 1} / ${vis.liste.length}` : "";
+  $("vis-fiche").hidden = !dansLaBase(x) || mediaGroupe === x.groupe;
+  status("vis-status", "");
+}
+const voisine = (d) => {
+  if (!vis || vis.liste.length < 2) return;
+  vis.i = (vis.i + d + vis.liste.length) % vis.liste.length;
+  dessinerVisionneuse();
+};
+$("vis-prec").onclick = () => voisine(-1);
+$("vis-suiv").onclick = () => voisine(1);
+$("vis-fermer").onclick = () => $("visionneuse").close();
+$("vis-copier").onclick = () => copierImage(vis.liste[vis.i], "vis-status");
+// Ses images et les pochettes : « ✏️ Sa fiche » ouvre leur groupe pour changer nom, catégorie, mots-clés.
+$("vis-fiche").onclick = () => {
+  const x = vis.liste[vis.i];
+  $("visionneuse").close();
+  mediaGroupe = x.groupe;
+  mediaCat = x.groupe === "miennes" ? x.cat : null;
+  renderMedias(true);
+};
+$("visionneuse").addEventListener("keydown", (e) => {
+  if (e.key === "ArrowLeft") { e.preventDefault(); voisine(-1); } else if (e.key === "ArrowRight") { e.preventDefault(); voisine(1); }
+});
+// Un clic à côté de l'image (sur le voile) ferme.
+$("visionneuse").addEventListener("click", (e) => { if (e.target === $("visionneuse")) $("visionneuse").close(); });
 
 /**
  * Fiche d'une de ses images ou d'une pochette : nom, catégorie (pas pour une pochette), mots-clés, où elle sert ;
  * chaque champ s'enregistre en le quittant.
  */
-function ficheMedia(x, toutes) {
+function ficheMedia(x, toutes, liste = [x], i = 0) {
   const pochette = x.groupe === "pochettes";
   const enregistrer = async (champs, message) => {
     const f = ficheImage({ nom: x.nom, cat: x.cat, tags: x.tags, retiree: x.retiree, ...champs }, medias[x.id]);
@@ -5056,10 +5131,12 @@ function ficheMedia(x, toutes) {
     ? h("button", { type: "button", class: "btn small", text: "Remettre", onclick: () => enregistrer({ retiree: false }, `« ${x.nom} » est remise dans ${ici}.`) })
     : h("button", { type: "button", class: "btn small secondary", text: "Retirer", title: `Elle disparaît de ${ici} ; les chansons, les quiz et les jeux qui l'utilisent la gardent.`, onclick: () => enregistrer({ retiree: true }, `« ${x.nom} » est retirée : retrouvez-la dans « 🚫 Retirées ». Les chansons, les quiz et les jeux qui l'utilisent la gardent.`) });
   return h("div", { class: `media-card${x.retiree ? " retiree" : ""}`, "data-media": x.id },
-    photoBibliotheque(x.id, { loading: "lazy" }),
+    photoBibliotheque(x.id, { loading: "lazy", class: "voir", title: "Voir en grand", onclick: () => voirEnGrand(liste, i) }),
     nom, cat, tags,
     x.ou.length ? h("span", { class: "small", text: `Utilisée dans : ${x.ou.join(", ")}` }) : null,
-    h("div", { class: "row" }, bouton));
+    h("div", { class: "row" },
+      h("button", { type: "button", class: "btn small secondary media-copier-fiche", text: "📋 Copier", title: "Copier pour une question", onclick: () => copierImage(x, "media-note") }),
+      bouton));
 }
 
 /** Mot à chercher pour illustrer une question : sa bonne réponse, sans émoji (« 🐱 Chat » → « Chat ») ; rien pour Vrai / Faux. */

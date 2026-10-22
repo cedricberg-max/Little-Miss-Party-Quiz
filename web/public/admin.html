@@ -142,7 +142,8 @@
         <p class="hint">
           Toutes les images des jeux, en quatre groupes : les émojis, les photos libres de droits de la banque, vos
           propres images et les pochettes des chansons. Rangez chacune de vos images (nom, catégorie, mots-clés) : la
-          recherche les retrouve ensuite en un mot pendant que vous préparez un quiz.
+          recherche les retrouve ensuite en un mot pendant que vous préparez un quiz. Un clic montre l'image en grand ;
+          « 📋 » la copie pour une question (puis « 📋 Coller » dans la question).
         </p>
         <div class="search-row">
           <input id="media-search" type="search" placeholder="Chercher : chat, princesse, Disney…" aria-label="Rechercher une image" autocomplete="off">
@@ -226,6 +227,26 @@
           <button id="q-supprimer" type="button" class="btn small danger">🗑 Supprimer la sélection</button>
         </div>
       </div>
+      <!-- Une image de la Bibliothèque en grand (cedric, 22/10) : ‹ › pour passer à la voisine, Échap pour fermer. -->
+      <dialog id="visionneuse" class="visionneuse" aria-label="Image en grand">
+        <div class="vis-scene">
+          <button id="vis-prec" type="button" class="vis-nav" aria-label="Image précédente">‹</button>
+          <div id="vis-image" class="vis-image"></div>
+          <button id="vis-suiv" type="button" class="vis-nav" aria-label="Image suivante">›</button>
+        </div>
+        <div class="vis-infos">
+          <b id="vis-nom"></b>
+          <span id="vis-details" class="hint small"></span>
+          <span id="vis-ou" class="hint small"></span>
+          <div class="vis-boutons">
+            <button id="vis-copier" type="button" class="btn small">📋 Copier pour une question</button>
+            <button id="vis-fiche" type="button" class="btn small secondary" hidden>✏️ Sa fiche</button>
+            <button id="vis-fermer" type="button" class="btn small secondary">✕ Fermer</button>
+            <span id="vis-pos" class="hint small"></span>
+          </div>
+          <p id="vis-status" class="status" role="status"></p>
+        </div>
+      </dialog>
     </section>
 
     <!-- Page d'un jeu : ses manches (épinglées, les autres, archivées) ; ses collections dans l'onglet voisin. -->

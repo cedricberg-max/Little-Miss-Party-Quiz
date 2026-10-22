@@ -2688,6 +2688,87 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Bibliothèque › Images (cedric, 22/10) : un clic montre l'image en grand, « 📋 » la copie, « 📋 Coller » la pose dans une question", async () => {
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    const lea = "abcdef0123456789";
+    await seedLibrary(`images/${lea}`, `data:image/png;base64,${png([200, 160, 60]).toString("base64")}`);
+    await seedLibrary(`medias/${lea}`, { name: "Le lion de Léa", cat: "Famille et amis", tags: "doudou", createdAt: 1, updatedAt: 1 });
+    const page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.locator("#library-images:not([hidden])").waitFor();
+    const vis = page.locator("#visionneuse");
+    const nomVu = () => page.locator("#vis-nom").innerText();
+
+    // Un émoji en grand ; ‹ › (ou les flèches du clavier) passent aux voisins ; Échap ferme.
+    const emojis = page.locator('#media-list .media-group[data-groupe="emojis"] .media-tile');
+    const [premier, deuxieme] = [await emojis.nth(0).locator("span:last-child").innerText(), await emojis.nth(1).locator("span:last-child").innerText()];
+    await emojis.first().click();
+    await vis.locator(".vis-image .emoji").waitFor();
+    assert.equal(await nomVu(), premier);
+    assert.match(await page.locator("#vis-pos").innerText(), /^1 \/ \d+$/);
+    assert.match(await page.locator("#vis-details").innerText(), /^😀 Émojis/);
+    await page.keyboard.press("ArrowRight");
+    await waitFor(async () => await nomVu() === deuxieme, "émoji suivant");
+    await page.click("#vis-prec");
+    await waitFor(async () => await nomVu() === premier, "émoji précédent");
+    await page.keyboard.press("Escape");
+    await vis.waitFor({ state: "hidden" });
+
+    // Sa propre image : en grand avec sa catégorie, ses mots-clés ; « ✏️ Sa fiche » ouvre son groupe.
+    await page.locator(`#media-list .media-group[data-groupe="miennes"] .media-tile[data-media="${lea}"]`).click();
+    await vis.locator('.vis-image img[src^="data:image/png"]').waitFor();
+    assert.equal(await nomVu(), "Le lion de Léa");
+    assert.equal(await page.locator("#vis-details").innerText(), "⭐ Mes images · Famille et amis · doudou");
+    await page.click("#vis-fiche");
+    await vis.waitFor({ state: "hidden" });
+    await page.locator(`.media-card[data-media="${lea}"]`).waitFor();
+    // Dans son groupe : un clic sur la photo l'ouvre aussi en grand, « 📋 Copier » la copie.
+    await page.locator(`.media-card[data-media="${lea}"] img.voir`).click();
+    await page.locator("#vis-nom", { hasText: "Le lion de Léa" }).waitFor();
+    await page.click("#vis-fermer");
+    await vis.waitFor({ state: "hidden" });
+    await page.locator(`.media-card[data-media="${lea}"]`).getByRole("button", { name: "📋 Copier" }).click();
+    await page.locator("#media-note", { hasText: "« Le lion de Léa » copiée" }).waitFor();
+
+    // L'émoji du lion copié depuis la grande vue, puis collé dans la question.
+    await page.click('#media-groups [data-groupe="tout"]');
+    await page.fill("#media-search", "lion");
+    await page.locator('.media-tile[data-media="emoji:🦁"]').click();
+    await page.click("#vis-copier");
+    await page.locator("#vis-status", { hasText: "🦁 copié : dans une question, « 📋 Coller »" }).waitFor();
+    await page.keyboard.press("Escape");
+    await openQuizzes(page);
+    await page.locator('#quiz-list [data-quiz="animaux"]').getByRole("button", { name: "Éditer" }).click();
+    const q0 = page.locator('[data-q="0"]');
+    await q0.getByRole("button", { name: "📋 Coller « Lion »" }).click();
+    assert.equal(await q0.locator(".q-emoji").inputValue(), "🦁");
+    assert.equal(await q0.locator(".choice-photo .q-coller").count(), 0, "pas d'émoji sur une réponse en image");
+    await page.click("#rv-save");
+    await page.locator("#rv-status", { hasText: "Enregistré" }).waitFor();
+
+    // La photo libre du tigre copiée d'un geste (📋 de la vignette, sans l'ouvrir) : illustration et réponse B.
+    await page.click("#nav button[data-screen=library]");
+    await page.fill("#media-search", "tigre");
+    const tigre = page.locator('#media-list .media-group[data-groupe="photos"] .media-tile[data-media="banque:tigre"]');
+    await tigre.locator(".media-copier").click();
+    await page.locator("#media-note", { hasText: "« Tigre » copiée" }).waitFor();
+    assert.equal(await vis.isVisible(), false, "le 📋 copie sans ouvrir");
+    await openQuizzes(page);
+    await page.locator('#quiz-list [data-quiz="animaux"]').getByRole("button", { name: "Éditer" }).click();
+    await q0.getByRole("button", { name: "📋 Coller « Tigre »" }).click();
+    await q0.locator(".q-image:not([hidden])").waitFor();
+    await q0.locator(".choice-photo").nth(1).locator(".q-coller").click();
+    await q0.locator(".choice-photo").nth(1).locator(".choice-thumb:not([hidden])").waitFor();
+    await page.click("#rv-save");
+    await page.locator("#rv-status", { hasText: "Enregistré" }).waitFor();
+    const q = (await library("quizzes")).animaux.questions[0];
+    assert.equal(q.image, "🦁");
+    assert.match(q.imageId, /^[0-9a-f]{16}$/);
+    assert.match(await library(`images/${q.imageId}`), /^data:image\/jpeg;base64,/);
+    assert.match(q.choiceImages[1], /^[0-9a-f]{16}$/);
+    await page.context().close();
+  });
+
   test("Bibliothèque en fabriquant un quiz : « 🖼️ » cherche la bonne réponse et pose un émoji, une de ses images ou une photo libre", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     const lea = "abcdef0123456789";
