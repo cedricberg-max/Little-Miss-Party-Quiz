@@ -178,7 +178,7 @@ fun IntroPortes(valeurs: List<Int>, modifier: Modifier = Modifier, jouer: (Son) 
     }
     Echelle(960.dp, 540.dp, modifier) {
         Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
-            LogoLmp(54.dp)
+            LogoMarque(54.dp)
             Spacer(Modifier.height(8.dp))
             Text("DERNIÈRE MANCHE", style = TextStyle(fontFamily = PoliceLmp, lineHeight = 1.2.em, lineHeightStyle = LIGNE_LMP, color = Neon.Or, fontSize = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = 8.sp))
             Spacer(Modifier.height(6.dp))
