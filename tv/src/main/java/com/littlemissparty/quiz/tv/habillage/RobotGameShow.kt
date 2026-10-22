@@ -63,6 +63,8 @@ enum class MomentRobot {
     MALUS,
     /** La bombe des coffres approche : il a peur. */
     BOMBE,
+    /** Pause : il vient régulièrement faire son numéro, tant que la pause dure. */
+    PAUSE,
 }
 
 /**
@@ -71,8 +73,11 @@ enum class MomentRobot {
  */
 internal data class EtapeRobot(val ms: Int, val x: Float, val bas: Float, val echelle: Float = 1f)
 
-/** Le trajet d'un clip ; [sauts] = hauteur des petits bonds (fraction de l'écran), [periodeSautMs] leur rythme. */
-internal class TrajetRobot(val etapes: List<EtapeRobot>, val sauts: Float = 0f, val periodeSautMs: Int = 500) {
+/**
+ * Le trajet d'un clip ; [sauts] = hauteur des petits bonds (fraction de l'écran), [periodeSautMs] leur rythme.
+ * [fluide] : vol continu, sans s'arrêter aux étapes (vitesse horizontale constante, il ondule en hauteur).
+ */
+internal class TrajetRobot(val etapes: List<EtapeRobot>, val sauts: Float = 0f, val periodeSautMs: Int = 500, val fluide: Boolean = false) {
     val totalMs get() = etapes.last().ms
 
     /** Position (x, bas, échelle) à [ms] : passage en douceur d'une étape à l'autre, plus les bonds. */
@@ -83,7 +88,7 @@ internal class TrajetRobot(val etapes: List<EtapeRobot>, val sauts: Float = 0f, 
         val u = ((ms - e0.ms) / (e1.ms - e0.ms)).coerceIn(0f, 1f)
         val d = u * u * (3 - 2 * u)
         val bond = if (sauts > 0f) sauts * abs(sin(PI.toFloat() * ms / periodeSautMs)) else 0f
-        return Triple(e0.x + (e1.x - e0.x) * d, e0.bas + (e1.bas - e0.bas) * d - bond, e0.echelle + (e1.echelle - e0.echelle) * d)
+        return Triple(e0.x + (e1.x - e0.x) * (if (fluide) u else d), e0.bas + (e1.bas - e0.bas) * d - bond, e0.echelle + (e1.echelle - e0.echelle) * d)
     }
 }
 
@@ -117,6 +122,20 @@ private fun duBas(x: Float, dureeMs: Int, echelle: Float = 0.85f, montee: Int = 
 private fun duHaut(x: Float, poseMs: Int, decolleMs: Int, finMs: Int, echelle: Float = 0.9f, bas: Float = 1f) =
     TrajetRobot(listOf(EtapeRobot(0, x, -0.02f, echelle), EtapeRobot(poseMs, x, bas, echelle), EtapeRobot(decolleMs, x, bas, echelle), EtapeRobot(finMs, x, -0.1f, echelle)))
 
+/** En vol, il traverse l'écran de [x0] à [x1] en ondulant entre [hauts] (socle, fraction de la hauteur). */
+private fun envol(x0: Float, x1: Float, finMs: Int, hauts: List<Float>, echelle: Float = 0.8f): TrajetRobot {
+    val n = hauts.size - 1
+    return TrajetRobot(hauts.mapIndexed { i, b -> EtapeRobot(finMs * i / n, x0 + (x1 - x0) * i / n, b, echelle) }, fluide = true)
+}
+
+/** Pique en diagonale depuis le haut ([x0]) et se pose à [x] de [poseMs] à [decolleMs], puis redécolle tout droit. */
+private fun pique(x0: Float, x: Float, poseMs: Int, decolleMs: Int, finMs: Int, echelle: Float = 0.85f) =
+    TrajetRobot(listOf(EtapeRobot(0, x0, -0.05f, echelle), EtapeRobot(poseMs, x, 1f, echelle), EtapeRobot(decolleMs, x, 1f, echelle), EtapeRobot(finMs, x, -0.1f, echelle)))
+
+/** Suspendu la tête en bas au haut de l'écran, à [x] : il descend, se balance, puis remonte. */
+private fun suspendu(x: Float, dureeMs: Int, echelle: Float = 0.85f) =
+    TrajetRobot(listOf(EtapeRobot(0, x, -0.02f, echelle), EtapeRobot(800, x, 0.61f, echelle), EtapeRobot(dureeMs, x, 0.61f, echelle), EtapeRobot(dureeMs + 700, x, -0.05f, echelle)))
+
 /**
  * Le catalogue (22/10, après le test sur la vraie TV : « beaucoup plus d'animations, des mouvements de gauche à droite,
  * de haut en bas, des expressions selon les situations »). Chaque trajet suit le minutage de son clip
@@ -128,6 +147,9 @@ internal val CATALOGUE: List<ClipRobot> = listOf(
     ClipRobot("gs_robot_traverseg", MomentRobot.MANCHE, traversee(2_200, 5_000, 7_000, versLaGauche = true)),
     ClipRobot("gs_robot_descente", MomentRobot.MANCHE, duHaut(0.22f, 1_100, 4_600, 6_000)),
     ClipRobot("gs_robot_coucou", MomentRobot.MANCHE, duBas(0.2f, 3_900, echelle = 1f)),
+    // C'est un robot qui vole (cedric) : il arrive aussi en volant, ou en piqué depuis le haut de l'écran.
+    ClipRobot("gs_robot_vole", MomentRobot.MANCHE, envol(-0.25f, 1.25f, 6_000, listOf(0.62f, 0.8f, 0.66f, 0.82f, 0.58f))),
+    ClipRobot("gs_robot_pique", MomentRobot.MANCHE, pique(0.95f, 0.22f, 1_300, 4_200, 5_500)),
     // Suspense : au bord droit seulement, les réponses (texte à gauche des cartes) restent lisibles.
     ClipRobot("gs_robot_suspense", MomentRobot.SUSPENSE, auBord(0.92f, 3_000, echelle = 0.8f, entreeMs = 500)),
     ClipRobot("gs_robot_cache", MomentRobot.SUSPENSE, auBord(0.92f, 3_500, echelle = 0.8f, entreeMs = 500)),
@@ -138,17 +160,22 @@ internal val CATALOGUE: List<ClipRobot> = listOf(
     ClipRobot("gs_robot_pleure", MomentRobot.RATE, duBas(0.13f, 3_900)),
     // Tout le monde a trouvé.
     ClipRobot("gs_robot_applaudit", MomentRobot.TOUS, auBord(0.88f, 3_700)),
+    ClipRobot("gs_robot_energie", MomentRobot.TOUS, duHaut(0.87f, 900, 3_900, 4_700, echelle = 0.85f, bas = 0.92f)),
     ClipRobot("gs_robot_pouces", MomentRobot.TOUS, duBas(0.14f, 3_700)),
     // Tableau des scores : il traverse en dansant, ou tourne sur lui-même au bord.
     ClipRobot("gs_robot_danse", MomentRobot.SCORES, traversee(2_400, 5_400, 7_500)),
     ClipRobot("gs_robot_robotdance", MomentRobot.SCORES, traversee(2_400, 5_400, 7_500, versLaGauche = true)),
     ClipRobot("gs_robot_tourne", MomentRobot.SCORES, duBas(0.85f, 4_600)),
+    ClipRobot("gs_robot_vole", MomentRobot.SCORES, envol(1.25f, -0.25f, 6_000, listOf(0.55f, 0.72f, 0.6f, 0.75f, 0.6f))),
+    ClipRobot("gs_robot_pique", MomentRobot.SCORES, pique(0.95f, 0.15f, 1_300, 4_200, 5_500)),
     ClipRobot("gs_robot_tete", MomentRobot.TETE, auBord(0.15f, 4_300, echelle = 0.9f)),
+    ClipRobot("gs_robot_pique", MomentRobot.TETE, pique(0.95f, 0.85f, 1_300, 4_200, 5_500)),
     ClipRobot("gs_robot_energie", MomentRobot.SUPER_FINALE, duHaut(0.85f, 900, 3_900, 4_700, echelle = 0.85f, bas = 0.92f)),
     // Grand gagnant : à côté du nom, qui reste au centre.
     ClipRobot("gs_robot_podium", MomentRobot.PODIUM, auBord(0.87f, 3_800, echelle = 1.05f, entreeMs = 1_200, sortieMs = 800, sauts = 0.05f)),
     ClipRobot("gs_robot_confettis", MomentRobot.PODIUM, auBord(0.14f, 3_900, echelle = 1f, entreeMs = 900)),
     ClipRobot("gs_robot_ola", MomentRobot.PODIUM, duBas(0.86f, 3_900, echelle = 1f)),
+    ClipRobot("gs_robot_energie", MomentRobot.PODIUM, duHaut(0.86f, 900, 3_900, 4_700, echelle = 0.95f, bas = 0.92f)),
     // Bonus, malus, coffres : il surgit d'un bord différent à chaque fois, jamais au centre (carte et coffre restent
     // visibles), et suit l'humeur du moment.
     ClipRobot("gs_robot_applaudit", MomentRobot.BONUS, auBord(0.88f, 3_700)),
@@ -162,6 +189,21 @@ internal val CATALOGUE: List<ClipRobot> = listOf(
     ClipRobot("gs_robot_rate", MomentRobot.MALUS, auBord(0.88f, 3_000)),
     ClipRobot("gs_robot_cache", MomentRobot.BOMBE, auBord(0.12f, 3_500, entreeMs = 500)),
     ClipRobot("gs_robot_inquiet", MomentRobot.BOMBE, auBord(0.88f, 3_500, entreeMs = 500)),
+    // Pause : le robot à l'honneur. Il vient régulièrement, par le haut, en volant, la tête en bas, en dansant…
+    ClipRobot("gs_robot_dort", MomentRobot.PAUSE, duHaut(0.8f, 1_200, 5_200, 6_000, echelle = 0.85f, bas = 0.95f)),
+    ClipRobot("gs_robot_envers", MomentRobot.PAUSE, suspendu(0.18f, 4_300)),
+    ClipRobot("gs_robot_vole", MomentRobot.PAUSE, envol(-0.25f, 1.25f, 6_000, listOf(0.45f, 0.75f, 0.55f, 0.85f, 0.5f))),
+    ClipRobot("gs_robot_pique", MomentRobot.PAUSE, pique(0.95f, 0.2f, 1_300, 4_200, 5_500)),
+    ClipRobot("gs_robot_groove", MomentRobot.PAUSE, duBas(0.82f, 4_300)),
+    ClipRobot("gs_robot_descente", MomentRobot.PAUSE, duHaut(0.78f, 1_100, 4_600, 6_000)),
+    ClipRobot("gs_robot_energie", MomentRobot.PAUSE, duHaut(0.2f, 900, 3_900, 4_700, echelle = 0.85f, bas = 0.92f)),
+    ClipRobot("gs_robot_coucou", MomentRobot.PAUSE, duBas(0.15f, 3_900)),
+    ClipRobot("gs_robot_danse", MomentRobot.PAUSE, traversee(2_400, 5_400, 7_500)),
+    ClipRobot("gs_robot_robotdance", MomentRobot.PAUSE, traversee(2_400, 5_400, 7_500, versLaGauche = true)),
+    ClipRobot("gs_robot_tourne", MomentRobot.PAUSE, duBas(0.85f, 4_600)),
+    ClipRobot("gs_robot_ola", MomentRobot.PAUSE, duBas(0.15f, 3_900)),
+    ClipRobot("gs_robot_confettis", MomentRobot.PAUSE, auBord(0.86f, 3_900, entreeMs = 800)),
+    ClipRobot("gs_robot_pouces", MomentRobot.PAUSE, duBas(0.86f, 3_700)),
 )
 
 /** Une réaction demandée par un autre écran ([signalerRobot]) ; [a] = heure de la demande sur la box. */
@@ -251,6 +293,7 @@ fun RobotGameShow(state: UiState) {
     if (!Look.gs) return
     val s = state as? UiState.Playing ?: return
     val secondes = secondesRestantes(s)
+    if (s.paused) return PauseRobot(s.code)
     // Une réaction (bonus, malus, coffre) passe avant le reste, le temps de son clip.
     val signal = signalRobot.value?.takeIf { !s.paused && System.currentTimeMillis() - it.a < if (it.cle in clipsJoues) 10_000 else 3_000 }
     val (moment, cle) = signal?.let { it.moment to it.cle } ?: momentRobot(s, secondes, meneurs[s.code]) ?: return
@@ -265,6 +308,21 @@ fun RobotGameShow(state: UiState) {
     }
 }
 
+/** Numéros de pause déjà commencés : chaque fin de numéro fait venir le suivant (y compris d'une pause à l'autre). */
+private val tourPause = mutableStateOf(0)
+
+/** Pause : un numéro au hasard toutes les quelques secondes, tant que la pause dure. */
+@Composable
+private fun PauseRobot(code: String) {
+    val premier = remember { tourPause.value }
+    val tour = tourPause.value
+    val cle = "pause $code $tour"
+    val clip = clipsTires.getOrPut(cle) { tirage.suivant(MomentRobot.PAUSE) } ?: return
+    // Le premier vient vite ; ensuite il laisse respirer l'écran entre deux numéros.
+    val attente = if (tour == premier) 1_500L else Random(tour).nextLong(3_000, 7_000)
+    key(cle) { JouerClip(clip, cle, attente) { if (tourPause.value == tour) tourPause.value = tour + 1 } }
+}
+
 @Composable
 private fun JouerClip(clip: ClipRobot, cle: String, attenteMs: Long, onFini: () -> Unit) {
     val context = LocalContext.current
@@ -274,7 +332,11 @@ private fun JouerClip(clip: ClipRobot, cle: String, attenteMs: Long, onFini: () 
     var lecture by remember { mutableStateOf(0) }
     val temps = remember { Animatable(0f) }
     LaunchedEffect(cle) {
-        if (resId == 0 || !clipsJoues.add(cle)) return@LaunchedEffect onFini()
+        if (resId == 0 || !clipsJoues.add(cle)) {
+            // Jamais en boucle serrée, même si un clip manque.
+            delay(500)
+            return@LaunchedEffect onFini()
+        }
         delay(attenteMs)
         visible = true
         val pret = withTimeoutOrNull(3_000) { snapshotFlow { lecture }.first { it != 0 } }

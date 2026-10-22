@@ -17,8 +17,8 @@ class RobotGameShowTest {
     /** Demi-largeur du robot en fraction de la largeur d'un écran 16:9 (90 % de la hauteur, format 4:5). */
     private fun demiLargeur(echelle: Float) = 0.9f * 0.8f * echelle * 9f / 16f / 2f
 
-    /** Les clips qui volent sur leurs réacteurs : eux seuls arrivent par le haut de l'écran. */
-    private val volants = setOf("gs_robot_descente", "gs_robot_energie")
+    /** Les clips où il vole (réacteurs) ou pend du haut de l'écran : eux seuls quittent le sol. */
+    private val volants = setOf("gs_robot_descente", "gs_robot_energie", "gs_robot_dort", "gs_robot_envers", "gs_robot_vole", "gs_robot_pique")
 
     @Test
     fun `le robot arrive et repart hors de l'ecran`() {
@@ -68,6 +68,31 @@ class RobotGameShowTest {
                 ms += 25f
             }
         }
+    }
+
+    @Test
+    fun `en vol il traverse sans s'arreter, et il ne reste jamais coince hors de l'ecran`() {
+        for (c in CATALOGUE.filter { it.fichier == "gs_robot_vole" }) {
+            val xs = (0..c.trajet.totalMs step 100).map { c.trajet.a(it.toFloat()).first }
+            val pas = xs.zipWithNext { a, b -> b - a }
+            assertTrue("$c : $pas", pas.all { it > 0.01f } || pas.all { it < -0.01f })
+        }
+        for (c in CATALOGUE) {
+            val visible = (0..c.trajet.totalMs step 50).count { ms ->
+                val (x, bas, e) = c.trajet.a(ms.toFloat())
+                x + demiLargeur(e) > 0f && x - demiLargeur(e) < 1f && bas > 0.1f && bas - 0.9f * e < 0.9f
+            }
+            assertTrue("$c visible seulement ${visible * 50} ms", visible * 50 >= 2_000)
+        }
+    }
+
+    @Test
+    fun `pendant la pause, les numeros se suivent sans jamais repeter le dernier`() {
+        val tirage = TirageRobot(Random(3))
+        val n = CATALOGUE.count { it.moment == MomentRobot.PAUSE }
+        assertTrue("seulement $n numéros de pause", n >= 10)
+        val suite = List(5 * n) { tirage.suivant(MomentRobot.PAUSE)!! }
+        assertTrue(suite.zipWithNext().none { (a, b) -> a == b })
     }
 
     @Test
