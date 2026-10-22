@@ -1,0 +1,3255 @@
+{
+ "manquants": [
+  "qc-qui-mange-des-epinards-pour-devenir-tres-fort",
+  "qc-quel-animal-est-hedwige-l-amie-de-harry-potter",
+  "qc-que-transporte-toujours-obelix-sur-son-dos",
+  "qc-quel-animal-obelix-adore-t-il-manger",
+  "qc-grace-a-quoi-l-elephant-dumbo-peut-il-voler",
+  "qc-quel-detective-habite-au-221b-baker-street-a-londres",
+  "qc-de-quelle-couleur-est-le-ciel-quand-il-fait-beau",
+  "qc-d-ou-vient-la-pluie",
+  "qc-sur-quel-arbre-poussent-les-noix-de-coco",
+  "qc-comment-appelle-t-on-l-eau-d-une-riviere-qui-tombe-d-une-falaise",
+  "qc-dans-quel-pays-se-trouve-la-grande-barriere-de-corail",
+  "qc-comment-s-appelle-l-endroit-le-plus-profond-des-oceans",
+  "qc-quel-fruit-jaune-est-tres-acide",
+  "qc-avec-quel-fruit-fait-on-le-cidre",
+  "qc-quelle-cereale-pousse-dans-des-champs-inondes-en-asie"
+ ],
+ "restants": [],
+ "sources": {
+  "qc-qu-est-ce-qu-on-gonfle-pour-decorer-une-fete-d-anniversaire": [
+   {
+    "n": 1,
+    "titre": "Wedding Balloons",
+    "auteur": "Travel Coffee Book",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/wedding-balloons-D86E2A6574",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Balloons Party",
+    "auteur": "Fernando Arcos",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/balloons-party-DNWA3H3LCU",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Balloons People",
+    "auteur": "Travel Coffee Book",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/balloons-people-79A4E09475",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quelle-couleur-obtient-on-en-melangeant-du-rouge-et-du-jaune": [
+   {
+    "n": 1,
+    "titre": "File:0609-vector-orange-man-paint-brush.jpg",
+    "auteur": "LeoBlanchette",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:0609-vector-orange-man-paint-brush.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:0610-vector-orange-man-paint-roller-01.jpg",
+    "auteur": "LeoBlanchette",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:0610-vector-orange-man-paint-roller-01.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-couleur-obtient-on-en-melangeant-du-rouge-et-du-bleu": [
+   {
+    "n": 1,
+    "titre": "File:Text in gold on purple background in gold and paint frame (NYPL b12455533-41).tif",
+    "auteur": "Scan by NYPL",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Text_in_gold_on_purple_background_in_gold_and_paint_frame_(NYPL_b12455533-41).tif",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Text in gold on purple background in gold and paint frame (NYPL b12455533-35).tif",
+    "auteur": "Scan by NYPL",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Text_in_gold_on_purple_background_in_gold_and_paint_frame_(NYPL_b12455533-35).tif",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Text in gold on purple background in gold and paint frame (NYPL b12455533-39).tif",
+    "auteur": "Scan by NYPL",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Text_in_gold_on_purple_background_in_gold_and_paint_frame_(NYPL_b12455533-39).tif",
+    "source": "commons"
+   }
+  ],
+  "qc-aux-echecs-quelle-piece-faut-il-mettre-echec-et-mat-pour-gagner": [
+   {
+    "n": 1,
+    "titre": "File:Chess Piece, King MET 40.170.150(4).jpg",
+    "auteur": "",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Chess_Piece,_King_MET_40.170.150(4).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Chess Piece, King MET 40.170.151(2).jpg",
+    "auteur": "",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Chess_Piece,_King_MET_40.170.151(2).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Chess Piece, King MET 40.170.151(4).jpg",
+    "auteur": "",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Chess_Piece,_King_MET_40.170.151(4).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-le-bonhomme-de-neige-de-la-reine-des-neiges": [
+   {
+    "n": 1,
+    "titre": "File:Snowman on a foggy day.jpg",
+    "auteur": "Terry.grignon",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Snowman_on_a_foggy_day.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Snowman 3280.JPG",
+    "auteur": "Steven Lek",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Snowman_3280.JPG",
+    "source": "commons"
+   }
+  ],
+  "qc-qui-le-petit-chaperon-rouge-rencontre-t-il-dans-les-bois": [
+   {
+    "n": 1,
+    "titre": "File:Front view of a resting Canis lupus ssp.jpg",
+    "auteur": "Gary Kramer",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Front_view_of_a_resting_Canis_lupus_ssp.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Illustration for \"L'oiseau de Fue\" -Tsarevich Ivan with Tsarevna Elena the Fair on the Grey Wolf- MET DP804782.jpg",
+    "auteur": "Boris Zvorykin",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Illustration_for_%22L%27oiseau_de_Fue%22_-Tsarevich_Ivan_with_Tsarevna_Elena_the_Fair_on_the_Grey_Wolf-_MET_DP804782.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Illustration for \"L'oiseau de Fue\" -Tsarevich Ivan with Tsarevna Elena the Fair on the Grey Wolf- MET 268801.jpg",
+    "auteur": "Boris Zvorykin",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Illustration_for_%22L%27oiseau_de_Fue%22_-Tsarevich_Ivan_with_Tsarevna_Elena_the_Fair_on_the_Grey_Wolf-_MET_268801.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-les-trois-petits-cochons-en-quoi-est-la-maison-qui-resiste-au-loup": [
+   {
+    "n": 1,
+    "titre": "File:Brick House driveway from Broadnax Road.jpg",
+    "auteur": "Nyttend",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Brick_House_driveway_from_Broadnax_Road.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Brick House Clifford Dec 08.JPG",
+    "auteur": "Pubdog (talk)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Brick_House_Clifford_Dec_08.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Brick House, State Route 151, Clifford, Amherst County, VA HABS VA,5-CLIF,1-1.tif",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Brick_House,_State_Route_151,_Clifford,_Amherst_County,_VA_HABS_VA,5-CLIF,1-1.tif",
+    "source": "commons"
+   }
+  ],
+  "qc-chez-qui-boucle-d-or-entre-t-elle": [
+   {
+    "n": 1,
+    "titre": "File:Samoyed-and-teddy-bear.jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Samoyed-and-teddy-bear.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-le-lionceau-qui-deviendra-roi-dans-le-roi-lion": [
+   {
+    "n": 1,
+    "titre": "File:Lion Cub MET DT8837.jpg",
+    "auteur": "",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Lion_Cub_MET_DT8837.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Lion in masai mara.jpg",
+    "auteur": "Sumit.pamnani at English Wikipedia",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Lion_in_masai_mara.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-ours-est-l-ami-de-mowgli-dans-le-livre-de-la-jungle": [
+   {
+    "n": 1,
+    "titre": "File:Brown bear - Tongass National Forest 02.jpg",
+    "auteur": "United States Forest Service",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Brown_bear_-_Tongass_National_Forest_02.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Brown bear - Tongass National Forest 01.jpg",
+    "auteur": "United States Forest Service",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Brown_bear_-_Tongass_National_Forest_01.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Brown Bear Tracks (8079786466).jpg",
+    "auteur": "Forest Service Alaska Region, USDA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Brown_Bear_Tracks_(8079786466).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-personnage-vit-dans-un-ananas-au-fond-de-la-mer": [
+   {
+    "n": 1,
+    "titre": "File:Ananas comosus Blanco2.458.jpg",
+    "auteur": "After Manuel Blanco Ramos",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Ananas_comosus_Blanco2.458.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Ananas (Ananas comosus) Ananas. Ananas. Ananas. (titel op object), RP-T-BR-2017-1-9-64.jpg",
+    "auteur": "Rijksmuseum",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Ananas_(Ananas_comosus)_Ananas._Ananas._Ananas._(titel_op_object),_RP-T-BR-2017-1-9-64.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Ananas comosus Blanco2.458-cropped.jpg",
+    "auteur": "Francisco Manuel Blanco (O.S.A.)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Ananas_comosus_Blanco2.458-cropped.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-la-petite-fee-de-peter-pan": [
+   {
+    "n": 1,
+    "titre": "File:Fairy of Eagle Nebula.jpg",
+    "auteur": "NASA, ESA, and The Hubble Heritage Team (STScI/AURA)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Fairy_of_Eagle_Nebula.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Goble-Book of Fairy Poetry145-fairies-farewell.jpg",
+    "auteur": "Warwick Goble",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Goble-Book_of_Fairy_Poetry145-fairies-farewell.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Dulcibella-the-bubble-fairy-crop.jpg",
+    "auteur": "Hilda T. Miller",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Dulcibella-the-bubble-fairy-crop.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-le-chien-de-tintin": [
+   {
+    "n": 1,
+    "titre": "File:Fox-terrier desperados.png",
+    "auteur": "Maclauren",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Fox-terrier_desperados.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Fox terrier smooth.jpg",
+    "auteur": "No machine-readable author provided. Prskavka~commonswiki assumed (based on copyright claims).",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Fox_terrier_smooth.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Fox terrier smooth in action.jpg",
+    "auteur": "Piet ter Beek",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Fox_terrier_smooth_in_action.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qu-est-ce-qui-rend-asterix-si-fort": [
+   {
+    "n": 1,
+    "titre": "File:Cauldron Vshchizh GIM.jpg",
+    "auteur": "Лапоть",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Cauldron_Vshchizh_GIM.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Cauldron Fortepan 18337.jpg",
+    "auteur": "FOTO:Fortepan — ID 18337: Adományozó/Donor: Unknown. archive copy at the Wayback Machine",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Cauldron_Fortepan_18337.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:02024 Bronze cauldron, 1st century AD, Sarmatian culture.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:02024_Bronze_cauldron,_1st_century_AD,_Sarmatian_culture.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qui-mange-des-epinards-pour-devenir-tres-fort": [],
+  "qc-quelle-princesse-a-de-tres-longs-cheveux-et-vit-dans-une-tour": [
+   {
+    "n": 1,
+    "titre": "File:Mt Castletower from Lake Awoonga.jpg",
+    "auteur": "Vicki Nunn",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Mt_Castletower_from_Lake_Awoonga.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Иллюстрация к статье «Башня крепостная» № 2. Военная энциклопедия Сытина (Санкт-Петербург, 1911-1915).jpg",
+    "auteur": "«Военная энциклопедия И. Д. Сытина». Том 4 (Санкт-Петербург; 1911).",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:%D0%98%D0%BB%D0%BB%D1%8E%D1%81%D1%82%D1%80%D0%B0%D1%86%D0%B8%D1%8F_%D0%BA_%D1%81%D1%82%D0%B0%D1%82%D1%8C%D0%B5_%C2%AB%D0%91%D0%B0%D1%88%D0%BD%D1%8F_%D0%BA%D1%80%D0%B5%D0%BF%D0%BE%D1%81%D1%82%D0%BD%D0%B0%D1%8F%C2%BB_%E2%84%96_2._%D0%92%D0%BE%D0%B5%D0%BD%D0%BD%D0%B0%D1%8F_%D1%8D%D0%BD%D1%86%D0%B8%D0%BA%D0%BB%D0%BE%D0%BF%D0%B5%D0%B4%D0%B8%D1%8F_%D0%A1%D1%8B%D1%82%D0%B8%D0%BD%D0%B0_(%D0%A1%D0%B0%D0%BD%D0%BA%D1%82-%D0%9F%D0%B5%D1%82%D0%B5%D1%80%D0%B1%D1%83%D1%80%D0%B3,_1911-1915).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Castle Tower Prague Czech Republic.jpg",
+    "auteur": "Salwa Farwaneh Dameh",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Castle_Tower_Prague_Czech_Republic.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-super-heros-a-ete-pique-par-une-araignee": [
+   {
+    "n": 1,
+    "titre": "File:Spider web with dew and trunk.JPG",
+    "auteur": "TGoeller",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Spider_web_with_dew_and_trunk.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Dew laden spider web on lawn.jpg",
+    "auteur": "Jonathon Coombes",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Dew_laden_spider_web_on_lawn.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Dew covered spider web on grass.jpg",
+    "auteur": "Rosendahl",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Dew_covered_spider_web_on_grass.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-heros-de-jeu-video-est-un-plombier-moustachu": [
+   {
+    "n": 1,
+    "titre": "File:Amanita muscaria tyndrum.jpg",
+    "auteur": "Tim Bekaert",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Amanita_muscaria_tyndrum.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:AD2009Sep20 Amanita muscaria 02.jpg",
+    "auteur": "Bernie",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:AD2009Sep20_Amanita_muscaria_02.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-pokemon-jaune-est-le-compagnon-de-sacha": [
+   {
+    "n": 1,
+    "titre": "File:Shoofly the boxing mule.png",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Shoofly_the_boxing_mule.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Bognard-card-Russian-banknote.jpg",
+    "auteur": "J. Bognard",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Bognard-card-Russian-banknote.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:RWBY Trading Cards Foil 02.jpg",
+    "auteur": "PvOberstein",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:RWBY_Trading_Cards_Foil_02.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qui-libere-le-genie-de-la-lampe": [
+   {
+    "n": 1,
+    "titre": "File:Whale Oil Lamp MET ADA5311.jpg",
+    "auteur": "",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Whale_Oil_Lamp_MET_ADA5311.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Warring States Bronze Oil Lamp.jpg",
+    "auteur": "Gary Todd",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Warring_States_Bronze_Oil_Lamp.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Sexual scene on an Oil lamp - end of 1st century CE.jpg",
+    "auteur": "JohnR. Clarke",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Sexual_scene_on_an_Oil_lamp_-_end_of_1st_century_CE.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-la-belle-et-la-bete-quelle-fleur-est-sous-une-cloche-de-verre": [
+   {
+    "n": 1,
+    "titre": "File:Red rose buds.jpg",
+    "auteur": "Nikitha Jotheswari",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Red_rose_buds.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-en-quoi-la-fee-transforme-t-elle-la-citrouille-de-cendrillon": [
+   {
+    "n": 1,
+    "titre": "File:Cucurbita 2011 G1.jpg",
+    "auteur": "George Chernilevsky",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Cucurbita_2011_G1.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Frans Post - Gezicht op Olinda, Brazilië.jpg",
+    "auteur": "Frans Post",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Frans_Post_-_Gezicht_op_Olinda,_Brazili%C3%AB.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-la-petite-sirene-de-disney": [
+   {
+    "n": 1,
+    "titre": "File:Petite sirène de Copenhague (conforme à la loi danoise).JPG",
+    "auteur": "Benoît Prieur",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Petite_sir%C3%A8ne_de_Copenhague_(conforme_%C3%A0_la_loi_danoise).JPG",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Robert Panitzsch - Københavns havn med den lille havfrue - 1938.png",
+    "auteur": "Robert Panitzsch",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Robert_Panitzsch_-_K%C3%B8benhavns_havn_med_den_lille_havfrue_-_1938.png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Expo 2010 Denmark Pavilion- Little Mermaid Statue from Copenhagen Harbor 01.jpg",
+    "auteur": "Gary Todd",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Expo_2010_Denmark_Pavilion-_Little_Mermaid_Statue_from_Copenhagen_Harbor_01.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-princesse-s-endort-apres-s-etre-pique-le-doigt-sur-un-fuseau": [
+   {
+    "n": 1,
+    "titre": "File:An electric spinning wheel.jpg",
+    "auteur": "Tangledyarn",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:An_electric_spinning_wheel.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Itinerant glassworker exhibition with spinning wheel and steam engine.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Itinerant_glassworker_exhibition_with_spinning_wheel_and_steam_engine.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Woman at the Spinning Wheel MET DP878719.jpg",
+    "auteur": "Jules Breton",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Woman_at_the_Spinning_Wheel_MET_DP878719.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quelle-ecole-harry-potter-apprend-il-la-magie": [
+   {
+    "n": 1,
+    "titre": "File:Magic wand MET 31.3.31 EGDP012080.jpg",
+    "auteur": "",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Magic_wand_MET_31.3.31_EGDP012080.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Magic wand MET 22.1.103 EGDP012104.jpg",
+    "auteur": "",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Magic_wand_MET_22.1.103_EGDP012104.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Magic wand MET DP112577.jpg",
+    "auteur": "",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Magic_wand_MET_DP112577.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-animal-est-hedwige-l-amie-de-harry-potter": [],
+  "qc-a-quel-sport-harry-potter-joue-t-il-sur-un-balai": [
+   {
+    "n": 1,
+    "titre": "File:Broomstick (1901).png",
+    "auteur": "William Albert Rouch",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Broomstick_(1901).png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Bidens pilosa at Elmina West in Seksyen U15, Shah Alam 20231126 101332.jpg",
+    "auteur": "Wiki Farazi",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Bidens_pilosa_at_Elmina_West_in_Seksyen_U15,_Shah_Alam_20231126_101332.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qui-a-ecrit-les-livres-harry-potter": [
+   {
+    "n": 1,
+    "titre": "File:Margaret Hamilton - restoration.jpg",
+    "auteur": "Adam Cuerden",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Margaret_Hamilton_-_restoration.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Grandes Heures Anne de Bretagne Saint Marc.jpg",
+    "auteur": "Jean Bourdichon",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Grandes_Heures_Anne_de_Bretagne_Saint_Marc.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Swing into books, Book week, November 1-7, 1964.jpg",
+    "auteur": "Bruno Munari, artist",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Swing_into_books,_Book_week,_November_1-7,_1964.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-fruit-les-minions-adorent-ils": [
+   {
+    "n": 1,
+    "titre": "File:Bunch of bananas on sale.jpg",
+    "auteur": "Wilfredor",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Bunch_of_bananas_on_sale.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:MAL-M7c-Malaya-Japanese Occupation-10 Dollars ND (1944).jpg",
+    "auteur": "National Museum of American History",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:MAL-M7c-Malaya-Japanese_Occupation-10_Dollars_ND_(1944).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Two bananas and a can of Sprite.jpg",
+    "auteur": "Mx. Granger",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Two_bananas_and_a_can_of_Sprite.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-que-transporte-toujours-obelix-sur-son-dos": [],
+  "qc-quel-animal-obelix-adore-t-il-manger": [],
+  "qc-quel-heros-vole-aux-riches-pour-donner-aux-pauvres": [
+   {
+    "n": 1,
+    "titre": "File:Caboclo by Jean-Baptiste Debret 1834.jpg",
+    "auteur": "Jean-Baptiste Debret",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Caboclo_by_Jean-Baptiste_Debret_1834.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Capital with a Centaur Battling a Man with Bow and Arrow MET sf21-21-3s2.jpg",
+    "auteur": "",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Capital_with_a_Centaur_Battling_a_Man_with_Bow_and_Arrow_MET_sf21-21-3s2.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Capital with a Centaur Battling a Man with Bow and Arrow MET sf21-21-3s1.jpg",
+    "auteur": "",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Capital_with_a_Centaur_Battling_a_Man_with_Bow_and_Arrow_MET_sf21-21-3s1.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-animal-porte-des-bottes-dans-le-conte-de-perrault": [
+   {
+    "n": 1,
+    "titre": "File:The Master Cat, or Puss in Boots in Tales of Mother Goose (Welsh).png",
+    "auteur": "D J Munro, after Gustave Doré",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:The_Master_Cat,_or_Puss_in_Boots_in_Tales_of_Mother_Goose_(Welsh).png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Tales of Mother Goose-1901-0057.jpg",
+    "auteur": "Welch",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Tales_of_Mother_Goose-1901-0057.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Tales of Mother Goose-1901-0061.jpg",
+    "auteur": "Welch",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Tales_of_Mother_Goose-1901-0061.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-hansel-et-gretel-de-quoi-est-faite-la-maison-de-la-sorciere": [
+   {
+    "n": 1,
+    "titre": "File:Gingerbread house contest at Rose Barracks (6465107).jpg",
+    "auteur": "U.S. Army photo by Sgt. John Todd",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Gingerbread_house_contest_at_Rose_Barracks_(6465107).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Gingerbread house contest at Rose Barracks (6465104).jpg",
+    "auteur": "U.S. Army photo by Sgt. John Todd",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Gingerbread_house_contest_at_Rose_Barracks_(6465104).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-animal-presse-alice-suit-elle-au-pays-des-merveilles": [
+   {
+    "n": 1,
+    "titre": "File:The White Rabbit (Tenniel) - The Nursery Alice (1890) - BL.jpg",
+    "auteur": "John Tenniel",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:The_White_Rabbit_(Tenniel)_-_The_Nursery_Alice_(1890)_-_BL.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Bessie Pease Gutmann White Rabbit 3.jpg",
+    "auteur": "Bessie Pease Gutmann",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Bessie_Pease_Gutmann_White_Rabbit_3.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Alice in Wonderland (1903) - White Rabbit.jpg",
+    "auteur": "Percy Stow, Cecil M.Hepworth, Samuele De Marchi",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Alice_in_Wonderland_(1903)_-_White_Rabbit.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-animal-reve-de-devenir-chef-cuisinier-dans-ratatouille": [
+   {
+    "n": 1,
+    "titre": "File:Street rat height 8k (Sean Buckley via Poly Haven).png",
+    "auteur": "Sean Buckley via Poly Haven (https://polyhaven.com/all?a=Sean%20Buckley / https://web.archive.org/web/20230912131747/https://polyhaven.com/all?a=Sean%20Buckley)",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Street_rat_height_8k_(Sean_Buckley_via_Poly_Haven).png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Brown rat illustration.png",
+    "auteur": "L. Prang &amp; Co.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Brown_rat_illustration.png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Street rat ao 8k (Sean Buckley via Poly Haven).png",
+    "auteur": "Sean Buckley via Poly Haven (https://polyhaven.com/all?a=Sean%20Buckley / https://web.archive.org/web/20230912131747/https://polyhaven.com/all?a=Sean%20Buckley)",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Street_rat_ao_8k_(Sean_Buckley_via_Poly_Haven).png",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-la-voiture-rouge-du-film-cars": [
+   {
+    "n": 1,
+    "titre": "File:Red Bull race car.JPG",
+    "auteur": "Alf van Beem",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Red_Bull_race_car.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Infiniti Race Car (SDLDQ '13).jpg",
+    "auteur": "Bull-Doser",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Infiniti_Race_Car_(SDLDQ_%2713).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-est-le-metier-de-woody-dans-toy-story": [
+   {
+    "n": 1,
+    "titre": "File:Badge of the San Diego County Sheriff's Office.png",
+    "auteur": "San Diego County Sheriff's Office",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Badge_of_the_San_Diego_County_Sheriff%27s_Office.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:LASDSTAR.gif",
+    "auteur": "Los Angeles County Sheriff's Department",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:LASDSTAR.gif",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Badgev2.jpg",
+    "auteur": "Swcolocowboy",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Badgev2.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-le-panda-heros-de-kung-fu-panda": [
+   {
+    "n": 1,
+    "titre": "File:Giant Panda 2004-03-2.jpg",
+    "auteur": "Jeff Kubina",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Giant_Panda_2004-03-2.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:The Soviet Union 1964 CPA 3042 stamp (Centenary of Moscow Zoo. Giant panda or panda bear (Ailuropoda melanoleuca)).png",
+    "auteur": "Post of the Soviet Union (A. M. Laptev).",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:The_Soviet_Union_1964_CPA_3042_stamp_(Centenary_of_Moscow_Zoo._Giant_panda_or_panda_bear_(Ailuropoda_melanoleuca)).png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Ailuropoda melanoleuca qinlingensis.jpg",
+    "auteur": "modified by A. C. Tatarinov",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Ailuropoda_melanoleuca_qinlingensis.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-animal-est-bambi": [
+   {
+    "n": 1,
+    "titre": "File:Fawn and white Welsh Corgi puppy standing on rear legs and sticking out the tongue.jpg",
+    "auteur": "Huoadg5888Minor edits made by Subsidiary account",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Fawn_and_white_Welsh_Corgi_puppy_standing_on_rear_legs_and_sticking_out_the_tongue.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Deer (PSF).png",
+    "auteur": "Pearson Scott Foresman",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Deer_(PSF).png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Fawn (PSF).png",
+    "auteur": "Pearson Scott Foresman",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Fawn_(PSF).png",
+    "source": "commons"
+   }
+  ],
+  "qc-grace-a-quoi-l-elephant-dumbo-peut-il-voler": [],
+  "qc-quel-animal-est-sonic-le-heros-bleu-du-jeu-video": [
+   {
+    "n": 1,
+    "titre": "File:A mother hedgehog nurses her tiny babies.png",
+    "auteur": "Alifia9",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:A_mother_hedgehog_nurses_her_tiny_babies.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Domesticated Baby Hedgehog.jpg",
+    "auteur": "pixabay.com",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Domesticated_Baby_Hedgehog.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quel-jeu-video-construit-on-un-monde-fait-de-cubes": [
+   {
+    "n": 1,
+    "titre": "File:Faust's 75 new alphabets (retouched) p.24.jpg",
+    "auteur": "Charles Ayers Faust",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Faust%27s_75_new_alphabets_(retouched)_p.24.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Children building with blocks - Our Young Folks magazine (1873).jpeg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Children_building_with_blocks_-_Our_Young_Folks_magazine_(1873).jpeg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Block tower on narrow base.jpg",
+    "auteur": "Reseletti",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Block_tower_on_narrow_base.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-mechante-veut-faire-un-manteau-avec-des-dalmatiens": [
+   {
+    "n": 1,
+    "titre": "File:Dalmatian SAAM-1986.65.292 1.jpg",
+    "auteur": "AnonymousUnknown author",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Dalmatian_SAAM-1986.65.292_1.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Dalmatian from 1915.JPG",
+    "auteur": "not specified (except those with signature on image)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Dalmatian_from_1915.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Dalmatian in Croatia.JPG",
+    "auteur": "No machine-readable author provided. Neoneo13 assumed (based on copyright claims).",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Dalmatian_in_Croatia.JPG",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-sorciere-a-tentacules-veut-la-voix-d-ariel": [
+   {
+    "n": 1,
+    "titre": "File:Octopus tentacles for sale.jpg",
+    "auteur": "StoppedTime",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Octopus_tentacles_for_sale.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Monkey in Tentacles of Octopus LACMA 34.13.137.jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Monkey_in_Tentacles_of_Octopus_LACMA_34.13.137.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Standard oil octopus loc color.jpg",
+    "auteur": "Udo Keppler",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Standard_oil_octopus_loc_color.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-le-petit-dragon-qui-accompagne-mulan": [
+   {
+    "n": 1,
+    "titre": "File:Dragon statue in Munkedal.jpg",
+    "auteur": "W.carter",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Dragon_statue_in_Munkedal.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Portrait of dragon statue on coastline.jpeg",
+    "auteur": "Grandmaster Huon",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Portrait_of_dragon_statue_on_coastline.jpeg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Dragon statue on pole in Tudor Garden of Hamilton Gardens.jpg",
+    "auteur": "Pseudopanax at English Wikipedia",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Dragon_statue_on_pole_in_Tudor_Garden_of_Hamilton_Gardens.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-le-dragon-noir-de-dragons": [
+   {
+    "n": 1,
+    "titre": "File:Viking, replica of the Gokstad Viking ship, at the Chicago World Fair 1893.jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Viking,_replica_of_the_Gokstad_Viking_ship,_at_the_Chicago_World_Fair_1893.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:SS Viking in Steam Packet service..JPG",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:SS_Viking_in_Steam_Packet_service..JPG",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Viking Bestla (ship, 2014) 003.JPG",
+    "auteur": "Rolf Heinrich, Köln",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Viking_Bestla_(ship,_2014)_003.JPG",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-pouvoir-a-elsa-dans-la-reine-des-neiges": [
+   {
+    "n": 1,
+    "titre": "File:New Castle Ice Piers May 10.JPG",
+    "auteur": "Pubdog (talk)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:New_Castle_Ice_Piers_May_10.JPG",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-pirate-est-l-ennemi-de-peter-pan": [
+   {
+    "n": 1,
+    "titre": "File:Tampa Convention Center, Featuring Pirate Ship - February 8, 2026.jpg",
+    "auteur": "Gart69",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Tampa_Convention_Center,_Featuring_Pirate_Ship_-_February_8,_2026.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Pirate tourist ship „Аrabela “with captain Panagiotis Dimitrios Georgiou Thessaloniki- Greece.jpg",
+    "auteur": "Делфина",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pirate_tourist_ship_%E2%80%9E%D0%90rabela_%E2%80%9Cwith_captain_Panagiotis_Dimitrios_Georgiou_Thessaloniki-_Greece.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Piratenkuchen.jpg",
+    "auteur": "Klaus-Dieter Keller",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Piratenkuchen.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qui-a-ecrit-le-petit-prince": [
+   {
+    "n": 1,
+    "titre": "File:Night sky in Jordan desert, Oct 2023.jpeg",
+    "auteur": "adspedia",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Night_sky_in_Jordan_desert,_Oct_2023.jpeg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Night sky over desert landscape (49623765522).jpg",
+    "auteur": "Joshua Tree National Park",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Night_sky_over_desert_landscape_(49623765522).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Clear Desert Night Sky (Unsplash).jpg",
+    "auteur": "Jared Evans chromogenic",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Clear_Desert_Night_Sky_(Unsplash).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qui-a-ecrit-les-miserables": [
+   {
+    "n": 1,
+    "titre": "File:Victor Hugo by Étienne Carjat 1876 - full.jpg",
+    "auteur": "Étienne Carjat",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Victor_Hugo_by_%C3%89tienne_Carjat_1876_-_full.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Victor Hugo buste marbre Musée Rodin S.00464 Paris.png",
+    "auteur": "Auguste Rodin",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Victor_Hugo_buste_marbre_Mus%C3%A9e_Rodin_S.00464_Paris.png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Victor Hugo-Brooding.jpg",
+    "auteur": "Charles Hugo",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Victor_Hugo-Brooding.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qui-a-ecrit-les-contes-le-petit-chaperon-rouge-et-cendrillon": [
+   {
+    "n": 1,
+    "titre": "File:Portrait de Charles Perrault par Charles Le Brun (détail).jpg",
+    "auteur": "Charles Le Brun",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Portrait_de_Charles_Perrault_par_Charles_Le_Brun_(d%C3%A9tail).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Portrait de Charles Perrault (1628-1703) par Charles Le Brun.jpg",
+    "auteur": "Charles Le Brun",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Portrait_de_Charles_Perrault_(1628-1703)_par_Charles_Le_Brun.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Portrait de Charles Perrault par Charles Le Brun.jpg",
+    "auteur": "Charles Le Brun",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Portrait_de_Charles_Perrault_par_Charles_Le_Brun.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qui-a-ecrit-la-fable-le-corbeau-et-le-renard": [
+   {
+    "n": 1,
+    "titre": "File:Johnny Crow's Garden - Johnny Crow would dig and sow.png",
+    "auteur": "L. Leslie Brooke",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Johnny_Crow%27s_Garden_-_Johnny_Crow_would_dig_and_sow.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:竹に鴉図-Crow on a Bamboo Branch MET DP211791.jpg",
+    "auteur": "Kawanabe Kyōsai",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:%E7%AB%B9%E3%81%AB%E9%B4%89%E5%9B%B3-Crow_on_a_Bamboo_Branch_MET_DP211791.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Crow bird and beach 37.jpg",
+    "auteur": "Golamrob",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Crow_bird_and_beach_37.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qui-a-ecrit-vingt-mille-lieues-sous-les-mers": [
+   {
+    "n": 1,
+    "titre": "File:Jules Verne by Étienne Carjat.jpg",
+    "auteur": "Étienne Carjat / Adam Cuerden",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Jules_Verne_by_%C3%89tienne_Carjat.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Félix Nadar 1820-1910 portraits Jules Verne (restoration).jpg",
+    "auteur": "Nadar",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:F%C3%A9lix_Nadar_1820-1910_portraits_Jules_Verne_(restoration).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Félix Nadar 1820-1910 portraits Jules Verne.jpg",
+    "auteur": "Nadar",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:F%C3%A9lix_Nadar_1820-1910_portraits_Jules_Verne.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qui-a-ecrit-les-trois-mousquetaires": [
+   {
+    "n": 1,
+    "titre": "File:Alexandre Dumas assis Gustave Doré.jpg",
+    "auteur": "Jebulon",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Alexandre_Dumas_assis_Gustave_Dor%C3%A9.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Alexandre Dumas' monument, Paris, France, ca. 1890-1900.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Alexandre_Dumas%27_monument,_Paris,_France,_ca._1890-1900.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Mascaron Alexandre Dumas Monte Cristo.jpg",
+    "auteur": "Jebulon",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Mascaron_Alexandre_Dumas_Monte_Cristo.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-auteur-de-theatre-a-ecrit-le-malade-imaginaire": [
+   {
+    "n": 1,
+    "titre": "File:View from the stage of Alexandra Palace Theatre after 1922 refurbishment.png",
+    "auteur": "Alexandra Palace",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:View_from_the_stage_of_Alexandra_Palace_Theatre_after_1922_refurbishment.png",
+    "source": "commons"
+   }
+  ],
+  "qc-qui-a-ecrit-le-seigneur-des-anneaux": [
+   {
+    "n": 1,
+    "titre": "File:Gold ring MET DP142770.jpg",
+    "auteur": "",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Gold_ring_MET_DP142770.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Gold ring MET sf9515309.jpg",
+    "auteur": "",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Gold_ring_MET_sf9515309.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Gold ring MET DP109248.jpg",
+    "auteur": "",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Gold_ring_MET_DP109248.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qui-a-ecrit-charlie-et-la-chocolaterie": [
+   {
+    "n": 1,
+    "titre": "File:Milky Way IR Spitzer.jpg",
+    "auteur": "Credit: NASA/JPL-Caltech/S. Stolovy (Spitzer Science Center/Caltech)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Milky_Way_IR_Spitzer.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Green and Black's dark chocolate bar 2.jpg",
+    "auteur": "Mx. Granger",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Green_and_Black%27s_dark_chocolate_bar_2.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Green and Black's dark chocolate bar 1.jpg",
+    "auteur": "Mx. Granger",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Green_and_Black%27s_dark_chocolate_bar_1.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-le-monde-de-narnia-par-quoi-les-enfants-entrent-ils-dans-narnia": [
+   {
+    "n": 1,
+    "titre": "File:Two out of three Marys at the Sepulchre (SM sg994).png",
+    "auteur": "Older Master of the Aachen Wardrobe Doors",
+    "licence": "PDM-owner",
+    "page": "https://commons.wikimedia.org/wiki/File:Two_out_of_three_Marys_at_the_Sepulchre_(SM_sg994).png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Wardrobe Terrace EC4. (29857784173).jpg",
+    "auteur": "Maggie Jones from London, England",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Wardrobe_Terrace_EC4._(29857784173).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Rebecca wardrobe test.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Rebecca_wardrobe_test.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-detective-habite-au-221b-baker-street-a-londres": [],
+  "qc-quel-gentleman-cambrioleur-a-ete-invente-par-maurice-leblanc": [
+   {
+    "n": 1,
+    "titre": "File:Constantin Hansen, Et selskab af danske kunstnere i Rom, 1837, KMS3236, SMK.jpg",
+    "auteur": "Constantin Hansen",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Constantin_Hansen,_Et_selskab_af_danske_kunstnere_i_Rom,_1837,_KMS3236,_SMK.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Robert Howlett (Isambard Kingdom Brunel Standing Before the Launching Chains of the Great Eastern), The Metropolitan Museum of Art - restoration1.jpg",
+    "auteur": "Robert Howlett",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Robert_Howlett_(Isambard_Kingdom_Brunel_Standing_Before_the_Launching_Chains_of_the_Great_Eastern),_The_Metropolitan_Museum_of_Art_-_restoration1.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Top Hat 1935 poster.jpg",
+    "auteur": "RKO Radio Pictures",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Top_Hat_1935_poster.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-de-quelle-couleur-est-le-ciel-quand-il-fait-beau": [],
+  "qc-qu-est-ce-qui-tombe-du-ciel-quand-il-pleut": [
+   {
+    "n": 1,
+    "titre": "File:Purple rain on roof.jpg",
+    "auteur": "W.carter",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Purple_rain_on_roof.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Vincent Willem van Gogh, Dutch - Rain - Google Art Project.jpg",
+    "auteur": "Vincent van Gogh",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Vincent_Willem_van_Gogh,_Dutch_-_Rain_-_Google_Art_Project.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Rain over Holma marina.jpg",
+    "auteur": "W.carter",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Rain_over_Holma_marina.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-d-ou-vient-la-pluie": [],
+  "qc-que-boit-une-plante-pour-grandir": [
+   {
+    "n": 1,
+    "titre": "File:Watering can for bonsai.jpg",
+    "auteur": "Tangopaso",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Watering_can_for_bonsai.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Water Treatment Plant in Parkin, Arkansas.jpg",
+    "auteur": "Brandonrush",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Water_Treatment_Plant_in_Parkin,_Arkansas.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Select Popular Tales from the German of Musaeus (illustration, page 1).jpg",
+    "auteur": "Ludwig Richter",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Select_Popular_Tales_from_the_German_of_Musaeus_(illustration,_page_1).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-que-devient-l-eau-quand-elle-gele": [
+   {
+    "n": 1,
+    "titre": "File:Birchwood Slavnoe 2012 G1.jpg",
+    "auteur": "George Chernilevsky",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Birchwood_Slavnoe_2012_G1.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Flickr - The U.S. Army - Jump over Mt. Rainier.jpg",
+    "auteur": "The U.S. Army",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Flickr_-_The_U.S._Army_-_Jump_over_Mt._Rainier.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Heinrich Berann NPS Panorama of Denali without labels.jpg",
+    "auteur": "Heinrich C. Berann",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Heinrich_Berann_NPS_Panorama_of_Denali_without_labels.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-arbre-decore-t-on-a-noel": [
+   {
+    "n": 1,
+    "titre": "File:Frozen soap bubble behind fir twigs (Unsplash BojuZpqw4zM).jpg",
+    "auteur": "aaronburden Aaron Burden from Baltimore, Maryland, USA.",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Frozen_soap_bubble_behind_fir_twigs_(Unsplash_BojuZpqw4zM).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qu-est-ce-qui-apparait-dans-le-ciel-quand-le-soleil-brille-pendant-la-pl": [
+   {
+    "n": 1,
+    "titre": "File:An Army CH-47 Chinook helicopter during a training exercise (210120-A-II094-096M).jpg",
+    "auteur": "Elena Baladelli (according to Exif data)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:An_Army_CH-47_Chinook_helicopter_during_a_training_exercise_(210120-A-II094-096M).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:STS-125 and STS-400 on Launch Pads.jpg",
+    "auteur": "NASA/Jack Pfaller",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:STS-125_and_STS-400_on_Launch_Pads.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qu-est-ce-qu-on-entend-juste-apres-un-eclair-pendant-un-orage": [
+   {
+    "n": 1,
+    "titre": "File:Lightning striking the Eiffel Tower - NOAA.jpg",
+    "auteur": "Gabriel Loppé",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Lightning_striking_the_Eiffel_Tower_-_NOAA.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Lightning in Dallas 2015.jpg",
+    "auteur": "NOAA Photo Library",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Lightning_in_Dallas_2015.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Lightning3.jpg",
+    "auteur": "U.S. Air Force photo by Edward Aspera Jr.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Lightning3.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-plante-pleine-de-piquants-pousse-dans-le-desert": [
+   {
+    "n": 1,
+    "titre": "File:Cactus (1970).png",
+    "auteur": "Premier Talent / Atlantic Records",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Cactus_(1970).png",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-grande-fleur-jaune-tourne-vers-le-soleil": [
+   {
+    "n": 1,
+    "titre": "File:Sunflower head 2015 G1.jpg",
+    "auteur": "George Chernilevsky",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Sunflower_head_2015_G1.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Vincent Willem van Gogh 128.jpg",
+    "auteur": "Vincent van Gogh",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Vincent_Willem_van_Gogh_128.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Helianthus annuusPFP.jpg",
+    "auteur": "Jebulon",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Helianthus_annuusPFP.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-appelle-t-on-une-montagne-qui-crache-de-la-lave": [
+   {
+    "n": 1,
+    "titre": "File:Pahoeoe fountain original.jpg",
+    "auteur": "Jim D. Griggs, HVO (USGS) staff photographer[1][2]",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Pahoeoe_fountain_original.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Lava fountain dome 2.jpg",
+    "auteur": "J.B. Judd - USGS",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Lava_fountain_dome_2.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Lava at Hawai'i Volcanoes National Park.jpg",
+    "auteur": "National Park Service",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Lava_at_Hawai%27i_Volcanoes_National_Park.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-est-la-plus-haute-montagne-de-france": [
+   {
+    "n": 1,
+    "titre": "File:Arc 1950 with Mont Blanc in distance.jpg",
+    "auteur": "DimiTalen",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Arc_1950_with_Mont_Blanc_in_distance.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:View in an easterly direction towards the Western Alps at the location of Grenoble.jpg",
+    "auteur": "Dktue",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:View_in_an_easterly_direction_towards_the_Western_Alps_at_the_location_of_Grenoble.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:View of Les Menuires and Mont Blanc from Pointe de la Masse, 2022.jpg",
+    "auteur": "DimiTalen",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:View_of_Les_Menuires_and_Mont_Blanc_from_Pointe_de_la_Masse,_2022.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-est-la-plus-haute-montagne-du-monde": [
+   {
+    "n": 1,
+    "titre": "File:Everest-3D-Map-Type-EN.jpg",
+    "auteur": "Tom Patterson",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Everest-3D-Map-Type-EN.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Everest-3D-Map-Type-ES.jpg",
+    "auteur": "Tom Patterson",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Everest-3D-Map-Type-ES.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Everest-3D-Map-No-Type.jpg",
+    "auteur": "Tom Patterson",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Everest-3D-Map-No-Type.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-est-le-plus-grand-ocean-du-monde": [
+   {
+    "n": 1,
+    "titre": "File:ISS034E016601 - Stratocumulus Clouds - Pacific Ocean.jpg",
+    "auteur": "ISS Expedition 34 Crew\nImage Science &amp; Analysis Laboratory, NASA Johnson Space Center\nDerivative work including grading, lens profile correction and noise removal.: Julian Herzog",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:ISS034E016601_-_Stratocumulus_Clouds_-_Pacific_Ocean.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:EB1911 - Pacific Ocean, all.jpg",
+    "auteur": "Emery Walker",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:EB1911_-_Pacific_Ocean,_all.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:USS Independence (LCS-2) Pacific Ocean 18 July 2013.png",
+    "auteur": "Anonymous United States Navy photographer",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:USS_Independence_(LCS-2)_Pacific_Ocean_18_July_2013.png",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-est-le-plus-grand-desert-chaud-du-monde": [
+   {
+    "n": 1,
+    "titre": "File:Sahara satellite hires.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Sahara_satellite_hires.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Utah Dunes Landscape - West Desert District.jpg",
+    "auteur": "Bureau of Land Management - Utah/Bob Wick",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Utah_Dunes_Landscape_-_West_Desert_District.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Sahara Desert AS09-21-3259-61.jpg",
+    "auteur": "James Stuby based on NASA images",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Sahara_Desert_AS09-21-3259-61.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-arbre-donne-des-glands": [
+   {
+    "n": 1,
+    "titre": "File:Oak Acorn.jpg",
+    "auteur": "WXchaser",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Oak_Acorn.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Acorns of Kindred Spirit Hybrid Oak.jpg",
+    "auteur": "Joshnadler (talk)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Acorns_of_Kindred_Spirit_Hybrid_Oak.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Ornamental Panel with Oak Leaves and Acorns MET DP806342.jpg",
+    "auteur": "AnonymousUnknown author",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Ornamental_Panel_with_Oak_Leaves_and_Acorns_MET_DP806342.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-la-feuille-de-quel-arbre-est-sur-le-drapeau-du-canada": [
+   {
+    "n": 1,
+    "titre": "File:Pacific Spirit Maple leaf compared to women's 10 shoes.jpg",
+    "auteur": "AmazingAce123",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pacific_Spirit_Maple_leaf_compared_to_women%27s_10_shoes.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Carlton Street and Maple Leaf Gardens, c.1934.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Carlton_Street_and_Maple_Leaf_Gardens,_c.1934.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-sur-quel-arbre-poussent-les-pommes-de-pin": [
+   {
+    "n": 1,
+    "titre": "File:Limestone votive pine cone MET DP122099.jpg",
+    "auteur": "",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Limestone_votive_pine_cone_MET_DP122099.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Glass flask in the shape of a pine cone MET DP224345.jpg",
+    "auteur": "",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Glass_flask_in_the_shape_of_a_pine_cone_MET_DP224345.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Pine Cone (PSF).png",
+    "auteur": "Pearson Scott Foresman",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Pine_Cone_(PSF).png",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-un-enorme-bloc-de-glace-qui-flotte-sur-la-mer": [
+   {
+    "n": 1,
+    "titre": "File:Iceberg in North Star Bay, Greenland.jpg",
+    "auteur": "Jeremy Harbeck",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Iceberg_in_North_Star_Bay,_Greenland.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-la-maison-en-blocs-de-neige-des-inuits": [
+   {
+    "n": 1,
+    "titre": "File:Aurora australis dancing over an LED illuminated igloo.jpg",
+    "auteur": "Ross Burgener",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Aurora_australis_dancing_over_an_LED_illuminated_igloo.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Eskimo family and their igloo cph.3c36050.jpg",
+    "auteur": "Otto D. Goetze, Seattle, Wash.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Eskimo_family_and_their_igloo_cph.3c36050.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-un-tourbillon-de-vent-tres-violent": [
+   {
+    "n": 1,
+    "titre": "File:Tony Tornado e Sílvio Santos restored.jpg",
+    "auteur": "UnknownUnknown  (restored by Wilfredor)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Tony_Tornado_e_S%C3%ADlvio_Santos_restored.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Tornado Särkänniemi.jpg",
+    "auteur": "Mazku at fi.wikipedia",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Tornado_S%C3%A4rk%C3%A4nniemi.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:2020 Nashville tornado CCTV.jpg",
+    "auteur": "Security camera",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:2020_Nashville_tornado_CCTV.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-une-enorme-masse-de-neige-qui-devale-la-montagne": [
+   {
+    "n": 1,
+    "titre": "File:Avalanche of snow across railroad tracks in Alaska.jpg",
+    "auteur": "Frank G. Carpenter",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Avalanche_of_snow_across_railroad_tracks_in_Alaska.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Avalanche on Everest.jpg",
+    "auteur": "Chagai at English Wikipedia",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Avalanche_on_Everest.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Doris Hill and Jack Holt in Avalanche.jpg",
+    "auteur": "Paramount Famous Lasky Corporation",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Doris_Hill_and_Jack_Holt_in_Avalanche.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-la-montee-et-la-descente-de-la-mer-chaque-jour": [
+   {
+    "n": 1,
+    "titre": "File:Gutweed at low tide in Brofjorden 8.jpg",
+    "auteur": "W.carter",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Gutweed_at_low_tide_in_Brofjorden_8.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Low Tide at Pourville, by Claude Monet, Cleveland Museum of Art, 1947.196.jpg",
+    "auteur": "Claude Monet",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Low_Tide_at_Pourville,_by_Claude_Monet,_Cleveland_Museum_of_Art,_1947.196.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Low tide in Rivedoux, Ré island, august 2015.jpg",
+    "auteur": "Jebulon",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Low_tide_in_Rivedoux,_R%C3%A9_island,_august_2015.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-est-la-plus-grande-foret-tropicale-du-monde": [
+   {
+    "n": 1,
+    "titre": "File:Amazon MODIS.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Amazon_MODIS.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Amazon rainforest.jpg",
+    "auteur": "Pfly",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Amazon_rainforest.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-est-le-continent-le-plus-froid": [
+   {
+    "n": 1,
+    "titre": "File:Antarctica 6400px from Blue Marble.jpg",
+    "auteur": "Dave Pape",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Antarctica_6400px_from_Blue_Marble.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Antarctica 1912 edit.jpg",
+    "auteur": "August Heinrich Petermann / Hermann Habenicht",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Antarctica_1912_edit.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Flag-map of Argentine Antarctica.png",
+    "auteur": "Argentixs",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Flag-map_of_Argentine_Antarctica.png",
+    "source": "commons"
+   }
+  ],
+  "qc-sur-quel-continent-se-trouve-la-france": [
+   {
+    "n": 1,
+    "titre": "File:Europe in 1923.jpg",
+    "auteur": "Bacon, George Washington (1830-1921)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Europe_in_1923.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Map of Europe, 1946 (25289557032).jpg",
+    "auteur": "The National Archives UK",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Map_of_Europe,_1946_(25289557032).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Angling in Troubled Waters A Serio-Comic Map of Europe.jpg",
+    "auteur": "Fred W. Rose",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Angling_in_Troubled_Waters_A_Serio-Comic_Map_of_Europe.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-appelle-t-on-un-tremblement-de-terre": [
+   {
+    "n": 1,
+    "titre": "File:Post-and-Grant-Avenue-Look.jpg",
+    "auteur": "Chadwick, H. D",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Post-and-Grant-Avenue-Look.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Etna Awakens on its Side.jpg",
+    "auteur": "NASA Earth Observatory images by Joshua Stevens, using Landsat data from the U.S. Geological Survey. Text by Kasha Patel.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Etna_Awakens_on_its_Side.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Valdivia after earthquake, 1960.jpg",
+    "auteur": "Pierre St. Amand",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Valdivia_after_earthquake,_1960.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-appelle-t-on-les-restes-d-etres-vivants-tres-anciens-gardes-dans": [
+   {
+    "n": 1,
+    "titre": "File:Ammonite Pavement.jpg",
+    "auteur": "RealGatba",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Ammonite_Pavement.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Polished fossil ammonite 06.jpg",
+    "auteur": "Amir Ali Iranshahi 3",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Polished_fossil_ammonite_06.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Polished fossil ammonite 01.jpg",
+    "auteur": "Amir Ali Iranshahi 3",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Polished_fossil_ammonite_01.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-ou-trouve-t-on-des-recifs-de-corail": [
+   {
+    "n": 1,
+    "titre": "File:Coral reef with healthy corals and corals with signs of bleaching.png",
+    "auteur": "Unidentified NOAA photographer",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Coral_reef_with_healthy_corals_and_corals_with_signs_of_bleaching.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:NOAA divers survey coral reef Rose Atoll southwest 2023.png",
+    "auteur": "NOAA Fisheries/Hannah Barkley",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:NOAA_divers_survey_coral_reef_Rose_Atoll_southwest_2023.png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Sea fans coral reef Pagan 2022.png",
+    "auteur": "NOAA Fisheries/Andrew Gray",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Sea_fans_coral_reef_Pagan_2022.png",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-grand-fleuve-traverse-la-foret-amazonienne": [
+   {
+    "n": 1,
+    "titre": "File:Amazon River (MODIS 2025-07-20).jpg",
+    "auteur": "MODIS Land Rapid Response Team, NASA GSFC",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Amazon_River_(MODIS_2025-07-20).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:River voyage Tietê to the Amazon 1825 to 1829 Hercules Florence p172.jpg",
+    "auteur": "Hércules Florence (1804 - 1879)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:River_voyage_Tiet%C3%AA_to_the_Amazon_1825_to_1829_Hercules_Florence_p172.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:River voyage Tietê to the Amazon 1825 to 1829 Hercules Florence p362.jpg",
+    "auteur": "Hércules Florence (1804 - 1879)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:River_voyage_Tiet%C3%AA_to_the_Amazon_1825_to_1829_Hercules_Florence_p362.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-arbre-a-des-branches-qui-tombent-jusqu-a-l-eau": [
+   {
+    "n": 1,
+    "titre": "File:Salix babylonica - Trauerweide.jpg",
+    "auteur": "5snake5",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Salix_babylonica_-_Trauerweide.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Claude Monet, Weeping Willow.JPG",
+    "auteur": "Claude Monet",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Claude_Monet,_Weeping_Willow.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Claude Monet Weeping Willow.jpg",
+    "auteur": "Claude Monet",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Claude_Monet_Weeping_Willow.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-sur-quel-arbre-poussent-les-noix-de-coco": [],
+  "qc-comment-s-appelle-un-endroit-avec-de-l-eau-et-des-palmiers-au-milieu-du-": [
+   {
+    "n": 1,
+    "titre": "File:A Delta Oasis in Southeastern Kazakhstan.jpg",
+    "auteur": "NASA Earth Observatory images by Joshua Stevens, using Landsat data from the U.S. Geological Survey. Story by Adam Voiland.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:A_Delta_Oasis_in_Southeastern_Kazakhstan.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Oasis in Libya.jpg",
+    "auteur": "Sfivat",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Oasis_in_Libya.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Oasis Summer Fruits.jpg",
+    "auteur": "Mx. Granger",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Oasis_Summer_Fruits.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appellent-les-collines-de-sable-dans-le-desert": [
+   {
+    "n": 1,
+    "titre": "File:Rub' al Khali (Arabian Empty Quarter) sand dunes imaged by Terra (EOS AM-1).jpg",
+    "auteur": "NASA/GSFC/METI/ERSDAC/JAROS, and U.S./Japan ASTER Science Team",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Rub%27_al_Khali_(Arabian_Empty_Quarter)_sand_dunes_imaged_by_Terra_(EOS_AM-1).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Sand Dunes on the Northern Coast of Nunivak Island.jpg",
+    "auteur": "Babelball",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Sand_Dunes_on_the_Northern_Coast_of_Nunivak_Island.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Milky Way over dunes in Great Sand Dunes National Park, Colorado, United States.jpg",
+    "auteur": "NPS/Patrick Myers",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Milky_Way_over_dunes_in_Great_Sand_Dunes_National_Park,_Colorado,_United_States.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-appelle-t-on-un-fleuve-de-glace-qui-descend-lentement-de-la-mont": [
+   {
+    "n": 1,
+    "titre": "File:Upsala Glacier, Argentina.jpg",
+    "auteur": "This image was taken by the NASA Expedition 21 crew\n\nImage acquired with a Nikon D2Xs digital camera fitted with a 400 mm lens, and is provided by the ISS Crew Earth Observations experiment and Image Science &amp; Analysis Laboratory, Johnson Space Centre.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Upsala_Glacier,_Argentina.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-appelle-t-on-une-terre-entouree-d-eau-de-tous-les-cotes": [
+   {
+    "n": 1,
+    "titre": "File:QeshmIsland NASA.jpg",
+    "auteur": "NASA image using data provided courtesy of the University of Maryland’s Global Land Cover Facility",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:QeshmIsland_NASA.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:US Air Force A-10 Thunderbolt II formation flight over Wake Island - June 2025.jpg",
+    "auteur": "Senior Airman Audree Campbell, USAF",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:US_Air_Force_A-10_Thunderbolt_II_formation_flight_over_Wake_Island_-_June_2025.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Dursey Island aerial view.jpg",
+    "auteur": "Podstawko",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Dursey_Island_aerial_view.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-appelle-t-on-l-eau-d-une-riviere-qui-tombe-d-une-falaise": [],
+  "qc-quel-est-le-plus-long-fleuve-de-france": [
+   {
+    "n": 1,
+    "titre": "File:L'Aix à Pommiers (Loire, Fr).JPG",
+    "auteur": "Havang(nl)",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:L%27Aix_%C3%A0_Pommiers_(Loire,_Fr).JPG",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:La Loire depuis le Pont de Champtoceaux à Oudon.jpg",
+    "auteur": "DrGrototo",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:La_Loire_depuis_le_Pont_de_Champtoceaux_%C3%A0_Oudon.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-gaz-les-plantes-rejettent-elles-grace-a-la-lumiere-du-soleil": [
+   {
+    "n": 1,
+    "titre": "File:Koontz House in Natchez.jpg",
+    "auteur": "James Butters",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Koontz_House_in_Natchez.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Dark Green Leaves Edited.png",
+    "auteur": "The People's Internet",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Dark_Green_Leaves_Edited.png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Leaves of a green fern.jpg",
+    "auteur": "Joselodos",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Leaves_of_a_green_fern.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-est-le-plus-long-fleuve-d-afrique": [
+   {
+    "n": 1,
+    "titre": "File:ISS035-E-007148 Nile - Sinai - Dead Sea - Wide Angle View.jpg",
+    "auteur": "Expedition 35 Crew\nImage courtesy of the NASA Johnson Space Center, Image Science &amp; Analysis Laboratory\nDerivative work including grading, noise reduction, lens distortion and vignetting correction and dust spot removal: Julian Herzog",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:ISS035-E-007148_Nile_-_Sinai_-_Dead_Sea_-_Wide_Angle_View.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:The Basin of the Nile River in Egypt to illustrate Sir S.W. Baker's Routes and Discoveries.jpg",
+    "auteur": "Sir Samuel W. Baker",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:The_Basin_of_the_Nile_River_in_Egypt_to_illustrate_Sir_S.W._Baker%27s_Routes_and_Discoveries.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-est-la-plus-haute-montagne-d-afrique": [
+   {
+    "n": 1,
+    "titre": "File:Kilimanjaro mountain from a far.jpg",
+    "auteur": "Rebeccananonof",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Kilimanjaro_mountain_from_a_far.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Mt Kilimanjaro’s Receding Glaciers (1320).jpg",
+    "auteur": "Shuttle photograph provided by the Earth Sciences and Image Analysis Laboratory, Johnson Space Center. Additional photographs taken by astronauts and cosmonauts can be viewed via the NASA — JSC Gateway to Astronaut Photography of Earth.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Mt_Kilimanjaro%E2%80%99s_Receding_Glaciers_(1320).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quelle-mer-flotte-t-on-tres-facilement-tellement-elle-est-salee": [
+   {
+    "n": 1,
+    "titre": "File:Moshe Ganbash - Shiviti - Google Art Project.jpg",
+    "auteur": "Moshe Ganbash Details on Google Art Project",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Moshe_Ganbash_-_Shiviti_-_Google_Art_Project.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:ISS035-E-007148 Nile - Sinai - Dead Sea - Wide Angle View.jpg",
+    "auteur": "Expedition 35 Crew\nImage courtesy of the NASA Johnson Space Center, Image Science &amp; Analysis Laboratory\nDerivative work including grading, noise reduction, lens distortion and vignetting correction and dust spot removal: Julian Herzog",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:ISS035-E-007148_Nile_-_Sinai_-_Dead_Sea_-_Wide_Angle_View.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Dead sea.jpg",
+    "auteur": "NASA, earthobservatory, https://earthobservatory.nasa.gov",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Dead_sea.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quel-pays-se-trouve-la-grande-barriere-de-corail": [],
+  "qc-comment-s-appelle-le-transport-du-pollen-de-fleur-en-fleur": [
+   {
+    "n": 1,
+    "titre": "File:Bee Collecting Pollen 2004-08-14.jpg",
+    "auteur": "Jon Sullivan",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Bee_Collecting_Pollen_2004-08-14.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Rural handmade bee pollen and honey.jpg",
+    "auteur": "Fumikas Sagisavas",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Rural_handmade_bee_pollen_and_honey.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Bees with Pollen landing.jpg",
+    "auteur": "Zonki at German Wikipedia\n\n(Original text: Zonki)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Bees_with_Pollen_landing.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-l-eau-qui-devient-vapeur-sous-l-effet-de-la-chaleur": [
+   {
+    "n": 1,
+    "titre": "File:Machinezaal van spinnerij Cotonnière des Flandres.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Machinezaal_van_spinnerij_Cotonni%C3%A8re_des_Flandres.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Celeste Steam page top.png",
+    "auteur": "Website layout: Valve CorporationGame cover and screenshots: Maddy Makes Games",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Celeste_Steam_page_top.png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Steamのおま国.jpg",
+    "auteur": "Valve Corporation",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Steam%E3%81%AE%E3%81%8A%E3%81%BE%E5%9B%BD.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-les-champignons-sont-ils-des-plantes": [
+   {
+    "n": 1,
+    "titre": "File:Semmelknödel and forest mushrooms, Oestrich.jpg",
+    "auteur": "Gerda Arendt",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Semmelkn%C3%B6del_and_forest_mushrooms,_Oestrich.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Mushrooms in the Forest of Lake Tsover.jpg",
+    "auteur": "Sona Saribekian",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Mushrooms_in_the_Forest_of_Lake_Tsover.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Ravioli with forest mushrooms, Limburg.jpg",
+    "auteur": "Gerda Arendt",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Ravioli_with_forest_mushrooms,_Limburg.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-la-ligne-imaginaire-qui-coupe-la-terre-en-deux-au-mili": [
+   {
+    "n": 1,
+    "titre": "File:Globe on Stand 1919.png",
+    "auteur": "AnonymousUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Globe_on_Stand_1919.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Person holding world globe.jpg",
+    "auteur": "Porapak Apichodilok",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Person_holding_world_globe.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Terrestrial Globe MET 240594.jpg",
+    "auteur": "Creator:James Wilson",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Terrestrial_Globe_MET_240594.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-l-endroit-le-plus-profond-des-oceans": [],
+  "qc-quel-arbre-geant-d-afrique-garde-de-l-eau-dans-son-tronc": [
+   {
+    "n": 1,
+    "titre": "File:Le grand baobab Adansonia digitata 04.jpg",
+    "auteur": "Adansonia rayanne2",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Le_grand_baobab_Adansonia_digitata_04.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Le grand baobab Adansonia digitata 06.jpg",
+    "auteur": "Adansonia rayanne2",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Le_grand_baobab_Adansonia_digitata_06.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Le grand baobab Adansonia digitata 03.jpg",
+    "auteur": "Adansonia rayanne2",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Le_grand_baobab_Adansonia_digitata_03.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-legume-orange-les-lapins-adorent-ils": [
+   {
+    "n": 1,
+    "titre": "File:Carrots of many colors.jpg",
+    "auteur": "Stephen Ausmus",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Carrots_of_many_colors.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Preparing and slicing carrots.jpg",
+    "auteur": "W.carter",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Preparing_and_slicing_carrots.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Cracked carrot 2017 B.jpg",
+    "auteur": "Fructibus",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Cracked_carrot_2017_B.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-avec-quoi-fait-on-les-frites": [
+   {
+    "n": 1,
+    "titre": "File:McDonald's French Fries, Canada, 2026-04-04.jpg",
+    "auteur": "Chris Woodrich",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:McDonald%27s_French_Fries,_Canada,_2026-04-04.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:French fries 🍟.jpg",
+    "auteur": "Fumikas Sagisavas",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:French_fries_%F0%9F%8D%9F.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Eggs and French fries.jpg",
+    "auteur": "Doglover41",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Eggs_and_French_fries.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-animal-donne-le-lait-qu-on-boit-le-plus-souvent": [
+   {
+    "n": 1,
+    "titre": "File:Random milk products.jpg",
+    "auteur": "Jiafei Slay Queen",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Random_milk_products.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Flax milk 2.jpg",
+    "auteur": "Mx. Granger",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Flax_milk_2.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Moscow, Feb.2025 - private-label milk from Vkusvill 01.jpg",
+    "auteur": "Retired electrician",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Moscow,_Feb.2025_-_private-label_milk_from_Vkusvill_01.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-fruit-rouge-a-de-petits-grains-sur-sa-peau": [
+   {
+    "n": 1,
+    "titre": "File:Fragaria-Strawberry flower 25.4.2026.jpg",
+    "auteur": "Loki Krk",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Fragaria-Strawberry_flower_25.4.2026.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-que-pond-la-poule": [
+   {
+    "n": 1,
+    "titre": "File:Velvetbean caterpillar, eggs 2014-06-06-14.48.01 ZS PMax (15753693807).jpg",
+    "auteur": "USGS Bee Inventory and Monitoring Lab from Beltsville, Maryland, USA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Velvetbean_caterpillar,_eggs_2014-06-06-14.48.01_ZS_PMax_(15753693807).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Eggs and French fries.jpg",
+    "auteur": "Doglover41",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Eggs_and_French_fries.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:6-Pack-Chicken-Eggs.jpg",
+    "auteur": "Evan-Amos",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:6-Pack-Chicken-Eggs.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-fruit-jaune-faut-il-eplucher-avant-de-le-manger": [
+   {
+    "n": 1,
+    "titre": "File:MAL-M7c-Malaya-Japanese Occupation-10 Dollars ND (1944).jpg",
+    "auteur": "National Museum of American History",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:MAL-M7c-Malaya-Japanese_Occupation-10_Dollars_ND_(1944).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Banana, Congo.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Banana,_Congo.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-le-pain-long-et-fin-qu-on-achete-a-la-boulangerie": [
+   {
+    "n": 1,
+    "titre": "File:Baguette en épi.jpg",
+    "auteur": "Jberkel",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Baguette_en_%C3%A9pi.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Baguette and Classic Breakfast - Harrisons Of Hove.jpg",
+    "auteur": "Andy Li",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Baguette_and_Classic_Breakfast_-_Harrisons_Of_Hove.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Baguette-246424.jpg",
+    "auteur": "cocoparisienne",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Baguette-246424.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-aliment-sucre-est-fabrique-par-les-abeilles": [
+   {
+    "n": 1,
+    "titre": "File:European honey bee extracts nectar.jpg",
+    "auteur": "John Severns (Severnjc)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:European_honey_bee_extracts_nectar.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Runny hunny.jpg",
+    "auteur": "Scott Bauer, USDA ARS",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Runny_hunny.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Honey with Eleutherococcus senticosus, bought in Vladivostok around 2018.jpg",
+    "auteur": "Syced",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Honey_with_Eleutherococcus_senticosus,_bought_in_Vladivostok_around_2018.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-fruit-jaune-est-tres-acide": [],
+  "qc-quel-fruit-a-une-couronne-de-feuilles-sur-la-tete": [
+   {
+    "n": 1,
+    "titre": "File:Pineapple fruit 2.jpg",
+    "auteur": "Wilfredor",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pineapple_fruit_2.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Pineapple Juice fruits-465832.jpg",
+    "auteur": "public domain",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pineapple_Juice_fruits-465832.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Pineapple candied fruit (1).jpg",
+    "auteur": "Fumikas Sagisavas",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pineapple_candied_fruit_(1).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-fruit-marron-et-poilu-est-vert-a-l-interieur": [
+   {
+    "n": 1,
+    "titre": "File:Fruit platter at a party with kiwi melons strawberries etc.JPG",
+    "auteur": "Tomwsulcer",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Fruit_platter_at_a_party_with_kiwi_melons_strawberries_etc.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Dried kiwi fruit slices.jpg",
+    "auteur": "Fumikas Sagisavas",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Dried_kiwi_fruit_slices.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-gros-fruit-vert-est-rouge-a-l-interieur": [
+   {
+    "n": 1,
+    "titre": "File:Frans Post - Gezicht op Olinda, Brazilië.jpg",
+    "auteur": "Frans Post",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Frans_Post_-_Gezicht_op_Olinda,_Brazili%C3%AB.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Citrullus lanatus 1904.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Citrullus_lanatus_1904.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Naturalis Biodiversity Center - RMNH.ART.615 - Citrullus lanatus - Yūshi Ishizaki - Cock Blomhoff Collection - pencil drawing - water colour.jpg",
+    "auteur": "Ishizaki Yūshi",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Naturalis_Biodiversity_Center_-_RMNH.ART.615_-_Citrullus_lanatus_-_Y%C5%ABshi_Ishizaki_-_Cock_Blomhoff_Collection_-_pencil_drawing_-_water_colour.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-avec-quel-legume-fait-on-la-puree": [
+   {
+    "n": 1,
+    "titre": "File:Potato flowers 2016 G1.jpg",
+    "auteur": "George Chernilevsky",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Potato_flowers_2016_G1.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Dettaglio - Solanaceae Solanum tuberosum Lin. Erbario Frizzi Perugia n. 3916.jpg",
+    "auteur": "Giuseppe Frizzi",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Dettaglio_-_Solanaceae_Solanum_tuberosum_Lin._Erbario_Frizzi_Perugia_n._3916.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Ареал Solanum tuberosum GBIF.jpg",
+    "auteur": "https://www.gbif.org",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:%D0%90%D1%80%D0%B5%D0%B0%D0%BB_Solanum_tuberosum_GBIF.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-avec-quoi-fait-on-le-chocolat": [
+   {
+    "n": 1,
+    "titre": "File:Roast cocoa beans ready to pounded into a paste for the Samoan koko drink..JPG",
+    "auteur": "Teinesavaii",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Roast_cocoa_beans_ready_to_pounded_into_a_paste_for_the_Samoan_koko_drink..JPG",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Cocoa-1580724.jpg",
+    "auteur": "radziomors",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Cocoa-1580724.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Cocoa Nibs in Bowl.jpg",
+    "auteur": "Ll1324",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Cocoa_Nibs_in_Bowl.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-avec-quel-fruit-fait-on-le-cidre": [],
+  "qc-de-quel-pays-vient-la-pizza": [
+   {
+    "n": 1,
+    "titre": "File:Pizza 15.jpg",
+    "auteur": "Kurt Kaiser",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pizza_15.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Pizza 33.jpg",
+    "auteur": "Kurt Kaiser",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pizza_33.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Pizza 14.jpg",
+    "auteur": "Kurt Kaiser",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pizza_14.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-de-quel-pays-viennent-les-sushis": [
+   {
+    "n": 1,
+    "titre": "File:2009, sushi in Otaru.jpg",
+    "auteur": "Syced",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:2009,_sushi_in_Otaru.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Sushi, Mazatlán, 14 de junio de 2023 02.jpg",
+    "auteur": "El Nuevo Doge",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Sushi,_Mazatl%C3%A1n,_14_de_junio_de_2023_02.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:2009, sushi in Otaru -81219.jpeg",
+    "auteur": "Syced",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:2009,_sushi_in_Otaru_-81219.jpeg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-viennoiserie-a-la-forme-d-une-lune": [
+   {
+    "n": 1,
+    "titre": "File:Croissants au beurre (18953292873).jpg",
+    "auteur": "Herry Wibisono (herryway)",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Croissants_au_beurre_(18953292873).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Croissant rising.jpg",
+    "auteur": "Eedo Bee at en.wikipedia",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Croissant_rising.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Croissant Almond.jpg",
+    "auteur": "Bajinra",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Croissant_Almond.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-legume-fait-pleurer-quand-on-le-coupe": [
+   {
+    "n": 1,
+    "titre": "File:20250818 Allium cepa Cebula zwyczajna buds Panewniki.jpg",
+    "auteur": "Abraham",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:20250818_Allium_cepa_Cebula_zwyczajna_buds_Panewniki.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:20250818 Allium cepa Cebula zwyczajna buds Panewniki Franciscan garden.jpg",
+    "auteur": "Abraham",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:20250818_Allium_cepa_Cebula_zwyczajna_buds_Panewniki_Franciscan_garden.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Onion variety.jpg",
+    "auteur": "St Lucky R",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Onion_variety.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-fromage-rond-vient-de-normandie": [
+   {
+    "n": 1,
+    "titre": "File:Fried Camembert Meal.jpg",
+    "auteur": "Funknendai",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Fried_Camembert_Meal.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Baked Camembert with truffle oil, honey & toast - Long Man Inn 2024-12-18.jpg",
+    "auteur": "Andy Li",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Baked_Camembert_with_truffle_oil,_honey_%26_toast_-_Long_Man_Inn_2024-12-18.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Camembert Fritters - Devil's Dyke Hotel 2025-08-16.jpg",
+    "auteur": "Andy Li",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Camembert_Fritters_-_Devil%27s_Dyke_Hotel_2025-08-16.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-avec-quoi-fabrique-t-on-le-beurre": [
+   {
+    "n": 1,
+    "titre": "File:Antoine Vollon - Mound of Butter - National Gallery of Art.jpg",
+    "auteur": "Antoine Vollon",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Antoine_Vollon_-_Mound_of_Butter_-_National_Gallery_of_Art.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Back of bretel butter can.webp",
+    "auteur": "Ruthgrace",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Back_of_bretel_butter_can.webp",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Cans of Bretel butter with a plate of toast.webp",
+    "auteur": "Ruthgrace",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Cans_of_Bretel_butter_with_a_plate_of_toast.webp",
+    "source": "commons"
+   }
+  ],
+  "qc-avec-quelle-cereale-fait-on-la-farine-du-pain": [
+   {
+    "n": 1,
+    "titre": "File:Wheat-Field-with-Cypresses-(1889)-Vincent-van-Gogh-Met.jpg",
+    "auteur": "Vincent van Gogh",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Wheat-Field-with-Cypresses-(1889)-Vincent-van-Gogh-Met.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Van Gogh - Weizenfeld.jpeg",
+    "auteur": "Vincent van Gogh",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Van_Gogh_-_Weizenfeld.jpeg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Van Gogh - Saatfeld bei Sonnenaufgang.jpeg",
+    "auteur": "Vincent van Gogh",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Van_Gogh_-_Saatfeld_bei_Sonnenaufgang.jpeg",
+    "source": "commons"
+   }
+  ],
+  "qc-avec-quoi-fait-on-le-pop-corn": [
+   {
+    "n": 1,
+    "titre": "File:Popcorn Christian Church.jpg",
+    "auteur": "Nyttend",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Popcorn_Christian_Church.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Popcorn 9.jpg",
+    "auteur": "ViajeroExtraviado",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Popcorn_9.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Popcorn, 2020-11-26, 01.jpg",
+    "auteur": "Cbaile19",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Popcorn,_2020-11-26,_01.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-de-quel-pays-vient-la-paella": [
+   {
+    "n": 1,
+    "titre": "File:Paella de fruit de mer.jpg",
+    "auteur": "Wilfredor",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Paella_de_fruit_de_mer.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Paella valenciana, Mazatlán, 25 de abril de 2023.jpg",
+    "auteur": "El Nuevo Doge",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Paella_valenciana,_Mazatl%C3%A1n,_25_de_abril_de_2023.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-de-quel-pays-viennent-les-tacos": [
+   {
+    "n": 1,
+    "titre": "File:KFC super taco (2).jpg",
+    "auteur": "Fumikas Sagisavas",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:KFC_super_taco_(2).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Tacos in a soft tortilla 6.jpg",
+    "auteur": "Kurt Kaiser",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Tacos_in_a_soft_tortilla_6.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Tacos in a soft tortilla 5.jpg",
+    "auteur": "Kurt Kaiser",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Tacos_in_a_soft_tortilla_5.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-plat-mange-t-on-en-trempant-du-pain-dans-du-fromage-fondu": [
+   {
+    "n": 1,
+    "titre": "File:Fondue au fromage.jpg",
+    "auteur": "BiiJii",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Fondue_au_fromage.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Swiss cheese fondue.JPG",
+    "auteur": "Brücke-Osteuropa",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Swiss_cheese_fondue.JPG",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-plat-de-legumes-du-sud-de-la-france-a-donne-son-nom-a-un-film-pixar": [
+   {
+    "n": 1,
+    "titre": "File:Ratatouille, Idstein.jpg",
+    "auteur": "Gerda Arendt",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Ratatouille,_Idstein.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Ratatouille, Mazatlán, 21 de junio de 2023 02.jpg",
+    "auteur": "El Nuevo Doge",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Ratatouille,_Mazatl%C3%A1n,_21_de_junio_de_2023_02.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Ratatouille, Mazatlán, 21 de junio de 2023.jpg",
+    "auteur": "El Nuevo Doge",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Ratatouille,_Mazatl%C3%A1n,_21_de_junio_de_2023.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-fruit-a-une-coque-dure-et-de-l-eau-a-l-interieur": [
+   {
+    "n": 1,
+    "titre": "File:Immature coconut fruit.jpg",
+    "auteur": "Obsidian Soul",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Immature_coconut_fruit.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-cereale-pousse-dans-des-champs-inondes-en-asie": [],
+  "qc-qu-est-ce-qu-on-recolte-dans-les-marais-salants": [
+   {
+    "n": 1,
+    "titre": "File:Salt marsh Herring River Wellfleet Massachusetts.png",
+    "auteur": "Unidentified NOAA photographer",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Salt_marsh_Herring_River_Wellfleet_Massachusetts.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Salt panne in marsh at Parker River National Wildlife Refuge 26 September 2011.png",
+    "auteur": "Matt Poole/USFWS",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Salt_panne_in_marsh_at_Parker_River_National_Wildlife_Refuge_26_September_2011.png",
+    "source": "commons"
+   }
+  ],
+  "qc-avec-quelle-plante-fabrique-t-on-du-sucre-en-plus-de-la-betterave": [
+   {
+    "n": 1,
+    "titre": "File:Cane cutters in Jamaica.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Cane_cutters_in_Jamaica.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Planting Sugar Cane in Puerto Rico.jpg",
+    "auteur": "A.C. Bosselman &amp; Co., New York (publisher)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Planting_Sugar_Cane_in_Puerto_Rico.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Barbados - Carting sugar canes.jpg",
+    "auteur": "Unknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Barbados_-_Carting_sugar_canes.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-petite-patisserie-ronde-et-coloree-est-faite-de-deux-coques": [
+   {
+    "n": 1,
+    "titre": "File:Des macarons de chez Bouillet (mars 2023).jpg",
+    "auteur": "Benoît Prieur",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Des_macarons_de_chez_Bouillet_(mars_2023).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:French macaroons.jpg",
+    "auteur": "Shisma (talk)",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:French_macaroons.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Macarons de chez Bouillet en juin 2023.jpg",
+    "auteur": "Benoît Prieur",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Macarons_de_chez_Bouillet_en_juin_2023.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-patisserie-allongee-est-fourree-de-creme-au-chocolat-ou-au-cafe": [
+   {
+    "n": 1,
+    "titre": "File:Pistachio eclair - Milfey Patisserie 2026-05-02.jpg",
+    "auteur": "Andy Li",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pistachio_eclair_-_Milfey_Patisserie_2026-05-02.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Pistachio eclair - Milfey Patisserie 2026-03-02.jpg",
+    "auteur": "Andy Li",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pistachio_eclair_-_Milfey_Patisserie_2026-03-02.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Эклер в Москве, дорогой.jpg",
+    "auteur": "Svetlov Artem",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:%D0%AD%D0%BA%D0%BB%D0%B5%D1%80_%D0%B2_%D0%9C%D0%BE%D1%81%D0%BA%D0%B2%D0%B5,_%D0%B4%D0%BE%D1%80%D0%BE%D0%B3%D0%BE%D0%B9.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-gros-legume-orange-creuse-t-on-pour-halloween": [
+   {
+    "n": 1,
+    "titre": "File:Jack-o-lantern pumpkins.jpg",
+    "auteur": "Petr Kratochvil",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Jack-o-lantern_pumpkins.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Jack O Lantern (234209875).jpeg",
+    "auteur": "Benjamin Balazs",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Jack_O_Lantern_(234209875).jpeg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Jack-O-Lantern at night.jpg",
+    "auteur": "Alabama Extension",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Jack-O-Lantern_at_night.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-un-champ-de-vignes-ou-pousse-le-raisin": [
+   {
+    "n": 1,
+    "titre": "File:View of the Director's House through a vineyard, Saline Royale, Arc-et-Senans, 2026.jpg",
+    "auteur": "DimiTalen",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:View_of_the_Director%27s_House_through_a_vineyard,_Saline_Royale,_Arc-et-Senans,_2026.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Nikolauskapelle between the vineyards, Klingenmünster, 2025.jpg",
+    "auteur": "DimiTalen",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Nikolauskapelle_between_the_vineyards,_Klingenm%C3%BCnster,_2025.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:View of Göcklingen from the south east through the vineyards, 2025.jpg",
+    "auteur": "DimiTalen",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:View_of_G%C3%B6cklingen_from_the_south_east_through_the_vineyards,_2025.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-un-terrain-plante-d-arbres-fruitiers": [
+   {
+    "n": 1,
+    "titre": "File:Orchard In Bangkok.jpg",
+    "auteur": "Tree Lightbulb",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Orchard_In_Bangkok.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:The orchard trees at WIncheap.jpg",
+    "auteur": "Digihum",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:The_orchard_trees_at_WIncheap.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Cherry orchard in Bemmel.jpg",
+    "auteur": "Lendskaip",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Cherry_orchard_in_Bemmel.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-le-jardin-ou-l-on-fait-pousser-des-legumes": [
+   {
+    "n": 1,
+    "titre": "File:Kitchen garden at Los Poblanos.jpg",
+    "auteur": "PralineCoffee",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Kitchen_garden_at_Los_Poblanos.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:0185Vegetable plantations in Taal, Pulilan, Bulacan 22.jpg",
+    "auteur": "JFVelasquez Floro",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:0185Vegetable_plantations_in_Taal,_Pulilan,_Bulacan_22.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Vegetable garden of Spaso-Yevfimiyev Monastery.jpg",
+    "auteur": "Perituss",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Vegetable_garden_of_Spaso-Yevfimiyev_Monastery.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-avec-quel-fruit-fait-on-une-huile-tres-utilisee-en-cuisine": [
+   {
+    "n": 1,
+    "titre": "File:Loose original seasoned olives.jpg",
+    "auteur": "Fumikas Sagisavas",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Loose_original_seasoned_olives.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Undyed Seasoned Olives.jpg",
+    "auteur": "Fumikas Sagisavas",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Undyed_Seasoned_Olives.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appellent-les-pates-longues-et-fines-qu-on-mange-avec-de-la-sa": [
+   {
+    "n": 1,
+    "titre": "File:Various types of noodles- Spaghetti, somen, udon, fedelini, soba.jpg",
+    "auteur": "Syced",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Various_types_of_noodles-_Spaghetti,_somen,_udon,_fedelini,_soba.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Courgetti Spaghetti by Purezza, Brighton.jpg",
+    "auteur": "Andy Li",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Courgetti_Spaghetti_by_Purezza,_Brighton.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Touched by His Noodly Appendage HD.jpg",
+    "auteur": "Niklas Jansson",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Touched_by_His_Noodly_Appendage_HD.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-que-porte-un-roi-sur-la-tete": [
+   {
+    "n": 1,
+    "titre": "File:Crown of the Virgin of the Immaculate Conception, known as the Crown of the Andes MET DP365520.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Crown_of_the_Virgin_of_the_Immaculate_Conception,_known_as_the_Crown_of_the_Andes_MET_DP365520.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Crown Queens Bavaria Schatzkammer Residenz Munich.jpg",
+    "auteur": "Jebulon",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Crown_Queens_Bavaria_Schatzkammer_Residenz_Munich.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Lucy Arbell as Queen Amahelli in Massenet's Bacchus, wide view.jpg",
+    "auteur": "Paul Nadar / Adam Cuerden",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Lucy_Arbell_as_Queen_Amahelli_in_Massenet%27s_Bacchus,_wide_view.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quoi-vivaient-les-rois-et-les-chevaliers-au-moyen-age": [
+   {
+    "n": 1,
+    "titre": "File:Edinburgh Castle from Grass Market.jpg",
+    "auteur": "George Washington Wilson / Adam Cuerden",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Edinburgh_Castle_from_Grass_Market.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Castle medieval siege.gif",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Castle_medieval_siege.gif",
+    "source": "commons"
+   }
+  ],
+  "qc-qui-fut-le-premier-empereur-des-francais": [
+   {
+    "n": 1,
+    "titre": "File:Jacques-Louis David - The Emperor Napoleon in His Study at the Tuileries - Google Art Project.jpg",
+    "auteur": "Jacques-Louis David",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Jacques-Louis_David_-_The_Emperor_Napoleon_in_His_Study_at_the_Tuileries_-_Google_Art_Project.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Napoleon I of France by Andrea Appiani.jpg",
+    "auteur": "Andrea Appiani",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Napoleon_I_of_France_by_Andrea_Appiani.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:David - Napoleon crossing the Alps - Malmaison1.jpg",
+    "auteur": "Jacques-Louis David",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:David_-_Napoleon_crossing_the_Alps_-_Malmaison1.jpg",
+    "source": "commons"
+   }
+  ]
+ }
+}
