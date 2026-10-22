@@ -1,0 +1,1642 @@
+{
+ "manquants": [
+  "qc-que-fait-l-ours-brun-pendant-l-hiver",
+  "qc-quel-est-le-plus-grand-des-singes",
+  "qc-quel-oiseau-est-le-symbole-des-etats-unis"
+ ],
+ "restants": [
+  "qc-comment-la-chauve-souris-trouve-t-elle-son-chemin-dans-le-noir",
+  "qc-l-araignee-est",
+  "qc-quel-est-le-plus-grand-poisson-du-monde",
+  "qc-quel-oiseau-pond-les-plus-gros-ufs",
+  "qc-que-faut-il-faire-avant-de-manger",
+  "qc-avec-quoi-se-brosse-t-on-les-dents",
+  "qc-que-porte-t-on-sur-le-nez-quand-on-voit-mal",
+  "qc-quel-organe-fait-circuler-le-sang-dans-tout-le-corps",
+  "qc-avec-quels-organes-respire-t-on",
+  "qc-quel-est-le-plus-long-os-du-corps",
+  "qc-quel-est-le-plus-grand-organe-du-corps-humain",
+  "qc-comment-appelle-t-on-l-ensemble-des-os-du-corps",
+  "qc-comment-s-appellent-les-premieres-dents-des-enfants-qui-tombent",
+  "qc-quel-organe-en-forme-de-poche-recoit-la-nourriture-qu-on-avale",
+  "qc-quel-organe-commande-tout-le-corps",
+  "qc-comment-s-appelle-la-partie-coloree-de-l-il",
+  "qc-quelle-articulation-se-trouve-au-milieu-de-la-jambe",
+  "qc-quelle-articulation-se-trouve-au-milieu-du-bras",
+  "qc-qu-est-ce-qui-est-unique-au-bout-des-doigts-de-chaque-personne",
+  "qc-avec-quoi-le-medecin-ecoute-t-il-le-c-ur",
+  "qc-avec-quoi-mesure-t-on-la-fievre",
+  "qc-qu-est-ce-qui-fait-bouger-les-os",
+  "qc-quel-os-protege-le-cerveau",
+  "qc-comment-s-appelle-la-colonne-d-os-au-milieu-du-dos",
+  "qc-quels-os-protegent-le-c-ur-et-les-poumons",
+  "qc-ou-faut-il-eternuer-pour-ne-pas-repandre-les-microbes",
+  "qc-qu-est-ce-qui-protege-de-certaines-maladies-avec-une-petite-piqure",
+  "qc-quelle-vitamine-le-soleil-aide-t-il-notre-corps-a-fabriquer",
+  "qc-quelles-cellules-transportent-l-oxygene-dans-le-sang",
+  "qc-quelle-molecule-porte-le-code-genetique",
+  "qc-quels-organes-filtrent-le-sang-et-fabriquent-l-urine",
+  "qc-quel-est-le-plus-petit-os-du-corps-humain",
+  "qc-de-quoi-sont-faits-les-ongles-et-les-cheveux",
+  "qc-quelles-cellules-du-sang-defendent-le-corps-contre-les-microbes",
+  "qc-comment-s-appelle-le-petit-rond-noir-au-centre-de-l-il",
+  "qc-en-quelle-saison-tombe-la-neige",
+  "qc-en-quelle-saison-les-feuilles-tombent-elles-des-arbres",
+  "qc-en-quelle-saison-les-fleurs-repoussent-elles",
+  "qc-en-quelle-saison-va-t-on-souvent-a-la-plage",
+  "qc-quel-jour-fete-t-on-noel",
+  "qc-a-quelle-fete-cherche-t-on-des-ufs-en-chocolat",
+  "qc-quelle-fete-celebre-t-on-le-31-octobre",
+  "qc-quel-objet-sonne-le-matin-pour-nous-reveiller",
+  "qc-quel-est-le-mois-le-plus-court-de-l-annee",
+  "qc-quel-jour-est-la-fete-nationale-francaise",
+  "qc-quelle-fete-celebre-t-on-avec-des-crepes-le-2-fevrier",
+  "qc-quel-mois-vient-juste-apres-juillet",
+  "qc-en-france-en-quel-mois-a-lieu-la-rentree-des-classes",
+  "qc-quel-jour-fete-t-on-le-nouvel-an",
+  "qc-quel-gateau-mange-t-on-en-janvier-pour-tirer-les-rois",
+  "qc-quel-gateau-en-forme-de-buche-mange-t-on-a-noel",
+  "qc-quelle-fleur-offre-t-on-le-1er-mai",
+  "qc-quel-objet-mesure-le-temps-avec-du-sable-qui-s-ecoule",
+  "qc-quel-ancien-objet-donne-l-heure-grace-a-l-ombre-du-soleil",
+  "qc-quel-jour-accroche-t-on-des-poissons-en-papier-dans-le-dos",
+  "qc-quand-la-grande-aiguille-est-sur-le-12-et-la-petite-sur-le-3-quelle-heur",
+  "qc-quand-la-grande-aiguille-est-sur-le-6-il-est",
+  "qc-quelle-fete-celebre-les-mamans-a-la-fin-du-printemps",
+  "qc-quelle-fete-des-amoureux-a-lieu-le-14-fevrier",
+  "qc-quelle-fete-a-lieu-le-21-juin-au-debut-de-l-ete",
+  "qc-a-quelle-fete-se-deguise-t-on-en-mangeant-des-beignets-en-fevrier-ou-en-",
+  "qc-en-france-en-quel-mois-est-le-jour-le-plus-long-de-l-annee",
+  "qc-comment-appelle-t-on-une-annee-ou-fevrier-a-29-jours",
+  "qc-quand-il-est-midi-a-paris-quelle-heure-est-il-a-new-york",
+  "qc-quand-c-est-l-ete-en-france-quelle-saison-est-ce-en-australie",
+  "qc-comment-appelle-t-on-une-periode-de-dix-ans",
+  "qc-en-chiffres-romains-que-vaut-x",
+  "qc-sur-quelle-planete-vivons-nous",
+  "qc-qu-est-ce-qui-brille-la-nuit-dans-le-ciel-et-change-de-forme",
+  "qc-que-porte-un-astronaute-dans-l-espace",
+  "qc-quel-engin-emmene-les-astronautes-dans-l-espace",
+  "qc-qu-est-ce-qui-brille-dans-le-ciel-la-nuit-en-tout-petits-points",
+  "qc-quelle-est-l-etoile-la-plus-proche-de-la-terre",
+  "qc-quelle-planete-est-surnommee-la-planete-rouge",
+  "qc-quelle-est-la-plus-grande-planete-du-systeme-solaire",
+  "qc-quelle-planete-a-de-grands-anneaux-bien-visibles",
+  "qc-qui-a-marche-le-premier-sur-la-lune",
+  "qc-quel-astronaute-francais-est-alle-deux-fois-dans-la-station-spatiale-int",
+  "qc-quelle-est-la-planete-la-plus-proche-du-soleil",
+  "qc-qu-est-ce-que-la-voie-lactee",
+  "qc-qu-est-ce-qu-une-etoile-filante",
+  "qc-quel-instrument-permet-d-observer-les-etoiles-de-pres",
+  "qc-comment-s-appelle-le-moment-ou-la-lune-cache-le-soleil",
+  "qc-pourquoi-y-a-t-il-le-jour-et-la-nuit",
+  "qc-comment-s-appelle-une-boule-de-glace-et-de-poussiere-avec-une-longue-que",
+  "qc-comment-appelle-t-on-la-lune-quand-elle-est-toute-ronde",
+  "qc-le-soleil-est",
+  "qc-qu-est-ce-que-la-lune-pour-la-terre",
+  "qc-comment-appelle-t-on-le-robot-a-roues-envoye-sur-mars",
+  "qc-quelle-planete-brillante-appelle-t-on-l-etoile-du-berger",
+  "qc-comment-s-appellent-les-trous-ronds-a-la-surface-de-la-lune",
+  "qc-pourquoi-les-astronautes-flottent-ils-dans-la-station-spatiale",
+  "qc-quel-engin-tourne-autour-de-la-terre-pour-la-tele-et-la-meteo",
+  "qc-comment-s-appelle-un-groupe-d-etoiles-qui-forme-un-dessin-dans-le-ciel",
+  "qc-de-quel-cote-le-soleil-se-leve-t-il",
+  "qc-quelle-est-la-planete-la-plus-eloignee-du-soleil",
+  "qc-quel-astre-n-est-plus-considere-comme-une-planete-depuis-2006",
+  "qc-comment-appelle-t-on-un-astre-dont-meme-la-lumiere-ne-peut-pas-s-echappe",
+  "qc-quel-pays-a-envoye-le-premier-homme-dans-l-espace-en-1961",
+  "qc-qui-fut-le-premier-homme-dans-l-espace",
+  "qc-comment-s-appellent-les-lumieres-colorees-qu-on-voit-dans-le-ciel-pres-d",
+  "qc-comment-s-appelait-la-mission-qui-a-pose-les-premiers-hommes-sur-la-lune",
+  "qc-comment-s-appelle-la-fusee-europeenne-lancee-depuis-la-guyane",
+  "qc-de-quoi-le-soleil-est-il-surtout-fait",
+  "qc-dans-quel-sport-joue-t-on-avec-une-raquette-et-une-balle-jaune",
+  "qc-dans-quel-sport-marque-t-on-des-paniers",
+  "qc-sur-quoi-glisse-t-on-a-la-montagne-en-hiver",
+  "qc-que-met-on-sur-la-tete-pour-faire-du-velo-sans-se-blesser",
+  "qc-dans-quel-sport-ne-touche-t-on-pas-le-ballon-avec-les-mains-sauf-le-gard",
+  "qc-ou-fait-on-de-la-natation",
+  "qc-sur-quoi-glisse-t-on-sur-les-vagues",
+  "qc-quel-est-le-sport-du-tour-de-france",
+  "qc-dans-quel-sport-porte-t-on-un-kimono-et-une-ceinture-de-couleur",
+  "qc-dans-quel-sport-marque-t-on-des-essais-avec-un-ballon-ovale",
+  "qc-quelle-medaille-recoit-le-gagnant-aux-jeux-olympiques",
+  "qc-au-football-qui-arrete-les-tirs-devant-le-but",
+  "qc-dans-quelle-ville-se-joue-le-tournoi-de-tennis-de-roland-garros",
+  "qc-quel-est-le-symbole-des-jeux-olympiques",
+  "qc-que-porte-t-on-en-relais-jusqu-a-l-ouverture-des-jeux-olympiques",
+  "qc-quelle-nage-porte-le-nom-d-un-insecte",
+  "qc-dans-quel-sport-fait-on-passer-le-ballon-au-dessus-d-un-filet-avec-les-m",
+  "qc-comment-appelle-t-on-aussi-le-tennis-de-table",
+  "qc-dans-quel-sport-joue-t-on-avec-un-volant",
+  "qc-dans-quel-sport-met-on-une-petite-balle-dans-un-trou-avec-le-moins-de-co",
+  "qc-dans-quel-sport-utilise-t-on-une-crosse-et-un-palet-sur-la-glace",
+  "qc-au-football-quelle-carte-fait-sortir-un-joueur-du-terrain",
+  "qc-comment-s-appelle-le-sport-ou-l-on-monte-a-cheval",
+  "qc-dans-quel-sport-se-bat-on-avec-une-epee-ou-un-fleuret",
+  "qc-dans-quel-pays-sont-nes-les-jeux-olympiques",
+  "qc-dans-quel-sport-avance-t-on-sur-l-eau-en-ramant",
+  "qc-dans-quel-sport-porte-t-on-de-gros-gants-pour-se-battre-sur-un-ring",
+  "qc-comment-s-appelle-le-sport-ou-l-on-grimpe-sur-un-mur-ou-une-falaise",
+  "qc-comment-s-appelle-la-planche-a-quatre-roulettes-pour-faire-des-figures",
+  "qc-quel-sport-fait-on-avec-des-lames-sous-les-chaussures-sur-la-glace",
+  "qc-dans-quelle-epreuve-saute-t-on-par-dessus-une-barre-placee-en-hauteur",
+  "qc-dans-quel-sport-americain-frappe-t-on-une-balle-avec-une-batte",
+  "qc-de-quel-pays-vient-le-karate",
+  "qc-a-quel-jeu-lance-t-on-des-boules-pres-d-un-cochonnet",
+  "qc-dans-quel-jeu-fait-on-tomber-des-quilles-avec-une-grosse-boule",
+  "qc-quel-pays-a-gagne-la-coupe-du-monde-de-football-en-2018",
+  "qc-quel-pays-a-gagne-la-coupe-du-monde-de-football-en-2022",
+  "qc-quel-nageur-francais-a-gagne-4-medailles-d-or-aux-jeux-olympiques-de-par",
+  "qc-quelles-sont-les-trois-epreuves-du-triathlon",
+  "qc-quel-sport-d-hiver-melange-ski-de-fond-et-tir-a-la-carabine",
+  "qc-dans-quel-sport-fait-on-glisser-une-pierre-en-balayant-la-glace-devant-e",
+  "qc-sur-quelle-surface-se-joue-le-tournoi-de-tennis-de-wimbledon",
+  "qc-dans-quelle-epreuve-saute-t-on-tres-haut-avec-une-longue-perche",
+  "qc-dans-quelle-ville-ont-eu-lieu-les-premiers-jeux-olympiques-modernes-en-1",
+  "qc-quelle-couleur-obtient-on-en-melangeant-du-bleu-et-du-jaune",
+  "qc-quelle-forme-a-une-roue",
+  "qc-que-sort-souvent-un-magicien-de-son-chapeau",
+  "qc-comment-s-appelle-un-jeu-ou-l-on-assemble-des-pieces-pour-refaire-une-im",
+  "qc-qu-est-ce-qu-on-gonfle-pour-decorer-une-fete-d-anniversaire",
+  "qc-quelle-couleur-obtient-on-en-melangeant-du-rouge-et-du-jaune",
+  "qc-quelle-couleur-obtient-on-en-melangeant-du-rouge-et-du-bleu",
+  "qc-aux-echecs-quelle-piece-faut-il-mettre-echec-et-mat-pour-gagner"
+ ],
+ "sources": {
+  "qc-quel-est-le-plus-grand-animal-qui-vit-sur-la-terre-ferme": [
+   {
+    "n": 1,
+    "titre": "Elephant Animals",
+    "auteur": "Jay Mantri",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/elephant-animals-YN674EJH83",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Elephant Asian",
+    "auteur": "sasint",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/elephant-asian-HXQ4KLM2Y5",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Elephant Africa",
+    "auteur": "World Wildlife",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/elephant-africa-KY7VQPKRSB",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quel-animal-est-appele-le-roi-des-animaux": [
+   {
+    "n": 1,
+    "titre": "Lion Mane",
+    "auteur": "Lemuel Butler",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/lion-mane-93A786E5ED",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Lion Teeth",
+    "auteur": "IanZA",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/lion-teeth-8BPOCRWPZS",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Lion Tiger",
+    "auteur": "Frida Bredesen",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/lion-tiger-D98MFBLEZR",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quel-animal-fabrique-une-toile": [
+   {
+    "n": 1,
+    "titre": "Bowl-and-Doily Spider Web",
+    "auteur": "U. S. Fish and Wildlife Service - Northeast Region",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/43322816@N08/51584639382",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 2,
+    "titre": "Spider web",
+    "auteur": "1000iuklvo",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/153084975@N05/32712226523",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "Spider web",
+    "auteur": "iurie.ph",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/194158583@N08/52494045421",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-le-poussin-est-le-bebe-de-quel-animal": [
+   {
+    "n": 1,
+    "titre": "Rooster Hen Chicks Watanabe Seitei",
+    "auteur": "themet",
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/9086593/rooster-and-hen-with-chicks-watanabe-seitei",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 2,
+    "titre": "Hen chicks (1920s 1930s) Roland",
+    "auteur": "museumofnewzealand",
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/9941245/hen-and-chicks-1920s-1930s-roland-searle",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 3,
+    "titre": "Domestic cock, hens, chicks park",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/9206493/domestic-cock-hens-and-chicks-park",
+    "source": "openverse/rawpixel"
+   }
+  ],
+  "qc-quand-il-grandit-le-tetard-devient": [
+   {
+    "n": 1,
+    "titre": "Frog Animal",
+    "auteur": "JillHeyer",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/frog-animal-392F0F8089",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Animals Frogs",
+    "auteur": "Ray Hennessy",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/animals-frogs-MR16HMQQ4J",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Frog Leaf",
+    "auteur": "Bernard Spragg",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/frog-leaf-2ANB3L3OFJ",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-comment-appelle-t-on-le-petit-de-la-vache": [
+   {
+    "n": 1,
+    "titre": "Calf Cow",
+    "auteur": "Ian Livesey",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/calf-cow-SHSYNIOKNJ",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Calf Cow",
+    "auteur": "Ian Livesey",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/calf-cow-CYDEYOVHOE",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Brown Calf",
+    "auteur": "Freestocks.org",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/brown-calf-S3S8SF115H",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-ou-les-abeilles-fabriquent-elles-le-miel": [
+   {
+    "n": 1,
+    "titre": "Bee Person",
+    "auteur": "Ian Livesey",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/bee-person-OMX3XLKJNU",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Warning Sign near Beehive",
+    "auteur": "Alabama Extension",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/184594136@N08/51554655874",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "beehive",
+    "auteur": "Mussi Katz",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/52775988@N00/52569455449",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-quel-animal-porte-sa-maison-sur-son-dos": [
+   {
+    "n": 1,
+    "titre": "Snail Shell",
+    "auteur": "Aaron Burden",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/snail-shell-3VRWN86IJ3",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Escargot Snails",
+    "auteur": "Krzysztof%20Puszczy%u0144ski",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/escargot-snails-LY9ARV0N1T",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Snail Slug",
+    "auteur": "Daria Nepriakhina",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/snail-slug-ED26335F35",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quel-animal-a-un-tres-long-cou": [
+   {
+    "n": 1,
+    "titre": "Giraffe Animal",
+    "auteur": "Gary Bendig",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/giraffe-animal-PI65INGJA5",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Giraffe Animals",
+    "auteur": "Dawn Armfield",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/giraffe-animals-8RG95RS0T5",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Giraffe Animal",
+    "auteur": "Andrew Furlan",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/giraffe-animal-KME6LE5SKR",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quel-animal-a-des-rayures-noires-et-blanches": [
+   {
+    "n": 1,
+    "titre": "Zebras Animals",
+    "auteur": "Dave Meier",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/zebras-animals-CADB5E0C6C",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Zebra Clash",
+    "auteur": "Picography",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/zebra-clash-L08XS5SDZ0",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Zebra Animal",
+    "auteur": "Dave Meier",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/zebra-animal-95D241D39F",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quel-animal-a-de-longues-oreilles-et-adore-les-carottes": [
+   {
+    "n": 1,
+    "titre": "Bunny Rabbit",
+    "auteur": "Ryan McGuire",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/bunny-rabbit-508E960C84",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Animals Rabbits",
+    "auteur": "Ray Hennessy",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/animals-rabbits-OGSPXCGUXJ",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Bunny Rabbit",
+    "auteur": "Ryan McGuire",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/bunny-rabbit-608D449920",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quel-petit-animal-est-couvert-de-piquants": [
+   {
+    "n": 1,
+    "titre": "hérisson, hedgehog",
+    "auteur": "msouc",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/56461cae89/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 2,
+    "titre": "Hedgehog on yellow background",
+    "auteur": "gemedj89",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/161c4e0d88/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 3,
+    "titre": "Pine cone hedgehogs",
+    "auteur": "Topher",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/8386207085/",
+    "source": "openverse/wordpress"
+   }
+  ],
+  "qc-quel-animal-peut-changer-de-couleur": [
+   {
+    "n": 1,
+    "titre": "Animals Reptiles",
+    "auteur": "Ashes Sitoula",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/animals-reptiles-VP1FQ0LWKT",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Lizard Reptile",
+    "auteur": "Claudel Rheault",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/lizard-reptile-KIG7P2UWGE",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "panther-chameleon-1920x1080_46495-mm-90",
+    "auteur": "GregS1972",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/195382194@N04/51993307903",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-quel-est-le-plus-grand-animal-du-monde": [
+   {
+    "n": 1,
+    "titre": "Whale Fish",
+    "auteur": "Thomas Kelley",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/whale-fish-46JV8KAX2S",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "boats in germany (185) cma cgm blue whale 65.892t",
+    "auteur": "indyraf",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/109200699@N03/54673995463",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "www.kendrayresearch.vip - Gemini and Evils - BLUE WHALE Surveillance 0011",
+    "auteur": "dumasik",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/204649159@N05/55326287383",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-quel-oiseau-ne-sait-pas-voler": [
+   {
+    "n": 1,
+    "titre": "Penguin Bird",
+    "auteur": "Jay Ruzesky",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/penguin-bird-1S833P58D0",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Penguin Bird",
+    "auteur": "World Wildlife",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/penguin-bird-QNK8VUK2UI",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Penguin Wildlife",
+    "auteur": "Bernard Spragg",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/penguin-wildlife-ZQZ6Q9LN9K",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-ou-vit-l-ours-polaire": [
+   {
+    "n": 1,
+    "titre": "White Polar",
+    "auteur": "David Cohen",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/white-polar-098K30044E",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Fremlin Walk Maidstone Polar Bear.",
+    "auteur": "JOHN K THORNE",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/89918055@N05/54150268567",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "Francois Pompon, Polar Bear, 1923-33, stone",
+    "auteur": "jacquemart",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/26602223@N00/55183255563",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-quel-animal-dort-la-tete-en-bas": [
+   {
+    "n": 1,
+    "titre": "Boise City Elementary 2021 Batweek event",
+    "auteur": "Cibola Photography",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/78129468@N02/51703160934",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 2,
+    "titre": "Boise City Elementary 2021 Batweek event",
+    "auteur": "Cibola Photography",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/78129468@N02/51702482636",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "Hanging cocoons",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/5939445/hanging-cocoons",
+    "source": "openverse/rawpixel"
+   }
+  ],
+  "qc-quel-est-l-animal-le-plus-rapide-sur-la-terre-ferme": [
+   {
+    "n": 1,
+    "titre": "Young Cheetah",
+    "auteur": "Dave Meier",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/young-cheetah-6E4B2ACDB3",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Cheetah Animal",
+    "auteur": "World Wildlife",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/cheetah-animal-FFRAQYY2XP",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Cheetah Animal",
+    "auteur": "Jason Briscoe",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/cheetah-animal-JRNCTCAO6L",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-le-dauphin-est": [
+   {
+    "n": 1,
+    "titre": "Dolphins jumping out of the water at a theme park",
+    "auteur": "mdburnette",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/33462150d3/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 2,
+    "titre": "A blue scooter parked on a paved area in front of a restaurant with a sign that reads “Dolphins Restaurant”. The restaurant has a wooden structure, a green roof, and is surrounded by lush greenery and colorful flowers, including yellow blooms.",
+    "auteur": "Shaugat Ashraf Khan",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/94363aa989/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 3,
+    "titre": "Architecture Buildings",
+    "auteur": "Ben Cheung",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/architecture-buildings-P5M4OGVMEP",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quel-animal-est-le-symbole-de-l-australie": [
+   {
+    "n": 1,
+    "titre": "Australia Kangaroo",
+    "auteur": "Ethan Brooke",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/australia-kangaroo-TLPNSNYHAR",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Kangaroo Animal",
+    "auteur": "Ravi Pinisetti",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/kangaroo-animal-XDGE99DH4Z",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Kangaroos resting in the shade",
+    "auteur": "mdburnette",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/2576231f8f/",
+    "source": "openverse/wordpress"
+   }
+  ],
+  "qc-quel-petit-oiseau-sait-voler-en-arriere": [
+   {
+    "n": 1,
+    "titre": "Hummingbird Flower",
+    "auteur": "Matt Bango",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/hummingbird-flower-MFBPTZILVV",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Hummingbird Bird",
+    "auteur": "Matt Bango",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/hummingbird-bird-CCLRBOOIQH",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Hummingbird Nature",
+    "auteur": "Matt Bango",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/hummingbird-nature-IHVDJ5JQOJ",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-comment-appelle-t-on-un-animal-qui-ne-mange-que-des-plantes": [
+   {
+    "n": 1,
+    "titre": "Cow grazing",
+    "auteur": "Roy Tanck",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/322635262d/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 2,
+    "titre": "Animals Mammals",
+    "auteur": "Adam Morse",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/animals-mammals-I042LQ5O8H",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Cows Field",
+    "auteur": "Ian Livesey",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/cows-field-9JBFZI73RK",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-avant-de-devenir-papillon-la-chenille-se-transforme-en": [
+   {
+    "n": 1,
+    "titre": "Monarch butterfly chrysalis",
+    "auteur": "U.S. Fish and Wildlife Service - Midwest Region",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/49208525@N08/53138332352",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 2,
+    "titre": "Butterfly chrysalis nature",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/6038994/photo-image-public-domain-nature-butterfly",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 3,
+    "titre": "Monarch Chrysalis",
+    "auteur": "pk2morgan",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/196257575@N03/52394856036",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-quel-oiseau-chasse-la-nuit-et-peut-tourner-la-tete-presque-completement": [
+   {
+    "n": 1,
+    "titre": "Owl Bird",
+    "auteur": "Leeroy",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/owl-bird-ROZ6I3LEBW",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Owl Bird",
+    "auteur": "Skitter Photo",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/owl-bird-92D971C610",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Owl Eyes",
+    "auteur": "World Wildlife",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/owl-eyes-E1CMK2AIID",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quel-animal-roux-a-la-queue-touffue-est-ruse-dans-les-fables": [
+   {
+    "n": 1,
+    "titre": "Red fox in the rain",
+    "auteur": "USFWSAlaska",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/54775250@N07/51357237877",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 2,
+    "titre": "Cascade Red Fox",
+    "auteur": "shesnuckinfuts",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/77931884@N00/51571695277",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "Red Fox",
+    "auteur": "U. S. Fish and Wildlife Service - Northeast Region",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/43322816@N08/51415136001",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-que-mange-surtout-le-panda-geant": [
+   {
+    "n": 1,
+    "titre": "Free panda eating bamboo image",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/5914515/photo-image-background-public-domain-green",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 2,
+    "titre": "giant panda, star attraction Smithsonian",
+    "auteur": "Carol M Highsmith",
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/421958/free-photo-image-panda-china-giant",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 3,
+    "titre": null,
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/6054203/free-public-domain-cc0-photo",
+    "source": "openverse/rawpixel"
+   }
+  ],
+  "qc-quel-animal-peut-marcher-longtemps-dans-le-desert-sans-boire": [
+   {
+    "n": 1,
+    "titre": "2022-11-19_15-40-58_JO_day7_Wadi_Rum_JH",
+    "auteur": "Juhele_CZ",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/96541566@N06/52754258522",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 2,
+    "titre": "2022-11-19_15-22-30_JO_day7_Wadi_Rum_JH",
+    "auteur": "Juhele_CZ",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/96541566@N06/52753991700",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "2010-06-16_16-24-18_Israel_bus_JH",
+    "auteur": "Juhele_CZ",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/96541566@N06/52818236952",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-dans-quel-pays-vivent-les-koalas": [
+   {
+    "n": 1,
+    "titre": "Koala Animal",
+    "auteur": "Les Anderson",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/koala-animal-TRAV7Y1CWX",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Koala Animal",
+    "auteur": "Ethan Brooke",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/koala-animal-2Y7PWLSHHE",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Animals Mammals",
+    "auteur": "Jordan Whitt",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/animals-mammals-WW78G3LSB5",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-le-requin-est": [
+   {
+    "n": 1,
+    "titre": "Shark Sea",
+    "auteur": "George Desipris",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/shark-sea-UKZCDUVYZS",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Whale shark and other fish in the Atlanta Aquarium in Georgia",
+    "auteur": "mdburnette",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/9146203d37/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 3,
+    "titre": "Shark made of trash",
+    "auteur": "Topher",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/1186317dd1/",
+    "source": "openverse/wordpress"
+   }
+  ],
+  "qc-quel-animal-change-de-peau-en-grandissant": [
+   {
+    "n": 1,
+    "titre": "Animals Snake",
+    "auteur": "Boris Smokrovic",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/animals-snake-92DY17TU0F",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Green Snake",
+    "auteur": "Sebastian Spindler",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/green-snake-IZIKVWKG9C",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Snake Wildlife",
+    "auteur": "Jackson Jost",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/snake-wildlife-XTLEMP1LV7",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quel-animal-cache-des-noisettes-pour-l-hiver": [
+   {
+    "n": 1,
+    "titre": "Squirrel Nature",
+    "auteur": "Macro Mama",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/squirrel-nature-XT2APRFPRO",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Squirrel Animals",
+    "auteur": "Anita Peeples",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/squirrel-animals-T02K7YHQDH",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Animals Squirrel",
+    "auteur": "Benny Jackson",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/animals-squirrel-QZGPF0Y23N",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-que-fait-l-ours-brun-pendant-l-hiver": [],
+  "qc-quels-oiseaux-partent-vers-l-afrique-quand-l-hiver-arrive": [
+   {
+    "n": 1,
+    "titre": "Bird Perched",
+    "auteur": "World Wildlife",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/bird-perched-2ORNAO5ZS0",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Bird Blue",
+    "auteur": "World Wildlife",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/bird-blue-4KK1ZYLA1S",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Birds Flying",
+    "auteur": "World Wildlife",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/birds-flying-VVLWFBV2M4",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quel-animal-marin-projette-de-l-encre-pour-se-cacher": [
+   {
+    "n": 1,
+    "titre": "Octopus stinkhorn.(Clathrus archeri)",
+    "auteur": "Bernard Spragg",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/88123769@N02/51421025073",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 2,
+    "titre": "Octopus Fungus.",
+    "auteur": "Bernard Spragg",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/88123769@N02/51878120381",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "Octopus Fungi.",
+    "auteur": "Bernard Spragg",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/88123769@N02/51786210273",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-quel-insecte-vit-dans-une-fourmiliere-avec-une-reine": [
+   {
+    "n": 1,
+    "titre": "File:Ants cultivating aphids on the underside of tree leaves, Kluizenbos, Aalst, 2026.jpg",
+    "auteur": "DimiTalen",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Ants_cultivating_aphids_on_the_underside_of_tree_leaves,_Kluizenbos,_Aalst,_2026.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-reptile-a-une-enorme-machoire-et-vit-dans-les-fleuves": [
+   {
+    "n": 1,
+    "titre": "Wheel of a Swiss «Crocodile» locomotive (CE 6/8 II 14270)",
+    "auteur": "Martin Sauter",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/68761de5ec/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 2,
+    "titre": "Animals Reptiles",
+    "auteur": "Gaetano Cessati",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/animals-reptiles-10PA4TQ2SV",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Woman Pool",
+    "auteur": "The Lazy Artist Gallery",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/woman-pool-UMQLKIYUAW",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-comment-appelle-t-on-le-petit-du-cochon": [
+   {
+    "n": 1,
+    "titre": "File:Winnie-the-Pooh 166-3.png",
+    "auteur": "Ernest Howard Shepard",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Winnie-the-Pooh_166-3.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Winnie-the-Pooh 120.png",
+    "auteur": "Ernest Howard Shepard",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Winnie-the-Pooh_120.png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Winnie-the-Pooh 132.png",
+    "auteur": "Ernest Howard Shepard",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Winnie-the-Pooh_132.png",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-appelle-t-on-le-petit-du-cheval": [
+   {
+    "n": 1,
+    "titre": "File:Sylvabelle & foal Memories of Men and Horses.png",
+    "auteur": "Clarence Hailey",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Sylvabelle_%26_foal_Memories_of_Men_and_Horses.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Sundown & foal Memories of Men and Horses.png",
+    "auteur": "Clarence Hailey",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Sundown_%26_foal_Memories_of_Men_and_Horses.png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Atala & foal Memories of Men and Horses.png",
+    "auteur": "Clarence Hailey",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Atala_%26_foal_Memories_of_Men_and_Horses.png",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-appelle-t-on-le-petit-de-la-brebis": [
+   {
+    "n": 1,
+    "titre": "Sheep Lamb",
+    "auteur": "Mauricio Fanfa",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/sheep-lamb-IRN9EF9RDX",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Lamb Animal",
+    "auteur": "Markus Spiske",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/lamb-animal-C8DCFD8D10",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Sheep Lamb",
+    "auteur": "Bonnie Kittle",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/sheep-lamb-G73P3V9JXK",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quel-oiseau-colore-peut-repeter-des-mots": [
+   {
+    "n": 1,
+    "titre": "Green Parrot",
+    "auteur": "Ruth Caron",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/green-parrot-FE9E922C69",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Green Parrot",
+    "auteur": "Bernard Spragg",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/green-parrot-WRN7A2LYCA",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Parrot Bird",
+    "auteur": "Travel Photographer",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/parrot-bird-YFZGHV9INZ",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-la-trompe-de-l-elephant-c-est-en-fait": [
+   {
+    "n": 1,
+    "titre": "Elephant Tusks",
+    "auteur": "IanZA",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/elephant-tusks-GHESAZNJAH",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Elephant Animal",
+    "auteur": "World Wildlife",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/elephant-animal-9XY7V4YM5J",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Elephant Animal",
+    "auteur": "Joel Mbugua",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/elephant-animal-ZV19LMA2KT",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-en-quoi-sont-faites-les-defenses-de-l-elephant": [
+   {
+    "n": 1,
+    "titre": "Elephant Tusks",
+    "auteur": "Alessandro Desantis",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/elephant-tusks-327C1A3CD9",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Elephant Tusks",
+    "auteur": "IanZA",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/elephant-tusks-GHESAZNJAH",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Carved elephant tusk gift Jacob",
+    "auteur": "rijksmuseum",
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/13751307/carved-elephant-tusk-gift-jacob-theodoor-cremer-1919-anonymous",
+    "source": "openverse/rawpixel"
+   }
+  ],
+  "qc-la-grenouille-est": [
+   {
+    "n": 1,
+    "titre": "Gray Tree Frog",
+    "auteur": "U. S. Fish and Wildlife Service - Northeast Region",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/43322816@N08/51398140853",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 2,
+    "titre": "Gray Tree Frog",
+    "auteur": "U. S. Fish and Wildlife Service - Northeast Region",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/43322816@N08/51382735894",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "California tree frog (Pseudacris cadaverina)",
+    "auteur": "Joshua Tree National Park",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/115357548@N08/51946547583",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-comment-respire-la-baleine": [
+   {
+    "n": 1,
+    "titre": "File:Double Spout Bottle, Killer Whale MET 64.228.70 b.jpg",
+    "auteur": "",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Double_Spout_Bottle,_Killer_Whale_MET_64.228.70_b.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Double Spout Bottle, Killer Whale MET 64.228.70 a.jpg",
+    "auteur": "",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Double_Spout_Bottle,_Killer_Whale_MET_64.228.70_a.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Double Spout Bottle, Killer Whale Motif MET 64.228.79 d.jpg",
+    "auteur": "",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Double_Spout_Bottle,_Killer_Whale_Motif_MET_64.228.79_d.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-avec-quoi-les-poissons-respirent-ils-dans-l-eau": [
+   {
+    "n": 1,
+    "titre": "File:Fish gills in Tokyo.jpg",
+    "auteur": "Syced",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Fish_gills_in_Tokyo.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Fish tug Gem near Gills Rock Door County Wisconsin.jpg",
+    "auteur": "published in the Door County Advocate, photo taken by Frank Pechman",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Fish_tug_Gem_near_Gills_Rock_Door_County_Wisconsin.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Delistes luxatus gills usgs.jpg",
+    "auteur": "S. Vanderkooi, USGS",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Delistes_luxatus_gills_usgs.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-la-maison-dure-de-la-tortue": [
+   {
+    "n": 1,
+    "titre": "File:Gwen John - Sleeping Tortoise-shell Cat.jpg",
+    "auteur": "Gwen John",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Gwen_John_-_Sleeping_Tortoise-shell_Cat.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Tortoise-shell mask of ancestor.jpg",
+    "auteur": "anonymous",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Tortoise-shell_mask_of_ancestor.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Tortoise Shell Frame - 84.43 - Minneapolis Institute of Arts.jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Tortoise_Shell_Frame_-_84.43_-_Minneapolis_Institute_of_Arts.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-animal-construit-des-barrages-sur-les-rivieres": [
+   {
+    "n": 1,
+    "titre": "File:Beaver Dam at Reedy Creek.jpg",
+    "auteur": "Sean Dudley",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Beaver_Dam_at_Reedy_Creek.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-petit-animal-creuse-des-galeries-sous-la-terre": [
+   {
+    "n": 1,
+    "titre": "File:Sunfish2.jpg",
+    "auteur": "Per-Ola Norman",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Sunfish2.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Mola mola.jpg",
+    "auteur": "U.S. National Oceanic and Atmospheric Administration",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Mola_mola.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:GFNMS -- Mola Mola (35221024103).jpg",
+    "auteur": "National Marine Sanctuaries",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:GFNMS_--_Mola_Mola_(35221024103).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-grand-oiseau-blanc-fait-son-nid-sur-les-toits-et-les-cheminees": [
+   {
+    "n": 1,
+    "titre": "File:Stork on nest, Damme, 2020.jpg",
+    "auteur": "DimiTalen",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Stork_on_nest,_Damme,_2020.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-oiseau-est-rose-parce-qu-il-mange-des-crevettes": [
+   {
+    "n": 1,
+    "titre": "File:Reflection of the Flamingo Hotel in front of the Bellagio.jpg",
+    "auteur": "Julian Lupyan",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Reflection_of_the_Flamingo_Hotel_in_front_of_the_Bellagio.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Phoenicopterus ruber in São Paulo Zoo.jpg",
+    "auteur": "Wilfredor",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Phoenicopterus_ruber_in_S%C3%A3o_Paulo_Zoo.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Calder Flamingo.jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Calder_Flamingo.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-oiseau-fait-la-roue-avec-ses-plumes-colorees": [
+   {
+    "n": 1,
+    "titre": "File:Male Peafowl (Peacock) at China National GeneBank, Shenzhen.jpg",
+    "auteur": "Scotted400",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Male_Peafowl_(Peacock)_at_China_National_GeneBank,_Shenzhen.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-est-le-plus-grand-des-singes": [],
+  "qc-quel-grand-felin-a-un-pelage-orange-raye-de-noir": [
+   {
+    "n": 1,
+    "titre": "File:Panthera tigris altaica 13 - Buffalo Zoo.jpg",
+    "auteur": "Dave Pape",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Panthera_tigris_altaica_13_-_Buffalo_Zoo.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Amur Tiger Panthera tigris altaica Eye 2112px edit.jpg",
+    "auteur": "Photo (c)2007 Derek and Julie Ramsey (Ram-Man) edit by Chris_huh.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Amur_Tiger_Panthera_tigris_altaica_Eye_2112px_edit.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Panthera tigris virgata.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Panthera_tigris_virgata.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-petit-insecte-rouge-a-points-noirs-mange-les-pucerons": [
+   {
+    "n": 1,
+    "titre": "File:Ladybug eating aphids. (49485764276).jpg",
+    "auteur": "DAVID S. FERRY III from PLANT CITY,FL., U.S.A.",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Ladybug_eating_aphids._(49485764276).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Ladybug emerging from cocoon.jpg",
+    "auteur": "NotMrBuncat",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Ladybug_emerging_from_cocoon.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Coccinellid head micrograph.jpg",
+    "auteur": "Arlo James Barnes",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Coccinellid_head_micrograph.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-de-quel-animal-sauvage-descend-le-chien": [
+   {
+    "n": 1,
+    "titre": "File:Front view of a resting Canis lupus ssp.jpg",
+    "auteur": "Gary Kramer",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Front_view_of_a_resting_Canis_lupus_ssp.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Illustration for \"L'oiseau de Fue\" -Tsarevich Ivan with Tsarevna Elena the Fair on the Grey Wolf- MET DP804782.jpg",
+    "auteur": "Boris Zvorykin",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Illustration_for_%22L%27oiseau_de_Fue%22_-Tsarevich_Ivan_with_Tsarevna_Elena_the_Fair_on_the_Grey_Wolf-_MET_DP804782.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Illustration for \"L'oiseau de Fue\" -Tsarevich Ivan with Tsarevna Elena the Fair on the Grey Wolf- MET 268801.jpg",
+    "auteur": "Boris Zvorykin",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Illustration_for_%22L%27oiseau_de_Fue%22_-Tsarevich_Ivan_with_Tsarevna_Elena_the_Fair_on_the_Grey_Wolf-_MET_268801.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-que-contiennent-les-bosses-du-chameau": [
+   {
+    "n": 1,
+    "titre": "File:Camelus bactrianus in Korkeasaari.jpg",
+    "auteur": "Ypsilon from Finland",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Camelus_bactrianus_in_Korkeasaari.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-poisson-remonte-les-rivieres-pour-pondre-ses-ufs": [
+   {
+    "n": 1,
+    "titre": "File:Chinook salmon adult jumping Battle Creek.png",
+    "auteur": "Laura Mahoney/USFWS",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Chinook_salmon_adult_jumping_Battle_Creek.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Alaska salmon jumping out of water.jpg",
+    "auteur": "U.S. Fish and Wildlife Service",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Alaska_salmon_jumping_out_of_water.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Chinook salmon adult jumping two 30 November 2021.png",
+    "auteur": "Laura Mahoney/USFWS",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Chinook_salmon_adult_jumping_two_30_November_2021.png",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-mammifere-pond-des-ufs": [
+   {
+    "n": 1,
+    "titre": "File:Platypus (Ornithorhynchus anatinus). First Description 1799.jpg",
+    "auteur": "Frederick Polydore Nodder",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Platypus_(Ornithorhynchus_anatinus)._First_Description_1799.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Paralithodes platypus on rocks.jpg",
+    "auteur": "Igor Zagrebin",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Paralithodes_platypus_on_rocks.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Duckbill - Platypus (PSF).png",
+    "auteur": "Pearson Scott Foresman",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Duckbill_-_Platypus_(PSF).png",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-oiseau-est-le-symbole-des-etats-unis": [],
+  "qc-quel-mammifere-est-celebre-pour-etre-tres-lent": [
+   {
+    "n": 1,
+    "titre": "File:Bradypus.jpg",
+    "auteur": "Stefan Laube (Tauchgurke)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Bradypus.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Frans Post - Gezicht op Olinda, Brazilië.jpg",
+    "auteur": "Frans Post",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Frans_Post_-_Gezicht_op_Olinda,_Brazili%C3%AB.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Sloth, print by James Ensor, 1904, Prints Department, Royal Library of Belgium, S. IV 30588.jpg",
+    "auteur": "James Ensor",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Sloth,_print_by_James_Ensor,_1904,_Prints_Department,_Royal_Library_of_Belgium,_S._IV_30588.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-chez-le-manchot-empereur-qui-couve-l-uf": [
+   {
+    "n": 1,
+    "titre": "File:Penguin-lifecycle-ar.jpg",
+    "auteur": "Original: Zina Deretsky, National Science Foundation\nDerivative: باسم",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Penguin-lifecycle-ar.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:PENGUIN LIFECYCLE H.JPG",
+    "auteur": "Zina Deretsky, National Science Foundation",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:PENGUIN_LIFECYCLE_H.JPG",
+    "source": "commons"
+   }
+  ],
+  "qc-chez-l-hippocampe-qui-porte-les-bebes-dans-sa-poche": [
+   {
+    "n": 1,
+    "titre": "File:FMIB 32893 Hippocampus Mannulus -1; Hippocampus Comes.jpeg",
+    "auteur": "Theodore Edward Cantor",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:FMIB_32893_Hippocampus_Mannulus_-1;_Hippocampus_Comes.jpeg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Hippocampus camelopardalis.jpg",
+    "auteur": "G. H. Ford",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Hippocampus_camelopardalis.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:FMIB 45602 Hippocampus abdominalis.jpeg",
+    "auteur": "Edgar Ravenswood Waite",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:FMIB_45602_Hippocampus_abdominalis.jpeg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-les-abeilles-indiquent-elles-ou-trouver-des-fleurs": [
+   {
+    "n": 1,
+    "titre": "File:European honey bee extracts nectar.jpg",
+    "auteur": "John Severns (Severnjc)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:European_honey_bee_extracts_nectar.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Bee and honey-bee.jpg",
+    "auteur": "Md.Kawsar Hossain Jowel",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Bee_and_honey-bee.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Honey bee on flower; KSC.jpg",
+    "auteur": "SpongeLover08",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Honey_bee_on_flower;_KSC.jpg",
+    "source": "commons"
+   }
+  ]
+ }
+}
