@@ -1124,6 +1124,7 @@ function renderBlind(st, teams) {
     info = `Musique en cours… En attente d'un buzz.${tried.length ? ` Déjà essayé : ${tried.join(", ")}.` : ""}`;
   }
   $("blind-info").textContent = info;
+  couleurBuzz($("blind-info"), st.phase !== "scores" && st.phase !== "reveal" ? buzzer : null);
   $("blind-judge").hidden = !(st.phase === "question" && buzzer);
   $("blind-ok").disabled = busy;
   $("blind-ko").disabled = busy;
@@ -1178,6 +1179,17 @@ $("blind-skip").onclick = async () => {
 };
 $("blind-cut").onclick = () => send("blind_cut", {}, { advance: true });
 
+/**
+ * Message « X a buzzé ! » dans la couleur de l'équipe (celle de ses bracelets) : Sarah sait d'un coup d'œil
+ * quelle équipe interroger, sans relire le nom (cedric, 22/10). Sans équipe, le message reprend son style habituel.
+ */
+function couleurBuzz(el, teamId) {
+  const color = teamId ? live.teams[teamId]?.color : null;
+  el.classList.toggle("buzz-couleur", !!color);
+  if (color) el.style.setProperty("--team", color);
+  else el.style.removeProperty("--team");
+}
+
 /** Jeux au buzzer : qui a buzzé, la réponse attendue, et les deux boutons du verdict. */
 function renderFlou(st) {
   const on = st.phase === "question" && BUZZ_KINDS.includes(st.kind) && !blindMode(st);
@@ -1196,6 +1208,7 @@ function renderFlou(st) {
     ? `${name(b.team)} a buzzé ! Réponse attendue : ${expected || "voir la fiche"}`
     : memo ? `Les enfants mémorisent les objets… Celui qui va disparaître : ${answer}.`
     : `En attente d'un buzz…${tried.length ? ` Déjà essayé : ${tried.join(", ")}.` : ""}`;
+  couleurBuzz($("flou-info"), b.team);
   $("flou-judge").hidden = !b.team;
   const busy = !!pending?.advance || st.paused === true;
   $("flou-ok").disabled = busy;

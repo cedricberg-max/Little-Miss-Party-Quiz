@@ -779,13 +779,20 @@ describe("régie", () => {
     // Les Roses buzzent (écriture du pupitre) : la régie affiche l'équipe et la réponse attendue.
     await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/buzz/f1-1000-0`), { team: "rose", at: Date.now() }));
     await page.locator("#flou-info", { hasText: "Les Roses a buzzé ! Réponse attendue : Un lion" }).waitFor();
+    // Le message prend la couleur de l'équipe (ses bracelets) : Sarah la reconnaît d'un coup d'œil (cedric, 22/10).
+    const fond = () => page.locator("#flou-info").evaluate((el) => getComputedStyle(el).backgroundColor);
+    assert.equal(await page.locator("#flou-info.buzz-couleur").count(), 1);
+    assert.equal(await fond(), "rgb(255, 45, 138)");
     await page.locator("#flou-ok small", { hasText: "+150 pour Les Roses" }).waitFor();
     await page.click("#flou-ko");
     await page.locator("#flou-info", { hasText: "Déjà essayé : Les Roses" }).waitFor();
+    assert.equal(await page.locator("#flou-info.buzz-couleur").count(), 0, "plus de couleur d'équipe sans buzz en attente");
     assert.deepEqual((await read("state")).buzz.blocked, ["rose"]);
-    // Rebond des Bleus, validé : 100 points et révélation.
+    // Rebond des Bleus (bracelets orange), validé : 100 points et révélation.
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/teams/bleu/color`), "#FF6B1A"));
     await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/buzz/f1-1000-1`), { team: "bleu", at: Date.now() }));
     await page.locator("#flou-ok small", { hasText: "+100 pour Les Bleus" }).waitFor();
+    assert.equal(await fond(), "rgb(255, 107, 26)");
     await page.click("#flou-ok");
     await page.locator("#c-phase", { hasText: "Réponse révélée" }).waitFor();
     assert.deepEqual((await read("state")).scores, { bleu: 100 });
@@ -827,6 +834,7 @@ describe("régie", () => {
     // Les Roses buzzent : verdict à la régie, le bouton principal attend.
     await box.set({ ...(await read("state")), buzz: { team: "rose", blocked: [] }, blind: blindState({ waiting: false, played: true }) });
     await page.locator("#blind-info", { hasText: "Les Roses a buzzé ! Réponse attendue : « Libérée, délivrée » de La Reine des neiges" }).waitFor();
+    assert.equal(await page.locator("#blind-info").evaluate((el) => getComputedStyle(el).backgroundColor), "rgb(255, 45, 138)", "message dans la couleur de l'équipe");
     await page.locator("#blind-ok small", { hasText: "+100 pour Les Roses" }).waitFor();
     assert.equal(await page.locator("#c-next").isDisabled(), true);
     await page.click("#blind-ko");
@@ -835,6 +843,7 @@ describe("régie", () => {
     // Musique arrêtée après l'erreur : relancer (l'équipe ratée rebuzzera 3 s après, ou tout de suite), révéler ou passer.
     await box.set({ ...(await read("state")), buzz: { team: null, blocked: ["rose"] }, blind: blindState({ played: true }) });
     await page.locator("#blind-info", { hasText: "Pas trouvé (Les Roses). Relancez la musique : les autres buzzent tout de suite, Les Roses 3 s après." }).waitFor();
+    assert.equal(await page.locator("#blind-info.buzz-couleur").count(), 0);
     await page.locator("#c-next", { hasText: "Relancer la musique" }).waitFor();
     // L'équipe ratée rebuzze 3 s après la reprise ; l'animatrice peut lever cette attente.
     await page.locator("#blind-unblock", { hasText: "Laisser rebuzzer tout de suite" }).click();
