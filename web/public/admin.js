@@ -49,7 +49,7 @@ import {
   correspond, categoriesDe, categoriesPerso, ficheImage, motsCles,
 } from "./mediatheque.js";
 import { DOSSIERS, classerPartie, bilan, effacements, passageAFaire, moDe, texteMo, texteGardees } from "./nettoyage.js";
-import { GROUPES_QUESTIONS, questionsToutesPretes, mesQuestions, mesPacks, questionsDeTest, questionCorrespond, lirePacks, illustration, retirerQuestions, packsParTheme } from "./questions.js";
+import { GROUPES_QUESTIONS, questionsClassiquesPretes, questionsIllustreesPretes, mesQuestions, mesPacks, questionsDeTest, questionCorrespond, lirePacks, illustration, retirerQuestions, packsParTheme } from "./questions.js";
 import { QUESTIONS_CHIFFRES, THEMES_CHIFFRES, chiffreConvient, tirerChiffres } from "./banque-chiffres.js";
 
 // Petit œil sur les champs de mot de passe : voir ce qu'on tape (majuscules, caractère en trop).
@@ -136,6 +136,9 @@ function h(tag, props = {}, ...kids) {
   el.append(...kids.flat().filter((x) => x != null && x !== false));
   return el;
 }
+
+/** Remplace le contenu de [el] ; les morceaux absents (null, false) sont sautés (sinon le navigateur écrit « null »). */
+const remplir = (el, ...kids) => el.replaceChildren(...kids.filter((x) => x != null && x !== false));
 
 function status(id, text, ok = false) {
   $(id).textContent = text;
@@ -2709,7 +2712,7 @@ function afficherBilan(parties) {
         h("small", { class: "raison", text: r.raison }),
         ...r.notes.map((n) => h("small", { class: "note", text: n }))));
   };
-  $("nettoyage-bilan").replaceChildren(
+  remplir($("nettoyage-bilan"),
     h("div", { class: "nettoyage-chiffres" },
       chiffre(b.parties, b.parties > 1 ? "parties en ligne" : "partie en ligne", "parties"),
       chiffre(b.aNettoyer, "à nettoyer", "a-nettoyer"),
@@ -2872,7 +2875,7 @@ async function afficherJournal() {
   try {
     const [passages, nettoyages] = await Promise.all([derniers("maintenance/passages", 5), derniers("maintenance/nettoyages", 10)]);
     if (tour !== tourJournal) return;
-    box.replaceChildren(
+    remplir(box,
       h("h3", { text: "Derniers passages" }),
       passageAuto ? h("p", { id: "nettoyage-auto", class: "hint small", text: passageAuto }) : null,
       h("ul", { class: "nettoyage-passages" }, ...(passages.length ? passages.map(lignePassage) : [h("li", { text: "Aucun passage pour l'instant." })])),
@@ -4709,14 +4712,15 @@ function renderLibrary(force = false) {
 
 // ---------- Bibliothèque › Questions (cedric, 22/10) ----------
 
-/** Groupe ouvert : null (tous en aperçu), « pretes », « miennes », « packs » ou « tests » ; pack ouvert ; famille choisie. */
+/** Groupe ouvert : null (tous en aperçu) ou une clé de GROUPES_QUESTIONS ; pack ouvert ; famille ou thème choisi. */
 let qGroupe = null;
 let qPack = null;
 let qCategorie = null;
 /** Packs importés à l'instant : encadrés quelques secondes en tête de liste. */
 let packsNouveaux = new Set();
-/** Questions toutes prêtes : fabriquées une fois (leurs mauvaises réponses sont tirées au hasard). */
-let pretesCache = null;
+/** Questions toutes prêtes du quiz illustré : fabriquées une fois (leurs mauvaises réponses sont tirées au hasard). */
+let illustreesCache = null;
+const classiquesPretes = questionsClassiquesPretes();
 /** Ses questions cochées (clés « quiz/numéro »), à supprimer ensemble ; celles de la liste affichée. */
 const qSelection = new Set();
 let qListees = [];
@@ -4735,8 +4739,8 @@ const EXEMPLE_PACK = {
 $("pack-exemple").textContent = JSON.stringify(EXEMPLE_PACK, null, 2);
 
 function groupesQuestions() {
-  pretesCache ??= questionsToutesPretes();
-  return { pretes: pretesCache, miennes: mesQuestions(quizzes), packs: mesPacks(quizzes), tests: questionsDeTest(quizzes) };
+  illustreesCache ??= questionsIllustreesPretes();
+  return { classiques: classiquesPretes, illustrees: illustreesCache, miennes: mesQuestions(quizzes), packs: mesPacks(quizzes), tests: questionsDeTest(quizzes) };
 }
 
 /** Vignette de l'illustration : sa photo, son émoji, la photo de la banque de la bonne réponse, sinon « ⚠ ». */
@@ -4746,6 +4750,7 @@ function illustrationQuestion(x) {
   const photo = x.choiceImages?.[x.correct] ?? null;
   if (photo) return photoBibliotheque(photo, { class: "q-illus" });
   if (x.banque?.[0]) return h("img", { class: "q-illus", src: `banque/${x.banque[0]}.jpg`, alt: "", loading: "lazy" });
+  if (x.banqueEmojis?.[0]) return h("span", { class: "q-illus emoji", text: x.banqueEmojis[0] });
   // Juste Chiffre sans émoji : la TV montre son compteur qui tourne.
   if (x.nombre) return h("span", { class: "q-illus emoji compteur", title: "Le compteur du Juste Chiffre", text: "🔢" });
   return h("span", { class: "q-illus vide", title: "Pas d'illustration", text: "⚠" });
@@ -4754,7 +4759,8 @@ function illustrationQuestion(x) {
 /** Une réponse : sa petite photo s'il y en a une, son texte ; la bonne réponse est marquée. */
 function reponseQuestion(x, c, k) {
   const photo = x.choiceImages?.[k] ? photoBibliotheque(x.choiceImages[k], { class: "q-mini" })
-    : x.banque?.[k] ? h("img", { class: "q-mini", src: `banque/${x.banque[k]}.jpg`, alt: "", loading: "lazy" }) : null;
+    : x.banque?.[k] ? h("img", { class: "q-mini", src: `banque/${x.banque[k]}.jpg`, alt: "", loading: "lazy" })
+      : x.banqueEmojis?.[k] ? h("span", { class: "q-mini emoji", text: x.banqueEmojis[k] }) : null;
   return h("li", { class: k === x.correct ? "juste" : "" }, photo, h("span", { text: `${k === x.correct ? "✓ " : ""}${c}` }));
 }
 
@@ -4862,7 +4868,7 @@ function dessinerQuestions() {
   const filtre = (list) => (recherche ? list.filter((x) => questionCorrespond(x, recherche)) : list);
   // Un pack correspond si son titre, son thème ou une de ses questions correspond.
   const packsTrouves = recherche ? g.packs.filter((p) => questionCorrespond({ text: p.title, categorie: p.theme }, recherche) || p.questions.some((x) => questionCorrespond(x, recherche))) : g.packs;
-  const compte = { pretes: filtre(g.pretes).length, miennes: filtre(g.miennes).length, packs: packsTrouves.reduce((n, p) => n + p.total, 0), tests: filtre(g.tests).length };
+  const compte = Object.fromEntries(Object.keys(GROUPES_QUESTIONS).map((k) => [k, k === "packs" ? packsTrouves.reduce((n, p) => n + p.total, 0) : filtre(g[k]).length]));
   // « 🧪 Questions de test » n'apparaît que s'il y a une prestation de test dans la bibliothèque.
   const groupes = Object.entries(GROUPES_QUESTIONS).filter(([k]) => k !== "tests" || g.tests.length);
   if (qGroupe === "tests" && !g.tests.length) qGroupe = null;
@@ -4871,7 +4877,7 @@ function dessinerQuestions() {
     type: "button", class: `chip${qGroupe === key ? " active" : ""}`, "data-groupe": key ?? "tout", text: `${label} (${n})`,
     onclick: () => { qGroupe = key; qPack = null; qCategorie = null; qSelection.clear(); status("q-status", ""); renderQuestions(); },
   });
-  const total = compte.pretes + compte.miennes + compte.packs + compte.tests;
+  const total = Object.values(compte).reduce((a, b) => a + b, 0);
   $("q-groups").replaceChildren(chip(null, "Tout", total), ...groupes.map(([k, label]) => chip(k, label, compte[k])));
   $("q-count").textContent = recherche ? plural(total, "question trouvée", "questions trouvées") : "";
   $("pack-import").hidden = qGroupe !== "packs" || !!qPack;
@@ -4917,15 +4923,16 @@ function dessinerQuestions() {
     return;
   }
 
-  // Toutes prêtes (Juste Chiffre, puis par famille), en vrac ou de test (par thème) : une puce par famille ou par thème, puis la liste.
+  // Toutes prêtes (par thème ou par famille), en vrac ou de test (par thème) : une puce par famille ou par thème, puis la liste.
   const tout = filtre(g[qGroupe]);
   const categories = [...new Set(tout.map((x) => x.categorie).filter(Boolean))];
   if (qCategorie && !categories.includes(qCategorie)) qCategorie = null;
   const liste = qCategorie ? tout.filter((x) => x.categorie === qCategorie) : tout;
   const sans = liste.filter((x) => !x.ok).length;
   if (qGroupe === "miennes" || qGroupe === "tests") qListees = liste.slice(0, QUESTIONS_MAX);
-  box.replaceChildren(
-    qGroupe === "pretes" ? h("p", { class: "hint small", text: "Pour en mettre dans un quiz : ouvrez-le (« Éditer »), puis « 🔢 Juste Chiffre tout prêt » (quiz classique) ou « 🎲 Questions de la banque » (quiz illustré)." }) : null,
+  remplir(box,
+    qGroupe === "classiques" ? h("p", { class: "hint small", text: "Quiz classique : une seule illustration, montrée à la révélation de la réponse. Pour en mettre dans un quiz classique : « Éditer », puis « 🔢 Juste Chiffre tout prêt »." }) : null,
+    qGroupe === "illustrees" ? h("p", { class: "hint small", text: "Quiz illustré des tout-petits : une image par réponse. Une réponse sans photo reçoit l'émoji de son mot, dessiné en image. Pour en mettre dans un quiz illustré : « Éditer », puis « 🎲 Questions de la banque »." }) : null,
     qGroupe === "tests" ? h("p", { class: "hint small", text: "Les questions des prestations de test (Paramètres) : rangées ici pour ne pas se mélanger aux vôtres." }) : null,
     categories.length > 1 ? h("div", { class: "chips q-categories" },
       h("button", { type: "button", class: `chip${qCategorie ? "" : " active"}`, text: `Toutes (${tout.length})`, onclick: () => { qCategorie = null; renderQuestions(); } }),

@@ -1,9 +1,10 @@
-// Bibliothèque › Questions de la Régie PC (cedric, 22/10) : trois groupes et une seule recherche.
-// - « Toutes prêtes » : les questions de l'appli (banque des tout-petits), jamais modifiées ici.
+// Bibliothèque › Questions de la Régie PC (cedric, 22/10) : des groupes et une seule recherche.
+// - Les questions toutes prêtes de l'appli, jamais modifiées ici, en deux rubriques à ne pas mélanger (cedric, 22/10) :
+//   « Quiz classique » (le Juste Chiffre tout prêt, banque-chiffres.js : une illustration pour la révélation) et
+//   « Quiz illustré » (banque des tout-petits : une image par réponse).
 // - « Mes questions » : celles écrites à la main dans la Régie PC, avec leur illustration.
 // - « Mes packs » : les quiz importés (fichier JSON, tableur, texte collé), un pack par thème.
 // - « Questions de test » : celles des prestations de test (Paramètres), à part pour ne pas encombrer les siennes.
-// « Toutes prêtes » a aussi le Juste Chiffre tout prêt (banque-chiffres.js).
 // Chaque question dit si son illustration est là ; sinon la Régie PC affiche une petite alerte. Fonctions pures, testées.
 import { parseQuiz } from "./importer.js";
 import { cataloguePetits, FAMILLES_PETITS, motBanque } from "./banque-petits.js";
@@ -12,7 +13,7 @@ import { QUESTIONS_CHIFFRES, THEMES_CHIFFRES } from "./banque-chiffres.js";
 import { quizKind } from "./show.js";
 
 export const GROUPES_QUESTIONS = {
-  pretes: "📦 Toutes prêtes", miennes: "✍️ Mes questions en vrac", packs: "📥 Mes packs par thème", tests: "🧪 Questions de test",
+  classiques: "📝 Quiz classique tout prêt", illustrees: "🖼️ Quiz illustré tout prêt", miennes: "✍️ Mes questions en vrac", packs: "📥 Mes packs par thème", tests: "🧪 Questions de test",
 };
 export const JUSTE_CHIFFRE = "🔢 Juste Chiffre";
 
@@ -31,6 +32,8 @@ const photoDeLaBanque = (mot) => {
   const m = motBanque(motSeul(mot));
   return m && PHOTOS_BANQUE.has(m.cle) ? m.cle : null;
 };
+/** Émoji du mot de la banque : ce que reçoit une réponse sans photo quand elle entre dans un quiz (dessiné en image). */
+const emojiDeLaBanque = (mot) => motBanque(motSeul(mot))?.emoji ?? null;
 
 /**
  * Illustration d'une question : une photo par réponse dans un quiz illustré ([kind] « photo »), sinon l'image
@@ -60,25 +63,34 @@ function fiche(q, kind, extra) {
 }
 
 /**
- * Questions toutes prêtes : le Juste Chiffre tout prêt (une seule catégorie, chacune avec son émoji), puis la banque
- * des tout-petits (quiz illustré), par famille. Chaque réponse des tout-petits a la photo de la banque de son mot
- * ([banque] : clés des photos, null si le mot n'en a pas).
+ * Quiz classique tout prêt : le Juste Chiffre tout prêt, par thème. Une question de quiz classique n'a besoin que
+ * d'une illustration pour la révélation : chacune a son émoji.
  */
-export function questionsToutesPretes(catalogue = cataloguePetits(), chiffres = QUESTIONS_CHIFFRES) {
-  const justeChiffre = chiffres.map((x) => ({
-    groupe: "pretes", cle: x.id, text: x.text, choices: [], correct: x.correct, nombre: true, image: x.emoji, imageId: null,
-    categorie: JUSTE_CHIFFRE, source: `Juste Chiffre tout prêt · ${THEMES_CHIFFRES[x.theme] ?? x.theme} · ${x.ageMin} à ${x.ageMax} ans`,
+export function questionsClassiquesPretes(chiffres = QUESTIONS_CHIFFRES) {
+  return chiffres.map((x) => ({
+    groupe: "classiques", cle: x.id, text: x.text, choices: [], correct: x.correct, nombre: true, image: x.emoji, imageId: null,
+    categorie: THEMES_CHIFFRES[x.theme] ?? x.theme, source: `${JUSTE_CHIFFRE} tout prêt · ${x.ageMin} à ${x.ageMax} ans`,
     validee: true, ok: true, manque: null,
   }));
-  return [...justeChiffre, ...catalogue.map((x, i) => {
+}
+
+/**
+ * Quiz illustré tout prêt : la banque des tout-petits, par famille ; il faut une image par réponse. Chaque réponse a
+ * la photo de la banque de son mot ([banque] : clés des photos, null si le mot n'en a pas), sinon l'émoji de son mot
+ * ([banqueEmojis]), dessiné en image quand la question entre dans un quiz (cedric, 22/10 : « 1087 sans illustration
+ * complète », c'était à tort). L'alerte ne reste que pour une réponse sans photo ni émoji.
+ */
+export function questionsIllustreesPretes(catalogue = cataloguePetits()) {
+  return catalogue.map((x, i) => {
     const banque = x.choices.map(photoDeLaBanque);
-    const sans = banque.filter((c) => !c).length;
+    const banqueEmojis = x.choices.map((c, k) => (banque[k] ? null : emojiDeLaBanque(c)));
+    const sans = banque.filter((c, k) => !c && !banqueEmojis[k]).length;
     return {
-      groupe: "pretes", cle: x.id ?? `p-${i}`, text: x.text, choices: [...x.choices], correct: 0, nombre: false, banque,
+      groupe: "illustrees", cle: x.id ?? `p-${i}`, text: x.text, choices: [...x.choices], correct: 0, nombre: false, banque, banqueEmojis,
       categorie: FAMILLES_PETITS[x.famille] ?? x.famille, source: "Banque des tout-petits", validee: true,
-      ok: !sans, manque: sans ? `${sans} réponse${sans > 1 ? "s" : ""} sans photo` : null,
+      ok: !sans, manque: sans ? `${sans} réponse${sans > 1 ? "s" : ""} sans image` : null,
     };
-  })];
+  });
 }
 
 /** Questions des quiz gardés par [garde], en vrac : du quiz le plus récent au plus ancien ; [categorie] : son thème, sinon son titre. */

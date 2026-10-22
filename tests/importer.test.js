@@ -2236,24 +2236,30 @@ describe("Bibliothèque › Questions : toutes prêtes, mes questions, mes packs
   });
 
   test("toutes prêtes : la banque des tout-petits par famille, avec la photo de chaque réponse ; recherche sans accents", () => {
-    const pretes = Q.questionsToutesPretes([
+    const pretes = Q.questionsIllustreesPretes([
       { id: "p001", famille: "animaux", text: "Quel animal fait « miaou » ?", choices: ["Chat", "Chien", "Vache", "Canard"] },
       { famille: "lieux", text: "Où dort-on ?", choices: ["Lit", "Zzzmot-inconnu"] },
-    ], []);
+    ]);
     assert.equal(pretes[0].cle, "p001");
     assert.equal(pretes[1].cle, "p-1");
     assert.equal(pretes[0].categorie, FAMILLES_PETITS.animaux);
     assert.deepEqual(pretes[0].banque.map((c) => c !== null && PHOTOS_BANQUE.has(c)), [true, true, true, true]);
     assert.deepEqual([pretes[0].ok, pretes[0].correct, pretes[0].validee], [true, 0, true]);
-    assert.deepEqual([pretes[1].ok, pretes[1].manque], [false, "1 réponse sans photo"]);
+    assert.deepEqual([pretes[1].ok, pretes[1].manque], [false, "1 réponse sans image"]);
+    assert.deepEqual(pretes.map((x) => x.groupe), ["illustrees", "illustrees"]);
+    // Sans photo, la réponse a l'émoji de son mot (il devient son image dans le quiz) : pas d'alerte (cedric, 22/10).
+    const [mer] = Q.questionsIllustreesPretes([{ id: "p002", famille: "animaux", text: "Quel animal vit dans la mer ?", choices: ["Poisson", "Vache"] }]);
+    assert.deepEqual([mer.banque[0], mer.banqueEmojis, mer.ok, mer.manque], [null, ["🐟", null], true, null]);
     assert.equal(Q.questionCorrespond(pretes[0], "MIAOU chat"), true);
     assert.equal(Q.questionCorrespond(pretes[1], "ou dort"), true);
     assert.equal(Q.questionCorrespond(pretes[0], "girafe"), false);
     assert.equal(Q.questionCorrespond({ text: "Le désert", choices: [] }, "desert"), true);
     // Toute la banque se range : chaque question a une famille connue.
-    const tout = Q.questionsToutesPretes(cataloguePetits(() => 0.3));
+    const tout = Q.questionsIllustreesPretes(cataloguePetits(() => 0.3));
     assert.ok(tout.length > 500);
-    assert.ok(tout.every((x) => (x.nombre ? x.categorie === Q.JUSTE_CHIFFRE : Object.values(FAMILLES_PETITS).includes(x.categorie))));
+    assert.ok(tout.every((x) => !x.nombre && Object.values(FAMILLES_PETITS).includes(x.categorie)));
+    // Toute la banque est illustrée (photo ou émoji pour chaque réponse) : aucune alerte.
+    assert.deepEqual(tout.filter((x) => !x.ok).map((x) => x.text), []);
   });
 });
 
@@ -2291,7 +2297,7 @@ describe("Mes questions : supprimer, en vrac par thème, packs rangés par thèm
       ["Animaux", ["p7"]], ["disney", ["p2", "p4"]], ["Éléphants", ["p6"]], ["Musique", ["p1"]], [Q.SANS_THEME, ["p3", "p5"]],
     ]);
     assert.deepEqual(Q.packsParTheme([]), []);
-    assert.deepEqual(Object.values(Q.GROUPES_QUESTIONS), ["📦 Toutes prêtes", "✍️ Mes questions en vrac", "📥 Mes packs par thème", "🧪 Questions de test"]);
+    assert.deepEqual(Object.values(Q.GROUPES_QUESTIONS), ["📝 Quiz classique tout prêt", "🖼️ Quiz illustré tout prêt", "✍️ Mes questions en vrac", "📥 Mes packs par thème", "🧪 Questions de test"]);
   });
 
   test("questions de test : celles des prestations de test (clés « test-… ») sont à part, en vrac comme en pack", () => {
@@ -2381,15 +2387,15 @@ describe("Le Juste Chiffre tout prêt (cedric, 22/10)", async () => {
     assert.equal(B.tirerChiffres(200).length, B.QUESTIONS_CHIFFRES.length);
   });
 
-  test("dans « Toutes prêtes » : en tête, sous « 🔢 Juste Chiffre », avec son émoji (pas d'alerte) et d'où elle vient", () => {
-    const pretes = Q.questionsToutesPretes([{ id: "p001", famille: "animaux", text: "Quel animal fait « miaou » ?", choices: ["Chat", "Chien"] }]);
-    assert.equal(pretes.length, B.QUESTIONS_CHIFFRES.length + 1);
-    assert.equal(pretes.at(-1).cle, "p001");
+  test("rubrique « Quiz classique tout prêt » : par thème, avec son émoji pour la révélation (pas d'alerte), à part du quiz illustré", () => {
+    const pretes = Q.questionsClassiquesPretes();
+    assert.equal(pretes.length, B.QUESTIONS_CHIFFRES.length);
+    assert.ok(pretes.every((x) => x.groupe === "classiques" && x.nombre && x.ok));
     const [x] = pretes;
     const b = B.QUESTIONS_CHIFFRES[0];
     assert.deepEqual([x.cle, x.text, x.nombre, x.correct, x.image, x.categorie, x.ok, x.validee, x.choices],
-      [b.id, b.text, true, b.correct, b.emoji, Q.JUSTE_CHIFFRE, true, true, []]);
-    assert.equal(x.source, `Juste Chiffre tout prêt · ${B.THEMES_CHIFFRES[b.theme]} · ${b.ageMin} à ${b.ageMax} ans`);
+      [b.id, b.text, true, b.correct, b.emoji, B.THEMES_CHIFFRES[b.theme], true, true, []]);
+    assert.equal(x.source, `🔢 Juste Chiffre tout prêt · ${b.ageMin} à ${b.ageMax} ans`);
     assert.equal(Q.questionCorrespond(x, "juste chiffre animaux"), true);
   });
 });

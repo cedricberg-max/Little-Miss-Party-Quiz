@@ -2769,7 +2769,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
-  test("Juste Chiffre tout prêt (cedric, 22/10) : dans « Toutes prêtes », dans un quiz classique (âge, thème, 5 au hasard), et les quiz de test à part", async () => {
+  test("Juste Chiffre tout prêt (cedric, 22/10) : rubrique « Quiz classique tout prêt », dans un quiz classique (âge, thème, 5 au hasard), et les quiz de test à part", async () => {
     const { QUESTIONS_CHIFFRES } = await import("../web/public/banque-chiffres.js");
     await seedLibrary("quizzes", {
       mien: { title: "Quiz de Jade", source: "saisie", kind: "classique", ageMin: 7, ageMax: 8, updatedAt: 5, questions: [
@@ -2794,21 +2794,36 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await sansEmoji.locator(".q-illus.compteur").innerText(), "🔢");
     assert.equal(await sansEmoji.locator(".q-alerte").count(), 0);
 
-    // « Toutes prêtes » : le Juste Chiffre en tête, chacun avec son émoji, sans alerte.
-    await page.click('#q-groups [data-groupe="pretes"]');
-    const jc = page.locator('.q-categories [data-categorie="🔢 Juste Chiffre"]');
-    assert.equal(await jc.innerText(), `🔢 Juste Chiffre (${QUESTIONS_CHIFFRES.length})`);
-    await jc.click();
+    // Deux rubriques à ne pas mélanger (cedric, 22/10). Quiz classique : le Juste Chiffre, par thème, chacun avec son
+    // émoji pour la révélation, sans alerte ; jamais de question du quiz illustré.
+    await page.click('#q-groups [data-groupe="classiques"]');
     await page.locator("#q-list .q-item").first().waitFor();
+    assert.equal(await page.locator('#q-groups [data-groupe="classiques"]').innerText(), `📝 Quiz classique tout prêt (${QUESTIONS_CHIFFRES.length})`);
     assert.equal(await page.locator("#q-list .q-item").count(), QUESTIONS_CHIFFRES.length);
     assert.equal(await page.locator("#q-list .q-item.sans-illus").count(), 0);
+    assert.equal(await page.locator("#q-list .q-reponses").count(), 0, "pas de réponses en images ici");
     const premiere = page.locator(`#q-list .q-item[data-question="${QUESTIONS_CHIFFRES[0].id}"]`);
     assert.equal(await premiere.locator(".q-illus.emoji").innerText(), QUESTIONS_CHIFFRES[0].emoji);
     assert.equal(await premiere.locator(".q-nombre").innerText(), `Le Juste Chiffre · réponse : ${QUESTIONS_CHIFFRES[0].correct}`);
+    const animaux = page.locator('.q-categories [data-categorie="Animaux"]');
+    assert.equal(await animaux.innerText(), `Animaux (${QUESTIONS_CHIFFRES.filter((x) => x.theme === "animaux").length})`);
     await page.fill("#q-search", "dalmatiens");
     await page.locator("#q-list .q-item", { hasText: "101" }).waitFor();
     await page.fill("#q-search", "");
-    await capture(page, "juste-chiffre-toutes-pretes");
+    await capture(page, "quiz-classique-tout-pret");
+    // Quiz illustré : la banque des tout-petits, toute illustrée (photo, sinon l'émoji du mot), pas de Juste Chiffre,
+    // pas d'alerte, et jamais « null » écrit dans la page.
+    await page.click('#q-groups [data-groupe="illustrees"]');
+    await page.locator("#q-list .q-item").first().waitFor();
+    assert.equal(await page.locator("#q-list .q-alerte").count(), 0);
+    assert.equal(await page.locator("#q-list .q-nombre").count(), 0);
+    assert.doesNotMatch(await page.locator("#q-list").innerText(), /\bnull\b/);
+    await page.fill("#q-search", "vit dans la mer");
+    const mer = page.locator("#q-list .q-item", { hasText: "Quel animal vit dans la mer ?" }).first();
+    assert.equal(await mer.locator(".q-illus.emoji").innerText(), "🐟");
+    assert.equal(await mer.locator("li.juste .q-mini.emoji").innerText(), "🐟");
+    await page.fill("#q-search", "");
+    await capture(page, "quiz-illustre-tout-pret");
 
     // Dans le quiz de Jade (7 ans) : l'âge vient du quiz ; la question déjà là ne se coche pas.
     await page.click('#q-groups [data-groupe="miennes"]');
@@ -4814,14 +4829,14 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.locator("#library-images").isHidden(), true);
 
     // Aperçu : les trois groupes, avec l'alerte sur ce qui n'a pas d'illustration.
-    await page.locator('.q-groupe[data-groupe="pretes"] .q-item').first().waitFor();
+    await page.locator('.q-groupe[data-groupe="illustrees"] .q-item').first().waitFor();
     await page.locator('.q-groupe[data-groupe="miennes"] .q-item[data-question="mien/0"] .q-illus.emoji', { hasText: "☁️" }).waitFor();
     await page.locator('.q-groupe[data-groupe="miennes"] .q-item.sans-illus[data-question="mien/1"] .q-alerte', { hasText: "⚠ Pas d'illustration" }).waitFor();
     await page.locator('.q-groupe[data-groupe="packs"] .pack[data-pack="animaux"]', { hasText: "⚠ 3 sans illustration" }).waitFor();
     await capture(page, "questions-apercu");
     // Ses questions se suppriment (cedric, 22/10) ; pas celles toutes prêtes de l'appli.
-    assert.equal(await page.locator('.q-groupe[data-groupe="pretes"] .q-item').first().getByRole("button", { name: "Supprimer" }).count(), 0);
-    assert.equal(await page.locator('.q-groupe[data-groupe="pretes"] .q-coche').count(), 0);
+    assert.equal(await page.locator('.q-groupe[data-groupe="illustrees"] .q-item').first().getByRole("button", { name: "Supprimer" }).count(), 0);
+    assert.equal(await page.locator('.q-groupe[data-groupe="illustrees"] .q-coche').count(), 0);
     await page.locator('.q-item[data-question="mien/1"]').getByRole("button", { name: "Supprimer" }).click();
     assert.equal(await repondreFenetre(page), "Supprimer la question « Question sans image » ?");
     await page.locator("#q-status", { hasText: "Question supprimée." }).waitFor();
@@ -4837,11 +4852,11 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator('.q-groupe[data-groupe="miennes"] .q-item').first().waitFor({ state: "detached" });
     // Une seule recherche pour tout.
     await page.fill("#q-search", "miaou");
-    await page.locator('.q-groupe[data-groupe="pretes"] .q-item', { hasText: "miaou" }).first().waitFor();
+    await page.locator('.q-groupe[data-groupe="illustrees"] .q-item', { hasText: "miaou" }).first().waitFor();
     await waitFor(async () => await page.locator('.q-groupe[data-groupe="packs"] .pack').count() === 0, "aucun pack ne parle de miaou");
     await page.fill("#q-search", "");
-    // Toutes prêtes : une puce par famille.
-    await page.click('#q-groups [data-groupe="pretes"]');
+    // Quiz illustré tout prêt : une puce par famille.
+    await page.click('#q-groups [data-groupe="illustrees"]');
     const familles = page.locator(".q-categories [data-categorie]");
     await familles.first().waitFor();
     assert.ok(await familles.count() >= 4);
