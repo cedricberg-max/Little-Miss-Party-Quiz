@@ -3718,7 +3718,8 @@ function editPlaylist(id, fresh = {}) {
   $("playlist-from-lib").hidden = statues || library;
   $("playlist-hasard").hidden = statues || library;
   $("playlist-title").closest("label").hidden = library;
-  $("playlist-duration").closest(".panel").hidden = single;
+  // Bibliothèque des sons : rien à régler côté temps (cedric, 22/10) ; le temps pour buzzer se choisit dans la manche.
+  $("playlist-duration").closest(".panel").hidden = single || library;
   $("playlist-files").closest(".row").hidden = single;
   const scale = blindScale(p);
   $("playlist-points").value = `${scale.points}`;
@@ -4058,7 +4059,7 @@ function renderTracks() {
     const max = Math.max(0, Math.floor((t.length ?? 0) - length));
     const auto = trackPoints(scale, null, i, n);
     // Durée propre au morceau : seulement avec la chanson entière (l'extrait est redécoupé à l'enregistrement).
-    const duration = fichier ? h("label", { class: "inline" }, "Durée",
+    const duration = fichier && playlist.use !== "songs" ? h("label", { class: "inline" }, "Durée",
       h("select", {
         class: "track-duration", "aria-label": "Durée de l'extrait",
         onchange: (e) => { t.duration = e.target.value ? Number(e.target.value) : null; aRedecouper(t); renderTracks(); },
@@ -4143,7 +4144,7 @@ function ecranReglage(t) {
       h("div", { class: "reglage-ligne" }, h("span", { class: "reglage-nom", text: "Début de la chanson" }), tempsDebut, ecouteDebut),
       curseur("Début de la chanson", t.start, maxDebut, (v) => { t.start = v; t.debutMain = true; aRedecouper(t); tempsDebut.textContent = mmss(v); }, () => listen(t, false, ecouteDebut)),
       bornes(maxDebut),
-      h("p", { class: "hint small", text: `Réglé d'office 2 s avant les premiers mots chantés (0:00 sans paroles). Les équipes ont ensuite ${buzz} s pour buzzer.` })),
+      h("p", { class: "hint small", text: "Réglé d'office 2 s avant les premiers mots chantés (0:00 sans paroles)." })),
     h("div", { class: "reglage-curseur", "data-curseur": "hook" },
       h("div", { class: "reglage-ligne" }, h("span", { class: "reglage-nom", text: "Hook" }), tempsHook, origine, ecouteHook,
         h("button", {
@@ -4154,11 +4155,6 @@ function ecranReglage(t) {
       bornes(maxHook),
       h("p", { class: "hint small", text: "Le passage que tout le monde chante à la révélation (« on chante tous ensemble »)." })),
     h("div", { class: "reglage-plus" },
-      h("label", { class: "inline" }, "Temps pour buzzer",
-        h("select", {
-          class: "track-duration", "aria-label": "Temps pour buzzer", disabled: !fichier,
-          onchange: (e) => { t.duration = Number(e.target.value); aRedecouper(t); renderTracks(); },
-        }, ...EXTRACT_SECONDS.map((s) => h("option", { value: s, text: `${s} s`, selected: s === buzz })))),
       h("input", { type: "text", class: "track-note", maxlength: 120, placeholder: "Droits (facultatif, pour information)", value: t.rights, "aria-label": "Droits", oninput: (e) => { t.rights = e.target.value; } })),
     fichier ? null : h("p", {
       class: "reglage-manque",
@@ -4277,17 +4273,19 @@ function refrainPropose(t, length, start, buzz) {
 
 /**
  * Volume du fichier d'un morceau, mesuré une fois (pour trouver où la chanson explose) : gardé sur ce PC le temps de
- * l'écran, jamais rangé en ligne. Rien si le fichier est illisible.
+ * l'écran, jamais rangé en ligne. Rien si le fichier est illisible. Rend la durée du fichier décodé (0 si illisible).
  */
 async function mesurerVolume(t, file) {
-  if (!file || playlist?.use === "statues") return;
+  if (!file || playlist?.use === "statues") return 0;
   try {
     const buffer = await decodeFile(file);
     const canaux = Array.from({ length: Math.min(2, buffer.numberOfChannels) }, (_, c) => buffer.getChannelData(c));
     t.volume = volumes(canaux, buffer.sampleRate);
+    return buffer.duration;
   } catch (e) {
     console.warn("Volume illisible", e);
     delete t.volume;
+    return 0;
   }
 }
 
@@ -4346,6 +4344,22 @@ function lyricsTools(t) {
     t.lrc ? "Paroles ✓" : "Paroles (.lrc)…", input);
 }
 
+/**
+ * Délai de chaque étape de l'import des chansons, en secondes (cedric, 22/10 : import bloqué à 62 / 204 sur un fichier).
+ * Une étape qui ne répond plus (fichier abîmé, Internet coupé) est abandonnée et l'import passe à la suite.
+ */
+const DELAIS_IMPORT = { etiquettes: 15, duree: 20, paroles: 15, reseau: 30, volume: 90, decodage: 120 };
+
+/** [promesse], ou une erreur si l'étape [etape] dépasse son délai. Les tests raccourcissent les délais (lmpDelaisImport). */
+function avantDelai(promesse, etape) {
+  const ms = DELAIS_IMPORT[etape] * 1000 * (Number(globalThis.lmpDelaisImport) || 1);
+  let minuteur;
+  return Promise.race([
+    promesse,
+    new Promise((_, refus) => { minuteur = setTimeout(() => refus(new Error(`Import : « ${etape} » sans réponse après ${ms / 1000} s`)), ms); }),
+  ]).finally(() => clearTimeout(minuteur));
+}
+
 const sansAccents = (x) => `${x ?? ""}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 
 /**
@@ -4369,7 +4383,7 @@ async function addFiles(files) {
   for (const [k, { musique: file, lrc }] of paires.entries()) {
     if (paires.length > 2) status("playlist-status", `Lecture des fichiers ${k + 1} / ${paires.length} : ${file.name}…`, true);
     // Titre, artiste et pochette rangés dans le MP3 ; sinon le nom du fichier « Artiste - Titre ».
-    const tags = statues ? {} : await etiquettesMp3(file);
+    const tags = statues ? {} : await avantDelai(etiquettesMp3(file), "etiquettes").catch((e) => { console.warn(file.name, e); return {}; });
     const devine = guessTrack(file.name);
     const title = (tags.title || devine.title || "").slice(0, 80);
     const artist = (tags.artist || devine.artist || "").slice(0, 80);
@@ -4378,15 +4392,15 @@ async function addFiles(files) {
     const already = known && playlist.tracks.find((t) => t.songId === known.id);
     // Une chanson déjà rangée revient : son fichier est gardé sur ce PC ; sans sa chanson entière en ligne, ou avec
     // l'ancien début proposé, elle est préparée de nouveau (les extraits déjà rangés ne sont pas renvoyés).
-    if (enVrac && known?.id && known.audioId && known.refrainId && !already) await garderSurCePC(known.id, file);
+    if (enVrac && known?.id && known.audioId && known.refrainId && !already) await avantDelai(garderSurCePC(known.id, file), "reseau").catch((e) => console.warn(file.name, e));
     const ancienDebut = Boolean(known) && debutAncienPropose(known, known.length, known.buzz);
     if (ancienDebut && enVrac) auDebut += 1;
-    if (enVrac && known?.id && known.audioId && known.refrainId && !already && !ancienDebut && (await entiereEnLigne(known.id).catch(() => true))) {
+    if (enVrac && known?.id && known.audioId && known.refrainId && !already && !ancienDebut && (await avantDelai(entiereEnLigne(known.id), "reseau").catch(() => true))) {
       dejaLa += 1;
       try {
-        if (lrc && !known.lrc) { await attacherParoles(known, (await lrc.text()).slice(0, MAX_LRC)); paroles += 1; }
+        if (lrc && !known.lrc) { await avantDelai(attacherParoles(known, (await lrc.text()).slice(0, MAX_LRC)), "reseau"); paroles += 1; }
         if (!known.imageId && tags.picture) {
-          await majChanson(known, { imageId: await rangerPochette(new Blob([tags.picture.data], { type: tags.picture.mime })) });
+          await avantDelai(majChanson(known, { imageId: await avantDelai(rangerPochette(new Blob([tags.picture.data], { type: tags.picture.mime })), "reseau") }), "reseau");
           pochettes += 1;
         }
       } catch (e) {
@@ -4394,24 +4408,26 @@ async function addFiles(files) {
       }
       continue;
     }
-    const length = await fileDuration(file);
+    const length = await avantDelai(fileDuration(file), "duree").catch((e) => { console.warn(file.name, e); return 0; });
     const t = already ?? (known
       ? { ...trackFromSong(known), artist: known.artist ?? "", rights: known.rights ?? "", points: null, start: known.start, refrain: known.refrain ?? undefined, lrc: known.lrc, auto: known.auto }
       : { title, artist, rights: "", points: null });
     if (!statues) {
-      if (lrc && avecParoles(t, (await lrc.text()).slice(0, MAX_LRC))) paroles += 1;
-      else await chargerParoles(t);
+      const texte = lrc ? await avantDelai(lrc.text(), "paroles").catch(() => "") : "";
+      if (texte && avecParoles(t, texte.slice(0, MAX_LRC))) paroles += 1;
+      else await avantDelai(chargerParoles(t), "reseau").catch((e) => console.warn(file.name, e));
       if (!t.imageId && tags.picture) {
         try {
-          t.imageId = await rangerPochette(new Blob([tags.picture.data], { type: tags.picture.mime }));
+          t.imageId = await avantDelai(rangerPochette(new Blob([tags.picture.data], { type: tags.picture.mime })), "reseau");
           pochettes += 1;
         } catch (e) {
           console.warn("Pochette du MP3 illisible", e);
         }
       }
     }
-    if (!statues) await mesurerVolume(t, file);
-    withFile(t, file, length);
+    // Durée illisible par le lecteur du navigateur : celle du fichier décodé pour le volume.
+    const lue = statues ? 0 : await avantDelai(mesurerVolume(t, file), "volume").catch((e) => { console.warn(file.name, e); return 0; });
+    withFile(t, file, length || lue || 0);
     if (!already) playlist.tracks.push(t);
   }
   const rangees = statues ? 0 : await parolesSeules(seuls);
@@ -4482,7 +4498,15 @@ function fileDuration(file) {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file);
     const audio = new Audio();
-    const done = (d) => { URL.revokeObjectURL(url); resolve(Number.isFinite(d) ? d : 0); };
+    // Le lecteur est rendu aussitôt : le navigateur n'en garde qu'un nombre limité à la fois (des centaines de fichiers).
+    const done = (d) => {
+      audio.onloadedmetadata = audio.onerror = null;
+      audio.removeAttribute("src");
+      audio.load();
+      URL.revokeObjectURL(url);
+      resolve(Number.isFinite(d) ? d : 0);
+    };
+    audio.preload = "metadata";
     audio.onloadedmetadata = () => done(audio.duration);
     audio.onerror = () => done(0);
     audio.src = url;
@@ -4533,7 +4557,7 @@ async function enregistrerPlaylist() {
       const enLigne = statues || (await entiereEnLigne(t.songId).catch(() => false));
       fichiers.set(t, t.file);
       try {
-        const buffer = await decodeFile(t.file);
+        const buffer = await avantDelai(decodeFile(t.file), "decodage");
         extract = await makeExtract(buffer, t.start ?? 0, t.duration ?? seconds);
         if (!statues && !hookIntact) {
           status("playlist-status", `Préparation du refrain ${k + 1} / ${fresh.length} : ${t.title}…${deja}`, true);
