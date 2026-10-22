@@ -3249,8 +3249,33 @@ function cellParoles(x) {
       }
     },
   });
-  return h("label", { class: `song-paroles${x.lrc ? " ok" : ""}`, title: x.lrc ? "Paroles incluses : cliquez pour remplacer le fichier .lrc" : "Cliquez pour ajouter le fichier .lrc des paroles" },
+  const label = h("label", { class: `song-paroles${x.lrc ? " ok" : ""}`, title: x.lrc ? "Paroles incluses : cliquez pour remplacer le fichier .lrc" : "Cliquez pour ajouter le fichier .lrc des paroles" },
     x.lrc ? "✓ Paroles" : "＋ Paroles (.lrc)", input);
+  if (!x.lrc) return label;
+  // Un .lrc mis par erreur se retire (cedric, 22/10).
+  return h("span", { class: "song-paroles-cellule" }, label,
+    h("button", { type: "button", class: "icon song-paroles-retirer", title: "Retirer les paroles", "aria-label": `Retirer les paroles de « ${x.title} »`, onclick: () => retirerParoles([x]), text: "✕" }));
+}
+
+/**
+ * Retire les paroles de chansons de la bibliothèque (cedric, 22/10 : un .lrc mis par erreur) : le fichier .lrc rangé et
+ * les paroles du refrain sont effacés, les playlists qui ont ces chansons suivent. Le début et le hook ne bougent pas.
+ */
+async function retirerParoles(liste) {
+  liste = liste.filter((x) => x.id && x.lrc);
+  if (!liste.length) return;
+  const nom = liste.length === 1 ? `de « ${liste[0].title} »` : `de ces ${liste.length} chansons`;
+  if (!(await confirmer(`Retirer les paroles ${nom} ?\n\nVous pourrez ajouter le bon fichier .lrc ensuite.`, { ok: "Retirer les paroles", danger: true }))) return;
+  try {
+    const chemins = {};
+    liste.forEach((x) => Object.assign(chemins, cheminsChanson(x, { lrc: null, paroles: null })[1], { [`library/lyrics/${x.id}`]: null }));
+    await update(ref(db), chemins);
+    await followSongs(liste.map((x) => ({ songId: x.id, song: { ...x, lrc: false, paroles: "" }, audioIds: [x.audioId] })), null);
+    status("song-status", liste.length === 1 ? `Paroles de « ${liste[0].title} » retirées.` : `Paroles de ${liste.length} chansons retirées.`, true);
+  } catch (err) {
+    console.error(err);
+    status("song-status", "Refusé : vérifiez Internet ou reconnectez-vous.");
+  }
 }
 
 /**
@@ -3289,6 +3314,7 @@ function cocherTout(coche) {
 /** Barre de la sélection : tout cocher, combien de chansons cochées, désélectionner, supprimer. */
 function renderSelection(total) {
   const n = chansonsTrouvees.filter((x) => choisies.has(cleChanson(x))).length;
+  const avecParoles = chansonsTrouvees.filter((x) => choisies.has(cleChanson(x)) && x.id && x.lrc).length;
   const tout = h("input", { type: "checkbox", "aria-label": "Tout sélectionner", checked: n > 0 && n === chansonsTrouvees.length, onclick: (e) => cocherTout(e.target.checked) });
   if (n > 0 && n < chansonsTrouvees.length) tout.indeterminate = true;
   $("song-barre").hidden = voirRetirees || !total;
@@ -3296,10 +3322,10 @@ function renderSelection(total) {
     h("label", { class: "inline song-tout" }, tout, n ? `${n} sélectionnée${n > 1 ? "s" : ""}` : "Tout sélectionner"),
     n ? h("button", { type: "button", class: "btn small secondary", onclick: () => cocherTout(false), text: "Désélectionner" }) : "",
     h("button", { type: "button", class: "btn small danger", disabled: !n, onclick: () => supprimerChansons(), text: n ? `🗑 Supprimer (${n})` : "🗑 Supprimer" }),
+    avecParoles ? h("button", { type: "button", class: "btn small secondary", onclick: () => retirerParoles(chansonsTrouvees.filter((x) => choisies.has(cleChanson(x)))), text: `Retirer les paroles (${avecParoles})` }) : "",
     h("span", { class: "hint small", text: "Maj + clic : plusieurs d'un coup · Ctrl + A : tout · Suppr : supprimer" }));
 }
 
-/** Bibliothèque des sons (menu Bibliothèque, onglet Sons) : une ligne par chanson, recherche, sélection, suppression. */
 /**
  * Ordre de la liste des sons (cedric, 22/10) : alphabétique par artiste (la première colonne), puis par titre ; un clic
  * sur l'en-tête « Titre » range par titre. Les chansons sans artiste viennent à la fin.
@@ -3320,6 +3346,7 @@ const enteteTri = (tri, nom) => h("button", {
   onclick: () => { triSons = tri; renderSongs(); }, text: `${nom}${triSons === tri ? " ▾" : ""}`,
 });
 
+/** Bibliothèque des sons (menu Bibliothèque, onglet Sons) : une ligne par chanson, recherche, sélection, suppression. */
 function renderSongs() {
   const retirees = songsRetirees(songs);
   if (!retirees.length) voirRetirees = false;
