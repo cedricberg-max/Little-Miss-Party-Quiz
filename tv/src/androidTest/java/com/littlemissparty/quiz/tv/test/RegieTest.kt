@@ -970,13 +970,18 @@ class RegieTest : TestTv() {
         val porteur = if (e.child("potato/holder").value == licornes.uid) licornes else dragons
         val autre = if (porteur === licornes) dragons else licornes
         val pret = (e.child("potato/readyAt").value as Number).toLong()
-        // Ni avant la fin de la mèche qui colle, ni après les 3 secondes qui suivent (sinon elle explose chez le porteur).
-        attendreQue("départ") { (System.currentTimeMillis() > pret + 1_200).takeIf { it } }
+        // Points avant toute explosion : le bilan de fin compte toutes les bombes.
+        val avant = mapOf(licornes.uid to points(licornes, code, licornes.uid), dragons.uid to points(licornes, code, dragons.uid))
         ecran.voit("La bombe est chez")
-        // L'équipe qui la tient l'envoie : seule sa tablette le peut.
+        // L'équipe qui la tient l'envoie : seule sa tablette le peut (vérifié avant, pour ne pas manger les 3 secondes).
         assertEquals("pas l'autre équipe", false, autre.envoyerPatate(code, porteur.uid))
+        // Ni avant la fin de la mèche qui colle, ni après les 3 secondes qui suivent (sinon elle explose chez le porteur) :
+        // envoyée aussitôt la marge passée.
+        attendreQue("départ") { (System.currentTimeMillis() > pret + 1_200).takeIf { it } }
         assertTrue(porteur.envoyerPatate(code, autre.uid))
-        attendreQue("bombe passée") { licornes.etat(code).takeIf { it.child("potato/holder").value == autre.uid } }
+        attendreQue("bombe passée") {
+            licornes.etat(code).takeIf { it.child("potato/holder").value == autre.uid && it.child("potato/booms").childrenCount == 0L }
+        }
         ecran.capture("patate-passe")
         // Mèche qui colle : pas de renvoi immédiat (vérifié seulement si l'émulateur est assez rapide pour tomber dedans).
         // Large marge : l'horloge de l'émulateur et celle du serveur diffèrent, et l'envoi met parfois plus d'une seconde
@@ -986,7 +991,6 @@ class RegieTest : TestTv() {
 
         // Trois bombes : chacune explose chez l'équipe qui la tient (ici, gardée plus de 3 secondes : elle perd des points,
         // l'autre en gagne) ; entre deux, la box allume toute seule la suivante, annoncée « Bombe 2 sur 3 ».
-        val avant = mapOf(licornes.uid to points(licornes, code, licornes.uid), dragons.uid to points(licornes, code, dragons.uid))
         attendreQue("première explosion", 70_000) { licornes.etat(code).takeIf { it.child("potato/booms").childrenCount >= 1 } }
         ecran.capture("patate-boum")
         attendreQue("bombe 2 allumée", 20_000) { licornes.etat(code).takeIf { (it.child("potato/bomb").value as? Number)?.toInt() == 2 } }

@@ -116,7 +116,7 @@ class NavigationTelecommandeTest : TestTv() {
         val cible = "Terminer et lancer une nouvelle partie"
         val menu = listOf(
             "Continuer la partie", "Donner des points", "Reconnecter la régie", "Reconnecter une tablette", "Rechercher une mise à jour",
-            "Vider le cache des médias", "Quitter l'application", cible,
+            "Vider le cache des médias", "🎨 Design : Classique", "Quitter l'application", cible,
         )
         menu.forEachIndexed { i, bouton ->
             if (i > 0) ecran.touche(KeyEvent.KEYCODE_DPAD_DOWN)
