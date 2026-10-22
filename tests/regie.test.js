@@ -2831,7 +2831,10 @@ describe("bibliothèque de quiz et prestations", () => {
     const A = "0123456789abcdef";
     const B = "fedcba9876543210";
     await seedLibrary("songs", { s1: { title: "Hakuna Matata", artist: "Le Roi lion", audioId: A, refrainId: B, refrain: 61, start: 12, buzz: 30, updatedAt: 1 } });
-    await seedLibrary("playlists", { p1: { title: "Disney", duration: 30, tracks: [{ title: "Hakuna Matata", audioId: A, songId: "s1" }, { title: "Libérée, délivrée", audioId: B }], updatedAt: 1 } });
+    await seedLibrary("playlists", {
+      p1: { title: "Disney", duration: 30, tracks: [{ title: "Hakuna Matata", audioId: A, songId: "s1" }, { title: "Libérée, délivrée", audioId: B }], updatedAt: 1 },
+      "test-lea-tous-les-jeux-comptines": { title: "TEST – Comptines", duration: 20, tracks: [{ title: "Frère Jacques", audioId: "1111111111111111" }], updatedAt: 1 },
+    });
     const page = await admin();
     // Page d'un jeu ouverte depuis l'Accueil : « ← Retour » en haut et en bas y ramène.
     await openGamePage(page, "coffres");
@@ -2846,6 +2849,8 @@ describe("bibliothèque de quiz et prestations", () => {
     // De gauche à droite : case, pochette (vide : à cliquer), artiste, titre, paroles, moments ; ni pochette ni
     // paroles : signalé en rouge.
     await hakuna.locator(".song-pochette.vide").waitFor();
+    // Les comptines de la prestation de test ne sont pas dans la bibliothèque (cedric, 22/10).
+    assert.equal(await page.locator("#song-list .song-ligne", { hasText: "Frère Jacques" }).count(), 0);
     assert.equal(await hakuna.locator(".song-artiste").innerText(), "Le Roi lion");
     assert.equal(await hakuna.locator(".song-paroles").innerText(), "＋ Paroles (.lrc)");
     assert.equal(await hakuna.locator(".song-alerte").count(), 1);
@@ -2922,6 +2927,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await waitFor(async () => (await library("songs/s3")) == null, "chanson effacée");
     assert.deepEqual([await library("entieres/s3"), await library("lyrics/s3"), await library(`sounds/${C}`)], [null, null, null]);
     // « Libérée, délivrée » effacée : son extrait reste, la playlist « Disney » et Hakuna Matata (son refrain) s'en servent.
+    const [rangeeId] = Object.entries(await library("songs")).find(([, s]) => s.audioId === B);
     question = repondreFenetre(page);
     await page.locator("#song-list .song", { hasText: "Libérée" }).getByRole("button", { name: "Effacer pour de bon" }).click();
     await question;
@@ -2929,6 +2935,11 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.ok(await library(`sounds/${B}`), "extrait encore utilisé : gardé");
     assert.ok(await library(`sounds/${A}`), "extrait d'une chanson gardée : gardé");
     assert.equal((await library("playlists/p1")).tracks.length, 2);
+    // Elle ne revient pas dans la liste (cedric, 22/10) : le morceau gardé par « Disney » reçoit son numéro de chanson.
+    assert.deepEqual((await library("playlists/p1")).tracks[1], { title: "Libérée, délivrée", audioId: B, songId: rangeeId });
+    await page.locator("#song-list .song", { hasText: "Hakuna Matata" }).getByRole("button", { name: "⏱ Réglé ✓" }).waitFor();
+    assert.equal(await page.locator("#song-list .song", { hasText: "Libérée" }).count(), 0);
+    assert.equal(await page.locator("#song-retirees").isHidden(), true);
     await page.context().close();
   });
 

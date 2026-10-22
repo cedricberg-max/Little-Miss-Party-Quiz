@@ -12,7 +12,7 @@ import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, roundFille
 } from "../web/public/show.js";
 import { PICTO_WORDS, PICTO_SERIES } from "../web/public/picto-cards.js";
 import { guessTrack, normalizeLevel } from "../web/public/audio.js";
-import { songList, songsRetirees, songMatches, trackFromSong, songUpdates, defaultRefrain, buzzOf, REFRAIN_SEC } from "../web/public/sons.js";
+import { songList, songsRetirees, songMatches, trackFromSong, songUpdates, marquerEffacees, defaultRefrain, buzzOf, REFRAIN_SEC } from "../web/public/sons.js";
 import { lireLrc, refrainDesParoles, refrainsDesParoles, debutDesParoles, parolesDuRefrain, associerParoles, nomSimple } from "../web/public/paroles.js";
 import { volumes, explosionDuVolume, refrainAuVolume, PAS_VOLUME } from "../web/public/volume.js";
 import { lireId3 } from "../web/public/id3.js";
@@ -1763,6 +1763,24 @@ describe("bibliothèque des sons du blind test", () => {
     assert.deepEqual(songList(retiree, playlists).map((x) => x.title), []);
     assert.deepEqual(songsRetirees(retiree).map((x) => [x.id, x.title]), [["s1", "Hakuna Matata"], ["s2", "Libérée, délivrée"]]);
     assert.deepEqual(songsRetirees(songs), []);
+  });
+
+  test("une chanson effacée pour de bon ne revient pas par ses playlists ; les comptines des prestations de test non plus", () => {
+    // Effacée pour de bon : le morceau garde son numéro de chanson, qui n'existe plus.
+    const effacee = { p1: { ...playlists.p1, tracks: [playlists.p1.tracks[0], { ...playlists.p1.tracks[1], songId: "s2" }] }, p2: { title: "Anciens tubes", tracks: { 0: { title: "Libérée délivrée (bis)", audioId: C, songId: "s2" } } } };
+    assert.deepEqual(songList(songs, effacee).map((x) => x.title), ["Hakuna Matata"]);
+    const test = { ...playlists, "test-lea-tous-les-jeux-comptines": { title: "TEST – Comptines", tracks: [{ title: "Frère Jacques", audioId: "1111111111111111" }, { title: "Hakuna Matata", audioId: A }] } };
+    const list = songList(songs, test);
+    assert.deepEqual(list.map((x) => x.title), ["Hakuna Matata", "Libérée, délivrée"]);
+    assert.deepEqual(list[0].lists.map((l) => l.id), ["p1", "test-lea-tous-les-jeux-comptines"], "une vraie chanson dit toujours où elle est");
+    // Les anciens morceaux de son extrait reçoivent le numéro, playlist datée ; ni les statues ni les morceaux déjà rangés.
+    const avecStatues = { ...playlists, st: { title: "Statues", use: "statues", tracks: [{ title: "Danse", audioId: C }] } };
+    assert.deepEqual(marquerEffacees("s2", C, avecStatues, "maintenant"), {
+      "library/playlists/p1/tracks/1/songId": "s2", "library/playlists/p1/updatedAt": "maintenant",
+      "library/playlists/p2/tracks/0/songId": "s2", "library/playlists/p2/updatedAt": "maintenant",
+    });
+    assert.deepEqual(marquerEffacees("s9", A, playlists, "maintenant"), {}, "morceau déjà rangé : rien à marquer");
+    assert.deepEqual(marquerEffacees("s9", undefined, playlists, "maintenant"), {});
   });
 
   test("la recherche ignore les accents et cherche aussi le nom des playlists", () => {

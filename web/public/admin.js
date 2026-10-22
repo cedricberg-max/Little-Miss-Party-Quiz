@@ -31,7 +31,7 @@ import {
 import { concepts, neufsSiPossible } from "./jamais-deux-fois.js";
 import { PICTO_OWN_SERIES } from "./picto-cards.js";
 import { EXTRACT_SECONDS, guessTrack, decodeFile, cutExtract, makeExtract, synthTune, encodeMp3, soundId } from "./audio.js";
-import { REFRAIN_SEC, REFRAIN_KBPS, buzzOf, defaultRefrain, songList, songsRetirees, songMatches, trackFromSong, songUpdates } from "./sons.js";
+import { REFRAIN_SEC, REFRAIN_KBPS, buzzOf, defaultRefrain, songList, songsRetirees, songMatches, trackFromSong, songUpdates, marquerEffacees } from "./sons.js";
 import { lireLrc, refrainsDesParoles, debutDesParoles, parolesDuRefrain, associerParoles, nomSimple, MAX_LRC } from "./paroles.js";
 import { volumes, explosionDuVolume, refrainAuVolume } from "./volume.js";
 import { etiquettesMp3 } from "./id3.js";
@@ -3479,7 +3479,13 @@ async function effacerPourDeBon(liste) {
     [song.audioId, song.refrainId].filter((a) => a && !utilises.has(a)).forEach((a) => { chemins[`library/sounds/${a}`] = null; });
     Object.assign(chemins, fichePochetteGardee(song, chemins));
   });
+  // Les playlists qui gardent un ancien morceau de ces chansons (sans numéro de chanson) le marquent, pour qu'elles ne
+  // reviennent pas dans la liste (cedric, 22/10). Une playlist à la fois : une ancienne refusée ne bloque pas les autres.
+  const marques = {};
+  liste.forEach((x) => Object.entries(marquerEffacees(x.id, songs[x.id]?.audioId, playlists, serverTimestamp(), isStatuesList))
+    .forEach(([chemin, v]) => { (marques[chemin.split("/")[2]] ??= {})[chemin] = v; }));
   try {
+    for (const groupe of Object.values(marques)) await update(ref(db), groupe).catch((err) => console.error(err));
     await update(ref(db), chemins);
     for (const x of liste) { sourcesLocales.delete(x.id); await oublierFichier(x.id); }
     status("song-status", liste.length === 1 ? `« ${liste[0].title} » est effacée pour de bon.` : `${liste.length} chansons effacées pour de bon.`, true);
