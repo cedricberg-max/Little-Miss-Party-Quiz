@@ -2790,6 +2790,33 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Sons (cedric, 22/10) : toutes les chansons sont affichées, sans limite, et la recherche les filtre", async () => {
+    const chansons = {};
+    // 210 chansons, d'« Artiste 000 » à « Artiste 209 » : avant, la liste s'arrêtait aux 60 premières.
+    for (let n = 0; n < 210; n++) {
+      const k = String(n).padStart(3, "0");
+      chansons[`s${k}`] = { title: `Chanson ${k}`, artist: `Artiste ${k}`, audioId: n.toString(16).padStart(16, "0"), buzz: 30, updatedAt: 1 };
+    }
+    await seedLibrary("songs", chansons);
+    const page = await admin();
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="sons"]');
+    await page.locator("#song-list .song-ligne").nth(209).waitFor({ state: "attached" });
+    assert.equal(await page.locator("#song-list .song-ligne").count(), 210);
+    assert.equal(await page.locator("#song-list .song-ligne .song-titre").last().innerText(), "Chanson 209");
+    assert.equal(await page.locator("#song-list", { hasText: "précisez la recherche" }).count(), 0);
+    assert.equal(await page.locator("#song-count").innerText(), "210 chansons");
+    // La recherche filtre en direct.
+    await page.fill("#song-search", "Artiste 205");
+    await page.waitForFunction(() => document.querySelectorAll("#song-list .song-ligne").length === 1);
+    assert.equal(await page.locator("#song-list .song-ligne .song-titre").innerText(), "Chanson 205");
+    assert.equal(await page.locator("#song-count").innerText(), "1 sur 210");
+    await page.fill("#song-search", "");
+    await page.waitForFunction(() => document.querySelectorAll("#song-list .song-ligne").length === 210);
+    await page.context().close();
+  });
+
   test("Sons (cedric, 22/10) : des paroles mises par erreur se retirent (✕ sur la ligne, ou plusieurs chansons cochées) ; les playlists suivent", async () => {
     const A = "0123456789abcdef";
     const B = "fedcba9876543210";
@@ -3270,6 +3297,272 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual([(await library(`songs/${idSans}`)).refrain, (await library(`songs/${idSans}`)).auto], [20, undefined], "hook réglé à la main gardé");
     await page.locator("#song-entieres").waitFor({ state: "hidden", timeout: 20000 });
     assert.equal(await page.locator("#song-list .song-nuage").count(), 0);
+    await page.context().close();
+  });
+
+  test("Bibliothèque › Images (cedric, 22/10) : un clic montre l'image en grand, « 📋 » la copie, « 📋 Coller » la pose dans une question", async () => {
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    const lea = "abcdef0123456789";
+    await seedLibrary(`images/${lea}`, `data:image/png;base64,${png([200, 160, 60]).toString("base64")}`);
+    await seedLibrary(`medias/${lea}`, { name: "Le lion de Léa", cat: "Famille et amis", tags: "doudou", createdAt: 1, updatedAt: 1 });
+    const page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.locator("#library-images:not([hidden])").waitFor();
+    const vis = page.locator("#visionneuse");
+    const nomVu = () => page.locator("#vis-nom").innerText();
+
+    // Un émoji en grand ; ‹ › (ou les flèches du clavier) passent aux voisins ; Échap ferme.
+    const emojis = page.locator('#media-list .media-group[data-groupe="emojis"] .media-tile');
+    const [premier, deuxieme] = [await emojis.nth(0).locator("span:last-child").innerText(), await emojis.nth(1).locator("span:last-child").innerText()];
+    await emojis.first().click();
+    await vis.locator(".vis-image .emoji").waitFor();
+    assert.equal(await nomVu(), premier);
+    assert.match(await page.locator("#vis-pos").innerText(), /^1 \/ \d+$/);
+    assert.match(await page.locator("#vis-details").innerText(), /^😀 Émojis/);
+    await page.keyboard.press("ArrowRight");
+    await waitFor(async () => await nomVu() === deuxieme, "émoji suivant");
+    await page.click("#vis-prec");
+    await waitFor(async () => await nomVu() === premier, "émoji précédent");
+    await page.keyboard.press("Escape");
+    await vis.waitFor({ state: "hidden" });
+
+    // Sa propre image : en grand avec sa catégorie, ses mots-clés ; « ✏️ Sa fiche » ouvre son groupe.
+    await page.locator(`#media-list .media-group[data-groupe="miennes"] .media-tile[data-media="${lea}"]`).click();
+    await vis.locator('.vis-image img[src^="data:image/png"]').waitFor();
+    assert.equal(await nomVu(), "Le lion de Léa");
+    assert.equal(await page.locator("#vis-details").innerText(), "⭐ Mes images · Famille et amis · doudou");
+    await page.click("#vis-fiche");
+    await vis.waitFor({ state: "hidden" });
+    await page.locator(`.media-card[data-media="${lea}"]`).waitFor();
+    // Dans son groupe : un clic sur la photo l'ouvre aussi en grand, « 📋 Copier » la copie.
+    await page.locator(`.media-card[data-media="${lea}"] img.voir`).click();
+    await page.locator("#vis-nom", { hasText: "Le lion de Léa" }).waitFor();
+    await page.click("#vis-fermer");
+    await vis.waitFor({ state: "hidden" });
+    await page.locator(`.media-card[data-media="${lea}"]`).getByRole("button", { name: "📋 Copier" }).click();
+    await page.locator("#media-note", { hasText: "« Le lion de Léa » copiée" }).waitFor();
+
+    // L'émoji du lion copié depuis la grande vue, puis collé dans la question.
+    await page.click('#media-groups [data-groupe="tout"]');
+    await page.fill("#media-search", "lion");
+    await page.locator('.media-tile[data-media="emoji:🦁"]').click();
+    await page.click("#vis-copier");
+    await page.locator("#vis-status", { hasText: "🦁 copié : dans une question, « 📋 Coller »" }).waitFor();
+    await page.keyboard.press("Escape");
+    await openQuizzes(page);
+    await page.locator('#quiz-list [data-quiz="animaux"]').getByRole("button", { name: "Éditer" }).click();
+    const q0 = page.locator('[data-q="0"]');
+    await q0.getByRole("button", { name: "📋 Coller « Lion »" }).click();
+    assert.equal(await q0.locator(".q-emoji").inputValue(), "🦁");
+    assert.equal(await q0.locator(".choice-photo .q-coller").count(), 0, "pas d'émoji sur une réponse en image");
+    await page.click("#rv-save");
+    await page.locator("#rv-status", { hasText: "Enregistré" }).waitFor();
+
+    // La photo libre du tigre copiée d'un geste (📋 de la vignette, sans l'ouvrir) : illustration et réponse B.
+    await page.click("#nav button[data-screen=library]");
+    await page.fill("#media-search", "tigre");
+    const tigre = page.locator('#media-list .media-group[data-groupe="photos"] .media-tile[data-media="banque:tigre"]');
+    await tigre.locator(".media-copier").click();
+    await page.locator("#media-note", { hasText: "« Tigre » copiée" }).waitFor();
+    assert.equal(await vis.isVisible(), false, "le 📋 copie sans ouvrir");
+    await openQuizzes(page);
+    await page.locator('#quiz-list [data-quiz="animaux"]').getByRole("button", { name: "Éditer" }).click();
+    await q0.getByRole("button", { name: "📋 Coller « Tigre »" }).click();
+    await q0.locator(".q-image:not([hidden])").waitFor();
+    await q0.locator(".choice-photo").nth(1).locator(".q-coller").click();
+    await q0.locator(".choice-photo").nth(1).locator(".choice-thumb:not([hidden])").waitFor();
+    await page.click("#rv-save");
+    await page.locator("#rv-status", { hasText: "Enregistré" }).waitFor();
+    const q = (await library("quizzes")).animaux.questions[0];
+    assert.equal(q.image, "🦁");
+    assert.match(q.imageId, /^[0-9a-f]{16}$/);
+    assert.match(await library(`images/${q.imageId}`), /^data:image\/jpeg;base64,/);
+    assert.match(q.choiceImages[1], /^[0-9a-f]{16}$/);
+    await page.context().close();
+  });
+
+  test("Quiz classique tout prêt (cedric, 22/10) : questions à 4 réponses et Juste Chiffre sans émoji, trois niveaux, de vraies photos, dans la rubrique et dans un quiz classique (sorte, niveau, thème, 5 au hasard), et les quiz de test à part", async () => {
+    const { QUESTIONS_CHIFFRES } = await import("../web/public/banque-chiffres.js");
+    const { QUESTIONS_CLASSIQUES, QUESTIONS_TOUT_PRETES, estJusteChiffre } = await import("../web/public/banque-classiques.js");
+    await seedLibrary("quizzes", {
+      mien: { title: "Quiz de Jade", source: "saisie", kind: "classique", ageMin: 7, ageMax: 8, updatedAt: 5, questions: [
+        { text: "Combien de pattes a une araignée ?", kind: "number", correct: 8, status: "validee", image: "🕷️" },
+      ] },
+      "test-lea-tous-les-jeux-quiz": { title: "TEST – Quiz classique de Léa", theme: "Culture générale (test)", source: "saisie", updatedAt: 9, questions: [
+        { text: "Combien de jours y a-t-il dans une année ?", kind: "number", correct: 365, status: "validee" },
+      ] },
+    });
+    const page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="questions"]');
+
+    // Les questions de la prestation de test ne sont plus « en vrac » : elles ont leur groupe.
+    await page.locator('#q-groups [data-groupe="tests"]', { hasText: "🧪 Questions de test (1)" }).waitFor();
+    await page.locator('.q-groupe[data-groupe="tests"] .q-item[data-question="test-lea-tous-les-jeux-quiz/0"]').waitFor();
+    assert.equal(await page.locator('.q-groupe[data-groupe="miennes"] .q-item').count(), 1);
+    await page.click('#q-groups [data-groupe="tests"]');
+    await page.locator("#q-list .q-item", { hasText: "Combien de jours y a-t-il dans une année ?" }).getByRole("button", { name: "Supprimer" }).waitFor();
+    // Un Juste Chiffre sans émoji a son compteur sur la TV (cedric, 22/10) : 🔢, pas d'alerte.
+    const sansEmoji = page.locator('#q-list .q-item[data-question="test-lea-tous-les-jeux-quiz/0"]');
+    assert.equal(await sansEmoji.locator(".q-illus.compteur").innerText(), "🔢");
+    assert.equal(await sansEmoji.locator(".q-alerte").count(), 0);
+
+    // Deux rubriques à ne pas mélanger (cedric, 22/10). Quiz classique : les questions à 4 réponses écrites avec leur
+    // émoji pour la révélation, et les Juste Chiffre sans émoji (🔢 : le compteur), par thème, sans alerte ; jamais de
+    // question du quiz illustré.
+    await page.click('#q-groups [data-groupe="classiques"]');
+    await page.locator("#q-list .q-item").first().waitFor();
+    // La liste montre 300 questions au plus, puis « … et N autres : précisez la recherche ».
+    const vues = (n) => Math.min(n, 300);
+    const listees = async (n, quoi) => {
+      await waitFor(async () => await page.locator("#q-list .q-item").count() === vues(n), quoi);
+      assert.equal(await page.locator("#q-list > p.hint.small", { hasText: "autres : précisez la recherche" }).count(), n > 300 ? 1 : 0, `${quoi} : « … et ${n - 300} autres »`);
+    };
+    assert.equal(await page.locator('#q-groups [data-groupe="classiques"]').innerText(), `📝 Quiz classique tout prêt (${QUESTIONS_TOUT_PRETES.length})`);
+    await listees(QUESTIONS_TOUT_PRETES.length, "toutes les questions");
+    assert.equal(await page.locator("#q-list .q-item.sans-illus").count(), 0);
+    assert.equal(await page.locator("#q-list .q-mini").count(), 0, "pas de réponses en images ici");
+    // Niveau Facile : son émoji, ou sa photo ; niveaux Moyen et Difficile : une vraie photo, jamais d'émoji.
+    const facile = QUESTIONS_CLASSIQUES.find((x) => x.niveau === 1 && !x.photo);
+    await page.fill("#q-search", facile.text);
+    const premiere = page.locator(`#q-list .q-item[data-question="${facile.id}"]`);
+    assert.equal(await premiere.locator(".q-illus.emoji").innerText(), facile.emoji);
+    assert.equal(await premiere.locator(".q-reponses li").count(), 4);
+    assert.equal(await premiere.locator(".q-reponses li.juste").innerText(), `✓ ${facile.choices[0]}`);
+    const moyen = QUESTIONS_CLASSIQUES.find((x) => x.niveau === 2);
+    await page.fill("#q-search", moyen.text);
+    const enPhoto = page.locator(`#q-list .q-item[data-question="${moyen.id}"] img.q-illus`);
+    assert.equal(await enPhoto.getAttribute("src"), moyen.photo);
+    await waitFor(async () => await enPhoto.evaluate((img) => img.complete && img.naturalWidth === 640), "la photo s'affiche");
+    await page.fill("#q-search", "");
+    // Trois niveaux sans chevauchement : une puce chacun.
+    const parNiveau = (n) => QUESTIONS_TOUT_PRETES.filter((x) => x.niveau === n);
+    assert.equal(await page.locator('.q-niveaux [data-niveau="1"]').innerText(), `Facile · 5 à 8 ans (${parNiveau(1).length})`);
+    assert.equal(await page.locator('.q-niveaux [data-niveau="2"]').innerText(), `Moyen · 9 à 11 ans (${parNiveau(2).length})`);
+    assert.equal(await page.locator('.q-niveaux [data-niveau="3"]').innerText(), `Difficile · 12 à 15 ans (${parNiveau(3).length})`);
+    await page.click('.q-niveaux [data-niveau="1"]');
+    await listees(parNiveau(1).length, "le niveau Facile");
+    assert.equal(await page.locator("#q-list .q-item .q-illus.emoji:not(.compteur)").count(), parNiveau(1).filter((x) => !estJusteChiffre(x) && !x.photo).length, "émojis seulement au niveau Facile (et pas sur les questions qui ont leur photo)");
+    assert.equal(await page.locator("#q-list .q-item .q-illus.compteur").count(), parNiveau(1).filter(estJusteChiffre).length, "🔢 sur les Juste Chiffre");
+    for (const n of [2, 3]) {
+      await page.click(`.q-niveaux [data-niveau="${n}"]`);
+      await listees(parNiveau(n).length, `le niveau ${n}`);
+      assert.equal(await page.locator("#q-list .q-item .q-illus.emoji:not(.compteur)").count(), 0, `jamais d'émoji au niveau ${n} (🔢 seulement sur les Juste Chiffre)`);
+    }
+    assert.match(await page.locator("#q-list .q-item .hint.small").first().innerText(), /· Difficile · 12 à 15 ans$/);
+    await page.click('.q-niveaux [data-niveau="2"]');
+    await listees(parNiveau(2).length, "le niveau Moyen");
+    assert.match(await page.locator("#q-list .q-item .hint.small").first().innerText(), /· Moyen · 9 à 11 ans$/);
+    await capture(page, "quiz-classique-moyen");
+    await page.click('.q-niveaux [data-niveau="tous"]');
+    await listees(QUESTIONS_TOUT_PRETES.length, "tous les niveaux");
+    await page.fill("#q-search", QUESTIONS_CHIFFRES[0].text);
+    const chiffre = page.locator(`#q-list .q-item[data-question="${QUESTIONS_CHIFFRES[0].id}"]`);
+    assert.equal(await chiffre.locator(".q-illus.compteur").innerText(), "🔢");
+    assert.equal(await chiffre.locator(".q-nombre").innerText(), `Le Juste Chiffre · réponse : ${QUESTIONS_CHIFFRES[0].correct}`);
+    await page.fill("#q-search", "");
+    const animaux = page.locator('.q-categories [data-categorie="Animaux"]');
+    assert.equal(await animaux.innerText(), `Animaux (${QUESTIONS_TOUT_PRETES.filter((x) => x.theme === "animaux").length})`);
+    // Une puce par sorte : les questions à 4 réponses seules, les Juste Chiffre seuls.
+    assert.equal(await page.locator('.q-types [data-type="qcm"]').innerText(), `❓ Questions à 4 réponses (${QUESTIONS_CLASSIQUES.length})`);
+    await page.click('.q-types [data-type="qcm"]');
+    await listees(QUESTIONS_CLASSIQUES.length, "les questions à 4 réponses");
+    assert.equal(await page.locator("#q-list .q-nombre").count(), 0);
+    await capture(page, "quiz-classique-4-reponses");
+    await page.click('.q-types [data-type="nombre"]');
+    await listees(QUESTIONS_CHIFFRES.length, "les Juste Chiffre");
+    assert.equal(await page.locator("#q-list .q-reponses").count(), 0);
+    assert.equal(await page.locator("#q-list .q-illus.compteur").count(), QUESTIONS_CHIFFRES.length, "aucun émoji sur un Juste Chiffre");
+    await page.click('.q-types [data-type="tous"]');
+    await page.fill("#q-search", "dalmatiens");
+    await page.locator("#q-list .q-item", { hasText: "101" }).waitFor();
+    await page.fill("#q-search", "");
+    await capture(page, "quiz-classique-tout-pret");
+    // Quiz illustré : la banque des tout-petits, toute illustrée (photo, sinon l'émoji du mot), pas de Juste Chiffre,
+    // pas d'alerte, et jamais « null » écrit dans la page.
+    await page.click('#q-groups [data-groupe="illustrees"]');
+    await page.locator("#q-list .q-item").first().waitFor();
+    assert.equal(await page.locator("#q-list .q-alerte").count(), 0);
+    assert.equal(await page.locator("#q-list .q-nombre").count(), 0);
+    assert.doesNotMatch(await page.locator("#q-list").innerText(), /\bnull\b/);
+    await page.fill("#q-search", "la tête en bas");
+    const nuit = page.locator("#q-list .q-item", { hasText: "Quel animal dort la tête en bas ?" }).first();
+    assert.equal(await nuit.locator(".q-illus.emoji").innerText(), "🦇");
+    assert.equal(await nuit.locator("li.juste .q-mini.emoji").innerText(), "🦇");
+    await page.fill("#q-search", "");
+    await capture(page, "quiz-illustre-tout-pret");
+
+    // Dans le quiz de Jade (7 ans) : le niveau Facile vient de l'âge du quiz ; la question déjà là ne se coche pas.
+    await page.click('#q-groups [data-groupe="miennes"]');
+    await page.locator('.q-item[data-question="mien/0"]').getByRole("button", { name: "Éditer" }).click();
+    await page.locator("#rv-chiffres:not([hidden])", { hasText: "📝 Questions toutes prêtes" }).click();
+    const panel = page.locator("#rv-chiffres-panel");
+    await panel.locator(".banque-q").first().waitFor();
+    await panel.locator('.chips.niveaux .chip.active[data-niveau="1"]', { hasText: "Facile · 5 à 8 ans" }).waitFor();
+    const pourSept = QUESTIONS_TOUT_PRETES.filter((x) => x.niveau === 1);
+    assert.equal(await panel.locator(".banque-q").count(), pourSept.length);
+    const araignee = panel.locator(".banque-q", { hasText: "Combien de pattes a une araignée ?" });
+    assert.equal(await araignee.locator("input").isDisabled(), true);
+    await araignee.locator(".tag", { hasText: "déjà dans le quiz" }).waitFor();
+    assert.equal(await araignee.locator(".banque-texte").innerText(), "🔢 Combien de pattes a une araignée ?", "jamais d'émoji sur un Juste Chiffre");
+    // Les Juste Chiffre, un thème, puis 5 au hasard : 5 cochées, toutes de cette sorte, de ce thème et de ce niveau.
+    await panel.locator('.chip[data-type="nombre"]').click();
+    await panel.locator('.chip.active[data-type="nombre"]').waitFor();
+    await panel.locator('.chip[data-theme="animaux"]').click();
+    await panel.locator('.chip.active[data-theme="animaux"]').waitFor();
+    await page.click("#rv-chiffres-hasard");
+    await waitFor(async () => await panel.locator(".banque-q input:checked").count() === 5, "5 cochées");
+    const cochees = await panel.locator(".banque-q:has(input:checked)").evaluateAll((els) => els.map((e) => e.dataset.chiffre));
+    const tirees = cochees.map((id) => QUESTIONS_TOUT_PRETES.find((x) => x.id === id));
+    assert.ok(tirees.every((x) => estJusteChiffre(x) && x.theme === "animaux" && x.niveau === 1), "sorte, thème et niveau respectés");
+    assert.ok(!tirees.some((x) => x.text === "Combien de pattes a une araignée ?"), "jamais celle déjà dans le quiz");
+    await capture(page, "juste-chiffre-dans-un-quiz");
+    // Plus une question à 4 réponses, trouvée en cherchant : ses réponses, la bonne marquée.
+    await panel.locator('.chip[data-type="qcm"]').click();
+    await panel.locator('.chip.active[data-type="qcm"]').waitFor();
+    await page.fill("#rv-chiffres-cherche", "toile");
+    const araigneeQ = QUESTIONS_CLASSIQUES.find((x) => x.text === "Quel animal fabrique une toile ?");
+    const toile = panel.locator(".banque-q", { hasText: araigneeQ.text });
+    await toile.waitFor();
+    assert.equal(await toile.locator(".banque-texte").innerText(), `${araigneeQ.photo ? "" : "🕷️ "}${araigneeQ.text}`);
+    assert.match(await toile.locator(".banque-mots").innerText(), /^✓ L'araignée · La fourmi · L'abeille · La mouche · Animaux · Facile · 5 à 8 ans$/);
+    await toile.locator("input").check();
+    // Et une question Moyen, avec sa vraie photo.
+    const moyenne = QUESTIONS_CLASSIQUES.find((x) => x.niveau === 2 && x.theme === "animaux");
+    await panel.locator('.chip[data-niveau="2"]').click();
+    await panel.locator('.chip.active[data-niveau="2"]').waitFor();
+    await page.fill("#rv-chiffres-cherche", moyenne.text.slice(0, 30));
+    const ligneMoyenne = panel.locator(`.banque-q[data-chiffre="${moyenne.id}"]`);
+    assert.equal(await ligneMoyenne.locator(".banque-texte img.q-mini").getAttribute("src"), moyenne.photo);
+    assert.equal(await ligneMoyenne.locator(".banque-texte").innerText(), moyenne.text, "pas d'émoji au niveau Moyen");
+    await ligneMoyenne.locator("input").check();
+    await capture(page, "question-4-reponses-dans-un-quiz");
+    assert.equal(await page.locator("#rv-chiffres-add").innerText(), "Ajouter les 7 questions cochées");
+    await page.click("#rv-chiffres-add");
+    await page.locator("#rv-status", { hasText: "7 questions toutes prêtes ajoutées" }).waitFor();
+    assert.equal(await page.locator("#rv-list .qcard").count(), 8);
+    assert.equal(await page.locator('#rv-list .qcard[data-q="5"] .q-number').inputValue(), `${tirees[4].correct}`);
+    // Ajoutées : elles ne se cochent plus.
+    await page.fill("#rv-chiffres-cherche", "");
+    await panel.locator('.chip[data-type="tous"]').click();
+    await panel.locator('.chip[data-niveau="tous"]').click();
+    await waitFor(async () => await panel.locator(".banque-q.deja").count() === 8, "déjà dans le quiz");
+    await page.click("#rv-save");
+    await page.locator("#rv-status", { hasText: "Enregistré" }).waitFor();
+    const enregistrees = (await library("quizzes/mien/questions")).slice(1);
+    // Les Juste Chiffre : leur nombre, sans image.
+    assert.deepEqual(enregistrees.slice(0, 5).map((q) => [q.text, q.kind, q.correct, q.image ?? null, q.status]),
+      tirees.map((x) => [x.text, "number", x.correct, null, "validee"]));
+    // Les questions à 4 réponses : leurs réponses mélangées, la bonne bien repérée, leur image pour la révélation : la
+    // photo rangée une fois dans la bibliothèque des images, sinon l'émoji (niveau Facile seulement).
+    const [q4, q5] = enregistrees.slice(5);
+    assert.deepEqual([q4.text, q4.kind ?? null, q4.status, [...q4.choices].sort()], [araigneeQ.text, null, "validee", [...araigneeQ.choices].sort()]);
+    assert.equal(q4.choices[q4.correct], "L'araignée");
+    if (araigneeQ.photo) assert.match(q4.imageId, /^[0-9a-f]{16}$/);
+    else assert.equal(q4.image, "🕷️");
+    assert.deepEqual([q5.text, q5.image ?? "", q5.choices[q5.correct]], [moyenne.text, "", moyenne.choices[0]]);
+    assert.match(q5.imageId, /^[0-9a-f]{16}$/);
+    assert.match(await library(`images/${q5.imageId}`), /^data:image\/(jpeg|webp);base64,/, "la photo est dans la bibliothèque des images");
     await page.context().close();
   });
 
@@ -3992,8 +4285,8 @@ describe("bibliothèque de quiz et prestations", () => {
       q("Où est le lion ?", ["Lion", "Chat", "Chien", "Vache"], 2),
       // Ni dans la banque ni émoji : jamais reprise au hasard.
       q("Où est le doudou ?", ["Doudou", "Chien", "Vache", "Lion"], 3),
-      // Le poisson n'a pas de photo sur le site : son émoji dessiné.
-      q("Où est le poisson ?", ["Poisson", "Cochon", "Lapin", "Canard"], 4),
+      // Le bonnet n'a pas de photo sur le site : son émoji dessiné.
+      q("Où est le bonnet ?", ["Bonnet", "Cochon", "Lapin", "Canard"], 4),
       q("Où est le mouton ?", ["Mouton", "Poule", "Ours", "Coq"], 5),
     ] });
     const toutes = [1, 2, 3, 4, 5].flatMap(siennes);
@@ -4021,12 +4314,12 @@ describe("bibliothèque de quiz et prestations", () => {
     await jeu.locator(".state", { hasText: "en cours" }).waitFor();
     await jeu.locator("button.replay", { hasText: "🔁 Rejouer" }).click();
     await regie.locator("#lib-preview:not([hidden])").waitFor();
-    assert.deepEqual(await regie.locator("#lib-questions li").allTextContents().then((l) => l.map((x) => x.match(/Où est le \w+ \?/)?.[0])), ["Où est le poisson ?", "Où est le mouton ?"]);
+    assert.deepEqual(await regie.locator("#lib-questions li").allTextContents().then((l) => l.map((x) => x.match(/Où est le \w+ \?/)?.[0])), ["Où est le bonnet ?", "Où est le mouton ?"]);
     assert.equal(await regie.locator("#lib-problems").isHidden(), true);
     await regie.click("#lib-after");
     await waitFor(async () => (await petits()).length === 4, "2 questions reprises");
     const rejouees = (await petits()).slice(2);
-    assert.deepEqual(rejouees.map((x) => x.text), ["Où est le poisson ?", "Où est le mouton ?"]);
+    assert.deepEqual(rejouees.map((x) => x.text), ["Où est le bonnet ?", "Où est le mouton ?"]);
     // Dans le programme de la TV : seulement des identifiants d'images libres, toutes copiées dans la partie (la TV et les
     // pupitres les lisent dans games/<code>/choiceImages, comme celles d'un quiz choisi à la main).
     const copiees = (await read("choiceImages")) ?? {};
@@ -4039,11 +4332,11 @@ describe("bibliothèque de quiz et prestations", () => {
         assert.match(copiees[id] ?? "", /^data:image\/jpeg;base64,/, "copiée dans la partie");
       }
     }
-    // Les photos de la banque du site (leur empreinte) ; le poisson, sans photo sur le site : son émoji dessiné.
+    // Les photos de la banque du site (leur empreinte) ; le bonnet, sans photo sur le site : son émoji dessiné.
     const empreinte = (cle) => createHash("sha256").update(`data:image/jpeg;base64,${readFileSync(join(PUBLIC, `banque/${cle}.jpg`)).toString("base64")}`).digest("hex").slice(0, 16);
     assert.deepEqual(rejouees[1].choiceImages, ["mouton", "poule", "ours", "coq"].map(empreinte));
     assert.deepEqual(rejouees[0].choiceImages.slice(1), ["cochon", "lapin", "canard"].map(empreinte));
-    assert.equal(existsSync(join(PUBLIC, "banque/poisson.jpg")), false);
+    assert.equal(existsSync(join(PUBLIC, "banque/bonnet.jpg")), false);
     assert.equal(new Set(rejouees.flatMap((x) => x.choiceImages)).size, 8);
     await capture(regie, "rejouer-quiz-illustre");
     await regie.context().close();
@@ -5312,6 +5605,149 @@ describe("bibliothèque de quiz et prestations", () => {
     await essai.locator("#login-form").waitFor();
     assert.match(await essai.evaluate(() => getComputedStyle(document.body, "::before").content), /Régie PC d'essai/);
     await essai.context().close();
+  });
+
+  test("Bibliothèque › ❓ Questions (cedric, 22/10) : toutes prêtes, mes questions, mes packs JSON avec leur illustration ou une alerte", async () => {
+    await seedLibrary("quizzes", { animaux: ANIMAUX, mien: { title: "Mon quiz", source: "saisie", updatedAt: 5, questions: [
+      { text: "De quelle couleur est le ciel ?", choices: ["Bleu", "Vert"], correct: 0, status: "validee", image: "☁️" },
+      { text: "Question sans image", choices: ["Oui", "Non"], correct: 0, status: "validee" },
+    ] } });
+    const page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="questions"]');
+    await page.locator("#library-questions:not([hidden])").waitFor();
+    assert.equal(await page.locator("#library-images").isHidden(), true);
+
+    // Aperçu : les trois groupes, avec l'alerte sur ce qui n'a pas d'illustration.
+    await page.locator('.q-groupe[data-groupe="illustrees"] .q-item').first().waitFor();
+    await page.locator('.q-groupe[data-groupe="miennes"] .q-item[data-question="mien/0"] .q-illus.emoji', { hasText: "☁️" }).waitFor();
+    await page.locator('.q-groupe[data-groupe="miennes"] .q-item.sans-illus[data-question="mien/1"] .q-alerte', { hasText: "⚠ Pas d'illustration" }).waitFor();
+    await page.locator('.q-groupe[data-groupe="packs"] .pack[data-pack="animaux"]', { hasText: "⚠ 3 sans illustration" }).waitFor();
+    await capture(page, "questions-apercu");
+    // Ses questions se suppriment (cedric, 22/10) ; pas celles toutes prêtes de l'appli.
+    assert.equal(await page.locator('.q-groupe[data-groupe="illustrees"] .q-item').first().getByRole("button", { name: "Supprimer" }).count(), 0);
+    assert.equal(await page.locator('.q-groupe[data-groupe="illustrees"] .q-coche').count(), 0);
+    await page.locator('.q-item[data-question="mien/1"]').getByRole("button", { name: "Supprimer" }).click();
+    assert.equal(await repondreFenetre(page), "Supprimer la question « Question sans image » ?");
+    await page.locator("#q-status", { hasText: "Question supprimée." }).waitFor();
+    await waitFor(async () => (await library("quizzes/mien/questions"))?.length === 1, "une question de moins");
+    assert.equal((await library("quizzes/mien/questions"))[0].text, "De quelle couleur est le ciel ?");
+    // Annuler ne supprime rien ; la dernière question d'un quiz l'emporte avec elle, et la fenêtre le dit.
+    await page.locator('.q-item[data-question="mien/0"]').getByRole("button", { name: "Supprimer" }).click();
+    await repondreFenetre(page, { accepter: false });
+    assert.equal((await library("quizzes/mien/questions")).length, 1);
+    await page.locator('.q-item[data-question="mien/0"]').getByRole("button", { name: "Supprimer" }).click();
+    assert.match(await repondreFenetre(page), /Le quiz « Mon quiz » n'a plus d'autre question : il sera supprimé aussi\./);
+    await waitFor(async () => (await library("quizzes/mien")) === null, "quiz vidé supprimé");
+    await page.locator('.q-groupe[data-groupe="miennes"] .q-item').first().waitFor({ state: "detached" });
+    // Une seule recherche pour tout.
+    await page.fill("#q-search", "miaou");
+    await page.locator('.q-groupe[data-groupe="illustrees"] .q-item', { hasText: "miaou" }).first().waitFor();
+    await waitFor(async () => await page.locator('.q-groupe[data-groupe="packs"] .pack').count() === 0, "aucun pack ne parle de miaou");
+    await page.fill("#q-search", "");
+    // Quiz illustré tout prêt : une puce par famille.
+    await page.click('#q-groups [data-groupe="illustrees"]');
+    const familles = page.locator(".q-categories [data-categorie]");
+    await familles.first().waitFor();
+    assert.ok(await familles.count() >= 4);
+    const nomFamille = await familles.first().getAttribute("data-categorie");
+    await familles.first().click();
+    await page.locator(`.q-categories [data-categorie="${nomFamille}"].active`).waitFor();
+    await page.locator("#q-list .q-item").first().waitFor();
+
+    // Mes packs : un fichier JSON avec deux packs, une image déposée avec lui, un autre fichier illisible.
+    await page.click('#q-groups [data-groupe="packs"]');
+    await page.locator("#pack-import:not([hidden])").waitFor();
+    assert.match(await page.locator("#pack-exemple").textContent(), /"illustration": "🐘"/);
+    const PACKS = { packs: [
+      { title: "Les animaux de la savane", theme: "Animaux", questions: [
+        { text: "Quel animal a une très longue trompe ?", choices: ["Éléphant", "Girafe", "Lion", "Zèbre"], correct: 0, illustration: "🐘" },
+        { text: "Quel animal est le roi de la savane ?", choices: ["Hippopotame", "Lion", "Gazelle", "Autruche"], correct: 1, illustration: "lion.png" },
+        { text: "Combien de pattes a une girafe ?", correct: 4, illustration: "🦒" },
+        { text: "Quel animal a des rayures ?", choices: ["Zèbre", "Lion"], correct: 0, illustration: "zebre.png" },
+        { text: "Sans réponses" },
+      ] },
+      { title: "Espace", theme: "Sciences", questions: [{ text: "Quelle planète est rouge ?", choices: ["Mars", "Vénus"], correct: "Mars" }] },
+    ] };
+    await page.setInputFiles("#pack-file", [
+      { name: "savane.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(PACKS)) },
+      { name: "lion.png", mimeType: "image/png", buffer: png([200, 160, 60]) },
+      { name: "casse.json", mimeType: "application/json", buffer: Buffer.from("{pas du json") },
+    ]);
+    await page.locator("#pack-status", { hasText: "2 packs importés : 5 questions, ⚠ 2 sans illustration, 1 ignorée (sans réponses). casse.json : Ce fichier n'est pas un JSON lisible." }).waitFor();
+    const quizzes = await library("quizzes");
+    const [idSavane, savane] = Object.entries(quizzes).find(([, q]) => q.title === "Les animaux de la savane");
+    const [idEspace, espace] = Object.entries(quizzes).find(([, q]) => q.title === "Espace");
+    assert.deepEqual([savane.source, savane.theme, savane.kind, savane.questions.length], ["json", "Animaux", "classique", 4]);
+    assert.equal(savane.questions[0].image, "🐘");
+    assert.match(savane.questions[1].imageId, /^[0-9a-f]{16}$/);
+    assert.match(await library(`images/${savane.questions[1].imageId}`), /^data:image\//);
+    assert.deepEqual([savane.questions[2].kind, savane.questions[2].correct, savane.questions[2].choices], ["number", 4, undefined]);
+    assert.equal(savane.questions[3].imageId, undefined);
+    assert.ok(savane.questions.every((q) => q.status === "validee"));
+    assert.deepEqual([espace.theme, espace.questions[0].correct, espace.questions[0].status], ["Sciences", 0, "validee"]);
+    assert.deepEqual(quizzes.animaux, ANIMAUX, "les autres quiz ne bougent pas");
+    // Les packs importés à l'instant sont encadrés ; les packs sont rangés par thème (sans thème à la fin).
+    await page.locator(`.pack.copie-recente[data-pack="${idSavane}"]`).waitFor();
+    assert.deepEqual(await page.locator(".q-theme h3").allInnerTexts(), ["ANIMAUX · 1 PACK", "SCIENCES · 1 PACK", "SANS THÈME · 1 PACK"]);
+    await page.locator(`.q-theme[data-theme="Animaux"] .pack[data-pack="${idSavane}"]`).waitFor();
+    await page.locator('.q-theme[data-theme="Sans thème"] .pack[data-pack="animaux"]').waitFor();
+
+    // Un pack s'ouvre sur ses questions : illustration là, ou l'alerte.
+    await page.locator(`.pack[data-pack="${idSavane}"]`, { hasText: "⚠ 1 sans illustration" }).getByRole("button", { name: "Ouvrir" }).click();
+    await page.locator("#q-list h2", { hasText: "Les animaux de la savane" }).waitFor();
+    assert.equal(await page.locator("#pack-import").isHidden(), true);
+    assert.equal(await page.locator("#q-list .q-item").count(), 4);
+    await page.locator(`.q-item[data-question="${idSavane}/0"] .q-illus.emoji`, { hasText: "🐘" }).waitFor();
+    await page.locator(`.q-item[data-question="${idSavane}/1"] img.q-illus[src^="data:image"]`).waitFor();
+    await page.locator(`.q-item[data-question="${idSavane}/2"] .q-nombre`, { hasText: "réponse : 4" }).waitFor();
+    await page.locator(`.q-item.sans-illus[data-question="${idSavane}/3"] .q-illus.vide`).waitFor();
+    await page.locator(`.q-item.sans-illus[data-question="${idSavane}/3"] .q-alerte`, { hasText: "⚠ Pas d'illustration" }).waitFor();
+    assert.equal(await page.locator(".q-item.sans-illus").count(), 1);
+    // Plusieurs questions cochées, supprimées ensemble.
+    await page.locator(`.q-item[data-question="${idSavane}/0"] .q-coche`).check();
+    await page.locator(`.q-item[data-question="${idSavane}/2"] .q-coche`).check();
+    await page.locator("#q-selection:not([hidden])", { hasText: "2 questions cochées" }).waitFor();
+    await capture(page, "questions-pack-ouvert");
+    // Sur l'écran du PC, « Éditer » et « Supprimer » restent côte à côte (cedric, 22/10 : « 30 cm » entre les deux).
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const pied = page.locator(`.q-item[data-question="${idSavane}/1"] .q-pied`);
+    const [editer, supprimer] = [await pied.getByRole("button", { name: "Éditer" }).boundingBox(), await pied.getByRole("button", { name: "Supprimer" }).boundingBox()];
+    assert.ok(Math.abs(editer.y - supprimer.y) < 2 && supprimer.x - (editer.x + editer.width) < 20, `boutons écartés : ${JSON.stringify({ editer, supprimer })}`);
+    await capture(page, "questions-pack-pc", { pleinePage: false });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.click("#q-tout");
+    await page.locator("#q-selection-n", { hasText: "4 questions cochées" }).waitFor();
+    assert.equal(await page.locator("#q-tout").isHidden(), true);
+    await page.click("#q-aucune");
+    await page.locator("#q-selection").waitFor({ state: "hidden" });
+    await page.locator(`.q-item[data-question="${idSavane}/0"] .q-coche`).check();
+    await page.locator(`.q-item[data-question="${idSavane}/2"] .q-coche`).check();
+    await page.click("#q-supprimer");
+    assert.equal(await repondreFenetre(page), "Supprimer 2 questions ?");
+    await page.locator("#q-status", { hasText: "2 questions supprimées." }).waitFor();
+    await waitFor(async () => (await library(`quizzes/${idSavane}/questions`))?.length === 2, "deux questions de moins dans le pack");
+    assert.deepEqual((await library(`quizzes/${idSavane}/questions`)).map((q) => q.text), ["Quel animal est le roi de la savane ?", "Quel animal a des rayures ?"]);
+    await page.locator("#q-selection").waitFor({ state: "hidden" });
+    assert.equal(await page.locator("#q-list .q-item").count(), 2);
+
+    // « Éditer le pack » : la relecture habituelle du quiz.
+    await page.getByRole("button", { name: "Éditer le pack" }).click();
+    await page.locator("#screen-review:not([hidden])").waitFor();
+    assert.equal(await page.locator("#rv-title").inputValue(), "Les animaux de la savane");
+    await page.goBack();
+    await page.locator("#library-questions:not([hidden])").waitFor();
+
+    // Renommer et Supprimer un pack (fenêtres de la Régie PC).
+    await page.click('#q-groups [data-groupe="packs"]');
+    await page.locator(`.pack[data-pack="${idSavane}"]`).getByRole("button", { name: "Renommer" }).click();
+    await repondreFenetre(page, { texte: "La savane" });
+    await waitFor(async () => (await library(`quizzes/${idSavane}`)).title === "La savane", "pack renommé");
+    await page.locator(`.pack[data-pack="${idEspace}"]`).getByRole("button", { name: "Supprimer" }).click();
+    assert.match(await repondreFenetre(page), /Supprimer le quiz « Espace » \?/);
+    await waitFor(async () => (await library(`quizzes/${idEspace}`)) === null, "pack supprimé");
+    await page.locator(`.pack[data-pack="${idEspace}"]`).waitFor({ state: "detached" });
+    await page.context().close();
   });
 
   test("prestation de test : ajoutée en un clic sans rien remplacer, modifiée dans l'admin, chargée telle quelle sur la TV", async () => {

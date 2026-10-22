@@ -50,6 +50,9 @@ import {
   correspond, categoriesDe, categoriesPerso, ficheImage, motsCles,
 } from "./mediatheque.js";
 import { DOSSIERS, classerPartie, bilan, effacements, passageAFaire, moDe, texteMo, texteGardees } from "./nettoyage.js";
+import { GROUPES_QUESTIONS, questionsClassiquesPretes, questionsIllustreesPretes, mesQuestions, mesPacks, questionsDeTest, questionCorrespond, lirePacks, illustration, retirerQuestions, packsParTheme } from "./questions.js";
+import { NIVEAUX_CHIFFRES, libelleNiveau, niveauPourAge, tirerChiffres } from "./banque-chiffres.js";
+import { QUESTIONS_TOUT_PRETES, THEMES_TOUT_PRETS, estJusteChiffre } from "./banque-classiques.js";
 
 // Petit œil sur les champs de mot de passe : voir ce qu'on tape (majuscules, caractère en trop).
 afficherMotsDePasse();
@@ -139,6 +142,9 @@ function h(tag, props = {}, ...kids) {
   el.append(...kids.flat().filter((x) => x != null && x !== false));
   return el;
 }
+
+/** Remplace le contenu de [el] ; les morceaux absents (null, false) sont sautés (sinon le navigateur écrit « null »). */
+const remplir = (el, ...kids) => el.replaceChildren(...kids.filter((x) => x != null && x !== false));
 
 function status(id, text, ok = false) {
   $(id).textContent = text;
@@ -1752,10 +1758,10 @@ dropZone.addEventListener("drop", async (e) => {
  * Associe les images déposées aux réponses qui les nomment : chaque image est réduite et rangée dans la
  * bibliothèque ; une image introuvable est signalée à la relecture, la réponse reste en texte.
  */
-async function attachImportImages(questions) {
+async function attachImportImages(questions, images = importImages, statut = "import-status") {
   let done = 0;
-  const find = (name) => importImages.get(imageKey(name)) ?? importImages.get(imageKey(name).replace(/\.[a-z0-9]+$/, ".png"))
-    ?? [...importImages.entries()].find(([key]) => key.replace(/\.[a-z0-9]+$/, "") === imageKey(name).replace(/\.[a-z0-9]+$/, ""))?.[1];
+  const find = (name) => images.get(imageKey(name)) ?? images.get(imageKey(name).replace(/\.[a-z0-9]+$/, ".png"))
+    ?? [...images.entries()].find(([key]) => key.replace(/\.[a-z0-9]+$/, "") === imageKey(name).replace(/\.[a-z0-9]+$/, ""))?.[1];
   for (const q of questions) {
     // Image de révélation : rangée comme une photo d'illustration, montrée sur la TV avec la bonne réponse.
     if (q.revealFile) {
@@ -1763,7 +1769,7 @@ async function attachImportImages(questions) {
       q.missingImages ??= [];
       if (!f) q.missingImages.push(q.revealFile);
       else {
-        status("import-status", `Préparation des images… (${++done})`, true);
+        status(statut, `Préparation des images… (${++done})`, true);
         try { q.imageId = await storeIllustration(f); } catch (err) { console.error(err); q.missingImages.push(q.revealFile); }
       }
       delete q.revealFile;
@@ -1775,7 +1781,7 @@ async function attachImportImages(questions) {
       if (!name) { q.choiceImages[k] = null; continue; }
       const f = find(name);
       if (!f) { q.choiceImages[k] = null; q.missingImages.push(name); continue; }
-      status("import-status", `Préparation des images… (${++done})`, true);
+      status(statut, `Préparation des images… (${++done})`, true);
       try { q.choiceImages[k] = await storeChoiceImage(f); } catch (err) { console.error(err); q.choiceImages[k] = null; q.missingImages.push(name); }
     }
     delete q.imageFiles;
@@ -1831,6 +1837,11 @@ function review(id, quiz) {
   $("rv-banque").hidden = draft.kind !== "photo";
   $("rv-banque-panel").hidden = true;
   $("rv-add-tf").hidden = draft.kind === "photo";
+  $("rv-chiffres").hidden = draft.kind === "photo";
+  $("rv-chiffres-panel").hidden = true;
+  chiffresCoches.clear();
+  chiffresRecherche = "";
+  chiffresType = null;
   status("rv-status", "");
   show("review");
   renderReview();
@@ -1977,31 +1988,40 @@ function illustrationRow(q, i) {
       type: "button", class: "btn small secondary", text: "🖼️ Bibliothèque…", title: "Choisir un émoji, une photo libre ou une de vos images",
       onclick: async () => {
         const x = await choisirDansBibliotheque({ titre: "Illustration de la question", recherche: nomReponse(q) });
-        if (!x) return;
-        if (x.groupe === "emojis") {
-          q.image = cleanEmoji(x.emoji);
-          row.querySelector(".q-emoji").value = q.image;
-          refreshMissing();
-          noterEcran();
-          info.textContent = `Émoji ${x.emoji} choisi. Pensez à enregistrer le quiz.`;
-          return;
-        }
-        info.textContent = "Préparation de la photo…";
-        try {
-          q.imageId = dansLaBase(x) ? x.id : await storeIllustration(await blobDe(x));
-          q.imageFile = null;
-          noterEcran();
-          remove.hidden = false;
-          showPreview();
-          info.textContent = `« ${x.nom} » choisie dans la bibliothèque : cliquez dessus pour la cadrer. Pensez à enregistrer le quiz.`;
-        } catch (err) {
-          console.error(err);
-          info.textContent = "Image illisible : choisissez-en une autre.";
-        }
+        if (x) await poser(x);
       },
     }),
+    // L'image copiée dans la Bibliothèque (« 📋 », cedric 22/10) se pose ici d'un clic.
+    imageCopiee ? h("button", {
+      type: "button", class: "btn small secondary q-coller", text: `📋 Coller « ${nomCopie(imageCopiee)} »`, title: "L'image copiée dans la Bibliothèque",
+      onclick: () => poser(imageCopiee),
+    }) : null,
     file, preview, remove, info);
   return row;
+
+  /** Pose une image de la Bibliothèque (choisie ou copiée) : l'émoji dans sa case, une photo comme illustration. */
+  async function poser(x) {
+    if (x.groupe === "emojis") {
+      q.image = cleanEmoji(x.emoji);
+      row.querySelector(".q-emoji").value = q.image;
+      refreshMissing();
+      noterEcran();
+      info.textContent = `Émoji ${x.emoji} choisi. Pensez à enregistrer le quiz.`;
+      return;
+    }
+    info.textContent = "Préparation de la photo…";
+    try {
+      q.imageId = dansLaBase(x) ? x.id : await storeIllustration(await blobDe(x));
+      q.imageFile = null;
+      noterEcran();
+      remove.hidden = false;
+      showPreview();
+      info.textContent = `« ${x.nom} » choisie dans la bibliothèque : cliquez dessus pour la cadrer. Pensez à enregistrer le quiz.`;
+    } catch (err) {
+      console.error(err);
+      info.textContent = "Image illisible : choisissez-en une autre.";
+    }
+  }
 }
 
 /**
@@ -2067,25 +2087,33 @@ function choicePhoto(q, slots, k) {
       onclick: async (e) => {
         e.preventDefault();
         const x = await choisirDansBibliotheque({ titre: `Image de la réponse ${LETTERS[k]}`, groupes: ["photos", "miennes", "pochettes"], recherche: slots[k].replace(/^[^\p{L}\p{N}]+/u, "").trim() });
-        if (!x) return;
-        try {
-          (q.slotImages ??= [])[k] = dansLaBase(x) ? x.id : await storeChoiceImage(await blobDe(x));
-          if (q.slotFiles) q.slotFiles[k] = null;
-          setTimeout(noterEcran, 0);
-          if (!slots[k].trim()) {
-            slots[k] = x.nom;
-            const input = $("rv-list").querySelector(`[data-q="${draft.questions.indexOf(q)}"]`)?.querySelectorAll(".q-choice")[k];
-            if (input) input.value = slots[k];
-          }
-          show_();
-          syncChoices(q, slots);
-        } catch (err) {
-          console.error(err);
-          status("rv-status", "Image illisible : choisissez-en une autre.");
-        }
+        if (x) await poserReponse(x);
       },
     }),
+    // La photo copiée dans la Bibliothèque (« 📋 ») ; pas un émoji : une réponse en image est une photo.
+    imageCopiee && imageCopiee.groupe !== "emojis" ? h("button", {
+      type: "button", class: "icon q-coller", title: `Coller « ${nomCopie(imageCopiee)} » (copiée dans la Bibliothèque)`, text: "📋",
+      onclick: (e) => { e.preventDefault(); poserReponse(imageCopiee); },
+    }) : null,
     file);
+  /** Pose une photo de la Bibliothèque (choisie ou copiée) comme image de la réponse ; son nom si la case est vide. */
+  async function poserReponse(x) {
+    try {
+      (q.slotImages ??= [])[k] = dansLaBase(x) ? x.id : await storeChoiceImage(await blobDe(x));
+      if (q.slotFiles) q.slotFiles[k] = null;
+      setTimeout(noterEcran, 0);
+      if (!slots[k].trim()) {
+        slots[k] = x.nom;
+        const input = $("rv-list").querySelector(`[data-q="${draft.questions.indexOf(q)}"]`)?.querySelectorAll(".q-choice")[k];
+        if (input) input.value = slots[k];
+      }
+      show_();
+      syncChoices(q, slots);
+    } catch (err) {
+      console.error(err);
+      status("rv-status", "Image illisible : choisissez-en une autre.");
+    }
+  }
 }
 
 /**
@@ -2263,6 +2291,141 @@ function renderBanque() {
       deja.has(q.text) ? h("span", { class: "tag", text: "déjà dans le quiz" }) : null)),
       liste.length > montrees.length ? h("p", { class: "hint small", text: `… et ${liste.length - montrees.length} autres : choisissez un thème ou cherchez un mot.` }) : null,
       liste.length ? null : h("p", { class: "hint small", text: "Aucune question ne correspond à cette recherche." })));
+}
+
+// ---------- Le quiz classique tout prêt dans un quiz classique (cedric, 22/10) ----------
+// Les questions à 4 réponses (avec leur émoji pour la révélation) et les Juste Chiffre (sans émoji : le compteur).
+
+/** Les deux sortes de questions toutes prêtes : une puce chacune. */
+const TYPES_TOUT_PRETS = { qcm: ["❓ 4 réponses", (x) => !estJusteChiffre(x)], nombre: ["🔢 Juste Chiffre", estJusteChiffre] };
+let chiffresType = null;
+let chiffresTheme = null;
+let chiffresNiveau = null;
+let chiffresRecherche = "";
+/** Questions cochées : identifiant → question de la banque, dans l'ordre où elles ont été cochées. */
+const chiffresCoches = new Map();
+
+$("rv-chiffres").onclick = () => {
+  const panel = $("rv-chiffres-panel");
+  panel.hidden = !panel.hidden;
+  if (panel.hidden) return;
+  // L'âge du quiz, s'il est rempli, choisit d'avance son niveau (Facile, Moyen ou Difficile).
+  chiffresNiveau = niveauPourAge(Number.parseInt($("rv-age-min").value, 10));
+  renderChiffres();
+};
+
+function renderChiffres() {
+  const panel = $("rv-chiffres-panel");
+  const deja = new Set((draft?.questions ?? []).map((q) => q.text.trim()));
+  for (const [id, q] of chiffresCoches) if (deja.has(q.text)) chiffresCoches.delete(id);
+  const duType = (x) => !chiffresType || TYPES_TOUT_PRETS[chiffresType][1](x);
+  const duNiveau = (x) => !chiffresNiveau || x.niveau === chiffresNiveau;
+  // Les thèmes qui ont des questions de cette sorte à ce niveau.
+  const pourAge = QUESTIONS_TOUT_PRETES.filter((x) => duType(x) && duNiveau(x));
+  const themes = Object.entries(THEMES_TOUT_PRETS).filter(([k]) => pourAge.some((x) => x.theme === k));
+  if (chiffresTheme && !themes.some(([k]) => k === chiffresTheme)) chiffresTheme = null;
+  const choix = pourAge.filter((x) => !chiffresTheme || x.theme === chiffresTheme);
+  const trouvees = parPertinence(choix.filter((x) => contientTout([x.text, ...(x.choices ?? []), THEMES_TOUT_PRETS[x.theme]], chiffresRecherche)),
+    chiffresRecherche, (x) => [x.text]);
+  // Les questions cochées d'abord (même d'un autre thème), puis les autres.
+  const liste = [...chiffresCoches.values(), ...trouvees.filter((x) => !chiffresCoches.has(x.id))];
+  const chip = (label, theme) => h("button", {
+    type: "button", class: `chip${chiffresTheme === theme ? " active" : ""}`, "data-theme": theme ?? "tous", text: label,
+    onclick: () => { chiffresTheme = theme; renderChiffres(); },
+  });
+  const chipType = (label, type) => h("button", {
+    type: "button", class: `chip${chiffresType === type ? " active" : ""}`, "data-type": type ?? "tous", text: label,
+    onclick: () => { chiffresType = type; renderChiffres(); },
+  });
+  const bouton = h("button", { type: "button", id: "rv-chiffres-add", class: "btn", onclick: () => ajouterChiffres() });
+  const majBouton = () => {
+    const n = chiffresCoches.size;
+    bouton.disabled = !n;
+    bouton.textContent = n ? `Ajouter ${n > 1 ? `les ${n} questions cochées` : "la question cochée"}` : "Cochez des questions";
+  };
+  majBouton();
+  const recherche = h("input", {
+    type: "search", id: "rv-chiffres-cherche", placeholder: "Chercher (pattes, planète, Disney, Paris…)", value: chiffresRecherche,
+    oninput: (e) => {
+      chiffresRecherche = e.target.value;
+      clearTimeout(recherche.timer);
+      recherche.timer = setTimeout(() => { renderChiffres(); $("rv-chiffres-cherche")?.focus(); }, 250);
+    },
+  });
+  // Trois niveaux sans chevauchement (cedric, 22/10) : une puce chacun, avec son nombre de questions.
+  const chipNiveau = (label, niveau) => h("button", {
+    type: "button", class: `chip${chiffresNiveau === niveau ? " active" : ""}`, "data-niveau": niveau ?? "tous",
+    text: `${label} (${QUESTIONS_TOUT_PRETES.filter((x) => duType(x) && (!niveau || x.niveau === niveau)).length})`,
+    onclick: () => { chiffresNiveau = niveau; renderChiffres(); },
+  });
+  panel.replaceChildren(
+    h("p", { class: "label", text: "Quiz classique tout prêt" }),
+    h("p", { class: "hint small", text: `${plural(QUESTIONS_TOUT_PRETES.filter(TYPES_TOUT_PRETS.qcm[1]).length, "question")} à 4 réponses, avec leur image montrée à la révélation, et ${QUESTIONS_TOUT_PRETES.filter(estJusteChiffre).length} Juste Chiffre (chaque équipe tape un nombre, la plus proche gagne ; la TV montre son compteur, sans image). Choisissez la sorte, le niveau et le thème, cochez, ou tirez-en 5 au hasard.` }),
+    h("div", { class: "chips" }, chipType("Toutes", null), ...Object.entries(TYPES_TOUT_PRETS).map(([k, [label]]) => chipType(label, k))),
+    h("div", { class: "chips niveaux" }, chipNiveau("Tous les niveaux", null), ...Object.keys(NIVEAUX_CHIFFRES).map(Number).map((n) => chipNiveau(libelleNiveau(n), n))),
+    h("div", { class: "chips" }, chip("Tous les thèmes", null), ...themes.map(([k, label]) => chip(label, k))),
+    h("div", { class: "row" }, recherche),
+    h("div", { class: "row" },
+      h("button", {
+        type: "button", id: "rv-chiffres-hasard", class: "btn secondary", text: "🎲 5 au hasard",
+        onclick: () => {
+          const tirage = tirerChiffres(5, { theme: chiffresTheme, niveau: chiffresNiveau, exclus: deja, liste: QUESTIONS_TOUT_PRETES.filter(duType) });
+          chiffresCoches.clear();
+          tirage.forEach((x) => chiffresCoches.set(x.id, x));
+          chiffresRecherche = "";
+          renderChiffres();
+          if (!tirage.length) $("rv-chiffres-status").textContent = "Plus aucune question libre pour ce thème et ce niveau.";
+        },
+      }),
+      bouton,
+      h("span", { id: "rv-chiffres-status", class: "hint small" })),
+    h("div", { class: "banque-list" }, ...liste.map((x) => h("label", { class: `banque-q${deja.has(x.text) ? " deja" : ""}`, "data-chiffre": x.id },
+      h("input", {
+        type: "checkbox", checked: chiffresCoches.has(x.id), disabled: deja.has(x.text),
+        onchange: (e) => { if (e.target.checked) chiffresCoches.set(x.id, x); else chiffresCoches.delete(x.id); majBouton(); },
+      }),
+      // Juste Chiffre : 🔢, jamais d'émoji (cedric, 22/10) ; 4 réponses : l'image de la révélation (sa photo, sinon son
+      // émoji au niveau Facile) et les réponses, la bonne marquée.
+      h("span", { class: "banque-texte" }, x.photo ? h("img", { class: "q-mini", src: x.photo, alt: "", loading: "lazy" }) : null,
+        `${estJusteChiffre(x) ? "🔢 " : x.photo ? "" : x.emoji ? `${x.emoji} ` : "⚠ "}${x.text}`),
+      h("span", { class: "banque-mots", text: [
+        estJusteChiffre(x) ? `Juste Chiffre · réponse : ${x.correct.toLocaleString("fr-FR")}` : x.choices.map((c, k) => (k === x.correct ? `✓ ${c}` : c)).join(" · "),
+        THEMES_TOUT_PRETS[x.theme], libelleNiveau(x.niveau)].join(" · ") }),
+      deja.has(x.text) ? h("span", { class: "tag", text: "déjà dans le quiz" }) : null)),
+      liste.length ? null : h("p", { class: "hint small", text: chiffresRecherche ? "Aucune question ne correspond à cette recherche." : "Aucune question pour ce thème et ce niveau." })));
+}
+
+/**
+ * Ajoute les questions cochées au quiz, déjà validées (à relire) : un Juste Chiffre sans image ; une question à
+ * 4 réponses avec sa photo pour la révélation (rangée une fois dans la bibliothèque des images), sinon son émoji
+ * (niveau Facile), ses réponses mélangées (la bonne n'est pas toujours la A).
+ */
+async function ajouterChiffres() {
+  const choisies = [...chiffresCoches.values()];
+  if (!choisies.length) return;
+  $("rv-chiffres-add").disabled = true;
+  if (choisies.some((x) => x.photo)) status("rv-status", "Ajout des photos…", true);
+  for (const x of choisies) {
+    const nombre = estJusteChiffre(x);
+    const choices = nombre ? [] : shuffle(x.choices);
+    let imageId = null;
+    if (x.photo) {
+      try {
+        const res = await fetch(x.photo);
+        if (res.ok && (res.headers.get("content-type") ?? "").startsWith("image/")) imageId = await storeIllustration(await res.blob());
+      } catch (err) { console.error(err); /* sans photo : l'émoji s'il y en a un, sinon l'alerte « Pas d'illustration » */ }
+    }
+    draft.questions.push({
+      text: x.text, choices, correct: nombre ? x.correct : choices.indexOf(x.choices[x.correct]), duration: null, double: false,
+      status: "validee", marks: 0, image: nombre || imageId ? "" : x.emoji ?? "", imageId, kind: nombre ? "number" : null,
+      slotImages: [null, null, null, null], missingImages: [],
+    });
+  }
+  chiffresCoches.clear();
+  renderReview();
+  renderChiffres();
+  noterEcran();
+  status("rv-status", `${plural(choisies.length, "question toute prête ajoutée", "questions toutes prêtes ajoutées")} : relisez-les, puis enregistrez le quiz.`, true);
 }
 
 /** Photos de la banque, mot par mot, comme sur la TV ; Sarah peut mettre la sienne (rangée dans library/contents/petits). */
@@ -2614,7 +2777,7 @@ function afficherBilan(parties) {
         h("small", { class: "raison", text: r.raison }),
         ...r.notes.map((n) => h("small", { class: "note", text: n }))));
   };
-  $("nettoyage-bilan").replaceChildren(
+  remplir($("nettoyage-bilan"),
     h("div", { class: "nettoyage-chiffres" },
       chiffre(b.parties, b.parties > 1 ? "parties en ligne" : "partie en ligne", "parties"),
       chiffre(b.aNettoyer, "à nettoyer", "a-nettoyer"),
@@ -2777,7 +2940,7 @@ async function afficherJournal() {
   try {
     const [passages, nettoyages] = await Promise.all([derniers("maintenance/passages", 5), derniers("maintenance/nettoyages", 10)]);
     if (tour !== tourJournal) return;
-    box.replaceChildren(
+    remplir(box,
       h("h3", { text: "Derniers passages" }),
       passageAuto ? h("p", { id: "nettoyage-auto", class: "hint small", text: passageAuto }) : null,
       h("ul", { class: "nettoyage-passages" }, ...(passages.length ? passages.map(lignePassage) : [h("li", { text: "Aucun passage pour l'instant." })])),
@@ -3167,8 +3330,6 @@ function songRow(song, tools) {
     h("div", { class: "song-tools" }, ...tools));
 }
 
-const MAX_SONGS_SHOWN = 60;
-
 /** Bibliothèque des sons : on y regarde les chansons supprimées (pour les remettre) au lieu des autres. */
 let voirRetirees = false;
 /** Chansons cochées (cedric, 21/10 : sélection simple ou multiple, puis « Supprimer »), par clé de chanson. */
@@ -3364,14 +3525,14 @@ function renderSongs() {
     h("button", { type: "button", class: "btn small danger", onclick: () => effacerPourDeBon(all), text: `Tout effacer pour de bon (${all.length})` }),
     h("span", { class: "hint small", text: "Effacées pour de bon, les chansons libèrent leur place en ligne et ne peuvent plus être remises." }))] : []) : found.length ? [h("div", { class: "song song-entete" },
     h("span"), h("span", { text: "Pochette" }), enteteTri("artiste", "Artiste"), enteteTri("titre", "Titre"), h("span", { text: "Paroles" }), h("span", { text: "Moments" }), h("span"), h("span"))] : []),
-  ...found.slice(0, MAX_SONGS_SHOWN).map((x, i) => (voirRetirees
+  // Toutes les chansons, sans limite ni bouton « Tout afficher » : la recherche filtre (cedric, 22/10).
+  ...found.map((x, i) => (voirRetirees
     ? h("div", { class: "song", "data-song": x.id },
       h("div", { class: "song-name" }, h("b", { text: x.title }), h("span", { class: "song-meta", text: x.artist })),
       h("div", { class: "song-tools" },
         h("button", { type: "button", class: "btn", onclick: () => remettreChanson(x), text: "Remettre" }),
         h("button", { type: "button", class: "btn danger", onclick: () => effacerPourDeBon([x]), text: "Effacer pour de bon" })))
     : ligneChanson(x, i))));
-  if (found.length > MAX_SONGS_SHOWN) $("song-list").append(h("p", { class: "hint small", text: `… et ${found.length - MAX_SONGS_SHOWN} autres : précisez la recherche.` }));
   if (!all.length && !voirRetirees) {
     $("song-list").append(h("p", { class: "hint", text: retirees.length ? "Toutes vos chansons sont supprimées : « 🗑 Supprimées » pour les remettre."
       : "Aucune chanson pour l'instant : ajoutez vos fichiers musicaux." }));
@@ -4689,9 +4850,341 @@ function renderLibrary(force = false) {
   });
   $("library-images").hidden = libTab !== "images";
   $("library-sons").hidden = libTab !== "sons";
+  $("library-questions").hidden = libTab !== "questions";
   if (libTab === "sons") renderSongs();
+  else if (libTab === "questions") renderQuestions();
   else renderMedias(force);
 }
+
+// ---------- Bibliothèque › Questions (cedric, 22/10) ----------
+
+/** Groupe ouvert : null (tous en aperçu) ou une clé de GROUPES_QUESTIONS ; pack ouvert ; famille ou thème choisi. */
+let qGroupe = null;
+let qPack = null;
+let qCategorie = null;
+/** Quiz classique tout prêt : toutes, les questions à 4 réponses (« qcm ») ou les Juste Chiffre (« nombre ») ; un niveau. */
+let qType = null;
+let qNiveau = null;
+/** Packs importés à l'instant : encadrés quelques secondes en tête de liste. */
+let packsNouveaux = new Set();
+/** Questions toutes prêtes du quiz illustré : fabriquées une fois (leurs mauvaises réponses sont tirées au hasard). */
+let illustreesCache = null;
+const classiquesPretes = questionsClassiquesPretes();
+/** Ses questions cochées (clés « quiz/numéro »), à supprimer ensemble ; celles de la liste affichée. */
+const qSelection = new Set();
+let qListees = [];
+const QUESTIONS_APERCU = 4;
+const QUESTIONS_MAX = 300;
+const EXEMPLE_PACK = {
+  packs: [{
+    title: "Les animaux de la savane", theme: "Animaux",
+    questions: [
+      { text: "Quel animal a une très longue trompe ?", choices: ["Éléphant", "Girafe", "Lion", "Zèbre"], correct: 0, illustration: "🐘" },
+      { text: "Quel animal est le roi de la savane ?", choices: ["Hippopotame", "Lion", "Gazelle", "Autruche"], correct: 1, illustration: "lion.png" },
+      { text: "Combien de pattes a une girafe ?", correct: 4, illustration: "🦒" },
+    ],
+  }],
+};
+$("pack-exemple").textContent = JSON.stringify(EXEMPLE_PACK, null, 2);
+
+function groupesQuestions() {
+  illustreesCache ??= questionsIllustreesPretes();
+  return { classiques: classiquesPretes, illustrees: illustreesCache, miennes: mesQuestions(quizzes), packs: mesPacks(quizzes), tests: questionsDeTest(quizzes) };
+}
+
+/** Vignette de l'illustration : sa photo, son émoji, la photo de la banque de la bonne réponse, sinon « ⚠ ». */
+function illustrationQuestion(x) {
+  if (x.imageId) return photoBibliotheque(x.imageId, { class: "q-illus" });
+  if (x.photo) return h("img", { class: "q-illus", src: x.photo, alt: "", loading: "lazy" });
+  if (x.image) return h("span", { class: "q-illus emoji", text: x.image });
+  const photo = x.choiceImages?.[x.correct] ?? null;
+  if (photo) return photoBibliotheque(photo, { class: "q-illus" });
+  if (x.banque?.[0]) return h("img", { class: "q-illus", src: `banque/${x.banque[0]}.jpg`, alt: "", loading: "lazy" });
+  if (x.banqueEmojis?.[0]) return h("span", { class: "q-illus emoji", text: x.banqueEmojis[0] });
+  // Juste Chiffre sans émoji : la TV montre son compteur qui tourne.
+  if (x.nombre) return h("span", { class: "q-illus emoji compteur", title: "Le compteur du Juste Chiffre", text: "🔢" });
+  return h("span", { class: "q-illus vide", title: "Pas d'illustration", text: "⚠" });
+}
+
+/** Une réponse : sa petite photo s'il y en a une, son texte ; la bonne réponse est marquée. */
+function reponseQuestion(x, c, k) {
+  const photo = x.choiceImages?.[k] ? photoBibliotheque(x.choiceImages[k], { class: "q-mini" })
+    : x.banque?.[k] ? h("img", { class: "q-mini", src: `banque/${x.banque[k]}.jpg`, alt: "", loading: "lazy" })
+      : x.banqueEmojis?.[k] ? h("span", { class: "q-mini emoji", text: x.banqueEmojis[k] }) : null;
+  return h("li", { class: k === x.correct ? "juste" : "" }, photo, h("span", { text: `${k === x.correct ? "✓ " : ""}${c}` }));
+}
+
+function ligneQuestion(x) {
+  const quiz = x.quizId ? quizzes[x.quizId] : null;
+  // Ses questions (pas celles toutes prêtes de l'appli) se cochent pour être supprimées ensemble.
+  const coche = quiz ? h("input", {
+    type: "checkbox", class: "q-coche", checked: qSelection.has(x.cle), "aria-label": `Cocher « ${x.text} »`,
+    onchange: (e) => { if (e.target.checked) qSelection.add(x.cle); else qSelection.delete(x.cle); barreSelection(); },
+  }) : null;
+  return h("div", { class: `q-item${x.ok ? "" : " sans-illus"}${qSelection.has(x.cle) ? " cochee" : ""}`, "data-question": x.cle },
+    coche,
+    illustrationQuestion(x),
+    h("div", { class: "q-corps" },
+      h("b", { class: "q-texte", text: x.text || "(question sans texte)" }),
+      x.nombre ? h("p", { class: "q-nombre", text: `Le Juste Chiffre · réponse : ${x.correct}` })
+        : h("ul", { class: "q-reponses" }, ...x.choices.map((c, k) => reponseQuestion(x, c, k))),
+      h("div", { class: "q-pied" },
+        x.ok ? null : h("span", { class: "q-alerte", text: `⚠ ${x.manque}` }),
+        x.validee ? null : h("span", { class: "q-a-valider", text: "À valider" }),
+        h("span", { class: "hint small", text: x.source ?? "" }),
+        quiz ? h("button", { type: "button", class: "btn small secondary", text: "Éditer", onclick: () => review(x.quizId, quiz) }) : null,
+        quiz ? h("button", { type: "button", class: "btn small danger", text: "Supprimer", onclick: () => supprimerQuestions([x]) }) : null)));
+}
+
+/** Ses questions, toutes (en vrac, dans les packs, de test) : pour retrouver celles qui sont cochées. */
+const toutesMesQuestions = () => [...mesQuestions(quizzes), ...mesPacks(quizzes).flatMap((p) => p.questions), ...questionsDeTest(quizzes)];
+
+/** Barre des questions cochées : combien, tout cocher ici, tout décocher, supprimer. */
+function barreSelection() {
+  const mes = new Set(toutesMesQuestions().map((x) => x.cle));
+  [...qSelection].filter((k) => !mes.has(k)).forEach((k) => qSelection.delete(k));
+  $("q-selection").hidden = !qSelection.size;
+  $("q-selection-n").textContent = `${plural(qSelection.size, "question cochée", "questions cochées")}`;
+  $("q-tout").hidden = !qListees.length || qListees.every((x) => qSelection.has(x.cle));
+  document.querySelectorAll("#q-list .q-item[data-question]").forEach((el) => {
+    const on = qSelection.has(el.dataset.question);
+    el.classList.toggle("cochee", on);
+    const box = el.querySelector(".q-coche");
+    if (box) box.checked = on;
+  });
+}
+$("q-tout").onclick = () => { qListees.forEach((x) => qSelection.add(x.cle)); barreSelection(); };
+$("q-aucune").onclick = () => { qSelection.clear(); barreSelection(); };
+$("q-supprimer").onclick = () => {
+  const cles = new Set(qSelection);
+  supprimerQuestions(toutesMesQuestions().filter((x) => cles.has(x.cle)));
+};
+
+/**
+ * Supprime ses questions de leurs quiz, après confirmation. Un quiz qui n'a plus de question est supprimé aussi (la
+ * fenêtre le dit, comme les prestations qui l'utilisent). Les images restent dans la Bibliothèque › Images.
+ */
+async function supprimerQuestions(liste) {
+  if (!liste.length) return;
+  const { ecritures, vides, n } = retirerQuestions(quizzes, liste);
+  if (!n) return status("q-status", "Ces questions ont changé entre-temps : rien n'est supprimé, regardez la liste à jour.");
+  const titre = (id) => `« ${quizzes[id]?.title ?? "sans titre"} »`;
+  const utilisePar = Object.keys(ecritures).flatMap((id) => Object.values(shows)
+    .filter((sh) => (sh.rounds ?? []).some((r) => r && roundQuizIds(r).includes(id))).map((sh) => `${showTitle(sh)} (quiz ${titre(id)})`));
+  const message = [
+    n === 1 ? `Supprimer la question « ${liste[0].text || "sans texte"} » ?` : `Supprimer ${n} questions ?`,
+    vides.length ? `${vides.length > 1 ? "Les quiz" : "Le quiz"} ${vides.map(titre).join(", ")} n'${vides.length > 1 ? "ont" : "a"} plus d'autre question : ${vides.length > 1 ? "ils seront supprimés" : "il sera supprimé"} aussi.` : null,
+    utilisePar.length ? `Attention, c'est utilisé par : ${[...new Set(utilisePar)].join(", ")}.` : null,
+  ].filter(Boolean).join("\n\n");
+  if (!(await confirmer(message, { ok: "Supprimer", danger: true }))) return;
+  try {
+    for (const [id, questions] of Object.entries(ecritures)) {
+      if (questions) await update(ref(db, `library/quizzes/${id}`), { questions, updatedAt: serverTimestamp() });
+      else await set(ref(db, `library/quizzes/${id}`), null);
+    }
+  } catch (err) {
+    console.error(err);
+    return status("q-status", "Suppression refusée : vérifiez Internet ou reconnectez-vous, puis recommencez.");
+  }
+  qSelection.clear();
+  if (qPack && vides.includes(qPack)) qPack = null;
+  status("q-status", `${n === 1 ? "Question supprimée" : `${n} questions supprimées`}${vides.length ? ` (et ${vides.length > 1 ? "les quiz" : "le quiz"} vidé${vides.length > 1 ? "s" : ""})` : ""}.`, true);
+  renderQuestions();
+}
+
+function cartePack(p) {
+  return h("div", { class: `item pack${packsNouveaux.has(p.id) ? " copie-recente" : ""}`, "data-pack": p.id },
+    h("span", { class: "pill", text: QUIZ_KINDS[p.kind] ?? "📝 Quiz classique" }),
+    h("b", { text: p.title }),
+    h("span", { text: [p.theme, SOURCES[p.source] ?? ""].filter(Boolean).join(" · ") }),
+    h("span", { text: `${plural(p.total, "question")} · ${p.validees} validée${p.validees > 1 ? "s" : ""}` }),
+    p.sansIllustration ? h("span", { class: "q-alerte", text: `⚠ ${p.sansIllustration} sans illustration` }) : h("span", { class: "ok", text: "✓ Toutes illustrées" }),
+    h("div", { class: "row" },
+      h("button", { class: "btn", type: "button", text: "Ouvrir", onclick: () => { qPack = p.id; qSelection.clear(); status("q-status", ""); renderQuestions(); } }),
+      h("button", { class: "btn secondary", type: "button", text: "Éditer", onclick: () => review(p.id, quizzes[p.id]) }),
+      h("button", { class: "btn secondary", type: "button", text: "Renommer", onclick: () => rename(`library/quizzes/${p.id}`, p.title, "du pack") }),
+      h("button", { class: "btn danger", type: "button", text: "Supprimer", onclick: () => deleteQuiz(p.id, quizzes[p.id]) })));
+}
+
+function renderQuestions() {
+  qListees = [];
+  dessinerQuestions();
+  barreSelection();
+}
+
+function dessinerQuestions() {
+  const g = groupesQuestions();
+  const recherche = $("q-search").value.trim();
+  const filtre = (list) => (recherche ? list.filter((x) => questionCorrespond(x, recherche)) : list);
+  // Un pack correspond si son titre, son thème ou une de ses questions correspond.
+  const packsTrouves = recherche ? g.packs.filter((p) => questionCorrespond({ text: p.title, categorie: p.theme }, recherche) || p.questions.some((x) => questionCorrespond(x, recherche))) : g.packs;
+  const compte = Object.fromEntries(Object.keys(GROUPES_QUESTIONS).map((k) => [k, k === "packs" ? packsTrouves.reduce((n, p) => n + p.total, 0) : filtre(g[k]).length]));
+  // « 🧪 Questions de test » n'apparaît que s'il y a une prestation de test dans la bibliothèque.
+  const groupes = Object.entries(GROUPES_QUESTIONS).filter(([k]) => k !== "tests" || g.tests.length);
+  if (qGroupe === "tests" && !g.tests.length) qGroupe = null;
+  if (qPack && !quizzes[qPack]) qPack = null;
+  const chip = (key, label, n) => h("button", {
+    type: "button", class: `chip${qGroupe === key ? " active" : ""}`, "data-groupe": key ?? "tout", text: `${label} (${n})`,
+    onclick: () => { qGroupe = key; qPack = null; qCategorie = null; qType = null; qNiveau = null; qSelection.clear(); status("q-status", ""); renderQuestions(); },
+  });
+  const total = Object.values(compte).reduce((a, b) => a + b, 0);
+  $("q-groups").replaceChildren(chip(null, "Tout", total), ...groupes.map(([k, label]) => chip(k, label, compte[k])));
+  $("q-count").textContent = recherche ? plural(total, "question trouvée", "questions trouvées") : "";
+  $("pack-import").hidden = qGroupe !== "packs" || !!qPack;
+  const box = $("q-list");
+  const plusQue = (n) => (n > QUESTIONS_MAX ? h("p", { class: "hint small", text: `… et ${n - QUESTIONS_MAX} autres : précisez la recherche.` }) : null);
+
+  // Un pack ouvert : ses questions, chacune avec son illustration ou l'alerte.
+  if (qPack) {
+    const p = g.packs.find((x) => x.id === qPack);
+    const liste = filtre(p.questions);
+    qListees = liste;
+    box.replaceChildren(
+      h("div", { class: "title-row" },
+        h("button", { type: "button", class: "btn secondary", text: "← Tous les packs", onclick: () => { qPack = null; qSelection.clear(); renderQuestions(); } }),
+        h("button", { type: "button", class: "btn secondary", text: "Éditer le pack", onclick: () => review(p.id, quizzes[p.id]) })),
+      h("h2", { text: p.title }),
+      h("p", { class: "hint", text: [p.theme, plural(p.total, "question"), p.sansIllustration ? `⚠ ${p.sansIllustration} sans illustration` : "✓ toutes illustrées"].filter(Boolean).join(" · ") }),
+      liste.length ? h("div", { class: "q-liste" }, ...liste.map(ligneQuestion)) : h("p", { class: "hint", text: "Aucune question ne correspond à cette recherche." }));
+    return;
+  }
+
+  // Aperçu : les groupes l'un sous l'autre, quelques questions (ou packs) chacun.
+  if (!qGroupe) {
+    box.replaceChildren(...groupes.map(([k, label]) => {
+      const voir = h("button", { type: "button", class: "btn small secondary", text: "Voir tout", onclick: () => { qGroupe = k; renderQuestions(); } });
+      const contenu = k === "packs"
+        ? (packsTrouves.length ? h("div", { class: "cards" }, ...packsTrouves.slice(0, QUESTIONS_APERCU).map(cartePack))
+          : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : "Aucun pack pour l'instant : « Voir tout », puis « 📥 Importer des packs JSON… »." }))
+        : (filtre(g[k]).length ? h("div", { class: "q-liste" }, ...filtre(g[k]).slice(0, QUESTIONS_APERCU).map(ligneQuestion))
+          : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : k === "miennes" ? "Aucune question écrite à la main pour l'instant." : "" }));
+      return h("section", { class: "q-groupe", "data-groupe": k }, h("div", { class: "title-row" }, h("h2", { text: label }), voir), contenu);
+    }));
+    return;
+  }
+
+  // Mes packs par thème : un titre par thème (« Disney », « Musique »…), ses packs dessous.
+  if (qGroupe === "packs") {
+    box.replaceChildren(packsTrouves.length
+      ? h("div", { class: "q-themes" }, ...packsParTheme(packsTrouves).map(([theme, packs]) => h("section", { class: "q-theme", "data-theme": theme },
+        h("h3", { text: `${theme} · ${plural(packs.length, "pack")}` }),
+        h("div", { class: "cards" }, ...packs.map(cartePack)))))
+      : h("p", { class: "hint", text: recherche ? "Aucun pack ne correspond à cette recherche." : "Aucun pack pour l'instant : importez votre premier fichier JSON." }));
+    return;
+  }
+
+  // Toutes prêtes (par thème ou par famille), en vrac ou de test (par thème) : une puce par famille ou par thème, puis la liste.
+  // Quiz classique : une puce pour les questions à 4 réponses, une pour les Juste Chiffre (cedric, 22/10).
+  const tousTypes = filtre(g[qGroupe]);
+  const types = qGroupe === "classiques" ? { qcm: ["❓ Questions à 4 réponses", (x) => !x.nombre], nombre: ["🔢 Juste Chiffre", (x) => x.nombre] } : {};
+  if (!types[qType]) qType = null;
+  const duType = qType ? tousTypes.filter(types[qType][1]) : tousTypes;
+  // Quiz classique : trois niveaux sans chevauchement (cedric, 22/10), Facile, Moyen et Difficile.
+  if (qGroupe !== "classiques") qNiveau = null;
+  const tout = qNiveau ? duType.filter((x) => x.niveau === qNiveau) : duType;
+  const categories = [...new Set(tout.map((x) => x.categorie).filter(Boolean))];
+  if (qCategorie && !categories.includes(qCategorie)) qCategorie = null;
+  const liste = qCategorie ? tout.filter((x) => x.categorie === qCategorie) : tout;
+  const sans = liste.filter((x) => !x.ok).length;
+  if (qGroupe === "miennes" || qGroupe === "tests") qListees = liste.slice(0, QUESTIONS_MAX);
+  remplir(box,
+    qGroupe === "classiques" ? h("p", { class: "hint small", text: "Quiz classique : des questions à 4 réponses écrites, avec une seule image, montrée à la révélation de la réponse, et des Juste Chiffre (réponse en nombre : la TV montre son compteur, sans image). Pour en mettre dans un quiz classique : « Éditer », puis « 📝 Questions toutes prêtes »." }) : null,
+    Object.keys(types).length ? h("div", { class: "chips q-types" },
+      h("button", { type: "button", class: `chip${qType ? "" : " active"}`, "data-type": "tous", text: `Toutes (${tousTypes.length})`, onclick: () => { qType = null; renderQuestions(); } }),
+      ...Object.entries(types).map(([k, [label, garde]]) => h("button", {
+        type: "button", class: `chip${qType === k ? " active" : ""}`, "data-type": k, text: `${label} (${tousTypes.filter(garde).length})`,
+        onclick: () => { qType = k; renderQuestions(); },
+      }))) : null,
+    qGroupe === "classiques" ? h("div", { class: "chips q-niveaux" },
+      h("button", { type: "button", class: `chip${qNiveau ? "" : " active"}`, "data-niveau": "tous", text: `Tous les niveaux (${duType.length})`, onclick: () => { qNiveau = null; renderQuestions(); } }),
+      ...Object.keys(NIVEAUX_CHIFFRES).map(Number).map((n) => h("button", {
+        type: "button", class: `chip${qNiveau === n ? " active" : ""}`, "data-niveau": n, text: `${libelleNiveau(n)} (${duType.filter((x) => x.niveau === n).length})`,
+        onclick: () => { qNiveau = n; renderQuestions(); },
+      }))) : null,
+    qGroupe === "illustrees" ? h("p", { class: "hint small", text: "Quiz illustré des tout-petits : une image par réponse. Une réponse sans photo reçoit l'émoji de son mot, dessiné en image. Pour en mettre dans un quiz illustré : « Éditer », puis « 🎲 Questions de la banque »." }) : null,
+    qGroupe === "tests" ? h("p", { class: "hint small", text: "Les questions des prestations de test (Paramètres) : rangées ici pour ne pas se mélanger aux vôtres." }) : null,
+    categories.length > 1 ? h("div", { class: "chips q-categories" },
+      h("button", { type: "button", class: `chip${qCategorie ? "" : " active"}`, text: `Toutes (${tout.length})`, onclick: () => { qCategorie = null; renderQuestions(); } }),
+      ...categories.map((c) => h("button", { type: "button", class: `chip${qCategorie === c ? " active" : ""}`, "data-categorie": c, text: `${c} (${tout.filter((x) => x.categorie === c).length})`, onclick: () => { qCategorie = c; renderQuestions(); } }))) : null,
+    sans ? h("p", { class: "q-alerte", text: `⚠ ${plural(sans, "question")} sans illustration complète ici.` }) : null,
+    liste.length ? h("div", { class: "q-liste" }, ...liste.slice(0, QUESTIONS_MAX).map(ligneQuestion))
+      : h("p", { class: "hint", text: recherche ? "Aucune question ne correspond à cette recherche." : qGroupe === "miennes" ? "Aucune question écrite à la main pour l'instant : « Créer un quiz » dans la page du Quiz." : "Aucune question." }),
+    plusQue(liste.length));
+}
+$("q-search").oninput = () => renderQuestions();
+
+/** Durée gardée seulement si la base l'accepte (5 à 120 s) ; sinon la durée du jeu. */
+const dureeQuestion = (d) => (Number.isFinite(d) && d >= 5 && d <= 120 ? d : null);
+
+/**
+ * « 📥 Importer des packs JSON… » : chaque pack devient un quiz de la bibliothèque (source « fichier »), jouable dans
+ * le Quiz comme les autres. Les images déposées avec le fichier rejoignent les questions qui les nomment. Une question
+ * sans défaut est validée d'office ; les autres restent « À valider », à corriger dans « Éditer ».
+ */
+$("pack-file").onchange = async () => {
+  const fichiers = [...$("pack-file").files];
+  $("pack-file").value = "";
+  const images = new Map();
+  const jsons = [];
+  for (const f of fichiers) {
+    if (f.type.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(f.name)) images.set(imageKey(f.name), f);
+    else jsons.push(f);
+  }
+  status("q-status", "");
+  if (!jsons.length) return status("pack-status", "Choisissez au moins un fichier JSON (avec ses images s'il en a).");
+  const erreurs = [];
+  const packs = [];
+  for (const f of jsons) {
+    const lu = lirePacks(await f.text());
+    if (lu.erreur) erreurs.push(`${f.name} : ${lu.erreur}`);
+    else lu.packs.forEach((p) => packs.push({ ...p, fichier: f.name.replace(/\.json$/i, "") }));
+  }
+  if (!packs.length) return status("pack-status", erreurs.join(" "));
+  const faits = [];
+  let questionsFaites = 0, aValider = 0, sansIllus = 0, ignorees = 0;
+  try {
+    for (const p of packs) {
+      await attachImportImages(p.questions, images, "pack-status");
+      const verifs = checkQuestions(p.questions);
+      const gardees = p.questions.map((q, i) => ({ q, ok: !verifs[i].errors.length })).filter(({ q }) => q.kind === "number" || q.choices.length);
+      ignorees += p.questions.length - gardees.length;
+      if (!gardees.length) continue;
+      // Une photo par case A à D au plus (la base n'en garde pas d'autres).
+      gardees.forEach(({ q }) => { if (q.choiceImages) q.choiceImages = q.choiceImages.slice(0, 4); });
+      const kind = gardees.some(({ q }) => (q.choiceImages ?? []).some(Boolean)) ? "photo" : "classique";
+      const questions = gardees.map(({ q, ok }) => ({
+        text: q.text.slice(0, 300), choices: q.kind === "number" ? null : q.choices,
+        correct: Number.isInteger(q.correct) ? q.correct : -1, kind: q.kind === "number" ? "number" : null,
+        duration: dureeQuestion(q.duration), double: q.double === true, status: ok ? "validee" : "brouillon",
+        image: cleanEmoji(q.image) || null, imageId: q.imageId || null, choiceImages: q.kind === "number" ? null : savedChoiceImages(q),
+      }));
+      const id = push(ref(db, "library/quizzes")).key;
+      const title = (p.title || p.theme || p.fichier || "Pack sans titre").slice(0, 120);
+      await set(ref(db, `library/quizzes/${id}`), {
+        title, theme: p.theme || null, ageMin: p.ageMin ?? null, ageMax: p.ageMax ?? null, source: "json", kind,
+        createdAt: Date.now(), updatedAt: serverTimestamp(), questions,
+      });
+      faits.push(id);
+      questionsFaites += questions.length;
+      aValider += questions.filter((q) => q.status !== "validee").length;
+      sansIllus += questions.filter((q) => !illustration(q, kind).ok).length;
+    }
+  } catch (err) {
+    console.error(err);
+    erreurs.push("Import interrompu : vérifiez Internet ou reconnectez-vous, puis recommencez avec les packs manquants.");
+  }
+  packsNouveaux = new Set(faits);
+  setTimeout(() => { packsNouveaux = new Set(); if (libTab === "questions" && !$("screen-library").hidden) renderQuestions(); }, 6000);
+  qGroupe = "packs";
+  qPack = null;
+  renderQuestions();
+  const bilan = faits.length
+    ? [`${plural(faits.length, "pack importé", "packs importés")} : ${plural(questionsFaites, "question")}`,
+      aValider ? `${aValider} à valider dans « Éditer »` : null, sansIllus ? `⚠ ${sansIllus} sans illustration` : null,
+      ignorees ? `${ignorees} ignorée${ignorees > 1 ? "s" : ""} (sans réponses)` : null].filter(Boolean).join(", ") + "."
+    : "Aucun pack importé.";
+  status("pack-status", [bilan, ...erreurs].join(" "), faits.length > 0 && !erreurs.length);
+};
 
 /** Les groupes d'images ; ses images et les pochettes retirées à part ([RETIREES] : par groupe). */
 function groupesImages() {
@@ -4751,7 +5244,7 @@ function renderMedias(force = false) {
       return h("section", { class: "media-group", "data-groupe": k },
         h("div", { class: "title-row" }, h("h2", { text: label }), list.length ? voir : null,
           k === "miennes" && !recherche ? h("button", { type: "button", class: "btn small", text: "＋ Ajouter mes images", onclick: () => { mediaGroupe = "miennes"; mediaCat = null; renderMedias(true); } }) : null),
-        list.length ? h("div", { class: "media-grid" }, ...list.slice(0, APERCU).map(vignetteMedia))
+        list.length ? h("div", { class: "media-grid" }, ...list.slice(0, APERCU).map((x, i, l) => vignetteMedia(x, i, l)))
           : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : k === "miennes" ? "Aucune image à vous pour l'instant : « ＋ Ajouter mes images »." : k === "pochettes" ? AUCUNE_POCHETTE : "" }));
     }));
     return;
@@ -4779,8 +5272,8 @@ function renderMedias(force = false) {
   const parCat = mediaCat ? [[mediaCat === RETIREES ? "🚫 Retirées" : mediaCat, montrees]] : categoriesDe(montrees).map((c) => [c, montrees.filter((x) => x.cat === c)]);
   box.replaceChildren(...parCat.flatMap(([c, items]) => [
     h("h3", { class: "content-series", text: `${c} · ${items.length}` }),
-    fiches ? h("div", { class: "media-cards" }, ...items.map((x) => ficheMedia(x, g.miennes.concat(g[RETIREES].miennes))))
-      : h("div", { class: "media-grid" }, ...items.map(vignetteMedia)),
+    fiches ? h("div", { class: "media-cards" }, ...items.map((x, i) => ficheMedia(x, g.miennes.concat(g[RETIREES].miennes), items, i)))
+      : h("div", { class: "media-grid" }, ...items.map((x, i) => vignetteMedia(x, i, items))),
   ]));
   if (list.length > montrees.length) box.append(h("p", { class: "hint small", text: `… et ${list.length - montrees.length} autres : précisez la recherche.` }));
 }
@@ -4791,31 +5284,89 @@ const imageDeMedia = (x) => [x.groupe === "emojis" ? h("span", { class: "emoji",
   : x.groupe === "photos" ? h("img", { src: x.src, alt: "", loading: "lazy" })
     : photoBibliotheque(x.id, { loading: "lazy" })];
 
-/** Vignette d'une image (émoji, photo libre, la sienne) : son nom dessous, ses mots-clés au survol. */
-function vignetteMedia(x) {
+/**
+ * Vignette d'une image (émoji, photo libre, la sienne, pochette) : son nom dessous, ses mots-clés au survol. Un clic la
+ * montre en grand ([liste] : ses voisines, pour ‹ ›) ; « 📋 » dans le coin la copie pour une question (cedric, 22/10).
+ */
+function vignetteMedia(x, i = 0, liste = [x]) {
   const titre = [x.cat, ...(x.tags ?? [])].filter(Boolean).join(" · ");
   const [image] = imageDeMedia(x);
-  // Un émoji se copie d'un clic, pour le coller dans une question ou une carte.
-  if (x.groupe === "emojis") {
-    return h("button", {
-      type: "button", class: "media-tile", "data-media": x.id, title: `${titre}\nCliquer pour copier l'émoji`,
-      onclick: async () => {
-        try { await navigator.clipboard.writeText(x.emoji); status("media-note", `${x.emoji} copié : collez-le dans une question ou une carte (Ctrl+V).`, true); }
-        catch { status("media-note", `Copie impossible : sélectionnez l'émoji ${x.emoji} à la main.`); }
-      },
-    }, image, h("span", { text: x.nom }));
-  }
-  if (dansLaBase(x)) {
-    return h("button", { type: "button", class: "media-tile", "data-media": x.id, title: titre, onclick: () => { mediaGroupe = x.groupe; mediaCat = x.groupe === "miennes" ? x.cat : null; renderMedias(true); } }, image, h("span", { text: x.nom || "Sans nom" }));
-  }
-  return h("figure", { class: "media-tile", "data-media": x.id, title: titre }, image, h("span", { text: x.nom }));
+  const voir = () => voirEnGrand(liste, i);
+  return h("div", {
+    class: "media-tile voir", "data-media": x.id, title: `${titre ? `${titre}\n` : ""}Cliquer pour voir en grand`, role: "button", tabindex: "0",
+    onclick: voir, onkeydown: (e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); voir(); } },
+  },
+  h("button", {
+    type: "button", class: "media-copier", text: "📋", title: "Copier pour une question", "aria-label": `Copier « ${nomCopie(x)} » pour une question`,
+    onclick: (e) => { e.stopPropagation(); copierImage(x, "media-note"); },
+  }),
+  image, h("span", { text: x.nom || "Sans nom" }));
 }
+
+/** Image copiée pour une question (« 📋 ») : « 📋 Coller » la pose ensuite dans la question ouverte. */
+let imageCopiee = null;
+const nomCopie = (x) => x.nom || x.emoji || "l'image";
+async function copierImage(x, statut) {
+  imageCopiee = x;
+  if (x.groupe === "emojis") {
+    // Aussi dans le presse-papiers du PC : Ctrl+V le colle dans une case d'émoji ou une carte.
+    let pressePapiers = true;
+    try { await navigator.clipboard.writeText(x.emoji); } catch { pressePapiers = false; }
+    return status(statut, `${x.emoji} copié : dans une question, « 📋 Coller »${pressePapiers ? ", ou Ctrl+V dans la case de l'émoji" : ""}.`, true);
+  }
+  status(statut, `« ${nomCopie(x)} » copiée : dans une question, « 📋 Coller » à côté de « 🖼️ Bibliothèque… », ou 📋 sur une réponse en image.`, true);
+}
+
+/** Image ouverte en grand : ses voisines dans la liste affichée, et sa place. */
+let vis = null;
+function voirEnGrand(liste, i) {
+  vis = { liste, i };
+  dessinerVisionneuse();
+  if (!$("visionneuse").open) $("visionneuse").showModal();
+  $("vis-fermer").focus();
+}
+function dessinerVisionneuse() {
+  const x = vis.liste[vis.i];
+  $("vis-image").replaceChildren(x.groupe === "emojis" ? h("span", { class: "emoji", text: x.emoji })
+    : x.groupe === "photos" ? h("img", { src: x.src, alt: x.nom ?? "" }) : photoBibliotheque(x.id, { alt: x.nom ?? "" }));
+  $("vis-nom").textContent = x.nom || "Sans nom";
+  $("vis-details").textContent = [GROUPES_IMAGES[x.groupe], x.cat, ...(x.tags ?? [])].filter(Boolean).join(" · ");
+  $("vis-ou").textContent = x.ou?.length ? `Utilisée dans : ${x.ou.join(", ")}` : "";
+  const plusieurs = vis.liste.length > 1;
+  $("vis-prec").hidden = !plusieurs;
+  $("vis-suiv").hidden = !plusieurs;
+  $("vis-pos").textContent = plusieurs ? `${vis.i + 1} / ${vis.liste.length}` : "";
+  $("vis-fiche").hidden = !dansLaBase(x) || mediaGroupe === x.groupe;
+  status("vis-status", "");
+}
+const voisine = (d) => {
+  if (!vis || vis.liste.length < 2) return;
+  vis.i = (vis.i + d + vis.liste.length) % vis.liste.length;
+  dessinerVisionneuse();
+};
+$("vis-prec").onclick = () => voisine(-1);
+$("vis-suiv").onclick = () => voisine(1);
+$("vis-fermer").onclick = () => $("visionneuse").close();
+$("vis-copier").onclick = () => copierImage(vis.liste[vis.i], "vis-status");
+// Ses images et les pochettes : « ✏️ Sa fiche » ouvre leur groupe pour changer nom, catégorie, mots-clés.
+$("vis-fiche").onclick = () => {
+  const x = vis.liste[vis.i];
+  $("visionneuse").close();
+  mediaGroupe = x.groupe;
+  mediaCat = x.groupe === "miennes" ? x.cat : null;
+  renderMedias(true);
+};
+$("visionneuse").addEventListener("keydown", (e) => {
+  if (e.key === "ArrowLeft") { e.preventDefault(); voisine(-1); } else if (e.key === "ArrowRight") { e.preventDefault(); voisine(1); }
+});
+// Un clic à côté de l'image (sur le voile) ferme.
+$("visionneuse").addEventListener("click", (e) => { if (e.target === $("visionneuse")) $("visionneuse").close(); });
 
 /**
  * Fiche d'une de ses images ou d'une pochette : nom, catégorie (pas pour une pochette), mots-clés, où elle sert ;
  * chaque champ s'enregistre en le quittant.
  */
-function ficheMedia(x, toutes) {
+function ficheMedia(x, toutes, liste = [x], i = 0) {
   const pochette = x.groupe === "pochettes";
   const enregistrer = async (champs, message) => {
     const f = ficheImage({ nom: x.nom, cat: x.cat, tags: x.tags, retiree: x.retiree, ...champs }, medias[x.id]);
@@ -4863,10 +5414,12 @@ function ficheMedia(x, toutes) {
     ? h("button", { type: "button", class: "btn small", text: "Remettre", onclick: () => enregistrer({ retiree: false }, `« ${x.nom} » est remise dans ${ici}.`) })
     : h("button", { type: "button", class: "btn small secondary", text: "Retirer", title: `Elle disparaît de ${ici} ; les chansons, les quiz et les jeux qui l'utilisent la gardent.`, onclick: () => enregistrer({ retiree: true }, `« ${x.nom} » est retirée : retrouvez-la dans « 🚫 Retirées ». Les chansons, les quiz et les jeux qui l'utilisent la gardent.`) });
   return h("div", { class: `media-card${x.retiree ? " retiree" : ""}`, "data-media": x.id },
-    photoBibliotheque(x.id, { loading: "lazy" }),
+    photoBibliotheque(x.id, { loading: "lazy", class: "voir", title: "Voir en grand", onclick: () => voirEnGrand(liste, i) }),
     nom, cat, tags,
     x.ou.length ? h("span", { class: "small", text: `Utilisée dans : ${x.ou.join(", ")}` }) : null,
-    h("div", { class: "row" }, bouton));
+    h("div", { class: "row" },
+      h("button", { type: "button", class: "btn small secondary media-copier-fiche", text: "📋 Copier", title: "Copier pour une question", onclick: () => copierImage(x, "media-note") }),
+      bouton));
 }
 
 /** Mot à chercher pour illustrer une question : sa bonne réponse, sans émoji (« 🐱 Chat » → « Chat ») ; rien pour Vrai / Faux. */
