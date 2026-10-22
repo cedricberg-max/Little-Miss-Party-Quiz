@@ -39,7 +39,7 @@ class HuitEquipesTest : TestTv() {
         ecran.entierementVisible("Voir les scores")
         ecran.capture("revelation-8-equipes")
         ecran.ok("Voir les scores")
-        ecran.voit("Classement")
+        ecran.voit(titreClassement())
         noms.forEach { ecran.voit(it) }
         ecran.entierementVisible("Question suivante")
         ecran.capture("classement-8-equipes")
@@ -54,6 +54,6 @@ class HuitEquipesTest : TestTv() {
         ecran.capture("donner-des-points-8-equipes")
         ecran.device.pressBack()
         ecran.neVoitPas("Donner des points")
-        ecran.voit("Classement")
+        ecran.voit(titreClassement())
     }
 }

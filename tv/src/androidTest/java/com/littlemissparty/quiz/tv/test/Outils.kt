@@ -28,6 +28,7 @@ import com.littlemissparty.quiz.engine.Quiz
 import com.littlemissparty.quiz.engine.QuizJson
 import com.littlemissparty.quiz.tv.GameViewModel
 import com.littlemissparty.quiz.tv.MainActivity
+import com.littlemissparty.quiz.tv.habillage.Look
 import java.io.ByteArrayOutputStream
 import java.net.InetSocketAddress
 import java.net.Socket
@@ -76,6 +77,9 @@ suspend fun DatabaseReference.lireUneFois(): DataSnapshot = suspendCancellableCo
     addListenerForSingleValueEvent(ecouteur)
     suite.invokeOnCancellation { removeEventListener(ecouteur) }
 }
+
+/** Titre de l'écran des scores : « TABLEAU DES SCORES » en Game Show (le design par défaut), « Classement » en Classique. */
+fun titreClassement() = if (Look.gs) "TABLEAU DES SCORES" else "Classement"
 
 /** La box : l'appli TV elle-même, dans le même processus que les tests. */
 object Boite {

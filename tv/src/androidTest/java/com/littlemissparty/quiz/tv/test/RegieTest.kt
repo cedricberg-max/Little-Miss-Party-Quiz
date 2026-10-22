@@ -188,7 +188,7 @@ class RegieTest : TestTv() {
         ecran.voit("Toutes les équipes ont répondu")
         assertEquals("applied", regie.commande(code, "next"))
         assertEquals("applied", regie.commande(code, "next"))
-        ecran.voit("Classement")
+        ecran.voit(titreClassement())
         // Fin du quiz : la TV annonce le jeu suivant au lieu de « Question suivante » (bug n° 8).
         ecran.voit("Jeu suivant : Mimes")
         val apresQuiz = points(licornes, code, licornes.uid)
