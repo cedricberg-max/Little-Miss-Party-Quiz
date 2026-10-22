@@ -8,9 +8,11 @@ import { cataloguePetits, FAMILLES_PETITS, motBanque } from "./banque-petits.js"
 import { PHOTOS_BANQUE } from "./banque-photos.js";
 import { quizKind } from "./show.js";
 
-export const GROUPES_QUESTIONS = { pretes: "📦 Toutes prêtes", miennes: "✍️ Mes questions", packs: "📥 Mes packs" };
+export const GROUPES_QUESTIONS = { pretes: "📦 Toutes prêtes", miennes: "✍️ Mes questions en vrac", packs: "📥 Mes packs par thème" };
 
 const IMAGE_ID = /^[0-9a-f]{16}$/;
+/** Les questions d'un quiz, dans l'ordre, sans les cases vides (la base rend parfois un objet au lieu d'une liste). */
+const questionsDe = (quiz) => (Array.isArray(quiz?.questions) ? quiz.questions : Object.values(quiz?.questions ?? {})).filter(Boolean);
 /** Quiz importés d'un fichier ou d'un texte collé : des packs. Le reste est écrit à la main dans la Régie PC. */
 const SOURCES_PACK = new Set(["json", "tableur", "gemini"]);
 export const estPack = (quiz) => SOURCES_PACK.has(quiz?.source);
@@ -63,15 +65,15 @@ export function questionsToutesPretes(catalogue = cataloguePetits()) {
   });
 }
 
-/** Ses questions écrites à la main, quiz par quiz (le plus récent d'abord), dans l'ordre du quiz. */
+/** Ses questions écrites à la main, en vrac : du quiz le plus récent au plus ancien ; [categorie] : son thème, sinon son titre. */
 export function mesQuestions(quizzes = {}) {
   return Object.entries(quizzes)
     .filter(([, quiz]) => quiz && !estPack(quiz))
     .sort(([, a], [, b]) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
     .flatMap(([id, quiz]) => {
       const kind = quizKind(quiz);
-      return (quiz.questions ?? []).filter(Boolean).map((q, i) => fiche(q, kind, {
-        groupe: "miennes", cle: `${id}/${i}`, quizId: id, index: i, categorie: quiz.title ?? "", source: quiz.title ?? "",
+      return questionsDe(quiz).map((q, i) => fiche(q, kind, {
+        groupe: "miennes", cle: `${id}/${i}`, quizId: id, index: i, categorie: `${quiz.theme ?? ""}`.trim() || (quiz.title ?? ""), source: quiz.title ?? "",
       }));
     });
 }
@@ -82,13 +84,60 @@ export function mesPacks(quizzes = {}) {
     .filter(([, quiz]) => quiz && estPack(quiz))
     .map(([id, quiz]) => {
       const kind = quizKind(quiz);
-      const questions = (quiz.questions ?? []).filter(Boolean).map((q, i) => fiche(q, kind, { groupe: "packs", cle: `${id}/${i}`, quizId: id, index: i }));
+      const questions = questionsDe(quiz).map((q, i) => fiche(q, kind, { groupe: "packs", cle: `${id}/${i}`, quizId: id, index: i }));
       return {
         id, title: quiz.title ?? "", theme: quiz.theme ?? "", kind, source: quiz.source, updatedAt: quiz.updatedAt ?? 0,
         total: questions.length, validees: questions.filter((q) => q.validee).length, sansIllustration: questions.filter((q) => !q.ok).length, questions,
       };
     })
     .sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+/**
+ * Supprimer des questions de ses quiz (cedric, 22/10 : « la question doit pouvoir être supprimable de ma bibliothèque »).
+ * [choisies] : `{ quizId, index, text }` ; une question n'est retirée que si elle est toujours à sa place avec le même
+ * texte (rien d'autre n'est effacé si le quiz a changé entre-temps). Renvoie les nouvelles listes de questions par quiz
+ * (`null` : le quiz n'a plus de question, il est supprimé), les quiz vidés et le nombre de questions retirées.
+ */
+export function retirerQuestions(quizzes = {}, choisies = []) {
+  const parQuiz = new Map();
+  for (const x of choisies) {
+    if (!x?.quizId || !quizzes[x.quizId] || !Number.isInteger(x.index)) continue;
+    if (!parQuiz.has(x.quizId)) parQuiz.set(x.quizId, new Map());
+    parQuiz.get(x.quizId).set(x.index, x.text ?? "");
+  }
+  const ecritures = {};
+  const vides = [];
+  let n = 0;
+  for (const [id, retirees] of parQuiz) {
+    const restantes = questionsDe(quizzes[id]).filter((q, i) => {
+      const retiree = retirees.has(i) && retirees.get(i) === (q.text ?? "");
+      if (retiree) n += 1;
+      return !retiree;
+    });
+    if (restantes.length === questionsDe(quizzes[id]).length) continue;
+    ecritures[id] = restantes.length ? restantes : null;
+    if (!restantes.length) vides.push(id);
+  }
+  return { ecritures, vides, n };
+}
+
+export const SANS_THEME = "Sans thème";
+/**
+ * Ses packs rangés par thème : `[[thème, packs]]`, thèmes dans l'ordre alphabétique (« Disney » et « disney » vont
+ * ensemble), les packs sans thème à la fin ; dans un thème, l'ordre reçu (le plus récent d'abord).
+ */
+export function packsParTheme(packs = []) {
+  const themes = new Map();
+  for (const p of packs) {
+    const nom = `${p.theme ?? ""}`.trim().replace(/\s+/g, " ");
+    const cle = nom ? sansAccent(nom) : "";
+    if (!themes.has(cle)) themes.set(cle, [nom || SANS_THEME, []]);
+    themes.get(cle)[1].push(p);
+  }
+  return [...themes.entries()]
+    .sort(([a, [na]], [b, [nb]]) => (a === "") - (b === "") || na.localeCompare(nb, "fr", { sensitivity: "base" }))
+    .map(([, groupe]) => groupe);
 }
 
 const sansAccent = (s) => `${s ?? ""}`.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();

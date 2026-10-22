@@ -4660,10 +4660,26 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator('.q-groupe[data-groupe="miennes"] .q-item.sans-illus[data-question="mien/1"] .q-alerte', { hasText: "⚠ Pas d'illustration" }).waitFor();
     await page.locator('.q-groupe[data-groupe="packs"] .pack[data-pack="animaux"]', { hasText: "⚠ 3 sans illustration" }).waitFor();
     await capture(page, "questions-apercu");
+    // Ses questions se suppriment (cedric, 22/10) ; pas celles toutes prêtes de l'appli.
+    assert.equal(await page.locator('.q-groupe[data-groupe="pretes"] .q-item').first().getByRole("button", { name: "Supprimer" }).count(), 0);
+    assert.equal(await page.locator('.q-groupe[data-groupe="pretes"] .q-coche').count(), 0);
+    await page.locator('.q-item[data-question="mien/1"]').getByRole("button", { name: "Supprimer" }).click();
+    assert.equal(await repondreFenetre(page), "Supprimer la question « Question sans image » ?");
+    await page.locator("#q-status", { hasText: "Question supprimée." }).waitFor();
+    await waitFor(async () => (await library("quizzes/mien/questions"))?.length === 1, "une question de moins");
+    assert.equal((await library("quizzes/mien/questions"))[0].text, "De quelle couleur est le ciel ?");
+    // Annuler ne supprime rien ; la dernière question d'un quiz l'emporte avec elle, et la fenêtre le dit.
+    await page.locator('.q-item[data-question="mien/0"]').getByRole("button", { name: "Supprimer" }).click();
+    await repondreFenetre(page, { accepter: false });
+    assert.equal((await library("quizzes/mien/questions")).length, 1);
+    await page.locator('.q-item[data-question="mien/0"]').getByRole("button", { name: "Supprimer" }).click();
+    assert.match(await repondreFenetre(page), /Le quiz « Mon quiz » n'a plus d'autre question : il sera supprimé aussi\./);
+    await waitFor(async () => (await library("quizzes/mien")) === null, "quiz vidé supprimé");
+    await page.locator('.q-groupe[data-groupe="miennes"] .q-item').first().waitFor({ state: "detached" });
     // Une seule recherche pour tout.
     await page.fill("#q-search", "miaou");
     await page.locator('.q-groupe[data-groupe="pretes"] .q-item', { hasText: "miaou" }).first().waitFor();
-    await waitFor(async () => await page.locator('.q-groupe[data-groupe="miennes"] .q-item').count() === 0, "rien dans mes questions");
+    await waitFor(async () => await page.locator('.q-groupe[data-groupe="packs"] .pack').count() === 0, "aucun pack ne parle de miaou");
     await page.fill("#q-search", "");
     // Toutes prêtes : une puce par famille.
     await page.click('#q-groups [data-groupe="pretes"]');
@@ -4707,8 +4723,11 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.ok(savane.questions.every((q) => q.status === "validee"));
     assert.deepEqual([espace.theme, espace.questions[0].correct, espace.questions[0].status], ["Sciences", 0, "validee"]);
     assert.deepEqual(quizzes.animaux, ANIMAUX, "les autres quiz ne bougent pas");
-    // Les packs importés à l'instant sont en tête, encadrés.
+    // Les packs importés à l'instant sont encadrés ; les packs sont rangés par thème (sans thème à la fin).
     await page.locator(`.pack.copie-recente[data-pack="${idSavane}"]`).waitFor();
+    assert.deepEqual(await page.locator(".q-theme h3").allInnerTexts(), ["ANIMAUX · 1 PACK", "SCIENCES · 1 PACK", "SANS THÈME · 1 PACK"]);
+    await page.locator(`.q-theme[data-theme="Animaux"] .pack[data-pack="${idSavane}"]`).waitFor();
+    await page.locator('.q-theme[data-theme="Sans thème"] .pack[data-pack="animaux"]').waitFor();
 
     // Un pack s'ouvre sur ses questions : illustration là, ou l'alerte.
     await page.locator(`.pack[data-pack="${idSavane}"]`, { hasText: "⚠ 1 sans illustration" }).getByRole("button", { name: "Ouvrir" }).click();
@@ -4721,7 +4740,25 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator(`.q-item.sans-illus[data-question="${idSavane}/3"] .q-illus.vide`).waitFor();
     await page.locator(`.q-item.sans-illus[data-question="${idSavane}/3"] .q-alerte`, { hasText: "⚠ Pas d'illustration" }).waitFor();
     assert.equal(await page.locator(".q-item.sans-illus").count(), 1);
+    // Plusieurs questions cochées, supprimées ensemble.
+    await page.locator(`.q-item[data-question="${idSavane}/0"] .q-coche`).check();
+    await page.locator(`.q-item[data-question="${idSavane}/2"] .q-coche`).check();
+    await page.locator("#q-selection:not([hidden])", { hasText: "2 questions cochées" }).waitFor();
     await capture(page, "questions-pack-ouvert");
+    await page.click("#q-tout");
+    await page.locator("#q-selection-n", { hasText: "4 questions cochées" }).waitFor();
+    assert.equal(await page.locator("#q-tout").isHidden(), true);
+    await page.click("#q-aucune");
+    await page.locator("#q-selection").waitFor({ state: "hidden" });
+    await page.locator(`.q-item[data-question="${idSavane}/0"] .q-coche`).check();
+    await page.locator(`.q-item[data-question="${idSavane}/2"] .q-coche`).check();
+    await page.click("#q-supprimer");
+    assert.equal(await repondreFenetre(page), "Supprimer 2 questions ?");
+    await page.locator("#q-status", { hasText: "2 questions supprimées." }).waitFor();
+    await waitFor(async () => (await library(`quizzes/${idSavane}/questions`))?.length === 2, "deux questions de moins dans le pack");
+    assert.deepEqual((await library(`quizzes/${idSavane}/questions`)).map((q) => q.text), ["Quel animal est le roi de la savane ?", "Quel animal a des rayures ?"]);
+    await page.locator("#q-selection").waitFor({ state: "hidden" });
+    assert.equal(await page.locator("#q-list .q-item").count(), 2);
 
     // « Éditer le pack » : la relecture habituelle du quiz.
     await page.getByRole("button", { name: "Éditer le pack" }).click();

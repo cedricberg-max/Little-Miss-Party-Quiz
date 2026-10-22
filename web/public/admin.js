@@ -49,7 +49,7 @@ import {
   correspond, categoriesDe, categoriesPerso, ficheImage, motsCles,
 } from "./mediatheque.js";
 import { DOSSIERS, classerPartie, bilan, effacements, passageAFaire, moDe, texteMo, texteGardees } from "./nettoyage.js";
-import { GROUPES_QUESTIONS, questionsToutesPretes, mesQuestions, mesPacks, questionCorrespond, lirePacks, illustration } from "./questions.js";
+import { GROUPES_QUESTIONS, questionsToutesPretes, mesQuestions, mesPacks, questionCorrespond, lirePacks, illustration, retirerQuestions, packsParTheme } from "./questions.js";
 
 // Petit œil sur les champs de mot de passe : voir ce qu'on tape (majuscules, caractère en trop).
 afficherMotsDePasse();
@@ -4600,6 +4600,9 @@ let qCategorie = null;
 let packsNouveaux = new Set();
 /** Questions toutes prêtes : fabriquées une fois (leurs mauvaises réponses sont tirées au hasard). */
 let pretesCache = null;
+/** Ses questions cochées (clés « quiz/numéro »), à supprimer ensemble ; celles de la liste affichée. */
+const qSelection = new Set();
+let qListees = [];
 const QUESTIONS_APERCU = 4;
 const QUESTIONS_MAX = 120;
 const EXEMPLE_PACK = {
@@ -4638,7 +4641,13 @@ function reponseQuestion(x, c, k) {
 
 function ligneQuestion(x) {
   const quiz = x.quizId ? quizzes[x.quizId] : null;
-  return h("div", { class: `q-item${x.ok ? "" : " sans-illus"}`, "data-question": x.cle },
+  // Ses questions (pas celles toutes prêtes de l'appli) se cochent pour être supprimées ensemble.
+  const coche = quiz ? h("input", {
+    type: "checkbox", class: "q-coche", checked: qSelection.has(x.cle), "aria-label": `Cocher « ${x.text} »`,
+    onchange: (e) => { if (e.target.checked) qSelection.add(x.cle); else qSelection.delete(x.cle); barreSelection(); },
+  }) : null;
+  return h("div", { class: `q-item${x.ok ? "" : " sans-illus"}${qSelection.has(x.cle) ? " cochee" : ""}`, "data-question": x.cle },
+    coche,
     illustrationQuestion(x),
     h("div", { class: "q-corps" },
       h("b", { class: "q-texte", text: x.text || "(question sans texte)" }),
@@ -4648,7 +4657,64 @@ function ligneQuestion(x) {
         x.ok ? null : h("span", { class: "q-alerte", text: `⚠ ${x.manque}` }),
         x.validee ? null : h("span", { class: "q-a-valider", text: "À valider" }),
         h("span", { class: "hint small", text: x.source ?? "" }),
-        quiz ? h("button", { type: "button", class: "btn small secondary", text: "Éditer", onclick: () => review(x.quizId, quiz) }) : null)));
+        quiz ? h("button", { type: "button", class: "btn small secondary", text: "Éditer", onclick: () => review(x.quizId, quiz) }) : null,
+        quiz ? h("button", { type: "button", class: "btn small danger", text: "Supprimer", onclick: () => supprimerQuestions([x]) }) : null)));
+}
+
+/** Ses questions, toutes (en vrac et dans les packs) : pour retrouver celles qui sont cochées. */
+const toutesMesQuestions = () => [...mesQuestions(quizzes), ...mesPacks(quizzes).flatMap((p) => p.questions)];
+
+/** Barre des questions cochées : combien, tout cocher ici, tout décocher, supprimer. */
+function barreSelection() {
+  const mes = new Set(toutesMesQuestions().map((x) => x.cle));
+  [...qSelection].filter((k) => !mes.has(k)).forEach((k) => qSelection.delete(k));
+  $("q-selection").hidden = !qSelection.size;
+  $("q-selection-n").textContent = `${plural(qSelection.size, "question cochée", "questions cochées")}`;
+  $("q-tout").hidden = !qListees.length || qListees.every((x) => qSelection.has(x.cle));
+  document.querySelectorAll("#q-list .q-item[data-question]").forEach((el) => {
+    const on = qSelection.has(el.dataset.question);
+    el.classList.toggle("cochee", on);
+    const box = el.querySelector(".q-coche");
+    if (box) box.checked = on;
+  });
+}
+$("q-tout").onclick = () => { qListees.forEach((x) => qSelection.add(x.cle)); barreSelection(); };
+$("q-aucune").onclick = () => { qSelection.clear(); barreSelection(); };
+$("q-supprimer").onclick = () => {
+  const cles = new Set(qSelection);
+  supprimerQuestions(toutesMesQuestions().filter((x) => cles.has(x.cle)));
+};
+
+/**
+ * Supprime ses questions de leurs quiz, après confirmation. Un quiz qui n'a plus de question est supprimé aussi (la
+ * fenêtre le dit, comme les prestations qui l'utilisent). Les images restent dans la Bibliothèque › Images.
+ */
+async function supprimerQuestions(liste) {
+  if (!liste.length) return;
+  const { ecritures, vides, n } = retirerQuestions(quizzes, liste);
+  if (!n) return status("q-status", "Ces questions ont changé entre-temps : rien n'est supprimé, regardez la liste à jour.");
+  const titre = (id) => `« ${quizzes[id]?.title ?? "sans titre"} »`;
+  const utilisePar = Object.keys(ecritures).flatMap((id) => Object.values(shows)
+    .filter((sh) => (sh.rounds ?? []).some((r) => r && roundQuizIds(r).includes(id))).map((sh) => `${showTitle(sh)} (quiz ${titre(id)})`));
+  const message = [
+    n === 1 ? `Supprimer la question « ${liste[0].text || "sans texte"} » ?` : `Supprimer ${n} questions ?`,
+    vides.length ? `${vides.length > 1 ? "Les quiz" : "Le quiz"} ${vides.map(titre).join(", ")} n'${vides.length > 1 ? "ont" : "a"} plus d'autre question : ${vides.length > 1 ? "ils seront supprimés" : "il sera supprimé"} aussi.` : null,
+    utilisePar.length ? `Attention, c'est utilisé par : ${[...new Set(utilisePar)].join(", ")}.` : null,
+  ].filter(Boolean).join("\n\n");
+  if (!(await confirmer(message, { ok: "Supprimer", danger: true }))) return;
+  try {
+    for (const [id, questions] of Object.entries(ecritures)) {
+      if (questions) await update(ref(db, `library/quizzes/${id}`), { questions, updatedAt: serverTimestamp() });
+      else await set(ref(db, `library/quizzes/${id}`), null);
+    }
+  } catch (err) {
+    console.error(err);
+    return status("q-status", "Suppression refusée : vérifiez Internet ou reconnectez-vous, puis recommencez.");
+  }
+  qSelection.clear();
+  if (qPack && vides.includes(qPack)) qPack = null;
+  status("q-status", `${n === 1 ? "Question supprimée" : `${n} questions supprimées`}${vides.length ? ` (et ${vides.length > 1 ? "les quiz" : "le quiz"} vidé${vides.length > 1 ? "s" : ""})` : ""}.`, true);
+  renderQuestions();
 }
 
 function cartePack(p) {
@@ -4659,13 +4725,19 @@ function cartePack(p) {
     h("span", { text: `${plural(p.total, "question")} · ${p.validees} validée${p.validees > 1 ? "s" : ""}` }),
     p.sansIllustration ? h("span", { class: "q-alerte", text: `⚠ ${p.sansIllustration} sans illustration` }) : h("span", { class: "ok", text: "✓ Toutes illustrées" }),
     h("div", { class: "row" },
-      h("button", { class: "btn", type: "button", text: "Ouvrir", onclick: () => { qPack = p.id; renderQuestions(); } }),
+      h("button", { class: "btn", type: "button", text: "Ouvrir", onclick: () => { qPack = p.id; qSelection.clear(); status("q-status", ""); renderQuestions(); } }),
       h("button", { class: "btn secondary", type: "button", text: "Éditer", onclick: () => review(p.id, quizzes[p.id]) }),
       h("button", { class: "btn secondary", type: "button", text: "Renommer", onclick: () => rename(`library/quizzes/${p.id}`, p.title, "du pack") }),
       h("button", { class: "btn danger", type: "button", text: "Supprimer", onclick: () => deleteQuiz(p.id, quizzes[p.id]) })));
 }
 
 function renderQuestions() {
+  qListees = [];
+  dessinerQuestions();
+  barreSelection();
+}
+
+function dessinerQuestions() {
   const g = groupesQuestions();
   const recherche = $("q-search").value.trim();
   const filtre = (list) => (recherche ? list.filter((x) => questionCorrespond(x, recherche)) : list);
@@ -4675,7 +4747,7 @@ function renderQuestions() {
   if (qPack && !quizzes[qPack]) qPack = null;
   const chip = (key, label, n) => h("button", {
     type: "button", class: `chip${qGroupe === key ? " active" : ""}`, "data-groupe": key ?? "tout", text: `${label} (${n})`,
-    onclick: () => { qGroupe = key; qPack = null; qCategorie = null; renderQuestions(); },
+    onclick: () => { qGroupe = key; qPack = null; qCategorie = null; qSelection.clear(); status("q-status", ""); renderQuestions(); },
   });
   $("q-groups").replaceChildren(chip(null, "Tout", compte.pretes + compte.miennes + compte.packs),
     ...Object.entries(GROUPES_QUESTIONS).map(([k, label]) => chip(k, label, compte[k])));
@@ -4688,9 +4760,10 @@ function renderQuestions() {
   if (qPack) {
     const p = g.packs.find((x) => x.id === qPack);
     const liste = filtre(p.questions);
+    qListees = liste;
     box.replaceChildren(
       h("div", { class: "title-row" },
-        h("button", { type: "button", class: "btn secondary", text: "← Tous les packs", onclick: () => { qPack = null; renderQuestions(); } }),
+        h("button", { type: "button", class: "btn secondary", text: "← Tous les packs", onclick: () => { qPack = null; qSelection.clear(); renderQuestions(); } }),
         h("button", { type: "button", class: "btn secondary", text: "Éditer le pack", onclick: () => review(p.id, quizzes[p.id]) })),
       h("h2", { text: p.title }),
       h("p", { class: "hint", text: [p.theme, plural(p.total, "question"), p.sansIllustration ? `⚠ ${p.sansIllustration} sans illustration` : "✓ toutes illustrées"].filter(Boolean).join(" · ") }),
@@ -4712,19 +4785,23 @@ function renderQuestions() {
     return;
   }
 
+  // Mes packs par thème : un titre par thème (« Disney », « Musique »…), ses packs dessous.
   if (qGroupe === "packs") {
-    const liste = [...packsTrouves].sort((a, b) => Number(packsNouveaux.has(b.id)) - Number(packsNouveaux.has(a.id)));
-    box.replaceChildren(liste.length ? h("div", { class: "cards" }, ...liste.map(cartePack))
+    box.replaceChildren(packsTrouves.length
+      ? h("div", { class: "q-themes" }, ...packsParTheme(packsTrouves).map(([theme, packs]) => h("section", { class: "q-theme", "data-theme": theme },
+        h("h3", { text: `${theme} · ${plural(packs.length, "pack")}` }),
+        h("div", { class: "cards" }, ...packs.map(cartePack)))))
       : h("p", { class: "hint", text: recherche ? "Aucun pack ne correspond à cette recherche." : "Aucun pack pour l'instant : importez votre premier fichier JSON." }));
     return;
   }
 
-  // Toutes prêtes (par famille) ou Mes questions (par quiz) : une puce par famille ou par quiz, puis la liste.
+  // Toutes prêtes (par famille) ou Mes questions en vrac (par thème) : une puce par famille ou par thème, puis la liste.
   const tout = filtre(g[qGroupe]);
   const categories = [...new Set(tout.map((x) => x.categorie).filter(Boolean))];
   if (qCategorie && !categories.includes(qCategorie)) qCategorie = null;
   const liste = qCategorie ? tout.filter((x) => x.categorie === qCategorie) : tout;
   const sans = liste.filter((x) => !x.ok).length;
+  if (qGroupe === "miennes") qListees = liste.slice(0, QUESTIONS_MAX);
   box.replaceChildren(
     categories.length > 1 ? h("div", { class: "chips q-categories" },
       h("button", { type: "button", class: `chip${qCategorie ? "" : " active"}`, text: `Toutes (${tout.length})`, onclick: () => { qCategorie = null; renderQuestions(); } }),
@@ -4753,6 +4830,7 @@ $("pack-file").onchange = async () => {
     if (f.type.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(f.name)) images.set(imageKey(f.name), f);
     else jsons.push(f);
   }
+  status("q-status", "");
   if (!jsons.length) return status("pack-status", "Choisissez au moins un fichier JSON (avec ses images s'il en a).");
   const erreurs = [];
   const packs = [];

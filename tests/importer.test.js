@@ -2253,3 +2253,41 @@ describe("Bibliothèque › Questions : toutes prêtes, mes questions, mes packs
     assert.ok(tout.every((x) => Object.values(FAMILLES_PETITS).includes(x.categorie)));
   });
 });
+
+describe("Mes questions : supprimer, en vrac par thème, packs rangés par thème (cedric, 22/10)", async () => {
+  const Q = await import("../web/public/questions.js");
+  const q = (text) => ({ text, choices: ["A", "B"], correct: 0, status: "validee" });
+
+  test("supprimer : seulement les questions encore à leur place, un quiz vidé est supprimé, les autres ne bougent pas", () => {
+    const quizzes = {
+      a: { title: "A", questions: [q("Un"), q("Deux"), q("Trois")] },
+      b: { title: "B", questions: { 0: q("Seule") } },
+      c: { title: "C", questions: [q("Garde")] },
+    };
+    const r = Q.retirerQuestions(quizzes, [
+      { quizId: "a", index: 0, text: "Un" }, { quizId: "a", index: 2, text: "Trois" },
+      { quizId: "b", index: 0, text: "Seule" },
+      { quizId: "c", index: 0, text: "Autre texte" }, { quizId: "z", index: 0, text: "Un" }, { quizId: "a", index: "1", text: "Deux" },
+    ]);
+    assert.deepEqual(r, { ecritures: { a: [q("Deux")], b: null }, vides: ["b"], n: 3 });
+    assert.deepEqual(quizzes.a.questions.map((x) => x.text), ["Un", "Deux", "Trois"], "rien n'est modifié sur place");
+    assert.deepEqual(Q.retirerQuestions(quizzes, []), { ecritures: {}, vides: [], n: 0 });
+  });
+
+  test("en vrac : le thème du quiz (sinon son titre) sert de catégorie ; les packs se rangent par thème", () => {
+    const miennes = Q.mesQuestions({
+      m1: { title: "Mes devinettes", theme: " Disney ", source: "saisie", updatedAt: 2, questions: [q("Elsa ?")] },
+      m2: { title: "En vrac du lundi", source: "saisie", updatedAt: 1, questions: [q("Pomme ?")] },
+    });
+    assert.deepEqual(miennes.map((x) => [x.text, x.categorie, x.source]), [["Elsa ?", "Disney", "Mes devinettes"], ["Pomme ?", "En vrac du lundi", "En vrac du lundi"]]);
+    const packs = [
+      { id: "p1", theme: "Musique" }, { id: "p2", theme: "disney" }, { id: "p3" }, { id: "p4", theme: "Disney" },
+      { id: "p5", theme: "  " }, { id: "p6", theme: "Éléphants" }, { id: "p7", theme: "Animaux" },
+    ];
+    assert.deepEqual(Q.packsParTheme(packs).map(([t, ps]) => [t, ps.map((p) => p.id)]), [
+      ["Animaux", ["p7"]], ["disney", ["p2", "p4"]], ["Éléphants", ["p6"]], ["Musique", ["p1"]], [Q.SANS_THEME, ["p3", "p5"]],
+    ]);
+    assert.deepEqual(Q.packsParTheme([]), []);
+    assert.deepEqual(Object.values(Q.GROUPES_QUESTIONS), ["📦 Toutes prêtes", "✍️ Mes questions en vrac", "📥 Mes packs par thème"]);
+  });
+});

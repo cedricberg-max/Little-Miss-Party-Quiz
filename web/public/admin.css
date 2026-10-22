@@ -693,3 +693,17 @@ button.media-tile:hover { border-color: var(--violet); }
 .pack-import .file-btn { align-self: flex-start; cursor: pointer; }
 .pack-exemple { margin: 8px 0 0; padding: 12px 14px; max-height: 320px; overflow: auto; border-radius: 12px; background: var(--bg-2); font-size: 13px; line-height: 1.45; white-space: pre; }
 @media (max-width: 640px) { .q-illus { width: 56px; height: 56px; } .q-illus.emoji { font-size: 34px; } .q-pied .btn { margin-left: 0; } }
+/* Ses questions se cochent (case à gauche) pour être supprimées ensemble ; la barre de la sélection flotte en bas. */
+.q-coche { flex: none; width: 22px; height: 22px; padding: 0; margin: 4px 0 0; accent-color: var(--violet); cursor: pointer; }
+.q-item.cochee { border-color: var(--violet); background: var(--violet-pale); }
+.q-selection {
+  position: fixed; left: 50%; bottom: 80px; z-index: 20; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px);
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 10px; padding: 10px 14px;
+  border-radius: 18px; border: 1px solid var(--line-2); background: var(--card); box-shadow: 0 10px 30px rgba(60, 20, 90, .25);
+}
+.q-selection[hidden] { display: none; }
+.q-selection b { color: var(--plum); }
+/* Mes packs par thème : un titre par thème, ses packs dessous. */
+.q-themes { display: flex; flex-direction: column; gap: 18px; }
+.q-theme { display: flex; flex-direction: column; gap: 10px; }
+.q-theme h3 { margin: 0; font-size: 15px; text-transform: uppercase; letter-spacing: 1px; color: var(--violet); }
