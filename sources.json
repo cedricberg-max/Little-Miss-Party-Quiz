@@ -1,0 +1,3327 @@
+{
+ "manquants": [
+  "qc-comment-s-appelle-la-colonne-d-os-au-milieu-du-dos",
+  "qc-quelle-vitamine-le-soleil-aide-t-il-notre-corps-a-fabriquer",
+  "qc-quel-est-le-mois-le-plus-court-de-l-annee",
+  "qc-quel-jour-est-la-fete-nationale-francaise",
+  "qc-quand-la-grande-aiguille-est-sur-le-12-et-la-petite-sur-le-3-quelle-heur",
+  "qc-quand-il-est-midi-a-paris-quelle-heure-est-il-a-new-york",
+  "qc-de-quel-cote-le-soleil-se-leve-t-il",
+  "qc-ou-fait-on-de-la-natation",
+  "qc-dans-quel-sport-se-bat-on-avec-une-epee-ou-un-fleuret",
+  "qc-dans-quel-pays-sont-nes-les-jeux-olympiques",
+  "qc-dans-quelle-epreuve-saute-t-on-par-dessus-une-barre-placee-en-hauteur",
+  "qc-quelle-forme-a-une-roue"
+ ],
+ "restants": [],
+ "sources": {
+  "qc-comment-la-chauve-souris-trouve-t-elle-son-chemin-dans-le-noir": [
+   {
+    "n": 1,
+    "titre": "File:Flying-Dragon-Nebula Sh 2-113.png",
+    "auteur": "Chuck Ayoub",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Flying-Dragon-Nebula_Sh_2-113.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Haeckel Chiroptera.jpg",
+    "auteur": "Ernst Haeckel",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Haeckel_Chiroptera.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Bat Flying in a Mine Shaft (70eeeeb2-9d49-0bd1-dda2-bf48ee13e9f8).jpg",
+    "auteur": "NPS",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Bat_Flying_in_a_Mine_Shaft_(70eeeeb2-9d49-0bd1-dda2-bf48ee13e9f8).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-l-araignee-est": [
+   {
+    "n": 1,
+    "titre": "File:Brachypelma smithi 2009 G03.jpg",
+    "auteur": "George Chernilevsky",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Brachypelma_smithi_2009_G03.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-est-le-plus-grand-poisson-du-monde": [
+   {
+    "n": 1,
+    "titre": "File:Whale Shark, Rhincodon typus, 1965.jpg",
+    "auteur": "Queensland State Archives",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Whale_Shark,_Rhincodon_typus,_1965.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Rhincodon typus fgbnms.jpg",
+    "auteur": "FGBNMS/Eckert",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Rhincodon_typus_fgbnms.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Rhincodon typus 420227783.jpg",
+    "auteur": "Jean-Paul Boerekamps",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Rhincodon_typus_420227783.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-oiseau-pond-les-plus-gros-ufs": [
+   {
+    "n": 1,
+    "titre": "File:Struthio camelus (captive) in Jardim Zoológico de Curitiba.jpg",
+    "auteur": "Wilfredor",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Struthio_camelus_(captive)_in_Jardim_Zool%C3%B3gico_de_Curitiba.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Common ostrich herd.jpg",
+    "auteur": "Drcbrothephotographer",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Common_ostrich_herd.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Ostrich Etosha pan.jpg",
+    "auteur": "Benoît Vicart",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Ostrich_Etosha_pan.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-que-faut-il-faire-avant-de-manger": [
+   {
+    "n": 1,
+    "titre": "File:Woman washing hands.jpg",
+    "auteur": "Bill Branson (Photographer)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Woman_washing_hands.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Washing hands and legs after play.jpg",
+    "auteur": "Beendy234",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Washing_hands_and_legs_after_play.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Washing hand 2.jpg",
+    "auteur": "Beendy234",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Washing_hand_2.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-avec-quoi-se-brosse-t-on-les-dents": [
+   {
+    "n": 1,
+    "titre": "File:Toothbrush x3 20050716 002.jpg",
+    "auteur": "Jonas Bergsten",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Toothbrush_x3_20050716_002.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Toothbrush, Toothpaste, Dental Care (571741).jpg",
+    "auteur": "Steve Buissinne, South Africa",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Toothbrush,_Toothpaste,_Dental_Care_(571741).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Toothbrush 20050716 004.jpg",
+    "auteur": "Jonas Bergsten",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Toothbrush_20050716_004.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-que-porte-t-on-sur-le-nez-quand-on-voit-mal": [
+   {
+    "n": 1,
+    "titre": "File:Barbara McClintock (1902-1992) shown in her laboratory in 1947.jpg",
+    "auteur": "Smithsonian Institution/Science Service; Restored by Adam Cuerden",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Barbara_McClintock_(1902-1992)_shown_in_her_laboratory_in_1947.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Émile Bertrand - Jules Massenet - Cendrillon poster.jpg",
+    "auteur": "Adam Cuerden",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:%C3%89mile_Bertrand_-_Jules_Massenet_-_Cendrillon_poster.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Une Restauration by Edouard Dantan.jpg",
+    "auteur": "Édouard Joseph Dantan",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Une_Restauration_by_Edouard_Dantan.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-organe-fait-circuler-le-sang-dans-tout-le-corps": [
+   {
+    "n": 1,
+    "titre": "File:Heart frontally PDA.jpg",
+    "auteur": "No machine-readable author provided. Ekko assumed (based on copyright claims).",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Heart_frontally_PDA.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-avec-quels-organes-respire-t-on": [
+   {
+    "n": 1,
+    "titre": "File:3d model of lungs airways ribs.jpg",
+    "auteur": "Eboelen (talk) (Uploads)",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:3d_model_of_lungs_airways_ribs.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:The Human Lungs.jpg",
+    "auteur": "Edeh Sophia",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:The_Human_Lungs.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:PSM V09 D158 Crane throat structure.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:PSM_V09_D158_Crane_throat_structure.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-est-le-plus-long-os-du-corps": [
+   {
+    "n": 1,
+    "titre": "File:Femur - anterior, posterior.jpg",
+    "auteur": "MAKY.OREL",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Femur_-_anterior,_posterior.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Femur (caput femoris) - bone structure detail (vertical cut) 3.jpg",
+    "auteur": "MAKY.OREL",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Femur_(caput_femoris)_-_bone_structure_detail_(vertical_cut)_3.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Femur (caput femoris) - bone structure detail (vertical cut).jpg",
+    "auteur": "MAKY.OREL",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Femur_(caput_femoris)_-_bone_structure_detail_(vertical_cut).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-est-le-plus-grand-organe-du-corps-humain": [
+   {
+    "n": 1,
+    "titre": "File:Hand skin closeup.jpg",
+    "auteur": "Clump",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Hand_skin_closeup.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Hand skin close up - AKA Neomi EP.jpg",
+    "auteur": "Dr. Polona Zalar - Department of Biology at Biotechnical Faculty of the University of Ljubljana, Kaja Kisilak",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Hand_skin_close_up_-_AKA_Neomi_EP.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Flayed man with left hand on hip, holding skin in right hand MET DP812690.jpg",
+    "auteur": "Giulio Bonasone",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Flayed_man_with_left_hand_on_hip,_holding_skin_in_right_hand_MET_DP812690.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-appelle-t-on-l-ensemble-des-os-du-corps": [
+   {
+    "n": 1,
+    "titre": "File:Human-Skeleton.jpg",
+    "auteur": "Sklmsta",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Human-Skeleton.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Human Skeleton 01.jpg",
+    "auteur": "Abdsomod",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Human_Skeleton_01.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Thomson plate 02 - female skeleton, front view.webp",
+    "auteur": "Henry Frowde; engraver was Arthur Thomson",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Thomson_plate_02_-_female_skeleton,_front_view.webp",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appellent-les-premieres-dents-des-enfants-qui-tombent": [
+   {
+    "n": 1,
+    "titre": "File:Francesco Botticini, Madonna and Child, 15th cent., Sotheby's.jpg",
+    "auteur": "Francesco Botticini",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Francesco_Botticini,_Madonna_and_Child,_15th_cent.,_Sotheby%27s.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Child welfare exhibit - state fair (UHPCSNP 10247).jpg",
+    "auteur": "Unknown photographer",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Child_welfare_exhibit_-_state_fair_(UHPCSNP_10247).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Mrs. Helems, Leeds, Mass., putting bristles into tooth brushes in an untidy kitchen. She makes about $4.65 a week usually. The sanitary conditions in most of these homes are pretty good, but LOC nclc.04260.jpg",
+    "auteur": "Hine, Lewis Wickes; National Child Labor Committee Collection",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Mrs._Helems,_Leeds,_Mass.,_putting_bristles_into_tooth_brushes_in_an_untidy_kitchen._She_makes_about_$4.65_a_week_usually._The_sanitary_conditions_in_most_of_these_homes_are_pretty_good,_but_LOC_nclc.04260.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-organe-en-forme-de-poche-recoit-la-nourriture-qu-on-avale": [
+   {
+    "n": 1,
+    "titre": "File:Brown pelican stomach ingested objects.jpg",
+    "auteur": "Photographer: Scott Hansen, U.S. Geological Survey",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Brown_pelican_stomach_ingested_objects.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Anatomy of the front and stomach tab II Cortana anatomicae.jpg",
+    "auteur": "Pietro, da Cortona",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Anatomy_of_the_front_and_stomach_tab_II_Cortana_anatomicae.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Stomach of a beef.png",
+    "auteur": "Dr. Karl Rothe, Ferdinand Frank, Josef Steigl",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Stomach_of_a_beef.png",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-organe-commande-tout-le-corps": [
+   {
+    "n": 1,
+    "titre": "File:Dr. Edith Klemperer Patent for Luminous Brain Model, 1934.png",
+    "auteur": "U.S. Patent Office",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Dr._Edith_Klemperer_Patent_for_Luminous_Brain_Model,_1934.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:The Human Brain Model 02.jpg",
+    "auteur": "Edeh Sophia",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:The_Human_Brain_Model_02.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:The Human Brain Model 01.jpg",
+    "auteur": "Edeh Sophia",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:The_Human_Brain_Model_01.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-la-partie-coloree-de-l-il": [
+   {
+    "n": 1,
+    "titre": "File:Iris Diaphragm.gif",
+    "auteur": "User:Catsquisher",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Iris_Diaphragm.gif",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-articulation-se-trouve-au-milieu-de-la-jambe": [
+   {
+    "n": 1,
+    "titre": "File:Knee diagram-ar.jpg",
+    "auteur": "Original:Mysid\nDerivative: User:Mysid",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Knee_diagram-ar.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Anatomical Study of a Knee MET 21.15.2.jpg",
+    "auteur": "Michelangelo",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Anatomical_Study_of_a_Knee_MET_21.15.2.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Wounded Knee aftermath5.jpg",
+    "auteur": "Wounded_Knee_aftermath3.jpg: Trager &amp; Kuhn, Chadron, Nebr.\nderivative work: Durova (talk)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Wounded_Knee_aftermath5.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-articulation-se-trouve-au-milieu-du-bras": [
+   {
+    "n": 1,
+    "titre": "File:Elbow coude.JPG",
+    "auteur": "KoS",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Elbow_coude.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:X-ray of normal elbow by lateral projection.jpg",
+    "auteur": "Mikael Häggström, M.D. Author info - Reusing images- Conflicts of interest:  None\nMikael Häggström, M.D.",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:X-ray_of_normal_elbow_by_lateral_projection.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Elbow.jpg",
+    "auteur": "Andreas Nowak",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Elbow.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qu-est-ce-qui-est-unique-au-bout-des-doigts-de-chaque-personne": [
+   {
+    "n": 1,
+    "titre": "File:Fingerprint (PSF).png",
+    "auteur": "Pearson Scott Foresman",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Fingerprint_(PSF).png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:San Mateo County Jane Doe fingerprint chart.jpg",
+    "auteur": "Daly City, CA Medical Examiner",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:San_Mateo_County_Jane_Doe_fingerprint_chart.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Drinking glass fingerprint FTIR.jpg",
+    "auteur": "Olli Niemitalo",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Drinking_glass_fingerprint_FTIR.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-avec-quoi-le-medecin-ecoute-t-il-le-c-ur": [
+   {
+    "n": 1,
+    "titre": "File:Stethoscope-2.png",
+    "auteur": "this version: Sonarpulse. origenal:Huji",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Stethoscope-2.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Littmann Stethoscope.jpg",
+    "auteur": "Hanabishi",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Littmann_Stethoscope.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Stethoscope No.120.JPG",
+    "auteur": "Tama998",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Stethoscope_No.120.JPG",
+    "source": "commons"
+   }
+  ],
+  "qc-avec-quoi-mesure-t-on-la-fievre": [
+   {
+    "n": 1,
+    "titre": "File:Thermometer (Fever) (50838273611).jpg",
+    "auteur": "Alabama Extension",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Thermometer_(Fever)_(50838273611).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Thermometer (Fever) with Mask (50838355502).jpg",
+    "auteur": "Alabama Extension",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Thermometer_(Fever)_with_Mask_(50838355502).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Circular- “A New Clinical Fever Thermometer,” manufactured by Aloe and Hernstein, 300 North 4th Street, St. Louis, Mo., 1879-1884.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Circular-_%E2%80%9CA_New_Clinical_Fever_Thermometer,%E2%80%9D_manufactured_by_Aloe_and_Hernstein,_300_North_4th_Street,_St._Louis,_Mo.,_1879-1884.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qu-est-ce-qui-fait-bouger-les-os": [
+   {
+    "n": 1,
+    "titre": "File:Comment jouent les muscles chez un athlète - scénario (résumé conforme à la vue) avec photogrammes - btv1b64029916 (3 of 3).jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Comment_jouent_les_muscles_chez_un_athl%C3%A8te_-_sc%C3%A9nario_(r%C3%A9sum%C3%A9_conforme_%C3%A0_la_vue)_avec_photogrammes_-_btv1b64029916_(3_of_3).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Comment jouent les muscles chez un athlète - scénario (résumé conforme à la vue) avec photogrammes - btv1b64029916 (2 of 3).jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Comment_jouent_les_muscles_chez_un_athl%C3%A8te_-_sc%C3%A9nario_(r%C3%A9sum%C3%A9_conforme_%C3%A0_la_vue)_avec_photogrammes_-_btv1b64029916_(2_of_3).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Comment jouent les muscles chez un athlète - scénario (résumé conforme à la vue) avec photogrammes - btv1b64029916 (1 of 3).jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Comment_jouent_les_muscles_chez_un_athl%C3%A8te_-_sc%C3%A9nario_(r%C3%A9sum%C3%A9_conforme_%C3%A0_la_vue)_avec_photogrammes_-_btv1b64029916_(1_of_3).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-os-protege-le-cerveau": [
+   {
+    "n": 1,
+    "titre": "File:Shang Bronze Yan Steamer with Human Skull.jpg",
+    "auteur": "Gary Todd",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Shang_Bronze_Yan_Steamer_with_Human_Skull.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-la-colonne-d-os-au-milieu-du-dos": [],
+  "qc-quels-os-protegent-le-c-ur-et-les-poumons": [
+   {
+    "n": 1,
+    "titre": "File:Ancient Meitei letter \"THOU\" (TH) - meaning as well as representing \"chest\" or \"breasts\" or \"rib cage\".jpg",
+    "auteur": "Haoreima",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Ancient_Meitei_letter_%22THOU%22_(TH)_-_meaning_as_well_as_representing_%22chest%22_or_%22breasts%22_or_%22rib_cage%22.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Rib Cage (PSF).png",
+    "auteur": "Pearson Scott Foresman",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Rib_Cage_(PSF).png",
+    "source": "commons"
+   }
+  ],
+  "qc-ou-faut-il-eternuer-pour-ne-pas-repandre-les-microbes": [
+   {
+    "n": 1,
+    "titre": "File:Sneeze.JPG",
+    "auteur": "James Gathany",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Sneeze.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:SneezeDropletDistribution.jpg",
+    "auteur": "Z. Y. Han, W. G. Weng and Q. Y. Huang",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:SneezeDropletDistribution.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Sneeze Achiu.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Sneeze_Achiu.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qu-est-ce-qui-protege-de-certaines-maladies-avec-une-petite-piqure": [
+   {
+    "n": 1,
+    "titre": "File:Smallpox vaccine.jpg",
+    "auteur": "Photo Credit: James Gathany\nContent Providers(s): CDC",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Smallpox_vaccine.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Several vaccines (2021).jpg",
+    "auteur": "Prefeitura de Itapevi",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Several_vaccines_(2021).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:COVID-19 vaccine in NIAID lab freezer.jpg",
+    "auteur": "National Institute of Allergy and Infectious Diseases (NIAID), NIH",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:COVID-19_vaccine_in_NIAID_lab_freezer.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-vitamine-le-soleil-aide-t-il-notre-corps-a-fabriquer": [],
+  "qc-quelles-cellules-transportent-l-oxygene-dans-le-sang": [
+   {
+    "n": 1,
+    "titre": "File:Red blood cells infected with malaria.jpg",
+    "auteur": "Rick Fairhurst and Jordan Zuspann, National Institute of Allergy and Infectious Diseases, National Institutes of Health",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Red_blood_cells_infected_with_malaria.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Red Blood Cell.jpg",
+    "auteur": "Arek Socha",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Red_Blood_Cell.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Osmotic pressure on blood cells diagram-ar.png",
+    "auteur": "User:LadyofHats",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Osmotic_pressure_on_blood_cells_diagram-ar.png",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-molecule-porte-le-code-genetique": [
+   {
+    "n": 1,
+    "titre": "File:DNA Furchen.png",
+    "auteur": "Yikrazuul",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:DNA_Furchen.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:DNA Helix CPK.jpg",
+    "auteur": "Ude",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:DNA_Helix_CPK.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quels-organes-filtrent-le-sang-et-fabriquent-l-urine": [
+   {
+    "n": 1,
+    "titre": "File:Kidney anatomy model.jpg",
+    "auteur": "Rayhana Alhour",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Kidney_anatomy_model.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Kidney Anatomy-ar.png",
+    "auteur": "Ahad.F",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Kidney_Anatomy-ar.png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Kidney-numbered.png",
+    "auteur": "Henry Vandyke Carter",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Kidney-numbered.png",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-est-le-plus-petit-os-du-corps-humain": [
+   {
+    "n": 1,
+    "titre": "File:Anatomy of the ear illustration tab XXIII Cortana anatomicae.jpg",
+    "auteur": "Pietro, da Cortona",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Anatomy_of_the_ear_illustration_tab_XXIII_Cortana_anatomicae.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Diagrammatic View of the Ear.jpg",
+    "auteur": "Sue Clark",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Diagrammatic_View_of_the_Ear.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-de-quoi-sont-faits-les-ongles-et-les-cheveux": [
+   {
+    "n": 1,
+    "titre": "File:Mary Garrity - Ida B. Wells-Barnett - Google Art Project - restoration crop.jpg",
+    "auteur": "Adam Cuerden",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Mary_Garrity_-_Ida_B._Wells-Barnett_-_Google_Art_Project_-_restoration_crop.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Ada Lovelace portrait.jpg",
+    "auteur": "Alfred Edward Chalon",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Ada_Lovelace_portrait.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Bearded man with long hair-3052641.jpg",
+    "auteur": "subhamshome28",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Bearded_man_with_long_hair-3052641.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelles-cellules-du-sang-defendent-le-corps-contre-les-microbes": [
+   {
+    "n": 1,
+    "titre": "File:White blood cell with MRSA.jpg",
+    "auteur": "National Institutes of Health (NIH)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:White_blood_cell_with_MRSA.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:SEM blood cells.jpg",
+    "auteur": "Bruce Wetzel (photographer). Harry Schaefer (photographer)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:SEM_blood_cells.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Blood cells 090304-F-5951M-108.jpg",
+    "auteur": "U.S. Air Force photo/Airman 1st Class Laura Max.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Blood_cells_090304-F-5951M-108.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-le-petit-rond-noir-au-centre-de-l-il": [
+   {
+    "n": 1,
+    "titre": "File:Horizontal Rectangular Pupil of a Goat.jpg",
+    "auteur": "Sumbria.vikramaditya",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Horizontal_Rectangular_Pupil_of_a_Goat.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Iris Dilator Muscle 012909.jpg",
+    "auteur": "Ylem",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Iris_Dilator_Muscle_012909.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-en-quelle-saison-tombe-la-neige": [
+   {
+    "n": 1,
+    "titre": "File:Common foxes in the snow.jpg",
+    "auteur": "Wilhelm Kuhnert",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Common_foxes_in_the_snow.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Fox In The Snow - Courbet (1860).JPG",
+    "auteur": "Gustave Courbet",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Fox_In_The_Snow_-_Courbet_(1860).JPG",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Forest road Slavne 2017 G8.jpg",
+    "auteur": "George Chernilevsky",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Forest_road_Slavne_2017_G8.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-en-quelle-saison-les-feuilles-tombent-elles-des-arbres": [
+   {
+    "n": 1,
+    "titre": "File:Autumn Leaves River.jpg",
+    "auteur": "Free Nature Stock",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Autumn_Leaves_River.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Autumn leaves Все краски осени Листья клена 21.jpg",
+    "auteur": "Tsyganov Sergey",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Autumn_leaves_%D0%92%D1%81%D0%B5_%D0%BA%D1%80%D0%B0%D1%81%D0%BA%D0%B8_%D0%BE%D1%81%D0%B5%D0%BD%D0%B8_%D0%9B%D0%B8%D1%81%D1%82%D1%8C%D1%8F_%D0%BA%D0%BB%D0%B5%D0%BD%D0%B0_21.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Autumn leaves, Dumitru Rascanu park.jpg",
+    "auteur": "Iurie Nistor",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Autumn_leaves,_Dumitru_Rascanu_park.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-en-quelle-saison-les-fleurs-repoussent-elles": [
+   {
+    "n": 1,
+    "titre": "File:Spring Flowers, by Claude Monet, Cleveland Museum of Art, 1953.155.jpg",
+    "auteur": "Claude Monet",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Spring_Flowers,_by_Claude_Monet,_Cleveland_Museum_of_Art,_1953.155.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Spring Flowers, by Claude Monet, Cleveland Museum of Art, 1953.155.tiff",
+    "auteur": "Claude Monet",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Spring_Flowers,_by_Claude_Monet,_Cleveland_Museum_of_Art,_1953.155.tiff",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Spring Flowers Expo 2026 (28561).jpg",
+    "auteur": "Amr F.Nagy",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Spring_Flowers_Expo_2026_(28561).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-en-quelle-saison-va-t-on-souvent-a-la-plage": [
+   {
+    "n": 1,
+    "titre": "File:P.S. Krøyer - Summer evening on Skagen's Beach. Anna Ancher and Marie Krøyer walking together. - Google Art Project.jpg",
+    "auteur": "Peder Severin Krøyer",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:P.S._Kr%C3%B8yer_-_Summer_evening_on_Skagen%27s_Beach._Anna_Ancher_and_Marie_Kr%C3%B8yer_walking_together._-_Google_Art_Project.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Laganas beach on summer 2023.jpg",
+    "auteur": "Blackberrijack",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Laganas_beach_on_summer_2023.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:1 laganas beach on summer 2023.jpg",
+    "auteur": "Blackberrijack",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:1_laganas_beach_on_summer_2023.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-jour-fete-t-on-noel": [
+   {
+    "n": 1,
+    "titre": "File:Christmas tree at farm.jpg",
+    "auteur": "JoyD Smiths PTMr8",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Christmas_tree_at_farm.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Decorated christmas tree (america).jpg",
+    "auteur": "JoyD Smiths PTMr8",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Decorated_christmas_tree_(america).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-a-quelle-fete-cherche-t-on-des-ufs-en-chocolat": [
+   {
+    "n": 1,
+    "titre": "File:Easter eggs - straw decoration.jpg",
+    "auteur": "Jan Kameníček",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Easter_eggs_-_straw_decoration.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Easter egg roll boys2.jpg",
+    "auteur": "Harris &amp; Ewing",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Easter_egg_roll_boys2.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Easter eggs and Swedish candy - 725 (3002x1996).jpg",
+    "auteur": "Grizzlybear.se",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Easter_eggs_and_Swedish_candy_-_725_(3002x1996).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-fete-celebre-t-on-le-31-octobre": [
+   {
+    "n": 1,
+    "titre": "File:2008 Halloween in Kawasaki.jpg",
+    "auteur": "Syced",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:2008_Halloween_in_Kawasaki.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:2008 Halloween in Kawasaki 2.jpg",
+    "auteur": "Syced",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:2008_Halloween_in_Kawasaki_2.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-objet-sonne-le-matin-pour-nous-reveiller": [
+   {
+    "n": 1,
+    "titre": "File:World alarm clock and flashlight.jpeg",
+    "auteur": "Grandmaster Huon",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:World_alarm_clock_and_flashlight.jpeg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Alarm Clock (Unsplash).jpg",
+    "auteur": "Raul Petri raulpetri",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Alarm_Clock_(Unsplash).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-est-le-mois-le-plus-court-de-l-annee": [],
+  "qc-quel-jour-est-la-fete-nationale-francaise": [],
+  "qc-quelle-fete-celebre-t-on-avec-des-crepes-le-2-fevrier": [
+   {
+    "n": 1,
+    "titre": "File:Crêpe à la confiture de fruit.jpg",
+    "auteur": "Line 1921",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Cr%C3%AApe_%C3%A0_la_confiture_de_fruit.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Marion Crêpes in Harajuku Takeshita 2.jpg",
+    "auteur": "Syced",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Marion_Cr%C3%AApes_in_Harajuku_Takeshita_2.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Maple Bacon Crêpe - Crêpeaffaire 2023-10-07.jpg",
+    "auteur": "Andy Li",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Maple_Bacon_Cr%C3%AApe_-_Cr%C3%AApeaffaire_2023-10-07.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-mois-vient-juste-apres-juillet": [
+   {
+    "n": 1,
+    "titre": "File:2007 August 19 summer festival around Omiya.jpg",
+    "auteur": "Syced",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:2007_August_19_summer_festival_around_Omiya.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:HK SSP 深水埗 Sham Shui Po 欽州街 Yen Chow Street summer August 2025 N13P 01.jpg",
+    "auteur": "Wailundsm WORTPPOUA",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:HK_SSP_%E6%B7%B1%E6%B0%B4%E5%9F%97_Sham_Shui_Po_%E6%AC%BD%E5%B7%9E%E8%A1%97_Yen_Chow_Street_summer_August_2025_N13P_01.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:HK SSP 深水埗 Sham Shui Po 欽州街 Yen Chow Street summer August 2025 N13P 03.jpg",
+    "auteur": "Wailundsm WORTPPOUA",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:HK_SSP_%E6%B7%B1%E6%B0%B4%E5%9F%97_Sham_Shui_Po_%E6%AC%BD%E5%B7%9E%E8%A1%97_Yen_Chow_Street_summer_August_2025_N13P_03.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-en-france-en-quel-mois-a-lieu-la-rentree-des-classes": [
+   {
+    "n": 1,
+    "titre": "File:Boy-in-brown-hoodie-carrying-red-backpack-while-walking-on-207697.jpg",
+    "auteur": "ambermb",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Boy-in-brown-hoodie-carrying-red-backpack-while-walking-on-207697.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:DHS and USCG Backpack Drive (52295499707).jpg",
+    "auteur": "DHSgov",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:DHS_and_USCG_Backpack_Drive_(52295499707).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:DHS and USCG Backpack Drive (52296751939).jpg",
+    "auteur": "DHSgov",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:DHS_and_USCG_Backpack_Drive_(52296751939).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-jour-fete-t-on-le-nouvel-an": [
+   {
+    "n": 1,
+    "titre": "File:Bratislava New Year Fireworks.jpg",
+    "auteur": "Ondrejk",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Bratislava_New_Year_Fireworks.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-gateau-mange-t-on-en-janvier-pour-tirer-les-rois": [
+   {
+    "n": 1,
+    "titre": "File:Galette des rois, made by French people in Tokyo (92538).jpg",
+    "auteur": "Syced",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Galette_des_rois,_made_by_French_people_in_Tokyo_(92538).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Galette des rois, made by French people in Tokyo (53350).jpg",
+    "auteur": "Syced",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Galette_des_rois,_made_by_French_people_in_Tokyo_(53350).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Galette des rois, made by French people in Tokyo.jpg",
+    "auteur": "Syced",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Galette_des_rois,_made_by_French_people_in_Tokyo.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-gateau-en-forme-de-buche-mange-t-on-a-noel": [
+   {
+    "n": 1,
+    "titre": "File:Bûche de Noël chocolat framboise maison.jpg",
+    "auteur": "Jebulon",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:B%C3%BBche_de_No%C3%ABl_chocolat_framboise_maison.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Bûche de Noël, étape 3-4, enrober de crème fraîche battue.jpg",
+    "auteur": "Syced",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:B%C3%BBche_de_No%C3%ABl,_%C3%A9tape_3-4,_enrober_de_cr%C3%A8me_fra%C3%AEche_battue.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Bûche de Noël, étape 2-4, cut it and reassemble it so that it looks like a log with branches.jpg",
+    "auteur": "Syced",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:B%C3%BBche_de_No%C3%ABl,_%C3%A9tape_2-4,_cut_it_and_reassemble_it_so_that_it_looks_like_a_log_with_branches.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-fleur-offre-t-on-le-1er-mai": [
+   {
+    "n": 1,
+    "titre": "File:Beech, ferns and lily of the valley in Gullmarsskogen 1.jpg",
+    "auteur": "W.carter",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Beech,_ferns_and_lily_of_the_valley_in_Gullmarsskogen_1.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Convallaria majalis 196514133.jpg",
+    "auteur": "Aleksey Baushev",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Convallaria_majalis_196514133.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Convallaria majalis 196995011.jpg",
+    "auteur": "Daria",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Convallaria_majalis_196995011.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-objet-mesure-le-temps-avec-du-sable-qui-s-ecoule": [
+   {
+    "n": 1,
+    "titre": "File:Masonic Hourglass.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Masonic_Hourglass.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Hourglass 1.jpg",
+    "auteur": "Suohros",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Hourglass_1.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Philosopher with an Hourglass MET DP814944.jpg",
+    "auteur": "Jan Lievens",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Philosopher_with_an_Hourglass_MET_DP814944.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-ancien-objet-donne-l-heure-grace-a-l-ombre-du-soleil": [
+   {
+    "n": 1,
+    "titre": "File:Sculpture Sundial Frank von Bargen Berlin 01.jpg",
+    "auteur": "Singlespeedfahrer",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Sculpture_Sundial_Frank_von_Bargen_Berlin_01.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Sundial MET 238354.jpg",
+    "auteur": "Creator:Goldsmith Chandlee",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Sundial_MET_238354.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Sundial MET 240734.jpg",
+    "auteur": "Creator:A. P. Folie",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Sundial_MET_240734.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-jour-accroche-t-on-des-poissons-en-papier-dans-le-dos": [
+   {
+    "n": 1,
+    "titre": "File:FishPaper.jpg",
+    "auteur": "Douglas W. Jones",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:FishPaper.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Illustration of fishermen catching fish on paper black and white technique.jpg",
+    "auteur": "Young, Glenn K, U.S. Fish and Wildlife Service",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Illustration_of_fishermen_catching_fish_on_paper_black_and_white_technique.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Winthrop NFH paper files prepared for storage 19 May 2022.png",
+    "auteur": "Julia Pinnix/USFWS",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Winthrop_NFH_paper_files_prepared_for_storage_19_May_2022.png",
+    "source": "commons"
+   }
+  ],
+  "qc-quand-la-grande-aiguille-est-sur-le-12-et-la-petite-sur-le-3-quelle-heur": [],
+  "qc-quand-la-grande-aiguille-est-sur-le-6-il-est": [
+   {
+    "n": 1,
+    "titre": "File:Pendulum clock by Jacob Kock, antique furniture photography, IMG 0931 edit.jpg",
+    "auteur": "Christoph Braun",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pendulum_clock_by_Jacob_Kock,_antique_furniture_photography,_IMG_0931_edit.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Wall Clock MET 80840.jpg",
+    "auteur": "Aaron Willard",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Wall_Clock_MET_80840.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:\"The Elephant Clock\", Folio from a Book of the Knowledge of Ingenious Mechanical Devices by al-Jazari MET DP234075.jpg",
+    "auteur": "al-Jazari",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:%22The_Elephant_Clock%22,_Folio_from_a_Book_of_the_Knowledge_of_Ingenious_Mechanical_Devices_by_al-Jazari_MET_DP234075.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-fete-celebre-les-mamans-a-la-fin-du-printemps": [
+   {
+    "n": 1,
+    "titre": "File:Jimmy Panetta getting flowers for Mother's Day 01.jpg",
+    "auteur": "Creator:Jimmy Panetta",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Jimmy_Panetta_getting_flowers_for_Mother%27s_Day_01.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Jimmy Panetta getting flowers for Mother's Day 02.jpg",
+    "auteur": "Creator:Jimmy Panetta",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Jimmy_Panetta_getting_flowers_for_Mother%27s_Day_02.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:(Barcelona) Bouquet de fleurs (1930) Suzanne Valadon - Centre Pompidou Musée national d'art moderne Paris.jpg",
+    "auteur": "Didier Descouens",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:(Barcelona)_Bouquet_de_fleurs_(1930)_Suzanne_Valadon_-_Centre_Pompidou_Mus%C3%A9e_national_d%27art_moderne_Paris.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-fete-des-amoureux-a-lieu-le-14-fevrier": [
+   {
+    "n": 1,
+    "titre": "File:Valintine Heart. (8064428543).jpg",
+    "auteur": "Bernard Spragg. NZ from Christchurch, New Zealand",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Valintine_Heart._(8064428543).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:\"To My Sweetheart. Heart-tee Valentine Greetings.\".jpg",
+    "auteur": "J. Johnson",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:%22To_My_Sweetheart._Heart-tee_Valentine_Greetings.%22.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Antique Valentine 1909 01.jpg",
+    "auteur": "Upload:  Chordboard",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Antique_Valentine_1909_01.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-fete-a-lieu-le-21-juin-au-debut-de-l-ete": [
+   {
+    "n": 1,
+    "titre": "File:Calgary Folk Music Festival 2023 audience viewing main stage concert.jpg",
+    "auteur": "JollyJamboree",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Calgary_Folk_Music_Festival_2023_audience_viewing_main_stage_concert.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-a-quelle-fete-se-deguise-t-on-en-mangeant-des-beignets-en-fevrier-ou-en-": [
+   {
+    "n": 1,
+    "titre": "File:Carnival costume, Brazil, Salgueiro samba school, 1998 - Museo de las Americas - San Juan, Puerto Rico - DSC06938.JPG",
+    "auteur": "Daderot",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Carnival_costume,_Brazil,_Salgueiro_samba_school,_1998_-_Museo_de_las_Americas_-_San_Juan,_Puerto_Rico_-_DSC06938.JPG",
+    "source": "commons"
+   }
+  ],
+  "qc-en-france-en-quel-mois-est-le-jour-le-plus-long-de-l-annee": [
+   {
+    "n": 1,
+    "titre": "File:Himawari-8 Summer Solstice Midnight 2017.jpg",
+    "auteur": "AHI true-color image captured by the Japan Meteorological Agency’s Himawari-8 satellite",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Himawari-8_Summer_Solstice_Midnight_2017.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Earth-lighting-summer-solstice AR.png",
+    "auteur": "Bassem Fleifel",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Earth-lighting-summer-solstice_AR.png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Darlun o Bryn Celli Du heulwen.jpg",
+    "auteur": "Ian Troed y Rhiw",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Darlun_o_Bryn_Celli_Du_heulwen.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-appelle-t-on-une-annee-ou-fevrier-a-29-jours": [
+   {
+    "n": 1,
+    "titre": "File:Calendar of Wurmprecht, February and March.jpg",
+    "auteur": "Wurmprecht",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Calendar_of_Wurmprecht,_February_and_March.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Edward Penfield - Golf Calendar. February - Google Art Project.jpg",
+    "auteur": "Edward Penfield",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Edward_Penfield_-_Golf_Calendar._February_-_Google_Art_Project.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:ꯐꯥꯏꯔꯦꯜ (ফাইরেল) — Phairel (pʰāi.rel) or ꯐꯥꯏꯔꯦꯟ (ফাইরেন) — Phairen (pʰāi.ren) — name of the eleventh month of the Classical Meitei calendar — during February and March.jpg",
+    "auteur": "Haoreima",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:%EA%AF%90%EA%AF%A5%EA%AF%8F%EA%AF%94%EA%AF%A6%EA%AF%9C_(%E0%A6%AB%E0%A6%BE%E0%A6%87%E0%A6%B0%E0%A7%87%E0%A6%B2)_%E2%80%94_Phairel_(p%CA%B0%C4%81i.rel)_or_%EA%AF%90%EA%AF%A5%EA%AF%8F%EA%AF%94%EA%AF%A6%EA%AF%9F_(%E0%A6%AB%E0%A6%BE%E0%A6%87%E0%A6%B0%E0%A7%87%E0%A6%A8)_%E2%80%94_Phairen_(p%CA%B0%C4%81i.ren)_%E2%80%94_name_of_the_eleventh_month_of_the_Classical_Meitei_calendar_%E2%80%94_during_February_and_March.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quand-il-est-midi-a-paris-quelle-heure-est-il-a-new-york": [],
+  "qc-quand-c-est-l-ete-en-france-quelle-saison-est-ce-en-australie": [
+   {
+    "n": 1,
+    "titre": "File:North Beach, Western Australia in 2019.jpg",
+    "auteur": "Dr-ziego",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:North_Beach,_Western_Australia_in_2019.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:People at Bondi Beach, Sydney, Australia.jpg",
+    "auteur": "Mike Wilson mkwlsn",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:People_at_Bondi_Beach,_Sydney,_Australia.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Henley Beach, Australia (Unsplash).jpg",
+    "auteur": "yousif malibiran yousifmalibiran_",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Henley_Beach,_Australia_(Unsplash).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-appelle-t-on-une-periode-de-dix-ans": [
+   {
+    "n": 1,
+    "titre": "File:1914-julian-gregorian-calendar-Greek-French.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:1914-julian-gregorian-calendar-Greek-French.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:HHCalendar.png",
+    "auteur": "Steve Hanke and Richard Henry\n\nUploaded by Squeakycatta at en.wikipedia",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:HHCalendar.png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Baruch Zvi Ring - Memorial Tablet and Omer Calendar - Google Art Project.jpg",
+    "auteur": "Baruch Zvi Ring (c. 1872 - 1927) Details on Google Art Project",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Baruch_Zvi_Ring_-_Memorial_Tablet_and_Omer_Calendar_-_Google_Art_Project.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-en-chiffres-romains-que-vaut-x": [
+   {
+    "n": 1,
+    "titre": "File:Roman numerals on alarm clock (Unsplash).jpg",
+    "auteur": "Ales Krivec aleskrivec",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Roman_numerals_on_alarm_clock_(Unsplash).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Old French Clock Tower with Roman Numerals.jpg",
+    "auteur": "Kojax496",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Old_French_Clock_Tower_with_Roman_Numerals.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Highbury Clock-1.jpg",
+    "auteur": "This image was produced by me, David Castor (user:dcastor). The pictures I submit to the Wikipedia Project are released to the public domain. This gives you the right to use them in any way you like, without any kind of notification. This said, I would still appreciate to be mentioned as the originator whenever you think it complies well with your use of the picture. A message to me  about how it has been used would also be welcome. You are obviously not required to respond to these wishes of mine, just in a friendly manner encouraged to. (All my photos are placed in Category:Images by David Castor or a subcategory thereof.)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Highbury_Clock-1.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-sur-quelle-planete-vivons-nous": [
+   {
+    "n": 1,
+    "titre": "File:STS-135 final flyaround of ISS 1.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:STS-135_final_flyaround_of_ISS_1.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:North America from low orbiting satellite Suomi NPP.jpg",
+    "auteur": "NASA/NOAA/GSFC/Suomi NPP/VIIRS/Norman Kuring",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:North_America_from_low_orbiting_satellite_Suomi_NPP.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:The Earth seen from Apollo 17.jpg",
+    "auteur": "NASA/Apollo 17 crew; taken by either Harrison Schmitt or Ron Evans",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:The_Earth_seen_from_Apollo_17.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qu-est-ce-qui-brille-la-nuit-dans-le-ciel-et-change-de-forme": [
+   {
+    "n": 1,
+    "titre": "File:Full moon partially obscured by atmosphere.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Full_moon_partially_obscured_by_atmosphere.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Aldrin Apollo 11.jpg",
+    "auteur": "Neil A. Armstrong",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Aldrin_Apollo_11.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:A New View of the Moon.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:A_New_View_of_the_Moon.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-que-porte-un-astronaute-dans-l-espace": [
+   {
+    "n": 1,
+    "titre": "File:ISS-32 American EVA b3 Aki Hoshide.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:ISS-32_American_EVA_b3_Aki_Hoshide.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Bruce McCandless II during EVA in 1984.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Bruce_McCandless_II_during_EVA_in_1984.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Tracy Caldwell Dyson in Cupola ISS.jpg",
+    "auteur": "NASA/Tracy Caldwell Dyson",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Tracy_Caldwell_Dyson_in_Cupola_ISS.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-engin-emmene-les-astronautes-dans-l-espace": [
+   {
+    "n": 1,
+    "titre": "File:First NASA ISINGLASS rocket launch.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:First_NASA_ISINGLASS_rocket_launch.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Space Shuttle Columbia launching.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Space_Shuttle_Columbia_launching.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:CRS-9 mission (28348649546).jpg",
+    "auteur": "SpaceX",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:CRS-9_mission_(28348649546).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qu-est-ce-qui-brille-dans-le-ciel-la-nuit-en-tout-petits-points": [
+   {
+    "n": 1,
+    "titre": "File:Van Gogh - Starry Night - Google Art Project.jpg",
+    "auteur": "Vincent van Gogh",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Purple starry sky (Unsplash).jpg",
+    "auteur": "Dawid Zawiła davealmine",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Purple_starry_sky_(Unsplash).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Starry sky from Tekapo.jpg",
+    "auteur": "Butterflyyyyyyyy y y y",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Starry_sky_from_Tekapo.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-est-l-etoile-la-plus-proche-de-la-terre": [
+   {
+    "n": 1,
+    "titre": "File:The Sun by the Atmospheric Imaging Assembly of NASA's Solar Dynamics Observatory - 20100819.jpg",
+    "auteur": "NASA/SDO (AIA)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:The_Sun_by_the_Atmospheric_Imaging_Assembly_of_NASA%27s_Solar_Dynamics_Observatory_-_20100819.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Beautiful sun down.jpg",
+    "auteur": "Iammrbigben",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Beautiful_sun_down.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Sun in H-alpha – Solar Activity from Prishtina Observatory.jpg",
+    "auteur": "Astroclubkosova",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Sun_in_H-alpha_%E2%80%93_Solar_Activity_from_Prishtina_Observatory.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-planete-est-surnommee-la-planete-rouge": [
+   {
+    "n": 1,
+    "titre": "File:Mars Valles Marineris EDIT.jpg",
+    "auteur": "Mars_Valles_Marineris.jpeg: NASA picture\nderivative work: Lošmi (talk)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Mars_Valles_Marineris_EDIT.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Olympus Mons alt.jpg",
+    "auteur": "Image by NASA, modifications by Seddon",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Olympus_Mons_alt.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Curiosity - Robot Geologist and Chemist in One!.jpg",
+    "auteur": "NASA/JPL-Caltech",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Curiosity_-_Robot_Geologist_and_Chemist_in_One!.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-est-la-plus-grande-planete-du-systeme-solaire": [
+   {
+    "n": 1,
+    "titre": "File:Portrait of Jupiter from Cassini.jpg",
+    "auteur": "NASA/JPL/Space Science Institute",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Portrait_of_Jupiter_from_Cassini.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Jupiter Showcases Auroras, Hazes (NIRCam Closeup).jpg",
+    "auteur": "NASA's James Webb Space Telescope. Image processing by Judy Schmidt.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Jupiter_Showcases_Auroras,_Hazes_(NIRCam_Closeup).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Jupiter OPAL 2024.png",
+    "auteur": "NASA/STSCI (S.T.A.R.S)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Jupiter_OPAL_2024.png",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-planete-a-de-grands-anneaux-bien-visibles": [
+   {
+    "n": 1,
+    "titre": "File:Top view of the rings of Saturn by Cassini - October 10, 2013.jpg",
+    "auteur": "NASA/JPL-Caltech/SSI/Cornell",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Top_view_of_the_rings_of_Saturn_by_Cassini_-_October_10,_2013.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Saturn's Rings in Ultraviolet Light.png",
+    "auteur": "NASA.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Saturn%27s_Rings_in_Ultraviolet_Light.png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Saturn from Cassini Orbiter (2004-10-06).jpg",
+    "auteur": "NASA/JPL/Space Science Institute",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Saturn_from_Cassini_Orbiter_(2004-10-06).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qui-a-marche-le-premier-sur-la-lune": [
+   {
+    "n": 1,
+    "titre": "File:Aldrin Apollo 11.jpg",
+    "auteur": "Neil A. Armstrong",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Aldrin_Apollo_11.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Fallen Astronaut.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Fallen_Astronaut.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Fallen Astronaut plaque.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Fallen_Astronaut_plaque.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-astronaute-francais-est-alle-deux-fois-dans-la-station-spatiale-int": [
+   {
+    "n": 1,
+    "titre": "File:STS-134 International Space Station after undocking.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:STS-134_International_Space_Station_after_undocking.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:ISS March 2009.jpg",
+    "auteur": "National Aeronautics and Space Administration (Q23548)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:ISS_March_2009.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:STS-135 final flyaround of ISS 1.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:STS-135_final_flyaround_of_ISS_1.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-est-la-planete-la-plus-proche-du-soleil": [
+   {
+    "n": 1,
+    "titre": "File:Mercury in color - Prockter07 centered.jpg",
+    "auteur": "NASA/Johns Hopkins University Applied Physics Laboratory/Carnegie Institution of Washington. Edited version of Image:Mercury in color - Prockter07.jpg by Papa Lima Whiskey.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Mercury_in_color_-_Prockter07_centered.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Mercury in color - Prockter07-edit1.jpg",
+    "auteur": "National Aeronautics and Space Administration/Johns Hopkins University Applied Physics Laboratory/Carnegie Institution of Washington",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Mercury_in_color_-_Prockter07-edit1.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Mercury in true color.jpg",
+    "auteur": "NASA/Johns Hopkins University Applied Physics Laboratory/Arizona State University/Carnegie Institution of Washington",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Mercury_in_true_color.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qu-est-ce-que-la-voie-lactee": [
+   {
+    "n": 1,
+    "titre": "File:Milky Way IR Spitzer.jpg",
+    "auteur": "Credit: NASA/JPL-Caltech/S. Stolovy (Spitzer Science Center/Caltech)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Milky_Way_IR_Spitzer.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Center of the Milky Way Galaxy IV – Composite.jpg",
+    "auteur": "NASA/JPL-Caltech/ESA/CXC/STScI",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Center_of_the_Milky_Way_Galaxy_IV_%E2%80%93_Composite.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Peter Paul Rubens - The Birth of the Milky Way, 1636-1637.jpg",
+    "auteur": "Peter Paul Rubens",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Peter_Paul_Rubens_-_The_Birth_of_the_Milky_Way,_1636-1637.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qu-est-ce-qu-une-etoile-filante": [
+   {
+    "n": 1,
+    "titre": "File:PSM V01 D409 Combined meteor shower orbits.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:PSM_V01_D409_Combined_meteor_shower_orbits.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Camelopardalids Meteor Shower-Radiant (14272138393).jpg",
+    "auteur": "NASA Goddard Space Flight Center from Greenbelt, MD, USA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Camelopardalids_Meteor_Shower-Radiant_(14272138393).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Meteor burst.jpg",
+    "auteur": "NASA Ames Research Center/S. Molau and P. Jenniskens",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Meteor_burst.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-instrument-permet-d-observer-les-etoiles-de-pres": [
+   {
+    "n": 1,
+    "titre": "File:James Webb Space Telescope Mirror37.jpg",
+    "auteur": "NASA/MSFC/David Higginbotham/Emmett Given",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:James_Webb_Space_Telescope_Mirror37.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:A member of the ATS (Auxiliary Territorial Service) serving with a 3.7-inch anti-aircraft gun battery, December 1942. TR452.jpg",
+    "auteur": "Malindine E G (Lt), Tanner (Lt), War Office official photographer",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:A_member_of_the_ATS_(Auxiliary_Territorial_Service)_serving_with_a_3.7-inch_anti-aircraft_gun_battery,_December_1942._TR452.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:James Lick telescope c.a. 1900.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:James_Lick_telescope_c.a._1900.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-le-moment-ou-la-lune-cache-le-soleil": [
+   {
+    "n": 1,
+    "titre": "File:Solar eclipse taken from Artemis II - April 2026.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Solar_eclipse_taken_from_Artemis_II_-_April_2026.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Saturn eclipse.jpg",
+    "auteur": "NASA/JPL/Space Science Institute",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Saturn_eclipse.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:NASA solar eclipse photo.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:NASA_solar_eclipse_photo.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-pourquoi-y-a-t-il-le-jour-et-la-nuit": [
+   {
+    "n": 1,
+    "titre": "File:Environmental League of Massachusetts 2025 Earth Night celebration at Fenway Park (54501064542).jpg",
+    "auteur": "Joshua Qualls (Governor’s Press Office)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Environmental_League_of_Massachusetts_2025_Earth_Night_celebration_at_Fenway_Park_(54501064542).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Melissa Hoffer at Environmental League of Massachusetts 2025 Earth Night celebration (54501064817).jpg",
+    "auteur": "Joshua Qualls (Governor’s Press Office)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Melissa_Hoffer_at_Environmental_League_of_Massachusetts_2025_Earth_Night_celebration_(54501064817).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Melissa Hoffer at Environmental League of Massachusetts 2025 Earth Night celebration (54502114934).jpg",
+    "auteur": "Joshua Qualls (Governor’s Press Office)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Melissa_Hoffer_at_Environmental_League_of_Massachusetts_2025_Earth_Night_celebration_(54502114934).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-une-boule-de-glace-et-de-poussiere-avec-une-longue-que": [
+   {
+    "n": 1,
+    "titre": "File:Eagle Nebula M16 and Comet C2025 R2 SWAN.png",
+    "auteur": "Chuck Ayoub",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Eagle_Nebula_M16_and_Comet_C2025_R2_SWAN.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:1861 Comet over Portsmouth Harbour.png",
+    "auteur": "Joseph Swain and workshop",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:1861_Comet_over_Portsmouth_Harbour.png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:StateLibQld 1 252786 Early view of Comet, ca. 1878.jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:StateLibQld_1_252786_Early_view_of_Comet,_ca._1878.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-appelle-t-on-la-lune-quand-elle-est-toute-ronde": [
+   {
+    "n": 1,
+    "titre": "File:Full moon partially obscured by atmosphere.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Full_moon_partially_obscured_by_atmosphere.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Space Shuttle Discovery under a full moon, 03-11-09.jpg",
+    "auteur": "NASA/Bill Inglais",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Space_Shuttle_Discovery_under_a_full_moon,_03-11-09.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Full moon in Sagittarius.jpg",
+    "auteur": "Joselodos",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Full_moon_in_Sagittarius.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-le-soleil-est": [
+   {
+    "n": 1,
+    "titre": "File:Iceberg in North Star Bay, Greenland.jpg",
+    "auteur": "Jeremy Harbeck",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Iceberg_in_North_Star_Bay,_Greenland.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:The Sun by the Atmospheric Imaging Assembly of NASA's Solar Dynamics Observatory - 20100819.jpg",
+    "auteur": "NASA/SDO (AIA)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:The_Sun_by_the_Atmospheric_Imaging_Assembly_of_NASA%27s_Solar_Dynamics_Observatory_-_20100819.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:A Comparison of Star Sizes.jpg",
+    "auteur": "NASA, ESA and A. Feild (STScI)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:A_Comparison_of_Star_Sizes.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qu-est-ce-que-la-lune-pour-la-terre": [
+   {
+    "n": 1,
+    "titre": "File:Moon surface 10k.png",
+    "auteur": "Wikideas1",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Moon_surface_10k.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Apollo 15 flag, rover, LM, Irwin.jpg",
+    "auteur": "Astronaut David R. Scott, Apollo 15 commander.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Apollo_15_flag,_rover,_LM,_Irwin.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Surface of the Moon as seen by Surveyor 3 Press release 67-H-467.jpg",
+    "auteur": "NASA's Surveyor 3 lander",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Surface_of_the_Moon_as_seen_by_Surveyor_3_Press_release_67-H-467.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-appelle-t-on-le-robot-a-roues-envoye-sur-mars": [
+   {
+    "n": 1,
+    "titre": "File:NASA Mars Rover.jpg",
+    "auteur": "NASA/JPL/Cornell University, Maas Digital LLC",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:NASA_Mars_Rover.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:MarsSunset.jpg",
+    "auteur": "NASA/JPL/Texas A&amp;M/Cornell",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:MarsSunset.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:The twin rovers of the Mars Exploration Rover Mission.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:The_twin_rovers_of_the_Mars_Exploration_Rover_Mission.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-planete-brillante-appelle-t-on-l-etoile-du-berger": [
+   {
+    "n": 1,
+    "titre": "File:Venus globe.jpg",
+    "auteur": "NASA/JPL",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Venus_globe.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:PIA23791-Venus-RealAndEnhancedContrastViews-20200608 (cropped).jpg",
+    "auteur": "NASA/JPL-Caltech",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:PIA23791-Venus-RealAndEnhancedContrastViews-20200608_(cropped).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Venus MESSENGER WAC EW0089565661F.png",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Venus_MESSENGER_WAC_EW0089565661F.png",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appellent-les-trous-ronds-a-la-surface-de-la-lune": [
+   {
+    "n": 1,
+    "titre": "File:Moon craters map.webp",
+    "auteur": "Wikideas1",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Moon_craters_map.webp",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:LRO Tycho Central Peak.jpg",
+    "auteur": "NASA / GSFC / Arizona State Univ. / Lunar Reconnaissance Orbiter",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:LRO_Tycho_Central_Peak.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Craters of The Moon NZ.jpg",
+    "auteur": "Gameraquai",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Craters_of_The_Moon_NZ.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-pourquoi-les-astronautes-flottent-ils-dans-la-station-spatiale": [
+   {
+    "n": 1,
+    "titre": "File:Water bubble floating weightless in front of astronaut Leland D. Melvin in the Space Shuttle.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Water_bubble_floating_weightless_in_front_of_astronaut_Leland_D._Melvin_in_the_Space_Shuttle.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Floating Astronaut in Space Suit – Raumfahrt Exhibition, Deutsches Museum.jpg",
+    "auteur": "Wilfredor",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Floating_Astronaut_in_Space_Suit_%E2%80%93_Raumfahrt_Exhibition,_Deutsches_Museum.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Melvin floating water inside the Space Shuttle.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Melvin_floating_water_inside_the_Space_Shuttle.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-engin-tourne-autour-de-la-terre-pour-la-tele-et-la-meteo": [
+   {
+    "n": 1,
+    "titre": "File:North America from low orbiting satellite Suomi NPP.jpg",
+    "auteur": "NASA/NOAA/GSFC/Suomi NPP/VIIRS/Norman Kuring",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:North_America_from_low_orbiting_satellite_Suomi_NPP.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Graphic showing difference of coverage of inclined orbit satellite versus polarorbit satellite (2297-7).jpg",
+    "auteur": "NOAA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Graphic_showing_difference_of_coverage_of_inclined_orbit_satellite_versus_polarorbit_satellite_(2297-7).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Caspian Sea from orbit-NoRedLines.jpg",
+    "auteur": "Caspian_Sea_from_orbit.jpg: Jeff Schmaltz, MODIS Rapid Response Team, NASA/GSFC\nderivative work: IdLoveOne (talk)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Caspian_Sea_from_orbit-NoRedLines.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-un-groupe-d-etoiles-qui-forme-un-dessin-dans-le-ciel": [
+   {
+    "n": 1,
+    "titre": "File:Sidney Hall - Urania's Mirror - Gloria Frederici, Andromeda, and Triangula.jpg",
+    "auteur": "Sidney Hall / Adam Cuerden",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Sidney_Hall_-_Urania%27s_Mirror_-_Gloria_Frederici,_Andromeda,_and_Triangula.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:W5 cropped.jpg",
+    "auteur": "NASA/JPL-Caltech",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:W5_cropped.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-de-quel-cote-le-soleil-se-leve-t-il": [],
+  "qc-quelle-est-la-planete-la-plus-eloignee-du-soleil": [
+   {
+    "n": 1,
+    "titre": "File:Neptune Full.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Neptune_Full.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Neptune Wide Field (NIRCam).jpg",
+    "auteur": "IMAGE: NASA, ESA, CSA, STScI\n\nIMAGE PROCESSING: Joseph DePasquale (STScI), Naomi Rowe-Gurney (NASA-GSFC)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Neptune_Wide_Field_(NIRCam).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Neptune Voyager2 color calibrated.png",
+    "auteur": "NASA / Voyager 2 / PDS / OPUS / Ardenau4",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Neptune_Voyager2_color_calibrated.png",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-astre-n-est-plus-considere-comme-une-planete-depuis-2006": [
+   {
+    "n": 1,
+    "titre": "File:Pluto-01 Stern 03 Pluto Color TXT.jpg",
+    "auteur": "NASA / Johns Hopkins University Applied Physics Laboratory / Southwest Research Institute",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Pluto-01_Stern_03_Pluto_Color_TXT.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Pluto in True Color - High-Res.jpg",
+    "auteur": "NASA/Johns Hopkins University Applied Physics Laboratory/Southwest Research Institute/Alex Parker",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Pluto_in_True_Color_-_High-Res.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Pluto Serapis and Persephone Isis Heraklion museum.jpg",
+    "auteur": "Jebulon",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pluto_Serapis_and_Persephone_Isis_Heraklion_museum.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-appelle-t-on-un-astre-dont-meme-la-lumiere-ne-peut-pas-s-echappe": [
+   {
+    "n": 1,
+    "titre": "File:Black Hole Shadow.gif",
+    "auteur": "Hugo Spinelli",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Black_Hole_Shadow.gif",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Primordial black holes infographic.jpg",
+    "auteur": "NASA’s Goddard Space Flight Center",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Primordial_black_holes_infographic.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Primordial black holes.jpg",
+    "auteur": "NASA’s Goddard Space Flight Center",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Primordial_black_holes.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-pays-a-envoye-le-premier-homme-dans-l-espace-en-1961": [
+   {
+    "n": 1,
+    "titre": "File:Vostok Launch by Richard Terry, 1978.jpg",
+    "auteur": "Richard Terry",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Vostok_Launch_by_Richard_Terry,_1978.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qui-fut-le-premier-homme-dans-l-espace": [
+   {
+    "n": 1,
+    "titre": "File:Yuri Gagarin (1961) - Restoration.jpg",
+    "auteur": "Arto Jousi / /Suomen valokuvataiteen museo / Alma Media / Uuden Suomen kokoelma; Restored by Adam Cuerden",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Yuri_Gagarin_(1961)_-_Restoration.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Yuri Gagarin with wife in 1964.jpg",
+    "auteur": "Unknown (Mondadori Publishers)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Yuri_Gagarin_with_wife_in_1964.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appellent-les-lumieres-colorees-qu-on-voit-dans-le-ciel-pres-d": [
+   {
+    "n": 1,
+    "titre": "File:Frederic Edwin Church - Aurora Borealis - Google Art Project.jpg",
+    "auteur": "Frederic Edwin Church",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Frederic_Edwin_Church_-_Aurora_Borealis_-_Google_Art_Project.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Aurora borealis over Eielson Air Force Base, Alaska.jpg",
+    "auteur": "United States Air Force photo by Senior Airman Joshua Strang",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Aurora_borealis_over_Eielson_Air_Force_Base,_Alaska.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Lofoten, Norway (Unsplash).jpg",
+    "auteur": "Johannes Groll followhansi",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Lofoten,_Norway_(Unsplash).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelait-la-mission-qui-a-pose-les-premiers-hommes-sur-la-lune": [
+   {
+    "n": 1,
+    "titre": "File:Apollo 11 Crew.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Apollo_11_Crew.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Apollo 11 Launch2.jpg",
+    "auteur": "NASA; restored by Michel Vuijlsteke",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Apollo_11_Launch2.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Apollo 11 Launch - GPN-2000-000630.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Apollo_11_Launch_-_GPN-2000-000630.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-la-fusee-europeenne-lancee-depuis-la-guyane": [
+   {
+    "n": 1,
+    "titre": "File:Ariane 5 with James Webb Space Telescope Prelaunch (51773093465).jpg",
+    "auteur": "Chris Gunn",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Ariane_5_with_James_Webb_Space_Telescope_Prelaunch_(51773093465).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Ariane 5 Payload Fairing Test.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Ariane_5_Payload_Fairing_Test.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Ariane 5 with James Webb Space Telescope Prelaunch. (NHQ202112230013).jpg",
+    "auteur": "Bill Ingalls",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Ariane_5_with_James_Webb_Space_Telescope_Prelaunch._(NHQ202112230013).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-de-quoi-le-soleil-est-il-surtout-fait": [
+   {
+    "n": 1,
+    "titre": "File:Surface of the sun context.png",
+    "auteur": "National Science Foundation",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Surface_of_the_sun_context.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Surface waves break up the sun glint near the Marquesas Islands (CIRA 2019-03-01).gif",
+    "auteur": "GOES imagery: CSU/CIRA &amp; NOAA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Surface_waves_break_up_the_sun_glint_near_the_Marquesas_Islands_(CIRA_2019-03-01).gif",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Sun - August 1, 2010.jpg",
+    "auteur": "NASA/SDO/AIA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Sun_-_August_1,_2010.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quel-sport-joue-t-on-avec-une-raquette-et-une-balle-jaune": [
+   {
+    "n": 1,
+    "titre": "File:Tennis ball blanks and felt.jpg",
+    "auteur": "Mx. Granger",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Tennis_ball_blanks_and_felt.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Tennis ball closeup.jpg",
+    "auteur": "Miscellaneous contributor",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Tennis_ball_closeup.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Closeup of a tennis ball (2).jpg",
+    "auteur": "Miscellaneous contributor",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Closeup_of_a_tennis_ball_(2).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quel-sport-marque-t-on-des-paniers": [
+   {
+    "n": 1,
+    "titre": "File:Basketball hoop with chains - Arlington, MA.jpg",
+    "auteur": "Daderot",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Basketball_hoop_with_chains_-_Arlington,_MA.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Basketball through hoop.jpg",
+    "auteur": "Airman 1st Class Kerelin Molina",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Basketball_through_hoop.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Barack Obama shoots on the White House basketball court.jpg",
+    "auteur": "White House (Pete Souza) / Maison Blanche (Pete Souza)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Barack_Obama_shoots_on_the_White_House_basketball_court.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-sur-quoi-glisse-t-on-a-la-montagne-en-hiver": [
+   {
+    "n": 1,
+    "titre": "File:Skiing, snow, skiing Fortepan 52737.jpg",
+    "auteur": "FOTO:Fortepan — ID 52737: Adományozó/Donor: Unknown.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Skiing,_snow,_skiing_Fortepan_52737.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Skiing the Bunsen Peak Road Ski Trail (3) (39449577760).jpg",
+    "auteur": "Yellowstone National Park",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Skiing_the_Bunsen_Peak_Road_Ski_Trail_(3)_(39449577760).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Hugo Simberg Gallen-Kallela skiing 1897.jpg",
+    "auteur": "Hugo Simberg (Finnish, 1873-1917)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Hugo_Simberg_Gallen-Kallela_skiing_1897.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-que-met-on-sur-la-tete-pour-faire-du-velo-sans-se-blesser": [
+   {
+    "n": 1,
+    "titre": "File:Bicycle Helmet Protection Technologies.png",
+    "auteur": "Brandenads",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Bicycle_Helmet_Protection_Technologies.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Yui Yoneda’s School Bag&Bicycle Helmet.jpg",
+    "auteur": "Mr.ちゅらさん",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Yui_Yoneda%E2%80%99s_School_Bag%26Bicycle_Helmet.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quel-sport-ne-touche-t-on-pas-le-ballon-avec-les-mains-sauf-le-gard": [
+   {
+    "n": 1,
+    "titre": "File:Boy Kicking Soccer Ball at Adirondack Camp in NY.jpg",
+    "auteur": "ADKPhoto",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Boy_Kicking_Soccer_Ball_at_Adirondack_Camp_in_NY.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:President William J. Clinton Kicking a Soccer Ball - DPLA - 37ba2c68327df7d00558e9bf38f4ee51.jpg",
+    "auteur": "President (1993-2001 : Clinton). White House Photograph Office. 1/20/1993-1/20/2001",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:President_William_J._Clinton_Kicking_a_Soccer_Ball_-_DPLA_-_37ba2c68327df7d00558e9bf38f4ee51.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:US Navy 061119-N-1328C-202 A young student from Balbala School holds a soccer ball given to her by service members from Combined Joint Task Force - Horn of Africa.jpg",
+    "auteur": "U.S. Navy photo by Chief Mass Communication Specialist Eric A. Clement",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:US_Navy_061119-N-1328C-202_A_young_student_from_Balbala_School_holds_a_soccer_ball_given_to_her_by_service_members_from_Combined_Joint_Task_Force_-_Horn_of_Africa.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-ou-fait-on-de-la-natation": [],
+  "qc-sur-quoi-glisse-t-on-sur-les-vagues": [
+   {
+    "n": 1,
+    "titre": "File:Surf storage in Kujukuri.jpg",
+    "auteur": "Syced",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Surf_storage_in_Kujukuri.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Surfing among the blockhauss in Capbreton2.jpg",
+    "auteur": "Tangopaso",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Surfing_among_the_blockhauss_in_Capbreton2.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Surf-riding 1858.jpg",
+    "auteur": "Butler / Hutchings' California Magazine",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Surf-riding_1858.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-est-le-sport-du-tour-de-france": [
+   {
+    "n": 1,
+    "titre": "File:26-7-14 Tour de France Pelissier.JPG",
+    "auteur": "Agence Rol",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:26-7-14_Tour_de_France_Pelissier.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:26-7-14 Tour de France Thys.JPG",
+    "auteur": "Agence Rol",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:26-7-14_Tour_de_France_Thys.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:26-7-14-Tour de France-l'arrivée au Parc des Princes.JPG",
+    "auteur": "Agence Rol",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:26-7-14-Tour_de_France-l%27arriv%C3%A9e_au_Parc_des_Princes.JPG",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quel-sport-porte-t-on-un-kimono-et-une-ceinture-de-couleur": [
+   {
+    "n": 1,
+    "titre": "File:Portrait of Mohammad Mehdi Zakeri, Iranian Judo Coach.jpg",
+    "auteur": "Mohammad Mehdi Zakeri",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Portrait_of_Mohammad_Mehdi_Zakeri,_Iranian_Judo_Coach.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:050907-M-7747B-002-Judo.jpg",
+    "auteur": "Lance Cpl. Scott M. Biscuiti",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:050907-M-7747B-002-Judo.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quel-sport-marque-t-on-des-essais-avec-un-ballon-ovale": [
+   {
+    "n": 1,
+    "titre": "File:Warrior Games athletes honored at Navy-Air Force football game 141004-D-DB155-022.jpg",
+    "auteur": "EJ Hersom",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Warrior_Games_athletes_honored_at_Navy-Air_Force_football_game_141004-D-DB155-022.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Steedenfootball.jpg",
+    "auteur": "Angry mob mulls options",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Steedenfootball.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Passing the ball in a \"Walking Rugby\" game.jpg",
+    "auteur": "Back ache",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Passing_the_ball_in_a_%22Walking_Rugby%22_game.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-medaille-recoit-le-gagnant-aux-jeux-olympiques": [
+   {
+    "n": 1,
+    "titre": "File:FIS World Ski Championships Gold Medal.jpg",
+    "auteur": "E*ok",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:FIS_World_Ski_Championships_Gold_Medal.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Kazan 2015 - Water polo - Men - Gold medal match - 215.JPG",
+    "auteur": "Voltmetro",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Kazan_2015_-_Water_polo_-_Men_-_Gold_medal_match_-_215.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:1983 Robert Frost One-Ounce Gold Medal (obv).jpg",
+    "auteur": "Heritage Auctions (image); U.S. Mint (gold commemorative medal)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:1983_Robert_Frost_One-Ounce_Gold_Medal_(obv).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-au-football-qui-arrete-les-tirs-devant-le-but": [
+   {
+    "n": 1,
+    "titre": "File:Goalkeeper portrait.jpg",
+    "auteur": "Robo Michalec",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Goalkeeper_portrait.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Hockey field goalkeeper.jpg",
+    "auteur": "El Otro Monstruo",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Hockey_field_goalkeeper.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Goalkeeper through the soccer goal net (Unsplash).jpg",
+    "auteur": "Dan Gold danielcgold",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Goalkeeper_through_the_soccer_goal_net_(Unsplash).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quelle-ville-se-joue-le-tournoi-de-tennis-de-roland-garros": [
+   {
+    "n": 1,
+    "titre": "File:Circular stair from Parking Overlook to Clay Tennis Courts, Riverside Park at 96th Street, looking southwest. - Henry Hudson Parkway, Extending 11.2 miles from West 72nd Street to Bronx HAER NY-334-19.tif",
+    "auteur": "Bieretz, Renee\nRelated names:\n\nHenry Hudson Parkway Authority; Moses, Robert; Praeger, Emil H; Loyd, Clinton F; New York City Department of Parks; Latham, William H; New York State Department of Public Works; Darcy, Joseph J; New York Central Systems; Pfau, J W; New York State Department of Transportation; New York City Department of Transportation; New York City Department of Parks and Recreation; Metropolitan Transit Authority; AMTRAK; New York Port Authority; Olmsted, Frederick  Law; Olmsted, Frederick  Law, Jr; Vaux, Calvert; New York Central Railroad; Hudson River Railroad; Williamson, Francis  Stuart; Williamson, George Stuart; Rodgers, J C; Brunner, Arnold; Stoughton, Charles; Stoughton, Arthur; Duboy, Paul; Warren and Wetmore; Bitter, Karl; Zimm, Bruno Louis; Piccirilli, Atilio; Partridge, William Ordway; Horvai, Janos; Jencks, Penelope; Catlett, Elizabeth; Colonial Dames of America; Miller, Julius; McKim, Mead and White; Madigan, Michael F; Hylan, Richard V; Madigan-Hyland; Steinman, David B; Waddell and Hardesty; Waddell, J A; Embury, Aymar, II; Clarke, Gilmore D; Hayden, Arthur G; Immick Company; McAneny, George; Thomas Crimmins Contracting Company; American Bridge Company; Vulcan Rail and Construction Company; Duffy Construction Company; P.T. Cox Construction Company; Del Balso Construction Company; Poirier and McLane Corporation; Walter Kidde Construction Inc; Hoffman and Elias Inc; Bronx Water Works Inc; Arthur Gallow Inc; Louis DiMenna Contracting Company; Nicholas DiMenna and Sons Inc; Karl Koch Erecting Company; Trump, Donald; New York Metropolitan Transportation Council, sponsor; O'Connell, Nancy, project manager; Kitasei, Hilary Hinds, volunteer; Stutts, Matthew, field team; Christianson, Justine, transmitter; Marston, Christopher, project manager; Marston, Christopher, project manager; Kitasei, Hilary, sponsor; Christianson, Justine, transmitter",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Circular_stair_from_Parking_Overlook_to_Clay_Tennis_Courts,_Riverside_Park_at_96th_Street,_looking_southwest._-_Henry_Hudson_Parkway,_Extending_11.2_miles_from_West_72nd_Street_to_Bronx_HAER_NY-334-19.tif",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Tennis line markings (Unsplash).jpg",
+    "auteur": "Erwan Hesry erwanhesry",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Tennis_line_markings_(Unsplash).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-est-le-symbole-des-jeux-olympiques": [
+   {
+    "n": 1,
+    "titre": "File:London Olympic Rings by the River Thames.jpg",
+    "auteur": "Newfoundlandguy",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:London_Olympic_Rings_by_the_River_Thames.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Olympic Plaza Calgary 1988 winter Olympics.jpg",
+    "auteur": "Alberta Authentic",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Olympic_Plaza_Calgary_1988_winter_Olympics.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-que-porte-t-on-en-relais-jusqu-a-l-ouverture-des-jeux-olympiques": [
+   {
+    "n": 1,
+    "titre": "File:Mexico '68 Olympic torch.jpg",
+    "auteur": "Cantabrucu",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Mexico_%2768_Olympic_torch.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:1996 Olympic torch in Atlanta.jpg",
+    "auteur": "ArtemisiaGentileschiFan",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:1996_Olympic_torch_in_Atlanta.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:1936 Berlin Olympic Torch.jpg",
+    "auteur": "Marmat564",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:1936_Berlin_Olympic_Torch.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-nage-porte-le-nom-d-un-insecte": [
+   {
+    "n": 1,
+    "titre": "File:US Marines butterfly stroke.jpg",
+    "auteur": "Cpl. Jasper Schwartz",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:US_Marines_butterfly_stroke.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:U.S. Marine Corps Sgt. Abel Contreras swims to the edge of the pool using the Butterfly Stroke during his Water Survival Qualification test at the community swimming pool on Marine Corps Air Station Miramar 070906-M-DS479-004.jpg",
+    "auteur": "Cpl. Raymond D. Petersen III",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:U.S._Marine_Corps_Sgt._Abel_Contreras_swims_to_the_edge_of_the_pool_using_the_Butterfly_Stroke_during_his_Water_Survival_Qualification_test_at_the_community_swimming_pool_on_Marine_Corps_Air_Station_Miramar_070906-M-DS479-004.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quel-sport-fait-on-passer-le-ballon-au-dessus-d-un-filet-avec-les-m": [
+   {
+    "n": 1,
+    "titre": "File:Rosita Sanchez jugadora de voleibol de Nuevo Laredo voleando.jpg",
+    "auteur": "Miguel Angel Omaña Rojas",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Rosita_Sanchez_jugadora_de_voleibol_de_Nuevo_Laredo_voleando.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Valeria Cañamar deportista de Nuevo Laredo.jpg",
+    "auteur": "Miguel Angel Omaña Rojas",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Valeria_Ca%C3%B1amar_deportista_de_Nuevo_Laredo.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Bolzplatz und Beachvolleyball Hohenmemmingen.jpg",
+    "auteur": "Klaus-Dieter Keller",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Bolzplatz_und_Beachvolleyball_Hohenmemmingen.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-appelle-t-on-aussi-le-tennis-de-table": [
+   {
+    "n": 1,
+    "titre": "File:Ping pong balls on a mirror.jpg",
+    "auteur": "Joselodos",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Ping_pong_balls_on_a_mirror.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Comet Ping Pong logo.png",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Comet_Ping_Pong_logo.png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Ping Pong (PSF).png",
+    "auteur": "Pearson Scott Foresman",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Ping_Pong_(PSF).png",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quel-sport-joue-t-on-avec-un-volant": [
+   {
+    "n": 1,
+    "titre": "File:Koogan badminton feather shuttlecock 01.JPG",
+    "auteur": "Stanislas PERRIN",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Koogan_badminton_feather_shuttlecock_01.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Badminton Shuttlecock 159415.png",
+    "auteur": "https://pixabay.com/pl/users/OpenClipart-Vectors-30363/",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Badminton_Shuttlecock_159415.png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Badminton-1428046.jpg",
+    "auteur": "annca",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Badminton-1428046.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quel-sport-met-on-une-petite-balle-dans-un-trou-avec-le-moins-de-co": [
+   {
+    "n": 1,
+    "titre": "File:Wooden Next Tee Arrow.jpg",
+    "auteur": "Axel Schümann",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Wooden_Next_Tee_Arrow.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Golf ball in the hole.jpg",
+    "auteur": "Golfer",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Golf_ball_in_the_hole.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Golf ball near hole.jpg",
+    "auteur": "Photos2Use",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Golf_ball_near_hole.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quel-sport-utilise-t-on-une-crosse-et-un-palet-sur-la-glace": [
+   {
+    "n": 1,
+    "titre": "File:Victoria Rink Montreal.jpg",
+    "auteur": "William Notman &amp; Son",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Victoria_Rink_Montreal.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Ice hockey McGill University - 1884.jpg",
+    "auteur": "Alexander Henderson",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Ice_hockey_McGill_University_-_1884.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Clayton Cosentino (Air Force Falcons men's ice hockey) during Oct. 12, 2023, home game (20080).jpg",
+    "auteur": "Trevor Cokley (U.S. Air Force Academy)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Clayton_Cosentino_(Air_Force_Falcons_men%27s_ice_hockey)_during_Oct._12,_2023,_home_game_(20080).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-au-football-quelle-carte-fait-sortir-un-joueur-du-terrain": [
+   {
+    "n": 1,
+    "titre": "File:Red card in a match.jpg",
+    "auteur": "Samson Ssemakadde",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Red_card_in_a_match.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Dante Baptiste Red Card 10102026 (1).jpg",
+    "auteur": "Timmy96",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Dante_Baptiste_Red_Card_10102026_(1).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Rosenda Monteros in The Magnificent Seven (1960).jpg",
+    "auteur": "Unknown, none visible",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Rosenda_Monteros_in_The_Magnificent_Seven_(1960).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-le-sport-ou-l-on-monte-a-cheval": [
+   {
+    "n": 1,
+    "titre": "File:अग्निचयने अश्वारोहणम् Horse riding in yagna.gif",
+    "auteur": "Puranastudy",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:%E0%A4%85%E0%A4%97%E0%A5%8D%E0%A4%A8%E0%A4%BF%E0%A4%9A%E0%A4%AF%E0%A4%A8%E0%A5%87_%E0%A4%85%E0%A4%B6%E0%A5%8D%E0%A4%B5%E0%A4%BE%E0%A4%B0%E0%A5%8B%E0%A4%B9%E0%A4%A3%E0%A4%AE%E0%A5%8D_Horse_riding_in_yagna.gif",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Horse riding in Texas - 2025 - DSC 0398.jpg",
+    "auteur": "rkosiba",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Horse_riding_in_Texas_-_2025_-_DSC_0398.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Horse riding in Texas - 2025 - DSC 0563.jpg",
+    "auteur": "rkosiba",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Horse_riding_in_Texas_-_2025_-_DSC_0563.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quel-sport-se-bat-on-avec-une-epee-ou-un-fleuret": [],
+  "qc-dans-quel-pays-sont-nes-les-jeux-olympiques": [],
+  "qc-dans-quel-sport-avance-t-on-sur-l-eau-en-ramant": [
+   {
+    "n": 1,
+    "titre": "File:Harvard Rowing Crew at Henley 2004 -2.JPG",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Harvard_Rowing_Crew_at_Henley_2004_-2.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Rowing on the Ouse in York Apr26.jpg",
+    "auteur": "Malcolmxl5",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Rowing_on_the_Ouse_in_York_Apr26.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Rowing on the River Thames, Oxford (2) 2025-05-04.jpg",
+    "auteur": "Andy Li",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Rowing_on_the_River_Thames,_Oxford_(2)_2025-05-04.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quel-sport-porte-t-on-de-gros-gants-pour-se-battre-sur-un-ring": [
+   {
+    "n": 1,
+    "titre": "File:Black boxing gloves.jpg",
+    "auteur": "Airman 1st Class Kerelin Molina",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Black_boxing_gloves.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Pair of boxing gloves.jpg",
+    "auteur": "Petey21",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pair_of_boxing_gloves.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Maggie' boxing gloves (Million dollar baby) Warner Bros. Studio Tour Hollywood.jpg",
+    "auteur": "Benoît Prieur",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Maggie%27_boxing_gloves_(Million_dollar_baby)_Warner_Bros._Studio_Tour_Hollywood.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-le-sport-ou-l-on-grimpe-sur-un-mur-ou-une-falaise": [
+   {
+    "n": 1,
+    "titre": "File:Aiguille de l'Eau d'Olle climbing pinnacle, Allemond, 2026.jpg",
+    "auteur": "DimiTalen",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Aiguille_de_l%27Eau_d%27Olle_climbing_pinnacle,_Allemond,_2026.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-la-planche-a-quatre-roulettes-pour-faire-des-figures": [
+   {
+    "n": 1,
+    "titre": "File:Skateboard upside.jpg",
+    "auteur": "Cynroya",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Skateboard_upside.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Skateboard backside.jpg",
+    "auteur": "Cynroya",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Skateboard_backside.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Public exhibit on skateboarding ollie physics at the Exploratorium.jpg",
+    "auteur": "Kylelovesyou",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Public_exhibit_on_skateboarding_ollie_physics_at_the_Exploratorium.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-sport-fait-on-avec-des-lames-sous-les-chaussures-sur-la-glace": [
+   {
+    "n": 1,
+    "titre": "File:Ice sculpture in Quebec city downtown.jpg",
+    "auteur": "Wilfredor",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Ice_sculpture_in_Quebec_city_downtown.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:A boy ice skating - A Merry Go-Round (1888) - Constance Haslewood.png",
+    "auteur": "Constance Haslewood",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:A_boy_ice_skating_-_A_Merry_Go-Round_(1888)_-_Constance_Haslewood.png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:An artificial limb recipient ice-skating near the Washington Monument.tif",
+    "auteur": "C.M. Bell (Firm : Washington, D.C.), photographer",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:An_artificial_limb_recipient_ice-skating_near_the_Washington_Monument.tif",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quelle-epreuve-saute-t-on-par-dessus-une-barre-placee-en-hauteur": [],
+  "qc-dans-quel-sport-americain-frappe-t-on-une-balle-avec-une-batte": [
+   {
+    "n": 1,
+    "titre": "File:Custom wood bat 01.webp",
+    "auteur": "Wikideas1",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Custom_wood_bat_01.webp",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Custom wood bat 03.webp",
+    "auteur": "Wikideas1",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Custom_wood_bat_03.webp",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Nude man with baseball bat (rbm-QP301M8-1887-278).jpg",
+    "auteur": "Muybridge, Eadweard, 1830-1904",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Nude_man_with_baseball_bat_(rbm-QP301M8-1887-278).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-de-quel-pays-vient-le-karate": [
+   {
+    "n": 1,
+    "titre": "File:Karate tournament combat.jpg",
+    "auteur": "Miguel Angel Omaña Rojas",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Karate_tournament_combat.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Karate International tournament.jpg",
+    "auteur": "Miguel Angel Omaña Rojas",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Karate_International_tournament.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:2019 Karate International tournament fight.jpg",
+    "auteur": "Miguel Angel Omaña Rojas",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:2019_Karate_International_tournament_fight.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-a-quel-jeu-lance-t-on-des-boules-pres-d-un-cochonnet": [
+   {
+    "n": 1,
+    "titre": "File:Petanque court, Hurst Park, Molesey, Surrey.jpg",
+    "auteur": "Mertbiol",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Petanque_court,_Hurst_Park,_Molesey,_Surrey.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quel-jeu-fait-on-tomber-des-quilles-avec-une-grosse-boule": [
+   {
+    "n": 1,
+    "titre": "File:Bowling pin used in the White House during Harry Truman's administration, c. 1951, wood - National Museum of American History - DSC00151.jpg",
+    "auteur": "Daderot",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Bowling_pin_used_in_the_White_House_during_Harry_Truman%27s_administration,_c._1951,_wood_-_National_Museum_of_American_History_-_DSC00151.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:19610701 Penguin bowling pins at inauguration of McMurdo Station, Antarctica, bowling alley.jpg",
+    "auteur": "Bruce Raymond, United States Navy, credited photographer",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:19610701_Penguin_bowling_pins_at_inauguration_of_McMurdo_Station,_Antarctica,_bowling_alley.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:1810 Ransome & Son - painting - outdoor ten pin bowling.jpg",
+    "auteur": "Unknown painter in 1810",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:1810_Ransome_%26_Son_-_painting_-_outdoor_ten_pin_bowling.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-pays-a-gagne-la-coupe-du-monde-de-football-en-2018": [
+   {
+    "n": 1,
+    "titre": "File:H.H. Maharajah Vishveshvar Chandrachud Dev with the FIH World Cup Trophy in 2022.jpg",
+    "auteur": "DubuliRao",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:H.H._Maharajah_Vishveshvar_Chandrachud_Dev_with_the_FIH_World_Cup_Trophy_in_2022.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Diego Maradona holding the FIFA World Cup trophy after beating West Germany in the final.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Diego_Maradona_holding_the_FIFA_World_Cup_trophy_after_beating_West_Germany_in_the_final.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-pays-a-gagne-la-coupe-du-monde-de-football-en-2022": [
+   {
+    "n": 1,
+    "titre": "File:Sydney Football Stadium DSS Women's World Cup (53122778469).jpg",
+    "auteur": "Diplomatic Security Service from Washington, D.C., United States of America",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Sydney_Football_Stadium_DSS_Women%27s_World_Cup_(53122778469).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Small indoor football stadium 2.webp",
+    "auteur": "Wikideas1",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Small_indoor_football_stadium_2.webp",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Small indoor football stadium 5.webp",
+    "auteur": "Wikideas1",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Small_indoor_football_stadium_5.webp",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-nageur-francais-a-gagne-4-medailles-d-or-aux-jeux-olympiques-de-par": [
+   {
+    "n": 1,
+    "titre": "File:Relais feminin Les Mouettes 500m 1933.jpg",
+    "auteur": "Agence de presse Mondial Photo-Presse",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Relais_feminin_Les_Mouettes_500m_1933.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelles-sont-les-trois-epreuves-du-triathlon": [
+   {
+    "n": 1,
+    "titre": "File:Triathlon Côte de Granit Rose 2026 (40786).jpg",
+    "auteur": "Syced",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Triathlon_C%C3%B4te_de_Granit_Rose_2026_(40786).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Triathlon Côte de Granit Rose 2026.jpg",
+    "auteur": "Syced",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Triathlon_C%C3%B4te_de_Granit_Rose_2026.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Triathlon Côte de Granit Rose 2026 (95808).jpg",
+    "auteur": "Syced",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Triathlon_C%C3%B4te_de_Granit_Rose_2026_(95808).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-sport-d-hiver-melange-ski-de-fond-et-tir-a-la-carabine": [
+   {
+    "n": 1,
+    "titre": "File:Biathlon WCH 1995 Antholz Bailly-Salins Muslimov Gross.jpg",
+    "auteur": "Andrey007art",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Biathlon_WCH_1995_Antholz_Bailly-Salins_Muslimov_Gross.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quel-sport-fait-on-glisser-une-pierre-en-balayant-la-glace-devant-e": [
+   {
+    "n": 1,
+    "titre": "File:Curlingstoneold.JPG",
+    "auteur": "Rosser1954 at en.wikipedia",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Curlingstoneold.JPG",
+    "source": "commons"
+   }
+  ],
+  "qc-sur-quelle-surface-se-joue-le-tournoi-de-tennis-de-wimbledon": [
+   {
+    "n": 1,
+    "titre": "File:StateLibQld 1 292823 Grass court tennis, ca. 1905.jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:StateLibQld_1_292823_Grass_court_tennis,_ca._1905.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:StateLibQld 1 293103 Tennis players on a grass court, ca. 1915.jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:StateLibQld_1_293103_Tennis_players_on_a_grass_court,_ca._1915.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Tennis Players at Ward Burton's Annual Grass Court Tennis Tournament at Lake Minnetonka - DPLA - 036f10fd34b972565479df6cb33d1a22.jpg",
+    "auteur": "Bromley, Edward A",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Tennis_Players_at_Ward_Burton%27s_Annual_Grass_Court_Tennis_Tournament_at_Lake_Minnetonka_-_DPLA_-_036f10fd34b972565479df6cb33d1a22.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quelle-epreuve-saute-t-on-tres-haut-avec-une-longue-perche": [
+   {
+    "n": 1,
+    "titre": "File:Pole vault Essx Recoil pole.jpg",
+    "auteur": "Kevinuwu",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pole_vault_Essx_Recoil_pole.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Ben Charlebois competes in the pole vault competition.jpg",
+    "auteur": "Justin R. Pacheco",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Ben_Charlebois_competes_in_the_pole_vault_competition.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Aspiotis Olympics 1906 Pole Vault Gonder.jpg",
+    "auteur": "The postcard was published by Aspiotis in 1906.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Aspiotis_Olympics_1906_Pole_Vault_Gonder.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quelle-ville-ont-eu-lieu-les-premiers-jeux-olympiques-modernes-en-1": [
+   {
+    "n": 1,
+    "titre": "File:Panathenaic stadium Athens Greece.jpg",
+    "auteur": "Jebulon",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Panathenaic_stadium_Athens_Greece.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Panathenaic stadium, Pangrati borrough, from Acropolis, Athens, Greece.jpg",
+    "auteur": "Jebulon",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Panathenaic_stadium,_Pangrati_borrough,_from_Acropolis,_Athens,_Greece.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:The Panathenaic Stadium in Athens on 2 October 2018.jpg",
+    "auteur": "George E. Koronaios",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:The_Panathenaic_Stadium_in_Athens_on_2_October_2018.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-couleur-obtient-on-en-melangeant-du-bleu-et-du-jaune": [
+   {
+    "n": 1,
+    "titre": "File:Kitgen 9.' a small abstract watercolor painting with transparent green layers & texture, painted by Dutch artist Fons Heijnsbroek in 2008 - abstract gouache. Free art image in high TIFF resolution.tif",
+    "auteur": "Fons Heijnsbroek",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Kitgen_9.%27_a_small_abstract_watercolor_painting_with_transparent_green_layers_%26_texture,_painted_by_Dutch_artist_Fons_Heijnsbroek_in_2008_-_abstract_gouache._Free_art_image_in_high_TIFF_resolution.tif",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-forme-a-une-roue": [],
+  "qc-que-sort-souvent-un-magicien-de-son-chapeau": [
+   {
+    "n": 1,
+    "titre": "File:Thurston, master magician all out of a hat. LCCN2014636958.jpg",
+    "auteur": "Performing Arts Posters",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Thurston,_master_magician_all_out_of_a_hat._LCCN2014636958.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Magician pulling roses out of top hat surrounded by supernatural beings LCCN2014636963.jpg",
+    "auteur": "Calvert Litho. Co.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Magician_pulling_roses_out_of_top_hat_surrounded_by_supernatural_beings_LCCN2014636963.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Thurston, master magician all out of a hat. LCCN2014636958.tif",
+    "auteur": "Performing Arts Posters",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Thurston,_master_magician_all_out_of_a_hat._LCCN2014636958.tif",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-un-jeu-ou-l-on-assemble-des-pieces-pour-refaire-une-im": [
+   {
+    "n": 1,
+    "titre": "File:Der Bücherwurm - Jigsaw puzzle.jpg",
+    "auteur": "M-le-mot-dit",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Der_B%C3%BCcherwurm_-_Jigsaw_puzzle.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Red jigsaw puzzle pieces.jpg",
+    "auteur": "Profpcde",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Red_jigsaw_puzzle_pieces.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Puzzle (Unsplash).jpg",
+    "auteur": "Hans-Peter Gauster sloppyperfectionist",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Puzzle_(Unsplash).jpg",
+    "source": "commons"
+   }
+  ]
+ }
+}
