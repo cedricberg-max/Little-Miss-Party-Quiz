@@ -90,6 +90,8 @@ fun BonusMalus(
     val fin by rememberUpdatedState(onFini)
     LaunchedEffect(Unit) {
         jouer(if (bonus) Son.BONUS else Son.MALUS)
+        // Game Show : le robot vient fêter le bonus ou compatir au malus (bonus de la régie et coffres).
+        signalerRobot(if (bonus) MomentRobot.BONUS else MomentRobot.MALUS)
         t.animateTo(1f, tween(dureeMs, easing = LinearEasing))
         fin()
     }
