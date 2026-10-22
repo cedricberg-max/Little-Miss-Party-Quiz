@@ -2943,12 +2943,12 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.locator('.q-niveaux [data-niveau="3"]').innerText(), `Difficile · 12 à 15 ans (${parNiveau(3).length})`);
     await page.click('.q-niveaux [data-niveau="1"]');
     await listees(parNiveau(1).length, "le niveau Facile");
-    assert.equal(await page.locator("#q-list .q-item .q-illus.emoji").count(), parNiveau(1).filter((x) => !estJusteChiffre(x) && !x.photo).length, "émojis seulement au niveau Facile");
+    assert.equal(await page.locator("#q-list .q-item .q-illus.emoji:not(.compteur)").count(), parNiveau(1).filter((x) => !estJusteChiffre(x) && !x.photo).length, "émojis seulement au niveau Facile (et pas sur les questions qui ont leur photo)");
     assert.equal(await page.locator("#q-list .q-item .q-illus.compteur").count(), parNiveau(1).filter(estJusteChiffre).length, "🔢 sur les Juste Chiffre");
     for (const n of [2, 3]) {
       await page.click(`.q-niveaux [data-niveau="${n}"]`);
       await listees(parNiveau(n).length, `le niveau ${n}`);
-      assert.equal(await page.locator("#q-list .q-item .q-illus.emoji").count(), 0, `jamais d'émoji au niveau ${n}`);
+      assert.equal(await page.locator("#q-list .q-item .q-illus.emoji:not(.compteur)").count(), 0, `jamais d'émoji au niveau ${n} (🔢 seulement sur les Juste Chiffre)`);
     }
     assert.match(await page.locator("#q-list .q-item .hint.small").first().innerText(), /· Difficile · 12 à 15 ans$/);
     await page.click('.q-niveaux [data-niveau="2"]');
