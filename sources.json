@@ -1,0 +1,2871 @@
+{
+ "manquants": [
+  "qc-quel-oiseau-creuse-des-trous-dans-les-troncs-d-arbre-a-grands-coups-de-b",
+  "qc-quel-grand-oiseau-blanc-au-long-cou-courbe-glisse-sur-les-lacs",
+  "qc-quel-poisson-se-gonfle-comme-un-ballon-quand-il-se-sent-en-danger",
+  "qc-quel-serpent-venimeux-se-dresse-et-ecarte-son-cou-en-forme-de-capuchon",
+  "qc-quel-est-le-plus-grand-lezard-du-monde-qui-vit-sur-quelques-iles-d-indon",
+  "qc-quel-papillon-orange-et-noir-migre-chaque-automne-du-canada-jusqu-au-mex",
+  "qc-quel-oiseau-marin-au-gros-bec-raye-de-couleurs-est-surnomme-le-perroquet",
+  "qc-comment-s-appelle-une-haute-paroi-de-roche-au-bord-de-la-mer",
+  "qc-quelle-plante-carnivore-noie-les-insectes-dans-des-urnes-pleines-de-liqu",
+  "qc-quel-immense-desert-de-sel-blanc-le-plus-grand-du-monde-se-trouve-en-bol",
+  "qc-comment-s-appelle-une-vallee-creusee-par-un-glacier-puis-envahie-par-la-",
+  "qc-quelle-immense-antenne-en-forme-d-assiette-ecoute-les-ondes-envoyees-par"
+ ],
+ "restants": [],
+ "sources": {
+  "qc-quel-animal-roux-vit-dans-les-forets-de-bambous-de-l-himalaya": [
+   {
+    "n": 1,
+    "titre": "File:Red Panda (24986761703).jpg",
+    "auteur": "Mathias Appel",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Red_Panda_(24986761703).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Red Panda (25193861686).jpg",
+    "auteur": "Mathias Appel",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Red_Panda_(25193861686).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Red Panda (30763188080).jpg",
+    "auteur": "Mathias Appel",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Red_Panda_(30763188080).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Red panda(Ailurus fulgens).jpg",
+    "auteur": "Mathias Appel",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Red_panda(Ailurus_fulgens).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-gros-animal-des-mers-glacees-a-deux-longues-defenses-et-des-moustac": [
+   {
+    "n": 1,
+    "titre": "File:Scrimshaw Walrus Tusks Closeup1.jpg",
+    "auteur": "BoolaBoola2 at English Wikipedia",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Scrimshaw_Walrus_Tusks_Closeup1.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Chess queen of walrus tusk 13th century.jpg",
+    "auteur": "Unknown sculptor (photo scanned by Ristesson Ent.)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Chess_queen_of_walrus_tusk_13th_century.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Decorated Walrus Tusk MET 156558.jpg",
+    "auteur": "",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Decorated_Walrus_Tusk_MET_156558.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Decorated Walrus Tusk MET 81040.jpg",
+    "auteur": "",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Decorated_Walrus_Tusk_MET_81040.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-oiseau-peche-les-poissons-avec-une-grande-poche-de-peau-sous-son-be": [
+   {
+    "n": 1,
+    "titre": "File:Brown pelican (Pelecanus occidentalis) in flight, Costa Rica.jpg",
+    "auteur": "Hobbyfotowiki",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Brown_pelican_(Pelecanus_occidentalis)_in_flight,_Costa_Rica.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Brown pelican (Pelecanus occidentalis), Costa Rica.jpg",
+    "auteur": "Hobbyfotowiki",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Brown_pelican_(Pelecanus_occidentalis),_Costa_Rica.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Brown Pelican at Seawolf Park.jpg",
+    "auteur": "LunarEcho87",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Brown_Pelican_at_Seawolf_Park.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-oiseau-des-forets-tropicales-a-un-enorme-bec-tres-colore": [
+   {
+    "n": 1,
+    "titre": "File:Toco toucan Parque das Aves 2.jpg",
+    "auteur": "Alex98",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Toco_toucan_Parque_das_Aves_2.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-oiseau-creuse-des-trous-dans-les-troncs-d-arbre-a-grands-coups-de-b": [],
+  "qc-quel-animal-flotte-sur-le-dos-et-casse-des-coquillages-poses-sur-son-ven": [
+   {
+    "n": 1,
+    "titre": "File:Southern sea otter enhydra lutris nereis.jpg",
+    "auteur": "Tuttle Stephen, U.S. Fish and Wildlife Service",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Southern_sea_otter_enhydra_lutris_nereis.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Enhydra lutris sea otter face photo.jpg",
+    "auteur": "Menke David, U.S. Fish and Wildlife Service",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Enhydra_lutris_sea_otter_face_photo.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Enhydra lutris sea otter animal on coast.jpg",
+    "auteur": "U.S. Fish and Wildlife Service",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Enhydra_lutris_sea_otter_animal_on_coast.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Enhydra lutris sea otter in lake.jpg",
+    "auteur": "U.S. Fish and Wildlife Service",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Enhydra_lutris_sea_otter_in_lake.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-gros-animal-d-afrique-passe-ses-journees-dans-l-eau-et-sort-brouter": [
+   {
+    "n": 1,
+    "titre": "File:Hippopotamus 2024.jpg",
+    "auteur": "Phiphi34",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Hippopotamus_2024.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Hippo and Trainer.png",
+    "auteur": "A. W. Shaad\n\nderivative work: Xxagile (talk)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Hippo_and_Trainer.png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Hippopotamus @ Barcelona zoo.jpg",
+    "auteur": "Pedroserafin",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Hippopotamus_@_Barcelona_zoo.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-gros-animal-d-afrique-porte-deux-cornes-sur-le-nez": [
+   {
+    "n": 1,
+    "titre": "File:White or Square-lipped Rhinoceros (Ceratotherium simum cottoni).jpg",
+    "auteur": "Herbert Lang",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:White_or_Square-lipped_Rhinoceros_(Ceratotherium_simum_cottoni).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Northern White Rhinoceros Angalifu.jpg",
+    "auteur": "Sheep81",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Northern_White_Rhinoceros_Angalifu.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Northern White Rhinoceros cow.jpg",
+    "auteur": "Herbert Lang",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Northern_White_Rhinoceros_cow.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:White rhinoceros or square lipped rhinoceros animal ceratotherium simum.jpg",
+    "auteur": "Stolz Gary M, U.S. Fish and Wildlife Service",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:White_rhinoceros_or_square_lipped_rhinoceros_animal_ceratotherium_simum.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-animal-du-desert-porte-deux-bosses-sur-le-dos": [
+   {
+    "n": 1,
+    "titre": "File:Camelus bactrianus in Korkeasaari.jpg",
+    "auteur": "Ypsilon from Finland",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Camelus_bactrianus_in_Korkeasaari.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-animal-marin-mou-et-transparent-peut-piquer-les-baigneurs": [
+   {
+    "n": 1,
+    "titre": "File:Aurelia-aurita-3.jpg",
+    "auteur": "MartinThoma",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Aurelia-aurita-3.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-animal-marin-a-souvent-cinq-bras-et-peut-faire-repousser-un-bras-pe": [
+   {
+    "n": 1,
+    "titre": "File:Asterias rubens 307854603.jpg",
+    "auteur": "Rob Wallace",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Asterias_rubens_307854603.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-animal-marin-s-abrite-dans-une-coquille-vide-et-en-change-en-grandi": [
+   {
+    "n": 1,
+    "titre": "File:Hermit crab by TAS Roy Moffitt.jpg",
+    "auteur": "NOAA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Hermit_crab_by_TAS_Roy_Moffitt.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Hermit crab Puerto Rico April 2015.png",
+    "auteur": "NOAA Office of Ocean Exploration and Research",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Hermit_crab_Puerto_Rico_April_2015.png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Hermit Crab, Port Wakefield 20231228-104305.jpg",
+    "auteur": "RegionVisitor90",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Hermit_Crab,_Port_Wakefield_20231228-104305.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Tiny hermit crab Puerto Rico April 2015.png",
+    "auteur": "NOAA Office of Ocean Exploration and Research, Océano Profundo 2015: Exploring Puerto Rico’s Seamounts, Trenches, and Troughs",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Tiny_hermit_crab_Puerto_Rico_April_2015.png",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-insecte-aux-quatre-grandes-ailes-transparentes-chasse-au-dessus-des": [
+   {
+    "n": 1,
+    "titre": "File:Dragonfly perched on a twig.jpg",
+    "auteur": "Johnnybam",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Dragonfly_perched_on_a_twig.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Dragonfly on twig plant.jpg",
+    "auteur": "Johnnybam",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Dragonfly_on_twig_plant.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-insecte-vert-replie-ses-pattes-avant-comme-s-il-faisait-une-priere": [
+   {
+    "n": 1,
+    "titre": "File:The mantis which eats a Bee20080829.jpg",
+    "auteur": "池田正樹 (talk) Masaki Ikeda",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:The_mantis_which_eats_a_Bee20080829.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-animal-sans-pattes-creuse-des-galeries-et-rend-la-terre-du-jardin-m": [
+   {
+    "n": 1,
+    "titre": "File:Щетинки дождевого червя (Lumbricus terrestris).jpg",
+    "auteur": "Анастасия Еловицкая",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:%D0%A9%D0%B5%D1%82%D0%B8%D0%BD%D0%BA%D0%B8_%D0%B4%D0%BE%D0%B6%D0%B4%D0%B5%D0%B2%D0%BE%D0%B3%D0%BE_%D1%87%D0%B5%D1%80%D0%B2%D1%8F_(Lumbricus_terrestris).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-grand-mammifere-marin-noir-et-blanc-est-surnomme-la-baleine-tueuse": [
+   {
+    "n": 1,
+    "titre": "File:Orcinus orca killer whale marine mammal.jpg",
+    "auteur": "U.S. Fish and Wildlife Service",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Orcinus_orca_killer_whale_marine_mammal.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Kiska Orcinus orca killer whale Marineland Niagara Falls Canada 2022-08-15 4.53.26PM.jpg",
+    "auteur": "A Streetcar Named Keanu",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Kiska_Orcinus_orca_killer_whale_Marineland_Niagara_Falls_Canada_2022-08-15_4.53.26PM.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Kiska Orcinus orca killer whale Marineland Niagara Falls Canada 2022-08-15 4.53.06PM.jpg",
+    "auteur": "A Streetcar Named Keanu",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Kiska_Orcinus_orca_killer_whale_Marineland_Niagara_Falls_Canada_2022-08-15_4.53.06PM.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Kiska Orcinus orca killer whale Marineland Niagara Falls Canada 2022-08-15 2.33.40PM.jpg",
+    "auteur": "A Streetcar Named Keanu",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Kiska_Orcinus_orca_killer_whale_Marineland_Niagara_Falls_Canada_2022-08-15_2.33.40PM.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-petit-animal-d-afrique-se-dresse-sur-ses-pattes-arriere-pour-guette": [
+   {
+    "n": 1,
+    "titre": "File:Meerkat Standing.jpg",
+    "auteur": "Mathias Appel",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Meerkat_Standing.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Meerkat standing on hind legs at Oakland Zoo (10773493556).jpg",
+    "auteur": "D Coetzee from San Mateo, CA, USA",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Meerkat_standing_on_hind_legs_at_Oakland_Zoo_(10773493556).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Meerkat arp.jpg",
+    "auteur": "Adrian Pingstone",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Meerkat_arp.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Меркат мунгос во Зоолошка градина во Скопје.jpg",
+    "auteur": "Делфина",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:%D0%9C%D0%B5%D1%80%D0%BA%D0%B0%D1%82_%D0%BC%D1%83%D0%BD%D0%B3%D0%BE%D1%81_%D0%B2%D0%BE_%D0%97%D0%BE%D0%BE%D0%BB%D0%BE%D1%88%D0%BA%D0%B0_%D0%B3%D1%80%D0%B0%D0%B4%D0%B8%D0%BD%D0%B0_%D0%B2%D0%BE_%D0%A1%D0%BA%D0%BE%D0%BF%D1%98%D0%B5.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-petit-renard-du-desert-a-d-immenses-oreilles": [
+   {
+    "n": 1,
+    "titre": "File:Vulpes zerda cubs.jpg",
+    "auteur": "Dale J. Osborn and Ibrahim Helmy",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Vulpes_zerda_cubs.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-grand-singe-au-pelage-roux-vit-dans-les-forets-de-borneo": [
+   {
+    "n": 1,
+    "titre": "File:Stamp of Indonesia - 1989 - Colnect 256568 - Bornean Orangutan Pongo pygmaeus.jpeg",
+    "auteur": "Post of Indonesia",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Stamp_of_Indonesia_-_1989_-_Colnect_256568_-_Bornean_Orangutan_Pongo_pygmaeus.jpeg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Stamp of Indonesia - 1989 - Colnect 256566 - Bornean Orangutan Pongo pygmaeus.jpeg",
+    "auteur": "Post of Indonesia",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Stamp_of_Indonesia_-_1989_-_Colnect_256566_-_Bornean_Orangutan_Pongo_pygmaeus.jpeg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-animal-d-amerique-du-sud-attrape-les-fourmis-avec-sa-tres-longue-la": [
+   {
+    "n": 1,
+    "titre": "File:Myrmecophaga tridactyla 63056345.jpg",
+    "auteur": "Niklas Wahlberg",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Myrmecophaga_tridactyla_63056345.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Myrmecophaga tridactyla 55265892.jpg",
+    "auteur": "Walter S. Prado",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Myrmecophaga_tridactyla_55265892.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Myrmecophaga tridactyla 55265881.jpg",
+    "auteur": "Walter S. Prado",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Myrmecophaga_tridactyla_55265881.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-rongeur-des-montagnes-siffle-pour-prevenir-d-un-danger-et-dort-tout": [
+   {
+    "n": 1,
+    "titre": "File:Marmota marmota sp. 03.jpg",
+    "auteur": "Bernie",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Marmota_marmota_sp._03.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Marmota marmota sp. 04.jpg",
+    "auteur": "Bernie",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Marmota_marmota_sp._04.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-grand-oiseau-blanc-au-long-cou-courbe-glisse-sur-les-lacs": [],
+  "qc-quel-petit-oiseau-bleu-et-orange-plonge-dans-les-rivieres-pour-attraper-": [
+   {
+    "n": 1,
+    "titre": "File:Eisvogel kingfisher.jpg",
+    "auteur": "Frank-2.0",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Eisvogel_kingfisher.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-poisson-se-gonfle-comme-un-ballon-quand-il-se-sent-en-danger": [],
+  "qc-quel-serpent-venimeux-se-dresse-et-ecarte-son-cou-en-forme-de-capuchon": [],
+  "qc-quel-animal-noir-et-blanc-projette-un-liquide-qui-sent-tres-mauvais-pour": [
+   {
+    "n": 1,
+    "titre": "File:Striped skunk mephitis mephitis omnivorous mammal.jpg",
+    "auteur": "Henry, CJ, U.S. Fish and Wildlife Service",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Striped_skunk_mephitis_mephitis_omnivorous_mammal.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Back of striped skunk mephitis mephitis.jpg",
+    "auteur": "Collins John, U.S. Fish and Wildlife Service",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Back_of_striped_skunk_mephitis_mephitis.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Striped skunk (Mephitis mephitis) (e3ffd895-4edb-4b43-b7f1-5a3c776ae2cb).jpg",
+    "auteur": "NPS Photo",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Striped_skunk_(Mephitis_mephitis)_(e3ffd895-4edb-4b43-b7f1-5a3c776ae2cb).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Mephitis mephitis (Striped skunks) fur skins.jpg",
+    "auteur": "Mickey Bohnacker, Presse-Fotograf, Frankfurt/Main",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Mephitis_mephitis_(Striped_skunks)_fur_skins.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-animal-d-amerique-au-masque-noir-semble-laver-sa-nourriture-dans-l-": [
+   {
+    "n": 1,
+    "titre": "File:Common Raccoon in a Tree.jpg",
+    "auteur": "N0n-Sum-Qua1is-Eram",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Common_Raccoon_in_a_Tree.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Raccoon (Procyon lotor) eating II.png",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Raccoon_(Procyon_lotor)_eating_II.png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Raccoon climbing in tree - Cropped and color corrected.jpg",
+    "auteur": "David Menke",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Raccoon_climbing_in_tree_-_Cropped_and_color_corrected.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-le-petit-de-la-biche-au-pelage-tachete-de-blanc": [
+   {
+    "n": 1,
+    "titre": "File:White-tailed deer fawn and doe (54736222307).jpg",
+    "auteur": "U.S. Fish and Wildlife Service - Midwest Region",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:White-tailed_deer_fawn_and_doe_(54736222307).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:White-tailed deer fawn (54737056381).jpg",
+    "auteur": "U.S. Fish and Wildlife Service - Midwest Region",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:White-tailed_deer_fawn_(54737056381).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:White-tailed deer fawn (54737294829).jpg",
+    "auteur": "U.S. Fish and Wildlife Service - Midwest Region",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:White-tailed_deer_fawn_(54737294829).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:White-tailed deer fawn (54736222042).jpg",
+    "auteur": "U.S. Fish and Wildlife Service - Midwest Region",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:White-tailed_deer_fawn_(54736222042).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-animal-a-huit-pattes-deux-pinces-et-une-queue-terminee-par-un-dard": [
+   {
+    "n": 1,
+    "titre": "File:Pandinus imperator 2009 G1.jpg",
+    "auteur": "George Chernilevsky",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Pandinus_imperator_2009_G1.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Pandinus imperator 173714645.jpg",
+    "auteur": "Jean-Paul Boerekamps",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pandinus_imperator_173714645.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Pandinus imperator 173714652.jpg",
+    "auteur": "Jean-Paul Boerekamps",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pandinus_imperator_173714652.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Pandinus imperator 173714657.jpg",
+    "auteur": "Jean-Paul Boerekamps",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pandinus_imperator_173714657.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-petit-lezard-peut-grimper-aux-murs-et-meme-marcher-au-plafond": [
+   {
+    "n": 1,
+    "titre": "File:Tokay gecko @Vnm.jpg",
+    "auteur": "The original uploader was BacLuong at Vietnamese Wikipedia.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Tokay_gecko_@Vnm.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-amphibien-du-mexique-garde-toute-sa-vie-l-aspect-d-une-larve-avec-d": [
+   {
+    "n": 1,
+    "titre": "File:Ambystoma jeffersonianum.jpg",
+    "auteur": "Unspecified",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Ambystoma_jeffersonianum.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Ambystoma unisexual.jpg",
+    "auteur": "Griffin Bray",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Ambystoma_unisexual.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Axolotl (PSF).png",
+    "auteur": "Pearson Scott Foresman",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Axolotl_(PSF).png",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Ambystoma Yekaterinburg 2026.jpg",
+    "auteur": "MSDN.WhiteKnight",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Ambystoma_Yekaterinburg_2026.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-mammifere-d-afrique-et-d-asie-couvert-d-ecailles-se-roule-en-boule-": [
+   {
+    "n": 1,
+    "titre": "File:Manis temminckii (Blitz).jpg",
+    "auteur": "Meyers Blitz Lexikon",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Manis_temminckii_(Blitz).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Steppenschuppentier2.jpg",
+    "auteur": "Masteraah",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Steppenschuppentier2.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:LA2-Blitz-0337.jpg",
+    "auteur": "Anonymous",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:LA2-Blitz-0337.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Manis temminckii - 1700-1880 - Print - Iconographia Zoologica - Special Collections University of Amsterdam - UBA01 IZ21000003.tif",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Manis_temminckii_-_1700-1880_-_Print_-_Iconographia_Zoologica_-_Special_Collections_University_of_Amsterdam_-_UBA01_IZ21000003.tif",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-animal-des-forets-du-congo-cousin-de-la-girafe-a-des-pattes-rayees-": [
+   {
+    "n": 1,
+    "titre": "File:Okapi 1901.jpg",
+    "auteur": "Painting by Sir Harry Johnston (1858-1927), lithograph by P. J. Smit",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Okapi_1901.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-est-le-plus-grand-lezard-du-monde-qui-vit-sur-quelques-iles-d-indon": [],
+  "qc-quel-oiseau-depasse-300-km-h-en-pique-ce-qui-en-fait-l-animal-le-plus-ra": [
+   {
+    "n": 1,
+    "titre": "File:(Albi) Un faucon pèlerin Toulouse-Lautrec 1880 MLT30.jpg",
+    "auteur": "Didier Descouens",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:(Albi)_Un_faucon_p%C3%A8lerin_Toulouse-Lautrec_1880_MLT30.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Peregrine falcon (Falco peregrinus) and four chicks (ed4d091b-79a4-4752-be96-589ad25c39c7).jpg",
+    "auteur": "Jacob W. Frank",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Peregrine_falcon_(Falco_peregrinus)_and_four_chicks_(ed4d091b-79a4-4752-be96-589ad25c39c7).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-oiseau-marin-a-la-plus-grande-envergure-du-monde-qui-peut-depasser-": [
+   {
+    "n": 1,
+    "titre": "File:US Navy HU-16 Albatross 141262 flying c. 1960.jpg",
+    "auteur": "United States Navy",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:US_Navy_HU-16_Albatross_141262_flying_c._1960.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Grumman HU-16C Albatross Umpqua in flight.jpeg",
+    "auteur": "U.S. Navy",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Grumman_HU-16C_Albatross_Umpqua_in_flight.jpeg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Northern Royal albatross flying at Taiaroa Head.jpg",
+    "auteur": "Pseudopanax at English Wikipedia",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Northern_Royal_albatross_flying_at_Taiaroa_Head.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Northern Royal albatross flying above colony at Taiaroa Head.jpg",
+    "auteur": "Pseudopanax at English Wikipedia",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Northern_Royal_albatross_flying_above_colony_at_Taiaroa_Head.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-baleine-blanche-des-mers-arctiques-est-surnommee-le-canari-des-me": [
+   {
+    "n": 1,
+    "titre": "File:Delphinapterus leucas beluga MNHN.jpg",
+    "auteur": "Jebulon",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Delphinapterus_leucas_beluga_MNHN.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Beluga Hunt Salluit.jpg",
+    "auteur": "Velatrix",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Beluga_Hunt_Salluit.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Delphinapterus leucas Magic ring.JPG",
+    "auteur": "SR EXR",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Delphinapterus_leucas_Magic_ring.JPG",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-papillon-orange-et-noir-migre-chaque-automne-du-canada-jusqu-au-mex": [],
+  "qc-quel-felin-au-pelage-gris-tachete-vit-dans-les-hautes-montagnes-d-asie-c": [
+   {
+    "n": 1,
+    "titre": "File:Snow leopard in Afghanistan.jpg",
+    "auteur": "USAID Afghanistan",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Snow_leopard_in_Afghanistan.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Uncia uncia (Snow leopard) fur skin.jpg",
+    "auteur": "Mickey Bohnacker, Presse-Fotograf, Frankfurt/Main",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Uncia_uncia_(Snow_leopard)_fur_skin.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Uncia uncia (lying).jpg",
+    "auteur": "Uusijani",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Uncia_uncia_(lying).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-oiseau-marin-au-gros-bec-raye-de-couleurs-est-surnomme-le-perroquet": [],
+  "qc-quel-examen-photographie-les-os-a-travers-la-peau": [
+   {
+    "n": 1,
+    "titre": "File:First medical X-ray by Wilhelm Röntgen of his wife Anna Bertha Ludwig's hand - 18951222.jpg",
+    "auteur": "Wilhelm Röntgen",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:First_medical_X-ray_by_Wilhelm_R%C3%B6ntgen_of_his_wife_Anna_Bertha_Ludwig%27s_hand_-_18951222.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:X-ray of hand, where bone age is automatically found by BoneXpert software.jpg",
+    "auteur": "Setzner1337",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:X-ray_of_hand,_where_bone_age_is_automatically_found_by_BoneXpert_software.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:X-Ray Photograph of Tesla's left hand.jpg",
+    "auteur": "Nikola Tesla",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:X-Ray_Photograph_of_Tesla%27s_left_hand.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:X-ray of the hand of an 8 year old male - case 1 - dorsoplantar.jpg",
+    "auteur": "Staff at the Department of Radiology, UC San Diego Health.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:X-ray_of_the_hand_of_an_8_year_old_male_-_case_1_-_dorsoplantar.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-que-pose-t-on-autour-d-un-bras-casse-pour-que-l-os-se-repare-bien-droit": [
+   {
+    "n": 1,
+    "titre": "File:Honda trailing arm bushing tool hack - Pressing out the broken bushing.JPG",
+    "auteur": "Muundahweed",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Honda_trailing_arm_bushing_tool_hack_-_Pressing_out_the_broken_bushing.JPG",
+    "source": "commons"
+   }
+  ],
+  "qc-sur-quoi-s-appuie-t-on-pour-marcher-quand-on-a-une-jambe-dans-le-platre": [
+   {
+    "n": 1,
+    "titre": "File:Beggar Walking on a Crutch MET DP882824.jpg",
+    "auteur": "Andries Both",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Beggar_Walking_on_a_Crutch_MET_DP882824.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Telesfro Deluna, miner, walking on crutches. He is recovering from foot injured in mine accident. He has received... - NARA - 540448.tif",
+    "auteur": "Russell Lee",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Telesfro_Deluna,_miner,_walking_on_crutches._He_is_recovering_from_foot_injured_in_mine_accident._He_has_received..._-_NARA_-_540448.tif",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Telesfro Deluna, miner, walking on crutches. He is recovering from foot injured in mine accident. He has received... - NARA - 540448.jpg",
+    "auteur": "Russell Lee",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Telesfro_Deluna,_miner,_walking_on_crutches._He_is_recovering_from_foot_injured_in_mine_accident._He_has_received..._-_NARA_-_540448.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:An elderly winged man with a long beard walking with crutches, possibly representing Time gesturing towards a young child holding a sieve MET DP854363.jpg",
+    "auteur": "Marcantonio Raimondi",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:An_elderly_winged_man_with_a_long_beard_walking_with_crutches,_possibly_representing_Time_gesturing_towards_a_young_child_holding_a_sieve_MET_DP854363.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-que-porte-t-on-sur-les-dents-pour-les-remettre-bien-droites": [
+   {
+    "n": 1,
+    "titre": "File:006 fixed orthodontic appliance.JPG",
+    "auteur": "أرسان عادل البياتي at Arabic Wikipedia",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:006_fixed_orthodontic_appliance.JPG",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-fil-passe-t-on-entre-les-dents-pour-enlever-les-restes-de-nourritur": [
+   {
+    "n": 1,
+    "titre": "File:Dental Floss Macro.png",
+    "auteur": "Karam.Anthony.K",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Dental_Floss_Macro.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Silk dental floss.jpg",
+    "auteur": "Mx. Granger",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Silk_dental_floss.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-que-peut-on-poser-directement-sur-les-yeux-a-la-place-des-lunettes": [
+   {
+    "n": 1,
+    "titre": "File:KC-lens.jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:KC-lens.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Contact Lens Boxes.jpg",
+    "auteur": "Mckin555",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Contact_Lens_Boxes.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Put on contact lens.jpg",
+    "auteur": "Moist.acuvuehk",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Put_on_contact_lens.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-petit-appareil-place-derriere-l-oreille-aide-les-personnes-qui-ente": [
+   {
+    "n": 1,
+    "titre": "File:Hearing aid 20080620.jpg",
+    "auteur": "Jonas Bergsten",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Hearing_aid_20080620.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Acousticon - 1906 hearing aid.jpg",
+    "auteur": "photo not attributed",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Acousticon_-_1906_hearing_aid.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-produit-avec-un-indice-de-protection-protege-la-peau-des-rayons-du-": [
+   {
+    "n": 1,
+    "titre": "File:Sonnencremespender Nivea Gärten der Welt Berlin-Marzahn.jpg",
+    "auteur": "Singlespeedfahrer",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Sonnencremespender_Nivea_G%C3%A4rten_der_Welt_Berlin-Marzahn.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Dioxybenzone.png",
+    "auteur": "Edgar181",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Dioxybenzone.png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Sunscreen dispenser in Esch-Uelzecht, Luxembourg, 2025.jpg",
+    "auteur": "Bdx",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Sunscreen_dispenser_in_Esch-Uelzecht,_Luxembourg,_2025.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-boite-contient-pansements-et-desinfectant-pour-soigner-les-petite": [
+   {
+    "n": 1,
+    "titre": "File:Plastic First-aid box.jpg",
+    "auteur": "Beendy234",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Plastic_First-aid_box.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-que-porte-le-chirurgien-sur-le-nez-et-la-bouche-pendant-une-operation": [
+   {
+    "n": 1,
+    "titre": "File:A surgical mask (2017).jpg",
+    "auteur": "AlexChirkin",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:A_surgical_mask_(2017).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Chinese-language certificate on box of surgical masks sold in Japan.jpg",
+    "auteur": "Syced",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Chinese-language_certificate_on_box_of_surgical_masks_sold_in_Japan.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:How wear surgical mask ISO 7010 M016 bis (How wear surgical mask 1) up nose strip 2) down folds 3) cover chin)).jpg",
+    "auteur": "Masks: ISO 7010\n\nPaolo Villa add for this file File:How wear surgical mask ISO 7010 M016 bis (How wear surgical mask 1) up nose strip 2) down folds 3) cover chin)).jpg : folds and hake (iron strip), for explain how to wear surgical mask",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:How_wear_surgical_mask_ISO_7010_M016_bis_(How_wear_surgical_mask_1)_up_nose_strip_2)_down_folds_3)_cover_chin)).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-appareil-avec-un-brassard-qui-se-gonfle-autour-du-bras-mesure-la-te": [
+   {
+    "n": 1,
+    "titre": "File:Sphygmomanometer&Cuff.JPG",
+    "auteur": "ML5 at English Wikipedia",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Sphygmomanometer%26Cuff.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Sphygmomanometer van Marey1.jpg",
+    "auteur": "Marey",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Sphygmomanometer_van_Marey1.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Sphygmomanometer.jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Sphygmomanometer.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Sphygmomanometer.JPG",
+    "auteur": "ML5 at English Wikipedia",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Sphygmomanometer.JPG",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-appareil-envoie-un-choc-electrique-pour-faire-repartir-un-c-ur-qui-": [
+   {
+    "n": 1,
+    "titre": "File:Automated external defibrillator (AED) Automatyczny defibrylator zewnętrzny, Tomaszów Mazowiecki, Poland.jpg",
+    "auteur": "Warszawska róg Szerokiej w Tomaszowie Mazowieckim w województwie łódzkim, PL, EU. CC0",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Automated_external_defibrillator_(AED)_Automatyczny_defibrylator_zewn%C4%99trzny,_Tomasz%C3%B3w_Mazowiecki,_Poland.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Defibrillator-809447 1920.jpg",
+    "auteur": "Tanja-Denise Schantz",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Defibrillator-809447_1920.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Modern AED Automated external defibrillator.png",
+    "auteur": "VoLid27",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Modern_AED_Automated_external_defibrillator.png",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Defibrillatore La Sterpaia, Pisa San Rossore, 2024.jpg",
+    "auteur": "Marcxosm",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Defibrillatore_La_Sterpaia,_Pisa_San_Rossore,_2024.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-petit-appareil-a-lumiere-le-medecin-utilise-t-il-pour-regarder-au-f": [
+   {
+    "n": 1,
+    "titre": "File:Otoscope exam.JPG",
+    "auteur": "U.S. Air Force photo by Senior Airman Christopher Toon",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Otoscope_exam.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Ophthalmoscope Otoscope08.JPG",
+    "auteur": "James Heilman, MD",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Ophthalmoscope_Otoscope08.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:US and Djibouti health care workers deliver care 080330-N-IC219-032.jpg",
+    "auteur": "Petty Officer 1st Class Scott Cohen",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:US_and_Djibouti_health_care_workers_deliver_care_080330-N-IC219-032.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:U.S. Air Force Senior Airman Shana Smith, a medical technician with the 386th Expeditionary Medical Group, trains with an otoscope May 5, 2013, in a medical clinic at an undisclosed location in Southwest Asia 130505-F-KL201-013.jpg",
+    "auteur": "SMSgt George Thompson",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:U.S._Air_Force_Senior_Airman_Shana_Smith,_a_medical_technician_with_the_386th_Expeditionary_Medical_Group,_trains_with_an_otoscope_May_5,_2013,_in_a_medical_clinic_at_an_undisclosed_location_in_Southwest_Asia_130505-F-KL201-013.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-machine-en-forme-de-tunnel-montre-l-interieur-du-corps-grace-a-un": [
+   {
+    "n": 1,
+    "titre": "File:PET MRI Scanner (NIH BioArt 687 - 782345).png",
+    "auteur": "Courtesy of NIAID\n\nMalcolm Houston",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:PET_MRI_Scanner_(NIH_BioArt_687_-_782345).png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:PET MRI Scanner (NIH BioArt 687 - 782336).png",
+    "auteur": "Courtesy of NIAID\nMalcolm Houston",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:PET_MRI_Scanner_(NIH_BioArt_687_-_782336).png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:PET MRI Scanner (NIH BioArt 687 - 782341).png",
+    "auteur": "Courtesy of NIAID\n\nMalcolm Houston",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:PET_MRI_Scanner_(NIH_BioArt_687_-_782341).png",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:US Navy 111006-O-KK908-026 An MRI machine is set up at the Role 3 Medical Facility at Joint Operating Base, Bastion, Afghanistan.jpg",
+    "auteur": "U.S. Navy photo",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:US_Navy_111006-O-KK908-026_An_MRI_machine_is_set_up_at_the_Role_3_Medical_Facility_at_Joint_Operating_Base,_Bastion,_Afghanistan.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-appareil-les-personnes-diabetiques-utilisent-elles-pour-mesurer-le-": [
+   {
+    "n": 1,
+    "titre": "File:Glucose meters.jpg",
+    "auteur": "Christidy at English Wikipedia",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Glucose_meters.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-petit-appareil-pince-au-bout-du-doigt-mesure-l-oxygene-dans-le-sang": [
+   {
+    "n": 1,
+    "titre": "File:Wrist-oximeter.jpg",
+    "auteur": "UusiAjaja",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Wrist-oximeter.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Yokota pulse oximeter.jpg",
+    "auteur": "U.S. Air Force photo by Staff Sgt. Stacy Moless",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Yokota_pulse_oximeter.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Pulox Pulse Oximeter.JPG",
+    "auteur": "Stefan Bellini",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pulox_Pulse_Oximeter.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Hand Held Pulse Oximeter.jpg",
+    "auteur": "Catrin Hird",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Hand_Held_Pulse_Oximeter.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-une-source-d-eau-chaude-qui-jaillit-du-sol-en-grand-je": [
+   {
+    "n": 1,
+    "titre": "File:Watching a Grand Geyser eruption (46945761834).jpg",
+    "auteur": "Yellowstone National Park",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Watching_a_Grand_Geyser_eruption_(46945761834).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Lion Geyser eruption (79677337-7b1b-49cd-899b-63a67193c6bf).jpg",
+    "auteur": "Jacob W. Frank",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Lion_Geyser_eruption_(79677337-7b1b-49cd-899b-63a67193c6bf).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Pink Cone Geyser eruption (73665fec-b2d4-4401-b30c-3a587641a212).jpg",
+    "auteur": "Jacob W. Frank",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Pink_Cone_Geyser_eruption_(73665fec-b2d4-4401-b30c-3a587641a212).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Clepsydra Geyser eruption (c4cca38f-9aa5-42ad-aa27-a1ea27644adb).jpg",
+    "auteur": "Jacob W. Frank",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Clepsydra_Geyser_eruption_(c4cca38f-9aa5-42ad-aa27-a1ea27644adb).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appellent-les-pointes-de-pierre-qui-pendent-du-plafond-des-gro": [
+   {
+    "n": 1,
+    "titre": "File:Stalactites, stalagmites and columns in Ngarua Caves.jpg",
+    "auteur": "Pseudopanax at English Wikipedia",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Stalactites,_stalagmites_and_columns_in_Ngarua_Caves.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Stalactites at Rawhiti Cave entrance.jpg",
+    "auteur": "Pseudopanax at English Wikipedia",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Stalactites_at_Rawhiti_Cave_entrance.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-appelle-t-on-une-plante-qui-attrape-et-digere-des-insectes": [
+   {
+    "n": 1,
+    "titre": "File:Lavradia glandulosa Dionaea muscipula HistPlRemarqBresil 6(7).jpg",
+    "auteur": "Blanchard del.t.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Lavradia_glandulosa_Dionaea_muscipula_HistPlRemarqBresil_6(7).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Venus flytrap in pot.jpg",
+    "auteur": "Deltapug",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Venus_flytrap_in_pot.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-plante-aux-grandes-feuilles-rondes-flotte-a-la-surface-des-etangs": [
+   {
+    "n": 1,
+    "titre": "File:Detail of \"The Water-Lily Pond\" by Claude Monet 02.jpg",
+    "auteur": "Kritzolina",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Detail_of_%22The_Water-Lily_Pond%22_by_Claude_Monet_02.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Water lily in the rain.jpg",
+    "auteur": "AdvaitaMakaranda",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Water_lily_in_the_rain.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Aquamarine Water Lily Vase MET DP133529.jpg",
+    "auteur": "Louis Comfort Tiffany / Tiffany Studios",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Aquamarine_Water_Lily_Vase_MET_DP133529.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:John La Farge - Water Lily (1896).jpg",
+    "auteur": "Winslow Homer",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:John_La_Farge_-_Water_Lily_(1896).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-arbuste-aux-feuilles-piquantes-et-aux-boules-rouges-decore-les-mais": [
+   {
+    "n": 1,
+    "titre": "File:Holly berries.jpg",
+    "auteur": "Greenvinet",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Holly_berries.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Holly berries, Nienburg.jpg",
+    "auteur": "Gerda Arendt",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Holly_berries,_Nienburg.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Christmas holly leaves and berries postcard, circa 1900s.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Christmas_holly_leaves_and_berries_postcard,_circa_1900s.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-fleur-rouge-pousse-souvent-au-bord-des-champs-de-ble": [
+   {
+    "n": 1,
+    "titre": "File:Poppies bouquet 2017 G1.jpg",
+    "auteur": "George Chernilevsky",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Poppies_bouquet_2017_G1.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Red Poppy flower.jpg",
+    "auteur": "Alan Glicksman",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Red_Poppy_flower.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:A bright red poppy flower.jpg",
+    "auteur": "Spring's Flowers",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:A_bright_red_poppy_flower.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Red Poppy flower1.jpg",
+    "auteur": "Alan Glicksman",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Red_Poppy_flower1.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-fleur-jaune-devient-une-boule-de-graines-qui-s-envolent-quand-on-": [
+   {
+    "n": 1,
+    "titre": "File:Seed head of a dandelion, specifically Taraxacum officinale.jpg",
+    "auteur": "Adesolive",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Seed_head_of_a_dandelion,_specifically_Taraxacum_officinale.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Dandelion seed heads 1.jpg",
+    "auteur": "W.carter",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Dandelion_seed_heads_1.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Dandelion seed heads 3.jpg",
+    "auteur": "W.carter",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Dandelion_seed_heads_3.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Dandelion seed heads 2.jpg",
+    "auteur": "W.carter",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Dandelion_seed_heads_2.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-un-arbre-miniature-cultive-en-pot-un-art-venu-d-asie": [
+   {
+    "n": 1,
+    "titre": "File:BonsaiTridentMaple.jpg",
+    "auteur": "Peggy Greb, USDA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:BonsaiTridentMaple.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:MET DP138972.jpg",
+    "auteur": "Keisai Eisen",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:MET_DP138972.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:A bonsai tree.jpg",
+    "auteur": "Antonlambrechts",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:A_bonsai_tree.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Bonsai Tree 1.jpg",
+    "auteur": "Julianibarra",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Bonsai_Tree_1.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-arbre-a-une-ecorce-blanche-qui-se-detache-en-fines-bandes-comme-du-": [
+   {
+    "n": 1,
+    "titre": "File:Bridal crown, worn in Torne Lappmark, Karesuando, c. 1800, silver, birch-bark, cloth - Nordiska museet - Stockholm, Sweden - DSC09729.JPG",
+    "auteur": "Daderot",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Bridal_crown,_worn_in_Torne_Lappmark,_Karesuando,_c._1800,_silver,_birch-bark,_cloth_-_Nordiska_museet_-_Stockholm,_Sweden_-_DSC09729.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Silver Birch Bark.JPG",
+    "auteur": "Rosser1954 Roger Griffith",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Silver_Birch_Bark.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Woodpecker nesting hole in Silver Birch.JPG",
+    "auteur": "Rosser1954 Roger Griffith",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Woodpecker_nesting_hole_in_Silver_Birch.JPG",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-le-grand-paysage-d-herbes-hautes-et-d-arbres-rares-ou-": [
+   {
+    "n": 1,
+    "titre": "File:Smit.Lepus crawshayi.jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Smit.Lepus_crawshayi.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Lepus microtis (Lepus crawshayi) - Museo Civico di Storia Naturale Giacomo Doria - Genoa, Italy - DSC02878.JPG",
+    "auteur": "Daderot",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Lepus_microtis_(Lepus_crawshayi)_-_Museo_Civico_di_Storia_Naturale_Giacomo_Doria_-_Genoa,_Italy_-_DSC02878.JPG",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-la-couche-de-glace-qui-recouvre-la-mer-pres-des-poles": [
+   {
+    "n": 1,
+    "titre": "File:Mosaic of the Arctic.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Mosaic_of_the_Arctic.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Daily Arctic Sea Ice, By Year (SVS5046 - arctic sea ice w dates 2024001 print).jpg",
+    "auteur": "NASA's Scientific Visualization Studio - USRA/Trent L. Schindler, Global Science and Technology, Inc./Cindy Starr",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Daily_Arctic_Sea_Ice,_By_Year_(SVS5046_-_arctic_sea_ice_w_dates_2024001_print).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Sea Ice off Baffin Island.jpg",
+    "auteur": "Jeff Schmaltz",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Sea_Ice_off_Baffin_Island.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Daily Arctic Sea Ice, By Year (SVS5046 - arctic sea ice 2024001 print).jpg",
+    "auteur": "NASA's Scientific Visualization Studio - USRA/Trent L. Schindler, Global Science and Technology, Inc./Cindy Starr",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Daily_Arctic_Sea_Ice,_By_Year_(SVS5046_-_arctic_sea_ice_2024001_print).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-une-vallee-tres-profonde-creusee-par-une-riviere-entre": [
+   {
+    "n": 1,
+    "titre": "File:Kanjon Tare (2006).jpg",
+    "auteur": "Bojana Smiljanić; Original uploader was Zrno at sr.wikipedia",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Kanjon_Tare_(2006).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-une-haute-paroi-de-roche-au-bord-de-la-mer": [],
+  "qc-comment-s-appelle-un-nuage-pose-au-ras-du-sol-qui-empeche-de-voir-loin": [
+   {
+    "n": 1,
+    "titre": "File:Dense fog over Indian Subcontinent.jpg",
+    "auteur": "NASA Earth Data - LANCE Web Mapping Service, MODIS Rapid Response System",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Dense_fog_over_Indian_Subcontinent.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Dense fog in the woods (Unsplash).jpg",
+    "auteur": "Kash Goudarzi kash",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Dense_fog_in_the_woods_(Unsplash).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Dense fog Indian Subcontinent 22 Dec 2012.jpg",
+    "auteur": "http://lance-modis.eosdis.nasa.gov/wms/?zoom=4&amp;lat=27.375&amp;lon=86.47266&amp;layers=000B0FFFFT&amp;datum1=12/22/2012",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Dense_fog_Indian_Subcontinent_22_Dec_2012.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Dense Fog Drapes Across the Central US (CIRA 2024-01-23 - nolabels).gif",
+    "auteur": "JPSS imagery: CSU/CIRA &amp; NOAA/NESDIS",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Dense_Fog_Drapes_Across_the_Central_US_(CIRA_2024-01-23_-_nolabels).gif",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appellent-les-billes-de-glace-qui-tombent-parfois-pendant-un-o": [
+   {
+    "n": 1,
+    "titre": "File:Dying Star Shrouded by a Blanket of Hailstones Forms the Bug Nebula (4479812292).jpg",
+    "auteur": "NASA Goddard Space Flight Center from Greenbelt, MD, USA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Dying_Star_Shrouded_by_a_Blanket_of_Hailstones_Forms_the_Bug_Nebula_(4479812292).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:(Diagram) Plate 23. (Sun's Rays, Snow Crystals, Snow Line, Hailstones, Dew, Frosts, Winds, Rain Gauge). (IA dr diagram-plate-23-suns-rays-snow-crystals-snow-line-hailstones-dew-12190056).jpg",
+    "auteur": "Heck, Johann Georg, -1857\nHenry Winkles",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:(Diagram)_Plate_23._(Sun%27s_Rays,_Snow_Crystals,_Snow_Line,_Hailstones,_Dew,_Frosts,_Winds,_Rain_Gauge)._(IA_dr_diagram-plate-23-suns-rays-snow-crystals-snow-line-hailstones-dew-12190056).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appellent-les-gouttes-d-eau-qui-se-forment-sur-l-herbe-pendant": [
+   {
+    "n": 1,
+    "titre": "File:Blades of grass with dew drops (53723858369).jpg",
+    "auteur": "BLM Alaska",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Blades_of_grass_with_dew_drops_(53723858369).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Drops of Dew (7183565829).jpg",
+    "auteur": "USFWS Mountain-Prairie",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Drops_of_Dew_(7183565829).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Dew drop on green grass.jpg",
+    "auteur": "Jon Sullivan",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Dew_drop_on_green_grass.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Grass With Rain Drops (258758785).jpeg",
+    "auteur": "Carola Hornbach",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Grass_With_Rain_Drops_(258758785).jpeg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-petit-cristal-de-glace-a-six-branches-tombe-du-ciel-en-hiver": [
+   {
+    "n": 1,
+    "titre": "File:Snow crystals 2b.png",
+    "auteur": "Electron and Confocal Microscopy Laboratory, Agricultural Research Service, U. S. Department of Agriculture \n\n[1]",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Snow_crystals_2b.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:SnowflakesWilsonBentley.jpg",
+    "auteur": "Wilson Bentley",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:SnowflakesWilsonBentley.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Snowflake 300um LTSEM, 13368.jpg",
+    "auteur": "user:Brian0918",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Snowflake_300um_LTSEM,_13368.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Swarovski crystal snowflake pendant 01.jpg",
+    "auteur": "AuroraTiara",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Swarovski_crystal_snowflake_pendant_01.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-une-enorme-tempete-tropicale-qui-tourne-autour-d-un-il": [
+   {
+    "n": 1,
+    "titre": "File:Hurricane Isabel from ISS.jpg",
+    "auteur": "Image courtesy of Mike Trenchard, Earth Sciences &amp; Image Analysis Laboratory, NASA Johnson Space Center.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Hurricane_Isabel_from_ISS.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Satellite of Hurricane Beryl.gif",
+    "auteur": "Cooperative Institute for Research in the Atmosphere / National Oceanic and Atmospheric Administration",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Satellite_of_Hurricane_Beryl.gif",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Dual satellite view of Hurricane Iota (CIRA 2020-11-17).gif",
+    "auteur": "GOES imagery: CSU/CIRA &amp; NOAA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Dual_satellite_view_of_Hurricane_Iota_(CIRA_2020-11-17).gif",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Hurricane Isabel eye from ISS (edit 1).jpg",
+    "auteur": "NASA astronaut Ed Lu",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Hurricane_Isabel_eye_from_ISS_(edit_1).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appellent-les-champs-inondes-souvent-en-escaliers-ou-pousse-le": [
+   {
+    "n": 1,
+    "titre": "File:Rice Terraces Banaue.jpg",
+    "auteur": "Magalhães",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Rice_Terraces_Banaue.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Banaue Rice Terrace Close Up (2).JPG",
+    "auteur": "Agricmarketing at en.wikipedia",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Banaue_Rice_Terrace_Close_Up_(2).JPG",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Banaue Rice Terraces 2018-11.jpg",
+    "auteur": "Germartin1",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Banaue_Rice_Terraces_2018-11.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-plante-violette-et-parfumee-colore-les-champs-de-provence-en-ete": [
+   {
+    "n": 1,
+    "titre": "File:Lavender field in bloom.jpg",
+    "auteur": "Robert Brink",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Lavender_field_in_bloom.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-plante-donne-des-boules-blanches-avec-lesquelles-on-fabrique-les-": [
+   {
+    "n": 1,
+    "titre": "File:COTTON open boll bloom (48948371196).jpg",
+    "auteur": "Alabama Extension",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:COTTON_open_boll_bloom_(48948371196).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:COTTON open boll (48947824348).jpg",
+    "auteur": "Alabama Extension",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:COTTON_open_boll_(48947824348).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:COTTON open boll (48948566212).jpg",
+    "auteur": "Alabama Extension",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:COTTON_open_boll_(48948566212).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:COTTON BOLL close up (49168758266).jpg",
+    "auteur": "Alabama Extension",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:COTTON_BOLL_close_up_(49168758266).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-arbre-au-feuillage-argente-des-pays-mediterraneens-donne-des-fruits": [
+   {
+    "n": 1,
+    "titre": "File:Illustration Olea europaea0.jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Illustration_Olea_europaea0.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-plante-carnivore-noie-les-insectes-dans-des-urnes-pleines-de-liqu": [],
+  "qc-quelle-plante-sans-fleurs-ni-graines-se-reproduit-grace-a-des-spores-sou": [
+   {
+    "n": 1,
+    "titre": "File:Fern fronds (25974023984).jpg",
+    "auteur": "USFWS/Southeast",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Fern_fronds_(25974023984).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Fern fronds at Riverbend CPA (26611537224).jpg",
+    "auteur": "USFWS/Southeast",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Fern_fronds_at_Riverbend_CPA_(26611537224).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Fronds unfurling.jpg",
+    "auteur": "San906",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Fronds_unfurling.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Fern fronds unfolding (14349206833).jpg",
+    "auteur": "U.S. Fish and Wildlife Service Southeast Region",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Fern_fronds_unfolding_(14349206833).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-la-foret-des-cotes-tropicales-dont-les-arbres-ont-les-": [
+   {
+    "n": 1,
+    "titre": "File:Mangrove roots in the Laguna de La Restinga.jpg",
+    "auteur": "Wilfredor",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Mangrove_roots_in_the_Laguna_de_La_Restinga.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Roots of the mangrove swamp.jpg",
+    "auteur": "RealGatba",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Roots_of_the_mangrove_swamp.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Mangrove plant roots provides an island in the water.jpg",
+    "auteur": "Hillebrand Steve, U.S. Fish and Wildlife Service",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Mangrove_plant_roots_provides_an_island_in_the_water.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-immense-desert-de-sel-blanc-le-plus-grand-du-monde-se-trouve-en-bol": [],
+  "qc-comment-s-appelle-une-vallee-creusee-par-un-glacier-puis-envahie-par-la-": [],
+  "qc-comment-s-appelle-une-ile-de-corail-en-forme-d-anneau-autour-d-un-lagon": [
+   {
+    "n": 1,
+    "titre": "File:Venice Lagoon December 9 2001.jpg",
+    "auteur": "NASA/GSFC/MITI/ERSDAC/JAROS, and U.S./Japan ASTER Science Team",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Venice_Lagoon_December_9_2001.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Rose Atoll lagoon stingray turtle shark 2023.png",
+    "auteur": "NOAA Fisheries/Morgan Winston and Nate Hayes",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Rose_Atoll_lagoon_stingray_turtle_shark_2023.png",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-site-d-irlande-du-nord-est-fait-de-milliers-de-colonnes-de-basalte-": [
+   {
+    "n": 1,
+    "titre": "File:Giants Causeway 1b.JPG",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Giants_Causeway_1b.JPG",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-roche-volcanique-est-si-legere-et-pleine-de-trous-qu-elle-peut-fl": [
+   {
+    "n": 1,
+    "titre": "File:Dacitic pumice (Holocene, Mt. St Helens).jpg",
+    "auteur": "ScoriaPumice",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Dacitic_pumice_(Holocene,_Mt._St_Helens).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Aphanitic dacite pumice (Holocene, June 15, 1991 eruption of Mt. Pinatubo).jpg",
+    "auteur": "ScoriaPumice",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Aphanitic_dacite_pumice_(Holocene,_June_15,_1991_eruption_of_Mt._Pinatubo).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Pumice (Pleistocene, Diliman Tuff).jpg",
+    "auteur": "ScoriaPumice",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pumice_(Pleistocene,_Diliman_Tuff).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Tube pumice 2 (Pleistocene, Diliman Tuff).jpg",
+    "auteur": "ScoriaPumice",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Tube_pumice_2_(Pleistocene,_Diliman_Tuff).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-enorme-nuage-en-forme-d-enclume-annonce-souvent-un-orage": [
+   {
+    "n": 1,
+    "titre": "File:Thunder cloud over Gåseberg.jpg",
+    "auteur": "W.carter",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Thunder_cloud_over_G%C3%A5seberg.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:ISS-40 Thunderheads near Borneo.jpg",
+    "auteur": "NASA/Expedition 40 crew member",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:ISS-40_Thunderheads_near_Borneo.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Lightning in Dallas 2015.jpg",
+    "auteur": "NOAA Photo Library",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Lightning_in_Dallas_2015.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Cumulonimbus cloud with visible precipitation shaft.jpg",
+    "auteur": "OkEj1000",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Cumulonimbus_cloud_with_visible_precipitation_shaft.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-objet-en-verre-s-allume-quand-le-courant-passe-dans-son-fil-tres-fi": [
+   {
+    "n": 1,
+    "titre": "File:Light bulb Edison 2.jpg",
+    "auteur": "Thomas Edison (reprinted by the Norris Peters Co.)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Light_bulb_Edison_2.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Closeup of mini-light.JPG",
+    "auteur": "Juliancolton",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Closeup_of_mini-light.JPG",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-instrument-a-deux-tubes-permet-de-voir-de-loin-avec-les-deux-yeux": [
+   {
+    "n": 1,
+    "titre": "File:Coin-operated binoculars, Grandview Avenue, Mount Washington, Pittsburgh, 2020-10-08, 02, bw.jpg",
+    "auteur": "Cbaile19",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Coin-operated_binoculars,_Grandview_Avenue,_Mount_Washington,_Pittsburgh,_2020-10-08,_02,_bw.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:WW2 German Army artillery (Wehrmacht Heer Artillerie) tank trooper (Panzersoldat) uniform Totenkopf insignia Officer's visor cap headset binoculars Fort Eben-Emael, Belgium.jpg",
+    "auteur": "Ted Potters",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:WW2_German_Army_artillery_(Wehrmacht_Heer_Artillerie)_tank_trooper_(Panzersoldat)_uniform_Totenkopf_insignia_Officer%27s_visor_cap_headset_binoculars_Fort_Eben-Emael,_Belgium.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Coin-operated binoculars, Grandview Avenue, Mount Washington, Pittsburgh, 2020-10-08, 02, imaginary color.jpg",
+    "auteur": "Cbaile19",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Coin-operated_binoculars,_Grandview_Avenue,_Mount_Washington,_Pittsburgh,_2020-10-08,_02,_imaginary_color.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Navy - Equipment - Navy request for binoculars brings thousands - NARA - 45510679.jpg",
+    "auteur": "Unknown authorUnknown author or not provided",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Navy_-_Equipment_-_Navy_request_for_binoculars_brings_thousands_-_NARA_-_45510679.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-tube-a-miroirs-permet-de-voir-au-dessus-de-l-eau-depuis-un-sous-mar": [
+   {
+    "n": 1,
+    "titre": "File:Periscope (PSF).png",
+    "auteur": "Pearson Scott Foresman",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Periscope_(PSF).png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Periscope of Resolution class submarine 1982.JPEG",
+    "auteur": "USN",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Periscope_of_Resolution_class_submarine_1982.JPEG",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:The Eye at the Periscope, Hm Submarine Art.IWMART923.jpg",
+    "auteur": "Francis Dodd",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:The_Eye_at_the_Periscope,_Hm_Submarine_Art.IWMART923.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Periscope of submerged Submarine D. 3 LCCN97508383.jpg",
+    "auteur": "Miscellaneous Items in High Demand, PPOC, Library of Congress",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Periscope_of_submerged_Submarine_D._3_LCCN97508383.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appellent-les-roues-dentees-qui-se-font-tourner-l-une-l-autre-": [
+   {
+    "n": 1,
+    "titre": "File:23 0067162 Convair Negative Image - Landing gear wheels 12-14-1961 (54157980064).jpg",
+    "auteur": "San Diego Air &amp; Space Museum Archives",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:23_0067162_Convair_Negative_Image_-_Landing_gear_wheels_12-14-1961_(54157980064).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:23 0067163 Convair Negative Image - Landing gear wheels 12-14-1961 (54157660536).jpg",
+    "auteur": "San Diego Air &amp; Space Museum Archives",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:23_0067163_Convair_Negative_Image_-_Landing_gear_wheels_12-14-1961_(54157660536).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:23 0067040 Convair Negative Image - Landing gear wheels 12-14-1961 (54157981689).jpg",
+    "auteur": "San Diego Air &amp; Space Museum Archives",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:23_0067040_Convair_Negative_Image_-_Landing_gear_wheels_12-14-1961_(54157981689).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:23 0067161 Convair Negative Image - Landing gear wheels 12-14-1961 (54157943943).jpg",
+    "auteur": "San Diego Air &amp; Space Museum Archives",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:23_0067161_Convair_Negative_Image_-_Landing_gear_wheels_12-14-1961_(54157943943).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-fil-de-metal-enroule-en-spirale-reprend-sa-forme-quand-on-l-ecrase": [
+   {
+    "n": 1,
+    "titre": "File:ICF passenger coach coil spring suspension.jpg",
+    "auteur": "Yadvendu at English Wikipedia",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:ICF_passenger_coach_coil_spring_suspension.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Tesla Colorado Springs lab-resonance between coils.jpg",
+    "auteur": "Nikola Tesla",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Tesla_Colorado_Springs_lab-resonance_between_coils.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Weeki Wachee spring 10079u.jpg",
+    "auteur": "Toni Frissell",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Weeki_Wachee_spring_10079u.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quels-petits-tubes-de-verre-melange-t-on-les-produits-au-laboratoir": [
+   {
+    "n": 1,
+    "titre": "File:Test tubes (2).jpg",
+    "auteur": "Linda Bartlett (Photographer)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Test_tubes_(2).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Test tubes 1911 (3190778231).jpg",
+    "auteur": "Snyder, Frank R. \n\nFlickr: Miami U. Libraries - Digital Collections",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Test_tubes_1911_(3190778231).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-petit-appareil-frotte-sur-la-roue-d-un-velo-pour-allumer-sa-lampe": [
+   {
+    "n": 1,
+    "titre": "File:Dynamo-Anbau.png",
+    "auteur": "Tympanus",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Dynamo-Anbau.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Spoke dynamo Aufa FER 2002.jpg",
+    "auteur": "ocrho",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Spoke_dynamo_Aufa_FER_2002.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-le-tas-d-epluchures-qui-se-transforme-lentement-en-eng": [
+   {
+    "n": 1,
+    "titre": "File:Compost pile.JPG",
+    "auteur": "Ksd5",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Compost_pile.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Four compost bins.jpg",
+    "auteur": "Hu Nhu",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Four_compost_bins.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-grande-roue-tournee-par-une-riviere-faisait-marcher-les-anciens-m": [
+   {
+    "n": 1,
+    "titre": "File:Cape Leeuwin water wheel as it appeared c.1936 (Sunday Times, 3 May 1936, Page 24).jpg",
+    "auteur": "Unknown photographer. Published in Sunday Times, 3 May 1936.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Cape_Leeuwin_water_wheel_as_it_appeared_c.1936_(Sunday_Times,_3_May_1936,_Page_24).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Cape Leeuwin water wheel as it appeared c.1950 (Western Mail, 21 Dec 1950, Page 56).jpg",
+    "auteur": "Unknown photographer. Published in Western Mail, 21 December 1950.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Cape_Leeuwin_water_wheel_as_it_appeared_c.1950_(Western_Mail,_21_Dec_1950,_Page_56).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Garfield water wheel (State Library of Victoria IE1864826).jpg",
+    "auteur": "Unknown photographer. From the collection of the State Library of Victoria. Image is out-of-copyright, refer to source above.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Garfield_water_wheel_(State_Library_of_Victoria_IE1864826).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-boule-legere-aux-reflets-arc-en-ciel-se-forme-quand-on-souffle-da": [
+   {
+    "n": 1,
+    "titre": "File:Frozen soap bubble behind fir twigs (Unsplash BojuZpqw4zM).jpg",
+    "auteur": "aaronburden Aaron Burden from Baltimore, Maryland, USA.",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Frozen_soap_bubble_behind_fir_twigs_(Unsplash_BojuZpqw4zM).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-bouteille-garde-les-boissons-chaudes-ou-froides-pendant-des-heure": [
+   {
+    "n": 1,
+    "titre": "File:Vacuum flask diagram.png",
+    "auteur": "B. Burger 1907",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Vacuum_flask_diagram.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Thermos (PSF).png",
+    "auteur": "Pearson Scott Foresman",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Thermos_(PSF).png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Thermos the Bottle, ad from Rod and Gun in Canada, 1909.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Thermos_the_Bottle,_ad_from_Rod_and_Gun_in_Canada,_1909.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Japanese vacuum flask.jpg",
+    "auteur": "Petey21",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Japanese_vacuum_flask.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-materiau-tres-leger-tire-de-l-ecorce-d-un-chene-sert-a-faire-les-bo": [
+   {
+    "n": 1,
+    "titre": "File:Wine corks in a basket (Unsplash).jpg",
+    "auteur": "Elisha Terada elishaterada",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Wine_corks_in_a_basket_(Unsplash).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-materiau-transparent-fabrique-t-on-en-faisant-fondre-du-sable": [
+   {
+    "n": 1,
+    "titre": "File:Wallaceburg Museum Glass Blowing Tools 054.jpg",
+    "auteur": "Wallaceburghistory (talk)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Wallaceburg_Museum_Glass_Blowing_Tools_054.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-instrument-recueille-la-pluie-pour-mesurer-combien-il-en-est-tombe": [
+   {
+    "n": 1,
+    "titre": "File:Rain gauge Hellmann.jpg",
+    "auteur": "Bocholter",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Rain_gauge_Hellmann.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-instrument-mesure-la-pression-de-l-air-pour-aider-a-prevoir-le-temp": [
+   {
+    "n": 1,
+    "titre": "File:Modern Aneroid Barometer.jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Modern_Aneroid_Barometer.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Pocket Barometer, Ross, London, 1902 - Museum of Science and Industry (Chicago) - DSC06363.JPG",
+    "auteur": "Daderot",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pocket_Barometer,_Ross,_London,_1902_-_Museum_of_Science_and_Industry_(Chicago)_-_DSC06363.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:German barometer on wood.jpg",
+    "auteur": "Reconrabbit",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:German_barometer_on_wood.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Negus Aneroid barometer.png",
+    "auteur": "T. S. &amp; J. D. Negus",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Negus_Aneroid_barometer.png",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-appareil-enregistre-les-secousses-des-tremblements-de-terre": [
+   {
+    "n": 1,
+    "titre": "File:Seismometer at Lick Observatory.JPG",
+    "auteur": "Oleg Alexandrov",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Seismometer_at_Lick_Observatory.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Seismometer (horizontal), made for the World Wide Standard Seismological Network by Spregnether Instrument Company, St. Louis, MO, 1961-1962 - National Museum of American History - DSC00020.jpg",
+    "auteur": "Daderot",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Seismometer_(horizontal),_made_for_the_World_Wide_Standard_Seismological_Network_by_Spregnether_Instrument_Company,_St._Louis,_MO,_1961-1962_-_National_Museum_of_American_History_-_DSC00020.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Seismometer (vertical), made for the World Wide Standard Seismological Network by Spregnether Instrument Company, St. Louis, MO, 1961-1962 - National Museum of American History - DSC00023.jpg",
+    "auteur": "Daderot",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Seismometer_(vertical),_made_for_the_World_Wide_Standard_Seismological_Network_by_Spregnether_Instrument_Company,_St._Louis,_MO,_1961-1962_-_National_Museum_of_American_History_-_DSC00023.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Remote nodal seismometer (30490208237).jpg",
+    "auteur": "Yellowstone National Park",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Remote_nodal_seismometer_(30490208237).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-appareil-qui-crepite-sert-a-detecter-la-radioactivite": [
+   {
+    "n": 1,
+    "titre": "File:Geiger counter 2.jpg",
+    "auteur": "TimVickers",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Geiger_counter_2.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Geiger Counter With Probe (PSF).png",
+    "auteur": "Pearson Scott Foresman",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Geiger_Counter_With_Probe_(PSF).png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Victoreen CD V-700.overview.jpg",
+    "auteur": "Roger469",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Victoreen_CD_V-700.overview.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Geiger counter FNAL.jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Geiger_counter_FNAL.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-fil-de-verre-tres-fin-transporte-internet-sous-forme-de-lumiere": [
+   {
+    "n": 1,
+    "titre": "File:Optical-fibre-junction-box.jpg",
+    "auteur": "Alby (talk)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Optical-fibre-junction-box.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:S-eight cassette.png",
+    "auteur": "Mino Lee South Korea",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:S-eight_cassette.png",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-grand-pendule-accroche-au-pantheon-de-paris-en-1851-a-montre-que-la": [
+   {
+    "n": 1,
+    "titre": "File:Foucault pendulum in Tellus Science Museum, 2013.jpg",
+    "auteur": "Stephen Rahn",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Foucault_pendulum_in_Tellus_Science_Museum,_2013.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Foucault pendulum with easy-to-track marks at Saitama Municipal Youth Astronomical Museum.jpg",
+    "auteur": "Syced",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Foucault_pendulum_with_easy-to-track_marks_at_Saitama_Municipal_Youth_Astronomical_Museum.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Foucault Pendulum Firenze.jpg",
+    "auteur": "Torzog",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Foucault_Pendulum_Firenze.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-centrale-produit-de-l-electricite-grace-a-l-uranium": [
+   {
+    "n": 1,
+    "titre": "File:Hartsville Nuclear Power Plant Site Map.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Hartsville_Nuclear_Power_Plant_Site_Map.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Hallam-nuclear-power-facility-site.jpg",
+    "auteur": "United States Atomic Energy Commission",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Hallam-nuclear-power-facility-site.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Rooppur Nuclear Power Plant Landsat-8 January 2024.jpg",
+    "auteur": "Landsat-8 image courtesy of the U.S. Geological Survey",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Rooppur_Nuclear_Power_Plant_Landsat-8_January_2024.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Hallam nuclear power facility core.jpg",
+    "auteur": "US Atomic Energy Commission",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Hallam_nuclear_power_facility_core.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-mineral-fait-battre-tres-regulierement-les-montres-electroniques": [
+   {
+    "n": 1,
+    "titre": "File:Marrisons quartz crystal clock.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Marrisons_quartz_crystal_clock.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-matiere-elastique-est-tiree-de-la-seve-blanche-d-un-arbre-l-hevea": [
+   {
+    "n": 1,
+    "titre": "File:Tapped rubber tree.jpg",
+    "auteur": "Irvin calicut",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Tapped_rubber_tree.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Latex dripping.JPG",
+    "auteur": "AxelBoldt",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Latex_dripping.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Latex-production.jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Latex-production.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:1985 Rubber Tree in Johor Malaysia. Spielvogel Archiv.JPG",
+    "auteur": "For a gallery of some more of my uploaded pictures see:  here.",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:1985_Rubber_Tree_in_Johor_Malaysia._Spielvogel_Archiv.JPG",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-planete-bleu-vert-tourne-comme-si-elle-etait-couchee-sur-le-cote": [
+   {
+    "n": 1,
+    "titre": "File:Uranus2.jpg",
+    "auteur": "NASA/JPL-Caltech",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Uranus2.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Polar aurora on Uranus HST.jpg",
+    "auteur": "Credit: NASA, ESA, and L. Lamy (Observatory of Paris, CNRS, CNES)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Polar_aurora_on_Uranus_HST.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Uranus Final Image.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Uranus_Final_Image.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Uranus and Neptune (2019-06-4320).tif",
+    "auteur": "IMAGE: NASA, ESA, Amy Simon (NASA-GSFC), Michael H. Wong (UC Berkeley), Andrew I. Hsu (UC Berkeley)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Uranus_and_Neptune_(2019-06-4320).tif",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-engin-spatial-americain-decollait-comme-une-fusee-et-atterrissait-c": [
+   {
+    "n": 1,
+    "titre": "File:STS120LaunchHiRes-edit1.jpg",
+    "auteur": "NASA; edited by jjron (tilt corrected)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:STS120LaunchHiRes-edit1.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Space Shuttle Columbia launching.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Space_Shuttle_Columbia_launching.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Space Shuttle Discovery under a full moon, 03-11-09.jpg",
+    "auteur": "NASA/Bill Inglais",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Space_Shuttle_Discovery_under_a_full_moon,_03-11-09.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Columbia.sts-1.01.jpg",
+    "auteur": "NASA/KSC",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Columbia.sts-1.01.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-une-pierre-venue-de-l-espace-qu-on-retrouve-tombee-sur": [
+   {
+    "n": 1,
+    "titre": "File:Meteorite and a meteoritic iron hatchet.JPG",
+    "auteur": "Zaereth at en.wikipedia)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Meteorite_and_a_meteoritic_iron_hatchet.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:NWA 5549, Iron, IAB-MG - Center for Meteorite Studies - Arizona State University - Tempe, AZ - DSC05765.JPG",
+    "auteur": "Daderot",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:NWA_5549,_Iron,_IAB-MG_-_Center_for_Meteorite_Studies_-_Arizona_State_University_-_Tempe,_AZ_-_DSC05765.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Youndegin meteorite slice.jpg",
+    "auteur": "Daderot, cropped by Basilicofresco",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Youndegin_meteorite_slice.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Youndegin meteorite - Meteorites in the Arppeanum - DSC05478.JPG",
+    "auteur": "Daderot",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Youndegin_meteorite_-_Meteorites_in_the_Arppeanum_-_DSC05478.JPG",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-appelle-t-on-la-lune-quand-on-n-en-voit-qu-un-mince-arc-lumineux": [
+   {
+    "n": 1,
+    "titre": "File:Moon Crescent - False Color Mosaic.jpg",
+    "auteur": "NASA/JPL",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Moon_Crescent_-_False_Color_Mosaic.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:A New View of the Moon.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:A_New_View_of_the_Moon.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Crescent moon 2025.jpg",
+    "auteur": "gjdonatiello",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Crescent_moon_2025.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-immense-antenne-en-forme-d-assiette-ecoute-les-ondes-envoyees-par": [],
+  "qc-comment-s-appelle-un-batiment-a-coupole-d-ou-les-savants-observent-le-ci": [
+   {
+    "n": 1,
+    "titre": "File:King's Observatory, Kew, the observatory dome interior.jpg",
+    "auteur": "AndyScott",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:King%27s_Observatory,_Kew,_the_observatory_dome_interior.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:King's Observatory, Kew, the observatory dome with telescope.jpg",
+    "auteur": "AndyScott",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:King%27s_Observatory,_Kew,_the_observatory_dome_with_telescope.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:King's Observatory, Kew, the observatory dome roof rotating mechanism.jpg",
+    "auteur": "AndyScott",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:King%27s_Observatory,_Kew,_the_observatory_dome_roof_rotating_mechanism.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:King's Observatory, Kew, the observatory dome.jpg",
+    "auteur": "AndyScott",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:King%27s_Observatory,_Kew,_the_observatory_dome.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-un-immense-nuage-de-gaz-et-de-poussiere-ou-naissent-le": [
+   {
+    "n": 1,
+    "titre": "File:Orion Nebula - Hubble 2006 mosaic 18000.jpg",
+    "auteur": "NASA, ESA, M. Robberto (Space Telescope Science Institute/ESA) and the Hubble Space Telescope Orion Treasury Project Team",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Orion_Nebula_-_Hubble_2006_mosaic_18000.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Different Slant on Orion (495636660).jpg",
+    "auteur": "Steve Black from Las Vegas, NV, USA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Different_Slant_on_Orion_(495636660).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Flying-Dragon-Nebula Sh 2-113.png",
+    "auteur": "Chuck Ayoub",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Flying-Dragon-Nebula_Sh_2-113.png",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:M42 Orion Nebula & M43 De Marian's Nebula.jpg",
+    "auteur": "Dylan O'Donnell",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:M42_Orion_Nebula_%26_M43_De_Marian%27s_Nebula.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-dans-quoi-les-astronautes-reviennent-ils-sur-terre-freines-par-un-grand-": [
+   {
+    "n": 1,
+    "titre": "File:Expedition 42 Soyuz TMA-14M Landing (201503120102HQ).jpg",
+    "auteur": "Bill Ingalls",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Expedition_42_Soyuz_TMA-14M_Landing_(201503120102HQ).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Expedition 41 Soyuz TMA-13M Landing (201411100033HQ).jpg",
+    "auteur": "Bill Ingalls",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Expedition_41_Soyuz_TMA-13M_Landing_(201411100033HQ).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Soyuz TMA-5 launch.jpg",
+    "auteur": "Bill Ingalls",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Soyuz_TMA-5_launch.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Soyuz TMA-16 approaching ISS.jpg",
+    "auteur": "Expedition 20 Crew, NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Soyuz_TMA-16_approaching_ISS.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-un-gros-rocher-qui-tourne-autour-du-soleil-souvent-ent": [
+   {
+    "n": 1,
+    "titre": "File:Hubble Images of Asteroids Vesta and Ceres.jpg",
+    "auteur": "Ceres: NASA, ESA, and J. Parker (Southwest Research Institute)\nVesta: NASA, ESA, and L. McFadden (University of Maryland)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Hubble_Images_of_Asteroids_Vesta_and_Ceres.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Crater on Asteroid Vesta (opo9727f).tiff",
+    "auteur": "Ben Zellner (Georgia Southern University), Peter Thomas (Cornell University), NASA/ESA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Crater_on_Asteroid_Vesta_(opo9727f).tiff",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Key Stages in the Evolution of the Asteroid Vesta (1995-20-287).jpg",
+    "auteur": "NASA, ESA, and B. Zellner (Georgia Southern Univ.)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Key_Stages_in_the_Evolution_of_the_Asteroid_Vesta_(1995-20-287).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Vesta in natural color (cropped).jpg",
+    "auteur": "NASA / JPL / MPS / DLR / IDA / Björn Jónsson",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Vesta_in_natural_color_(cropped).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-celebre-telescope-tourne-autour-de-la-terre-depuis-1990": [
+   {
+    "n": 1,
+    "titre": "File:Grand star-forming region R136 in NGC 2070 (captured by the Hubble Space Telescope).jpg",
+    "auteur": "NASA, ESA, F. Paresce (INAF-IASF, Bologna, Italy), R. O'Connell (University of Virginia, Charlottesville), and the Wide Field Camera 3 Science Oversight Committee",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Grand_star-forming_region_R136_in_NGC_2070_(captured_by_the_Hubble_Space_Telescope).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:UGC 1810 and UGC 1813 in Arp 273 (captured by the Hubble Space Telescope).jpg",
+    "auteur": "NASA, ESA, and the Hubble Heritage Team (STScI/AURA)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:UGC_1810_and_UGC_1813_in_Arp_273_(captured_by_the_Hubble_Space_Telescope).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Sombrero Galaxy in infrared light (Hubble Space Telescope and Spitzer Space Telescope).jpg",
+    "auteur": "NASA/JPL-Caltech and The Hubble Heritage Team (STScI/AURA)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Sombrero_Galaxy_in_infrared_light_(Hubble_Space_Telescope_and_Spitzer_Space_Telescope).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Messier83 - Heic1403a.jpg",
+    "auteur": "Credit: NASA, ESA, and the Hubble Heritage Team (STScI/AURA)\n\nAcknowledgement: William Blair (Johns Hopkins University)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Messier83_-_Heic1403a.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-que-faut-il-porter-pour-regarder-une-eclipse-de-soleil-sans-s-abimer-les": [
+   {
+    "n": 1,
+    "titre": "File:Eclipsbrilletje.JPG",
+    "auteur": "No machine-readable author provided. Bree~commonswiki assumed (based on copyright claims).",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Eclipsbrilletje.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:1932 Solar Eclipse Glasses.jpg",
+    "auteur": "Kenneth C. Zirkel",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:1932_Solar_Eclipse_Glasses.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Solar eclipse through eclipse glasses, Kalkense Meersen, Laarne, August 12, 2026.jpg",
+    "auteur": "DimiTalen",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Solar_eclipse_through_eclipse_glasses,_Kalkense_Meersen,_Laarne,_August_12,_2026.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:2024 Total Solar Eclipse (NHQ202404080212).jpg",
+    "auteur": "NASA Headquarters / NASA/Bill Ingalls",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:2024_Total_Solar_Eclipse_(NHQ202404080212).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelait-l-engin-a-pattes-qui-a-pose-les-astronautes-d-apollo-": [
+   {
+    "n": 1,
+    "titre": "File:Apollo 15 flag, rover, LM, Irwin.jpg",
+    "auteur": "Astronaut David R. Scott, Apollo 15 commander.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Apollo_15_flag,_rover,_LM,_Irwin.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:NASA Apollo 17 Lunar Roving Vehicle.jpg",
+    "auteur": "NASA / Harrison H. Schmitt",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:NASA_Apollo_17_Lunar_Roving_Vehicle.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Apollo 11 Lunar Lander - 5927 NASA.jpg",
+    "auteur": "Neil Armstrong",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Apollo_11_Lunar_Lander_-_5927_NASA.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Earth, Moon and Lunar Module, AS11-44-6643.jpg",
+    "auteur": "NASA / Apollo 11",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Earth,_Moon_and_Lunar_Module,_AS11-44-6643.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-fut-le-tout-premier-satellite-artificiel-lance-par-l-union-sovietiq": [
+   {
+    "n": 1,
+    "titre": "File:Sputnik 1 Exploded View 3F9A6199 (36924864550) modified.png",
+    "auteur": "Музей Космонавтики from Россия, cropped, color correct, and sharpened by Kees08",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Sputnik_1_Exploded_View_3F9A6199_(36924864550)_modified.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Sputnik 1.jpg",
+    "auteur": "U.S. Air Force photo",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Sputnik_1.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Sputnik propaganda PCI.jpg",
+    "auteur": "Aldo Savina",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Sputnik_propaganda_PCI.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Sputnik asm.jpg",
+    "auteur": "NSSDC, NASA[1]",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Sputnik_asm.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-est-le-plus-haut-volcan-du-systeme-solaire-sur-la-planete-mars": [
+   {
+    "n": 1,
+    "titre": "File:Olympus Mons alt.jpg",
+    "auteur": "Image by NASA, modifications by Seddon",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Olympus_Mons_alt.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-est-la-grande-galaxie-spirale-la-plus-proche-de-notre-voie-lactee": [
+   {
+    "n": 1,
+    "titre": "File:Andromeda Galaxy 2025.png",
+    "auteur": "Brody Wesner",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Andromeda_Galaxy_2025.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Andromeda galaxy.jpg",
+    "auteur": "NASA/JPL/California Institute of Technology",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Andromeda_galaxy.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Infrared-Radio Image of the Andromeda Galaxy (M31) (2022-027).png",
+    "auteur": "IMAGE: ESA, NASA, NASA-JPL, Caltech, Christopher Clark (STScI), R. Braun (SKA Observatory), C. Nieten (MPI Radioastronomie), Matt Smith (Cardiff University)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Infrared-Radio_Image_of_the_Andromeda_Galaxy_(M31)_(2022-027).png",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Andromeda Galaxy 2025.jpg",
+    "auteur": "Brody Wesner",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Andromeda_Galaxy_2025.jpg",
+    "source": "commons"
+   }
+  ]
+ }
+}
