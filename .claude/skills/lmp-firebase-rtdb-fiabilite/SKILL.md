@@ -99,6 +99,9 @@ au `uid` de la box (perdue si les données de la box sont effacées) ; pas encor
 ```
 games/$code
   hostUid, createdAt, quizId, appVersion      // écrits une seule fois, à la création par la box
+                                               // (hostUid : réécrit seulement par « Changer de box », voir plus bas)
+  takeover     { to, from, by, at }            // dernier « Changer de box » : salon visé, ancienne box, régie, heure serveur
+  handoff      "<code de la partie>"           // sur le salon de la box de secours : la partie qui lui est confiée (une fois)
   state        { phase, seq, total, scores, round, buzzOpen,          // écrit par la box seule
                  index, qid, kind, double, text, choices, durationMs,
                  paused, deadline, remainingMs, correct?, awards? }   // correct et awards seulement après révélation
@@ -116,7 +119,8 @@ games/$code
   show         { id, showId, title, childName, age, profile, rounds[], quiz { id, title, questions[] }, by, at }
                // instantané de prestation écrit par une régie, salon d'attente seulement ; la box le vérifie
   showStatus   { id, status: applied|refused, reason?, at }   // réponse de la box ; un id jugé n'est jamais rejugé
-  public       { title, childName? }                           // écrit par la box, lisible par les pupitres
+  public       { title, childName?, changeBox? }               // écrit par la box, lisible par les pupitres
+               // changeBox : cette box sait reprendre la fête d'une box en panne (exigé par « Changer de box »)
   commands/$cmdId { type: next|pause|resume|close|adjust|undo|end, expectSeq, by, at, team?, delta?, target? }
   commandStatus/$cmdId { status: applied|stale|refused, reason?, seq?, at }   // même écriture que l'événement
 reports/$id    { kind, text, version, device, at }  // plantages de la box : écriture seule, lus par le workflow « Rapports »
@@ -268,9 +272,26 @@ passe administrateur commun (`adminProof`), partout où cette section dit « `ad
 - Révocation : la fonction retire le rôle, révoque les jetons et note `devices/$uid/revokedAt`. Les règles
   RTDB vérifient aussi `revokedAt` (effet immédiat) ; Storage ne peut pas lire la RTDB, la révocation y
   prend effet à l'expiration du jeton (1 h au plus).
-- **Transfert de partie** (box en panne) : fonction `transferHost`, réservée à `admin`, qui réécrit
-  `hostUid` vers la nouvelle box et ajoute un événement `host_transferred` au journal ; la nouvelle box
-  télécharge l'instantané et rejoue le journal.
+- **Changer de box** (box en panne, en place sans fonction serveur, plan Spark) : la régie de la partie A
+  (« 📺 Changer de box » dans sa carte ou dans le bandeau « La TV ne répond pas ») tape le code du salon
+  d'attente B affiché par la box de secours, puis écrit **en une seule mise à jour** à la racine :
+  `games/A/hostUid` = hôte de B, `games/A/takeover` = `{to: B, from: ancien hôte, by: son uid, at: now}`,
+  `games/B/handoff` = A. Les règles exigent : régie reliée à A ; B au salon (`state/phase` = lobby), sans
+  équipe, sans `show`, sans `handoff`, sans téléphone relié autre que le sien (`regie` absent ou
+  `regie/<son uid>`), appli à jour (`public/changeBox` = true) ; box de B acceptée si `boxes/lockOn` ;
+  codes `[A-Z0-9]{5}` (aucun chemin forgé). Ni
+  `takeover` ni `handoff` ne s'effacent ; ils ne se lisent que par l'hôte. Une régie entrée par mot de
+  passe lit `boxes/allowed/<uid>` pour expliquer un refus.
+  - Box B (`GameViewModel.onHandoff`) : seulement depuis un salon vide ; relit A sur le serveur jusqu'à
+    voir `hostUid` = elle et `takeover/to` = B (jamais une vieille copie locale), met `activeCode` = A,
+    termine B, puis ouvre A comme une reprise (journal rejoué). Les commandes et le `show` envoyés avant
+    `takeover/at` et restés sans réponse sont refusés `too_old` : rien de ce qui a été dit « non reçu » à
+    la régie ne s'applique plus tard.
+  - Ancienne box : `hostUid` reste lisible par tous ; dès qu'il n'est plus le sien (en direct, au
+    redémarrage ou à l'échec d'une reprise), elle arrête tout, oublie `activeCode` et affiche « Cette fête
+    continue sur une autre box » avec « Nouvelle partie ». Les règles ne la laissent plus rien lire ni
+    écrire dans A.
+  - La fête peut changer de box plusieurs fois, et revenir sur la box d'origine (depuis un nouveau salon).
 - `library` : lecture `auth.token.role in ['box','admin']` (en RTDB : une condition
   `auth.token.role === '…'` par rôle), plus `shows` pour une régie reliée à une partie en cours ;
   écriture `admin` seulement. Un pupitre ne lit jamais une bonne réponse avant `reveals`.
@@ -339,6 +360,9 @@ passe administrateur commun (`adminProof`), partout où cette section dit « `ad
   garde son nom, sa couleur et ses points.
 - **TV** : `keepSynced(true)` sur `games/$code` ; au redémarrage, la reprise existante rouvre la
   partie, puis le moteur rejoue les commandes non notées dans `appliedCmds`.
+- **TV en panne** (ne s'allume plus, plus de réseau) : « Changer de box » depuis la régie (section 4) ; la
+  fête continue sur une autre box avec les mêmes équipes et les mêmes points, les tablettes suivent seules
+  (même code de partie).
 - **Restauration contrôlée** : « revenir à l'état de 14 h 32 » = événements d'annulation jusqu'au
   `seq` choisi, jamais une suppression.
 - Gérer `onCancelled` sans écran d'erreur brutal : message calme et réessai automatique, l'animatrice
@@ -359,7 +383,10 @@ passe administrateur commun (`adminProof`), partout où cette section dit « `ad
   ni une partie dont il n'est pas membre ; une box n'écrit ni `library` ni les médias, ni la partie
   d'une autre box ; un fichier trop gros ou d'un type non prévu est refusé ; un média publié n'est ni
   modifié ni supprimé par un client ; un second rapport dans la minute est refusé ; une fonction refuse
-  un appel sans le rôle attendu ; le transfert de partie garde le journal intact.
+  un appel sans le rôle attendu ; le transfert de partie garde le journal intact ; « Changer de box » :
+  seule une régie de la partie la confie, à un salon vide, accepté, jamais celui d'une autre fête (autre
+  téléphone relié, prestation chargée), jamais en morceaux, et l'ancienne box ne lit ni n'écrit plus rien
+  (`tests/rules.test.js`, `tests/regie.test.js`, `tv/src/androidTest/.../ChangerDeBoxTest.kt`).
 - **Coûts** : un budget de 8 € (alertes à 3, 5, 8 €) qui n'arrête rien ; nettoyage automatique des
   anciennes images des fonctions (`firebase functions:artifacts:setpolicy`) ; aucune boucle de lecture
   sur la base ou le stockage côté client.

@@ -124,11 +124,16 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
 /* Portes mystères : de grandes portes à toucher. */
 .choice.door { min-height: 96px; font-size: 24px; }
 .choice.door .letter { background: var(--gold, #FFE61F); font-size: 26px; }
-/* Réponses en images : deux colonnes, la photo en grand, la lettre en pastille, le mot dessous. */
+/* Réponses en images : deux colonnes, la photo en grand, puis la lettre et le mot sur la ligne dessous —
+   jamais la lettre posée sur la photo (retour de cedric le 21/10, comme sur la TV). */
 .choices.pictures { grid-template-columns: 1fr 1fr; }
-.choice.with-photo { position: relative; flex-direction: column; justify-content: center; gap: 6px; padding: 8px; text-align: center; font-size: 17px; }
-.choice.with-photo .photo { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 22%; background: #fff; }
-.choice.with-photo .letter { position: absolute; top: 6px; left: 6px; width: 38px; height: 38px; font-size: 20px; }
+.choice.with-photo {
+  display: grid; grid-template-columns: 1fr auto minmax(0, max-content) 1fr; grid-template-areas: "photo photo photo photo" ". letter text .";
+  align-content: center; align-items: center; gap: 6px 8px; padding: 8px; text-align: left; font-size: 17px;
+}
+.choice.with-photo .photo { grid-area: photo; justify-self: center; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 22%; background: #fff; }
+.choice.with-photo .letter { grid-area: letter; width: 30px; height: 30px; font-size: 17px; }
+.choice.with-photo .text { grid-area: text; min-width: 0; overflow-wrap: normal; word-break: normal; hyphens: none; line-height: 1.1; }
 
 /* Résultat */
 .result-icon { font-size: 110px; font-weight: 900; line-height: 1; }
@@ -162,19 +167,40 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
 .result-image { margin: 0; font-size: 72px; line-height: 1.1; }
 .result-image[hidden] { display: none; }
 
-/* Le Juste Chiffre : pavé numérique du pupitre */
+/* Le Juste Chiffre : pavé numérique du pupitre, habillage « Touches néon » (choisi par cedric le 22/10) : touches en
+   verre fumé, chiffres lumineux ; l'écran et la touche touchée s'allument à la couleur de l'équipe. */
 .choices.number { grid-template-columns: 1fr; gap: 10px; }
 .number-screen {
-  min-height: 72px; display: flex; align-items: center; justify-content: center; border-radius: 18px;
-  background: rgba(255, 255, 255, .12); border: 3px solid var(--team); font-size: 44px; font-weight: 900; letter-spacing: 2px;
+  min-height: 72px; display: flex; align-items: center; justify-content: center; border-radius: 22px;
+  background: rgba(14, 6, 30, .62); border: 2px solid var(--team); font-size: 44px; font-weight: 900; letter-spacing: 6px;
+  font-variant-numeric: tabular-nums; color: #fff; text-shadow: 0 0 6px #fff, 0 0 18px var(--team), 0 0 34px var(--team);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--team) 55%, transparent), inset 0 0 28px color-mix(in srgb, var(--team) 28%, transparent);
 }
-.number-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+/* Chaque chiffre tapé arrive avec un petit rebond. */
+.number-screen.pop { animation: number-pop .22s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes number-pop { from { transform: scale(1.06); } to { transform: scale(1); } }
+.number-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .number-key {
-  min-height: 64px; border: 0; border-radius: 16px; background: rgba(255, 255, 255, .9); color: #1A0B2E;
-  font-size: 30px; font-weight: 900; cursor: pointer; touch-action: manipulation;
+  min-height: 64px; border-radius: 22px; color: #fff; font-size: 30px; font-weight: 800; cursor: pointer; touch-action: manipulation;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .26), rgba(255, 255, 255, .07)); border: 1.5px solid rgba(255, 255, 255, .38);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), 0 8px 18px rgba(16, 4, 36, .28); text-shadow: 0 0 10px rgba(255, 255, 255, .55);
+  transition: transform .08s, background .12s, box-shadow .12s;
 }
-.number-key:active { transform: scale(.95); }
+/* « − » et « ⌫ » en or, pour les distinguer des chiffres. */
+.number-key[data-key="−"], .number-key[data-key="⌫"] { color: var(--gold); text-shadow: 0 0 10px rgba(255, 209, 102, .6); }
+.number-key:active:not(:disabled) { transform: scale(.95); background: var(--team); border-color: #fff; box-shadow: 0 0 0 3px rgba(255, 255, 255, .5), 0 0 28px var(--team); }
 .number-key:disabled, .number-send:disabled { opacity: .45; }
+.number-send { background: linear-gradient(135deg, #ffe08a, var(--gold) 55%, #f0a92e); box-shadow: 0 0 26px rgba(255, 209, 102, .55), inset 0 1px 0 rgba(255, 255, 255, .7); }
+.number-send::after { content: " ✓"; }
+@media (prefers-reduced-motion: reduce) { .number-screen.pop { animation: none; } }
+/* Tablette debout : le clavier profite de la place (plus grand, plus facile à toucher). */
+@media (orientation: portrait) and (min-width: 700px) {
+  .choices.number { max-width: 660px; gap: 16px; }
+  .number-pad { gap: 16px; }
+  .number-screen { min-height: 120px; font-size: 66px; }
+  .number-key { min-height: 110px; font-size: 46px; }
+  .number-send { font-size: 28px; padding: 24px 36px; }
+}
 
 /* ---------- Pictionary : la mise en page seulement, l'habillage est dans ardoise.css et spectateurs.css ---------- */
 .screen.picto-screen { justify-content: flex-start; gap: 8px; padding: 10px 0; }
@@ -277,7 +303,7 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
   #app .choices.two .choice { min-height: 170px; font-size: 38px; }
   #app .choice.door { min-height: 130px; font-size: 32px; }
   #app .choice.with-photo { font-size: 24px; padding: 12px; }
-  #app .choice.with-photo .letter { width: 50px; height: 50px; font-size: 26px; }
+  #app .choice.with-photo .letter { width: 40px; height: 40px; font-size: 22px; }
   #app .intro-jeu { padding: 26px 48px; gap: 10px; border-radius: 36px; }
   #app .intro-jeu-label { font-size: 22px; }
   #app .intro-jeu-titre { font-size: 72px; }
@@ -301,7 +327,7 @@ input::placeholder { color: #9a98ad; font-weight: 500; font-style: italic; font-
   #app .choice { min-height: clamp(110px, 22vh, 200px); }
   #app .choices.two .choice { min-height: clamp(170px, 46vh, 360px); }
   #app .choice.with-photo { min-height: 0; }
-  #app .choice.with-photo .photo { height: clamp(120px, 28vh, 260px); }
+  #app .choice.with-photo .photo { height: clamp(120px, 33vh, 300px); }
   #app .number-screen { min-height: clamp(70px, 11vh, 100px); font-size: clamp(44px, 7vh, 62px); }
   #app .number-key { min-height: clamp(60px, 10vh, 88px); font-size: clamp(32px, 5.4vh, 42px); }
   #app .choices.number { max-width: 640px; }

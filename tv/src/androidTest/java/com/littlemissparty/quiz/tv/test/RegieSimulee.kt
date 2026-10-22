@@ -74,6 +74,26 @@ class RegieSimulee : AutoCloseable {
         bloquer { base.getReference("games/$code/commandStatus/$id/status").lireUneFois() }.value as? String
     }
 
+    /** Raison d'un refus de la box (too_old, invalid…), null sinon. */
+    fun raison(code: String, id: String): String? =
+        bloquer { base.getReference("games/$code/commandStatus/$id/reason").lireUneFois() }.value as? String
+
+    /**
+     * Comme « 📺 Changer de box » : la partie [code] confiée à la box qui affiche le salon [nouveau], en une seule
+     * écriture (nouvel hôte, trace du changement, relais du salon). Renvoie false si le serveur refuse.
+     */
+    fun changerDeBox(code: String, nouveau: String): Boolean = runCatching {
+        val hote = bloquer { base.getReference("games/$nouveau/hostUid").lireUneFois() }.value as String
+        val ancien = bloquer { base.getReference("games/$code/hostUid").lireUneFois() }.value as String
+        bloquer {
+            base.reference.updateChildren(mapOf(
+                "games/$code/hostUid" to hote,
+                "games/$code/takeover" to mapOf("to" to nouveau, "from" to ancien, "by" to uid, "at" to ServerValue.TIMESTAMP),
+                "games/$nouveau/handoff" to code,
+            )).await()
+        }
+    }.onFailure { Log.i(TAG, "Changement de box refusé : ${it.message}") }.isSuccess
+
     fun commande(code: String, type: String, extra: Map<String, Any> = emptyMap()): String {
         val id = envoyer(code, type, extra = extra) ?: throw AssertionError("Commande « $type » refusée par le serveur")
         return verdict(code, id)
@@ -110,27 +130,57 @@ class RegieSimulee : AutoCloseable {
         }
     }
 
-    /** Comme la régie au chargement d'une prestation : copie une photo de la bibliothèque dans la partie. */
+    /** Prestation lancée par cette régie sur chaque partie (code → identifiant dans la bibliothèque). */
+    private val lancees = mutableMapOf<String, String>()
+
     /**
-     * Comme « Charger » dans l'onglet Prestation, au salon d'attente : une prestation complète, dont chaque jeu
-     * s'ouvre sur son écran de présentation (comme celles préparées dans la Régie PC). Renvoie le verdict de la box.
+     * Comme « Charger » dans l'onglet Prestation, au salon d'attente (ou « Mauvaise prestation ? » avant le premier point) :
+     * une prestation complète, dont chaque jeu s'ouvre sur son écran de présentation (comme celles préparées dans la
+     * Régie PC). Comme la page web, une seule écriture : le programme pour la box, le lancement de la prestation
+     * [prestation] (un anniversaire n'est jamais lancé sur deux box), la libération de la prestation remplacée.
+     * Renvoie le verdict de la box : "applied", ou la raison du refus (points, not_now…).
      */
-    fun chargerPrestation(code: String, titre: String, questions: List<Map<String, Any?>>): String {
+    fun chargerPrestation(
+        code: String,
+        titre: String,
+        questions: List<Map<String, Any?>>,
+        prenom: String? = null,
+        prestation: String = "presta-${UUID.randomUUID().toString().take(8)}",
+    ): String {
         val ref = this.base.getReference("games/$code/show")
         val id = ref.push().key!!
-        bloquer {
-            ref.setValue(mapOf(
-                "id" to id, "title" to titre, "by" to uid, "at" to ServerValue.TIMESTAMP,
-                "quiz" to mapOf("id" to "presta", "title" to titre, "questions" to questions, "intros" to true),
-            )).await()
-        }
-        return attendreQue("verdict de la box pour la prestation $id") {
+        val programme = mapOf(
+            "id" to id, "title" to titre, "by" to uid, "at" to ServerValue.TIMESTAMP, "prestation" to prestation,
+            "quiz" to mapOf("id" to "presta", "title" to titre, "questions" to questions, "intros" to true),
+        ) + (prenom?.let { mapOf("childName" to it) } ?: emptyMap())
+        val ecriture = mutableMapOf<String, Any?>(
+            "games/$code/show" to programme,
+            "launches/$prestation" to mapOf("code" to code, "by" to uid, "at" to ServerValue.TIMESTAMP),
+        )
+        lancees[code]?.takeIf { it != prestation }?.let { ecriture["launches/$it"] = null }
+        bloquer { this.base.reference.updateChildren(ecriture).await() }
+        val verdict = attendreQue("verdict de la box pour la prestation $id") {
             val statut = bloquer { this.base.getReference("games/$code/showStatus").lireUneFois() }
             if (statut.child("id").value != id) null
             else if (statut.child("status").value == "applied") "applied"
             else statut.child("reason").value as? String ?: "refused"
         }
+        if (verdict == "applied") {
+            lancees[code] = prestation
+        } else {
+            // Refusée par la box : comme la page web, la prestation refusée est libérée, la précédente reprend sa place.
+            val retour = mutableMapOf<String, Any?>("launches/$prestation" to null)
+            lancees[code]?.takeIf { it != prestation }?.let {
+                retour["launches/$it"] = mapOf("code" to code, "by" to uid, "at" to ServerValue.TIMESTAMP)
+            }
+            bloquer { this.base.reference.updateChildren(retour).await() }
+        }
+        return verdict
     }
+
+    /** Ce que la régie lit d'une prestation lancée : la partie où elle tourne (launches/), null si aucune. */
+    fun lancement(prestation: String): String? =
+        bloquer { base.getReference("launches/$prestation/code").lireUneFois() }.value as? String
 
     fun copierPhoto(code: String, id: String, dataUrl: String) {
         bloquer { base.getReference("games/$code/images/$id").setValue(dataUrl).await() }

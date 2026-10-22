@@ -172,7 +172,7 @@ internal fun SceneParoles(
                 // Halo derrière la pochette : il bat à chaque mot chanté.
                 Box(
                     Modifier.size(c * 1.3f).offset(x = c * 0.06f).graphicsLayer { alpha = 0.35f + 0.5f * battement() }
-                        .background(Brush.radialGradient(listOf(Neon.Halo.copy(alpha = 0.45f), Color.Transparent))),
+                        .background(Brush.radialGradient(listOf(Color(0xFFB56BFF).copy(alpha = 0.40f), Color.Transparent))),
                 )
                 if (pochette != null) {
                     Vinyle(
@@ -221,7 +221,7 @@ internal fun SceneParoles(
             Gagnant(cle, gagnant, points, double)
             Spacer(Modifier.height(10.dp))
             Text(
-                "🎤 TOUS ENSEMBLE, ON CHANTE !", color = Neon.Halo, fontSize = 26.sp, fontWeight = FontWeight.Black, letterSpacing = 0.06.em,
+                "🎤 TOUS ENSEMBLE, ON CHANTE !", color = Neon.OrClair, fontSize = 26.sp, fontWeight = FontWeight.Black, letterSpacing = 0.06.em,
                 maxLines = 1, softWrap = false, modifier = Modifier.apparition(900, cle),
             )
             Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -370,39 +370,107 @@ private fun LigneChantee(ligne: LigneParole, pos: State<Long>) {
             } ?: TAILLES.last()
         }
         val style = TextStyle(fontFamily = PoliceLmp, fontWeight = FontWeight.Black, fontSize = taille.sp, lineHeight = (taille * 1.12f).sp)
-        val brille = style.copy(color = Neon.Or, shadow = Shadow(Neon.Or.copy(alpha = 0.8f), Offset.Zero, 28f))
+        val brille = style.copy(color = Neon.Or, shadow = Shadow(Neon.Or.copy(alpha = 0.7f), Offset.Zero, 22f))
+        // Le mot qu'on chante en ce moment : blanc chauffé à blanc, cerné d'un néon doré.
+        val vif = style.copy(color = Color.White, shadow = Shadow(Neon.OrClair, Offset.Zero, 36f))
         val doux = style.copy(color = Neon.Blanc.copy(alpha = 0.42f))
         Mots(espace * taille / 100f, with(densite) { (taille * 0.18f).sp.toPx() }) {
-            ligne.mots.forEach { m ->
+            ligne.mots.forEachIndexed { k, m ->
+                // Le mot reste « en cours » jusqu'au mot suivant de la ligne (le dernier, jusqu'à la fin de la ligne).
+                val fin = ligne.mots.getOrNull(k + 1)?.debutMs ?: ligne.finMs
                 Box(
                     Modifier
-                        .drawBehind {
-                            // Éclat doré derrière le mot qui vient d'être chanté.
-                            val e = (pos.value - m.debutMs).toFloat()
-                            if (pos.value >= 0 && e in 0f..450f) {
-                                val a = 0.55f * (1f - e / 450f)
-                                drawCircle(
-                                    Brush.radialGradient(listOf(Neon.Or.copy(alpha = a), Color.Transparent), center, size.maxDimension * 0.75f),
-                                    size.maxDimension * 0.75f,
-                                )
-                            }
-                        }
+                        .drawBehind { eclatMot(pos.value, m.debutMs, fin, k) }
                         .graphicsLayer {
                             val e = (pos.value - m.debutMs).toFloat()
                             if (pos.value >= 0 && e >= 0f) {
                                 // Le pop : gros d'un coup, petit rebond, puis il se pose.
-                                val s = 1f + 0.26f * exp(-e / 130f) * cos(e / 75f)
+                                val s = 1f + 0.30f * exp(-e / 140f) * cos(e / 80f)
                                 scaleX = s; scaleY = s
                                 translationY = -0.32f * size.height * exp(-e / 160f)
                             }
                         },
                 ) {
                     Text(m.texte, style = doux, maxLines = 1, softWrap = false, modifier = Modifier.graphicsLayer { alpha = if (allume(pos, m.debutMs)) 0f else 1f })
-                    Text(m.texte, style = brille, maxLines = 1, softWrap = false, modifier = Modifier.graphicsLayer { alpha = if (allume(pos, m.debutMs)) 1f else 0f })
+                    Text(m.texte, style = brille, maxLines = 1, softWrap = false, modifier = Modifier.graphicsLayer {
+                        alpha = if (allume(pos, m.debutMs) && pos.value >= fin) 1f else 0f
+                    })
+                    Text(m.texte, style = vif, maxLines = 1, softWrap = false, modifier = Modifier.graphicsLayer {
+                        alpha = if (allume(pos, m.debutMs) && pos.value < fin) 1f else 0f
+                    })
                 }
             }
         }
     }
+}
+
+/**
+ * Lumière du mot chanté, dessinée derrière lui : au moment où il tombe, un éclat d'étoile (rayons dorés qui
+ * jaillissent) et quatre petites étoiles ✦ qui s'envolent ; tant qu'on le chante, un halo doré qui respire et une
+ * barre de lumière dessous, qui passe de mot en mot comme un projecteur. Or, blanc et une pointe de violet néon :
+ * jamais de rose terne.
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.eclatMot(pos: Long, debut: Long, fin: Long, rang: Int) {
+    if (pos < 0 || pos < debut) return
+    val e = (pos - debut).toFloat()
+    val r = size.maxDimension
+    val c = center
+    val enCours = pos < fin
+    if (enCours) {
+        // Halo qui respire tant que le mot est chanté.
+        val souffle = 0.75f + 0.25f * sin(e / 140f)
+        drawCircle(Brush.radialGradient(listOf(Neon.OrClair.copy(alpha = 0.38f * souffle), Neon.Violet.copy(alpha = 0.10f), Color.Transparent), c, r * 0.85f), r * 0.85f, c)
+        // Barre de lumière sous le mot : elle s'étire en 120 ms (on la voit glisser d'un mot à l'autre).
+        val l = size.width * (0.2f + 0.8f * (e / 120f).coerceIn(0f, 1f))
+        val h = size.height * 0.07f
+        val y = size.height * 0.98f
+        drawRoundRect(
+            Brush.horizontalGradient(listOf(Color.Transparent, Neon.Or, Color.White, Neon.Or, Color.Transparent), c.x - l / 2, c.x + l / 2),
+            Offset(c.x - l / 2, y), Size(l, h), CornerRadius(h / 2),
+        )
+        drawRoundRect(Neon.Or.copy(alpha = 0.25f), Offset(c.x - l / 2, y - h), Size(l, h * 3), CornerRadius(h * 1.5f))
+    }
+    if (e <= 650f) {
+        val p = e / 650f
+        val a = (1f - p) * (1f - p)
+        // Éclat : douze rayons fins qui jaillissent et s'effacent, un peu tournés à chaque mot.
+        val tourne = rang * 0.45f
+        for (k in 0 until 12) {
+            val ang = tourne + k * (2f * PI.toFloat() / 12f)
+            val dedans = r * (0.30f + 0.25f * p)
+            val dehors = r * (0.45f + (if (k % 2 == 0) 0.55f else 0.35f) * p)
+            drawLine(
+                if (k % 3 == 0) Color.White.copy(alpha = 0.9f * a) else Neon.Or.copy(alpha = 0.85f * a),
+                Offset(c.x + cos(ang) * dedans, c.y + sin(ang) * dedans * 0.7f),
+                Offset(c.x + cos(ang) * dehors, c.y + sin(ang) * dehors * 0.7f),
+                strokeWidth = size.height * 0.035f, cap = androidx.compose.ui.graphics.StrokeCap.Round,
+            )
+        }
+        // Quatre étoiles ✦ qui s'envolent en scintillant.
+        for (k in 0 until 4) {
+            val ang = tourne + 0.6f + k * (PI.toFloat() / 2f)
+            val d = r * (0.35f + 0.55f * p)
+            val o = Offset(c.x + cos(ang) * d, c.y + sin(ang) * d * 0.75f - size.height * 0.4f * p)
+            val t = size.height * (0.16f - 0.08f * p)
+            drawPath(etoile(o, t), if (k % 2 == 0) Color.White.copy(alpha = a) else Neon.OrClair.copy(alpha = a))
+        }
+        // Flash blanc-doré au tout début.
+        if (e < 220f) {
+            val f = 1f - e / 220f
+            drawCircle(Brush.radialGradient(listOf(Color.White.copy(alpha = 0.55f * f), Neon.Or.copy(alpha = 0.25f * f), Color.Transparent), c, r * 0.7f), r * 0.7f, c)
+        }
+    }
+}
+
+/** Étoile fine à quatre branches (✦), comme les paillettes du plateau. */
+private fun etoile(c: Offset, r: Float) = androidx.compose.ui.graphics.Path().apply {
+    val m = r * 0.18f
+    moveTo(c.x, c.y - r)
+    quadraticBezierTo(c.x + m, c.y - m, c.x + r, c.y)
+    quadraticBezierTo(c.x + m, c.y + m, c.x, c.y + r)
+    quadraticBezierTo(c.x - m, c.y + m, c.x - r, c.y)
+    quadraticBezierTo(c.x - m, c.y - m, c.x, c.y - r)
+    close()
 }
 
 private fun allume(pos: State<Long>, debut: Long) = pos.value >= 0 && pos.value >= debut
@@ -479,7 +547,7 @@ private fun Pulsation(battement: () -> Float, ms: () -> Float, modifier: Modifie
             val centre = 1f - abs(k - (barres - 1) / 2f) / barres
             val h = size.height * (0.12f + 0.88f * (0.65f * b * centre + 0.35f * abs(vague)).coerceIn(0f, 1f))
             val x = k * l * 1.5f + l * 0.25f
-            drawRoundRect(if (k % 2 == 0) Neon.Or else Neon.Halo, Offset(x, size.height - h), Size(l, h.coerceAtLeast(4f)), CornerRadius(l / 2))
+            drawRoundRect(if (k % 2 == 0) Neon.Or else Color(0xFFB56BFF), Offset(x, size.height - h), Size(l, h.coerceAtLeast(4f)), CornerRadius(l / 2))
         }
     }
 }

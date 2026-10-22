@@ -1,0 +1,115 @@
+/* Design « The Game Show » des pupitres (kit du 22 octobre) : actif seulement quand la TV est en Game Show (le QR code
+   de la TV ajoute &look=gs, app.js pose body.look-gs). Rien ne change sans cette classe : le design classique reste
+   tel quel. Mêmes écrans, mêmes boutons, même mise en page ; seuls les couleurs, les polices et les lueurs changent.
+   Polices SIL OFL 1.1 servies par le site (fonts/). */
+@font-face { font-family: "GS Rajdhani"; font-weight: 600; font-display: swap; src: url(fonts/gs-rajdhani-600.woff2) format("woff2"); }
+@font-face { font-family: "GS Rajdhani"; font-weight: 700 900; font-display: swap; src: url(fonts/gs-rajdhani-700.woff2) format("woff2"); }
+@font-face { font-family: "GS Orbitron"; font-weight: 500 900; font-display: swap; src: url(fonts/gs-orbitron.woff2) format("woff2"); }
+@font-face { font-family: "GS Bungee"; font-weight: 400; font-display: swap; src: url(fonts/gs-bungee.woff2) format("woff2"); }
+
+body.look-gs {
+  --gs-rose: #ff2d95; --gs-orange: #ff6b1a; --gs-vert: #39ff14; --gs-jaune: #ffe600;
+  --gs-cyan: #00f0ff; --gs-violet: #8b2cff; --gs-noir: #05010d; --gs-nuit: #0e0820; --gs-encre: #f4f1ff;
+  --gold: var(--gs-cyan);
+  font-family: "GS Rajdhani", system-ui, sans-serif; font-weight: 700; color: var(--gs-encre);
+  animation: none;
+  background:
+    radial-gradient(ellipse 80% 45% at 50% -5%, rgba(139, 44, 255, .5), transparent 70%),
+    radial-gradient(circle at 0% 40%, rgba(0, 240, 255, .14), transparent 35%),
+    radial-gradient(circle at 100% 35%, rgba(255, 45, 149, .13), transparent 35%),
+    linear-gradient(180deg, #0b0320, var(--gs-noir) 55%, #07021a);
+}
+/* Sol quadrillé qui fuit vers un horizon cyan, sous tout le reste, fixe (aucune animation : rien ne chauffe). */
+body.look-gs::before {
+  content: ""; position: fixed; left: -50%; right: -50%; bottom: 0; height: 32vh; z-index: -1; pointer-events: none;
+  background:
+    linear-gradient(180deg, var(--gs-noir), transparent 30%),
+    repeating-linear-gradient(90deg, rgba(139, 44, 255, .55) 0 2px, transparent 2px 64px),
+    repeating-linear-gradient(0deg, rgba(0, 240, 255, .45) 0 2px, transparent 2px 48px);
+  transform: perspective(360px) rotateX(58deg); transform-origin: 50% 100%;
+}
+body.look-gs::after {
+  content: ""; position: fixed; left: 0; right: 0; bottom: 32vh; height: 2px; z-index: -1; opacity: .7; pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--gs-cyan), transparent); box-shadow: 0 0 18px 4px rgba(0, 240, 255, .35);
+}
+
+/* Logo « THE GAME SHOW by Little Miss Party » (app.js remplace le texte du logo en Game Show). */
+.look-gs .logo { display: flex; flex-direction: column; align-items: center; line-height: 1; }
+.look-gs .logo .gs-the { font-family: "GS Orbitron"; font-weight: 700; font-size: 30px; letter-spacing: 4px; color: var(--gs-cyan); text-shadow: 0 0 14px rgba(0, 240, 255, .8); }
+.look-gs .logo .gs-titre {
+  font-family: "GS Bungee"; font-weight: 400; font-size: clamp(42px, 13vw, 64px); letter-spacing: 0; color: #ffd6ea;
+  text-shadow: 0 0 6px #fff, 0 0 18px var(--gs-rose), 0 0 38px var(--gs-rose);
+}
+.look-gs .logo .gs-by { font-size: 18px; font-weight: 700; color: rgba(244, 241, 255, .8); margin-top: 6px; letter-spacing: 1px; }
+.look-gs .logo.small { font-family: "GS Bungee"; font-weight: 400; color: #e6fdff; text-shadow: 0 0 16px var(--gs-cyan); }
+.look-gs .welcome { color: var(--gs-jaune); text-shadow: 0 0 14px rgba(255, 230, 0, .45); }
+.look-gs .hint { font-weight: 600; }
+.look-gs .hint.error { color: var(--gs-jaune); }
+
+.look-gs input {
+  background: rgba(14, 8, 32, .85); color: var(--gs-encre); border: 2px solid var(--gs-cyan); font-family: inherit;
+  box-shadow: 0 0 18px rgba(0, 240, 255, .35), inset 0 0 14px rgba(0, 240, 255, .12);
+}
+.look-gs .colors button.selected { border-color: var(--gs-cyan); box-shadow: 0 0 16px var(--gs-cyan); }
+.look-gs .btn {
+  font-family: inherit; font-weight: 700; letter-spacing: .5px; color: var(--gs-noir); background: var(--gs-cyan);
+  box-shadow: 0 0 22px rgba(0, 240, 255, .55), inset 0 1px 0 rgba(255, 255, 255, .6);
+}
+.look-gs .takeover-list button { background: rgba(14, 8, 32, .9); color: var(--gs-encre); font-family: inherit; border-top: 2px solid rgba(0, 240, 255, .4); border-right: 2px solid rgba(0, 240, 255, .4); border-bottom: 2px solid rgba(0, 240, 255, .4); }
+
+/* Bandeau de l'équipe : verre sombre bordé de sa couleur, avec sa lueur. */
+.look-gs .team-banner {
+  background: rgba(14, 8, 32, .85); border: 2px solid var(--team);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--team) 60%, transparent);
+}
+.look-gs .dot { box-shadow: 0 0 10px var(--team); }
+
+/* Buzzer : un gros bouton néon de la couleur de l'équipe, cerclé de cyan. */
+.look-gs .buzz {
+  font-family: "GS Bungee"; font-weight: 400; letter-spacing: 2px; color: #fff;
+  border: 8px solid var(--gs-cyan);
+  background: radial-gradient(circle at 50% 38%, rgba(255, 255, 255, .55), transparent 42%), radial-gradient(circle, var(--team) 55%, color-mix(in srgb, var(--team) 55%, #000));
+  text-shadow: 0 0 12px rgba(0, 0, 0, .45), 0 0 24px #fff;
+  box-shadow: 0 0 0 6px rgba(0, 240, 255, .25), 0 0 40px rgba(0, 240, 255, .55), 0 0 90px var(--team);
+}
+.look-gs .buzz:active { box-shadow: 0 0 0 6px rgba(0, 240, 255, .4), 0 0 30px rgba(0, 240, 255, .7), 0 0 60px var(--team); }
+
+/* Présentation d'un jeu : anneau cyan et titre néon rose. */
+.look-gs .intro-jeu { background: rgba(14, 8, 32, .8); box-shadow: 0 0 0 3px var(--gs-cyan), 0 0 40px rgba(0, 240, 255, .4); animation-name: intro-jeu-gs; }
+@keyframes intro-jeu-gs { to { transform: scale(1.04); box-shadow: 0 0 0 3px var(--gs-cyan), 0 0 64px rgba(0, 240, 255, .6); } }
+.look-gs .intro-jeu-label { font-family: "GS Orbitron"; font-weight: 700; color: var(--gs-cyan); }
+.look-gs .intro-jeu-titre { font-family: "GS Bungee"; font-weight: 400; color: #ffd6ea; text-shadow: 0 0 6px #fff, 0 0 20px var(--gs-rose); }
+
+/* Question : chrono Orbitron cyan, propositions en verre sombre bordées de leur néon (A rose, B orange, C vert, D jaune,
+   comme sur la TV), lettre dans un carré néon. */
+.look-gs .question-head { font-family: "GS Orbitron"; font-weight: 700; font-size: 15px; color: var(--gs-cyan); letter-spacing: 1px; }
+.look-gs .question-head .timer { font-family: "GS Orbitron"; font-weight: 900; color: var(--gs-encre); text-shadow: 0 0 14px var(--gs-cyan); }
+.look-gs .question-head .timer.urgent { color: var(--gs-rose); text-shadow: 0 0 14px var(--gs-rose); }
+.look-gs .double { background: var(--gs-jaune); color: var(--gs-noir); }
+.look-gs #choices > .choice:nth-child(4n + 1) { --choice: #ff2d95 !important; }
+.look-gs #choices > .choice:nth-child(4n + 2) { --choice: #ff6b1a !important; }
+.look-gs #choices > .choice:nth-child(4n + 3) { --choice: #39ff14 !important; }
+.look-gs #choices > .choice:nth-child(4n + 4) { --choice: #ffe600 !important; }
+.look-gs .choice {
+  font-family: inherit; font-weight: 700; border-width: 3px; color: var(--gs-encre);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--choice) 22%, transparent), rgba(14, 8, 32, .9) 45%);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--choice) 55%, transparent);
+}
+.look-gs .choice .letter { border-radius: 12px; color: var(--gs-noir); font-family: "GS Orbitron"; font-weight: 900; font-size: 22px; }
+/* Réponse choisie : pleine couleur néon, texte sombre pour rester lisible sur le jaune et le vert. */
+.look-gs .choice.picked { background: var(--choice); color: var(--gs-noir); box-shadow: 0 0 0 4px #fff, 0 0 30px var(--choice); }
+.look-gs .choice.picked .letter { background: var(--gs-noir); color: var(--choice); }
+.look-gs .choice.door .letter { background: var(--gs-cyan); }
+
+/* Juste Chiffre : les touches « − » et « ⌫ » et le bouton d'envoi passent au cyan. */
+.look-gs .number-screen, .look-gs .number-key { font-family: "GS Orbitron"; }
+.look-gs .number-key[data-key="−"], .look-gs .number-key[data-key="⌫"] { color: var(--gs-cyan); text-shadow: 0 0 10px rgba(0, 240, 255, .7); }
+.look-gs .number-send { background: linear-gradient(135deg, #8cf9ff, var(--gs-cyan) 55%, #00b4d8); box-shadow: 0 0 26px rgba(0, 240, 255, .55), inset 0 1px 0 rgba(255, 255, 255, .7); }
+
+/* Résultat, fin, pause. */
+.look-gs .result-icon.ok { color: var(--gs-vert); text-shadow: 0 0 30px rgba(57, 255, 20, .6); }
+.look-gs .result-title { font-family: "GS Bungee"; font-weight: 400; letter-spacing: .5px; }
+.look-gs .total { font-family: "GS Orbitron"; font-weight: 700; background: rgba(14, 8, 32, .85); border: 2px solid var(--gs-cyan); box-shadow: 0 0 16px rgba(0, 240, 255, .35); }
+.look-gs .paused { background: rgba(5, 1, 13, .93); color: #e6fdff; font-family: "GS Bungee"; font-weight: 400; text-shadow: 0 0 22px var(--gs-cyan); }
+.look-gs .paused p { font-family: "GS Rajdhani"; text-shadow: none; }
+.look-gs .countdown { background: rgba(5, 1, 13, .8); }

@@ -51,6 +51,12 @@ abstract class TestTv {
         return code
     }
 
+    /** Ferme l'appli sans la relancer : box éteinte ou en panne. */
+    protected fun fermerBoite() {
+        scenario?.close()
+        scenario = null
+    }
+
     /** Ferme l'appli (comme le bouton Quitter ou un plantage) puis la relance. */
     protected fun relancerBoite() {
         scenario?.close()

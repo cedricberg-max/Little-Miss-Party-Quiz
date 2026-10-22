@@ -15,6 +15,8 @@
   --danger: #ff5a5f;
   --ok: #7cff3a;
   position: fixed; inset: 0; z-index: 20; overflow: hidden;
+  /* Bandeaux (reconnexion, tablette déconnectée) puis le reste : le bas de la régie reste toujours dans l'écran. */
+  display: flex; flex-direction: column;
   padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color: var(--ink); text-align: left;
@@ -41,7 +43,7 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .hold.pressing .fill { width: 100%; transition: width 1s linear; }
 .regie .hold .label { position: relative; }
 
-.regie .control { display: flex; flex-direction: column; height: 100%; gap: 10px; padding-top: 10px; }
+.regie .control { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 10px; padding-top: 10px; }
 .regie .top { display: flex; align-items: center; gap: 10px; font-size: 15px; color: var(--ink-soft); }
 .regie .top .code { font-weight: 800; color: var(--ink); letter-spacing: 2px; }
 .regie .top .step { flex: 1; }
@@ -132,6 +134,10 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .show-item span { color: var(--ink-soft); }
 .regie .show-item:disabled { opacity: .5; }
 .regie .show-item .show-warn { color: #ffd27a; font-weight: 700; }
+/* Où en est la prestation : sur cette TV, sur une autre box, interrompue, terminée. */
+.regie .show-item .show-run { font-weight: 700; color: var(--ink); }
+.regie .show-item.ici { border-color: var(--gold); }
+.regie .show-item.ailleurs { border-style: dashed; }
 .regie .link { align-self: center; color: var(--ink-soft); }
 
 .regie .actions { display: flex; flex-direction: column; gap: 8px; padding-bottom: 12px; }
@@ -216,6 +222,13 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .ask-text { margin: 0; font-size: 16px; line-height: 1.45; color: var(--ink); white-space: pre-line; }
 .regie .ask-box .btn { min-height: 56px; width: 100%; }
 .regie .ask-box .btn.alert { background: var(--danger); color: #fff; }
+/* Lancement d'une prestation : prénom, âge et date bien visibles ; date qui n'est pas aujourd'hui signalée sans crier. */
+.regie .ask-line { margin: -4px 0 0; font-size: 18px; font-weight: 800; color: var(--ink); }
+.regie .ask-warn { margin: 0; font-size: 15px; color: #ffd27a; }
+.regie .ask-danger { margin: 0; font-size: 15px; font-weight: 700; color: #fff; background: rgba(255, 90, 95, .22); border: 1px solid var(--danger); border-radius: 12px; padding: 8px 10px; }
+.regie .ask-pass { display: flex; flex-direction: column; gap: 6px; font-size: 15px; color: var(--ink-soft); }
+.regie .ask-pass input { max-width: none; font-size: 20px; }
+.regie .ask-error { margin: 0; font-size: 15px; color: #ff8a8f; }
 .link { background: none; border: 0; color: rgba(255, 244, 242, .7); font-size: 14px; text-decoration: underline; padding: 4px; }
 
 /* Mimes : gros boutons pour une animatrice en pleine prestation. */
@@ -334,3 +347,9 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .tablette-consigne { margin: 0; font-size: 17px; font-weight: 700; text-align: center; }
 .regie .tablette-demandes { display: flex; flex-direction: column; gap: 8px; }
 .regie .tablette-demandes:empty { display: none; }
+
+/* « 📺 Changer de box » : le code de la nouvelle TV en grand, comme sur l'écran du salon d'attente. */
+.regie .box-form { justify-content: flex-start; gap: 14px; }
+.regie .box-code { align-self: center; max-width: 320px; font-size: 34px; font-weight: 900; letter-spacing: 8px; text-transform: uppercase; }
+.regie .box-code::placeholder { letter-spacing: 0; text-transform: none; }
+.regie #box .modal-status { text-align: center; line-height: 1.4; }

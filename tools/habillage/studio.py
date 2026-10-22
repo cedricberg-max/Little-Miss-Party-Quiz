@@ -1403,6 +1403,53 @@ def bombe_meche():
     crep = biquad(crep, 'hp', 1800)
     return stereo((y + crep * .9) * np.minimum(1, t / .05), .4, 6)
 
+def bombe_approche(dur=1.25):
+    """La bombe fonce vers l'écran : mèche qui crépite de plus en plus vite, souffle qui monte et s'élargit, cœur qui s'emballe."""
+    n = int(dur * SR); t = np.arange(n) / SR
+    p = t / dur
+    r = np.random.default_rng(9)
+    crep = np.zeros(n, np.float32)
+    k = 0.0
+    while k < dur - .01:
+        i = int(k * SR); m = int(.004 * SR)
+        crep[i:i + m] += r.uniform(.5, 1.0) * np.exp(-np.arange(m) / (.0012 * SR))
+        k += r.uniform(.008, .03) * (1 - .7 * k / dur)
+    crep = biquad(crep, 'hp', 1800) * (.5 + .7 * p)
+    souffle = sweep_bp(noise(n), 300, 6500, 1.6) * p ** 2.2 * 1.1
+    mx = Mix(dur / B + .5, tail=.1)
+    mx.add('fx', stereo((crep * .8).astype(np.float32), .4, 6), 0)
+    mx.add('fx', stereo(souffle.astype(np.float32), .2 + .5 * 1.0, 9), 0)
+    for k, tt in enumerate([0, .38, .66, .88, 1.03, 1.14]):
+        mx.add('kick', kick(.55 + .08 * k), tt / B)
+        mx.add('fx', sub_boom(.3 + .05 * k, .25), tt / B)
+    y = mx.render(duck=0)[:n]
+    y[-int(.01 * SR):] *= np.linspace(1, 0, int(.01 * SR))[:, None]
+    return y
+
+def _tonnerre(vel=1.0, gronde=1.6):
+    """Coup de tonnerre : craquement sec, puis grondement grave qui roule."""
+    n = int((gronde + .2) * SR); t = np.arange(n) / SR
+    crac = biquad(noise(n), 'hp', 1400) * np.exp(-t / .05) * 1.4
+    roule = biquad(noise(n), 'lp', 260) * np.exp(-t / (gronde * .45)) * (1 + .5 * np.sin(2 * np.pi * 3.1 * t)) * 2.2
+    return stereo((np.tanh((crac + roule) * vel)).astype(np.float32), .6, 11)
+
+def coffre_malus():
+    """Malus : coup de tonnerre, le couvercle claque (coup de cuivres grinçant), deux autres éclairs, l'orage gronde."""
+    mx = Mix(6, tail=1.5)
+    mx.add('fx', _tonnerre(1.0, 1.8), .09 / B)
+    # Le couvercle claque, de rage.
+    mx.add('kick', kick(1.0), .36 / B)
+    mx.add('drums', note('woodblock', 55, .1, 1.0), .36 / B)
+    mx.add('drums', clap(.8), .36 / B)
+    mx.add('drums', snare(.7, tight=True), .36 / B)
+    mx.add('brass', chord('brass_section', [38, 39, 44, 50], .38, .9, release=.15), .38 / B)
+    mx.add('fx', _tonnerre(.7, 1.2), .72 / B)
+    mx.add('fx', _tonnerre(.55, 1.0), 1.34 / B)
+    # Trois bonds rageurs : petits coups sourds.
+    for k in range(3):
+        mx.add('drums', note('melodic_tom', 43, .2, .8 - .2 * k), (.48 + .3 * (k + 1)) / B)
+    return mx.render(duck=0)
+
 def bombe_boum():
     """BOUM ! : grosse explosion de dessin animé (grave, crash, souffle), débris, puis trompette bouchée moqueuse."""
     mx = Mix(6, tail=2.5)
@@ -1414,6 +1461,15 @@ def bombe_boum():
     mx.add('drums', note('taiko_drum', 36, 1.0, 1.0), 0)
     mx.add('brass', note('orchestra_hit', 48, .6, .8), 0)
     mx.add('fx', crash(.9, 2.5), .02 / B)
+    # Grondement qui roule et crépitement des débris, pour une explosion plus vraie.
+    mx.add('fx', _tonnerre(.8, 2.0), .03 / B)
+    m = int(1.4 * SR); tm = np.arange(m) / SR
+    crepite = np.zeros(m, np.float32)
+    rr = np.random.default_rng(13)
+    for _ in range(60):
+        i = rr.integers(int(.1 * SR), m - 200)
+        crepite[i:i + 120] += rr.uniform(.2, .8) * np.exp(-np.arange(120) / 25.0)
+    mx.add('fx', stereo((biquad(crepite, 'hp', 2500) * np.exp(-tm / .6)).astype(np.float32), .6, 7), .15 / B)
     for k in range(9):
         mx.add('drums', note('woodblock', 60 + (k * 5) % 12, .05, .35 - .025 * k), (.35 + k * .07 + .01 * (k % 3)) / B)
     for k, (m, d) in enumerate(((60, .2), (59, .2), (58, .2), (57, .7))):
@@ -1490,6 +1546,7 @@ PIECES = {
     'portes_renversement': (portes_renversement, -15),
     'coffre_secoue': (coffre_secoue, -20), 'coffre_ouvre': (coffre_ouvre, -17), 'coffre_or': (coffre_or, -17),
     'bombe_alerte': (bombe_alerte, -15), 'bombe_meche': (bombe_meche, -21), 'bombe_boum': (bombe_boum, -14),
+    'bombe_approche': (bombe_approche, -18), 'coffre_malus': (coffre_malus, -16),
     'ballon_eclate': (ballon_eclate, -15), 'patate_passe': (patate_passe, -16),
     'bed_mimes': (bed_mimes, -16.5), 'bed_pause': (bed_pause, -19), 'pause_in': (pause_in, -18), 'transition': (transition, -15),
 }

@@ -37,6 +37,8 @@ private const val AMPLITUDE_DEGRES = 14f
 
 @Composable
 fun DecorPlateau(chaud: Boolean, dore: Boolean = false) {
+    // Design « The Game Show » (menu Retour) : la scène lumière noire.
+    if (Look.gs) return DecorGameShow(chaud, dore)
     val temps = remember { mutableLongStateOf(0L) }
     LaunchedEffect(Unit) {
         val debut = withInfiniteAnimationFrameMillis { it }

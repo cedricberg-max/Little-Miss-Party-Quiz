@@ -1,6 +1,7 @@
 // Photos de la banque des tout-petits (web/public/banque/<clé>.jpg, domaine public) dans les jeux : Mimes et Qui a
 // disparu ? (« 📷 Photos » : chaque carte dont le mot est dans la banque montre sa photo), Zoom mystère et Image floue
-// (photos de la banque à choisir, avec des réponses en images pour les enfants qui ne lisent pas encore).
+// (photos de la banque à choisir, avec des réponses en images pour les enfants qui ne lisent pas encore), Quiz illustré
+// tiré au hasard (ses réponses en photos prennent celles de la banque, jamais les images téléversées).
 // Une photo de la banque est désignée par sa clé (« banque »), puis copiée dans la partie par la régie au chargement
 // du programme (resolveBanque) : rien dans la base de la bibliothèque, la banque vit avec le site (jamais effaçable).
 import { BANQUE_MOTS, FAMILLES_PETITS, cleMot } from "./banque-petits.js";
@@ -29,6 +30,21 @@ export const avecPhoto = (card) => {
   const m = card && !card.imageId && !card.banque ? motDeLaBanque(card.word) : null;
   return aPhoto(m) ? { ...card, banque: m.cle } : card;
 };
+
+/** Un émoji écrit dans un texte (« 🦄 Licorne »), avec sa variante ou ses jointures. */
+const EMOJI = /\p{Extended_Pictographic}[\uFE0F\u200D\p{Extended_Pictographic}\u{1F3FB}-\u{1F3FF}]*/u;
+
+/**
+ * Image libre d'une réponse en photo, pour un Quiz illustré tiré au hasard (cedric, 21/10 : au hasard, jamais une image
+ * téléversée) : la photo de son mot dans la banque (`cle`), sinon son émoji (celui du mot dans la banque, ou écrit dans
+ * la réponse), dessiné en image par la régie au chargement. Null : rien de libre à montrer.
+ */
+export function imageLibre(word) {
+  const m = motDeLaBanque(word);
+  if (aPhoto(m)) return { cle: m.cle, emoji: m.emoji };
+  const emoji = m?.emoji || `${word ?? ""}`.match(EMOJI)?.[0];
+  return emoji ? { emoji } : null;
+}
 
 /** Petite empreinte stable : le même mot donne toujours la même question (aperçu de la Régie PC = la partie). */
 function empreinte(s) {
@@ -98,36 +114,51 @@ export function banqueRefs(questionsList) {
  * (les questions d'origine ne sont pas touchées). [photo](cle) : la photo en data URL, ou null si elle manque ;
  * [secours](mot) : l'émoji dessiné en image (photo de question seulement : un Zoom mystère a toujours quelque chose à
  * montrer) ; [ecrire](dir, id, data). Une carte sans photo garde son émoji ; rien ne bloque jamais le chargement.
+ * Réponses d'un Quiz illustré tiré au hasard (`choiceBanque`, alignées sur les propositions, voir imageLibre) : la photo
+ * de la banque, sinon l'émoji dessiné, rangés avec les réponses en images (`choiceImages`, lues par la TV et les pupitres
+ * comme celles d'un quiz choisi à la main) ; une réponse sans image reste écrite ("").
  */
 export async function resolveBanque(questionsList, { photo, secours = async () => null, ecrire }) {
   const faits = new Map();
-  const copie = (cle, dir, repli) => {
-    const k = `${dir}/${cle}`;
-    if (!faits.has(k)) {
-      faits.set(k, (async () => {
+  /** Une image copiée une seule fois par clé [k] ; [lire]() rend sa data URL, ou null. */
+  const copie = (k, dir, lire) => {
+    const cle = `${dir}/${k}`;
+    if (!faits.has(cle)) {
+      faits.set(cle, (async () => {
         try {
-          const data = (await photo(cle)) ?? (repli ? await secours(PAR_CLE.get(cle)) : null);
+          const data = await lire();
           if (!data) return null;
           const id = await imageId(data);
           await ecrire(dir, id, data);
           return id;
         } catch (e) {
-          console.warn("Photo de la banque", cle, e);
+          console.warn("Photo de la banque", k, e);
           return null;
         }
       })());
     }
-    return faits.get(k);
+    return faits.get(cle);
   };
+  // Avec repli (l'émoji dessiné si la photo manque) : à part de la même photo sans repli (une carte qui garde son émoji).
+  const photoDe = (cle, dir, repli, emoji = null) => copie(repli ? `${cle}+` : cle, dir, async () => (await photo(cle))
+    ?? (repli ? await secours(PAR_CLE.get(cle) ?? (emoji ? { emoji } : null)) : null));
   const sans = async (x, dir, repli) => {
     const { banque, ...reste } = x;
-    const id = await copie(banque, dir, repli);
+    const id = await photoDe(banque, dir, repli);
     return id ? { ...reste, imageId: id } : reste;
   };
+  const reponse = (x) => (x?.cle ? photoDe(x.cle, "choiceImages", true, x.emoji)
+    : x?.emoji ? copie(`emoji:${x.emoji}`, "choiceImages", () => secours({ emoji: x.emoji })) : null);
   return Promise.all((questionsList ?? []).map(async (q) => {
-    if (!q?.banque && !(Array.isArray(q?.cards) && q.cards.some((c) => c?.banque))) return q;
-    const out = q.banque ? await sans(q, "images", true) : { ...q };
+    const libres = Array.isArray(q?.choiceBanque) ? q.choiceBanque : null;
+    if (!q?.banque && !(Array.isArray(q?.cards) && q.cards.some((c) => c?.banque)) && !libres) return q;
+    let out = q.banque ? await sans(q, "images", true) : { ...q };
     if (Array.isArray(q.cards)) out.cards = await Promise.all(q.cards.map((c) => (c?.banque ? sans(c, "choiceImages", false) : c)));
+    if (libres) {
+      const { choiceBanque, ...reste } = out;
+      const ids = await Promise.all((q.choices ?? []).map(async (_, k) => (await reponse(libres[k])) ?? ""));
+      out = ids.some(Boolean) ? { ...reste, choiceImages: ids } : reste;
+    }
     return out;
   }));
 }

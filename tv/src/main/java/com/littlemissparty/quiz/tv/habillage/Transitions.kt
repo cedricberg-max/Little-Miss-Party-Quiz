@@ -170,7 +170,7 @@ private fun Rideau(a: Annonce, fini: () -> Unit) {
             )
             // Le logo, en signature sous le nom du jeu.
             Spacer(Modifier.height(18.dp))
-            LogoLmp(46.dp, Modifier.graphicsLayer { alpha = 0.85f * titre().coerceIn(0f, 1f) })
+            LogoMarque(46.dp, Modifier.graphicsLayer { alpha = 0.85f * titre().coerceIn(0f, 1f) })
         }
     }
 }

@@ -57,6 +57,7 @@ object Codec {
             is PotatoExploded -> mapOf("type" to "potato_boom", "qid" to e.qid, "holder" to e.holder)
             is BalloonBurst -> mapOf("type" to "balloon", "qid" to e.qid, "team" to e.team, "teams" to e.teams)
             is Jumped -> mapOf("type" to "goto", "index" to e.index, "qid" to e.qid, "clear" to e.clear.ifEmpty { null })
+            is ProgramReset -> mapOf("type" to "reset")
         }
         return base + body
     }
@@ -117,6 +118,7 @@ object Codec {
             "statues_win" -> StatuesWon(seq, at, m["team"] as String, (m["others"] as? List<*>).orEmpty().map { it as String })
             "buzz_judge" -> BuzzJudged(seq, at, m["ok"] == true, m["bonus"] == true)
             "goto" -> Jumped(seq, at, m.num("index").toInt(), m["qid"] as String, (m["clear"] as? List<*>).orEmpty().map { it as String })
+            "reset" -> ProgramReset(seq, at)
             else -> null
         }
     }.getOrNull()
@@ -195,6 +197,10 @@ object Codec {
             "pauseTeam" to s.hold?.team,
             "resumeAt" to s.resumeAt,
         )
+        // Partie terminée : son heure de fin (serveur), pour le ménage des copies des médias par la Régie PC.
+        if (s.phase == Phase.ENDED) s.endedAt?.let { out["endedAt"] = it }
+        // Un point a déjà été donné : la régie ne propose plus « Mauvaise prestation ? » (la box la refuserait).
+        if (s.scored) out["scored"] = true
         // Dernières questions du quiz : la régie propose le multiplicateur juste avant la première.
         game.factorChoice()?.let { start -> out["factorChoice"] = mapOf("start" to start, "factor" to (s.factors[start] ?: FACTORS.first())) }
         if (q != null && s.intro) {
@@ -298,7 +304,9 @@ object Codec {
             // tient la bombe en tire un rouge qui bat de plus en plus vite, sans jamais connaître la durée de la mèche.
             "burnFrom" to game.state.segments.lastOrNull()?.takeIf { it.end == null && !p.exploded }
                 ?.let { it.start - game.state.elapsedAt(it.start) },
-            "booms" to p.booms.map { mapOf("holder" to it.holder, "at" to it.at, "lost" to it.lost, "gain" to it.gain) },
+            // L'équipe qui tient la bombe doit l'avoir envoyée avant cette heure (null en pause) : sa tablette compte 3, 2, 1.
+            "holdUntil" to game.holdDeadline(),
+            "booms" to p.booms.map { mapOf("holder" to it.holder, "at" to it.at, "lost" to it.lost, "gain" to it.gain, "held" to it.held) },
             "key" to potatoKey(game),
         )
     }

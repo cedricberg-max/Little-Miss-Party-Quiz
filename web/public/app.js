@@ -37,6 +37,22 @@ const regieDirect = params.get("regie") === "1";
 const takeover = params.get("reprise") === "1";
 // Tests automatiques uniquement : l'émulateur Firebase n'est accepté que depuis l'ordinateur de test.
 const emulator = params.has("emu") && ["localhost", "127.0.0.1"].includes(location.hostname);
+// Design de la TV (menu Retour) : son QR code ajoute &look=gs ou &look=classique. Un lien sans ce réglage (QR de
+// reconnexion de la régie téléphone, écran d'accueil du téléphone) garde le dernier design vu sur cet appareil.
+const lookGs = (() => {
+  try {
+    if (params.has("look")) localStorage.setItem("lmp-look", params.get("look") === "gs" ? "gs" : "classique");
+    return localStorage.getItem("lmp-look") === "gs";
+  } catch {
+    return params.get("look") === "gs";
+  }
+})();
+if (lookGs) {
+  document.body.classList.add("look-gs");
+  for (const logo of document.querySelectorAll(".logo:not(.small)")) {
+    logo.innerHTML = '<span class="gs-the">THE</span><span class="gs-titre">GAME SHOW</span><span class="gs-by">by Little Miss Party</span>';
+  }
+}
 
 let db, uid, gameRef;
 /** Équipe jouée par cet appareil : la sienne, ou celle dont il remplace l'appareil. */
@@ -590,6 +606,10 @@ function renderNumber(st) {
         else if (numberDraft.replace("-", "").length < 9) numberDraft = numberDraft === "0" ? k : numberDraft === "-0" ? `-${k}` : numberDraft + k;
         beep(1200, 40);
         render();
+        // Petit rebond de l'écran à chaque touche (l'animation repart même sur deux touches rapprochées).
+        screen.classList.remove("pop");
+        void screen.offsetWidth;
+        screen.classList.add("pop");
       };
       pad.appendChild(b);
     });
@@ -1263,7 +1283,9 @@ function renderPatate(st) {
   else if (st.paused) { titre = "Pause"; texte = "La partie reprend bientôt."; }
   else if (boum) {
     const chezMoi = boom.holder === teamId;
-    titre = chezMoi ? "💥 BOUM ! La bombe a explosé chez vous" : `💥 BOUM chez l'équipe ${nom(boom.holder)} !`;
+    // Gardée plus de 3 secondes : elle a explosé avant la fin de la mèche.
+    titre = chezMoi ? (boom.held === true ? "💥 BOUM ! Gardée plus de 3 secondes" : "💥 BOUM ! La bombe a explosé chez vous")
+      : boom.held === true ? `💥 BOUM ! L'équipe ${nom(boom.holder)} l'a gardée trop longtemps` : `💥 BOUM chez l'équipe ${nom(boom.holder)} !`;
     texte = chezMoi ? ((boom.lost ?? 0) > 0 ? `−${boom.lost} points.` : "Vous n'aviez aucun point à perdre.") : `+${boom.gain ?? 0} points pour vous !`;
     if ((p.bomb ?? 1) < (p.bombs ?? 1) || p.exploded !== true) texte += " Attention, une autre bombe arrive…";
   } else if (bombeSuivante(st) && counting(st)) {
@@ -1275,19 +1297,26 @@ function renderPatate(st) {
     texte = patate.envoye ? `Envoyée à l'équipe ${nom(patate.envoye)} !` : colle < 1 ? "La mèche colle…" : "Vite, envoyez-la à une autre équipe !";
   } else { titre = `La bombe est chez l'équipe ${nom(p.holder)} !`; texte = (p.hit ?? []).includes(teamId) ? "Attention, elle peut revenir chez vous !" : "Préparez-vous, elle peut arriver chez vous !"; }
   if (patate.message) texte = patate.message;
+  // Anti-triche (cedric, 21/10) : 3 secondes pour l'envoyer une fois la mèche décollée, sinon elle explose chez nous.
+  const decompte = aMoi && colle >= 1 && !patate.envoye && p.holdUntil != null ? Math.min(3, Math.max(1, Math.ceil((p.holdUntil - now) / 1000))) : null;
   const equipes = (p.teams ?? []).filter((id) => id !== teamId && game.teams[id]).map((id) => ({
     id, nom: game.teams[id].name, couleur: game.teams[id].color,
     permise: (p.targets ?? []).includes(id), envoyeur: id === p.from, neuve: !(p.hit ?? []).includes(id),
   }));
   // La mèche brûle (heure de la tablette) : chez nous, le rouge bat et la tablette vibre de plus en plus vite.
   const brule = aMoi && p.burnFrom != null ? p.burnFrom - serverOffset : null;
-  patate.ctl.maj({ titre, texte, aMoi, envoye: patate.envoye, colle, equipes, compteur, brule, boum, boumChezMoi: boum && boom.holder === teamId });
+  patate.ctl.maj({ titre, texte, aMoi, envoye: patate.envoye, colle, equipes, compteur, brule, boum, boumChezMoi: boum && boom.holder === teamId, decompte });
+  // Chaque chiffre du 3, 2, 1 sonne, plus aigu au dernier.
+  if (decompte != null && patate.chiffre !== decompte) beep(decompte === 1 ? 1320 : 880, 120);
+  patate.chiffre = decompte;
   // Elle arrive chez nous : la tablette le signale.
   if (aMoi && patate.vue !== p.key) { patate.vue = p.key; navigator.vibrate?.([80, 60, 80]); beep(988, 160); }
   // Elle explose chez nous : longue vibration.
   if (boum && boom.holder === teamId && patate.boum !== boom.at) { patate.boum = boom.at; navigator.vibrate?.([500]); beep(180, 400); }
   clearTimeout(patate.minuterie);
   if (aMoi && colle < 1) patate.minuterie = setTimeout(render, 100);
+  // 3, 2, 1 : la seconde suivante (le dernier chiffre reste jusqu'à l'explosion décidée par la TV).
+  else if (decompte != null && p.holdUntil > now) patate.minuterie = setTimeout(render, ((p.holdUntil - now) % 1000 || 1000) + 20);
   // Fin de l'explosion, puis départ de la bombe suivante : l'écran change tout seul.
   else {
     const prochain = [boum ? finBoum : null, counting(st) ? st.resumeAt : null].filter((t) => t != null && t > now);

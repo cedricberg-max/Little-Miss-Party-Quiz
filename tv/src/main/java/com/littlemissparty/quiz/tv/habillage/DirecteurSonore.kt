@@ -602,6 +602,10 @@ enum class Son(val fichier: String, val long: Boolean = false) {
     COFFRE_OR("lmp_coffre_or", true),
     BOMBE_ALERTE("lmp_bombe_alerte", true),
     BOMBE_MECHE("lmp_bombe_meche"),
+    /** La bombe sort du coffre et fonce vers l'écran : mèche qui crépite, souffle qui monte, cœur qui s'emballe. */
+    BOMBE_APPROCHE("lmp_bombe_approche"),
+    /** Coffre malus : coup de tonnerre, couvercle qui claque, orage qui gronde. */
+    COFFRE_MALUS("lmp_coffre_malus", true),
     BOMBE_BOUM("lmp_bombe_boum", true),
     GONFLE_1("lmp_gonfle_1"), GONFLE_2("lmp_gonfle_2"), GONFLE_3("lmp_gonfle_3"),
     BALLON_ECLATE("lmp_ballon_eclate", true),

@@ -114,7 +114,10 @@ class NavigationTelecommandeTest : TestTv() {
         // Descend avec la flèche bouton par bouton : chacun prend la sélection et reste lisible en entier,
         // jusqu'au dernier, qui était coupé sur la vraie TV.
         val cible = "Terminer et lancer une nouvelle partie"
-        val menu = listOf("Continuer la partie", "Donner des points", "Reconnecter la régie", "Reconnecter une tablette", "Rechercher une mise à jour", "Quitter l'application", cible)
+        val menu = listOf(
+            "Continuer la partie", "Donner des points", "Reconnecter la régie", "Reconnecter une tablette", "Rechercher une mise à jour",
+            "Vider le cache des médias", "🎨 Design : Classique", "Quitter l'application", cible,
+        )
         menu.forEachIndexed { i, bouton ->
             if (i > 0) ecran.touche(KeyEvent.KEYCODE_DPAD_DOWN)
             ecran.focusSur(bouton)

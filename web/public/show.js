@@ -5,7 +5,7 @@ import { shuffle, MIME_CATALOG } from "./mime-cards.js";
 import { CHANTE_WORDS, QUI_SUIS_JE, DISPARU_THEMES } from "./buzz-cards.js";
 import { PICTO_WORDS, PICTO_OWN_SERIES } from "./picto-cards.js";
 import { concepts, questionConcepts, neufsSiPossible } from "./jamais-deux-fois.js";
-import { BANQUE, questionBanque, avecPhoto, disparuPhotos } from "./banque-photos.js";
+import { BANQUE, questionBanque, avecPhoto, disparuPhotos, imageLibre } from "./banque-photos.js";
 
 /**
  * Portes mystères (jeu final) : 3 ou 4 portes, chacune cache un bonus ou un malus qui peut renverser le classement ;
@@ -33,7 +33,7 @@ export const GONFLEUR_SEC = 45;
  * « Ça va exploser ! » : une bombe passe d'équipe en équipe depuis les tablettes, sa mèche (tirée au sort par la TV)
  * reste secrète. Rien à préparer.
  */
-export const PATATE_RULE = "la bombe peut exploser à tout moment ! Chaque équipe s'en débarrasse en l'envoyant à une autre depuis sa tablette ; à chaque explosion, l'équipe qui la tient perd 100 points et toutes les autres en gagnent 100. Trois bombes par partie";
+export const PATATE_RULE = "la bombe peut exploser à tout moment ! Chaque équipe s'en débarrasse en l'envoyant à une autre depuis sa tablette, en 3 secondes au plus, sinon elle lui explose dans les mains ; à chaque explosion, l'équipe qui la tient perd 100 points et toutes les autres en gagnent 100. Trois bombes par partie";
 /** Type de manche joué : les anciennes Portes mystères deviennent les Coffres mystères. */
 export const roundType = (type) => (type === "portes" ? "coffres" : type);
 
@@ -461,6 +461,22 @@ export function pourLeHasard(type, x) {
   return (type === "mimes" || type === "objet") && !reste.image && !reste.banque ? null : reste;
 }
 
+/**
+ * Question d'un quiz reprise par le hasard (« 🔁 Rejouer », cedric, 21/10) : jamais une image téléversée. Sa photo de
+ * révélation part (l'émoji reste) et ses réponses en photos aussi. Au Quiz illustré ([illustre]), qui ne se joue pas
+ * sans elles, chaque réponse en photo prend la photo libre de son mot dans la banque, sinon son émoji (`choiceBanque`,
+ * copiés dans la partie par la régie au chargement) ; une réponse qui n'a ni l'une ni l'autre : la question n'est pas
+ * reprise (null). Choisies à la main, les questions gardent leurs images.
+ */
+export function questionAuHasard(q, illustre = false) {
+  if (!q) return null;
+  const { imageId, choiceImages, ...reste } = q;
+  const photos = illustre ? choiceImageList(q) : [];
+  if (!photos.length) return reste;
+  const libres = (q.choices ?? []).map((c, k) => (photos[k] ? imageLibre(c) : null));
+  return libres.every((x, k) => x || !photos[k]) ? { ...reste, choiceBanque: libres } : null;
+}
+
 /** Les éléments actifs d'un jeu (page du jeu) qui correspondent aux clés choisies, dans l'ordre des clés. */
 export function pickedItems(type, content, picks) {
   const game = CONTENT_GAMES[type];
@@ -504,8 +520,9 @@ export function fixedConcepts(round, quizzes = {}, mimes = {}, contents = {}) {
     return pickedItems(type, contents?.[type], roundPicks(round)).flatMap((x) => builtinConcepts(type, x));
   }
   if (type === "zoom" || type === "flou") return zoomRoundQuestions(round, quizzes).flatMap((q) => questionConcepts({ ...q, kind: type }));
-  // Quiz choisi : les photos de ses réponses (quiz illustré) et ses illustrations.
-  if (type === "quiz" || type === "illustre" || type === "express") return roundQuizIds(round).flatMap((id) => Object.values(quizzes?.[id]?.questions ?? {})).flatMap(questionConcepts);
+  // Quiz choisi : les photos de ses réponses (quiz illustré) et ses illustrations. Ses questions reprises au hasard
+  // (« 🔁 Rejouer ») ne sont pas choisies à la main : elles comptent une fois tirées.
+  if ((type === "quiz" || type === "illustre" || type === "express") && round.hasard !== true) return roundQuizIds(round).flatMap((id) => Object.values(quizzes?.[id]?.questions ?? {})).flatMap(questionConcepts);
   return [];
 }
 
@@ -795,15 +812,28 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     // régie (cedric, 21/10) : jamais une question déjà posée pendant la fête ([avoid].questions).
     const toutes = game ? game.questions(quiz) : playable(quiz);
     // Questions reprises par le hasard (« 🔁 Rejouer », cedric, 21/10) : jamais ses images téléversées (photo de la
-    // réponse, réponses en photos), les émojis restent. Le Quiz illustré garde ses réponses en photos (celles de la
-    // banque des tout-petits) : sans elles, il ne se joue pas.
+    // réponse, réponses en photos), les émojis restent. Le Quiz illustré, qui ne se joue pas sans ses réponses en
+    // photos, prend pour chacune la photo libre de son mot dans la banque, sinon son émoji ; une question dont une
+    // réponse n'a ni l'une ni l'autre est sautée, la suivante la remplace.
     const sansMesImages = round.hasard === true;
     const illustre = found.every((x) => quizKind(x) === "photo");
+    const reprises = sansMesImages ? toutes.map((q) => questionAuHasard(q, illustre && !express && !zoom && !flou)).filter(Boolean) : toutes;
     const posees = used.questions;
-    const list = (posees ? toutes.filter((q) => !posees.has(`${q.text ?? ""}`.toLowerCase())) : toutes).slice(0, round.count > 0 ? round.count : undefined);
+    const restantes = posees ? reprises.filter((q) => !posees.has(`${q.text ?? ""}`.toLowerCase())) : reprises;
+    // « Jamais deux fois » : au hasard, d'abord les questions qui ne montrent rien de ce que la fête a déjà montré,
+    // s'il y en a assez ; sinon les suivantes, comme avant.
+    const voulues = round.count > 0 ? round.count : restantes.length;
+    const list = (sansMesImages ? neufsSiPossible(restantes, questionConcepts, pris, voulues) : restantes).slice(0, round.count > 0 ? round.count : undefined);
     if (!list.length) {
-      problems.push(`Manche ${i + 1} (${quiz.title}) : ${posees && toutes.length ? "toutes ses questions ont déjà été posées pendant la fête" : game?.missing ?? "aucune question validée"}.`);
+      problems.push(`Manche ${i + 1} (${quiz.title}) : ${!toutes.length ? game?.missing ?? "aucune question validée"
+        : !reprises.length ? "aucune question à reprendre au hasard : au hasard, chaque réponse en photo doit avoir sa photo dans la banque ou son émoji (jamais vos images)"
+        : "toutes ses questions ont déjà été posées pendant la fête"}.`);
       return;
+    }
+    if (sansMesImages && list.length < voulues) {
+      const ecartees = toutes.length - reprises.length;
+      problems.push(`Liste plus courte : il ne restait que ${list.length} question${list.length > 1 ? "s" : ""} à reprendre au hasard${ecartees
+        ? ` (${ecartees} écartée${ecartees > 1 ? "s" : ""} : une réponse en photo sans photo dans la banque ni émoji)` : ""}.`);
     }
     // Super Finale : réglage d'une manche Quiz (ou Quiz illustré), ses N dernières questions comptent double (ce n'est pas un jeu à part).
     const finale = hasFinale(round.type) ? Math.max(0, Math.min(list.length, Math.floor(Number(round.finale) || 0))) : 0;
@@ -838,7 +868,10 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
         ...(q.image ? { image: q.image } : {}),
         ...(q.imageId && !sansMesImages ? { imageId: q.imageId } : {}),
         // Réponses en images (QCM et Vrai / Faux) : une photo par proposition, "" pour une proposition en texte.
-        ...(!number && !express && !zoom && !flou && (!sansMesImages || illustre) && choiceImageList(q).length ? { choiceImages: choiceImageList(q) } : {}),
+        ...(!number && !express && !zoom && !flou && !sansMesImages && choiceImageList(q).length ? { choiceImages: choiceImageList(q) } : {}),
+        // Quiz illustré au hasard : la photo de la banque ou l'émoji de chaque réponse, remplacés par leur identifiant
+        // (choiceImages) quand la régie les copie dans la partie.
+        ...(!number && !express && !zoom && !flou && Array.isArray(q.choiceBanque) ? { choiceBanque: q.choiceBanque } : {}),
       });
     });
   });
@@ -935,6 +968,94 @@ export const STATUT_ETAT = { brouillon: "acompleter", publiee: "avenir", archive
 export function etatPrestation(show, today = isoDay()) {
   if (isArchived(show, today)) return "archivee";
   return show?.status === "publiee" ? "avenir" : "acompleter";
+}
+
+/**
+ * Lancement abandonné (la box n'a jamais chargé la prestation : TV éteinte, refus) : la prestation redevient libre au
+ * bout de ce délai. Même valeur dans les règles Firebase (launches/).
+ */
+export const LAUNCH_STALE_MS = 120_000;
+
+/**
+ * Où en est une prestation de la bibliothèque (cedric, 21/10), d'après son lancement ([launch] : launches/<id>, code
+ * de la partie et heure) et ce que publie sa partie ([game] : état, prestation jouée, box hôte et sa présence).
+ * Mêmes états sur la régie et dans la Régie PC ; archiver une prestation n'y change rien. Une date passée ne veut
+ * jamais dire « terminée » : seule la fin de la partie le dit. [here] : la partie de ce téléphone.
+ * - « preparee » : jamais lancée, ou lancement qui ne tient plus (partie effacée, box qui ne l'a jamais chargée) ;
+ * - « ici » : sur la TV de ce téléphone ;
+ * - « salon » : chargée sur une autre box, au salon d'attente ;
+ * - « encours » : partie commencée, box en ligne (ou présence inconnue : box d'une version plus ancienne) ;
+ * - « interrompue » : partie commencée, box muette (reprise possible avec « Changer de box ») ;
+ * - « terminee » : partie terminée ([at] : heure de la fin).
+ * [online] : la box hôte est en ligne (true), muette (false) ou on ne sait pas (null).
+ */
+export function launchState(id, launch, game, { here = null, now = Date.now() } = {}) {
+  if (!launch?.code) return { etat: "preparee" };
+  const code = launch.code;
+  if (game?.state?.phase === "ended") return { etat: "terminee", code, at: game.state.endedAt ?? null };
+  if (code === here) return { etat: "ici", code };
+  if (!game?.hostUid) return { etat: "preparee" };
+  if (game.prestation !== id && now - (launch.at ?? 0) > LAUNCH_STALE_MS) return { etat: "preparee" };
+  // Seule la présence écrite par la box hôte actuelle compte (après un changement de box, l'ancienne se tait).
+  const presence = game.hostOnline?.uid === game.hostUid ? game.hostOnline : null;
+  const online = presence ? presence.online === true : null;
+  if (!game.state || game.state.phase === "lobby") return { etat: "salon", code, online };
+  if (online === false) return { etat: "interrompue", code, online, at: presence.at ?? null };
+  return { etat: "encours", code, online, at: launch.at ?? null };
+}
+
+/** États des prestations lancées (launches/) : quelques petites lectures par partie concernée, jamais toute la partie. */
+export async function launchStates(launches, lire, { here = null, now = Date.now() } = {}) {
+  const games = new Map();
+  const gameOf = (code) => {
+    if (!games.has(code)) {
+      const paths = ["state/phase", "state/endedAt", "public/prestation", "hostOnline", "hostUid"];
+      games.set(code, Promise.all(paths.map((p) => lire(`games/${code}/${p}`)))
+        .then(([phase, endedAt, prestation, hostOnline, hostUid]) => ({ state: phase ? { phase, endedAt } : null, prestation, hostOnline, hostUid })));
+    }
+    return games.get(code);
+  };
+  const out = {};
+  await Promise.all(Object.entries(launches ?? {}).map(async ([id, launch]) => {
+    if (typeof launch?.code !== "string") return;
+    out[id] = launchState(id, launch, launch.code === here ? null : await gameOf(launch.code), { here, now });
+  }));
+  return out;
+}
+
+/** « 14 h 05 » */
+export function heureCourte(ms) {
+  const d = new Date(ms);
+  return `${d.getHours()} h ${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/** « 24 octobre à 17 h 10 » */
+export function jourHeure(ms) {
+  return `${new Date(ms).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })} à ${heureCourte(ms)}`;
+}
+
+/** Ce que la régie affiche pour un état de [launchState]. */
+export function launchLabel(run) {
+  switch (run?.etat) {
+    case "ici": return "✓ Sur cette TV";
+    case "salon": return "📺 Chargée sur une autre box (salon d'attente)";
+    case "encours": return `🟢 En cours sur une autre box${run.at ? ` depuis ${heureCourte(run.at)}` : ""}`;
+    case "interrompue": return `⏸ Interrompue : l'autre box ne répond plus${run.at ? ` depuis ${heureCourte(run.at)}` : ""}`;
+    case "terminee": return `✓ Terminée${run.at ? ` le ${jourHeure(run.at)}` : ""}`;
+    default: return "Préparée";
+  }
+}
+
+/** Ce que la Régie PC affiche sur la carte d'une prestation lancée ; rien pour une prestation seulement préparée. */
+export function launchLabelPc(run) {
+  switch (run?.etat) {
+    case "ici":
+    case "salon": return "📺 Chargée sur une box (salon d'attente)";
+    case "encours": return "🟢 En cours";
+    case "interrompue": return "⏸ Interrompue (reprise possible)";
+    case "terminee": return `✓ Terminée${run.at ? ` le ${jourHeure(run.at)}` : ""}`;
+    default: return "";
+  }
 }
 
 /**

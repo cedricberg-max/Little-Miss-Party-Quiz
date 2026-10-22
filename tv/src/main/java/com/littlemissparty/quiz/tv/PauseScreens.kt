@@ -61,6 +61,7 @@ import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.tv.habillage.DecorPlateau
 import com.littlemissparty.quiz.tv.habillage.Echelle
 import com.littlemissparty.quiz.tv.habillage.LogoLmp
+import com.littlemissparty.quiz.tv.habillage.LogoMarque
 import com.littlemissparty.quiz.tv.habillage.Neon
 import com.littlemissparty.quiz.tv.habillage.styleCentre
 import kotlinx.coroutines.delay
@@ -139,7 +140,7 @@ private fun Intermission(state: UiState.Playing, onResume: () -> Unit) {
         // Dessiné pour 960 × 560 et réduit si besoin : le bouton « Reprendre » reste toujours à l'écran.
         Echelle(960.dp, 560.dp) {
             Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                LogoLmp(54.dp)
+                LogoMarque(54.dp)
                 Spacer(Modifier.height(12.dp))
                 TitreOndule(TITRE_PAUSE.uppercase(), { vague.value }, Modifier.graphicsLayer { val s = 0.97f + 0.03f * breath; scaleX = s; scaleY = s })
                 Spacer(Modifier.height(16.dp))
