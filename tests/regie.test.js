@@ -2835,43 +2835,65 @@ describe("bibliothèque de quiz et prestations", () => {
     // question du quiz illustré.
     await page.click('#q-groups [data-groupe="classiques"]');
     await page.locator("#q-list .q-item").first().waitFor();
+    // La liste montre 300 questions au plus, puis « … et N autres : précisez la recherche ».
+    const vues = (n) => Math.min(n, 300);
+    const listees = async (n, quoi) => {
+      await waitFor(async () => await page.locator("#q-list .q-item").count() === vues(n), quoi);
+      assert.equal(await page.locator("#q-list > p.hint.small", { hasText: "autres : précisez la recherche" }).count(), n > 300 ? 1 : 0, `${quoi} : « … et ${n - 300} autres »`);
+    };
     assert.equal(await page.locator('#q-groups [data-groupe="classiques"]').innerText(), `📝 Quiz classique tout prêt (${QUESTIONS_TOUT_PRETES.length})`);
-    assert.equal(await page.locator("#q-list .q-item").count(), QUESTIONS_TOUT_PRETES.length);
+    await listees(QUESTIONS_TOUT_PRETES.length, "toutes les questions");
     assert.equal(await page.locator("#q-list .q-item.sans-illus").count(), 0);
     assert.equal(await page.locator("#q-list .q-mini").count(), 0, "pas de réponses en images ici");
     // Niveau Facile : son émoji, ou sa photo ; niveaux Moyen et Difficile : une vraie photo, jamais d'émoji.
     const facile = QUESTIONS_CLASSIQUES.find((x) => x.niveau === 1 && !x.photo);
+    await page.fill("#q-search", facile.text);
     const premiere = page.locator(`#q-list .q-item[data-question="${facile.id}"]`);
     assert.equal(await premiere.locator(".q-illus.emoji").innerText(), facile.emoji);
     assert.equal(await premiere.locator(".q-reponses li").count(), 4);
     assert.equal(await premiere.locator(".q-reponses li.juste").innerText(), `✓ ${facile.choices[0]}`);
     const moyen = QUESTIONS_CLASSIQUES.find((x) => x.niveau === 2);
+    await page.fill("#q-search", moyen.text);
     const enPhoto = page.locator(`#q-list .q-item[data-question="${moyen.id}"] img.q-illus`);
     assert.equal(await enPhoto.getAttribute("src"), moyen.photo);
     await waitFor(async () => await enPhoto.evaluate((img) => img.complete && img.naturalWidth === 640), "la photo s'affiche");
-    assert.equal(await page.locator("#q-list .q-item .q-illus.emoji").count(),
-      QUESTIONS_CLASSIQUES.filter((x) => !x.photo).length + QUESTIONS_CHIFFRES.length, "émojis seulement au niveau Facile (et 🔢)");
+    await page.fill("#q-search", "");
     // Trois niveaux sans chevauchement : une puce chacun.
-    assert.equal(await page.locator('.q-niveaux [data-niveau="2"]').innerText(), `Moyen · 9 à 11 ans (${QUESTIONS_TOUT_PRETES.filter((x) => x.niveau === 2).length})`);
+    const parNiveau = (n) => QUESTIONS_TOUT_PRETES.filter((x) => x.niveau === n);
+    assert.equal(await page.locator('.q-niveaux [data-niveau="1"]').innerText(), `Facile · 5 à 8 ans (${parNiveau(1).length})`);
+    assert.equal(await page.locator('.q-niveaux [data-niveau="2"]').innerText(), `Moyen · 9 à 11 ans (${parNiveau(2).length})`);
+    assert.equal(await page.locator('.q-niveaux [data-niveau="3"]').innerText(), `Difficile · 12 à 15 ans (${parNiveau(3).length})`);
+    await page.click('.q-niveaux [data-niveau="1"]');
+    await listees(parNiveau(1).length, "le niveau Facile");
+    assert.equal(await page.locator("#q-list .q-item .q-illus.emoji").count(), parNiveau(1).filter((x) => !estJusteChiffre(x) && !x.photo).length, "émojis seulement au niveau Facile");
+    assert.equal(await page.locator("#q-list .q-item .q-illus.compteur").count(), parNiveau(1).filter(estJusteChiffre).length, "🔢 sur les Juste Chiffre");
+    for (const n of [2, 3]) {
+      await page.click(`.q-niveaux [data-niveau="${n}"]`);
+      await listees(parNiveau(n).length, `le niveau ${n}`);
+      assert.equal(await page.locator("#q-list .q-item .q-illus.emoji").count(), 0, `jamais d'émoji au niveau ${n}`);
+    }
+    assert.match(await page.locator("#q-list .q-item .hint.small").first().innerText(), /· Difficile · 12 à 15 ans$/);
     await page.click('.q-niveaux [data-niveau="2"]');
-    await waitFor(async () => await page.locator("#q-list .q-item").count() === QUESTIONS_TOUT_PRETES.filter((x) => x.niveau === 2).length, "le niveau Moyen");
+    await listees(parNiveau(2).length, "le niveau Moyen");
     assert.match(await page.locator("#q-list .q-item .hint.small").first().innerText(), /· Moyen · 9 à 11 ans$/);
     await capture(page, "quiz-classique-moyen");
     await page.click('.q-niveaux [data-niveau="tous"]');
-    await waitFor(async () => await page.locator("#q-list .q-item").count() === QUESTIONS_TOUT_PRETES.length, "tous les niveaux");
+    await listees(QUESTIONS_TOUT_PRETES.length, "tous les niveaux");
+    await page.fill("#q-search", QUESTIONS_CHIFFRES[0].text);
     const chiffre = page.locator(`#q-list .q-item[data-question="${QUESTIONS_CHIFFRES[0].id}"]`);
     assert.equal(await chiffre.locator(".q-illus.compteur").innerText(), "🔢");
     assert.equal(await chiffre.locator(".q-nombre").innerText(), `Le Juste Chiffre · réponse : ${QUESTIONS_CHIFFRES[0].correct}`);
+    await page.fill("#q-search", "");
     const animaux = page.locator('.q-categories [data-categorie="Animaux"]');
     assert.equal(await animaux.innerText(), `Animaux (${QUESTIONS_TOUT_PRETES.filter((x) => x.theme === "animaux").length})`);
     // Une puce par sorte : les questions à 4 réponses seules, les Juste Chiffre seuls.
     assert.equal(await page.locator('.q-types [data-type="qcm"]').innerText(), `❓ Questions à 4 réponses (${QUESTIONS_CLASSIQUES.length})`);
     await page.click('.q-types [data-type="qcm"]');
-    await waitFor(async () => await page.locator("#q-list .q-item").count() === QUESTIONS_CLASSIQUES.length, "les questions à 4 réponses");
+    await listees(QUESTIONS_CLASSIQUES.length, "les questions à 4 réponses");
     assert.equal(await page.locator("#q-list .q-nombre").count(), 0);
     await capture(page, "quiz-classique-4-reponses");
     await page.click('.q-types [data-type="nombre"]');
-    await waitFor(async () => await page.locator("#q-list .q-item").count() === QUESTIONS_CHIFFRES.length, "les Juste Chiffre");
+    await listees(QUESTIONS_CHIFFRES.length, "les Juste Chiffre");
     assert.equal(await page.locator("#q-list .q-reponses").count(), 0);
     assert.equal(await page.locator("#q-list .q-illus.compteur").count(), QUESTIONS_CHIFFRES.length, "aucun émoji sur un Juste Chiffre");
     await page.click('.q-types [data-type="tous"]');
