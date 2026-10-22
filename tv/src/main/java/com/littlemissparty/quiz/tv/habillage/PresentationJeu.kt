@@ -77,6 +77,7 @@ fun emblemeJeu(famille: String): EmblemeJeu = when (famille.lowercase()) {
  */
 @Composable
 fun PresentationJeu(titre: String, famille: String, modifier: Modifier = Modifier) {
+    if (Look.gs) return PresentationJeuGameShow(titre, famille, modifier)
     val embleme = emblemeJeu(famille)
     val boucle = rememberInfiniteTransition(label = "presentation")
     val tour by boucle.animateFloat(0f, 360f, infiniteRepeatable(tween(40_000, easing = LinearEasing)), label = "tour")

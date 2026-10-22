@@ -37,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -69,6 +70,8 @@ import com.littlemissparty.quiz.tv.habillage.GrilleEquipes
 import com.littlemissparty.quiz.tv.habillage.HabillageEcran
 import com.littlemissparty.quiz.tv.habillage.HabillageTv
 import com.littlemissparty.quiz.tv.habillage.LogoQuiz
+import com.littlemissparty.quiz.tv.habillage.Look
+import com.littlemissparty.quiz.tv.habillage.enNeon
 import com.littlemissparty.quiz.tv.habillage.Neon
 
 /** Ce que l'animatrice peut faire depuis la télécommande. */
@@ -110,6 +113,8 @@ class TvActions(
     val givePoints: (List<String>, Int) -> Unit = { _, _ -> },
     /** « Vider le cache des médias » (menu Retour), une fois confirmé. */
     val viderCache: () -> Unit = {},
+    /** « Design » (menu Retour) : passe de Classique à The Game Show et inversement ; le choix reste sur la box. */
+    val changerDesign: () -> Unit = {},
 )
 
 /** Mise à jour de l'appli depuis la TV : état de la fenêtre et version trouvée par la recherche discrète. */
@@ -155,6 +160,9 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null, 
     ) {
         // Décor du plateau et bande-son : suivent la partie sans jamais la modifier.
         HabillageTv(state)
+        // Changement de design (menu Retour) : les écrans repartent de zéro dans le nouveau design, sans rien garder de
+        // l'ancien (couleurs mémorisées). La partie, elle, ne bouge pas.
+        key(Look.design) {
         when (state) {
             UiState.MissingConfig -> Message(
                 "Configuration Firebase manquante",
@@ -168,6 +176,7 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null, 
             is UiState.Moved -> Moved(state, actions.newGame)
             is UiState.Locked -> Locked(state, actions.requestAgain, actions.checkUpdate)
             is UiState.Playing -> Playing(state, actions)
+        }
         }
         StatusCorner(state, Modifier.align(Alignment.BottomStart))
     }
@@ -187,6 +196,7 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null, 
             onUpdate = { close(); actions.checkUpdate() },
             // Comme les points : la pause du menu dure jusqu'à la fermeture de la fenêtre.
             onCache = { confirmQuit = false; cacheOpen = true },
+            onDesign = actions.changerDesign,
             onNewGame = { confirmQuit = false; pausedByDialog = false; actions.newGame() },
             onQuit = { confirmQuit = false; actions.quit() },
         )
@@ -422,6 +432,7 @@ private fun QuitDialog(
     onTablette: () -> Unit,
     onUpdate: () -> Unit,
     onCache: () -> Unit,
+    onDesign: () -> Unit,
     onNewGame: () -> Unit,
     onQuit: () -> Unit,
 ) {
@@ -454,6 +465,8 @@ private fun QuitDialog(
             TvButton("Reconnecter une tablette", onTablette, wide, fontSize = 20.sp)
             TvButton("Rechercher une mise à jour", onUpdate, wide, fontSize = 20.sp)
             TvButton("Vider le cache des médias", onCache, wide, fontSize = 20.sp)
+            // La fenêtre reste ouverte : l'écran derrière change de design aussitôt, un second appui revient en arrière.
+            TvButton("🎨 Design : ${Look.design.nom}", onDesign, wide, fontSize = 20.sp)
             TvButton("Quitter l'application", onQuit, wide, fontSize = 20.sp)
             TvButton("Terminer et lancer une nouvelle partie", onNewGame, wide, accent = Palette.Pink, fontSize = 20.sp)
         }
@@ -499,7 +512,8 @@ private fun Message(title: String, detail: String, onRetry: (() -> Unit)? = null
 
 @Composable
 private fun Lobby(state: UiState.Playing, actions: TvActions) {
-    val qr = remember(state.joinUrl) { qrCode(state.joinUrl) }
+    val lien = lienPupitre(state.joinUrl)
+    val qr = remember(lien) { qrCode(lien) }
     Row(Modifier.fillMaxSize().padding(horizontal = 56.dp, vertical = 40.dp)) {
         Column(Modifier.weight(1f).fillMaxHeight()) {
             Title()
@@ -625,5 +639,9 @@ fun TeamChip(
     }
 }
 
+/** Couleur d'équipe ; en design « The Game Show », sa version néon (même teinte, pleine lumière). */
 fun String.toColor(): Color =
-    runCatching { Color(android.graphics.Color.parseColor(this)) }.getOrDefault(Palette.TeamFallback)
+    runCatching { Color(android.graphics.Color.parseColor(this)) }.getOrDefault(Palette.TeamFallback).let { if (Look.gs) enNeon(it) else it }
+
+/** Lien des pupitres : les tablettes prennent le même design que la TV (Classique ou The Game Show). */
+fun lienPupitre(joinUrl: String): String = "$joinUrl&look=${Look.design.cle}"

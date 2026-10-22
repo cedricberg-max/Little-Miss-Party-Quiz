@@ -81,7 +81,9 @@ async function openPupitre(extra = "", preparer = null) {
   });
   const page = await context.newPage();
   page.on("pageerror", (e) => console.error("Erreur page :", e.message));
-  await page.goto(`${baseUrl}/?g=${CODE}&emu=1${extra}`);
+  // LMP_LOOK=gs : les mêmes tests sur le design « The Game Show » (le QR de la TV ajoute &look=gs).
+  const look = process.env.LMP_LOOK ? `&look=${process.env.LMP_LOOK}` : "";
+  await page.goto(`${baseUrl}/?g=${CODE}&emu=1${extra}${look}`);
   return page;
 }
 

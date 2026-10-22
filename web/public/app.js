@@ -37,6 +37,22 @@ const regieDirect = params.get("regie") === "1";
 const takeover = params.get("reprise") === "1";
 // Tests automatiques uniquement : l'émulateur Firebase n'est accepté que depuis l'ordinateur de test.
 const emulator = params.has("emu") && ["localhost", "127.0.0.1"].includes(location.hostname);
+// Design de la TV (menu Retour) : son QR code ajoute &look=gs ou &look=classique. Un lien sans ce réglage (QR de
+// reconnexion de la régie téléphone, écran d'accueil du téléphone) garde le dernier design vu sur cet appareil.
+const lookGs = (() => {
+  try {
+    if (params.has("look")) localStorage.setItem("lmp-look", params.get("look") === "gs" ? "gs" : "classique");
+    return localStorage.getItem("lmp-look") === "gs";
+  } catch {
+    return params.get("look") === "gs";
+  }
+})();
+if (lookGs) {
+  document.body.classList.add("look-gs");
+  for (const logo of document.querySelectorAll(".logo:not(.small)")) {
+    logo.innerHTML = '<span class="gs-the">THE</span><span class="gs-titre">GAME SHOW</span><span class="gs-by">by Little Miss Party</span>';
+  }
+}
 
 let db, uid, gameRef;
 /** Équipe jouée par cet appareil : la sienne, ou celle dont il remplace l'appareil. */

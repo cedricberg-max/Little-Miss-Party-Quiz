@@ -55,6 +55,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
+import com.littlemissparty.quiz.tv.habillage.Look
+import com.littlemissparty.quiz.tv.habillage.selonLook
 import com.littlemissparty.quiz.tv.habillage.ANNONCE_MULTIPLICATEUR_MS
 import com.littlemissparty.quiz.tv.habillage.AnnonceMultiplicateur
 import com.littlemissparty.quiz.tv.habillage.BandeauEquipes
@@ -85,7 +87,8 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 24.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
+                if (Look.gs) EtapeGs(state.etape ?: "Question ${state.index + 1}", Modifier.weight(1f, fill = false))
+                else Text(
                     state.etape ?: "Question ${state.index + 1}",
                     color = Palette.InkSoft, fontSize = 22.sp, fontWeight = FontWeight.Bold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
@@ -123,8 +126,8 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
             if (!q.isBlind && !q.isStatues) {
                 Text(
                     q.text,
-                    color = Palette.Ink, fontSize = 34.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
-                    lineHeight = 40.sp, maxLines = 3, overflow = TextOverflow.Ellipsis,
+                    color = Palette.Ink, fontSize = selonLook(34.sp, 38.sp), fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
+                    lineHeight = selonLook(40.sp, 42.sp), maxLines = 3, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.fillMaxWidth().apparition(0, state.index),
                 )
                 Spacer(Modifier.height(20.dp))
@@ -395,6 +398,7 @@ private fun ChoiceCard(
         CarteImage(i, text, tous, image, juste, eteinte, color, imageDessus, cadre)
         return
     }
+    if (Look.gs) return ChoiceCardGs(i, text, correct, modifier, express, compacte)
     Row(
         modifier
             .rebond(juste)
@@ -501,6 +505,14 @@ private fun TeamStatus(
     val montre = apres(delai, points != null, actif = points != null)
     val revealedPoints = points.takeIf { montre }
     val taille = if (compacte) 14.sp else 16.sp
+    val statut = when {
+        revealedPoints != null -> (if (revealedPoints > 0) "+$revealedPoints" else "0") +
+            (choice?.let { " · ${if (isNumber) "$it" else Palette.ChoiceLetters.getOrElse(it) { "?" }}" } ?: " · –")
+        !online -> "hors ligne"
+        answered -> if (compacte) "✓" else "a répondu ✓"
+        else -> "…"
+    }
+    if (Look.gs) return TeamStatusGs(team, online, answered, revealedPoints, statut, compacte, modifier)
     Column(
         modifier
             .rebond(revealedPoints != null && revealedPoints > 0, 0.25f)
@@ -513,13 +525,7 @@ private fun TeamStatus(
         // Nom et statut toujours sur une ligne : de 1 à 8 équipes, la pastille garde sa hauteur.
         Text(team.name, color = Palette.Ink, fontSize = taille, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(
-            when {
-                revealedPoints != null -> (if (revealedPoints > 0) "+$revealedPoints" else "0") +
-                    (choice?.let { " · ${if (isNumber) "$it" else Palette.ChoiceLetters.getOrElse(it) { "?" }}" } ?: " · –")
-                !online -> "hors ligne"
-                answered -> if (compacte) "✓" else "a répondu ✓"
-                else -> "…"
-            },
+            statut,
             color = if (revealedPoints != null && revealedPoints > 0) Palette.Gold else Palette.InkSoft,
             fontSize = taille, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
@@ -548,6 +554,7 @@ private fun Countdown(state: UiState.Playing) {
     val seconds = ((remaining + 999) / 1000).toInt()
     val urgent = seconds <= 5
     val fraction = remaining.toFloat() / total
+    if (Look.gs) return CountdownGs(seconds, fraction)
     Box(
         Modifier.size(84.dp).drawBehind {
             val stroke = 8.dp.toPx()
@@ -573,6 +580,7 @@ fun ScoresScreen(state: UiState.Playing, actions: TvActions) {
         }
         return
     }
+    if (Look.gs) return ClassementGameShow(state, actions)
     Column(Modifier.fillMaxSize().padding(horizontal = 56.dp, vertical = 28.dp)) {
         Text("Classement", color = Palette.Ink, fontSize = 40.sp, fontWeight = FontWeight.Black)
         Text(

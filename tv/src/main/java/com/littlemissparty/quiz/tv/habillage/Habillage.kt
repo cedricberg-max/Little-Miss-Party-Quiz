@@ -20,26 +20,29 @@ import com.littlemissparty.quiz.tv.UiState
 import com.littlemissparty.quiz.tv.etapeDisparu
 import kotlinx.coroutines.delay
 
-/** Couleurs du plateau « Néon chic » (démo validée le 18 octobre). */
+/**
+ * Couleurs du plateau « Néon chic » (démo validée le 18 octobre). Design « The Game Show » : chaque couleur prend son
+ * équivalent du kit (l'or devient le cyan des néons), sans toucher aux écrans qui les utilisent.
+ */
 object Neon {
-    val Nuit = Color(0xFF0B0614)
-    val Nuit2 = Color(0xFF1A0B2E)
+    val Nuit: Color get() = selonLook(Color(0xFF0B0614), GS.Noir)
+    val Nuit2: Color get() = selonLook(Color(0xFF1A0B2E), GS.Nuit)
     /** Fonds de l'appli (plateau, intermèdes, fenêtres) : le violet un peu plus clair validé sur l'écran du blind test. */
-    val FondHaut = Color(0xFF3A1466)
-    val Fond = Color(0xFF221040)
-    val FondBas = Color(0xFF160B2B)
-    val Violet = Color(0xFF6E28BE)
-    val Blanc = Color(0xFFFFF4F2)
-    val Halo = Color(0xFFF888B3)
-    val Or = Color(0xFFF0CC92)
-    val OrClair = Color(0xFFF6DAAA)
-    val OrProfond = Color(0xFFE0B577)
-    val Chaud = Color(0xFFFF5A1F)
+    val FondHaut: Color get() = selonLook(Color(0xFF3A1466), GS.VioletProfond)
+    val Fond: Color get() = selonLook(Color(0xFF221040), GS.Nuit)
+    val FondBas: Color get() = selonLook(Color(0xFF160B2B), GS.Noir)
+    val Violet: Color get() = selonLook(Color(0xFF6E28BE), GS.Violet)
+    val Blanc: Color get() = selonLook(Color(0xFFFFF4F2), GS.Encre)
+    val Halo: Color get() = selonLook(Color(0xFFF888B3), GS.Rose)
+    val Or: Color get() = selonLook(Color(0xFFF0CC92), GS.Cyan)
+    val OrClair: Color get() = selonLook(Color(0xFFF6DAAA), GS.CyanClair)
+    val OrProfond: Color get() = selonLook(Color(0xFFE0B577), GS.CyanProfond)
+    val Chaud: Color get() = selonLook(Color(0xFFFF5A1F), GS.Orange)
     /** Révélation (palette A, audit du 19 octobre) : vert électrique = juste, corail = faux. Le jaune pâle ne sert plus de « bonne réponse ». */
-    val JusteClair = Color(0xFF2EE86B)
-    val JusteProfond = Color(0xFF12C957)
-    val JusteTexte = Color(0xFF08240F)
-    val Faux = Color(0xFFFF5A5F)
+    val JusteClair: Color get() = selonLook(Color(0xFF2EE86B), GS.Juste)
+    val JusteProfond: Color get() = selonLook(Color(0xFF12C957), GS.JusteProfond)
+    val JusteTexte: Color get() = selonLook(Color(0xFF08240F), GS.JusteTexte)
+    val Faux: Color get() = selonLook(Color(0xFFFF5A5F), GS.Faux)
 }
 
 /** Ce qui doit survivre à l'écran : un générique par partie, même si la box se reconnecte. */

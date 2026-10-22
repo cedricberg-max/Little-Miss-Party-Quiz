@@ -58,6 +58,8 @@ fun MotQuiz(taille: TextUnit, modifier: Modifier = Modifier) {
 /** Logo du salon : le logo officiel, et « QUIZ » centré dessous, collé au trait de PARTY. */
 @Composable
 fun LogoQuiz(hauteurLogo: Dp, modifier: Modifier = Modifier) {
+    // Design « The Game Show » : le logo du kit, à peu près à la même hauteur que le logo et « QUIZ ».
+    if (Look.gs) return LogoGameShow(hauteurLogo * 0.7f, modifier)
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         LogoLmp(hauteurLogo)
         MotQuiz((hauteurLogo.value * 0.36f).sp, Modifier.offset(y = -hauteurLogo * 0.04f))

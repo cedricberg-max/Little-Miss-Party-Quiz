@@ -169,9 +169,11 @@ fun GeneriqueSalon(partie: String, prenom: String, titre: String) {
         // Dessiné pour 960 × 560 et mis à l'échelle : tout tient, sur la Mi Box comme sur une TV 4K.
         Echelle(960.dp, 560.dp) {
             Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                // Design « The Game Show » : « THE » s'allume sur le roulement, « GAME SHOW » claque sur l'impact.
+                if (Look.gs) LogoGeneriqueGameShow(ms)
                 // Le logo s'écrit de gauche à droite pendant le roulement de tambour (0 à 2 s du générique), puis respire
                 // une fois quand « QUIZ » claque sur l'impact (2 s, le 5e temps).
-                LogoLmp(
+                else LogoLmp(
                     170.dp,
                     Modifier.graphicsLayer {
                         val ecrit = ((ms() - 200f) / 1_700f).coerceIn(0f, 1f)
@@ -185,7 +187,7 @@ fun GeneriqueSalon(partie: String, prenom: String, titre: String) {
                     },
                 )
                 // « QUIZ » claque sur le temps fort.
-                MotQuiz(
+                if (!Look.gs) MotQuiz(
                     84.sp,
                     Modifier.graphicsLayer {
                         val q = ((ms() - 2_000f) / 450f).coerceIn(0f, 1f)
@@ -322,8 +324,10 @@ fun Couronne(visible: Boolean, modifier: Modifier = Modifier) {
             lineTo(w, h)
             close()
         }
-        drawCircle(Brush.radialGradient(listOf(Neon.Or.copy(alpha = 0.5f), Color.Transparent), Offset(w / 2, h / 2), w * 0.6f), w * 0.6f, Offset(w / 2, h / 2))
-        drawPath(p, Brush.verticalGradient(listOf(Neon.OrClair, Neon.OrProfond)))
+        // Design Game Show : couronne jaune néon (l'or du classique y devient cyan, une couronne cyan ne se lit pas).
+        val (halo, clair, profond) = if (Look.gs) Triple(GS.Jaune, Color(0xFFFFF59A), Color(0xFFFFB800)) else Triple(Neon.Or, Neon.OrClair, Neon.OrProfond)
+        drawCircle(Brush.radialGradient(listOf(halo.copy(alpha = 0.5f), Color.Transparent), Offset(w / 2, h / 2), w * 0.6f), w * 0.6f, Offset(w / 2, h / 2))
+        drawPath(p, Brush.verticalGradient(listOf(clair, profond)))
     }
 }
 

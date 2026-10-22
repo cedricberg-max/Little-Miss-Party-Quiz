@@ -21,6 +21,8 @@ import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.em
 import com.littlemissparty.quiz.tv.habillage.AvecPoliceLmp
 import com.littlemissparty.quiz.tv.habillage.BonusMalus
+import com.littlemissparty.quiz.tv.habillage.Design
+import com.littlemissparty.quiz.tv.habillage.Look
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 
@@ -33,6 +35,9 @@ class MainActivity : ComponentActivity() {
         CrashReporter.install(applicationContext)
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // Design choisi dans le menu Retour (Classique par défaut), gardé sur la box.
+        val reglages = getSharedPreferences(PREFS_DESIGN, MODE_PRIVATE)
+        Look.design = Design.depuis(reglages.getString(CLE_DESIGN, null))
         setContent {
             val state by viewModel.state.collectAsState()
             val updateUi by updates.ui.collectAsState()
@@ -79,6 +84,11 @@ class MainActivity : ComponentActivity() {
                     givePoints = viewModel::givePoints,
                     requestAgain = viewModel::requestAgain,
                     viderCache = viewModel::viderCacheMedias,
+                    changerDesign = {
+                        val d = if (Look.gs) Design.CLASSIQUE else Design.GAME_SHOW
+                        Look.design = d
+                        reglages.edit().putString(CLE_DESIGN, d.cle).apply()
+                    },
                 ),
                 update = UpdateScreen(
                     ui = updateUi, open = updateOpen, available = updateAvailable, offer = updateOffer,
@@ -133,3 +143,6 @@ private fun PoliceDesEcrans(contenu: @Composable () -> Unit) {
         }
     }
 }
+
+private const val PREFS_DESIGN = "lmp_design"
+private const val CLE_DESIGN = "design"

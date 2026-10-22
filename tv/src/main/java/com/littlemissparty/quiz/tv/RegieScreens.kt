@@ -80,7 +80,8 @@ fun RegieDialog(state: UiState.Playing, onClose: () -> Unit, onRemove: () -> Uni
 @Composable
 fun TabletteDialog(state: UiState.Playing, onClose: () -> Unit, onConfier: (String, String) -> Unit) {
     val focus = remember { FocusRequester() }
-    val qr = remember(state.joinUrl) { qrCode("${state.joinUrl}&reprise=1") }
+    val lien = lienPupitre("${state.joinUrl}&reprise=1")
+    val qr = remember(lien) { qrCode(lien) }
     val demandes = state.requests.filter { r -> r.replace != null && state.teams.any { it.uid == r.replace } }
     FenetreQr(
         onClose = onClose,

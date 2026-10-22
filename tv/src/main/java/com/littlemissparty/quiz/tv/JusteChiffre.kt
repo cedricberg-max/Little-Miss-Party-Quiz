@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.littlemissparty.quiz.tv.habillage.CompteurMystere
 import com.littlemissparty.quiz.tv.habillage.Gerbe
 import com.littlemissparty.quiz.tv.habillage.Neon
 import com.littlemissparty.quiz.tv.habillage.Tampon
@@ -59,6 +60,9 @@ fun NumberBoard(state: UiState.Playing, revealed: Boolean, modifier: Modifier = 
         Text("LE JUSTE CHIFFRE", color = Palette.Gold, fontSize = 24.sp, fontWeight = FontWeight.Black, letterSpacing = 6.sp, maxLines = 1)
         Spacer(Modifier.height(10.dp))
         if (!revealed) {
+            // Illustration générique : compteur mystère qui tourne (avec l'émoji du sujet s'il y en a un).
+            CompteurMystere(q.emoji, hauteur = 96.dp)
+            Spacer(Modifier.height(14.dp))
             Text(
                 "Tapez votre nombre sur le pupitre !",
                 color = Palette.Ink, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Bold, maxLines = 2,

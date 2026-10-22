@@ -42,9 +42,11 @@ import com.littlemissparty.quiz.tv.R
  * Police de toute l'appli (choix de cedric du 19 octobre, « cartes néon ») : Baloo 2, ronde, festive et très
  * lisible pour les enfants. Licence SIL OFL 1.1 (assets/licences/OFL-Baloo2.txt), embarquée : rien ne dépend
  * d'Internet. Deux graisses suffisent : demi-gras pour le contenu, extra-gras pour titres, noms et boutons
- * (Bold et Black se résolvent sur l'extra-gras).
+ * (Bold et Black se résolvent sur l'extra-gras). Design « The Game Show » : Rajdhani ([PoliceGsTexte]).
  */
-val PoliceLmp = FontFamily(
+val PoliceLmp: FontFamily get() = selonLook(PoliceBaloo, PoliceGsTexte)
+
+private val PoliceBaloo = FontFamily(
     Font(R.font.lmp_baloo_semibold, FontWeight.Medium),
     Font(R.font.lmp_baloo_semibold, FontWeight.SemiBold),
     Font(R.font.lmp_baloo_extrabold, FontWeight.Bold),
