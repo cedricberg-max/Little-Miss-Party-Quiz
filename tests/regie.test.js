@@ -2391,10 +2391,11 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await reglage.locator('input[aria-label="Hook"]').isDisabled(), true);
     await reglage.locator("input[aria-label=Titre]").fill("Hakuna Matata !");
     await page.click("#playlist-save");
-    await page.locator("#playlist-status", { hasText: "Réglages enregistrés" }).waitFor({ timeout: 30000 });
+    // Enregistrer ramène à la liste des sons, comme « ← Retour » (cedric, 22/10).
+    await page.locator("#song-status", { hasText: "Réglages de « Hakuna Matata ! » enregistrés." }).waitFor({ timeout: 30000 });
+    await page.locator("#library-sons:not([hidden])").waitFor();
     await waitFor(async () => (await library("songs/s1")).title === "Hakuna Matata !" && (await library("playlists/p1")).tracks[0].title === "Hakuna Matata !", "titre renommé, la playlist suit");
     assert.deepEqual([(await library("songs/s1")).start, (await library("songs/s1")).refrain, (await library("songs/s1")).audioId], [12, 61, A]);
-    await page.click("#playlist-crumb");
     // Une case, puis Maj + clic : toutes les chansons entre les deux ; « Désélectionner ».
     await hakuna.locator(".song-check").click();
     await page.locator("#song-barre", { hasText: "1 sélectionnée" }).waitFor();
@@ -2524,7 +2525,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual([await reglage.locator(".reglage-temps").nth(1).innerText(), await reglage.locator(".reglage-origine").innerText()], ["0:30", "réglé à la main"]);
     await reglage.locator("input[aria-label=Titre]").fill("On chante fort");
     await page.click("#playlist-save");
-    await page.locator("#playlist-status", { hasText: "Réglages enregistrés." }).waitFor({ timeout: 30000 });
+    await page.locator("#song-status", { hasText: "Réglages de « On chante fort » enregistrés." }).waitFor({ timeout: 30000 });
     await waitFor(async () => (await library(`songs/${id}`)).refrain === 30, "hook réglé à la main");
     const reglee = await library(`songs/${id}`);
     assert.deepEqual([reglee.title, reglee.auto, reglee.start, reglee.audioId], ["On chante fort", undefined, 3, song.audioId], "début inchangé : même extrait du buzz");
@@ -2548,17 +2549,19 @@ describe("bibliothèque de quiz et prestations", () => {
     await ailleurs.locator(".reglage-origine", { hasText: "trouvé automatiquement" }).waitFor();
     assert.deepEqual([await ailleurs.locator('input[aria-label="Hook"]').inputValue(), await ailleurs.locator('input[aria-label="Début de la chanson"]').inputValue()], ["19", "3"]);
     await autre.click("#playlist-save");
-    await autre.locator("#playlist-status", { hasText: "Réglages enregistrés." }).waitFor({ timeout: 30000 });
+    await autre.locator("#song-status", { hasText: "Réglages de « On chante fort » enregistrés." }).waitFor({ timeout: 30000 });
     await waitFor(async () => (await library(`songs/${id}`)).refrain === 19, "hook retrouvé");
     assert.equal((await library(`songs/${id}`)).auto, true);
     assert.equal((await library(`songs/${id}`)).paroles.split("\n")[0], "1000|On chante tous ensemble");
-    // Le début déplacé à la main, puis enregistré : un nouvel extrait du buzz.
+    // Rouverte, le début déplacé à la main, puis enregistré : un nouvel extrait du buzz.
+    await autre.locator("#song-list .song-ligne", { hasText: "On chante fort" }).getByRole("button", { name: "⏱ Réglé ✓" }).click();
+    await ailleurs.locator('input[aria-label="Début de la chanson"]:not([disabled])').waitFor({ timeout: 30000 });
     await ailleurs.locator('input[aria-label="Début de la chanson"]').fill("10");
     await autre.click("#playlist-save");
     await waitFor(async () => (await library(`songs/${id}`)).start === 10, "début réglé à la main");
     assert.notEqual((await library(`songs/${id}`)).audioId, song.audioId);
     assert.equal((await library(`songs/${id}`)).refrain, 19);
-    await autre.click("#playlist-crumb");
+    await autre.locator("#library-sons:not([hidden])").waitFor();
     const ligneInstru = autre.locator("#song-list .song-ligne", { hasText: "Instrumental" });
     await ligneInstru.locator(".song-alerte").waitFor();
     // Un .lrc ajouté plus tard, en cliquant dans la case des paroles.
@@ -5350,7 +5353,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator(".track input[aria-label=Artiste]").fill("Le Roi lion");
     assert.equal(await page.locator("#playlist-save").textContent(), "Enregistrer les réglages");
     await page.click("#playlist-save");
-    await page.locator("#playlist-status", { hasText: "Réglages enregistrés" }).waitFor({ timeout: 30000 });
+    await page.locator("#song-status", { hasText: "Réglages de « Hakuna Matata » enregistrés." }).waitFor({ timeout: 30000 });
     await waitFor(async () => Object.values(await library("playlists"))[0].tracks[1].artist === "Le Roi lion", "artiste suivi dans la playlist");
     await page.context().close();
     const [id, pl] = Object.entries(await library("playlists"))[0];
