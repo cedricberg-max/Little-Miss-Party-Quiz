@@ -1,5 +1,5 @@
-// Bibliothèque d'images de la Régie PC : trois groupes (émojis, photos libres de la banque, images de Sarah) et une
-// seule recherche, par nom, catégorie ou mot-clé, sans tenir compte des accents ni des majuscules.
+// Bibliothèque d'images de la Régie PC : quatre groupes (émojis, photos libres de la banque, images de Sarah, pochettes
+// des chansons) et une seule recherche, par nom, catégorie ou mot-clé, sans tenir compte des accents ni des majuscules.
 // Les images de Sarah restent dans library/images (une seule copie par image) ; leur fiche (nom, catégorie, mots-clés,
 // retirée ou non) vit à côté, dans library/medias, sous le même identifiant.
 import { BANQUE_MOTS, FAMILLES_PETITS } from "./banque-petits.js";
@@ -8,7 +8,13 @@ import { DISPARU_THEMES } from "./buzz-cards.js";
 import { MIME_CATALOG } from "./mime-cards.js";
 import { ROUND_TYPES } from "./show.js";
 
-export const GROUPES_IMAGES = { emojis: "😀 Émojis", photos: "📷 Photos libres", miennes: "⭐ Mes images" };
+export const GROUPES_IMAGES = { emojis: "😀 Émojis", photos: "📷 Photos libres", miennes: "⭐ Mes images", pochettes: "💿 Pochettes" };
+
+/**
+ * Pochettes d'album (cedric, 22/10) : à part de ses images. Celles des chansons arrivent toutes seules ; une chanson
+ * effacée pour de bon laisse sa pochette ici, avec une fiche dans cette catégorie réservée.
+ */
+export const POCHETTES = "Pochettes";
 
 /** Catégories proposées pour ses images ; elle peut en créer d'autres. */
 export const CATEGORIES_PERSO = ["Personnages", "Dessins animés", "Films et séries", "Jeux vidéo", "Célébrités", "Sport", "Famille et amis", "Autres"];
@@ -127,19 +133,40 @@ export function imagesUtilisees({ quizzes = {}, mimes = {}, contents = {}, songs
     }
   };
   for (const [type, c] of Object.entries(contents)) parcourir(c, ROUND_TYPES[type] ?? type);
-  for (const s of Object.values(songs)) noter(s?.imageId, s?.title, "Pochettes des chansons");
+  for (const s of Object.values(songs)) noter(s?.imageId, s?.title, s?.title ? `Chanson « ${s.title} »` : "Pochettes des chansons");
   for (const p of Object.values(playlists)) for (const t of Object.values(p?.tracks ?? {})) noter(t?.imageId, t?.title, `Playlist « ${p.title} »`);
   return out;
 }
 
+/** Nom d'une pochette : « Artiste – Titre », ou le titre seul. */
+export const nomPochette = (t) => [t?.artist, t?.title].map((x) => `${x ?? ""}`.trim()).filter(Boolean).join(" – ").slice(0, FICHE.nom);
+
+/** Pochettes des chansons (bibliothèque des sons, même supprimées) et des morceaux des playlists : identifiant → { nom, tags }. */
+export function pochettesUtilisees({ songs = {}, playlists = {} } = {}) {
+  const out = new Map();
+  const noter = (id, t) => {
+    if (typeof id !== "string" || !IMAGE_ID.test(id) || out.has(id)) return;
+    out.set(id, { nom: nomPochette(t) || "Pochette", tags: motsCles([t?.artist, t?.title].filter(Boolean).join(",")) });
+  };
+  Object.values(songs).forEach((s) => noter(s?.imageId, s));
+  Object.values(playlists).forEach((p) => Object.values(p?.tracks ?? {}).forEach((t) => noter(t?.imageId, t)));
+  return out;
+}
+
+/**
+ * Une image est une pochette si sa fiche est rangée dans « Pochettes », ou si elle sert de pochette sans avoir été
+ * rangée ailleurs : une image que Sarah a mise elle-même dans une de ses catégories reste dans « Mes images ».
+ */
+const estPochette = (id, fiche, pochettes) => fiche?.cat === POCHETTES || (!fiche?.cat && pochettes.has(id));
+
 /**
  * Ses images : celles qui ont une fiche (envoyées dans la bibliothèque, ou déjà rangées), puis celles déjà utilisées
- * sans fiche (« À ranger »), les plus récentes d'abord.
+ * sans fiche (« À ranger »), les plus récentes d'abord. Jamais les pochettes ([pochettes] : celles des chansons).
  */
-export function mesImages(medias = {}, utilisees = new Map()) {
+export function mesImages(medias = {}, utilisees = new Map(), pochettes = new Map()) {
   const out = [];
   for (const [id, f] of Object.entries(medias)) {
-    if (!f || !IMAGE_ID.test(id)) continue;
+    if (!f || !IMAGE_ID.test(id) || estPochette(id, f, pochettes)) continue;
     out.push({
       groupe: "miennes", id, nom: f.name ?? utilisees.get(id)?.nom ?? "", cat: f.cat || A_RANGER, tags: motsCles(f.tags),
       retiree: f.hidden === true, ou: utilisees.get(id)?.ou ?? [], fiche: true, date: f.createdAt ?? f.updatedAt ?? 0,
@@ -147,9 +174,29 @@ export function mesImages(medias = {}, utilisees = new Map()) {
   }
   out.sort((a, b) => b.date - a.date);
   for (const [id, x] of utilisees) {
-    if (!medias[id]) out.push({ groupe: "miennes", id, nom: x.nom, cat: A_RANGER, tags: [], retiree: false, ou: x.ou, fiche: false, date: 0 });
+    if (!medias[id] && !pochettes.has(id)) out.push({ groupe: "miennes", id, nom: x.nom, cat: A_RANGER, tags: [], retiree: false, ou: x.ou, fiche: false, date: 0 });
   }
   return out;
+}
+
+/**
+ * Les pochettes : celles des chansons et des playlists, et celles gardées après l'effacement de leur chanson (fiche
+ * « Pochettes »), par artiste puis titre. Une fiche donne son nom, ses mots-clés et « retirée ».
+ */
+export function mesPochettes(medias = {}, pochettes = new Map(), utilisees = new Map()) {
+  const out = [];
+  for (const [id, f] of Object.entries(medias)) {
+    if (!f || !IMAGE_ID.test(id) || !estPochette(id, f, pochettes)) continue;
+    const p = pochettes.get(id);
+    out.push({
+      groupe: "pochettes", id, nom: f.name ?? p?.nom ?? "", cat: POCHETTES, tags: f.tags ? motsCles(f.tags) : p?.tags ?? [],
+      retiree: f.hidden === true, ou: utilisees.get(id)?.ou ?? [], fiche: true,
+    });
+  }
+  for (const [id, p] of pochettes) {
+    if (!medias[id]) out.push({ groupe: "pochettes", id, nom: p.nom, cat: POCHETTES, tags: p.tags, retiree: false, ou: utilisees.get(id)?.ou ?? [], fiche: false });
+  }
+  return out.sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
 }
 
 /** Une image correspond à la recherche si chaque mot cherché est dans son nom, sa catégorie ou ses mots-clés. */

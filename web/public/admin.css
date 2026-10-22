@@ -254,6 +254,17 @@ button.item { cursor: pointer; }
 }
 .update-banner[hidden] { display: none; }
 .update-banner button { border: 0; border-radius: 10px; padding: 10px 14px; background: #1A0B2E; color: #fff; font-weight: 800; font-size: 15px; }
+/* Régie PC d'essai : même données que la vraie, petites erreurs possibles (séances en direct, 22/10). */
+body.essai { padding-top: 32px; }
+body.essai header { top: 32px; }
+body.essai::before {
+  content: "🧪 Régie PC d'essai : mêmes données que la vraie, petites erreurs possibles";
+  position: fixed; top: 0; left: 0; right: 0; z-index: 60; height: 32px; line-height: 32px; padding: 0 12px;
+  text-align: center; white-space: nowrap; overflow: hidden;
+  background: repeating-linear-gradient(135deg, #FFE7A3 0 14px, #FFD98A 14px 28px); color: #1A0B2E;
+  font-weight: 800; font-size: 14px; box-shadow: 0 2px 10px rgba(26, 11, 46, .18);
+}
+@media (max-width: 640px) { body.essai::before { content: "🧪 Régie PC d'essai"; } }
 .web-version { position: fixed; right: 8px; bottom: 4px; margin: 0; font-size: 11px; opacity: .45; pointer-events: none; z-index: 1; }
 
 /* Blind test : un morceau par ligne (titre, artiste, début de l'extrait, écoute) */

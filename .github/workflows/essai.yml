@@ -1,0 +1,57 @@
+name: Régie PC d'essai
+
+# Séances de travail en direct avec cedric (22 octobre) : chaque envoi sur la branche de travail de la Régie PC met
+# l'essai en ligne en quelques minutes, à une adresse à part (canal d'aperçu de l'hébergement Firebase), sur les mêmes
+# données. Petites erreurs acceptées ici. La vraie Régie PC ne bouge pas : elle passe par la PR, tous les tests, puis
+# la fusion dans main (build.yml). Les règles Firebase ne sont jamais publiées d'ici.
+on:
+  push:
+    branches: [claude/project-thread-yygo7l-regie-pc]
+  workflow_dispatch:
+
+# Un seul essai à la fois ; le plus récent remplace celui en cours.
+concurrency:
+  group: essai
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  essai:
+    name: Publier la Régie PC d'essai
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Une faute de frappe dans un fichier donnerait une page blanche : on ne publie pas.
+      - name: Vérifier que les scripts se lisent
+        run: |
+          for f in web/public/*.js; do
+            node --check --input-type=module < "$f" || { echo "::error file=$f::script illisible"; exit 1; }
+          done
+      - name: Publier l'essai
+        id: essai
+        run: |
+          project=$(jq -r .projectId firebase-config.json)
+          if [ -z "$project" ] || [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error::Firebase pas configuré : pas d'essai."
+            exit 1
+          fi
+          cp firebase-config.json web/public/firebase-config.json
+          # Version « essai-N » : la page ouverte propose « Mettre à jour » à chaque nouvel essai.
+          jq -n --arg web "essai-${{ github.run_number }}" --arg sha "${GITHUB_SHA::7}" '{web: $web, sha: $sha}' > web/public/version.json
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx --yes firebase-tools@13 hosting:channel:deploy essai --expires 30d \
+            --project "$project" --non-interactive --json > "$RUNNER_TEMP/essai.json"
+          cat "$RUNNER_TEMP/essai.json"
+          url=$(jq -r '[.result[]?.url] | first // empty' "$RUNNER_TEMP/essai.json")
+          [ -n "$url" ] || { echo "::error::Pas d'adresse d'essai dans la réponse de Firebase."; exit 1; }
+          echo "::notice title=Régie PC d'essai::$url/admin.html"
+          echo "Régie PC d'essai : $url/admin.html (version essai-${{ github.run_number }})" >> "$GITHUB_STEP_SUMMARY"

@@ -45,7 +45,10 @@ import { confirmer, avertir, demanderTexte } from "./fenetre.js";
 import { ouvrirCadrage } from "./cadrage.js";
 import { FAMILLES_PETITS, BANQUE_MOTS, motBanque, cleMot, cataloguePetits, tirerPetits } from "./banque-petits.js";
 import { parPertinence, contientTout } from "./recherche.js";
-import { GROUPES_IMAGES, A_RANGER, emojisBibliotheque, photosLibres, imagesUtilisees, mesImages, correspond, categoriesDe, categoriesPerso, ficheImage, motsCles } from "./mediatheque.js";
+import {
+  GROUPES_IMAGES, A_RANGER, POCHETTES, emojisBibliotheque, photosLibres, imagesUtilisees, mesImages, pochettesUtilisees, mesPochettes, nomPochette,
+  correspond, categoriesDe, categoriesPerso, ficheImage, motsCles,
+} from "./mediatheque.js";
 import { DOSSIERS, classerPartie, bilan, effacements, passageAFaire, moDe, texteMo, texteGardees } from "./nettoyage.js";
 
 // Petit œil sur les champs de mot de passe : voir ce qu'on tape (majuscules, caractère en trop).
@@ -53,6 +56,8 @@ afficherMotsDePasse();
 
 // Nouvelle version publiée pendant que l'administration est ouverte : on propose de recharger, sans rien perdre d'office.
 watchVersion(() => showUpdateBanner("Une nouvelle version de l'administration est en ligne. Enregistrez votre travail, puis mettez à jour."));
+// Régie PC d'essai (adresse « …--essai-… », séances en direct avec cedric) : un bandeau le rappelle en permanence.
+if (/--essai\b/.test(location.hostname)) document.body.classList.add("essai");
 
 // Administration : un mot de passe commun, sans compte ni adresse e-mail. Toute personne qui le connaît
 // a tous les droits. Le serveur (règles Firebase) vérifie l'empreinte envoyée par cet appareil ;
@@ -1983,7 +1988,7 @@ function illustrationRow(q, i) {
         }
         info.textContent = "Préparation de la photo…";
         try {
-          q.imageId = x.groupe === "miennes" ? x.id : await storeIllustration(await blobDe(x));
+          q.imageId = dansLaBase(x) ? x.id : await storeIllustration(await blobDe(x));
           q.imageFile = null;
           noterEcran();
           remove.hidden = false;
@@ -2058,13 +2063,13 @@ function choicePhoto(q, slots, k) {
   return h("span", { class: "choice-photo" }, thumb, remove,
     h("button", { type: "button", class: "icon", title: "Mettre une image à la place du texte", text: "📷", onclick: (e) => { e.preventDefault(); file.click(); } }),
     h("button", {
-      type: "button", class: "icon", title: "Choisir l'image dans la bibliothèque (photos libres, vos images)", text: "🖼️",
+      type: "button", class: "icon", title: "Choisir l'image dans la bibliothèque (photos libres, vos images, pochettes)", text: "🖼️",
       onclick: async (e) => {
         e.preventDefault();
-        const x = await choisirDansBibliotheque({ titre: `Image de la réponse ${LETTERS[k]}`, groupes: ["photos", "miennes"], recherche: slots[k].replace(/^[^\p{L}\p{N}]+/u, "").trim() });
+        const x = await choisirDansBibliotheque({ titre: `Image de la réponse ${LETTERS[k]}`, groupes: ["photos", "miennes", "pochettes"], recherche: slots[k].replace(/^[^\p{L}\p{N}]+/u, "").trim() });
         if (!x) return;
         try {
-          (q.slotImages ??= [])[k] = x.groupe === "miennes" ? x.id : await storeChoiceImage(await blobDe(x));
+          (q.slotImages ??= [])[k] = dansLaBase(x) ? x.id : await storeChoiceImage(await blobDe(x));
           if (q.slotFiles) q.slotFiles[k] = null;
           setTimeout(noterEcran, 0);
           if (!slots[k].trim()) {
@@ -2638,6 +2643,39 @@ $("nettoyage-verifier").onclick = async () => {
   } catch (err) {
     console.error(err);
     status("nettoyage-status", "Vérification impossible : vérifiez Internet ou reconnectez-vous, puis recommencez.");
+  } finally {
+    bouton.disabled = false;
+  }
+};
+
+/**
+ * « 💾 Sauvegarder les prestations » (cedric, 22/10) : avant une séance de travail en direct, un fichier sur le PC avec
+ * tout ce qui se fabrique dans la Régie PC. Sans les fichiers des images et des sons (trop lourds, et jamais touchés
+ * par ces séances). Lecture seule : rien n'est écrit en ligne.
+ */
+const A_SAUVEGARDER = ["shows", "manches", "quizzes", "playlists", "mimes", "contents", "songs", "lyrics", "medias"];
+const deux = (n) => String(n).padStart(2, "0");
+$("sauvegarde").onclick = async () => {
+  const bouton = $("sauvegarde");
+  bouton.disabled = true;
+  status("sauvegarde-status", "Sauvegarde en cours…", true);
+  try {
+    const at = new Date();
+    const lus = await Promise.all(A_SAUVEGARDER.map((n) => get(ref(db, `library/${n}`))));
+    const library = Object.fromEntries(A_SAUVEGARDER.map((n, i) => [n, lus[i].val() ?? {}]));
+    const texte = JSON.stringify({ app: "little-miss-party-quiz", sauvegarde: 1, at: at.toISOString(), library }, null, 1);
+    const nom = `sauvegarde-regie-${isoDay(at)}-${deux(at.getHours())}h${deux(at.getMinutes())}.json`;
+    const url = URL.createObjectURL(new Blob([texte], { type: "application/json" }));
+    const lien = h("a", { href: url, download: nom, hidden: true });
+    document.body.append(lien);
+    lien.click();
+    lien.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    const combien = Object.keys(library.shows).length;
+    status("sauvegarde-status", `Sauvegarde téléchargée : ${nom} (${combien} prestation${combien > 1 ? "s" : ""}, ${Math.max(1, Math.round(texte.length / 1024))} Ko), dans le dossier Téléchargements de ce PC.`, true);
+  } catch (err) {
+    console.error(err);
+    status("sauvegarde-status", "Sauvegarde impossible : vérifiez Internet ou reconnectez-vous, puis recommencez.");
   } finally {
     bouton.disabled = false;
   }
@@ -3374,12 +3412,14 @@ async function supprimerChansons() {
 /**
  * « Effacer pour de bon » des chansons supprimées (cedric, 21/10) : en ligne, la chanson, sa chanson entière et ses
  * paroles sont effacées, et ses extraits aussi, sauf ceux qu'une playlist, une manche, une prestation ou un quiz utilise
- * encore. Le fichier gardé sur ce PC est oublié. On ne peut plus la remettre.
+ * encore. Le fichier gardé sur ce PC est oublié. On ne peut plus la remettre. Sa pochette reste dans Bibliothèque ›
+ * Images › 💿 Pochettes (cedric, 22/10) : elle y reçoit sa fiche, dans la même écriture.
  */
 async function effacerPourDeBon(liste) {
   if (!liste.length) return;
   const nom = liste.length === 1 ? `« ${liste[0].title} »` : `ces ${liste.length} chansons`;
-  if (!(await confirmer(`Effacer ${nom} pour de bon ?\n\nLa chanson entière, les paroles et les extraits sont effacés en ligne (sauf les extraits qu'une playlist utilise encore). On ne pourra plus ${liste.length === 1 ? "la" : "les"} remettre.`, { ok: "Effacer pour de bon", danger: true }))) return;
+  const avecPochette = liste.some((x) => songs[x.id]?.imageId);
+  if (!(await confirmer(`Effacer ${nom} pour de bon ?\n\nLa chanson entière, les paroles et les extraits sont effacés en ligne (sauf les extraits qu'une playlist utilise encore). On ne pourra plus ${liste.length === 1 ? "la" : "les"} remettre.${avecPochette ? `\n\n${liste.length === 1 ? "Sa pochette reste" : "Les pochettes restent"} dans Bibliothèque › Images › 💿 Pochettes.` : ""}`, { ok: "Effacer pour de bon", danger: true }))) return;
   const ids = new Set(liste.map((x) => x.id));
   // Extraits encore utilisés ailleurs : toute empreinte d'extrait citée par une playlist, une manche, une prestation,
   // un quiz ou une autre chanson (en trop, un extrait reste ; jamais l'inverse).
@@ -3390,6 +3430,7 @@ async function effacerPourDeBon(liste) {
     const song = songs[x.id] ?? {};
     Object.assign(chemins, { [`library/songs/${x.id}`]: null, [`library/lyrics/${x.id}`]: null, [`library/entieres/${x.id}`]: null });
     [song.audioId, song.refrainId].filter((a) => a && !utilises.has(a)).forEach((a) => { chemins[`library/sounds/${a}`] = null; });
+    Object.assign(chemins, fichePochetteGardee(song, chemins));
   });
   try {
     await update(ref(db), chemins);
@@ -3399,6 +3440,21 @@ async function effacerPourDeBon(liste) {
     console.error(err);
     status("song-status", "Effacement refusé : vérifiez Internet ou reconnectez-vous.");
   }
+}
+
+/**
+ * Pochette d'une chanson effacée pour de bon : sa fiche « Pochettes » (nom « Artiste – Titre », mots-clés), pour qu'elle
+ * reste dans la rubrique. Une fiche déjà là garde son nom ; sans catégorie, elle passe dans « Pochettes » ; rangée par
+ * Sarah dans une de ses catégories, elle ne bouge pas.
+ */
+function fichePochetteGardee(song, chemins) {
+  const id = song.imageId;
+  if (!/^[0-9a-f]{16}$/.test(id ?? "") || `library/medias/${id}` in chemins) return {};
+  const avant = medias[id];
+  if (avant?.cat) return {};
+  if (avant) return { [`library/medias/${id}/cat`]: POCHETTES, [`library/medias/${id}/updatedAt`]: serverTimestamp() };
+  const f = ficheImage({ nom: nomPochette(song) || "Pochette", cat: POCHETTES, tags: [song.artist, song.title].filter(Boolean) });
+  return { [`library/medias/${id}`]: { ...f, updatedAt: serverTimestamp() } };
 }
 
 /** Remet une chanson supprimée dans la bibliothèque des sons. */
@@ -4523,7 +4579,7 @@ async function deletePlaylist(id) {
 
 /** Onglet ouvert de la bibliothèque : « images » ou « sons ». */
 let libTab = "images";
-/** Groupe d'images ouvert : null (les trois en aperçu), « emojis », « photos » ou « miennes ». */
+/** Groupe d'images ouvert : null (tous en aperçu), « emojis », « photos », « miennes » ou « pochettes ». */
 let mediaGroupe = null;
 /** Catégorie choisie dans le groupe ouvert (null : toutes) ; RETIREES : ses images retirées. */
 let mediaCat = null;
@@ -4532,6 +4588,7 @@ const RETIREES = "retirees";
 const APERCU = 20;
 const MAX_FICHES = 120;
 const NOUVELLE_CAT = "＋ Nouvelle catégorie…";
+const AUCUNE_POCHETTE = "Aucune pochette pour l'instant : elles arrivent toutes seules avec les chansons (Bibliothèque › 🎵 Sons).";
 
 function openLibrary(tab) {
   libTab = tab;
@@ -4553,11 +4610,21 @@ function renderLibrary(force = false) {
   else renderMedias(force);
 }
 
-/** Les trois groupes d'images ; ses images retirées à part. */
+/** Les groupes d'images ; ses images et les pochettes retirées à part ([RETIREES] : par groupe). */
 function groupesImages() {
-  const miennes = mesImages(medias, imagesUtilisees({ quizzes, mimes, contents, songs, playlists }));
-  return { emojis: emojisBibliotheque(), photos: photosLibres(), miennes: miennes.filter((x) => !x.retiree), [RETIREES]: miennes.filter((x) => x.retiree) };
+  const utilisees = imagesUtilisees({ quizzes, mimes, contents, songs, playlists });
+  const couvertures = pochettesUtilisees({ songs, playlists });
+  const miennes = mesImages(medias, utilisees, couvertures);
+  const pochettes = mesPochettes(medias, couvertures, utilisees);
+  return {
+    emojis: emojisBibliotheque(), photos: photosLibres(),
+    miennes: miennes.filter((x) => !x.retiree), pochettes: pochettes.filter((x) => !x.retiree),
+    [RETIREES]: { miennes: miennes.filter((x) => x.retiree), pochettes: pochettes.filter((x) => x.retiree) },
+  };
 }
+
+/** Image déjà rangée dans la base (une des siennes, une pochette) : choisie telle quelle, sans nouvelle copie. */
+const dansLaBase = (x) => x.groupe === "miennes" || x.groupe === "pochettes";
 
 /** Ce que la recherche lit d'une image : son nom d'abord, puis sa catégorie, ses mots-clés et où elle sert. */
 const nomMedia = (x) => x.nom;
@@ -4585,9 +4652,10 @@ function renderMedias(force = false) {
     onclick: () => { mediaGroupe = key; mediaCat = null; renderMedias(true); },
   });
   const total = (k) => filtre(g[k]).length;
-  $("media-groups").replaceChildren(chip(null, "Tout", total("emojis") + total("photos") + total("miennes")),
+  const toutes = Object.keys(GROUPES_IMAGES).reduce((n, k) => n + total(k), 0);
+  $("media-groups").replaceChildren(chip(null, "Tout", toutes),
     ...Object.entries(GROUPES_IMAGES).map(([k, label]) => chip(k, label, total(k))));
-  $("media-count").textContent = recherche ? `${plural(total("emojis") + total("photos") + total("miennes"), "image trouvée", "images trouvées")}` : "";
+  $("media-count").textContent = recherche ? `${plural(toutes, "image trouvée", "images trouvées")}` : "";
   $("media-upload").hidden = mediaGroupe !== "miennes";
   if (mediaGroupe === "miennes") remplirCategoriesEnvoi(g.miennes);
   const box = $("media-list");
@@ -4601,13 +4669,13 @@ function renderMedias(force = false) {
         h("div", { class: "title-row" }, h("h2", { text: label }), list.length ? voir : null,
           k === "miennes" && !recherche ? h("button", { type: "button", class: "btn small", text: "＋ Ajouter mes images", onclick: () => { mediaGroupe = "miennes"; mediaCat = null; renderMedias(true); } }) : null),
         list.length ? h("div", { class: "media-grid" }, ...list.slice(0, APERCU).map(vignetteMedia))
-          : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : k === "miennes" ? "Aucune image à vous pour l'instant : « ＋ Ajouter mes images »." : "" }));
+          : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : k === "miennes" ? "Aucune image à vous pour l'instant : « ＋ Ajouter mes images »." : k === "pochettes" ? AUCUNE_POCHETTE : "" }));
     }));
     return;
   }
   // Un groupe : ses catégories, puis ses images rangées par catégorie.
   const tout = trouve(g[mediaGroupe]);
-  const retirees = mediaGroupe === "miennes" ? trouve(g[RETIREES]) : [];
+  const retirees = trouve(g[RETIREES][mediaGroupe] ?? []);
   const cats = categoriesDe(tout);
   if (mediaCat && mediaCat !== RETIREES && !cats.includes(mediaCat)) mediaCat = null;
   if (mediaCat === RETIREES && !retirees.length) mediaCat = null;
@@ -4620,15 +4688,15 @@ function renderMedias(force = false) {
     retirees.length ? catChip(RETIREES, "🚫 Retirées", retirees.length) : null] : []).filter(Boolean));
   const list = mediaCat === RETIREES ? retirees : mediaCat ? tout.filter((x) => x.cat === mediaCat) : tout;
   if (!list.length) {
-    box.replaceChildren(h("p", { class: "hint", text: recherche ? "Aucune image ne correspond à cette recherche." : mediaGroupe === "miennes" ? "Aucune image à vous pour l'instant : ajoutez-en avec « Choisir des images sur le PC… »." : "Aucune image." }));
+    box.replaceChildren(h("p", { class: "hint", text: recherche ? "Aucune image ne correspond à cette recherche." : mediaGroupe === "miennes" ? "Aucune image à vous pour l'instant : ajoutez-en avec « Choisir des images sur le PC… »." : mediaGroupe === "pochettes" ? AUCUNE_POCHETTE : "Aucune image." }));
     return;
   }
-  const fiches = mediaGroupe === "miennes";
+  const fiches = mediaGroupe === "miennes" || mediaGroupe === "pochettes";
   const montrees = fiches ? list.slice(0, MAX_FICHES) : list;
   const parCat = mediaCat ? [[mediaCat === RETIREES ? "🚫 Retirées" : mediaCat, montrees]] : categoriesDe(montrees).map((c) => [c, montrees.filter((x) => x.cat === c)]);
   box.replaceChildren(...parCat.flatMap(([c, items]) => [
     h("h3", { class: "content-series", text: `${c} · ${items.length}` }),
-    fiches ? h("div", { class: "media-cards" }, ...items.map((x) => ficheMedia(x, g.miennes.concat(g[RETIREES]))))
+    fiches ? h("div", { class: "media-cards" }, ...items.map((x) => ficheMedia(x, g.miennes.concat(g[RETIREES].miennes))))
       : h("div", { class: "media-grid" }, ...items.map(vignetteMedia)),
   ]));
   if (list.length > montrees.length) box.append(h("p", { class: "hint small", text: `… et ${list.length - montrees.length} autres : précisez la recherche.` }));
@@ -4654,14 +4722,18 @@ function vignetteMedia(x) {
       },
     }, image, h("span", { text: x.nom }));
   }
-  if (x.groupe === "miennes") {
-    return h("button", { type: "button", class: "media-tile", "data-media": x.id, title: titre, onclick: () => { mediaGroupe = "miennes"; mediaCat = x.cat; renderMedias(true); } }, image, h("span", { text: x.nom || "Sans nom" }));
+  if (dansLaBase(x)) {
+    return h("button", { type: "button", class: "media-tile", "data-media": x.id, title: titre, onclick: () => { mediaGroupe = x.groupe; mediaCat = x.groupe === "miennes" ? x.cat : null; renderMedias(true); } }, image, h("span", { text: x.nom || "Sans nom" }));
   }
   return h("figure", { class: "media-tile", "data-media": x.id, title: titre }, image, h("span", { text: x.nom }));
 }
 
-/** Fiche d'une de ses images : nom, catégorie, mots-clés, où elle sert ; chaque champ s'enregistre en le quittant. */
+/**
+ * Fiche d'une de ses images ou d'une pochette : nom, catégorie (pas pour une pochette), mots-clés, où elle sert ;
+ * chaque champ s'enregistre en le quittant.
+ */
 function ficheMedia(x, toutes) {
+  const pochette = x.groupe === "pochettes";
   const enregistrer = async (champs, message) => {
     const f = ficheImage({ nom: x.nom, cat: x.cat, tags: x.tags, retiree: x.retiree, ...champs }, medias[x.id]);
     if (!f) return status("media-note", "Donnez un nom à l'image.");
@@ -4686,7 +4758,7 @@ function ficheMedia(x, toutes) {
   });
   const options = [...(x.cat === A_RANGER ? [A_RANGER] : []), ...categoriesPerso(toutes)];
   if (!options.includes(x.cat)) options.unshift(x.cat);
-  const cat = h("select", {
+  const cat = pochette ? null : h("select", {
     class: "media-cat", "aria-label": "Catégorie",
     onchange: async (e) => {
       const choix = e.target;
@@ -4698,14 +4770,15 @@ function ficheMedia(x, toutes) {
       enregistrer({ cat: c }, `« ${x.nom} » rangée dans « ${c} ».`);
     },
   }, ...options.map((c) => h("option", { value: c, text: c })), h("option", { value: NOUVELLE_CAT, text: NOUVELLE_CAT }));
-  cat.value = x.cat;
+  if (cat) cat.value = x.cat;
   const tags = h("input", {
     class: "media-tags", value: x.tags.join(", "), maxlength: 300, "aria-label": "Mots-clés", placeholder: "Mots-clés…", title: "Mots-clés, séparés par des virgules (princesse, Disney…)",
     onchange: (e) => enregistrer({ tags: motsCles(e.target.value) }),
   });
+  const ici = pochette ? "les pochettes" : "vos images";
   const bouton = x.retiree
-    ? h("button", { type: "button", class: "btn small", text: "Remettre", onclick: () => enregistrer({ retiree: false }, `« ${x.nom} » est remise dans vos images.`) })
-    : h("button", { type: "button", class: "btn small secondary", text: "Retirer", title: "Elle disparaît de vos images ; les quiz et les jeux qui l'utilisent la gardent.", onclick: () => enregistrer({ retiree: true }, `« ${x.nom} » est retirée : retrouvez-la dans « 🚫 Retirées ». Les quiz et les jeux qui l'utilisent la gardent.`) });
+    ? h("button", { type: "button", class: "btn small", text: "Remettre", onclick: () => enregistrer({ retiree: false }, `« ${x.nom} » est remise dans ${ici}.`) })
+    : h("button", { type: "button", class: "btn small secondary", text: "Retirer", title: `Elle disparaît de ${ici} ; les chansons, les quiz et les jeux qui l'utilisent la gardent.`, onclick: () => enregistrer({ retiree: true }, `« ${x.nom} » est retirée : retrouvez-la dans « 🚫 Retirées ». Les chansons, les quiz et les jeux qui l'utilisent la gardent.`) });
   return h("div", { class: `media-card${x.retiree ? " retiree" : ""}`, "data-media": x.id },
     photoBibliotheque(x.id, { loading: "lazy" }),
     nom, cat, tags,
