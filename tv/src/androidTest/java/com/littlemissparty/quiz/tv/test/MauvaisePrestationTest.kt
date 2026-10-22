@@ -10,6 +10,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.UUID
 
 /**
  * Mauvaise prestation lancée (cedric, 21/10) : tant qu'aucun point n'a été donné, la régie la remplace par la bonne,
@@ -32,6 +33,14 @@ class MauvaisePrestationTest : TestTv() {
         "id" to id, "text" to texte, "choices" to choix, "correct" to bonne,
         "duration" to 30, "kind" to "classic", "double" to false, "round" to jeu,
     )
+
+    /**
+     * Identifiants des deux prestations dans la bibliothèque, propres à chaque test : la base de l'émulateur est
+     * partagée d'un test à l'autre, et la prestation de Léa lancée par le test précédent (fête toujours en cours sur
+     * une autre partie) ne se relance pas ailleurs, c'est justement la règle.
+     */
+    private val idLea = "lea-${UUID.randomUUID().toString().take(8)}"
+    private val idChloe = "chloe-${UUID.randomUUID().toString().take(8)}"
 
     /** La prestation lancée par erreur. */
     private val lea = listOf(
@@ -66,16 +75,16 @@ class MauvaisePrestationTest : TestTv() {
         attendreQue("présence de la box") { Boite.controle.lire("games/$code/hostOnline/online").takeIf { it == true } }
         assertEquals(FirebaseAuth.getInstance().currentUser?.uid, Boite.controle.lire("games/$code/hostOnline/uid"))
 
-        assertEquals("applied", regie.chargerPrestation(code, "L'anniversaire de Léa", lea, prenom = "Léa", prestation = "lea"))
+        assertEquals("applied", regie.chargerPrestation(code, "L'anniversaire de Léa", lea, prenom = "Léa", prestation = idLea))
         ecran.voit("Joyeux anniversaire Léa !")
-        assertEquals(code, regie.lancement("lea"))
-        assertEquals("lea", Boite.controle.lire("games/$code/public/prestation"))
+        assertEquals(code, regie.lancement(idLea))
+        assertEquals(idLea, Boite.controle.lire("games/$code/public/prestation"))
         premiereQuestion(regie, code, licornes, "Quel animal miaule ?")
         assertNull("aucun point donné", licornes.etat(code).child("scored").value)
         assertEquals(true, (regie.programme(code)["programReset"]))
 
         // Mauvaise prestation : celle de Chloé la remplace, la TV repart du salon avec la même équipe.
-        assertEquals("applied", regie.chargerPrestation(code, "L'anniversaire de Chloé", chloe, prenom = "Chloé", prestation = "chloe"))
+        assertEquals("applied", regie.chargerPrestation(code, "L'anniversaire de Chloé", chloe, prenom = "Chloé", prestation = idChloe))
         ecran.voit("Joyeux anniversaire Chloé !")
         ecran.voit("Licornes")
         ecran.neVoitPas("Quel animal miaule ?")
@@ -85,9 +94,9 @@ class MauvaisePrestationTest : TestTv() {
         assertTrue("l'équipe reste inscrite", licornes.equipes(code).hasChild(licornes.uid))
         assertEquals("L'anniversaire de Chloé", regie.programme(code)["title"])
         assertEquals("Chloé", Boite.controle.lire("games/$code/public/childName"))
-        assertEquals("chloe", Boite.controle.lire("games/$code/public/prestation"))
-        assertEquals(code, regie.lancement("chloe"))
-        assertNull("la prestation de Léa est libérée", regie.lancement("lea"))
+        assertEquals(idChloe, Boite.controle.lire("games/$code/public/prestation"))
+        assertEquals(code, regie.lancement(idChloe))
+        assertNull("la prestation de Léa est libérée", regie.lancement(idLea))
 
         // La fête démarre ensuite normalement sur la bonne prestation, avec des points.
         premiereQuestion(regie, code, licornes, "Quelle planète est rouge ?")
@@ -106,7 +115,7 @@ class MauvaisePrestationTest : TestTv() {
         val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
         val regie = regie()
         assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
-        assertEquals("applied", regie.chargerPrestation(code, "L'anniversaire de Léa", lea, prenom = "Léa", prestation = "lea"))
+        assertEquals("applied", regie.chargerPrestation(code, "L'anniversaire de Léa", lea, prenom = "Léa", prestation = idLea))
         premiereQuestion(regie, code, licornes, "Quel animal miaule ?")
         assertTrue(licornes.repondre(code, "p1", 0))
         ecran.voit("Toutes les équipes ont répondu")
@@ -117,7 +126,7 @@ class MauvaisePrestationTest : TestTv() {
         assertEquals(true, avant.child("scored").value)
 
         // Un point a été donné : la box refuse, la fête de Léa continue telle quelle.
-        assertEquals("points", regie.chargerPrestation(code, "L'anniversaire de Chloé", chloe, prenom = "Chloé", prestation = "chloe"))
+        assertEquals("points", regie.chargerPrestation(code, "L'anniversaire de Chloé", chloe, prenom = "Chloé", prestation = idChloe))
         val apres = licornes.etat(code)
         assertEquals(avant.child("phase").value, apres.child("phase").value)
         assertEquals(avant.child("qid").value, apres.child("qid").value)
@@ -125,10 +134,10 @@ class MauvaisePrestationTest : TestTv() {
         assertEquals(gagnes, points(licornes, code, licornes.uid))
         assertEquals("L'anniversaire de Léa", regie.programme(code)["title"])
         assertEquals("Léa", Boite.controle.lire("games/$code/public/childName"))
-        assertEquals("lea", Boite.controle.lire("games/$code/public/prestation"))
+        assertEquals(idLea, Boite.controle.lire("games/$code/public/prestation"))
         // Comme la page web après le refus : la prestation de Léa reste lancée ici, celle de Chloé est libre.
-        assertEquals(code, regie.lancement("lea"))
-        assertNull(regie.lancement("chloe"))
+        assertEquals(code, regie.lancement(idLea))
+        assertNull(regie.lancement(idChloe))
         ecran.neVoitPas("Joyeux anniversaire Chloé !", 3_000)
         ecran.capture("refus-apres-un-point")
     }
