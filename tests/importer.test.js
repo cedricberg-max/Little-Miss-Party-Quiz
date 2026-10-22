@@ -2346,6 +2346,16 @@ describe("Le Juste Chiffre tout prêt (cedric, 22/10)", async () => {
     assert.equal(tropRecent("🕷️"), false);
   });
 
+  test("l'émoji ne montre jamais ce qu'on compte (cedric, 22/10 : on compterait les pattes de l'araignée dessinée)", () => {
+    // Émojis où l'on peut compter des pattes, des côtés, des couleurs, des étoiles, ou qui affichent un nombre.
+    const seCompte = ["🕷️", "🕷", "🕸️", "🐞", "🐜", "🐪", "🐫", "🐍", "🐔", "⭐", "🦀", "🦂", "🦋", "🐝", "🖐️", "✋", "🦶", "🙌", "😁", "🕐", "🕛", "⏰", "⏱️",
+      "💯", "🔢", "🌙", "🥇", "🎲", "🔺", "📦", "🛑", "🚸", "🎸", "🎻", "🎼", "🐷", "🐻", "🐺", "👽", "📚", "🌈", "🇫🇷", "🚦", "🚲", "❄️", "🇪🇺", "🇺🇸",
+      "🐾", "🧤", "🌸", "🌼", "✊", "🤘", "📅", "📆", "🧩", "📐"];
+    const fautifs = B.QUESTIONS_CHIFFRES.filter((x) => seCompte.includes(x.emoji) && !(x.emoji === "❄️" && x.correct === 1));
+    assert.deepEqual(fautifs.map((x) => `${x.emoji} ${x.text}`), []);
+    assert.equal(new Set(B.QUESTIONS_CHIFFRES.map((x) => x.emoji)).size, B.QUESTIONS_CHIFFRES.length, "un émoji différent par question");
+  });
+
   test("tirer au hasard : le thème, l'âge, jamais ce qui est déjà dans le quiz, des émojis et des réponses variés", () => {
     for (let graine = 1; graine <= 30; graine++) {
       const t = B.tirerChiffres(5, { theme: "animaux", age: 7, exclus: new Set(["Combien de pattes a une araignée ?"]), rng: rng(graine) });
