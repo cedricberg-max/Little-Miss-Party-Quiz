@@ -21,13 +21,14 @@ enum class Design(val cle: String, val nom: String) {
     ;
 
     companion object {
-        fun depuis(cle: String?): Design = entries.firstOrNull { it.cle == cle } ?: CLASSIQUE
+        /** Le design gardé sur la box ; sans choix, « The Game Show », le design par défaut depuis le 22 octobre (cedric). */
+        fun depuis(cle: String?): Design = entries.firstOrNull { it.cle == cle } ?: GAME_SHOW
     }
 }
 
 /** Design affiché. Lu par les couleurs et la police : changer de design redessine tout l'écran. */
 object Look {
-    var design by mutableStateOf(Design.CLASSIQUE)
+    var design by mutableStateOf(Design.GAME_SHOW)
     val gs: Boolean get() = design == Design.GAME_SHOW
 }
 

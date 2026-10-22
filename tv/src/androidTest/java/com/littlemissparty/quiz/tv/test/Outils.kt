@@ -86,6 +86,11 @@ object Boite {
     /** Repart d'une box neuve : aucune partie à reprendre. */
     fun oublierPartie() = prefs.edit().clear().commit()
 
+    private val design get() = contexte.getSharedPreferences("lmp_design", Context.MODE_PRIVATE)
+
+    /** Design choisi dans le menu Retour (« gs » ou « classique ») ; null = celui de la box par défaut (The Game Show). */
+    fun choisirDesign(cle: String?) = design.edit().apply { if (cle == null) clear() else putString("design-v2", cle) }.commit()
+
     fun codeActif(): String? = prefs.getString("active_game", null)
 
     fun lancer(): ActivityScenario<MainActivity> = ActivityScenario.launch(MainActivity::class.java)

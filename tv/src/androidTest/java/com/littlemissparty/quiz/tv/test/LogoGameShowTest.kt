@@ -1,6 +1,5 @@
 package com.littlemissparty.quiz.tv.test
 
-import android.content.Context
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -19,21 +18,14 @@ class LogoGameShowTest : TestTv() {
 
     private val regies = mutableListOf<RegieSimulee>()
 
-    private fun design(cle: String) =
-        Boite.contexte.getSharedPreferences("lmp_design", Context.MODE_PRIVATE).edit().putString("design", cle).commit()
-
     @Before
     fun gameShow() {
         RegieSimulee.definirMotDePasse()
-        design("gs")
+        Boite.choisirDesign("gs")
     }
 
-    /** Les autres tests restent en design Classique, celui de la box par défaut. */
     @After
-    fun classique() {
-        regies.forEach { it.close() }
-        design("classique")
-    }
+    fun rangerRegies() = regies.forEach { it.close() }
 
     /**
      * « THE » et « GAME SHOW » : au milieu de l'écran, à 1 % de sa largeur près. Sur la pause, le petit logo du bas de
