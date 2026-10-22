@@ -783,6 +783,7 @@ describe("régie", () => {
     const fond = () => page.locator("#flou-info").evaluate((el) => getComputedStyle(el).backgroundColor);
     assert.equal(await page.locator("#flou-info.buzz-couleur").count(), 1);
     assert.equal(await fond(), "rgb(255, 45, 138)");
+    assert.equal(await page.locator("#flou-info .buzz-nom-couleur").count(), 0, "couleur hors palette : pas de nom de couleur");
     await page.locator("#flou-ok small", { hasText: "+150 pour Les Roses" }).waitFor();
     await page.click("#flou-ko");
     await page.locator("#flou-info", { hasText: "Déjà essayé : Les Roses" }).waitFor();
@@ -793,6 +794,9 @@ describe("régie", () => {
     await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/buzz/f1-1000-1`), { team: "bleu", at: Date.now() }));
     await page.locator("#flou-ok small", { hasText: "+100 pour Les Bleus" }).waitFor();
     assert.equal(await fond(), "rgb(255, 107, 26)");
+    // Couleur des bracelets : son nom en gros, avant le message.
+    await page.locator("#flou-info .buzz-nom-couleur", { hasText: "ORANGE" }).waitFor();
+    await page.locator("#flou-info", { hasText: "Les Bleus a buzzé ! Réponse attendue : Un lion" }).waitFor();
     await page.click("#flou-ok");
     await page.locator("#c-phase", { hasText: "Réponse révélée" }).waitFor();
     assert.deepEqual((await read("state")).scores, { bleu: 100 });

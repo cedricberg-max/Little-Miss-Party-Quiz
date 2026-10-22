@@ -1,7 +1,7 @@
 import {
   ref, get, set, update, push, onValue, serverTimestamp, query, limitToFirst,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
-import { CHOICE_LETTERS } from "./theme.js";
+import { CHOICE_LETTERS, TEAM_COLORS, TEAM_COLOR_NAMES } from "./theme.js";
 import { writeProof } from "./proof.js";
 import { parPertinence } from "./recherche.js";
 import { passwordCandidates } from "./secret.js";
@@ -1180,14 +1180,22 @@ $("blind-skip").onclick = async () => {
 $("blind-cut").onclick = () => send("blind_cut", {}, { advance: true });
 
 /**
- * Message « X a buzzé ! » dans la couleur de l'équipe (celle de ses bracelets) : Sarah sait d'un coup d'œil
- * quelle équipe interroger, sans relire le nom (cedric, 22/10). Sans équipe, le message reprend son style habituel.
+ * Message « X a buzzé ! » dans la couleur de l'équipe (celle de ses bracelets), précédé du nom de la couleur en
+ * gros : Sarah sait d'un coup d'œil quelle équipe interroger, sans relire le nom (cedric, 22/10). Appelée juste après
+ * avoir écrit le texte ; sans équipe, le message reprend son style habituel.
  */
 function couleurBuzz(el, teamId) {
   const color = teamId ? live.teams[teamId]?.color : null;
   el.classList.toggle("buzz-couleur", !!color);
-  if (color) el.style.setProperty("--team", color);
-  else el.style.removeProperty("--team");
+  if (!color) return el.style.removeProperty("--team");
+  el.style.setProperty("--team", color);
+  const nom = TEAM_COLOR_NAMES[TEAM_COLORS.findIndex((c) => c.toUpperCase() === color.toUpperCase())];
+  if (nom) {
+    const tag = document.createElement("b");
+    tag.className = "buzz-nom-couleur";
+    tag.textContent = nom.toUpperCase();
+    el.prepend(tag);
+  }
 }
 
 /** Jeux au buzzer : qui a buzzé, la réponse attendue, et les deux boutons du verdict. */

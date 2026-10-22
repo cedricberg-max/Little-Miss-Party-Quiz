@@ -8,6 +8,9 @@
  */
 export const TEAM_COLORS = ["#FF2D95", "#FF6B1A", "#39FF14", "#FFE600", "#2B86C5", "#9B5DE5", "#F94144", "#2EE8E0"];
 
+/** Nom de chaque couleur d'équipe, dans le même ordre (bandeau « a buzzé » de la régie). */
+export const TEAM_COLOR_NAMES = ["Rose", "Orange", "Vert", "Jaune", "Bleu", "Violet", "Rouge", "Turquoise"];
+
 /** Nombre de couleurs de bracelets : le pupitre ne propose qu'elles tant qu'il en reste une de libre. */
 export const BRACELET_COLORS = 4;
 
