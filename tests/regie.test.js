@@ -2225,6 +2225,72 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Régie PC : les pochettes à part de « Mes images » (cedric, 22/10), et gardées quand la chanson est effacée pour de bon", async () => {
+    const COUV = "c0c0c0c0c0c0c0c0";
+    const AUTRE = "c1c1c1c1c1c1c1c1";
+    const PERSO = "a0a0a0a0a0a0a0a0";
+    for (const [id, rgb] of [[COUV, [200, 60, 60]], [AUTRE, [60, 60, 200]], [PERSO, [60, 200, 60]]]) {
+      await seedLibrary(`images/${id}`, `data:image/png;base64,${png(rgb).toString("base64")}`);
+    }
+    await seedLibrary("medias", { [PERSO]: { name: "Elsa", cat: "Dessins animés", tags: "princesse", createdAt: 1, updatedAt: 1 } });
+    await seedLibrary("quizzes/reines", { title: "Les reines", updatedAt: 1, questions: [
+      { text: "Qui est-ce ?", choices: ["Elsa", "Anna"], correct: 0, status: "validee", imageId: PERSO },
+    ] });
+    await seedLibrary("songs", {
+      s1: { title: "Djadja", artist: "Aya Nakamura", imageId: COUV, audioId: "0123456789abcdef", buzz: 30, retiree: true, updatedAt: 1 },
+      s2: { title: "Hakuna Matata", artist: "Le Roi lion", imageId: AUTRE, audioId: "fedcba9876543210", buzz: 30, updatedAt: 1 },
+    });
+    const page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.locator("#library-images:not([hidden])").waitFor();
+    // Aperçu : une rubrique « 💿 Pochettes » ; aucune pochette dans « Mes images ».
+    await page.locator('#media-groups [data-groupe="pochettes"]', { hasText: "💿 Pochettes (2)" }).waitFor();
+    await page.locator('#media-list .media-group[data-groupe="pochettes"] .media-tile', { hasText: "Aya Nakamura – Djadja" }).waitFor();
+    await page.locator('#media-list .media-group[data-groupe="miennes"] .media-tile', { hasText: "Elsa" }).waitFor();
+    assert.equal(await page.locator('#media-list .media-group[data-groupe="miennes"] .media-tile').count(), 1, "seulement ses images");
+    // La recherche trouve une pochette par l'artiste.
+    await page.fill("#media-search", "nakamura");
+    await page.locator('#media-list .media-group[data-groupe="pochettes"] .media-tile', { hasText: "Djadja" }).waitFor();
+    assert.equal(await page.locator('#media-list .media-group[data-groupe="pochettes"] .media-tile').count(), 1);
+    await page.fill("#media-search", "");
+    // La rubrique : une fiche par pochette, par artiste ; nom et mots-clés, pas de catégorie à choisir.
+    await page.click('#media-groups [data-groupe="pochettes"]');
+    const djadja = page.locator(`.media-card[data-media="${COUV}"]`);
+    await djadja.locator(".media-name").waitFor();
+    assert.deepEqual(await page.locator("#media-list .media-card .media-name").evaluateAll((l) => l.map((x) => x.value)), ["Aya Nakamura – Djadja", "Le Roi lion – Hakuna Matata"]);
+    assert.equal(await djadja.locator(".media-cat").count(), 0);
+    await djadja.locator(".small", { hasText: "Utilisée dans : Chanson « Djadja »" }).waitFor();
+    assert.equal(await page.locator("#media-upload").isHidden(), true, "on n'envoie pas ses images dans les pochettes");
+    await capture(page, "bibliotheque-pochettes");
+
+    // La chanson supprimée est effacée pour de bon : sa pochette reste, avec sa fiche « Pochettes ».
+    await page.click('#library-tabs [data-lib-tab="sons"]');
+    await page.locator("#song-retirees", { hasText: "🗑 Supprimées (1)" }).click();
+    const question = repondreFenetre(page);
+    await page.locator("#song-list .song", { hasText: "Djadja" }).getByRole("button", { name: "Effacer pour de bon" }).click();
+    assert.match(await question, /Sa pochette reste dans Bibliothèque › Images › 💿 Pochettes\.$/);
+    await waitFor(async () => (await library("songs/s1")) == null, "chanson effacée");
+    const fiche = await library(`medias/${COUV}`);
+    assert.deepEqual([fiche.name, fiche.cat, fiche.tags], ["Aya Nakamura – Djadja", "Pochettes", "Aya Nakamura, Djadja"]);
+    assert.match(await library(`images/${COUV}`), /^data:image\//);
+    await page.click('#library-tabs [data-lib-tab="images"]');
+    await page.click('#media-groups [data-groupe="pochettes"]');
+    await page.locator(`.media-card[data-media="${COUV}"]`).waitFor();
+    await waitFor(async () => await page.locator(`#media-list .media-card[data-media="${COUV}"]`, { hasText: "Utilisée dans" }).count() === 0, "plus utilisée nulle part, mais gardée");
+
+    // Une pochette se retire de la rubrique (sans toucher la chanson) et se remet.
+    await page.locator(`.media-card[data-media="${AUTRE}"]`).getByRole("button", { name: "Retirer" }).click();
+    await page.locator("#media-note", { hasText: "« Le Roi lion – Hakuna Matata » est retirée" }).waitFor();
+    await waitFor(async () => (await library(`medias/${AUTRE}`))?.hidden === true, "pochette retirée");
+    assert.equal((await library(`medias/${AUTRE}`)).cat, "Pochettes");
+    assert.equal((await library("songs/s2")).imageId, AUTRE, "la chanson garde sa pochette");
+    await page.click('#media-cats [data-cat="retirees"]');
+    await page.locator(`.media-card.retiree[data-media="${AUTRE}"]`).getByRole("button", { name: "Remettre" }).click();
+    await waitFor(async () => (await library(`medias/${AUTRE}`))?.hidden === undefined, "pochette remise");
+    await page.locator('#media-groups [data-groupe="miennes"]', { hasText: "⭐ Mes images (1)" }).waitFor();
+    await page.context().close();
+  });
+
   test("Sons : une ligne par chanson ; cocher (un, Maj + clic, Ctrl + A) puis « Supprimer » (les playlists les gardent) et les remettre ; « ← Retour » sur la page d'un jeu", async () => {
     const A = "0123456789abcdef";
     const B = "fedcba9876543210";
@@ -4537,6 +4603,41 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(q[1].choiceImages, undefined);
     await waitFor(async () => Object.keys((await read("choiceImages")) ?? {}).length === 4, "images des réponses copiées dans la partie");
     await regie.context().close();
+  });
+
+  test("« 💾 Sauvegarder les prestations » (cedric, 22/10) : un fichier sur le PC, sans les images ni les sons, rien d'écrit en ligne", async () => {
+    const INES = { childName: "Inès", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 };
+    const TOM = { childName: "Tom", status: "brouillon", updatedAt: 2 };
+    const SONG = { title: "Djadja", artist: "Aya Nakamura", imageId: "a1b2c3d4e5f60718", updatedAt: 3 };
+    await seedLibrary("shows", { ines: INES, tom: TOM });
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    await seedLibrary("songs", { djadja: SONG });
+    await seedLibrary("images", { a1b2c3d4e5f60718: "data:image/png;base64,AAAA" });
+    const avant = await library("");
+    const page = await admin();
+    await page.click("#nav button[data-screen=settings]");
+    const [telechargement] = await Promise.all([page.waitForEvent("download"), page.click("#sauvegarde")]);
+    assert.match(telechargement.suggestedFilename(), /^sauvegarde-regie-\d{4}-\d{2}-\d{2}-\d{2}h\d{2}\.json$/);
+    const fichier = JSON.parse(readFileSync(await telechargement.path(), "utf8"));
+    assert.equal(fichier.app, "little-miss-party-quiz");
+    assert.deepEqual(fichier.library.shows, { ines: INES, tom: TOM });
+    assert.deepEqual(fichier.library.quizzes, { animaux: ANIMAUX });
+    assert.deepEqual(fichier.library.songs, { djadja: SONG });
+    assert.deepEqual(fichier.library.manches, {});
+    assert.equal(fichier.library.images, undefined, "pas les fichiers des images");
+    assert.equal(fichier.library.sounds, undefined, "pas les fichiers des sons");
+    await page.locator("#sauvegarde-status", { hasText: `${telechargement.suggestedFilename()} (2 prestations,` }).waitFor();
+    assert.deepEqual(await library(""), avant, "rien d'écrit en ligne");
+    await page.context().close();
+
+    // La Régie PC d'essai (adresse « …--essai-… ») a son bandeau ; la vraie, non.
+    const essai = await openRegie(null, "?emu=1", "/admin.html");
+    assert.equal(await essai.evaluate(() => document.body.classList.contains("essai")), false);
+    await essai.goto(`${baseUrl.replace("127.0.0.1", "lmp--essai-x1.localhost")}/admin.html?emu=1`);
+    await essai.locator("body.essai").waitFor({ state: "attached" });
+    await essai.locator("#login-form").waitFor();
+    assert.match(await essai.evaluate(() => getComputedStyle(document.body, "::before").content), /Régie PC d'essai/);
+    await essai.context().close();
   });
 
   test("prestation de test : ajoutée en un clic sans rien remplacer, modifiée dans l'admin, chargée telle quelle sur la TV", async () => {

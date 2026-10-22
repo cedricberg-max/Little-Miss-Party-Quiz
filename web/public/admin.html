@@ -521,6 +521,18 @@
     <section id="screen-settings" class="screen" hidden>
       <h1>Paramètres</h1>
       <div class="settings">
+      <!-- Sauvegarde avant les séances de travail en direct sur la Régie PC d'essai (cedric, 22/10). -->
+      <div class="panel" id="sauvegarde-panel">
+      <h2>Sauvegarde</h2>
+      <p class="hint">
+        Télécharge sur ce PC un fichier avec les prestations, les manches, les quiz, les playlists, les mimes, les fiches
+        des chansons, les paroles et les fiches des images. Les fichiers des images et des sons ne sont pas dedans
+        (trop lourds) : ils ne bougent pas. Rien n'est modifié en ligne.
+      </p>
+      <button id="sauvegarde" class="btn" type="button">💾 Sauvegarder les prestations</button>
+      <p id="sauvegarde-status" class="status"></p>
+      </div>
+
       <div class="panel" id="boxes-panel">
       <h2>Box TV</h2>
       <p class="hint">

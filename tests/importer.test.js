@@ -1951,7 +1951,7 @@ describe("bibliothèque d'images de la Régie PC (émojis, photos libres, ses im
     assert.deepEqual(u.get(ID), { nom: "Chat", ou: ["Quiz « Léa »"] });
     assert.equal(u.get(ID2).nom, "Chien");
     assert.deepEqual(u.get("1111111111111111"), { nom: "Le koala", ou: ["Qui suis-je ?"] });
-    assert.deepEqual(u.get("2222222222222222").ou, ["Pochettes des chansons"]);
+    assert.deepEqual(u.get("2222222222222222").ou, ["Chanson « Hakuna Matata »"]);
     const mes = B.mesImages({ [ID2]: { name: "Toutou", cat: "Famille et amis", tags: "chien, doudou", createdAt: 5 }, [ID]: { name: "Minou", hidden: true, createdAt: 9 } }, u);
     assert.deepEqual(mes.map((x) => [x.nom, x.cat, x.retiree, x.fiche]), [
       ["Minou", "À ranger", true, true], ["Toutou", "Famille et amis", false, true],
@@ -1959,6 +1959,50 @@ describe("bibliothèque d'images de la Régie PC (émojis, photos libres, ses im
     ]);
     assert.deepEqual(mes[1].tags, ["chien", "doudou"]);
     assert.deepEqual(mes[1].ou, ["Quiz « Léa »"]);
+  });
+
+  test("les pochettes (cedric, 22/10) : à part de ses images, celles des chansons toutes seules, gardées après l'effacement", () => {
+    const C1 = "c1c1c1c1c1c1c1c1", C2 = "c2c2c2c2c2c2c2c2", C3 = "c3c3c3c3c3c3c3c3", C4 = "c4c4c4c4c4c4c4c4", PERSO = "a5a5a5a5a5a5a5a5";
+    const lib = {
+      quizzes: { a: { title: "Léa", questions: [{ text: "?", choices: ["Elsa", "Anna"], correct: 0, imageId: PERSO, choiceImages: { 1: C2 } }] } },
+      songs: {
+        s1: { title: "Libérée, délivrée", artist: "Anaïs Delva", imageId: C1 },
+        s2: { title: "Hakuna Matata", artist: "Disney", imageId: C2, retiree: true },
+        s3: { title: "Sans pochette" },
+      },
+      playlists: { p: { title: "Disney", tracks: [{ title: "Libérée, délivrée", artist: "Anaïs Delva", imageId: C1 }, { title: "Un jour mon prince viendra", imageId: C3 }] } },
+    };
+    const u = B.imagesUtilisees(lib);
+    const cov = B.pochettesUtilisees(lib);
+    assert.deepEqual([...cov.keys()].sort(), [C1, C2, C3]);
+    // Mots-clés séparés aux virgules, comme ceux d'une fiche : la recherche trouve chaque mot.
+    assert.deepEqual(cov.get(C1), { nom: "Anaïs Delva – Libérée, délivrée", tags: ["Anaïs Delva", "Libérée", "délivrée"] });
+    assert.equal(cov.get(C3).nom, "Un jour mon prince viendra");
+    const medias = {
+      // Chanson effacée pour de bon : sa pochette garde sa fiche « Pochettes ».
+      [C4]: { name: "Aya Nakamura – Djadja", cat: B.POCHETTES, tags: "Aya Nakamura, Djadja", createdAt: 3 },
+      // Sa photo à elle, rangée dans ses catégories : elle reste dans « Mes images », même utilisée comme pochette.
+      [C3]: { name: "Blanche-Neige", cat: "Dessins animés", createdAt: 4 },
+      [PERSO]: { name: "Elsa", cat: "Dessins animés", createdAt: 5 },
+    };
+    const mes = B.mesImages(medias, u, cov);
+    assert.deepEqual(mes.map((x) => x.nom).sort(), ["Blanche-Neige", "Elsa"], "aucune pochette dans « Mes images »");
+    const poch = B.mesPochettes(medias, cov, u);
+    assert.deepEqual(poch.map((x) => [x.nom, x.groupe, x.cat, x.fiche]), [
+      ["Anaïs Delva – Libérée, délivrée", "pochettes", B.POCHETTES, false],
+      ["Aya Nakamura – Djadja", "pochettes", B.POCHETTES, true],
+      ["Disney – Hakuna Matata", "pochettes", B.POCHETTES, false],
+    ], "par artiste ; la chanson supprimée garde sa pochette");
+    assert.deepEqual(poch[1].tags, ["Aya Nakamura", "Djadja"]);
+    // Une pochette aussi utilisée dans un quiz le dit, et se trouve par l'artiste ou le titre.
+    assert.deepEqual(poch[2].ou, ["Quiz « Léa »", "Chanson « Hakuna Matata »"]);
+    assert.ok(B.correspond(poch[0], "anais liberee") && B.correspond(poch[1], "djadja") && !B.correspond(poch[1], "elsa"));
+    // Une fiche sans catégorie (nommée à la main quand elle était « À ranger ») d'une pochette : dans les pochettes.
+    const nommee = B.mesPochettes({ [C1]: { name: "Reine des neiges", hidden: true, createdAt: 1 } }, cov, u);
+    assert.deepEqual(nommee.find((x) => x.id === C1), { groupe: "pochettes", id: C1, nom: "Reine des neiges", cat: B.POCHETTES, tags: ["Anaïs Delva", "Libérée", "délivrée"], retiree: true, ou: ["Chanson « Libérée, délivrée »", "Playlist « Disney »"], fiche: true });
+    assert.equal(B.mesImages({ [C1]: { name: "Reine des neiges", createdAt: 1 } }, u, cov).some((x) => x.id === C1), false);
+    assert.equal(B.nomPochette({ title: " Titre ", artist: "" }), "Titre");
+    assert.equal(B.GROUPES_IMAGES.pochettes, "💿 Pochettes");
   });
 
   test("la recherche : chaque mot dans le nom, la catégorie ou les mots-clés, sans accents ni majuscules", () => {
