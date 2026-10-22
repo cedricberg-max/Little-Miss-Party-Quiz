@@ -355,8 +355,43 @@ object Sons {
         }
     }
 
-    private fun id(context: Context, nom: String): Int? =
+    /**
+     * Fichier d'un son : en design « The Game Show », sa version sci-fi (res/raw/gs_…) quand elle existe, sinon le son
+     * classique. Les noms restent ceux du classique partout ailleurs : seul le fichier lu change.
+     */
+    private fun id(context: Context, nom: String): Int? {
+        if (Look.gs) brut(context, nom.replaceFirst("lmp_", "gs_"))?.let { return it }
+        return brut(context, nom)
+    }
+
+    private fun brut(context: Context, nom: String): Int? =
         context.resources.getIdentifier(nom, "raw", context.packageName).takeIf { it != 0 }
+
+    /**
+     * Changement de design : on lâche tous les sons chargés et on recharge ceux du nouveau design, dans le même ordre
+     * qu'au démarrage. L'ambiance demandée reprend dès que sa boucle est prête.
+     */
+    fun recharger(context: Context) {
+        val app = context.applicationContext
+        h.post {
+            h.removeCallbacksAndMessages(prevus)
+            h.removeCallbacksAndMessages(fondus)
+            h.removeCallbacksAndMessages(fonduCrayon)
+            longs.values.forEach { essayer("recharger") { it.release() } }
+            longs.clear()
+            lits.values.forEach { essayer("recharger") { it.liberer() } }
+            lits.clear()
+            essayer("recharger") { crayon?.release() }
+            crayon = null
+            crayonActif = false
+            volumeCrayon = 0f
+            essayer("recharger") { pool?.release() }
+            pool = null
+            courts.clear()
+            pret = false
+            preparer(app)
+        }
+    }
 
     private inline fun essayer(quoi: String, bloc: () -> Unit) {
         try {
