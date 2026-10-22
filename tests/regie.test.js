@@ -4745,6 +4745,13 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator(`.q-item[data-question="${idSavane}/2"] .q-coche`).check();
     await page.locator("#q-selection:not([hidden])", { hasText: "2 questions cochées" }).waitFor();
     await capture(page, "questions-pack-ouvert");
+    // Sur l'écran du PC, « Éditer » et « Supprimer » restent côte à côte (cedric, 22/10 : « 30 cm » entre les deux).
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const pied = page.locator(`.q-item[data-question="${idSavane}/1"] .q-pied`);
+    const [editer, supprimer] = [await pied.getByRole("button", { name: "Éditer" }).boundingBox(), await pied.getByRole("button", { name: "Supprimer" }).boundingBox()];
+    assert.ok(Math.abs(editer.y - supprimer.y) < 2 && supprimer.x - (editer.x + editer.width) < 20, `boutons écartés : ${JSON.stringify({ editer, supprimer })}`);
+    await capture(page, "questions-pack-pc", { pleinePage: false });
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.click("#q-tout");
     await page.locator("#q-selection-n", { hasText: "4 questions cochées" }).waitFor();
     assert.equal(await page.locator("#q-tout").isHidden(), true);
