@@ -89,7 +89,7 @@ class MainActivity : ComponentActivity() {
                         Look.design = d
                         reglages.edit().putString(CLE_DESIGN, d.cle).apply()
                         // Les sons suivent le design (sons sci-fi du Game Show).
-                        com.littlemissparty.quiz.tv.habillage.Sons.recharger(this)
+                        com.littlemissparty.quiz.tv.habillage.Sons.recharger(this@MainActivity)
                     },
                 ),
                 update = UpdateScreen(
