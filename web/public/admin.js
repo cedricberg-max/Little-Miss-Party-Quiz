@@ -49,6 +49,7 @@ import {
   correspond, categoriesDe, categoriesPerso, ficheImage, motsCles,
 } from "./mediatheque.js";
 import { DOSSIERS, classerPartie, bilan, effacements, passageAFaire, moDe, texteMo, texteGardees } from "./nettoyage.js";
+import { GROUPES_QUESTIONS, questionsToutesPretes, mesQuestions, mesPacks, questionCorrespond, lirePacks, illustration } from "./questions.js";
 
 // Petit œil sur les champs de mot de passe : voir ce qu'on tape (majuscules, caractère en trop).
 afficherMotsDePasse();
@@ -1729,10 +1730,10 @@ dropZone.addEventListener("drop", async (e) => {
  * Associe les images déposées aux réponses qui les nomment : chaque image est réduite et rangée dans la
  * bibliothèque ; une image introuvable est signalée à la relecture, la réponse reste en texte.
  */
-async function attachImportImages(questions) {
+async function attachImportImages(questions, images = importImages, statut = "import-status") {
   let done = 0;
-  const find = (name) => importImages.get(imageKey(name)) ?? importImages.get(imageKey(name).replace(/\.[a-z0-9]+$/, ".png"))
-    ?? [...importImages.entries()].find(([key]) => key.replace(/\.[a-z0-9]+$/, "") === imageKey(name).replace(/\.[a-z0-9]+$/, ""))?.[1];
+  const find = (name) => images.get(imageKey(name)) ?? images.get(imageKey(name).replace(/\.[a-z0-9]+$/, ".png"))
+    ?? [...images.entries()].find(([key]) => key.replace(/\.[a-z0-9]+$/, "") === imageKey(name).replace(/\.[a-z0-9]+$/, ""))?.[1];
   for (const q of questions) {
     // Image de révélation : rangée comme une photo d'illustration, montrée sur la TV avec la bonne réponse.
     if (q.revealFile) {
@@ -1740,7 +1741,7 @@ async function attachImportImages(questions) {
       q.missingImages ??= [];
       if (!f) q.missingImages.push(q.revealFile);
       else {
-        status("import-status", `Préparation des images… (${++done})`, true);
+        status(statut, `Préparation des images… (${++done})`, true);
         try { q.imageId = await storeIllustration(f); } catch (err) { console.error(err); q.missingImages.push(q.revealFile); }
       }
       delete q.revealFile;
@@ -1752,7 +1753,7 @@ async function attachImportImages(questions) {
       if (!name) { q.choiceImages[k] = null; continue; }
       const f = find(name);
       if (!f) { q.choiceImages[k] = null; q.missingImages.push(name); continue; }
-      status("import-status", `Préparation des images… (${++done})`, true);
+      status(statut, `Préparation des images… (${++done})`, true);
       try { q.choiceImages[k] = await storeChoiceImage(f); } catch (err) { console.error(err); q.choiceImages[k] = null; q.missingImages.push(name); }
     }
     delete q.imageFiles;
@@ -4583,9 +4584,229 @@ function renderLibrary(force = false) {
   });
   $("library-images").hidden = libTab !== "images";
   $("library-sons").hidden = libTab !== "sons";
+  $("library-questions").hidden = libTab !== "questions";
   if (libTab === "sons") renderSongs();
+  else if (libTab === "questions") renderQuestions();
   else renderMedias(force);
 }
+
+// ---------- Bibliothèque › Questions (cedric, 22/10) ----------
+
+/** Groupe ouvert : null (les trois en aperçu), « pretes », « miennes » ou « packs » ; pack ouvert ; famille choisie. */
+let qGroupe = null;
+let qPack = null;
+let qCategorie = null;
+/** Packs importés à l'instant : encadrés quelques secondes en tête de liste. */
+let packsNouveaux = new Set();
+/** Questions toutes prêtes : fabriquées une fois (leurs mauvaises réponses sont tirées au hasard). */
+let pretesCache = null;
+const QUESTIONS_APERCU = 4;
+const QUESTIONS_MAX = 120;
+const EXEMPLE_PACK = {
+  packs: [{
+    title: "Les animaux de la savane", theme: "Animaux",
+    questions: [
+      { text: "Quel animal a une très longue trompe ?", choices: ["Éléphant", "Girafe", "Lion", "Zèbre"], correct: 0, illustration: "🐘" },
+      { text: "Quel animal est le roi de la savane ?", choices: ["Hippopotame", "Lion", "Gazelle", "Autruche"], correct: 1, illustration: "lion.png" },
+      { text: "Combien de pattes a une girafe ?", correct: 4, illustration: "🦒" },
+    ],
+  }],
+};
+$("pack-exemple").textContent = JSON.stringify(EXEMPLE_PACK, null, 2);
+
+function groupesQuestions() {
+  pretesCache ??= questionsToutesPretes();
+  return { pretes: pretesCache, miennes: mesQuestions(quizzes), packs: mesPacks(quizzes) };
+}
+
+/** Vignette de l'illustration : sa photo, son émoji, la photo de la banque de la bonne réponse, sinon « ⚠ ». */
+function illustrationQuestion(x) {
+  if (x.imageId) return photoBibliotheque(x.imageId, { class: "q-illus" });
+  if (x.image) return h("span", { class: "q-illus emoji", text: x.image });
+  const photo = x.choiceImages?.[x.correct] ?? null;
+  if (photo) return photoBibliotheque(photo, { class: "q-illus" });
+  if (x.banque?.[0]) return h("img", { class: "q-illus", src: `banque/${x.banque[0]}.jpg`, alt: "", loading: "lazy" });
+  return h("span", { class: "q-illus vide", title: "Pas d'illustration", text: "⚠" });
+}
+
+/** Une réponse : sa petite photo s'il y en a une, son texte ; la bonne réponse est marquée. */
+function reponseQuestion(x, c, k) {
+  const photo = x.choiceImages?.[k] ? photoBibliotheque(x.choiceImages[k], { class: "q-mini" })
+    : x.banque?.[k] ? h("img", { class: "q-mini", src: `banque/${x.banque[k]}.jpg`, alt: "", loading: "lazy" }) : null;
+  return h("li", { class: k === x.correct ? "juste" : "" }, photo, h("span", { text: `${k === x.correct ? "✓ " : ""}${c}` }));
+}
+
+function ligneQuestion(x) {
+  const quiz = x.quizId ? quizzes[x.quizId] : null;
+  return h("div", { class: `q-item${x.ok ? "" : " sans-illus"}`, "data-question": x.cle },
+    illustrationQuestion(x),
+    h("div", { class: "q-corps" },
+      h("b", { class: "q-texte", text: x.text || "(question sans texte)" }),
+      x.nombre ? h("p", { class: "q-nombre", text: `Le Juste Chiffre · réponse : ${x.correct}` })
+        : h("ul", { class: "q-reponses" }, ...x.choices.map((c, k) => reponseQuestion(x, c, k))),
+      h("div", { class: "q-pied" },
+        x.ok ? null : h("span", { class: "q-alerte", text: `⚠ ${x.manque}` }),
+        x.validee ? null : h("span", { class: "q-a-valider", text: "À valider" }),
+        h("span", { class: "hint small", text: x.source ?? "" }),
+        quiz ? h("button", { type: "button", class: "btn small secondary", text: "Éditer", onclick: () => review(x.quizId, quiz) }) : null)));
+}
+
+function cartePack(p) {
+  return h("div", { class: `item pack${packsNouveaux.has(p.id) ? " copie-recente" : ""}`, "data-pack": p.id },
+    h("span", { class: "pill", text: QUIZ_KINDS[p.kind] ?? "📝 Quiz classique" }),
+    h("b", { text: p.title }),
+    h("span", { text: [p.theme, SOURCES[p.source] ?? ""].filter(Boolean).join(" · ") }),
+    h("span", { text: `${plural(p.total, "question")} · ${p.validees} validée${p.validees > 1 ? "s" : ""}` }),
+    p.sansIllustration ? h("span", { class: "q-alerte", text: `⚠ ${p.sansIllustration} sans illustration` }) : h("span", { class: "ok", text: "✓ Toutes illustrées" }),
+    h("div", { class: "row" },
+      h("button", { class: "btn", type: "button", text: "Ouvrir", onclick: () => { qPack = p.id; renderQuestions(); } }),
+      h("button", { class: "btn secondary", type: "button", text: "Éditer", onclick: () => review(p.id, quizzes[p.id]) }),
+      h("button", { class: "btn secondary", type: "button", text: "Renommer", onclick: () => rename(`library/quizzes/${p.id}`, p.title, "du pack") }),
+      h("button", { class: "btn danger", type: "button", text: "Supprimer", onclick: () => deleteQuiz(p.id, quizzes[p.id]) })));
+}
+
+function renderQuestions() {
+  const g = groupesQuestions();
+  const recherche = $("q-search").value.trim();
+  const filtre = (list) => (recherche ? list.filter((x) => questionCorrespond(x, recherche)) : list);
+  // Un pack correspond si son titre, son thème ou une de ses questions correspond.
+  const packsTrouves = recherche ? g.packs.filter((p) => questionCorrespond({ text: p.title, categorie: p.theme }, recherche) || p.questions.some((x) => questionCorrespond(x, recherche))) : g.packs;
+  const compte = { pretes: filtre(g.pretes).length, miennes: filtre(g.miennes).length, packs: packsTrouves.reduce((n, p) => n + p.total, 0) };
+  if (qPack && !quizzes[qPack]) qPack = null;
+  const chip = (key, label, n) => h("button", {
+    type: "button", class: `chip${qGroupe === key ? " active" : ""}`, "data-groupe": key ?? "tout", text: `${label} (${n})`,
+    onclick: () => { qGroupe = key; qPack = null; qCategorie = null; renderQuestions(); },
+  });
+  $("q-groups").replaceChildren(chip(null, "Tout", compte.pretes + compte.miennes + compte.packs),
+    ...Object.entries(GROUPES_QUESTIONS).map(([k, label]) => chip(k, label, compte[k])));
+  $("q-count").textContent = recherche ? plural(compte.pretes + compte.miennes + compte.packs, "question trouvée", "questions trouvées") : "";
+  $("pack-import").hidden = qGroupe !== "packs" || !!qPack;
+  const box = $("q-list");
+  const plusQue = (n) => (n > QUESTIONS_MAX ? h("p", { class: "hint small", text: `… et ${n - QUESTIONS_MAX} autres : précisez la recherche.` }) : null);
+
+  // Un pack ouvert : ses questions, chacune avec son illustration ou l'alerte.
+  if (qPack) {
+    const p = g.packs.find((x) => x.id === qPack);
+    const liste = filtre(p.questions);
+    box.replaceChildren(
+      h("div", { class: "title-row" },
+        h("button", { type: "button", class: "btn secondary", text: "← Tous les packs", onclick: () => { qPack = null; renderQuestions(); } }),
+        h("button", { type: "button", class: "btn secondary", text: "Éditer le pack", onclick: () => review(p.id, quizzes[p.id]) })),
+      h("h2", { text: p.title }),
+      h("p", { class: "hint", text: [p.theme, plural(p.total, "question"), p.sansIllustration ? `⚠ ${p.sansIllustration} sans illustration` : "✓ toutes illustrées"].filter(Boolean).join(" · ") }),
+      liste.length ? h("div", { class: "q-liste" }, ...liste.map(ligneQuestion)) : h("p", { class: "hint", text: "Aucune question ne correspond à cette recherche." }));
+    return;
+  }
+
+  // Aperçu : les trois groupes l'un sous l'autre, quelques questions (ou packs) chacun.
+  if (!qGroupe) {
+    box.replaceChildren(...Object.entries(GROUPES_QUESTIONS).map(([k, label]) => {
+      const voir = h("button", { type: "button", class: "btn small secondary", text: "Voir tout", onclick: () => { qGroupe = k; renderQuestions(); } });
+      const contenu = k === "packs"
+        ? (packsTrouves.length ? h("div", { class: "cards" }, ...packsTrouves.slice(0, QUESTIONS_APERCU).map(cartePack))
+          : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : "Aucun pack pour l'instant : « Voir tout », puis « 📥 Importer des packs JSON… »." }))
+        : (filtre(g[k]).length ? h("div", { class: "q-liste" }, ...filtre(g[k]).slice(0, QUESTIONS_APERCU).map(ligneQuestion))
+          : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : k === "miennes" ? "Aucune question écrite à la main pour l'instant." : "" }));
+      return h("section", { class: "q-groupe", "data-groupe": k }, h("div", { class: "title-row" }, h("h2", { text: label }), voir), contenu);
+    }));
+    return;
+  }
+
+  if (qGroupe === "packs") {
+    const liste = [...packsTrouves].sort((a, b) => Number(packsNouveaux.has(b.id)) - Number(packsNouveaux.has(a.id)));
+    box.replaceChildren(liste.length ? h("div", { class: "cards" }, ...liste.map(cartePack))
+      : h("p", { class: "hint", text: recherche ? "Aucun pack ne correspond à cette recherche." : "Aucun pack pour l'instant : importez votre premier fichier JSON." }));
+    return;
+  }
+
+  // Toutes prêtes (par famille) ou Mes questions (par quiz) : une puce par famille ou par quiz, puis la liste.
+  const tout = filtre(g[qGroupe]);
+  const categories = [...new Set(tout.map((x) => x.categorie).filter(Boolean))];
+  if (qCategorie && !categories.includes(qCategorie)) qCategorie = null;
+  const liste = qCategorie ? tout.filter((x) => x.categorie === qCategorie) : tout;
+  const sans = liste.filter((x) => !x.ok).length;
+  box.replaceChildren(
+    categories.length > 1 ? h("div", { class: "chips q-categories" },
+      h("button", { type: "button", class: `chip${qCategorie ? "" : " active"}`, text: `Toutes (${tout.length})`, onclick: () => { qCategorie = null; renderQuestions(); } }),
+      ...categories.map((c) => h("button", { type: "button", class: `chip${qCategorie === c ? " active" : ""}`, "data-categorie": c, text: `${c} (${tout.filter((x) => x.categorie === c).length})`, onclick: () => { qCategorie = c; renderQuestions(); } }))) : null,
+    sans ? h("p", { class: "q-alerte", text: `⚠ ${plural(sans, "question")} sans illustration complète ici.` }) : null,
+    liste.length ? h("div", { class: "q-liste" }, ...liste.slice(0, QUESTIONS_MAX).map(ligneQuestion))
+      : h("p", { class: "hint", text: recherche ? "Aucune question ne correspond à cette recherche." : qGroupe === "miennes" ? "Aucune question écrite à la main pour l'instant : « Créer un quiz » dans la page du Quiz." : "Aucune question." }),
+    plusQue(liste.length));
+}
+$("q-search").oninput = () => renderQuestions();
+
+/** Durée gardée seulement si la base l'accepte (5 à 120 s) ; sinon la durée du jeu. */
+const dureeQuestion = (d) => (Number.isFinite(d) && d >= 5 && d <= 120 ? d : null);
+
+/**
+ * « 📥 Importer des packs JSON… » : chaque pack devient un quiz de la bibliothèque (source « fichier »), jouable dans
+ * le Quiz comme les autres. Les images déposées avec le fichier rejoignent les questions qui les nomment. Une question
+ * sans défaut est validée d'office ; les autres restent « À valider », à corriger dans « Éditer ».
+ */
+$("pack-file").onchange = async () => {
+  const fichiers = [...$("pack-file").files];
+  $("pack-file").value = "";
+  const images = new Map();
+  const jsons = [];
+  for (const f of fichiers) {
+    if (f.type.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(f.name)) images.set(imageKey(f.name), f);
+    else jsons.push(f);
+  }
+  if (!jsons.length) return status("pack-status", "Choisissez au moins un fichier JSON (avec ses images s'il en a).");
+  const erreurs = [];
+  const packs = [];
+  for (const f of jsons) {
+    const lu = lirePacks(await f.text());
+    if (lu.erreur) erreurs.push(`${f.name} : ${lu.erreur}`);
+    else lu.packs.forEach((p) => packs.push({ ...p, fichier: f.name.replace(/\.json$/i, "") }));
+  }
+  if (!packs.length) return status("pack-status", erreurs.join(" "));
+  const faits = [];
+  let questionsFaites = 0, aValider = 0, sansIllus = 0, ignorees = 0;
+  try {
+    for (const p of packs) {
+      await attachImportImages(p.questions, images, "pack-status");
+      const verifs = checkQuestions(p.questions);
+      const gardees = p.questions.map((q, i) => ({ q, ok: !verifs[i].errors.length })).filter(({ q }) => q.kind === "number" || q.choices.length);
+      ignorees += p.questions.length - gardees.length;
+      if (!gardees.length) continue;
+      // Une photo par case A à D au plus (la base n'en garde pas d'autres).
+      gardees.forEach(({ q }) => { if (q.choiceImages) q.choiceImages = q.choiceImages.slice(0, 4); });
+      const kind = gardees.some(({ q }) => (q.choiceImages ?? []).some(Boolean)) ? "photo" : "classique";
+      const questions = gardees.map(({ q, ok }) => ({
+        text: q.text.slice(0, 300), choices: q.kind === "number" ? null : q.choices,
+        correct: Number.isInteger(q.correct) ? q.correct : -1, kind: q.kind === "number" ? "number" : null,
+        duration: dureeQuestion(q.duration), double: q.double === true, status: ok ? "validee" : "brouillon",
+        image: cleanEmoji(q.image) || null, imageId: q.imageId || null, choiceImages: q.kind === "number" ? null : savedChoiceImages(q),
+      }));
+      const id = push(ref(db, "library/quizzes")).key;
+      const title = (p.title || p.theme || p.fichier || "Pack sans titre").slice(0, 120);
+      await set(ref(db, `library/quizzes/${id}`), {
+        title, theme: p.theme || null, ageMin: p.ageMin ?? null, ageMax: p.ageMax ?? null, source: "json", kind,
+        createdAt: Date.now(), updatedAt: serverTimestamp(), questions,
+      });
+      faits.push(id);
+      questionsFaites += questions.length;
+      aValider += questions.filter((q) => q.status !== "validee").length;
+      sansIllus += questions.filter((q) => !illustration(q, kind).ok).length;
+    }
+  } catch (err) {
+    console.error(err);
+    erreurs.push("Import interrompu : vérifiez Internet ou reconnectez-vous, puis recommencez avec les packs manquants.");
+  }
+  packsNouveaux = new Set(faits);
+  setTimeout(() => { packsNouveaux = new Set(); if (libTab === "questions" && !$("screen-library").hidden) renderQuestions(); }, 6000);
+  qGroupe = "packs";
+  qPack = null;
+  renderQuestions();
+  const bilan = faits.length
+    ? [`${plural(faits.length, "pack importé", "packs importés")} : ${plural(questionsFaites, "question")}`,
+      aValider ? `${aValider} à valider dans « Éditer »` : null, sansIllus ? `⚠ ${sansIllus} sans illustration` : null,
+      ignorees ? `${ignorees} ignorée${ignorees > 1 ? "s" : ""} (sans réponses)` : null].filter(Boolean).join(", ") + "."
+    : "Aucun pack importé.";
+  status("pack-status", [bilan, ...erreurs].join(" "), faits.length > 0 && !erreurs.length);
+};
 
 /** Les groupes d'images ; ses images et les pochettes retirées à part ([RETIREES] : par groupe). */
 function groupesImages() {

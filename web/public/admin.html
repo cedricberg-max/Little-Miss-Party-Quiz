@@ -136,6 +136,7 @@
       <div id="library-tabs" class="chips game-tabs">
         <button type="button" class="chip" data-lib-tab="images">🖼️ Images</button>
         <button type="button" class="chip" data-lib-tab="sons">🎵 Sons</button>
+        <button type="button" class="chip" data-lib-tab="questions">❓ Questions</button>
       </div>
       <div id="library-images">
         <p class="hint">
@@ -185,6 +186,36 @@
         <p id="song-entieres" class="song-entieres" hidden></p>
         <div id="song-barre" class="song-barre" hidden></div>
         <div id="song-list" class="song-list"></div>
+      </div>
+      <!-- Questions (cedric, 22/10) : toutes prêtes, écrites à la main, packs importés ; l'illustration manquante est signalée. -->
+      <div id="library-questions" hidden>
+        <p class="hint">
+          Toutes les questions des quiz, en trois groupes : celles toutes prêtes de l'appli, celles que vous avez écrites
+          et vos packs importés. Une question sans illustration est signalée par « ⚠ ».
+        </p>
+        <div class="search-row">
+          <input id="q-search" type="search" placeholder="Chercher : lion, planète, Disney…" aria-label="Rechercher une question" autocomplete="off">
+          <span id="q-count" class="hint small"></span>
+        </div>
+        <div id="q-groups" class="chips"></div>
+        <div id="pack-import" class="panel pack-import" hidden>
+          <div class="title-row">
+            <h2>Importer des packs</h2>
+            <label class="btn file-btn">📥 Importer des packs JSON…
+              <input id="pack-file" type="file" multiple accept=".json,application/json,image/*" hidden>
+            </label>
+          </div>
+          <p class="hint small">
+            Un fichier JSON par pack, ou plusieurs packs dans un même fichier (« packs »). Chaque pack a son titre, son
+            thème et ses questions. Déposez les images avec le fichier : elles rejoignent les questions qui les nomment.
+          </p>
+          <details class="hint small">
+            <summary>Voir un exemple de pack</summary>
+            <pre id="pack-exemple" class="pack-exemple"></pre>
+          </details>
+          <p id="pack-status" class="status"></p>
+        </div>
+        <div id="q-list" class="q-list"></div>
       </div>
     </section>
 

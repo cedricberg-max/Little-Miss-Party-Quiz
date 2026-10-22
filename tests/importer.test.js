@@ -2155,3 +2155,101 @@ describe("nettoyage des copies des fêtes terminées (Régie PC, cedric, 21/10)"
     assert.equal(N.passageAFaire({ at: MAINTENANT - H }, MAINTENANT), true);
   });
 });
+
+describe("Bibliothèque › Questions : toutes prêtes, mes questions, mes packs (cedric, 22/10)", async () => {
+  const Q = await import("../web/public/questions.js");
+  const { PHOTOS_BANQUE } = await import("../web/public/banque-photos.js");
+  const LION = "0123456789abcdef", CHAT = "fedcba9876543210";
+
+  test("un pack JSON se lit sous toutes ses formes : un pack, une liste de packs, « packs », une liste de questions", () => {
+    const q = { text: "Quel animal rugit ?", choices: ["Lion", "Chat"], correct: 0 };
+    const un = Q.lirePacks(JSON.stringify({ titre: "Savane", thème: "Animaux", questions: [q] }));
+    assert.deepEqual(un.packs.map((p) => [p.title, p.theme, p.questions.length]), [["Savane", "Animaux", 1]]);
+    const liste = Q.lirePacks(JSON.stringify([{ title: "A", questions: [q] }, { nom: "B", categorie: "Espace", questions: [q, q] }]));
+    assert.deepEqual(liste.packs.map((p) => [p.title, p.theme, p.questions.length]), [["A", "", 1], ["B", "Espace", 2]]);
+    const packs = Q.lirePacks("```json\n" + JSON.stringify({ packs: [{ name: "C", questions: [q] }] }) + "\n```");
+    assert.deepEqual(packs.packs.map((p) => p.title), ["C"]);
+    const questions = Q.lirePacks(JSON.stringify([q, q]));
+    assert.deepEqual(questions.packs.map((p) => [p.title, p.questions.length]), [["", 2]]);
+    assert.deepEqual(Q.lirePacks("pas du JSON"), { erreur: "Ce fichier n'est pas un JSON lisible." });
+    assert.deepEqual(Q.lirePacks(JSON.stringify({ title: "Vide", questions: [] })), { erreur: "Aucune question trouvée dans ce fichier." });
+    assert.deepEqual(Q.lirePacks("{\"a\": 1}"), { erreur: "Aucune question trouvée dans ce fichier." });
+  });
+
+  test("pack : émoji d'illustration, image à déposer, Juste Chiffre, réponses en images ; les entrées bizarres sont sautées", () => {
+    const { packs: [p] } = Q.lirePacks(JSON.stringify({ title: "Savane", questions: [
+      { text: "Trompe ?", choices: ["Éléphant", "Girafe"], correct: 0, illustration: "🐘" },
+      null, "texte seul", { text: "Liste ?", choices: "pas une liste", correct: 0 },
+      { question: "Combien de pattes a une girafe ?", reponse: "4", emoji: "🦒" },
+      { text: "Le roi ?", propositions: ["Hippo", "Lion"], reponse: "Lion", illustration: "lion.png" },
+      { text: "Le chat ?", choices: [{ text: "Chat", image: "chat.jpg" }, { image: "chien.jpg" }], correct: 0 },
+      { text: "Sans réponse", correct: "Paris" },
+    ] }));
+    assert.equal(p.questions.length, 6);
+    const [trompe, liste, pattes, roi, chat, sans] = p.questions;
+    assert.equal(trompe.image, "🐘");
+    assert.deepEqual([liste.choices, liste.kind], [[], undefined]);
+    assert.deepEqual([pattes.text, pattes.kind, pattes.correct, pattes.choices, pattes.image], ["Combien de pattes a une girafe ?", "number", 4, [], "🦒"]);
+    assert.deepEqual([roi.correct, roi.revealFile, roi.image], [1, "lion.png", undefined]);
+    assert.deepEqual([chat.choices, chat.imageFiles], [["Chat", "Chien"], ["chat.jpg", "chien.jpg"]]);
+    assert.deepEqual([sans.choices, sans.kind, sans.correct], [[], undefined, -1]);
+    // Un Juste Chiffre à 0 reste 0 (pas une bonne réponse « absente »).
+    assert.equal(Q.lirePacks(JSON.stringify([{ text: "Zéro ?", correct: 0 }])).packs[0].questions[0].correct, 0);
+  });
+
+  test("illustration : une photo par réponse dans un quiz illustré, sinon une photo ou un émoji à la révélation", () => {
+    assert.deepEqual(Q.illustration({ choices: ["A", "B"], image: "🦁" }, "classique"), { ok: true, manque: null });
+    assert.deepEqual(Q.illustration({ choices: ["A", "B"], imageId: LION }, "classique"), { ok: true, manque: null });
+    assert.deepEqual(Q.illustration({ choices: ["A", "B"], imageId: "pas-un-id" }, "classique"), { ok: false, manque: "Pas d'illustration" });
+    assert.deepEqual(Q.illustration({ choices: ["A", "B"], choiceImages: { 0: LION, 1: CHAT } }, "photo"), { ok: true, manque: null });
+    assert.deepEqual(Q.illustration({ choices: ["A", "B", "C"], choiceImages: [LION] }, "photo"), { ok: false, manque: "2 réponses sans photo" });
+    assert.deepEqual(Q.illustration({ choices: ["A", "B"] }, "photo"), { ok: false, manque: "Pas de photo pour les réponses" });
+    // Juste Chiffre dans un quiz illustré : pas de réponses à illustrer, l'émoji suffit.
+    assert.deepEqual(Q.illustration({ kind: "number", correct: 4, image: "🦒" }, "photo"), { ok: true, manque: null });
+  });
+
+  test("mes questions et mes packs : séparés par la source du quiz, les plus récents d'abord, alerte comptée", () => {
+    const quizzes = {
+      main1: { title: "Mon quiz", source: "saisie", updatedAt: 10, questions: [
+        { text: "Q1", choices: ["A", "B"], correct: 0, status: "validee", image: "🎈" },
+        { text: "Q2", choices: ["A", "B"], correct: 1, status: "brouillon" }] },
+      main2: { title: "Photos", source: "photos", kind: "photo", updatedAt: 30, questions: [
+        { text: "Où est le chat ?", choices: ["Chat", "Chien"], correct: 0, status: "validee", choiceImages: { 0: CHAT, 1: LION } }] },
+      pack1: { title: "Savane", theme: "Animaux", source: "json", updatedAt: 20, questions: [
+        { text: "Trompe ?", choices: ["Éléphant", "Girafe"], correct: 0, status: "validee", image: "🐘" },
+        { text: "Pattes ?", kind: "number", correct: 4, status: "validee" }] },
+      pack2: { title: "Ancien collage", source: "gemini", updatedAt: 40, questions: [{ text: "X", choices: ["a", "b"], correct: 0, status: "validee", imageId: LION }] },
+    };
+    const miennes = Q.mesQuestions(quizzes);
+    assert.deepEqual(miennes.map((x) => [x.cle, x.text, x.ok, x.validee, x.categorie]), [
+      ["main2/0", "Où est le chat ?", true, true, "Photos"], ["main1/0", "Q1", true, true, "Mon quiz"], ["main1/1", "Q2", false, false, "Mon quiz"],
+    ]);
+    assert.deepEqual(miennes[0].choiceImages, [CHAT, LION]);
+    const packs = Q.mesPacks(quizzes);
+    assert.deepEqual(packs.map((p) => [p.id, p.title, p.total, p.validees, p.sansIllustration]), [["pack2", "Ancien collage", 1, 1, 0], ["pack1", "Savane", 2, 2, 1]]);
+    assert.deepEqual(packs[1].questions[1], { ...packs[1].questions[1], nombre: true, choices: [], correct: 4, ok: false, manque: "Pas d'illustration" });
+    assert.equal(Q.estPack({ source: "tableur" }), true);
+    assert.equal(Q.estPack({ source: "banque" }), false);
+  });
+
+  test("toutes prêtes : la banque des tout-petits par famille, avec la photo de chaque réponse ; recherche sans accents", () => {
+    const pretes = Q.questionsToutesPretes([
+      { id: "p001", famille: "animaux", text: "Quel animal fait « miaou » ?", choices: ["Chat", "Chien", "Vache", "Canard"] },
+      { famille: "lieux", text: "Où dort-on ?", choices: ["Lit", "Zzzmot-inconnu"] },
+    ]);
+    assert.equal(pretes[0].cle, "p001");
+    assert.equal(pretes[1].cle, "p-1");
+    assert.equal(pretes[0].categorie, FAMILLES_PETITS.animaux);
+    assert.deepEqual(pretes[0].banque.map((c) => c !== null && PHOTOS_BANQUE.has(c)), [true, true, true, true]);
+    assert.deepEqual([pretes[0].ok, pretes[0].correct, pretes[0].validee], [true, 0, true]);
+    assert.deepEqual([pretes[1].ok, pretes[1].manque], [false, "1 réponse sans photo"]);
+    assert.equal(Q.questionCorrespond(pretes[0], "MIAOU chat"), true);
+    assert.equal(Q.questionCorrespond(pretes[1], "ou dort"), true);
+    assert.equal(Q.questionCorrespond(pretes[0], "girafe"), false);
+    assert.equal(Q.questionCorrespond({ text: "Le désert", choices: [] }, "desert"), true);
+    // Toute la banque se range : chaque question a une famille connue.
+    const tout = Q.questionsToutesPretes(cataloguePetits(() => 0.3));
+    assert.ok(tout.length > 500);
+    assert.ok(tout.every((x) => Object.values(FAMILLES_PETITS).includes(x.categorie)));
+  });
+});

@@ -4640,6 +4640,105 @@ describe("bibliothèque de quiz et prestations", () => {
     await essai.context().close();
   });
 
+  test("Bibliothèque › ❓ Questions (cedric, 22/10) : toutes prêtes, mes questions, mes packs JSON avec leur illustration ou une alerte", async () => {
+    await seedLibrary("quizzes", { animaux: ANIMAUX, mien: { title: "Mon quiz", source: "saisie", updatedAt: 5, questions: [
+      { text: "De quelle couleur est le ciel ?", choices: ["Bleu", "Vert"], correct: 0, status: "validee", image: "☁️" },
+      { text: "Question sans image", choices: ["Oui", "Non"], correct: 0, status: "validee" },
+    ] } });
+    const page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="questions"]');
+    await page.locator("#library-questions:not([hidden])").waitFor();
+    assert.equal(await page.locator("#library-images").isHidden(), true);
+
+    // Aperçu : les trois groupes, avec l'alerte sur ce qui n'a pas d'illustration.
+    await page.locator('.q-groupe[data-groupe="pretes"] .q-item').first().waitFor();
+    await page.locator('.q-groupe[data-groupe="miennes"] .q-item[data-question="mien/0"] .q-illus.emoji', { hasText: "☁️" }).waitFor();
+    await page.locator('.q-groupe[data-groupe="miennes"] .q-item.sans-illus[data-question="mien/1"] .q-alerte', { hasText: "⚠ Pas d'illustration" }).waitFor();
+    await page.locator('.q-groupe[data-groupe="packs"] .pack[data-pack="animaux"]', { hasText: "⚠ 3 sans illustration" }).waitFor();
+    await capture(page, "questions-apercu");
+    // Une seule recherche pour tout.
+    await page.fill("#q-search", "miaou");
+    await page.locator('.q-groupe[data-groupe="pretes"] .q-item', { hasText: "miaou" }).first().waitFor();
+    await waitFor(async () => await page.locator('.q-groupe[data-groupe="miennes"] .q-item').count() === 0, "rien dans mes questions");
+    await page.fill("#q-search", "");
+    // Toutes prêtes : une puce par famille.
+    await page.click('#q-groups [data-groupe="pretes"]');
+    const familles = page.locator(".q-categories [data-categorie]");
+    await familles.first().waitFor();
+    assert.ok(await familles.count() >= 4);
+    const nomFamille = await familles.first().getAttribute("data-categorie");
+    await familles.first().click();
+    await page.locator(`.q-categories [data-categorie="${nomFamille}"].active`).waitFor();
+    await page.locator("#q-list .q-item").first().waitFor();
+
+    // Mes packs : un fichier JSON avec deux packs, une image déposée avec lui, un autre fichier illisible.
+    await page.click('#q-groups [data-groupe="packs"]');
+    await page.locator("#pack-import:not([hidden])").waitFor();
+    assert.match(await page.locator("#pack-exemple").textContent(), /"illustration": "🐘"/);
+    const PACKS = { packs: [
+      { title: "Les animaux de la savane", theme: "Animaux", questions: [
+        { text: "Quel animal a une très longue trompe ?", choices: ["Éléphant", "Girafe", "Lion", "Zèbre"], correct: 0, illustration: "🐘" },
+        { text: "Quel animal est le roi de la savane ?", choices: ["Hippopotame", "Lion", "Gazelle", "Autruche"], correct: 1, illustration: "lion.png" },
+        { text: "Combien de pattes a une girafe ?", correct: 4, illustration: "🦒" },
+        { text: "Quel animal a des rayures ?", choices: ["Zèbre", "Lion"], correct: 0, illustration: "zebre.png" },
+        { text: "Sans réponses" },
+      ] },
+      { title: "Espace", theme: "Sciences", questions: [{ text: "Quelle planète est rouge ?", choices: ["Mars", "Vénus"], correct: "Mars" }] },
+    ] };
+    await page.setInputFiles("#pack-file", [
+      { name: "savane.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(PACKS)) },
+      { name: "lion.png", mimeType: "image/png", buffer: png([200, 160, 60]) },
+      { name: "casse.json", mimeType: "application/json", buffer: Buffer.from("{pas du json") },
+    ]);
+    await page.locator("#pack-status", { hasText: "2 packs importés : 5 questions, ⚠ 2 sans illustration, 1 ignorée (sans réponses). casse.json : Ce fichier n'est pas un JSON lisible." }).waitFor();
+    const quizzes = await library("quizzes");
+    const [idSavane, savane] = Object.entries(quizzes).find(([, q]) => q.title === "Les animaux de la savane");
+    const [idEspace, espace] = Object.entries(quizzes).find(([, q]) => q.title === "Espace");
+    assert.deepEqual([savane.source, savane.theme, savane.kind, savane.questions.length], ["json", "Animaux", "classique", 4]);
+    assert.equal(savane.questions[0].image, "🐘");
+    assert.match(savane.questions[1].imageId, /^[0-9a-f]{16}$/);
+    assert.match(await library(`images/${savane.questions[1].imageId}`), /^data:image\//);
+    assert.deepEqual([savane.questions[2].kind, savane.questions[2].correct, savane.questions[2].choices], ["number", 4, undefined]);
+    assert.equal(savane.questions[3].imageId, undefined);
+    assert.ok(savane.questions.every((q) => q.status === "validee"));
+    assert.deepEqual([espace.theme, espace.questions[0].correct, espace.questions[0].status], ["Sciences", 0, "validee"]);
+    assert.deepEqual(quizzes.animaux, ANIMAUX, "les autres quiz ne bougent pas");
+    // Les packs importés à l'instant sont en tête, encadrés.
+    await page.locator(`.pack.copie-recente[data-pack="${idSavane}"]`).waitFor();
+
+    // Un pack s'ouvre sur ses questions : illustration là, ou l'alerte.
+    await page.locator(`.pack[data-pack="${idSavane}"]`, { hasText: "⚠ 1 sans illustration" }).getByRole("button", { name: "Ouvrir" }).click();
+    await page.locator("#q-list h2", { hasText: "Les animaux de la savane" }).waitFor();
+    assert.equal(await page.locator("#pack-import").isHidden(), true);
+    assert.equal(await page.locator("#q-list .q-item").count(), 4);
+    await page.locator(`.q-item[data-question="${idSavane}/0"] .q-illus.emoji`, { hasText: "🐘" }).waitFor();
+    await page.locator(`.q-item[data-question="${idSavane}/1"] img.q-illus[src^="data:image"]`).waitFor();
+    await page.locator(`.q-item[data-question="${idSavane}/2"] .q-nombre`, { hasText: "réponse : 4" }).waitFor();
+    await page.locator(`.q-item.sans-illus[data-question="${idSavane}/3"] .q-illus.vide`).waitFor();
+    await page.locator(`.q-item.sans-illus[data-question="${idSavane}/3"] .q-alerte`, { hasText: "⚠ Pas d'illustration" }).waitFor();
+    assert.equal(await page.locator(".q-item.sans-illus").count(), 1);
+    await capture(page, "questions-pack-ouvert");
+
+    // « Éditer le pack » : la relecture habituelle du quiz.
+    await page.getByRole("button", { name: "Éditer le pack" }).click();
+    await page.locator("#screen-review:not([hidden])").waitFor();
+    assert.equal(await page.locator("#rv-title").inputValue(), "Les animaux de la savane");
+    await page.goBack();
+    await page.locator("#library-questions:not([hidden])").waitFor();
+
+    // Renommer et Supprimer un pack (fenêtres de la Régie PC).
+    await page.click('#q-groups [data-groupe="packs"]');
+    await page.locator(`.pack[data-pack="${idSavane}"]`).getByRole("button", { name: "Renommer" }).click();
+    await repondreFenetre(page, { texte: "La savane" });
+    await waitFor(async () => (await library(`quizzes/${idSavane}`)).title === "La savane", "pack renommé");
+    await page.locator(`.pack[data-pack="${idEspace}"]`).getByRole("button", { name: "Supprimer" }).click();
+    assert.match(await repondreFenetre(page), /Supprimer le quiz « Espace » \?/);
+    await waitFor(async () => (await library(`quizzes/${idEspace}`)) === null, "pack supprimé");
+    await page.locator(`.pack[data-pack="${idEspace}"]`).waitFor({ state: "detached" });
+    await page.context().close();
+  });
+
   test("prestation de test : ajoutée en un clic sans rien remplacer, modifiée dans l'admin, chargée telle quelle sur la TV", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     const INES = { childName: "Inès", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 };

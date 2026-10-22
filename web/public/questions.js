@@ -1,0 +1,138 @@
+// Bibliothèque › Questions de la Régie PC (cedric, 22/10) : trois groupes et une seule recherche.
+// - « Toutes prêtes » : les questions de l'appli (banque des tout-petits), jamais modifiées ici.
+// - « Mes questions » : celles écrites à la main dans la Régie PC, avec leur illustration.
+// - « Mes packs » : les quiz importés (fichier JSON, tableur, texte collé), un pack par thème.
+// Chaque question dit si son illustration est là ; sinon la Régie PC affiche une petite alerte. Fonctions pures, testées.
+import { parseQuiz } from "./importer.js";
+import { cataloguePetits, FAMILLES_PETITS, motBanque } from "./banque-petits.js";
+import { PHOTOS_BANQUE } from "./banque-photos.js";
+import { quizKind } from "./show.js";
+
+export const GROUPES_QUESTIONS = { pretes: "📦 Toutes prêtes", miennes: "✍️ Mes questions", packs: "📥 Mes packs" };
+
+const IMAGE_ID = /^[0-9a-f]{16}$/;
+/** Quiz importés d'un fichier ou d'un texte collé : des packs. Le reste est écrit à la main dans la Régie PC. */
+const SOURCES_PACK = new Set(["json", "tableur", "gemini"]);
+export const estPack = (quiz) => SOURCES_PACK.has(quiz?.source);
+
+/** Mot d'une réponse sans son émoji de tête (« 🐱 Chat » → « Chat »). */
+const motSeul = (c) => `${c ?? ""}`.replace(/^[^\p{L}\p{N}]+/u, "").trim();
+const photoDeLaBanque = (mot) => {
+  const m = motBanque(motSeul(mot));
+  return m && PHOTOS_BANQUE.has(m.cle) ? m.cle : null;
+};
+
+/**
+ * Illustration d'une question : une photo par réponse dans un quiz illustré ([kind] « photo »), sinon l'image
+ * montrée à la révélation (photo ou émoji). `{ ok, manque }` : [manque] dit ce qui manque, pour l'alerte.
+ */
+export function illustration(q, kind) {
+  if (kind === "photo" && q?.kind !== "number") {
+    const choix = q?.choices ?? [];
+    const sans = choix.filter((_, k) => !IMAGE_ID.test(q?.choiceImages?.[k] ?? "")).length;
+    if (!choix.length) return { ok: false, manque: "Pas d'illustration" };
+    return sans ? { ok: false, manque: sans === choix.length ? "Pas de photo pour les réponses" : `${sans} réponse${sans > 1 ? "s" : ""} sans photo` } : { ok: true, manque: null };
+  }
+  const ok = IMAGE_ID.test(q?.imageId ?? "") || !!`${q?.image ?? ""}`.trim();
+  return { ok, manque: ok ? null : "Pas d'illustration" };
+}
+
+/** Une question à montrer : texte, réponses, bonne réponse, illustration, et d'où elle vient. */
+function fiche(q, kind, extra) {
+  return {
+    text: q.text ?? "", choices: q.kind === "number" ? [] : [...(q.choices ?? [])], correct: q.correct, nombre: q.kind === "number",
+    image: q.image ?? null, imageId: IMAGE_ID.test(q.imageId ?? "") ? q.imageId : null,
+    choiceImages: (q.choices ?? []).map((_, k) => (IMAGE_ID.test(q.choiceImages?.[k] ?? "") ? q.choiceImages[k] : null)),
+    validee: q.status === "validee", ...illustration(q, kind), ...extra,
+  };
+}
+
+/**
+ * Questions toutes prêtes : la banque des tout-petits (quiz illustré), par famille. Chaque réponse a la photo de la
+ * banque de son mot ([banque] : clés des photos, null si le mot n'en a pas).
+ */
+export function questionsToutesPretes(catalogue = cataloguePetits()) {
+  return catalogue.map((x, i) => {
+    const banque = x.choices.map(photoDeLaBanque);
+    const sans = banque.filter((c) => !c).length;
+    return {
+      groupe: "pretes", cle: x.id ?? `p-${i}`, text: x.text, choices: [...x.choices], correct: 0, nombre: false, banque,
+      categorie: FAMILLES_PETITS[x.famille] ?? x.famille, source: "Banque des tout-petits", validee: true,
+      ok: !sans, manque: sans ? `${sans} réponse${sans > 1 ? "s" : ""} sans photo` : null,
+    };
+  });
+}
+
+/** Ses questions écrites à la main, quiz par quiz (le plus récent d'abord), dans l'ordre du quiz. */
+export function mesQuestions(quizzes = {}) {
+  return Object.entries(quizzes)
+    .filter(([, quiz]) => quiz && !estPack(quiz))
+    .sort(([, a], [, b]) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+    .flatMap(([id, quiz]) => {
+      const kind = quizKind(quiz);
+      return (quiz.questions ?? []).filter(Boolean).map((q, i) => fiche(q, kind, {
+        groupe: "miennes", cle: `${id}/${i}`, quizId: id, index: i, categorie: quiz.title ?? "", source: quiz.title ?? "",
+      }));
+    });
+}
+
+/** Ses packs : un par quiz importé, avec le compte des questions et de celles sans illustration. */
+export function mesPacks(quizzes = {}) {
+  return Object.entries(quizzes)
+    .filter(([, quiz]) => quiz && estPack(quiz))
+    .map(([id, quiz]) => {
+      const kind = quizKind(quiz);
+      const questions = (quiz.questions ?? []).filter(Boolean).map((q, i) => fiche(q, kind, { groupe: "packs", cle: `${id}/${i}`, quizId: id, index: i }));
+      return {
+        id, title: quiz.title ?? "", theme: quiz.theme ?? "", kind, source: quiz.source, updatedAt: quiz.updatedAt ?? 0,
+        total: questions.length, validees: questions.filter((q) => q.validee).length, sansIllustration: questions.filter((q) => !q.ok).length, questions,
+      };
+    })
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+const sansAccent = (s) => `${s ?? ""}`.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+/** Une question correspond à la recherche si chaque mot cherché est dans son texte, ses réponses ou sa catégorie. */
+export function questionCorrespond(q, recherche) {
+  const mots = sansAccent(recherche).split(/\s+/).filter(Boolean);
+  const dans = sansAccent([q.text, ...(q.choices ?? []), q.categorie, q.source].join(" "));
+  return mots.every((m) => dans.includes(m));
+}
+
+const estPackJson = (x) => !!x && typeof x === "object" && !Array.isArray(x) && Array.isArray(x.questions);
+const nombreEntier = (v) => (typeof v === "number" && Number.isInteger(v) ? v : typeof v === "string" && /^-?\d+$/.test(v.trim()) ? Number(v) : null);
+const emoji = (v) => (typeof v === "string" && v.trim() && !/\.(png|jpe?g|webp|gif)$/i.test(v.trim()) && [...v.trim()].length <= 4 ? v.trim() : null);
+
+/**
+ * Packs d'un fichier JSON : un pack `{ title, theme, questions }`, une liste de packs, `{ packs: [...] }`, ou une
+ * simple liste de questions. Chaque question comme à l'import d'un quiz (propositions, bonne réponse, images de
+ * réponses nommées) ; en plus, un émoji d'illustration (`illustration`, `image` ou `emoji`) et le Juste Chiffre (pas de
+ * propositions, une réponse en nombre). Renvoie `{ packs }`, ou `{ erreur }` si le fichier ne se lit pas.
+ */
+export function lirePacks(texte) {
+  const corps = `${texte ?? ""}`.replace(/^﻿/, "").replace(/```(?:json)?/gi, "").trim();
+  let data;
+  try { data = JSON.parse(corps); } catch { return { erreur: "Ce fichier n'est pas un JSON lisible." }; }
+  const liste = Array.isArray(data?.packs) ? data.packs
+    : Array.isArray(data) && data.length && data.every(estPackJson) ? data
+      : estPackJson(data) ? [data]
+        : Array.isArray(data) ? [{ questions: data }] : [];
+  const packs = liste.filter(estPackJson).map((p) => {
+    // Seules les questions écrites comme des objets comptent ; leurs propositions sont toujours une liste.
+    const objets = p.questions.filter((q) => q && typeof q === "object" && !Array.isArray(q));
+    // Juste Chiffre : une question écrite sans aucune proposition (une liste mal écrite n'en fait pas un).
+    const sansChoix = objets.map((q) => [q.choices, q.propositions, q.options, q.reponses, q.réponses].every((c) => c == null || (Array.isArray(c) && !c.length)));
+    const bruts = objets.map((q) => ({ ...q, choices: [q.choices, q.propositions, q.options, q.reponses, q.réponses].find(Array.isArray) ?? [] }));
+    const lu = parseQuiz(JSON.stringify({ title: p.title ?? p.titre ?? p.nom ?? p.name ?? "", theme: p.theme ?? p.thème ?? p.categorie ?? "", ageMin: p.ageMin, ageMax: p.ageMax, questions: bruts }));
+    const questions = (lu?.questions ?? []).map((q, i) => {
+      const brut = bruts[i];
+      const sans = sansChoix[i];
+      const n = nombreEntier(brut.correct ?? brut.answer ?? brut.reponse ?? brut.réponse ?? brut.bonne_reponse);
+      const illus = emoji(brut.illustration) ?? emoji(brut.image) ?? emoji(brut.emoji);
+      if (sans && n != null) return { text: q.text, choices: [], correct: n, kind: "number", duration: q.duration, double: q.double, marks: 0, ...(illus ? { image: illus } : {}) };
+      return { ...q, ...(illus ? { image: illus } : {}) };
+    });
+    return { title: lu.title, theme: lu.theme, ageMin: lu.ageMin, ageMax: lu.ageMax, questions };
+  }).filter((p) => p.questions.length);
+  return packs.length ? { packs } : { erreur: "Aucune question trouvée dans ce fichier." };
+}

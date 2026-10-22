@@ -666,3 +666,30 @@ button.media-tile:hover { border-color: var(--violet); }
   .fenetre-message .fenetre-titre { font-size: 18px; }
   .fenetre-boutons .btn { flex: 1 1 100%; }
 }
+
+/* Bibliothèque › Questions : une question par ligne, son illustration à gauche ; sans illustration, une petite alerte. */
+.q-list { display: flex; flex-direction: column; gap: 16px; }
+.q-groupe { display: flex; flex-direction: column; gap: 10px; }
+.q-groupe h2 { margin: 0; font-size: 20px; }
+.q-liste { display: flex; flex-direction: column; gap: 8px; }
+.q-item { display: flex; align-items: flex-start; gap: 14px; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--card); }
+.q-item.sans-illus { border-left: 5px solid var(--bad); }
+.q-illus { flex: none; width: 72px; height: 72px; border-radius: 12px; object-fit: cover; border: 1px solid var(--line); background: var(--bg-2); }
+.q-illus.emoji { display: grid; place-items: center; font-size: 42px; line-height: 1; }
+.q-illus.vide { display: grid; place-items: center; font-size: 28px; color: var(--bad); background: #fde8ee; border: 1.5px dashed var(--bad); }
+.q-corps { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.q-texte { font-size: 17px; color: var(--plum); line-height: 1.35; overflow-wrap: anywhere; }
+.q-reponses { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.q-reponses li { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--bg-2); font-size: 15px; }
+.q-reponses li.juste { background: var(--good-pale); color: var(--good); font-weight: 700; }
+.q-mini { width: 26px; height: 26px; border-radius: 6px; object-fit: cover; }
+.q-nombre { margin: 0; font-weight: 700; color: var(--good); }
+.q-pied { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.q-pied .btn { margin-left: auto; }
+.q-alerte { margin: 0; color: var(--bad); font-weight: 700; font-size: 15px; }
+.q-a-valider { color: var(--warn); font-weight: 700; font-size: 15px; }
+.item.pack .ok { color: var(--good); font-weight: 700; }
+.item.pack .q-alerte { font-size: 16px; }
+.pack-import .file-btn { align-self: flex-start; cursor: pointer; }
+.pack-exemple { margin: 8px 0 0; padding: 12px 14px; max-height: 320px; overflow: auto; border-radius: 12px; background: var(--bg-2); font-size: 13px; line-height: 1.45; white-space: pre; }
+@media (max-width: 640px) { .q-illus { width: 56px; height: 56px; } .q-illus.emoji { font-size: 34px; } .q-pied .btn { margin-left: 0; } }
