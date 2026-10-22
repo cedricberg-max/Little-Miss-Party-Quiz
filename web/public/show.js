@@ -6,6 +6,7 @@ import { CHANTE_WORDS, QUI_SUIS_JE, DISPARU_THEMES } from "./buzz-cards.js";
 import { PICTO_WORDS, PICTO_OWN_SERIES } from "./picto-cards.js";
 import { concepts, questionConcepts, neufsSiPossible } from "./jamais-deux-fois.js";
 import { BANQUE, questionBanque, avecPhoto, disparuPhotos, imageLibre } from "./banque-photos.js";
+import { TEAM_COLORS } from "./theme.js";
 
 /**
  * Portes mystères (jeu final) : 3 ou 4 portes, chacune cache un bonus ou un malus qui peut renverser le classement ;
@@ -622,6 +623,21 @@ export const teamCount = (teams) => (Number.isInteger(teams) && teams >= 1 && te
 /** Nombre d'équipes d'une nouvelle prestation (cedric, 21/10). */
 export const EQUIPES_PAR_DEFAUT = 4;
 
+/**
+ * Couleurs des équipes d'une prestation, une par équipe prévue (4 si le nombre n'est pas indiqué) : celles choisies
+ * dans la Régie PC pour les bracelets et les bandeaux, sans doublon, complétées dans l'ordre des couleurs d'équipe
+ * (rose, orange, vert, jaune, bleu…). Les tablettes ne proposent qu'elles (cedric, 22/10).
+ */
+export function couleursEquipes(show) {
+  const n = teamCount(show?.teams);
+  const choisies = Object.values(show?.teamColors ?? {})
+    .map((c) => TEAM_COLORS.find((t) => t.toUpperCase() === String(c).toUpperCase()))
+    .filter(Boolean);
+  const couleurs = [...new Set(choisies)].slice(0, n);
+  for (const c of TEAM_COLORS) if (couleurs.length < n && !couleurs.includes(c)) couleurs.push(c);
+  return couleurs;
+}
+
 /** Mots ou cartes à prévoir au moins par équipe, aux jeux joués équipe par équipe. */
 export const PAR_EQUIPE_MIN = 3;
 
@@ -888,6 +904,8 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
   return {
     snapshot: {
       showId, title, childName: show.childName?.trim() ?? "", age: show.age ?? null, profile, rounds,
+      // Couleurs proposées aux équipes sur les tablettes : la TV les publie pour l'accueil.
+      teamColors: couleursEquipes(show),
       // Notes de Sarah pour l'animatrice, lues sur la régie le jour J (la TV les ignore).
       ...(show.notes?.trim() ? { notes: show.notes.trim().slice(0, 2000) } : {}),
       // Chaque jeu s'ouvre sur son écran de présentation, que l'animatrice lance depuis la régie.

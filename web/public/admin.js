@@ -19,8 +19,9 @@ import {
   roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS,
   isStatuesList, statuesSongs, statuesChoices, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS, builtinConcepts, isPhotoTheme, disparuGroup,
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, alerteEquipes, EQUIPES_PAR_DEFAUT, pourLeHasard, premierQuiz,
-  launchStates, launchLabelPc,
+  launchStates, launchLabelPc, couleursEquipes, teamCount,
 } from "./show.js";
+import { TEAM_COLORS, TEAM_COLOR_NAMES } from "./theme.js";
 import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE } from "./banque-photos.js";
 import { shuffle } from "./mime-cards.js";
 import {
@@ -796,6 +797,9 @@ function editShow(id) {
   $("show-child").value = s.childName ?? "";
   $("show-age").value = s.age ?? "";
   $("show-teams").value = s.teams ?? "";
+  couleursSaisies = couleursEquipes(s);
+  pastilleOuverte = -1;
+  renderCouleurs();
   $("show-date").value = s.date ?? "";
   // Le statut montré est son état réel : une fête passée, archivée d'elle-même, se lit « Archivée ».
   $("show-status").value = id && isArchived(s) ? "archivee" : s.status ?? "brouillon";
@@ -817,10 +821,13 @@ const SHOW_FIELDS = ["show-child", "show-age", "show-teams", "show-date", "show-
 const histPrestation = historique({
   ecran: $("screen-show-edit"),
   precedent: pagePrecedente,
-  capturer: () => ({ rounds: editing?.rounds ?? [], champs: SHOW_FIELDS.map((id) => $(id).value) }),
+  capturer: () => ({ rounds: editing?.rounds ?? [], champs: SHOW_FIELDS.map((id) => $(id).value), couleurs: [...couleursSaisies] }),
   restaurer: (e) => {
     SHOW_FIELDS.forEach((id, k) => { $(id).value = e.champs[k]; });
     if (editing) editing.rounds = e.rounds;
+    couleursSaisies = e.couleurs ?? [];
+    pastilleOuverte = -1;
+    renderCouleurs();
     refreshRounds();
   },
 });
@@ -841,6 +848,7 @@ function formShow() {
     themes: $("show-themes").value.trim() || null,
     notes: $("show-notes").value.trim() || null,
     teams: num($("show-teams").value),
+    teamColors: [...couleursSaisies],
     rounds: editing.rounds.filter(roundFilled).map((r) => cleanRound(r, playlists)),
   };
 }
@@ -1436,8 +1444,49 @@ function refreshSummary() {
       : h("div", {}, h("b", { text: "Reste à faire avant le jour J :" }), h("ul", {}, ...r.todo.map((t) => h("li", { text: t })))));
 }
 ["show-age", "show-profile", "show-child", "show-title", "show-date", "show-status"].forEach((id) => $(id).addEventListener("input", refreshSummary));
-// Le nombre d'équipes change ce qu'il faut prévoir pour les mimes : les manches sont redessinées.
-$("show-teams").addEventListener("change", refreshRounds);
+// Le nombre d'équipes change ce qu'il faut prévoir pour les mimes : les manches sont redessinées. Il donne aussi
+// le nombre de couleurs d'équipe.
+$("show-teams").addEventListener("change", () => { renderCouleurs(); refreshRounds(); });
+
+/** Couleurs des équipes de la prestation en cours de saisie, une par équipe prévue (bracelets et bandeaux). */
+let couleursSaisies = [];
+/** Pastille dont on choisit la couleur (son rang), -1 si aucune. */
+let pastilleOuverte = -1;
+const nomCouleur = (c) => TEAM_COLOR_NAMES[TEAM_COLORS.indexOf(c)] ?? c;
+const pastille = (c, props, ...kids) => h("button", { type: "button", style: `--c: ${c}`, ...props },
+  h("span", { class: "rond" }), h("span", { class: "nom", text: nomCouleur(c) }), ...kids);
+
+/**
+ * Couleurs des équipes (cedric, 22/10) : une pastille par équipe prévue, rose, orange, vert, jaune… par défaut. Une
+ * pastille touchée montre les 8 couleurs ; une couleur déjà donnée à une autre équipe s'échange avec elle (jamais deux
+ * équipes de la même couleur). Les tablettes ne proposent que ces couleurs.
+ */
+function renderCouleurs() {
+  const n = teamCount($("show-teams").value === "" ? null : Number($("show-teams").value));
+  couleursSaisies = couleursEquipes({ teams: n, teamColors: couleursSaisies });
+  if (pastilleOuverte >= n) pastilleOuverte = -1;
+  const i = pastilleOuverte;
+  remplir($("show-couleurs"),
+    h("div", { class: "pastilles" }, couleursSaisies.map((c, k) => pastille(c, {
+      class: `pastille${k === i ? " ouverte" : ""}`, "aria-label": `Équipe ${k + 1} : ${nomCouleur(c)}`, "aria-expanded": String(k === i),
+      onclick: () => { pastilleOuverte = k === i ? -1 : k; renderCouleurs(); },
+    }, h("span", { class: "rang", text: `Équipe ${k + 1}` })))),
+    i >= 0 && h("div", { class: "choix-couleurs", role: "group", "aria-label": `Couleur de l'équipe ${i + 1}` },
+      TEAM_COLORS.map((c) => pastille(c, {
+        class: `pastille${c === couleursSaisies[i] ? " choisie" : ""}`, "aria-label": nomCouleur(c),
+        onclick: () => choisirCouleur(i, c),
+      }))),
+  );
+}
+
+function choisirCouleur(i, c) {
+  const j = couleursSaisies.indexOf(c);
+  // Déjà donnée à une autre équipe : les deux équipes échangent leurs couleurs.
+  if (j >= 0 && j !== i) couleursSaisies[j] = couleursSaisies[i];
+  couleursSaisies[i] = c;
+  pastilleOuverte = -1;
+  renderCouleurs();
+}
 $("round-add").onclick = () => ouvrirChoixJeu();
 
 /** Contenu d'une manche (titre du quiz, du paquet, de la playlist), "" pour un jeu sans contenu, null s'il n'existe plus. */

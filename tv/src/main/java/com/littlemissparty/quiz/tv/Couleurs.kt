@@ -6,6 +6,14 @@ package com.littlemissparty.quiz.tv
  */
 val TEAM_COLORS = listOf("#FF2D95", "#FF6B1A", "#39FF14", "#FFE600", "#2B86C5", "#9B5DE5", "#F94144", "#2EE8E0")
 
+/**
+ * Couleurs des équipes choisies dans une prestation, telles que reçues de la régie : seulement des « #RRGGBB »,
+ * sans doublon, 8 au plus, dans leur ordre. Liste vide : les tablettes proposent les couleurs des bracelets.
+ */
+fun couleursValides(valeurs: List<Any?>): List<String> =
+    valeurs.filterIsInstance<String>().filter { it.startsWith("#") && colorKey(it).matches(Regex("[0-9A-F]{6}")) }
+        .distinctBy(::colorKey).take(TEAM_COLORS.size)
+
 /** Clé de réservation d'une couleur dans la base (games/<code>/colors/<clé>) : « #ff3cac » → « FF3CAC ». */
 fun colorKey(color: String): String = color.removePrefix("#").uppercase()
 

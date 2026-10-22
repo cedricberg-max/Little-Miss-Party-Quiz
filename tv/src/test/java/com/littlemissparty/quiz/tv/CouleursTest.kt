@@ -29,6 +29,14 @@ class CouleursTest {
     }
 
     @Test
+    fun `couleurs de la prestation : seulement des couleurs valides, sans doublon, dans leur ordre`() {
+        assertEquals(listOf("#FF6B1A", "#39FF14"), couleursValides(listOf("#FF6B1A", "#39FF14")))
+        assertEquals(listOf("#FF6B1A"), couleursValides(listOf("#FF6B1A", "#ff6b1a", "orange", 42, null, "#12")))
+        assertEquals(emptyList<String>(), couleursValides(emptyList()))
+        assertEquals(8, couleursValides(TEAM_COLORS + listOf("#123456")).size)
+    }
+
+    @Test
     fun `cle de reservation`() {
         assertEquals("FF3CAC", colorKey("#ff3cac"))
     }

@@ -8,7 +8,7 @@ import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, roundFille
   readiness, upcoming, daysUntil, isoDay, duplicateShow, etatPrestation, isArchived, ETATS, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
   soundIds, choiceImageIds, choiceImageList, pictoSeriesList, pictoSeriesOf, foldLegacyFinale,
   roundQuizIds, MIME_RANDOM, alerteEquipes, EQUIPES_PAR_DEFAUT, PAR_EQUIPE_MIN,
-  statuesSongs, statuesChoices, roundSongs, isStatuesList,
+  statuesSongs, statuesChoices, roundSongs, isStatuesList, couleursEquipes,
 } from "../web/public/show.js";
 import { PICTO_WORDS, PICTO_SERIES } from "../web/public/picto-cards.js";
 import { guessTrack, normalizeLevel } from "../web/public/audio.js";
@@ -225,6 +225,30 @@ describe("quiz en images (ChatGPT)", () => {
     assert.deepEqual(choiceImageIds(snapshot.quiz.questions), [LION, CHIEN]);
     assert.equal(snapshot.quiz.intros, true, "chaque jeu de la prestation s'ouvre sur son écran de présentation");
     assert.deepEqual(choiceImageList({ choices: ["a", "b"], choiceImages: [null, "../x"] }), [], "aucune photo valable : texte");
+  });
+});
+
+describe("couleurs des équipes d'une prestation (cedric, 22/10)", () => {
+  const [ROSE, ORANGE, VERT, JAUNE, BLEU] = ["#FF2D95", "#FF6B1A", "#39FF14", "#FFE600", "#2B86C5"];
+  test("par défaut, une par équipe prévue : rose, orange, vert, jaune, puis bleu…", () => {
+    assert.deepEqual(couleursEquipes({ teams: 4 }), [ROSE, ORANGE, VERT, JAUNE]);
+    assert.deepEqual(couleursEquipes({}), [ROSE, ORANGE, VERT, JAUNE], "nombre non indiqué : 4");
+    assert.deepEqual(couleursEquipes({ teams: 2 }), [ROSE, ORANGE]);
+    assert.deepEqual(couleursEquipes({ teams: 5 }), [ROSE, ORANGE, VERT, JAUNE, BLEU]);
+    assert.equal(couleursEquipes({ teams: 8 }).length, 8);
+  });
+  test("les couleurs choisies d'abord, sans doublon ni couleur inconnue, complétées dans l'ordre", () => {
+    assert.deepEqual(couleursEquipes({ teams: 2, teamColors: [ORANGE, VERT] }), [ORANGE, VERT]);
+    assert.deepEqual(couleursEquipes({ teams: 3, teamColors: [JAUNE] }), [JAUNE, ROSE, ORANGE]);
+    assert.deepEqual(couleursEquipes({ teams: 2, teamColors: [VERT.toLowerCase(), VERT, "#123456", "rouge"] }), [VERT, ROSE]);
+    assert.deepEqual(couleursEquipes({ teams: 2, teamColors: [ORANGE, VERT, JAUNE] }), [ORANGE, VERT], "moins d'équipes : les premières");
+    assert.deepEqual(couleursEquipes({ teams: 2, teamColors: { 0: BLEU, 1: ROSE } }), [BLEU, ROSE], "tableau relu de la base");
+  });
+  test("le lancement emporte les couleurs de la prestation", () => {
+    const quiz = { title: "Q", questions: [{ text: "Capitale ?", choices: ["Paris", "Rome"], correct: 0, status: "validee" }] };
+    const { snapshot } = buildSnapshot("s", { teams: 2, teamColors: [ORANGE, VERT], rounds: [{ type: "quiz", quizId: "q" }] }, { q: quiz });
+    assert.deepEqual(snapshot.teamColors, [ORANGE, VERT]);
+    assert.deepEqual(buildSnapshot("s", { rounds: [{ type: "quiz", quizId: "q" }] }, { q: quiz }).snapshot.teamColors, [ROSE, ORANGE, VERT, JAUNE]);
   });
 });
 

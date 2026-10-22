@@ -4130,6 +4130,41 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Régie PC : couleurs des équipes dans la prestation, une pastille par équipe, à changer sans doublon (cedric, 22/10)", async () => {
+    const page = await admin();
+    await page.click("#home-new");
+    const pastilles = () => page.locator("#show-couleurs .pastilles .pastille .nom").allTextContents();
+    assert.deepEqual(await pastilles(), ["Rose", "Orange", "Vert", "Jaune"], "4 équipes : les couleurs des bracelets");
+    await page.selectOption("#show-teams", "6");
+    assert.deepEqual(await pastilles(), ["Rose", "Orange", "Vert", "Jaune", "Bleu", "Violet"]);
+    await page.selectOption("#show-teams", "2");
+    assert.deepEqual(await pastilles(), ["Rose", "Orange"]);
+    // La 1re équipe passe au vert : les 8 couleurs s'ouvrent sous les pastilles.
+    await page.locator("#show-couleurs .pastilles .pastille").nth(0).click();
+    assert.equal(await page.locator("#show-couleurs .choix-couleurs .pastille").count(), 8);
+    await page.locator("#show-couleurs .choix-couleurs .pastille", { hasText: "Vert" }).click();
+    assert.deepEqual(await pastilles(), ["Vert", "Orange"]);
+    assert.equal(await page.locator("#show-couleurs .choix-couleurs").count(), 0, "le choix se referme");
+    // L'orange déjà pris par la 2e équipe, donné à la 1re : les deux échangent, jamais deux fois la même couleur.
+    await page.locator("#show-couleurs .pastilles .pastille").nth(0).click();
+    await page.locator("#show-couleurs .choix-couleurs .pastille", { hasText: "Orange" }).click();
+    assert.deepEqual(await pastilles(), ["Orange", "Vert"]);
+    await capture(page, "couleurs-equipes");
+    await page.fill("#show-child", "Léa");
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "enregistrée" }).waitFor();
+    const [id, show] = Object.entries(await library("shows"))[0];
+    assert.deepEqual(show.teamColors, ["#FF6B1A", "#39FF14"]);
+    // Rouverte, la prestation garde ses couleurs ; « Annuler les modifications » les remet.
+    await page.locator("#show-couleurs .pastilles .pastille").nth(1).click();
+    await page.locator("#show-couleurs .choix-couleurs .pastille", { hasText: "Bleu" }).click();
+    assert.deepEqual(await pastilles(), ["Orange", "Bleu"]);
+    await page.locator(".retour-tout").first().click();
+    assert.deepEqual(await pastilles(), ["Orange", "Vert"]);
+    assert.ok(id);
+    await page.context().close();
+  });
+
   test("Régie PC : recherche à chaque lettre dans les manches d'un jeu et les images, les noms qui commencent par le texte d'abord", async () => {
     await seedLibrary("manches", {
       t: { type: "chante", title: "Tomates et salades", origin: "admin", round: { type: "chante", count: 1, picks: ["soleil"] }, updatedAt: 4 },

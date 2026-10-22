@@ -226,6 +226,26 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
+  test("couleurs choisies dans la prestation (cedric, 22/10) : la tablette ne propose qu'elles, une de plus si une équipe imprévue arrive", async () => {
+    const [ROSE, ORANGE, VERT] = ["#FF2D95", "#FF6B1A", "#39FF14"];
+    const couleurs = async (p) => p.locator("#colors button").evaluateAll((bs) => bs.map((b) => b.dataset.color));
+    // Comme la TV au lancement d'une prestation de 2 équipes en orange et vert.
+    await set(ref(hostDb(), `games/${CODE}/public`), { title: "L'anniversaire de Léa", childName: "Léa", teamColors: [ORANGE, VERT] });
+    const page = await openPupitre();
+    await page.locator("#screen-join.active").waitFor();
+    await waitFor(async () => (await couleurs(page)).length === 2, "2 couleurs proposées");
+    assert.deepEqual(await couleurs(page), [ORANGE, VERT]);
+    assert.equal(await page.locator("#colors button.selected").getAttribute("data-color"), ORANGE);
+    // Les deux équipes prévues sont là : une 3e, imprévue, reçoit la première couleur libre (rose).
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/teams`), {
+      a: { name: "Les Tigres", color: ORANGE, joinedAt: 1 }, b: { name: "Les Pandas", color: VERT, joinedAt: 2 },
+    }));
+    await page.locator(`#colors button[data-color="${ROSE}"]:not(:disabled)`).waitFor();
+    assert.deepEqual(await couleurs(page), [ORANGE, VERT, ROSE]);
+    assert.equal(await page.locator("#colors button.selected").getAttribute("data-color"), ROSE);
+    await page.context().close();
+  });
+
   test("nouvelle version du site : le pupitre se recharge hors question et retrouve son équipe", async () => {
     const page = await openPupitre();
     let version = "0.1.1";

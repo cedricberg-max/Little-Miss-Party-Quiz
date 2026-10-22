@@ -240,14 +240,27 @@ $("team-name").value = "";
 let takenColors = new Set();
 const colorKey = (c) => c.slice(1).toUpperCase();
 
+/** Couleurs choisies dans la prestation (une par équipe prévue), publiées par la TV ; null sans prestation. */
+let plannedColors = null;
+
 /**
- * Couleurs proposées : les 4 des bracelets et des bandeaux, puis une de plus seulement quand toutes celles
- * affichées sont prises (5e équipe, 6e…). Avec 4 équipes, il n'y a donc que les 4 couleurs des bracelets (cedric, 22/10).
+ * Couleurs proposées (cedric, 22/10) : celles de la prestation, choisies dans la Régie PC pour les bracelets et les
+ * bandeaux, ou à défaut les 4 des bracelets (rose, orange, vert, jaune). Une de plus n'apparaît que quand toutes
+ * celles affichées sont prises : une équipe imprévue n'est jamais bloquée à l'entrée.
  */
 function offeredColors() {
-  let n = Math.min(BRACELET_COLORS, TEAM_COLORS.length);
-  while (n < TEAM_COLORS.length && TEAM_COLORS.slice(0, n).every((c) => takenColors.has(colorKey(c)))) n++;
-  return TEAM_COLORS.slice(0, n);
+  const offered = [...(plannedColors ?? TEAM_COLORS.slice(0, BRACELET_COLORS))];
+  for (const c of TEAM_COLORS) {
+    if (offered.every((o) => takenColors.has(colorKey(o))) && !offered.some((o) => colorKey(o) === colorKey(c))) offered.push(c);
+  }
+  return offered;
+}
+
+/** Couleur présélectionnée : celle choisie si elle est encore proposée et libre, sinon la première libre. */
+function keepFreeColor() {
+  const offered = offeredColors();
+  if (offered.includes(chosenColor) && !takenColors.has(colorKey(chosenColor))) return;
+  chosenColor = offered.find((c) => !takenColors.has(colorKey(c))) ?? chosenColor;
 }
 
 function showJoin(late = false) {
@@ -263,12 +276,18 @@ function showJoin(late = false) {
       ...Object.entries(reserved).filter(([, owner]) => owner !== uid).map(([k]) => k),
       ...Object.entries(teams).filter(([id]) => id !== uid).map(([, t]) => t?.color && colorKey(t.color)).filter(Boolean),
     ]);
-    // Couleur choisie prise entre-temps : on passe à la première libre.
-    if (takenColors.has(colorKey(chosenColor))) chosenColor = TEAM_COLORS.find((c) => !takenColors.has(colorKey(c))) ?? chosenColor;
+    // Couleur choisie prise entre-temps, ou plus proposée : on passe à la première libre.
+    keepFreeColor();
     renderColors();
   };
   listen(`games/${code}/colors`, (snap) => { reserved = snap.val() ?? {}; refresh(); });
   listen(`games/${code}/teams`, (snap) => { teams = snap.val() ?? {}; refresh(); });
+  listen(`games/${code}/public/teamColors`, (snap) => {
+    const planned = Object.values(snap.val() ?? {}).filter((c) => typeof c === "string" && /^#[0-9A-Fa-f]{6}$/.test(c));
+    plannedColors = planned.length ? planned : null;
+    refresh();
+  });
+  keepFreeColor();
   renderColors();
   show("join");
   $("team-name").focus();
@@ -329,7 +348,7 @@ $("join").onclick = async () => {
       $("join-error").textContent = "Cette couleur vient d'être prise par une autre équipe : choisissez-en une autre.";
       $("join-error").hidden = false;
       takenColors.add(colorKey(wanted));
-      if (chosenColor === wanted) chosenColor = TEAM_COLORS.find((c) => !takenColors.has(colorKey(c))) ?? chosenColor;
+      if (chosenColor === wanted) keepFreeColor();
       renderColors();
       return;
     }
