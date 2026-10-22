@@ -644,11 +644,17 @@ class DirecteurSonoreTest {
     @Test
     fun `chaque son du Game Show remplace un son classique qui existe`() {
         val noms = (Son.entries.map { it.fichier } + Lit.entries.map { it.fichier }).toSet()
-        // Les sons seulement : les clips du robot (gs_robot_*.webp) vivent aussi dans res/raw.
+        // Les sons seulement : les clips du robot (gs_robot_*.mp4) vivent aussi dans res/raw.
         val gs = java.io.File("src/main/res/raw").listFiles().orEmpty().filter { it.extension in setOf("ogg", "mp3", "wav") }
             .map { it.nameWithoutExtension }.filter { it.startsWith("gs_") }
         assertTrue("Aucun son du Game Show", gs.isNotEmpty())
-        val orphelins = gs.filterNot { it.replaceFirst("gs_", "lmp_") in noms }
+        // gs_tension_2 … gs_tension_5 : autres versions d'un son long du Game Show, que Sons tire au hasard.
+        val longs = Son.entries.filter { it.long }.map { it.fichier }.toSet()
+        val variante = Regex("^(gs_.+)_[2-5]$")
+        val orphelins = gs.filterNot { n ->
+            n.replaceFirst("gs_", "lmp_") in noms ||
+                variante.find(n)?.groupValues?.get(1)?.let { base -> base in gs && base.replaceFirst("gs_", "lmp_") in longs } == true
+        }
         assertTrue("Sons du Game Show sans son classique : $orphelins", orphelins.isEmpty())
     }
 
