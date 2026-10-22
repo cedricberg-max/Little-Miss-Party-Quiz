@@ -3,7 +3,7 @@ import { getAuth, signInAnonymously, connectAuthEmulator } from "https://www.gst
 import {
   getDatabase, ref, get, set, update, onValue, onDisconnect, serverTimestamp, connectDatabaseEmulator, goOffline, goOnline,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
-import { TEAM_COLORS, CHOICE_COLORS, CHOICE_LETTERS, MAX_TEAMS } from "./theme.js";
+import { TEAM_COLORS, BRACELET_COLORS, CHOICE_COLORS, CHOICE_LETTERS, MAX_TEAMS } from "./theme.js";
 import { hasAccess, loginWithPassword, loginWithPin, startRegie } from "./regie.js";
 import { watchVersion, showUpdateBanner } from "./version.js";
 import { setAwake, isAwake, onAwakeChange } from "./awake.js";
@@ -240,6 +240,16 @@ $("team-name").value = "";
 let takenColors = new Set();
 const colorKey = (c) => c.slice(1).toUpperCase();
 
+/**
+ * Couleurs proposées : les 4 des bracelets et des bandeaux, puis une de plus seulement quand toutes celles
+ * affichées sont prises (5e équipe, 6e…). Avec 4 équipes, il n'y a donc que les 4 couleurs des bracelets (cedric, 22/10).
+ */
+function offeredColors() {
+  let n = Math.min(BRACELET_COLORS, TEAM_COLORS.length);
+  while (n < TEAM_COLORS.length && TEAM_COLORS.slice(0, n).every((c) => takenColors.has(colorKey(c)))) n++;
+  return TEAM_COLORS.slice(0, n);
+}
+
 function showJoin(late = false) {
   lateJoin = late;
   stopListening();
@@ -273,7 +283,7 @@ function showJoin(late = false) {
 function renderColors() {
   const box = $("colors");
   box.innerHTML = "";
-  TEAM_COLORS.forEach((c) => {
+  offeredColors().forEach((c) => {
     const b = document.createElement("button");
     const taken = takenColors.has(colorKey(c));
     b.style.background = c;
