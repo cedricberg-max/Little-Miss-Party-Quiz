@@ -2790,6 +2790,33 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Sons (cedric, 22/10) : toutes les chansons sont affichées, sans limite, et la recherche les filtre", async () => {
+    const chansons = {};
+    // 210 chansons, d'« Artiste 000 » à « Artiste 209 » : avant, la liste s'arrêtait aux 60 premières.
+    for (let n = 0; n < 210; n++) {
+      const k = String(n).padStart(3, "0");
+      chansons[`s${k}`] = { title: `Chanson ${k}`, artist: `Artiste ${k}`, audioId: n.toString(16).padStart(16, "0"), buzz: 30, updatedAt: 1 };
+    }
+    await seedLibrary("songs", chansons);
+    const page = await admin();
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="sons"]');
+    await page.locator("#song-list .song-ligne").nth(209).waitFor({ state: "attached" });
+    assert.equal(await page.locator("#song-list .song-ligne").count(), 210);
+    assert.equal(await page.locator("#song-list .song-ligne .song-titre").last().innerText(), "Chanson 209");
+    assert.equal(await page.locator("#song-list", { hasText: "précisez la recherche" }).count(), 0);
+    assert.equal(await page.locator("#song-count").innerText(), "210 chansons");
+    // La recherche filtre en direct.
+    await page.fill("#song-search", "Artiste 205");
+    await page.waitForFunction(() => document.querySelectorAll("#song-list .song-ligne").length === 1);
+    assert.equal(await page.locator("#song-list .song-ligne .song-titre").innerText(), "Chanson 205");
+    assert.equal(await page.locator("#song-count").innerText(), "1 sur 210");
+    await page.fill("#song-search", "");
+    await page.waitForFunction(() => document.querySelectorAll("#song-list .song-ligne").length === 210);
+    await page.context().close();
+  });
+
   test("Sons (cedric, 22/10) : des paroles mises par erreur se retirent (✕ sur la ligne, ou plusieurs chansons cochées) ; les playlists suivent", async () => {
     const A = "0123456789abcdef";
     const B = "fedcba9876543210";

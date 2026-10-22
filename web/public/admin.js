@@ -3330,8 +3330,6 @@ function songRow(song, tools) {
     h("div", { class: "song-tools" }, ...tools));
 }
 
-const MAX_SONGS_SHOWN = 60;
-
 /** Bibliothèque des sons : on y regarde les chansons supprimées (pour les remettre) au lieu des autres. */
 let voirRetirees = false;
 /** Chansons cochées (cedric, 21/10 : sélection simple ou multiple, puis « Supprimer »), par clé de chanson. */
@@ -3527,14 +3525,14 @@ function renderSongs() {
     h("button", { type: "button", class: "btn small danger", onclick: () => effacerPourDeBon(all), text: `Tout effacer pour de bon (${all.length})` }),
     h("span", { class: "hint small", text: "Effacées pour de bon, les chansons libèrent leur place en ligne et ne peuvent plus être remises." }))] : []) : found.length ? [h("div", { class: "song song-entete" },
     h("span"), h("span", { text: "Pochette" }), enteteTri("artiste", "Artiste"), enteteTri("titre", "Titre"), h("span", { text: "Paroles" }), h("span", { text: "Moments" }), h("span"), h("span"))] : []),
-  ...found.slice(0, MAX_SONGS_SHOWN).map((x, i) => (voirRetirees
+  // Toutes les chansons, sans limite ni bouton « Tout afficher » : la recherche filtre (cedric, 22/10).
+  ...found.map((x, i) => (voirRetirees
     ? h("div", { class: "song", "data-song": x.id },
       h("div", { class: "song-name" }, h("b", { text: x.title }), h("span", { class: "song-meta", text: x.artist })),
       h("div", { class: "song-tools" },
         h("button", { type: "button", class: "btn", onclick: () => remettreChanson(x), text: "Remettre" }),
         h("button", { type: "button", class: "btn danger", onclick: () => effacerPourDeBon([x]), text: "Effacer pour de bon" })))
     : ligneChanson(x, i))));
-  if (found.length > MAX_SONGS_SHOWN) $("song-list").append(h("p", { class: "hint small", text: `… et ${found.length - MAX_SONGS_SHOWN} autres : précisez la recherche.` }));
   if (!all.length && !voirRetirees) {
     $("song-list").append(h("p", { class: "hint", text: retirees.length ? "Toutes vos chansons sont supprimées : « 🗑 Supprimées » pour les remettre."
       : "Aucune chanson pour l'instant : ajoutez vos fichiers musicaux." }));
