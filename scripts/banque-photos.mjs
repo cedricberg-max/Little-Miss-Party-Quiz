@@ -16,14 +16,17 @@ const OUT = "banque-candidats";
 const PAR_MOT = Number(process.env.PAR_MOT) || 4;
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 
-let openverseRefuse = false;
+// OPENVERSE=non : Commons seul. Sinon, Openverse est abandonné après 3 échecs de suite (quota, serveur saturé).
+let openverseRefuse = process.env.OPENVERSE === "non";
+let openverseEchecs = 0;
 const DEBUT = Date.now();
 const BUDGET_MS = (Number(process.env.BUDGET_MIN) || 90) * 60000;
 const minutes = () => ((Date.now() - DEBUT) / 60000).toFixed(1);
 
 async function json(url, essais = 3) {
   for (let essai = 0; essai < essais; essai++) {
-    const res = await fetch(url, { headers: { "User-Agent": "little-miss-party-quiz/1.0 (banque d'images pour enfants; https://github.com/cedricberg-max/Little-Miss-Party-Quiz)" } });
+    // 20 s au plus par requête : un serveur saturé (Openverse en 504 le 22/10) ne fige pas la recherche.
+    const res = await fetch(url, { headers: { "User-Agent": "little-miss-party-quiz/1.0 (banque d'images pour enfants; https://github.com/cedricberg-max/Little-Miss-Party-Quiz)" }, signal: AbortSignal.timeout(20000) });
     // Quota dépassé : on attend un peu, sans jamais bloquer toute la recherche (budget de temps ci-dessous).
     if (res.status === 429) { console.warn(`429 (${minutes()} min) ${url.slice(0, 80)}`); await pause(8000 * (essai + 1)); continue; }
     if (!res.ok) throw new Error(`${res.status} ${url}`);
@@ -46,12 +49,13 @@ async function openverse(recherche, source = "") {
   const q = new URLSearchParams({ q: recherche, license: "cc0,pdm", category: "photograph", mature: "false", page_size: "20", ...(source ? { source } : {}) });
   try {
     const r = (await json(`https://api.openverse.org/v1/images/?${q}`, 3)).results ?? [];
+    openverseEchecs = 0;
     return r.filter((x) => parle(x, recherche))
       .filter((x) => (x.width ?? 0) >= 400 && (x.height ?? 0) >= 300 && Math.max(x.width, x.height) / Math.min(x.width, x.height) <= 2.2)
       .map((x) => ({ urls: [x.thumbnail, x.url].filter(Boolean), titre: x.title, auteur: x.creator, licence: `${x.license} ${x.license_version ?? ""}`.trim(), page: x.foreign_landing_url, source: `openverse/${x.source}` }));
   } catch (e) {
-    if (/Trop de refus/.test(e.message)) openverseRefuse = true;
-    console.warn("openverse", recherche, e.message);
+    if (/Trop de refus/.test(e.message) || ++openverseEchecs >= 3) openverseRefuse = true;
+    console.warn("openverse", recherche, e.message, openverseRefuse ? "(Openverse abandonné : Commons seul)" : "");
     return [];
   }
 }
