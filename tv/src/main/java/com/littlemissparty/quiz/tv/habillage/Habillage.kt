@@ -258,7 +258,7 @@ private fun chronoUrgent(s: UiState.Playing?): Boolean {
  * par seconde. 0 pendant une pause, un buzz (chrono figé) et le décompte 3, 2, 1 d'une reprise.
  */
 @Composable
-private fun secondesRestantes(s: UiState.Playing?): Int {
+internal fun secondesRestantes(s: UiState.Playing?): Int {
     var secondes by remember { mutableStateOf(0) }
     val deadline = if (s != null && (s.phase == Phase.QUESTION) && !s.paused) s.deadline else null
     LaunchedEffect(deadline, s?.resumeAt) {

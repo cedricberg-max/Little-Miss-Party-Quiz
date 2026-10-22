@@ -66,6 +66,7 @@ import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Release
 import com.littlemissparty.quiz.tv.habillage.BalayageDore
 import com.littlemissparty.quiz.tv.habillage.GeneriqueSalon
+import com.littlemissparty.quiz.tv.habillage.RobotGameShow
 import com.littlemissparty.quiz.tv.habillage.GrilleEquipes
 import com.littlemissparty.quiz.tv.habillage.HabillageEcran
 import com.littlemissparty.quiz.tv.habillage.HabillageTv
@@ -264,6 +265,8 @@ private fun Playing(state: UiState.Playing, actions: TvActions) {
         },
     )
     HabillageEcran(state)
+    // Design « The Game Show » : le robot animateur surgit à quelques moments (rien en design classique).
+    RobotGameShow(state)
     PauseLayer(state, actions.unpause)
 }
 
