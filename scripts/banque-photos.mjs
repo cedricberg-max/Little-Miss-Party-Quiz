@@ -61,9 +61,9 @@ async function openverse(recherche, source = "") {
 }
 
 /** Wikimedia Commons : fichiers dont la licence est le domaine public ou CC0, en vignette de 640 px. */
-async function commons(recherche) {
+async function commons(recherche, filtre = "") {
   const q = new URLSearchParams({
-    action: "query", format: "json", generator: "search", gsrnamespace: "6", gsrsearch: `${recherche} filetype:bitmap`, gsrlimit: "30",
+    action: "query", format: "json", generator: "search", gsrnamespace: "6", gsrsearch: `${recherche} filetype:bitmap${filtre}`, gsrlimit: "30",
     prop: "imageinfo", iiprop: "url|extmetadata|size", iiurlwidth: "640",
   });
   try {
@@ -112,6 +112,9 @@ for (const m of MOTS) {
   let candidats = await openverse(m.recherche, SOURCES_SOIGNEES);
   if (candidats.length < PAR_MOT + 2) candidats = [...candidats, ...(await openverse(m.recherche))];
   if (candidats.length < PAR_MOT + 2) candidats = [...candidats, ...(await commons(m.recherche))];
+  // Sujets très photographiés (cygne, Tower Bridge…) : les 30 premiers résultats sont presque tous sous licence CC BY-SA ;
+  // on cherche alors parmi les seuls fichiers déclarés CC0 ou domaine public (données structurées de Commons).
+  if (candidats.length < PAR_MOT + 2) candidats = [...candidats, ...(await commons(m.recherche, " haswbstatement:P275=Q6938433|P6216=Q19652"))];
   candidats = candidats.filter((c, i) => candidats.findIndex((d) => d.page === c.page) === i);
   sources[m.cle] = [];
   let n = 0;
