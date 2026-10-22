@@ -3057,6 +3057,41 @@ describe("bibliothèque de quiz et prestations", () => {
     await autre.context().close();
   });
 
+  test("Sons (cedric, 22/10) : aucun temps pour buzzer à régler ; un fichier qui ne répond plus est laissé de côté, l'import continue", async () => {
+    const page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="sons"]');
+    // « Coincé » : le navigateur ne rend jamais ni sa durée ni son contenu (ni réponse ni erreur). Délais raccourcis.
+    await page.evaluate(() => {
+      globalThis.lmpDelaisImport = 0.05;
+      const coince = (b) => typeof b?.name === "string" && b.name.includes("Coincé");
+      const lire = Blob.prototype.arrayBuffer;
+      Blob.prototype.arrayBuffer = function () { return coince(this) ? new Promise(() => {}) : lire.call(this); };
+      const muets = new Set();
+      const creer = URL.createObjectURL;
+      URL.createObjectURL = (b) => { const u = creer(b); if (coince(b)) muets.add(u); return u; };
+      const src = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "src");
+      Object.defineProperty(HTMLMediaElement.prototype, "src", { ...src, set(u) { if (!muets.has(u)) src.set.call(this, u); } });
+    });
+    await page.setInputFiles("#song-files", [
+      { name: "Les Bloqués - Coincé.wav", mimeType: "audio/wav", buffer: wav(392, 40) },
+      { name: "Les Libres - Passe partout.wav", mimeType: "audio/wav", buffer: wav(294, 40) },
+      { name: "Les Libres - Encore.wav", mimeType: "audio/wav", buffer: wav(330, 40) },
+    ]);
+    await page.locator("#song-status", { hasText: "Bibliothèque à jour : 2 chansons rangées. Un fichier illisible laissé de côté" }).waitFor({ timeout: 60000 });
+    await page.locator("#song-status", { hasText: "« Coincé »" }).waitFor();
+    const songs = Object.values(await library("songs"));
+    assert.ok(["Passe partout", "Encore"].every((x) => songs.some((y) => y.title === x)));
+    assert.ok(!songs.some((y) => y.title === "Coincé"));
+    assert.equal(await page.locator("#playlist-duration").evaluate((e) => e.closest(".panel").hidden), true, "pas de temps pour buzzer dans la bibliothèque");
+    // « ⏱ Réglé ✓ » : le début et le hook, sans temps pour buzzer.
+    await page.locator("#song-list .song", { hasText: "Passe partout" }).getByRole("button", { name: "⏱ Réglé ✓" }).click();
+    await page.locator(".reglage-curseur").first().waitFor();
+    assert.equal(await page.locator(".track-duration").count(), 0);
+    assert.doesNotMatch(await page.locator("#screen-playlist-edit").innerText(), /buzzer/);
+    await page.context().close();
+  });
+
   test("Sons : une chanson réglée avant le 21/10 (début au tiers) redéposée revient au nouveau début, avec sa chanson entière", async () => {
     const page = await admin();
     await page.click("#nav button[data-screen=library]");
