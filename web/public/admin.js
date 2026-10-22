@@ -4746,6 +4746,8 @@ function illustrationQuestion(x) {
   const photo = x.choiceImages?.[x.correct] ?? null;
   if (photo) return photoBibliotheque(photo, { class: "q-illus" });
   if (x.banque?.[0]) return h("img", { class: "q-illus", src: `banque/${x.banque[0]}.jpg`, alt: "", loading: "lazy" });
+  // Juste Chiffre sans émoji : la TV montre son compteur qui tourne.
+  if (x.nombre) return h("span", { class: "q-illus emoji compteur", title: "Le compteur du Juste Chiffre", text: "🔢" });
   return h("span", { class: "q-illus vide", title: "Pas d'illustration", text: "⚠" });
 }
 

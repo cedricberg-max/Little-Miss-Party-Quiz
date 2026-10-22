@@ -2789,6 +2789,10 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.locator('.q-groupe[data-groupe="miennes"] .q-item').count(), 1);
     await page.click('#q-groups [data-groupe="tests"]');
     await page.locator("#q-list .q-item", { hasText: "Combien de jours y a-t-il dans une année ?" }).getByRole("button", { name: "Supprimer" }).waitFor();
+    // Un Juste Chiffre sans émoji a son compteur sur la TV (cedric, 22/10) : 🔢, pas d'alerte.
+    const sansEmoji = page.locator('#q-list .q-item[data-question="test-lea-tous-les-jeux-quiz/0"]');
+    assert.equal(await sansEmoji.locator(".q-illus.compteur").innerText(), "🔢");
+    assert.equal(await sansEmoji.locator(".q-alerte").count(), 0);
 
     // « Toutes prêtes » : le Juste Chiffre en tête, chacun avec son émoji, sans alerte.
     await page.click('#q-groups [data-groupe="pretes"]');

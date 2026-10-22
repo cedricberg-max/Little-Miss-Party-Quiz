@@ -35,9 +35,11 @@ const photoDeLaBanque = (mot) => {
 /**
  * Illustration d'une question : une photo par réponse dans un quiz illustré ([kind] « photo »), sinon l'image
  * montrée à la révélation (photo ou émoji). `{ ok, manque }` : [manque] dit ce qui manque, pour l'alerte.
+ * Un Juste Chiffre a toujours son visuel sur la TV, le compteur qui tourne (validé par cedric le 22/10) : jamais d'alerte.
  */
 export function illustration(q, kind) {
-  if (kind === "photo" && q?.kind !== "number") {
+  if (q?.kind === "number") return { ok: true, manque: null };
+  if (kind === "photo") {
     const choix = q?.choices ?? [];
     const sans = choix.filter((_, k) => !IMAGE_ID.test(q?.choiceImages?.[k] ?? "")).length;
     if (!choix.length) return { ok: false, manque: "Pas d'illustration" };

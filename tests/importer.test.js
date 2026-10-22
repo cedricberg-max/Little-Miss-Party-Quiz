@@ -2206,6 +2206,9 @@ describe("Bibliothèque › Questions : toutes prêtes, mes questions, mes packs
     assert.deepEqual(Q.illustration({ choices: ["A", "B"] }, "photo"), { ok: false, manque: "Pas de photo pour les réponses" });
     // Juste Chiffre dans un quiz illustré : pas de réponses à illustrer, l'émoji suffit.
     assert.deepEqual(Q.illustration({ kind: "number", correct: 4, image: "🦒" }, "photo"), { ok: true, manque: null });
+    // Juste Chiffre sans image : la TV montre son compteur (cedric, 22/10), pas d'alerte, dans tout quiz.
+    assert.deepEqual(Q.illustration({ kind: "number", correct: 4 }, "classique"), { ok: true, manque: null });
+    assert.deepEqual(Q.illustration({ kind: "number", correct: 4 }, "photo"), { ok: true, manque: null });
   });
 
   test("mes questions et mes packs : séparés par la source du quiz, les plus récents d'abord, alerte comptée", () => {
@@ -2226,8 +2229,8 @@ describe("Bibliothèque › Questions : toutes prêtes, mes questions, mes packs
     ]);
     assert.deepEqual(miennes[0].choiceImages, [CHAT, LION]);
     const packs = Q.mesPacks(quizzes);
-    assert.deepEqual(packs.map((p) => [p.id, p.title, p.total, p.validees, p.sansIllustration]), [["pack2", "Ancien collage", 1, 1, 0], ["pack1", "Savane", 2, 2, 1]]);
-    assert.deepEqual(packs[1].questions[1], { ...packs[1].questions[1], nombre: true, choices: [], correct: 4, ok: false, manque: "Pas d'illustration" });
+    assert.deepEqual(packs.map((p) => [p.id, p.title, p.total, p.validees, p.sansIllustration]), [["pack2", "Ancien collage", 1, 1, 0], ["pack1", "Savane", 2, 2, 0]]);
+    assert.deepEqual(packs[1].questions[1], { ...packs[1].questions[1], nombre: true, choices: [], correct: 4, ok: true, manque: null });
     assert.equal(Q.estPack({ source: "tableur" }), true);
     assert.equal(Q.estPack({ source: "banque" }), false);
   });
