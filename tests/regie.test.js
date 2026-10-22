@@ -2318,6 +2318,43 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Sons (cedric, 22/10) : des paroles mises par erreur se retirent (✕ sur la ligne, ou plusieurs chansons cochées) ; les playlists suivent", async () => {
+    const A = "0123456789abcdef";
+    const B = "fedcba9876543210";
+    const C = "00112233445566ff";
+    const chanson = (title, artist, audioId) => ({ title, artist, audioId, refrainId: C, refrain: 40, buzz: 30, lrc: true, paroles: "40000|La la", updatedAt: 1 });
+    await seedLibrary("songs", { s1: chanson("Belle", "Claude François", A), s2: chanson("Zombie", "The Cranberries", B), s3: { title: "Sans paroles", audioId: C, buzz: 30, updatedAt: 1 } });
+    await seedLibrary("lyrics", { s1: "[00:40.00]La la", s2: "[00:40.00]La la" });
+    await seedLibrary("playlists", { p1: { title: "Années 70", duration: 30, tracks: [{ title: "Belle", artist: "Claude François", audioId: A, songId: "s1", refrainId: C, paroles: "40000|La la" }], updatedAt: 1 } });
+    const page = await admin();
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="sons"]');
+    const belle = page.locator("#song-list .song-ligne", { hasText: "Belle" });
+    await belle.locator(".song-paroles.ok").waitFor();
+    assert.equal(await page.locator("#song-list .song-ligne", { hasText: "Sans paroles" }).locator(".song-paroles-retirer").count(), 0);
+    let question = repondreFenetre(page, { accepter: false });
+    await belle.getByRole("button", { name: "Retirer les paroles de « Belle »" }).click();
+    assert.match(await question, /^Retirer les paroles de « Belle » \?/);
+    assert.equal((await library("songs/s1")).lrc, true, "rien n'est retiré sans confirmation");
+    question = repondreFenetre(page);
+    await belle.getByRole("button", { name: "Retirer les paroles de « Belle »" }).click();
+    await question;
+    await page.locator("#song-status", { hasText: "Paroles de « Belle » retirées." }).waitFor();
+    await belle.locator(".song-paroles:not(.ok)", { hasText: "＋ Paroles (.lrc)" }).waitFor();
+    const s1 = await library("songs/s1");
+    assert.deepEqual([s1.lrc, s1.paroles, s1.audioId, s1.refrain], [undefined, undefined, A, 40], "le reste de la chanson ne bouge pas");
+    assert.equal(await library("lyrics/s1"), null);
+    await waitFor(async () => (await library("playlists/p1/tracks/0")).paroles === undefined, "la playlist suit");
+    // Plusieurs chansons cochées : « Retirer les paroles (n) ».
+    await page.locator("#song-list .song-ligne", { hasText: "Zombie" }).locator(".song-check").check();
+    question = repondreFenetre(page);
+    await page.locator("#song-barre").getByRole("button", { name: "Retirer les paroles (1)" }).click();
+    assert.match(await question, /^Retirer les paroles de « Zombie » \?/);
+    await waitFor(async () => (await library("songs/s2")).lrc === undefined && (await library("lyrics/s2")) == null, "paroles de Zombie retirées");
+    await page.context().close();
+  });
+
   test("Sons : une ligne par chanson ; cocher (un, Maj + clic, Ctrl + A) puis « Supprimer » (les playlists les gardent) et les remettre ; « ← Retour » sur la page d'un jeu", async () => {
     const A = "0123456789abcdef";
     const B = "fedcba9876543210";

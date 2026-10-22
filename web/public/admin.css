@@ -548,6 +548,9 @@ body.essai::before {
 .song-pochette.vide:hover, .song-paroles:hover { border-color: var(--gold); }
 .song-paroles { cursor: pointer; font-size: 14px; border: 1px dashed var(--line); border-radius: 999px; padding: 4px 10px; text-align: center; white-space: nowrap; }
 .song-paroles.ok { border-style: solid; border-color: var(--good); color: var(--good); font-weight: 700; }
+.song-paroles-cellule { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.song-paroles-cellule .song-paroles { flex: 1 1 auto; min-width: 0; }
+button.icon.song-paroles-retirer { flex: none; width: 28px; height: 28px; padding: 0; font-size: 13px; }
 .song-moments { font-size: 14px; border-radius: 999px; padding: 4px 10px; white-space: nowrap; text-align: center; }
 button.song-moments { border: 1px dashed var(--line-2); color: var(--soft); background: none; cursor: pointer; font: inherit; font-size: 14px; }
 button.song-moments.ok { border: 1px solid var(--good); color: var(--good); font-weight: 700; }
