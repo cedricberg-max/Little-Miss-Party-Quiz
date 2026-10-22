@@ -2999,7 +2999,10 @@ describe("bibliothèque de quiz et prestations", () => {
     const first = await regie.locator("#lib-questions .lib-card").first().getAttribute("data-word");
     await regie.locator("#lib-questions .lib-card").first().click();
     await regie.locator("#lib-meta", { hasText: "Mimes · 14 cartes" }).waitFor();
-    const extra = await regie.locator("#lib-add option:not([value=''])").first().getAttribute("value");
+    // La carte retirée revient dans la liste « Ajouter » : on en choisit une autre (sinon le test dépend du tirage).
+    const extra = await regie.locator("#lib-add option:not([value=''])").evaluateAll((os, mot) => os
+      .find((o) => o.textContent.replace(/^[^\p{L}\p{N}]+/u, "").trim().toLowerCase() !== mot.toLowerCase())?.value, first);
+    assert.ok(await regie.locator("#lib-add option", { hasText: first }).count() > 0, "la carte retirée peut être remise");
     await regie.selectOption("#lib-add", extra);
     await regie.locator("#lib-meta", { hasText: "Mimes · 15 cartes" }).waitFor();
     const words = await regie.locator("#lib-questions .lib-card").evaluateAll((els) => els.map((e) => e.dataset.word));
