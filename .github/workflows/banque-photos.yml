@@ -22,6 +22,14 @@ on:
         description: "« oui » = effacer toutes les pré-versions et branches de candidates (une fois les photos choisies)"
         required: false
         default: ""
+      liste:
+        description: "Autre liste à illustrer (fichier JSON [{cle, recherche}], ex. scripts/banque-quiz-recherches.json), vide = les tout-petits"
+        required: false
+        default: ""
+      partie:
+        description: "Seulement cette partie de la liste (ex. 2/3), vide = toute la liste"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -66,6 +74,8 @@ jobs:
         env:
           MOTS: ${{ inputs.mots }}
           PAR_MOT: ${{ inputs.par_mot }}
+          LISTE: ${{ inputs.liste }}
+          PARTIE: ${{ inputs.partie }}
           BUDGET_MIN: "90"
         run: node scripts/banque-photos.mjs
       - name: Publier les candidates

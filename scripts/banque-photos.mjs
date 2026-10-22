@@ -2,10 +2,13 @@
 // Mark ») dans Openverse, puis Wikimedia Commons pour compléter, les recadre en carré 480 px (moins de 45 Ko, la
 // taille des vignettes de réponse) et prépare des planches pour choisir la meilleure.
 // MOTS=chat,chien node scripts/banque-photos.mjs : seulement ces mots (clés), pour refaire ceux qui sont ratés.
+// LISTE=scripts/banque-quiz-recherches.json : une autre liste [{ cle, recherche }] (les photos de révélation du quiz
+// classique tout prêt), en 640 × 480 (moins de 60 Ko) au lieu du carré. PARTIE=2/3 : seulement le 2e tiers de la liste
+// (trois lots lancés en même temps).
 // BUDGET_MIN=90 : au-delà, la recherche s'arrête et publie ce qu'elle a ; les mots restants sont listés (lot suivant).
 // Lancé par .github/workflows/banque-photos.yml (le conteneur de développement n'a pas accès à ces sites).
 // Sortie : banque-candidats/<clé>-<n>.jpg, banque-candidats/sources.json, banque-candidats/planche-<k>.jpg.
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { BANQUE_MOTS } from "../web/public/banque-petits.js";
 
@@ -90,12 +93,18 @@ async function telecharger(url, fichier) {
 
 await mkdir(OUT, { recursive: true });
 const seulement = new Set((process.env.MOTS ?? "").split(",").map((x) => x.trim()).filter(Boolean));
-const MOTS = BANQUE_MOTS.filter((m) => !seulement.size || seulement.has(m.cle));
+const LISTE = process.env.LISTE ? JSON.parse(await readFile(process.env.LISTE, "utf8")).map((x) => ({ mot: x.cle, ...x })) : BANQUE_MOTS;
+const [partie, parties] = (process.env.PARTIE || "1/1").split("/").map(Number);
+const taille = Math.ceil(LISTE.length / parties);
+const MOTS = LISTE.slice((partie - 1) * taille, partie * taille).filter((m) => !seulement.size || seulement.has(m.cle));
+// Carré 480 px sous 45 Ko (vignette de réponse) ; 640 × 480 sous 60 Ko pour une photo de révélation.
+const [L, H, KO] = process.env.LISTE ? [640, 480, 60] : [480, 480, 44];
 const sources = {};
 const manquants = [];
 const restants = [];
 for (const m of MOTS) {
   if (Date.now() - DEBUT > BUDGET_MS) { restants.push(m.cle); continue; }
+  // Assez de choix dans les seules banques soignées : on ne va pas plus loin (moins de requêtes, quotas des API).
   let candidats = await openverse(m.recherche, SOURCES_SOIGNEES);
   if (candidats.length < PAR_MOT + 2) candidats = [...candidats, ...(await openverse(m.recherche))];
   if (candidats.length < PAR_MOT + 2) candidats = [...candidats, ...(await commons(m.recherche))];
@@ -109,9 +118,8 @@ for (const m of MOTS) {
     for (const url of r.urls) if (!ok) ok = await telecharger(url, brut);
     if (!ok) continue;
     try {
-      // Carré 480 px, JPEG sous 45 Ko (comme une vignette de réponse rangée par la Régie PC).
-      execFileSync("convert", [`${brut}[0]`, "-auto-orient", "-resize", "480x480^", "-gravity", "center", "-extent", "480x480", "-strip",
-        "-define", "jpeg:extent=44kb", `${OUT}/${m.cle}-${n + 1}.jpg`]);
+      execFileSync("convert", [`${brut}[0]`, "-auto-orient", "-resize", `${L}x${H}^`, "-gravity", "center", "-extent", `${L}x${H}`, "-strip",
+        "-define", `jpeg:extent=${KO}kb`, `${OUT}/${m.cle}-${n + 1}.jpg`]);
     } catch {
       continue;
     }
@@ -133,10 +141,10 @@ for (let k = 0; k * parPlanche < FAITS.length; k++) {
   for (const m of FAITS.slice(k * parPlanche, (k + 1) * parPlanche)) {
     for (let n = 1; n <= PAR_MOT; n++) {
       const f = `${OUT}/${m.cle}-${n}.jpg`;
-      fichiers.push("-label", `${m.cle} ${n}`, (sources[m.cle] ?? []).some((s) => s.n === n) ? f : "xc:white");
+      fichiers.push("-label", `${m.etiquette ?? m.cle} ${n}`, (sources[m.cle] ?? []).some((s) => s.n === n) ? f : "xc:white");
     }
   }
-  execFileSync("montage", [...fichiers, "-tile", `${PAR_MOT}x`, "-geometry", "180x180+4+4", "-pointsize", "14", `${OUT}/planche-${String(k + 1).padStart(2, "0")}.jpg`]);
+  execFileSync("montage", [...fichiers, "-tile", `${PAR_MOT}x`, "-geometry", `${Math.round((180 * L) / H)}x180+4+4`, "-pointsize", "14", `${OUT}/planche-${String(k + 1).padStart(2, "0")}.jpg`]);
 }
 console.log(`Manquants : ${manquants.join(", ") || "aucun"}`);
 console.log(`Restants (lot suivant, entrée « mots ») : ${restants.join(",") || "aucun"}`);
