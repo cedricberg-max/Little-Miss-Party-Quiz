@@ -590,6 +590,10 @@ function renderNumber(st) {
         else if (numberDraft.replace("-", "").length < 9) numberDraft = numberDraft === "0" ? k : numberDraft === "-0" ? `-${k}` : numberDraft + k;
         beep(1200, 40);
         render();
+        // Petit rebond de l'écran à chaque touche (l'animation repart même sur deux touches rapprochées).
+        screen.classList.remove("pop");
+        void screen.offsetWidth;
+        screen.classList.add("pop");
       };
       pad.appendChild(b);
     });
