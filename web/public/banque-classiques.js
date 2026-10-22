@@ -106,6 +106,8 @@ export const QUESTIONS_CLASSIQUES = [
   q("animaux", 2, "walrus tusks", "Quel gros animal des mers glacées a deux longues défenses et des moustaches ?", "Le morse", "Le phoque", "L'otarie", "Le lamantin"),
   q("animaux", 2, "bactrian camel", "Quel animal du désert porte deux bosses sur le dos ?", "Le chameau", "Le dromadaire", "Le lama", "Le yack"),
   q("animaux", 2, "bornean orangutan", "Quel grand singe au pelage roux vit dans les forêts de Bornéo ?", "L'orang-outan", "Le gorille", "Le chimpanzé", "Le babouin"),
+  q("animaux", 2, "giant anteater", "Quel animal d'Amérique du Sud attrape les fourmis avec sa très longue langue ?", "Le fourmilier", "Le tatou", "Le tapir", "Le paresseux"),
+  q("animaux", 2, "inflated pufferfish", "Quel poisson se gonfle comme un ballon quand il se sent en danger ?", "Le poisson-globe", "Le poisson-clown", "La raie", "Le mérou"),
   q("animaux", 3, "sloth", "Quel mammifère est célèbre pour être très lent ?", "Le paresseux", "Le koala", "Le tatou", "Le lémurien"),
   q("animaux", 3, "honey bee flower", "Comment les abeilles indiquent-elles où trouver des fleurs ?", "En dansant", "En chantant", "En dessinant", "En clignotant"),
   q("animaux", 3, "bat flying", "Comment la chauve-souris trouve-t-elle son chemin dans le noir ?", "Grâce à l'écho de ses cris", "Avec ses yeux", "Avec son odorat", "Grâce aux étoiles"),
@@ -183,6 +185,7 @@ export const QUESTIONS_CLASSIQUES = [
   q("temps", 2, "chinese dragon dance", "Quel animal géant, porté par des danseurs, défile pour le Nouvel An chinois ?", "Le dragon", "Le tigre", "Le cheval", "L'éléphant"),
   q("temps", 3, "roman numerals clock", "En chiffres romains, que vaut X ?", "10", "5", "50", "100"),
   q("temps", 3, "aztec sun stone", "Comment surnomme-t-on la Pierre du Soleil, immense disque sculpté exposé dans un musée de Mexico ?", "Le calendrier aztèque", "Le calendrier maya", "La roue de la fortune", "Le zodiaque chinois"),
+  q("temps", 3, "atomic clock", "Quelle horloge ultra-précise utilise les vibrations des atomes de césium ?", "L'horloge atomique", "L'horloge à quartz", "L'horloge astronomique", "La clepsydre"),
 
   // Espace
   q("espace", 1, "🌍 earth from space", "Sur quelle planète vivons-nous ?", "La Terre", "Mars", "Vénus", "La Lune"),
@@ -269,6 +272,7 @@ export const QUESTIONS_CLASSIQUES = [
   q("sport", 2, "water polo match", "Dans quel sport joue-t-on au ballon en nageant, avec deux buts qui flottent ?", "Le water-polo", "Le handball", "Le plongeon", "Le volley"),
   q("sport", 2, "stopwatch", "Avec quel objet l'entraîneur mesure-t-il le temps d'un coureur ?", "Le chronomètre", "Le thermomètre", "Le sablier", "La boussole"),
   q("sport", 2, "whistle referee", "Dans quoi l'arbitre souffle-t-il pour arrêter le jeu ?", "Un sifflet", "Une trompette", "Un klaxon", "Une flûte"),
+  q("sport", 2, "soccer cleats", "Comment s'appellent les pointes sous les chaussures de foot, qui empêchent de glisser ?", "Les crampons", "Les lacets", "Les talons", "Les patins"),
   q("sport", 3, "pole vault", "Dans quelle épreuve saute-t-on très haut avec une longue perche ?", "Le saut à la perche", "Le saut en hauteur", "Le triple saut", "Le saut en longueur"),
   q("sport", 3, "athens stadium", "Dans quelle ville ont eu lieu les premiers Jeux olympiques modernes, en 1896 ?", "Athènes", "Paris", "Londres", "Rome"),
   q("sport", 3, "luge sled", "Dans quelle épreuve olympique descend-on la piste de glace allongé sur le dos, les pieds devant ?", "La luge", "Le skeleton", "Le bobsleigh", "Le biathlon"),
@@ -278,6 +282,8 @@ export const QUESTIONS_CLASSIQUES = [
   q("sport", 3, "shot put", "En athlétisme, quelle lourde boule de métal lance-t-on en la poussant depuis le cou ?", "Le poids", "Le disque", "Le marteau", "Le javelot"),
   q("sport", 3, "kendo", "Quel art martial japonais se pratique avec une armure et un sabre en bambou ?", "Le kendo", "Le judo", "Le sumo", "Le karaté"),
   q("sport", 3, "pommel horse", "Sur quel agrès de gymnastique à deux poignées les gymnastes font-ils tourner leurs jambes ?", "Le cheval d'arçons", "Les anneaux", "La poutre", "Les barres parallèles"),
+  q("sport", 3, "wooden golf tee", "Au golf, sur quel petit support pose-t-on la balle avant le premier coup ?", "Le tee", "Le green", "Le caddie", "Le club"),
+  q("sport", 3, "squash court player", "Dans quel sport frappe-t-on une petite balle contre les murs d'une salle fermée ?", "Le squash", "Le tennis", "Le badminton", "Le golf"),
 
   // Jeux et nombres
   q("jeux", 1, "🎨 green paint", "Quelle couleur obtient-on en mélangeant du bleu et du jaune ?", "Le vert", "Le violet", "L'orange", "Le rose"),
@@ -318,6 +324,7 @@ export const QUESTIONS_CLASSIQUES = [
   q("jeux", 3, "kayak", "Comment appelle-t-on un mot qui se lit pareil dans les deux sens, comme « kayak » ?", "Un palindrome", "Une anagramme", "Un synonyme", "Un antonyme"),
   q("jeux", 3, "mahjong tiles", "Quel jeu chinois se joue avec des tuiles décorées de bambous, de cercles et de caractères ?", "Le mah-jong", "Les dominos", "Le go", "Le tangram"),
   q("jeux", 3, "backgammon board", "Quel très vieux jeu de dés se joue sur un plateau orné de 24 flèches triangulaires ?", "Le backgammon", "Les dames", "Le go", "Les petits chevaux"),
+  q("jeux", 3, "tangram pieces", "Quel casse-tête chinois de sept pièces permet de former des centaines de silhouettes ?", "Le tangram", "Le sudoku", "Le Rubik's Cube", "Le mah-jong"),
 
   // Musique
   q("musique", 1, "🎹 piano keys", "Quel instrument a des touches noires et blanches ?", "Le piano", "La guitare", "Le tambour", "La flûte"),
@@ -387,6 +394,8 @@ export const QUESTIONS_CLASSIQUES = [
   q("contes", 2, "royal golden carriage", "Dans quoi Cendrillon se rend-elle au bal, grâce à sa marraine la fée ?", "Un carrosse", "Un traîneau", "Une charrette", "Une barque"),
   q("contes", 2, "cheese wheel", "Dans la fable de La Fontaine, que tient le corbeau dans son bec ?", "Un fromage", "Un ver de terre", "Une noix", "Un morceau de pain"),
   q("contes", 2, "candelabra candles", "Dans « La Belle et la Bête » de Disney, quel objet est Lumière ?", "Un chandelier", "Une horloge", "Une théière", "Un plumeau"),
+  q("contes", 2, "warthog", "Dans « Le Roi lion », quel animal est Pumbaa, l'ami de Timon ?", "Un phacochère", "Un sanglier", "Un cochon", "Un hippopotame"),
+  q("contes", 2, "nutcracker soldier", "Quel jouet en bois, offert à Clara pour Noël, sert à casser les noix ?", "Un casse-noisette", "Une poupée russe", "Un pantin", "Un ours en peluche"),
   q("contes", 3, "victor hugo", "Qui a écrit « Les Misérables » ?", "Victor Hugo", "Molière", "Émile Zola", "Alexandre Dumas"),
   q("contes", 3, "crow", "Qui a écrit la fable « Le Corbeau et le Renard » ?", "Jean de La Fontaine", "Molière", "Charles Perrault", "Victor Hugo"),
   q("contes", 3, "jules verne", "Qui a écrit « Vingt Mille Lieues sous les mers » ?", "Jules Verne", "Victor Hugo", "Alexandre Dumas", "Molière"),
@@ -394,6 +403,7 @@ export const QUESTIONS_CLASSIQUES = [
   q("contes", 3, "Chateau d'If", "Dans quelle forteresse, sur une île près de Marseille, Edmond Dantès est-il enfermé dans « Le Comte de Monte-Cristo » ?", "Le château d'If", "Le Mont-Saint-Michel", "La Bastille", "Fort Boyard"),
   q("contes", 3, "Glenfinnan Viaduct", "Dans les films « Harry Potter », sur quel viaduc écossais passe le Poudlard Express ?", "Le viaduc de Glenfinnan", "Le viaduc de Millau", "Le pont du Gard", "Le pont de Brooklyn"),
   q("contes", 3, "sperm whale", "Quel animal est Moby Dick, la baleine blanche du roman d'Herman Melville ?", "Un cachalot", "Une baleine bleue", "Une orque", "Un béluga"),
+  q("contes", 3, "common reed plant", "Dans la fable de La Fontaine, quelle plante dit au chêne : « Je plie, et ne romps pas » ?", "Le roseau", "Le saule", "Le bambou", "Le lierre"),
 
   // Monde et nature
   q("monde", 1, "☀️ blue sky", "De quelle couleur est le ciel quand il fait beau ?", "Bleu", "Vert", "Rouge", "Violet"),
@@ -503,6 +513,7 @@ export const QUESTIONS_CLASSIQUES = [
   q("cuisine", 2, "green peas pods", "Quels petits légumes ronds et verts sort-on de leur cosse avant de les cuire ?", "Les petits pois", "Les haricots verts", "Les olives", "Les épinards"),
   q("cuisine", 2, "black peppercorns", "Quelles petites boules noires écrase-t-on dans un moulin pour épicer les plats ?", "Le poivre", "Le sel", "La muscade", "Le cumin"),
   q("cuisine", 2, "dragon fruit", "Quel fruit exotique a une peau rose à écailles et une chair blanche à pépins noirs ?", "Le fruit du dragon", "Le litchi", "La grenade", "La mangue"),
+  q("cuisine", 2, "cheese grater", "Quel ustensile transforme un morceau de gruyère en petits filaments ?", "La râpe", "Le presse-ail", "Le mixeur", "L'économe"),
   q("cuisine", 3, "tomato plant", "Pour les botanistes, la tomate est…", "Un fruit", "Un légume", "Une céréale", "Une épice"),
   q("cuisine", 3, "sheep", "Avec le lait de quel animal fait-on le roquefort ?", "La brebis", "La vache", "La chèvre", "La bufflonne"),
   q("cuisine", 3, "cinnamon sticks", "Quelle épice est faite avec l'écorce d'un arbre ?", "La cannelle", "La vanille", "Le poivre", "Le safran"),
@@ -512,6 +523,7 @@ export const QUESTIONS_CLASSIQUES = [
   q("cuisine", 3, "madeleine cakes", "Quel petit gâteau bombé en forme de coquillage est la spécialité de Commercy, en Lorraine ?", "La madeleine", "Le financier", "Le canelé", "Le palmier"),
   q("cuisine", 3, "black truffle", "Quel champignon noir très cher pousse sous la terre et se cherche avec des chiens ?", "La truffe", "Le cèpe", "La morille", "La girolle"),
   q("cuisine", 3, "gazpacho soup", "Quelle soupe de tomates, de poivrons et de concombre se mange froide en Espagne ?", "Le gazpacho", "Le minestrone", "La bouillabaisse", "Le velouté"),
+  q("cuisine", 3, "pesto sauce", "Quelle sauce verte italienne mélange basilic, ail, pignons de pin et parmesan ?", "Le pesto", "La béchamel", "Le tzatziki", "La bolognaise"),
 
   // Pays et villes
   q("pays", 1, "🗼 eiffel tower", "Quelle est la capitale de la France ?", "Paris", "Lyon", "Marseille", "Bordeaux"),
@@ -553,6 +565,8 @@ export const QUESTIONS_CLASSIQUES = [
   q("pays", 2, "fish and chips", "Quel plat anglais associe du poisson pané et des frites ?", "Le fish and chips", "Le hamburger", "Le hot-dog", "Le kebab"),
   q("pays", 2, "rooster farm", "Quel animal de la ferme est le symbole de la France ?", "Le coq", "L'aigle", "Le lion", "L'ours"),
   q("pays", 2, "Buckingham Palace", "Quel palais de Londres est la résidence officielle du roi du Royaume-Uni ?", "Le palais de Buckingham", "Le château de Versailles", "La tour de Londres", "Le palais de l'Élysée"),
+  q("pays", 2, "White House Washington", "Comment s'appelle la maison du président des États-Unis, à Washington ?", "La Maison-Blanche", "Le Capitole", "Le Kremlin", "L'Élysée"),
+  q("pays", 2, "Sacre Coeur Montmartre", "Quelle basilique blanche domine Paris du haut de la butte Montmartre ?", "Le Sacré-Cœur", "Notre-Dame", "La Sainte-Chapelle", "Le Panthéon"),
   q("pays", 3, "capitol washington", "Quelle est la capitale des États-Unis ?", "Washington", "New York", "Los Angeles", "Chicago"),
   q("pays", 3, "christ the redeemer", "Dans quelle ville se trouve la grande statue du Christ rédempteur ?", "Rio de Janeiro", "Rome", "Lisbonne", "Mexico"),
   q("pays", 3, "bern", "Quelle est la capitale de la Suisse ?", "Berne", "Genève", "Zurich", "Lausanne"),
@@ -569,6 +583,7 @@ export const QUESTIONS_CLASSIQUES = [
   q("pays", 3, "moai Easter Island", "Comment appelle-t-on les statues géantes de pierre qui se dressent sur l'île de Pâques ?", "Les moaï", "Les totems", "Les menhirs", "Les sphinx"),
   q("pays", 3, "Alhambra Granada", "Quel palais arabe aux jardins fleuris domine la ville de Grenade, en Espagne ?", "L'Alhambra", "Le palais des Papes", "La Cité interdite", "Le Kremlin"),
   q("pays", 3, "moroccan tagine pot", "Dans quel plat en terre cuite, au couvercle pointu, mijote-t-on les ragoûts au Maroc ?", "Le tajine", "Le wok", "La paella", "La cocotte en fonte"),
+  q("pays", 3, "Petra Jordan treasury", "Quelle cité antique a été taillée dans une falaise de roche rose, en Jordanie ?", "Pétra", "Palmyre", "Babylone", "Carthage"),
 
   // Histoire et mythologie
   q("histoire", 1, "🦖 dinosaur", "Quels animaux géants ont disparu il y a des millions d'années ?", "Les dinosaures", "Les éléphants", "Les baleines", "Les girafes"),
@@ -600,6 +615,7 @@ export const QUESTIONS_CLASSIQUES = [
   q("histoire", 2, "dolmen stones", "Quel monument préhistorique est fait d'une grande pierre plate posée sur d'autres, comme une table ?", "Le dolmen", "Le menhir", "La pyramide", "L'obélisque"),
   q("histoire", 2, "ancient amphora", "Dans quel grand vase à deux anses les Romains transportaient-ils le vin et l'huile ?", "L'amphore", "Le tonneau", "La cruche", "Le chaudron"),
   q("histoire", 2, "Les Invalides Paris", "Sous quel dôme doré de Paris se trouve le tombeau de Napoléon ?", "Les Invalides", "Le Panthéon", "Le Sacré-Cœur", "Notre-Dame"),
+  q("histoire", 2, "quill pen inkwell", "Avec quoi écrivait-on à l'encre, bien avant l'invention du stylo ?", "La plume d'oie", "Le crayon à papier", "La craie", "Le feutre"),
   q("histoire", 3, "marie curie", "Quelle savante a reçu deux prix Nobel ?", "Marie Curie", "Simone Veil", "Jeanne d'Arc", "Coco Chanel"),
   q("histoire", 3, "wright flyer", "Qui a fait voler le premier avion à moteur, en 1903 ?", "Les frères Wright", "Les frères Lumière", "Louis Blériot", "Les frères Montgolfier"),
   q("histoire", 3, "antique telephone", "Qui a inventé le téléphone ?", "Graham Bell", "Thomas Edison", "Louis Pasteur", "Gustave Eiffel"),
@@ -650,6 +666,7 @@ export const QUESTIONS_CLASSIQUES = [
   q("transports", 2, "container ship", "Quel énorme navire transporte des milliers de grandes boîtes en métal empilées ?", "Le porte-conteneurs", "Le paquebot", "Le sous-marin", "Le voilier"),
   q("transports", 2, "balance bike child", "Comment s'appelle le petit vélo sans pédales des tout-petits, qui avancent en poussant avec les pieds ?", "La draisienne", "Le tricycle", "La trottinette", "Le tandem"),
   q("transports", 2, "airport control tower", "D'où surveille-t-on les avions qui décollent et atterrissent ?", "La tour de contrôle", "Le hangar", "Le cockpit", "Le parking"),
+  q("transports", 2, "aircraft carrier", "Quel immense navire sert de piste aux avions en pleine mer ?", "Le porte-avions", "Le paquebot", "Le sous-marin", "Le ferry"),
   q("transports", 3, "suez canal", "Quel canal relie la mer Méditerranée à la mer Rouge ?", "Le canal de Suez", "Le canal de Panama", "Le canal du Midi", "Le canal de Kiel"),
   q("transports", 3, "airship zeppelin", "Quel aéronef en forme de cigare, gonflé d'un gaz plus léger que l'air, est aussi appelé « zeppelin » ?", "Le dirigeable", "La montgolfière", "Le planeur", "L'hydravion"),
   q("transports", 3, "funicular railway", "Quel train tiré par un câble grimpe les pentes très raides, comme à Montmartre ?", "Le funiculaire", "Le téléphérique", "Le tramway", "Le monorail"),
@@ -658,6 +675,7 @@ export const QUESTIONS_CLASSIQUES = [
   q("transports", 3, "Shinkansen bullet train", "Comment s'appelle le train à grande vitesse japonais, lancé en 1964 ?", "Le Shinkansen", "Le TGV", "L'Eurostar", "Le Transsibérien"),
   q("transports", 3, "windsock", "Quel tube de tissu rayé rouge et blanc montre aux pilotes d'où vient le vent ?", "La manche à air", "La girouette", "Le parachute", "L'anémomètre"),
   q("transports", 3, "flight data recorder", "Quel appareil enregistre tout ce qui se passe dans un avion, bien qu'il soit peint en orange ?", "La boîte noire", "Le radar", "Le pilote automatique", "Le GPS"),
+  q("transports", 3, "canal lock gates", "Quel ouvrage permet aux bateaux de monter ou de descendre d'un niveau sur un canal ?", "L'écluse", "Le barrage", "Le pont-levis", "Le phare"),
 
   // Métiers
   q("metiers", 1, "👨‍🚒 firefighter", "Qui éteint les incendies ?", "Le pompier", "Le boulanger", "Le facteur", "Le dentiste"),
@@ -686,11 +704,13 @@ export const QUESTIONS_CLASSIQUES = [
   q("metiers", 2, "chainsaw cutting wood", "Quel outil à moteur et à chaîne le bûcheron utilise-t-il pour couper les arbres ?", "La tronçonneuse", "La perceuse", "La tondeuse", "La ponceuse"),
   q("metiers", 2, "combine harvester", "Quelle grosse machine agricole coupe le blé et sépare les grains de la paille ?", "La moissonneuse-batteuse", "Le tracteur", "La charrue", "Le motoculteur"),
   q("metiers", 2, "horseshoe iron", "Que cloue le maréchal-ferrant sous le sabot du cheval ?", "Le fer à cheval", "La selle", "L'étrier", "La bride"),
+  q("metiers", 2, "wood hand plane", "Quel outil le menuisier pousse-t-il sur une planche pour la rendre lisse en enlevant des copeaux ?", "Le rabot", "La scie", "Le marteau", "La pince"),
   q("metiers", 3, "birdwatching", "Comment s'appelle le spécialiste des oiseaux ?", "L'ornithologue", "L'entomologiste", "L'ichtyologue", "Le vétérinaire"),
   q("metiers", 3, "beekeeping smoker", "Quel outil l'apiculteur utilise-t-il pour calmer ses abeilles avec de la fumée ?", "L'enfumoir", "Le lève-cadre", "Le soufflet", "La centrifugeuse"),
   q("metiers", 3, "carpenter workbench", "Comment s'appelle la grande table solide sur laquelle le menuisier travaille le bois ?", "L'établi", "Le comptoir", "Le pupitre", "L'étal"),
   q("metiers", 3, "vernier caliper", "Quel instrument à glissière mesure l'épaisseur d'une pièce au dixième de millimètre près ?", "Le pied à coulisse", "Le rapporteur", "Le compas", "Le mètre ruban"),
   q("metiers", 3, "weaving loom", "Sur quelle machine le tisserand entrecroise-t-il les fils pour fabriquer du tissu ?", "Le métier à tisser", "Le rouet", "La machine à coudre", "Le fuseau"),
+  q("metiers", 3, "vintage diving helmet", "Quelle tenue étanche, avec un casque de cuivre, portaient autrefois les plongeurs pour travailler sous l'eau ?", "Le scaphandre", "La combinaison spatiale", "Le gilet de sauvetage", "Le tuba"),
 
   // Sciences
   q("sciences", 1, "🔍 magnifying glass", "Quel objet fait paraître les choses plus grosses ?", "La loupe", "Le miroir", "La règle", "La gomme"),
@@ -712,6 +732,9 @@ export const QUESTIONS_CLASSIQUES = [
   q("sciences", 2, "gear wheels", "Comment s'appellent les roues dentées qui se font tourner l'une l'autre dans une machine ?", "Des engrenages", "Des poulies", "Des ressorts", "Des leviers"),
   q("sciences", 2, "bicycle dynamo", "Quel petit appareil frotte sur la roue d'un vélo pour allumer sa lampe ?", "Une dynamo", "Une pile", "Un moteur", "Un frein"),
   q("sciences", 2, "soap bubble", "Quelle boule légère aux reflets arc-en-ciel se forme quand on souffle dans l'eau savonneuse ?", "Une bulle de savon", "Une goutte de pluie", "Un ballon", "Une perle"),
+  q("sciences", 2, "incandescent light bulb", "Quel objet en verre s'allume quand le courant passe dans son fil très fin ?", "Une ampoule", "Une bougie", "Une pile", "Un aimant"),
+  q("sciences", 2, "coil spring", "Quel fil de métal enroulé en spirale reprend sa forme quand on l'écrase ?", "Un ressort", "Un clou", "Un aimant", "Une chaîne"),
+  q("sciences", 2, "test tubes", "Dans quels petits tubes de verre mélange-t-on les produits au laboratoire ?", "Des tubes à essai", "Des pailles", "Des entonnoirs", "Des seringues"),
   q("sciences", 3, "prism", "Quel objet en verre décompose la lumière en arc-en-ciel ?", "Un prisme", "Un miroir", "Une loupe", "Un aimant"),
   q("sciences", 3, "apple tree", "Quel savant aurait compris la gravité en voyant tomber une pomme ?", "Isaac Newton", "Albert Einstein", "Galilée", "Louis Pasteur"),
   q("sciences", 3, "albert einstein", "Quel savant est célèbre pour sa théorie de la relativité ?", "Albert Einstein", "Isaac Newton", "Charles Darwin", "Louis Pasteur"),
