@@ -143,7 +143,7 @@ fun BandeauEquipes(
 
 /**
  * Liste des équipes dans un espace fixé (salon d'accueil) : en ligne, à leur largeur naturelle, tant qu'elles tiennent ;
- * sinon en grille compacte de 2 colonnes à largeur égale (3 si les noms restent lisibles). Ce qui ne tient vraiment pas est rogné, jamais
+ * sinon en grille compacte de 2 colonnes à largeur égale (3 si les noms restent lisibles). Un rang qui ne tient vraiment pas n'est pas montré, jamais
  * poussé plus bas : le bouton placé sous la grille reste toujours visible.
  */
 @Composable
@@ -155,7 +155,9 @@ fun GrilleEquipes(
     largeurLisible: Dp = 160.dp,
     puce: @Composable (index: Int, compacte: Boolean, modifier: Modifier) -> Unit,
 ) {
-    SubcomposeLayout(modifier.clipToBounds()) { c ->
+    // Pas de rognage au cadre : une vignette qui apparaît ou buzze grossit un instant (rebond) et doit rester entière, coins
+    // arrondis compris (vu par cedric le 22 octobre). Un rang qui ne tient pas en entier n'est simplement pas posé.
+    SubcomposeLayout(modifier) { c ->
         val w = c.maxWidth
         val hMax = c.maxHeight
         val gap = ecart.roundToPx()
@@ -183,7 +185,7 @@ fun GrilleEquipes(
                 rangsLibres.forEach { r ->
                     val hr = r.maxOfOrNull { p -> p.maxOfOrNull { it.height } ?: 0 } ?: 0
                     var x = 0
-                    r.forEach { p -> p.forEach { it.placeRelative(x, y + (hr - it.height) / 2) }; x += (p.maxOfOrNull { it.width } ?: 0) + gap }
+                    if (y == 0 || y + hr <= h) r.forEach { p -> p.forEach { it.placeRelative(x, y + (hr - it.height) / 2) }; x += (p.maxOfOrNull { it.width } ?: 0) + gap }
                     y += hr + gap
                 }
             }
@@ -208,7 +210,7 @@ fun GrilleEquipes(
             var y = 0
             grille.forEach { r ->
                 val hr = r.maxOfOrNull { p -> p.maxOfOrNull { it.height } ?: 0 } ?: 0
-                r.forEachIndexed { k, p -> p.forEach { it.placeRelative(k * (lc + gc), y + (hr - it.height) / 2) } }
+                if (y == 0 || y + hr <= h) r.forEachIndexed { k, p -> p.forEach { it.placeRelative(k * (lc + gc), y + (hr - it.height) / 2) } }
                 y += hr + gc
             }
         }
