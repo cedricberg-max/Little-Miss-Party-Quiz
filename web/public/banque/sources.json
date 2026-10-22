@@ -272,6 +272,13 @@
   "page": "https://www.flickr.com/photos/52775988@N00/52137941421",
   "source": "openverse/flickr"
  },
+ "bulles-de-savon": {
+  "titre": "Bubbles Background",
+  "auteur": "Travel Photographer",
+  "licence": "cc0 1.0",
+  "page": "https://stocksnap.io/photo/bubbles-background-MUOUO8X9CQ",
+  "source": "openverse/stocksnap"
+ },
  "bus": {
   "titre": "R16 HAM R16HAM Tenterden",
   "auteur": "JOHN K THORNE",
@@ -285,6 +292,13 @@
   "licence": "cc0 1.0",
   "page": "https://stocksnap.io/photo/children-football-SJEY5HPUSX",
   "source": "openverse/stocksnap"
+ },
+ "cabane": {
+  "titre": "File:Everybody's Treehouse.jpg",
+  "auteur": "CaseGrillot",
+  "licence": "CC0",
+  "page": "https://commons.wikimedia.org/wiki/File:Everybody%27s_Treehouse.jpg",
+  "source": "commons"
  },
  "cactus": {
   "titre": "Cactus Office",
@@ -1028,12 +1042,26 @@
   "page": "https://stocksnap.io/photo/gorilla-monkey-69H124AYVR",
   "source": "openverse/stocksnap"
  },
+ "gratte-ciel": {
+  "titre": "Chicago Skyscrapers",
+  "auteur": "Nick Le",
+  "licence": "cc0 1.0",
+  "page": "https://stocksnap.io/photo/chicago-skyscrapers-OHKILTFW97",
+  "source": "openverse/stocksnap"
+ },
  "grenouille": {
   "titre": "Columbia Spotted Frog - Rana luteiventris",
   "auteur": "GlacierNPS",
   "licence": "pdm 1.0",
   "page": "https://www.flickr.com/photos/43288043@N04/51361592286",
   "source": "openverse/flickr"
+ },
+ "guirlande": {
+  "titre": "Rainbow colored bunting flags",
+  "auteur": null,
+  "licence": "cc0 1.0",
+  "page": "https://www.rawpixel.com/image/3298060/free-photo-image-art-cc0-creative-commons",
+  "source": "openverse/rawpixel"
  },
  "guitare": {
   "titre": "Guitar Music",
@@ -1188,6 +1216,13 @@
   "licence": "cc0 1.0",
   "page": "https://stocksnap.io/photo/black-lamp-G8H5ZG3PAN",
   "source": "openverse/stocksnap"
+ },
+ "lampe-de-poche": {
+  "titre": "Flashlight & torch light",
+  "auteur": null,
+  "licence": "cc0 1.0",
+  "page": "https://www.rawpixel.com/image/6025156/photo-image-public-domain-free",
+  "source": "openverse/rawpixel"
  },
  "langue": {
   "titre": "Dog Tongue",
@@ -1664,6 +1699,13 @@
   "licence": "cc0 1.0",
   "page": "https://stocksnap.io/photo/watermelon-fruits-30C9EB71DC",
   "source": "openverse/stocksnap"
+ },
+ "pate-a-modeler": {
+  "titre": "File:Play-Doh.jpg",
+  "auteur": "Letstown",
+  "licence": "CC0",
+  "page": "https://commons.wikimedia.org/wiki/File:Play-Doh.jpg",
+  "source": "commons"
  },
  "pates": {
   "titre": "Spaghetti Pasta",
@@ -2461,6 +2503,13 @@
   "auteur": "U.S. Department of Health and Human Services",
   "licence": "Public domain",
   "page": "https://commons.wikimedia.org/wiki/File:USDA_2026_Yogurt.png",
+  "source": "commons"
+ },
+ "yo-yo": {
+  "titre": "File:Yo-Yo-Plastic-Toy-Green.jpg",
+  "auteur": "Evan-Amos",
+  "licence": "Public domain",
+  "page": "https://commons.wikimedia.org/wiki/File:Yo-Yo-Plastic-Toy-Green.jpg",
   "source": "commons"
  },
  "zebre": {
