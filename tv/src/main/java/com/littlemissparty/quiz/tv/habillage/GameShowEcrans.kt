@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -72,7 +73,12 @@ fun LogoGameShow(hauteur: Dp, modifier: Modifier = Modifier, aligne: Alignment.H
     val taille = (hauteur.value * 0.82f).sp
     Column(modifier, horizontalAlignment = aligne) {
         // « THE » fait partie du nom (cedric, 22/10) : bien lisible, pas une petite étiquette.
-        Text("THE", style = styleEtiquetteGs((hauteur.value * 0.5f).sp, GS.Cyan, (hauteur.value * 0.08f).sp), maxLines = 1, softWrap = false)
+        // L'espacement des lettres s'ajoute aussi après le E : on recentre d'autant.
+        val espacement = (hauteur.value * 0.08f).sp
+        Text(
+            "THE", style = styleEtiquetteGs((hauteur.value * 0.5f).sp, GS.Cyan, espacement), maxLines = 1, softWrap = false,
+            modifier = Modifier.padding(start = with(LocalDensity.current) { espacement.toDp() }),
+        )
         Text("GAME SHOW", style = styleTitreNeon(taille, GS.Rose, TextAlign.Start), maxLines = 1, softWrap = false)
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.offset(y = -hauteur * 0.04f)) {
             Text("by", style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = (hauteur.value * 0.3f).sp, color = GS.Encre.copy(alpha = 0.8f), lineHeight = 1.1.em, lineHeightStyle = LIGNE_LMP))

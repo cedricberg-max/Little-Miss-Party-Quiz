@@ -111,7 +111,8 @@ fun Victoire(classement: List<Classee>, modifier: Modifier = Modifier) {
                         alpha = if (m < impact) 0.45f + 0.15f * kotlin.math.sin(m / 160f) else 0.85f
                     }.background(Brush.radialGradient(listOf(Neon.Or.copy(alpha = 0.55f), Color.Transparent))),
                 )
-                LogoMarque(96.dp)
+                // Au centre du halo, plus large que lui : sinon le logo part vers la gauche (cedric, test du 22/10).
+                LogoMarque(96.dp, Modifier.align(Alignment.Center))
             }
             Column(
                 Modifier.fillMaxSize().padding(start = 40.dp, end = 40.dp, top = 128.dp, bottom = 18.dp),

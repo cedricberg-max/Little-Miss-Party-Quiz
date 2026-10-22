@@ -360,7 +360,7 @@ private fun Moved(state: UiState.Moved, onNewGame: () -> Unit) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        LogoQuiz(56.dp)
+        LogoQuiz(56.dp, aligne = Alignment.CenterHorizontally)
         Spacer(Modifier.height(16.dp))
         Text(
             "Cette fête continue sur une autre box", color = Color.White, fontSize = 44.sp, lineHeight = 52.sp,
@@ -392,7 +392,7 @@ private fun Locked(state: UiState.Locked, onRequestAgain: () -> Unit, onUpdate: 
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        LogoQuiz(56.dp)
+        LogoQuiz(56.dp, aligne = Alignment.CenterHorizontally)
         Spacer(Modifier.height(12.dp))
         Text(
             "Box en attente d'activation", color = Color.White, fontSize = 40.sp, lineHeight = 46.sp,

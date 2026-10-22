@@ -33,14 +33,15 @@ body.look-gs::after {
   background: linear-gradient(90deg, transparent, var(--gs-cyan), transparent); box-shadow: 0 0 18px 4px rgba(0, 240, 255, .35);
 }
 
-/* Logo « THE GAME SHOW by Little Miss Party » (app.js remplace le texte du logo en Game Show). */
+/* Logo « THE GAME SHOW by Little Miss Party » (app.js remplace le texte du logo en Game Show). L'espacement des lettres
+   s'ajoute aussi après la dernière : un retrait à gauche égal le recentre. */
 .look-gs .logo { display: flex; flex-direction: column; align-items: center; line-height: 1; }
-.look-gs .logo .gs-the { font-family: "GS Orbitron"; font-weight: 700; font-size: 30px; letter-spacing: 4px; color: var(--gs-cyan); text-shadow: 0 0 14px rgba(0, 240, 255, .8); }
+.look-gs .logo .gs-the { font-family: "GS Orbitron"; font-weight: 700; font-size: 30px; letter-spacing: 4px; padding-left: 4px; color: var(--gs-cyan); text-shadow: 0 0 14px rgba(0, 240, 255, .8); }
 .look-gs .logo .gs-titre {
   font-family: "GS Bungee"; font-weight: 400; font-size: clamp(42px, 13vw, 64px); letter-spacing: 0; color: #ffd6ea;
   text-shadow: 0 0 6px #fff, 0 0 18px var(--gs-rose), 0 0 38px var(--gs-rose);
 }
-.look-gs .logo .gs-by { font-size: 18px; font-weight: 700; color: rgba(244, 241, 255, .8); margin-top: 6px; letter-spacing: 1px; }
+.look-gs .logo .gs-by { font-size: 18px; font-weight: 700; color: rgba(244, 241, 255, .8); margin-top: 6px; letter-spacing: 1px; padding-left: 1px; }
 .look-gs .logo.small { font-family: "GS Bungee"; font-weight: 400; color: #e6fdff; text-shadow: 0 0 16px var(--gs-cyan); }
 .look-gs .welcome { color: var(--gs-jaune); text-shadow: 0 0 14px rgba(255, 230, 0, .45); }
 .look-gs .hint { font-weight: 600; }
