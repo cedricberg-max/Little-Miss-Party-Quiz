@@ -49,7 +49,8 @@ import {
   correspond, categoriesDe, categoriesPerso, ficheImage, motsCles,
 } from "./mediatheque.js";
 import { DOSSIERS, classerPartie, bilan, effacements, passageAFaire, moDe, texteMo, texteGardees } from "./nettoyage.js";
-import { GROUPES_QUESTIONS, questionsToutesPretes, mesQuestions, mesPacks, questionCorrespond, lirePacks, illustration, retirerQuestions, packsParTheme } from "./questions.js";
+import { GROUPES_QUESTIONS, questionsToutesPretes, mesQuestions, mesPacks, questionsDeTest, questionCorrespond, lirePacks, illustration, retirerQuestions, packsParTheme } from "./questions.js";
+import { QUESTIONS_CHIFFRES, THEMES_CHIFFRES, chiffreConvient, tirerChiffres } from "./banque-chiffres.js";
 
 // Petit œil sur les champs de mot de passe : voir ce qu'on tape (majuscules, caractère en trop).
 afficherMotsDePasse();
@@ -1809,6 +1810,10 @@ function review(id, quiz) {
   $("rv-banque").hidden = draft.kind !== "photo";
   $("rv-banque-panel").hidden = true;
   $("rv-add-tf").hidden = draft.kind === "photo";
+  $("rv-chiffres").hidden = draft.kind === "photo";
+  $("rv-chiffres-panel").hidden = true;
+  chiffresCoches.clear();
+  chiffresRecherche = "";
   status("rv-status", "");
   show("review");
   renderReview();
@@ -2258,6 +2263,101 @@ function renderBanque() {
       deja.has(q.text) ? h("span", { class: "tag", text: "déjà dans le quiz" }) : null)),
       liste.length > montrees.length ? h("p", { class: "hint small", text: `… et ${liste.length - montrees.length} autres : choisissez un thème ou cherchez un mot.` }) : null,
       liste.length ? null : h("p", { class: "hint small", text: "Aucune question ne correspond à cette recherche." })));
+}
+
+// ---------- Le Juste Chiffre tout prêt dans un quiz classique (cedric, 22/10) ----------
+
+let chiffresTheme = null;
+let chiffresAge = null;
+let chiffresRecherche = "";
+/** Questions cochées : identifiant → question de la banque, dans l'ordre où elles ont été cochées. */
+const chiffresCoches = new Map();
+
+$("rv-chiffres").onclick = () => {
+  const panel = $("rv-chiffres-panel");
+  panel.hidden = !panel.hidden;
+  if (panel.hidden) return;
+  // L'âge du quiz, s'il est rempli, choisit d'avance les questions qui lui conviennent.
+  const age = Number.parseInt($("rv-age-min").value, 10);
+  chiffresAge = Number.isFinite(age) && age >= 5 && age <= 15 ? age : null;
+  renderChiffres();
+};
+
+function renderChiffres() {
+  const panel = $("rv-chiffres-panel");
+  const deja = new Set((draft?.questions ?? []).map((q) => q.text.trim()));
+  for (const [id, q] of chiffresCoches) if (deja.has(q.text)) chiffresCoches.delete(id);
+  const choix = QUESTIONS_CHIFFRES.filter((x) => (!chiffresTheme || x.theme === chiffresTheme) && chiffreConvient(x, chiffresAge));
+  const trouvees = parPertinence(choix.filter((x) => contientTout([x.text, THEMES_CHIFFRES[x.theme]], chiffresRecherche)), chiffresRecherche, (x) => [x.text]);
+  // Les questions cochées d'abord (même d'un autre thème), puis les autres.
+  const liste = [...chiffresCoches.values(), ...trouvees.filter((x) => !chiffresCoches.has(x.id))];
+  const chip = (label, theme) => h("button", {
+    type: "button", class: `chip${chiffresTheme === theme ? " active" : ""}`, "data-theme": theme ?? "tous", text: label,
+    onclick: () => { chiffresTheme = theme; renderChiffres(); },
+  });
+  const bouton = h("button", { type: "button", id: "rv-chiffres-add", class: "btn", onclick: () => ajouterChiffres() });
+  const majBouton = () => {
+    const n = chiffresCoches.size;
+    bouton.disabled = !n;
+    bouton.textContent = n ? `Ajouter ${n > 1 ? `les ${n} questions cochées` : "la question cochée"}` : "Cochez des questions";
+  };
+  majBouton();
+  const recherche = h("input", {
+    type: "search", id: "rv-chiffres-cherche", placeholder: "Chercher (pattes, planète, Disney…)", value: chiffresRecherche,
+    oninput: (e) => {
+      chiffresRecherche = e.target.value;
+      clearTimeout(recherche.timer);
+      recherche.timer = setTimeout(() => { renderChiffres(); $("rv-chiffres-cherche")?.focus(); }, 250);
+    },
+  });
+  const age = h("select", { id: "rv-chiffres-age", onchange: (e) => { chiffresAge = e.target.value === "" ? null : Number(e.target.value); renderChiffres(); } },
+    h("option", { value: "", text: "Tous les âges", selected: chiffresAge === null }),
+    ...Array.from({ length: 11 }, (_, k) => k + 5).map((a) => h("option", { value: a, text: `${a} ans`, selected: chiffresAge === a })));
+  panel.replaceChildren(
+    h("p", { class: "label", text: "Le Juste Chiffre tout prêt" }),
+    h("p", { class: "hint small", text: `Chaque équipe tape un nombre sur son pupitre ; la plus proche gagne. ${QUESTIONS_CHIFFRES.length} questions, chacune avec son émoji montré à la révélation : choisissez un thème et l'âge, cochez, ou tirez-en 5 au hasard.` }),
+    h("div", { class: "chips" }, chip("Tous les thèmes", null), ...Object.entries(THEMES_CHIFFRES).map(([k, label]) => chip(label, k))),
+    h("div", { class: "row" }, h("label", { class: "inline" }, "Âge des enfants", age), recherche),
+    h("div", { class: "row" },
+      h("button", {
+        type: "button", id: "rv-chiffres-hasard", class: "btn secondary", text: "🎲 5 au hasard",
+        onclick: () => {
+          const tirage = tirerChiffres(5, { theme: chiffresTheme, age: chiffresAge, exclus: deja });
+          chiffresCoches.clear();
+          tirage.forEach((x) => chiffresCoches.set(x.id, x));
+          chiffresRecherche = "";
+          renderChiffres();
+          if (!tirage.length) $("rv-chiffres-status").textContent = "Plus aucune question libre pour ce thème et cet âge.";
+        },
+      }),
+      bouton,
+      h("span", { id: "rv-chiffres-status", class: "hint small" })),
+    h("div", { class: "banque-list" }, ...liste.map((x) => h("label", { class: `banque-q${deja.has(x.text) ? " deja" : ""}`, "data-chiffre": x.id },
+      h("input", {
+        type: "checkbox", checked: chiffresCoches.has(x.id), disabled: deja.has(x.text),
+        onchange: (e) => { if (e.target.checked) chiffresCoches.set(x.id, x); else chiffresCoches.delete(x.id); majBouton(); },
+      }),
+      h("span", { class: "banque-texte", text: `${x.emoji} ${x.text}` }),
+      h("span", { class: "banque-mots", text: `Réponse : ${x.correct.toLocaleString("fr-FR")} · ${THEMES_CHIFFRES[x.theme]} · ${x.ageMin} à ${x.ageMax} ans` }),
+      deja.has(x.text) ? h("span", { class: "tag", text: "déjà dans le quiz" }) : null)),
+      liste.length ? null : h("p", { class: "hint small", text: chiffresRecherche ? "Aucune question ne correspond à cette recherche." : "Aucune question pour ce thème et cet âge." })));
+}
+
+/** Ajoute les questions cochées au quiz : Juste Chiffre, avec leur émoji, déjà validées (à relire). */
+function ajouterChiffres() {
+  const choisies = [...chiffresCoches.values()];
+  if (!choisies.length) return;
+  for (const x of choisies) {
+    draft.questions.push({
+      text: x.text, choices: [], correct: x.correct, duration: null, double: false, status: "validee", marks: 0,
+      image: x.emoji, imageId: null, kind: "number", slotImages: [null, null, null, null], missingImages: [],
+    });
+  }
+  chiffresCoches.clear();
+  renderReview();
+  renderChiffres();
+  noterEcran();
+  status("rv-status", `${choisies.length} Juste Chiffre ajouté${choisies.length > 1 ? "s" : ""} : relisez-les, puis enregistrez le quiz.`, true);
 }
 
 /** Photos de la banque, mot par mot, comme sur la TV ; Sarah peut mettre la sienne (rangée dans library/contents/petits). */
@@ -4609,7 +4709,7 @@ function renderLibrary(force = false) {
 
 // ---------- Bibliothèque › Questions (cedric, 22/10) ----------
 
-/** Groupe ouvert : null (les trois en aperçu), « pretes », « miennes » ou « packs » ; pack ouvert ; famille choisie. */
+/** Groupe ouvert : null (tous en aperçu), « pretes », « miennes », « packs » ou « tests » ; pack ouvert ; famille choisie. */
 let qGroupe = null;
 let qPack = null;
 let qCategorie = null;
@@ -4621,7 +4721,7 @@ let pretesCache = null;
 const qSelection = new Set();
 let qListees = [];
 const QUESTIONS_APERCU = 4;
-const QUESTIONS_MAX = 120;
+const QUESTIONS_MAX = 200;
 const EXEMPLE_PACK = {
   packs: [{
     title: "Les animaux de la savane", theme: "Animaux",
@@ -4636,7 +4736,7 @@ $("pack-exemple").textContent = JSON.stringify(EXEMPLE_PACK, null, 2);
 
 function groupesQuestions() {
   pretesCache ??= questionsToutesPretes();
-  return { pretes: pretesCache, miennes: mesQuestions(quizzes), packs: mesPacks(quizzes) };
+  return { pretes: pretesCache, miennes: mesQuestions(quizzes), packs: mesPacks(quizzes), tests: questionsDeTest(quizzes) };
 }
 
 /** Vignette de l'illustration : sa photo, son émoji, la photo de la banque de la bonne réponse, sinon « ⚠ ». */
@@ -4678,8 +4778,8 @@ function ligneQuestion(x) {
         quiz ? h("button", { type: "button", class: "btn small danger", text: "Supprimer", onclick: () => supprimerQuestions([x]) }) : null)));
 }
 
-/** Ses questions, toutes (en vrac et dans les packs) : pour retrouver celles qui sont cochées. */
-const toutesMesQuestions = () => [...mesQuestions(quizzes), ...mesPacks(quizzes).flatMap((p) => p.questions)];
+/** Ses questions, toutes (en vrac, dans les packs, de test) : pour retrouver celles qui sont cochées. */
+const toutesMesQuestions = () => [...mesQuestions(quizzes), ...mesPacks(quizzes).flatMap((p) => p.questions), ...questionsDeTest(quizzes)];
 
 /** Barre des questions cochées : combien, tout cocher ici, tout décocher, supprimer. */
 function barreSelection() {
@@ -4760,15 +4860,18 @@ function dessinerQuestions() {
   const filtre = (list) => (recherche ? list.filter((x) => questionCorrespond(x, recherche)) : list);
   // Un pack correspond si son titre, son thème ou une de ses questions correspond.
   const packsTrouves = recherche ? g.packs.filter((p) => questionCorrespond({ text: p.title, categorie: p.theme }, recherche) || p.questions.some((x) => questionCorrespond(x, recherche))) : g.packs;
-  const compte = { pretes: filtre(g.pretes).length, miennes: filtre(g.miennes).length, packs: packsTrouves.reduce((n, p) => n + p.total, 0) };
+  const compte = { pretes: filtre(g.pretes).length, miennes: filtre(g.miennes).length, packs: packsTrouves.reduce((n, p) => n + p.total, 0), tests: filtre(g.tests).length };
+  // « 🧪 Questions de test » n'apparaît que s'il y a une prestation de test dans la bibliothèque.
+  const groupes = Object.entries(GROUPES_QUESTIONS).filter(([k]) => k !== "tests" || g.tests.length);
+  if (qGroupe === "tests" && !g.tests.length) qGroupe = null;
   if (qPack && !quizzes[qPack]) qPack = null;
   const chip = (key, label, n) => h("button", {
     type: "button", class: `chip${qGroupe === key ? " active" : ""}`, "data-groupe": key ?? "tout", text: `${label} (${n})`,
     onclick: () => { qGroupe = key; qPack = null; qCategorie = null; qSelection.clear(); status("q-status", ""); renderQuestions(); },
   });
-  $("q-groups").replaceChildren(chip(null, "Tout", compte.pretes + compte.miennes + compte.packs),
-    ...Object.entries(GROUPES_QUESTIONS).map(([k, label]) => chip(k, label, compte[k])));
-  $("q-count").textContent = recherche ? plural(compte.pretes + compte.miennes + compte.packs, "question trouvée", "questions trouvées") : "";
+  const total = compte.pretes + compte.miennes + compte.packs + compte.tests;
+  $("q-groups").replaceChildren(chip(null, "Tout", total), ...groupes.map(([k, label]) => chip(k, label, compte[k])));
+  $("q-count").textContent = recherche ? plural(total, "question trouvée", "questions trouvées") : "";
   $("pack-import").hidden = qGroupe !== "packs" || !!qPack;
   const box = $("q-list");
   const plusQue = (n) => (n > QUESTIONS_MAX ? h("p", { class: "hint small", text: `… et ${n - QUESTIONS_MAX} autres : précisez la recherche.` }) : null);
@@ -4788,9 +4891,9 @@ function dessinerQuestions() {
     return;
   }
 
-  // Aperçu : les trois groupes l'un sous l'autre, quelques questions (ou packs) chacun.
+  // Aperçu : les groupes l'un sous l'autre, quelques questions (ou packs) chacun.
   if (!qGroupe) {
-    box.replaceChildren(...Object.entries(GROUPES_QUESTIONS).map(([k, label]) => {
+    box.replaceChildren(...groupes.map(([k, label]) => {
       const voir = h("button", { type: "button", class: "btn small secondary", text: "Voir tout", onclick: () => { qGroupe = k; renderQuestions(); } });
       const contenu = k === "packs"
         ? (packsTrouves.length ? h("div", { class: "cards" }, ...packsTrouves.slice(0, QUESTIONS_APERCU).map(cartePack))
@@ -4812,14 +4915,16 @@ function dessinerQuestions() {
     return;
   }
 
-  // Toutes prêtes (par famille) ou Mes questions en vrac (par thème) : une puce par famille ou par thème, puis la liste.
+  // Toutes prêtes (Juste Chiffre, puis par famille), en vrac ou de test (par thème) : une puce par famille ou par thème, puis la liste.
   const tout = filtre(g[qGroupe]);
   const categories = [...new Set(tout.map((x) => x.categorie).filter(Boolean))];
   if (qCategorie && !categories.includes(qCategorie)) qCategorie = null;
   const liste = qCategorie ? tout.filter((x) => x.categorie === qCategorie) : tout;
   const sans = liste.filter((x) => !x.ok).length;
-  if (qGroupe === "miennes") qListees = liste.slice(0, QUESTIONS_MAX);
+  if (qGroupe === "miennes" || qGroupe === "tests") qListees = liste.slice(0, QUESTIONS_MAX);
   box.replaceChildren(
+    qGroupe === "pretes" ? h("p", { class: "hint small", text: "Pour en mettre dans un quiz : ouvrez-le (« Éditer »), puis « 🔢 Juste Chiffre tout prêt » (quiz classique) ou « 🎲 Questions de la banque » (quiz illustré)." }) : null,
+    qGroupe === "tests" ? h("p", { class: "hint small", text: "Les questions des prestations de test (Paramètres) : rangées ici pour ne pas se mélanger aux vôtres." }) : null,
     categories.length > 1 ? h("div", { class: "chips q-categories" },
       h("button", { type: "button", class: `chip${qCategorie ? "" : " active"}`, text: `Toutes (${tout.length})`, onclick: () => { qCategorie = null; renderQuestions(); } }),
       ...categories.map((c) => h("button", { type: "button", class: `chip${qCategorie === c ? " active" : ""}`, "data-categorie": c, text: `${c} (${tout.filter((x) => x.categorie === c).length})`, onclick: () => { qCategorie = c; renderQuestions(); } }))) : null,

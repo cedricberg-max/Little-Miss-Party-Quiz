@@ -2,13 +2,19 @@
 // - « Toutes prêtes » : les questions de l'appli (banque des tout-petits), jamais modifiées ici.
 // - « Mes questions » : celles écrites à la main dans la Régie PC, avec leur illustration.
 // - « Mes packs » : les quiz importés (fichier JSON, tableur, texte collé), un pack par thème.
+// - « Questions de test » : celles des prestations de test (Paramètres), à part pour ne pas encombrer les siennes.
+// « Toutes prêtes » a aussi le Juste Chiffre tout prêt (banque-chiffres.js).
 // Chaque question dit si son illustration est là ; sinon la Régie PC affiche une petite alerte. Fonctions pures, testées.
 import { parseQuiz } from "./importer.js";
 import { cataloguePetits, FAMILLES_PETITS, motBanque } from "./banque-petits.js";
 import { PHOTOS_BANQUE } from "./banque-photos.js";
+import { QUESTIONS_CHIFFRES, THEMES_CHIFFRES } from "./banque-chiffres.js";
 import { quizKind } from "./show.js";
 
-export const GROUPES_QUESTIONS = { pretes: "📦 Toutes prêtes", miennes: "✍️ Mes questions en vrac", packs: "📥 Mes packs par thème" };
+export const GROUPES_QUESTIONS = {
+  pretes: "📦 Toutes prêtes", miennes: "✍️ Mes questions en vrac", packs: "📥 Mes packs par thème", tests: "🧪 Questions de test",
+};
+export const JUSTE_CHIFFRE = "🔢 Juste Chiffre";
 
 const IMAGE_ID = /^[0-9a-f]{16}$/;
 /** Les questions d'un quiz, dans l'ordre, sans les cases vides (la base rend parfois un objet au lieu d'une liste). */
@@ -16,6 +22,8 @@ const questionsDe = (quiz) => (Array.isArray(quiz?.questions) ? quiz.questions :
 /** Quiz importés d'un fichier ou d'un texte collé : des packs. Le reste est écrit à la main dans la Régie PC. */
 const SOURCES_PACK = new Set(["json", "tableur", "gemini"]);
 export const estPack = (quiz) => SOURCES_PACK.has(quiz?.source);
+/** Quiz des prestations de test de Paramètres (« TEST – … de Léa ») : leurs clés fixes commencent par « test- ». */
+export const estQuizDeTest = (id) => `${id ?? ""}`.startsWith("test-");
 
 /** Mot d'une réponse sans son émoji de tête (« 🐱 Chat » → « Chat »). */
 const motSeul = (c) => `${c ?? ""}`.replace(/^[^\p{L}\p{N}]+/u, "").trim();
@@ -50,11 +58,17 @@ function fiche(q, kind, extra) {
 }
 
 /**
- * Questions toutes prêtes : la banque des tout-petits (quiz illustré), par famille. Chaque réponse a la photo de la
- * banque de son mot ([banque] : clés des photos, null si le mot n'en a pas).
+ * Questions toutes prêtes : le Juste Chiffre tout prêt (une seule catégorie, chacune avec son émoji), puis la banque
+ * des tout-petits (quiz illustré), par famille. Chaque réponse des tout-petits a la photo de la banque de son mot
+ * ([banque] : clés des photos, null si le mot n'en a pas).
  */
-export function questionsToutesPretes(catalogue = cataloguePetits()) {
-  return catalogue.map((x, i) => {
+export function questionsToutesPretes(catalogue = cataloguePetits(), chiffres = QUESTIONS_CHIFFRES) {
+  const justeChiffre = chiffres.map((x) => ({
+    groupe: "pretes", cle: x.id, text: x.text, choices: [], correct: x.correct, nombre: true, image: x.emoji, imageId: null,
+    categorie: JUSTE_CHIFFRE, source: `Juste Chiffre tout prêt · ${THEMES_CHIFFRES[x.theme] ?? x.theme} · ${x.ageMin} à ${x.ageMax} ans`,
+    validee: true, ok: true, manque: null,
+  }));
+  return [...justeChiffre, ...catalogue.map((x, i) => {
     const banque = x.choices.map(photoDeLaBanque);
     const sans = banque.filter((c) => !c).length;
     return {
@@ -62,26 +76,32 @@ export function questionsToutesPretes(catalogue = cataloguePetits()) {
       categorie: FAMILLES_PETITS[x.famille] ?? x.famille, source: "Banque des tout-petits", validee: true,
       ok: !sans, manque: sans ? `${sans} réponse${sans > 1 ? "s" : ""} sans photo` : null,
     };
-  });
+  })];
 }
 
-/** Ses questions écrites à la main, en vrac : du quiz le plus récent au plus ancien ; [categorie] : son thème, sinon son titre. */
-export function mesQuestions(quizzes = {}) {
+/** Questions des quiz gardés par [garde], en vrac : du quiz le plus récent au plus ancien ; [categorie] : son thème, sinon son titre. */
+function enVrac(quizzes, groupe, garde) {
   return Object.entries(quizzes)
-    .filter(([, quiz]) => quiz && !estPack(quiz))
+    .filter(([id, quiz]) => quiz && garde(id, quiz))
     .sort(([, a], [, b]) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
     .flatMap(([id, quiz]) => {
       const kind = quizKind(quiz);
       return questionsDe(quiz).map((q, i) => fiche(q, kind, {
-        groupe: "miennes", cle: `${id}/${i}`, quizId: id, index: i, categorie: `${quiz.theme ?? ""}`.trim() || (quiz.title ?? ""), source: quiz.title ?? "",
+        groupe, cle: `${id}/${i}`, quizId: id, index: i, categorie: `${quiz.theme ?? ""}`.trim() || (quiz.title ?? ""), source: quiz.title ?? "",
       }));
     });
 }
 
+/** Ses questions écrites à la main, en vrac (sans celles des prestations de test). */
+export const mesQuestions = (quizzes = {}) => enVrac(quizzes, "miennes", (id, quiz) => !estPack(quiz) && !estQuizDeTest(id));
+
+/** Les questions des prestations de test, à part (cedric, 22/10 : elles encombraient « Mes questions en vrac »). */
+export const questionsDeTest = (quizzes = {}) => enVrac(quizzes, "tests", (id) => estQuizDeTest(id));
+
 /** Ses packs : un par quiz importé, avec le compte des questions et de celles sans illustration. */
 export function mesPacks(quizzes = {}) {
   return Object.entries(quizzes)
-    .filter(([, quiz]) => quiz && estPack(quiz))
+    .filter(([id, quiz]) => quiz && estPack(quiz) && !estQuizDeTest(id))
     .map(([id, quiz]) => {
       const kind = quizKind(quiz);
       const questions = questionsDe(quiz).map((q, i) => fiche(q, kind, { groupe: "packs", cle: `${id}/${i}`, quizId: id, index: i }));

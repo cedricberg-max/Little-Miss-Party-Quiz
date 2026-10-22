@@ -2236,7 +2236,7 @@ describe("Bibliothèque › Questions : toutes prêtes, mes questions, mes packs
     const pretes = Q.questionsToutesPretes([
       { id: "p001", famille: "animaux", text: "Quel animal fait « miaou » ?", choices: ["Chat", "Chien", "Vache", "Canard"] },
       { famille: "lieux", text: "Où dort-on ?", choices: ["Lit", "Zzzmot-inconnu"] },
-    ]);
+    ], []);
     assert.equal(pretes[0].cle, "p001");
     assert.equal(pretes[1].cle, "p-1");
     assert.equal(pretes[0].categorie, FAMILLES_PETITS.animaux);
@@ -2250,7 +2250,7 @@ describe("Bibliothèque › Questions : toutes prêtes, mes questions, mes packs
     // Toute la banque se range : chaque question a une famille connue.
     const tout = Q.questionsToutesPretes(cataloguePetits(() => 0.3));
     assert.ok(tout.length > 500);
-    assert.ok(tout.every((x) => Object.values(FAMILLES_PETITS).includes(x.categorie)));
+    assert.ok(tout.every((x) => (x.nombre ? x.categorie === Q.JUSTE_CHIFFRE : Object.values(FAMILLES_PETITS).includes(x.categorie))));
   });
 });
 
@@ -2288,6 +2288,95 @@ describe("Mes questions : supprimer, en vrac par thème, packs rangés par thèm
       ["Animaux", ["p7"]], ["disney", ["p2", "p4"]], ["Éléphants", ["p6"]], ["Musique", ["p1"]], [Q.SANS_THEME, ["p3", "p5"]],
     ]);
     assert.deepEqual(Q.packsParTheme([]), []);
-    assert.deepEqual(Object.values(Q.GROUPES_QUESTIONS), ["📦 Toutes prêtes", "✍️ Mes questions en vrac", "📥 Mes packs par thème"]);
+    assert.deepEqual(Object.values(Q.GROUPES_QUESTIONS), ["📦 Toutes prêtes", "✍️ Mes questions en vrac", "📥 Mes packs par thème", "🧪 Questions de test"]);
+  });
+
+  test("questions de test : celles des prestations de test (clés « test-… ») sont à part, en vrac comme en pack", () => {
+    const quizzes = {
+      "-Nmien": { title: "Mon quiz", source: "saisie", updatedAt: 1, questions: [q("À moi ?")] },
+      "test-lea-tous-les-jeux-quiz": { title: "TEST – Quiz classique de Léa", theme: "Culture générale (test)", source: "saisie", updatedAt: 3, questions: [q("Test ?"), q("Test 2 ?")] },
+      "test-lea-9-ans": { title: "TEST – Quiz de Léa (9 ans)", source: "json", updatedAt: 2, questions: [q("Pack test ?")] },
+      "-Npack": { title: "Disney", source: "json", questions: [q("Elsa ?")] },
+    };
+    assert.deepEqual(Q.mesQuestions(quizzes).map((x) => x.cle), ["-Nmien/0"]);
+    assert.deepEqual(Q.mesPacks(quizzes).map((p) => p.id), ["-Npack"]);
+    const tests = Q.questionsDeTest(quizzes);
+    assert.deepEqual(tests.map((x) => [x.cle, x.groupe, x.categorie]), [
+      ["test-lea-tous-les-jeux-quiz/0", "tests", "Culture générale (test)"], ["test-lea-tous-les-jeux-quiz/1", "tests", "Culture générale (test)"],
+      ["test-lea-9-ans/0", "tests", "TEST – Quiz de Léa (9 ans)"],
+    ]);
+    // Elles restent supprimables comme les siennes.
+    assert.deepEqual(Q.retirerQuestions(quizzes, [tests[1]]).ecritures, { "test-lea-tous-les-jeux-quiz": [q("Test ?")] });
+    assert.equal(Q.estQuizDeTest("test-lea-9-ans"), true);
+    assert.equal(Q.estQuizDeTest("-Ntest-lea"), false);
+    assert.equal(Q.estQuizDeTest(undefined), false);
+  });
+});
+
+describe("Le Juste Chiffre tout prêt (cedric, 22/10)", async () => {
+  const B = await import("../web/public/banque-chiffres.js");
+  const Q = await import("../web/public/questions.js");
+  const { cleanEmoji } = await import("../web/public/illustration.js");
+  const rng = (graine) => () => { graine = (graine * 16807) % 2147483647; return (graine - 1) / 2147483646; };
+  // Émojis plus récents qu'Android 9 (Mi Box, Emoji 11) : la TV montrerait un carré vide.
+  const tropRecent = (e) => [...e].some((ch) => {
+    const c = ch.codePointAt(0);
+    return (c >= 0x1fa70 && c <= 0x1faff) || (c >= 0x1f7e0 && c <= 0x1f7eb) || [0x1f6d5, 0x1f6d6, 0x1f6d7, 0x1f6fa, 0x1f6fb, 0x1f6fc, 0x1f90c, 0x1f90d, 0x1f90e, 0x1f90f,
+      0x1f971, 0x1f972, 0x1f977, 0x1f978, 0x1f97b, 0x1f9a3, 0x1f9a4, 0x1f9a5, 0x1f9a6, 0x1f9a7, 0x1f9a8, 0x1f9a9, 0x1f9aa, 0x1f9ab, 0x1f9ac, 0x1f9ad, 0x1f9ae, 0x1f9af,
+      0x1f9ba, 0x1f9bb, 0x1f9bc, 0x1f9bd, 0x1f9be, 0x1f9bf, 0x1f9c3, 0x1f9c4, 0x1f9c5, 0x1f9c6, 0x1f9c7, 0x1f9c8, 0x1f9c9, 0x1f9ca, 0x1f9cb, 0x1f9cd, 0x1f9ce, 0x1f9cf].includes(c);
+  });
+
+  test("la banque : plus de 100 questions, chacune avec son thème, ses âges, un nombre entier et un émoji qui passe partout", () => {
+    const liste = B.QUESTIONS_CHIFFRES;
+    assert.ok(liste.length >= 100, `${liste.length} questions`);
+    assert.equal(new Set(liste.map((x) => x.id)).size, liste.length, "identifiants uniques");
+    assert.equal(new Set(liste.map((x) => x.text)).size, liste.length, "pas deux fois la même question");
+    for (const x of liste) {
+      assert.ok(B.THEMES_CHIFFRES[x.theme], `thème de « ${x.text} »`);
+      assert.ok(x.ageMin >= 5 && x.ageMax <= 15 && x.ageMin < x.ageMax, `âges de « ${x.text} »`);
+      assert.ok(Number.isInteger(x.correct) && Math.abs(x.correct) <= 999999999, `réponse de « ${x.text} » (9 chiffres au plus sur le pupitre)`);
+      assert.ok(x.text.length <= 120 && x.text.endsWith(" ?"), `texte de « ${x.text} »`);
+      assert.ok(x.emoji && cleanEmoji(x.emoji) === x.emoji, `émoji de « ${x.text} » gardé tel quel à l'enregistrement`);
+      assert.equal(tropRecent(x.emoji), false, `émoji de « ${x.text} » trop récent pour la Mi Box`);
+    }
+    // Tous les âges ont de quoi jouer, dans chaque tranche.
+    for (const age of [5, 7, 9, 10, 12, 15]) assert.ok(liste.filter((x) => B.chiffreConvient(x, age)).length >= 25, `${age} ans`);
+    assert.equal(B.chiffreConvient(liste[0], null), true);
+    assert.equal(tropRecent("🪐"), true);
+    assert.equal(tropRecent("🕷️"), false);
+  });
+
+  test("tirer au hasard : le thème, l'âge, jamais ce qui est déjà dans le quiz, des émojis et des réponses variés", () => {
+    for (let graine = 1; graine <= 30; graine++) {
+      const t = B.tirerChiffres(5, { theme: "animaux", age: 7, exclus: new Set(["Combien de pattes a une araignée ?"]), rng: rng(graine) });
+      assert.equal(t.length, 5);
+      assert.ok(t.every((x) => x.theme === "animaux" && B.chiffreConvient(x, 7)));
+      assert.ok(!t.some((x) => x.text === "Combien de pattes a une araignée ?"));
+      assert.equal(new Set(t.map((x) => x.id)).size, 5);
+      assert.equal(new Set(t.map((x) => x.correct)).size, 5, "cinq réponses différentes quand c'est possible");
+      assert.equal(new Set(t.map((x) => x.emoji)).size, 5);
+    }
+    // Pas assez de réponses différentes : on complète quand même ; plus rien de libre : rien.
+    const liste = [
+      { id: "a", theme: "x", ageMin: 5, ageMax: 9, text: "A ?", correct: 4, emoji: "🐶" },
+      { id: "b", theme: "x", ageMin: 5, ageMax: 9, text: "B ?", correct: 4, emoji: "🐱" },
+      { id: "c", theme: "x", ageMin: 11, ageMax: 15, text: "C ?", correct: 2, emoji: "🐭" },
+    ];
+    assert.deepEqual(B.tirerChiffres(5, { liste, rng: rng(3) }).map((x) => x.id).sort(), ["a", "b", "c"]);
+    assert.deepEqual(B.tirerChiffres(5, { liste, age: 6, rng: rng(3) }).map((x) => x.id).sort(), ["a", "b"]);
+    assert.deepEqual(B.tirerChiffres(5, { liste, age: 6, exclus: new Set(["A ?", "B ?"]) }), []);
+    assert.equal(B.tirerChiffres(200).length, B.QUESTIONS_CHIFFRES.length);
+  });
+
+  test("dans « Toutes prêtes » : en tête, sous « 🔢 Juste Chiffre », avec son émoji (pas d'alerte) et d'où elle vient", () => {
+    const pretes = Q.questionsToutesPretes([{ id: "p001", famille: "animaux", text: "Quel animal fait « miaou » ?", choices: ["Chat", "Chien"] }]);
+    assert.equal(pretes.length, B.QUESTIONS_CHIFFRES.length + 1);
+    assert.equal(pretes.at(-1).cle, "p001");
+    const [x] = pretes;
+    const b = B.QUESTIONS_CHIFFRES[0];
+    assert.deepEqual([x.cle, x.text, x.nombre, x.correct, x.image, x.categorie, x.ok, x.validee, x.choices],
+      [b.id, b.text, true, b.correct, b.emoji, Q.JUSTE_CHIFFRE, true, true, []]);
+    assert.equal(x.source, `Juste Chiffre tout prêt · ${B.THEMES_CHIFFRES[b.theme]} · ${b.ageMin} à ${b.ageMax} ans`);
+    assert.equal(Q.questionCorrespond(x, "juste chiffre animaux"), true);
   });
 });

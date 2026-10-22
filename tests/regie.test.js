@@ -2769,6 +2769,80 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Juste Chiffre tout prêt (cedric, 22/10) : dans « Toutes prêtes », dans un quiz classique (âge, thème, 5 au hasard), et les quiz de test à part", async () => {
+    const { QUESTIONS_CHIFFRES } = await import("../web/public/banque-chiffres.js");
+    await seedLibrary("quizzes", {
+      mien: { title: "Quiz de Jade", source: "saisie", kind: "classique", ageMin: 7, ageMax: 8, updatedAt: 5, questions: [
+        { text: "Combien de pattes a une araignée ?", kind: "number", correct: 8, status: "validee", image: "🕷️" },
+      ] },
+      "test-lea-tous-les-jeux-quiz": { title: "TEST – Quiz classique de Léa", theme: "Culture générale (test)", source: "saisie", updatedAt: 9, questions: [
+        { text: "Combien de jours y a-t-il dans une année ?", kind: "number", correct: 365, status: "validee" },
+      ] },
+    });
+    const page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="questions"]');
+
+    // Les questions de la prestation de test ne sont plus « en vrac » : elles ont leur groupe.
+    await page.locator('#q-groups [data-groupe="tests"]', { hasText: "🧪 Questions de test (1)" }).waitFor();
+    await page.locator('.q-groupe[data-groupe="tests"] .q-item[data-question="test-lea-tous-les-jeux-quiz/0"]').waitFor();
+    assert.equal(await page.locator('.q-groupe[data-groupe="miennes"] .q-item').count(), 1);
+    await page.click('#q-groups [data-groupe="tests"]');
+    await page.locator("#q-list .q-item", { hasText: "Combien de jours y a-t-il dans une année ?" }).getByRole("button", { name: "Supprimer" }).waitFor();
+
+    // « Toutes prêtes » : le Juste Chiffre en tête, chacun avec son émoji, sans alerte.
+    await page.click('#q-groups [data-groupe="pretes"]');
+    const jc = page.locator('.q-categories [data-categorie="🔢 Juste Chiffre"]');
+    assert.equal(await jc.innerText(), `🔢 Juste Chiffre (${QUESTIONS_CHIFFRES.length})`);
+    await jc.click();
+    await page.locator("#q-list .q-item").first().waitFor();
+    assert.equal(await page.locator("#q-list .q-item").count(), QUESTIONS_CHIFFRES.length);
+    assert.equal(await page.locator("#q-list .q-item.sans-illus").count(), 0);
+    const premiere = page.locator(`#q-list .q-item[data-question="${QUESTIONS_CHIFFRES[0].id}"]`);
+    assert.equal(await premiere.locator(".q-illus.emoji").innerText(), QUESTIONS_CHIFFRES[0].emoji);
+    assert.equal(await premiere.locator(".q-nombre").innerText(), `Le Juste Chiffre · réponse : ${QUESTIONS_CHIFFRES[0].correct}`);
+    await page.fill("#q-search", "dalmatiens");
+    await page.locator("#q-list .q-item", { hasText: "101" }).waitFor();
+    await page.fill("#q-search", "");
+    await capture(page, "juste-chiffre-toutes-pretes");
+
+    // Dans le quiz de Jade (7 ans) : l'âge vient du quiz ; la question déjà là ne se coche pas.
+    await page.click('#q-groups [data-groupe="miennes"]');
+    await page.locator('.q-item[data-question="mien/0"]').getByRole("button", { name: "Éditer" }).click();
+    await page.locator("#rv-chiffres:not([hidden])").click();
+    const panel = page.locator("#rv-chiffres-panel");
+    await panel.locator(".banque-q").first().waitFor();
+    assert.equal(await page.locator("#rv-chiffres-age").inputValue(), "7");
+    const pourSept = QUESTIONS_CHIFFRES.filter((x) => x.ageMin <= 7 && x.ageMax >= 7);
+    assert.equal(await panel.locator(".banque-q").count(), pourSept.length);
+    const araignee = panel.locator(".banque-q", { hasText: "Combien de pattes a une araignée ?" });
+    assert.equal(await araignee.locator("input").isDisabled(), true);
+    await araignee.locator(".tag", { hasText: "déjà dans le quiz" }).waitFor();
+    // Un thème, puis 5 au hasard : 5 cochées, toutes de ce thème et de cet âge.
+    await panel.locator('.chip[data-theme="animaux"]').click();
+    await panel.locator('.chip.active[data-theme="animaux"]').waitFor();
+    await page.click("#rv-chiffres-hasard");
+    await waitFor(async () => await panel.locator(".banque-q input:checked").count() === 5, "5 cochées");
+    const cochees = await panel.locator(".banque-q:has(input:checked)").evaluateAll((els) => els.map((e) => e.dataset.chiffre));
+    const tirees = cochees.map((id) => QUESTIONS_CHIFFRES.find((x) => x.id === id));
+    assert.ok(tirees.every((x) => x.theme === "animaux" && x.ageMin <= 7 && x.ageMax >= 7), "thème et âge respectés");
+    assert.ok(!tirees.some((x) => x.text === "Combien de pattes a une araignée ?"), "jamais celle déjà dans le quiz");
+    await capture(page, "juste-chiffre-dans-un-quiz");
+    assert.equal(await page.locator("#rv-chiffres-add").innerText(), "Ajouter les 5 questions cochées");
+    await page.click("#rv-chiffres-add");
+    await page.locator("#rv-status", { hasText: "5 Juste Chiffre ajoutés" }).waitFor();
+    assert.equal(await page.locator("#rv-list .qcard").count(), 6);
+    assert.equal(await page.locator('#rv-list .qcard[data-q="5"] .q-number').inputValue(), `${tirees[4].correct}`);
+    // Ajoutées : elles ne se cochent plus.
+    await waitFor(async () => await panel.locator(".banque-q.deja").count() === 6, "déjà dans le quiz");
+    await page.click("#rv-save");
+    await page.locator("#rv-status", { hasText: "Enregistré" }).waitFor();
+    const enregistrees = (await library("quizzes/mien/questions")).slice(1);
+    assert.deepEqual(enregistrees.map((q) => [q.text, q.kind, q.correct, q.image, q.status]),
+      tirees.map((x) => [x.text, "number", x.correct, x.emoji, "validee"]));
+    await page.context().close();
+  });
+
   test("Bibliothèque en fabriquant un quiz : « 🖼️ » cherche la bonne réponse et pose un émoji, une de ses images ou une photo libre", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     const lea = "abcdef0123456789";
