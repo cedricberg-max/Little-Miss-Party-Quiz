@@ -4659,7 +4659,7 @@ function renderMedias(force = false) {
   $("media-upload").hidden = mediaGroupe !== "miennes";
   if (mediaGroupe === "miennes") remplirCategoriesEnvoi(g.miennes);
   const box = $("media-list");
-  // Aperçu : les trois groupes l'un sous l'autre, quelques images chacun.
+  // Aperçu : les groupes l'un sous l'autre, quelques images chacun.
   if (!mediaGroupe) {
     $("media-cats").replaceChildren();
     box.replaceChildren(...Object.entries(GROUPES_IMAGES).map(([k, label]) => {
