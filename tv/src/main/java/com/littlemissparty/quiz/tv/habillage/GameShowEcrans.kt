@@ -64,14 +64,15 @@ fun styleEtiquetteGs(taille: TextUnit, couleur: Color, espacement: TextUnit = ta
 internal fun lerpVers(a: Color, b: Color, t: Float) = Color(a.red + (b.red - a.red) * t, a.green + (b.green - a.green) * t, a.blue + (b.blue - a.blue) * t, a.alpha + (b.alpha - a.alpha) * t)
 
 /**
- * Logo « THE GAME SHOW by Little Miss Party » (kit du 22 octobre) : « THE » en cyan, « GAME SHOW » en néon rose,
+ * Logo « THE GAME SHOW by Little Miss Party » (kit du 22 octobre) : « THE » en cyan bien lisible, « GAME SHOW » en néon rose,
  * puis « by » et le logo officiel. [hauteur] : hauteur de « GAME SHOW » ; l'ensemble fait environ 1,9 fois plus.
  */
 @Composable
 fun LogoGameShow(hauteur: Dp, modifier: Modifier = Modifier, aligne: Alignment.Horizontal = Alignment.Start) {
     val taille = (hauteur.value * 0.82f).sp
     Column(modifier, horizontalAlignment = aligne) {
-        Text("THE", style = styleEtiquetteGs((hauteur.value * 0.26f).sp, GS.Cyan, (hauteur.value * 0.16f).sp), maxLines = 1, softWrap = false)
+        // « THE » fait partie du nom (cedric, 22/10) : bien lisible, pas une petite étiquette.
+        Text("THE", style = styleEtiquetteGs((hauteur.value * 0.5f).sp, GS.Cyan, (hauteur.value * 0.08f).sp), maxLines = 1, softWrap = false)
         Text("GAME SHOW", style = styleTitreNeon(taille, GS.Rose, TextAlign.Start), maxLines = 1, softWrap = false)
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.offset(y = -hauteur * 0.04f)) {
             Text("by", style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = (hauteur.value * 0.3f).sp, color = GS.Encre.copy(alpha = 0.8f), lineHeight = 1.1.em, lineHeightStyle = LIGNE_LMP))
@@ -209,7 +210,7 @@ private fun FiletNeon(versLaDroite: Boolean) {
 internal fun LogoGeneriqueGameShow(ms: () -> Float) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            "THE", maxLines = 1, softWrap = false, style = styleEtiquetteGs(34.sp, GS.Cyan, 22.sp),
+            "THE", maxLines = 1, softWrap = false, style = styleEtiquetteGs(52.sp, GS.Cyan, 8.sp),
             modifier = Modifier.graphicsLayer { alpha = ((ms() - 200f) / 700f).coerceIn(0f, 1f) },
         )
         Text(

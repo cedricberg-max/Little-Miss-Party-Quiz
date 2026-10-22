@@ -35,7 +35,7 @@ body.look-gs::after {
 
 /* Logo « THE GAME SHOW by Little Miss Party » (app.js remplace le texte du logo en Game Show). */
 .look-gs .logo { display: flex; flex-direction: column; align-items: center; line-height: 1; }
-.look-gs .logo .gs-the { font-family: "GS Orbitron"; font-weight: 700; font-size: 20px; letter-spacing: 12px; color: var(--gs-cyan); text-shadow: 0 0 14px rgba(0, 240, 255, .8); }
+.look-gs .logo .gs-the { font-family: "GS Orbitron"; font-weight: 700; font-size: 30px; letter-spacing: 4px; color: var(--gs-cyan); text-shadow: 0 0 14px rgba(0, 240, 255, .8); }
 .look-gs .logo .gs-titre {
   font-family: "GS Bungee"; font-weight: 400; font-size: clamp(42px, 13vw, 64px); letter-spacing: 0; color: #ffd6ea;
   text-shadow: 0 0 6px #fff, 0 0 18px var(--gs-rose), 0 0 38px var(--gs-rose);
