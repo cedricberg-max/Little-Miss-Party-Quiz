@@ -439,7 +439,9 @@ export const roundSeriesQuiz = (round) => ((round?.type ?? "quiz") === "quiz" ? 
   .filter((x) => x && ORIGINES_SERIE.includes(x.origine) && (x.origine === "quiz" ? typeof x.quizId === "string" && x.quizId : true))
   .map((x) => (x.origine === "quiz"
     ? { ...x, sans: listOf(x.sans).filter((t) => typeof t === "string") }
-    : { ...x, questions: listOf(x.questions).filter(Boolean) }));
+    : { ...x, questions: listOf(x.questions).filter(Boolean) }))
+  // Les questions tirées au 🎲 passent en premier (sous-rubrique de la ligne du dé, cedric, 23/10).
+  .sort((a, b) => (b.origine === "de") - (a.origine === "de"));
 
 /**
  * Questions jouées d'une série, au format d'une question de quiz (validées) : celles gardées dans la série, ou celles du

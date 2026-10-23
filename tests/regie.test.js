@@ -5436,11 +5436,13 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
-  test("Régie PC (cedric, 23/10) : un Quiz = une seule manche ; compteur, séries (🎲, quiz rappelé, ✍) dans l'ordre choisi, Super Finale en dernière ligne", async () => {
+  test("Régie PC (cedric, 23/10) : un Quiz = une seule manche ; compteur, questions tirées au 🎲 juste sous la ligne du dé, quiz rappelés dans l'ordre choisi, Super Finale en dernière ligne", async () => {
     const { QUESTIONS_TOUT_PRETES } = await import("../web/public/banque-classiques.js");
     const { buildSnapshot } = await import("../web/public/show.js");
     const banque = new Map(QUESTIONS_TOUT_PRETES.map((x) => [x.id, x]));
-    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    await seedLibrary("quizzes", { animaux: ANIMAUX, finale: FINALE });
+    // Une ancienne prestation avec un Quiz : le Quiz n'offre pas pour autant de « Reprendre » (cedric, 23/10).
+    await seedLibrary("shows", { tom: { childName: "Tom", age: 9, date: "2026-03-01", status: "archivee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 } });
     const page = await admin();
     await page.click("#home-new");
     await page.fill("#show-child", "Zoé");
@@ -5450,13 +5452,16 @@ describe("bibliothèque de quiz et prestations", () => {
     const round = page.locator("#show-rounds .round").nth(0);
     const ligne = round.locator(".round-body > .tirage-ligne");
     const compteur = round.locator(".quiz-compteur");
+    const tirage = round.locator(".round-body > .tirage-serie");
     const series = round.locator(".quiz-series > li.serie");
-    // Plus de « ＋ Manche » : le Quiz est une seule manche.
+    const ordre = () => round.locator(".round-body > *").evaluateAll((xs) => xs.map((x) => x.className));
+    // Plus de « ＋ Manche » : le Quiz est une seule manche ; ni « ✍ Écrire une question » ni « ↺ Reprendre ».
     assert.equal(await bloc.locator(".jeu-plus").count(), 0);
-    // De haut en bas : le compteur, la première ligne (profil, nombre, 🎲, ✕), les ajouts, la bougie, la Super Finale.
-    assert.deepEqual(await round.locator(".round-body > *").evaluateAll((xs) => xs.map((x) => x.className)),
-      ["quiz-compteur", "tirage-ligne", "quiz-ajouts", "check bougies quiz-bougies", "quiz-finale", "manche-note"]);
+    assert.equal(await page.locator("#show-rounds .quiz-ecrire, #show-rounds .reprendre-ouvrir, #show-rounds .reprendre-zone").count(), 0);
+    // De haut en bas : le compteur, la ligne du dé (profil, nombre, 🎲, ✕), « Rappeler un de vos quiz », la bougie, la Super Finale.
+    assert.deepEqual(await ordre(), ["quiz-compteur", "tirage-ligne", "quiz-ajouts", "check bougies quiz-bougies", "quiz-finale", "manche-note"]);
     assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-profil", "tirage-nombre", "btn tirage-de", "icon tirage-effacer"]);
+    assert.deepEqual(await round.locator(".quiz-ajouts > *").evaluateAll((xs) => xs.map((x) => x.className)), ["grow quiz-rappel"]);
     assert.equal(await ligne.locator(".tirage-effacer").isDisabled(), true, "Rien à effacer : grisée");
     assert.equal(await compteur.textContent(), "Aucune question pour l'instant");
     assert.equal(await ligne.locator(".tirage-nombre").inputValue(), "8");
@@ -5466,25 +5471,32 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await finale.locator(".finale-oui").inputValue(), "oui");
     assert.equal(await finale.locator("select.finale").inputValue(), "3");
     assert.equal(await finale.locator(".finale-facteur").inputValue(), "2");
-    assert.ok(await round.locator(".quiz-ajouts .reprendre-ouvrir").count() <= 1);
     await capture(page, "quiz-manche-vide");
-    // Un profil plus âgé que la prestation, 10 questions, puis le dé : une série, repliée.
+    // Un quiz rappelé d'abord, puis le dé : les questions tirées viennent juste sous la ligne du dé (sa sous-rubrique),
+    // repliées, et passent en premier ; le quiz rappelé reste plus bas.
+    await round.locator(".quiz-rappel").selectOption("animaux");
+    await series.first().waitFor();
     await ligne.locator(".tirage-profil").selectOption("GRANDS");
     await ligne.locator(".tirage-nombre").selectOption("10");
     await ligne.locator(".tirage-de").click();
-    await series.first().waitFor();
-    const voirDe = series.nth(0).locator(".serie-voir");
+    await tirage.waitFor();
+    assert.deepEqual(await ordre(), ["quiz-compteur", "tirage-ligne", "tirage-serie serie", "quiz-ajouts", "quiz-series", "check bougies quiz-bougies", "quiz-finale", "manche-note"]);
+    assert.deepEqual(await series.evaluateAll((xs) => xs.map((x) => x.dataset.origine)), ["quiz"]);
+    const voirDe = tirage.locator(".serie-voir");
     assert.equal(await voirDe.textContent(), "▸ 🎲 10 questions tirées au hasard (Grands)");
-    assert.equal(await compteur.textContent(), "10 questions, dont 3 en Super Finale, plus la question des bougies");
-    assert.equal(await series.nth(0).locator(".serie-liste").isHidden(), true);
+    assert.equal(await tirage.locator(".serie-monter, .serie-descendre, .serie-enlever").count(), 0, "Elle reste sous la ligne du dé ; sa ✕ est celle du dé");
+    const nAnimaux = ANIMAUX.questions.filter((q) => q.status === "validee").length;
+    assert.equal(await compteur.textContent(), `${10 + nAnimaux} questions, dont 3 en Super Finale, plus la question des bougies`);
+    assert.equal(await tirage.locator(".serie-liste").isHidden(), true);
     await voirDe.click();
-    const lignes = series.nth(0).locator(".serie-liste > li");
+    const lignes = tirage.locator(".serie-liste > li");
     assert.equal(await lignes.count(), 10);
-    // Des Juste Chiffre, une question sur quatre environ (10 → 2), jamais la première ; les 3 dernières en Super Finale.
+    // Des Juste Chiffre, une question sur quatre environ (10 → 2), jamais la première ; la Super Finale (3 dernières de
+    // toute la manche) tombe sur la dernière tirée et les 2 du quiz rappelé.
     const chiffres = await lignes.evaluateAll((xs) => xs.map((x, i) => (x.textContent.startsWith("🔢") ? i : -1)).filter((i) => i >= 0));
     assert.equal(chiffres.length, 2);
     assert.ok(!chiffres.includes(0));
-    assert.deepEqual(await lignes.evaluateAll((xs) => xs.map((x) => x.classList.contains("en-finale"))), [...Array(7).fill(false), true, true, true]);
+    assert.deepEqual(await lignes.evaluateAll((xs) => xs.map((x) => x.classList.contains("en-finale"))), [...Array(9).fill(false), true]);
     assert.equal(await lignes.nth(9).locator(".badge-finale").textContent(), "🏆 ×2");
     // Photo de la révélation à côté de chaque question à 4 réponses (Grands).
     const photos = await lignes.evaluateAll((xs) => xs.filter((x) => !x.textContent.startsWith("🔢")).map((x) => x.querySelector("img.tirage-mini")?.getAttribute("src") ?? ""));
@@ -5493,65 +5505,43 @@ describe("bibliothèque de quiz et prestations", () => {
     // ✕ : la question part, un 🎲 prend sa place ; il en tire une autre de la même sorte.
     const retiree = await lignes.nth(0).locator(".tirage-texte").textContent();
     await lignes.nth(0).locator(".tirage-retirer").click();
-    await series.nth(0).locator(".serie-liste li.vide").waitFor();
-    assert.equal(await series.nth(0).locator(".serie-voir").textContent(), "▾ 🎲 9 questions tirées au hasard (Grands), 1 à tirer");
-    assert.equal(await compteur.textContent(), "9 questions, dont 3 en Super Finale, plus la question des bougies · 1 à tirer");
+    await tirage.locator(".serie-liste li.vide").waitFor();
+    assert.equal(await tirage.locator(".serie-voir").textContent(), "▾ 🎲 9 questions tirées au hasard (Grands), 1 à tirer");
+    assert.equal(await compteur.textContent(), `${9 + nAnimaux} questions, dont 3 en Super Finale, plus la question des bougies · 1 à tirer`);
     await lignes.nth(0).locator(".tirage-de").click();
-    await series.nth(0).locator(".serie-liste li.vide").waitFor({ state: "detached" });
+    await tirage.locator(".serie-liste li.vide").waitFor({ state: "detached" });
     assert.notEqual(await lignes.nth(0).locator(".tirage-texte").textContent(), retiree);
-    // Une question retirée puis 9 questions : le 🎲 disparaît, les autres restent ; 10 : une de plus à la fin.
+    // Une question retirée puis 9 questions : le 🎲 disparaît, les autres restent ; 8 : une de moins à la fin.
     const dix = await lignes.allTextContents();
     await lignes.nth(0).locator(".tirage-retirer").click();
-    await series.nth(0).locator(".serie-liste li.vide").waitFor();
+    await tirage.locator(".serie-liste li.vide").waitFor();
     await ligne.locator(".tirage-nombre").selectOption("9");
-    assert.equal(await series.nth(0).locator(".serie-liste li.vide").count(), 0);
+    assert.equal(await tirage.locator(".serie-liste li.vide").count(), 0);
     assert.equal(await lignes.count(), 9);
     await ligne.locator(".tirage-nombre").selectOption("8");
     assert.equal(await lignes.count(), 8);
     assert.deepEqual((await lignes.allTextContents()).map((t) => t.replace("🏆 ×2", "")).slice(0, 5), dix.slice(1, 6));
-    // Un de ses quiz rappelé : une deuxième série, après la première ; la Super Finale passe sur ses dernières questions.
-    await round.locator(".quiz-rappel").selectOption("animaux");
+    // Un deuxième quiz rappelé : à la fin ; ↑ ↓ changent l'ordre des quiz rappelés, les questions tirées restent en tête.
+    await round.locator(".quiz-rappel").selectOption("finale");
     await series.nth(1).waitFor();
-    const nAnimaux = ANIMAUX.questions.filter((q) => q.status === "validee").length;
-    assert.equal(await series.nth(1).locator(".serie-voir").textContent(), `▸ 📚 Quiz « Animaux » : ${nAnimaux} questions`);
-    assert.equal(await compteur.textContent(), `${8 + nAnimaux} questions, dont 3 en Super Finale, plus la question des bougies`);
-    assert.deepEqual(await lignes.evaluateAll((xs) => xs.map((x) => x.classList.contains("en-finale"))), [...Array(7).fill(false), true], "La Super Finale : les 3 dernières de toute la manche");
-    // ✍ Écrire une question : une troisième série, dépliée, le curseur dans la question.
-    await round.locator(".quiz-ecrire").click();
-    const ecrite = series.nth(2).locator(".q-main").first();
-    await ecrite.waitFor();
-    await page.waitForFunction(() => document.activeElement?.classList.contains("q-main-texte"));
-    assert.equal(await ecrite.locator(".q-main-etat").textContent(), "À compléter : la question");
-    await page.keyboard.type("Combien de pattes a une araignée ?");
-    await ecrite.locator(".mode-chip", { hasText: "Juste Chiffre" }).click();
-    await series.nth(2).locator(".q-main input[type=number]").fill("8");
-    assert.equal(await series.nth(2).locator(".q-main-etat").textContent(), "✓ Prête");
-    await series.nth(2).locator(".serie-plus").click();
-    const deux = series.nth(2).locator(".q-main").nth(1);
-    await page.waitForFunction(() => document.activeElement?.closest(".q-main") === document.querySelectorAll(".q-main")[1]);
-    await page.keyboard.type("Quel est le plus grand océan ?");
-    for (const [k, t] of ["Atlantique", "Pacifique", "Indien"].entries()) await deux.locator(".q-main-choix").nth(k).fill(t);
-    assert.equal(await deux.locator(".q-main-etat").textContent(), "À compléter : la bonne réponse (cochez-la)");
-    await deux.locator("input[type=radio]").nth(1).check();
-    assert.equal(await deux.locator(".q-main-etat").textContent(), "✓ Prête");
-    assert.equal(await compteur.textContent(), `${10 + nAnimaux} questions, dont 3 en Super Finale, plus la question des bougies`);
-    // L'ordre de passage : les questions écrites montent tout en haut ; la Super Finale suit la fin de la manche.
-    await series.nth(2).locator(".serie-monter").click();
-    await series.nth(1).locator(".serie-monter").click();
-    assert.deepEqual(await series.evaluateAll((xs) => xs.map((x) => x.dataset.origine)), ["main", "de", "quiz"]);
-    assert.deepEqual(await series.evaluateAll((xs) => xs.map((x) => x.querySelectorAll(".en-finale").length)), [0, 1, 2]);
+    assert.equal(await compteur.textContent(), `${8 + nAnimaux + 1} questions, dont 3 en Super Finale, plus la question des bougies`);
     assert.equal(await series.nth(0).locator(".serie-monter").isDisabled(), true);
-    assert.equal(await series.nth(2).locator(".serie-descendre").isDisabled(), true);
+    assert.equal(await series.nth(1).locator(".serie-descendre").isDisabled(), true);
+    await series.nth(1).locator(".serie-monter").click();
+    assert.deepEqual(await series.evaluateAll((xs) => xs.map((x) => x.querySelector(".serie-voir").textContent.match(/« (.+) »/)[1])), ["Finale", "Animaux"]);
+    assert.deepEqual(await ordre(), ["quiz-compteur", "tirage-ligne", "tirage-serie serie", "quiz-ajouts", "quiz-series", "check bougies quiz-bougies", "quiz-finale", "manche-note"]);
+    assert.equal(await tirage.locator(".serie-liste .en-finale").count(), 0, "Super Finale : la question du quiz Finale et les 2 d'Animaux");
     // Une question du quiz rappelé retirée : la bibliothèque ne change pas, « ↺ Remettre » la ramène.
-    await series.nth(2).locator(".serie-voir").click();
-    await series.nth(2).locator(".serie-liste > li").first().locator(".tirage-retirer").click();
-    assert.match(await series.nth(2).locator(".serie-voir").textContent(), new RegExp(`${nAnimaux - 1} questions? \\(1 retirée\\)`));
-    await series.nth(2).locator(".serie-remettre").click();
-    assert.equal(await series.nth(2).locator(".serie-voir").textContent(), `▾ 📚 Quiz « Animaux » : ${nAnimaux} questions`);
+    const animaux = series.nth(1);
+    await animaux.locator(".serie-voir").click();
+    await animaux.locator(".serie-liste > li").first().locator(".tirage-retirer").click();
+    assert.match(await animaux.locator(".serie-voir").textContent(), new RegExp(`${nAnimaux - 1} questions? \\(1 retirée\\)`));
+    await animaux.locator(".serie-remettre").click();
+    assert.equal(await animaux.locator(".serie-voir").textContent(), `▾ 📚 Quiz « Animaux » : ${nAnimaux} questions`);
     // Super Finale : les 2 dernières, ×3.
     await finale.locator("select.finale").selectOption("2");
     await finale.locator(".finale-facteur").selectOption("3");
-    assert.equal(await compteur.textContent(), `${10 + nAnimaux} questions, dont 2 en Super Finale, plus la question des bougies`);
+    assert.equal(await compteur.textContent(), `${8 + nAnimaux + 1} questions, dont 2 en Super Finale, plus la question des bougies`);
     await capture(page, "quiz-manche-series");
     if (process.env.CAPTURES) {
       await page.setViewportSize({ width: 1440, height: 900 });
@@ -5563,34 +5553,33 @@ describe("bibliothèque de quiz et prestations", () => {
     const zoe = Object.values(await library("shows")).find((s) => s.childName === "Zoé");
     assert.equal(zoe.rounds.length, 1);
     const [manche] = zoe.rounds;
-    assert.deepEqual(manche.seriesQuiz.map((x) => x.origine), ["main", "de", "quiz"]);
+    assert.deepEqual(manche.seriesQuiz.map((x) => [x.origine, x.quizId ?? null]), [["de", null], ["quiz", "finale"], ["quiz", "animaux"]]);
     assert.equal(manche.finale, 2);
     assert.equal(manche.facteur, 3);
     assert.equal(manche.tirees, undefined);
     assert.equal(manche.quizId, undefined);
-    const [main, de, quiz] = manche.seriesQuiz;
-    assert.deepEqual(main.questions.map((q) => [q.text, q.nombre ?? false, q.correct]), [["Combien de pattes a une araignée ?", true, 8], ["Quel est le plus grand océan ?", false, 1]]);
+    const [de] = manche.seriesQuiz;
     assert.equal(de.profil, "GRANDS");
     assert.equal(de.questions.length, 8);
     for (const q of de.questions) assert.equal(banque.get(q.id).niveau, 3, "Grands : niveau Difficile");
-    assert.equal(quiz.quizId, "animaux");
-    // Sur la TV : un seul jeu, les questions écrites, puis tirées, puis le quiz ; la bougie juste avant la Super Finale.
-    const { snapshot } = buildSnapshot("zoe", zoe, { animaux: ANIMAUX });
+    // Sur la TV : un seul jeu, les questions tirées d'abord, puis les quiz dans l'ordre ; la bougie juste avant la Super Finale.
+    const { snapshot } = buildSnapshot("zoe", zoe, { animaux: ANIMAUX, finale: FINALE });
     const qs = snapshot.quiz.questions;
     assert.equal(new Set(qs.map((q) => q.round)).size, 1, "Un seul jeu");
-    assert.equal(qs.length, 10 + nAnimaux + 1);
-    assert.equal(qs[0].text, "Combien de pattes a une araignée ?");
+    assert.equal(qs.length, 8 + 1 + nAnimaux + 1);
+    assert.equal(qs[0].text, de.questions[0].text);
+    assert.equal(qs[8].text, FINALE.questions[0].text);
     assert.equal(qs.at(-3).text, "Le Juste Chiffre : combien de bougies sur le gâteau de Zoé cette année ?");
     assert.deepEqual(qs.slice(-2).map((q) => q.finale), [true, true]);
     assert.deepEqual(snapshot.facteurs, { [qs.at(-2).id]: 3 });
     // Rouverte : la ✕ du dé n'efface que les questions tirées.
     await page.click("#show-edit-crumb");
     await page.locator(".show-card", { hasText: "Zoé" }).first().click();
-    await series.nth(2).waitFor();
+    await tirage.waitFor();
     await round.locator(".tirage-effacer").click();
     assert.match(await repondreFenetre(page), /Effacer les 8 questions tirées \?/);
-    await round.locator('.quiz-series > li.serie[data-origine="de"]').waitFor({ state: "detached" });
-    assert.deepEqual(await series.evaluateAll((xs) => xs.map((x) => x.dataset.origine)), ["main", "quiz"]);
+    await tirage.waitFor({ state: "detached" });
+    assert.deepEqual(await series.evaluateAll((xs) => xs.map((x) => x.dataset.origine)), ["quiz", "quiz"]);
     assert.equal(await round.locator(".tirage-effacer").isDisabled(), true);
     // Une série enlevée (✕ de la série) : demandé d'abord.
     await series.nth(1).locator(".serie-enlever").click();
@@ -5614,7 +5603,9 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#show-status-msg", { hasText: "Les manches Quiz qui se suivaient n'en font plus qu'une" }).waitFor();
     assert.equal(await page.locator('#show-rounds .jeu-bloc[data-jeu="quiz"] .round').count(), 1);
     const round = page.locator('#show-rounds .jeu-bloc[data-jeu="quiz"] .round');
-    assert.deepEqual(await round.locator(".quiz-series > li.serie").evaluateAll((xs) => xs.map((x) => x.dataset.origine)), ["quiz", "de"]);
+    // Les questions tirées sous la ligne du dé (elles passent en premier), le quiz rappelé dans la liste.
+    assert.equal(await round.locator(".round-body > .tirage-serie").count(), 1);
+    assert.deepEqual(await round.locator(".quiz-series > li.serie").evaluateAll((xs) => xs.map((x) => x.dataset.origine)), ["quiz"]);
     assert.equal(await round.locator(".quiz-compteur").textContent(), "4 questions, dont la dernière en Super Finale, plus la question des bougies");
     // « ＋ Ajouter un jeu » Quiz juste après le Quiz : déplacé ici, statues après ; un Quiz en fin, puis encore un : refusé.
     await page.click("#round-add");
@@ -5629,38 +5620,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const malo = (await library("shows")).vieux;
     assert.deepEqual(malo.rounds.map((r) => r.type), ["quiz", "statues"], "Le Quiz vide n'est pas gardé");
     assert.equal(malo.rounds[0].finale, 1);
-    assert.deepEqual(malo.rounds[0].seriesQuiz.map((x) => [x.origine, x.quizId ?? null, x.questions?.length ?? null]), [["quiz", "animaux", null], ["de", null, 2]]);
-    await page.context().close();
-  });
-
-  test("Régie PC (cedric, 23/10) : « ↺ Reprendre les questions d'une manche déjà faite » les ajoute en série au Quiz ; l'ancienne prestation ne change pas", async () => {
-    const tirees = [{ id: "x1", text: "Quelle est la capitale de l'Italie ?", choices: ["Rome", "Milan", "Naples", "Turin"], correct: 0 },
-      { id: "x2", text: "Combien de jours dans une semaine ?", nombre: true, correct: 7 }];
-    const TOM = { childName: "Tom", age: 9, date: "2026-03-01", status: "archivee", rounds: [{ type: "quiz", tirees, profil: "MOYENS" }], updatedAt: 1 };
-    await seedLibrary("quizzes", { animaux: ANIMAUX });
-    await seedLibrary("shows", { tom: TOM });
-    const page = await admin();
-    await page.click("#home-new");
-    await page.fill("#show-child", "Zoé");
-    await page.fill("#show-age", "9");
-    await ajouterJeu(page);
-    const round = page.locator("#show-rounds .round").nth(0);
-    const series = round.locator(".quiz-series > li.serie");
-    await round.locator(".quiz-rappel").selectOption("animaux");
-    await series.first().waitFor();
-    await round.locator(".quiz-ajouts .reprendre-ouvrir").click();
-    await round.locator('.reprise-item[data-reprise="tom/0"]').click();
-    await series.nth(1).waitFor();
-    assert.deepEqual(await series.evaluateAll((xs) => xs.map((x) => x.dataset.origine)), ["quiz", "reprise"]);
-    assert.equal(await series.nth(1).locator(".serie-voir").textContent(), "▸ 📅 Anniversaire de Tom (1 mars) : 2 questions");
-    assert.equal(await round.locator(".quiz-compteur").textContent(), "4 questions, dont 3 en Super Finale, plus la question des bougies");
-    await page.click("#show-save");
-    await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
-    const shows = await library("shows");
-    const zoe = Object.values(shows).find((x) => x.childName === "Zoé");
-    assert.deepEqual(zoe.rounds[0].seriesQuiz.map((x) => [x.origine, x.quizId ?? x.titre]), [["quiz", "animaux"], ["reprise", "Anniversaire de Tom (1 mars)"]]);
-    assert.deepEqual(zoe.rounds[0].seriesQuiz[1].questions.map((q) => q.text), tirees.map((q) => q.text));
-    assert.deepEqual(shows.tom, TOM, "Ancienne prestation inchangée");
+    assert.deepEqual(malo.rounds[0].seriesQuiz.map((x) => [x.origine, x.quizId ?? null, x.questions?.length ?? null]), [["de", null, 2], ["quiz", "animaux", null]]);
     await page.context().close();
   });
 
@@ -5715,31 +5675,30 @@ describe("bibliothèque de quiz et prestations", () => {
 
   test("reprendre une manche d'une ancienne prestation et dupliquer un quiz, sans toucher aux originaux", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX, finale: FINALE });
-    const LEA = { childName: "Léa", age: 7, date: "2026-03-01", status: "archivee", rounds: [{ type: "quiz", quizId: "animaux" }, { type: "finale", quizId: "finale" }], updatedAt: 1 };
+    const LEA = { childName: "Léa", age: 7, date: "2026-03-01", status: "archivee", rounds: [{ type: "quiz", quizId: "animaux" }, { type: "finale", quizId: "finale" }, { type: "chante", count: 5 }], updatedAt: 1 };
     await seedLibrary("shows", { lea: LEA });
     const page = await admin();
     await page.click("#home-new");
     await page.fill("#show-child", "Zoé");
-    // Le Quiz ajouté : « ↺ Reprendre les questions d'une manche déjà faite » propose celles des autres prestations.
-    await ajouterJeu(page);
+    // Le jeu ajouté : « ↺ Reprendre une manche déjà faite » propose celles des autres prestations (pas le Quiz, cedric 23/10).
+    await ajouterJeu(page, "chante");
     const round = page.locator("#show-rounds .round").nth(0);
     await round.locator(".reprendre-ouvrir").click();
-    const lea0 = round.locator('.reprise-item[data-reprise="lea/0"]');
-    await lea0.waitFor();
-    // L'ancienne manche « Super Finale » n'est pas un jeu : elle ne se reprend pas.
-    assert.equal(await round.locator('.reprise-item[data-reprise="lea/1"]').count(), 0);
+    const lea2 = round.locator('.reprise-item[data-reprise="lea/2"]');
+    await lea2.waitFor();
+    // Ni le Quiz ni l'ancienne manche « Super Finale » ne se reprennent ici.
+    assert.equal(await round.locator('.reprise-item[data-reprise="lea/0"], .reprise-item[data-reprise="lea/1"]').count(), 0);
     assert.equal(await round.locator(".reprise-item", { hasText: "Super Finale" }).count(), 0);
-    await lea0.click();
-    // Ses questions arrivent en série dans le Quiz (ici son quiz, rappelé tel quel).
-    await page.locator('#show-rounds li.serie[data-origine="quiz"] .serie-voir', { hasText: "Animaux" }).waitFor();
+    await lea2.click();
+    assert.equal(await page.locator("#show-rounds .round").nth(0).locator("select.grow").inputValue(), "5");
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "Enregistrée." }).waitFor();
-    // Elle est gardée dans la page du Quiz, rattachée à la nouvelle prestation ; l'ancienne prestation ne change pas.
+    // Elle est gardée dans la page de son jeu, rattachée à la nouvelle prestation ; l'ancienne prestation ne change pas.
     const shows = await library("shows");
     const [zoeId, zoe] = Object.entries(shows).find(([, s]) => s.childName === "Zoé");
     const [mid, manche] = Object.entries(await library("manches"))[0];
-    assert.deepEqual(zoe.rounds, [{ type: "quiz", quizId: "animaux", finale: 3, mancheId: mid }]);
-    assert.deepEqual([manche.round, manche.showId, manche.title], [{ type: "quiz", quizId: "animaux", finale: 3 }, zoeId, "Quiz · Anniversaire de Zoé"]);
+    assert.deepEqual(zoe.rounds, [{ type: "chante", count: 5, mancheId: mid }]);
+    assert.deepEqual([manche.round, manche.showId, manche.title], [{ type: "chante", count: 5 }, zoeId, "Chante le mot ! · Anniversaire de Zoé"]);
     assert.deepEqual(shows.lea, LEA, "Ancienne prestation inchangée");
 
     // Dupliquer un quiz : la copie apparaît en tête de la liste, sans s'ouvrir ; elle se modifie et s'enregistre à part.

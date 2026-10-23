@@ -1256,14 +1256,12 @@ function refreshRounds() {
         const r = editing.rounds[i];
         const vide = !roundFilled(r);
         const corps = h("div", { class: "round-body" }, ...roundFields(r));
-        // Créer d'abord (les champs ci-dessus), reprendre ensuite (cedric, 23/10). Quiz : les questions de la manche
-        // reprise s'ajoutent en une série (le reste de la manche ne bouge pas), depuis la ligne des ajouts.
-        const reprise = SANS_CONTENU.includes(b.type) ? null : reprendreManche(r, (next, x) => {
-          if (b.type === "quiz") ajouterReprise(r, next, x); else editing.rounds[i] = next;
+        // Créer d'abord (les champs ci-dessus), reprendre ensuite (cedric, 23/10). Pas pour le Quiz (cedric, 23/10) :
+        // ses questions viennent du 🎲 et de ses quiz rappelés.
+        const reprise = SANS_CONTENU.includes(b.type) || b.type === "quiz" ? null : reprendreManche(r, (next) => {
+          editing.rounds[i] = next;
           refreshRounds();
         });
-        const ajouts = b.type === "quiz" ? corps.querySelector(".quiz-ajouts") : null;
-        if (ajouts && reprise) ajouts.append(reprise);
         return h("div", { class: "round show-round", "data-manche": i },
           h("div", { class: "round-head" },
             h("span", { class: "num", title: `Manche ${i + 1} de la prestation`, text: `${i + 1}` }),
@@ -1271,7 +1269,7 @@ function refreshRounds() {
               : h("span", { class: "grow hint small", text: vide && b.type !== "quiz" ? "Nouvelle manche : choisissez son contenu, ou reprenez une manche déjà faite (plus bas)." : "" }),
             n > 1 ? h("button", { type: "button", class: "icon", title: "Retirer cette manche", onclick: () => { editing.rounds.splice(i, 1); refreshRounds(); }, text: "✕" }) : null),
           corps,
-          ajouts ? null : reprise,
+          reprise,
           alerteManche(r));
       })));
   });
@@ -1360,19 +1358,6 @@ function manchesAReprendre(type) {
       autres: [x.round.note, ...datesCherchables(x.show?.date), x.show?.age != null ? `${x.show.age} ans` : "", x.show?.notes],
     };
   });
-}
-
-/**
- * Quiz (cedric, 23/10) : une manche reprise ajoute ses questions en séries à la fin de la manche. Ses questions gardées
- * (tirées au 🎲, écrites, déjà reprises) sont copiées en une série « 📅 » ; ses quiz rappelés restent des quiz rappelés.
- */
-function ajouterReprise(r, copie, item) {
-  const reprise = versSeriesQuiz(copie, quizzes);
-  const titre = item?.show ? `${showTitle(item.show)}${item.show.date ? ` (${new Date(`${item.show.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })})` : ""}` : item?.titre ?? "Manche reprise";
-  const enLigne = roundSeriesQuiz(reprise).filter((x) => x.origine !== "quiz").flatMap((x) => x.questions.filter(questionJouable));
-  const series = seriesDe(r);
-  if (enLigne.length) series.push({ id: nouvelId("p"), origine: "reprise", titre, questions: JSON.parse(JSON.stringify(enLigne)) });
-  for (const x of roundSeriesQuiz(reprise).filter((y) => y.origine === "quiz")) series.push({ ...x, id: nouvelId("q") });
 }
 
 /**
@@ -1485,7 +1470,7 @@ function poserTirage(r, cases, profil) {
   const series = seriesDe(r);
   let de = serieDuDe(r);
   if (!cases.length) { r.seriesQuiz = series.filter((x) => x !== de); return; }
-  if (!de) { de = { id: "de", origine: "de" }; series.push(de); }
+  if (!de) { de = { id: "de", origine: "de" }; series.unshift(de); }
   de.questions = cases;
   if (profil) de.profil = profil;
 }
@@ -1549,9 +1534,10 @@ function compteurQuiz(r) {
  * - En haut, le compteur de toute la manche.
  * - Première ligne : le profil des questions (celui de la prestation d'office, modifiable), leur nombre, le 🎲 qui les
  *   tire dans la banque, la ✕ qui efface les questions tirées (et rien d'autre).
- * - Deuxième ligne : rappeler un de ses quiz, écrire une question à la main (et reprendre une manche déjà faite).
- * - Les séries : chacune se déplie, monte ou descend (↑ ↓) et s'enlève (✕) ; dans une série, ✕ retire une question
- *   (celle tirée au 🎲 laisse un 🎲 à sa place, qui en tire une autre de la même sorte).
+ * - Juste dessous, sa sous-rubrique : les questions tirées au 🎲, qui passent en premier ; ✕ en retire une (un 🎲 prend
+ *   sa place, qui en tire une autre de la même sorte).
+ * - Deuxième ligne : rappeler un de ses quiz.
+ * - Les autres séries : chacune se déplie, monte ou descend (↑ ↓) et s'enlève (✕) ; ✕ retire une question.
  * - Puis la question des bougies (premier Quiz de la prestation) et, en dernière ligne, la Super Finale : oui ou non,
  *   ses dernières questions (3 d'office) et son multiplicateur (×2 d'office).
  */
@@ -1559,6 +1545,8 @@ function mancheQuiz(r) {
   const series = seriesDe(r);
   const cases = casesDuTirage(r);
   const de = serieDuDe(r);
+  // Les questions tirées au 🎲 toujours en tête : elles passent en premier (anciennes manches aussi).
+  if (de && series[0] !== de) { series.splice(series.indexOf(de), 1); series.unshift(de); }
   const profil = PROFILES[de?.profil] ? de.profil : PROFILES[r.profil] ? r.profil : roundCtx.profile?.() ?? "MOYENS";
   const n = cases.length || r.nbTirage || TIRAGE_DEFAUT;
   // Une nouvelle manche part avec la Super Finale sur ses 3 dernières questions, ×2 (cedric, 23/10).
@@ -1604,7 +1592,7 @@ function mancheQuiz(r) {
       },
     }));
 
-  // Deuxième ligne : rappeler un quiz, écrire une question.
+  // Deuxième ligne : rappeler un de ses quiz.
   const classiques = Object.entries(quizzes).filter(([, q]) => q?.title && quizQuestions(q).length).sort(([, a], [, b]) => a.title.localeCompare(b.title, "fr"));
   const deja = new Set(series.filter((x) => x.origine === "quiz").map((x) => x.quizId));
   const ajouts = h("div", { class: "quiz-ajouts" },
@@ -1619,20 +1607,7 @@ function mancheQuiz(r) {
       },
     },
     h("option", { value: "", text: classiques.length ? "📚 Rappeler un de vos quiz…" : "📚 Pas encore de quiz à vous" }),
-    ...classiques.map(([qid, q]) => h("option", { value: qid, text: `${deja.has(qid) ? "✓ " : ""}${q.title} (${playable(q).length} questions)` }))),
-    h("button", {
-      type: "button", class: "chip quiz-ecrire", text: "✍ Écrire une question",
-      onclick: () => {
-        let main = series.find((x) => x.origine === "main");
-        if (!main) { main = { id: nouvelId("m"), origine: "main", questions: [] }; series.push(main); }
-        if (!Array.isArray(main.questions)) main.questions = Object.values(main.questions ?? {});
-        const q = { id: nouvelId("e"), text: "", choices: ["", "", "", ""] };
-        main.questions.push(q);
-        seriesDepliees.add(main);
-        questionAFocaliser = q.id;
-        changer();
-      },
-    }));
+    ...classiques.map(([qid, q]) => h("option", { value: qid, text: `${deja.has(qid) ? "✓ " : ""}${q.title} (${playable(q).length} questions)` }))));
 
   // Les séries, dans l'ordre de passage ; les questions jouées sont comptées pour marquer celles de la Super Finale.
   let rang = 0;
@@ -1696,13 +1671,8 @@ function mancheQuiz(r) {
     }
     return `📅 ${x.titre ?? "Questions reprises"} : ${nq}`;
   };
-  const deplacer = (i, d) => {
-    const j = i + d;
-    if (j < 0 || j >= series.length) return;
-    [series[i], series[j]] = [series[j], series[i]];
-    changer();
-  };
-  const liste = h("ol", { class: "quiz-series" }, ...series.map((x, i) => {
+  // Ses questions, repliées ou dépliées, et le bouton qui les montre.
+  const questionsEtVoir = (x) => {
     const qs = h("ol", { class: "tirage-liste serie-liste" }, ...corps(x).filter(Boolean));
     qs.hidden = !seriesDepliees.has(x);
     const voir = h("button", {
@@ -1715,6 +1685,24 @@ function mancheQuiz(r) {
         e.currentTarget.setAttribute("aria-expanded", qs.hidden ? "false" : "true");
       },
     });
+    return { qs, voir };
+  };
+  // Les questions tirées au 🎲 : une sous-rubrique de la ligne du dé, juste en dessous, toujours là (cedric, 23/10) ;
+  // elles passent en premier. Leur ✕ est celle de la ligne du dé.
+  const serieDe = de ? (() => {
+    const { qs, voir } = questionsEtVoir(de);
+    return h("div", { class: "tirage-serie serie", "data-origine": "de" }, h("div", { class: "serie-tete" }, voir), qs);
+  })() : null;
+  const autres = series.filter((x) => x !== de);
+  const deplacer = (i, d) => {
+    const j = i + d;
+    if (j < 0 || j >= autres.length) return;
+    [autres[i], autres[j]] = [autres[j], autres[i]];
+    r.seriesQuiz = [...(de ? [de] : []), ...autres];
+    changer();
+  };
+  const liste = h("ol", { class: "quiz-series" }, ...autres.map((x, i) => {
+    const { qs, voir } = questionsEtVoir(x);
     const enlever = async () => {
       const k = x.origine === "main" ? (x.questions ?? []).filter(Boolean).length : questionsDeLaSerie(x, quizzes).length;
       if (k && !(await confirmer(`Enlever cette série (${k} question${k > 1 ? "s" : ""}) de la manche ?${x.origine === "quiz" ? " Le quiz reste dans la bibliothèque." : ""}`, { ok: "Enlever", danger: true }))) return;
@@ -1734,7 +1722,7 @@ function mancheQuiz(r) {
           changer();
         } }) : null,
         h("button", { type: "button", class: "icon serie-monter", text: "↑", title: "Passer cette série plus tôt", "aria-label": "Monter cette série", disabled: i === 0, onclick: () => deplacer(i, -1) }),
-        h("button", { type: "button", class: "icon serie-descendre", text: "↓", title: "Passer cette série plus tard", "aria-label": "Descendre cette série", disabled: i === series.length - 1, onclick: () => deplacer(i, 1) }),
+        h("button", { type: "button", class: "icon serie-descendre", text: "↓", title: "Passer cette série plus tard", "aria-label": "Descendre cette série", disabled: i === autres.length - 1, onclick: () => deplacer(i, 1) }),
         h("button", { type: "button", class: "icon serie-enlever", text: "✕", title: "Enlever cette série de la manche", "aria-label": "Enlever cette série", onclick: enlever })),
       qs);
   }));
@@ -1767,7 +1755,7 @@ function mancheQuiz(r) {
     questionAFocaliser = null;
     requestAnimationFrame(() => document.querySelector(`[data-question="${CSS.escape(id)}"] .q-main-texte`)?.focus());
   }
-  return [compteur, ligne, ajouts, series.length ? liste : null, bougies, derniere];
+  return [compteur, ligne, serieDe, ajouts, autres.length ? liste : null, bougies, derniere];
 }
 
 /**
