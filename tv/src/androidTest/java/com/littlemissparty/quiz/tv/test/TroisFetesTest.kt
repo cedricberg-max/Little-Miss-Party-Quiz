@@ -239,7 +239,7 @@ class TroisFetesTest : TestTv() {
         assertEquals(pointsLicornes, points(licornes, code, licornes.uid))
         assertEquals(0L, points(licornes, code, dragons.uid))
         ecran.ok("Voir les scores")
-        ecran.voit("Classement")
+        ecran.voit(titreClassement())
         ecran.voit("Licornes")
         ecran.voit("Dragons")
         jamaisSurLaTv(1_000, "Sirènes", "Comètes", "Pirates")
@@ -252,7 +252,7 @@ class TroisFetesTest : TestTv() {
         assertEquals(50L, points(cometes, ines.code, cometes.uid))
         assertEquals("applied", regieTom.commande(tom.code, "next"))
         assertEquals(100L, points(licornesTom, tom.code, licornesTom.uid))
-        ecran.voit("Classement")
+        ecran.voit(titreClassement())
     }
 
     /**

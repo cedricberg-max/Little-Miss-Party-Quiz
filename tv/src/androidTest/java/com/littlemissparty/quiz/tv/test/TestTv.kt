@@ -36,6 +36,8 @@ abstract class TestTv {
     @Before
     fun preparer() {
         Boite.oublierPartie()
+        // Chaque test part du design par défaut d'une box neuve.
+        Boite.choisirDesign(null)
         val debut = System.currentTimeMillis()
         Boite.verifierEmulateur()
         Log.i(TAG, "Émulateur Firebase vérifié en ${System.currentTimeMillis() - debut} ms")

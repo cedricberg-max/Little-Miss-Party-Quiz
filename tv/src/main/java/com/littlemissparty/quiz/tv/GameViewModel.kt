@@ -301,6 +301,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
      * et les règles Firebase s'en servent pour qu'un anniversaire ne soit jamais lancé sur deux box à la fois.
      */
     private var prestation: String? = null
+    /** Couleurs des équipes choisies dans la prestation (bracelets et bandeaux), publiées pour les tablettes. */
+    private var couleursPrevues: List<String> = emptyList()
     /** Partie dont la box annonce la présence (hostOnline) à chaque connexion ; « hors ligne » écrit par le serveur à la coupure. */
     private var hostRef: DatabaseReference? = null
     private var hostRecheck: Job? = null
@@ -413,7 +415,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     /** « Réessayer » ne crée jamais de nouvelle partie si une partie est active. */
     fun retry() = if (activeCode != null) resume() else start()
 
-    /** Termine la partie active (elle reste archivée dans Firebase) et en crée une nouvelle. */
+    /**
+     * Termine la partie active (elle reste archivée dans Firebase) et en crée une nouvelle. La partie quittée est marquée
+     * (`state/leftAt`) : une régie encore ouverte dessus sait que la TV est revenue à l'accueil.
+     */
     fun newGame() {
         countdown?.cancel()
         timer?.cancel()
@@ -426,7 +431,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 val db = connect()
                 if (previous != null) {
                     db.getReference("games/$previous/state").updateChildren(
-                        mapOf("phase" to Phase.ENDED.code, "endedAt" to ServerValue.TIMESTAMP)
+                        mapOf("phase" to Phase.ENDED.code, "endedAt" to ServerValue.TIMESTAMP, "leftAt" to ServerValue.TIMESTAMP)
                     )
                 }
                 activeCode = null
@@ -662,6 +667,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         // Prestation publiée par la box elle-même ; à défaut (partie d'une version plus ancienne), celle chargée par la régie.
         prestation = snap.child("public/prestation").getValue(String::class.java)
             ?: show.child("prestation").getValue(String::class.java)?.takeIf { showApplied && show.child("base").value == null }
+        couleursPrevues = couleursValides(snap.child("public/teamColors").children.map { it.value })
+            .ifEmpty { if (showApplied) couleursValides(show.child("teamColors").children.map { it.value }) else emptyList() }
         judgedShow = snap.child("showStatus/id").getValue(String::class.java)
         val history = snap.child("log").children.mapNotNull { (it.value as? Map<*, *>)?.let(Codec::decode) }
         val g = Game(quiz, history)
@@ -1472,7 +1479,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             if (next != null) {
                 game = next
                 programRev = id
-                if (base == null) prestation = snap.child("prestation").getValue(String::class.java)
+                if (base == null) {
+                    prestation = snap.child("prestation").getValue(String::class.java)
+                    couleursPrevues = couleursValides(snap.child("teamColors").children.map { it.value })
+                }
                 updatePlaying {
                     if (base == null) it.copy(title = q!!.title, childName = snap.child("childName").getValue(String::class.java).orEmpty())
                     else it
@@ -1500,6 +1510,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
      * Titre et prénom de l'enfant fêté, lisibles par les pupitres pour l'accueil. `changeBox` : cette box sait
      * reprendre la fête d'une box en panne ; la régie (et les règles) ne confient jamais une fête à une box plus ancienne.
      * `prestation` : la prestation de la bibliothèque jouée ici (liste des prestations de la régie, règles des lancements).
+     * `teamColors` : les seules couleurs que les tablettes proposent aux équipes (bracelets et bandeaux de la prestation).
      */
     private fun publishPublic() {
         val s = _state.value as? UiState.Playing ?: return
@@ -1507,7 +1518,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         gameRef?.child("public")?.setValue(
             clean(mapOf(
                 "title" to title.take(120), "childName" to s.childName.take(40).ifBlank { null }, "changeBox" to true,
-                "prestation" to prestation?.take(40),
+                "prestation" to prestation?.take(40), "teamColors" to couleursPrevues.ifEmpty { null },
             ))
         )
     }
@@ -1536,6 +1547,21 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             val device = snap.child("device").getValue(String::class.java)
             val team = snap.child("team").getValue(String::class.java)
             viewModelScope.launch { actions.withLock { admitDevice(id, replace = type == REPLACE, device = device, team = team) } }
+            return
+        }
+        // « 🏁 Fin de la fête » sur la régie (cedric, 23/10) : seulement une fois la partie terminée (écran « Merci
+        // d'avoir participé ») ; la TV quitte la partie et revient à l'accueil, comme « Terminer et lancer une nouvelle
+        // partie » du menu Retour.
+        if (type == NEW_GAME) {
+            viewModelScope.launch {
+                val fin = actions.withLock {
+                    val ended = game?.state?.phase == Phase.ENDED
+                    val result = if (ended) CommandResult(CommandStatus.APPLIED) else CommandResult(CommandStatus.REFUSED, reason = "not_ended")
+                    gameRef?.updateChildren(statusOf(id, result))?.let { runCatching { it.await() } }
+                    ended
+                }
+                if (fin) newGame()
+            }
             return
         }
         val cmd = (snap.value as? Map<*, *>)?.let { Command.decode(id, it) }
@@ -2074,6 +2100,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         const val MAX_TEAMS = 8
         private const val ADMIT = "admit"
         private const val REPLACE = "replace"
+        private const val NEW_GAME = "newgame"
         const val MAX_REGIES = 2
         private const val MAX_PIN_FAILURES = 5
         private const val PIN_LOCK_MS = 60_000L

@@ -65,6 +65,8 @@ class DirecteurSonore {
         if (i.ecran == Ecran.HORS_PARTIE) return listOf(Ordre.Musique(Ambiance.SILENCE))
         if (i.enPause) return listOf(Ordre.Musique(Ambiance.INTERMEDE))
         if (i.ecran == Ecran.SALON && i.index < 0 && generiques.add(i.partie)) return generique()
+        // Game Show : une box qui revient sur le podium le rejoue en entier, comme l'écran.
+        if (i.ecran == Ecran.FIN && i.gameShow) return entree(i, i)
         return listOf(Ordre.Musique(ambiance(i)))
     }
 
@@ -255,14 +257,22 @@ class DirecteurSonore {
                 o += Ordre.Jouer(Son.BT_OUTRO)
                 o += Ordre.Jouer(Son.COMPTEUR, Tempo.CLASSEMENT_COMPTEUR)
                 if (i.meneurAPoints) o += Ordre.Jouer(Son.COURONNE, Tempo.CLASSEMENT_COURONNE)
-                o += Ordre.Musique(Ambiance.FETE, Tempo.BT_OUTRO_MUSIQUE)
+                o += Ordre.Musique(Ambiance.BILAN, Tempo.BT_OUTRO_MUSIQUE)
             } else {
                 o += Ordre.Jouer(Son.WHOOSH)
                 o += Ordre.Jouer(Son.COMPTEUR, Tempo.CLASSEMENT_COMPTEUR)
                 if (i.meneurAPoints) o += Ordre.Jouer(Son.COURONNE, Tempo.CLASSEMENT_COURONNE)
-                o += Ordre.Musique(Ambiance.FETE)
+                o += Ordre.Musique(Ambiance.BILAN)
             }
-            Ecran.FIN -> {
+            Ecran.FIN -> if (i.gameShow) {
+                // Game Show : le podium sur Digital Love (cedric, 23 octobre). La chanson part sur « why don't you
+                // play the game » pendant que les jauges montent, roulement de tambour par-dessus ; le solo de guitare
+                // tombe sur le nom du gagnant (Tempo.PODIUM_REVELATION) ; à la fin de la chanson, l'écran de fin et le
+                // dernier groove d'Aerodynamic. Tout est dans gs_podium : rien d'autre ne joue.
+                o += Ordre.Musique(Ambiance.SILENCE)
+                o += Ordre.Jouer(Son.PODIUM)
+                o += Ordre.Musique(Ambiance.AU_REVOIR, Tempo.PODIUM_FIN, Tempo.FONDU_AU_REVOIR)
+            } else {
                 o += Ordre.Musique(Ambiance.SILENCE)
                 // Grand gagnant : long roulement qui monte pendant tout le suspense, la montée arrive sur la fin.
                 o += Ordre.Jouer(Son.ROULEMENT_FINAL)
@@ -285,16 +295,17 @@ class DirecteurSonore {
         if (i.buzzs > p.buzzs && i.buzzeur >= 0) o += Ordre.Jouer(Son.rigolo(i.buzzeur))
         // Bip, bip, bip : chacune des cinq dernières secondes du chrono, le dernier plus aigu. Jamais pendant qu'une
         // équipe répond après un buzz (le chrono est figé), en express (trop court) ni quand tout le monde a répondu.
+        // Pas dans « Ça va exploser ! » : la mèche n'est jamais affichée, et sa musique monte d'elle-même jusqu'au boum.
         if ((i.ecran == Ecran.QUESTION || i.ecran == Ecran.MIMES_TOUR) && i.decompte in 1..5 && i.decompte != p.decompte &&
-            !i.enPause && !i.express && i.buzzEquipe < 0 && !tousOntRepondu(i)
+            !i.enPause && !i.express && !i.patate && i.buzzEquipe < 0 && !tousOntRepondu(i)
         ) o += Ordre.Jouer(if (i.decompte == 1) Son.BIP_FIN else Son.BIP)
         if (i.ecran == Ecran.QUESTION) {
             if (i.reponses > p.reponses) o += Ordre.Jouer(Son.REPONSE)
             // La tension des 5 dernières secondes s'arrête quand le temps repart ou que tout le monde a répondu.
             // Pas de tension en express : le chrono entier ne dure que quelques secondes.
             // Pas de tension dans les jeux au buzzer : le buzz et le suspense de la réponse en tiennent lieu.
-            val enTension = p.urgent && !tousOntRepondu(p) && !p.express && !p.jeuBuzz && !p.musical
-            val tension = i.urgent && !tousOntRepondu(i) && !i.express && !i.jeuBuzz && !i.musical
+            val enTension = p.urgent && !tousOntRepondu(p) && !p.express && !p.jeuBuzz && !p.musical && !p.patate
+            val tension = i.urgent && !tousOntRepondu(i) && !i.express && !i.jeuBuzz && !i.musical && !i.patate
             if (tension && !enTension && !p.urgent) o += Ordre.Jouer(Son.TENSION)
             if (enTension && !tension) o += Ordre.Arreter(Son.TENSION)
             if (i.jeuBuzz || i.blind) o += buzzJeu(p, i)
@@ -378,6 +389,8 @@ class DirecteurSonore {
             i.musical && i.ecran != Ecran.VERROUILLEE -> Ambiance.SILENCE
             // Image floue : musique en retrait pendant que l'image se précise, silence pendant qu'une équipe répond.
             // Qui a disparu ? : musique douce pour mémoriser, presque rien pendant le tour de magie.
+            // « Ça va exploser ! » : sa propre musique, calée sur la mèche (MusiquePatate) ; les boucles se taisent.
+            i.patate && i.ecran != Ecran.REVELATION -> Ambiance.SILENCE
             i.disparu == DISPARU_MEMORISER && i.ecran == Ecran.QUESTION -> Ambiance.MEMOIRE
             i.disparu == DISPARU_MAGIE && i.ecran == Ecran.QUESTION -> Ambiance.ENVOUTEMENT
             i.jeuBuzz && i.ecran == Ecran.QUESTION -> if (i.buzzEquipe >= 0) Ambiance.SILENCE else Ambiance.SUSPENSE
@@ -387,6 +400,7 @@ class DirecteurSonore {
             i.superFinale && i.ecran == Ecran.QUESTION -> Ambiance.DECISIVE
             else -> ambianceParDefaut(i.ecran)
         }
+        Ecran.FIN -> if (i.gameShow) Ambiance.AU_REVOIR else ambianceParDefaut(i.ecran)
         else -> ambianceParDefaut(i.ecran)
     }
 
@@ -398,7 +412,8 @@ class DirecteurSonore {
         Ecran.MIMES -> Ambiance.MIMES_ENTRE
         Ecran.MIMES_TOUR -> Ambiance.MIMES
         Ecran.VERROUILLEE -> Ambiance.SUSPENSE
-        Ecran.REVELATION, Ecran.CLASSEMENT, Ecran.FIN -> Ambiance.FETE
+        Ecran.REVELATION, Ecran.FIN -> Ambiance.FETE
+        Ecran.CLASSEMENT -> Ambiance.BILAN
     }
 }
 
@@ -445,6 +460,8 @@ data class Instant(
     val musical: Boolean = false,
     /** Statues musicales : la musique du jeu est arrêtée, tout le monde se fige. */
     val statue: Boolean = false,
+    /** « Ça va exploser ! » : le jeu a sa propre musique, calée sur la mèche ; ni boucle, ni bips, ni tension. */
+    val patate: Boolean = false,
     val flou: Boolean = false,
     val chante: Boolean = false,
     val indices: Int = 0,
@@ -471,6 +488,8 @@ data class Instant(
      */
     val pictionary: Boolean = false,
     val pictioTrouve: Boolean = false,
+    /** Design « The Game Show » : le podium et l'écran de fin ont leur propre musique. */
+    val gameShow: Boolean = false,
 )
 
 const val DISPARU_MEMORISER = 1
@@ -481,14 +500,27 @@ const val DISPARU_REPONSE = 4
 /** [MIMES] : manche de mimes entre deux tours ; [MIMES_TOUR] : une équipe mime. */
 enum class Ecran { HORS_PARTIE, SALON, PRESENTATION, QUESTION, MIMES, MIMES_TOUR, VERROUILLEE, REVELATION, CLASSEMENT, FIN }
 
-/** Les boucles musicales de 16 s (8 mesures à 120 BPM), toujours calées sur le même tempo. */
-enum class Lit(val fichier: String) {
+/**
+ * Les boucles musicales de 16 s (8 mesures à 120 BPM), toujours calées sur le même tempo. [gs] : boucle propre au
+ * Game Show, sans équivalent classique ([fichier] null : le Classique ne la charge pas).
+ */
+enum class Lit(val fichier: String?, val gs: String? = null) {
     COMPLET("lmp_bed_full"),
     LEGER("lmp_bed_light"),
     MIMES("lmp_bed_mimes"),
     PAUSE("lmp_bed_pause"),
     EXPRESS("lmp_bed_express"),
     MAGIE("lmp_bed_magie"),
+    /** Game Show : le riff d'Aerodynamic sous le bilan des scores (choix de cedric, 23 octobre). */
+    BILAN(null, "gs_bed_bilan"),
+    /** Game Show : nappe de tension sans note, par-dessus la musique de la manche pendant la Super finale. */
+    TENSION(null, "gs_bed_tension"),
+    /** Game Show : le dernier groove d'Aerodynamic, sous l'écran de fin après le podium (cedric, 23 octobre). */
+    FIN(null, "gs_bed_fin"),
+    ;
+
+    /** Fichier lu dans le design donné (null : cette boucle n'existe pas dans ce design). */
+    fun fichierPour(gameShow: Boolean): String? = if (gameShow) gs ?: fichier else fichier
 }
 
 /** Fond musical : le volume de chaque boucle selon l'ambiance (fondu enchaîné de l'une à l'autre). */
@@ -499,6 +531,8 @@ enum class Ambiance(
     private val pause: Float = 0f,
     private val express: Float = 0f,
     private val magie: Float = 0f,
+    /** Volumes propres au Game Show, à la place des autres ; null : les mêmes que le Classique. */
+    private val gameShow: Map<Lit, Float>? = null,
 ) {
     SILENCE,
     SALON(complete = 0.55f),
@@ -517,25 +551,38 @@ enum class Ambiance(
     INTERMEDE(pause = 0.5f),
     /** Vrai ou Faux express : course contre la montre, sur toute la série. */
     EXPRESS(express = 0.5f),
-    /** Dernières questions du quiz à points multipliés : la rythmique nerveuse de l'express, un peu plus bas. */
-    DECISIVE(express = 0.4f),
+    /**
+     * Dernières questions du quiz à points multipliés : la rythmique nerveuse de l'express, un peu plus bas. Game Show :
+     * la musique de la manche continue, avec la nappe de tension par-dessus (cedric, 23 octobre).
+     */
+    DECISIVE(express = 0.4f, gameShow = mapOf(Lit.LEGER to 0.6f, Lit.TENSION to 0.5f)),
+    /** Bilan des scores entre deux jeux : la musique de fête ; Game Show : le riff d'Aerodynamic. */
+    BILAN(complete = 0.8f, gameShow = mapOf(Lit.BILAN to 0.8f)),
+    /** Écran de fin, après le podium du Game Show : le dernier groove d'Aerodynamic ; Classique : la musique de fête. */
+    AU_REVOIR(complete = 0.8f, gameShow = mapOf(Lit.FIN to 0.75f)),
     /** Qui a disparu ? : boîte à musique et harpe pendant qu'on mémorise les objets. */
     MEMOIRE(magie = 0.55f),
     /** Qui a disparu ? : le tour de magie, la boîte à musique s'efface sous l'« abracadabra ». */
     ENVOUTEMENT(magie = 0.18f);
 
-    fun volume(l: Lit) = when (l) {
-        Lit.COMPLET -> complete
-        Lit.LEGER -> legere
-        Lit.MIMES -> mimes
-        Lit.PAUSE -> pause
-        Lit.EXPRESS -> express
-        Lit.MAGIE -> magie
+    /** Volume d'une boucle dans cette ambiance ; [gs] : design « The Game Show ». */
+    fun volume(l: Lit, gs: Boolean = false): Float {
+        if (gs && gameShow != null) return gameShow[l] ?: 0f
+        return when (l) {
+            Lit.COMPLET -> complete
+            Lit.LEGER -> legere
+            Lit.MIMES -> mimes
+            Lit.PAUSE -> pause
+            Lit.EXPRESS -> express
+            Lit.MAGIE -> magie
+            Lit.BILAN, Lit.TENSION, Lit.FIN -> 0f
+        }
     }
 }
 
 /** Les sons de l'habillage ; [fichier] est le nom dans res/raw. Les longs passent par un lecteur dédié. */
-enum class Son(val fichier: String, val long: Boolean = false) {
+/** [gs] : fichier du Game Show quand il ne suit pas la règle lmp_… → gs_… (équipes 5 à 8, qui reprennent 1 à 4 en Classique). */
+enum class Son(val fichier: String, val long: Boolean = false, val gs: String? = null) {
     GENERIQUE("lmp_generique", true),
     TENSION("lmp_tension", true),
     BIP("lmp_bip"), BIP_FIN("lmp_bip_fin"),
@@ -558,6 +605,8 @@ enum class Son(val fichier: String, val long: Boolean = false) {
     APPLAUDISSEMENTS("lmp_applause", true),
     CLOCHES("lmp_prize_bells"),
     FIN("lmp_end_jingle", true),
+    /** Game Show seulement : le podium sur Digital Love, roulement et impact compris (104,6 s). */
+    PODIUM("gs_podium", true),
     POP_1("lmp_pop_1"), POP_2("lmp_pop_2"), POP_3("lmp_pop_3"), POP_4("lmp_pop_4"),
     MIME_TOP("lmp_mime_go", true),
     MIME_TROUVE("lmp_mime_found"),
@@ -611,11 +660,16 @@ enum class Son(val fichier: String, val long: Boolean = false) {
     BALLON_ECLATE("lmp_ballon_eclate", true),
     TIC_1("lmp_tic_1"), TIC_2("lmp_tic_2"), TIC_3("lmp_tic_3"),
     PATATE_PASSE("lmp_patate_passe"),
-    EQUIPE_1("lmp_team_sting_1"), EQUIPE_2("lmp_team_sting_2"), EQUIPE_3("lmp_team_sting_3"), EQUIPE_4("lmp_team_sting_4");
+    /** Musique de « Ça va exploser ! » (extrait choisi par cedric) : sa fin tombe sur l'explosion, voir [MusiquePatate]. */
+    PATATE_MUSIQUE("lmp_patate_musique", true),
+    EQUIPE_1("lmp_team_sting_1"), EQUIPE_2("lmp_team_sting_2"), EQUIPE_3("lmp_team_sting_3"), EQUIPE_4("lmp_team_sting_4"),
+    /** Game Show : un mot robot de Harder Better Faster Stronger par équipe, 8 en tout ; le Classique reprend ses 4 notes. */
+    EQUIPE_5("lmp_team_sting_1", gs = "gs_team_sting_5"), EQUIPE_6("lmp_team_sting_2", gs = "gs_team_sting_6"),
+    EQUIPE_7("lmp_team_sting_3", gs = "gs_team_sting_7"), EQUIPE_8("lmp_team_sting_4", gs = "gs_team_sting_8");
 
     companion object {
         private val pops = listOf(POP_1, POP_2, POP_3, POP_4)
-        private val equipes = listOf(EQUIPE_1, EQUIPE_2, EQUIPE_3, EQUIPE_4)
+        private val equipes = listOf(EQUIPE_1, EQUIPE_2, EQUIPE_3, EQUIPE_4, EQUIPE_5, EQUIPE_6, EQUIPE_7, EQUIPE_8)
         private val rigolos = listOf(RIGOLO_1, RIGOLO_2, RIGOLO_3, RIGOLO_4)
         fun pop(k: Int) = pops[Math.floorMod(k, pops.size)]
         fun equipe(place: Int) = equipes[Math.floorMod(place, equipes.size)]
@@ -673,6 +727,14 @@ object Tempo {
     const val FIN_VAINQUEUR = 7_000L
     const val FIN_JINGLE = 14_500L
     const val FIN_MUSIQUE = 17_000L
+    /**
+     * Podium du Game Show (gs_podium) : les jauges montent sur « why don't you play the game », le solo de guitare
+     * de Digital Love tombe à [PODIUM_REVELATION] sur le nom du gagnant ; l'écran de fin arrive quand la chanson
+     * s'éteint, à [PODIUM_FIN], sur le dernier groove d'Aerodynamic.
+     */
+    const val PODIUM_REVELATION = 15_444L
+    const val PODIUM_FIN = 102_500L
+    const val FONDU_AU_REVOIR = 2_000L
     /** Coup de cuivres du « Top départ » des mimes, après les deux coups de sifflet. */
     const val MIME_TOP_IMPACT = 500L
     const val MIME_BILAN = 1_000L

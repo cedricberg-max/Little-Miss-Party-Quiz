@@ -47,7 +47,7 @@ class PartieCompleteTest : TestTv() {
             assertEquals(0L, (licornes.etat(code).child("awards/${dragons.uid}/points").value as Number).toLong())
 
             ecran.ok("Voir les scores")
-            ecran.voit("Classement")
+            ecran.voit(titreClassement())
             if (i == 0) ecran.capture("classement")
             ecran.ok(if (i == total - 1) "Résultats finaux" else "Question suivante")
         }

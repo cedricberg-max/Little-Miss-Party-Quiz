@@ -65,6 +65,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Release
 import com.littlemissparty.quiz.tv.habillage.BalayageDore
+import com.littlemissparty.quiz.tv.habillage.Design
 import com.littlemissparty.quiz.tv.habillage.GeneriqueSalon
 import com.littlemissparty.quiz.tv.habillage.RobotGameShow
 import com.littlemissparty.quiz.tv.habillage.GrilleEquipes
@@ -360,7 +361,7 @@ private fun Moved(state: UiState.Moved, onNewGame: () -> Unit) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        LogoQuiz(56.dp)
+        LogoQuiz(56.dp, aligne = Alignment.CenterHorizontally)
         Spacer(Modifier.height(16.dp))
         Text(
             "Cette fête continue sur une autre box", color = Color.White, fontSize = 44.sp, lineHeight = 52.sp,
@@ -392,7 +393,7 @@ private fun Locked(state: UiState.Locked, onRequestAgain: () -> Unit, onUpdate: 
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        LogoQuiz(56.dp)
+        LogoQuiz(56.dp, aligne = Alignment.CenterHorizontally)
         Spacer(Modifier.height(12.dp))
         Text(
             "Box en attente d'activation", color = Color.White, fontSize = 40.sp, lineHeight = 46.sp,
@@ -647,4 +648,5 @@ fun String.toColor(): Color =
     runCatching { Color(android.graphics.Color.parseColor(this)) }.getOrDefault(Palette.TeamFallback).let { if (Look.gs) enNeon(it) else it }
 
 /** Lien des pupitres : les tablettes prennent le même design que la TV (Classique ou The Game Show). */
-fun lienPupitre(joinUrl: String): String = "$joinUrl&look=${Look.design.cle}"
+// Les pupitres n'ont que deux looks : le fond 3D de la TV garde celui du Game Show.
+fun lienPupitre(joinUrl: String): String = "$joinUrl&look=${if (Look.gs) Design.GAME_SHOW.cle else Design.CLASSIQUE.cle}"

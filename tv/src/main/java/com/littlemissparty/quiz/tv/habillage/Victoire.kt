@@ -66,6 +66,8 @@ data class Classee(val nom: String, val couleur: Color, val points: Int)
  */
 @Composable
 fun Victoire(classement: List<Classee>, modifier: Modifier = Modifier) {
+    // Design « The Game Show » : le podium sur Digital Love, avec ses jauges et son robot (PodiumGameShow.kt).
+    if (Look.gs) return PodiumGameShow(classement, modifier)
     val meilleur = classement.firstOrNull()?.points ?: 0
     val gagnants = if (meilleur > 0) classement.takeWhile { it.points == meilleur } else emptyList()
     val autres = classement.drop(gagnants.size)
@@ -111,7 +113,8 @@ fun Victoire(classement: List<Classee>, modifier: Modifier = Modifier) {
                         alpha = if (m < impact) 0.45f + 0.15f * kotlin.math.sin(m / 160f) else 0.85f
                     }.background(Brush.radialGradient(listOf(Neon.Or.copy(alpha = 0.55f), Color.Transparent))),
                 )
-                LogoMarque(96.dp)
+                // Au centre du halo, plus large que lui : sinon le logo part vers la gauche (cedric, test du 22/10).
+                LogoMarque(96.dp, Modifier.align(Alignment.Center))
             }
             Column(
                 Modifier.fillMaxSize().padding(start = 40.dp, end = 40.dp, top = 128.dp, bottom = 18.dp),
@@ -204,7 +207,7 @@ fun Victoire(classement: List<Classee>, modifier: Modifier = Modifier) {
 private const val FIN_HORLOGE_MS = 20_000f
 
 /** Battement bref (0 → 1 → 0) pendant [duree] ms après un instant (x = temps écoulé depuis cet instant). */
-private fun battement(x: Float, duree: Float): Float = if (x < 0f || x > duree) 0f else kotlin.math.sin(x / duree * PI.toFloat())
+internal fun battement(x: Float, duree: Float): Float = if (x < 0f || x > duree) 0f else kotlin.math.sin(x / duree * PI.toFloat())
 
 /** Début du saut du projecteur, et fin : il s'arrête sur le vainqueur un peu avant l'impact. */
 private const val SAUTS_DEBUT = 2_000f
@@ -279,7 +282,7 @@ private fun CartesSuspense(cartes: List<Classee>, gagnants: List<Classee>, sauts
  * après l'autre, puis retombent. Un seul Canvas, positions et couleurs calculées une fois.
  */
 @Composable
-private fun FeuxDArtifice(ms: () -> Float, impact: Float) {
+internal fun FeuxDArtifice(ms: () -> Float, impact: Float) {
     val bouquets = remember {
         val couleurs = listOf(Neon.Or, Color(0xFFFF2D8A), Color(0xFF7CFF3A), Color(0xFF3AD7FF), Color(0xFFFFE61F), Neon.OrClair)
         listOf(0.18f to 0.28f, 0.82f to 0.24f, 0.32f to 0.18f, 0.68f to 0.36f, 0.12f to 0.5f, 0.88f to 0.48f, 0.5f to 0.14f, 0.25f to 0.4f)
@@ -338,7 +341,7 @@ private fun NomVainqueur(g: Classee, impact: Float) {
 
 /** Égalité : un nom par ligne jusqu'à 3, deux par ligne au-delà ; chacun dans sa couleur, jamais rogné à 2 ou 3. */
 @Composable
-private fun NomsEgalite(gagnants: List<Classee>) {
+internal fun NomsEgalite(gagnants: List<Classee>, apparitionMs: Long = Tempo.FIN_VAINQUEUR) {
     val taille = when (gagnants.size) {
         2 -> 52.sp
         3 -> 40.sp
@@ -346,7 +349,7 @@ private fun NomsEgalite(gagnants: List<Classee>) {
     }
     val rangs = gagnants.chunked(if (gagnants.size <= 3) 1 else 2)
     Column(
-        Modifier.apparition(Tempo.FIN_VAINQUEUR, Unit),
+        Modifier.apparition(apparitionMs, Unit),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         rangs.forEach { rang ->
@@ -365,7 +368,7 @@ private fun NomsEgalite(gagnants: List<Classee>) {
 
 /** Les autres équipes (de 1 à 7), en pastilles compactes centrées, jusqu'à 3 par ligne. */
 @Composable
-private fun BandeAutres(autres: List<Classee>, classement: List<Classee>, modifier: Modifier) {
+internal fun BandeAutres(autres: List<Classee>, classement: List<Classee>, modifier: Modifier) {
     // Trois pastilles par ligne au plus : les noms restent lisibles même à 8 équipes (3 + 3 + 1).
     val parLigne = when {
         autres.size <= 3 -> autres.size

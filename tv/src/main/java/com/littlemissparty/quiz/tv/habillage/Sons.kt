@@ -8,6 +8,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
 import android.util.Log
+import kotlin.math.abs
 
 /**
  * Moteur sonore de l'habillage : exécute les [Ordre] du [DirecteurSonore].
@@ -28,6 +29,11 @@ object Sons {
     private const val CRAYON_VOLUME = 0.7f
     private const val CRAYON_ENTREE_MS = 80L
     private const val CRAYON_SORTIE_MS = 200L
+    /** Versions d'un même son long au plus (gs_tension_2 … gs_tension_5). */
+    private const val MAX_VARIANTES = 5
+    /** Musique calée sur la partie : écart toléré avant de la recaler, et temps laissé au lecteur pour finir un recalage. */
+    private const val CALAGE_ECART_MS = 150
+    private const val CALAGE_ATTENTE_MS = 400L
 
     private val fil = HandlerThread("habillage-son").apply { start() }
     private val h = Handler(fil.looper)
@@ -39,6 +45,14 @@ object Sons {
     private var pool: SoundPool? = null
     private val courts = mutableMapOf<Son, Int>()
     private val longs = mutableMapOf<Son, MediaPlayer>()
+    /**
+     * Game Show : toutes les versions d'un son long qui en a plusieurs (gs_tension, gs_tension_2, gs_tension_3…).
+     * Chaque lancement en tire une au hasard, jamais la même deux fois de suite ; [longs] pointe sur celle en cours.
+     */
+    private val variantes = mutableMapOf<Son, List<MediaPlayer>>()
+    private val derniereVariante = mutableMapOf<Son, Int>()
+    /** Dernier recalage de chaque musique calée ([calerSur]) : le lecteur met un instant à rendre sa nouvelle position. */
+    private val recalages = mutableMapOf<Son, Long>()
     /** Numéro du dernier lancement de chaque son long : un fondu de sortie ne coupe jamais un son relancé entre-temps. */
     private val lancements = mutableMapOf<Son, Int>()
     private val lits = mutableMapOf<Lit, Boucle>()
@@ -88,7 +102,7 @@ object Sons {
             etapes += {
                 essayer("pool") {
                     val p = SoundPool.Builder().setMaxStreams(8).setAudioAttributes(attributs).build()
-                    Son.entries.filter { !it.long }.forEach { s -> id(app, s.fichier)?.let { courts[s] = p.load(app, it, 1) } }
+                    Son.entries.filter { !it.long }.forEach { s -> idSon(app, s)?.let { courts[s] = p.load(app, it, 1) } }
                     pool = p
                 }
             }
@@ -105,11 +119,21 @@ object Sons {
         h.post { enchainer(etapes) }
     }
 
-    private fun chargerLong(app: Context, s: Son) = essayer(s.name) { lecteur(app, s.fichier, boucle = false)?.let { longs[s] = it } }
+    private fun chargerLong(app: Context, s: Son) = essayer(s.name) {
+        // Sons propres au Game Show (le podium) : rien à charger en Classique.
+        if (!Look.gs && s.fichier.startsWith("gs_")) return@essayer
+        val principal = lecteur(app, s.fichier, boucle = false) ?: return@essayer
+        longs[s] = principal
+        if (!Look.gs) return@essayer
+        val gs = s.fichier.replaceFirst("lmp_", "gs_")
+        val autres = (2..MAX_VARIANTES).mapNotNull { k -> brut(app, "${gs}_$k")?.let { lecteur(app, "${gs}_$k", boucle = false) } }
+        if (autres.isNotEmpty()) variantes[s] = listOf(principal) + autres
+    }
 
     /** Une boucle chargée après un ordre de musique prend tout de suite le volume de l'ambiance en cours. */
     private fun chargerLit(app: Context, l: Lit) = essayer(l.name) {
-        val b = boucle(app, l.fichier) ?: return@essayer
+        val nom = l.fichierPour(Look.gs) ?: return@essayer
+        val b = boucle(app, nom) ?: return@essayer
         lits[l] = b
         val v = volumes.getValue(l)
         b.setVolume(v)
@@ -144,6 +168,34 @@ object Sons {
             if (actif == crayonActif || (actif && enArriere)) return@post
             crayonActif = actif
             essayer("crayon") { fondreCrayon(actif) }
+        }
+    }
+
+    /**
+     * Musique calée sur une horloge de la partie (la mèche de « Ça va exploser ! ») : elle doit être à [positionMs]
+     * maintenant. Elle ne se recale que si elle s'en écarte de plus de [CALAGE_ECART_MS], pour ne pas hoqueter.
+     * [joue] faux (pause de la partie, bombe qui explose, entre deux bombes) la fige là où elle est. À rappeler souvent :
+     * un changement d'écran qui coupe les sons longs ne la fait taire qu'un instant.
+     */
+    fun calerSur(s: Son, positionMs: Long, joue: Boolean) {
+        h.post {
+            essayer("caler ${s.name}") {
+                val mp = longs[s] ?: return@essayer
+                if (!joue || enArriere || positionMs < 0 || positionMs >= mp.duration) {
+                    if (mp.isPlaying) mp.pause()
+                    return@essayer
+                }
+                // Annule un fondu de sortie en cours (changement d'écran) : c'est la mèche qui décide, pas l'écran.
+                lancements[s] = (lancements[s] ?: 0) + 1
+                mp.setVolume(1f, 1f)
+                val maintenant = SystemClock.uptimeMillis()
+                val enRecalage = maintenant - (recalages[s] ?: Long.MIN_VALUE / 2) < CALAGE_ATTENTE_MS
+                if (!enRecalage && abs(mp.currentPosition - positionMs) > CALAGE_ECART_MS) {
+                    mp.seekTo(positionMs, MediaPlayer.SEEK_CLOSEST)
+                    recalages[s] = maintenant
+                }
+                if (!mp.isPlaying) mp.start()
+            }
         }
     }
 
@@ -182,6 +234,12 @@ object Sons {
 
     private fun jouer(s: Son) {
         if (s.long) {
+            variantes[s]?.let { v ->
+                longs[s]?.takeIf { it.isPlaying }?.pause()
+                val i = (v.indices - (derniereVariante[s] ?: -1)).random()
+                derniereVariante[s] = i
+                longs[s] = v[i]
+            }
             val mp = longs[s] ?: return
             lancements[s] = (lancements[s] ?: 0) + 1
             if (mp.isPlaying) mp.pause()
@@ -274,7 +332,7 @@ object Sons {
     /** Fondu enchaîné d'une ambiance à l'autre : chaque boucle glisse vers son volume, celles qui se taisent s'arrêtent. */
     private fun versAmbiance(a: Ambiance, fonduMs: Long = FONDU_MS) {
         ambiance = a
-        Lit.entries.forEach { if (a.volume(it) > 0f) reveiller(lits[it]) }
+        Lit.entries.forEach { if (a.volume(it, Look.gs) > 0f) reveiller(lits[it]) }
         val depart = volumes.toMap()
         val etapes = (fonduMs / PAS_MS).toInt().coerceAtLeast(1)
         for (k in 1..etapes) {
@@ -283,7 +341,7 @@ object Sons {
                 val t = k.toFloat() / etapes
                 Lit.entries.forEach { l ->
                     val de = depart.getValue(l)
-                    val v = de + (a.volume(l) - de) * t
+                    val v = de + (a.volume(l, Look.gs) - de) * t
                     volumes[l] = v
                     essayer("fondu") {
                         val b = lits[l] ?: return@essayer
@@ -340,13 +398,14 @@ object Sons {
     private fun reconstruire(context: Context, nom: String, boucle: Boolean, ancien: MediaPlayer) {
         essayer("reconstruire") { ancien.release() }
         val neuf = try { lecteur(context, nom, boucle) } catch (e: Exception) { null } ?: return
-        Son.entries.find { it.fichier == nom && longs[it] === ancien }?.let { longs[it] = neuf }
+        Son.entries.find { longs[it] === ancien }?.let { longs[it] = neuf }
+        for (s in variantes.keys.toList()) variantes[s] = variantes.getValue(s).map { if (it === ancien) neuf else it }
         if (crayon === ancien) {
             crayon = neuf
             volumeCrayon = 0f
             crayonActif = false
         }
-        Lit.entries.find { it.fichier == nom && lits[it]?.possede(ancien) == true }?.let { l ->
+        Lit.entries.find { it.fichierPour(Look.gs) == nom && lits[it]?.possede(ancien) == true }?.let { l ->
             // Une boucle, c'est deux lecteurs : on refait les deux.
             essayer("reconstruire") { lits[l]?.liberer() }
             essayer("reconstruire") { neuf.release() }
@@ -364,6 +423,12 @@ object Sons {
         return brut(context, nom)
     }
 
+    /** Son court : son fichier propre au Game Show s'il en a un ([Son.gs]), sinon la règle habituelle. */
+    private fun idSon(context: Context, s: Son): Int? {
+        if (Look.gs) s.gs?.let { g -> brut(context, g)?.let { return it } }
+        return id(context, s.fichier)
+    }
+
     private fun brut(context: Context, nom: String): Int? =
         context.resources.getIdentifier(nom, "raw", context.packageName).takeIf { it != 0 }
 
@@ -377,8 +442,10 @@ object Sons {
             h.removeCallbacksAndMessages(prevus)
             h.removeCallbacksAndMessages(fondus)
             h.removeCallbacksAndMessages(fonduCrayon)
-            longs.values.forEach { essayer("recharger") { it.release() } }
+            (longs.values + variantes.values.flatten()).toSet().forEach { essayer("recharger") { it.release() } }
             longs.clear()
+            variantes.clear()
+            derniereVariante.clear()
             lits.values.forEach { essayer("recharger") { it.liberer() } }
             lits.clear()
             essayer("recharger") { crayon?.release() }

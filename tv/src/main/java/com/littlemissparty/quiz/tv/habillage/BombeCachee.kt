@@ -552,7 +552,7 @@ fun OuvertureCoffre(
         jusqua(T_ENTREE); joue(Son.COFFRE_SECOUE)
         jusqua(T_OUVRE); joue(Son.COFFRE_OUVRE)
         if (bombe) {
-            jusqua(T_POSE); joue(Son.BOMBE_APPROCHE)
+            jusqua(T_POSE); joue(Son.BOMBE_APPROCHE); signalerRobot(MomentRobot.BOMBE)
             jusqua(T_BOUM); joue(Son.BOMBE_BOUM)
         } else {
             // Malus : l'orage et le couvercle qui claque, avant la carte MALUS.
@@ -560,6 +560,8 @@ fun OuvertureCoffre(
             jusqua(if (malus) T_VERDICT_MALUS - 130f else 1_420f)
             // La carte joue elle-même son BONUS / MALUS : pas de second son par-dessus.
             if (!carte) joue(if (or || delta!! >= PORTE_JACKPOT) Son.PORTES_JACKPOT else if (estBonus(delta)) Son.COFFRE_OR else Son.PORTES_TUILE)
+            // La carte BONUS / MALUS fait venir le robot elle-même ; sans carte, c'est ici.
+            if (!carte && delta != 0) signalerRobot(if (malus) MomentRobot.MALUS else MomentRobot.BONUS)
         }
         jusqua(total)
         fini()

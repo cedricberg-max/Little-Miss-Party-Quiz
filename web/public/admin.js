@@ -12,23 +12,26 @@ import { writeProof, isAdmin } from "./proof.js";
 import { parseQuiz, checkQuestions, geminiPrompt, chatgptUrl, imageKey, wordFromImage, photoQuestions, LETTERS } from "./importer.js";
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
 import {
-  buildSnapshot, dureeEstimee, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, BUILTIN_GAMES, readiness, daysUntil, duplicateShow, isoDay, ETATS, etatPrestation,
+  buildSnapshot, dureeEstimee, playable, expressQuestions, zoomQuestions, showTitle, titreAuto, ROUND_TYPES, BUILTIN_GAMES, readiness, daysUntil, duplicateShow, isoDay, ETATS, etatPrestation,
   roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC, PICTO_SECONDS, PICTO_SEC, PICTO_POINTS, PICTO_RULE,
   blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras, contentSlot, contentImages,
   pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches, isArchived, AUTO_ARCHIVE_DAYS, quizKind,
   roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS,
   isStatuesList, statuesSongs, statuesChoices, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS, builtinConcepts, isPhotoTheme, disparuGroup,
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, alerteEquipes, EQUIPES_PAR_DEFAUT, pourLeHasard, premierQuiz,
-  launchStates, launchLabelPc,
+  launchStates, launchLabelPc, couleursEquipes, teamCount, roundTirees, chiffresDuTirage, MAX_TIREES,
+  roundSeriesQuiz, questionsDeLaSerie, questionsDesSeries, questionJouable, FACTEURS_FINALE, SUPER_FINALE_LAST, questionBougies,
+  questionsDuQuiz, cleQuestion, placeDesBougies, CLE_BOUGIES, estEnSeries, choiceImageList,
 } from "./show.js";
-import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE } from "./banque-photos.js";
+import { TEAM_COLORS, TEAM_COLOR_NAMES } from "./theme.js";
+import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE, cheminPhotoBanque, imageLibre } from "./banque-photos.js";
 import { shuffle } from "./mime-cards.js";
 import {
   MANCHE_TYPES, COLLECTION_UNIT, RANDOM_TYPES, RANDOM_COUNT, MIME_PER_TEAM, MIME_PER_TEAM_DEFAULT, LEVELS, collectionItems, collectionGroups,
   filterItems, drawItems, randomRound, cleanRound, mancheGroups, mancheSummary, defaultMancheTitle, mimeCardsNeeded,
-  itemConcepts, usedElsewhere, blocsDeJeu,
+  itemConcepts, usedElsewhere, blocsDeJeu, versSeriesQuiz, fusionnerQuiz,
 } from "./manches.js";
-import { concepts, neufsSiPossible } from "./jamais-deux-fois.js";
+import { concepts, neufsSiPossible, questionConcepts } from "./jamais-deux-fois.js";
 import { PICTO_OWN_SERIES } from "./picto-cards.js";
 import { EXTRACT_SECONDS, guessTrack, decodeFile, cutExtract, makeExtract, synthTune, encodeMp3, soundId } from "./audio.js";
 import { REFRAIN_SEC, REFRAIN_KBPS, buzzOf, defaultRefrain, songList, songsRetirees, songMatches, trackFromSong, songUpdates, marquerEffacees } from "./sons.js";
@@ -50,7 +53,7 @@ import {
   correspond, categoriesDe, categoriesPerso, ficheImage, motsCles,
 } from "./mediatheque.js";
 import { DOSSIERS, classerPartie, bilan, effacements, passageAFaire, moDe, texteMo, texteGardees } from "./nettoyage.js";
-import { GROUPES_QUESTIONS, questionsClassiquesPretes, questionsIllustreesPretes, mesQuestions, mesPacks, questionsDeTest, questionCorrespond, lirePacks, illustration, retirerQuestions, packsParTheme } from "./questions.js";
+import { GROUPES_QUESTIONS, questionsClassiquesPretes, questionsIllustreesPretes, mesQuestions, mesPacks, questionsDeTest, questionCorrespond, lirePacks, illustration, retirerQuestions, packsParTheme, estQuizDeTest } from "./questions.js";
 import { NIVEAUX_CHIFFRES, libelleNiveau, niveauPourAge, tirerChiffres } from "./banque-chiffres.js";
 import { QUESTIONS_TOUT_PRETES, THEMES_TOUT_PRETS, estJusteChiffre } from "./banque-classiques.js";
 
@@ -151,6 +154,24 @@ function status(id, text, ok = false) {
   $(id).classList.toggle("ok", ok);
 }
 
+/**
+ * Message bien visible quelle que soit la place dans la page, en plus de celui écrit sous le bouton (cedric, 23/10 :
+ * avec « Enregistrer » en haut de la fiche, le message du bas ne se voyait pas, on croyait que rien ne s'était passé).
+ * Il s'en va tout seul et ne gêne aucun clic.
+ */
+function annonce(text, ok = false) {
+  let el = $("annonce");
+  if (!el) {
+    el = h("div", { id: "annonce", class: "annonce", role: "status", "aria-live": "polite" });
+    document.body.append(el);
+  }
+  el.textContent = ok ? `✓ ${text}` : text;
+  el.classList.toggle("ok", ok);
+  el.hidden = false;
+  clearTimeout(annonce.minuteur);
+  annonce.minuteur = setTimeout(() => { el.hidden = true; }, ok ? 4000 : 9000);
+}
+
 const SCREENS = ["login", "home", "shows", "show-edit", "library", "game", "manche-edit", "builtin", "quizzes", "import", "review", "settings", "mimes", "mime-edit", "music", "playlist-edit", "banque"];
 /** Écran affiché en ce moment. */
 const ecranAffiche = () => SCREENS.find((s) => !$(`screen-${s}`).hidden);
@@ -222,7 +243,9 @@ const EDITEURS = {
   "mime-edit": { id: () => deck?.id, rouvrir: (id) => mimes[id] && editDeck(id), parent: "mimes" },
   "playlist-edit": { id: () => playlist?.id, rouvrir: (id) => playlists[id] && editPlaylist(id), parent: "music" },
 };
-const contexte = (ecran) => ({ showsEtat, gameType, quizFilter, builtinType, libTab, mediaGroupe, mediaCat, ouvert: EDITEURS[ecran]?.id() ?? null });
+const contexte = (ecran) => ({ showsEtat, gameType, quizFilter, builtinType, libTab, mediaGroupe, mediaCat, qGroupe, qPack, ouvert: EDITEURS[ecran]?.id() ?? null });
+/** Rubrique de la Bibliothèque : son onglet, et le groupe d'images ou de questions (ou le pack) ouvert. */
+const rubrique = (ctx) => [ctx.libTab, ctx.libTab === "images" ? ctx.mediaGroupe : null, ctx.libTab === "questions" ? ctx.qGroupe : null, ctx.libTab === "questions" ? ctx.qPack : null].join("|");
 
 function noterPage(name, avant, defilement = 0) {
   const ancre = ancreChanson;
@@ -238,7 +261,7 @@ function noterPage(name, avant, defilement = 0) {
   // La page quittée garde ce qu'on y a fait depuis (onglet de la bibliothèque, enregistrement d'une nouvelle).
   if (pageActuelle >= 0 && pages[pageActuelle].ecran === avant) {
     const quittee = pages[pageActuelle];
-    quittee.ctx = { ...quittee.ctx, libTab, mediaGroupe, mediaCat, ouvert: EDITEURS[avant]?.id() ?? quittee.ctx.ouvert };
+    quittee.ctx = { ...quittee.ctx, libTab, mediaGroupe, mediaCat, qGroupe, qPack, ouvert: EDITEURS[avant]?.id() ?? quittee.ctx.ouvert };
     // Elle sera rouverte là où on l'a laissée (cedric, 23/10).
     quittee.defilement = defilement;
     quittee.ancre = ancre;
@@ -250,11 +273,33 @@ function noterPage(name, avant, defilement = 0) {
   else history.pushState({ page: pageActuelle, ouverture: OUVERTURE }, "");
 }
 
+/**
+ * Bibliothèque (cedric, 23/10) : chaque onglet (Images, Sons, Questions) et chaque rubrique ouverte (Émojis, Mes
+ * questions en vrac, un pack…) compte comme une page : « ← Retour » et la flèche du navigateur reviennent à la
+ * rubrique d'avant, puis à la page d'avant la Bibliothèque. À appeler une fois la rubrique ouverte, avec la hauteur
+ * où l'on était dans la rubrique quittée.
+ */
+function noterRubrique(defilement) {
+  if (depuisHistorique || pageActuelle < 0 || pages[pageActuelle].ecran !== "library") return;
+  const page = { ecran: "library", ctx: contexte("library") };
+  if (rubrique(pages[pageActuelle].ctx) === rubrique(page.ctx)) {
+    pages[pageActuelle] = page;
+    return;
+  }
+  pages[pageActuelle].defilement = defilement;
+  pages.length = pageActuelle + 1;
+  pages.push(page);
+  pageActuelle = pages.length - 1;
+  history.pushState({ page: pageActuelle, ouverture: OUVERTURE }, "");
+}
+
 /** Rouvre une page de l'historique telle qu'on l'a laissée. */
 function rouvrirPage({ ecran, ctx, defilement = 0, ancre = null }) {
   depuisHistorique = true;
   try {
-    ({ showsEtat, gameType, quizFilter, builtinType, libTab, mediaGroupe, mediaCat } = ctx);
+    // Une autre rubrique de questions rouverte : ses filtres repartent à zéro, comme quand on l'ouvre.
+    if (ctx.qGroupe !== qGroupe || ctx.qPack !== qPack) { qCategorie = qType = qNiveau = null; qSelection.clear(); }
+    ({ showsEtat, gameType, quizFilter, builtinType, libTab, mediaGroupe, mediaCat, qGroupe, qPack } = ctx);
     const editeur = EDITEURS[ecran];
     if (editeur && ctx.ouvert && editeur.id() !== ctx.ouvert) {
       // Ce qui était en cours d'édition a été remplacé : on le rouvre tel qu'enregistré (ou sa liste, s'il n'existe plus).
@@ -808,6 +853,13 @@ $("show-profile").append(
   ...Object.entries(PROFILES).map(([k, p]) => h("option", { value: k, text: p.label })),
 );
 $("show-new").onclick = () => editShow(null);
+// « Anniversaire de » + le prénom se met tout seul dans « Titre affiché » pendant qu'on tape le prénom, sauf si Sarah a
+// écrit un autre titre (vidé, il se remet à suivre le prénom).
+$("show-child").addEventListener("input", () => {
+  const titre = $("show-title");
+  if (titre.value.trim() && titre.value !== titre.dataset.auto) return;
+  titre.value = titre.dataset.auto = titreAuto($("show-child").value);
+});
 $("show-edit-crumb").onclick = () => openShows(showsEtat);
 
 /** Ouvre une prestation ; sans identifiant, une nouvelle. */
@@ -817,7 +869,9 @@ function editShow(id) {
   // Une ancienne manche « Super Finale » n'est pas un jeu : elle devient le réglage ×2 du quiz qui la précède.
   const { rounds, folded } = foldLegacyFinale(s.rounds);
   // Une ancienne manche « Quiz » de quiz illustrés s'affiche (et s'enregistre) en Quiz illustré.
-  editing = { id, rounds: rounds.map((r) => jeuDeLaManche(r, quizzes)) };
+  // Un Quiz = une seule manche (cedric, 23/10) : ses manches Quiz qui se suivent n'en font plus qu'une.
+  const { rounds: reunies, fusions } = fusionnerQuiz(rounds.map((r) => versSeriesQuiz(jeuDeLaManche(r, quizzes), quizzes)));
+  editing = { id, rounds: reunies, themes: s.themes ?? null };
   $("show-edit-title").textContent = id ? showTitle(s) : "Nouvelle prestation";
   // Fil d'Ariane : la liste de son état (une nouvelle commence « À compléter »).
   showsEtat = id ? etatPrestation(s) : "acompleter";
@@ -825,30 +879,54 @@ function editShow(id) {
   $("show-child").value = s.childName ?? "";
   $("show-age").value = s.age ?? "";
   $("show-teams").value = s.teams ?? "";
+  couleursSaisies = couleursEquipes(s);
+  pastilleOuverte = -1;
+  renderCouleurs();
   $("show-date").value = s.date ?? "";
   // Le statut montré est son état réel : une fête passée, archivée d'elle-même, se lit « Archivée ».
   $("show-status").value = id && isArchived(s) ? "archivee" : s.status ?? "brouillon";
-  $("show-title").value = s.title ?? "";
+  montrerArchivee(!!id && isArchived(s));
+  // Titre proposé d'office d'après le prénom (cedric, 23/10), tant que Sarah n'en a pas écrit un autre ; l'ancien
+  // titre par défaut (« L'anniversaire de … ») devient le nouveau.
+  const titre = s.title?.trim() ?? "";
+  const suivi = !titre || titre === titreAuto(s.childName) || titre === `L'anniversaire de ${s.childName?.trim()}`;
+  $("show-title").value = suivi ? titreAuto(s.childName) : titre;
+  $("show-title").dataset.auto = suivi ? titreAuto(s.childName) : "";
   $("show-profile").value = s.profile ?? "";
-  $("show-themes").value = s.themes ?? "";
   $("show-notes").value = s.notes ?? "";
   status("show-status-msg", s.copieDe && !s.childName ? "Copie : indiquez le prénom, l'âge et la date du nouvel anniversaire, puis enregistrez."
-    : folded ? "L'ancienne manche « Super Finale » est devenue le réglage du quiz (ses dernières questions ×2). Enregistrez pour garder ce changement." : "", !!s.copieDe || !!folded);
+    : folded ? "L'ancienne manche « Super Finale » est devenue le réglage du quiz (ses dernières questions ×2). Enregistrez pour garder ce changement."
+    : fusions ? "Les manches Quiz qui se suivaient n'en font plus qu'une (une seule Super Finale, à la fin). Enregistrez pour garder ce changement." : "", !!s.copieDe || !!folded || !!fusions);
   show("show-edit");
   refreshRounds();
   histPrestation.depart();
   if (s.copieDe && !s.childName) $("show-child").focus();
 }
 
+/**
+ * « Archivée » ne se choisit pas dans la fiche (cedric, 23/10) : une fête s'archive d'elle-même le lendemain de sa
+ * date, ou par « Archiver » sur sa carte. Le choix n'apparaît que pour une archivée, qu'on peut remettre « À venir »
+ * (fête reportée : nouvelle date).
+ */
+function montrerArchivee(oui) {
+  const option = $("show-status").querySelector('option[value="archivee"]');
+  option.hidden = !oui;
+  option.disabled = !oui;
+}
+
 /** Champs de la fiche d'une prestation, gardés par « Retour » et « Annuler les modifications ». */
-const SHOW_FIELDS = ["show-child", "show-age", "show-teams", "show-date", "show-status", "show-title", "show-profile", "show-themes", "show-notes"];
+const SHOW_FIELDS = ["show-child", "show-age", "show-teams", "show-date", "show-status", "show-title", "show-profile", "show-notes"];
 const histPrestation = historique({
   ecran: $("screen-show-edit"),
   precedent: pagePrecedente,
-  capturer: () => ({ rounds: editing?.rounds ?? [], champs: SHOW_FIELDS.map((id) => $(id).value) }),
+  capturer: () => ({ rounds: editing?.rounds ?? [], champs: SHOW_FIELDS.map((id) => $(id).value), couleurs: [...couleursSaisies] }),
   restaurer: (e) => {
     SHOW_FIELDS.forEach((id, k) => { $(id).value = e.champs[k]; });
+    $("show-title").dataset.auto = titreAuto($("show-child").value);
     if (editing) editing.rounds = e.rounds;
+    couleursSaisies = e.couleurs ?? [];
+    pastilleOuverte = -1;
+    renderCouleurs();
     refreshRounds();
   },
 });
@@ -865,9 +943,11 @@ function formShow() {
     status: $("show-status").value,
     title: $("show-title").value.trim() || null,
     profile: $("show-profile").value || null,
-    themes: $("show-themes").value.trim() || null,
+    // Plus de case « Thèmes » (cedric, 23/10 : elle ne servait à rien) ; celui d'une ancienne prestation est gardé.
+    themes: editing.themes ?? null,
     notes: $("show-notes").value.trim() || null,
     teams: num($("show-teams").value),
+    teamColors: [...couleursSaisies],
     rounds: editing.rounds.filter(roundFilled).map((r) => cleanRound(r, playlists)),
   };
 }
@@ -1066,6 +1146,7 @@ function quizSelection(r, all) {
     const clean = [...new Set(list.filter(Boolean))];
     r.quizId = clean[0] ?? "";
     r.quizIds = clean.length > 1 ? clean : null;
+    // Les questions tirées au 🎲 (première ligne) restent : le quiz choisi les suit (cedric, 23/10).
     roundCtx.refresh();
   };
   const select = (current, k) => h("select", {
@@ -1162,12 +1243,22 @@ const SANS_CONTENU = ["coffres", "patate", "gonfleur"];
  * avec « ＋ Manche » ; chaque manche se remplit sur place (reprendre une manche gardée, tirer au hasard, choisir à la
  * main). Les manches restent enregistrées à la suite dans la prestation, comme avant (TV, régie et téléphone inchangés).
  */
+/**
+ * Jeu replié dans la page d'une prestation (cedric, 23/10) : une seule ligne, ↑ ↓ ✕ toujours là, pour ranger les jeux
+ * facilement. Noté sur la première manche du jeu, jamais enregistré.
+ */
+const JEU_REPLIE = Symbol("jeu replié");
+
 function refreshRounds() {
   if (!editing) return;
   roundCtx = prestationCtx;
   const box = $("show-rounds");
   box.innerHTML = "";
   if (!editing.rounds.length) box.append(h("p", { class: "hint small", text: "Ajoutez un premier jeu avec « ＋ Ajouter un jeu »." }));
+  // Un Quiz = une seule manche (cedric, 23/10) : en séries, et deux Quiz qui se touchent n'en font plus qu'un.
+  const { rounds: reunies, fusions } = fusionnerQuiz(editing.rounds.map((r) => versSeriesQuiz(r, quizzes)));
+  editing.rounds = reunies;
+  if (fusions) annonce("Les Quiz qui se suivaient n'en font plus qu'un : leurs questions à la suite, une seule Super Finale à la fin.");
   const blocs = blocsDeJeu(editing.rounds);
   blocs.forEach((b, k) => {
     const [debut, fin] = [b.indices[0], b.indices[b.indices.length - 1] + 1];
@@ -1191,24 +1282,48 @@ function refreshRounds() {
     };
     const ajouterManche = () => { editing.rounds.splice(fin, 0, { type: b.type }); refreshRounds(); };
     const n = b.indices.length;
-    box.append(h("div", { class: "jeu-bloc", "data-jeu": b.type },
+    const premiere = editing.rounds[debut];
+    const replie = premiere[JEU_REPLIE] === true;
+    const resume = !replie ? "" : estEnSeries(b.type) ? compteurQuiz(premiere)
+      : b.indices.map((i) => mancheSummary(editing.rounds[i], { mimes, playlists, quizzes })).filter(Boolean).join(" / ");
+    box.append(h("div", { class: `jeu-bloc${replie ? " replie" : ""}`, "data-jeu": b.type },
       h("div", { class: "jeu-tete" },
+        h("button", {
+          type: "button", class: "icon jeu-replier", text: replie ? "▸" : "▾", "aria-expanded": replie ? "false" : "true",
+          title: replie ? "Déplier ce jeu" : "Replier ce jeu", onclick: () => { premiere[JEU_REPLIE] = !replie; refreshRounds(); },
+        }),
         h("span", { class: "jeu-nom", text: `${iconeJeu(b.type)} ${ROUND_TYPES[b.type]}`.trim() }),
-        h("span", { class: "jeu-nb", text: n > 1 ? `${n} manches` : "1 manche" }),
-        h("button", { type: "button", class: "chip jeu-plus", text: "＋ Manche", title: `Ajouter une manche de ${ROUND_TYPES[b.type]}`, onclick: ajouterManche }),
+        replie ? h("span", { class: "jeu-resume", text: resume }) : null,
+        // Le Quiz est une seule manche (cedric, 23/10) : pas de « ＋ Manche », ses questions s'ajoutent dans la manche.
+        estEnSeries(b.type) ? null : h("span", { class: "jeu-nb", text: n > 1 ? `${n} manches` : "1 manche" }),
+        estEnSeries(b.type) || replie ? null : h("button", { type: "button", class: "chip jeu-plus", text: "＋ Manche", title: `Ajouter une manche de ${ROUND_TYPES[b.type]}`, onclick: ajouterManche }),
         h("button", { type: "button", class: "icon", title: "Monter ce jeu", disabled: k === 0, onclick: () => deplacer(-1), text: "↑" }),
         h("button", { type: "button", class: "icon", title: "Descendre ce jeu", disabled: k === blocs.length - 1, onclick: () => deplacer(1), text: "↓" }),
         h("button", { type: "button", class: "icon", title: "Retirer ce jeu", onclick: retirerJeu, text: "✕" })),
-      ...b.indices.map((i) => {
+      // Replié : seulement ses alertes (contenu qui ne suffit pas aux équipes), pour ne rien laisser passer.
+      ...(replie ? b.indices.map((i) => alerteManche(editing.rounds[i])) : b.indices.map((i) => {
         const r = editing.rounds[i];
+        const vide = !roundFilled(r);
+        const champs = roundFields(r);
+        // Le compteur du Quiz sur la ligne de son numéro (cedric, 23/10).
+        const compteur = estEnSeries(b.type) ? champs.find((x) => x?.classList?.contains("quiz-compteur")) ?? null : null;
+        const corps = h("div", { class: "round-body" }, ...champs.filter((x) => x !== compteur));
+        // Créer d'abord (les champs ci-dessus), reprendre ensuite (cedric, 23/10). Pas pour le Quiz (cedric, 23/10) :
+        // ses questions viennent du 🎲 et du quiz d'une prestation archivée (« Rappeler un de vos quiz »).
+        const reprise = SANS_CONTENU.includes(b.type) || estEnSeries(b.type) ? null : reprendreManche(r, (next) => {
+          editing.rounds[i] = next;
+          refreshRounds();
+        });
         return h("div", { class: "round show-round", "data-manche": i },
           h("div", { class: "round-head" },
             h("span", { class: "num", title: `Manche ${i + 1} de la prestation`, text: `${i + 1}` }),
-            SANS_CONTENU.includes(b.type) ? h("span", { class: "grow hint small", text: n > 1 ? `Partie ${b.indices.indexOf(i) + 1}` : "" }) : mancheTools(r, (next) => { editing.rounds[i] = next; refreshRounds(); }),
+            compteur ?? (SANS_CONTENU.includes(b.type) ? h("span", { class: "grow hint small", text: n > 1 ? `Partie ${b.indices.indexOf(i) + 1}` : "" })
+              : h("span", { class: "grow hint small", text: vide && !estEnSeries(b.type) ? "Nouvelle manche : choisissez son contenu, ou reprenez une manche déjà faite (plus bas)." : "" })),
             n > 1 ? h("button", { type: "button", class: "icon", title: "Retirer cette manche", onclick: () => { editing.rounds.splice(i, 1); refreshRounds(); }, text: "✕" }) : null),
-          h("div", { class: "round-body" }, ...roundFields(r)),
+          corps,
+          reprise,
           alerteManche(r));
-      })));
+      }))));
   });
   refreshSummary();
 }
@@ -1229,6 +1344,13 @@ function ouvrirChoixJeu() {
       type: "button", class: "jeu-tuile", "data-jeu": x.type, text: `${iconeJeu(x.type)} ${ROUND_TYPES[x.type]}`,
       onclick: () => {
         box.hidden = true;
+        // Un Quiz juste après un Quiz n'en ferait qu'un : on y retourne, ses questions s'ajoutent dans sa manche.
+        const dernier = editing.rounds[editing.rounds.length - 1];
+        if (dernier && estEnSeries(x.type) && (dernier.type ?? "quiz") === x.type) {
+          annonce(`Le ${ROUND_TYPES[x.type]} est déjà le dernier jeu : ajoutez-y vos questions (🎲, un ancien anniversaire, votre bibliothèque).`);
+          $("show-rounds").lastElementChild?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+          return;
+        }
         editing.rounds.push({ type: x.type });
         refreshRounds();
         $("show-rounds").lastElementChild?.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -1237,46 +1359,728 @@ function ouvrirChoixJeu() {
   box.hidden = false;
 }
 
+/** Autres prestations, les plus récentes d'abord : par date (sans date : en dernier, la dernière modifiée d'abord). */
+function prestationsRecentes() {
+  return Object.entries(shows).filter(([sid, s]) => s && sid !== editing?.id)
+    .sort(([, a], [, b]) => (b.date ?? "").localeCompare(a.date ?? "") || (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+}
+
+/** Prestations dont les manches sont proposées d'office dans « Reprendre une manche » (cedric, 23/10). */
+const REPRISE_RECENTES = 10;
+
+/** « 23/10/2026 », « 2026-10-23 », « 23 octobre 2026 » : une date se cherche comme on l'écrit. */
+function datesCherchables(d) {
+  if (!d) return [];
+  const jour = new Date(`${d}T12:00:00`);
+  return [jour.toLocaleDateString("fr-FR"), d, jour.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })];
+}
+
 /**
- * Manche d'une prestation : « Reprendre une manche… » la remplace par une copie d'une manche gardée dans la page de
- * son jeu (les épinglées d'abord) ou d'une manche d'une autre prestation. La manche reprise ne change pas.
+ * Toutes les manches d'un jeu qu'on peut reprendre : celles gardées dans la page du jeu (épinglées, préparées,
+ * archivées, et celles de chaque prestation) et les manches des prestations d'avant le 21 octobre, jamais gardées.
+ * Celles de la prestation qu'on prépare ne sont pas proposées, ni celles dont le contenu n'existe plus.
  */
-function mancheTools(r, replace) {
-  const type = r.type ?? "quiz";
-  const { pinned, active } = mancheGroups(manches, type, quizzes);
-  const gardees = [...pinned, ...active];
-  const dejaGardees = new Set(gardees.map(([id]) => id));
-  // Manches des autres prestations pas encore gardées (prestations d'avant le 21 octobre).
-  const autres = Object.entries(shows).filter(([sid, s]) => s && sid !== editing?.id)
-    .sort(([, a], [, b]) => (b.date ?? "").localeCompare(a.date ?? ""))
-    // Une ancienne manche « Super Finale » ne se reprend pas : ce n'est pas un jeu.
-    .flatMap(([sid, s]) => (s.rounds ?? []).map((x, i) => [x ? jeuDeLaManche(x, quizzes) : null, i, sid, s]))
-    .filter(([x]) => x && x.type !== "finale" && (x.type ?? "quiz") === type && roundFilled(x) && roundContent(x) != null && !(x.mancheId && dejaGardees.has(x.mancheId)));
-  if (!gardees.length && !autres.length) return h("span", { class: "manche-tools" });
+function manchesAReprendre(type) {
   const lib = { mimes, playlists, quizzes };
-  const choix = new Map();
-  return h("span", { class: "manche-tools" },
-    h("select", {
-      class: "manche-load", "aria-label": "Reprendre une manche",
-      onchange: (e) => {
-        const v = e.target.value;
-        const m = manches[v];
-        if (m) replace({ ...cleanRound(m.round, playlists), mancheId: v, title: m.title });
-        else if (choix.has(v)) replace(JSON.parse(JSON.stringify(choix.get(v))));
-      },
-    },
-    h("option", { value: "", text: "Reprendre une manche…" }),
-    gardees.length ? h("optgroup", { label: `Manches ${deJeu(ROUND_TYPES[type])}` },
-      ...gardees.map(([id, m]) => h("option", { value: id, selected: r.mancheId === id, text: `${m.pinned ? "⭐ " : ""}${m.title} (${mancheSummary(m.round, lib)})` }))) : null,
-    autres.length ? h("optgroup", { label: "Dans les autres prestations" },
-      ...autres.map(([x, i, sid, s]) => {
-        choix.set(`${sid}/${i}`, x);
-        return h("option", { value: `${sid}/${i}`, text: `${showTitle(s)}${s.date ? ` (${new Date(`${s.date}T12:00:00`).toLocaleDateString("fr-FR")})` : ""} : ${mancheSummary(x, lib)}` });
-      })) : null));
+  const recentes = prestationsRecentes();
+  const rang = new Map(recentes.map(([sid], k) => [sid, k]));
+  const items = [];
+  const vues = new Set();
+  const { pinned, active, archived } = mancheGroups(manches, type, quizzes);
+  for (const [id, m] of [...pinned, ...active, ...archived]) {
+    vues.add(id);
+    if ((m.showId && (m.showId === editing?.id || !shows[m.showId])) || roundContent(m.round) == null) continue;
+    items.push({ cle: id, titre: m.title, round: m.round, show: m.showId ? shows[m.showId] : null, rang: m.showId ? rang.get(m.showId) : null,
+      epinglee: !!m.pinned && !m.archived, archivee: !!m.archived, copie: () => ({ ...cleanRound(m.round, playlists), mancheId: id, title: m.title }) });
+  }
+  for (const [sid, s] of recentes) {
+    (s.rounds ?? []).forEach((x0, i) => {
+      const x = x0 ? jeuDeLaManche(x0, quizzes) : null;
+      // Une ancienne manche « Super Finale » ne se reprend pas : ce n'est pas un jeu.
+      if (!x || x.type === "finale" || (x.type ?? "quiz") !== type || !roundFilled(x) || roundContent(x) == null || (x.mancheId && vues.has(x.mancheId))) return;
+      items.push({ cle: `${sid}/${i}`, titre: `${ROUND_TYPES[type]} · ${showTitle(s)}`, round: x, show: s, rang: rang.get(sid), copie: () => JSON.parse(JSON.stringify(x)) });
+    });
+  }
+  return items.map((x) => {
+    const resume = mancheSummary(x.round, lib);
+    const date = x.show?.date ? new Date(`${x.show.date}T12:00:00`).toLocaleDateString("fr-FR") : "";
+    return {
+      ...x, resume, note: x.round.note ?? "",
+      details: [x.show && !x.titre.includes(showTitle(x.show)) ? showTitle(x.show) : "", date, resume, x.archivee ? "archivée" : ""].filter(Boolean).join(" · "),
+      noms: [x.titre, x.show?.childName, x.show ? showTitle(x.show) : "", resume],
+      autres: [x.round.note, ...datesCherchables(x.show?.date), x.show?.age != null ? `${x.show.age} ans` : "", x.show?.notes],
+    };
+  });
+}
+
+/**
+ * Une question jouée (format du quiz) gardée dans une série : 4 réponses avec sa photo ou son émoji, ou Juste Chiffre.
+ * Quiz illustré : ses réponses en images (photos de la banque tirées au 🎲, ou images déjà dans la bibliothèque).
+ */
+const versQuestionEnLigne = (q) => (q.kind === "number"
+  ? { text: q.text, nombre: true, correct: q.correct }
+  : { text: q.text, choices: [...(q.choices ?? [])], correct: q.correct,
+    ...(q.banque ? { banque: q.banque } : /^[0-9a-f]{16}$/.test(q.imageId ?? "") ? { imageId: q.imageId }
+      : typeof q.image === "string" && q.image && q.image.length <= 16 ? { emoji: q.image } : {}),
+    ...(Array.isArray(q.choiceBanque) ? { choiceBanque: q.choiceBanque.map((x) => ({ ...x })) } : {}),
+    ...(choiceImageList(q).length ? { choiceImages: choiceImageList(q) } : {}) });
+
+/**
+ * « Rappeler un de vos quiz » (cedric, 23/10) : les prestations archivées qui ont un Quiz (ou un Quiz illustré : [type]),
+ * la plus récente d'abord, avec toutes les questions de ce jeu (dans l'ordre joué) et de quoi les retrouver (prénom,
+ * âge, date, notes).
+ */
+function quizArchives(type = "quiz") {
+  return prestationsRecentes().filter(([, s]) => etatPrestation(s) === "archivee").map(([sid, s]) => {
+    const questions = (s.rounds ?? []).map((x) => (x ? versSeriesQuiz(x, quizzes) : null))
+      .filter((x) => x && (x.type ?? "quiz") === type && x.hasard !== true)
+      .flatMap((x) => questionsDesSeries(x, quizzes)).map(versQuestionEnLigne).filter(questionJouable)
+      // Sa question des bougies était celle de l'enfant de cette fête-là : la nouvelle prestation a la sienne.
+      .filter((q) => !(q.nombre && /combien de bougies sur le gâteau/i.test(q.text)));
+    const date = s.date ? new Date(`${s.date}T12:00:00`) : null;
+    return {
+      id: sid, show: s, questions,
+      titre: `${showTitle(s)}${date ? ` (${date.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })})` : ""}`,
+      details: [date ? date.toLocaleDateString("fr-FR") : "", s.age != null && s.age !== "" ? `${s.age} ans` : "", `${questions.length} question${questions.length > 1 ? "s" : ""}`].filter(Boolean).join(" · "),
+      noms: [showTitle(s), s.childName],
+      autres: [...datesCherchables(s.date), s.age != null && s.age !== "" ? `${s.age} ans` : "", s.notes, s.themes],
+    };
+  }).filter((x) => x.questions.length);
+}
+
+/**
+ * « ↺ Reprendre une manche déjà faite » (cedric, 23/10), sous les champs de la manche : on crée d'abord, on reprend
+ * ensuite. D'office : les manches épinglées ⭐, celles des 10 dernières prestations et celles préparées dans la page
+ * du jeu ; la recherche fouille tout, archives comprises (mots, prénom, date, note), à chaque lettre. Un clic remplace
+ * la manche par une copie : la manche reprise ne change pas.
+ */
+function reprendreManche(r, replace) {
+  const type = r.type ?? "quiz";
+  const items = manchesAReprendre(type);
+  if (!items.length) return null;
+  const champ = h("input", { type: "search", class: "reprendre-cherche", "aria-label": "Chercher une manche", placeholder: "Chercher : mot, prénom, date…" });
+  const liste = h("div", { class: "reprendre-liste" });
+  const panneau = h("div", { class: "reprendre" });
+  panneau.hidden = true;
+  const ligne = (x) => h("button", { type: "button", class: "reprise-item", "data-reprise": x.cle, onclick: () => replace(x.copie(), x) },
+    h("b", { text: `${x.epinglee ? "⭐ " : ""}${x.titre}` }),
+    x.details ? h("span", { class: "small", text: x.details }) : null,
+    x.note ? h("span", { class: "reprise-note", text: `📝 ${x.note}` }) : null);
+  const dessiner = () => {
+    const q = champ.value;
+    if (q.trim()) {
+      const trouvees = parPertinence(items.filter((x) => contientTout([...x.noms, ...x.autres].filter(Boolean), q)), q, (x) => x.noms.filter(Boolean), (x) => x.autres.filter(Boolean));
+      remplir(liste, h("p", { class: "reprendre-groupe", text: trouvees.length ? `${trouvees.length} manche${trouvees.length > 1 ? "s" : ""} trouvée${trouvees.length > 1 ? "s" : ""}` : "Aucune manche ne correspond." }), ...trouvees.map(ligne));
+      return;
+    }
+    const epinglees = items.filter((x) => x.epinglee);
+    const recentes = items.filter((x) => !x.epinglee && x.rang != null && x.rang < REPRISE_RECENTES).sort((a, b) => a.rang - b.rang);
+    const duJeu = items.filter((x) => !x.epinglee && !x.archivee && !x.show);
+    const groupe = (titre, xs) => (xs.length ? [h("p", { class: "reprendre-groupe", text: titre }), ...xs.map(ligne)] : []);
+    remplir(liste,
+      ...groupe("⭐ Épinglées", epinglees),
+      ...groupe(`Des ${REPRISE_RECENTES} dernières prestations`, recentes),
+      ...groupe(`Préparées dans la page ${deJeu(ROUND_TYPES[type])}`, duJeu),
+      epinglees.length + recentes.length + duJeu.length ? null : h("p", { class: "hint small", text: "Tapez un mot, un prénom ou une date pour chercher dans toutes les prestations." }));
+  };
+  champ.addEventListener("input", dessiner);
+  champ.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); panneau.hidden = true; } });
+  panneau.append(
+    h("div", { class: "reprendre-haut" }, champ, h("button", { type: "button", class: "btn secondary small", text: "Fermer", onclick: () => { panneau.hidden = true; } })),
+    h("p", { class: "hint small", text: "Les plus récentes sont listées ; pour aller plus loin, tapez un mot, un prénom, une date ou une note." }),
+    liste);
+  return h("div", { class: "reprendre-zone" },
+    h("button", { type: "button", class: "chip reprendre-ouvrir", text: type === "quiz" ? "↺ Reprendre les questions d'une manche déjà faite" : "↺ Reprendre une manche déjà faite", "aria-expanded": "false",
+      onclick: (e) => {
+        panneau.hidden = !panneau.hidden;
+        e.currentTarget.setAttribute("aria-expanded", panneau.hidden ? "false" : "true");
+        if (!panneau.hidden) { dessiner(); champ.focus(); }
+      } }),
+    panneau);
 }
 
 /** Nombre d'équipes de l'écran en cours (prestation, ou réglage du tirage d'une manche seule). */
 const ctxTeams = () => (typeof roundCtx.teams === "function" ? roundCtx.teams() : $("show-teams").value === "" ? null : Number($("show-teams").value));
+
+/** Questions toutes prêtes que le 🎲 d'une manche Quiz tire : à 4 réponses, et Juste Chiffre (une sur quatre environ). */
+const QCM_TOUT_PRETS = QUESTIONS_TOUT_PRETES.filter((x) => !estJusteChiffre(x));
+const CHIFFRES_TOUT_PRETS = QUESTIONS_TOUT_PRETES.filter(estJusteChiffre);
+/** Niveau des questions tirées pour chaque profil ; Neutre : tous les niveaux. */
+const NIVEAU_DU_PROFIL = { PETITS: 1, MOYENS: 2, GRANDS: 3, ADULTES: 3, NEUTRE: null };
+/** Nombres de questions proposés : tous, de 1 à 20 (cedric : 8 questions, une retirée, puis 7). */
+const TIRAGE_NOMBRES = Array.from({ length: MAX_TIREES }, (_, k) => k + 1);
+const TIRAGE_DEFAUT = 8;
+
+/**
+ * Séries d'une manche Quiz (cedric, 23/10 : un Quiz = une seule manche), dans l'ordre de passage ; le tableau de la
+ * manche, qu'on modifie sur place.
+ */
+function seriesDe(r) {
+  if (!Array.isArray(r.seriesQuiz)) r.seriesQuiz = Object.values(r.seriesQuiz ?? {}).filter(Boolean);
+  return r.seriesQuiz;
+}
+/** La série du dé (une seule, réglée par la première ligne). */
+const serieDuDe = (r) => seriesDe(r).find((x) => x.origine === "de") ?? null;
+/** Les cases du tirage, dans l'ordre : une question, ou une question retirée ({ vide }) qui attend son 🎲. */
+const casesDuTirage = (r) => (Array.isArray(serieDuDe(r)?.questions) ? serieDuDe(r).questions : Object.values(serieDuDe(r)?.questions ?? {})).filter(Boolean);
+const caseVide = (q) => q?.vide === true;
+/** Identifiant d'une nouvelle série ou d'une question écrite à la main. */
+const nouvelId = (prefixe) => `${prefixe}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+/** Séries dépliées, questions écrites à la main dont le texte vient d'être créé (le temps de l'écran). */
+const seriesDepliees = new WeakSet();
+let questionAFocaliser = null;
+
+/** Une question de la banque telle qu'elle est gardée dans la manche (réponses mélangées : la bonne pas toujours la A). */
+function versTiree(x) {
+  if (estJusteChiffre(x)) return { id: x.id, text: x.text, nombre: true, correct: x.correct };
+  const choices = shuffle(x.choices);
+  return { id: x.id, text: x.text, choices, correct: choices.indexOf(x.choices[x.correct]), ...(x.photo ? { banque: x.id } : x.emoji ? { emoji: x.emoji } : {}) };
+}
+
+/**
+ * Pioche [qcm] questions à 4 réponses et [chiffres] Juste Chiffre du niveau de [profil] pour la manche [r] : jamais une
+ * question déjà dans la prestation (n'importe quelle série de n'importe quel Quiz), ni retirée de la manche (✕).
+ */
+function piocherQuiz(r, { qcm = 0, chiffres = 0, profil }) {
+  const exclus = textesPris(r);
+  const niveau = NIVEAU_DU_PROFIL[profil] ?? null;
+  return {
+    qcm: tirerChiffres(qcm, { niveau, exclus, liste: QCM_TOUT_PRETS }).map(versTiree),
+    chiffres: tirerChiffres(chiffres, { niveau, exclus, liste: CHIFFRES_TOUT_PRETS }).map(versTiree),
+  };
+}
+
+/** Textes des questions déjà dans la prestation (n'importe quelle série de n'importe quel jeu) ou retirées de la manche [r] (✕). */
+function textesPris(r) {
+  const manches = roundCtx === prestationCtx && editing ? editing.rounds.filter(Boolean) : [r];
+  const textes = [...new Set([r, ...manches])].flatMap((m) => [...questionsDesSeries(m, quizzes), ...roundTirees(m),
+    ...(roundSeriesQuiz(m).length ? [] : roundQuizIds(m).flatMap((id) => playable(quizzes[id])))].map((q) => q?.text));
+  return new Set([...textes, ...casesDuTirage(r).filter((q) => !caseVide(q)).map((q) => q.text), ...(r.ecartees ?? [])].filter(Boolean));
+}
+
+/** Thème du 🎲 d'un Quiz illustré (null : tous les thèmes). */
+const familleDuDe = (r) => (FAMILLES_PETITS[serieDuDe(r)?.famille] ? serieDuDe(r).famille : FAMILLES_PETITS[r.famille] ? r.famille : null);
+
+/**
+ * Une question du Quiz illustré tout prêt telle qu'elle est gardée dans la manche : réponses mélangées, et pour chacune
+ * la photo libre de son mot (sinon son émoji), copiée dans la partie au lancement. Null : une réponse sans image libre
+ * (au hasard, jamais une image téléversée : cedric, 21/10).
+ */
+function versIllustree(x) {
+  const choices = shuffle(x.choices);
+  const choiceBanque = choices.map(imageLibre);
+  if (!choiceBanque.every(Boolean)) return null;
+  return { id: x.id, text: x.text, choices, correct: choices.indexOf(x.choices[0]), choiceBanque };
+}
+
+/**
+ * Pioche [n] questions du Quiz illustré tout prêt ([famille] : ce thème seulement) pour la manche [r] : jamais une
+ * question déjà dans la prestation ni retirée de la manche (✕) ; « Jamais deux fois » : d'abord celles dont les images
+ * ne servent pas déjà dans un autre jeu de la prestation.
+ */
+function piocherIllustre(r, n, famille) {
+  if (n <= 0) return [];
+  banqueCatalogue ??= cataloguePetits();
+  const tirage = tirerPetits(n * 3 + 4, { famille, exclus: textesPris(r), catalogue: banqueCatalogue }).map(versIllustree).filter(Boolean);
+  return neufsSiPossible(tirage, questionConcepts, roundCtx.elsewhere?.(r), n).slice(0, n);
+}
+
+/** Tire [n] questions du Quiz illustré tout prêt pour la série du dé (cedric, 23/10) ; les autres séries ne bougent pas. */
+function tirerQuestionsIllustre(r, n, famille) {
+  poserTirage(r, piocherIllustre(r, n, famille));
+  const de = serieDuDe(r);
+  if (de) { if (famille) de.famille = famille; else delete de.famille; }
+  r.famille = famille;
+}
+
+/** Met [cases] dans la série du dé (créée à la fin des séries s'il n'y en a pas) ; aucune : la série part. */
+function poserTirage(r, cases, profil) {
+  const series = seriesDe(r);
+  let de = serieDuDe(r);
+  if (!cases.length) { r.seriesQuiz = series.filter((x) => x !== de); return; }
+  if (!de) { de = { id: "de", origine: "de" }; series.unshift(de); }
+  de.questions = cases;
+  if (profil) de.profil = profil;
+}
+
+/**
+ * Tire [n] questions pour la série du dé (cedric, 23/10) : environ une sur quatre au Juste Chiffre, réparties (jamais
+ * la première). Les autres séries de la manche ne bougent pas.
+ */
+function tirerQuestionsQuiz(r, n, profil) {
+  const nb = chiffresDuTirage(n);
+  const { qcm, chiffres } = piocherQuiz(r, { qcm: n - nb, chiffres: nb, profil });
+  const liste = [...qcm];
+  chiffres.forEach((q, k) => liste.splice(Math.min(liste.length, Math.round(((k + 1) * n) / (chiffres.length + 1)) - 1), 0, q));
+  poserTirage(r, liste, profil);
+  r.profil = profil;
+}
+
+/**
+ * Nombre de questions changé après le tirage : moins, les questions retirées (🎲 en attente) partent d'abord, puis
+ * les dernières ; plus, de nouvelles questions s'ajoutent à la fin (Juste Chiffre compris, une sur quatre environ).
+ */
+function changerNombreTirage(r, k, profil) {
+  let cases = casesDuTirage(r);
+  while (cases.length > k) {
+    const vide = cases.map(caseVide).lastIndexOf(true);
+    cases = vide >= 0 ? cases.filter((_, i) => i !== vide) : cases.slice(0, k);
+  }
+  // Quiz illustré : de nouvelles questions du même thème ([profil] est alors le thème).
+  if (cases.length < k && r.type === "illustre") cases = [...cases, ...piocherIllustre(r, k - cases.length, profil)];
+  else if (cases.length < k) {
+    const manque = k - cases.length;
+    const nb = Math.min(manque, Math.max(0, chiffresDuTirage(k) - cases.filter((q) => q.nombre).length));
+    const { qcm, chiffres } = piocherQuiz(r, { qcm: manque - nb, chiffres: nb, profil });
+    cases = [...cases, ...shuffle([...qcm, ...chiffres])];
+  }
+  poserTirage(r, cases);
+}
+
+/** Miniature de l'image de la révélation (cedric, 23/10 : vérifier qu'elle va avec la réponse) : photo, sinon émoji. */
+const miniature = (q) => (q.banque ? h("img", { class: "tirage-mini", src: cheminPhotoBanque(q.banque), alt: "", loading: "lazy", title: "Image montrée à la révélation" })
+  : q.emoji || (typeof q.image === "string" && q.image && !q.imageId) ? h("span", { class: "tirage-mini emoji", text: q.emoji ?? q.image, title: "Image montrée à la révélation" })
+  : q.imageId ? h("span", { class: "tirage-mini emoji", text: "🖼", title: "Une de vos images, montrée à la révélation" }) : null);
+
+/**
+ * Les réponses d'une question du Quiz illustré, chacune avec sa petite image, la bonne marquée (cedric, 23/10 : vérifier
+ * d'un coup d'œil) : photo de la banque, sinon émoji (tirée au 🎲), ou image de la bibliothèque.
+ */
+function reponsesIllustrees(q) {
+  const photos = choiceImageList(q);
+  const libres = Array.isArray(q.choiceBanque) ? q.choiceBanque : [];
+  return h("span", { class: "tirage-reponses" }, ...(q.choices ?? []).map((c, k) => {
+    const libre = libres[k];
+    const image = photos[k] ? photoBibliotheque(photos[k], { class: "tirage-rep-img", loading: "lazy" })
+      : libre?.cle ? h("img", { class: "tirage-rep-img", src: cheminPhotoBanque(libre.cle), alt: "", loading: "lazy" })
+      : libre?.emoji ? h("span", { class: "tirage-rep-img emoji", text: libre.emoji }) : null;
+    return h("span", { class: `tirage-rep${k === q.correct ? " bonne" : ""}`, title: k === q.correct ? `${c} (la bonne réponse)` : c }, image, h("span", { class: "tirage-rep-mot", text: c }));
+  }));
+}
+
+/** Petite étiquette des questions de la Super Finale, dans la liste (cedric, 23/10 : une seule, à la fin). */
+const etiquetteFinale = (r) => h("span", { class: "badge-finale", text: `🏆 ×${FACTEURS_FINALE.includes(r.facteur) ? r.facteur : FACTEURS_FINALE[0]}`, title: "Question de la Super Finale" });
+
+/** « 19 questions, dont 3 en Super Finale » : le compteur au-dessus de la première ligne (cedric, 23/10). */
+function compteurQuiz(r) {
+  const total = questionsDesSeries(r, quizzes).length;
+  const finale = r.finale > 0 ? Math.min(r.finale, total) : 0;
+  const aTirer = casesDuTirage(r).filter(caseVide).length;
+  const aFinir = seriesDe(r).filter((x) => x.origine === "main").flatMap((x) => x.questions ?? []).filter((q) => q && !questionJouable(q)).length;
+  const bougies = roundCtx === prestationCtx && editing && premierQuiz(editing.rounds, quizzes) === r && questionBougies({ childName: $("show-child").value, age: $("show-age").value }, r);
+  return [
+    total ? `${total} question${total > 1 ? "s" : ""}` : "Aucune question pour l'instant",
+    finale ? `dont ${finale > 1 ? `${finale}` : "la dernière"} en Super Finale` : "",
+    bougies && total ? "plus la question des bougies" : "",
+  ].filter(Boolean).join(", ") + [aTirer ? ` · ${aTirer} à tirer` : "", aFinir ? ` · ${aFinir} à compléter` : ""].join("");
+}
+
+/**
+ * Manche Quiz (cedric, 23/10) : un seul jeu, de 1 à 100 questions, fait de séries qui passent dans l'ordre choisi.
+ * - En haut, le compteur de toute la manche (dans une prestation : sur la ligne du numéro du jeu).
+ * - Les outils de création, ensemble :
+ *   - le profil des questions (celui de la prestation d'office, modifiable), leur nombre et le 🎲 qui les tire dans la
+ *     banque (pas de ✕ : c'est un outil, la série tirée a la sienne) ;
+ *   - « Rappeler un de vos quiz » : tout le Quiz d'une prestation archivée, cherchée par prénom, âge, date… ;
+ *   - « Intégrer un quiz de votre bibliothèque » : un quiz de la page Quiz (importé ou écrit), cherché par son titre.
+ * - Les séries : chacune se déplie, monte ou descend (↑ ↓) et s'enlève (✕) ; dans une série, ✕ retire une question
+ *   (celle tirée au 🎲 laisse un 🎲 à sa place, qui en tire une autre de la même sorte).
+ * - Puis la case de la question des bougies (premier Quiz de la prestation, cochée d'office), la Super Finale : oui ou
+ *   non, ses dernières questions (3 d'office) et son multiplicateur (×2 d'office) ; en dernière ligne, le « Quiz
+ *   complet » : toutes les questions dans l'ordre de passage (les bougies comprises), chacune monte, descend ou
+ *   s'enlève, et 🔀 mélange tout.
+ */
+function mancheQuiz(r) {
+  const series = seriesDe(r);
+  const cases = casesDuTirage(r);
+  const de = serieDuDe(r);
+  // Quiz illustré (cedric, 23/10 : « exactement la même architecture ») : le 🎲 tire dans le Quiz illustré tout prêt,
+  // par thème (pas de profil ni de Juste Chiffre) ; pas de question des bougies.
+  const illustre = r.type === "illustre";
+  const famille = familleDuDe(r);
+  const profil = PROFILES[de?.profil] ? de.profil : PROFILES[r.profil] ? r.profil : roundCtx.profile?.() ?? "MOYENS";
+  const n = cases.length || r.nbTirage || TIRAGE_DEFAUT;
+  // Une nouvelle manche part avec la Super Finale sur ses 3 dernières questions, ×2 (cedric, 23/10).
+  if (r.finale === undefined && !roundFilled(r)) r.finale = SUPER_FINALE_LAST;
+  const assemblage = questionsDuQuiz(r, quizzes);
+  const total = assemblage.length;
+  const finale = r.finale > 0 ? Math.min(r.finale, total) : 0;
+  // Les questions de la Super Finale : les dernières dans l'ordre de passage (celui du « Quiz complet »).
+  const clesFinale = new Set(finale ? assemblage.slice(-finale).map((x) => x.cle) : []);
+  const compteur = h("p", { class: "quiz-compteur", "aria-live": "polite", text: compteurQuiz(r) });
+  const majCompteur = () => { compteur.textContent = compteurQuiz(r); roundCtx.summary(); };
+  const changer = () => { roundCtx.refresh(); };
+
+  // Première ligne : profil (Quiz illustré : thème), nombre, 🎲.
+  const tirer = (k, p) => { if (illustre) tirerQuestionsIllustre(r, k, p); else tirerQuestionsQuiz(r, k, p); changer(); };
+  const nombre = h("select", {
+    class: "tirage-nombre", "aria-label": "Nombre de questions à tirer",
+    onchange: (e) => {
+      const k = Number(e.target.value);
+      if (!cases.length) { r.nbTirage = k; return; }
+      changerNombreTirage(r, k, illustre ? famille : profil);
+      changer();
+    },
+  }, ...[...new Set([...TIRAGE_NOMBRES, n])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: k === n, text: k > 1 ? `${k} questions` : "1 question" })));
+  const reglage = illustre
+    ? h("select", {
+      class: "tirage-theme", "aria-label": "Thème des questions",
+      onchange: (e) => { const f = e.target.value || null; if (cases.length) tirer(cases.length, f); else r.famille = f; },
+    }, h("option", { value: "", selected: !famille, text: "Tous les thèmes" }),
+    ...Object.entries(FAMILLES_PETITS).map(([k, label]) => h("option", { value: k, selected: k === famille, text: label })))
+    : h("select", {
+      class: "tirage-profil", "aria-label": "Profil des questions",
+      onchange: (e) => { if (cases.length) tirer(cases.length, e.target.value); else r.profil = e.target.value; },
+    }, ...Object.entries(PROFILES).map(([k, p]) => h("option", { value: k, selected: k === profil, text: p.label })));
+  const ligne = h("div", { class: "tirage-ligne" },
+    reglage,
+    nombre,
+    h("button", {
+      type: "button", class: "btn tirage-de", text: "🎲", "aria-label": "Tirer les questions au hasard",
+      title: `Tirer les questions au hasard dans ${illustre ? "le Quiz illustré tout prêt" : "la banque"} (les autres séries ne bougent pas)`,
+      onclick: () => tirer(Number(nombre.value), illustre ? reglage.value || null : reglage.value),
+    }));
+
+  // Deuxième ligne : « Rappeler un de vos quiz » (cedric, 23/10) : une recherche dans les prestations archivées
+  // (prénom, âge, date, notes…) ; celle choisie ajoute tout son Quiz en une série à la fin (questions copiées : la
+  // prestation archivée ne change pas).
+  const archives = quizArchives(r.type ?? "quiz");
+  const rappel = ligneAjoutQuiz({
+    classe: "quiz-rappel", titre: illustre ? "📚 Rappeler un de vos quiz illustrés" : "📚 Rappeler un de vos quiz", label: "Chercher une prestation archivée",
+    placeholder: "Prénom, âge, date… d'une prestation archivée", vide: `Aucune prestation archivée avec un ${ROUND_TYPES[r.type ?? "quiz"]}`,
+    aucun: "Aucune prestation archivée ne correspond.", items: archives, attr: (x) => ({ "data-show": x.id }),
+    choisir: (x) => {
+      series.push({ id: nouvelId("p"), origine: "reprise", titre: x.titre, questions: JSON.parse(JSON.stringify(x.questions)) });
+      changer();
+    },
+  });
+
+  // Troisième ligne : « Intégrer un quiz de votre bibliothèque » (cedric, 23/10) : un quiz de la page Quiz (importé ou
+  // écrit à la main), cherché par son titre ou son thème ; il s'ajoute en entier à la fin (lu dans la bibliothèque).
+  // Seulement ses quiz à 4 réponses (cedric, 23/10) : ni ceux des prestations de test, ni ceux d'images (Zoom, Image
+  // floue), ni le Quiz illustré, ni un quiz de Vrai ou Faux. Dans un Quiz illustré : ses quiz illustrés.
+  const dejaLa = new Set(series.filter((x) => x.origine === "quiz").map((x) => x.quizId));
+  const quatreReponses = (x) => x.kind === "number" || (x.choices ?? []).filter((c) => `${c ?? ""}`.trim()).length === 4;
+  const classiques = Object.entries(quizzes)
+    .filter(([qid, q]) => q?.title && !estQuizDeTest(qid) && (illustre ? illustreQuestions(q).length : quizKind(q) === "classique" && quizQuestions(q).some(quatreReponses)))
+    .sort(([, a], [, b]) => a.title.localeCompare(b.title, "fr"))
+    .map(([qid, q]) => {
+      const k = (illustre ? illustreQuestions(q) : quizQuestions(q)).length;
+      return { id: qid, titre: q.title, details: [`${k} question${k > 1 ? "s" : ""}`, q.theme, dejaLa.has(qid) ? "✓ déjà dans ce Quiz" : ""].filter(Boolean).join(" · "),
+        noms: [q.title], autres: [q.theme] };
+    });
+  const biblio = ligneAjoutQuiz({
+    classe: "quiz-biblio", titre: illustre ? "📗 Intégrer un quiz illustré de votre bibliothèque" : "📗 Intégrer un quiz de votre bibliothèque", label: "Chercher un quiz de la bibliothèque",
+    placeholder: `Titre ou thème d'un de vos quiz${illustre ? " illustrés" : ""}`, vide: `Pas encore de quiz${illustre ? " illustré" : ""} dans votre bibliothèque`,
+    aucun: "Aucun quiz de la bibliothèque ne correspond.", items: classiques, attr: (x) => ({ "data-quiz": x.id }),
+    choisir: (x) => { series.push({ id: nouvelId("q"), origine: "quiz", quizId: x.id }); changer(); },
+  });
+  const outils = h("div", { class: "quiz-outils" }, ligne, rappel, biblio);
+
+  // Les séries, dans l'ordre choisi ; les questions de la Super Finale y sont marquées.
+  const ligneQuestion = (x, q, retirer, extra = null) => {
+    const fin = clesFinale.has(cleQuestion(x, q));
+    return h("li", { class: `tirage-q${fin ? " en-finale" : ""}` }, h("div", { class: "tirage-q-ligne" },
+      h("span", { class: "tirage-texte", text: `${q.nombre || q.kind === "number" ? "🔢 " : ""}${q.text}` }),
+      illustre ? reponsesIllustrees(q) : miniature(q),
+      fin ? etiquetteFinale(r) : null,
+      extra,
+      h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": "Retirer cette question", title: "Retirer cette question", onclick: retirer })));
+  };
+  const corps = (x) => {
+    if (x.origine === "de") {
+      // ✕ : la question part, un 🎲 prend sa place ; il tire une question de la même sorte (Juste Chiffre ou 4 réponses).
+      const qs = casesDuTirage(r);
+      return qs.map((q, i) => (caseVide(q)
+        ? h("li", { class: "tirage-q vide" }, h("div", { class: "tirage-q-ligne" },
+          h("button", { type: "button", class: "btn tirage-de petit", text: "🎲", "aria-label": "Tirer une autre question", title: "Tirer une autre question", onclick: () => {
+            const pioche = illustre ? { qcm: piocherIllustre(r, 1, famille), chiffres: [] } : piocherQuiz(r, { qcm: q.nombre ? 0 : 1, chiffres: q.nombre ? 1 : 0, profil });
+            const neuve = pioche.qcm[0] ?? pioche.chiffres[0];
+            if (!neuve) { annonce(illustre ? "Plus aucune question libre dans ce thème : changez de thème, ou baissez le nombre de questions." : "Plus aucune question libre de cette sorte pour ce profil : changez le profil, ou baissez le nombre de questions."); return; }
+            poserTirage(r, qs.map((y, k) => (k === i ? neuve : y)));
+            changer();
+          } }),
+          h("span", { class: "hint small", text: q.nombre ? "Juste Chiffre à tirer" : "Question à tirer" })))
+        : ligneQuestion(x, q, () => {
+          r.ecartees = [...(r.ecartees ?? []), q.text];
+          poserTirage(r, qs.map((y, k) => (k === i ? { vide: true, ...(q.nombre ? { nombre: true } : {}) } : y)));
+          changer();
+        })));
+    }
+    if (x.origine === "quiz") {
+      // Quiz rappelé : ✕ retire une question (gardée de côté, « ↺ » la remet) ; le quiz de la bibliothèque ne change pas.
+      return questionsDeLaSerie(x, quizzes).map((q) => ligneQuestion(x, q, () => { x.sans = [...(x.sans ?? []), q.text]; changer(); }));
+    }
+    if (x.origine === "main") {
+      return (x.questions ?? []).filter(Boolean).map((q) => questionEcrite(r, x, q, majCompteur, questionJouable(q) && clesFinale.has(cleQuestion(x, q))));
+    }
+    // Reprise d'une autre manche : ses questions copiées ; ✕ en retire une.
+    return (x.questions ?? []).filter(Boolean).map((q) => (questionJouable(q) ? ligneQuestion(x, q, () => { x.questions = x.questions.filter((y) => y !== q); changer(); }) : null));
+  };
+  const titreSerie = (x) => {
+    const k = questionsDeLaSerie(x, quizzes).length;
+    const nq = `${k} question${k > 1 ? "s" : ""}`;
+    if (x.origine === "de") {
+      const vides = casesDuTirage(r).filter(caseVide).length;
+      const sorte = illustre ? FAMILLES_PETITS[x.famille] ?? "tous les thèmes" : PROFILES[x.profil ?? profil]?.label.split(" (")[0] ?? "";
+      return `🎲 ${nq} tirée${k > 1 ? "s" : ""} au hasard (${sorte})${vides ? `, ${vides} à tirer` : ""}`;
+    }
+    if (x.origine === "quiz") return quizzes[x.quizId] ? `📚 ${illustre ? "Quiz illustré" : "Quiz"} « ${quizzes[x.quizId].title} » : ${nq}${x.sans?.length ? ` (${x.sans.length} retirée${x.sans.length > 1 ? "s" : ""})` : ""}` : "📚 Ce quiz n'existe plus dans la bibliothèque";
+    if (x.origine === "main") {
+      const aFinir = (x.questions ?? []).filter((q) => q && !questionJouable(q)).length;
+      return `✍ ${nq} écrite${k > 1 ? "s" : ""} à la main${aFinir ? `, ${aFinir} à compléter` : ""}`;
+    }
+    return `📅 ${x.titre ?? "Questions reprises"} : ${nq}`;
+  };
+  const deplacer = (i, d) => {
+    const j = i + d;
+    if (j < 0 || j >= series.length) return;
+    const bougiesRangees = placeDesBougies(r, quizzes);
+    [series[i], series[j]] = [series[j], series[i]];
+    // Rangé à la main : chaque série garde l'ordre de ses questions, les séries passent dans leur nouvel ordre ; la
+    // question des bougies rangée à la main garde sa place.
+    if (r.ordreQuiz?.length) {
+      const ordre = series.flatMap((y) => assemblage.filter((z) => z.serie.id === y.id).map((z) => z.cle));
+      if (bougiesRangees != null) ordre.splice(Math.min(bougiesRangees, ordre.length), 0, CLE_BOUGIES);
+      r.ordreQuiz = ordre;
+    }
+    changer();
+  };
+  const liste = h("ol", { class: "quiz-series" }, ...series.map((x, i) => {
+    const qs = h("ol", { class: "tirage-liste serie-liste" }, ...corps(x).filter(Boolean));
+    qs.hidden = !seriesDepliees.has(x);
+    const voir = h("button", {
+      type: "button", class: "chip tirage-voir serie-voir", "aria-expanded": qs.hidden ? "false" : "true", text: `${qs.hidden ? "▸" : "▾"} ${titreSerie(x)}`,
+      title: "Voir ou cacher les questions de cette série",
+      onclick: (e) => {
+        qs.hidden = !qs.hidden;
+        if (qs.hidden) seriesDepliees.delete(x); else seriesDepliees.add(x);
+        e.currentTarget.textContent = `${qs.hidden ? "▸" : "▾"} ${titreSerie(x)}`;
+        e.currentTarget.setAttribute("aria-expanded", qs.hidden ? "false" : "true");
+      },
+    });
+    const enlever = async () => {
+      const k = x.origine === "main" ? (x.questions ?? []).filter(Boolean).length : questionsDeLaSerie(x, quizzes).length;
+      if (k && !(await confirmer(`Enlever cette série (${k} question${k > 1 ? "s" : ""}) de la manche ?${x.origine === "quiz" ? " Le quiz reste dans la bibliothèque." : ""}`, { ok: "Enlever", danger: true }))) return;
+      r.seriesQuiz = series.filter((y) => y !== x);
+      changer();
+      noterEcran();
+    };
+    return h("li", { class: "serie", "data-origine": x.origine },
+      h("div", { class: "serie-tete" },
+        voir,
+        x.origine === "quiz" && x.sans?.length ? h("button", { type: "button", class: "chip serie-remettre", text: "↺ Remettre", title: "Remettre les questions retirées de ce quiz", onclick: () => { x.sans = []; changer(); } }) : null,
+        x.origine === "main" ? h("button", { type: "button", class: "chip serie-plus", text: "＋ Une question", onclick: () => {
+          const q = { id: nouvelId("e"), text: "", choices: ["", "", "", ""] };
+          x.questions = [...(x.questions ?? []), q];
+          seriesDepliees.add(x);
+          questionAFocaliser = q.id;
+          changer();
+        } }) : null,
+        h("button", { type: "button", class: "icon serie-monter", text: "↑", title: "Passer cette série plus tôt", "aria-label": "Monter cette série", disabled: i === 0, onclick: () => deplacer(i, -1) }),
+        h("button", { type: "button", class: "icon serie-descendre", text: "↓", title: "Passer cette série plus tard", "aria-label": "Descendre cette série", disabled: i === series.length - 1, onclick: () => deplacer(i, 1) }),
+        h("button", { type: "button", class: "icon serie-enlever", text: "✕", title: "Enlever cette série de la manche", "aria-label": "Enlever cette série", onclick: enlever })),
+      qs);
+  }));
+
+  // La question des bougies (premier Quiz de la prestation), juste au-dessus de la Super Finale.
+  const bougies = roundCtx === prestationCtx && editing && premierQuiz(editing.rounds, quizzes) === r
+    ? h("label", { class: "check bougies quiz-bougies", title: "« Combien de bougies sur le gâteau de … cette année ? » : l'âge de l'enfant, au Juste Chiffre. D'office juste avant la Super Finale ; elle se range où vous voulez dans le Quiz complet." },
+      h("input", { type: "checkbox", checked: r.bougies !== false, onchange: (e) => { r.bougies = e.target.checked ? null : false; if (!e.target.checked) oublierPlaceBougies(r); changer(); } }),
+      "🎂 Question des bougies")
+    : null;
+
+  // Dernière ligne : la Super Finale (cedric, 23/10) : oui ou non, combien de dernières questions, le multiplicateur.
+  const avec = r.finale > 0;
+  const derniere = h("div", { class: "quiz-finale" },
+    h("span", { class: "quiz-finale-titre", text: "🏆 Super Finale" }),
+    h("select", { class: "finale-oui", "aria-label": "Super Finale", onchange: (e) => { r.finale = e.target.value === "oui" ? (r.finaleAvant > 0 ? r.finaleAvant : SUPER_FINALE_LAST) : null; changer(); } },
+      h("option", { value: "oui", selected: avec, text: "Oui" }),
+      h("option", { value: "non", selected: !avec, text: "Non" })),
+    avec ? h("select", { class: "finale", "aria-label": "Questions de la Super Finale", onchange: (e) => { r.finale = Number(e.target.value) || null; r.finaleAvant = r.finale; changer(); } },
+      ...[...new Set([1, 2, 3, 4, 5, 6, 8, 10, r.finale])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: r.finale === k, text: k === 1 ? "La dernière question" : `Les ${k} dernières questions` })))
+      : null,
+    avec ? h("select", { class: "finale-facteur", "aria-label": "Multiplicateur de la Super Finale", onchange: (e) => { r.facteur = Number(e.target.value); changer(); } },
+      ...FACTEURS_FINALE.map((k) => h("option", { value: k, selected: (FACTEURS_FINALE.includes(r.facteur) ? r.facteur : FACTEURS_FINALE[0]) === k, text: `Points ×${k}` })))
+      : null,
+    avec ? h("span", { class: "hint small", text: "Sur le téléphone, Sarah peut encore changer le multiplicateur juste avant." }) : null);
+
+  // Une question écrite à la main qui vient d'être créée : le curseur dans son texte.
+  if (questionAFocaliser) {
+    const id = questionAFocaliser;
+    questionAFocaliser = null;
+    requestAnimationFrame(() => document.querySelector(`[data-question="${CSS.escape(id)}"] .q-main-texte`)?.focus());
+  }
+  return [compteur, outils, series.length ? liste : null, bougies, derniere, quizComplet(r, assemblage, clesFinale, changer)];
+}
+
+/** Résultats montrés au plus sous une recherche d'ajout du Quiz (cedric, 23/10 : « 5 ou 6 »). */
+const QUIZ_AJOUT_MAX = 6;
+
+/**
+ * Une ligne d'ajout du Quiz (cedric, 23/10) : une case à gauche (pas un champ), une recherche à droite. Rien tant
+ * qu'aucune lettre n'est tapée ; ensuite, à chaque lettre, les QUIZ_AJOUT_MAX meilleurs résultats (prénom, titre,
+ * date…), les uns sous les autres, dans une liste posée à droite par-dessus l'écran (rien ne bouge en dessous). Un clic
+ * sur un résultat l'ajoute.
+ */
+function ligneAjoutQuiz({ classe, titre, label, placeholder, vide, aucun, items, attr, choisir }) {
+  const cherche = h("input", { type: "search", class: `quiz-ajout-cherche ${classe}-cherche`, "aria-label": label, placeholder: items.length ? placeholder : vide });
+  const resultats = h("div", { class: `quiz-ajout-liste ${classe}-liste` });
+  resultats.hidden = true;
+  // Un clic dans la liste ne fait pas perdre la main au champ (la liste resterait sinon cachée avant le clic).
+  resultats.addEventListener("mousedown", (e) => e.preventDefault());
+  const dessiner = () => {
+    const q = cherche.value;
+    if (!q.trim()) { resultats.hidden = true; resultats.replaceChildren(); return; }
+    const trouves = parPertinence(items.filter((x) => contientTout([...x.noms, ...x.autres].filter(Boolean), q)), q, (x) => x.noms.filter(Boolean), (x) => x.autres.filter(Boolean))
+      .slice(0, QUIZ_AJOUT_MAX);
+    resultats.replaceChildren(...(trouves.length ? trouves.map((x) => h("button", { type: "button", class: `quiz-ajout-item ${classe}-item`, ...attr(x), onclick: () => choisir(x) },
+      h("b", { text: x.titre }), h("span", { class: "small", text: x.details }))) : [h("p", { class: "hint small", text: aucun })]));
+    resultats.hidden = false;
+  };
+  cherche.addEventListener("input", dessiner);
+  cherche.addEventListener("focus", dessiner);
+  cherche.addEventListener("blur", () => { resultats.hidden = true; });
+  return h("div", { class: `quiz-ajouts ${classe}` },
+    h("span", { class: `quiz-ajout-titre ${classe}-titre`, text: titre }),
+    h("div", { class: "quiz-ajout-champ" }, cherche, resultats));
+}
+
+/** « Quiz complet » déplié (le temps de l'écran), par manche. */
+const quizCompletsDeplies = new WeakSet();
+// Décochée, la question des bougies oublie sa place : recochée, elle revient juste avant la Super Finale.
+const oublierPlaceBougies = (r) => { if (r.ordreQuiz?.length) r.ordreQuiz = r.ordreQuiz.filter((c) => c !== CLE_BOUGIES); };
+
+/**
+ * Dernière ligne d'un Quiz (cedric, 23/10) : le « Quiz complet », tout ce qui a été ajouté (🎲, prestation archivée,
+ * bibliothèque…) dans l'ordre de passage. Déplié : chaque question monte, descend ou s'enlève ; 🔀 mélange tout.
+ * L'ordre rangé ici est gardé dans la manche (`ordreQuiz`). La question des bougies (case cochée) en est une comme les
+ * autres : d'office juste avant la Super Finale (sa place suit les ajouts), jusqu'à ce qu'on la déplace ou qu'on mélange.
+ */
+function quizComplet(r, assemblage, clesFinale, changer) {
+  if (!assemblage.length) return null;
+  const bougies = roundCtx === prestationCtx && editing && premierQuiz(editing.rounds, quizzes) === r
+    && !assemblage.some((x) => x.q.kind === "number" && /bougie/i.test(x.q.text ?? ""))
+    ? questionBougies({ childName: $("show-child").value, age: $("show-age").value }, r) : null;
+  const rangees = bougies ? placeDesBougies(r, quizzes) : null;
+  const vue = [...assemblage];
+  if (bougies) vue.splice(rangees != null ? Math.min(rangees, vue.length) : assemblage.length - clesFinale.size, 0, { cle: CLE_BOUGIES, bougies: true, q: bougies });
+  const cles = vue.map((x) => x.cle);
+  // Les bougies restent d'office juste avant la Super Finale tant qu'on ne les a pas déplacées (ou mélangées) elles-mêmes.
+  const ranger = (nouvel, avecBougies) => {
+    r.ordreQuiz = avecBougies || rangees != null ? nouvel : nouvel.filter((c) => c !== CLE_BOUGIES);
+    changer();
+    noterEcran();
+  };
+  const deplacer = (k, d) => {
+    const j = k + d;
+    if (j < 0 || j >= cles.length) return;
+    const nouvel = [...cles];
+    [nouvel[k], nouvel[j]] = [nouvel[j], nouvel[k]];
+    ranger(nouvel, vue[k].bougies || vue[j].bougies);
+  };
+  // Enlever : la question part de sa série (une question tirée au 🎲 ne revient pas au prochain tirage) ; celle des
+  // bougies se décoche.
+  const enlever = (x) => {
+    if (x.bougies) {
+      r.bougies = false;
+      oublierPlaceBougies(r);
+      changer();
+      noterEcran();
+      return;
+    }
+    const serie = seriesDe(r).find((y) => y.id === x.serie.id);
+    if (!serie) return;
+    if (serie.origine === "quiz") serie.sans = [...(serie.sans ?? []), x.q.text];
+    else {
+      const reste = (serie.questions ?? []).filter(Boolean);
+      const k = reste.findIndex((q) => cleQuestion(serie, q) === x.cle);
+      if (k < 0) return;
+      if (serie.origine === "de") r.ecartees = [...(r.ecartees ?? []), reste[k].text];
+      serie.questions = reste.filter((_, i) => i !== k);
+      if (!serie.questions.some((q) => !caseVide(q))) r.seriesQuiz = seriesDe(r).filter((y) => y !== serie);
+    }
+    if (r.ordreQuiz?.length) r.ordreQuiz = cles.filter((c) => c !== x.cle && (c !== CLE_BOUGIES || rangees != null));
+    changer();
+    noterEcran();
+  };
+  const melanger = () => {
+    let nouvel = shuffle(cles);
+    for (let essai = 0; essai < 5 && cles.length > 1 && nouvel.every((c, k) => c === cles[k]); essai++) nouvel = shuffle(cles);
+    ranger(nouvel, true);
+  };
+  const lignes = vue.map((x, k) => h("li", { class: `tirage-q quiz-complet-q${x.bougies ? " quiz-complet-bougies" : ""}${clesFinale.has(x.cle) ? " en-finale" : ""}`, "data-cle": x.cle },
+    h("div", { class: "tirage-q-ligne" },
+      h("span", { class: "quiz-complet-num", text: `${k + 1}` }),
+      h("span", { class: "tirage-texte", text: `${x.bougies ? "🎂 " : ""}${x.q.kind === "number" ? "🔢 " : ""}${x.q.text}` }),
+      r.type === "illustre" ? reponsesIllustrees(x.q) : miniature(x.q),
+      clesFinale.has(x.cle) ? etiquetteFinale(r) : null,
+      h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: "Passer cette question plus tôt", "aria-label": "Monter cette question", disabled: k === 0, onclick: () => deplacer(k, -1) }),
+      h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: "Passer cette question plus tard", "aria-label": "Descendre cette question", disabled: k === vue.length - 1, onclick: () => deplacer(k, 1) }),
+      h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: x.bougies ? "Enlever la question des bougies (la case se décoche)" : "Enlever cette question du quiz", "aria-label": "Enlever cette question", onclick: () => enlever(x) }))));
+  const liste = h("ol", { class: "tirage-liste serie-liste quiz-complet-liste" }, ...lignes);
+  liste.hidden = !quizCompletsDeplies.has(r);
+  const titre = () => `${liste.hidden ? "▸" : "▾"} 🧩 ${r.type === "illustre" ? "Quiz illustré complet" : "Quiz complet"} : ${vue.length} question${vue.length > 1 ? "s" : ""}, dans l'ordre de passage`;
+  const voir = h("button", {
+    type: "button", class: "chip tirage-voir serie-voir quiz-complet-voir", "aria-expanded": liste.hidden ? "false" : "true", text: titre(),
+    title: "Voir toutes les questions du quiz, dans l'ordre",
+    onclick: (e) => {
+      liste.hidden = !liste.hidden;
+      if (liste.hidden) quizCompletsDeplies.delete(r); else quizCompletsDeplies.add(r);
+      e.currentTarget.textContent = titre();
+      e.currentTarget.setAttribute("aria-expanded", liste.hidden ? "false" : "true");
+    },
+  });
+  return h("div", { class: "serie quiz-complet" },
+    h("div", { class: "serie-tete" },
+      voir,
+      h("button", { type: "button", class: "chip quiz-melanger", text: "🔀 Mélanger", title: "Mélanger toutes les questions du quiz", disabled: vue.length < 2, onclick: melanger })),
+    liste);
+}
+
+/**
+ * Une question écrite à la main (cedric, 23/10) : son texte, puis 4 réponses (on coche la bonne ; 2 au moins) ou un
+ * Juste Chiffre (le bon nombre). Pas finie : gardée, mais pas jouée (« à compléter »).
+ */
+function questionEcrite(r, serie, q, majCompteur, fin = false) {
+  const etat = h("span", { class: "q-main-etat small" });
+  const majEtat = () => {
+    const manque = !q.text?.trim() ? "la question" : q.nombre ? (Number.isInteger(q.correct) ? "" : "le bon nombre")
+      : (q.choices ?? []).filter((c) => c?.trim()).length < 2 ? "2 réponses au moins" : !(q.choices?.[q.correct] ?? "").trim() ? "la bonne réponse (cochez-la)" : "";
+    etat.textContent = manque ? `À compléter : ${manque}` : "✓ Prête";
+    etat.classList.toggle("ok", !manque);
+  };
+  const changer = () => { majEtat(); majCompteur(); };
+  const sorte = (nombre, texte) => h("button", {
+    type: "button", class: `chip mode-chip${!!q.nombre === nombre ? " active" : ""}`, "aria-pressed": !!q.nombre === nombre ? "true" : "false", text: texte,
+    onclick: () => {
+      if (!!q.nombre === nombre) return;
+      if (nombre) { q.nombre = true; delete q.choices; delete q.correct; } else { delete q.nombre; q.choices = ["", "", "", ""]; delete q.correct; }
+      roundCtx.refresh();
+    },
+  });
+  const reponses = q.nombre
+    ? h("label", { class: "q-main-nombre" }, "Le bon nombre",
+      h("input", { type: "number", step: "1", value: Number.isInteger(q.correct) ? q.correct : "", "aria-label": "Le bon nombre",
+        oninput: (e) => { const v = e.target.value.trim(); q.correct = v === "" || !Number.isInteger(Number(v)) ? null : Number(v); changer(); } }))
+    : h("div", { class: "q-main-reponses" }, ...[0, 1, 2, 3].map((k) => h("label", { class: "q-main-reponse" },
+      h("input", { type: "radio", name: `bonne-${q.id}`, checked: q.correct === k, "aria-label": `Réponse ${LETTERS[k]} : la bonne`, title: "La bonne réponse",
+        onchange: () => { q.correct = k; changer(); } }),
+      h("input", { type: "text", maxlength: "120", class: "q-main-choix", value: q.choices?.[k] ?? "", placeholder: `Réponse ${LETTERS[k]}`, "aria-label": `Réponse ${LETTERS[k]}`,
+        oninput: (e) => { q.choices = [0, 1, 2, 3].map((j) => (j === k ? e.target.value : q.choices?.[j] ?? "")); changer(); } }))));
+  majEtat();
+  return h("li", { class: `q-main${fin ? " en-finale" : ""}`, "data-question": q.id },
+    h("div", { class: "q-main-haut" },
+      h("input", { type: "text", maxlength: "300", class: "q-main-texte", value: q.text ?? "", placeholder: "Écrivez la question…", "aria-label": "La question",
+        oninput: (e) => { q.text = e.target.value; changer(); } }),
+      fin ? etiquetteFinale(r) : null,
+      sorte(false, "4 réponses"),
+      sorte(true, "🔢 Juste Chiffre"),
+      h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": "Retirer cette question", title: "Retirer cette question",
+        onclick: () => { serie.questions = (serie.questions ?? []).filter((y) => y !== q); if (!serie.questions.length) r.seriesQuiz = seriesDe(r).filter((y) => y !== serie); roundCtx.refresh(); } })),
+    reponses,
+    etat);
+}
 
 /** Contenu et réglages d'une manche, selon son jeu : les mêmes dans une prestation et dans la page d'un jeu. */
 function roundFields(r) {
@@ -1284,6 +2088,8 @@ function roundFields(r) {
   const decks = Object.entries(mimes).sort(([, a], [, b]) => a.title.localeCompare(b.title));
   const lists = Object.entries(playlists).filter(([, p]) => !isStatuesList(p)).sort(([, a], [, b]) => a.title.localeCompare(b.title));
   const photos = r.type === "zoom" || r.type === "flou";
+  // Quiz et Quiz illustré (cedric, 23/10) : une seule manche faite de séries.
+  const quiz = estEnSeries(r.type);
   const content = BUILTIN_GAMES[r.type]
     // Jeux au buzzer intégrés : rien à préparer, seulement combien de mots ou de personnages.
     ? h("div", { class: "grow picto-round" },
@@ -1353,9 +2159,10 @@ function roundFields(r) {
         if (on) { r.picks = roundQuizIds(r).flatMap((id) => (quizzes[id] ? zoomQuestions(quizzes[id]) : []).map((q) => q.imageId)).slice(0, MAX_PICKS); r.quizId = ""; r.quizIds = null; } else r.picks = null;
       }),
       roundPicks(r).length || r.byItem ? itemSelection(r, "picks") : quizSelection(r, options))
-    : quizSelection(r, options);
+    : quiz ? null : quizSelection(r, options);
   return [
-    content,
+    // Quiz, Quiz illustré (cedric, 23/10) : une seule manche faite de séries (🎲, quiz rappelés, questions écrites, reprises).
+    ...(quiz ? mancheQuiz(r) : [content]),
     // Qui a disparu ? : objets par grille, pour régler la difficulté (par défaut selon l'âge de la prestation).
     r.type === "disparu"
       ? h("select", { class: "count", "aria-label": "Objets par grille", onchange: (e) => { r.objects = Number(e.target.value) || null; roundCtx.summary(); } },
@@ -1364,21 +2171,20 @@ function roundFields(r) {
       : null,
     // Jeux tirés d'un quiz : toutes ses questions retenues, ou seulement les premières.
     !BUILTIN_GAMES[r.type] && r.type !== "statues" && r.type !== "pictionary" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "mimes" && !MUSIC_GAMES[r.type] && !(photos && (roundPicks(r).length || r.byItem))
+      && !quiz
       ? h("select", { class: "count", "aria-label": "Nombre de questions", onchange: (e) => { r.count = Number(e.target.value) || null; roundCtx.summary(); } },
         h("option", { value: "", text: "Toutes les questions" }),
         ...[1, 2, 3, 4, 5, 6, 8, 10, 12, 15].map((n) => h("option", { value: n, selected: r.count === n, text: n === 1 ? "La première seulement" : `Les ${n} premières` })))
       : null,
-    hasFinale(r.type)
+    hasFinale(r.type) && !quiz
       ? h("select", { class: "finale", "aria-label": "Super Finale", onchange: (e) => { r.finale = Number(e.target.value) || null; roundCtx.summary(); } },
         h("option", { value: "", text: "Sans Super Finale" }),
         ...[1, 2, 3, 4, 5].map((n) => h("option", { value: n, selected: r.finale === n, text: n === 1 ? "Super Finale : la dernière" : `Super Finale : ${n} dernières` })))
       : null,
-    // Question des bougies (cedric, 21/10) : d'office dans le premier Quiz de la prestation ; décocher l'enlève.
-    roundCtx === prestationCtx && editing && premierQuiz(editing.rounds, quizzes) === r
-      ? h("label", { class: "check bougies", title: "« Combien de bougies sur le gâteau de … cette année ? » : l'âge de l'enfant, au Juste Chiffre, juste avant la Super Finale" },
-        h("input", { type: "checkbox", checked: r.bougies !== false, onchange: (e) => { r.bougies = e.target.checked ? null : false; roundCtx.summary(); } }),
-        "🎂 Question des bougies")
-      : null,
+    // Note de la manche (cedric, 23/10) : pour s'en souvenir, et la retrouver avec « Reprendre une manche ». Pas dans
+    // le Quiz (cedric, 23/10 : « n'a pas lieu d'être »).
+    SANS_CONTENU.includes(r.type) || quiz ? null : h("label", { class: "manche-note" }, "Note",
+      h("input", { type: "text", maxlength: "200", value: r.note ?? "", placeholder: "Pour la retrouver : thème, âge, remarque…", "aria-label": "Note de la manche", oninput: (e) => { r.note = e.target.value; } })),
   ];
 }
 
@@ -1454,7 +2260,7 @@ function refreshSummary() {
   const duree = dureeEstimee(snapshot, s);
   $("show-duration").textContent = duree ? `environ ${duree.minutes} min` : "—";
   $("show-summary").textContent = snapshot
-    ? `${contentLabel(snapshot)} jouables · environ ${duree.minutes} min · chrono ${defaultDuration(profile)} s par question pour les ${PROFILES[profile].label}, sauf durée imposée`
+    ? `${contentLabel(snapshot)} jouables · environ ${duree.minutes} min · chrono ${defaultDuration(profile)} s par question ${profile === "NEUTRE" ? "(profil Neutre, tous âges)" : `pour les ${PROFILES[profile].label}`}, sauf durée imposée`
     : "";
   $("show-problems").replaceChildren(...problems.map((p) => h("li", { text: p })));
   const r = readiness(s, quizzes, mimes, playlists, contents);
@@ -1466,8 +2272,49 @@ function refreshSummary() {
       : h("div", {}, h("b", { text: "Reste à faire avant le jour J :" }), h("ul", {}, ...r.todo.map((t) => h("li", { text: t })))));
 }
 ["show-age", "show-profile", "show-child", "show-title", "show-date", "show-status"].forEach((id) => $(id).addEventListener("input", refreshSummary));
-// Le nombre d'équipes change ce qu'il faut prévoir pour les mimes : les manches sont redessinées.
-$("show-teams").addEventListener("change", refreshRounds);
+// Le nombre d'équipes change ce qu'il faut prévoir pour les mimes : les manches sont redessinées. Il donne aussi
+// le nombre de couleurs d'équipe.
+$("show-teams").addEventListener("change", () => { renderCouleurs(); refreshRounds(); });
+
+/** Couleurs des équipes de la prestation en cours de saisie, une par équipe prévue (bracelets et bandeaux). */
+let couleursSaisies = [];
+/** Pastille dont on choisit la couleur (son rang), -1 si aucune. */
+let pastilleOuverte = -1;
+const nomCouleur = (c) => TEAM_COLOR_NAMES[TEAM_COLORS.indexOf(c)] ?? c;
+const pastille = (c, props, ...kids) => h("button", { type: "button", style: `--c: ${c}`, ...props },
+  h("span", { class: "rond" }), h("span", { class: "nom", text: nomCouleur(c) }), ...kids);
+
+/**
+ * Couleurs des équipes (cedric, 22/10) : une pastille par équipe prévue, rose, orange, vert, jaune… par défaut. Une
+ * pastille touchée montre les 8 couleurs ; une couleur déjà donnée à une autre équipe s'échange avec elle (jamais deux
+ * équipes de la même couleur). Les tablettes ne proposent que ces couleurs.
+ */
+function renderCouleurs() {
+  const n = teamCount($("show-teams").value === "" ? null : Number($("show-teams").value));
+  couleursSaisies = couleursEquipes({ teams: n, teamColors: couleursSaisies });
+  if (pastilleOuverte >= n) pastilleOuverte = -1;
+  const i = pastilleOuverte;
+  remplir($("show-couleurs"),
+    h("div", { class: "pastilles" }, couleursSaisies.map((c, k) => pastille(c, {
+      class: `pastille${k === i ? " ouverte" : ""}`, "aria-label": `Équipe ${k + 1} : ${nomCouleur(c)}`, "aria-expanded": String(k === i),
+      onclick: () => { pastilleOuverte = k === i ? -1 : k; renderCouleurs(); },
+    }, h("span", { class: "rang", text: `Équipe ${k + 1}` })))),
+    i >= 0 && h("div", { class: "choix-couleurs", role: "group", "aria-label": `Couleur de l'équipe ${i + 1}` },
+      TEAM_COLORS.map((c) => pastille(c, {
+        class: `pastille${c === couleursSaisies[i] ? " choisie" : ""}`, "aria-label": nomCouleur(c),
+        onclick: () => choisirCouleur(i, c),
+      }))),
+  );
+}
+
+function choisirCouleur(i, c) {
+  const j = couleursSaisies.indexOf(c);
+  // Déjà donnée à une autre équipe : les deux équipes échangent leurs couleurs.
+  if (j >= 0 && j !== i) couleursSaisies[j] = couleursSaisies[i];
+  couleursSaisies[i] = c;
+  pastilleOuverte = -1;
+  renderCouleurs();
+}
 $("round-add").onclick = () => ouvrirChoixJeu();
 
 /** Contenu d'une manche (titre du quiz, du paquet, de la playlist), "" pour un jeu sans contenu, null s'il n'existe plus. */
@@ -1476,6 +2323,7 @@ function roundContent(r) {
   if (BUILTIN_GAMES[r.type] || r.type === "statues" || r.type === "pictionary" || r.type === "coffres" || r.type === "portes" || r.type === "gonfleur" || r.type === "patate") return "";
   if (r.type === "mimes") return r.deckId ? mimes[r.deckId]?.title ?? null : "cartes au hasard";
   if (MUSIC_GAMES[r.type]) return playlists[r.playlistId]?.title ?? null;
+  if (roundTirees(r).length || roundSeriesQuiz(r).length) return mancheSummary(r, { quizzes });
   const titles = roundQuizIds(r).map((id) => quizzes[id]?.title);
   return titles.length && titles.every(Boolean) ? titles.join(" + ") : null;
 }
@@ -1522,11 +2370,13 @@ $("show-form").onsubmit = async (e) => {
   }
   const id = editing.id ?? push(ref(db, "library/shows")).key;
   const prev = shows[id] ?? {};
+  // Sous le bouton du bas, et en grand où qu'on soit dans la page.
+  const dire = (texte, ok = false) => { status("show-status-msg", texte, ok); annonce(texte, ok); };
   $("show-save").disabled = true;
   try {
     // Chaque manche composée ici est aussi gardée dans la page de son jeu ; la prestation garde le lien vers elle.
     if (await garderManches(id, s)) s.rounds = editing.rounds.filter(roundFilled).map((r) => cleanRound(r, playlists));
-    await set(ref(db, `library/shows/${id}`), {
+    const enregistree = {
       ...s, origin: prev.origin ?? "admin", createdAt: prev.createdAt ?? Date.now(),
       // L'étoile d'une archivée et le « ne plus archiver toute seule » d'une désarchivée ne se perdent pas.
       ...(s.status === "archivee" && prev.pinned ? { pinned: true } : {}),
@@ -1535,18 +2385,25 @@ $("show-form").onsubmit = async (e) => {
       // Une copie garde le nom de son modèle (« Copie de … ») tant qu'elle n'a ni prénom ni titre.
       ...(prev.copieDe ? { copieDe: prev.copieDe } : {}),
       updatedAt: serverTimestamp(),
-    });
+    };
+    await set(ref(db, `library/shows/${id}`), enregistree);
     editing.id = id;
     refreshRounds();
+    // Le statut montré est son état réel : une fête à la date passée reste (ou part) dans les archivées.
+    showsEtat = etatPrestation(enregistree);
+    const archivee = showsEtat === "archivee";
+    $("show-status").value = archivee ? "archivee" : s.status;
+    montrerArchivee(archivee);
     histPrestation.enregistre();
     $("show-edit-title").textContent = showTitle({ ...s, copieDe: prev.copieDe });
-    showsEtat = etatPrestation(s);
     $("show-edit-crumb").textContent = LISTES[showsEtat].titre;
-    if (manque.length) status("show-status-msg", `Enregistrée en « À compléter » : pour passer en « À venir », il manque : ${manque.join(" · ")}.`);
-    else status("show-status-msg", s.status === "publiee" ? "Enregistrée « À venir » : elle est visible sur la régie." : "Enregistrée.", true);
+    if (manque.length && archivee) dire(`Toujours dans les « Archivées » : pour la remettre « À venir », il manque : ${manque.join(" · ")}.`);
+    else if (manque.length) dire(`Enregistrée en « À compléter » : pour passer en « À venir », il manque : ${manque.join(" · ")}.`);
+    else if (archivee && s.status !== "archivee") dire("Enregistrée dans les « Archivées » : sa date est passée. Pour la remettre « À venir », choisissez une date à venir.");
+    else dire(s.status === "publiee" ? "Enregistrée « À venir » : elle est visible sur la régie." : "Enregistrée.", true);
   } catch (err) {
     console.error(err);
-    status("show-status-msg", "Enregistrement refusé : vérifiez les champs ou vos droits d'administration.");
+    dire("Enregistrement refusé : vérifiez les champs ou vos droits d'administration.");
   } finally {
     $("show-save").disabled = false;
   }
@@ -4986,7 +5843,9 @@ function openLibrary(tab) {
   show("library");
 }
 $("music-songs").onclick = () => openLibrary("sons");
-document.querySelectorAll("#library-tabs [data-lib-tab]").forEach((b) => { b.onclick = () => { libTab = b.dataset.libTab; renderLibrary(true); }; });
+document.querySelectorAll("#library-tabs [data-lib-tab]").forEach((b) => {
+  b.onclick = () => { const y = window.scrollY; libTab = b.dataset.libTab; renderLibrary(true); noterRubrique(y); };
+});
 
 /** [force] : redessiner même si une fiche est en cours de saisie (choix de Sarah, pas un changement venu de la base). */
 function renderLibrary(force = false) {
@@ -5147,7 +6006,7 @@ function cartePack(p) {
     h("span", { text: `${plural(p.total, "question")} · ${p.validees} validée${p.validees > 1 ? "s" : ""}` }),
     p.sansIllustration ? h("span", { class: "q-alerte", text: `⚠ ${p.sansIllustration} sans illustration` }) : h("span", { class: "ok", text: "✓ Toutes illustrées" }),
     h("div", { class: "row" },
-      h("button", { class: "btn", type: "button", text: "Ouvrir", onclick: () => { qPack = p.id; qSelection.clear(); status("q-status", ""); renderQuestions(); } }),
+      h("button", { class: "btn", type: "button", text: "Ouvrir", onclick: () => { const y = window.scrollY; qPack = p.id; qSelection.clear(); status("q-status", ""); renderQuestions(); noterRubrique(y); } }),
       h("button", { class: "btn secondary", type: "button", text: "Éditer", onclick: () => review(p.id, quizzes[p.id]) }),
       h("button", { class: "btn secondary", type: "button", text: "Renommer", onclick: () => rename(`library/quizzes/${p.id}`, p.title, "du pack") }),
       h("button", { class: "btn danger", type: "button", text: "Supprimer", onclick: () => deleteQuiz(p.id, quizzes[p.id]) })));
@@ -5172,7 +6031,7 @@ function dessinerQuestions() {
   if (qPack && !quizzes[qPack]) qPack = null;
   const chip = (key, label, n) => h("button", {
     type: "button", class: `chip${qGroupe === key ? " active" : ""}`, "data-groupe": key ?? "tout", text: `${label} (${n})`,
-    onclick: () => { qGroupe = key; qPack = null; qCategorie = null; qType = null; qNiveau = null; qSelection.clear(); status("q-status", ""); renderQuestions(); },
+    onclick: () => { const y = window.scrollY; qGroupe = key; qPack = null; qCategorie = null; qType = null; qNiveau = null; qSelection.clear(); status("q-status", ""); renderQuestions(); noterRubrique(y); },
   });
   const total = Object.values(compte).reduce((a, b) => a + b, 0);
   $("q-groups").replaceChildren(chip(null, "Tout", total), ...groupes.map(([k, label]) => chip(k, label, compte[k])));
@@ -5188,7 +6047,7 @@ function dessinerQuestions() {
     qListees = liste;
     box.replaceChildren(
       h("div", { class: "title-row" },
-        h("button", { type: "button", class: "btn secondary", text: "← Tous les packs", onclick: () => { qPack = null; qSelection.clear(); renderQuestions(); } }),
+        h("button", { type: "button", class: "btn secondary", text: "← Tous les packs", onclick: () => { const y = window.scrollY; qPack = null; qSelection.clear(); renderQuestions(); noterRubrique(y); } }),
         h("button", { type: "button", class: "btn secondary", text: "Éditer le pack", onclick: () => review(p.id, quizzes[p.id]) })),
       h("h2", { text: p.title }),
       h("p", { class: "hint", text: [p.theme, plural(p.total, "question"), p.sansIllustration ? `⚠ ${p.sansIllustration} sans illustration` : "✓ toutes illustrées"].filter(Boolean).join(" · ") }),
@@ -5199,7 +6058,7 @@ function dessinerQuestions() {
   // Aperçu : les groupes l'un sous l'autre, quelques questions (ou packs) chacun.
   if (!qGroupe) {
     box.replaceChildren(...groupes.map(([k, label]) => {
-      const voir = h("button", { type: "button", class: "btn small secondary", text: "Voir tout", onclick: () => { qGroupe = k; renderQuestions(); } });
+      const voir = h("button", { type: "button", class: "btn small secondary", text: "Voir tout", onclick: () => { const y = window.scrollY; qGroupe = k; renderQuestions(); noterRubrique(y); } });
       const contenu = k === "packs"
         ? (packsTrouves.length ? h("div", { class: "cards" }, ...packsTrouves.slice(0, QUESTIONS_APERCU).map(cartePack))
           : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : "Aucun pack pour l'instant : « Voir tout », puis « 📥 Importer des packs JSON… »." }))
@@ -5322,9 +6181,11 @@ $("pack-file").onchange = async () => {
   }
   packsNouveaux = new Set(faits);
   setTimeout(() => { packsNouveaux = new Set(); if (libTab === "questions" && !$("screen-library").hidden) renderQuestions(); }, 6000);
+  const y = window.scrollY;
   qGroupe = "packs";
   qPack = null;
   renderQuestions();
+  noterRubrique(y);
   const bilan = faits.length
     ? [`${plural(faits.length, "pack importé", "packs importés")} : ${plural(questionsFaites, "question")}`,
       aValider ? `${aValider} à valider dans « Éditer »` : null, sansIllus ? `⚠ ${sansIllus} sans illustration` : null,
@@ -5372,7 +6233,7 @@ function renderMedias(force = false) {
   const trouve = (list) => parPertinence(filtre(list), recherche, nomMedia, autresMedia);
   const chip = (key, label, n) => h("button", {
     type: "button", class: `chip${mediaGroupe === key ? " active" : ""}`, "data-groupe": key ?? "tout", text: `${label} (${n})`,
-    onclick: () => { mediaGroupe = key; mediaCat = null; renderMedias(true); },
+    onclick: () => { const y = window.scrollY; mediaGroupe = key; mediaCat = null; renderMedias(true); noterRubrique(y); },
   });
   const total = (k) => filtre(g[k]).length;
   const toutes = Object.keys(GROUPES_IMAGES).reduce((n, k) => n + total(k), 0);
@@ -5387,10 +6248,10 @@ function renderMedias(force = false) {
     $("media-cats").replaceChildren();
     box.replaceChildren(...Object.entries(GROUPES_IMAGES).map(([k, label]) => {
       const list = trouve(g[k]);
-      const voir = h("button", { type: "button", class: "btn small secondary", text: recherche ? `Voir les ${plural(list.length, "résultat")}` : `Tout voir (${list.length})`, onclick: () => { mediaGroupe = k; mediaCat = null; renderMedias(true); } });
+      const voir = h("button", { type: "button", class: "btn small secondary", text: recherche ? `Voir les ${plural(list.length, "résultat")}` : `Tout voir (${list.length})`, onclick: () => { const y = window.scrollY; mediaGroupe = k; mediaCat = null; renderMedias(true); noterRubrique(y); } });
       return h("section", { class: "media-group", "data-groupe": k },
         h("div", { class: "title-row" }, h("h2", { text: label }), list.length ? voir : null,
-          k === "miennes" && !recherche ? h("button", { type: "button", class: "btn small", text: "＋ Ajouter mes images", onclick: () => { mediaGroupe = "miennes"; mediaCat = null; renderMedias(true); } }) : null),
+          k === "miennes" && !recherche ? h("button", { type: "button", class: "btn small", text: "＋ Ajouter mes images", onclick: () => { const y = window.scrollY; mediaGroupe = "miennes"; mediaCat = null; renderMedias(true); noterRubrique(y); } }) : null),
         list.length ? h("div", { class: "media-grid" }, ...list.slice(0, APERCU).map((x, i, l) => vignetteMedia(x, i, l)))
           : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : k === "miennes" ? "Aucune image à vous pour l'instant : « ＋ Ajouter mes images »." : k === "pochettes" ? AUCUNE_POCHETTE : "" }));
     }));
@@ -5499,9 +6360,11 @@ $("vis-copier").onclick = () => copierImage(vis.liste[vis.i], "vis-status");
 $("vis-fiche").onclick = () => {
   const x = vis.liste[vis.i];
   $("visionneuse").close();
+  const y = window.scrollY;
   mediaGroupe = x.groupe;
   mediaCat = x.groupe === "miennes" ? x.cat : null;
   renderMedias(true);
+  noterRubrique(y);
 };
 $("visionneuse").addEventListener("keydown", (e) => {
   if (e.key === "ArrowLeft") { e.preventDefault(); voisine(-1); } else if (e.key === "ArrowRight") { e.preventDefault(); voisine(1); }
@@ -6033,7 +6896,7 @@ function renderGame() {
   // Recherche : chaque mot tapé dans le nom ou le contenu de la manche ; les noms qui commencent par elle d'abord.
   const query = $("manche-search").value.trim();
   const lib = { mimes, playlists, quizzes };
-  const trouve = (l) => parPertinence(l.filter(([, m]) => contientTout([m.title, mancheSummary(m.round, lib)], query)), query, ([, m]) => m.title, ([, m]) => mancheSummary(m.round, lib));
+  const trouve = (l) => parPertinence(l.filter(([, m]) => contientTout([m.title, mancheSummary(m.round, lib), m.round?.note], query)), query, ([, m]) => m.title, ([, m]) => [mancheSummary(m.round, lib), m.round?.note]);
   const groupes = mancheGroups(manches, type, quizzes);
   const [pinned, active, archived] = [trouve(groupes.pinned), trouve(groupes.active), trouve(groupes.archived)];
   $("manches-pinned-box").hidden = !pinned.length;
@@ -6084,6 +6947,7 @@ function mancheCard(id, m) {
     m.pinned ? h("span", { class: "pill pin", text: "⭐ Épinglée" }) : m.origin === "direct" ? h("span", { class: "pill", text: "Jouée en direct" }) : null,
     h("b", { text: m.title }),
     h("span", { text: mancheSummary(m.round, { mimes, playlists, quizzes }) }),
+    m.round?.note ? h("span", { class: "reprise-note", text: `📝 ${m.round.note}` }) : null,
     h("div", { class: "row" },
       h("button", { class: "btn secondary", text: "Éditer", onclick: () => editManche(id) }),
       h("button", { class: "btn secondary", text: "Renommer", onclick: () => rename(path, m.title, "de la manche") }),
@@ -6138,7 +7002,7 @@ const mancheCtx = {
 function editManche(id, fresh = null) {
   const saved = id ? manches[id] : fresh ?? { type: gameType, title: "", round: { type: gameType } };
   // Une ancienne manche « Quiz » de quiz illustrés s'ouvre (et s'enregistre) en Quiz illustré.
-  const round = jeuDeLaManche(saved.round ?? { type: saved.type }, quizzes);
+  const round = versSeriesQuiz(jeuDeLaManche(saved.round ?? { type: saved.type }, quizzes), quizzes);
   const m = { ...saved, type: round.type ?? saved.type, round };
   gameType = m.type;
   mancheEdit = { id, type: m.type, round: JSON.parse(JSON.stringify(m.round)) };

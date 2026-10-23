@@ -48,12 +48,12 @@ const BOMBE_SVG = `
   </g>
 </svg>`;
 
-/** Mèche la plus longue possible (POTATO_FUSE_MAX_MS du moteur) : le rouge bat le plus vite à ce moment-là. */
-const MECHE_MAX_MS = 45000;
+/** Durée de la mèche (POTATO_FUSE_MS du moteur, la musique du jeu) : le rouge bat le plus vite à l'explosion. */
+const MECHE_MAX_MS = 38391;
 
 /**
  * Rythme du rouge qui bat chez l'équipe qui tient la bombe, d'après le temps de mèche déjà brûlé : de 900 ms entre
- * deux coups au départ à 280 ms au bout de la mèche la plus longue. Ne dit jamais quand la bombe explosera.
+ * deux coups au départ à 280 ms au bout de la mèche.
  */
 export function rythmeBombe(brule) {
   const tension = Math.max(0, Math.min(1, brule / MECHE_MAX_MS));

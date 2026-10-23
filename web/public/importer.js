@@ -399,7 +399,7 @@ export function checkQuestions(questions, { profile = null, existing = [] } = {}
     if (q.duration != null && (q.duration < MIN_DURATION_SEC || q.duration > MAX_DURATION_SEC)) {
       errors.push(`Durée de ${q.duration} s : entre ${MIN_DURATION_SEC} et ${MAX_DURATION_SEC} s.`);
     }
-    if (p && words(q.text) > p.maxWords) warnings.push(`${words(q.text)} mots : long pour le profil ${p.label} (${p.maxWords} au plus).`);
+    if (p?.maxWords && words(q.text) > p.maxWords) warnings.push(`${words(q.text)} mots : long pour le profil ${p.label} (${p.maxWords} au plus).`);
     if (p?.maxChoiceWords && (q.choices ?? []).some((c) => words(c) > p.maxChoiceWords)) {
       warnings.push(`Propositions de plus de ${p.maxChoiceWords} mots : longues pour le profil ${p.label}.`);
     }

@@ -87,7 +87,7 @@ class ChangerDeBoxTest : TestTv() {
 
         // La régie pilote toujours la même partie, et la fête continue avec ses points.
         assertEquals("applied", regie.commande(code, "next"))
-        ecran.voit("Classement")
+        ecran.voit(titreClassement())
         ecran.voit("Licornes")
         ecran.ok("Question suivante")
         val q2 = attendreQuestion(licornes, code, 1)

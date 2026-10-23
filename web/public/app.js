@@ -3,7 +3,7 @@ import { getAuth, signInAnonymously, connectAuthEmulator } from "https://www.gst
 import {
   getDatabase, ref, get, set, update, onValue, onDisconnect, serverTimestamp, connectDatabaseEmulator, goOffline, goOnline,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
-import { TEAM_COLORS, CHOICE_COLORS, CHOICE_LETTERS, MAX_TEAMS } from "./theme.js";
+import { TEAM_COLORS, BRACELET_COLORS, CHOICE_COLORS, CHOICE_LETTERS, MAX_TEAMS } from "./theme.js";
 import { hasAccess, loginWithPassword, loginWithPin, startRegie } from "./regie.js";
 import { watchVersion, showUpdateBanner } from "./version.js";
 import { setAwake, isAwake, onAwakeChange } from "./awake.js";
@@ -240,6 +240,29 @@ $("team-name").value = "";
 let takenColors = new Set();
 const colorKey = (c) => c.slice(1).toUpperCase();
 
+/** Couleurs choisies dans la prestation (une par équipe prévue), publiées par la TV ; null sans prestation. */
+let plannedColors = null;
+
+/**
+ * Couleurs proposées (cedric, 22/10) : celles de la prestation, choisies dans la Régie PC pour les bracelets et les
+ * bandeaux, ou à défaut les 4 des bracelets (rose, orange, vert, jaune). Une de plus n'apparaît que quand toutes
+ * celles affichées sont prises : une équipe imprévue n'est jamais bloquée à l'entrée.
+ */
+function offeredColors() {
+  const offered = [...(plannedColors ?? TEAM_COLORS.slice(0, BRACELET_COLORS))];
+  for (const c of TEAM_COLORS) {
+    if (offered.every((o) => takenColors.has(colorKey(o))) && !offered.some((o) => colorKey(o) === colorKey(c))) offered.push(c);
+  }
+  return offered;
+}
+
+/** Couleur présélectionnée : celle choisie si elle est encore proposée et libre, sinon la première libre. */
+function keepFreeColor() {
+  const offered = offeredColors();
+  if (offered.includes(chosenColor) && !takenColors.has(colorKey(chosenColor))) return;
+  chosenColor = offered.find((c) => !takenColors.has(colorKey(c))) ?? chosenColor;
+}
+
 function showJoin(late = false) {
   lateJoin = late;
   stopListening();
@@ -253,12 +276,18 @@ function showJoin(late = false) {
       ...Object.entries(reserved).filter(([, owner]) => owner !== uid).map(([k]) => k),
       ...Object.entries(teams).filter(([id]) => id !== uid).map(([, t]) => t?.color && colorKey(t.color)).filter(Boolean),
     ]);
-    // Couleur choisie prise entre-temps : on passe à la première libre.
-    if (takenColors.has(colorKey(chosenColor))) chosenColor = TEAM_COLORS.find((c) => !takenColors.has(colorKey(c))) ?? chosenColor;
+    // Couleur choisie prise entre-temps, ou plus proposée : on passe à la première libre.
+    keepFreeColor();
     renderColors();
   };
   listen(`games/${code}/colors`, (snap) => { reserved = snap.val() ?? {}; refresh(); });
   listen(`games/${code}/teams`, (snap) => { teams = snap.val() ?? {}; refresh(); });
+  listen(`games/${code}/public/teamColors`, (snap) => {
+    const planned = Object.values(snap.val() ?? {}).filter((c) => typeof c === "string" && /^#[0-9A-Fa-f]{6}$/.test(c));
+    plannedColors = planned.length ? planned : null;
+    refresh();
+  });
+  keepFreeColor();
   renderColors();
   show("join");
   $("team-name").focus();
@@ -273,7 +302,7 @@ function showJoin(late = false) {
 function renderColors() {
   const box = $("colors");
   box.innerHTML = "";
-  TEAM_COLORS.forEach((c) => {
+  offeredColors().forEach((c) => {
     const b = document.createElement("button");
     const taken = takenColors.has(colorKey(c));
     b.style.background = c;
@@ -319,7 +348,7 @@ $("join").onclick = async () => {
       $("join-error").textContent = "Cette couleur vient d'être prise par une autre équipe : choisissez-en une autre.";
       $("join-error").hidden = false;
       takenColors.add(colorKey(wanted));
-      if (chosenColor === wanted) chosenColor = TEAM_COLORS.find((c) => !takenColors.has(colorKey(c))) ?? chosenColor;
+      if (chosenColor === wanted) keepFreeColor();
       renderColors();
       return;
     }
@@ -466,6 +495,7 @@ function render() {
   if (st.kind !== "gonfleur" || st.phase !== "question") stopGonfleur();
   if (st.kind !== "patate" || st.phase !== "question") stopPatate();
   $("play-intro").hidden = true;
+  $("play-status").classList.remove("fete");
   switch (st.phase) {
     case "question":
     case "closed":
@@ -496,7 +526,9 @@ function renderLobby(st) {
   // Buzzer de l'accueil : pour s'amuser, autant de fois qu'on veut, sans gagnant ni blocage.
   buzz.disabled = false;
   buzz.classList.remove("winner");
-  $("play-status").textContent = "En attendant le quiz : buzzez autant que vous voulez !";
+  $("play-status").textContent = "En attendant le quiz\u00a0: buzzez autant que vous voulez !";
+  // Message de fête (en design The Game Show, gameshow.css le rend néon et rigolo).
+  $("play-status").classList.add("fete");
 }
 
 /** Présentation d'un jeu sur la TV : pas de buzzer, l'animatrice explique les règles avant de lancer le jeu. */

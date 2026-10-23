@@ -1,7 +1,18 @@
 package com.littlemissparty.quiz.tv
 
-/** Couleurs proposées aux équipes, les mêmes que sur le pupitre (web/public/theme.js). */
-val TEAM_COLORS = listOf("#FF3CAC", "#FFD166", "#06D6A0", "#2B86C5", "#9B5DE5", "#F94144", "#FF7F11", "#9EF01A")
+/**
+ * Couleurs proposées aux équipes, les mêmes que sur le pupitre (web/public/theme.js) : d'abord les 4 des bracelets
+ * et des bandeaux (rose, orange, vert, jaune), puis bleu, violet, rouge et turquoise au-delà de 4 équipes.
+ */
+val TEAM_COLORS = listOf("#FF2D95", "#FF6B1A", "#39FF14", "#FFE600", "#2B86C5", "#9B5DE5", "#F94144", "#2EE8E0")
+
+/**
+ * Couleurs des équipes choisies dans une prestation, telles que reçues de la régie : seulement des « #RRGGBB »,
+ * sans doublon, 8 au plus, dans leur ordre. Liste vide : les tablettes proposent les couleurs des bracelets.
+ */
+fun couleursValides(valeurs: List<Any?>): List<String> =
+    valeurs.filterIsInstance<String>().filter { it.startsWith("#") && colorKey(it).matches(Regex("[0-9A-F]{6}")) }
+        .distinctBy(::colorKey).take(TEAM_COLORS.size)
 
 /** Clé de réservation d'une couleur dans la base (games/<code>/colors/<clé>) : « #ff3cac » → « FF3CAC ». */
 fun colorKey(color: String): String = color.removePrefix("#").uppercase()

@@ -25,6 +25,7 @@ import com.littlemissparty.quiz.engine.POTATO_BOMBS
 import com.littlemissparty.quiz.engine.POTATO_BOOM_MS
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.tv.habillage.AnnonceBombe
+import com.littlemissparty.quiz.tv.habillage.MusiquePatate
 import com.littlemissparty.quiz.tv.habillage.Neon
 import com.littlemissparty.quiz.tv.habillage.ScenePatate
 import com.littlemissparty.quiz.tv.habillage.styleCentre
@@ -61,6 +62,8 @@ fun PatateScreen(state: UiState.Playing, actions: TvActions) {
     val pret = p != null && !p.exploded && maintenant >= p.readyAt && (state.resumeAt ?: 0L) <= maintenant
     // Anti-triche : 3 secondes pour l'envoyer, sinon elle explose chez l'équipe qui la garde (3, 2, 1 aussi sur sa tablette).
     val secondes = state.holdUntil?.takeIf { pret }?.let { ((it - maintenant + 999) / 1000).coerceIn(1, 3) }
+    // La musique du jeu suit la mèche et finit pile sur l'explosion (habillage).
+    MusiquePatate(state.deadline, state.resumeAt ?: 0L, state.serverOffset, brule = p != null && !p.exploded && !explosion && !annonce && !revele && !state.paused)
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 20.dp)) {

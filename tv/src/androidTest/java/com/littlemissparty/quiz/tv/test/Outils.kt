@@ -28,6 +28,7 @@ import com.littlemissparty.quiz.engine.Quiz
 import com.littlemissparty.quiz.engine.QuizJson
 import com.littlemissparty.quiz.tv.GameViewModel
 import com.littlemissparty.quiz.tv.MainActivity
+import com.littlemissparty.quiz.tv.habillage.Look
 import java.io.ByteArrayOutputStream
 import java.net.InetSocketAddress
 import java.net.Socket
@@ -77,6 +78,9 @@ suspend fun DatabaseReference.lireUneFois(): DataSnapshot = suspendCancellableCo
     suite.invokeOnCancellation { removeEventListener(ecouteur) }
 }
 
+/** Titre de l'écran des scores : « TABLEAU DES SCORES » en Game Show (le design par défaut), « Classement » en Classique. */
+fun titreClassement() = if (Look.gs) "TABLEAU DES SCORES" else "Classement"
+
 /** La box : l'appli TV elle-même, dans le même processus que les tests. */
 object Boite {
     val contexte: Context get() = InstrumentationRegistry.getInstrumentation().targetContext
@@ -85,6 +89,11 @@ object Boite {
 
     /** Repart d'une box neuve : aucune partie à reprendre. */
     fun oublierPartie() = prefs.edit().clear().commit()
+
+    private val design get() = contexte.getSharedPreferences("lmp_design", Context.MODE_PRIVATE)
+
+    /** Design choisi dans le menu Retour (« gs » ou « classique ») ; null = celui de la box par défaut (The Game Show). */
+    fun choisirDesign(cle: String?) = design.edit().apply { if (cle == null) clear() else putString("design-v2", cle) }.commit()
 
     fun codeActif(): String? = prefs.getString("active_game", null)
 
@@ -203,8 +212,14 @@ class Ecran(private val nomTest: () -> String) {
         }
     }
 
-    /** Un texte de l'interface Compose, lu dans l'arbre sémantique de l'appli. */
-    data class Element(val texte: String, val focus: Boolean, val visible: Boolean, val entier: Boolean = false)
+    /**
+     * Un texte de l'interface Compose, lu dans l'arbre sémantique de l'appli ; [centreX] : milieu de sa boîte dans la
+     * fenêtre, de largeur [largeurFenetre] (pixels).
+     */
+    data class Element(
+        val texte: String, val focus: Boolean, val visible: Boolean, val entier: Boolean = false,
+        val centreX: Float = -1f, val largeurFenetre: Int = 0,
+    )
 
     /**
      * Les boutons Compose ne donnent pas leur texte à UiAutomator (il n'y voit qu'une vue vide) :
@@ -248,7 +263,7 @@ class Ecran(private val nomTest: () -> String) {
             // boundsInWindow est rognée par les parents : plus petite que le texte, il est coupé.
             val entier = visible && b.top >= 0 && b.left >= 0 && b.bottom <= fenetre.height && b.right <= fenetre.width &&
                 b.height >= n.size.height - 1 && b.width >= n.size.width - 1
-            liste += Element(textes.joinToString(" "), n.config.getOrNull(SemanticsProperties.Focused) == true, visible, entier)
+            liste += Element(textes.joinToString(" "), n.config.getOrNull(SemanticsProperties.Focused) == true, visible, entier, b.center.x, fenetre.width)
         }
         n.children.forEach { parcourir(it, fenetre, liste) }
     }

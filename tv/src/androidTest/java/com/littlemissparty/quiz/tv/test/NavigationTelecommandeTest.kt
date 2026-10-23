@@ -2,6 +2,7 @@ package com.littlemissparty.quiz.tv.test
 
 import android.view.KeyEvent
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.littlemissparty.quiz.tv.habillage.Look
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -116,7 +117,7 @@ class NavigationTelecommandeTest : TestTv() {
         val cible = "Terminer et lancer une nouvelle partie"
         val menu = listOf(
             "Continuer la partie", "Donner des points", "Reconnecter la régie", "Reconnecter une tablette", "Rechercher une mise à jour",
-            "Vider le cache des médias", "🎨 Design : Classique", "Quitter l'application", cible,
+            "Vider le cache des médias", "🎨 Design : ${Look.design.nom}", "Quitter l'application", cible,
         )
         menu.forEachIndexed { i, bouton ->
             if (i > 0) ecran.touche(KeyEvent.KEYCODE_DPAD_DOWN)

@@ -53,7 +53,9 @@ class PatateTest {
     fun `la mèche s'allume en secret, la bombe colle 2 secondes, puis passe sans retour à l'envoyeur`() {
         val g = partie()
         val lit = g.allumer()
-        assertTrue(lit.fuseMs in POTATO_FUSE_MIN_MS..POTATO_FUSE_MAX_MS)
+        // Mèche de la durée exacte de la musique du jeu (cedric, 23/10), acceptée par le journal de la partie.
+        assertEquals(POTATO_FUSE_MS, lit.fuseMs)
+        assertTrue(POTATO_FUSE_MS in POTATO_FUSE_MIN_MS..POTATO_FUSE_MAX_MS)
         assertNull(g.lightPotato(trois, t0 + 7_100), "une seule mèche")
         val publie = Codec.publicState(g)
         assertNull(publie["deadline"], "la mèche reste secrète")
