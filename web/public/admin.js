@@ -151,6 +151,24 @@ function status(id, text, ok = false) {
   $(id).classList.toggle("ok", ok);
 }
 
+/**
+ * Message bien visible quelle que soit la place dans la page, en plus de celui écrit sous le bouton (cedric, 23/10 :
+ * avec « Enregistrer » en haut de la fiche, le message du bas ne se voyait pas, on croyait que rien ne s'était passé).
+ * Il s'en va tout seul et ne gêne aucun clic.
+ */
+function annonce(text, ok = false) {
+  let el = $("annonce");
+  if (!el) {
+    el = h("div", { id: "annonce", class: "annonce", role: "status", "aria-live": "polite" });
+    document.body.append(el);
+  }
+  el.textContent = ok ? `✓ ${text}` : text;
+  el.classList.toggle("ok", ok);
+  el.hidden = false;
+  clearTimeout(annonce.minuteur);
+  annonce.minuteur = setTimeout(() => { el.hidden = true; }, ok ? 4000 : 9000);
+}
+
 const SCREENS = ["login", "home", "shows", "show-edit", "library", "game", "manche-edit", "builtin", "quizzes", "import", "review", "settings", "mimes", "mime-edit", "music", "playlist-edit", "banque"];
 /** Écran affiché en ce moment. */
 const ecranAffiche = () => SCREENS.find((s) => !$(`screen-${s}`).hidden);
@@ -1522,6 +1540,8 @@ $("show-form").onsubmit = async (e) => {
   }
   const id = editing.id ?? push(ref(db, "library/shows")).key;
   const prev = shows[id] ?? {};
+  // Sous le bouton du bas, et en grand où qu'on soit dans la page.
+  const dire = (texte, ok = false) => { status("show-status-msg", texte, ok); annonce(texte, ok); };
   $("show-save").disabled = true;
   try {
     // Chaque manche composée ici est aussi gardée dans la page de son jeu ; la prestation garde le lien vers elle.
@@ -1542,11 +1562,11 @@ $("show-form").onsubmit = async (e) => {
     $("show-edit-title").textContent = showTitle({ ...s, copieDe: prev.copieDe });
     showsEtat = etatPrestation(s);
     $("show-edit-crumb").textContent = LISTES[showsEtat].titre;
-    if (manque.length) status("show-status-msg", `Enregistrée en « À compléter » : pour passer en « À venir », il manque : ${manque.join(" · ")}.`);
-    else status("show-status-msg", s.status === "publiee" ? "Enregistrée « À venir » : elle est visible sur la régie." : "Enregistrée.", true);
+    if (manque.length) dire(`Enregistrée en « À compléter » : pour passer en « À venir », il manque : ${manque.join(" · ")}.`);
+    else dire(s.status === "publiee" ? "Enregistrée « À venir » : elle est visible sur la régie." : "Enregistrée.", true);
   } catch (err) {
     console.error(err);
-    status("show-status-msg", "Enregistrement refusé : vérifiez les champs ou vos droits d'administration.");
+    dire("Enregistrement refusé : vérifiez les champs ou vos droits d'administration.");
   } finally {
     $("show-save").disabled = false;
   }

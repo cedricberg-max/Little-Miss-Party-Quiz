@@ -5184,14 +5184,21 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.inputValue("#show-child"), "");
     assert.equal(await page.inputValue("#show-themes"), "Licornes");
     await page.fill("#show-notes", "Pour qui ?");
-    await page.click("#show-save");
+    // Avec « Enregistrer » en haut de la fiche, le message se voit sans descendre (cedric, 23/10).
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.click("#show-save-haut");
     await page.locator("#show-status-msg", { hasText: "Enregistrée." }).waitFor();
+    await page.locator("#annonce.ok", { hasText: "✓ Enregistrée." }).waitFor();
+    const annonce = await page.locator("#annonce").boundingBox();
+    const hauteur = await page.evaluate(() => window.innerHeight);
+    assert.ok(annonce && annonce.y >= 0 && annonce.y + annonce.height <= hauteur, `Message hors de l'écran : ${JSON.stringify(annonce)}`);
     assert.equal(await page.textContent("#show-edit-title"), "Copie de « L'anniversaire de Léa »");
     assert.deepEqual([(await library(`shows/${copieId}`)).notes, (await library(`shows/${copieId}`)).copieDe], ["Pour qui ?", "L'anniversaire de Léa"]);
     // « À venir » sans prénom, âge ni date : refusé, elle reste « À compléter » et le message dit ce qui manque.
     await page.selectOption("#show-status", "publiee");
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "il manque : Indiquer le prénom de l'enfant · Ajouter la date · Indiquer l'âge." }).waitFor();
+    await page.locator("#annonce:not(.ok)", { hasText: "il manque : Indiquer le prénom de l'enfant" }).waitFor();
     assert.equal(await page.inputValue("#show-status"), "brouillon");
     await page.fill("#show-child", "Zoé");
     await page.fill("#show-age", "9");
