@@ -156,6 +156,8 @@ object Sons {
     private fun veiller() {
         h.postAtTime({
             essayer("veille") {
+                // En arrière-plan, rien ne joue : un relais lancé par Android à l'instant de la pause relancerait sa boucle.
+                if (enArriere) lits.values.forEach { if (it.isPlaying) it.pause() }
                 if (!enArriere) lits.forEach { (l, b) ->
                     if (volumes.getValue(l) > 0.01f && !b.isPlaying) {
                         incident("Boucle ${l.name} (${l.fichierPour(Look.gs)}) arrêtée toute seule, ambiance $ambiance : relancée")
