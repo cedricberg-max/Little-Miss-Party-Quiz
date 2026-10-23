@@ -271,8 +271,9 @@ export function cleanRound(r, playlists = {}) {
     const ids = roundQuizIds(r);
     // Questions tirées au 🎲 (cedric, 23/10) : gardées dans la manche, avec le profil qui a servi au tirage.
     const tirees = roundTirees(r).map((q) => ({
-      ...(typeof q.id === "string" ? { id: q.id.slice(0, 120) } : {}), text: q.text.trim().slice(0, 300), choices: q.choices.map((c) => c.trim().slice(0, 120)), correct: q.correct,
-      ...(typeof q.banque === "string" && q.banque ? { banque: q.banque.slice(0, 120) } : typeof q.emoji === "string" && q.emoji ? { emoji: q.emoji.slice(0, 16) } : {}),
+      ...(typeof q.id === "string" ? { id: q.id.slice(0, 120) } : {}), text: q.text.trim().slice(0, 300),
+      ...(q.nombre ? { nombre: true } : { choices: q.choices.map((c) => c.trim().slice(0, 120)) }), correct: q.correct,
+      ...(q.nombre ? {} : typeof q.banque === "string" && q.banque ? { banque: q.banque.slice(0, 120) } : typeof q.emoji === "string" && q.emoji ? { emoji: q.emoji.slice(0, 16) } : {}),
     }));
     out = { type, ...(tirees.length ? { tirees, ...(PROFILES[r.profil] ? { profil: r.profil } : {}) }
       : { quizId: ids[0], ...(ids.length > 1 ? { quizIds: ids } : {}), ...(r.count > 0 ? { count: r.count } : {}) }),

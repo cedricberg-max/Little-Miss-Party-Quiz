@@ -19,7 +19,7 @@ import {
   roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS,
   isStatuesList, statuesSongs, statuesChoices, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS, builtinConcepts, isPhotoTheme, disparuGroup,
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, alerteEquipes, EQUIPES_PAR_DEFAUT, pourLeHasard, premierQuiz,
-  launchStates, launchLabelPc, roundTirees,
+  launchStates, launchLabelPc, roundTirees, chiffresDuTirage, MAX_TIREES,
 } from "./show.js";
 import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE } from "./banque-photos.js";
 import { shuffle } from "./mime-cards.js";
@@ -1394,28 +1394,52 @@ function reprendreManche(r, replace) {
 /** Nombre d'équipes de l'écran en cours (prestation, ou réglage du tirage d'une manche seule). */
 const ctxTeams = () => (typeof roundCtx.teams === "function" ? roundCtx.teams() : $("show-teams").value === "" ? null : Number($("show-teams").value));
 
-/** Questions à 4 réponses du quiz classique tout prêt : celles que le 🎲 d'une manche Quiz tire. */
+/** Questions toutes prêtes que le 🎲 d'une manche Quiz tire : à 4 réponses, et Juste Chiffre (une sur quatre environ). */
 const QCM_TOUT_PRETS = QUESTIONS_TOUT_PRETES.filter((x) => !estJusteChiffre(x));
+const CHIFFRES_TOUT_PRETS = QUESTIONS_TOUT_PRETES.filter(estJusteChiffre);
 /** Niveau des questions tirées pour chaque profil ; Neutre : tous les niveaux. */
 const NIVEAU_DU_PROFIL = { PETITS: 1, MOYENS: 2, GRANDS: 3, ADULTES: 3, NEUTRE: null };
-const TIRAGE_NOMBRES = [4, 5, 6, 8, 10, 12, 15];
+/** Nombres de questions proposés : tous, de 1 à 20 (cedric : 8 questions, une retirée, puis 7). */
+const TIRAGE_NOMBRES = Array.from({ length: MAX_TIREES }, (_, k) => k + 1);
 const TIRAGE_DEFAUT = 8;
 /** Manches dont la liste des questions tirées est dépliée (le temps de l'écran). */
 const tiragesDeplies = new WeakSet();
 
+/** Les cases du tirage d'une manche, dans l'ordre : une question, ou une question retirée ({ vide }) qui attend son 🎲. */
+const casesDuTirage = (r) => (Array.isArray(r.tirees) ? r.tirees : Object.values(r.tirees ?? {})).filter(Boolean);
+const caseVide = (q) => q?.vide === true;
+
+/** Une question de la banque telle qu'elle est gardée dans la manche (réponses mélangées : la bonne pas toujours la A). */
+function versTiree(x) {
+  if (estJusteChiffre(x)) return { id: x.id, text: x.text, nombre: true, correct: x.correct };
+  const choices = shuffle(x.choices);
+  return { id: x.id, text: x.text, choices, correct: choices.indexOf(x.choices[x.correct]), ...(x.photo ? { banque: x.id } : x.emoji ? { emoji: x.emoji } : {}) };
+}
+
 /**
- * Tire les questions d'une manche Quiz dans la banque (cedric, 23/10) : [n] questions du niveau de [profil], réponses
- * mélangées ; [garder] : celles qu'on garde en tête de liste. Jamais une question déjà tirée dans une autre manche de
- * la prestation. La manche ne prend plus ses questions dans un quiz.
+ * Pioche [qcm] questions à 4 réponses et [chiffres] Juste Chiffre du niveau de [profil] pour la manche [r] : jamais une
+ * question déjà dans la manche, retirée de la manche (✕) ou tirée dans une autre manche de la prestation.
  */
-function tirerQuestionsQuiz(r, n, profil, garder = []) {
+function piocherQuiz(r, { qcm = 0, chiffres = 0, profil }) {
   const autres = roundCtx === prestationCtx && editing ? editing.rounds.filter((x) => x !== r).flatMap(roundTirees) : [];
-  const exclus = new Set([...autres, ...garder].map((q) => q.text));
-  const neuves = tirerChiffres(Math.max(0, n - garder.length), { niveau: NIVEAU_DU_PROFIL[profil] ?? null, exclus, liste: QCM_TOUT_PRETS }).map((x) => {
-    const choices = shuffle(x.choices);
-    return { id: x.id, text: x.text, choices, correct: choices.indexOf(x.choices[x.correct]), ...(x.photo ? { banque: x.id } : x.emoji ? { emoji: x.emoji } : {}) };
-  });
-  r.tirees = [...garder, ...neuves];
+  const exclus = new Set([...autres.map((q) => q.text), ...casesDuTirage(r).filter((q) => !caseVide(q)).map((q) => q.text), ...(r.ecartees ?? [])]);
+  const niveau = NIVEAU_DU_PROFIL[profil] ?? null;
+  return {
+    qcm: tirerChiffres(qcm, { niveau, exclus, liste: QCM_TOUT_PRETS }).map(versTiree),
+    chiffres: tirerChiffres(chiffres, { niveau, exclus, liste: CHIFFRES_TOUT_PRETS }).map(versTiree),
+  };
+}
+
+/**
+ * Tire [n] questions pour une manche Quiz (cedric, 23/10) : environ une sur quatre au Juste Chiffre, réparties dans la
+ * manche (jamais la première). La manche ne prend plus ses questions dans un quiz.
+ */
+function tirerQuestionsQuiz(r, n, profil) {
+  const nb = chiffresDuTirage(n);
+  const { qcm, chiffres } = piocherQuiz(r, { qcm: n - nb, chiffres: nb, profil });
+  const liste = [...qcm];
+  chiffres.forEach((q, k) => liste.splice(Math.min(liste.length, Math.round(((k + 1) * n) / (chiffres.length + 1)) - 1), 0, q));
+  r.tirees = liste;
   r.profil = profil;
   r.quizId = "";
   r.quizIds = null;
@@ -1423,33 +1447,73 @@ function tirerQuestionsQuiz(r, n, profil, garder = []) {
 }
 
 /**
+ * Nombre de questions changé après le tirage : moins, les questions retirées (🎲 en attente) partent d'abord, puis
+ * les dernières ; plus, de nouvelles questions s'ajoutent à la fin (Juste Chiffre compris, une sur quatre environ).
+ */
+function changerNombreTirage(r, k, profil) {
+  let cases = casesDuTirage(r);
+  while (cases.length > k) {
+    const vide = cases.map(caseVide).lastIndexOf(true);
+    cases = vide >= 0 ? cases.filter((_, i) => i !== vide) : cases.slice(0, k);
+  }
+  r.tirees = cases;
+  if (cases.length < k) {
+    const manque = k - cases.length;
+    const nb = Math.min(manque, Math.max(0, chiffresDuTirage(k) - cases.filter((q) => q.nombre).length));
+    const { qcm, chiffres } = piocherQuiz(r, { qcm: manque - nb, chiffres: nb, profil });
+    r.tirees = [...cases, ...shuffle([...qcm, ...chiffres])];
+  }
+}
+
+/**
  * Première ligne d'une manche Quiz (cedric, 23/10) : le profil des questions (celui de la prestation d'office,
- * modifiable), leur nombre, la Super Finale, le 🎲 qui les tire dans la banque ; puis un petit bouton qui déplie la liste
- * des questions tirées et la replie. Une fois tirées, changer le nombre en retire ou en ajoute, changer le profil les
- * tire à nouveau.
+ * modifiable), leur nombre, la Super Finale, la question des bougies, le 🎲 qui les tire dans la banque ; puis un petit
+ * bouton qui déplie la liste des questions tirées et la replie. Dans la liste, ✕ retire une question et laisse un 🎲 à
+ * sa place, qui en tire une autre de la même sorte. Changer le profil tire tout à nouveau.
  */
 function tirageQuiz(r) {
-  const tirees = roundTirees(r);
+  const cases = casesDuTirage(r);
   const profil = PROFILES[r.profil] ? r.profil : roundCtx.profile?.() ?? "MOYENS";
-  const n = tirees.length || r.nbTirage || TIRAGE_DEFAUT;
+  const n = cases.length || r.nbTirage || TIRAGE_DEFAUT;
   // Une nouvelle manche part avec la Super Finale sur ses 3 dernières questions (cedric, 23/10).
   if (r.finale === undefined && !roundFilled(r)) r.finale = 3;
-  const tirer = (k, p, garder = []) => { tirerQuestionsQuiz(r, k, p, garder); tiragesDeplies.delete(r); roundCtx.refresh(); };
+  const tirer = (k, p) => { tirerQuestionsQuiz(r, k, p); tiragesDeplies.delete(r); roundCtx.refresh(); };
   const nombre = h("select", {
     class: "tirage-nombre", "aria-label": "Nombre de questions à tirer",
     onchange: (e) => {
       const k = Number(e.target.value);
-      if (!tirees.length) { r.nbTirage = k; return; }
-      if (k <= tirees.length) { r.tirees = tirees.slice(0, k); roundCtx.refresh(); } else tirer(k, profil, tirees);
+      if (!cases.length) { r.nbTirage = k; return; }
+      changerNombreTirage(r, k, profil);
+      roundCtx.refresh();
     },
-  }, ...[...new Set([...TIRAGE_NOMBRES, n])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: k === n, text: `${k} questions` })));
+  }, ...[...new Set([...TIRAGE_NOMBRES, n])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: k === n, text: k > 1 ? `${k} questions` : "1 question" })));
   const profils = h("select", {
     class: "tirage-profil", "aria-label": "Profil des questions",
-    onchange: (e) => { if (tirees.length) tirer(tirees.length, e.target.value); else r.profil = e.target.value; },
+    onchange: (e) => { if (cases.length) tirer(cases.length, e.target.value); else r.profil = e.target.value; },
   }, ...Object.entries(PROFILES).map(([k, p]) => h("option", { value: k, selected: k === profil, text: p.label })));
-  const liste = h("ol", { class: "tirage-liste" }, ...tirees.map((q) => h("li", { text: q.text })));
+  // ✕ : la question part, un 🎲 prend sa place ; il tire une question de la même sorte (Juste Chiffre ou 4 réponses).
+  const retirer = (i) => {
+    const q = cases[i];
+    r.ecartees = [...(r.ecartees ?? []), q.text];
+    r.tirees = cases.map((x, k) => (k === i ? { vide: true, ...(q.nombre ? { nombre: true } : {}) } : x));
+    roundCtx.refresh();
+  };
+  const tirerUne = (i) => {
+    const { qcm, chiffres } = piocherQuiz(r, { qcm: cases[i].nombre ? 0 : 1, chiffres: cases[i].nombre ? 1 : 0, profil });
+    const neuve = qcm[0] ?? chiffres[0];
+    if (!neuve) { annonce("Plus aucune question libre de cette sorte pour ce profil : changez le profil, ou baissez le nombre de questions."); return; }
+    r.tirees = cases.map((x, k) => (k === i ? neuve : x));
+    roundCtx.refresh();
+  };
+  const vides = cases.filter(caseVide).length;
+  const liste = h("ol", { class: "tirage-liste" }, ...cases.map((q, i) => h("li", { class: `tirage-q${caseVide(q) ? " vide" : ""}` }, h("div", { class: "tirage-q-ligne" },
+    ...caseVide(q)
+      ? [h("button", { type: "button", class: "btn tirage-de petit", text: "🎲", "aria-label": "Tirer une autre question", title: "Tirer une autre question", onclick: () => tirerUne(i) }),
+        h("span", { class: "hint small", text: q.nombre ? "Juste Chiffre à tirer" : "Question à tirer" })]
+      : [h("span", { class: "tirage-texte", text: `${q.nombre ? "🔢 " : ""}${q.text}` }),
+        h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": "Retirer cette question", title: "Retirer cette question", onclick: () => retirer(i) })]))));
   liste.hidden = !tiragesDeplies.has(r);
-  const libelle = () => `${liste.hidden ? "▸" : "▾"} ${tirees.length} question${tirees.length > 1 ? "s" : ""}`;
+  const libelle = () => `${liste.hidden ? "▸" : "▾"} ${cases.length} question${cases.length > 1 ? "s" : ""}${vides ? ` (${vides} à tirer)` : ""}`;
   return [
     // De gauche à droite (cedric, 23/10) : profil, nombre de questions, Super Finale, question des bougies, dé.
     h("div", { class: "tirage-ligne" },
@@ -1469,7 +1533,7 @@ function tirageQuiz(r) {
         type: "button", class: "btn tirage-de", text: "🎲", "aria-label": "Tirer les questions au hasard",
         title: "Tirer les questions au hasard dans la banque", onclick: () => tirer(Number(nombre.value), profils.value),
       }),
-      tirees.length ? h("button", {
+      cases.length ? h("button", {
         type: "button", class: "chip tirage-voir", "aria-expanded": liste.hidden ? "false" : "true", text: libelle(),
         title: "Voir ou cacher les questions tirées",
         onclick: (e) => {
@@ -1479,7 +1543,7 @@ function tirageQuiz(r) {
           e.currentTarget.setAttribute("aria-expanded", liste.hidden ? "false" : "true");
         },
       }) : null),
-    tirees.length ? liste : null,
+    cases.length ? liste : null,
   ];
 }
 

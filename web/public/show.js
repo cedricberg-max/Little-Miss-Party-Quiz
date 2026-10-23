@@ -396,12 +396,21 @@ export const MAX_TIREES = 20;
 
 /**
  * Questions du quiz classique tout prêt tirées au 🎲 dans une manche Quiz (cedric, 23/10), gardées dans la manche :
- * { id, text, choices (déjà mélangées), correct, banque (clé de sa photo) ou emoji }. Jouées dans cet ordre.
+ * à 4 réponses { id, text, choices (déjà mélangées), correct, banque (clé de sa photo) ou emoji }, ou Juste Chiffre
+ * { id, text, nombre: true, correct (le nombre) }. Jouées dans cet ordre ; une question retirée ({ vide: true }, en
+ * attente de son 🎲) n'est pas jouée.
  */
 export const roundTirees = (round) => ((round?.type ?? "quiz") === "quiz" ? listOf(round?.tirees) : [])
-  .map((q) => ({ ...q, choices: listOf(q?.choices).filter((c) => typeof c === "string" && c.trim()) }))
-  .filter((q) => typeof q.text === "string" && q.text.trim() && q.choices.length >= 2 && Number.isInteger(q.correct) && q.correct >= 0 && q.correct < q.choices.length)
+  .filter((q) => q && q.vide !== true && typeof q.text === "string" && q.text.trim())
+  .map((q) => (q.nombre === true ? { ...q, choices: [] } : { ...q, choices: listOf(q.choices).filter((c) => typeof c === "string" && c.trim()) }))
+  .filter((q) => (q.nombre === true ? Number.isInteger(q.correct) : q.choices.length >= 2 && Number.isInteger(q.correct) && q.correct >= 0 && q.correct < q.choices.length))
   .slice(0, MAX_TIREES);
+
+/**
+ * Juste Chiffre parmi [n] questions tirées au 🎲 (cedric, 23/10 : « dans les quiz traditionnels il doit y avoir
+ * certaines questions avec des chiffres ») : environ une sur quatre, jamais la première ; 8 questions → 2.
+ */
+export const chiffresDuTirage = (n) => Math.max(0, Math.floor((n + 1) / 4));
 
 /** Extraits choisis un par un pour un blind test ou un quiz musical (`tracks`, leurs identifiants), dans plusieurs playlists. */
 export const roundTracks = (round) => [...new Set(listOf(round?.tracks).filter((id) => typeof id === "string" && /^[0-9a-f]{16}$/.test(id)))].slice(0, MAX_PICKS);
@@ -823,7 +832,8 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     const tirees = roundTirees(round);
     const ids = tirees.length ? [] : roundQuizIds(round);
     const found = tirees.length
-      ? [{ title: ROUND_TYPES.quiz, questions: tirees.map((q) => ({ text: q.text, choices: q.choices, correct: q.correct, status: "validee", ...(q.banque ? { banque: q.banque } : q.emoji ? { image: q.emoji } : {}) })) }]
+      ? [{ title: ROUND_TYPES.quiz, questions: tirees.map((q) => (q.nombre ? { text: q.text, kind: "number", correct: q.correct, status: "validee" }
+        : { text: q.text, choices: q.choices, correct: q.correct, status: "validee", ...(q.banque ? { banque: q.banque } : q.emoji ? { image: q.emoji } : {}) })) }]
       : ids.map((id) => quizzes[id]).filter(Boolean);
     // Plusieurs quiz : un seul jeu, leurs questions à la suite, sous les titres réunis.
     const quiz = found.length > 1

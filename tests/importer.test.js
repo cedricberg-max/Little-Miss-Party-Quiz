@@ -8,7 +8,7 @@ import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, dureeEstim
   readiness, upcoming, daysUntil, isoDay, duplicateShow, etatPrestation, isArchived, ETATS, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
   soundIds, choiceImageIds, choiceImageList, pictoSeriesList, pictoSeriesOf, foldLegacyFinale,
   roundQuizIds, MIME_RANDOM, alerteEquipes, EQUIPES_PAR_DEFAUT, PAR_EQUIPE_MIN,
-  statuesSongs, statuesChoices, roundSongs, isStatuesList, mimePool, titreAuto,
+  statuesSongs, statuesChoices, roundSongs, isStatuesList, mimePool, titreAuto, chiffresDuTirage,
 } from "../web/public/show.js";
 import { PROFILES, profileForAge, defaultDuration } from "../web/public/profiles.js";
 import { PICTO_WORDS, PICTO_SERIES } from "../web/public/picto-cards.js";
@@ -815,6 +815,8 @@ describe("fiche d'une prestation (cedric, 23/10)", () => {
     const tirees = [
       { id: "qc-a", text: "Quel animal ?", choices: ["Le chat", "Le lion", "Le zèbre", "La vache"], correct: 1, banque: "qc-a" },
       { id: "qc-b", text: "Quelle couleur ?", choices: ["Rouge", "Bleu", "Vert", "Jaune"], correct: 3, emoji: "🌈" },
+      { id: "jc-c", text: "Combien de pattes ?", nombre: true, correct: 8 },
+      { vide: true, nombre: true }, // retirée, son 🎲 attend : pas jouée, pas gardée
       { text: "", choices: ["a", "b"], correct: 0 }, // vide : écartée
     ];
     const r = { type: "quiz", tirees, profil: "GRANDS", finale: 1, nbTirage: 8 };
@@ -822,13 +824,16 @@ describe("fiche d'une prestation (cedric, 23/10)", () => {
     assert.equal(roundFilled({ type: "quiz", tirees: [] }), false);
     assert.equal(roundFilled({ type: "illustre", tirees }), false, "Seul le Quiz se tire au 🎲");
     const propre = M.cleanRound(r);
-    assert.deepEqual(propre, { type: "quiz", tirees: tirees.slice(0, 2), profil: "GRANDS", finale: 1 });
-    assert.equal(M.mancheSummary(propre), "2 questions tirées au hasard (Grands)");
+    assert.deepEqual(propre, { type: "quiz", tirees: tirees.slice(0, 3), profil: "GRANDS", finale: 1 });
+    assert.equal(M.mancheSummary(propre), "3 questions tirées au hasard (Grands)");
     const { snapshot, problems } = buildSnapshot("s", { childName: "Léa", age: 13, rounds: [{ ...propre, bougies: false }] }, {});
     assert.deepEqual(problems, []);
     const qs = snapshot.quiz.questions;
     assert.deepEqual(qs.map((q) => [q.text, q.correct, q.kind, q.double, q.banque ?? null, q.image ?? null]),
-      [["Quel animal ?", 1, "classic", false, "qc-a", null], ["Quelle couleur ?", 3, "classic", true, null, "🌈"]]);
+      [["Quel animal ?", 1, "classic", false, "qc-a", null], ["Quelle couleur ?", 3, "classic", false, null, "🌈"], ["Combien de pattes ?", 8, "number", true, null, null]]);
+    assert.equal("choices" in qs[2], false);
+    // Une question sur quatre environ au Juste Chiffre (cedric, 23/10).
+    assert.deepEqual([4, 5, 6, 8, 10, 12, 15].map(chiffresDuTirage), [1, 1, 1, 2, 2, 3, 4]);
     assert.equal(snapshot.rounds[0].title, "Quiz");
     // La régie copie la photo du quiz tout prêt (banque-quiz/) dans la partie, comme celles des petits (banque/).
     assert.equal(P.cheminPhotoBanque("qc-a"), "banque-quiz/qc-a.jpg");

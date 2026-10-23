@@ -794,6 +794,10 @@ button.media-tile:hover { border-color: var(--violet); }
 .tirage-ligne .tirage-de { align-self: stretch; font-size: 26px; line-height: 1; padding: 8px 22px; }
 .round-body > .tirage-liste { flex: 1 1 100%; margin: 0; padding: 10px 14px 10px 34px; border-radius: 14px; background: var(--card); border: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 4px; }
 .round-body > .tirage-liste[hidden] { display: none; }
+.tirage-q-ligne { display: flex; align-items: center; gap: 10px; min-height: 36px; }
+.tirage-texte { flex: 1; min-width: 0; }
+.tirage-q-ligne .tirage-retirer { flex: none; width: 32px; height: 32px; border-radius: 10px; font-size: 14px; }
+.tirage-q-ligne .tirage-de.petit { align-self: center; font-size: 18px; padding: 4px 14px; }
 @media (max-width: 640px) { .tirage-ligne > select { flex: 1 1 100%; } }
 
 /* Manche d'une prestation (cedric, 23/10) : on la crée d'abord (ses champs), puis sa note, puis « Reprendre ». */

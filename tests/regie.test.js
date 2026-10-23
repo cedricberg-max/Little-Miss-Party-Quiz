@@ -5463,6 +5463,35 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await round.locator(".tirage-liste").isVisible(), true);
     assert.equal(await round.locator(".tirage-liste li").count(), 10);
     assert.equal(await voir.textContent(), "▾ 10 questions");
+    // Des Juste Chiffre aussi, une question sur quatre environ (10 → 2), jamais la première.
+    const lignes = round.locator(".tirage-liste li");
+    const chiffres = await lignes.evaluateAll((xs) => xs.map((x, i) => (x.textContent.startsWith("🔢") ? i : -1)).filter((i) => i >= 0));
+    assert.equal(chiffres.length, 2);
+    assert.ok(!chiffres.includes(0));
+    // ✕ : la question part, un 🎲 prend sa place ; il en tire une autre de la même sorte.
+    const retiree = await lignes.nth(0).locator(".tirage-texte").textContent();
+    await lignes.nth(0).locator(".tirage-retirer").click();
+    await round.locator(".tirage-liste li.vide").waitFor();
+    assert.equal(await lignes.count(), 10);
+    assert.equal(await round.locator(".tirage-voir").textContent(), "▾ 10 questions (1 à tirer)");
+    await capture(page, "quiz-tirage-retiree");
+    await lignes.nth(0).locator(".tirage-de").click();
+    await round.locator(".tirage-liste li.vide").waitFor({ state: "detached" });
+    const neuve = await lignes.nth(0).locator(".tirage-texte").textContent();
+    assert.notEqual(neuve, retiree);
+    assert.ok(!neuve.startsWith("🔢"), "Même sorte : une question à 4 réponses");
+    assert.equal(await round.locator(".tirage-voir").textContent(), "▾ 10 questions");
+    // Une question retirée puis 9 questions : le 🎲 disparaît, les autres restent.
+    const dix = await lignes.allTextContents();
+    await lignes.nth(0).locator(".tirage-retirer").click();
+    await round.locator(".tirage-liste li.vide").waitFor();
+    await ligne.locator(".tirage-nombre").selectOption("9");
+    assert.equal(await round.locator(".tirage-liste li.vide").count(), 0);
+    assert.deepEqual(await lignes.allTextContents(), dix.slice(1));
+    assert.equal(await round.locator(".tirage-voir").textContent(), "▾ 9 questions");
+    await ligne.locator(".tirage-nombre").selectOption("10");
+    assert.equal(await lignes.count(), 10);
+    assert.deepEqual((await lignes.allTextContents()).slice(0, 9), dix.slice(1));
     await capture(page, "quiz-tirage-deplie");
     if (process.env.CAPTURES) {
       await page.setViewportSize({ width: 1440, height: 900 });
@@ -5487,9 +5516,15 @@ describe("bibliothèque de quiz et prestations", () => {
     for (const q of manche.tirees) {
       const x = banque.get(q.id);
       assert.equal(x.niveau, 3, "Grands : niveau Difficile");
-      assert.equal(q.choices[q.correct], x.choices[x.correct]);
-      assert.equal(q.banque ?? null, x.photo ? x.id : null);
+      if (q.nombre) {
+        assert.equal(q.correct, x.correct);
+        assert.equal(q.choices, undefined);
+      } else {
+        assert.equal(q.choices[q.correct], x.choices[x.correct]);
+        assert.equal(q.banque ?? null, x.photo ? x.id : null);
+      }
     }
+    assert.ok(manche.tirees.some((q) => q.nombre), "Au moins un Juste Chiffre");
     // Rouverte : toujours 8 questions, repliées, le profil du tirage ; un nouveau dé en tire d'autres.
     await page.click("#show-edit-crumb");
     await page.locator(".show-card", { hasText: "Zoé" }).first().click();
