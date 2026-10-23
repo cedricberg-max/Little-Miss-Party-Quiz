@@ -102,7 +102,7 @@ object Sons {
             etapes += {
                 essayer("pool") {
                     val p = SoundPool.Builder().setMaxStreams(8).setAudioAttributes(attributs).build()
-                    Son.entries.filter { !it.long }.forEach { s -> id(app, s.fichier)?.let { courts[s] = p.load(app, it, 1) } }
+                    Son.entries.filter { !it.long }.forEach { s -> idSon(app, s)?.let { courts[s] = p.load(app, it, 1) } }
                     pool = p
                 }
             }
@@ -130,7 +130,8 @@ object Sons {
 
     /** Une boucle chargée après un ordre de musique prend tout de suite le volume de l'ambiance en cours. */
     private fun chargerLit(app: Context, l: Lit) = essayer(l.name) {
-        val b = boucle(app, l.fichier) ?: return@essayer
+        val nom = l.fichierPour(Look.gs) ?: return@essayer
+        val b = boucle(app, nom) ?: return@essayer
         lits[l] = b
         val v = volumes.getValue(l)
         b.setVolume(v)
@@ -329,7 +330,7 @@ object Sons {
     /** Fondu enchaîné d'une ambiance à l'autre : chaque boucle glisse vers son volume, celles qui se taisent s'arrêtent. */
     private fun versAmbiance(a: Ambiance, fonduMs: Long = FONDU_MS) {
         ambiance = a
-        Lit.entries.forEach { if (a.volume(it) > 0f) reveiller(lits[it]) }
+        Lit.entries.forEach { if (a.volume(it, Look.gs) > 0f) reveiller(lits[it]) }
         val depart = volumes.toMap()
         val etapes = (fonduMs / PAS_MS).toInt().coerceAtLeast(1)
         for (k in 1..etapes) {
@@ -338,7 +339,7 @@ object Sons {
                 val t = k.toFloat() / etapes
                 Lit.entries.forEach { l ->
                     val de = depart.getValue(l)
-                    val v = de + (a.volume(l) - de) * t
+                    val v = de + (a.volume(l, Look.gs) - de) * t
                     volumes[l] = v
                     essayer("fondu") {
                         val b = lits[l] ?: return@essayer
@@ -402,7 +403,7 @@ object Sons {
             volumeCrayon = 0f
             crayonActif = false
         }
-        Lit.entries.find { it.fichier == nom && lits[it]?.possede(ancien) == true }?.let { l ->
+        Lit.entries.find { it.fichierPour(Look.gs) == nom && lits[it]?.possede(ancien) == true }?.let { l ->
             // Une boucle, c'est deux lecteurs : on refait les deux.
             essayer("reconstruire") { lits[l]?.liberer() }
             essayer("reconstruire") { neuf.release() }
@@ -418,6 +419,12 @@ object Sons {
     private fun id(context: Context, nom: String): Int? {
         if (Look.gs) brut(context, nom.replaceFirst("lmp_", "gs_"))?.let { return it }
         return brut(context, nom)
+    }
+
+    /** Son court : son fichier propre au Game Show s'il en a un ([Son.gs]), sinon la règle habituelle. */
+    private fun idSon(context: Context, s: Son): Int? {
+        if (Look.gs) s.gs?.let { g -> brut(context, g)?.let { return it } }
+        return id(context, s.fichier)
     }
 
     private fun brut(context: Context, nom: String): Int? =

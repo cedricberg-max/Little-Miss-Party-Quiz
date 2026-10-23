@@ -255,12 +255,12 @@ class DirecteurSonore {
                 o += Ordre.Jouer(Son.BT_OUTRO)
                 o += Ordre.Jouer(Son.COMPTEUR, Tempo.CLASSEMENT_COMPTEUR)
                 if (i.meneurAPoints) o += Ordre.Jouer(Son.COURONNE, Tempo.CLASSEMENT_COURONNE)
-                o += Ordre.Musique(Ambiance.FETE, Tempo.BT_OUTRO_MUSIQUE)
+                o += Ordre.Musique(Ambiance.BILAN, Tempo.BT_OUTRO_MUSIQUE)
             } else {
                 o += Ordre.Jouer(Son.WHOOSH)
                 o += Ordre.Jouer(Son.COMPTEUR, Tempo.CLASSEMENT_COMPTEUR)
                 if (i.meneurAPoints) o += Ordre.Jouer(Son.COURONNE, Tempo.CLASSEMENT_COURONNE)
-                o += Ordre.Musique(Ambiance.FETE)
+                o += Ordre.Musique(Ambiance.BILAN)
             }
             Ecran.FIN -> {
                 o += Ordre.Musique(Ambiance.SILENCE)
@@ -401,7 +401,8 @@ class DirecteurSonore {
         Ecran.MIMES -> Ambiance.MIMES_ENTRE
         Ecran.MIMES_TOUR -> Ambiance.MIMES
         Ecran.VERROUILLEE -> Ambiance.SUSPENSE
-        Ecran.REVELATION, Ecran.CLASSEMENT, Ecran.FIN -> Ambiance.FETE
+        Ecran.REVELATION, Ecran.FIN -> Ambiance.FETE
+        Ecran.CLASSEMENT -> Ambiance.BILAN
     }
 }
 
@@ -486,14 +487,25 @@ const val DISPARU_REPONSE = 4
 /** [MIMES] : manche de mimes entre deux tours ; [MIMES_TOUR] : une équipe mime. */
 enum class Ecran { HORS_PARTIE, SALON, PRESENTATION, QUESTION, MIMES, MIMES_TOUR, VERROUILLEE, REVELATION, CLASSEMENT, FIN }
 
-/** Les boucles musicales de 16 s (8 mesures à 120 BPM), toujours calées sur le même tempo. */
-enum class Lit(val fichier: String) {
+/**
+ * Les boucles musicales de 16 s (8 mesures à 120 BPM), toujours calées sur le même tempo. [gs] : boucle propre au
+ * Game Show, sans équivalent classique ([fichier] null : le Classique ne la charge pas).
+ */
+enum class Lit(val fichier: String?, val gs: String? = null) {
     COMPLET("lmp_bed_full"),
     LEGER("lmp_bed_light"),
     MIMES("lmp_bed_mimes"),
     PAUSE("lmp_bed_pause"),
     EXPRESS("lmp_bed_express"),
     MAGIE("lmp_bed_magie"),
+    /** Game Show : le riff d'Aerodynamic sous le bilan des scores (choix de cedric, 23 octobre). */
+    BILAN(null, "gs_bed_bilan"),
+    /** Game Show : nappe de tension sans note, par-dessus la musique de la manche pendant la Super finale. */
+    TENSION(null, "gs_bed_tension"),
+    ;
+
+    /** Fichier lu dans le design donné (null : cette boucle n'existe pas dans ce design). */
+    fun fichierPour(gameShow: Boolean): String? = if (gameShow) gs ?: fichier else fichier
 }
 
 /** Fond musical : le volume de chaque boucle selon l'ambiance (fondu enchaîné de l'une à l'autre). */
@@ -504,6 +516,8 @@ enum class Ambiance(
     private val pause: Float = 0f,
     private val express: Float = 0f,
     private val magie: Float = 0f,
+    /** Volumes propres au Game Show, à la place des autres ; null : les mêmes que le Classique. */
+    private val gameShow: Map<Lit, Float>? = null,
 ) {
     SILENCE,
     SALON(complete = 0.55f),
@@ -522,25 +536,36 @@ enum class Ambiance(
     INTERMEDE(pause = 0.5f),
     /** Vrai ou Faux express : course contre la montre, sur toute la série. */
     EXPRESS(express = 0.5f),
-    /** Dernières questions du quiz à points multipliés : la rythmique nerveuse de l'express, un peu plus bas. */
-    DECISIVE(express = 0.4f),
+    /**
+     * Dernières questions du quiz à points multipliés : la rythmique nerveuse de l'express, un peu plus bas. Game Show :
+     * la musique de la manche continue, avec la nappe de tension par-dessus (cedric, 23 octobre).
+     */
+    DECISIVE(express = 0.4f, gameShow = mapOf(Lit.LEGER to 0.6f, Lit.TENSION to 0.5f)),
+    /** Bilan des scores entre deux jeux : la musique de fête ; Game Show : le riff d'Aerodynamic. */
+    BILAN(complete = 0.8f, gameShow = mapOf(Lit.BILAN to 0.8f)),
     /** Qui a disparu ? : boîte à musique et harpe pendant qu'on mémorise les objets. */
     MEMOIRE(magie = 0.55f),
     /** Qui a disparu ? : le tour de magie, la boîte à musique s'efface sous l'« abracadabra ». */
     ENVOUTEMENT(magie = 0.18f);
 
-    fun volume(l: Lit) = when (l) {
-        Lit.COMPLET -> complete
-        Lit.LEGER -> legere
-        Lit.MIMES -> mimes
-        Lit.PAUSE -> pause
-        Lit.EXPRESS -> express
-        Lit.MAGIE -> magie
+    /** Volume d'une boucle dans cette ambiance ; [gs] : design « The Game Show ». */
+    fun volume(l: Lit, gs: Boolean = false): Float {
+        if (gs && gameShow != null) return gameShow[l] ?: 0f
+        return when (l) {
+            Lit.COMPLET -> complete
+            Lit.LEGER -> legere
+            Lit.MIMES -> mimes
+            Lit.PAUSE -> pause
+            Lit.EXPRESS -> express
+            Lit.MAGIE -> magie
+            Lit.BILAN, Lit.TENSION -> 0f
+        }
     }
 }
 
 /** Les sons de l'habillage ; [fichier] est le nom dans res/raw. Les longs passent par un lecteur dédié. */
-enum class Son(val fichier: String, val long: Boolean = false) {
+/** [gs] : fichier du Game Show quand il ne suit pas la règle lmp_… → gs_… (équipes 5 à 8, qui reprennent 1 à 4 en Classique). */
+enum class Son(val fichier: String, val long: Boolean = false, val gs: String? = null) {
     GENERIQUE("lmp_generique", true),
     TENSION("lmp_tension", true),
     BIP("lmp_bip"), BIP_FIN("lmp_bip_fin"),
@@ -618,11 +643,14 @@ enum class Son(val fichier: String, val long: Boolean = false) {
     PATATE_PASSE("lmp_patate_passe"),
     /** Musique de « Ça va exploser ! » (extrait choisi par cedric) : sa fin tombe sur l'explosion, voir [MusiquePatate]. */
     PATATE_MUSIQUE("lmp_patate_musique", true),
-    EQUIPE_1("lmp_team_sting_1"), EQUIPE_2("lmp_team_sting_2"), EQUIPE_3("lmp_team_sting_3"), EQUIPE_4("lmp_team_sting_4");
+    EQUIPE_1("lmp_team_sting_1"), EQUIPE_2("lmp_team_sting_2"), EQUIPE_3("lmp_team_sting_3"), EQUIPE_4("lmp_team_sting_4"),
+    /** Game Show : un mot robot de Harder Better Faster Stronger par équipe, 8 en tout ; le Classique reprend ses 4 notes. */
+    EQUIPE_5("lmp_team_sting_1", gs = "gs_team_sting_5"), EQUIPE_6("lmp_team_sting_2", gs = "gs_team_sting_6"),
+    EQUIPE_7("lmp_team_sting_3", gs = "gs_team_sting_7"), EQUIPE_8("lmp_team_sting_4", gs = "gs_team_sting_8");
 
     companion object {
         private val pops = listOf(POP_1, POP_2, POP_3, POP_4)
-        private val equipes = listOf(EQUIPE_1, EQUIPE_2, EQUIPE_3, EQUIPE_4)
+        private val equipes = listOf(EQUIPE_1, EQUIPE_2, EQUIPE_3, EQUIPE_4, EQUIPE_5, EQUIPE_6, EQUIPE_7, EQUIPE_8)
         private val rigolos = listOf(RIGOLO_1, RIGOLO_2, RIGOLO_3, RIGOLO_4)
         fun pop(k: Int) = pops[Math.floorMod(k, pops.size)]
         fun equipe(place: Int) = equipes[Math.floorMod(place, equipes.size)]

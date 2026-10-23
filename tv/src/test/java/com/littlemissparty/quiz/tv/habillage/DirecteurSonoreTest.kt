@@ -2,6 +2,7 @@ package com.littlemissparty.quiz.tv.habillage
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -559,7 +560,7 @@ class DirecteurSonoreTest {
         // Bilan : l'outro, puis le classement et la fête une fois l'outro fini.
         val bilan = d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 15, equipes = 2, blind = true, blindBilan = true, meneurAPoints = true))
         assertEquals(listOf(Son.BT_OUTRO, Son.COMPTEUR, Son.COURONNE), bilan.sons())
-        assertEquals(Ordre.Musique(Ambiance.FETE, Tempo.BT_OUTRO_MUSIQUE), bilan.last())
+        assertEquals(Ordre.Musique(Ambiance.BILAN, Tempo.BT_OUTRO_MUSIQUE), bilan.last())
     }
 
     @Test
@@ -648,20 +649,51 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `Game Show, sons du 23 octobre sans rien changer au Classique`() {
+        // Bilan des scores : en Classique, exactement la musique de fête ; en Game Show, le riff d'Aerodynamic.
+        Lit.entries.forEach { assertEquals(Ambiance.FETE.volume(it), Ambiance.BILAN.volume(it), 0f) }
+        assertEquals(0.8f, Ambiance.BILAN.volume(Lit.BILAN, gs = true), 0f)
+        assertEquals(0f, Ambiance.BILAN.volume(Lit.COMPLET, gs = true), 0f)
+        // Super finale : en Classique, l'express un peu plus bas ; en Game Show, la musique de la manche et la nappe.
+        assertEquals(0.4f, Ambiance.DECISIVE.volume(Lit.EXPRESS), 0f)
+        assertEquals(0f, Ambiance.DECISIVE.volume(Lit.TENSION), 0f)
+        assertEquals(Ambiance.QUESTION.volume(Lit.LEGER, gs = true), Ambiance.DECISIVE.volume(Lit.LEGER, gs = true), 0f)
+        assertTrue(Ambiance.DECISIVE.volume(Lit.TENSION, gs = true) > 0f)
+        assertEquals(0f, Ambiance.DECISIVE.volume(Lit.EXPRESS, gs = true), 0f)
+        // Les ambiances sans réglage propre sonnent pareil dans les deux designs.
+        Lit.entries.forEach { assertEquals(Ambiance.FETE.volume(it), Ambiance.FETE.volume(it, gs = true), 0f) }
+        // Les boucles propres au Game Show ne se chargent pas en Classique.
+        assertNull(Lit.BILAN.fichierPour(false))
+        assertEquals("gs_bed_tension", Lit.TENSION.fichierPour(true))
+        assertEquals("lmp_bed_light", Lit.LEGER.fichierPour(true))
+        // 8 équipes, 8 mots robot ; en Classique la 5e reprend la note de la 1re, comme avant.
+        assertEquals(Son.EQUIPE_5, Son.equipe(4))
+        assertEquals(Son.EQUIPE_1.fichier, Son.EQUIPE_5.fichier)
+        assertEquals(Son.EQUIPE_1, Son.equipe(8))
+        // Bilan des scores entre deux jeux.
+        val d = DirecteurSonore()
+        d.observer(q2)
+        assertEquals(Ambiance.BILAN, d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 1)).musique())
+    }
+
+    @Test
     fun `chaque son a un fichier distinct`() {
-        assertEquals(Son.entries.size, Son.entries.map { it.fichier }.toSet().size)
+        assertEquals(Son.entries.size, Son.entries.map { it.fichier to it.gs }.toSet().size)
     }
 
     @Test
     fun `chaque son existe dans les ressources de l'appli`() {
         // Les tests JVM d'Android tournent depuis le dossier du module tv/.
-        val manquants = (Son.entries.map { it.fichier } + Lit.entries.map { it.fichier }).filterNot { java.io.File("src/main/res/raw/$it.ogg").isFile }
+        val manquants = (Son.entries.flatMap { listOfNotNull(it.fichier, it.gs) } + Lit.entries.flatMap { listOfNotNull(it.fichier, it.gs) })
+            .filterNot { java.io.File("src/main/res/raw/$it.ogg").isFile }
         assertTrue("Sons manquants : $manquants", manquants.isEmpty())
     }
 
     @Test
     fun `chaque son du Game Show remplace un son classique qui existe`() {
-        val noms = (Son.entries.map { it.fichier } + Lit.entries.map { it.fichier }).toSet()
+        val noms = (Son.entries.map { it.fichier } + Lit.entries.mapNotNull { it.fichier }).toSet()
+        // Sons et boucles propres au Game Show, sans équivalent classique direct (équipes 5 à 8, bilan, tension).
+        val propres = (Son.entries.mapNotNull { it.gs } + Lit.entries.mapNotNull { it.gs }).toSet()
         // Les sons seulement : les clips du robot (gs_robot_*.mp4) vivent aussi dans res/raw.
         val gs = java.io.File("src/main/res/raw").listFiles().orEmpty().filter { it.extension in setOf("ogg", "mp3", "wav") }
             .map { it.nameWithoutExtension }.filter { it.startsWith("gs_") }
@@ -670,7 +702,7 @@ class DirecteurSonoreTest {
         val longs = Son.entries.filter { it.long }.map { it.fichier }.toSet()
         val variante = Regex("^(gs_.+)_[2-5]$")
         val orphelins = gs.filterNot { n ->
-            n.replaceFirst("gs_", "lmp_") in noms ||
+            n.replaceFirst("gs_", "lmp_") in noms || n in propres ||
                 variante.find(n)?.groupValues?.get(1)?.let { base -> base in gs && base.replaceFirst("gs_", "lmp_") in longs } == true
         }
         assertTrue("Sons du Game Show sans son classique : $orphelins", orphelins.isEmpty())
