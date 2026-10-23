@@ -298,6 +298,7 @@ private fun JaugesPodium(colonnes: List<Classee>, scores: List<Int>, ms: () -> F
                                 // Une fois arrêtée, la jauge recule un peu dans l'ombre ; celle qui monte encore brille.
                                 val eclat = battement(m - arret, 400f)
                                 alpha = if (m > arret + 400f) 0.62f else 1f
+                                compositingStrategy = CompositingStrategy.ModulateAlpha
                                 val s = 1f + 0.06f * eclat
                                 scaleX = s; scaleY = s
                             }
