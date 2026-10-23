@@ -18,7 +18,16 @@ import com.littlemissparty.quiz.tv.R
 enum class Design(val cle: String, val nom: String) {
     CLASSIQUE("classique", "Classique"),
     GAME_SHOW("gs", "The Game Show"),
+    /** Le même, avec le plateau 3D en vidéo derrière les jeux (essai du 23 octobre, à comparer sur la Mi Box). */
+    GAME_SHOW_3D("gs3d", "The Game Show + fond 3D"),
     ;
+
+    /** Ordre du bouton du menu Retour : The Game Show, puis avec le fond 3D, puis le Classique en secours. */
+    val suivant: Design get() = when (this) {
+        GAME_SHOW -> GAME_SHOW_3D
+        GAME_SHOW_3D -> CLASSIQUE
+        CLASSIQUE -> GAME_SHOW
+    }
 
     companion object {
         /** Le design gardé sur la box ; sans choix, « The Game Show », le design par défaut depuis le 22 octobre (cedric). */
@@ -29,7 +38,8 @@ enum class Design(val cle: String, val nom: String) {
 /** Design affiché. Lu par les couleurs et la police : changer de design redessine tout l'écran. */
 object Look {
     var design by mutableStateOf(Design.GAME_SHOW)
-    val gs: Boolean get() = design == Design.GAME_SHOW
+    val gs: Boolean get() = design != Design.CLASSIQUE
+    val fond3d: Boolean get() = design == Design.GAME_SHOW_3D
 }
 
 /** Charte « The Game Show » (kit vidéo du 22 octobre) : noir lumière noire, néons cyan et violet, 4 couleurs d'équipe. */

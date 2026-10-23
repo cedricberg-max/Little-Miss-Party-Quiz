@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -43,77 +45,11 @@ fun DecorGameShow(chaud: Boolean, dore: Boolean = false) {
     }
     val chaleur by animateFloatAsState(if (chaud) 1f else 0f, tween(600), label = "chaleur")
     val paillettes by animateFloatAsState(if (dore) 1f else 0f, tween(1_200), label = "paillettes")
+    // Fond 3D (menu Retour) : la vidéo du plateau remplace le décor dessiné dès sa première image ; s'il échoue, le décor reste.
+    var video3d by remember(Look.fond3d) { mutableStateOf(false) }
     Box(Modifier.fillMaxSize()) {
-        // Fond, halos et sol : fixes, dessinés une fois.
-        Box(
-            Modifier.fillMaxSize().drawWithCache {
-                val w = size.width
-                val h = size.height
-                val fond = Brush.verticalGradient(listOf(Color(0xFF0B0320), GS.Noir, Color(0xFF07021A)))
-                val halos = listOf(
-                    Triple(GS.Violet.copy(alpha = 0.42f), Offset(w * 0.5f, -h * 0.1f), w * 0.55f),
-                    Triple(GS.Cyan.copy(alpha = 0.16f), Offset(-w * 0.02f, h * 0.35f), w * 0.3f),
-                    Triple(GS.Rose.copy(alpha = 0.14f), Offset(w * 1.02f, h * 0.3f), w * 0.3f),
-                    Triple(GS.Violet.copy(alpha = 0.3f), Offset(w * 0.5f, HORIZON * h), w * 0.42f),
-                ).map { (c, o, r) -> Triple(Brush.radialGradient(listOf(c, Color.Transparent), o, r), o, r) }
-                val lignes = solGameShow(w, h)
-                onDrawBehind {
-                    drawRect(fond)
-                    halos.forEach { (b, o, r) -> drawCircle(b, r, o) }
-                    lignes.forEach { (b, de, a, e) -> drawLine(b, de, a, e) }
-                }
-            },
-        )
-        // L'horizon respire lentement (7 s), sans clignoter.
-        Box(
-            Modifier.fillMaxSize()
-                .graphicsLayer { alpha = 0.55f + 0.45f * (0.5f + 0.5f * sin(2f * PI.toFloat() * temps.longValue / 7_000f)) }
-                .drawWithCache {
-                    val y = HORIZON * size.height
-                    val lueur = Brush.verticalGradient(listOf(Color.Transparent, GS.Cyan.copy(alpha = 0.22f), Color.Transparent), y - size.height * 0.05f, y + size.height * 0.05f)
-                    val trait = Brush.horizontalGradient(listOf(Color.Transparent, GS.Cyan, GS.CyanClair, GS.Cyan, Color.Transparent))
-                    onDrawBehind {
-                        drawRect(lueur, Offset(0f, y - size.height * 0.05f), androidx.compose.ui.geometry.Size(size.width, size.height * 0.1f))
-                        drawLine(trait, Offset(0f, y), Offset(size.width, y), 2.5f)
-                    }
-                },
-        )
-        // Poussières fluo : deux copies du même semis glissent vers le haut, l'une prenant le relais de l'autre.
-        for (copie in 0..1) {
-            Box(
-                Modifier.fillMaxSize()
-                    .graphicsLayer {
-                        val u = (temps.longValue % MONTEE_MS) / MONTEE_MS.toFloat()
-                        translationY = (copie - u) * size.height
-                    }
-                    .drawWithCache {
-                        val m = size.minDimension
-                        onDrawBehind {
-                            poussieres.forEach { p ->
-                                val o = Offset(p.x * size.width, p.y * size.height)
-                                drawCircle(Brush.radialGradient(listOf(p.couleur.copy(alpha = 0.5f), Color.Transparent), o, p.rayon * m * 4f), p.rayon * m * 4f, o)
-                                drawCircle(p.couleur, p.rayon * m, o)
-                            }
-                        }
-                    },
-            )
-        }
-        // Deux lasers, cyan et rose, qui partent du sol et balaient en miroir.
-        val angle = { 12f * sin(2f * PI.toFloat() * temps.longValue / BALAYAGE_GS_MS) }
-        listOf(Triple(0.16f, 18f, GS.Cyan), Triple(0.84f, -18f, GS.Rose)).forEachIndexed { k, (x, degres, couleur) ->
-            Box(
-                Modifier.fillMaxSize()
-                    .graphicsLayer {
-                        transformOrigin = TransformOrigin(x, 1f)
-                        rotationZ = if (k == 0) angle() else -angle()
-                        alpha = 0.75f + 0.25f * paillettes
-                    }
-                    .drawWithCache {
-                        val (chemin, lumiere) = laser(size.width, size.height, x, degres, couleur)
-                        onDrawBehind { drawPath(chemin, lumiere) }
-                    },
-            )
-        }
+        if (Look.fond3d) FondVideo3d(surPret = { video3d = true }, surEchec = { video3d = false })
+        if (!video3d) DecorDessine(temps::longValue, paillettes)
         if (paillettes > 0.01f) {
             Box(
                 Modifier.fillMaxSize()
@@ -138,6 +74,83 @@ fun DecorGameShow(chaud: Boolean, dore: Boolean = false) {
                             center = Offset(size.width / 2, size.height / 2), radius = size.width * 0.62f,
                         )
                         onDrawBehind { drawRect(bords) }
+                    },
+            )
+        }
+    }
+}
+
+/** Le décor dessiné : fond, halos, sol, horizon qui respire, poussières et lasers (sans le fond 3D). */
+@Composable
+private fun DecorDessine(temps: () -> Long, paillettes: Float) {
+    Box(Modifier.fillMaxSize()) {
+        // Fond, halos et sol : fixes, dessinés une fois.
+        Box(
+            Modifier.fillMaxSize().drawWithCache {
+                val w = size.width
+                val h = size.height
+                val fond = Brush.verticalGradient(listOf(Color(0xFF0B0320), GS.Noir, Color(0xFF07021A)))
+                val halos = listOf(
+                    Triple(GS.Violet.copy(alpha = 0.42f), Offset(w * 0.5f, -h * 0.1f), w * 0.55f),
+                    Triple(GS.Cyan.copy(alpha = 0.16f), Offset(-w * 0.02f, h * 0.35f), w * 0.3f),
+                    Triple(GS.Rose.copy(alpha = 0.14f), Offset(w * 1.02f, h * 0.3f), w * 0.3f),
+                    Triple(GS.Violet.copy(alpha = 0.3f), Offset(w * 0.5f, HORIZON * h), w * 0.42f),
+                ).map { (c, o, r) -> Triple(Brush.radialGradient(listOf(c, Color.Transparent), o, r), o, r) }
+                val lignes = solGameShow(w, h)
+                onDrawBehind {
+                    drawRect(fond)
+                    halos.forEach { (b, o, r) -> drawCircle(b, r, o) }
+                    lignes.forEach { (b, de, a, e) -> drawLine(b, de, a, e) }
+                }
+            },
+        )
+        // L'horizon respire lentement (7 s), sans clignoter.
+        Box(
+            Modifier.fillMaxSize()
+                .graphicsLayer { alpha = 0.55f + 0.45f * (0.5f + 0.5f * sin(2f * PI.toFloat() * temps() / 7_000f)) }
+                .drawWithCache {
+                    val y = HORIZON * size.height
+                    val lueur = Brush.verticalGradient(listOf(Color.Transparent, GS.Cyan.copy(alpha = 0.22f), Color.Transparent), y - size.height * 0.05f, y + size.height * 0.05f)
+                    val trait = Brush.horizontalGradient(listOf(Color.Transparent, GS.Cyan, GS.CyanClair, GS.Cyan, Color.Transparent))
+                    onDrawBehind {
+                        drawRect(lueur, Offset(0f, y - size.height * 0.05f), androidx.compose.ui.geometry.Size(size.width, size.height * 0.1f))
+                        drawLine(trait, Offset(0f, y), Offset(size.width, y), 2.5f)
+                    }
+                },
+        )
+        // Poussières fluo : deux copies du même semis glissent vers le haut, l'une prenant le relais de l'autre.
+        for (copie in 0..1) {
+            Box(
+                Modifier.fillMaxSize()
+                    .graphicsLayer {
+                        val u = (temps() % MONTEE_MS) / MONTEE_MS.toFloat()
+                        translationY = (copie - u) * size.height
+                    }
+                    .drawWithCache {
+                        val m = size.minDimension
+                        onDrawBehind {
+                            poussieres.forEach { p ->
+                                val o = Offset(p.x * size.width, p.y * size.height)
+                                drawCircle(Brush.radialGradient(listOf(p.couleur.copy(alpha = 0.5f), Color.Transparent), o, p.rayon * m * 4f), p.rayon * m * 4f, o)
+                                drawCircle(p.couleur, p.rayon * m, o)
+                            }
+                        }
+                    },
+            )
+        }
+        // Deux lasers, cyan et rose, qui partent du sol et balaient en miroir.
+        val angle = { 12f * sin(2f * PI.toFloat() * temps() / BALAYAGE_GS_MS) }
+        listOf(Triple(0.16f, 18f, GS.Cyan), Triple(0.84f, -18f, GS.Rose)).forEachIndexed { k, (x, degres, couleur) ->
+            Box(
+                Modifier.fillMaxSize()
+                    .graphicsLayer {
+                        transformOrigin = TransformOrigin(x, 1f)
+                        rotationZ = if (k == 0) angle() else -angle()
+                        alpha = 0.75f + 0.25f * paillettes
+                    }
+                    .drawWithCache {
+                        val (chemin, lumiere) = laser(size.width, size.height, x, degres, couleur)
+                        onDrawBehind { drawPath(chemin, lumiere) }
                     },
             )
         }

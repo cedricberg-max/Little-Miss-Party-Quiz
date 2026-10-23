@@ -85,7 +85,7 @@ class MainActivity : ComponentActivity() {
                     requestAgain = viewModel::requestAgain,
                     viderCache = viewModel::viderCacheMedias,
                     changerDesign = {
-                        val d = if (Look.gs) Design.CLASSIQUE else Design.GAME_SHOW
+                        val d = Look.design.suivant
                         Look.design = d
                         reglages.edit().putString(CLE_DESIGN, d.cle).apply()
                         // Les sons suivent le design (sons sci-fi du Game Show).
