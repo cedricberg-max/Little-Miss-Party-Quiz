@@ -1,5 +1,9 @@
 package com.littlemissparty.quiz.tv.habillage
 
+import androidx.compose.ui.unit.offset
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -405,13 +409,25 @@ fun AuRevoirGameShow(modifier: Modifier = Modifier) {
                             Modifier.matchParentSizePlus().graphicsLayer { alpha = 0.35f + 0.25f * souffle }
                                 .background(Brush.radialGradient(listOf(GS.Violet.copy(alpha = 0.6f), Color.Transparent))),
                         )
-                        LogoGameShow(84.dp, aligne = Alignment.CenterHorizontally)
+                        // Le reflet ne passe que sur les lettres du logo (et leur lueur), jamais en bande rectangulaire
+                        // (cedric, 23/10) : calque à part, agrandi pour que la lueur ne soit pas coupée au bord.
                         Box(
-                            Modifier.matchParentSizePlus().graphicsLayer {
-                                translationX = (balayage * 2.4f - 1.2f) * size.width
-                                alpha = 0.5f
-                            }.background(Brush.horizontalGradient(listOf(Color.Transparent, GS.CyanClair.copy(alpha = 0.25f), Color.Transparent))),
-                        )
+                            Modifier.horsCadre(48.dp)
+                                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                                .drawWithContent {
+                                    drawContent()
+                                    val x = (balayage * 1.8f - 0.4f) * size.width
+                                    val l = size.width * 0.22f
+                                    drawRect(
+                                        Brush.linearGradient(
+                                            0f to Color.Transparent, 0.5f to Color.White.copy(alpha = 0.55f), 1f to Color.Transparent,
+                                            start = Offset(x - l, 0f), end = Offset(x + l, size.height * 0.35f),
+                                        ),
+                                        blendMode = BlendMode.SrcAtop,
+                                    )
+                                }
+                                .padding(48.dp),
+                        ) { LogoGameShow(84.dp, aligne = Alignment.CenterHorizontally) }
                     }
                     Spacer(Modifier.height(26.dp))
                     Text(
@@ -440,3 +456,10 @@ internal const val ROBOT_AU_REVOIR_BOUCLE_MS = 2_001
 
 /** Calque derrière et devant le logo, pour le halo et le reflet. */
 private fun Modifier.matchParentSizePlus(): Modifier = this.fillMaxWidth().height(240.dp)
+
+/** Déborde de [marge] de tous côtés sans changer la place occupée (pour un calque qui garde toute la lueur). */
+private fun Modifier.horsCadre(marge: androidx.compose.ui.unit.Dp): Modifier = layout { mesurable, contraintes ->
+    val m = marge.roundToPx()
+    val p = mesurable.measure(contraintes.offset(2 * m, 2 * m))
+    layout((p.width - 2 * m).coerceAtLeast(0), (p.height - 2 * m).coerceAtLeast(0)) { p.place(-m, -m) }
+}
