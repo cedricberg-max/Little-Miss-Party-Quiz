@@ -207,6 +207,15 @@ button.item { cursor: pointer; }
 .jeu-tete { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .jeu-nom { flex: 1 1 auto; font-weight: 800; font-size: 18px; color: var(--violet); }
 .jeu-nb { color: var(--soft); font-size: 14px; }
+/* Jeu replié (cedric, 23/10) : une ligne, son résumé à la place de ses manches. */
+.jeu-tete > .jeu-replier { width: 34px; height: 34px; border-radius: 10px; font-size: 14px; }
+.jeu-bloc.replie .jeu-nom { flex: 0 1 auto; }
+.jeu-resume { flex: 1 1 200px; min-width: 0; color: var(--soft); font-size: 14px; }
+/* Téléphone : le résumé passe sous la ligne du jeu et de ses boutons. */
+@media (max-width: 640px) {
+  .jeu-bloc.replie .jeu-nom { flex: 1 1 auto; }
+  .jeu-bloc.replie .jeu-resume { order: 1; flex-basis: 100%; }
+}
 .jeu-choix { gap: 14px; }
 .jeu-famille > p { margin: 0 0 6px; color: var(--soft); font-weight: 700; }
 .jeu-tuiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr)); gap: 8px; }

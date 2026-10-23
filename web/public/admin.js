@@ -1211,6 +1211,12 @@ const SANS_CONTENU = ["coffres", "patate", "gonfleur"];
  * avec « ＋ Manche » ; chaque manche se remplit sur place (reprendre une manche gardée, tirer au hasard, choisir à la
  * main). Les manches restent enregistrées à la suite dans la prestation, comme avant (TV, régie et téléphone inchangés).
  */
+/**
+ * Jeu replié dans la page d'une prestation (cedric, 23/10) : une seule ligne, ↑ ↓ ✕ toujours là, pour ranger les jeux
+ * facilement. Noté sur la première manche du jeu, jamais enregistré.
+ */
+const JEU_REPLIE = Symbol("jeu replié");
+
 function refreshRounds() {
   if (!editing) return;
   roundCtx = prestationCtx;
@@ -1244,16 +1250,26 @@ function refreshRounds() {
     };
     const ajouterManche = () => { editing.rounds.splice(fin, 0, { type: b.type }); refreshRounds(); };
     const n = b.indices.length;
-    box.append(h("div", { class: "jeu-bloc", "data-jeu": b.type },
+    const premiere = editing.rounds[debut];
+    const replie = premiere[JEU_REPLIE] === true;
+    const resume = !replie ? "" : b.type === "quiz" ? compteurQuiz(premiere)
+      : b.indices.map((i) => mancheSummary(editing.rounds[i], { mimes, playlists, quizzes })).filter(Boolean).join(" / ");
+    box.append(h("div", { class: `jeu-bloc${replie ? " replie" : ""}`, "data-jeu": b.type },
       h("div", { class: "jeu-tete" },
+        h("button", {
+          type: "button", class: "icon jeu-replier", text: replie ? "▸" : "▾", "aria-expanded": replie ? "false" : "true",
+          title: replie ? "Déplier ce jeu" : "Replier ce jeu", onclick: () => { premiere[JEU_REPLIE] = !replie; refreshRounds(); },
+        }),
         h("span", { class: "jeu-nom", text: `${iconeJeu(b.type)} ${ROUND_TYPES[b.type]}`.trim() }),
+        replie ? h("span", { class: "jeu-resume", text: resume }) : null,
         // Le Quiz est une seule manche (cedric, 23/10) : pas de « ＋ Manche », ses questions s'ajoutent dans la manche.
         b.type === "quiz" ? null : h("span", { class: "jeu-nb", text: n > 1 ? `${n} manches` : "1 manche" }),
-        b.type === "quiz" ? null : h("button", { type: "button", class: "chip jeu-plus", text: "＋ Manche", title: `Ajouter une manche de ${ROUND_TYPES[b.type]}`, onclick: ajouterManche }),
+        b.type === "quiz" || replie ? null : h("button", { type: "button", class: "chip jeu-plus", text: "＋ Manche", title: `Ajouter une manche de ${ROUND_TYPES[b.type]}`, onclick: ajouterManche }),
         h("button", { type: "button", class: "icon", title: "Monter ce jeu", disabled: k === 0, onclick: () => deplacer(-1), text: "↑" }),
         h("button", { type: "button", class: "icon", title: "Descendre ce jeu", disabled: k === blocs.length - 1, onclick: () => deplacer(1), text: "↓" }),
         h("button", { type: "button", class: "icon", title: "Retirer ce jeu", onclick: retirerJeu, text: "✕" })),
-      ...b.indices.map((i) => {
+      // Replié : seulement ses alertes (contenu qui ne suffit pas aux équipes), pour ne rien laisser passer.
+      ...(replie ? b.indices.map((i) => alerteManche(editing.rounds[i])) : b.indices.map((i) => {
         const r = editing.rounds[i];
         const vide = !roundFilled(r);
         const champs = roundFields(r);
@@ -1275,7 +1291,7 @@ function refreshRounds() {
           corps,
           reprise,
           alerteManche(r));
-      })));
+      }))));
   });
   refreshSummary();
 }

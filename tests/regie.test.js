@@ -5824,6 +5824,52 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Régie PC (cedric, 23/10) : chaque jeu se replie en une ligne (▸ / ▾), ↑ ↓ ✕ toujours là pour ranger les jeux", async () => {
+    const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    await seedLibrary("shows", {
+      jeux: { childName: "Lou", age: 9, date: day(10), status: "publiee", updatedAt: 1,
+        rounds: [{ type: "quiz", quizId: "animaux", finale: 1 }, { type: "statues", duration: 60 }] },
+    });
+    const page = await admin();
+    await page.click('#screen-home [data-etat="avenir"]');
+    await page.locator('#show-list [data-show="jeux"]').getByRole("button", { name: "Ouvrir" }).click();
+    const bloc = (jeu) => page.locator(`#show-rounds .jeu-bloc[data-jeu="${jeu}"]`);
+    const quiz = bloc("quiz");
+    await quiz.locator(".round").waitFor();
+    // Déplié d'office ; ▾ replie : une ligne, son résumé, ↑ ↓ ✕ toujours là.
+    assert.equal(await quiz.locator(".jeu-replier").textContent(), "▾");
+    await quiz.locator(".jeu-replier").click();
+    assert.equal(await quiz.locator(".round").count(), 0);
+    assert.equal(await quiz.locator(".jeu-replier").textContent(), "▸");
+    assert.equal(await quiz.locator(".jeu-replier").getAttribute("aria-expanded"), "false");
+    assert.equal(await quiz.locator(".jeu-resume").textContent(), "2 questions, dont la dernière en Super Finale, plus la question des bougies");
+    assert.deepEqual(await quiz.locator(".jeu-tete > button").evaluateAll((xs) => xs.map((x) => x.textContent)), ["▸", "↑", "↓", "✕"]);
+    const statues = bloc("statues");
+    await statues.locator(".jeu-replier").click();
+    assert.equal(await statues.locator(".jeu-resume").textContent(), "60 s · musique de la fête");
+    assert.equal(await statues.locator(".jeu-plus").count(), 0, "Replié : pas de « ＋ Manche »");
+    await capture(page, "jeux-replies");
+    if (process.env.CAPTURES) {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await capture(page, "jeux-replies-pc");
+      await page.setViewportSize({ width: 390, height: 844 });
+    }
+    // Les jeux repliés se rangent : chacun reste replié.
+    await statues.getByTitle("Monter ce jeu").click();
+    assert.deepEqual(await page.locator("#show-rounds .jeu-bloc").evaluateAll((xs) => xs.map((x) => [x.dataset.jeu, x.classList.contains("replie")])), [["statues", true], ["quiz", true]]);
+    // ▸ déplie ; rien de tout ça n'est enregistré.
+    await quiz.locator(".jeu-replier").click();
+    await quiz.locator(".quiz-outils").waitFor();
+    assert.equal(await statues.locator(".round").count(), 0);
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
+    const lou = (await library("shows")).jeux;
+    assert.deepEqual(lou.rounds.map((r) => r.type), ["statues", "quiz"]);
+    assert.equal(JSON.stringify(lou).includes("repli"), false);
+    await page.context().close();
+  });
+
   test("Régie PC (cedric, 23/10) : « Archivée » ne se choisit pas dans une fiche ; une archivée reportée se remet « À venir » avec une nouvelle date", async () => {
     const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
     const rounds = [{ type: "quiz", quizId: "animaux" }];
