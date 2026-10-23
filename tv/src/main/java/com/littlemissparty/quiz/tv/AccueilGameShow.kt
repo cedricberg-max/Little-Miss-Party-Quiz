@@ -63,7 +63,7 @@ internal fun LobbyGameShow(state: UiState.Playing, actions: TvActions) {
             }
             if (accueil != null) {
                 Text(
-                    accueil, style = styleTitreNeon(if (nombreuses) 19.sp else 23.sp, GS.Rose, TextAlign.Start),
+                    accueil, style = styleTitreNeon(if (nombreuses) 18.sp else 21.sp, GS.Rose, TextAlign.Start),
                     maxLines = 2, overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.height(if (nombreuses) 8.dp else 12.dp))
@@ -75,7 +75,8 @@ internal fun LobbyGameShow(state: UiState.Playing, actions: TvActions) {
                     else -> "${state.teams.size} équipe(s) dans la partie"
                 },
                 style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, color = GS.Encre),
-                fontSize = if (nombreuses) 17.sp else 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                // Deux lignes possibles : « 8 équipes : la partie est complète » n'est jamais coupé.
+                fontSize = if (nombreuses) 17.sp else 20.sp, lineHeight = if (nombreuses) 21.sp else 25.sp, maxLines = 2,
             )
             Spacer(Modifier.height(if (nombreuses) 8.dp else 12.dp))
             // De 1 à 8 équipes : la grille prend la place libre et se resserre, sans jamais pousser le bouton hors de l'écran.
@@ -91,12 +92,11 @@ internal fun LobbyGameShow(state: UiState.Playing, actions: TvActions) {
                 Text(
                     "En attendant, buzzez autant que vous voulez !",
                     style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.SemiBold, color = GS.Cyan, lineHeight = 20.sp),
-                    fontSize = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.height(10.dp))
             }
-            // Un peu plus petit que sur l'accueil classique : il tient sur une ligne dans le panneau, focus compris.
-            if (state.teams.isNotEmpty()) NextButton("Lancer la fête !", actions.next, fontSize = 22.sp)
+            if (state.teams.isNotEmpty()) NextButton("Lancer la fête !", actions.next)
         }
         Spacer(Modifier.weight(1f))
         Column(
@@ -104,7 +104,7 @@ internal fun LobbyGameShow(state: UiState.Playing, actions: TvActions) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Text("Scannez pour jouer", style = styleTitreNeon(22.sp, GS.Cyan), maxLines = 1, softWrap = false)
+            Text("Scannez pour jouer", style = styleTitreNeon(18.sp, GS.Cyan), maxLines = 1, softWrap = false)
             Spacer(Modifier.height(16.dp))
             // Le QR reste sur fond blanc (les tablettes le lisent mieux) et prend la place qui reste : le code dessous est
             // toujours entier.
@@ -120,7 +120,7 @@ internal fun LobbyGameShow(state: UiState.Playing, actions: TvActions) {
                 style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.SemiBold, color = GS.Encre.copy(alpha = 0.7f)),
                 fontSize = 16.sp, maxLines = 1,
             )
-            Text(state.code, style = styleEtiquetteGs(34.sp, GS.Rose, 6.sp), maxLines = 1, softWrap = false)
+            Text(state.code, style = styleEtiquetteGs(32.sp, GS.Rose, 6.sp), maxLines = 1, softWrap = false)
         }
     }
 }

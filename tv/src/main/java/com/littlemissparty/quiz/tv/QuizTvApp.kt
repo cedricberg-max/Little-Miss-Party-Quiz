@@ -58,7 +58,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -293,9 +292,9 @@ private fun StatusCorner(state: UiState, modifier: Modifier) {
 
 /** Le bouton unique de l'animatrice : il a toujours le focus, OK sur la télécommande l'active. */
 @Composable
-fun NextButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, key: Any = label, fontSize: TextUnit = 26.sp) {
+fun NextButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, key: Any = label) {
     val focus = remember { FocusRequester() }
-    TvButton("$label  ▶", onClick, modifier.focusRequester(focus), primary = true, fontSize = fontSize)
+    TvButton("$label  ▶", onClick, modifier.focusRequester(focus), primary = true, fontSize = 26.sp)
     LaunchedEffect(key) { runCatching { focus.requestFocus() } }
 }
 
