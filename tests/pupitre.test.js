@@ -1023,6 +1023,25 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
+  test("pupitre installé comme une appli (déjà en plein écran) : aucune demande de plein écran, donc pas de bandeau de Chrome au retour", async () => {
+    const page = await openPupitre("", (context) => context.addInitScript(() => {
+      window.demandes = 0;
+      Element.prototype.requestFullscreen = function () { window.demandes++; return Promise.resolve(); };
+      const vrai = window.matchMedia.bind(window);
+      window.matchMedia = (q) => (q === "(display-mode: fullscreen)" ? { matches: true, media: q, addEventListener() {}, removeEventListener() {} } : vrai(q));
+    }));
+    const demandes = () => page.evaluate(() => window.demandes);
+    await joinTeam(page, "Les Lys");
+    await hostState(question());
+    await page.locator(".choice").nth(1).click();
+    await waitFor(async () => page.locator(".choice").first().isDisabled(), "réponses verrouillées après l'envoi");
+    await page.locator(".choice").first().dispatchEvent("touchend");
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(200);
+    assert.equal(await demandes(), 0);
+    await page.context().close();
+  });
+
   test("retour d'une autre appli : la connexion coupée en douce par le téléphone est refaite, l'écran suit de nouveau la partie", async () => {
     // Le téléphone coupe la connexion sans prévenir la page (iPhone de Sacha, 21/10) : plus rien ne passe, ni dans un
     // sens ni dans l'autre, mais la page se croit toujours connectée. Une nouvelle connexion, elle, passe.
