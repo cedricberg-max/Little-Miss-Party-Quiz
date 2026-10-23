@@ -5700,31 +5700,30 @@ describe("bibliothèque de quiz et prestations", () => {
 
   test("reprendre une manche d'une ancienne prestation et dupliquer un quiz, sans toucher aux originaux", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX, finale: FINALE });
-    const LEA = { childName: "Léa", age: 7, date: "2026-03-01", status: "archivee", rounds: [{ type: "quiz", quizId: "animaux" }, { type: "finale", quizId: "finale" }], updatedAt: 1 };
+    const LEA = { childName: "Léa", age: 7, date: "2026-03-01", status: "archivee", rounds: [{ type: "quiz", quizId: "animaux" }, { type: "finale", quizId: "finale" }, { type: "chante", count: 5 }], updatedAt: 1 };
     await seedLibrary("shows", { lea: LEA });
     const page = await admin();
     await page.click("#home-new");
     await page.fill("#show-child", "Zoé");
-    // Le Quiz ajouté : « ↺ Reprendre les questions d'une manche déjà faite » propose celles des autres prestations.
-    await ajouterJeu(page);
+    // Le jeu ajouté : « ↺ Reprendre une manche déjà faite » propose celles des autres prestations (pas le Quiz, cedric 23/10).
+    await ajouterJeu(page, "chante");
     const round = page.locator("#show-rounds .round").nth(0);
     await round.locator(".reprendre-ouvrir").click();
-    const lea0 = round.locator('.reprise-item[data-reprise="lea/0"]');
-    await lea0.waitFor();
-    // L'ancienne manche « Super Finale » n'est pas un jeu : elle ne se reprend pas.
-    assert.equal(await round.locator('.reprise-item[data-reprise="lea/1"]').count(), 0);
+    const lea2 = round.locator('.reprise-item[data-reprise="lea/2"]');
+    await lea2.waitFor();
+    // Ni le Quiz ni l'ancienne manche « Super Finale » ne se reprennent ici.
+    assert.equal(await round.locator('.reprise-item[data-reprise="lea/0"], .reprise-item[data-reprise="lea/1"]').count(), 0);
     assert.equal(await round.locator(".reprise-item", { hasText: "Super Finale" }).count(), 0);
-    await lea0.click();
-    // Ses questions arrivent en série dans le Quiz (ici son quiz, rappelé tel quel).
-    await page.locator('#show-rounds li.serie[data-origine="quiz"] .serie-voir', { hasText: "Animaux" }).waitFor();
+    await lea2.click();
+    assert.equal(await page.locator("#show-rounds .round").nth(0).locator("select.grow").inputValue(), "5");
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "Enregistrée." }).waitFor();
-    // Elle est gardée dans la page du Quiz, rattachée à la nouvelle prestation ; l'ancienne prestation ne change pas.
+    // Elle est gardée dans la page de son jeu, rattachée à la nouvelle prestation ; l'ancienne prestation ne change pas.
     const shows = await library("shows");
     const [zoeId, zoe] = Object.entries(shows).find(([, s]) => s.childName === "Zoé");
     const [mid, manche] = Object.entries(await library("manches"))[0];
-    assert.deepEqual(zoe.rounds, [{ type: "quiz", quizId: "animaux", finale: 3, mancheId: mid }]);
-    assert.deepEqual([manche.round, manche.showId, manche.title], [{ type: "quiz", quizId: "animaux", finale: 3 }, zoeId, "Quiz · Anniversaire de Zoé"]);
+    assert.deepEqual(zoe.rounds, [{ type: "chante", count: 5, mancheId: mid }]);
+    assert.deepEqual([manche.round, manche.showId, manche.title], [{ type: "chante", count: 5 }, zoeId, "Chante le mot ! · Anniversaire de Zoé"]);
     assert.deepEqual(shows.lea, LEA, "Ancienne prestation inchangée");
 
     // Dupliquer un quiz : la copie apparaît en tête de la liste, sans s'ouvrir ; elle se modifie et s'enregistre à part.
