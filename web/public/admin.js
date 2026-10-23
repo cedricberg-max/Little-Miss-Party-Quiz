@@ -1348,7 +1348,7 @@ function reprendreManche(r, replace) {
   const type = r.type ?? "quiz";
   const items = manchesAReprendre(type);
   if (!items.length) return null;
-  const champ = h("input", { type: "search", class: "reprendre-cherche", "aria-label": "Chercher une manche", placeholder: "Mot, prénom, date (23/10/2026), note…" });
+  const champ = h("input", { type: "search", class: "reprendre-cherche", "aria-label": "Chercher une manche", placeholder: "Chercher : mot, prénom, date…" });
   const liste = h("div", { class: "reprendre-liste" });
   const panneau = h("div", { class: "reprendre" });
   panneau.hidden = true;
