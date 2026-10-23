@@ -12,7 +12,7 @@ import { writeProof, isAdmin } from "./proof.js";
 import { parseQuiz, checkQuestions, geminiPrompt, chatgptUrl, imageKey, wordFromImage, photoQuestions, LETTERS } from "./importer.js";
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
 import {
-  buildSnapshot, estimateMinutes, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, BUILTIN_GAMES, readiness, daysUntil, duplicateShow, isoDay, ETATS, etatPrestation,
+  buildSnapshot, dureeEstimee, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, BUILTIN_GAMES, readiness, daysUntil, duplicateShow, isoDay, ETATS, etatPrestation,
   roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC, PICTO_SECONDS, PICTO_SEC, PICTO_POINTS, PICTO_RULE,
   blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras, contentSlot, contentImages,
   pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches, isArchived, AUTO_ARCHIVE_DAYS, quizKind,
@@ -33,7 +33,7 @@ import { concepts, neufsSiPossible } from "./jamais-deux-fois.js";
 import { PICTO_OWN_SERIES } from "./picto-cards.js";
 import { EXTRACT_SECONDS, guessTrack, decodeFile, cutExtract, makeExtract, synthTune, encodeMp3, soundId } from "./audio.js";
 import { REFRAIN_SEC, REFRAIN_KBPS, buzzOf, defaultRefrain, songList, songsRetirees, songMatches, trackFromSong, songUpdates, marquerEffacees } from "./sons.js";
-import { lireLrc, refrainsDesParoles, debutDesParoles, parolesDuRefrain, associerParoles, nomSimple, MAX_LRC } from "./paroles.js";
+import { lireLrc, refrainsDesParoles, debutDesParoles, parolesDuRefrain, associerParoles, nomSimple, ligneAuMoment, MAX_LRC } from "./paroles.js";
 import { volumes, explosionDuVolume, refrainAuVolume } from "./volume.js";
 import { etiquettesMp3 } from "./id3.js";
 import { garderFichier, fichierGarde, oublierFichier } from "./sons-locaux.js";
@@ -163,6 +163,7 @@ const ecranAffiche = () => SCREENS.find((s) => !$(`screen-${s}`).hidden);
  */
 function show(name, { force = false } = {}) {
   const avant = ecranAffiche();
+  const defilement = window.scrollY;
   if (avant !== name && !force && !depuisHistorique && ecranModifie()) {
     // Toujours sur l'écran quitté au moment de répondre (pas renvoyé à la connexion entre-temps) : on y va.
     quitterEcran().then((quitter) => { if (quitter && ecranAffiche() === avant) show(name, { force: true }); });
@@ -188,7 +189,7 @@ function show(name, { force = false } = {}) {
   if (["quizzes", "mimes", "music", "builtin"].includes(name)) paintCollectionTabs(name);
   if (name !== "playlist-edit") stopPreview();
   if (name === "settings") { showLastChange(); afficherJournal(); }
-  noterPage(name, avant);
+  noterPage(name, avant, defilement);
   return true;
 }
 
@@ -201,6 +202,13 @@ function show(name, { force = false } = {}) {
  */
 const pages = [];
 let pageActuelle = -1;
+/**
+ * Chanson dont on vient d'ouvrir les réglages depuis la liste des sons, et sa hauteur dans l'écran : au retour
+ * (« Enregistrer », « ← Retour »), la liste revient sur elle (cedric, 23/10), même si son nouveau titre l'a déplacée.
+ */
+let ancreChanson = null; // { cle, haut }
+// La Régie PC remet elle-même chaque page à sa place : le navigateur ne la remonte pas après coup.
+history.scrollRestoration = "manual";
 /** Retour ou avance du navigateur en cours : l'écran rouvert ne fait pas une nouvelle page. */
 let depuisHistorique = false;
 let ignorerRetour = false;
@@ -217,7 +225,9 @@ const EDITEURS = {
 };
 const contexte = (ecran) => ({ showsEtat, gameType, quizFilter, builtinType, libTab, mediaGroupe, mediaCat, ouvert: EDITEURS[ecran]?.id() ?? null });
 
-function noterPage(name, avant) {
+function noterPage(name, avant, defilement = 0) {
+  const ancre = ancreChanson;
+  ancreChanson = null;
   if (name === "login") { pages.length = 0; pageActuelle = -1; return; }
   if (depuisHistorique) return;
   const page = { ecran: name, ctx: contexte(name) };
@@ -230,6 +240,9 @@ function noterPage(name, avant) {
   if (pageActuelle >= 0 && pages[pageActuelle].ecran === avant) {
     const quittee = pages[pageActuelle];
     quittee.ctx = { ...quittee.ctx, libTab, mediaGroupe, mediaCat, ouvert: EDITEURS[avant]?.id() ?? quittee.ctx.ouvert };
+    // Elle sera rouverte là où on l'a laissée (cedric, 23/10).
+    quittee.defilement = defilement;
+    quittee.ancre = ancre;
   }
   pages.length = pageActuelle + 1;
   pages.push(page);
@@ -239,7 +252,7 @@ function noterPage(name, avant) {
 }
 
 /** Rouvre une page de l'historique telle qu'on l'a laissée. */
-function rouvrirPage({ ecran, ctx }) {
+function rouvrirPage({ ecran, ctx, defilement = 0, ancre = null }) {
   depuisHistorique = true;
   try {
     ({ showsEtat, gameType, quizFilter, builtinType, libTab, mediaGroupe, mediaCat } = ctx);
@@ -249,11 +262,25 @@ function rouvrirPage({ ecran, ctx }) {
       if (!editeur.rouvrir(ctx.ouvert)) show(editeur.parent);
       return;
     }
-    if (ecran === "builtin" && builtinType) return openBuiltin(builtinType);
-    show(ecran);
+    if (ecran === "builtin" && builtinType) openBuiltin(builtinType);
+    else show(ecran);
+    revenirOuOnEtait(defilement, ancre);
   } finally {
     depuisHistorique = false;
   }
+}
+
+/**
+ * Page rouverte par « Enregistrer », « ← Retour » ou la flèche du navigateur (cedric, 23/10) : elle revient là où on
+ * l'avait laissée, pas en haut de la liste. La chanson qu'on vient de régler reste à la même hauteur de l'écran, et
+ * s'éclaire un instant.
+ */
+function revenirOuOnEtait(defilement, ancre) {
+  window.scrollTo(0, defilement);
+  const ligne = ancre && [...document.querySelectorAll("#song-list .song-ligne")].find((x) => x.dataset.cle === ancre.cle);
+  if (!ligne || ligne.offsetParent === null) return;
+  window.scrollBy(0, ligne.getBoundingClientRect().top - ancre.haut);
+  ligne.classList.add("song-retour");
 }
 
 window.addEventListener("popstate", async (e) => {
@@ -272,6 +299,8 @@ window.addEventListener("popstate", async (e) => {
     try { show("home"); } finally { depuisHistorique = false; }
     return;
   }
+  // La page quittée par la flèche sera rouverte là où on l'a laissée (flèche « suivante »).
+  if (pages[pageActuelle]) pages[pageActuelle].defilement = window.scrollY;
   pageActuelle = i;
   rouvrirPage(pages[i]);
 });
@@ -535,7 +564,7 @@ function showCard(id, s, { accueil = false } = {}) {
     h("div", { class: "card-body" },
       h("b", { class: "card-title", text: showTitle(s) }),
       h("span", { class: "meta", text: [s.childName, s.age ? `${s.age} ans` : "", s.date ? `${dateLabel(s.date)} (${whenLabel(s.date)})` : ""].filter(Boolean).join(" · ") }),
-      snapshot ? h("span", { class: "meta", text: `${contentLabel(snapshot)} · environ ${estimateMinutes(snapshot)} min` }) : null,
+      snapshot ? h("span", { class: "meta", text: `${contentLabel(snapshot)} · environ ${dureeEstimee(snapshot, s).minutes} min` }) : null,
       s.pinned ? h("span", { class: "pill pin", text: "⭐ Épinglée : ses jeux en premier dans la régie" }) : null,
       // Fête lancée sur une box : en cours, interrompue (reprise possible), terminée. Archiver n'y change rien.
       launchLabelPc(runs[id]) ? h("span", { class: `pill run ${runs[id].etat}`, "data-run": runs[id].etat, text: launchLabelPc(runs[id]) }) : null,
@@ -805,7 +834,6 @@ function editShow(id) {
   $("show-status").value = id && isArchived(s) ? "archivee" : s.status ?? "brouillon";
   $("show-title").value = s.title ?? "";
   $("show-profile").value = s.profile ?? "";
-  $("show-duration").value = s.durationMin ?? "";
   $("show-themes").value = s.themes ?? "";
   $("show-notes").value = s.notes ?? "";
   status("show-status-msg", s.copieDe && !s.childName ? "Copie : indiquez le prénom, l'âge et la date du nouvel anniversaire, puis enregistrez."
@@ -817,7 +845,7 @@ function editShow(id) {
 }
 
 /** Champs de la fiche d'une prestation, gardés par « Retour » et « Annuler les modifications ». */
-const SHOW_FIELDS = ["show-child", "show-age", "show-teams", "show-date", "show-status", "show-title", "show-profile", "show-duration", "show-themes", "show-notes"];
+const SHOW_FIELDS = ["show-child", "show-age", "show-teams", "show-date", "show-status", "show-title", "show-profile", "show-themes", "show-notes"];
 const histPrestation = historique({
   ecran: $("screen-show-edit"),
   precedent: pagePrecedente,
@@ -844,7 +872,6 @@ function formShow() {
     status: $("show-status").value,
     title: $("show-title").value.trim() || null,
     profile: $("show-profile").value || null,
-    durationMin: num($("show-duration").value),
     themes: $("show-themes").value.trim() || null,
     notes: $("show-notes").value.trim() || null,
     teams: num($("show-teams").value),
@@ -1431,8 +1458,11 @@ function refreshSummary() {
   const s = formShow();
   const { snapshot, problems } = buildSnapshot(editing?.id ?? "nouvelle", s, quizzes, mimes, Math.random, playlists, contents);
   const profile = PROFILES[s.profile] ? s.profile : profileForAge(s.age);
+  // Durée estimée toute seule d'après les jeux composés (cedric, 23/10) : elle ne se saisit plus.
+  const duree = dureeEstimee(snapshot, s);
+  $("show-duration").textContent = duree ? `environ ${duree.minutes} min` : "—";
   $("show-summary").textContent = snapshot
-    ? `${contentLabel(snapshot)} jouables · environ ${estimateMinutes(snapshot)} min · chrono ${defaultDuration(profile)} s par question pour les ${PROFILES[profile].label}, sauf durée imposée`
+    ? `${contentLabel(snapshot)} jouables · environ ${duree.minutes} min · chrono ${defaultDuration(profile)} s par question pour les ${PROFILES[profile].label}, sauf durée imposée`
     : "";
   $("show-problems").replaceChildren(...problems.map((p) => h("li", { text: p })));
   const r = readiness(s, quizzes, mimes, playlists, contents);
@@ -3393,7 +3423,7 @@ const cleChanson = (x) => x.id ?? `a:${x.audioId}`;
 function ligneChanson(x, i) {
   const cle = cleChanson(x);
   const vide = !x.imageId && !x.lrc;
-  const ligne = h("div", { class: `song song-ligne${choisies.has(cle) ? " choisie" : ""}${vide ? " incomplete" : ""}`, "data-song": x.audioId },
+  const ligne = h("div", { class: `song song-ligne${choisies.has(cle) ? " choisie" : ""}${vide ? " incomplete" : ""}`, "data-song": x.audioId, "data-cle": cle },
     h("input", {
       type: "checkbox", class: "song-check", checked: choisies.has(cle), "aria-label": `Sélectionner « ${x.title} »`,
       onclick: (e) => cocherChanson(i, e.target.checked, e.shiftKey),
@@ -3408,11 +3438,17 @@ function ligneChanson(x, i) {
       vide ? h("span", { class: "song-alerte", role: "img", "aria-label": "Ni pochette ni paroles", title: "Ni pochette ni paroles : au blind test, la TV montrera seulement le titre et le disque. Ajoutez une pochette ou un fichier .lrc.", text: "⚠" }) : null,
       // Chanson entière pas encore en ligne (rangée avant le 21/10) : ses curseurs attendent son MP3.
       entieres.get(x.id) === false ? h("span", { class: "song-nuage", role: "img", "aria-label": "À redéposer", title: "À redéposer une fois : la chanson entière n'est pas encore en ligne, ses curseurs « Régler » attendent son MP3. Depuis un PC qui a le MP3 : « Ajouter des chansons… ».", text: "☁" }) : null),
+    // Les paroles défilent dans une petite fenêtre pendant l'écoute (cedric, 23/10).
     h("div", { class: "song-tools" },
-      boutonEcoute({ class: "btn secondary", title: "Écouter l'extrait du buzz", text: "▶ Extrait" }, (b) => listen({ audioId: x.audioId, title: x.title }, false, b)),
-      x.refrainId ? boutonEcoute({ class: "btn secondary", title: "Écouter le refrain", text: "▶ Refrain" }, (b) => listen({ audioId: x.refrainId, title: x.title }, false, b)) : null));
+      boutonEcoute({ class: "btn secondary", title: "Écouter l'extrait du buzz", text: "▶ Extrait" }, (b) => listen(ecouteRangee(x), false, b, () => parolesFlottantes(x))),
+      x.refrainId ? boutonEcoute({ class: "btn secondary", title: "Écouter le refrain", text: "▶ Refrain" }, (b) => listen(ecouteRangee(x), true, b, () => parolesFlottantes(x))) : null,
+      // Supprimer une seule chanson, sans passer par les cases (cedric, 23/10).
+      h("button", { type: "button", class: "btn secondary song-suppr", title: "Supprimer cette chanson", "aria-label": `Supprimer « ${x.title} »`, onclick: () => supprimerChansons([x]), text: "🗑" })));
   return ligne;
 }
+
+/** Extrait et refrain rangés d'une chanson de la liste des sons, avec leurs moments dans la chanson. */
+const ecouteRangee = (x) => ({ audioId: x.audioId, refrainId: x.refrainId, title: x.title, start: x.start, refrain: x.refrain });
 
 /** Pochette : l'image tirée du MP3, ou une case vide où cliquer pour en choisir une. */
 function cellPochette(x) {
@@ -3497,7 +3533,10 @@ function cellMoments(x) {
   return h("button", {
     type: "button", class: `song-moments${x.refrainId ? " ok" : ""}`,
     title: x.refrainId ? `Début à ${mmss(x.start ?? 0)}, hook${hook} ${x.auto ? "trouvé automatiquement" : "réglé à la main"} : cliquez pour changer le réglage` : "Pas encore de hook : cliquez pour régler",
-    onclick: () => editSongs([x]),
+    onclick: (e) => {
+      ancreChanson = { cle: cleChanson(x), haut: e.currentTarget.closest(".song-ligne").getBoundingClientRect().top };
+      editSongs([x]);
+    },
     text: x.refrainId ? "⏱ Réglé ✓" : "⏱ Régler",
   });
 }
@@ -3644,9 +3683,9 @@ async function attacherParoles(x, texte) {
  * un avertissement clair. Les playlists qui les ont les gardent, aucun extrait n'est effacé, et « 🗑 Supprimées »
  * permet de les remettre.
  */
-async function supprimerChansons() {
+async function supprimerChansons(seules = null) {
   const toutes = songList(songs, playlists, isStatuesList);
-  const liste = toutes.filter((x) => choisies.has(cleChanson(x)));
+  const liste = seules ?? toutes.filter((x) => choisies.has(cleChanson(x)));
   if (!liste.length) return;
   const nom = liste.length === 1 ? `« ${liste[0].title} »` : `ces ${liste.length} chansons`;
   const message = liste.length === toutes.length && toutes.length > 1
@@ -3657,7 +3696,8 @@ async function supprimerChansons() {
     const chemins = {};
     liste.forEach((x) => Object.assign(chemins, cheminsChanson(x, { retiree: true })[1]));
     await update(ref(db), chemins);
-    choisies.clear();
+    if (seules) seules.forEach((x) => choisies.delete(cleChanson(x)));
+    else choisies.clear();
     dernierCoche = null;
     status("song-status", liste.length === 1 ? `« ${liste[0].title} » est supprimée de la bibliothèque.` : `${liste.length} chansons supprimées de la bibliothèque.`, true);
   } catch (err) {
@@ -4034,6 +4074,8 @@ async function chargerSources() {
 function stopPreview() {
   if (!preview) return;
   clearTimeout(preview.timer);
+  cancelAnimationFrame(preview.raf);
+  preview.paroles?.arreter();
   preview.audio.pause();
   if (preview.url) URL.revokeObjectURL(preview.url);
   if (preview.bouton) {
@@ -4069,10 +4111,94 @@ function enLecture(audio, bouton) {
 const REFRAIN_PREVIEW_SEC = 20;
 
 /**
+ * Fenêtre des paroles (cedric, 23/10) : pendant l'écoute de l'extrait ou du refrain, les paroles importées (.lrc)
+ * défilent au rythme de la chanson, la phrase chantée en gras, pour vérifier vite qu'elles sont justes et bien calées.
+ * Sobre et lisible, rien de festif. [titre] et [fermer] : la petite fenêtre de la liste des sons.
+ */
+function fenetreParoles({ titre = "", fermer = null } = {}) {
+  const defile = h("div", { class: "paroles-defile" });
+  const el = h("div", { class: "paroles-fenetre", role: "region", "aria-label": titre ? `Paroles de « ${titre} »` : "Paroles" },
+    titre ? h("div", { class: "paroles-tete" },
+      h("b", { class: "paroles-titre", text: `Paroles · ${titre}` }),
+      fermer ? h("button", { type: "button", class: "icon", title: "Arrêter l'écoute", "aria-label": "Fermer les paroles", onclick: fermer, text: "✕" }) : null) : null,
+    defile);
+  let lignes = [];
+  let actuelle = null; // { i, classe }
+  return {
+    el,
+    /** Les phrases du fichier .lrc ; sans phrase, le texte [vide]. */
+    remplir(l, vide = "Chargement des paroles…") {
+      lignes = l ?? [];
+      actuelle = null;
+      defile.replaceChildren(...(lignes.length ? lignes.map((x) => h("p", { class: "paroles-ligne" },
+        h("span", { class: "paroles-temps", text: mmss(x.t) }),
+        h("span", { class: `paroles-texte${x.text ? "" : " vide"}`, text: x.text || "♪" })))
+        : [h("p", { class: "hint small", text: vide })]));
+    },
+    /** La phrase du moment [s] (secondes de la chanson), au milieu de la fenêtre : chantée pendant l'écoute, repère sinon. */
+    montrer(s, lecture = true) {
+      const i = ligneAuMoment(lignes, s);
+      const classe = lecture ? "chantee" : "repere";
+      if (actuelle?.i === i && actuelle.classe === classe) return;
+      defile.querySelectorAll(".chantee, .repere").forEach((x) => x.classList.remove("chantee", "repere"));
+      actuelle = { i, classe };
+      const p = lignes.length ? defile.children[Math.max(0, i)] : null;
+      if (!p) return;
+      if (i >= 0) p.classList.add(classe);
+      defile.scrollTo({ top: p.offsetTop - defile.clientHeight / 2 + p.offsetHeight / 2, behavior: lecture ? "smooth" : "auto" });
+    },
+    /** Fin de l'écoute : plus de phrase chantée. */
+    arreter() {
+      defile.querySelectorAll(".chantee").forEach((x) => x.classList.remove("chantee"));
+      actuelle = null;
+    },
+  };
+}
+
+/**
+ * Petite fenêtre des paroles de la liste des sons (cedric, 23/10) : elle s'ouvre en bas de l'écran avec « ▶ Extrait »
+ * ou « ▶ Refrain » d'une chanson qui a ses paroles, et se ferme quand l'écoute s'arrête.
+ */
+function parolesFlottantes(x) {
+  if (!x.lrc || !x.id) return null;
+  const f = fenetreParoles({ titre: x.title, fermer: () => stopPreview() });
+  f.el.classList.add("flottante");
+  f.remplir([]);
+  const { montrer, arreter } = f;
+  // Cachée tant que la liste des sons n'est pas à l'écran (réglages ouverts pendant l'écoute).
+  f.montrer = (s) => { f.el.hidden = $("song-list").offsetParent === null; montrer(s); };
+  f.arreter = () => { arreter(); f.el.remove(); };
+  document.body.append(f.el);
+  get(ref(db, `library/lyrics/${x.id}`))
+    .then((snap) => typeof snap.val() === "string" ? lireLrc(snap.val()) : [])
+    .catch(() => [])
+    .then((l) => { if (f.el.isConnected) f.remplir(l, "Paroles introuvables."); });
+  return f;
+}
+
+/**
+ * La fenêtre [paroles] (ou ce qui l'ouvre) suit l'écoute [audio] ; [base] : moment de la chanson où commence le son
+ * écouté.
+ */
+function suivreParoles(audio, base, ouvrir) {
+  if (!ouvrir || preview?.audio !== audio || !Number.isFinite(base)) return;
+  const paroles = typeof ouvrir === "function" ? ouvrir() : ouvrir;
+  if (!paroles) return;
+  preview.paroles = paroles;
+  const pas = () => {
+    if (preview?.audio !== audio) return;
+    paroles.montrer(base + audio.currentTime);
+    preview.raf = requestAnimationFrame(pas);
+  };
+  pas();
+}
+
+/**
  * Écoute : l'extrait enregistré, ou le fichier à partir du début choisi pendant la durée de l'extrait.
  * [refrain] : le refrain de la révélation (enregistré, ou le fichier à partir du moment choisi).
+ * [paroles] : la fenêtre des paroles qui suit l'écoute, ou ce qui l'ouvre.
  */
-async function listen(t, refrain = false, bouton = null) {
+async function listen(t, refrain = false, bouton = null, paroles = null) {
   stopPreview();
   try {
     const fichier = sourceDe(t);
@@ -4085,6 +4211,7 @@ async function listen(t, refrain = false, bouton = null) {
       if (preview?.audio !== audio) return;
       preview.timer = setTimeout(stopPreview, (refrain ? REFRAIN_PREVIEW_SEC : t.duration ?? Number($("playlist-duration").value)) * 1000);
       enLecture(audio, bouton);
+      suivreParoles(audio, 0, paroles);
     } else {
       const id = refrain ? t.refrainId : t.audioId;
       if (!id) return status("playlist-status", `« ${t.title} » n'a pas encore de hook : glissez son MP3 sur la chanson pour le régler.`);
@@ -4096,6 +4223,8 @@ async function listen(t, refrain = false, bouton = null) {
       preview = { audio };
       await audio.play();
       enLecture(audio, bouton);
+      // L'extrait rangé commence au début réglé, le refrain au hook.
+      suivreParoles(audio, refrain ? t.refrain : t.start, paroles);
     }
   } catch (e) {
     console.error(e);
@@ -4250,6 +4379,8 @@ $("playlist-duration").onchange = () => renderTracks();
  * curseurs sur toute la chanson : le début (d'office 2 s avant les premiers mots chantés) et le hook.
  * Lâcher un curseur joue la chanson à cet endroit. Les curseurs se servent de la chanson entière, rangée en ligne.
  */
+/** Fenêtre des paroles de l'écran des réglages affiché (pour « ↺ Réidentifier le hook », qui le redessine). */
+let parolesReglage = null;
 function ecranReglage(t) {
   const fichier = sourceDe(t);
   const buzz = t.duration ?? Number($("playlist-duration").value);
@@ -4266,10 +4397,23 @@ function ecranReglage(t) {
     oninput: (e) => bouger(Number(e.target.value)), onchange: ecouter,
   });
   const bornes = (max) => h("div", { class: "reglage-bornes", "aria-hidden": "true" }, h("span", { text: "0:00" }), h("span", { text: mmss(max) }));
-  const ecouter = (refrain) => boutonEcoute({ class: "btn small secondary", title: refrain ? "Écouter le hook" : "Écouter à partir du début", text: "▶ Écouter" }, (b) => listen(t, refrain, b));
+  // Les paroles défilent pendant l'écoute (cedric, 23/10) ; à l'arrêt, elles montrent le moment du curseur bougé.
+  const paroles = t.lrc ? fenetreParoles() : null;
+  parolesReglage = paroles;
+  const reperer = (v) => { if (paroles && preview?.paroles !== paroles) paroles.montrer(v, false); };
   // Lâcher un curseur joue la chanson à cet endroit, et son « ▶ Écouter » devient « ⏸ Pause ».
+  const ecouter = (refrain) => boutonEcoute({ class: "btn small secondary", title: refrain ? "Écouter le hook" : "Écouter à partir du début", text: "▶ Écouter" }, (b) => listen(t, refrain, b, paroles));
   const ecouteDebut = ecouter(false);
   const ecouteHook = ecouter(true);
+  if (paroles) {
+    // Au départ, les paroles du hook.
+    const placer = () => requestAnimationFrame(() => reperer(t.refrain ?? 0));
+    if (t.lignes) { paroles.remplir(t.lignes); placer(); }
+    else {
+      paroles.remplir([]);
+      chargerParoles(t).then(() => { paroles.remplir(t.lignes ?? [], "Paroles introuvables."); placer(); });
+    }
+  }
   return h("div", { class: `track reglage${fichier ? "" : " sans-fichier"}`, "data-track": 0, ...deposable(t) },
     h("div", { class: "reglage-tete" },
       h("div", { class: "reglage-cadre", title: "Pochette" }, pochette),
@@ -4281,7 +4425,7 @@ function ecranReglage(t) {
         h("div", { class: "reglage-liens" }, choisir, retirer, lyricsTools(t)))),
     h("div", { class: "reglage-curseur", "data-curseur": "debut" },
       h("div", { class: "reglage-ligne" }, h("span", { class: "reglage-nom", text: "Début de la chanson" }), tempsDebut, ecouteDebut),
-      curseur("Début de la chanson", t.start, maxDebut, (v) => { t.start = v; t.debutMain = true; aRedecouper(t); tempsDebut.textContent = mmss(v); }, () => listen(t, false, ecouteDebut)),
+      curseur("Début de la chanson", t.start, maxDebut, (v) => { t.start = v; t.debutMain = true; aRedecouper(t); tempsDebut.textContent = mmss(v); reperer(v); }, () => listen(t, false, ecouteDebut, paroles)),
       bornes(maxDebut),
       h("p", { class: "hint small", text: "Réglé d'office 2 s avant les premiers mots chantés (0:00 sans paroles)." })),
     h("div", { class: "reglage-curseur", "data-curseur": "hook" },
@@ -4290,9 +4434,12 @@ function ecranReglage(t) {
           type: "button", class: "btn small secondary", disabled: !fichier, onclick: () => reidentifierHook(t), text: "↺ Réidentifier le hook",
           title: "Retrouver le refrain : le passage le plus chanté des paroles, là où la musique devient forte",
         })),
-      curseur("Hook", t.refrain, maxHook, (v) => { t.refrain = v; t.regle = true; aRedecouper(t); tempsHook.textContent = mmss(v); origine.textContent = "réglé à la main"; }, () => listen(t, true, ecouteHook)),
+      curseur("Hook", t.refrain, maxHook, (v) => { t.refrain = v; t.regle = true; aRedecouper(t); tempsHook.textContent = mmss(v); origine.textContent = "réglé à la main"; reperer(v); }, () => listen(t, true, ecouteHook, paroles)),
       bornes(maxHook),
       h("p", { class: "hint small", text: "Le passage que tout le monde chante à la révélation (« on chante tous ensemble »)." })),
+    paroles ? h("div", { class: "reglage-curseur reglage-paroles" },
+      h("div", { class: "reglage-ligne" }, h("span", { class: "reglage-nom", text: "Paroles" }), h("span", { class: "hint small", text: "Elles défilent pendant l'écoute du début ou du hook." })),
+      paroles.el) : null,
     h("div", { class: "reglage-plus" },
       h("input", { type: "text", class: "track-note", maxlength: 120, placeholder: "Droits (facultatif, pour information)", value: t.rights, "aria-label": "Droits", oninput: (e) => { t.rights = e.target.value; } })),
     fichier ? null : h("p", {
@@ -4357,7 +4504,7 @@ async function reidentifierHook(t) {
   t.refrain = refrainPropose(t, t.length, t.start ?? 0, buzz);
   noterEcran();
   renderTracks();
-  listen(t, true);
+  listen(t, true, null, playlist.single ? parolesReglage : null);
 }
 
 /**

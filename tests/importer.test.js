@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { parseQuiz, checkQuestions, geminiPrompt, resolveCorrect, chatgptImagePrompt, chatgptUrl, imageKey, wordFromImage } from "../web/public/importer.js";
 import { MIME_CATALOG } from "../web/public/mime-cards.js";
 import { DISPARU_THEMES } from "../web/public/buzz-cards.js";
-import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, roundFilled,
+import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, dureeEstimee, DUREE_ESTIMEE, roundFilled,
   readiness, upcoming, daysUntil, isoDay, duplicateShow, etatPrestation, isArchived, ETATS, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
   soundIds, choiceImageIds, choiceImageList, pictoSeriesList, pictoSeriesOf, foldLegacyFinale,
   roundQuizIds, MIME_RANDOM, alerteEquipes, EQUIPES_PAR_DEFAUT, PAR_EQUIPE_MIN,
@@ -13,7 +13,7 @@ import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, roundFille
 import { PICTO_WORDS, PICTO_SERIES } from "../web/public/picto-cards.js";
 import { guessTrack, normalizeLevel } from "../web/public/audio.js";
 import { songList, songsRetirees, songMatches, trackFromSong, songUpdates, marquerEffacees, defaultRefrain, buzzOf, REFRAIN_SEC } from "../web/public/sons.js";
-import { lireLrc, refrainDesParoles, refrainsDesParoles, debutDesParoles, parolesDuRefrain, associerParoles, nomSimple } from "../web/public/paroles.js";
+import { lireLrc, refrainDesParoles, refrainsDesParoles, debutDesParoles, parolesDuRefrain, associerParoles, nomSimple, ligneAuMoment } from "../web/public/paroles.js";
 import { volumes, explosionDuVolume, refrainAuVolume, PAS_VOLUME } from "../web/public/volume.js";
 import { lireId3 } from "../web/public/id3.js";
 import { FULL_SHOW, FULL_TUNES, tunePlaylist } from "../web/public/test-show.js";
@@ -805,6 +805,52 @@ describe("Super Finale : les dernières questions du quiz, pas un jeu à part", 
     const { snapshot, problems } = play([{ type: "mimes", deckId: "d" }, { type: "finale", quizId: "f" }]);
     assert.deepEqual(problems, []);
     assert.deepEqual(snapshot.quiz.questions.map((q) => [q.round, q.double ?? false]), [["Mimes", false], ["Super Finale", true], ["Super Finale", true]]);
+  });
+});
+
+describe("durée estimée d'une prestation (cedric, 23/10) : calculée toute seule, jamais saisie", () => {
+  const quiz = (title, n) => ({ title, questions: [...Array(n).keys()].map((i) => ({ text: `${title} ${i + 1} ?`, choices: ["Oui", "Non"], correct: 0, status: "validee" })) });
+  const LIB = { a: quiz("Animaux", 8), f: quiz("Finale", 2) };
+  const MIMES = { d: { title: "Mimes", cards: [...Array(60).keys()].map((i) => ({ word: `Mot ${i + 1}` })) } };
+  const D = DUREE_ESTIMEE;
+  const play = (rounds, show = {}) => {
+    const s = { age: 9, teams: 4, rounds, ...show };
+    return { s, snapshot: buildSnapshot("s", s, LIB, MIMES, () => 0).snapshot };
+  };
+  // Le temps de jeu, plus une minute d'intro par jeu, l'accueil, le podium et 10 % de pauses, aux 5 minutes du dessus.
+  const minutes = (jeu, jeux) => Math.ceil(((jeu + jeux * D.presentation + D.accueil + D.podium) * (1 + D.pauses)) / 300) * 5;
+
+  test("chrono et réponse de chaque question, intro de chaque jeu, accueil, podium et pauses, arrondie aux 5 minutes", () => {
+    const { s, snapshot } = play([{ type: "quiz", quizId: "a" }, { type: "statues", duration: 60 }]);
+    const qs = snapshot.quiz.questions;
+    assert.deepEqual(qs.map((q) => q.kind), [...Array(8).fill("classic"), "statues"]);
+    const quizSec = qs.filter((q) => q.kind === "classic").reduce((t, q) => t + q.duration + D.apresQuestion, 0);
+    assert.deepEqual(dureeEstimee(snapshot, s), { minutes: minutes(quizSec + 60 + D.apresStatues, 2), jeux: 2 });
+    assert.equal(dureeEstimee(snapshot, s).minutes, 20, "8 questions à 9 ans et des statues : environ 20 minutes");
+    assert.equal(dureeEstimee(null, s), null, "sans programme : rien à estimer");
+  });
+
+  test("elle suit ce qui est composé : un jeu de plus l'allonge, la Super Finale ne compte pas un jeu de plus", () => {
+    const seul = play([{ type: "quiz", quizId: "a" }]);
+    const plus = play([{ type: "quiz", quizId: "a" }, { type: "statues", duration: 90 }, { type: "statues", duration: 90 }]);
+    assert.equal(dureeEstimee(seul.snapshot, seul.s).jeux, 1);
+    assert.equal(dureeEstimee(plus.snapshot, plus.s).jeux, 3, "deux parties de statues : deux jeux présentés");
+    assert.ok(dureeEstimee(plus.snapshot, plus.s).minutes > dureeEstimee(seul.snapshot, seul.s).minutes);
+    for (const rounds of [[{ type: "quiz", quizId: "a", finale: 2 }], [{ type: "quiz", quizId: "a" }, { type: "finale", quizId: "f" }]]) {
+      const { s, snapshot } = play(rounds);
+      assert.ok(snapshot.quiz.questions.some((q) => q.finale));
+      assert.equal(dureeEstimee(snapshot, s).jeux, 1, "la Super Finale termine son quiz, sans nouvelle intro");
+    }
+  });
+
+  test("les mimes comptent chaque passage de chaque équipe : plus d'équipes, plus long", () => {
+    const deux = play([{ type: "mimes", deckId: "d", perTeam: 3 }], { teams: 2 });
+    const huit = play([{ type: "mimes", deckId: "d", perTeam: 3 }], { teams: 8 });
+    const tour = deux.snapshot.quiz.questions[0].duration;
+    assert.deepEqual(dureeEstimee(deux.snapshot, deux.s), { minutes: minutes(3 * 2 * (tour + D.apresMime), 1), jeux: 1 });
+    assert.deepEqual(dureeEstimee(huit.snapshot, huit.s), { minutes: minutes(3 * 8 * (tour + D.apresMime), 1), jeux: 1 });
+    const sansReglage = play([{ type: "mimes", deckId: "d" }], { teams: 4 });
+    assert.deepEqual(dureeEstimee(sansReglage.snapshot, sansReglage.s), { minutes: minutes(D.mimesParEquipe * 4 * (tour + D.apresMime), 1), jeux: 1 }, "par défaut : deux mimes par équipe");
   });
 });
 
@@ -1707,6 +1753,18 @@ describe("paroles (.lrc) et étiquettes des MP3", () => {
     assert.equal(debutDesParoles(lireLrc("[00:02.00]♪\n[00:04.00]Oh\n[00:17.50]Voici les premiers mots")), 17.5);
     assert.equal(debutDesParoles(lireLrc("[00:03.00]♪♪")), null);
     assert.equal(debutDesParoles([]), null);
+  });
+
+  test("fenêtre des paroles (cedric, 23/10) : la phrase chantée à un moment de la chanson", () => {
+    const lignes = lireLrc("[00:05.00]Un\n[00:09.50]Deux\n[00:20.00]\n[00:21.00]Trois");
+    assert.equal(ligneAuMoment(lignes, 0), -1, "avant la première phrase");
+    assert.equal(ligneAuMoment(lignes, 5), 0);
+    assert.equal(ligneAuMoment(lignes, 9.49), 0);
+    assert.equal(ligneAuMoment(lignes, 9.5), 1);
+    assert.equal(ligneAuMoment(lignes, 20.5), 2, "le blanc entre deux phrases compte");
+    assert.equal(ligneAuMoment(lignes, 300), 3);
+    assert.equal(ligneAuMoment([], 10), -1);
+    assert.equal(ligneAuMoment(null, 10), -1);
   });
 
   test("les paroles de l'extrait du refrain : temps en ms depuis son début, phrase commencée gardée", () => {
