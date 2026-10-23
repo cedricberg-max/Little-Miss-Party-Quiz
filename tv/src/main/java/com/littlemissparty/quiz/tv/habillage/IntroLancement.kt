@@ -82,8 +82,11 @@ fun IntroLancement(s: UiState.Playing) {
     }
 }
 
-/** La vidéo est noire et muette à partir d'ici (30,9 s) : l'écran du jeu apparaît en fondu. */
-internal const val FIN_INTRO_MS = 30_900
-internal const val FONDU_INTRO_MS = 600
+/**
+ * À 30,6 s, la plongée dans le portail finit sur un fond presque noir fixe jusqu'au bout de la vidéo (31,6 s) : l'écran
+ * du jeu apparaît en fondu sur cette dernière seconde (minutage de la Vision).
+ */
+internal const val FIN_INTRO_MS = 30_600
+internal const val FONDU_INTRO_MS = 1_000
 /** Son de la vidéo (−14,3 LUFS) ramené au niveau de la musique du podium (−15,8 LUFS, jouée à plein volume). */
 internal const val VOLUME_INTRO = 0.85f
