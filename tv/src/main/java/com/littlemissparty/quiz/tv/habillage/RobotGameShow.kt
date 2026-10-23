@@ -132,6 +132,12 @@ private fun envol(x0: Float, x1: Float, finMs: Int, hauts: List<Float>, echelle:
 private fun pique(x0: Float, x: Float, poseMs: Int, decolleMs: Int, finMs: Int, echelle: Float = 0.85f) =
     TrajetRobot(listOf(EtapeRobot(0, x0, -0.05f, echelle), EtapeRobot(poseMs, x, 1f, echelle), EtapeRobot(decolleMs, x, 1f, echelle), EtapeRobot(finMs, x, -0.1f, echelle)))
 
+/** Surgit du bas à [x], se pose, puis décolle à la verticale à [decolleMs] (réacteurs allumés) et sort par le haut. */
+private fun decolle(x: Float, decolleMs: Int, finMs: Int, echelle: Float = 0.85f): TrajetRobot {
+    val dessous = 1.05f + 0.9f * echelle
+    return TrajetRobot(listOf(EtapeRobot(0, x, dessous, echelle), EtapeRobot(600, x, 1f, echelle), EtapeRobot(decolleMs, x, 1f, echelle), EtapeRobot(finMs, x, -0.1f, echelle)))
+}
+
 /** Suspendu la tête en bas au haut de l'écran, à [x] : il descend, se balance, puis remonte. */
 private fun suspendu(x: Float, dureeMs: Int, echelle: Float = 0.85f) =
     TrajetRobot(listOf(EtapeRobot(0, x, -0.02f, echelle), EtapeRobot(800, x, 0.61f, echelle), EtapeRobot(dureeMs, x, 0.61f, echelle), EtapeRobot(dureeMs + 700, x, -0.05f, echelle)))
@@ -150,47 +156,73 @@ internal val CATALOGUE: List<ClipRobot> = listOf(
     // C'est un robot qui vole (cedric) : il arrive aussi en volant, ou en piqué depuis le haut de l'écran.
     ClipRobot("gs_robot_vole", MomentRobot.MANCHE, envol(-0.25f, 1.25f, 6_000, listOf(0.62f, 0.8f, 0.66f, 0.82f, 0.58f))),
     ClipRobot("gs_robot_pique", MomentRobot.MANCHE, pique(0.95f, 0.22f, 1_300, 4_200, 5_500)),
-    // Suspense : au bord droit seulement, les réponses (texte à gauche des cartes) restent lisibles. Jamais de visage
-    // triste avant la révélation (cedric, 23/10 : « j'ai bien répondu et le robot pleurait ») : « cache » et « inquiet »
-    // ont une goutte de sueur qui se lit comme une larme sur la TV ; ils restent pour la bombe, où il a peur. À la place,
-    // il se dandine en attendant les dernières réponses.
+    ClipRobot("gs_robot_salto", MomentRobot.MANCHE, duBas(0.2f, 2_900, echelle = 1f)),
+    ClipRobot("gs_robot_guitare", MomentRobot.MANCHE, duBas(0.82f, 4_300, echelle = 1f)),
+    ClipRobot("gs_robot_fusee", MomentRobot.MANCHE, decolle(0.8f, 1_300, 3_400)),
+    // Suspense : au bord droit seulement, les réponses (texte à gauche des cartes) restent lisibles. Jamais d'air
+    // inquiet ni triste ici (cedric, 23 octobre : les expressions négatives sont réservées aux moments négatifs) :
+    // il guette, roule du tambour, scrute aux jumelles.
     ClipRobot("gs_robot_suspense", MomentRobot.SUSPENSE, auBord(0.92f, 3_000, echelle = 0.8f, entreeMs = 500)),
+    ClipRobot("gs_robot_batterie", MomentRobot.SUSPENSE, auBord(0.92f, 3_300, echelle = 0.8f, entreeMs = 500)),
     ClipRobot("gs_robot_groove", MomentRobot.SUSPENSE, auBord(0.92f, 3_500, echelle = 0.8f, entreeMs = 500)),
-    // Personne n'a trouvé.
+    ClipRobot("gs_robot_jumelles", MomentRobot.SUSPENSE, auBord(0.92f, 3_300, echelle = 0.8f, entreeMs = 500)),
+    // Personne n'a trouvé : un moment négatif, il est déçu (boude, se tape le front, se dégonfle…).
     ClipRobot("gs_robot_rate", MomentRobot.RATE, auBord(0.12f, 3_000)),
     ClipRobot("gs_robot_oups", MomentRobot.RATE, auBord(0.9f, 4_500, echelle = 0.8f)),
     ClipRobot("gs_robot_pleure", MomentRobot.RATE, duBas(0.13f, 3_900)),
+    ClipRobot("gs_robot_boude", MomentRobot.RATE, auBord(0.12f, 3_800)),
+    ClipRobot("gs_robot_facepalm", MomentRobot.RATE, auBord(0.9f, 3_300, echelle = 0.8f)),
+    ClipRobot("gs_robot_degonfle", MomentRobot.RATE, duBas(0.86f, 3_500)),
     // Tout le monde a trouvé.
     ClipRobot("gs_robot_applaudit", MomentRobot.TOUS, auBord(0.88f, 3_700)),
     ClipRobot("gs_robot_energie", MomentRobot.TOUS, duHaut(0.87f, 900, 3_900, 4_700, echelle = 0.85f, bas = 0.92f)),
     ClipRobot("gs_robot_pouces", MomentRobot.TOUS, duBas(0.14f, 3_700)),
+    ClipRobot("gs_robot_bravo", MomentRobot.TOUS, auBord(0.88f, 3_500)),
+    ClipRobot("gs_robot_coeur", MomentRobot.TOUS, duBas(0.14f, 3_300)),
+    ClipRobot("gs_robot_salto", MomentRobot.TOUS, auBord(0.88f, 2_900)),
+    ClipRobot("gs_robot_cestvous", MomentRobot.TOUS, auBord(0.12f, 3_300)),
     // Tableau des scores : il traverse en dansant, ou tourne sur lui-même au bord.
     ClipRobot("gs_robot_danse", MomentRobot.SCORES, traversee(2_400, 5_400, 7_500)),
     ClipRobot("gs_robot_robotdance", MomentRobot.SCORES, traversee(2_400, 5_400, 7_500, versLaGauche = true)),
     ClipRobot("gs_robot_tourne", MomentRobot.SCORES, duBas(0.85f, 4_600)),
     ClipRobot("gs_robot_vole", MomentRobot.SCORES, envol(1.25f, -0.25f, 6_000, listOf(0.55f, 0.72f, 0.6f, 0.75f, 0.6f))),
     ClipRobot("gs_robot_pique", MomentRobot.SCORES, pique(0.95f, 0.15f, 1_300, 4_200, 5_500)),
+    ClipRobot("gs_robot_disco", MomentRobot.SCORES, duBas(0.85f, 4_300)),
+    ClipRobot("gs_robot_guitare", MomentRobot.SCORES, auBord(0.14f, 4_300)),
     ClipRobot("gs_robot_tete", MomentRobot.TETE, auBord(0.15f, 4_300, echelle = 0.9f)),
     ClipRobot("gs_robot_pique", MomentRobot.TETE, pique(0.95f, 0.85f, 1_300, 4_200, 5_500)),
+    ClipRobot("gs_robot_cestvous", MomentRobot.TETE, auBord(0.15f, 3_300, echelle = 0.9f)),
+    ClipRobot("gs_robot_bravo", MomentRobot.TETE, duBas(0.85f, 3_500)),
     ClipRobot("gs_robot_energie", MomentRobot.SUPER_FINALE, duHaut(0.85f, 900, 3_900, 4_700, echelle = 0.85f, bas = 0.92f)),
+    ClipRobot("gs_robot_batterie", MomentRobot.SUPER_FINALE, duBas(0.85f, 3_300)),
+    ClipRobot("gs_robot_guitare", MomentRobot.SUPER_FINALE, auBord(0.86f, 4_300)),
     // Grand gagnant : à côté du nom, qui reste au centre.
     ClipRobot("gs_robot_podium", MomentRobot.PODIUM, auBord(0.87f, 3_800, echelle = 1.05f, entreeMs = 1_200, sortieMs = 800, sauts = 0.05f)),
     ClipRobot("gs_robot_confettis", MomentRobot.PODIUM, auBord(0.14f, 3_900, echelle = 1f, entreeMs = 900)),
     ClipRobot("gs_robot_ola", MomentRobot.PODIUM, duBas(0.86f, 3_900, echelle = 1f)),
     ClipRobot("gs_robot_energie", MomentRobot.PODIUM, duHaut(0.86f, 900, 3_900, 4_700, echelle = 0.95f, bas = 0.92f)),
+    ClipRobot("gs_robot_coeur", MomentRobot.PODIUM, auBord(0.86f, 3_300, echelle = 1f, entreeMs = 900)),
+    ClipRobot("gs_robot_disco", MomentRobot.PODIUM, auBord(0.14f, 4_300, echelle = 1f, entreeMs = 900)),
     // Bonus, malus, coffres : il surgit d'un bord différent à chaque fois, jamais au centre (carte et coffre restent
-    // visibles), et suit l'humeur du moment.
+    // visibles), et suit l'humeur du moment : content au bonus, déçu au malus, apeuré par la bombe.
     ClipRobot("gs_robot_applaudit", MomentRobot.BONUS, auBord(0.88f, 3_700)),
     ClipRobot("gs_robot_pouces", MomentRobot.BONUS, duBas(0.14f, 3_700)),
     ClipRobot("gs_robot_confettis", MomentRobot.BONUS, auBord(0.14f, 3_900, entreeMs = 800)),
     ClipRobot("gs_robot_ola", MomentRobot.BONUS, duBas(0.86f, 3_900)),
     ClipRobot("gs_robot_energie", MomentRobot.BONUS, duHaut(0.15f, 900, 3_900, 4_700, echelle = 0.85f, bas = 0.92f)),
     ClipRobot("gs_robot_tourne", MomentRobot.BONUS, duBas(0.15f, 4_600)),
+    ClipRobot("gs_robot_bravo", MomentRobot.BONUS, duBas(0.86f, 3_500)),
+    ClipRobot("gs_robot_coeur", MomentRobot.BONUS, auBord(0.88f, 3_300)),
     ClipRobot("gs_robot_oups", MomentRobot.MALUS, auBord(0.9f, 4_500, echelle = 0.8f)),
     ClipRobot("gs_robot_pleure", MomentRobot.MALUS, duBas(0.13f, 3_900)),
     ClipRobot("gs_robot_rate", MomentRobot.MALUS, auBord(0.88f, 3_000)),
+    ClipRobot("gs_robot_boude", MomentRobot.MALUS, auBord(0.88f, 3_800, echelle = 0.8f)),
+    ClipRobot("gs_robot_facepalm", MomentRobot.MALUS, duBas(0.14f, 3_300)),
+    ClipRobot("gs_robot_courtcircuit", MomentRobot.MALUS, auBord(0.12f, 3_300)),
+    ClipRobot("gs_robot_degonfle", MomentRobot.MALUS, duBas(0.86f, 3_500)),
     ClipRobot("gs_robot_cache", MomentRobot.BOMBE, auBord(0.12f, 3_500, entreeMs = 500)),
     ClipRobot("gs_robot_inquiet", MomentRobot.BOMBE, auBord(0.88f, 3_500, entreeMs = 500)),
+    ClipRobot("gs_robot_peur", MomentRobot.BOMBE, auBord(0.88f, 3_100, entreeMs = 500)),
     // Pause : le robot à l'honneur. Il vient régulièrement, par le haut, en volant, la tête en bas, en dansant…
     ClipRobot("gs_robot_dort", MomentRobot.PAUSE, duHaut(0.8f, 1_200, 5_200, 6_000, echelle = 0.85f, bas = 0.95f)),
     ClipRobot("gs_robot_envers", MomentRobot.PAUSE, suspendu(0.18f, 4_300)),
@@ -206,6 +238,11 @@ internal val CATALOGUE: List<ClipRobot> = listOf(
     ClipRobot("gs_robot_ola", MomentRobot.PAUSE, duBas(0.15f, 3_900)),
     ClipRobot("gs_robot_confettis", MomentRobot.PAUSE, auBord(0.86f, 3_900, entreeMs = 800)),
     ClipRobot("gs_robot_pouces", MomentRobot.PAUSE, duBas(0.86f, 3_700)),
+    ClipRobot("gs_robot_disco", MomentRobot.PAUSE, duBas(0.82f, 4_300)),
+    ClipRobot("gs_robot_guitare", MomentRobot.PAUSE, duBas(0.18f, 4_300)),
+    ClipRobot("gs_robot_jumelles", MomentRobot.PAUSE, duBas(0.18f, 3_300)),
+    ClipRobot("gs_robot_fusee", MomentRobot.PAUSE, decolle(0.2f, 1_300, 3_400)),
+    ClipRobot("gs_robot_salto", MomentRobot.PAUSE, duBas(0.85f, 2_900)),
 )
 
 /** Une réaction demandée par un autre écran ([signalerRobot]) ; [a] = heure de la demande sur la box. */

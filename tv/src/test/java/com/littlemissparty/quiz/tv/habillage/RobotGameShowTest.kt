@@ -18,7 +18,7 @@ class RobotGameShowTest {
     private fun demiLargeur(echelle: Float) = 0.9f * 0.8f * echelle * 9f / 16f / 2f
 
     /** Les clips où il vole (réacteurs) ou pend du haut de l'écran : eux seuls quittent le sol. */
-    private val volants = setOf("gs_robot_descente", "gs_robot_energie", "gs_robot_dort", "gs_robot_envers", "gs_robot_vole", "gs_robot_pique")
+    private val volants = setOf("gs_robot_descente", "gs_robot_energie", "gs_robot_dort", "gs_robot_envers", "gs_robot_vole", "gs_robot_pique", "gs_robot_fusee")
 
     @Test
     fun `le robot arrive et repart hors de l'ecran`() {
@@ -102,6 +102,22 @@ class RobotGameShowTest {
         assertTrue("seulement $n numéros de pause", n >= 10)
         val suite = List(5 * n) { tirage.suivant(MomentRobot.PAUSE)!! }
         assertTrue(suite.zipWithNext().none { (a, b) -> a == b })
+    }
+
+    /** Les clips où il est déçu, boude ou a peur. */
+    private val negatifs = setOf(
+        "gs_robot_rate", "gs_robot_oups", "gs_robot_pleure", "gs_robot_cache", "gs_robot_inquiet", "gs_robot_boude",
+        "gs_robot_facepalm", "gs_robot_courtcircuit", "gs_robot_degonfle", "gs_robot_peur",
+    )
+
+    @Test
+    fun `il ne fait la tete que dans les moments negatifs, et jamais dans les moments negatifs il ne se rejouit`() {
+        // cedric, 23 octobre : deux familles bien séparées. Personne n'a trouvé, malus et bombe = déçu ou apeuré ;
+        // partout ailleurs (lancement, suspense, bonnes réponses, scores, podium, pause) = joyeux.
+        val momentsNegatifs = setOf(MomentRobot.RATE, MomentRobot.MALUS, MomentRobot.BOMBE)
+        for (c in CATALOGUE) {
+            assertEquals("$c au moment ${c.moment}", c.moment in momentsNegatifs, c.fichier in negatifs)
+        }
     }
 
     @Test
