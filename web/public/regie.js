@@ -1799,7 +1799,7 @@ async function fetchLibrary() {
       .filter(([, show]) => show)
       .sort((a, b) => (b[1].date ?? "").localeCompare(a[1].date ?? ""))
       .flatMap(([id, show]) => (show.rounds ?? []).map((r) => jeuDeLaManche(r, quizzes)).filter((r) => r && r.type !== "mimes" && r.type !== "statues" && r.type !== "pictionary" && r.type !== "portes" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "finale" && !BUILTIN_GAMES[r.type] && !MUSIC_GAMES[r.type]).map((round, i) => {
-        const title = roundQuizIds(round).map((q) => quizzes[q]?.title).filter(Boolean).join(" + ") || (roundTirees(round).length ? "Quiz tiré au hasard" : `Manche ${i + 1}`);
+        const title = [...(roundTirees(round).length ? ["Quiz tiré au hasard"] : []), ...roundQuizIds(round).map((q) => quizzes[q]?.title).filter(Boolean)].join(" + ") || `Manche ${i + 1}`;
         const label = QUIZ_GAMES[round.type] ? `${ROUND_TYPES[round.type]} : ${title}` : title;
         const date = show.date ? ` (${new Date(`${show.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })})` : "";
         // Les réglages de la manche suivent (nombre de questions, Super Finale à la fin du quiz).
@@ -1824,7 +1824,13 @@ async function fetchLibrary() {
         const from = showTitle(show);
         const ids = roundQuizIds(round);
         const tirees = roundTirees(round);
-        if (tirees.length) return { key, label: "Quiz tiré au hasard", from, source: { type: "quiz", tirees, ...(round.finale > 0 ? { finale: round.finale } : {}) } };
+        // Questions tirées au 🎲, suivies du quiz choisi en plus s'il y en a un (deuxième ligne).
+        const choisis = ids.filter((q) => quizzes[q]);
+        if (tirees.length) {
+          return { key, label: ["Quiz tiré au hasard", ...choisis.map((q) => quizzes[q].title)].join(" + "), from, source: { type: "quiz", tirees,
+            ...(choisis.length ? { quizId: choisis[0], ...(choisis.length > 1 ? { quizIds: choisis } : {}), ...(round.count > 0 ? { count: round.count } : {}) } : {}),
+            ...(round.finale > 0 ? { finale: round.finale } : {}) } };
+        }
         if (ids.length && round.type !== "mimes" && !MUSIC_GAMES[round.type]) {
           if (!quizzes[ids[0]]) return null;
           const title = ids.map((q) => quizzes[q]?.title).filter(Boolean).join(" + ");

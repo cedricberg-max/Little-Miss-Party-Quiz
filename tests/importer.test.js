@@ -843,6 +843,20 @@ describe("fiche d'une prestation (cedric, 23/10)", () => {
     assert.deepEqual(lues, ["qc-a"]);
     assert.match(q1.imageId, /^[0-9a-f]{16}$/);
     assert.equal(q1.banque, undefined);
+    // Un quiz choisi sur la deuxième ligne en plus (cedric, 23/10) : gardé avec son nombre ; ses N premières questions
+    // suivent les questions tirées, la Super Finale termine le tout.
+    const animaux = { title: "Animaux", questions: [...Array(5).keys()].map((i) => ({ text: `Animal ${i + 1} ?`, choices: ["Oui", "Non"], correct: 0, status: "validee" })) };
+    const deux = M.cleanRound({ ...r, quizId: "animaux", count: 2 });
+    assert.deepEqual(deux, { type: "quiz", tirees: tirees.slice(0, 3), profil: "GRANDS", quizId: "animaux", count: 2, finale: 1 });
+    assert.equal(M.mancheSummary(deux, { quizzes: { animaux } }), "3 questions tirées au hasard (Grands) + Animaux");
+    assert.equal((await import("../web/public/show.js")).jeuDeLaManche(deux, { animaux }).type, "quiz", "Pas un Quiz illustré");
+    const ensemble = buildSnapshot("s", { childName: "Léa", age: 13, rounds: [{ ...deux, bougies: false }] }, { animaux });
+    assert.deepEqual(ensemble.problems, []);
+    assert.deepEqual(ensemble.snapshot.quiz.questions.map((q) => [q.text, q.double]),
+      [["Quel animal ?", false], ["Quelle couleur ?", false], ["Combien de pattes ?", false], ["Animal 1 ?", false], ["Animal 2 ?", true]]);
+    assert.equal(ensemble.snapshot.rounds[0].title, "Quiz + Animaux");
+    // Le quiz choisi a disparu de la bibliothèque : on le dit, les questions tirées restent jouables.
+    assert.match(buildSnapshot("s", { childName: "Léa", age: 13, rounds: [deux] }, {}).problems.join(), /le quiz n'existe plus/);
   });
 });
 

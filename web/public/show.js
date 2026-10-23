@@ -183,7 +183,7 @@ export function quizKind(quiz) {
  */
 export function jeuDeLaManche(round, quizzes = {}) {
   const ids = roundQuizIds(round);
-  if (!round || (round.type ?? "quiz") !== "quiz" || !ids.length) return round;
+  if (!round || (round.type ?? "quiz") !== "quiz" || !ids.length || roundTirees(round).length) return round;
   return ids.every((id) => quizzes?.[id] && quizKind(quizzes[id]) === "photo") ? { ...round, type: "illustre" } : round;
 }
 
@@ -829,12 +829,14 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     }
     // Questions tirées au 🎲 (cedric, 23/10) : un quiz à elles seules, déjà validées ; la photo de la révélation est
     // copiée dans la partie par la régie au chargement (comme les photos de la banque des petits), sinon l'émoji.
+    // Un quiz choisi en plus (deuxième ligne) : ses questions suivent les questions tirées.
     const tirees = roundTirees(round);
-    const ids = tirees.length ? [] : roundQuizIds(round);
-    const found = tirees.length
+    const ids = roundQuizIds(round);
+    const choisis = ids.map((id) => quizzes[id]).filter(Boolean);
+    const found = [...(tirees.length
       ? [{ title: ROUND_TYPES.quiz, questions: tirees.map((q) => (q.nombre ? { text: q.text, kind: "number", correct: q.correct, status: "validee" }
         : { text: q.text, choices: q.choices, correct: q.correct, status: "validee", ...(q.banque ? { banque: q.banque } : q.emoji ? { image: q.emoji } : {}) })) }]
-      : ids.map((id) => quizzes[id]).filter(Boolean);
+      : []), ...choisis];
     // Plusieurs quiz : un seul jeu, leurs questions à la suite, sous les titres réunis.
     const quiz = found.length > 1
       ? { title: found.map((x) => x.title).join(" + "), questions: found.flatMap((x) => (x.questions ?? []).filter(Boolean)) }
@@ -844,7 +846,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     const flou = round.type === "flou";
     const game = QUIZ_GAMES[round.type];
     const label = round.type === "finale" || game ? ROUND_TYPES[round.type] : quiz?.title ?? `Manche ${i + 1}`;
-    if (found.length < ids.length) problems.push(`Manche ${i + 1} : ${ids.length > 1 ? "un des quiz choisis" : "le quiz"} n'existe plus dans la bibliothèque.`);
+    if (choisis.length < ids.length) problems.push(`Manche ${i + 1} : ${ids.length > 1 ? "un des quiz choisis" : "le quiz"} n'existe plus dans la bibliothèque.`);
     if (!quiz) { if (!ids.length) problems.push(`Manche ${i + 1} : le quiz n'existe plus dans la bibliothèque.`); return; }
     // Nombre de questions choisi dans la prestation : les premières du quiz, dans son ordre. « 🔁 Rejouer » sur la
     // régie (cedric, 21/10) : jamais une question déjà posée pendant la fête ([avoid].questions).
@@ -860,8 +862,10 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     const restantes = posees ? reprises.filter((q) => !posees.has(`${q.text ?? ""}`.toLowerCase())) : reprises;
     // « Jamais deux fois » : au hasard, d'abord les questions qui ne montrent rien de ce que la fête a déjà montré,
     // s'il y en a assez ; sinon les suivantes, comme avant.
-    const voulues = round.count > 0 ? round.count : restantes.length;
-    const list = (sansMesImages ? neufsSiPossible(restantes, questionConcepts, pris, voulues) : restantes).slice(0, round.count > 0 ? round.count : undefined);
+    // Le nombre choisi pour le quiz de la deuxième ligne ne compte que ses questions, après les questions tirées.
+    const limite = round.count > 0 ? tirees.length + round.count : 0;
+    const voulues = limite || restantes.length;
+    const list = (sansMesImages ? neufsSiPossible(restantes, questionConcepts, pris, voulues) : restantes).slice(0, limite || undefined);
     if (!list.length) {
       problems.push(`Manche ${i + 1} (${quiz.title}) : ${!toutes.length ? game?.missing ?? "aucune question validée"
         : !reprises.length ? "aucune question à reprendre au hasard : au hasard, chaque réponse en photo doit avoir sa photo dans la banque ou son émoji (jamais vos images)"

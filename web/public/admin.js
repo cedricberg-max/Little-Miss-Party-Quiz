@@ -1109,8 +1109,7 @@ function quizSelection(r, all) {
     const clean = [...new Set(list.filter(Boolean))];
     r.quizId = clean[0] ?? "";
     r.quizIds = clean.length > 1 ? clean : null;
-    // Un quiz choisi remplace les questions tirées au 🎲.
-    if (clean.length) r.tirees = null;
+    // Les questions tirées au 🎲 (première ligne) restent : le quiz choisi les suit (cedric, 23/10).
     roundCtx.refresh();
   };
   const select = (current, k) => h("select", {
@@ -1421,8 +1420,11 @@ function versTiree(x) {
  * question déjà dans la manche, retirée de la manche (✕) ou tirée dans une autre manche de la prestation.
  */
 function piocherQuiz(r, { qcm = 0, chiffres = 0, profil }) {
-  const autres = roundCtx === prestationCtx && editing ? editing.rounds.filter((x) => x !== r).flatMap(roundTirees) : [];
-  const exclus = new Set([...autres.map((q) => q.text), ...casesDuTirage(r).filter((q) => !caseVide(q)).map((q) => q.text), ...(r.ecartees ?? [])]);
+  const manches = roundCtx === prestationCtx && editing ? editing.rounds.filter(Boolean) : [r];
+  const autres = manches.filter((x) => x !== r).flatMap(roundTirees);
+  // Ni une question d'un quiz choisi dans la prestation (ou dans cette manche, deuxième ligne).
+  const choisies = [...new Set([r, ...manches].flatMap(roundQuizIds))].flatMap((id) => Object.values(quizzes[id]?.questions ?? {}));
+  const exclus = new Set([...autres.map((q) => q.text), ...choisies.map((q) => q?.text), ...casesDuTirage(r).filter((q) => !caseVide(q)).map((q) => q.text), ...(r.ecartees ?? [])].filter(Boolean));
   const niveau = NIVEAU_DU_PROFIL[profil] ?? null;
   return {
     qcm: tirerChiffres(qcm, { niveau, exclus, liste: QCM_TOUT_PRETS }).map(versTiree),
@@ -1432,7 +1434,7 @@ function piocherQuiz(r, { qcm = 0, chiffres = 0, profil }) {
 
 /**
  * Tire [n] questions pour une manche Quiz (cedric, 23/10) : environ une sur quatre au Juste Chiffre, réparties dans la
- * manche (jamais la première). La manche ne prend plus ses questions dans un quiz.
+ * manche (jamais la première). Un quiz choisi sur la deuxième ligne n'est pas touché.
  */
 function tirerQuestionsQuiz(r, n, profil) {
   const nb = chiffresDuTirage(n);
@@ -1441,9 +1443,6 @@ function tirerQuestionsQuiz(r, n, profil) {
   chiffres.forEach((q, k) => liste.splice(Math.min(liste.length, Math.round(((k + 1) * n) / (chiffres.length + 1)) - 1), 0, q));
   r.tirees = liste;
   r.profil = profil;
-  r.quizId = "";
-  r.quizIds = null;
-  r.count = null;
 }
 
 /**
@@ -1537,16 +1536,14 @@ function tirageQuiz(r) {
         type: "button", class: "btn tirage-de", text: "🎲", "aria-label": "Tirer les questions au hasard",
         title: "Tirer les questions au hasard dans la banque", onclick: () => tirer(Number(nombre.value), profils.value),
       }),
-      // ✕ à côté du dé, toujours là (cedric, 23/10) : efface les questions de la manche, tirées au 🎲 ou d'un quiz choisi ;
-      // la manche reste, avec ses réglages. Rien à effacer : grisée.
+      // ✕ à côté du dé, toujours là (cedric, 23/10) : efface seulement les questions tirées au 🎲, même d'une ancienne
+      // session ; jamais le quiz choisi sur la deuxième ligne. La manche reste, avec ses réglages. Rien à effacer : grisée.
       h("button", {
-        type: "button", class: "icon tirage-effacer", text: "✕", disabled: !cases.length && !roundQuizIds(r).length,
-        "aria-label": "Effacer les questions de la manche", title: "Effacer les questions de la manche (la manche reste)",
+        type: "button", class: "icon tirage-effacer", text: "✕", disabled: !cases.length,
+        "aria-label": "Effacer les questions tirées", title: "Effacer les questions tirées au dé (la manche reste)",
         onclick: async () => {
-          const quiz = roundQuizIds(r).map((id) => quizzes[id]?.title).filter(Boolean).join(" + ");
-          const quoi = cases.length ? `les ${cases.length} questions tirées` : quiz ? `les questions du quiz « ${quiz} »` : "les questions";
-          if (!(await confirmer(`Effacer ${quoi} ? La manche reste, avec ses réglages.`, { ok: "Effacer", danger: true }))) return;
-          Object.assign(r, { tirees: null, quizId: "", quizIds: null, count: null });
+          if (!(await confirmer(`Effacer ${cases.length > 1 ? `les ${cases.length} questions tirées` : "la question tirée"} ? La manche reste, avec ses réglages.`, { ok: "Effacer", danger: true }))) return;
+          r.tirees = null;
           tiragesDeplies.delete(r);
           roundCtx.refresh();
           noterEcran();
@@ -1765,7 +1762,7 @@ function roundContent(r) {
   if (BUILTIN_GAMES[r.type] || r.type === "statues" || r.type === "pictionary" || r.type === "coffres" || r.type === "portes" || r.type === "gonfleur" || r.type === "patate") return "";
   if (r.type === "mimes") return r.deckId ? mimes[r.deckId]?.title ?? null : "cartes au hasard";
   if (MUSIC_GAMES[r.type]) return playlists[r.playlistId]?.title ?? null;
-  if (roundTirees(r).length) return mancheSummary(r);
+  if (roundTirees(r).length) return mancheSummary(r, { quizzes });
   const titles = roundQuizIds(r).map((id) => quizzes[id]?.title);
   return titles.length && titles.every(Boolean) ? titles.join(" + ") : null;
 }

@@ -275,8 +275,9 @@ export function cleanRound(r, playlists = {}) {
       ...(q.nombre ? { nombre: true } : { choices: q.choices.map((c) => c.trim().slice(0, 120)) }), correct: q.correct,
       ...(q.nombre ? {} : typeof q.banque === "string" && q.banque ? { banque: q.banque.slice(0, 120) } : typeof q.emoji === "string" && q.emoji ? { emoji: q.emoji.slice(0, 16) } : {}),
     }));
-    out = { type, ...(tirees.length ? { tirees, ...(PROFILES[r.profil] ? { profil: r.profil } : {}) }
-      : { quizId: ids[0], ...(ids.length > 1 ? { quizIds: ids } : {}), ...(r.count > 0 ? { count: r.count } : {}) }),
+    // Un quiz choisi en plus (deuxième ligne) reste, avec son nombre de questions.
+    out = { type, ...(tirees.length ? { tirees, ...(PROFILES[r.profil] ? { profil: r.profil } : {}) } : {}),
+      ...(ids.length || !tirees.length ? { quizId: ids[0], ...(ids.length > 1 ? { quizIds: ids } : {}), ...(r.count > 0 ? { count: r.count } : {}) } : {}),
       ...(hasFinale(type) && r.finale > 0 ? { finale: r.finale } : {}),
       // Question des bougies enlevée de ce quiz (elle y est d'office, voir questionBougies).
       ...(type === "quiz" && r.bougies === false ? { bougies: false } : {}) };
@@ -317,8 +318,8 @@ export function mancheSummary(round, lib = {}) {
   if ((r.type === "zoom" || r.type === "flou") && roundPicks(r).length) return n(roundPicks(r).length);
   if (r.type === "coffres" || r.type === "patate" || r.type === "gonfleur") return "rien à préparer";
   const tirees = roundTirees(r).length;
-  if (tirees) return `${tirees} question${tirees > 1 ? "s" : ""} tirée${tirees > 1 ? "s" : ""} au hasard${PROFILES[r.profil] ? ` (${PROFILES[r.profil].label.split(" (")[0]})` : ""}`;
   const titles = roundQuizIds(r).map((id) => lib.quizzes?.[id]?.title).filter(Boolean);
+  if (tirees) return [`${tirees} question${tirees > 1 ? "s" : ""} tirée${tirees > 1 ? "s" : ""} au hasard${PROFILES[r.profil] ? ` (${PROFILES[r.profil].label.split(" (")[0]})` : ""}`, ...titles].join(" + ");
   return titles.length ? titles.join(" + ") : "quiz à choisir";
 }
 

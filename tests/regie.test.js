@@ -5553,12 +5553,26 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.locator("#show-rounds .round").count(), 1, "La manche reste");
     assert.equal(await round.locator(".tirage-effacer").isDisabled(), true);
     assert.equal(await round.locator(".round-body > .tirage-ligne select.finale").inputValue(), "2");
-    // Elle efface aussi un quiz choisi.
+    // La deuxième ligne n'est jamais touchée (cedric, 23/10) : un quiz choisi reste quand on tire au 🎲 et quand la ✕
+    // efface les questions tirées ; seul, il ne rend pas la ✕ utilisable.
     await round.locator(".quiz-picks select").selectOption("animaux");
-    await round.locator(".tirage-effacer:not([disabled])").click();
-    assert.match(await repondreFenetre(page), /Effacer les questions du quiz « Animaux » \?/);
-    assert.equal(await round.locator(".quiz-picks select").inputValue(), "");
+    assert.equal(await round.locator(".tirage-effacer").isDisabled(), true, "Rien de tiré : grisée");
+    await ligne.locator(".tirage-de").click();
+    await round.locator(".tirage-voir", { hasText: "▸ 8 questions" }).waitFor();
+    assert.equal(await round.locator(".quiz-picks select").inputValue(), "animaux");
+    await round.locator(".tirage-effacer").click();
+    assert.match(await repondreFenetre(page), /Effacer les 8 questions tirées \?/);
+    await round.locator(".tirage-voir").waitFor({ state: "detached" });
+    assert.equal(await round.locator(".quiz-picks select").inputValue(), "animaux");
     assert.equal(await round.locator(".tirage-effacer").isDisabled(), true);
+    // Les deux ensemble : les questions tirées, puis celles du quiz.
+    await ligne.locator(".tirage-de").click();
+    await round.locator(".tirage-voir", { hasText: "▸ 8 questions" }).waitFor();
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
+    const [ensemble] = Object.values(await library("shows")).find((s) => s.childName === "Zoé").rounds;
+    assert.equal(ensemble.tirees.length, 8);
+    assert.equal(ensemble.quizId, "animaux");
     await page.context().close();
   });
 
