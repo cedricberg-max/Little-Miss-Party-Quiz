@@ -8,6 +8,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
 import android.util.Log
+import java.util.WeakHashMap
 import kotlin.math.abs
 
 /**
@@ -69,6 +70,11 @@ object Sons {
     /** Numéro du dernier lancement de chaque son long : un fondu de sortie ne coupe jamais un son relancé entre-temps. */
     private val lancements = mutableMapOf<Son, Int>()
     private val lits = mutableMapOf<Lit, Boucle>()
+    /** Fichier de chaque lecteur : un lecteur endormi ([endormir]) se recharge depuis lui. */
+    private val fichiers = WeakHashMap<MediaPlayer, String>()
+    private var appli: Context? = null
+    /** Tous les sons du démarrage sont chargés : une boucle absente ensuite est un incident. */
+    private var chargementFini = false
     private val volumes = Lit.entries.associateWith { 0f }.toMutableMap()
     private var ambiance = Ambiance.SILENCE
     /** Dernière ambiance demandée, même encore programmée : c'est elle qu'on remet au retour au premier plan. */
@@ -81,7 +87,7 @@ object Sons {
 
     /**
      * Origine du tempo (horloge de la box) : les boucles repartent toujours calées dessus, et les décors
-     * battent au même tempo. Une boucle muette est mise en pause, pour ne pas décoder du son pour rien.
+     * battent au même tempo. Une boucle devenue muette est libérée, puis rechargée quand une ambiance la redemande.
      */
     @Volatile var departDesLits: Long = SystemClock.elapsedRealtime()
         private set
@@ -104,9 +110,11 @@ object Sons {
      */
     fun preparer(context: Context) {
         val app = context.applicationContext
+        appli = app
         h.post {
             if (pret) return@post
             pret = true
+            chargementFini = false
             val etapes = ArrayDeque<() -> Unit>()
             val longsDabord = listOf(Son.GENERIQUE) + Son.entries.filter { it.long && it != Son.GENERIQUE }
             val litsDabord = listOf(Lit.COMPLET) + Lit.entries.filter { it != Lit.COMPLET }
@@ -122,6 +130,7 @@ object Sons {
             longsDabord.drop(1).forEach { s -> etapes += { chargerLong(app, s) } }
             etapes += { essayer("crayon") { crayon = lecteur(app, FICHIER_CRAYON, boucle = true) } }
             litsDabord.drop(1).forEach { l -> etapes += { chargerLit(app, l) } }
+            etapes += { chargementFini = true }
             enchainer(etapes)
             if (!veilleLancee) {
                 veilleLancee = true
@@ -138,6 +147,12 @@ object Sons {
                     if (volumes.getValue(l) > 0.01f && !b.isPlaying) {
                         incident("Boucle ${l.name} (${l.fichierPour(Look.gs)}) arrêtée toute seule, ambiance $ambiance : relancée")
                         reveiller(b)
+                    }
+                }
+                if (!enArriere && chargementFini) Lit.entries.forEach { l ->
+                    if (volumes.getValue(l) > 0.01f && !lits.containsKey(l) && l.fichierPour(Look.gs) != null) {
+                        incident("Boucle ${l.name} (${l.fichierPour(Look.gs)}) absente, ambiance $ambiance : rechargée")
+                        reveiller(rechargerLit(l))
                     }
                 }
             }
@@ -172,6 +187,8 @@ object Sons {
 
     /** Une boucle chargée après un ordre de musique prend tout de suite le volume de l'ambiance en cours. */
     private fun chargerLit(app: Context, l: Lit) = essayer(l.name) {
+        // Déjà chargée (à la demande d'une ambiance, pendant le chargement du démarrage) : on ne la double pas.
+        if (lits.containsKey(l)) return@essayer
         val nom = l.fichierPour(Look.gs) ?: return@essayer
         val b = boucle(app, nom) ?: return@essayer
         lits[l] = b
@@ -275,7 +292,7 @@ object Sons {
     private fun jouer(s: Son) {
         if (s.long) {
             variantes[s]?.let { v ->
-                longs[s]?.takeIf { it.isPlaying }?.pause()
+                longs[s]?.takeIf { it.isPlaying }?.let { it.pause(); endormir(it) }
                 val i = (v.indices - (derniereVariante[s] ?: -1)).random()
                 derniereVariante[s] = i
                 longs[s] = v[i]
@@ -357,7 +374,11 @@ object Sons {
                     if (!mp.isPlaying || lancements[s] != lancement) return@essayer
                     val v = 1f - k.toFloat() / etapes
                     mp.setVolume(v, v)
-                    if (k == etapes) mp.pause()
+                    if (k == etapes) {
+                        mp.pause()
+                        // Seuls ces deux-là reprennent là où ils s'étaient arrêtés ; les autres repartent du début.
+                        if (s != Son.FLOU_MONTEE && s != Son.PATATE_MUSIQUE) endormir(mp)
+                    }
                 }
             }, fondus, SystemClock.uptimeMillis() + k * PAS_MS)
         }
@@ -372,7 +393,7 @@ object Sons {
     /** Fondu enchaîné d'une ambiance à l'autre : chaque boucle glisse vers son volume, celles qui se taisent s'arrêtent. */
     private fun versAmbiance(a: Ambiance, fonduMs: Long = FONDU_MS) {
         ambiance = a
-        Lit.entries.forEach { if (a.volume(it, Look.gs) > 0f) reveiller(lits[it]) }
+        Lit.entries.forEach { if (a.volume(it, Look.gs) > 0f) reveiller(lits[it] ?: rechargerLit(it)) }
         val depart = volumes.toMap()
         val etapes = (fonduMs / PAS_MS).toInt().coerceAtLeast(1)
         for (k in 1..etapes) {
@@ -387,7 +408,11 @@ object Sons {
                         val b = lits[l] ?: return@essayer
                         if (de == 0f && v == 0f) return@essayer
                         b.setVolume(v)
-                        if (k == etapes && v == 0f) b.pause()
+                        // Boucle devenue muette : libérée (voir [endormir]), rechargée quand une ambiance la redemande.
+                        if (k == etapes && v == 0f) {
+                            lits.remove(l)
+                            b.liberer()
+                        }
                     }
                 }
             }, fondus, SystemClock.uptimeMillis() + k * PAS_MS)
@@ -405,6 +430,13 @@ object Sons {
         }
     }
 
+    /** Recharge une boucle libérée (ou pas encore chargée) au moment où une ambiance en a besoin. */
+    private fun rechargerLit(l: Lit): Boucle? {
+        val c = appli ?: return null
+        chargerLit(c, l)
+        return lits[l]
+    }
+
     /** Remet une boucle en route, calée sur le tempo commun. */
     private fun reveiller(b: Boucle?) {
         if (b == null || b.isPlaying) return
@@ -419,19 +451,52 @@ object Sons {
 
     private fun lecteur(context: Context, nom: String, boucle: Boolean): MediaPlayer? {
         val res = id(context, nom) ?: return null
-        val afd = context.resources.openRawResourceFd(res) ?: return null
-        return MediaPlayer().apply {
-            setAudioAttributes(attributs)
-            afd.use { setDataSource(it.fileDescriptor, it.startOffset, it.length) }
+        val neuf = MediaPlayer()
+        try {
+            remplir(context, neuf, res)
+        } catch (e: Exception) {
+            neuf.release()
+            throw e
+        }
+        return neuf.apply {
             isLooping = boucle
-            setVolume(0f, 0f)
-            prepare()
+            fichiers[this] = nom
             // Un lecteur en erreur (serveur audio de la box relancé…) resterait muet toute la partie : on le refait.
             setOnErrorListener { mp, quoi, extra ->
                 incident("Lecteur « $nom » en erreur ($quoi, $extra), reconstruit")
                 h.post { reconstruire(context, nom, boucle, mp) }
                 true
             }
+            // Un son long arrivé au bout rend sa sortie audio (les boucles remplacent ce relais par le leur).
+            setOnCompletionListener { fini -> h.post { endormir(fini) } }
+        }
+    }
+
+    /** Charge le fichier [res] dans un lecteur neuf ou remis à zéro : prêt, muet, au début. */
+    private fun remplir(context: Context, mp: MediaPlayer, res: Int) {
+        val afd = context.resources.openRawResourceFd(res) ?: throw IllegalStateException("son $res compressé")
+        mp.setAudioAttributes(attributs)
+        afd.use { mp.setDataSource(it.fileDescriptor, it.startOffset, it.length) }
+        mp.setVolume(0f, 0f)
+        mp.prepare()
+    }
+
+    /**
+     * Rend à la box la sortie audio d'un son long qui se tait : un lecteur fini ou en pause garde la sienne, et la box
+     * n'en ouvre qu'un nombre limité. Au bout d'une soirée de Game Show (une cinquantaine de sons déjà joués), elle ne
+     * pouvait plus en lancer de nouveaux : musique qui se tait en pleine boucle et ne revient pas, bilan sans sa boucle
+     * (cedric, 23 octobre). Le lecteur est remis à zéro et rechargé : prêt, au début de son fichier.
+     */
+    private fun endormir(mp: MediaPlayer) {
+        val c = appli ?: return
+        val nom = fichiers[mp] ?: return
+        try {
+            if (mp.isPlaying) return
+            mp.reset()
+            remplir(c, mp, id(c, nom) ?: throw IllegalStateException("$nom introuvable"))
+        } catch (e: Exception) {
+            incident("Lecteur « $nom » non rechargé (${e.message}), reconstruit")
+            reconstruire(c, nom, false, mp)
         }
     }
 
