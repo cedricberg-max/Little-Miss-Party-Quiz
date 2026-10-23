@@ -442,23 +442,53 @@ export const roundSeriesQuiz = (round) => ((round?.type ?? "quiz") === "quiz" ? 
     : { ...x, questions: listOf(x.questions).filter(Boolean) }));
 
 /**
- * Questions jouées d'une série, au format d'une question de quiz (validées) : celles gardées dans la série, ou celles du
- * quiz rappelé (validées, sans celles retirées). Un quiz qui n'existe plus : aucune.
+ * Clé d'une question dans sa série, pour l'ordre du « Quiz complet » (`ordreQuiz`) : la série, puis l'identifiant de la
+ * question gardée dans la série, sinon son texte (celles d'un quiz rappelé, comme leurs questions retirées).
  */
-export function questionsDeLaSerie(serie, quizzes = {}) {
+export const cleQuestion = (serie, q) => `${serie?.id ?? ""}|${serie?.origine !== "quiz" && typeof q?.id === "string" && q.id ? q.id : `t:${`${q?.text ?? ""}`.trim().toLowerCase()}`}`;
+
+/** Questions jouées d'une série, avec leur clé : { cle, q } (q au format d'une question de quiz). */
+function itemsDeLaSerie(serie, quizzes = {}) {
   if (serie?.origine === "quiz") {
     const quiz = quizzes?.[serie.quizId];
     const sans = new Set(listOf(serie.sans).map((t) => `${t}`.trim().toLowerCase()));
-    return quiz ? playable(quiz).filter((q) => !sans.has(`${q.text ?? ""}`.trim().toLowerCase())) : [];
+    return quiz ? playable(quiz).filter((q) => !sans.has(`${q.text ?? ""}`.trim().toLowerCase())).map((q) => ({ cle: cleQuestion(serie, q), q })) : [];
   }
-  return questionsEnLigne(serie?.questions).map((q) => (q.nombre
+  return questionsEnLigne(serie?.questions).map((q) => ({ cle: cleQuestion(serie, q), q: q.nombre
     ? { text: q.text, kind: "number", correct: q.correct, status: "validee" }
     : { text: q.text, choices: q.choices, correct: q.correct, status: "validee",
-      ...(q.banque ? { banque: q.banque } : q.imageId ? { imageId: q.imageId } : q.emoji ? { image: q.emoji } : {}) }));
+      ...(q.banque ? { banque: q.banque } : q.imageId ? { imageId: q.imageId } : q.emoji ? { image: q.emoji } : {}) } }));
 }
 
-/** Toutes les questions jouées d'une manche Quiz faite de séries, dans l'ordre (au plus MAX_QUESTIONS_MANCHE). */
-export const questionsDesSeries = (round, quizzes = {}) => roundSeriesQuiz(round).flatMap((x) => questionsDeLaSerie(x, quizzes)).slice(0, MAX_QUESTIONS_MANCHE);
+/**
+ * Questions jouées d'une série, au format d'une question de quiz (validées) : celles gardées dans la série, ou celles du
+ * quiz rappelé (validées, sans celles retirées). Un quiz qui n'existe plus : aucune.
+ */
+export const questionsDeLaSerie = (serie, quizzes = {}) => itemsDeLaSerie(serie, quizzes).map((x) => x.q);
+
+/**
+ * Toutes les questions d'une manche Quiz faite de séries, dans l'ordre de passage : { cle, q, serie } (au plus
+ * MAX_QUESTIONS_MANCHE). D'office, les séries à la suite ; rangées à la main dans le « Quiz complet » (cedric, 23/10 :
+ * ↑ ↓, 🔀), dans l'ordre gardé (`ordreQuiz`, leurs clés). Une question arrivée ensuite se met à côté de sa voisine de
+ * série ; une série toute nouvelle, au début si c'est la première (le 🎲), sinon à la fin.
+ */
+export function questionsDuQuiz(round, quizzes = {}) {
+  const parSerie = roundSeriesQuiz(round).map((serie) => itemsDeLaSerie(serie, quizzes).map((x) => ({ ...x, serie })));
+  const rang = new Map();
+  listOf(round?.ordreQuiz).forEach((c, k) => { if (typeof c === "string" && !rang.has(c)) rang.set(c, k); });
+  if (!rang.size) return parSerie.flat().slice(0, MAX_QUESTIONS_MANCHE);
+  const out = parSerie.flat().filter((x) => rang.has(x.cle)).sort((a, b) => rang.get(a.cle) - rang.get(b.cle));
+  parSerie.forEach((liste, s) => liste.forEach((x, k) => {
+    if (rang.has(x.cle)) return;
+    const avant = liste.slice(0, k).reverse().find((y) => out.includes(y));
+    const apres = avant ? null : liste.slice(k + 1).find((y) => out.includes(y));
+    out.splice(avant ? out.indexOf(avant) + 1 : apres ? out.indexOf(apres) : s === 0 ? 0 : out.length, 0, x);
+  }));
+  return out.slice(0, MAX_QUESTIONS_MANCHE);
+}
+
+/** Toutes les questions jouées d'une manche Quiz faite de séries, dans l'ordre de passage (au plus MAX_QUESTIONS_MANCHE). */
+export const questionsDesSeries = (round, quizzes = {}) => questionsDuQuiz(round, quizzes).map((x) => x.q);
 
 /**
  * Juste Chiffre parmi [n] questions tirées au 🎲 (cedric, 23/10 : « dans les quiz traditionnels il doit y avoir

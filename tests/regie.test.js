@@ -434,6 +434,18 @@ async function ajouterJeu(page, type = "quiz") {
   await page.click(`#jeu-choix .jeu-tuile[data-jeu="${type}"]`);
 }
 
+/**
+ * « 📗 Intégrer un quiz de votre bibliothèque » (cedric, 23/10) : dans la manche Quiz [round], cherche [texte] et ajoute
+ * le quiz [id] (une série de plus).
+ */
+async function integrerQuiz(round, id, texte) {
+  const series = round.locator(".quiz-series > li.serie");
+  const avant = await series.count();
+  await round.locator(".quiz-biblio-cherche").fill(texte);
+  await round.locator(`.quiz-biblio-item[data-quiz="${id}"]`).click();
+  await series.nth(avant).waitFor();
+}
+
 /** « ↺ Reprendre une manche déjà faite » (cedric, 23/10) : ouvre la liste sous la manche, puis prend la manche [cle]. */
 async function reprendre(round, cle) {
   await round.locator(".reprendre-ouvrir").click();
@@ -2362,7 +2374,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click('#jeu-choix .jeu-tuile[data-jeu="quiz"]');
     await page.locator("#jeu-choix").waitFor({ state: "hidden" });
     await page.locator('#show-rounds .jeu-bloc[data-jeu="quiz"] .jeu-nom', { hasText: "Quiz" }).waitFor();
-    await page.locator("#show-rounds select.grow").nth(0).selectOption("animaux");
+    await integrerQuiz(page.locator("#show-rounds .round").nth(0), "animaux", "anim");
     await page.locator("#show-rounds select.finale").selectOption("1");
     // La question des bougies (cedric, 21/10) : cochée d'office dans le premier Quiz ; la décocher l'enlève.
     const bougies = page.locator("#show-rounds label.bougies input");
@@ -2437,7 +2449,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#round-add");
     await page.click('#jeu-choix .jeu-tuile[data-jeu="quiz"]');
     await page.locator("#jeu-choix").waitFor({ state: "hidden" });
-    await page.locator("#show-rounds select.grow").nth(0).selectOption("animaux");
+    await integrerQuiz(page.locator("#show-rounds .round").nth(0), "animaux", "anim");
     await duree.filter({ hasText: /^environ \d+ min$/ }).waitFor();
     const quizSeul = await minutes();
     assert.ok(quizSeul >= 5 && quizSeul % 5 === 0, `arrondie aux 5 minutes : ${quizSeul}`);
@@ -2531,7 +2543,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.fill("#show-age", "9");
     await page.fill("#show-date", "2026-12-02");
     await ajouterJeu(page);
-    await page.locator("#show-rounds select.quiz-rappel").selectOption("animaux");
+    await integrerQuiz(page.locator("#show-rounds .round").nth(0), "animaux", "anim");
     // La première question seulement : la seconde retirée de la série du quiz (cedric, 23/10).
     const serieAnimaux = page.locator('#show-rounds li.serie[data-origine="quiz"]');
     await serieAnimaux.locator("button.serie-voir").click();
@@ -2633,7 +2645,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.fill("#show-child", "Léa");
     await page.fill("#show-age", "9");
     await ajouterJeu(page);
-    await page.locator("#show-rounds select.grow").nth(0).selectOption("animaux");
+    await integrerQuiz(page.locator("#show-rounds .round").nth(0), "animaux", "anim");
     await ajouterJeu(page, "mimes");
     await page.locator("#show-rounds .round").nth(1).locator("select.grow").selectOption(deckId);
     await page.locator("#show-summary", { hasText: "3 questions · 1 manche de mimes jouables" }).waitFor();
@@ -3961,8 +3973,8 @@ describe("bibliothèque de quiz et prestations", () => {
     // Quiz : un deuxième quiz rappelé à la suite, dans la même manche (deux séries).
     await ajouterJeu(page);
     const quiz = page.locator("#show-rounds .round").nth(0);
-    await quiz.locator("select.quiz-rappel").selectOption("animaux");
-    await quiz.locator("select.quiz-rappel").selectOption("finale");
+    await integrerQuiz(quiz, "animaux", "anim");
+    await integrerQuiz(quiz, "finale", "fin");
     await page.locator("#show-summary", { hasText: "4 questions" }).waitFor();
     // Mimes : 30 cartes du catalogue au hasard, une retirée, une à soi ajoutée.
     await ajouterJeu(page, "mimes");
@@ -5116,7 +5128,9 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(await premiere.locator(".quiz-picks select").first().locator("option").evaluateAll((o) => o.map((x) => x.value)), ["", "petits"]);
     // Le Quiz ne propose pas le quiz illustré.
     const seconde = page.locator("#show-rounds .round").nth(1);
-    assert.deepEqual(await seconde.locator("select.quiz-rappel option").evaluateAll((o) => o.map((x) => x.value)), ["", "animaux"]);
+    await seconde.locator(".quiz-biblio-cherche").fill("animaux");
+    await seconde.locator(".quiz-biblio-item").first().waitFor();
+    assert.deepEqual(await seconde.locator(".quiz-biblio-item").evaluateAll((xs) => xs.map((x) => x.dataset.quiz)), ["animaux"]);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
     // Ses deux manches sont gardées dans la page de leur jeu ; la prestation garde le lien.
@@ -5445,7 +5459,10 @@ describe("bibliothèque de quiz et prestations", () => {
     const TOM = { childName: "Tom", age: 9, date: "2026-03-01", status: "archivee", rounds: [{ type: "quiz", quizId: "animaux" }, { type: "statues", duration: 60 }], updatedAt: 1 };
     const LINA = { childName: "Lina", age: 8, date: "2026-09-12", status: "archivee", notes: "Thème licornes", rounds: [{ type: "quiz", tirees, profil: "MOYENS" }], updatedAt: 1 };
     await seedLibrary("quizzes", { animaux: ANIMAUX });
-    await seedLibrary("shows", { tom: TOM, lina: LINA, sans: { childName: "Ines", age: 7, date: "2026-02-01", status: "archivee", rounds: [{ type: "statues", duration: 60 }], updatedAt: 1 } });
+    // Cinq autres prestations archivées avec un Quiz : la recherche n'en montre que 6.
+    const autres = Object.fromEntries(["Noé", "Jade", "Hugo", "Anna", "Léo"].map((prenom, k) => [`autre${k}`,
+      { childName: prenom, age: 6, date: `2025-0${k + 1}-15`, status: "archivee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 }]));
+    await seedLibrary("shows", { tom: TOM, lina: LINA, ...autres, sans: { childName: "Ines", age: 7, date: "2026-02-01", status: "archivee", rounds: [{ type: "statues", duration: 60 }], updatedAt: 1 } });
     const page = await admin();
     await page.click("#home-new");
     await page.fill("#show-child", "Zoé");
@@ -5453,23 +5470,29 @@ describe("bibliothèque de quiz et prestations", () => {
     await ajouterJeu(page);
     const bloc = page.locator('#show-rounds .jeu-bloc[data-jeu="quiz"]');
     const round = page.locator("#show-rounds .round").nth(0);
-    const ligne = round.locator(".round-body > .tirage-ligne");
-    const compteur = round.locator(".quiz-compteur");
+    const ligne = round.locator(".quiz-outils > .tirage-ligne");
+    const compteur = round.locator(".round-head > .quiz-compteur");
     const series = round.locator(".quiz-series > li.serie");
     const origines = () => series.evaluateAll((xs) => xs.map((x) => x.dataset.origine));
     // Plus de « ＋ Manche » : le Quiz est une seule manche ; ni « ✍ Écrire une question » ni « ↺ Reprendre » (cedric, 23/10).
     assert.equal(await bloc.locator(".jeu-plus").count(), 0);
     assert.equal(await page.locator("#show-rounds .quiz-ecrire, #show-rounds .reprendre-ouvrir, #show-rounds .reprendre-zone").count(), 0);
-    // De haut en bas : le compteur, la ligne du dé (profil, nombre, 🎲 ; pas de ✕ : c'est un outil de création, cedric
-    // 23/10), « Rappeler un de vos quiz », la bougie, la Super Finale.
+    // Le compteur sur la ligne du numéro, en majuscules (cedric, 23/10). Puis, de haut en bas : les outils de création
+    // ensemble (la ligne du dé : profil, nombre, 🎲, pas de ✕ ; « Rappeler un de vos quiz » ; « Intégrer un quiz de
+    // votre bibliothèque »), la bougie, la Super Finale ; pas de note dans le Quiz.
+    assert.deepEqual(await round.locator(".round-head > *").evaluateAll((xs) => xs.map((x) => x.className)), ["num", "quiz-compteur"]);
+    assert.equal(await compteur.evaluate((x) => getComputedStyle(x).textTransform), "uppercase");
     assert.deepEqual(await round.locator(".round-body > *").evaluateAll((xs) => xs.map((x) => x.className)),
-      ["quiz-compteur", "tirage-ligne", "quiz-ajouts", "check bougies quiz-bougies", "quiz-finale", "manche-note"]);
+      ["quiz-outils", "check bougies quiz-bougies", "quiz-finale"]);
+    assert.deepEqual(await round.locator(".quiz-outils > *").evaluateAll((xs) => xs.map((x) => x.className)),
+      ["tirage-ligne", "quiz-ajouts quiz-rappel", "quiz-ajouts quiz-biblio"]);
     assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-profil", "tirage-nombre", "btn tirage-de"]);
     // « Rappeler un de vos quiz » : une case à gauche (pas un champ), une recherche à droite.
-    const ajouts = round.locator(".quiz-ajouts");
-    assert.deepEqual(await ajouts.locator(":scope > *").evaluateAll((xs) => xs.map((x) => [x.tagName, x.className])),
-      [["SPAN", "quiz-rappel-titre"], ["INPUT", "quiz-rappel-cherche"], ["DIV", "quiz-rappel-liste"]]);
+    const ajouts = round.locator(".quiz-rappel");
+    assert.deepEqual(await ajouts.locator(":scope > *, :scope > .quiz-ajout-champ > *").evaluateAll((xs) => xs.map((x) => [x.tagName, x.className])),
+      [["SPAN", "quiz-ajout-titre quiz-rappel-titre"], ["DIV", "quiz-ajout-champ"], ["INPUT", "quiz-ajout-cherche quiz-rappel-cherche"], ["DIV", "quiz-ajout-liste quiz-rappel-liste"]]);
     assert.equal(await ajouts.locator(".quiz-rappel-titre").textContent(), "📚 Rappeler un de vos quiz");
+    assert.equal(await round.locator(".quiz-biblio-titre").textContent(), "📗 Intégrer un quiz de votre bibliothèque");
     assert.equal(await compteur.textContent(), "Aucune question pour l'instant");
     assert.equal(await ligne.locator(".tirage-nombre").inputValue(), "8");
     assert.equal(await ligne.locator(".tirage-profil").inputValue(), "MOYENS");
@@ -5479,14 +5502,34 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await finale.locator("select.finale").inputValue(), "3");
     assert.equal(await finale.locator(".finale-facteur").inputValue(), "2");
     await capture(page, "quiz-manche-vide");
-    // La recherche : d'office les prestations archivées qui ont un Quiz, la plus récente d'abord ; elle filtre à chaque lettre
-    // (prénom, âge, date, notes).
+    // La recherche des prestations archivées qui ont un Quiz (cedric, 23/10) : rien tant qu'aucune lettre n'est tapée ;
+    // ensuite elle filtre à chaque lettre (prénom, âge, date, notes), 6 au plus, dans une liste posée à droite par-dessus
+    // l'écran (rien ne bouge en dessous).
     const cherche = ajouts.locator(".quiz-rappel-cherche");
+    const liste = ajouts.locator(".quiz-rappel-liste");
     const trouvees = () => ajouts.locator(".quiz-rappel-item").evaluateAll((xs) => xs.map((x) => x.dataset.show));
     await cherche.click();
-    await ajouts.locator(".quiz-rappel-liste:not([hidden])").waitFor();
-    assert.deepEqual(await trouvees(), ["lina", "tom"]);
+    assert.equal(await liste.isHidden(), true);
+    assert.equal(await ajouts.locator(".quiz-rappel-item").count(), 0);
+    const yBiblio = async () => (await round.locator(".quiz-biblio").boundingBox()).y;
+    const avant = await yBiblio();
+    await cherche.fill("anniversaire");
+    await liste.waitFor();
+    assert.equal((await trouvees()).length, 6, "6 au plus");
+    assert.equal(await liste.evaluate((x) => getComputedStyle(x).position), "absolute");
+    assert.equal(await yBiblio(), avant, "La liste ne pousse rien");
+    await capture(page, "quiz-rappel-recherche", { pleinePage: false });
+    if (process.env.CAPTURES) {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await liste.scrollIntoViewIfNeeded();
+      await capture(page, "quiz-rappel-recherche-pc", { pleinePage: false });
+      await page.setViewportSize({ width: 390, height: 844 });
+    }
+    await cherche.fill("tom");
+    await waitFor(async () => JSON.stringify(await trouvees()) === '["tom"]', "recherche par prénom");
     assert.equal(await ajouts.locator('.quiz-rappel-item[data-show="tom"]').textContent(), "Anniversaire de Tom (1 mars 2026)01/03/2026 · 9 ans · 2 questions");
+    await cherche.fill("");
+    await liste.waitFor({ state: "hidden" });
     await cherche.fill("licornes");
     await waitFor(async () => JSON.stringify(await trouvees()) === '["lina"]', "recherche dans les notes");
     await cherche.fill("12/09/2026");
@@ -5612,6 +5655,109 @@ describe("bibliothèque de quiz et prestations", () => {
     await series.nth(1).locator(".serie-enlever").click();
     assert.match(await repondreFenetre(page, { accepter: false }), /Enlever cette série \(2 questions\) de la manche \?/);
     assert.equal(await series.count(), 2);
+    await page.context().close();
+  });
+
+  test("Régie PC (cedric, 23/10) : « Intégrer un quiz de votre bibliothèque » ; en dernière ligne le « Quiz complet », tout dans l'ordre de passage : ↑ ↓, ✕, 🔀, l'ordre gardé jusqu'à la TV", async () => {
+    const { buildSnapshot } = await import("../web/public/show.js");
+    const tirees = [{ id: "x1", text: "Quelle est la capitale de l'Italie ?", choices: ["Rome", "Milan", "Naples", "Turin"], correct: 0 },
+      { id: "x2", text: "Combien de jours dans une semaine ?", nombre: true, correct: 7 }];
+    await seedLibrary("quizzes", { animaux: ANIMAUX, finale: FINALE });
+    await seedLibrary("shows", { lina: { childName: "Lina", age: 8, date: "2026-09-12", status: "archivee", rounds: [{ type: "quiz", tirees, profil: "MOYENS" }], updatedAt: 1 } });
+    const page = await admin();
+    await page.click("#home-new");
+    await page.fill("#show-child", "Zoé");
+    await page.fill("#show-age", "10");
+    await ajouterJeu(page);
+    const round = page.locator("#show-rounds .round").nth(0);
+    const series = round.locator(".quiz-series > li.serie");
+    const biblio = round.locator(".quiz-biblio");
+    // Pas de « Quiz complet » sans question.
+    assert.equal(await round.locator(".quiz-complet").count(), 0);
+    // La bibliothèque : rien avant la première lettre, puis le titre (ou le thème) de ses quiz classiques.
+    const cherche = biblio.locator(".quiz-biblio-cherche");
+    await cherche.click();
+    assert.equal(await biblio.locator(".quiz-biblio-liste").isHidden(), true);
+    await cherche.fill("fin");
+    await biblio.locator('.quiz-biblio-item[data-quiz="finale"]').waitFor();
+    assert.deepEqual(await biblio.locator(".quiz-biblio-item").evaluateAll((xs) => xs.map((x) => x.dataset.quiz)), ["finale"]);
+    assert.equal(await biblio.locator('.quiz-biblio-item[data-quiz="finale"]').textContent(), "Finale1 question");
+    // Animaux de la bibliothèque, le Quiz de Lina (prestation archivée), puis Finale : à la suite.
+    await integrerQuiz(round, "animaux", "anim");
+    assert.equal(await series.nth(0).locator(".serie-voir").textContent(), "▸ 📚 Quiz « Animaux » : 2 questions");
+    await round.locator(".quiz-rappel-cherche").fill("lina");
+    await round.locator('.quiz-rappel-item[data-show="lina"]').click();
+    await series.nth(1).waitFor();
+    await integrerQuiz(round, "finale", "fin");
+    await round.locator(".quiz-biblio-cherche").fill("anim");
+    await round.locator('.quiz-biblio-item[data-quiz="animaux"]', { hasText: "✓ déjà dans ce Quiz" }).waitFor();
+    await round.locator(".quiz-biblio-cherche").fill("");
+    // Le « Quiz complet » : la dernière ligne, repliée ; dépliée, toutes les questions numérotées dans l'ordre de passage,
+    // la bougie à sa place (juste avant la Super Finale, 3 dernières).
+    assert.deepEqual(await round.locator(".round-body > *").evaluateAll((xs) => xs.map((x) => x.className)),
+      ["quiz-outils", "quiz-series", "check bougies quiz-bougies", "quiz-finale", "serie quiz-complet"]);
+    const complet = round.locator(".quiz-complet");
+    const voir = complet.locator(".quiz-complet-voir");
+    assert.equal(await voir.textContent(), "▸ 🧩 Quiz complet : 5 questions + les bougies, dans l'ordre de passage");
+    assert.equal(await complet.locator(".quiz-complet-liste").isHidden(), true);
+    await voir.click();
+    const lignes = complet.locator(".quiz-complet-liste > li");
+    const ordre = () => complet.locator(".quiz-complet-q .tirage-texte").allTextContents();
+    assert.deepEqual(await lignes.evaluateAll((xs) => xs.map((x) => [x.querySelector(".quiz-complet-num").textContent, x.querySelector(".tirage-texte").textContent])), [
+      ["1", "Roi de la jungle ?"], ["2", "Combien de pattes a une araignée ?"], ["🎂", "🔢 Le Juste Chiffre : combien de bougies sur le gâteau de Zoé cette année ?"],
+      ["3", "Quelle est la capitale de l'Italie ?"], ["4", "🔢 Combien de jours dans une semaine ?"], ["5", "Le Soleil est une étoile"]]);
+    assert.deepEqual(await complet.locator(".quiz-complet-q").evaluateAll((xs) => xs.map((x) => x.classList.contains("en-finale"))), [false, false, true, true, true]);
+    assert.equal(await complet.locator(".quiz-complet-q").first().locator(".quiz-complet-monter").isDisabled(), true);
+    // ↓ sur la première, ↑ sur la dernière : l'ordre change, la Super Finale reste sur les 3 dernières.
+    await complet.locator(".quiz-complet-q").nth(0).locator(".quiz-complet-descendre").click();
+    assert.deepEqual(await ordre(), ["Combien de pattes a une araignée ?", "Roi de la jungle ?", "Quelle est la capitale de l'Italie ?", "🔢 Combien de jours dans une semaine ?", "Le Soleil est une étoile"]);
+    await complet.locator(".quiz-complet-q").nth(4).locator(".quiz-complet-monter").click();
+    assert.deepEqual(await ordre(), ["Combien de pattes a une araignée ?", "Roi de la jungle ?", "Quelle est la capitale de l'Italie ?", "Le Soleil est une étoile", "🔢 Combien de jours dans une semaine ?"]);
+    // Dans les séries aussi, la Super Finale suit l'ordre de passage.
+    await series.nth(1).locator(".serie-voir").click();
+    assert.deepEqual(await series.nth(1).locator(".serie-liste > li").evaluateAll((xs) => xs.map((x) => x.classList.contains("en-finale"))), [true, true]);
+    // ✕ : la question part du quiz (ici retirée du quiz de la bibliothèque, qui ne change pas).
+    await complet.locator(".quiz-complet-q", { hasText: "Roi de la jungle" }).locator(".tirage-retirer").click();
+    assert.deepEqual(await ordre(), ["Combien de pattes a une araignée ?", "Quelle est la capitale de l'Italie ?", "Le Soleil est une étoile", "🔢 Combien de jours dans une semaine ?"]);
+    assert.equal(await series.nth(0).locator(".serie-voir").textContent(), "▸ 📚 Quiz « Animaux » : 1 question (1 retirée)");
+    assert.equal(await round.locator(".round-head > .quiz-compteur").textContent(), "4 questions, dont 3 en Super Finale, plus la question des bougies");
+    // Une série descendue : ses questions passent ensemble, chacune dans son ordre.
+    await series.nth(0).locator(".serie-descendre").click();
+    assert.deepEqual(await ordre(), ["Quelle est la capitale de l'Italie ?", "🔢 Combien de jours dans une semaine ?", "Combien de pattes a une araignée ?", "Le Soleil est une étoile"]);
+    // 🔀 : tout est mélangé.
+    const avant = await ordre();
+    await complet.locator(".quiz-melanger").click();
+    const melange = await ordre();
+    assert.notDeepEqual(melange, avant);
+    assert.deepEqual([...melange].sort(), [...avant].sort());
+    await capture(page, "quiz-complet");
+    if (process.env.CAPTURES) {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await capture(page, "quiz-complet-pc");
+      await page.setViewportSize({ width: 390, height: 844 });
+    }
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
+    const zoe = Object.values(await library("shows")).find((s) => s.childName === "Zoé");
+    assert.equal(zoe.rounds[0].ordreQuiz.length, 4);
+    assert.deepEqual((await library("quizzes/animaux")).questions, ANIMAUX.questions, "Le quiz de la bibliothèque ne change pas");
+    // Sur la TV : l'ordre rangé, la bougie juste avant la Super Finale.
+    const { snapshot } = buildSnapshot("zoe", zoe, { animaux: ANIMAUX, finale: FINALE });
+    const sansSigne = (t) => t.replace(/^🔢 /, "");
+    const qs = snapshot.quiz.questions.map((q) => q.text);
+    assert.deepEqual(qs.filter((t) => !/bougies/.test(t)), melange.map(sansSigne));
+    assert.equal(qs[1], "Le Juste Chiffre : combien de bougies sur le gâteau de Zoé cette année ?");
+    // Rouverte : le même ordre ; un nouveau tirage au 🎲 passe en tête, l'ordre rangé suit.
+    await page.click("#show-edit-crumb");
+    await page.locator(".show-card", { hasText: "Zoé" }).first().click();
+    await series.nth(2).waitFor();
+    await voir.click();
+    assert.deepEqual(await ordre(), melange);
+    await round.locator(".tirage-de").click();
+    await waitFor(async () => (await series.count()) === 4, "série du dé");
+    const tout = await ordre();
+    assert.equal(tout.length, 12);
+    assert.deepEqual(tout.slice(8), melange);
     await page.context().close();
   });
 

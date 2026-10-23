@@ -21,6 +21,7 @@ import {
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, alerteEquipes, EQUIPES_PAR_DEFAUT, pourLeHasard, premierQuiz,
   launchStates, launchLabelPc, roundTirees, chiffresDuTirage, MAX_TIREES,
   roundSeriesQuiz, questionsDeLaSerie, questionsDesSeries, questionJouable, FACTEURS_FINALE, SUPER_FINALE_LAST, questionBougies,
+  questionsDuQuiz, cleQuestion,
 } from "./show.js";
 import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE, cheminPhotoBanque } from "./banque-photos.js";
 import { shuffle } from "./mime-cards.js";
@@ -1255,7 +1256,10 @@ function refreshRounds() {
       ...b.indices.map((i) => {
         const r = editing.rounds[i];
         const vide = !roundFilled(r);
-        const corps = h("div", { class: "round-body" }, ...roundFields(r));
+        const champs = roundFields(r);
+        // Le compteur du Quiz sur la ligne de son numéro (cedric, 23/10).
+        const compteur = b.type === "quiz" ? champs.find((x) => x?.classList?.contains("quiz-compteur")) ?? null : null;
+        const corps = h("div", { class: "round-body" }, ...champs.filter((x) => x !== compteur));
         // Créer d'abord (les champs ci-dessus), reprendre ensuite (cedric, 23/10). Pas pour le Quiz (cedric, 23/10) :
         // ses questions viennent du 🎲 et du quiz d'une prestation archivée (« Rappeler un de vos quiz »).
         const reprise = SANS_CONTENU.includes(b.type) || b.type === "quiz" ? null : reprendreManche(r, (next) => {
@@ -1265,8 +1269,8 @@ function refreshRounds() {
         return h("div", { class: "round show-round", "data-manche": i },
           h("div", { class: "round-head" },
             h("span", { class: "num", title: `Manche ${i + 1} de la prestation`, text: `${i + 1}` }),
-            SANS_CONTENU.includes(b.type) ? h("span", { class: "grow hint small", text: n > 1 ? `Partie ${b.indices.indexOf(i) + 1}` : "" })
-              : h("span", { class: "grow hint small", text: vide && b.type !== "quiz" ? "Nouvelle manche : choisissez son contenu, ou reprenez une manche déjà faite (plus bas)." : "" }),
+            compteur ?? (SANS_CONTENU.includes(b.type) ? h("span", { class: "grow hint small", text: n > 1 ? `Partie ${b.indices.indexOf(i) + 1}` : "" })
+              : h("span", { class: "grow hint small", text: vide && b.type !== "quiz" ? "Nouvelle manche : choisissez son contenu, ou reprenez une manche déjà faite (plus bas)." : "" })),
             n > 1 ? h("button", { type: "button", class: "icon", title: "Retirer cette manche", onclick: () => { editing.rounds.splice(i, 1); refreshRounds(); }, text: "✕" }) : null),
           corps,
           reprise,
@@ -1294,7 +1298,7 @@ function ouvrirChoixJeu() {
         box.hidden = true;
         // Un Quiz juste après un Quiz n'en ferait qu'un : on y retourne, ses questions s'ajoutent dans sa manche.
         if (x.type === "quiz" && (editing.rounds[editing.rounds.length - 1]?.type ?? "") === "quiz") {
-          annonce("Le Quiz est déjà le dernier jeu : ajoutez-y vos questions (🎲, un de vos quiz, ✍ à la main).");
+          annonce("Le Quiz est déjà le dernier jeu : ajoutez-y vos questions (🎲, un ancien quiz, un quiz de votre bibliothèque).");
           $("show-rounds").lastElementChild?.scrollIntoView({ block: "nearest", behavior: "smooth" });
           return;
         }
@@ -1558,14 +1562,17 @@ function compteurQuiz(r) {
 
 /**
  * Manche Quiz (cedric, 23/10) : un seul jeu, de 1 à 100 questions, fait de séries qui passent dans l'ordre choisi.
- * - En haut, le compteur de toute la manche.
- * - Première ligne : le profil des questions (celui de la prestation d'office, modifiable), leur nombre, le 🎲 qui les
- *   tire dans la banque, la ✕ qui efface les questions tirées (et rien d'autre).
- * - Deuxième ligne : « Rappeler un de vos quiz » : tout le Quiz d'une prestation archivée, cherchée par prénom, âge, date…
+ * - En haut, le compteur de toute la manche (dans une prestation : sur la ligne du numéro du jeu).
+ * - Les outils de création, ensemble :
+ *   - le profil des questions (celui de la prestation d'office, modifiable), leur nombre et le 🎲 qui les tire dans la
+ *     banque (pas de ✕ : c'est un outil, la série tirée a la sienne) ;
+ *   - « Rappeler un de vos quiz » : tout le Quiz d'une prestation archivée, cherchée par prénom, âge, date… ;
+ *   - « Intégrer un quiz de votre bibliothèque » : un quiz de la page Quiz (importé ou écrit), cherché par son titre.
  * - Les séries : chacune se déplie, monte ou descend (↑ ↓) et s'enlève (✕) ; dans une série, ✕ retire une question
  *   (celle tirée au 🎲 laisse un 🎲 à sa place, qui en tire une autre de la même sorte).
- * - Puis la question des bougies (premier Quiz de la prestation) et, en dernière ligne, la Super Finale : oui ou non,
- *   ses dernières questions (3 d'office) et son multiplicateur (×2 d'office).
+ * - Puis la question des bougies (premier Quiz de la prestation), la Super Finale : oui ou non, ses dernières questions
+ *   (3 d'office) et son multiplicateur (×2 d'office) ; en dernière ligne, le « Quiz complet » : toutes les questions
+ *   dans l'ordre de passage, chacune monte, descend ou s'enlève, et 🔀 mélange tout.
  */
 function mancheQuiz(r) {
   const series = seriesDe(r);
@@ -1575,13 +1582,16 @@ function mancheQuiz(r) {
   const n = cases.length || r.nbTirage || TIRAGE_DEFAUT;
   // Une nouvelle manche part avec la Super Finale sur ses 3 dernières questions, ×2 (cedric, 23/10).
   if (r.finale === undefined && !roundFilled(r)) r.finale = SUPER_FINALE_LAST;
-  const total = questionsDesSeries(r, quizzes).length;
+  const assemblage = questionsDuQuiz(r, quizzes);
+  const total = assemblage.length;
   const finale = r.finale > 0 ? Math.min(r.finale, total) : 0;
+  // Les questions de la Super Finale : les dernières dans l'ordre de passage (celui du « Quiz complet »).
+  const clesFinale = new Set(finale ? assemblage.slice(-finale).map((x) => x.cle) : []);
   const compteur = h("p", { class: "quiz-compteur", "aria-live": "polite", text: compteurQuiz(r) });
   const majCompteur = () => { compteur.textContent = compteurQuiz(r); roundCtx.summary(); };
   const changer = () => { roundCtx.refresh(); };
 
-  // Première ligne : profil, nombre, 🎲, ✕.
+  // Première ligne : profil, nombre, 🎲.
   const tirer = (k, p) => { tirerQuestionsQuiz(r, k, p); changer(); };
   const nombre = h("select", {
     class: "tirage-nombre", "aria-label": "Nombre de questions à tirer",
@@ -1604,45 +1614,41 @@ function mancheQuiz(r) {
       title: "Tirer les questions au hasard dans la banque (les autres séries ne bougent pas)", onclick: () => tirer(Number(nombre.value), profils.value),
     }));
 
-  // Deuxième ligne : « Rappeler un de vos quiz » (cedric, 23/10) : à droite, une recherche dans les prestations
-  // archivées (prénom, âge, date, notes…), filtrée à chaque lettre ; celle choisie ajoute tout son Quiz en une série à la
-  // fin (questions copiées : la prestation archivée ne change pas).
+  // Deuxième ligne : « Rappeler un de vos quiz » (cedric, 23/10) : une recherche dans les prestations archivées
+  // (prénom, âge, date, notes…) ; celle choisie ajoute tout son Quiz en une série à la fin (questions copiées : la
+  // prestation archivée ne change pas).
   const archives = quizArchives();
-  const cherche = h("input", {
-    type: "search", class: "quiz-rappel-cherche", "aria-label": "Chercher une prestation archivée",
-    placeholder: archives.length ? "Prénom, âge, date… d'une prestation archivée" : "Aucune prestation archivée avec un Quiz",
+  const rappel = ligneAjoutQuiz({
+    classe: "quiz-rappel", titre: "📚 Rappeler un de vos quiz", label: "Chercher une prestation archivée",
+    placeholder: "Prénom, âge, date… d'une prestation archivée", vide: "Aucune prestation archivée avec un Quiz",
+    aucun: "Aucune prestation archivée ne correspond.", items: archives, attr: (x) => ({ "data-show": x.id }),
+    choisir: (x) => {
+      series.push({ id: nouvelId("p"), origine: "reprise", titre: x.titre, questions: JSON.parse(JSON.stringify(x.questions)) });
+      changer();
+    },
   });
-  const resultats = h("div", { class: "quiz-rappel-liste" });
-  resultats.hidden = true;
-  // Un clic dans la liste ne fait pas perdre la main au champ (la liste resterait sinon cachée avant le clic).
-  resultats.addEventListener("mousedown", (e) => e.preventDefault());
-  const dessinerArchives = () => {
-    const q = cherche.value;
-    const trouvees = q.trim() ? parPertinence(archives.filter((x) => contientTout([...x.noms, ...x.autres].filter(Boolean), q)), q, (x) => x.noms.filter(Boolean), (x) => x.autres.filter(Boolean)) : archives.slice(0, REPRISE_RECENTES);
-    resultats.replaceChildren(...(trouvees.length ? trouvees.map((x) => h("button", {
-      type: "button", class: "quiz-rappel-item", "data-show": x.id,
-      onclick: () => {
-        series.push({ id: nouvelId("p"), origine: "reprise", titre: x.titre, questions: JSON.parse(JSON.stringify(x.questions)) });
-        changer();
-      },
-    }, h("b", { text: x.titre }), h("span", { class: "small", text: x.details }))) : [h("p", { class: "hint small", text: q.trim() ? "Aucune prestation archivée ne correspond." : "Aucune prestation archivée avec un Quiz." })]));
-    resultats.hidden = false;
-  };
-  cherche.addEventListener("input", dessinerArchives);
-  cherche.addEventListener("focus", dessinerArchives);
-  cherche.addEventListener("blur", () => { resultats.hidden = true; });
-  const ajouts = h("div", { class: "quiz-ajouts" },
-    h("span", { class: "quiz-rappel-titre", text: "📚 Rappeler un de vos quiz" }),
-    cherche,
-    resultats);
 
-  // Les séries, dans l'ordre de passage ; les questions jouées sont comptées pour marquer celles de la Super Finale.
-  let rang = 0;
-  const enFinale = () => finale > 0 && rang > total - finale;
-  const ligneQuestion = (q, retirer, extra = null) => {
-    const jouable = questionJouable(q) || (q.status === "validee");
-    if (jouable) rang++;
-    const fin = jouable && enFinale();
+  // Troisième ligne : « Intégrer un quiz de votre bibliothèque » (cedric, 23/10) : un quiz de la page Quiz (importé ou
+  // écrit à la main), cherché par son titre ou son thème ; il s'ajoute en entier à la fin (lu dans la bibliothèque).
+  const dejaLa = new Set(series.filter((x) => x.origine === "quiz").map((x) => x.quizId));
+  const classiques = Object.entries(quizzes).filter(([, q]) => q?.title && quizQuestions(q).length)
+    .sort(([, a], [, b]) => a.title.localeCompare(b.title, "fr"))
+    .map(([qid, q]) => {
+      const k = quizQuestions(q).length;
+      return { id: qid, titre: q.title, details: [`${k} question${k > 1 ? "s" : ""}`, q.theme, dejaLa.has(qid) ? "✓ déjà dans ce Quiz" : ""].filter(Boolean).join(" · "),
+        noms: [q.title], autres: [q.theme] };
+    });
+  const biblio = ligneAjoutQuiz({
+    classe: "quiz-biblio", titre: "📗 Intégrer un quiz de votre bibliothèque", label: "Chercher un quiz de la bibliothèque",
+    placeholder: "Titre ou thème d'un de vos quiz", vide: "Pas encore de quiz dans votre bibliothèque",
+    aucun: "Aucun quiz de la bibliothèque ne correspond.", items: classiques, attr: (x) => ({ "data-quiz": x.id }),
+    choisir: (x) => { series.push({ id: nouvelId("q"), origine: "quiz", quizId: x.id }); changer(); },
+  });
+  const outils = h("div", { class: "quiz-outils" }, ligne, rappel, biblio);
+
+  // Les séries, dans l'ordre choisi ; les questions de la Super Finale y sont marquées.
+  const ligneQuestion = (x, q, retirer, extra = null) => {
+    const fin = clesFinale.has(cleQuestion(x, q));
     return h("li", { class: `tirage-q${fin ? " en-finale" : ""}` }, h("div", { class: "tirage-q-ligne" },
       h("span", { class: "tirage-texte", text: `${q.nombre || q.kind === "number" ? "🔢 " : ""}${q.text}` }),
       miniature(q),
@@ -1664,7 +1670,7 @@ function mancheQuiz(r) {
             changer();
           } }),
           h("span", { class: "hint small", text: q.nombre ? "Juste Chiffre à tirer" : "Question à tirer" })))
-        : ligneQuestion(q, () => {
+        : ligneQuestion(x, q, () => {
           r.ecartees = [...(r.ecartees ?? []), q.text];
           poserTirage(r, qs.map((y, k) => (k === i ? { vide: true, ...(q.nombre ? { nombre: true } : {}) } : y)));
           changer();
@@ -1672,17 +1678,13 @@ function mancheQuiz(r) {
     }
     if (x.origine === "quiz") {
       // Quiz rappelé : ✕ retire une question (gardée de côté, « ↺ » la remet) ; le quiz de la bibliothèque ne change pas.
-      return questionsDeLaSerie(x, quizzes).map((q) => ligneQuestion(q, () => { x.sans = [...(x.sans ?? []), q.text]; changer(); }));
+      return questionsDeLaSerie(x, quizzes).map((q) => ligneQuestion(x, q, () => { x.sans = [...(x.sans ?? []), q.text]; changer(); }));
     }
     if (x.origine === "main") {
-      return (x.questions ?? []).filter(Boolean).map((q) => {
-        const jouable = questionJouable(q);
-        if (jouable) rang++;
-        return questionEcrite(r, x, q, majCompteur, jouable && enFinale());
-      });
+      return (x.questions ?? []).filter(Boolean).map((q) => questionEcrite(r, x, q, majCompteur, questionJouable(q) && clesFinale.has(cleQuestion(x, q))));
     }
     // Reprise d'une autre manche : ses questions copiées ; ✕ en retire une.
-    return (x.questions ?? []).filter(Boolean).map((q) => (questionJouable(q) ? ligneQuestion(q, () => { x.questions = x.questions.filter((y) => y !== q); changer(); }) : null));
+    return (x.questions ?? []).filter(Boolean).map((q) => (questionJouable(q) ? ligneQuestion(x, q, () => { x.questions = x.questions.filter((y) => y !== q); changer(); }) : null));
   };
   const titreSerie = (x) => {
     const k = questionsDeLaSerie(x, quizzes).length;
@@ -1702,6 +1704,8 @@ function mancheQuiz(r) {
     const j = i + d;
     if (j < 0 || j >= series.length) return;
     [series[i], series[j]] = [series[j], series[i]];
+    // Rangé à la main : chaque série garde l'ordre de ses questions, les séries passent dans leur nouvel ordre.
+    if (r.ordreQuiz?.length) r.ordreQuiz = series.flatMap((y) => assemblage.filter((z) => z.serie.id === y.id).map((z) => z.cle));
     changer();
   };
   const liste = h("ol", { class: "quiz-series" }, ...series.map((x, i) => {
@@ -1769,7 +1773,120 @@ function mancheQuiz(r) {
     questionAFocaliser = null;
     requestAnimationFrame(() => document.querySelector(`[data-question="${CSS.escape(id)}"] .q-main-texte`)?.focus());
   }
-  return [compteur, ligne, ajouts, series.length ? liste : null, bougies, derniere];
+  return [compteur, outils, series.length ? liste : null, bougies, derniere, quizComplet(r, assemblage, clesFinale, changer)];
+}
+
+/** Résultats montrés au plus sous une recherche d'ajout du Quiz (cedric, 23/10 : « 5 ou 6 »). */
+const QUIZ_AJOUT_MAX = 6;
+
+/**
+ * Une ligne d'ajout du Quiz (cedric, 23/10) : une case à gauche (pas un champ), une recherche à droite. Rien tant
+ * qu'aucune lettre n'est tapée ; ensuite, à chaque lettre, les QUIZ_AJOUT_MAX meilleurs résultats (prénom, titre,
+ * date…), les uns sous les autres, dans une liste posée à droite par-dessus l'écran (rien ne bouge en dessous). Un clic
+ * sur un résultat l'ajoute.
+ */
+function ligneAjoutQuiz({ classe, titre, label, placeholder, vide, aucun, items, attr, choisir }) {
+  const cherche = h("input", { type: "search", class: `quiz-ajout-cherche ${classe}-cherche`, "aria-label": label, placeholder: items.length ? placeholder : vide });
+  const resultats = h("div", { class: `quiz-ajout-liste ${classe}-liste` });
+  resultats.hidden = true;
+  // Un clic dans la liste ne fait pas perdre la main au champ (la liste resterait sinon cachée avant le clic).
+  resultats.addEventListener("mousedown", (e) => e.preventDefault());
+  const dessiner = () => {
+    const q = cherche.value;
+    if (!q.trim()) { resultats.hidden = true; resultats.replaceChildren(); return; }
+    const trouves = parPertinence(items.filter((x) => contientTout([...x.noms, ...x.autres].filter(Boolean), q)), q, (x) => x.noms.filter(Boolean), (x) => x.autres.filter(Boolean))
+      .slice(0, QUIZ_AJOUT_MAX);
+    resultats.replaceChildren(...(trouves.length ? trouves.map((x) => h("button", { type: "button", class: `quiz-ajout-item ${classe}-item`, ...attr(x), onclick: () => choisir(x) },
+      h("b", { text: x.titre }), h("span", { class: "small", text: x.details }))) : [h("p", { class: "hint small", text: aucun })]));
+    resultats.hidden = false;
+  };
+  cherche.addEventListener("input", dessiner);
+  cherche.addEventListener("focus", dessiner);
+  cherche.addEventListener("blur", () => { resultats.hidden = true; });
+  return h("div", { class: `quiz-ajouts ${classe}` },
+    h("span", { class: `quiz-ajout-titre ${classe}-titre`, text: titre }),
+    h("div", { class: "quiz-ajout-champ" }, cherche, resultats));
+}
+
+/** « Quiz complet » déplié (le temps de l'écran), par manche. */
+const quizCompletsDeplies = new WeakSet();
+
+/**
+ * Dernière ligne d'un Quiz (cedric, 23/10) : le « Quiz complet », tout ce qui a été ajouté (🎲, prestation archivée,
+ * bibliothèque…) dans l'ordre de passage. Déplié : chaque question monte, descend ou s'enlève ; 🔀 mélange tout.
+ * L'ordre rangé ici est gardé dans la manche (`ordreQuiz`) ; la question des bougies garde sa place, juste avant la
+ * Super Finale.
+ */
+function quizComplet(r, assemblage, clesFinale, changer) {
+  if (!assemblage.length) return null;
+  const ranger = (cles) => { r.ordreQuiz = cles; changer(); noterEcran(); };
+  const cles = assemblage.map((x) => x.cle);
+  const deplacer = (k, d) => {
+    const j = k + d;
+    if (j < 0 || j >= cles.length) return;
+    const nouvel = [...cles];
+    [nouvel[k], nouvel[j]] = [nouvel[j], nouvel[k]];
+    ranger(nouvel);
+  };
+  // Enlever : la question part de sa série (une question tirée au 🎲 ne revient pas au prochain tirage).
+  const enlever = (x) => {
+    const serie = seriesDe(r).find((y) => y.id === x.serie.id);
+    if (!serie) return;
+    if (serie.origine === "quiz") serie.sans = [...(serie.sans ?? []), x.q.text];
+    else {
+      const reste = (serie.questions ?? []).filter(Boolean);
+      const k = reste.findIndex((q) => cleQuestion(serie, q) === x.cle);
+      if (k < 0) return;
+      if (serie.origine === "de") r.ecartees = [...(r.ecartees ?? []), reste[k].text];
+      serie.questions = reste.filter((_, i) => i !== k);
+      if (!serie.questions.some((q) => !caseVide(q))) r.seriesQuiz = seriesDe(r).filter((y) => y !== serie);
+    }
+    if (r.ordreQuiz?.length) r.ordreQuiz = cles.filter((c) => c !== x.cle);
+    changer();
+    noterEcran();
+  };
+  const melanger = () => {
+    let nouvel = shuffle(cles);
+    for (let essai = 0; essai < 5 && cles.length > 1 && nouvel.every((c, k) => c === cles[k]); essai++) nouvel = shuffle(cles);
+    ranger(nouvel);
+  };
+  const bougies = roundCtx === prestationCtx && editing && premierQuiz(editing.rounds, quizzes) === r
+    && !assemblage.some((x) => x.q.kind === "number" && /bougie/i.test(x.q.text ?? ""))
+    ? questionBougies({ childName: $("show-child").value, age: $("show-age").value }, r) : null;
+  const avantFinale = assemblage.length - clesFinale.size;
+  const lignes = assemblage.map((x, k) => h("li", { class: `tirage-q quiz-complet-q${clesFinale.has(x.cle) ? " en-finale" : ""}`, "data-cle": x.cle },
+    h("div", { class: "tirage-q-ligne" },
+      h("span", { class: "quiz-complet-num", text: `${k + 1}` }),
+      h("span", { class: "tirage-texte", text: `${x.q.kind === "number" ? "🔢 " : ""}${x.q.text}` }),
+      miniature(x.q),
+      clesFinale.has(x.cle) ? etiquetteFinale(r) : null,
+      h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: "Passer cette question plus tôt", "aria-label": "Monter cette question", disabled: k === 0, onclick: () => deplacer(k, -1) }),
+      h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: "Passer cette question plus tard", "aria-label": "Descendre cette question", disabled: k === assemblage.length - 1, onclick: () => deplacer(k, 1) }),
+      h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: "Enlever cette question du quiz", "aria-label": "Enlever cette question", onclick: () => enlever(x) }))));
+  if (bougies) {
+    lignes.splice(avantFinale, 0, h("li", { class: "tirage-q quiz-complet-bougies" }, h("div", { class: "tirage-q-ligne" },
+      h("span", { class: "quiz-complet-num", text: "🎂" }),
+      h("span", { class: "tirage-texte", text: `🔢 ${bougies.text}` }),
+      h("span", { class: "hint small", text: "garde sa place, juste avant la Super Finale" }))));
+  }
+  const liste = h("ol", { class: "tirage-liste serie-liste quiz-complet-liste" }, ...lignes);
+  liste.hidden = !quizCompletsDeplies.has(r);
+  const titre = () => `${liste.hidden ? "▸" : "▾"} 🧩 Quiz complet : ${assemblage.length} question${assemblage.length > 1 ? "s" : ""}${bougies ? " + les bougies" : ""}, dans l'ordre de passage`;
+  const voir = h("button", {
+    type: "button", class: "chip tirage-voir serie-voir quiz-complet-voir", "aria-expanded": liste.hidden ? "false" : "true", text: titre(),
+    title: "Voir toutes les questions du quiz, dans l'ordre",
+    onclick: (e) => {
+      liste.hidden = !liste.hidden;
+      if (liste.hidden) quizCompletsDeplies.delete(r); else quizCompletsDeplies.add(r);
+      e.currentTarget.textContent = titre();
+      e.currentTarget.setAttribute("aria-expanded", liste.hidden ? "false" : "true");
+    },
+  });
+  return h("div", { class: "serie quiz-complet" },
+    h("div", { class: "serie-tete" },
+      voir,
+      h("button", { type: "button", class: "chip quiz-melanger", text: "🔀 Mélanger", title: "Mélanger toutes les questions du quiz", disabled: assemblage.length < 2, onclick: melanger })),
+    liste);
 }
 
 /**
@@ -1914,8 +2031,9 @@ function roundFields(r) {
         h("option", { value: "", text: "Sans Super Finale" }),
         ...[1, 2, 3, 4, 5].map((n) => h("option", { value: n, selected: r.finale === n, text: n === 1 ? "Super Finale : la dernière" : `Super Finale : ${n} dernières` })))
       : null,
-    // Note de la manche (cedric, 23/10) : pour s'en souvenir, et la retrouver avec « Reprendre une manche ».
-    SANS_CONTENU.includes(r.type) ? null : h("label", { class: "manche-note" }, "Note",
+    // Note de la manche (cedric, 23/10) : pour s'en souvenir, et la retrouver avec « Reprendre une manche ». Pas dans
+    // le Quiz (cedric, 23/10 : « n'a pas lieu d'être »).
+    SANS_CONTENU.includes(r.type) || quiz ? null : h("label", { class: "manche-note" }, "Note",
       h("input", { type: "text", maxlength: "200", value: r.note ?? "", placeholder: "Pour la retrouver : thème, âge, remarque…", "aria-label": "Note de la manche", oninput: (e) => { r.note = e.target.value; } })),
   ];
 }

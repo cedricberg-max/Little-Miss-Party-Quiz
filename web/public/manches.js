@@ -271,9 +271,12 @@ export function cleanRound(r, playlists = {}) {
   else if (type === "quiz" && roundSeriesQuiz(r).length) {
     // Manche Quiz faite de séries (cedric, 23/10) : les séries dans l'ordre, une seule Super Finale et son multiplicateur.
     const seriesQuiz = roundSeriesQuiz(r).map(serieNettoyee).filter(Boolean);
+    // L'ordre rangé à la main dans le « Quiz complet » (cedric, 23/10) : les clés de ses questions.
+    const ordreQuiz = [...new Set((Array.isArray(r.ordreQuiz) ? r.ordreQuiz : Object.values(r.ordreQuiz ?? {})).filter((c) => typeof c === "string" && c && c.length <= 400))]
+      .slice(0, 2 * MAX_QUESTIONS_MANCHE);
     // Un seul de ses quiz, en entier : enregistré comme avant les séries (même manche, lue partout pareil).
-    const seul = seriesQuiz.length === 1 && seriesQuiz[0].origine === "quiz" && !seriesQuiz[0].sans?.length ? seriesQuiz[0].quizId : null;
-    out = { type, ...(seul ? { quizId: seul } : seriesQuiz.length ? { seriesQuiz } : {}),
+    const seul = seriesQuiz.length === 1 && seriesQuiz[0].origine === "quiz" && !seriesQuiz[0].sans?.length && !ordreQuiz.length ? seriesQuiz[0].quizId : null;
+    out = { type, ...(seul ? { quizId: seul } : seriesQuiz.length ? { seriesQuiz, ...(ordreQuiz.length ? { ordreQuiz } : {}) } : {}),
       ...(r.finale > 0 ? { finale: Math.min(Math.floor(r.finale), 20) } : {}),
       ...(r.finale > 0 && FACTEURS_FINALE.includes(r.facteur) && r.facteur !== FACTEURS_FINALE[0] ? { facteur: r.facteur } : {}),
       ...(r.bougies === false ? { bougies: false } : {}) };

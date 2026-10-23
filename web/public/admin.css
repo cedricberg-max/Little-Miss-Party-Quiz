@@ -802,20 +802,40 @@ button.media-tile:hover { border-color: var(--violet); }
 .tirage-q-ligne .tirage-retirer { flex: none; width: 32px; height: 32px; border-radius: 10px; font-size: 14px; }
 .tirage-q-ligne .tirage-de.petit { align-self: center; font-size: 18px; padding: 4px 14px; }
 @media (max-width: 640px) { .tirage-ligne > select { flex: 1 1 100%; } }
-/* Un Quiz = une seule manche (cedric, 23/10) : le compteur, les séries dans l'ordre de passage, la Super Finale à la fin. */
-.round-body > .quiz-compteur { flex: 1 1 100%; margin: 0; font-weight: 800; font-size: 23px; line-height: 1.25; color: var(--violet); }
-.round-body > .quiz-ajouts { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
-/* « Rappeler un de vos quiz » (cedric, 23/10) : la case à gauche (pas un champ), la recherche des prestations archivées à droite. */
-.quiz-ajouts > .quiz-rappel-titre { flex: 0 0 auto; padding: 10px 14px; border-radius: 12px; background: var(--violet-pale); color: var(--violet); font-weight: 800; white-space: nowrap; }
-.quiz-ajouts > .quiz-rappel-cherche { flex: 1 1 240px; min-width: 0; }
-.quiz-ajouts > .quiz-rappel-liste { flex: 1 1 100%; display: flex; flex-direction: column; gap: 6px; max-height: 380px; overflow-y: auto; padding: 2px; }
-.quiz-rappel-item {
+/* Un Quiz = une seule manche (cedric, 23/10) : le compteur (en majuscules, sur la ligne du numéro du jeu), les outils
+   de création ensemble, les séries, la Super Finale, puis le « Quiz complet » ; un peu d'air entre chaque partie. */
+.quiz-compteur { margin: 0; font-weight: 800; font-size: 23px; line-height: 1.25; color: var(--violet); text-transform: uppercase; letter-spacing: .02em; }
+.round-body > .quiz-compteur { flex: 1 1 100%; }
+.round-head > .quiz-compteur { flex: 1 1 260px; min-width: 0; }
+.round-body > .quiz-outils { flex: 1 1 100%; display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 14px; border-radius: 16px; border: 1px dashed var(--line-2); }
+.quiz-outils > .tirage-ligne { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
+/* Les lignes d'ajout (cedric, 23/10) : la case à gauche (pas un champ), la recherche à droite. */
+.quiz-ajouts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
+.quiz-ajout-titre { flex: 0 0 auto; padding: 10px 14px; border-radius: 12px; background: var(--violet-pale); color: var(--violet); font-weight: 800; white-space: nowrap; }
+.quiz-ajout-champ { position: relative; flex: 1 1 240px; min-width: 0; }
+.quiz-ajout-champ > .quiz-ajout-cherche { width: 100%; }
+/* Ses résultats, 6 au plus : à droite sous la recherche, par-dessus l'écran (rien ne bouge en dessous). */
+.quiz-ajout-liste {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; width: min(460px, 100%); display: flex; flex-direction: column; gap: 6px;
+  padding: 8px; border-radius: 16px; background: var(--card); border: 1px solid var(--line-2); box-shadow: 0 12px 32px rgba(60, 20, 90, .25);
+}
+.quiz-ajout-liste[hidden] { display: none; }
+.quiz-ajout-liste > .hint { margin: 4px 6px; }
+.quiz-ajout-item {
   display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; border-radius: 12px;
   border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; text-align: left; cursor: pointer; overflow-wrap: anywhere;
 }
-.quiz-rappel-item:hover, .quiz-rappel-item:focus-visible { border-color: var(--violet); background: var(--violet-pale); outline: none; }
-.quiz-rappel-item .small { font-size: 13px; color: var(--soft); }
-@media (max-width: 640px) { .quiz-ajouts > .quiz-rappel-titre { flex: 1 1 100%; white-space: normal; } }
+.quiz-ajout-item:hover, .quiz-ajout-item:focus-visible { border-color: var(--violet); background: var(--violet-pale); outline: none; }
+.quiz-ajout-item .small { font-size: 13px; color: var(--soft); }
+@media (max-width: 640px) { .quiz-ajout-titre { flex: 1 1 100%; white-space: normal; } }
+.round-body > .quiz-series, .round-body > .quiz-bougies { margin-top: 14px; }
+.round-body > .quiz-bougies + .quiz-finale { margin-top: 0; }
+.round-body > .quiz-series + .quiz-finale { margin-top: 14px; }
+.round-body > .quiz-complet { flex: 1 1 100%; margin-top: 4px; }
+.quiz-complet-liste { list-style: none; padding-left: 4px; }
+.quiz-complet-num { flex: none; min-width: 30px; height: 30px; display: grid; place-items: center; border-radius: 999px; background: var(--violet-pale); color: var(--violet); font-weight: 800; font-size: 14px; }
+.quiz-complet-q .icon { flex: none; width: 32px; height: 32px; border-radius: 10px; font-size: 14px; }
+.quiz-complet-bougies .hint { margin: 0; }
 .round-body > .quiz-series { flex: 1 1 100%; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .serie { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; border-radius: 14px; background: var(--card); border: 1px solid var(--line-2); }
 .serie-tete { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
