@@ -164,6 +164,12 @@ class RobotGameShowTest {
     }
 
     @Test
+    fun `pas de robot inquiet quand toutes les equipes ont deja repondu`() {
+        assertEquals(MomentRobot.SUSPENSE, momentRobot(partie(Phase.QUESTION) { copy(answered = setOf("e0", "e1")) }, 4, null)?.first)
+        assertNull(momentRobot(partie(Phase.QUESTION) { copy(answered = setOf("e0", "e1", "e2")) }, 4, null))
+    }
+
+    @Test
     fun `une equipe qui passe en tete est fetee au classement`() {
         val scores = partie(Phase.SCORES) { copy(scores = mapOf("e0" to 200, "e1" to 300)) }
         assertEquals(MomentRobot.TETE, momentRobot(scores, 0, "e0")?.first)

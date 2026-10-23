@@ -265,7 +265,9 @@ internal fun momentRobot(s: UiState.Playing, secondes: Int, ancienMeneur: String
         Phase.QUESTION, Phase.CLOSED, Phase.REVEAL -> when {
             s.intro -> MomentRobot.MANCHE to "manche ${s.code} ${s.index}"
             quiz && s.phase == Phase.QUESTION && s.introUntil != null && s.factor > 1 -> MomentRobot.SUPER_FINALE to "finale ${s.code} ${q!!.id}"
-            quiz && s.phase == Phase.QUESTION && secondes in 1..5 -> MomentRobot.SUSPENSE to "suspense ${s.code} ${q!!.id}"
+            // Suspense seulement si une équipe n'a pas encore répondu : sinon, juste après une bonne réponse, le robot
+            // inquiet passait pour un robot triste (cedric, 23 octobre).
+            quiz && s.phase == Phase.QUESTION && secondes in 1..5 && s.teams.any { it.uid !in s.answered } -> MomentRobot.SUSPENSE to "suspense ${s.code} ${q!!.id}"
             quiz && s.phase == Phase.REVEAL && s.awards.isNotEmpty() && s.awards.values.none { it.correct } -> MomentRobot.RATE to "rate ${s.code} ${q!!.id}"
             quiz && s.phase == Phase.REVEAL && s.teams.isNotEmpty() && s.teams.all { s.awards[it.uid]?.correct == true } -> MomentRobot.TOUS to "tous ${s.code} ${q!!.id}"
             else -> null
