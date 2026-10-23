@@ -73,6 +73,8 @@ body.look-gs::after {
 .look-gs .buzz {
   --t: min(78vw, 60vh);
   position: relative; width: var(--t); height: var(--t); border: 0;
+  /* Les anneaux qui tournent restent dans le rond : sans ça, leurs coins débordent et l'écran défile de côté. */
+  overflow: hidden;
   font-family: "GS Orbitron"; font-weight: 900; font-size: calc(var(--t) * .14); letter-spacing: .08em; padding-left: .08em; color: #fff;
   text-shadow: 0 0 10px #fff, 0 0 30px var(--team);
   background:
@@ -117,6 +119,30 @@ body.look-gs::after {
 @keyframes gs-gagne { to { filter: brightness(1.35) saturate(1.2); } }
 @media (orientation: landscape) and (min-width: 600px) { .look-gs .buzz { --t: min(46vw, 74vh); } }
 .look-gs #app .buzz { font-size: calc(var(--t) * .14); border-width: 0; }
+
+/* Message de l'accueil sous le buzzer (« buzzez autant que vous voulez ! ») : néon, arc-en-ciel qui défile, petites
+   étoiles qui scintillent et un léger dandinement, pour donner envie aux enfants de taper. */
+.look-gs #play-status.fete {
+  position: relative; opacity: 1; font-family: "GS Bungee"; font-weight: 400; font-size: clamp(20px, 5.4vw, 30px); line-height: 1.25;
+  padding: 0 1.1em; text-transform: uppercase; letter-spacing: .02em;
+  /* Plus étroit que l'écran : le dandinement ne fait jamais défiler la page de côté. */
+  max-width: 90%;
+  background: linear-gradient(90deg, var(--gs-rose), var(--gs-jaune), var(--gs-vert), var(--gs-cyan), #c77dff, var(--gs-rose)) 0 0 / 160% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, .45)) drop-shadow(0 0 14px rgba(255, 45, 149, .55));
+  animation: gs-arc-en-ciel 4s linear infinite, gs-dandine 2.4s ease-in-out infinite;
+}
+.look-gs #play-status.fete::before, .look-gs #play-status.fete::after {
+  content: "✦"; position: absolute; top: 50%; font-size: 1.5em; color: var(--gs-jaune); -webkit-text-fill-color: var(--gs-jaune);
+  text-shadow: 0 0 10px var(--gs-jaune); animation: gs-scintille 1.2s ease-in-out infinite alternate;
+}
+.look-gs #play-status.fete::before { left: 0; transform: translateY(-50%); }
+.look-gs #play-status.fete::after { right: 0; transform: translateY(-50%); color: var(--gs-cyan); -webkit-text-fill-color: var(--gs-cyan); text-shadow: 0 0 10px var(--gs-cyan); animation-delay: .6s; }
+@keyframes gs-arc-en-ciel { to { background-position: 160% 0; } }
+@keyframes gs-dandine { 0%, 100% { transform: rotate(-1.5deg) scale(1); } 50% { transform: rotate(1.5deg) scale(1.03); } }
+@keyframes gs-scintille { from { opacity: .35; scale: .7; } to { opacity: 1; scale: 1.15; } }
+.look-gs #app #play-status.fete { font-size: clamp(26px, 4vw, 42px); }
+@media (prefers-reduced-motion: reduce) { .look-gs #play-status.fete { animation: none; } }
 
 /* Présentation d'un jeu : anneau cyan et titre néon rose. */
 .look-gs .intro-jeu { background: rgba(14, 8, 32, .8); box-shadow: 0 0 0 3px var(--gs-cyan), 0 0 40px rgba(0, 240, 255, .4); animation-name: intro-jeu-gs; }

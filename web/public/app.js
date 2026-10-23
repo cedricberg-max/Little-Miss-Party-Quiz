@@ -495,6 +495,7 @@ function render() {
   if (st.kind !== "gonfleur" || st.phase !== "question") stopGonfleur();
   if (st.kind !== "patate" || st.phase !== "question") stopPatate();
   $("play-intro").hidden = true;
+  $("play-status").classList.remove("fete");
   switch (st.phase) {
     case "question":
     case "closed":
@@ -525,7 +526,9 @@ function renderLobby(st) {
   // Buzzer de l'accueil : pour s'amuser, autant de fois qu'on veut, sans gagnant ni blocage.
   buzz.disabled = false;
   buzz.classList.remove("winner");
-  $("play-status").textContent = "En attendant le quiz : buzzez autant que vous voulez !";
+  $("play-status").textContent = "En attendant le quiz\u00a0: buzzez autant que vous voulez !";
+  // Message de fête (en design The Game Show, gameshow.css le rend néon et rigolo).
+  $("play-status").classList.add("fete");
 }
 
 /** Présentation d'un jeu sur la TV : pas de buzzer, l'animatrice explique les règles avant de lancer le jeu. */
