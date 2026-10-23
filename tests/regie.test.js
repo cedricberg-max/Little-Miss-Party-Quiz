@@ -2817,6 +2817,82 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Sons (cedric, 23/10) : après « Enregistrer » ou « ← Retour », la liste revient sur la chanson réglée, même renommée ; 🗑 sur une ligne supprime cette chanson seule", async () => {
+    const chansons = {};
+    for (let n = 0; n < 60; n++) {
+      const k = String(n).padStart(3, "0");
+      chansons[`s${k}`] = { title: `Chanson ${k}`, artist: `Artiste ${k}`, audioId: n.toString(16).padStart(16, "0"), refrainId: (n + 100).toString(16).padStart(16, "0"), start: 0, refrain: 40, buzz: 30, updatedAt: 1 };
+    }
+    await seedLibrary("songs", chansons);
+    const page = await admin();
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="sons"]');
+    await page.locator("#song-list .song-ligne").nth(59).waitFor({ state: "attached" });
+    const ligne = (titre) => page.locator("#song-list .song-ligne", { hasText: titre });
+    const haut = (titre) => ligne(titre).evaluate((e) => Math.round(e.getBoundingClientRect().top));
+    const defilement = () => page.evaluate(() => window.scrollY);
+    /** Ouvre les réglages de [titre] depuis le bas de la liste ; rend sa hauteur dans l'écran et le défilement. */
+    const regler = async (titre) => {
+      await ligne(titre).evaluate((e) => e.scrollIntoView({ block: "center" }));
+      const avant = { haut: await haut(titre), defilement: await defilement() };
+      assert.ok(avant.defilement > 300, `${titre} est loin du haut de la liste`);
+      await ligne(titre).getByRole("button", { name: "⏱ Réglé ✓" }).click();
+      await page.locator("#playlist-edit-title", { hasText: `Réglages de « ${titre} »` }).waitFor();
+      await page.locator(".track.reglage").waitFor();
+      return avant;
+    };
+
+    // « Enregistrer » : la liste revient là où était la chanson (avant : tout en haut), et l'éclaire un instant.
+    let avant = await regler("Chanson 045");
+    await page.click("#playlist-save");
+    await page.locator("#song-status", { hasText: "Réglages de « Chanson 045 » enregistrés." }).waitFor({ timeout: 30000 });
+    await page.locator("#library-sons:not([hidden])").waitFor();
+    await ligne("Chanson 045").waitFor();
+    // (Le message « enregistrés » s'affiche au-dessus de la liste : c'est la chanson qui reste à sa place.)
+    assert.ok(Math.abs((await haut("Chanson 045")) - avant.haut) <= 4, "même hauteur dans l'écran");
+    assert.ok((await defilement()) > avant.defilement - 4, "pas remontée en haut");
+
+    // Renommée (son artiste la range plus bas) : la liste la suit à sa nouvelle place, à la même hauteur dans l'écran.
+    avant = await regler("Chanson 030");
+    await page.locator(".track.reglage input[aria-label=Artiste]").fill("Artiste 055 bis");
+    await page.click("#playlist-save");
+    await page.locator("#song-status", { hasText: "Réglages de « Chanson 030 » enregistrés." }).waitFor({ timeout: 30000 });
+    await waitFor(async () => (await library("songs/s030")).artist === "Artiste 055 bis", "artiste renommé");
+    await page.waitForFunction(() => [...document.querySelectorAll("#song-list .song-ligne .song-titre")].findIndex((e) => e.textContent === "Chanson 030") === 55);
+    await page.waitForFunction((h) => {
+      const e = [...document.querySelectorAll("#song-list .song-ligne")].find((x) => x.querySelector(".song-titre").textContent === "Chanson 030");
+      return Math.abs(e.getBoundingClientRect().top - h) <= 4;
+    }, avant.haut);
+    assert.ok((await defilement()) > avant.defilement + 500, "la liste a suivi la chanson plus bas");
+
+    // « ← Retour » sans rien changer : pareil.
+    avant = await regler("Chanson 012");
+    await page.locator("#screen-playlist-edit .retour-barre.haut").getByRole("button", { name: "← Retour" }).click();
+    await page.locator("#library-sons:not([hidden])").waitFor();
+    await page.waitForFunction((d) => Math.abs(window.scrollY - d) <= 4, avant.defilement);
+    assert.ok(Math.abs((await haut("Chanson 012")) - avant.haut) <= 4);
+
+    // 🗑 sur une ligne : cette chanson seule (après confirmation) ; la chanson cochée reste cochée.
+    await ligne("Chanson 001").locator(".song-check").check();
+    await page.locator("#song-barre", { hasText: "1 sélectionnée" }).waitFor();
+    let question = repondreFenetre(page, { accepter: false });
+    await ligne("Chanson 010").getByRole("button", { name: "Supprimer « Chanson 010 »" }).click();
+    assert.match(await question, /^Supprimer « Chanson 010 » de la bibliothèque des sons \?\n\nLes playlists déjà faites les gardent\./);
+    assert.equal((await library("songs/s010")).retiree, undefined, "rien n'est supprimé sans confirmation");
+    question = repondreFenetre(page);
+    await ligne("Chanson 010").getByRole("button", { name: "Supprimer « Chanson 010 »" }).click();
+    await question;
+    await page.locator("#song-status", { hasText: "« Chanson 010 » est supprimée de la bibliothèque." }).waitFor();
+    await waitFor(async () => (await library("songs/s010")).retiree === true, "Chanson 010 supprimée");
+    const reste = await library("songs");
+    assert.deepEqual(Object.keys(reste).filter((k) => reste[k].retiree), ["s010"], "les autres chansons restent");
+    await page.waitForFunction(() => document.querySelectorAll("#song-list .song-ligne").length === 59);
+    await page.locator("#song-barre", { hasText: "1 sélectionnée" }).waitFor();
+    assert.equal(await ligne("Chanson 001").locator(".song-check").isChecked(), true);
+    await page.context().close();
+  });
+
   test("Sons (cedric, 22/10) : des paroles mises par erreur se retirent (✕ sur la ligne, ou plusieurs chansons cochées) ; les playlists suivent", async () => {
     const A = "0123456789abcdef";
     const B = "fedcba9876543210";
@@ -3251,21 +3327,64 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.locator("#song-entieres").isVisible(), false, "toutes les chansons entières sont en ligne");
     assert.equal(await page.locator("#song-list .song-nuage").count(), 0);
 
+    // Paroles (cedric, 23/10) : pendant l'écoute du refrain, une petite fenêtre les fait défiler, la phrase chantée en
+    // gras ; ✕ arrête l'écoute et la ferme. Sans paroles, pas de fenêtre.
+    const ligneExplose = page.locator("#song-list .song-ligne", { hasText: "Ça explose" });
+    await ligneExplose.getByRole("button", { name: "▶ Refrain" }).click();
+    const flottante = page.locator(".paroles-fenetre.flottante");
+    await flottante.locator(".paroles-titre", { hasText: "Paroles · Ça explose" }).waitFor();
+    await flottante.locator(".paroles-ligne").nth(10).waitFor();
+    assert.equal(await flottante.locator(".paroles-ligne").count(), 11);
+    // Le refrain commence au hook (35 s) : la phrase de 34 s, puis celle de 38 s.
+    await flottante.locator(".paroles-ligne.chantee", { hasText: "Les mains en l'air" }).waitFor();
+    await flottante.locator(".paroles-ligne.chantee", { hasText: "Tout le monde saute" }).waitFor({ timeout: 8000 });
+    assert.equal(await flottante.locator(".paroles-ligne.chantee").count(), 1);
+    if (process.env.CAPTURES) {
+      const taille = page.viewportSize();
+      await page.setViewportSize({ width: 1366, height: 900 });
+      await ligneExplose.evaluate((e) => e.scrollIntoView({ block: "center" }));
+      await capture(page, "sons-paroles-ecoute-pc", { pleinePage: false });
+      await page.setViewportSize(taille);
+    }
+    await flottante.getByRole("button", { name: "Fermer les paroles" }).click();
+    await flottante.waitFor({ state: "detached" });
+    await ligneExplose.getByRole("button", { name: "▶ Refrain" }).waitFor();
     // « ▶ Extrait » joue, devient « ⏸ Pause », et l'arrête au clic suivant.
     const ligneSans = page.locator("#song-list .song-ligne", { hasText: "Sans paroles" });
     await ligneSans.getByRole("button", { name: "▶ Extrait" }).click();
     await ligneSans.getByRole("button", { name: "⏸ Pause" }).waitFor();
+    assert.equal(await page.locator(".paroles-fenetre").count(), 0);
     await ligneSans.getByRole("button", { name: "⏸ Pause" }).click();
     await ligneSans.getByRole("button", { name: "▶ Extrait" }).waitFor();
     // Réglages : lâcher le curseur du hook joue la chanson à cet endroit, « ▶ Écouter » devient « ⏸ Pause ».
     await page.locator("#song-list .song-ligne", { hasText: "Ça explose" }).getByRole("button", { name: "⏱ Réglé ✓" }).click();
     const reglage = page.locator(".track.reglage");
     await reglage.locator('input[aria-label="Hook"]:not([disabled])').waitFor({ timeout: 30000 });
+    // Les paroles sont là aussi : à l'arrêt, elles montrent le hook ; pendant l'écoute, la phrase chantée.
+    const paroles = reglage.locator(".reglage-paroles");
+    await paroles.locator(".paroles-ligne.repere", { hasText: "Les mains en l'air" }).waitFor();
+    assert.equal(await paroles.locator(".paroles-ligne").count(), 11);
+    assert.equal(await paroles.locator(".paroles-ligne").first().innerText(), "0:08\nPremier couplet tout doux");
     await reglage.locator('input[aria-label="Hook"]').fill("40");
     const ecouteHook = reglage.locator('[data-curseur="hook"] .reglage-ligne button', { hasText: /Écouter|Pause/ });
     await ecouteHook.filter({ hasText: "⏸ Pause" }).waitFor();
+    await paroles.locator(".paroles-ligne.chantee", { hasText: "Tout le monde saute" }).waitFor();
+    // La phrase chantée est au milieu de sa fenêtre, sans faire défiler la page.
+    await page.waitForFunction(() => {
+      const f = document.querySelector(".reglage-paroles .paroles-defile");
+      const l = f.querySelector(".chantee");
+      return f.scrollTop > 0 && Math.abs(l.getBoundingClientRect().top + l.offsetHeight / 2 - (f.getBoundingClientRect().top + f.clientHeight / 2)) < l.offsetHeight;
+    });
+    if (process.env.CAPTURES) {
+      const taille = page.viewportSize();
+      await page.setViewportSize({ width: 1366, height: 900 });
+      await paroles.evaluate((e) => e.scrollIntoView({ block: "center" }));
+      await capture(page, "reglage-paroles-pc", { pleinePage: false });
+      await page.setViewportSize(taille);
+    }
     await ecouteHook.click();
     await ecouteHook.filter({ hasText: "▶ Écouter" }).waitFor();
+    assert.equal(await paroles.locator(".paroles-ligne.chantee").count(), 0);
     // Le « ▶ Écouter » du début arrête celui du hook.
     await reglage.locator('[data-curseur="hook"] .reglage-ligne button', { hasText: "▶ Écouter" }).click();
     await ecouteHook.filter({ hasText: "⏸ Pause" }).waitFor();

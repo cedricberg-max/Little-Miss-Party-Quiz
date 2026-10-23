@@ -13,7 +13,7 @@ import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, roundFille
 import { PICTO_WORDS, PICTO_SERIES } from "../web/public/picto-cards.js";
 import { guessTrack, normalizeLevel } from "../web/public/audio.js";
 import { songList, songsRetirees, songMatches, trackFromSong, songUpdates, marquerEffacees, defaultRefrain, buzzOf, REFRAIN_SEC } from "../web/public/sons.js";
-import { lireLrc, refrainDesParoles, refrainsDesParoles, debutDesParoles, parolesDuRefrain, associerParoles, nomSimple } from "../web/public/paroles.js";
+import { lireLrc, refrainDesParoles, refrainsDesParoles, debutDesParoles, parolesDuRefrain, associerParoles, nomSimple, ligneAuMoment } from "../web/public/paroles.js";
 import { volumes, explosionDuVolume, refrainAuVolume, PAS_VOLUME } from "../web/public/volume.js";
 import { lireId3 } from "../web/public/id3.js";
 import { FULL_SHOW, FULL_TUNES, tunePlaylist } from "../web/public/test-show.js";
@@ -1683,6 +1683,18 @@ describe("paroles (.lrc) et étiquettes des MP3", () => {
     assert.equal(debutDesParoles(lireLrc("[00:02.00]♪\n[00:04.00]Oh\n[00:17.50]Voici les premiers mots")), 17.5);
     assert.equal(debutDesParoles(lireLrc("[00:03.00]♪♪")), null);
     assert.equal(debutDesParoles([]), null);
+  });
+
+  test("fenêtre des paroles (cedric, 23/10) : la phrase chantée à un moment de la chanson", () => {
+    const lignes = lireLrc("[00:05.00]Un\n[00:09.50]Deux\n[00:20.00]\n[00:21.00]Trois");
+    assert.equal(ligneAuMoment(lignes, 0), -1, "avant la première phrase");
+    assert.equal(ligneAuMoment(lignes, 5), 0);
+    assert.equal(ligneAuMoment(lignes, 9.49), 0);
+    assert.equal(ligneAuMoment(lignes, 9.5), 1);
+    assert.equal(ligneAuMoment(lignes, 20.5), 2, "le blanc entre deux phrases compte");
+    assert.equal(ligneAuMoment(lignes, 300), 3);
+    assert.equal(ligneAuMoment([], 10), -1);
+    assert.equal(ligneAuMoment(null, 10), -1);
   });
 
   test("les paroles de l'extrait du refrain : temps en ms depuis son début, phrase commencée gardée", () => {

@@ -536,7 +536,7 @@ body.essai::before {
 .song .song-tools { display: flex; flex-wrap: wrap; gap: 6px; }
 .song .song-tools .btn { padding: 6px 12px; font-size: 14px; }
 /* Bibliothèque des sons : une ligne par chanson, de gauche à droite (cedric, 21/10). */
-.song.song-ligne, .song.song-entete { display: grid; grid-template-columns: 26px 52px minmax(90px, 1fr) minmax(120px, 1.4fr) 132px 112px 44px 216px; gap: 6px 12px; padding: 8px 12px; }
+.song.song-ligne, .song.song-entete { display: grid; grid-template-columns: 26px 52px minmax(90px, 1fr) minmax(120px, 1.4fr) 132px 112px 44px 262px; gap: 6px 12px; padding: 8px 12px; }
 .song-ligne .song-tools { justify-content: flex-end; }
 .song.song-entete { background: none; border: none; padding-top: 0; padding-bottom: 0; color: var(--soft); font-size: 13px; font-weight: 700; }
 .song-tri { all: unset; cursor: pointer; text-align: left; }
@@ -566,6 +566,12 @@ button.song-moments:hover { background: var(--good-pale); }
 /* Bouton d'écoute pendant la lecture : « ⏸ Pause ». */
 .btn.en-lecture, button.icon.en-lecture { border-color: var(--violet); background: var(--violet-pale); color: var(--violet); }
 .song-ligne.incomplete { border-left: 4px solid var(--bad); }
+/* Supprimer une seule chanson (cedric, 23/10). */
+.song .song-tools .btn.song-suppr { padding: 6px 10px; }
+.song .song-tools .btn.song-suppr:hover { border-color: var(--bad); color: var(--bad); }
+/* Chanson qu'on vient de régler : la liste revient sur elle et l'éclaire un instant (cedric, 23/10). */
+.song-ligne.song-retour { animation: song-retour 2.4s ease-out; }
+@keyframes song-retour { from { background: var(--gold-pale); box-shadow: 0 0 0 3px var(--gold); } to { box-shadow: 0 0 0 0 rgba(226, 169, 59, 0); } }
 .song-barre { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 8px; }
 .song-barre .song-tout { font-weight: 700; }
 .track-sans-hook { color: var(--soft); }
@@ -648,6 +654,24 @@ button.media-tile:hover { border-color: var(--violet); }
 .reglage-plus .track-note { flex: 1; min-width: 220px; }
 .reglage-manque { margin: 0; padding: 10px 14px; border-radius: 12px; border: 1.5px dashed var(--gold); background: var(--gold-pale); color: var(--ink); line-height: 1.45; }
 .track.depot { outline: 3px dashed var(--gold); outline-offset: 3px; }
+/* Fenêtre des paroles (cedric, 23/10) : sobre et lisible, la phrase chantée en gras ; dans les réglages d'une chanson,
+   et en petite fenêtre en bas de la liste des sons pendant l'écoute. */
+.paroles-fenetre { display: flex; flex-direction: column; gap: 6px; }
+.paroles-tete { display: flex; align-items: center; gap: 8px; }
+.paroles-titre { flex: 1; min-width: 0; color: var(--plum); font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.paroles-defile { position: relative; max-height: 220px; overflow-y: auto; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 6px; }
+.paroles-defile > .hint { margin: 6px; }
+.paroles-ligne { display: flex; align-items: baseline; gap: 10px; margin: 0; padding: 3px 8px; border-radius: 8px; font-size: 17px; line-height: 1.4; color: var(--soft); }
+.paroles-temps { flex: none; width: 3em; font-size: 13px; font-variant-numeric: tabular-nums; opacity: .75; }
+.paroles-texte { overflow-wrap: anywhere; }
+.paroles-texte.vide { opacity: .6; }
+.paroles-ligne.chantee { color: var(--ink); font-weight: 800; background: var(--violet-pale); }
+.paroles-ligne.repere { color: var(--ink); box-shadow: inset 3px 0 0 var(--violet); }
+.paroles-fenetre.flottante {
+  position: fixed; right: 16px; bottom: 16px; z-index: 40; width: min(400px, calc(100vw - 32px)); padding: 10px 12px;
+  background: var(--card); border: 1px solid var(--line-2); border-radius: 16px; box-shadow: 0 12px 32px rgba(60, 20, 90, .25);
+}
+.paroles-fenetre.flottante .paroles-defile { max-height: min(200px, 40vh); border: 0; padding: 0; }
 .song-effacer-tout { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
 @media (max-width: 640px) { .reglage-ligne .btn:first-of-type { margin-left: 0; } .reglage-cadre { width: 96px; height: 96px; } }
 
