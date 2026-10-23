@@ -2418,6 +2418,40 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
+  test("Régie PC (cedric, 23/10) : la durée de la prestation se calcule toute seule d'après les jeux composés, elle ne se saisit plus", async () => {
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    const page = await admin();
+    await page.click("#home-new");
+    await page.fill("#show-child", "Léa");
+    await page.fill("#show-age", "7");
+    const duree = page.locator("#show-duration");
+    assert.equal(await duree.evaluate((e) => e.tagName), "OUTPUT", "un résultat affiché, pas une case à remplir");
+    assert.equal(await page.locator("#screen-show-edit input#show-duration").count(), 0);
+    const minutes = () => page.evaluate(() => Number(document.querySelector("#show-duration").textContent.match(/^environ (\d+) min$/)?.[1] ?? NaN));
+    await page.click("#round-add");
+    await page.click('#jeu-choix .jeu-tuile[data-jeu="quiz"]');
+    await page.locator("#jeu-choix").waitFor({ state: "hidden" });
+    await page.locator("#show-rounds select.grow").nth(0).selectOption("animaux");
+    await duree.filter({ hasText: /^environ \d+ min$/ }).waitFor();
+    const quizSeul = await minutes();
+    assert.ok(quizSeul >= 5 && quizSeul % 5 === 0, `arrondie aux 5 minutes : ${quizSeul}`);
+    await page.locator("#show-summary", { hasText: `environ ${quizSeul} min` }).waitFor();
+    // Un jeu de plus : l'estimation s'allonge aussitôt ; retiré, elle revient.
+    await page.click("#round-add");
+    await page.click('#jeu-choix .jeu-tuile[data-jeu="statues"]');
+    await page.locator("#jeu-choix").waitFor({ state: "hidden" });
+    await waitFor(async () => (await minutes()) > quizSeul, "les statues allongent la prestation");
+    await capture(page, "prestation-duree-estimee");
+    await page.locator('#show-rounds .jeu-bloc[data-jeu="statues"] button[title="Retirer ce jeu"]').click();
+    await repondreFenetre(page);
+    await waitFor(async () => (await minutes()) === quizSeul, "jeu retiré : la durée revient");
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée." }).waitFor();
+    const saved = Object.values(await library("shows"))[0];
+    assert.equal("durationMin" in saved, false, "rien à enregistrer : elle se recalcule à chaque ouverture");
+    await page.context().close();
+  });
+
   test("Régie PC : l'accueil montre chaque jeu, un contenu intégré se règle, une prestation choisit son nombre de questions et ses notes arrivent en régie", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     const page = await admin();

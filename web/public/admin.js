@@ -12,7 +12,7 @@ import { writeProof, isAdmin } from "./proof.js";
 import { parseQuiz, checkQuestions, geminiPrompt, chatgptUrl, imageKey, wordFromImage, photoQuestions, LETTERS } from "./importer.js";
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
 import {
-  buildSnapshot, estimateMinutes, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, BUILTIN_GAMES, readiness, daysUntil, duplicateShow, isoDay, ETATS, etatPrestation,
+  buildSnapshot, dureeEstimee, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, BUILTIN_GAMES, readiness, daysUntil, duplicateShow, isoDay, ETATS, etatPrestation,
   roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC, PICTO_SECONDS, PICTO_SEC, PICTO_POINTS, PICTO_RULE,
   blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras, contentSlot, contentImages,
   pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches, isArchived, AUTO_ARCHIVE_DAYS, quizKind,
@@ -563,7 +563,7 @@ function showCard(id, s, { accueil = false } = {}) {
     h("div", { class: "card-body" },
       h("b", { class: "card-title", text: showTitle(s) }),
       h("span", { class: "meta", text: [s.childName, s.age ? `${s.age} ans` : "", s.date ? `${dateLabel(s.date)} (${whenLabel(s.date)})` : ""].filter(Boolean).join(" · ") }),
-      snapshot ? h("span", { class: "meta", text: `${contentLabel(snapshot)} · environ ${estimateMinutes(snapshot)} min` }) : null,
+      snapshot ? h("span", { class: "meta", text: `${contentLabel(snapshot)} · environ ${dureeEstimee(snapshot, s).minutes} min` }) : null,
       s.pinned ? h("span", { class: "pill pin", text: "⭐ Épinglée : ses jeux en premier dans la régie" }) : null,
       // Fête lancée sur une box : en cours, interrompue (reprise possible), terminée. Archiver n'y change rien.
       launchLabelPc(runs[id]) ? h("span", { class: `pill run ${runs[id].etat}`, "data-run": runs[id].etat, text: launchLabelPc(runs[id]) }) : null,
@@ -830,7 +830,6 @@ function editShow(id) {
   $("show-status").value = id && isArchived(s) ? "archivee" : s.status ?? "brouillon";
   $("show-title").value = s.title ?? "";
   $("show-profile").value = s.profile ?? "";
-  $("show-duration").value = s.durationMin ?? "";
   $("show-themes").value = s.themes ?? "";
   $("show-notes").value = s.notes ?? "";
   status("show-status-msg", s.copieDe && !s.childName ? "Copie : indiquez le prénom, l'âge et la date du nouvel anniversaire, puis enregistrez."
@@ -842,7 +841,7 @@ function editShow(id) {
 }
 
 /** Champs de la fiche d'une prestation, gardés par « Retour » et « Annuler les modifications ». */
-const SHOW_FIELDS = ["show-child", "show-age", "show-teams", "show-date", "show-status", "show-title", "show-profile", "show-duration", "show-themes", "show-notes"];
+const SHOW_FIELDS = ["show-child", "show-age", "show-teams", "show-date", "show-status", "show-title", "show-profile", "show-themes", "show-notes"];
 const histPrestation = historique({
   ecran: $("screen-show-edit"),
   precedent: pagePrecedente,
@@ -866,7 +865,6 @@ function formShow() {
     status: $("show-status").value,
     title: $("show-title").value.trim() || null,
     profile: $("show-profile").value || null,
-    durationMin: num($("show-duration").value),
     themes: $("show-themes").value.trim() || null,
     notes: $("show-notes").value.trim() || null,
     teams: num($("show-teams").value),
@@ -1452,8 +1450,11 @@ function refreshSummary() {
   const s = formShow();
   const { snapshot, problems } = buildSnapshot(editing?.id ?? "nouvelle", s, quizzes, mimes, Math.random, playlists, contents);
   const profile = PROFILES[s.profile] ? s.profile : profileForAge(s.age);
+  // Durée estimée toute seule d'après les jeux composés (cedric, 23/10) : elle ne se saisit plus.
+  const duree = dureeEstimee(snapshot, s);
+  $("show-duration").textContent = duree ? `environ ${duree.minutes} min` : "—";
   $("show-summary").textContent = snapshot
-    ? `${contentLabel(snapshot)} jouables · environ ${estimateMinutes(snapshot)} min · chrono ${defaultDuration(profile)} s par question pour les ${PROFILES[profile].label}, sauf durée imposée`
+    ? `${contentLabel(snapshot)} jouables · environ ${duree.minutes} min · chrono ${defaultDuration(profile)} s par question pour les ${PROFILES[profile].label}, sauf durée imposée`
     : "";
   $("show-problems").replaceChildren(...problems.map((p) => h("li", { text: p })));
   const r = readiness(s, quizzes, mimes, playlists, contents);

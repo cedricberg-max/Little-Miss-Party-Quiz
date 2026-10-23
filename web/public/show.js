@@ -920,12 +920,60 @@ function assemble(blocks) {
   return { rounds: used.flatMap((b) => b.rounds), questions: used.flatMap((b) => b.questions) };
 }
 
-/** Durée approximative d'une prestation, pour l'aider à composer : chrono + révélation et scores. */
-export function estimateMinutes(snapshot) {
+/**
+ * Durée estimée d'une prestation (cedric, 23/10) : calculée toute seule d'après les jeux composés, jamais saisie. Chaque
+ * élément du programme compte son temps de jeu ; chaque jeu, une minute pour son intro et l'explication des règles ;
+ * puis l'accueil des équipes, le podium, et 10 % de pauses. Temps en secondes.
+ */
+export const DUREE_ESTIMEE = {
+  // Après le chrono d'une question (lecture comprise) : la réponse, l'explication et les scores.
+  apresQuestion: 20, apresExpress: 10,
+  // Blind test et quiz musical : après l'extrait, le buzz, la réponse et le refrain chanté ensemble.
+  apresTitre: 40,
+  // Mimes : passages par équipe (sauf nombre réglé dans la manche), et le changement d'équipe après chacun.
+  mimesParEquipe: 2, apresMime: 15,
+  // Pictionary : un dessin par équipe ; statues : la durée choisie ; coffres : un tour par équipe.
+  apresDessin: 30, apresStatues: 30, coffreParEquipe: 60, coffres: 60, gonfleur: 90, patate: 120,
+  presentation: 60, accueil: 180, podium: 120, pauses: 0.1,
+};
+
+/** Temps de jeu d'un élément du programme, en secondes, pour [equipes] équipes ([parEquipe] : mimes par équipe). */
+function secondesDeJeu(q, equipes, parEquipe = 0) {
+  const D = DUREE_ESTIMEE;
+  if (q.kind === "mime") return (parEquipe || D.mimesParEquipe) * equipes * (q.duration + D.apresMime);
+  if (q.kind === "pictionary") return equipes * (q.duration + D.apresDessin);
+  if (q.kind === "statues") return q.duration + D.apresStatues;
+  if (q.kind === "coffres" || q.kind === "portes") return equipes * D.coffreParEquipe + D.coffres;
+  if (q.kind === "gonfleur") return D.gonfleur;
+  if (q.kind === "patate") return D.patate;
+  if (q.kind === "express") return q.duration + D.apresExpress;
+  return q.duration + (q.audioId ? D.apresTitre : D.apresQuestion);
+}
+
+/** Temps de jeu d'une prestation, en minutes : ses questions et ses jeux, sans intros, accueil ni pauses. */
+export function estimateMinutes(snapshot, teams = null) {
   if (!snapshot) return 0;
-  // Mimes : deux tours d'équipe environ, plus les changements d'équipe. Pictionary : un tour pour chacune de 4 équipes.
-  const sec = snapshot.quiz.questions.reduce((t, q) => t + (q.kind === "mime" ? 2 * q.duration + 60 : q.kind === "pictionary" ? 4 * (q.duration + 30) : q.kind === "portes" ? 120 : q.kind === "coffres" ? 300 : q.kind === "gonfleur" ? 90 : q.kind === "patate" ? 90 : q.kind === "express" ? q.duration + 5 : q.duration + 30), 0);
-  return Math.round(sec / 60);
+  return Math.round(snapshot.quiz.questions.reduce((t, q) => t + secondesDeJeu(q, teamCount(teams)), 0) / 60);
+}
+
+/**
+ * Durée estimée d'une prestation [show] (son programme [snapshot]) : { minutes (arrondies aux 5 minutes du dessus),
+ * jeux (combien de jeux présentés) }, ou null sans programme.
+ */
+export function dureeEstimee(snapshot, show = {}) {
+  if (!snapshot) return null;
+  const D = DUREE_ESTIMEE;
+  const equipes = teamCount(show?.teams);
+  const manches = (show?.rounds ?? []).filter(Boolean);
+  const questions = snapshot.quiz.questions;
+  // Une manche de mimes « r3m » est la 3e manche de la prestation : son nombre de mimes par équipe.
+  const parEquipe = (q) => mimePerTeam(manches[Number(/^r(\d+)m$/.exec(q.id ?? "")?.[1]) - 1]);
+  const jeu = questions.reduce((t, q) => t + secondesDeJeu(q, equipes, q.kind === "mime" ? parEquipe(q) : 0), 0);
+  // Un jeu commence à chaque nouvelle manche (« r3… » : la 3e), sauf la Super Finale, jouée à la suite de son quiz.
+  const manche = (q) => /^r(\d+)/.exec(q.id ?? "")?.[1];
+  const jeux = questions.filter((q, k) => k === 0 || (!q.finale && manche(q) !== manche(questions[k - 1]))).length;
+  const total = (jeu + jeux * D.presentation + D.accueil + D.podium) * (1 + D.pauses);
+  return { minutes: Math.ceil(total / 300) * 5, jeux };
 }
 
 /** Date du jour au format des prestations (AAAA-MM-JJ), à l'heure locale. */

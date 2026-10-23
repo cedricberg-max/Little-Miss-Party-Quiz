@@ -60,6 +60,11 @@ input, select, textarea {
 }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--violet); box-shadow: 0 0 0 4px var(--violet-pale); }
 input::placeholder, textarea::placeholder { color: #a99bb5; }
+/* Durée estimée d'une prestation : calculée toute seule, elle se lit comme un champ mais ne se saisit pas (cedric, 23/10). */
+.duree-estimee {
+  font-size: 17px; font-weight: 700; padding: 14px 16px; border-radius: 14px; border: 1.5px dashed var(--line-2);
+  background: var(--violet-pale); color: var(--ink); cursor: help;
+}
 textarea { resize: vertical; }
 input[type=checkbox], input[type=radio] { width: 22px; height: 22px; accent-color: var(--violet); }
 label.inline input { width: 90px; }
