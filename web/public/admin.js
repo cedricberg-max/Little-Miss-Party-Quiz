@@ -52,7 +52,7 @@ import {
   correspond, categoriesDe, categoriesPerso, ficheImage, motsCles,
 } from "./mediatheque.js";
 import { DOSSIERS, classerPartie, bilan, effacements, passageAFaire, moDe, texteMo, texteGardees } from "./nettoyage.js";
-import { GROUPES_QUESTIONS, questionsClassiquesPretes, questionsIllustreesPretes, mesQuestions, mesPacks, questionsDeTest, questionCorrespond, lirePacks, illustration, retirerQuestions, packsParTheme } from "./questions.js";
+import { GROUPES_QUESTIONS, questionsClassiquesPretes, questionsIllustreesPretes, mesQuestions, mesPacks, questionsDeTest, questionCorrespond, lirePacks, illustration, retirerQuestions, packsParTheme, estQuizDeTest } from "./questions.js";
 import { NIVEAUX_CHIFFRES, libelleNiveau, niveauPourAge, tirerChiffres } from "./banque-chiffres.js";
 import { QUESTIONS_TOUT_PRETES, THEMES_TOUT_PRETS, estJusteChiffre } from "./banque-classiques.js";
 
@@ -1630,8 +1630,12 @@ function mancheQuiz(r) {
 
   // Troisième ligne : « Intégrer un quiz de votre bibliothèque » (cedric, 23/10) : un quiz de la page Quiz (importé ou
   // écrit à la main), cherché par son titre ou son thème ; il s'ajoute en entier à la fin (lu dans la bibliothèque).
+  // Seulement ses quiz à 4 réponses (cedric, 23/10) : ni ceux des prestations de test, ni ceux d'images (Zoom, Image
+  // floue), ni le Quiz illustré, ni un quiz de Vrai ou Faux.
   const dejaLa = new Set(series.filter((x) => x.origine === "quiz").map((x) => x.quizId));
-  const classiques = Object.entries(quizzes).filter(([, q]) => q?.title && quizQuestions(q).length)
+  const quatreReponses = (x) => x.kind === "number" || (x.choices ?? []).filter((c) => `${c ?? ""}`.trim()).length === 4;
+  const classiques = Object.entries(quizzes)
+    .filter(([qid, q]) => q?.title && !estQuizDeTest(qid) && quizKind(q) === "classique" && quizQuestions(q).some(quatreReponses))
     .sort(([, a], [, b]) => a.title.localeCompare(b.title, "fr"))
     .map(([qid, q]) => {
       const k = quizQuestions(q).length;

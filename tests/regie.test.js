@@ -2301,6 +2301,10 @@ describe("bibliothèque de quiz et prestations", () => {
     title: "Finale", source: "tableur", updatedAt: 1,
     questions: [{ text: "Le Soleil est une étoile", choices: ["Vrai", "Faux"], correct: 0, duration: 15, status: "validee" }],
   };
+  const ESPACE = {
+    title: "Espace", theme: "Sciences", source: "json", updatedAt: 1,
+    questions: [{ text: "Quelle planète est la plus proche du Soleil ?", choices: ["Mercure", "Vénus", "Mars", "Terre"], correct: 0, status: "validee" }],
+  };
 
   test("Sarah colle un quiz Gemini, corrige l'anomalie signalée, valide et enregistre", async () => {
     const page = await admin();
@@ -3965,7 +3969,7 @@ describe("bibliothèque de quiz et prestations", () => {
   });
 
   test("Régie PC : plusieurs quiz dans une manche, mimes du catalogue tirés puis retouchés, mots choisis un par un", async () => {
-    await seedLibrary("quizzes", { animaux: ANIMAUX, finale: FINALE });
+    await seedLibrary("quizzes", { animaux: ANIMAUX, espace: ESPACE });
     const page = await admin();
     await page.click("#home-new");
     await page.fill("#show-child", "Léa");
@@ -3974,7 +3978,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await ajouterJeu(page);
     const quiz = page.locator("#show-rounds .round").nth(0);
     await integrerQuiz(quiz, "animaux", "anim");
-    await integrerQuiz(quiz, "finale", "fin");
+    await integrerQuiz(quiz, "espace", "esp");
     await page.locator("#show-summary", { hasText: "4 questions" }).waitFor();
     // Mimes : 30 cartes du catalogue au hasard, une retirée, une à soi ajoutée.
     await ajouterJeu(page, "mimes");
@@ -3999,7 +4003,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
     const saved = await sansManche(Object.values(await library("shows"))[0].rounds);
-    assert.deepEqual(saved[0].seriesQuiz.map((x) => [x.origine, x.quizId]), [["quiz", "animaux"], ["quiz", "finale"]]);
+    assert.deepEqual(saved[0].seriesQuiz.map((x) => [x.origine, x.quizId]), [["quiz", "animaux"], ["quiz", "espace"]]);
     assert.equal(saved[0].finale, 3);
     assert.equal(saved[1].type, "mimes");
     assert.equal(saved[1].deckId, undefined, "Cartes choisies dans toutes les collections");
@@ -4018,7 +4022,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const questions = (await read("show")).quiz.questions;
-    assert.deepEqual(questions.slice(0, 4).map((q) => q.round), ["Animaux + Finale", "Animaux + Finale", "Animaux + Finale", "Animaux + Finale"]);
+    assert.deepEqual(questions.slice(0, 4).map((q) => q.round), ["Animaux + Espace", "Animaux + Espace", "Animaux + Espace", "Animaux + Espace"]);
     assert.equal(questions[4].kind, "mime");
     assert.deepEqual(questions[4].cards.map((c) => c.word).sort(), saved[1].cards.map((c) => c.word).sort());
     assert.deepEqual(questions.slice(5).map((q) => q.text), ["soleil", "maman"]);
@@ -5662,7 +5666,10 @@ describe("bibliothèque de quiz et prestations", () => {
     const { buildSnapshot } = await import("../web/public/show.js");
     const tirees = [{ id: "x1", text: "Quelle est la capitale de l'Italie ?", choices: ["Rome", "Milan", "Naples", "Turin"], correct: 0 },
       { id: "x2", text: "Combien de jours dans une semaine ?", nombre: true, correct: 7 }];
-    await seedLibrary("quizzes", { animaux: ANIMAUX, finale: FINALE });
+    // Seulement ses quiz à 4 réponses (cedric, 23/10) : ni Vrai ou Faux, ni quiz d'images, ni quiz de test.
+    const FLOU = { title: "Photos floues", source: "photos", updatedAt: 1, questions: [{ text: "Qu'est-ce qui se cache sous le flou ?", choices: ["Chat", "Chien", "Lion", "Ours"], correct: 0, imageId: "0123456789abcdef", status: "validee" }] };
+    const DE_TEST = { ...ESPACE, title: "TEST – Espace de Léa" };
+    await seedLibrary("quizzes", { animaux: ANIMAUX, espace: ESPACE, finale: FINALE, flou: FLOU, "test-espace": DE_TEST });
     await seedLibrary("shows", { lina: { childName: "Lina", age: 8, date: "2026-09-12", status: "archivee", rounds: [{ type: "quiz", tirees, profil: "MOYENS" }], updatedAt: 1 } });
     const page = await admin();
     await page.click("#home-new");
@@ -5674,21 +5681,25 @@ describe("bibliothèque de quiz et prestations", () => {
     const biblio = round.locator(".quiz-biblio");
     // Pas de « Quiz complet » sans question.
     assert.equal(await round.locator(".quiz-complet").count(), 0);
-    // La bibliothèque : rien avant la première lettre, puis le titre (ou le thème) de ses quiz classiques.
+    // La bibliothèque : rien avant la première lettre, puis le titre (ou le thème) de ses quiz à 4 réponses.
     const cherche = biblio.locator(".quiz-biblio-cherche");
     await cherche.click();
     assert.equal(await biblio.locator(".quiz-biblio-liste").isHidden(), true);
-    await cherche.fill("fin");
-    await biblio.locator('.quiz-biblio-item[data-quiz="finale"]').waitFor();
-    assert.deepEqual(await biblio.locator(".quiz-biblio-item").evaluateAll((xs) => xs.map((x) => x.dataset.quiz)), ["finale"]);
-    assert.equal(await biblio.locator('.quiz-biblio-item[data-quiz="finale"]').textContent(), "Finale1 question");
-    // Animaux de la bibliothèque, le Quiz de Lina (prestation archivée), puis Finale : à la suite.
+    await cherche.fill("sciences");
+    await biblio.locator('.quiz-biblio-item[data-quiz="espace"]').waitFor();
+    assert.deepEqual(await biblio.locator(".quiz-biblio-item").evaluateAll((xs) => xs.map((x) => x.dataset.quiz)), ["espace"]);
+    assert.equal(await biblio.locator('.quiz-biblio-item[data-quiz="espace"]').textContent(), "Espace1 question · Sciences");
+    for (const mot of ["finale", "flou", "test"]) {
+      await cherche.fill(mot);
+      await biblio.locator(".quiz-biblio-liste", { hasText: "Aucun quiz de la bibliothèque ne correspond." }).waitFor();
+    }
+    // Animaux de la bibliothèque, le Quiz de Lina (prestation archivée), puis Espace : à la suite.
     await integrerQuiz(round, "animaux", "anim");
     assert.equal(await series.nth(0).locator(".serie-voir").textContent(), "▸ 📚 Quiz « Animaux » : 2 questions");
     await round.locator(".quiz-rappel-cherche").fill("lina");
     await round.locator('.quiz-rappel-item[data-show="lina"]').click();
     await series.nth(1).waitFor();
-    await integrerQuiz(round, "finale", "fin");
+    await integrerQuiz(round, "espace", "esp");
     await round.locator(".quiz-biblio-cherche").fill("anim");
     await round.locator('.quiz-biblio-item[data-quiz="animaux"]', { hasText: "✓ déjà dans ce Quiz" }).waitFor();
     await round.locator(".quiz-biblio-cherche").fill("");
@@ -5705,25 +5716,25 @@ describe("bibliothèque de quiz et prestations", () => {
     const ordre = () => complet.locator(".quiz-complet-q .tirage-texte").allTextContents();
     assert.deepEqual(await lignes.evaluateAll((xs) => xs.map((x) => [x.querySelector(".quiz-complet-num").textContent, x.querySelector(".tirage-texte").textContent])), [
       ["1", "Roi de la jungle ?"], ["2", "Combien de pattes a une araignée ?"], ["🎂", "🔢 Le Juste Chiffre : combien de bougies sur le gâteau de Zoé cette année ?"],
-      ["3", "Quelle est la capitale de l'Italie ?"], ["4", "🔢 Combien de jours dans une semaine ?"], ["5", "Le Soleil est une étoile"]]);
+      ["3", "Quelle est la capitale de l'Italie ?"], ["4", "🔢 Combien de jours dans une semaine ?"], ["5", "Quelle planète est la plus proche du Soleil ?"]]);
     assert.deepEqual(await complet.locator(".quiz-complet-q").evaluateAll((xs) => xs.map((x) => x.classList.contains("en-finale"))), [false, false, true, true, true]);
     assert.equal(await complet.locator(".quiz-complet-q").first().locator(".quiz-complet-monter").isDisabled(), true);
     // ↓ sur la première, ↑ sur la dernière : l'ordre change, la Super Finale reste sur les 3 dernières.
     await complet.locator(".quiz-complet-q").nth(0).locator(".quiz-complet-descendre").click();
-    assert.deepEqual(await ordre(), ["Combien de pattes a une araignée ?", "Roi de la jungle ?", "Quelle est la capitale de l'Italie ?", "🔢 Combien de jours dans une semaine ?", "Le Soleil est une étoile"]);
+    assert.deepEqual(await ordre(), ["Combien de pattes a une araignée ?", "Roi de la jungle ?", "Quelle est la capitale de l'Italie ?", "🔢 Combien de jours dans une semaine ?", "Quelle planète est la plus proche du Soleil ?"]);
     await complet.locator(".quiz-complet-q").nth(4).locator(".quiz-complet-monter").click();
-    assert.deepEqual(await ordre(), ["Combien de pattes a une araignée ?", "Roi de la jungle ?", "Quelle est la capitale de l'Italie ?", "Le Soleil est une étoile", "🔢 Combien de jours dans une semaine ?"]);
+    assert.deepEqual(await ordre(), ["Combien de pattes a une araignée ?", "Roi de la jungle ?", "Quelle est la capitale de l'Italie ?", "Quelle planète est la plus proche du Soleil ?", "🔢 Combien de jours dans une semaine ?"]);
     // Dans les séries aussi, la Super Finale suit l'ordre de passage.
     await series.nth(1).locator(".serie-voir").click();
     assert.deepEqual(await series.nth(1).locator(".serie-liste > li").evaluateAll((xs) => xs.map((x) => x.classList.contains("en-finale"))), [true, true]);
     // ✕ : la question part du quiz (ici retirée du quiz de la bibliothèque, qui ne change pas).
     await complet.locator(".quiz-complet-q", { hasText: "Roi de la jungle" }).locator(".tirage-retirer").click();
-    assert.deepEqual(await ordre(), ["Combien de pattes a une araignée ?", "Quelle est la capitale de l'Italie ?", "Le Soleil est une étoile", "🔢 Combien de jours dans une semaine ?"]);
+    assert.deepEqual(await ordre(), ["Combien de pattes a une araignée ?", "Quelle est la capitale de l'Italie ?", "Quelle planète est la plus proche du Soleil ?", "🔢 Combien de jours dans une semaine ?"]);
     assert.equal(await series.nth(0).locator(".serie-voir").textContent(), "▸ 📚 Quiz « Animaux » : 1 question (1 retirée)");
     assert.equal(await round.locator(".round-head > .quiz-compteur").textContent(), "4 questions, dont 3 en Super Finale, plus la question des bougies");
     // Une série descendue : ses questions passent ensemble, chacune dans son ordre.
     await series.nth(0).locator(".serie-descendre").click();
-    assert.deepEqual(await ordre(), ["Quelle est la capitale de l'Italie ?", "🔢 Combien de jours dans une semaine ?", "Combien de pattes a une araignée ?", "Le Soleil est une étoile"]);
+    assert.deepEqual(await ordre(), ["Quelle est la capitale de l'Italie ?", "🔢 Combien de jours dans une semaine ?", "Combien de pattes a une araignée ?", "Quelle planète est la plus proche du Soleil ?"]);
     // 🔀 : tout est mélangé.
     const avant = await ordre();
     await complet.locator(".quiz-melanger").click();
@@ -5742,7 +5753,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(zoe.rounds[0].ordreQuiz.length, 4);
     assert.deepEqual((await library("quizzes/animaux")).questions, ANIMAUX.questions, "Le quiz de la bibliothèque ne change pas");
     // Sur la TV : l'ordre rangé, la bougie juste avant la Super Finale.
-    const { snapshot } = buildSnapshot("zoe", zoe, { animaux: ANIMAUX, finale: FINALE });
+    const { snapshot } = buildSnapshot("zoe", zoe, { animaux: ANIMAUX, espace: ESPACE });
     const sansSigne = (t) => t.replace(/^🔢 /, "");
     const qs = snapshot.quiz.questions.map((q) => q.text);
     assert.deepEqual(qs.filter((t) => !/bougies/.test(t)), melange.map(sansSigne));
