@@ -1537,17 +1537,21 @@ function tirageQuiz(r) {
         type: "button", class: "btn tirage-de", text: "🎲", "aria-label": "Tirer les questions au hasard",
         title: "Tirer les questions au hasard dans la banque", onclick: () => tirer(Number(nombre.value), profils.value),
       }),
-      // ✕ à côté du dé (cedric, 23/10) : efface toutes les questions tirées, la manche reste (ses réglages aussi).
-      cases.length ? h("button", {
-        type: "button", class: "icon tirage-effacer", text: "✕", "aria-label": "Effacer les questions tirées", title: "Effacer les questions tirées (la manche reste)",
+      // ✕ à côté du dé, toujours là (cedric, 23/10) : efface les questions de la manche, tirées au 🎲 ou d'un quiz choisi ;
+      // la manche reste, avec ses réglages. Rien à effacer : grisée.
+      h("button", {
+        type: "button", class: "icon tirage-effacer", text: "✕", disabled: !cases.length && !roundQuizIds(r).length,
+        "aria-label": "Effacer les questions de la manche", title: "Effacer les questions de la manche (la manche reste)",
         onclick: async () => {
-          if (!(await confirmer(`Effacer les ${cases.length} questions tirées ? La manche reste, avec ses réglages.`, { ok: "Effacer", danger: true }))) return;
-          r.tirees = null;
+          const quiz = roundQuizIds(r).map((id) => quizzes[id]?.title).filter(Boolean).join(" + ");
+          const quoi = cases.length ? `les ${cases.length} questions tirées` : quiz ? `les questions du quiz « ${quiz} »` : "les questions";
+          if (!(await confirmer(`Effacer ${quoi} ? La manche reste, avec ses réglages.`, { ok: "Effacer", danger: true }))) return;
+          Object.assign(r, { tirees: null, quizId: "", quizIds: null, count: null });
           tiragesDeplies.delete(r);
           roundCtx.refresh();
           noterEcran();
         },
-      }) : null,
+      }),
       cases.length ? h("button", {
         type: "button", class: "chip tirage-voir", "aria-expanded": liste.hidden ? "false" : "true", text: libelle(),
         title: "Voir ou cacher les questions tirées",

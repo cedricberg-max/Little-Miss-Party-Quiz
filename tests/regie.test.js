@@ -5433,6 +5433,7 @@ describe("bibliothèque de quiz et prestations", () => {
   test("Régie PC (cedric, 23/10) : manche Quiz, première ligne nombre · profil · 🎲 · Super Finale ; les questions tirées se déplient d'un clic", async () => {
     const { QUESTIONS_TOUT_PRETES } = await import("../web/public/banque-classiques.js");
     const banque = new Map(QUESTIONS_TOUT_PRETES.map((x) => [x.id, x]));
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
     const page = await admin();
     await page.click("#home-new");
     await page.fill("#show-child", "Zoé");
@@ -5443,7 +5444,8 @@ describe("bibliothèque de quiz et prestations", () => {
     // La première ligne, de gauche à droite : le profil (celui de la prestation, 10 ans : Moyens), le nombre, la Super
     // Finale (3 dernières), la question des bougies (premier Quiz), le dé.
     assert.equal(await round.locator(".round-body > *").first().evaluate((x) => x.classList.contains("tirage-ligne")), true);
-    assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-profil", "tirage-nombre", "finale", "check bougies", "btn tirage-de"]);
+    assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-profil", "tirage-nombre", "finale", "check bougies", "btn tirage-de", "icon tirage-effacer"]);
+    assert.equal(await ligne.locator(".tirage-effacer").isDisabled(), true, "Rien à effacer : grisée");
     assert.equal(await ligne.locator("label.bougies input").isChecked(), true);
     assert.equal(await ligne.locator(".tirage-nombre").inputValue(), "8");
     assert.equal(await ligne.locator(".tirage-profil").inputValue(), "MOYENS");
@@ -5549,8 +5551,14 @@ describe("bibliothèque de quiz et prestations", () => {
     await repondreFenetre(page);
     await round.locator(".tirage-voir").waitFor({ state: "detached" });
     assert.equal(await page.locator("#show-rounds .round").count(), 1, "La manche reste");
-    assert.equal(await round.locator(".tirage-effacer").count(), 0);
+    assert.equal(await round.locator(".tirage-effacer").isDisabled(), true);
     assert.equal(await round.locator(".round-body > .tirage-ligne select.finale").inputValue(), "2");
+    // Elle efface aussi un quiz choisi.
+    await round.locator(".quiz-picks select").selectOption("animaux");
+    await round.locator(".tirage-effacer:not([disabled])").click();
+    assert.match(await repondreFenetre(page), /Effacer les questions du quiz « Animaux » \?/);
+    assert.equal(await round.locator(".quiz-picks select").inputValue(), "");
+    assert.equal(await round.locator(".tirage-effacer").isDisabled(), true);
     await page.context().close();
   });
 
