@@ -807,8 +807,8 @@ button.media-tile:hover { border-color: var(--violet); }
 .round-body > .quiz-compteur { flex: 1 1 100%; margin: 0; font-weight: 800; font-size: 23px; line-height: 1.25; color: var(--violet); }
 .round-body > .quiz-ajouts { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
 .quiz-ajouts > .quiz-rappel { flex: 1 1 260px; min-width: 0; }
-/* Les questions tirées au 🎲 : sous-rubrique de la ligne du dé, juste en dessous (cedric, 23/10). */
-.round-body > .tirage-serie { flex: 1 1 100%; min-width: 0; margin-top: -4px; }
+.quiz-ajouts > .reprendre-zone { display: contents; }
+.quiz-ajouts .reprendre { flex: 1 1 100%; }
 .round-body > .quiz-series { flex: 1 1 100%; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .serie { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; border-radius: 14px; background: var(--card); border: 1px solid var(--line-2); }
 .serie-tete { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
