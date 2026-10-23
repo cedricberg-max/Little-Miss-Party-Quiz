@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -359,4 +360,34 @@ fun AnnonceBombe(numero: Int, total: Int, modifier: Modifier = Modifier, jouer: 
             )
         }
     }
+}
+
+/** Durée exacte de la musique de « Ça va exploser ! » (lmp_patate_musique : 20 mesures à 123,5 BPM). La mèche dure autant. */
+const val PATATE_MUSIQUE_MS = 38_871L
+
+/** Où en est la musique quand il reste [resteMs] de mèche : sa dernière note tombe pile sur l'explosion. */
+fun positionMusiquePatate(resteMs: Long): Long = PATATE_MUSIQUE_MS - resteMs
+
+/**
+ * Musique de « Ça va exploser ! » (extrait choisi par cedric). La partie seule décide de la mèche ; la musique la suit :
+ * elle se fige avec la pause et le décompte de reprise, et se tait dès que la bombe explose (même gardée trop longtemps)
+ * et entre deux bombes. [deadline] : fin de la mèche à l'heure du serveur ; [brule] : la mèche brûle en ce moment.
+ */
+@Composable
+fun MusiquePatate(deadline: Long?, depart: Long, decalage: Long, brule: Boolean) {
+    val joue = brule && deadline != null
+    LaunchedEffect(deadline, depart, joue) {
+        if (!joue || deadline == null) {
+            Sons.calerSur(Son.PATATE_MUSIQUE, 0, joue = false)
+            return@LaunchedEffect
+        }
+        while (true) {
+            val maintenant = System.currentTimeMillis() + decalage
+            val reste = deadline - maxOf(maintenant, depart)
+            Sons.calerSur(Son.PATATE_MUSIQUE, positionMusiquePatate(reste), joue = maintenant >= depart && reste > 0)
+            if (reste <= 0) break
+            delay(100)
+        }
+    }
+    DisposableEffect(Unit) { onDispose { Sons.calerSur(Son.PATATE_MUSIQUE, 0, joue = false) } }
 }

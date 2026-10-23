@@ -141,6 +141,7 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         // Blind test, quiz musical (extrait bien reçu), statues : la TV joue déjà une musique, l'habillage se tait.
         musical = s.question?.let { q -> q.isStatues || (q.isBlind && s.blind != null) || q.audioId?.let { s.sounds[it] } != null } == true,
         statue = statue && s.question?.isStatues == true,
+        patate = s.question?.isPatate == true,
         disparu = if (s.question?.isDisparu == true) disparu else 0,
         // Blind test : présentation du 1er morceau, chanson qui joue, points doublés, révélation raccourcie, bilan.
         blind = blind != null,

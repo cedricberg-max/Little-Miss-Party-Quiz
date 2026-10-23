@@ -596,6 +596,24 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `ca va exploser, sa propre musique, ni boucle, ni bips, ni tension par-dessus`() {
+        val d = DirecteurSonore()
+        val bombe = Instant(Ecran.QUESTION, partie = "ABCD", index = 20, equipes = 4, propositions = 0, patate = true)
+        d.observer(Instant(Ecran.CLASSEMENT, partie = "ABCD", index = 19, equipes = 4))
+        assertEquals(Ambiance.SILENCE, d.observer(bombe).musique())
+        val fin = d.observer(bombe.copy(urgent = true, decompte = 3))
+        assertFalse(Son.TENSION in fin.sons())
+        assertFalse(Son.BIP in fin.sons() || Son.BIP_FIN in fin.sons())
+        assertTrue(fin.none { it is Ordre.Musique && it.ambiance != Ambiance.SILENCE })
+        // Les autres jeux gardent leurs bips et leur tension.
+        val quiz = Instant(Ecran.QUESTION, partie = "ABCD", index = 21, equipes = 4)
+        d.observer(quiz)
+        assertTrue(Son.TENSION in d.observer(quiz.copy(urgent = true, decompte = 3)).sons())
+        // Le bilan de la dernière bombe : la fête reprend.
+        assertEquals(Ambiance.FETE, d.observer(bombe.copy(ecran = Ecran.REVELATION)).musique())
+    }
+
+    @Test
     fun `qui a disparu, musique douce pour memoriser, abracadabra puis pouf, et le buzzer reprend la main`() {
         val d = DirecteurSonore()
         val q = Instant(Ecran.QUESTION, partie = "ABCD", index = 16, equipes = 2, propositions = 1, jeuBuzz = true, disparu = DISPARU_MEMORISER)

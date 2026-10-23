@@ -8,6 +8,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
 import android.util.Log
+import kotlin.math.abs
 
 /**
  * Moteur sonore de l'habillage : exécute les [Ordre] du [DirecteurSonore].
@@ -30,6 +31,9 @@ object Sons {
     private const val CRAYON_SORTIE_MS = 200L
     /** Versions d'un même son long au plus (gs_tension_2 … gs_tension_5). */
     private const val MAX_VARIANTES = 5
+    /** Musique calée sur la partie : écart toléré avant de la recaler, et temps laissé au lecteur pour finir un recalage. */
+    private const val CALAGE_ECART_MS = 150
+    private const val CALAGE_ATTENTE_MS = 400L
 
     private val fil = HandlerThread("habillage-son").apply { start() }
     private val h = Handler(fil.looper)
@@ -47,6 +51,8 @@ object Sons {
      */
     private val variantes = mutableMapOf<Son, List<MediaPlayer>>()
     private val derniereVariante = mutableMapOf<Son, Int>()
+    /** Dernier recalage de chaque musique calée ([calerSur]) : le lecteur met un instant à rendre sa nouvelle position. */
+    private val recalages = mutableMapOf<Son, Long>()
     /** Numéro du dernier lancement de chaque son long : un fondu de sortie ne coupe jamais un son relancé entre-temps. */
     private val lancements = mutableMapOf<Son, Int>()
     private val lits = mutableMapOf<Lit, Boucle>()
@@ -159,6 +165,34 @@ object Sons {
             if (actif == crayonActif || (actif && enArriere)) return@post
             crayonActif = actif
             essayer("crayon") { fondreCrayon(actif) }
+        }
+    }
+
+    /**
+     * Musique calée sur une horloge de la partie (la mèche de « Ça va exploser ! ») : elle doit être à [positionMs]
+     * maintenant. Elle ne se recale que si elle s'en écarte de plus de [CALAGE_ECART_MS], pour ne pas hoqueter.
+     * [joue] faux (pause de la partie, bombe qui explose, entre deux bombes) la fige là où elle est. À rappeler souvent :
+     * un changement d'écran qui coupe les sons longs ne la fait taire qu'un instant.
+     */
+    fun calerSur(s: Son, positionMs: Long, joue: Boolean) {
+        h.post {
+            essayer("caler ${s.name}") {
+                val mp = longs[s] ?: return@essayer
+                if (!joue || enArriere || positionMs < 0 || positionMs >= mp.duration) {
+                    if (mp.isPlaying) mp.pause()
+                    return@essayer
+                }
+                // Annule un fondu de sortie en cours (changement d'écran) : c'est la mèche qui décide, pas l'écran.
+                lancements[s] = (lancements[s] ?: 0) + 1
+                mp.setVolume(1f, 1f)
+                val maintenant = SystemClock.uptimeMillis()
+                val enRecalage = maintenant - (recalages[s] ?: Long.MIN_VALUE / 2) < CALAGE_ATTENTE_MS
+                if (!enRecalage && abs(mp.currentPosition - positionMs) > CALAGE_ECART_MS) {
+                    mp.seekTo(positionMs, MediaPlayer.SEEK_CLOSEST)
+                    recalages[s] = maintenant
+                }
+                if (!mp.isPlaying) mp.start()
+            }
         }
     }
 

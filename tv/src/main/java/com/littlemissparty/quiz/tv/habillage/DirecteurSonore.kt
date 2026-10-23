@@ -285,16 +285,17 @@ class DirecteurSonore {
         if (i.buzzs > p.buzzs && i.buzzeur >= 0) o += Ordre.Jouer(Son.rigolo(i.buzzeur))
         // Bip, bip, bip : chacune des cinq dernières secondes du chrono, le dernier plus aigu. Jamais pendant qu'une
         // équipe répond après un buzz (le chrono est figé), en express (trop court) ni quand tout le monde a répondu.
+        // Pas dans « Ça va exploser ! » : la mèche n'est jamais affichée, et sa musique monte d'elle-même jusqu'au boum.
         if ((i.ecran == Ecran.QUESTION || i.ecran == Ecran.MIMES_TOUR) && i.decompte in 1..5 && i.decompte != p.decompte &&
-            !i.enPause && !i.express && i.buzzEquipe < 0 && !tousOntRepondu(i)
+            !i.enPause && !i.express && !i.patate && i.buzzEquipe < 0 && !tousOntRepondu(i)
         ) o += Ordre.Jouer(if (i.decompte == 1) Son.BIP_FIN else Son.BIP)
         if (i.ecran == Ecran.QUESTION) {
             if (i.reponses > p.reponses) o += Ordre.Jouer(Son.REPONSE)
             // La tension des 5 dernières secondes s'arrête quand le temps repart ou que tout le monde a répondu.
             // Pas de tension en express : le chrono entier ne dure que quelques secondes.
             // Pas de tension dans les jeux au buzzer : le buzz et le suspense de la réponse en tiennent lieu.
-            val enTension = p.urgent && !tousOntRepondu(p) && !p.express && !p.jeuBuzz && !p.musical
-            val tension = i.urgent && !tousOntRepondu(i) && !i.express && !i.jeuBuzz && !i.musical
+            val enTension = p.urgent && !tousOntRepondu(p) && !p.express && !p.jeuBuzz && !p.musical && !p.patate
+            val tension = i.urgent && !tousOntRepondu(i) && !i.express && !i.jeuBuzz && !i.musical && !i.patate
             if (tension && !enTension && !p.urgent) o += Ordre.Jouer(Son.TENSION)
             if (enTension && !tension) o += Ordre.Arreter(Son.TENSION)
             if (i.jeuBuzz || i.blind) o += buzzJeu(p, i)
@@ -378,6 +379,8 @@ class DirecteurSonore {
             i.musical && i.ecran != Ecran.VERROUILLEE -> Ambiance.SILENCE
             // Image floue : musique en retrait pendant que l'image se précise, silence pendant qu'une équipe répond.
             // Qui a disparu ? : musique douce pour mémoriser, presque rien pendant le tour de magie.
+            // « Ça va exploser ! » : sa propre musique, calée sur la mèche (MusiquePatate) ; les boucles se taisent.
+            i.patate && i.ecran != Ecran.REVELATION -> Ambiance.SILENCE
             i.disparu == DISPARU_MEMORISER && i.ecran == Ecran.QUESTION -> Ambiance.MEMOIRE
             i.disparu == DISPARU_MAGIE && i.ecran == Ecran.QUESTION -> Ambiance.ENVOUTEMENT
             i.jeuBuzz && i.ecran == Ecran.QUESTION -> if (i.buzzEquipe >= 0) Ambiance.SILENCE else Ambiance.SUSPENSE
@@ -445,6 +448,8 @@ data class Instant(
     val musical: Boolean = false,
     /** Statues musicales : la musique du jeu est arrêtée, tout le monde se fige. */
     val statue: Boolean = false,
+    /** « Ça va exploser ! » : le jeu a sa propre musique, calée sur la mèche ; ni boucle, ni bips, ni tension. */
+    val patate: Boolean = false,
     val flou: Boolean = false,
     val chante: Boolean = false,
     val indices: Int = 0,
@@ -611,6 +616,8 @@ enum class Son(val fichier: String, val long: Boolean = false) {
     BALLON_ECLATE("lmp_ballon_eclate", true),
     TIC_1("lmp_tic_1"), TIC_2("lmp_tic_2"), TIC_3("lmp_tic_3"),
     PATATE_PASSE("lmp_patate_passe"),
+    /** Musique de « Ça va exploser ! » (extrait choisi par cedric) : sa fin tombe sur l'explosion, voir [MusiquePatate]. */
+    PATATE_MUSIQUE("lmp_patate_musique", true),
     EQUIPE_1("lmp_team_sting_1"), EQUIPE_2("lmp_team_sting_2"), EQUIPE_3("lmp_team_sting_3"), EQUIPE_4("lmp_team_sting_4");
 
     companion object {
