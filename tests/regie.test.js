@@ -2834,9 +2834,11 @@ describe("bibliothèque de quiz et prestations", () => {
     const defilement = () => page.evaluate(() => window.scrollY);
     /** Ouvre les réglages de [titre] depuis le bas de la liste ; rend sa hauteur dans l'écran et le défilement. */
     const regler = async (titre) => {
+      await ligne(titre).waitFor({ state: "visible" });
       await ligne(titre).evaluate((e) => e.scrollIntoView({ block: "center" }));
       const avant = { haut: await haut(titre), defilement: await defilement() };
-      assert.ok(avant.defilement > 300, `${titre} est loin du haut de la liste`);
+      const etat = await page.evaluate(() => ({ h: document.documentElement.scrollHeight, lignes: document.querySelectorAll("#song-list .song-ligne").length, ecran: [...document.querySelectorAll(".screen")].find((e) => !e.hidden)?.id, dialogue: !!document.querySelector("dialog[open]") }));
+      assert.ok(avant.defilement > 300, `${titre} est loin du haut de la liste : ${JSON.stringify({ ...avant, ...etat })}`);
       await ligne(titre).getByRole("button", { name: "⏱ Réglé ✓" }).click();
       await page.locator("#playlist-edit-title", { hasText: `Réglages de « ${titre} »` }).waitFor();
       await page.locator(".track.reglage").waitFor();
