@@ -2868,8 +2868,15 @@ describe("bibliothèque de quiz et prestations", () => {
     const defilement = () => page.evaluate(() => window.scrollY);
     /** Ouvre les réglages de [titre] depuis le bas de la liste ; rend sa hauteur dans l'écran et le défilement. */
     const regler = async (titre) => {
-      await ligne(titre).waitFor({ state: "visible" });
-      await ligne(titre).evaluate((e) => e.scrollIntoView({ block: "center" }));
+      // La chanson au milieu de l'écran, loin du haut de la liste, et qui y reste un instant : centrée de nouveau si la
+      // page n'a pas suivi (vu sur GitHub : la page restée tout en haut juste après l'ouverture de la liste).
+      await page.waitForFunction((t) => {
+        const e = [...document.querySelectorAll("#song-list .song-ligne")].find((x) => x.querySelector(".song-titre")?.textContent === t);
+        if (!e || e.offsetParent === null) return false;
+        if (window.scrollY > 300 && Math.abs(e.getBoundingClientRect().top + e.offsetHeight / 2 - window.innerHeight / 2) <= 40) return true;
+        e.scrollIntoView({ block: "center" });
+        return false;
+      }, titre, { polling: 250, timeout: 15000 });
       const avant = { haut: await haut(titre), defilement: await defilement() };
       const etat = await page.evaluate(() => ({ h: document.documentElement.scrollHeight, lignes: document.querySelectorAll("#song-list .song-ligne").length, ecran: [...document.querySelectorAll(".screen")].find((e) => !e.hidden)?.id, dialogue: !!document.querySelector("dialog[open]") }));
       assert.ok(avant.defilement > 300, `${titre} est loin du haut de la liste : ${JSON.stringify({ ...avant, ...etat })}`);
