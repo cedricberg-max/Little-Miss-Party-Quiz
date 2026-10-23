@@ -65,6 +65,8 @@ class DirecteurSonore {
         if (i.ecran == Ecran.HORS_PARTIE) return listOf(Ordre.Musique(Ambiance.SILENCE))
         if (i.enPause) return listOf(Ordre.Musique(Ambiance.INTERMEDE))
         if (i.ecran == Ecran.SALON && i.index < 0 && generiques.add(i.partie)) return generique()
+        // Game Show : une box qui revient sur le podium le rejoue en entier, comme l'écran.
+        if (i.ecran == Ecran.FIN && i.gameShow) return entree(i, i)
         return listOf(Ordre.Musique(ambiance(i)))
     }
 
@@ -262,7 +264,15 @@ class DirecteurSonore {
                 if (i.meneurAPoints) o += Ordre.Jouer(Son.COURONNE, Tempo.CLASSEMENT_COURONNE)
                 o += Ordre.Musique(Ambiance.BILAN)
             }
-            Ecran.FIN -> {
+            Ecran.FIN -> if (i.gameShow) {
+                // Game Show : le podium sur Digital Love (cedric, 23 octobre). La chanson part sur « why don't you
+                // play the game » pendant que les jauges montent, roulement de tambour par-dessus ; le solo de guitare
+                // tombe sur le nom du gagnant (Tempo.PODIUM_REVELATION) ; à la fin de la chanson, l'écran de fin et le
+                // dernier groove d'Aerodynamic. Tout est dans gs_podium : rien d'autre ne joue.
+                o += Ordre.Musique(Ambiance.SILENCE)
+                o += Ordre.Jouer(Son.PODIUM)
+                o += Ordre.Musique(Ambiance.AU_REVOIR, Tempo.PODIUM_FIN, Tempo.FONDU_AU_REVOIR)
+            } else {
                 o += Ordre.Musique(Ambiance.SILENCE)
                 // Grand gagnant : long roulement qui monte pendant tout le suspense, la montée arrive sur la fin.
                 o += Ordre.Jouer(Son.ROULEMENT_FINAL)
@@ -390,6 +400,7 @@ class DirecteurSonore {
             i.superFinale && i.ecran == Ecran.QUESTION -> Ambiance.DECISIVE
             else -> ambianceParDefaut(i.ecran)
         }
+        Ecran.FIN -> if (i.gameShow) Ambiance.AU_REVOIR else ambianceParDefaut(i.ecran)
         else -> ambianceParDefaut(i.ecran)
     }
 
@@ -477,6 +488,8 @@ data class Instant(
      */
     val pictionary: Boolean = false,
     val pictioTrouve: Boolean = false,
+    /** Design « The Game Show » : le podium et l'écran de fin ont leur propre musique. */
+    val gameShow: Boolean = false,
 )
 
 const val DISPARU_MEMORISER = 1
@@ -502,6 +515,8 @@ enum class Lit(val fichier: String?, val gs: String? = null) {
     BILAN(null, "gs_bed_bilan"),
     /** Game Show : nappe de tension sans note, par-dessus la musique de la manche pendant la Super finale. */
     TENSION(null, "gs_bed_tension"),
+    /** Game Show : le dernier groove d'Aerodynamic, sous l'écran de fin après le podium (cedric, 23 octobre). */
+    FIN(null, "gs_bed_fin"),
     ;
 
     /** Fichier lu dans le design donné (null : cette boucle n'existe pas dans ce design). */
@@ -543,6 +558,8 @@ enum class Ambiance(
     DECISIVE(express = 0.4f, gameShow = mapOf(Lit.LEGER to 0.6f, Lit.TENSION to 0.5f)),
     /** Bilan des scores entre deux jeux : la musique de fête ; Game Show : le riff d'Aerodynamic. */
     BILAN(complete = 0.8f, gameShow = mapOf(Lit.BILAN to 0.8f)),
+    /** Écran de fin, après le podium du Game Show : le dernier groove d'Aerodynamic ; Classique : la musique de fête. */
+    AU_REVOIR(complete = 0.8f, gameShow = mapOf(Lit.FIN to 0.75f)),
     /** Qui a disparu ? : boîte à musique et harpe pendant qu'on mémorise les objets. */
     MEMOIRE(magie = 0.55f),
     /** Qui a disparu ? : le tour de magie, la boîte à musique s'efface sous l'« abracadabra ». */
@@ -558,7 +575,7 @@ enum class Ambiance(
             Lit.PAUSE -> pause
             Lit.EXPRESS -> express
             Lit.MAGIE -> magie
-            Lit.BILAN, Lit.TENSION -> 0f
+            Lit.BILAN, Lit.TENSION, Lit.FIN -> 0f
         }
     }
 }
@@ -588,6 +605,8 @@ enum class Son(val fichier: String, val long: Boolean = false, val gs: String? =
     APPLAUDISSEMENTS("lmp_applause", true),
     CLOCHES("lmp_prize_bells"),
     FIN("lmp_end_jingle", true),
+    /** Game Show seulement : le podium sur Digital Love, roulement et impact compris (104,6 s). */
+    PODIUM("gs_podium", true),
     POP_1("lmp_pop_1"), POP_2("lmp_pop_2"), POP_3("lmp_pop_3"), POP_4("lmp_pop_4"),
     MIME_TOP("lmp_mime_go", true),
     MIME_TROUVE("lmp_mime_found"),
@@ -708,6 +727,14 @@ object Tempo {
     const val FIN_VAINQUEUR = 7_000L
     const val FIN_JINGLE = 14_500L
     const val FIN_MUSIQUE = 17_000L
+    /**
+     * Podium du Game Show (gs_podium) : les jauges montent sur « why don't you play the game », le solo de guitare
+     * de Digital Love tombe à [PODIUM_REVELATION] sur le nom du gagnant ; l'écran de fin arrive quand la chanson
+     * s'éteint, à [PODIUM_FIN], sur le dernier groove d'Aerodynamic.
+     */
+    const val PODIUM_REVELATION = 15_444L
+    const val PODIUM_FIN = 102_500L
+    const val FONDU_AU_REVOIR = 2_000L
     /** Coup de cuivres du « Top départ » des mimes, après les deux coups de sifflet. */
     const val MIME_TOP_IMPACT = 500L
     const val MIME_BILAN = 1_000L

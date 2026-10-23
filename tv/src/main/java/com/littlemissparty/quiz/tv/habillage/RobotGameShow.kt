@@ -294,6 +294,8 @@ fun RobotGameShow(state: UiState) {
     val s = state as? UiState.Playing ?: return
     val secondes = secondesRestantes(s)
     if (s.paused) return PauseRobot(s.code)
+    // Le podium a son propre robot, au-dessus du nom du gagnant (PodiumGameShow).
+    if (s.phase == Phase.ENDED) return
     // Une réaction (bonus, malus, coffre) passe avant le reste, le temps de son clip.
     val signal = signalRobot.value?.takeIf { !s.paused && System.currentTimeMillis() - it.a < if (it.cle in clipsJoues) 10_000 else 3_000 }
     val (moment, cle) = signal?.let { it.moment to it.cle } ?: momentRobot(s, secondes, meneurs[s.code]) ?: return

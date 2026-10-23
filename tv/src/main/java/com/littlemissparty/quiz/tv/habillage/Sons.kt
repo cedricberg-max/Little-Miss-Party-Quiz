@@ -120,6 +120,8 @@ object Sons {
     }
 
     private fun chargerLong(app: Context, s: Son) = essayer(s.name) {
+        // Sons propres au Game Show (le podium) : rien à charger en Classique.
+        if (!Look.gs && s.fichier.startsWith("gs_")) return@essayer
         val principal = lecteur(app, s.fichier, boucle = false) ?: return@essayer
         longs[s] = principal
         if (!Look.gs) return@essayer

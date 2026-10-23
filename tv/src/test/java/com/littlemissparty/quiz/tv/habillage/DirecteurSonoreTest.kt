@@ -677,6 +677,33 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `Game Show, le podium sur Digital Love puis l'ecran de fin, sans rien changer au Classique`() {
+        // Classique : la célébration habituelle, sans le podium.
+        val classique = DirecteurSonore().apply { observer(q2) }.observer(Instant(Ecran.FIN, partie = "ABCD", index = 1))
+        assertTrue(Son.FANFARE in classique.sons())
+        assertFalse(Son.PODIUM in classique.sons())
+        // Game Show : la chanson du podium seule, puis le dernier groove d'Aerodynamic quand elle s'éteint.
+        val d = DirecteurSonore()
+        d.observer(q2.copy(gameShow = true))
+        val fin = Instant(Ecran.FIN, partie = "ABCD", index = 1, gameShow = true)
+        val o = d.observer(fin)
+        assertEquals(listOf(Son.PODIUM), o.sons())
+        assertTrue(Ordre.Musique(Ambiance.AU_REVOIR, Tempo.PODIUM_FIN, Tempo.FONDU_AU_REVOIR) in o)
+        assertTrue(d.observer(fin).isEmpty())
+        assertTrue(Tempo.PODIUM_REVELATION < Tempo.PODIUM_FIN)
+        // Une box qui revient sur le podium le rejoue, comme l'écran.
+        assertEquals(listOf(Son.PODIUM), DirecteurSonore().observer(fin).sons())
+        // Après une pause sur le podium : l'écran de fin.
+        d.observer(fin.copy(enPause = true))
+        assertEquals(Ambiance.AU_REVOIR, d.observer(fin).musique())
+        // La boucle de fin n'existe qu'en Game Show ; en Classique, cette ambiance est la musique de fête.
+        assertEquals(0.75f, Ambiance.AU_REVOIR.volume(Lit.FIN, gs = true), 0f)
+        assertEquals(0f, Ambiance.AU_REVOIR.volume(Lit.COMPLET, gs = true), 0f)
+        assertEquals(Ambiance.FETE.volume(Lit.COMPLET), Ambiance.AU_REVOIR.volume(Lit.COMPLET), 0f)
+        assertNull(Lit.FIN.fichierPour(false))
+    }
+
+    @Test
     fun `chaque son a un fichier distinct`() {
         assertEquals(Son.entries.size, Son.entries.map { it.fichier to it.gs }.toSet().size)
     }
@@ -702,7 +729,7 @@ class DirecteurSonoreTest {
         val longs = Son.entries.filter { it.long }.map { it.fichier }.toSet()
         val variante = Regex("^(gs_.+)_[2-5]$")
         val orphelins = gs.filterNot { n ->
-            n.replaceFirst("gs_", "lmp_") in noms || n in propres ||
+            n in noms || n.replaceFirst("gs_", "lmp_") in noms || n in propres ||
                 variante.find(n)?.groupValues?.get(1)?.let { base -> base in gs && base.replaceFirst("gs_", "lmp_") in longs } == true
         }
         assertTrue("Sons du Game Show sans son classique : $orphelins", orphelins.isEmpty())

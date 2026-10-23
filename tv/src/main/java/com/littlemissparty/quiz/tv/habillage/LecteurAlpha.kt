@@ -86,12 +86,15 @@ internal fun programmeAlpha(): Int {
  * comme une image (Compose le déplace avec un simple calque). Le décodage et le dessin se font sur un fil à part.
  * [surDebut] : la première image est à l'écran ; [surEchec] : clip illisible (fichier, décodeur, OpenGL), il n'y a
  * simplement pas de robot. Rien ici ne touche à la partie. [liberer] rend tout (lecteur, OpenGL, fil).
+ * [boucleDepuisMs] ≥ 0 : à la fin, le clip repart de là, sans fin (podium, écran de fin : une entrée, puis une danse
+ * qui boucle). Le clip a une image clé à cet endroit : le retour est immédiat.
  */
 internal class LecteurAlpha(
     context: Context,
     private val resId: Int,
     private val surDebut: () -> Unit,
     private val surEchec: () -> Unit,
+    private val boucleDepuisMs: Int = -1,
 ) : TextureView(context), TextureView.SurfaceTextureListener {
     private val fil = HandlerThread("robot-game-show").apply { start() }
     private val h = Handler(fil.looper)
@@ -187,6 +190,12 @@ internal class LecteurAlpha(
                 setOnErrorListener { _, quoi, extra ->
                     echec(IllegalStateException("lecteur $quoi/$extra"))
                     true
+                }
+                if (boucleDepuisMs >= 0) setOnCompletionListener { mp ->
+                    if (!fini) {
+                        mp.seekTo(boucleDepuisMs)
+                        mp.start()
+                    }
                 }
                 setOnPreparedListener { if (!fini) it.start() }
                 prepareAsync()
