@@ -34,6 +34,10 @@ object Sons {
     /** Musique calée sur la partie : écart toléré avant de la recaler, et temps laissé au lecteur pour finir un recalage. */
     private const val CALAGE_ECART_MS = 150
     private const val CALAGE_ATTENTE_MS = 400L
+    /** Veille des boucles : une boucle qui devrait s'entendre et ne joue plus est relancée (cedric, 23 octobre). */
+    private const val VEILLE_MS = 1_000L
+    /** Incidents du son envoyés dans les rapports de la box, au plus, par lancement de l'appli. */
+    private const val MAX_INCIDENTS = 20
 
     private val fil = HandlerThread("habillage-son").apply { start() }
     private val h = Handler(fil.looper)
@@ -41,6 +45,15 @@ object Sons {
     private val prevus = Any()
     private val fondus = Any()
     private val fonduCrayon = Any()
+    private val veille = Any()
+    private var veilleLancee = false
+    private var incidents = 0
+
+    /**
+     * Où envoyer un incident du son (boucle arrêtée toute seule, relais raté, lecteur en erreur) : les rapports de la
+     * box (`reports/`, lus par le workflow « Rapports »). Branché par la partie une fois connectée.
+     */
+    @Volatile var rapporteur: ((String) -> Unit)? = null
 
     private var pool: SoundPool? = null
     private val courts = mutableMapOf<Son, Int>()
@@ -110,7 +123,34 @@ object Sons {
             etapes += { essayer("crayon") { crayon = lecteur(app, FICHIER_CRAYON, boucle = true) } }
             litsDabord.drop(1).forEach { l -> etapes += { chargerLit(app, l) } }
             enchainer(etapes)
+            if (!veilleLancee) {
+                veilleLancee = true
+                veiller()
+            }
         }
+    }
+
+    /** Toutes les secondes : une boucle qui devrait s'entendre (volume de l'ambiance) et qui ne joue plus repart. */
+    private fun veiller() {
+        h.postAtTime({
+            essayer("veille") {
+                if (!enArriere) lits.forEach { (l, b) ->
+                    if (volumes.getValue(l) > 0.01f && !b.isPlaying) {
+                        incident("Boucle ${l.name} (${l.fichierPour(Look.gs)}) arrêtée toute seule, ambiance $ambiance : relancée")
+                        reveiller(b)
+                    }
+                }
+            }
+            veiller()
+        }, veille, SystemClock.uptimeMillis() + VEILLE_MS)
+    }
+
+    /** Un incident du son : dans le journal de la box, et dans ses rapports (les premiers seulement). */
+    internal fun incident(texte: String) {
+        Log.w(TAG, texte)
+        if (incidents >= MAX_INCIDENTS) return
+        incidents++
+        runCatching { rapporteur?.invoke(texte) }
     }
 
     private fun enchainer(etapes: ArrayDeque<() -> Unit>) {
@@ -374,7 +414,7 @@ object Sons {
     private fun boucle(context: Context, nom: String): Boucle? {
         val a = lecteur(context, nom, boucle = false) ?: return null
         val b = try { lecteur(context, nom, boucle = false) } catch (e: Exception) { null }
-        return Boucle(a, b)
+        return Boucle(a, b) { incident("Boucle « $nom » : $it") }
     }
 
     private fun lecteur(context: Context, nom: String, boucle: Boolean): MediaPlayer? {
@@ -388,7 +428,7 @@ object Sons {
             prepare()
             // Un lecteur en erreur (serveur audio de la box relancé…) resterait muet toute la partie : on le refait.
             setOnErrorListener { mp, quoi, extra ->
-                Log.w(TAG, "Lecteur « $nom » en erreur ($quoi, $extra), reconstruit")
+                incident("Lecteur « $nom » en erreur ($quoi, $extra), reconstruit")
                 h.post { reconstruire(context, nom, boucle, mp) }
                 true
             }
@@ -474,7 +514,7 @@ object Sons {
  * part à l'échantillon près quand le premier finit. Un lecteur seul en isLooping revient au début du fichier avec un
  * trou audible sur certaines TV. Sans second lecteur (mémoire), on retombe sur isLooping.
  */
-private class Boucle(private val a: MediaPlayer, private val b: MediaPlayer?) {
+private class Boucle(private val a: MediaPlayer, private val b: MediaPlayer?, private val signaler: (String) -> Unit = {}) {
     private var courant = a
 
     init {
@@ -496,14 +536,31 @@ private class Boucle(private val a: MediaPlayer, private val b: MediaPlayer?) {
         courant = suivant
         try {
             fini.seekTo(0)
+            // Certaines TV ne lancent pas toujours le lecteur suivant (cedric, 23 octobre : la musique se taisait en
+            // pleine boucle) : il part ici, avec un blanc à peine audible au lieu du silence.
+            if (!suivant.isPlaying) {
+                signaler("relais raté, lecteur suivant lancé à la main")
+                suivant.start()
+            }
             suivant.setNextMediaPlayer(fini)
         } catch (e: Exception) {
             // Relais impossible : celui qui joue boucle seul, comme avant.
+            signaler("relais impossible (${e.message}), boucle seule")
             try { suivant.isLooping = true } catch (_: Exception) {}
+            try { if (!suivant.isPlaying) suivant.start() } catch (_: Exception) {}
         }
     }
 
-    val isPlaying: Boolean get() = courant.isPlaying
+    /**
+     * Le lecteur qui joue vraiment : entre la fin de l'un et l'annonce du relais, c'est déjà l'autre. Jamais deux
+     * lecteurs relancés en même temps (la musique en double).
+     */
+    private fun joueur(): MediaPlayer {
+        val autre = if (courant === a) b else a
+        return if (!courant.isPlaying && autre?.isPlaying == true) autre else courant
+    }
+
+    val isPlaying: Boolean get() = a.isPlaying || b?.isPlaying == true
 
     fun setVolume(v: Float) {
         a.setVolume(v, v)
@@ -511,12 +568,23 @@ private class Boucle(private val a: MediaPlayer, private val b: MediaPlayer?) {
     }
 
     fun pause() {
-        if (courant.isPlaying) courant.pause()
+        val mp = joueur()
+        if (!mp.isPlaying) return
+        try {
+            mp.pause()
+        } catch (e: IllegalStateException) {
+            // Lecteur lancé par le relais : la TV le croit encore « prêt » et refuse la pause ; un start() remet son
+            // état d'aplomb (il joue déjà), puis la pause passe.
+            mp.start()
+            mp.pause()
+        }
     }
 
     fun demarrer(ms: Int) {
-        courant.seekTo(ms)
-        if (!courant.isPlaying) courant.start()
+        val mp = joueur()
+        courant = mp
+        mp.seekTo(ms)
+        if (!mp.isPlaying) mp.start()
     }
 
     fun possede(mp: MediaPlayer) = mp === a || mp === b

@@ -1651,6 +1651,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         CrashReporter.upload(getApplication<Application>(), db)
+        // Incidents du son (boucle qui s'arrête toute seule, lecteur en erreur) : dans les rapports de la box.
+        com.littlemissparty.quiz.tv.habillage.Sons.rapporteur = { texte -> CrashReporter.report(db, "son", texte) }
         return db
     }
 
