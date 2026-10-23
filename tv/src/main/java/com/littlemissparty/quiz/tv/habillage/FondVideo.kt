@@ -44,6 +44,7 @@ internal class LecteurFond(
 
     override fun onSurfaceTextureAvailable(st: SurfaceTexture, largeur: Int, hauteur: Int) {
         if (fini) return
+        arreter()
         try {
             val s = Surface(st).also { surface = it }
             lecteur = MediaPlayer().apply {
@@ -71,17 +72,23 @@ internal class LecteurFond(
 
     override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, largeur: Int, hauteur: Int) = Unit
 
+    // Surface perdue (veille, autre appli) : la vidéo s'arrête et le décor dessiné revient ; elle repart à la surface
+    // suivante tant que la vue n'est pas libérée.
     override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
-        liberer()
+        arreter()
+        if (!fini) surEchec()
         return true
     }
 
     override fun onSurfaceTextureUpdated(st: SurfaceTexture) = Unit
 
-    /** Arrête la vidéo et rend le lecteur ; sans effet la deuxième fois. */
+    /** La vue quitte l'écran pour de bon : plus aucune lecture. */
     fun liberer() {
-        if (fini) return
         fini = true
+        arreter()
+    }
+
+    private fun arreter() {
         try { lecteur?.release() } catch (_: Throwable) {}
         lecteur = null
         surface?.release()
