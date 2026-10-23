@@ -6,6 +6,9 @@ export const PROFILES = {
   MOYENS: { label: "Moyens (9 à 11 ans)", minAge: 9, maxAge: 11, chronoSec: 15, expressSec: 9, maxWords: 20, maxChoiceWords: null },
   GRANDS: { label: "Grands (12 à 15 ans)", minAge: 12, maxAge: 15, chronoSec: 12, expressSec: 8, maxWords: 25, maxChoiceWords: null },
   ADULTES: { label: "Adultes (16 ans et plus)", minAge: 16, maxAge: 99, chronoSec: 10, expressSec: 7, maxWords: 30, maxChoiceWords: null },
+  // Neutre (cedric, 23/10) : choisi à la main pour une prestation personnalisée à 100 % ; aucun tirage n'est limité
+  // par l'âge (tous les niveaux), chrono du milieu. Jamais choisi d'office d'après l'âge.
+  NEUTRE: { label: "Neutre (tous âges)", minAge: 0, maxAge: 99, chronoSec: 15, expressSec: 9, maxWords: null, maxChoiceWords: null },
 };
 
 /**

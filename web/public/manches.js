@@ -248,6 +248,8 @@ export function cleanRound(r, playlists = {}) {
   const picks = roundPicks(r).length ? { picks: roundPicks(r), ...(CONTENT_GAMES[type] && roundHasard(r).length ? { hasard: roundHasard(r) } : {}) } : {};
   const link = typeof r?.mancheId === "string" && r.mancheId ? { mancheId: r.mancheId.slice(0, 40) } : {};
   const title = typeof r?.title === "string" && r.title.trim() ? { title: r.title.trim().slice(0, 60) } : {};
+  // Note de Sarah sur la manche (cedric, 23/10) : pour s'en souvenir et la retrouver.
+  const note = typeof r?.note === "string" && r.note.trim() ? { note: r.note.trim().slice(0, 200) } : {};
   let out;
   const photos = (type === "mimes" || type === "disparu") && r.photos === true ? { photos: true } : {};
   if (BUILTIN_GAMES[type]) out = { type, count: r.count ?? BUILTIN_GAMES[type].count, ...(type === "disparu" && r.objects ? { objects: r.objects } : {}), ...photos, ...picks };
@@ -270,7 +272,7 @@ export function cleanRound(r, playlists = {}) {
       // Question des bougies enlevée de ce quiz (elle y est d'office, voir questionBougies).
       ...(type === "quiz" && r.bougies === false ? { bougies: false } : {}) };
   }
-  return { ...out, ...title, ...link };
+  return { ...out, ...title, ...note, ...link };
 }
 
 /**

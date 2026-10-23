@@ -8,8 +8,9 @@ import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, dureeEstim
   readiness, upcoming, daysUntil, isoDay, duplicateShow, etatPrestation, isArchived, ETATS, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
   soundIds, choiceImageIds, choiceImageList, pictoSeriesList, pictoSeriesOf, foldLegacyFinale,
   roundQuizIds, MIME_RANDOM, alerteEquipes, EQUIPES_PAR_DEFAUT, PAR_EQUIPE_MIN,
-  statuesSongs, statuesChoices, roundSongs, isStatuesList,
+  statuesSongs, statuesChoices, roundSongs, isStatuesList, mimePool, titreAuto,
 } from "../web/public/show.js";
+import { PROFILES, profileForAge, defaultDuration } from "../web/public/profiles.js";
 import { PICTO_WORDS, PICTO_SERIES } from "../web/public/picto-cards.js";
 import { guessTrack, normalizeLevel } from "../web/public/audio.js";
 import { songList, songsRetirees, songMatches, trackFromSong, songUpdates, marquerEffacees, defaultRefrain, buzzOf, REFRAIN_SEC } from "../web/public/sons.js";
@@ -781,6 +782,31 @@ describe("Super Finale : les dernières questions du quiz, pas un jeu à part", 
     const { snapshot, problems } = play([{ type: "mimes", deckId: "d" }, { type: "finale", quizId: "f" }]);
     assert.deepEqual(problems, []);
     assert.deepEqual(snapshot.quiz.questions.map((q) => [q.round, q.double ?? false]), [["Mimes", false], ["Super Finale", true], ["Super Finale", true]]);
+  });
+});
+
+describe("fiche d'une prestation (cedric, 23/10)", () => {
+  test("profil Neutre : juste sous Adultes, jamais choisi d'après l'âge, aucun tirage limité par l'âge", () => {
+    assert.deepEqual(Object.keys(PROFILES), ["PETITS", "MOYENS", "GRANDS", "ADULTES", "NEUTRE"]);
+    assert.equal(PROFILES.NEUTRE.label, "Neutre (tous âges)");
+    for (const age of [null, 3, 7, 10, 14, 40]) assert.notEqual(profileForAge(age), "NEUTRE");
+    assert.equal(defaultDuration("NEUTRE"), defaultDuration("MOYENS"));
+    // Les Petits n'ont que les cartes faciles ; le Neutre a tout le catalogue.
+    assert.equal(mimePool({}, {}, "NEUTRE").length, MIME_CATALOG.length);
+    assert.ok(mimePool({}, {}, "PETITS").length < MIME_CATALOG.length);
+    // Pas de limite de mots : une longue question n'est jamais signalée « trop longue pour le profil ».
+    const longue = { text: Array(40).fill("mot").join(" ") + " ?", choices: ["a", "b", "c", "d"], correct: 0 };
+    assert.ok(!checkQuestions([longue], { profile: "NEUTRE" })[0].warnings.some((w) => /long pour le profil/.test(w)));
+  });
+
+  test("titre proposé d'office : « Anniversaire de » + le prénom, « d' » devant une voyelle", () => {
+    assert.equal(titreAuto("Frédéric"), "Anniversaire de Frédéric");
+    assert.equal(titreAuto("  Emma "), "Anniversaire d'Emma");
+    assert.equal(titreAuto("Élise"), "Anniversaire d'Élise");
+    assert.equal(titreAuto("Yanis"), "Anniversaire d'Yanis");
+    assert.equal(titreAuto("Hugo"), "Anniversaire de Hugo");
+    assert.equal(titreAuto(""), "");
+    assert.equal(titreAuto(null), "");
   });
 });
 

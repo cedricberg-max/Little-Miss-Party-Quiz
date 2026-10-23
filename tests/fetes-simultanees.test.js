@@ -474,9 +474,9 @@ describe("trois fêtes en même temps sur trois box", () => {
       assert.equal(show.childName, f.nom);
       assert.equal(show.by, regieUids[i], "chargée par la régie de cette fête");
       assert.equal((await lire(f, "showStatus")).id, show.id);
-      assert.equal((await lire(f, "conducteur")).title, `L'anniversaire de ${f.nom}`);
-      assert.deepEqual(await lire(f, "public"), { title: `L'anniversaire de ${f.nom}`, childName: f.nom });
-      await regies[i].locator("#c-step", { hasText: `L'anniversaire de ${f.nom}` }).waitFor();
+      assert.equal((await lire(f, "conducteur")).title, `Anniversaire de ${f.nom}`);
+      assert.deepEqual(await lire(f, "public"), { title: `Anniversaire de ${f.nom}`, childName: f.nom });
+      await regies[i].locator("#c-step", { hasText: `Anniversaire de ${f.nom}` }).waitFor();
     }
     const plans = await Promise.all(FETES.map(async (f) => (await lire(f, "conducteur")).questions));
     assert.deepEqual(plans.map((q) => q[0].text), ["Roi de la jungle ?", "Quel est ce titre ?", plans[2][0].text]);

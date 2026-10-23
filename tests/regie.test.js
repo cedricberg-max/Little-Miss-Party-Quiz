@@ -434,6 +434,12 @@ async function ajouterJeu(page, type = "quiz") {
   await page.click(`#jeu-choix .jeu-tuile[data-jeu="${type}"]`);
 }
 
+/** « ↺ Reprendre une manche déjà faite » (cedric, 23/10) : ouvre la liste sous la manche, puis prend la manche [cle]. */
+async function reprendre(round, cle) {
+  await round.locator(".reprendre-ouvrir").click();
+  await round.locator(`.reprise-item[data-reprise="${cle}"]`).click();
+}
+
 /** Administration : le mot de passe commun, saisi sur le PC familial. */
 async function openAdmin() {
   const page = await openRegie(null, "?emu=1", "/admin.html");
@@ -2396,11 +2402,11 @@ describe("bibliothèque de quiz et prestations", () => {
     await pair(regie);
     await inRegie(regie);
     // Dans le salon d'attente, la régie ouvre directement la liste des prestations prêtes.
-    await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "L'anniversaire de Léa" }).click();
+    await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "Anniversaire de Léa" }).click();
     // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
     await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
-    await regie.locator("#c-step", { hasText: "L'anniversaire de Léa" }).waitFor();
+    await regie.locator("#c-step", { hasText: "Anniversaire de Léa" }).waitFor();
     const show = await read("show");
     assert.equal(show.childName, "Léa");
     assert.equal(show.profile, "PETITS");
@@ -2542,7 +2548,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const regie = await openRegie();
     await pair(regie);
     await inRegie(regie);
-    await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "L'anniversaire de Léa" }).click();
+    await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "Anniversaire de Léa" }).click();
     // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
     await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
@@ -2634,7 +2640,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const regie = await openRegie();
     await pair(regie);
     await inRegie(regie);
-    await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "L'anniversaire de Léa" }).click();
+    await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "Anniversaire de Léa" }).click();
     // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
     await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
@@ -3913,7 +3919,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const regie = await openRegie();
     await pair(regie);
     await inRegie(regie);
-    await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "L'anniversaire de Léa" }).click();
+    await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "Anniversaire de Léa" }).click();
     // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
     await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
@@ -3988,7 +3994,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const regie = await openRegie();
     await pair(regie);
     await inRegie(regie);
-    await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "L'anniversaire de Léa" }).click();
+    await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "Anniversaire de Léa" }).click();
     // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
     await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
@@ -4192,7 +4198,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const [id, saved] = Object.entries(await library("manches"))[0];
     const [showId] = Object.keys(await library("shows"));
     assert.equal(saved.type, "mimes");
-    assert.equal(saved.title, "Mimes · L'anniversaire de Léa");
+    assert.equal(saved.title, "Mimes · Anniversaire de Léa");
     assert.equal(saved.origin, "admin");
     assert.equal(saved.showId, showId);
     assert.equal(saved.round.perTeam, 5);
@@ -4220,7 +4226,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator(`#manches-list [data-manche="${id}"] button`, { hasText: "⭐ Épingler" }).click();
     await page.locator(`#manches-pinned [data-manche="${id}"]`, { hasText: "⭐ Épinglée" }).waitFor();
     assert.equal((await library(`manches/${id}`)).pinned, true);
-    await page.locator("#manches-shows .manche-from-show", { hasText: "Gardée : « Mimes · L'anniversaire de Léa »" }).waitFor();
+    await page.locator("#manches-shows .manche-from-show", { hasText: "Gardée : « Mimes · Anniversaire de Léa »" }).waitFor();
     await capture(page, "page-jeu-mimes");
 
     // Prestation de 6 équipes : la manche chargée garde ses 20 cartes ; le reste se tire au lancement.
@@ -4231,7 +4237,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.selectOption("#show-teams", "6");
     await ajouterJeu(page, "mimes");
     const round = page.locator("#show-rounds .round").nth(0);
-    await round.locator(".manche-load").selectOption(id);
+    await reprendre(round, id);
     await round.locator(".mime-need", { hasText: "5 par équipe × 6 équipes = 30 cartes · 20 choisies : le reste est tiré au hasard au lancement" }).waitFor();
     await aVenir(page);
     await page.click("#show-save");
@@ -4257,7 +4263,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await ajouterJeu(page, "pictionary");
     const round = page.locator("#show-rounds .round").nth(0);
     assert.equal(await round.locator(".alerte-equipes").count(), 0, "Mots au hasard : pas d'alerte");
-    await round.locator(".manche-load").selectOption("peu");
+    await reprendre(round, "peu");
     await round.locator(".alerte-equipes", { hasText: "⚠ Pictionary : 5 mots choisis pour 4 équipes, il en faut au moins 12 (3 par équipe)." }).waitFor();
     await capture(page, "alerte-equipes");
     // Moins d'équipes : l'alerte suit, puis disparaît.
@@ -4306,7 +4312,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#manche-search-count", { hasText: "1 manche trouvée" }).waitFor();
     await page.locator("#manches-list", { hasText: "Aucune de vos manches ne correspond" }).waitFor();
     assert.equal(await page.locator("#manches-shows-box").evaluate((d) => d.open), true);
-    await page.locator("#manches-shows .manche-from-show", { hasText: "L'anniversaire de Zoé" }).waitFor();
+    await page.locator("#manches-shows .manche-from-show", { hasText: "Anniversaire de Zoé" }).waitFor();
     await page.fill("#manche-search", "");
     await page.locator('#manches-list [data-manche="s"]').waitFor();
     assert.deepEqual(await ordre(), ["t", "m", "a", "s"]);
@@ -4894,7 +4900,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator('#show-list [data-show="tom"]').getByRole("button", { name: "Renommer" }).click();
     await fenetre.waitFor();
     const champ = fenetre.locator("[data-fenetre-texte]");
-    assert.equal(await champ.inputValue(), "L'anniversaire de Tom");
+    assert.equal(await champ.inputValue(), "Anniversaire de Tom");
     assert.equal(await champ.evaluate((c) => document.activeElement === c && c.selectionStart === 0 && c.selectionEnd === c.value.length), true);
     assert.deepEqual(await fenetre.locator(".fenetre-boutons .btn").allInnerTexts(), ["Renommer", "Annuler"]);
     await capture(page, "fenetre-renommer", { pleinePage: false });
@@ -5014,7 +5020,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const regie = await openRegie();
     await pair(regie);
     await inRegie(regie);
-    await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "L'anniversaire de Léa" }).click();
+    await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "Anniversaire de Léa" }).click();
     // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
     await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
@@ -5169,20 +5175,20 @@ describe("bibliothèque de quiz et prestations", () => {
     // s'ouvrir ; l'original ne bouge pas.
     await page.click('#shows-tabs [data-etat="avenir"]');
     await page.locator('#show-list [data-show="lea"]').getByRole("button", { name: "Dupliquer" }).click();
-    await page.locator("#shows-status", { hasText: "« Copie de « L'anniversaire de Léa » » est ajoutée ici." }).waitFor();
+    await page.locator("#shows-status", { hasText: "« Copie de « Anniversaire de Léa » » est ajoutée ici." }).waitFor();
     assert.equal(await page.textContent("#shows-h1"), "À compléter");
     assert.equal(await page.locator("#screen-show-edit").isHidden(), true, "La copie ne s'ouvre pas");
     const premiere = page.locator("#show-list .show-card").first();
     assert.match(await premiere.getAttribute("class"), /copie-recente/);
-    assert.equal(await premiere.locator(".card-title").textContent(), "Copie de « L'anniversaire de Léa »");
+    assert.equal(await premiere.locator(".card-title").textContent(), "Copie de « Anniversaire de Léa »");
     const copieId = await premiere.getAttribute("data-show");
     const copiee = await library(`shows/${copieId}`);
-    assert.deepEqual([copiee.status, copiee.childName, copiee.age, copiee.date, copiee.themes, copiee.copieDe], ["brouillon", undefined, undefined, undefined, "Licornes", "L'anniversaire de Léa"]);
+    assert.deepEqual([copiee.status, copiee.childName, copiee.age, copiee.date, copiee.themes, copiee.copieDe], ["brouillon", undefined, undefined, undefined, "Licornes", "Anniversaire de Léa"]);
     assert.deepEqual(copiee.rounds, LEA.rounds);
     // Une copie s'enregistre même incomplète, et garde son nom tant qu'elle n'a pas de prénom.
     await premiere.getByRole("button", { name: "Ouvrir" }).click();
     assert.equal(await page.inputValue("#show-child"), "");
-    assert.equal(await page.inputValue("#show-themes"), "Licornes");
+    assert.equal(await page.locator("#show-themes").count(), 0, "Plus de case « Thèmes » (cedric, 23/10)");
     await page.fill("#show-notes", "Pour qui ?");
     // Avec « Enregistrer » en haut de la fiche, le message se voit sans descendre (cedric, 23/10).
     await page.evaluate(() => window.scrollTo(0, 0));
@@ -5192,8 +5198,9 @@ describe("bibliothèque de quiz et prestations", () => {
     const annonce = await page.locator("#annonce").boundingBox();
     const hauteur = await page.evaluate(() => window.innerHeight);
     assert.ok(annonce && annonce.y >= 0 && annonce.y + annonce.height <= hauteur, `Message hors de l'écran : ${JSON.stringify(annonce)}`);
-    assert.equal(await page.textContent("#show-edit-title"), "Copie de « L'anniversaire de Léa »");
-    assert.deepEqual([(await library(`shows/${copieId}`)).notes, (await library(`shows/${copieId}`)).copieDe], ["Pour qui ?", "L'anniversaire de Léa"]);
+    assert.equal(await page.textContent("#show-edit-title"), "Copie de « Anniversaire de Léa »");
+    assert.deepEqual([(await library(`shows/${copieId}`)).notes, (await library(`shows/${copieId}`)).copieDe], ["Pour qui ?", "Anniversaire de Léa"]);
+    assert.equal((await library(`shows/${copieId}`)).themes, "Licornes", "Le thème d'une ancienne prestation n'est pas effacé");
     // « À venir » sans prénom, âge ni date : refusé, elle reste « À compléter » et le message dit ce qui manque.
     await page.selectOption("#show-status", "publiee");
     await page.click("#show-save");
@@ -5273,12 +5280,12 @@ describe("bibliothèque de quiz et prestations", () => {
     const tom = page.locator('#show-list [data-show="brouillon"]');
     let question = repondreFenetre(page, { accepter: false });
     await tom.getByRole("button", { name: "Supprimer" }).click();
-    assert.match(await question, /Supprimer « L'anniversaire de Tom » \?/);
+    assert.match(await question, /Supprimer « Anniversaire de Tom » \?/);
     assert.equal((await library("shows/brouillon")).childName, "Tom");
     question = repondreFenetre(page);
     await tom.getByRole("button", { name: "Supprimer" }).click();
     await question;
-    await page.locator("#shows-status", { hasText: "« L'anniversaire de Tom » est supprimée." }).waitFor();
+    await page.locator("#shows-status", { hasText: "« Anniversaire de Tom » est supprimée." }).waitFor();
     await tom.waitFor({ state: "detached" });
     assert.equal(await library("shows/brouillon"), null);
     // Pas de « Supprimer » sur une fête annoncée (cedric, 21/10) : ni dans « À venir », ni dans les prochains anniversaires.
@@ -5296,7 +5303,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(await malo.locator(".card-actions button").allInnerTexts(), ["Ouvrir", "Dupliquer", "Renommer", "⭐ Épingler", "Supprimer"]);
     question = repondreFenetre(page, { accepter: false });
     await malo.getByRole("button", { name: "Supprimer" }).click();
-    assert.match(await question, /Supprimer « L'anniversaire de Malo » \? Elle sera effacée pour de bon\./);
+    assert.match(await question, /Supprimer « Anniversaire de Malo » \? Elle sera effacée pour de bon\./);
     assert.equal((await library("shows/passee")).childName, "Malo");
     question = repondreFenetre(page);
     await malo.getByRole("button", { name: "Supprimer" }).click();
@@ -5362,6 +5369,65 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Régie PC (cedric, 23/10) : une manche se crée d'abord ; « Reprendre » montre les 10 dernières prestations et cherche partout (mot, prénom, date, note)", async () => {
+    const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
+    const fr = (d) => d.split("-").reverse().join("/");
+    const PRENOMS = ["Ana", "Ben", "Cléo", "Dan", "Eva", "Félix", "Gina", "Hugo", "Inès", "Jade", "Kenzo", "Lison"];
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    // 12 prestations, de la plus récente (hier) à la plus ancienne ; la 11e a une note sur sa manche, la 12e est archivée.
+    await seedLibrary("shows", Object.fromEntries(PRENOMS.map((p, k) => [`s${k + 1}`, {
+      childName: p, age: 8, date: day(-1 - k), status: k === 11 ? "archivee" : "publiee", updatedAt: 1,
+      rounds: [{ type: "quiz", quizId: "animaux", ...(k === 10 ? { note: "Super avec les jumeaux" } : {}) }],
+    }])));
+    const page = await admin();
+    await page.click("#home-new");
+    await page.fill("#show-child", "Zoé");
+    await ajouterJeu(page);
+    const round = page.locator("#show-rounds .round").nth(0);
+    // Créer d'abord : les champs de la manche, puis sa note, puis seulement « Reprendre ».
+    assert.equal(await round.locator(".manche-load").count(), 0);
+    assert.equal(await round.evaluate((r) => !!(r.querySelector(".round-body").compareDocumentPosition(r.querySelector(".reprendre-zone")) & Node.DOCUMENT_POSITION_FOLLOWING)), true);
+    await round.locator(".round-head", { hasText: "Nouvelle manche : choisissez son contenu" }).waitFor();
+    // D'office : les 10 dernières prestations, la plus récente en tête.
+    await round.locator(".reprendre-ouvrir").click();
+    await round.locator(".reprendre-groupe", { hasText: "Des 10 dernières prestations" }).waitFor();
+    const affichees = await round.locator(".reprise-item").evaluateAll((xs) => xs.map((x) => x.dataset.reprise));
+    assert.deepEqual(affichees, PRENOMS.slice(0, 10).map((_, k) => `s${k + 1}/0`));
+    await capture(page, "reprendre-une-manche-liste");
+    if (process.env.CAPTURES) {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await capture(page, "reprendre-une-manche-liste-pc");
+      await page.setViewportSize({ width: 390, height: 844 });
+    }
+    // La recherche fouille tout, archives comprises : une note, un prénom, une date.
+    const cherche = round.locator(".reprendre-cherche");
+    await cherche.fill("jumeaux");
+    await round.locator(".reprendre-groupe", { hasText: "1 manche trouvée" }).waitFor();
+    await round.locator('.reprise-item[data-reprise="s11/0"]', { hasText: "📝 Super avec les jumeaux" }).waitFor();
+    await cherche.fill("lison");
+    await round.locator('.reprise-item[data-reprise="s12/0"]').waitFor();
+    assert.equal(await round.locator(".reprise-item").count(), 1);
+    await cherche.fill(fr(day(-12)));
+    await round.locator('.reprise-item[data-reprise="s12/0"]').waitFor();
+    assert.equal(await round.locator(".reprise-item").count(), 1);
+    await cherche.fill("introuvable");
+    await round.locator(".reprendre-groupe", { hasText: "Aucune manche ne correspond." }).waitFor();
+    // Reprise de la manche notée : la note vient avec ; une note écrite ici s'enregistre avec la manche.
+    await cherche.fill("jumeaux");
+    await round.locator('.reprise-item[data-reprise="s11/0"]').click();
+    const note = page.locator("#show-rounds .round").nth(0).locator(".manche-note input");
+    assert.equal(await note.inputValue(), "Super avec les jumeaux");
+    await note.fill("Parfait pour les 8 ans");
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée." }).waitFor();
+    const zoe = Object.values(await library("shows")).find((s) => s.childName === "Zoé");
+    assert.equal(zoe.rounds[0].note, "Parfait pour les 8 ans");
+    assert.equal((await library(`manches/${zoe.rounds[0].mancheId}`)).round.note, "Parfait pour les 8 ans");
+    assert.equal((await library("shows/s11")).rounds[0].note, "Super avec les jumeaux", "La manche reprise ne change pas");
+    await capture(page, "reprendre-une-manche");
+    await page.context().close();
+  });
+
   test("Régie PC (cedric, 23/10) : « Archivée » ne se choisit pas dans une fiche ; une archivée reportée se remet « À venir » avec une nouvelle date", async () => {
     const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
     const rounds = [{ type: "quiz", quizId: "animaux" }];
@@ -5418,14 +5484,16 @@ describe("bibliothèque de quiz et prestations", () => {
     const page = await admin();
     await page.click("#home-new");
     await page.fill("#show-child", "Zoé");
-    // Le Quiz ajouté : « Reprendre une manche… » propose celles des autres prestations.
+    // Le Quiz ajouté : « ↺ Reprendre une manche déjà faite » propose celles des autres prestations.
     await ajouterJeu(page);
-    const reprise = page.locator("#show-rounds .round").nth(0).locator(".manche-load");
-    await reprise.locator('optgroup[label="Dans les autres prestations"] option[value="lea/0"]').waitFor({ state: "attached" });
+    const round = page.locator("#show-rounds .round").nth(0);
+    await round.locator(".reprendre-ouvrir").click();
+    const lea0 = round.locator('.reprise-item[data-reprise="lea/0"]');
+    await lea0.waitFor();
     // L'ancienne manche « Super Finale » n'est pas un jeu : elle ne se reprend pas.
-    assert.equal(await reprise.locator('option[value="lea/1"]').count(), 0);
-    assert.equal(await reprise.locator("option", { hasText: "Super Finale" }).count(), 0);
-    await reprise.selectOption("lea/0");
+    assert.equal(await round.locator('.reprise-item[data-reprise="lea/1"]').count(), 0);
+    assert.equal(await round.locator(".reprise-item", { hasText: "Super Finale" }).count(), 0);
+    await lea0.click();
     assert.equal(await page.locator("#show-rounds select.grow").inputValue(), "animaux");
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "Enregistrée." }).waitFor();
@@ -5434,7 +5502,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const [zoeId, zoe] = Object.entries(shows).find(([, s]) => s.childName === "Zoé");
     const [mid, manche] = Object.entries(await library("manches"))[0];
     assert.deepEqual(zoe.rounds, [{ type: "quiz", quizId: "animaux", mancheId: mid }]);
-    assert.deepEqual([manche.round, manche.showId, manche.title], [{ type: "quiz", quizId: "animaux" }, zoeId, "Quiz · L'anniversaire de Zoé"]);
+    assert.deepEqual([manche.round, manche.showId, manche.title], [{ type: "quiz", quizId: "animaux" }, zoeId, "Quiz · Anniversaire de Zoé"]);
     assert.deepEqual(shows.lea, LEA, "Ancienne prestation inchangée");
 
     // Dupliquer un quiz : la copie apparaît en tête de la liste, sans s'ouvrir ; elle se modifie et s'enregistre à part.
@@ -5489,7 +5557,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const regie = await openRegie();
     await pair(regie);
     await inRegie(regie);
-    await regie.locator(".show-item", { hasText: "L'anniversaire de Léa" }).click();
+    await regie.locator(".show-item", { hasText: "Anniversaire de Léa" }).click();
     // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
     await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
@@ -5513,7 +5581,7 @@ describe("bibliothèque de quiz et prestations", () => {
 
     // Une manche d'une ancienne prestation, à la fin : elle garde un titre distinct.
     await regie.click("#plan-add");
-    await regie.locator('#lib-list [data-game="show/hugo/0"]', { hasText: "L'anniversaire de Hugo" }).click();
+    await regie.locator('#lib-list [data-game="show/hugo/0"]', { hasText: "Anniversaire de Hugo" }).click();
     await regie.click("#lib-end");
     await regie.locator("#r-toast", { hasText: "« Dinosaures · 2 » est ajouté à la fin du programme." }).waitFor();
     assert.deepEqual(await rounds(), ["Animaux", "Animaux", "Animaux", "Dinosaures", "Dinosaures · 2"]);

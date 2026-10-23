@@ -125,8 +125,9 @@ export function titreAuto(prenom) {
   return /^[aeiouyàâäéèêëîïôöùûüœæ]/i.test(p) ? `Anniversaire d'${p}` : `Anniversaire de ${p}`;
 }
 
+/** Nom d'une prestation : son titre, sinon « Anniversaire de » + le prénom (le même que celui proposé dans la fiche). */
 export function showTitle(show) {
-  return show.title?.trim() || (show.childName?.trim() ? `L'anniversaire de ${show.childName.trim()}`
+  return show.title?.trim() || (show.childName?.trim() ? titreAuto(show.childName)
     // Copie pas encore complétée : le nom de son modèle (Dupliquer).
     : show.copieDe?.trim() ? `Copie de « ${show.copieDe.trim()} »` : "Prestation");
 }

@@ -842,7 +842,7 @@ function editShow(id) {
   // Une ancienne manche « Super Finale » n'est pas un jeu : elle devient le réglage ×2 du quiz qui la précède.
   const { rounds, folded } = foldLegacyFinale(s.rounds);
   // Une ancienne manche « Quiz » de quiz illustrés s'affiche (et s'enregistre) en Quiz illustré.
-  editing = { id, rounds: rounds.map((r) => jeuDeLaManche(r, quizzes)) };
+  editing = { id, rounds: rounds.map((r) => jeuDeLaManche(r, quizzes)), themes: s.themes ?? null };
   $("show-edit-title").textContent = id ? showTitle(s) : "Nouvelle prestation";
   // Fil d'Ariane : la liste de son état (une nouvelle commence « À compléter »).
   showsEtat = id ? etatPrestation(s) : "acompleter";
@@ -861,7 +861,6 @@ function editShow(id) {
   $("show-title").value = suivi ? titreAuto(s.childName) : titre;
   $("show-title").dataset.auto = suivi ? titreAuto(s.childName) : "";
   $("show-profile").value = s.profile ?? "";
-  $("show-themes").value = s.themes ?? "";
   $("show-notes").value = s.notes ?? "";
   status("show-status-msg", s.copieDe && !s.childName ? "Copie : indiquez le prénom, l'âge et la date du nouvel anniversaire, puis enregistrez."
     : folded ? "L'ancienne manche « Super Finale » est devenue le réglage du quiz (ses dernières questions ×2). Enregistrez pour garder ce changement." : "", !!s.copieDe || !!folded);
@@ -883,7 +882,7 @@ function montrerArchivee(oui) {
 }
 
 /** Champs de la fiche d'une prestation, gardés par « Retour » et « Annuler les modifications ». */
-const SHOW_FIELDS = ["show-child", "show-age", "show-teams", "show-date", "show-status", "show-title", "show-profile", "show-themes", "show-notes"];
+const SHOW_FIELDS = ["show-child", "show-age", "show-teams", "show-date", "show-status", "show-title", "show-profile", "show-notes"];
 const histPrestation = historique({
   ecran: $("screen-show-edit"),
   precedent: pagePrecedente,
@@ -908,7 +907,8 @@ function formShow() {
     status: $("show-status").value,
     title: $("show-title").value.trim() || null,
     profile: $("show-profile").value || null,
-    themes: $("show-themes").value.trim() || null,
+    // Plus de case « Thèmes » (cedric, 23/10 : elle ne servait à rien) ; celui d'une ancienne prestation est gardé.
+    themes: editing.themes ?? null,
     notes: $("show-notes").value.trim() || null,
     teams: num($("show-teams").value),
     rounds: editing.rounds.filter(roundFilled).map((r) => cleanRound(r, playlists)),
@@ -1244,12 +1244,16 @@ function refreshRounds() {
         h("button", { type: "button", class: "icon", title: "Retirer ce jeu", onclick: retirerJeu, text: "✕" })),
       ...b.indices.map((i) => {
         const r = editing.rounds[i];
+        const vide = !roundFilled(r);
         return h("div", { class: "round show-round", "data-manche": i },
           h("div", { class: "round-head" },
             h("span", { class: "num", title: `Manche ${i + 1} de la prestation`, text: `${i + 1}` }),
-            SANS_CONTENU.includes(b.type) ? h("span", { class: "grow hint small", text: n > 1 ? `Partie ${b.indices.indexOf(i) + 1}` : "" }) : mancheTools(r, (next) => { editing.rounds[i] = next; refreshRounds(); }),
+            SANS_CONTENU.includes(b.type) ? h("span", { class: "grow hint small", text: n > 1 ? `Partie ${b.indices.indexOf(i) + 1}` : "" })
+              : h("span", { class: "grow hint small", text: vide ? "Nouvelle manche : choisissez son contenu, ou reprenez une manche déjà faite (plus bas)." : "" }),
             n > 1 ? h("button", { type: "button", class: "icon", title: "Retirer cette manche", onclick: () => { editing.rounds.splice(i, 1); refreshRounds(); }, text: "✕" }) : null),
           h("div", { class: "round-body" }, ...roundFields(r)),
+          // Créer d'abord (les champs ci-dessus), reprendre ensuite (cedric, 23/10).
+          SANS_CONTENU.includes(b.type) ? null : reprendreManche(r, (next) => { editing.rounds[i] = next; refreshRounds(); }),
           alerteManche(r));
       })));
   });
@@ -1280,42 +1284,109 @@ function ouvrirChoixJeu() {
   box.hidden = false;
 }
 
+/** Autres prestations, les plus récentes d'abord : par date (sans date : en dernier, la dernière modifiée d'abord). */
+function prestationsRecentes() {
+  return Object.entries(shows).filter(([sid, s]) => s && sid !== editing?.id)
+    .sort(([, a], [, b]) => (b.date ?? "").localeCompare(a.date ?? "") || (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+}
+
+/** Prestations dont les manches sont proposées d'office dans « Reprendre une manche » (cedric, 23/10). */
+const REPRISE_RECENTES = 10;
+
+/** « 23/10/2026 », « 2026-10-23 », « 23 octobre 2026 » : une date se cherche comme on l'écrit. */
+function datesCherchables(d) {
+  if (!d) return [];
+  const jour = new Date(`${d}T12:00:00`);
+  return [jour.toLocaleDateString("fr-FR"), d, jour.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })];
+}
+
 /**
- * Manche d'une prestation : « Reprendre une manche… » la remplace par une copie d'une manche gardée dans la page de
- * son jeu (les épinglées d'abord) ou d'une manche d'une autre prestation. La manche reprise ne change pas.
+ * Toutes les manches d'un jeu qu'on peut reprendre : celles gardées dans la page du jeu (épinglées, préparées,
+ * archivées, et celles de chaque prestation) et les manches des prestations d'avant le 21 octobre, jamais gardées.
+ * Celles de la prestation qu'on prépare ne sont pas proposées, ni celles dont le contenu n'existe plus.
  */
-function mancheTools(r, replace) {
-  const type = r.type ?? "quiz";
-  const { pinned, active } = mancheGroups(manches, type, quizzes);
-  const gardees = [...pinned, ...active];
-  const dejaGardees = new Set(gardees.map(([id]) => id));
-  // Manches des autres prestations pas encore gardées (prestations d'avant le 21 octobre).
-  const autres = Object.entries(shows).filter(([sid, s]) => s && sid !== editing?.id)
-    .sort(([, a], [, b]) => (b.date ?? "").localeCompare(a.date ?? ""))
-    // Une ancienne manche « Super Finale » ne se reprend pas : ce n'est pas un jeu.
-    .flatMap(([sid, s]) => (s.rounds ?? []).map((x, i) => [x ? jeuDeLaManche(x, quizzes) : null, i, sid, s]))
-    .filter(([x]) => x && x.type !== "finale" && (x.type ?? "quiz") === type && roundFilled(x) && roundContent(x) != null && !(x.mancheId && dejaGardees.has(x.mancheId)));
-  if (!gardees.length && !autres.length) return h("span", { class: "manche-tools" });
+function manchesAReprendre(type) {
   const lib = { mimes, playlists, quizzes };
-  const choix = new Map();
-  return h("span", { class: "manche-tools" },
-    h("select", {
-      class: "manche-load", "aria-label": "Reprendre une manche",
-      onchange: (e) => {
-        const v = e.target.value;
-        const m = manches[v];
-        if (m) replace({ ...cleanRound(m.round, playlists), mancheId: v, title: m.title });
-        else if (choix.has(v)) replace(JSON.parse(JSON.stringify(choix.get(v))));
-      },
-    },
-    h("option", { value: "", text: "Reprendre une manche…" }),
-    gardees.length ? h("optgroup", { label: `Manches ${deJeu(ROUND_TYPES[type])}` },
-      ...gardees.map(([id, m]) => h("option", { value: id, selected: r.mancheId === id, text: `${m.pinned ? "⭐ " : ""}${m.title} (${mancheSummary(m.round, lib)})` }))) : null,
-    autres.length ? h("optgroup", { label: "Dans les autres prestations" },
-      ...autres.map(([x, i, sid, s]) => {
-        choix.set(`${sid}/${i}`, x);
-        return h("option", { value: `${sid}/${i}`, text: `${showTitle(s)}${s.date ? ` (${new Date(`${s.date}T12:00:00`).toLocaleDateString("fr-FR")})` : ""} : ${mancheSummary(x, lib)}` });
-      })) : null));
+  const recentes = prestationsRecentes();
+  const rang = new Map(recentes.map(([sid], k) => [sid, k]));
+  const items = [];
+  const vues = new Set();
+  const { pinned, active, archived } = mancheGroups(manches, type, quizzes);
+  for (const [id, m] of [...pinned, ...active, ...archived]) {
+    vues.add(id);
+    if ((m.showId && (m.showId === editing?.id || !shows[m.showId])) || roundContent(m.round) == null) continue;
+    items.push({ cle: id, titre: m.title, round: m.round, show: m.showId ? shows[m.showId] : null, rang: m.showId ? rang.get(m.showId) : null,
+      epinglee: !!m.pinned && !m.archived, archivee: !!m.archived, copie: () => ({ ...cleanRound(m.round, playlists), mancheId: id, title: m.title }) });
+  }
+  for (const [sid, s] of recentes) {
+    (s.rounds ?? []).forEach((x0, i) => {
+      const x = x0 ? jeuDeLaManche(x0, quizzes) : null;
+      // Une ancienne manche « Super Finale » ne se reprend pas : ce n'est pas un jeu.
+      if (!x || x.type === "finale" || (x.type ?? "quiz") !== type || !roundFilled(x) || roundContent(x) == null || (x.mancheId && vues.has(x.mancheId))) return;
+      items.push({ cle: `${sid}/${i}`, titre: `${ROUND_TYPES[type]} · ${showTitle(s)}`, round: x, show: s, rang: rang.get(sid), copie: () => JSON.parse(JSON.stringify(x)) });
+    });
+  }
+  return items.map((x) => {
+    const resume = mancheSummary(x.round, lib);
+    const date = x.show?.date ? new Date(`${x.show.date}T12:00:00`).toLocaleDateString("fr-FR") : "";
+    return {
+      ...x, resume, note: x.round.note ?? "",
+      details: [x.show && !x.titre.includes(showTitle(x.show)) ? showTitle(x.show) : "", date, resume, x.archivee ? "archivée" : ""].filter(Boolean).join(" · "),
+      noms: [x.titre, x.show?.childName, x.show ? showTitle(x.show) : "", resume],
+      autres: [x.round.note, ...datesCherchables(x.show?.date), x.show?.age != null ? `${x.show.age} ans` : "", x.show?.notes],
+    };
+  });
+}
+
+/**
+ * « ↺ Reprendre une manche déjà faite » (cedric, 23/10), sous les champs de la manche : on crée d'abord, on reprend
+ * ensuite. D'office : les manches épinglées ⭐, celles des 10 dernières prestations et celles préparées dans la page
+ * du jeu ; la recherche fouille tout, archives comprises (mots, prénom, date, note), à chaque lettre. Un clic remplace
+ * la manche par une copie : la manche reprise ne change pas.
+ */
+function reprendreManche(r, replace) {
+  const type = r.type ?? "quiz";
+  const items = manchesAReprendre(type);
+  if (!items.length) return null;
+  const champ = h("input", { type: "search", class: "reprendre-cherche", "aria-label": "Chercher une manche", placeholder: "Mot, prénom, date (23/10/2026), note…" });
+  const liste = h("div", { class: "reprendre-liste" });
+  const panneau = h("div", { class: "reprendre" });
+  panneau.hidden = true;
+  const ligne = (x) => h("button", { type: "button", class: "reprise-item", "data-reprise": x.cle, onclick: () => replace(x.copie()) },
+    h("b", { text: `${x.epinglee ? "⭐ " : ""}${x.titre}` }),
+    x.details ? h("span", { class: "small", text: x.details }) : null,
+    x.note ? h("span", { class: "reprise-note", text: `📝 ${x.note}` }) : null);
+  const dessiner = () => {
+    const q = champ.value;
+    if (q.trim()) {
+      const trouvees = parPertinence(items.filter((x) => contientTout([...x.noms, ...x.autres].filter(Boolean), q)), q, (x) => x.noms.filter(Boolean), (x) => x.autres.filter(Boolean));
+      remplir(liste, h("p", { class: "reprendre-groupe", text: trouvees.length ? `${trouvees.length} manche${trouvees.length > 1 ? "s" : ""} trouvée${trouvees.length > 1 ? "s" : ""}` : "Aucune manche ne correspond." }), ...trouvees.map(ligne));
+      return;
+    }
+    const epinglees = items.filter((x) => x.epinglee);
+    const recentes = items.filter((x) => !x.epinglee && x.rang != null && x.rang < REPRISE_RECENTES).sort((a, b) => a.rang - b.rang);
+    const duJeu = items.filter((x) => !x.epinglee && !x.archivee && !x.show);
+    const groupe = (titre, xs) => (xs.length ? [h("p", { class: "reprendre-groupe", text: titre }), ...xs.map(ligne)] : []);
+    remplir(liste,
+      ...groupe("⭐ Épinglées", epinglees),
+      ...groupe(`Des ${REPRISE_RECENTES} dernières prestations`, recentes),
+      ...groupe(`Préparées dans la page ${deJeu(ROUND_TYPES[type])}`, duJeu),
+      epinglees.length + recentes.length + duJeu.length ? null : h("p", { class: "hint small", text: "Tapez un mot, un prénom ou une date pour chercher dans toutes les prestations." }));
+  };
+  champ.addEventListener("input", dessiner);
+  champ.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); panneau.hidden = true; } });
+  panneau.append(
+    h("div", { class: "reprendre-haut" }, champ, h("button", { type: "button", class: "btn secondary small", text: "Fermer", onclick: () => { panneau.hidden = true; } })),
+    h("p", { class: "hint small", text: "Les plus récentes sont listées ; pour aller plus loin, tapez un mot, un prénom, une date ou une note." }),
+    liste);
+  return h("div", { class: "reprendre-zone" },
+    h("button", { type: "button", class: "chip reprendre-ouvrir", text: "↺ Reprendre une manche déjà faite", "aria-expanded": "false",
+      onclick: (e) => {
+        panneau.hidden = !panneau.hidden;
+        e.currentTarget.setAttribute("aria-expanded", panneau.hidden ? "false" : "true");
+        if (!panneau.hidden) { dessiner(); champ.focus(); }
+      } }),
+    panneau);
 }
 
 /** Nombre d'équipes de l'écran en cours (prestation, ou réglage du tirage d'une manche seule). */
@@ -1422,6 +1493,9 @@ function roundFields(r) {
         h("input", { type: "checkbox", checked: r.bougies !== false, onchange: (e) => { r.bougies = e.target.checked ? null : false; roundCtx.summary(); } }),
         "🎂 Question des bougies")
       : null,
+    // Note de la manche (cedric, 23/10) : pour s'en souvenir, et la retrouver avec « Reprendre une manche ».
+    SANS_CONTENU.includes(r.type) ? null : h("label", { class: "manche-note" }, "Note",
+      h("input", { type: "text", maxlength: "200", value: r.note ?? "", placeholder: "Pour la retrouver : thème, âge, remarque…", "aria-label": "Note de la manche", oninput: (e) => { r.note = e.target.value; } })),
   ];
 }
 
@@ -1497,7 +1571,7 @@ function refreshSummary() {
   const duree = dureeEstimee(snapshot, s);
   $("show-duration").textContent = duree ? `environ ${duree.minutes} min` : "—";
   $("show-summary").textContent = snapshot
-    ? `${contentLabel(snapshot)} jouables · environ ${duree.minutes} min · chrono ${defaultDuration(profile)} s par question pour les ${PROFILES[profile].label}, sauf durée imposée`
+    ? `${contentLabel(snapshot)} jouables · environ ${duree.minutes} min · chrono ${defaultDuration(profile)} s par question ${profile === "NEUTRE" ? "(profil Neutre, tous âges)" : `pour les ${PROFILES[profile].label}`}, sauf durée imposée`
     : "";
   $("show-problems").replaceChildren(...problems.map((p) => h("li", { text: p })));
   const r = readiness(s, quizzes, mimes, playlists, contents);
@@ -6085,7 +6159,7 @@ function renderGame() {
   // Recherche : chaque mot tapé dans le nom ou le contenu de la manche ; les noms qui commencent par elle d'abord.
   const query = $("manche-search").value.trim();
   const lib = { mimes, playlists, quizzes };
-  const trouve = (l) => parPertinence(l.filter(([, m]) => contientTout([m.title, mancheSummary(m.round, lib)], query)), query, ([, m]) => m.title, ([, m]) => mancheSummary(m.round, lib));
+  const trouve = (l) => parPertinence(l.filter(([, m]) => contientTout([m.title, mancheSummary(m.round, lib), m.round?.note], query)), query, ([, m]) => m.title, ([, m]) => [mancheSummary(m.round, lib), m.round?.note]);
   const groupes = mancheGroups(manches, type, quizzes);
   const [pinned, active, archived] = [trouve(groupes.pinned), trouve(groupes.active), trouve(groupes.archived)];
   $("manches-pinned-box").hidden = !pinned.length;
@@ -6136,6 +6210,7 @@ function mancheCard(id, m) {
     m.pinned ? h("span", { class: "pill pin", text: "⭐ Épinglée" }) : m.origin === "direct" ? h("span", { class: "pill", text: "Jouée en direct" }) : null,
     h("b", { text: m.title }),
     h("span", { text: mancheSummary(m.round, { mimes, playlists, quizzes }) }),
+    m.round?.note ? h("span", { class: "reprise-note", text: `📝 ${m.round.note}` }) : null,
     h("div", { class: "row" },
       h("button", { class: "btn secondary", text: "Éditer", onclick: () => editManche(id) }),
       h("button", { class: "btn secondary", text: "Renommer", onclick: () => rename(path, m.title, "de la manche") }),
