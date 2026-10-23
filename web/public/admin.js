@@ -21,7 +21,7 @@ import {
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, alerteEquipes, EQUIPES_PAR_DEFAUT, pourLeHasard, premierQuiz,
   launchStates, launchLabelPc, roundTirees, chiffresDuTirage, MAX_TIREES,
   roundSeriesQuiz, questionsDeLaSerie, questionsDesSeries, questionJouable, FACTEURS_FINALE, SUPER_FINALE_LAST, questionBougies,
-  questionsDuQuiz, cleQuestion,
+  questionsDuQuiz, cleQuestion, placeDesBougies, CLE_BOUGIES,
 } from "./show.js";
 import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE, cheminPhotoBanque } from "./banque-photos.js";
 import { shuffle } from "./mime-cards.js";
@@ -1379,7 +1379,9 @@ function quizArchives() {
   return prestationsRecentes().filter(([, s]) => etatPrestation(s) === "archivee").map(([sid, s]) => {
     const questions = (s.rounds ?? []).map((x) => (x ? versSeriesQuiz(jeuDeLaManche(x, quizzes), quizzes) : null))
       .filter((x) => x && (x.type ?? "quiz") === "quiz" && x.hasard !== true)
-      .flatMap((x) => questionsDesSeries(x, quizzes)).map(versQuestionEnLigne).filter(questionJouable);
+      .flatMap((x) => questionsDesSeries(x, quizzes)).map(versQuestionEnLigne).filter(questionJouable)
+      // Sa question des bougies était celle de l'enfant de cette fête-là : la nouvelle prestation a la sienne.
+      .filter((q) => !(q.nombre && /combien de bougies sur le gâteau/i.test(q.text)));
     const date = s.date ? new Date(`${s.date}T12:00:00`) : null;
     return {
       id: sid, show: s, questions,
@@ -1570,9 +1572,10 @@ function compteurQuiz(r) {
  *   - « Intégrer un quiz de votre bibliothèque » : un quiz de la page Quiz (importé ou écrit), cherché par son titre.
  * - Les séries : chacune se déplie, monte ou descend (↑ ↓) et s'enlève (✕) ; dans une série, ✕ retire une question
  *   (celle tirée au 🎲 laisse un 🎲 à sa place, qui en tire une autre de la même sorte).
- * - Puis la question des bougies (premier Quiz de la prestation), la Super Finale : oui ou non, ses dernières questions
- *   (3 d'office) et son multiplicateur (×2 d'office) ; en dernière ligne, le « Quiz complet » : toutes les questions
- *   dans l'ordre de passage, chacune monte, descend ou s'enlève, et 🔀 mélange tout.
+ * - Puis la case de la question des bougies (premier Quiz de la prestation, cochée d'office), la Super Finale : oui ou
+ *   non, ses dernières questions (3 d'office) et son multiplicateur (×2 d'office) ; en dernière ligne, le « Quiz
+ *   complet » : toutes les questions dans l'ordre de passage (les bougies comprises), chacune monte, descend ou
+ *   s'enlève, et 🔀 mélange tout.
  */
 function mancheQuiz(r) {
   const series = seriesDe(r);
@@ -1707,9 +1710,15 @@ function mancheQuiz(r) {
   const deplacer = (i, d) => {
     const j = i + d;
     if (j < 0 || j >= series.length) return;
+    const bougiesRangees = placeDesBougies(r, quizzes);
     [series[i], series[j]] = [series[j], series[i]];
-    // Rangé à la main : chaque série garde l'ordre de ses questions, les séries passent dans leur nouvel ordre.
-    if (r.ordreQuiz?.length) r.ordreQuiz = series.flatMap((y) => assemblage.filter((z) => z.serie.id === y.id).map((z) => z.cle));
+    // Rangé à la main : chaque série garde l'ordre de ses questions, les séries passent dans leur nouvel ordre ; la
+    // question des bougies rangée à la main garde sa place.
+    if (r.ordreQuiz?.length) {
+      const ordre = series.flatMap((y) => assemblage.filter((z) => z.serie.id === y.id).map((z) => z.cle));
+      if (bougiesRangees != null) ordre.splice(Math.min(bougiesRangees, ordre.length), 0, CLE_BOUGIES);
+      r.ordreQuiz = ordre;
+    }
     changer();
   };
   const liste = h("ol", { class: "quiz-series" }, ...series.map((x, i) => {
@@ -1751,9 +1760,9 @@ function mancheQuiz(r) {
 
   // La question des bougies (premier Quiz de la prestation), juste au-dessus de la Super Finale.
   const bougies = roundCtx === prestationCtx && editing && premierQuiz(editing.rounds, quizzes) === r
-    ? h("label", { class: "check bougies quiz-bougies", title: "« Combien de bougies sur le gâteau de … cette année ? » : l'âge de l'enfant, au Juste Chiffre" },
-      h("input", { type: "checkbox", checked: r.bougies !== false, onchange: (e) => { r.bougies = e.target.checked ? null : false; majCompteur(); } }),
-      "🎂 Question des bougies, juste avant la Super Finale")
+    ? h("label", { class: "check bougies quiz-bougies", title: "« Combien de bougies sur le gâteau de … cette année ? » : l'âge de l'enfant, au Juste Chiffre. D'office juste avant la Super Finale ; elle se range où vous voulez dans le Quiz complet." },
+      h("input", { type: "checkbox", checked: r.bougies !== false, onchange: (e) => { r.bougies = e.target.checked ? null : false; if (!e.target.checked) oublierPlaceBougies(r); changer(); } }),
+      "🎂 Question des bougies")
     : null;
 
   // Dernière ligne : la Super Finale (cedric, 23/10) : oui ou non, combien de dernières questions, le multiplicateur.
@@ -1814,26 +1823,47 @@ function ligneAjoutQuiz({ classe, titre, label, placeholder, vide, aucun, items,
 
 /** « Quiz complet » déplié (le temps de l'écran), par manche. */
 const quizCompletsDeplies = new WeakSet();
+// Décochée, la question des bougies oublie sa place : recochée, elle revient juste avant la Super Finale.
+const oublierPlaceBougies = (r) => { if (r.ordreQuiz?.length) r.ordreQuiz = r.ordreQuiz.filter((c) => c !== CLE_BOUGIES); };
 
 /**
  * Dernière ligne d'un Quiz (cedric, 23/10) : le « Quiz complet », tout ce qui a été ajouté (🎲, prestation archivée,
  * bibliothèque…) dans l'ordre de passage. Déplié : chaque question monte, descend ou s'enlève ; 🔀 mélange tout.
- * L'ordre rangé ici est gardé dans la manche (`ordreQuiz`) ; la question des bougies garde sa place, juste avant la
- * Super Finale.
+ * L'ordre rangé ici est gardé dans la manche (`ordreQuiz`). La question des bougies (case cochée) en est une comme les
+ * autres : d'office juste avant la Super Finale (sa place suit les ajouts), jusqu'à ce qu'on la déplace ou qu'on mélange.
  */
 function quizComplet(r, assemblage, clesFinale, changer) {
   if (!assemblage.length) return null;
-  const ranger = (cles) => { r.ordreQuiz = cles; changer(); noterEcran(); };
-  const cles = assemblage.map((x) => x.cle);
+  const bougies = roundCtx === prestationCtx && editing && premierQuiz(editing.rounds, quizzes) === r
+    && !assemblage.some((x) => x.q.kind === "number" && /bougie/i.test(x.q.text ?? ""))
+    ? questionBougies({ childName: $("show-child").value, age: $("show-age").value }, r) : null;
+  const rangees = bougies ? placeDesBougies(r, quizzes) : null;
+  const vue = [...assemblage];
+  if (bougies) vue.splice(rangees != null ? Math.min(rangees, vue.length) : assemblage.length - clesFinale.size, 0, { cle: CLE_BOUGIES, bougies: true, q: bougies });
+  const cles = vue.map((x) => x.cle);
+  // Les bougies restent d'office juste avant la Super Finale tant qu'on ne les a pas déplacées (ou mélangées) elles-mêmes.
+  const ranger = (nouvel, avecBougies) => {
+    r.ordreQuiz = avecBougies || rangees != null ? nouvel : nouvel.filter((c) => c !== CLE_BOUGIES);
+    changer();
+    noterEcran();
+  };
   const deplacer = (k, d) => {
     const j = k + d;
     if (j < 0 || j >= cles.length) return;
     const nouvel = [...cles];
     [nouvel[k], nouvel[j]] = [nouvel[j], nouvel[k]];
-    ranger(nouvel);
+    ranger(nouvel, vue[k].bougies || vue[j].bougies);
   };
-  // Enlever : la question part de sa série (une question tirée au 🎲 ne revient pas au prochain tirage).
+  // Enlever : la question part de sa série (une question tirée au 🎲 ne revient pas au prochain tirage) ; celle des
+  // bougies se décoche.
   const enlever = (x) => {
+    if (x.bougies) {
+      r.bougies = false;
+      oublierPlaceBougies(r);
+      changer();
+      noterEcran();
+      return;
+    }
     const serie = seriesDe(r).find((y) => y.id === x.serie.id);
     if (!serie) return;
     if (serie.origine === "quiz") serie.sans = [...(serie.sans ?? []), x.q.text];
@@ -1845,37 +1875,27 @@ function quizComplet(r, assemblage, clesFinale, changer) {
       serie.questions = reste.filter((_, i) => i !== k);
       if (!serie.questions.some((q) => !caseVide(q))) r.seriesQuiz = seriesDe(r).filter((y) => y !== serie);
     }
-    if (r.ordreQuiz?.length) r.ordreQuiz = cles.filter((c) => c !== x.cle);
+    if (r.ordreQuiz?.length) r.ordreQuiz = cles.filter((c) => c !== x.cle && (c !== CLE_BOUGIES || rangees != null));
     changer();
     noterEcran();
   };
   const melanger = () => {
     let nouvel = shuffle(cles);
     for (let essai = 0; essai < 5 && cles.length > 1 && nouvel.every((c, k) => c === cles[k]); essai++) nouvel = shuffle(cles);
-    ranger(nouvel);
+    ranger(nouvel, true);
   };
-  const bougies = roundCtx === prestationCtx && editing && premierQuiz(editing.rounds, quizzes) === r
-    && !assemblage.some((x) => x.q.kind === "number" && /bougie/i.test(x.q.text ?? ""))
-    ? questionBougies({ childName: $("show-child").value, age: $("show-age").value }, r) : null;
-  const avantFinale = assemblage.length - clesFinale.size;
-  const lignes = assemblage.map((x, k) => h("li", { class: `tirage-q quiz-complet-q${clesFinale.has(x.cle) ? " en-finale" : ""}`, "data-cle": x.cle },
+  const lignes = vue.map((x, k) => h("li", { class: `tirage-q quiz-complet-q${x.bougies ? " quiz-complet-bougies" : ""}${clesFinale.has(x.cle) ? " en-finale" : ""}`, "data-cle": x.cle },
     h("div", { class: "tirage-q-ligne" },
       h("span", { class: "quiz-complet-num", text: `${k + 1}` }),
-      h("span", { class: "tirage-texte", text: `${x.q.kind === "number" ? "🔢 " : ""}${x.q.text}` }),
+      h("span", { class: "tirage-texte", text: `${x.bougies ? "🎂 " : ""}${x.q.kind === "number" ? "🔢 " : ""}${x.q.text}` }),
       miniature(x.q),
       clesFinale.has(x.cle) ? etiquetteFinale(r) : null,
       h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: "Passer cette question plus tôt", "aria-label": "Monter cette question", disabled: k === 0, onclick: () => deplacer(k, -1) }),
-      h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: "Passer cette question plus tard", "aria-label": "Descendre cette question", disabled: k === assemblage.length - 1, onclick: () => deplacer(k, 1) }),
-      h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: "Enlever cette question du quiz", "aria-label": "Enlever cette question", onclick: () => enlever(x) }))));
-  if (bougies) {
-    lignes.splice(avantFinale, 0, h("li", { class: "tirage-q quiz-complet-bougies" }, h("div", { class: "tirage-q-ligne" },
-      h("span", { class: "quiz-complet-num", text: "🎂" }),
-      h("span", { class: "tirage-texte", text: `🔢 ${bougies.text}` }),
-      h("span", { class: "hint small", text: "garde sa place, juste avant la Super Finale" }))));
-  }
+      h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: "Passer cette question plus tard", "aria-label": "Descendre cette question", disabled: k === vue.length - 1, onclick: () => deplacer(k, 1) }),
+      h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: x.bougies ? "Enlever la question des bougies (la case se décoche)" : "Enlever cette question du quiz", "aria-label": "Enlever cette question", onclick: () => enlever(x) }))));
   const liste = h("ol", { class: "tirage-liste serie-liste quiz-complet-liste" }, ...lignes);
   liste.hidden = !quizCompletsDeplies.has(r);
-  const titre = () => `${liste.hidden ? "▸" : "▾"} 🧩 Quiz complet : ${assemblage.length} question${assemblage.length > 1 ? "s" : ""}${bougies ? " + les bougies" : ""}, dans l'ordre de passage`;
+  const titre = () => `${liste.hidden ? "▸" : "▾"} 🧩 Quiz complet : ${vue.length} question${vue.length > 1 ? "s" : ""}, dans l'ordre de passage`;
   const voir = h("button", {
     type: "button", class: "chip tirage-voir serie-voir quiz-complet-voir", "aria-expanded": liste.hidden ? "false" : "true", text: titre(),
     title: "Voir toutes les questions du quiz, dans l'ordre",
@@ -1889,7 +1909,7 @@ function quizComplet(r, assemblage, clesFinale, changer) {
   return h("div", { class: "serie quiz-complet" },
     h("div", { class: "serie-tete" },
       voir,
-      h("button", { type: "button", class: "chip quiz-melanger", text: "🔀 Mélanger", title: "Mélanger toutes les questions du quiz", disabled: assemblage.length < 2, onclick: melanger })),
+      h("button", { type: "button", class: "chip quiz-melanger", text: "🔀 Mélanger", title: "Mélanger toutes les questions du quiz", disabled: vue.length < 2, onclick: melanger })),
     liste);
 }
 

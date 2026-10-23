@@ -835,7 +835,6 @@ button.media-tile:hover { border-color: var(--violet); }
 .quiz-complet-liste { list-style: none; padding-left: 4px; }
 .quiz-complet-num { flex: none; min-width: 30px; height: 30px; display: grid; place-items: center; border-radius: 999px; background: var(--violet-pale); color: var(--violet); font-weight: 800; font-size: 14px; }
 .quiz-complet-q .icon { flex: none; width: 32px; height: 32px; border-radius: 10px; font-size: 14px; }
-.quiz-complet-bougies .hint { margin: 0; }
 .round-body > .quiz-series { flex: 1 1 100%; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .serie { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; border-radius: 14px; background: var(--card); border: 1px solid var(--line-2); }
 .serie-tete { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

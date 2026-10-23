@@ -466,25 +466,44 @@ function itemsDeLaSerie(serie, quizzes = {}) {
  */
 export const questionsDeLaSerie = (serie, quizzes = {}) => itemsDeLaSerie(serie, quizzes).map((x) => x.q);
 
+/** Clé de la question des bougies dans l'ordre du « Quiz complet », une fois qu'elle y a été rangée à la main. */
+export const CLE_BOUGIES = "bougies";
+
 /**
- * Toutes les questions d'une manche Quiz faite de séries, dans l'ordre de passage : { cle, q, serie } (au plus
- * MAX_QUESTIONS_MANCHE). D'office, les séries à la suite ; rangées à la main dans le « Quiz complet » (cedric, 23/10 :
- * ↑ ↓, 🔀), dans l'ordre gardé (`ordreQuiz`, leurs clés). Une question arrivée ensuite se met à côté de sa voisine de
- * série ; une série toute nouvelle, au début si c'est la première (le 🎲), sinon à la fin.
+ * L'ordre de passage d'une manche Quiz faite de séries : ses questions { cle, q, serie } et, rangée à la main, la place
+ * de la question des bougies ({ cle: CLE_BOUGIES, bougies: true }).
  */
-export function questionsDuQuiz(round, quizzes = {}) {
+function ordreDuQuiz(round, quizzes) {
   const parSerie = roundSeriesQuiz(round).map((serie) => itemsDeLaSerie(serie, quizzes).map((x) => ({ ...x, serie })));
   const rang = new Map();
   listOf(round?.ordreQuiz).forEach((c, k) => { if (typeof c === "string" && !rang.has(c)) rang.set(c, k); });
-  if (!rang.size) return parSerie.flat().slice(0, MAX_QUESTIONS_MANCHE);
-  const out = parSerie.flat().filter((x) => rang.has(x.cle)).sort((a, b) => rang.get(a.cle) - rang.get(b.cle));
+  if (!rang.size) return parSerie.flat();
+  const places = [...parSerie.flat(), ...(rang.has(CLE_BOUGIES) ? [{ cle: CLE_BOUGIES, bougies: true }] : [])];
+  const out = places.filter((x) => rang.has(x.cle)).sort((a, b) => rang.get(a.cle) - rang.get(b.cle));
   parSerie.forEach((liste, s) => liste.forEach((x, k) => {
     if (rang.has(x.cle)) return;
     const avant = liste.slice(0, k).reverse().find((y) => out.includes(y));
     const apres = avant ? null : liste.slice(k + 1).find((y) => out.includes(y));
     out.splice(avant ? out.indexOf(avant) + 1 : apres ? out.indexOf(apres) : s === 0 ? 0 : out.length, 0, x);
   }));
-  return out.slice(0, MAX_QUESTIONS_MANCHE);
+  return out;
+}
+
+/**
+ * Toutes les questions d'une manche Quiz faite de séries, dans l'ordre de passage : { cle, q, serie } (au plus
+ * MAX_QUESTIONS_MANCHE). D'office, les séries à la suite ; rangées à la main dans le « Quiz complet » (cedric, 23/10 :
+ * ↑ ↓, 🔀), dans l'ordre gardé (`ordreQuiz`, leurs clés). Une question arrivée ensuite se met à côté de sa voisine de
+ * série ; une série toute nouvelle, au début si c'est la première (le 🎲), sinon à la fin.
+ */
+export const questionsDuQuiz = (round, quizzes = {}) => ordreDuQuiz(round, quizzes).filter((x) => !x.bougies).slice(0, MAX_QUESTIONS_MANCHE);
+
+/**
+ * Place de la question des bougies rangée à la main dans le « Quiz complet » (cedric, 23/10 : ↑ ↓, 🔀) : le nombre de
+ * questions qui passent avant elle. null : pas rangée, elle se met d'elle-même juste avant la Super Finale.
+ */
+export function placeDesBougies(round, quizzes = {}) {
+  const k = ordreDuQuiz(round, quizzes).findIndex((x) => x.bougies);
+  return k < 0 ? null : k;
 }
 
 /** Toutes les questions jouées d'une manche Quiz faite de séries, dans l'ordre de passage (au plus MAX_QUESTIONS_MANCHE). */
@@ -970,19 +989,23 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     }
     // Super Finale : réglage d'une manche Quiz (ou Quiz illustré), ses N dernières questions comptent double (ce n'est pas un jeu à part).
     const finale = hasFinale(round.type) ? Math.max(0, Math.min(list.length, Math.floor(Number(round.finale) || 0))) : 0;
-    // Les bougies, juste avant les questions de la Super Finale (elles ne comptent pas double). Pas deux fois : ni si
-    // le quiz a déjà sa question des bougies, ni si elle a déjà été posée pendant la fête.
+    // Les bougies, juste avant les questions de la Super Finale (elles ne comptent pas double), ou à la place choisie
+    // dans le « Quiz complet » (cedric, 23/10). Pas deux fois : ni si le quiz a déjà sa question des bougies, ni si
+    // elle a déjà été posée pendant la fête.
     const bougies = prepare === quizDesBougies && !round.hasard ? questionBougies(show, round) : null;
     const dejaLa = (q) => q.kind === "number" && /bougie/i.test(q.text ?? "");
     if (bougies && !list.some(dejaLa) && !posees?.has(bougies.text.toLowerCase())) {
+      const rangee = series.length ? placeDesBougies(round, quizzes) : null;
       // Avant aussi les dernières questions marquées ×2 une par une dans le quiz (l'ancienne façon de finir en finale).
       let place = list.length - finale;
       while (place > 0 && list[place - 1].double === true) place--;
-      list.splice(place, 0, bougies);
+      list.splice(rangee != null ? Math.min(rangee, list.length) : place, 0, bougies);
     }
+    // La Super Finale : les N dernières questions, jamais celle des bougies (où qu'elle soit).
+    const enFinale = new Set(finale ? list.filter((q) => q !== bougies).slice(-finale) : []);
     rounds.push({ title: label, count: list.length, ...(finale ? { finale } : {}) });
     list.forEach((q, j) => {
-      const last = j >= list.length - finale;
+      const last = enFinale.has(q);
       const number = q.kind === "number";
       const yesNo = isYesNo(q);
       questions.push({

@@ -5263,7 +5263,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.fill("#show-age", "6");
     await page.fill("#show-date", day(-5));
     await ajouterJeu(page);
-    await page.locator("#show-rounds select.grow").nth(0).selectOption("animaux");
+    await integrerQuiz(page.locator("#show-rounds .round").nth(0), "animaux", "anim");
     await page.selectOption("#show-status", "publiee");
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "il manque : Choisir une date à venir (celle-ci est passée)." }).waitFor();
@@ -5704,38 +5704,46 @@ describe("bibliothèque de quiz et prestations", () => {
     await round.locator('.quiz-biblio-item[data-quiz="animaux"]', { hasText: "✓ déjà dans ce Quiz" }).waitFor();
     await round.locator(".quiz-biblio-cherche").fill("");
     // Le « Quiz complet » : la dernière ligne, repliée ; dépliée, toutes les questions numérotées dans l'ordre de passage,
-    // la bougie à sa place (juste avant la Super Finale, 3 dernières).
+    // celle des bougies comprise (cedric, 23/10), d'office juste avant la Super Finale (3 dernières).
     assert.deepEqual(await round.locator(".round-body > *").evaluateAll((xs) => xs.map((x) => x.className)),
       ["quiz-outils", "quiz-series", "check bougies quiz-bougies", "quiz-finale", "serie quiz-complet"]);
     const complet = round.locator(".quiz-complet");
     const voir = complet.locator(".quiz-complet-voir");
-    assert.equal(await voir.textContent(), "▸ 🧩 Quiz complet : 5 questions + les bougies, dans l'ordre de passage");
+    assert.equal(await voir.textContent(), "▸ 🧩 Quiz complet : 6 questions, dans l'ordre de passage");
     assert.equal(await complet.locator(".quiz-complet-liste").isHidden(), true);
     await voir.click();
     const lignes = complet.locator(".quiz-complet-liste > li");
     const ordre = () => complet.locator(".quiz-complet-q .tirage-texte").allTextContents();
+    const BOUGIES = "🎂 🔢 Le Juste Chiffre : combien de bougies sur le gâteau de Zoé cette année ?";
     assert.deepEqual(await lignes.evaluateAll((xs) => xs.map((x) => [x.querySelector(".quiz-complet-num").textContent, x.querySelector(".tirage-texte").textContent])), [
-      ["1", "Roi de la jungle ?"], ["2", "Combien de pattes a une araignée ?"], ["🎂", "🔢 Le Juste Chiffre : combien de bougies sur le gâteau de Zoé cette année ?"],
-      ["3", "Quelle est la capitale de l'Italie ?"], ["4", "🔢 Combien de jours dans une semaine ?"], ["5", "Quelle planète est la plus proche du Soleil ?"]]);
-    assert.deepEqual(await complet.locator(".quiz-complet-q").evaluateAll((xs) => xs.map((x) => x.classList.contains("en-finale"))), [false, false, true, true, true]);
+      ["1", "Roi de la jungle ?"], ["2", "Combien de pattes a une araignée ?"], ["3", BOUGIES],
+      ["4", "Quelle est la capitale de l'Italie ?"], ["5", "🔢 Combien de jours dans une semaine ?"], ["6", "Quelle planète est la plus proche du Soleil ?"]]);
+    assert.deepEqual(await complet.locator(".quiz-complet-q").evaluateAll((xs) => xs.map((x) => x.classList.contains("en-finale"))), [false, false, false, true, true, true]);
+    assert.equal(await complet.locator(".quiz-complet-bougies").locator(".quiz-complet-monter, .quiz-complet-descendre, .tirage-retirer").count(), 3);
     assert.equal(await complet.locator(".quiz-complet-q").first().locator(".quiz-complet-monter").isDisabled(), true);
-    // ↓ sur la première, ↑ sur la dernière : l'ordre change, la Super Finale reste sur les 3 dernières.
+    // ↓ sur la première, ↑ sur la dernière : l'ordre change, la Super Finale reste sur les 3 dernières, les bougies juste avant.
     await complet.locator(".quiz-complet-q").nth(0).locator(".quiz-complet-descendre").click();
-    assert.deepEqual(await ordre(), ["Combien de pattes a une araignée ?", "Roi de la jungle ?", "Quelle est la capitale de l'Italie ?", "🔢 Combien de jours dans une semaine ?", "Quelle planète est la plus proche du Soleil ?"]);
-    await complet.locator(".quiz-complet-q").nth(4).locator(".quiz-complet-monter").click();
-    assert.deepEqual(await ordre(), ["Combien de pattes a une araignée ?", "Roi de la jungle ?", "Quelle est la capitale de l'Italie ?", "Quelle planète est la plus proche du Soleil ?", "🔢 Combien de jours dans une semaine ?"]);
+    assert.deepEqual(await ordre(), ["Combien de pattes a une araignée ?", "Roi de la jungle ?", BOUGIES, "Quelle est la capitale de l'Italie ?", "🔢 Combien de jours dans une semaine ?", "Quelle planète est la plus proche du Soleil ?"]);
+    await complet.locator(".quiz-complet-q").nth(5).locator(".quiz-complet-monter").click();
+    assert.deepEqual(await ordre(), ["Combien de pattes a une araignée ?", "Roi de la jungle ?", BOUGIES, "Quelle est la capitale de l'Italie ?", "Quelle planète est la plus proche du Soleil ?", "🔢 Combien de jours dans une semaine ?"]);
     // Dans les séries aussi, la Super Finale suit l'ordre de passage.
     await series.nth(1).locator(".serie-voir").click();
     assert.deepEqual(await series.nth(1).locator(".serie-liste > li").evaluateAll((xs) => xs.map((x) => x.classList.contains("en-finale"))), [true, true]);
     // ✕ : la question part du quiz (ici retirée du quiz de la bibliothèque, qui ne change pas).
     await complet.locator(".quiz-complet-q", { hasText: "Roi de la jungle" }).locator(".tirage-retirer").click();
-    assert.deepEqual(await ordre(), ["Combien de pattes a une araignée ?", "Quelle est la capitale de l'Italie ?", "Quelle planète est la plus proche du Soleil ?", "🔢 Combien de jours dans une semaine ?"]);
+    assert.deepEqual(await ordre(), ["Combien de pattes a une araignée ?", BOUGIES, "Quelle est la capitale de l'Italie ?", "Quelle planète est la plus proche du Soleil ?", "🔢 Combien de jours dans une semaine ?"]);
     assert.equal(await series.nth(0).locator(".serie-voir").textContent(), "▸ 📚 Quiz « Animaux » : 1 question (1 retirée)");
     assert.equal(await round.locator(".round-head > .quiz-compteur").textContent(), "4 questions, dont 3 en Super Finale, plus la question des bougies");
-    // Une série descendue : ses questions passent ensemble, chacune dans son ordre.
+    // Une série descendue : ses questions passent ensemble, chacune dans son ordre ; les bougies suivent la Super Finale.
     await series.nth(0).locator(".serie-descendre").click();
-    assert.deepEqual(await ordre(), ["Quelle est la capitale de l'Italie ?", "🔢 Combien de jours dans une semaine ?", "Combien de pattes a une araignée ?", "Quelle planète est la plus proche du Soleil ?"]);
-    // 🔀 : tout est mélangé.
+    assert.deepEqual(await ordre(), ["Quelle est la capitale de l'Italie ?", BOUGIES, "🔢 Combien de jours dans une semaine ?", "Combien de pattes a une araignée ?", "Quelle planète est la plus proche du Soleil ?"]);
+    // Les bougies se rangent à la main, comme les autres : montées en tête, elles y restent quand une série bouge.
+    await complet.locator(".quiz-complet-bougies .quiz-complet-monter").click();
+    assert.deepEqual(await ordre(), [BOUGIES, "Quelle est la capitale de l'Italie ?", "🔢 Combien de jours dans une semaine ?", "Combien de pattes a une araignée ?", "Quelle planète est la plus proche du Soleil ?"]);
+    await series.nth(1).locator(".serie-monter").click();
+    assert.deepEqual(await ordre(), [BOUGIES, "Combien de pattes a une araignée ?", "Quelle est la capitale de l'Italie ?", "🔢 Combien de jours dans une semaine ?", "Quelle planète est la plus proche du Soleil ?"]);
+    await series.nth(0).locator(".serie-descendre").click();
+    // 🔀 : tout est mélangé, les bougies aussi.
     const avant = await ordre();
     await complet.locator(".quiz-melanger").click();
     const melange = await ordre();
@@ -5750,14 +5758,15 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
     const zoe = Object.values(await library("shows")).find((s) => s.childName === "Zoé");
-    assert.equal(zoe.rounds[0].ordreQuiz.length, 4);
+    assert.equal(zoe.rounds[0].ordreQuiz.length, 5);
     assert.deepEqual((await library("quizzes/animaux")).questions, ANIMAUX.questions, "Le quiz de la bibliothèque ne change pas");
-    // Sur la TV : l'ordre rangé, la bougie juste avant la Super Finale.
+    // Sur la TV : exactement l'ordre rangé, bougies comprises ; la Super Finale sur les 3 dernières questions du quiz.
     const { snapshot } = buildSnapshot("zoe", zoe, { animaux: ANIMAUX, espace: ESPACE });
-    const sansSigne = (t) => t.replace(/^🔢 /, "");
+    const sansSigne = (t) => t.replace(/^(🎂 )?(🔢 )?/, "");
     const qs = snapshot.quiz.questions.map((q) => q.text);
-    assert.deepEqual(qs.filter((t) => !/bougies/.test(t)), melange.map(sansSigne));
-    assert.equal(qs[1], "Le Juste Chiffre : combien de bougies sur le gâteau de Zoé cette année ?");
+    assert.deepEqual(qs, melange.map(sansSigne));
+    const finaleTv = snapshot.quiz.questions.filter((q) => q.finale).map((q) => q.text);
+    assert.deepEqual(finaleTv, qs.filter((t) => !/bougies/.test(t)).slice(-3));
     // Rouverte : le même ordre ; un nouveau tirage au 🎲 passe en tête, l'ordre rangé suit.
     await page.click("#show-edit-crumb");
     await page.locator(".show-card", { hasText: "Zoé" }).first().click();
@@ -5767,8 +5776,17 @@ describe("bibliothèque de quiz et prestations", () => {
     await round.locator(".tirage-de").click();
     await waitFor(async () => (await series.count()) === 4, "série du dé");
     const tout = await ordre();
-    assert.equal(tout.length, 12);
+    assert.equal(tout.length, 13);
     assert.deepEqual(tout.slice(8), melange);
+    // ✕ sur les bougies : la case se décoche ; recochée, la question revient juste avant la Super Finale.
+    const caseBougies = round.locator(".quiz-bougies input");
+    await complet.locator(".quiz-complet-bougies .tirage-retirer").click();
+    assert.equal(await caseBougies.isChecked(), false);
+    assert.equal((await ordre()).includes(BOUGIES), false);
+    await caseBougies.check();
+    const remise = await ordre();
+    assert.equal(remise.length, 13);
+    assert.equal(remise.indexOf(BOUGIES), 9);
     await page.context().close();
   });
 
