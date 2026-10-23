@@ -53,6 +53,10 @@ object Habillage {
     val epreuvesVues = mutableMapOf<String, String>()
     /** Tours de mimes déjà présentés par le bandeau d'équipe. */
     val equipesAnnoncees = mutableSetOf<String>()
+    /** Parties dont la box a montré l'accueil : la grande intro du Game Show attend que Sarah lance la fête. */
+    val introsAttendues = mutableSetOf<String>()
+    /** La grande intro du lancement passe à l'écran (avec son propre son) : la bande-son se tait, le robot aussi. */
+    val introLancement = mutableStateOf(false)
 }
 
 /**
@@ -81,18 +85,22 @@ fun HabillageTv(state: UiState) {
     val statue = statueFigee(state as? UiState.Playing)
     // Qui a disparu ? : l'étape affichée par le plateau (mémoriser, tour de magie, chercher, réponse), de 1 à 4.
     val disparu = (state as? UiState.Playing)?.let { s -> s.question?.takeIf { it.isDisparu }?.let { etapeDisparu(it, s).ordinal + 1 } } ?: 0
-    val instant = remember(state, urgent, indices, statue, disparu, decompte) { instantDe(state, urgent, System.currentTimeMillis(), indices, statue, disparu, decompte, presentation = (state as? UiState.Playing)?.intro == true) }
+    val lancement = Habillage.introLancement.value
+    val instant = remember(state, urgent, indices, statue, disparu, decompte, lancement) { instantDe(state, urgent, System.currentTimeMillis(), indices, statue, disparu, decompte, presentation = (state as? UiState.Playing)?.intro == true, lancement = lancement) }
     LaunchedEffect(instant) { Sons.executer(Habillage.directeur.observer(instant)) }
     // Dernières questions du quiz à points multipliés : le plateau passe au doré, de la question à sa révélation.
     val dore = (state as? UiState.Playing)?.let { it.question?.double == true && it.phase in listOf(Phase.QUESTION, Phase.CLOSED, Phase.REVEAL) } == true
-    DecorPlateau(chaud = urgent, dore = dore)
+    // Accueil du Game Show : le robot qui dort, calé sur Get Lucky ; pendant la grande intro, aucune autre vidéo.
+    val salon = (state as? UiState.Playing)?.phase == Phase.LOBBY
+    DecorPlateau(chaud = urgent, dore = dore, accueil = salon, sansVideo = lancement)
 }
 
 /**
  * [presentation] : la TV montre l'écran de présentation du jeu (avant sa première question, en attendant que
- * Sarah le lance) ; musique douce, ni jingle de question ni bulles.
+ * Sarah le lance) ; musique douce, ni jingle de question ni bulles. [lancement] : la grande intro du Game Show passe
+ * par-dessus, avec sa propre musique.
  */
-internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indices: Int = 0, statue: Boolean = false, disparu: Int = 0, decompte: Int = 0, presentation: Boolean = false): Instant {
+internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indices: Int = 0, statue: Boolean = false, disparu: Int = 0, decompte: Int = 0, presentation: Boolean = false, lancement: Boolean = false): Instant {
     val s = state as? UiState.Playing ?: return Instant(Ecran.HORS_PARTIE)
     val blind = s.blind?.takeIf { s.question?.isBlind == true }
     val ecran = when (s.phase) {
@@ -154,6 +162,7 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         pile = s.phase == Phase.REVEAL && s.question?.isNumber == true && s.awards.values.any { it.choice == s.question?.correct },
         epreuve = s.question?.takeIf { s.phase == Phase.QUESTION || s.phase == Phase.CLOSED || s.phase == Phase.REVEAL }?.let(::epreuveDe) ?: "",
         gameShow = Look.gs,
+        lancement = lancement,
     )
 }
 

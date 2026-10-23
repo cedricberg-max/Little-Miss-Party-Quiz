@@ -298,6 +298,8 @@ fun RobotGameShow(state: UiState) {
     val s = state as? UiState.Playing ?: return
     val secondes = secondesRestantes(s)
     if (s.paused) return PauseRobot(s.code)
+    // La grande intro du lancement a déjà son robot (et la box ne lit qu'une vidéo à la fois).
+    if (Habillage.introLancement.value) return
     // Le podium a son propre robot, au-dessus du nom du gagnant (PodiumGameShow).
     if (s.phase == Phase.ENDED) return
     // Une réaction (bonus, malus, coffre) passe avant le reste, le temps de son clip.

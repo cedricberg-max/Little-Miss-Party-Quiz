@@ -54,6 +54,62 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `Game Show, l'accueil part directement sur la boucle de Get Lucky, sans generique, meme pour une nouvelle partie`() {
+        val d = DirecteurSonore()
+        val accueil = salon.copy(gameShow = true)
+        val o = d.observer(accueil)
+        assertTrue(o.sons().isEmpty())
+        assertEquals(Ambiance.SALON, o.musique())
+        assertEquals(0.49f, Ambiance.SALON.volume(Lit.ACCUEIL, gs = true))
+        assertEquals(0f, Ambiance.SALON.volume(Lit.COMPLET, gs = true))
+        // Classique : la boucle de Get Lucky n'existe pas.
+        assertEquals(0f, Ambiance.SALON.volume(Lit.ACCUEIL, gs = false))
+        assertNull(Lit.ACCUEIL.fichierPour(false))
+        assertEquals("gs_accueil", Lit.ACCUEIL.fichierPour(true))
+        // « Fin de la fête » puis nouvelle partie : toujours Get Lucky, jamais le générique.
+        d.observer(Instant(Ecran.FIN, partie = "ABCD", index = 10, gameShow = true))
+        val nouvelle = d.observer(accueil.copy(partie = "WXYZ"))
+        assertFalse(Son.GENERIQUE in nouvelle.sons())
+        assertEquals(Ambiance.SALON, nouvelle.musique())
+    }
+
+    @Test
+    fun `Game Show, intro du lancement, silence pendant la video puis la presentation du premier jeu entre`() {
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        val presentation = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 0, equipes = 2, epreuve = "quiz|Quiz", gameShow = true)
+        val debut = d.observer(presentation.copy(lancement = true))
+        assertEquals(listOf(Ordre.Couper, Ordre.Musique(Ambiance.SILENCE)), debut)
+        // Rien ne passe par-dessus la vidéo : ni équipe, ni buzzer.
+        assertTrue(d.observer(presentation.copy(lancement = true, buzzeur = 0, buzzs = 1)).isEmpty())
+        val fin = d.observer(presentation)
+        assertEquals(Ambiance.PRESENTATION, fin.musique())
+        assertFalse(Son.TRANSITION in fin.sons())
+        assertTrue(d.observer(presentation).isEmpty())
+        // Sarah lance l'épreuve : le jingle de manche, comme d'habitude.
+        assertTrue(Son.MANCHE in d.observer(Instant(Ecran.QUESTION, partie = "ABCD", index = 0, equipes = 2, epreuve = "quiz|Quiz", gameShow = true)).sons())
+    }
+
+    @Test
+    fun `Game Show, intro du lancement coupee par l'epreuve lancee, la question entre avec sa musique`() {
+        val presentation = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 0, equipes = 2, epreuve = "quiz|Quiz", gameShow = true)
+        val question = Instant(Ecran.QUESTION, partie = "ABCD", index = 0, equipes = 2, epreuve = "quiz|Quiz", gameShow = true)
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        d.observer(presentation.copy(lancement = true))
+        val q = d.observer(question)
+        // Exactement comme une question lancée après une présentation sans intro.
+        val habituelle = DirecteurSonore().run {
+            observer(salon.copy(gameShow = true, equipes = 2))
+            observer(presentation)
+            observer(question)
+        }
+        assertEquals(habituelle, q)
+        assertEquals(listOf(Son.MANCHE, Son.IMPACT), q.sons().take(2))
+        assertEquals(Ambiance.QUESTION, q.musique())
+    }
+
+    @Test
     fun `le son d'arrivee d'une equipe seulement quand une equipe arrive`() {
         val d = DirecteurSonore()
         d.observer(salon)

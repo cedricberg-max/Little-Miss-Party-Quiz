@@ -93,6 +93,13 @@ object Sons {
         private set
 
     /**
+     * Début (SystemClock.elapsedRealtime) du tour en cours de la boucle d'accueil du Game Show, 0 quand elle ne joue
+     * pas : la vidéo du robot qui dort repart de sa première image à chaque tour de la musique.
+     */
+    @Volatile var tourAccueil: Long = 0L
+        private set
+
+    /**
      * Instant (SystemClock.uptimeMillis) où le générique a vraiment démarré : l'animation du logo s'y cale, même si
      * la box finissait encore de charger ses sons au démarrage.
      */
@@ -117,9 +124,12 @@ object Sons {
             chargementFini = false
             val etapes = ArrayDeque<() -> Unit>()
             val longsDabord = listOf(Son.GENERIQUE) + Son.entries.filter { it.long && it != Son.GENERIQUE }
-            val litsDabord = listOf(Lit.COMPLET) + Lit.entries.filter { it != Lit.COMPLET }
+            // Game Show : l'accueil, c'est la boucle de Get Lucky (pas de générique) ; elle passe en premier.
+            val premierLit = if (Look.gs) Lit.ACCUEIL else Lit.COMPLET
+            val litsDabord = listOf(premierLit) + Lit.entries.filter { it != premierLit }
+            if (Look.gs) etapes += { chargerLit(app, premierLit) }
             etapes += { chargerLong(app, Son.GENERIQUE) }
-            etapes += { chargerLit(app, Lit.COMPLET) }
+            if (!Look.gs) etapes += { chargerLit(app, premierLit) }
             etapes += {
                 essayer("pool") {
                     val p = SoundPool.Builder().setMaxStreams(8).setAudioAttributes(attributs).build()
@@ -190,7 +200,7 @@ object Sons {
         // Déjà chargée (à la demande d'une ambiance, pendant le chargement du démarrage) : on ne la double pas.
         if (lits.containsKey(l)) return@essayer
         val nom = l.fichierPour(Look.gs) ?: return@essayer
-        val b = boucle(app, nom) ?: return@essayer
+        val b = boucle(app, nom, if (l == Lit.ACCUEIL) { t -> tourAccueil = t } else null) ?: return@essayer
         lits[l] = b
         val v = volumes.getValue(l)
         b.setVolume(v)
@@ -437,16 +447,19 @@ object Sons {
         return lits[l]
     }
 
-    /** Remet une boucle en route, calée sur le tempo commun. */
+    /** Remet une boucle en route, calée sur le tempo commun ; la boucle d'accueil (sa propre longueur) repart de son début. */
     private fun reveiller(b: Boucle?) {
         if (b == null || b.isPlaying) return
-        b.demarrer(Math.floorMod(SystemClock.elapsedRealtime() - departDesLits, BOUCLE_MS).toInt())
+        b.demarrer(if (b.periodeMs != null) 0 else Math.floorMod(SystemClock.elapsedRealtime() - departDesLits, BOUCLE_MS).toInt())
     }
 
-    private fun boucle(context: Context, nom: String): Boucle? {
+    /** [surTour] : appelé au début de chaque tour (instant SystemClock.elapsedRealtime), avec 0 quand elle s'arrête. */
+    private fun boucle(context: Context, nom: String, surTour: ((Long) -> Unit)? = null): Boucle? {
         val a = lecteur(context, nom, boucle = false) ?: return null
         val b = try { lecteur(context, nom, boucle = false) } catch (e: Exception) { null }
-        return Boucle(a, b) { incident("Boucle « $nom » : $it") }
+        // Les fonds de 16 s se calent sur le tempo commun ; une boucle d'une autre longueur, sur la sienne.
+        val periode = a.duration.toLong().takeIf { it > 0 && abs(it - BOUCLE_MS) > 250 }
+        return Boucle(a, b, periode, surTour) { incident("Boucle « $nom » : $it") }
     }
 
     private fun lecteur(context: Context, nom: String, boucle: Boolean): MediaPlayer? {
@@ -579,7 +592,14 @@ object Sons {
  * part à l'échantillon près quand le premier finit. Un lecteur seul en isLooping revient au début du fichier avec un
  * trou audible sur certaines TV. Sans second lecteur (mémoire), on retombe sur isLooping.
  */
-private class Boucle(private val a: MediaPlayer, private val b: MediaPlayer?, private val signaler: (String) -> Unit = {}) {
+private class Boucle(
+    private val a: MediaPlayer,
+    private val b: MediaPlayer?,
+    /** Longueur propre de la boucle quand elle n'est pas un fond de 16 s ; null : le tempo commun. */
+    val periodeMs: Long? = null,
+    private val surTour: ((Long) -> Unit)? = null,
+    private val signaler: (String) -> Unit = {},
+) {
     private var courant = a
 
     init {
@@ -599,6 +619,7 @@ private class Boucle(private val a: MediaPlayer, private val b: MediaPlayer?, pr
     private fun relais(fini: MediaPlayer) {
         val suivant = if (fini === a) b ?: return else a
         courant = suivant
+        surTour?.invoke(SystemClock.elapsedRealtime())
         try {
             fini.seekTo(0)
             // Certaines TV ne lancent pas toujours le lecteur suivant (cedric, 23 octobre : la musique se taisait en
@@ -633,6 +654,7 @@ private class Boucle(private val a: MediaPlayer, private val b: MediaPlayer?, pr
     }
 
     fun pause() {
+        surTour?.invoke(0L)
         val mp = joueur()
         if (!mp.isPlaying) return
         try {
@@ -650,11 +672,13 @@ private class Boucle(private val a: MediaPlayer, private val b: MediaPlayer?, pr
         courant = mp
         mp.seekTo(ms)
         if (!mp.isPlaying) mp.start()
+        surTour?.invoke(SystemClock.elapsedRealtime() - ms)
     }
 
     fun possede(mp: MediaPlayer) = mp === a || mp === b
 
     fun liberer() {
+        surTour?.invoke(0L)
         a.release()
         b?.release()
     }

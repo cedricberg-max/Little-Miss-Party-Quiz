@@ -58,6 +58,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -71,6 +72,7 @@ import com.littlemissparty.quiz.tv.habillage.RobotGameShow
 import com.littlemissparty.quiz.tv.habillage.GrilleEquipes
 import com.littlemissparty.quiz.tv.habillage.HabillageEcran
 import com.littlemissparty.quiz.tv.habillage.HabillageTv
+import com.littlemissparty.quiz.tv.habillage.IntroLancement
 import com.littlemissparty.quiz.tv.habillage.LogoQuiz
 import com.littlemissparty.quiz.tv.habillage.Look
 import com.littlemissparty.quiz.tv.habillage.enNeon
@@ -244,7 +246,7 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null, 
 @Composable
 private fun Playing(state: UiState.Playing, actions: TvActions) {
     when (state.phase) {
-        Phase.LOBBY -> Lobby(state, actions)
+        Phase.LOBBY -> if (Look.gs) LobbyGameShow(state, actions) else Lobby(state, actions)
         Phase.QUESTION, Phase.CLOSED, Phase.REVEAL ->
             if (state.intro) PresentationScreen(state, actions)
             else if (state.coffres != null || state.question?.isCoffres == true) CoffresScreen(state, actions)
@@ -256,7 +258,8 @@ private fun Playing(state: UiState.Playing, actions: TvActions) {
         Phase.SCORES -> if (state.portes != null) PortesClassementScreen(state, actions) else ScoresScreen(state, actions)
         Phase.ENDED -> FinalScreen(state, actions)
     }
-    if (state.phase == Phase.LOBBY) GeneriqueSalon(state.code, state.childName, state.title)
+    // Le Game Show n'a pas de générique à l'accueil : le robot y dort sur Get Lucky, la grande intro vient au lancement.
+    if (state.phase == Phase.LOBBY && !Look.gs) GeneriqueSalon(state.code, state.childName, state.title)
     BalayageDore(
         when (state.phase) {
             Phase.LOBBY -> "salon"
@@ -266,6 +269,7 @@ private fun Playing(state: UiState.Playing, actions: TvActions) {
         },
     )
     HabillageEcran(state)
+    IntroLancement(state)
     // Design « The Game Show » : le robot animateur surgit à quelques moments (rien en design classique).
     RobotGameShow(state)
     PauseLayer(state, actions.unpause)
@@ -289,9 +293,9 @@ private fun StatusCorner(state: UiState, modifier: Modifier) {
 
 /** Le bouton unique de l'animatrice : il a toujours le focus, OK sur la télécommande l'active. */
 @Composable
-fun NextButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, key: Any = label) {
+fun NextButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, key: Any = label, fontSize: TextUnit = 26.sp) {
     val focus = remember { FocusRequester() }
-    TvButton("$label  ▶", onClick, modifier.focusRequester(focus), primary = true, fontSize = 26.sp)
+    TvButton("$label  ▶", onClick, modifier.focusRequester(focus), primary = true, fontSize = fontSize)
     LaunchedEffect(key) { runCatching { focus.requestFocus() } }
 }
 

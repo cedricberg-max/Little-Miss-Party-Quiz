@@ -49,6 +49,11 @@ class DirecteurSonore {
             return reprise(ecranAvant, maintenant)
         }
 
+        // Intro du lancement (Game Show) : silence pendant la vidéo, qui a sa musique. À sa fin, l'écran du moment entre
+        // (la présentation du 1er jeu) ; coupée parce que Sarah a lancé l'épreuve, la question entre comme d'habitude.
+        if (maintenant.lancement) return if (p.lancement) emptyList() else listOf(Ordre.Couper, Ordre.Musique(Ambiance.SILENCE))
+        if (p.lancement) return entree(if (changeDEcran(p, maintenant)) p else p.copy(ecran = Ecran.SALON), maintenant)
+
         if (changeDEcran(p, maintenant)) return entree(p, maintenant)
         return memeEcran(p, maintenant)
     }
@@ -64,7 +69,7 @@ class DirecteurSonore {
     private fun premiereFois(i: Instant): List<Ordre> {
         if (i.ecran == Ecran.HORS_PARTIE) return listOf(Ordre.Musique(Ambiance.SILENCE))
         if (i.enPause) return listOf(Ordre.Musique(Ambiance.INTERMEDE))
-        if (i.ecran == Ecran.SALON && i.index < 0 && generiques.add(i.partie)) return generique()
+        if (i.ecran == Ecran.SALON && i.index < 0 && generiques.add(i.partie)) return generique(i.gameShow)
         // Game Show : une box qui revient sur le podium le rejoue en entier, comme l'écran.
         if (i.ecran == Ecran.FIN && i.gameShow) return entree(i, i)
         return listOf(Ordre.Musique(ambiance(i)))
@@ -74,7 +79,7 @@ class DirecteurSonore {
      * Générique puis musique du salon, sans blanc : la boucle repart de sa première mesure sur le temps fort qui
      * suit la dernière note du générique, presque aussi fort, puis redescend doucement à son volume de fond.
      */
-    private fun generique() = listOf(
+    private fun generique(gameShow: Boolean) = if (gameShow) accueilGameShow() else listOf(
         Ordre.Couper,
         Ordre.Musique(Ambiance.SILENCE),
         Ordre.Jouer(Son.GENERIQUE),
@@ -82,6 +87,12 @@ class DirecteurSonore {
         Ordre.Musique(Ambiance.SALON_ARRIVEE, Tempo.GENERIQUE_RELAIS, Tempo.FONDU_RELAIS),
         Ordre.Musique(Ambiance.SALON, Tempo.GENERIQUE_FIN, Tempo.FONDU_DESCENTE),
     )
+
+    /**
+     * Game Show : pas de générique. L'accueil, c'est la boucle du début de Get Lucky (cedric, 23 octobre : « l'ouverture,
+     * c'est Get Lucky »), sans fin tant que la fête n'est pas lancée ; la régie qui se connecte n'y change rien.
+     */
+    private fun accueilGameShow() = listOf(Ordre.Couper, Ordre.Musique(Ambiance.SALON))
 
     /** Décompte 3, 2, 1 de la reprise, puis la musique (ou l'entrée de l'écran s'il a changé pendant la pause). */
     private fun reprise(ecranAvant: Instant, i: Instant): List<Ordre> {
@@ -103,7 +114,7 @@ class DirecteurSonore {
         val o = mutableListOf<Ordre>(Ordre.Couper)
         when (i.ecran) {
             Ecran.HORS_PARTIE -> o += Ordre.Musique(Ambiance.SILENCE)
-            Ecran.SALON -> if (i.index < 0 && generiques.add(i.partie)) return generique() else {
+            Ecran.SALON -> if (i.index < 0 && generiques.add(i.partie)) return generique(i.gameShow) else {
                 o += Ordre.Jouer(Son.WHOOSH)
                 o += Ordre.Musique(Ambiance.SALON)
             }
@@ -492,6 +503,11 @@ data class Instant(
     val pictioTrouve: Boolean = false,
     /** Design « The Game Show » : le podium et l'écran de fin ont leur propre musique. */
     val gameShow: Boolean = false,
+    /**
+     * Game Show : la grosse intro du lancement passe en plein écran avec sa propre musique (Get Lucky) ; l'habillage
+     * se tait jusqu'à sa fin, puis l'écran du moment (la présentation du 1er jeu) entre normalement.
+     */
+    val lancement: Boolean = false,
 )
 
 const val DISPARU_MEMORISER = 1
@@ -519,6 +535,11 @@ enum class Lit(val fichier: String?, val gs: String? = null) {
     TENSION(null, "gs_bed_tension"),
     /** Game Show : le dernier groove d'Aerodynamic, sous l'écran de fin après le podium (cedric, 23 octobre). */
     FIN(null, "gs_bed_fin"),
+    /**
+     * Game Show : la boucle du début de Get Lucky sous l'accueil (48 temps, 24,8 s, tempo d'origine : elle a sa propre
+     * longueur, la vidéo du robot qui dort se cale sur chacun de ses tours).
+     */
+    ACCUEIL(null, "gs_accueil"),
     ;
 
     /** Fichier lu dans le design donné (null : cette boucle n'existe pas dans ce design). */
@@ -537,9 +558,10 @@ enum class Ambiance(
     private val gameShow: Map<Lit, Float>? = null,
 ) {
     SILENCE,
-    SALON(complete = 0.55f),
+    /** Accueil ; Game Show : la boucle de Get Lucky, au niveau des autres fonds (elle est 1 dB plus forte). */
+    SALON(complete = 0.55f, gameShow = mapOf(Lit.ACCUEIL to 0.49f)),
     /** Relais du générique : la musique du salon entre presque aussi fort que lui, avant de redescendre. */
-    SALON_ARRIVEE(complete = 0.85f),
+    SALON_ARRIVEE(complete = 0.85f, gameShow = mapOf(Lit.ACCUEIL to 0.49f)),
     QUESTION(legere = 0.6f),
     SUSPENSE(legere = 0.25f),
     /** Présentation d'un jeu : la musique du salon, assez bas pour que Sarah présente le jeu par-dessus. */
@@ -577,7 +599,7 @@ enum class Ambiance(
             Lit.PAUSE -> pause
             Lit.EXPRESS -> express
             Lit.MAGIE -> magie
-            Lit.BILAN, Lit.TENSION, Lit.FIN -> 0f
+            Lit.BILAN, Lit.TENSION, Lit.FIN, Lit.ACCUEIL -> 0f
         }
     }
 }
