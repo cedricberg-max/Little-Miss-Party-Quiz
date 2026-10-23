@@ -183,7 +183,7 @@ export function quizKind(quiz) {
  */
 export function jeuDeLaManche(round, quizzes = {}) {
   const ids = roundQuizIds(round);
-  if (!round || (round.type ?? "quiz") !== "quiz" || !ids.length || roundTirees(round).length) return round;
+  if (!round || (round.type ?? "quiz") !== "quiz" || !ids.length || roundTirees(round).length || roundSeriesQuiz(round).length) return round;
   return ids.every((id) => quizzes?.[id] && quizKind(quizzes[id]) === "photo") ? { ...round, type: "illustre" } : round;
 }
 
@@ -389,7 +389,7 @@ export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || 
   : round.type === "mimes" ? round.deckId || round.random === true || mimeCards(round.cards).length
   : MUSIC_GAMES[round.type] ? round.playlistId || roundTracks(round).length
   : (round.type === "zoom" || round.type === "flou") && roundPicks(round).length ? true
-  : roundTirees(round).length || roundQuizIds(round).length));
+  : roundSeriesQuiz(round).some((x) => x.origine === "quiz" || questionsEnLigne(x.questions).length) || roundTirees(round).length || roundQuizIds(round).length));
 
 /** Au plus autant de questions tirées au 🎲 dans une manche Quiz. */
 export const MAX_TIREES = 20;
@@ -400,11 +400,65 @@ export const MAX_TIREES = 20;
  * { id, text, nombre: true, correct (le nombre) }. Jouées dans cet ordre ; une question retirée ({ vide: true }, en
  * attente de son 🎲) n'est pas jouée.
  */
-export const roundTirees = (round) => ((round?.type ?? "quiz") === "quiz" ? listOf(round?.tirees) : [])
+export const roundTirees = (round) => ((round?.type ?? "quiz") === "quiz" ? questionsEnLigne(round?.tirees) : []).slice(0, MAX_TIREES);
+
+/**
+ * Questions gardées dans la manche (tirées au 🎲, écrites à la main, reprises d'une autre manche), jouables : texte,
+ * 2 à 4 réponses et la bonne, ou Juste Chiffre et son nombre. Une case vide ou une question pas finie est sautée.
+ */
+const questionsEnLigne = (list) => listOf(list)
   .filter((q) => q && q.vide !== true && typeof q.text === "string" && q.text.trim())
-  .map((q) => (q.nombre === true ? { ...q, choices: [] } : { ...q, choices: listOf(q.choices).filter((c) => typeof c === "string" && c.trim()) }))
-  .filter((q) => (q.nombre === true ? Number.isInteger(q.correct) : q.choices.length >= 2 && Number.isInteger(q.correct) && q.correct >= 0 && q.correct < q.choices.length))
-  .slice(0, MAX_TIREES);
+  .map((q) => {
+    if (q.nombre === true) return { ...q, choices: [] };
+    // Une réponse laissée vide (question écrite à la main) ne compte pas ; la bonne garde sa place.
+    const brutes = listOf(q.choices);
+    const gardees = brutes.map((c, k) => [c, k]).filter(([c]) => typeof c === "string" && c.trim());
+    return { ...q, choices: gardees.map(([c]) => c), correct: gardees.findIndex(([, k]) => k === q.correct) };
+  })
+  .filter((q) => (q.nombre === true ? Number.isInteger(q.correct) : q.choices.length >= 2 && Number.isInteger(q.correct) && q.correct >= 0 && q.correct < q.choices.length));
+/** Une question gardée dans la manche est-elle jouable (texte, réponses, la bonne) ? */
+export const questionJouable = (q) => questionsEnLigne([q]).length === 1;
+
+/** Au plus autant de questions dans une manche Quiz (cedric, 23/10 : « 8, 10, 15, 20, 30, 50, 100 questions »). */
+export const MAX_QUESTIONS_MANCHE = 100;
+/** Multiplicateurs de la Super Finale ; le premier est celui d'office (comme sur la régie). */
+export const FACTEURS_FINALE = [2, 3, 5];
+/** Origines d'une série de questions d'une manche Quiz. */
+export const ORIGINES_SERIE = ["de", "quiz", "main", "reprise"];
+
+/**
+ * Séries d'une manche Quiz (cedric, 23/10 : un Quiz = une seule manche, quelle que soit l'origine de ses questions),
+ * dans l'ordre de passage : { id, origine, titre? } et, selon l'origine,
+ * - « de » : questions tirées au 🎲 dans la banque, gardées dans la série (`questions`, `profil` du tirage) ;
+ * - « main » : questions écrites à la main dans la manche (`questions`) ;
+ * - « reprise » : questions d'une autre manche, copiées (`questions`) ;
+ * - « quiz » : un quiz de la bibliothèque rappelé (`quizId`), lu au lancement, sans ses questions retirées (`sans`,
+ *   leurs textes) ; s'il est changé dans la bibliothèque, la manche suit.
+ */
+export const roundSeriesQuiz = (round) => ((round?.type ?? "quiz") === "quiz" ? listOf(round?.seriesQuiz) : [])
+  .filter((x) => x && ORIGINES_SERIE.includes(x.origine) && (x.origine === "quiz" ? typeof x.quizId === "string" && x.quizId : true))
+  .map((x) => (x.origine === "quiz"
+    ? { ...x, sans: listOf(x.sans).filter((t) => typeof t === "string") }
+    : { ...x, questions: listOf(x.questions).filter(Boolean) }));
+
+/**
+ * Questions jouées d'une série, au format d'une question de quiz (validées) : celles gardées dans la série, ou celles du
+ * quiz rappelé (validées, sans celles retirées). Un quiz qui n'existe plus : aucune.
+ */
+export function questionsDeLaSerie(serie, quizzes = {}) {
+  if (serie?.origine === "quiz") {
+    const quiz = quizzes?.[serie.quizId];
+    const sans = new Set(listOf(serie.sans).map((t) => `${t}`.trim().toLowerCase()));
+    return quiz ? playable(quiz).filter((q) => !sans.has(`${q.text ?? ""}`.trim().toLowerCase())) : [];
+  }
+  return questionsEnLigne(serie?.questions).map((q) => (q.nombre
+    ? { text: q.text, kind: "number", correct: q.correct, status: "validee" }
+    : { text: q.text, choices: q.choices, correct: q.correct, status: "validee",
+      ...(q.banque ? { banque: q.banque } : q.imageId ? { imageId: q.imageId } : q.emoji ? { image: q.emoji } : {}) }));
+}
+
+/** Toutes les questions jouées d'une manche Quiz faite de séries, dans l'ordre (au plus MAX_QUESTIONS_MANCHE). */
+export const questionsDesSeries = (round, quizzes = {}) => roundSeriesQuiz(round).flatMap((x) => questionsDeLaSerie(x, quizzes)).slice(0, MAX_QUESTIONS_MANCHE);
 
 /**
  * Juste Chiffre parmi [n] questions tirées au 🎲 (cedric, 23/10 : « dans les quiz traditionnels il doit y avoir
@@ -422,7 +476,8 @@ const listOf = (x) => (Array.isArray(x) ? x : x && typeof x === "object" ? Objec
  * Quiz d'une manche tirée de quiz (Quiz, Vrai ou Faux, Zoom, Image floue) : un ou plusieurs, choisis par Sarah
  * (`quizIds`), sinon le seul `quizId`. Leurs questions s'enchaînent dans cet ordre ; jamais de tirage au hasard.
  */
-export const roundQuizIds = (round) => [...new Set((listOf(round?.quizIds).length ? listOf(round.quizIds) : [round?.quizId])
+export const roundQuizIds = (round) => [...new Set((roundSeriesQuiz(round).length ? roundSeriesQuiz(round).filter((x) => x.origine === "quiz").map((x) => x.quizId)
+  : listOf(round?.quizIds).length ? listOf(round.quizIds) : [round?.quizId])
   .filter((id) => typeof id === "string" && id))];
 
 /** Cartes de mimes valables (un mot, une image facultative). */
@@ -830,10 +885,15 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     // Questions tirées au 🎲 (cedric, 23/10) : un quiz à elles seules, déjà validées ; la photo de la révélation est
     // copiée dans la partie par la régie au chargement (comme les photos de la banque des petits), sinon l'émoji.
     // Un quiz choisi en plus (deuxième ligne) : ses questions suivent les questions tirées.
-    const tirees = roundTirees(round);
+    // Manche Quiz faite de séries (cedric, 23/10) : un seul jeu, toutes ses questions à la suite, dans l'ordre des
+    // séries ; une seule Super Finale à la fin.
+    const series = roundSeriesQuiz(round);
+    const tirees = series.length ? [] : roundTirees(round);
     const ids = roundQuizIds(round);
     const choisis = ids.map((id) => quizzes[id]).filter(Boolean);
-    const found = [...(tirees.length
+    // Titre : celui de ses quiz quand elle n'est faite que de quiz de la bibliothèque (comme avant les séries), sinon « Quiz ».
+    const titreSeries = series.length && series.every((x) => x.origine === "quiz") && choisis.length ? choisis.map((q) => q.title).join(" + ") : ROUND_TYPES.quiz;
+    const found = series.length ? [{ title: titreSeries, questions: questionsDesSeries(round, quizzes) }] : [...(tirees.length
       ? [{ title: ROUND_TYPES.quiz, questions: tirees.map((q) => (q.nombre ? { text: q.text, kind: "number", correct: q.correct, status: "validee" }
         : { text: q.text, choices: q.choices, correct: q.correct, status: "validee", ...(q.banque ? { banque: q.banque } : q.emoji ? { image: q.emoji } : {}) })) }]
       : []), ...choisis];
@@ -847,6 +907,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     const game = QUIZ_GAMES[round.type];
     const label = round.type === "finale" || game ? ROUND_TYPES[round.type] : quiz?.title ?? `Manche ${i + 1}`;
     if (choisis.length < ids.length) problems.push(`Manche ${i + 1} : ${ids.length > 1 ? "un des quiz choisis" : "le quiz"} n'existe plus dans la bibliothèque.`);
+    if (series.length && !found[0].questions.length) { problems.push(`Manche ${i + 1} (${ROUND_TYPES.quiz}) : aucune question.`); return; }
     if (!quiz) { if (!ids.length) problems.push(`Manche ${i + 1} : le quiz n'existe plus dans la bibliothèque.`); return; }
     // Nombre de questions choisi dans la prestation : les premières du quiz, dans son ordre. « 🔁 Rejouer » sur la
     // régie (cedric, 21/10) : jamais une question déjà posée pendant la fête ([avoid].questions).
@@ -863,7 +924,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     // « Jamais deux fois » : au hasard, d'abord les questions qui ne montrent rien de ce que la fête a déjà montré,
     // s'il y en a assez ; sinon les suivantes, comme avant.
     // Le nombre choisi pour le quiz de la deuxième ligne ne compte que ses questions, après les questions tirées.
-    const limite = round.count > 0 ? tirees.length + round.count : 0;
+    const limite = round.count > 0 && !series.length ? tirees.length + round.count : 0;
     const voulues = limite || restantes.length;
     const list = (sansMesImages ? neufsSiPossible(restantes, questionConcepts, pris, voulues) : restantes).slice(0, limite || undefined);
     if (!list.length) {
@@ -905,6 +966,8 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
         kind: express ? "express" : zoom ? "zoom" : flou ? "flou" : number ? "number" : yesNo ? "true_false" : "classic",
         double: round.type === "finale" || last || q.double === true,
         ...(last ? { finale: true } : {}),
+        // Multiplicateur choisi dans la Régie PC (×2 d'office) : la régie le propose quand la Super Finale arrive.
+        ...(last && FACTEURS_FINALE.includes(round.facteur) && round.facteur !== FACTEURS_FINALE[0] ? { facteur: round.facteur } : {}),
         round: label,
         // Illustration facultative montrée à la révélation (émoji, ou photo copiée dans la partie par la régie).
         ...(q.image ? { image: q.image } : {}),
@@ -927,10 +990,16 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     problems.push("Aucune question jouable : ajoutez une manche avec des questions validées.");
     return { snapshot: null, problems };
   }
+  // Multiplicateur de chaque Super Finale choisi dans la Régie PC (cedric, 23/10), par sa première question : la régie le
+  // propose quand elle arrive (la TV, qui ne le connaît pas, part de ×2).
+  const facteurs = {};
+  questions.forEach((q, k) => { if (q.facteur && !questions[k - 1]?.facteur) facteurs[q.id] = q.facteur; });
+  questions.forEach((q) => { delete q.facteur; });
   const title = showTitle(show);
   return {
     snapshot: {
       showId, title, childName: show.childName?.trim() ?? "", age: show.age ?? null, profile, rounds,
+      ...(Object.keys(facteurs).length ? { facteurs } : {}),
       // Notes de Sarah pour l'animatrice, lues sur la régie le jour J (la TV les ignore).
       ...(show.notes?.trim() ? { notes: show.notes.trim().slice(0, 2000) } : {}),
       // Chaque jeu s'ouvre sur son écran de présentation, que l'animatrice lance depuis la régie.
