@@ -347,7 +347,7 @@ class FeteVoisine(etiquette: String, private val questions: List<Question>) : Au
 
     init {
         Emulateur.brancher(auth, base)
-        uid = bloquer { auth.signInAnonymously().await().user!!.uid }
+        uid = connexionAnonyme(auth)
         code = creerPartie()
         partie = base.getReference("games/$code")
         ecouter()

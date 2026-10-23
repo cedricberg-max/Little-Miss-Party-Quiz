@@ -17,6 +17,8 @@ import androidx.test.uiautomator.By
 import androidx.test.uiautomator.Configurator
 import androidx.test.uiautomator.UiDevice
 import com.google.firebase.FirebaseApp
+import com.google.firebase.FirebaseException
+import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
@@ -61,6 +63,24 @@ fun <T> bloquer(ms: Long = 20_000, bloc: suspend () -> T): T {
     } catch (e: TimeoutCancellationException) {
         throw AssertionError("Firebase n'a pas répondu en ${ms / 1000} s", appel)
     }
+}
+
+/**
+ * Connexion anonyme d'un client simulé (pupitre, régie, autre box). L'émulateur d'authentification ferme parfois une
+ * connexion gardée ouverte au moment où on la réutilise (« unexpected end of stream », essai du 23 octobre, dix
+ * connexions en quelques secondes) : on recommence, comme un vrai pupitre qui se recharge. Toute autre erreur échoue.
+ */
+fun connexionAnonyme(auth: FirebaseAuth): String {
+    repeat(2) { essai ->
+        try {
+            return bloquer { auth.signInAnonymously().await().user!!.uid }
+        } catch (e: FirebaseException) {
+            if (e !is FirebaseNetworkException && e.message?.contains("end of stream") != true) throw e
+            Log.w(TAG, "Connexion anonyme coupée par l'émulateur (essai ${essai + 1}), on recommence : ${e.message}")
+            Thread.sleep(500)
+        }
+    }
+    return bloquer { auth.signInAnonymously().await().user!!.uid }
 }
 
 /** Lecture ponctuelle par écouteur : `get()` peut rester bloqué quand la connexion s'est mise en veille. */
@@ -329,7 +349,7 @@ class PupitreSimule(etiquette: String) : AutoCloseable {
 
     init {
         Emulateur.brancher(auth, base)
-        uid = bloquer { auth.signInAnonymously().await().user!!.uid }
+        uid = connexionAnonyme(auth)
         base.getReference(".info/connected").addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 connecte = snapshot.getValue(Boolean::class.java) == true
