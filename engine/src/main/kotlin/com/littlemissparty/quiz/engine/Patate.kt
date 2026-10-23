@@ -25,7 +25,7 @@ const val POTATO_HOLD_MS = 3_000L
  * mèche s'allume et finit sur l'explosion (cedric, 23 octobre, « Durée fixe »). Même valeur que PATATE_MUSIQUE_MS de
  * l'habillage de la TV (lmp_patate_musique.ogg) ; un test de la TV vérifie qu'elles restent égales.
  */
-const val POTATO_FUSE_MS = 38_871L
+const val POTATO_FUSE_MS = 38_391L
 
 /** Mèches acceptées dans le journal d'une partie : avant le 23 octobre, la durée était tirée au sort entre ces bornes. */
 const val POTATO_FUSE_MIN_MS = 25_000L

@@ -49,7 +49,7 @@ const BOMBE_SVG = `
 </svg>`;
 
 /** Durée de la mèche (POTATO_FUSE_MS du moteur, la musique du jeu) : le rouge bat le plus vite à l'explosion. */
-const MECHE_MAX_MS = 38871;
+const MECHE_MAX_MS = 38391;
 
 /**
  * Rythme du rouge qui bat chez l'équipe qui tient la bombe, d'après le temps de mèche déjà brûlé : de 900 ms entre
