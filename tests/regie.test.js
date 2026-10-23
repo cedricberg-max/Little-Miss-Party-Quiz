@@ -5460,16 +5460,16 @@ describe("bibliothèque de quiz et prestations", () => {
     // Plus de « ＋ Manche » : le Quiz est une seule manche ; ni « ✍ Écrire une question » ni « ↺ Reprendre » (cedric, 23/10).
     assert.equal(await bloc.locator(".jeu-plus").count(), 0);
     assert.equal(await page.locator("#show-rounds .quiz-ecrire, #show-rounds .reprendre-ouvrir, #show-rounds .reprendre-zone").count(), 0);
-    // De haut en bas : le compteur, la ligne du dé (profil, nombre, 🎲, ✕), « Rappeler un de vos quiz », la bougie, la Super Finale.
+    // De haut en bas : le compteur, la ligne du dé (profil, nombre, 🎲 ; pas de ✕ : c'est un outil de création, cedric
+    // 23/10), « Rappeler un de vos quiz », la bougie, la Super Finale.
     assert.deepEqual(await round.locator(".round-body > *").evaluateAll((xs) => xs.map((x) => x.className)),
       ["quiz-compteur", "tirage-ligne", "quiz-ajouts", "check bougies quiz-bougies", "quiz-finale", "manche-note"]);
-    assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-profil", "tirage-nombre", "btn tirage-de", "icon tirage-effacer"]);
+    assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-profil", "tirage-nombre", "btn tirage-de"]);
     // « Rappeler un de vos quiz » : une case à gauche (pas un champ), une recherche à droite.
     const ajouts = round.locator(".quiz-ajouts");
     assert.deepEqual(await ajouts.locator(":scope > *").evaluateAll((xs) => xs.map((x) => [x.tagName, x.className])),
       [["SPAN", "quiz-rappel-titre"], ["INPUT", "quiz-rappel-cherche"], ["DIV", "quiz-rappel-liste"]]);
     assert.equal(await ajouts.locator(".quiz-rappel-titre").textContent(), "📚 Rappeler un de vos quiz");
-    assert.equal(await ligne.locator(".tirage-effacer").isDisabled(), true, "Rien à effacer : grisée");
     assert.equal(await compteur.textContent(), "Aucune question pour l'instant");
     assert.equal(await ligne.locator(".tirage-nombre").inputValue(), "8");
     assert.equal(await ligne.locator(".tirage-profil").inputValue(), "MOYENS");
@@ -5599,15 +5599,15 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(qs.slice(-2).map((q) => q.text), tirees.map((q) => q.text));
     assert.deepEqual(qs.slice(-2).map((q) => q.finale), [true, true]);
     assert.deepEqual(snapshot.facteurs, { [qs.at(-2).id]: 3 });
-    // Rouverte : la ✕ du dé n'efface que les questions tirées.
+    // Rouverte : la ✕ de la série tirée n'enlève qu'elle ; la ligne du dé reste.
     await page.click("#show-edit-crumb");
     await page.locator(".show-card", { hasText: "Zoé" }).first().click();
     await series.nth(2).waitFor();
-    await round.locator(".tirage-effacer").click();
-    assert.match(await repondreFenetre(page), /Effacer les 8 questions tirées \?/);
+    await round.locator('.quiz-series > li.serie[data-origine="de"] .serie-enlever').click();
+    assert.match(await repondreFenetre(page), /Enlever cette série \(8 questions\) de la manche \?/);
     await round.locator('.quiz-series > li.serie[data-origine="de"]').waitFor({ state: "detached" });
     assert.deepEqual(await origines(), ["reprise", "reprise"]);
-    assert.equal(await round.locator(".tirage-effacer").isDisabled(), true);
+    assert.equal(await round.locator(".tirage-ligne .tirage-de").count(), 1);
     // Une série enlevée (✕ de la série) : demandé d'abord.
     await series.nth(1).locator(".serie-enlever").click();
     assert.match(await repondreFenetre(page, { accepter: false }), /Enlever cette série \(2 questions\) de la manche \?/);

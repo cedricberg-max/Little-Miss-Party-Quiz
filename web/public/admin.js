@@ -1602,18 +1602,6 @@ function mancheQuiz(r) {
     h("button", {
       type: "button", class: "btn tirage-de", text: "🎲", "aria-label": "Tirer les questions au hasard",
       title: "Tirer les questions au hasard dans la banque (les autres séries ne bougent pas)", onclick: () => tirer(Number(nombre.value), profils.value),
-    }),
-    // ✕ à côté du dé (cedric, 23/10) : efface seulement les questions tirées au 🎲, même d'une ancienne session ; jamais
-    // les autres séries. Rien à effacer : grisée.
-    h("button", {
-      type: "button", class: "icon tirage-effacer", text: "✕", disabled: !cases.length,
-      "aria-label": "Effacer les questions tirées", title: "Effacer les questions tirées au dé (le reste de la manche ne bouge pas)",
-      onclick: async () => {
-        if (!(await confirmer(`Effacer ${cases.length > 1 ? `les ${cases.length} questions tirées` : "la question tirée"} ? Le reste de la manche ne bouge pas.`, { ok: "Effacer", danger: true }))) return;
-        poserTirage(r, []);
-        changer();
-        noterEcran();
-      },
     }));
 
   // Deuxième ligne : « Rappeler un de vos quiz » (cedric, 23/10) : à droite, une recherche dans les prestations
