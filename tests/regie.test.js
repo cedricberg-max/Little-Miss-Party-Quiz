@@ -5439,9 +5439,10 @@ describe("bibliothèque de quiz et prestations", () => {
     const round = page.locator("#show-rounds .round").nth(0);
     const ligne = round.locator(".round-body > .tirage-ligne");
     // La première ligne, de gauche à droite : le profil (celui de la prestation, 10 ans : Moyens), le nombre, la Super
-    // Finale (3 dernières), le dé.
+    // Finale (3 dernières), la question des bougies (premier Quiz), le dé.
     assert.equal(await round.locator(".round-body > *").first().evaluate((x) => x.classList.contains("tirage-ligne")), true);
-    assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-profil", "tirage-nombre", "finale", "btn tirage-de"]);
+    assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-profil", "tirage-nombre", "finale", "check bougies", "btn tirage-de"]);
+    assert.equal(await ligne.locator("label.bougies input").isChecked(), true);
     assert.equal(await ligne.locator(".tirage-nombre").inputValue(), "8");
     assert.equal(await ligne.locator(".tirage-profil").inputValue(), "MOYENS");
     assert.equal(await ligne.locator("select.finale").inputValue(), "3");

@@ -1451,13 +1451,20 @@ function tirageQuiz(r) {
   liste.hidden = !tiragesDeplies.has(r);
   const libelle = () => `${liste.hidden ? "▸" : "▾"} ${tirees.length} question${tirees.length > 1 ? "s" : ""}`;
   return [
-    // De gauche à droite (cedric, 23/10) : profil, nombre de questions, Super Finale, dé.
+    // De gauche à droite (cedric, 23/10) : profil, nombre de questions, Super Finale, question des bougies, dé.
     h("div", { class: "tirage-ligne" },
       profils,
       nombre,
       h("select", { class: "finale", "aria-label": "Super Finale", onchange: (e) => { r.finale = Number(e.target.value) || null; roundCtx.summary(); } },
         h("option", { value: "", text: "Sans Super Finale" }),
         ...[1, 2, 3, 4, 5].map((k) => h("option", { value: k, selected: r.finale === k, text: k === 1 ? "Super Finale : la dernière" : `Super Finale : ${k} dernières` }))),
+      // Question des bougies (cedric, 21/10) : d'office dans le premier Quiz de la prestation ; décocher l'enlève. Sur la
+      // première ligne, juste avant le dé (cedric, 23/10).
+      roundCtx === prestationCtx && editing && premierQuiz(editing.rounds, quizzes) === r
+        ? h("label", { class: "check bougies", title: "« Combien de bougies sur le gâteau de … cette année ? » : l'âge de l'enfant, au Juste Chiffre, juste avant la Super Finale" },
+          h("input", { type: "checkbox", checked: r.bougies !== false, onchange: (e) => { r.bougies = e.target.checked ? null : false; roundCtx.summary(); } }),
+          "🎂 Question des bougies")
+        : null,
       h("button", {
         type: "button", class: "btn tirage-de", text: "🎲", "aria-label": "Tirer les questions au hasard",
         title: "Tirer les questions au hasard dans la banque", onclick: () => tirer(Number(nombre.value), profils.value),
@@ -1574,12 +1581,6 @@ function roundFields(r) {
       ? h("select", { class: "finale", "aria-label": "Super Finale", onchange: (e) => { r.finale = Number(e.target.value) || null; roundCtx.summary(); } },
         h("option", { value: "", text: "Sans Super Finale" }),
         ...[1, 2, 3, 4, 5].map((n) => h("option", { value: n, selected: r.finale === n, text: n === 1 ? "Super Finale : la dernière" : `Super Finale : ${n} dernières` })))
-      : null,
-    // Question des bougies (cedric, 21/10) : d'office dans le premier Quiz de la prestation ; décocher l'enlève.
-    roundCtx === prestationCtx && editing && premierQuiz(editing.rounds, quizzes) === r
-      ? h("label", { class: "check bougies", title: "« Combien de bougies sur le gâteau de … cette année ? » : l'âge de l'enfant, au Juste Chiffre, juste avant la Super Finale" },
-        h("input", { type: "checkbox", checked: r.bougies !== false, onchange: (e) => { r.bougies = e.target.checked ? null : false; roundCtx.summary(); } }),
-        "🎂 Question des bougies")
       : null,
     // Note de la manche (cedric, 23/10) : pour s'en souvenir, et la retrouver avec « Reprendre une manche ».
     SANS_CONTENU.includes(r.type) ? null : h("label", { class: "manche-note" }, "Note",
