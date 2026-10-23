@@ -1,0 +1,2573 @@
+{
+ "manquants": [
+  "qc-avec-quoi-sent-on-le-gout-des-aliments",
+  "qc-qu-est-ce-qu-un-aimant-attire"
+ ],
+ "restants": [],
+ "sources": {
+  "qc-quel-animal-fabrique-une-toile": [
+   {
+    "n": 1,
+    "titre": "Spider in web",
+    "auteur": "nicktrosnant",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/1456208e24/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 2,
+    "titre": "Spider Web",
+    "auteur": "Nature's Beauty",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/spider-web-V4BMDJ4H4N",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Spider Web",
+    "auteur": "World Wildlife",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/spider-web-AERRCLWVYY",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 4,
+    "titre": "Nature Flowers",
+    "auteur": "Sabeel Ahammed",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/nature-flowers-3QT2D3X9LO",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 5,
+    "titre": "Spider Web",
+    "auteur": "Piotr Lohunko",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/spider-web-WOO8KA3CRJ",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 6,
+    "titre": "Web Spider",
+    "auteur": "Jingyi Wang",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/web-spider-H1KF8HW2VZ",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-le-poussin-est-le-bebe-de-quel-animal": [
+   {
+    "n": 1,
+    "titre": "File:Barnyard scene with rooster, hen, and chicks – Lucy Fitch Perkins, 1928.jpg",
+    "auteur": "Lucy Fitch Perkins",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Barnyard_scene_with_rooster,_hen,_and_chicks_%E2%80%93_Lucy_Fitch_Perkins,_1928.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Hen with Chicks1.jpg",
+    "auteur": "Naithik Shetty",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Hen_with_Chicks1.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Hen with Chicks2.jpg",
+    "auteur": "Naithik Shetty",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Hen_with_Chicks2.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Hen with chicks in Margarita Island.jpg",
+    "auteur": "Wilfredor",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Hen_with_chicks_in_Margarita_Island.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:A hen with chicks in a landscape.jpg",
+    "auteur": "Melchior d'Hondecoeter",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:A_hen_with_chicks_in_a_landscape.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:Ben Austrian - Hen with Baby Chicks - 2009.3.1 - Reading Public Museum.jpg",
+    "auteur": "Ben Austrian",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Ben_Austrian_-_Hen_with_Baby_Chicks_-_2009.3.1_-_Reading_Public_Museum.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-ou-les-abeilles-fabriquent-elles-le-miel": [
+   {
+    "n": 1,
+    "titre": "Bee Person",
+    "auteur": "Ian Livesey",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/bee-person-OMX3XLKJNU",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Beehive holes",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/6036197/beehive-holes-free-public-domain-cc0-photo",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 3,
+    "titre": "Honeybees congregate honey frame",
+    "auteur": "U.S. Department of Agriculture",
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/8731933/photo-image-frame-public-domain-bee",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 4,
+    "titre": "Free group bee beehive image",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/5919917/photo-image-flower-public-domain-bee",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 5,
+    "titre": "Free group bee beehive image",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/5919916/photo-image-flower-public-domain-bee",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 6,
+    "titre": "Bee nest",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/6036230/bee-nest-free-public-domain-cc0-photo",
+    "source": "openverse/rawpixel"
+   }
+  ],
+  "qc-avec-quoi-sent-on-les-odeurs": [
+   {
+    "n": 1,
+    "titre": "Psychedelic flower of the trance-human revolution",
+    "auteur": "₡ґǘșϯγ Ɗᶏ Ⱪᶅṏⱳդ",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/148598741@N02/52047747941",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 2,
+    "titre": "File:Quentin Roosevelt as a child in front of a flower garden and Roswell Newcomb Pinckney smelling a flower at the White House, Washington, D.C. LCCN2001704016.jpg",
+    "auteur": "Johnston, Frances Benjamin, 1864-1952, photographer",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Quentin_Roosevelt_as_a_child_in_front_of_a_flower_garden_and_Roswell_Newcomb_Pinckney_smelling_a_flower_at_the_White_House,_Washington,_D.C._LCCN2001704016.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Quentin Roosevelt as a child in front of a flower garden and Roswell Newcomb Pinckney smelling a flower at the White House, Washington, D.C. LCCN2001704016.tif",
+    "auteur": "Johnston, Frances Benjamin, 1864-1952, photographer",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Quentin_Roosevelt_as_a_child_in_front_of_a_flower_garden_and_Roswell_Newcomb_Pinckney_smelling_a_flower_at_the_White_House,_Washington,_D.C._LCCN2001704016.tif",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Earrings (France), mid-19th century (CH 18603635).jpg",
+    "auteur": "Unknown artistUnknown artist",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Earrings_(France),_mid-19th_century_(CH_18603635).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:USMC-110419-M-UQ450-027.jpg",
+    "auteur": "Staff Sgt. Jeremy Ross",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:USMC-110419-M-UQ450-027.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:Frances (Appleton) Longfellow to Anne Longfellow Pierce, 4 May 1848 (9565ee6e-fb3b-402a-821b-e2418c2c70c9).jpg",
+    "auteur": "Fanny (Appleton) Longfellow (1817-1861)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Frances_(Appleton)_Longfellow_to_Anne_Longfellow_Pierce,_4_May_1848_(9565ee6e-fb3b-402a-821b-e2418c2c70c9).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-avec-quoi-entend-on": [
+   {
+    "n": 1,
+    "titre": "File:Modern moonshine, or the wonders of Great Britain (BM 1868,0808.4522).jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Modern_moonshine,_or_the_wonders_of_Great_Britain_(BM_1868,0808.4522).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:The political pawn brokers (BM 1868,0808.6293).jpg",
+    "auteur": "Print made by: Isaac Cruikshank\n\nPublished by: S W Fores",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:The_political_pawn_brokers_(BM_1868,0808.6293).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:The political pawn brokers (BM 1868,0808.6293 1).jpg",
+    "auteur": "Print made by: Isaac Cruikshank\n\nPublished by: S W Fores",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:The_political_pawn_brokers_(BM_1868,0808.6293_1).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Apcryphal combatants. No XI. Susanna and the elders; (BM 1868,0808.8747).jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Apcryphal_combatants._No_XI._Susanna_and_the_elders;_(BM_1868,0808.8747).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:The entomologist. (BM 1868,0808.9442).jpg",
+    "auteur": "Published by: Thomas McLean\n\nPrinted by: A Ducôte",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:The_entomologist._(BM_1868,0808.9442).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:The Stage Medley representing the polite tast of the Town & the matchless merits of Poet Gay Polly Peachum & Capt. Macheath (BM 1882,0812.5).jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:The_Stage_Medley_representing_the_polite_tast_of_the_Town_%26_the_matchless_merits_of_Poet_Gay_Polly_Peachum_%26_Capt._Macheath_(BM_1882,0812.5).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-avec-quoi-voit-on": [
+   {
+    "n": 1,
+    "titre": "File:Kids Educational Program (53327941381).jpg",
+    "auteur": "Joshua Tree National Park",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Kids_Educational_Program_(53327941381).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-ou-se-trouve-le-cerveau": [
+   {
+    "n": 1,
+    "titre": "Anatomical model human brain, paper",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/14016833/anatomical-model-human-brain-paper-mache-french-19th-century",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 2,
+    "titre": "File:Dr. Edith Klemperer Patent for Luminous Brain Model, 1934.png",
+    "auteur": "U.S. Patent Office",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Dr._Edith_Klemperer_Patent_for_Luminous_Brain_Model,_1934.png",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Dr. Edith Klemperer Patent for Luminous Brain Model, 1934 Cutout.png",
+    "auteur": "U.S. Patent Office",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Dr._Edith_Klemperer_Patent_for_Luminous_Brain_Model,_1934_Cutout.png",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Musei di Palazzo Poggi (Poggi Palace Museums) BOLOGNA Italy Over-sized wax model sculpture of an Ear by Anna Morandi Manzolini 1755 (photo taken 2026-04-15) IMG 3506.jpg",
+    "auteur": "Wolfmann",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Musei_di_Palazzo_Poggi_(Poggi_Palace_Museums)_BOLOGNA_Italy_Over-sized_wax_model_sculpture_of_an_Ear_by_Anna_Morandi_Manzolini_1755_(photo_taken_2026-04-15)_IMG_3506.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:Musei di Palazzo Poggi (Poggi Palace Museums) BOLOGNA Italy Anna Morandi Manzolini (1714-1774) Self portrait wax figure 1750-1760 (2026-04-15) IMG 3504.jpg",
+    "auteur": "Wolfmann",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Musei_di_Palazzo_Poggi_(Poggi_Palace_Museums)_BOLOGNA_Italy_Anna_Morandi_Manzolini_(1714-1774)_Self_portrait_wax_figure_1750-1760_(2026-04-15)_IMG_3504.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-avec-quoi-sent-on-le-gout-des-aliments": [],
+  "qc-que-porte-t-on-sur-le-nez-quand-on-voit-mal": [
+   {
+    "n": 1,
+    "titre": "Laptop Computer",
+    "auteur": "Monoar Rahman",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/laptop-computer-5UQ2YS94N1",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Computer Keyboard",
+    "auteur": "Andri",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/computer-keyboard-A3ZQ2UJTZ8",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Laptop Apple",
+    "auteur": "Pineapple Supply Co.",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/laptop-apple-HWF3RV7FYW",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 4,
+    "titre": "Eyeglasses Grade",
+    "auteur": "Ewan Robertson",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/eyeglasses-grade-42FAQG47SF",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 5,
+    "titre": "Coffee Laptop",
+    "auteur": "Freestocks.org",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/coffee-laptop-67DQTL11QL",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 6,
+    "titre": "Camera Lens",
+    "auteur": "Bino Storyteller",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/camera-lens-4QZAD5FM7R",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quel-jour-vient-apres-lundi": [
+   {
+    "n": 1,
+    "titre": "Calendars",
+    "auteur": "ghs1922",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/47282338@N03/48684181793",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 2,
+    "titre": "File:WallCalendar.jpg",
+    "auteur": "Claudio Elias",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:WallCalendar.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Manual scrollable wooden wall calendar.jpg",
+    "auteur": "Amitbalani",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Manual_scrollable_wooden_wall_calendar.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Hooded wall clock with calendar MET DP340884.jpg",
+    "auteur": "Ahasuerus Fromanteel",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Hooded_wall_clock_with_calendar_MET_DP340884.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:Hooded wall clock with calendar MET DP352258.jpg",
+    "auteur": "Ahasuerus Fromanteel",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Hooded_wall_clock_with_calendar_MET_DP352258.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:Hooded wall clock with calendar MET 204019.jpg",
+    "auteur": "Ahasuerus Fromanteel",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Hooded_wall_clock_with_calendar_MET_204019.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-jour-de-la-semaine-vient-juste-avant-le-dimanche": [
+   {
+    "n": 1,
+    "titre": "A dark, solemn illustration of a desk calendar with the date January 20, 2029 circled in red ink",
+    "auteur": "exit78",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/28826830@N00/54901437020",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 2,
+    "titre": "Business Working",
+    "auteur": "Marc Chouinard",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/business-working-PHE63L27S6",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Apple Mac",
+    "auteur": "Wilfred Iven",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/apple-mac-VL28ZDFJZY",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 4,
+    "titre": "Ipad Tablet",
+    "auteur": "Marc Chouinard",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/ipad-tablet-4SGERWWL1U",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 5,
+    "titre": "Ipad Tablet",
+    "auteur": "Wilfred Iven",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/ipad-tablet-SKGNYY6PK9",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 6,
+    "titre": "Woman Writing",
+    "auteur": "JESHOOTS.com",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/woman-writing-FFSUL8TZD3",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-en-quelle-saison-les-fleurs-repoussent-elles": [
+   {
+    "n": 1,
+    "titre": "Yellow Flower",
+    "auteur": "Bob Richards",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/yellow-flower-4Y35BQY8TW",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Daisies Flower",
+    "auteur": "Nature's Beauty",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/daisies-flower-VSLJ6ZRK5Z",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Daisy White",
+    "auteur": "Kelly Ishmael",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/daisy-white-UPHH5BJ8M0",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 4,
+    "titre": "Daisies Flower",
+    "auteur": "Bob Richards",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/daisies-flower-M5XV7XMR6W",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 5,
+    "titre": "Flowers Garden",
+    "auteur": "Travel Photographer",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/flowers-garden-LL2SGK8LRB",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 6,
+    "titre": "Flowers Garden",
+    "auteur": "Travel Photographer",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/flowers-garden-FTUL0UQZXX",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-en-quelle-saison-va-t-on-souvent-a-la-plage": [
+   {
+    "n": 1,
+    "titre": "Beach Sand",
+    "auteur": "Alexandre Perotto",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/beach-sand-ES9MSURD76",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Sea Ocean",
+    "auteur": "Lance Asper",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/sea-ocean-ZPZK3FNJ07",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Beach Greece",
+    "auteur": "Andrzej",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/beach-greece-WJD2JVGVRD",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 4,
+    "titre": "Beach Sand",
+    "auteur": "Skitter Photo",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/beach-sand-5DBDA4A300",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 5,
+    "titre": "Sea Ocean",
+    "auteur": "Dan Gold",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/sea-ocean-5C6Y92Q2A8",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 6,
+    "titre": "Sea Beach",
+    "auteur": "Mike Wilson",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/sea-beach-YR00YS2NSS",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quel-est-le-premier-mois-de-l-annee": [
+   {
+    "n": 1,
+    "titre": "Fireworks City",
+    "auteur": "Adam Whitlock",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/fireworks-city-YGEONW7D9X",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Fireworks at Dhaka in New year.",
+    "auteur": "Mahmudul Haque Nadim",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/13963b07da/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 3,
+    "titre": "Free new year fireworks celebration",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/5906615/photo-image-background-light-new-year",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 4,
+    "titre": "New Years Eve 2021",
+    "auteur": "Greenville, NC",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/156869144@N02/51792732868",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 5,
+    "titre": "New Years Eve 2021",
+    "auteur": "Greenville, NC",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/156869144@N02/51793353755",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 6,
+    "titre": "New Years Eve 2021",
+    "auteur": "Greenville, NC",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/156869144@N02/51792617831",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-quelle-fete-celebre-t-on-le-31-octobre": [
+   {
+    "n": 1,
+    "titre": "File:Cucurbita 2011 G1.jpg",
+    "auteur": "George Chernilevsky",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Cucurbita_2011_G1.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Halloween pumpkins-IMG 2191.JPG",
+    "auteur": "Accuruss",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Halloween_pumpkins-IMG_2191.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Pumpkin Spice Latte for Halloween.jpg",
+    "auteur": "さえぼー",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pumpkin_Spice_Latte_for_Halloween.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Families picking pumpkins for Halloween.PNG",
+    "auteur": "Deborah Block",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Families_picking_pumpkins_for_Halloween.PNG",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:Halloween Pumpkins (Unsplash).jpg",
+    "auteur": "Gabby Orcutt monroefiles",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Halloween_Pumpkins_(Unsplash).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:Yellow Halloween pumpkins (Unsplash).jpg",
+    "auteur": "John Silliman john_silliman",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Yellow_Halloween_pumpkins_(Unsplash).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-objet-sonne-le-matin-pour-nous-reveiller": [
+   {
+    "n": 1,
+    "titre": "Alarm Clock",
+    "auteur": "Jessica Monte",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/alarm-clock-VI3GY3LRD4",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Clock Time",
+    "auteur": "Negative Space",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/clock-time-72R81VRMM0",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Timex Quartz",
+    "auteur": "Sonja Langford",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/timex-quartz-547435C351",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 4,
+    "titre": "Clock Time",
+    "auteur": "Ales Krivec",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/clock-time-C2799653AA",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 5,
+    "titre": "Clock Time",
+    "auteur": "Ryan McGuire",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/clock-time-AEE06BA0EA",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 6,
+    "titre": "Still Items",
+    "auteur": "Mpho Mojapelo",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/still-items-UZAO7L631Q",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-sur-quoi-glisse-t-on-a-la-montagne-en-hiver": [
+   {
+    "n": 1,
+    "titre": "Skiing Snowboarding",
+    "auteur": "Pawel Kadysz",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/skiing-snowboarding-QT3VEK73I5",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Crosscountry Skiing",
+    "auteur": "Alec Moore",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/crosscountry-skiing-KY1D706OSN",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Gondolalift Snowboarding",
+    "auteur": "Stella Caraman",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/gondolalift-snowboarding-4RW0QHRGII",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 4,
+    "titre": "Chairlift Ski",
+    "auteur": "Ryan McQueen",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/chairlift-ski-XK2TJO1QPY",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 5,
+    "titre": "House Mountains",
+    "auteur": "Sweet Ice Cream Photography",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/house-mountains-JJE5DPU0U9",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 6,
+    "titre": "Mountains Snow",
+    "auteur": "Olivier Miche",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/mountains-snow-V2D12R9YHI",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-ou-fait-on-de-la-natation": [
+   {
+    "n": 1,
+    "titre": "Aquatic Center & Eppes Recreation Ribbon Cutting",
+    "auteur": "Greenville, NC",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/156869144@N02/52127012983",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 2,
+    "titre": "Aquatic Center & Eppes Recreation Ribbon Cutting",
+    "auteur": "Greenville, NC",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/156869144@N02/52126986831",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "Aquatic Center & Eppes Recreation Ribbon Cutting",
+    "auteur": "Greenville, NC",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/156869144@N02/52127227474",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 4,
+    "titre": "Aquatic Center & Eppes Recreation Ribbon Cutting",
+    "auteur": "Greenville, NC",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/156869144@N02/52127229274",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 5,
+    "titre": "Aquatic Center & Eppes Recreation Ribbon Cutting",
+    "auteur": "Greenville, NC",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/156869144@N02/52127228109",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 6,
+    "titre": "Aquatic Center & Eppes Recreation Ribbon Cutting",
+    "auteur": "Greenville, NC",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/156869144@N02/52127228919",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-sur-quoi-glisse-t-on-sur-les-vagues": [
+   {
+    "n": 1,
+    "titre": "File:12 A Surfboard On A Stand.jpg",
+    "auteur": "The Fun Chronicles",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:12_A_Surfboard_On_A_Stand.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Abandoned surfboard (Unsplash).jpg",
+    "auteur": "Louis Moncouyoux louis_moncouyoux",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Abandoned_surfboard_(Unsplash).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Palm Beach Qld Surf Life Saving Club - Spider and his surfboard, 1977 - photo John McPherson P1120071.jpg",
+    "auteur": "John Robert McPherson",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Palm_Beach_Qld_Surf_Life_Saving_Club_-_Spider_and_his_surfboard,_1977_-_photo_John_McPherson_P1120071.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Hawaiian with surfboard and Diamond Head in the background.JPG",
+    "auteur": "Frank Davey",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Hawaiian_with_surfboard_and_Diamond_Head_in_the_background.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:First Surfboard on Nantucket 1932 (cropped).jpg",
+    "auteur": "Nantucket Historical Association",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:First_Surfboard_on_Nantucket_1932_(cropped).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:Wasaga Beach Transit No. 146 surfboards.jpg",
+    "auteur": "Transportfan70",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Wasaga_Beach_Transit_No._146_surfboards.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-couleur-obtient-on-en-melangeant-du-bleu-et-du-jaune": [
+   {
+    "n": 1,
+    "titre": "Green Paint",
+    "auteur": "Steve Johnson",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/green-paint-YYZKND6EIC",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "A large flock of pigeons is gathered on a wet, tiled surface in the foreground, with some birds flying while others are perched or walking. In the background, there are several buildings, including a green-painted structure and others with colorful banners and chairs.",
+    "auteur": "quizzycal",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/27764121a6/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 3,
+    "titre": "Flower Painting",
+    "auteur": "Floral Portrait Backgrounds",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/flower-painting-OQPPU6CLHK",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 4,
+    "titre": "Abstract Painting",
+    "auteur": "Steve Johnson",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/abstract-painting-JUGATVH3A8",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 5,
+    "titre": "Messy Abstract",
+    "auteur": "Steve Johnson",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/messy-abstract-NH46TSWFWC",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 6,
+    "titre": "Abstract Painting",
+    "auteur": "Steve Johnson",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/abstract-painting-SMRXWUXJQ3",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quelle-forme-a-une-roue": [
+   {
+    "n": 1,
+    "titre": "Bicycle Wheel III (double megaphone)",
+    "auteur": "jacquemart",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/26602223@N00/54864326101",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 2,
+    "titre": "William Kentridge, Bicycle Wheel III (double megaphone).",
+    "auteur": "jacquemart",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/26602223@N00/54965763812",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "Bicycle wheel, Marcel_Duchamp, 1913, this version 1964",
+    "auteur": "Billy Quinn 1954",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/9453335@N02/53617399287",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 4,
+    "titre": "Bicycle Wheels",
+    "auteur": "Rob Bye",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/bicycle-wheels-S28MUJMXYJ",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 5,
+    "titre": "Bicycle wheel sculpture",
+    "auteur": "sarahstierch",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/7633518@N08/53962177846",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 6,
+    "titre": "Bicycles Wheels",
+    "auteur": "James Sutton",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/bicycles-wheels-DLAT2IDUOK",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quel-est-le-contraire-de-grand": [
+   {
+    "n": 1,
+    "titre": "068 Haute Dog (17) - Big & Small",
+    "auteur": "The Fun Chronicles",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/196406308@N04/52837203484",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 2,
+    "titre": "File:Unlike most other vessels of her class the Sea Dog mounts a gyro-stablized, remote controlled machine gun on a pedestal on her bow -c.jpg",
+    "auteur": "Cindy Beckert",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Unlike_most_other_vessels_of_her_class_the_Sea_Dog_mounts_a_gyro-stablized,_remote_controlled_machine_gun_on_a_pedestal_on_her_bow_-c.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Can He Muzzle the Pup Without Disturbing the Big Dog - DPLA - 8185bdad7704e6dcc42902c26ef56459.jpg",
+    "auteur": "Bartholomew, Charles Lewis 'Bart', 1869-1949",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Can_He_Muzzle_the_Pup_Without_Disturbing_the_Big_Dog_-_DPLA_-_8185bdad7704e6dcc42902c26ef56459.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:New White House sentry. \"King Tut,\" President Hoover's big German police dog, now makes the rounds of the police sentry boxes in the White House grounds through the night. He is shown with LCCN2016889266.jpg",
+    "auteur": "Harris &amp; Ewing, photographer",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:New_White_House_sentry._%22King_Tut,%22_President_Hoover%27s_big_German_police_dog,_now_makes_the_rounds_of_the_police_sentry_boxes_in_the_White_House_grounds_through_the_night._He_is_shown_with_LCCN2016889266.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:Seminole Josie Billie with Family and Dog WDL4029.png",
+    "auteur": "Small, George",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Seminole_Josie_Billie_with_Family_and_Dog_WDL4029.png",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:Woman standing near house in in deep snow with small dog, probably Nome, Alaska, circa 1910-1912 (AL+CA 7853).jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Woman_standing_near_house_in_in_deep_snow_with_small_dog,_probably_Nome,_Alaska,_circa_1910-1912_(AL%2BCA_7853).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quelle-lettre-vient-juste-apres-a-dans-l-alphabet": [
+   {
+    "n": 1,
+    "titre": "Word Letters",
+    "auteur": "Words as Pictures",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/word-letters-BLRAORQYEP",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Word Letters",
+    "auteur": "Words as Pictures",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/word-letters-8X6QDD1S5F",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Words Money",
+    "auteur": "Words as Pictures",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/words-money-ZESD0JN87X",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 4,
+    "titre": "Word Letters",
+    "auteur": "Words as Pictures",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/word-letters-ITTLCAWYKW",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 5,
+    "titre": "Cash Flow",
+    "auteur": "Words as Pictures",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/cash-flow-XUITRGCOXL",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 6,
+    "titre": "Word Letters",
+    "auteur": "Words as Pictures",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/word-letters-SNK7GS7JV9",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-que-sort-souvent-un-magicien-de-son-chapeau": [
+   {
+    "n": 1,
+    "titre": "File:Rabbit Goes To Your Head- Hat Manufacture in Britain, 1940 D1297.jpg",
+    "auteur": "Richard Stone",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Rabbit_Goes_To_Your_Head-_Hat_Manufacture_in_Britain,_1940_D1297.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:The Film Daily (1928) featuring Oswald the Lucky Rabbit (cropped).jpg",
+    "auteur": "Winkler Productions, Universal, The Film Daily",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:The_Film_Daily_(1928)_featuring_Oswald_the_Lucky_Rabbit_(cropped).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Postcard advertising Congrès Magique International, 1939.jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Postcard_advertising_Congr%C3%A8s_Magique_International,_1939.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:C. A. Herpich Söhne, Berlin, Modewaren 1910 (Prospekt)14.jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:C._A._Herpich_S%C3%B6hne,_Berlin,_Modewaren_1910_(Prospekt)14.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:Konijn in een hoge hoed met een mes en een kaars, RP-F-2001-7-1453-20.jpg",
+    "auteur": "Rijksmuseum",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Konijn_in_een_hoge_hoed_met_een_mes_en_een_kaars,_RP-F-2001-7-1453-20.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:Passe-Tems (BM 1857,0520.440).jpg",
+    "auteur": "Print made by: Victor Adam\n\nPrinted by: Lemercier &amp; Cie\nPublished by: Hilaire Aumont\nPublished by: Tessari",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Passe-Tems_(BM_1857,0520.440).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-nombre-vient-juste-apres-99": [
+   {
+    "n": 1,
+    "titre": "Money Currency",
+    "auteur": "Andrew Pons",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/money-currency-ITA18FXIBL",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "File:One hundred dalasi.jpg",
+    "auteur": "Mansatajah",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:One_hundred_dalasi.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Album 1 of One Hundred Poems by One Hundred Poets in the manner of Tawaraya Sotatsu 5.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Album_1_of_One_Hundred_Poems_by_One_Hundred_Poets_in_the_manner_of_Tawaraya_Sotatsu_5.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Album 1 of One Hundred Poems by One Hundred Poets in the manner of Tawaraya Sotatsu 10.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Album_1_of_One_Hundred_Poems_by_One_Hundred_Poets_in_the_manner_of_Tawaraya_Sotatsu_10.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:Album 2 of One Hundred Poems by One Hundred Poets in the manner of Tawaraya Sotatsu 28.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Album_2_of_One_Hundred_Poems_by_One_Hundred_Poets_in_the_manner_of_Tawaraya_Sotatsu_28.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:Album 2 of One Hundred Poems by One Hundred Poets in the manner of Tawaraya Sotatsu 9.jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Album_2_of_One_Hundred_Poems_by_One_Hundred_Poets_in_the_manner_of_Tawaraya_Sotatsu_9.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-a-pierre-feuille-ciseaux-qu-est-ce-qui-bat-la-pierre": [
+   {
+    "n": 1,
+    "titre": "File:Rps2010 2.jpg",
+    "auteur": "james bamber",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Rps2010_2.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Mushi-ken (虫拳), Japanese rock-paper-scissors variant, from the Kensarae sumai zue (1809).jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Mushi-ken_(%E8%99%AB%E6%8B%B3),_Japanese_rock-paper-scissors_variant,_from_the_Kensarae_sumai_zue_(1809).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Kitsune-ken (狐拳), Japanese rock-paper-scissors variant, from the Genyoku sui bento (1774).jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Kitsune-ken_(%E7%8B%90%E6%8B%B3),_Japanese_rock-paper-scissors_variant,_from_the_Genyoku_sui_bento_(1774).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Geisha Playing the Hand-Game Kitsune-ken (狐拳), a Japanese rock-paper-scissors variant, by Kikukawa Eizan (菊川英山).jpg",
+    "auteur": "Kikukawa Eizan",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Geisha_Playing_the_Hand-Game_Kitsune-ken_(%E7%8B%90%E6%8B%B3),_a_Japanese_rock-paper-scissors_variant,_by_Kikukawa_Eizan_(%E8%8F%8A%E5%B7%9D%E8%8B%B1%E5%B1%B1).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:THE GAME OF KEN. (1910) - illustration - page 315.png",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:THE_GAME_OF_KEN._(1910)_-_illustration_-_page_315.png",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:CARAT 2012 121109-N-QU339-010.jpg",
+    "auteur": "FFG 57",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:CARAT_2012_121109-N-QU339-010.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-a-pierre-feuille-ciseaux-qu-est-ce-qui-bat-la-feuille": [
+   {
+    "n": 1,
+    "titre": "File:Rps2010 2.jpg",
+    "auteur": "james bamber",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Rps2010_2.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Geisha Playing the Hand-Game Kitsune-ken (狐拳), a Japanese rock-paper-scissors variant, by Kikukawa Eizan (菊川英山).jpg",
+    "auteur": "Kikukawa Eizan",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Geisha_Playing_the_Hand-Game_Kitsune-ken_(%E7%8B%90%E6%8B%B3),_a_Japanese_rock-paper-scissors_variant,_by_Kikukawa_Eizan_(%E8%8F%8A%E5%B7%9D%E8%8B%B1%E5%B1%B1).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Kitsune-ken (狐拳), Japanese rock-paper-scissors variant, from the Genyoku sui bento (1774).jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Kitsune-ken_(%E7%8B%90%E6%8B%B3),_Japanese_rock-paper-scissors_variant,_from_the_Genyoku_sui_bento_(1774).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Tora-ken (虎拳), Japanese rock-paper-scissors variant, from the Kensarae sumai zue (1809).jpg",
+    "auteur": "",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Tora-ken_(%E8%99%8E%E6%8B%B3),_Japanese_rock-paper-scissors_variant,_from_the_Kensarae_sumai_zue_(1809).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:THE GAME OF KEN. (1910) - illustration - page 315.png",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:THE_GAME_OF_KEN._(1910)_-_illustration_-_page_315.png",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:Stochastic game 2 graphs plus a label.png",
+    "auteur": "BagLuke",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Stochastic_game_2_graphs_plus_a_label.png",
+    "source": "commons"
+   }
+  ],
+  "qc-qui-perd-sa-pantoufle-de-verre-en-quittant-le-bal": [
+   {
+    "n": 1,
+    "titre": "File:Leslie Caron in 'The Glass Slipper', 1955.jpg",
+    "auteur": "Metro-Goldwyn-Mayer",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Leslie_Caron_in_%27The_Glass_Slipper%27,_1955.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Lisa Daniels in The Glass Slipper.jpg",
+    "auteur": "unknown (MGM)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Lisa_Daniels_in_The_Glass_Slipper.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Estelle Winwood The Glass Slipper trailer (1955).jpg",
+    "auteur": "Trailer screenshot (MGM)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Estelle_Winwood_The_Glass_Slipper_trailer_(1955).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Original Design Sketch Glass Slipper Dragster Roy Cortopassi 1954.jpg",
+    "auteur": "Kevincortopassi",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Original_Design_Sketch_Glass_Slipper_Dragster_Roy_Cortopassi_1954.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:Wally Parks Letter Invitation to Hawaii Ed Cortopassi Glass Slipper 1957.jpg",
+    "auteur": "Kevincortopassi",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Wally_Parks_Letter_Invitation_to_Hawaii_Ed_Cortopassi_Glass_Slipper_1957.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:Elsa Lanchester The Glass Slipper trailer (1955).jpg",
+    "auteur": "Trailer screenshot (MGM)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Elsa_Lanchester_The_Glass_Slipper_trailer_(1955).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qui-croque-la-pomme-empoisonnee": [
+   {
+    "n": 1,
+    "titre": "File:Shiny red apples.jpg",
+    "auteur": "Leon Brooks",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Shiny_red_apples.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qui-a-un-nez-qui-grandit-quand-il-ment": [
+   {
+    "n": 1,
+    "titre": "File:Le avventure di Pinocchio-pag007.jpg",
+    "auteur": "Carlo Chiostri",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Le_avventure_di_Pinocchio-pag007.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Le avventure di Pinocchio-pag164.jpg",
+    "auteur": "Carlo Chiostri",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Le_avventure_di_Pinocchio-pag164.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Le avventure di Pinocchio-pag133.jpg",
+    "auteur": "Carlo Chiostri",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Le_avventure_di_Pinocchio-pag133.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Le avventure di Pinocchio-pag107.jpg",
+    "auteur": "Carlo Chiostri",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Le_avventure_di_Pinocchio-pag107.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:Le avventure di Pinocchio-pag177.jpg",
+    "auteur": "Carlo Chiostri",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Le_avventure_di_Pinocchio-pag177.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:Le avventure di Pinocchio-pag284.jpg",
+    "auteur": "Carlo Chiostri",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Le_avventure_di_Pinocchio-pag284.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-comment-s-appelle-le-bonhomme-de-neige-de-la-reine-des-neiges": [
+   {
+    "n": 1,
+    "titre": "Snowman Scarf",
+    "auteur": "Alexey Topolyanskiy",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/snowman-scarf-A0ZLU5X6WN",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Snowman Christmas",
+    "auteur": "Travel Photographer",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/snowman-christmas-1KFT5UJUZV",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Holiday Snowman",
+    "auteur": "Seacoast Sage",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/holiday-snowman-OODOQYMF41",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 4,
+    "titre": "Snowman Holiday",
+    "auteur": "Travel Photographer",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/snowman-holiday-WZ7HOQGV2Q",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 5,
+    "titre": "Snowman Holiday",
+    "auteur": "Travel Photographer",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/snowman-holiday-2EXYDBN6WY",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 6,
+    "titre": "Snowman Holiday",
+    "auteur": "Travel Photographer",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/snowman-holiday-F5EGZ9S8KI",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quel-jouet-est-le-meilleur-ami-de-woody-dans-toy-story": [
+   {
+    "n": 1,
+    "titre": "File:CREW TRAINING (TOYS) - STS-51E - JSC.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:CREW_TRAINING_(TOYS)_-_STS-51E_-_JSC.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:A Cosmic Connection- USSF Astronaut Calls STEM Students from ISS (8763913).jpg",
+    "auteur": "U.S. Space Force photo by Tech. Sgt. Jordan Thompson",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:A_Cosmic_Connection-_USSF_Astronaut_Calls_STEM_Students_from_ISS_(8763913).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Douglas Hurley, Robert Behnken and Tremor.png",
+    "auteur": "NASA Live: Official Stream of NASA TV",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Douglas_Hurley,_Robert_Behnken_and_Tremor.png",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Douglas G. Hurley, Robert L. Behnken and Trimmer.png",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Douglas_G._Hurley,_Robert_L._Behnken_and_Trimmer.png",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:51D-11-015 - STS-51D - Toys In Space - DPLA - fae540ca38054e33f71dee897647362c.jpg",
+    "auteur": "National Aeronautics and Space Administration. Lyndon B. Johnson Space Center. 2/17/1973",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:51D-11-015_-_STS-51D_-_Toys_In_Space_-_DPLA_-_fae540ca38054e33f71dee897647362c.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:(iss063e030657) A U.S. spacesuit is pictured with plush-doll mascots.jpg",
+    "auteur": "NASA",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:(iss063e030657)_A_U.S._spacesuit_is_pictured_with_plush-doll_mascots.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-de-quelle-couleur-est-shrek": [
+   {
+    "n": 1,
+    "titre": "File:Mike Leavitt with Shrek and the elementary school children who attended the kick-off event.jpg",
+    "auteur": "(HHS Photo by Chris Smith)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Mike_Leavitt_with_Shrek_and_the_elementary_school_children_who_attended_the_kick-off_event.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Shrek star (Hollywood Walk of Fame stars) July 2022.JPG",
+    "auteur": "Benoît Prieur",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Shrek_star_(Hollywood_Walk_of_Fame_stars)_July_2022.JPG",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Shrek castle.jpg",
+    "auteur": "Iscream icecream",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Shrek_castle.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Shrek guinea pig.jpg",
+    "auteur": "NoamDonagi",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Shrek_guinea_pig.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:Velo-folklo-shrek-2024.jpg",
+    "auteur": "Asjonmakli",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Velo-folklo-shrek-2024.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:Hollywood Walk of Fame - Shrek.jpg",
+    "auteur": "Andrek02",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Hollywood_Walk_of_Fame_-_Shrek.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-chez-qui-boucle-d-or-entre-t-elle": [
+   {
+    "n": 1,
+    "titre": "File:Sarah McGregor Combing Teddy 1918.jpg",
+    "auteur": "Sarah McGregor (British, fl. 1907-1918)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Sarah_McGregor_Combing_Teddy_1918.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Operation Teddy Bear 131217-F-UN487-003.jpg",
+    "auteur": "Tech. Sgt. Amelia Leonard",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Operation_Teddy_Bear_131217-F-UN487-003.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Operation Teddy Bear 131217-F-UN487-005.jpg",
+    "auteur": "Tech. Sgt. Amelia Leonard",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Operation_Teddy_Bear_131217-F-UN487-005.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Operation Teddy Bear 131217-F-UN487-044.jpg",
+    "auteur": "Tech. Sgt. Amelia Leonard",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Operation_Teddy_Bear_131217-F-UN487-044.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:DROWN, ELIZABETH LCCN2016858907.jpg",
+    "auteur": "Harris &amp; Ewing, photographer",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:DROWN,_ELIZABETH_LCCN2016858907.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:US Navy 051108-N-0050T-127 Commander, Destroyer Squadron Two Three, Capt. Mike Smith gives his son a teddy bear after departing the nuclear-powered aircraft carrier USS Nimitz (CVN 68) on board Naval Air Station North Island, C.jpg",
+    "auteur": "U.S. Navy photo by Photographer's Mate 2nd Class Patricia R. Totemeier",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:US_Navy_051108-N-0050T-127_Commander,_Destroyer_Squadron_Two_Three,_Capt._Mike_Smith_gives_his_son_a_teddy_bear_after_departing_the_nuclear-powered_aircraft_carrier_USS_Nimitz_(CVN_68)_on_board_Naval_Air_Station_North_Island,_C.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-de-quelle-couleur-est-le-ciel-quand-il-fait-beau": [
+   {
+    "n": 1,
+    "titre": "blue sky",
+    "auteur": "rallie1@yahoo.com",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/40129118@N08/51455500234",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 2,
+    "titre": "Blue Sky and Cirrus Clouds",
+    "auteur": "Thad Zajdowicz",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/40632439@N00/51917058124",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "Blue Sky",
+    "auteur": "Gerrit Vermeulen",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/blue-sky-H2TSSJD4MV",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 4,
+    "titre": "Nice blue sky with ominous clouds",
+    "auteur": "maggie jones.",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/24329363@N00/52517059182",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 5,
+    "titre": "Blue Sky",
+    "auteur": "Vadim Sherbakov",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/blue-sky-E1C34B4580",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 6,
+    "titre": "Blue Sky",
+    "auteur": "John Salzarulo",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/blue-sky-LMO16F8U2U",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-qu-est-ce-qui-tombe-du-ciel-quand-il-pleut": [
+   {
+    "n": 1,
+    "titre": "Rain Drops",
+    "auteur": "AJ Montpetit",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/rain-drops-A3GM7T9ZDV",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Rain Drops",
+    "auteur": "Rhendi Rukmana",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/rain-drops-5Y2TVGW2D1",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Rain Drops",
+    "auteur": "Min An",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/rain-drops-YYLGRHEGST",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 4,
+    "titre": "Rain Drops",
+    "auteur": "Nature's Beauty",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/rain-drops-SG6J7Q209K",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 5,
+    "titre": "Rain Drops",
+    "auteur": "AJ Montpetit",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/rain-drops-RS47U87JM0",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 6,
+    "titre": "Rain Drops",
+    "auteur": "Jadon Barnes",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/rain-drops-D84B3F83A9",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-d-ou-vient-la-pluie": [
+   {
+    "n": 1,
+    "titre": "Sky Dark",
+    "auteur": "Marc Wieland",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/sky-dark-EITG86ZLPT",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Raining Raindrops",
+    "auteur": "Rowan Heuvel",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/raining-raindrops-AWI4TCQWK3",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Misty Morning",
+    "auteur": "Johannes Plenio",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/misty-morning-KPUOS5LKI1",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 4,
+    "titre": "Man Alone",
+    "auteur": "Nick Scheerbart",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/man-alone-7PH22TT1MX",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 5,
+    "titre": "Audi Car",
+    "auteur": "Lalesh Aldarwish",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/audi-car-DZ60BOABJK",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 6,
+    "titre": "Fog City",
+    "auteur": "Burst",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/fog-city-SFKZHJODOV",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-que-devient-l-eau-quand-elle-gele": [
+   {
+    "n": 1,
+    "titre": "Ice Cube",
+    "auteur": "Altered Reality",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/ice-cube-FFJ1LG6DXV",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Ice Cube",
+    "auteur": "Altered Reality",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/ice-cube-CUJ6CNN6PN",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Bottles Bucket",
+    "auteur": "Tim Sullivan",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/bottles-bucket-JSPZC5TUQR",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 4,
+    "titre": "Ice cubes close up",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/5905278/ice-cubes-close-up-free-public-domain-cc0-photo",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 5,
+    "titre": "Free party liquors glasses ice",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/5916924/photo-image-public-domain-glass-ice",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 6,
+    "titre": "Free ice image",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/5924375/free-ice-image-public-domain-cc0-photo",
+    "source": "openverse/rawpixel"
+   }
+  ],
+  "qc-quel-arbre-decore-t-on-a-noel": [
+   {
+    "n": 1,
+    "titre": "Christmas Tree",
+    "auteur": "Pexels",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/christmas-tree-GL4ERI3S31",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Christmas Tree",
+    "auteur": "Aaron Burden",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/christmas-tree-FJJVRK164H",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Christmas Tree",
+    "auteur": "Negative Space",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/christmas-tree-N1NMGDKR8U",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 4,
+    "titre": "Christmas Tree",
+    "auteur": "Altered Reality",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/christmas-tree-HVIEOG49YA",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 5,
+    "titre": "Christmas Tree",
+    "auteur": "Pawel Kadysz",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/christmas-tree-O7R5XV5J2W",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 6,
+    "titre": "Christmas Tree",
+    "auteur": "Negative Space",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/christmas-tree-NQWDTIV66E",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-qu-est-ce-qui-apparait-dans-le-ciel-quand-le-soleil-brille-pendant-la-pl": [
+   {
+    "n": 1,
+    "titre": "Rainbow Sky",
+    "auteur": "Abigail Keenan",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/rainbow-sky-XLZH9NMVAF",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Rainbow Sky",
+    "auteur": "Simon Schmitt",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/rainbow-sky-0IQH5YRNZP",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Rainbow Sky",
+    "auteur": "Ian Livesey",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/rainbow-sky-PAQC3Z5YDJ",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 4,
+    "titre": "Rainbow Sky",
+    "auteur": "Skitter Photo",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/rainbow-sky-2590C18BD6",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 5,
+    "titre": "Rainbow Sky",
+    "auteur": "Sergei Gussev",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/rainbow-sky-IZ8N7DMHGX",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 6,
+    "titre": "Mountain Landscape",
+    "auteur": "Robert Lukeman",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/mountain-landscape-978C9IB8S8",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quelle-plante-pleine-de-piquants-pousse-dans-le-desert": [
+   {
+    "n": 1,
+    "titre": "Child Holding",
+    "auteur": "Josh Willink",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/child-holding-2BCPJOPH7T",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Succulent Plant",
+    "auteur": "Matt Bango",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/succulent-plant-XFMN5AJSWD",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Nature Landscape",
+    "auteur": "Ashim%20D%u2019Silva",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/nature-landscape-GA6M2LVKOT",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 4,
+    "titre": "Desert Sand",
+    "auteur": "frank mckenna",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/desert-sand-KOS30MNS09",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 5,
+    "titre": "Desert Landscape",
+    "auteur": "Matt Bango",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/desert-landscape-6RNPBMUXYQ",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 6,
+    "titre": "Rocky Desert",
+    "auteur": "Matt Bango",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/rocky-desert-XUPEF3KNYO",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quel-fruit-rouge-a-de-petits-grains-sur-sa-peau": [
+   {
+    "n": 1,
+    "titre": "Red Strawberries",
+    "auteur": "Peter Belch",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/red-strawberries-VUTKKYY1YD",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Red Strawberries",
+    "auteur": "Freestocks.org",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/red-strawberries-NAJN9P6LHG",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Strawberries Strawberry",
+    "auteur": "Suzy Hazelwood",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/strawberries-strawberry-CAZRYFJVPL",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 4,
+    "titre": "Strawberries Strawberry",
+    "auteur": "Freestocks.org",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/strawberries-strawberry-9EBKHF2XNV",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 5,
+    "titre": "Strawberries Fruits",
+    "auteur": "Igor Trepeshchenok",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/strawberries-fruits-RTRCZHW8HI",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 6,
+    "titre": "Strawberry Strawberries",
+    "auteur": "Leeroy",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/strawberry-strawberries-9D128F28F1",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-quel-fruit-jaune-faut-il-eplucher-avant-de-le-manger": [
+   {
+    "n": 1,
+    "titre": "Bananas Fruits",
+    "auteur": "Ryan McGuire",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/bananas-fruits-D0C5D92CD9",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Bananas Orange",
+    "auteur": "Pawel Kadysz",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/bananas-orange-U125J0OWSY",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Bananas Blueberries",
+    "auteur": "Nirzar Pangarkar",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/bananas-blueberries-2TUFJQXQ8Q",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 4,
+    "titre": "Bananas Orange",
+    "auteur": "Piotr Lohunko",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/bananas-orange-63ZQSDZUPT",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 5,
+    "titre": "Plantains Bananas",
+    "auteur": "Henry Doe",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/plantains-bananas-72U96GCL0M",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 6,
+    "titre": "Two older bananas on a gray cloth",
+    "auteur": "Josh Pollock",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/31362117d6/",
+    "source": "openverse/wordpress"
+   }
+  ],
+  "qc-quel-fruit-jaune-est-tres-acide": [
+   {
+    "n": 1,
+    "titre": "Lemons Fruits",
+    "auteur": "Lauren Mancke",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/lemons-fruits-W28QPZPAK6",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Lemons",
+    "auteur": "Thad Zajdowicz",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/40632439@N00/51427721961",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "Yellow Lemons",
+    "auteur": "Patryk Dziejma",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/yellow-lemons-4CIBHHJOHE",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 4,
+    "titre": "Yellow Lemons",
+    "auteur": "Ernest Porzi",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/yellow-lemons-TTIFTEAX6W",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 5,
+    "titre": "Lemons Fruits",
+    "auteur": "Erol Ahmed",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/lemons-fruits-Q5IJJ9JLJ6",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 6,
+    "titre": "File:Citrus x limon - Köhler–s Medizinal-Pflanzen-041.jpg",
+    "auteur": "Franz Eugen Köhler, Köhler's Medizinal-Pflanzen",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Citrus_x_limon_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-041.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quel-fruit-marron-et-poilu-est-vert-a-l-interieur": [
+   {
+    "n": 1,
+    "titre": "Flatlay Sliced",
+    "auteur": "Flat Lay Photos",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/flatlay-sliced-N46OEECGTE",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Healthy Fruit",
+    "auteur": "Healthy Living",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/healthy-fruit-BA6TKGUFLV",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Free kiwi, slices, white background",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/5904925/photo-image-background-public-domain-fruit",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 4,
+    "titre": "Sliced Kiwi Fruit White Background",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/5968899/sliced-kiwi-fruit-white-background",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 5,
+    "titre": "Closeup fresh cut kiwi",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/6035909/photo-image-public-domain-green-fruit",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 6,
+    "titre": "Closeup pile dried kiwifruit",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/6035536/photo-image-public-domain-green-fruit",
+    "source": "openverse/rawpixel"
+   }
+  ],
+  "qc-quel-gros-fruit-vert-est-rouge-a-l-interieur": [
+   {
+    "n": 1,
+    "titre": "Watermelon Slices",
+    "auteur": "Designecologist",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/watermelon-slices-MUUNLSBAGD",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Free watermelon slice wooden table",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/5908283/image-public-domain-plant-fruit",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 3,
+    "titre": "Watermelon slice enamel pin denim",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/11524360/watermelon-slice-enamel-pin-denim-close-up",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 4,
+    "titre": "Woman Girl",
+    "auteur": "Kristina Paukshtite",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/woman-girl-II2VI1FAM1",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 5,
+    "titre": "Fresh Sliced",
+    "auteur": "Daria Shevtsova",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/fresh-sliced-PXYZABNWNW",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 6,
+    "titre": "Free watermelon image",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/5915387/image-public-domain-plant-fruit",
+    "source": "openverse/rawpixel"
+   }
+  ],
+  "qc-avec-quel-legume-fait-on-la-puree": [
+   {
+    "n": 1,
+    "titre": "File:Potato flowers 2016 G1.jpg",
+    "auteur": "George Chernilevsky",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Potato_flowers_2016_G1.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:234 Solanum tuberosum L.jpg",
+    "auteur": "Amédée Masclef",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:234_Solanum_tuberosum_L.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Dettaglio - Solanaceae Solanum tuberosum Lin. Erbario Frizzi Perugia n. 3916.jpg",
+    "auteur": "Giuseppe Frizzi",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Dettaglio_-_Solanaceae_Solanum_tuberosum_Lin._Erbario_Frizzi_Perugia_n._3916.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Ареал Solanum tuberosum GBIF.jpg",
+    "auteur": "https://www.gbif.org",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:%D0%90%D1%80%D0%B5%D0%B0%D0%BB_Solanum_tuberosum_GBIF.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:Solanum tuberosum Puca Quitish.jpg",
+    "auteur": "Ordercrazy",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Solanum_tuberosum_Puca_Quitish.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:MashedPotatoes.jpg",
+    "auteur": "Renee Comet (photographer)",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:MashedPotatoes.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-quels-animaux-geants-ont-disparu-il-y-a-des-millions-d-annees": [
+   {
+    "n": 1,
+    "titre": "Dinosaur skeleton in New York Museum",
+    "auteur": "ChrisEdwardsCE",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/5062d626f0/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 2,
+    "titre": "A small dinosaur skeleton on display at Pittsburgh’s Carnegie Museum",
+    "auteur": "Josh Pollock",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/98862360df/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 3,
+    "titre": "Big dinosaur skeletons at Pittsburgh’s Carnegie Museum",
+    "auteur": "Josh Pollock",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/97962355b4/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 4,
+    "titre": "Small dino dig toy",
+    "auteur": "mdburnette",
+    "licence": "cc0 1.0",
+    "page": "https://wordpress.org/photos/photo/2126221fc3/",
+    "source": "openverse/wordpress"
+   },
+   {
+    "n": 5,
+    "titre": "068 A Dinosaur Skeleton Model Hanging On The Ceiling",
+    "auteur": "The Fun Chronicles",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/196406308@N04/52380371775",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 6,
+    "titre": "Fossil Dinosaur Skeleton",
+    "auteur": "Gary Lee Todd, Ph.D.",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/101561334@N08/53176711168",
+    "source": "openverse/flickr"
+   }
+  ],
+  "qc-dans-quoi-vivaient-les-rois-et-les-chevaliers-au-moyen-age": [
+   {
+    "n": 1,
+    "titre": "Medieval Castle of Lindos",
+    "auteur": "Stephen Reed",
+    "licence": "pdm 1.0",
+    "page": "https://www.flickr.com/photos/28025634@N00/36432116093",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 2,
+    "titre": "Warwick Castle, a medieval castle located in Warwick, Warwickshire, England. Circa 1895",
+    "auteur": "snelson951",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/106274066@N07/54906996324",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 3,
+    "titre": "Well in a medieval castle, Zakarpattia region, Ukraine",
+    "auteur": "DanilsPhotosHD",
+    "licence": "cc0 1.0",
+    "page": "https://www.flickr.com/photos/203101123@N06/55316329690",
+    "source": "openverse/flickr"
+   },
+   {
+    "n": 4,
+    "titre": "Winter View Courtyard Medieval Castle",
+    "auteur": "themet",
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/9330143/image-art-watercolor-vintage",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 5,
+    "titre": "Free German medieval castle image",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/5908500/image-public-domain-free-travel",
+    "source": "openverse/rawpixel"
+   },
+   {
+    "n": 6,
+    "titre": "medieval castle hill town Luxembourg",
+    "auteur": null,
+    "licence": "cc0 1.0",
+    "page": "https://www.rawpixel.com/image/3291409/free-photo-image-cottage-architecture-building",
+    "source": "openverse/rawpixel"
+   }
+  ],
+  "qc-au-feu-quelle-couleur-veut-dire-stop": [
+   {
+    "n": 1,
+    "titre": "City Lights",
+    "auteur": "FOCA Stock",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/city-lights-M7NJY0QZ5W",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Traffic Light",
+    "auteur": "The Building Envelope",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/traffic-light-OC95U1MDU7",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Transportation Sign",
+    "auteur": "Matt Bango",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/transportation-sign-DZIZGF80RG",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 4,
+    "titre": "Traffic Light",
+    "auteur": "The Building Envelope",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/traffic-light-6YKYJTMGYA",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 5,
+    "titre": "Traffic Light",
+    "auteur": "The Building Envelope",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/traffic-light-EDPRMVRFVN",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 6,
+    "titre": "Traffic Light",
+    "auteur": "The Building Envelope",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/traffic-light-YLDG1TLSX5",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-qui-apporte-les-lettres-dans-la-boite-aux-lettres": [
+   {
+    "n": 1,
+    "titre": "File:DALL·E - Illustration of Chinese postman in the past riding a mulepack to deliver letters, wood engraving.png",
+    "auteur": "MrAlanKoh via DALL-E 2",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:DALL%C2%B7E_-_Illustration_of_Chinese_postman_in_the_past_riding_a_mulepack_to_deliver_letters,_wood_engraving.png",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:Postman delivering mail, location unknown, ca 1910 (INDOCC 223).jpg",
+    "auteur": "Unknown authorUnknown author",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Postman_delivering_mail,_location_unknown,_ca_1910_(INDOCC_223).jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:New Zealand Postman Out On Bicycle.jpg",
+    "auteur": "Ingolfson",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:New_Zealand_Postman_Out_On_Bicycle.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:옛 우편물 집배원 1921년-서울역사.jpg",
+    "auteur": "서울역사박물관 02-724-0274~6",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:%EC%98%9B_%EC%9A%B0%ED%8E%B8%EB%AC%BC_%EC%A7%91%EB%B0%B0%EC%9B%90_1921%EB%85%84-%EC%84%9C%EC%9A%B8%EC%97%AD%EC%82%AC.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:Ancient Mandarin Officer cum Mail Courier riding a horse.png",
+    "auteur": "Unknown Germany Engraver artist",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Ancient_Mandarin_Officer_cum_Mail_Courier_riding_a_horse.png",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:Mail Carrier dogsledding team, Canoe Lake (I0002744).jpg",
+    "auteur": "Gordon W. Powley",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Mail_Carrier_dogsledding_team,_Canoe_Lake_(I0002744).jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qui-coupe-les-cheveux": [
+   {
+    "n": 1,
+    "titre": "Scissors Comb",
+    "auteur": "Candace McDaniel",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/scissors-comb-A5M4RVGZKE",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "File:Haircut or hair Salon From Iran- Canon Photography- Mostafa Meraji- fashion Photo 07.jpg",
+    "auteur": "Mostafameraji",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Haircut_or_hair_Salon_From_Iran-_Canon_Photography-_Mostafa_Meraji-_fashion_Photo_07.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:Haircut or hair Salon From Iran- Canon Photography- Mostafa Meraji- fashion Photo 02.jpg",
+    "auteur": "Mostafameraji",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Haircut_or_hair_Salon_From_Iran-_Canon_Photography-_Mostafa_Meraji-_fashion_Photo_02.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:Haircut or hair Salon From Iran- Canon Photography- Mostafa Meraji- fashion Photo 05.jpg",
+    "auteur": "Mostafameraji",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Haircut_or_hair_Salon_From_Iran-_Canon_Photography-_Mostafa_Meraji-_fashion_Photo_05.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:Haircut or hair Salon From Iran- Canon Photography- Mostafa Meraji- fashion Photo 01.jpg",
+    "auteur": "Mostafameraji",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Haircut_or_hair_Salon_From_Iran-_Canon_Photography-_Mostafa_Meraji-_fashion_Photo_01.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:Haircut or hair Salon From Iran- Canon Photography- Mostafa Meraji- fashion Photo 04.jpg",
+    "auteur": "Mostafameraji",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Haircut_or_hair_Salon_From_Iran-_Canon_Photography-_Mostafa_Meraji-_fashion_Photo_04.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qui-fait-la-classe-aux-eleves": [
+   {
+    "n": 1,
+    "titre": "Apple Textbooks",
+    "auteur": "Michal Jarmoluk",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/apple-textbooks-NAOWFGI5EF",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 2,
+    "titre": "Apple Textbooks",
+    "auteur": "Michal Jarmoluk",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/apple-textbooks-NVJ4Q1I7K0",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 3,
+    "titre": "Open Books",
+    "auteur": "Matt Bango",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/open-books-HECYA5SP1L",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 4,
+    "titre": "Apple Textbook",
+    "auteur": "Michal Jarmoluk",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/apple-textbook-9HWH04LZWX",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 5,
+    "titre": "Stacked Books",
+    "auteur": "Matt Bango",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/stacked-books-DGF2LFZ6JJ",
+    "source": "openverse/stocksnap"
+   },
+   {
+    "n": 6,
+    "titre": "Home Education",
+    "auteur": "Words as Pictures",
+    "licence": "cc0 1.0",
+    "page": "https://stocksnap.io/photo/home-education-BG5ITY3BNT",
+    "source": "openverse/stocksnap"
+   }
+  ],
+  "qc-qui-fait-rire-les-enfants-au-cirque-avec-son-nez-rouge": [
+   {
+    "n": 1,
+    "titre": "File:Barnum & Bailey clowns and geese2.jpg",
+    "auteur": "The Strobridge Litho. Co., Cincinnati &amp; New York.",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Barnum_%26_Bailey_clowns_and_geese2.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 2,
+    "titre": "File:(Albi) Clown du cirque Fernando - Joseph Faverot (~1885) HT.jpg",
+    "auteur": "Didier Descouens",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:(Albi)_Clown_du_cirque_Fernando_-_Joseph_Faverot_(~1885)_HT.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 3,
+    "titre": "File:The Circus Clown lobby card.jpg",
+    "auteur": "First National-Vitaphone",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:The_Circus_Clown_lobby_card.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 4,
+    "titre": "File:5 circus clowns LCCN2002718921.jpg",
+    "auteur": "Miscellaneous Items in High Demand, PPOC, Library of Congress",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:5_circus_clowns_LCCN2002718921.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 5,
+    "titre": "File:Circus & Clown Museum Wien.jpg",
+    "auteur": "Wyleyr",
+    "licence": "CC0",
+    "page": "https://commons.wikimedia.org/wiki/File:Circus_%26_Clown_Museum_Wien.jpg",
+    "source": "commons"
+   },
+   {
+    "n": 6,
+    "titre": "File:Circus Clowns (1922) - 1.jpg",
+    "auteur": "Century Film / Universal Pictures",
+    "licence": "Public domain",
+    "page": "https://commons.wikimedia.org/wiki/File:Circus_Clowns_(1922)_-_1.jpg",
+    "source": "commons"
+   }
+  ],
+  "qc-qu-est-ce-qu-un-aimant-attire": []
+ }
+}
