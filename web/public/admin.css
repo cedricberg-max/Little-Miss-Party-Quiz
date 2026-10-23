@@ -921,3 +921,20 @@ button.media-tile:hover { border-color: var(--violet); }
 @media (max-width: 640px) { .reprendre-zone { padding-left: 0; } }
 /* Profil : « Automatique, selon l'âge », « Adultes (16 ans et plus) » se lisent en entier sur PC (règle 10). */
 @media (min-width: 900px) { .grid > label:has(#show-profile) { grid-column: span 2; } }
+
+/* Mimes dans une prestation (cedric, 23/10) : une manche par équipe, dans la couleur de son bracelet ; ses images
+   tirées au 🎲, chacune avec sa ✕ (un 🎲 prend sa place). */
+.round-body > .mime-ancienne { flex: 1 1 100%; margin: 0; }
+.round-body > .mime-equipes { flex: 1 1 100%; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; min-width: 0; }
+.mime-equipe { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 10px 12px; border-radius: 14px; background: var(--card); border: 1px solid var(--line-2); box-shadow: inset 5px 0 0 var(--c); }
+.mime-equipe-tete { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.mime-equipe-tete .rond { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 2px rgba(45, 30, 58, .15); }
+.mime-equipe-tete .mime-completer { margin-left: auto; }
+.mime-images { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.mime-image { display: flex; align-items: center; gap: 10px; min-height: 40px; }
+.mime-image .tirage-photo, .mime-image .tirage-mini { height: 48px; width: 64px; }
+.mime-image .tirage-mini.emoji { font-size: 30px; }
+.mime-mot { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.mime-image .tirage-retirer { flex: none; width: 32px; height: 32px; border-radius: 10px; font-size: 14px; }
+.mime-image .tirage-de.petit { font-size: 18px; padding: 4px 14px; }
+.mime-image.deja .mime-mot { color: var(--bad, #b3261e); }

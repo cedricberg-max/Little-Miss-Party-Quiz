@@ -6,7 +6,7 @@ import { CHANTE_WORDS, QUI_SUIS_JE, DISPARU_THEMES } from "./buzz-cards.js";
 import { PICTO_WORDS, PICTO_OWN_SERIES } from "./picto-cards.js";
 import { concepts, questionConcepts, neufsSiPossible } from "./jamais-deux-fois.js";
 import { BANQUE, questionBanque, avecPhoto, disparuPhotos, imageLibre } from "./banque-photos.js";
-import { TEAM_COLORS } from "./theme.js";
+import { TEAM_COLORS, TEAM_COLOR_NAMES } from "./theme.js";
 
 /**
  * Portes mystères (jeu final) : 3 ou 4 portes, chacune cache un bonus ou un malus qui peut renverser le classement ;
@@ -387,7 +387,7 @@ export const pictoRoundSeries = (round) => {
 };
 
 export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || round.type === "statues" || round.type === "pictionary" || round.type === "portes" || round.type === "coffres" || round.type === "gonfleur" || round.type === "patate" ? true
-  : round.type === "mimes" ? round.deckId || round.random === true || mimeCards(round.cards).length
+  : round.type === "mimes" ? round.deckId || round.random === true || mimeCards(round.cards).length || mimeEquipes(round).some((l) => l.length)
   : MUSIC_GAMES[round.type] ? round.playlistId || roundTracks(round).length
   : (round.type === "zoom" || round.type === "flou") && roundPicks(round).length ? true
   : roundSeriesQuiz(round).some((x) => x.origine === "quiz" || questionsEnLigne(x.questions).length) || roundTirees(round).length || roundQuizIds(round).length));
@@ -560,7 +560,38 @@ export const mimeCards = (list) => listOf(list).filter((c) => typeof c?.word ===
     ...(typeof c.image === "string" && c.image.trim() ? { image: c.image.trim().slice(0, 16) } : {}),
     // Photo à soi, choisie dans la Régie PC : elle remplace l'émoji sur la TV.
     ...(typeof c.imageId === "string" && /^[0-9a-f]{16}$/.test(c.imageId) ? { imageId: c.imageId } : {}),
+    // Photo libre de la banque (clé de son mot), copiée dans la partie par la régie au lancement.
+    ...(!c.imageId && typeof c.banque === "string" && /^[a-z0-9_-]{1,60}$/.test(c.banque) ? { banque: c.banque } : {}),
   }));
+
+/**
+ * Mimes, une présélection par équipe (cedric, 23/10 : « autant de manches que d'équipes », le 🎲 seul) : les images
+ * tirées pour chaque équipe, dans l'ordre des couleurs de la prestation (`equipes` : une liste par équipe, la 1re pour
+ * la 1re couleur…). Une image retirée ({ vide: true }, en attente de son 🎲) n'est pas jouée.
+ */
+export const MIME_EQUIPES_MAX = 20;
+/**
+ * Les présélections telles qu'enregistrées, une liste par équipe (au plus 8), cases vides comprises ({ vide: true }).
+ * Lues par leur rang : la base garde une équipe sans images comme un trou (`{ 0: […], 2: […] }`), jamais décalée.
+ */
+export function mimeEquipesBrutes(round) {
+  const e = round?.type === "mimes" ? round?.equipes : null;
+  const parRang = Array.isArray(e) ? e.slice(0, 8) : e && typeof e === "object" ? Array.from({ length: 8 }, (_, k) => e[k]) : [];
+  while (parRang.length && !listOf(parRang[parRang.length - 1]).length) parRang.pop();
+  return parRang.map((liste) => listOf(liste).slice(0, MIME_EQUIPES_MAX)
+    .map((c) => (c?.vide === true ? { vide: true } : mimeCards([c])[0])).filter(Boolean));
+}
+export const mimeEquipes = (round) => mimeEquipesBrutes(round).map((liste) => liste.filter((c) => !c.vide));
+/** Sources du 🎲 des Mimes, choisies par Sarah (« Mes images » : exception à la règle du hasard accordée par cedric). */
+export const MIME_SOURCES = { photos: "📷 Photos libres", emojis: "😀 Émojis", miennes: "🖼️ Mes images" };
+/** Titre de la manche de mimes d'une équipe (« Équipe Rose ») : la régie y retrouve la couleur de l'équipe qui joue. */
+export const titreMimeEquipe = (couleur) => `Équipe ${TEAM_COLOR_NAMES[TEAM_COLORS.indexOf(couleur)] ?? "suivante"}`;
+/** La couleur d'une manche de mimes d'une équipe, d'après son titre ; null pour une manche de mimes ordinaire. */
+export function couleurMimeEquipe(text) {
+  const nom = /^Équipe (\S+)$/.exec(`${text ?? ""}`.trim())?.[1];
+  const k = nom ? TEAM_COLOR_NAMES.findIndex((x) => x.toLowerCase() === nom.toLowerCase()) : -1;
+  return k >= 0 ? TEAM_COLORS[k] : null;
+}
 
 /** Cartes tirées par « Mimes au hasard » quand Sarah n'a rien précisé. */
 export const MIME_RANDOM = 30;
@@ -676,7 +707,7 @@ export function fixedConcepts(round, quizzes = {}, mimes = {}, contents = {}) {
   const type = round?.type;
   if (type === "mimes") {
     const deck = round.deckId ? mimes?.[round.deckId] : null;
-    return [...mimeCards(round.cards), ...(deck ? mimeCards(deck.cards) : [])].flatMap(concepts);
+    return [...mimeCards(round.cards), ...(deck ? mimeCards(deck.cards) : []), ...mimeEquipes(round).flat()].flatMap(concepts);
   }
   if (type === "chante" || type === "quisuis" || type === "pictionary") {
     return pickedItems(type, contents?.[type], roundPicks(round)).flatMap((x) => builtinConcepts(type, x));
@@ -812,8 +843,14 @@ export const PAR_EQUIPE_MIN = 3;
  * toujours (tous les mots actifs, ou de quoi jouer pour chaque équipe) ; seule une liste faite à la main peut manquer.
  * Rend le message, ou null.
  */
-export function alerteEquipes(round, teams, { mimes = {}, contents = {}, profile = null } = {}) {
+export function alerteEquipes(round, teams, { mimes = {}, contents = {}, profile = null, couleurs = null } = {}) {
   const n = teamCount(teams);
+  if (round?.type === "mimes" && mimeEquipes(round).some((l) => l.length)) {
+    // Une présélection par équipe (cedric, 23/10) : chaque équipe prévue doit avoir ses images.
+    const c = Array.isArray(couleurs) && couleurs.length === n ? couleurs : TEAM_COLORS.slice(0, n);
+    const sans = c.filter((x, k) => !mimeEquipes(round)[k]?.length).map((x) => titreMimeEquipe(x).toLowerCase());
+    return sans.length ? `Mimes : ${sans.join(", ")} sans images (touchez 🎲).` : null;
+  }
   const besoin = PAR_EQUIPE_MIN * n;
   const pour = `pour ${n} équipe${n > 1 ? "s" : ""}, il en faut au moins ${besoin} (${PAR_EQUIPE_MIN} par équipe)`;
   if (round?.type === "patate" && n < 2) return "« Ça va exploser ! » se joue à 2 équipes au moins : une seule équipe est prévue.";
@@ -854,6 +891,22 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
   const quizDesBougies = premierQuiz(show.rounds, quizzes);
   (show.rounds ?? []).filter(Boolean).map((r) => [r, jeuDeLaManche(r, quizzes)]).forEach(([prepare, round], i) => {
     begin(round.type);
+    if (round.type === "mimes" && mimeEquipes(round).some((l) => l.length)) {
+      // Une manche de mimes par équipe (cedric, 23/10), à la suite dans le même jeu : la 1re couleur de la prestation
+      // joue la 1re présélection, et ainsi de suite. Chaque équipe ne mime que ses images, pendant un tour.
+      const couleurs = couleursEquipes(show);
+      const equipes = mimeEquipes(round);
+      const duration = Number.isInteger(round.duration) && round.duration >= 15 && round.duration <= 180 ? round.duration : MIME_TURN;
+      const vides = couleurs.filter((c, k) => !equipes[k]?.length);
+      if (vides.length) problems.push(`Manche ${i + 1} (Mimes) : ${vides.map((c) => titreMimeEquipe(c).toLowerCase()).join(", ")} sans images (🎲 dans la Régie PC).`);
+      const jouees = couleurs.map((c, k) => [c, equipes[k] ?? []]).filter(([, cartes]) => cartes.length);
+      if (!jouees.length) return;
+      rounds.push({ title: ROUND_TYPES.mimes, count: jouees.length, kind: "mime" });
+      jouees.forEach(([c, cartes], k) => questions.push({
+        id: `r${i + 1}m${k + 1}`, text: titreMimeEquipe(c), kind: "mime", duration, cards: shuffle(cartes, random), round: ROUND_TYPES.mimes,
+      }));
+      return;
+    }
     if (round.type === "mimes") {
       const deck = round.deckId ? mimes[round.deckId] : null;
       if (!deck && round.random !== true && !mimeCards(round.cards).length) { problems.push(`Manche ${i + 1} : le paquet de mimes n'existe plus dans la bibliothèque.`); return; }
@@ -1178,9 +1231,11 @@ export function dureeEstimee(snapshot, show = {}) {
   const equipes = teamCount(show?.teams);
   const manches = (show?.rounds ?? []).filter(Boolean);
   const questions = snapshot.quiz.questions;
-  // Une manche de mimes « r3m » est la 3e manche de la prestation : son nombre de mimes par équipe.
+  // Une manche de mimes « r3m » est la 3e manche de la prestation : son nombre de mimes par équipe. Une manche de mimes
+  // d'une seule équipe (« r3m2 », cedric, 23/10) : un tour.
   const parEquipe = (q) => mimePerTeam(manches[Number(/^r(\d+)m$/.exec(q.id ?? "")?.[1]) - 1]);
-  const jeu = questions.reduce((t, q) => t + secondesDeJeu(q, equipes, q.kind === "mime" ? parEquipe(q) : 0), 0);
+  const jeu = questions.reduce((t, q) => t + (q.kind === "mime" && couleurMimeEquipe(q.text) ? secondesDeJeu(q, 1, 1)
+    : secondesDeJeu(q, equipes, q.kind === "mime" ? parEquipe(q) : 0)), 0);
   // Un jeu commence à chaque nouvelle manche (« r3… » : la 3e), sauf la Super Finale, jouée à la suite de son quiz.
   const manche = (q) => /^r(\d+)/.exec(q.id ?? "")?.[1];
   const jeux = questions.filter((q, k) => k === 0 || (!q.finale && manche(q) !== manche(questions[k - 1]))).length;

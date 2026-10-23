@@ -16,7 +16,7 @@ import {
   roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC, PICTO_SECONDS, PICTO_SEC, PICTO_POINTS, PICTO_RULE,
   blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras, contentSlot, contentImages,
   pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches, isArchived, AUTO_ARCHIVE_DAYS, quizKind,
-  roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS,
+  roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS, mimeEquipes, mimeEquipesBrutes, MIME_SOURCES, mimePerTeam,
   isStatuesList, statuesSongs, statuesChoices, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS, builtinConcepts, isPhotoTheme, disparuGroup,
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, alerteEquipes, EQUIPES_PAR_DEFAUT, pourLeHasard, premierQuiz,
   launchStates, launchLabelPc, couleursEquipes, teamCount, roundTirees, chiffresDuTirage, MAX_TIREES,
@@ -1090,6 +1090,166 @@ function mimeSelection(r) {
   });
 }
 
+/** Durées d'un tour de mimes proposées (secondes). */
+const MIME_DUREES = [30, 45, 60, 90, 120];
+/** Ce que montre une image de mimes, pour « jamais deux fois » : sa photo à soi par son identifiant, sinon son mot et son émoji. */
+const conceptsMime = (c) => (c?.imageId ? [`i:${c.imageId}`] : concepts(c ?? {}));
+/** Images retirées (✕) d'une manche de mimes pendant la saisie : le 🎲 de leur case ne les redonne pas. */
+const mimesRetires = new WeakMap();
+
+/**
+ * Les images que le 🎲 des Mimes peut tirer, selon la source choisie par Sarah (cedric, 23/10) : photos libres, émojis
+ * ou ses images (« Mes images », exception à la règle du hasard accordée par cedric pour les mimes).
+ */
+function imagesPourMimes(source) {
+  if (source === "emojis") return emojisBibliotheque().map((x) => ({ word: x.nom, image: x.emoji }));
+  if (source === "miennes") return groupesImages().miennes.map((x) => ({ word: `${x.nom ?? ""}`.trim() || "Image", imageId: x.id }));
+  return photosLibres().map((x) => ({ word: x.nom, image: x.emoji, banque: x.id.slice(BANQUE.length) }));
+}
+
+/**
+ * Pioche [n] images de mimes pour la manche [r], jamais une qui montre déjà quelque chose de [prises] (concepts de la
+ * manche, mis à jour) ; d'abord celles qu'aucune autre manche de la prestation ne montre (« jamais deux fois »).
+ */
+function piocherMimes(r, n, prises) {
+  if (n <= 0) return [];
+  const ailleurs = roundCtx.elsewhere?.(r) ?? new Map();
+  const toutes = shuffle(imagesPourMimes(r.source)).map((c) => mimeCards([c])[0]).filter(Boolean);
+  const neuves = toutes.filter((c) => !conceptsMime(c).some((k) => ailleurs.has(k)));
+  const out = [];
+  for (const c of [...neuves, ...toutes.filter((x) => !neuves.includes(x))]) {
+    if (out.length >= n) break;
+    if (conceptsMime(c).some((k) => prises.has(k))) continue;
+    conceptsMime(c).forEach((k) => prises.add(k));
+    out.push(c);
+  }
+  return out;
+}
+
+/** Concepts déjà dans la manche de mimes [r] (toutes équipes) et ceux qu'on y a retirés. */
+const prisesMimes = (r) => new Set([...mimeEquipes(r).flat().flatMap(conceptsMime), ...(mimesRetires.get(r) ?? [])]);
+
+/**
+ * Mimes dans une prestation (cedric, 23/10) : rien que le 🎲, « autant de manches que d'équipes ». Sarah choisit la
+ * source des images, le nombre d'images par équipe et la durée du tour ; le 🎲 tire pour chaque équipe sa
+ * présélection, dans l'ordre des couleurs de la prestation. ✕ retire une image et laisse un 🎲 à sa place.
+ */
+function mancheMimes(r) {
+  const couleurs = couleursSaisies.length ? couleursSaisies : couleursEquipes({ teams: ctxTeams() });
+  const n = couleurs.length;
+  if (!MIME_SOURCES[r.source]) r.source = "photos";
+  const par = mimePerTeam(r) || MIME_PER_TEAM_DEFAULT;
+  // Moins d'équipes prévues : les présélections en trop partent.
+  if (mimeEquipesBrutes(r).length > n) r.equipes = mimeEquipesBrutes(r).slice(0, n);
+  const equipes = mimeEquipesBrutes(r);
+  const tire = equipes.some((l) => l.length);
+  const changer = () => roundCtx.refresh();
+  /** Le 🎲 : une présélection neuve pour chaque équipe, les images réparties une à une (s'il en manque, à toutes un peu). */
+  const tirerTout = () => {
+    mimesRetires.delete(r);
+    const cartes = piocherMimes(r, par * n, new Set());
+    r.equipes = couleurs.map((_, k) => cartes.filter((__, j) => j % n === k));
+    r.perTeam = par;
+    // L'ancienne façon de préparer la manche (paquet, tirage au lancement) laisse la place.
+    r.deckId = null; r.random = null; r.cards = null; r.photos = null;
+    changer();
+  };
+  /** Complète l'équipe [k] (ses cases vides et ce qui manque jusqu'au nombre choisi). */
+  const completer = (k) => {
+    const brutes = mimeEquipesBrutes(r);
+    const liste = [...(brutes[k] ?? [])];
+    while (liste.length < par) liste.push({ vide: true });
+    const nouvelles = piocherMimes(r, liste.filter((c) => c.vide).length, prisesMimes(r));
+    const remplie = liste.map((c) => (c.vide ? nouvelles.shift() ?? c : c));
+    r.equipes = couleurs.map((_, j) => (j === k ? remplie : brutes[j] ?? []));
+    r.perTeam = par;
+    changer();
+  };
+  const tirerUne = (k, i) => {
+    const brutes = mimeEquipesBrutes(r);
+    const liste = [...(brutes[k] ?? [])];
+    while (liste.length <= i) liste.push({ vide: true });
+    const [c] = piocherMimes(r, 1, prisesMimes(r));
+    if (!c) return annonce("Plus d'image à tirer dans cette source : choisissez-en une autre.");
+    liste[i] = c;
+    r.equipes = couleurs.map((_, j) => (j === k ? liste : brutes[j] ?? []));
+    changer();
+  };
+  const retirer = (k, i) => {
+    const brutes = mimeEquipesBrutes(r);
+    const c = brutes[k][i];
+    mimesRetires.set(r, new Set([...(mimesRetires.get(r) ?? []), ...conceptsMime(c)]));
+    r.equipes = brutes.map((l, j) => (j === k ? l.map((x, y) => (y === i ? { vide: true } : x)) : l));
+    changer();
+  };
+  const source = h("select", {
+    class: "mime-source", "aria-label": "Où prendre les images à mimer",
+    // Une autre source : tout est tiré à nouveau dedans.
+    onchange: (e) => { r.source = e.target.value; if (tire) tirerTout(); else changer(); },
+  }, ...Object.entries(MIME_SOURCES).map(([k, label]) => h("option", { value: k, selected: k === r.source, text: `Images : ${label}` })));
+  const nombre = h("select", {
+    class: "mime-par-equipe", "aria-label": "Images par équipe",
+    onchange: (e) => {
+      const k = Number(e.target.value);
+      r.perTeam = k;
+      // Moins d'images : chaque équipe garde ses premières ; plus : le 🎲 complète chaque équipe.
+      if (tire) {
+        const brutes = mimeEquipesBrutes(r).map((l) => l.slice(0, k));
+        const prises = new Set(brutes.flat().flatMap(conceptsMime));
+        r.equipes = couleurs.map((_, j) => {
+          const l = [...(brutes[j] ?? [])];
+          return [...l, ...piocherMimes(r, k - l.length, prises)];
+        });
+      }
+      changer();
+    },
+  }, ...MIME_PER_TEAM.map((k) => h("option", { value: k, selected: k === par, text: `${k} images par équipe` })));
+  const duree = h("select", {
+    class: "mime-duree", "aria-label": "Durée du tour",
+    onchange: (e) => { r.duration = Number(e.target.value) === MIME_TURN ? null : Number(e.target.value); roundCtx.summary(); },
+  }, ...MIME_DUREES.map((k) => h("option", { value: k, selected: k === (r.duration ?? MIME_TURN), text: `Tour de ${k} s par équipe` })));
+  const de = h("button", {
+    type: "button", class: "btn tirage-de", text: "🎲", "aria-label": "Tirer les images de chaque équipe au hasard",
+    title: `Tirer ${par} images pour chacune des ${n} équipes`, onclick: tirerTout,
+  });
+  const total = mimeEquipes(r).flat().length;
+  const compteur = h("p", { class: "quiz-compteur", "aria-live": "polite",
+    text: tire ? `${n} équipe${n > 1 ? "s" : ""} × ${par} image${par > 1 ? "s" : ""}${total < n * par ? ` · ${n * par - total} à tirer` : ""}` : "Aucune image pour l'instant : touchez 🎲" });
+  const autres = roundCtx.elsewhere?.(r) ?? new Map();
+  const ailleurs = (c) => { const k = conceptsMime(c).find((x) => autres.has(x)); return k ? autres.get(k) : null; };
+  const vignette = (c) => apercuPhoto(c) ?? h("span", { class: "tirage-mini emoji", text: c.image ?? "🎭" });
+  const blocs = tire ? couleurs.map((couleur, k) => {
+    const liste = [...(equipes[k] ?? [])];
+    while (liste.length < par) liste.push({ vide: true });
+    const manque = liste.filter((c) => c.vide).length;
+    return h("section", { class: "mime-equipe", style: `--c: ${couleur}`, "data-couleur": nomCouleur(couleur) },
+      h("div", { class: "mime-equipe-tete" },
+        h("span", { class: "rond" }),
+        h("b", { text: `Manche de l'équipe ${nomCouleur(couleur)}` }),
+        h("span", { class: "small hint", text: `${par - manque} image${par - manque > 1 ? "s" : ""}` }),
+        manque ? h("button", { type: "button", class: "chip mime-completer", text: `🎲 Tirer ${manque > 1 ? `les ${manque} images` : "l'image"} qui manque${manque > 1 ? "nt" : ""}`, onclick: () => completer(k) }) : null),
+      h("ul", { class: "mime-images" }, ...liste.map((c, i) => (c.vide
+        ? h("li", { class: "mime-image vide" }, h("button", {
+          type: "button", class: "btn tirage-de petit", text: "🎲", "aria-label": `Tirer une autre image pour l'équipe ${nomCouleur(couleur)}`,
+          title: "Tirer une autre image", onclick: () => tirerUne(k, i),
+        }))
+        : h("li", { class: `mime-image${ailleurs(c) ? " deja" : ""}`, title: ailleurs(c) ? `Déjà utilisée dans ${ailleurs(c)}` : c.word },
+          vignette(c),
+          h("span", { class: "mime-mot", text: c.word }),
+          h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": `Retirer « ${c.word} »`, title: "Retirer cette image (un 🎲 prend sa place)", onclick: () => retirer(k, i) }))))));
+  }) : [];
+  // Une manche préparée avant (un paquet, un tirage au lancement) : elle se joue encore telle quelle.
+  const ancienne = !tire && (r.deckId || r.random === true || mimeCards(r.cards).length)
+    ? h("p", { class: "small hint mime-ancienne", text: `Manche préparée à l'ancienne : ${mancheSummary(r, { mimes })}, jouée telle quelle. Le 🎲 la remplace par une présélection pour chaque équipe.` })
+    : null;
+  return [
+    compteur,
+    h("div", { class: "quiz-outils" }, h("div", { class: "tirage-ligne" }, source, nombre, duree, de)),
+    ancienne,
+    tire ? h("div", { class: "mime-equipes" }, ...blocs) : null,
+  ].filter(Boolean);
+}
+
 /** Jeux intégrés et Pictionary : éléments choisis un par un parmi ceux de la page du jeu. */
 function picksSelection(r) {
   const game = CONTENT_GAMES[r.type];
@@ -1297,7 +1457,8 @@ function refreshRounds() {
         replie ? h("span", { class: "jeu-resume", text: resume }) : null,
         // Le Quiz est une seule manche (cedric, 23/10) : pas de « ＋ Manche », ses questions s'ajoutent dans la manche.
         estEnSeries(b.type) ? null : h("span", { class: "jeu-nb", text: n > 1 ? `${n} manches` : "1 manche" }),
-        estEnSeries(b.type) || replie ? null : h("button", { type: "button", class: "chip jeu-plus", text: "＋ Manche", title: `Ajouter une manche de ${ROUND_TYPES[b.type]}`, onclick: ajouterManche }),
+        // Mimes : une manche par équipe, toutes dans la même (cedric, 23/10) ; pas de seconde manche à ajouter.
+        estEnSeries(b.type) || b.type === "mimes" || replie ? null : h("button", { type: "button", class: "chip jeu-plus", text: "＋ Manche", title: `Ajouter une manche de ${ROUND_TYPES[b.type]}`, onclick: ajouterManche }),
         h("button", { type: "button", class: "icon", title: "Monter ce jeu", disabled: k === 0, onclick: () => deplacer(-1), text: "↑" }),
         h("button", { type: "button", class: "icon", title: "Descendre ce jeu", disabled: k === blocs.length - 1, onclick: () => deplacer(1), text: "↓" }),
         h("button", { type: "button", class: "icon", title: "Retirer ce jeu", onclick: retirerJeu, text: "✕" })),
@@ -1307,11 +1468,12 @@ function refreshRounds() {
         const vide = !roundFilled(r);
         const champs = roundFields(r);
         // Le compteur du Quiz sur la ligne de son numéro (cedric, 23/10).
-        const compteur = estEnSeries(b.type) ? champs.find((x) => x?.classList?.contains("quiz-compteur")) ?? null : null;
+        const compteur = estEnSeries(b.type) || b.type === "mimes" ? champs.find((x) => x?.classList?.contains("quiz-compteur")) ?? null : null;
         const corps = h("div", { class: "round-body" }, ...champs.filter((x) => x !== compteur));
         // Créer d'abord (les champs ci-dessus), reprendre ensuite (cedric, 23/10). Pas pour le Quiz (cedric, 23/10) :
         // ses questions viennent du 🎲 et du quiz d'une prestation archivée (« Rappeler un de vos quiz »).
-        const reprise = SANS_CONTENU.includes(b.type) || estEnSeries(b.type) ? null : reprendreManche(r, (next) => {
+        // Ni pour les Mimes (cedric, 23/10 : « uniquement mon bouton dé »).
+        const reprise = SANS_CONTENU.includes(b.type) || estEnSeries(b.type) || b.type === "mimes" ? null : reprendreManche(r, (next) => {
           editing.rounds[i] = next;
           refreshRounds();
         });
@@ -1331,7 +1493,7 @@ function refreshRounds() {
 
 /** Alerte rouge sous une manche dont le contenu ne suffit pas aux équipes prévues (cedric, 21/10). */
 function alerteManche(r) {
-  const texte = alerteEquipes(r, ctxTeams(), { mimes, contents, profile: roundCtx.profile?.() });
+  const texte = alerteEquipes(r, ctxTeams(), { mimes, contents, profile: roundCtx.profile?.(), couleurs: roundCtx === prestationCtx ? couleursSaisies : null });
   return texte ? h("p", { class: "alerte-equipes", role: "alert", text: `⚠ ${texte}` }) : null;
 }
 
@@ -2258,6 +2420,8 @@ function roundFields(r) {
       }),
       roundPicks(r).length || r.byItem ? itemSelection(r, "picks") : quizSelection(r, options))
     : quiz ? null : quizSelection(r, options);
+  // Mimes dans une prestation (cedric, 23/10) : le 🎲 seul, une présélection par équipe.
+  if (r.type === "mimes" && roundCtx === prestationCtx) return mancheMimes(r);
   return [
     // Quiz, Quiz illustré (cedric, 23/10) : une seule manche faite de séries (🎲, quiz rappelés, questions écrites, reprises).
     ...(quiz ? mancheQuiz(r) : [content]),
@@ -2412,6 +2576,8 @@ function choisirCouleur(i, c) {
   couleursSaisies[i] = c;
   pastilleOuverte = -1;
   renderCouleurs();
+  // Les mimes ont une manche par couleur d'équipe : leurs titres suivent.
+  if (editing?.rounds?.some((r) => r?.type === "mimes")) refreshRounds();
 }
 $("round-add").onclick = () => ouvrirChoixJeu();
 
@@ -2419,7 +2585,7 @@ $("round-add").onclick = () => ouvrirChoixJeu();
 function roundContent(r) {
   if (!r?.type && !r?.quizId) return null;
   if (BUILTIN_GAMES[r.type] || r.type === "statues" || r.type === "pictionary" || r.type === "coffres" || r.type === "portes" || r.type === "gonfleur" || r.type === "patate") return "";
-  if (r.type === "mimes") return r.deckId ? mimes[r.deckId]?.title ?? null : "cartes au hasard";
+  if (r.type === "mimes") return mimeEquipes(r).some((l) => l.length) ? mancheSummary(r, { mimes }) : r.deckId ? mimes[r.deckId]?.title ?? null : "cartes au hasard";
   if (MUSIC_GAMES[r.type]) return playlists[r.playlistId]?.title ?? null;
   if (roundTirees(r).length || roundSeriesQuiz(r).length) return mancheSummary(r, { quizzes });
   const titles = roundQuizIds(r).map((id) => quizzes[id]?.title);

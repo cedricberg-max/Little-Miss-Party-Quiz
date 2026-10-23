@@ -2950,3 +2950,91 @@ describe("Le quiz classique tout prêt : Juste Chiffre et questions à 4 répons
     assert.deepEqual([sans.ok, sans.manque, sans.image, sans.photo], [false, "Pas d'illustration", null, null]);
   });
 });
+
+describe("Mimes : une manche par équipe, sa présélection tirée au 🎲 (cedric, 23/10)", async () => {
+  const S = await import("../web/public/show.js");
+  const M = await import("../web/public/manches.js");
+  const B = await import("../web/public/banque-photos.js");
+  const { TEAM_COLORS } = await import("../web/public/theme.js");
+  const carte = (word, extra = {}) => ({ word, ...extra });
+  // Équipes rose, vert, orange (ordre choisi dans la prestation) : chacune ses images.
+  const round = {
+    type: "mimes", source: "photos", perTeam: 3, duration: 45,
+    equipes: [
+      [carte("Vache", { image: "🐄", banque: "vache" }), carte("Chat", { image: "🐱", banque: "chat" }), { vide: true }],
+      [carte("Lion", { image: "🦁" }), carte("Ma tata", { imageId: "0123456789abcdef" }), carte("Pomme", { image: "🍎" })],
+      [carte("Vélo", { image: "🚲" })],
+    ],
+  };
+  const show = { title: "Fête de Zoé", age: 9, teams: 3, teamColors: [TEAM_COLORS[0], TEAM_COLORS[2], TEAM_COLORS[1]], rounds: [round] };
+
+  test("titre d'une manche d'équipe ↔ sa couleur, pour les 8 couleurs ; une manche de mimes ordinaire n'a pas de couleur", () => {
+    TEAM_COLORS.forEach((c) => assert.equal(S.couleurMimeEquipe(S.titreMimeEquipe(c)), c));
+    assert.equal(S.titreMimeEquipe(TEAM_COLORS[1]), "Équipe Orange");
+    assert.equal(S.couleurMimeEquipe("Équipe turquoise"), TEAM_COLORS[7]);
+    for (const t of ["Mimes", "Mimes au hasard", "Équipe des Licornes", "Équipe", "", null]) assert.equal(S.couleurMimeEquipe(t), null, `${t}`);
+  });
+
+  test("enregistrée : source, images par équipe (dans l'ordre des couleurs, cases retirées comprises), durée ; lue par rang", () => {
+    const propre = M.cleanRound({ ...round, deckId: "vieux", cards: [carte("Vieille")], random: true, photos: true });
+    assert.deepEqual(Object.keys(propre).sort(), ["duration", "equipes", "perTeam", "source", "type"]);
+    assert.equal(propre.equipes.length, 3);
+    assert.deepEqual(propre.equipes[0][2], { vide: true });
+    assert.deepEqual(propre.equipes[0][0], { word: "Vache", image: "🐄", banque: "vache" });
+    assert.deepEqual(propre.equipes[1][1], { word: "Ma tata", imageId: "0123456789abcdef" });
+    // Source inconnue : les photos libres.
+    assert.equal(M.cleanRound({ ...round, source: "pirate" }).source, "photos");
+    // La base garde une équipe sans images comme un trou : la 3e équipe reste la 3e.
+    const relue = { ...round, equipes: { 0: round.equipes[0], 3: round.equipes[2] } };
+    assert.equal(S.mimeEquipes(relue).length, 4);
+    assert.deepEqual(S.mimeEquipes(relue)[1], []);
+    assert.equal(S.mimeEquipes(relue)[3][0].word, "Vélo");
+    assert.ok(S.roundFilled(round));
+    assert.equal(M.mancheSummary(round), "6 images pour 3 équipes · 📷 Photos libres · tour de 45 s");
+    // Sans aucune image : rien à jouer, la manche n'est pas gardée.
+    assert.ok(!S.roundFilled({ type: "mimes", source: "emojis", equipes: [[{ vide: true }]] }));
+  });
+
+  test("la TV : une manche par équipe, dans l'ordre des couleurs de la prestation, sous un seul jeu « Mimes » (une seule présentation)", () => {
+    const { snapshot, problems } = S.buildSnapshot("zoe", show, {}, {}, () => 0.5);
+    assert.deepEqual(problems, []);
+    const qs = snapshot.quiz.questions;
+    assert.deepEqual(qs.map((q) => q.text), ["Équipe Rose", "Équipe Vert", "Équipe Orange"]);
+    assert.deepEqual(qs.map((q) => q.id), ["r1m1", "r1m2", "r1m3"]);
+    assert.ok(qs.every((q) => q.kind === "mime" && q.round === "Mimes" && q.duration === 45));
+    assert.deepEqual(snapshot.rounds.map((r) => [r.title, r.count]), [["Mimes", 3]]);
+    // Chaque équipe ne mime que ses images ; une case retirée ne se joue pas.
+    assert.deepEqual(qs[0].cards.map((c) => c.word).sort(), ["Chat", "Vache"]);
+    assert.deepEqual(qs[1].cards.map((c) => c.word).sort(), ["Lion", "Ma tata", "Pomme"]);
+    assert.equal(qs[1].cards.find((c) => c.word === "Ma tata").imageId, "0123456789abcdef");
+    // Photos libres : copiées dans la partie par la régie au lancement.
+    assert.deepEqual(B.banqueRefs(qs).map((x) => x.cle).sort(), ["chat", "vache"]);
+    // La régie copie aussi ses images à elle.
+    assert.ok(S.choiceImageIds(qs).includes("0123456789abcdef"));
+  });
+
+  test("une équipe prévue sans images : signalée (programme, alerte rouge), les autres jouent", () => {
+    const sans = { ...show, teams: 4, teamColors: [...show.teamColors, TEAM_COLORS[3]] };
+    const { snapshot, problems } = S.buildSnapshot("zoe", sans, {}, {}, () => 0.5);
+    assert.equal(snapshot.quiz.questions.length, 3);
+    assert.match(problems.join(" "), /équipe jaune sans images/);
+    assert.equal(S.alerteEquipes(round, 4, { couleurs: sans.teamColors }), "Mimes : équipe jaune sans images (touchez 🎲).");
+    assert.equal(S.alerteEquipes(round, 3, { couleurs: show.teamColors }), null);
+  });
+
+  test("durée estimée : un tour par équipe ; « jamais deux fois » : les images des mimes comptent dans toute la prestation", () => {
+    const { snapshot } = S.buildSnapshot("zoe", show, {}, {}, () => 0.5);
+    const D = S.DUREE_ESTIMEE;
+    const seul = { ...show, rounds: [] };
+    const avec = S.dureeEstimee(snapshot, show);
+    // 3 tours de 45 s, chacun suivi du changement d'équipe, et une présentation de jeu (pas trois).
+    const jeu = 3 * (45 + D.apresMime) + D.presentation;
+    const attendu = Math.ceil(((jeu + D.accueil + D.podium) * (1 + D.pauses)) / 300) * 5;
+    assert.equal(avec.minutes, attendu);
+    assert.equal(avec.jeux, 1);
+    assert.equal(S.dureeEstimee(null, seul), null);
+    const ailleurs = M.usedElsewhere([round, { type: "pictionary" }], 1);
+    for (const mot of ["vache", "lion", "velo"]) assert.ok([...ailleurs.keys()].some((k) => k.includes(mot)), mot);
+    assert.ok(ailleurs.has("i:0123456789abcdef"));
+  });
+});

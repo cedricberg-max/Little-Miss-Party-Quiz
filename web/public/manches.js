@@ -11,7 +11,7 @@ import {
   MAX_PICKS, MAX_STATUES_SONGS, quizKind, builtinConcepts, fixedConcepts, isPhotoTheme, disparuGroup, parPalierPhotos,
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, pourLeHasard, roundHasard, roundTirees,
   roundSeriesQuiz, questionsDeLaSerie, questionJouable, FACTEURS_FINALE, MAX_QUESTIONS_MANCHE, playable, estEnSeries,
-  estJeuDePhotos, signatureQuestion, questionsDuJeu, zoomRoundQuestions,
+  estJeuDePhotos, signatureQuestion, questionsDuJeu, zoomRoundQuestions, mimeEquipes, mimeEquipesBrutes, MIME_SOURCES,
 } from "./show.js";
 import { PROFILES } from "./profiles.js";
 import { FAMILLES_PETITS } from "./banque-petits.js";
@@ -258,7 +258,15 @@ export function cleanRound(r, playlists = {}) {
   const photos = (type === "mimes" || type === "disparu") && r.photos === true ? { photos: true } : {};
   if (BUILTIN_GAMES[type]) out = { type, count: r.count ?? BUILTIN_GAMES[type].count, ...(type === "disparu" && r.objects ? { objects: r.objects } : {}), ...photos, ...picks };
   // Mimes : un paquet, ou le catalogue au hasard ; cartes choisies (tirage modifié à la main) gardées dans la manche.
-  else if (type === "mimes") {
+  else if (type === "mimes" && mimeEquipesBrutes(r).some((l) => l.length)) {
+    // Une présélection par équipe, tirée au 🎲 (cedric, 23/10) : la source choisie, les images de chaque équipe dans
+    // l'ordre des couleurs (cases retirées comprises, en attente de leur 🎲), images par équipe et durée du tour.
+    out = {
+      type, source: MIME_SOURCES[r.source] ? r.source : "photos", equipes: mimeEquipesBrutes(r),
+      ...(mimePerTeam(r) ? { perTeam: mimePerTeam(r) } : {}),
+      ...(Number.isInteger(r.duration) && r.duration >= 15 && r.duration <= 180 ? { duration: r.duration } : {}),
+    };
+  } else if (type === "mimes") {
     const cards = mimeCards(r.cards).slice(0, 200);
     out = {
       type, ...(r.deckId ? { deckId: r.deckId } : cards.length ? {} : { random: true }), ...(cards.length ? { cards } : {}),
@@ -443,6 +451,12 @@ export function mancheGroups(manches, type, quizzes = null) {
 export function mancheSummary(round, lib = {}) {
   const r = round ?? {};
   const n = (k, unit) => (k ? `${k} ${COLLECTION_UNIT[r.type]?.[k > 1 ? 1 : 0] ?? unit}` : "");
+  if (r.type === "mimes" && mimeEquipes(r).some((l) => l.length)) {
+    const equipes = mimeEquipes(r).filter((l) => l.length).length;
+    const images = mimeEquipes(r).flat().length;
+    return [`${images} image${images > 1 ? "s" : ""} pour ${equipes} équipe${equipes > 1 ? "s" : ""}`, MIME_SOURCES[r.source] ?? MIME_SOURCES.photos,
+      `tour de ${r.duration ?? MIME_TURN} s`].join(" · ");
+  }
   if (r.type === "mimes") {
     const cards = mimeCards(r.cards).length;
     const deck = r.deckId ? lib.mimes?.[r.deckId] : null;

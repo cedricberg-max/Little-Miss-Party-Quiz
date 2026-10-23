@@ -10,7 +10,7 @@ import {
   soundIds, MUSIC_GAMES, playableTracks, STATUES_SEC, PICTO_SEC, isStatuesList, statuesSongs, MAX_STATUES_SONGS,
   isFutureRound, moveRound, removeRound, uniqueRoundTitle, roundQuizIds, roundTirees, roundSeriesQuiz, mimePool, mimeCards, CONTENT_GAMES, activeItems, pictoSeriesOf,
   isArchived, isPhotoTheme, disparuGroup, statuesChoices, quizQuestions, jeuDeLaManche, quizKind,
-  launchStates, launchLabel, jourHeure, isoDay,
+  launchStates, launchLabel, jourHeure, isoDay, couleurMimeEquipe,
 } from "./show.js";
 import { MIME_CATALOG } from "./mime-cards.js";
 import {
@@ -317,7 +317,10 @@ function nextLabel(st, teamCount) {
       if ((st.index ?? 0) + 1 >= (st.total ?? 0)) return "Résultats finaux 🏆";
       // Fin d'un jeu : on annonce le jeu qui commence, jamais une simple « question suivante ».
       const { next, questions } = gamesOf(st);
-      return next && next.start === (st.index ?? 0) + 1 ? `Jeu suivant : ${gameName(next, questions)} ▶` : "Question suivante";
+      if (next && next.start === (st.index ?? 0) + 1) return `Jeu suivant : ${gameName(next, questions)} ▶`;
+      // Mimes, une manche par équipe : la suivante est celle d'une autre couleur.
+      const suivante = questions[(st.index ?? 0) + 1];
+      return suivante?.kind === "mime" && couleurMimeEquipe(suivante.text) ? `Au tour de ${lEquipe(suivante.text)} ▶` : "Question suivante";
     }
     case "ended": {
       const { next, questions } = gamesOf(st);
@@ -996,10 +999,14 @@ function renderMime(st, teams) {
   // Un tour a été lancé depuis le choix (même si la régie ne l'a pas vu passer : écran éteint, reconnexion) :
   // le choix est oublié, et à la fin du tour la régie propose l'équipe qui a le moins joué.
   if (turns.length !== mimeTurnsSeen) { mimeTeam = null; mimeChosen = false; mimeTurnsSeen = turns.length; }
+  // Manche d'une seule équipe (cedric, 23/10) : l'équipe de sa couleur est choisie d'office.
+  const seule = equipesDeLaCouleur(st);
+  const titre = st.text ?? live.plan?.questions?.[st.index]?.text ?? "";
   if (playing) { mimeTeam = null; mimeChosen = false; }
   else if (!mimeChosen || !live.teams[mimeTeam]) {
     // Ordre d'inscription, en commençant par les équipes qui ont le moins joué (tri stable).
-    mimeTeam = [...teams].sort(([a], [b]) => turns.filter((t) => t === a).length - turns.filter((t) => t === b).length)[0]?.[0] ?? null;
+    const ordre = [...teams].sort(([a], [b]) => turns.filter((t) => t === a).length - turns.filter((t) => t === b).length);
+    mimeTeam = (seule?.length ? ordre.filter(([id]) => seule.includes(id)) : ordre)[0]?.[0] ?? null;
   }
   // Pictionary : un mot par tour, d'abord montré sur la tablette de l'équipe (m.secret), puis dessiné (m.team).
   const picto = st.kind === "pictionary";
@@ -1024,6 +1031,12 @@ function renderMime(st, teams) {
           : "Qui commence ? Choisissez l'équipe, faites retourner ses coéquipiers, puis montrez le mot au dessinateur."
     : playing
     ? `${name(playing)} joue : ${n(m.found ?? 0)} trouvé${(m.found ?? 0) > 1 ? "s" : ""} · ${m.left} carte${m.left > 1 ? "s" : ""} restante${m.left > 1 ? "s" : ""}`
+    : seule && m.last
+      ? `Tour terminé : ${name(m.last.team)} a trouvé ${n(m.last.found)}. Touchez « Voir le classement », puis passez à l'équipe suivante.`
+    : seule
+      ? seule.length
+        ? `Au tour de ${lEquipe(titre)} : ${name(mimeTeam ?? seule[0])}. Faites retourner celui qui devine, puis « Top départ ! ».`
+        : `Aucune équipe ${titre.replace(/^Équipe /, "")} dans la partie : choisissez l'équipe qui mime ces images, ou passez avec « Voir le classement ».`
     : m.last
         ? `Tour terminé : ${name(m.last.team)} a trouvé ${n(m.last.found)}. ${mimeRemaining(st).length ? "Qui joue maintenant ?" : "Toutes les équipes sont passées."}`
         : "Qui commence ? Choisissez l'équipe puis « Top départ ! ».";
@@ -1031,7 +1044,9 @@ function renderMime(st, teams) {
   // Équipes déjà passées et celles qui restent : la manche ne se termine qu'après toutes, ou sur décision.
   const remaining = mimeRemaining(st);
   const done = [...new Set(turns)].filter((id) => live.teams[id]).map(name);
-  $("mime-progress").textContent = !done.length
+  $("mime-progress").textContent = seule
+    ? done.length ? `Manche de ${lEquipe(titre)} jouée : touchez « Voir le classement ».` : `Manche de ${lEquipe(titre)} : ses ${m.left ?? 0} images`
+    : !done.length
     ? `À faire passer : ${remaining.map(name).join(", ") || "aucune équipe"}`
     : remaining.length
       ? `Déjà passées : ${done.join(", ")} · Restent : ${remaining.map(name).join(", ")}`
@@ -1404,13 +1419,34 @@ $("mime-minus").onclick = () => { const t = live.state?.mime?.team; if (t) send(
 $("mime-fix-minus").onclick = () => { const t = live.state?.mime?.last?.team; if (t) send("mime_fix", { team: t, delta: -1 }); };
 $("mime-fix-plus").onclick = () => { const t = live.state?.mime?.last?.team; if (t) send("mime_fix", { team: t, delta: 1 }); };
 
-/** Équipes inscrites qui ne sont pas encore passées dans la manche de mimes en cours. */
+/**
+ * Équipes inscrites qui ne sont pas encore passées dans la manche de mimes en cours. Manche d'une seule équipe
+ * (« Équipe Rose », cedric 23/10) : seulement l'équipe de cette couleur.
+ */
 function mimeRemaining(st) {
   const turns = st.mime?.turns ?? [];
+  const seule = equipesDeLaCouleur(st);
   return Object.entries(live.teams)
     .sort((a, b) => (a[1].joinedAt ?? 0) - (b[1].joinedAt ?? 0))
     .map(([id]) => id)
-    .filter((id) => !turns.includes(id));
+    .filter((id) => !turns.includes(id) && (!seule || seule.includes(id)));
+}
+
+/**
+ * Mimes, une manche par équipe (cedric, 23/10 : chaque équipe a sa présélection d'images) : les équipes inscrites de la
+ * couleur de la manche en cours (« Équipe Rose »), [] si aucune ; null pour une manche de mimes jouée par toutes.
+ */
+function equipesDeLaCouleur(st) {
+  if (st?.kind === "pictionary") return null;
+  const c = couleurMimeEquipe(st?.text ?? live.plan?.questions?.[st?.index]?.text);
+  if (!c) return null;
+  return Object.entries(live.teams).filter(([, t]) => `${t?.color ?? ""}`.toUpperCase() === c.toUpperCase()).map(([id]) => id);
+}
+
+/** « l'équipe Rose » : le titre d'une manche de mimes d'une seule équipe, dans une phrase. */
+function lEquipe(text) {
+  const t = `${text ?? ""}`;
+  return `l'${t.charAt(0).toLowerCase()}${t.slice(1)}`;
 }
 
 // ---------- Jeux de la prestation : en cours, suivant, secours ----------
@@ -1433,11 +1469,16 @@ const played = (r, st, index) => r.start <= index && st.phase !== "lobby";
 
 function gameName(r, questions) {
   const q = questions[r.start];
-  return q?.kind === "mime" ? `Mimes : ${q.text}` : q?.kind === "pictionary" ? "Pictionary" : r.title;
+  // Mimes, une manche par équipe (cedric, 23/10) : un seul jeu, « Mimes ».
+  return q?.kind === "mime" ? (couleurMimeEquipe(q.text) ? "Mimes" : `Mimes : ${q.text}`) : q?.kind === "pictionary" ? "Pictionary" : r.title;
 }
 
 function gameDetail(r, questions) {
   const q = questions[r.start];
+  if (q?.kind === "mime" && couleurMimeEquipe(q.text)) {
+    const k = r.end - r.start + 1;
+    return `une manche par équipe (${k}) · ${q.cards?.length ?? 0} images chacune · tour de ${q.duration} s`;
+  }
   if (q?.kind === "mime") return `${q.cards?.length ?? 0} cartes · tour de ${q.duration} s par équipe`;
   if (q?.kind === "pictionary") return `un mot par équipe · ${q.duration} s de dessin · ${q.points ?? 150} points`;
   const n = r.end - r.start + 1;

@@ -397,9 +397,9 @@ beforeEach(async () => {
 });
 afterEach(() => { box?.stop(); box = null; });
 
-async function addTeam(uid, name) {
+async function addTeam(uid, name, color = "#FF2D8A", joinedAt = Date.now()) {
   await env.withSecurityRulesDisabled((ctx) =>
-    set(ref(ctx.database(), `games/${CODE}/teams/${uid}`), { name, color: "#FF2D8A", joinedAt: Date.now() }));
+    set(ref(ctx.database(), `games/${CODE}/teams/${uid}`), { name, color, joinedAt }));
 }
 
 /**
@@ -749,6 +749,55 @@ describe("régie", () => {
     await page.locator("#c-phase", { hasText: "Scores" }).waitFor();
     assert.deepEqual((await read("state")).scores, { rose: 150, bleu: 100 });
     assert.equal(await page.locator("#mime").isHidden(), true);
+    await page.context().close();
+  });
+
+  test("Mimes, une manche par équipe (cedric, 23/10) : la régie choisit d'office l'équipe de la couleur, annonce la suivante, et passe une couleur absente", async () => {
+    const { TEAM_COLORS } = await import("../web/public/theme.js");
+    box = startBox();
+    // Licornes (orange) inscrite avant Dragons (rose) : c'est pourtant Dragons qui ouvre, sa couleur passe en premier.
+    await addTeam("licornes", "Licornes", TEAM_COLORS[1], 1000);
+    await addTeam("dragons", "Dragons", TEAM_COLORS[0], 2000);
+    const cartes = [{ word: "Chat", image: "🐱" }, { word: "Lion", image: "🦁" }];
+    const plan = ["Rose", "Orange", "Vert"].map((c, k) => ({ id: `r1m${k + 1}`, text: `Équipe ${c}`, kind: "mime", duration: 60, round: "Mimes", cards: cartes }));
+    await set(gameRef("conducteur"), { id: "zoe", title: "Zoé", rev: "r1", mimes: true, questions: plan });
+    await box.mimes(cartes);
+    const mime = (index) => ({ phase: "question", seq: box.state.seq + 1, index, qid: plan[index].id, kind: "mime", text: plan[index].text, total: 3, choices: null, deadline: null,
+      mime: { team: null, card: null, found: 0, passed: 0, left: 2, turns: [], counts: {}, points: 50 } });
+    await box.set(mime(0));
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    await page.locator('.mime-team.selected[data-team="dragons"]').waitFor();
+    await page.locator("#mime-info", { hasText: "Au tour de l'équipe Rose : Dragons." }).waitFor();
+    await page.locator("#mime-progress", { hasText: "Manche de l'équipe Rose : ses 2 images" }).waitFor();
+    assert.equal(await page.textContent("#c-step"), "Mimes · Équipe Rose");
+    // Un seul jeu « Mimes » dans le conducteur, pas trois.
+    assert.match(await page.textContent("#c-games"), /En cours : Mimes(?! :)/);
+    await page.locator("#mime-go", { hasText: "Top départ ! (Dragons)" }).click();
+    await page.locator("#mime-now .word", { hasText: "Chat" }).waitFor();
+    await page.click("#mime-found");
+    await page.locator("#c-next", { hasText: "Arrêter le tour" }).click();
+    await page.locator("#mime-info", { hasText: "Tour terminé : Dragons a trouvé 1 mime. Touchez « Voir le classement »" }).waitFor();
+    // L'équipe de la manche est passée : le classement, sans confirmation.
+    await page.locator("#c-next", { hasText: "Voir le classement" }).click();
+    await page.locator("#c-phase", { hasText: "Scores" }).waitFor();
+    assert.equal((await commands()).find((c) => c.type === "mime_start").team, "dragons");
+    // Entre deux équipes : le bouton annonce la suivante.
+    await page.locator("#c-next", { hasText: "Au tour de l'équipe Orange ▶" }).waitFor();
+
+    // La manche de l'équipe Orange : Licornes, choisie d'office ; la terminer avant son tour demande confirmation.
+    await box.set(mime(1));
+    await page.locator('.mime-team.selected[data-team="licornes"]').waitFor();
+    await page.locator("#mime-info", { hasText: "Au tour de l'équipe Orange : Licornes." }).waitFor();
+    await page.locator("#c-next", { hasText: "Terminer les mimes" }).click();
+    assert.match(await respond(page, false), /Licornes n'est pas encore passée/);
+
+    // Aucune équipe verte dans la partie : Sarah peut faire mimer une autre équipe, ou passer.
+    await box.set(mime(2));
+    await page.locator("#mime-info", { hasText: "Aucune équipe Vert dans la partie" }).waitFor();
+    await page.locator("#c-next", { hasText: "Voir le classement" }).waitFor();
+    assert.equal(await page.locator(".mime-team").count(), 2);
     await page.context().close();
   });
 
@@ -2668,7 +2717,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
-  test("Sarah compose un paquet de mimes, l'ajoute à une prestation ; la régie le charge ou l'ajoute en direct", async () => {
+  test("Sarah compose un paquet de mimes ; une prestation d'avant qui l'utilise se joue encore ; la régie l'ajoute aussi en direct", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     const page = await admin();
     await page.click(".tile[data-screen=mimes]");
@@ -2690,19 +2739,15 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(deck.duration, 45);
     assert.deepEqual(deck.cards, [{ word: "Chat", image: "🐱" }, { word: "Éléphant", image: "🐘" }, { word: "Le chat de Léa", image: "😺" }]);
 
+    // Une prestation préparée avant le 🎲 par équipe (cedric, 23/10) avec ce paquet : la Régie PC la montre telle
+    // quelle, et elle se joue comme avant. Le paquet ne se choisit plus dans une prestation.
+    await seedLibrary("shows/lea", { childName: "Léa", title: "Anniversaire de Léa", age: 9, date: "2099-12-02", status: "publiee", updatedAt: 1,
+      rounds: [{ type: "quiz", quizId: "animaux", finale: 3 }, { type: "mimes", deckId }] });
     await page.click("#nav button[data-screen=home]");
-    await page.click("#home-new");
-    await page.fill("#show-child", "Léa");
-    await page.fill("#show-age", "9");
-    await ajouterJeu(page);
-    await integrerQuiz(page.locator("#show-rounds .round").nth(0), "animaux", "anim");
-    await ajouterJeu(page, "mimes");
-    await page.locator("#show-rounds .round").nth(1).locator("select.grow").selectOption(deckId);
+    await page.click('#screen-home [data-etat="avenir"]');
+    await page.locator('#show-list [data-show="lea"]').getByRole("button", { name: "Ouvrir" }).click();
     await page.locator("#show-summary", { hasText: "3 questions · 1 manche de mimes jouables" }).waitFor();
-    await aVenir(page);
-    await page.click("#show-save");
-    await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
-    assert.deepEqual(await sansManche(Object.values(await library("shows"))[0].rounds), [{ type: "quiz", quizId: "animaux", finale: 3 }, { type: "mimes", deckId }]);
+    await page.locator("#show-rounds .round").nth(1).locator(".mime-ancienne", { hasText: "Manche préparée à l'ancienne" }).waitFor();
     await page.context().close();
 
     box = startBox();
@@ -4014,7 +4059,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
-  test("Régie PC : plusieurs quiz dans une manche, mimes du catalogue tirés puis retouchés, mots choisis un par un", async () => {
+  test("Régie PC : plusieurs quiz dans une manche, mimes tirés au 🎲 pour chaque équipe puis retouchés, mots choisis un par un", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX, espace: ESPACE });
     const page = await admin();
     await page.click("#home-new");
@@ -4026,19 +4071,18 @@ describe("bibliothèque de quiz et prestations", () => {
     await integrerQuiz(quiz, "animaux", "anim");
     await integrerQuiz(quiz, "espace", "esp");
     await page.locator("#show-summary", { hasText: "4 questions" }).waitFor();
-    // Mimes : 30 cartes du catalogue au hasard, une retirée, une à soi ajoutée.
+    // Mimes (cedric, 23/10 : rien que le 🎲) : 5 émojis pour chacune des 4 équipes ; un retiré, un autre tiré à sa place.
     await ajouterJeu(page, "mimes");
     const mimes = page.locator("#show-rounds .round").nth(1);
-    await mimes.locator("select.grow").selectOption("hasard");
-    await mimes.locator(".pick-box .small", { hasText: "30 cartes au hasard au lancement" }).waitFor();
-    await mimes.locator("button.pick-draw").click();
-    await mimes.locator(".pick-box .small", { hasText: "30 cartes choisies" }).waitFor();
-    const removed = await mimes.locator("button.pick-item").first().getAttribute("data-key");
-    await mimes.locator("button.pick-item").first().click();
-    await mimes.locator(".pick-box .small", { hasText: "29 cartes choisies" }).waitFor();
-    await mimes.locator(".pick-own input").fill("Le chat de Léa");
-    await mimes.locator(".pick-own button").click();
-    await mimes.locator('button.pick-item[data-key="le chat de léa"]').waitFor();
+    const compteurMimes = mimes.locator(".round-head > .quiz-compteur");
+    await mimes.locator(".mime-source").selectOption("emojis");
+    await mimes.locator(".quiz-outils .tirage-de").click();
+    await compteurMimes.filter({ hasText: /^4 équipes × 5 images$/ }).waitFor();
+    const removed = await mimes.locator(".mime-image .mime-mot").first().textContent();
+    await mimes.locator(".mime-image .tirage-retirer").first().click();
+    await compteurMimes.filter({ hasText: /^4 équipes × 5 images · 1 à tirer$/ }).waitFor();
+    await mimes.locator(".mime-image.vide .tirage-de").click();
+    await compteurMimes.filter({ hasText: /^4 équipes × 5 images$/ }).waitFor();
     // Chante le mot ! : deux mots choisis à la main.
     await ajouterJeu(page, "chante");
     const chante = page.locator("#show-rounds .round").nth(2);
@@ -4051,11 +4095,9 @@ describe("bibliothèque de quiz et prestations", () => {
     const saved = await sansManche(Object.values(await library("shows"))[0].rounds);
     assert.deepEqual(saved[0].seriesQuiz.map((x) => [x.origine, x.quizId]), [["quiz", "animaux"], ["quiz", "espace"]]);
     assert.equal(saved[0].finale, 3);
-    assert.equal(saved[1].type, "mimes");
-    assert.equal(saved[1].deckId, undefined, "Cartes choisies dans toutes les collections");
-    assert.equal(saved[1].cards.length, 30);
-    assert.ok(!saved[1].cards.some((c) => c.word.toLowerCase() === removed), "La carte retirée n'est plus là");
-    assert.deepEqual(saved[1].cards.at(-1), { word: "Le chat de Léa" });
+    assert.deepEqual([saved[1].type, saved[1].source, saved[1].perTeam], ["mimes", "emojis", 5]);
+    assert.deepEqual(saved[1].equipes.map((l) => l.length), [5, 5, 5, 5]);
+    assert.ok(!saved[1].equipes.flat().some((c) => c.word === removed), "La carte retirée n'est plus là");
     assert.deepEqual(saved[2], { type: "chante", count: 6, picks: ["soleil", "maman"] });
     await page.context().close();
 
@@ -4069,23 +4111,23 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const questions = (await read("show")).quiz.questions;
     assert.deepEqual(questions.slice(0, 4).map((q) => q.round), ["Animaux + Espace", "Animaux + Espace", "Animaux + Espace", "Animaux + Espace"]);
-    assert.equal(questions[4].kind, "mime");
-    assert.deepEqual(questions[4].cards.map((c) => c.word).sort(), saved[1].cards.map((c) => c.word).sort());
-    assert.deepEqual(questions.slice(5).map((q) => q.text), ["soleil", "maman"]);
+    // Une manche de mimes par équipe, dans l'ordre des couleurs ; chacune ses cartes.
+    assert.deepEqual(questions.slice(4, 8).map((q) => [q.kind, q.text]),
+      [["mime", "Équipe Rose"], ["mime", "Équipe Orange"], ["mime", "Équipe Vert"], ["mime", "Équipe Jaune"]]);
+    assert.deepEqual(questions.slice(4, 8).map((q) => q.cards.map((c) => c.word).sort()), saved[1].equipes.map((l) => l.map((c) => c.word).sort()));
+    assert.deepEqual(questions.slice(8).map((q) => q.text), ["soleil", "maman"]);
     await regie.context().close();
   });
 
   test("Régie PC « jamais deux fois » : un élément déjà utilisé dans une autre manche est signalé en rouge (permis), le tirage l'évite", async () => {
+    // Des Mimes déjà tirés pour chaque équipe (le 🎲 est au hasard : la présélection est posée d'avance).
+    await seedLibrary("shows/lea", { childName: "Léa", title: "Anniversaire de Léa", age: 9, teams: 2, date: "2099-12-02", status: "publiee", updatedAt: 1,
+      rounds: [{ type: "mimes", source: "emojis", perTeam: 2, equipes: [[{ word: "Chat", image: "🐱" }, { word: "Lion", image: "🦁" }], [{ word: "Ours", image: "🐻" }, { word: "Pomme", image: "🍎" }]] }] });
     const page = await admin();
-    await page.click("#home-new");
-    await page.fill("#show-child", "Léa");
-    await page.fill("#show-age", "9");
-    await ajouterJeu(page, "mimes");
+    await page.click('#screen-home [data-etat="avenir"]');
+    await page.locator('#show-list [data-show="lea"]').getByRole("button", { name: "Ouvrir" }).click();
     const mimes = page.locator("#show-rounds .round").nth(0);
-    await mimes.locator("select.grow").selectOption("hasard");
-    await mimes.locator(".pick-own input").fill("Chat");
-    await mimes.locator(".pick-own button").click();
-    await mimes.locator('button.pick-item[data-key="chat"]').waitFor();
+    await mimes.locator(".mime-image", { hasText: "Chat" }).waitFor();
     await ajouterJeu(page, "chante");
     const chante = page.locator("#show-rounds .round").nth(1);
     assert.match(await chante.locator('select.pick-add option[value="chat"]').textContent(), /déjà utilisé dans Mimes/);
@@ -4093,14 +4135,14 @@ describe("bibliothèque de quiz et prestations", () => {
     // Choisi à la main : permis, en rouge des deux côtés.
     await chante.locator('button.pick-item.deja[data-key="chat"]').waitFor();
     await chante.locator(".pick-deja", { hasText: "chat : déjà utilisé dans Mimes" }).waitFor();
-    await mimes.locator('button.pick-item.deja[data-key="chat"]').waitFor();
-    await mimes.locator(".pick-deja", { hasText: "déjà utilisé dans Chante le mot !" }).waitFor();
+    await mimes.locator(".mime-image.deja", { hasText: "Chat" }).waitFor();
+    assert.equal(await mimes.locator(".mime-image.deja").getAttribute("title"), "Déjà utilisée dans Chante le mot !");
     // 🎲 : le tirage ne reprend pas le chat des Mimes.
     await chante.locator("button.pick-draw").click();
     await chante.locator(".pick-box .small", { hasText: "6 mots choisis" }).waitFor();
     assert.equal(await chante.locator('button.pick-item[data-key="chat"]').count(), 0);
-    await mimes.locator('button.pick-item[data-key="chat"]:not(.deja)').waitFor();
-    assert.equal(await page.locator(".pick-deja").count(), 0);
+    await mimes.locator(".mime-image:not(.deja)", { hasText: "Chat" }).waitFor();
+    assert.equal(await page.locator(".pick-deja, .mime-image.deja").count(), 0);
     await page.context().close();
   });
 
@@ -4233,7 +4275,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
-  test("Régie PC : une manche de mimes composée dans une prestation, gardée toute seule dans la page du jeu, épinglée, puis reprise dans une prestation de 6 équipes", async () => {
+  test("Régie PC : une manche de mimes tirée au 🎲 dans une prestation, gardée toute seule dans la page du jeu, épinglée ; une prestation de 6 équipes tire pour ses 6 équipes", async () => {
     const page = await admin();
     // La page du jeu : son aperçu, ses manches, son historique ; on n'y compose plus de manche (cedric, 21/10).
     await page.locator('#home-games .tile[data-game=mimes]').click();
@@ -4243,7 +4285,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.match(await page.locator("#game-apercu").getAttribute("src"), /apercus-jeux\/mimes\.mp4$/);
     assert.match(await page.locator("#game-manche-hint").textContent(), /« ＋ Ajouter un jeu »/);
 
-    // Composée dans une prestation : 5 cartes par équipe × 4 équipes prévues = 20 cartes tirées au hasard.
+    // Composée dans une prestation : le 🎲 tire 5 images pour chacune des 4 équipes prévues, toutes différentes.
     await page.click("#nav button[data-screen=home]");
     await page.click("#home-new");
     await page.fill("#show-child", "Léa");
@@ -4252,15 +4294,12 @@ describe("bibliothèque de quiz et prestations", () => {
     await capture(page, "prestation-ajouter-un-jeu");
     await page.click('#jeu-choix .jeu-tuile[data-jeu="mimes"]');
     const composee = page.locator("#show-rounds .round").nth(0);
-    await composee.locator("select.grow").selectOption("hasard");
-    await composee.locator(".mime-per-team").selectOption("5");
-    await composee.locator("button.pick-draw").click();
-    await composee.locator(".pick-box .small", { hasText: "20 cartes choisies" }).waitFor();
-    await page.locator('#show-rounds .jeu-bloc[data-jeu="mimes"] .jeu-plus').click();
-    await page.locator("#show-rounds .round").nth(1).waitFor();
+    const compteur = composee.locator(".round-head > .quiz-compteur");
+    await composee.locator(".quiz-outils .tirage-de").click();
+    await compteur.filter({ hasText: /^4 équipes × 5 images$/ }).waitFor();
+    // Une seule manche de Mimes : celle de chaque équipe est dedans.
+    assert.equal(await page.locator("#show-rounds .jeu-plus").count(), 0);
     await capture(page, "prestation-bloc-mimes");
-    await page.locator("#show-rounds .round").nth(1).getByRole("button", { name: "✕", exact: true }).click();
-    await waitFor(async () => (await page.locator("#show-rounds .round").count()) === 1, "manche retirée");
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "Enregistrée." }).waitFor();
     await waitFor(async () => Object.keys((await library("manches")) ?? {}).length === 1, "manche gardée");
@@ -4271,23 +4310,18 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(saved.origin, "admin");
     assert.equal(saved.showId, showId);
     assert.equal(saved.round.perTeam, 5);
-    assert.equal(saved.round.cards.length, 20);
-    assert.equal(new Set(saved.round.cards.map((c) => c.word)).size, 20, "Jamais deux fois la même carte");
+    assert.deepEqual(saved.round.equipes.map((l) => l.length), [5, 5, 5, 5]);
+    assert.equal(new Set(saved.round.equipes.flat().map((c) => c.banque)).size, 20, "Jamais deux fois la même image");
     assert.equal((await library(`shows/${showId}`)).rounds[0].mancheId, id);
-    // Réenregistrée sans changement : rien de plus ; changée : la même manche suit.
+    // Réenregistrée sans changement : rien de plus ; tirée à nouveau : la même manche suit.
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "Enregistrée." }).waitFor();
-    await composee.locator(".mime-per-team").selectOption("4");
-    await composee.locator("button.pick-draw").click();
-    await composee.locator(".pick-box .small", { hasText: "16 cartes choisies" }).waitFor();
-    await composee.locator(".mime-per-team").selectOption("5");
-    await composee.locator("button.pick-draw").click();
-    await composee.locator(".pick-box .small", { hasText: "20 cartes choisies" }).waitFor();
+    await composee.locator(".quiz-outils .tirage-de").click();
     await page.click("#show-save");
-    await waitFor(async () => JSON.stringify((await library(`manches/${id}`)).round.cards) !== JSON.stringify(saved.round.cards), "manche mise à jour");
+    await waitFor(async () => JSON.stringify((await library(`manches/${id}`)).round.equipes) !== JSON.stringify(saved.round.equipes), "manche mise à jour");
     assert.equal(Object.keys(await library("manches")).length, 1);
-    const tiree = (await library(`manches/${id}`)).round.cards;
-    await waitFor(async () => JSON.stringify((await library(`shows/${showId}`)).rounds[0].cards) === JSON.stringify(tiree), "prestation enregistrée");
+    const tiree = (await library(`manches/${id}`)).round.equipes;
+    await waitFor(async () => JSON.stringify((await library(`shows/${showId}`)).rounds[0].equipes) === JSON.stringify(tiree), "prestation enregistrée");
     await page.locator("#show-save:not([disabled])").waitFor();
 
     // Dans la page du jeu : la manche, épinglée en tête ; l'historique dit qu'elle est gardée.
@@ -4298,7 +4332,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#manches-shows .manche-from-show", { hasText: "Gardée : « Mimes · Anniversaire de Léa »" }).waitFor();
     await capture(page, "page-jeu-mimes");
 
-    // Prestation de 6 équipes : la manche chargée garde ses 20 cartes ; le reste se tire au lancement.
+    // Prestation de 6 équipes : le 🎲 tire pour les 6 couleurs (pas de « Reprendre » dans les Mimes).
     await page.click("#nav button[data-screen=home]");
     await page.click("#home-new");
     await page.fill("#show-child", "Léa");
@@ -4306,18 +4340,19 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.selectOption("#show-teams", "6");
     await ajouterJeu(page, "mimes");
     const round = page.locator("#show-rounds .round").nth(0);
-    await reprendre(round, id);
-    await round.locator(".mime-need", { hasText: "5 par équipe × 6 équipes = 30 cartes · 20 choisies : le reste est tiré au hasard au lancement" }).waitFor();
+    assert.equal(await round.locator(".reprendre").count(), 0);
+    await round.locator(".quiz-outils .tirage-de").click();
+    await round.locator(".round-head > .quiz-compteur").filter({ hasText: /^6 équipes × 5 images$/ }).waitFor();
+    assert.deepEqual(await round.locator(".mime-equipes > .mime-equipe").evaluateAll((xs) => xs.map((x) => x.dataset.couleur)), ["Rose", "Orange", "Vert", "Jaune", "Bleu", "Violet"]);
     await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
     const show = Object.entries(await library("shows")).find(([k]) => k !== showId)[1];
     assert.equal(show.teams, 6);
-    assert.equal(show.rounds[0].mancheId, id);
-    assert.equal(show.rounds[0].perTeam, 5);
-    assert.deepEqual(show.rounds[0].cards, tiree);
-    // Reprise telle quelle : pas de nouvelle manche.
-    assert.equal(Object.keys(await library("manches")).length, 1);
+    assert.deepEqual(show.rounds[0].equipes.map((l) => l.length), [5, 5, 5, 5, 5, 5]);
+    // Chaque prestation garde sa manche ; celle de Léa ne bouge pas.
+    await waitFor(async () => Object.keys(await library("manches")).length === 2, "manche de la 2e prestation gardée");
+    assert.deepEqual((await library(`manches/${id}`)).round.equipes, tiree);
     await page.context().close();
   });
 
@@ -5729,6 +5764,114 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(qs.length, 21);
   });
 
+  test("Régie PC (cedric, 23/10) : les Mimes, rien que le 🎲 : une présélection par équipe dans les couleurs de la prestation, prise dans la source choisie (Mes images, émojis, photos libres) ; ✕ laisse un 🎲 ; la TV reçoit une manche par équipe, photos copiées au lancement", async () => {
+    const { buildSnapshot } = await import("../web/public/show.js");
+    const PNG = `data:image/png;base64,${png([200, 60, 120]).toString("base64")}`;
+    const MES = ["3333333333333333", "4444444444444444", "5555555555555555", "6666666666666666", "7777777777777777", "8888888888888888"];
+    const NOMS = ["Lion", "Tigre", "Ours", "Loup", "Zèbre", "Koala"];
+    await seedLibrary("images", Object.fromEntries(MES.map((id) => [id, PNG])));
+    await seedLibrary("medias", Object.fromEntries(MES.map((id, k) => [id, { name: NOMS[k], cat: "Animaux", createdAt: 1, updatedAt: 1 }])));
+    const page = await admin();
+    await page.click("#home-new");
+    await page.fill("#show-child", "Zoé");
+    await page.fill("#show-age", "7");
+    await page.selectOption("#show-teams", "3");
+    await ajouterJeu(page, "mimes");
+    const round = page.locator("#show-rounds .round").nth(0);
+    const ligne = round.locator(".quiz-outils > .tirage-ligne");
+    const compteur = round.locator(".round-head > .quiz-compteur");
+    const equipes = round.locator(".mime-equipes > .mime-equipe");
+    const mots = (k) => equipes.nth(k).locator(".mime-image:not(.vide) .mime-mot").allTextContents();
+    // Rien que le 🎲 (cedric : « uniquement mon bouton dé ») : la source, les images par équipe, la durée du tour.
+    assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["mime-source", "mime-par-equipe", "mime-duree", "btn tirage-de"]);
+    assert.deepEqual(await ligne.locator(".mime-source option").allTextContents(), ["Images : 📷 Photos libres", "Images : 😀 Émojis", "Images : 🖼️ Mes images"]);
+    assert.equal(await ligne.locator(".mime-par-equipe").inputValue(), "5");
+    assert.equal(await ligne.locator(".mime-duree").inputValue(), "60");
+    assert.equal(await compteur.textContent(), "Aucune image pour l'instant : touchez 🎲");
+    assert.equal(await round.locator(".reprendre").count(), 0, "pas de « Reprendre une manche » pour les Mimes");
+    assert.equal(await page.locator("#show-rounds .jeu-plus").count(), 0, "une seule manche : celle de chaque équipe est dedans");
+
+    // Mes images (choix de Sarah) : 3 par équipe demandées, 6 images en tout : 2 chacune, un 🎲 à la place de la 3e.
+    await ligne.locator(".mime-source").selectOption("miennes");
+    await ligne.locator(".mime-par-equipe").selectOption("3");
+    await ligne.locator(".tirage-de").click();
+    await equipes.nth(2).waitFor();
+    assert.deepEqual(await equipes.evaluateAll((xs) => xs.map((x) => x.dataset.couleur)), ["Rose", "Orange", "Vert"]);
+    assert.deepEqual(await equipes.locator(".mime-equipe-tete b").allTextContents(), ["Manche de l'équipe Rose", "Manche de l'équipe Orange", "Manche de l'équipe Vert"]);
+    assert.equal(await compteur.textContent(), "3 équipes × 3 images · 3 à tirer");
+    const miennes = [...await mots(0), ...await mots(1), ...await mots(2)];
+    assert.deepEqual(miennes.sort(), [...NOMS].sort(), "chaque image une seule fois");
+    assert.equal(await round.locator(".mime-image img.tirage-photo").count(), 6);
+    // Plus rien à tirer dans Mes images : le dit, sans rien doubler.
+    await equipes.nth(0).locator(".mime-image.vide .tirage-de").click();
+    await page.locator("#annonce", { hasText: "Plus d'image à tirer dans cette source : choisissez-en une autre." }).waitFor();
+
+    // Émojis : tout est tiré à nouveau, 3 par équipe.
+    await ligne.locator(".mime-source").selectOption("emojis");
+    await compteur.filter({ hasText: /^3 équipes × 3 images$/ }).waitFor();
+    assert.equal(await round.locator(".mime-image .tirage-mini.emoji").count(), 9);
+    assert.equal(await round.locator(".mime-image img").count(), 0);
+
+    // Photos libres : 9 photos différentes ; ✕ laisse un 🎲, le bouton de l'équipe la complète, jamais avec la même.
+    await ligne.locator(".mime-source").selectOption("photos");
+    await waitFor(async () => (await round.locator(".mime-image img.tirage-photo").count()) === 9, "9 photos libres");
+    const cles = async () => (await round.locator(".mime-image img.tirage-photo").evaluateAll((xs) => xs.map((x) => x.getAttribute("src"))))
+      .map((src) => decodeURIComponent(src.match(/^banque\/(.+)\.jpg$/)[1]));
+    const avant = await cles();
+    assert.equal(new Set(avant).size, 9);
+    const orange = equipes.nth(1);
+    const retiree = (await orange.locator(".mime-image img.tirage-photo").first().getAttribute("src"));
+    await orange.locator(".mime-image .tirage-retirer").first().click();
+    await orange.locator(".mime-image.vide .tirage-de").waitFor();
+    assert.equal(await compteur.textContent(), "3 équipes × 3 images · 1 à tirer");
+    await orange.locator(".mime-completer", { hasText: "🎲 Tirer l'image qui manque" }).click();
+    await orange.locator(".mime-image.vide").waitFor({ state: "detached" });
+    assert.equal(await compteur.textContent(), "3 équipes × 3 images");
+    assert.ok(!(await orange.locator(".mime-image img.tirage-photo").evaluateAll((xs) => xs.map((x) => x.getAttribute("src")))).includes(retiree), "la photo retirée ne revient pas");
+    // 2 par équipe : chacune garde ses deux premières.
+    const premieres = [await mots(0), await mots(1), await mots(2)].map((l) => l.slice(0, 2));
+    await ligne.locator(".mime-par-equipe").selectOption("2");
+    await compteur.filter({ hasText: /^3 équipes × 2 images$/ }).waitFor();
+    assert.deepEqual([await mots(0), await mots(1), await mots(2)], premieres);
+    await ligne.locator(".mime-duree").selectOption("45");
+    await capture(page, "mimes-par-equipe");
+
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
+    const zoe = Object.values(await library("shows")).find((x) => x.childName === "Zoé");
+    const [manche] = zoe.rounds;
+    assert.deepEqual([manche.type, manche.source, manche.perTeam, manche.duration], ["mimes", "photos", 2, 45]);
+    assert.deepEqual(manche.equipes.map((l) => l.map((c) => c.word)), premieres);
+    assert.ok(manche.equipes.flat().every((c) => c.banque && c.image), "photos libres : clé de la banque et émoji de secours");
+    await page.context().close();
+
+    // Sur la TV : une manche par équipe, dans l'ordre des couleurs, sous un seul jeu « Mimes ».
+    const { snapshot } = buildSnapshot("zoe", zoe, {});
+    const qs = snapshot.quiz.questions.filter((q) => q.kind === "mime");
+    assert.deepEqual(qs.map((q) => q.text), ["Équipe Rose", "Équipe Orange", "Équipe Vert"]);
+    assert.ok(qs.every((q) => q.round === "Mimes" && q.duration === 45 && q.cards.length === 2));
+    // Lancée par la régie : les photos libres des cartes sont copiées dans la partie.
+    await seedLibrary("shows/zoe", { ...zoe, date: "2099-12-02", status: "publiee" });
+    box = startBox();
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "Zoé" }).click();
+    await respond(regie);
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    const jouees = (await read("show")).quiz.questions.filter((q) => q.kind === "mime");
+    // L'ordre des cartes d'une équipe peut être mélangé pour la TV ; chaque équipe garde les siennes.
+    assert.deepEqual(jouees.map((q) => q.cards.map((c) => c.word).sort()), premieres.map((l) => [...l].sort()));
+    // Rangées avec les images des cartes (choiceImages), comme celles d'un paquet de mimes.
+    await waitFor(async () => {
+      const show = await read("show");
+      const copiees = (await read("choiceImages")) ?? {};
+      return show.quiz.questions.filter((q) => q.kind === "mime")
+        .every((q) => q.cards.every((c) => c.banque === undefined && /^[0-9a-f]{16}$/.test(c.imageId ?? "") && copiees[c.imageId]));
+    }, "photos des mimes copiées dans la partie");
+    await regie.context().close();
+  });
+
   test("tableau de bord : trois compteurs, les prochains anniversaires « À venir », dupliquer depuis une liste sans toucher l'original, archiver", async () => {
     const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
     await seedLibrary("quizzes", { animaux: ANIMAUX });
@@ -5958,17 +6101,18 @@ describe("bibliothèque de quiz et prestations", () => {
     const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
     const fr = (d) => d.split("-").reverse().join("/");
     const PRENOMS = ["Ana", "Ben", "Cléo", "Dan", "Eva", "Félix", "Gina", "Hugo", "Inès", "Jade", "Kenzo", "Lison"];
-    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    await seedLibrary("playlists", { tubes: { title: "Tubes", duration: 20, tracks: [{ title: "Belle", audioId: "aaaaaaaaaaaaaaaa" }], updatedAt: 1 } });
     // 12 prestations, de la plus récente (hier) à la plus ancienne ; la 11e a une note sur sa manche, la 12e est archivée.
     await seedLibrary("shows", Object.fromEntries(PRENOMS.map((p, k) => [`s${k + 1}`, {
       childName: p, age: 8, date: day(-1 - k), status: k === 11 ? "archivee" : "publiee", updatedAt: 1,
-      rounds: [{ type: "mimes", random: true, ...(k === 10 ? { note: "Super avec les jumeaux" } : {}) }],
+      rounds: [{ type: "blind", playlistId: "tubes", ...(k === 10 ? { note: "Super avec les jumeaux" } : {}) }],
     }])));
     const page = await admin();
     await page.click("#home-new");
     await page.fill("#show-child", "Zoé");
-    // Un jeu dont la manche se reprend en entier (le Quiz, lui, en reprend les questions : voir le test du Quiz en une manche).
-    await ajouterJeu(page, "mimes");
+    // Un jeu dont la manche se reprend en entier (le Quiz, lui, en reprend les questions : voir le test du Quiz en une
+    // manche ; les Mimes, eux, n'ont que le 🎲).
+    await ajouterJeu(page, "blind");
     const round = page.locator("#show-rounds .round").nth(0);
     // Créer d'abord : les champs de la manche, puis sa note, puis seulement « Reprendre ».
     assert.equal(await round.locator(".manche-load").count(), 0);
