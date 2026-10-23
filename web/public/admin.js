@@ -19,7 +19,7 @@ import {
   roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS,
   isStatuesList, statuesSongs, statuesChoices, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS, builtinConcepts, isPhotoTheme, disparuGroup,
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, alerteEquipes, EQUIPES_PAR_DEFAUT, pourLeHasard, premierQuiz,
-  launchStates, launchLabelPc,
+  launchStates, launchLabelPc, roundTirees,
 } from "./show.js";
 import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE } from "./banque-photos.js";
 import { shuffle } from "./mime-cards.js";
@@ -1109,6 +1109,8 @@ function quizSelection(r, all) {
     const clean = [...new Set(list.filter(Boolean))];
     r.quizId = clean[0] ?? "";
     r.quizIds = clean.length > 1 ? clean : null;
+    // Un quiz choisi remplace les questions tirées au 🎲.
+    if (clean.length) r.tirees = null;
     roundCtx.refresh();
   };
   const select = (current, k) => h("select", {
@@ -1392,12 +1394,95 @@ function reprendreManche(r, replace) {
 /** Nombre d'équipes de l'écran en cours (prestation, ou réglage du tirage d'une manche seule). */
 const ctxTeams = () => (typeof roundCtx.teams === "function" ? roundCtx.teams() : $("show-teams").value === "" ? null : Number($("show-teams").value));
 
+/** Questions à 4 réponses du quiz classique tout prêt : celles que le 🎲 d'une manche Quiz tire. */
+const QCM_TOUT_PRETS = QUESTIONS_TOUT_PRETES.filter((x) => !estJusteChiffre(x));
+/** Niveau des questions tirées pour chaque profil ; Neutre : tous les niveaux. */
+const NIVEAU_DU_PROFIL = { PETITS: 1, MOYENS: 2, GRANDS: 3, ADULTES: 3, NEUTRE: null };
+const TIRAGE_NOMBRES = [4, 5, 6, 8, 10, 12, 15];
+const TIRAGE_DEFAUT = 8;
+/** Manches dont la liste des questions tirées est dépliée (le temps de l'écran). */
+const tiragesDeplies = new WeakSet();
+
+/**
+ * Tire les questions d'une manche Quiz dans la banque (cedric, 23/10) : [n] questions du niveau de [profil], réponses
+ * mélangées ; [garder] : celles qu'on garde en tête de liste. Jamais une question déjà tirée dans une autre manche de
+ * la prestation. La manche ne prend plus ses questions dans un quiz.
+ */
+function tirerQuestionsQuiz(r, n, profil, garder = []) {
+  const autres = roundCtx === prestationCtx && editing ? editing.rounds.filter((x) => x !== r).flatMap(roundTirees) : [];
+  const exclus = new Set([...autres, ...garder].map((q) => q.text));
+  const neuves = tirerChiffres(Math.max(0, n - garder.length), { niveau: NIVEAU_DU_PROFIL[profil] ?? null, exclus, liste: QCM_TOUT_PRETS }).map((x) => {
+    const choices = shuffle(x.choices);
+    return { id: x.id, text: x.text, choices, correct: choices.indexOf(x.choices[x.correct]), ...(x.photo ? { banque: x.id } : x.emoji ? { emoji: x.emoji } : {}) };
+  });
+  r.tirees = [...garder, ...neuves];
+  r.profil = profil;
+  r.quizId = "";
+  r.quizIds = null;
+  r.count = null;
+}
+
+/**
+ * Première ligne d'une manche Quiz (cedric, 23/10) : le profil des questions (celui de la prestation d'office,
+ * modifiable), leur nombre, la Super Finale, le 🎲 qui les tire dans la banque ; puis un petit bouton qui déplie la liste
+ * des questions tirées et la replie. Une fois tirées, changer le nombre en retire ou en ajoute, changer le profil les
+ * tire à nouveau.
+ */
+function tirageQuiz(r) {
+  const tirees = roundTirees(r);
+  const profil = PROFILES[r.profil] ? r.profil : roundCtx.profile?.() ?? "MOYENS";
+  const n = tirees.length || r.nbTirage || TIRAGE_DEFAUT;
+  // Une nouvelle manche part avec la Super Finale sur ses 3 dernières questions (cedric, 23/10).
+  if (r.finale === undefined && !roundFilled(r)) r.finale = 3;
+  const tirer = (k, p, garder = []) => { tirerQuestionsQuiz(r, k, p, garder); tiragesDeplies.delete(r); roundCtx.refresh(); };
+  const nombre = h("select", {
+    class: "tirage-nombre", "aria-label": "Nombre de questions à tirer",
+    onchange: (e) => {
+      const k = Number(e.target.value);
+      if (!tirees.length) { r.nbTirage = k; return; }
+      if (k <= tirees.length) { r.tirees = tirees.slice(0, k); roundCtx.refresh(); } else tirer(k, profil, tirees);
+    },
+  }, ...[...new Set([...TIRAGE_NOMBRES, n])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: k === n, text: `${k} questions` })));
+  const profils = h("select", {
+    class: "tirage-profil", "aria-label": "Profil des questions",
+    onchange: (e) => { if (tirees.length) tirer(tirees.length, e.target.value); else r.profil = e.target.value; },
+  }, ...Object.entries(PROFILES).map(([k, p]) => h("option", { value: k, selected: k === profil, text: p.label })));
+  const liste = h("ol", { class: "tirage-liste" }, ...tirees.map((q) => h("li", { text: q.text })));
+  liste.hidden = !tiragesDeplies.has(r);
+  const libelle = () => `${liste.hidden ? "▸" : "▾"} ${tirees.length} question${tirees.length > 1 ? "s" : ""}`;
+  return [
+    // De gauche à droite (cedric, 23/10) : profil, nombre de questions, Super Finale, dé.
+    h("div", { class: "tirage-ligne" },
+      profils,
+      nombre,
+      h("select", { class: "finale", "aria-label": "Super Finale", onchange: (e) => { r.finale = Number(e.target.value) || null; roundCtx.summary(); } },
+        h("option", { value: "", text: "Sans Super Finale" }),
+        ...[1, 2, 3, 4, 5].map((k) => h("option", { value: k, selected: r.finale === k, text: k === 1 ? "Super Finale : la dernière" : `Super Finale : ${k} dernières` }))),
+      h("button", {
+        type: "button", class: "btn tirage-de", text: "🎲", "aria-label": "Tirer les questions au hasard",
+        title: "Tirer les questions au hasard dans la banque", onclick: () => tirer(Number(nombre.value), profils.value),
+      }),
+      tirees.length ? h("button", {
+        type: "button", class: "chip tirage-voir", "aria-expanded": liste.hidden ? "false" : "true", text: libelle(),
+        title: "Voir ou cacher les questions tirées",
+        onclick: (e) => {
+          liste.hidden = !liste.hidden;
+          if (liste.hidden) tiragesDeplies.delete(r); else tiragesDeplies.add(r);
+          e.currentTarget.textContent = libelle();
+          e.currentTarget.setAttribute("aria-expanded", liste.hidden ? "false" : "true");
+        },
+      }) : null),
+    tirees.length ? liste : null,
+  ];
+}
+
 /** Contenu et réglages d'une manche, selon son jeu : les mêmes dans une prestation et dans la page d'un jeu. */
 function roundFields(r) {
   const options = Object.entries(quizzes).sort(([, a], [, b]) => a.title.localeCompare(b.title));
   const decks = Object.entries(mimes).sort(([, a], [, b]) => a.title.localeCompare(b.title));
   const lists = Object.entries(playlists).filter(([, p]) => !isStatuesList(p)).sort(([, a], [, b]) => a.title.localeCompare(b.title));
   const photos = r.type === "zoom" || r.type === "flou";
+  const quiz = (r.type ?? "quiz") === "quiz";
   const content = BUILTIN_GAMES[r.type]
     // Jeux au buzzer intégrés : rien à préparer, seulement combien de mots ou de personnages.
     ? h("div", { class: "grow picto-round" },
@@ -1469,6 +1554,8 @@ function roundFields(r) {
       roundPicks(r).length || r.byItem ? itemSelection(r, "picks") : quizSelection(r, options))
     : quizSelection(r, options);
   return [
+    // Quiz : d'abord tirer des questions de la banque au 🎲 (cedric, 23/10), ensuite un de ses quiz.
+    ...(quiz ? tirageQuiz(r) : []),
     content,
     // Qui a disparu ? : objets par grille, pour régler la difficulté (par défaut selon l'âge de la prestation).
     r.type === "disparu"
@@ -1478,11 +1565,12 @@ function roundFields(r) {
       : null,
     // Jeux tirés d'un quiz : toutes ses questions retenues, ou seulement les premières.
     !BUILTIN_GAMES[r.type] && r.type !== "statues" && r.type !== "pictionary" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "mimes" && !MUSIC_GAMES[r.type] && !(photos && (roundPicks(r).length || r.byItem))
+      && !(quiz && !roundQuizIds(r).length)
       ? h("select", { class: "count", "aria-label": "Nombre de questions", onchange: (e) => { r.count = Number(e.target.value) || null; roundCtx.summary(); } },
         h("option", { value: "", text: "Toutes les questions" }),
         ...[1, 2, 3, 4, 5, 6, 8, 10, 12, 15].map((n) => h("option", { value: n, selected: r.count === n, text: n === 1 ? "La première seulement" : `Les ${n} premières` })))
       : null,
-    hasFinale(r.type)
+    hasFinale(r.type) && !quiz
       ? h("select", { class: "finale", "aria-label": "Super Finale", onchange: (e) => { r.finale = Number(e.target.value) || null; roundCtx.summary(); } },
         h("option", { value: "", text: "Sans Super Finale" }),
         ...[1, 2, 3, 4, 5].map((n) => h("option", { value: n, selected: r.finale === n, text: n === 1 ? "Super Finale : la dernière" : `Super Finale : ${n} dernières` })))
@@ -1593,6 +1681,7 @@ function roundContent(r) {
   if (BUILTIN_GAMES[r.type] || r.type === "statues" || r.type === "pictionary" || r.type === "coffres" || r.type === "portes" || r.type === "gonfleur" || r.type === "patate") return "";
   if (r.type === "mimes") return r.deckId ? mimes[r.deckId]?.title ?? null : "cartes au hasard";
   if (MUSIC_GAMES[r.type]) return playlists[r.playlistId]?.title ?? null;
+  if (roundTirees(r).length) return mancheSummary(r);
   const titles = roundQuizIds(r).map((id) => quizzes[id]?.title);
   return titles.length && titles.every(Boolean) ? titles.join(" + ") : null;
 }

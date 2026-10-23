@@ -808,6 +808,37 @@ describe("fiche d'une prestation (cedric, 23/10)", () => {
     assert.equal(titreAuto(""), "");
     assert.equal(titreAuto(null), "");
   });
+
+  test("manche Quiz : les questions tirées au 🎲 sont gardées dans la manche et jouées telles quelles, photo comprise", async () => {
+    const M = await import("../web/public/manches.js");
+    const P = await import("../web/public/banque-photos.js");
+    const tirees = [
+      { id: "qc-a", text: "Quel animal ?", choices: ["Le chat", "Le lion", "Le zèbre", "La vache"], correct: 1, banque: "qc-a" },
+      { id: "qc-b", text: "Quelle couleur ?", choices: ["Rouge", "Bleu", "Vert", "Jaune"], correct: 3, emoji: "🌈" },
+      { text: "", choices: ["a", "b"], correct: 0 }, // vide : écartée
+    ];
+    const r = { type: "quiz", tirees, profil: "GRANDS", finale: 1, nbTirage: 8 };
+    assert.equal(roundFilled(r), true);
+    assert.equal(roundFilled({ type: "quiz", tirees: [] }), false);
+    assert.equal(roundFilled({ type: "illustre", tirees }), false, "Seul le Quiz se tire au 🎲");
+    const propre = M.cleanRound(r);
+    assert.deepEqual(propre, { type: "quiz", tirees: tirees.slice(0, 2), profil: "GRANDS", finale: 1 });
+    assert.equal(M.mancheSummary(propre), "2 questions tirées au hasard (Grands)");
+    const { snapshot, problems } = buildSnapshot("s", { childName: "Léa", age: 13, rounds: [{ ...propre, bougies: false }] }, {});
+    assert.deepEqual(problems, []);
+    const qs = snapshot.quiz.questions;
+    assert.deepEqual(qs.map((q) => [q.text, q.correct, q.kind, q.double, q.banque ?? null, q.image ?? null]),
+      [["Quel animal ?", 1, "classic", false, "qc-a", null], ["Quelle couleur ?", 3, "classic", true, null, "🌈"]]);
+    assert.equal(snapshot.rounds[0].title, "Quiz");
+    // La régie copie la photo du quiz tout prêt (banque-quiz/) dans la partie, comme celles des petits (banque/).
+    assert.equal(P.cheminPhotoBanque("qc-a"), "banque-quiz/qc-a.jpg");
+    assert.equal(P.cheminPhotoBanque("vache"), "banque/vache.jpg");
+    const lues = [];
+    const [q1] = await P.resolveBanque([qs[0]], { photo: async (cle) => { lues.push(cle); return "data:image/jpeg;base64,AAAA"; }, ecrire: async () => {} });
+    assert.deepEqual(lues, ["qc-a"]);
+    assert.match(q1.imageId, /^[0-9a-f]{16}$/);
+    assert.equal(q1.banque, undefined);
+  });
 });
 
 describe("durée estimée d'une prestation (cedric, 23/10) : calculée toute seule, jamais saisie", () => {

@@ -8,7 +8,7 @@ import { passwordCandidates } from "./secret.js";
 import {
   buildSnapshot, showTitle, playable, QUIZ_GAMES, BUILTIN_GAMES, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame, imageIds, choiceImageIds,
   soundIds, MUSIC_GAMES, playableTracks, STATUES_SEC, PICTO_SEC, isStatuesList, statuesSongs, MAX_STATUES_SONGS,
-  isFutureRound, moveRound, removeRound, uniqueRoundTitle, roundQuizIds, mimePool, mimeCards, CONTENT_GAMES, activeItems, pictoSeriesOf,
+  isFutureRound, moveRound, removeRound, uniqueRoundTitle, roundQuizIds, roundTirees, mimePool, mimeCards, CONTENT_GAMES, activeItems, pictoSeriesOf,
   isArchived, isPhotoTheme, disparuGroup, statuesChoices, quizQuestions, jeuDeLaManche, quizKind,
   launchStates, launchLabel, jourHeure, isoDay,
 } from "./show.js";
@@ -21,7 +21,7 @@ import {
 import { profileForAge } from "./profiles.js";
 import { setAwake } from "./awake.js";
 import { ouvrirDefis } from "./defis.js";
-import { BANQUE, PHOTOS_BANQUE, avecPhoto, resolveBanque, lirePhotoBanque, emojiEnImage } from "./banque-photos.js";
+import { BANQUE, PHOTOS_BANQUE, avecPhoto, resolveBanque, lirePhotoBanque, emojiEnImage, cheminPhotoBanque } from "./banque-photos.js";
 
 // Régie de l'animatrice, ouverte depuis la page des pupitres (bouton « Accès régie »).
 // Elle n'écrit que des commandes : la box les vérifie, les applique et répond dans commandStatus/ ;
@@ -1799,11 +1799,11 @@ async function fetchLibrary() {
       .filter(([, show]) => show)
       .sort((a, b) => (b[1].date ?? "").localeCompare(a[1].date ?? ""))
       .flatMap(([id, show]) => (show.rounds ?? []).map((r) => jeuDeLaManche(r, quizzes)).filter((r) => r && r.type !== "mimes" && r.type !== "statues" && r.type !== "pictionary" && r.type !== "portes" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "finale" && !BUILTIN_GAMES[r.type] && !MUSIC_GAMES[r.type]).map((round, i) => {
-        const title = roundQuizIds(round).map((q) => quizzes[q]?.title).filter(Boolean).join(" + ") || `Manche ${i + 1}`;
+        const title = roundQuizIds(round).map((q) => quizzes[q]?.title).filter(Boolean).join(" + ") || (roundTirees(round).length ? "Quiz tiré au hasard" : `Manche ${i + 1}`);
         const label = QUIZ_GAMES[round.type] ? `${ROUND_TYPES[round.type]} : ${title}` : title;
         const date = show.date ? ` (${new Date(`${show.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })})` : "";
         // Les réglages de la manche suivent (nombre de questions, Super Finale à la fin du quiz).
-        return { key: `show/${id}/${i}`, label, from: `${showTitle(show)}${date}`, source: { type: round.type, quizId: round.quizId, ...(roundQuizIds(round).length > 1 ? { quizIds: roundQuizIds(round) } : {}), ...(round.count > 0 ? { count: round.count } : {}), ...(round.finale > 0 ? { finale: round.finale } : {}) } };
+        return { key: `show/${id}/${i}`, label, from: `${showTitle(show)}${date}`, source: { type: round.type, quizId: round.quizId, ...(roundQuizIds(round).length > 1 ? { quizIds: roundQuizIds(round) } : {}), ...(roundTirees(round).length ? { tirees: roundTirees(round) } : {}), ...(round.count > 0 ? { count: round.count } : {}), ...(round.finale > 0 ? { finale: round.finale } : {}) } };
       }));
     // Jeux au buzzer intégrés : toujours disponibles, sans rien préparer.
     const builtins = [
@@ -1823,6 +1823,8 @@ async function fetchLibrary() {
         const key = `pin/${id}/${i}`;
         const from = showTitle(show);
         const ids = roundQuizIds(round);
+        const tirees = roundTirees(round);
+        if (tirees.length) return { key, label: "Quiz tiré au hasard", from, source: { type: "quiz", tirees, ...(round.finale > 0 ? { finale: round.finale } : {}) } };
         if (ids.length && round.type !== "mimes" && !MUSIC_GAMES[round.type]) {
           if (!quizzes[ids[0]]) return null;
           const title = ids.map((q) => quizzes[q]?.title).filter(Boolean).join(" + ");
@@ -2070,7 +2072,8 @@ function renderPickedEdit(questions) {
   // Jeux tirés d'un quiz : les autres quiz qui conviennent, à cocher pour les enchaîner dans le même jeu.
   // Pas pendant un rejeu (cedric, 21/10) : on regarde ce qui sera joué, on retire, on lance.
   const rejeu = enRejeu();
-  if (!rejeu && (source.type === "quiz" || QUIZ_GAMES[source.type])) {
+  // Un quiz tiré au hasard dans la Régie PC garde ses questions : pas d'autre quiz à enchaîner.
+  if (!rejeu && !roundTirees(source).length && (source.type === "quiz" || QUIZ_GAMES[source.type])) {
     const kind = QUIZ_GAMES[source.type];
     const ids = roundQuizIds(source);
     const others = Object.entries(library.quizzes)
@@ -2330,7 +2333,7 @@ function renderPreview() {
     const vignette = (cle) => {
       const img = document.createElement("img");
       img.className = "lib-thumb";
-      img.src = `banque/${encodeURIComponent(cle)}.jpg`;
+      img.src = cheminPhotoBanque(cle);
       img.alt = "";
       return img;
     };

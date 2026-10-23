@@ -5428,6 +5428,76 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Régie PC (cedric, 23/10) : manche Quiz, première ligne nombre · profil · 🎲 · Super Finale ; les questions tirées se déplient d'un clic", async () => {
+    const { QUESTIONS_TOUT_PRETES } = await import("../web/public/banque-classiques.js");
+    const banque = new Map(QUESTIONS_TOUT_PRETES.map((x) => [x.id, x]));
+    const page = await admin();
+    await page.click("#home-new");
+    await page.fill("#show-child", "Zoé");
+    await page.fill("#show-age", "10");
+    await ajouterJeu(page);
+    const round = page.locator("#show-rounds .round").nth(0);
+    const ligne = round.locator(".round-body > .tirage-ligne");
+    // La première ligne, de gauche à droite : le profil (celui de la prestation, 10 ans : Moyens), le nombre, la Super
+    // Finale (3 dernières), le dé.
+    assert.equal(await round.locator(".round-body > *").first().evaluate((x) => x.classList.contains("tirage-ligne")), true);
+    assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-profil", "tirage-nombre", "finale", "btn tirage-de"]);
+    assert.equal(await ligne.locator(".tirage-nombre").inputValue(), "8");
+    assert.equal(await ligne.locator(".tirage-profil").inputValue(), "MOYENS");
+    assert.equal(await ligne.locator("select.finale").inputValue(), "3");
+    assert.deepEqual(await ligne.locator("select.finale option").allTextContents(),
+      ["Sans Super Finale", "Super Finale : la dernière", "Super Finale : 2 dernières", "Super Finale : 3 dernières", "Super Finale : 4 dernières", "Super Finale : 5 dernières"]);
+    // Pas de second nombre de questions tant qu'aucun quiz n'est choisi.
+    assert.equal(await round.locator("select.count").count(), 0);
+    await capture(page, "quiz-tirage-ligne");
+    // Un profil plus âgé que la prestation, 10 questions, puis le dé : les questions sont là, repliées.
+    await ligne.locator(".tirage-profil").selectOption("GRANDS");
+    await ligne.locator(".tirage-nombre").selectOption("10");
+    await ligne.locator(".tirage-de").click();
+    const voir = round.locator(".tirage-voir");
+    await voir.waitFor();
+    assert.equal(await voir.textContent(), "▸ 10 questions");
+    assert.equal(await round.locator(".tirage-liste").isHidden(), true);
+    await voir.click();
+    assert.equal(await round.locator(".tirage-liste").isVisible(), true);
+    assert.equal(await round.locator(".tirage-liste li").count(), 10);
+    assert.equal(await voir.textContent(), "▾ 10 questions");
+    await capture(page, "quiz-tirage-deplie");
+    if (process.env.CAPTURES) {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await capture(page, "quiz-tirage-deplie-pc");
+      await page.setViewportSize({ width: 390, height: 844 });
+    }
+    const textes = await round.locator(".tirage-liste li").allTextContents();
+    await voir.click();
+    assert.equal(await round.locator(".tirage-liste").isHidden(), true);
+    // Moins de questions : les premières restent ; la Super Finale se change comme avant.
+    await ligne.locator(".tirage-nombre").selectOption("8");
+    assert.deepEqual(await round.locator(".tirage-liste li").allTextContents(), textes.slice(0, 8));
+    await ligne.locator("select.finale").selectOption("2");
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
+    const zoe = Object.values(await library("shows")).find((s) => s.childName === "Zoé");
+    const [manche] = zoe.rounds;
+    assert.equal(manche.tirees.length, 8);
+    assert.equal(manche.profil, "GRANDS");
+    assert.equal(manche.finale, 2);
+    assert.equal(manche.quizId, undefined);
+    for (const q of manche.tirees) {
+      const x = banque.get(q.id);
+      assert.equal(x.niveau, 3, "Grands : niveau Difficile");
+      assert.equal(q.choices[q.correct], x.choices[x.correct]);
+      assert.equal(q.banque ?? null, x.photo ? x.id : null);
+    }
+    // Rouverte : toujours 8 questions, repliées, le profil du tirage ; un nouveau dé en tire d'autres.
+    await page.click("#show-edit-crumb");
+    await page.locator(".show-card", { hasText: "Zoé" }).first().click();
+    await round.locator(".tirage-voir", { hasText: "▸ 8 questions" }).waitFor();
+    assert.equal(await round.locator(".round-body > .tirage-ligne .tirage-profil").inputValue(), "GRANDS");
+    assert.equal(await round.locator(".round-body > .tirage-ligne select.finale").inputValue(), "2");
+    await page.context().close();
+  });
+
   test("Régie PC (cedric, 23/10) : « Archivée » ne se choisit pas dans une fiche ; une archivée reportée se remet « À venir » avec une nouvelle date", async () => {
     const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
     const rounds = [{ type: "quiz", quizId: "animaux" }];

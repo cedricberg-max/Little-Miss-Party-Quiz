@@ -389,7 +389,19 @@ export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || 
   : round.type === "mimes" ? round.deckId || round.random === true || mimeCards(round.cards).length
   : MUSIC_GAMES[round.type] ? round.playlistId || roundTracks(round).length
   : (round.type === "zoom" || round.type === "flou") && roundPicks(round).length ? true
-  : roundQuizIds(round).length));
+  : roundTirees(round).length || roundQuizIds(round).length));
+
+/** Au plus autant de questions tirées au 🎲 dans une manche Quiz. */
+export const MAX_TIREES = 20;
+
+/**
+ * Questions du quiz classique tout prêt tirées au 🎲 dans une manche Quiz (cedric, 23/10), gardées dans la manche :
+ * { id, text, choices (déjà mélangées), correct, banque (clé de sa photo) ou emoji }. Jouées dans cet ordre.
+ */
+export const roundTirees = (round) => ((round?.type ?? "quiz") === "quiz" ? listOf(round?.tirees) : [])
+  .map((q) => ({ ...q, choices: listOf(q?.choices).filter((c) => typeof c === "string" && c.trim()) }))
+  .filter((q) => typeof q.text === "string" && q.text.trim() && q.choices.length >= 2 && Number.isInteger(q.correct) && q.correct >= 0 && q.correct < q.choices.length)
+  .slice(0, MAX_TIREES);
 
 /** Extraits choisis un par un pour un blind test ou un quiz musical (`tracks`, leurs identifiants), dans plusieurs playlists. */
 export const roundTracks = (round) => [...new Set(listOf(round?.tracks).filter((id) => typeof id === "string" && /^[0-9a-f]{16}$/.test(id)))].slice(0, MAX_PICKS);
@@ -806,8 +818,13 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       }));
       return;
     }
-    const ids = roundQuizIds(round);
-    const found = ids.map((id) => quizzes[id]).filter(Boolean);
+    // Questions tirées au 🎲 (cedric, 23/10) : un quiz à elles seules, déjà validées ; la photo de la révélation est
+    // copiée dans la partie par la régie au chargement (comme les photos de la banque des petits), sinon l'émoji.
+    const tirees = roundTirees(round);
+    const ids = tirees.length ? [] : roundQuizIds(round);
+    const found = tirees.length
+      ? [{ title: ROUND_TYPES.quiz, questions: tirees.map((q) => ({ text: q.text, choices: q.choices, correct: q.correct, status: "validee", ...(q.banque ? { banque: q.banque } : q.emoji ? { image: q.emoji } : {}) })) }]
+      : ids.map((id) => quizzes[id]).filter(Boolean);
     // Plusieurs quiz : un seul jeu, leurs questions à la suite, sous les titres réunis.
     const quiz = found.length > 1
       ? { title: found.map((x) => x.title).join(" + "), questions: found.flatMap((x) => (x.questions ?? []).filter(Boolean)) }
@@ -878,6 +895,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
         // Illustration facultative montrée à la révélation (émoji, ou photo copiée dans la partie par la régie).
         ...(q.image ? { image: q.image } : {}),
         ...(q.imageId && !sansMesImages ? { imageId: q.imageId } : {}),
+        ...(q.banque ? { banque: q.banque } : {}),
         // Réponses en images (QCM et Vrai / Faux) : une photo par proposition, "" pour une proposition en texte.
         ...(!number && !express && !zoom && !flou && !sansMesImages && choiceImageList(q).length ? { choiceImages: choiceImageList(q) } : {}),
         // Quiz illustré au hasard : la photo de la banque ou l'émoji de chaque réponse, remplacés par leur identifiant

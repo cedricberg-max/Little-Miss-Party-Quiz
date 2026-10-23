@@ -9,8 +9,9 @@ import {
   statuesSongs, statuesChoices, zoomQuestions, expressQuestions, mimeCards, roundPicks, roundTracks, roundQuizIds, roundSongs,
   pictoRoundSeries, mimePerTeam, teamCount, MIME_TURN, MIME_RANDOM, STATUES_SEC, PICTO_SEC,
   MAX_PICKS, MAX_STATUES_SONGS, quizKind, builtinConcepts, fixedConcepts, isPhotoTheme, disparuGroup, parPalierPhotos,
-  illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, pourLeHasard, roundHasard,
+  illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, pourLeHasard, roundHasard, roundTirees,
 } from "./show.js";
+import { PROFILES } from "./profiles.js";
 import { MIME_CATALOG, shuffle } from "./mime-cards.js";
 import { concepts, questionConcepts, neufsSiPossible } from "./jamais-deux-fois.js";
 import { BANQUE, banqueItems, motDeLaBanque } from "./banque-photos.js";
@@ -268,7 +269,14 @@ export function cleanRound(r, playlists = {}) {
   else if ((type === "zoom" || type === "flou") && roundPicks(r).length) out = { type, ...picks };
   else {
     const ids = roundQuizIds(r);
-    out = { type, quizId: ids[0], ...(ids.length > 1 ? { quizIds: ids } : {}), ...(r.count > 0 ? { count: r.count } : {}), ...(hasFinale(type) && r.finale > 0 ? { finale: r.finale } : {}),
+    // Questions tirées au 🎲 (cedric, 23/10) : gardées dans la manche, avec le profil qui a servi au tirage.
+    const tirees = roundTirees(r).map((q) => ({
+      ...(typeof q.id === "string" ? { id: q.id.slice(0, 120) } : {}), text: q.text.trim().slice(0, 300), choices: q.choices.map((c) => c.trim().slice(0, 120)), correct: q.correct,
+      ...(typeof q.banque === "string" && q.banque ? { banque: q.banque.slice(0, 120) } : typeof q.emoji === "string" && q.emoji ? { emoji: q.emoji.slice(0, 16) } : {}),
+    }));
+    out = { type, ...(tirees.length ? { tirees, ...(PROFILES[r.profil] ? { profil: r.profil } : {}) }
+      : { quizId: ids[0], ...(ids.length > 1 ? { quizIds: ids } : {}), ...(r.count > 0 ? { count: r.count } : {}) }),
+      ...(hasFinale(type) && r.finale > 0 ? { finale: r.finale } : {}),
       // Question des bougies enlevée de ce quiz (elle y est d'office, voir questionBougies).
       ...(type === "quiz" && r.bougies === false ? { bougies: false } : {}) };
   }
@@ -307,6 +315,8 @@ export function mancheSummary(round, lib = {}) {
   if (BUILTIN_GAMES[r.type]) return roundPicks(r).length ? n(roundPicks(r).length) : `${r.count ?? BUILTIN_GAMES[r.type].count} au hasard`;
   if ((r.type === "zoom" || r.type === "flou") && roundPicks(r).length) return n(roundPicks(r).length);
   if (r.type === "coffres" || r.type === "patate" || r.type === "gonfleur") return "rien à préparer";
+  const tirees = roundTirees(r).length;
+  if (tirees) return `${tirees} question${tirees > 1 ? "s" : ""} tirée${tirees > 1 ? "s" : ""} au hasard${PROFILES[r.profil] ? ` (${PROFILES[r.profil].label.split(" (")[0]})` : ""}`;
   const titles = roundQuizIds(r).map((id) => lib.quizzes?.[id]?.title).filter(Boolean);
   return titles.length ? titles.join(" + ") : "quiz à choisir";
 }
