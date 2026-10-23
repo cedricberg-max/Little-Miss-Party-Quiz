@@ -5159,8 +5159,11 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.fill("#show-child", "Léa");
     await page.fill("#show-age", "9");
     await ajouterJeu(page, "express");
-    await page.locator("#show-rounds .round").nth(0).locator("select.grow option", { hasText: "Sciences (2 Vrai / Faux)" }).waitFor({ state: "attached" });
-    await page.locator("#show-rounds .round").nth(0).locator("select.grow").selectOption("sciences");
+    // « 📗 Intégrer les Vrai / Faux d'un de vos quiz » (cedric, 23/10) : seulement ses Vrai / Faux.
+    const manche = page.locator("#show-rounds .round").nth(0);
+    await manche.locator(".quiz-biblio-cherche").fill("scien");
+    await manche.locator('.quiz-biblio-item[data-quiz="sciences"]', { hasText: "2 affirmations" }).click();
+    await manche.locator(".round-head > .quiz-compteur", { hasText: "2 affirmations" }).waitFor();
     await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
@@ -5598,6 +5601,132 @@ describe("bibliothèque de quiz et prestations", () => {
       return jouees.every((q) => q.banque === undefined && /^[0-9a-f]{16}$/.test(q.imageId ?? "") && copiees[q.imageId]);
     }, "photos copiées dans la partie");
     await regie.context().close();
+  });
+
+  test("Régie PC (cedric, 23/10) : le Vrai ou Faux express se construit comme le Quiz : 🎲 dans le Vrai ou Faux tout prêt (autant de vraies que de fausses, au niveau du profil), un ancien anniversaire, les Vrai / Faux de ses quiz, « Vrai ou Faux complet », jamais deux fois la même affirmation", async () => {
+    const { buildSnapshot } = await import("../web/public/show.js");
+    const { AFFIRMATIONS } = await import("../web/public/banque-vrai-faux.js");
+    const moyennes = new Map(AFFIRMATIONS.filter((x) => x.niveau === 2).map((x) => [x.text, x]));
+    const vf = (text, vrai) => ({ text, choices: ["Vrai", "Faux"], correct: vrai ? 0 : 1, status: "validee" });
+    const SCIENCES = { title: "Sciences", source: "tableur", updatedAt: 1, questions: [
+      vf("Le Soleil est une étoile", true), { text: "Planète la plus proche ?", choices: ["Mercure", "Mars", "Vénus", "Terre"], correct: 0, status: "validee" }, vf("Les poissons volent", false)] };
+    const LUNA = { childName: "Luna", age: 9, date: "2026-05-10", status: "archivee", updatedAt: 1, rounds: [{ type: "express", quizId: "sciences" }, { type: "quiz", quizId: "animaux" }] };
+    await seedLibrary("quizzes", { animaux: ANIMAUX, sciences: SCIENCES });
+    await seedLibrary("shows", { luna: LUNA });
+    const page = await admin();
+    // Bibliothèque › Questions : la rubrique « ✅ Vrai ou Faux tout prêt », par niveau, sans alerte d'illustration.
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="questions"]');
+    await page.locator('#q-groups [data-groupe="vraifaux"]', { hasText: `✅ Vrai ou Faux tout prêt (${AFFIRMATIONS.length})` }).click();
+    await page.locator('.q-niveaux [data-niveau="2"]', { hasText: `Moyen · 9 à 11 ans (${moyennes.size})` }).click();
+    await waitFor(async () => await page.locator("#q-list .q-item").count() === moyennes.size, "les affirmations du niveau Moyen");
+    assert.equal(await page.locator("#q-list .q-item.sans-illus").count(), 0);
+    const lune = page.locator("#q-list .q-item", { hasText: "La Lune produit sa propre lumière." });
+    assert.equal(await lune.locator(".q-reponses li.juste").innerText(), "✓ Faux");
+
+    await page.click("#nav button[data-screen=home]");
+    await page.click("#home-new");
+    await page.fill("#show-child", "Zoé");
+    await page.fill("#show-age", "10");
+    await ajouterJeu(page, "express");
+    const round = page.locator("#show-rounds .round").nth(0);
+    const ligne = round.locator(".quiz-outils > .tirage-ligne");
+    const compteur = round.locator(".round-head > .quiz-compteur");
+    const series = round.locator(".quiz-series > li.serie");
+    // Comme le Quiz, avec des affirmations ; ni Super Finale ni bougies.
+    assert.deepEqual(await round.locator(".round-head > *").evaluateAll((xs) => xs.map((x) => x.className)), ["num", "quiz-compteur"]);
+    assert.deepEqual(await round.locator(".round-body > *").evaluateAll((xs) => xs.map((x) => x.className)), ["quiz-outils"]);
+    assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-profil", "tirage-nombre", "btn tirage-de"]);
+    assert.equal(await ligne.locator(".tirage-profil").inputValue(), "MOYENS", "le profil de l'âge de l'enfant");
+    assert.equal(await round.locator(".quiz-rappel-titre").textContent(), "📚 Rappeler les affirmations d'un ancien anniversaire");
+    assert.equal(await round.locator(".quiz-biblio-titre").textContent(), "📗 Intégrer les Vrai / Faux d'un de vos quiz");
+    assert.equal(await compteur.textContent(), "Aucune affirmation pour l'instant");
+
+    // Un ancien anniversaire : ses affirmations, copiées.
+    await round.locator(".quiz-rappel-cherche").fill("luna");
+    await round.locator('.quiz-rappel-item[data-show="luna"]', { hasText: "2 affirmations" }).click();
+    await series.first().waitFor();
+    assert.equal(await series.nth(0).locator(".serie-voir").textContent(), "▸ 📅 Anniversaire de Luna (10 mai 2026) : 2 affirmations");
+    // Ses quiz qui ont des Vrai / Faux, jamais les autres.
+    await round.locator(".quiz-biblio-cherche").fill("i");
+    await round.locator(".quiz-biblio-item").first().waitFor();
+    assert.deepEqual(await round.locator(".quiz-biblio-item").evaluateAll((xs) => xs.map((x) => x.dataset.quiz)), ["sciences"]);
+    await round.locator('.quiz-biblio-item[data-quiz="sciences"]').click();
+    await series.nth(1).waitFor();
+    assert.equal(await series.nth(1).locator(".serie-voir").textContent(), "▸ 📚 Vrai / Faux du quiz « Sciences » : 2 affirmations");
+
+    // Le 🎲 : 8 affirmations du niveau Moyen, 4 vraies et 4 fausses, en tête.
+    await ligne.locator(".tirage-nombre").selectOption("8");
+    await ligne.locator(".tirage-de").click();
+    await waitFor(async () => (await series.count()) === 3, "série du dé");
+    assert.equal(await series.nth(0).locator(".serie-voir").textContent(), "▸ 🎲 8 affirmations tirées au hasard (Moyens)");
+    assert.equal(await compteur.textContent(), "12 affirmations");
+    await series.nth(0).locator(".serie-voir").click();
+    const lignes = series.nth(0).locator(".serie-liste > li");
+    const textes = async () => lignes.locator(".tirage-texte").allTextContents();
+    const premier = await textes();
+    assert.equal(premier.length, 8);
+    for (const t of premier) assert.ok(moyennes.has(t), `niveau Moyen : ${t}`);
+    assert.equal(await lignes.locator(".tirage-vf.vrai").count(), 4);
+    assert.equal(await lignes.locator(".tirage-vf.faux").count(), 4);
+    for (const [k, t] of premier.entries()) assert.equal(await lignes.nth(k).locator(".tirage-vf").textContent(), moyennes.get(t).vrai ? "✓ Vrai" : "✗ Faux");
+    // ✕ : un 🎲 prend sa place et tire une autre affirmation.
+    await lignes.nth(0).locator(".tirage-retirer").click();
+    await series.nth(0).locator(".serie-liste li.vide", { hasText: "Affirmation à tirer" }).waitFor();
+    assert.equal(await compteur.textContent(), "11 affirmations · 1 à tirer");
+    await lignes.nth(0).locator(".tirage-de").click();
+    await series.nth(0).locator(".serie-liste li.vide").waitFor({ state: "detached" });
+    const second = await textes();
+    assert.ok(!second.includes(premier[0]), "l'affirmation retirée ne revient pas");
+    assert.equal(new Set(second).size, 8);
+    assert.equal(await compteur.textContent(), "12 affirmations");
+
+    // « Vrai ou Faux complet » : chaque affirmation dans l'ordre ; ✕ sur une affirmation la retire de sa série.
+    await ajouterJeu(page, "express");
+    await page.locator("#annonce", { hasText: "Le Vrai ou Faux express est déjà le dernier jeu : ajoutez-y vos affirmations" }).waitFor();
+    const complet = round.locator(".quiz-complet");
+    assert.equal(await complet.locator(".quiz-complet-voir").textContent(), "▸ 🧩 Vrai ou Faux complet : 12 affirmations, dans l'ordre de passage");
+    await complet.locator(".quiz-complet-voir").click();
+    assert.equal(await complet.locator(".quiz-complet-q .tirage-vf").count(), 12);
+    // Le dernier : celui du quiz « Sciences » (celui de Luna passe avant).
+    await complet.locator(".quiz-complet-q", { hasText: "Les poissons volent" }).last().locator(".tirage-retirer").click();
+    await compteur.filter({ hasText: "11 affirmations" }).waitFor();
+    assert.equal(await series.nth(2).locator(".serie-voir").textContent(), "▸ 📚 Vrai / Faux du quiz « Sciences » : 1 affirmation (1 retirée)");
+
+    // Un autre Vrai ou Faux express dans la même fête : son 🎲 ne reprend aucune affirmation du premier.
+    await ajouterJeu(page, "coffres");
+    await ajouterJeu(page, "express");
+    const autre = page.locator("#show-rounds .round").nth(2);
+    await autre.locator(".tirage-nombre").selectOption("10");
+    await autre.locator(".tirage-de").click();
+    await autre.locator(".round-head > .quiz-compteur", { hasText: "10 affirmations" }).waitFor();
+    await autre.locator(".quiz-series .serie-voir").click();
+    const autres = await autre.locator(".quiz-series .serie-liste .tirage-texte").allTextContents();
+    assert.equal(autres.length, 10);
+    for (const t of autres) assert.ok(moyennes.has(t) && !second.includes(t), `déjà dans le premier : ${t}`);
+    await capture(page, "vrai-faux-manche");
+
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
+    const shows = await library("shows");
+    assert.deepEqual(shows.luna, LUNA, "La prestation archivée ne change pas");
+    const zoe = Object.values(shows).find((x) => x.childName === "Zoé");
+    assert.deepEqual(zoe.rounds.map((r) => r.type), ["express", "coffres", "express"]);
+    const [manche] = zoe.rounds;
+    assert.deepEqual(manche.seriesQuiz.map((x) => [x.origine, x.profil ?? null, x.questions?.length ?? x.quizId]),
+      [["de", "MOYENS", 8], ["reprise", null, 2], ["quiz", null, "sciences"]]);
+    assert.deepEqual(manche.seriesQuiz[2].sans, ["Les poissons volent"]);
+    assert.equal(manche.finale, undefined);
+    assert.deepEqual(manche.seriesQuiz[0].questions.map((q) => q.text), second);
+    await page.context().close();
+
+    // Sur la TV : un seul jeu « Vrai ou Faux express » de 11 affirmations, dans l'ordre, sans Super Finale.
+    const { snapshot } = buildSnapshot("zoe", zoe, { animaux: ANIMAUX, sciences: SCIENCES });
+    const qs = snapshot.quiz.questions.filter((q) => q.round === "Vrai ou Faux express");
+    assert.deepEqual(qs.slice(0, 11).map((q) => q.text), [...second, "Le Soleil est une étoile", "Les poissons volent", "Le Soleil est une étoile"]);
+    assert.ok(qs.every((q) => q.kind === "express" && q.double === false));
+    assert.deepEqual(qs.slice(0, 8).map((q) => q.choices[q.correct]), second.map((t) => (moyennes.get(t).vrai ? "Vrai" : "Faux")));
+    assert.equal(qs.length, 21);
   });
 
   test("tableau de bord : trois compteurs, les prochains anniversaires « À venir », dupliquer depuis une liste sans toucher l'original, archiver", async () => {

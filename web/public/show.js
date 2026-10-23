@@ -430,7 +430,7 @@ export const ORIGINES_SERIE = ["de", "quiz", "main", "reprise"];
  * Jeux dont une manche est faite de séries, comme le Quiz (cedric, 23/10 : « exactement la même architecture ») : 🎲,
  * séries rappelées d'un ancien anniversaire, séries de la bibliothèque, Super Finale, « Quiz complet ».
  */
-export const JEUX_EN_SERIES = ["quiz", "illustre", "zoom", "flou"];
+export const JEUX_EN_SERIES = ["quiz", "illustre", "zoom", "flou", "express"];
 export const estEnSeries = (type) => JEUX_EN_SERIES.includes(type ?? "quiz");
 /** Jeux de photos à deviner (Zoom mystère, Image floue) : une photo par question, la réponse à trouver. */
 export const JEUX_DE_PHOTOS = ["zoom", "flou"];
@@ -441,8 +441,11 @@ export const estJeuDePhotos = (type) => JEUX_DE_PHOTOS.includes(type);
  */
 export const signatureQuestion = (q, type) => (estJeuDePhotos(type) && (IMAGE_ID.test(q?.imageId ?? "") || q?.banque)
   ? (IMAGE_ID.test(q?.imageId ?? "") ? `i:${q.imageId}` : `b:${q.banque}`) : `${q?.text ?? ""}`.trim().toLowerCase());
-/** Questions d'un quiz de la bibliothèque jouables dans un jeu en séries : ses photos au Zoom et à l'Image floue. */
-export const questionsDuJeu = (type, quiz) => (estJeuDePhotos(type) ? zoomQuestions(quiz) : playable(quiz));
+/**
+ * Questions d'un quiz de la bibliothèque jouables dans un jeu en séries : ses photos au Zoom et à l'Image floue, ses
+ * Vrai / Faux au Vrai ou Faux express.
+ */
+export const questionsDuJeu = (type, quiz) => (estJeuDePhotos(type) ? zoomQuestions(quiz) : type === "express" ? expressQuestions(quiz) : playable(quiz));
 
 /**
  * Séries d'une manche Quiz (cedric, 23/10 : un Quiz = une seule manche, quelle que soit l'origine de ses questions),

@@ -412,7 +412,7 @@ export function resumeDesSeries(round, quizzes = {}) {
   const parts = roundSeriesQuiz(round).map((x) => {
     const n = questionsDeLaSerie(x, quizzes, type).length;
     if (x.origine === "de") {
-      const sorte = type === "quiz" ? PROFILES[x.profil]?.label.split(" (")[0] ?? "" : FAMILLES_PETITS[x.famille] ?? "";
+      const sorte = type === "quiz" || type === "express" ? PROFILES[x.profil]?.label.split(" (")[0] ?? "" : FAMILLES_PETITS[x.famille] ?? "";
       return `🎲 ${n} tirée${n > 1 ? "s" : ""}${sorte ? ` (${sorte})` : ""}`;
     }
     if (x.origine === "main") return `✍ ${n} écrite${n > 1 ? "s" : ""}`;
@@ -420,7 +420,7 @@ export function resumeDesSeries(round, quizzes = {}) {
     return `📅 ${x.titre ?? "reprise"} (${n})`;
   });
   const total = roundSeriesQuiz(round).reduce((t, x) => t + questionsDeLaSerie(x, quizzes, type).length, 0);
-  const unite = estJeuDePhotos(type) ? "photo" : "question";
+  const unite = estJeuDePhotos(type) ? "photo" : type === "express" ? "affirmation" : "question";
   return `${total} ${unite}${total > 1 ? "s" : ""}${parts.length ? ` : ${parts.join(" · ")}` : ""}`;
 }
 

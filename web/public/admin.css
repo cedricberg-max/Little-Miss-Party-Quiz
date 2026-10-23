@@ -824,6 +824,9 @@ button.media-tile:hover { border-color: var(--violet); }
 .tirage-mini.emoji { display: grid; place-items: center; font-size: 34px; line-height: 1; }
 /* Zoom mystère, Image floue : la photo à deviner, devant sa réponse. */
 .tirage-photo { flex: none; height: 64px; width: 88px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line-2); background: #fff; }
+.tirage-vf { flex: none; font-weight: 700; font-size: 13px; padding: 2px 8px; border-radius: 999px; }
+.tirage-vf.vrai { background: #e3f7e8; color: #1d6b35; }
+.tirage-vf.faux { background: #fde6e6; color: #a32020; }
 /* Quiz illustré (cedric, 23/10) : les 4 réponses en petites images avec leur mot, la bonne en vert. */
 .tirage-reponses { flex: 0 1 auto; display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
 .tirage-rep { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 60px; max-width: 110px; padding: 3px; border-radius: 10px; border: 2px solid transparent; font-size: 12px; line-height: 1.15; text-align: center; }

@@ -2580,7 +2580,7 @@ describe("Mes questions : supprimer, en vrac par thème, packs rangés par thèm
       ["Animaux", ["p7"]], ["disney", ["p2", "p4"]], ["Éléphants", ["p6"]], ["Musique", ["p1"]], [Q.SANS_THEME, ["p3", "p5"]],
     ]);
     assert.deepEqual(Q.packsParTheme([]), []);
-    assert.deepEqual(Object.values(Q.GROUPES_QUESTIONS), ["📝 Quiz classique tout prêt", "🖼️ Quiz illustré tout prêt", "✍️ Mes questions en vrac", "📥 Mes packs par thème", "🔍 Mes séries de photos", "🧪 Questions de test"]);
+    assert.deepEqual(Object.values(Q.GROUPES_QUESTIONS), ["📝 Quiz classique tout prêt", "🖼️ Quiz illustré tout prêt", "✅ Vrai ou Faux tout prêt", "✍️ Mes questions en vrac", "📥 Mes packs par thème", "🔍 Mes séries de photos", "🧪 Questions de test"]);
   });
 
   test("questions de test : celles des prestations de test (clés « test-… ») sont à part, en vrac comme en pack", () => {
@@ -2681,6 +2681,108 @@ describe("Zoom mystère et Image floue en séries, comme le Quiz (cedric, 23/10)
     assert.deepEqual(Q.mesPacks(lib).map((p) => p.id), ["pack"]);
     assert.deepEqual(Q.mesQuestions(lib).map((x) => x.cle), ["mien/0"]);
     assert.deepEqual(Q.questionsDeTest(lib).map((x) => x.cle), ["test-photos/0"]);
+  });
+});
+
+describe("Vrai ou Faux express en séries, avec sa banque d'affirmations toutes prêtes (cedric, 23/10)", async () => {
+  const VF = await import("../web/public/banque-vrai-faux.js");
+  const S = await import("../web/public/show.js");
+  const M = await import("../web/public/manches.js");
+  const Q = await import("../web/public/questions.js");
+  const { NIVEAUX_CHIFFRES } = await import("../web/public/banque-chiffres.js");
+  // Hasard rejouable : les mêmes tirages à chaque essai.
+  const graine = (n) => () => ((n = (n * 16807) % 2147483647) - 1) / 2147483646;
+
+  test("la banque : des affirmations courtes et uniques, trois niveaux, des thèmes connus, autant de vraies que de fausses à peu près", () => {
+    const A = VF.AFFIRMATIONS;
+    assert.ok(A.length >= 200, `${A.length} affirmations`);
+    assert.equal(new Set(A.map((x) => x.id)).size, A.length, "identifiants uniques");
+    assert.equal(new Set(A.map((x) => x.text.toLowerCase())).size, A.length, "textes uniques");
+    for (const x of A) {
+      assert.ok(VF.THEMES_VRAI_FAUX[x.theme], `${x.text} : thème ${x.theme}`);
+      assert.ok([1, 2, 3].includes(x.niveau), x.text);
+      assert.deepEqual([x.ageMin, x.ageMax], NIVEAUX_CHIFFRES[x.niveau]);
+      assert.deepEqual(x.choices, ["Vrai", "Faux"]);
+      assert.equal(x.correct, x.vrai ? 0 : 1);
+      assert.match(x.text, /^[A-ZÀ-ÖØ-Ý0-9].*\.$/u, `${x.text} : une phrase`);
+      assert.ok(x.text.split(/\s+/).length <= 16, `${x.text} : trop longue`);
+      assert.ok(x.id.length <= 64 && /^vf-[a-z0-9-]+$/.test(x.id), x.id);
+    }
+    for (const niveau of [1, 2, 3]) {
+      const du = A.filter((x) => x.niveau === niveau);
+      const vraies = du.filter((x) => x.vrai).length;
+      assert.ok(du.length >= 50, `niveau ${niveau} : ${du.length}`);
+      assert.ok(vraies >= du.length * 0.35 && vraies <= du.length * 0.65, `niveau ${niveau} : ${vraies} vraies sur ${du.length}`);
+    }
+    // Elles se jouent telles quelles au Vrai ou Faux express.
+    assert.equal(S.expressQuestions({ questions: A.map((x) => ({ ...x, status: "validee" })) }).length, A.length);
+  });
+
+  test("le tirage : du niveau demandé, moitié vraies moitié fausses, jamais une affirmation déjà prise, ni deux fois la même", () => {
+    for (const n of [1, 6, 7, 10]) {
+      const t = VF.tirerAffirmations(n, { niveau: 2, rng: graine(n) });
+      assert.equal(t.length, n);
+      assert.ok(t.every((x) => x.niveau === 2));
+      assert.equal(new Set(t.map((x) => x.id)).size, n);
+      const vraies = t.filter((x) => x.vrai).length;
+      assert.ok(Math.abs(vraies - (n - vraies)) <= 1, `${n} : ${vraies} vraies`);
+    }
+    const premier = VF.tirerAffirmations(10, { niveau: 1, rng: graine(3) });
+    const second = VF.tirerAffirmations(10, { niveau: 1, rng: graine(3), exclus: new Set(premier.map((x) => x.text)) });
+    assert.equal(second.length, 10);
+    assert.ok(second.every((x) => !premier.some((y) => y.text === x.text)), "jamais deux fois");
+    // Plus assez d'un côté : complété de l'autre ; plus rien de libre : rien.
+    const liste = VF.AFFIRMATIONS.filter((x) => x.niveau === 3).filter((x, k, all) => x.vrai || all.filter((y) => !y.vrai).indexOf(x) < 1);
+    assert.equal(VF.tirerAffirmations(6, { liste, rng: graine(5) }).length, 6);
+    assert.deepEqual(VF.tirerAffirmations(4, { niveau: 1, exclus: new Set(VF.AFFIRMATIONS.map((x) => x.text)) }), []);
+  });
+
+  test("une manche en séries : 🎲, Vrai / Faux d'un de ses quiz, ordre rangé ; la TV les joue dans cet ordre, sans Super Finale", () => {
+    const quizzes = {
+      sciences: { title: "Sciences", source: "tableur", questions: [
+        { text: "Le Soleil est une étoile", choices: ["Vrai", "Faux"], correct: 0, status: "validee" },
+        { text: "Planète la plus proche ?", choices: ["Mercure", "Mars"], correct: 0, status: "validee" },
+        { text: "Les poissons volent", choices: ["Vrai", "Faux"], correct: 1, status: "validee" },
+      ] },
+    };
+    const [a, b] = VF.tirerAffirmations(2, { niveau: 2, rng: graine(7) });
+    const enLigne = (x) => ({ id: x.id, text: x.text, choices: ["Vrai", "Faux"], correct: x.correct });
+    const round = {
+      type: "express", finale: 3, facteur: 2,
+      seriesQuiz: [
+        { id: "de", origine: "de", profil: "MOYENS", questions: [enLigne(a), enLigne(b)] },
+        { id: "q1", origine: "quiz", quizId: "sciences", sans: ["les poissons volent"] },
+      ],
+      ordreQuiz: [`de|${b.id}`, "q1|t:le soleil est une étoile", `de|${a.id}`],
+    };
+    const propre = M.cleanRound(round);
+    assert.equal(propre.finale, undefined, "pas de Super Finale au Vrai ou Faux express");
+    assert.equal(propre.facteur, undefined);
+    assert.equal(propre.seriesQuiz[0].profil, "MOYENS");
+    assert.deepEqual(propre.seriesQuiz[0].questions.map((q) => q.id), [a.id, b.id]);
+    const { snapshot, problems } = S.buildSnapshot("s", { childName: "Léa", age: 9, rounds: [propre] }, quizzes);
+    assert.deepEqual(problems, []);
+    const qs = snapshot.quiz.questions;
+    assert.deepEqual(qs.map((q) => q.text), [b.text, "Le Soleil est une étoile", a.text]);
+    assert.ok(qs.every((q) => q.kind === "express" && q.round === "Vrai ou Faux express" && q.double === false));
+    assert.deepEqual(qs.map((q) => q.choices[q.correct]), [b.vrai ? "Vrai" : "Faux", "Vrai", a.vrai ? "Vrai" : "Faux"]);
+    assert.equal(M.resumeDesSeries(propre, quizzes), "3 affirmations : 🎲 2 tirées (Moyens) · 📚 Sciences (1)");
+    // Une ancienne manche (un quiz, ses N premières) : les mêmes affirmations, en séries ; seule, gardée comme avant.
+    const ancienne = { type: "express", quizId: "sciences", count: 1 };
+    const enSeries = M.versSeriesQuiz(ancienne, quizzes);
+    assert.deepEqual(enSeries.seriesQuiz, [{ id: "q-sciences", origine: "quiz", quizId: "sciences", sans: ["les poissons volent"] }]);
+    const tv = (r) => S.buildSnapshot("s", { age: 9, rounds: [r] }, quizzes).snapshot.quiz.questions.map((q) => q.text);
+    assert.deepEqual(tv(M.cleanRound(enSeries)), tv(ancienne));
+    assert.deepEqual(M.cleanRound(M.versSeriesQuiz({ type: "express", quizId: "sciences" }, quizzes)), { type: "express", quizId: "sciences" });
+  });
+
+  test("Bibliothèque › Questions : « ✅ Vrai ou Faux tout prêt », par niveau et par thème, sans alerte d'illustration", () => {
+    const items = Q.questionsVraiFauxPretes();
+    assert.equal(items.length, VF.AFFIRMATIONS.length);
+    assert.ok(items.every((x) => x.groupe === "vraifaux" && x.ok && x.validee && x.vraiFaux && x.choices.join("/") === "Vrai/Faux"));
+    const lune = items.find((x) => x.text === "La Lune tourne autour de la Terre.");
+    assert.deepEqual([lune.correct, lune.niveau, lune.categorie, lune.source], [0, 1, "Espace et sciences", "Vrai ou Faux tout prêt · Facile · 5 à 8 ans"]);
+    assert.ok(Q.questionCorrespond(lune, "lune"));
   });
 });
 

@@ -2,7 +2,8 @@
 // - Les questions toutes prêtes de l'appli, jamais modifiées ici, en deux rubriques à ne pas mélanger (cedric, 22/10) :
 //   « Quiz classique » (questions à 4 réponses écrites, banque-classiques.js, avec une illustration pour la révélation,
 //   et le Juste Chiffre tout prêt, banque-chiffres.js, sans illustration : la TV montre son compteur) et
-//   « Quiz illustré » (banque des tout-petits : une image par réponse).
+//   « Quiz illustré » (banque des tout-petits : une image par réponse), et le « Vrai ou Faux » tout prêt (cedric, 23/10 :
+//   des affirmations sans image, banque-vrai-faux.js, tirées au 🎲 dans le Vrai ou Faux express).
 // - « Mes questions » : celles écrites à la main dans la Régie PC, avec leur illustration.
 // - « Mes packs » : les quiz importés (fichier JSON, tableur, texte collé), un pack par thème.
 // - « Mes séries de photos » (cedric, 23/10) : ses quiz de photos à deviner, pour le Zoom mystère et l'Image floue
@@ -14,10 +15,11 @@ import { cataloguePetits, FAMILLES_PETITS, motBanque } from "./banque-petits.js"
 import { PHOTOS_BANQUE } from "./banque-photos.js";
 import { QUESTIONS_TOUT_PRETES, THEMES_TOUT_PRETS, estJusteChiffre } from "./banque-classiques.js";
 import { libelleNiveau } from "./banque-chiffres.js";
+import { AFFIRMATIONS, THEMES_VRAI_FAUX } from "./banque-vrai-faux.js";
 import { quizKind } from "./show.js";
 
 export const GROUPES_QUESTIONS = {
-  classiques: "📝 Quiz classique tout prêt", illustrees: "🖼️ Quiz illustré tout prêt", miennes: "✍️ Mes questions en vrac", packs: "📥 Mes packs par thème",
+  classiques: "📝 Quiz classique tout prêt", illustrees: "🖼️ Quiz illustré tout prêt", vraifaux: "✅ Vrai ou Faux tout prêt", miennes: "✍️ Mes questions en vrac", packs: "📥 Mes packs par thème",
   photos: "🔍 Mes séries de photos", tests: "🧪 Questions de test",
 };
 export const JUSTE_CHIFFRE = "🔢 Juste Chiffre";
@@ -87,6 +89,15 @@ export function questionsClassiquesPretes(liste = QUESTIONS_TOUT_PRETES) {
       validee: true, ok: illustree, manque: illustree ? null : "Pas d'illustration",
     };
   });
+}
+
+/** Vrai ou Faux tout prêt (cedric, 23/10) : des affirmations sans image (la TV n'en montre pas), par thème et par niveau. */
+export function questionsVraiFauxPretes(liste = AFFIRMATIONS) {
+  return liste.map((x) => ({
+    groupe: "vraifaux", cle: x.id, text: x.text, choices: ["Vrai", "Faux"], correct: x.vrai ? 0 : 1, nombre: false, vraiFaux: true, niveau: x.niveau,
+    categorie: THEMES_VRAI_FAUX[x.theme] ?? x.theme, source: `Vrai ou Faux tout prêt · ${libelleNiveau(x.niveau)}`,
+    validee: true, ok: true, manque: null,
+  }));
 }
 
 /**
