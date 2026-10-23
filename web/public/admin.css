@@ -804,7 +804,7 @@ button.media-tile:hover { border-color: var(--violet); }
 .tirage-q-ligne .tirage-de.petit { align-self: center; font-size: 18px; padding: 4px 14px; }
 @media (max-width: 640px) { .tirage-ligne > select { flex: 1 1 100%; } }
 /* Un Quiz = une seule manche (cedric, 23/10) : le compteur, les séries dans l'ordre de passage, la Super Finale à la fin. */
-.round-body > .quiz-compteur { flex: 1 1 100%; margin: 0; font-weight: 800; font-size: 17px; color: var(--violet); }
+.round-body > .quiz-compteur { flex: 1 1 100%; margin: 0; font-weight: 800; font-size: 23px; line-height: 1.25; color: var(--violet); }
 .round-body > .quiz-ajouts { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
 .quiz-ajouts > .quiz-rappel { flex: 1 1 260px; min-width: 0; }
 .quiz-ajouts > .reprendre-zone { display: contents; }
