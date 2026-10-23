@@ -38,6 +38,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -100,6 +101,7 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier) {
                 Modifier.align(Alignment.TopCenter).padding(top = 8.dp).graphicsLayer {
                     val m = ms()
                     alpha = (m / 900f).coerceIn(0f, 1f)
+                    compositingStrategy = CompositingStrategy.ModulateAlpha
                     val s = 1f + 0.12f * battement(m - revelation, 700f)
                     scaleX = s; scaleY = s
                 },
@@ -114,7 +116,7 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier) {
             ) {
                 Text(
                     "LE GRAND GAGNANT EST…", style = styleTitreNeon(30.sp, GS.Cyan), maxLines = 1, softWrap = false,
-                    modifier = Modifier.apparition(300, Unit).graphicsLayer { alpha = 0.8f + 0.2f * kotlin.math.sin(ms() / 240f) },
+                    modifier = Modifier.apparition(300, Unit).graphicsLayer { alpha = 0.8f + 0.2f * kotlin.math.sin(ms() / 240f); compositingStrategy = CompositingStrategy.ModulateAlpha },
                 )
                 Spacer(Modifier.height(10.dp))
                 JaugesPodium(colonnes, scores, ms, Modifier.weight(1f).fillMaxWidth())
@@ -368,6 +370,7 @@ private fun NomGagnantGs(g: Classee, revelation: Float) {
         modifier = Modifier.graphicsLayer {
             val x = v.value
             alpha = x.coerceIn(0f, 1f)
+            compositingStrategy = CompositingStrategy.ModulateAlpha
             val s = 1.6f - 0.6f * x
             scaleX = s; scaleY = s
         },
@@ -418,7 +421,7 @@ fun AuRevoirGameShow(modifier: Modifier = Modifier) {
                     Spacer(Modifier.height(6.dp))
                     Text(
                         "À BIENTÔT SUR THE GAME SHOW !", style = styleEtiquetteGs(20.sp, GS.Cyan, 3.sp), maxLines = 1,
-                        modifier = Modifier.apparition(1_600, Unit).graphicsLayer { alpha = 0.75f + 0.25f * souffle },
+                        modifier = Modifier.apparition(1_600, Unit).graphicsLayer { alpha = 0.75f + 0.25f * souffle; compositingStrategy = CompositingStrategy.ModulateAlpha },
                     )
                 }
                 // Le robot qui dit au revoir, à droite (clip au format 4:5).
