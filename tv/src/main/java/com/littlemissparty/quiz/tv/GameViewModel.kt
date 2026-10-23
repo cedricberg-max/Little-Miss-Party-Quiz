@@ -415,7 +415,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     /** « Réessayer » ne crée jamais de nouvelle partie si une partie est active. */
     fun retry() = if (activeCode != null) resume() else start()
 
-    /** Termine la partie active (elle reste archivée dans Firebase) et en crée une nouvelle. */
+    /**
+     * Termine la partie active (elle reste archivée dans Firebase) et en crée une nouvelle. La partie quittée est marquée
+     * (`state/leftAt`) : une régie encore ouverte dessus sait que la TV est revenue à l'accueil.
+     */
     fun newGame() {
         countdown?.cancel()
         timer?.cancel()
@@ -428,7 +431,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 val db = connect()
                 if (previous != null) {
                     db.getReference("games/$previous/state").updateChildren(
-                        mapOf("phase" to Phase.ENDED.code, "endedAt" to ServerValue.TIMESTAMP)
+                        mapOf("phase" to Phase.ENDED.code, "endedAt" to ServerValue.TIMESTAMP, "leftAt" to ServerValue.TIMESTAMP)
                     )
                 }
                 activeCode = null
@@ -1546,6 +1549,21 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             viewModelScope.launch { actions.withLock { admitDevice(id, replace = type == REPLACE, device = device, team = team) } }
             return
         }
+        // « 🏁 Fin de la fête » sur la régie (cedric, 23/10) : seulement une fois la partie terminée (écran « Merci
+        // d'avoir participé ») ; la TV quitte la partie et revient à l'accueil, comme « Terminer et lancer une nouvelle
+        // partie » du menu Retour.
+        if (type == NEW_GAME) {
+            viewModelScope.launch {
+                val fin = actions.withLock {
+                    val ended = game?.state?.phase == Phase.ENDED
+                    val result = if (ended) CommandResult(CommandStatus.APPLIED) else CommandResult(CommandStatus.REFUSED, reason = "not_ended")
+                    gameRef?.updateChildren(statusOf(id, result))?.let { runCatching { it.await() } }
+                    ended
+                }
+                if (fin) newGame()
+            }
+            return
+        }
         val cmd = (snap.value as? Map<*, *>)?.let { Command.decode(id, it) }
         val sentAt = snap.child("at").getValue(Long::class.java)
         viewModelScope.launch { actions.withLock {
@@ -2082,6 +2100,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         const val MAX_TEAMS = 8
         private const val ADMIT = "admit"
         private const val REPLACE = "replace"
+        private const val NEW_GAME = "newgame"
         const val MAX_REGIES = 2
         private const val MAX_PIN_FAILURES = 5
         private const val PIN_LOCK_MS = 60_000L

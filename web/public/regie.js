@@ -351,7 +351,11 @@ function render() {
   renderAlerte(st, teams);
   renderFactor(st);
   renderDoors(st, q);
-  $("c-question").textContent = intro ? "La TV présente le jeu. Expliquez les règles, puis lancez l'épreuve." : inQuestion ? st.text ?? q?.text ?? "" : st.phase === "ended" ? (gamesOf(st).next ? "Bravo à toutes les équipes ! Un jeu a été ajouté : la partie peut reprendre." : "Bravo à toutes les équipes ! Pour continuer, ajoutez un jeu (onglet Programme) ou rejouez-en un (⏭ Changer de jeu).") : `${teams.length} équipe${teams.length > 1 ? "s" : ""} inscrite${teams.length > 1 ? "s" : ""}`;
+  $("c-question").textContent = intro ? "La TV présente le jeu. Expliquez les règles, puis lancez l'épreuve." : inQuestion ? st.text ?? q?.text ?? ""
+    : st.phase === "ended" ? (st.leftAt ? "🏁 Fête terminée. La TV est revenue à l'accueil, prête pour la prochaine fête. Merci !"
+      : gamesOf(st).next ? "Bravo à toutes les équipes ! Un jeu a été ajouté : la partie peut reprendre."
+      : "Bravo à toutes les équipes ! Pour continuer, ajoutez un jeu (onglet Programme) ou rejouez-en un (⏭ Changer de jeu). Sinon : « 🏁 Fin de la fête ».")
+    : `${teams.length} équipe${teams.length > 1 ? "s" : ""} inscrite${teams.length > 1 ? "s" : ""}`;
 
   const portes = (q?.kind ?? st.kind) === "portes";
   // Portes et coffres mystères : aucune réponse à montrer (le contenu des coffres est tiré à l'ouverture).
@@ -391,7 +395,13 @@ function render() {
   runTimer(st);
 
   const next = $("c-next");
-  next.hidden = st.phase === "ended" && !gamesOf(st).next;
+  next.hidden = st.phase === "ended" && (!gamesOf(st).next || !!st.leftAt);
+  // Fin de la partie (cedric, 23/10) : sur l'écran « Merci d'avoir participé », un gros bouton pour quitter la fête ;
+  // la TV revient à l'accueil. Une fois la TV partie (leftAt), plus rien à piloter ici.
+  const fin = $("c-fin");
+  fin.hidden = st.phase !== "ended" || !!st.leftAt;
+  fin.disabled = !!pending?.advance;
+  fin.classList.toggle("secondary", !next.hidden);
   next.textContent = pending?.advance ? "Envoi…" : nextLabel(st, teams.length);
   next.disabled = !!pending?.advance || (st.phase === "lobby" && teams.length === 0);
   // Pause générale : possible à toute étape d'une partie commencée.
@@ -2871,6 +2881,7 @@ const STATUS_MESSAGES = {
   stale_program: "Le programme venait de changer : rien n'a été fait, la liste des jeux est à jour.",
   countdown: "La partie reprend (3, 2, 1) : attendez la fin du décompte.",
   bad_factor: "Valeur de points inconnue.",
+  not_ended: "La partie n'est pas encore terminée : appuyez d'abord longtemps sur « Terminer ».",
 };
 
 function toast(message) {
@@ -3062,6 +3073,15 @@ $("c-next").onclick = async () => {
   send(st?.phase === "question" && !(st.mime && !st.mime.team) && !blindMode(st) ? "close" : "next", {}, { advance: true });
 };
 $("c-pause").onclick = () => send(live.state?.paused ? "resume" : "pause", {}, { advance: true });
+$("c-fin").onclick = async () => {
+  const ok = await demander({
+    title: "Fin de la fête ?", ok: "🏁 Fin de la fête",
+    text: "La TV quitte l'écran de fin et revient à l'accueil, prête pour la prochaine fête. Les équipes et leurs points restent enregistrés.",
+  });
+  if (!ok || live.state?.phase !== "ended") return;
+  const status = await send("newgame", {}, { advance: true });
+  if (status?.status === "applied") toast("🏁 Fête terminée : la TV revient à l'accueil.");
+};
 $("c-answer").onclick = () => { answerMasked = !answerMasked; render(); };
 
 // « Terminer la partie » : appui long d'une seconde, pour ne jamais finir une partie par erreur.

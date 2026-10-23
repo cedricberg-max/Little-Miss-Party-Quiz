@@ -191,6 +191,9 @@ function startBox({ silent = false, held = false, host = HOST, from = null, seen
           else state = { ...state, seq, factorChoice: { ...state.factorChoice, factor: cmd.factor } };
         }
         else if (cmd.type === "end") state = { ...state, seq, phase: "ended" };
+        // « 🏁 Fin de la fête » : comme la box, seulement une fois la partie terminée ; la partie quittée est marquée.
+        else if (cmd.type === "newgame" && state.phase !== "ended") status = { status: "refused", reason: "not_ended" };
+        else if (cmd.type === "newgame") state = { ...state, leftAt: Date.now() };
         else state = { ...state, seq };
         if (status.status === "applied") status.seq = seq;
       }
@@ -1533,6 +1536,36 @@ describe("régie", () => {
     await page.mouse.up();
     await page.locator("#c-phase", { hasText: "Partie terminée" }).waitFor();
     assert.deepEqual((await commands()).map((c) => c.type), ["end"]);
+    await page.context().close();
+  });
+
+  test("Fin de la fête (cedric, 23/10) : sur l'écran de fin, un gros bouton « 🏁 Fin de la fête » ; confirmé, la TV quitte la fête et revient à l'accueil", async () => {
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    const fin = page.locator("#c-fin");
+    // Pendant la partie : pas de bouton.
+    assert.equal(await fin.isHidden(), true);
+    // Partie finie après le dernier jeu du programme : l'écran « Merci d'avoir participé ».
+    await box.set({ phase: "ended", index: QUESTIONS.length - 1, seq: (await read("state")).seq + 1 });
+    await page.locator("#c-fin:not([hidden])").waitFor();
+    assert.equal(await page.locator("#c-next").isHidden(), true);
+    assert.match(await page.textContent("#c-question"), /Sinon : « 🏁 Fin de la fête »/);
+    assert.ok((await fin.boundingBox()).height >= 90, "un gros bouton");
+    // Annulé : rien n'est envoyé.
+    await fin.click();
+    assert.match(await respond(page, false), /Fin de la fête \? La TV quitte l'écran de fin et revient à l'accueil/);
+    assert.equal((await commands()).length, 0);
+    await fin.click();
+    await respond(page);
+    await page.locator("#r-toast", { hasText: "🏁 Fête terminée : la TV revient à l'accueil." }).waitFor();
+    assert.deepEqual((await commands()).map((c) => c.type), ["newgame"]);
+    await page.locator("#c-question", { hasText: "🏁 Fête terminée. La TV est revenue à l'accueil, prête pour la prochaine fête. Merci !" }).waitFor();
+    assert.equal(await fin.isHidden(), true);
+    assert.equal(await page.locator("#c-next").isHidden(), true);
+    await capture(page, "fin-de-la-fete");
     await page.context().close();
   });
 

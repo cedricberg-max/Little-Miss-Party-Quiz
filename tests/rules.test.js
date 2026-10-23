@@ -467,6 +467,13 @@ describe("régie", () => {
     await assertSucceeds(get(ref(db(REGIE), `games/${CODE}/answers/q1`)));
     await assertSucceeds(get(ref(db(REGIE), `games/${CODE}/commandStatus`)));
   });
+  test("« 🏁 Fin de la fête » (cedric, 23/10) : la régie appairée envoie « newgame » ; seule la box marque la partie quittée", async () => {
+    await paired();
+    await assertSucceeds(command(REGIE, { type: "newgame" }));
+    await assertFails(command("espion", { type: "newgame" }));
+    await assertSucceeds(update(ref(db(HOST), `games/${CODE}/state`), { leftAt: serverTimestamp() }));
+    await assertFails(update(ref(db(REGIE), `games/${CODE}/state`), { leftAt: serverTimestamp() }));
+  });
   test("la régie ne touche jamais directement l'état, les scores ni le journal", async () => {
     await paired();
     await assertFails(update(ref(db(REGIE), `games/${CODE}/state`), { phase: "reveal" }));

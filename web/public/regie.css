@@ -33,6 +33,8 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
   padding: 0 18px; color: var(--night-deep); background: var(--gold); cursor: pointer;
 }
 .regie .btn.main { width: 100%; min-height: 76px; font-size: 22px; }
+/* « 🏁 Fin de la fête » (cedric, 23/10) : le gros bouton de l'écran de fin. */
+.regie .btn.main.fin-fete:not(.secondary) { min-height: 96px; font-size: 26px; }
 .regie .btn.secondary { background: var(--panel); color: var(--ink); border: 1px solid var(--trait); }
 .regie .btn.danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
 .regie .btn:disabled { opacity: .45; }
