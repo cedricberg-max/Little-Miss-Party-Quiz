@@ -806,9 +806,17 @@ button.media-tile:hover { border-color: var(--violet); }
 /* Un Quiz = une seule manche (cedric, 23/10) : le compteur, les séries dans l'ordre de passage, la Super Finale à la fin. */
 .round-body > .quiz-compteur { flex: 1 1 100%; margin: 0; font-weight: 800; font-size: 23px; line-height: 1.25; color: var(--violet); }
 .round-body > .quiz-ajouts { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
-.quiz-ajouts > .quiz-rappel { flex: 1 1 260px; min-width: 0; }
-.quiz-ajouts > .reprendre-zone { display: contents; }
-.quiz-ajouts .reprendre { flex: 1 1 100%; }
+/* « Rappeler un de vos quiz » (cedric, 23/10) : la case à gauche (pas un champ), la recherche des prestations archivées à droite. */
+.quiz-ajouts > .quiz-rappel-titre { flex: 0 0 auto; padding: 10px 14px; border-radius: 12px; background: var(--violet-pale); color: var(--violet); font-weight: 800; white-space: nowrap; }
+.quiz-ajouts > .quiz-rappel-cherche { flex: 1 1 240px; min-width: 0; }
+.quiz-ajouts > .quiz-rappel-liste { flex: 1 1 100%; display: flex; flex-direction: column; gap: 6px; max-height: 380px; overflow-y: auto; padding: 2px; }
+.quiz-rappel-item {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; text-align: left; cursor: pointer; overflow-wrap: anywhere;
+}
+.quiz-rappel-item:hover, .quiz-rappel-item:focus-visible { border-color: var(--violet); background: var(--violet-pale); outline: none; }
+.quiz-rappel-item .small { font-size: 13px; color: var(--soft); }
+@media (max-width: 640px) { .quiz-ajouts > .quiz-rappel-titre { flex: 1 1 100%; white-space: normal; } }
 .round-body > .quiz-series { flex: 1 1 100%; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .serie { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; border-radius: 14px; background: var(--card); border: 1px solid var(--line-2); }
 .serie-tete { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

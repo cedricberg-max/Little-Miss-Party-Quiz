@@ -1256,14 +1256,12 @@ function refreshRounds() {
         const r = editing.rounds[i];
         const vide = !roundFilled(r);
         const corps = h("div", { class: "round-body" }, ...roundFields(r));
-        // Créer d'abord (les champs ci-dessus), reprendre ensuite (cedric, 23/10). Quiz : les questions de la manche
-        // reprise s'ajoutent en une série (le reste de la manche ne bouge pas), depuis la ligne des ajouts.
-        const reprise = SANS_CONTENU.includes(b.type) ? null : reprendreManche(r, (next, x) => {
-          if (b.type === "quiz") ajouterReprise(r, next, x); else editing.rounds[i] = next;
+        // Créer d'abord (les champs ci-dessus), reprendre ensuite (cedric, 23/10). Pas pour le Quiz (cedric, 23/10) :
+        // ses questions viennent du 🎲 et du quiz d'une prestation archivée (« Rappeler un de vos quiz »).
+        const reprise = SANS_CONTENU.includes(b.type) || b.type === "quiz" ? null : reprendreManche(r, (next) => {
+          editing.rounds[i] = next;
           refreshRounds();
         });
-        const ajouts = b.type === "quiz" ? corps.querySelector(".quiz-ajouts") : null;
-        if (ajouts && reprise) ajouts.append(reprise);
         return h("div", { class: "round show-round", "data-manche": i },
           h("div", { class: "round-head" },
             h("span", { class: "num", title: `Manche ${i + 1} de la prestation`, text: `${i + 1}` }),
@@ -1271,7 +1269,7 @@ function refreshRounds() {
               : h("span", { class: "grow hint small", text: vide && b.type !== "quiz" ? "Nouvelle manche : choisissez son contenu, ou reprenez une manche déjà faite (plus bas)." : "" }),
             n > 1 ? h("button", { type: "button", class: "icon", title: "Retirer cette manche", onclick: () => { editing.rounds.splice(i, 1); refreshRounds(); }, text: "✕" }) : null),
           corps,
-          ajouts ? null : reprise,
+          reprise,
           alerteManche(r));
       })));
   });
@@ -1362,17 +1360,31 @@ function manchesAReprendre(type) {
   });
 }
 
+/** Une question jouée (format du quiz) gardée dans une série : 4 réponses avec sa photo ou son émoji, ou Juste Chiffre. */
+const versQuestionEnLigne = (q) => (q.kind === "number"
+  ? { text: q.text, nombre: true, correct: q.correct }
+  : { text: q.text, choices: [...(q.choices ?? [])], correct: q.correct,
+    ...(q.banque ? { banque: q.banque } : /^[0-9a-f]{16}$/.test(q.imageId ?? "") ? { imageId: q.imageId }
+      : typeof q.image === "string" && q.image && q.image.length <= 16 ? { emoji: q.image } : {}) });
+
 /**
- * Quiz (cedric, 23/10) : une manche reprise ajoute ses questions en séries à la fin de la manche. Ses questions gardées
- * (tirées au 🎲, écrites, déjà reprises) sont copiées en une série « 📅 » ; ses quiz rappelés restent des quiz rappelés.
+ * « Rappeler un de vos quiz » (cedric, 23/10) : les prestations archivées qui ont un Quiz, la plus récente d'abord, avec
+ * toutes les questions de leur Quiz (dans l'ordre joué) et de quoi les retrouver (prénom, âge, date, notes).
  */
-function ajouterReprise(r, copie, item) {
-  const reprise = versSeriesQuiz(copie, quizzes);
-  const titre = item?.show ? `${showTitle(item.show)}${item.show.date ? ` (${new Date(`${item.show.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })})` : ""}` : item?.titre ?? "Manche reprise";
-  const enLigne = roundSeriesQuiz(reprise).filter((x) => x.origine !== "quiz").flatMap((x) => x.questions.filter(questionJouable));
-  const series = seriesDe(r);
-  if (enLigne.length) series.push({ id: nouvelId("p"), origine: "reprise", titre, questions: JSON.parse(JSON.stringify(enLigne)) });
-  for (const x of roundSeriesQuiz(reprise).filter((y) => y.origine === "quiz")) series.push({ ...x, id: nouvelId("q") });
+function quizArchives() {
+  return prestationsRecentes().filter(([, s]) => etatPrestation(s) === "archivee").map(([sid, s]) => {
+    const questions = (s.rounds ?? []).map((x) => (x ? versSeriesQuiz(jeuDeLaManche(x, quizzes), quizzes) : null))
+      .filter((x) => x && (x.type ?? "quiz") === "quiz" && x.hasard !== true)
+      .flatMap((x) => questionsDesSeries(x, quizzes)).map(versQuestionEnLigne).filter(questionJouable);
+    const date = s.date ? new Date(`${s.date}T12:00:00`) : null;
+    return {
+      id: sid, show: s, questions,
+      titre: `${showTitle(s)}${date ? ` (${date.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })})` : ""}`,
+      details: [date ? date.toLocaleDateString("fr-FR") : "", s.age != null && s.age !== "" ? `${s.age} ans` : "", `${questions.length} question${questions.length > 1 ? "s" : ""}`].filter(Boolean).join(" · "),
+      noms: [showTitle(s), s.childName],
+      autres: [...datesCherchables(s.date), s.age != null && s.age !== "" ? `${s.age} ans` : "", s.notes, s.themes],
+    };
+  }).filter((x) => x.questions.length);
 }
 
 /**
@@ -1485,7 +1497,7 @@ function poserTirage(r, cases, profil) {
   const series = seriesDe(r);
   let de = serieDuDe(r);
   if (!cases.length) { r.seriesQuiz = series.filter((x) => x !== de); return; }
-  if (!de) { de = { id: "de", origine: "de" }; series.push(de); }
+  if (!de) { de = { id: "de", origine: "de" }; series.unshift(de); }
   de.questions = cases;
   if (profil) de.profil = profil;
 }
@@ -1549,7 +1561,7 @@ function compteurQuiz(r) {
  * - En haut, le compteur de toute la manche.
  * - Première ligne : le profil des questions (celui de la prestation d'office, modifiable), leur nombre, le 🎲 qui les
  *   tire dans la banque, la ✕ qui efface les questions tirées (et rien d'autre).
- * - Deuxième ligne : rappeler un de ses quiz, écrire une question à la main (et reprendre une manche déjà faite).
+ * - Deuxième ligne : « Rappeler un de vos quiz » : tout le Quiz d'une prestation archivée, cherchée par prénom, âge, date…
  * - Les séries : chacune se déplie, monte ou descend (↑ ↓) et s'enlève (✕) ; dans une série, ✕ retire une question
  *   (celle tirée au 🎲 laisse un 🎲 à sa place, qui en tire une autre de la même sorte).
  * - Puis la question des bougies (premier Quiz de la prestation) et, en dernière ligne, la Super Finale : oui ou non,
@@ -1604,35 +1616,37 @@ function mancheQuiz(r) {
       },
     }));
 
-  // Deuxième ligne : rappeler un quiz, écrire une question.
-  const classiques = Object.entries(quizzes).filter(([, q]) => q?.title && quizQuestions(q).length).sort(([, a], [, b]) => a.title.localeCompare(b.title, "fr"));
-  const deja = new Set(series.filter((x) => x.origine === "quiz").map((x) => x.quizId));
-  const ajouts = h("div", { class: "quiz-ajouts" },
-    h("select", {
-      class: "grow quiz-rappel", "aria-label": "Rappeler un de vos quiz",
-      onchange: (e) => {
-        const id = e.target.value;
-        if (!id) return;
-        const serie = { id: nouvelId("q"), origine: "quiz", quizId: id };
-        series.push(serie);
-        changer();
-      },
-    },
-    h("option", { value: "", text: classiques.length ? "📚 Rappeler un de vos quiz…" : "📚 Pas encore de quiz à vous" }),
-    ...classiques.map(([qid, q]) => h("option", { value: qid, text: `${deja.has(qid) ? "✓ " : ""}${q.title} (${playable(q).length} questions)` }))),
-    h("button", {
-      type: "button", class: "chip quiz-ecrire", text: "✍ Écrire une question",
+  // Deuxième ligne : « Rappeler un de vos quiz » (cedric, 23/10) : à droite, une recherche dans les prestations
+  // archivées (prénom, âge, date, notes…), filtrée à chaque lettre ; celle choisie ajoute tout son Quiz en une série à la
+  // fin (questions copiées : la prestation archivée ne change pas).
+  const archives = quizArchives();
+  const cherche = h("input", {
+    type: "search", class: "quiz-rappel-cherche", "aria-label": "Chercher une prestation archivée",
+    placeholder: archives.length ? "Prénom, âge, date… d'une prestation archivée" : "Aucune prestation archivée avec un Quiz",
+  });
+  const resultats = h("div", { class: "quiz-rappel-liste" });
+  resultats.hidden = true;
+  // Un clic dans la liste ne fait pas perdre la main au champ (la liste resterait sinon cachée avant le clic).
+  resultats.addEventListener("mousedown", (e) => e.preventDefault());
+  const dessinerArchives = () => {
+    const q = cherche.value;
+    const trouvees = q.trim() ? parPertinence(archives.filter((x) => contientTout([...x.noms, ...x.autres].filter(Boolean), q)), q, (x) => x.noms.filter(Boolean), (x) => x.autres.filter(Boolean)) : archives.slice(0, REPRISE_RECENTES);
+    resultats.replaceChildren(...(trouvees.length ? trouvees.map((x) => h("button", {
+      type: "button", class: "quiz-rappel-item", "data-show": x.id,
       onclick: () => {
-        let main = series.find((x) => x.origine === "main");
-        if (!main) { main = { id: nouvelId("m"), origine: "main", questions: [] }; series.push(main); }
-        if (!Array.isArray(main.questions)) main.questions = Object.values(main.questions ?? {});
-        const q = { id: nouvelId("e"), text: "", choices: ["", "", "", ""] };
-        main.questions.push(q);
-        seriesDepliees.add(main);
-        questionAFocaliser = q.id;
+        series.push({ id: nouvelId("p"), origine: "reprise", titre: x.titre, questions: JSON.parse(JSON.stringify(x.questions)) });
         changer();
       },
-    }));
+    }, h("b", { text: x.titre }), h("span", { class: "small", text: x.details }))) : [h("p", { class: "hint small", text: q.trim() ? "Aucune prestation archivée ne correspond." : "Aucune prestation archivée avec un Quiz." })]));
+    resultats.hidden = false;
+  };
+  cherche.addEventListener("input", dessinerArchives);
+  cherche.addEventListener("focus", dessinerArchives);
+  cherche.addEventListener("blur", () => { resultats.hidden = true; });
+  const ajouts = h("div", { class: "quiz-ajouts" },
+    h("span", { class: "quiz-rappel-titre", text: "📚 Rappeler un de vos quiz" }),
+    cherche,
+    resultats);
 
   // Les séries, dans l'ordre de passage ; les questions jouées sont comptées pour marquer celles de la Super Finale.
   let rang = 0;
