@@ -808,6 +808,13 @@ button.media-tile:hover { border-color: var(--violet); }
 .tirage-texte { flex: 0 1 auto; min-width: 0; }
 .tirage-mini { flex: none; height: 56px; width: 76px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line-2); background: #fff; }
 .tirage-mini.emoji { display: grid; place-items: center; font-size: 34px; line-height: 1; }
+/* Quiz illustré (cedric, 23/10) : les 4 réponses en petites images avec leur mot, la bonne en vert. */
+.tirage-reponses { flex: 0 1 auto; display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.tirage-rep { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 60px; max-width: 110px; padding: 3px; border-radius: 10px; border: 2px solid transparent; font-size: 12px; line-height: 1.15; text-align: center; }
+.tirage-rep.bonne { border-color: var(--good); background: var(--good-pale); font-weight: 800; }
+.tirage-rep-img { width: 52px; height: 40px; object-fit: cover; border-radius: 6px; background: #fff; }
+.tirage-rep-img.emoji { display: grid; place-items: center; font-size: 28px; line-height: 1; }
+.tirage-rep-mot { max-width: 100%; }
 .tirage-q-ligne .tirage-retirer { flex: none; width: 32px; height: 32px; border-radius: 10px; font-size: 14px; }
 .tirage-q-ligne .tirage-de.petit { align-self: center; font-size: 18px; padding: 4px 14px; }
 @media (max-width: 640px) { .tirage-ligne > select { flex: 1 1 100%; } }

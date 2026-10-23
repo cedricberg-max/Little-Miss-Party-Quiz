@@ -425,6 +425,12 @@ export const MAX_QUESTIONS_MANCHE = 100;
 export const FACTEURS_FINALE = [2, 3, 5];
 /** Origines d'une série de questions d'une manche Quiz. */
 export const ORIGINES_SERIE = ["de", "quiz", "main", "reprise"];
+/**
+ * Jeux dont une manche est faite de séries, comme le Quiz (cedric, 23/10 : « exactement la même architecture ») : 🎲,
+ * séries rappelées d'un ancien anniversaire, séries de la bibliothèque, Super Finale, « Quiz complet ».
+ */
+export const JEUX_EN_SERIES = ["quiz", "illustre"];
+export const estEnSeries = (type) => JEUX_EN_SERIES.includes(type ?? "quiz");
 
 /**
  * Séries d'une manche Quiz (cedric, 23/10 : un Quiz = une seule manche, quelle que soit l'origine de ses questions),
@@ -435,7 +441,7 @@ export const ORIGINES_SERIE = ["de", "quiz", "main", "reprise"];
  * - « quiz » : un quiz de la bibliothèque rappelé (`quizId`), lu au lancement, sans ses questions retirées (`sans`,
  *   leurs textes) ; s'il est changé dans la bibliothèque, la manche suit.
  */
-export const roundSeriesQuiz = (round) => ((round?.type ?? "quiz") === "quiz" ? listOf(round?.seriesQuiz) : [])
+export const roundSeriesQuiz = (round) => (estEnSeries(round?.type) ? listOf(round?.seriesQuiz) : [])
   .filter((x) => x && ORIGINES_SERIE.includes(x.origine) && (x.origine === "quiz" ? typeof x.quizId === "string" && x.quizId : true))
   .map((x) => (x.origine === "quiz"
     ? { ...x, sans: listOf(x.sans).filter((t) => typeof t === "string") }
@@ -457,7 +463,10 @@ function itemsDeLaSerie(serie, quizzes = {}) {
   return questionsEnLigne(serie?.questions).map((q) => ({ cle: cleQuestion(serie, q), q: q.nombre
     ? { text: q.text, kind: "number", correct: q.correct, status: "validee" }
     : { text: q.text, choices: q.choices, correct: q.correct, status: "validee",
-      ...(q.banque ? { banque: q.banque } : q.imageId ? { imageId: q.imageId } : q.emoji ? { image: q.emoji } : {}) } }));
+      ...(q.banque ? { banque: q.banque } : q.imageId ? { imageId: q.imageId } : q.emoji ? { image: q.emoji } : {}),
+      // Quiz illustré : réponses en photos de la banque (tirées au 🎲) ou en images déjà copiées (série reprise).
+      ...(Array.isArray(q.choiceBanque) ? { choiceBanque: q.choiceBanque } : {}),
+      ...(q.choiceImages && typeof q.choiceImages === "object" ? { choiceImages: q.choiceImages } : {}) } }));
 }
 
 /**
@@ -658,6 +667,9 @@ export function fixedConcepts(round, quizzes = {}, mimes = {}, contents = {}) {
   if (type === "zoom" || type === "flou") return zoomRoundQuestions(round, quizzes).flatMap((q) => questionConcepts({ ...q, kind: type }));
   // Quiz choisi : les photos de ses réponses (quiz illustré) et ses illustrations. Ses questions reprises au hasard
   // (« 🔁 Rejouer ») ne sont pas choisies à la main : elles comptent une fois tirées.
+  // Quiz ou Quiz illustré en séries (cedric, 23/10) : toutes ses questions, celles tirées au 🎲 comprises (elles comptent
+  // une fois tirées, gardées dans la manche).
+  if (estEnSeries(type) && round.hasard !== true && roundSeriesQuiz(round).length) return questionsDesSeries(round, quizzes).flatMap(questionConcepts);
   if ((type === "quiz" || type === "illustre" || type === "express") && round.hasard !== true) return roundQuizIds(round).flatMap((id) => Object.values(quizzes?.[id]?.questions ?? {})).flatMap(questionConcepts);
   return [];
 }
@@ -941,8 +953,8 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     const ids = roundQuizIds(round);
     const choisis = ids.map((id) => quizzes[id]).filter(Boolean);
     // Titre : celui de ses quiz quand elle n'est faite que de quiz de la bibliothèque (comme avant les séries), sinon « Quiz ».
-    const titreSeries = series.length && series.every((x) => x.origine === "quiz") && choisis.length ? choisis.map((q) => q.title).join(" + ") : ROUND_TYPES.quiz;
-    const found = series.length ? [{ title: titreSeries, questions: questionsDesSeries(round, quizzes) }] : [...(tirees.length
+    const titreSeries = series.length && series.every((x) => x.origine === "quiz") && choisis.length ? choisis.map((q) => q.title).join(" + ") : ROUND_TYPES[round.type ?? "quiz"];
+    const found = series.length ? [{ title: titreSeries, questions: questionsDesSeries(round, quizzes), ...(round.type === "illustre" ? { kind: "photo" } : {}) }] : [...(tirees.length
       ? [{ title: ROUND_TYPES.quiz, questions: tirees.map((q) => (q.nombre ? { text: q.text, kind: "number", correct: q.correct, status: "validee" }
         : { text: q.text, choices: q.choices, correct: q.correct, status: "validee", ...(q.banque ? { banque: q.banque } : q.emoji ? { image: q.emoji } : {}) })) }]
       : []), ...choisis];
@@ -956,7 +968,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     const game = QUIZ_GAMES[round.type];
     const label = round.type === "finale" || game ? ROUND_TYPES[round.type] : quiz?.title ?? `Manche ${i + 1}`;
     if (choisis.length < ids.length) problems.push(`Manche ${i + 1} : ${ids.length > 1 ? "un des quiz choisis" : "le quiz"} n'existe plus dans la bibliothèque.`);
-    if (series.length && !found[0].questions.length) { problems.push(`Manche ${i + 1} (${ROUND_TYPES.quiz}) : aucune question.`); return; }
+    if (series.length && !found[0].questions.length) { problems.push(`Manche ${i + 1} (${ROUND_TYPES[round.type ?? "quiz"]}) : aucune question.`); return; }
     if (!quiz) { if (!ids.length) problems.push(`Manche ${i + 1} : le quiz n'existe plus dans la bibliothèque.`); return; }
     // Nombre de questions choisi dans la prestation : les premières du quiz, dans son ordre. « 🔁 Rejouer » sur la
     // régie (cedric, 21/10) : jamais une question déjà posée pendant la fête ([avoid].questions).

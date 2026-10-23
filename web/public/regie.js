@@ -1769,6 +1769,16 @@ const PROGRAM_MESSAGES = {
   invalid: "La TV n'a pas pu lire ce programme : rien n'a été fait.",
 };
 
+/**
+ * Un Quiz ou un Quiz illustré fait de séries (cedric, 23/10), rejoué tel quel : son jeu, ses séries, l'ordre rangé
+ * dans le « Quiz complet », sa Super Finale et son multiplicateur.
+ */
+const sourceEnSeries = (round) => ({
+  type: round.type ?? "quiz", seriesQuiz: roundSeriesQuiz(round),
+  ...(Array.isArray(round.ordreQuiz) && round.ordreQuiz.length ? { ordreQuiz: round.ordreQuiz } : {}),
+  ...(round.finale > 0 ? { finale: round.finale } : {}), ...(round.facteur ? { facteur: round.facteur } : {}),
+});
+
 /** Quiz de la bibliothèque et manches des prestations déjà préparées, lus sans rien modifier. */
 async function fetchLibrary() {
   library = { loading: true };
@@ -1811,13 +1821,14 @@ async function fetchLibrary() {
       .sort((a, b) => (b[1].date ?? "").localeCompare(a[1].date ?? ""))
       .flatMap(([id, show]) => (show.rounds ?? []).map((r) => jeuDeLaManche(r, quizzes)).filter((r) => r && r.type !== "mimes" && r.type !== "statues" && r.type !== "pictionary" && r.type !== "portes" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "finale" && !BUILTIN_GAMES[r.type] && !MUSIC_GAMES[r.type]).map((round, i) => {
         const series = roundSeriesQuiz(round);
-        const title = series.length ? `Quiz (${series.length > 1 ? `${series.length} séries` : roundQuizIds(round).map((q) => quizzes[q]?.title).filter(Boolean)[0] ?? "1 série"})`
-          : [...(roundTirees(round).length ? ["Quiz tiré au hasard"] : []), ...roundQuizIds(round).map((q) => quizzes[q]?.title).filter(Boolean)].join(" + ") || `Manche ${i + 1}`;
-        const label = QUIZ_GAMES[round.type] ? `${ROUND_TYPES[round.type]} : ${title}` : title;
+        const title = [...(roundTirees(round).length ? ["Quiz tiré au hasard"] : []), ...roundQuizIds(round).map((q) => quizzes[q]?.title).filter(Boolean)].join(" + ") || `Manche ${i + 1}`;
+        // Quiz et Quiz illustré en séries (cedric, 23/10) : le nom du jeu, puis ses séries.
+        const label = series.length ? `${ROUND_TYPES[round.type ?? "quiz"]} (${series.length > 1 ? `${series.length} séries` : roundQuizIds(round).map((q) => quizzes[q]?.title).filter(Boolean)[0] ?? "1 série"})`
+          : QUIZ_GAMES[round.type] ? `${ROUND_TYPES[round.type]} : ${title}` : title;
         const date = show.date ? ` (${new Date(`${show.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })})` : "";
         // Les réglages de la manche suivent (nombre de questions, Super Finale à la fin du quiz).
         // Quiz en séries (cedric, 23/10) : rejoué tel quel, ses séries dans l'ordre, sa Super Finale et son multiplicateur.
-        if (series.length) return { key: `show/${id}/${i}`, label, from: `${showTitle(show)}${date}`, source: { type: "quiz", seriesQuiz: series, ...(round.finale > 0 ? { finale: round.finale } : {}), ...(round.facteur ? { facteur: round.facteur } : {}) } };
+        if (series.length) return { key: `show/${id}/${i}`, label, from: `${showTitle(show)}${date}`, source: sourceEnSeries(round) };
         return { key: `show/${id}/${i}`, label, from: `${showTitle(show)}${date}`, source: { type: round.type, quizId: round.quizId, ...(roundQuizIds(round).length > 1 ? { quizIds: roundQuizIds(round) } : {}), ...(roundTirees(round).length ? { tirees: roundTirees(round) } : {}), ...(round.count > 0 ? { count: round.count } : {}), ...(round.finale > 0 ? { finale: round.finale } : {}) } };
       }));
     // Jeux au buzzer intégrés : toujours disponibles, sans rien préparer.
@@ -1839,7 +1850,7 @@ async function fetchLibrary() {
         const from = showTitle(show);
         const ids = roundQuizIds(round);
         const tirees = roundTirees(round);
-        if (roundSeriesQuiz(round).length) return { key, label: "Quiz", from, source: { type: "quiz", seriesQuiz: roundSeriesQuiz(round), ...(round.finale > 0 ? { finale: round.finale } : {}), ...(round.facteur ? { facteur: round.facteur } : {}) } };
+        if (roundSeriesQuiz(round).length) return { key, label: ROUND_TYPES[round.type ?? "quiz"], from, source: sourceEnSeries(round) };
         // Questions tirées au 🎲, suivies du quiz choisi en plus s'il y en a un (deuxième ligne).
         const choisis = ids.filter((q) => quizzes[q]);
         if (tirees.length) {

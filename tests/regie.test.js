@@ -5166,7 +5166,8 @@ describe("bibliothèque de quiz et prestations", () => {
     const premiere = page.locator("#show-rounds .round").nth(0);
     assert.deepEqual(await page.locator("#show-rounds .jeu-bloc").evaluateAll((l) => l.map((x) => x.dataset.jeu)), ["illustre", "quiz"]);
     assert.equal(await premiere.locator("select.finale").inputValue(), "1");
-    assert.deepEqual(await premiere.locator(".quiz-picks select").first().locator("option").evaluateAll((o) => o.map((x) => x.value)), ["", "petits"]);
+    // Le Quiz illustré a l'architecture du Quiz (cedric, 23/10) : le quiz illustré en est une série.
+    assert.deepEqual(await premiere.locator(".quiz-series > li.serie").evaluateAll((xs) => xs.map((x) => x.dataset.origine)), ["quiz"]);
     // Le Quiz ne propose pas le quiz illustré.
     const seconde = page.locator("#show-rounds .round").nth(1);
     await seconde.locator(".quiz-biblio-cherche").fill("animaux");
@@ -5203,6 +5204,164 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.locator(`#lib-list [data-game='manche/${mancheId}']`, { hasText: "Quiz illustré" }).waitFor();
     await regie.locator("#lib-list [data-game='quiz/animaux']").waitFor();
     assert.equal(await regie.locator("#lib-list [data-game='quiz/petits']").count(), 0);
+    await regie.context().close();
+  });
+
+  test("Régie PC (cedric, 23/10) : le Quiz illustré se construit comme le Quiz : 🎲 par thème (photos libres ou émojis), un ancien anniversaire, ses quiz illustrés, Super Finale, « Quiz illustré complet » ; la TV a ses réponses en images", async () => {
+    const { buildSnapshot } = await import("../web/public/show.js");
+    const { cataloguePetits } = await import("../web/public/banque-petits.js");
+    const { imageLibre } = await import("../web/public/banque-photos.js");
+    const catalogue = cataloguePetits();
+    const familleDe = new Map(catalogue.map((x) => [x.id, x.famille]));
+    const bonneDe = new Map(catalogue.map((x) => [x.id, x.choices[0]]));
+    const PNG = `data:image/png;base64,${png([200, 120, 60]).toString("base64")}`;
+    const ids = ["1111111111111111", "2222222222222222", "3333333333333333", "4444444444444444"];
+    const PETITS = {
+      title: "Les animaux des petits", kind: "photo", source: "banque", updatedAt: 1,
+      questions: [
+        { text: "Où est le chat ?", choices: ["Chat", "Chien", "Vache", "Lion"], correct: 0, status: "validee", choiceImages: ids },
+        { text: "Où est le lion ?", choices: ["Chat", "Chien", "Vache", "Lion"], correct: 3, status: "validee", choiceImages: ids },
+      ],
+    };
+    // Un ancien anniversaire avec un Quiz illustré tiré au 🎲 (photos libres) et un Quiz ; Tom n'a qu'un Quiz.
+    const luna = (text, choices) => ({ id: `l-${choices[0]}`, text, choices, correct: 0, choiceBanque: choices.map(imageLibre) });
+    const tireesLuna = [luna("Luna : où est le lion ?", ["Lion", "Chat", "Chien", "Vache"]), luna("Luna : où est le lapin ?", ["Lapin", "Cochon", "Mouton", "Poule"])];
+    assert.ok(tireesLuna.every((q) => q.choiceBanque.every(Boolean)));
+    const LUNA = { childName: "Luna", age: 4, date: "2026-05-10", status: "archivee", updatedAt: 1, rounds: [
+      { type: "illustre", seriesQuiz: [{ id: "de", origine: "de", famille: "animaux", questions: tireesLuna }] },
+      { type: "quiz", quizId: "animaux" }] };
+    const TOM = { childName: "Tom", age: 9, date: "2026-03-01", status: "archivee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 };
+    await seedLibrary("quizzes", { animaux: ANIMAUX, petits: PETITS });
+    await seedLibrary("images", Object.fromEntries(ids.map((id) => [id, PNG])));
+    await seedLibrary("shows", { luna: LUNA, tom: TOM });
+    const page = await admin();
+    await page.click("#home-new");
+    await page.fill("#show-child", "Zoé");
+    await page.fill("#show-age", "5");
+    await ajouterJeu(page, "illustre");
+    const round = page.locator("#show-rounds .round").nth(0);
+    const ligne = round.locator(".quiz-outils > .tirage-ligne");
+    const compteur = round.locator(".round-head > .quiz-compteur");
+    const series = round.locator(".quiz-series > li.serie");
+    const origines = () => series.evaluateAll((xs) => xs.map((x) => x.dataset.origine));
+    // Comme le Quiz : une seule manche, le compteur sur la ligne du numéro, les outils ensemble, la Super Finale. Ni
+    // bougies (elles vont dans le Quiz) ni profil : le 🎲 tire par thème dans le Quiz illustré tout prêt.
+    assert.equal(await page.locator('#show-rounds .jeu-bloc[data-jeu="illustre"] .jeu-plus').count(), 0);
+    assert.deepEqual(await round.locator(".round-head > *").evaluateAll((xs) => xs.map((x) => x.className)), ["num", "quiz-compteur"]);
+    assert.deepEqual(await round.locator(".round-body > *").evaluateAll((xs) => xs.map((x) => x.className)), ["quiz-outils", "quiz-finale"]);
+    assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-theme", "tirage-nombre", "btn tirage-de"]);
+    assert.equal(await ligne.locator(".tirage-theme").inputValue(), "");
+    assert.equal(await round.locator(".quiz-rappel-titre").textContent(), "📚 Rappeler un de vos quiz illustrés");
+    assert.equal(await round.locator(".quiz-biblio-titre").textContent(), "📗 Intégrer un quiz illustré de votre bibliothèque");
+    assert.equal(await compteur.textContent(), "Aucune question pour l'instant");
+    assert.equal(await round.locator(".quiz-finale select.finale").inputValue(), "3");
+
+    // Un ancien anniversaire : seulement ceux qui ont un Quiz illustré ; ses questions gardent leurs images.
+    const rappel = round.locator(".quiz-rappel");
+    await rappel.locator(".quiz-rappel-cherche").fill("tom");
+    await rappel.locator(".quiz-rappel-liste", { hasText: "Aucune prestation archivée ne correspond." }).waitFor();
+    await rappel.locator(".quiz-rappel-cherche").fill("luna");
+    await rappel.locator('.quiz-rappel-item[data-show="luna"]').click();
+    await series.first().waitFor();
+    assert.equal(await series.nth(0).locator(".serie-voir").textContent(), "▸ 📅 Anniversaire de Luna (10 mai 2026) : 2 questions");
+    // Ses quiz illustrés de la bibliothèque, jamais un quiz classique (« animaux » ne trouve que le sien).
+    await round.locator(".quiz-biblio-cherche").fill("animaux");
+    await round.locator(".quiz-biblio-item").first().waitFor();
+    assert.deepEqual(await round.locator(".quiz-biblio-item").evaluateAll((xs) => xs.map((x) => x.dataset.quiz)), ["petits"]);
+    await round.locator('.quiz-biblio-item[data-quiz="petits"]').click();
+    await series.nth(1).waitFor();
+    assert.equal(await series.nth(1).locator(".serie-voir").textContent(), "▸ 📚 Quiz illustré « Les animaux des petits » : 2 questions");
+
+    // Le 🎲 : 6 questions du thème Animaux, en tête ; jamais une question déjà là.
+    await ligne.locator(".tirage-theme").selectOption("animaux");
+    await ligne.locator(".tirage-nombre").selectOption("6");
+    await ligne.locator(".tirage-de").click();
+    await waitFor(async () => (await series.count()) === 3, "série du dé");
+    assert.deepEqual(await origines(), ["de", "reprise", "quiz"]);
+    assert.equal(await series.nth(0).locator(".serie-voir").textContent(), "▸ 🎲 6 questions tirées au hasard (Animaux)");
+    assert.equal(await compteur.textContent(), "10 questions, dont 3 en Super Finale");
+    await series.nth(0).locator(".serie-voir").click();
+    const lignes = series.nth(0).locator(".serie-liste > li");
+    assert.equal(await lignes.count(), 6);
+    const deja = new Set([...tireesLuna, ...PETITS.questions].map((q) => q.text));
+    for (const t of await lignes.locator(".tirage-texte").allTextContents()) assert.ok(!deja.has(t), `déjà là : ${t}`);
+    // Chaque question montre ses 4 réponses en petites images (photo libre ou émoji, jamais une image à soi), la bonne en vert.
+    for (const li of await lignes.all()) {
+      assert.equal(await li.locator(".tirage-rep").count(), 4);
+      assert.equal(await li.locator(".tirage-rep.bonne").count(), 1);
+      const images = await li.locator(".tirage-rep-img").evaluateAll((xs) => xs.map((x) => (x.tagName === "IMG" ? x.getAttribute("src") : `émoji ${x.textContent}`)));
+      assert.equal(images.length, 4);
+      for (const src of images) assert.match(src, /^(banque\/[^/]+\.jpg|émoji .+)$/);
+    }
+    // ✕ : un 🎲 prend sa place et tire une autre question du même thème.
+    const retiree = await lignes.nth(0).locator(".tirage-texte").textContent();
+    await lignes.nth(0).locator(".tirage-retirer").click();
+    await series.nth(0).locator(".serie-liste li.vide").waitFor();
+    assert.equal(await compteur.textContent(), "9 questions, dont 3 en Super Finale · 1 à tirer");
+    await lignes.nth(0).locator(".tirage-de").click();
+    await series.nth(0).locator(".serie-liste li.vide").waitFor({ state: "detached" });
+    assert.notEqual(await lignes.nth(0).locator(".tirage-texte").textContent(), retiree);
+    assert.equal(await compteur.textContent(), "10 questions, dont 3 en Super Finale");
+
+    // Un Quiz illustré ajouté juste après n'en crée pas un second : on revient à celui-ci.
+    await ajouterJeu(page, "illustre");
+    await page.locator("#annonce", { hasText: "Le Quiz illustré est déjà le dernier jeu" }).waitFor();
+    assert.equal(await page.locator("#show-rounds .round").count(), 1);
+    // Le « Quiz illustré complet » : tout, dans l'ordre de passage, chaque question avec ses images.
+    const complet = round.locator(".quiz-complet");
+    assert.equal(await complet.locator(".quiz-complet-voir").textContent(), "▸ 🧩 Quiz illustré complet : 10 questions, dans l'ordre de passage");
+    await complet.locator(".quiz-complet-voir").click();
+    assert.equal(await complet.locator(".quiz-complet-q .tirage-reponses").count(), 10);
+    await capture(page, "quiz-illustre-manche");
+    if (process.env.CAPTURES) {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await capture(page, "quiz-illustre-manche-pc");
+      await page.setViewportSize({ width: 390, height: 844 });
+    }
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
+    const shows = await library("shows");
+    assert.deepEqual([shows.luna, shows.tom], [LUNA, TOM], "Les prestations archivées ne changent pas");
+    const zoe = Object.values(shows).find((s) => s.childName === "Zoé");
+    assert.equal(zoe.rounds.length, 1);
+    const [manche] = zoe.rounds;
+    assert.equal(manche.type, "illustre");
+    assert.deepEqual(manche.seriesQuiz.map((x) => [x.origine, x.famille ?? null, x.questions?.length ?? x.quizId]),
+      [["de", "animaux", 6], ["reprise", null, 2], ["quiz", null, "petits"]]);
+    assert.equal(manche.finale, 3);
+    assert.equal(manche.bougies, undefined);
+    for (const q of manche.seriesQuiz[0].questions) {
+      assert.equal(familleDe.get(q.id), "animaux", q.text);
+      assert.equal(q.choices[q.correct], bonneDe.get(q.id));
+      assert.deepEqual(q.choiceBanque, q.choices.map(imageLibre));
+    }
+    assert.deepEqual(manche.seriesQuiz[1].questions, tireesLuna.map(({ id, ...q }) => q));
+    await page.context().close();
+
+    // Sur la TV : un seul jeu « Quiz illustré », la Super Finale sur les 3 dernières, pas de bougies.
+    const { snapshot } = buildSnapshot("zoe", zoe, { petits: PETITS });
+    const qs = snapshot.quiz.questions;
+    assert.equal(qs.length, 10);
+    assert.deepEqual([...new Set(qs.map((q) => q.round))], ["Quiz illustré"]);
+    assert.deepEqual(qs.slice(0, 8).map((q) => q.choiceBanque?.length), Array(8).fill(4));
+    assert.deepEqual(qs.slice(8).map((q) => q.choiceImages), [ids, ids]);
+    assert.deepEqual(qs.map((q) => !!q.finale), [...Array(7).fill(false), true, true, true]);
+    assert.ok(!qs.some((q) => /bougies/.test(q.text)));
+    // Lancée par la régie : chaque réponse a son image copiée dans la partie (photo libre, émoji dessiné, ou la sienne).
+    await seedLibrary("shows/zoe", { ...zoe, date: "2099-12-02", status: "publiee" });
+    box = startBox();
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "Zoé" }).click();
+    await respond(regie);
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    const jouees = (await read("show")).quiz.questions;
+    assert.equal(jouees.length, 10);
+    await waitFor(async () => {
+      const copiees = (await read("choiceImages")) ?? {};
+      return jouees.every((q) => q.choiceBanque === undefined && q.choiceImages?.length === 4 && q.choiceImages.every((id) => copiees[id]));
+    }, "réponses en images copiées dans la partie");
     await regie.context().close();
   });
 
