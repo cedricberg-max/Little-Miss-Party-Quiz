@@ -39,6 +39,8 @@ object Sons {
     private const val VEILLE_MS = 1_000L
     /** Incidents du son envoyés dans les rapports de la box, au plus, par lancement de l'appli. */
     private const val MAX_INCIDENTS = 20
+    /** Délai avant de rendre les lecteurs d'une boucle libérée : Android a fini de relancer celui qui prenait le relais. */
+    private const val LIBERATION_MS = 2_000L
 
     private val fil = HandlerThread("habillage-son").apply { start() }
     private val h = Handler(fil.looper)
@@ -118,6 +120,7 @@ object Sons {
     fun preparer(context: Context) {
         val app = context.applicationContext
         appli = app
+        proteger()
         h.post {
             if (pret) return@post
             pret = true
@@ -168,6 +171,19 @@ object Sons {
             }
             veiller()
         }, veille, SystemClock.uptimeMillis() + VEILLE_MS)
+    }
+
+    private var protege = false
+
+    /** Voir [relaisAndroidRate] : ce seul échec d'Android est noté au lieu d'arrêter l'appli. */
+    @Synchronized private fun proteger() {
+        if (protege) return
+        protege = true
+        val avant = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { enPanne, e ->
+            if (relaisAndroidRate(e)) h.post { incident("Relais de boucle relancé par Android sur un lecteur déjà rendu : ignoré") }
+            else avant?.uncaughtException(enPanne, e)
+        }
     }
 
     /** Un incident du son : dans le journal de la box, et dans ses rapports (les premiers seulement). */
@@ -421,7 +437,7 @@ object Sons {
                         // Boucle devenue muette : libérée (voir [endormir]), rechargée quand une ambiance la redemande.
                         if (k == etapes && v == 0f) {
                             lits.remove(l)
-                            b.liberer()
+                            b.liberer(h, LIBERATION_MS)
                         }
                     }
                 }
@@ -525,7 +541,7 @@ object Sons {
         }
         Lit.entries.find { it.fichierPour(Look.gs) == nom && lits[it]?.possede(ancien) == true }?.let { l ->
             // Une boucle, c'est deux lecteurs : on refait les deux.
-            essayer("reconstruire") { lits[l]?.liberer() }
+            essayer("reconstruire") { lits[l]?.liberer(h, LIBERATION_MS) }
             essayer("reconstruire") { neuf.release() }
             lits.remove(l)
             chargerLit(context, l)
@@ -564,7 +580,7 @@ object Sons {
             longs.clear()
             variantes.clear()
             derniereVariante.clear()
-            lits.values.forEach { essayer("recharger") { it.liberer() } }
+            lits.values.forEach { essayer("recharger") { it.liberer(h, LIBERATION_MS) } }
             lits.clear()
             essayer("recharger") { crayon?.release() }
             crayon = null
@@ -601,6 +617,7 @@ private class Boucle(
     private val signaler: (String) -> Unit = {},
 ) {
     private var courant = a
+    private var libere = false
 
     init {
         if (b == null || !relier(a, b)) a.isLooping = true
@@ -617,6 +634,7 @@ private class Boucle(
 
     /** Le lecteur qui vient de finir se remet au début et attend son tour derrière celui qui joue. */
     private fun relais(fini: MediaPlayer) {
+        if (libere) return
         val suivant = if (fini === a) b ?: return else a
         courant = suivant
         surTour?.invoke(SystemClock.elapsedRealtime())
@@ -677,9 +695,24 @@ private class Boucle(
 
     fun possede(mp: MediaPlayer) = mp === a || mp === b
 
-    fun liberer() {
+    /**
+     * Coupe le relais tout de suite, rend les deux lecteurs [apresMs] plus tard sur [h]. Quand le premier finit, Android
+     * relance le second sur un fil à lui ; rendu à cet instant, ce second lecteur faisait planter toute l'appli (essai
+     * sur émulateur du 23 octobre). Muets entre-temps, ils ne s'entendent plus.
+     */
+    fun liberer(h: Handler, apresMs: Long) {
+        libere = true
         surTour?.invoke(0L)
-        a.release()
-        b?.release()
+        listOfNotNull(a, b).forEach { mp ->
+            try {
+                mp.setOnCompletionListener(null)
+                mp.setNextMediaPlayer(null)
+                mp.setVolume(0f, 0f)
+            } catch (_: Exception) {}
+        }
+        h.postDelayed({
+            try { a.release() } catch (_: Exception) {}
+            try { b?.release() } catch (_: Exception) {}
+        }, apresMs)
     }
 }
