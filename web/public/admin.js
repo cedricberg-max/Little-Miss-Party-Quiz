@@ -242,7 +242,9 @@ const EDITEURS = {
   "mime-edit": { id: () => deck?.id, rouvrir: (id) => mimes[id] && editDeck(id), parent: "mimes" },
   "playlist-edit": { id: () => playlist?.id, rouvrir: (id) => playlists[id] && editPlaylist(id), parent: "music" },
 };
-const contexte = (ecran) => ({ showsEtat, gameType, quizFilter, builtinType, libTab, mediaGroupe, mediaCat, ouvert: EDITEURS[ecran]?.id() ?? null });
+const contexte = (ecran) => ({ showsEtat, gameType, quizFilter, builtinType, libTab, mediaGroupe, mediaCat, qGroupe, qPack, ouvert: EDITEURS[ecran]?.id() ?? null });
+/** Rubrique de la Bibliothèque : son onglet, et le groupe d'images ou de questions (ou le pack) ouvert. */
+const rubrique = (ctx) => [ctx.libTab, ctx.libTab === "images" ? ctx.mediaGroupe : null, ctx.libTab === "questions" ? ctx.qGroupe : null, ctx.libTab === "questions" ? ctx.qPack : null].join("|");
 
 function noterPage(name, avant, defilement = 0) {
   const ancre = ancreChanson;
@@ -258,7 +260,7 @@ function noterPage(name, avant, defilement = 0) {
   // La page quittée garde ce qu'on y a fait depuis (onglet de la bibliothèque, enregistrement d'une nouvelle).
   if (pageActuelle >= 0 && pages[pageActuelle].ecran === avant) {
     const quittee = pages[pageActuelle];
-    quittee.ctx = { ...quittee.ctx, libTab, mediaGroupe, mediaCat, ouvert: EDITEURS[avant]?.id() ?? quittee.ctx.ouvert };
+    quittee.ctx = { ...quittee.ctx, libTab, mediaGroupe, mediaCat, qGroupe, qPack, ouvert: EDITEURS[avant]?.id() ?? quittee.ctx.ouvert };
     // Elle sera rouverte là où on l'a laissée (cedric, 23/10).
     quittee.defilement = defilement;
     quittee.ancre = ancre;
@@ -270,11 +272,33 @@ function noterPage(name, avant, defilement = 0) {
   else history.pushState({ page: pageActuelle, ouverture: OUVERTURE }, "");
 }
 
+/**
+ * Bibliothèque (cedric, 23/10) : chaque onglet (Images, Sons, Questions) et chaque rubrique ouverte (Émojis, Mes
+ * questions en vrac, un pack…) compte comme une page : « ← Retour » et la flèche du navigateur reviennent à la
+ * rubrique d'avant, puis à la page d'avant la Bibliothèque. À appeler une fois la rubrique ouverte, avec la hauteur
+ * où l'on était dans la rubrique quittée.
+ */
+function noterRubrique(defilement) {
+  if (depuisHistorique || pageActuelle < 0 || pages[pageActuelle].ecran !== "library") return;
+  const page = { ecran: "library", ctx: contexte("library") };
+  if (rubrique(pages[pageActuelle].ctx) === rubrique(page.ctx)) {
+    pages[pageActuelle] = page;
+    return;
+  }
+  pages[pageActuelle].defilement = defilement;
+  pages.length = pageActuelle + 1;
+  pages.push(page);
+  pageActuelle = pages.length - 1;
+  history.pushState({ page: pageActuelle, ouverture: OUVERTURE }, "");
+}
+
 /** Rouvre une page de l'historique telle qu'on l'a laissée. */
 function rouvrirPage({ ecran, ctx, defilement = 0, ancre = null }) {
   depuisHistorique = true;
   try {
-    ({ showsEtat, gameType, quizFilter, builtinType, libTab, mediaGroupe, mediaCat } = ctx);
+    // Une autre rubrique de questions rouverte : ses filtres repartent à zéro, comme quand on l'ouvre.
+    if (ctx.qGroupe !== qGroupe || ctx.qPack !== qPack) { qCategorie = qType = qNiveau = null; qSelection.clear(); }
+    ({ showsEtat, gameType, quizFilter, builtinType, libTab, mediaGroupe, mediaCat, qGroupe, qPack } = ctx);
     const editeur = EDITEURS[ecran];
     if (editeur && ctx.ouvert && editeur.id() !== ctx.ouvert) {
       // Ce qui était en cours d'édition a été remplacé : on le rouvre tel qu'enregistré (ou sa liste, s'il n'existe plus).
@@ -5692,7 +5716,9 @@ function openLibrary(tab) {
   show("library");
 }
 $("music-songs").onclick = () => openLibrary("sons");
-document.querySelectorAll("#library-tabs [data-lib-tab]").forEach((b) => { b.onclick = () => { libTab = b.dataset.libTab; renderLibrary(true); }; });
+document.querySelectorAll("#library-tabs [data-lib-tab]").forEach((b) => {
+  b.onclick = () => { const y = window.scrollY; libTab = b.dataset.libTab; renderLibrary(true); noterRubrique(y); };
+});
 
 /** [force] : redessiner même si une fiche est en cours de saisie (choix de Sarah, pas un changement venu de la base). */
 function renderLibrary(force = false) {
@@ -5853,7 +5879,7 @@ function cartePack(p) {
     h("span", { text: `${plural(p.total, "question")} · ${p.validees} validée${p.validees > 1 ? "s" : ""}` }),
     p.sansIllustration ? h("span", { class: "q-alerte", text: `⚠ ${p.sansIllustration} sans illustration` }) : h("span", { class: "ok", text: "✓ Toutes illustrées" }),
     h("div", { class: "row" },
-      h("button", { class: "btn", type: "button", text: "Ouvrir", onclick: () => { qPack = p.id; qSelection.clear(); status("q-status", ""); renderQuestions(); } }),
+      h("button", { class: "btn", type: "button", text: "Ouvrir", onclick: () => { const y = window.scrollY; qPack = p.id; qSelection.clear(); status("q-status", ""); renderQuestions(); noterRubrique(y); } }),
       h("button", { class: "btn secondary", type: "button", text: "Éditer", onclick: () => review(p.id, quizzes[p.id]) }),
       h("button", { class: "btn secondary", type: "button", text: "Renommer", onclick: () => rename(`library/quizzes/${p.id}`, p.title, "du pack") }),
       h("button", { class: "btn danger", type: "button", text: "Supprimer", onclick: () => deleteQuiz(p.id, quizzes[p.id]) })));
@@ -5878,7 +5904,7 @@ function dessinerQuestions() {
   if (qPack && !quizzes[qPack]) qPack = null;
   const chip = (key, label, n) => h("button", {
     type: "button", class: `chip${qGroupe === key ? " active" : ""}`, "data-groupe": key ?? "tout", text: `${label} (${n})`,
-    onclick: () => { qGroupe = key; qPack = null; qCategorie = null; qType = null; qNiveau = null; qSelection.clear(); status("q-status", ""); renderQuestions(); },
+    onclick: () => { const y = window.scrollY; qGroupe = key; qPack = null; qCategorie = null; qType = null; qNiveau = null; qSelection.clear(); status("q-status", ""); renderQuestions(); noterRubrique(y); },
   });
   const total = Object.values(compte).reduce((a, b) => a + b, 0);
   $("q-groups").replaceChildren(chip(null, "Tout", total), ...groupes.map(([k, label]) => chip(k, label, compte[k])));
@@ -5894,7 +5920,7 @@ function dessinerQuestions() {
     qListees = liste;
     box.replaceChildren(
       h("div", { class: "title-row" },
-        h("button", { type: "button", class: "btn secondary", text: "← Tous les packs", onclick: () => { qPack = null; qSelection.clear(); renderQuestions(); } }),
+        h("button", { type: "button", class: "btn secondary", text: "← Tous les packs", onclick: () => { const y = window.scrollY; qPack = null; qSelection.clear(); renderQuestions(); noterRubrique(y); } }),
         h("button", { type: "button", class: "btn secondary", text: "Éditer le pack", onclick: () => review(p.id, quizzes[p.id]) })),
       h("h2", { text: p.title }),
       h("p", { class: "hint", text: [p.theme, plural(p.total, "question"), p.sansIllustration ? `⚠ ${p.sansIllustration} sans illustration` : "✓ toutes illustrées"].filter(Boolean).join(" · ") }),
@@ -5905,7 +5931,7 @@ function dessinerQuestions() {
   // Aperçu : les groupes l'un sous l'autre, quelques questions (ou packs) chacun.
   if (!qGroupe) {
     box.replaceChildren(...groupes.map(([k, label]) => {
-      const voir = h("button", { type: "button", class: "btn small secondary", text: "Voir tout", onclick: () => { qGroupe = k; renderQuestions(); } });
+      const voir = h("button", { type: "button", class: "btn small secondary", text: "Voir tout", onclick: () => { const y = window.scrollY; qGroupe = k; renderQuestions(); noterRubrique(y); } });
       const contenu = k === "packs"
         ? (packsTrouves.length ? h("div", { class: "cards" }, ...packsTrouves.slice(0, QUESTIONS_APERCU).map(cartePack))
           : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : "Aucun pack pour l'instant : « Voir tout », puis « 📥 Importer des packs JSON… »." }))
@@ -6028,9 +6054,11 @@ $("pack-file").onchange = async () => {
   }
   packsNouveaux = new Set(faits);
   setTimeout(() => { packsNouveaux = new Set(); if (libTab === "questions" && !$("screen-library").hidden) renderQuestions(); }, 6000);
+  const y = window.scrollY;
   qGroupe = "packs";
   qPack = null;
   renderQuestions();
+  noterRubrique(y);
   const bilan = faits.length
     ? [`${plural(faits.length, "pack importé", "packs importés")} : ${plural(questionsFaites, "question")}`,
       aValider ? `${aValider} à valider dans « Éditer »` : null, sansIllus ? `⚠ ${sansIllus} sans illustration` : null,
@@ -6078,7 +6106,7 @@ function renderMedias(force = false) {
   const trouve = (list) => parPertinence(filtre(list), recherche, nomMedia, autresMedia);
   const chip = (key, label, n) => h("button", {
     type: "button", class: `chip${mediaGroupe === key ? " active" : ""}`, "data-groupe": key ?? "tout", text: `${label} (${n})`,
-    onclick: () => { mediaGroupe = key; mediaCat = null; renderMedias(true); },
+    onclick: () => { const y = window.scrollY; mediaGroupe = key; mediaCat = null; renderMedias(true); noterRubrique(y); },
   });
   const total = (k) => filtre(g[k]).length;
   const toutes = Object.keys(GROUPES_IMAGES).reduce((n, k) => n + total(k), 0);
@@ -6093,10 +6121,10 @@ function renderMedias(force = false) {
     $("media-cats").replaceChildren();
     box.replaceChildren(...Object.entries(GROUPES_IMAGES).map(([k, label]) => {
       const list = trouve(g[k]);
-      const voir = h("button", { type: "button", class: "btn small secondary", text: recherche ? `Voir les ${plural(list.length, "résultat")}` : `Tout voir (${list.length})`, onclick: () => { mediaGroupe = k; mediaCat = null; renderMedias(true); } });
+      const voir = h("button", { type: "button", class: "btn small secondary", text: recherche ? `Voir les ${plural(list.length, "résultat")}` : `Tout voir (${list.length})`, onclick: () => { const y = window.scrollY; mediaGroupe = k; mediaCat = null; renderMedias(true); noterRubrique(y); } });
       return h("section", { class: "media-group", "data-groupe": k },
         h("div", { class: "title-row" }, h("h2", { text: label }), list.length ? voir : null,
-          k === "miennes" && !recherche ? h("button", { type: "button", class: "btn small", text: "＋ Ajouter mes images", onclick: () => { mediaGroupe = "miennes"; mediaCat = null; renderMedias(true); } }) : null),
+          k === "miennes" && !recherche ? h("button", { type: "button", class: "btn small", text: "＋ Ajouter mes images", onclick: () => { const y = window.scrollY; mediaGroupe = "miennes"; mediaCat = null; renderMedias(true); noterRubrique(y); } }) : null),
         list.length ? h("div", { class: "media-grid" }, ...list.slice(0, APERCU).map((x, i, l) => vignetteMedia(x, i, l)))
           : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : k === "miennes" ? "Aucune image à vous pour l'instant : « ＋ Ajouter mes images »." : k === "pochettes" ? AUCUNE_POCHETTE : "" }));
     }));
@@ -6205,9 +6233,11 @@ $("vis-copier").onclick = () => copierImage(vis.liste[vis.i], "vis-status");
 $("vis-fiche").onclick = () => {
   const x = vis.liste[vis.i];
   $("visionneuse").close();
+  const y = window.scrollY;
   mediaGroupe = x.groupe;
   mediaCat = x.groupe === "miennes" ? x.cat : null;
   renderMedias(true);
+  noterRubrique(y);
 };
 $("visionneuse").addEventListener("keydown", (e) => {
   if (e.key === "ArrowLeft") { e.preventDefault(); voisine(-1); } else if (e.key === "ArrowRight") { e.preventDefault(); voisine(1); }

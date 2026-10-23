@@ -4666,6 +4666,43 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Régie PC (cedric, 23/10) : dans la Bibliothèque, chaque onglet et chaque rubrique comptent comme une page : « ← Retour » revient à la rubrique d'avant", async () => {
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    const page = await admin();
+    const actif = (id) => page.locator(`#${id} .chip.active`).getAttribute("data-groupe");
+    const onglet = () => page.locator("#library-tabs .chip.active").getAttribute("data-lib-tab");
+    const retour = () => page.locator("#screen-library .retour-barre.haut .retour-page").click();
+    await page.click('#nav [data-screen="library"]');
+    await page.locator("#screen-library:not([hidden])").waitFor();
+    // Images › Émojis, puis Questions › Quiz classique tout prêt › un filtre (pas une page) › Mes questions en vrac.
+    await page.click('#media-groups [data-groupe="emojis"]');
+    await page.click('#library-tabs [data-lib-tab="questions"]');
+    await page.click('#q-groups [data-groupe="classiques"]');
+    await page.locator('#screen-library .chip[data-niveau]:not([data-niveau="tous"])').first().click();
+    await page.click('#q-groups [data-groupe="miennes"]');
+    assert.equal(await actif("q-groups"), "miennes");
+    // ← Retour : Quiz classique tout prêt, puis Tout, puis Images › Émojis, puis Images › Tout, puis l'Accueil.
+    await retour();
+    await waitFor(async () => (await actif("q-groups")) === "classiques", "retour sur le Quiz classique tout prêt");
+    assert.equal(await onglet(), "questions");
+    await retour();
+    await waitFor(async () => (await actif("q-groups")) === "tout", "retour sur toutes les questions");
+    await retour();
+    await waitFor(async () => (await onglet()) === "images", "retour sur les images");
+    assert.equal(await actif("media-groups"), "emojis");
+    await retour();
+    await waitFor(async () => (await actif("media-groups")) === "tout", "retour sur toutes les images");
+    await retour();
+    await page.locator("#screen-home:not([hidden])").waitFor();
+    // La flèche « avancer » du navigateur refait le chemin.
+    for (const _ of [1, 2, 3, 4]) await page.goForward();
+    await waitFor(async () => (await onglet()) === "questions" && (await actif("q-groups")) === "classiques", "en avant jusqu'au Quiz classique tout prêt");
+    // Le filtre choisi dans la rubrique n'a pas fait de page : la flèche revient à la rubrique d'avant.
+    await page.goBack();
+    await waitFor(async () => (await actif("q-groups")) === "tout", "flèche : toutes les questions");
+    await page.context().close();
+  });
+
   test("Régie PC : la flèche du navigateur et « ← Retour » ramènent à la page précédente ; quitter une page modifiée demande d'abord", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     await seedLibrary("shows", { lea: { childName: "Léa", age: 7, date: "2099-12-02", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 } });
