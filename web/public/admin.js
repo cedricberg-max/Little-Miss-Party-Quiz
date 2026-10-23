@@ -30,7 +30,7 @@ import { shuffle } from "./mime-cards.js";
 import {
   MANCHE_TYPES, COLLECTION_UNIT, RANDOM_TYPES, RANDOM_COUNT, MIME_PER_TEAM, MIME_PER_TEAM_DEFAULT, LEVELS, collectionItems, collectionGroups,
   filterItems, drawItems, randomRound, cleanRound, mancheGroups, mancheSummary, defaultMancheTitle, mimeCardsNeeded,
-  itemConcepts, usedElsewhere, blocsDeJeu, versSeriesQuiz, fusionnerQuiz,
+  itemConcepts, usedElsewhere, blocsDeJeu, versSeriesQuiz, fusionnerQuiz, photosDeMesImages,
 } from "./manches.js";
 import { concepts, neufsSiPossible, questionConcepts } from "./jamais-deux-fois.js";
 import { PICTO_OWN_SERIES } from "./picto-cards.js";
@@ -1993,7 +1993,7 @@ function mancheQuiz(r) {
   const archives = quizArchives(r.type ?? "quiz");
   const rappel = ligneAjoutQuiz({
     classe: "quiz-rappel", titre: photos ? "📚 Rappeler les photos d'un ancien anniversaire" : express ? "📚 Rappeler les affirmations d'un ancien anniversaire" : illustre ? "📚 Rappeler un de vos quiz illustrés" : "📚 Rappeler un de vos quiz", label: "Chercher une prestation archivée",
-    placeholder: "Prénom, âge, date… d'une prestation archivée", vide: photos ? "Aucune prestation archivée avec un Zoom mystère ou une Image floue" : `Aucune prestation archivée avec un ${ROUND_TYPES[r.type ?? "quiz"]}`,
+    placeholder: "Prénom, âge, date… d'une prestation archivée", vide: "Aucun ancien anniversaire avec ce jeu",
     aucun: "Aucune prestation archivée ne correspond.", items: archives, attr: (x) => ({ "data-show": x.id }),
     choisir: (x) => {
       series.push({ id: nouvelId("p"), origine: "reprise", titre: x.titre, questions: JSON.parse(JSON.stringify(x.questions)) });
@@ -2026,7 +2026,8 @@ function mancheQuiz(r) {
     aucun: photos ? "Aucune série de photos ne correspond." : "Aucun quiz de la bibliothèque ne correspond.", items: classiques, attr: (x) => ({ "data-quiz": x.id }),
     choisir: (x) => { series.push({ id: nouvelId("q"), origine: "quiz", quizId: x.id }); changer(); },
   });
-  const outils = h("div", { class: "quiz-outils" }, ligne, rappel, biblio);
+  // Quatrième ligne (Zoom mystère, Image floue) : composer avec ses propres images de « Mes images ».
+  const outils = h("div", { class: "quiz-outils" }, ligne, rappel, biblio, photos ? ligneVosImages(r, changer) : null);
 
   // Les séries, dans l'ordre choisi ; les questions de la Super Finale y sont marquées.
   const ligneQuestion = (x, q, retirer, extra = null) => {
@@ -2083,6 +2084,7 @@ function mancheQuiz(r) {
       const aFinir = (x.questions ?? []).filter((q) => q && !questionJouable(q)).length;
       return `✍ ${nq} écrite${k > 1 ? "s" : ""} à la main${aFinir ? `, ${aFinir} à compléter` : ""}`;
     }
+    if (x.origine === "images") return `⭐ ${nq} de vos images`;
     return `📅 ${x.titre ?? (photos ? "Photos reprises" : express ? "Affirmations reprises" : "Questions reprises")} : ${nq}`;
   };
   const deplacer = (i, d) => {
@@ -2177,6 +2179,97 @@ const QUIZ_AJOUT_MAX = 6;
  * date…), les uns sous les autres, dans une liste posée à droite par-dessus l'écran (rien ne bouge en dessous). Un clic
  * sur un résultat l'ajoute.
  */
+/** Le panneau « ⭐ Composer avec vos images » ouvert (le temps de l'écran), par manche : sa recherche, les images cochées. */
+const panneauxVosImages = new WeakMap();
+/** Au plus autant d'images montrées à la fois dans ce panneau : la recherche trouve les autres. */
+const VOS_IMAGES_MAX = 60;
+
+/**
+ * Zoom mystère, Image floue (cedric, 23/10 : « créer une manche à travers mes images perso qui ont été uploadées dans
+ * la bibliothèque ») : ses images de Bibliothèque › Images › « Mes images », cochées une par une (jamais au 🎲 :
+ * règle 16), rejoignent la série « ⭐ Vos images » de la manche ; le nom de chaque image est la réponse à trouver.
+ * Une image déjà dans un autre jeu de la fête est signalée en rouge, mais reste possible (« Jamais deux fois »).
+ */
+function ligneVosImages(r, changer) {
+  const panneau = panneauxVosImages.get(r);
+  const titre = h("button", {
+    type: "button", class: "quiz-ajout-titre vos-images-titre", "aria-expanded": panneau ? "true" : "false",
+    text: `${panneau ? "▾" : "▸"} ⭐ Composer avec vos images`,
+    onclick: () => {
+      if (panneau) panneauxVosImages.delete(r);
+      else panneauxVosImages.set(r, { recherche: "", cochees: new Set(), focus: true });
+      changer();
+    },
+  });
+  if (!panneau) return h("div", { class: "quiz-ajouts vos-images" }, titre,
+    h("span", { class: "hint small", text: "Vos photos de « Mes images » : le nom de chaque photo est la réponse à trouver." }));
+
+  const images = groupesImages().miennes;
+  const dansCeJeu = new Set(questionsDesSeries(r, quizzes).map((q) => q.imageId).filter(Boolean));
+  const ailleurs = JSON.stringify((roundCtx === prestationCtx && editing ? editing.rounds : []).filter((m) => m && m !== r));
+  const cherche = h("input", {
+    type: "search", class: "vos-images-cherche", "aria-label": "Chercher dans vos images", value: panneau.recherche,
+    placeholder: images.length ? "Nom, catégorie, mot-clé…" : "Pas encore d'image dans « Mes images »",
+  });
+  const grille = h("div", { class: "media-grid vos-images-grille" });
+  const ajouter = h("button", { type: "button", class: "btn vos-images-ajouter" });
+  const majAjouter = () => {
+    const n = panneau.cochees.size;
+    ajouter.disabled = n === 0;
+    ajouter.textContent = n ? `＋ Ajouter ${n > 1 ? `ces ${n} photos` : "cette photo"}` : "Cochez vos photos";
+  };
+  const tuile = (x) => {
+    const nom = `${x.nom ?? ""}`.trim();
+    const deja = dansCeJeu.has(x.id);
+    const autreJeu = !deja && ailleurs.includes(x.id);
+    const etat = deja ? "✓ Déjà dans ce jeu" : !nom ? "À nommer dans Mes images" : autreJeu ? "Déjà dans la fête" : "";
+    const b = h("button", {
+      type: "button", class: `media-tile vos-images-tuile${panneau.cochees.has(x.id) ? " on" : ""}`, "data-image": x.id,
+      "aria-pressed": panneau.cochees.has(x.id) ? "true" : "false", disabled: deja || !nom, title: etat || `Cocher « ${nom} »`,
+      onclick: () => {
+        if (panneau.cochees.has(x.id)) panneau.cochees.delete(x.id); else panneau.cochees.add(x.id);
+        b.classList.toggle("on", panneau.cochees.has(x.id));
+        b.setAttribute("aria-pressed", panneau.cochees.has(x.id) ? "true" : "false");
+        majAjouter();
+      },
+    }, photoBibliotheque(x.id, { loading: "lazy" }), h("span", { text: nom || "Sans nom" }),
+    etat ? h("small", { class: `vos-images-etat${autreJeu ? " alerte" : ""}`, text: etat }) : null);
+    return b;
+  };
+  const dessiner = () => {
+    const q = panneau.recherche;
+    const trouvees = parPertinence(images.filter((x) => contientTout([x.nom, x.cat, ...x.tags].filter(Boolean), q)), q,
+      (x) => [x.nom].filter(Boolean), (x) => [x.cat, ...x.tags].filter(Boolean));
+    grille.replaceChildren(...(trouvees.length ? trouvees.slice(0, VOS_IMAGES_MAX).map(tuile)
+      : [h("p", { class: "hint small", text: images.length ? "Aucune de vos images ne correspond." : "Pas encore d'image dans « Mes images » : ajoutez-en dans Bibliothèque › Images." })]),
+    ...(trouvees.length > VOS_IMAGES_MAX ? [h("p", { class: "hint small", text: `Et ${plural(trouvees.length - VOS_IMAGES_MAX, "autre image", "autres images")} : précisez la recherche.` })] : []));
+  };
+  cherche.addEventListener("input", () => { panneau.recherche = cherche.value; dessiner(); });
+  ajouter.onclick = () => {
+    const serie = seriesDe(r).find((x) => x.origine === "images");
+    // Les autres propositions des pupitres : les réponses de la série, puis ses autres images, puis des mots de la banque.
+    const motsBanque = banqueItems().map((x) => x.value?.choices?.[x.value.correct]).filter(Boolean);
+    const nouvelles = photosDeMesImages(images.filter((x) => panneau.cochees.has(x.id)), {
+      voisines: (serie?.questions ?? []).filter(Boolean).map(reponsePhoto), secours: [...images, ...motsBanque], deja: [...dansCeJeu],
+    });
+    if (!nouvelles.length) return;
+    const s = serie ?? { id: nouvelId("m"), origine: "images", questions: [] };
+    if (!serie) seriesDe(r).push(s);
+    s.questions = [...(s.questions ?? []).filter(Boolean), ...nouvelles];
+    seriesDepliees.add(s);
+    panneauxVosImages.delete(r);
+    changer();
+  };
+  dessiner();
+  majAjouter();
+  if (panneau.focus) { panneau.focus = false; requestAnimationFrame(() => cherche.focus()); }
+  return h("div", { class: "vos-images vos-images-ouvert" },
+    h("div", { class: "quiz-ajouts" }, titre, h("div", { class: "quiz-ajout-champ" }, cherche)),
+    grille,
+    h("div", { class: "vos-images-pied" }, ajouter,
+      h("button", { type: "button", class: "btn secondary vos-images-fermer", text: "Fermer", onclick: () => { panneauxVosImages.delete(r); changer(); } })));
+}
+
 function ligneAjoutQuiz({ classe, titre, label, placeholder, vide, aucun, items, attr, choisir }) {
   const cherche = h("input", { type: "search", class: `quiz-ajout-cherche ${classe}-cherche`, "aria-label": label, placeholder: items.length ? placeholder : vide });
   const resultats = h("div", { class: `quiz-ajout-liste ${classe}-liste` });

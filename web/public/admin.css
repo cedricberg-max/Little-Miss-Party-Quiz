@@ -848,6 +848,22 @@ button.media-tile:hover { border-color: var(--violet); }
 .quiz-ajouts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
 .quiz-ajout-titre { flex: 0 0 auto; padding: 10px 14px; border-radius: 12px; background: var(--violet-pale); color: var(--violet); font-weight: 800; white-space: nowrap; }
 .quiz-ajout-champ { position: relative; flex: 1 1 240px; min-width: 0; }
+/* « ⭐ Composer avec vos images » (Zoom mystère, Image floue ; cedric, 23/10) : ses images de « Mes images », cochées
+   une par une ; la case du titre ouvre et ferme le panneau. */
+button.vos-images-titre { border: 0; font: inherit; font-weight: 800; cursor: pointer; }
+button.vos-images-titre:hover { background: var(--violet); color: #fff; }
+.vos-images-ouvert { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.vos-images-grille { max-height: 440px; overflow-y: auto; margin: 0; padding: 3px; }
+.vos-images-tuile { position: relative; border-width: 2px; }
+.vos-images-tuile.on { border-color: var(--gold); background: var(--gold-pale); box-shadow: 0 0 0 2px var(--gold); }
+.vos-images-tuile.on::after {
+  content: "✓"; position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; display: grid; place-items: center;
+  border-radius: 50%; background: var(--gold); color: #fff; font-weight: 900; font-size: 15px; line-height: 1;
+}
+.vos-images-tuile:disabled { opacity: .55; cursor: default; }
+.vos-images-etat { font-size: 12px; line-height: 1.2; color: var(--soft); text-align: center; }
+.vos-images-etat.alerte { color: var(--bad); font-weight: 800; }
+.vos-images-pied { display: flex; flex-wrap: wrap; gap: 10px; }
 .quiz-ajout-champ > .quiz-ajout-cherche { width: 100%; }
 /* Ses résultats, 6 au plus : à droite sous la recherche, par-dessus l'écran (rien ne bouge en dessous). */
 .quiz-ajout-liste {

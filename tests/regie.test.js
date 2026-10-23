@@ -5652,6 +5652,100 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
+  test("Régie PC (cedric, 23/10) : le Zoom mystère et l'Image floue se composent aussi avec ses images de « Mes images », cochées une par une, leur nom pour réponse ; déjà dans la fête : en rouge, mais possible", async () => {
+    const { buildSnapshot } = await import("../web/public/show.js");
+    const PNG = `data:image/png;base64,${png([90, 160, 60]).toString("base64")}`;
+    const MES = ["a1a1a1a1a1a1a1a1", "b2b2b2b2b2b2b2b2", "c3c3c3c3c3c3c3c3", "d4d4d4d4d4d4d4d4", "e5e5e5e5e5e5e5e5"];
+    const NOMS = ["Lion", "Tigre", "Ours", "Mamie Jo", "Petit tigre"];
+    const SANS_NOM = "f6f6f6f6f6f6f6f6";
+    await seedLibrary("images", Object.fromEntries([...MES, SANS_NOM].map((id) => [id, PNG])));
+    await seedLibrary("medias", {
+      ...Object.fromEntries(MES.map((id, k) => [id, { name: NOMS[k], cat: k === 3 ? "Famille" : "Animaux", createdAt: 1, updatedAt: 1 }])),
+      [SANS_NOM]: { cat: "Animaux", createdAt: 1, updatedAt: 1 },
+    });
+    const page = await admin();
+    await page.click("#home-new");
+    await page.fill("#show-child", "Zoé");
+    await page.fill("#show-age", "7");
+    await ajouterJeu(page, "zoom");
+    const round = page.locator("#show-rounds .round").nth(0);
+    const compteur = round.locator(".round-head > .quiz-compteur");
+    const vos = round.locator(".quiz-outils .vos-images");
+    const tuile = (zone, id) => zone.locator(`.vos-images-tuile[data-image="${id}"]`);
+    // Quatrième ligne des outils, fermée : rien ne se charge tant qu'on ne l'ouvre pas.
+    assert.equal(await vos.locator(".vos-images-titre").textContent(), "▸ ⭐ Composer avec vos images");
+    assert.equal(await vos.locator(".vos-images-tuile").count(), 0);
+    await vos.locator(".vos-images-titre").click();
+    await vos.locator(".vos-images-tuile").first().waitFor();
+    assert.equal(await round.locator(".vos-images-titre").textContent(), "▾ ⭐ Composer avec vos images");
+    assert.equal(await round.locator(".vos-images-tuile").count(), 6);
+    // Sans nom : pas de réponse à trouver, elle ne se coche pas.
+    assert.equal(await tuile(round, SANS_NOM).isDisabled(), true);
+    assert.equal(await tuile(round, SANS_NOM).locator(".vos-images-etat").textContent(), "À nommer dans Mes images");
+    assert.equal(await round.locator(".vos-images-ajouter").isDisabled(), true);
+    // Recherche en direct : « ti » trouve d'abord le nom qui commence par « Ti », puis celui qui le contient.
+    await round.locator(".vos-images-cherche").fill("ti");
+    await waitFor(async () => (await round.locator(".vos-images-tuile").count()) === 2, "deux tigres");
+    assert.deepEqual(await round.locator(".vos-images-tuile > span").allTextContents(), ["Tigre", "Petit tigre"]);
+    await tuile(round, MES[1]).click();
+    await round.locator(".vos-images-cherche").fill("famille");
+    await tuile(round, MES[3]).click();
+    await round.locator(".vos-images-cherche").fill("");
+    await tuile(round, MES[0]).click();
+    assert.equal(await round.locator(".vos-images-tuile.on").count(), 3, "les cochées le restent d'une recherche à l'autre");
+    assert.equal(await round.locator(".vos-images-ajouter").textContent(), "＋ Ajouter ces 3 photos");
+    await capture(page, "zoom-vos-images-choix");
+    await round.locator(".vos-images-ajouter").click();
+    await compteur.filter({ hasText: "3 photos" }).waitFor();
+    assert.equal(await round.locator(".vos-images-tuile").count(), 0, "le panneau se referme");
+    const serie = round.locator('.quiz-series > li.serie[data-origine="images"]');
+    assert.equal(await serie.locator(".serie-voir").textContent(), "▾ ⭐ 3 photos de vos images");
+    assert.deepEqual(await serie.locator(".serie-liste .tirage-texte").allTextContents(), ["Lion", "Tigre", "Mamie Jo"].sort((a, b) => NOMS.indexOf(a) - NOMS.indexOf(b)));
+    assert.equal(await serie.locator(".serie-liste img.tirage-photo").count(), 3);
+    // Rouverte : celles déjà dans ce jeu ne se cochent plus ; une de plus rejoint la même série.
+    await round.locator(".vos-images-titre").click();
+    await tuile(round, MES[0]).waitFor();
+    assert.equal(await tuile(round, MES[0]).isDisabled(), true);
+    assert.equal(await tuile(round, MES[0]).locator(".vos-images-etat").textContent(), "✓ Déjà dans ce jeu");
+    await tuile(round, MES[2]).click();
+    assert.equal(await round.locator(".vos-images-ajouter").textContent(), "＋ Ajouter cette photo");
+    await round.locator(".vos-images-ajouter").click();
+    await compteur.filter({ hasText: "4 photos" }).waitFor();
+    assert.equal(await round.locator('.quiz-series > li.serie[data-origine="images"]').count(), 1);
+
+    // Une Image floue dans la même fête : ses images déjà au Zoom mystère sont en rouge, mais restent possibles.
+    await ajouterJeu(page, "flou");
+    const flou = page.locator("#show-rounds .round").nth(1);
+    await flou.locator(".vos-images-titre").click();
+    await tuile(flou, MES[0]).waitFor();
+    assert.equal(await tuile(flou, MES[0]).isDisabled(), false);
+    assert.equal(await tuile(flou, MES[0]).locator(".vos-images-etat.alerte").textContent(), "Déjà dans la fête");
+    assert.equal(await tuile(flou, MES[4]).locator(".vos-images-etat").count(), 0);
+    await tuile(flou, MES[4]).click();
+    await flou.locator(".vos-images-ajouter").click();
+    await flou.locator(".round-head > .quiz-compteur", { hasText: "1 photo" }).waitFor();
+    await capture(page, "zoom-vos-images");
+
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
+    const zoe = Object.values(await library("shows")).find((x) => x.childName === "Zoé");
+    assert.deepEqual(zoe.rounds.map((r) => r.type), ["zoom", "flou"]);
+    const [zoom, floue] = zoe.rounds;
+    assert.deepEqual(zoom.seriesQuiz.map((x) => x.origine), ["images"]);
+    const reponses = (x) => x.questions.map((q) => [q.imageId, q.choices[q.correct]]);
+    assert.deepEqual(reponses(zoom.seriesQuiz[0]).sort(), [[MES[0], "Lion"], [MES[1], "Tigre"], [MES[2], "Ours"], [MES[3], "Mamie Jo"]].sort());
+    assert.ok(zoom.seriesQuiz[0].questions.every((q) => q.choices.length === 4 && new Set(q.choices).size === 4));
+    assert.deepEqual(reponses(floue.seriesQuiz[0]), [[MES[4], "Petit tigre"]]);
+    await page.context().close();
+
+    // Sur la TV : les photos à deviner, leur nom pour réponse.
+    const { snapshot, problems } = buildSnapshot("zoe", zoe, {});
+    assert.deepEqual(problems, []);
+    const qs = snapshot.quiz.questions;
+    assert.deepEqual(qs.map((q) => [q.kind, q.imageId, q.choices[q.correct]]), [
+      ...zoom.seriesQuiz[0].questions.map((q) => ["zoom", q.imageId, q.choices[q.correct]]), ["flou", MES[4], "Petit tigre"]]);
+  });
+
   test("Régie PC (cedric, 23/10) : le Vrai ou Faux express se construit comme le Quiz : 🎲 dans le Vrai ou Faux tout prêt (autant de vraies que de fausses, au niveau du profil), un ancien anniversaire, les Vrai / Faux de ses quiz, « Vrai ou Faux complet », jamais deux fois la même affirmation", async () => {
     const { buildSnapshot } = await import("../web/public/show.js");
     const { AFFIRMATIONS } = await import("../web/public/banque-vrai-faux.js");

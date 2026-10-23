@@ -414,6 +414,39 @@ export function fusionnerQuiz(rounds) {
   return { rounds: out, fusions };
 }
 
+/** Nombre de propositions d'une photo à deviner : la bonne et jusqu'à 3 autres. */
+const PROPOSITIONS_PHOTO = 4;
+const IMAGE_ID = /^[0-9a-f]{16}$/;
+
+/**
+ * Zoom mystère, Image floue (cedric, 23/10 : « créer une manche à travers mes images perso ») : ses images de « Mes
+ * images » ([{ id, nom }]) en photos à deviner pour la série « ⭐ Vos images ». La réponse est le nom de l'image, tel
+ * quel ; les autres propositions (le Zoom mystère en montre 4 sur les pupitres) viennent d'abord de [voisines] (les
+ * réponses de la série) et des autres images ajoutées en même temps, puis de [secours] (ses autres images, des mots de
+ * la banque). Une image sans nom, ou déjà dans le jeu ([deja] : leurs identifiants), n'en fait pas partie.
+ */
+export function photosDeMesImages(images, { voisines = [], secours = [], deja = [], random = Math.random } = {}) {
+  const pris = new Set(deja);
+  const nom = (x) => `${typeof x === "string" ? x : x?.nom ?? ""}`.trim();
+  const norm = (t) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const gardees = images.filter((x) => IMAGE_ID.test(x?.id ?? "") && nom(x) && !pris.has(x.id) && pris.add(x.id));
+  const proches = [...voisines, ...gardees].map(nom).filter(Boolean);
+  const loin = secours.map(nom).filter(Boolean);
+  return gardees.map((x) => {
+    const reponse = nom(x);
+    const vus = new Set([norm(reponse)]);
+    const autres = [];
+    for (const t of [...shuffle(proches, random), ...shuffle(loin, random)]) {
+      if (autres.length >= PROPOSITIONS_PHOTO - 1) break;
+      if (vus.has(norm(t))) continue;
+      vus.add(norm(t));
+      autres.push(t);
+    }
+    const choices = shuffle([reponse, ...autres], random);
+    return { id: `i:${x.id}`, text: "Qu'est-ce que c'est ?", choices, correct: choices.indexOf(reponse), imageId: x.id };
+  });
+}
+
 /** « 19 questions : 🎲 8 tirées (Grands) · 📚 Animaux (8) · ✍ 3 écrites » : une manche Quiz faite de séries. */
 export function resumeDesSeries(round, quizzes = {}) {
   const type = round?.type ?? "quiz";
@@ -424,6 +457,7 @@ export function resumeDesSeries(round, quizzes = {}) {
       return `🎲 ${n} tirée${n > 1 ? "s" : ""}${sorte ? ` (${sorte})` : ""}`;
     }
     if (x.origine === "main") return `✍ ${n} écrite${n > 1 ? "s" : ""}`;
+    if (x.origine === "images") return `⭐ ${n} de vos images`;
     if (x.origine === "quiz") return `📚 ${quizzes?.[x.quizId]?.title ?? "quiz supprimé"} (${n})`;
     return `📅 ${x.titre ?? "reprise"} (${n})`;
   });

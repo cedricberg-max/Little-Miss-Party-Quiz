@@ -426,7 +426,7 @@ export const MAX_QUESTIONS_MANCHE = 100;
 /** Multiplicateurs de la Super Finale ; le premier est celui d'office (comme sur la régie). */
 export const FACTEURS_FINALE = [2, 3, 5];
 /** Origines d'une série de questions d'une manche Quiz. */
-export const ORIGINES_SERIE = ["de", "quiz", "main", "reprise"];
+export const ORIGINES_SERIE = ["de", "quiz", "main", "reprise", "images"];
 /**
  * Jeux dont une manche est faite de séries, comme le Quiz (cedric, 23/10 : « exactement la même architecture ») : 🎲,
  * séries rappelées d'un ancien anniversaire, séries de la bibliothèque, Super Finale, « Quiz complet ».
@@ -454,6 +454,7 @@ export const questionsDuJeu = (type, quiz) => (estJeuDePhotos(type) ? zoomQuesti
  * - « de » : questions tirées au 🎲 dans la banque, gardées dans la série (`questions`, `profil` du tirage) ;
  * - « main » : questions écrites à la main dans la manche (`questions`) ;
  * - « reprise » : questions d'une autre manche, copiées (`questions`) ;
+ * - « images » : Zoom mystère, Image floue : ses photos de « Mes images », choisies une par une (`questions`) ;
  * - « quiz » : un quiz de la bibliothèque rappelé (`quizId`), lu au lancement, sans ses questions retirées (`sans`,
  *   leurs textes) ; s'il est changé dans la bibliothèque, la manche suit.
  */

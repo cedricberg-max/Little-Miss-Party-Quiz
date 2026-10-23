@@ -2682,6 +2682,36 @@ describe("Zoom mystère et Image floue en séries, comme le Quiz (cedric, 23/10)
     assert.deepEqual(Q.mesQuestions(lib).map((x) => x.cle), ["mien/0"]);
     assert.deepEqual(Q.questionsDeTest(lib).map((x) => x.cle), ["test-photos/0"]);
   });
+
+  test("« ⭐ Composer avec vos images » : leur nom pour réponse, 4 propositions sans doublon, ni image sans nom ni image déjà là ; la TV les joue", () => {
+    const [C, D, E, F] = ["c", "d", "e", "f"].map((x) => x.repeat(16));
+    const mes = [{ id: C, nom: " Mamie Jo " }, { id: D, nom: "Tigre" }, { id: E, nom: "" }, { id: A, nom: "Elsa" }, { id: "pas-une-image", nom: "Rien" }];
+    const graine = (n) => () => ((n = (n * 16807) % 2147483647) - 1) / 2147483646;
+    const qs = M.photosDeMesImages(mes, { deja: [A], secours: ["tigre", "Vache", "Chat", "Mamie jo"], random: graine(3) });
+    assert.deepEqual(qs.map((q) => [q.id, q.imageId, q.choices[q.correct], q.text]), [
+      [`i:${C}`, C, "Mamie Jo", "Qu'est-ce que c'est ?"], [`i:${D}`, D, "Tigre", "Qu'est-ce que c'est ?"]]);
+    for (const q of qs) {
+      assert.equal(q.choices.length, 4);
+      assert.equal(new Set(q.choices.map((c) => c.toLowerCase())).size, 4, `sans doublon : ${q.choices}`);
+    }
+    // D'abord les autres réponses de la série et du même ajout, avant les mots de secours.
+    assert.ok(qs[0].choices.includes("Tigre") && qs[1].choices.includes("Mamie Jo"));
+    const fin = M.photosDeMesImages([{ id: F, nom: "Licorne" }], { voisines: ["Mamie Jo", "Tigre"], secours: ["Vache"], random: graine(5) })[0];
+    assert.deepEqual([...fin.choices].sort(), ["Licorne", "Mamie Jo", "Tigre", "Vache"]);
+    // Une seule image et rien d'autre : jouable quand même s'il y a un mot de secours.
+    assert.equal(M.photosDeMesImages([{ id: F, nom: "Licorne" }], { secours: ["Vache"] })[0].choices.length, 2);
+
+    const round = { type: "zoom", seriesQuiz: [{ id: "m1", origine: "images", questions: [...qs, fin] }] };
+    const propre = M.cleanRound(round);
+    assert.deepEqual(propre.seriesQuiz.map((x) => [x.origine, x.questions.length]), [["images", 3]]);
+    assert.equal(M.resumeDesSeries(propre, {}), "3 photos : ⭐ 3 de vos images");
+    const { snapshot, problems } = S.buildSnapshot("s", { age: 7, rounds: [propre] }, {});
+    assert.deepEqual(problems, []);
+    assert.deepEqual(snapshot.quiz.questions.map((q) => [q.kind, q.imageId, q.choices[q.correct]]),
+      [["zoom", C, "Mamie Jo"], ["zoom", D, "Tigre"], ["zoom", F, "Licorne"]]);
+    // « Jamais deux fois » : une image de « Mes images » se reconnaît à son image, comme les séries de photos.
+    assert.equal(S.signatureQuestion(qs[0], "flou"), `i:${C}`);
+  });
 });
 
 describe("Vrai ou Faux express en séries, avec sa banque d'affirmations toutes prêtes (cedric, 23/10)", async () => {
