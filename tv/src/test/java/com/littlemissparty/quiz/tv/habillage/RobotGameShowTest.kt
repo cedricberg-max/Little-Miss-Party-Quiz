@@ -45,6 +45,15 @@ class RobotGameShowTest {
     }
 
     @Test
+    fun `avant la revelation, jamais un robot triste qui ferait croire a une mauvaise reponse`() {
+        // cedric, 23/10 : il avait bien répondu, et pendant les dernières secondes le robot semblait pleurer.
+        val tristes = setOf("gs_robot_pleure", "gs_robot_rate", "gs_robot_oups", "gs_robot_inquiet", "gs_robot_cache")
+        val avant = setOf(MomentRobot.MANCHE, MomentRobot.SUSPENSE, MomentRobot.SUPER_FINALE)
+        for (c in CATALOGUE.filter { it.moment in avant }) assertTrue("$c", c.fichier !in tristes)
+        assertTrue(CATALOGUE.any { it.moment == MomentRobot.SUSPENSE })
+    }
+
+    @Test
     fun `bonus, malus et coffres, jamais au centre pour laisser voir la carte et le coffre`() {
         for (c in CATALOGUE.filter { it.moment in setOf(MomentRobot.BONUS, MomentRobot.MALUS, MomentRobot.BOMBE) }) {
             var ms = 0f

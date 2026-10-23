@@ -150,10 +150,12 @@ internal val CATALOGUE: List<ClipRobot> = listOf(
     // C'est un robot qui vole (cedric) : il arrive aussi en volant, ou en piqué depuis le haut de l'écran.
     ClipRobot("gs_robot_vole", MomentRobot.MANCHE, envol(-0.25f, 1.25f, 6_000, listOf(0.62f, 0.8f, 0.66f, 0.82f, 0.58f))),
     ClipRobot("gs_robot_pique", MomentRobot.MANCHE, pique(0.95f, 0.22f, 1_300, 4_200, 5_500)),
-    // Suspense : au bord droit seulement, les réponses (texte à gauche des cartes) restent lisibles.
+    // Suspense : au bord droit seulement, les réponses (texte à gauche des cartes) restent lisibles. Jamais de visage
+    // triste avant la révélation (cedric, 23/10 : « j'ai bien répondu et le robot pleurait ») : « cache » et « inquiet »
+    // ont une goutte de sueur qui se lit comme une larme sur la TV ; ils restent pour la bombe, où il a peur. À la place,
+    // il se dandine en attendant les dernières réponses.
     ClipRobot("gs_robot_suspense", MomentRobot.SUSPENSE, auBord(0.92f, 3_000, echelle = 0.8f, entreeMs = 500)),
-    ClipRobot("gs_robot_cache", MomentRobot.SUSPENSE, auBord(0.92f, 3_500, echelle = 0.8f, entreeMs = 500)),
-    ClipRobot("gs_robot_inquiet", MomentRobot.SUSPENSE, auBord(0.92f, 3_500, echelle = 0.8f, entreeMs = 500)),
+    ClipRobot("gs_robot_groove", MomentRobot.SUSPENSE, auBord(0.92f, 3_500, echelle = 0.8f, entreeMs = 500)),
     // Personne n'a trouvé.
     ClipRobot("gs_robot_rate", MomentRobot.RATE, auBord(0.12f, 3_000)),
     ClipRobot("gs_robot_oups", MomentRobot.RATE, auBord(0.9f, 4_500, echelle = 0.8f)),
