@@ -5324,6 +5324,55 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Régie PC (cedric, 23/10) : « Archivée » ne se choisit pas dans une fiche ; une archivée reportée se remet « À venir » avec une nouvelle date", async () => {
+    const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
+    const rounds = [{ type: "quiz", quizId: "animaux" }];
+    await seedLibrary("quizzes", { animaux: ANIMAUX });
+    await seedLibrary("shows", {
+      prete: { childName: "Léa", age: 7, date: day(10), status: "publiee", rounds, updatedAt: 1 },
+      passee: { childName: "Malo", age: 9, date: day(-3), status: "publiee", rounds, updatedAt: 1 },
+    });
+    const page = await admin();
+    const choix = () => page.$$eval("#show-status option", (os) => os.filter((o) => !o.hidden && !o.disabled).map((o) => o.textContent));
+    // Nouvelle prestation : seulement « À compléter » ou « À venir ».
+    await page.click("#home-new");
+    assert.deepEqual(await choix(), ["À compléter", "À venir"]);
+    // Une date passée par erreur : elle part dans les archives, et le message le dit.
+    await page.fill("#show-child", "Zoé");
+    await page.fill("#show-date", day(-2));
+    await page.click("#show-save");
+    await page.locator("#annonce", { hasText: "Enregistrée dans les « Archivées » : sa date est passée." }).waitFor();
+    assert.equal(await page.inputValue("#show-status"), "archivee");
+    assert.equal(await page.textContent("#show-edit-crumb"), "Archivées");
+    // Fête à venir : pas d'« Archivée » non plus (on archive avec le bouton de sa carte).
+    await page.click("#brand");
+    await page.click('#screen-home [data-etat="avenir"]');
+    await page.locator('#show-list [data-show="prete"]').getByRole("button", { name: "Ouvrir" }).click();
+    assert.deepEqual(await choix(), ["À compléter", "À venir"]);
+    assert.equal(await page.inputValue("#show-status"), "publiee");
+    // Archivée d'elle-même (date passée) : « Archivée » est montré, et on peut la remettre « À venir ».
+    await page.click("#brand");
+    await page.click('#screen-home [data-etat="archivee"]');
+    await page.locator('#show-list [data-show="passee"]').getByRole("button", { name: "Ouvrir" }).click();
+    assert.deepEqual(await choix(), ["À compléter", "À venir", "Archivée"]);
+    assert.equal(await page.inputValue("#show-status"), "archivee");
+    // Sans changer la date : elle reste archivée, le message dit quoi faire.
+    await page.selectOption("#show-status", "publiee");
+    await page.click("#show-save");
+    await page.locator("#annonce", { hasText: "Toujours dans les « Archivées » : pour la remettre « À venir », il manque : Choisir une date à venir (celle-ci est passée)." }).waitFor();
+    assert.equal(await page.inputValue("#show-status"), "archivee");
+    // Fête reportée : nouvelle date et « À venir ».
+    await page.fill("#show-date", day(6));
+    await page.selectOption("#show-status", "publiee");
+    await page.click("#show-save");
+    await page.locator("#annonce.ok", { hasText: "Enregistrée « À venir » : elle est visible sur la régie." }).waitFor();
+    assert.equal(await page.textContent("#show-edit-crumb"), "Anniversaires à venir");
+    assert.deepEqual(await choix(), ["À compléter", "À venir"]);
+    const malo = await library("shows/passee");
+    assert.deepEqual([malo.status, malo.date], ["publiee", day(6)]);
+    await page.context().close();
+  });
+
   test("reprendre une manche d'une ancienne prestation et dupliquer un quiz, sans toucher aux originaux", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX, finale: FINALE });
     const LEA = { childName: "Léa", age: 7, date: "2026-03-01", status: "archivee", rounds: [{ type: "quiz", quizId: "animaux" }, { type: "finale", quizId: "finale" }], updatedAt: 1 };

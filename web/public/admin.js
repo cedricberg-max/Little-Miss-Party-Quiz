@@ -846,6 +846,7 @@ function editShow(id) {
   $("show-date").value = s.date ?? "";
   // Le statut montré est son état réel : une fête passée, archivée d'elle-même, se lit « Archivée ».
   $("show-status").value = id && isArchived(s) ? "archivee" : s.status ?? "brouillon";
+  montrerArchivee(!!id && isArchived(s));
   $("show-title").value = s.title ?? "";
   $("show-profile").value = s.profile ?? "";
   $("show-themes").value = s.themes ?? "";
@@ -859,6 +860,17 @@ function editShow(id) {
 }
 
 /** Champs de la fiche d'une prestation, gardés par « Retour » et « Annuler les modifications ». */
+/**
+ * « Archivée » ne se choisit pas dans la fiche (cedric, 23/10) : une fête s'archive d'elle-même le lendemain de sa
+ * date, ou par « Archiver » sur sa carte. Le choix n'apparaît que pour une archivée, qu'on peut remettre « À venir »
+ * (fête reportée : nouvelle date).
+ */
+function montrerArchivee(oui) {
+  const option = $("show-status").querySelector('option[value="archivee"]');
+  option.hidden = !oui;
+  option.disabled = !oui;
+}
+
 const SHOW_FIELDS = ["show-child", "show-age", "show-teams", "show-date", "show-status", "show-title", "show-profile", "show-themes", "show-notes"];
 const histPrestation = historique({
   ecran: $("screen-show-edit"),
@@ -1546,7 +1558,7 @@ $("show-form").onsubmit = async (e) => {
   try {
     // Chaque manche composée ici est aussi gardée dans la page de son jeu ; la prestation garde le lien vers elle.
     if (await garderManches(id, s)) s.rounds = editing.rounds.filter(roundFilled).map((r) => cleanRound(r, playlists));
-    await set(ref(db, `library/shows/${id}`), {
+    const enregistree = {
       ...s, origin: prev.origin ?? "admin", createdAt: prev.createdAt ?? Date.now(),
       // L'étoile d'une archivée et le « ne plus archiver toute seule » d'une désarchivée ne se perdent pas.
       ...(s.status === "archivee" && prev.pinned ? { pinned: true } : {}),
@@ -1555,14 +1567,21 @@ $("show-form").onsubmit = async (e) => {
       // Une copie garde le nom de son modèle (« Copie de … ») tant qu'elle n'a ni prénom ni titre.
       ...(prev.copieDe ? { copieDe: prev.copieDe } : {}),
       updatedAt: serverTimestamp(),
-    });
+    };
+    await set(ref(db, `library/shows/${id}`), enregistree);
     editing.id = id;
     refreshRounds();
+    // Le statut montré est son état réel : une fête à la date passée reste (ou part) dans les archivées.
+    showsEtat = etatPrestation(enregistree);
+    const archivee = showsEtat === "archivee";
+    $("show-status").value = archivee ? "archivee" : s.status;
+    montrerArchivee(archivee);
     histPrestation.enregistre();
     $("show-edit-title").textContent = showTitle({ ...s, copieDe: prev.copieDe });
-    showsEtat = etatPrestation(s);
     $("show-edit-crumb").textContent = LISTES[showsEtat].titre;
-    if (manque.length) dire(`Enregistrée en « À compléter » : pour passer en « À venir », il manque : ${manque.join(" · ")}.`);
+    if (manque.length && archivee) dire(`Toujours dans les « Archivées » : pour la remettre « À venir », il manque : ${manque.join(" · ")}.`);
+    else if (manque.length) dire(`Enregistrée en « À compléter » : pour passer en « À venir », il manque : ${manque.join(" · ")}.`);
+    else if (archivee && s.status !== "archivee") dire("Enregistrée dans les « Archivées » : sa date est passée. Pour la remettre « À venir », choisissez une date à venir.");
     else dire(s.status === "publiee" ? "Enregistrée « À venir » : elle est visible sur la régie." : "Enregistrée.", true);
   } catch (err) {
     console.error(err);
