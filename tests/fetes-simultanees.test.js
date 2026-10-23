@@ -13,6 +13,7 @@ import { initializeTestEnvironment, assertFails, assertSucceeds } from "@firebas
 import { ref, get, set, update, push, onValue, onDisconnect, goOffline, goOnline, serverTimestamp } from "firebase/database";
 import { chromium } from "playwright";
 import { loadRules, seedAdmin, allowBox, ADMIN_PASSWORD } from "./rules-loader.js";
+import { titreAuto } from "../web/public/show.js";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const PUBLIC = join(ROOT, "web/public");
@@ -474,9 +475,9 @@ describe("trois fêtes en même temps sur trois box", () => {
       assert.equal(show.childName, f.nom);
       assert.equal(show.by, regieUids[i], "chargée par la régie de cette fête");
       assert.equal((await lire(f, "showStatus")).id, show.id);
-      assert.equal((await lire(f, "conducteur")).title, `L'anniversaire de ${f.nom}`);
-      assert.deepEqual(await lire(f, "public"), { title: `L'anniversaire de ${f.nom}`, childName: f.nom });
-      await regies[i].locator("#c-step", { hasText: `L'anniversaire de ${f.nom}` }).waitFor();
+      assert.equal((await lire(f, "conducteur")).title, titreAuto(f.nom));
+      assert.deepEqual(await lire(f, "public"), { title: titreAuto(f.nom), childName: f.nom });
+      await regies[i].locator("#c-step", { hasText: titreAuto(f.nom) }).waitFor();
     }
     const plans = await Promise.all(FETES.map(async (f) => (await lire(f, "conducteur")).questions));
     assert.deepEqual(plans.map((q) => q[0].text), ["Roi de la jungle ?", "Quel est ce titre ?", plans[2][0].text]);

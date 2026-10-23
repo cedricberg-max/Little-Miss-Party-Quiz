@@ -72,7 +72,7 @@
       <div id="shows-tabs" class="chips"></div>
       <p id="shows-hint" class="hint"></p>
       <div class="search-row">
-        <input id="show-search" type="search" placeholder="Rechercher : prénom, âge, date (25/10, octobre…), jeu…" aria-label="Rechercher une prestation" autocomplete="off">
+        <input id="show-search" type="search" placeholder="Rechercher : prénom, date, jeu…" aria-label="Rechercher une prestation" autocomplete="off">
         <span id="show-search-count" class="hint small"></span>
       </div>
       <div id="show-pinned" class="pinned" hidden>
@@ -90,7 +90,7 @@
       <div id="show-ready" class="ready-box"></div>
       <form id="show-form" class="panel">
         <div class="grid">
-          <label>Prénom de l'enfant fêté<input id="show-child" maxlength="40"></label>
+          <label>Prénom de l'enfant<input id="show-child" maxlength="40"></label>
           <label>Âge<input id="show-age" type="number" min="3" max="99"></label>
           <label>Équipes prévues (devis)
             <select id="show-teams">
@@ -112,12 +112,11 @@
               <option value="archivee">Archivée</option>
             </select>
           </label>
-          <label class="wide">Titre affiché<input id="show-title" maxlength="120" placeholder="L'anniversaire de …"></label>
+          <label class="wide">Titre affiché<input id="show-title" maxlength="120" placeholder="Anniversaire de …"></label>
           <label>Profil
             <select id="show-profile"></select>
           </label>
           <label>Durée estimée<output id="show-duration" class="duree-estimee" aria-live="polite" title="Calculée d'après les jeux : le chrono et la réponse de chaque question, l'intro de chaque jeu, l'accueil des équipes, le podium et 10 % de pauses">—</output></label>
-          <label class="wide">Thèmes<input id="show-themes" maxlength="200" placeholder="Licornes, Disney…"></label>
         </div>
         <h2>Jeux, dans l'ordre</h2>
         <div id="show-rounds" class="rounds"></div>
@@ -184,7 +183,7 @@
           la régler depuis n'importe quel PC.
         </p>
         <div class="search-row">
-          <input id="song-search" type="search" placeholder="Rechercher : titre, artiste, playlist…" aria-label="Rechercher une chanson" autocomplete="off">
+          <input id="song-search" type="search" placeholder="Rechercher : titre, artiste…" aria-label="Rechercher une chanson" autocomplete="off">
           <span id="song-count" class="hint small"></span>
           <button id="song-retirees" type="button" class="chip" hidden>🗑 Supprimées</button>
         </div>
@@ -266,7 +265,7 @@
       <div id="game-tabs" class="chips game-tabs"></div>
       <p id="game-manche-hint" class="hint small"></p>
       <div class="search-row">
-        <input id="manche-search" type="search" placeholder="Rechercher une manche : nom, contenu…" aria-label="Rechercher une manche" autocomplete="off">
+        <input id="manche-search" type="search" placeholder="Rechercher : nom, contenu, note…" aria-label="Rechercher une manche" autocomplete="off">
         <span id="manche-search-count" class="hint small"></span>
       </div>
       <div id="manches-pinned-box" hidden>

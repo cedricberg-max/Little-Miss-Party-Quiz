@@ -163,10 +163,16 @@ export async function resolveBanque(questionsList, { photo, secours = async () =
   }));
 }
 
+/**
+ * Adresse d'une photo de la banque sur le site : celles des tout-petits dans banque/, celles du quiz classique tout prêt
+ * (clés « qc-… », questions tirées au 🎲) dans banque-quiz/.
+ */
+export const cheminPhotoBanque = (cle) => `${`${cle}`.startsWith("qc-") ? "banque-quiz" : "banque"}/${encodeURIComponent(cle)}.jpg`;
+
 /** Lit une photo de la banque sur le site, en data URL (null si elle n'existe pas encore). */
 export async function lirePhotoBanque(cle) {
   try {
-    const res = await fetch(`banque/${encodeURIComponent(cle)}.jpg`);
+    const res = await fetch(cheminPhotoBanque(cle));
     if (!res.ok || !(res.headers.get("content-type") ?? "").startsWith("image/")) return null;
     const blob = await res.blob();
     if (!blob.size || blob.size > 100_000) return null;

@@ -8,8 +8,9 @@ import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, dureeEstim
   readiness, upcoming, daysUntil, isoDay, duplicateShow, etatPrestation, isArchived, ETATS, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
   soundIds, choiceImageIds, choiceImageList, pictoSeriesList, pictoSeriesOf, foldLegacyFinale,
   roundQuizIds, MIME_RANDOM, alerteEquipes, EQUIPES_PAR_DEFAUT, PAR_EQUIPE_MIN,
-  statuesSongs, statuesChoices, roundSongs, isStatuesList, couleursEquipes,
+  statuesSongs, statuesChoices, roundSongs, isStatuesList, couleursEquipes, mimePool, titreAuto, chiffresDuTirage,
 } from "../web/public/show.js";
+import { PROFILES, profileForAge, defaultDuration } from "../web/public/profiles.js";
 import { PICTO_WORDS, PICTO_SERIES } from "../web/public/picto-cards.js";
 import { guessTrack, normalizeLevel } from "../web/public/audio.js";
 import { songList, songsRetirees, songMatches, trackFromSong, songUpdates, marquerEffacees, defaultRefrain, buzzOf, REFRAIN_SEC } from "../web/public/sons.js";
@@ -805,6 +806,81 @@ describe("Super Finale : les dernières questions du quiz, pas un jeu à part", 
     const { snapshot, problems } = play([{ type: "mimes", deckId: "d" }, { type: "finale", quizId: "f" }]);
     assert.deepEqual(problems, []);
     assert.deepEqual(snapshot.quiz.questions.map((q) => [q.round, q.double ?? false]), [["Mimes", false], ["Super Finale", true], ["Super Finale", true]]);
+  });
+});
+
+describe("fiche d'une prestation (cedric, 23/10)", () => {
+  test("profil Neutre : juste sous Adultes, jamais choisi d'après l'âge, aucun tirage limité par l'âge", () => {
+    assert.deepEqual(Object.keys(PROFILES), ["PETITS", "MOYENS", "GRANDS", "ADULTES", "NEUTRE"]);
+    assert.equal(PROFILES.NEUTRE.label, "Neutre (tous âges)");
+    for (const age of [null, 3, 7, 10, 14, 40]) assert.notEqual(profileForAge(age), "NEUTRE");
+    assert.equal(defaultDuration("NEUTRE"), defaultDuration("MOYENS"));
+    // Les Petits n'ont que les cartes faciles ; le Neutre a tout le catalogue.
+    assert.equal(mimePool({}, {}, "NEUTRE").length, MIME_CATALOG.length);
+    assert.ok(mimePool({}, {}, "PETITS").length < MIME_CATALOG.length);
+    // Pas de limite de mots : une longue question n'est jamais signalée « trop longue pour le profil ».
+    const longue = { text: Array(40).fill("mot").join(" ") + " ?", choices: ["a", "b", "c", "d"], correct: 0 };
+    assert.ok(!checkQuestions([longue], { profile: "NEUTRE" })[0].warnings.some((w) => /long pour le profil/.test(w)));
+  });
+
+  test("titre proposé d'office : « Anniversaire de » + le prénom, « d' » devant une voyelle", () => {
+    assert.equal(titreAuto("Frédéric"), "Anniversaire de Frédéric");
+    assert.equal(titreAuto("  Emma "), "Anniversaire d'Emma");
+    assert.equal(titreAuto("Élise"), "Anniversaire d'Élise");
+    assert.equal(titreAuto("Yanis"), "Anniversaire d'Yanis");
+    assert.equal(titreAuto("Hugo"), "Anniversaire de Hugo");
+    assert.equal(titreAuto(""), "");
+    assert.equal(titreAuto(null), "");
+  });
+
+  test("manche Quiz : les questions tirées au 🎲 sont gardées dans la manche et jouées telles quelles, photo comprise", async () => {
+    const M = await import("../web/public/manches.js");
+    const P = await import("../web/public/banque-photos.js");
+    const tirees = [
+      { id: "qc-a", text: "Quel animal ?", choices: ["Le chat", "Le lion", "Le zèbre", "La vache"], correct: 1, banque: "qc-a" },
+      { id: "qc-b", text: "Quelle couleur ?", choices: ["Rouge", "Bleu", "Vert", "Jaune"], correct: 3, emoji: "🌈" },
+      { id: "jc-c", text: "Combien de pattes ?", nombre: true, correct: 8 },
+      { vide: true, nombre: true }, // retirée, son 🎲 attend : pas jouée, pas gardée
+      { text: "", choices: ["a", "b"], correct: 0 }, // vide : écartée
+    ];
+    const r = { type: "quiz", tirees, profil: "GRANDS", finale: 1, nbTirage: 8 };
+    assert.equal(roundFilled(r), true);
+    assert.equal(roundFilled({ type: "quiz", tirees: [] }), false);
+    assert.equal(roundFilled({ type: "illustre", tirees }), false, "Seul le Quiz se tire au 🎲");
+    const propre = M.cleanRound(r);
+    assert.deepEqual(propre, { type: "quiz", tirees: tirees.slice(0, 3), profil: "GRANDS", finale: 1 });
+    assert.equal(M.mancheSummary(propre), "3 questions tirées au hasard (Grands)");
+    const { snapshot, problems } = buildSnapshot("s", { childName: "Léa", age: 13, rounds: [{ ...propre, bougies: false }] }, {});
+    assert.deepEqual(problems, []);
+    const qs = snapshot.quiz.questions;
+    assert.deepEqual(qs.map((q) => [q.text, q.correct, q.kind, q.double, q.banque ?? null, q.image ?? null]),
+      [["Quel animal ?", 1, "classic", false, "qc-a", null], ["Quelle couleur ?", 3, "classic", false, null, "🌈"], ["Combien de pattes ?", 8, "number", true, null, null]]);
+    assert.equal("choices" in qs[2], false);
+    // Une question sur quatre environ au Juste Chiffre (cedric, 23/10).
+    assert.deepEqual([4, 5, 6, 8, 10, 12, 15].map(chiffresDuTirage), [1, 1, 1, 2, 2, 3, 4]);
+    assert.equal(snapshot.rounds[0].title, "Quiz");
+    // La régie copie la photo du quiz tout prêt (banque-quiz/) dans la partie, comme celles des petits (banque/).
+    assert.equal(P.cheminPhotoBanque("qc-a"), "banque-quiz/qc-a.jpg");
+    assert.equal(P.cheminPhotoBanque("vache"), "banque/vache.jpg");
+    const lues = [];
+    const [q1] = await P.resolveBanque([qs[0]], { photo: async (cle) => { lues.push(cle); return "data:image/jpeg;base64,AAAA"; }, ecrire: async () => {} });
+    assert.deepEqual(lues, ["qc-a"]);
+    assert.match(q1.imageId, /^[0-9a-f]{16}$/);
+    assert.equal(q1.banque, undefined);
+    // Un quiz choisi sur la deuxième ligne en plus (cedric, 23/10) : gardé avec son nombre ; ses N premières questions
+    // suivent les questions tirées, la Super Finale termine le tout.
+    const animaux = { title: "Animaux", questions: [...Array(5).keys()].map((i) => ({ text: `Animal ${i + 1} ?`, choices: ["Oui", "Non"], correct: 0, status: "validee" })) };
+    const deux = M.cleanRound({ ...r, quizId: "animaux", count: 2 });
+    assert.deepEqual(deux, { type: "quiz", tirees: tirees.slice(0, 3), profil: "GRANDS", quizId: "animaux", count: 2, finale: 1 });
+    assert.equal(M.mancheSummary(deux, { quizzes: { animaux } }), "3 questions tirées au hasard (Grands) + Animaux");
+    assert.equal((await import("../web/public/show.js")).jeuDeLaManche(deux, { animaux }).type, "quiz", "Pas un Quiz illustré");
+    const ensemble = buildSnapshot("s", { childName: "Léa", age: 13, rounds: [{ ...deux, bougies: false }] }, { animaux });
+    assert.deepEqual(ensemble.problems, []);
+    assert.deepEqual(ensemble.snapshot.quiz.questions.map((q) => [q.text, q.double]),
+      [["Quel animal ?", false], ["Quelle couleur ?", false], ["Combien de pattes ?", false], ["Animal 1 ?", false], ["Animal 2 ?", true]]);
+    assert.equal(ensemble.snapshot.rounds[0].title, "Quiz + Animaux");
+    // Le quiz choisi a disparu de la bibliothèque : on le dit, les questions tirées restent jouables.
+    assert.match(buildSnapshot("s", { childName: "Léa", age: 13, rounds: [deux] }, {}).problems.join(), /le quiz n'existe plus/);
   });
 });
 

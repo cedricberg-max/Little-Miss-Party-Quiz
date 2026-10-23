@@ -68,7 +68,7 @@ function dessiner(db, box, toast, demander) {
   }
   const intro = document.createElement("p");
   intro.className = "hint";
-  intro.textContent = "Pendant la pause, la TV affiche un de ces défis toutes les 8 secondes. Écrivez [prénom] pour le prénom de l'enfant fêté.";
+  intro.textContent = "Pendant la pause, la TV affiche un de ces défis toutes les 8 secondes. Écrivez [prénom] pour le prénom de l'enfant.";
   box.appendChild(intro);
 
   const liste = document.createElement("ol");

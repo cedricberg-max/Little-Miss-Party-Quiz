@@ -8,7 +8,7 @@ import { passwordCandidates } from "./secret.js";
 import {
   buildSnapshot, showTitle, playable, QUIZ_GAMES, BUILTIN_GAMES, MAX_QUESTIONS, ROUND_TYPES, programRounds, lockedUntil, gameQuestions, insertGame, imageIds, choiceImageIds,
   soundIds, MUSIC_GAMES, playableTracks, STATUES_SEC, PICTO_SEC, isStatuesList, statuesSongs, MAX_STATUES_SONGS,
-  isFutureRound, moveRound, removeRound, uniqueRoundTitle, roundQuizIds, mimePool, mimeCards, CONTENT_GAMES, activeItems, pictoSeriesOf,
+  isFutureRound, moveRound, removeRound, uniqueRoundTitle, roundQuizIds, roundTirees, roundSeriesQuiz, mimePool, mimeCards, CONTENT_GAMES, activeItems, pictoSeriesOf,
   isArchived, isPhotoTheme, disparuGroup, statuesChoices, quizQuestions, jeuDeLaManche, quizKind,
   launchStates, launchLabel, jourHeure, isoDay,
 } from "./show.js";
@@ -21,7 +21,7 @@ import {
 import { profileForAge } from "./profiles.js";
 import { setAwake } from "./awake.js";
 import { ouvrirDefis } from "./defis.js";
-import { BANQUE, PHOTOS_BANQUE, avecPhoto, resolveBanque, lirePhotoBanque, emojiEnImage } from "./banque-photos.js";
+import { BANQUE, PHOTOS_BANQUE, avecPhoto, resolveBanque, lirePhotoBanque, emojiEnImage, cheminPhotoBanque } from "./banque-photos.js";
 
 // Régie de l'animatrice, ouverte depuis la page des pupitres (bouton « Accès régie »).
 // Elle n'écrit que des commandes : la box les vérifie, les applique et répond dans commandStatus/ ;
@@ -240,6 +240,7 @@ function control() {
   listen(`games/${code}/teams`, (s) => { live.teams = s.val() ?? {}; render(); });
   listen(`games/${code}/presence`, (s) => { live.presence = s.val() ?? {}; render(); });
   listen(`games/${code}/conducteur`, (s) => { live.plan = s.val(); render(); });
+  listen(`games/${code}/show/facteurs`, (s) => { live.facteurs = s.val() ?? {}; render(); });
   // Blind test : la box dit, extrait par extrait, s'il est dans son cache (ok), en chargement ou manquant.
   listen(`games/${code}/media`, (s) => { live.media = s.val() ?? {}; render(); });
   listen(`games/${code}/joinRequests`, (s) => { live.requests = s.val() ?? {}; render(); });
@@ -425,12 +426,22 @@ function render() {
  * En pause : pourquoi, et qui n'est pas prêt. La reprise reste toujours le choix de l'animatrice,
  * même quand l'équipe déconnectée est revenue.
  */
+/** Super Finales dont le multiplicateur de la Régie PC a déjà été envoyé à la TV (une fois chacune). */
+const facteursProposes = new Set();
+
 /** Juste avant les dernières questions du quiz : l'animatrice choisit ×2, ×3 ou ×5 (×2 par défaut). */
 function renderFactor(st) {
   const choice = st.factorChoice;
   const box = $("c-factor");
   box.hidden = !choice || isDemo();
   if (box.hidden) return;
+  // Multiplicateur choisi dans la Régie PC (cedric, 23/10 : ×2 d'office) : proposé une fois, Sarah peut encore le changer.
+  const voulu = live.facteurs?.[live.plan?.questions?.[choice.start]?.id];
+  const cle = `${live.plan?.id ?? ""}:${choice.start}`;
+  if ([3, 5].includes(voulu) && choice.factor !== voulu && !facteursProposes.has(cle)) {
+    facteursProposes.add(cle);
+    send("factor", { factor: voulu });
+  }
   const n = (live.plan?.questions ?? []).slice(choice.start).findIndex((q, k, rest) => !(q.double || q.finale) || (k > 0 && q.round !== rest[0].round));
   const count = n < 0 ? (live.plan?.questions?.length ?? 0) - choice.start : n;
   $("c-factor-text").textContent = `${count > 1 ? `Les ${count} dernières questions du quiz arrivent` : "La dernière question du quiz arrive"} : combien de points ?`;
@@ -1789,6 +1800,16 @@ const PROGRAM_MESSAGES = {
   invalid: "La TV n'a pas pu lire ce programme : rien n'a été fait.",
 };
 
+/**
+ * Un Quiz ou un Quiz illustré fait de séries (cedric, 23/10), rejoué tel quel : son jeu, ses séries, l'ordre rangé
+ * dans le « Quiz complet », sa Super Finale et son multiplicateur.
+ */
+const sourceEnSeries = (round) => ({
+  type: round.type ?? "quiz", seriesQuiz: roundSeriesQuiz(round),
+  ...(Array.isArray(round.ordreQuiz) && round.ordreQuiz.length ? { ordreQuiz: round.ordreQuiz } : {}),
+  ...(round.finale > 0 ? { finale: round.finale } : {}), ...(round.facteur ? { facteur: round.facteur } : {}),
+});
+
 /** Quiz de la bibliothèque et manches des prestations déjà préparées, lus sans rien modifier. */
 async function fetchLibrary() {
   library = { loading: true };
@@ -1830,11 +1851,16 @@ async function fetchLibrary() {
       .filter(([, show]) => show)
       .sort((a, b) => (b[1].date ?? "").localeCompare(a[1].date ?? ""))
       .flatMap(([id, show]) => (show.rounds ?? []).map((r) => jeuDeLaManche(r, quizzes)).filter((r) => r && r.type !== "mimes" && r.type !== "statues" && r.type !== "pictionary" && r.type !== "portes" && r.type !== "coffres" && r.type !== "gonfleur" && r.type !== "patate" && r.type !== "finale" && !BUILTIN_GAMES[r.type] && !MUSIC_GAMES[r.type]).map((round, i) => {
-        const title = roundQuizIds(round).map((q) => quizzes[q]?.title).filter(Boolean).join(" + ") || `Manche ${i + 1}`;
-        const label = QUIZ_GAMES[round.type] ? `${ROUND_TYPES[round.type]} : ${title}` : title;
+        const series = roundSeriesQuiz(round);
+        const title = [...(roundTirees(round).length ? ["Quiz tiré au hasard"] : []), ...roundQuizIds(round).map((q) => quizzes[q]?.title).filter(Boolean)].join(" + ") || `Manche ${i + 1}`;
+        // Quiz et Quiz illustré en séries (cedric, 23/10) : le nom du jeu, puis ses séries.
+        const label = series.length ? `${ROUND_TYPES[round.type ?? "quiz"]} (${series.length > 1 ? `${series.length} séries` : roundQuizIds(round).map((q) => quizzes[q]?.title).filter(Boolean)[0] ?? "1 série"})`
+          : QUIZ_GAMES[round.type] ? `${ROUND_TYPES[round.type]} : ${title}` : title;
         const date = show.date ? ` (${new Date(`${show.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })})` : "";
         // Les réglages de la manche suivent (nombre de questions, Super Finale à la fin du quiz).
-        return { key: `show/${id}/${i}`, label, from: `${showTitle(show)}${date}`, source: { type: round.type, quizId: round.quizId, ...(roundQuizIds(round).length > 1 ? { quizIds: roundQuizIds(round) } : {}), ...(round.count > 0 ? { count: round.count } : {}), ...(round.finale > 0 ? { finale: round.finale } : {}) } };
+        // Quiz en séries (cedric, 23/10) : rejoué tel quel, ses séries dans l'ordre, sa Super Finale et son multiplicateur.
+        if (series.length) return { key: `show/${id}/${i}`, label, from: `${showTitle(show)}${date}`, source: sourceEnSeries(round) };
+        return { key: `show/${id}/${i}`, label, from: `${showTitle(show)}${date}`, source: { type: round.type, quizId: round.quizId, ...(roundQuizIds(round).length > 1 ? { quizIds: roundQuizIds(round) } : {}), ...(roundTirees(round).length ? { tirees: roundTirees(round) } : {}), ...(round.count > 0 ? { count: round.count } : {}), ...(round.finale > 0 ? { finale: round.finale } : {}) } };
       }));
     // Jeux au buzzer intégrés : toujours disponibles, sans rien préparer.
     const builtins = [
@@ -1854,6 +1880,15 @@ async function fetchLibrary() {
         const key = `pin/${id}/${i}`;
         const from = showTitle(show);
         const ids = roundQuizIds(round);
+        const tirees = roundTirees(round);
+        if (roundSeriesQuiz(round).length) return { key, label: ROUND_TYPES[round.type ?? "quiz"], from, source: sourceEnSeries(round) };
+        // Questions tirées au 🎲, suivies du quiz choisi en plus s'il y en a un (deuxième ligne).
+        const choisis = ids.filter((q) => quizzes[q]);
+        if (tirees.length) {
+          return { key, label: ["Quiz tiré au hasard", ...choisis.map((q) => quizzes[q].title)].join(" + "), from, source: { type: "quiz", tirees,
+            ...(choisis.length ? { quizId: choisis[0], ...(choisis.length > 1 ? { quizIds: choisis } : {}), ...(round.count > 0 ? { count: round.count } : {}) } : {}),
+            ...(round.finale > 0 ? { finale: round.finale } : {}) } };
+        }
         if (ids.length && round.type !== "mimes" && !MUSIC_GAMES[round.type]) {
           if (!quizzes[ids[0]]) return null;
           const title = ids.map((q) => quizzes[q]?.title).filter(Boolean).join(" + ");
@@ -2101,7 +2136,8 @@ function renderPickedEdit(questions) {
   // Jeux tirés d'un quiz : les autres quiz qui conviennent, à cocher pour les enchaîner dans le même jeu.
   // Pas pendant un rejeu (cedric, 21/10) : on regarde ce qui sera joué, on retire, on lance.
   const rejeu = enRejeu();
-  if (!rejeu && (source.type === "quiz" || QUIZ_GAMES[source.type])) {
+  // Un quiz tiré au hasard dans la Régie PC garde ses questions : pas d'autre quiz à enchaîner.
+  if (!rejeu && !roundTirees(source).length && !roundSeriesQuiz(source).length && (source.type === "quiz" || QUIZ_GAMES[source.type])) {
     const kind = QUIZ_GAMES[source.type];
     const ids = roundQuizIds(source);
     const others = Object.entries(library.quizzes)
@@ -2361,7 +2397,7 @@ function renderPreview() {
     const vignette = (cle) => {
       const img = document.createElement("img");
       img.className = "lib-thumb";
-      img.src = `banque/${encodeURIComponent(cle)}.jpg`;
+      img.src = cheminPhotoBanque(cle);
       img.alt = "";
       return img;
     };

@@ -9,8 +9,11 @@ import {
   statuesSongs, statuesChoices, zoomQuestions, expressQuestions, mimeCards, roundPicks, roundTracks, roundQuizIds, roundSongs,
   pictoRoundSeries, mimePerTeam, teamCount, MIME_TURN, MIME_RANDOM, STATUES_SEC, PICTO_SEC,
   MAX_PICKS, MAX_STATUES_SONGS, quizKind, builtinConcepts, fixedConcepts, isPhotoTheme, disparuGroup, parPalierPhotos,
-  illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, pourLeHasard, roundHasard,
+  illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, pourLeHasard, roundHasard, roundTirees,
+  roundSeriesQuiz, questionsDeLaSerie, questionJouable, FACTEURS_FINALE, MAX_QUESTIONS_MANCHE, playable, estEnSeries,
 } from "./show.js";
+import { PROFILES } from "./profiles.js";
+import { FAMILLES_PETITS } from "./banque-petits.js";
 import { MIME_CATALOG, shuffle } from "./mime-cards.js";
 import { concepts, questionConcepts, neufsSiPossible } from "./jamais-deux-fois.js";
 import { BANQUE, banqueItems, motDeLaBanque } from "./banque-photos.js";
@@ -248,6 +251,8 @@ export function cleanRound(r, playlists = {}) {
   const picks = roundPicks(r).length ? { picks: roundPicks(r), ...(CONTENT_GAMES[type] && roundHasard(r).length ? { hasard: roundHasard(r) } : {}) } : {};
   const link = typeof r?.mancheId === "string" && r.mancheId ? { mancheId: r.mancheId.slice(0, 40) } : {};
   const title = typeof r?.title === "string" && r.title.trim() ? { title: r.title.trim().slice(0, 60) } : {};
+  // Note de Sarah sur la manche (cedric, 23/10) : pour s'en souvenir et la retrouver.
+  const note = typeof r?.note === "string" && r.note.trim() ? { note: r.note.trim().slice(0, 200) } : {};
   let out;
   const photos = (type === "mimes" || type === "disparu") && r.photos === true ? { photos: true } : {};
   if (BUILTIN_GAMES[type]) out = { type, count: r.count ?? BUILTIN_GAMES[type].count, ...(type === "disparu" && r.objects ? { objects: r.objects } : {}), ...photos, ...picks };
@@ -264,13 +269,149 @@ export function cleanRound(r, playlists = {}) {
   else if (type === "coffres" || type === "gonfleur" || type === "patate") out = { type };
   else if (MUSIC_GAMES[type]) out = roundTracks(r).length ? { type, tracks: roundTracks(r) } : { type, playlistId: r.playlistId };
   else if ((type === "zoom" || type === "flou") && roundPicks(r).length) out = { type, ...picks };
-  else {
+  else if (estEnSeries(type) && roundSeriesQuiz(r).length) {
+    // Manche Quiz faite de séries (cedric, 23/10) : les séries dans l'ordre, une seule Super Finale et son multiplicateur.
+    const seriesQuiz = roundSeriesQuiz(r).map(serieNettoyee).filter(Boolean);
+    // L'ordre rangé à la main dans le « Quiz complet » (cedric, 23/10) : les clés de ses questions.
+    const ordreQuiz = [...new Set((Array.isArray(r.ordreQuiz) ? r.ordreQuiz : Object.values(r.ordreQuiz ?? {})).filter((c) => typeof c === "string" && c && c.length <= 400))]
+      .slice(0, 2 * MAX_QUESTIONS_MANCHE);
+    // Un seul de ses quiz, en entier : enregistré comme avant les séries (même manche, lue partout pareil).
+    const seul = seriesQuiz.length === 1 && seriesQuiz[0].origine === "quiz" && !seriesQuiz[0].sans?.length && !ordreQuiz.length ? seriesQuiz[0].quizId : null;
+    out = { type, ...(seul ? { quizId: seul } : seriesQuiz.length ? { seriesQuiz, ...(ordreQuiz.length ? { ordreQuiz } : {}) } : {}),
+      ...(r.finale > 0 ? { finale: Math.min(Math.floor(r.finale), 20) } : {}),
+      ...(r.finale > 0 && FACTEURS_FINALE.includes(r.facteur) && r.facteur !== FACTEURS_FINALE[0] ? { facteur: r.facteur } : {}),
+      ...(type === "quiz" && r.bougies === false ? { bougies: false } : {}) };
+  } else {
     const ids = roundQuizIds(r);
-    out = { type, quizId: ids[0], ...(ids.length > 1 ? { quizIds: ids } : {}), ...(r.count > 0 ? { count: r.count } : {}), ...(hasFinale(type) && r.finale > 0 ? { finale: r.finale } : {}),
+    // Questions tirées au 🎲 (cedric, 23/10) : gardées dans la manche, avec le profil qui a servi au tirage.
+    const tirees = roundTirees(r).map((q) => ({
+      ...(typeof q.id === "string" ? { id: q.id.slice(0, 120) } : {}), text: q.text.trim().slice(0, 300),
+      ...(q.nombre ? { nombre: true } : { choices: q.choices.map((c) => c.trim().slice(0, 120)) }), correct: q.correct,
+      ...(q.nombre ? {} : typeof q.banque === "string" && q.banque ? { banque: q.banque.slice(0, 120) } : typeof q.emoji === "string" && q.emoji ? { emoji: q.emoji.slice(0, 16) } : {}),
+    }));
+    // Un quiz choisi en plus (deuxième ligne) reste, avec son nombre de questions.
+    out = { type, ...(tirees.length ? { tirees, ...(PROFILES[r.profil] ? { profil: r.profil } : {}) } : {}),
+      ...(ids.length || !tirees.length ? { quizId: ids[0], ...(ids.length > 1 ? { quizIds: ids } : {}), ...(r.count > 0 ? { count: r.count } : {}) } : {}),
+      ...(hasFinale(type) && r.finale > 0 ? { finale: r.finale } : {}),
       // Question des bougies enlevée de ce quiz (elle y est d'office, voir questionBougies).
       ...(type === "quiz" && r.bougies === false ? { bougies: false } : {}) };
   }
-  return { ...out, ...title, ...link };
+  return { ...out, ...title, ...note, ...link };
+}
+
+/**
+ * Une question gardée dans une série, nettoyée pour l'enregistrement. Écrite à la main ([brouillon]) : gardée même pas
+ * finie (elle n'est pas jouée tant qu'il lui manque quelque chose), ses 4 cases de réponse à leur place.
+ */
+function questionNettoyee(q, brouillon) {
+  if (!q || q.vide === true || (!brouillon && !questionJouable(q))) return null;
+  const texte = (x, n) => (typeof x === "string" ? x.trim().slice(0, n) : "");
+  const base = { ...(typeof q.id === "string" ? { id: q.id.slice(0, 120) } : {}), text: texte(q.text, 300) };
+  if (q.nombre === true) return { ...base, nombre: true, ...(Number.isInteger(q.correct) ? { correct: q.correct } : {}) };
+  const choices = (Array.isArray(q.choices) ? q.choices : Object.values(q.choices ?? {})).slice(0, 4).map((c) => texte(c, 120));
+  if (brouillon && !base.text && !choices.some(Boolean)) return null;
+  // Quiz illustré : une image par réponse, photo de la banque ({ cle, emoji }) ou image déjà copiée (identifiant).
+  const libre = (x) => (x && typeof x === "object" && (typeof x.cle === "string" || typeof x.emoji === "string")
+    ? { ...(typeof x.cle === "string" && x.cle ? { cle: x.cle.slice(0, 120) } : {}), ...(typeof x.emoji === "string" && x.emoji ? { emoji: x.emoji.slice(0, 16) } : {}) } : null);
+  const banques = Array.isArray(q.choiceBanque) ? q.choiceBanque.slice(0, choices.length).map(libre) : [];
+  const images = q.choiceImages && typeof q.choiceImages === "object"
+    ? choices.map((_, k) => (typeof q.choiceImages[k] === "string" && /^[0-9a-f]{16}$/.test(q.choiceImages[k]) ? q.choiceImages[k] : "")) : [];
+  return {
+    ...base, choices, ...(Number.isInteger(q.correct) && q.correct >= 0 && q.correct < choices.length ? { correct: q.correct } : {}),
+    ...(typeof q.banque === "string" && q.banque ? { banque: q.banque.slice(0, 120) } : typeof q.imageId === "string" && /^[0-9a-f]{16}$/.test(q.imageId) ? { imageId: q.imageId }
+      : typeof q.emoji === "string" && q.emoji ? { emoji: q.emoji.slice(0, 16) } : {}),
+    // Toutes les réponses ont leur image (une case vide ne se garderait pas dans la base) : sinon, rien.
+    ...(banques.length === choices.length && banques.every(Boolean) ? { choiceBanque: banques } : {}),
+    ...(images.some(Boolean) ? { choiceImages: images } : {}),
+  };
+}
+
+/** Une série d'une manche Quiz (ou Quiz illustré), nettoyée ; vide : enlevée. */
+function serieNettoyee(x) {
+  const base = { id: `${x.id ?? ""}`.slice(0, 40) || `s${Math.random().toString(36).slice(2, 8)}`, origine: x.origine,
+    ...(typeof x.titre === "string" && x.titre.trim() ? { titre: x.titre.trim().slice(0, 120) } : {}) };
+  if (x.origine === "quiz") {
+    const sans = [...new Set(x.sans.map((t) => `${t}`.trim().slice(0, 300)).filter(Boolean))].slice(0, MAX_QUESTIONS_MANCHE);
+    return { ...base, quizId: x.quizId.slice(0, 120), ...(sans.length ? { sans } : {}) };
+  }
+  const questions = x.questions.map((q) => questionNettoyee(q, x.origine === "main")).filter(Boolean).slice(0, MAX_QUESTIONS_MANCHE);
+  if (!questions.length) return null;
+  // Le réglage du 🎲 : le profil (Quiz) ou le thème (Quiz illustré).
+  return { ...base, ...(x.origine === "de" && PROFILES[x.profil] ? { profil: x.profil } : {}),
+    ...(x.origine === "de" && typeof x.famille === "string" && /^[a-z]{2,20}$/.test(x.famille) ? { famille: x.famille } : {}), questions };
+}
+
+/**
+ * Une manche Quiz d'avant les séries (cedric, 23/10) en séries : ses questions tirées au 🎲 (série « de »), puis chacun
+ * de ses quiz (séries « quiz ») ; « les N premières » devient les questions retirées des quiz. Même jeu sur la TV.
+ * Une autre manche (ou déjà en séries, ou rejouée au hasard) : telle quelle.
+ */
+export function versSeriesQuiz(round, quizzes = {}) {
+  // Une ancienne manche « Quiz » faite seulement de quiz illustrés est un Quiz illustré.
+  round = round ? jeuDeLaManche(round, quizzes) : round;
+  if (!round || !estEnSeries(round.type) || round.hasard === true || Array.isArray(round.seriesQuiz) || (round.seriesQuiz && typeof round.seriesQuiz === "object")) return round;
+  const { tirees, profil, quizId, quizIds, count, nbTirage, ...reste } = round;
+  const seriesQuiz = [];
+  const cases = (Array.isArray(tirees) ? tirees : Object.values(tirees ?? {})).filter(Boolean);
+  if (cases.length) seriesQuiz.push({ id: "de", origine: "de", ...(PROFILES[profil] ? { profil } : {}), questions: cases });
+  let reste2 = count > 0 ? count : Infinity;
+  for (const id of roundQuizIds({ type: "quiz", quizId, quizIds })) {
+    const toutes = quizzes?.[id] ? playable(quizzes[id]) : [];
+    const garde = Math.min(reste2, toutes.length);
+    if (quizzes?.[id] && garde <= 0) continue;
+    reste2 -= garde;
+    const sans = toutes.slice(garde).map((q) => q.text);
+    seriesQuiz.push({ id: `q-${id}`.slice(0, 40), origine: "quiz", quizId: id, ...(sans.length ? { sans } : {}) });
+  }
+  return { ...reste, ...(PROFILES[profil] && !cases.length ? { profil } : {}), ...(nbTirage ? { nbTirage } : {}), ...(seriesQuiz.length ? { seriesQuiz } : {}) };
+}
+
+/**
+ * Un Quiz = une seule manche (cedric, 23/10) : les manches Quiz qui se suivent n'en font plus qu'une, leurs séries à la
+ * suite, la Super Finale de la dernière (une seule, à la fin), la question des bougies de la première. [fusions] :
+ * manches réunies. Les manches doivent déjà être en séries (versSeriesQuiz).
+ */
+export function fusionnerQuiz(rounds) {
+  const out = [];
+  let fusions = 0;
+  // Le Quiz illustré aussi (cedric, 23/10) : deux Quiz illustrés qui se suivent n'en font qu'un.
+  const estQuiz = (r) => r && estEnSeries(r.type) && r.hasard !== true;
+  for (const r of rounds ?? []) {
+    const prev = out[out.length - 1];
+    if (!estQuiz(r) || !estQuiz(prev) || (r.type ?? "quiz") !== (prev.type ?? "quiz")) { out.push(r); continue; }
+    fusions++;
+    const ids = new Set(roundSeriesQuiz(prev).map((x) => x.id));
+    const ajout = roundSeriesQuiz(r).map((x) => {
+      // Une seule série du dé (celle de la première ligne) : les autres tirages deviennent des questions reprises.
+      const autreDe = x.origine === "de" && roundSeriesQuiz(prev).some((y) => y.origine === "de");
+      const id = ids.has(x.id) || autreDe ? `${x.id}-${Math.random().toString(36).slice(2, 7)}` : x.id;
+      ids.add(id);
+      return autreDe ? { ...x, id, origine: "reprise", titre: x.titre ?? "Tirage au 🎲" } : { ...x, id };
+    });
+    const { mancheId, ...garde } = prev;
+    out[out.length - 1] = {
+      ...garde, seriesQuiz: [...roundSeriesQuiz(prev), ...ajout],
+      finale: r.finale === undefined ? prev.finale : r.finale, ...(r.facteur ?? prev.facteur ? { facteur: r.facteur ?? prev.facteur } : {}),
+      ...(prev.note || r.note ? { note: [prev.note, r.note].filter(Boolean).join(" · ").slice(0, 200) } : {}),
+    };
+  }
+  return { rounds: out, fusions };
+}
+
+/** « 19 questions : 🎲 8 tirées (Grands) · 📚 Animaux (8) · ✍ 3 écrites » : une manche Quiz faite de séries. */
+export function resumeDesSeries(round, quizzes = {}) {
+  const parts = roundSeriesQuiz(round).map((x) => {
+    const n = questionsDeLaSerie(x, quizzes).length;
+    if (x.origine === "de") {
+      const sorte = round.type === "illustre" ? FAMILLES_PETITS[x.famille] ?? "" : PROFILES[x.profil]?.label.split(" (")[0] ?? "";
+      return `🎲 ${n} tirée${n > 1 ? "s" : ""}${sorte ? ` (${sorte})` : ""}`;
+    }
+    if (x.origine === "main") return `✍ ${n} écrite${n > 1 ? "s" : ""}`;
+    if (x.origine === "quiz") return `📚 ${quizzes?.[x.quizId]?.title ?? "quiz supprimé"} (${n})`;
+    return `📅 ${x.titre ?? "reprise"} (${n})`;
+  });
+  const total = roundSeriesQuiz(round).reduce((t, x) => t + questionsDeLaSerie(x, quizzes).length, 0);
+  return `${total} question${total > 1 ? "s" : ""}${parts.length ? ` : ${parts.join(" · ")}` : ""}`;
 }
 
 /**
@@ -305,7 +446,10 @@ export function mancheSummary(round, lib = {}) {
   if (BUILTIN_GAMES[r.type]) return roundPicks(r).length ? n(roundPicks(r).length) : `${r.count ?? BUILTIN_GAMES[r.type].count} au hasard`;
   if ((r.type === "zoom" || r.type === "flou") && roundPicks(r).length) return n(roundPicks(r).length);
   if (r.type === "coffres" || r.type === "patate" || r.type === "gonfleur") return "rien à préparer";
+  if (roundSeriesQuiz(r).length) return resumeDesSeries(r, lib.quizzes ?? {});
+  const tirees = roundTirees(r).length;
   const titles = roundQuizIds(r).map((id) => lib.quizzes?.[id]?.title).filter(Boolean);
+  if (tirees) return [`${tirees} question${tirees > 1 ? "s" : ""} tirée${tirees > 1 ? "s" : ""} au hasard${PROFILES[r.profil] ? ` (${PROFILES[r.profil].label.split(" (")[0]})` : ""}`, ...titles].join(" + ");
   return titles.length ? titles.join(" + ") : "quiz à choisir";
 }
 
