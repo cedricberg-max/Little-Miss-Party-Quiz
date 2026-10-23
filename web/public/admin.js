@@ -1537,6 +1537,17 @@ function tirageQuiz(r) {
         type: "button", class: "btn tirage-de", text: "🎲", "aria-label": "Tirer les questions au hasard",
         title: "Tirer les questions au hasard dans la banque", onclick: () => tirer(Number(nombre.value), profils.value),
       }),
+      // ✕ à côté du dé (cedric, 23/10) : efface toutes les questions tirées, la manche reste (ses réglages aussi).
+      cases.length ? h("button", {
+        type: "button", class: "icon tirage-effacer", text: "✕", "aria-label": "Effacer les questions tirées", title: "Effacer les questions tirées (la manche reste)",
+        onclick: async () => {
+          if (!(await confirmer(`Effacer les ${cases.length} questions tirées ? La manche reste, avec ses réglages.`, { ok: "Effacer", danger: true }))) return;
+          r.tirees = null;
+          tiragesDeplies.delete(r);
+          roundCtx.refresh();
+          noterEcran();
+        },
+      }) : null,
       cases.length ? h("button", {
         type: "button", class: "chip tirage-voir", "aria-expanded": liste.hidden ? "false" : "true", text: libelle(),
         title: "Voir ou cacher les questions tirées",

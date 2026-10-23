@@ -5541,6 +5541,16 @@ describe("bibliothèque de quiz et prestations", () => {
     await round.locator(".tirage-voir", { hasText: "▸ 8 questions" }).waitFor();
     assert.equal(await round.locator(".round-body > .tirage-ligne .tirage-profil").inputValue(), "GRANDS");
     assert.equal(await round.locator(".round-body > .tirage-ligne select.finale").inputValue(), "2");
+    // ✕ à côté du dé : efface toutes les questions tirées (après confirmation), la manche et ses réglages restent.
+    await round.locator(".tirage-effacer").click();
+    assert.match(await repondreFenetre(page, { accepter: false }), /Effacer les 8 questions tirées \?/);
+    assert.equal(await round.locator(".tirage-liste li").count(), 8);
+    await round.locator(".tirage-effacer").click();
+    await repondreFenetre(page);
+    await round.locator(".tirage-voir").waitFor({ state: "detached" });
+    assert.equal(await page.locator("#show-rounds .round").count(), 1, "La manche reste");
+    assert.equal(await round.locator(".tirage-effacer").count(), 0);
+    assert.equal(await round.locator(".round-body > .tirage-ligne select.finale").inputValue(), "2");
     await page.context().close();
   });
 
