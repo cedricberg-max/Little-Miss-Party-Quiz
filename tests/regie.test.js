@@ -5468,6 +5468,14 @@ describe("bibliothèque de quiz et prestations", () => {
     const chiffres = await lignes.evaluateAll((xs) => xs.map((x, i) => (x.textContent.startsWith("🔢") ? i : -1)).filter((i) => i >= 0));
     assert.equal(chiffres.length, 2);
     assert.ok(!chiffres.includes(0));
+    // Chaque question à 4 réponses montre la miniature de son image (Grands : une photo) ; la ✕ suit la question de près.
+    const photos = await lignes.evaluateAll((xs) => xs.filter((x) => !x.textContent.startsWith("🔢")).map((x) => x.querySelector("img.tirage-mini")?.getAttribute("src") ?? ""));
+    assert.equal(photos.length, 8);
+    for (const src of photos) assert.match(src, /^banque-quiz\/qc-.+\.jpg$/);
+    assert.equal(await round.locator(".tirage-liste li:has-text('🔢') .tirage-mini").count(), 0, "Juste Chiffre : pas d'image");
+    await page.waitForFunction(() => [...document.querySelectorAll(".tirage-liste img.tirage-mini")].every((i) => i.complete && i.naturalWidth > 0));
+    const ecarts = await lignes.evaluateAll((xs) => xs.map((x) => x.querySelector(".tirage-retirer").getBoundingClientRect().left - x.querySelector(".tirage-texte").getBoundingClientRect().right));
+    assert.ok(Math.max(...ecarts) < 120, `✕ près de la question : ${ecarts}`);
     // ✕ : la question part, un 🎲 prend sa place ; il en tire une autre de la même sorte.
     const retiree = await lignes.nth(0).locator(".tirage-texte").textContent();
     await lignes.nth(0).locator(".tirage-retirer").click();

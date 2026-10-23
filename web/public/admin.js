@@ -21,7 +21,7 @@ import {
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, alerteEquipes, EQUIPES_PAR_DEFAUT, pourLeHasard, premierQuiz,
   launchStates, launchLabelPc, roundTirees, chiffresDuTirage, MAX_TIREES,
 } from "./show.js";
-import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE } from "./banque-photos.js";
+import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE, cheminPhotoBanque } from "./banque-photos.js";
 import { shuffle } from "./mime-cards.js";
 import {
   MANCHE_TYPES, COLLECTION_UNIT, RANDOM_TYPES, RANDOM_COUNT, MIME_PER_TEAM, MIME_PER_TEAM_DEFAULT, LEVELS, collectionItems, collectionGroups,
@@ -1511,6 +1511,10 @@ function tirageQuiz(r) {
       ? [h("button", { type: "button", class: "btn tirage-de petit", text: "🎲", "aria-label": "Tirer une autre question", title: "Tirer une autre question", onclick: () => tirerUne(i) }),
         h("span", { class: "hint small", text: q.nombre ? "Juste Chiffre à tirer" : "Question à tirer" })]
       : [h("span", { class: "tirage-texte", text: `${q.nombre ? "🔢 " : ""}${q.text}` }),
+        // Miniature de l'image de la révélation (cedric, 23/10 : vérifier qu'elle va avec la réponse) : sa photo, sinon
+        // son émoji ; le Juste Chiffre n'en a pas (la TV montre son compteur).
+        q.banque ? h("img", { class: "tirage-mini", src: cheminPhotoBanque(q.banque), alt: "", loading: "lazy", title: "Image montrée à la révélation" })
+          : q.emoji ? h("span", { class: "tirage-mini emoji", text: q.emoji, title: "Image montrée à la révélation" }) : null,
         h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": "Retirer cette question", title: "Retirer cette question", onclick: () => retirer(i) })]))));
   liste.hidden = !tiragesDeplies.has(r);
   const libelle = () => `${liste.hidden ? "▸" : "▾"} ${cases.length} question${cases.length > 1 ? "s" : ""}${vides ? ` (${vides} à tirer)` : ""}`;

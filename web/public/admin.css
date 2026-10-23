@@ -792,10 +792,13 @@ button.media-tile:hover { border-color: var(--violet); }
 .tirage-ligne > select { flex: 0 1 auto; width: auto; min-width: 0; max-width: 100%; }
 .tirage-ligne > .bougies { white-space: nowrap; }
 .tirage-ligne .tirage-de { align-self: stretch; font-size: 26px; line-height: 1; padding: 8px 22px; }
-.round-body > .tirage-liste { flex: 1 1 100%; margin: 0; padding: 10px 14px 10px 34px; border-radius: 14px; background: var(--card); border: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 4px; }
+.round-body > .tirage-liste { flex: 1 1 100%; margin: 0; padding: 10px 14px 10px 34px; border-radius: 14px; background: var(--card); border: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 8px; }
 .round-body > .tirage-liste[hidden] { display: none; }
-.tirage-q-ligne { display: flex; align-items: center; gap: 10px; min-height: 36px; }
-.tirage-texte { flex: 1; min-width: 0; }
+/* La ✕ et la miniature collées à la question (cedric, 23/10 : une ✕ trop loin fait cliquer celle du voisin). */
+.tirage-q-ligne { display: flex; align-items: center; justify-content: flex-start; gap: 10px; min-height: 36px; }
+.tirage-texte { flex: 0 1 auto; min-width: 0; }
+.tirage-mini { flex: none; height: 56px; width: 76px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line-2); background: #fff; }
+.tirage-mini.emoji { display: grid; place-items: center; font-size: 34px; line-height: 1; }
 .tirage-q-ligne .tirage-retirer { flex: none; width: 32px; height: 32px; border-radius: 10px; font-size: 14px; }
 .tirage-q-ligne .tirage-de.petit { align-self: center; font-size: 18px; padding: 4px 14px; }
 @media (max-width: 640px) { .tirage-ligne > select { flex: 1 1 100%; } }
