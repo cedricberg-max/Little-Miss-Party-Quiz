@@ -119,10 +119,15 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier) {
                 Spacer(Modifier.height(10.dp))
                 JaugesPodium(colonnes, scores, ms, Modifier.weight(1f).fillMaxWidth())
             }
-            // Le robot vole sur tout le haut de l'écran (clip 16:9 en plein écran) : il reste toujours au-dessus des
-            // 60 % du haut, entier ; le nom et les équipes sont dessous.
+            // Le robot vole au-dessus du nom (clip 16:9 en plein écran) et vient par moments en gros plan face caméra
+            // (cedric, 23/10) : son visage reste au-dessus du nom, son corps passe derrière. Un voile sombre en bas
+            // garde le nom et les équipes lisibles par-dessus lui.
             if (apres(Tempo.PODIUM_REVELATION - 300, Unit)) {
                 ClipRobotEnBoucle(ROBOT_FETE, ROBOT_FETE_BOUCLE_MS, Modifier.align(Alignment.Center).fillMaxWidth().aspectRatio(16f / 9f))
+                Box(
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(0.5f)
+                        .background(Brush.verticalGradient(0f to Color.Transparent, 0.3f to GS.Noir.copy(alpha = 0.55f), 1f to GS.Noir.copy(alpha = 0.7f))),
+                )
             }
             // La révélation, dans les 40 % du bas : la couronne, le nom, les points ; les autres équipes dessous
             // (jusqu'à 3) ou de part et d'autre du nom (4 à 7).
