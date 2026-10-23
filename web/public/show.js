@@ -115,6 +115,16 @@ export const FLOU_SEC = 40;
 export const MIME_TURN = 60;
 export const MAX_QUESTIONS = 200;
 
+/**
+ * Titre proposé d'office dans la fiche (cedric, 23/10) : « Anniversaire de Frédéric », « Anniversaire d'Emma » ;
+ * rien sans prénom.
+ */
+export function titreAuto(prenom) {
+  const p = prenom?.trim();
+  if (!p) return "";
+  return /^[aeiouyàâäéèêëîïôöùûüœæ]/i.test(p) ? `Anniversaire d'${p}` : `Anniversaire de ${p}`;
+}
+
 export function showTitle(show) {
   return show.title?.trim() || (show.childName?.trim() ? `L'anniversaire de ${show.childName.trim()}`
     // Copie pas encore complétée : le nom de son modèle (Dupliquer).

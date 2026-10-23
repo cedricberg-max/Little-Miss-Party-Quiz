@@ -12,7 +12,7 @@ import { writeProof, isAdmin } from "./proof.js";
 import { parseQuiz, checkQuestions, geminiPrompt, chatgptUrl, imageKey, wordFromImage, photoQuestions, LETTERS } from "./importer.js";
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
 import {
-  buildSnapshot, dureeEstimee, playable, expressQuestions, zoomQuestions, showTitle, ROUND_TYPES, BUILTIN_GAMES, readiness, daysUntil, duplicateShow, isoDay, ETATS, etatPrestation,
+  buildSnapshot, dureeEstimee, playable, expressQuestions, zoomQuestions, showTitle, titreAuto, ROUND_TYPES, BUILTIN_GAMES, readiness, daysUntil, duplicateShow, isoDay, ETATS, etatPrestation,
   roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC, PICTO_SECONDS, PICTO_SEC, PICTO_POINTS, PICTO_RULE,
   blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras, contentSlot, contentImages,
   pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches, isArchived, AUTO_ARCHIVE_DAYS, quizKind,
@@ -826,6 +826,13 @@ $("show-profile").append(
   ...Object.entries(PROFILES).map(([k, p]) => h("option", { value: k, text: p.label })),
 );
 $("show-new").onclick = () => editShow(null);
+// « Anniversaire de » + le prénom se met tout seul dans « Titre affiché » pendant qu'on tape le prénom, sauf si Sarah a
+// écrit un autre titre (vidé, il se remet à suivre le prénom).
+$("show-child").addEventListener("input", () => {
+  const titre = $("show-title");
+  if (titre.value.trim() && titre.value !== titre.dataset.auto) return;
+  titre.value = titre.dataset.auto = titreAuto($("show-child").value);
+});
 $("show-edit-crumb").onclick = () => openShows(showsEtat);
 
 /** Ouvre une prestation ; sans identifiant, une nouvelle. */
@@ -847,7 +854,12 @@ function editShow(id) {
   // Le statut montré est son état réel : une fête passée, archivée d'elle-même, se lit « Archivée ».
   $("show-status").value = id && isArchived(s) ? "archivee" : s.status ?? "brouillon";
   montrerArchivee(!!id && isArchived(s));
-  $("show-title").value = s.title ?? "";
+  // Titre proposé d'office d'après le prénom (cedric, 23/10), tant que Sarah n'en a pas écrit un autre ; l'ancien
+  // titre par défaut (« L'anniversaire de … ») devient le nouveau.
+  const titre = s.title?.trim() ?? "";
+  const suivi = !titre || titre === titreAuto(s.childName) || titre === `L'anniversaire de ${s.childName?.trim()}`;
+  $("show-title").value = suivi ? titreAuto(s.childName) : titre;
+  $("show-title").dataset.auto = suivi ? titreAuto(s.childName) : "";
   $("show-profile").value = s.profile ?? "";
   $("show-themes").value = s.themes ?? "";
   $("show-notes").value = s.notes ?? "";
@@ -859,7 +871,6 @@ function editShow(id) {
   if (s.copieDe && !s.childName) $("show-child").focus();
 }
 
-/** Champs de la fiche d'une prestation, gardés par « Retour » et « Annuler les modifications ». */
 /**
  * « Archivée » ne se choisit pas dans la fiche (cedric, 23/10) : une fête s'archive d'elle-même le lendemain de sa
  * date, ou par « Archiver » sur sa carte. Le choix n'apparaît que pour une archivée, qu'on peut remettre « À venir »
@@ -871,6 +882,7 @@ function montrerArchivee(oui) {
   option.disabled = !oui;
 }
 
+/** Champs de la fiche d'une prestation, gardés par « Retour » et « Annuler les modifications ». */
 const SHOW_FIELDS = ["show-child", "show-age", "show-teams", "show-date", "show-status", "show-title", "show-profile", "show-themes", "show-notes"];
 const histPrestation = historique({
   ecran: $("screen-show-edit"),
@@ -878,6 +890,7 @@ const histPrestation = historique({
   capturer: () => ({ rounds: editing?.rounds ?? [], champs: SHOW_FIELDS.map((id) => $(id).value) }),
   restaurer: (e) => {
     SHOW_FIELDS.forEach((id, k) => { $(id).value = e.champs[k]; });
+    $("show-title").dataset.auto = titreAuto($("show-child").value);
     if (editing) editing.rounds = e.rounds;
     refreshRounds();
   },

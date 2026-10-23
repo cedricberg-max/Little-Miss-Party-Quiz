@@ -5324,6 +5324,44 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Régie PC (cedric, 23/10) : « Titre affiché » se remplit tout seul avec « Anniversaire de » et le prénom, et reste modifiable", async () => {
+    await seedLibrary("shows", {
+      ancienne: { childName: "Léa", age: 7, status: "brouillon", rounds: [], updatedAt: 1 },
+      perso: { childName: "Hugo", age: 8, title: "La boum de Hugo", status: "brouillon", rounds: [], updatedAt: 1 },
+    });
+    const page = await admin();
+    await page.click("#home-new");
+    assert.equal(await page.inputValue("#show-title"), "");
+    await page.fill("#show-child", "Frédéric");
+    assert.equal(await page.inputValue("#show-title"), "Anniversaire de Frédéric");
+    await page.fill("#show-child", "Emma");
+    assert.equal(await page.inputValue("#show-title"), "Anniversaire d'Emma");
+    // Un titre écrit à la main ne bouge plus quand le prénom change ; vidé, il suit de nouveau le prénom.
+    await page.fill("#show-title", "La fête des licornes");
+    await page.fill("#show-child", "Emmy");
+    assert.equal(await page.inputValue("#show-title"), "La fête des licornes");
+    await page.fill("#show-title", "");
+    await page.fill("#show-child", "Jules");
+    assert.equal(await page.inputValue("#show-title"), "Anniversaire de Jules");
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée." }).waitFor();
+    const jules = Object.values(await library("shows")).find((s) => s.childName === "Jules");
+    assert.equal(jules.title, "Anniversaire de Jules");
+    assert.equal(await page.textContent("#show-edit-title"), "Anniversaire de Jules");
+    // Une prestation déjà faite sans titre le reçoit à l'ouverture ; un titre choisi par Sarah est gardé.
+    await page.click("#brand");
+    await page.click('#screen-home [data-etat="acompleter"]');
+    await page.locator('#show-list [data-show="ancienne"]').getByRole("button", { name: "Ouvrir" }).click();
+    assert.equal(await page.inputValue("#show-title"), "Anniversaire de Léa");
+    await page.click("#brand");
+    await page.click('#screen-home [data-etat="acompleter"]');
+    await page.locator('#show-list [data-show="perso"]').getByRole("button", { name: "Ouvrir" }).click();
+    assert.equal(await page.inputValue("#show-title"), "La boum de Hugo");
+    await page.fill("#show-child", "Hugo-Louis");
+    assert.equal(await page.inputValue("#show-title"), "La boum de Hugo");
+    await page.context().close();
+  });
+
   test("Régie PC (cedric, 23/10) : « Archivée » ne se choisit pas dans une fiche ; une archivée reportée se remet « À venir » avec une nouvelle date", async () => {
     const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
     const rounds = [{ type: "quiz", quizId: "animaux" }];
