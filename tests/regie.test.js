@@ -2541,7 +2541,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
-    assert.deepEqual(await sansManche(Object.values(await library("shows"))[0].rounds), [{ type: "quiz", quizId: "animaux", count: 1 }, { type: "chante", count: 4 }]);
+    assert.deepEqual(await sansManche(Object.values(await library("shows"))[0].rounds), [{ type: "quiz", quizId: "animaux", count: 1, finale: 3 }, { type: "chante", count: 4 }], "Une nouvelle manche Quiz part avec la Super Finale sur 3 questions (cedric, 23/10)");
     await page.context().close();
 
     box = startBox();
@@ -2554,7 +2554,9 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const show = await read("show");
     assert.deepEqual(show.quiz.questions.map((q) => q.round), ["Animaux", "Animaux", "Chante le mot !", "Chante le mot !", "Chante le mot !", "Chante le mot !"]);
-    assert.equal(show.quiz.questions[1].text, "Le Juste Chiffre : combien de bougies sur le gâteau de Léa cette année ?");
+    // Les bougies juste avant la Super Finale (d'office sur 3 questions, ici la seule question du quiz).
+    assert.equal(show.quiz.questions[0].text, "Le Juste Chiffre : combien de bougies sur le gâteau de Léa cette année ?");
+    assert.equal(show.quiz.questions[1].finale, true);
     assert.ok(!show.quiz.questions.some((q) => q.text === "soleil"), "Un mot retiré ne sort plus");
     await regie.locator("#c-notes:not([hidden])", { hasText: "Léa adore les licornes." }).waitFor();
     await regie.context().close();
@@ -2633,7 +2635,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
-    assert.deepEqual(await sansManche(Object.values(await library("shows"))[0].rounds), [{ type: "quiz", quizId: "animaux" }, { type: "mimes", deckId }]);
+    assert.deepEqual(await sansManche(Object.values(await library("shows"))[0].rounds), [{ type: "quiz", quizId: "animaux", finale: 3 }, { type: "mimes", deckId }]);
     await page.context().close();
 
     box = startBox();
@@ -3981,7 +3983,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
     const saved = await sansManche(Object.values(await library("shows"))[0].rounds);
-    assert.deepEqual(saved[0], { type: "quiz", quizId: "animaux", quizIds: ["animaux", "finale"] });
+    assert.deepEqual(saved[0], { type: "quiz", quizId: "animaux", quizIds: ["animaux", "finale"], finale: 3 });
     assert.equal(saved[1].type, "mimes");
     assert.equal(saved[1].deckId, undefined, "Cartes choisies dans toutes les collections");
     assert.equal(saved[1].cards.length, 30);
