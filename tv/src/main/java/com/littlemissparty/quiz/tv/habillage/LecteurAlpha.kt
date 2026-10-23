@@ -36,6 +36,8 @@ void main() {
 /**
  * Image de 576 × 1456 : couleur en haut (720 lignes, prémultipliée), 16 lignes noires, transparence en bas (720 lignes).
  * La bande noire évite que la compression mélange les deux moitiés ; le léger bruit du noir est effacé.
+ * Seule la silhouette nette reste opaque : la lueur douce rendue autour du robot, dans la transparence, faisait sur la
+ * TV une tache pâle qui le suivait (cedric, 23/10). Couleur dé-prémultipliée, puis reprise à la nouvelle opacité.
  */
 internal const val SHADER_PIXELS = """
 #extension GL_OES_EGL_image_external : require
@@ -47,7 +49,8 @@ void main() {
     vec3 c = texture2D(uTex, (uM * vec4(v.x, 0.50549 + 0.49451 * v.y, 0.0, 1.0)).xy).rgb;
     float a = texture2D(uTex, (uM * vec4(v.x, 0.49451 * v.y, 0.0, 1.0)).xy).r;
     a = clamp((a - 0.04) / 0.92, 0.0, 1.0);
-    gl_FragColor = vec4(c * step(0.004, a), a);
+    float n = smoothstep(0.35, 0.65, a);
+    gl_FragColor = vec4(min(c / max(a, 0.01), vec3(1.0)) * n, n);
 }
 """
 
