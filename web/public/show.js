@@ -430,8 +430,19 @@ export const ORIGINES_SERIE = ["de", "quiz", "main", "reprise"];
  * Jeux dont une manche est faite de séries, comme le Quiz (cedric, 23/10 : « exactement la même architecture ») : 🎲,
  * séries rappelées d'un ancien anniversaire, séries de la bibliothèque, Super Finale, « Quiz complet ».
  */
-export const JEUX_EN_SERIES = ["quiz", "illustre"];
+export const JEUX_EN_SERIES = ["quiz", "illustre", "zoom", "flou"];
 export const estEnSeries = (type) => JEUX_EN_SERIES.includes(type ?? "quiz");
+/** Jeux de photos à deviner (Zoom mystère, Image floue) : une photo par question, la réponse à trouver. */
+export const JEUX_DE_PHOTOS = ["zoom", "flou"];
+export const estJeuDePhotos = (type) => JEUX_DE_PHOTOS.includes(type);
+/**
+ * Ce qui reconnaît une question dans sa série : son texte ; au Zoom mystère et à l'Image floue, sa photo (leurs
+ * questions disent toutes « Qu'est-ce que c'est ? »).
+ */
+export const signatureQuestion = (q, type) => (estJeuDePhotos(type) && (IMAGE_ID.test(q?.imageId ?? "") || q?.banque)
+  ? (IMAGE_ID.test(q?.imageId ?? "") ? `i:${q.imageId}` : `b:${q.banque}`) : `${q?.text ?? ""}`.trim().toLowerCase());
+/** Questions d'un quiz de la bibliothèque jouables dans un jeu en séries : ses photos au Zoom et à l'Image floue. */
+export const questionsDuJeu = (type, quiz) => (estJeuDePhotos(type) ? zoomQuestions(quiz) : playable(quiz));
 
 /**
  * Séries d'une manche Quiz (cedric, 23/10 : un Quiz = une seule manche, quelle que soit l'origine de ses questions),
@@ -452,16 +463,16 @@ export const roundSeriesQuiz = (round) => (estEnSeries(round?.type) ? listOf(rou
  * Clé d'une question dans sa série, pour l'ordre du « Quiz complet » (`ordreQuiz`) : la série, puis l'identifiant de la
  * question gardée dans la série, sinon son texte (celles d'un quiz rappelé, comme leurs questions retirées).
  */
-export const cleQuestion = (serie, q) => `${serie?.id ?? ""}|${serie?.origine !== "quiz" && typeof q?.id === "string" && q.id ? q.id : `t:${`${q?.text ?? ""}`.trim().toLowerCase()}`}`;
+export const cleQuestion = (serie, q, type) => `${serie?.id ?? ""}|${serie?.origine !== "quiz" && typeof q?.id === "string" && q.id ? q.id : `t:${signatureQuestion(q, type)}`}`;
 
-/** Questions jouées d'une série, avec leur clé : { cle, q } (q au format d'une question de quiz). */
-function itemsDeLaSerie(serie, quizzes = {}) {
+/** Questions jouées d'une série d'une manche de [type], avec leur clé : { cle, q } (q au format d'une question de quiz). */
+function itemsDeLaSerie(serie, quizzes = {}, type = "quiz") {
   if (serie?.origine === "quiz") {
     const quiz = quizzes?.[serie.quizId];
     const sans = new Set(listOf(serie.sans).map((t) => `${t}`.trim().toLowerCase()));
-    return quiz ? playable(quiz).filter((q) => !sans.has(`${q.text ?? ""}`.trim().toLowerCase())).map((q) => ({ cle: cleQuestion(serie, q), q })) : [];
+    return quiz ? questionsDuJeu(type, quiz).filter((q) => !sans.has(signatureQuestion(q, type))).map((q) => ({ cle: cleQuestion(serie, q, type), q })) : [];
   }
-  return questionsEnLigne(serie?.questions).map((q) => ({ cle: cleQuestion(serie, q), q: q.nombre
+  return questionsEnLigne(serie?.questions).map((q) => ({ cle: cleQuestion(serie, q, type), q: q.nombre
     ? { text: q.text, kind: "number", correct: q.correct, status: "validee" }
     : { text: q.text, choices: q.choices, correct: q.correct, status: "validee",
       ...(q.banque ? { banque: q.banque } : q.imageId ? { imageId: q.imageId } : q.emoji ? { image: q.emoji } : {}),
@@ -474,7 +485,7 @@ function itemsDeLaSerie(serie, quizzes = {}) {
  * Questions jouées d'une série, au format d'une question de quiz (validées) : celles gardées dans la série, ou celles du
  * quiz rappelé (validées, sans celles retirées). Un quiz qui n'existe plus : aucune.
  */
-export const questionsDeLaSerie = (serie, quizzes = {}) => itemsDeLaSerie(serie, quizzes).map((x) => x.q);
+export const questionsDeLaSerie = (serie, quizzes = {}, type = "quiz") => itemsDeLaSerie(serie, quizzes, type).map((x) => x.q);
 
 /** Clé de la question des bougies dans l'ordre du « Quiz complet », une fois qu'elle y a été rangée à la main. */
 export const CLE_BOUGIES = "bougies";
@@ -484,7 +495,7 @@ export const CLE_BOUGIES = "bougies";
  * de la question des bougies ({ cle: CLE_BOUGIES, bougies: true }).
  */
 function ordreDuQuiz(round, quizzes) {
-  const parSerie = roundSeriesQuiz(round).map((serie) => itemsDeLaSerie(serie, quizzes).map((x) => ({ ...x, serie })));
+  const parSerie = roundSeriesQuiz(round).map((serie) => itemsDeLaSerie(serie, quizzes, round?.type ?? "quiz").map((x) => ({ ...x, serie })));
   const rang = new Map();
   listOf(round?.ordreQuiz).forEach((c, k) => { if (typeof c === "string" && !rang.has(c)) rang.set(c, k); });
   if (!rang.size) return parSerie.flat();
@@ -643,6 +654,8 @@ export function builtinConcepts(type, x) {
 
 /** Questions d'une manche Zoom mystère ou Image floue : les photos choisies une par une, sinon celles des quiz choisis. */
 export function zoomRoundQuestions(round, quizzes) {
+  // En séries (cedric, 23/10) : toutes ses photos, dans l'ordre de passage.
+  if (roundSeriesQuiz(round).length) return questionsDesSeries(round, quizzes);
   if (roundPicks(round).length) {
     const byImage = new Map();
     Object.values(quizzes ?? {}).forEach((qz) => (qz ? zoomQuestions(qz) : []).forEach((q) => { if (!byImage.has(q.imageId)) byImage.set(q.imageId, q); }));
@@ -944,10 +957,11 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       }));
       return;
     }
-    if ((round.type === "zoom" || round.type === "flou") && roundPicks(round).length) {
-      // Photos choisies une par une, dans tous les quiz (la même photo n'est jouée qu'une fois).
+    if (estJeuDePhotos(round.type) && (roundPicks(round).length || roundSeriesQuiz(round).length)) {
+      // Photos choisies une par une, dans tous les quiz (la même photo n'est jouée qu'une fois) ; ou en séries
+      // (cedric, 23/10 : 🎲, ancien anniversaire, ses séries de photos), dans l'ordre de passage.
       const list = zoomRoundQuestions(round, quizzes);
-      if (!list.length) { problems.push(`Manche ${i + 1} (${ROUND_TYPES[round.type]}) : les photos choisies n'existent plus.`); return; }
+      if (!list.length) { problems.push(`Manche ${i + 1} (${ROUND_TYPES[round.type]}) : ${roundSeriesQuiz(round).length ? "aucune photo" : "les photos choisies n'existent plus"}.`); return; }
       const label = ROUND_TYPES[round.type];
       rounds.push({ title: label, count: list.length });
       list.forEach((q, j) => questions.push({

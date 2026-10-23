@@ -11,6 +11,7 @@ import {
   MAX_PICKS, MAX_STATUES_SONGS, quizKind, builtinConcepts, fixedConcepts, isPhotoTheme, disparuGroup, parPalierPhotos,
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, pourLeHasard, roundHasard, roundTirees,
   roundSeriesQuiz, questionsDeLaSerie, questionJouable, FACTEURS_FINALE, MAX_QUESTIONS_MANCHE, playable, estEnSeries,
+  estJeuDePhotos, signatureQuestion, questionsDuJeu, zoomRoundQuestions,
 } from "./show.js";
 import { PROFILES } from "./profiles.js";
 import { FAMILLES_PETITS } from "./banque-petits.js";
@@ -268,7 +269,7 @@ export function cleanRound(r, playlists = {}) {
   else if (type === "pictionary") out = { type, duration: r.duration ?? PICTO_SEC, ...(pictoRoundSeries(r) ? { series: pictoRoundSeries(r) } : {}), ...picks };
   else if (type === "coffres" || type === "gonfleur" || type === "patate") out = { type };
   else if (MUSIC_GAMES[type]) out = roundTracks(r).length ? { type, tracks: roundTracks(r) } : { type, playlistId: r.playlistId };
-  else if ((type === "zoom" || type === "flou") && roundPicks(r).length) out = { type, ...picks };
+  else if ((type === "zoom" || type === "flou") && roundPicks(r).length && !roundSeriesQuiz(r).length) out = { type, ...picks };
   else if (estEnSeries(type) && roundSeriesQuiz(r).length) {
     // Manche Quiz faite de séries (cedric, 23/10) : les séries dans l'ordre, une seule Super Finale et son multiplicateur.
     const seriesQuiz = roundSeriesQuiz(r).map(serieNettoyee).filter(Boolean);
@@ -278,8 +279,8 @@ export function cleanRound(r, playlists = {}) {
     // Un seul de ses quiz, en entier : enregistré comme avant les séries (même manche, lue partout pareil).
     const seul = seriesQuiz.length === 1 && seriesQuiz[0].origine === "quiz" && !seriesQuiz[0].sans?.length && !ordreQuiz.length ? seriesQuiz[0].quizId : null;
     out = { type, ...(seul ? { quizId: seul } : seriesQuiz.length ? { seriesQuiz, ...(ordreQuiz.length ? { ordreQuiz } : {}) } : {}),
-      ...(r.finale > 0 ? { finale: Math.min(Math.floor(r.finale), 20) } : {}),
-      ...(r.finale > 0 && FACTEURS_FINALE.includes(r.facteur) && r.facteur !== FACTEURS_FINALE[0] ? { facteur: r.facteur } : {}),
+      ...(hasFinale(type) && r.finale > 0 ? { finale: Math.min(Math.floor(r.finale), 20) } : {}),
+      ...(hasFinale(type) && r.finale > 0 && FACTEURS_FINALE.includes(r.facteur) && r.facteur !== FACTEURS_FINALE[0] ? { facteur: r.facteur } : {}),
       ...(type === "quiz" && r.bougies === false ? { bougies: false } : {}) };
   } else {
     const ids = roundQuizIds(r);
@@ -350,17 +351,24 @@ export function versSeriesQuiz(round, quizzes = {}) {
   // Une ancienne manche « Quiz » faite seulement de quiz illustrés est un Quiz illustré.
   round = round ? jeuDeLaManche(round, quizzes) : round;
   if (!round || !estEnSeries(round.type) || round.hasard === true || Array.isArray(round.seriesQuiz) || (round.seriesQuiz && typeof round.seriesQuiz === "object")) return round;
-  const { tirees, profil, quizId, quizIds, count, nbTirage, ...reste } = round;
+  const { tirees, profil, quizId, quizIds, count, nbTirage, picks, hasard, byItem, ...reste } = round;
+  const type = round.type ?? "quiz";
   const seriesQuiz = [];
   const cases = (Array.isArray(tirees) ? tirees : Object.values(tirees ?? {})).filter(Boolean);
   if (cases.length) seriesQuiz.push({ id: "de", origine: "de", ...(PROFILES[profil] ? { profil } : {}), questions: cases });
+  // Zoom mystère, Image floue : les photos choisies une par une (banque ou ses quiz) deviennent une série copiée.
+  const photos = estJeuDePhotos(type) && roundPicks(round).length ? zoomRoundQuestions({ type, picks }, quizzes) : [];
+  if (photos.length) {
+    seriesQuiz.push({ id: "photos", origine: "reprise", titre: "Photos choisies", questions: photos.map((q) => ({
+      id: signatureQuestion(q, type), text: q.text, choices: [...q.choices], correct: q.correct, ...(q.banque ? { banque: q.banque } : { imageId: q.imageId }) })) });
+  }
   let reste2 = count > 0 ? count : Infinity;
-  for (const id of roundQuizIds({ type: "quiz", quizId, quizIds })) {
-    const toutes = quizzes?.[id] ? playable(quizzes[id]) : [];
+  for (const id of photos.length ? [] : roundQuizIds({ type: "quiz", quizId, quizIds })) {
+    const toutes = quizzes?.[id] ? questionsDuJeu(type, quizzes[id]) : [];
     const garde = Math.min(reste2, toutes.length);
     if (quizzes?.[id] && garde <= 0) continue;
     reste2 -= garde;
-    const sans = toutes.slice(garde).map((q) => q.text);
+    const sans = toutes.slice(garde).map((q) => signatureQuestion(q, type));
     seriesQuiz.push({ id: `q-${id}`.slice(0, 40), origine: "quiz", quizId: id, ...(sans.length ? { sans } : {}) });
   }
   return { ...reste, ...(PROFILES[profil] && !cases.length ? { profil } : {}), ...(nbTirage ? { nbTirage } : {}), ...(seriesQuiz.length ? { seriesQuiz } : {}) };
@@ -400,18 +408,20 @@ export function fusionnerQuiz(rounds) {
 
 /** « 19 questions : 🎲 8 tirées (Grands) · 📚 Animaux (8) · ✍ 3 écrites » : une manche Quiz faite de séries. */
 export function resumeDesSeries(round, quizzes = {}) {
+  const type = round?.type ?? "quiz";
   const parts = roundSeriesQuiz(round).map((x) => {
-    const n = questionsDeLaSerie(x, quizzes).length;
+    const n = questionsDeLaSerie(x, quizzes, type).length;
     if (x.origine === "de") {
-      const sorte = round.type === "illustre" ? FAMILLES_PETITS[x.famille] ?? "" : PROFILES[x.profil]?.label.split(" (")[0] ?? "";
+      const sorte = type === "quiz" ? PROFILES[x.profil]?.label.split(" (")[0] ?? "" : FAMILLES_PETITS[x.famille] ?? "";
       return `🎲 ${n} tirée${n > 1 ? "s" : ""}${sorte ? ` (${sorte})` : ""}`;
     }
     if (x.origine === "main") return `✍ ${n} écrite${n > 1 ? "s" : ""}`;
     if (x.origine === "quiz") return `📚 ${quizzes?.[x.quizId]?.title ?? "quiz supprimé"} (${n})`;
     return `📅 ${x.titre ?? "reprise"} (${n})`;
   });
-  const total = roundSeriesQuiz(round).reduce((t, x) => t + questionsDeLaSerie(x, quizzes).length, 0);
-  return `${total} question${total > 1 ? "s" : ""}${parts.length ? ` : ${parts.join(" · ")}` : ""}`;
+  const total = roundSeriesQuiz(round).reduce((t, x) => t + questionsDeLaSerie(x, quizzes, type).length, 0);
+  const unite = estJeuDePhotos(type) ? "photo" : "question";
+  return `${total} ${unite}${total > 1 ? "s" : ""}${parts.length ? ` : ${parts.join(" · ")}` : ""}`;
 }
 
 /**

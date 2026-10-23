@@ -2580,7 +2580,7 @@ describe("Mes questions : supprimer, en vrac par thème, packs rangés par thèm
       ["Animaux", ["p7"]], ["disney", ["p2", "p4"]], ["Éléphants", ["p6"]], ["Musique", ["p1"]], [Q.SANS_THEME, ["p3", "p5"]],
     ]);
     assert.deepEqual(Q.packsParTheme([]), []);
-    assert.deepEqual(Object.values(Q.GROUPES_QUESTIONS), ["📝 Quiz classique tout prêt", "🖼️ Quiz illustré tout prêt", "✍️ Mes questions en vrac", "📥 Mes packs par thème", "🧪 Questions de test"]);
+    assert.deepEqual(Object.values(Q.GROUPES_QUESTIONS), ["📝 Quiz classique tout prêt", "🖼️ Quiz illustré tout prêt", "✍️ Mes questions en vrac", "📥 Mes packs par thème", "🔍 Mes séries de photos", "🧪 Questions de test"]);
   });
 
   test("questions de test : celles des prestations de test (clés « test-… ») sont à part, en vrac comme en pack", () => {
@@ -2602,6 +2602,85 @@ describe("Mes questions : supprimer, en vrac par thème, packs rangés par thèm
     assert.equal(Q.estQuizDeTest("test-lea-9-ans"), true);
     assert.equal(Q.estQuizDeTest("-Ntest-lea"), false);
     assert.equal(Q.estQuizDeTest(undefined), false);
+  });
+});
+
+describe("Zoom mystère et Image floue en séries, comme le Quiz (cedric, 23/10)", async () => {
+  const S = await import("../web/public/show.js");
+  const M = await import("../web/public/manches.js");
+  const Q = await import("../web/public/questions.js");
+  const { questionBanque } = await import("../web/public/banque-photos.js");
+  const A = "a".repeat(16);
+  const B = "b".repeat(16);
+  const photo = (imageId, mot) => ({ text: "Qu'est-ce que c'est ?", choices: [mot, "Anna", "Simba", "Nemo"], correct: 0, imageId, status: "validee" });
+  const quizzes = { disney: { title: "Disney", kind: "images", source: "photos", questions: [photo(A, "Elsa"), photo(B, "Olaf")] } };
+  const vue = (qs) => qs.map((q) => [q.kind, q.imageId ?? q.banque, q.choices[q.correct]]);
+
+  test("photos choisies une par une (avant) : une série copiée, le même jeu sur la TV", () => {
+    const avant = { type: "zoom", picks: [B, "banque:vache"] };
+    const round = M.versSeriesQuiz(avant, quizzes);
+    assert.deepEqual(round.seriesQuiz.map((x) => [x.origine, x.titre]), [["reprise", "Photos choisies"]]);
+    assert.deepEqual(round.seriesQuiz[0].questions.map((q) => q.id), [`i:${B}`, "b:vache"]);
+    assert.equal(round.picks, undefined);
+    const propre = M.cleanRound(round);
+    assert.deepEqual(Object.keys(propre).sort(), ["seriesQuiz", "type"]);
+    const tv = (r) => S.buildSnapshot("s", { rounds: [r] }, quizzes).snapshot.quiz.questions;
+    assert.deepEqual(vue(tv(propre)), vue(tv(avant)));
+    assert.deepEqual(vue(tv(propre)), [["zoom", B, "Olaf"], ["zoom", "vache", questionBanque("vache").choices[questionBanque("vache").correct]]]);
+    // Une manche du téléphone (photos choisies, sans séries) reste comme avant.
+    assert.deepEqual(M.cleanRound({ type: "flou", picks: [A] }), { type: "flou", picks: [A] });
+  });
+
+  test("une série de photos entière : gardée comme avant ; ✕ retire une photo par son image (elles disent toutes « Qu'est-ce que c'est ? »)", () => {
+    const entiere = M.versSeriesQuiz({ type: "flou", quizId: "disney" }, quizzes);
+    assert.deepEqual(entiere.seriesQuiz.map((x) => [x.origine, x.quizId]), [["quiz", "disney"]]);
+    assert.deepEqual(M.cleanRound(entiere), { type: "flou", quizId: "disney" });
+    const sansElsa = { type: "flou", seriesQuiz: [{ id: "q1", origine: "quiz", quizId: "disney", sans: [S.signatureQuestion(photo(A, "Elsa"), "flou")] }] };
+    assert.deepEqual(S.questionsDesSeries(sansElsa, quizzes).map((q) => q.imageId), [B]);
+    const { snapshot } = S.buildSnapshot("s", { rounds: [M.cleanRound(sansElsa)] }, quizzes);
+    assert.deepEqual(vue(snapshot.quiz.questions), [["flou", B, "Olaf"]]);
+    assert.equal(snapshot.quiz.questions[0].round, "Image floue");
+    assert.equal(S.signatureQuestion(photo(A, "Elsa"), "zoom"), `i:${A}`);
+    assert.equal(S.signatureQuestion({ text: "Qu'est-ce que c'est ?", banque: "vache" }, "flou"), "b:vache");
+    assert.equal(S.signatureQuestion({ text: " Capitale ? " }, "quiz"), "capitale ?");
+  });
+
+  test("🎲, série de la bibliothèque et ordre rangé : l'ordre du « complet » va jusqu'à la TV, sans Super Finale ; « Jamais deux fois » voit chaque photo", () => {
+    const vache = questionBanque("vache");
+    const round = {
+      type: "zoom", finale: 3, facteur: 3,
+      seriesQuiz: [
+        { id: "de", origine: "de", famille: "animaux", questions: [{ id: "b:vache", text: vache.text, choices: [...vache.choices], correct: vache.correct, banque: "vache" }] },
+        { id: "q1", origine: "quiz", quizId: "disney" },
+      ],
+      ordreQuiz: [`q1|t:i:${A}`, "de|b:vache", `q1|t:i:${B}`],
+    };
+    const propre = M.cleanRound(round);
+    assert.equal(propre.finale, undefined, "pas de Super Finale au Zoom mystère");
+    assert.equal(propre.facteur, undefined);
+    assert.equal(propre.seriesQuiz[0].famille, "animaux");
+    const qs = S.buildSnapshot("s", { rounds: [propre] }, quizzes).snapshot.quiz.questions;
+    assert.deepEqual(qs.map((q) => q.imageId ?? q.banque), [A, "vache", B]);
+    assert.ok(qs.every((q) => q.kind === "zoom" && q.double === false));
+    assert.equal(M.resumeDesSeries(propre, quizzes), "3 photos : 🎲 1 tirée (Animaux) · 📚 Disney (2)");
+    const vus = S.fixedConcepts(propre, quizzes);
+    for (const c of [`i:${A}`, `i:${B}`, "m:vache", "m:elsa"]) assert.ok(vus.includes(c), c);
+    assert.equal(S.roundFilled(propre), true);
+  });
+
+  test("Bibliothèque › Questions : ses séries de photos à part, ni dans ses questions en vrac ni dans ses packs", () => {
+    const q = (text) => ({ text, choices: ["Oui", "Non"], correct: 0, status: "validee" });
+    const lib = {
+      disney: { title: "Disney", theme: "Dessins animés", kind: "images", source: "photos", updatedAt: 3, questions: [photo(A, "Elsa"), photo(B, "Olaf")] },
+      importee: { title: "Animaux en photos", kind: "images", source: "json", updatedAt: 2, questions: [photo(A, "Lion")] },
+      pack: { title: "Pack", source: "json", updatedAt: 1, questions: [q("Pack ?")] },
+      mien: { title: "Mien", source: "saisie", updatedAt: 1, questions: [q("À moi ?")] },
+      "test-photos": { title: "TEST – photos", kind: "images", source: "photos", questions: [photo(A, "Test")] },
+    };
+    assert.deepEqual(Q.mesSeriesDePhotos(lib).map((p) => [p.id, p.total, p.groupe ?? p.questions[0].groupe]), [["disney", 2, "photos"], ["importee", 1, "photos"]]);
+    assert.deepEqual(Q.mesPacks(lib).map((p) => p.id), ["pack"]);
+    assert.deepEqual(Q.mesQuestions(lib).map((x) => x.cle), ["mien/0"]);
+    assert.deepEqual(Q.questionsDeTest(lib).map((x) => x.cle), ["test-photos/0"]);
   });
 });
 

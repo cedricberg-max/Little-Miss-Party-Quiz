@@ -21,10 +21,10 @@ import {
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, alerteEquipes, EQUIPES_PAR_DEFAUT, pourLeHasard, premierQuiz,
   launchStates, launchLabelPc, couleursEquipes, teamCount, roundTirees, chiffresDuTirage, MAX_TIREES,
   roundSeriesQuiz, questionsDeLaSerie, questionsDesSeries, questionJouable, FACTEURS_FINALE, SUPER_FINALE_LAST, questionBougies,
-  questionsDuQuiz, cleQuestion, placeDesBougies, CLE_BOUGIES, estEnSeries, choiceImageList,
+  questionsDuQuiz, cleQuestion, placeDesBougies, CLE_BOUGIES, estEnSeries, choiceImageList, estJeuDePhotos, signatureQuestion, zoomRoundQuestions,
 } from "./show.js";
 import { TEAM_COLORS, TEAM_COLOR_NAMES } from "./theme.js";
-import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE, cheminPhotoBanque, imageLibre } from "./banque-photos.js";
+import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE, cheminPhotoBanque, imageLibre, questionBanque } from "./banque-photos.js";
 import { shuffle } from "./mime-cards.js";
 import {
   MANCHE_TYPES, COLLECTION_UNIT, RANDOM_TYPES, RANDOM_COUNT, MIME_PER_TEAM, MIME_PER_TEAM_DEFAULT, LEVELS, collectionItems, collectionGroups,
@@ -53,7 +53,7 @@ import {
   correspond, categoriesDe, categoriesPerso, ficheImage, motsCles,
 } from "./mediatheque.js";
 import { DOSSIERS, classerPartie, bilan, effacements, passageAFaire, moDe, texteMo, texteGardees } from "./nettoyage.js";
-import { GROUPES_QUESTIONS, questionsClassiquesPretes, questionsIllustreesPretes, mesQuestions, mesPacks, questionsDeTest, questionCorrespond, lirePacks, illustration, retirerQuestions, packsParTheme, estQuizDeTest } from "./questions.js";
+import { GROUPES_QUESTIONS, questionsClassiquesPretes, questionsIllustreesPretes, mesQuestions, mesPacks, mesSeriesDePhotos, questionsDeTest, questionCorrespond, lirePacks, illustration, retirerQuestions, packsParTheme, estQuizDeTest } from "./questions.js";
 import { NIVEAUX_CHIFFRES, libelleNiveau, niveauPourAge, tirerChiffres } from "./banque-chiffres.js";
 import { QUESTIONS_TOUT_PRETES, THEMES_TOUT_PRETS, estJusteChiffre } from "./banque-classiques.js";
 
@@ -1347,7 +1347,7 @@ function ouvrirChoixJeu() {
         // Un Quiz juste après un Quiz n'en ferait qu'un : on y retourne, ses questions s'ajoutent dans sa manche.
         const dernier = editing.rounds[editing.rounds.length - 1];
         if (dernier && estEnSeries(x.type) && (dernier.type ?? "quiz") === x.type) {
-          annonce(`Le ${ROUND_TYPES[x.type]} est déjà le dernier jeu : ajoutez-y vos questions (🎲, un ancien anniversaire, votre bibliothèque).`);
+          annonce(`${x.type === "flou" ? "L'Image floue" : `Le ${ROUND_TYPES[x.type]}`} est déjà le dernier jeu : ajoutez-y vos ${estJeuDePhotos(x.type) ? "photos" : "questions"} (🎲, un ancien anniversaire, votre bibliothèque).`);
           $("show-rounds").lastElementChild?.scrollIntoView({ block: "nearest", behavior: "smooth" });
           return;
         }
@@ -1433,15 +1433,17 @@ const versQuestionEnLigne = (q) => (q.kind === "number"
 function quizArchives(type = "quiz") {
   return prestationsRecentes().filter(([, s]) => etatPrestation(s) === "archivee").map(([sid, s]) => {
     const questions = (s.rounds ?? []).map((x) => (x ? versSeriesQuiz(x, quizzes) : null))
-      .filter((x) => x && (x.type ?? "quiz") === type && x.hasard !== true)
-      .flatMap((x) => questionsDesSeries(x, quizzes)).map(versQuestionEnLigne).filter(questionJouable)
+      // Zoom mystère et Image floue : les photos de l'un se rappellent dans l'autre.
+      .filter((x) => x && (estJeuDePhotos(type) ? estJeuDePhotos(x.type) : (x.type ?? "quiz") === type) && x.hasard !== true)
+      .flatMap((x) => questionsDesSeries(x, quizzes).map((q) => (estJeuDePhotos(type) ? { ...versQuestionEnLigne(q), id: signatureQuestion(q, x.type) } : versQuestionEnLigne(q))))
+      .filter(questionJouable)
       // Sa question des bougies était celle de l'enfant de cette fête-là : la nouvelle prestation a la sienne.
       .filter((q) => !(q.nombre && /combien de bougies sur le gâteau/i.test(q.text)));
     const date = s.date ? new Date(`${s.date}T12:00:00`) : null;
     return {
       id: sid, show: s, questions,
       titre: `${showTitle(s)}${date ? ` (${date.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })})` : ""}`,
-      details: [date ? date.toLocaleDateString("fr-FR") : "", s.age != null && s.age !== "" ? `${s.age} ans` : "", `${questions.length} question${questions.length > 1 ? "s" : ""}`].filter(Boolean).join(" · "),
+      details: [date ? date.toLocaleDateString("fr-FR") : "", s.age != null && s.age !== "" ? `${s.age} ans` : "", `${questions.length} ${estJeuDePhotos(type) ? "photo" : "question"}${questions.length > 1 ? "s" : ""}`].filter(Boolean).join(" · "),
       noms: [showTitle(s), s.childName],
       autres: [...datesCherchables(s.date), s.age != null && s.age !== "" ? `${s.age} ans` : "", s.notes, s.themes],
     };
@@ -1593,6 +1595,47 @@ function tirerQuestionsIllustre(r, n, famille) {
   r.famille = famille;
 }
 
+/**
+ * Photos déjà dans la prestation (Zoom mystère ou Image floue, n'importe quelle série) ou retirées de la manche [r]
+ * (✕) : leur signature (« b:vache », « i:<image> »).
+ */
+function photosPrises(r) {
+  const manches = roundCtx === prestationCtx && editing ? editing.rounds.filter(Boolean) : [r];
+  const prises = [...new Set([r, ...manches])].filter((m) => estJeuDePhotos(m.type))
+    .flatMap((m) => zoomRoundQuestions(m, quizzes).map((q) => signatureQuestion(q, m.type)));
+  return new Set([...prises, ...casesDuTirage(r).filter((q) => !caseVide(q)).map((q) => signatureQuestion(q, r.type)), ...(r.ecartees ?? [])]);
+}
+
+/** Une photo de la banque telle qu'elle est gardée dans une manche Zoom mystère ou Image floue. */
+function versPhotoTiree(cle) {
+  const q = questionBanque(cle);
+  return q ? { id: `b:${cle}`, text: q.text, choices: [...q.choices], correct: q.correct, banque: cle } : null;
+}
+
+/** Thèmes de la banque de photos qui ont des photos (le 🎲 du Zoom mystère et de l'Image floue). */
+const famillesPhotos = () => Object.entries(FAMILLES_PETITS).filter(([k]) => banqueItems().some((x) => x.famille === k));
+
+/**
+ * Pioche [n] photos de la banque de photos libres ([famille] : ce thème seulement) pour la manche [r] (cedric, 23/10) :
+ * jamais une photo déjà dans la prestation ni retirée de la manche ; « Jamais deux fois » : d'abord celles dont le mot
+ * ne sert pas déjà dans un autre jeu. Jamais « Mes images » (règle 16).
+ */
+function piocherPhotos(r, n, famille) {
+  if (n <= 0) return [];
+  const prises = photosPrises(r);
+  const libres = shuffle(banqueItems().filter((x) => (!famille || x.famille === famille) && !prises.has(`b:${x.key.slice(BANQUE.length)}`)))
+    .map((x) => versPhotoTiree(x.key.slice(BANQUE.length))).filter(Boolean);
+  return neufsSiPossible(libres, (q) => questionConcepts({ ...q, kind: r.type }), roundCtx.elsewhere?.(r), n).slice(0, n);
+}
+
+/** Tire [n] photos pour la série du dé du Zoom mystère ou de l'Image floue ; les autres séries ne bougent pas. */
+function tirerPhotos(r, n, famille) {
+  poserTirage(r, piocherPhotos(r, n, famille));
+  const de = serieDuDe(r);
+  if (de) { if (famille) de.famille = famille; else delete de.famille; }
+  r.famille = famille;
+}
+
 /** Met [cases] dans la série du dé (créée à la fin des séries s'il n'y en a pas) ; aucune : la série part. */
 function poserTirage(r, cases, profil) {
   const series = seriesDe(r);
@@ -1626,8 +1669,9 @@ function changerNombreTirage(r, k, profil) {
     const vide = cases.map(caseVide).lastIndexOf(true);
     cases = vide >= 0 ? cases.filter((_, i) => i !== vide) : cases.slice(0, k);
   }
-  // Quiz illustré : de nouvelles questions du même thème ([profil] est alors le thème).
+  // Quiz illustré, Zoom mystère, Image floue : de nouvelles questions ou photos du même thème ([profil] est alors le thème).
   if (cases.length < k && r.type === "illustre") cases = [...cases, ...piocherIllustre(r, k - cases.length, profil)];
+  else if (cases.length < k && estJeuDePhotos(r.type)) cases = [...cases, ...piocherPhotos(r, k - cases.length, profil)];
   else if (cases.length < k) {
     const manque = k - cases.length;
     const nb = Math.min(manque, Math.max(0, chiffresDuTirage(k) - cases.filter((q) => q.nombre).length));
@@ -1658,18 +1702,25 @@ function reponsesIllustrees(q) {
   }));
 }
 
+/** Zoom mystère, Image floue : la photo à deviner, en petit (banque de photos libres, ou une de vos images). */
+const apercuPhoto = (q) => (q.banque ? h("img", { class: "tirage-photo", src: cheminPhotoBanque(q.banque), alt: "", loading: "lazy" })
+  : IMAGE_ID.test(q.imageId ?? "") ? photoBibliotheque(q.imageId, { class: "tirage-photo", loading: "lazy" }) : null);
+/** Ce qu'il faut trouver sur une photo du Zoom mystère ou de l'Image floue : sa bonne réponse. */
+const reponsePhoto = (q) => `${q.choices?.[q.correct] ?? q.text ?? ""}`;
+
 /** Petite étiquette des questions de la Super Finale, dans la liste (cedric, 23/10 : une seule, à la fin). */
 const etiquetteFinale = (r) => h("span", { class: "badge-finale", text: `🏆 ×${FACTEURS_FINALE.includes(r.facteur) ? r.facteur : FACTEURS_FINALE[0]}`, title: "Question de la Super Finale" });
 
 /** « 19 questions, dont 3 en Super Finale » : le compteur au-dessus de la première ligne (cedric, 23/10). */
 function compteurQuiz(r) {
   const total = questionsDesSeries(r, quizzes).length;
-  const finale = r.finale > 0 ? Math.min(r.finale, total) : 0;
+  const finale = hasFinale(r.type) && r.finale > 0 ? Math.min(r.finale, total) : 0;
+  const unite = estJeuDePhotos(r.type) ? "photo" : "question";
   const aTirer = casesDuTirage(r).filter(caseVide).length;
   const aFinir = seriesDe(r).filter((x) => x.origine === "main").flatMap((x) => x.questions ?? []).filter((q) => q && !questionJouable(q)).length;
   const bougies = roundCtx === prestationCtx && editing && premierQuiz(editing.rounds, quizzes) === r && questionBougies({ childName: $("show-child").value, age: $("show-age").value }, r);
   return [
-    total ? `${total} question${total > 1 ? "s" : ""}` : "Aucune question pour l'instant",
+    total ? `${total} ${unite}${total > 1 ? "s" : ""}` : `Aucune ${unite} pour l'instant`,
     finale ? `dont ${finale > 1 ? `${finale}` : "la dernière"} en Super Finale` : "",
     bougies && total ? "plus la question des bougies" : "",
   ].filter(Boolean).join(", ") + [aTirer ? ` · ${aTirer} à tirer` : "", aFinir ? ` · ${aFinir} à compléter` : ""].join("");
@@ -1697,14 +1748,21 @@ function mancheQuiz(r) {
   // Quiz illustré (cedric, 23/10 : « exactement la même architecture ») : le 🎲 tire dans le Quiz illustré tout prêt,
   // par thème (pas de profil ni de Juste Chiffre) ; pas de question des bougies.
   const illustre = r.type === "illustre";
+  // Zoom mystère, Image floue (cedric, 23/10) : pareil, avec des photos ; le 🎲 tire dans la banque de photos libres,
+  // par thème ; ni Super Finale ni bougies.
+  const photos = estJeuDePhotos(r.type);
+  const parTheme = illustre || photos;
+  const unite = photos ? "photo" : "question";
+  const nUnites = (k) => `${k} ${unite}${k > 1 ? "s" : ""}`;
+  const sig = (q) => (photos ? signatureQuestion(q, r.type) : q.text);
   const famille = familleDuDe(r);
   const profil = PROFILES[de?.profil] ? de.profil : PROFILES[r.profil] ? r.profil : roundCtx.profile?.() ?? "MOYENS";
-  const n = cases.length || r.nbTirage || TIRAGE_DEFAUT;
+  const n = cases.length || r.nbTirage || (photos ? RANDOM_COUNT[r.type] ?? TIRAGE_DEFAUT : TIRAGE_DEFAUT);
   // Une nouvelle manche part avec la Super Finale sur ses 3 dernières questions, ×2 (cedric, 23/10).
-  if (r.finale === undefined && !roundFilled(r)) r.finale = SUPER_FINALE_LAST;
+  if (hasFinale(r.type) && r.finale === undefined && !roundFilled(r)) r.finale = SUPER_FINALE_LAST;
   const assemblage = questionsDuQuiz(r, quizzes);
   const total = assemblage.length;
-  const finale = r.finale > 0 ? Math.min(r.finale, total) : 0;
+  const finale = hasFinale(r.type) && r.finale > 0 ? Math.min(r.finale, total) : 0;
   // Les questions de la Super Finale : les dernières dans l'ordre de passage (celui du « Quiz complet »).
   const clesFinale = new Set(finale ? assemblage.slice(-finale).map((x) => x.cle) : []);
   const compteur = h("p", { class: "quiz-compteur", "aria-live": "polite", text: compteurQuiz(r) });
@@ -1712,22 +1770,22 @@ function mancheQuiz(r) {
   const changer = () => { roundCtx.refresh(); };
 
   // Première ligne : profil (Quiz illustré : thème), nombre, 🎲.
-  const tirer = (k, p) => { if (illustre) tirerQuestionsIllustre(r, k, p); else tirerQuestionsQuiz(r, k, p); changer(); };
+  const tirer = (k, p) => { if (photos) tirerPhotos(r, k, p); else if (illustre) tirerQuestionsIllustre(r, k, p); else tirerQuestionsQuiz(r, k, p); changer(); };
   const nombre = h("select", {
     class: "tirage-nombre", "aria-label": "Nombre de questions à tirer",
     onchange: (e) => {
       const k = Number(e.target.value);
       if (!cases.length) { r.nbTirage = k; return; }
-      changerNombreTirage(r, k, illustre ? famille : profil);
+      changerNombreTirage(r, k, parTheme ? famille : profil);
       changer();
     },
-  }, ...[...new Set([...TIRAGE_NOMBRES, n])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: k === n, text: k > 1 ? `${k} questions` : "1 question" })));
-  const reglage = illustre
+  }, ...[...new Set([...TIRAGE_NOMBRES, n])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: k === n, text: nUnites(k) })));
+  const reglage = parTheme
     ? h("select", {
-      class: "tirage-theme", "aria-label": "Thème des questions",
+      class: "tirage-theme", "aria-label": photos ? "Thème des photos" : "Thème des questions",
       onchange: (e) => { const f = e.target.value || null; if (cases.length) tirer(cases.length, f); else r.famille = f; },
     }, h("option", { value: "", selected: !famille, text: "Tous les thèmes" }),
-    ...Object.entries(FAMILLES_PETITS).map(([k, label]) => h("option", { value: k, selected: k === famille, text: label })))
+    ...(photos ? famillesPhotos() : Object.entries(FAMILLES_PETITS)).map(([k, label]) => h("option", { value: k, selected: k === famille, text: label })))
     : h("select", {
       class: "tirage-profil", "aria-label": "Profil des questions",
       onchange: (e) => { if (cases.length) tirer(cases.length, e.target.value); else r.profil = e.target.value; },
@@ -1736,9 +1794,9 @@ function mancheQuiz(r) {
     reglage,
     nombre,
     h("button", {
-      type: "button", class: "btn tirage-de", text: "🎲", "aria-label": "Tirer les questions au hasard",
-      title: `Tirer les questions au hasard dans ${illustre ? "le Quiz illustré tout prêt" : "la banque"} (les autres séries ne bougent pas)`,
-      onclick: () => tirer(Number(nombre.value), illustre ? reglage.value || null : reglage.value),
+      type: "button", class: "btn tirage-de", text: "🎲", "aria-label": photos ? "Tirer les photos au hasard" : "Tirer les questions au hasard",
+      title: `Tirer ${photos ? "les photos" : "les questions"} au hasard dans ${photos ? "la banque de photos libres" : illustre ? "le Quiz illustré tout prêt" : "la banque"} (les autres séries ne bougent pas)`,
+      onclick: () => tirer(Number(nombre.value), parTheme ? reglage.value || null : reglage.value),
     }));
 
   // Deuxième ligne : « Rappeler un de vos quiz » (cedric, 23/10) : une recherche dans les prestations archivées
@@ -1746,8 +1804,8 @@ function mancheQuiz(r) {
   // prestation archivée ne change pas).
   const archives = quizArchives(r.type ?? "quiz");
   const rappel = ligneAjoutQuiz({
-    classe: "quiz-rappel", titre: illustre ? "📚 Rappeler un de vos quiz illustrés" : "📚 Rappeler un de vos quiz", label: "Chercher une prestation archivée",
-    placeholder: "Prénom, âge, date… d'une prestation archivée", vide: `Aucune prestation archivée avec un ${ROUND_TYPES[r.type ?? "quiz"]}`,
+    classe: "quiz-rappel", titre: photos ? "📚 Rappeler les photos d'un ancien anniversaire" : illustre ? "📚 Rappeler un de vos quiz illustrés" : "📚 Rappeler un de vos quiz", label: "Chercher une prestation archivée",
+    placeholder: "Prénom, âge, date… d'une prestation archivée", vide: photos ? "Aucune prestation archivée avec un Zoom mystère ou une Image floue" : `Aucune prestation archivée avec un ${ROUND_TYPES[r.type ?? "quiz"]}`,
     aucun: "Aucune prestation archivée ne correspond.", items: archives, attr: (x) => ({ "data-show": x.id }),
     choisir: (x) => {
       series.push({ id: nouvelId("p"), origine: "reprise", titre: x.titre, questions: JSON.parse(JSON.stringify(x.questions)) });
@@ -1761,28 +1819,34 @@ function mancheQuiz(r) {
   // floue), ni le Quiz illustré, ni un quiz de Vrai ou Faux. Dans un Quiz illustré : ses quiz illustrés.
   const dejaLa = new Set(series.filter((x) => x.origine === "quiz").map((x) => x.quizId));
   const quatreReponses = (x) => x.kind === "number" || (x.choices ?? []).filter((c) => `${c ?? ""}`.trim()).length === 4;
+  // Zoom mystère, Image floue : ses séries de photos (Bibliothèque › Questions › « 🔍 Mes séries de photos »).
+  const duJeu = (q) => (photos ? zoomQuestions(q) : illustre ? illustreQuestions(q) : quizQuestions(q));
   const classiques = Object.entries(quizzes)
-    .filter(([qid, q]) => q?.title && !estQuizDeTest(qid) && (illustre ? illustreQuestions(q).length : quizKind(q) === "classique" && quizQuestions(q).some(quatreReponses)))
+    .filter(([qid, q]) => q?.title && !estQuizDeTest(qid) && (photos ? quizKind(q) === "images" && duJeu(q).length
+      : illustre ? duJeu(q).length : quizKind(q) === "classique" && quizQuestions(q).some(quatreReponses)))
     .sort(([, a], [, b]) => a.title.localeCompare(b.title, "fr"))
     .map(([qid, q]) => {
-      const k = (illustre ? illustreQuestions(q) : quizQuestions(q)).length;
-      return { id: qid, titre: q.title, details: [`${k} question${k > 1 ? "s" : ""}`, q.theme, dejaLa.has(qid) ? "✓ déjà dans ce Quiz" : ""].filter(Boolean).join(" · "),
+      const k = duJeu(q).length;
+      return { id: qid, titre: q.title, details: [nUnites(k), q.theme, dejaLa.has(qid) ? `✓ déjà dans ce ${photos ? "jeu" : "Quiz"}` : ""].filter(Boolean).join(" · "),
         noms: [q.title], autres: [q.theme] };
     });
   const biblio = ligneAjoutQuiz({
-    classe: "quiz-biblio", titre: illustre ? "📗 Intégrer un quiz illustré de votre bibliothèque" : "📗 Intégrer un quiz de votre bibliothèque", label: "Chercher un quiz de la bibliothèque",
-    placeholder: `Titre ou thème d'un de vos quiz${illustre ? " illustrés" : ""}`, vide: `Pas encore de quiz${illustre ? " illustré" : ""} dans votre bibliothèque`,
-    aucun: "Aucun quiz de la bibliothèque ne correspond.", items: classiques, attr: (x) => ({ "data-quiz": x.id }),
+    classe: "quiz-biblio", titre: photos ? "📗 Intégrer une de vos séries de photos" : illustre ? "📗 Intégrer un quiz illustré de votre bibliothèque" : "📗 Intégrer un quiz de votre bibliothèque",
+    label: photos ? "Chercher une série de photos de la bibliothèque" : "Chercher un quiz de la bibliothèque",
+    placeholder: photos ? "Titre ou thème d'une de vos séries de photos" : `Titre ou thème d'un de vos quiz${illustre ? " illustrés" : ""}`,
+    vide: photos ? "Pas encore de série de photos dans votre bibliothèque" : `Pas encore de quiz${illustre ? " illustré" : ""} dans votre bibliothèque`,
+    aucun: photos ? "Aucune série de photos ne correspond." : "Aucun quiz de la bibliothèque ne correspond.", items: classiques, attr: (x) => ({ "data-quiz": x.id }),
     choisir: (x) => { series.push({ id: nouvelId("q"), origine: "quiz", quizId: x.id }); changer(); },
   });
   const outils = h("div", { class: "quiz-outils" }, ligne, rappel, biblio);
 
   // Les séries, dans l'ordre choisi ; les questions de la Super Finale y sont marquées.
   const ligneQuestion = (x, q, retirer, extra = null) => {
-    const fin = clesFinale.has(cleQuestion(x, q));
+    const fin = clesFinale.has(cleQuestion(x, q, r.type));
     return h("li", { class: `tirage-q${fin ? " en-finale" : ""}` }, h("div", { class: "tirage-q-ligne" },
-      h("span", { class: "tirage-texte", text: `${q.nombre || q.kind === "number" ? "🔢 " : ""}${q.text}` }),
-      illustre ? reponsesIllustrees(q) : miniature(q),
+      photos ? apercuPhoto(q) : null,
+      h("span", { class: "tirage-texte", text: photos ? reponsePhoto(q) : `${q.nombre || q.kind === "number" ? "🔢 " : ""}${q.text}`, ...(photos ? { title: q.text } : {}) }),
+      photos ? null : illustre ? reponsesIllustrees(q) : miniature(q),
       fin ? etiquetteFinale(r) : null,
       extra,
       h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": "Retirer cette question", title: "Retirer cette question", onclick: retirer })));
@@ -1793,44 +1857,44 @@ function mancheQuiz(r) {
       const qs = casesDuTirage(r);
       return qs.map((q, i) => (caseVide(q)
         ? h("li", { class: "tirage-q vide" }, h("div", { class: "tirage-q-ligne" },
-          h("button", { type: "button", class: "btn tirage-de petit", text: "🎲", "aria-label": "Tirer une autre question", title: "Tirer une autre question", onclick: () => {
-            const pioche = illustre ? { qcm: piocherIllustre(r, 1, famille), chiffres: [] } : piocherQuiz(r, { qcm: q.nombre ? 0 : 1, chiffres: q.nombre ? 1 : 0, profil });
+          h("button", { type: "button", class: "btn tirage-de petit", text: "🎲", "aria-label": `Tirer une autre ${unite}`, title: `Tirer une autre ${unite}`, onclick: () => {
+            const pioche = photos ? { qcm: piocherPhotos(r, 1, famille), chiffres: [] } : illustre ? { qcm: piocherIllustre(r, 1, famille), chiffres: [] } : piocherQuiz(r, { qcm: q.nombre ? 0 : 1, chiffres: q.nombre ? 1 : 0, profil });
             const neuve = pioche.qcm[0] ?? pioche.chiffres[0];
-            if (!neuve) { annonce(illustre ? "Plus aucune question libre dans ce thème : changez de thème, ou baissez le nombre de questions." : "Plus aucune question libre de cette sorte pour ce profil : changez le profil, ou baissez le nombre de questions."); return; }
+            if (!neuve) { annonce(parTheme ? `Plus aucune ${unite} libre dans ce thème : changez de thème, ou baissez le nombre de ${unite}s.` : "Plus aucune question libre de cette sorte pour ce profil : changez le profil, ou baissez le nombre de questions."); return; }
             poserTirage(r, qs.map((y, k) => (k === i ? neuve : y)));
             changer();
           } }),
-          h("span", { class: "hint small", text: q.nombre ? "Juste Chiffre à tirer" : "Question à tirer" })))
+          h("span", { class: "hint small", text: q.nombre ? "Juste Chiffre à tirer" : photos ? "Photo à tirer" : "Question à tirer" })))
         : ligneQuestion(x, q, () => {
-          r.ecartees = [...(r.ecartees ?? []), q.text];
+          r.ecartees = [...(r.ecartees ?? []), sig(q)];
           poserTirage(r, qs.map((y, k) => (k === i ? { vide: true, ...(q.nombre ? { nombre: true } : {}) } : y)));
           changer();
         })));
     }
     if (x.origine === "quiz") {
       // Quiz rappelé : ✕ retire une question (gardée de côté, « ↺ » la remet) ; le quiz de la bibliothèque ne change pas.
-      return questionsDeLaSerie(x, quizzes).map((q) => ligneQuestion(x, q, () => { x.sans = [...(x.sans ?? []), q.text]; changer(); }));
+      return questionsDeLaSerie(x, quizzes, r.type).map((q) => ligneQuestion(x, q, () => { x.sans = [...(x.sans ?? []), sig(q)]; changer(); }));
     }
     if (x.origine === "main") {
-      return (x.questions ?? []).filter(Boolean).map((q) => questionEcrite(r, x, q, majCompteur, questionJouable(q) && clesFinale.has(cleQuestion(x, q))));
+      return (x.questions ?? []).filter(Boolean).map((q) => questionEcrite(r, x, q, majCompteur, questionJouable(q) && clesFinale.has(cleQuestion(x, q, r.type))));
     }
     // Reprise d'une autre manche : ses questions copiées ; ✕ en retire une.
     return (x.questions ?? []).filter(Boolean).map((q) => (questionJouable(q) ? ligneQuestion(x, q, () => { x.questions = x.questions.filter((y) => y !== q); changer(); }) : null));
   };
   const titreSerie = (x) => {
-    const k = questionsDeLaSerie(x, quizzes).length;
-    const nq = `${k} question${k > 1 ? "s" : ""}`;
+    const k = questionsDeLaSerie(x, quizzes, r.type).length;
+    const nq = nUnites(k);
     if (x.origine === "de") {
       const vides = casesDuTirage(r).filter(caseVide).length;
-      const sorte = illustre ? FAMILLES_PETITS[x.famille] ?? "tous les thèmes" : PROFILES[x.profil ?? profil]?.label.split(" (")[0] ?? "";
+      const sorte = parTheme ? FAMILLES_PETITS[x.famille] ?? "tous les thèmes" : PROFILES[x.profil ?? profil]?.label.split(" (")[0] ?? "";
       return `🎲 ${nq} tirée${k > 1 ? "s" : ""} au hasard (${sorte})${vides ? `, ${vides} à tirer` : ""}`;
     }
-    if (x.origine === "quiz") return quizzes[x.quizId] ? `📚 ${illustre ? "Quiz illustré" : "Quiz"} « ${quizzes[x.quizId].title} » : ${nq}${x.sans?.length ? ` (${x.sans.length} retirée${x.sans.length > 1 ? "s" : ""})` : ""}` : "📚 Ce quiz n'existe plus dans la bibliothèque";
+    if (x.origine === "quiz") return quizzes[x.quizId] ? `📚 ${photos ? "Série de photos" : illustre ? "Quiz illustré" : "Quiz"} « ${quizzes[x.quizId].title} » : ${nq}${x.sans?.length ? ` (${x.sans.length} retirée${x.sans.length > 1 ? "s" : ""})` : ""}` : `📚 ${photos ? "Cette série de photos" : "Ce quiz"} n'existe plus dans la bibliothèque`;
     if (x.origine === "main") {
       const aFinir = (x.questions ?? []).filter((q) => q && !questionJouable(q)).length;
       return `✍ ${nq} écrite${k > 1 ? "s" : ""} à la main${aFinir ? `, ${aFinir} à compléter` : ""}`;
     }
-    return `📅 ${x.titre ?? "Questions reprises"} : ${nq}`;
+    return `📅 ${x.titre ?? (photos ? "Photos reprises" : "Questions reprises")} : ${nq}`;
   };
   const deplacer = (i, d) => {
     const j = i + d;
@@ -1851,7 +1915,7 @@ function mancheQuiz(r) {
     qs.hidden = !seriesDepliees.has(x);
     const voir = h("button", {
       type: "button", class: "chip tirage-voir serie-voir", "aria-expanded": qs.hidden ? "false" : "true", text: `${qs.hidden ? "▸" : "▾"} ${titreSerie(x)}`,
-      title: "Voir ou cacher les questions de cette série",
+      title: `Voir ou cacher les ${unite}s de cette série`,
       onclick: (e) => {
         qs.hidden = !qs.hidden;
         if (qs.hidden) seriesDepliees.delete(x); else seriesDepliees.add(x);
@@ -1860,8 +1924,8 @@ function mancheQuiz(r) {
       },
     });
     const enlever = async () => {
-      const k = x.origine === "main" ? (x.questions ?? []).filter(Boolean).length : questionsDeLaSerie(x, quizzes).length;
-      if (k && !(await confirmer(`Enlever cette série (${k} question${k > 1 ? "s" : ""}) de la manche ?${x.origine === "quiz" ? " Le quiz reste dans la bibliothèque." : ""}`, { ok: "Enlever", danger: true }))) return;
+      const k = x.origine === "main" ? (x.questions ?? []).filter(Boolean).length : questionsDeLaSerie(x, quizzes, r.type).length;
+      if (k && !(await confirmer(`Enlever cette série (${nUnites(k)}) de la manche ?${x.origine === "quiz" ? ` ${photos ? "La série" : "Le quiz"} reste dans la bibliothèque.` : ""}`, { ok: "Enlever", danger: true }))) return;
       r.seriesQuiz = series.filter((y) => y !== x);
       changer();
       noterEcran();
@@ -1891,8 +1955,9 @@ function mancheQuiz(r) {
     : null;
 
   // Dernière ligne : la Super Finale (cedric, 23/10) : oui ou non, combien de dernières questions, le multiplicateur.
+  // Pas au Zoom mystère ni à l'Image floue.
   const avec = r.finale > 0;
-  const derniere = h("div", { class: "quiz-finale" },
+  const derniere = !hasFinale(r.type) ? null : h("div", { class: "quiz-finale" },
     h("span", { class: "quiz-finale-titre", text: "🏆 Super Finale" }),
     h("select", { class: "finale-oui", "aria-label": "Super Finale", onchange: (e) => { r.finale = e.target.value === "oui" ? (r.finaleAvant > 0 ? r.finaleAvant : SUPER_FINALE_LAST) : null; changer(); } },
       h("option", { value: "oui", selected: avec, text: "Oui" }),
@@ -1959,6 +2024,8 @@ const oublierPlaceBougies = (r) => { if (r.ordreQuiz?.length) r.ordreQuiz = r.or
  */
 function quizComplet(r, assemblage, clesFinale, changer) {
   if (!assemblage.length) return null;
+  const photos = estJeuDePhotos(r.type);
+  const sig = (q) => (photos ? signatureQuestion(q, r.type) : q.text);
   const bougies = roundCtx === prestationCtx && editing && premierQuiz(editing.rounds, quizzes) === r
     && !assemblage.some((x) => x.q.kind === "number" && /bougie/i.test(x.q.text ?? ""))
     ? questionBougies({ childName: $("show-child").value, age: $("show-age").value }, r) : null;
@@ -1991,12 +2058,12 @@ function quizComplet(r, assemblage, clesFinale, changer) {
     }
     const serie = seriesDe(r).find((y) => y.id === x.serie.id);
     if (!serie) return;
-    if (serie.origine === "quiz") serie.sans = [...(serie.sans ?? []), x.q.text];
+    if (serie.origine === "quiz") serie.sans = [...(serie.sans ?? []), sig(x.q)];
     else {
       const reste = (serie.questions ?? []).filter(Boolean);
-      const k = reste.findIndex((q) => cleQuestion(serie, q) === x.cle);
+      const k = reste.findIndex((q) => cleQuestion(serie, q, r.type) === x.cle);
       if (k < 0) return;
-      if (serie.origine === "de") r.ecartees = [...(r.ecartees ?? []), reste[k].text];
+      if (serie.origine === "de") r.ecartees = [...(r.ecartees ?? []), sig(reste[k])];
       serie.questions = reste.filter((_, i) => i !== k);
       if (!serie.questions.some((q) => !caseVide(q))) r.seriesQuiz = seriesDe(r).filter((y) => y !== serie);
     }
@@ -2012,18 +2079,20 @@ function quizComplet(r, assemblage, clesFinale, changer) {
   const lignes = vue.map((x, k) => h("li", { class: `tirage-q quiz-complet-q${x.bougies ? " quiz-complet-bougies" : ""}${clesFinale.has(x.cle) ? " en-finale" : ""}`, "data-cle": x.cle },
     h("div", { class: "tirage-q-ligne" },
       h("span", { class: "quiz-complet-num", text: `${k + 1}` }),
-      h("span", { class: "tirage-texte", text: `${x.bougies ? "🎂 " : ""}${x.q.kind === "number" ? "🔢 " : ""}${x.q.text}` }),
-      r.type === "illustre" ? reponsesIllustrees(x.q) : miniature(x.q),
+      photos ? apercuPhoto(x.q) : null,
+      h("span", { class: "tirage-texte", text: photos ? reponsePhoto(x.q) : `${x.bougies ? "🎂 " : ""}${x.q.kind === "number" ? "🔢 " : ""}${x.q.text}`, ...(photos ? { title: x.q.text } : {}) }),
+      photos ? null : r.type === "illustre" ? reponsesIllustrees(x.q) : miniature(x.q),
       clesFinale.has(x.cle) ? etiquetteFinale(r) : null,
-      h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: "Passer cette question plus tôt", "aria-label": "Monter cette question", disabled: k === 0, onclick: () => deplacer(k, -1) }),
-      h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: "Passer cette question plus tard", "aria-label": "Descendre cette question", disabled: k === vue.length - 1, onclick: () => deplacer(k, 1) }),
-      h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: x.bougies ? "Enlever la question des bougies (la case se décoche)" : "Enlever cette question du quiz", "aria-label": "Enlever cette question", onclick: () => enlever(x) }))));
+      h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: `Passer cette ${photos ? "photo" : "question"} plus tôt`, "aria-label": `Monter cette ${photos ? "photo" : "question"}`, disabled: k === 0, onclick: () => deplacer(k, -1) }),
+      h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: `Passer cette ${photos ? "photo" : "question"} plus tard`, "aria-label": `Descendre cette ${photos ? "photo" : "question"}`, disabled: k === vue.length - 1, onclick: () => deplacer(k, 1) }),
+      h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: x.bougies ? "Enlever la question des bougies (la case se décoche)" : photos ? "Enlever cette photo du jeu" : "Enlever cette question du quiz", "aria-label": `Enlever cette ${photos ? "photo" : "question"}`, onclick: () => enlever(x) }))));
   const liste = h("ol", { class: "tirage-liste serie-liste quiz-complet-liste" }, ...lignes);
   liste.hidden = !quizCompletsDeplies.has(r);
-  const titre = () => `${liste.hidden ? "▸" : "▾"} 🧩 ${r.type === "illustre" ? "Quiz illustré complet" : "Quiz complet"} : ${vue.length} question${vue.length > 1 ? "s" : ""}, dans l'ordre de passage`;
+  const nom = { illustre: "Quiz illustré complet", zoom: "Zoom mystère complet", flou: "Image floue complète" }[r.type] ?? "Quiz complet";
+  const titre = () => `${liste.hidden ? "▸" : "▾"} 🧩 ${nom} : ${vue.length} ${photos ? "photo" : "question"}${vue.length > 1 ? "s" : ""}, dans l'ordre de passage`;
   const voir = h("button", {
     type: "button", class: "chip tirage-voir serie-voir quiz-complet-voir", "aria-expanded": liste.hidden ? "false" : "true", text: titre(),
-    title: "Voir toutes les questions du quiz, dans l'ordre",
+    title: photos ? "Voir toutes les photos du jeu, dans l'ordre" : "Voir toutes les questions du quiz, dans l'ordre",
     onclick: (e) => {
       liste.hidden = !liste.hidden;
       if (liste.hidden) quizCompletsDeplies.delete(r); else quizCompletsDeplies.add(r);
@@ -2034,7 +2103,7 @@ function quizComplet(r, assemblage, clesFinale, changer) {
   return h("div", { class: "serie quiz-complet" },
     h("div", { class: "serie-tete" },
       voir,
-      h("button", { type: "button", class: "chip quiz-melanger", text: "🔀 Mélanger", title: "Mélanger toutes les questions du quiz", disabled: vue.length < 2, onclick: melanger })),
+      h("button", { type: "button", class: "chip quiz-melanger", text: "🔀 Mélanger", title: photos ? "Mélanger toutes les photos du jeu" : "Mélanger toutes les questions du quiz", disabled: vue.length < 2, onclick: melanger })),
     liste);
 }
 
@@ -2151,6 +2220,7 @@ function roundFields(r) {
       photoSwitch(r),
       mimeNeedLine(r),
       r.deckId || r.random === true || mimeCards(r.cards).length ? mimeSelection(r) : null)
+    : quiz ? null
     : photos
     // Zoom mystère, Image floue : un quiz entier, ou des photos choisies une par une dans tous les quiz.
     ? h("div", { class: "grow picto-round" },
@@ -2494,10 +2564,11 @@ $("quiz-photos").onchange = async () => {
   const questions = photoQuestions(files.map((f) => f.name));
   const kept = [];
   for (const [k, f] of files.entries()) {
-    $("quiz-photos-open").textContent = `Préparation des photos… (${k + 1}/${files.length})`;
+    document.querySelectorAll("#quiz-photos-open, .photos-nouvelle").forEach((b) => { b.textContent = `Préparation des photos… (${k + 1}/${files.length})`; });
     try { kept.push({ ...questions[k], imageId: await storeIllustration(f) }); } catch (err) { console.error(err); }
   }
   $("quiz-photos-open").textContent = "📷 Nouveau quiz de photos à deviner";
+  document.querySelectorAll(".photos-nouvelle").forEach((b) => { b.textContent = "📷 Nouvelle série de photos"; });
   if (!kept.length) return avertir("Ces photos n'ont pas pu être lues : essayez des JPEG ou des PNG.");
   review(null, { title: "Mes photos", theme: "", source: "photos", kind: "images", questions: kept });
   status("rv-status", `${kept.length} photo${kept.length > 1 ? "s" : ""} prête${kept.length > 1 ? "s" : ""} : vérifiez chaque réponse, puis enregistrez.`, true);
@@ -5895,7 +5966,7 @@ $("pack-exemple").textContent = JSON.stringify(EXEMPLE_PACK, null, 2);
 
 function groupesQuestions() {
   illustreesCache ??= questionsIllustreesPretes();
-  return { classiques: classiquesPretes, illustrees: illustreesCache, miennes: mesQuestions(quizzes), packs: mesPacks(quizzes), tests: questionsDeTest(quizzes) };
+  return { classiques: classiquesPretes, illustrees: illustreesCache, miennes: mesQuestions(quizzes), packs: mesPacks(quizzes), photos: mesSeriesDePhotos(quizzes), tests: questionsDeTest(quizzes) };
 }
 
 /** Vignette de l'illustration : sa photo, son émoji, la photo de la banque de la bonne réponse, sinon « ⚠ ». */
@@ -5943,7 +6014,7 @@ function ligneQuestion(x) {
 }
 
 /** Ses questions, toutes (en vrac, dans les packs, de test) : pour retrouver celles qui sont cochées. */
-const toutesMesQuestions = () => [...mesQuestions(quizzes), ...mesPacks(quizzes).flatMap((p) => p.questions), ...questionsDeTest(quizzes)];
+const toutesMesQuestions = () => [...mesQuestions(quizzes), ...[...mesPacks(quizzes), ...mesSeriesDePhotos(quizzes)].flatMap((p) => p.questions), ...questionsDeTest(quizzes)];
 
 /** Barre des questions cochées : combien, tout cocher ici, tout décocher, supprimer. */
 function barreSelection() {
@@ -6003,7 +6074,7 @@ function cartePack(p) {
     h("span", { class: "pill", text: QUIZ_KINDS[p.kind] ?? "📝 Quiz classique" }),
     h("b", { text: p.title }),
     h("span", { text: [p.theme, SOURCES[p.source] ?? ""].filter(Boolean).join(" · ") }),
-    h("span", { text: `${plural(p.total, "question")} · ${p.validees} validée${p.validees > 1 ? "s" : ""}` }),
+    h("span", { text: `${plural(p.total, p.kind === "images" ? "photo" : "question")} · ${p.validees} validée${p.validees > 1 ? "s" : ""}` }),
     p.sansIllustration ? h("span", { class: "q-alerte", text: `⚠ ${p.sansIllustration} sans illustration` }) : h("span", { class: "ok", text: "✓ Toutes illustrées" }),
     h("div", { class: "row" },
       h("button", { class: "btn", type: "button", text: "Ouvrir", onclick: () => { const y = window.scrollY; qPack = p.id; qSelection.clear(); status("q-status", ""); renderQuestions(); noterRubrique(y); } }),
@@ -6023,8 +6094,12 @@ function dessinerQuestions() {
   const recherche = $("q-search").value.trim();
   const filtre = (list) => (recherche ? list.filter((x) => questionCorrespond(x, recherche)) : list);
   // Un pack correspond si son titre, son thème ou une de ses questions correspond.
-  const packsTrouves = recherche ? g.packs.filter((p) => questionCorrespond({ text: p.title, categorie: p.theme }, recherche) || p.questions.some((x) => questionCorrespond(x, recherche))) : g.packs;
-  const compte = Object.fromEntries(Object.keys(GROUPES_QUESTIONS).map((k) => [k, k === "packs" ? packsTrouves.reduce((n, p) => n + p.total, 0) : filtre(g[k]).length]));
+  const cartesTrouvees = (cartes) => (recherche ? cartes.filter((p) => questionCorrespond({ text: p.title, categorie: p.theme }, recherche) || p.questions.some((x) => questionCorrespond(x, recherche))) : cartes);
+  const packsTrouves = cartesTrouvees(g.packs);
+  // Ses séries de photos (Zoom mystère, Image floue) : des cartes, comme les packs (cedric, 23/10).
+  const seriesTrouvees = cartesTrouvees(g.photos);
+  const enCartes = { packs: packsTrouves, photos: seriesTrouvees };
+  const compte = Object.fromEntries(Object.keys(GROUPES_QUESTIONS).map((k) => [k, enCartes[k] ? enCartes[k].reduce((n, p) => n + p.total, 0) : filtre(g[k]).length]));
   // « 🧪 Questions de test » n'apparaît que s'il y a une prestation de test dans la bibliothèque.
   const groupes = Object.entries(GROUPES_QUESTIONS).filter(([k]) => k !== "tests" || g.tests.length);
   if (qGroupe === "tests" && !g.tests.length) qGroupe = null;
@@ -6042,15 +6117,16 @@ function dessinerQuestions() {
 
   // Un pack ouvert : ses questions, chacune avec son illustration ou l'alerte.
   if (qPack) {
-    const p = g.packs.find((x) => x.id === qPack);
+    const p = [...g.packs, ...g.photos].find((x) => x.id === qPack);
+    const photos = p.kind === "images";
     const liste = filtre(p.questions);
     qListees = liste;
     box.replaceChildren(
       h("div", { class: "title-row" },
-        h("button", { type: "button", class: "btn secondary", text: "← Tous les packs", onclick: () => { const y = window.scrollY; qPack = null; qSelection.clear(); renderQuestions(); noterRubrique(y); } }),
-        h("button", { type: "button", class: "btn secondary", text: "Éditer le pack", onclick: () => review(p.id, quizzes[p.id]) })),
+        h("button", { type: "button", class: "btn secondary", text: photos ? "← Toutes les séries de photos" : "← Tous les packs", onclick: () => { const y = window.scrollY; qPack = null; qSelection.clear(); renderQuestions(); noterRubrique(y); } }),
+        h("button", { type: "button", class: "btn secondary", text: photos ? "Éditer la série" : "Éditer le pack", onclick: () => review(p.id, quizzes[p.id]) })),
       h("h2", { text: p.title }),
-      h("p", { class: "hint", text: [p.theme, plural(p.total, "question"), p.sansIllustration ? `⚠ ${p.sansIllustration} sans illustration` : "✓ toutes illustrées"].filter(Boolean).join(" · ") }),
+      h("p", { class: "hint", text: [p.theme, plural(p.total, photos ? "photo" : "question"), p.sansIllustration ? `⚠ ${p.sansIllustration} sans ${photos ? "photo" : "illustration"}` : photos ? "✓ toutes avec leur photo" : "✓ toutes illustrées"].filter(Boolean).join(" · ") }),
       liste.length ? h("div", { class: "q-liste" }, ...liste.map(ligneQuestion)) : h("p", { class: "hint", text: "Aucune question ne correspond à cette recherche." }));
     return;
   }
@@ -6059,13 +6135,28 @@ function dessinerQuestions() {
   if (!qGroupe) {
     box.replaceChildren(...groupes.map(([k, label]) => {
       const voir = h("button", { type: "button", class: "btn small secondary", text: "Voir tout", onclick: () => { const y = window.scrollY; qGroupe = k; renderQuestions(); noterRubrique(y); } });
-      const contenu = k === "packs"
-        ? (packsTrouves.length ? h("div", { class: "cards" }, ...packsTrouves.slice(0, QUESTIONS_APERCU).map(cartePack))
-          : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : "Aucun pack pour l'instant : « Voir tout », puis « 📥 Importer des packs JSON… »." }))
+      const contenu = enCartes[k]
+        ? (enCartes[k].length ? h("div", { class: "cards" }, ...enCartes[k].slice(0, QUESTIONS_APERCU).map(cartePack))
+          : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : k === "photos" ? "Aucune série de photos pour l'instant : « Voir tout », puis « 📷 Nouvelle série de photos »." : "Aucun pack pour l'instant : « Voir tout », puis « 📥 Importer des packs JSON… »." }))
         : (filtre(g[k]).length ? h("div", { class: "q-liste" }, ...filtre(g[k]).slice(0, QUESTIONS_APERCU).map(ligneQuestion))
           : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : k === "miennes" ? "Aucune question écrite à la main pour l'instant." : "" }));
       return h("section", { class: "q-groupe", "data-groupe": k }, h("div", { class: "title-row" }, h("h2", { text: label }), voir), contenu);
     }));
+    return;
+  }
+
+  // Mes séries de photos (cedric, 23/10) : par thème, comme les packs ; « 📷 Nouvelle série de photos » : vos photos
+  // d'un coup, le nom de chaque fichier devient sa réponse.
+  if (qGroupe === "photos") {
+    box.replaceChildren(
+      h("div", { class: "title-row" },
+        h("p", { class: "hint small grow", text: "Pour le Zoom mystère et l'Image floue : une série par thème (« Disney », « Animaux »…). Le nom de chaque photo devient sa réponse, à corriger avant d'enregistrer." }),
+        h("button", { type: "button", class: "btn photos-nouvelle", text: "📷 Nouvelle série de photos", onclick: () => $("quiz-photos").click() })),
+      seriesTrouvees.length
+        ? h("div", { class: "q-themes" }, ...packsParTheme(seriesTrouvees).map(([theme, series]) => h("section", { class: "q-theme", "data-theme": theme },
+          h("h3", { text: `${theme} · ${plural(series.length, "série")}` }),
+          h("div", { class: "cards" }, ...series.map(cartePack)))))
+        : h("p", { class: "hint", text: recherche ? "Aucune série de photos ne correspond à cette recherche." : "Aucune série de photos pour l'instant." }));
     return;
   }
 

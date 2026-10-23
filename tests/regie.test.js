@@ -5124,13 +5124,23 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(quiz.source, "photos");
     assert.ok(quiz.questions.every((q) => /^[0-9a-f]{16}$/.test(q.imageId) && q.status === "validee"));
     assert.deepEqual(quiz.questions.map((q) => q.choices[q.correct]), ["Tour eiffel", "Chat", "Lune"]);
-    // Image floue : le quiz est proposé avec ses 3 photos.
+    assert.equal(quiz.kind, "images");
+    // Bibliothèque › Questions › « 🔍 Mes séries de photos » (cedric, 23/10) : elle y est, jamais dans ses questions en vrac.
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="questions"]');
+    await page.locator('#q-groups [data-groupe="photos"]', { hasText: "🔍 Mes séries de photos (3)" }).click();
+    await page.locator(`#q-list .pack[data-pack="${id}"]`, { hasText: "3 photos" }).waitFor();
+    assert.equal(await page.locator("#q-list .photos-nouvelle").textContent(), "📷 Nouvelle série de photos");
+    await page.locator('#q-groups [data-groupe="miennes"]', { hasText: "(0)" }).waitFor();
+    // Image floue (cedric, 23/10 : comme le Quiz) : la série de photos s'intègre par sa recherche, avec ses 3 photos.
     await page.click("#nav button[data-screen=home]");
     await page.click("#home-new");
     await ajouterJeu(page, "flou");
-    await page.locator("#show-rounds .round").nth(0).locator("select.grow option", { hasText: "Monuments et animaux (3 avec photo)" }).waitFor({ state: "attached" });
-    await page.locator("#show-rounds .round").nth(0).locator("select.grow").selectOption(id);
-    await page.locator("#show-summary", { hasText: "3 questions" }).waitFor();
+    const round = page.locator("#show-rounds .round").nth(0);
+    await round.locator(".quiz-biblio-cherche").fill("monu");
+    await round.locator(`.quiz-biblio-item[data-quiz="${id}"]`, { hasText: "3 photos" }).click();
+    await round.locator(".round-head > .quiz-compteur", { hasText: "3 photos" }).waitFor();
+    assert.equal(await round.locator(".quiz-series .serie-voir").textContent(), "▸ 📚 Série de photos « Monuments et animaux » : 3 photos");
     await page.context().close();
   });
 
@@ -5443,6 +5453,150 @@ describe("bibliothèque de quiz et prestations", () => {
       const copiees = (await read("choiceImages")) ?? {};
       return jouees.every((q) => q.choiceBanque === undefined && q.choiceImages?.length === 4 && q.choiceImages.every((id) => copiees[id]));
     }, "réponses en images copiées dans la partie");
+    await regie.context().close();
+  });
+
+  test("Régie PC (cedric, 23/10) : le Zoom mystère et l'Image floue se construisent comme le Quiz : 🎲 dans les photos libres par thème, un ancien anniversaire, ses séries de photos, « Zoom mystère complet », jamais deux fois la même photo ; la TV reçoit les photos", async () => {
+    const { buildSnapshot } = await import("../web/public/show.js");
+    const { banqueItems, BANQUE } = await import("../web/public/banque-photos.js");
+    const cle = (x) => x.key.slice(BANQUE.length);
+    const animaux = banqueItems().filter((x) => x.famille === "animaux").map(cle);
+    assert.ok(animaux.length >= 16, "assez de photos d'animaux dans la banque");
+    const PNG = `data:image/png;base64,${png([60, 120, 200]).toString("base64")}`;
+    const [A, B] = ["1111111111111111", "2222222222222222"];
+    const photo = (imageId, mot) => ({ text: "Qu'est-ce que c'est ?", choices: [mot, "Anna", "Simba", "Nemo"], correct: 0, imageId, status: "validee" });
+    const DISNEY = { title: "Disney", theme: "Dessins animés", kind: "images", source: "photos", updatedAt: 1, questions: [photo(A, "Elsa"), photo(B, "Olaf")] };
+    // Luna avait une Image floue (deux photos de la banque choisies une par une) ; Tom, seulement un Quiz.
+    const [p1, p2] = animaux;
+    const LUNA = { childName: "Luna", age: 6, date: "2026-05-10", status: "archivee", updatedAt: 1, rounds: [
+      { type: "flou", picks: [`${BANQUE}${p1}`, `${BANQUE}${p2}`] }, { type: "quiz", quizId: "animaux" }] };
+    const TOM = { childName: "Tom", age: 9, date: "2026-03-01", status: "archivee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 };
+    await seedLibrary("quizzes", { animaux: ANIMAUX, disney: DISNEY });
+    await seedLibrary("images", { [A]: PNG, [B]: PNG });
+    await seedLibrary("shows", { luna: LUNA, tom: TOM });
+    const page = await admin();
+    await page.click("#home-new");
+    await page.fill("#show-child", "Zoé");
+    await page.fill("#show-age", "7");
+    await ajouterJeu(page, "zoom");
+    const round = page.locator("#show-rounds .round").nth(0);
+    const ligne = round.locator(".quiz-outils > .tirage-ligne");
+    const compteur = round.locator(".round-head > .quiz-compteur");
+    const series = round.locator(".quiz-series > li.serie");
+    // Comme le Quiz, avec des photos ; ni Super Finale ni bougies.
+    assert.deepEqual(await round.locator(".round-head > *").evaluateAll((xs) => xs.map((x) => x.className)), ["num", "quiz-compteur"]);
+    assert.deepEqual(await round.locator(".round-body > *").evaluateAll((xs) => xs.map((x) => x.className)), ["quiz-outils"]);
+    assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-theme", "tirage-nombre", "btn tirage-de"]);
+    assert.equal(await round.locator(".quiz-rappel-titre").textContent(), "📚 Rappeler les photos d'un ancien anniversaire");
+    assert.equal(await round.locator(".quiz-biblio-titre").textContent(), "📗 Intégrer une de vos séries de photos");
+    assert.equal(await compteur.textContent(), "Aucune photo pour l'instant");
+
+    // Un ancien anniversaire : ses photos de l'Image floue reviennent au Zoom mystère.
+    const rappel = round.locator(".quiz-rappel");
+    await rappel.locator(".quiz-rappel-cherche").fill("tom");
+    await rappel.locator(".quiz-rappel-liste", { hasText: "Aucune prestation archivée ne correspond." }).waitFor();
+    await rappel.locator(".quiz-rappel-cherche").fill("luna");
+    await rappel.locator('.quiz-rappel-item[data-show="luna"]', { hasText: "2 photos" }).click();
+    await series.first().waitFor();
+    assert.equal(await series.nth(0).locator(".serie-voir").textContent(), "▸ 📅 Anniversaire de Luna (10 mai 2026) : 2 photos");
+    // Ses séries de photos, jamais un quiz classique.
+    await round.locator(".quiz-biblio-cherche").fill("a");
+    await round.locator(".quiz-biblio-item").first().waitFor();
+    assert.deepEqual(await round.locator(".quiz-biblio-item").evaluateAll((xs) => xs.map((x) => x.dataset.quiz)), ["disney"]);
+    await round.locator('.quiz-biblio-item[data-quiz="disney"]').click();
+    await series.nth(1).waitFor();
+    assert.equal(await series.nth(1).locator(".serie-voir").textContent(), "▸ 📚 Série de photos « Disney » : 2 photos");
+
+    // Le 🎲 : 6 photos libres d'animaux, en tête, jamais une photo déjà là.
+    await ligne.locator(".tirage-theme").selectOption("animaux");
+    await ligne.locator(".tirage-nombre").selectOption("6");
+    await ligne.locator(".tirage-de").click();
+    await waitFor(async () => (await series.count()) === 3, "série du dé");
+    assert.equal(await series.nth(0).locator(".serie-voir").textContent(), "▸ 🎲 6 photos tirées au hasard (Animaux)");
+    assert.equal(await compteur.textContent(), "10 photos");
+    await series.nth(0).locator(".serie-voir").click();
+    const lignes = series.nth(0).locator(".serie-liste > li");
+    assert.equal(await lignes.count(), 6);
+    const tirees = async () => (await lignes.locator("img.tirage-photo").evaluateAll((xs) => xs.map((x) => x.getAttribute("src"))))
+      .map((src) => decodeURIComponent(src.match(/^banque\/(.+)\.jpg$/)[1]));
+    const zoom = await tirees();
+    assert.equal(zoom.length, 6);
+    for (const k of zoom) assert.ok(animaux.includes(k) && k !== p1 && k !== p2, k);
+    // La ligne dit la réponse à trouver (pas « Qu'est-ce que c'est ? »).
+    assert.ok((await lignes.locator(".tirage-texte").allTextContents()).every((t) => t && !/qu'est-ce/i.test(t)));
+    // ✕ : un 🎲 prend sa place et tire une autre photo.
+    await lignes.nth(0).locator(".tirage-retirer").click();
+    await series.nth(0).locator(".serie-liste li.vide", { hasText: "Photo à tirer" }).waitFor();
+    assert.equal(await compteur.textContent(), "9 photos · 1 à tirer");
+    await lignes.nth(0).locator(".tirage-de").click();
+    await series.nth(0).locator(".serie-liste li.vide").waitFor({ state: "detached" });
+    const zoom2 = await tirees();
+    assert.ok(!zoom2.includes(zoom[0]), "la photo retirée ne revient pas");
+    assert.equal(await compteur.textContent(), "10 photos");
+
+    // Un Zoom mystère ajouté juste après n'en crée pas un second.
+    await ajouterJeu(page, "zoom");
+    await page.locator("#annonce", { hasText: "Le Zoom mystère est déjà le dernier jeu : ajoutez-y vos photos" }).waitFor();
+    assert.equal(await page.locator("#show-rounds .round").count(), 1);
+    // « Zoom mystère complet » : chaque photo dans l'ordre ; ✕ sur Elsa la retire de sa série.
+    const complet = round.locator(".quiz-complet");
+    assert.equal(await complet.locator(".quiz-complet-voir").textContent(), "▸ 🧩 Zoom mystère complet : 10 photos, dans l'ordre de passage");
+    await complet.locator(".quiz-complet-voir").click();
+    assert.equal(await complet.locator(".quiz-complet-q .tirage-photo").count(), 10);
+    await complet.locator(".quiz-complet-q", { hasText: "Elsa" }).locator(".tirage-retirer").click();
+    await compteur.filter({ hasText: "9 photos" }).waitFor();
+    assert.equal(await series.nth(2).locator(".serie-voir").textContent(), "▸ 📚 Série de photos « Disney » : 1 photo (1 retirée)");
+
+    // Une Image floue dans la même fête : son 🎲 ne reprend aucune photo du Zoom mystère (jamais deux fois).
+    await ajouterJeu(page, "flou");
+    const flou = page.locator("#show-rounds .round").nth(1);
+    await flou.locator(".tirage-theme").selectOption("animaux");
+    await flou.locator(".tirage-nombre").selectOption("6");
+    await flou.locator(".tirage-de").click();
+    await flou.locator(".round-head > .quiz-compteur", { hasText: "6 photos" }).waitFor();
+    assert.equal(await flou.locator(".quiz-complet-voir").textContent(), "▸ 🧩 Image floue complète : 6 photos, dans l'ordre de passage");
+    await flou.locator(".quiz-series .serie-voir").click();
+    const floues = (await flou.locator(".quiz-series .serie-liste img.tirage-photo").evaluateAll((xs) => xs.map((x) => x.getAttribute("src"))))
+      .map((src) => decodeURIComponent(src.match(/^banque\/(.+)\.jpg$/)[1]));
+    assert.equal(floues.length, 6);
+    for (const k of floues) assert.ok(!zoom2.includes(k) && k !== p1 && k !== p2, `déjà au Zoom mystère : ${k}`);
+    await capture(page, "zoom-flou-manche");
+
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
+    const shows = await library("shows");
+    assert.deepEqual([shows.luna, shows.tom], [LUNA, TOM], "Les prestations archivées ne changent pas");
+    const zoe = Object.values(shows).find((x) => x.childName === "Zoé");
+    assert.deepEqual(zoe.rounds.map((r) => r.type), ["zoom", "flou"]);
+    const [manche] = zoe.rounds;
+    assert.deepEqual(manche.seriesQuiz.map((x) => [x.origine, x.famille ?? null, x.questions?.length ?? x.quizId]),
+      [["de", "animaux", 6], ["reprise", null, 2], ["quiz", null, "disney"]]);
+    assert.deepEqual(manche.seriesQuiz[2].sans, [`i:${A}`]);
+    assert.equal(manche.finale, undefined);
+    assert.deepEqual(manche.seriesQuiz[0].questions.map((q) => q.banque), zoom2);
+    await page.context().close();
+
+    // Sur la TV : un seul jeu « Zoom mystère » de 9 photos, sans Super Finale ; lancées par la régie, photos copiées.
+    const { snapshot } = buildSnapshot("zoe", zoe, { disney: DISNEY });
+    const qs = snapshot.quiz.questions.filter((q) => q.kind === "zoom");
+    assert.equal(qs.length, 9);
+    assert.deepEqual([...new Set(qs.map((q) => q.round))], ["Zoom mystère"]);
+    assert.ok(!qs.some((q) => q.finale));
+    assert.deepEqual(qs.map((q) => q.imageId ?? `b:${q.banque}`), [...zoom2.map((k) => `b:${k}`), `b:${p1}`, `b:${p2}`, B]);
+    await seedLibrary("shows/zoe", { ...zoe, date: "2099-12-02", status: "publiee" });
+    box = startBox();
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "Zoé" }).click();
+    await respond(regie);
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    const jouees = (await read("show")).quiz.questions.filter((q) => q.kind === "zoom" || q.kind === "flou");
+    assert.equal(jouees.length, 15);
+    await waitFor(async () => {
+      const copiees = (await read("images")) ?? {};
+      return jouees.every((q) => q.banque === undefined && /^[0-9a-f]{16}$/.test(q.imageId ?? "") && copiees[q.imageId]);
+    }, "photos copiées dans la partie");
     await regie.context().close();
   });
 
