@@ -783,7 +783,7 @@ describe("Super Finale : les dernières questions du quiz, pas un jeu à part", 
     assert.deepEqual(one.quiz.questions.map((q) => q.double ?? false), [false, true]);
     assert.deepEqual(play([{ type: "quiz", quizId: "a", finale: 9 }]).snapshot.quiz.questions.map((q) => q.double), [true, true], "jamais plus que le quiz");
     assert.deepEqual(play([{ type: "quiz", quizId: "a" }]).snapshot.quiz.questions.map((q) => q.double), [false, false], "sans réglage : rien ×2");
-    assert.deepEqual(play([{ type: "express", quizId: "a", finale: 2 }]).snapshot?.quiz.questions.map((q) => q.double ?? false) ?? [], play([{ type: "express", quizId: "a" }]).snapshot?.quiz.questions.map((q) => q.double ?? false) ?? [], "seulement pour le Quiz");
+    assert.deepEqual(play([{ type: "flou", quizId: "a", finale: 2 }]).snapshot?.quiz.questions.map((q) => q.double ?? false) ?? [], play([{ type: "flou", quizId: "a" }]).snapshot?.quiz.questions.map((q) => q.double ?? false) ?? [], "pas à l'Image floue");
   });
 
   test("après un quiz : ses questions ×2 terminent ce quiz, sous son titre", () => {
@@ -2737,7 +2737,7 @@ describe("Vrai ou Faux express en séries, avec sa banque d'affirmations toutes 
     assert.deepEqual(VF.tirerAffirmations(4, { niveau: 1, exclus: new Set(VF.AFFIRMATIONS.map((x) => x.text)) }), []);
   });
 
-  test("une manche en séries : 🎲, Vrai / Faux d'un de ses quiz, ordre rangé ; la TV les joue dans cet ordre, sans Super Finale", () => {
+  test("une manche en séries : 🎲, Vrai / Faux d'un de ses quiz, ordre rangé ; la TV les joue dans cet ordre, Super Finale sur les dernières", () => {
     const quizzes = {
       sciences: { title: "Sciences", source: "tableur", questions: [
         { text: "Le Soleil est une étoile", choices: ["Vrai", "Faux"], correct: 0, status: "validee" },
@@ -2748,7 +2748,7 @@ describe("Vrai ou Faux express en séries, avec sa banque d'affirmations toutes 
     const [a, b] = VF.tirerAffirmations(2, { niveau: 2, rng: graine(7) });
     const enLigne = (x) => ({ id: x.id, text: x.text, choices: ["Vrai", "Faux"], correct: x.correct });
     const round = {
-      type: "express", finale: 3, facteur: 2,
+      type: "express", finale: 2, facteur: 3,
       seriesQuiz: [
         { id: "de", origine: "de", profil: "MOYENS", questions: [enLigne(a), enLigne(b)] },
         { id: "q1", origine: "quiz", quizId: "sciences", sans: ["les poissons volent"] },
@@ -2756,15 +2756,20 @@ describe("Vrai ou Faux express en séries, avec sa banque d'affirmations toutes 
       ordreQuiz: [`de|${b.id}`, "q1|t:le soleil est une étoile", `de|${a.id}`],
     };
     const propre = M.cleanRound(round);
-    assert.equal(propre.finale, undefined, "pas de Super Finale au Vrai ou Faux express");
-    assert.equal(propre.facteur, undefined);
+    // Super Finale comme au Quiz (cedric, 23/10 : « à l'image du quiz principal ») : les 2 dernières, ×3.
+    assert.equal(propre.finale, 2);
+    assert.equal(propre.facteur, 3);
     assert.equal(propre.seriesQuiz[0].profil, "MOYENS");
     assert.deepEqual(propre.seriesQuiz[0].questions.map((q) => q.id), [a.id, b.id]);
     const { snapshot, problems } = S.buildSnapshot("s", { childName: "Léa", age: 9, rounds: [propre] }, quizzes);
     assert.deepEqual(problems, []);
     const qs = snapshot.quiz.questions;
     assert.deepEqual(qs.map((q) => q.text), [b.text, "Le Soleil est une étoile", a.text]);
-    assert.ok(qs.every((q) => q.kind === "express" && q.round === "Vrai ou Faux express" && q.double === false));
+    assert.ok(qs.every((q) => q.kind === "express" && q.round === "Vrai ou Faux express"));
+    assert.deepEqual(qs.map((q) => q.double), [false, true, true]);
+    assert.deepEqual(qs.map((q) => q.finale === true), [false, true, true]);
+    assert.deepEqual(snapshot.facteurs, { [qs[1].id]: 3 }, "le téléphone propose ×3 juste avant");
+    assert.deepEqual(snapshot.rounds.map((x) => x.finale), [2]);
     assert.deepEqual(qs.map((q) => q.choices[q.correct]), [b.vrai ? "Vrai" : "Faux", "Vrai", a.vrai ? "Vrai" : "Faux"]);
     assert.equal(M.resumeDesSeries(propre, quizzes), "3 affirmations : 🎲 2 tirées (Moyens) · 📚 Sciences (1)");
     // Une ancienne manche (un quiz, ses N premières) : les mêmes affirmations, en séries ; seule, gardée comme avant.

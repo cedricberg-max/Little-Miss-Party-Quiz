@@ -1432,6 +1432,19 @@ describe("régie", () => {
     await page.context().close();
   });
 
+  test("Vrai ou Faux express : sa Super Finale s'annonce en affirmations sur le téléphone", async () => {
+    box = startBox();
+    const page = await openRegie();
+    await pair(page);
+    await inRegie(page);
+    const plan = (await read("conducteur")) ?? { questions: [] };
+    const vf = (id) => ({ id, text: `Affirmation ${id}`, kind: "express", choices: ["Vrai", "Faux"], correct: 0, double: true, finale: true, round: "Vrai ou Faux express" });
+    await set(gameRef("conducteur"), { ...plan, questions: [...plan.questions, vf("vf1"), vf("vf2")] });
+    await box.set({ ...questionState(1), phase: "reveal", factorChoice: { start: plan.questions.length, factor: 2 } });
+    await page.locator("#c-factor:not([hidden])", { hasText: "Les 2 dernières affirmations du Vrai ou Faux arrivent : combien de points ?" }).waitFor();
+    await page.context().close();
+  });
+
   test("Portes mystères : l'animatrice change ce qu'il y a derrière une porte avant l'ouverture, sans chrono", async () => {
     box = startBox();
     const page = await openRegie();
@@ -5202,7 +5215,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
-    assert.deepEqual(await sansManche(Object.values(await library("shows"))[0].rounds), [{ type: "express", quizId: "sciences" }]);
+    // Une nouvelle manche part avec sa Super Finale (3 dernières, ×2), comme au Quiz.
+    assert.deepEqual(await sansManche(Object.values(await library("shows"))[0].rounds), [{ type: "express", quizId: "sciences", finale: 3 }]);
     await page.context().close();
 
     box = startBox();
@@ -5668,9 +5682,13 @@ describe("bibliothèque de quiz et prestations", () => {
     const ligne = round.locator(".quiz-outils > .tirage-ligne");
     const compteur = round.locator(".round-head > .quiz-compteur");
     const series = round.locator(".quiz-series > li.serie");
-    // Comme le Quiz, avec des affirmations ; ni Super Finale ni bougies.
+    // Comme le Quiz, avec des affirmations : sa Super Finale en dernière ligne (3 dernières, ×2 d'office), pas de bougies.
     assert.deepEqual(await round.locator(".round-head > *").evaluateAll((xs) => xs.map((x) => x.className)), ["num", "quiz-compteur"]);
-    assert.deepEqual(await round.locator(".round-body > *").evaluateAll((xs) => xs.map((x) => x.className)), ["quiz-outils"]);
+    assert.deepEqual(await round.locator(".round-body > *").evaluateAll((xs) => xs.map((x) => x.className)), ["quiz-outils", "quiz-finale"]);
+    assert.equal(await round.locator(".quiz-finale .finale-oui").inputValue(), "oui");
+    assert.equal(await round.locator(".quiz-finale select.finale").inputValue(), "3");
+    assert.equal(await round.locator(".quiz-finale select.finale option:checked").textContent(), "Les 3 dernières affirmations");
+    assert.equal(await round.locator(".quiz-finale .finale-facteur").inputValue(), "2");
     assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-profil", "tirage-nombre", "btn tirage-de"]);
     assert.equal(await ligne.locator(".tirage-profil").inputValue(), "MOYENS", "le profil de l'âge de l'enfant");
     assert.equal(await round.locator(".quiz-rappel-titre").textContent(), "📚 Rappeler les affirmations d'un ancien anniversaire");
@@ -5695,7 +5713,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await ligne.locator(".tirage-de").click();
     await waitFor(async () => (await series.count()) === 3, "série du dé");
     assert.equal(await series.nth(0).locator(".serie-voir").textContent(), "▸ 🎲 8 affirmations tirées au hasard (Moyens)");
-    assert.equal(await compteur.textContent(), "12 affirmations");
+    assert.equal(await compteur.textContent(), "12 affirmations, dont 3 en Super Finale");
     await series.nth(0).locator(".serie-voir").click();
     const lignes = series.nth(0).locator(".serie-liste > li");
     const textes = async () => lignes.locator(".tirage-texte").allTextContents();
@@ -5708,13 +5726,13 @@ describe("bibliothèque de quiz et prestations", () => {
     // ✕ : un 🎲 prend sa place et tire une autre affirmation.
     await lignes.nth(0).locator(".tirage-retirer").click();
     await series.nth(0).locator(".serie-liste li.vide", { hasText: "Affirmation à tirer" }).waitFor();
-    assert.equal(await compteur.textContent(), "11 affirmations · 1 à tirer");
+    assert.equal(await compteur.textContent(), "11 affirmations, dont 3 en Super Finale · 1 à tirer");
     await lignes.nth(0).locator(".tirage-de").click();
     await series.nth(0).locator(".serie-liste li.vide").waitFor({ state: "detached" });
     const second = await textes();
     assert.ok(!second.includes(premier[0]), "l'affirmation retirée ne revient pas");
     assert.equal(new Set(second).size, 8);
-    assert.equal(await compteur.textContent(), "12 affirmations");
+    assert.equal(await compteur.textContent(), "12 affirmations, dont 3 en Super Finale");
 
     // « Vrai ou Faux complet » : chaque affirmation dans l'ordre ; ✕ sur une affirmation la retire de sa série.
     await ajouterJeu(page, "express");
@@ -5751,15 +5769,17 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(manche.seriesQuiz.map((x) => [x.origine, x.profil ?? null, x.questions?.length ?? x.quizId]),
       [["de", "MOYENS", 8], ["reprise", null, 2], ["quiz", null, "sciences"]]);
     assert.deepEqual(manche.seriesQuiz[2].sans, ["Les poissons volent"]);
-    assert.equal(manche.finale, undefined);
+    assert.equal(manche.finale, 3);
     assert.deepEqual(manche.seriesQuiz[0].questions.map((q) => q.text), second);
     await page.context().close();
 
-    // Sur la TV : un seul jeu « Vrai ou Faux express » de 11 affirmations, dans l'ordre, sans Super Finale.
+    // Sur la TV : le premier jeu « Vrai ou Faux express » de 11 affirmations, dans l'ordre, ses 3 dernières en Super Finale ;
+    // le second (10 affirmations) a la sienne.
     const { snapshot } = buildSnapshot("zoe", zoe, { animaux: ANIMAUX, sciences: SCIENCES });
     const qs = snapshot.quiz.questions.filter((q) => q.round === "Vrai ou Faux express");
     assert.deepEqual(qs.slice(0, 11).map((q) => q.text), [...second, "Le Soleil est une étoile", "Les poissons volent", "Le Soleil est une étoile"]);
-    assert.ok(qs.every((q) => q.kind === "express" && q.double === false));
+    assert.ok(qs.every((q) => q.kind === "express"));
+    assert.deepEqual(qs.map((q) => q.double), [...Array(8).fill(false), true, true, true, ...Array(7).fill(false), true, true, true]);
     assert.deepEqual(qs.slice(0, 8).map((q) => q.choices[q.correct]), second.map((t) => (moyennes.get(t).vrai ? "Vrai" : "Faux")));
     assert.equal(qs.length, 21);
   });

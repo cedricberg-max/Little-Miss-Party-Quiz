@@ -447,7 +447,10 @@ function renderFactor(st) {
   }
   const n = (live.plan?.questions ?? []).slice(choice.start).findIndex((q, k, rest) => !(q.double || q.finale) || (k > 0 && q.round !== rest[0].round));
   const count = n < 0 ? (live.plan?.questions?.length ?? 0) - choice.start : n;
-  $("c-factor-text").textContent = `${count > 1 ? `Les ${count} dernières questions du quiz arrivent` : "La dernière question du quiz arrive"} : combien de points ?`;
+  // Vrai ou Faux express : sa Super Finale aussi (cedric, 23/10), en affirmations.
+  const vf = live.plan?.questions?.[choice.start]?.kind === "express";
+  const quoi = vf ? ["affirmation", "du Vrai ou Faux"] : ["question", "du quiz"];
+  $("c-factor-text").textContent = `${count > 1 ? `Les ${count} dernières ${quoi[0]}s ${quoi[1]} arrivent` : `La dernière ${quoi[0]} ${quoi[1]} arrive`} : combien de points ?`;
   box.querySelectorAll("[data-factor]").forEach((b) => {
     const on = Number(b.dataset.factor) === choice.factor;
     b.classList.toggle("on", on);

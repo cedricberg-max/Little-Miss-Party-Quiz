@@ -39,7 +39,8 @@ export const PATATE_RULE = "la bombe peut exploser à tout moment ! Chaque équi
 export const roundType = (type) => (type === "portes" ? "coffres" : type);
 
 /** Jeux dont les dernières questions peuvent compter double (Super Finale) : le Quiz et le Quiz illustré. */
-export const hasFinale = (type) => (type ?? "quiz") === "quiz" || type === "illustre";
+// Super Finale : au Quiz, au Quiz illustré et au Vrai ou Faux express (cedric, 23/10 : « à l'image du quiz »).
+export const hasFinale = (type) => (type ?? "quiz") === "quiz" || type === "illustre" || type === "express";
 
 export const ROUND_TYPES = { quiz: "Quiz", illustre: "Quiz illustré", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes", pictionary: "Pictionary", coffres: "Les Coffres mystères", portes: "Les Coffres mystères", gonfleur: "Le Gonfleur fou", patate: "Ça va exploser !" };
 /** Statues musicales : durées proposées (secondes) et durée par défaut. Sans chanson choisie : musique maison de la TV. */
@@ -1085,7 +1086,8 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       problems.push(`Liste plus courte : il ne restait que ${list.length} question${list.length > 1 ? "s" : ""} à reprendre au hasard${ecartees
         ? ` (${ecartees} écartée${ecartees > 1 ? "s" : ""} : une réponse en photo sans photo dans la banque ni émoji)` : ""}.`);
     }
-    // Super Finale : réglage d'une manche Quiz (ou Quiz illustré), ses N dernières questions comptent double (ce n'est pas un jeu à part).
+    // Super Finale : réglage d'une manche Quiz (Quiz illustré, Vrai ou Faux express), ses N dernières questions comptent double
+    // (ce n'est pas un jeu à part).
     const finale = hasFinale(round.type) ? Math.max(0, Math.min(list.length, Math.floor(Number(round.finale) || 0))) : 0;
     // Les bougies, juste avant les questions de la Super Finale (elles ne comptent pas double), ou à la place choisie
     // dans le « Quiz complet » (cedric, 23/10). Pas deux fois : ni si le quiz a déjà sa question des bougies, ni si

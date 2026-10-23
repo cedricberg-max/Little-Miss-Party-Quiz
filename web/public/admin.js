@@ -1938,7 +1938,7 @@ function mancheQuiz(r) {
   const photos = estJeuDePhotos(r.type);
   const parTheme = illustre || photos;
   // Vrai ou Faux express (cedric, 23/10) : pareil, avec des affirmations ; le 🎲 tire dans le Vrai ou Faux tout prêt,
-  // au niveau du profil ; ni Super Finale ni bougies.
+  // au niveau du profil ; sa Super Finale comme au Quiz, pas de bougies.
   const express = r.type === "express";
   const unite = photos ? "photo" : express ? "affirmation" : "question";
   const nUnites = (k) => `${k} ${unite}${k > 1 ? "s" : ""}`;
@@ -2152,7 +2152,7 @@ function mancheQuiz(r) {
       h("option", { value: "oui", selected: avec, text: "Oui" }),
       h("option", { value: "non", selected: !avec, text: "Non" })),
     avec ? h("select", { class: "finale", "aria-label": "Questions de la Super Finale", onchange: (e) => { r.finale = Number(e.target.value) || null; r.finaleAvant = r.finale; changer(); } },
-      ...[...new Set([1, 2, 3, 4, 5, 6, 8, 10, r.finale])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: r.finale === k, text: k === 1 ? "La dernière question" : `Les ${k} dernières questions` })))
+      ...[...new Set([1, 2, 3, 4, 5, 6, 8, 10, r.finale])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: r.finale === k, text: k === 1 ? `La dernière ${unite}` : `Les ${k} dernières ${unite}s` })))
       : null,
     avec ? h("select", { class: "finale-facteur", "aria-label": "Multiplicateur de la Super Finale", onchange: (e) => { r.facteur = Number(e.target.value); changer(); } },
       ...FACTEURS_FINALE.map((k) => h("option", { value: k, selected: (FACTEURS_FINALE.includes(r.facteur) ? r.facteur : FACTEURS_FINALE[0]) === k, text: `Points ×${k}` })))
@@ -6851,7 +6851,7 @@ const GAME_GROUPS = [
       status: () => plural(statuesChoices(playlists).length, "chanson disponible", "chansons disponibles"), },
   ] },
   { title: "Tirés d'un quiz", hint: "Rien de plus à préparer : ces jeux reprennent les questions d'un quiz de la bibliothèque. Dans la prestation, choisissez le quiz et combien de questions.", games: [
-    { type: "express", icon: "✔", rule: "Les questions Vrai / Faux d'un quiz, au chrono court du profil.", needs: "Vrai / Faux validées" },
+    { type: "express", icon: "✔", rule: "Des affirmations Vrai / Faux au chrono court du profil : tirées au 🎲 dans le Vrai ou Faux tout prêt, reprises d'un ancien anniversaire ou de vos quiz. Super Finale : les dernières affirmations peuvent compter ×2, ×3 ou ×5 (choisi en direct sur la régie).", needs: "Vrai / Faux validées" },
     { type: "zoom", icon: "🔍", rule: "Une photo d'un quiz ou de la banque se dévoile peu à peu.", needs: "photos" },
     { type: "flou", icon: "🌫", rule: "Une photo d'un quiz ou de la banque devient nette peu à peu, le premier qui buzze répond.", needs: "photos" },
   ] },
