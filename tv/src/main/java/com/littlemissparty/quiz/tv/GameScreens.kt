@@ -237,7 +237,10 @@ private fun AnnonceParole(state: UiState.Playing) {
 private fun AnnonceFacteur(state: UiState.Playing, fin: Long) {
     val reste = remember(fin) { (fin - (System.currentTimeMillis() + state.serverOffset)).coerceIn(0L, ANNONCE_MULTIPLICATEUR_MS) }
     if (reste > 0 && !apres(reste, fin) && !state.paused) {
-        AnnonceMultiplicateur(facteur = state.factor.coerceAtLeast(2), restantes = state.multipliedLeft.coerceAtLeast(1))
+        AnnonceMultiplicateur(
+            facteur = state.factor.coerceAtLeast(2), restantes = state.multipliedLeft.coerceAtLeast(1),
+            affirmations = state.question?.isExpress == true,
+        )
     }
 }
 
