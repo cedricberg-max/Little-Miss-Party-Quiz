@@ -69,11 +69,8 @@ private fun placePatate(i: Int, n: Int): Triple<Float, Float, Float> {
     return Triple(90f + 780f * f, 462f - creux * arc, k * (1f - 0.2f * arc))
 }
 
-/** La mèche montrée : elle raccourcit avec la tension, mais pas régulièrement, pour que l'explosion reste une surprise. */
-private fun mecheMontree(tension: Float): Float {
-    val t = tension.coerceIn(0f, 1f)
-    return (1f - (t + 0.05f * sin(t * 23f) + 0.03f * sin(t * 61f)) * 0.92f).coerceIn(0.06f, 1f)
-}
+/** La mèche montrée : elle raccourcit au rythme de la mèche et est entièrement consumée pile à l'explosion. */
+private fun mecheMontree(tension: Float): Float = 1f - tension.coerceIn(0f, 1f)
 
 /**
  * La bombe chez l'équipe [porteur]. [precedent] : l'équipe qui vient de l'envoyer ; [tension] : de 0 (début) à 1
@@ -200,7 +197,7 @@ fun ScenePatate(
                 dessineBombe(Offset(x, sol - r * gonfle - haut), r * gonfle, ms, 0.55f)
             }
             if (!explosion) {
-                // La grande mèche : elle brûle de droite à gauche vers la bombe, sans dire quand elle arrivera.
+                // La grande mèche : elle brûle de droite à gauche et atteint la bombe pile à l'explosion.
                 val y = 92f * d
                 val x0 = 132f * d
                 val x1 = 846f * d
@@ -362,8 +359,8 @@ fun AnnonceBombe(numero: Int, total: Int, modifier: Modifier = Modifier, jouer: 
     }
 }
 
-/** Durée exacte de la musique de « Ça va exploser ! » (lmp_patate_musique : 20 mesures à 123,5 BPM). La mèche dure autant. */
-const val PATATE_MUSIQUE_MS = 38_871L
+/** Durée exacte de la musique de « Ça va exploser ! » (lmp_patate_musique : de 2:02,442 à la dernière note, 2:40,833). La mèche dure autant. */
+const val PATATE_MUSIQUE_MS = 38_391L
 
 /** Où en est la musique quand il reste [resteMs] de mèche : sa dernière note tombe pile sur l'explosion. */
 fun positionMusiquePatate(resteMs: Long): Long = PATATE_MUSIQUE_MS - resteMs
