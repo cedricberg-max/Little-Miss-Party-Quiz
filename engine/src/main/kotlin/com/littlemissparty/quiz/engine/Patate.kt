@@ -1,11 +1,9 @@
 package com.littlemissparty.quiz.engine
 
-import kotlin.random.Random
-
 /*
  * « Ça va exploser ! » : une bombe passe d'équipe en équipe, chaque équipe choisit sur sa tablette à qui l'envoyer.
- * La mèche brûle pendant une durée tirée au sort par la box, que personne ne connaît (la TV la montre qui raccourcit,
- * sans secondes). Pas de retour à l'envoyeur (sauf à 2 équipes) ; « mèche qui colle » : on ne peut renvoyer la bombe
+ * La mèche brûle pendant [POTATO_FUSE_MS], la durée exacte de la musique du jeu (la TV la montre qui raccourcit, sans
+ * secondes). Pas de retour à l'envoyeur (sauf à 2 équipes) ; « mèche qui colle » : on ne peut renvoyer la bombe
  * que [POTATO_STICKY_MS] après l'avoir reçue, donc la vitesse du réseau ne désigne jamais le perdant. Contre la triche
  * (garder la bombe et l'envoyer au dernier moment), l'équipe a ensuite [POTATO_HOLD_MS] pour l'envoyer, sinon elle lui
  * explose dans les mains (cedric, 21 octobre, 20 h 58). À l'explosion,
@@ -22,7 +20,14 @@ const val POTATO_STICKY_MS = 2_000L
  */
 const val POTATO_HOLD_MS = 3_000L
 
-/** Durée de la mèche, tirée au sort entre ces bornes (millisecondes de jeu, pauses exclues). */
+/**
+ * Durée de chaque mèche (millisecondes de jeu, pauses exclues) : exactement la musique du jeu, qui part du début quand la
+ * mèche s'allume et finit sur l'explosion (cedric, 23 octobre, « Durée fixe »). Même valeur que PATATE_MUSIQUE_MS de
+ * l'habillage de la TV (lmp_patate_musique.ogg) ; un test de la TV vérifie qu'elles restent égales.
+ */
+const val POTATO_FUSE_MS = 38_871L
+
+/** Mèches acceptées dans le journal d'une partie : avant le 23 octobre, la durée était tirée au sort entre ces bornes. */
 const val POTATO_FUSE_MIN_MS = 25_000L
 const val POTATO_FUSE_MAX_MS = 45_000L
 
@@ -81,5 +86,3 @@ data class PotatoRound(
     val readyAt: Long get() = since + POTATO_STICKY_MS
 }
 
-/** Durée de mèche tirée au sort. */
-fun drawFuse(random: Random): Long = POTATO_FUSE_MIN_MS + random.nextLong(POTATO_FUSE_MAX_MS - POTATO_FUSE_MIN_MS + 1)

@@ -837,7 +837,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
     }
 
     /**
-     * « Ça va exploser ! » : allume la mèche (durée tirée au sort) ; la bombe part d'une équipe tirée au sort parmi [teams],
+     * « Ça va exploser ! » : allume la mèche ([POTATO_FUSE_MS], la musique du jeu) ; la bombe part d'une équipe tirée au sort parmi [teams],
      * jamais celle chez qui la bombe précédente vient d'exploser.
      */
     fun lightPotato(teams: List<String>, now: Long, random: Random = Random.Default): GameEvent? {
@@ -846,7 +846,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         if (!needsPotato() || playing.size < 2) return null
         val p = state.potato
         val start = playing.filter { it != p?.booms?.lastOrNull()?.holder }.random(random)
-        return emit(PotatoLit(nextSeq, now, q.id, start, drawFuse(random), playing, bomb = (p?.bomb ?: 0) + 1))
+        return emit(PotatoLit(nextSeq, now, q.id, start, POTATO_FUSE_MS, playing, bomb = (p?.bomb ?: 0) + 1))
     }
 
     /**

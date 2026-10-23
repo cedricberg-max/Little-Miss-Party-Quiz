@@ -1,5 +1,6 @@
 package com.littlemissparty.quiz.tv.habillage
 
+import com.littlemissparty.quiz.engine.POTATO_FUSE_MS
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -12,6 +13,11 @@ class PatateMusiqueTest {
         assertEquals(0L, positionMusiquePatate(PATATE_MUSIQUE_MS))
         assertEquals(PATATE_MUSIQUE_MS, positionMusiquePatate(0))
         assertEquals(PATATE_MUSIQUE_MS - 5_000, positionMusiquePatate(5_000))
+    }
+
+    @Test
+    fun `la meche du moteur dure exactement la musique`() {
+        assertEquals(PATATE_MUSIQUE_MS, POTATO_FUSE_MS)
     }
 
     @Test
