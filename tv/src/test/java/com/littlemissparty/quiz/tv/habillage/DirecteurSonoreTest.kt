@@ -208,6 +208,16 @@ class DirecteurSonoreTest {
         assertEquals(listOf(Son.RIGOLO_1), d.observer(salon.copy(buzzeur = 0, buzzs = 3)).sons())
     }
 
+    @Test
+    fun `Game Show, le buzzer de l'accueil joue le mot robot de l'equipe, jamais l'ancien buzzer`() {
+        val d = DirecteurSonore()
+        val salon = Instant(Ecran.SALON, partie = "ABCD", equipes = 6, gameShow = true)
+        d.observer(salon)
+        assertEquals(listOf(Son.EQUIPE_2), d.observer(salon.copy(buzzeur = 1, buzzs = 1)).sons())
+        assertTrue(d.observer(salon.copy(buzzeur = 1, buzzs = 1)).isEmpty())
+        assertEquals(listOf(Son.EQUIPE_6), d.observer(salon.copy(buzzeur = 5, buzzs = 2)).sons())
+    }
+
     private val mimes = Instant(Ecran.MIMES, partie = "ABCD", index = 3, equipes = 2)
     private val tour = mimes.copy(ecran = Ecran.MIMES_TOUR)
 

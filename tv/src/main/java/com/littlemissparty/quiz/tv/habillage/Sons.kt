@@ -34,6 +34,8 @@ object Sons {
     /** Musique calée sur la partie : écart toléré avant de la recaler, et temps laissé au lecteur pour finir un recalage. */
     private const val CALAGE_ECART_MS = 150
     private const val CALAGE_ATTENTE_MS = 400L
+    /** Veille des boucles : une boucle qui devrait s'entendre et s'est arrêtée (relais raté, lecteur refait) repart. */
+    private const val VEILLE_MS = 1_000L
 
     private val fil = HandlerThread("habillage-son").apply { start() }
     private val h = Handler(fil.looper)
@@ -41,6 +43,7 @@ object Sons {
     private val prevus = Any()
     private val fondus = Any()
     private val fonduCrayon = Any()
+    private val veille = Any()
 
     private var pool: SoundPool? = null
     private val courts = mutableMapOf<Son, Int>()
@@ -109,6 +112,7 @@ object Sons {
             longsDabord.drop(1).forEach { s -> etapes += { chargerLong(app, s) } }
             etapes += { essayer("crayon") { crayon = lecteur(app, FICHIER_CRAYON, boucle = true) } }
             litsDabord.drop(1).forEach { l -> etapes += { chargerLit(app, l) } }
+            etapes += { veiller() }
             enchainer(etapes)
         }
     }
@@ -365,6 +369,24 @@ object Sons {
         }
     }
 
+    /**
+     * Toutes les secondes : chaque boucle qui doit s'entendre (volume de l'ambiance > 0) joue-t-elle vraiment ? Sur
+     * certaines TV, le relais entre ses deux lecteurs rate de temps en temps et la musique s'arrête net en plein écran
+     * (accueil, écran de fin : cedric, 23 octobre). Elle repart alors aussitôt, calée sur le tempo commun.
+     */
+    private fun veiller() {
+        h.removeCallbacksAndMessages(veille)
+        if (!enArriere) lits.forEach { (l, b) ->
+            essayer("veille") {
+                if (volumes.getValue(l) > 0f && !b.isPlaying) {
+                    Log.w(TAG, "Boucle « ${l.name} » arrêtée toute seule : relancée")
+                    reveiller(b)
+                }
+            }
+        }
+        h.postAtTime({ veiller() }, veille, SystemClock.uptimeMillis() + VEILLE_MS)
+    }
+
     /** Remet une boucle en route, calée sur le tempo commun. */
     private fun reveiller(b: Boucle?) {
         if (b == null || b.isPlaying) return
@@ -442,6 +464,7 @@ object Sons {
             h.removeCallbacksAndMessages(prevus)
             h.removeCallbacksAndMessages(fondus)
             h.removeCallbacksAndMessages(fonduCrayon)
+            h.removeCallbacksAndMessages(veille)
             (longs.values + variantes.values.flatten()).toSet().forEach { essayer("recharger") { it.release() } }
             longs.clear()
             variantes.clear()
@@ -503,7 +526,19 @@ private class Boucle(private val a: MediaPlayer, private val b: MediaPlayer?) {
         }
     }
 
-    val isPlaying: Boolean get() = courant.isPlaying
+    /**
+     * Le lecteur qui joue vraiment. Juste après un relais, le second joue déjà alors que [relais] n'est pas encore
+     * passé : [courant] désigne encore celui qui vient de finir. Sans ça, une relance à ce moment-là ferait jouer les
+     * deux à la fois, et le relais suivant se perdrait (musique coupée).
+     */
+    private fun joueur(): MediaPlayer? = when {
+        courant.isPlaying -> courant
+        b?.isPlaying == true -> b
+        a.isPlaying -> a
+        else -> null
+    }
+
+    val isPlaying: Boolean get() = joueur() != null
 
     fun setVolume(v: Float) {
         a.setVolume(v, v)
@@ -511,12 +546,18 @@ private class Boucle(private val a: MediaPlayer, private val b: MediaPlayer?) {
     }
 
     fun pause() {
-        if (courant.isPlaying) courant.pause()
+        if (a.isPlaying) a.pause()
+        if (b?.isPlaying == true) b.pause()
     }
 
     fun demarrer(ms: Int) {
+        val j = joueur()
+        if (j != null) {
+            j.seekTo(ms)
+            return
+        }
         courant.seekTo(ms)
-        if (!courant.isPlaying) courant.start()
+        courant.start()
     }
 
     fun possede(mp: MediaPlayer) = mp === a || mp === b

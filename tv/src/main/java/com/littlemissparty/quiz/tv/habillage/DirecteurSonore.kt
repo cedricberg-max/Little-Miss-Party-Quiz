@@ -292,7 +292,8 @@ class DirecteurSonore {
         val o = mutableListOf<Ordre>()
         if (i.equipes > p.equipes) o += Ordre.Jouer(Son.equipe(i.equipes - 1))
         // Buzzer de l'accueil, pour s'amuser : chaque appui fait le bruit rigolo de l'équipe, autant de fois qu'elle veut.
-        if (i.buzzs > p.buzzs && i.buzzeur >= 0) o += Ordre.Jouer(Son.rigolo(i.buzzeur))
+        // Game Show : le mot robot de l'équipe, le même qu'à son arrivée (cedric, 23 octobre : plus d'ancien buzzer).
+        if (i.buzzs > p.buzzs && i.buzzeur >= 0) o += Ordre.Jouer(if (i.gameShow) Son.equipe(i.buzzeur) else Son.rigolo(i.buzzeur))
         // Bip, bip, bip : chacune des cinq dernières secondes du chrono, le dernier plus aigu. Jamais pendant qu'une
         // équipe répond après un buzz (le chrono est figé), en express (trop court) ni quand tout le monde a répondu.
         // Pas dans « Ça va exploser ! » : la mèche n'est jamais affichée, et sa musique monte d'elle-même jusqu'au boum.
