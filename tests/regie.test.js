@@ -7029,7 +7029,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#show-save");
     let zoe2;
     await waitFor(async () => {
-      zoe2 = Object.values(await library("shows")).find((x) => x.childName === "Zoé");
+      zoe2 = Object.values((await library("shows")) ?? {}).find((x) => x.childName === "Zoé");
       return zoe2?.rounds?.[0]?.ordreBlind?.length === melange.length;
     }, "blind test en séries enregistré");
     assert.deepEqual(zoe2.rounds[0].seriesBlind.map((x) => x.origine), ["de", "playlist", "choix"]);
@@ -7130,7 +7130,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#show-save");
     let zoe;
     await waitFor(async () => {
-      zoe = Object.values(await library("shows")).find((x) => x.childName === "Zoé");
+      zoe = Object.values((await library("shows")) ?? {}).find((x) => x.childName === "Zoé");
       return zoe?.rounds?.[0]?.ordreBlind?.length === final.length;
     }, "quiz musical enregistré");
     assert.equal(zoe.rounds[0].type, "musical");
