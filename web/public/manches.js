@@ -538,7 +538,7 @@ export function resumeDesSeries(round, quizzes = {}) {
       return `🎲 ${n} tirée${n > 1 ? "s" : ""}${sorte ? ` (${sorte})` : ""}`;
     }
     if (x.origine === "main") return `✍ ${n} écrite${n > 1 ? "s" : ""}`;
-    if (x.origine === "images") return `⭐ ${n} de vos images`;
+    if (x.origine === "images") return `⭐ ${n} choisie${(x.questions ?? []).filter(Boolean).length > 1 ? "s" : ""} dans la bibliothèque`;
     if (x.origine === "quiz") return `📚 ${quizzes?.[x.quizId]?.title ?? "quiz supprimé"} (${n})`;
     return `📅 ${x.titre ?? "reprise"} (${n})`;
   });

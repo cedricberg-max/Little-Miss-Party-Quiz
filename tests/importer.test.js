@@ -2709,7 +2709,7 @@ describe("Zoom mystère et Image floue en séries, comme le Quiz (cedric, 23/10)
     const round = { type: "zoom", seriesQuiz: [{ id: "m1", origine: "images", questions: [...qs, fin] }] };
     const propre = M.cleanRound(round);
     assert.deepEqual(propre.seriesQuiz.map((x) => [x.origine, x.questions.length]), [["images", 3]]);
-    assert.equal(M.resumeDesSeries(propre, {}), "3 photos : ⭐ 3 de vos images");
+    assert.equal(M.resumeDesSeries(propre, {}), "3 photos : ⭐ 3 choisies dans la bibliothèque");
     const { snapshot, problems } = S.buildSnapshot("s", { age: 7, rounds: [propre] }, {});
     assert.deepEqual(problems, []);
     assert.deepEqual(snapshot.quiz.questions.map((q) => [q.kind, q.imageId, q.choices[q.correct]]),

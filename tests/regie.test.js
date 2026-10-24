@@ -5800,12 +5800,15 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
-  test("Régie PC (cedric, 23/10) : le Zoom mystère et l'Image floue se composent aussi avec ses images de « Mes images », cochées une par une, leur nom pour réponse ; déjà dans la fête : en rouge, mais possible", async () => {
+  test("Régie PC (cedric, 23 et 24/10) : le Zoom mystère et l'Image floue se composent aussi à la main dans toute la bibliothèque d'images (« Mes images » puis les photos libres), cochées une par une, leur nom pour réponse ; déjà utilisée dans ce jeu ou dans la fête : en rouge, mais possible", async () => {
     const { buildSnapshot } = await import("../web/public/show.js");
+    const { photosLibres } = await import("../web/public/mediatheque.js");
+    const LIBRES = photosLibres().length;
     const PNG = `data:image/png;base64,${png([90, 160, 60]).toString("base64")}`;
     const MES = ["a1a1a1a1a1a1a1a1", "b2b2b2b2b2b2b2b2", "c3c3c3c3c3c3c3c3", "d4d4d4d4d4d4d4d4", "e5e5e5e5e5e5e5e5"];
     const NOMS = ["Lion", "Tigre", "Ours", "Mamie Jo", "Petit tigre"];
     const SANS_NOM = "f6f6f6f6f6f6f6f6";
+    const PANDA = "banque:panda";
     await seedLibrary("images", Object.fromEntries([...MES, SANS_NOM].map((id) => [id, PNG])));
     await seedLibrary("medias", {
       ...Object.fromEntries(MES.map((id, k) => [id, { name: NOMS[k], cat: k === 3 ? "Famille" : "Animaux", createdAt: 1, updatedAt: 1 }])),
@@ -5820,58 +5823,98 @@ describe("bibliothèque de quiz et prestations", () => {
     const compteur = round.locator(".round-head > .quiz-compteur");
     const vos = round.locator(".quiz-outils .vos-images");
     const tuile = (zone, id) => zone.locator(`.vos-images-tuile[data-image="${id}"]`);
+    const tuiles = (zone) => zone.locator(".vos-images-tuile").evaluateAll((xs) => xs.map((x) => x.dataset.image));
     // Quatrième ligne des outils, fermée : rien ne se charge tant qu'on ne l'ouvre pas.
     assert.equal(await vos.locator(".vos-images-titre").textContent(), "▸ ⭐ Composer avec vos images");
     assert.equal(await vos.locator(".vos-images-tuile").count(), 0);
     await vos.locator(".vos-images-titre").click();
     await vos.locator(".vos-images-tuile").first().waitFor();
     assert.equal(await round.locator(".vos-images-titre").textContent(), "▾ ⭐ Composer avec vos images");
-    assert.equal(await round.locator(".vos-images-tuile").count(), 6);
+    // Toute la bibliothèque (cedric, 24/10) : ses images d'abord, puis les photos libres ; jamais d'émoji (que des photos).
+    const ouverte = await tuiles(round);
+    assert.equal(ouverte.length, 60);
+    assert.deepEqual(ouverte.slice(0, 6).sort(), [...MES, SANS_NOM].sort());
+    assert.ok(ouverte.slice(6).every((id) => id.startsWith("banque:")), "puis les photos libres");
+    await round.locator(".vos-images-grille > p.hint", { hasText: `Et ${LIBRES + 6 - 60} autres images : précisez la recherche.` }).waitFor();
+    assert.equal(await round.locator(".vos-images-tuile img").count(), 60);
     // Sans nom : pas de réponse à trouver, elle ne se coche pas.
     assert.equal(await tuile(round, SANS_NOM).isDisabled(), true);
     assert.equal(await tuile(round, SANS_NOM).locator(".vos-images-etat").textContent(), "À nommer dans Mes images");
     assert.equal(await round.locator(".vos-images-ajouter").isDisabled(), true);
-    // Recherche en direct : « ti » trouve d'abord le nom qui commence par « Ti », puis celui qui le contient.
-    await round.locator(".vos-images-cherche").fill("ti");
-    await waitFor(async () => (await round.locator(".vos-images-tuile").count()) === 2, "deux tigres");
-    assert.deepEqual(await round.locator(".vos-images-tuile > span").allTextContents(), ["Tigre", "Petit tigre"]);
+    // Recherche en direct : « tigre » trouve d'abord les noms qui commencent par « Tigre » (la sienne, puis la photo libre),
+    // puis celui qui le contient.
+    await round.locator(".vos-images-cherche").fill("tigre");
+    await waitFor(async () => (await round.locator(".vos-images-tuile").count()) === 3, "trois tigres");
+    assert.deepEqual(await tuiles(round), [MES[1], "banque:tigre", MES[4]]);
+    assert.deepEqual(await round.locator(".vos-images-tuile > span").allTextContents(), ["Tigre", "Tigre", "Petit tigre"]);
+    assert.equal(await tuile(round, "banque:tigre").locator("img").getAttribute("src"), "banque/tigre.jpg");
     await tuile(round, MES[1]).click();
     await round.locator(".vos-images-cherche").fill("famille");
     await tuile(round, MES[3]).click();
+    await round.locator(".vos-images-cherche").fill("panda");
+    await tuile(round, PANDA).click();
     await round.locator(".vos-images-cherche").fill("");
     await tuile(round, MES[0]).click();
-    assert.equal(await round.locator(".vos-images-tuile.on").count(), 3, "les cochées le restent d'une recherche à l'autre");
-    assert.equal(await round.locator(".vos-images-ajouter").textContent(), "＋ Ajouter ces 3 photos");
+    for (const id of [MES[0], MES[1], MES[3]]) assert.equal(await tuile(round, id).getAttribute("aria-pressed"), "true", "les cochées le restent d'une recherche à l'autre");
+    assert.equal(await round.locator(".vos-images-ajouter").textContent(), "＋ Ajouter ces 4 photos");
     await capture(page, "zoom-vos-images-choix");
     await round.locator(".vos-images-ajouter").click();
-    await compteur.filter({ hasText: "3 photos" }).waitFor();
+    await compteur.filter({ hasText: "4 photos" }).waitFor();
     assert.equal(await round.locator(".vos-images-tuile").count(), 0, "le panneau se referme");
     const serie = round.locator('.quiz-series > li.serie[data-origine="images"]');
-    assert.equal(await serie.locator(".serie-voir").textContent(), "▾ ⭐ 3 photos de vos images");
-    assert.deepEqual(await serie.locator(".serie-liste .tirage-texte").allTextContents(), ["Lion", "Tigre", "Mamie Jo"].sort((a, b) => NOMS.indexOf(a) - NOMS.indexOf(b)));
-    assert.equal(await serie.locator(".serie-liste img.tirage-photo").count(), 3);
-    // Rouverte : celles déjà dans ce jeu ne se cochent plus ; une de plus rejoint la même série.
+    assert.equal(await serie.locator(".serie-voir").textContent(), "▾ ⭐ 4 photos choisies dans la bibliothèque");
+    // Dans l'ordre des clics, la réponse sans émoji, la photo à côté.
+    assert.deepEqual(await serie.locator(".serie-liste .tirage-texte").allTextContents(), ["Tigre", "Mamie Jo", "Panda", "Lion"]);
+    assert.equal(await serie.locator(".serie-liste img.tirage-photo").count(), 4);
+
+    // Un 🎲 dans le même jeu : jamais une photo déjà choisie.
+    const ligne = round.locator(".quiz-outils > .tirage-ligne");
+    await ligne.locator(".tirage-nombre").selectOption("6");
+    await ligne.locator(".tirage-de").click();
+    await compteur.filter({ hasText: "10 photos" }).waitFor();
+    const de = round.locator('.quiz-series > li.serie[data-origine="de"]');
+    await de.locator(".serie-voir").click();
+    const tirees = (await de.locator(".serie-liste img.tirage-photo").evaluateAll((xs) => xs.map((x) => x.getAttribute("src"))))
+      .map((src) => decodeURIComponent(src.match(/^banque\/(.+)\.jpg$/)[1]));
+    assert.equal(tirees.length, 6);
+    assert.ok(!tirees.includes("panda"), "le 🎲 ne reprend pas une photo de la composition");
+    const [cle] = tirees;
+    const nomTiree = (await de.locator(".serie-liste .tirage-texte").first().textContent()).trim();
+
+    // Rouverte : celles déjà dans la composition ne se recochent pas ; celle du 🎲 est en rouge, mais possible.
     await round.locator(".vos-images-titre").click();
     await tuile(round, MES[0]).waitFor();
     assert.equal(await tuile(round, MES[0]).isDisabled(), true);
-    assert.equal(await tuile(round, MES[0]).locator(".vos-images-etat").textContent(), "✓ Déjà dans ce jeu");
+    assert.equal(await tuile(round, MES[0]).locator(".vos-images-etat").textContent(), "✓ Déjà dans votre composition");
+    assert.equal(await tuile(round, MES[0]).locator(".vos-images-etat.alerte").count(), 0);
+    await round.locator(".vos-images-cherche").fill("panda");
+    assert.equal(await tuile(round, PANDA).isDisabled(), true);
+    await round.locator(".vos-images-cherche").fill(nomTiree);
+    await tuile(round, `banque:${cle}`).waitFor();
+    assert.equal(await tuile(round, `banque:${cle}`).isDisabled(), false);
+    assert.equal(await tuile(round, `banque:${cle}`).locator(".vos-images-etat.alerte").textContent(), "Déjà utilisée dans ce jeu");
+    await round.locator(".vos-images-cherche").fill("");
     await tuile(round, MES[2]).click();
     assert.equal(await round.locator(".vos-images-ajouter").textContent(), "＋ Ajouter cette photo");
     await round.locator(".vos-images-ajouter").click();
-    await compteur.filter({ hasText: "4 photos" }).waitFor();
+    await compteur.filter({ hasText: "11 photos" }).waitFor();
     assert.equal(await round.locator('.quiz-series > li.serie[data-origine="images"]').count(), 1);
 
-    // Une Image floue dans la même fête : ses images déjà au Zoom mystère sont en rouge, mais restent possibles.
+    // Une Image floue dans la même fête : ses images et photos libres déjà au Zoom mystère sont en rouge, mais restent possibles.
     await ajouterJeu(page, "flou");
     const flou = page.locator("#show-rounds .round").nth(1);
     await flou.locator(".vos-images-titre").click();
     await tuile(flou, MES[0]).waitFor();
     assert.equal(await tuile(flou, MES[0]).isDisabled(), false);
-    assert.equal(await tuile(flou, MES[0]).locator(".vos-images-etat.alerte").textContent(), "Déjà dans la fête");
+    assert.equal(await tuile(flou, MES[0]).locator(".vos-images-etat.alerte").textContent(), "Déjà utilisée dans la fête");
     assert.equal(await tuile(flou, MES[4]).locator(".vos-images-etat").count(), 0);
     await tuile(flou, MES[4]).click();
+    await flou.locator(".vos-images-cherche").fill("panda");
+    assert.equal(await tuile(flou, PANDA).isDisabled(), false);
+    assert.equal(await tuile(flou, PANDA).locator(".vos-images-etat.alerte").textContent(), "Déjà utilisée dans la fête");
+    await tuile(flou, PANDA).click();
     await flou.locator(".vos-images-ajouter").click();
-    await flou.locator(".round-head > .quiz-compteur", { hasText: "1 photo" }).waitFor();
+    await flou.locator(".round-head > .quiz-compteur", { hasText: "2 photos" }).waitFor();
     await capture(page, "zoom-vos-images");
 
     await page.click("#show-save");
@@ -5879,19 +5922,25 @@ describe("bibliothèque de quiz et prestations", () => {
     const zoe = Object.values(await library("shows")).find((x) => x.childName === "Zoé");
     assert.deepEqual(zoe.rounds.map((r) => r.type), ["zoom", "flou"]);
     const [zoom, floue] = zoe.rounds;
-    assert.deepEqual(zoom.seriesQuiz.map((x) => x.origine), ["images"]);
-    const reponses = (x) => x.questions.map((q) => [q.imageId, q.choices[q.correct]]);
-    assert.deepEqual(reponses(zoom.seriesQuiz[0]).sort(), [[MES[0], "Lion"], [MES[1], "Tigre"], [MES[2], "Ours"], [MES[3], "Mamie Jo"]].sort());
-    assert.ok(zoom.seriesQuiz[0].questions.every((q) => q.choices.length === 4 && new Set(q.choices).size === 4));
-    assert.deepEqual(reponses(floue.seriesQuiz[0]), [[MES[4], "Petit tigre"]]);
+    assert.deepEqual(zoom.seriesQuiz.map((x) => x.origine), ["de", "images"]);
+    const reponses = (x) => x.questions.map((q) => [q.imageId ?? `banque:${q.banque}`, q.choices[q.correct]]);
+    const sansEmoji = ([id, rep]) => [id, rep.replace(/^[^\p{L}\p{N}]+/u, "").trim()];
+    assert.deepEqual(reponses(zoom.seriesQuiz[1]).map(sansEmoji), [[MES[1], "Tigre"], [MES[3], "Mamie Jo"], [PANDA, "Panda"], [MES[0], "Lion"], [MES[2], "Ours"]]);
+    assert.ok(zoom.seriesQuiz[1].questions.every((q) => q.choices.length === 4 && new Set(q.choices).size === 4));
+    assert.equal(zoom.seriesQuiz[1].questions[2].banque, "panda");
+    assert.deepEqual(reponses(floue.seriesQuiz[0]).map(([id]) => id), [MES[4], PANDA]);
+    assert.equal(floue.seriesQuiz[0].questions[0].choices[floue.seriesQuiz[0].questions[0].correct], "Petit tigre");
     await page.context().close();
 
     // Sur la TV : les photos à deviner, leur nom pour réponse.
     const { snapshot, problems } = buildSnapshot("zoe", zoe, {});
     assert.deepEqual(problems, []);
     const qs = snapshot.quiz.questions;
-    assert.deepEqual(qs.map((q) => [q.kind, q.imageId, q.choices[q.correct]]), [
-      ...zoom.seriesQuiz[0].questions.map((q) => ["zoom", q.imageId, q.choices[q.correct]]), ["flou", MES[4], "Petit tigre"]]);
+    const cleTv = (q) => q.imageId ?? `banque:${q.banque}`;
+    assert.deepEqual(qs.filter((q) => q.kind === "zoom").map(cleTv).sort(),
+      [...zoom.seriesQuiz[0].questions, ...zoom.seriesQuiz[1].questions].map(cleTv).sort());
+    assert.deepEqual(qs.filter((q) => q.kind === "flou").map((q) => [cleTv(q), q.choices[q.correct]]),
+      floue.seriesQuiz[0].questions.map((q) => [cleTv(q), q.choices[q.correct]]));
   });
 
   test("Régie PC (cedric, 23/10) : le Vrai ou Faux express se construit comme le Quiz : 🎲 dans le Vrai ou Faux tout prêt (autant de vraies que de fausses, au niveau du profil), un ancien anniversaire, les Vrai / Faux de ses quiz, « Vrai ou Faux complet », jamais deux fois la même affirmation", async () => {
