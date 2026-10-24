@@ -582,6 +582,42 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
+  test("Game Show : au buzz, la tablette joue le mot de Daft Punk de son équipe, comme la TV ; en Classique, le petit air", async () => {
+    const espion = (ctx) => ctx.addInitScript(() => {
+      window.__sons = [];
+      const start = AudioBufferSourceNode.prototype.start;
+      AudioBufferSourceNode.prototype.start = function (...x) { window.__sons.push(this.buffer?.duration); return start.apply(this, x); };
+    });
+    const premiere = await openPupitre("&look=gs", espion);
+    await joinTeam(premiere, "Les Roses");
+    const seconde = await openPupitre("&look=gs", espion);
+    const demandes = [];
+    seconde.on("request", (r) => { if (r.url().includes("/sons-gs/")) demandes.push(r.url().split("/").pop()); });
+    await joinTeam(seconde, "Les Bleus");
+    await waitFor(async () => demandes.length === 8, "les 8 mots demandés au premier toucher");
+    await hostState(question({ qid: "b2", kind: "blind", choices: null, text: "Quel est ce titre ?", round: "b2-1000-0", buzzOpen: true, blind: { waiting: false, played: true }, buzz: { blocked: [] } }));
+    await seconde.locator("#play-status", { hasText: "buzzez" }).waitFor();
+    // Les mots sont décodés en arrière-plan : on attend qu'ils soient prêts avant d'appuyer.
+    await seconde.waitForTimeout(800);
+    await seconde.click("#buzz");
+    await waitFor(async () => (await seconde.evaluate(() => window.__sons.length)) === 1, "un mot joué");
+    // 2e équipe arrivée = 2e mot, pas celui de la 1re (leurs durées diffèrent).
+    const [joue, mot1, mot2] = await seconde.evaluate(async () => {
+      const ctx = new OfflineAudioContext(1, 1, 44100);
+      const d = async (k) => (await ctx.decodeAudioData(await (await fetch(`sons-gs/equipe-${k}.mp3`)).arrayBuffer())).duration;
+      return [window.__sons[0], await d(1), await d(2)];
+    });
+    assert.ok(Math.abs(joue - mot2) < 0.002 && Math.abs(joue - mot1) > 0.01, `mot joué ${joue} s (mot 1 : ${mot1}, mot 2 : ${mot2})`);
+    const classique = await openPupitre("&look=classique", espion);
+    await joinTeam(classique, "Les Verts");
+    await hostState(question({ qid: "b3", kind: "blind", choices: null, text: "Quel est ce titre ?", round: "b3-1000-0", buzzOpen: true, blind: { waiting: false, played: true }, buzz: { blocked: [] } }));
+    await classique.locator("#play-status", { hasText: "buzzez" }).waitFor();
+    await classique.click("#buzz");
+    await waitFor(async () => (await read("buzz/b3-1000-0"))?.team, "buzz enregistré");
+    assert.equal(await classique.evaluate(() => window.__sons.length), 0, "Classique : pas de mot de Daft Punk");
+    for (const p of [premiere, seconde, classique]) await p.context().close();
+  });
+
   test("Image floue : deux équipes buzzent en même temps, une seule a la main ; après une erreur elle est bloquée", async () => {
     const pages = [await openPupitre(), await openPupitre()];
     await joinTeam(pages[0], "Les Roses");

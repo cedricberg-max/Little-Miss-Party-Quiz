@@ -116,6 +116,7 @@ function fail(message) {
 function beep(freq = 880, ms = 180) {
   try {
     audio ??= new (window.AudioContext || window.webkitAudioContext)();
+    chargerMotsEquipes();
     const osc = audio.createOscillator();
     const gain = audio.createGain();
     osc.type = "square";
@@ -676,7 +677,7 @@ function renderFlou(st) {
 async function buzzFlou(st) {
   const buzz = $("buzz");
   buzz.disabled = true;
-  beep(880, 160);
+  sonBuzz(() => beep(880, 160));
   navigator.vibrate?.(120);
   try {
     // Le premier qui écrit gagne : les règles refusent les buzz suivants sous la même clé.
@@ -1361,11 +1362,40 @@ function funSound() {
   FUN_TUNES[funTune].forEach((f, i) => setTimeout(() => beep(f, 110), i * 90));
 }
 
+/**
+ * Design The Game Show : au buzz, la tablette joue le même mot de Daft Punk que la TV pour son équipe (« Work it »…
+ * « Stronger », cedric 24/10). La place de l'équipe se compte comme sur la TV : ordre d'arrivée, 8 équipes au plus.
+ * Les 8 mots (100 Ko en tout) se chargent au premier toucher ; tant qu'ils ne sont pas prêts, le petit air habituel.
+ */
+const motsEquipes = [];
+let motsDemandes = false;
+function chargerMotsEquipes() {
+  if (!lookGs || motsDemandes || !audio) return;
+  motsDemandes = true;
+  for (let k = 0; k < 8; k++) {
+    fetch(`sons-gs/equipe-${k + 1}.mp3`).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject()))
+      .then((b) => audio.decodeAudioData(b)).then((buf) => { motsEquipes[k] = buf; }).catch(() => {});
+  }
+}
+function placeEquipe() {
+  return Object.entries(game.teams).filter(([, t]) => t?.name).sort((a, b) => (a[1].joinedAt ?? 0) - (b[1].joinedAt ?? 0))
+    .slice(0, 8).findIndex(([id]) => id === teamId);
+}
+/** Son du buzz : le mot de l'équipe en Game Show, sinon (ou pas encore chargé) le son d'avant. */
+function sonBuzz(sinon) {
+  const buf = lookGs ? motsEquipes[placeEquipe()] : null;
+  if (!buf || !audio) return sinon();
+  try {
+    const src = audio.createBufferSource();
+    src.buffer = buf; src.connect(audio.destination); src.start();
+  } catch { sinon(); }
+}
+
 $("buzz").onclick = async () => {
   const buzz = $("buzz");
   if (buzz.disabled) return;
   if (BUZZ_KINDS.includes(game?.state?.kind) && game.state.phase === "question") return buzzFlou(game.state);
-  funSound();
+  sonBuzz(funSound);
   navigator.vibrate?.(60);
   buzz.classList.remove("bump");
   void buzz.offsetWidth;
