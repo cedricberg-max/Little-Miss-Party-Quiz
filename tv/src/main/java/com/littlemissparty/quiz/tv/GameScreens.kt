@@ -65,6 +65,8 @@ import com.littlemissparty.quiz.tv.habillage.Couronne
 import com.littlemissparty.quiz.tv.habillage.LaParole
 import com.littlemissparty.quiz.tv.habillage.PAROLE_CENTRE_MS
 import com.littlemissparty.quiz.tv.habillage.PAROLE_GLISSE_MS
+import com.littlemissparty.quiz.tv.habillage.QuestionPanneau3d
+import com.littlemissparty.quiz.tv.habillage.planchesQuiz3d
 import com.littlemissparty.quiz.tv.habillage.Neon
 import com.littlemissparty.quiz.tv.habillage.LogoLmp
 import com.littlemissparty.quiz.tv.habillage.Victoire
@@ -124,13 +126,16 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
             // Blind test : pas de question écrite (« Quel est ce titre ? »), la scène prend la place.
             // Statues : le panneau porte déjà l'étiquette « STATUES MUSICALES », le titre en double lui volerait sa place.
             if (!q.isBlind && !q.isStatues) {
-                Text(
+                // Game Show 3D : la question dans son enseigne néon (hors jeux au buzzer, qui ont leur propre scène).
+                val panneau = planchesQuiz3d()?.takeIf { !q.isBuzz }
+                if (panneau != null) QuestionPanneau3d(panneau, q.text, Modifier.fillMaxWidth().apparition(0, state.index))
+                else Text(
                     q.text,
                     color = Palette.Ink, fontSize = selonLook(34.sp, 38.sp), fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                     lineHeight = selonLook(40.sp, 42.sp), maxLines = 3, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.fillMaxWidth().apparition(0, state.index),
                 )
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(if (panneau != null) 14.dp else 20.dp))
             }
             // Chaque question a ses propres cartes : elles surgissent une à une, sur les bulles sonores.
             key(state.index) {
@@ -184,11 +189,14 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
             Spacer(Modifier.height(16.dp))
             // De 1 à 8 équipes : les pastilles passent au-dessus des boutons quand elles ne tiennent plus à côté.
             val gagnants = state.teams.filter { (state.awards[it.uid]?.points ?: 0) > 0 }
+            val pastillesBasses = Look.gs && state.teams.size > 4
             // Statues : pendant la danse et jusqu'au choix de l'animatrice, les pastilles ne disent rien (personne ne répond
             // au pupitre) ; seuls les boutons restent, et « DANSEZ ! » garde sa place même à 8 équipes (banc du 20 octobre).
             BandeauEquipes(
                 nombre = if (q.isStatues && !revealed) 0 else state.teams.size,
                 modifier = Modifier.fillMaxWidth(),
+                // Game Show, 5 équipes et plus : pastilles basses sur deux rangs à côté des boutons.
+                largeurConfort = if (pastillesBasses) 130.dp else 150.dp,
                 actions = { BoutonsQuestion(state, q, actions) },
             ) { i, compacte, m ->
                 val team = state.teams.getOrNull(i) ?: return@BandeauEquipes
@@ -202,6 +210,7 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                     isNumber = q.isNumber,
                     express = q.isExpress,
                     compacte = compacte,
+                    uneLigne = pastillesBasses,
                     modifier = m,
                 )
             }
@@ -503,7 +512,7 @@ private fun CarteImage(i: Int, text: String, tous: List<String>, image: ImageBit
 @Composable
 private fun TeamStatus(
     rangGagnant: Int, team: Team, online: Boolean, answered: Boolean, points: Int?, choice: Int?,
-    isNumber: Boolean = false, express: Boolean = false, compacte: Boolean = false, modifier: Modifier = Modifier,
+    isNumber: Boolean = false, express: Boolean = false, compacte: Boolean = false, uneLigne: Boolean = false, modifier: Modifier = Modifier,
 ) {
     val color = team.color.toColor()
     // Les points tombent comme des tampons, une équipe gagnante après l'autre, juste après la bonne réponse.
@@ -513,12 +522,13 @@ private fun TeamStatus(
     val taille = if (compacte) 14.sp else 16.sp
     val statut = when {
         revealedPoints != null -> (if (revealedPoints > 0) "+$revealedPoints" else "0") +
-            (choice?.let { " · ${if (isNumber) "$it" else Palette.ChoiceLetters.getOrElse(it) { "?" }}" } ?: " · –")
+            // Pastille sur une ligne (5 équipes et plus) : les points seuls, le nom garde sa place.
+            (if (uneLigne) "" else choice?.let { " · ${if (isNumber) "$it" else Palette.ChoiceLetters.getOrElse(it) { "?" }}" } ?: " · –")
         !online -> "hors ligne"
-        answered -> if (compacte) "✓" else "a répondu ✓"
+        answered -> if (compacte || uneLigne) "✓" else "a répondu ✓"
         else -> "…"
     }
-    if (Look.gs) return TeamStatusGs(team, online, answered, revealedPoints, statut, compacte, modifier)
+    if (Look.gs) return TeamStatusGs(team, online, answered, revealedPoints, statut, compacte, modifier, uneLigne)
     Column(
         modifier
             .rebond(revealedPoints != null && revealedPoints > 0, 0.25f)
