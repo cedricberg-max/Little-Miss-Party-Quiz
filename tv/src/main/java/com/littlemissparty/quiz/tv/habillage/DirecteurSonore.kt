@@ -370,11 +370,11 @@ class DirecteurSonore {
         // Jamais moqueur : un petit « pouet » gentil quand une équipe s'est trompée.
         if ((nouveauBuzz || repart) && i.ratees > p.ratees) o += Ordre.Jouer(Son.VF_FAUX)
         if (nouveauBuzz && i.blind) {
-            // Blind test : le disque freine, « BWAP » de cuivres, la note de l'équipe, puis l'attente feutrée.
+            // Blind test : le disque freine, « BWAP » de cuivres, la note de l'équipe, puis un vrai silence pour la laisser
+            // répondre (cedric, 24 octobre : plus de musique d'attente).
             o += Ordre.Musique(Ambiance.SILENCE)
             o += Ordre.Jouer(Son.BT_BUZZ)
             o += Ordre.Jouer(Son.equipe(i.buzzEquipe), Tempo.FLOU_EQUIPE)
-            o += Ordre.Jouer(Son.BT_ATTENTE, Tempo.BT_ATTENTE_DEBUT)
         } else if (nouveauBuzz) {
             // Quiz musical : le disque s'arrête net (scratch) au moment du buzz.
             if (i.musical) o += Ordre.Jouer(Son.BT_SCRATCH)
@@ -659,7 +659,6 @@ enum class Son(val fichier: String, val long: Boolean = false, val gs: String? =
     MAGIE_POUF("lmp_magie_pouf"),
     BT_GENERIQUE("lmp_bt_generique"),
     BT_BUZZ("lmp_bt_buzz"),
-    BT_ATTENTE("lmp_bt_attente", true),
     BT_BRAVO("lmp_bt_bravo"),
     BT_DOUBLE("lmp_bt_double"),
     BT_OUTRO("lmp_bt_outro"),
@@ -773,8 +772,7 @@ object Tempo {
     const val FLOU_REPRISE = 600L
     /** Jeux au buzzer : applaudissements et musique de fête juste après la réponse. */
     const val BUZZ_BRAVO = 400L
-    /** Blind test : l'attente feutrée démarre sous la fin du « BWAP » ; la fête attend la fin de l'outro. */
-    const val BT_ATTENTE_DEBUT = 1_500L
+    /** Blind test : la fête attend la fin de l'outro. */
     const val BT_OUTRO_MUSIQUE = 4_000L
 
     const val TRANSITION_MUSIQUE = 2_000L

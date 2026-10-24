@@ -602,11 +602,11 @@ class DirecteurSonoreTest {
         // Sarah lance la chanson : le diamant se pose, une seule fois.
         assertEquals(listOf(Son.BT_DIAMANT), d.observer(bt.copy(blindLecture = true)).sons())
         assertTrue(d.observer(bt.copy(blindLecture = true)).isEmpty())
-        // Buzz : le buzzer du blind test, la note de l'équipe, puis l'attente feutrée ; ni scratch ni gros buzz.
+        // Buzz : le buzzer du blind test, la note de l'équipe, puis le silence pour répondre ; ni scratch ni gros buzz.
         val buzz = d.observer(bt.copy(buzzEquipe = 1))
-        assertEquals(listOf(Son.BT_BUZZ, Son.EQUIPE_2, Son.BT_ATTENTE), buzz.sons())
+        assertEquals(listOf(Son.BT_BUZZ, Son.EQUIPE_2), buzz.sons())
         assertEquals(Ambiance.SILENCE, buzz.musique())
-        // Mauvaise réponse : petit « pouet », silence, l'attente se coupe ; puis Sarah relance la chanson.
+        // Mauvaise réponse : petit « pouet », le silence continue ; puis Sarah relance la chanson.
         val rate = d.observer(bt.copy(ratees = 1))
         assertTrue(Ordre.Couper in rate)
         assertEquals(listOf(Son.VF_FAUX), rate.sons())
