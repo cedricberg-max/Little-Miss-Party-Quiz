@@ -66,6 +66,39 @@ class RegieTest : TestTv() {
         assertFalse("Aucune animation rejouée", ecran.affiche("BONUS !") || ecran.affiche("MALUS !"))
     }
 
+    /**
+     * Entrée des équipes (cedric, 24/10) : tant que la régie n'est pas reliée, la box dit aux tablettes d'attendre ;
+     * ensuite la tablette demande sans nom ni couleur, et l'équipe naît avec le nom et la couleur que l'animatrice a
+     * choisis sur son téléphone (une couleur déjà prise est remplacée par une libre).
+     */
+    @Test
+    fun entreeDesEquipesParLaRegie() {
+        val code = lancerBoite()
+        attendreQue("régie fermée publiée par la box") { Boite.controle.lire("games/$code/regieActive").takeIf { it == false } }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        attendreQue("régie ouverte publiée par la box") { Boite.controle.lire("games/$code/regieActive").takeIf { it == true } }
+        val licornes = pupitre("licornes").also { it.demanderAEntrer(code) }
+        assertEquals("applied", regie.commande(code, "admit", mapOf("device" to licornes.uid, "name" to "Les Licornes", "color" to VERT)))
+        attendreQue("équipe inscrite") { Boite.controle.lire("games/$code/teams/${licornes.uid}/name").takeIf { it == "Les Licornes" } }
+        assertEquals(VERT, Boite.controle.lire("games/$code/teams/${licornes.uid}/color"))
+        // Demande lisible seulement par sa tablette : lue avec l'accès « owner » de l'émulateur.
+        assertEquals("la demande est effacée", "null", Proprietaire.lire("games/$code/joinRequests/${licornes.uid}").trim())
+        ecran.voit("1 équipe(s) dans la partie")
+        // Même couleur demandée pour une deuxième équipe : la box en donne une autre, jamais deux équipes pareilles.
+        val dragons = pupitre("dragons").also { it.demanderAEntrer(code) }
+        assertEquals("applied", regie.commande(code, "admit", mapOf("device" to dragons.uid, "name" to "Les Dragons", "color" to VERT)))
+        val couleur = attendreQue("deuxième équipe") { Boite.controle.lire("games/$code/teams/${dragons.uid}/color") as? String }
+        assertTrue("couleur différente : $couleur", !couleur.equals(VERT, ignoreCase = true))
+        ecran.voit("2 équipe(s) dans la partie")
+        // Sans nom : refusée, la tablette attend toujours.
+        val chats = pupitre("chats").also { it.demanderAEntrer(code) }
+        val sansNom = regie.envoyer(code, "admit", extra = mapOf("device" to chats.uid))!!
+        assertEquals("refused", regie.verdict(code, sansNom))
+        assertEquals("no_name", regie.raison(code, sansNom))
+        assertNull(Boite.controle.lire("games/$code/teams/${chats.uid}"))
+    }
+
     @Test
     fun mauvaisMotDePasseRefuse() {
         val code = lancerBoite()

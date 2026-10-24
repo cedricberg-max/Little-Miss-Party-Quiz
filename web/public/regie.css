@@ -67,6 +67,15 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .request button.suggested { border-color: var(--ok); }
 .regie .request button.new { background: var(--ok); color: #1a0b2e; border-color: var(--ok); }
 .regie .request button.link { background: transparent; border-color: transparent; color: var(--ink-soft); text-decoration: underline; }
+/* Nouvelle équipe en attente : l'animatrice tape le nom et choisit la couleur du bracelet (cedric, 24/10). */
+.regie .request .tablet-tag { background: var(--ok); color: #1a0b2e; border-radius: 8px; padding: 2px 8px; font-size: 13px; font-weight: 900; }
+.regie .request .req-name { width: 100%; box-sizing: border-box; min-height: 44px; margin: 0 0 8px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--trait); background: var(--night); color: var(--ink); font-size: 17px; font-weight: 700; }
+.regie .request .req-colors { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.regie .request .req-colors button { border: 2px solid var(--c); background: color-mix(in srgb, var(--c) 22%, var(--panel)); }
+.regie .request .req-colors button.selected { background: var(--c); color: #1a0b2e; box-shadow: 0 0 0 2px var(--ink); }
+.regie .request .req-colors button.taken { opacity: .35; text-decoration: line-through; }
+.regie .request .req-replace { margin-top: 8px; align-items: center; font-size: 13px; color: var(--ink-soft); }
+.regie .request .req-replace button { min-height: 34px; font-size: 13px; }
 .regie #c-pause.resume { background: #ffd27a; color: #1a0b2e; border-color: #ffd27a; font-weight: 900; }
 .regie .question { margin: 0; font-size: 17px; font-weight: 700; }
 .regie .answer {

@@ -133,6 +133,10 @@ function startBox({ silent = false, held = false, host = HOST, from = null, seen
       });
     }
   }));
+  // Comme la box : les tablettes n'entrent qu'une fois une régie ouverte (cedric, 24/10).
+  if (!silent) stops.push(onValue(ref(db, `games/${CODE}/regie`), (s) => {
+    set(ref(db, `games/${CODE}/regieActive`), s.exists()).catch(() => {});
+  }));
   // Une par une, dans l'ordre des clés, comme la box.
   async function process() {
     for (const [id, cmd] of Object.entries(latest).sort(([a], [b]) => (a < b ? -1 : 1))) {
@@ -277,20 +281,30 @@ function startBox({ silent = false, held = false, host = HOST, from = null, seen
         return null;
     }
   }
-  // Appareil arrivé en cours de partie : mêmes vérifications que GameViewModel.admitDevice.
+  // Tablette acceptée par la régie : mêmes vérifications que GameViewModel.admitDevice (nom et couleur de la régie).
   async function admitDevice(id, cmd) {
     const request = (await get(ref(db, `games/${CODE}/joinRequests/${cmd.device}`))).val();
     const teams = (await get(ref(db, `games/${CODE}/teams`))).val() ?? {};
     const entries = Object.entries(teams);
+    const name = (cmd.name ?? request?.name)?.trim();
     const reason = !request ? "gone"
       : entries.some(([t, v]) => t === cmd.device || v.device === cmd.device) ? "busy"
         : cmd.type === "admit" && entries.length >= 8 ? "full"
-          : cmd.type === "replace" && !teams[cmd.team] ? "unknown_team" : null;
+          : cmd.type === "replace" && !teams[cmd.team] ? "unknown_team"
+            : cmd.type === "admit" && !name ? "no_name" : null;
     const updates = { [`commandStatus/${id}`]: { status: reason ? "refused" : "applied", ...(reason ? { reason } : {}), at: Date.now() } };
     if (!reason) {
       updates[`joinRequests/${cmd.device}`] = null;
       if (cmd.type === "replace") updates[`teams/${cmd.team}/device`] = cmd.device;
-      else updates[`teams/${cmd.device}`] = { name: request.name, color: request.color, joinedAt: Date.now() };
+      else {
+        // Jamais deux équipes de la même couleur (Couleurs.freeColor) : la couleur demandée si elle est libre.
+        const prises = entries.map(([, v]) => v.color?.toUpperCase());
+        const voulue = cmd.color ?? request.color;
+        const color = voulue && !prises.includes(voulue.toUpperCase()) ? voulue
+          : ["#FF2D95", "#FF6B1A", "#39FF14", "#FFE600", "#2B86C5", "#9B5DE5", "#F94144", "#2EE8E0"].find((c) => !prises.includes(c));
+        updates[`teams/${cmd.device}`] = { name, color, joinedAt: Date.now() };
+        updates[`colors/${color.slice(1).toUpperCase()}`] = cmd.device;
+      }
     }
     await update(ref(db, `games/${CODE}`), updates);
   }
@@ -482,12 +496,25 @@ async function givePoints(page, team, amount) {
 }
 
 async function pair(page, password = PASSWORD) {
-  await page.locator("#regie-open:not([hidden])").click();
+  // Avant la régie, le grand bouton de l'écran d'attente ; ensuite, le petit « Accès régie ».
+  await page.locator("#screen-gate.active #gate-regie, #regie-open:not([hidden])").first().click();
   await page.fill("#regie-password", password);
   await page.click("#regie-go");
 }
 
 const inRegie = (page) => page.locator("#regie:not([hidden])").waitFor({ timeout: 10000 });
+
+/**
+ * Sur la régie : donne un nom (et une couleur, par son nom) à la première tablette en attente et l'accepte
+ * (cedric, 24/10 : la tablette ne tape ni ne choisit rien).
+ */
+async function accepter(regie, name, couleur = null) {
+  const carte = regie.locator("#c-requests .request:has(.req-name)").first();
+  await carte.waitFor();
+  await carte.locator(".req-name").fill(name);
+  if (couleur) await carte.locator(".req-colors button", { hasText: couleur }).click();
+  await carte.locator("button.new", { hasText: "Accepter" }).click();
+}
 
 const commands = async () => Object.values((await read("commands")) ?? {});
 
@@ -500,7 +527,7 @@ describe("régie", () => {
   test("mot de passe commun : un mauvais est refusé, le bon ouvre la régie", async () => {
     box = startBox();
     const page = await openRegie();
-    await page.locator("#screen-join.active").waitFor();
+    await page.locator("#screen-gate.active").waitFor();
     await pair(page, "licorne");
     await page.locator("#regie-status", { hasText: "Mot de passe de régie incorrect" }).waitFor();
     assert.equal(await read("regie"), null);
@@ -508,8 +535,9 @@ describe("régie", () => {
     await page.click("#regie-go");
     await inRegie(page);
     assert.equal(Object.values(await read("regie"))[0].via, "password");
-    // Le pupitre ne s'est pas inscrit comme équipe.
+    // Le pupitre ne s'est pas inscrit comme équipe, ni n'a demandé à entrer.
     assert.equal(await read("teams"), null);
+    assert.equal(await read("joinRequests"), null);
     await page.context().close();
   });
 
@@ -526,7 +554,7 @@ describe("régie", () => {
   test("code de secours de la TV : un mauvais est refusé, le bon relie le téléphone", async () => {
     box = startBox();
     const page = await openRegie();
-    await page.locator("#regie-open:not([hidden])").click();
+    await page.locator("#gate-regie").click();
     await page.click("#regie-use-pin");
     await page.fill("#regie-pin", "1111");
     await page.click("#regie-go");
@@ -547,13 +575,94 @@ describe("régie", () => {
   });
 
   test("le bouton Accès régie disparaît pour une équipe qui joue", async () => {
+    box = startBox();
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
     const page = await openRegie();
+    // Tablette en attente : l'animatrice peut encore s'en servir comme régie.
+    await page.locator("#screen-waiting.active").waitFor();
     await page.locator("#regie-open:not([hidden])").waitFor();
-    await page.fill("#team-name", "Les Roses");
-    await page.click("#join");
+    await accepter(regie, "Les Roses");
     await page.locator("#screen-play.active").waitFor();
     assert.equal(await page.locator("#regie-open").isHidden(), true);
-    await page.context().close();
+    for (const p of [regie, page]) await p.context().close();
+  });
+
+  test("entrée des équipes (cedric, 24/10) : sans régie, la tablette ne va pas plus loin que le code régie ; ensuite l'animatrice la nomme et choisit sa couleur", async () => {
+    box = startBox();
+    // Tablette scannée avant la régie : rien à taper ni à choisir, seulement l'accès régie.
+    const tab = await openRegie();
+    await tab.locator("#screen-gate.active #gate-regie").waitFor();
+    assert.equal(await tab.locator("input:visible").count(), 0, "aucun champ à remplir");
+    assert.equal(await tab.locator("#screen-gate.active button").count(), 1, "un seul bouton : le code de la régie");
+    await new Promise((r) => setTimeout(r, 800));
+    assert.equal(await read("joinRequests"), null, "pas de demande avant la régie");
+    await capture(tab, "pupitre-avant-la-regie");
+    // L'animatrice ouvre sa régie : la tablette demande d'elle-même à entrer, avec un numéro.
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await tab.locator("#screen-waiting.active").waitFor();
+    const numero = await tab.locator("#waiting-num").textContent();
+    assert.match(numero, /^Tablette \d{3}$/);
+    const device = await tab.locator("#screen-waiting").getAttribute("data-device");
+    const demande = await waitFor(() => read(`joinRequests/${device}`), "demande de la tablette");
+    assert.equal(demande.name, undefined, "la tablette n'envoie aucun nom");
+    assert.equal(demande.color, undefined, "ni couleur");
+    assert.equal(await read("teams"), null, "aucune équipe créée sans l'animatrice");
+    // Sur la régie : « Nouvelle équipe en attente », le même numéro, les 4 couleurs des bracelets.
+    const carte = regie.locator("#c-requests .request:has(.req-name)");
+    await carte.locator("p", { hasText: "Nouvelle équipe en attente" }).waitFor();
+    await carte.locator(".tablet-tag", { hasText: numero }).waitFor();
+    assert.deepEqual(await carte.locator(".req-colors button").allTextContents(), ["Rose", "Orange", "Vert", "Jaune"]);
+    await capture(regie, "regie-nouvelle-equipe");
+    // Sans nom : refusé, le champ attend.
+    await carte.locator("button.new").click();
+    await regie.locator("#r-toast", { hasText: "Tapez d'abord le nom de l'équipe" }).waitFor();
+    assert.equal(await read("teams"), null);
+    await accepter(regie, "Les Licornes", "Vert");
+    await regie.locator("#r-toast", { hasText: "« Les Licornes » entre dans la partie" }).waitFor();
+    await tab.locator("#screen-play.active").waitFor();
+    assert.equal(await tab.locator("#screen-play .team-label").textContent(), "Les Licornes");
+    assert.deepEqual(await read(`teams/${device}`).then(({ name, color }) => ({ name, color })), { name: "Les Licornes", color: "#39FF14" });
+    // Deuxième tablette : le vert est pris, la première couleur libre est présélectionnée.
+    const tab2 = await openRegie();
+    await tab2.locator("#screen-waiting.active").waitFor();
+    const carte2 = regie.locator("#c-requests .request:has(.req-name)");
+    await carte2.locator(".req-colors button.taken", { hasText: "Vert" }).waitFor();
+    assert.equal(await carte2.locator(".req-colors button.selected").textContent(), "Rose");
+    assert.equal(await carte2.locator(".req-colors button", { hasText: "Vert" }).isDisabled(), true);
+    // Le nom tapé reste quand la liste se redessine (une équipe se reconnecte pendant la frappe).
+    await carte2.locator(".req-name").fill("Les Dra");
+    await setPresence(device, false);
+    await setPresence(device, true);
+    await carte2.locator(".req-name").press("End");
+    await carte2.locator(".req-name").type("gons");
+    assert.equal(await carte2.locator(".req-name").inputValue(), "Les Dragons");
+    await carte2.locator(".req-name").press("Enter");
+    await tab2.locator("#screen-play .team-label", { hasText: "Les Dragons" }).waitFor();
+    assert.equal(Object.values(await read("teams")).find((t) => t.name === "Les Dragons").color, "#FF2D95");
+    assert.equal(await read("joinRequests"), null);
+    for (const p of [regie, tab, tab2]) await p.context().close();
+  });
+
+  test("couleurs de la prestation (Régie PC) : la régie ne propose qu'elles, une de plus si une équipe imprévue arrive", async () => {
+    box = startBox();
+    // Comme la TV au lancement d'une prestation de 2 équipes en bleu et violet.
+    await set(gameRef("public"), { title: "L'anniversaire de Léa", childName: "Léa", teamColors: ["#2B86C5", "#9B5DE5"] });
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    const tab = await openRegie();
+    await tab.locator("#screen-waiting.active").waitFor();
+    const carte = regie.locator("#c-requests .request:has(.req-name)");
+    await waitFor(async () => JSON.stringify(await carte.locator(".req-colors button").allTextContents()) === JSON.stringify(["Bleu", "Violet"]), "les 2 couleurs de la prestation");
+    await addTeam("a", "A", "#2B86C5");
+    await addTeam("b", "B", "#9B5DE5");
+    await waitFor(async () => (await carte.locator(".req-colors button").allTextContents()).length === 3, "une couleur de plus quand toutes sont prises");
+    assert.equal(await carte.locator(".req-colors button.selected").textContent(), "Rose");
+    for (const p of [regie, tab]) await p.context().close();
   });
 
   test("Sarah change le mot de passe dans l'administration : effet immédiat, régie en cours gardée", async () => {
@@ -1100,17 +1209,16 @@ describe("régie", () => {
 
   test("pupitre pendant les mimes : il dit qui joue, sans rien à toucher", async () => {
     box = startBox();
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
     const team = await openRegie();
-    await team.fill("#team-name", "Les Roses");
-    await team.click("#join");
+    await accepter(regie, "Les Roses");
     await team.locator("#screen-play.active").waitFor();
     const rose = Object.keys(await read("teams"))[0];
     await box.mimes([{ word: "Chat" }, { word: "Robot" }]);
     await team.locator("#play-status", { hasText: "L'animatrice choisit l'équipe qui joue" }).waitFor();
     assert.equal(await team.locator("#buzz").isHidden(), true);
-    const regie = await openRegie();
-    await pair(regie);
-    await inRegie(regie);
     await regie.locator("#mime-go", { hasText: "Les Roses" }).click();
     await team.locator("#play-status", { hasText: "C'est votre tour !" }).waitFor();
     assert.equal(await team.locator("body").innerText().then((t) => t.includes("Chat")), false, "Le mot n'apparaît jamais sur le pupitre");
@@ -2149,19 +2257,19 @@ describe("lancement des prestations : un anniversaire sur une seule box (cedric,
 });
 
 describe("remplacement d'un appareil en cours de partie", () => {
-  /** Tablette d'équipe : rejoint la partie par le QR code habituel. */
-  async function tablet(name) {
+  /** Tablette d'équipe : scanne le QR code habituel et attend que l'animatrice la fasse entrer. */
+  async function tablet() {
     const page = await openRegie();
-    await page.locator("#screen-join.active").waitFor();
-    await page.fill("#team-name", name);
-    await page.click("#join");
+    await page.locator("#screen-waiting.active").waitFor();
     return page;
   }
   async function startedGame() {
     box = startBox();
     const regie = await openRegie();
     await pair(regie);
-    const old = await tablet("Les Bleus");
+    await inRegie(regie);
+    const old = await tablet();
+    await accepter(regie, "Les Bleus");
     await old.locator("#screen-play.active").waitFor();
     await addTeam("rose", "Les Roses");
     await regie.locator("#c-next", { hasText: "Lancer la fête !" }).click();
@@ -2176,18 +2284,12 @@ describe("remplacement d'un appareil en cours de partie", () => {
     await givePoints(regie, blue, 10);
     await waitFor(async () => (await read("state"))?.scores?.[blue] === 10, "points avant le remplacement");
 
-    // Un téléphone de secours scanne le QR code : la partie a commencé, il demande à entrer.
-    const fresh = await openRegie();
-    await fresh.locator("#join", { hasText: "Demander à entrer" }).waitFor();
-    await fresh.fill("#team-name", "les bleus");
-    await fresh.click("#join");
-    await fresh.locator("#screen-waiting.active").waitFor();
+    // Un téléphone de secours scanne le QR code : il demande à entrer, sans rien taper.
+    const fresh = await tablet();
     assert.equal(Object.keys(await read("teams")).length, 2, "aucune équipe créée sans la régie");
 
-    // La régie propose en premier l'équipe du même nom.
-    const replaceBtn = regie.locator("#c-requests .request button").first();
-    await replaceBtn.filter({ hasText: "Remplace « Les Bleus »" }).waitFor();
-    await replaceBtn.click();
+    // La régie propose aussi de lui confier une équipe existante.
+    await regie.locator("#c-requests .req-replace button", { hasText: "Remplace « Les Bleus »" }).click();
     assert.match(await respond(regie), /Confier « Les Bleus » à ce nouvel appareil/);
     await regie.locator("#r-toast", { hasText: "continue sur le nouvel appareil" }).waitFor();
     await regie.locator("#c-requests").waitFor({ state: "hidden" });
@@ -2277,45 +2379,40 @@ describe("remplacement d'un appareil en cours de partie", () => {
 
   test("nouvelle équipe en cours de partie, ou demande ignorée", async () => {
     const { regie, old } = await startedGame();
-    const late = await tablet("Les Tard-Venus");
-    await late.locator("#screen-waiting.active").waitFor();
-    await regie.locator("#c-requests button", { hasText: "Nouvelle équipe" }).click();
+    const late = await tablet();
+    await accepter(regie, "Les Tard-Venus");
     await late.locator("#screen-question.active").waitFor();
     assert.equal(await late.locator("#screen-question .team-label").textContent(), "Les Tard-Venus");
     await regie.locator("#c-answered", { hasText: "0 / 3 équipes ont répondu" }).waitFor();
 
-    const intruder = await tablet("Inconnus");
-    await intruder.locator("#screen-waiting.active").waitFor();
+    const intruder = await tablet();
     await regie.locator("#c-requests button", { hasText: "Ignorer" }).click();
     await intruder.locator("#error-text", { hasText: "n'a pas fait entrer cet appareil" }).waitFor();
     assert.equal(Object.keys(await read("teams")).length, 3);
     for (const p of [regie, old, late, intruder]) await p.context().close();
   });
 
-  test("quiz lancé pendant qu'une équipe tape son nom : elle peut encore demander à entrer", async () => {
+  test("partie lancée pendant qu'une tablette attend : sa demande reste, l'animatrice la fait entrer", async () => {
     box = startBox();
     const regie = await openRegie();
     await pair(regie);
+    await inRegie(regie);
     await addTeam("rose", "Les Roses");
     const slow = await openRegie();
-    await slow.locator("#screen-join.active").waitFor();
+    await slow.locator("#screen-waiting.active").waitFor();
     await regie.locator("#c-next", { hasText: "Lancer la fête !" }).click();
     await waitFor(async () => (await read("state"))?.phase === "question", "quiz lancé");
-    await slow.fill("#team-name", "Les Lents");
-    await slow.click("#join");
-    await slow.locator("#join", { hasText: "Demander à entrer" }).waitFor();
-    assert.equal(await slow.inputValue("#team-name"), "Les Lents");
-    await slow.click("#join");
-    await regie.locator("#c-requests", { hasText: "« Les Lents » demande à entrer" }).waitFor();
+    await slow.locator("#screen-waiting.active").waitFor();
+    await accepter(regie, "Les Lents");
+    await slow.locator("#screen-question.active").waitFor();
     for (const p of [regie, slow]) await p.context().close();
   });
 
   test("8 équipes : la régie ne peut que remplacer un appareil", async () => {
     const { regie, old } = await startedGame();
     for (let i = 3; i <= 8; i++) await addTeam(`t${i}`, `Équipe ${i}`);
-    const extra = await tablet("Les Neuvièmes");
-    await extra.locator("#screen-waiting.active").waitFor();
-    await regie.locator("#c-requests button", { hasText: "Nouvelle équipe" }).click();
+    const extra = await tablet();
+    await accepter(regie, "Les Neuvièmes");
     await regie.locator("#r-toast", { hasText: "8 équipes maximum" }).waitFor();
     assert.equal(Object.keys(await read("teams")).length, 8);
     assert.ok(await read("joinRequests"), "la demande reste en attente");
@@ -8946,6 +9043,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await update(gameRef(), { public: { title: "L'anniversaire de Léa", childName: "Léa" } });
     const page = await openRegie();
     await page.locator("#join-welcome", { hasText: "Joyeux anniversaire Léa !" }).waitFor();
+    await update(gameRef(), { regieActive: true });
+    await page.locator("#waiting-welcome", { hasText: "Joyeux anniversaire Léa !" }).waitFor();
     await page.context().close();
   });
 });

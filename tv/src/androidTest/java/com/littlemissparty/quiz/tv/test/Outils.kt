@@ -43,6 +43,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
+import org.json.JSONObject
 
 const val TAG = "TestsTV"
 
@@ -376,17 +377,24 @@ class PupitreSimule(etiquette: String) : AutoCloseable {
         })
     }
 
+    /**
+     * Entrée d'une équipe (cedric, 24/10) : comme la page web, la tablette ne fait que demander, sans nom ni couleur ;
+     * l'animatrice l'accepte sur sa régie avec [nom] et [couleur], et la box l'inscrit. Ici l'inscription est écrite
+     * telle que la box l'écrit (accès « owner » de l'émulateur, quelle que soit la box de la fête) ; le vrai chemin
+     * régie → box est vérifié par RegieTest.entreeDesEquipesParLaRegie.
+     */
     fun rejoindre(code: String, nom: String, couleur: String) {
-        bloquer {
-            // Comme le pupitre : l'équipe et sa couleur réservée dans la même écriture.
-            base.getReference("games/$code").updateChildren(
-                mapOf(
-                    "teams/$uid" to mapOf("name" to nom, "color" to couleur, "joinedAt" to ServerValue.TIMESTAMP),
-                    "colors/${couleur.removePrefix("#").uppercase()}" to uid,
-                ),
-            ).await()
-        }
+        demanderAEntrer(code)
+        val equipe = JSONObject().put("name", nom).put("color", couleur).put("joinedAt", JSONObject().put(".sv", "timestamp"))
+        Proprietaire.envoyer("PUT", "games/$code/teams/$uid", equipe.toString())
+        Proprietaire.envoyer("PUT", "games/$code/colors/${couleur.removePrefix("#").uppercase()}", JSONObject.quote(uid))
+        Proprietaire.envoyer("DELETE", "games/$code/joinRequests/$uid")
         signalerPresence(code)
+    }
+
+    /** Comme la page web une fois la régie ouverte : la demande d'entrée, sans nom ni couleur. */
+    fun demanderAEntrer(code: String) {
+        bloquer { base.getReference("games/$code/joinRequests/$uid").setValue(mapOf("at" to ServerValue.TIMESTAMP)).await() }
     }
 
     /** Comme la page web : « hors ligne » écrit par le serveur dès que la connexion tombe. */

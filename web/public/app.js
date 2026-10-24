@@ -3,7 +3,7 @@ import { getAuth, signInAnonymously, connectAuthEmulator } from "https://www.gst
 import {
   getDatabase, ref, get, set, update, onValue, onDisconnect, serverTimestamp, connectDatabaseEmulator, goOffline, goOnline,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
-import { TEAM_COLORS, BRACELET_COLORS, CHOICE_COLORS, CHOICE_LETTERS, MAX_TEAMS } from "./theme.js";
+import { CHOICE_COLORS, CHOICE_LETTERS, MAX_TEAMS, numeroTablette } from "./theme.js";
 import { hasAccess, loginWithPassword, loginWithPin, startRegie } from "./regie.js";
 import { watchVersion, showUpdateBanner } from "./version.js";
 import { setAwake, isAwake, onAwakeChange } from "./awake.js";
@@ -57,9 +57,7 @@ if (lookGs) {
 let db, uid, gameRef;
 /** Équipe jouée par cet appareil : la sienne, ou celle dont il remplace l'appareil. */
 let teamId = null;
-let lateJoin = false;
 let presenceRef = null;
-let chosenColor = TEAM_COLORS[0];
 let audio;
 let serverOffset = 0;
 let rebuzzHandle = null;
@@ -78,7 +76,7 @@ let gameExists = false;
  * affiche un bandeau : l'animatrice choisit le moment.
  */
 let newVersion = false;
-const SAFE_TO_RELOAD = new Set(["play", "result", "ended", "error", "loading", "replaced", "watch"]);
+const SAFE_TO_RELOAD = new Set(["gate", "play", "result", "ended", "error", "loading", "replaced", "watch"]);
 function maybeReload() {
   if (!newVersion) return;
   if (document.body.classList.contains("regie-mode") || !$("regie-login").hidden) {
@@ -91,11 +89,12 @@ watchVersion(() => { newVersion = true; maybeReload(); });
 /** Écrans où l'équipe joue (salon compris) : la tablette reste allumée, même si personne ne la touche. */
 const AWAKE_SCREENS = new Set(["waiting", "play", "question", "coffres", "gonfleur", "patate", "result", "pick", "draw", "watch"]);
 /** Écrans où la partie est finie pour cet appareil : la veille normale d'Android reprend. */
-const SLEEP_SCREENS = new Set(["join", "ended", "replaced"]);
+const SLEEP_SCREENS = new Set(["gate", "ended", "replaced"]);
 
 function show(name) {
-  // « Accès régie » : sur l'écran d'inscription (et si la partie est complète), jamais pendant le jeu.
-  $("regie-open").hidden = !(gameExists && (name === "join" || name === "error"));
+  // « Accès régie » : avant d'entrer dans une équipe (et si la partie est complète), jamais pendant le jeu.
+  // Sur l'écran d'avant la régie, c'est son grand bouton qui ouvre l'accès.
+  $("regie-open").hidden = !(gameExists && (name === "waiting" || name === "error"));
   // Chargement ou erreur passagère (reconnexion) : on garde l'état d'avant, la tablette ne s'éteint pas pour si peu.
   if (!document.body.classList.contains("regie-mode")) {
     if (AWAKE_SCREENS.has(name)) setAwake(true);
@@ -208,10 +207,10 @@ async function start() {
     // Partie commencée : un nouvel appareil n'entre que si la régie l'accepte (nouvelle équipe ou remplaçant).
     const phase = (await get(ref(db, `games/${code}/state/phase`))).val() ?? "lobby";
     if (phase === "ended") return fail("Cette partie est terminée. Merci d'avoir joué !");
-    if (takeover && !regieDirect && Object.keys(teams).length) return showTakeover(phase !== "lobby");
+    if (takeover && !regieDirect && Object.keys(teams).length) return showTakeover();
     if (phase === "lobby" && Object.keys(teams).length >= MAX_TEAMS) {
       fail(`La partie est complète (${MAX_TEAMS} équipes maximum).`);
-    } else showJoin(phase !== "lobby");
+    } else showGate();
     if (regieDirect) openRegieLogin();
   } catch (e) {
     console.error(e);
@@ -239,136 +238,50 @@ function showReplaced(team) {
   show("replaced");
 }
 
-// Nouvelle page, nouvelle prestation : on part d'un champ vide, même si le navigateur a gardé un ancien nom.
-$("team-name").value = "";
-
-/** Couleurs déjà prises par une autre équipe : réservées dans la base, ou portées par une équipe déjà inscrite. */
-let takenColors = new Set();
-const colorKey = (c) => c.slice(1).toUpperCase();
-
-/** Couleurs choisies dans la prestation (une par équipe prévue), publiées par la TV ; null sans prestation. */
-let plannedColors = null;
-
 /**
- * Couleurs proposées (cedric, 22/10) : celles de la prestation, choisies dans la Régie PC pour les bracelets et les
- * bandeaux, ou à défaut les 4 des bracelets (rose, orange, vert, jaune). Une de plus n'apparaît que quand toutes
- * celles affichées sont prises : une équipe imprévue n'est jamais bloquée à l'entrée.
+ * Entrée d'une tablette (cedric, 24/10) : elle ne tape ni ne choisit rien. Tant que l'animatrice n'a pas ouvert sa
+ * régie, elle ne va pas plus loin que l'écran du code régie. Ensuite elle demande à entrer : l'animatrice l'accepte
+ * sur son téléphone, lui donne son nom et sa couleur, ou la confie à une équipe existante.
  */
-function offeredColors() {
-  const offered = [...(plannedColors ?? TEAM_COLORS.slice(0, BRACELET_COLORS))];
-  for (const c of TEAM_COLORS) {
-    if (offered.every((o) => takenColors.has(colorKey(o))) && !offered.some((o) => colorKey(o) === colorKey(c))) offered.push(c);
-  }
-  return offered;
-}
-
-/** Couleur présélectionnée : celle choisie si elle est encore proposée et libre, sinon la première libre. */
-function keepFreeColor() {
-  const offered = offeredColors();
-  if (offered.includes(chosenColor) && !takenColors.has(colorKey(chosenColor))) return;
-  chosenColor = offered.find((c) => !takenColors.has(colorKey(c))) ?? chosenColor;
-}
-
-function showJoin(late = false) {
-  lateJoin = late;
+function showGate() {
   stopListening();
-  $("join-late").hidden = !late;
-  $("join-error").hidden = true;
-  $("join").textContent = late ? "Demander à entrer" : "Rejoindre la partie";
-  let reserved = {};
-  let teams = {};
-  const refresh = () => {
-    takenColors = new Set([
-      ...Object.entries(reserved).filter(([, owner]) => owner !== uid).map(([k]) => k),
-      ...Object.entries(teams).filter(([id]) => id !== uid).map(([, t]) => t?.color && colorKey(t.color)).filter(Boolean),
-    ]);
-    // Couleur choisie prise entre-temps, ou plus proposée : on passe à la première libre.
-    keepFreeColor();
-    renderColors();
-  };
-  listen(`games/${code}/colors`, (snap) => { reserved = snap.val() ?? {}; refresh(); });
-  listen(`games/${code}/teams`, (snap) => { teams = snap.val() ?? {}; refresh(); });
-  listen(`games/${code}/public/teamColors`, (snap) => {
-    const planned = Object.values(snap.val() ?? {}).filter((c) => typeof c === "string" && /^#[0-9A-Fa-f]{6}$/.test(c));
-    plannedColors = planned.length ? planned : null;
-    refresh();
+  ecouterBienvenue();
+  let demande = false;
+  listen(`games/${code}/regieActive`, (s) => {
+    // QR « Reconnecter la régie » : ce téléphone est celui de l'animatrice, il ne demande jamais à entrer.
+    if (s.val() !== true || regieDirect) return show("gate");
+    if (demande) return;
+    demande = true;
+    // La régie vient d'être ouverte sur un autre téléphone : la fenêtre du code se referme, la tablette demande à entrer.
+    if (!document.body.classList.contains("regie-mode")) $("regie-login").hidden = true;
+    setTimeout(askToJoin, 0); // hors de l'écouteur en cours, qui sera débranché par waitForAdmission()
   });
-  keepFreeColor();
-  renderColors();
-  show("join");
-  $("team-name").focus();
-  // Prestation chargée : on accueille les équipes avec le prénom de l'enfant fêté.
-  get(ref(db, `games/${code}/public`)).then((s) => {
+}
+
+/** Prestation chargée par la régie : les équipes sont accueillies avec le prénom de l'enfant fêté. */
+function ecouterBienvenue() {
+  listen(`games/${code}/public`, (s) => {
     const p = s.val();
-    $("join-welcome").textContent = p?.childName ? `Joyeux anniversaire ${p.childName} !` : p?.title ?? "";
-    $("join-welcome").hidden = !$("join-welcome").textContent;
-  }).catch(() => {});
-}
-
-function renderColors() {
-  const box = $("colors");
-  box.innerHTML = "";
-  offeredColors().forEach((c) => {
-    const b = document.createElement("button");
-    const taken = takenColors.has(colorKey(c));
-    b.style.background = c;
-    b.setAttribute("aria-label", taken ? `${c} (déjà prise)` : c);
-    b.dataset.color = c;
-    b.disabled = taken;
-    b.classList.toggle("taken", taken);
-    b.classList.toggle("selected", c === chosenColor);
-    b.onclick = () => {
-      chosenColor = c;
-      $("join-error").hidden = true;
-      box.querySelectorAll("button").forEach((x) => x.classList.toggle("selected", x === b));
-    };
-    box.appendChild(b);
+    const texte = p?.childName ? `Joyeux anniversaire ${p.childName} !` : p?.title ?? "";
+    for (const id of ["join-welcome", "waiting-welcome"]) {
+      $(id).textContent = texte;
+      $(id).hidden = !texte;
+    }
   });
 }
 
-$("join").onclick = async () => {
-  const name = $("team-name").value.trim();
-  if (!name) return $("team-name").focus();
-  $("join").disabled = true;
-  // La couleur demandée à l'appui : l'écouteur des couleurs peut en changer pendant l'écriture.
-  const wanted = chosenColor;
-  beep(660, 120); // débloque le son du navigateur dès le premier toucher
-  keepAwake();
+async function askToJoin() {
   try {
-    if (lateJoin) {
-      await set(ref(db, `games/${code}/joinRequests/${uid}`), { name, color: wanted, at: serverTimestamp() });
-      return waitForAdmission();
-    }
-    // L'équipe et sa couleur dans la même écriture : la base refuse une couleur déjà réservée par une autre équipe.
-    await update(ref(db, `games/${code}`), {
-      [`teams/${uid}`]: { name, color: wanted, joinedAt: serverTimestamp() },
-      [`colors/${colorKey(wanted)}`]: uid,
-    });
-    teamId = uid;
-    play();
+    await set(ref(db, `games/${code}/joinRequests/${uid}`), { at: serverTimestamp() });
+    waitForAdmission();
   } catch (e) {
     console.error(e);
-    // Une autre équipe vient de prendre cette couleur : on le dit et on propose les couleurs encore libres.
-    const owner = !lateJoin && (await get(ref(db, `games/${code}/colors/${colorKey(wanted)}`)).catch(() => null))?.val();
-    if (owner && owner !== uid) {
-      $("join-error").textContent = "Cette couleur vient d'être prise par une autre équipe : choisissez-en une autre.";
-      $("join-error").hidden = false;
-      takenColors.add(colorKey(wanted));
-      if (chosenColor === wanted) keepFreeColor();
-      renderColors();
-      return;
-    }
-    // Refusé le plus souvent parce que le quiz vient d'être lancé : on repasse par l'accueil, qui propose
-    // alors de demander à entrer (le nom tapé et la couleur restent).
-    if (!lateJoin) return start();
-    fail("Impossible de rejoindre la partie.");
-  } finally {
-    $("join").disabled = false;
+    fail("Impossible d'envoyer la demande. Vérifiez Internet puis réessayez.");
   }
-};
+}
 
 /** Choix de l'équipe à reprendre ; « C'est une nouvelle équipe » revient à l'inscription habituelle. */
-function showTakeover(late) {
+function showTakeover() {
   stopListening();
   listen(`games/${code}/teams`, (s) => {
     const teams = Object.entries(s.val() ?? {}).sort((a, b) => (a[1].joinedAt ?? 0) - (b[1].joinedAt ?? 0));
@@ -381,7 +294,7 @@ function showTakeover(late) {
       return b;
     }));
   });
-  $("takeover-new").onclick = () => showJoin(late);
+  $("takeover-new").onclick = showGate;
   show("takeover");
 }
 
@@ -400,10 +313,14 @@ async function askTakeover(id, team) {
 }
 
 /** Demande envoyée : on attend que la régie crée l'équipe ou rattache cet appareil à une équipe. */
-function waitForAdmission(text = "L'animatrice va vous faire entrer dans la partie, regardez-la !") {
+function waitForAdmission(text = "L'animatrice vous fait entrer dans la partie depuis son téléphone.") {
   stopListening();
   $("waiting-text").textContent = text;
+  // Numéro affiché aussi sur la régie : l'animatrice sait quelle tablette elle accepte.
+  $("waiting-num").textContent = `Tablette ${numeroTablette(uid)}`;
+  $("screen-waiting").dataset.device = uid;
   show("waiting");
+  ecouterBienvenue();
   let teams = {};
   let refusal = null;
   let done = false;
@@ -1462,6 +1379,7 @@ function openRegieLogin() {
 }
 
 $("regie-open").onclick = openRegieLogin;
+$("gate-regie").onclick = openRegieLogin;
 $("regie-cancel").onclick = () => { $("regie-login").hidden = true; };
 $("regie-use-pin").onclick = () => {
   usePin = true;
@@ -1507,6 +1425,8 @@ $("regie-form").onsubmit = async (e) => {
 function enterRegie() {
   stopListening();
   clearInterval(timerHandle);
+  // Le téléphone de l'animatrice avait peut-être demandé à entrer comme une tablette : sa demande disparaît.
+  if (code && uid) set(ref(db, `games/${code}/joinRequests/${uid}`), null).catch(() => {});
   $("regie-login").hidden = true;
   $("regie").hidden = false;
   document.body.classList.add("regie-mode");

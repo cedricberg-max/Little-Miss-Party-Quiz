@@ -53,7 +53,8 @@ after(async () => {
 beforeEach(async () => {
   await env.clearDatabase();
   await allowBox(env, HOST);
-  await set(ref(hostDb(), `games/${CODE}`), { hostUid: HOST, state: { phase: "lobby", round: 1, buzzOpen: true, total: 3, scores: {} } });
+  // Régie déjà ouverte (cedric, 24/10 : sinon les tablettes attendent sur l'écran du code régie).
+  await set(ref(hostDb(), `games/${CODE}`), { hostUid: HOST, regieActive: true, state: { phase: "lobby", round: 1, buzzOpen: true, total: 3, scores: {} } });
 });
 
 const hostDb = () => env.authenticatedContext(HOST).database();
@@ -87,16 +88,36 @@ async function openPupitre(extra = "", preparer = null) {
   return page;
 }
 
-async function joinTeam(page, name) {
+const TEAM_COLORS = ["#FF2D95", "#FF6B1A", "#39FF14", "#FFE600", "#2B86C5", "#9B5DE5", "#F94144", "#2EE8E0"];
+
+/** Tablette en attente : son identifiant (affiché aussi par son numéro sur la régie). */
+async function waitingDevice(page) {
   try {
-    await page.locator("#screen-join.active").waitFor({ timeout: 8000 });
+    await page.locator("#screen-waiting.active").waitFor({ timeout: 8000 });
   } catch (e) {
     console.error("ÉCRAN :", await page.evaluate(() => document.querySelector(".screen.active")?.id + " " + document.getElementById("error-text").textContent));
     throw e;
   }
-  await page.fill("#team-name", name);
-  await page.click("#join");
+  const device = await page.locator("#screen-waiting").getAttribute("data-device");
+  await waitFor(() => read(`joinRequests/${device}`), "demande de la tablette");
+  return device;
+}
+
+/**
+ * Entrée d'une équipe (cedric, 24/10) : la tablette demande seule, l'animatrice l'accepte sur la régie avec un nom et
+ * une couleur, et la box l'inscrit. Ici, l'écriture de la box (la régie est testée dans regie.test.js).
+ */
+async function joinTeam(page, name, color = null) {
+  const device = await waitingDevice(page);
+  const taken = Object.values((await read("teams")) ?? {}).map((t) => t.color);
+  color ??= TEAM_COLORS.find((c) => !taken.includes(c));
+  await update(ref(hostDb(), `games/${CODE}`), {
+    [`teams/${device}`]: { name, color, joinedAt: Date.now() },
+    [`colors/${color.slice(1)}`]: device,
+    [`joinRequests/${device}`]: null,
+  });
   await page.locator("#screen-play.active").waitFor();
+  return device;
 }
 
 const question = (extra = {}) => ({
@@ -165,84 +186,46 @@ describe("pupitre", () => {
     for (const p of pages) await p.context().close();
   });
 
-  test("une couleur prise est grisée pour les autres, même si deux tablettes la choisissent en même temps", async () => {
-    const [a, b, c] = [await openPupitre(), await openPupitre(), await openPupitre()];
-    for (const p of [a, b, c]) await p.locator("#screen-join.active").waitFor();
-    // Les trois tablettes ont la première couleur présélectionnée ; deux valident en même temps.
-    await a.fill("#team-name", "Les Roses");
-    await b.fill("#team-name", "Les Bleus");
-    await Promise.all([a.click("#join"), b.click("#join")]);
-    // Si les deux demandes se croisent vraiment, la tablette perdante le dit, passe sur une couleur libre
-    // et il suffit de revalider.
-    const loser = await waitFor(async () => {
-      for (const p of [a, b]) if (await p.locator("#join-error:not([hidden])").count()) return p;
-      return Object.keys((await read("teams")) ?? {}).length === 2 ? "aucune" : null;
-    }, "les deux tablettes ont une réponse", 15000);
-    if (loser !== "aucune") {
-      await loser.locator("#join-error", { hasText: "vient d'être prise" }).waitFor();
-      await loser.click("#join");
-    }
-    await waitFor(async () => Object.keys((await read("teams")) ?? {}).length === 2, "deux équipes inscrites");
-    const teams = Object.values(await read("teams"));
-    assert.notEqual(teams[0].color, teams[1].color, "jamais deux équipes de la même couleur");
-    for (const p of [a, b]) await p.locator("#screen-play.active").waitFor();
-    // La troisième voit les deux couleurs prises, grisées et impossibles à choisir.
-    for (const t of teams) {
-      await c.locator(`#colors button[data-color="${t.color}"]:disabled`).waitFor();
-    }
-    assert.equal(teams.map((t) => t.color).includes(await c.locator("#colors button.selected").getAttribute("data-color")), false);
-    await c.fill("#team-name", "Les Verts");
-    await c.click("#join");
-    await c.locator("#screen-play.active").waitFor();
-    const colors = Object.values(await read("teams")).map((t) => t.color);
-    assert.equal(new Set(colors).size, 3);
-    for (const p of [a, b, c]) await p.context().close();
-  });
-
-  test("couleurs des bracelets (cedric, 22/10) : seulement les 4 tant qu'il en reste une, une de plus pour la 5e équipe", async () => {
-    const bracelets = ["#FF2D95", "#FF6B1A", "#39FF14", "#FFE600"];
-    const couleurs = async (p) => p.locator("#colors button").evaluateAll((bs) => bs.map((b) => b.dataset.color));
+  test("entrée (cedric, 24/10) : rien à taper ni à choisir ; avant la régie, seulement le code régie ; ensuite la demande part seule", async () => {
+    await set(ref(hostDb(), `games/${CODE}/regieActive`), false);
     const page = await openPupitre();
-    await page.locator("#screen-join.active").waitFor();
-    assert.deepEqual(await couleurs(page), bracelets);
-    assert.equal(await page.locator("#colors button.selected").getAttribute("data-color"), bracelets[0]);
-
-    // Trois équipes inscrites : il reste le jaune, toujours rien d'autre.
-    const equipe = (i) => ({ name: `Équipe ${i}`, color: bracelets[i], joinedAt: i + 1 });
-    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/teams`), Object.fromEntries([0, 1, 2].map((i) => [`t${i}`, equipe(i)]))));
-    await page.locator(`#colors button[data-color="${bracelets[2]}"]:disabled`).waitFor();
-    assert.deepEqual(await couleurs(page), bracelets);
-    assert.equal(await page.locator("#colors button.selected").getAttribute("data-color"), bracelets[3]);
-
-    // Les 4 bracelets pris : le bleu apparaît pour la 5e équipe, choisi d'office, et elle entre avec.
-    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/teams/t3`), equipe(3)));
-    await page.locator('#colors button[data-color="#2B86C5"]:not(:disabled)').waitFor();
-    assert.deepEqual(await couleurs(page), [...bracelets, "#2B86C5"]);
-    assert.equal(await page.locator("#colors button.selected").getAttribute("data-color"), "#2B86C5");
-    await page.fill("#team-name", "Les Bleus");
-    await page.click("#join");
-    await page.locator("#screen-play.active").waitFor();
-    assert.equal(Object.values(await read("teams")).find((t) => t.name === "Les Bleus")?.color, "#2B86C5");
+    await page.locator("#screen-gate.active #gate-regie").waitFor();
+    assert.equal(await page.locator("input:visible").count(), 0, "aucun champ");
+    assert.equal(await page.locator("#colors").count(), 0, "aucune couleur à choisir");
+    await new Promise((r) => setTimeout(r, 800));
+    assert.equal(await read("joinRequests"), null, "pas de demande avant la régie");
+    // Le bouton ouvre l'accès régie (mot de passe ou code de la TV).
+    await page.click("#gate-regie");
+    await page.locator("#regie-login:not([hidden])").waitFor();
+    // La régie s'ouvre sur un autre téléphone : la fenêtre se referme et la tablette demande à entrer.
+    await set(ref(hostDb(), `games/${CODE}/regieActive`), true);
+    const device = await waitingDevice(page);
+    await page.locator("#regie-login").waitFor({ state: "hidden" });
+    const demande = await read(`joinRequests/${device}`);
+    assert.deepEqual(Object.keys(demande), ["at"], "ni nom ni couleur");
+    assert.match(await page.locator("#waiting-num").textContent(), /^Tablette \d{3}$/);
+    // Rechargée en attendant : toujours une seule demande, toujours en attente.
+    await page.reload();
+    await waitingDevice(page);
+    assert.equal(Object.keys(await read("joinRequests")).length, 1);
+    assert.equal(await read("teams"), null);
+    // Le téléphone de l'animatrice décroche un instant : la tablette reste en attente, sans bouton régie.
+    await set(ref(hostDb(), `games/${CODE}/regieActive`), false);
+    await new Promise((r) => setTimeout(r, 600));
+    assert.equal(await page.locator("#screen-waiting.active").count(), 1);
+    assert.ok(await read(`joinRequests/${device}`), "demande gardée");
+    await set(ref(hostDb(), `games/${CODE}/regieActive`), true);
+    // Acceptée : elle joue avec le nom et la couleur donnés par l'animatrice.
+    await joinTeam(page, "Les Licornes", "#39FF14");
+    assert.equal(await page.locator("#screen-play .team-label").textContent(), "Les Licornes");
     await page.context().close();
   });
 
-  test("couleurs choisies dans la prestation (cedric, 22/10) : la tablette ne propose qu'elles, une de plus si une équipe imprévue arrive", async () => {
-    const [ROSE, ORANGE, VERT] = ["#FF2D95", "#FF6B1A", "#39FF14"];
-    const couleurs = async (p) => p.locator("#colors button").evaluateAll((bs) => bs.map((b) => b.dataset.color));
-    // Comme la TV au lancement d'une prestation de 2 équipes en orange et vert.
-    await set(ref(hostDb(), `games/${CODE}/public`), { title: "L'anniversaire de Léa", childName: "Léa", teamColors: [ORANGE, VERT] });
-    const page = await openPupitre();
-    await page.locator("#screen-join.active").waitFor();
-    await waitFor(async () => (await couleurs(page)).length === 2, "2 couleurs proposées");
-    assert.deepEqual(await couleurs(page), [ORANGE, VERT]);
-    assert.equal(await page.locator("#colors button.selected").getAttribute("data-color"), ORANGE);
-    // Les deux équipes prévues sont là : une 3e, imprévue, reçoit la première couleur libre (rose).
-    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/teams`), {
-      a: { name: "Les Tigres", color: ORANGE, joinedAt: 1 }, b: { name: "Les Pandas", color: VERT, joinedAt: 2 },
-    }));
-    await page.locator(`#colors button[data-color="${ROSE}"]:not(:disabled)`).waitFor();
-    assert.deepEqual(await couleurs(page), [ORANGE, VERT, ROSE]);
-    assert.equal(await page.locator("#colors button.selected").getAttribute("data-color"), ROSE);
+  test("QR « Reconnecter la régie » : ce téléphone ne demande jamais à entrer comme une équipe", async () => {
+    const page = await openPupitre("&regie=1");
+    await page.locator("#regie-login:not([hidden])").waitFor();
+    await new Promise((r) => setTimeout(r, 800));
+    assert.equal(await read("joinRequests"), null);
     await page.context().close();
   });
 
@@ -639,18 +622,13 @@ describe("pupitre", () => {
     for (const p of pages) await p.context().close();
   });
 
-  test("gros buzzer USB (vu comme un clavier) : un appui buzze comme l'écran, seulement quand le BUZZ est là ; le nom se tape sans buzzer", async () => {
+  test("gros buzzer USB (vu comme un clavier) : un appui buzze comme l'écran, seulement quand le BUZZ est là", async () => {
     const pages = [await openPupitre(), await openPupitre()];
-    // Buzzer déjà branché pendant l'inscription : les touches écrivent le nom, sans rien envoyer.
-    await pages[0].locator("#screen-join.active").waitFor();
-    await pages[0].click("#team-name");
-    await pages[0].keyboard.type("Les Roses");
+    // Buzzer déjà branché pendant l'attente : appuyer n'envoie rien.
+    await waitingDevice(pages[0]);
     await pages[0].keyboard.press("Space");
-    await pages[0].keyboard.press("Backspace");
-    await pages[0].click("#join");
-    await pages[0].locator("#screen-play.active").waitFor();
-    assert.equal(Object.values(await read("teams"))[0].name, "Les Roses");
-    assert.equal(await read("fun"), null, "taper son nom ne buzze pas");
+    await joinTeam(pages[0], "Les Roses");
+    assert.equal(await read("fun"), null, "attendre son entrée ne buzze pas");
     await joinTeam(pages[1], "Les Bleus");
     const uids = Object.fromEntries(Object.entries(await read("teams")).map(([uid, t]) => [t.name, uid]));
     // Salon : le gros bouton fait le petit air, comme un toucher.
@@ -846,31 +824,22 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
-  test("nom d'équipe : champ vide à chaque prestation, saisie et correction libres, gardé à la reconnexion", async () => {
+  test("reconnexion : la tablette retrouve son équipe sans rien redemander ; nouvelle prestation, nouvelle demande", async () => {
     const page = await openPupitre();
-    await page.locator("#screen-join.active").waitFor();
-    assert.equal(await page.inputValue("#team-name"), "", "Aucun nom prérempli");
-    assert.equal(await page.getAttribute("#team-name", "placeholder"), "Choisissez un nom d'équipe");
-    // Saisie clavier puis correction d'une faute, comme sur un téléphone.
-    await page.locator("#team-name").pressSequentially("Les Licornez");
-    await page.keyboard.press("Backspace");
-    await page.locator("#team-name").pressSequentially("s");
-    await page.click("#join");
-    await page.locator("#screen-play.active").waitFor();
-    const uid = Object.keys(await read("teams"))[0];
-    assert.equal((await read(`teams/${uid}`)).name, "Les Licornes");
+    const uid = await joinTeam(page, "Les Licornes");
 
-    // Prestation suivante dans le même navigateur : rien n'est repris de l'ancienne équipe.
-    await set(ref(hostDb(), "games/TEST2"), { hostUid: HOST, state: { phase: "lobby", round: 1, total: 3, scores: {} } });
+    // Prestation suivante dans le même navigateur : rien n'est repris de l'ancienne équipe, la tablette redemande.
+    await set(ref(hostDb(), "games/TEST2"), { hostUid: HOST, regieActive: true, state: { phase: "lobby", round: 1, total: 3, scores: {} } });
     await page.goto(`${baseUrl}/?g=TEST2&emu=1`);
-    await page.locator("#screen-join.active").waitFor();
-    assert.equal(await page.inputValue("#team-name"), "");
+    await page.locator("#screen-waiting.active").waitFor();
+    await waitFor(async () => (await get(ref(hostDb(), `games/TEST2/joinRequests/${uid}`))).exists(), "nouvelle demande");
 
-    // Retour sur la première partie : la reconnexion retrouve l'équipe et son nom sans rien retaper.
+    // Retour sur la première partie : la reconnexion retrouve l'équipe et son nom.
     await page.goto(`${baseUrl}/?g=${CODE}&emu=1`);
     await page.locator("#screen-play.active").waitFor();
     assert.equal(Object.keys(await read("teams")).length, 1, "Pas de nouvelle équipe");
     assert.equal((await read(`teams/${uid}`)).name, "Les Licornes");
+    assert.equal(await read("joinRequests"), null, "pas de demande pour une équipe déjà là");
     await page.context().close();
   });
 
@@ -891,6 +860,7 @@ describe("pupitre", () => {
     const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
     const IDS = ["0123456789abcdef", "fedcba9876543210", "00112233445566ff", "ffeeddccbbaa9988"];
     await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/choiceImages`), Object.fromEntries(IDS.map((id) => [id, PNG]))));
+    await set(ref(hostDb(), `games/${CODE}/regieActive`), false);
     const page = await openPupitre();
     const shots = process.env.LMP_SHOTS;
     /** Rien ne dépasse : ni l'écran actif, ni ses boutons, ni ses textes (sinon un enfant ne peut pas répondre). */
@@ -913,8 +883,11 @@ describe("pupitre", () => {
         assert.deepEqual(trop, [], `${nom}, ${format} (${width}×${height})`);
       }
     };
-    await page.locator("#screen-join.active").waitFor();
-    await tient("rejoindre");
+    await page.locator("#screen-gate.active").waitFor();
+    await tient("avant-la-regie");
+    await set(ref(hostDb(), `games/${CODE}/regieActive`), true);
+    await page.locator("#screen-waiting.active").waitFor();
+    await tient("attente");
     await page.setViewportSize({ width: 390, height: 844 });
     await joinTeam(page, "Les Licornes");
     const uid = Object.keys(await read("teams"))[0];
@@ -999,14 +972,10 @@ describe("pupitre", () => {
     // Le navigateur de test n'a pas de vrai plein écran : on compte les demandes, sans jamais l'obtenir.
     await page.evaluate(() => { window.demandes = 0; Element.prototype.requestFullscreen = function () { window.demandes++; return Promise.resolve(); }; });
     const demandes = () => page.evaluate(() => window.demandes);
-    await page.locator("#screen-join.active").waitFor();
-    // Pendant la frappe du nom, le clavier sert à écrire : pas de demande (le clavier de l'écran se fermerait).
-    await page.locator("#team-name").focus();
-    await page.keyboard.type("Les Lys");
-    assert.equal(await demandes(), 0);
-    await page.click("#join");
-    await page.locator("#screen-play.active").waitFor();
-    assert.ok(await demandes() >= 1, "le toucher sur « Rejoindre » demande le plein écran");
+    await joinTeam(page, "Les Lys");
+    // Le premier toucher, n'importe où, demande le plein écran.
+    await page.locator("#screen-play").click({ position: { x: 20, y: 300 } });
+    await waitFor(async () => (await demandes()) >= 1, "plein écran demandé au premier toucher");
     await hostState(question());
     await page.locator(".choice").nth(1).click();
     await waitFor(async () => page.locator(".choice").first().isDisabled(), "réponses verrouillées après l'envoi");

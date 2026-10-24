@@ -35,21 +35,19 @@
       <button id="retry" class="btn">Réessayer</button>
     </section>
 
-    <section id="screen-join" class="screen">
+    <!-- Entrée d'une tablette (cedric, 24/10) : rien à taper ni à choisir. Avant la régie, seulement l'accès régie. -->
+    <section id="screen-gate" class="screen">
       <div class="logo">Little Miss Party<br><span>QUIZ</span></div>
       <p id="join-welcome" class="welcome" hidden></p>
-      <label for="team-name">Nom de votre équipe</label>
-      <input id="team-name" type="text" maxlength="20" autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="done" placeholder="Choisissez un nom d'équipe">
-      <p class="label">Votre couleur</p>
-      <div id="colors" class="colors"></div>
-      <p id="join-late" class="hint" hidden>La partie a commencé : l'animatrice va vous faire entrer. Vous remplacez une tablette ? Tapez le nom de votre équipe.</p>
-      <p id="join-error" class="hint error" hidden></p>
-      <button id="join" class="btn big">Rejoindre la partie</button>
+      <p class="hint">Bienvenue ! L'animatrice ouvre d'abord sa régie. Ensuite, cette tablette demandera toute seule à entrer dans la partie.</p>
+      <button id="gate-regie" class="btn big">🎛 Code de la régie</button>
     </section>
 
     <section id="screen-waiting" class="screen">
-      <div class="logo small">Demande envoyée</div>
-      <p id="waiting-text" class="hint">L'animatrice va vous faire entrer dans la partie, regardez-la !</p>
+      <div class="logo small">Tablette prête</div>
+      <p id="waiting-welcome" class="welcome" hidden></p>
+      <p id="waiting-num" class="tablet-num"></p>
+      <p id="waiting-text" class="hint">L'animatrice vous fait entrer dans la partie depuis son téléphone.</p>
     </section>
 
     <!-- « Reconnecter une tablette » (QR de la TV) : la nouvelle tablette reprend une équipe existante. -->
