@@ -351,7 +351,8 @@ fun BlindRevelation(
         // Le moment le plus festif : toute la salle chante le refrain jusqu'au « Titre suivant ». Sous la platine et le
         // titre (bande libre du bas de la scène), jamais par-dessus.
         if (chantons) {
-            Text(
+            if (Look.gs) ToutLeMondeChante(40.sp, Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp).apparition(2_200, cle))
+            else Text(
                 "🎤 Tous ensemble, on chante !", color = Neon.Or, fontSize = 40.sp, fontWeight = FontWeight.Black, maxLines = 1,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp).apparition(2_200, cle),
             )
