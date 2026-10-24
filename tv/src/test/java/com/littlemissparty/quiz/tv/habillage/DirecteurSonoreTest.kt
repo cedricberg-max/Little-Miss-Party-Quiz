@@ -783,7 +783,7 @@ class DirecteurSonoreTest {
     fun `chaque son existe dans les ressources de l'appli`() {
         // Les tests JVM d'Android tournent depuis le dossier du module tv/.
         val manquants = (Son.entries.flatMap { listOfNotNull(it.fichier, it.gs) } + Lit.entries.flatMap { listOfNotNull(it.fichier, it.gs) })
-            .filterNot { java.io.File("src/main/res/raw/$it.ogg").isFile }
+            .filterNot { n -> listOf("ogg", "wav").any { java.io.File("src/main/res/raw/$n.$it").isFile } }
         assertTrue("Sons manquants : $manquants", manquants.isEmpty())
     }
 
