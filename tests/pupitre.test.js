@@ -594,12 +594,13 @@ describe("pupitre", () => {
     const demandes = [];
     seconde.on("request", (r) => { if (r.url().includes("/sons-gs/")) demandes.push(r.url().split("/").pop()); });
     await joinTeam(seconde, "Les Bleus");
-    await waitFor(async () => demandes.length === 8, "les 8 mots demandés au premier toucher");
+    await waitFor(async () => demandes.length === 8, "les 8 mots demandés dès l'entrée dans l'équipe, sans toucher");
     await hostState(question({ qid: "b2", kind: "blind", choices: null, text: "Quel est ce titre ?", round: "b2-1000-0", buzzOpen: true, blind: { waiting: false, played: true }, buzz: { blocked: [] } }));
     await seconde.locator("#play-status", { hasText: "buzzez" }).waitFor();
     // Les mots sont décodés en arrière-plan : on attend qu'ils soient prêts avant d'appuyer.
     await seconde.waitForTimeout(800);
-    await seconde.click("#buzz");
+    // Buzzer du Game Show animé en continu (« Réacteur ») : jamais « immobile » pour Playwright, on clique quand même.
+    await seconde.click("#buzz", { force: true });
     await waitFor(async () => (await seconde.evaluate(() => window.__sons.length)) === 1, "un mot joué");
     // 2e équipe arrivée = 2e mot, pas celui de la 1re (leurs durées diffèrent).
     const [joue, mot1, mot2] = await seconde.evaluate(async () => {
