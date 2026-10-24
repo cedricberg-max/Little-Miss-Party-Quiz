@@ -2,6 +2,8 @@ package com.littlemissparty.quiz.engine
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /** Paroles du refrain au blind test : forme courte envoyée par la Régie PC, lue par la TV. */
@@ -53,5 +55,32 @@ class ParolesTest {
         assertEquals("La la la", quiz.questions[0].paroles.single().texte)
         assertEquals(emptyList(), quiz.questions[1].paroles)
         assertEquals(emptyList(), quiz.questions[2].paroles)
+    }
+
+    @Test
+    fun `le Quiz musical garde la pochette, l'artiste, le refrain et ses paroles de sa révélation`() {
+        val json = """{"id":"p","title":"P","questions":[
+            {"id":"q1","text":"Quel est ce titre ?","choices":["Un","Deux","Trois","Quatre"],"correct":0,"audioId":"0123456789abcdef",
+             "artist":"Daft Punk","imageId":"00112233445566aa","refrainId":"fedcba9876543210","lyrics":"0|La la la"},
+            {"id":"q2","text":"Quel est ce titre ?","choices":["Un","Deux"],"correct":1,"audioId":"0123456789abcdef","artist":"Sans refrain",
+             "lyrics":"0|Sans refrain"},
+            {"id":"q3","text":"Trois ?","choices":["a","b"],"correct":0,"artist":"Pas de musique","refrainId":"fedcba9876543210","lyrics":"0|Non"}]}"""
+        val quiz = QuizJson.parse(json)
+        val (musical, sansRefrain, ordinaire) = quiz.questions
+        assertTrue(musical.isMusical)
+        assertEquals("Daft Punk", musical.artist)
+        assertEquals("00112233445566aa", musical.imageId)
+        assertEquals("fedcba9876543210", musical.refrainId)
+        assertEquals("La la la", musical.paroles.single().texte)
+        // Sans refrain : pas de paroles, l'artiste reste.
+        assertTrue(sansRefrain.isMusical)
+        assertEquals("Sans refrain", sansRefrain.artist)
+        assertNull(sansRefrain.refrainId)
+        assertEquals(emptyList(), sansRefrain.paroles)
+        // Une question ordinaire, sans extrait, ne garde rien de tout cela.
+        assertFalse(ordinaire.isMusical)
+        assertNull(ordinaire.artist)
+        assertNull(ordinaire.refrainId)
+        assertEquals(emptyList(), ordinaire.paroles)
     }
 }

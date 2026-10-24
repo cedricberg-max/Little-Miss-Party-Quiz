@@ -2973,6 +2973,9 @@ describe("bibliothèque de quiz et prestations", () => {
       await ligne(titre).getByRole("button", { name: "⏱ Réglé ✓" }).click();
       await page.locator("#playlist-edit-title", { hasText: `Réglages de « ${titre} »` }).waitFor();
       await page.locator(".track.reglage").waitFor();
+      // La recherche de la chanson entière (absente ici) redessine les réglages quand elle finit : taper avant, c'est
+      // taper dans un champ qui disparaît (vu sur GitHub le 24/10 : l'artiste renommé jamais enregistré).
+      await page.locator(".track.reglage .reglage-manque", { hasText: "Les curseurs attendent la chanson entière" }).waitFor();
       return avant;
     };
 

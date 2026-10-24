@@ -102,6 +102,29 @@ fun BlindScene(q: Question, state: UiState.Playing, modifier: Modifier = Modifie
 }
 
 /**
+ * Quiz musical, révélation (cedric, 24/10) : celle du blind test en plus court, après la bonne réponse allumée sur les
+ * cartes. Pochette, titre et artiste ; avec un refrain préparé, ses paroles au rythme des quelques secondes de musique.
+ * Toutes les équipes qui ont trouvé sont félicitées, chacune dans sa couleur ; leurs points restent sous la scène.
+ */
+@Composable
+fun RevelationMusicale(q: Question, state: UiState.Playing, modifier: Modifier = Modifier) {
+    BlindRevelation(
+        cle = q.id,
+        pochette = pochette(q, state),
+        titre = q.choices.getOrNull(q.correct).orEmpty(),
+        artiste = q.artist,
+        gagnant = null,
+        points = 0,
+        double = false,
+        modifier = modifier,
+        chantons = q.refrainId?.let { it in state.sounds } == true,
+        paroles = q.paroles,
+        positionMs = PositionRefrain::ms,
+        gagnants = state.teams.filter { (state.awards[it.uid]?.points ?: 0) > 0 }.map { it.name to it.color.toColor() },
+    )
+}
+
+/**
  * Premier des morceaux à double valeur, encore en attente : « × 2 » par-dessus tout l'écran pendant l'annonce
  * sonore (lmp_bt_double), puis l'écran du morceau revient avec « POINTS DOUBLÉS ».
  */

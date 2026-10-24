@@ -641,6 +641,64 @@ class RegieTest : TestTv() {
     }
 
     @Test
+    fun quizMusicalLaBonneReponsePuisLaRevelationDuBlindTestEnPlusCourt() {
+        val code = lancerBoite()
+        val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
+        val dragons = pupitre("dragons").also { it.rejoindre(code, "Dragons", ROSE) }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        val id = java.security.MessageDigest.getInstance("SHA-256").digest(EXTRAIT_MP3.toByteArray()).take(8).joinToString("") { "%02x".format(it) }
+        regie.copierExtrait(code, id, EXTRAIT_MP3)
+        @Suppress("UNCHECKED_CAST")
+        val avant = regie.programme(code)["questions"] as List<Map<String, Any?>>
+        // Quiz musical (cedric, 24/10) : l'extrait pendant la question, le refrain et ses paroles à la révélation.
+        fun titre(qid: String, bon: Int, refrain: Boolean) = mapOf(
+            "id" to qid, "text" to "Quel est ce titre ?", "choices" to listOf("Frère Jacques", "Au clair de la lune", "Une souris verte", "Il pleut bergère"),
+            "correct" to bon, "artist" to "Comptine", "duration" to 20, "kind" to "classic", "double" to false, "round" to "Quiz musical · Comptines", "audioId" to id,
+        ) + (if (refrain) mapOf("refrainId" to id, "lyrics" to "0|Mon ami Pierrot\n1500|Prête-moi ta plume") else emptyMap())
+        val programme = listOf(titre("m1", 1, refrain = true), titre("m2", 0, refrain = false))
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, programme + avant))
+        attendreQue("la régie voit l'extrait prêt") { regie.extraitPret(code, id)?.takeIf { it == "ok" } }
+
+        fun ouverte(qid: String) {
+            val etat = attendreQue("$qid ouverte sur le serveur") { licornes.etat(code).takeIf { it.child("phase").value == "question" && it.child("qid").value == qid } }
+            (etat.child("resumeAt").value as? Number)?.toLong()?.let { depart -> (depart + 600 - System.currentTimeMillis()).takeIf { it > 0 }?.let(Thread::sleep) }
+        }
+        // Les deux équipes trouvent : la bonne réponse s'allume sur les cartes, puis la pochette, le titre et l'artiste,
+        // les deux équipes félicitées, et le refrain avec ses paroles.
+        assertEquals("applied", regie.commande(code, "next"))
+        ouverte("m1")
+        assertTrue(licornes.repondre(code, "m1", 1))
+        assertTrue(dragons.repondre(code, "m1", 1))
+        ecran.voit("Toutes les équipes ont répondu")
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("Bravo Licornes et Dragons !")
+        ecran.entierementVisible("Bravo Licornes et Dragons !")
+        ecran.voit("Au clair de la lune")
+        ecran.voit("Comptine")
+        ecran.voit("TOUS ENSEMBLE, ON CHANTE !")
+        ecran.entierementVisible("TOUS ENSEMBLE, ON CHANTE !")
+        ecran.voit("Pierrot")
+        ecran.entierementVisible("Pierrot")
+        attendreQue("les points du quiz") { points(dragons, code, dragons.uid).takeIf { it >= Scoring.BASE } }
+        ecran.capture("quiz-musical-revelation")
+
+        // Personne ne trouve, et pas de refrain préparé : la scène sans paroles, l'extrait repart quelques secondes.
+        assertEquals("applied", regie.commande(code, "next"))
+        assertEquals("applied", regie.commande(code, "next"))
+        ouverte("m2")
+        assertTrue(licornes.repondre(code, "m2", 2))
+        assertTrue(dragons.repondre(code, "m2", 3))
+        ecran.voit("Toutes les équipes ont répondu")
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("Personne n'a trouvé, ce n'est pas grave !")
+        ecran.entierementVisible("Personne n'a trouvé, ce n'est pas grave !")
+        ecran.voit("Frère Jacques")
+        ecran.neVoitPas("TOUS ENSEMBLE", 2_000)
+        ecran.capture("quiz-musical-personne")
+    }
+
+    @Test
     fun statuesMusicalesLaMusiqueSArretePuisLaRegieDesigneLaGagnante() {
         val code = lancerBoite()
         val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }

@@ -50,11 +50,14 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -126,6 +129,7 @@ internal fun SceneParoles(
     double: Boolean,
     paroles: List<LigneParole>,
     positionMs: () -> Long?,
+    gagnants: List<Pair<String, Color>>? = null,
 ) {
     val ms = horloge(cle)
     val lecteur by rememberUpdatedState(positionMs)
@@ -218,7 +222,7 @@ internal fun SceneParoles(
         Spacer(Modifier.width(36.dp))
         // À droite : qui a trouvé, puis les paroles, puis l'égaliseur qui bat avec la voix.
         Column(Modifier.weight(1f).fillMaxHeight()) {
-            Gagnant(cle, gagnant, points, double)
+            Gagnant(cle, gagnant, points, double, gagnants)
             Spacer(Modifier.height(10.dp))
             Text(
                 "🎤 TOUS ENSEMBLE, ON CHANTE !", color = Neon.OrClair, fontSize = 26.sp, fontWeight = FontWeight.Black, letterSpacing = 0.06.em,
@@ -233,10 +237,15 @@ internal fun SceneParoles(
     }
 }
 
-/** L'équipe qui a trouvé et ses points, dans un bandeau compact ; sans gagnant, une ligne plus discrète. */
+/**
+ * L'équipe qui a trouvé et ses points, dans un bandeau compact ; sans gagnant, une ligne plus discrète. Quiz musical
+ * ([gagnants] non nul) : toutes les équipes qui ont trouvé, chacune dans sa couleur (leurs points sont sous la scène).
+ */
 @Composable
-private fun Gagnant(cle: Any?, gagnant: Pair<String, Color>?, points: Int, double: Boolean) {
-    if (gagnant != null && points > 0) {
+private fun Gagnant(cle: Any?, gagnant: Pair<String, Color>?, points: Int, double: Boolean, gagnants: List<Pair<String, Color>>? = null) {
+    if (!gagnants.isNullOrEmpty()) {
+        BravoEquipes(gagnants, 38.sp, Modifier.padding(vertical = 8.dp).apparition(500, cle))
+    } else if (gagnants == null && gagnant != null && points > 0) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.apparition(500, cle)) {
             Box(Modifier.size(88.dp).rebond(apres(500, cle), 0.08f).clip(CircleShape).background(gagnant.second), contentAlignment = Alignment.Center) {
                 val chiffres = "+$points".length
@@ -267,6 +276,23 @@ private fun Gagnant(cle: Any?, gagnant: Pair<String, Color>?, points: Int, doubl
             maxLines = 1, softWrap = false, modifier = Modifier.padding(vertical = 8.dp).apparition(500, cle),
         )
     }
+}
+
+/** « Bravo les Licornes et les Dragons ! » : chaque équipe qui a trouvé écrite dans sa couleur, sur deux lignes au plus. */
+@Composable
+internal fun BravoEquipes(equipes: List<Pair<String, Color>>, taille: TextUnit, modifier: Modifier = Modifier) {
+    val texte = buildAnnotatedString {
+        append("Bravo ")
+        equipes.forEachIndexed { k, (nom, couleur) ->
+            if (k > 0) append(if (k == equipes.lastIndex) " et " else ", ")
+            withStyle(SpanStyle(color = couleur)) { append(nom) }
+        }
+        append(" !")
+    }
+    Text(
+        texte, color = Neon.Blanc, fontSize = taille, lineHeight = taille * 1.12f, fontWeight = FontWeight.Black,
+        maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = modifier,
+    )
 }
 
 /**

@@ -134,8 +134,11 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
             }
             // Chaque question a ses propres cartes : elles surgissent une à une, sur les bulles sonores.
             key(state.index) {
-                // Révélation : l'illustration facultative (photo ou émoji) apparaît à gauche des propositions.
-                Row(Modifier.weight(1f)) {
+                // Quiz musical (cedric, 24/10) : la bonne réponse s'allume, puis la révélation du blind test en plus court.
+                // Sinon, à la révélation, l'illustration facultative (photo ou émoji) apparaît à gauche des propositions.
+                if (revealed && q.isMusical && apres(MUSICAL_GRILLE_MS, q.id)) {
+                    RevelationMusicale(q, state, Modifier.weight(1f).fillMaxWidth())
+                } else Row(Modifier.weight(1f)) {
                     // Zoom mystère : la photo est la question, elle se dévoile pendant tout le chrono.
                     if (q.isFlou) {
                         // Image floue : la photo est la question, réponse à voix haute après un buzz.
@@ -156,7 +159,7 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                     } else if (q.isZoom) {
                         ZoomPhoto(q, state, Modifier.fillMaxHeight().aspectRatio(4f / 3f, matchHeightConstraintsFirst = true))
                         Spacer(Modifier.width(20.dp))
-                    } else if (revealed && hasIllustration(q, state)) {
+                    } else if (revealed && !q.isMusical && hasIllustration(q, state)) {
                         val photo = q.imageId != null && state.images[q.imageId] != null
                         Illustration(q, state, Modifier.fillMaxHeight().aspectRatio(if (photo) 4f / 3f else 1f, matchHeightConstraintsFirst = true))
                         Spacer(Modifier.width(20.dp))
@@ -173,7 +176,7 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
                             photos = photos,
                             // Illustration à gauche : les réponses en texte passent sur une seule colonne, assez large pour
                             // « Le guépard » sans le couper en deux (banc d'essai du 20 octobre).
-                            uneColonne = revealed && hasIllustration(q, state) && photos.all { it == null },
+                            uneColonne = revealed && !q.isMusical && hasIllustration(q, state) && photos.all { it == null },
                         )
                     }
                 }
