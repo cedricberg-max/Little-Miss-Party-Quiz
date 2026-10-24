@@ -35,9 +35,11 @@ class MainActivity : ComponentActivity() {
         CrashReporter.install(applicationContext)
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        // Design choisi dans le menu Retour (The Game Show par défaut, Classique en secours), gardé sur la box.
+        // Design choisi dans le menu Retour (The Game Show sur le plateau 3D par défaut, Classique en secours), gardé sur la box.
         val reglages = getSharedPreferences(PREFS_DESIGN, MODE_PRIVATE)
         Look.design = Design.depuis(reglages.getString(CLE_DESIGN, null))
+        // Plateau 3D en fond seulement si la box sait lire deux vidéos à la fois (le fond et le robot par-dessus).
+        Look.deuxVideos = com.littlemissparty.quiz.tv.habillage.videosSimultanees() >= 2
         setContent {
             val state by viewModel.state.collectAsState()
             val updateUi by updates.ui.collectAsState()
@@ -148,4 +150,5 @@ private fun PoliceDesEcrans(contenu: @Composable () -> Unit) {
 
 private const val PREFS_DESIGN = "lmp_design"
 // Nouvelle clé le 22 octobre : chaque box repart une fois en « The Game Show », même si le Classique y avait été choisi.
-private const val CLE_DESIGN = "design-v2"
+// v3 (24 octobre) : chaque box repart une fois sur le nouveau design par défaut, le plateau 3D.
+private const val CLE_DESIGN = "design-v3"

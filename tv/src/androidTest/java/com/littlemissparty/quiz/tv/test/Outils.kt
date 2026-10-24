@@ -112,8 +112,8 @@ object Boite {
 
     private val design get() = contexte.getSharedPreferences("lmp_design", Context.MODE_PRIVATE)
 
-    /** Design choisi dans le menu Retour (« gs » ou « classique ») ; null = celui de la box par défaut (The Game Show). */
-    fun choisirDesign(cle: String?) = design.edit().apply { if (cle == null) clear() else putString("design-v2", cle) }.commit()
+    /** Design choisi dans le menu Retour (« gs3d », « gs » ou « classique ») ; null = celui de la box par défaut (plateau 3D). */
+    fun choisirDesign(cle: String?) = design.edit().apply { if (cle == null) clear() else putString("design-v3", cle) }.commit()
 
     fun codeActif(): String? = prefs.getString("active_game", null)
 
