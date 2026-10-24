@@ -16,14 +16,17 @@ class NavigationTelecommandeTest : TestTv() {
     @Test
     fun salonPuisLancementAvecOk() {
         val code = lancerBoite()
-        ecran.voit(code)
+        ecran.voit("Scannez pour jouer")
         ecran.voit("En attente des équipes")
+        // Game Show : le code de la partie n'est plus sur l'accueil (cedric, 24/10), il est dans le menu Retour.
+        if (Look.gs) assertFalse("pas de code sur l'accueil", ecran.affiche(code)) else ecran.voit(code)
         assertFalse("Pas de lancement possible sans équipe", ecran.affiche("Lancer la fête !"))
         ecran.capture("salon-vide")
         // Game Show : « Lancer la fête ! » est dans le menu Retour, qui ne le propose pas sans équipe.
         if (Look.gs) {
             ecran.touche(KeyEvent.KEYCODE_BACK)
             ecran.voit("Continuer la partie")
+            ecran.voit("Code de la partie : $code")
             assertFalse("Pas de lancement possible sans équipe", ecran.affiche("Lancer la fête !"))
             ecran.ok("Continuer la partie")
             ecran.neVoitPas("Continuer la partie")

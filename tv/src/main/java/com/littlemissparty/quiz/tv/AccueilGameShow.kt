@@ -5,13 +5,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -22,15 +19,14 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.tv.habillage.GS
-import com.littlemissparty.quiz.tv.habillage.styleEtiquetteGs
 
 /**
  * Accueil du design « The Game Show » : l'écran d'attente des invités reste neutre (cedric, 24 octobre). Le robot dort
- * sur le plateau (la vidéo du décor, calée sur Get Lucky) ; seul le petit QR des tablettes, avec le code de la partie,
- * reste discret en bas à droite. Les équipes et « Lancer la fête ! » sont sur le téléphone de l'animatrice ; à la
- * télécommande, « Lancer la fête ! » est dans le menu Retour. Ce que l'écran ne montre plus (enfant fêté, équipes
+ * sur le plateau (la vidéo du décor, qui tourne seule, sans calage sur Get Lucky) ; seul le petit QR des tablettes
+ * reste discret en bas à droite, sans le code de la partie (cedric, 24/10 : il est dans le menu Retour). Les équipes
+ * et « Lancer la fête ! » sont sur le téléphone de l'animatrice ; à la télécommande, « Lancer la fête ! » est dans le
+ * menu Retour. Ce que l'écran ne montre plus (enfant fêté, équipes
  * arrivées) reste dans sa description, lue par les lecteurs d'écran et par les tests sur émulateur.
  */
 @Composable
@@ -59,8 +55,6 @@ internal fun LobbyGameShow(state: UiState.Playing) {
             Box(Modifier.size(112.dp).background(Color.White, RoundedCornerShape(10.dp)).padding(6.dp)) {
                 Image(qr, contentDescription = "Scannez pour jouer", modifier = Modifier.fillMaxSize())
             }
-            Spacer(Modifier.height(6.dp))
-            Text(state.code, style = styleEtiquetteGs(16.sp, GS.Rose, 3.sp), maxLines = 1, softWrap = false)
         }
     }
 }
