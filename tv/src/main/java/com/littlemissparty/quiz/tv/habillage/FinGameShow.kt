@@ -40,8 +40,6 @@ internal const val FIN_BOUCLE_DEBUT_MS = 8_000
 internal const val FIN_BOUCLE_MS = 16_000
 /** Un temps d'Aerodynamic (120 BPM) : la vidéo bat sur les temps de la musique. */
 internal const val FIN_TEMPS_MS = 500
-/** Écart toléré entre la boucle de la vidéo et la musique (ms), comme à l'accueil. */
-internal const val ECART_FIN_MS = 120
 private const val FONDU_FIN_MS = 500
 /** Les messages arrivent comme dans l'aperçu validé : « Merci » à 5 s, « À bientôt » à 6 s, en 1,2 s chacun. */
 private const val MERCI_MS = 5_000
@@ -87,11 +85,11 @@ fun FinCinemaGameShow(modifier: Modifier = Modifier) {
         )
         if (prete) MessagesFin()
     }
-    // La boucle de la vidéo suit les tours de la musique : un écart de plus de [ECART_FIN_MS] la remet en place.
+    // La boucle de la vidéo suit les tours de la musique, en accélérant ou ralentissant un peu ([SuiviMusique]).
     LaunchedEffect(lecteur) {
         val v = lecteur ?: return@LaunchedEffect
         var ancre = 0L
-        var dernierCalage = 0L
+        val suivi = SuiviMusique()
         while (true) {
             delay(200)
             val pos = v.position() ?: continue
@@ -102,12 +100,9 @@ fun FinCinemaGameShow(modifier: Modifier = Modifier) {
             ancre = ancreSurMusique(ancre, Sons.tourFin)
             if (pos < FIN_BOUCLE_DEBUT_MS || maintenant < ancre) continue
             val attendu = positionFinAttendue(maintenant, ancre)
-            val horloge = SystemClock.uptimeMillis()
-            // Un saut au plus toutes les 3 s : le temps que la box décode l'image demandée.
-            if (ecartBoucleFin(attendu, pos) > ECART_FIN_MS && horloge - dernierCalage > 3_000) {
-                v.caler(attendu)
-                dernierCalage = horloge
-            }
+            // Sans saut, en jouant sur la vitesse (comme l'accueil) : chaque saut faisait une micro-saccade.
+            val ecart = ecartSigne(attendu - FIN_BOUCLE_DEBUT_MS, pos - FIN_BOUCLE_DEBUT_MS, FIN_BOUCLE_MS)
+            suivi.suivre(v, attendu, ecart)
         }
     }
 }
