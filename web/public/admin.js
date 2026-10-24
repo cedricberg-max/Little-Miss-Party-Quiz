@@ -7276,7 +7276,7 @@ $("sons-playlist-new").onclick = creerPlaylistSons;
 
 /**
  * « 🎶 Mes playlists » en haut de Bibliothèque › Sons : chacune se déplie (ses chansons : pochette, titre, paroles,
- * ✕), « 🎵 Choisir les chansons » (cases à cocher), « Renommer », « Supprimer ».
+ * ✕), « 🎵 Ajouter des chansons » (cases à cocher ; cedric, 24/10 : la playlist existe déjà), « Renommer », « Supprimer ».
  */
 function renderPlaylistsSons() {
   const box = $("sons-playlist-list");
@@ -7303,7 +7303,7 @@ function renderPlaylistsSons() {
         h("button", { type: "button", class: "chip tirage-voir serie-voir sons-playlist-voir", "aria-expanded": ouverte ? "true" : "false", text: texte,
           title: "Voir ou cacher les chansons de cette playlist",
           onclick: () => { if (ouverte) playlistsDepliees.delete(id); else playlistsDepliees.add(id); renderPlaylistsSons(); } }),
-        h("button", { type: "button", class: "btn small secondary sons-playlist-choisir", text: "🎵 Choisir les chansons", title: "Cocher ou décocher les chansons de cette playlist",
+        h("button", { type: "button", class: "btn small secondary sons-playlist-choisir", text: "🎵 Ajouter des chansons", title: "Cocher ou décocher les chansons de cette playlist",
           onclick: async () => {
             const choix = await choisirChansons({ titre: `Chansons de la playlist « ${p.title} »`, plusieurs: true, cochees: ids });
             if (!choix) return;

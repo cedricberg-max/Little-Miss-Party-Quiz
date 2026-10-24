@@ -6935,7 +6935,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
-  test("Bibliothèque › Sons (cedric, 24/10) : « 🎶 Mes playlists » : créer une playlist (son nom, ses chansons cochées, autant qu'on veut), la déplier, ✕ une chanson, « 🎵 Choisir les chansons », renommer, supprimer", async () => {
+  test("Bibliothèque › Sons (cedric, 24/10) : « 🎶 Mes playlists » : créer une playlist (son nom, ses chansons cochées, autant qu'on veut), la déplier, ✕ une chanson, « 🎵 Ajouter des chansons », renommer, supprimer", async () => {
     const hex = (c, k) => `${c}${k}`.padEnd(16, c);
     await seedLibrary("songs", Object.fromEntries([1, 2, 3, 4].map((k) => [`s${k}`, { title: `Chanson ${k}`, artist: "Les Tests", audioId: hex("a", k), start: 0, updatedAt: 1 }])));
     // Une playlist d'avant, avec un morceau qui n'est pas dans la bibliothèque des sons : il reste quand on la change.
@@ -6975,7 +6975,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await annees.locator('.sons-playlist-chanson[data-chanson="s1"] .tirage-retirer').click();
     await waitFor(async () => (await chansons()).join() === "s3,s4", "chanson retirée");
     assert.ok(await library("songs/s1"), "toujours dans la bibliothèque des sons");
-    // « 🎵 Choisir les chansons » : ses chansons cochées ; une de plus, à la fin.
+    // « 🎵 Ajouter des chansons » (cedric, 24/10 : la playlist existe déjà) : ses chansons cochées ; une de plus, à la fin.
+    assert.equal(await annees.locator(".sons-playlist-choisir").textContent(), "🎵 Ajouter des chansons");
     await annees.locator(".sons-playlist-choisir").click();
     await choix.waitFor();
     assert.equal(await choix.locator(".choix-chanson.cochee").count(), 2);
