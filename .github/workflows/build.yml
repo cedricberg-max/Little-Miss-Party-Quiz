@@ -88,6 +88,11 @@ jobs:
           echo "$certs"
           echo "$certs" | grep -qi "SHA-256 digest: 0146199dd975cec17ba905ffb1c555726b1eabe4db6b40d24bd2767d39479b6e" \
             || { echo "::error::APK signé par une autre clé : il ne s'installerait pas par-dessus la version de la box"; exit 1; }
+          # Même limite que Release.MAX_APK_BYTES : au-delà, la box refuserait la mise à jour.
+          size=$(stat -c %s little-miss-party-quiz-tv.apk)
+          echo "Taille de l'APK : $((size / 1000000)) Mo"
+          [ "$size" -le 2147483648 ] || { echo "::error::APK de plus de 2 Go : la box refuserait la mise à jour"; exit 1; }
+          [ "$size" -le 400000000 ] || echo "::warning::APK de plus de 400 Mo : prévenir cedric (place libre de la Mi Box)"
       - uses: actions/upload-artifact@v4
         with:
           name: little-miss-party-quiz-tv
