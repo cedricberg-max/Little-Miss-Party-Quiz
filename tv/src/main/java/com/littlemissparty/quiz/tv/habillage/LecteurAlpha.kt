@@ -12,6 +12,8 @@ import android.opengl.GLES11Ext
 import android.opengl.GLES20
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.view.Surface
 import android.view.TextureView
@@ -34,8 +36,11 @@ void main() {
 """
 
 /**
- * Image de 576 × 1456 : couleur en haut (720 lignes, prémultipliée), 16 lignes noires, transparence en bas (720 lignes).
- * La bande noire évite que la compression mélange les deux moitiés ; le léger bruit du noir est effacé.
+ * Image : couleur en haut (rendu sur noir, donc prémultipliée), bande noire de 16 lignes pour 720, transparence en bas,
+ * dans ces proportions quelle que soit la taille du clip (848 × 2144 pour les petits, 1888 × 2148 en plein écran).
+ * La bande noire évite que la compression mélange les deux moitiés. La transparence est la silhouette nette du robot ;
+ * la lueur de ses néons reste dans la couleur seule et s'ajoute au décor comme de la lumière (cedric, 23/10 : plus de
+ * voile pâle autour du robot). Hors de la silhouette, le léger bruit du noir compressé est effacé.
  */
 internal const val SHADER_PIXELS = """
 #extension GL_OES_EGL_image_external : require
@@ -47,7 +52,8 @@ void main() {
     vec3 c = texture2D(uTex, (uM * vec4(v.x, 0.50549 + 0.49451 * v.y, 0.0, 1.0)).xy).rgb;
     float a = texture2D(uTex, (uM * vec4(v.x, 0.49451 * v.y, 0.0, 1.0)).xy).r;
     a = clamp((a - 0.04) / 0.92, 0.0, 1.0);
-    gl_FragColor = vec4(c * step(0.004, a), a);
+    c = mix(max(c - vec3(0.03), vec3(0.0)) / 0.97, c, a);
+    gl_FragColor = vec4(c, a);
 }
 """
 
@@ -88,6 +94,9 @@ internal fun programmeAlpha(): Int {
  * simplement pas de robot. Rien ici ne touche à la partie. [liberer] rend tout (lecteur, OpenGL, fil).
  * [boucleDepuisMs] ≥ 0 : à la fin, le clip repart de là, sans fin (podium, écran de fin : une entrée, puis une danse
  * qui boucle). Le clip a une image clé à cet endroit : le retour est immédiat.
+ * [boucle] : le clip tourne en boucle sans couture (disque du blind test) ; [vitesse] le ralentit et le fige.
+ * Box qui ne lit qu'une vidéo à la fois : le clip demande la puce vidéo au plateau ([GelFond]) et attend qu'il l'ait
+ * rendue avant d'ouvrir son lecteur.
  */
 internal class LecteurAlpha(
     context: Context,
@@ -95,6 +104,7 @@ internal class LecteurAlpha(
     private val surDebut: () -> Unit,
     private val surEchec: () -> Unit,
     private val boucleDepuisMs: Int = -1,
+    private val boucle: Boolean = false,
 ) : TextureView(context), TextureView.SurfaceTextureListener {
     private val fil = HandlerThread("robot-game-show").apply { start() }
     private val h = Handler(fil.looper)
@@ -112,14 +122,27 @@ internal class LecteurAlpha(
         .apply { put(floatArrayOf(-1f, -1f, 1f, -1f, -1f, 1f, 1f, 1f)); position(0) }
 
     @Volatile private var fini = false
+    @Volatile private var cible = 1f
+    private var prepare = false
+    private var image = false
+    private val seul = !Look.deuxVideos
+    private var demande = false
+    private var ouvert = false
 
     init {
         isOpaque = false
         surfaceTextureListener = this
+        if (seul) Handler(Looper.getMainLooper()).post {
+            if (!fini) {
+                GelFond.demander()
+                demande = true
+            }
+        }
     }
 
     override fun onSurfaceTextureAvailable(st: SurfaceTexture, largeur: Int, hauteur: Int) {
-        h.post { demarrer(st, largeur, hauteur) }
+        val depuis = SystemClock.uptimeMillis()
+        h.post { demarrer(st, largeur, hauteur, depuis) }
     }
 
     override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, largeur: Int, hauteur: Int) {
@@ -137,12 +160,21 @@ internal class LecteurAlpha(
 
     private fun echec(e: Throwable) {
         Log.w("Habillage", "Robot ignoré : ${e.message}")
-        post { surEchec() }
+        val avecFond = !seul && GelFond.fondsOuverts > 0
+        post {
+            if (avecFond) GelFond.uneSeuleVideo()
+            surEchec()
+        }
     }
 
-    private fun demarrer(st: SurfaceTexture, largeur: Int, hauteur: Int) {
+    private fun demarrer(st: SurfaceTexture, largeur: Int, hauteur: Int, depuis: Long) {
         if (fini) {
             st.release()
+            return
+        }
+        if (!clipPeutPartir(!seul, GelFond.fondsOuverts, SystemClock.uptimeMillis() - depuis)) {
+            ecran = st
+            h.postDelayed({ demarrer(st, largeur, hauteur, depuis) }, 50)
             return
         }
         ecran = st
@@ -180,11 +212,17 @@ internal class LecteurAlpha(
             val v = SurfaceTexture(texture).also { video = it }
             v.setOnFrameAvailableListener({ dessiner() }, h)
             val s = Surface(v).also { surfaceVideo = it }
+            GelFond.clipsOuverts.incrementAndGet()
+            ouvert = true
             lecteur = MediaPlayer().apply {
                 context.resources.openRawResourceFd(resId).use { setDataSource(it.fileDescriptor, it.startOffset, it.length) }
                 setSurface(s)
                 setOnInfoListener { _, quoi, _ ->
-                    if (quoi == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) post { surDebut() }
+                    if (quoi == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) {
+                        image = true
+                        if (cible != 1f) appliquerVitesse()
+                        post { surDebut() }
+                    }
                     false
                 }
                 setOnErrorListener { _, quoi, extra ->
@@ -197,7 +235,13 @@ internal class LecteurAlpha(
                         mp.start()
                     }
                 }
-                setOnPreparedListener { if (!fini) it.start() }
+                if (boucle) isLooping = true
+                setOnPreparedListener {
+                    if (!fini) {
+                        prepare = true
+                        it.start()
+                    }
+                }
                 prepareAsync()
             }
         } catch (e: Throwable) {
@@ -228,13 +272,49 @@ internal class LecteurAlpha(
         }
     }
 
+    /**
+     * Vitesse de lecture : 1 normale, entre les deux ralentie, 0 figée sur l'image en cours. Une box qui ne sait pas
+     * ralentir passe directement de l'un à l'autre. Avant la première image, la vitesse attend qu'elle soit là.
+     */
+    fun vitesse(v: Float) {
+        cible = v.coerceIn(0f, 1f)
+        h.post { appliquerVitesse() }
+    }
+
+    private fun appliquerVitesse() {
+        val mp = lecteur ?: return
+        if (fini || !prepare || !image) return
+        val v = cible
+        try {
+            if (v <= 0f) {
+                if (mp.isPlaying) mp.pause()
+            } else {
+                mp.playbackParams = mp.playbackParams.setSpeed(v)
+                if (!mp.isPlaying) mp.start()
+            }
+        } catch (e: Throwable) {
+            Log.w("Habillage", "Vitesse du clip ignorée : ${e.message}")
+            try {
+                if (v < 0.5f && mp.isPlaying) mp.pause() else if (v >= 0.5f && !mp.isPlaying) mp.start()
+            } catch (_: Throwable) {}
+        }
+    }
+
     /** Arrête le clip et rend tout ; sans effet la deuxième fois. */
     fun liberer() {
         if (fini) return
         fini = true
+        if (demande) {
+            demande = false
+            GelFond.rendre()
+        }
         h.post {
             try { lecteur?.release() } catch (_: Throwable) {}
             lecteur = null
+            if (ouvert) {
+                ouvert = false
+                GelFond.clipsOuverts.decrementAndGet()
+            }
             surfaceVideo?.release()
             surfaceVideo = null
             video?.release()

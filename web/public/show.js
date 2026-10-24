@@ -112,8 +112,11 @@ export function trackPoints(playlist, track, i, n) {
 }
 /** Image floue : temps pour que la photo devienne nette (secondes), le même pour tous les âges. */
 export const FLOU_SEC = 40;
-/** Durée d'un tour de mimes par défaut (secondes). */
-export const MIME_TURN = 60;
+/**
+ * Durée d'un tour de mimes par défaut (secondes) : 2 min (cedric, 24/10 : avec des enfants et le roulement des
+ * joueurs, une minute était bien trop court).
+ */
+export const MIME_TURN = 120;
 export const MAX_QUESTIONS = 200;
 
 /**

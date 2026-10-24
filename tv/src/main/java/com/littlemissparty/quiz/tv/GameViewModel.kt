@@ -235,6 +235,8 @@ data class MimeUi(
     val lastCard: MimeCard? = null,
     /** Points d'un mime ou d'un dessin trouvé. */
     val points: Int = Scoring.MIME,
+    /** Mimes en roulement : heure du mime trouvé, tant que l'image suivante attend le nouveau devineur (sinon null). */
+    val relais: Long? = null,
 )
 
 /**
@@ -869,7 +871,16 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         act { g -> if (g.justStarted(serverNow())) null else g.mimeFound(serverNow()) }
     }
 
-    fun mimePass() = act { it.mimePass(serverNow()) }
+    /**
+     * « Image suivante » à la télécommande. Juste après « Trouvé ! », le bouton prend le focus : un double clic sur OK
+     * ne montre pas l'image avant que le nouveau devineur soit dos à l'écran.
+     */
+    fun mimePass() {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastNextAt < NEXT_GUARD_MS) return
+        lastNextAt = now
+        act { it.mimePass(serverNow()) }
+    }
 
     /** Image floue à la télécommande (secours de la régie) : verdict sur la réponse orale de l'équipe qui a buzzé. */
     fun judgeBuzz(ok: Boolean) {
@@ -1076,6 +1087,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                         team = m?.team, card = g.mimeCard.takeIf { !q.isPicto }, found = m?.found ?: 0, passed = m?.passed ?: 0,
                         left = m?.deck?.size ?: 0, last = m?.last, counts = mimeCounts, turns = m?.turns.orEmpty(),
                         picto = q.isPicto, secret = m?.secret, chosen = m?.pick != null, lastCard = g.lastCard, points = s.pointsPerFound(q.id),
+                        relais = m?.takeIf { it.team != null }?.relais,
                     )
                 },
             )
@@ -1651,6 +1663,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         CrashReporter.upload(getApplication<Application>(), db)
+        // Incidents du son (boucle qui s'arrête toute seule, lecteur en erreur) : dans les rapports de la box.
+        com.littlemissparty.quiz.tv.habillage.Sons.rapporteur = { texte -> CrashReporter.report(db, "son", texte) }
         return db
     }
 

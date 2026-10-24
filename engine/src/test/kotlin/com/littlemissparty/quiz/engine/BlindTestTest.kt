@@ -248,7 +248,7 @@ class BlindTestTest {
         val quiz = QuizJson.parse(
             """{"id":"p","questions":[
               {"id":"b","text":"Quel est ce titre ?","choices":["Libérée, délivrée"],"correct":0,"kind":"blind","duration":30,"artist":" La Reine des neiges ","audioId":"$audio","points":200,"reveal":9,"imageId":"fedcba9876543210"},
-              {"id":"m","text":"Quel est ce titre ?","choices":["A","B","C","D"],"correct":2,"audioId":"$audio","artist":"ignoré hors blind test","points":500},
+              {"id":"m","text":"Quel est ce titre ?","choices":["A","B","C","D"],"correct":2,"audioId":"$audio","artist":"Montré à la révélation","points":500},
               {"id":"x","text":"Sans extrait","choices":["Titre"],"correct":0,"kind":"blind","audioId":"pas-une-empreinte"}]}""",
         )
         assertEquals(listOf(QuestionKind.BLIND, QuestionKind.CLASSIC, QuestionKind.BLIND), quiz.questions.map { it.kind })
@@ -257,7 +257,8 @@ class BlindTestTest {
         assertEquals(9, quiz.questions[0].revealSec)
         assertEquals("fedcba9876543210", quiz.questions[0].imageId, "la pochette")
         assertNull(quiz.questions[1].points, "la valeur d'un morceau ne concerne que le blind test")
-        assertNull(quiz.questions[1].artist)
+        // Quiz musical (cedric, 24/10) : sa révélation reprend celle du blind test, l'artiste compris.
+        assertEquals("Montré à la révélation", quiz.questions[1].artist)
         assertNull(quiz.questions[2].audioId, "une empreinte mal formée est ignorée, sans refuser la prestation")
         assertEquals(Scoring.BLIND_POINTS, quiz.questions[2].trackPoints)
 

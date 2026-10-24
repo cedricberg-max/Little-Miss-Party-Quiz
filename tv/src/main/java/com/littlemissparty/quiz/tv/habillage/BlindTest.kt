@@ -58,6 +58,13 @@ import kotlinx.coroutines.delay
  */
 @Composable
 fun BlindTestBoard(joue: Boolean, manquant: Boolean, modifier: Modifier = Modifier) {
+    // Game Show : la platine néon (disque en 3D, lasers, hologramme) ; elle reprend celle-ci s'il lui manque un fichier.
+    if (Look.gs) PlatineNeonGs(joue, manquant, modifier) { BlindTestBoardClassique(joue, manquant, modifier) }
+    else BlindTestBoardClassique(joue, manquant, modifier)
+}
+
+@Composable
+private fun BlindTestBoardClassique(joue: Boolean, manquant: Boolean, modifier: Modifier) {
     // Tours par seconde : 33 tours/min ≈ 0,55 ; le disque s'arrête net au buzz et repart en 0,4 s.
     val vitesse by animateFloatAsState(if (joue) 0.55f else 0f, tween(if (joue) 400 else 200), label = "vinyle")
     val angle = remember { mutableFloatStateOf(0f) }

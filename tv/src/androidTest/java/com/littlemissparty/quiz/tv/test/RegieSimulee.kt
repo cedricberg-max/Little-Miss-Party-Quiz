@@ -26,7 +26,7 @@ class RegieSimulee : AutoCloseable {
 
     init {
         Emulateur.brancher(auth, base)
-        uid = bloquer { auth.signInAnonymously().await().user!!.uid }
+        uid = connexionAnonyme(auth)
     }
 
     /** Comme le bouton « Accès régie » : renvoie true si le serveur accepte le mot de passe. */

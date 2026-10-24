@@ -65,58 +65,74 @@ body.look-gs::after {
 }
 .look-gs .dot { box-shadow: 0 0 10px var(--team); }
 
-/* Buzzer « Réacteur » (choix de cedric du 23 octobre) : un cœur lumineux de la couleur de l'équipe, cerclé de cyan,
-   avec deux anneaux qui tournent doucement autour ; à l'appui, il flashe et envoie une onde de choc. Même taille et
-   même place que le buzzer classique (--t reprend ses largeurs). Tous les effets restent dans le carré du bouton :
-   en paysage il touche le bord de l'écran, rien n'y est coupé. Les anneaux ne tournent que par transform : rien ne
-   se redessine, la tablette ne chauffe pas. */
+/* Buzzer « Boule de plasma » (proposition A, 24 octobre) : une sphère d'énergie de la couleur de l'équipe, chauffée à
+   blanc au cœur, entourée d'une couronne de lumière ; dedans, des nuages de lumière tournent lentement et des arcs
+   électriques courent sur le bord. À l'appui : le plasma est aspiré au centre puis explose, les arcs partent en onde de
+   choc jusqu'au bord. Même taille et même place que le buzzer classique (--t). Tout reste dans le rond du bouton (pas
+   de débordement, rien n'est coupé en paysage). Seuls transform (rotate/scale) et opacity sont animés : les dégradés
+   sont dessinés une fois, la tablette ne fait que les tourner et les fondre. */
 .look-gs .buzz {
   --t: min(78vw, 60vh);
-  position: relative; width: var(--t); height: var(--t); border: 0;
-  /* Les anneaux qui tournent restent dans le rond : sans ça, leurs coins débordent et l'écran défile de côté. */
-  overflow: hidden;
-  font-family: "GS Orbitron"; font-weight: 900; font-size: calc(var(--t) * .14); letter-spacing: .08em; padding-left: .08em; color: #fff;
-  text-shadow: 0 0 10px #fff, 0 0 30px var(--team);
+  --cl: color-mix(in srgb, var(--team) 50%, #fff);
+  --cd: color-mix(in srgb, var(--team) 42%, #000);
+  position: relative; isolation: isolate; width: var(--t); height: var(--t); border: 0; border-radius: 50%; overflow: hidden;
+  font-family: "GS Orbitron"; font-weight: 900; font-size: calc(var(--t) * .14); letter-spacing: .08em; padding: 0 0 0 .08em; color: #fff;
+  text-shadow: 0 0 3px var(--cd), 0 0 3px var(--cd), 0 0 14px var(--cd), 0 0 26px #fff;
   background:
-    radial-gradient(circle at 50% 33%, rgba(255, 255, 255, .7), transparent 21%),
+    radial-gradient(ellipse 34% 19% at 41% 23%, rgba(255, 255, 255, .55), transparent 72%),
     radial-gradient(circle closest-side,
-      color-mix(in srgb, var(--team) 60%, #fff) 0 7%, var(--team) 25%, color-mix(in srgb, var(--team) 45%, #000) 52%, #12051f 69%,
-      #1b1033 69.5% 71.5%, var(--gs-cyan) 72% 74%,
-      color-mix(in srgb, var(--team) 55%, transparent) 74.5%, transparent 90%);
+      #fff 0 5%, var(--cl) 17%, var(--team) 42%, color-mix(in srgb, var(--team) 72%, #000) 68%, var(--team) 75%, var(--cl) 78.5%, #fff 79.5%,
+      color-mix(in srgb, var(--team) 85%, transparent) 81.5%, color-mix(in srgb, var(--team) 38%, transparent) 89%, transparent 99%),
+    #06021a;
   box-shadow: none;
-  transition: transform .08s, filter .3s;
+  animation: gsa-souffle 2.4s ease-in-out infinite alternate;
+  transition: transform .08s;
+  -webkit-tap-highlight-color: transparent;
 }
-.look-gs .buzz::before, .look-gs .buzz::after { content: ""; position: absolute; border-radius: 50%; pointer-events: none; }
-/* Anneau extérieur en pointillés cyan. */
+.look-gs .buzz::before, .look-gs .buzz::after { content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none; z-index: -1; }
+/* Nuages de plasma : cinq taches de lumière décentrées qui tournent dans la sphère. */
 .look-gs .buzz::before {
-  inset: 0; border: 3px dashed rgba(0, 240, 255, .75); box-shadow: inset 0 0 24px rgba(0, 240, 255, .3);
-  animation: gs-reacteur 14s linear infinite;
+  background:
+    radial-gradient(circle at 32% 36%, rgba(255, 255, 255, .7), transparent 19%),
+    radial-gradient(circle at 66% 30%, var(--cl), transparent 21%),
+    radial-gradient(circle at 63% 70%, rgba(255, 255, 255, .55), transparent 18%),
+    radial-gradient(circle at 33% 68%, color-mix(in srgb, var(--team) 80%, #fff), transparent 21%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, .5), transparent 22%);
+  -webkit-mask: radial-gradient(circle closest-side, #000 0 62%, transparent 79%);
+  mask: radial-gradient(circle closest-side, #000 0 62%, transparent 79%);
+  opacity: .85;
+  animation: gsa-tourne 7s linear infinite;
 }
-/* Quatre arcs lumineux qui tournent dans l'autre sens. */
+/* Arcs électriques sur le bord de la sphère (traits de lumière blanche), qui tournent dans l'autre sens. */
 .look-gs .buzz::after {
-  inset: 5%;
-  background: conic-gradient(var(--gs-cyan) 0 8%, transparent 8% 25%, var(--gs-cyan) 25% 33%, transparent 33% 50%, var(--gs-cyan) 50% 58%, transparent 58% 75%, var(--gs-cyan) 75% 83%, transparent 83%);
-  -webkit-mask: radial-gradient(circle closest-side, transparent 88%, #000 89% 95%, transparent 96%);
-  mask: radial-gradient(circle closest-side, transparent 88%, #000 89% 95%, transparent 96%);
-  filter: drop-shadow(0 0 6px var(--gs-cyan));
-  animation: gs-reacteur 9s linear infinite reverse;
+  background: conic-gradient(#fff 0 3%, transparent 5.5% 11%, var(--cl) 12% 15%, transparent 17% 27%, #fff 28% 32%, transparent 34.5% 41%,
+    var(--cl) 42% 44%, transparent 46% 55%, #fff 56% 60%, transparent 62.5% 69%, var(--cl) 70% 73%, transparent 75% 84%,
+    #fff 85% 89%, transparent 91.5%);
+  -webkit-mask: radial-gradient(circle closest-side, transparent 73%, #000 77.5% 81%, transparent 86%);
+  mask: radial-gradient(circle closest-side, transparent 73%, #000 77.5% 81%, transparent 86%);
+  animation: gsa-tourne 4.5s linear infinite reverse;
 }
-@keyframes gs-reacteur { to { transform: rotate(360deg); } }
-.look-gs .buzz:active { transform: scale(.96); filter: brightness(1.25) saturate(1.3); box-shadow: none; }
-.look-gs .buzz:disabled { filter: grayscale(.8) brightness(.6); }
-.look-gs .buzz:disabled::before, .look-gs .buzz:disabled::after { animation-play-state: paused; }
-/* Appui : flash, et l'anneau extérieur part du cœur jusqu'au bord, comme une onde de choc. */
-.look-gs .buzz.bump { animation: gs-flash .6s ease-out; }
-.look-gs .buzz.bump::before { animation: gs-reacteur 14s linear infinite, gs-onde .6s ease-out; }
-@keyframes gs-flash { 0% { transform: scale(.94); filter: brightness(1.5); } 100% { transform: none; filter: none; } }
-@keyframes gs-onde {
-  0% { scale: .72; border-style: solid; border-color: #fff; box-shadow: inset 0 0 30px var(--gs-cyan), 0 0 0 transparent; }
-  100% { scale: 1; border-color: rgba(0, 240, 255, .75); box-shadow: inset 0 0 24px rgba(0, 240, 255, .3); }
-}
-/* L'équipe qui a la main : le cœur pulse et l'anneau extérieur devient blanc. */
-.look-gs .buzz.winner { animation: gs-gagne .6s ease-in-out infinite alternate; }
-.look-gs .buzz.winner::before { border: 4px solid #fff; box-shadow: inset 0 0 30px var(--team), inset 0 0 60px color-mix(in srgb, var(--team) 60%, transparent); }
-@keyframes gs-gagne { to { filter: brightness(1.35) saturate(1.2); } }
+@keyframes gsa-souffle { from { scale: .965; } to { scale: 1; } }
+@keyframes gsa-tourne { to { rotate: 360deg; } }
+.look-gs .buzz:active { transform: scale(.95); box-shadow: none; filter: none; }
+/* Appui : le plasma est aspiré au centre et revient en éclatant ; les arcs partent en onde de choc vers le bord. */
+.look-gs .buzz.bump::before { animation: gsa-tourne 7s linear infinite, gsa-aspire .7s cubic-bezier(.3, 0, .2, 1); }
+.look-gs .buzz.bump::after { animation: gsa-tourne 4.5s linear infinite reverse, gsa-onde .7s ease-out; }
+@keyframes gsa-aspire { 0% { scale: 1; opacity: .8; } 18% { scale: .25; opacity: 1; } 45% { scale: 1.25; opacity: 1; } 100% { scale: 1; opacity: .8; } }
+@keyframes gsa-onde { 0% { scale: 1; opacity: 1; } 16% { scale: .3; opacity: 1; } 70% { scale: 1.22; opacity: 0; } 71% { scale: .9; opacity: 0; } 100% { scale: 1; opacity: 1; } }
+/* Éclair blanc à l'appui (un tiers de seconde, une seule fois). */
+.look-gs .buzz.bump { animation: gsa-souffle 2.4s ease-in-out infinite alternate, gsa-eclair .4s ease-out; }
+@keyframes gsa-eclair { 0% { filter: brightness(1); } 22% { filter: brightness(1.85) saturate(1.15); } 100% { filter: brightness(1); } }
+/* L'équipe qui a la main : la sphère bat plus vite et plus fort, le plasma s'emballe. */
+.look-gs .buzz.winner { animation: gsa-gagne .45s ease-in-out infinite alternate; }
+.look-gs .buzz.winner::before { opacity: 1; animation-duration: 2.2s; }
+.look-gs .buzz.winner::after { animation-duration: 1.6s; }
+@keyframes gsa-gagne { from { scale: .93; } to { scale: 1; } }
+/* La tablette ne peut plus buzzer quand elle a la main (bouton désactivé) : la boule reste pleinement allumée. */
+.look-gs .buzz.winner { filter: none; }
+/* Bloqué ou fermé : la sphère s'éteint presque (braise sombre), plus rien ne tourne : la tablette ne calcule plus rien. */
+.look-gs .buzz:disabled:not(.winner) { filter: saturate(.3) brightness(.5); animation-play-state: paused; }
+.look-gs .buzz:disabled:not(.winner)::before, .look-gs .buzz:disabled:not(.winner)::after { animation-play-state: paused; opacity: .35; }
 @media (orientation: landscape) and (min-width: 600px) { .look-gs .buzz { --t: min(46vw, 74vh); } }
 .look-gs #app .buzz { font-size: calc(var(--t) * .14); border-width: 0; }
 

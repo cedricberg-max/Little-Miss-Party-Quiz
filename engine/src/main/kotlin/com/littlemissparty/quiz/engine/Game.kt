@@ -169,6 +169,12 @@ data class MimeRound(
     val shownAt: Long? = null,
     /** Heure du serveur où le tour en cours (ou le dernier) a commencé : clé du dessin de ce tour. */
     val started: Long? = null,
+    /**
+     * Mimes en roulement (cedric, 24/10) : heure du dernier mime trouvé, tant que l'image suivante n'est pas montrée.
+     * Deux autres joueurs de l'équipe prennent le relais (« Changement de joueur ») ; l'image reste cachée jusqu'à
+     * « Image suivante » de l'animatrice, une fois le nouveau devineur dos à l'écran. Le chrono, lui, continue.
+     */
+    val relais: Long? = null,
 )
 
 /** Bilan d'un tour ; [card] : le mot joué (Pictionary), montré à tous une fois le tour fini. */
@@ -486,19 +492,22 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                     // au fond, pour qu'aucune autre équipe ne les revoie avant que le paquet soit épuisé.
                     deck = if (picto) listOf(m.pick!!) + (m.deck - m.offer.toSet()) + (m.offer - m.pick) else m.deck.ifEmpty { cards.indices.toList() },
                     team = e.team, found = 0, passed = 0, turns = m.turns + e.team, secret = null, offer = emptyList(), pick = null, started = e.at,
+                    relais = null,
                 ),
             )
         }
         is MimeFound -> {
             val m = s.mime
             val team = m?.team
-            if (m == null || team == null || s.paused) null
+            // Pendant le changement de joueur, aucune image n'est montrée : rien à trouver (un double appui ne compte pas).
+            if (m == null || team == null || s.paused || m.relais != null) null
             else {
                 val qid = s.qid!!
                 val counts = s.mimes[qid].orEmpty()
                 val next = s.copy(
                     mimes = s.mimes + (qid to counts + (team to (counts[team] ?: 0) + 1)),
-                    mime = m.copy(deck = m.deck.drop(1), found = m.found + 1),
+                    // L'image suivante attend « Image suivante » : le temps que deux autres joueurs prennent le relais.
+                    mime = m.copy(deck = m.deck.drop(1), found = m.found + 1, relais = e.at),
                 )
                 // Paquet épuisé, ou dessin du Pictionary trouvé (un mot par tour) : le tour s'arrête de lui-même.
                 if (next.mime!!.deck.isEmpty() || quiz.questions.getOrNull(s.index)?.isPicto == true) endTurn(next, e.at, m.deck.firstOrNull())
@@ -519,7 +528,10 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
                     s.copy(mime = m.copy(deck = deck, offer = deck.take(PICTO_OFFER), pick = null, passed = m.passed + 1, shownAt = e.at))
                 }
             }
-            else if (m.team == null || m.deck.size < 2) null
+            else if (m.team == null) null
+            // Changement de joueur : « Image suivante » montre l'image qui attendait, sans la passer.
+            else if (m.relais != null) s.copy(mime = m.copy(relais = null))
+            else if (m.deck.size < 2) null
             else s.copy(mime = m.copy(deck = m.deck.drop(1) + m.deck.first(), passed = m.passed + 1))
         }
         is MimeCorrected -> {
@@ -688,7 +700,7 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         val picto = quiz.questions.getOrNull(s.index)?.isPicto == true
         return s.copy(
             segments = s.segments.map { if (it.end == null) it.copy(end = maxOf(at, it.start)) else it },
-            mime = m.copy(team = null, found = 0, passed = 0, last = MimeTurn(m.team!!, m.found, m.passed, card.takeIf { picto })),
+            mime = m.copy(team = null, found = 0, passed = 0, relais = null, last = MimeTurn(m.team!!, m.found, m.passed, card.takeIf { picto })),
         )
     }
 
@@ -1169,7 +1181,8 @@ class Game(val quiz: Quiz, history: List<GameEvent> = emptyList()) {
         val m = state.mime ?: return null
         // Pictionary, pendant le choix : le mot choisi par le dessinateur (aucun tant qu'il hésite).
         if (m.secret != null) return m.pick?.let { question?.cards?.getOrNull(it) }
-        return m.takeIf { it.team != null }?.deck?.firstOrNull()?.let { question?.cards?.getOrNull(it) }
+        // Changement de joueur : l'image suivante reste cachée jusqu'à « Image suivante ».
+        return m.takeIf { it.team != null && it.relais == null }?.deck?.firstOrNull()?.let { question?.cards?.getOrNull(it) }
     }
 
     /** Pictionary : les mots proposés au dessinateur pendant qu'il choisit. */

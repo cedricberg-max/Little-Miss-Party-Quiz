@@ -28,6 +28,18 @@ fun pointsMultiplies(facteur: Int): String = when (facteur) {
     else -> "POINTS × $facteur !"
 }
 
+/** Titre de l'annonce : « DERNIÈRES QUESTIONS », ou « DERNIÈRES AFFIRMATIONS » au Vrai ou Faux express. */
+fun titreDernieres(restantes: Int, affirmations: Boolean = false): String {
+    val mot = if (affirmations) "AFFIRMATION" else "QUESTION"
+    return if (restantes > 1) "DERNIÈRES ${mot}S" else "DERNIÈRE $mot"
+}
+
+/** « Encore 3 questions pour tout changer ! », « Une dernière affirmation pour tout changer ! »… */
+fun encoreDernieres(restantes: Int, affirmations: Boolean = false): String {
+    val mot = if (affirmations) "affirmation" else "question"
+    return if (restantes > 1) "Encore $restantes ${mot}s pour tout changer !" else "Une dernière $mot pour tout changer !"
+}
+
 /**
  * Dernières questions du quiz à points multipliés : « DERNIÈRES QUESTIONS », le « × N » choisi par Sarah dans la
  * régie qui claque en géant sur l'éclat de cuivres, puis le nombre de questions qui restent. Par-dessus tout
@@ -35,9 +47,10 @@ fun pointsMultiplies(facteur: Int): String = when (facteur) {
  * nouveau jeu (ni rideau ni jingle de manche). N'affiche que ce qu'on lui donne et ne joue aucun son.
  *
  * @param restantes questions à points multipliés, celle-ci comprise
+ * @param affirmations Super Finale du Vrai ou Faux express : on parle d'affirmations, pas de questions
  */
 @Composable
-fun AnnonceMultiplicateur(facteur: Int, restantes: Int, modifier: Modifier = Modifier) {
+fun AnnonceMultiplicateur(facteur: Int, restantes: Int, modifier: Modifier = Modifier, affirmations: Boolean = false) {
     val cle = facteur to restantes
     val ms = horloge(cle)
     Echelle(1600.dp, 700.dp, modifier.fillMaxSize().background(Neon.Fond.copy(alpha = 0.92f))) {
@@ -45,7 +58,7 @@ fun AnnonceMultiplicateur(facteur: Int, restantes: Int, modifier: Modifier = Mod
         Gerbe(cle = cle)
         Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                if (restantes > 1) "DERNIÈRES QUESTIONS" else "DERNIÈRE QUESTION",
+                titreDernieres(restantes, affirmations),
                 color = Neon.Halo, fontSize = 44.sp, fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
                 modifier = Modifier.apparition(0, cle),
             )
@@ -60,7 +73,7 @@ fun AnnonceMultiplicateur(facteur: Int, restantes: Int, modifier: Modifier = Mod
             )
             Spacer(Modifier.height(16.dp))
             Text(
-                if (restantes > 1) "Encore $restantes questions pour tout changer !" else "Une dernière question pour tout changer !",
+                encoreDernieres(restantes, affirmations),
                 color = Neon.Blanc.copy(alpha = 0.8f), fontSize = 34.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
                 modifier = Modifier.apparition(3000, cle),
             )

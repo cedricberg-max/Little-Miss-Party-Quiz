@@ -54,8 +54,9 @@ fun ExtraitMusical(q: Question, state: UiState.Playing) {
     // Blind test : la révélation fait réentendre l'extrait quelques secondes, ou s'arrête si l'animatrice raccourcit.
     val coupe = q.isBlind && state.blind?.cut == true
     // Refrain préparé dans la Régie PC : c'est lui qui joue à la révélation, en boucle, à la place de l'extrait.
-    val refrain = q.refrainId?.takeIf { q.isBlind }?.let { state.sounds[it] }
-    if (revealed && refrain != null && !coupe && !state.paused) RefrainEnBoucle(q.id, refrain)
+    // Quiz musical : seulement quelques secondes, puis il s'éteint en fondu (cedric, 24/10 : « un peu plus vite »).
+    val refrain = q.refrainId?.takeIf { q.isBlind || q.isMusical }?.let { state.sounds[it] }
+    if (revealed && refrain != null && !coupe && !state.paused) RefrainEnBoucle(q.id, refrain, dureeMs = MUSICAL_REVELATION_MS.takeIf { q.isMusical })
     val enCours = state.phase == Phase.QUESTION && state.deadline != null && !state.paused
     LaunchedEffect(player, enCours, revealed, coupe, state.deadline, state.resumeAt) {
         runCatching {
@@ -67,6 +68,11 @@ fun ExtraitMusical(q: Question, state: UiState.Playing) {
                     if (q.isBlind && q.revealSec > 0) {
                         delay(q.revealSec * 1000L)
                         if (player.isPlaying) player.pause()
+                    }
+                    // Quiz musical sans refrain préparé : l'extrait repart pour quelques secondes d'ambiance, puis s'éteint.
+                    if (q.isMusical) {
+                        delay((MUSICAL_REVELATION_MS - FONDU_REFRAIN_MS).coerceAtLeast(0))
+                        eteindre(player)
                     }
                 }
                 enCours -> {
@@ -88,6 +94,24 @@ fun ExtraitMusical(q: Question, state: UiState.Playing) {
 private const val FONDU_REFRAIN_MS = 2_000L
 
 /**
+ * Quiz musical, révélation (cedric, 24/10) : la bonne réponse s'allume d'abord sur les cartes pendant [MUSICAL_GRILLE_MS],
+ * puis la scène du blind test (pochette, titre, paroles) ; la musique dure [MUSICAL_REVELATION_MS] en tout, fondu compris.
+ */
+const val MUSICAL_GRILLE_MS = 2_500L
+const val MUSICAL_REVELATION_MS = 15_000L
+
+/** Baisse le son de [l] jusqu'au silence en [FONDU_REFRAIN_MS], puis l'arrête. */
+private suspend fun eteindre(l: MediaPlayer) {
+    val pas = 10
+    for (k in 1..pas) {
+        delay(FONDU_REFRAIN_MS / pas)
+        val v = 1f - k / pas.toFloat()
+        l.setVolume(v, v)
+    }
+    if (l.isPlaying) l.pause()
+}
+
+/**
  * Où en est le refrain qu'on entend (millisecondes depuis le début de son extrait) : les paroles de la révélation se
  * calent dessus à chaque image. Null quand aucun refrain ne joue. À chaque boucle, la position repart de zéro.
  */
@@ -103,10 +127,11 @@ object PositionRefrain {
 /**
  * Blind test, révélation : le refrain (environ 90 s) joue plus fort que l'extrait et repart en boucle, avec un
  * fondu enchaîné, jusqu'au « Titre suivant » de l'animatrice (le composant disparaît alors, la musique s'arrête).
- * Deux lecteurs se relaient : le second démarre en fondu pendant que le premier s'éteint.
+ * Deux lecteurs se relaient : le second démarre en fondu pendant que le premier s'éteint. Avec [dureeMs] (Quiz
+ * musical) : un seul passage, qui s'éteint en fondu au bout de ce temps.
  */
 @Composable
-fun RefrainEnBoucle(cle: String, path: String) {
+fun RefrainEnBoucle(cle: String, path: String, dureeMs: Long? = null) {
     val lecteurs = remember(cle, path) {
         runCatching {
             List(2) {
@@ -134,6 +159,12 @@ fun RefrainEnBoucle(cle: String, path: String) {
             lecteurs[0].setVolume(1f, 1f)
             lecteurs[0].start()
             PositionRefrain.suivre(lecteurs[0])
+            if (dureeMs != null) {
+                val fin = minOf(dureeMs, lecteurs[0].duration.toLong().coerceAtLeast(FONDU_REFRAIN_MS))
+                delay((fin - FONDU_REFRAIN_MS).coerceAtLeast(0))
+                eteindre(lecteurs[0])
+                return@runCatching
+            }
             while (true) {
                 val actuel = lecteurs[i]
                 val suivant = lecteurs[1 - i]

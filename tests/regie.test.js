@@ -209,21 +209,23 @@ function startBox({ silent = false, held = false, host = HOST, from = null, seen
       counts[team] = Math.max(0, (counts[team] ?? 0) + d);
       return { ...st.scores, [team]: (st.scores[team] ?? 0) + (counts[team] - (m.counts?.[team] ?? 0)) * 50 };
     };
-    const endTurn = (x) => ({ ...x, deadline: null, mime: { ...x.mime, team: null, card: null, found: 0, passed: 0, last: { team: m.team, found: x.mime.found, passed: x.mime.passed } } });
+    const endTurn = (x) => ({ ...x, deadline: null, mime: { ...x.mime, team: null, card: null, found: 0, passed: 0, relais: null, last: { team: m.team, found: x.mime.found, passed: x.mime.passed } } });
     switch (cmd.type) {
       case "mime_start":
         if (m.team) return null;
         // Paquet épuisé par les équipes précédentes : rebattu pour que chaque équipe ait son tour.
         if (!deck.length) deck = [...allCards];
-        return { ...st, seq, deadline: Date.now() + 60000, mime: { ...m, team: cmd.team, card: deck[0], found: 0, passed: 0, turns: [...(m.turns ?? []), cmd.team] } };
+        return { ...st, seq, deadline: Date.now() + 60000, mime: { ...m, team: cmd.team, card: deck[0], found: 0, passed: 0, relais: null, turns: [...(m.turns ?? []), cmd.team] } };
       case "mime_found": {
-        if (!m.team) return null;
+        // Roulement (comme Game.kt) : l'image suivante attend le changement de joueur.
+        if (!m.team || m.relais) return null;
         const scores = add(m.team, 1);
         deck = deck.slice(1);
-        const next = { ...st, seq, scores, mime: { ...m, counts, card: deck[0] ?? null, left: deck.length, found: m.found + 1 } };
+        const next = { ...st, seq, scores, mime: { ...m, counts, card: null, relais: Date.now(), left: deck.length, found: m.found + 1 } };
         return deck.length ? next : endTurn(next);
       }
       case "mime_pass":
+        if (m.team && m.relais) return { ...st, seq, mime: { ...m, relais: null, card: deck[0] } };
         if (!m.team || deck.length < 2) return null;
         deck = [...deck.slice(1), deck[0]];
         return { ...st, seq, mime: { ...m, card: deck[0], passed: m.passed + 1 } };
@@ -714,8 +716,21 @@ describe("régie", () => {
     await page.locator("#mime-go", { hasText: "Top départ ! (Les Bleus)" }).click();
     await page.locator("#mime-now .word", { hasText: "Chat" }).waitFor();
     await page.locator("#c-next", { hasText: "Arrêter le tour" }).waitFor();
+    assert.equal(await page.textContent("#mime-pass"), "Image suivante");
     await page.click("#mime-found");
+    // Roulement (cedric, 24/10) : changement de joueur, l'image suivante attend ; « Trouvé » grisé à sa place.
+    await page.locator("#mime.relais").waitFor();
+    await page.locator("#mime-info", { hasText: "🔄 Changement de joueur : dès que le nouveau devineur est dos à l'écran, touchez « Image suivante »." }).waitFor();
+    assert.equal(await page.locator("#mime-now").isHidden(), true, "Pas d'image avant le relais");
+    assert.equal(await page.locator("#mime-found").isDisabled(), true);
+    assert.equal(await page.locator("#mime-found").isVisible(), true, "« Trouvé » reste à sa place");
+    assert.equal(await page.textContent("#mime-pass"), "▶ Image suivante");
+    assert.match(await page.getAttribute("#mime-pass", "class"), /\bmain\b/);
+    await capture(page, "regie-mimes-changement-de-joueur");
+    await page.click("#mime-pass");
     await page.locator("#mime-now .word", { hasText: "Pirate" }).waitFor();
+    assert.equal(await page.locator("#mime.relais").count(), 0);
+    assert.equal(await page.textContent("#mime-pass"), "Image suivante");
     await page.click("#mime-pass");
     await page.locator("#mime-now .word", { hasText: "Pizza" }).waitFor();
     await page.click("#mime-found");
@@ -730,14 +745,14 @@ describe("régie", () => {
     // L'équipe suivante proposée est celle qui n'a pas encore joué.
     await page.locator(".mime-team.selected", { hasText: "Les Roses" }).waitFor();
     await page.locator("#mime-progress", { hasText: "Déjà passées : Les Bleus · Restent : Les Roses" }).waitFor();
-    assert.deepEqual((await commands()).map((c) => c.type), ["mime_start", "mime_found", "mime_pass", "mime_found", "mime_fix", "close", "mime_fix"]);
+    assert.deepEqual((await commands()).map((c) => c.type), ["mime_start", "mime_found", "mime_pass", "mime_pass", "mime_found", "mime_fix", "close", "mime_fix"]);
     assert.deepEqual((await commands()).find((c) => c.type === "mime_start").team, "bleu");
     // Terminer avant que toutes les équipes soient passées : confirmation, et rien n'est envoyé si on renonce.
     await page.click("#c-next");
     const asked = await respond(page, false);
     await page.waitForTimeout(300);
     assert.match(asked, /Les Roses n'est pas encore passée/);
-    assert.equal((await commands()).length, 7);
+    assert.equal((await commands()).length, 8);
     // Les Roses jouent (paquet rebattu au besoin), puis le classement sans confirmation.
     await page.click("#mime-go");
     await page.locator("#mime-found:not([hidden]):not([disabled])").waitFor();
@@ -2958,6 +2973,9 @@ describe("bibliothèque de quiz et prestations", () => {
       await ligne(titre).getByRole("button", { name: "⏱ Réglé ✓" }).click();
       await page.locator("#playlist-edit-title", { hasText: `Réglages de « ${titre} »` }).waitFor();
       await page.locator(".track.reglage").waitFor();
+      // La recherche de la chanson entière (absente ici) redessine les réglages quand elle finit : taper avant, c'est
+      // taper dans un champ qui disparaît (vu sur GitHub le 24/10 : l'artiste renommé jamais enregistré).
+      await page.locator(".track.reglage .reglage-manque", { hasText: "Les curseurs attendent la chanson entière" }).waitFor();
       return avant;
     };
 

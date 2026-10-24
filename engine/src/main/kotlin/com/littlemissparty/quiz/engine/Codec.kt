@@ -144,6 +144,8 @@ object Codec {
         "found" to (m?.found ?: 0),
         "passed" to (m?.passed ?: 0),
         "left" to (m?.deck?.size ?: 0),
+        // Changement de joueur en cours : l'image suivante attend « Image suivante ».
+        "relais" to m?.takeIf { it.team != null }?.relais,
         "turns" to m?.turns.orEmpty(),
         "last" to m?.last?.let { mapOf("team" to it.team, "found" to it.found, "passed" to it.passed, "word" to game.lastCard?.word, "image" to game.lastCard?.image) + listOfNotNull(game.lastCard?.imageId?.let { "imageId" to it }) },
         "points" to game.state.qid?.let(game.state::pointsPerFound),

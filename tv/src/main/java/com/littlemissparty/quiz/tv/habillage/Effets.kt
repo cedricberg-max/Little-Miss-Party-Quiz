@@ -36,6 +36,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -77,6 +78,9 @@ fun Modifier.apparition(delaiMs: Long, cle: Any?): Modifier = composed {
     graphicsLayer {
         val x = v.value
         alpha = x.coerceIn(0f, 1f)
+        // Transparence posée sur chaque dessin, sans calque intermédiaire à la taille du texte : sinon, sur la TV,
+        // la lueur des titres néon est coupée net au bord du texte et dessine un carré qui clignote (cedric, 23/10).
+        compositingStrategy = CompositingStrategy.ModulateAlpha
         scaleX = 0.82f + 0.18f * x
         scaleY = 0.82f + 0.18f * x
     }

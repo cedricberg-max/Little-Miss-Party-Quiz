@@ -258,6 +258,9 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .mime-found:disabled { opacity: .5; }
 .regie .mime-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .regie .mime-row .btn { min-height: 72px; font-size: 22px; }
+/* Mimes en roulement (cedric, 24/10) : pendant le changement de joueur, « Image suivante » prend toute la largeur ;
+   « TROUVÉ ! » reste à sa place, grisé, pour qu'un double appui ne tombe jamais sur « Image suivante ». */
+.regie .mime.relais #mime-pass { grid-column: 1 / -1; min-height: 110px; font-size: 28px; }
 
 /* Image floue : une équipe a buzzé, l'animatrice juge sa réponse orale */
 .regie .flou { display: flex; flex-direction: column; gap: 10px; }

@@ -26,7 +26,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
@@ -52,13 +54,17 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.littlemissparty.quiz.tv.habillage.CarteQuiz3d
+import com.littlemissparty.quiz.tv.habillage.ChronoAnneau3d
 import com.littlemissparty.quiz.tv.habillage.Couronne
 import com.littlemissparty.quiz.tv.habillage.GS
 import com.littlemissparty.quiz.tv.habillage.LogoQuiz
+import com.littlemissparty.quiz.tv.habillage.OngletQuiz3d
 import com.littlemissparty.quiz.tv.habillage.PoliceGsChiffres
 import com.littlemissparty.quiz.tv.habillage.PoliceGsTexte
 import com.littlemissparty.quiz.tv.habillage.Tempo
 import com.littlemissparty.quiz.tv.habillage.apparition
+import com.littlemissparty.quiz.tv.habillage.planchesQuiz3d
 import com.littlemissparty.quiz.tv.habillage.apres
 import com.littlemissparty.quiz.tv.habillage.rebond
 import com.littlemissparty.quiz.tv.habillage.reflet
@@ -98,6 +104,8 @@ fun Modifier.lueurNeon(couleur: Color, rayon: Dp, intensite: Float = 1f): Modifi
 /** Une proposition A, B, C, D en texte : carte de verre sombre au bord néon de sa couleur, lettre dans un carré néon. */
 @Composable
 internal fun ChoiceCardGs(i: Int, text: String, correct: Int?, modifier: Modifier, express: Boolean, compacte: Boolean) {
+    // Cartes « tube néon » 3D (maquette C validée le 24/10) quand leurs planches sont là.
+    planchesQuiz3d()?.let { return CarteQuiz3d(it, i, text, correct, modifier, express) }
     val isCorrect = correct == i
     val rangMauvaise = if (correct == null) 0 else (0 until i).count { it != correct }
     val eteinte = apres(Tempo.mauvaiseSEteint(rangMauvaise, express), correct, actif = correct != null && !isCorrect)
@@ -152,35 +160,50 @@ internal fun ChoiceCardGs(i: Int, text: String, correct: Int?, modifier: Modifie
 @Composable
 internal fun TeamStatusGs(
     team: Team, online: Boolean, answered: Boolean, revealedPoints: Int?, statut: String, compacte: Boolean, modifier: Modifier,
+    uneLigne: Boolean = false,
 ) {
     val color = team.color.toColor()
     val forme = RoundedCornerShape(14.dp)
     val allumee = answered || revealedPoints != null
-    Column(
-        modifier
-            .rebond(revealedPoints != null && revealedPoints > 0, 0.25f)
-            .then(if (allumee && online) Modifier.lueurNeon(color, 14.dp, 0.7f) else Modifier)
-            .clip(forme)
-            .background(if (allumee) color.copy(alpha = 0.26f) else GS.Nuit.copy(alpha = 0.85f))
-            .border(2.dp, if (online) color else Color.Gray, forme)
-            .padding(horizontal = if (compacte) 8.dp else 12.dp, vertical = 5.dp),
+    val cadre = modifier
+        .rebond(revealedPoints != null && revealedPoints > 0, 0.25f)
+        .then(if (allumee && online) Modifier.lueurNeon(color, 14.dp, 0.7f) else Modifier)
+        .clip(forme)
+        .background(if (allumee) color.copy(alpha = 0.26f) else GS.Nuit.copy(alpha = 0.85f))
+        .border(2.dp, if (online) color else Color.Gray, forme)
+    val taille = if (compacte) 15.sp else 17.sp
+    @Composable
+    fun Statut(m: Modifier = Modifier) = Text(
+        statut,
+        color = if (revealedPoints != null && revealedPoints > 0) GS.Jaune else GS.Encre.copy(alpha = 0.75f),
+        fontSize = taille, fontWeight = FontWeight.Bold,
+        fontFamily = if (revealedPoints != null) PoliceGsChiffres else PoliceGsTexte,
+        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = m,
+    )
+    // 5 équipes et plus : pastille basse, nom et statut côte à côte, pour laisser leur hauteur aux cartes (maquette du 24/10).
+    if (uneLigne) Row(cadre.padding(horizontal = 10.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        // Le nom se réduit (jusqu'à 11 sp) plutôt que d'être coupé quand les points s'affichent à côté.
+        var t by remember(team.name, statut) { mutableFloatStateOf(taille.value) }
+        Text(
+            team.name, color = GS.Encre, fontSize = t.sp, fontWeight = FontWeight.Bold, fontFamily = PoliceGsTexte, maxLines = 1, softWrap = false,
+            overflow = if (t > 11f) TextOverflow.Clip else TextOverflow.Ellipsis, onTextLayout = { if (it.hasVisualOverflow && t > 11f) t -= 1f },
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(Modifier.width(6.dp))
+        Statut()
+    } else Column(
+        cadre.padding(horizontal = if (compacte) 8.dp else 12.dp, vertical = 5.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        val taille = if (compacte) 15.sp else 17.sp
         Text(team.name, color = GS.Encre, fontSize = taille, fontWeight = FontWeight.Bold, fontFamily = PoliceGsTexte, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(
-            statut,
-            color = if (revealedPoints != null && revealedPoints > 0) GS.Jaune else GS.Encre.copy(alpha = 0.75f),
-            fontSize = taille, fontWeight = FontWeight.Bold,
-            fontFamily = if (revealedPoints != null) PoliceGsChiffres else PoliceGsTexte,
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-        )
+        Statut()
     }
 }
 
 /** Chrono (Game Show) : anneau cyan qui se vide, avec sa lueur ; rose dans les 5 dernières secondes. */
 @Composable
 internal fun CountdownGs(seconds: Int, fraction: Float) {
+    planchesQuiz3d()?.let { return ChronoAnneau3d(it, seconds, fraction) }
     val urgent = seconds <= 5
     val couleur = if (urgent) GS.Rose else GS.Cyan
     Box(
@@ -317,5 +340,6 @@ private fun NomQuiTient(nom: String, max: TextUnit, modifier: Modifier) {
 /** Étiquette « Question 4 / 10 » du Game Show, en Orbitron cyan. */
 @Composable
 internal fun EtapeGs(texte: String, modifier: Modifier = Modifier) {
+    planchesQuiz3d()?.let { return OngletQuiz3d(it, texte, modifier) }
     Text(texte, style = styleEtiquetteGs(17.sp, GS.Cyan, 3.sp), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = modifier)
 }

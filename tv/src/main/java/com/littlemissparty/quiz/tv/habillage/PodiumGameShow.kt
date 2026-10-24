@@ -1,20 +1,21 @@
 package com.littlemissparty.quiz.tv.habillage
 
-import androidx.compose.animation.core.Animatable
+import androidx.compose.ui.unit.offset
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,162 +26,177 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.littlemissparty.quiz.tv.lueurNeon
-import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
 /**
- * Le podium du design « The Game Show », calé sur gs_podium (Digital Love, demande de cedric du 23 octobre) :
- * - 0 → [Tempo.PODIUM_REVELATION] : « why don't you play the game » et le roulement. Les jauges de toutes les équipes
- *   (1 à 8, dans un ordre mélangé) montent ensemble ; chaque équipe s'arrête à son score, la moins bonne d'abord. Les
- *   dernières secondes, sur la montée, seules les jauges du meilleur score grimpent encore, de plus en plus lentement,
- *   jusqu'en haut ;
- * - le solo de guitare : flash, le nom du gagnant claque au centre avec sa couronne, ses points, les feux d'artifice et
- *   les confettis ; au-dessus du nom, le robot 3D arrive du fond de la scène, le félicite puis danse tant que la chanson
- *   continue ([ClipRobotEnBoucle], vidéo calculée à l'avance) ; les autres équipes en bande en bas ;
- * - à [Tempo.PODIUM_FIN], quand la chanson s'éteint : l'écran de fin ([AuRevoirGameShow]).
- * Égalité : toutes les équipes à égalité montent jusqu'en haut et sont couronnées. Personne n'a marqué : les jauges
- * restent vides et « Bravo à toutes les équipes ! » arrive au solo. Les jauges ne montrent que les scores déjà
- * calculés : rien ici ne compte de points. Seuls échelle, position et opacité bougent (calques), léger pour la Mi Box.
+ * Le podium du design « The Game Show », version A « suspense » (choix de cedric du 24 octobre), calé sur gs_podium
+ * (Digital Love) :
+ * - 0 → [Tempo.PODIUM_REVELATION] : « why don't you play the game » et le roulement. Les tubes de verre des équipes
+ *   (1 à 8, dans un ordre mélangé, moitié à gauche de l'arche, moitié à droite) se remplissent ensemble au même
+ *   compteur. Une équipe sous le plafond s'arrête à son score ; les meilleures montent jusqu'au plafond (90 % du
+ *   deuxième score) et y restent au même niveau : on ne sait pas qui gagne. Le robot attend dans l'arche, puis joue
+ *   du tambour sur les dernières mesures. Juste avant le solo, les tubes s'enfoncent sous le plateau ;
+ * - le solo de guitare : flash, le robot arrive en gros plan et danse ([ROBOT_FETE]), le nom du gagnant claque
+ *   lettre par lettre ([NomNerveux]), ses vrais points, puis le classement des autres sur une ou deux lignes ;
+ * - à [Tempo.PODIUM_FIN], quand la chanson s'éteint : l'écran de fin cinéma ([FinCinemaGameShow]).
+ * Égalité en tête : mêmes tubes, puis « ÉGALITÉ ! » et les noms couronnés. Personne n'a marqué : les tubes restent
+ * presque vides et « Bravo à toutes les équipes ! » arrive au solo. Les compteurs du suspense ne sont qu'un spectacle
+ * plafonné ; tout nombre affiché après le solo est le vrai score ([Classee.points]) : rien ici ne compte de points.
+ * Une seule vidéo du robot à la fois ; le reste ne bouge que par calques (échelle, position, opacité).
  */
 @Composable
 fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier) {
-    if (apres(Tempo.PODIUM_FIN, Unit)) return AuRevoirGameShow(modifier)
+    if (apres(Tempo.PODIUM_FIN, Unit)) return FinCinemaGameShow(modifier)
     val meilleur = classement.firstOrNull()?.points ?: 0
     val gagnants = if (meilleur > 0) classement.takeWhile { it.points == meilleur } else emptyList()
     val autres = classement.drop(gagnants.size)
-    val t = remember { Animatable(0f) }
-    // L'horloge s'arrête quand les feux d'artifice sont finis : la suite (danse, confettis) vit sans elle.
-    LaunchedEffect(Unit) { t.animateTo(HORLOGE_PODIUM_MS, tween(HORLOGE_PODIUM_MS.toInt(), easing = LinearEasing)) }
-    val ms = { t.value }
+    val seul = gagnants.size == 1
+    // Horloge du podium (ms) : lue seulement dans les calques et les dessins, jamais à la composition.
+    val horloge = remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(Unit) {
+        val debut = withInfiniteAnimationFrameMillis { it }
+        while (true) withInfiniteAnimationFrameMillis { horloge.floatValue = (it - debut).toFloat() }
+    }
+    val ms = { horloge.floatValue }
     val revelation = Tempo.PODIUM_REVELATION.toFloat()
-    // Ordre des colonnes mélangé une fois : le gagnant n'est ni toujours au milieu, ni toujours à gauche.
+    // Ordre des tubes mélangé une fois : le gagnant n'est ni toujours au milieu, ni toujours à gauche.
     val colonnes = remember(classement) { classement.shuffled(java.util.Random(classement.hashCode().toLong())) }
     val scores = remember(classement) { classement.map { it.points } }
+    // Le robot : il attend dans l'arche, joue du tambour sur les dernières mesures, puis la fête au solo.
+    val robotAttend = apres(500, Unit)
+    val robotTambour = apres(Tempo.PODIUM_REVELATION - ROBOT_TAMBOUR_AVANT_MS, Unit)
+    val robotFete = apres(Tempo.PODIUM_REVELATION - 300, Unit)
+    val robot = when {
+        robotFete -> 3
+        robotTambour -> 2
+        robotAttend -> 1
+        else -> 0
+    }
+    // Une fois sous le plateau, les tubes ne sont plus dessinés du tout.
+    val tubesPartis = apres(Tempo.PODIUM_REVELATION + 500, Unit)
+    val petitRobot = if (classement.size >= 7) 0.8f else 1f
+    val ligneNom = if (classement.size >= 6) 439.dp else 452.5.dp
     Box(modifier.fillMaxSize()) {
-        // Salle assombrie pendant le suspense, qui se rallume un peu au solo.
+        // Salle un peu assombrie pendant le suspense (l'arche du plateau reste visible), qui se rallume au solo.
         Box(
             Modifier.fillMaxSize().graphicsLayer {
                 val m = ms()
                 alpha = when {
-                    m < 800f -> m / 800f * 0.6f
-                    m < revelation -> 0.6f
-                    else -> 0.6f - 0.25f * ((m - revelation) / 600f).coerceIn(0f, 1f)
+                    m < 800f -> m / 800f * 0.45f
+                    m < revelation -> 0.45f
+                    else -> 0.45f - 0.2f * ((m - revelation) / 600f).coerceIn(0f, 1f)
                 }
             }.background(GS.Noir),
         )
-        if (gagnants.isNotEmpty()) Rayons { (ms() - revelation).coerceAtLeast(0f) }
-        Echelle(960.dp, 540.dp) {
-            // Le logo, en haut au centre, bat sur le solo.
-            Box(
-                Modifier.align(Alignment.TopCenter).padding(top = 8.dp).graphicsLayer {
-                    val m = ms()
-                    alpha = (m / 900f).coerceIn(0f, 1f)
-                    val s = 1f + 0.12f * battement(m - revelation, 700f)
-                    scaleX = s; scaleY = s
-                },
-            ) { LogoGameShow(26.dp, aligne = Alignment.CenterHorizontally) }
-            // Le suspense : « Le grand gagnant est… » et les jauges.
-            Column(
-                Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, top = 74.dp, bottom = 16.dp).graphicsLayer {
-                    val m = ms()
-                    alpha = if (m < revelation) 1f else (1f - (m - revelation) / 300f).coerceAtLeast(0f)
-                },
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(
-                    "LE GRAND GAGNANT EST…", style = styleTitreNeon(30.sp, GS.Cyan), maxLines = 1, softWrap = false,
-                    modifier = Modifier.apparition(300, Unit).graphicsLayer { alpha = 0.8f + 0.2f * kotlin.math.sin(ms() / 240f) },
-                )
-                Spacer(Modifier.height(10.dp))
-                JaugesPodium(colonnes, scores, ms, Modifier.weight(1f).fillMaxWidth())
-            }
-            // Le robot vole au-dessus du nom (clip 16:9 en plein écran) et vient par moments en gros plan face caméra
-            // (cedric, 23/10) : son visage reste au-dessus du nom, son corps passe derrière. Un voile sombre en bas
-            // garde le nom et les équipes lisibles par-dessus lui.
-            if (apres(Tempo.PODIUM_REVELATION - 300, Unit)) {
-                ClipRobotEnBoucle(ROBOT_FETE, ROBOT_FETE_BOUCLE_MS, Modifier.align(Alignment.Center).fillMaxWidth().aspectRatio(16f / 9f))
-                Box(
-                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(0.5f)
-                        .background(Brush.verticalGradient(0f to Color.Transparent, 0.3f to GS.Noir.copy(alpha = 0.55f), 1f to GS.Noir.copy(alpha = 0.7f))),
-                )
-            }
-            // La révélation, dans les 40 % du bas : la couronne, le nom, les points ; les autres équipes dessous
-            // (jusqu'à 3) ou de part et d'autre du nom (4 à 7).
-            val cotes = autres.size > 3
-            Row(
-                Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-                verticalAlignment = Alignment.Bottom,
-            ) {
-                if (cotes) ColonneAutres(autres.filterIndexed { i, _ -> i % 2 == 0 }, classement, Modifier.width(200.dp))
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    if (gagnants.isNotEmpty()) {
-                        if (gagnants.size > 1) {
-                            Text(
-                                "ÉGALITÉ !", style = styleTitreNeon(24.sp, GS.Jaune), maxLines = 1,
-                                modifier = Modifier.apparition(Tempo.PODIUM_REVELATION, Unit),
-                            )
+        if (gagnants.size > 1) Rayons { (ms() - revelation).coerceAtLeast(0f) }
+        // Secousse de caméra quand le nom du gagnant claque (tout le podium bouge, le décor derrière reste).
+        Box(
+            Modifier.fillMaxSize().graphicsLayer {
+                if (seul) {
+                    val s = secousseNerveuse((ms() - revelation) / 1000f, gagnants[0].nom.length)
+                    translationX = s.x.dp.toPx()
+                    translationY = s.y.dp.toPx()
+                }
+            },
+        ) {
+            Echelle(960.dp, 540.dp) {
+                // Au solo, le robot vole au premier plan (clip 16:9 sur toute la largeur) ; un voile sombre en bas
+                // garde le nom et le classement lisibles par-dessus lui.
+                if (robot == 3) {
+                    ClipRobotEnBoucle(ROBOT_FETE, ROBOT_FETE_BOUCLE_MS, Modifier.align(Alignment.Center).fillMaxWidth().aspectRatio(16f / 9f))
+                    Box(
+                        Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(0.5f)
+                            .background(Brush.verticalGradient(0f to Color.Transparent, 0.3f to GS.Noir.copy(alpha = 0.55f), 1f to GS.Noir.copy(alpha = 0.7f))),
+                    )
+                }
+                Box(Modifier.align(Alignment.Center).size(960.dp, 540.dp)) {
+                    // Le robot dans l'arche du plateau, debout sur le disque ; plus petit à 7 et 8 équipes.
+                    key(robot) {
+                        val arche = Modifier
+                            .padding(start = (480f - ROBOT_ARCHE_L / 2 * petitRobot).dp, top = (ROBOT_ARCHE_SOL - 0.84f * ROBOT_ARCHE_H * petitRobot).dp)
+                            .size((ROBOT_ARCHE_L * petitRobot).dp, (ROBOT_ARCHE_H * petitRobot).dp)
+                        when (robot) {
+                            1 -> ClipRobotEnBoucle(ROBOT_ATTENTE, ROBOT_ATTENTE_BOUCLE_MS, arche)
+                            2 -> ClipRobotEnBoucle(ROBOT_TAMBOUR, -1, arche)
+                            else -> {}
                         }
-                        // Pour les lecteurs d'écran (et les tests) : « Victoire de … » en une phrase.
-                        Column(
-                            Modifier.clearAndSetSemantics { text = AnnotatedString("Victoire de " + gagnants.joinToString(" et ") { it.nom }) },
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            Couronne(apres(Tempo.PODIUM_REVELATION + 250, Unit), Modifier.size(if (gagnants.size == 1) 58.dp else 44.dp, if (gagnants.size == 1) 40.dp else 30.dp))
-                            if (gagnants.size == 1) NomGagnantGs(gagnants[0], revelation) else NomsEgalite(gagnants, Tempo.PODIUM_REVELATION)
+                    }
+                    // Halo de l'arche qui couvre le passage du robot qui attend au robot qui joue du tambour (au solo,
+                    // le flash blanc couvre l'arrivée du robot de la fête).
+                    Canvas(Modifier.fillMaxSize()) {
+                        val m = ms()
+                        val a = 0.7f * battement(m - (revelation - ROBOT_TAMBOUR_AVANT_MS) + 200f, 500f)
+                        if (a > 0f) {
+                            val c = Offset(480.dp.toPx(), (ROBOT_ARCHE_SOL - 0.45f * ROBOT_ARCHE_H * petitRobot).dp.toPx())
+                            drawCircle(Brush.radialGradient(listOf(GS.Cyan.copy(alpha = a), Color.Transparent), c, 150.dp.toPx()), 150.dp.toPx(), c)
                         }
-                        Text(
-                            "$meilleur POINTS", style = styleEtiquetteGs(22.sp, GS.Jaune, 3.sp), maxLines = 1,
-                            modifier = Modifier.apparition(Tempo.PODIUM_REVELATION + 600, Unit),
-                        )
-                        Spacer(Modifier.height(2.dp))
+                    }
+                    // Le logo, en haut au centre, bat sur le solo.
+                    Box(
+                        Modifier.align(Alignment.TopCenter).padding(top = 8.dp).graphicsLayer {
+                            val m = ms()
+                            alpha = (m / 900f).coerceIn(0f, 1f)
+                            compositingStrategy = CompositingStrategy.ModulateAlpha
+                            val s = 1f + 0.12f * battement(m - revelation, 700f)
+                            scaleX = s; scaleY = s
+                        },
+                    ) { LogoGameShow(26.dp, aligne = Alignment.CenterHorizontally) }
+                    // « Le grand gagnant est… », qui s'éteint quand les tubes descendent.
+                    Text(
+                        "LE GRAND GAGNANT EST…", style = styleTitreNeon(30.sp, GS.Cyan), maxLines = 1, softWrap = false,
+                        modifier = Modifier.align(Alignment.TopCenter).padding(top = 64.dp).apparition(300, Unit).graphicsLayer {
+                            val m = ms()
+                            alpha = (0.8f + 0.2f * kotlin.math.sin(m / 240f)) * (1f - (m - DESCENTE_DEBUT) / 400f).coerceIn(0f, 1f)
+                            compositingStrategy = CompositingStrategy.ModulateAlpha
+                        },
+                    )
+                    if (!tubesPartis) TubesPodium(colonnes, scores, ms)
+                    if (seul) {
+                        val g = gagnants[0]
                         Text(
                             "Bravo à toutes les équipes !",
                             style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = 22.sp, color = GS.Encre),
-                            maxLines = 1, modifier = Modifier.apparition(Tempo.PODIUM_REVELATION + 3_000, Unit),
+                            maxLines = 1, modifier = Modifier.align(Alignment.TopCenter).padding(top = 66.dp).apparition(Tempo.PODIUM_REVELATION + 3_000, Unit),
                         )
+                        NomNerveux(g, ligneNom, ms)
+                        PointsNerveux(g.points, g.nom.length, ligneNom + 42.dp, ms)
+                        ClassementNerveux(autres, classement, if (autres.size >= 5) listOf(507.dp, 527.dp) else listOf(525.dp), ms)
                     } else {
-                        Text(
-                            "Bravo à toutes les équipes !", style = styleTitreNeon(40.sp, GS.Rose), textAlign = TextAlign.Center, maxLines = 2,
-                            modifier = Modifier.apparition(Tempo.PODIUM_REVELATION, Unit),
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            "Merci d'avoir joué !",
-                            style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = 24.sp, color = GS.Encre),
-                            modifier = Modifier.apparition(Tempo.PODIUM_REVELATION + 800, Unit),
-                        )
-                    }
-                    if (autres.isNotEmpty() && !cotes) {
-                        Spacer(Modifier.height(8.dp))
-                        BandeAutres(autres, classement, Modifier.apparition(Tempo.PODIUM_REVELATION + 2_500, Unit))
+                        RevelationEgaliteOuZero(gagnants, autres, classement, meilleur, Modifier.align(Alignment.BottomCenter))
                     }
                 }
-                if (cotes) ColonneAutres(autres.filterIndexed { i, _ -> i % 2 == 1 }, classement, Modifier.width(200.dp))
             }
         }
         if (gagnants.isNotEmpty()) {
@@ -189,13 +205,277 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier) {
                 Modifier.fillMaxSize()
                     .graphicsLayer {
                         val x = (ms() - revelation) / 500f
-                        alpha = if (x < 0f || x > 1f) 0f else 0.65f * (1f - x)
+                        alpha = if (x < 0f || x > 1f) 0f else 0.55f * (1f - x)
                     }
                     .background(Color.White),
             )
-            FeuxDArtifice(ms, revelation)
+            if (!seul) FeuxDArtifice(ms, revelation)
         }
         Confettis(Tempo.PODIUM_REVELATION)
+    }
+}
+
+/**
+ * La révélation sans gagnant unique, dans les 40 % du bas : égalité en tête (« ÉGALITÉ ! », la couronne, les noms à
+ * égalité, leurs points) ou personne n'a marqué (« Bravo à toutes les équipes ! »). Les autres équipes dessous
+ * (jusqu'à 3) ou de part et d'autre (4 à 7).
+ */
+@Composable
+private fun RevelationEgaliteOuZero(gagnants: List<Classee>, autres: List<Classee>, classement: List<Classee>, meilleur: Int, modifier: Modifier) {
+    val cotes = autres.size > 3
+    Row(
+        modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        if (cotes) ColonneAutres(autres.filterIndexed { i, _ -> i % 2 == 0 }, classement, Modifier.width(200.dp))
+        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+            if (gagnants.isNotEmpty()) {
+                Text(
+                    "ÉGALITÉ !", style = styleTitreNeon(24.sp, GS.Jaune), maxLines = 1,
+                    modifier = Modifier.apparition(Tempo.PODIUM_REVELATION, Unit),
+                )
+                // Pour les lecteurs d'écran (et les tests) : « Victoire de … » en une phrase.
+                Column(
+                    Modifier.clearAndSetSemantics { text = AnnotatedString("Victoire de " + gagnants.joinToString(" et ") { it.nom }) },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Couronne(apres(Tempo.PODIUM_REVELATION + 250, Unit), Modifier.size(44.dp, 30.dp))
+                    NomsEgalite(gagnants, Tempo.PODIUM_REVELATION)
+                }
+                Text(
+                    "$meilleur POINTS", style = styleEtiquetteGs(22.sp, GS.Jaune, 3.sp), maxLines = 1,
+                    modifier = Modifier.apparition(Tempo.PODIUM_REVELATION + 600, Unit),
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "Bravo à toutes les équipes !",
+                    style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = 22.sp, color = GS.Encre),
+                    maxLines = 1, modifier = Modifier.apparition(Tempo.PODIUM_REVELATION + 3_000, Unit),
+                )
+            } else {
+                Text(
+                    "Bravo à toutes les équipes !", style = styleTitreNeon(40.sp, GS.Rose), textAlign = TextAlign.Center, maxLines = 2,
+                    modifier = Modifier.apparition(Tempo.PODIUM_REVELATION, Unit),
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Merci d'avoir joué !",
+                    style = TextStyle(fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = 24.sp, color = GS.Encre),
+                    modifier = Modifier.apparition(Tempo.PODIUM_REVELATION + 800, Unit),
+                )
+            }
+            if (autres.isNotEmpty() && !cotes) {
+                Spacer(Modifier.height(8.dp))
+                BandeAutres(autres, classement, Modifier.apparition(Tempo.PODIUM_REVELATION + 2_500, Unit))
+            }
+        }
+        if (cotes) ColonneAutres(autres.filterIndexed { i, _ -> i % 2 == 1 }, classement, Modifier.width(200.dp))
+    }
+}
+
+/**
+ * Les tubes du suspense ([dispositionTubes]) : la lueur néon et le tube de verre ([dessineJauge]), le compteur au-dessus
+ * et le nom de l'équipe dessous. Juste avant le solo, tubes et compteurs s'enfoncent sous le plateau par une fente
+ * lumineuse ; les noms s'éteignent avant.
+ */
+@Composable
+private fun TubesPodium(colonnes: List<Classee>, scores: List<Int>, ms: () -> Float) {
+    val places = remember(colonnes.size) { dispositionTubes(colonnes.size) }
+    val planches = planchesJauge()
+    val plafond = remember(scores) { plafondSuspense(scores) }
+    val couleurs = remember(colonnes) { colonnes.map { enNeon(it.couleur) } }
+    val mesure = rememberTextMeasurer()
+    val densite = LocalDensity.current
+    val echelle = places.firstOrNull()?.echelle ?: 1f
+    // Une seule taille pour tous les compteurs : le plus long nombre qu'ils afficheront tient dans la place d'un tube.
+    val tailleCompteur = remember(places, scores, densite) {
+        val t0 = minOf(maxOf(21f, 29f * echelle), (places.firstOrNull()?.largeur ?: 64f) * 1.55f / 1.15f * 1.2f)
+        val plusLong = colonnes.maxOfOrNull { valeurSuspense(Float.MAX_VALUE, it.points, scores).toString() } ?: "0"
+        val l = mesure.measure(plusLong, styleCompteur(t0, Color.White), maxLines = 1, softWrap = false).size.width.toFloat()
+        val maxPx = with(densite) { ((places.firstOrNull()?.place ?: 100f) * 0.94f).dp.toPx() }
+        if (l > maxPx) t0 * maxPx / l else t0
+    }
+    // Tubes et compteurs : coupés à la fente du plateau quand ils descendent.
+    Box(
+        Modifier.fillMaxWidth().height(FENTE_Y.dp).clipToBounds().graphicsLayer {
+            translationY = descenteTubes(ms()) * DESCENTE_DP.dp.toPx()
+        },
+    ) {
+        places.forEachIndexed { k, p ->
+            val e = colonnes[k]
+            val couleur = couleurs[k]
+            Canvas(
+                Modifier.padding(start = (p.centre - p.largeur / 2).dp, top = TUBE_HAUT.dp).size(p.largeur.dp, TUBE_HAUTEUR.dp),
+            ) {
+                val part = remplissage(ms(), e.points, scores)
+                // Lueur néon autour du verre : quatre anneaux de plus en plus pâles.
+                val pas = size.width * 0.0837f
+                val r = size.width * 0.39f
+                for (a in 4 downTo 1) {
+                    val d = pas * a * 2
+                    drawRoundRect(
+                        couleur.copy(alpha = minOf(1f, 0.09f * 0.45f * (5 - a) / 2f)), Offset(-d / 2, -d / 2), Size(size.width + d, size.height + d),
+                        CornerRadius(r + d / 2), style = Stroke(pas * 2),
+                    )
+                }
+                if (planches != null) dessineJauge(planches, part, couleur) else dessineJaugeSimple(part, couleur)
+            }
+            // Le compteur : il ne change de texte que quand le nombre change. Les meilleurs, tenus au plafond,
+            // frémissent en attendant le solo.
+            val valeur by remember(e, scores) { derivedStateOf { valeurSuspense(ms(), e.points, scores) } }
+            val tenu = e.points > plafond
+            Text(
+                "$valeur", maxLines = 1, softWrap = false, style = styleCompteur(tailleCompteur, couleur),
+                modifier = Modifier.centreSurLigneDeBase(p.centre.dp, (TUBE_HAUT - 25f * p.echelle).dp).graphicsLayer {
+                    val m = ms()
+                    alpha = if (tenu && m > JAUGES_FIN) 0.82f + 0.18f * kotlin.math.cos((m - JAUGES_FIN) / 90f) else 1f
+                },
+            )
+        }
+    }
+    // Les fentes du plateau, sous chaque tube, le temps de la descente.
+    Canvas(Modifier.fillMaxSize()) {
+        val m = ms()
+        val a = ((m - (DESCENTE_DEBUT - 200f)) / 200f).coerceIn(0f, 1f) * (1f - (m - Tempo.PODIUM_REVELATION) / 400f).coerceIn(0f, 1f)
+        if (a <= 0f) return@Canvas
+        val y = FENTE_Y.dp.toPx()
+        val h = 6.dp.toPx()
+        places.forEach { p ->
+            val x = p.centre.dp.toPx()
+            val l = 90.dp.toPx()
+            drawRect(
+                Brush.verticalGradient(listOf(GS.Cyan.copy(alpha = 0f), GS.CyanClair.copy(alpha = 0.9f * a), GS.Cyan.copy(alpha = 0f)), y - h, y + h),
+                Offset(x - l / 2, y - h), Size(l, 2 * h),
+            )
+        }
+    }
+    // Les noms sous les tubes : réduits pour tenir dans leur place, jamais coupés ; décalés un sur deux à 3 et 4 par côté.
+    Box(
+        Modifier.fillMaxSize().graphicsLayer {
+            alpha = 1f - ((ms() - (DESCENTE_DEBUT - 250f)) / 250f).coerceIn(0f, 1f)
+            compositingStrategy = CompositingStrategy.ModulateAlpha
+        },
+    ) {
+        places.forEachIndexed { k, p ->
+            val e = colonnes[k]
+            val taille = remember(e.nom, p, densite) {
+                val t0 = maxOf(16f, 19f * p.echelle)
+                val l = mesure.measure(e.nom, styleNomTube(t0), maxLines = 1, softWrap = false).size.width.toFloat()
+                val maxPx = with(densite) { p.placeNom.dp.toPx() }
+                if (l > maxPx) t0 * maxPx / l else t0
+            }
+            Text(
+                e.nom, maxLines = 1, softWrap = false, style = styleNomTube(taille),
+                modifier = Modifier.centreSurLigneDeBase(p.centre.dp, (TUBE_HAUT + TUBE_HAUTEUR + 22f * p.echelle + if (p.decale) 22f else 0f).dp),
+            )
+        }
+    }
+}
+
+private fun styleCompteur(taille: Float, couleur: Color) = TextStyle(
+    fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Black, fontSize = taille.sp, color = couleur,
+    shadow = Shadow(couleur.copy(alpha = 0.8f), Offset.Zero, taille * 0.6f), textAlign = TextAlign.Center,
+)
+
+private fun styleNomTube(taille: Float) = TextStyle(
+    fontFamily = PoliceGsTexte, fontWeight = FontWeight.Bold, fontSize = taille.sp, color = GS.Encre,
+    shadow = Shadow(Color.Black.copy(alpha = 0.85f), Offset.Zero, 10f),
+)
+
+/** Place un texte centré sur [x] (dp depuis la gauche du parent), sa ligne de base à [ligne] du haut du parent. */
+private fun Modifier.centreSurLigneDeBase(x: androidx.compose.ui.unit.Dp, ligne: androidx.compose.ui.unit.Dp): Modifier = layout { mesurable, contraintes ->
+    val p = mesurable.measure(contraintes.copy(minWidth = 0, minHeight = 0, maxWidth = androidx.compose.ui.unit.Constraints.Infinity))
+    val b = p[androidx.compose.ui.layout.FirstBaseline].takeIf { it != androidx.compose.ui.layout.AlignmentLine.Unspecified } ?: p.height
+    layout(contraintes.maxWidth, contraintes.maxHeight) { p.place(x.roundToPx() - p.width / 2, ligne.roundToPx() - b) }
+}
+
+/** Les clips du robot du podium : il attend dans l'arche (entrée, puis 1,55 s qui boucle), puis le tambour (4 s, une fois). */
+internal const val ROBOT_ATTENTE = "gs_robot_podium_attente"
+internal const val ROBOT_ATTENTE_BOUCLE_MS = 1_450
+internal const val ROBOT_TAMBOUR = "gs_robot_batterie"
+internal const val ROBOT_TAMBOUR_AVANT_MS = 4_300L
+/** Le robot dans l'arche du plateau (dp sur 960 × 540) : clip 4:5, son disque posé à [ROBOT_ARCHE_SOL]. */
+private const val ROBOT_ARCHE_L = 237f
+private const val ROBOT_ARCHE_H = 300f
+private const val ROBOT_ARCHE_SOL = 420f
+
+/** Le clip du robot qui félicite le gagnant : entrée de 3,85 s, puis 15,4 s de vol et de danse en boucle (16:9). */
+internal const val ROBOT_FETE = "gs_robot_fete"
+internal const val ROBOT_FETE_BOUCLE_MS = 3_849
+
+/** Le compteur commun monte de [JAUGES_DEBUT] à [JAUGES_FIN] (ms), puis reste au plafond jusqu'à la descente. */
+internal const val JAUGES_DEBUT = 1_200f
+internal const val JAUGES_FIN = 11_500f
+/** Les tubes s'enfoncent sous le plateau entre ces deux instants (ms), juste avant le solo. */
+internal const val DESCENTE_DEBUT = Tempo.PODIUM_REVELATION - 900f
+internal const val DESCENTE_FIN = Tempo.PODIUM_REVELATION - 100f
+private const val DESCENTE_DP = 380f
+
+/** Les tubes (dp sur 960 × 540) : haut, hauteur, et la fente du plateau où ils disparaissent. */
+internal const val TUBE_HAUT = 160f
+internal const val TUBE_HAUTEUR = 290f
+internal const val FENTE_Y = 465f
+
+/**
+ * Plafond du suspense (en points) : 90 % du deuxième meilleur score, ou 75 % du meilleur si personne d'autre n'a
+ * marqué. Les équipes au-dessus (les premières et les deuxièmes) y restent ensemble jusqu'au solo.
+ */
+internal fun plafondSuspense(scores: List<Int>): Float {
+    val meilleur = scores.maxOrNull() ?: 0
+    if (meilleur <= 0) return 0f
+    val deuxieme = scores.filter { it in 1 until meilleur }.maxOrNull()
+    return if (deuxieme != null) 0.9f * deuxieme else 0.75f * meilleur
+}
+
+/** Le compteur commun à [ms] : de 0 au plafond, lent au départ et à l'arrivée. */
+internal fun compteurSuspense(ms: Float, scores: List<Int>): Float {
+    val u = ((ms - JAUGES_DEBUT) / (JAUGES_FIN - JAUGES_DEBUT)).coerceIn(0f, 1f)
+    return plafondSuspense(scores) * u * u * (3 - 2 * u)
+}
+
+/** Le nombre au-dessus d'un tube pendant le suspense : le compteur commun, arrêté au score de l'équipe. */
+internal fun valeurSuspense(ms: Float, points: Int, scores: List<Int>): Int =
+    minOf(points.coerceAtLeast(0).toFloat(), compteurSuspense(ms, scores)).roundToInt()
+
+/** Remplissage d'un tube (0 → 1, part du meilleur score) : comme le compteur, avec toujours un fond de liquide. */
+internal fun remplissage(ms: Float, points: Int, scores: List<Int>): Float {
+    val meilleur = scores.maxOrNull() ?: 0
+    if (meilleur <= 0) return 0.03f
+    return maxOf(0.03f, minOf(points.coerceAtLeast(0).toFloat(), compteurSuspense(ms, scores)) / meilleur)
+}
+
+/** Descente des tubes sous le plateau (0 → 1), qui accélère. */
+internal fun descenteTubes(ms: Float): Float {
+    val u = ((ms - DESCENTE_DEBUT) / (DESCENTE_FIN - DESCENTE_DEBUT)).coerceIn(0f, 1f)
+    return u * u
+}
+
+/**
+ * Place d'un tube (dp sur 960) : [centre], [largeur] du verre, [echelle] des textes, [place] entre deux tubes,
+ * [placeNom] largeur où son nom doit tenir, [decale] : nom une ligne plus bas (un sur deux à 3 et 4 tubes par côté).
+ */
+internal data class PlaceTube(val centre: Float, val largeur: Float, val echelle: Float, val place: Float, val placeNom: Float, val decale: Boolean)
+
+/**
+ * Les tubes de 1 à 8 équipes : la moitié (arrondie au-dessus) à gauche de l'arche, le reste à droite, dans les mêmes
+ * zones que la maquette validée à 4 équipes. Place par tube min(122,5 ; 280 / n par côté), verre à 60 % de sa place.
+ */
+internal fun dispositionTubes(n: Int): List<PlaceTube> {
+    if (n <= 0) return emptyList()
+    val gauche = (n + 1) / 2
+    val droite = n - gauche
+    val k = maxOf(gauche, droite)
+    val place = minOf(122.5f, 280f / k)
+    val largeur = minOf(64f, place * 0.6f)
+    val echelle = minOf(1.15f, largeur / 64f * 1.15f * (if (k >= 3) 1.08f else 1f))
+    val decale = k >= 3
+    return listOf(gauche to 165f, droite to 795f).flatMap { (m, zone) ->
+        (0 until m).map { i ->
+            val x = zone + (i - (m - 1) / 2f) * place
+            // Le nom reste à l'écran : sa place ne dépasse jamais 8 dp du bord.
+            val nom = minOf((if (decale) place * 2 else place) * 0.94f, 2 * (x - 8f), 2 * (952f - x))
+            PlaceTube(x, largeur, echelle, place, nom, decale && i % 2 == 1)
+        }
     }
 }
 
@@ -229,153 +509,9 @@ private fun ColonneAutres(equipes: List<Classee>, classement: List<Classee>, mod
     }
 }
 
-/** Le clip du robot qui félicite le gagnant : entrée de 3,85 s, puis 15,4 s de vol et de danse en boucle (16:9). */
-internal const val ROBOT_FETE = "gs_robot_fete"
-internal const val ROBOT_FETE_BOUCLE_MS = 3_849
-
-/** Horloge du podium : jusqu'à la fin des feux d'artifice. */
-private const val HORLOGE_PODIUM_MS = 26_000f
-
-/** Les jauges montent à partir de là ; le deuxième score est atteint à [JAUGES_DEUXIEME], le meilleur à [JAUGES_FIN]. */
-internal const val JAUGES_DEBUT = 1_200f
-internal const val JAUGES_DEUXIEME = 11_500f
-internal const val JAUGES_FIN = 14_900f
 
 /**
- * Hauteur commune des jauges à [ms], en fraction du meilleur score : toutes montent ensemble et chaque équipe s'arrête
- * à son score ([niveauJauge]). Elle atteint le deuxième score à [JAUGES_DEUXIEME] (les équipes s'arrêtent une à une,
- * la moins bonne d'abord), puis les dernières secondes, sur la montée de la musique, seules les meilleures grimpent
- * encore, de plus en plus lentement, et touchent le haut à [JAUGES_FIN]. Égalité en tête : elles montent ensemble.
- */
-internal fun hauteurJauges(ms: Float, scores: List<Int>): Float {
-    val meilleur = scores.maxOrNull() ?: 0
-    if (meilleur <= 0 || ms <= JAUGES_DEBUT) return 0f
-    val deuxieme = scores.filter { it < meilleur }.maxOrNull()?.coerceAtLeast(0) ?: 0
-    val r2 = deuxieme.toFloat() / meilleur
-    return if (ms < JAUGES_DEUXIEME) {
-        val u = (ms - JAUGES_DEBUT) / (JAUGES_DEUXIEME - JAUGES_DEBUT)
-        r2 * u * u * (3 - 2 * u)
-    } else {
-        val u = ((ms - JAUGES_DEUXIEME) / (JAUGES_FIN - JAUGES_DEUXIEME)).coerceIn(0f, 1f)
-        // Rapide au départ, de plus en plus lent près du sommet.
-        r2 + (1f - r2) * (1f - (1f - u) * (1f - u) * (1f - u))
-    }
-}
-
-/** Remplissage de la jauge d'une équipe (0 → 1) : la hauteur commune, arrêtée à son score. */
-internal fun niveauJauge(ms: Float, points: Int, scores: List<Int>): Float {
-    val meilleur = scores.maxOrNull() ?: 0
-    if (meilleur <= 0) return 0f
-    return minOf(hauteurJauges(ms, scores), points.coerceAtLeast(0).toFloat() / meilleur)
-}
-
-/** Les jauges du suspense : compteur, rail de verre au bord néon, remplissage qui monte du bas, nom de l'équipe. */
-@Composable
-private fun JaugesPodium(colonnes: List<Classee>, scores: List<Int>, ms: () -> Float, modifier: Modifier) {
-    val meilleur = scores.maxOrNull() ?: 0
-    val serre = colonnes.size > 5
-    BoxWithConstraints(modifier) {
-        val largeur = (maxWidth / colonnes.size.coerceAtLeast(1)).coerceAtMost(200.dp)
-        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.Center) {
-            colonnes.forEachIndexed { k, e ->
-                val couleur = enNeon(e.couleur)
-                val part = if (meilleur > 0) e.points.coerceAtLeast(0).toFloat() / meilleur else 0f
-                // Instant où sa jauge s'arrête (Float.MAX_VALUE : elle monte jusqu'au bout) : un petit coup d'éclat.
-                val arret = remember(e, scores) { instantArret(part, scores) }
-                Column(
-                    Modifier.width(largeur).fillMaxHeight().padding(horizontal = if (serre) 5.dp else 12.dp).apparition(500L + 80L * k, Unit),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    CompteurJauge(e.points, part, couleur, serre, ms, scores)
-                    Spacer(Modifier.height(6.dp))
-                    val forme = RoundedCornerShape(14.dp)
-                    Box(
-                        Modifier.weight(1f).widthIn(max = 86.dp).fillMaxWidth(if (serre) 0.8f else 0.6f)
-                            .graphicsLayer {
-                                val m = ms()
-                                // Une fois arrêtée, la jauge recule un peu dans l'ombre ; celle qui monte encore brille.
-                                val eclat = battement(m - arret, 400f)
-                                alpha = if (m > arret + 400f) 0.62f else 1f
-                                val s = 1f + 0.06f * eclat
-                                scaleX = s; scaleY = s
-                            }
-                            .lueurNeon(couleur, 14.dp, 0.6f)
-                            .clip(forme).background(GS.Nuit.copy(alpha = 0.85f)).border(2.dp, couleur.copy(alpha = 0.55f), forme),
-                        contentAlignment = Alignment.BottomCenter,
-                    ) {
-                        Box(
-                            Modifier.fillMaxSize().padding(4.dp)
-                                .graphicsLayer {
-                                    transformOrigin = TransformOrigin(0.5f, 1f)
-                                    scaleY = niveauJauge(ms(), e.points, scores).coerceAtLeast(0.02f)
-                                }
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.9f), couleur, couleur.copy(alpha = 0.55f)))),
-                        )
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        NomUneLigne(e.nom, GS.Encre, if (serre) 18f else 22f, largeur - (if (serre) 10.dp else 24.dp), tailleMin = 10f)
-                    }
-                }
-            }
-        }
-    }
-}
-
-/** Instant (ms) où une jauge à [part] du meilleur score s'arrête ; les meilleures montent jusqu'au bout. */
-internal fun instantArret(part: Float, scores: List<Int>): Float {
-    if (part >= 1f || (scores.maxOrNull() ?: 0) <= 0) return Float.MAX_VALUE
-    // La hauteur commune ne fait que monter : on cherche le premier instant où elle atteint [part].
-    var a = JAUGES_DEBUT
-    var b = JAUGES_FIN
-    repeat(30) {
-        val m = (a + b) / 2
-        if (hauteurJauges(m, scores) >= part) b = m else a = m
-    }
-    return b
-}
-
-/** Compteur au-dessus d'une jauge : il suit le remplissage et finit exactement sur le score de l'équipe. */
-@Composable
-private fun CompteurJauge(points: Int, part: Float, couleur: Color, serre: Boolean, ms: () -> Float, scores: List<Int>) {
-    val meilleur = scores.maxOrNull() ?: 0
-    val affiche = (niveauJauge(ms(), points, scores) * meilleur).roundToInt().coerceAtMost(points.coerceAtLeast(0))
-    Text(
-        "$affiche", maxLines = 1, softWrap = false,
-        style = TextStyle(
-            fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Black, fontSize = if (serre) 22.sp else 30.sp,
-            color = couleur, shadow = Shadow(couleur.copy(alpha = 0.8f), Offset.Zero, 20f), textAlign = TextAlign.Center,
-        ),
-    )
-}
-
-/** Le nom du gagnant claque sur le solo : de 1,6 à 1 avec un rebond, en grand titre néon de sa couleur. */
-@Composable
-private fun NomGagnantGs(g: Classee, revelation: Float) {
-    val v = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        delay(revelation.toLong())
-        v.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMediumLow))
-    }
-    val taille = when {
-        g.nom.length <= 10 -> 66.sp
-        g.nom.length <= 16 -> 50.sp
-        else -> 38.sp
-    }
-    Text(
-        g.nom, style = styleTitreNeon(taille, enNeon(g.couleur)), maxLines = 2, textAlign = TextAlign.Center,
-        modifier = Modifier.graphicsLayer {
-            val x = v.value
-            alpha = x.coerceIn(0f, 1f)
-            val s = 1.6f - 0.6f * x
-            scaleX = s; scaleY = s
-        },
-    )
-}
-
-/**
- * Écran de fin du Game Show, après le podium, sur le dernier groove d'Aerodynamic : « Merci d'avoir participé ! »,
+ * Écran de fin dessiné du Game Show (secours de [FinCinemaGameShow] si sa vidéo ne se lit pas), sur le dernier groove d'Aerodynamic : « Merci d'avoir participé ! »,
  * « À bientôt sur The Game Show ! », le logo signé « by Little Miss Party » bien en grand (comme une pub), et le robot
  * 3D qui dit au revoir. Doucement animé : le logo respire, un reflet passe, le message bat lentement.
  */
@@ -401,13 +537,25 @@ fun AuRevoirGameShow(modifier: Modifier = Modifier) {
                             Modifier.matchParentSizePlus().graphicsLayer { alpha = 0.35f + 0.25f * souffle }
                                 .background(Brush.radialGradient(listOf(GS.Violet.copy(alpha = 0.6f), Color.Transparent))),
                         )
-                        LogoGameShow(84.dp, aligne = Alignment.CenterHorizontally)
+                        // Le reflet ne passe que sur les lettres du logo (et leur lueur), jamais en bande rectangulaire
+                        // (cedric, 23/10) : calque à part, agrandi pour que la lueur ne soit pas coupée au bord.
                         Box(
-                            Modifier.matchParentSizePlus().graphicsLayer {
-                                translationX = (balayage * 2.4f - 1.2f) * size.width
-                                alpha = 0.5f
-                            }.background(Brush.horizontalGradient(listOf(Color.Transparent, GS.CyanClair.copy(alpha = 0.25f), Color.Transparent))),
-                        )
+                            Modifier.horsCadre(48.dp)
+                                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                                .drawWithContent {
+                                    drawContent()
+                                    val x = (balayage * 1.8f - 0.4f) * size.width
+                                    val l = size.width * 0.22f
+                                    drawRect(
+                                        Brush.linearGradient(
+                                            0f to Color.Transparent, 0.5f to Color.White.copy(alpha = 0.55f), 1f to Color.Transparent,
+                                            start = Offset(x - l, 0f), end = Offset(x + l, size.height * 0.35f),
+                                        ),
+                                        blendMode = BlendMode.SrcAtop,
+                                    )
+                                }
+                                .padding(48.dp),
+                        ) { LogoGameShow(84.dp, aligne = Alignment.CenterHorizontally) }
                     }
                     Spacer(Modifier.height(26.dp))
                     Text(
@@ -418,7 +566,7 @@ fun AuRevoirGameShow(modifier: Modifier = Modifier) {
                     Spacer(Modifier.height(6.dp))
                     Text(
                         "À BIENTÔT SUR THE GAME SHOW !", style = styleEtiquetteGs(20.sp, GS.Cyan, 3.sp), maxLines = 1,
-                        modifier = Modifier.apparition(1_600, Unit).graphicsLayer { alpha = 0.75f + 0.25f * souffle },
+                        modifier = Modifier.apparition(1_600, Unit).graphicsLayer { alpha = 0.75f + 0.25f * souffle; compositingStrategy = CompositingStrategy.ModulateAlpha },
                     )
                 }
                 // Le robot qui dit au revoir, à droite (clip au format 4:5).
@@ -436,3 +584,10 @@ internal const val ROBOT_AU_REVOIR_BOUCLE_MS = 2_001
 
 /** Calque derrière et devant le logo, pour le halo et le reflet. */
 private fun Modifier.matchParentSizePlus(): Modifier = this.fillMaxWidth().height(240.dp)
+
+/** Déborde de [marge] de tous côtés sans changer la place occupée (pour un calque qui garde toute la lueur). */
+private fun Modifier.horsCadre(marge: androidx.compose.ui.unit.Dp): Modifier = layout { mesurable, contraintes ->
+    val m = marge.roundToPx()
+    val p = mesurable.measure(contraintes.offset(2 * m, 2 * m))
+    layout((p.width - 2 * m).coerceAtLeast(0), (p.height - 2 * m).coerceAtLeast(0)) { p.place(-m, -m) }
+}
