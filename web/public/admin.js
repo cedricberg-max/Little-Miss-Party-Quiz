@@ -932,7 +932,12 @@ const histPrestation = historique({
   restaurer: (e) => {
     SHOW_FIELDS.forEach((id, k) => { $(id).value = e.champs[k]; });
     $("show-title").dataset.auto = titreAuto($("show-child").value);
-    if (editing) editing.rounds = e.rounds;
+    if (editing) {
+      // Ctrl+Z, « Annuler les modifications » : les jeux dépliés le restent (rien de ça n'est dans l'historique).
+      const ouverts = new Set(editing.rounds.map((r, i) => (r?.[JEU_OUVERT] ? `${i}:${r.type ?? "quiz"}` : null)));
+      e.rounds.forEach((r, i) => { if (r && ouverts.has(`${i}:${r.type ?? "quiz"}`)) r[JEU_OUVERT] = true; });
+      editing.rounds = e.rounds;
+    }
     couleursSaisies = e.couleurs ?? [];
     pastilleOuverte = -1;
     renderCouleurs();
@@ -1999,9 +2004,10 @@ const SANS_CONTENU = ["coffres", "patate", "gonfleur"];
  */
 /**
  * Jeu replié dans la page d'une prestation (cedric, 23/10) : une seule ligne, ↑ ↓ ✕ toujours là, pour ranger les jeux
- * facilement. Noté sur la première manche du jeu, jamais enregistré.
+ * facilement. Replié d'office en ouvrant une prestation (cedric, 24/10 : « chaque ligne de jeu fermée par défaut ») ;
+ * un jeu qu'on vient d'ajouter s'ouvre, pour le remplir. Déplié : noté sur la première manche du jeu, jamais enregistré.
  */
-const JEU_REPLIE = Symbol("jeu replié");
+const JEU_OUVERT = Symbol("jeu ouvert");
 
 function refreshRounds() {
   if (!editing) return;
@@ -2043,14 +2049,14 @@ function refreshRounds() {
     // manche ») : pas de « ＋ Manche », tout s'ajoute dedans.
     const sansManches = estEnSeries(b.type) || b.type === "blind" || b.type === "musical";
     const premiere = editing.rounds[debut];
-    const replie = premiere[JEU_REPLIE] === true;
+    const replie = premiere[JEU_OUVERT] !== true;
     const resume = !replie ? "" : estEnSeries(b.type) ? compteurQuiz(premiere)
       : b.indices.map((i) => mancheSummary(editing.rounds[i], { mimes, playlists, quizzes })).filter(Boolean).join(" / ");
     box.append(h("div", { class: `jeu-bloc${replie ? " replie" : ""}`, "data-jeu": b.type },
       h("div", { class: "jeu-tete" },
         h("button", {
           type: "button", class: "icon jeu-replier", text: replie ? "▸" : "▾", "aria-expanded": replie ? "false" : "true",
-          title: replie ? "Déplier ce jeu" : "Replier ce jeu", onclick: () => { premiere[JEU_REPLIE] = !replie; refreshRounds(); },
+          title: replie ? "Déplier ce jeu" : "Replier ce jeu", onclick: () => { premiere[JEU_OUVERT] = replie; refreshRounds(); },
         }),
         h("span", { class: "jeu-nom", text: `${iconeJeu(b.type)} ${ROUND_TYPES[b.type]}`.trim() }),
         replie ? h("span", { class: "jeu-resume", text: resume }) : null,
@@ -2073,7 +2079,7 @@ function refreshRounds() {
         // Ni pour les Mimes (cedric, 23/10 : « uniquement mon bouton dé »), ni pour le blind test (cedric, 24/10 : « je ne
         // veux pas pouvoir rappeler une manche déjà faite »).
         const reprise = SANS_CONTENU.includes(b.type) || sansManches || b.type === "mimes" ? null : reprendreManche(r, (next) => {
-          editing.rounds[i] = next;
+          editing.rounds[i] = r[JEU_OUVERT] ? { ...next, [JEU_OUVERT]: true } : next;
           refreshRounds();
         });
         return h("div", { class: "round show-round", "data-manche": i },
@@ -2122,10 +2128,12 @@ function ouvrirChoixJeu(place = "bas") {
           annonce(x.type === "blind" ? "Le Blind test est déjà le dernier jeu : ajoutez-y vos chansons (🎲, « Sélectionner mes chansons », une playlist)."
             : x.type === "musical" ? "Le Quiz musical est déjà le dernier jeu : ajoutez-y vos chansons (🎲, une playlist)."
             : `${x.type === "flou" ? "L'Image floue" : `Le ${ROUND_TYPES[x.type]}`} est déjà le dernier jeu : ajoutez-y vos ${estJeuDePhotos(x.type) ? "photos" : x.type === "express" ? "affirmations" : "questions"} (🎲, un ancien anniversaire, votre bibliothèque).`);
+          dernier[JEU_OUVERT] = true;
+          refreshRounds();
           $("show-rounds").lastElementChild?.scrollIntoView({ block: "nearest", behavior: "smooth" });
           return;
         }
-        editing.rounds.push({ type: x.type });
+        editing.rounds.push({ type: x.type, [JEU_OUVERT]: true });
         refreshRounds();
         $("show-rounds").lastElementChild?.scrollIntoView({ block: "nearest", behavior: "smooth" });
       },

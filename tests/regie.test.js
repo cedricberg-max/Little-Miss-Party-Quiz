@@ -432,6 +432,13 @@ async function aVenir(page) {
 }
 
 /** Prestation : « ＋ Ajouter un jeu », puis la tuile du jeu (cedric, 21/10) ; le jeu arrive avec une manche. */
+/** Une prestation s'ouvre jeux repliés (cedric, 24/10) : les déplie tous, pour travailler dedans. */
+async function deplierJeux(page) {
+  await page.locator("#screen-show-edit").waitFor();
+  const replie = page.locator("#show-rounds .jeu-bloc.replie .jeu-replier");
+  while (await replie.count()) await replie.first().click();
+}
+
 async function ajouterJeu(page, type = "quiz") {
   await page.click("#round-add");
   await page.click(`#jeu-choix .jeu-tuile[data-jeu="${type}"]`);
@@ -2812,6 +2819,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#nav button[data-screen=home]");
     await page.click('#screen-home [data-etat="avenir"]');
     await page.locator('#show-list [data-show="lea"]').getByRole("button", { name: "Ouvrir" }).click();
+    await deplierJeux(page);
     await page.locator("#show-summary", { hasText: "3 questions · 1 manche de mimes jouables" }).waitFor();
     await page.locator("#show-rounds .round").nth(1).locator(".mime-ancienne", { hasText: "Manche préparée à l'ancienne" }).waitFor();
     await page.context().close();
@@ -4248,6 +4256,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const page = await admin();
     await page.click('#screen-home [data-etat="avenir"]');
     await page.locator('#show-list [data-show="lea"]').getByRole("button", { name: "Ouvrir" }).click();
+    await deplierJeux(page);
     const mimes = page.locator("#show-rounds .round").nth(0);
     // Une ligne par équipe, repliée : on la déplie pour voir ses images.
     await mimes.locator(".mime-equipe").nth(0).locator(".mime-deplier").click();
@@ -4956,6 +4965,7 @@ describe("bibliothèque de quiz et prestations", () => {
     // Accueil → liste « À venir » → la prestation de Léa.
     await page.click('#screen-home [data-etat="avenir"]');
     await page.locator('#show-list [data-show="lea"]').getByRole("button", { name: "Ouvrir" }).click();
+    await deplierJeux(page);
     await page.locator("#screen-show-edit:not([hidden])").waitFor();
     // Flèche du navigateur : la liste, puis l'Accueil, sans quitter le site ; la flèche « avancer » revient.
     await page.goBack();
@@ -4985,11 +4995,13 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal((await library("shows/lea")).age, 7);
     // Rouverte : la modification abandonnée n'est pas restée. « ← Retour » en bas, sans modification : pas de question.
     await page.locator('#show-list [data-show="lea"]').getByRole("button", { name: "Ouvrir" }).click();
+    await deplierJeux(page);
     assert.equal(await page.inputValue("#show-age"), "7");
     await page.locator("#screen-show-edit .retour-barre.bas .retour-page").click();
     await page.locator("#screen-shows:not([hidden])").waitFor();
     // « Enregistrer » dans la fenêtre (cedric, 24/10) : la prestation est enregistrée, puis on va où on voulait aller.
     await page.locator('#show-list [data-show="lea"]').getByRole("button", { name: "Ouvrir" }).click();
+    await deplierJeux(page);
     await page.fill("#show-age", "9");
     await page.locator("#screen-show-edit .retour-barre.haut .retour-page").click();
     const fenetre = page.locator("dialog[data-fenetre][open]");
@@ -5196,6 +5208,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#nav button[data-screen=home]");
     await page.click('#screen-home [data-etat="acompleter"]');
     await page.locator('#show-list [data-show="lea"]').getByRole("button", { name: "Ouvrir" }).click();
+    await deplierJeux(page);
     await page.locator("#screen-show-edit:not([hidden])").waitFor();
     const annulerTout = page.locator("#screen-show-edit .retour-barre.bas .retour-tout");
     assert.equal(await annulerTout.isDisabled(), true);
@@ -5219,7 +5232,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.ok(boites.every((r) => r.b <= 800), "dans la fenêtre");
     await capture(page, "barre-bas-enregistrer", { pleinePage: false });
     await page.keyboard.press("Control+z");
-    await waitFor(async () => (await page.locator("#show-rounds .round").count()) === 1, "Ctrl+Z : le jeu revient");
+    await waitFor(async () => (await page.locator("#show-rounds .jeu-bloc").count()) === 1, "Ctrl+Z : le jeu revient (replié)");
     assert.equal(await annulerTout.isDisabled(), true);
     await page.click("#show-edit-crumb");
 
@@ -5444,6 +5457,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#nav button[data-screen=home]");
     await page.click('#screen-home [data-etat="avenir"]');
     await page.locator('#show-list [data-show="lea"]').getByRole("button", { name: "Ouvrir" }).click();
+    await deplierJeux(page);
     const premiere = page.locator("#show-rounds .round").nth(0);
     assert.deepEqual(await page.locator("#show-rounds .jeu-bloc").evaluateAll((l) => l.map((x) => x.dataset.jeu)), ["illustre", "quiz"]);
     assert.equal(await premiere.locator("select.finale").inputValue(), "1");
@@ -6899,6 +6913,7 @@ describe("bibliothèque de quiz et prestations", () => {
     // Une fête désarchivée avant cette décision reste « À compléter » tant que sa date est passée.
     await page.click('#shows-tabs [data-etat="acompleter"]');
     await page.locator('#show-list [data-show="remise"]').getByRole("button", { name: "Ouvrir" }).click();
+    await deplierJeux(page);
     // Reprogrammée et remise « À venir » : le lendemain de la nouvelle date, elle s'archivera de nouveau.
     // « Enregistrer » est aussi en haut de la fiche (cedric, 21/10) : il enregistre comme celui du bas.
     await page.fill("#show-date", day(5));
@@ -6945,10 +6960,12 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#brand");
     await page.click('#screen-home [data-etat="acompleter"]');
     await page.locator('#show-list [data-show="ancienne"]').getByRole("button", { name: "Ouvrir" }).click();
+    await deplierJeux(page);
     assert.equal(await page.inputValue("#show-title"), "Anniversaire de Léa");
     await page.click("#brand");
     await page.click('#screen-home [data-etat="acompleter"]');
     await page.locator('#show-list [data-show="perso"]').getByRole("button", { name: "Ouvrir" }).click();
+    await deplierJeux(page);
     assert.equal(await page.inputValue("#show-title"), "La boum de Hugo");
     await page.fill("#show-child", "Hugo-Louis");
     assert.equal(await page.inputValue("#show-title"), "La boum de Hugo");
@@ -7210,6 +7227,7 @@ describe("bibliothèque de quiz et prestations", () => {
     // Rouverte : la ✕ de la série tirée n'enlève qu'elle ; la ligne du dé reste.
     await page.click("#show-edit-crumb");
     await page.locator(".show-card", { hasText: "Zoé" }).first().click();
+    await deplierJeux(page);
     await series.nth(2).waitFor();
     await round.locator('.quiz-series > li.serie[data-origine="de"] .serie-enlever').click();
     assert.match(await repondreFenetre(page), /Enlever cette série \(8 questions\) de la manche \?/);
@@ -7331,6 +7349,7 @@ describe("bibliothèque de quiz et prestations", () => {
     // Rouverte : le même ordre ; un nouveau tirage au 🎲 passe en tête, l'ordre rangé suit.
     await page.click("#show-edit-crumb");
     await page.locator(".show-card", { hasText: "Zoé" }).first().click();
+    await deplierJeux(page);
     await series.nth(2).waitFor();
     await voir.click();
     assert.deepEqual(await ordre(), melange);
@@ -7363,6 +7382,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const page = await admin();
     await page.click('#screen-home [data-etat="avenir"]');
     await page.locator('#show-list [data-show="vieux"]').getByRole("button", { name: "Ouvrir" }).click();
+    await deplierJeux(page);
     await page.locator("#show-status-msg", { hasText: "Les manches Quiz qui se suivaient n'en font plus qu'une" }).waitFor();
     assert.equal(await page.locator('#show-rounds .jeu-bloc[data-jeu="quiz"] .round').count(), 1);
     const round = page.locator('#show-rounds .jeu-bloc[data-jeu="quiz"] .round');
@@ -7385,7 +7405,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
-  test("Régie PC (cedric, 23/10) : chaque jeu se replie en une ligne (▸ / ▾), ↑ ↓ ✕ toujours là pour ranger les jeux", async () => {
+  test("Régie PC (cedric, 23 et 24/10) : chaque jeu se replie en une ligne (▸ / ▾), ↑ ↓ ✕ toujours là pour ranger les jeux ; tous repliés en ouvrant une prestation, un jeu ajouté s'ouvre", async () => {
     const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
     await seedLibrary("quizzes", { animaux: ANIMAUX });
     await seedLibrary("shows", {
@@ -7397,17 +7417,23 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator('#show-list [data-show="jeux"]').getByRole("button", { name: "Ouvrir" }).click();
     const bloc = (jeu) => page.locator(`#show-rounds .jeu-bloc[data-jeu="${jeu}"]`);
     const quiz = bloc("quiz");
+    const statues = bloc("statues");
+    // Replié d'office en ouvrant la prestation (cedric, 24/10) : une ligne, son résumé, ↑ ↓ ✕ toujours là.
+    await quiz.locator(".jeu-resume").waitFor();
+    assert.deepEqual(await page.locator("#show-rounds .jeu-bloc").evaluateAll((xs) => xs.map((x) => [x.dataset.jeu, x.classList.contains("replie")])), [["quiz", true], ["statues", true]]);
+    assert.equal(await page.locator("#show-rounds .round").count(), 0);
+    // ▸ déplie, ▾ replie.
+    await quiz.locator(".jeu-replier").click();
     await quiz.locator(".round").waitFor();
-    // Déplié d'office ; ▾ replie : une ligne, son résumé, ↑ ↓ ✕ toujours là.
     assert.equal(await quiz.locator(".jeu-replier").textContent(), "▾");
+    assert.equal(await quiz.locator(".jeu-replier").getAttribute("aria-expanded"), "true");
+    assert.equal(await statues.locator(".round").count(), 0, "les autres restent repliés");
     await quiz.locator(".jeu-replier").click();
     assert.equal(await quiz.locator(".round").count(), 0);
     assert.equal(await quiz.locator(".jeu-replier").textContent(), "▸");
     assert.equal(await quiz.locator(".jeu-replier").getAttribute("aria-expanded"), "false");
     assert.equal(await quiz.locator(".jeu-resume").textContent(), "2 questions, dont la dernière en Super Finale, plus la question des bougies");
     assert.deepEqual(await quiz.locator(".jeu-tete > button").evaluateAll((xs) => xs.map((x) => x.textContent)), ["▸", "↑", "↓", "✕"]);
-    const statues = bloc("statues");
-    await statues.locator(".jeu-replier").click();
     assert.equal(await statues.locator(".jeu-resume").textContent(), "60 s · musique de la fête");
     assert.equal(await statues.locator(".jeu-plus").count(), 0, "Replié : pas de « ＋ Manche »");
     await capture(page, "jeux-replies");
@@ -7428,6 +7454,15 @@ describe("bibliothèque de quiz et prestations", () => {
     const lou = (await library("shows")).jeux;
     assert.deepEqual(lou.rounds.map((r) => r.type), ["statues", "quiz"]);
     assert.equal(JSON.stringify(lou).includes("repli"), false);
+    assert.equal(JSON.stringify(lou).includes("ouvert"), false);
+    // Un jeu ajouté s'ouvre, pour le remplir ; Ctrl+Z le retire, le Quiz déplié le reste.
+    await ajouterJeu(page, "mimes");
+    await bloc("mimes").locator(".round").waitFor();
+    assert.deepEqual(await page.locator("#show-rounds .jeu-bloc").evaluateAll((xs) => xs.map((x) => [x.dataset.jeu, x.classList.contains("replie")])), [["statues", true], ["quiz", false], ["mimes", false]]);
+    await page.locator("#show-edit-title").click();
+    await page.keyboard.press("Control+z");
+    await waitFor(async () => (await page.locator("#show-rounds .jeu-bloc").count()) === 2, "le jeu ajouté retiré");
+    assert.deepEqual(await page.locator("#show-rounds .jeu-bloc").evaluateAll((xs) => xs.map((x) => [x.dataset.jeu, x.classList.contains("replie")])), [["statues", true], ["quiz", false]]);
     await page.context().close();
   });
 
@@ -7455,12 +7490,14 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#brand");
     await page.click('#screen-home [data-etat="avenir"]');
     await page.locator('#show-list [data-show="prete"]').getByRole("button", { name: "Ouvrir" }).click();
+    await deplierJeux(page);
     assert.deepEqual(await choix(), ["À compléter", "À venir"]);
     assert.equal(await page.inputValue("#show-status"), "publiee");
     // Archivée d'elle-même (date passée) : « Archivée » est montré, et on peut la remettre « À venir ».
     await page.click("#brand");
     await page.click('#screen-home [data-etat="archivee"]');
     await page.locator('#show-list [data-show="passee"]').getByRole("button", { name: "Ouvrir" }).click();
+    await deplierJeux(page);
     assert.deepEqual(await choix(), ["À compléter", "À venir", "Archivée"]);
     assert.equal(await page.inputValue("#show-status"), "archivee");
     // Sans changer la date : elle reste archivée, le message dit quoi faire.
@@ -7533,6 +7570,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await seedLibrary("shows", { vieille: { childName: "Léa", age: 7, date: "2099-12-02", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }, { type: "finale", quizId: "finale" }], updatedAt: 1 } });
     const page = await admin();
     await page.locator('#home-upcoming [data-show="vieille"]').getByRole("button", { name: "Ouvrir" }).click();
+    await deplierJeux(page);
     await page.locator("#show-status-msg", { hasText: "L'ancienne manche « Super Finale » est devenue le réglage du quiz" }).waitFor();
     // Un seul jeu, le Quiz, avec une manche ; la Super Finale n'est plus proposée comme jeu.
     assert.equal(await page.locator("#show-rounds .round").count(), 1);
@@ -7634,6 +7672,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await library("shows/vieux/status"), "publiee", "Rien d'autre ne change");
     // Ouverte puis enregistrée telle quelle, elle garde son étoile.
     await page.locator('#show-pinned [data-show="vieux"]').getByRole("button", { name: "Ouvrir" }).click();
+    await deplierJeux(page);
     assert.equal(await page.textContent("#show-edit-crumb"), "Archivées");
     assert.equal(await page.inputValue("#show-status"), "archivee", "Archivée d'elle-même : le statut le dit");
     await page.click("#show-save");
