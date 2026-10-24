@@ -52,6 +52,7 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -319,6 +320,9 @@ private fun MimeCardFace(card: MimeCard, color: Color, octets: ByteArray?, modif
     }
 }
 
+/** Place du compteur à droite de la carte : assez pour « 88 » en 96 sp et « trouvés ». */
+private val COMPTEUR_LARGEUR = 200.dp
+
 /** Compteur du tour : il rebondit et lâche un « +1 » doré à chaque mime trouvé. */
 @Composable
 private fun FoundCounter(found: Int) {
@@ -331,10 +335,20 @@ private fun FoundCounter(found: Int) {
         bump.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
     }
     LaunchedEffect(found) { if (found > 0) flyer.animateTo(0f, tween(900)) }
-    Box(contentAlignment = Alignment.Center) {
+    // Largeur fixe et interligne serré (cedric 24/10, photo : chiffre très au-dessus de « trouvés », bloc collé à la
+    // carte) : le chiffre et son mot restent un seul bloc centré, quelle que soit la largeur du nombre.
+    Box(Modifier.width(COMPTEUR_LARGEUR), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("$found", color = Neon.Or, fontSize = 96.sp, fontWeight = FontWeight.Black, modifier = Modifier.scale(bump.value))
-            Text(if (found > 1) "trouvés" else "trouvé", color = Palette.InkSoft, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text(
+                "$found", color = Neon.Or, fontSize = 96.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
+                style = TextStyle(lineHeight = 96.sp, lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both)),
+                modifier = Modifier.scale(bump.value),
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                if (found > 1) "trouvés" else "trouvé", color = Palette.InkSoft, fontSize = 24.sp, fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center, maxLines = 1, softWrap = false,
+            )
         }
         Text(
             "+1", color = Neon.Or, fontSize = 44.sp, fontWeight = FontWeight.Black,
