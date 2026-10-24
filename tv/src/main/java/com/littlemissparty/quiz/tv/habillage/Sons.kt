@@ -101,6 +101,10 @@ object Sons {
     @Volatile var tourAccueil: Long = 0L
         private set
 
+    /** Même chose pour la boucle d'Aerodynamic de l'écran de fin du Game Show : sa vidéo bat sur ses temps. */
+    @Volatile var tourFin: Long = 0L
+        private set
+
     /**
      * Instant (SystemClock.uptimeMillis) où le générique a vraiment démarré : l'animation du logo s'y cale, même si
      * la box finissait encore de charger ses sons au démarrage.
@@ -218,7 +222,12 @@ object Sons {
         // Déjà chargée (à la demande d'une ambiance, pendant le chargement du démarrage) : on ne la double pas.
         if (lits.containsKey(l)) return@essayer
         val nom = l.fichierPour(Look.gs) ?: return@essayer
-        val b = boucle(app, nom, if (l == Lit.ACCUEIL) { t -> tourAccueil = t } else null) ?: return@essayer
+        val surTour: ((Long) -> Unit)? = when (l) {
+            Lit.ACCUEIL -> ({ t -> tourAccueil = t })
+            Lit.FIN -> ({ t -> tourFin = t })
+            else -> null
+        }
+        val b = boucle(app, nom, surTour) ?: return@essayer
         lits[l] = b
         val v = volumes.getValue(l)
         b.setVolume(v)

@@ -88,7 +88,8 @@ internal const val ECART_ACCUEIL_MS = 120
  * Vidéo opaque dans un TextureView ; le décodage se fait dans le lecteur du système. Par défaut muette et en boucle
  * (fonds). [volume] > 0 : le son de la vidéo sort aussi (grande intro du lancement). [surFin] : appelé une fois, à la
  * fin de la vidéo (sans boucle) ou dès [finMs] atteint. [departMs] : la vidéo commence là (plateau qui reprend
- * après un clip du robot, [GelFond]).
+ * après un clip du robot, [GelFond]). [repriseMs] : à la fin du fichier, la vidéo repart de là (une arrivée jouée
+ * une fois, puis une boucle : écran de fin). [attenteMs] : délai avant de partir, lu quand la vidéo est prête.
  */
 internal class LecteurFond(
     context: Context,
@@ -100,6 +101,8 @@ internal class LecteurFond(
     private val finMs: Int = Int.MAX_VALUE,
     private val surFin: () -> Unit = {},
     private val departMs: Int = 0,
+    private val repriseMs: Int? = null,
+    private val attenteMs: () -> Int = { 0 },
 ) : TextureView(context), TextureView.SurfaceTextureListener {
     private var lecteur: MediaPlayer? = null
     private var surface: Surface? = null
@@ -129,7 +132,7 @@ internal class LecteurFond(
             lecteur = MediaPlayer().apply {
                 context.resources.openRawResourceFd(resId).use { setDataSource(it.fileDescriptor, it.startOffset, it.length) }
                 setSurface(s)
-                isLooping = boucle
+                isLooping = boucle && repriseMs == null
                 setVolume(volume, volume)
                 setOnInfoListener { _, quoi, _ ->
                     if (quoi == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) {
@@ -144,12 +147,25 @@ internal class LecteurFond(
                     surEchec()
                     true
                 }
-                setOnCompletionListener { if (!boucle) terminer() }
-                setOnPreparedListener {
+                setOnCompletionListener { mp ->
+                    val r = repriseMs
+                    if (r != null) {
+                        runCatching {
+                            mp.seekTo(r.toLong(), MediaPlayer.SEEK_CLOSEST)
+                            mp.start()
+                        }
+                    } else if (!boucle) terminer()
+                }
+                setOnPreparedListener { mp ->
                     if (fini) return@setOnPreparedListener
-                    if (departMs > 0) runCatching { it.seekTo(departMs.toLong(), MediaPlayer.SEEK_CLOSEST) }
-                    it.start()
-                    if (finMs < Int.MAX_VALUE) post(guetteur)
+                    if (departMs > 0) runCatching { mp.seekTo(departMs.toLong(), MediaPlayer.SEEK_CLOSEST) }
+                    val lancer = Runnable {
+                        if (fini || lecteur !== mp) return@Runnable
+                        mp.start()
+                        if (finMs < Int.MAX_VALUE) post(guetteur)
+                    }
+                    val attente = attenteMs()
+                    if (attente > 0) postDelayed(lancer, attente.toLong()) else lancer.run()
                 }
                 prepareAsync()
             }

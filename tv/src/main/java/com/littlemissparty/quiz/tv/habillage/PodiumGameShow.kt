@@ -70,7 +70,7 @@ import kotlin.math.roundToInt
  *   du tambour sur les dernières mesures. Juste avant le solo, les tubes s'enfoncent sous le plateau ;
  * - le solo de guitare : flash, le robot arrive en gros plan et danse ([ROBOT_FETE]), le nom du gagnant claque
  *   lettre par lettre ([NomNerveux]), ses vrais points, puis le classement des autres sur une ou deux lignes ;
- * - à [Tempo.PODIUM_FIN], quand la chanson s'éteint : l'écran de fin ([AuRevoirGameShow]).
+ * - à [Tempo.PODIUM_FIN], quand la chanson s'éteint : l'écran de fin cinéma ([FinCinemaGameShow]).
  * Égalité en tête : mêmes tubes, puis « ÉGALITÉ ! » et les noms couronnés. Personne n'a marqué : les tubes restent
  * presque vides et « Bravo à toutes les équipes ! » arrive au solo. Les compteurs du suspense ne sont qu'un spectacle
  * plafonné ; tout nombre affiché après le solo est le vrai score ([Classee.points]) : rien ici ne compte de points.
@@ -78,7 +78,7 @@ import kotlin.math.roundToInt
  */
 @Composable
 fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier) {
-    if (apres(Tempo.PODIUM_FIN, Unit)) return AuRevoirGameShow(modifier)
+    if (apres(Tempo.PODIUM_FIN, Unit)) return FinCinemaGameShow(modifier)
     val meilleur = classement.firstOrNull()?.points ?: 0
     val gagnants = if (meilleur > 0) classement.takeWhile { it.points == meilleur } else emptyList()
     val autres = classement.drop(gagnants.size)
@@ -511,7 +511,7 @@ private fun ColonneAutres(equipes: List<Classee>, classement: List<Classee>, mod
 
 
 /**
- * Écran de fin du Game Show, après le podium, sur le dernier groove d'Aerodynamic : « Merci d'avoir participé ! »,
+ * Écran de fin dessiné du Game Show (secours de [FinCinemaGameShow] si sa vidéo ne se lit pas), sur le dernier groove d'Aerodynamic : « Merci d'avoir participé ! »,
  * « À bientôt sur The Game Show ! », le logo signé « by Little Miss Party » bien en grand (comme une pub), et le robot
  * 3D qui dit au revoir. Doucement animé : le logo respire, un reflet passe, le message bat lentement.
  */

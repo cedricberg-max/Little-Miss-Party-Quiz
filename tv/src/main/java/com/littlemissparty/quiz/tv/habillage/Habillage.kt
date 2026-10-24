@@ -59,6 +59,9 @@ object Habillage {
     val introLancement = mutableStateOf(false)
     /** L'intro vidéo d'un jeu passe sur l'écran de présentation : le décor ne lit pas son propre fond vidéo. */
     val introJeu = mutableStateOf(false)
+
+    /** La vidéo de l'écran de fin du Game Show passe : le décor ne lit pas son propre fond vidéo. */
+    val finVideo = mutableStateOf(false)
 }
 
 /**
@@ -94,7 +97,7 @@ fun HabillageTv(state: UiState) {
     val dore = (state as? UiState.Playing)?.let { it.question?.double == true && it.phase in listOf(Phase.QUESTION, Phase.CLOSED, Phase.REVEAL) } == true
     // Accueil du Game Show : le robot qui dort, calé sur Get Lucky ; pendant la grande intro, aucune autre vidéo.
     val salon = (state as? UiState.Playing)?.phase == Phase.LOBBY
-    DecorPlateau(chaud = urgent, dore = dore, accueil = salon, sansVideo = lancement || Habillage.introJeu.value)
+    DecorPlateau(chaud = urgent, dore = dore, accueil = salon, sansVideo = lancement || Habillage.introJeu.value || Habillage.finVideo.value)
 }
 
 /**
