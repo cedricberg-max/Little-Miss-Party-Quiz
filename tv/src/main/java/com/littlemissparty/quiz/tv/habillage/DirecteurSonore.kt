@@ -150,8 +150,11 @@ class DirecteurSonore {
                     // Les dernières questions du quiz passent à points ×2 : un éclat « points doublés », une seule fois.
                     // Ce n'est pas un nouveau jeu : ni rideau ni jingle de manche.
                     o += Ordre.Jouer(Son.BT_DOUBLE)
-                    o += Ordre.Musique(Ambiance.SILENCE)
-                    o += Ordre.Musique(musique, Tempo.QUESTION_MUSIQUE_APRES_MANCHE)
+                    // Game Show : la musique de la manche ne s'arrête pas, la nappe de tension la rejoint (cedric, 23/10).
+                    if (!i.gameShow) {
+                        o += Ordre.Musique(Ambiance.SILENCE)
+                        o += Ordre.Musique(musique, Tempo.QUESTION_MUSIQUE_APRES_MANCHE)
+                    } else o += Ordre.Musique(musique)
                 } else if (i.premiere) {
                     o += Ordre.Jouer(Son.MANCHE)
                     o += Ordre.Jouer(Son.IMPACT)
@@ -408,6 +411,8 @@ class DirecteurSonore {
             i.patate && i.ecran != Ecran.REVELATION -> Ambiance.SILENCE
             i.disparu == DISPARU_MEMORISER && i.ecran == Ecran.QUESTION -> Ambiance.MEMOIRE
             i.disparu == DISPARU_MAGIE && i.ecran == Ecran.QUESTION -> Ambiance.ENVOUTEMENT
+            // Game Show : Qui suis-je ? est un jeu qui bouge, sur la musique des mimes (cedric, 23/10), en retrait sous les indices.
+            i.quiSuis && i.gameShow && i.ecran == Ecran.QUESTION -> if (i.buzzEquipe >= 0) Ambiance.SILENCE else Ambiance.MIMES_ENTRE
             i.jeuBuzz && i.ecran == Ecran.QUESTION -> if (i.buzzEquipe >= 0) Ambiance.SILENCE else Ambiance.SUSPENSE
             // Zoom mystère : musique en retrait sous la montée, comme l'Image floue.
             i.zoom && i.ecran == Ecran.QUESTION -> Ambiance.SUSPENSE
@@ -479,6 +484,7 @@ data class Instant(
     val patate: Boolean = false,
     val flou: Boolean = false,
     val chante: Boolean = false,
+    val quiSuis: Boolean = false,
     val indices: Int = 0,
     val buzzEquipe: Int = -1,
     val ratees: Int = 0,
@@ -566,8 +572,11 @@ enum class Ambiance(
     SALON_ARRIVEE(complete = 0.85f, gameShow = mapOf(Lit.ACCUEIL to 0.49f)),
     QUESTION(legere = 0.6f),
     SUSPENSE(legere = 0.25f),
-    /** Présentation d'un jeu : la musique du salon, assez bas pour que Sarah présente le jeu par-dessus. */
-    PRESENTATION(complete = 0.3f),
+    /**
+     * Présentation d'un jeu : la musique du salon, assez bas pour que Sarah présente le jeu par-dessus ; 0,3 sonnait
+     * trop éteint (cedric, 24/10).
+     */
+    PRESENTATION(complete = 0.4f),
     FETE(complete = 0.8f),
     /** Tour de mimes : rythmique latine qui entraîne, sans couvrir les cris de ceux qui devinent. */
     MIMES(mimes = 0.6f),

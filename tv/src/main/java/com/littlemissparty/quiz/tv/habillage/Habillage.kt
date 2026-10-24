@@ -148,6 +148,7 @@ internal fun instantDe(state: UiState, urgent: Boolean, maintenant: Long, indice
         jeuBuzz = s.question?.isBuzz == true,
         flou = s.question?.isFlou == true,
         chante = s.question?.isChante == true,
+        quiSuis = s.question?.isQuiSuis == true,
         buzzEquipe = s.teams.indexOfFirst { it.uid == s.buzzTeam },
         ratees = s.buzzBlocked.size,
         indices = indices,

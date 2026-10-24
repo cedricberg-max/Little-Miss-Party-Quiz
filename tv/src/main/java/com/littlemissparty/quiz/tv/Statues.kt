@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
+import com.littlemissparty.quiz.tv.habillage.Look
 import com.littlemissparty.quiz.tv.habillage.apparition
 
 /** Statues musicales : la musique joue-t-elle à cet instant (question en cours, chrono qui tourne, pas une statue) ? */
@@ -68,7 +69,9 @@ private fun MusiqueStatues(danse: Boolean, chansons: List<String>) {
                 setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
                 if (chanson != null) setDataSource(chanson)
                 else {
-                    val id = context.resources.getIdentifier("lmp_bed_mimes", "raw", context.packageName)
+                    // Game Show : sa propre musique des mimes (gs_), pas celle du look Classique.
+                    val id = context.resources.getIdentifier(if (Look.gs) "gs_bed_mimes" else "lmp_bed_mimes", "raw", context.packageName)
+                        .takeIf { it != 0 } ?: context.resources.getIdentifier("lmp_bed_mimes", "raw", context.packageName)
                     context.resources.openRawResourceFd(id).use { setDataSource(it.fileDescriptor, it.startOffset, it.length) }
                 }
                 // Une seule chanson (ou la musique maison) : en boucle ; plusieurs : la suivante à la fin de chacune.

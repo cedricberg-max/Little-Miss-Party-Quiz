@@ -154,6 +154,28 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `Game Show, la super finale garde la musique de la manche, sans blanc`() {
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true))
+        d.observer(q1.copy(gameShow = true))
+        d.observer(q2.copy(gameShow = true))
+        val bascule = d.observer(q2.copy(index = 8, superFinale = true, gameShow = true))
+        assertTrue(Son.BT_DOUBLE in bascule.sons())
+        assertEquals(listOf(Ambiance.DECISIVE), bascule.filterIsInstance<Ordre.Musique>().map { it.ambiance })
+    }
+
+    @Test
+    fun `Game Show, Qui suis-je sur la musique des mimes, en retrait, silence quand une equipe a buzze`() {
+        val d = DirecteurSonore()
+        val qui = q2.copy(jeuBuzz = true, quiSuis = true, gameShow = true)
+        d.observer(salon.copy(gameShow = true))
+        assertEquals(Ambiance.MIMES_ENTRE, d.observer(qui).musique())
+        assertEquals(Ambiance.SILENCE, d.observer(qui.copy(buzzEquipe = 0)).musique())
+        // Look Classique : rien ne change.
+        assertEquals(Ambiance.SUSPENSE, DirecteurSonore().apply { observer(salon) }.observer(qui.copy(gameShow = false)).musique())
+    }
+
+    @Test
     fun `un tic par reponse recue, rien si rien ne change`() {
         val d = DirecteurSonore()
         d.observer(q2)

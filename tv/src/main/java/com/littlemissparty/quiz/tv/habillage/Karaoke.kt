@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -50,11 +51,13 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
@@ -249,9 +252,17 @@ private fun Gagnant(cle: Any?, gagnant: Pair<String, Color>?, points: Int, doubl
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.apparition(500, cle)) {
             Box(Modifier.size(88.dp).rebond(apres(500, cle), 0.08f).clip(CircleShape).background(gagnant.second), contentAlignment = Alignment.Center) {
                 val chiffres = "+$points".length
+                val taille = if (chiffres > 4) 24.sp else if (chiffres > 3) 30.sp else 36.sp
+                // Centré au pixel dans la pastille, sans la marge de police ni l'espace sous la ligne (cedric, 24/10).
                 Text(
-                    "+$points", color = Neon.Nuit, fontSize = if (chiffres > 4) 24.sp else if (chiffres > 3) 30.sp else 36.sp,
-                    fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
+                    "+$points", color = Neon.Nuit, maxLines = 1, softWrap = false,
+                    style = LocalTextStyle.current.merge(
+                        TextStyle(
+                            fontSize = taille, lineHeight = taille, fontWeight = FontWeight.Black,
+                            platformStyle = PlatformTextStyle(includeFontPadding = false),
+                            lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
+                        ),
+                    ),
                 )
             }
             Spacer(Modifier.width(20.dp))
