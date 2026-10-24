@@ -6,7 +6,7 @@
  * rend les modifications. Enregistrer fixe le nouveau point de départ.
  */
 
-import { confirmer } from "./fenetre.js";
+import { confirmer, choisirParmi } from "./fenetre.js";
 
 /** Copie profonde des objets et tableaux simples ; les fichiers (photos, morceaux pas encore envoyés) gardés tels quels. */
 const cloner = (v) => (Array.isArray(v) ? v.map(cloner)
@@ -58,7 +58,7 @@ function placer(ecran, [haut, bas]) {
  * [enregistreSeul] : écran enregistré à chaque touche, jamais de modification en attente.
  * Les clics, choix et saisies dans l'écran sont notés tout seuls ; [noter] sert après une action qui finit plus tard.
  */
-export function historique({ ecran, capturer, restaurer, precedent, enregistreSeul = false }) {
+export function historique({ ecran, capturer, restaurer, precedent, enregistreSeul = false, enregistrer = null }) {
   let pile = [];
   let depart = null;
   /** Ouvert avec un contenu jamais enregistré (quiz importé…) : le quitter le perdrait. */
@@ -119,6 +119,8 @@ export function historique({ ecran, capturer, restaurer, precedent, enregistreSe
       appliquer(depart);
     },
     get visible() { return !ecran.hidden; },
+    /** Enregistre l'écran (vrai une fois enregistré), s'il sait le faire ; sinon null. */
+    enregistrer,
   };
   // Les gestionnaires de l'écran passent d'abord : l'état est lu juste après eux.
   const plusTard = () => setTimeout(h.noter, 0);
@@ -150,7 +152,14 @@ export function ecranModifie() {
 export async function quitterEcran() {
   const h = [...ouverts].find((x) => x.modifie);
   if (!h) return true;
-  if (!(await confirmer("Des modifications ne sont pas enregistrées.\n\nQuitter sans enregistrer ? Elles seront perdues.", { ok: "Quitter sans enregistrer", annuler: "Rester", danger: true }))) return false;
+  // « Enregistrer » aussi (cedric, 24/10) : l'écran est enregistré, puis on va où on voulait aller ; s'il ne s'enregistre
+  // pas (message à l'écran), on reste.
+  if (h.enregistrer) {
+    const choix = await choisirParmi("Des modifications ne sont pas enregistrées.\n\nLes enregistrer avant de quitter ? Sinon, elles seront perdues.",
+      { premier: "Enregistrer", ok: "Quitter sans enregistrer", annuler: "Rester", danger: true });
+    if (choix === "premier") return (await h.enregistrer()) === true;
+    if (choix !== "ok") return false;
+  } else if (!(await confirmer("Des modifications ne sont pas enregistrées.\n\nQuitter sans enregistrer ? Elles seront perdues.", { ok: "Quitter sans enregistrer", annuler: "Rester", danger: true }))) return false;
   h.abandonner();
   return true;
 }

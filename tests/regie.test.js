@@ -4969,7 +4969,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.fill("#show-age", "8");
     let question = repondreFenetre(page, { accepter: false });
     await page.goBack();
-    assert.match(await question, /Quitter sans enregistrer \?/);
+    // Trois choix (cedric, 24/10) : Enregistrer, Quitter sans enregistrer, Rester.
+    assert.match(await question, /Les enregistrer avant de quitter \?/);
     await page.waitForTimeout(300);
     assert.equal(await page.locator("#screen-show-edit").isVisible(), true);
     assert.equal(await page.inputValue("#show-age"), "8");
@@ -4984,6 +4985,15 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.inputValue("#show-age"), "7");
     await page.locator("#screen-show-edit .retour-barre.bas .retour-page").click();
     await page.locator("#screen-shows:not([hidden])").waitFor();
+    // « Enregistrer » dans la fenêtre (cedric, 24/10) : la prestation est enregistrée, puis on va où on voulait aller.
+    await page.locator('#show-list [data-show="lea"]').getByRole("button", { name: "Ouvrir" }).click();
+    await page.fill("#show-age", "9");
+    await page.locator("#screen-show-edit .retour-barre.haut .retour-page").click();
+    const fenetre = page.locator("dialog[data-fenetre][open]");
+    assert.deepEqual(await fenetre.locator(".fenetre-boutons button").allTextContents(), ["Enregistrer", "Quitter sans enregistrer", "Rester"]);
+    await fenetre.locator("[data-fenetre-premier]").click();
+    await page.locator("#screen-shows:not([hidden])").waitFor();
+    await waitFor(async () => (await library("shows/lea")).age === 9, "enregistrée avant de quitter");
     // Les autres pages aussi : création d'un quiz, puis une manche d'un jeu.
     await openQuizzes(page);
     await page.click("#quiz-import-open");
