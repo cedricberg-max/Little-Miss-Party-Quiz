@@ -92,6 +92,7 @@ internal fun programmeAlpha(): Int {
  * simplement pas de robot. Rien ici ne touche à la partie. [liberer] rend tout (lecteur, OpenGL, fil).
  * [boucleDepuisMs] ≥ 0 : à la fin, le clip repart de là, sans fin (podium, écran de fin : une entrée, puis une danse
  * qui boucle). Le clip a une image clé à cet endroit : le retour est immédiat.
+ * [boucle] : le clip tourne en boucle sans couture (disque du blind test) ; [vitesse] le ralentit et le fige.
  */
 internal class LecteurAlpha(
     context: Context,
@@ -99,6 +100,7 @@ internal class LecteurAlpha(
     private val surDebut: () -> Unit,
     private val surEchec: () -> Unit,
     private val boucleDepuisMs: Int = -1,
+    private val boucle: Boolean = false,
 ) : TextureView(context), TextureView.SurfaceTextureListener {
     private val fil = HandlerThread("robot-game-show").apply { start() }
     private val h = Handler(fil.looper)
@@ -116,6 +118,9 @@ internal class LecteurAlpha(
         .apply { put(floatArrayOf(-1f, -1f, 1f, -1f, -1f, 1f, 1f, 1f)); position(0) }
 
     @Volatile private var fini = false
+    @Volatile private var cible = 1f
+    private var prepare = false
+    private var image = false
 
     init {
         isOpaque = false
@@ -188,7 +193,11 @@ internal class LecteurAlpha(
                 context.resources.openRawResourceFd(resId).use { setDataSource(it.fileDescriptor, it.startOffset, it.length) }
                 setSurface(s)
                 setOnInfoListener { _, quoi, _ ->
-                    if (quoi == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) post { surDebut() }
+                    if (quoi == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) {
+                        image = true
+                        if (cible != 1f) appliquerVitesse()
+                        post { surDebut() }
+                    }
                     false
                 }
                 setOnErrorListener { _, quoi, extra ->
@@ -201,7 +210,13 @@ internal class LecteurAlpha(
                         mp.start()
                     }
                 }
-                setOnPreparedListener { if (!fini) it.start() }
+                if (boucle) isLooping = true
+                setOnPreparedListener {
+                    if (!fini) {
+                        prepare = true
+                        it.start()
+                    }
+                }
                 prepareAsync()
             }
         } catch (e: Throwable) {
@@ -229,6 +244,34 @@ internal class LecteurAlpha(
             EGL14.eglSwapBuffers(egl, fenetre)
         } catch (e: Throwable) {
             Log.w("Habillage", "Image du robot ignorée : ${e.message}")
+        }
+    }
+
+    /**
+     * Vitesse de lecture : 1 normale, entre les deux ralentie, 0 figée sur l'image en cours. Une box qui ne sait pas
+     * ralentir passe directement de l'un à l'autre. Avant la première image, la vitesse attend qu'elle soit là.
+     */
+    fun vitesse(v: Float) {
+        cible = v.coerceIn(0f, 1f)
+        h.post { appliquerVitesse() }
+    }
+
+    private fun appliquerVitesse() {
+        val mp = lecteur ?: return
+        if (fini || !prepare || !image) return
+        val v = cible
+        try {
+            if (v <= 0f) {
+                if (mp.isPlaying) mp.pause()
+            } else {
+                mp.playbackParams = mp.playbackParams.setSpeed(v)
+                if (!mp.isPlaying) mp.start()
+            }
+        } catch (e: Throwable) {
+            Log.w("Habillage", "Vitesse du clip ignorée : ${e.message}")
+            try {
+                if (v < 0.5f && mp.isPlaying) mp.pause() else if (v >= 0.5f && !mp.isPlaying) mp.start()
+            } catch (_: Throwable) {}
         }
     }
 
