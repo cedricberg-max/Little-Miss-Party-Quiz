@@ -432,7 +432,7 @@ class RegieTest : TestTv() {
         ecran.voit("Toutes les équipes ont répondu")
         assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("écart 6")
-        ecran.capture("juste-chiffre-revelation")
+        ecran.capture("juste-chiffre-revelation", attente = Ecran.APRES_REVELATION)
         attendreQue("points de la plus proche") { points(licornes, code, licornes.uid).takeIf { it == Scoring.NUMBER_CLOSEST.toLong() } }
         assertEquals(0L, points(dragons, code, dragons.uid))
     }
@@ -495,7 +495,7 @@ class RegieTest : TestTv() {
         ecran.voit("Toutes les équipes ont répondu")
         assertEquals("applied", regie.commande(code, "next"))
         attendreQue("points du quiz pour la bonne réponse") { points(licornes, code, licornes.uid).takeIf { it >= Scoring.BASE } }
-        ecran.capture("zoom-mystere-revelation")
+        ecran.capture("zoom-mystere-revelation", attente = Ecran.APRES_REVELATION)
     }
 
     @Test
@@ -528,7 +528,7 @@ class RegieTest : TestTv() {
         ecran.voit("Toutes les équipes ont répondu")
         assertEquals("applied", regie.commande(code, "next"))
         attendreQue("points du QCM pour la bonne image") { points(licornes, code, licornes.uid).takeIf { it >= Scoring.BASE } }
-        ecran.capture("reponses-en-images-revelation")
+        ecran.capture("reponses-en-images-revelation", attente = Ecran.APRES_REVELATION)
         // Question suivante en texte : rien ne bloque, le score est gardé.
         val gagne = points(licornes, code, licornes.uid)
         attendreQue("question en texte ouverte", 30_000) {
@@ -576,7 +576,7 @@ class RegieTest : TestTv() {
         ecran.voit("C'était :")
         attendreQue("points du rebond") { points(dragons, code, dragons.uid).takeIf { it == Scoring.BUZZ_REBOUND.toLong() } }
         assertEquals(0L, points(licornes, code, licornes.uid))
-        ecran.capture("image-floue-revelation")
+        ecran.capture("image-floue-revelation", attente = Ecran.APRES_REVELATION)
     }
 
     @Test
@@ -757,7 +757,7 @@ class RegieTest : TestTv() {
         ecran.voit("Pierrot")
         ecran.entierementVisible("Pierrot")
         attendreQue("les points du quiz") { points(dragons, code, dragons.uid).takeIf { it >= Scoring.BASE } }
-        ecran.capture("quiz-musical-revelation")
+        ecran.capture("quiz-musical-revelation", attente = Ecran.APRES_REVELATION)
 
         // Personne ne trouve, et pas de refrain préparé : la scène sans paroles, l'extrait repart quelques secondes.
         assertEquals("applied", regie.commande(code, "next"))

@@ -38,7 +38,7 @@ class HuitEquipesTest : TestTv() {
         ecran.entierementVisible("Révéler la réponse")
         ecran.ok("Révéler la réponse")
         ecran.entierementVisible("Voir les scores")
-        ecran.capture("revelation-8-equipes")
+        ecran.capture("revelation-8-equipes", attente = Ecran.APRES_REVELATION)
         ecran.ok("Voir les scores")
         ecran.voit(titreClassement())
         noms.forEach { ecran.voit(it) }

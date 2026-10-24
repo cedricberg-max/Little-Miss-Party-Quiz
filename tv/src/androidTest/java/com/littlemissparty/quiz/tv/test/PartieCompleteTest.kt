@@ -36,7 +36,7 @@ class PartieCompleteTest : TestTv() {
             if (i == 0) ecran.capture("question-fermee")
             ecran.ok("Révéler la réponse")
             ecran.voit("Voir les scores")
-            if (i == 0) ecran.capture("revelation")
+            if (i == 0) ecran.capture("revelation", attente = Ecran.APRES_REVELATION)
 
             val factor = if (q.double) 2 else 1
             minimum += Scoring.BASE * factor
