@@ -293,6 +293,9 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .actions .verdict .mime-info.buzz-couleur { padding: 6px 10px; border-radius: 10px; font-size: 15px; font-weight: 800; }
 .regie .actions .verdict .mime-info .buzz-nom-couleur { display: inline; margin-right: 8px; font-size: 19px; letter-spacing: 1px; }
 .regie .mime-info .buzz-reponse { display: block; margin-top: 2px; }
+/* « Réponse attendue : » en petit, la réponse elle-même en gros : 3 lignes au plus sur un téléphone de 360 px, même avec
+   une police large (4 lignes et 105 px avec DejaVu Sans, la police des tests en ligne). */
+.regie .actions .verdict .mime-info .buzz-reponse { font-size: 12px; }
 .regie .actions .verdict .mime-info .buzz-reponse b { font-size: 20px; font-weight: 900; line-height: 1.15; }
 .regie .actions .verdict .flou-judge { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .regie .actions .verdict .flou-judge[hidden] { display: none; }

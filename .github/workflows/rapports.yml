@@ -1,9 +1,13 @@
 name: Rapports de la box
 
-# Lancement manuel : affiche les rapports de plantage envoyés par les box (chemin reports/ de la base),
-# illisibles depuis l'appli. Rien n'est modifié dans la base.
+# Lancement manuel : affiche les rapports envoyés par les box (chemin reports/ de la base : plantages, incidents du
+# son), illisibles depuis l'appli. Rien n'est modifié dans la base.
 on:
   workflow_dispatch:
+    inputs:
+      nombre:
+        description: "Nombre de rapports à lire, les plus récents (1 à 1000)"
+        default: "20"
 
 permissions:
   contents: read
@@ -13,12 +17,23 @@ jobs:
     runs-on: ubuntu-latest
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      NOMBRE: ${{ inputs.nombre }}
     steps:
       - uses: actions/checkout@v4
-      - name: Afficher les 20 derniers rapports
+      - name: Afficher les derniers rapports
         run: |
+          case "$NOMBRE" in ''|*[!0-9]*) NOMBRE=20 ;; esac
+          [ "$NOMBRE" -ge 1 ] && [ "$NOMBRE" -le 1000 ] || NOMBRE=20
           project=$(jq -r .projectId firebase-config.json)
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
           npx --yes firebase-tools@13 database:get /reports --project "$project" \
-            --order-by-key --limit-to-last 20 --pretty
+            --order-by-key --limit-to-last "$NOMBRE" > "$RUNNER_TEMP/rapports.json"
+          echo "== Résumé : même message, même version, même box =="
+          jq -r '[.[]?] | sort_by(.at) | group_by([.kind, .version, .device, .text]) | sort_by(.[0].at) | .[]
+            | "\(length)×  \(.[0].at / 1000 | strftime("%Y-%m-%d %H:%M:%SZ")) → \(.[-1].at / 1000 | strftime("%H:%M:%SZ"))  \(.[0].version)  \(.[0].kind)  \(.[0].device)  \(.[0].text | split("\n")[0] | .[0:200])"' \
+            "$RUNNER_TEMP/rapports.json"
+          echo
+          echo "== Plantages, en entier =="
+          jq -r '[.[]?] | map(select(.kind == "crash")) | .[] | "--- \(.at / 1000 | strftime("%Y-%m-%d %H:%M:%SZ")) \(.version) \(.device)\n\(.text)"' \
+            "$RUNNER_TEMP/rapports.json"
