@@ -634,6 +634,49 @@ export function couleurMimeEquipe(text) {
   return k >= 0 ? TEAM_COLORS[k] : null;
 }
 
+/**
+ * Ce qui manque dans les listes d'un jeu (cedric, 24/10 : « s'il manque une chanson dans une série, ou quelque chose
+ * de mal programmé, qu'on le voie ») : les cases laissées sur le 🎲 après un ✕, les chansons supprimées depuis de la
+ * bibliothèque des sons. Rien ne plante pour autant (la TV saute ces cases, le blind test a une chanson de moins), mais
+ * la Régie PC le dit sous le jeu, dans « Reste à faire » et à l'enregistrement. Une phrase par souci, sans « Manche N ».
+ * [couleurs] : celles des équipes de la prestation (Mimes : quelles équipes) ; [songs] : la bibliothèque des sons.
+ */
+export function trousDuJeu(round, { songs = null, couleurs = null } = {}) {
+  const pl = (n, mot) => `${n} ${mot}${n > 1 ? "s" : ""}`;
+  const cases = (n) => `case${n > 1 ? "s" : ""} 🎲 vide${n > 1 ? "s" : ""}`;
+  const type = round?.type ?? "quiz";
+  if (type === "blind") {
+    const brutes = chansonsBrutes(round);
+    const vides = brutes.filter((id) => !id).length;
+    // Chansons supprimées de la bibliothèque : seulement une fois la bibliothèque lue, et s'il en reste à jouer (sinon
+    // le blind test entier est signalé ailleurs).
+    const connues = songs && Object.keys(songs).length ? songs : null;
+    const jouees = connues ? chansonsDe(round).filter((id) => chansonJouable(connues[id])).length : chansonsDe(round).length;
+    if (!jouees) return [];
+    const perdues = connues ? chansonsDe(round).length - jouees : 0;
+    if (!vides && !perdues) return [];
+    const quoi = [vides ? `il manque ${pl(vides, "chanson")} (${cases(vides)})` : "",
+      perdues ? `${pl(perdues, "chanson")} supprimée${perdues > 1 ? "s" : ""} de la bibliothèque des sons` : ""].filter(Boolean).join(" et ");
+    return [`${quoi} : ${jouees} jouée${jouees > 1 ? "s" : ""} au lieu de ${jouees + vides + perdues}`];
+  }
+  if (type === "mimes") {
+    // Une équipe sans aucune image est déjà signalée à part (« sans images »).
+    const avecTrous = mimeEquipesBrutes(round).map((l, k) => [k, l.filter((c) => c.vide).length, l.some((c) => !c.vide)]).filter(([, n, reste]) => n && reste);
+    const n = avecTrous.reduce((s, [, x]) => s + x, 0);
+    if (!n) return [];
+    const qui = couleurs?.length ? avecTrous.map(([k]) => (couleurs[k] ? titreMimeEquipe(couleurs[k]) : null)).filter(Boolean).join(", ") : "";
+    return [`il manque ${pl(n, "image")} (${cases(n)})${qui ? ` : ${qui}` : ""}`];
+  }
+  if (estEnSeries(type)) {
+    const vides = [...(type === "quiz" ? listOf(round?.tirees) : []), ...roundSeriesQuiz(round).flatMap((x) => (x.origine === "quiz" ? [] : x.questions))]
+      .filter((q) => q?.vide === true).length;
+    if (!vides) return [];
+    const unite = estJeuDePhotos(type) ? "photo" : type === "express" ? "affirmation" : "question";
+    return [`il manque ${pl(vides, unite)} (${cases(vides)})`];
+  }
+  return [];
+}
+
 /** Cartes tirées par « Mimes au hasard » quand Sarah n'a rien précisé. */
 export const MIME_RANDOM = 30;
 
@@ -932,6 +975,8 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
   const quizDesBougies = premierQuiz(show.rounds, quizzes);
   (show.rounds ?? []).filter(Boolean).map((r) => [r, jeuDeLaManche(r, quizzes)]).forEach(([prepare, round], i) => {
     begin(round.type);
+    // Une case oubliée sur le 🎲, une chanson supprimée : la manche se joue sans elle, mais « Reste à faire » le dit.
+    trousDuJeu(round, { songs, couleurs: couleursEquipes(show) }).forEach((t) => problems.push(`Manche ${i + 1} (${ROUND_TYPES[round.type ?? "quiz"]}) : ${t}.`));
     if (round.type === "mimes" && mimeEquipes(round).some((l) => l.length)) {
       // Une manche de mimes par équipe (cedric, 23/10), à la suite dans le même jeu : la 1re couleur de la prestation
       // joue la 1re présélection, et ainsi de suite. Chaque équipe ne mime que ses images, pendant un tour.

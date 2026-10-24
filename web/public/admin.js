@@ -20,7 +20,7 @@ import {
   chansonsBrutes, chansonsDe, chansonJouable, BLIND_NOMBRES, BLIND_NOMBRE_DEFAUT, MAX_CHANSONS_BLIND,
   isStatuesList, statuesSongs, statuesChoices, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS, builtinConcepts, isPhotoTheme, disparuGroup,
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, alerteEquipes, EQUIPES_PAR_DEFAUT, pourLeHasard, premierQuiz,
-  launchStates, launchLabelPc, couleursEquipes, teamCount, roundTirees, chiffresDuTirage, MAX_TIREES,
+  launchStates, launchLabelPc, couleursEquipes, teamCount, roundTirees, chiffresDuTirage, MAX_TIREES, trousDuJeu,
   roundSeriesQuiz, questionsDeLaSerie, questionsDesSeries, questionJouable, FACTEURS_FINALE, SUPER_FINALE_LAST, questionBougies,
   questionsDuQuiz, cleQuestion, placeDesBougies, CLE_BOUGIES, estEnSeries, choiceImageList, estJeuDePhotos, signatureQuestion, zoomRoundQuestions,
 } from "./show.js";
@@ -1896,10 +1896,15 @@ function refreshRounds() {
   refreshSummary();
 }
 
-/** Alerte rouge sous une manche dont le contenu ne suffit pas aux équipes prévues (cedric, 21/10). */
+/**
+ * Alerte rouge sous une manche dont le contenu ne suffit pas aux équipes prévues (cedric, 21/10), ou dont une liste a
+ * un trou : case laissée sur le 🎲, chanson supprimée de la bibliothèque (cedric, 24/10).
+ */
 function alerteManche(r) {
-  const texte = alerteEquipes(r, ctxTeams(), { mimes, contents, profile: roundCtx.profile?.(), couleurs: roundCtx === prestationCtx ? couleursSaisies : null });
-  return texte ? h("p", { class: "alerte-equipes", role: "alert", text: `⚠ ${texte}` }) : null;
+  const couleurs = roundCtx === prestationCtx ? couleursSaisies : null;
+  const textes = [alerteEquipes(r, ctxTeams(), { mimes, contents, profile: roundCtx.profile?.(), couleurs }),
+    ...trousDuJeu(r, { songs, couleurs }).map((t) => `${t[0].toUpperCase()}${t.slice(1)}.`)].filter(Boolean);
+  return textes.length ? h("div", { class: "alerte-equipes", role: "alert" }, ...textes.map((t) => h("p", { text: `⚠ ${t}` }))) : null;
 }
 
 /**
@@ -3143,6 +3148,10 @@ async function enregistrerPrestation() {
   // quelque chose (prénom, âge, date, jeu prêt), elle est gardée « À compléter » et le message dit quoi.
   // Une date passée le dit aussi (sans cela, elle filerait directement dans les archivées).
   const manque = s.status === "publiee" ? readiness({ ...s, keepActive: true }, quizzes, mimes, playlists, contents, undefined, songs).todo : [];
+  // Gardée « À compléter » : l'enregistrement dit aussi ce qui cloche dans les jeux (cedric, 24/10 : une chanson oubliée
+  // dans le blind test, une case restée sur le 🎲…).
+  const aRevoir = s.status === "brouillon" ? buildSnapshot("x", s, quizzes, mimes, Math.random, playlists, contents, {}, songs).problems
+    .filter((p) => !p.startsWith("Aucune question jouable")) : [];
   if (manque.length) {
     s.status = "brouillon";
     $("show-status").value = "brouillon";
@@ -3179,6 +3188,7 @@ async function enregistrerPrestation() {
     if (manque.length && archivee) dire(`Toujours dans les « Archivées » : pour la remettre « À venir », il manque : ${manque.join(" · ")}.`);
     else if (manque.length) dire(`Enregistrée en « À compléter » : pour passer en « À venir », il manque : ${manque.join(" · ")}.`);
     else if (archivee && s.status !== "archivee") dire("Enregistrée dans les « Archivées » : sa date est passée. Pour la remettre « À venir », choisissez une date à venir.");
+    else if (aRevoir.length) dire(`Enregistrée. À revoir avant le jour J : ${aRevoir.join(" · ")}`);
     else dire(s.status === "publiee" ? "Enregistrée « À venir » : elle est visible sur la régie." : "Enregistrée.", true);
     return true;
   } catch (err) {

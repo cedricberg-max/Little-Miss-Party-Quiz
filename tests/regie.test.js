@@ -6080,9 +6080,13 @@ describe("bibliothèque de quiz et prestations", () => {
     await equipe(1).locator(".mime-image .tirage-retirer").first().click();
     await equipe(1).locator(".mime-image.vide .tirage-de").waitFor();
     assert.equal(await compteur.textContent(), "3 équipes · 59 images · 1 à tirer");
+    // Une case oubliée sur le 🎲 se voit (cedric, 24/10) : sous le jeu et dans « Reste à faire avant le jour J ».
+    await round.locator(".alerte-equipes", { hasText: "⚠ Il manque 1 image (case 🎲 vide) : Équipe Orange." }).waitFor();
+    await page.locator("#show-ready li", { hasText: "(Mimes) : il manque 1 image (case 🎲 vide) : Équipe Orange." }).waitFor();
     await equipe(1).locator(".mime-completer", { hasText: "🎲 Tirer l'image qui manque" }).click();
     await equipe(1).locator(".mime-image.vide").waitFor({ state: "detached" });
     assert.equal(await compteur.textContent(), "3 équipes · 60 images");
+    assert.equal(await round.locator(".alerte-equipes").count(), 0);
     const orange = await mots(1);
     assert.ok(!orange.includes(retiree), "l'image retirée ne revient pas");
     assert.deepEqual(orange.slice(1), orangeMelange.slice(1), "remplacée à sa place");
@@ -6256,6 +6260,11 @@ describe("bibliothèque de quiz et prestations", () => {
     await round.locator(".blind-chanson.vide .tirage-de").click();
     await page.locator("#annonce", { hasText: "Plus de chanson à tirer dans la bibliothèque des sons." }).waitFor();
     assert.ok(!(await ids()).includes("c2"));
+    // Une case oubliée (cedric, 24/10) : rien ne plante, le blind test a une chanson de moins ; mais c'est dit en rouge
+    // sous le jeu, dans « Reste à faire avant le jour J » et à l'enregistrement.
+    const trou = "il manque 1 chanson (case 🎲 vide) : 7 jouées au lieu de 8.";
+    await round.locator(".alerte-equipes", { hasText: `⚠ I${trou.slice(1)}` }).waitFor();
+    await page.locator("#show-ready li", { hasText: `Manche 1 (Blind test) : ${trou}` }).waitFor();
 
     // 🎧 (cedric : vérifier l'extrait et le hook sans charger la page) : un petit menu sous la chanson, un seul ouvert.
     await chanson("sp").locator(".blind-ecouter").click();
@@ -6289,6 +6298,7 @@ describe("bibliothèque de quiz et prestations", () => {
     // « ⏱ Régler… » : la prestation (pas encore enregistrée) l'est d'abord, puis les réglages de la chanson s'ouvrent.
     await menu.locator(".blind-regler").click();
     assert.match(await repondreFenetre(page), /la prestation est d'abord enregistrée/);
+    await page.locator("#annonce", { hasText: `Enregistrée. À revoir avant le jour J : Manche 1 (Blind test) : ${trou}` }).waitFor();
     await page.locator("#screen-playlist-edit:not([hidden])").waitFor();
     assert.equal(await page.textContent("#playlist-edit-title"), "Réglages de « Complète 1 »");
     // Ses paroles arrivent dans les réglages : les lire n'est pas une modification.
@@ -6331,6 +6341,8 @@ describe("bibliothèque de quiz et prestations", () => {
     const avecC2 = await ids();
     assert.equal(avecC2.length, vide + 1);
     assert.equal(avecC2[huit.indexOf("c2")], "c2", "à la place de la case vidée");
+    await round.locator(".alerte-equipes").waitFor({ state: "detached" });
+    assert.equal(await page.locator("#show-ready li", { hasText: "Blind test" }).count(), 0, "plus rien à revoir");
 
     // « 🎵 Sélectionner mes chansons » : la bibliothèque, les chansons du blind test cochées ; décochées, elles partent ;
     // les nouvelles arrivent à la fin. « ✓ Valider la sélection » revient sur le blind test.

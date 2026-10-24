@@ -3032,7 +3032,8 @@ describe("Mimes : une manche par équipe, sa présélection tirée au 🎲 (cedr
 
   test("la TV : une manche par équipe, dans l'ordre des couleurs de la prestation, sous un seul jeu « Mimes » (une seule présentation)", () => {
     const { snapshot, problems } = S.buildSnapshot("zoe", show, {}, {}, () => 0.5);
-    assert.deepEqual(problems, []);
+    // La case retirée de l'équipe Rose ne se joue pas ; « Reste à faire » la signale (cedric, 24/10).
+    assert.deepEqual(problems, ["Manche 1 (Mimes) : il manque 1 image (case 🎲 vide) : Équipe Rose."]);
     const qs = snapshot.quiz.questions;
     assert.deepEqual(qs.map((q) => q.text), ["Équipe Rose", "Équipe Vert", "Équipe Orange"]);
     assert.deepEqual(qs.map((q) => q.id), ["r1m1", "r1m2", "r1m3"]);
@@ -3092,5 +3093,35 @@ describe("Mimes : une manche par équipe, sa présélection tirée au 🎲 (cedr
     // L'âge de chaque équipe : celui choisi à la main, sinon null (celui de la prestation).
     assert.deepEqual(mimeAges({ type: "mimes", ages: { 2: "GRANDS", 3: "FAUX" } }).slice(0, 4), [null, null, "GRANDS", null]);
     assert.deepEqual(mimeAges({ type: "quiz", ages: { 0: "GRANDS" } })[0], null);
+  });
+
+  test("Prestation (cedric, 24/10) : une chanson oubliée dans le blind test, une case restée sur le 🎲 : rien ne plante, mais « Reste à faire » le dit", async () => {
+    const { trousDuJeu } = await import("../web/public/show.js");
+    const son = (title) => ({ title, artist: "Test", audioId: "0123456789abcdef", start: 0 });
+    const songs = { a: son("Alpha"), b: son("Bravo"), parti: { ...son("Partie"), retiree: true } };
+    const blind = { type: "blind", nbChansons: 5, chansons: ["a", "", "b", "parti", ""] };
+    assert.deepEqual(trousDuJeu(blind, { songs }), ["il manque 2 chansons (cases 🎲 vides) et 1 chanson supprimée de la bibliothèque des sons : 2 jouées au lieu de 5"]);
+    assert.deepEqual(trousDuJeu({ ...blind, chansons: ["a", "", "b"] }, { songs }), ["il manque 1 chanson (case 🎲 vide) : 2 jouées au lieu de 3"]);
+    assert.deepEqual(trousDuJeu({ ...blind, chansons: ["a", "b"] }, { songs }), [], "rien ne manque");
+    assert.deepEqual(trousDuJeu({ ...blind, chansons: ["a", "", "parti"] }), ["il manque 1 chanson (case 🎲 vide) : 2 jouées au lieu de 3"], "bibliothèque pas encore lue : seulement les cases vides");
+    const show = { childName: "Zoé", age: 8, date: "2099-01-01", status: "publiee", teams: 2, rounds: [{ ...blind, chansons: ["a", "", "b"] }] };
+    const { snapshot, problems } = buildSnapshot("x", show, {}, {}, Math.random, {}, {}, {}, songs);
+    assert.equal(snapshot.quiz.questions.length, 2, "le blind test se joue avec 2 chansons, sans trou");
+    assert.deepEqual(problems, ["Manche 1 (Blind test) : il manque 1 chanson (case 🎲 vide) : 2 jouées au lieu de 3."]);
+    const r = readiness(show, {}, {}, {}, {}, "2026-10-24", songs);
+    assert.equal(r.level, "a-completer");
+    assert.deepEqual(r.todo, ["Manche 1 (Blind test) : il manque 1 chanson (case 🎲 vide) : 2 jouées au lieu de 3."]);
+    assert.equal(readiness({ ...show, rounds: [{ ...blind, chansons: ["a", "b"] }] }, {}, {}, {}, {}, "2026-10-24", songs).level, "prete");
+    // Quiz (et les jeux en séries) : les questions retirées par ✕ en attente de leur 🎲.
+    const q = (text) => ({ id: text, text, choices: ["Un", "Deux", "Trois", "Quatre"], correct: 0 });
+    assert.deepEqual(trousDuJeu({ type: "quiz", seriesQuiz: [{ origine: "de", questions: [q("A ?"), { vide: true }, q("B ?")] }] }), ["il manque 1 question (case 🎲 vide)"]);
+    assert.deepEqual(trousDuJeu({ type: "zoom", seriesQuiz: [{ origine: "de", questions: [{ vide: true }, { vide: true }, q("C ?")] }] }), ["il manque 2 photos (cases 🎲 vides)"]);
+    assert.deepEqual(trousDuJeu({ type: "quiz", seriesQuiz: [{ origine: "quiz", quizId: "k" }] }), []);
+    // Mimes : les équipes qui ont un trou ; une équipe sans aucune image est signalée à part.
+    const couleurs = couleursEquipes({ teams: 3 });
+    const mimes = { type: "mimes", equipes: [[{ word: "Chat" }, { vide: true }, { vide: true }], [{ vide: true }], [{ word: "Lion" }]] };
+    assert.deepEqual(trousDuJeu(mimes, { couleurs }), ["il manque 2 images (cases 🎲 vides) : Équipe Rose"]);
+    assert.deepEqual(trousDuJeu(mimes), ["il manque 2 images (cases 🎲 vides)"]);
+    assert.deepEqual(trousDuJeu({ type: "statues" }), []);
   });
 });
