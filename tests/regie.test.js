@@ -941,11 +941,14 @@ describe("régie", () => {
   });
 
   for (const [width, height] of [[360, 640], [390, 780]]) {
-    test(`petit téléphone ${width}×${height} : pendant un buzz en pause automatique, Reprendre et le bouton principal restent à l'écran`, async () => {
+    test(`petit téléphone ${width}×${height} : pendant un buzz en pause automatique, Reprendre, le bouton principal et le verdict restent à l'écran`, async () => {
       box = startBox();
-      await addTeam("rose", "Les Roses");
+      await addTeam("rose", "Les Roses", "#FFE600");
       await addTeam("bleu", "Les Bleus");
-      const plan = [{ id: "c1", text: "Amour", kind: "chante", duration: 40, round: "Chante le mot !" }];
+      // Tablette des Bleus coupée (cedric, 24/10, photo) : le bandeau rouge en haut mange de la place.
+      await setPresence("rose", true);
+      await setPresence("bleu", false);
+      const plan = [{ id: "c1", text: "Amour", kind: "chante", duration: 40, round: "Chante le mot !", choices: ["roi"], correct: 0 }];
       await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, questions: plan });
       await box.set({ ...questionState(1), qid: "c1", kind: "chante", text: "Amour", choices: null, total: 1, round: "c1-1000-0", buzzOpen: false, buzz: { team: "rose", blocked: [] }, paused: true, pauseReason: "team", pauseTeam: "bleu", deadline: null, remainingMs: 20000 });
       const context = await browser.newContext({ viewport: { width, height } });
@@ -964,9 +967,27 @@ describe("régie", () => {
         }, id);
         assert.ok(visible, `#${id} visible et touchable en ${width}×${height}`);
       }
-      // Le reste se lit en faisant défiler la régie : les boutons de jugement sont atteignables.
-      await page.locator("#flou-ko").scrollIntoViewIfNeeded();
-      assert.ok(await page.locator("#flou-ko").isVisible());
+      // Au buzz (cedric, 24/10) : la bande à la couleur de l'équipe avec le mot, « Bonne réponse » et « Mauvaise
+      // réponse » sont entièrement dans l'écran sans rien faire défiler, même sous le bandeau des tablettes coupées,
+      // et y restent quand Sarah fait défiler la régie.
+      await page.locator("#r-alerte", { hasText: "Les Bleus" }).waitFor({ timeout: 8000 });
+      await page.locator("#flou-info", { hasText: "Les Roses a buzzé ! Réponse attendue : une chanson avec le mot « roi »" }).waitFor();
+      assert.equal(await page.locator("#flou-info .buzz-nom-couleur").textContent(), "JAUNE");
+      const dansLEcran = (id) => page.evaluate((id) => {
+        const el = document.getElementById(id);
+        const r = el.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return r.top >= 0 && r.bottom <= innerHeight + 0.5 && r.height > 0 && (hit === el || el.contains(hit));
+      }, id);
+      for (const position of ["haut", "bas"]) {
+        await page.evaluate((p) => { const c = document.querySelector(".regie .control"); c.scrollTop = p === "haut" ? 0 : c.scrollHeight; }, position);
+        for (const id of ["flou-info", "flou-ok", "flou-ko", "c-pause", "c-next"]) {
+          assert.ok(await dansLEcran(id), `#${id} dans l'écran (régie défilée en ${position}) en ${width}×${height}`);
+        }
+      }
+      // Fine bande : bien moins haute que l'ancien gros carré jaune.
+      assert.ok((await page.locator("#flou-info").boundingBox()).height <= 80, "bande de l'équipe fine (le gros carré jaune faisait 150 px)");
+      await capture(page, `verdict-buzz-${width}x${height}`);
       await page.locator("#c-pause", { hasText: "Reprendre (3, 2, 1)" }).click();
       await waitFor(async () => (await commands()).some((c) => c.type === "resume"), "reprise envoyée");
       await page.context().close();

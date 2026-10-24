@@ -242,10 +242,13 @@
       <!-- Blind test : la régie lance chaque morceau, juge la réponse orale, relance, révèle ou passe. -->
       <section id="blind" class="flou blind" hidden aria-label="Blind test">
         <p id="blind-head" class="blind-head"></p>
-        <p id="blind-info" class="mime-info"></p>
-        <div id="blind-judge" class="flou-judge">
-          <button id="blind-ok" class="mime-found">BONNE RÉPONSE<small></small></button>
-          <button id="blind-ko" class="btn secondary flou-ko mauvaise">Mauvaise réponse</button>
+        <!-- Au buzz, ce bloc passe juste au-dessus des commandes du bas (verdictEnBas). -->
+        <div id="blind-verdict" class="verdict">
+          <p id="blind-info" class="mime-info"></p>
+          <div id="blind-judge" class="flou-judge">
+            <button id="blind-ok" class="mime-found">BONNE RÉPONSE<small></small></button>
+            <button id="blind-ko" class="btn secondary flou-ko mauvaise">Mauvaise réponse</button>
+          </div>
         </div>
         <div id="blind-row" class="mime-row">
           <button id="blind-unblock" class="btn secondary">Laisser rebuzzer tout de suite</button>
@@ -256,11 +259,14 @@
         <ol id="blind-tracks" class="blind-tracks"></ol>
       </section>
       <section id="flou" class="flou" hidden aria-label="Image floue">
-        <p id="flou-info" class="mime-info"></p>
-        <div id="flou-judge" class="flou-judge">
-          <button id="flou-ok" class="mime-found">BONNE RÉPONSE<small></small></button>
-          <button id="flou-bonus" class="mime-found flou-bonus" hidden>TITRE + ARTISTE<small></small></button>
-          <button id="flou-ko" class="btn secondary flou-ko mauvaise">Mauvaise réponse</button>
+        <!-- Au buzz, ce bloc passe juste au-dessus des commandes du bas (verdictEnBas). -->
+        <div id="flou-verdict" class="verdict">
+          <p id="flou-info" class="mime-info"></p>
+          <div id="flou-judge" class="flou-judge">
+            <button id="flou-ok" class="mime-found">BONNE RÉPONSE<small></small></button>
+            <button id="flou-bonus" class="mime-found flou-bonus" hidden>TITRE + ARTISTE<small></small></button>
+            <button id="flou-ko" class="btn secondary flou-ko mauvaise">Mauvaise réponse</button>
+          </div>
         </div>
       </section>
 

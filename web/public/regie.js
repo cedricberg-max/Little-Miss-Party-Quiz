@@ -1235,6 +1235,7 @@ function renderBlind(st, teams) {
   const on = blindMode(st) && ["question", "reveal", "scores"].includes(st.phase);
   $("blind").hidden = !on;
   document.querySelector(".regie .control").classList.toggle("blind-mode", on);
+  verdictEnBas("blind-verdict", on && st.phase === "question" && !!st.buzz?.team);
   if (!on) return;
   const b = st.blind;
   const name = (id) => live.teams[id]?.name ?? "Équipe";
@@ -1354,10 +1355,25 @@ function couleurBuzz(el, teamId) {
   }
 }
 
+/**
+ * Au buzz (cedric, 24/10) : la couleur et le nom de l'équipe, la réponse attendue et les boutons du verdict passent
+ * juste au-dessus des commandes du bas, qui restent toujours à l'écran : Sarah juge sans faire défiler, même avec le
+ * bandeau des tablettes déconnectées. Le bloc revient à sa place après le verdict.
+ */
+function verdictEnBas(id, on) {
+  const el = $(id);
+  const bas = document.querySelector(".regie .actions");
+  el.place ??= { parent: el.parentNode, avant: el.nextSibling };
+  if (on && el.parentNode !== bas) bas.prepend(el);
+  else if (!on && el.parentNode === bas) el.place.parent.insertBefore(el, el.place.avant);
+  el.classList.toggle("en-bas", on);
+}
+
 /** Jeux au buzzer : qui a buzzé, la réponse attendue, et les deux boutons du verdict. */
 function renderFlou(st) {
   const on = st.phase === "question" && BUZZ_KINDS.includes(st.kind) && !blindMode(st);
   $("flou").hidden = !on;
+  verdictEnBas("flou-verdict", on && !!st.buzz?.team);
   if (!on) return;
   const b = st.buzz ?? {};
   const name = (id) => live.teams[id]?.name ?? "Équipe";
