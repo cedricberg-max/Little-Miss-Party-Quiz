@@ -67,7 +67,10 @@ import kotlin.math.roundToInt
  *   (1 à 8, dans un ordre mélangé, moitié à gauche de l'arche, moitié à droite) se remplissent ensemble au même
  *   compteur. Une équipe sous le plafond s'arrête à son score ; les meilleures montent jusqu'au plafond (90 % du
  *   deuxième score) et y restent au même niveau : on ne sait pas qui gagne. Le robot attend dans l'arche, puis joue
- *   du tambour sur les dernières mesures. Juste avant le solo, les tubes s'enfoncent sous le plateau ;
+ *   du tambour sur les dernières mesures. Sur la fin du roulement ([MONTEE_DEBUT] → [MONTEE_FIN]), les meilleurs
+ *   repartent jusqu'à leur vrai score : le tube du gagnant se remplit jusqu'en haut (deux tubes pleins à égalité),
+ *   brille, puis tous les tubes s'enfoncent sous le plateau (cedric, 24 octobre : « le gagnant remplit la jauge en
+ *   totalité ») ;
  * - le solo de guitare : flash, le robot arrive en gros plan et danse ([ROBOT_FETE]), le nom du gagnant claque
  *   lettre par lettre ([NomNerveux]), ses vrais points, puis le classement des autres sur une ou deux lignes ;
  * - à [Tempo.PODIUM_FIN], quand la chanson s'éteint : l'écran de fin cinéma ([FinCinemaGameShow]).
@@ -319,6 +322,15 @@ private fun TubesPodium(colonnes: List<Classee>, scores: List<Int>, ms: () -> Fl
                     )
                 }
                 if (planches != null) dessineJauge(planches, part, couleur) else dessineJaugeSimple(part, couleur)
+                // Tube plein : un éclat néon autour du verre, jusqu'à la descente.
+                val eclat = tubePlein(ms(), e.points, scores)
+                if (eclat > 0f) {
+                    val d = pas * 6
+                    drawRoundRect(
+                        Brush.radialGradient(listOf(couleur.copy(alpha = 0.55f * eclat), Color.Transparent), center, size.height * 0.75f),
+                        Offset(-d, -d), Size(size.width + 2 * d, size.height + 2 * d), CornerRadius(r + d),
+                    )
+                }
             }
             // Le compteur : il ne change de texte que quand le nombre change. Les meilleurs, tenus au plafond,
             // frémissent en attendant le solo.
@@ -328,7 +340,7 @@ private fun TubesPodium(colonnes: List<Classee>, scores: List<Int>, ms: () -> Fl
                 "$valeur", maxLines = 1, softWrap = false, style = styleCompteur(tailleCompteur, couleur),
                 modifier = Modifier.centreSurLigneDeBase(p.centre.dp, (TUBE_HAUT - 25f * p.echelle).dp).graphicsLayer {
                     val m = ms()
-                    alpha = if (tenu && m > JAUGES_FIN) 0.82f + 0.18f * kotlin.math.cos((m - JAUGES_FIN) / 90f) else 1f
+                    alpha = if (tenu && m > JAUGES_FIN && m < MONTEE_DEBUT) 0.82f + 0.18f * kotlin.math.cos((m - JAUGES_FIN) / 90f) else 1f
                 },
             )
         }
@@ -403,9 +415,12 @@ private const val ROBOT_ARCHE_SOL = 420f
 internal const val ROBOT_FETE = "gs_robot_fete"
 internal const val ROBOT_FETE_BOUCLE_MS = 3_849
 
-/** Le compteur commun monte de [JAUGES_DEBUT] à [JAUGES_FIN] (ms), puis reste au plafond jusqu'à la descente. */
+/** Le compteur commun monte de [JAUGES_DEBUT] à [JAUGES_FIN] (ms), puis reste au plafond jusqu'à la montée finale. */
 internal const val JAUGES_DEBUT = 1_200f
 internal const val JAUGES_FIN = 11_500f
+/** Montée finale, sur la fin du roulement : du plafond au meilleur score ; chacun s'arrête à son vrai score. */
+internal const val MONTEE_DEBUT = Tempo.PODIUM_REVELATION - 3_000f
+internal const val MONTEE_FIN = Tempo.PODIUM_REVELATION - 1_500f
 /** Les tubes s'enfoncent sous le plateau entre ces deux instants (ms), juste avant le solo. */
 internal const val DESCENTE_DEBUT = Tempo.PODIUM_REVELATION - 900f
 internal const val DESCENTE_FIN = Tempo.PODIUM_REVELATION - 100f
@@ -427,10 +442,26 @@ internal fun plafondSuspense(scores: List<Int>): Float {
     return if (deuxieme != null) 0.9f * deuxieme else 0.75f * meilleur
 }
 
-/** Le compteur commun à [ms] : de 0 au plafond, lent au départ et à l'arrivée. */
+/**
+ * Le compteur commun à [ms] : de 0 au plafond, lent au départ et à l'arrivée ; puis, à la montée finale, du plafond
+ * au meilleur score (accélère, puis claque en haut).
+ */
 internal fun compteurSuspense(ms: Float, scores: List<Int>): Float {
+    val plafond = plafondSuspense(scores)
+    if (ms >= MONTEE_DEBUT) {
+        val v = ((ms - MONTEE_DEBUT) / (MONTEE_FIN - MONTEE_DEBUT)).coerceIn(0f, 1f)
+        val meilleur = (scores.maxOrNull() ?: 0).coerceAtLeast(0).toFloat()
+        return plafond + (meilleur - plafond) * v * v
+    }
     val u = ((ms - JAUGES_DEBUT) / (JAUGES_FIN - JAUGES_DEBUT)).coerceIn(0f, 1f)
-    return plafondSuspense(scores) * u * u * (3 - 2 * u)
+    return plafond * u * u * (3 - 2 * u)
+}
+
+/** Éclat d'un tube plein (0 → 1) : le gagnant (ou les ex aequo) au sommet après la montée finale, s'il a marqué. */
+internal fun tubePlein(ms: Float, points: Int, scores: List<Int>): Float {
+    val meilleur = scores.maxOrNull() ?: 0
+    if (meilleur <= 0 || points < meilleur || ms < MONTEE_FIN) return 0f
+    return (0.6f + 0.4f * kotlin.math.cos((ms - MONTEE_FIN) / 110f)) * ((ms - MONTEE_FIN) / 120f).coerceIn(0f, 1f)
 }
 
 /** Le nombre au-dessus d'un tube pendant le suspense : le compteur commun, arrêté au score de l'équipe. */

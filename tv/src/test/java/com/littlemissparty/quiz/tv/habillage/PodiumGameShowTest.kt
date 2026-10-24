@@ -15,20 +15,42 @@ class PodiumGameShowTest {
     private val revelation = Tempo.PODIUM_REVELATION.toFloat()
 
     @Test
-    fun `avant le solo, le premier et le deuxieme restent au meme niveau`() {
+    fun `jusqu'a la montee finale, le premier et le deuxieme restent au meme niveau`() {
         for (s in listOf(scores, listOf(900, 899), listOf(1_000, 10, 5), listOf(300), listOf(500, 0, 0), listOf(640, 900, 900, 120))) {
             val meilleur = s.max()
             // Le deuxième score qui a marqué (personne d'autre : le gagnant est seul face à des tubes vides).
             val deuxieme = s.filter { it in 1 until meilleur }.maxOrNull() ?: meilleur
-            for (ms in 0 until revelation.toInt() step 50) {
+            for (ms in 0 until MONTEE_DEBUT.toInt() step 50) {
                 val m = ms.toFloat()
                 assertEquals("$s à $ms ms", valeurSuspense(m, deuxieme, s), valeurSuspense(m, meilleur, s))
                 assertEquals("$s à $ms ms", remplissage(m, deuxieme, s), remplissage(m, meilleur, s), 1e-6f)
             }
             // Tenu au plafond : en dessous du vrai score du gagnant (et du deuxième quand il y en a un).
-            assertTrue(valeurSuspense(revelation, meilleur, s) < meilleur)
-            if (deuxieme < meilleur) assertTrue(valeurSuspense(revelation, deuxieme, s) < deuxieme)
+            assertTrue(valeurSuspense(MONTEE_DEBUT, meilleur, s) < meilleur)
+            if (deuxieme < meilleur) assertTrue(valeurSuspense(MONTEE_DEBUT, deuxieme, s) < deuxieme)
         }
+    }
+
+    @Test
+    fun `apres la montee finale, chacun est a son vrai score et le gagnant remplit son tube`() {
+        for (s in listOf(scores, listOf(900, 899), listOf(1_000, 10, 5), listOf(300), listOf(500, 0, 0), listOf(640, 900, 900, 120))) {
+            val meilleur = s.max()
+            for (p in s) {
+                assertEquals("$s : $p", p, valeurSuspense(MONTEE_FIN, p, s))
+                assertEquals("$s : $p", maxOf(0.03f, p.toFloat() / meilleur), remplissage(MONTEE_FIN, p, s), 1e-6f)
+            }
+            // Le tube du gagnant (des deux ex aequo) est plein, et lui seul brille ; tout est fini avant la descente.
+            s.forEach { p ->
+                assertEquals(maxOf(0.03f, p.toFloat() / meilleur), remplissage(DESCENTE_DEBUT, p, s), 1e-6f)
+                if (p == meilleur) assertEquals(1f, remplissage(DESCENTE_DEBUT, p, s), 0f)
+                assertEquals(p == meilleur, tubePlein(DESCENTE_DEBUT, p, s) > 0f)
+                assertEquals(0f, tubePlein(MONTEE_FIN - 1f, p, s), 0f)
+            }
+        }
+        // Personne n'a marqué : rien ne brille, les tubes gardent leur fond de liquide.
+        assertEquals(0f, tubePlein(DESCENTE_DEBUT, 0, listOf(0, 0)), 0f)
+        assertEquals(0.03f, remplissage(DESCENTE_DEBUT, 0, listOf(0, 0)), 0f)
+        assertTrue(JAUGES_FIN <= MONTEE_DEBUT && MONTEE_FIN + 400f <= DESCENTE_DEBUT)
     }
 
     @Test
@@ -55,10 +77,11 @@ class PodiumGameShowTest {
         assertEquals(0f, plafondSuspense(emptyList()), 0f)
         // Égalité en tête : le plafond vient du score juste en dessous ; les ex aequo restent ensemble.
         assertEquals(540f, plafondSuspense(listOf(800, 800, 600)), 1e-3f)
-        // Tubes : toujours un fond de liquide, jamais plein avant le solo, jamais négatif.
+        // Tubes : toujours un fond de liquide, jamais plein avant la montée finale, jamais négatif.
         assertEquals(0.03f, remplissage(15_000f, 0, listOf(0, 0)), 0f)
         assertEquals(0.03f, remplissage(15_000f, -100, listOf(300, -100)), 0f)
-        assertTrue(remplissage(revelation, 900, scores) < 1f)
+        assertTrue(remplissage(MONTEE_DEBUT, 900, scores) < 1f)
+        assertEquals(1f, remplissage(revelation, 900, scores), 0f)
     }
 
     @Test
