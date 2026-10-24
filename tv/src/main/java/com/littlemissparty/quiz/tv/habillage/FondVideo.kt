@@ -29,8 +29,9 @@ import kotlin.math.abs
 @Composable
 internal fun FondVideo3d(surPret: () -> Unit, surEchec: () -> Unit) {
     AndroidView(
-        factory = { LecteurFond(it, R.raw.gs_fond_plateau, surPret, surEchec) },
-        onRelease = { it.liberer() },
+        factory = { LecteurFond(it, R.raw.gs_fond_plateau, surPret, surEchec, departMs = GelFond.reprise) },
+        update = { GelFond.fond = it },
+        onRelease = { lacher(it) },
         modifier = Modifier.fillMaxSize(),
     )
 }
@@ -46,8 +47,11 @@ internal fun VideoAccueil(surPret: () -> Unit, surEchec: () -> Unit) {
     var lecteur by remember { mutableStateOf<LecteurFond?>(null) }
     AndroidView(
         factory = { LecteurFond(it, R.raw.gs_accueil_video, surPret, surEchec) },
-        update = { lecteur = it },
-        onRelease = { it.liberer() },
+        update = {
+            lecteur = it
+            GelFond.fond = it
+        },
+        onRelease = { lacher(it) },
         modifier = Modifier.fillMaxSize(),
     )
     LaunchedEffect(lecteur) {
@@ -71,13 +75,20 @@ internal fun VideoAccueil(surPret: () -> Unit, surEchec: () -> Unit) {
     }
 }
 
+/** Le fond du décor quitte l'écran : la puce vidéo est rendue tout de suite (un clip du robot peut l'attendre). */
+private fun lacher(lecteur: LecteurFond) {
+    if (GelFond.fond === lecteur) GelFond.fond = null
+    lecteur.liberer()
+}
+
 /** Écart toléré entre la vidéo de l'accueil et sa musique (ms) : moins d'un temps à 116 BPM, invisible à l'œil. */
 internal const val ECART_ACCUEIL_MS = 120
 
 /**
  * Vidéo opaque dans un TextureView ; le décodage se fait dans le lecteur du système. Par défaut muette et en boucle
  * (fonds). [volume] > 0 : le son de la vidéo sort aussi (grande intro du lancement). [surFin] : appelé une fois, à la
- * fin de la vidéo (sans boucle) ou dès [finMs] atteint.
+ * fin de la vidéo (sans boucle) ou dès [finMs] atteint. [departMs] : la vidéo commence là (plateau qui reprend
+ * après un clip du robot, [GelFond]).
  */
 internal class LecteurFond(
     context: Context,
@@ -88,11 +99,16 @@ internal class LecteurFond(
     private val volume: Float = 0f,
     private val finMs: Int = Int.MAX_VALUE,
     private val surFin: () -> Unit = {},
+    private val departMs: Int = 0,
 ) : TextureView(context), TextureView.SurfaceTextureListener {
     private var lecteur: MediaPlayer? = null
     private var surface: Surface? = null
     private var fini = false
     private var finSignalee = false
+
+    /** Une image est à l'écran (avant, une photo du fond serait noire). */
+    var affiche = false
+        private set
     private val guetteur = object : Runnable {
         override fun run() {
             val l = lecteur ?: return
@@ -116,7 +132,10 @@ internal class LecteurFond(
                 isLooping = boucle
                 setVolume(volume, volume)
                 setOnInfoListener { _, quoi, _ ->
-                    if (quoi == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) surPret()
+                    if (quoi == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) {
+                        affiche = true
+                        surPret()
+                    }
                     false
                 }
                 setOnErrorListener { _, quoi, extra ->
@@ -127,11 +146,13 @@ internal class LecteurFond(
                 setOnCompletionListener { if (!boucle) terminer() }
                 setOnPreparedListener {
                     if (fini) return@setOnPreparedListener
+                    if (departMs > 0) runCatching { it.seekTo(departMs.toLong(), MediaPlayer.SEEK_CLOSEST) }
                     it.start()
                     if (finMs < Int.MAX_VALUE) post(guetteur)
                 }
                 prepareAsync()
             }
+            GelFond.fondsOuverts++
         } catch (e: Throwable) {
             Log.w("Habillage", "Vidéo ignorée : ${e.message}")
             surEchec()
@@ -177,8 +198,12 @@ internal class LecteurFond(
 
     private fun arreter() {
         removeCallbacks(guetteur)
-        try { lecteur?.release() } catch (_: Throwable) {}
+        val l = lecteur
         lecteur = null
+        if (l != null) {
+            try { l.release() } catch (_: Throwable) {}
+            GelFond.fondsOuverts--
+        }
         surface?.release()
         surface = null
     }

@@ -12,6 +12,8 @@ import android.opengl.GLES11Ext
 import android.opengl.GLES20
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.view.Surface
 import android.view.TextureView
@@ -93,6 +95,8 @@ internal fun programmeAlpha(): Int {
  * [boucleDepuisMs] ≥ 0 : à la fin, le clip repart de là, sans fin (podium, écran de fin : une entrée, puis une danse
  * qui boucle). Le clip a une image clé à cet endroit : le retour est immédiat.
  * [boucle] : le clip tourne en boucle sans couture (disque du blind test) ; [vitesse] le ralentit et le fige.
+ * Box qui ne lit qu'une vidéo à la fois : le clip demande la puce vidéo au plateau ([GelFond]) et attend qu'il l'ait
+ * rendue avant d'ouvrir son lecteur.
  */
 internal class LecteurAlpha(
     context: Context,
@@ -121,14 +125,23 @@ internal class LecteurAlpha(
     @Volatile private var cible = 1f
     private var prepare = false
     private var image = false
+    private val seul = !Look.deuxVideos
+    private var demande = false
 
     init {
         isOpaque = false
         surfaceTextureListener = this
+        if (seul) Handler(Looper.getMainLooper()).post {
+            if (!fini) {
+                GelFond.demander()
+                demande = true
+            }
+        }
     }
 
     override fun onSurfaceTextureAvailable(st: SurfaceTexture, largeur: Int, hauteur: Int) {
-        h.post { demarrer(st, largeur, hauteur) }
+        val depuis = SystemClock.uptimeMillis()
+        h.post { demarrer(st, largeur, hauteur, depuis) }
     }
 
     override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, largeur: Int, hauteur: Int) {
@@ -149,9 +162,14 @@ internal class LecteurAlpha(
         post { surEchec() }
     }
 
-    private fun demarrer(st: SurfaceTexture, largeur: Int, hauteur: Int) {
+    private fun demarrer(st: SurfaceTexture, largeur: Int, hauteur: Int, depuis: Long) {
         if (fini) {
             st.release()
+            return
+        }
+        if (!clipPeutPartir(!seul, GelFond.fondsOuverts, SystemClock.uptimeMillis() - depuis)) {
+            ecran = st
+            h.postDelayed({ demarrer(st, largeur, hauteur, depuis) }, 50)
             return
         }
         ecran = st
@@ -279,6 +297,10 @@ internal class LecteurAlpha(
     fun liberer() {
         if (fini) return
         fini = true
+        if (demande) {
+            demande = false
+            GelFond.rendre()
+        }
         h.post {
             try { lecteur?.release() } catch (_: Throwable) {}
             lecteur = null

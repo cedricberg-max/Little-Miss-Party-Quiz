@@ -41,11 +41,12 @@ object Look {
     var design by mutableStateOf(Design.GAME_SHOW_3D)
     /**
      * La box sait-elle lire deux vidéos à la fois (le plateau en fond et un clip du robot par-dessus) ? Mesuré au
-     * démarrage ([videosSimultanees]). Sinon le plateau 3D laisse la place au décor dessiné : le robot passe toujours.
+     * démarrage ([videosSimultanees]). Sinon, le temps d'un clip, le plateau est figé sur sa dernière image ([GelFond]) :
+     * le robot passe toujours et le plateau reste.
      */
     var deuxVideos by mutableStateOf(true)
     val gs: Boolean get() = design != Design.CLASSIQUE
-    val fond3d: Boolean get() = design == Design.GAME_SHOW_3D && deuxVideos
+    val fond3d: Boolean get() = design == Design.GAME_SHOW_3D
 }
 
 /** Charte « The Game Show » (kit vidéo du 22 octobre) : noir lumière noire, néons cyan et violet, 4 couleurs d'équipe. */

@@ -34,13 +34,26 @@ class DesignTest {
     }
 
     @Test
-    fun `une box qui ne lit qu'une video a la fois garde le decor dessine, le robot passe toujours`() {
+    fun `une box qui ne lit qu'une video a la fois garde le plateau 3D, le robot passe toujours`() {
         Look.design = Design.GAME_SHOW_3D
         Look.deuxVideos = false
         assertTrue(Look.gs)
-        assertFalse(Look.fond3d)
+        assertTrue(Look.fond3d)
         Look.deuxVideos = true
         assertTrue(Look.fond3d)
+    }
+
+    @Test
+    fun `sur une box a une seule video, le clip du robot attend que le plateau ait rendu la puce video`() {
+        // Deux vidéos possibles : le clip part tout de suite.
+        assertTrue(clipPeutPartir(deuxVideos = true, fondsOuverts = 1, attenteMs = 0))
+        // Une seule : il attend que le fond soit fermé…
+        assertFalse(clipPeutPartir(deuxVideos = false, fondsOuverts = 1, attenteMs = 0))
+        assertFalse(clipPeutPartir(deuxVideos = false, fondsOuverts = 1, attenteMs = ATTENTE_FOND_MAX_MS - 1))
+        assertTrue(clipPeutPartir(deuxVideos = false, fondsOuverts = 0, attenteMs = 0))
+        // … mais jamais plus de 2 s : sans robot, la partie continue de toute façon.
+        assertTrue(clipPeutPartir(deuxVideos = false, fondsOuverts = 1, attenteMs = ATTENTE_FOND_MAX_MS))
+        assertTrue(REPRISE_FOND_MS in 500L..3_000L)
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.littlemissparty.quiz.tv.habillage
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -22,6 +23,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -47,25 +50,44 @@ fun DecorGameShow(chaud: Boolean, dore: Boolean = false, accueil: Boolean = fals
     }
     val chaleur by animateFloatAsState(if (chaud) 1f else 0f, tween(600), label = "chaleur")
     val paillettes by animateFloatAsState(if (dore) 1f else 0f, tween(1_200), label = "paillettes")
-    // Une seule vidéo à la fois (la box n'en décode qu'une) : à l'accueil, le robot qui dort ; ailleurs, le fond 3D du
-    // menu Retour ; aucune pendant la grande intro du lancement ni l'intro d'un jeu. Elle remplace le décor dessiné dès
-    // sa première image ; si elle échoue, le décor reste.
+    // Une seule vidéo de décor : à l'accueil, le robot qui dort ; ailleurs, le fond 3D du menu Retour ; aucune pendant
+    // la grande intro du lancement ni l'intro d'un jeu. Elle remplace le décor dessiné dès sa première image ; si elle
+    // échoue, le décor reste. Box qui ne lit qu'une vidéo à la fois : pendant un clip du robot, le décor est la photo
+    // du plateau ([GelFond]) et la vidéo est rendue ; elle repart [REPRISE_FOND_MS] après le dernier clip.
+    val unClip = !Look.deuxVideos && GelFond.demandes > 0
+    var fige by remember { mutableStateOf(unClip) }
+    LaunchedEffect(unClip) {
+        if (unClip) {
+            fige = true
+        } else {
+            delay(REPRISE_FOND_MS)
+            fige = false
+        }
+    }
     val video = when {
-        sansVideo -> 0
+        sansVideo || fige -> 0
         accueil -> 1
         Look.fond3d -> 2
         else -> 0
     }
     var videoPrete by remember(video) { mutableStateOf(false) }
+    LaunchedEffect(videoPrete) { if (videoPrete) GelFond.oublierImage() }
+    val photo = GelFond.image
     Box(Modifier.fillMaxSize()) {
         key(video) {
             when (video) {
-                1 -> VideoAccueil(surPret = { videoPrete = true }, surEchec = { videoPrete = false })
-                2 -> FondVideo3d(surPret = { videoPrete = true }, surEchec = { videoPrete = false })
+                1 -> VideoAccueil(surPret = { videoPrete = true }, surEchec = { videoPrete = false; GelFond.oublierImage() })
+                2 -> FondVideo3d(surPret = { videoPrete = true }, surEchec = { videoPrete = false; GelFond.oublierImage() })
                 else -> {}
             }
         }
-        if (!videoPrete) DecorDessine(temps::longValue, paillettes)
+        if (!videoPrete) {
+            if (photo != null && ((fige && !sansVideo) || video != 0)) {
+                Image(photo, contentDescription = null, contentScale = ContentScale.FillBounds, modifier = Modifier.fillMaxSize())
+            } else {
+                DecorDessine(temps::longValue, paillettes)
+            }
+        }
         if (paillettes > 0.01f) {
             Box(
                 Modifier.fillMaxSize()
