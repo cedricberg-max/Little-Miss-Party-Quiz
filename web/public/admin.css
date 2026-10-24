@@ -202,6 +202,31 @@ button.item { cursor: pointer; }
 .round .num { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: var(--violet); color: #fff; font-weight: 800; font-size: 14px; }
 .round .grow { flex: 1; min-width: 180px; }
 .round-tools { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; }
+/* « ＋ Ajouter un jeu » (cedric, 24/10 : « il faut qu'il saute aux yeux ») : doré, grand, un halo qui respire autour.
+   Le halo ne grandit que par l'ombre, dans la marge du bouton : rien ne le coupe. */
+.btn.ajout-jeu {
+  display: inline-flex; align-items: center; gap: 12px; font-size: 20px; padding: 13px 30px 13px 14px; color: var(--plum);
+  background: linear-gradient(135deg, #ffe39a, var(--gold) 65%, #e48f2f); border: 0;
+  box-shadow: 0 6px 18px rgba(226, 143, 47, .4), 0 0 0 0 rgba(226, 169, 59, .5);
+  animation: ajout-halo 2.4s ease-in-out infinite;
+}
+.btn.ajout-jeu:hover { box-shadow: 0 8px 24px rgba(226, 143, 47, .55), 0 0 0 4px rgba(226, 169, 59, .25); animation: none; }
+.ajout-plus {
+  display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 50%;
+  background: #fff; color: var(--rose); font-size: 26px; font-weight: 900; line-height: 1;
+  box-shadow: 0 2px 6px rgba(74, 42, 110, .2);
+}
+@keyframes ajout-halo {
+  0%, 100% { box-shadow: 0 6px 18px rgba(226, 143, 47, .4), 0 0 0 0 rgba(226, 169, 59, .5); }
+  50% { box-shadow: 0 6px 18px rgba(226, 143, 47, .4), 0 0 0 9px rgba(226, 169, 59, 0); }
+}
+@media (prefers-reduced-motion: reduce) { .btn.ajout-jeu { animation: none; } }
+/* En haut de la page, à droite des couleurs des équipes (sous elles quand l'écran est étroit). */
+.couleurs-et-ajout { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px; }
+.couleurs-et-ajout .couleurs-equipes { flex: 1 1 320px; }
+.couleurs-et-ajout .ajout-jeu { margin-right: 10px; }
+/* Les tuiles des jeux s'ouvrent sous le bouton touché ; la place vide ne prend aucune hauteur. */
+.jeu-choix-place:not(:has(> :not([hidden]))) { display: none; }
 /* Jeux d'une prestation (cedric, 21/10) : un bloc par jeu, ses manches dedans ; « ＋ Ajouter un jeu » en tuiles. */
 .jeu-bloc { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 20px; border: 1px solid var(--line); background: var(--nacre); }
 .jeu-tete { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

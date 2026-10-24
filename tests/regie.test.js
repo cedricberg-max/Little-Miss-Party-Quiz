@@ -2472,6 +2472,59 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Prestation (cedric, 24/10) : « ＋ Ajouter un jeu » saute aux yeux, en haut de la page aussi ; les jeux s'ouvrent sous le bouton touché", async () => {
+    const page = await admin();
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await page.click("#home-new");
+    await page.selectOption("#show-teams", "4");
+    const haut = page.locator("#round-add-top");
+    const bas = page.locator("#round-add");
+    // En haut, à droite des couleurs des équipes : visible dès l'ouverture, sans descendre.
+    await haut.waitFor();
+    const boite = await haut.boundingBox();
+    const couleurs = await page.locator("#show-couleurs").boundingBox();
+    assert.ok(boite.y + boite.height <= 900, "bouton du haut hors de l'écran");
+    assert.ok(boite.x >= couleurs.x + couleurs.width - 1, "bouton du haut pas à droite des couleurs");
+    assert.ok(Math.abs(boite.y + boite.height / 2 - (couleurs.y + couleurs.height / 2)) < 60, "bouton du haut pas à la hauteur des couleurs");
+    // Doré, en haut comme en bas, avec son « ＋ » dans une pastille blanche.
+    for (const b of [haut, bas]) {
+      assert.match(await b.evaluate((e) => getComputedStyle(e).backgroundImage), /linear-gradient/);
+      assert.equal((await b.textContent()).trim(), "＋Ajouter un jeu");
+    }
+    await capture(page, "ajouter-un-jeu-haut", { pleinePage: false });
+    // Du haut : les tuiles s'ouvrent juste dessous ; le jeu choisi arrive à la fin de la prestation.
+    await haut.click();
+    await page.locator("#jeu-choix-haut #jeu-choix:not([hidden])").waitFor();
+    assert.equal(await page.locator("#jeu-choix .jeu-tuile").count(), 16);
+    await capture(page, "ajouter-un-jeu-tuiles-haut", { pleinePage: false });
+    await page.click('#jeu-choix .jeu-tuile[data-jeu="quiz"]');
+    await page.locator("#jeu-choix").waitFor({ state: "hidden" });
+    await page.locator('#show-rounds .jeu-bloc[data-jeu="quiz"]').waitFor();
+    // Refermée, la place des tuiles ne laisse aucun trou en haut.
+    assert.equal(await page.locator("#jeu-choix-haut").isVisible(), false);
+    // Du bas : les tuiles s'ouvrent sous les jeux, un second appui les referme ; un appui en haut les y fait monter.
+    await bas.click();
+    await page.locator("#jeu-choix-bas #jeu-choix:not([hidden])").waitFor();
+    await bas.click();
+    await page.locator("#jeu-choix").waitFor({ state: "hidden" });
+    await bas.click();
+    await page.locator("#jeu-choix-bas #jeu-choix:not([hidden])").waitFor();
+    await haut.click();
+    await page.locator("#jeu-choix-haut #jeu-choix:not([hidden])").waitFor();
+    await page.click('#jeu-choix .jeu-tuile[data-jeu="mimes"]');
+    await page.locator('#show-rounds .jeu-bloc[data-jeu="mimes"]').waitFor();
+    assert.deepEqual(await page.locator("#show-rounds .jeu-bloc").evaluateAll((l) => l.map((e) => e.dataset.jeu)), ["quiz", "mimes"]);
+    await bas.scrollIntoViewIfNeeded();
+    await capture(page, "ajouter-un-jeu-bas", { pleinePage: false });
+    // Téléphone : le bouton du haut passe sous les couleurs, entier.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await haut.scrollIntoViewIfNeeded();
+    const tel = await haut.boundingBox();
+    assert.ok(tel.x >= 0 && tel.x + tel.width <= 390, "bouton du haut coupé sur le téléphone");
+    await capture(page, "ajouter-un-jeu-telephone", { pleinePage: false });
+    await page.context().close();
+  });
+
   test("Sarah prépare une prestation, l'animatrice la charge sur la TV depuis la régie", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX, finale: FINALE });
     const page = await admin();

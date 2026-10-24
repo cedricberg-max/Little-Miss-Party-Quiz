@@ -1497,10 +1497,15 @@ function alerteManche(r) {
   return texte ? h("p", { class: "alerte-equipes", role: "alert", text: `⚠ ${texte}` }) : null;
 }
 
-/** « ＋ Ajouter un jeu » : les jeux en tuiles, par famille ; un clic ajoute le jeu (une manche) en fin de prestation. */
-function ouvrirChoixJeu() {
+/**
+ * « ＋ Ajouter un jeu » : les jeux en tuiles, par famille ; un clic ajoute le jeu (une manche) en fin de prestation.
+ * Deux boutons (cedric, 24/10) : en haut de la page et sous les jeux ; les tuiles s'ouvrent sous celui qu'on a touché.
+ */
+function ouvrirChoixJeu(place = "bas") {
   const box = $("jeu-choix");
-  if (!box.hidden) { box.hidden = true; return; }
+  const lieu = $(`jeu-choix-${place}`);
+  if (!box.hidden && box.parentElement === lieu) { box.hidden = true; return; }
+  lieu.append(box);
   box.replaceChildren(...jeuxProposes().map((g) => h("div", { class: "jeu-famille" },
     h("p", { class: "small", text: g.title }),
     h("div", { class: "jeu-tuiles" }, ...g.games.map((x) => h("button", {
@@ -1520,6 +1525,7 @@ function ouvrirChoixJeu() {
       },
     }))))));
   box.hidden = false;
+  box.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
 
 /** Autres prestations, les plus récentes d'abord : par date (sans date : en dernier, la dernière modifiée d'abord). */
@@ -2672,7 +2678,8 @@ function choisirCouleur(i, c) {
   // Les mimes ont une manche par couleur d'équipe : leurs titres suivent.
   if (editing?.rounds?.some((r) => r?.type === "mimes")) refreshRounds();
 }
-$("round-add").onclick = () => ouvrirChoixJeu();
+$("round-add").onclick = () => ouvrirChoixJeu("bas");
+$("round-add-top").onclick = () => ouvrirChoixJeu("haut");
 
 /** Contenu d'une manche (titre du quiz, du paquet, de la playlist), "" pour un jeu sans contenu, null s'il n'existe plus. */
 function roundContent(r) {

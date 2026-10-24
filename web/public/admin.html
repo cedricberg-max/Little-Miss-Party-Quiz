@@ -99,11 +99,16 @@
               <option value="5">5 équipes</option><option value="6">6 équipes</option><option value="7">7 équipes</option><option value="8">8 équipes</option>
             </select>
           </label>
-          <div class="wide couleurs-equipes">
-            <p class="label">Couleurs des équipes (bracelets et bandeaux)</p>
-            <div id="show-couleurs"></div>
-            <p class="hint small">Les tablettes ne proposeront que ces couleurs. Touchez une pastille pour changer sa couleur.</p>
+          <div class="wide couleurs-et-ajout">
+            <div class="couleurs-equipes">
+              <p class="label">Couleurs des équipes (bracelets et bandeaux)</p>
+              <div id="show-couleurs"></div>
+              <p class="hint small">Les tablettes ne proposeront que ces couleurs. Touchez une pastille pour changer sa couleur.</p>
+            </div>
+            <!-- cedric, 24/10 : « ＋ Ajouter un jeu » aussi en haut de la page, sans descendre jusqu'aux jeux. -->
+            <button id="round-add-top" type="button" class="btn ajout-jeu"><span class="ajout-plus" aria-hidden="true">＋</span>Ajouter un jeu</button>
           </div>
+          <div id="jeu-choix-haut" class="wide jeu-choix-place"></div>
           <label>Date<input id="show-date" type="date"></label>
           <label>Statut
             <select id="show-status">
@@ -121,9 +126,9 @@
         <h2>Jeux, dans l'ordre</h2>
         <div id="show-rounds" class="rounds"></div>
         <div class="round-tools">
-          <button id="round-add" type="button" class="btn secondary">＋ Ajouter un jeu</button>
+          <button id="round-add" type="button" class="btn ajout-jeu"><span class="ajout-plus" aria-hidden="true">＋</span>Ajouter un jeu</button>
         </div>
-        <div id="jeu-choix" class="panel jeu-choix" hidden></div>
+        <div id="jeu-choix-bas" class="jeu-choix-place"><div id="jeu-choix" class="panel jeu-choix" hidden></div></div>
         <p id="show-summary" class="hint"></p>
         <ul id="show-problems" class="problems"></ul>
         <label class="wide">Notes pour l'animatrice<textarea id="show-notes" rows="3" maxlength="2000"></textarea></label>
