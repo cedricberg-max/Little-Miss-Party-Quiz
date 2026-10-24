@@ -47,13 +47,14 @@ class IntroJeuTest {
     }
 
     @Test
-    fun `chaque intro est bien dans l'appli et reste legere`() {
+    fun `chaque intro est bien dans l'appli et reste facile a decoder`() {
         val noms = QuestionKind.entries.mapNotNull { nomIntroJeu(familleType(it)) } + listOf("illustre", "musical")
         for (nom in noms.toSet()) {
             val f = File("src/main/res/raw/gs_intro_$nom.mp4")
             assertTrue("gs_intro_$nom.mp4 manquant", f.isFile)
-            // 16 s en 1080p : la box a peu de place (fil principal, 24 octobre).
-            assertTrue("gs_intro_$nom.mp4 trop lourd : ${f.length()} octets", f.length() < 6_000_000)
+            // 16 s en 1080p. La place n'est plus une limite (cedric, 24/10 : « on peut même exagérer ») ; le débit, si :
+            // au plus 12 Mbit/s en moyenne, ce que le décodeur de la Mi Box lit sans peine (16 s × 12 Mbit/s = 24 Mo).
+            assertTrue("gs_intro_$nom.mp4 trop lourd pour la box : ${f.length()} octets", f.length() < 24_000_000)
         }
     }
 }
