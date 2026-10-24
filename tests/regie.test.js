@@ -4146,7 +4146,9 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.fill("#show-age", "9");
     await ajouterJeu(page, "chante");
     const round = page.locator("#show-rounds .round").nth(0);
-    await round.locator("select.grow").selectOption("4");
+    // Le nombre de mots choisi, sans 🎲 : la TV les tire au lancement.
+    await round.locator(".tirage-nombre").selectOption("4");
+    await round.locator(".round-head > .quiz-compteur", { hasText: "la TV en tirera 4 au hasard" }).waitFor();
     await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
@@ -4184,7 +4186,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
-  test("Régie PC : plusieurs quiz dans une manche, mimes tirés au 🎲 pour chaque équipe puis retouchés, mots choisis un par un", async () => {
+  test("Régie PC : plusieurs quiz dans une manche, mimes tirés au 🎲 pour chaque équipe puis retouchés, mots écrits à la main", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX, espace: ESPACE });
     const page = await admin();
     await page.click("#home-new");
@@ -4213,12 +4215,14 @@ describe("bibliothèque de quiz et prestations", () => {
     await compteurMimes.filter({ hasText: /^4 équipes · 39 images · 1 à tirer$/ }).waitFor();
     await mimes.locator(".mime-image.vide .tirage-de").click();
     await compteurMimes.filter({ hasText: /^4 équipes · 40 images$/ }).waitFor();
-    // Chante le mot ! : deux mots choisis à la main.
+    // Chante le mot ! : deux mots écrits à la main.
     await ajouterJeu(page, "chante");
     const chante = page.locator("#show-rounds .round").nth(2);
-    await chante.locator("select.pick-add").selectOption("soleil");
-    await chante.locator("select.pick-add").selectOption("maman");
-    await chante.locator(".pick-box .small", { hasText: "2 mots choisis" }).waitFor();
+    for (const mot of ["soleil", "maman"]) {
+      await chante.locator(".mots-ecrire").fill(mot);
+      await chante.locator(".mots-ecrire").press("Enter");
+    }
+    await chante.locator(".round-head > .quiz-compteur", { hasText: "2 mots" }).waitFor();
     await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
@@ -4228,7 +4232,8 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual([saved[1].type, saved[1].source, saved[1].perTeam], ["mimes", "emojis", 10]);
     assert.deepEqual(saved[1].equipes.map((l) => l.length), [10, 10, 10, 10]);
     assert.ok(!saved[1].equipes.flat().some((c) => c.word === removed), "La carte retirée n'est plus là");
-    assert.deepEqual(saved[2], { type: "chante", count: 6, picks: ["soleil", "maman"] });
+    assert.deepEqual(saved[2].seriesMots.map((x) => [x.origine, x.mots.map((m) => m.word)]), [["main", ["soleil", "maman"]]]);
+    assert.equal(saved[2].picks, undefined);
     await page.context().close();
 
     box = startBox();
