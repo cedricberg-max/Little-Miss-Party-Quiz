@@ -22,7 +22,7 @@ class DoublonsTest : TestTv() {
         val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
         val dragons = pupitre("dragons").also { it.rejoindre(code, "Dragons", ROSE) }
         ecran.voit("Dragons")
-        ecran.ok("Lancer la fête !")
+        ecran.lancerLaFete()
         val q = attendreQuestion(licornes, code, 0)
 
         assertTrue(licornes.repondre(code, q.id, q.correct))
@@ -50,8 +50,7 @@ class DoublonsTest : TestTv() {
     fun doubleAppuiRapideSurOk() {
         val code = lancerBoite()
         val licornes = pupitre("licornes").also { it.rejoindre(code, "Licornes", VERT) }
-        ecran.voit("Lancer la fête !")
-        ecran.focusSur("Lancer la fête !")
+        ecran.montrerLancement()
         // Un enfant ou une animatrice pressée appuie deux fois très vite : 250 ms entre les deux appuis.
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val premier = SystemClock.uptimeMillis()

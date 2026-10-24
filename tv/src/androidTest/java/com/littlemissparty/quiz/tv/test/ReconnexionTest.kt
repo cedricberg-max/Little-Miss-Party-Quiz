@@ -23,7 +23,7 @@ class ReconnexionTest : TestTv() {
             ecran.voit("Hors connexion")
             ecran.capture("hors-connexion")
             // La télécommande reste utilisable : la box avance seule et enverra tout au retour du réseau.
-            ecran.ok("Lancer la fête !")
+            ecran.lancerLaFete()
             ecran.voit("Quiz · question 1 / ")
             // Les tablettes ne reçoivent pas la question : la box la fige d'elle-même, chrono arrêté.
             ecran.voit("on attend le retour d'Internet")
@@ -63,7 +63,7 @@ class ReconnexionTest : TestTv() {
         Boite.base.goOffline()
         try {
             ecran.voit("Hors connexion")
-            ecran.ok("Lancer la fête !")
+            ecran.lancerLaFete()
             ecran.voit("on attend le retour d'Internet")
             ecran.capture("pause-sans-internet")
             ecran.ok("Reprendre")
@@ -120,7 +120,7 @@ class ReconnexionTest : TestTv() {
         ecran.neVoitPas("hors ligne")
 
         // Revenu, le pupitre joue normalement.
-        ecran.ok("Lancer la fête !")
+        ecran.lancerLaFete()
         val q = attendreQuestion(dragons, code, 0)
         assertTrue(licornes.repondre(code, q.id, q.correct))
         assertTrue(dragons.repondre(code, q.id, mauvaiseReponse(q)))

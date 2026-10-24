@@ -75,7 +75,8 @@ class RegieTest : TestTv() {
         assertNull("Une régie non reliée ne peut pas envoyer de commande", regie.envoyer(code, "next"))
         assertFalse("Une régie non reliée ne lit pas les bonnes réponses", regie.lireConducteur(code))
         assertFalse(ecran.affiche("Régie reliée"))
-        ecran.voit("Lancer la fête !")
+        // La TV n'a pas bougé : toujours au salon.
+        ecran.voit("1 équipe(s) dans la partie")
     }
 
     @Test

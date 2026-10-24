@@ -39,7 +39,7 @@ class ChangerDeBoxTest : TestTv() {
 
     /** La fête jusqu'à la révélation de la première question : une équipe, une bonne réponse, des points. */
     private fun premiereQuestion(code: String, licornes: PupitreSimule): Long {
-        ecran.ok("Lancer la fête !")
+        ecran.lancerLaFete()
         val q = attendreQuestion(licornes, code, 0)
         assertTrue(licornes.repondre(code, q.id, q.correct))
         ecran.voit("Toutes les équipes ont répondu")

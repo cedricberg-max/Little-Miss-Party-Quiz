@@ -3,6 +3,7 @@ package com.littlemissparty.quiz.tv.test
 import android.content.Context
 import android.os.SystemClock
 import android.util.Log
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.ui.platform.ViewRootForTest
@@ -296,6 +297,21 @@ class Ecran(private val nomTest: () -> String) {
     }
 
     fun touche(code: Int) = device.pressKeyCode(code)
+
+    /**
+     * Montre « Lancer la fête ! » à la télécommande, sélectionné : au salon du Game Show l'écran reste neutre et le
+     * bouton est dans le menu Retour ; en Classique il est sur l'écran.
+     */
+    fun montrerLancement() {
+        if (Look.gs && !affiche("Lancer la fête !")) touche(KeyEvent.KEYCODE_BACK)
+        voit("Lancer la fête !")
+        focusSur("Lancer la fête !")
+    }
+
+    fun lancerLaFete() {
+        montrerLancement()
+        device.pressDPadCenter()
+    }
 
     /** Textes visibles à l'écran, écrits dans le journal quand un test échoue. */
     fun textes(): String = (

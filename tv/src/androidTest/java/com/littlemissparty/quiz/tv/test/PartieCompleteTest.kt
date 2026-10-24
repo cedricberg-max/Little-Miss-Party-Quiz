@@ -23,7 +23,7 @@ class PartieCompleteTest : TestTv() {
 
         val total = quiz.questions.size
         var minimum = 0L
-        ecran.ok("Lancer la fête !")
+        ecran.lancerLaFete()
         quiz.questions.forEachIndexed { i, q ->
             ecran.voit("Quiz · question ${i + 1} / $total")
             attendreQuestion(licornes, code, i)
