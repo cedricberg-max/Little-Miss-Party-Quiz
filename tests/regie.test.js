@@ -5345,7 +5345,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.fill("#show-child", "Léa");
     await page.fill("#show-age", "9");
     await ajouterJeu(page, "express");
-    // « 📗 Intégrer les Vrai / Faux d'un de vos quiz » (cedric, 23/10) : seulement ses Vrai / Faux.
+    // « 📗 Intégrer un Vrai / Faux de la bibliothèque » (cedric, 23/10 et 24/10) : seulement ses Vrai / Faux.
     const manche = page.locator("#show-rounds .round").nth(0);
     await manche.locator(".quiz-biblio-cherche").fill("scien");
     await manche.locator('.quiz-biblio-item[data-quiz="sciences"]', { hasText: "2 affirmations" }).click();
@@ -5924,7 +5924,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-profil", "tirage-nombre", "btn tirage-de"]);
     assert.equal(await ligne.locator(".tirage-profil").inputValue(), "MOYENS", "le profil de l'âge de l'enfant");
     assert.equal(await round.locator(".quiz-rappel-titre").textContent(), "📚 Rappeler les affirmations d'un ancien anniversaire");
-    assert.equal(await round.locator(".quiz-biblio-titre").textContent(), "📗 Intégrer les Vrai / Faux d'un de vos quiz");
+    assert.equal(await round.locator(".quiz-biblio-titre").textContent(), "📗 Intégrer un Vrai / Faux de la bibliothèque");
     assert.equal(await compteur.textContent(), "Aucune affirmation pour l'instant");
 
     // Un ancien anniversaire : ses affirmations, copiées.

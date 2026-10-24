@@ -2631,11 +2631,11 @@ function mancheQuiz(r) {
         noms: [q.title], autres: [q.theme] };
     });
   const biblio = ligneAjoutQuiz({
-    classe: "quiz-biblio", titre: photos ? "📗 Intégrer une de vos séries de photos" : express ? "📗 Intégrer les Vrai / Faux d'un de vos quiz" : illustre ? "📗 Intégrer un quiz illustré de votre bibliothèque" : "📗 Intégrer un quiz de votre bibliothèque",
-    label: photos ? "Chercher une série de photos de la bibliothèque" : "Chercher un quiz de la bibliothèque",
-    placeholder: photos ? "Titre ou thème d'une de vos séries de photos" : `Titre ou thème d'un de vos quiz${illustre ? " illustrés" : ""}`,
-    vide: photos ? "Pas encore de série de photos dans votre bibliothèque" : express ? "Aucun de vos quiz n'a de question Vrai / Faux" : `Pas encore de quiz${illustre ? " illustré" : ""} dans votre bibliothèque`,
-    aucun: photos ? "Aucune série de photos ne correspond." : "Aucun quiz de la bibliothèque ne correspond.", items: classiques, attr: (x) => ({ "data-quiz": x.id }),
+    classe: "quiz-biblio", titre: photos ? "📗 Intégrer une de vos séries de photos" : express ? "📗 Intégrer un Vrai / Faux de la bibliothèque" : illustre ? "📗 Intégrer un quiz illustré de votre bibliothèque" : "📗 Intégrer un quiz de votre bibliothèque",
+    label: photos ? "Chercher une série de photos de la bibliothèque" : express ? "Chercher un Vrai / Faux de la bibliothèque" : "Chercher un quiz de la bibliothèque",
+    placeholder: photos ? "Titre ou thème d'une de vos séries de photos" : express ? "Titre ou thème d'un de vos Vrai / Faux" : `Titre ou thème d'un de vos quiz${illustre ? " illustrés" : ""}`,
+    vide: photos ? "Pas encore de série de photos dans votre bibliothèque" : express ? "Pas encore de Vrai / Faux dans votre bibliothèque" : `Pas encore de quiz${illustre ? " illustré" : ""} dans votre bibliothèque`,
+    aucun: photos ? "Aucune série de photos ne correspond." : express ? "Aucun Vrai / Faux de la bibliothèque ne correspond." : "Aucun quiz de la bibliothèque ne correspond.", items: classiques, attr: (x) => ({ "data-quiz": x.id }),
     choisir: (x) => { series.push({ id: nouvelId("q"), origine: "quiz", quizId: x.id }); changer(); },
   });
   // Quatrième ligne (Zoom mystère, Image floue) : composer avec ses propres images de « Mes images ».
