@@ -2845,6 +2845,54 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
+  test("Régie PC (cedric, 24/10) : menu temporaire des photos manquantes de la banque : une ligne par mot sans photo, 📤 pour la choisir (gardée sur ce PC), ✕, « 📦 Télécharger le lot » ; rien en ligne", async () => {
+    const { motsSansPhoto } = await import("../web/public/photos-manquantes.js");
+    const mots = motsSansPhoto();
+    assert.ok(mots.length > 0 && mots.some((m) => m.mot === "Crêpe"));
+    const avant = await library("");
+    const page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.locator("#library-images:not([hidden])").waitFor();
+    await page.locator(".media-group[data-groupe=\"photos\"] .pm-ouvrir", { hasText: `🧰 Photos manquantes (${mots.length})` }).click();
+    const panneau = page.locator("#media-list > details.photos-manquantes");
+    await panneau.waitFor();
+    assert.equal(await panneau.getAttribute("open"), "");
+    assert.deepEqual(await panneau.locator(".pm-mot .pm-nom b").allTextContents(), mots.map((m) => m.mot));
+    assert.equal(await panneau.locator(".pm-mot .pm-apercu img").count(), 0, "en attendant : l'émoji");
+    const crepe = panneau.locator('.pm-mot[data-cle="crepe"]');
+    const gomme = panneau.locator('.pm-mot[data-cle="gomme"]');
+    await crepe.locator('input[type="file"]').setInputFiles({ name: "crepe.png", mimeType: "image/png", buffer: png([230, 180, 90]) });
+    await crepe.locator(".pm-apercu img").waitFor();
+    await panneau.locator(".pm-compte", { hasText: `1 / ${mots.length} photo prête` }).waitFor();
+    // Pas une image : refusée, dit pourquoi.
+    await gomme.locator('input[type="file"]').setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("pas une photo") });
+    await page.locator("#annonce", { hasText: "Ce fichier n'est pas une image" }).waitFor();
+    await gomme.locator('input[type="file"]').setInputFiles({ name: "gomme.png", mimeType: "image/png", buffer: png([240, 120, 160]) });
+    await panneau.locator(".pm-compte", { hasText: `2 / ${mots.length} photos prêtes` }).waitFor();
+    // Gardées sur ce PC : toujours là après un rechargement.
+    await page.reload();
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#media-groups [data-groupe="photos"]');
+    await panneau.locator(".pm-compte", { hasText: `2 / ${mots.length} photos prêtes` }).waitFor();
+    assert.equal(await panneau.locator(".pm-mot.prete .pm-apercu img").count(), 2);
+    // ✕ : enlevée.
+    await gomme.locator(".pm-retirer").click();
+    await panneau.locator(".pm-compte", { hasText: `1 / ${mots.length} photo prête` }).waitFor();
+    assert.equal(await gomme.locator(".pm-retirer").isHidden(), true);
+    await capture(page, "photos-manquantes");
+    // Le lot : un seul fichier, une photo par mot (clé de la banque).
+    const [telechargement] = await Promise.all([page.waitForEvent("download"), panneau.locator(".pm-bas .btn", { hasText: "📦 Télécharger le lot (1 photo)" }).click()]);
+    assert.equal(telechargement.suggestedFilename(), "photos-manquantes-1.json");
+    const fichier = JSON.parse(readFileSync(await telechargement.path(), "utf8"));
+    assert.equal(fichier.photosManquantes, 1);
+    assert.deepEqual(Object.keys(fichier.photos), ["crepe"]);
+    assert.equal(fichier.photos.crepe.mot, "Crêpe");
+    assert.match(fichier.photos.crepe.data, /^data:image\/jpeg;base64,/);
+    await page.locator("#annonce", { hasText: "Joignez ce fichier dans le fil « Feuille de route »" }).waitFor();
+    assert.deepEqual(await library(""), avant, "rien d'écrit en ligne");
+    await page.context().close();
+  });
+
   test("Régie PC : la Bibliothèque range ses images (nom, catégorie, mots-clés) et les retrouve avec les émojis et les photos libres", async () => {
     // Une photo déjà utilisée dans un quiz, d'avant la bibliothèque : elle apparaît « À ranger ».
     const ancienne = "0123456789abcdef";

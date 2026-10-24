@@ -44,6 +44,7 @@ import { garderFichier, fichierGarde, oublierFichier } from "./sons-locaux.js";
 import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
 import { watchVersion, showUpdateBanner } from "./version.js";
 import { compressImage, imageId, cleanEmoji, CHOICE_IMAGE } from "./illustration.js";
+import { panneauPhotosManquantes, motsSansPhoto } from "./photos-manquantes.js";
 import { afficherMotsDePasse } from "./oeil.js";
 import { historique, noterEcran, barresRetour, quitterEcran, ecranModifie } from "./retour.js";
 import { confirmer, avertir, demanderTexte } from "./fenetre.js";
@@ -6892,7 +6893,8 @@ function renderMedias(force = false) {
       const voir = h("button", { type: "button", class: "btn small secondary", text: recherche ? `Voir les ${plural(list.length, "résultat")}` : `Tout voir (${list.length})`, onclick: () => { const y = window.scrollY; mediaGroupe = k; mediaCat = null; renderMedias(true); noterRubrique(y); } });
       return h("section", { class: "media-group", "data-groupe": k },
         h("div", { class: "title-row" }, h("h2", { text: label }), list.length ? voir : null,
-          k === "miennes" && !recherche ? h("button", { type: "button", class: "btn small", text: "＋ Ajouter mes images", onclick: () => { const y = window.scrollY; mediaGroupe = "miennes"; mediaCat = null; renderMedias(true); noterRubrique(y); } }) : null),
+          k === "miennes" && !recherche ? h("button", { type: "button", class: "btn small", text: "＋ Ajouter mes images", onclick: () => { const y = window.scrollY; mediaGroupe = "miennes"; mediaCat = null; renderMedias(true); noterRubrique(y); } }) : null,
+          k === "photos" && !recherche && motsSansPhoto().length ? h("button", { type: "button", class: "btn small secondary pm-ouvrir", text: `🧰 Photos manquantes (${motsSansPhoto().length})`, onclick: () => { const y = window.scrollY; mediaGroupe = "photos"; mediaCat = null; renderMedias(true); noterRubrique(y); } }) : null),
         list.length ? h("div", { class: "media-grid" }, ...list.slice(0, APERCU).map((x, i, l) => vignetteMedia(x, i, l)))
           : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : k === "miennes" ? "Aucune image à vous pour l'instant : « ＋ Ajouter mes images »." : k === "pochettes" ? AUCUNE_POCHETTE : "" }));
     }));
@@ -6925,6 +6927,8 @@ function renderMedias(force = false) {
       : h("div", { class: "media-grid" }, ...items.map((x, i) => vignetteMedia(x, i, items))),
   ]));
   if (list.length > montrees.length) box.append(h("p", { class: "hint small", text: `… et ${list.length - montrees.length} autres : précisez la recherche.` }));
+  // Menu temporaire (cedric, 24/10) : les mots de la banque sans vraie photo, à compléter avec ses photos.
+  if (mediaGroupe === "photos" && !recherche && !mediaCat) { const pm = panneauPhotosManquantes(h, annonce); if (pm) box.prepend(pm); }
 }
 $("media-search").oninput = () => renderMedias(true);
 
