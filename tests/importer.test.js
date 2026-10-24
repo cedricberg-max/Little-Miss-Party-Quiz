@@ -626,6 +626,11 @@ describe("blind test et quiz musical", () => {
       const track = playlist.tracks.find((t) => t.audioId === q.audioId);
       assert.equal(q.choices[q.correct], track.title, "la bonne réponse est le titre de l'extrait joué");
     }
+    // Quiz musical (cedric, 24/10) : la révélation du blind test en plus court, avec l'artiste, le refrain et ses paroles.
+    const hakuna = musical.find((q) => q.choices[q.correct] === "Hakuna Matata");
+    assert.deepEqual([hakuna.artist, hakuna.refrainId, hakuna.lyrics], ["Le Roi lion", ID(5), "0|Hakuna matata"]);
+    const ocean = musical.find((q) => q.choices[q.correct] === "Sous l'océan");
+    assert.deepEqual([ocean.artist, ocean.refrainId, ocean.lyrics], [undefined, undefined, undefined]);
     assert.deepEqual(programRounds(qs).map((r) => r.title), ["Blind test · Dessins animés", "Quiz musical · Dessins animés"]);
     assert.equal(soundIds(qs).length, 5, "4 extraits et 1 refrain");
     assert.equal(roundFilled({ type: "blind" }), false);

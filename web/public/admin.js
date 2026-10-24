@@ -905,7 +905,7 @@ function editShow(id) {
   status("show-status-msg", s.copieDe && !s.childName ? "Copie : indiquez le prénom, l'âge et la date du nouvel anniversaire, puis enregistrez."
     : folded ? "L'ancienne manche « Super Finale » est devenue le réglage du quiz (ses dernières questions ×2). Enregistrez pour garder ce changement."
     : fusions ? "Les manches Quiz qui se suivaient n'en font plus qu'une (une seule Super Finale, à la fin). Enregistrez pour garder ce changement."
-    : fusionsBlind ? "Les manches de blind test qui se suivaient n'en font plus qu'un blind test (leurs chansons à la suite). Enregistrez pour garder ce changement." : "", !!s.copieDe || !!folded || !!fusions || !!fusionsBlind);
+    : fusionsBlind ? "Les manches de blind test (ou de quiz musical) qui se suivaient n'en font plus qu'une (leurs chansons à la suite). Enregistrez pour garder ce changement." : "", !!s.copieDe || !!folded || !!fusions || !!fusionsBlind);
   show("show-edit");
   refreshRounds();
   histPrestation.depart();
@@ -1359,7 +1359,7 @@ function menuChanson(id) {
   const paroles = () => parolesFlottantes(x, "show-rounds");
   const refrain = Number.isFinite(x.refrain) ? ` · ${mmss(x.refrain)}` : "";
   return h("div", { class: "blind-reglage" },
-    boutonEcoute({ class: "btn secondary blind-extrait", title: "Écouter l'extrait du buzz, depuis son début", text: `▶ Extrait · ${mmss(x.start ?? 0)}` },
+    boutonEcoute({ class: "btn secondary blind-extrait", title: "Écouter l'extrait joué pendant la chanson à trouver, depuis son début", text: `▶ Extrait · ${mmss(x.start ?? 0)}` },
       (b) => listen(x, false, b, paroles)),
     boutonEcoute({
       class: "btn secondary blind-refrain", disabled: !x.refrainId, text: `▶ Refrain${refrain}`,
@@ -1525,6 +1525,10 @@ const blindsCompletsDeplies = new WeakSet();
  */
 function mancheBlind(r) {
   versSeriesBlind(r);
+  // Le Quiz musical aussi (cedric, 24/10 : « à la manière de tout ce qu'on a déjà fait ») : le 🎲, une playlist, le
+  // récapitulatif ; pas de « Sélectionner mes chansons », ni de paroles (seuls les titres comptent).
+  const musical = r.type === "musical";
+  const jeu = musical ? "quiz musical" : "blind test";
   const series = r.seriesBlind;
   const deSerie = serieDuDeBlind(r);
   const n = deSerie?.chansons.length || (BLIND_NOMBRES.includes(r.nbChansons) ? r.nbChansons : BLIND_NOMBRE_DEFAUT);
@@ -1584,7 +1588,7 @@ function mancheBlind(r) {
     if (!ids) return;
     const liste = [...avant.filter((id) => ids.includes(id)), ...ids.filter((id) => !avant.includes(id))];
     const garde = Math.max(0, MAX_CHANSONS_BLIND - dansLeBlind(choix).size - (deSerie?.chansons.filter((id) => !id).length ?? 0));
-    if (liste.length > garde) annonce(`${MAX_CHANSONS_BLIND} chansons au plus dans un blind test : les dernières ne sont pas ajoutées.`);
+    if (liste.length > garde) annonce(`${MAX_CHANSONS_BLIND} chansons au plus dans un ${jeu} : les dernières ne sont pas ajoutées.`);
     const serie = choix ?? { id: nouvelId("c"), origine: "choix", chansons: [] };
     if (!choix) r.seriesBlind.push(serie);
     serie.chansons = liste.slice(0, garde);
@@ -1606,7 +1610,7 @@ function mancheBlind(r) {
     .map(([id, p]) => [id, p, chansonsDePlaylist(p)])
     .filter(([, , ids]) => ids.length)
     .sort(([, a], [, b]) => a.title.localeCompare(b.title, "fr"))
-    .map(([id, p, ids]) => ({ id, titre: p.title, ids, details: [pluriel(ids.length, "chanson"), dejaLa.has(id) ? "✓ déjà dans ce blind test" : ""].filter(Boolean).join(" · "),
+    .map(([id, p, ids]) => ({ id, titre: p.title, ids, details: [pluriel(ids.length, "chanson"), dejaLa.has(id) ? `✓ déjà dans ce ${jeu}` : ""].filter(Boolean).join(" · "),
       noms: [p.title], autres: ids.slice(0, 40).flatMap((k) => [songs[k]?.title, songs[k]?.artist]) }));
   const ajoutPlaylist = ligneAjoutQuiz({
     classe: "blind-playlist", titre: "🎶 Ajouter une playlist", label: "Chercher une de vos playlists",
@@ -1616,14 +1620,14 @@ function mancheBlind(r) {
       const deja = dansLeBlind();
       const neuves = x.ids.filter((id) => !deja.has(id));
       const k = place(neuves.length);
-      if (!neuves.length) return annonce(`Les chansons de « ${x.titre} » sont déjà toutes dans ce blind test.`);
+      if (!neuves.length) return annonce(`Les chansons de « ${x.titre} » sont déjà toutes dans ce ${jeu}.`);
       const serie = { id: nouvelId("p"), origine: "playlist", playlistId: x.id, titre: x.titre, chansons: neuves.slice(0, k) };
-      if (!serie.chansons.length) return annonce(`${MAX_CHANSONS_BLIND} chansons au plus dans un blind test : retirez-en avant d'ajouter « ${x.titre} ».`);
+      if (!serie.chansons.length) return annonce(`${MAX_CHANSONS_BLIND} chansons au plus dans un ${jeu} : retirez-en avant d'ajouter « ${x.titre} ».`);
       r.seriesBlind.push(serie);
       blindsDeplies.add(serie);
       ranger();
       const pasLa = x.ids.length - serie.chansons.length;
-      if (pasLa) annonce(`« ${x.titre} » ajoutée : ${pluriel(serie.chansons.length, "chanson")}${neuves.length > k ? ` (${MAX_CHANSONS_BLIND} au plus dans un blind test)` : ""}${x.ids.length > neuves.length ? `, ${x.ids.length - neuves.length} déjà dans ce blind test` : ""}.`, true);
+      if (pasLa) annonce(`« ${x.titre} » ajoutée : ${pluriel(serie.chansons.length, "chanson")}${neuves.length > k ? ` (${MAX_CHANSONS_BLIND} au plus dans un ${jeu})` : ""}${x.ids.length > neuves.length ? `, ${x.ids.length - neuves.length} déjà dans ce ${jeu}` : ""}.`, true);
       changer();
     },
   });
@@ -1642,7 +1646,7 @@ function mancheBlind(r) {
           changer();
         } }),
         h("button", { type: "button", class: "btn small secondary blind-choisir", text: "🎵 Choisir…", "aria-label": "Choisir la chanson dans la bibliothèque des sons", title: "Choisir la chanson dans la bibliothèque des sons", onclick: async () => {
-          const choisie = await choisirChansons({ titre: "Choisir une chanson pour le blind test", prises: dansLeBlind(), deja: (k) => chansonsAilleurs(r).get(k) ?? null });
+          const choisie = await choisirChansons({ titre: `Choisir une chanson pour le ${jeu}`, prises: dansLeBlind(), deja: (k) => chansonsAilleurs(r).get(k) ?? null });
           if (!choisie) return;
           serie.chansons[i] = choisie;
           ranger();
@@ -1658,7 +1662,7 @@ function mancheBlind(r) {
       changer();
       noterEcran();
     };
-    const titreRetirer = auDe ? "Retirer cette chanson (un 🎲 prend sa place)" : "Retirer cette chanson du blind test";
+    const titreRetirer = auDe ? "Retirer cette chanson (un 🎲 prend sa place)" : `Retirer cette chanson du ${jeu}`;
     const song = songs[id];
     if (!chansonJouable(song)) {
       return h("li", { class: "tirage-q blind-chanson manquante" }, h("div", { class: "tirage-q-ligne" },
@@ -1669,15 +1673,17 @@ function mancheBlind(r) {
     const deja = autres.get(id) ?? autres.get(song.audioId);
     const paroles = parolesSurTv(song);
     const ouvert = blindEcoute.get(r) === id;
+    // Quiz musical aussi (cedric, 24/10) : l'extrait pendant la question, le refrain et ses paroles à la révélation.
+    const badge = h("span", {
+      class: `blind-paroles${paroles ? " ok" : " non"}`, text: paroles ? "✓ Paroles" : "✗ Pas de paroles",
+      title: paroles ? "Paroles présentes : elles défileront sur la TV à la révélation"
+        : song.lrc === true ? "Fichier .lrc présent, mais le refrain n'est pas encore réglé (Bibliothèque › Sons)" : "Pas de fichier .lrc : ajoutez-le dans Bibliothèque › Sons",
+    });
     return h("li", { class: `tirage-q blind-chanson${deja ? " deja" : ""}${ouvert ? " ouverte" : ""}`, "data-chanson": id, ...(deja ? { title: `Déjà dans ${deja}` } : {}) },
       h("div", { class: "tirage-q-ligne" },
         miniPochette(song),
         h("span", { class: "tirage-texte blind-titre" }, h("b", { text: song.title.trim() }), song.artist?.trim() ? h("span", { class: "hint", text: ` · ${song.artist.trim()}` }) : null),
-        h("span", {
-          class: `blind-paroles${paroles ? " ok" : " non"}`, text: paroles ? "✓ Paroles" : "✗ Pas de paroles",
-          title: paroles ? "Paroles présentes : elles défileront sur la TV à la révélation"
-            : song.lrc === true ? "Fichier .lrc présent, mais le refrain n'est pas encore réglé (Bibliothèque › Sons)" : "Pas de fichier .lrc : ajoutez-le dans Bibliothèque › Sons",
-        }),
+        badge,
         h("button", {
           type: "button", class: `icon blind-ecouter${ouvert ? " active" : ""}`, text: "🎧", "aria-expanded": ouvert ? "true" : "false",
           "aria-label": `Écouter et régler « ${song.title.trim()} »`, title: "Écouter l'extrait et le refrain, et les régler",
@@ -1723,7 +1729,7 @@ function mancheBlind(r) {
     const manque = x.chansons.filter((id) => !id).length;
     const enlever = async () => {
       const k = x.chansons.filter(Boolean).length;
-      if (k && !(await confirmer(`Enlever cette série (${pluriel(k, "chanson")}) du blind test ?${x.origine === "playlist" ? " La playlist reste dans la bibliothèque." : ""}`, { ok: "Enlever", danger: true }))) return;
+      if (k && !(await confirmer(`Enlever cette série (${pluriel(k, "chanson")}) du ${jeu} ?${x.origine === "playlist" ? " La playlist reste dans la bibliothèque." : ""}`, { ok: "Enlever", danger: true }))) return;
       r.seriesBlind = r.seriesBlind.filter((y) => y !== x);
       ranger();
       changer();
@@ -1739,8 +1745,8 @@ function mancheBlind(r) {
           changer();
         } }) : null,
         x.origine === "playlist" ? h("button", { type: "button", class: "chip blind-plus", text: "＋ Une chanson", title: "Ajouter une chanson de la bibliothèque des sons à cette série", onclick: async () => {
-          if (!place(1)) return annonce(`${MAX_CHANSONS_BLIND} chansons au plus dans un blind test.`);
-          const choisie = await choisirChansons({ titre: "Ajouter une chanson au blind test", prises: dansLeBlind(), deja: (k) => chansonsAilleurs(r).get(k) ?? null });
+          if (!place(1)) return annonce(`${MAX_CHANSONS_BLIND} chansons au plus dans un ${jeu}.`);
+          const choisie = await choisirChansons({ titre: `Ajouter une chanson au ${jeu}`, prises: dansLeBlind(), deja: (k) => chansonsAilleurs(r).get(k) ?? null });
           if (!choisie) return;
           x.chansons.push(choisie);
           blindsDeplies.add(x);
@@ -1749,21 +1755,22 @@ function mancheBlind(r) {
         } }) : null,
         h("button", { type: "button", class: "icon serie-monter", text: "↑", title: "Passer cette série plus tôt", "aria-label": "Monter cette série", disabled: i === 0, onclick: () => deplacerSerie(i, -1) }),
         h("button", { type: "button", class: "icon serie-descendre", text: "↓", title: "Passer cette série plus tard", "aria-label": "Descendre cette série", disabled: i === r.seriesBlind.length - 1, onclick: () => deplacerSerie(i, 1) }),
-        h("button", { type: "button", class: "icon serie-enlever", text: "✕", title: "Enlever cette série du blind test", "aria-label": "Enlever cette série", onclick: enlever })),
+        h("button", { type: "button", class: "icon serie-enlever", text: "✕", title: `Enlever cette série du ${jeu}`, "aria-label": "Enlever cette série", onclick: enlever })),
       corps);
   }));
 
   const presentes = ordre.filter((id) => chansonJouable(songs[id]));
   const aTirer = chansonsBrutes(r).filter((id) => !id).length;
   const compteur = h("p", { class: "quiz-compteur", "aria-live": "polite",
-    text: presentes.length || aTirer ? `${pluriel(presentes.length, "chanson")} à trouver${aTirer ? ` · ${aTirer} à tirer` : ""}` : "Aucune chanson pour l'instant : touchez 🎲, « Sélectionner mes chansons » ou ajoutez une playlist" });
+    text: presentes.length || aTirer ? `${pluriel(presentes.length, "chanson")} à trouver${aTirer ? ` · ${aTirer} à tirer` : ""}`
+      : musical ? "Aucune chanson pour l'instant : touchez 🎲 ou ajoutez une playlist" : "Aucune chanson pour l'instant : touchez 🎲, « Sélectionner mes chansons » ou ajoutez une playlist" });
   // Une manche préparée avant (une playlist entière, des extraits choisis) : elle se joue encore telle quelle.
   const ancienne = !r.seriesBlind.length && (r.playlistId || roundTracks(r).length)
-    ? h("p", { class: "small hint blind-ancienne", text: `Blind test préparé à l'ancienne : ${mancheSummary(r, { playlists })}, joué tel quel. Le 🎲, vos chansons ou une playlist le remplacent.` })
+    ? h("p", { class: "small hint blind-ancienne", text: `${musical ? "Quiz musical" : "Blind test"} préparé à l'ancienne : ${mancheSummary(r, { playlists })}, joué tel quel. Le 🎲${musical ? "" : ", vos chansons"} ou une playlist le remplacent.` })
     : null;
   return [
     compteur,
-    h("div", { class: "quiz-outils" }, h("div", { class: "tirage-ligne" }, nombre, de), aLaMain, ajoutPlaylist),
+    h("div", { class: "quiz-outils" }, h("div", { class: "tirage-ligne" }, nombre, de), musical ? null : aLaMain, ajoutPlaylist),
     ancienne,
     r.seriesBlind.length ? liste : null,
     blindComplet(r, presentes, ranger, changer),
@@ -1811,14 +1818,14 @@ function blindComplet(r, ordre, ranger, changer) {
         h("span", { class: "tirage-texte blind-titre" }, h("b", { text: song.title.trim() }), song.artist?.trim() ? h("span", { class: "hint", text: ` · ${song.artist.trim()}` }) : null),
         h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: "Passer cette chanson plus tôt", "aria-label": "Monter cette chanson", disabled: k === 0, onclick: () => deplacer(k, -1) }),
         h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: "Passer cette chanson plus tard", "aria-label": "Descendre cette chanson", disabled: k === ordre.length - 1, onclick: () => deplacer(k, 1) }),
-        h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: "Enlever cette chanson du blind test", "aria-label": `Enlever « ${song.title.trim()} »`, onclick: () => enlever(id) })));
+        h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: `Enlever cette chanson du ${r.type === "musical" ? "quiz musical" : "blind test"}`, "aria-label": `Enlever « ${song.title.trim()} »`, onclick: () => enlever(id) })));
   });
   const liste = h("ol", { class: "tirage-liste serie-liste quiz-complet-liste blind-complet-liste" }, ...lignes);
   liste.hidden = !blindsCompletsDeplies.has(r);
-  const titre = () => `${liste.hidden ? "▸" : "▾"} 🧩 Blind test complet : ${ordre.length} chanson${ordre.length > 1 ? "s" : ""}, dans l'ordre de passage`;
+  const titre = () => `${liste.hidden ? "▸" : "▾"} 🧩 ${r.type === "musical" ? "Quiz musical" : "Blind test"} complet : ${ordre.length} chanson${ordre.length > 1 ? "s" : ""}, dans l'ordre de passage`;
   const voir = h("button", {
     type: "button", class: "chip tirage-voir serie-voir quiz-complet-voir blind-complet-voir", "aria-expanded": liste.hidden ? "false" : "true", text: titre(),
-    title: "Voir toutes les chansons du blind test, dans l'ordre",
+    title: `Voir toutes les chansons du ${r.type === "musical" ? "quiz musical" : "blind test"}, dans l'ordre`,
     onclick: (e) => {
       liste.hidden = !liste.hidden;
       if (liste.hidden) blindsCompletsDeplies.delete(r); else blindsCompletsDeplies.add(r);
@@ -1829,7 +1836,7 @@ function blindComplet(r, ordre, ranger, changer) {
   return h("div", { class: "serie quiz-complet blind-complet" },
     h("div", { class: "serie-tete" },
       voir,
-      h("button", { type: "button", class: "chip quiz-melanger blind-melanger", text: "🔀 Mélanger", title: "Mélanger toutes les chansons du blind test", disabled: ordre.length < 2, onclick: melanger })),
+      h("button", { type: "button", class: "chip quiz-melanger blind-melanger", text: "🔀 Mélanger", title: `Mélanger toutes les chansons du ${r.type === "musical" ? "quiz musical" : "blind test"}`, disabled: ordre.length < 2, onclick: melanger })),
     liste);
 }
 
@@ -2005,7 +2012,7 @@ function refreshRounds() {
   const { rounds: blinds, fusions: fusionsBlind } = fusionnerBlind(reunies.map(versSeriesBlind));
   editing.rounds = blinds;
   if (fusions) annonce("Les Quiz qui se suivaient n'en font plus qu'un : leurs questions à la suite, une seule Super Finale à la fin.");
-  if (fusionsBlind) annonce("Les blind tests qui se suivaient n'en font plus qu'un : leurs chansons à la suite.");
+  if (fusionsBlind) annonce("Les blind tests (ou quiz musicaux) qui se suivaient n'en font plus qu'un : leurs chansons à la suite.");
   const blocs = blocsDeJeu(editing.rounds);
   blocs.forEach((b, k) => {
     const [debut, fin] = [b.indices[0], b.indices[b.indices.length - 1] + 1];
@@ -2031,7 +2038,7 @@ function refreshRounds() {
     const n = b.indices.length;
     // Le Quiz est une seule manche (cedric, 23/10), le blind test aussi (cedric, 24/10 : « on abandonne la notion de
     // manche ») : pas de « ＋ Manche », tout s'ajoute dedans.
-    const sansManches = estEnSeries(b.type) || b.type === "blind";
+    const sansManches = estEnSeries(b.type) || b.type === "blind" || b.type === "musical";
     const premiere = editing.rounds[debut];
     const replie = premiere[JEU_REPLIE] === true;
     const resume = !replie ? "" : estEnSeries(b.type) ? compteurQuiz(premiere)
@@ -2108,8 +2115,9 @@ function ouvrirChoixJeu(place = "bas") {
         box.hidden = true;
         // Un Quiz juste après un Quiz n'en ferait qu'un : on y retourne, ses questions s'ajoutent dans sa manche.
         const dernier = editing.rounds[editing.rounds.length - 1];
-        if (dernier && (estEnSeries(x.type) || x.type === "blind") && (dernier.type ?? "quiz") === x.type) {
+        if (dernier && (estEnSeries(x.type) || x.type === "blind" || x.type === "musical") && (dernier.type ?? "quiz") === x.type) {
           annonce(x.type === "blind" ? "Le Blind test est déjà le dernier jeu : ajoutez-y vos chansons (🎲, « Sélectionner mes chansons », une playlist)."
+            : x.type === "musical" ? "Le Quiz musical est déjà le dernier jeu : ajoutez-y vos chansons (🎲, une playlist)."
             : `${x.type === "flou" ? "L'Image floue" : `Le ${ROUND_TYPES[x.type]}`} est déjà le dernier jeu : ajoutez-y vos ${estJeuDePhotos(x.type) ? "photos" : x.type === "express" ? "affirmations" : "questions"} (🎲, un ancien anniversaire, votre bibliothèque).`);
           $("show-rounds").lastElementChild?.scrollIntoView({ block: "nearest", behavior: "smooth" });
           return;
@@ -3117,7 +3125,8 @@ function roundFields(r) {
   // Mimes dans une prestation (cedric, 23/10) : le 🎲 seul, une présélection par équipe.
   if (r.type === "mimes" && roundCtx === prestationCtx) return mancheMimes(r);
   // Blind test dans une prestation (cedric, 24/10) : « à la manière des quiz », le 🎲 tire les chansons.
-  if (r.type === "blind" && roundCtx === prestationCtx) return mancheBlind(r);
+  // Blind test et Quiz musical (cedric, 24/10) : en séries de chansons de la bibliothèque des sons.
+  if ((r.type === "blind" || r.type === "musical") && roundCtx === prestationCtx) return mancheBlind(r);
   return [
     // Quiz, Quiz illustré (cedric, 23/10) : une seule manche faite de séries (🎲, quiz rappelés, questions écrites, reprises).
     ...(quiz ? mancheQuiz(r) : [content]),

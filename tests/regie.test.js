@@ -3117,6 +3117,9 @@ describe("bibliothèque de quiz et prestations", () => {
       await ligne(titre).getByRole("button", { name: "⏱ Réglé ✓" }).click();
       await page.locator("#playlist-edit-title", { hasText: `Réglages de « ${titre} »` }).waitFor();
       await page.locator(".track.reglage").waitFor();
+      // La recherche de la chanson entière (absente ici) redessine les réglages quand elle finit : taper avant, c'est
+      // taper dans un champ qui disparaît (vu sur GitHub le 24/10 : l'artiste renommé jamais enregistré).
+      await page.locator(".track.reglage .reglage-manque", { hasText: "Les curseurs attendent la chanson entière" }).waitFor();
       return avant;
     };
 
@@ -6499,6 +6502,86 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
+  test("Régie PC (cedric, 24/10) : le Quiz musical comme le Blind test : 🎲 dans la bibliothèque des sons, une playlist modifiable sans toucher la bibliothèque, « Quiz musical complet » ↑ ↓ ✕ 🔀 ; la TV pose les titres dans cet ordre", async () => {
+    const { buildSnapshot } = await import("../web/public/show.js");
+    // Chaque chanson a son refrain et ses paroles : l'extrait pendant la question, le refrain à la révélation (cedric, 24/10).
+    const SONGS = Object.fromEntries(Array.from({ length: 12 }, (_, i) => i + 1).map((k) => [`t${k}`, {
+      title: `Titre ${k}`, artist: "Les Tests", audioId: `c${String(k).padStart(2, "0")}`.padEnd(16, "c"), refrainId: `d${String(k).padStart(2, "0")}`.padEnd(16, "d"),
+      start: 0, refrain: 40, buzz: 25, lrc: true, auto: true, paroles: "40000|La la la", updatedAt: 1,
+    }]));
+    await seedLibrary("songs", SONGS);
+    // 7 chansons dans la playlist, 5 tirées au 🎲 sur 12 : il en reste toujours au moins 2 à ajouter (vu le 24/10 : avec
+    // 3 chansons sur 7, le 🎲 les prenait parfois toutes et la playlist n'avait plus rien à apporter).
+    const DISNEY = ["t6", "t7", "t8", "t9", "t10", "t11", "t12"];
+    await seedLibrary("playlists", { pl: { title: "Disney", duration: 30, updatedAt: 1, tracks: DISNEY.map((k) => ({ title: SONGS[k].title, audioId: SONGS[k].audioId, songId: k, duration: 25 })) } });
+    const page = await admin();
+    await page.click("#home-new");
+    await page.fill("#show-child", "Zoé");
+    await ajouterJeu(page, "musical");
+    const round = page.locator("#show-rounds .round").nth(0);
+    const compteur = round.locator(".quiz-compteur");
+    // Pas de manches, ni « Reprendre », ni Note ; pas de « Sélectionner mes chansons » (cedric : le 🎲, une playlist, le récap).
+    const bloc = page.locator('#show-rounds .jeu-bloc[data-jeu="musical"]');
+    assert.equal(await bloc.locator(".jeu-nb, .jeu-plus").count(), 0);
+    assert.equal(await round.locator(".reprendre-ouvrir, .manche-note, .blind-manuel").count(), 0);
+    assert.equal(await compteur.textContent(), "Aucune chanson pour l'instant : touchez 🎲 ou ajoutez une playlist");
+    // 🎲 : 5 chansons, avec leur mini pochette et « ✓ Paroles » (le refrain et ses paroles passent à la révélation).
+    await round.locator(".blind-nombre").selectOption("5");
+    await round.locator(".quiz-outils .tirage-de").click();
+    await compteur.filter({ hasText: /^5 chansons à trouver$/ }).waitFor();
+    const de = round.locator('.blind-serie[data-origine="de"]');
+    assert.deepEqual(await de.locator(".blind-paroles").allTextContents(), Array(5).fill("✓ Paroles"));
+    const ids = (loc) => loc.locator(".blind-chanson[data-chanson]").evaluateAll((xs) => xs.map((x) => x.dataset.chanson));
+    const tires = await ids(de);
+    assert.equal(tires.length, 5);
+    // 🎧 : l'extrait et le refrain, réglables comme au blind test (cedric, 24/10).
+    await de.locator(".blind-ecouter").first().click();
+    assert.deepEqual(await de.locator(".blind-reglage button").allTextContents(), ["▶ Extrait · 0:00", "▶ Refrain · 0:40", "⏱ Régler…"]);
+    // La playlist : ses chansons qui n'y sont pas encore ; modifiée ici, elle ne change pas dans la bibliothèque.
+    await round.locator(".blind-playlist-cherche").fill("dis");
+    await round.locator('.blind-playlist-item[data-playlist="pl"]').click();
+    const pl = round.locator('.blind-serie[data-origine="playlist"]');
+    await pl.waitFor();
+    const dansPl = await ids(pl);
+    assert.deepEqual(dansPl, DISNEY.filter((k) => !tires.includes(k)));
+    assert.ok(dansPl.length >= 2);
+    await pl.locator(".blind-chanson[data-chanson]").first().locator(".tirage-retirer").click();
+    await waitFor(async () => (await ids(pl)).length === dansPl.length - 1, "chanson enlevée de la playlist du quiz");
+    assert.equal((await library("playlists/pl/tracks")).length, 7, "la playlist de la bibliothèque ne change pas");
+    const total = tires.length + dansPl.length - 1;
+    await compteur.filter({ hasText: new RegExp(`^${total} chansons à trouver$`) }).waitFor();
+    // « Quiz musical complet » : tout, dans l'ordre de passage ; ↑ et 🔀.
+    const complet = round.locator(".blind-complet");
+    assert.equal(await complet.locator(".blind-complet-voir").textContent(), `▸ 🧩 Quiz musical complet : ${total} chansons, dans l'ordre de passage`);
+    await complet.locator(".blind-complet-voir").click();
+    const ordre = () => complet.locator(".blind-complet-q").evaluateAll((xs) => xs.map((x) => x.dataset.chanson));
+    const avant = await ordre();
+    await complet.locator(".blind-complet-q").nth(1).locator(".quiz-complet-monter").click();
+    await waitFor(async () => (await ordre())[0] === avant[1], "la 2e passe en premier");
+    await complet.locator(".blind-melanger").click();
+    await waitFor(async () => (await ordre()).join() !== [avant[1], avant[0], ...avant.slice(2)].join(), "mélangé");
+    const final = await ordre();
+    // Enregistré ; la TV pose les titres dans cet ordre, chacun avec 4 titres de la bibliothèque des sons.
+    await page.click("#show-save");
+    let zoe;
+    await waitFor(async () => {
+      zoe = Object.values(await library("shows")).find((x) => x.childName === "Zoé");
+      return zoe?.rounds?.[0]?.ordreBlind?.length === final.length;
+    }, "quiz musical enregistré");
+    assert.equal(zoe.rounds[0].type, "musical");
+    assert.deepEqual(zoe.rounds[0].chansons, final);
+    const qs = buildSnapshot("zoe", zoe, {}, {}, Math.random, {}, {}, {}, SONGS).snapshot.quiz.questions;
+    assert.deepEqual(qs.map((q) => q.choices[q.correct]), final.map((k) => SONGS[k].title));
+    assert.ok(qs.every((q) => q.kind === "classic" && q.choices.length === 4 && new Set(q.choices).size === 4 && q.duration === 25));
+    assert.deepEqual(qs.map((q) => q.audioId), final.map((k) => SONGS[k].audioId));
+    // La révélation : l'artiste, le refrain et ses paroles de chaque chanson.
+    assert.deepEqual(qs.map((q) => [q.artist, q.refrainId, q.lyrics]), final.map((k) => ["Les Tests", SONGS[k].refrainId, "40000|La la la"]));
+    // Deux Quiz musicaux qui se suivent n'en font qu'un.
+    await ajouterJeu(page, "musical");
+    await page.locator("#annonce", { hasText: "Le Quiz musical est déjà le dernier jeu" }).waitFor();
+    await page.context().close();
+  });
+
   test("Bibliothèque › Sons (cedric, 24/10) : « 🎶 Mes playlists » : créer une playlist (son nom, ses chansons cochées, autant qu'on veut), la déplier, ✕ une chanson, « 🎵 Choisir les chansons », renommer, supprimer", async () => {
     const hex = (c, k) => `${c}${k}`.padEnd(16, c);
     await seedLibrary("songs", Object.fromEntries([1, 2, 3, 4].map((k) => [`s${k}`, { title: `Chanson ${k}`, artist: "Les Tests", audioId: hex("a", k), start: 0, updatedAt: 1 }])));
@@ -6810,19 +6893,18 @@ describe("bibliothèque de quiz et prestations", () => {
     // 12 prestations, de la plus récente (hier) à la plus ancienne ; la 11e a une note sur sa manche, la 12e est archivée.
     await seedLibrary("shows", Object.fromEntries(PRENOMS.map((p, k) => [`s${k + 1}`, {
       childName: p, age: 8, date: day(-1 - k), status: k === 11 ? "archivee" : "publiee", updatedAt: 1,
-      rounds: [{ type: "musical", playlistId: "tubes", ...(k === 10 ? { note: "Super avec les jumeaux" } : {}) }],
+      rounds: [{ type: "statues", duration: 60, ...(k === 10 ? { note: "Super avec les jumeaux" } : {}) }],
     }])));
     const page = await admin();
     await page.click("#home-new");
     await page.fill("#show-child", "Zoé");
     // Un jeu dont la manche se reprend en entier (le Quiz, lui, en reprend les questions : voir le test du Quiz en une
-    // manche ; les Mimes, eux, n'ont que le 🎲 ; le Blind test n'a plus de manches, cedric 24/10).
-    await ajouterJeu(page, "musical");
+    // manche ; les Mimes, eux, n'ont que le 🎲 ; le Blind test et le Quiz musical n'ont plus de manches, cedric 24/10).
+    await ajouterJeu(page, "statues");
     const round = page.locator("#show-rounds .round").nth(0);
     // Créer d'abord : les champs de la manche, puis sa note, puis seulement « Reprendre ».
     assert.equal(await round.locator(".manche-load").count(), 0);
     assert.equal(await round.evaluate((r) => !!(r.querySelector(".round-body").compareDocumentPosition(r.querySelector(".reprendre-zone")) & Node.DOCUMENT_POSITION_FOLLOWING)), true);
-    await round.locator(".round-head", { hasText: "Nouvelle manche : choisissez son contenu" }).waitFor();
     // D'office : les 10 dernières prestations, la plus récente en tête.
     await round.locator(".reprendre-ouvrir").click();
     await round.locator(".reprendre-groupe", { hasText: "Des 10 dernières prestations" }).waitFor();

@@ -564,6 +564,8 @@ const listOf = (x) => (Array.isArray(x) ? x : x && typeof x === "object" ? Objec
  * (library/songs), dans l'ordre de passage ; les cases vidées par ✕ (chaîne vide) attendent leur 🎲 et ne comptent pas.
  */
 const idChanson = (id) => (typeof id === "string" && /^[-\w]{1,40}$/.test(id) ? id : "");
+/** Jeux faits de chansons de la bibliothèque des sons, en séries : le Blind test, et le Quiz musical (cedric, 24/10). */
+export const JEUX_DE_CHANSONS = ["blind", "musical"];
 /** Origines d'une série de chansons d'un blind test : le 🎲, une playlist de la bibliothèque, des chansons choisies. */
 export const ORIGINES_BLIND = ["de", "playlist", "choix"];
 /**
@@ -572,7 +574,7 @@ export const ORIGINES_BLIND = ["de", "playlist", "choix"];
  * Le « Blind test complet » les joue toutes dans l'ordre rangé à la main ou mélangé (`ordreBlind`), sinon série après
  * série. Une chanson n'y passe qu'une fois.
  */
-export const seriesBlind = (round) => (round?.type === "blind" ? listOf(round.seriesBlind) : [])
+export const seriesBlind = (round) => (JEUX_DE_CHANSONS.includes(round?.type) ? listOf(round.seriesBlind) : [])
   .filter((x) => x && typeof x.id === "string" && x.id && ORIGINES_BLIND.includes(x.origine))
   .map((x) => ({ ...x, chansons: listOf(x.chansons).map(idChanson) }));
 /**
@@ -670,7 +672,7 @@ export function trousDuJeu(round, { songs = null, couleurs = null } = {}) {
   const pl = (n, mot) => `${n} ${mot}${n > 1 ? "s" : ""}`;
   const cases = (n) => `case${n > 1 ? "s" : ""} 🎲 vide${n > 1 ? "s" : ""}`;
   const type = round?.type ?? "quiz";
-  if (type === "blind") {
+  if (JEUX_DE_CHANSONS.includes(type)) {
     const brutes = chansonsBrutes(round);
     const vides = brutes.filter((id) => !id).length;
     // Chansons supprimées de la bibliothèque : seulement une fois la bibliothèque lue, et s'il en reste à jouer (sinon
@@ -856,32 +858,39 @@ export function tracksPlaylist(ids, playlists, title = "") {
 /**
  * Questions d'un jeu musical. Blind test : les morceaux dans l'ordre de la playlist, un buzz par morceau,
  * réponse à voix haute, chaque morceau avec sa valeur, sa pochette et sa durée de révélation. Quiz musical : le bon
- * titre parmi trois autres titres de la même playlist, sur les pupitres, morceaux mélangés.
+ * titre parmi trois autres titres de la même playlist, sur les pupitres, morceaux mélangés. [dansLOrdre] : le Quiz
+ * musical garde l'ordre rangé dans la Régie PC (cedric, 24/10) ; [autresTitres] complètent les mauvaises réponses quand
+ * la liste a moins de 4 titres (ceux de la bibliothèque des sons).
  */
-function musicQuestions(type, playlist, prefix, random) {
-  const tracks = type === "blind" ? playableTracks(playlist) : shuffle(playableTracks(playlist), random);
+function musicQuestions(type, playlist, prefix, random, { dansLOrdre = false, autresTitres = [] } = {}) {
+  const tracks = type === "blind" || dansLOrdre ? playableTracks(playlist) : shuffle(playableTracks(playlist), random);
   const scale = blindScale(playlist);
   const titles = [...new Set(tracks.map((t) => t.title.trim()))];
+  const secours = [...new Set(autresTitres.map((x) => (typeof x === "string" ? x.trim() : "")).filter((x) => x && !titles.includes(x)))];
   // Le type dans le titre : blind test et quiz musical d'une même playlist restent deux manches distinctes.
   const label = playlist.title?.trim() ? `${ROUND_TYPES[type]} · ${playlist.title.trim()}` : ROUND_TYPES[type];
   return tracks.map((t, j) => {
     const title = t.title.trim();
     const base = { id: `${prefix}${j + 1}`, double: false, round: label, audioId: t.audioId, duration: t.duration ?? playlist.duration ?? BLIND_SEC };
+    // La révélation, au blind test comme au quiz musical (cedric, 24/10) : pochette, artiste, et le refrain de la chanson.
+    const revelation = {
+      ...(t.artist?.trim() ? { artist: t.artist.trim() } : {}),
+      ...(/^[0-9a-f]{16}$/.test(t.imageId ?? "") ? { imageId: t.imageId } : {}),
+      // Refrain (environ 90 s) : joué à la révélation, « on chante tous ensemble » (quelques secondes au quiz musical).
+      ...(/^[0-9a-f]{16}$/.test(t.refrainId ?? "") ? { refrainId: t.refrainId } : {}),
+      // Paroles du refrain (cedric, 21/10) : elles apparaissent sur la TV au rythme de la chanson.
+      ...(/^[0-9a-f]{16}$/.test(t.refrainId ?? "") && typeof t.paroles === "string" && t.paroles ? { lyrics: t.paroles.slice(0, 8000) } : {}),
+    };
     if (type === "blind") {
       return {
         ...base, text: "Quel est ce titre ?", choices: [title], correct: 0, kind: "blind",
-        points: trackPoints(playlist, t, j, tracks.length), reveal: scale.reveal,
-        ...(t.artist?.trim() ? { artist: t.artist.trim() } : {}),
-        ...(/^[0-9a-f]{16}$/.test(t.imageId ?? "") ? { imageId: t.imageId } : {}),
-        // Refrain (environ 90 s) : joué en boucle à la révélation, « on chante tous ensemble ».
-        ...(/^[0-9a-f]{16}$/.test(t.refrainId ?? "") ? { refrainId: t.refrainId } : {}),
-        // Paroles du refrain (cedric, 21/10) : elles apparaissent sur la TV au rythme de la chanson.
-        ...(/^[0-9a-f]{16}$/.test(t.refrainId ?? "") && typeof t.paroles === "string" && t.paroles ? { lyrics: t.paroles.slice(0, 8000) } : {}),
+        points: trackPoints(playlist, t, j, tracks.length), reveal: scale.reveal, ...revelation,
       };
     }
-    const others = shuffle(titles.filter((x) => x !== title), random).slice(0, 3);
+    const proches = shuffle(titles.filter((x) => x !== title), random).slice(0, 3);
+    const others = [...proches, ...shuffle(secours, random).slice(0, 3 - proches.length)];
     const choices = shuffle([title, ...others], random);
-    return { ...base, text: "Quel est ce titre ?", choices, correct: choices.indexOf(title), kind: "classic" };
+    return { ...base, text: "Quel est ce titre ?", choices, correct: choices.indexOf(title), kind: "classic", ...revelation };
   });
 }
 
@@ -1082,15 +1091,19 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     if (MUSIC_GAMES[round.type]) {
       // Blind test tiré au 🎲 dans la bibliothèque des sons (cedric, 24/10) : ses chansons ; sinon des extraits choisis
       // dans les playlists, ou une playlist entière (manches préparées avant).
-      const tirees = round.type === "blind" && chansonsDe(round).length;
+      const tirees = JEUX_DE_CHANSONS.includes(round.type) && chansonsDe(round).length;
       const playlist = tirees ? chansonsPlaylist(round, songs, round.title)
         : roundTracks(round).length ? tracksPlaylist(roundTracks(round), playlists, round.title) : playlists[round.playlistId];
       if (!playlist) {
-        problems.push(tirees ? `Manche ${i + 1} (Blind test) : ses chansons ne sont plus dans la bibliothèque des sons (touchez 🎲).` : `Manche ${i + 1} : la playlist n'existe plus dans la bibliothèque.`);
+        problems.push(tirees ? `Manche ${i + 1} (${ROUND_TYPES[round.type]}) : ses chansons ne sont plus dans la bibliothèque des sons (touchez 🎲).` : `Manche ${i + 1} : la playlist n'existe plus dans la bibliothèque.`);
         return;
       }
-      const list = musicQuestions(round.type, playlist, `r${i + 1}q`, random);
-      if (round.type === "musical" && new Set(list.map((q) => q.choices[q.correct])).size < 2) {
+      // Quiz musical en séries (cedric, 24/10) : l'ordre du « Quiz musical complet », les mauvaises réponses complétées
+      // par les autres titres de la bibliothèque des sons.
+      const list = musicQuestions(round.type, playlist, `r${i + 1}q`, random, tirees ? {
+        dansLOrdre: true, autresTitres: Object.values(songs ?? {}).filter(chansonJouable).map((x) => x.title),
+      } : {});
+      if (round.type === "musical" && list.some((q) => q.choices.length < 2)) {
         problems.push(`Manche ${i + 1} (${playlist.title}) : il faut au moins 2 morceaux pour proposer des titres.`);
         return;
       }

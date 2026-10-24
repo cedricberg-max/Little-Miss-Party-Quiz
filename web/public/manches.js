@@ -12,7 +12,7 @@ import {
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, pourLeHasard, roundHasard, roundTirees,
   roundSeriesQuiz, questionsDeLaSerie, questionJouable, FACTEURS_FINALE, MAX_QUESTIONS_MANCHE, playable, estEnSeries,
   estJeuDePhotos, signatureQuestion, questionsDuJeu, zoomRoundQuestions, mimeEquipes, mimeEquipesBrutes, mimeAges, MIME_SOURCES,
-  chansonsBrutes, chansonsDe, BLIND_NOMBRES, seriesBlind, MAX_CHANSONS_BLIND,
+  chansonsBrutes, chansonsDe, BLIND_NOMBRES, seriesBlind, MAX_CHANSONS_BLIND, JEUX_DE_CHANSONS,
 } from "./show.js";
 import { PROFILES } from "./profiles.js";
 import { FAMILLES_PETITS } from "./banque-petits.js";
@@ -281,7 +281,7 @@ export function cleanRound(r, playlists = {}) {
   else if (type === "coffres" || type === "gonfleur" || type === "patate") out = { type };
   // Blind test tiré au 🎲 dans la bibliothèque des sons (cedric, 24/10) : ses chansons dans l'ordre, cases retirées
   // comprises (en attente de leur 🎲), et le nombre demandé.
-  else if (type === "blind" && chansonsBrutes(r).some(Boolean)) {
+  else if (JEUX_DE_CHANSONS.includes(type) && chansonsBrutes(r).some(Boolean)) {
     // En séries (cedric, 24/10) : chaque série (🎲, playlist, chansons choisies) et l'ordre du « Blind test complet » ;
     // `chansons` garde aussi l'ordre de passage, lu par les pages d'avant les séries.
     const series = seriesBlind(r).map((x) => ({
@@ -438,10 +438,10 @@ export function fusionnerQuiz(rounds) {
  * [r] sur place (les séries gardent leur identité à l'écran) et le rend.
  */
 export function versSeriesBlind(r) {
-  if (r?.type !== "blind") return r;
+  if (!JEUX_DE_CHANSONS.includes(r?.type)) return r;
   if (Array.isArray(r.seriesBlind) && r.seriesBlind.every((x) => Array.isArray(x?.chansons))) return r;
   const lues = seriesBlind(r);
-  const avant = chansonsBrutes({ type: "blind", chansons: r.chansons });
+  const avant = chansonsBrutes({ type: r.type, chansons: r.chansons });
   r.seriesBlind = lues.length ? lues : avant.some(Boolean) ? [{ id: "de", origine: "de", chansons: avant }] : [];
   return r;
 }
@@ -456,12 +456,13 @@ export function versSeriesBlind(r) {
 export function fusionnerBlind(rounds) {
   const out = [];
   let fusions = 0;
-  const blind = (r) => r?.type === "blind";
+  // Le Quiz musical aussi (cedric, 24/10) : deux Quiz musicaux qui se suivent n'en font qu'un.
+  const blind = (r) => JEUX_DE_CHANSONS.includes(r?.type);
   const ancien = (r) => blind(r) && !seriesBlind(r).length && !!(r.playlistId || roundTracks(r).length);
   const vide = (r) => blind(r) && !ancien(r) && !seriesBlind(r).some((x) => x.chansons.length);
   for (const r of rounds ?? []) {
     const prev = out[out.length - 1];
-    if (!blind(r) || !blind(prev)) { out.push(r); continue; }
+    if (!blind(r) || !blind(prev) || r.type !== prev.type) { out.push(r); continue; }
     if (vide(r)) continue;
     if (vide(prev)) { out[out.length - 1] = r; continue; }
     if (ancien(r) || ancien(prev)) { out.push(r); continue; }
@@ -578,7 +579,7 @@ export function mancheSummary(round, lib = {}) {
       mimePerTeam(r) ? `${mimePerTeam(r)} par équipe` : "", `tour de ${r.duration ?? deck?.duration ?? MIME_TURN} s`, r.photos === true ? "📷 photos" : ""].filter(Boolean).join(" · ");
   }
   if (r.type === "disparu" && r.photos === true) return `${roundPicks(r).length ? n(roundPicks(r).length) : `${r.count ?? BUILTIN_GAMES.disparu.count} au hasard`} · 📷 photos`;
-  if (r.type === "blind" && chansonsDe(r).length) return `${chansonsDe(r).length} chanson${chansonsDe(r).length > 1 ? "s" : ""}`;
+  if (JEUX_DE_CHANSONS.includes(r.type) && chansonsDe(r).length) return `${chansonsDe(r).length} chanson${chansonsDe(r).length > 1 ? "s" : ""}`;
   if (MUSIC_GAMES[r.type]) return roundTracks(r).length ? n(roundTracks(r).length) : lib.playlists?.[r.playlistId]?.title ?? "playlist";
   if (r.type === "statues") return `${r.duration ?? STATUES_SEC} s · ${roundSongs(r, lib.playlists).length ? n(roundSongs(r, lib.playlists).length) : "musique de la fête"}`;
   if (r.type === "pictionary") return [roundPicks(r).length ? n(roundPicks(r).length) : "mots au hasard", `${r.duration ?? PICTO_SEC} s de dessin`].join(" · ");
