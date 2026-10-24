@@ -133,17 +133,17 @@ export function startRegie(ctx, gameCode, exit) {
  * barre du haut fixe (jeu, tablettes coupées en petite pastille, chrono), la scène au milieu, en bas Pause · ☰ Plus ·
  * bouton principal ; tout le reste (secours, Tablette, Terminer, notes, onglets) passe dans « ☰ Plus ». Au buzz, le
  * verdict prend tout l'écran sous la barre du haut, cadré dans la couleur de l'équipe, puis un bandeau de 2 s
- * confirme le verdict. Tant que cedric n'a pas choisi : seulement avec ?cockpit=1 (gardé sur le téléphone, ?cockpit=0
- * pour revenir à la régie actuelle).
+ * confirme le verdict. Régie par défaut depuis le choix de cedric (B, 25/10) ; ?cockpit=0 revient à l'ancienne
+ * disposition (gardé sur le téléphone), ?cockpit=1 retourne au cockpit.
  */
 const COCKPIT = (() => {
   const choix = new URLSearchParams(location.search).get("cockpit");
   try {
-    if (choix === "1") localStorage.setItem("lmp-regie-cockpit", "1");
-    if (choix === "0") localStorage.removeItem("lmp-regie-cockpit");
-    return localStorage.getItem("lmp-regie-cockpit") === "1";
+    if (choix === "0") localStorage.setItem("lmp-regie-cockpit", "0");
+    if (choix === "1") localStorage.removeItem("lmp-regie-cockpit");
+    return localStorage.getItem("lmp-regie-cockpit") !== "0";
   } catch {
-    return choix === "1";
+    return choix !== "0";
   }
 })();
 

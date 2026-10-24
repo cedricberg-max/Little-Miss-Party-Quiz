@@ -86,6 +86,17 @@ before(async () => {
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   baseUrl = `http://127.0.0.1:${server.address().port}`;
   browser = await chromium.launch();
+  // La régie « cockpit » est la régie par défaut (cedric, 25/10) : ces tests pilotent la disposition d'avant
+  // (?cockpit=0, gardée sur le téléphone), mêmes boutons et mêmes actions ; le test « cockpit » ouvre la sienne
+  // avec ?cockpit=1.
+  const nouveauContexte = browser.newContext.bind(browser);
+  browser.newContext = async (options) => {
+    const contexte = await nouveauContexte(options);
+    await contexte.addInitScript(() => {
+      if (!/[?&]cockpit=1/.test(location.search)) localStorage.setItem("lmp-regie-cockpit", "0");
+    });
+    return contexte;
+  };
 });
 
 after(async () => {

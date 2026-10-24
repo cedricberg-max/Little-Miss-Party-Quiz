@@ -77,7 +77,22 @@ before(async () => {
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   baseUrl = `http://127.0.0.1:${server.address().port}`;
   browser = await chromium.launch();
+  // La régie « cockpit » est la régie par défaut (cedric, 25/10) : ces tests pilotent la disposition d'avant
+  // (?cockpit=0, gardée sur le téléphone), mêmes boutons et mêmes actions ; le test « cockpit » ouvre la sienne
+  // avec ?cockpit=1.
+  const nouveauContexte = browser.newContext.bind(browser);
+  contexteSansChoix = nouveauContexte;
+  browser.newContext = async (options) => {
+    const contexte = await nouveauContexte(options);
+    await contexte.addInitScript(() => {
+      if (!/[?&]cockpit=1/.test(location.search)) localStorage.setItem("lmp-regie-cockpit", "0");
+    });
+    return contexte;
+  };
 });
+
+/** Contexte du navigateur sans régie choisie d'avance (voir before) : la régie s'ouvre comme sur un téléphone neuf. */
+let contexteSansChoix;
 
 after(async () => {
   await browser?.close();
@@ -1105,6 +1120,63 @@ describe("régie", () => {
     await capture(page, "cockpit-verdict-390x780", { pleinePage: false });
     await page.locator("#c-flash").waitFor({ state: "hidden", timeout: 4000 });
     assert.deepEqual((await read("state")).buzz.blocked, ["rose"]);
+    await page.context().close();
+  });
+
+  test("régie « cockpit » par défaut (choix B de cedric, 25/10) : sans paramètre, chaque commande de « ☰ Plus » ouvre sa fenêtre ; ?cockpit=0 revient à l'ancienne régie", async () => {
+    box = startBox();
+    await addTeam("rose", "Les Roses");
+    await addTeam("bleu", "Les Bleus");
+    const plan = [{ id: "q1", text: "Quel est le plus grand animal ?", choices: ["L'éléphant", "La baleine bleue"], correct: 1, duration: 20, round: "Quiz" }];
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", questions: plan });
+    await box.set({ ...questionState(1), qid: "q1", text: plan[0].text, choices: plan[0].choices, total: 1, round: "q1-1000-0" });
+    const page = await openRegie(await contexteSansChoix({ viewport: { width: 360, height: 640 } }));
+    await pair(page);
+    await inRegie(page);
+    await page.locator("#regie.cockpit").waitFor();
+    const plus = async () => {
+      await page.click("#c-plus");
+      await page.locator("#plus:not([hidden])").waitFor();
+    };
+    // ± Points : la fenêtre des points, « ☰ Plus » refermé.
+    await plus();
+    await page.click("#c-points");
+    await page.locator("#plus").waitFor({ state: "hidden" });
+    await page.locator("#pts:not([hidden])").waitFor();
+    await page.click("#pts-cancel");
+    await page.locator("#pts").waitFor({ state: "hidden" });
+    // 📱 Tablette : le QR pour reconnecter une tablette.
+    await plus();
+    await page.click("#c-tablette");
+    await page.locator("#tablette:not([hidden])").waitFor();
+    await page.click("#tablette-close");
+    await page.locator("#tablette").waitFor({ state: "hidden" });
+    // Changer de jeu : les jeux de la prestation.
+    await plus();
+    await page.click("#c-rescue");
+    await page.locator("#rescue:not([hidden])").waitFor();
+    await page.click("#rescue-close");
+    await page.locator("#rescue").waitFor({ state: "hidden" });
+    // Terminer : un appui court ne termine rien et « ☰ Plus » reste ouvert.
+    await plus();
+    await page.click("#c-end");
+    assert.equal(await page.locator("#plus").isHidden(), false);
+    assert.equal((await read("state")).phase, "question");
+    await page.click("#plus-fermer");
+    await page.locator("#plus").waitFor({ state: "hidden" });
+    // Les équipes et le conducteur sont dans « ☰ Plus », sous ses commandes.
+    await plus();
+    await page.locator("#plus #panel-teams, #plus #panel-plan").first().waitFor({ state: "attached" });
+    await page.click("#plus-fond", { position: { x: 10, y: 10 } });
+    await page.locator("#plus").waitFor({ state: "hidden" });
+    // ?cockpit=0 : l'ancienne régie, gardée sur ce téléphone même sans le paramètre.
+    await page.goto(page.url().replace(/([?&])cockpit=1/, "$1") + "&cockpit=0");
+    await inRegie(page);
+    assert.equal(await page.locator("#regie.cockpit").count(), 0);
+    assert.equal(await page.locator("#c-plus").count(), 0);
+    await page.goto(page.url().replace("&cockpit=0", ""));
+    await inRegie(page);
+    assert.equal(await page.locator("#regie.cockpit").count(), 0);
     await page.context().close();
   });
 
