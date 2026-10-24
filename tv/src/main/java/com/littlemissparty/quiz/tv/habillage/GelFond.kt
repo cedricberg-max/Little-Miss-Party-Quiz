@@ -1,11 +1,13 @@
 package com.littlemissparty.quiz.tv.habillage
 
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Box qui ne décode qu'une vidéo à la fois (Mi Box) : le plateau 3D et un clip du robot ne peuvent pas tourner
@@ -29,6 +31,9 @@ internal object GelFond {
     /** Vidéos plein écran ouvertes (fond, accueil, intros) : un clip attend qu'il n'y en ait plus. */
     @Volatile var fondsOuverts = 0
 
+    /** Clips du robot dont le lecteur est ouvert (fils des clips). */
+    val clipsOuverts = AtomicInteger(0)
+
     /** Le fond du décor à l'écran : c'est lui qu'on photographie. */
     var fond: LecteurFond? = null
 
@@ -42,6 +47,16 @@ internal object GelFond {
 
     fun rendre() {
         if (demandes > 0) demandes--
+    }
+
+    /**
+     * La box annonçait deux vidéos mais une lecture vient d'échouer pendant que l'autre tournait (une puce peut
+     * promettre plus qu'elle ne tient) : jusqu'au prochain démarrage, elle est traitée comme une box à une vidéo.
+     */
+    fun uneSeuleVideo() {
+        if (!Look.deuxVideos) return
+        Log.w("Decodeurs", "Deux vidéos à la fois refusées : plateau figé pendant les clips")
+        Look.deuxVideos = false
     }
 
     /** Le plateau est reparti (ou ne repartira pas) : la photo s'en va. */

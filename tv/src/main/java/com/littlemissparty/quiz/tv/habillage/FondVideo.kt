@@ -140,6 +140,7 @@ internal class LecteurFond(
                 }
                 setOnErrorListener { _, quoi, extra ->
                     Log.w("Habillage", "Vidéo ignorée : lecteur $quoi/$extra")
+                    if (GelFond.clipsOuverts.get() > 0) GelFond.uneSeuleVideo()
                     surEchec()
                     true
                 }

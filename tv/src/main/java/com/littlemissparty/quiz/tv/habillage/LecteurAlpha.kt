@@ -127,6 +127,7 @@ internal class LecteurAlpha(
     private var image = false
     private val seul = !Look.deuxVideos
     private var demande = false
+    private var ouvert = false
 
     init {
         isOpaque = false
@@ -159,7 +160,11 @@ internal class LecteurAlpha(
 
     private fun echec(e: Throwable) {
         Log.w("Habillage", "Robot ignoré : ${e.message}")
-        post { surEchec() }
+        val avecFond = !seul && GelFond.fondsOuverts > 0
+        post {
+            if (avecFond) GelFond.uneSeuleVideo()
+            surEchec()
+        }
     }
 
     private fun demarrer(st: SurfaceTexture, largeur: Int, hauteur: Int, depuis: Long) {
@@ -207,6 +212,8 @@ internal class LecteurAlpha(
             val v = SurfaceTexture(texture).also { video = it }
             v.setOnFrameAvailableListener({ dessiner() }, h)
             val s = Surface(v).also { surfaceVideo = it }
+            GelFond.clipsOuverts.incrementAndGet()
+            ouvert = true
             lecteur = MediaPlayer().apply {
                 context.resources.openRawResourceFd(resId).use { setDataSource(it.fileDescriptor, it.startOffset, it.length) }
                 setSurface(s)
@@ -304,6 +311,10 @@ internal class LecteurAlpha(
         h.post {
             try { lecteur?.release() } catch (_: Throwable) {}
             lecteur = null
+            if (ouvert) {
+                ouvert = false
+                GelFond.clipsOuverts.decrementAndGet()
+            }
             surfaceVideo?.release()
             surfaceVideo = null
             video?.release()
