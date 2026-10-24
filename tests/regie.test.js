@@ -4866,8 +4866,16 @@ describe("bibliothèque de quiz et prestations", () => {
     const count = () => page.locator("#mime-count").textContent();
     // En haut et en bas : « ← Retour » (page précédente) et « Annuler les modifications », rien à annuler pour l'instant.
     assert.deepEqual(await page.locator("#screen-mime-edit .retour-barre.haut button").allInnerTexts(), ["← Retour", "Annuler les modifications"]);
-    assert.deepEqual(await bar.locator("button").allInnerTexts(), ["← Retour", "Annuler les modifications"]);
+    // En bas (cedric, 24/10) : Enregistrer · Annuler les modifications · ← Retour, une barre qui suit l'écran dès
+    // l'ouverture ; « Supprimer » reste à sa place en bas de la page, et le message d'enregistrement passe dans la barre.
+    assert.deepEqual(await bar.locator("button:visible").allInnerTexts(), ["Enregistrer le paquet", "Annuler les modifications", "← Retour"]);
+    assert.equal(await bar.evaluate((b) => b.classList.contains("flottante")), true);
+    assert.equal(await bar.locator("#mime-delete").count(), 0);
     assert.equal(await bar.locator(".retour-tout").isDisabled(), true);
+    await bar.getByRole("button", { name: "Enregistrer le paquet" }).click();
+    await bar.locator("#mime-status", { hasText: "Donnez un nom au paquet." }).waitFor();
+    await capture(page, "barre-bas-message", { pleinePage: false });
+    assert.equal(await bar.locator(".retour-tout").isDisabled(), true, "un enregistrement refusé ne change rien");
     await page.fill("#mime-title", "Animaux");
     await page.locator("#mime-catalog .mime-card", { hasText: "Chat" }).click();
     await page.locator("#mime-catalog .mime-card", { hasText: "Éléphant" }).click();
@@ -5214,9 +5222,11 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#screen-show-edit:not([hidden])").waitFor();
     const annulerTout = page.locator("#screen-show-edit .retour-barre.bas .retour-tout");
     assert.equal(await annulerTout.isDisabled(), true);
-    // La barre du bas (cedric, 24/10) : Enregistrer · ← Retour · Annuler les modifications, de gauche à droite.
+    // La barre du bas (cedric, 24/10) : Enregistrer · Annuler les modifications · ← Retour, de gauche à droite ; elle
+    // suit l'écran même sans modification.
     const barreBas = page.locator("#screen-show-edit .retour-barre.bas");
-    assert.deepEqual(await barreBas.locator(".btn").allInnerTexts(), ["Enregistrer", "← Retour", "Annuler les modifications"]);
+    assert.deepEqual(await barreBas.locator(".btn").allInnerTexts(), ["Enregistrer", "Annuler les modifications", "← Retour"]);
+    assert.equal(await barreBas.evaluate((b) => b.classList.contains("flottante")), true);
     assert.equal(await page.locator("#screen-show-edit button", { hasText: /^Enregistrer$/ }).count(), 2, "en haut et dans la barre du bas, pas une de plus");
     const retirerJeu = page.locator('#show-rounds .jeu-bloc[data-jeu="quiz"] button[title="Retirer ce jeu"]');
     await retirerJeu.click();
@@ -5226,7 +5236,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await repondreFenetre(page);
     await waitFor(async () => (await page.locator("#show-rounds .round").count()) === 0, "jeu retiré");
     await waitFor(async () => !(await annulerTout.isDisabled()), "« Annuler les modifications » possible aussitôt");
-    // Une modification : la barre suit l'écran, Enregistrer à gauche de Retour, tous trois à portée en bas de la fenêtre.
+    // Une modification : la barre suit l'écran, Enregistrer à gauche, tous trois à portée en bas de la fenêtre.
     await page.evaluate(() => window.scrollTo(0, 0));
     await waitFor(async () => (await barreBas.evaluate((b) => b.classList.contains("flottante"))), "barre flottante");
     const boites = await barreBas.locator(".btn").evaluateAll((xs) => xs.map((x) => x.getBoundingClientRect()).map((r) => ({ g: r.left, d: r.right, b: r.bottom })));
@@ -8740,6 +8750,14 @@ describe("bibliothèque de quiz et prestations", () => {
     }
     await page.locator(".track input[aria-label=Artiste]").fill("Le Roi lion");
     assert.equal(await page.locator("#playlist-save").textContent(), "Enregistrer les réglages");
+    // Réglages d'une chanson (cedric, 24/10) : Enregistrer · Annuler les modifications · ← Retour suivent l'écran
+    // ensemble, en haut de la page aussi.
+    const barreReglages = page.locator("#screen-playlist-edit .retour-barre.bas");
+    assert.deepEqual(await barreReglages.locator("button:visible").allInnerTexts(), ["Enregistrer les réglages", "Annuler les modifications", "← Retour"]);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const hauteur = page.viewportSize().height;
+    const boitesReglages = await barreReglages.locator("button:visible").evaluateAll((xs) => xs.map((x) => x.getBoundingClientRect().bottom));
+    assert.ok(boitesReglages.every((b) => b > 0 && b <= hauteur), `dans la fenêtre : ${boitesReglages}`);
     await page.click("#playlist-save");
     await page.locator("#song-status", { hasText: "Réglages de « Hakuna Matata » enregistrés." }).waitFor({ timeout: 30000 });
     await waitFor(async () => Object.values(await library("playlists"))[0].tracks[1].artist === "Le Roi lion", "artiste suivi dans la playlist");

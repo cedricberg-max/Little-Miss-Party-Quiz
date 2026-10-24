@@ -407,11 +407,20 @@ body.essai::before {
 .quiz-more select { flex: 1; }
 .quiz-add { align-self: flex-start; padding: 5px 11px; font-size: 14px; }
 
-/* Retour et Annuler : toujours à portée de main, en bas de la fenêtre, sur chaque écran d'édition. */
+/* Enregistrer, Annuler et Retour : toujours à portée de main, en bas de la fenêtre, sur chaque page de modification. */
 .retour-barre { z-index: 5; display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; pointer-events: none; }
 .retour-barre.flottante { position: sticky; bottom: 12px; }
 .retour-barre .btn { pointer-events: auto; box-shadow: 0 4px 16px rgba(60, 20, 90, .18); }
 .retour-barre .btn:disabled { opacity: .45; }
+/* Dans la barre qui passe sur la page, un bouton éteint reste opaque : seul son texte pâlit. */
+.retour-barre.bas .btn:disabled { opacity: 1; color: color-mix(in srgb, var(--violet) 40%, var(--card)); }
+/* En bas, le message d'un enregistrement (« Enregistré », « Donnez un nom… ») à gauche des boutons, lisible sur la page. */
+.retour-barre.bas { flex-wrap: wrap; align-items: center; }
+.retour-barre .status {
+  pointer-events: auto; margin: 0 auto 0 0; max-width: min(100%, 560px); padding: 8px 14px; border-radius: 14px;
+  background: var(--card); box-shadow: 0 4px 16px rgba(60, 20, 90, .18);
+}
+.retour-barre .status:empty { display: none; }
 /* En haut de l'écran, sous le fil d'Ariane : les mêmes boutons, à portée sans descendre. */
 .retour-barre.haut { justify-content: flex-start; flex-wrap: wrap; margin: 0 0 14px; }
 /* « Enregistrer » du haut de la fiche d'une prestation, à droite, loin d'« Annuler les modifications ». */
