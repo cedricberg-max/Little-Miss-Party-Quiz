@@ -3072,4 +3072,25 @@ describe("Mimes : une manche par équipe, sa présélection tirée au 🎲 (cedr
     for (const mot of ["vache", "lion", "velo"]) assert.ok([...ailleurs.keys()].some((k) => k.includes(mot)), mot);
     assert.ok(ailleurs.has("i:0123456789abcdef"));
   });
+
+  test("Banque (cedric, 24/10) : les images bonnes pour le mime, par âge ; chaque mot existe ; le 🎲 des Petits n'en tire que de faciles", async () => {
+    const { MIMES_BANQUE, niveauMime, niveauxPourProfil, etiquetteMime } = await import("../web/public/banque-mimes.js");
+    const { mimeAges } = await import("../web/public/show.js");
+    const mots = new Set(BANQUE_MOTS.map((m) => m.mot));
+    assert.deepEqual([...MIMES_BANQUE.keys()].filter((m) => !mots.has(m)), [], "chaque mot de mime est dans la banque");
+    for (const m of ["Voiture", "Maison", "Chat", "Avion", "Brosse à dents"]) assert.equal(niveauMime(m), 1, m);
+    for (const m of ["Poireau", "Règle", "Nez", "Table"]) assert.equal(niveauMime(m), 0, `${m} ne se mime pas`);
+    assert.equal(niveauMime("Pompier"), 1, "carte de mimes facile");
+    assert.equal(niveauMime("Vampire"), 2, "carte de mimes plus dure");
+    assert.ok([...MIMES_BANQUE.values()].filter((n) => n === 1).length >= 75, "assez d'images faciles pour les Petits");
+    assert.deepEqual(niveauxPourProfil("PETITS"), [[1]]);
+    assert.deepEqual(niveauxPourProfil("MOYENS"), [[2], [1]]);
+    assert.deepEqual(niveauxPourProfil("GRANDS"), [[3], [2], [1]]);
+    assert.deepEqual(niveauxPourProfil("NEUTRE"), [[1, 2, 3]]);
+    assert.equal(etiquetteMime("Voiture"), "🎭 Mime : Petits (6 à 8 ans)");
+    assert.equal(etiquetteMime("Poireau"), "");
+    // L'âge de chaque équipe : celui choisi à la main, sinon null (celui de la prestation).
+    assert.deepEqual(mimeAges({ type: "mimes", ages: { 2: "GRANDS", 3: "FAUX" } }).slice(0, 4), [null, null, "GRANDS", null]);
+    assert.deepEqual(mimeAges({ type: "quiz", ages: { 0: "GRANDS" } })[0], null);
+  });
 });

@@ -4185,18 +4185,23 @@ describe("bibliothèque de quiz et prestations", () => {
     await integrerQuiz(quiz, "animaux", "anim");
     await integrerQuiz(quiz, "espace", "esp");
     await page.locator("#show-summary", { hasText: "4 questions" }).waitFor();
-    // Mimes (cedric, 23/10 : rien que le 🎲) : 5 émojis pour chacune des 4 équipes ; un retiré, un autre tiré à sa place.
+    // Mimes (cedric, 24/10 : le 🎲 sur chaque ligne d'équipe) : 10 émojis pour chacune des 4 équipes ; un retiré, un
+    // autre tiré à sa place.
     await ajouterJeu(page, "mimes");
     const mimes = page.locator("#show-rounds .round").nth(1);
     const compteurMimes = mimes.locator(".round-head > .quiz-compteur");
     await mimes.locator(".mime-source").selectOption("emojis");
-    await mimes.locator(".quiz-outils .tirage-de").click();
-    await compteurMimes.filter({ hasText: /^4 équipes × 5 images$/ }).waitFor();
+    await mimes.locator(".mime-par-equipe").selectOption("10");
+    for (let k = 0; k < 4; k++) {
+      await mimes.locator(".mime-equipe").nth(k).locator(".mime-equipe-tete .tirage-de").click();
+      await compteurMimes.filter({ hasText: `4 équipes · ${(k + 1) * 10} images` }).waitFor();
+    }
+    assert.equal(await compteurMimes.textContent(), "4 équipes · 40 images");
     const removed = await mimes.locator(".mime-image .mime-mot").first().textContent();
     await mimes.locator(".mime-image .tirage-retirer").first().click();
-    await compteurMimes.filter({ hasText: /^4 équipes × 5 images · 1 à tirer$/ }).waitFor();
+    await compteurMimes.filter({ hasText: /^4 équipes · 39 images · 1 à tirer$/ }).waitFor();
     await mimes.locator(".mime-image.vide .tirage-de").click();
-    await compteurMimes.filter({ hasText: /^4 équipes × 5 images$/ }).waitFor();
+    await compteurMimes.filter({ hasText: /^4 équipes · 40 images$/ }).waitFor();
     // Chante le mot ! : deux mots choisis à la main.
     await ajouterJeu(page, "chante");
     const chante = page.locator("#show-rounds .round").nth(2);
@@ -4209,8 +4214,8 @@ describe("bibliothèque de quiz et prestations", () => {
     const saved = await sansManche(Object.values(await library("shows"))[0].rounds);
     assert.deepEqual(saved[0].seriesQuiz.map((x) => [x.origine, x.quizId]), [["quiz", "animaux"], ["quiz", "espace"]]);
     assert.equal(saved[0].finale, 3);
-    assert.deepEqual([saved[1].type, saved[1].source, saved[1].perTeam], ["mimes", "emojis", 5]);
-    assert.deepEqual(saved[1].equipes.map((l) => l.length), [5, 5, 5, 5]);
+    assert.deepEqual([saved[1].type, saved[1].source, saved[1].perTeam], ["mimes", "emojis", 10]);
+    assert.deepEqual(saved[1].equipes.map((l) => l.length), [10, 10, 10, 10]);
     assert.ok(!saved[1].equipes.flat().some((c) => c.word === removed), "La carte retirée n'est plus là");
     assert.deepEqual(saved[2], { type: "chante", count: 6, picks: ["soleil", "maman"] });
     await page.context().close();
@@ -4225,10 +4230,10 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const questions = (await read("show")).quiz.questions;
     assert.deepEqual(questions.slice(0, 4).map((q) => q.round), ["Animaux + Espace", "Animaux + Espace", "Animaux + Espace", "Animaux + Espace"]);
-    // Une manche de mimes par équipe, dans l'ordre des couleurs ; chacune ses cartes.
+    // Une manche de mimes par équipe, dans l'ordre des couleurs ; chacune ses cartes, dans l'ordre de la Régie PC.
     assert.deepEqual(questions.slice(4, 8).map((q) => [q.kind, q.text]),
       [["mime", "Équipe Rose"], ["mime", "Équipe Orange"], ["mime", "Équipe Vert"], ["mime", "Équipe Jaune"]]);
-    assert.deepEqual(questions.slice(4, 8).map((q) => q.cards.map((c) => c.word).sort()), saved[1].equipes.map((l) => l.map((c) => c.word).sort()));
+    assert.deepEqual(questions.slice(4, 8).map((q) => q.cards.map((c) => c.word)), saved[1].equipes.map((l) => l.map((c) => c.word)));
     assert.deepEqual(questions.slice(8).map((q) => q.text), ["soleil", "maman"]);
     await regie.context().close();
   });
@@ -4241,6 +4246,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click('#screen-home [data-etat="avenir"]');
     await page.locator('#show-list [data-show="lea"]').getByRole("button", { name: "Ouvrir" }).click();
     const mimes = page.locator("#show-rounds .round").nth(0);
+    // Une ligne par équipe, repliée : on la déplie pour voir ses images.
+    await mimes.locator(".mime-equipe").nth(0).locator(".mime-deplier").click();
     await mimes.locator(".mime-image", { hasText: "Chat" }).waitFor();
     await ajouterJeu(page, "chante");
     const chante = page.locator("#show-rounds .round").nth(1);
@@ -4251,6 +4258,10 @@ describe("bibliothèque de quiz et prestations", () => {
     await chante.locator(".pick-deja", { hasText: "chat : déjà utilisé dans Mimes" }).waitFor();
     await mimes.locator(".mime-image.deja", { hasText: "Chat" }).waitFor();
     assert.equal(await mimes.locator(".mime-image.deja").getAttribute("title"), "Déjà utilisée dans Chante le mot !");
+    // Repliée, la ligne le dit aussi.
+    await mimes.locator(".mime-equipe").nth(0).locator(".mime-deplier").click();
+    await mimes.locator(".mime-equipe").nth(0).locator(".mime-deja", { hasText: "⚠ 1 déjà dans un autre jeu" }).waitFor();
+    await mimes.locator(".mime-equipe").nth(0).locator(".mime-deplier").click();
     // 🎲 : le tirage ne reprend pas le chat des Mimes.
     await chante.locator("button.pick-draw").click();
     await chante.locator(".pick-box .small", { hasText: "6 mots choisis" }).waitFor();
@@ -4399,7 +4410,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.match(await page.locator("#game-apercu").getAttribute("src"), /apercus-jeux\/mimes\.mp4$/);
     assert.match(await page.locator("#game-manche-hint").textContent(), /« ＋ Ajouter un jeu »/);
 
-    // Composée dans une prestation : le 🎲 tire 5 images pour chacune des 4 équipes prévues, toutes différentes.
+    // Composée dans une prestation : le 🎲 de chaque équipe tire ses images (10 ici), toutes différentes.
     await page.click("#nav button[data-screen=home]");
     await page.click("#home-new");
     await page.fill("#show-child", "Léa");
@@ -4409,8 +4420,9 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click('#jeu-choix .jeu-tuile[data-jeu="mimes"]');
     const composee = page.locator("#show-rounds .round").nth(0);
     const compteur = composee.locator(".round-head > .quiz-compteur");
-    await composee.locator(".quiz-outils .tirage-de").click();
-    await compteur.filter({ hasText: /^4 équipes × 5 images$/ }).waitFor();
+    await composee.locator(".mime-par-equipe").selectOption("10");
+    for (let k = 0; k < 4; k++) await composee.locator(".mime-equipe").nth(k).locator(".mime-equipe-tete .tirage-de").click();
+    await compteur.filter({ hasText: /^4 équipes · 40 images$/ }).waitFor();
     // Une seule manche de Mimes : celle de chaque équipe est dedans.
     assert.equal(await page.locator("#show-rounds .jeu-plus").count(), 0);
     await capture(page, "prestation-bloc-mimes");
@@ -4423,14 +4435,15 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(saved.title, "Mimes · Anniversaire de Léa");
     assert.equal(saved.origin, "admin");
     assert.equal(saved.showId, showId);
-    assert.equal(saved.round.perTeam, 5);
-    assert.deepEqual(saved.round.equipes.map((l) => l.length), [5, 5, 5, 5]);
-    assert.equal(new Set(saved.round.equipes.flat().map((c) => c.banque)).size, 20, "Jamais deux fois la même image");
+    assert.equal(saved.round.perTeam, 10);
+    assert.deepEqual(saved.round.equipes.map((l) => l.length), [10, 10, 10, 10]);
+    assert.equal(new Set(saved.round.equipes.flat().map((c) => c.banque)).size, 40, "Jamais deux fois la même image");
     assert.equal((await library(`shows/${showId}`)).rounds[0].mancheId, id);
     // Réenregistrée sans changement : rien de plus ; tirée à nouveau : la même manche suit.
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "Enregistrée." }).waitFor();
-    await composee.locator(".quiz-outils .tirage-de").click();
+    await composee.locator(".mime-equipe").nth(0).locator(".mime-equipe-tete .tirage-de").click();
+    await repondreFenetre(page);
     await page.click("#show-save");
     await waitFor(async () => JSON.stringify((await library(`manches/${id}`)).round.equipes) !== JSON.stringify(saved.round.equipes), "manche mise à jour");
     assert.equal(Object.keys(await library("manches")).length, 1);
@@ -4455,15 +4468,15 @@ describe("bibliothèque de quiz et prestations", () => {
     await ajouterJeu(page, "mimes");
     const round = page.locator("#show-rounds .round").nth(0);
     assert.equal(await round.locator(".reprendre").count(), 0);
-    await round.locator(".quiz-outils .tirage-de").click();
-    await round.locator(".round-head > .quiz-compteur").filter({ hasText: /^6 équipes × 5 images$/ }).waitFor();
+    for (let k = 0; k < 6; k++) await round.locator(".mime-equipe").nth(k).locator(".mime-equipe-tete .tirage-de").click();
+    await round.locator(".round-head > .quiz-compteur").filter({ hasText: /^6 équipes · 120 images$/ }).waitFor();
     assert.deepEqual(await round.locator(".mime-equipes > .mime-equipe").evaluateAll((xs) => xs.map((x) => x.dataset.couleur)), ["Rose", "Orange", "Vert", "Jaune", "Bleu", "Violet"]);
     await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
     const show = Object.entries(await library("shows")).find(([k]) => k !== showId)[1];
     assert.equal(show.teams, 6);
-    assert.deepEqual(show.rounds[0].equipes.map((l) => l.length), [5, 5, 5, 5, 5, 5]);
+    assert.deepEqual(show.rounds[0].equipes.map((l) => l.length), [20, 20, 20, 20, 20, 20]);
     // Chaque prestation garde sa manche ; celle de Léa ne bouge pas.
     await waitFor(async () => Object.keys(await library("manches")).length === 2, "manche de la 2e prestation gardée");
     assert.deepEqual((await library(`manches/${id}`)).round.equipes, tiree);
@@ -5979,8 +5992,9 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(qs.length, 21);
   });
 
-  test("Régie PC (cedric, 23/10) : les Mimes, rien que le 🎲 : une présélection par équipe dans les couleurs de la prestation, prise dans la source choisie (Mes images, émojis, photos libres) ; ✕ laisse un 🎲 ; la TV reçoit une manche par équipe, photos copiées au lancement", async () => {
+  test("Régie PC (cedric, 23/10 puis 24/10) : les Mimes, une ligne par équipe : âge (celui de la prestation d'office), 🎲, ＋ (images de la Bibliothèque, « Ajouter la sélection »), 🔀 (l'ordre joué sur la TV), liste repliable ; 20 images et 2 min d'office ; la TV reçoit une manche par équipe, photos copiées au lancement", async () => {
     const { buildSnapshot } = await import("../web/public/show.js");
+    const { niveauMime } = await import("../web/public/banque-mimes.js");
     const PNG = `data:image/png;base64,${png([200, 60, 120]).toString("base64")}`;
     const MES = ["3333333333333333", "4444444444444444", "5555555555555555", "6666666666666666", "7777777777777777", "8888888888888888"];
     const NOMS = ["Lion", "Tigre", "Ours", "Loup", "Zèbre", "Koala"];
@@ -5996,76 +6010,131 @@ describe("bibliothèque de quiz et prestations", () => {
     const ligne = round.locator(".quiz-outils > .tirage-ligne");
     const compteur = round.locator(".round-head > .quiz-compteur");
     const equipes = round.locator(".mime-equipes > .mime-equipe");
-    const mots = (k) => equipes.nth(k).locator(".mime-image:not(.vide) .mime-mot").allTextContents();
-    // Rien que le 🎲 (cedric : « uniquement mon bouton dé ») : la source, les images par équipe, la durée du tour.
-    assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["mime-source", "mime-par-equipe", "mime-duree", "btn tirage-de"]);
+    const equipe = (k) => equipes.nth(k);
+    const de = (k) => equipe(k).locator(".mime-equipe-tete .tirage-de");
+    const mots = (k) => equipe(k).locator(".mime-image:not(.vide) .mime-mot").allTextContents();
+    // En haut : la source, les images par équipe (20 d'office), la durée du tour (2 min d'office).
+    assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["mime-source", "mime-par-equipe", "mime-duree"]);
     assert.deepEqual(await ligne.locator(".mime-source option").allTextContents(), ["Images : 📷 Photos libres", "Images : 😀 Émojis", "Images : 🖼️ Mes images"]);
-    assert.equal(await ligne.locator(".mime-par-equipe").inputValue(), "5");
-    assert.equal(await ligne.locator(".mime-duree").inputValue(), "60");
-    assert.equal(await compteur.textContent(), "Aucune image pour l'instant : touchez 🎲");
+    assert.deepEqual(await ligne.locator(".mime-par-equipe option").allTextContents(), [10, 15, 20, 25, 30].map((k) => `${k} images par équipe`));
+    assert.equal(await ligne.locator(".mime-par-equipe").inputValue(), "20");
+    assert.deepEqual(await ligne.locator(".mime-duree option").allTextContents(), ["1 min", "1 min 30", "2 min", "2 min 30", "3 min"].map((d) => `Tour de ${d}`));
+    assert.equal(await ligne.locator(".mime-duree").inputValue(), "120");
+    assert.equal(await compteur.textContent(), "Aucune image pour l'instant : touchez 🎲 sur chaque équipe");
     assert.equal(await round.locator(".reprendre").count(), 0, "pas de « Reprendre une manche » pour les Mimes");
     assert.equal(await page.locator("#show-rounds .jeu-plus").count(), 0, "une seule manche : celle de chaque équipe est dedans");
-
-    // Mes images (choix de Sarah) : 3 par équipe demandées, 6 images en tout : 2 chacune, un 🎲 à la place de la 3e.
-    await ligne.locator(".mime-source").selectOption("miennes");
-    await ligne.locator(".mime-par-equipe").selectOption("3");
-    await ligne.locator(".tirage-de").click();
-    await equipes.nth(2).waitFor();
+    // Une ligne par équipe, dans les couleurs de la prestation ; l'âge de la prestation (7 ans : Petits) d'office.
     assert.deepEqual(await equipes.evaluateAll((xs) => xs.map((x) => x.dataset.couleur)), ["Rose", "Orange", "Vert"]);
-    assert.deepEqual(await equipes.locator(".mime-equipe-tete b").allTextContents(), ["Manche de l'équipe Rose", "Manche de l'équipe Orange", "Manche de l'équipe Vert"]);
-    assert.equal(await compteur.textContent(), "3 équipes × 3 images · 3 à tirer");
-    const miennes = [...await mots(0), ...await mots(1), ...await mots(2)];
-    assert.deepEqual(miennes.sort(), [...NOMS].sort(), "chaque image une seule fois");
-    assert.equal(await round.locator(".mime-image img.tirage-photo").count(), 6);
-    // Plus rien à tirer dans Mes images : le dit, sans rien doubler.
-    await equipes.nth(0).locator(".mime-image.vide .tirage-de").click();
-    await page.locator("#annonce", { hasText: "Plus d'image à tirer dans cette source : choisissez-en une autre." }).waitFor();
+    assert.deepEqual(await equipes.locator(".mime-equipe-tete b").allTextContents(), ["Équipe Rose", "Équipe Orange", "Équipe Vert"]);
+    assert.deepEqual(await equipes.locator(".mime-age").evaluateAll((xs) => xs.map((x) => x.value)), ["PETITS", "PETITS", "PETITS"]);
+    assert.ok(await equipe(0).locator(".mime-deplier").isDisabled(), "rien à déplier avant le 🎲");
 
-    // Émojis : tout est tiré à nouveau, 3 par équipe.
-    await ligne.locator(".mime-source").selectOption("emojis");
-    await compteur.filter({ hasText: /^3 équipes × 3 images$/ }).waitFor();
-    assert.equal(await round.locator(".mime-image .tirage-mini.emoji").count(), 9);
-    assert.equal(await round.locator(".mime-image img").count(), 0);
+    // Mes images (choix de Sarah, tous âges) : 6 en tout ; l'équipe Rose les prend toutes, il n'en reste plus pour Orange.
+    await ligne.locator(".mime-source").selectOption("miennes");
+    await de(0).click();
+    await page.locator("#annonce", { hasText: "Seulement 6 images à tirer pour l'équipe Rose" }).waitFor();
+    assert.deepEqual((await mots(0)).sort(), [...NOMS].sort(), "chaque image une seule fois");
+    assert.equal(await equipe(0).locator(".mime-image img.tirage-photo").count(), 6);
+    assert.equal(await equipe(0).locator(".mime-deplier").getAttribute("aria-expanded"), "true", "dépliée après son 🎲");
+    assert.equal(await compteur.textContent(), "3 équipes · 6 images · 54 à tirer");
+    await de(1).click();
+    await page.locator("#annonce", { hasText: "Plus d'image à tirer pour l'équipe Orange dans cette source" }).waitFor();
 
-    // Photos libres : 9 photos différentes ; ✕ laisse un 🎲, le bouton de l'équipe la complète, jamais avec la même.
+    // Photos libres : le 🎲 d'une ligne déjà tirée demande avant de remplacer ses images.
     await ligne.locator(".mime-source").selectOption("photos");
-    await waitFor(async () => (await round.locator(".mime-image img.tirage-photo").count()) === 9, "9 photos libres");
-    const cles = async () => (await round.locator(".mime-image img.tirage-photo").evaluateAll((xs) => xs.map((x) => x.getAttribute("src"))))
-      .map((src) => decodeURIComponent(src.match(/^banque\/(.+)\.jpg$/)[1]));
-    const avant = await cles();
-    assert.equal(new Set(avant).size, 9);
-    const orange = equipes.nth(1);
-    const retiree = (await orange.locator(".mime-image img.tirage-photo").first().getAttribute("src"));
-    await orange.locator(".mime-image .tirage-retirer").first().click();
-    await orange.locator(".mime-image.vide .tirage-de").waitFor();
-    assert.equal(await compteur.textContent(), "3 équipes × 3 images · 1 à tirer");
-    await orange.locator(".mime-completer", { hasText: "🎲 Tirer l'image qui manque" }).click();
-    await orange.locator(".mime-image.vide").waitFor({ state: "detached" });
-    assert.equal(await compteur.textContent(), "3 équipes × 3 images");
-    assert.ok(!(await orange.locator(".mime-image img.tirage-photo").evaluateAll((xs) => xs.map((x) => x.getAttribute("src")))).includes(retiree), "la photo retirée ne revient pas");
-    // 2 par équipe : chacune garde ses deux premières.
-    const premieres = [await mots(0), await mots(1), await mots(2)].map((l) => l.slice(0, 2));
-    await ligne.locator(".mime-par-equipe").selectOption("2");
-    await compteur.filter({ hasText: /^3 équipes × 2 images$/ }).waitFor();
-    assert.deepEqual([await mots(0), await mots(1), await mots(2)], premieres);
-    await ligne.locator(".mime-duree").selectOption("45");
+    await de(0).click();
+    assert.match(await repondreFenetre(page, { accepter: false }), /Tirer de nouvelles images pour l'équipe Rose \? Ses 6 images seront remplacées\./);
+    assert.deepEqual((await mots(0)).sort(), [...NOMS].sort(), "« Garder » : rien ne change");
+    await de(0).click();
+    await repondreFenetre(page);
+    await compteur.filter({ hasText: /^3 équipes · 20 images · 40 à tirer$/ }).waitFor();
+    await de(1).click();
+    await de(2).click();
+    await compteur.filter({ hasText: /^3 équipes · 60 images$/ }).waitFor();
+    // Petits : rien que des images faciles à mimer, toutes différentes, de vraies photos.
+    const petits = [...await mots(0), ...await mots(1), ...await mots(2)];
+    assert.equal(new Set(petits).size, 60);
+    assert.deepEqual(petits.filter((m) => niveauMime(m) !== 1), [], "que des images « Mime : Petits »");
+    assert.equal(await round.locator(".mime-image img.tirage-photo").count(), 60);
+    // L'équipe Verte a des grands frères : Grands (12 à 15 ans), son 🎲 tire des images plus dures.
+    await equipe(2).locator(".mime-age").selectOption("GRANDS");
+    await de(2).click();
+    await repondreFenetre(page);
+    await waitFor(async () => (await mots(2)).every((m) => niveauMime(m) === 3), "images des Grands");
+    assert.equal((await mots(2)).length, 20);
+    assert.deepEqual(await equipes.locator(".mime-age").evaluateAll((xs) => xs.map((x) => x.value)), ["PETITS", "PETITS", "GRANDS"]);
+    // Une ligne se replie.
+    await equipe(2).locator(".mime-deplier").click();
+    assert.equal(await equipe(2).locator(".mime-images").count(), 0);
+    assert.equal(await equipe(2).locator(".mime-deplier").getAttribute("aria-expanded"), "false");
+    assert.equal(await equipe(2).locator(".mime-nombre").textContent(), "20 images");
+
+    // 🔀 : l'ordre de l'équipe Orange change (ses images restent les mêmes).
+    const orangeAvant = await mots(1);
+    await equipe(1).locator(".mime-melanger").click();
+    await waitFor(async () => (await mots(1)).join() !== orangeAvant.join(), "ordre mélangé");
+    assert.deepEqual([...await mots(1)].sort(), [...orangeAvant].sort());
+    // ✕ laisse un 🎲 ; « Tirer l'image qui manque » la remplace, jamais par la même.
+    const orangeMelange = await mots(1);
+    const retiree = orangeMelange[0];
+    await equipe(1).locator(".mime-image .tirage-retirer").first().click();
+    await equipe(1).locator(".mime-image.vide .tirage-de").waitFor();
+    assert.equal(await compteur.textContent(), "3 équipes · 59 images · 1 à tirer");
+    await equipe(1).locator(".mime-completer", { hasText: "🎲 Tirer l'image qui manque" }).click();
+    await equipe(1).locator(".mime-image.vide").waitFor({ state: "detached" });
+    assert.equal(await compteur.textContent(), "3 équipes · 60 images");
+    const orange = await mots(1);
+    assert.ok(!orange.includes(retiree), "l'image retirée ne revient pas");
+    assert.deepEqual(orange.slice(1), orangeMelange.slice(1), "remplacée à sa place");
+
+    // ＋ (cedric, 24/10) : la Bibliothèque s'ouvre ; recherche, groupes et catégories ; on coche, « Ajouter la sélection ».
+    await equipe(0).locator(".mime-plus").click();
+    const choix = page.locator(".choix-boite");
+    await choix.waitFor();
+    assert.equal(await choix.locator(".label").textContent(), "🖼️ Images à mimer pour l'équipe Rose");
+    assert.deepEqual(await choix.locator(".chips:not(.choix-cats) .chip").evaluateAll((xs) => xs.map((x) => x.dataset.groupe)), ["tout", "photos", "emojis", "miennes"]);
+    assert.ok(await choix.locator(".choix-ajouter").isDisabled());
+    await choix.locator('.chip[data-groupe="miennes"]').click();
+    await choix.locator('.media-tile[data-media="8888888888888888"]').click();
+    await choix.locator(".choix-ajouter", { hasText: "＋ Ajouter la sélection (1)" }).waitFor();
+    await choix.locator('.chip[data-groupe="photos"]').click();
+    // Une image déjà dans ces Mimes est signalée (permis quand même).
+    const dejaRose = (await mots(0))[0];
+    await choix.locator(".choix-recherche").fill(dejaRose);
+    const tuileRose = choix.locator(".media-tile.deja").filter({ hasText: new RegExp(`^${dejaRose.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`) });
+    assert.match(await tuileRose.first().getAttribute("title"), /ces Mimes \(équipe Rose\)/, "déjà dans ces Mimes : signalé, permis");
+    await choix.locator(".choix-recherche").fill("");
+    await choix.locator('.choix-cats .chip[data-cat="Animaux"]').click();
+    await choix.locator(".choix-recherche").fill("lapin");
+    await choix.locator(".media-tile", { hasText: "Lapin" }).first().click();
+    await choix.locator(".choix-ajouter", { hasText: "＋ Ajouter la sélection (2)" }).click();
+    await choix.waitFor({ state: "detached" });
+    await page.locator("#annonce", { hasText: "2 images ajoutées à l'équipe Rose." }).waitFor();
+    assert.deepEqual((await mots(0)).slice(-2), ["Koala", "Lapin"], "à la fin de la liste de l'équipe");
+    assert.equal(await compteur.textContent(), "3 équipes · 62 images");
+    await ligne.locator(".mime-duree").selectOption("90");
     await capture(page, "mimes-par-equipe");
 
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
     const zoe = Object.values(await library("shows")).find((x) => x.childName === "Zoé");
     const [manche] = zoe.rounds;
-    assert.deepEqual([manche.type, manche.source, manche.perTeam, manche.duration], ["mimes", "photos", 2, 45]);
-    assert.deepEqual(manche.equipes.map((l) => l.map((c) => c.word)), premieres);
-    assert.ok(manche.equipes.flat().every((c) => c.banque && c.image), "photos libres : clé de la banque et émoji de secours");
+    assert.deepEqual([manche.type, manche.source, manche.perTeam, manche.duration], ["mimes", "photos", 20, 90]);
+    assert.deepEqual(manche.ages, { 2: "GRANDS" }, "seule l'âge changé à la main est gardé");
+    const listes = manche.equipes.map((l) => l.map((c) => c.word));
+    assert.deepEqual(listes.map((l) => l.length), [22, 20, 20]);
+    assert.deepEqual(listes[1], orange);
+    assert.deepEqual(manche.equipes[0].at(-2), { word: "Koala", imageId: "8888888888888888" });
+    assert.ok(manche.equipes.flat().filter((c) => !c.imageId).every((c) => c.banque && c.image), "photos libres : clé de la banque et émoji de secours");
     await page.context().close();
 
-    // Sur la TV : une manche par équipe, dans l'ordre des couleurs, sous un seul jeu « Mimes ».
+    // Sur la TV : une manche par équipe, dans l'ordre des couleurs, sous un seul jeu « Mimes », images dans l'ordre choisi.
     const { snapshot } = buildSnapshot("zoe", zoe, {});
     const qs = snapshot.quiz.questions.filter((q) => q.kind === "mime");
     assert.deepEqual(qs.map((q) => q.text), ["Équipe Rose", "Équipe Orange", "Équipe Vert"]);
-    assert.ok(qs.every((q) => q.round === "Mimes" && q.duration === 45 && q.cards.length === 2));
-    // Lancée par la régie : les photos libres des cartes sont copiées dans la partie.
+    assert.ok(qs.every((q) => q.round === "Mimes" && q.duration === 90));
+    assert.deepEqual(qs.map((q) => q.cards.map((c) => c.word)), listes);
+    // Lancée par la régie : les photos libres des cartes sont copiées dans la partie, l'ordre ne bouge pas.
     await seedLibrary("shows/zoe", { ...zoe, date: "2099-12-02", status: "publiee" });
     box = startBox();
     const regie = await openRegie();
@@ -6075,8 +6144,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const jouees = (await read("show")).quiz.questions.filter((q) => q.kind === "mime");
-    // L'ordre des cartes d'une équipe peut être mélangé pour la TV ; chaque équipe garde les siennes.
-    assert.deepEqual(jouees.map((q) => q.cards.map((c) => c.word).sort()), premieres.map((l) => [...l].sort()));
+    assert.deepEqual(jouees.map((q) => q.cards.map((c) => c.word)), listes);
     // Rangées avec les images des cartes (choiceImages), comme celles d'un paquet de mimes.
     await waitFor(async () => {
       const show = await read("show");
@@ -6085,6 +6153,27 @@ describe("bibliothèque de quiz et prestations", () => {
         .every((q) => q.cards.every((c) => c.banque === undefined && /^[0-9a-f]{16}$/.test(c.imageId ?? "") && copiees[c.imageId]));
     }, "photos des mimes copiées dans la partie");
     await regie.context().close();
+  });
+
+  test("Bibliothèque (cedric, 24/10) : la fiche d'une photo libre ou d'un émoji dit s'il est bon pour le mime, et pour quel âge", async () => {
+    const page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#media-groups [data-groupe="photos"]');
+    const fiche = async (nom) => {
+      await page.locator("#media-search").fill(nom);
+      await page.locator(".media-tile", { hasText: nom }).first().click();
+      await page.locator("#visionneuse[open]").waitFor();
+      const texte = await page.locator("#vis-details").textContent();
+      await page.click("#vis-fermer");
+      return texte;
+    };
+    assert.match(await fiche("Voiture"), /🎭 Mime : Petits \(6 à 8 ans\)$/);
+    assert.match(await fiche("Hibou"), /🎭 Mime : Moyens \(9 à 11 ans\)$/);
+    assert.match(await fiche("Phare"), /🎭 Mime : Grands \(12 ans et plus\)$/);
+    assert.doesNotMatch(await fiche("Poireau"), /Mime/);
+    await page.click('#media-groups [data-groupe="emojis"]');
+    assert.match(await fiche("Pompier"), /🎭 Mime : Petits/);
+    await page.context().close();
   });
 
   test("Régie PC (cedric, 24/10) : le Blind test comme le Quiz : nombre de chansons et 🎲, liste repliable avec mini pochette et « ✓ Paroles » à droite ; ✕ laisse un 🎲 ; 🎧 écoute l'extrait et le refrain, « ⏱ Régler… » et retour à la prestation ; la TV reçoit les chansons", async () => {
@@ -6112,7 +6201,8 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.fill("#show-age", "9");
     await ajouterJeu(page, "blind");
     const round = page.locator("#show-rounds .round").nth(0);
-    const ligne = round.locator(".quiz-outils > .tirage-ligne");
+    const ligne = round.locator(".quiz-outils > .tirage-ligne:not(.blind-manuel)");
+    const manuel = round.locator(".quiz-outils > .tirage-ligne.blind-manuel");
     const compteur = round.locator(".quiz-compteur");
     const voir = round.locator(".blind-voir");
     const liste = round.locator(".blind-liste");
@@ -6121,8 +6211,11 @@ describe("bibliothèque de quiz et prestations", () => {
     // Comme le Quiz (cedric) : une ligne avec le nombre de chansons à trouver et le 🎲.
     assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-nombre blind-nombre", "btn tirage-de"]);
     assert.equal(await ligne.locator(".blind-nombre").inputValue(), "10");
-    assert.equal(await compteur.textContent(), "Aucune chanson pour l'instant : touchez 🎲");
+    assert.equal(await compteur.textContent(), "Aucune chanson pour l'instant : touchez 🎲 ou « Sélectionner mes chansons »");
     assert.equal(await round.locator(".blind-serie").count(), 0);
+    // Dessous, la création à la main (cedric, 24/10) : « 🎵 Sélectionner mes chansons » et leur nombre.
+    assert.equal(await manuel.locator(".blind-selectionner").textContent(), "🎵 Sélectionner mes chansons");
+    assert.equal(await manuel.locator(".blind-selection").textContent(), "Aucune chanson sélectionnée");
 
     // 5 chansons : d'abord celles qui ont pochette et paroles ; la liste s'ouvre, chaque titre avec sa mini pochette et,
     // à sa droite, « ✓ Paroles ».
@@ -6219,6 +6312,53 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await chanson("c1").locator(".blind-hook").textContent(), "Refrain réglé à la main");
     assert.equal(await liste.isVisible(), true, "la liste est restée dépliée");
     assert.equal(await compteur.textContent(), "7 chansons à trouver");
+
+    // Case vidée (cedric, 24/10) : « 🎵 Choisir… » ouvre la bibliothèque des sons, la chanson choisie prend sa place ;
+    // celles déjà dans le blind test ne se choisissent pas, une chanson supprimée n'y est jamais.
+    const vide = (await ids()).length;
+    await round.locator(".blind-chanson.vide .blind-choisir").click();
+    const choix = page.locator(".choix-sons");
+    await choix.waitFor();
+    assert.equal(await choix.locator('.choix-chanson[data-chanson="c1"]').isDisabled(), true, "déjà dans ce blind test");
+    assert.equal(await choix.locator('.choix-chanson[data-chanson="ret"]').count(), 0, "jamais une chanson supprimée");
+    // Recherche à chaque lettre : ce qui commence par le mot d'abord.
+    await choix.locator(".choix-recherche").fill("paroles");
+    assert.deepEqual(await choix.locator(".choix-chanson-titre b").allTextContents(), ["Paroles sans refrain"]);
+    await choix.locator(".choix-recherche").fill("compl");
+    await choix.locator('.choix-chanson[data-chanson="c2"]').click();
+    await choix.waitFor({ state: "detached" });
+    await compteur.filter({ hasText: /^8 chansons à trouver$/ }).waitFor();
+    const avecC2 = await ids();
+    assert.equal(avecC2.length, vide + 1);
+    assert.equal(avecC2[huit.indexOf("c2")], "c2", "à la place de la case vidée");
+
+    // « 🎵 Sélectionner mes chansons » : la bibliothèque, les chansons du blind test cochées ; décochées, elles partent ;
+    // les nouvelles arrivent à la fin. « ✓ Valider la sélection » revient sur le blind test.
+    await manuel.locator(".blind-selectionner").click();
+    await choix.waitFor();
+    assert.equal(await choix.locator(".choix-chanson.cochee").count(), 8);
+    assert.equal(await choix.locator(".choix-valider").textContent(), "✓ Valider la sélection (8)");
+    assert.deepEqual(await choix.locator(".chip").allTextContents(), ["Toutes (8)", "✓ Avec paroles (7)", "☑ Cochées (8)"]);
+    await choix.locator('.choix-chanson[data-chanson="sp"]').click();
+    await choix.locator('.choix-chanson[data-chanson="pr"]').click();
+    await capture(page, "blind-test-selection", { pleinePage: false });
+    await choix.locator(".choix-valider", { hasText: "✓ Valider la sélection (6)" }).click();
+    await choix.waitFor({ state: "detached" });
+    await compteur.filter({ hasText: /^6 chansons à trouver$/ }).waitFor();
+    assert.deepEqual(await ids(), avecC2.filter((id) => id !== "sp" && id !== "pr"));
+    assert.equal(await manuel.locator(".blind-selection").textContent(), "6 chansons sélectionnées");
+    await manuel.locator(".blind-selectionner").click();
+    await choix.locator(".choix-recherche").fill("sans poch");
+    await choix.locator('.choix-chanson[data-chanson="sp"]').click();
+    await choix.locator(".choix-valider", { hasText: "(7)" }).click();
+    await compteur.filter({ hasText: /^7 chansons à trouver$/ }).waitFor();
+    assert.equal((await ids()).at(-1), "sp", "les nouvelles à la fin");
+    // Annuler ne change rien.
+    await manuel.locator(".blind-selectionner").click();
+    await choix.locator('.choix-chanson[data-chanson="c1"]').click();
+    await choix.getByRole("button", { name: "Annuler" }).click();
+    await choix.waitFor({ state: "detached" });
+    assert.equal((await ids()).length, 7);
     await page.context().close();
 
     // Sur la TV : les 7 chansons, avec pochette, refrain et paroles quand elles les ont.

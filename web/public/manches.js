@@ -11,7 +11,7 @@ import {
   MAX_PICKS, MAX_STATUES_SONGS, quizKind, builtinConcepts, fixedConcepts, isPhotoTheme, disparuGroup, parPalierPhotos,
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, pourLeHasard, roundHasard, roundTirees,
   roundSeriesQuiz, questionsDeLaSerie, questionJouable, FACTEURS_FINALE, MAX_QUESTIONS_MANCHE, playable, estEnSeries,
-  estJeuDePhotos, signatureQuestion, questionsDuJeu, zoomRoundQuestions, mimeEquipes, mimeEquipesBrutes, MIME_SOURCES,
+  estJeuDePhotos, signatureQuestion, questionsDuJeu, zoomRoundQuestions, mimeEquipes, mimeEquipesBrutes, mimeAges, MIME_SOURCES,
   chansonsBrutes, chansonsDe, BLIND_NOMBRES,
 } from "./show.js";
 import { PROFILES } from "./profiles.js";
@@ -265,6 +265,8 @@ export function cleanRound(r, playlists = {}) {
     out = {
       type, source: MIME_SOURCES[r.source] ? r.source : "photos", equipes: mimeEquipesBrutes(r),
       ...(mimePerTeam(r) ? { perTeam: mimePerTeam(r) } : {}),
+      // La tranche d'âge choisie à la main pour une équipe (cedric, 24/10), par rang d'équipe.
+      ...(mimeAges(r).some(Boolean) ? { ages: Object.fromEntries(mimeAges(r).map((p, k) => [k, p]).filter(([, p]) => p)) } : {}),
       ...(Number.isInteger(r.duration) && r.duration >= 15 && r.duration <= 180 ? { duration: r.duration } : {}),
     };
   } else if (type === "mimes") {

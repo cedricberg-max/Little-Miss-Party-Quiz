@@ -121,8 +121,11 @@ export function trackPoints(playlist, track, i, n) {
 }
 /** Image floue : temps pour que la photo devienne nette (secondes), le même pour tous les âges. */
 export const FLOU_SEC = 40;
-/** Durée d'un tour de mimes par défaut (secondes). */
-export const MIME_TURN = 60;
+/**
+ * Durée d'un tour de mimes par défaut (secondes) : 2 min (cedric, 24/10 : avec des enfants et le roulement des
+ * joueurs, une minute était bien trop court).
+ */
+export const MIME_TURN = 120;
 export const MAX_QUESTIONS = 200;
 
 /**
@@ -599,7 +602,7 @@ export const mimeCards = (list) => listOf(list).filter((c) => typeof c?.word ===
  * tirées pour chaque équipe, dans l'ordre des couleurs de la prestation (`equipes` : une liste par équipe, la 1re pour
  * la 1re couleur…). Une image retirée ({ vide: true }, en attente de son 🎲) n'est pas jouée.
  */
-export const MIME_EQUIPES_MAX = 20;
+export const MIME_EQUIPES_MAX = 30;
 /**
  * Les présélections telles qu'enregistrées, une liste par équipe (au plus 8), cases vides comprises ({ vide: true }).
  * Lues par leur rang : la base garde une équipe sans images comme un trou (`{ 0: […], 2: […] }`), jamais décalée.
@@ -612,6 +615,14 @@ export function mimeEquipesBrutes(round) {
     .map((c) => (c?.vide === true ? { vide: true } : mimeCards([c])[0])).filter(Boolean));
 }
 export const mimeEquipes = (round) => mimeEquipesBrutes(round).map((liste) => liste.filter((c) => !c.vide));
+/**
+ * Tranche d'âge de chaque équipe des Mimes, choisie à la main dans la Régie PC (cedric, 24/10) ; null : celle de la
+ * prestation. Le 🎲 de la ligne de l'équipe tire des images de cet âge.
+ */
+export function mimeAges(round) {
+  const a = round?.type === "mimes" && round?.ages && typeof round.ages === "object" ? round.ages : {};
+  return Array.from({ length: 8 }, (_, k) => (Object.hasOwn(PROFILES, `${a[k]}`) ? a[k] : null));
+}
 /** Sources du 🎲 des Mimes, choisies par Sarah (« Mes images » : exception à la règle du hasard accordée par cedric). */
 export const MIME_SOURCES = { photos: "📷 Photos libres", emojis: "😀 Émojis", miennes: "🖼️ Mes images" };
 /** Titre de la manche de mimes d'une équipe (« Équipe Rose ») : la régie y retrouve la couleur de l'équipe qui joue. */
@@ -836,8 +847,8 @@ function mimeItem(round, deck, i, random, profile, mimes, teams, avoid, pris = n
   };
 }
 
-/** Cartes par équipe d'une manche de mimes (1 à 20), ou 0 quand la manche joue sa liste telle quelle. */
-export const mimePerTeam = (round) => (Number.isInteger(round?.perTeam) && round.perTeam >= 1 && round.perTeam <= 20 ? round.perTeam : 0);
+/** Cartes par équipe d'une manche de mimes (1 à 30), ou 0 quand la manche joue sa liste telle quelle. */
+export const mimePerTeam = (round) => (Number.isInteger(round?.perTeam) && round.perTeam >= 1 && round.perTeam <= MIME_EQUIPES_MAX ? round.perTeam : 0);
 
 /** Équipes de rechange prévues par la réserve de cartes des mimes. */
 export const MIME_SPARE_TEAMS = 2;
@@ -933,7 +944,8 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       if (!jouees.length) return;
       rounds.push({ title: ROUND_TYPES.mimes, count: jouees.length, kind: "mime" });
       jouees.forEach(([c, cartes], k) => questions.push({
-        id: `r${i + 1}m${k + 1}`, text: titreMimeEquipe(c), kind: "mime", duration, cards: shuffle(cartes, random), round: ROUND_TYPES.mimes,
+        // Dans l'ordre de la Régie PC (🔀 l'y mélange, cedric 24/10) : la TV montre les images dans cet ordre.
+        id: `r${i + 1}m${k + 1}`, text: titreMimeEquipe(c), kind: "mime", duration, cards: cartes, round: ROUND_TYPES.mimes,
       }));
       return;
     }

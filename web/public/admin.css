@@ -679,6 +679,26 @@ button.media-tile:hover { border-color: var(--violet); }
 .choix-boite .choix-recherche { width: 100%; box-sizing: border-box; }
 .choix-boite .chips { margin: 0; }
 .choix-grille { overflow-y: auto; min-height: 120px; max-height: 56vh; padding: 2px; }
+/* Plusieurs images à choisir (le « ＋ » des Mimes) : cochées en violet, déjà utilisées bordées de rouge. */
+.choix-grille .media-tile { position: relative; }
+.choix-grille .media-tile.cochee { border-color: var(--violet); background: var(--violet-pale); box-shadow: inset 0 0 0 2px var(--violet); }
+.choix-grille .media-tile.cochee::after { content: "✓"; position: absolute; top: 4px; right: 8px; color: var(--violet); font-weight: 900; }
+.choix-grille .media-tile.deja { border-color: var(--bad); }
+.choix-grille .media-tile.deja > span { color: var(--bad); }
+.choix-boite .choix-ajouter { margin-left: auto; }
+/* Chansons à choisir pour un blind test (cedric, 24/10) : une ligne par chanson, cochée en violet. */
+.choix-chansons { list-style: none; margin: 0; padding: 2px; overflow-y: auto; min-height: 120px; max-height: 56vh; display: flex; flex-direction: column; gap: 4px; }
+.choix-chanson { width: 100%; display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
+.choix-chanson:hover:not(:disabled) { border-color: var(--violet); }
+.choix-chanson:disabled { opacity: .55; cursor: default; }
+.choix-chanson.cochee { border-color: var(--violet); background: var(--violet-pale); box-shadow: inset 0 0 0 2px var(--violet); }
+.choix-chanson.deja { border-color: var(--bad); }
+.choix-chanson .case { flex: none; width: 22px; height: 22px; border-radius: 7px; border: 2px solid var(--violet); display: grid; place-items: center; color: #fff; font-weight: 900; font-size: 14px; line-height: 1; }
+.choix-chanson.cochee .case { background: var(--violet); }
+.choix-chanson.cochee .case::after { content: "✓"; }
+.choix-chanson-titre { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.choix-chanson-deja { flex: none; color: var(--bad); font-size: 13px; font-weight: 700; }
+.choix-boite .choix-valider { margin-left: auto; }
 
 /* « Régler… » une chanson (21/10) : pochette, titre et artiste, puis deux curseurs sur toute la chanson. */
 .track.reglage { display: flex; flex-direction: column; align-items: stretch; gap: 16px; padding: 18px 20px; }
@@ -966,11 +986,21 @@ button.vos-images-titre:hover { background: var(--violet); color: #fff; }
 /* Mimes dans une prestation (cedric, 23/10) : une manche par équipe, dans la couleur de son bracelet ; ses images
    tirées au 🎲, chacune avec sa ✕ (un 🎲 prend sa place). */
 .round-body > .mime-ancienne { flex: 1 1 100%; margin: 0; }
-.round-body > .mime-equipes { flex: 1 1 100%; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; min-width: 0; }
+.round-body > .mime-equipes { flex: 1 1 100%; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .mime-equipe { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 10px 12px; border-radius: 14px; background: var(--card); border: 1px solid var(--line-2); box-shadow: inset 5px 0 0 var(--c); }
 .mime-equipe-tete { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .mime-equipe-tete .rond { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 2px rgba(45, 30, 58, .15); }
 .mime-equipe-tete .mime-completer { margin-left: auto; }
+/* Une ligne par équipe (cedric, 24/10) : son nom replie ou déplie la liste ; âge, 🎲, ＋, 🔀 à côté. */
+.mime-deplier { flex: 1 1 150px; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 4px 2px; border: 0; background: none; font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
+.mime-deplier:disabled { cursor: default; }
+.mime-deplier .fleche { flex: none; width: 14px; color: var(--violet); font-weight: 900; }
+.mime-deplier:disabled .fleche { visibility: hidden; }
+.mime-equipe-tete .mime-age { flex: 0 1 auto; max-width: 100%; }
+.mime-equipe-tete .mime-deja { color: var(--bad); font-weight: 700; font-size: 13px; }
+.mime-equipe-tete .mime-plus { font-size: 20px; padding: 6px 16px; line-height: 1.2; }
+.mime-equipe-tete .mime-melanger { font-size: 18px; }
+.mime-equipe.ouverte .mime-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: 6px 14px; }
 .mime-images { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .mime-image { display: flex; align-items: center; gap: 10px; min-height: 40px; }
 .mime-image .tirage-photo, .mime-image .tirage-mini { height: 48px; width: 64px; }

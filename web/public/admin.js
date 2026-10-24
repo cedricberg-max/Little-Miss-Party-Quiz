@@ -16,7 +16,7 @@ import {
   roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC, PICTO_SECONDS, PICTO_SEC, PICTO_POINTS, PICTO_RULE,
   blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras, contentSlot, contentImages,
   pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches, isArchived, AUTO_ARCHIVE_DAYS, quizKind,
-  roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS, mimeEquipes, mimeEquipesBrutes, MIME_SOURCES, mimePerTeam,
+  roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS, mimeEquipes, mimeEquipesBrutes, mimeAges, MIME_SOURCES, MIME_EQUIPES_MAX, mimePerTeam,
   chansonsBrutes, chansonsDe, chansonJouable, BLIND_NOMBRES, BLIND_NOMBRE_DEFAUT, MAX_CHANSONS_BLIND,
   isStatuesList, statuesSongs, statuesChoices, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS, builtinConcepts, isPhotoTheme, disparuGroup,
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, alerteEquipes, EQUIPES_PAR_DEFAUT, pourLeHasard, premierQuiz,
@@ -45,6 +45,7 @@ import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
 import { watchVersion, showUpdateBanner } from "./version.js";
 import { compressImage, imageId, cleanEmoji, CHOICE_IMAGE } from "./illustration.js";
 import { panneauPhotosManquantes, motsSansPhoto } from "./photos-manquantes.js";
+import { niveauMime, niveauxPourProfil, etiquetteMime } from "./banque-mimes.js";
 import { afficherMotsDePasse } from "./oeil.js";
 import { historique, noterEcran, barresRetour, quitterEcran, ecranModifie } from "./retour.js";
 import { confirmer, avertir, demanderTexte } from "./fenetre.js";
@@ -1094,12 +1095,19 @@ function mimeSelection(r) {
   });
 }
 
-/** Durées d'un tour de mimes proposées (secondes). */
-const MIME_DUREES = [30, 45, 60, 90, 120];
+/** Durées d'un tour de mimes proposées (secondes) : 2 min d'office (cedric, 24/10). */
+const MIME_DUREES = [60, 90, 120, 150, 180];
+/** Images par équipe proposées (cedric, 24/10 : « une vingtaine par équipe par sécurité »). */
+const MIME_IMAGES = [10, 15, 20, 25, 30];
+const MIME_IMAGES_DEFAUT = 20;
+/** « 2 min », « 1 min 30 », « 45 s ». */
+const enMinutes = (sec) => (sec < 60 ? `${sec} s` : sec % 60 ? `${Math.floor(sec / 60)} min ${sec % 60}` : `${sec / 60} min`);
 /** Ce que montre une image de mimes, pour « jamais deux fois » : sa photo à soi par son identifiant, sinon son mot et son émoji. */
 const conceptsMime = (c) => (c?.imageId ? [`i:${c.imageId}`] : concepts(c ?? {}));
 /** Images retirées (✕) d'une manche de mimes pendant la saisie : le 🎲 de leur case ne les redonne pas. */
 const mimesRetires = new WeakMap();
+/** Lignes d'équipe dépliées (leur liste d'images visible), par manche de mimes : rien n'est enregistré. */
+const mimesDeplies = new WeakMap();
 
 /**
  * Les images que le 🎲 des Mimes peut tirer, selon la source choisie par Sarah (cedric, 23/10) : photos libres, émojis
@@ -1111,14 +1119,23 @@ function imagesPourMimes(source) {
   return photosLibres().map((x) => ({ word: x.nom, image: x.emoji, banque: x.id.slice(BANQUE.length) }));
 }
 
+/** Une image de la Bibliothèque (le « ＋ » d'une équipe) en image de mimes. */
+const imageDeMime = (x) => mimeCards([x.groupe === "emojis" ? { word: x.nom, image: x.emoji }
+  : x.groupe === "photos" ? { word: x.nom, image: x.emoji, banque: x.id.slice(BANQUE.length) }
+    : { word: `${x.nom ?? ""}`.trim() || "Image", imageId: x.id }])[0];
+
 /**
  * Pioche [n] images de mimes pour la manche [r], jamais une qui montre déjà quelque chose de [prises] (concepts de la
  * manche, mis à jour) ; d'abord celles qu'aucune autre manche de la prestation ne montre (« jamais deux fois »).
+ * Photos libres et émojis (cedric, 24/10) : seulement les images bonnes pour le mime, du niveau du [profil] d'abord
+ * (les Petits n'ont que les leurs) ; ses images à soi : tous âges.
  */
-function piocherMimes(r, n, prises) {
+function piocherMimes(r, n, prises, profil = null) {
   if (n <= 0) return [];
   const ailleurs = roundCtx.elsewhere?.(r) ?? new Map();
-  const toutes = shuffle(imagesPourMimes(r.source)).map((c) => mimeCards([c])[0]).filter(Boolean);
+  const images = imagesPourMimes(r.source);
+  const paliers = r.source === "miennes" ? [images] : niveauxPourProfil(profil).map((nv) => images.filter((c) => nv.includes(niveauMime(c.word))));
+  const toutes = paliers.flatMap((l) => shuffle(l)).map((c) => mimeCards([c])[0]).filter(Boolean);
   const neuves = toutes.filter((c) => !conceptsMime(c).some((k) => ailleurs.has(k)));
   const out = [];
   for (const c of [...neuves, ...toutes.filter((x) => !neuves.includes(x))]) {
@@ -1134,105 +1151,153 @@ function piocherMimes(r, n, prises) {
 const prisesMimes = (r) => new Set([...mimeEquipes(r).flat().flatMap(conceptsMime), ...(mimesRetires.get(r) ?? [])]);
 
 /**
- * Mimes dans une prestation (cedric, 23/10) : rien que le 🎲, « autant de manches que d'équipes ». Sarah choisit la
- * source des images, le nombre d'images par équipe et la durée du tour ; le 🎲 tire pour chaque équipe sa
- * présélection, dans l'ordre des couleurs de la prestation. ✕ retire une image et laisse un 🎲 à sa place.
+ * Mimes dans une prestation (cedric, 23/10 puis 24/10) : une ligne par équipe, dans l'ordre des couleurs de la
+ * prestation. En haut : la source des images, le nombre d'images par équipe (20 d'office) et la durée du tour (2 min).
+ * Chaque ligne : sa tranche d'âge (celle de la prestation d'office), son 🎲 (les images de l'équipe), « ＋ » (des
+ * images choisies dans la Bibliothèque), 🔀 (l'ordre joué sur la TV) ; elle se déplie pour montrer ses images. ✕ retire
+ * une image et laisse un 🎲 à sa place ; une case laissée sur son 🎲 ne compte pas.
  */
 function mancheMimes(r) {
   const couleurs = couleursSaisies.length ? couleursSaisies : couleursEquipes({ teams: ctxTeams() });
   const n = couleurs.length;
   if (!MIME_SOURCES[r.source]) r.source = "photos";
-  const par = mimePerTeam(r) || MIME_PER_TEAM_DEFAULT;
+  const par = mimePerTeam(r) || MIME_IMAGES_DEFAUT;
   // Moins d'équipes prévues : les présélections en trop partent.
   if (mimeEquipesBrutes(r).length > n) r.equipes = mimeEquipesBrutes(r).slice(0, n);
   const equipes = mimeEquipesBrutes(r);
+  const reelles = (k) => (equipes[k] ?? []).filter((c) => !c.vide);
   const tire = equipes.some((l) => l.length);
+  const deplies = mimesDeplies.get(r) ?? new Set();
+  mimesDeplies.set(r, deplies);
   const changer = () => roundCtx.refresh();
-  /** Le 🎲 : une présélection neuve pour chaque équipe, les images réparties une à une (s'il en manque, à toutes un peu). */
-  const tirerTout = () => {
-    mimesRetires.delete(r);
-    const cartes = piocherMimes(r, par * n, new Set());
-    r.equipes = couleurs.map((_, k) => cartes.filter((__, j) => j % n === k));
+  const nom = (k) => nomCouleur(couleurs[k]);
+  const profilPrestation = roundCtx.profile?.() ?? "MOYENS";
+  const age = (k) => mimeAges(r)[k] ?? profilPrestation;
+  /** La liste de l'équipe [k] devient [liste] ; les autres ne bougent pas. */
+  const poser = (k, liste) => {
+    const brutes = mimeEquipesBrutes(r);
+    r.equipes = couleurs.map((_, j) => (j === k ? liste : brutes[j] ?? []));
     r.perTeam = par;
     // L'ancienne façon de préparer la manche (paquet, tirage au lancement) laisse la place.
     r.deckId = null; r.random = null; r.cards = null; r.photos = null;
+  };
+  /** Le 🎲 d'une équipe : [par] images de son âge, jamais une déjà dans la manche ; ses images d'avant sont remplacées. */
+  const tirerEquipe = async (k) => {
+    const avant = reelles(k).length;
+    if (avant && !(await confirmer(`Tirer de nouvelles images pour l'équipe ${nom(k)} ? Ses ${plural(avant, "image")} seront remplacées.`, { ok: "Tirer à nouveau", annuler: "Garder" }))) return;
+    const brutes = mimeEquipesBrutes(r);
+    const prises = new Set([...brutes.flatMap((l, j) => (j === k ? [] : l.filter((c) => !c.vide))).flatMap(conceptsMime), ...(mimesRetires.get(r) ?? [])]);
+    const cartes = piocherMimes(r, par, prises, age(k));
+    if (!cartes.length) return annonce(`Plus d'image à tirer pour l'équipe ${nom(k)} dans cette source : choisissez-en une autre, ou « ＋ ».`);
+    poser(k, cartes);
+    deplies.add(k);
+    if (cartes.length < par) annonce(`Seulement ${plural(cartes.length, "image")} à tirer pour l'équipe ${nom(k)} (${PROFILES[age(k)]?.label ?? "cet âge"}) : complétez avec « ＋ ».`);
     changer();
   };
-  /** Complète l'équipe [k] (ses cases vides et ce qui manque jusqu'au nombre choisi). */
+  /** Complète l'équipe [k] jusqu'au nombre choisi : ses cases vides d'abord, puis à la fin. */
   const completer = (k) => {
-    const brutes = mimeEquipesBrutes(r);
-    const liste = [...(brutes[k] ?? [])];
-    while (liste.length < par) liste.push({ vide: true });
-    const nouvelles = piocherMimes(r, liste.filter((c) => c.vide).length, prisesMimes(r));
-    const remplie = liste.map((c) => (c.vide ? nouvelles.shift() ?? c : c));
-    r.equipes = couleurs.map((_, j) => (j === k ? remplie : brutes[j] ?? []));
-    r.perTeam = par;
+    const liste = [...(mimeEquipesBrutes(r)[k] ?? [])];
+    const nouvelles = piocherMimes(r, Math.max(0, par - liste.filter((c) => !c.vide).length), prisesMimes(r), age(k));
+    if (!nouvelles.length) return annonce(`Plus d'image à tirer pour l'équipe ${nom(k)} dans cette source : choisissez-en une autre, ou « ＋ ».`);
+    const remplie = liste.map((c) => (c.vide && nouvelles.length ? nouvelles.shift() : c));
+    poser(k, [...remplie, ...nouvelles]);
     changer();
   };
   const tirerUne = (k, i) => {
-    const brutes = mimeEquipesBrutes(r);
-    const liste = [...(brutes[k] ?? [])];
-    while (liste.length <= i) liste.push({ vide: true });
-    const [c] = piocherMimes(r, 1, prisesMimes(r));
-    if (!c) return annonce("Plus d'image à tirer dans cette source : choisissez-en une autre.");
+    const liste = [...(mimeEquipesBrutes(r)[k] ?? [])];
+    const [c] = piocherMimes(r, 1, prisesMimes(r), age(k));
+    if (!c) return annonce("Plus d'image à tirer dans cette source : choisissez-en une autre, ou « ＋ ».");
     liste[i] = c;
-    r.equipes = couleurs.map((_, j) => (j === k ? liste : brutes[j] ?? []));
+    poser(k, liste);
     changer();
   };
   const retirer = (k, i) => {
-    const brutes = mimeEquipesBrutes(r);
-    const c = brutes[k][i];
-    mimesRetires.set(r, new Set([...(mimesRetires.get(r) ?? []), ...conceptsMime(c)]));
-    r.equipes = brutes.map((l, j) => (j === k ? l.map((x, y) => (y === i ? { vide: true } : x)) : l));
+    const liste = [...(mimeEquipesBrutes(r)[k] ?? [])];
+    mimesRetires.set(r, new Set([...(mimesRetires.get(r) ?? []), ...conceptsMime(liste[i])]));
+    liste[i] = { vide: true };
+    poser(k, liste);
+    changer();
+  };
+  const melanger = (k) => { poser(k, shuffle([...(mimeEquipesBrutes(r)[k] ?? [])])); changer(); };
+  /** « ＋ » : des images choisies dans la Bibliothèque, ajoutées à la fin de la liste de l'équipe. */
+  const ajouterImages = async (k) => {
+    const autres = roundCtx.elsewhere?.(r) ?? new Map();
+    const ici = new Map(mimeEquipesBrutes(r).flatMap((l, j) => l.filter((c) => !c.vide).flatMap((c) => conceptsMime(c).map((x) => [x, `ces Mimes (équipe ${nom(j)})`]))));
+    const choisies = await choisirDansBibliotheque({
+      titre: `Images à mimer pour l'équipe ${nom(k)}`, groupes: ["photos", "emojis", "miennes"], plusieurs: true,
+      deja: (x) => { const c = imageDeMime(x); const hit = c && conceptsMime(c).find((y) => ici.has(y) || autres.has(y)); return hit ? ici.get(hit) ?? autres.get(hit) : null; },
+    });
+    const cartes = choisies.map(imageDeMime).filter(Boolean);
+    if (!cartes.length) return;
+    const liste = [...(mimeEquipesBrutes(r)[k] ?? [])];
+    const place = Math.max(0, MIME_EQUIPES_MAX - liste.length);
+    poser(k, [...liste, ...cartes.slice(0, place)]);
+    deplies.add(k);
+    annonce(cartes.length > place
+      ? `${plural(place, "image ajoutée", "images ajoutées")} à l'équipe ${nom(k)} : ${MIME_EQUIPES_MAX} au plus par équipe.`
+      : `${plural(cartes.length, "image ajoutée", "images ajoutées")} à l'équipe ${nom(k)}.`, cartes.length <= place);
     changer();
   };
   const source = h("select", {
-    class: "mime-source", "aria-label": "Où prendre les images à mimer",
-    // Une autre source : tout est tiré à nouveau dedans.
-    onchange: (e) => { r.source = e.target.value; if (tire) tirerTout(); else changer(); },
+    class: "mime-source", "aria-label": "Où prendre les images à mimer", title: "Où le 🎲 de chaque équipe prend ses images",
+    onchange: (e) => { r.source = e.target.value; changer(); },
   }, ...Object.entries(MIME_SOURCES).map(([k, label]) => h("option", { value: k, selected: k === r.source, text: `Images : ${label}` })));
   const nombre = h("select", {
-    class: "mime-par-equipe", "aria-label": "Images par équipe",
-    onchange: (e) => {
-      const k = Number(e.target.value);
-      r.perTeam = k;
-      // Moins d'images : chaque équipe garde ses premières ; plus : le 🎲 complète chaque équipe.
-      if (tire) {
-        const brutes = mimeEquipesBrutes(r).map((l) => l.slice(0, k));
-        const prises = new Set(brutes.flat().flatMap(conceptsMime));
-        r.equipes = couleurs.map((_, j) => {
-          const l = [...(brutes[j] ?? [])];
-          return [...l, ...piocherMimes(r, k - l.length, prises)];
-        });
-      }
-      changer();
-    },
-  }, ...MIME_PER_TEAM.map((k) => h("option", { value: k, selected: k === par, text: `${k} images par équipe` })));
+    class: "mime-par-equipe", "aria-label": "Images par équipe", title: "Combien d'images le 🎲 tire pour chaque équipe",
+    onchange: (e) => { r.perTeam = Number(e.target.value); changer(); },
+  }, ...[...new Set([...MIME_IMAGES, par])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: k === par, text: `${k} images par équipe` })));
+  const tour = r.duration ?? MIME_TURN;
   const duree = h("select", {
-    class: "mime-duree", "aria-label": "Durée du tour",
+    class: "mime-duree", "aria-label": "Durée du tour de chaque équipe", title: "Durée du tour de chaque équipe",
     onchange: (e) => { r.duration = Number(e.target.value) === MIME_TURN ? null : Number(e.target.value); roundCtx.summary(); },
-  }, ...MIME_DUREES.map((k) => h("option", { value: k, selected: k === (r.duration ?? MIME_TURN), text: `Tour de ${k} s par équipe` })));
-  const de = h("button", {
-    type: "button", class: "btn tirage-de", text: "🎲", "aria-label": "Tirer les images de chaque équipe au hasard",
-    title: `Tirer ${par} images pour chacune des ${n} équipes`, onclick: tirerTout,
-  });
+  }, ...[...new Set([...MIME_DUREES, tour])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: k === tour, text: `Tour de ${enMinutes(k)}` })));
   const total = mimeEquipes(r).flat().length;
+  const manque = couleurs.reduce((t, _, k) => t + Math.max(0, par - reelles(k).length), 0);
   const compteur = h("p", { class: "quiz-compteur", "aria-live": "polite",
-    text: tire ? `${n} équipe${n > 1 ? "s" : ""} × ${par} image${par > 1 ? "s" : ""}${total < n * par ? ` · ${n * par - total} à tirer` : ""}` : "Aucune image pour l'instant : touchez 🎲" });
+    text: tire ? `${n} équipe${n > 1 ? "s" : ""} · ${plural(total, "image")}${manque ? ` · ${manque} à tirer` : ""}` : "Aucune image pour l'instant : touchez 🎲 sur chaque équipe" });
   const autres = roundCtx.elsewhere?.(r) ?? new Map();
   const ailleurs = (c) => { const k = conceptsMime(c).find((x) => autres.has(x)); return k ? autres.get(k) : null; };
   const vignette = (c) => apercuPhoto(c) ?? h("span", { class: "tirage-mini emoji", text: c.image ?? "🎭" });
-  const blocs = tire ? couleurs.map((couleur, k) => {
-    const liste = [...(equipes[k] ?? [])];
-    while (liste.length < par) liste.push({ vide: true });
-    const manque = liste.filter((c) => c.vide).length;
-    return h("section", { class: "mime-equipe", style: `--c: ${couleur}`, "data-couleur": nomCouleur(couleur) },
+  const lignes = couleurs.map((couleur, k) => {
+    const liste = equipes[k] ?? [];
+    const vraies = reelles(k).length;
+    const ouverte = deplies.has(k) && liste.length > 0;
+    const manqueIci = vraies ? Math.max(0, par - vraies) : 0;
+    const nbDeja = reelles(k).filter((c) => ailleurs(c)).length;
+    const choixAge = h("select", {
+      class: "mime-age", "aria-label": `Âge des images de l'équipe ${nomCouleur(couleur)}`, title: "Âge des images que tire le 🎲 de cette équipe",
+      onchange: (e) => {
+        const ages = mimeAges(r);
+        ages[k] = e.target.value === profilPrestation ? null : e.target.value;
+        r.ages = Object.fromEntries(ages.map((p, j) => [j, p]).filter(([, p]) => p));
+        changer();
+      },
+    }, ...Object.entries(PROFILES).map(([key, p]) => h("option", { value: key, selected: key === age(k), text: p.label })));
+    return h("section", { class: `mime-equipe${ouverte ? " ouverte" : ""}`, style: `--c: ${couleur}`, "data-couleur": nomCouleur(couleur) },
       h("div", { class: "mime-equipe-tete" },
-        h("span", { class: "rond" }),
-        h("b", { text: `Manche de l'équipe ${nomCouleur(couleur)}` }),
-        h("span", { class: "small hint", text: `${par - manque} image${par - manque > 1 ? "s" : ""}` }),
-        manque ? h("button", { type: "button", class: "chip mime-completer", text: `🎲 Tirer ${manque > 1 ? `les ${manque} images` : "l'image"} qui manque${manque > 1 ? "nt" : ""}`, onclick: () => completer(k) }) : null),
-      h("ul", { class: "mime-images" }, ...liste.map((c, i) => (c.vide
+        h("button", {
+          type: "button", class: "mime-deplier", "aria-expanded": ouverte ? "true" : "false", disabled: !liste.length,
+          title: liste.length ? (ouverte ? "Replier la liste des images" : "Voir les images de l'équipe") : "Aucune image : touchez 🎲",
+          onclick: () => { if (deplies.has(k)) deplies.delete(k); else deplies.add(k); changer(); },
+        }, h("span", { class: "fleche", text: ouverte ? "▾" : "▸" }), h("span", { class: "rond" }), h("b", { text: `Équipe ${nomCouleur(couleur)}` })),
+        choixAge,
+        h("span", { class: "small hint mime-nombre", text: vraies ? plural(vraies, "image") : "Aucune image" }),
+        // Repliée, la ligne dit quand même qu'une de ses images sert déjà dans un autre jeu (« jamais deux fois »).
+        nbDeja ? h("span", { class: "mime-deja", text: `⚠ ${nbDeja} déjà dans un autre jeu`, title: [...new Set(reelles(k).map(ailleurs).filter(Boolean))].map((x) => `Déjà utilisée dans ${x}`).join("\n") }) : null,
+        h("button", {
+          type: "button", class: "btn tirage-de", text: "🎲", "aria-label": `Tirer les images de l'équipe ${nomCouleur(couleur)} au hasard`,
+          title: `Tirer ${par} images pour l'équipe ${nomCouleur(couleur)}`, onclick: () => tirerEquipe(k),
+        }),
+        h("button", {
+          type: "button", class: "btn secondary mime-plus", text: "＋", "aria-label": `Ajouter des images de la Bibliothèque à l'équipe ${nomCouleur(couleur)}`,
+          title: "Choisir des images dans la Bibliothèque", onclick: () => ajouterImages(k),
+        }),
+        h("button", {
+          type: "button", class: "icon mime-melanger", text: "🔀", "aria-label": `Mélanger les images de l'équipe ${nomCouleur(couleur)}`,
+          title: "Mélanger : la TV les montre dans cet ordre", disabled: vraies < 2, onclick: () => melanger(k),
+        }),
+        manqueIci ? h("button", { type: "button", class: "chip mime-completer", text: `🎲 Tirer ${manqueIci > 1 ? `les ${manqueIci} images` : "l'image"} qui manque${manqueIci > 1 ? "nt" : ""}`, onclick: () => completer(k) }) : null),
+      ouverte ? h("ul", { class: "mime-images" }, ...liste.map((c, i) => (c.vide
         ? h("li", { class: "mime-image vide" }, h("button", {
           type: "button", class: "btn tirage-de petit", text: "🎲", "aria-label": `Tirer une autre image pour l'équipe ${nomCouleur(couleur)}`,
           title: "Tirer une autre image", onclick: () => tirerUne(k, i),
@@ -1240,17 +1305,17 @@ function mancheMimes(r) {
         : h("li", { class: `mime-image${ailleurs(c) ? " deja" : ""}`, title: ailleurs(c) ? `Déjà utilisée dans ${ailleurs(c)}` : c.word },
           vignette(c),
           h("span", { class: "mime-mot", text: c.word }),
-          h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": `Retirer « ${c.word} »`, title: "Retirer cette image (un 🎲 prend sa place)", onclick: () => retirer(k, i) }))))));
-  }) : [];
+          h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": `Retirer « ${c.word} »`, title: "Retirer cette image (un 🎲 prend sa place)", onclick: () => retirer(k, i) }))))) : null);
+  });
   // Une manche préparée avant (un paquet, un tirage au lancement) : elle se joue encore telle quelle.
   const ancienne = !tire && (r.deckId || r.random === true || mimeCards(r.cards).length)
-    ? h("p", { class: "small hint mime-ancienne", text: `Manche préparée à l'ancienne : ${mancheSummary(r, { mimes })}, jouée telle quelle. Le 🎲 la remplace par une présélection pour chaque équipe.` })
+    ? h("p", { class: "small hint mime-ancienne", text: `Manche préparée à l'ancienne : ${mancheSummary(r, { mimes })}, jouée telle quelle. Le 🎲 d'une équipe la remplace par une présélection pour chaque équipe.` })
     : null;
   return [
     compteur,
-    h("div", { class: "quiz-outils" }, h("div", { class: "tirage-ligne" }, source, nombre, duree, de)),
+    h("div", { class: "quiz-outils" }, h("div", { class: "tirage-ligne" }, source, nombre, duree)),
     ancienne,
-    tire ? h("div", { class: "mime-equipes" }, ...blocs) : null,
+    h("div", { class: "mime-equipes" }, ...lignes),
   ].filter(Boolean);
 }
 
@@ -1353,6 +1418,80 @@ function miniPochette(song) {
 }
 
 /**
+ * Fenêtre « 🎵 Bibliothèque des sons » (cedric, 24/10) : choisir des chansons à la main pour un blind test. Recherche à
+ * chaque lettre (titre, artiste ; ce qui commence par le mot d'abord), filtre « avec paroles ». [plusieurs] : un clic
+ * coche ou décoche, [cochees] le sont au départ, « ✓ Valider la sélection » rend les chansons cochées (celles d'avant
+ * dans leur ordre, puis les nouvelles dans l'ordre des clics) ; sinon un clic choisit une chanson. [prises] : déjà dans
+ * ce blind test (non choisissables une à une) ; [deja] : le jeu où une chanson sert déjà (en rouge, permis).
+ * Rend la liste (ou l'identifiant) choisie, ou null (Annuler, Échap).
+ */
+function choisirChansons({ titre, plusieurs = false, cochees = [], prises = new Set(), deja = () => null }) {
+  return new Promise((resolve) => {
+    const toutes = Object.entries(songs ?? {}).filter(([, x]) => chansonJouable(x)).map(([id, x]) => ({ id, ...x }))
+      .sort((a, b) => `${a.artist ?? ""} ${a.title}`.localeCompare(`${b.artist ?? ""} ${b.title}`, "fr", { sensitivity: "base" }));
+    const choisies = new Set(cochees.filter((id) => chansonJouable(songs[id])));
+    const ordre = [...choisies];
+    let filtre = null;
+    const champ = h("input", { type: "search", class: "choix-recherche", placeholder: "Rechercher : titre, artiste…", "aria-label": "Rechercher une chanson", autocomplete: "off" });
+    const puces = h("div", { class: "chips media-cats" });
+    const liste = h("ul", { class: "choix-chansons" });
+    const valider = h("button", { type: "button", class: "btn choix-valider", onclick: () => fermer(ordre.filter((id) => choisies.has(id))) });
+    const fermer = (x) => { stopPreview(); voile.remove(); resolve(x); };
+    const majValider = () => {
+      valider.textContent = `✓ Valider la sélection (${choisies.size})`;
+    };
+    const dessiner = () => {
+      const q = champ.value.trim();
+      const trouvees = parPertinence(toutes.filter((x) => contientTout([x.title, x.artist], q)), q, (x) => x.title, (x) => [x.artist]);
+      const avecParoles = trouvees.filter(parolesSurTv);
+      puces.replaceChildren(...[[null, "Toutes", trouvees.length], ["paroles", "✓ Avec paroles", avecParoles.length], ...(plusieurs ? [["cochees", "☑ Cochées", trouvees.filter((x) => choisies.has(x.id)).length]] : [])]
+        .map(([k, label, n]) => h("button", { type: "button", class: `chip${filtre === k ? " active" : ""}`, "data-filtre": k ?? "toutes", text: `${label} (${n})`, onclick: () => { filtre = k; dessiner(); } })));
+      const montrees = filtre === "paroles" ? avecParoles : filtre === "cochees" ? trouvees.filter((x) => choisies.has(x.id)) : trouvees;
+      liste.replaceChildren(...montrees.map((x) => {
+        const ou = deja(x.id) ?? deja(x.audioId);
+        const ici = !plusieurs && prises.has(x.id);
+        const paroles = parolesSurTv(x);
+        const ligne = h("li", {}, h("button", {
+          type: "button", class: `choix-chanson${choisies.has(x.id) ? " cochee" : ""}${ou ? " deja" : ""}`, "data-chanson": x.id, disabled: ici,
+          title: ici ? "Déjà dans ce blind test" : ou ? `Déjà dans ${ou}` : "",
+          ...(plusieurs ? { "aria-pressed": choisies.has(x.id) ? "true" : "false" } : {}),
+          onclick: (e) => {
+            if (!plusieurs) return fermer(x.id);
+            if (choisies.has(x.id)) choisies.delete(x.id);
+            else { choisies.add(x.id); if (!ordre.includes(x.id)) ordre.push(x.id); }
+            e.currentTarget.classList.toggle("cochee", choisies.has(x.id));
+            e.currentTarget.setAttribute("aria-pressed", choisies.has(x.id) ? "true" : "false");
+            majValider();
+          },
+        },
+        plusieurs ? h("span", { class: "case", "aria-hidden": "true" }) : null,
+        miniPochette(x),
+        h("span", { class: "choix-chanson-titre" }, h("b", { text: x.title.trim() }), x.artist?.trim() ? h("span", { class: "hint", text: ` · ${x.artist.trim()}` }) : null),
+        ou ? h("span", { class: "choix-chanson-deja", text: `Déjà dans ${ou}` }) : ici ? h("span", { class: "hint small", text: "Déjà dans ce blind test" }) : null,
+        h("span", { class: `blind-paroles${paroles ? " ok" : " non"}`, text: paroles ? "✓ Paroles" : "✗ Pas de paroles" })));
+        return ligne;
+      }));
+      if (!montrees.length) liste.append(h("li", { class: "hint", text: toutes.length ? "Aucune chanson pour cette recherche : essayez un autre mot." : "Aucune chanson dans la bibliothèque des sons : ajoutez-en d'abord (Bibliothèque › Sons)." }));
+    };
+    champ.oninput = dessiner;
+    majValider();
+    const voile = h("div", {
+      class: "cadre-voile choix-voile", onclick: (e) => { if (e.target === voile) fermer(null); },
+      onkeydown: (e) => { if (e.key === "Escape") fermer(null); },
+    }, h("div", { class: "cadre-boite choix-boite choix-sons", role: "dialog", "aria-label": titre },
+      h("p", { class: "label", text: `🎵 ${titre}` }),
+      h("p", { class: "hint small", text: plusieurs
+        ? "Cherchez par titre ou artiste ; un clic coche ou décoche la chanson ; puis « ✓ Valider la sélection »."
+        : "Cherchez par titre ou artiste ; un clic choisit la chanson." }),
+      champ, puces, liste,
+      h("div", { class: "row" }, h("button", { type: "button", class: "btn secondary", text: "Annuler", onclick: () => fermer(null) }), plusieurs ? valider : null)));
+    document.body.append(voile);
+    dessiner();
+    champ.focus();
+  });
+}
+
+/**
  * Blind test dans une prestation (cedric, 24/10) : « à la manière des quiz ». Première ligne : le nombre de chansons à
  * trouver et le 🎲, qui les tire dans la bibliothèque des sons. Dessous, la liste des chansons du blind test, repliable
  * comme une série du Quiz : chaque titre avec sa mini pochette et, à droite, si ses paroles sont là. ✕ retire une
@@ -1390,6 +1529,35 @@ function mancheBlind(r) {
     r.chansons = liste;
     changer();
   };
+  /** Une case vidée (cedric, 24/10) : la chanson choisie à la main dans la bibliothèque des sons prend sa place. */
+  const choisirUne = async (i) => {
+    const id = await choisirChansons({ titre: "Choisir une chanson pour le blind test", prises: new Set(chansonsBrutes(r).filter(Boolean)), deja: (k) => chansonsAilleurs(r).get(k) ?? null });
+    if (!id) return;
+    const liste = chansonsBrutes(r);
+    liste[i] = id;
+    r.chansons = liste;
+    changer();
+  };
+  /**
+   * « 🎵 Sélectionner mes chansons » (cedric, 24/10) : la bibliothèque des sons, les chansons du blind test déjà cochées ;
+   * décochées, elles partent ; les nouvelles se mettent à la fin, dans l'ordre des clics.
+   */
+  const selectionner = async () => {
+    const avant = chansonsBrutes(r);
+    const ids = await choisirChansons({ titre: "Sélectionner mes chansons", plusieurs: true, cochees: avant.filter(Boolean), deja: (k) => chansonsAilleurs(r).get(k) ?? null });
+    if (!ids) return;
+    const gardees = avant.filter((id) => !id || ids.includes(id));
+    const nouvelles = ids.filter((id) => !avant.includes(id));
+    const liste = [...gardees, ...nouvelles];
+    if (liste.length > MAX_CHANSONS_BLIND) annonce(`${MAX_CHANSONS_BLIND} chansons au plus dans un blind test : les dernières ne sont pas ajoutées.`);
+    r.chansons = liste.slice(0, MAX_CHANSONS_BLIND);
+    if (!r.chansons.some(Boolean)) r.chansons = [];
+    else if (BLIND_NOMBRES.includes(r.chansons.length)) r.nbChansons = r.chansons.length;
+    // L'ancienne façon de préparer la manche (une playlist, des extraits choisis) laisse la place.
+    r.playlistId = ""; r.tracks = null; r.byItem = null;
+    blindsDeplies.add(r);
+    changer();
+  };
   const nombre = h("select", {
     class: "tirage-nombre blind-nombre", "aria-label": "Nombre de chansons à trouver",
     onchange: (e) => {
@@ -1409,13 +1577,14 @@ function mancheBlind(r) {
   });
   const presentes = chansonsDe(r).filter((id) => chansonJouable(songs[id]));
   const compteur = h("p", { class: "quiz-compteur", "aria-live": "polite",
-    text: tire ? `${presentes.length} chanson${presentes.length > 1 ? "s" : ""} à trouver` : "Aucune chanson pour l'instant : touchez 🎲" });
+    text: tire ? `${presentes.length} chanson${presentes.length > 1 ? "s" : ""} à trouver` : "Aucune chanson pour l'instant : touchez 🎲 ou « Sélectionner mes chansons »" });
   const autres = chansonsAilleurs(r);
   const lignes = brutes.map((id, i) => {
     const song = id ? songs[id] : null;
     if (!id) {
       return h("li", { class: "tirage-q vide blind-chanson" }, h("div", { class: "tirage-q-ligne" },
-        h("button", { type: "button", class: "btn tirage-de petit", text: "🎲", "aria-label": "Tirer une autre chanson", title: "Tirer une autre chanson", onclick: () => tirerUne(i) })));
+        h("button", { type: "button", class: "btn tirage-de petit", text: "🎲", "aria-label": "Tirer une autre chanson", title: "Tirer une autre chanson", onclick: () => tirerUne(i) }),
+        h("button", { type: "button", class: "btn small secondary blind-choisir", text: "🎵 Choisir…", "aria-label": "Choisir la chanson dans la bibliothèque des sons", title: "Choisir la chanson dans la bibliothèque des sons", onclick: () => choisirUne(i) })));
     }
     if (!chansonJouable(song)) {
       return h("li", { class: "tirage-q blind-chanson manquante" }, h("div", { class: "tirage-q-ligne" },
@@ -1465,9 +1634,12 @@ function mancheBlind(r) {
   const ancienne = !tire && (r.playlistId || roundTracks(r).length)
     ? h("p", { class: "small hint blind-ancienne", text: `Blind test préparé à l'ancienne : ${mancheSummary(r, { playlists })}, joué tel quel. Le 🎲 le remplace par des chansons de la bibliothèque des sons.` })
     : null;
+  const aLaMain = h("div", { class: "tirage-ligne blind-manuel" },
+    h("button", { type: "button", class: "btn secondary blind-selectionner", text: "🎵 Sélectionner mes chansons", title: "Choisir les chansons à la main dans la bibliothèque des sons", onclick: selectionner }),
+    h("span", { class: "small hint blind-selection", text: tire ? `${presentes.length} chanson${presentes.length > 1 ? "s" : ""} sélectionnée${presentes.length > 1 ? "s" : ""}` : "Aucune chanson sélectionnée" }));
   return [
     compteur,
-    h("div", { class: "quiz-outils" }, h("div", { class: "tirage-ligne" }, nombre, de)),
+    h("div", { class: "quiz-outils" }, h("div", { class: "tirage-ligne" }, nombre, de), aLaMain),
     ancienne,
     tire ? h("div", { class: "serie blind-serie" },
       h("div", { class: "serie-tete" },
@@ -6983,7 +7155,9 @@ function dessinerVisionneuse() {
   $("vis-image").replaceChildren(x.groupe === "emojis" ? h("span", { class: "emoji", text: x.emoji })
     : x.groupe === "photos" ? h("img", { src: x.src, alt: x.nom ?? "" }) : photoBibliotheque(x.id, { alt: x.nom ?? "" }));
   $("vis-nom").textContent = x.nom || "Sans nom";
-  $("vis-details").textContent = [GROUPES_IMAGES[x.groupe], x.cat, ...(x.tags ?? [])].filter(Boolean).join(" · ");
+  // Bonne pour le mime (cedric, 24/10) : sa tranche d'âge, dans la fiche seulement (photos libres et émojis).
+  $("vis-details").textContent = [GROUPES_IMAGES[x.groupe], x.cat, ...(x.tags ?? []),
+    x.groupe === "photos" || x.groupe === "emojis" ? etiquetteMime(x.nom) : ""].filter(Boolean).join(" · ");
   $("vis-ou").textContent = x.ou?.length ? `Utilisée dans : ${x.ou.join(", ")}` : "";
   const plusieurs = vis.liste.length > 1;
   $("vis-prec").hidden = !plusieurs;
@@ -7095,40 +7269,77 @@ async function blobDe(x) {
 /**
  * Fenêtre « 🖼️ Bibliothèque » : la recherche de la page Bibliothèque, pour choisir une image en fabriquant un quiz.
  * [groupes] : ceux proposés ; [recherche] : le mot cherché d'abord. Rend l'image choisie, ou null (Annuler, Échap).
+ * [plusieurs] (cedric, 24/10, le « ＋ » des Mimes) : un clic coche ou décoche, les catégories du groupe filtrent aussi,
+ * « ＋ Ajouter la sélection » rend les images cochées dans l'ordre (une liste, vide si Annuler). [deja] : pour une
+ * image, où elle sert déjà (signalé en rouge, permis) ou rien.
  */
-function choisirDansBibliotheque({ titre, groupes = Object.keys(GROUPES_IMAGES), recherche = "" }) {
+function choisirDansBibliotheque({ titre, groupes = Object.keys(GROUPES_IMAGES), recherche = "", plusieurs = false, deja = null }) {
   return new Promise((resolve) => {
     const g = groupesImages();
     let groupe = null;
+    let cat = null;
+    const cochees = new Map();
     const champ = h("input", { type: "search", class: "choix-recherche", value: recherche, placeholder: "Rechercher : nom, catégorie, mot-clé…", "aria-label": "Rechercher une image", autocomplete: "off" });
     const puces = h("div", { class: "chips media-cats" });
+    const pucesCats = h("div", { class: "chips media-cats choix-cats" });
     const grille = h("div", { class: "media-grid choix-grille" });
-    const fermer = (x) => { voile.remove(); resolve(x); };
+    const ajouter = h("button", { type: "button", class: "btn choix-ajouter", onclick: () => fermer([...cochees.values()]) });
+    const fermer = (x) => { voile.remove(); resolve(plusieurs ? x ?? [] : x); };
+    const majAjouter = () => {
+      ajouter.disabled = !cochees.size;
+      ajouter.textContent = cochees.size ? `＋ Ajouter la sélection (${cochees.size})` : "＋ Ajouter la sélection";
+    };
     const dessiner = () => {
       const q = champ.value.trim();
       const listes = Object.fromEntries(groupes.map((k) => [k, g[k].filter((x) => correspond(x, q))]));
       const n = (k) => (k ? listes[k].length : groupes.reduce((t, x) => t + listes[x].length, 0));
       puces.replaceChildren(...[null, ...groupes].map((k) => h("button", {
         type: "button", class: `chip${groupe === k ? " active" : ""}`, "data-groupe": k ?? "tout", text: `${k ? GROUPES_IMAGES[k] : "Tout"} (${n(k)})`,
-        onclick: () => { groupe = k; dessiner(); },
+        onclick: () => { groupe = k; cat = null; dessiner(); },
       })));
       // Les meilleurs résultats d'abord ; à égalité, ses images avant les autres (on y cherche un personnage, un film).
-      const items = parPertinence(groupe ? listes[groupe] : [...groupes].sort((a, b) => (b === "miennes") - (a === "miennes")).flatMap((k) => listes[k]), q, nomMedia, autresMedia).slice(0, 120);
-      grille.replaceChildren(...items.map((x) => h("button", { type: "button", class: "media-tile", "data-media": x.id, title: [x.cat, ...(x.tags ?? [])].filter(Boolean).join(" · "), onclick: () => fermer(x) },
-        ...imageDeMedia(x), h("span", { text: x.nom || "Sans nom" }))));
+      let items = parPertinence(groupe ? listes[groupe] : [...groupes].sort((a, b) => (b === "miennes") - (a === "miennes")).flatMap((k) => listes[k]), q, nomMedia, autresMedia);
+      // Plusieurs à choisir : les catégories du groupe ouvert filtrent aussi (Animaux, À manger…).
+      const cats = plusieurs && groupe ? categoriesDe(items) : [];
+      if (cat && !cats.includes(cat)) cat = null;
+      pucesCats.replaceChildren(...(cats.length > 1 ? [null, ...cats].map((c) => h("button", {
+        type: "button", class: `chip${cat === c ? " active" : ""}`, "data-cat": c ?? "toutes", text: `${c ?? "Toutes"} (${c ? items.filter((x) => x.cat === c).length : items.length})`,
+        onclick: () => { cat = c; dessiner(); },
+      })) : []));
+      if (cat) items = items.filter((x) => x.cat === cat);
+      items = items.slice(0, plusieurs ? 400 : 120);
+      grille.replaceChildren(...items.map((x) => {
+        const ou = deja?.(x);
+        const tuile = h("button", {
+          type: "button", class: `media-tile${cochees.has(x.id) ? " cochee" : ""}${ou ? " deja" : ""}`, "data-media": x.id,
+          title: [ou ? `Déjà utilisée dans ${ou}` : null, [x.cat, ...(x.tags ?? [])].filter(Boolean).join(" · ")].filter(Boolean).join("\n"),
+          ...(plusieurs ? { "aria-pressed": cochees.has(x.id) ? "true" : "false" } : {}),
+          onclick: () => {
+            if (!plusieurs) return fermer(x);
+            if (cochees.has(x.id)) cochees.delete(x.id); else cochees.set(x.id, x);
+            tuile.classList.toggle("cochee", cochees.has(x.id));
+            tuile.setAttribute("aria-pressed", cochees.has(x.id) ? "true" : "false");
+            majAjouter();
+          },
+        }, ...imageDeMedia(x), h("span", { text: x.nom || "Sans nom" }));
+        return tuile;
+      }));
       if (!items.length) grille.append(h("p", { class: "hint", text: q ? "Aucune image pour cette recherche : essayez un autre mot." : "Aucune image." }));
     };
     champ.oninput = dessiner;
     // Rien pour le mot proposé : on montre toutes les images plutôt qu'une fenêtre vide.
     if (recherche && !groupes.some((k) => g[k].some((x) => correspond(x, recherche)))) champ.value = "";
+    majAjouter();
     const voile = h("div", {
       class: "cadre-voile choix-voile", onclick: (e) => { if (e.target === voile) fermer(null); },
       onkeydown: (e) => { if (e.key === "Escape") fermer(null); },
     }, h("div", { class: "cadre-boite choix-boite", role: "dialog", "aria-label": titre },
       h("p", { class: "label", text: `🖼️ ${titre}` }),
-      h("p", { class: "hint small", text: "Cherchez par nom, catégorie ou mot-clé ; un clic choisit l'image. Vos images se rangent dans Bibliothèque › Images." }),
-      champ, puces, grille,
-      h("div", { class: "row" }, h("button", { type: "button", class: "btn secondary", text: "Annuler", onclick: () => fermer(null) }))));
+      h("p", { class: "hint small", text: plusieurs
+        ? "Cherchez par nom, catégorie ou mot-clé ; un clic coche ou décoche l'image ; puis « ＋ Ajouter la sélection »."
+        : "Cherchez par nom, catégorie ou mot-clé ; un clic choisit l'image. Vos images se rangent dans Bibliothèque › Images." }),
+      champ, puces, pucesCats, grille,
+      h("div", { class: "row" }, h("button", { type: "button", class: "btn secondary", text: "Annuler", onclick: () => fermer(null) }), plusieurs ? ajouter : null)));
     document.body.append(voile);
     dessiner();
     champ.focus();
