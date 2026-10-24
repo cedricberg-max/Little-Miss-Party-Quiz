@@ -17,7 +17,7 @@ import { songList, songsRetirees, songMatches, trackFromSong, songUpdates, marqu
 import { lireLrc, refrainDesParoles, refrainsDesParoles, debutDesParoles, parolesDuRefrain, associerParoles, nomSimple, ligneAuMoment } from "../web/public/paroles.js";
 import { volumes, explosionDuVolume, refrainAuVolume, PAS_VOLUME } from "../web/public/volume.js";
 import { lireId3 } from "../web/public/id3.js";
-import { FULL_SHOW, FULL_TUNES, tunePlaylist } from "../web/public/test-show.js";
+import { demosAEffacer, nbDemos, JEUX_DU_TEST, TEST_PRESTATION } from "../web/public/test-show.js";
 import { cadrageInitial, borner, zoomer, zoneGardee, BULLES } from "../web/public/cadrage.js";
 import { BANQUE_MOTS, QUESTIONS_PETITS, FAMILLES_PETITS, MODELES_PETITS, motBanque, cleMot, reponsesModele, fabriquerPetite, cataloguePetits, tirerPetits } from "../web/public/banque-petits.js";
 
@@ -418,25 +418,51 @@ describe("programme modifié pendant la partie", () => {
   });
 });
 
-describe("prestation de test", () => {
-  test("10 questions jouables pour 9 ans, chronos imposés, finale ×2, prête pour la régie", async () => {
-    const { TEST_ID, TEST_QUIZ, TEST_SHOW } = await import("../web/public/test-show.js");
-    const quizzes = { [TEST_ID]: TEST_QUIZ };
-    const { snapshot, problems } = buildSnapshot(TEST_ID, TEST_SHOW, quizzes);
-    assert.deepEqual(problems, []);
-    assert.equal(snapshot.title, "ANNIVERSAIRE TEST – Léa, 9 ans");
-    assert.equal(snapshot.profile, "MOYENS");
-    const q = snapshot.quiz.questions;
-    assert.equal(q.length, 11);
-    assert.deepEqual(q.map((x) => x.duration), [20, 20, 15, 20, 20, 20, 15, 20, 20, 20, 25]);
-    assert.deepEqual(q.map((x) => x.double), [false, false, false, false, false, false, false, false, false, false, true]);
-    // La question des bougies (cedric, 21/10), juste avant la Super Finale.
-    assert.deepEqual([q[9].kind, q[9].text, q[9].correct], ["number", "Le Juste Chiffre : combien de bougies sur le gâteau de Léa cette année ?", 9]);
-    assert.equal(q.filter((x) => x.kind === "true_false").length, 2);
-    const report = checkQuestions(TEST_QUIZ.questions, { profile: "MOYENS" });
-    assert.deepEqual(report.flatMap((r) => [...r.errors, ...r.warnings]), []);
-    // Avant sa date (elle s'archive toute seule le lendemain de la fête) : prête.
-    assert.equal(readiness(TEST_SHOW, quizzes, {}, {}, {}, "2026-10-21").level, "prete");
+describe("prestation de test (cedric, 24/10)", async () => {
+  const S = await import("../web/public/show.js");
+  test("les 16 jeux, une seule fois chacun, jamais deux fois le même à la suite, les Coffres mystères pour finir", () => {
+    assert.equal(JEUX_DU_TEST.length, 16);
+    assert.equal(new Set(JEUX_DU_TEST).size, 16);
+    assert.deepEqual([...JEUX_DU_TEST].sort(), Object.keys(S.ROUND_TYPES).filter((k) => !["finale", "portes"].includes(k)).sort());
+    assert.equal(JEUX_DU_TEST.at(-1), "coffres");
+  });
+
+  test("le bouton n'efface que les anciennes démos : jamais une prestation, un quiz, une image ou un son de Sarah, ni une démo qui lui sert encore", () => {
+    const h = (c) => c.repeat(16);
+    const lib = {
+      shows: {
+        "test-lea-tous-les-jeux": { origin: "test", rounds: [{ type: "zoom", quizId: "test-lea-tous-les-jeux-zoom" }, { type: "blind", playlistId: "test-lea-tous-les-jeux-comptines" }] },
+        "test-lea-9-ans": { origin: "test", rounds: [{ type: "quiz", quizId: "test-lea-9-ans" }] },
+        [TEST_PRESTATION]: { origin: "test", rounds: [{ type: "mimes", equipes: [[{ word: "Chat", banque: "chat" }]] }] },
+        "-Nautre": { origin: "test", rounds: [] },
+        ines: { origin: "admin", rounds: [{ type: "quiz", quizId: "animaux" }] },
+        // Une copie de démo que Sarah garde : son quiz reste.
+        tom: { copieDe: "test-lea-9-ans", rounds: [{ type: "quiz", quizId: "test-lea-9-ans" }] },
+      },
+      manches: { a: { showId: "test-lea-9-ans" }, b: { showId: TEST_PRESTATION }, c: { showId: "ines" } },
+      quizzes: {
+        animaux: { title: "Animaux", questions: [{ imageId: h("d") }] },
+        "test-lea-9-ans": { title: "TEST", questions: [] },
+        "test-lea-tous-les-jeux-zoom": { title: "TEST", questions: [{ imageId: h("a") }, { imageId: h("d") }, { imageId: h("e") }] },
+      },
+      mimes: { "test-lea-tous-les-jeux-mimes": { title: "TEST", cards: [{ imageId: h("f") }] } },
+      playlists: { "test-lea-tous-les-jeux-comptines": { title: "TEST", tracks: [{ audioId: h("b") }, { audioId: h("9") }] } },
+      songs: { s: { title: "Chanson", audioId: h("9") } },
+      // Rangée par Sarah dans « Mes images ».
+      medias: { [h("e")]: { name: "Fusée" } },
+    };
+    const plan = demosAEffacer(lib);
+    assert.deepEqual(plan.shows, ["test-lea-tous-les-jeux", "test-lea-9-ans", TEST_PRESTATION, "-Nautre"]);
+    assert.deepEqual(plan.manches, ["a", "b"]);
+    assert.deepEqual(plan.quizzes, ["test-lea-tous-les-jeux-zoom"], "le quiz de la copie de Tom reste");
+    assert.deepEqual(plan.mimes, ["test-lea-tous-les-jeux-mimes"]);
+    assert.deepEqual(plan.playlists, ["test-lea-tous-les-jeux-comptines"]);
+    // Les photos dessinées et la comptine partent ; celle du quiz de Sarah, la rangée et l'extrait d'une chanson restent.
+    assert.deepEqual(plan.medias.sort(), [h("a"), h("f"), h("b")].sort());
+    assert.equal(nbDemos(plan), 4 + 2 + 1 + 1 + 1 + 3);
+    // Rien à effacer.
+    assert.equal(nbDemos(demosAEffacer({ shows: { ines: lib.shows.ines }, quizzes: { animaux: lib.quizzes.animaux } })), 0);
+    assert.equal(nbDemos(demosAEffacer()), 0);
   });
 });
 
@@ -719,14 +745,6 @@ describe("blind test et quiz musical", () => {
     const silence = new Float32Array(1000);
     assert.equal(normalizeLevel(silence), 1);
     assert.ok(silence.every((x) => x === 0));
-  });
-  test("la prestation de test « tous les jeux » a un blind test et un quiz musical de comptines du domaine public", () => {
-    const pl = tunePlaylist(FULL_TUNES.map((_, i) => ID(i)));
-    const { snapshot, problems } = buildSnapshot("t", FULL_SHOW, {}, {}, Math.random, { [FULL_SHOW.rounds.find((r) => r.type === "blind").playlistId]: pl });
-    assert.ok(pl.tracks.every((t) => t.rights === "Domaine public"));
-    const kinds = snapshot.quiz.questions.map((q) => q.kind);
-    assert.equal(kinds.filter((k) => k === "blind").length, FULL_TUNES.length);
-    assert.ok(problems.every((p) => !/playlist|morceau/.test(p)));
   });
 });
 
@@ -1281,7 +1299,6 @@ describe("banque des tout-petits", () => {
 describe("Quiz illustré : un jeu à part, les quiz à réponses en images", async () => {
   const M = await import("../web/public/manches.js");
   const S = await import("../web/public/show.js");
-  const T = await import("../web/public/test-show.js");
   const img = (n) => `${n}`.repeat(16);
   const PETITS = { title: "Animaux des petits", kind: "photo", questions: [
     { text: "Où est le chat ?", choices: ["Chat", "Chien", "Vache", "Lion"], correct: 0, status: "validee", choiceImages: [img(1), img(2), img(3), img(4)] },
@@ -1386,13 +1403,6 @@ describe("Quiz illustré : un jeu à part, les quiz à réponses en images", asy
     }
   });
 
-  test("prestation de test « tous les jeux » : le quiz des petits est un Quiz illustré, plus de quiz classique nommé « illustré »", () => {
-    assert.ok(T.FULL_SHOW.rounds.some((r) => r.type === "illustre" && r.quizId === T.FULL_KEYS.images));
-    assert.equal(T.imageQuiz([[img(1), img(2), img(3), img(4)], [img(1), img(2), img(3), img(4)]]).title, "TEST – Quiz illustré des petits");
-    assert.equal(T.FULL_QUIZZES[T.FULL_KEYS.quiz].title, "TEST – Quiz classique de Léa");
-    assert.equal(S.quizKind(T.FULL_QUIZZES[T.FULL_KEYS.quiz]), "classique");
-    assert.deepEqual(T.OLD_TEST_TITLES, { "TEST – Quiz en images des petits": "TEST – Quiz illustré des petits", "TEST – Quiz illustré de Léa": "TEST – Quiz classique de Léa" });
-  });
 });
 
 describe("collections, manches et prestation", async () => {

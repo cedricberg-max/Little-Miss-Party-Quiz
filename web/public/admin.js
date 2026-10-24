@@ -4,10 +4,7 @@ import {
   getDatabase, ref, get, set, update, push, onValue, serverTimestamp, connectDatabaseEmulator, query, orderByKey, limitToLast,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { passwordHash, newSalt, cleanPassword, passwordCandidates, MIN_PASSWORD_LENGTH } from "./secret.js";
-import {
-  TEST_ID, TEST_QUIZ, TEST_SHOW, FULL_ID, FULL_KEYS, FULL_QUIZZES, FULL_MIMES, FULL_SHOW, FULL_PHOTOS, photoQuiz, drawPhoto,
-  FULL_TUNES, FULL_TUNE_SEC, FULL_NEW_ROUNDS, tunePlaylist, FULL_CHOICE_PHOTOS, imageQuiz, OLD_TEST_TITLES,
-} from "./test-show.js";
+import { TEST_PRESTATION, TEST_TITRE, TEST_FICHE, TEST_NOTES, JEUX_DU_TEST, demosAEffacer, nbDemos } from "./test-show.js";
 import { writeProof, isAdmin } from "./proof.js";
 import { parseQuiz, checkQuestions, geminiPrompt, chatgptUrl, imageKey, wordFromImage, photoQuestions, LETTERS } from "./importer.js";
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
@@ -37,7 +34,7 @@ import {
 } from "./manches.js";
 import { concepts, neufsSiPossible, questionConcepts } from "./jamais-deux-fois.js";
 import { PICTO_OWN_SERIES } from "./picto-cards.js";
-import { EXTRACT_SECONDS, guessTrack, decodeFile, cutExtract, makeExtract, synthTune, encodeMp3, soundId } from "./audio.js";
+import { EXTRACT_SECONDS, guessTrack, decodeFile, cutExtract, makeExtract, encodeMp3, soundId } from "./audio.js";
 import { REFRAIN_SEC, REFRAIN_KBPS, buzzOf, defaultRefrain, songList, songsRetirees, songMatches, trackFromSong, songUpdates, marquerEffacees } from "./sons.js";
 import { lireLrc, refrainsDesParoles, debutDesParoles, parolesDuRefrain, associerParoles, nomSimple, ligneAuMoment, MAX_LRC } from "./paroles.js";
 import { volumes, explosionDuVolume, refrainAuVolume } from "./volume.js";
@@ -4101,7 +4098,7 @@ async function enregistrerPrestation() {
     // Chaque manche composée ici est aussi gardée dans la page de son jeu ; la prestation garde le lien vers elle.
     if (await garderManches(id, s)) s.rounds = editing.rounds.filter(roundFilled).map((r) => cleanRound(r, playlists));
     const enregistree = {
-      ...s, origin: prev.origin ?? "admin", createdAt: prev.createdAt ?? Date.now(),
+      ...s, origin: prev.origin ?? editing.origin ?? "admin", createdAt: prev.createdAt ?? Date.now(),
       // L'étoile d'une archivée et le « ne plus archiver toute seule » d'une désarchivée ne se perdent pas.
       ...(s.status === "archivee" && prev.pinned ? { pinned: true } : {}),
       // Seulement tant que sa date est passée : reprogrammée, elle s'archive de nouveau le lendemain de la fête.
@@ -5570,156 +5567,94 @@ async function afficherJournal() {
 
 // ---------- Prestation de test ----------
 
-/** Ajoute la prestation de test et son quiz, seulement s'ils n'existent pas encore : rien n'est jamais remplacé. */
-$("test-create").onclick = async () => {
-  const btn = $("test-create");
-  btn.disabled = true;
-  try {
-    const [q, s] = await Promise.all([get(ref(db, `library/quizzes/${TEST_ID}`)), get(ref(db, `library/shows/${TEST_ID}`))]);
-    if (q.exists() || s.exists()) {
-      status("test-status", "Elle existe déjà : retrouvez-la dans les listes de l'Accueil (rien n'a été modifié).", true);
-      return;
-    }
-    const now = Date.now();
-    await set(ref(db, `library/quizzes/${TEST_ID}`), { ...TEST_QUIZ, createdAt: now, updatedAt: serverTimestamp() });
-    await set(ref(db, `library/shows/${TEST_ID}`), { ...TEST_SHOW, createdAt: now, updatedAt: serverTimestamp() });
-    status("test-status", "Ajoutée : « ANNIVERSAIRE TEST – Léa, 9 ans » est dans « À venir » et sur la régie.", true);
-  } catch (err) {
-    console.error(err);
-    status("test-status", "Échec de l'ajout. Vérifiez la connexion puis réessayez.");
-  } finally {
-    btn.disabled = false;
-  }
-};
+/** Une ancienne démo effacée par le bouton, dite en clair dans la fenêtre de confirmation. */
+function lignesDemos(plan) {
+  const n = (k, un, des) => (plan[k].length ? plural(plan[k].length, un, des) : null);
+  return [
+    plan.shows.length ? `${n("shows", "prestation de test", "prestations de test")} : ${plan.shows.map((id) => `« ${showTitle(shows[id])} »`).join(", ")}` : null,
+    [n("quizzes", "quiz de démo", "quiz de démo"), n("mimes", "paquet de mimes de démo", "paquets de mimes de démo"), n("playlists", "playlist de démo", "playlists de démo")]
+      .filter(Boolean).join(", ") || null,
+    n("manches", "manche gardée pour elles", "manches gardées pour elles"),
+    plan.medias.length ? `leurs photos dessinées et comptines (${plural(plan.medias.length, "fichier")})` : null,
+  ].filter(Boolean).map((x) => `• ${x}`);
+}
 
-/** Playlist du blind test démo, à clé fixe : un nouveau tirage la remplace. */
-const DEMO_PLAYLIST = `${FULL_ID}-blind-demo`;
-/**
- * Blind test démo (cedric, 21/10) : 10 chansons de la bibliothèque des sons tirées au hasard, celles qui ont leur
- * refrain d'abord (« on chante tous ensemble » à chaque révélation), en premier jeu de la prestation de test « tous les
- * jeux ». Un nouveau clic tire 10 autres chansons ; rien d'autre de la prestation ne change.
- */
-$("test-blind-demo").onclick = async () => {
-  const btn = $("test-blind-demo");
-  const toutes = songList(songs, {}, isStatuesList);
-  if (!toutes.length) return status("test-blind-status", "La bibliothèque des sons est vide : ajoutez d'abord vos chansons (Bibliothèque, onglet Sons).");
-  const tirage = [...shuffle(toutes.filter((x) => x.refrainId)), ...shuffle(toutes.filter((x) => !x.refrainId))].slice(0, PLAYLIST_HASARD);
-  btn.disabled = true;
-  try {
-    await set(ref(db, `library/playlists/${DEMO_PLAYLIST}`), {
-      title: "TEST – Blind test démo", duration: BLIND_SEC, tracks: tirage.map((x) => trackFromSong(x)),
-      createdAt: playlists[DEMO_PLAYLIST]?.createdAt ?? Date.now(), updatedAt: serverTimestamp(),
-    });
-    const fete = (await get(ref(db, `library/shows/${FULL_ID}`))).val();
-    const chansons = `${plural(tirage.length, "chanson")} tirée${tirage.length > 1 ? "s" : ""} au hasard`;
-    if (!fete) {
-      return status("test-blind-status", `Playlist « TEST – Blind test démo » prête : ${chansons}. Ajoutez la prestation de test « tous les jeux » (bouton au-dessus), puis recliquez ici.`, true);
-    }
-    const rounds = Array.isArray(fete.rounds) ? fete.rounds : Object.values(fete.rounds ?? {});
-    if (!rounds.some((r) => r?.type === "blind" && r.playlistId === DEMO_PLAYLIST)) {
-      await set(ref(db, `library/shows/${FULL_ID}`), { ...fete, rounds: [{ type: "blind", playlistId: DEMO_PLAYLIST }, ...rounds], updatedAt: serverTimestamp() });
-    }
-    status("test-blind-status", `Blind test démo prêt : ${chansons}, en premier jeu de « ${FULL_SHOW.title} ». Rechargez la prestation dans la régie.`, true);
-  } catch (err) {
-    console.error(err);
-    status("test-blind-status", "Échec : vérifiez la connexion puis réessayez.");
-  } finally {
-    btn.disabled = false;
-  }
-};
+const tic = () => new Promise((fin) => setTimeout(fin, 0));
 
 /**
- * Prestation de test « tous les jeux » : photos dessinées ici, puis quiz, paquet de mimes et enfin la
- * prestation. Chaque contenu déjà présent est gardé tel quel : rien n'est jamais remplacé.
+ * Touche une fois le 🎲 de chaque jeu de la prestation ouverte, comme Sarah (celui de chaque équipe aux Mimes) : chaque
+ * jeu se remplit avec son propre tirage (âge, équipes, « jamais deux fois » avec les jeux d'avant).
  */
-$("test-full-create").onclick = async () => {
-  const btn = $("test-full-create");
+async function toucherLesDes() {
+  const bloc = (i) => $("show-rounds").querySelectorAll(".jeu-bloc")[i];
+  const n = $("show-rounds").querySelectorAll(".jeu-bloc").length;
+  for (let i = 0; i < n; i++) {
+    const equipes = bloc(i)?.dataset.jeu === "mimes" ? bloc(i).querySelectorAll(".mime-equipe").length : 0;
+    if (equipes) {
+      for (let k = 0; k < equipes; k++) {
+        bloc(i)?.querySelectorAll(".mime-equipe")[k]?.querySelector(".tirage-de:not(.petit)")?.click();
+        await tic();
+      }
+    } else {
+      bloc(i)?.querySelector(".tirage-de:not(.petit)")?.click();
+      await tic();
+    }
+  }
+}
+
+/**
+ * « 🧪 Créer la prestation de test » (cedric, 24/10) : un seul bouton. Les anciennes démos s'effacent (demosAEffacer :
+ * jamais rien d'autre), puis la prestation s'ouvre comme une nouvelle : une fête de 9 ans à 4 équipes datée du jour,
+ * les 16 jeux, chaque 🎲 touché une fois ; elle s'enregistre « À venir » (gardée « À compléter », avec ce qui manque,
+ * si un jeu n'a rien pu tirer : bibliothèque des sons vide par exemple).
+ */
+$("test-prestation").onclick = async () => {
+  const btn = $("test-prestation");
+  const plan = demosAEffacer({ shows, manches, quizzes, mimes, playlists, songs, contents, medias });
+  const lignes = lignesDemos(plan);
+  const message = [
+    "Créer la prestation de test ?",
+    `« ${TEST_TITRE} », datée d'aujourd'hui, ${plural(TEST_FICHE.teams, "équipe")} : les ${JEUX_DU_TEST.length} jeux, remplis au 🎲 comme pour une vraie fête.`,
+    ...(lignes.length ? [`Effacé pour de bon :\n${lignes.join("\n")}`] : []),
+    "Vos prestations, vos quiz et vos chansons ne sont pas touchés.",
+  ].join("\n\n");
+  if (!(await confirmer(message, { ok: "Créer", danger: lignes.length > 0 }))) return;
   btn.disabled = true;
-  const addIfMissing = async (path, value) => {
-    if ((await get(ref(db, path))).exists()) return;
-    await set(ref(db, path), value);
-  };
-  /** Comptines du blind test : fabriquées ici, rangées une seule fois dans la bibliothèque. */
-  const addTunes = async (now) => {
-    const ids = [];
-    for (const tune of FULL_TUNES) {
-      const data = await encodeMp3(await synthTune(tune.melody, FULL_TUNE_SEC), 96);
-      const id = await soundId(data);
-      await addIfMissing(`library/sounds/${id}`, data);
-      ids.push(id);
-    }
-    await addIfMissing(`library/playlists/${FULL_KEYS.playlist}`, { ...tunePlaylist(ids), createdAt: now, updatedAt: serverTimestamp() });
-  };
-  /** Quiz en images des petits : une photo dessinée par réponse, rangée une seule fois dans la bibliothèque. */
-  const addImageQuiz = async (now) => {
-    const ids = [];
-    for (const q of FULL_CHOICE_PHOTOS) {
-      const row = [];
-      for (const c of q.choices) {
-        const data = drawPhoto(c);
-        const id = await imageId(data);
-        await addIfMissing(`library/images/${id}`, data);
-        row.push(id);
-      }
-      ids.push(row);
-    }
-    await addIfMissing(`library/quizzes/${FULL_KEYS.images}`, { ...imageQuiz(ids), createdAt: now, updatedAt: serverTimestamp() });
-  };
   try {
-    const existing = (await get(ref(db, `library/shows/${FULL_ID}`))).val();
-    if (existing) {
-      // Prestation de test d'une version précédente : on lui ajoute seulement les jeux qui lui manquent
-      // (avant la Super Finale), sans rien retirer ni modifier d'autre.
-      // L'ancienne manche « Super Finale » disparaît : les dernières questions du quiz comptent double à la place.
-      const { rounds: anciennes, folded, converted } = foldLegacyFinale(existing.rounds);
-      // Le quiz en images des petits devient un Quiz illustré, avec son écran d'ouverture.
-      const illustre = anciennes.some((r) => (r.type ?? "quiz") === "quiz" && r.quizId === FULL_KEYS.images);
-      const rounds = anciennes.map((r) => ((r.type ?? "quiz") === "quiz" && r.quizId === FULL_KEYS.images ? { ...r, type: "illustre" } : r));
-      // Anciens noms des quiz de test (« Quiz illustré » ne désigne plus que le jeu des réponses en images).
-      const renommer = [FULL_KEYS.quiz, FULL_KEYS.images].filter((k) => OLD_TEST_TITLES[quizzes[k]?.title]);
-      const missing = FULL_NEW_ROUNDS.filter((m) => !rounds.some((r) => r.type === m.type && (!m.quizId || r.quizId === m.quizId)));
-      if (existing.origin !== "test" || (!missing.length && !folded && !converted && !illustre && !renommer.length)) {
-        status("test-full-status", "Elle existe déjà : retrouvez-la dans les listes de l'Accueil (rien n'a été modifié).", true);
-        return;
+    if (nbDemos(plan)) {
+      status("test-status", "Effacement des anciennes démos…", true);
+      const effacer = {};
+      for (const [k, chemin] of [["shows", "shows"], ["manches", "manches"], ["quizzes", "quizzes"], ["mimes", "mimes"], ["playlists", "playlists"]]) {
+        for (const id of plan[k]) effacer[`library/${chemin}/${id}`] = null;
       }
-      status("test-full-status", "Ajout des nouveaux jeux à la prestation de test…", true);
-      for (const k of renommer) await update(ref(db, `library/quizzes/${k}`), { title: OLD_TEST_TITLES[quizzes[k].title], updatedAt: serverTimestamp() });
-      if (missing.some((m) => m.playlistId)) await addTunes(Date.now());
-      if (missing.some((m) => m.quizId === FULL_KEYS.images)) await addImageQuiz(Date.now());
-      // Les coffres mystères restent le jeu final : tout à la fin.
-      const last = missing.filter((m) => m.type === "coffres");
-      const middle = missing.filter((m) => m.type !== "coffres");
-      // Coffres mystères déjà là (anciennes Portes mystères comprises) : les nouveaux jeux passent juste avant eux.
-      const at = rounds.findIndex((r) => r.type === "coffres");
-      const next = [...(at < 0 ? [...rounds, ...middle] : [...rounds.slice(0, at), ...middle, ...rounds.slice(at)]), ...last];
-      await set(ref(db, `library/shows/${FULL_ID}`), { ...existing, rounds: next, notes: FULL_SHOW.notes, updatedAt: serverTimestamp() });
-      const added = missing.map((m) => ROUND_TYPES[m.type]).join(", ");
-      status("test-full-status", `Mise à jour de « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux » :${added ? ` ${added} ajouté(s).` : ""}${folded ? " L'ancienne manche « Super Finale » est retirée : les 3 dernières questions du quiz comptent double." : ""}${converted ? " Les Portes mystères deviennent les Coffres mystères." : ""}${illustre ? " Le quiz en images des petits devient un Quiz illustré." : ""}${renommer.length ? " Quiz de test renommés : « TEST – Quiz classique de Léa » et « TEST – Quiz illustré des petits »." : ""} Rechargez la prestation dans la régie.`, true);
-      return;
+      // Une photo ou un extrait : effacé là où il est (l'autre effacement ne trouve rien).
+      for (const id of plan.medias) { effacer[`library/images/${id}`] = null; effacer[`library/sounds/${id}`] = null; }
+      await update(ref(db), effacer);
     }
-    status("test-full-status", "Préparation des photos, des musiques et des jeux…", true);
-    const now = Date.now();
-    await addTunes(now);
-    await addImageQuiz(now);
-    for (const kind of ["zoom", "flou"]) {
-      const ids = [];
-      for (const photo of FULL_PHOTOS[kind]) {
-        const data = drawPhoto(photo);
-        const id = await imageId(data);
-        await addIfMissing(`library/images/${id}`, data);
-        ids.push(id);
-      }
-      await addIfMissing(`library/quizzes/${FULL_KEYS[kind]}`, { ...photoQuiz(kind, ids), createdAt: now, updatedAt: serverTimestamp() });
-    }
-    for (const [id, quiz] of Object.entries(FULL_QUIZZES)) {
-      await addIfMissing(`library/quizzes/${id}`, { ...quiz, createdAt: now, updatedAt: serverTimestamp() });
-    }
-    await addIfMissing(`library/mimes/${FULL_KEYS.mimes}`, { ...FULL_MIMES, createdAt: now, updatedAt: serverTimestamp() });
-    await set(ref(db, `library/shows/${FULL_ID}`), { ...FULL_SHOW, createdAt: now, updatedAt: serverTimestamp() });
-    status("test-full-status", "Ajoutée : « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux » est dans « À venir » et sur la régie.", true);
+    editShow(null);
+    editing.id = TEST_PRESTATION;
+    editing.origin = "test";
+    $("show-child").value = TEST_FICHE.childName;
+    $("show-title").value = TEST_TITRE;
+    $("show-title").dataset.auto = "";
+    $("show-age").value = String(TEST_FICHE.age);
+    $("show-teams").value = String(TEST_FICHE.teams);
+    $("show-date").value = isoDay();
+    $("show-status").value = "publiee";
+    $("show-notes").value = TEST_NOTES;
+    renderCouleurs();
+    editing.rounds = JEUX_DU_TEST.map((type) => ({ type, [JEU_OUVERT]: true }));
+    refreshRounds();
+    await toucherLesDes();
+    // Tout replié, comme une prestation qu'on ouvre : une ligne par jeu.
+    editing.rounds.forEach((r) => { if (r) r[JEU_OUVERT] = false; });
+    refreshRounds();
+    const ok = await enregistrerPrestation();
+    status("test-status", ok ? `Créée : « ${TEST_TITRE} »${nbDemos(plan) ? ", anciennes démos effacées" : ""}.` : "Échec de l'enregistrement : vérifiez la connexion puis réessayez.", ok);
   } catch (err) {
     console.error(err);
-    status("test-full-status", "Échec de l'ajout. Vérifiez la connexion puis réessayez.");
+    status("test-status", "Échec : vérifiez la connexion puis réessayez.");
+    annonce("Échec de la prestation de test : vérifiez la connexion puis réessayez.");
   } finally {
     btn.disabled = false;
   }

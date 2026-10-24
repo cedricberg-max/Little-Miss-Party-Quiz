@@ -12,7 +12,6 @@ import { ref, get, set, update, push, onValue, serverTimestamp } from "firebase/
 import { chromium } from "playwright";
 import { loadRules, seedAdmin, allowBox, ADMIN_PASSWORD } from "./rules-loader.js";
 import { lockedUntil, isoDay, heureCourte, jourHeure } from "../web/public/show.js";
-import { FULL_SHOW, FULL_KEYS, FULL_QUIZZES } from "../web/public/test-show.js";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 
@@ -4499,9 +4498,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
-  test("Régie PC : 4 équipes par défaut, alerte rouge quand une manche n'a pas assez de mots pour les équipes (cedric, 21/10)", async () => {
-    await seedLibrary("manches/peu", { type: "pictionary", title: "Cinq animaux", origin: "admin", updatedAt: 1,
-      round: { type: "pictionary", duration: 60, picks: ["chat", "chien", "poisson", "serpent", "escargot"] } });
+  test("Régie PC : 4 équipes par défaut, alerte rouge quand une équipe prévue n'a pas de mots (cedric, 21/10)", async () => {
     const page = await admin();
     await page.click("#home-new");
     assert.equal(await page.locator("#show-teams").inputValue(), "4", "Nouvelle prestation : 4 équipes");
@@ -4509,13 +4506,14 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.fill("#show-age", "9");
     await ajouterJeu(page, "pictionary");
     const round = page.locator("#show-rounds .round").nth(0);
-    assert.equal(await round.locator(".alerte-equipes").count(), 0, "Mots au hasard : pas d'alerte");
-    await reprendre(round, "peu");
-    await round.locator(".alerte-equipes", { hasText: "⚠ Pictionary : 5 mots choisis pour 4 équipes, il en faut au moins 12 (3 par équipe)." }).waitFor();
+    assert.equal(await round.locator(".alerte-equipes").count(), 0, "Rien de tiré (la TV tirera au hasard) : pas d'alerte");
+    // Le 🎲 d'une seule équipe : les trois autres n'ont pas de mots.
+    await round.locator('.picto-equipe[data-couleur="Rose"] .tirage-de:not(.petit)').click();
+    await round.locator(".alerte-equipes", { hasText: "⚠ Pictionary : équipe orange, équipe vert, équipe jaune sans mots (touchez 🎲)." }).waitFor();
     await capture(page, "alerte-equipes");
     // Moins d'équipes : l'alerte suit, puis disparaît.
     await page.selectOption("#show-teams", "2");
-    await round.locator(".alerte-equipes", { hasText: "pour 2 équipes, il en faut au moins 6" }).waitFor();
+    await round.locator(".alerte-equipes", { hasText: "⚠ Pictionary : équipe orange sans mots (touchez 🎲)." }).waitFor();
     await page.selectOption("#show-teams", "1");
     await round.locator(".alerte-equipes").waitFor({ state: "detached" });
     // « Ça va exploser ! » à une seule équipe.
@@ -7985,13 +7983,13 @@ describe("bibliothèque de quiz et prestations", () => {
 
   test("reprendre une manche d'une ancienne prestation et dupliquer un quiz, sans toucher aux originaux", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX, finale: FINALE });
-    const LEA = { childName: "Léa", age: 7, date: "2026-03-01", status: "archivee", rounds: [{ type: "quiz", quizId: "animaux" }, { type: "finale", quizId: "finale" }, { type: "pictionary", duration: 90 }], updatedAt: 1 };
+    const LEA = { childName: "Léa", age: 7, date: "2026-03-01", status: "archivee", rounds: [{ type: "quiz", quizId: "animaux" }, { type: "finale", quizId: "finale" }, { type: "statues", duration: 90 }], updatedAt: 1 };
     await seedLibrary("shows", { lea: LEA });
     const page = await admin();
     await page.click("#home-new");
     await page.fill("#show-child", "Zoé");
     // Le jeu ajouté : « ↺ Reprendre une partie déjà faite » propose celles des autres prestations (pas le Quiz, cedric 23/10).
-    await ajouterJeu(page, "pictionary");
+    await ajouterJeu(page, "statues");
     const round = page.locator("#show-rounds .round").nth(0);
     await round.locator(".reprendre-ouvrir").click();
     const lea2 = round.locator('.reprise-item[data-reprise="lea/2"]');
@@ -8000,15 +7998,15 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await round.locator('.reprise-item[data-reprise="lea/0"], .reprise-item[data-reprise="lea/1"]').count(), 0);
     assert.equal(await round.locator(".reprise-item", { hasText: "Super Finale" }).count(), 0);
     await lea2.click();
-    assert.equal(await page.locator("#show-rounds .round").nth(0).locator('select[aria-label="Temps de dessin"]').inputValue(), "90");
+    assert.equal(await page.locator("#show-rounds .round").nth(0).locator('select[aria-label="Durée"]').inputValue(), "90");
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "Enregistrée." }).waitFor();
     // Elle est gardée dans la page de son jeu, rattachée à la nouvelle prestation ; l'ancienne prestation ne change pas.
     const shows = await library("shows");
     const [zoeId, zoe] = Object.entries(shows).find(([, s]) => s.childName === "Zoé");
     const [mid, manche] = Object.entries(await library("manches"))[0];
-    assert.deepEqual(zoe.rounds, [{ type: "pictionary", duration: 90, mancheId: mid }]);
-    assert.deepEqual([manche.round, manche.showId, manche.title], [{ type: "pictionary", duration: 90 }, zoeId, "Pictionary · Anniversaire de Zoé"]);
+    assert.deepEqual(zoe.rounds, [{ type: "statues", duration: 90, mancheId: mid }]);
+    assert.deepEqual([manche.round, manche.showId, manche.title], [{ type: "statues", duration: 90 }, zoeId, "Statues musicales · Anniversaire de Zoé"]);
     assert.deepEqual(shows.lea, LEA, "Ancienne prestation inchangée");
 
     // Dupliquer un quiz : la copie apparaît en tête de la liste, sans s'ouvrir ; elle se modifie et s'enregistre à part.
@@ -8582,168 +8580,126 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
-  test("prestation de test : ajoutée en un clic sans rien remplacer, modifiée dans l'admin, chargée telle quelle sur la TV", async () => {
-    await seedLibrary("quizzes", { animaux: ANIMAUX });
+  test("prestation de test (cedric, 24/10) : un seul bouton efface les anciennes démos et rien d'autre, puis refait les 16 jeux au 🎲 ; un nouveau clic la refait à neuf ; la TV la charge", async () => {
+    const hex = (n) => n.toString(16).padStart(16, "0");
+    // Les chansons de Sarah (avec leurs extraits) : le blind test et le quiz musical se tirent dedans.
+    const songs = Object.fromEntries(Array.from({ length: 24 }, (_, i) => [`s${i}`, {
+      title: `Chanson ${i}`, artist: `Artiste ${i}`, audioId: hex(100 + i), buzz: 30, createdAt: 1, updatedAt: 1,
+      refrainId: hex(200 + i), refrain: 60, paroles: `0|La la ${i}`,
+    }]));
+    await seedLibrary("songs", songs);
+    const son = "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA";
+    await seedLibrary("sounds", { ...Object.fromEntries(Object.values(songs).flatMap((s) => [[s.audioId, son], [s.refrainId, son]])), ["b".repeat(16)]: son });
+    const photo = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQH/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==";
+    // Les anciennes démos : leurs prestations, quiz, mimes, playlist, photo dessinée, comptine et manche gardée.
+    const zoom = { title: "TEST – Photos du Zoom mystère", source: "saisie", updatedAt: 1, questions: [
+      { text: "Quel animal ?", choices: ["Le lion", "Le chat"], correct: 0, status: "validee", imageId: "a".repeat(16) },
+      { text: "Quoi ?", choices: ["Une fusée", "Un train"], correct: 0, status: "validee", imageId: "c".repeat(16) }] };
+    await seedLibrary("quizzes", { animaux: ANIMAUX, "test-lea-9-ans": { ...ANIMAUX, title: "TEST – Quiz de Léa (9 ans)" }, "test-lea-tous-les-jeux-zoom": zoom });
+    await seedLibrary("mimes/test-lea-tous-les-jeux-mimes", { title: "TEST – Mimes de Léa", duration: 45, updatedAt: 1, cards: [{ word: "Chat", image: "🐱" }] });
+    await seedLibrary("playlists/test-lea-tous-les-jeux-comptines", { title: "TEST – Comptines", duration: 20, updatedAt: 1, tracks: [{ title: "Frère Jacques", audioId: "b".repeat(16) }] });
+    await seedLibrary("images", { ["a".repeat(16)]: photo, ["c".repeat(16)]: photo });
+    // La seconde photo, Sarah l'a rangée dans « Mes images » : elle reste.
+    await seedLibrary("medias", { ["c".repeat(16)]: { name: "Fusée", cat: "Espace", createdAt: 1 } });
+    const vieille = { childName: "Léa", age: 9, status: "publiee", title: "ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux", origin: "test", updatedAt: 1,
+      rounds: [{ type: "zoom", quizId: "test-lea-tous-les-jeux-zoom" }, { type: "mimes", deckId: "test-lea-tous-les-jeux-mimes" }, { type: "blind", playlistId: "test-lea-tous-les-jeux-comptines" }] };
     const INES = { childName: "Inès", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }], updatedAt: 1 };
-    await seedLibrary("shows", { ines: INES });
+    // Une copie que Sarah a faite d'une démo : la sienne, avec le quiz qu'elle joue.
+    const COPIE = { childName: "Tom", status: "brouillon", copieDe: "test-lea-9-ans", rounds: [{ type: "quiz", quizId: "test-lea-9-ans" }], updatedAt: 1 };
+    await seedLibrary("shows", { "test-lea-tous-les-jeux": vieille, "test-lea-9-ans": { ...vieille, title: "ANNIVERSAIRE TEST – Léa, 9 ans", rounds: [{ type: "quiz", quizId: "test-lea-9-ans" }] }, ines: INES, copie: COPIE });
+    await seedLibrary("manches", {
+      "m-demo": { type: "zoom", title: "Zoom · démo", showId: "test-lea-tous-les-jeux", round: vieille.rounds[0], updatedAt: 1 },
+      "m-ines": { type: "quiz", title: "Quiz · Inès", showId: "ines", round: INES.rounds[0], updatedAt: 1 },
+    });
+
     const page = await admin();
     await page.click("#nav button[data-screen=settings]");
-    await page.click("#test-create");
-    await page.locator("#test-status", { hasText: "Ajoutée" }).waitFor();
-    await page.click("#test-create");
-    await page.locator("#test-status", { hasText: "existe déjà" }).waitFor();
-    const shows = await library("shows");
-    assert.deepEqual(Object.keys(shows).sort(), ["ines", "test-lea-9-ans"]);
-    assert.deepEqual(shows.ines, INES, "Prestation existante intacte");
-    assert.deepEqual((await library("quizzes")).animaux, ANIMAUX, "Quiz existant intact");
+    assert.equal(await page.locator("#test-panel button").count(), 1, "un seul bouton");
+    // Annuler : rien ne bouge.
+    await page.click("#test-prestation");
+    await repondreFenetre(page, { accepter: false });
+    assert.ok((await library("shows"))["test-lea-tous-les-jeux"]);
+    await page.click("#test-prestation");
+    const message = await repondreFenetre(page);
+    assert.match(message, /Créer la prestation de test \?/);
+    assert.match(message, /2 prestations de test : « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux », « ANNIVERSAIRE TEST – Léa, 9 ans »|2 prestations de test : « ANNIVERSAIRE TEST – Léa, 9 ans », « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux »/);
+    assert.match(message, /1 quiz de démo, 1 paquet de mimes de démo, 1 playlist de démo/);
+    assert.match(message, /1 manche gardée pour elles/);
+    assert.match(message, /leurs photos dessinées et comptines \(2 fichiers\)/);
+    // La prestation s'ouvre, remplie, et s'enregistre « À venir ».
+    await page.locator("#show-status-msg", { hasText: "Enregistrée « À venir »" }).waitFor({ timeout: 30000 });
+    await page.locator("#show-edit-title", { hasText: "ANNIVERSAIRE TEST – Léa, 9 ans" }).waitFor();
+    assert.equal(await page.locator("#show-rounds .jeu-bloc").count(), 16);
+    assert.equal(await page.locator("#show-rounds .jeu-bloc.replie").count(), 16, "tout replié : une ligne par jeu");
+    assert.equal(await page.locator("#show-rounds .alerte-equipes").count(), 0, "chaque équipe a ses images et ses mots");
+    await capture(page, "prestation-de-test");
 
-    // Dans l'administration : la prestation, puis ses 10 questions, dont Sarah corrige la première.
-    // Elle est dans une des listes (« À venir » jusqu'au lendemain de sa date, puis « Archivées »).
-    await page.click("#nav button[data-screen=home]");
-    await page.click('#screen-home [data-etat="avenir"]');
-    await page.fill("#show-search", "ANNIVERSAIRE TEST");
-    await page.locator('#show-list [data-show="test-lea-9-ans"], #show-ailleurs [data-ailleurs="archivee"]').first().waitFor();
-    await openQuizzes(page);
-    await page.locator('#quiz-list [data-quiz="test-lea-9-ans"]', { hasText: "10 questions · 10 validées" }).getByRole("button", { name: "Éditer" }).click();
-    await page.locator('[data-q="9"]').waitFor();
-    await page.locator('[data-q="0"] .q-text').fill("Quelle est la capitale de la France ? (modifiée dans l'admin)");
-    await page.click("#rv-save");
-    await page.locator("#rv-status", { hasText: "10 questions validées sur 10" }).waitFor();
+    let shows = await library("shows");
+    assert.deepEqual(Object.keys(shows).sort(), ["copie", "ines", "test-prestation"], "les anciennes démos effacées, les prestations de Sarah gardées");
+    assert.deepEqual(shows.ines, INES);
+    assert.deepEqual(shows.copie, COPIE);
+    const fete = shows["test-prestation"];
+    assert.deepEqual([fete.childName, fete.age, fete.teams, fete.date, fete.status, fete.origin, fete.title],
+      ["Léa", 9, 4, isoDay(), "publiee", "test", "ANNIVERSAIRE TEST – Léa, 9 ans"]);
+    assert.deepEqual(fete.rounds.map((r) => r.type), ["quiz", "mimes", "blind", "zoom", "chante", "express", "illustre", "quisuis",
+      "flou", "disparu", "musical", "statues", "pictionary", "gonfleur", "patate", "coffres"]);
+    // Chaque jeu rempli par son 🎲.
+    const jeu = Object.fromEntries(fete.rounds.map((r) => [r.type, r]));
+    for (const t of ["quiz", "zoom", "express", "illustre", "flou"]) assert.ok(jeu[t].seriesQuiz[0].questions.length >= 3, `${t} tiré au 🎲`);
+    for (const t of ["chante", "quisuis", "disparu"]) assert.ok(jeu[t].seriesMots[0].mots.length >= 2, `${t} tiré au 🎲`);
+    assert.equal(jeu.mimes.equipes.length, 4);
+    assert.ok(jeu.mimes.equipes.every((l) => l.length > 0), "des images pour chaque équipe");
+    assert.equal(jeu.pictionary.tours.length, 4);
+    assert.ok(jeu.pictionary.tours.every((l) => l.length > 0), "des mots pour chaque équipe");
+    assert.ok(jeu.blind.chansons.length > 0 && jeu.musical.chansons.length > 0);
+    assert.ok(!jeu.musical.chansons.some((k) => jeu.blind.chansons.includes(k)), "jamais deux fois la même chanson");
+    // Rien d'autre n'est touché ; les démos qui servent encore restent.
+    const quizzes = await library("quizzes");
+    assert.deepEqual(Object.keys(quizzes).sort(), ["animaux", "test-lea-9-ans"], "le quiz de la copie de Tom reste");
+    assert.equal(await library("mimes/test-lea-tous-les-jeux-mimes"), null);
+    assert.equal(await library("playlists/test-lea-tous-les-jeux-comptines"), null);
+    assert.deepEqual(Object.keys(await library("images")), ["c".repeat(16)], "la photo rangée par Sarah reste");
+    const sons = await library("sounds");
+    assert.equal(sons["b".repeat(16)], undefined, "la comptine part");
+    assert.equal(Object.keys(sons).length, 48, "les extraits des chansons restent");
+    assert.equal(Object.keys(await library("songs")).length, 24);
+    let manches = await library("manches");
+    assert.equal(manches["m-demo"], undefined);
+    assert.ok(manches["m-ines"]);
+    const gardees = Object.values(manches).filter((m) => m.showId === "test-prestation").length;
+    assert.equal(gardees, 13, "chaque jeu à contenu gardé dans la page de son jeu");
+
+    // Un nouveau clic : la prestation de test refaite à neuf, jamais en double.
+    await page.click("#nav button[data-screen=settings]");
+    await page.click("#test-prestation");
+    const encore = await repondreFenetre(page);
+    assert.match(encore, /1 prestation de test : « ANNIVERSAIRE TEST – Léa, 9 ans »/);
+    assert.match(encore, /13 manches gardées pour elles/);
+    await page.locator("#show-status-msg", { hasText: "Enregistrée « À venir »" }).waitFor({ timeout: 30000 });
+    shows = await library("shows");
+    assert.deepEqual(Object.keys(shows).sort(), ["copie", "ines", "test-prestation"]);
+    manches = await library("manches");
+    assert.equal(Object.values(manches).filter((m) => m.showId === "test-prestation").length, 13);
+    await page.click("#nav button[data-screen=settings]");
+    await page.locator("#test-status", { hasText: "Créée : « ANNIVERSAIRE TEST – Léa, 9 ans », anciennes démos effacées." }).waitFor();
     await page.context().close();
 
-    // Sur la régie : la même prestation, chargée sur la TV avec la question modifiée.
+    // Sur la régie : chargée sur la TV, les 16 jeux.
     box = startBox();
     const regie = await openRegie();
     await pair(regie);
     await inRegie(regie);
     await regie.locator(".show-item", { hasText: "ANNIVERSAIRE TEST – Léa, 9 ans" }).click();
-    // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
     await respond(regie);
-    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
-    // Ses 10 questions, plus celle des bougies juste avant la dernière (qui compte double).
-    const q = (await read("show")).quiz.questions;
-    assert.equal(q.length, 11);
-    assert.equal(q[0].text, "Quelle est la capitale de la France ? (modifiée dans l'admin)");
-    assert.deepEqual([q[9].kind, q[9].correct, q[9].text], ["number", 9, "Le Juste Chiffre : combien de bougies sur le gâteau de Léa cette année ?"]);
-    assert.equal(q[10].double, true);
-    await regie.context().close();
-  });
-
-  test("prestation de test « tous les jeux » : photos dessinées, un peu de chaque jeu, rien de remplacé", async () => {
-    await seedLibrary("quizzes", { animaux: ANIMAUX });
-    const page = await admin();
-    await page.click("#nav button[data-screen=settings]");
-    await page.click("#test-full-create");
-    await page.locator("#test-full-status", { hasText: "Ajoutée" }).waitFor({ timeout: 20000 });
-    await page.click("#test-full-create");
-    await page.locator("#test-full-status", { hasText: "existe déjà" }).waitFor();
-    await page.context().close();
-    const images = await library("images");
-    assert.equal(Object.keys(images).length, 12, "deux photos pour le Zoom mystère, deux pour l'Image floue, huit réponses en images");
-    assert.ok(Object.values(images).every((d) => d.startsWith("data:image/jpeg") && d.length < 150000));
-    assert.deepEqual((await library("quizzes")).animaux, ANIMAUX, "Quiz existant intact");
-    assert.equal((await library("mimes"))["test-lea-tous-les-jeux-mimes"].cards.length, 6);
-    const sounds = await library("sounds");
-    assert.equal(Object.keys(sounds).length, 4, "quatre comptines");
-    for (const [id, data] of Object.entries(sounds)) {
-      assert.ok(data.startsWith("data:audio/mpeg;base64,") && data.length < 880000);
-      assert.equal(createHash("sha256").update(data).digest("hex").slice(0, 16), id, "identifiant = empreinte du contenu");
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor({ timeout: 30000 });
+    const questions = (await read("show")).quiz.questions;
+    const kinds = new Set(questions.map((q) => q.kind));
+    for (const k of ["classic", "mime", "blind", "zoom", "chante", "express", "quisuis", "flou", "disparu", "statues", "pictionary", "gonfleur", "patate", "coffres"]) {
+      assert.ok(kinds.has(k), `${k} sur la TV`);
     }
-    assert.deepEqual((await library("playlists"))["test-lea-tous-les-jeux-comptines"].tracks.map((t) => t.title), ["Frère Jacques", "Au clair de la lune", "Ah ! vous dirai-je, maman", "Joyeux anniversaire"]);
-
-    box = startBox();
-    const regie = await openRegie();
-    await pair(regie);
-    await inRegie(regie);
-    await regie.locator(".show-item", { hasText: "tous les jeux" }).click();
-    // Fenêtre de lancement, sur le téléphone seulement : « Lancer » confirme.
-    await respond(regie);
-    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
-    const kinds = [...new Set((await read("show")).quiz.questions.map((q) => q.kind))];
-    assert.deepEqual(kinds, ["classic", "number", "express", "mime", "zoom", "chante", "flou", "quisuis", "disparu", "blind", "statues", "pictionary", "gonfleur", "patate", "coffres"]);
-    assert.equal((await read("show")).quiz.questions.filter((q) => q.kind === "classic" && q.audioId).length, 4, "quiz musical sur les comptines");
-    await waitFor(async () => Object.keys((await read("images")) ?? {}).length === 4, "photos copiées dans la partie");
-    assert.equal((await read("show")).quiz.questions.filter((q) => q.choiceImages?.length === 4 && q.round === "Quiz illustré").length, 2, "Quiz illustré des petits");
-    await waitFor(async () => Object.keys((await read("choiceImages")) ?? {}).length === 8, "réponses en images copiées dans la partie");
-    await waitFor(async () => Object.keys((await read("sounds")) ?? {}).length === 4, "comptines copiées dans la partie", 15000);
+    assert.ok(questions.some((q) => q.round === "Quiz illustré"), "Quiz illustré sur la TV");
+    assert.ok(questions.some((q) => q.kind === "classic" && q.audioId), "Quiz musical sur la TV");
     await regie.context().close();
-  });
-
-  test("blind test démo : 10 chansons de la bibliothèque au hasard (refrain d'abord), en premier jeu de la prestation de test ; un nouveau clic en tire d'autres", async () => {
-    const hex = (n) => n.toString(16).padStart(16, "0");
-    // 12 chansons : 10 avec leur refrain, 2 sans (jamais tirées tant qu'il y en a assez avec refrain).
-    const songs = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`s${i}`, {
-      title: `Chanson ${i}`, artist: "Artiste", audioId: hex(100 + i), buzz: 30, createdAt: 1, updatedAt: 1,
-      ...(i < 10 ? { refrainId: hex(200 + i), refrain: 60, paroles: `0|La la ${i}` } : {}),
-    }]));
-    await seedLibrary("songs", songs);
-    await seedLibrary("quizzes", { animaux: ANIMAUX });
-    const fete = { ...FULL_SHOW, origin: "test", updatedAt: 1, rounds: [{ type: "quiz", quizId: "animaux" }, { type: "coffres" }] };
-    await seedLibrary("shows/test-lea-tous-les-jeux", fete);
-    const page = await admin();
-    await page.click("#nav button[data-screen=settings]");
-    await page.click("#test-blind-demo");
-    await page.locator("#test-blind-status", { hasText: "Blind test démo prêt : 10 chansons tirées au hasard, en premier jeu de « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux »" }).waitFor();
-    const demo = await library("playlists/test-lea-tous-les-jeux-blind-demo");
-    assert.equal(demo.title, "TEST – Blind test démo");
-    assert.equal(demo.tracks.length, 10);
-    assert.ok(demo.tracks.every((t) => /^[0-9a-f]{16}$/.test(t.refrainId) && t.paroles.startsWith("0|La la")), "les chansons avec refrain d'abord, avec leurs paroles");
-    let show = await library("shows/test-lea-tous-les-jeux");
-    assert.deepEqual(show.rounds, [{ type: "blind", playlistId: "test-lea-tous-les-jeux-blind-demo" }, ...fete.rounds]);
-    // Un nouveau clic : un autre tirage, toujours un seul blind test démo dans la prestation.
-    await page.click("#test-blind-demo");
-    await waitFor(async () => (await library("playlists/test-lea-tous-les-jeux-blind-demo")).updatedAt !== demo.updatedAt, "nouveau tirage");
-    show = await library("shows/test-lea-tous-les-jeux");
-    assert.equal(show.rounds.filter((r) => r.playlistId === "test-lea-tous-les-jeux-blind-demo").length, 1);
-    assert.equal(show.rounds.length, 3);
-    await page.context().close();
-  });
-
-  test("prestation de test « tous les jeux » d'une version précédente : le bouton lui ajoute les nouveaux jeux et retire l'ancienne manche Super Finale", async () => {
-    const old = { childName: "Léa", age: 9, status: "publiee", title: "ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux", origin: "test", updatedAt: 1,
-      rounds: [{ type: "quiz", quizId: "animaux" }, { type: "chante", count: 3 }, { type: "finale", quizId: "finale" }] };
-    await seedLibrary("quizzes", { animaux: ANIMAUX, finale: FINALE });
-    await seedLibrary("shows/test-lea-tous-les-jeux", old);
-    const page = await admin();
-    await page.click("#nav button[data-screen=settings]");
-    await page.click("#test-full-create");
-    await page.locator("#test-full-status", { hasText: "Mise à jour" }).waitFor({ timeout: 20000 });
-    await page.context().close();
-    const show = await library("shows/test-lea-tous-les-jeux");
-    // L'ancienne manche « Super Finale » disparaît : les 3 dernières questions du quiz comptent double.
-    assert.deepEqual(show.rounds.map((r) => r.type), ["quiz", "chante", "disparu", "blind", "musical", "statues", "pictionary", "illustre", "gonfleur", "patate", "coffres"]);
-    assert.equal(show.rounds[0].finale, 3);
-    assert.equal(show.rounds[7].quizId, "test-lea-tous-les-jeux-images");
-    assert.equal((await library("quizzes"))["test-lea-tous-les-jeux-images"].questions.length, 2);
-    assert.equal(show.childName, "Léa");
-    assert.equal(Object.keys(await library("sounds")).length, 4);
-  });
-
-  test("prestation de test « tous les jeux » d'hier : le quiz des petits devient un Quiz illustré, les quiz de test sont renommés, rien d'autre ne change", async () => {
-    // Version du 20 octobre : le quiz des petits dans une manche « Quiz », un quiz classique nommé « Quiz illustré ».
-    const hier = { ...FULL_SHOW, origin: "test", updatedAt: 1, rounds: FULL_SHOW.rounds.map((r) => (r.type === "illustre" ? { ...r, type: "quiz" } : r)) };
-    await seedLibrary("shows/test-lea-tous-les-jeux", hier);
-    await seedLibrary("quizzes", {
-      [FULL_KEYS.quiz]: { ...FULL_QUIZZES[FULL_KEYS.quiz], title: "TEST – Quiz illustré de Léa", updatedAt: 1 },
-      [FULL_KEYS.images]: { title: "TEST – Quiz en images des petits", source: "saisie", updatedAt: 1, questions: [{ text: "Où est le chat ?", choices: ["Chat", "Chien"], correct: 0, status: "validee", choiceImages: ["1111111111111111", "2222222222222222"] }] },
-      animaux: ANIMAUX,
-    });
-    const page = await admin();
-    await page.click("#nav button[data-screen=settings]");
-    await page.click("#test-full-create");
-    await page.locator("#test-full-status", { hasText: "Le quiz en images des petits devient un Quiz illustré." }).waitFor({ timeout: 20000 });
-    await page.locator("#test-full-status", { hasText: "Quiz de test renommés" }).waitFor();
-    const show = await library("shows/test-lea-tous-les-jeux");
-    assert.deepEqual(show.rounds, FULL_SHOW.rounds, "seule la manche des petits change de jeu");
-    const quizzes = await library("quizzes");
-    assert.equal(quizzes[FULL_KEYS.quiz].title, "TEST – Quiz classique de Léa");
-    assert.equal(quizzes[FULL_KEYS.images].title, "TEST – Quiz illustré des petits");
-    assert.deepEqual(quizzes[FULL_KEYS.quiz].questions, FULL_QUIZZES[FULL_KEYS.quiz].questions, "questions intactes");
-    assert.deepEqual(quizzes.animaux, ANIMAUX, "quiz de Sarah intact");
-    // Une seconde fois : plus rien à faire.
-    await page.click("#test-full-create");
-    await page.locator("#test-full-status", { hasText: "existe déjà" }).waitFor();
-    await page.context().close();
   });
 
   test("Sarah importe ses fichiers musicaux : extraits réencodés en MP3 léger, titre et artiste devinés, chargés sur la TV", async () => {
