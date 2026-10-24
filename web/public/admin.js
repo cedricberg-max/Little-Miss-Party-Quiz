@@ -17,7 +17,7 @@ import {
   blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras, contentSlot, contentImages,
   pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches, isArchived, AUTO_ARCHIVE_DAYS, quizKind,
   roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS, mimeEquipes, mimeEquipesBrutes, mimeAges, MIME_SOURCES, MIME_EQUIPES_MAX, mimePerTeam,
-  chansonsBrutes, chansonsDe, chansonJouable, BLIND_NOMBRES, BLIND_NOMBRE_DEFAUT, MAX_CHANSONS_BLIND,
+  chansonsBrutes, chansonsDe, chansonJouable, BLIND_NOMBRES, BLIND_NOMBRE_DEFAUT, MAX_CHANSONS_BLIND, seriesBlind,
   isStatuesList, statuesSongs, statuesChoices, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS, builtinConcepts, isPhotoTheme, disparuGroup,
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, alerteEquipes, EQUIPES_PAR_DEFAUT, pourLeHasard, premierQuiz,
   launchStates, launchLabelPc, couleursEquipes, teamCount, roundTirees, chiffresDuTirage, MAX_TIREES, trousDuJeu,
@@ -31,7 +31,7 @@ import { shuffle } from "./mime-cards.js";
 import {
   MANCHE_TYPES, COLLECTION_UNIT, RANDOM_TYPES, RANDOM_COUNT, MIME_PER_TEAM, MIME_PER_TEAM_DEFAULT, LEVELS, collectionItems, collectionGroups,
   filterItems, drawItems, randomRound, cleanRound, mancheGroups, mancheSummary, defaultMancheTitle, mimeCardsNeeded,
-  itemConcepts, usedElsewhere, blocsDeJeu, versSeriesQuiz, fusionnerQuiz, photosDeMesImages,
+  itemConcepts, usedElsewhere, blocsDeJeu, versSeriesQuiz, fusionnerQuiz, versSeriesBlind, fusionnerBlind, photosDeMesImages,
 } from "./manches.js";
 import { concepts, neufsSiPossible, questionConcepts } from "./jamais-deux-fois.js";
 import { PICTO_OWN_SERIES } from "./picto-cards.js";
@@ -877,7 +877,9 @@ function editShow(id) {
   // Une ancienne manche « Quiz » de quiz illustrés s'affiche (et s'enregistre) en Quiz illustré.
   // Un Quiz = une seule manche (cedric, 23/10) : ses manches Quiz qui se suivent n'en font plus qu'une.
   const { rounds: reunies, fusions } = fusionnerQuiz(rounds.map((r) => versSeriesQuiz(jeuDeLaManche(r, quizzes), quizzes)));
-  editing = { id, rounds: reunies, themes: s.themes ?? null };
+  // Pas de manches dans un blind test (cedric, 24/10) : ceux qui se suivent n'en font plus qu'un.
+  const { rounds: blinds, fusions: fusionsBlind } = fusionnerBlind(reunies.map(versSeriesBlind));
+  editing = { id, rounds: blinds, themes: s.themes ?? null };
   $("show-edit-title").textContent = id ? showTitle(s) : "Nouvelle prestation";
   // Fil d'Ariane : la liste de son état (une nouvelle commence « À compléter »).
   showsEtat = id ? etatPrestation(s) : "acompleter";
@@ -902,7 +904,8 @@ function editShow(id) {
   $("show-notes").value = s.notes ?? "";
   status("show-status-msg", s.copieDe && !s.childName ? "Copie : indiquez le prénom, l'âge et la date du nouvel anniversaire, puis enregistrez."
     : folded ? "L'ancienne manche « Super Finale » est devenue le réglage du quiz (ses dernières questions ×2). Enregistrez pour garder ce changement."
-    : fusions ? "Les manches Quiz qui se suivaient n'en font plus qu'une (une seule Super Finale, à la fin). Enregistrez pour garder ce changement." : "", !!s.copieDe || !!folded || !!fusions);
+    : fusions ? "Les manches Quiz qui se suivaient n'en font plus qu'une (une seule Super Finale, à la fin). Enregistrez pour garder ce changement."
+    : fusionsBlind ? "Les manches de blind test qui se suivaient n'en font plus qu'un blind test (leurs chansons à la suite). Enregistrez pour garder ce changement." : "", !!s.copieDe || !!folded || !!fusions || !!fusionsBlind);
   show("show-edit");
   refreshRounds();
   histPrestation.depart();
@@ -1451,7 +1454,8 @@ function choisirChansons({ titre, plusieurs = false, cochees = [], prises = new 
       const montrees = filtre === "paroles" ? avecParoles : filtre === "cochees" ? trouvees.filter((x) => choisies.has(x.id)) : trouvees;
       liste.replaceChildren(...montrees.map((x) => {
         const ou = deja(x.id) ?? deja(x.audioId);
-        const ici = !plusieurs && prises.has(x.id);
+        // Déjà dans ce blind test (une autre série, en sélection : pas cochée ici) : pas choisissable.
+        const ici = prises.has(x.id) && !choisies.has(x.id);
         const paroles = parolesSurTv(x);
         const ligne = h("li", {}, h("button", {
           type: "button", class: `choix-chanson${choisies.has(x.id) ? " cochee" : ""}${ou ? " deja" : ""}`, "data-chanson": x.id, disabled: ici,
@@ -1493,106 +1497,174 @@ function choisirChansons({ titre, plusieurs = false, cochees = [], prises = new 
   });
 }
 
+/** Série du 🎲 d'un blind test, ou null. */
+const serieDuDeBlind = (r) => r.seriesBlind.find((x) => x.origine === "de") ?? null;
+
+/** Chansons d'une playlist de la bibliothèque (cedric, 24/10) : celles qui sont encore dans la bibliothèque des sons. */
+function chansonsDePlaylist(p) {
+  const parExtrait = new Map(Object.entries(songs ?? {}).filter(([, x]) => chansonJouable(x)).map(([id, x]) => [x.audioId, id]));
+  const pistes = Array.isArray(p?.tracks) ? p.tracks : Object.values(p?.tracks ?? {});
+  return [...new Set(playableTracks({ tracks: pistes }).map((t) => (t.songId && chansonJouable(songs?.[t.songId]) ? t.songId : parExtrait.get(t.audioId))).filter(Boolean))];
+}
+
+/** Séries d'un blind test dépliées, et ses « Blind test complet » dépliés (le temps de l'écran). */
+const blindsCompletsDeplies = new WeakSet();
+
 /**
- * Blind test dans une prestation (cedric, 24/10) : « à la manière des quiz ». Première ligne : le nombre de chansons à
- * trouver et le 🎲, qui les tire dans la bibliothèque des sons. Dessous, la liste des chansons du blind test, repliable
- * comme une série du Quiz : chaque titre avec sa mini pochette et, à droite, si ses paroles sont là. ✕ retire une
- * chanson et laisse un 🎲 à sa place. Une manche préparée avant (une playlist, des extraits) se joue encore telle quelle.
+ * Blind test dans une prestation (cedric, 24/10) : « exactement comme le Quiz », sans manches.
+ * - En haut, le compteur de tout le blind test (dans une prestation : sur la ligne du numéro du jeu).
+ * - Les outils de création, ensemble : le nombre de chansons et le 🎲 qui les tire dans la bibliothèque des sons ;
+ *   « 🎵 Sélectionner mes chansons » (à la main, cases à cocher) ; « 🎶 Ajouter une playlist » (une de ses playlists,
+ *   cherchée par son nom, ajoutée en entier).
+ * - Les séries : chacune se déplie, monte ou descend (↑ ↓) et s'enlève (✕). Chaque chanson : sa mini pochette, ses
+ *   paroles, 🎧 (écouter l'extrait et le refrain, « ⏱ Régler… ») et ✕ (au 🎲 : un 🎲 prend sa place ; ailleurs elle
+ *   part). « ＋ Une chanson » dans une playlist ajoutée.
+ * - En dernière ligne, le « Blind test complet » : toutes les chansons dans l'ordre de passage, chacune monte, descend
+ *   ou s'enlève, et 🔀 mélange tout.
+ * Un blind test préparé avant (une playlist entière, des extraits choisis) se joue encore tel quel.
  */
 function mancheBlind(r) {
-  const brutes = chansonsBrutes(r);
-  const tire = brutes.some(Boolean);
-  const n = tire ? brutes.length : BLIND_NOMBRES.includes(r.nbChansons) ? r.nbChansons : BLIND_NOMBRE_DEFAUT;
+  versSeriesBlind(r);
+  const series = r.seriesBlind;
+  const deSerie = serieDuDeBlind(r);
+  const n = deSerie?.chansons.length || (BLIND_NOMBRES.includes(r.nbChansons) ? r.nbChansons : BLIND_NOMBRE_DEFAUT);
   const changer = () => roundCtx.refresh();
-  const prises = () => new Set([...chansonsBrutes(r).filter(Boolean), ...(chansonsRetirees.get(r) ?? [])]);
+  const pluriel = (k, mot) => `${k} ${mot}${k > 1 ? "s" : ""}`;
+  /** Après chaque changement : les séries vides partent, la liste jouée suit (lue aussi par les pages d'avant). */
+  const ranger = () => {
+    r.seriesBlind = r.seriesBlind.filter((x) => x.chansons.length);
+    r.chansons = r.seriesBlind.length ? chansonsBrutes(r) : [];
+    // L'ancienne façon de préparer la manche (une playlist, des extraits choisis) laisse la place.
+    if (r.seriesBlind.length) { r.playlistId = ""; r.tracks = null; r.byItem = null; }
+  };
+  const dansLeBlind = (sauf = null) => new Set(r.seriesBlind.filter((x) => x !== sauf).flatMap((x) => x.chansons).filter(Boolean));
+  const ecartees = () => new Set([...dansLeBlind(), ...(chansonsRetirees.get(r) ?? [])]);
+  const ecarter = (id) => chansonsRetirees.set(r, new Set([...(chansonsRetirees.get(r) ?? []), id]));
+  const place = (k) => Math.max(0, Math.min(k, MAX_CHANSONS_BLIND - chansonsBrutes(r).length));
+
+  // Première ligne : le nombre et le 🎲 (il remplace la série du 🎲 ; les autres séries ne bougent pas).
   const tirerTout = (k) => {
     chansonsRetirees.delete(r);
-    const ids = piocherChansons(r, k, new Set());
+    const sans = dansLeBlind(deSerie);
+    const ids = piocherChansons(r, Math.min(k, MAX_CHANSONS_BLIND - sans.size), sans);
     if (!ids.length) return annonce("Aucune chanson dans la bibliothèque des sons : ajoutez-en d'abord (Bibliothèque › Sons).");
-    r.chansons = ids;
+    const serie = deSerie ?? { id: "de", origine: "de", chansons: [] };
+    if (!deSerie) r.seriesBlind.unshift(serie);
+    serie.chansons = ids;
     r.nbChansons = k;
-    // L'ancienne façon de préparer la manche (une playlist, des extraits choisis) laisse la place.
-    r.playlistId = ""; r.tracks = null; r.byItem = null;
-    blindsDeplies.add(r);
-    changer();
-  };
-  const tirerUne = (i) => {
-    const liste = chansonsBrutes(r);
-    const [id] = piocherChansons(r, 1, prises());
-    if (!id) return annonce("Plus de chanson à tirer dans la bibliothèque des sons.");
-    liste[i] = id;
-    r.chansons = liste;
-    changer();
-  };
-  const retirer = (i) => {
-    const liste = chansonsBrutes(r);
-    chansonsRetirees.set(r, new Set([...(chansonsRetirees.get(r) ?? []), liste[i]]));
-    liste[i] = "";
-    r.chansons = liste;
-    changer();
-  };
-  /** Une case vidée (cedric, 24/10) : la chanson choisie à la main dans la bibliothèque des sons prend sa place. */
-  const choisirUne = async (i) => {
-    const id = await choisirChansons({ titre: "Choisir une chanson pour le blind test", prises: new Set(chansonsBrutes(r).filter(Boolean)), deja: (k) => chansonsAilleurs(r).get(k) ?? null });
-    if (!id) return;
-    const liste = chansonsBrutes(r);
-    liste[i] = id;
-    r.chansons = liste;
-    changer();
-  };
-  /**
-   * « 🎵 Sélectionner mes chansons » (cedric, 24/10) : la bibliothèque des sons, les chansons du blind test déjà cochées ;
-   * décochées, elles partent ; les nouvelles se mettent à la fin, dans l'ordre des clics.
-   */
-  const selectionner = async () => {
-    const avant = chansonsBrutes(r);
-    const ids = await choisirChansons({ titre: "Sélectionner mes chansons", plusieurs: true, cochees: avant.filter(Boolean), deja: (k) => chansonsAilleurs(r).get(k) ?? null });
-    if (!ids) return;
-    const gardees = avant.filter((id) => !id || ids.includes(id));
-    const nouvelles = ids.filter((id) => !avant.includes(id));
-    const liste = [...gardees, ...nouvelles];
-    if (liste.length > MAX_CHANSONS_BLIND) annonce(`${MAX_CHANSONS_BLIND} chansons au plus dans un blind test : les dernières ne sont pas ajoutées.`);
-    r.chansons = liste.slice(0, MAX_CHANSONS_BLIND);
-    if (!r.chansons.some(Boolean)) r.chansons = [];
-    else if (BLIND_NOMBRES.includes(r.chansons.length)) r.nbChansons = r.chansons.length;
-    // L'ancienne façon de préparer la manche (une playlist, des extraits choisis) laisse la place.
-    r.playlistId = ""; r.tracks = null; r.byItem = null;
-    blindsDeplies.add(r);
+    blindsDeplies.add(serie);
+    ranger();
     changer();
   };
   const nombre = h("select", {
-    class: "tirage-nombre blind-nombre", "aria-label": "Nombre de chansons à trouver",
+    class: "tirage-nombre blind-nombre", "aria-label": "Nombre de chansons à tirer au hasard",
     onchange: (e) => {
       const k = Number(e.target.value);
       r.nbChansons = k;
-      // Moins de chansons : les premières restent ; plus : le 🎲 complète la liste.
-      if (tire) {
-        const liste = chansonsBrutes(r).slice(0, k);
-        r.chansons = [...liste, ...piocherChansons(r, k - liste.length, new Set([...liste.filter(Boolean), ...(chansonsRetirees.get(r) ?? [])]))];
+      // Moins de chansons : les premières restent ; plus : le 🎲 complète sa série.
+      if (deSerie) {
+        const gardees = deSerie.chansons.slice(0, k);
+        deSerie.chansons = [...gardees, ...piocherChansons(r, place(k - gardees.length + (deSerie.chansons.length - gardees.length)), new Set([...ecartees(), ...gardees]))].slice(0, k);
+        ranger();
       }
       changer();
     },
-  }, ...[...new Set([...BLIND_NOMBRES, n])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: k === n, text: `${k} chansons à trouver` })));
+  }, ...[...new Set([...BLIND_NOMBRES, n])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: k === n, text: `${k} chansons au hasard` })));
   const de = h("button", {
     type: "button", class: "btn tirage-de", text: "🎲", "aria-label": "Tirer les chansons au hasard",
-    title: "Tirer les chansons au hasard dans la bibliothèque des sons", onclick: () => tirerTout(Number(nombre.value)),
+    title: "Tirer les chansons au hasard dans la bibliothèque des sons (les autres séries ne bougent pas)", onclick: () => tirerTout(Number(nombre.value)),
   });
-  const presentes = chansonsDe(r).filter((id) => chansonJouable(songs[id]));
-  const compteur = h("p", { class: "quiz-compteur", "aria-live": "polite",
-    text: tire ? `${presentes.length} chanson${presentes.length > 1 ? "s" : ""} à trouver` : "Aucune chanson pour l'instant : touchez 🎲 ou « Sélectionner mes chansons »" });
+
+  // Deuxième ligne : « 🎵 Sélectionner mes chansons » (cedric, 24/10) : la bibliothèque des sons, cases à cocher ; elles
+  // forment la série « choisies à la main » (décochées, elles en partent ; les nouvelles à la fin, dans l'ordre des clics).
+  const choix = r.seriesBlind.find((x) => x.origine === "choix") ?? null;
+  const selectionner = async () => {
+    const avant = choix?.chansons.filter(Boolean) ?? [];
+    const ids = await choisirChansons({ titre: "Sélectionner mes chansons", plusieurs: true, cochees: avant, prises: dansLeBlind(choix), deja: (k) => chansonsAilleurs(r).get(k) ?? null });
+    if (!ids) return;
+    const liste = [...avant.filter((id) => ids.includes(id)), ...ids.filter((id) => !avant.includes(id))];
+    const garde = Math.max(0, MAX_CHANSONS_BLIND - dansLeBlind(choix).size - (deSerie?.chansons.filter((id) => !id).length ?? 0));
+    if (liste.length > garde) annonce(`${MAX_CHANSONS_BLIND} chansons au plus dans un blind test : les dernières ne sont pas ajoutées.`);
+    const serie = choix ?? { id: nouvelId("c"), origine: "choix", chansons: [] };
+    if (!choix) r.seriesBlind.push(serie);
+    serie.chansons = liste.slice(0, garde);
+    blindsDeplies.add(serie);
+    ranger();
+    changer();
+  };
+  const nChoisies = choix?.chansons.filter(Boolean).length ?? 0;
+  const aLaMain = h("div", { class: "tirage-ligne blind-manuel" },
+    h("button", { type: "button", class: "btn secondary blind-selectionner", text: "🎵 Sélectionner mes chansons", title: "Choisir les chansons à la main dans la bibliothèque des sons", onclick: selectionner }),
+    h("span", { class: "small hint blind-selection", text: nChoisies ? `${pluriel(nChoisies, "chanson")} sélectionnée${nChoisies > 1 ? "s" : ""}` : "Aucune chanson sélectionnée" }));
+
+  // Troisième ligne (à la place de la note, cedric 24/10) : « 🎶 Ajouter une playlist » : une de ses playlists de la
+  // bibliothèque, cherchée par son nom ; ses chansons forment une série à la fin (celles déjà dans le blind test n'y
+  // reviennent pas). La playlist de la bibliothèque ne change pas.
+  const dejaLa = new Set(r.seriesBlind.filter((x) => x.origine === "playlist").map((x) => x.playlistId));
+  const listes = Object.entries(playlists ?? {})
+    .filter(([, p]) => p?.title && !isStatuesList(p))
+    .map(([id, p]) => [id, p, chansonsDePlaylist(p)])
+    .filter(([, , ids]) => ids.length)
+    .sort(([, a], [, b]) => a.title.localeCompare(b.title, "fr"))
+    .map(([id, p, ids]) => ({ id, titre: p.title, ids, details: [pluriel(ids.length, "chanson"), dejaLa.has(id) ? "✓ déjà dans ce blind test" : ""].filter(Boolean).join(" · "),
+      noms: [p.title], autres: ids.slice(0, 40).flatMap((k) => [songs[k]?.title, songs[k]?.artist]) }));
+  const ajoutPlaylist = ligneAjoutQuiz({
+    classe: "blind-playlist", titre: "🎶 Ajouter une playlist", label: "Chercher une de vos playlists",
+    placeholder: "Nom d'une de vos playlists", vide: "Pas encore de playlist : créez-en dans Bibliothèque › Sons",
+    aucun: "Aucune playlist ne correspond.", items: listes, attr: (x) => ({ "data-playlist": x.id }),
+    choisir: (x) => {
+      const deja = dansLeBlind();
+      const neuves = x.ids.filter((id) => !deja.has(id));
+      const k = place(neuves.length);
+      if (!neuves.length) return annonce(`Les chansons de « ${x.titre} » sont déjà toutes dans ce blind test.`);
+      const serie = { id: nouvelId("p"), origine: "playlist", playlistId: x.id, titre: x.titre, chansons: neuves.slice(0, k) };
+      if (!serie.chansons.length) return annonce(`${MAX_CHANSONS_BLIND} chansons au plus dans un blind test : retirez-en avant d'ajouter « ${x.titre} ».`);
+      r.seriesBlind.push(serie);
+      blindsDeplies.add(serie);
+      ranger();
+      const pasLa = x.ids.length - serie.chansons.length;
+      if (pasLa) annonce(`« ${x.titre} » ajoutée : ${pluriel(serie.chansons.length, "chanson")}${neuves.length > k ? ` (${MAX_CHANSONS_BLIND} au plus dans un blind test)` : ""}${x.ids.length > neuves.length ? `, ${x.ids.length - neuves.length} déjà dans ce blind test` : ""}.`, true);
+      changer();
+    },
+  });
+
+  // Les séries : la ligne de chaque chanson.
   const autres = chansonsAilleurs(r);
-  const lignes = brutes.map((id, i) => {
-    const song = id ? songs[id] : null;
+  const ligneChanson = (serie, id, i) => {
+    const auDe = serie.origine === "de";
     if (!id) {
       return h("li", { class: "tirage-q vide blind-chanson" }, h("div", { class: "tirage-q-ligne" },
-        h("button", { type: "button", class: "btn tirage-de petit", text: "🎲", "aria-label": "Tirer une autre chanson", title: "Tirer une autre chanson", onclick: () => tirerUne(i) }),
-        h("button", { type: "button", class: "btn small secondary blind-choisir", text: "🎵 Choisir…", "aria-label": "Choisir la chanson dans la bibliothèque des sons", title: "Choisir la chanson dans la bibliothèque des sons", onclick: () => choisirUne(i) })));
+        h("button", { type: "button", class: "btn tirage-de petit", text: "🎲", "aria-label": "Tirer une autre chanson", title: "Tirer une autre chanson", onclick: () => {
+          const [neuve] = piocherChansons(r, 1, ecartees());
+          if (!neuve) return annonce("Plus de chanson à tirer dans la bibliothèque des sons.");
+          serie.chansons[i] = neuve;
+          ranger();
+          changer();
+        } }),
+        h("button", { type: "button", class: "btn small secondary blind-choisir", text: "🎵 Choisir…", "aria-label": "Choisir la chanson dans la bibliothèque des sons", title: "Choisir la chanson dans la bibliothèque des sons", onclick: async () => {
+          const choisie = await choisirChansons({ titre: "Choisir une chanson pour le blind test", prises: dansLeBlind(), deja: (k) => chansonsAilleurs(r).get(k) ?? null });
+          if (!choisie) return;
+          serie.chansons[i] = choisie;
+          ranger();
+          changer();
+        } })));
     }
+    // ✕ : au 🎲, un 🎲 prend sa place ; dans une playlist ou les chansons choisies, elle part.
+    const retirer = () => {
+      ecarter(id);
+      if (auDe) serie.chansons[i] = "";
+      else serie.chansons.splice(i, 1);
+      ranger();
+      changer();
+      noterEcran();
+    };
+    const titreRetirer = auDe ? "Retirer cette chanson (un 🎲 prend sa place)" : "Retirer cette chanson du blind test";
+    const song = songs[id];
     if (!chansonJouable(song)) {
       return h("li", { class: "tirage-q blind-chanson manquante" }, h("div", { class: "tirage-q-ligne" },
         h("span", { class: "blind-pochette sans", text: "💿" }),
         h("span", { class: "tirage-texte", text: "Chanson supprimée de la bibliothèque" }),
-        h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": "Retirer cette chanson", title: "Retirer cette chanson (un 🎲 prend sa place)", onclick: () => retirer(i) })));
+        h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": "Retirer cette chanson", title: titreRetirer, onclick: retirer })));
     }
     const deja = autres.get(id) ?? autres.get(song.audioId);
     const paroles = parolesSurTv(song);
@@ -1615,46 +1687,150 @@ function mancheBlind(r) {
             changer();
           },
         }),
-        h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": `Retirer « ${song.title.trim()} »`, title: "Retirer cette chanson (un 🎲 prend sa place)", onclick: () => retirer(i) })),
+        h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": `Retirer « ${song.title.trim()} »`, title: titreRetirer, onclick: retirer })),
       ouvert ? menuChanson(id) : null);
+  };
+  const titreSerie = (x) => {
+    const k = x.chansons.filter((id) => id && chansonJouable(songs[id])).length;
+    const vides = x.chansons.filter((id) => !id).length;
+    if (x.origine === "de") return `🎲 ${pluriel(k, "chanson")} tirée${k > 1 ? "s" : ""} au hasard${vides ? `, ${vides} à tirer` : ""}`;
+    if (x.origine === "playlist") return `🎶 Playlist « ${x.titre ?? playlists[x.playlistId]?.title ?? "sans nom"} » : ${pluriel(k, "chanson")}`;
+    return `🎵 ${pluriel(k, "chanson")} choisie${k > 1 ? "s" : ""} à la main`;
+  };
+  const ordre = chansonsDe(r);
+  const deplacerSerie = (i, d) => {
+    const j = i + d;
+    if (j < 0 || j >= r.seriesBlind.length) return;
+    [r.seriesBlind[i], r.seriesBlind[j]] = [r.seriesBlind[j], r.seriesBlind[i]];
+    // Rangé à la main : chaque série garde l'ordre de ses chansons, les séries passent dans leur nouvel ordre.
+    if (r.ordreBlind?.length) r.ordreBlind = r.seriesBlind.flatMap((y) => ordre.filter((id) => y.chansons.includes(id)));
+    ranger();
+    changer();
+  };
+  const liste = h("ol", { class: "quiz-series blind-series" }, ...r.seriesBlind.map((x, i) => {
+    const corps = h("ol", { class: "tirage-liste serie-liste blind-liste" }, ...x.chansons.map((id, k) => ligneChanson(x, id, k)));
+    corps.hidden = !blindsDeplies.has(x);
+    const voir = h("button", {
+      type: "button", class: "chip tirage-voir serie-voir blind-voir", "aria-expanded": corps.hidden ? "false" : "true", text: `${corps.hidden ? "▸" : "▾"} ${titreSerie(x)}`,
+      title: "Voir ou cacher les chansons de cette série, avec leur pochette et leurs paroles",
+      onclick: (e) => {
+        corps.hidden = !corps.hidden;
+        if (corps.hidden) blindsDeplies.delete(x); else blindsDeplies.add(x);
+        e.currentTarget.textContent = `${corps.hidden ? "▸" : "▾"} ${titreSerie(x)}`;
+        e.currentTarget.setAttribute("aria-expanded", corps.hidden ? "false" : "true");
+      },
+    });
+    const manque = x.chansons.filter((id) => !id).length;
+    const enlever = async () => {
+      const k = x.chansons.filter(Boolean).length;
+      if (k && !(await confirmer(`Enlever cette série (${pluriel(k, "chanson")}) du blind test ?${x.origine === "playlist" ? " La playlist reste dans la bibliothèque." : ""}`, { ok: "Enlever", danger: true }))) return;
+      r.seriesBlind = r.seriesBlind.filter((y) => y !== x);
+      ranger();
+      changer();
+      noterEcran();
+    };
+    return h("li", { class: "serie blind-serie", "data-origine": x.origine },
+      h("div", { class: "serie-tete" },
+        voir,
+        manque ? h("button", { type: "button", class: "chip blind-completer", text: `🎲 Tirer ${manque > 1 ? `les ${manque} chansons` : "la chanson"} qui manque${manque > 1 ? "nt" : ""}`, onclick: () => {
+          const nouvelles = piocherChansons(r, manque, ecartees());
+          x.chansons = x.chansons.map((id) => id || nouvelles.shift() || "");
+          ranger();
+          changer();
+        } }) : null,
+        x.origine === "playlist" ? h("button", { type: "button", class: "chip blind-plus", text: "＋ Une chanson", title: "Ajouter une chanson de la bibliothèque des sons à cette série", onclick: async () => {
+          if (!place(1)) return annonce(`${MAX_CHANSONS_BLIND} chansons au plus dans un blind test.`);
+          const choisie = await choisirChansons({ titre: "Ajouter une chanson au blind test", prises: dansLeBlind(), deja: (k) => chansonsAilleurs(r).get(k) ?? null });
+          if (!choisie) return;
+          x.chansons.push(choisie);
+          blindsDeplies.add(x);
+          ranger();
+          changer();
+        } }) : null,
+        h("button", { type: "button", class: "icon serie-monter", text: "↑", title: "Passer cette série plus tôt", "aria-label": "Monter cette série", disabled: i === 0, onclick: () => deplacerSerie(i, -1) }),
+        h("button", { type: "button", class: "icon serie-descendre", text: "↓", title: "Passer cette série plus tard", "aria-label": "Descendre cette série", disabled: i === r.seriesBlind.length - 1, onclick: () => deplacerSerie(i, 1) }),
+        h("button", { type: "button", class: "icon serie-enlever", text: "✕", title: "Enlever cette série du blind test", "aria-label": "Enlever cette série", onclick: enlever })),
+      corps);
+  }));
+
+  const presentes = ordre.filter((id) => chansonJouable(songs[id]));
+  const aTirer = chansonsBrutes(r).filter((id) => !id).length;
+  const compteur = h("p", { class: "quiz-compteur", "aria-live": "polite",
+    text: presentes.length || aTirer ? `${pluriel(presentes.length, "chanson")} à trouver${aTirer ? ` · ${aTirer} à tirer` : ""}` : "Aucune chanson pour l'instant : touchez 🎲, « Sélectionner mes chansons » ou ajoutez une playlist" });
+  // Une manche préparée avant (une playlist entière, des extraits choisis) : elle se joue encore telle quelle.
+  const ancienne = !r.seriesBlind.length && (r.playlistId || roundTracks(r).length)
+    ? h("p", { class: "small hint blind-ancienne", text: `Blind test préparé à l'ancienne : ${mancheSummary(r, { playlists })}, joué tel quel. Le 🎲, vos chansons ou une playlist le remplacent.` })
+    : null;
+  return [
+    compteur,
+    h("div", { class: "quiz-outils" }, h("div", { class: "tirage-ligne" }, nombre, de), aLaMain, ajoutPlaylist),
+    ancienne,
+    r.seriesBlind.length ? liste : null,
+    blindComplet(r, presentes, ranger, changer),
+  ].filter(Boolean);
+}
+
+/**
+ * Dernière ligne d'un blind test (cedric, 24/10 : « un récapitulatif global des deux ajouts mélangés ») : le « Blind
+ * test complet », toutes les chansons dans l'ordre de passage. Déplié : chacune monte, descend ou s'enlève (de sa
+ * série) ; 🔀 mélange tout. L'ordre rangé ici est gardé dans le blind test (`ordreBlind`).
+ */
+function blindComplet(r, ordre, ranger, changer) {
+  if (!ordre.length) return null;
+  const tout = chansonsDe(r);
+  const poser = (nouvel) => { r.ordreBlind = nouvel; ranger(); changer(); noterEcran(); };
+  const deplacer = (k, d) => {
+    const j = k + d;
+    if (j < 0 || j >= tout.length) return;
+    const nouvel = [...tout];
+    const [a, b] = [tout.indexOf(ordre[k]), tout.indexOf(ordre[j])];
+    [nouvel[a], nouvel[b]] = [nouvel[b], nouvel[a]];
+    poser(nouvel);
+  };
+  const enlever = (id) => {
+    const serie = r.seriesBlind.find((x) => x.chansons.includes(id));
+    if (!serie) return;
+    chansonsRetirees.set(r, new Set([...(chansonsRetirees.get(r) ?? []), id]));
+    serie.chansons = serie.chansons.filter((x) => x !== id);
+    if (r.ordreBlind?.length) r.ordreBlind = tout.filter((x) => x !== id);
+    ranger();
+    changer();
+    noterEcran();
+  };
+  const melanger = () => {
+    let nouvel = shuffle(tout);
+    for (let essai = 0; essai < 5 && tout.length > 1 && nouvel.every((c, k) => c === tout[k]); essai++) nouvel = shuffle(tout);
+    poser(nouvel);
+  };
+  const lignes = ordre.map((id, k) => {
+    const song = songs[id];
+    return h("li", { class: "tirage-q blind-complet-q", "data-chanson": id },
+      h("div", { class: "tirage-q-ligne" },
+        h("span", { class: "quiz-complet-num", text: `${k + 1}` }),
+        miniPochette(song),
+        h("span", { class: "tirage-texte blind-titre" }, h("b", { text: song.title.trim() }), song.artist?.trim() ? h("span", { class: "hint", text: ` · ${song.artist.trim()}` }) : null),
+        h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: "Passer cette chanson plus tôt", "aria-label": "Monter cette chanson", disabled: k === 0, onclick: () => deplacer(k, -1) }),
+        h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: "Passer cette chanson plus tard", "aria-label": "Descendre cette chanson", disabled: k === ordre.length - 1, onclick: () => deplacer(k, 1) }),
+        h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: "Enlever cette chanson du blind test", "aria-label": `Enlever « ${song.title.trim()} »`, onclick: () => enlever(id) })));
   });
-  const liste = h("ol", { class: "tirage-liste serie-liste blind-liste" }, ...lignes);
-  liste.hidden = !blindsDeplies.has(r);
-  const titre = () => `${liste.hidden ? "▸" : "▾"} 🎵 Les chansons du blind test : ${presentes.length}`;
+  const liste = h("ol", { class: "tirage-liste serie-liste quiz-complet-liste blind-complet-liste" }, ...lignes);
+  liste.hidden = !blindsCompletsDeplies.has(r);
+  const titre = () => `${liste.hidden ? "▸" : "▾"} 🧩 Blind test complet : ${ordre.length} chanson${ordre.length > 1 ? "s" : ""}, dans l'ordre de passage`;
   const voir = h("button", {
-    type: "button", class: "chip tirage-voir serie-voir blind-voir", "aria-expanded": liste.hidden ? "false" : "true", text: titre(),
-    title: "Voir ou cacher les chansons, avec leur pochette et leurs paroles",
+    type: "button", class: "chip tirage-voir serie-voir quiz-complet-voir blind-complet-voir", "aria-expanded": liste.hidden ? "false" : "true", text: titre(),
+    title: "Voir toutes les chansons du blind test, dans l'ordre",
     onclick: (e) => {
       liste.hidden = !liste.hidden;
-      if (liste.hidden) blindsDeplies.delete(r); else blindsDeplies.add(r);
+      if (liste.hidden) blindsCompletsDeplies.delete(r); else blindsCompletsDeplies.add(r);
       e.currentTarget.textContent = titre();
       e.currentTarget.setAttribute("aria-expanded", liste.hidden ? "false" : "true");
     },
   });
-  const manque = brutes.filter((id) => !id).length;
-  // Une manche préparée avant (une playlist entière, des extraits choisis) : elle se joue encore telle quelle.
-  const ancienne = !tire && (r.playlistId || roundTracks(r).length)
-    ? h("p", { class: "small hint blind-ancienne", text: `Blind test préparé à l'ancienne : ${mancheSummary(r, { playlists })}, joué tel quel. Le 🎲 le remplace par des chansons de la bibliothèque des sons.` })
-    : null;
-  const aLaMain = h("div", { class: "tirage-ligne blind-manuel" },
-    h("button", { type: "button", class: "btn secondary blind-selectionner", text: "🎵 Sélectionner mes chansons", title: "Choisir les chansons à la main dans la bibliothèque des sons", onclick: selectionner }),
-    h("span", { class: "small hint blind-selection", text: tire ? `${presentes.length} chanson${presentes.length > 1 ? "s" : ""} sélectionnée${presentes.length > 1 ? "s" : ""}` : "Aucune chanson sélectionnée" }));
-  return [
-    compteur,
-    h("div", { class: "quiz-outils" }, h("div", { class: "tirage-ligne" }, nombre, de), aLaMain),
-    ancienne,
-    tire ? h("div", { class: "serie blind-serie" },
-      h("div", { class: "serie-tete" },
-        voir,
-        manque ? h("button", { type: "button", class: "chip blind-completer", text: `🎲 Tirer ${manque > 1 ? `les ${manque} chansons` : "la chanson"} qui manque${manque > 1 ? "nt" : ""}`, onclick: () => {
-          const l = chansonsBrutes(r);
-          const nouvelles = piocherChansons(r, manque, prises());
-          r.chansons = l.map((id) => id || nouvelles.shift() || "");
-          changer();
-        } }) : null),
-      liste) : null,
-    noteManche(r),
-  ].filter(Boolean);
+  return h("div", { class: "serie quiz-complet blind-complet" },
+    h("div", { class: "serie-tete" },
+      voir,
+      h("button", { type: "button", class: "chip quiz-melanger blind-melanger", text: "🔀 Mélanger", title: "Mélanger toutes les chansons du blind test", disabled: ordre.length < 2, onclick: melanger })),
+    liste);
 }
 
 /** Jeux intégrés et Pictionary : éléments choisis un par un parmi ceux de la page du jeu. */
@@ -1825,8 +2001,11 @@ function refreshRounds() {
   if (!editing.rounds.length) box.append(h("p", { class: "hint small", text: "Ajoutez un premier jeu avec « ＋ Ajouter un jeu »." }));
   // Un Quiz = une seule manche (cedric, 23/10) : en séries, et deux Quiz qui se touchent n'en font plus qu'un.
   const { rounds: reunies, fusions } = fusionnerQuiz(editing.rounds.map((r) => versSeriesQuiz(r, quizzes)));
-  editing.rounds = reunies;
+  // Pas de manches dans un blind test (cedric, 24/10) : deux blind tests qui se touchent n'en font plus qu'un.
+  const { rounds: blinds, fusions: fusionsBlind } = fusionnerBlind(reunies.map(versSeriesBlind));
+  editing.rounds = blinds;
   if (fusions) annonce("Les Quiz qui se suivaient n'en font plus qu'un : leurs questions à la suite, une seule Super Finale à la fin.");
+  if (fusionsBlind) annonce("Les blind tests qui se suivaient n'en font plus qu'un : leurs chansons à la suite.");
   const blocs = blocsDeJeu(editing.rounds);
   blocs.forEach((b, k) => {
     const [debut, fin] = [b.indices[0], b.indices[b.indices.length - 1] + 1];
@@ -1850,6 +2029,9 @@ function refreshRounds() {
     };
     const ajouterManche = () => { editing.rounds.splice(fin, 0, { type: b.type }); refreshRounds(); };
     const n = b.indices.length;
+    // Le Quiz est une seule manche (cedric, 23/10), le blind test aussi (cedric, 24/10 : « on abandonne la notion de
+    // manche ») : pas de « ＋ Manche », tout s'ajoute dedans.
+    const sansManches = estEnSeries(b.type) || b.type === "blind";
     const premiere = editing.rounds[debut];
     const replie = premiere[JEU_REPLIE] === true;
     const resume = !replie ? "" : estEnSeries(b.type) ? compteurQuiz(premiere)
@@ -1862,10 +2044,9 @@ function refreshRounds() {
         }),
         h("span", { class: "jeu-nom", text: `${iconeJeu(b.type)} ${ROUND_TYPES[b.type]}`.trim() }),
         replie ? h("span", { class: "jeu-resume", text: resume }) : null,
-        // Le Quiz est une seule manche (cedric, 23/10) : pas de « ＋ Manche », ses questions s'ajoutent dans la manche.
-        estEnSeries(b.type) ? null : h("span", { class: "jeu-nb", text: n > 1 ? `${n} manches` : "1 manche" }),
+        sansManches ? null : h("span", { class: "jeu-nb", text: n > 1 ? `${n} manches` : "1 manche" }),
         // Mimes : une manche par équipe, toutes dans la même (cedric, 23/10) ; pas de seconde manche à ajouter.
-        estEnSeries(b.type) || b.type === "mimes" || replie ? null : h("button", { type: "button", class: "chip jeu-plus", text: "＋ Manche", title: `Ajouter une manche de ${ROUND_TYPES[b.type]}`, onclick: ajouterManche }),
+        sansManches || b.type === "mimes" || replie ? null : h("button", { type: "button", class: "chip jeu-plus", text: "＋ Manche", title: `Ajouter une manche de ${ROUND_TYPES[b.type]}`, onclick: ajouterManche }),
         h("button", { type: "button", class: "icon", title: "Monter ce jeu", disabled: k === 0, onclick: () => deplacer(-1), text: "↑" }),
         h("button", { type: "button", class: "icon", title: "Descendre ce jeu", disabled: k === blocs.length - 1, onclick: () => deplacer(1), text: "↓" }),
         h("button", { type: "button", class: "icon", title: "Retirer ce jeu", onclick: retirerJeu, text: "✕" })),
@@ -1874,13 +2055,14 @@ function refreshRounds() {
         const r = editing.rounds[i];
         const vide = !roundFilled(r);
         const champs = roundFields(r);
-        // Le compteur du Quiz sur la ligne de son numéro (cedric, 23/10).
-        const compteur = estEnSeries(b.type) || b.type === "mimes" ? champs.find((x) => x?.classList?.contains("quiz-compteur")) ?? null : null;
+        // Le compteur du Quiz sur la ligne de son numéro (cedric, 23/10), celui du blind test aussi (cedric, 24/10).
+        const compteur = sansManches || b.type === "mimes" ? champs.find((x) => x?.classList?.contains("quiz-compteur")) ?? null : null;
         const corps = h("div", { class: "round-body" }, ...champs.filter((x) => x !== compteur));
         // Créer d'abord (les champs ci-dessus), reprendre ensuite (cedric, 23/10). Pas pour le Quiz (cedric, 23/10) :
         // ses questions viennent du 🎲 et du quiz d'une prestation archivée (« Rappeler un de vos quiz »).
-        // Ni pour les Mimes (cedric, 23/10 : « uniquement mon bouton dé »).
-        const reprise = SANS_CONTENU.includes(b.type) || estEnSeries(b.type) || b.type === "mimes" ? null : reprendreManche(r, (next) => {
+        // Ni pour les Mimes (cedric, 23/10 : « uniquement mon bouton dé »), ni pour le blind test (cedric, 24/10 : « je ne
+        // veux pas pouvoir rappeler une manche déjà faite »).
+        const reprise = SANS_CONTENU.includes(b.type) || sansManches || b.type === "mimes" ? null : reprendreManche(r, (next) => {
           editing.rounds[i] = next;
           refreshRounds();
         });
@@ -1888,7 +2070,7 @@ function refreshRounds() {
           h("div", { class: "round-head" },
             h("span", { class: "num", title: `Manche ${i + 1} de la prestation`, text: `${i + 1}` }),
             compteur ?? (SANS_CONTENU.includes(b.type) ? h("span", { class: "grow hint small", text: n > 1 ? `Partie ${b.indices.indexOf(i) + 1}` : "" })
-              : h("span", { class: "grow hint small", text: vide && !estEnSeries(b.type) ? "Nouvelle manche : choisissez son contenu, ou reprenez une manche déjà faite (plus bas)." : "" })),
+              : h("span", { class: "grow hint small", text: vide && !sansManches ? "Nouvelle manche : choisissez son contenu, ou reprenez une manche déjà faite (plus bas)." : "" })),
             n > 1 ? h("button", { type: "button", class: "icon", title: "Retirer cette manche", onclick: () => { editing.rounds.splice(i, 1); refreshRounds(); }, text: "✕" }) : null),
           corps,
           reprise,
@@ -1926,8 +2108,9 @@ function ouvrirChoixJeu(place = "bas") {
         box.hidden = true;
         // Un Quiz juste après un Quiz n'en ferait qu'un : on y retourne, ses questions s'ajoutent dans sa manche.
         const dernier = editing.rounds[editing.rounds.length - 1];
-        if (dernier && estEnSeries(x.type) && (dernier.type ?? "quiz") === x.type) {
-          annonce(`${x.type === "flou" ? "L'Image floue" : `Le ${ROUND_TYPES[x.type]}`} est déjà le dernier jeu : ajoutez-y vos ${estJeuDePhotos(x.type) ? "photos" : x.type === "express" ? "affirmations" : "questions"} (🎲, un ancien anniversaire, votre bibliothèque).`);
+        if (dernier && (estEnSeries(x.type) || x.type === "blind") && (dernier.type ?? "quiz") === x.type) {
+          annonce(x.type === "blind" ? "Le Blind test est déjà le dernier jeu : ajoutez-y vos chansons (🎲, « Sélectionner mes chansons », une playlist)."
+            : `${x.type === "flou" ? "L'Image floue" : `Le ${ROUND_TYPES[x.type]}`} est déjà le dernier jeu : ajoutez-y vos ${estJeuDePhotos(x.type) ? "photos" : x.type === "express" ? "affirmations" : "questions"} (🎲, un ancien anniversaire, votre bibliothèque).`);
           $("show-rounds").lastElementChild?.scrollIntoView({ block: "nearest", behavior: "smooth" });
           return;
         }
@@ -6658,9 +6841,109 @@ function renderLibrary(force = false) {
   $("library-images").hidden = libTab !== "images";
   $("library-sons").hidden = libTab !== "sons";
   $("library-questions").hidden = libTab !== "questions";
-  if (libTab === "sons") renderSongs();
+  if (libTab === "sons") { renderPlaylistsSons(); renderSongs(); }
   else if (libTab === "questions") renderQuestions();
   else renderMedias(force);
+}
+
+// ---------- Bibliothèque › Sons : mes playlists (cedric, 24/10) ----------
+
+/** Playlists dépliées dans Bibliothèque › Sons (le temps de l'écran). */
+const playlistsDepliees = new Set();
+/** Chanson de la bibliothèque d'un morceau de playlist : par son identifiant, sinon par son extrait. */
+function chansonDuMorceau(t) {
+  if (t?.songId && chansonJouable(songs?.[t.songId])) return t.songId;
+  return Object.entries(songs ?? {}).find(([, x]) => chansonJouable(x) && x.audioId === t?.audioId)?.[0] ?? null;
+}
+
+/**
+ * Change les chansons d'une playlist de la bibliothèque : [ids] (dans l'ordre voulu) remplacent celles d'avant. Les
+ * morceaux gardés ne bougent pas (leurs points, leur place), ni ceux d'avant la bibliothèque des sons ; les nouvelles
+ * chansons se mettent à la fin. Une playlist garde au moins une chanson.
+ */
+async function changerChansonsPlaylist(id, ids) {
+  const p = playlists[id];
+  if (!p) return false;
+  const pistes = Array.isArray(p.tracks) ? p.tracks : Object.values(p.tracks ?? {});
+  const avant = new Set(chansonsDePlaylist(p));
+  const voulues = new Set(ids);
+  const gardees = pistes.filter((t) => { const k = chansonDuMorceau(t); return !k || !avant.has(k) || voulues.has(k); });
+  const tracks = [...gardees, ...ids.filter((k) => !avant.has(k) && chansonJouable(songs[k])).map((k) => trackFromSong({ ...songs[k], id: k }))];
+  if (!tracks.length) {
+    await avertir("Une playlist garde au moins une chanson : pour la vider, supprimez-la (« Supprimer »).");
+    return false;
+  }
+  try {
+    await update(ref(db, `library/playlists/${id}`), { tracks, updatedAt: serverTimestamp() });
+    return true;
+  } catch (err) {
+    console.error(err);
+    await avertir("Playlist pas enregistrée : vérifiez Internet ou reconnectez-vous.");
+    return false;
+  }
+}
+
+/** « ＋ Créer une playlist » : son nom, puis ses chansons cochées dans la bibliothèque des sons. */
+async function creerPlaylistSons() {
+  const nom = await demanderTexte("Nom de la nouvelle playlist :", "", { ok: "Choisir ses chansons", maxlength: 120 });
+  const title = nom?.trim().replace(/\s+/g, " ").slice(0, 120);
+  if (!title) return;
+  const ids = await choisirChansons({ titre: `Chansons de la playlist « ${title} »`, plusieurs: true });
+  if (!ids?.length) return;
+  try {
+    const nouvelle = push(ref(db, "library/playlists"));
+    // Dépliée d'office (avant l'écriture : la liste se redessine dès qu'elle arrive).
+    playlistsDepliees.add(nouvelle.key);
+    await set(nouvelle, { title, duration: BLIND_SEC, tracks: ids.map((k) => trackFromSong({ ...songs[k], id: k })), updatedAt: serverTimestamp() });
+    renderPlaylistsSons();
+    status("song-status", `Playlist « ${title} » créée : ${ids.length} chanson${ids.length > 1 ? "s" : ""}.`, true);
+  } catch (err) {
+    console.error(err);
+    await avertir("Playlist pas enregistrée : vérifiez Internet ou reconnectez-vous.");
+  }
+}
+$("sons-playlist-new").onclick = creerPlaylistSons;
+
+/**
+ * « 🎶 Mes playlists » en haut de Bibliothèque › Sons : chacune se déplie (ses chansons : pochette, titre, paroles,
+ * ✕), « 🎵 Choisir les chansons » (cases à cocher), « Renommer », « Supprimer ».
+ */
+function renderPlaylistsSons() {
+  const box = $("sons-playlist-list");
+  const list = Object.entries(playlists ?? {}).filter(([, p]) => p?.title && !isStatuesList(p))
+    .sort(([, a], [, b]) => a.title.localeCompare(b.title, "fr", { sensitivity: "base" }));
+  box.replaceChildren(...list.map(([id, p]) => {
+    const ids = chansonsDePlaylist(p);
+    const ouverte = playlistsDepliees.has(id);
+    const autres = playableTracks(p).length - ids.length;
+    const texte = `${ouverte ? "▾" : "▸"} 🎶 ${p.title} · ${ids.length} chanson${ids.length > 1 ? "s" : ""}${autres > 0 ? ` (+ ${autres} hors bibliothèque des sons)` : ""}`;
+    const lignes = ouverte ? ids.map((k) => {
+      const song = songs[k];
+      const paroles = parolesSurTv(song);
+      return h("li", { class: "tirage-q sons-playlist-chanson", "data-chanson": k },
+        h("div", { class: "tirage-q-ligne" },
+          miniPochette(song),
+          h("span", { class: "tirage-texte" }, h("b", { text: song.title.trim() }), song.artist?.trim() ? h("span", { class: "hint", text: ` · ${song.artist.trim()}` }) : null),
+          h("span", { class: `blind-paroles${paroles ? " ok" : " non"}`, text: paroles ? "✓ Paroles" : "✗ Pas de paroles" }),
+          h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": `Retirer « ${song.title.trim()} » de la playlist`, title: "Retirer cette chanson de la playlist",
+            onclick: () => changerChansonsPlaylist(id, ids.filter((x) => x !== k)) })));
+    }) : [];
+    return h("div", { class: "serie sons-playlist", "data-playlist": id },
+      h("div", { class: "serie-tete" },
+        h("button", { type: "button", class: "chip tirage-voir serie-voir sons-playlist-voir", "aria-expanded": ouverte ? "true" : "false", text: texte,
+          title: "Voir ou cacher les chansons de cette playlist",
+          onclick: () => { if (ouverte) playlistsDepliees.delete(id); else playlistsDepliees.add(id); renderPlaylistsSons(); } }),
+        h("button", { type: "button", class: "btn small secondary sons-playlist-choisir", text: "🎵 Choisir les chansons", title: "Cocher ou décocher les chansons de cette playlist",
+          onclick: async () => {
+            const choix = await choisirChansons({ titre: `Chansons de la playlist « ${p.title} »`, plusieurs: true, cochees: ids });
+            if (!choix) return;
+            if (await changerChansonsPlaylist(id, choix)) { playlistsDepliees.add(id); renderPlaylistsSons(); }
+          } }),
+        h("button", { type: "button", class: "btn small secondary", text: "Renommer", onclick: () => rename(`library/playlists/${id}`, p.title, "de la playlist") }),
+        h("button", { type: "button", class: "btn small danger", text: "Supprimer", onclick: () => deletePlaylist(id) })),
+      ouverte ? h("ol", { class: "tirage-liste serie-liste sons-playlist-liste" }, ...lignes) : null);
+  }));
+  if (!list.length) box.append(h("p", { class: "hint small", text: "Pas encore de playlist : « ＋ Créer une playlist », puis cochez ses chansons." }));
 }
 
 // ---------- Bibliothèque › Questions (cedric, 22/10) ----------

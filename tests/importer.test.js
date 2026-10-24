@@ -3124,4 +3124,65 @@ describe("Mimes : une manche par équipe, sa présélection tirée au 🎲 (cedr
     assert.deepEqual(trousDuJeu(mimes), ["il manque 2 images (cases 🎲 vides)"]);
     assert.deepEqual(trousDuJeu({ type: "statues" }), []);
   });
+
+  test("Blind test (cedric, 24/10) : plus de manches ; séries 🎲, playlist, chansons choisies, l'ordre du « Blind test complet », ce qui est enregistré", async () => {
+    const { seriesBlind, chansonsBrutes, chansonsDe, trousDuJeu, MAX_CHANSONS_BLIND } = await import("../web/public/show.js");
+    const M = await import("../web/public/manches.js");
+    const son = (title) => ({ title, artist: "Test", audioId: "0123456789abcdef", start: 0 });
+    const songs = Object.fromEntries(["a", "b", "c", "d", "e", "f"].map((k) => [k, son(k.toUpperCase())]));
+    const blind = {
+      type: "blind", nbChansons: 5, seriesBlind: [
+        { id: "de", origine: "de", chansons: ["a", "", "b"] },
+        { id: "p-1", origine: "playlist", playlistId: "pl", titre: "Années 80", chansons: ["c", "d"] },
+        { id: "c-1", origine: "choix", chansons: { 0: "e", 1: "a" } },
+        { id: "x", origine: "inconnue", chansons: ["f"] },
+      ],
+    };
+    // Série après série (une chanson n'y passe qu'une fois), les cases du 🎲 à tirer à la fin ; une série inconnue est ignorée.
+    assert.deepEqual(seriesBlind(blind).map((x) => x.origine), ["de", "playlist", "choix"]);
+    assert.deepEqual(chansonsBrutes(blind), ["a", "b", "c", "d", "e", ""]);
+    assert.deepEqual(chansonsDe(blind), ["a", "b", "c", "d", "e"]);
+    // Rangé à la main ou mélangé (« Blind test complet ») : cet ordre, puis celles qui n'y sont pas encore.
+    const range = { ...blind, ordreBlind: ["d", "zz", "a", "d"] };
+    assert.deepEqual(chansonsBrutes(range), ["d", "a", "b", "c", "e", ""]);
+    assert.deepEqual(trousDuJeu(range, { songs }), ["il manque 1 chanson (case 🎲 vide) : 5 jouées au lieu de 6"]);
+    // La TV joue cet ordre.
+    const show = { childName: "Zoé", age: 8, date: "2099-01-01", status: "publiee", teams: 2, rounds: [{ ...range, seriesBlind: range.seriesBlind.slice(0, 3) }] };
+    const { snapshot } = buildSnapshot("x", show, {}, {}, Math.random, {}, {}, {}, songs);
+    assert.deepEqual(snapshot.quiz.questions.map((q) => q.choices[0]), ["D", "A", "B", "C", "E"]);
+    // Enregistré : les séries, l'ordre et `chansons` (lu par les pages d'avant les séries).
+    const propre = M.cleanRound({ ...range, note: "x", seriesBlind: [...range.seriesBlind.slice(0, 3), { id: "vide", origine: "choix", chansons: [] }] });
+    assert.deepEqual(propre.chansons, ["d", "a", "b", "c", "e", ""]);
+    assert.deepEqual(propre.ordreBlind, ["d", "a", "b", "c", "e"]);
+    assert.deepEqual(propre.seriesBlind.map((x) => [x.id, x.origine, x.chansons, x.titre ?? null, x.playlistId ?? null]), [
+      ["de", "de", ["a", "", "b"], null, null], ["p-1", "playlist", ["c", "d"], "Années 80", "pl"], ["c-1", "choix", ["e", "a"], null, null]]);
+    assert.equal(M.cleanRound({ ...blind, ordreBlind: undefined }).ordreBlind, undefined, "pas rangé à la main : pas d'ordre");
+    // 50 chansons au plus.
+    const beaucoup = { type: "blind", seriesBlind: [{ id: "c", origine: "choix", chansons: Array.from({ length: 70 }, (_, k) => `s${k}`) }] };
+    assert.equal(chansonsBrutes(beaucoup).length, MAX_CHANSONS_BLIND);
+    // Un blind test d'avant (une liste) devient la série du 🎲 ; une playlist entière préparée à l'ancienne ne change pas.
+    assert.deepEqual(M.versSeriesBlind({ type: "blind", chansons: ["a", "", "b"] }).seriesBlind, [{ id: "de", origine: "de", chansons: ["a", "", "b"] }]);
+    assert.deepEqual(M.versSeriesBlind({ type: "blind", playlistId: "pl" }).seriesBlind, []);
+    assert.equal(M.versSeriesBlind({ type: "quiz" }).seriesBlind, undefined);
+    // Les blind tests qui se suivent n'en font plus qu'un : un seul 🎲 et une seule série choisie, sans doublon.
+    const deux = [
+      { type: "quiz", quizId: "q" },
+      { type: "blind", nbChansons: 5, seriesBlind: [{ id: "de", origine: "de", chansons: ["a", "b"] }] },
+      { type: "blind" },
+      { type: "blind", seriesBlind: [{ id: "de", origine: "de", chansons: ["b", "c"] }, { id: "p-1", origine: "playlist", playlistId: "pl", chansons: ["d"] }] },
+      { type: "blind", seriesBlind: [{ id: "p-1", origine: "playlist", playlistId: "pl2", chansons: ["e"] }] },
+      { type: "blind", playlistId: "ancienne" },
+      { type: "blind" },
+    ];
+    const { rounds, fusions } = M.fusionnerBlind(deux.map(M.versSeriesBlind));
+    assert.equal(fusions, 2);
+    assert.deepEqual(rounds.map((r) => r.type), ["quiz", "blind", "blind"]);
+    assert.deepEqual(rounds[1].seriesBlind.map((x) => [x.origine, x.chansons]), [["de", ["a", "b", "c"]], ["playlist", ["d"]], ["playlist", ["e"]]]);
+    assert.equal(new Set(rounds[1].seriesBlind.map((x) => x.id)).size, 3, "des séries aux identifiants différents");
+    assert.deepEqual(rounds[1].chansons, ["a", "b", "c", "d", "e"]);
+    assert.equal(rounds[1].nbChansons, 5);
+    assert.equal(rounds[2].playlistId, "ancienne", "préparé à l'ancienne : à part, joué tel quel");
+    // Un blind test vide avant un autre laisse la place.
+    assert.deepEqual(M.fusionnerBlind([{ type: "blind", seriesBlind: [] }, { type: "blind", seriesBlind: [{ id: "de", origine: "de", chansons: ["a"] }] }].map(M.versSeriesBlind)).rounds.map((r) => chansonsDe(r)), [["a"]]);
+  });
 });

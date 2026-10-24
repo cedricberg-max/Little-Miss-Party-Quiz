@@ -187,6 +187,18 @@
           qu'elle est rangée. « ⏱ Réglé ✓ » ouvre ses réglages. Chaque chanson est aussi rangée en entier en ligne, pour
           la régler depuis n'importe quel PC.
         </p>
+        <!-- Mes playlists (cedric, 24/10) : autant de chansons qu'il veut ; « 🎶 Ajouter une playlist » dans le blind test d'une prestation. -->
+        <div id="sons-playlists" class="panel sons-playlists">
+          <div class="title-row">
+            <h3>🎶 Mes playlists</h3>
+            <button id="sons-playlist-new" type="button" class="btn secondary">＋ Créer une playlist</button>
+          </div>
+          <p class="hint small">
+            Une playlist, ce sont les chansons de votre choix, autant que vous voulez. Dans une prestation, « 🎶 Ajouter
+            une playlist » met toutes ses chansons dans le blind test.
+          </p>
+          <div id="sons-playlist-list" class="sons-playlist-list"></div>
+        </div>
         <div class="search-row">
           <input id="song-search" type="search" placeholder="Rechercher : titre, artiste…" aria-label="Rechercher une chanson" autocomplete="off">
           <span id="song-count" class="hint small"></span>

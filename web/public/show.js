@@ -93,7 +93,8 @@ export const BLIND_SEC = 30;
  */
 export const BLIND_NOMBRES = [5, 8, 10, 12, 15, 20];
 export const BLIND_NOMBRE_DEFAUT = 10;
-export const MAX_CHANSONS_BLIND = 30;
+// 50 avec les playlists ajoutées au 🎲 (cedric, 24/10).
+export const MAX_CHANSONS_BLIND = 50;
 /**
  * Barème d'un blind test par défaut : valeur d'un morceau, valeur des derniers morceaux, combien de derniers
  * morceaux valent plus, et secondes de révélation (pochette, titre, extrait rejoué). Réglable par playlist.
@@ -562,7 +563,31 @@ const listOf = (x) => (Array.isArray(x) ? x : x && typeof x === "object" ? Objec
  * Chansons d'un blind test tiré au 🎲 (cedric, 24/10) : leurs identifiants dans la bibliothèque des sons
  * (library/songs), dans l'ordre de passage ; les cases vidées par ✕ (chaîne vide) attendent leur 🎲 et ne comptent pas.
  */
-export const chansonsBrutes = (round) => listOf(round?.chansons).map((id) => (typeof id === "string" && /^[-\w]{1,40}$/.test(id) ? id : "")).slice(0, MAX_CHANSONS_BLIND);
+const idChanson = (id) => (typeof id === "string" && /^[-\w]{1,40}$/.test(id) ? id : "");
+/** Origines d'une série de chansons d'un blind test : le 🎲, une playlist de la bibliothèque, des chansons choisies. */
+export const ORIGINES_BLIND = ["de", "playlist", "choix"];
+/**
+ * Blind test en séries (cedric, 24/10 : « de la même manière qu'avec le quiz ») : la série du 🎲, chaque playlist
+ * ajoutée, les chansons choisies à la main ; chacune garde ses chansons (cases vidées comprises, en attente de leur 🎲).
+ * Le « Blind test complet » les joue toutes dans l'ordre rangé à la main ou mélangé (`ordreBlind`), sinon série après
+ * série. Une chanson n'y passe qu'une fois.
+ */
+export const seriesBlind = (round) => (round?.type === "blind" ? listOf(round.seriesBlind) : [])
+  .filter((x) => x && typeof x.id === "string" && x.id && ORIGINES_BLIND.includes(x.origine))
+  .map((x) => ({ ...x, chansons: listOf(x.chansons).map(idChanson) }));
+/**
+ * Chansons d'un blind test dans l'ordre de passage, puis les cases vides ("", en attente de leur 🎲). Sans séries
+ * (manches d'avant) : la liste `chansons` telle quelle.
+ */
+export function chansonsBrutes(round) {
+  const series = seriesBlind(round);
+  if (!series.length) return listOf(round?.chansons).map(idChanson).slice(0, MAX_CHANSONS_BLIND);
+  const toutes = [...new Set(series.flatMap((x) => x.chansons.filter(Boolean)))];
+  const dedans = new Set(toutes);
+  const ordre = [...new Set(listOf(round.ordreBlind).map(idChanson).filter((id) => dedans.has(id)))];
+  const rangees = new Set(ordre);
+  return [...ordre, ...toutes.filter((id) => !rangees.has(id)), ...series.flatMap((x) => x.chansons.filter((id) => !id))].slice(0, MAX_CHANSONS_BLIND);
+}
 export const chansonsDe = (round) => [...new Set(chansonsBrutes(round).filter(Boolean))];
 
 /** Une chanson de la bibliothèque qu'un blind test peut jouer : un titre et son extrait, pas supprimée. */

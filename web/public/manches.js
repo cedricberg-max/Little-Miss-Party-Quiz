@@ -12,7 +12,7 @@ import {
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, pourLeHasard, roundHasard, roundTirees,
   roundSeriesQuiz, questionsDeLaSerie, questionJouable, FACTEURS_FINALE, MAX_QUESTIONS_MANCHE, playable, estEnSeries,
   estJeuDePhotos, signatureQuestion, questionsDuJeu, zoomRoundQuestions, mimeEquipes, mimeEquipesBrutes, mimeAges, MIME_SOURCES,
-  chansonsBrutes, chansonsDe, BLIND_NOMBRES,
+  chansonsBrutes, chansonsDe, BLIND_NOMBRES, seriesBlind, MAX_CHANSONS_BLIND,
 } from "./show.js";
 import { PROFILES } from "./profiles.js";
 import { FAMILLES_PETITS } from "./banque-petits.js";
@@ -282,7 +282,18 @@ export function cleanRound(r, playlists = {}) {
   // Blind test tiré au 🎲 dans la bibliothèque des sons (cedric, 24/10) : ses chansons dans l'ordre, cases retirées
   // comprises (en attente de leur 🎲), et le nombre demandé.
   else if (type === "blind" && chansonsBrutes(r).some(Boolean)) {
-    out = { type, chansons: chansonsBrutes(r), ...(BLIND_NOMBRES.includes(r.nbChansons) ? { nbChansons: r.nbChansons } : {}) };
+    // En séries (cedric, 24/10) : chaque série (🎲, playlist, chansons choisies) et l'ordre du « Blind test complet » ;
+    // `chansons` garde aussi l'ordre de passage, lu par les pages d'avant les séries.
+    const series = seriesBlind(r).map((x) => ({
+      id: x.id.slice(0, 40), origine: x.origine, chansons: x.chansons.slice(0, MAX_CHANSONS_BLIND),
+      ...(typeof x.titre === "string" && x.titre.trim() ? { titre: x.titre.trim().slice(0, 120) } : {}),
+      ...(typeof x.playlistId === "string" && x.playlistId ? { playlistId: x.playlistId.slice(0, 40) } : {}),
+    })).filter((x) => x.chansons.length);
+    const ordre = series.length ? chansonsDe(r) : [];
+    out = {
+      type, chansons: chansonsBrutes(r), ...(BLIND_NOMBRES.includes(r.nbChansons) ? { nbChansons: r.nbChansons } : {}),
+      ...(series.length ? { seriesBlind: series, ...(Object.values(r.ordreBlind ?? {}).length ? { ordreBlind: ordre } : {}) } : {}),
+    };
   } else if (MUSIC_GAMES[type]) out = roundTracks(r).length ? { type, tracks: roundTracks(r) } : { type, playlistId: r.playlistId };
   else if ((type === "zoom" || type === "flou") && roundPicks(r).length && !roundSeriesQuiz(r).length) out = { type, ...picks };
   else if (estEnSeries(type) && roundSeriesQuiz(r).length) {
@@ -420,6 +431,68 @@ export function fusionnerQuiz(rounds) {
   }
   return { rounds: out, fusions };
 }
+
+/**
+ * Blind test en séries (cedric, 24/10) : celui d'avant (une liste de chansons) devient la série du 🎲 ; lu dans la base,
+ * il redevient des listes. Rien pour un blind test d'une playlist entière préparé à l'ancienne (joué tel quel). Change
+ * [r] sur place (les séries gardent leur identité à l'écran) et le rend.
+ */
+export function versSeriesBlind(r) {
+  if (r?.type !== "blind") return r;
+  if (Array.isArray(r.seriesBlind) && r.seriesBlind.every((x) => Array.isArray(x?.chansons))) return r;
+  const lues = seriesBlind(r);
+  const avant = chansonsBrutes({ type: "blind", chansons: r.chansons });
+  r.seriesBlind = lues.length ? lues : avant.some(Boolean) ? [{ id: "de", origine: "de", chansons: avant }] : [];
+  return r;
+}
+
+/**
+ * Pas de manches dans un blind test (cedric, 24/10 : « on a juste un nombre de chansons à trouver ») : les blind tests
+ * qui se suivent n'en font plus qu'un, leurs séries à la suite (un seul 🎲, une seule série de chansons choisies ; une
+ * chanson n'y passe qu'une fois, 50 au plus). Un blind test vide à côté d'un autre part. Un blind test préparé à
+ * l'ancienne (une playlist entière, des extraits choisis) reste à part, joué tel quel. [fusions] : blind tests réunis.
+ * Les manches doivent déjà être en séries (versSeriesBlind).
+ */
+export function fusionnerBlind(rounds) {
+  const out = [];
+  let fusions = 0;
+  const blind = (r) => r?.type === "blind";
+  const ancien = (r) => blind(r) && !seriesBlind(r).length && !!(r.playlistId || roundTracks(r).length);
+  const vide = (r) => blind(r) && !ancien(r) && !seriesBlind(r).some((x) => x.chansons.length);
+  for (const r of rounds ?? []) {
+    const prev = out[out.length - 1];
+    if (!blind(r) || !blind(prev)) { out.push(r); continue; }
+    if (vide(r)) continue;
+    if (vide(prev)) { out[out.length - 1] = r; continue; }
+    if (ancien(r) || ancien(prev)) { out.push(r); continue; }
+    fusions++;
+    const series = seriesBlind(prev).map((x) => ({ ...x, chansons: [...x.chansons] }));
+    const ids = new Set(series.map((x) => x.id));
+    let place = MAX_CHANSONS_BLIND - chansonsBrutes(prev).length;
+    const deja = new Set(chansonsDe(prev));
+    for (const x of seriesBlind(r)) {
+      const neuves = x.chansons.filter((id) => !id || (!deja.has(id) && deja.add(id))).slice(0, Math.max(0, place));
+      place -= neuves.length;
+      if (!neuves.length) continue;
+      // Un seul 🎲 et une seule série de chansons choisies : les suivantes s'y ajoutent.
+      const meme = x.origine === "playlist" ? null : series.find((y) => y.origine === x.origine);
+      if (meme) { meme.chansons.push(...neuves); continue; }
+      const id = ids.has(x.id) ? `${x.id}-${Math.random().toString(36).slice(2, 7)}`.slice(0, 40) : x.id;
+      ids.add(id);
+      series.push({ ...x, id, chansons: neuves });
+    }
+    const ordre = (y) => listOfIds(y.ordreBlind);
+    const { mancheId, ...garde } = prev;
+    out[out.length - 1] = {
+      ...garde, seriesBlind: series,
+      // Rangé à la main dans l'un ou l'autre : l'ordre suit, celui du premier puis celui du second.
+      ...(ordre(prev).length || ordre(r).length ? { ordreBlind: [...chansonsDe(prev), ...chansonsDe(r).filter((id) => !chansonsDe(prev).includes(id))] } : {}),
+    };
+    out[out.length - 1].chansons = chansonsBrutes(out[out.length - 1]);
+  }
+  return { rounds: out, fusions };
+}
+const listOfIds = (x) => (Array.isArray(x) ? x : x && typeof x === "object" ? Object.values(x) : []).filter((id) => typeof id === "string" && id);
 
 /** Nombre de propositions d'une photo à deviner : la bonne et jusqu'à 3 autres. */
 const PROPOSITIONS_PHOTO = 4;

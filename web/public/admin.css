@@ -1046,3 +1046,26 @@ button.vos-images-titre:hover { background: var(--violet); color: #fff; }
 .pm-nom { flex: 1 1 110px; min-width: 0; }
 .pm-choisir { flex: 0 0 auto; }
 .pm-bas { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
+
+/* Blind test en séries (cedric, 24/10) : 🎲, playlists, chansons choisies, puis le « Blind test complet ». */
+.blind-serie .serie-tete .blind-plus { flex: none; }
+.blind-complet-q .tirage-q-ligne { min-height: 48px; }
+.blind-complet-q .icon { flex: none; width: 32px; height: 32px; border-radius: 10px; font-size: 14px; }
+/* Bibliothèque › Sons : « 🎶 Mes playlists » (cedric, 24/10). */
+.sons-playlists { margin: 12px 0; }
+.sons-playlists h3 { margin: 0; }
+.sons-playlist-list { display: flex; flex-direction: column; gap: 8px; }
+.sons-playlist .serie-tete > .btn { flex: none; }
+.sons-playlist-liste { list-style: none; padding-left: 4px; }
+.sons-playlist-chanson .tirage-q-ligne { min-height: 48px; }
+.sons-playlist-chanson .tirage-texte { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+/* Écran étroit : pochette, titre et « ✓ Paroles » sur la ligne, les boutons passent dessous, à droite. */
+@media (max-width: 640px) {
+  .blind-chanson .tirage-q-ligne, .blind-complet-q .tirage-q-ligne, .sons-playlist-chanson .tirage-q-ligne { flex-wrap: wrap; row-gap: 6px; gap: 8px; }
+  .blind-chanson .blind-titre, .blind-complet-q .blind-titre, .sons-playlist-chanson .tirage-texte { flex: 1 1 0; min-width: 96px; }
+  .blind-chanson .blind-titre .hint, .sons-playlist-chanson .tirage-texte .hint { display: block; }
+  .blind-pochette { width: 40px; height: 40px; }
+  .blind-paroles { padding: 4px 8px; font-size: 13px; }
+  .blind-chanson .blind-paroles + .blind-ecouter, .sons-playlist-chanson .blind-paroles + .tirage-retirer { margin-left: auto; }
+  .blind-liste, .blind-complet-liste, .sons-playlist-liste { padding: 4px 0; }
+}

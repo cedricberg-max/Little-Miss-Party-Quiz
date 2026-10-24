@@ -6190,7 +6190,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
-  test("Régie PC (cedric, 24/10) : le Blind test comme le Quiz : nombre de chansons et 🎲, liste repliable avec mini pochette et « ✓ Paroles » à droite ; ✕ laisse un 🎲 ; 🎧 écoute l'extrait et le refrain, « ⏱ Régler… » et retour à la prestation ; la TV reçoit les chansons", async () => {
+  test("Régie PC (cedric, 24/10) : le Blind test comme le Quiz, sans manches : nombre de chansons et 🎲, liste repliable avec mini pochette et « ✓ Paroles » à droite ; ✕ laisse un 🎲 ; 🎧 écoute l'extrait et le refrain, « ⏱ Régler… » et retour à la prestation ; chansons choisies et playlist ajoutée en séries ; « Blind test complet » ↑ ↓ ✕ 🔀 ; la TV reçoit les chansons", async () => {
     const { buildSnapshot } = await import("../web/public/show.js");
     const PNG = `data:image/png;base64,${png([30, 90, 200]).toString("base64")}`;
     const WAV = `data:audio/wav;base64,${wav(440, 4).toString("base64")}`;
@@ -6218,15 +6218,24 @@ describe("bibliothèque de quiz et prestations", () => {
     const ligne = round.locator(".quiz-outils > .tirage-ligne:not(.blind-manuel)");
     const manuel = round.locator(".quiz-outils > .tirage-ligne.blind-manuel");
     const compteur = round.locator(".quiz-compteur");
-    const voir = round.locator(".blind-voir");
-    const liste = round.locator(".blind-liste");
+    const serieDe = round.locator('.blind-serie[data-origine="de"]');
+    const voir = serieDe.locator(".blind-voir");
+    const liste = serieDe.locator(".blind-liste");
     const chanson = (id) => round.locator(`.blind-chanson[data-chanson="${id}"]`);
     const ids = () => round.locator(".blind-chanson[data-chanson]").evaluateAll((xs) => xs.map((x) => x.dataset.chanson));
     // Comme le Quiz (cedric) : une ligne avec le nombre de chansons à trouver et le 🎲.
     assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-nombre blind-nombre", "btn tirage-de"]);
     assert.equal(await ligne.locator(".blind-nombre").inputValue(), "10");
-    assert.equal(await compteur.textContent(), "Aucune chanson pour l'instant : touchez 🎲 ou « Sélectionner mes chansons »");
+    assert.equal(await compteur.textContent(), "Aucune chanson pour l'instant : touchez 🎲, « Sélectionner mes chansons » ou ajoutez une playlist");
     assert.equal(await round.locator(".blind-serie").count(), 0);
+    // Pas de manches (cedric, 24/10 : « on a juste un nombre de chansons à trouver »), pas de « Reprendre », pas de Note ;
+    // le compteur sur la ligne du numéro du jeu.
+    const bloc = page.locator('#show-rounds .jeu-bloc[data-jeu="blind"]');
+    assert.equal(await bloc.locator(".jeu-nb, .jeu-plus").count(), 0);
+    assert.equal(await round.locator(".reprendre-ouvrir, .manche-note").count(), 0);
+    assert.equal(await round.locator(".round-head .quiz-compteur").count(), 1);
+    // À la place de la note : « 🎶 Ajouter une playlist », une recherche dans ses playlists.
+    assert.equal(await round.locator(".quiz-outils > .blind-playlist .blind-playlist-titre").textContent(), "🎶 Ajouter une playlist");
     // Dessous, la création à la main (cedric, 24/10) : « 🎵 Sélectionner mes chansons » et leur nombre.
     assert.equal(await manuel.locator(".blind-selectionner").textContent(), "🎵 Sélectionner mes chansons");
     assert.equal(await manuel.locator(".blind-selection").textContent(), "Aucune chanson sélectionnée");
@@ -6236,10 +6245,10 @@ describe("bibliothèque de quiz et prestations", () => {
     await ligne.locator(".blind-nombre").selectOption("5");
     await ligne.locator(".tirage-de").click();
     await compteur.filter({ hasText: /^5 chansons à trouver$/ }).waitFor();
-    assert.equal(await voir.textContent(), "▾ 🎵 Les chansons du blind test : 5");
+    assert.equal(await voir.textContent(), "▾ 🎲 5 chansons tirées au hasard");
     assert.equal(await liste.isVisible(), true);
     assert.ok((await round.locator(".blind-titre b").allTextContents()).every((t) => /^Complète \d$/.test(t)));
-    await waitFor(async () => (await round.locator("img.blind-pochette").evaluateAll((xs) => xs.filter((x) => x.src.startsWith("data:image/png")).length)) === 5, "5 mini pochettes");
+    await waitFor(async () => (await serieDe.locator("img.blind-pochette").evaluateAll((xs) => xs.filter((x) => x.src.startsWith("data:image/png")).length)) === 5, "5 mini pochettes");
     assert.deepEqual(await round.locator(".blind-paroles").allTextContents(), Array(5).fill("✓ Paroles"));
     const [titre, paroles] = await Promise.all([round.locator(".blind-titre").first().boundingBox(), round.locator(".blind-paroles").first().boundingBox()]);
     assert.ok(paroles.x >= titre.x + titre.width - 1, "« ✓ Paroles » à droite du titre");
@@ -6247,7 +6256,7 @@ describe("bibliothèque de quiz et prestations", () => {
     // Repliable comme une série du Quiz.
     await voir.click();
     assert.equal(await liste.isHidden(), true);
-    assert.equal(await voir.textContent(), "▸ 🎵 Les chansons du blind test : 5");
+    assert.equal(await voir.textContent(), "▸ 🎲 5 chansons tirées au hasard");
     await voir.click();
     await liste.waitFor();
 
@@ -6265,7 +6274,8 @@ describe("bibliothèque de quiz et prestations", () => {
     // ✕ laisse un 🎲 ; plus rien à tirer (la chanson retirée ne revient pas).
     await chanson("c2").locator(".tirage-retirer").click();
     await round.locator(".blind-chanson.vide .tirage-de").waitFor();
-    await compteur.filter({ hasText: /^7 chansons à trouver$/ }).waitFor();
+    await compteur.filter({ hasText: /^7 chansons à trouver · 1 à tirer$/ }).waitFor();
+    assert.equal(await voir.textContent(), "▾ 🎲 7 chansons tirées au hasard, 1 à tirer");
     await round.locator(".blind-completer", { hasText: "🎲 Tirer la chanson qui manque" }).waitFor();
     await round.locator(".blind-chanson.vide .tirage-de").click();
     await page.locator("#annonce", { hasText: "Plus de chanson à tirer dans la bibliothèque des sons." }).waitFor();
@@ -6319,6 +6329,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(manche.nbChansons, 8);
     assert.deepEqual(manche.chansons.filter(Boolean).sort(), huit.filter((id) => id !== "c2").sort());
     assert.equal(manche.chansons.filter((id) => !id).length, 1, "la case retirée reste à tirer");
+    assert.deepEqual(manche.seriesBlind.map((x) => [x.origine, x.chansons.length]), [["de", 8]]);
     // Hook déplacé (ici directement dans la bibliothèque) ; « ← Retour » : la prestation telle qu'on l'a laissée, avec
     // le nouveau réglage.
     await env.withSecurityRulesDisabled(async (ctx) => {
@@ -6331,7 +6342,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await chanson("c1").locator(".blind-refrain", { hasText: "▶ Refrain · 0:52" }).waitFor();
     assert.equal(await chanson("c1").locator(".blind-hook").textContent(), "Refrain réglé à la main");
     assert.equal(await liste.isVisible(), true, "la liste est restée dépliée");
-    assert.equal(await compteur.textContent(), "7 chansons à trouver");
+    assert.equal(await compteur.textContent(), "7 chansons à trouver · 1 à tirer");
 
     // Case vidée (cedric, 24/10) : « 🎵 Choisir… » ouvre la bibliothèque des sons, la chanson choisie prend sa place ;
     // celles déjà dans le blind test ne se choisissent pas, une chanson supprimée n'y est jamais.
@@ -6354,33 +6365,115 @@ describe("bibliothèque de quiz et prestations", () => {
     await round.locator(".alerte-equipes").waitFor({ state: "detached" });
     assert.equal(await page.locator("#show-ready li", { hasText: "Blind test" }).count(), 0, "plus rien à revoir");
 
-    // « 🎵 Sélectionner mes chansons » : la bibliothèque, les chansons du blind test cochées ; décochées, elles partent ;
-    // les nouvelles arrivent à la fin. « ✓ Valider la sélection » revient sur le blind test.
+    // Trois chansons de plus dans la bibliothèque, et une playlist (une chanson déjà dans le blind test, une nouvelle,
+    // un morceau d'avant la bibliothèque des sons).
+    const plus = Object.fromEntries([1, 2, 3].map((k) => [`m${k}`, { title: `Manuelle ${k}`, artist: "Les Tests", audioId: hex("d", k), start: 0, updatedAt: 1 }]));
+    await Promise.all(Object.entries(plus).map(([k, x]) => seedLibrary(`songs/${k}`, x)));
+    await seedLibrary("playlists", { pl: { title: "Années 80", duration: 30, updatedAt: 1, tracks: [
+      { title: "Complète 1", audioId: hex("e", 1), songId: "c1", duration: 20 },
+      { title: "Manuelle 1", audioId: hex("d", 1), songId: "m1", duration: 20 },
+      { title: "Hors bibliothèque", audioId: hex("b", 1), duration: 20 },
+    ] } });
+    // « 🎵 Sélectionner mes chansons » : la bibliothèque, cases à cocher ; celles déjà dans le blind test ne se cochent
+    // pas. Elles forment la série « choisies à la main », sous celle du 🎲.
     await manuel.locator(".blind-selectionner").click();
     await choix.waitFor();
-    assert.equal(await choix.locator(".choix-chanson.cochee").count(), 8);
-    assert.equal(await choix.locator(".choix-valider").textContent(), "✓ Valider la sélection (8)");
-    assert.deepEqual(await choix.locator(".chip").allTextContents(), ["Toutes (8)", "✓ Avec paroles (7)", "☑ Cochées (8)"]);
-    await choix.locator('.choix-chanson[data-chanson="sp"]').click();
-    await choix.locator('.choix-chanson[data-chanson="pr"]').click();
+    await choix.locator('.choix-chanson[data-chanson="m3"]').waitFor();
+    assert.equal(await choix.locator(".choix-chanson.cochee").count(), 0);
+    assert.equal(await choix.locator('.choix-chanson[data-chanson="c1"]').isDisabled(), true, "déjà au 🎲");
+    assert.deepEqual(await choix.locator(".chip").allTextContents(), ["Toutes (11)", "✓ Avec paroles (7)", "☑ Cochées (0)"]);
+    await choix.locator('.choix-chanson[data-chanson="m1"]').click();
+    await choix.locator('.choix-chanson[data-chanson="m2"]').click();
     await capture(page, "blind-test-selection", { pleinePage: false });
-    await choix.locator(".choix-valider", { hasText: "✓ Valider la sélection (6)" }).click();
+    await choix.locator(".choix-valider", { hasText: "✓ Valider la sélection (2)" }).click();
     await choix.waitFor({ state: "detached" });
-    await compteur.filter({ hasText: /^6 chansons à trouver$/ }).waitFor();
-    assert.deepEqual(await ids(), avecC2.filter((id) => id !== "sp" && id !== "pr"));
-    assert.equal(await manuel.locator(".blind-selection").textContent(), "6 chansons sélectionnées");
+    await compteur.filter({ hasText: /^10 chansons à trouver$/ }).waitFor();
+    const serieChoix = round.locator('.blind-serie[data-origine="choix"]');
+    assert.equal(await serieChoix.locator(".blind-voir").textContent(), "▾ 🎵 2 chansons choisies à la main");
+    assert.equal(await manuel.locator(".blind-selection").textContent(), "2 chansons sélectionnées");
+    // Rouverte : ses chansons cochées ; décochée, elle part.
     await manuel.locator(".blind-selectionner").click();
-    await choix.locator(".choix-recherche").fill("sans poch");
-    await choix.locator('.choix-chanson[data-chanson="sp"]').click();
-    await choix.locator(".choix-valider", { hasText: "(7)" }).click();
-    await compteur.filter({ hasText: /^7 chansons à trouver$/ }).waitFor();
-    assert.equal((await ids()).at(-1), "sp", "les nouvelles à la fin");
+    await choix.waitFor();
+    assert.equal(await choix.locator(".choix-chanson.cochee").count(), 2);
+    await choix.locator('.choix-chanson[data-chanson="m1"]').click();
+    await choix.locator(".choix-valider", { hasText: "(1)" }).click();
+    await compteur.filter({ hasText: /^9 chansons à trouver$/ }).waitFor();
     // Annuler ne change rien.
     await manuel.locator(".blind-selectionner").click();
-    await choix.locator('.choix-chanson[data-chanson="c1"]').click();
+    await choix.locator('.choix-chanson[data-chanson="m3"]').click();
     await choix.getByRole("button", { name: "Annuler" }).click();
     await choix.waitFor({ state: "detached" });
-    assert.equal((await ids()).length, 7);
+    assert.equal((await ids()).length, 9);
+
+    // « 🎶 Ajouter une playlist » (cedric, 24/10) : rien avant la première lettre ; la playlist entière en série, sans les
+    // chansons déjà dans le blind test ; le compteur suit.
+    const cherche = round.locator(".blind-playlist-cherche");
+    await cherche.focus();
+    assert.equal(await round.locator(".blind-playlist-liste").isHidden(), true);
+    await cherche.fill("ann");
+    const item = round.locator('.blind-playlist-item[data-playlist="pl"]');
+    assert.equal(await item.locator(".small").textContent(), "2 chansons");
+    await item.click();
+    await page.locator("#annonce", { hasText: "« Années 80 » ajoutée : 1 chanson, 1 déjà dans ce blind test." }).waitFor();
+    await compteur.filter({ hasText: /^10 chansons à trouver$/ }).waitFor();
+    const seriePl = round.locator('.blind-serie[data-origine="playlist"]');
+    assert.equal(await seriePl.locator(".blind-voir").textContent(), "▾ 🎶 Playlist « Années 80 » : 1 chanson");
+    assert.deepEqual(await seriePl.locator(".blind-chanson").evaluateAll((xs) => xs.map((x) => x.dataset.chanson)), ["m1"]);
+    // Déroulante : « ＋ Une chanson » en ajoute une, ✕ en enlève une (sans 🎲 à sa place), 🎧 règle le refrain.
+    await seriePl.locator(".blind-plus").click();
+    await choix.waitFor();
+    assert.equal(await choix.locator('.choix-chanson[data-chanson="m2"]').isDisabled(), true, "déjà dans ce blind test");
+    await choix.locator('.choix-chanson[data-chanson="m3"]').click();
+    await compteur.filter({ hasText: /^11 chansons à trouver$/ }).waitFor();
+    assert.deepEqual(await seriePl.locator(".blind-chanson").evaluateAll((xs) => xs.map((x) => x.dataset.chanson)), ["m1", "m3"]);
+    await seriePl.locator('.blind-chanson[data-chanson="m3"] .tirage-retirer').click();
+    await compteur.filter({ hasText: /^10 chansons à trouver$/ }).waitFor();
+    assert.equal(await seriePl.locator(".blind-chanson.vide").count(), 0);
+    await seriePl.locator('.blind-chanson[data-chanson="m1"] .blind-ecouter').click();
+    await seriePl.locator('.blind-chanson[data-chanson="m1"] .blind-regler').waitFor();
+    await seriePl.locator('.blind-chanson[data-chanson="m1"] .blind-ecouter').click();
+    // Les séries montent et descendent.
+    const origines = () => round.locator(".blind-serie").evaluateAll((xs) => xs.map((x) => x.dataset.origine));
+    assert.deepEqual(await origines(), ["de", "choix", "playlist"]);
+    await seriePl.locator(".serie-monter").click();
+    await waitFor(async () => (await origines()).join() === "de,playlist,choix", "la playlist passe avant les chansons choisies");
+
+    // « 🧩 Blind test complet » : les deux ajouts mélangés dans l'ordre de passage, le nombre total ; ↑ ↓ ✕ et 🔀.
+    const complet = round.locator(".blind-complet");
+    const ordreComplet = () => complet.locator(".blind-complet-q").evaluateAll((xs) => xs.map((x) => x.dataset.chanson));
+    assert.equal(await complet.locator(".blind-complet-voir").textContent(), "▸ 🧩 Blind test complet : 10 chansons, dans l'ordre de passage");
+    await complet.locator(".blind-complet-voir").click();
+    const avant = await ordreComplet();
+    assert.deepEqual(avant.slice(-2), ["m1", "m2"]);
+    assert.deepEqual(avant.slice(0, 8).sort(), avecC2.slice().sort());
+    await complet.locator(".blind-complet-q").last().locator(".quiz-complet-monter").click();
+    await waitFor(async () => (await ordreComplet()).slice(-2).join() === "m2,m1", "m2 passe avant m1");
+    await complet.locator('.blind-complet-q[data-chanson="c1"] .tirage-retirer').click();
+    await compteur.filter({ hasText: /^9 chansons à trouver$/ }).waitFor();
+    assert.ok(!(await ids()).includes("c1"), "enlevée de sa série aussi");
+    const range = await ordreComplet();
+    await complet.locator(".blind-melanger").click();
+    await waitFor(async () => (await ordreComplet()).join() !== range.join(), "mélangé");
+    const melange = await ordreComplet();
+    assert.deepEqual(melange.slice().sort(), range.slice().sort());
+    await capture(page, "blind-test-complet");
+    // Enregistré : les séries et l'ordre ; la TV joue cet ordre.
+    await page.click("#show-save");
+    let zoe2;
+    await waitFor(async () => {
+      zoe2 = Object.values(await library("shows")).find((x) => x.childName === "Zoé");
+      return zoe2?.rounds?.[0]?.ordreBlind?.length === melange.length;
+    }, "blind test en séries enregistré");
+    assert.deepEqual(zoe2.rounds[0].seriesBlind.map((x) => x.origine), ["de", "playlist", "choix"]);
+    assert.deepEqual(zoe2.rounds[0].ordreBlind, melange);
+    assert.deepEqual(zoe2.rounds[0].chansons, melange);
+    const songs2 = await library("songs");
+    const titres = (await buildSnapshot("zoe", zoe2, {}, {}, Math.random, {}, {}, {}, songs2)).snapshot.quiz.questions.filter((q) => q.kind === "blind").map((q) => q.choices[0]);
+    assert.deepEqual(titres, melange.map((id) => songs2[id].title));
+    // Deux blind tests qui se suivent n'en font plus qu'un ; « ＋ Ajouter un jeu » Blind test juste après y ramène.
+    await ajouterJeu(page, "blind");
+    await page.locator("#annonce", { hasText: "Le Blind test est déjà le dernier jeu" }).waitFor();
+    assert.equal(await page.locator('#show-rounds .jeu-bloc[data-jeu="blind"]').count(), 1);
     await page.context().close();
 
     // Sur la TV : les 7 chansons, avec pochette, refrain et paroles quand elles les ont.
@@ -6404,6 +6497,84 @@ describe("bibliothèque de quiz et prestations", () => {
     const jouees = (await read("show")).quiz.questions.filter((q) => q.kind === "blind");
     assert.deepEqual(jouees.map((q) => q.choices[0]).sort(), qs.map((q) => q.choices[0]).sort());
     await regie.context().close();
+  });
+
+  test("Bibliothèque › Sons (cedric, 24/10) : « 🎶 Mes playlists » : créer une playlist (son nom, ses chansons cochées, autant qu'on veut), la déplier, ✕ une chanson, « 🎵 Choisir les chansons », renommer, supprimer", async () => {
+    const hex = (c, k) => `${c}${k}`.padEnd(16, c);
+    await seedLibrary("songs", Object.fromEntries([1, 2, 3, 4].map((k) => [`s${k}`, { title: `Chanson ${k}`, artist: "Les Tests", audioId: hex("a", k), start: 0, updatedAt: 1 }])));
+    // Une playlist d'avant, avec un morceau qui n'est pas dans la bibliothèque des sons : il reste quand on la change.
+    await seedLibrary("playlists", { vieille: { title: "Vieille", duration: 30, updatedAt: 1, tracks: [
+      { title: "Chanson 1", audioId: hex("a", 1), duration: 20, points: 300 },
+      { title: "Importée", audioId: hex("b", 1), duration: 20 },
+    ] } });
+    const page = await admin();
+    await page.click("#nav button[data-screen=library]");
+    await page.click('#library-tabs [data-lib-tab="sons"]');
+    const boite = page.locator("#library-sons:not([hidden]) #sons-playlists");
+    const vieille = boite.locator('.sons-playlist[data-playlist="vieille"]');
+    assert.equal(await vieille.locator(".sons-playlist-voir").textContent(), "▸ 🎶 Vieille · 1 chanson (+ 1 hors bibliothèque des sons)");
+
+    // Créer : son nom, puis ses chansons cochées dans la bibliothèque des sons.
+    await page.click("#sons-playlist-new");
+    assert.match(await repondreFenetre(page, { texte: "  Années   80 " }), /Nom de la nouvelle playlist/);
+    const choix = page.locator(".choix-sons");
+    await choix.waitFor();
+    for (const k of ["s3", "s1", "s4"]) await choix.locator(`.choix-chanson[data-chanson="${k}"]`).click();
+    await choix.locator(".choix-valider", { hasText: "(3)" }).click();
+    await page.locator("#song-status", { hasText: "Playlist « Années 80 » créée : 3 chansons." }).waitFor();
+    let id;
+    await waitFor(async () => {
+      id = Object.entries((await library("playlists")) ?? {}).find(([, p]) => p.title === "Années 80")?.[0];
+      return !!id;
+    }, "playlist créée");
+    const creee = await library(`playlists/${id}`);
+    assert.equal(creee.duration, 30);
+    assert.deepEqual(creee.tracks.map((t) => [t.songId, t.title, t.audioId]), [["s3", "Chanson 3", hex("a", 3)], ["s1", "Chanson 1", hex("a", 1)], ["s4", "Chanson 4", hex("a", 4)]]);
+    // Dépliée d'office : ses chansons, dans l'ordre des clics.
+    const annees = boite.locator(`.sons-playlist[data-playlist="${id}"]`);
+    await annees.locator(".sons-playlist-voir", { hasText: "▾ 🎶 Années 80 · 3 chansons" }).waitFor();
+    const chansons = () => annees.locator(".sons-playlist-chanson").evaluateAll((xs) => xs.map((x) => x.dataset.chanson));
+    assert.deepEqual(await chansons(), ["s3", "s1", "s4"]);
+    // ✕ : la chanson part de la playlist (pas de la bibliothèque).
+    await annees.locator('.sons-playlist-chanson[data-chanson="s1"] .tirage-retirer').click();
+    await waitFor(async () => (await chansons()).join() === "s3,s4", "chanson retirée");
+    assert.ok(await library("songs/s1"), "toujours dans la bibliothèque des sons");
+    // « 🎵 Choisir les chansons » : ses chansons cochées ; une de plus, à la fin.
+    await annees.locator(".sons-playlist-choisir").click();
+    await choix.waitFor();
+    assert.equal(await choix.locator(".choix-chanson.cochee").count(), 2);
+    await choix.locator('.choix-chanson[data-chanson="s2"]').click();
+    await choix.locator(".choix-valider", { hasText: "(3)" }).click();
+    await waitFor(async () => (await chansons()).join() === "s3,s4,s2", "chanson ajoutée à la fin");
+    await capture(page, "sons-mes-playlists");
+    // La playlist d'avant : le morceau importé et les points d'un morceau gardés.
+    await vieille.locator(".sons-playlist-choisir").click();
+    await choix.locator('.choix-chanson[data-chanson="s4"]').click();
+    await choix.locator(".choix-valider", { hasText: "(2)" }).click();
+    await waitFor(async () => (await library("playlists/vieille/tracks"))?.length === 3, "morceau ajouté");
+    const pistes = await library("playlists/vieille/tracks");
+    assert.deepEqual(pistes.map((t) => [t.title, t.points ?? null]), [["Chanson 1", 300], ["Importée", null], ["Chanson 4", null]]);
+    // Ses chansons décochées : le morceau importé reste.
+    await vieille.locator(".sons-playlist-choisir").click();
+    await choix.locator('.choix-chanson[data-chanson="s1"]').click();
+    await choix.locator('.choix-chanson[data-chanson="s4"]').click();
+    await choix.locator(".choix-valider", { hasText: "(0)" }).click();
+    await waitFor(async () => (await library("playlists/vieille/tracks"))?.length === 1, "le morceau importé reste");
+    // Vider une playlist : refusé, il faut la supprimer.
+    await annees.locator(".sons-playlist-choisir").click();
+    for (const k of ["s3", "s4", "s2"]) await choix.locator(`.choix-chanson[data-chanson="${k}"]`).click();
+    await choix.locator(".choix-valider", { hasText: "(0)" }).click();
+    assert.match(await repondreFenetre(page), /Une playlist garde au moins une chanson/);
+    assert.equal((await library(`playlists/${id}/tracks`)).length, 3);
+    // Renommer, Supprimer (avec confirmation).
+    await annees.getByRole("button", { name: "Renommer" }).click();
+    await repondreFenetre(page, { texte: "Années 90" });
+    await annees.locator(".sons-playlist-voir", { hasText: "Années 90" }).waitFor();
+    await annees.getByRole("button", { name: "Supprimer" }).click();
+    assert.match(await repondreFenetre(page), /Supprimer la playlist « Années 90 »/);
+    await annees.waitFor({ state: "detached" });
+    assert.equal(await library(`playlists/${id}`), null);
+    await page.context().close();
   });
 
   test("tableau de bord : trois compteurs, les prochains anniversaires « À venir », dupliquer depuis une liste sans toucher l'original, archiver", async () => {
@@ -6639,14 +6810,14 @@ describe("bibliothèque de quiz et prestations", () => {
     // 12 prestations, de la plus récente (hier) à la plus ancienne ; la 11e a une note sur sa manche, la 12e est archivée.
     await seedLibrary("shows", Object.fromEntries(PRENOMS.map((p, k) => [`s${k + 1}`, {
       childName: p, age: 8, date: day(-1 - k), status: k === 11 ? "archivee" : "publiee", updatedAt: 1,
-      rounds: [{ type: "blind", playlistId: "tubes", ...(k === 10 ? { note: "Super avec les jumeaux" } : {}) }],
+      rounds: [{ type: "musical", playlistId: "tubes", ...(k === 10 ? { note: "Super avec les jumeaux" } : {}) }],
     }])));
     const page = await admin();
     await page.click("#home-new");
     await page.fill("#show-child", "Zoé");
     // Un jeu dont la manche se reprend en entier (le Quiz, lui, en reprend les questions : voir le test du Quiz en une
-    // manche ; les Mimes, eux, n'ont que le 🎲).
-    await ajouterJeu(page, "blind");
+    // manche ; les Mimes, eux, n'ont que le 🎲 ; le Blind test n'a plus de manches, cedric 24/10).
+    await ajouterJeu(page, "musical");
     const round = page.locator("#show-rounds .round").nth(0);
     // Créer d'abord : les champs de la manche, puis sa note, puis seulement « Reprendre ».
     assert.equal(await round.locator(".manche-load").count(), 0);
