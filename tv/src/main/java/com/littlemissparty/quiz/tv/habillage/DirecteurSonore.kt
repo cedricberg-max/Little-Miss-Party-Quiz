@@ -539,7 +539,7 @@ enum class Lit(val fichier: String?, val gs: String? = null) {
     FIN(null, "gs_bed_fin"),
     /**
      * Game Show : la boucle du début de Get Lucky sous l'accueil (48 temps, 24,8 s, tempo d'origine : elle a sa propre
-     * longueur, la vidéo du robot qui dort se cale sur chacun de ses tours).
+     * longueur ; la vidéo du robot qui dort tourne seule, à côté).
      */
     ACCUEIL(null, "gs_accueil"),
     ;

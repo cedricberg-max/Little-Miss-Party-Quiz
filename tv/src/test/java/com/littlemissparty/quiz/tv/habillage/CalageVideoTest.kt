@@ -6,8 +6,8 @@ import org.junit.Test
 import kotlin.math.abs
 
 /**
- * Vidéo de l'accueil (et de l'écran de fin) calée sur sa musique sans micro-saccade (cedric, 24/10) : un écart se
- * rattrape par la vitesse de lecture, jamais par un saut, sauf très gros écart.
+ * Vidéo de l'écran de fin calée sur sa musique sans micro-saccade (cedric, 24/10) : un écart se rattrape par la
+ * vitesse de lecture, jamais par un saut, sauf très gros écart. (L'accueil n'est plus calé du tout.)
  */
 class CalageVideoTest {
 
@@ -54,6 +54,6 @@ class CalageVideoTest {
             ecart += 200.0 * (1.0 - 0.99 * vitesse)
             assertTrue("écart $ecart", abs(ecart) < SAUT_CALAGE_MS)
         }
-        assertTrue("écart final $ecart", abs(ecart) <= ECART_ACCUEIL_MS)
+        assertTrue("écart final $ecart", abs(ecart) <= ECART_CALAGE_MS)
     }
 }

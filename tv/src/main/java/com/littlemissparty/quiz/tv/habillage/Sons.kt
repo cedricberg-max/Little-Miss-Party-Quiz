@@ -96,7 +96,7 @@ object Sons {
 
     /**
      * Début (SystemClock.elapsedRealtime) du tour en cours de la boucle d'accueil du Game Show, 0 quand elle ne joue
-     * pas : la vidéo du robot qui dort repart de sa première image à chaque tour de la musique.
+     * pas. La vidéo du robot qui dort ne s'y cale plus (cedric, 24/10 : elle tourne seule, sans saccade).
      */
     @Volatile var tourAccueil: Long = 0L
         private set

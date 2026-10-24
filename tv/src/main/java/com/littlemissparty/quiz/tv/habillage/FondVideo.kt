@@ -9,15 +9,9 @@ import android.view.Surface
 import android.view.TextureView
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import com.littlemissparty.quiz.tv.R
-import kotlinx.coroutines.delay
 import kotlin.math.abs
 
 /**
@@ -38,43 +32,23 @@ internal fun FondVideo3d(surPret: () -> Unit, surEchec: () -> Unit) {
 
 /**
  * Accueil du Game Show : le robot qui dort sur le plateau (res/raw/gs_accueil_video.mp4, 24,8 s, muette, calculée à
- * l'avance), calé sur la boucle de Get Lucky que joue [Sons] : à chaque tour de la musique ([Sons.tourAccueil]), la
- * vidéo doit être au même point ; un écart de plus de [ECART_ACCUEIL_MS] se rattrape par la vitesse ([SuiviMusique]).
- * Sans musique (box muette), elle tourne seule en boucle. Même contrat que [FondVideo3d].
+ * l'avance). Elle tourne seule en boucle, sans calage sur la boucle de Get Lucky (cedric, 24/10 : à l'accueil, la
+ * continuité de la musique compte, pas quelle image tombe sur quel temps ; chaque recalage faisait une micro-saccade).
+ * Même contrat que [FondVideo3d].
  */
 @Composable
 internal fun VideoAccueil(surPret: () -> Unit, surEchec: () -> Unit) {
-    var lecteur by remember { mutableStateOf<LecteurFond?>(null) }
     AndroidView(
         factory = { LecteurFond(it, R.raw.gs_accueil_video, surPret, surEchec) },
-        update = {
-            lecteur = it
-            GelFond.fond = it
-        },
+        update = { GelFond.fond = it },
         onRelease = { lacher(it) },
         modifier = Modifier.fillMaxSize(),
     )
-    LaunchedEffect(lecteur) {
-        val v = lecteur ?: return@LaunchedEffect
-        val suivi = SuiviMusique()
-        while (true) {
-            delay(200)
-            val tour = Sons.tourAccueil
-            val pos = v.position() ?: continue
-            val duree = v.duree() ?: continue
-            if (tour <= 0L) {
-                v.vitesse(1f)
-                continue
-            }
-            val attendu = Math.floorMod(SystemClock.elapsedRealtime() - tour, duree.toLong()).toInt()
-            suivi.suivre(v, attendu, ecartSigne(attendu, pos, duree))
-        }
-    }
 }
 
 /**
- * Garde une vidéo sur sa musique sans saccade (cedric, 24/10) : un petit écart se rattrape en accélérant ou en
- * ralentissant la vidéo ([vitesseDeCalage]), invisible à l'œil. Avant, chaque écart de plus de [ECART_ACCUEIL_MS]
+ * Garde une vidéo sur sa musique sans saccade (écran de fin, cedric, 24/10) : un petit écart se rattrape en accélérant
+ * ou en ralentissant la vidéo ([vitesseDeCalage]), invisible à l'œil. Avant, chaque écart de plus de [ECART_CALAGE_MS]
  * faisait sauter la vidéo ; la box redécodait l'image (la micro-saccade) et repartait en retard, d'où un nouveau saut
  * 3 à 5 s plus tard. Seul un très gros écart, mesuré [MESURES_AVANT_SAUT] fois de suite (vidéo partie loin de sa
  * musique, pas une mesure de travers), saute encore, au plus une fois toutes les [ENTRE_SAUTS_MS].
@@ -104,7 +78,7 @@ internal fun ecartSigne(attendu: Int, position: Int, boucleMs: Int): Int {
 }
 
 /**
- * Vitesse de lecture qui ramène la vidéo sur sa musique : normale tant que l'écart reste sous [ECART_ACCUEIL_MS]
+ * Vitesse de lecture qui ramène la vidéo sur sa musique : normale tant que l'écart reste sous [ECART_CALAGE_MS]
  * (une correction en cours continue jusqu'à [CALAGE_RETOUR_MS]), puis 2 % plus vite ou plus lentement, 5 % au-delà de
  * [CALAGE_FORT_MS]. [actuelle] : la vitesse en cours, gardée tant qu'elle va dans le bon sens.
  */
@@ -113,7 +87,7 @@ internal fun vitesseDeCalage(ecart: Int, actuelle: Float): Float {
     val sens = if (ecart > 0) 1f else -1f
     return when {
         a <= CALAGE_RETOUR_MS -> 1f
-        a <= ECART_ACCUEIL_MS -> if ((actuelle - 1f) * sens > 0f) actuelle else 1f
+        a <= ECART_CALAGE_MS -> if ((actuelle - 1f) * sens > 0f) actuelle else 1f
         a <= CALAGE_FORT_MS -> 1f + sens * 0.02f
         else -> 1f + sens * 0.05f
     }
@@ -125,8 +99,8 @@ private fun lacher(lecteur: LecteurFond) {
     lecteur.liberer()
 }
 
-/** Écart toléré entre la vidéo de l'accueil et sa musique (ms) : moins d'un temps à 116 BPM, invisible à l'œil. */
-internal const val ECART_ACCUEIL_MS = 120
+/** Écart toléré entre une vidéo et sa musique (ms) : moins d'un quart de temps à 120 BPM, invisible à l'œil. */
+internal const val ECART_CALAGE_MS = 120
 
 /** Une correction de vitesse s'arrête sous cet écart (ms). */
 internal const val CALAGE_RETOUR_MS = 40
