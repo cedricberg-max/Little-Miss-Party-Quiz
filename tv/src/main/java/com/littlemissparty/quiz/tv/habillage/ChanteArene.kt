@@ -54,9 +54,9 @@ internal fun ChanteArene(mot: String, cle: Any?, modifier: Modifier = Modifier) 
     val boucle = rememberInfiniteTransition(label = "arene")
     // Une mesure à 120 BPM (2 s) : l'anneau respire, les étoiles scintillent l'une après l'autre.
     val t by boucle.animateFloat(0f, 1f, infiniteRepeatable(tween(2_000, easing = LinearEasing), RepeatMode.Restart), label = "t")
-    BoxWithConstraints(modifier.clearAndSetSemantics {}, contentAlignment = Alignment.Center) {
+    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
         val largeur = constraints.maxWidth * 0.78f
-        Canvas(Modifier.fillMaxSize()) {
+        Canvas(Modifier.fillMaxSize().clearAndSetSemantics {}) {
             val c = Offset(size.width / 2, size.height * 0.56f)
             val rx = size.width * 0.44f
             val ry = size.height * 0.34f
@@ -103,7 +103,7 @@ internal fun ChanteArene(mot: String, cle: Any?, modifier: Modifier = Modifier) 
                 Text(
                     mot, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
                     style = TextStyle(fontFamily = PoliceGsTitre, fontSize = taille.sp, lineHeight = (taille * 1.05f).sp, color = Color(0xFF5A1E00)),
-                    modifier = Modifier.graphicsLayer { translationY = taille * 0.06f * density },
+                    modifier = Modifier.clearAndSetSemantics {}.graphicsLayer { translationY = taille * 0.06f * density },
                 )
                 Text(
                     mot, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
