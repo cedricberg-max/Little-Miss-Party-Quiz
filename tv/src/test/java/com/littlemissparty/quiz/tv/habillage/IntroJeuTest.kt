@@ -10,8 +10,10 @@ import java.io.File
 
 class IntroJeuTest {
 
-    private fun question(kind: QuestionKind = QuestionKind.CLASSIC, images: List<String?> = emptyList(), audio: String? = null) =
-        Question("q1", "Combien ?", listOf("1", "2", "3", "4"), 0, kind = kind, choiceImages = images, audioId = audio)
+    // Une vraie question de quiz (photos ou extrait) ; les autres jeux sont reconnus à leur type seul
+    // (familleType(kind)) : chacun a ses propres règles de construction (voir Question.init).
+    private fun question(images: List<String?> = emptyList(), audio: String? = null) =
+        Question("q1", "Combien ?", listOf("1", "2", "3", "4"), 0, choiceImages = images, audioId = audio)
 
     @Test
     fun `chaque jeu a son intro video et la bonne`() {
@@ -22,7 +24,7 @@ class IntroJeuTest {
             QuestionKind.QUISUIS to "quisuisje", QuestionKind.DISPARU to "disparu", QuestionKind.STATUES to "statues",
             QuestionKind.COFFRES to "coffres", QuestionKind.GONFLEUR to "gonfleur", QuestionKind.PATATE to "patate",
         )
-        for ((kind, nom) in attendu) assertEquals("$kind", nom, nomIntroJeu(familleJeu(question(kind))))
+        for ((kind, nom) in attendu) assertEquals("$kind", nom, nomIntroJeu(familleType(kind)))
         assertEquals("illustre", nomIntroJeu(familleJeu(question(images = listOf("a", "b", null, "d")))))
         assertEquals("musical", nomIntroJeu(familleJeu(question(audio = "s1"))))
         // Sans question (écran pas encore chargé) : l'intro du quiz.
@@ -31,8 +33,8 @@ class IntroJeuTest {
 
     @Test
     fun `juste chiffre et portes gardent leur ecran dessine`() {
-        assertNull(nomIntroJeu(familleJeu(question(QuestionKind.NUMBER))))
-        assertNull(nomIntroJeu(familleJeu(question(QuestionKind.PORTES))))
+        assertNull(nomIntroJeu(familleType(QuestionKind.NUMBER)))
+        assertNull(nomIntroJeu(familleType(QuestionKind.PORTES)))
     }
 
     @Test
@@ -46,7 +48,7 @@ class IntroJeuTest {
 
     @Test
     fun `chaque intro est bien dans l'appli et reste legere`() {
-        val noms = QuestionKind.entries.mapNotNull { nomIntroJeu(familleJeu(question(it))) } + listOf("illustre", "musical")
+        val noms = QuestionKind.entries.mapNotNull { nomIntroJeu(familleType(it)) } + listOf("illustre", "musical")
         for (nom in noms.toSet()) {
             val f = File("src/main/res/raw/gs_intro_$nom.mp4")
             assertTrue("gs_intro_$nom.mp4 manquant", f.isFile)

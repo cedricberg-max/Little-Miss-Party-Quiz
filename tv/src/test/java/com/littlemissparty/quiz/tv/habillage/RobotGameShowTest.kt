@@ -169,7 +169,7 @@ class RobotGameShowTest {
     @Test
     fun `chaque situation a son moment`() {
         // Présentation d'un jeu sans intro vidéo (Juste Chiffre) : le robot annonce la manche.
-        assertEquals(MomentRobot.MANCHE, momentRobot(partie(Phase.QUESTION) { copy(intro = true, question = q.copy(kind = QuestionKind.NUMBER)) }, 0, null)?.first)
+        assertEquals(MomentRobot.MANCHE, momentRobot(partie(Phase.QUESTION) { copy(intro = true, question = q.copy(kind = QuestionKind.NUMBER, choices = emptyList(), correct = 42)) }, 0, null)?.first)
         assertEquals(MomentRobot.SUPER_FINALE, momentRobot(partie(Phase.QUESTION) { copy(factor = 3, introUntil = 1L) }, 0, null)?.first)
         val tous = equipes.associate { it.uid to Award(0, true, 100, 0) }
         assertEquals(MomentRobot.TOUS, momentRobot(partie(Phase.REVEAL) { copy(awards = tous) }, 0, null)?.first)

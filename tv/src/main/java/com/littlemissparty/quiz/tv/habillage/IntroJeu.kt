@@ -39,7 +39,10 @@ import kotlinx.coroutines.delay
  * Famille du jeu d'après sa première question : sert à l'emblème (design classique) et à l'intro vidéo (Game Show).
  * Quiz illustré : un quiz classique dont les réponses sont des images.
  */
-internal fun familleJeu(q: Question?): String = when (q?.kind) {
+internal fun familleJeu(q: Question?): String = familleType(q?.kind, musique = q?.audioId != null, images = q?.choiceImages?.any { it != null } == true)
+
+/** La même chose d'après le type de jeu seul ([musique] : un extrait à écouter ; [images] : des réponses en photos). */
+internal fun familleType(kind: QuestionKind?, musique: Boolean = false, images: Boolean = false): String = when (kind) {
     QuestionKind.MIME -> "mimes"
     QuestionKind.PICTIONARY -> "pictionary"
     QuestionKind.BLIND -> "blind"
@@ -56,8 +59,8 @@ internal fun familleJeu(q: Question?): String = when (q?.kind) {
     QuestionKind.GONFLEUR -> "gonfleur"
     QuestionKind.PATATE -> "patate"
     else -> when {
-        q?.audioId != null -> "musical"
-        q != null && q.choiceImages.any { it != null } -> "illustre"
+        musique -> "musical"
+        images -> "illustre"
         else -> "quiz"
     }
 }
