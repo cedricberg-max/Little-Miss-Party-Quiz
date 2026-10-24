@@ -1,5 +1,8 @@
 package com.littlemissparty.quiz.tv
 
+import com.littlemissparty.quiz.tv.habillage.Look
+import com.littlemissparty.quiz.tv.habillage.logoNeonJeu
+import androidx.compose.ui.res.painterResource
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -367,7 +370,10 @@ private fun BetweenTurns(state: UiState.Playing, m: MimeUi, modifier: Modifier) 
     Box(modifier.fillMaxWidth()) {
         if (last != null && last.found > 0) Gerbe(cle = m.turns.size, actif = apres(bilan, m.turns.size))
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("🎭", fontSize = 90.sp, lineHeight = 96.sp, modifier = Modifier.apparition(bilan, m.turns.size))
+            // Game Show : le logo néon des mimes (planche du 24/10) à la place de l'émoji.
+            val logo = if (Look.gs) logoNeonJeu("mimes") else null
+            if (logo != null) Image(painterResource(logo), contentDescription = null, modifier = Modifier.size(132.dp).apparition(bilan, m.turns.size))
+            else Text("🎭", fontSize = 90.sp, lineHeight = 96.sp, modifier = Modifier.apparition(bilan, m.turns.size))
             if (last != null && lastTeam != null) {
                 Text(
                     if (last.found > 0) "Bravo ${lastTeam.name} !" else "Bien essayé ${lastTeam.name} !",
