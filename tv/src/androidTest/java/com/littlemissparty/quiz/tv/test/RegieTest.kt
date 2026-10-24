@@ -599,7 +599,7 @@ class RegieTest : TestTv() {
         assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(chante, quiSuis) + avant))
 
         assertEquals("applied", regie.commande(code, "next"))
-        ecran.voit("CHANTE LE MOT !")
+        ecran.voit(if (Look.gs) "UNE CHANSON AVEC LE MOT" else "CHANTE LE MOT !")
         ecran.voit("SOLEIL")
         attendreQue("buzzer ouvert") { licornes.etat(code).takeIf { it.child("qid").value == "c1" && it.child("buzzOpen").value == true } }
         assertTrue(licornes.buzzer(code))
@@ -687,7 +687,7 @@ class RegieTest : TestTv() {
         ecran.entierementVisible("+100")
         attendreQue("la valeur du morceau, une fois") { points(dragons, code, dragons.uid).takeIf { it == 100L } }
         assertEquals(0L, points(licornes, code, licornes.uid))
-        ecran.neVoitPas("Tous ensemble, on chante", 3_000)
+        ecran.neVoitPas(if (Look.gs) "TOUT LE MONDE CHANTE" else "Tous ensemble, on chante", 3_000)
         ecran.capture("blind-test-revelation")
         assertEquals("applied", regie.commande(code, "blind_cut"))
 
@@ -701,8 +701,8 @@ class RegieTest : TestTv() {
         ecran.entierementVisible("Personne n'a trouvé, ce n'est pas grave !")
         // Même sans gagnant, le refrain repart en boucle : « on chante tous ensemble » jusqu'au titre suivant, avec
         // les paroles du refrain au rythme de la musique (cedric, 21/10).
-        ecran.voit("TOUS ENSEMBLE, ON CHANTE !")
-        ecran.entierementVisible("TOUS ENSEMBLE, ON CHANTE !")
+        ecran.voit(chantonsTous())
+        ecran.entierementVisible(chantonsTous())
         ecran.voit("Pierrot")
         ecran.entierementVisible("Pierrot")
         ecran.capture("blind-test-refrain")
@@ -752,8 +752,8 @@ class RegieTest : TestTv() {
         ecran.entierementVisible("Bravo Licornes et Dragons !")
         ecran.voit("Au clair de la lune")
         ecran.voit("Comptine")
-        ecran.voit("TOUS ENSEMBLE, ON CHANTE !")
-        ecran.entierementVisible("TOUS ENSEMBLE, ON CHANTE !")
+        ecran.voit(chantonsTous())
+        ecran.entierementVisible(chantonsTous())
         ecran.voit("Pierrot")
         ecran.entierementVisible("Pierrot")
         attendreQue("les points du quiz") { points(dragons, code, dragons.uid).takeIf { it >= Scoring.BASE } }
@@ -770,7 +770,7 @@ class RegieTest : TestTv() {
         ecran.voit("Personne n'a trouvé, ce n'est pas grave !")
         ecran.entierementVisible("Personne n'a trouvé, ce n'est pas grave !")
         ecran.voit("Frère Jacques")
-        ecran.neVoitPas("TOUS ENSEMBLE", 2_000)
+        ecran.neVoitPas(if (Look.gs) "TOUT LE MONDE CHANTE" else "TOUS ENSEMBLE", 2_000)
         ecran.capture("quiz-musical-personne")
     }
 
@@ -1156,3 +1156,6 @@ class RegieTest : TestTv() {
         attendreQue("fin de partie") { licornes.etat(code).takeIf { it.child("phase").value == "ended" } }
     }
 }
+
+/** Le refrain que toute la salle chante, à la révélation du blind test : en néon en Game Show (proposition A, 24/10). */
+private fun chantonsTous() = if (Look.gs) "TOUT LE MONDE CHANTE !" else "TOUS ENSEMBLE, ON CHANTE !"

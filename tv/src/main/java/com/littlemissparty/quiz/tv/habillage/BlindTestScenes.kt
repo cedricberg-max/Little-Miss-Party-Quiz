@@ -55,6 +55,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import com.littlemissparty.quiz.engine.LigneParole
 import kotlinx.coroutines.delay
 
@@ -160,7 +162,11 @@ fun BlindBuzz(equipe: String, couleur: Color, modifier: Modifier = Modifier) {
         // Game Show (proposition D) : lasers qui convergent, anneau à la couleur de l'équipe, « STOP ! » en glitch.
         Echelle(LARGEUR, HAUTEUR, modifier) {
             AlerteBuzz(ms, couleur, { 1f }, Modifier.fillMaxSize())
-            Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+            // Lu d'un seul bloc (lecteur d'écran, tests) : la pastille et la ligne disent « X a buzzé ! ».
+            Column(
+                Modifier.align(Alignment.Center).clearAndSetSemantics { contentDescription = "$equipe a buzzé ! On écoute sa réponse" },
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
                 StopGlitch(ms, 120.sp)
                 Spacer(Modifier.height(14.dp))
                 PastilleNom(equipe, couleur, 84f, 640.dp, Modifier.apparition(180, equipe))
