@@ -29,19 +29,25 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.imageResource
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.Phase
@@ -49,6 +55,11 @@ import com.littlemissparty.quiz.engine.QuestionKind
 import com.littlemissparty.quiz.tv.Team
 import com.littlemissparty.quiz.tv.UiState
 import com.littlemissparty.quiz.tv.toColor
+import kotlinx.coroutines.delay
+import kotlin.math.PI
+import kotlin.math.exp
+import kotlin.math.pow
+import kotlin.math.sin
 
 /**
  * Habillage posé par-dessus les écrans du jeu : le rideau qui annonce chaque nouveau jeu et le bandeau
@@ -61,7 +72,7 @@ fun HabillageEcran(state: UiState.Playing) {
     AnnonceEquipe(state)
 }
 
-private class Annonce(val id: String, val surtitre: String, val titre: String, val dureeMs: Long)
+private class Annonce(val id: String, val surtitre: String, val titre: String, val dureeMs: Long, val musical: Boolean = false)
 
 /**
  * Rideau de changement de jeu, façon émission de télé : deux panneaux se ferment, le nom du jeu claque sur
@@ -106,6 +117,8 @@ private fun TransitionDeJeu(state: UiState.Playing) {
                 q.isExpress -> RIDEAU_EXPRESS_MS
                 else -> RIDEAU_QUIZ_MS
             },
+            // La chanson part dès l'ouverture : aucun son de porte par-dessus (comme le jingle, voir DirecteurSonore).
+            musical = q.isBlind || q.isStatues || q.audioId != null,
         )
     }
     val a = annonce ?: return
@@ -115,26 +128,44 @@ private fun TransitionDeJeu(state: UiState.Playing) {
 @Composable
 private fun Rideau(a: Annonce, fini: () -> Unit) {
     val t = remember { Animatable(0f) }
+    // Game Show : les portes « arc-en-ciel » (choix de cedric du 24 octobre) à la place du velours ; null en
+    // Classique, ou si les images manquent (le velours reste).
+    val portes = portesGameShow()
+    val gs = portes != null
     LaunchedEffect(Unit) {
         t.animateTo(a.dureeMs.toFloat(), tween(a.dureeMs.toInt(), easing = LinearEasing))
         fini()
     }
+    // Leur son d'ouverture part avec l'ouverture des battants, quelle que soit la durée du rideau (celui de la
+    // fermeture remplace le jingle [Son.TRANSITION], joué par le directeur sonore au départ du rideau).
+    if (gs && !a.musical) LaunchedEffect(Unit) {
+        delay(a.dureeMs - OUVERTURE_MS.toLong())
+        Sons.executer(listOf(Ordre.Jouer(Son.TRANSITION_OUVRE)))
+    }
     val ms = { t.value }
     val fermeture = {
         val v = ms()
-        when {
+        val f = when {
             v < FERMETURE_MS -> FastOutSlowInEasing.transform(v / FERMETURE_MS)
             v > a.dureeMs - OUVERTURE_MS -> 1f - FastOutSlowInEasing.transform(((v - (a.dureeMs - OUVERTURE_MS)) / OUVERTURE_MS).coerceIn(0f, 1f))
             else -> 1f
         }
+        // Portes du Game Show : petit rebond doux au contact (elles se repoussent de 1,8 % puis se recalent).
+        if (gs && v >= FERMETURE_MS && v < FERMETURE_MS + REBOND_PORTES_MS) f - 0.018f * sin(PI.toFloat() * (v - FERMETURE_MS) / REBOND_PORTES_MS) else f
     }
     val titre = { rebond(((ms() - 250f) / 450f).coerceIn(0f, 1f)) }
     val eclat by remember { derivedStateOf { t.value >= Tempo.TRANSITION_IMPACT - 150 } }
     Box(Modifier.fillMaxSize().clearAndSetSemantics {}) {
         Row(Modifier.fillMaxSize()) {
-            Panneau(Modifier.weight(1f).graphicsLayer { translationX = -(1f - fermeture()) * size.width }, bordADroite = true)
-            Panneau(Modifier.weight(1f).graphicsLayer { translationX = (1f - fermeture()) * size.width }, bordADroite = false)
+            if (portes != null) {
+                Battant(portes.first, Modifier.weight(1f).graphicsLayer { translationX = -(1f - fermeture()) * size.width })
+                Battant(portes.second, Modifier.weight(1f).graphicsLayer { translationX = (1f - fermeture()) * size.width })
+            } else {
+                Panneau(Modifier.weight(1f).graphicsLayer { translationX = -(1f - fermeture()) * size.width }, bordADroite = true)
+                Panneau(Modifier.weight(1f).graphicsLayer { translationX = (1f - fermeture()) * size.width }, bordADroite = false)
+            }
         }
+        if (gs) LumieresDuJoint(ms, a.dureeMs)
         Gerbe(cle = a.id, actif = eclat)
         Column(
             Modifier.fillMaxSize().graphicsLayer { alpha = minOf(fermeture(), titre() * 2f).coerceIn(0f, 1f) },
@@ -142,12 +173,13 @@ private fun Rideau(a: Annonce, fini: () -> Unit) {
             verticalArrangement = Arrangement.Center,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Filet(Modifier.graphicsLayer { scaleX = titre().coerceIn(0f, 1f); transformOrigin = TransformOrigin(1f, 0.5f) })
-                Text(
+                Filet(Modifier.graphicsLayer { scaleX = titre().coerceIn(0f, 1f); transformOrigin = TransformOrigin(1f, 0.5f) }, gs)
+                if (gs) Text(a.surtitre, maxLines = 1, softWrap = false, modifier = Modifier.padding(horizontal = 18.dp), style = styleEtiquetteGs(22.sp, GS.Cyan, 8.sp))
+                else Text(
                     a.surtitre, color = Neon.Or, fontSize = 22.sp, fontWeight = FontWeight.Black, letterSpacing = 8.sp,
                     maxLines = 1, softWrap = false, modifier = Modifier.padding(horizontal = 18.dp),
                 )
-                Filet(Modifier.graphicsLayer { scaleX = titre().coerceIn(0f, 1f); transformOrigin = TransformOrigin(0f, 0.5f) })
+                Filet(Modifier.graphicsLayer { scaleX = titre().coerceIn(0f, 1f); transformOrigin = TransformOrigin(0f, 0.5f) }, gs)
             }
             Spacer(Modifier.height(14.dp))
             val taille = when {
@@ -157,7 +189,7 @@ private fun Rideau(a: Annonce, fini: () -> Unit) {
             }
             Text(
                 a.titre,
-                style = TextStyle(fontFamily = PoliceLmp,
+                style = if (gs) styleTitreNeon(taille, GS.Rose) else TextStyle(fontFamily = PoliceLmp,
                     brush = Brush.verticalGradient(listOf(Neon.OrClair, Neon.Or, Neon.OrProfond)),
                     fontSize = taille, lineHeight = taille * 1.1f, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                     shadow = Shadow(Neon.Or.copy(alpha = 0.6f), blurRadius = 30f),
@@ -208,8 +240,76 @@ internal fun Panneau(modifier: Modifier, bordADroite: Boolean) {
 }
 
 @Composable
-private fun Filet(modifier: Modifier) {
-    Box(modifier.width(90.dp).height(2.dp).background(Brush.horizontalGradient(listOf(Neon.Or.copy(alpha = 0f), Neon.Or, Neon.Or.copy(alpha = 0f)))))
+private fun Filet(modifier: Modifier, gs: Boolean = false) {
+    val c = if (gs) GS.Cyan else Neon.Or
+    Box(modifier.width(90.dp).height(2.dp).background(Brush.horizontalGradient(listOf(c.copy(alpha = 0f), c, c.copy(alpha = 0f)))))
+}
+
+/**
+ * Les deux battants des portes du Game Show (images 3D calculées à l'avance, res/drawable-nodpi/gs_portes_gauche et
+ * gs_portes_droite, 960 × 1080 chacune) ; null en Classique ou si l'une manque ou ne se lit pas.
+ */
+@Composable
+private fun portesGameShow(): Pair<ImageBitmap, ImageBitmap>? {
+    if (!Look.gs) return null
+    val context = LocalContext.current
+    return remember {
+        runCatching {
+            val res = context.resources
+            val g = res.getIdentifier("gs_portes_gauche", "drawable", context.packageName)
+            val d = res.getIdentifier("gs_portes_droite", "drawable", context.packageName)
+            if (g == 0 || d == 0) null else ImageBitmap.imageResource(res, g) to ImageBitmap.imageResource(res, d)
+        }.getOrNull()
+    }
+}
+
+/** Un battant : l'image étirée sur toute la moitié de l'écran (1 px de plus pour qu'aucune fente ne paraisse au milieu). */
+@Composable
+private fun Battant(image: ImageBitmap, modifier: Modifier) {
+    Box(modifier.fillMaxHeight().drawBehind { drawImage(image, dstOffset = IntOffset.Zero, dstSize = IntSize(size.width.toInt() + 1, size.height.toInt())) })
+}
+
+/**
+ * Lumière du joint des portes (aperçu validé par cedric) : un liseré rose pâle au contact des battants, qui s'élargit
+ * et s'éteint en 0,4 s ; à l'ouverture, un éclat qui s'échappe par le joint (halo rose pâle large + trait blanc qui
+ * s'efface). Colonnes au profil gaussien, un peu moins fortes en haut et en bas. Rien n'est dessiné en dehors de ces
+ * deux moments.
+ */
+@Composable
+private fun LumieresDuJoint(ms: () -> Float, dureeMs: Long) {
+    Box(
+        Modifier.fillMaxSize().drawBehind {
+            val v = ms()
+            val k = size.width / 1920f
+            if (v >= FERMETURE_MS && v < FERMETURE_MS + 420f) {
+                colonne(10f + 30f * (v - FERMETURE_MS) / 420f, k, TEINTE_PORTES, 0.85f * exp(-(v - FERMETURE_MS) / 150f))
+            }
+            val u = (v - (dureeMs - OUVERTURE_MS)) / OUVERTURE_MS
+            if (u in 0f..1f) {
+                colonne(30f + 260f * u, k, TEINTE_PORTES, 0.55f * sin(PI.toFloat() * minOf(1f, u * 1.4f)).coerceAtLeast(0f).pow(0.8f))
+                colonne(8f + 60f * u, k, Color.White, 0.7f * (1f - u))
+            }
+        },
+    )
+}
+
+/** Colonne de lumière verticale au milieu de l'écran : demi-largeur gaussienne [largeur] (px d'un écran 1920 × [k]). */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.colonne(largeur: Float, k: Float, couleur: Color, a: Float) {
+    if (a <= 0.01f) return
+    val l = largeur * k
+    val x = size.width / 2f
+    val pas = List(13) { i -> (i - 6) / 2f }
+    val brosse = Brush.horizontalGradient(
+        *pas.map { p -> ((p + 3f) / 6f) to couleur.copy(alpha = exp(-p * p)) }.toTypedArray(),
+        startX = x - 3f * l, endX = x + 3f * l,
+    )
+    // Un peu moins forte en haut et en bas (1 − 0,35·y²), par bandes trop fines pour se voir.
+    val bandes = 12
+    val h = size.height / bandes
+    for (b in 0 until bandes) {
+        val y = (b + 0.5f) / bandes * 2f - 1f
+        drawRect(brosse, Offset(x - 3f * l, b * h), androidx.compose.ui.geometry.Size(6f * l, h + 1f), alpha = (a * (1f - 0.35f * y * y)).coerceIn(0f, 1f))
+    }
 }
 
 /** Petit rebond à l'arrivée (léger dépassement, puis retour à 1). */
@@ -271,6 +371,9 @@ private fun Bandeau(team: Team, fini: () -> Unit) {
 
 private const val FERMETURE_MS = 280f
 private const val OUVERTURE_MS = 400f
+/** Portes du Game Show : durée du petit rebond au contact, et teinte de la lumière du joint (rose très pâle). */
+private const val REBOND_PORTES_MS = 240f
+private val TEINTE_PORTES = Color(0xFFFFE6FA)
 /** Le rideau d'une manche de quiz : 1,7 s, dont à peine plus d'une seconde plein écran. */
 private const val RIDEAU_QUIZ_MS = 1_700L
 /** En express le chrono ne dure que 7 à 12 s : rideau encore plus bref. */

@@ -639,6 +639,8 @@ enum class Son(val fichier: String, val long: Boolean = false, val gs: String? =
     MIME_FIN("lmp_mime_time_up", true),
     PAUSE("lmp_pause_in", true),
     TRANSITION("lmp_transition", true),
+    /** Game Show seulement : l'ouverture des portes entre les jeux (la fermeture est gs_transition), jouée par le rideau. */
+    TRANSITION_OUVRE("gs_transition_ouvre", true),
     CHIFFRE_ROULETTE("lmp_chiffre_roulette", true),
     CHIFFRE_PILE("lmp_chiffre_pile", true),
     VF_VRAI("lmp_vf_vrai"),
