@@ -141,7 +141,8 @@ class NavigationTelecommandeTest : TestTv() {
         val nouveau = attendreQue("nouvelle partie créée", 30_000) { Boite.codeActif()?.takeIf { it != code } }
         assertNotEquals(code, nouveau)
         ecran.voit("Scannez pour jouer", 30_000)
-        ecran.voit(nouveau)
+        // Game Show : plus de code de la partie sur l'accueil (cedric, 24/10), il est dans le menu Retour.
+        if (!Look.gs) ecran.voit(nouveau)
         assertEquals("ended", licornes.etat(code).child("phase").value)
     }
 }

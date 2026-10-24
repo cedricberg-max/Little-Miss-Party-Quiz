@@ -44,7 +44,8 @@ internal fun LobbyGameShow(state: UiState.Playing) {
             state.teams.size >= GameViewModel.MAX_TEAMS -> "${state.teams.size} équipes : la partie est complète"
             else -> "${state.teams.size} équipe(s) dans la partie"
         },
-        state.teams.joinToString(", ") { it.name }.takeIf { it.isNotBlank() },
+        // Rien à l'écran (accueil neutre), mais la description dit quelle tablette est hors ligne (lecteurs d'écran, tests).
+        state.teams.joinToString(", ") { if (it.uid in state.online) it.name else "${it.name} (hors ligne)" }.takeIf { it.isNotBlank() },
     ).joinToString(" · ")
     Box(
         Modifier.fillMaxSize().semantics { contentDescription = description }.padding(end = 28.dp, bottom = 24.dp),
