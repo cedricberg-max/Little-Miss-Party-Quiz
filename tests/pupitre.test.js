@@ -1054,6 +1054,35 @@ describe("pupitre", () => {
     await page.context().close();
   });
 
+  test("contrôle parental (iPhone 15, 24/10) : coupée sans cesse, la tablette passe seule à la connexion de secours et tient", async () => {
+    // Le filtre (Qustodio, Temps d'écran) laisse chaque connexion continue vivre un instant, puis la coupe.
+    let ouvertes = 0;
+    const page = await openPupitre("", (context) => context.routeWebSocket(/\/\.ws/, (ws) => {
+      ouvertes += 1;
+      ws.connectToServer();
+      setTimeout(() => ws.close().catch(() => {}), 1500);
+    }));
+    await waitFor(() => page.evaluate(() => localStorage.getItem("lmp-connexion-simple")), "connexion de secours choisie", 30000);
+    const avant = ouvertes;
+    assert.ok(avant >= 3, `au moins 3 coupures avant le secours : ${avant}`);
+    await joinTeam(page, "Les Iris");
+    const uid = Object.keys(await read("teams"))[0];
+    await hostState(question());
+    await page.locator("#screen-question.active .choice", { hasText: "Bleu" }).waitFor();
+    await page.waitForTimeout(3000);
+    assert.equal(ouvertes, avant, "plus aucune connexion continue");
+    assert.equal(await page.locator("#offline").isHidden(), true, "pas de « Connexion perdue »");
+    await page.locator(".choice").nth(1).click();
+    await waitFor(async () => (await read(`answers/q1/${uid}`))?.choice === 1, "réponse envoyée par la connexion de secours");
+    await waitFor(async () => (await read(`presence/${uid}`))?.online === true, "présence en ligne");
+    // Rechargée : elle repart directement en secours.
+    await page.reload();
+    await page.locator("#screen-question.active").waitFor();
+    await page.waitForTimeout(2000);
+    assert.equal(ouvertes, avant, "rechargée, toujours sans connexion continue");
+    await page.context().close();
+  });
+
   test("à la reprise, le décompte 3, 2, 1 bloque les réponses puis les rouvre", async () => {
     const page = await openPupitre();
     await joinTeam(page, "Les Roses");

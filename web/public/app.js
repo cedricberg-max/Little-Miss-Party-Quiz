@@ -2,6 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebas
 import { getAuth, signInAnonymously, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
 import {
   getDatabase, ref, get, set, update, onValue, onDisconnect, serverTimestamp, connectDatabaseEmulator, goOffline, goOnline,
+  forceLongPolling,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { CHOICE_COLORS, CHOICE_LETTERS, MAX_TEAMS, numeroTablette } from "./theme.js";
 import { hasAccess, loginWithPassword, loginWithPin, startRegie } from "./regie.js";
@@ -162,6 +163,7 @@ const RECONNEXION_APRES_MS = 2000;
 let cacheeDepuis = null;
 function reconnecter() {
   if (!db) return;
+  coupureVoulueJusqua = Date.now() + 1000;
   goOffline(db);
   goOnline(db);
 }
@@ -176,6 +178,48 @@ document.addEventListener("visibilitychange", () => {
 // Page gardée telle quelle par le navigateur puis rouverte (bouton retour) : même chose.
 window.addEventListener("pageshow", (e) => { if (e.persisted) reconnecter(); });
 
+// Connexion de secours (cedric, 24/10 : iPhone 15 sous contrôle parental Qustodio, connecté quelques secondes puis coupé,
+// sans fin, quand les autres téléphones tiennent). Ces filtres coupent la connexion continue (WebSocket). Après
+// 3 coupures en une minute, page affichée, le pupitre passe aux requêtes successives (« long polling ») : un peu plus
+// lentes, mais les filtres les laissent passer. Le choix reste 12 h sur l'appareil : rechargée, la page repart en secours.
+const CLE_SECOURS = "lmp-connexion-simple";
+const COUPURES_AVANT_SECOURS = 3;
+const FENETRE_COUPURES_MS = 60_000;
+const SECOURS_GARDE_MS = 12 * 3600_000;
+let enSecours = false;
+let coupures = [];
+let coupureVoulueJusqua = 0;
+
+function secoursRecent() {
+  try {
+    return Date.now() - Number(localStorage.getItem(CLE_SECOURS) ?? 0) < SECOURS_GARDE_MS;
+  } catch {
+    return false;
+  }
+}
+
+function passerEnSecours(relancer) {
+  if (enSecours) return;
+  enSecours = true;
+  forceLongPolling();
+  try { localStorage.setItem(CLE_SECOURS, String(Date.now())); } catch { /* navigation privée : seulement pour cette page */ }
+  if (relancer) reconnecter();
+}
+
+/** Compte les coupures subies (pas celles de reconnecter(), ni celles de la page cachée). */
+function suivreCoupures() {
+  let connecte = false;
+  onValue(ref(db, ".info/connected"), (s) => {
+    const maintenant = s.val() === true;
+    const t = Date.now();
+    if (connecte && !maintenant && document.visibilityState === "visible" && t > coupureVoulueJusqua) {
+      coupures = [...coupures.filter((c) => t - c < FENETRE_COUPURES_MS), t];
+      if (coupures.length >= COUPURES_AVANT_SECOURS) passerEnSecours(true);
+    }
+    connecte = maintenant;
+  });
+}
+
 async function start() {
   show("loading");
   lastScreen = "loading";
@@ -185,6 +229,7 @@ async function start() {
       const config = await (await fetch("firebase-config.json", { cache: "no-store" })).json();
       const app = initializeApp(config);
       const auth = getAuth(app);
+      if (secoursRecent()) passerEnSecours(false);
       db = getDatabase(app);
       if (emulator) {
         connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
@@ -193,6 +238,7 @@ async function start() {
       // L'identifiant anonyme est conservé par le navigateur : après un rechargement,
       // le pupitre retrouve automatiquement son équipe.
       uid = (await signInAnonymously(auth)).user.uid;
+      suivreCoupures();
     }
     gameRef = ref(db, `games/${code}`);
     const host = await get(ref(db, `games/${code}/hostUid`));
