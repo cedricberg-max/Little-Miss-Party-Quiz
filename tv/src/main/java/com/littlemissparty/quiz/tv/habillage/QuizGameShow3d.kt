@@ -351,7 +351,7 @@ private fun TexteReponse3d(text: String, couleur: Color, contour: Color?, modifi
  * jusqu'à tenir en entier. L'enseigne prend la hauteur du texte ; sa lueur déborde de 30 dp tout autour.
  */
 @Composable
-internal fun QuestionPanneau3d(p: PlanchesQuiz3d, texte: String, modifier: Modifier) {
+internal fun QuestionPanneau3d(p: PlanchesQuiz3d, texte: String, modifier: Modifier, festif: Boolean = false) {
     val mesure = rememberTextMeasurer()
     val k = LocalDensity.current.density / 2f
     BoxWithConstraints(
@@ -368,7 +368,9 @@ internal fun QuestionPanneau3d(p: PlanchesQuiz3d, texte: String, modifier: Modif
                 Triple(t, t * 1.125f, mesure.lignes(texte, styleBaloo3d(t), larg, 3))
             }
         }
-        LignesAPas(
+        // Quiz musical (cedric, 24/10 : « trop sage », proposition T3) : un titre court, en lettres de couleur qui dansent.
+        if (festif && lignes.size == 1) LettresQuiDansent(texte, 40.sp, Modifier.padding(vertical = 14.dp))
+        else LignesAPas(
             texte, lignes, styleBaloo3d(taille, Color.White, Shadow(Color(0xB39678FF), Offset.Zero, 24f * k)), pas, centre = true,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 40.dp, vertical = if (lignes.size == 1) 16.dp else 11.dp).offset(y = (-2).dp),
         )
