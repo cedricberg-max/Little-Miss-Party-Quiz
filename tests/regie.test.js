@@ -8923,7 +8923,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
-  test("Statues musicales : Sarah dépose ses chansons depuis la page du jeu, les coche dans la prestation, la TV les reçoit", async () => {
+  test("Statues musicales : la liste de la page du jeu ; dans la prestation, vos chansons (🎲, playlist, cochées, ↑ ↓ ✕), la TV reçoit leur refrain", async () => {
     const page = await admin();
     await page.locator('#screen-home .tile[data-game="statues"]', { hasText: "0 chanson" }).waitFor();
     await openGamePage(page, "statues", "collections");
@@ -8953,26 +8953,56 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#nav button[data-screen=home]");
     await page.locator('#screen-home .tile[data-game="statues"]', { hasText: "2 chansons" }).waitFor();
 
-    // Une playlist de blind test : ses chansons se cochent aussi pour les statues, sans l'être d'office.
-    await seedLibrary("playlists/blind", { title: "Dessins animés", duration: 25, tracks: [{ title: "Hakuna", audioId: list.tracks[0].audioId }, { title: "Libérée", audioId: "1111111111111111" }] });
+    // Vos chansons (cedric, 24/10 : « je devrais pouvoir entendre des musiques présélectionnées dans ma playlist ») : celles
+    // de la bibliothèque des sons, au 🎲, d'une playlist ou cochées ; la TV joue leur refrain, l'une après l'autre.
+    const hex = (c, k) => `${c}${k}`.padEnd(16, c);
+    const SONGS = {
+      s1: { title: "Libérée, délivrée", artist: "La Reine des neiges", audioId: hex("a", 1), refrainId: hex("b", 1), start: 0, refrain: 60, buzz: 25, updatedAt: 1 },
+      s2: { title: "Hakuna Matata", artist: "Le Roi lion", audioId: hex("a", 2), refrainId: hex("b", 2), start: 0, refrain: 50, buzz: 25, updatedAt: 1 },
+      s3: { title: "Sous l'océan", artist: "La Petite Sirène", audioId: hex("a", 3), start: 0, buzz: 25, updatedAt: 1 },
+    };
+    await seedLibrary("songs", SONGS);
+    for (const id of [hex("a", 1), hex("b", 1), hex("a", 2), hex("b", 2), hex("a", 3)]) await seedLibrary(`sounds/${id}`, "data:audio/mpeg;base64,SUQz");
+    await seedLibrary("playlists/disney", { title: "Dessins animés", duration: 25, updatedAt: 1, tracks: ["s1", "s3"].map((k) => ({ title: SONGS[k].title, audioId: SONGS[k].audioId, songId: k, duration: 25 })) });
 
-    // Prestation : la manche part avec les chansons de la liste cochées ; Sarah en décoche une, en ajoute une d'une playlist.
     await page.click("#nav button[data-screen=home]");
     await page.click("#home-new");
     await page.fill("#show-child", "Léa");
     await page.fill("#show-age", "7");
     await ajouterJeu(page, "statues");
-    const songs = page.locator("#show-rounds .statues-song input");
-    await songs.nth(2).waitFor();
-    assert.deepEqual(await page.locator("#show-rounds .statues-list").allTextContents(), ["Chansons des statues", "Dessins animés"]);
-    assert.deepEqual(await songs.evaluateAll((els) => els.map((e) => e.checked)), [true, true, false], "même chanson dans deux listes : une seule case");
-    await songs.nth(0).uncheck();
-    await page.locator("#show-rounds .statues-songs", { hasText: "1 chanson cochée, jouée en boucle" }).waitFor();
+    const round = page.locator("#show-rounds .round").nth(0);
+    const resume = round.locator(".statues-resume");
+    assert.equal(await resume.textContent(), "Aucune chanson : la musique de la fête.");
+    const ids = () => round.locator(".statues-chanson").evaluateAll((xs) => xs.map((x) => x.dataset.chanson));
+    // 🎶 Une playlist : ses chansons, dans son ordre.
+    await round.locator(".statues-playlist-cherche").fill("dessins");
+    await round.locator('.statues-playlist-item[data-playlist="disney"]').click();
+    await resume.filter({ hasText: "2 chansons, jouées l'une après l'autre : la TV joue leur refrain." }).waitFor();
+    assert.deepEqual(await ids(), ["s1", "s3"]);
+    assert.deepEqual(await round.locator(".statues-son").allTextContents(), ["♪ Refrain", "♪ Début"], "sans refrain réglé : l'extrait du début");
+    // 🎵 Cochées dans la bibliothèque : une de plus, à la fin.
+    await round.locator(".statues-choisir").click();
+    const choix = page.locator(".choix-sons");
+    await choix.waitFor();
+    await choix.locator('.choix-chanson[data-chanson="s2"]').click();
+    await choix.locator(".choix-valider").click();
+    await waitFor(async () => (await ids()).join() === "s1,s3,s2", "chanson cochée ajoutée à la fin");
+    // ↑ ↓ ✕ : l'ordre de passage.
+    await round.locator('.statues-chanson[data-chanson="s2"] .quiz-complet-monter').click();
+    await waitFor(async () => (await ids()).join() === "s1,s2,s3", "montée");
+    await round.locator('.statues-chanson[data-chanson="s1"] .tirage-retirer').click();
+    await waitFor(async () => (await ids()).join() === "s2,s3", "retirée");
+    await capture(page, "statues-vos-chansons");
+    // 🎲 : tirées au hasard dans la bibliothèque, elles remplacent la liste.
+    await round.locator(".statues-nombre").selectOption("3");
+    await round.locator(".statues-de").click();
+    await waitFor(async () => (await ids()).sort().join() === "s1,s2,s3", "3 chansons tirées");
+    const tirees = await ids();
     await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
-    const [, saved] = Object.entries(await library("shows"))[0];
-    assert.deepEqual(await sansManche(saved.rounds), [{ type: "statues", duration: 90, songs: [list.tracks[1].audioId] }]);
+    const saved = Object.values(await library("shows")).find((x) => x.childName === "Léa");
+    assert.deepEqual(await sansManche(saved.rounds), [{ type: "statues", duration: 90, chansons: tirees }]);
     await page.context().close();
 
     box = startBox();
@@ -8984,9 +9014,15 @@ describe("bibliothèque de quiz et prestations", () => {
     await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
     const [q] = (await read("show")).quiz.questions;
-    assert.deepEqual([q.kind, q.audioIds], ["statues", [list.tracks[1].audioId]]);
-    await waitFor(async () => Object.keys((await read("sounds")) ?? {}).length === 1, "chanson copiée dans la partie");
+    const son = (k) => SONGS[k].refrainId ?? SONGS[k].audioId;
+    assert.deepEqual([q.kind, q.audioIds], ["statues", tirees.map(son)], "le refrain de chacune, dans l'ordre");
+    await waitFor(async () => Object.keys((await read("sounds")) ?? {}).length === 3, "chansons copiées dans la partie");
     await regie.context().close();
+
+    // Une manche d'avant (extraits cochés dans les playlists) se joue encore telle quelle.
+    const { buildSnapshot } = await import("../web/public/show.js");
+    const avant = buildSnapshot("x", { childName: "Tom", age: 7, rounds: [{ type: "statues", duration: 60, songs: [list.tracks[1].audioId] }] }, {}, {}, Math.random, await library("playlists"), {}, {}, SONGS);
+    assert.deepEqual(avant.snapshot.quiz.questions[0].audioIds, [list.tracks[1].audioId]);
   });
 
   test("une prestation en brouillon n'apparaît pas sur la régie ; le code de secours ne donne pas la liste", async () => {

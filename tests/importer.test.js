@@ -785,6 +785,33 @@ describe("statues musicales", () => {
     assert.equal(isStatuesList(playlists.blind), false);
     assert.deepEqual(roundSongs({ songs: [B] }, playlists).map((t) => t.title), ["Tourner"]);
   });
+
+  test("vos chansons de la bibliothèque des sons (cedric, 24/10) : la TV joue leur refrain, l'une après l'autre ; une manche d'avant ne change pas", async () => {
+    const { chansonsStatues, sonsDesStatues } = await import("../web/public/show.js");
+    const M = await import("../web/public/manches.js");
+    const hex = (c) => c.repeat(16);
+    const songs = {
+      a: { title: "Libérée", audioId: hex("a"), refrainId: hex("b") },
+      c: { title: "Sous l'océan", audioId: hex("c") },
+      r: { title: "Retirée", audioId: hex("d"), refrainId: hex("e"), retiree: true },
+    };
+    const round = { type: "statues", duration: 60, chansons: ["c", "a", "a", "r", "zz", 3], songs: [hex("f")] };
+    assert.deepEqual(chansonsStatues(round), ["c", "a", "r", "zz"]);
+    assert.deepEqual(chansonsStatues({ type: "blind", chansons: ["a"] }), []);
+    // Le refrain s'il est réglé, sinon l'extrait du début ; une chanson supprimée ou inconnue est sautée.
+    assert.deepEqual(sonsDesStatues(round, {}, songs), [hex("c"), hex("b")]);
+    const { snapshot } = buildSnapshot("s", { childName: "Léa", age: 7, rounds: [round] }, {}, {}, Math.random, {}, {}, {}, songs);
+    assert.deepEqual(snapshot.quiz.questions[0].audioIds, [hex("c"), hex("b")]);
+    assert.deepEqual(soundIds(snapshot.quiz.questions), [hex("c"), hex("b")]);
+    // Plus aucune chanson jouable : les extraits cochés avant, sinon la musique de la fête.
+    const playlists = { p: { title: "P", tracks: [{ title: "F", audioId: hex("f") }] } };
+    assert.deepEqual(sonsDesStatues({ ...round, chansons: ["r"] }, playlists, songs), [hex("f")]);
+    assert.deepEqual(sonsDesStatues({ type: "statues", chansons: ["r"] }, playlists, songs), []);
+    // Enregistrées : vos chansons, à la place des extraits cochés avant.
+    assert.deepEqual(M.cleanRound(round, playlists), { type: "statues", duration: 60, chansons: ["c", "a", "r", "zz"] });
+    assert.deepEqual(M.cleanRound({ type: "statues", duration: 60, songs: [hex("f")] }, playlists), { type: "statues", duration: 60, songs: [hex("f")] });
+    assert.equal(M.mancheSummary({ type: "statues", duration: 60, chansons: ["a", "c"] }, {}), "60 s · 2 chansons");
+  });
 });
 
 describe("Les Coffres mystères", () => {

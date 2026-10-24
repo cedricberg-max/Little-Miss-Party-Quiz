@@ -15,7 +15,7 @@ import {
   pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches, isArchived, AUTO_ARCHIVE_DAYS, quizKind,
   roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS, mimeEquipes, mimeEquipesBrutes, mimeAges, MIME_SOURCES, MIME_EQUIPES_MAX, mimePerTeam,
   chansonsBrutes, chansonsDe, chansonJouable, BLIND_NOMBRES, BLIND_NOMBRE_DEFAUT, MAX_CHANSONS_BLIND, seriesBlind,
-  isStatuesList, statuesSongs, statuesChoices, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS, builtinConcepts, isPhotoTheme, disparuGroup,
+  isStatuesList, statuesSongs, statuesChoices, roundSongs, chansonsStatues, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS, builtinConcepts, isPhotoTheme, disparuGroup,
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, alerteEquipes, EQUIPES_PAR_DEFAUT, pourLeHasard, premierQuiz,
   launchStates, launchLabelPc, couleursEquipes, teamCount, roundTirees, chiffresDuTirage, MAX_TIREES, trousDuJeu,
   roundSeriesQuiz, questionsDeLaSerie, questionsDesSeries, questionJouable, FACTEURS_FINALE, SUPER_FINALE_LAST, questionBougies,
@@ -2707,36 +2707,99 @@ function pictoSeriesPicker(r) {
   return box;
 }
 
+/** Nombres de chansons proposés au 🎲 des statues. */
+const STATUES_NOMBRES = [3, 5, 8, 10];
+
 /**
- * Statues musicales : les chansons de la liste des statues, puis celles de toutes les playlists, à cocher pour la
- * manche ; jouées dans cet ordre. Aucune cochée : la musique de la fête, sur la TV. Une nouvelle manche part avec
- * les chansons de la liste des statues cochées.
+ * Statues musicales sur vos chansons (cedric, 24/10 : « je devrais pouvoir entendre des musiques présélectionnées dans
+ * ma playlist ») : comme au blind test, le 🎲 dans la bibliothèque des sons, « 🎵 Choisir mes chansons » et « 🎶 Ajouter
+ * une playlist » ; la liste dans l'ordre de passage (↑ ↓ ✕). La TV joue le refrain de chacune, l'une après l'autre.
+ * Aucune : la musique de la fête. Une manche d'avant garde ses extraits cochés tant qu'aucune chanson n'est choisie ici.
  */
-function songsPicker(r) {
-  const songs = statuesChoices(playlists);
-  if (!Array.isArray(r.songs)) r.songs = statuesSongs(playlists).map((t) => t.audioId).slice(0, MAX_STATUES_SONGS);
-  const chosen = new Set(r.songs);
-  const manage = h("button", { type: "button", class: "link", text: statuesSongs(playlists).length ? "Gérer les chansons des statues" : "Ajouter des chansons pour les statues", onclick: () => openStatuesSongs() });
-  if (!songs.length) return h("p", { class: "hint small statues-songs" }, "Musique de la fête (aucune chanson dans vos playlists). ", manage);
-  const count = roundSongs(r, playlists).length;
-  const groups = [...new Set(songs.map((t) => t.list))];
-  return h("div", { class: "statues-songs" },
-    h("p", { class: "hint small", text: !count ? "Aucune chanson cochée : musique de la fête." : count === 1 ? "1 chanson cochée, jouée en boucle :" : `${count} chansons cochées, jouées l'une après l'autre (${MAX_STATUES_SONGS} au plus) :` }),
-    ...groups.flatMap((list) => [
-      h("p", { class: "statues-list", text: list }),
-      ...songs.filter((t) => t.list === list).map((t) => h("label", { class: "inline statues-song" },
-        h("input", {
-          type: "checkbox", value: t.audioId, checked: chosen.has(t.audioId),
-          onchange: (e) => {
-            const keep = new Set(r.songs);
-            if (e.target.checked) keep.add(t.audioId); else keep.delete(t.audioId);
-            r.songs = songs.map((x) => x.audioId).filter((id) => keep.has(id)).slice(0, MAX_STATUES_SONGS);
-            roundCtx.refresh();
-          },
+function statuesChansons(r) {
+  const ids = chansonsStatues(r);
+  const pluriel = (k, mot) => `${k} ${mot}${k > 1 ? "s" : ""}`;
+  const ranger = (liste) => {
+    r.chansons = [...new Set(liste.filter(Boolean))].slice(0, MAX_STATUES_SONGS);
+    // Vos chansons remplacent les extraits cochés avant dans les playlists.
+    if (r.chansons.length) r.songs = [];
+    roundCtx.refresh();
+    noterEcran();
+  };
+  const n = STATUES_NOMBRES.includes(r.nbChansons) ? r.nbChansons : 5;
+  const nombre = h("select", { class: "tirage-nombre statues-nombre", "aria-label": "Nombre de chansons à tirer au hasard", onchange: (e) => { r.nbChansons = Number(e.target.value); } },
+    ...STATUES_NOMBRES.map((k) => h("option", { value: k, selected: k === n, text: `${k} chansons au hasard` })));
+  const de = h("button", {
+    type: "button", class: "btn tirage-de statues-de", text: "🎲", "aria-label": "Tirer les chansons au hasard",
+    title: "Tirer les chansons au hasard dans la bibliothèque des sons (elles remplacent la liste)",
+    onclick: () => {
+      r.nbChansons = Number(nombre.value);
+      const tirees = piocherChansons(r, r.nbChansons, new Set());
+      if (!tirees.length) return annonce("Aucune chanson dans la bibliothèque des sons : ajoutez-en d'abord (Bibliothèque › Sons).");
+      ranger(tirees);
+    },
+  });
+  const choisir = h("button", {
+    type: "button", class: "btn secondary statues-choisir", text: "🎵 Choisir mes chansons", title: "Cocher les chansons dans la bibliothèque des sons",
+    onclick: async () => {
+      const choix = await choisirChansons({ titre: "Chansons des statues musicales", plusieurs: true, cochees: ids, deja: (k) => chansonsAilleurs(r).get(k) ?? null });
+      if (!choix) return;
+      if (choix.length > MAX_STATUES_SONGS) annonce(`${MAX_STATUES_SONGS} chansons au plus aux statues : les dernières ne sont pas ajoutées.`, true);
+      ranger([...ids.filter((id) => choix.includes(id)), ...choix.filter((id) => !ids.includes(id))]);
+    },
+  });
+  // Une de vos playlists, cherchée par son nom : ses chansons s'ajoutent à la fin (la playlist ne change pas).
+  const listes = Object.entries(playlists ?? {})
+    .filter(([, p]) => p?.title && !isStatuesList(p))
+    .map(([id, p]) => [id, p, chansonsDePlaylist(p)])
+    .filter(([, , liste]) => liste.length)
+    .sort(([, a], [, b]) => a.title.localeCompare(b.title, "fr"))
+    .map(([id, p, liste]) => ({ id, titre: p.title, ids: liste, details: pluriel(liste.length, "chanson"), noms: [p.title], autres: liste.slice(0, 40).flatMap((k) => [songs[k]?.title, songs[k]?.artist]) }));
+  const ajoutPlaylist = ligneAjoutQuiz({
+    classe: "statues-playlist", titre: "🎶 Ajouter une playlist", label: "Chercher une de vos playlists",
+    placeholder: "Nom d'une de vos playlists", vide: "Pas encore de playlist : créez-en dans Bibliothèque › Sons",
+    aucun: "Aucune playlist ne correspond.", items: listes, attr: (x) => ({ "data-playlist": x.id }),
+    choisir: (x) => {
+      const neuves = x.ids.filter((id) => !ids.includes(id));
+      if (!neuves.length) return annonce(`Les chansons de « ${x.titre} » sont déjà toutes dans les statues.`);
+      if (ids.length + neuves.length > MAX_STATUES_SONGS) annonce(`${MAX_STATUES_SONGS} chansons au plus aux statues : les dernières ne sont pas ajoutées.`, true);
+      ranger([...ids, ...neuves]);
+    },
+  });
+  const ligne = (id, i) => {
+    const song = songs[id];
+    const enlever = h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: "Retirer cette chanson des statues", "aria-label": `Retirer « ${song?.title?.trim() ?? "cette chanson"} »`, onclick: () => ranger(ids.filter((x) => x !== id)) });
+    if (!chansonJouable(song)) {
+      return h("li", { class: "tirage-q blind-chanson statues-chanson manquante", "data-chanson": id }, h("div", { class: "tirage-q-ligne" },
+        h("span", { class: "blind-pochette sans", text: "💿" }), h("span", { class: "tirage-texte", text: "Chanson supprimée de la bibliothèque" }), enlever));
+    }
+    const bouger = (d) => {
+      const l = [...ids];
+      [l[i], l[i + d]] = [l[i + d], l[i]];
+      ranger(l);
+    };
+    const refrain = /^[0-9a-f]{16}$/.test(song.refrainId ?? "");
+    return h("li", { class: "tirage-q blind-chanson statues-chanson", "data-chanson": id },
+      h("div", { class: "tirage-q-ligne" },
+        miniPochette(song),
+        h("span", { class: "tirage-texte blind-titre" }, h("b", { text: song.title.trim() }), song.artist?.trim() ? h("span", { class: "hint", text: ` · ${song.artist.trim()}` }) : null),
+        h("span", {
+          class: `blind-paroles statues-son${refrain ? " ok" : " non"}`, text: refrain ? "♪ Refrain" : "♪ Début",
+          title: refrain ? "La TV joue le refrain réglé de la chanson" : "Refrain pas encore réglé : la TV joue l'extrait du début (Bibliothèque › Sons, ⏱ Régler)",
         }),
-        t.artist?.trim() ? `${t.title} (${t.artist.trim()})` : t.title)),
-    ]),
-    manage);
+        h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: "Jouer cette chanson plus tôt", "aria-label": "Monter cette chanson", disabled: i === 0, onclick: () => bouger(-1) }),
+        h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: "Jouer cette chanson plus tard", "aria-label": "Descendre cette chanson", disabled: i === ids.length - 1, onclick: () => bouger(1) }),
+        enlever));
+  };
+  const avant = ids.length ? [] : roundSongs(r, playlists);
+  const resume = ids.length ? `${pluriel(ids.length, "chanson")}, ${ids.length > 1 ? "jouées l'une après l'autre" : "jouée en boucle"} : la TV joue leur refrain.`
+    : avant.length ? `Pour l'instant : ${pluriel(avant.length, "extrait")} coché${avant.length > 1 ? "s" : ""} avant dans vos playlists. Ajoutez vos chansons pour les remplacer.`
+    : "Aucune chanson : la musique de la fête.";
+  return h("div", { class: "statues-chansons" },
+    h("div", { class: "tirage-ligne" }, nombre, de, choisir),
+    ajoutPlaylist,
+    h("p", { class: "hint small statues-resume", text: resume }),
+    ids.length ? h("ol", { class: "tirage-liste statues-liste" }, ...ids.map(ligne)) : null);
 }
 
 /** Jeux que « ＋ Ajouter un jeu » propose, par famille, dans l'ordre des tuiles de l'Accueil. */
@@ -3855,11 +3918,11 @@ function roundFields(r) {
       r.type === "disparu" ? photoSwitch(r) : null,
       picksSelection(r))
     : r.type === "statues"
-    // Statues musicales : la durée de la musique et les chansons cochées (aucune : la musique de la fête).
+    // Statues musicales : la durée de la musique et vos chansons (aucune : la musique de la fête).
     ? h("div", { class: "grow picto-round" },
       h("select", { class: "grow", "aria-label": "Durée", onchange: (e) => { r.duration = Number(e.target.value); roundCtx.summary(); } },
         ...STATUES_SECONDS.map((n) => h("option", { value: n, selected: (r.duration ?? STATUES_SEC) === n, text: `${n} secondes de musique (on danse, on se fige à l'arrêt ; vous désignez l'équipe gagnante)` }))),
-      songsPicker(r))
+      statuesChansons(r))
     : r.type === "pictionary"
     // Pictionary : les mots viennent du catalogue (page du jeu) ; le temps de dessin et les séries de mots.
     ? h("div", { class: "grow picto-round" },
@@ -8466,9 +8529,9 @@ const GAME_GROUPS = [
       status: () => `${plural(Object.keys(mimes).length, "collection perso", "collections perso")} · ${plural(mancheGroups(manches, "mimes").pinned.length + mancheGroups(manches, "mimes").active.length, "manche")}`, },
     { type: "blind", icon: "🎵", rule: "Les morceaux d'une playlist, dans l'ordre : le premier qui buzze donne le titre à voix haute, vous validez.",
       status: () => plural(Object.values(playlists).filter((p) => !isStatuesList(p)).length, "playlist"), },
-    { type: "musical", icon: "🎶", rule: "Un extrait d'une playlist et 4 titres sur les pupitres ; même playlist que le blind test.",
+    { type: "musical", icon: "🎶", rule: "Un extrait sur la TV, et sur les pupitres le vrai titre parmi 3 mots de son refrain (modifiables dans la prestation).",
       status: () => plural(Object.values(playlists).filter((p) => !isStatuesList(p) && playableTracks(p).length >= 2).length, "playlist utilisable", "playlists utilisables"), },
-    { type: "statues", icon: "🗿", rule: "Vos chansons jouent sur la TV et s'arrêtent par moments : tout le monde se fige ! Vous désignez l'équipe gagnante depuis la régie. Dans la prestation : la durée et les chansons cochées (aucune : la musique de la fête).",
+    { type: "statues", icon: "🗿", rule: "Vos chansons jouent sur la TV et s'arrêtent par moments : tout le monde se fige ! Vous désignez l'équipe gagnante depuis la régie. Dans la prestation : la durée et vos chansons (🎲, une playlist ou à la main), dont la TV joue le refrain (aucune : la musique de la fête).",
       status: () => plural(statuesChoices(playlists).length, "chanson disponible", "chansons disponibles"), },
   ] },
   { title: "Tirés d'un quiz", hint: "Rien de plus à préparer : ces jeux reprennent les questions d'un quiz de la bibliothèque. Dans la prestation, choisissez le quiz et combien de questions.", games: [

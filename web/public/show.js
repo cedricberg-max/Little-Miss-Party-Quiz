@@ -74,6 +74,24 @@ export function roundSongs(round, playlists) {
   return statuesChoices(playlists).filter((t) => chosen.has(t.audioId)).slice(0, MAX_STATUES_SONGS);
 }
 /**
+ * Statues musicales sur vos chansons (cedric, 24/10 : « je devrais pouvoir entendre des musiques présélectionnées dans
+ * ma playlist ») : les chansons de la bibliothèque des sons choisies dans la prestation (🎲, une playlist, à la main),
+ * dans l'ordre de passage.
+ */
+export const chansonsStatues = (round) => (round?.type === "statues"
+  ? [...new Set(listOf(round.chansons).map((id) => (typeof id === "string" && /^[-\w]{1,40}$/.test(id) ? id : "")).filter(Boolean))].slice(0, MAX_STATUES_SONGS) : []);
+/** Ce que la TV joue d'une chanson aux statues : son refrain (environ 90 s, là où ça bouge), sinon son extrait. */
+export const sonDesStatues = (song) => (/^[0-9a-f]{16}$/.test(song?.refrainId ?? "") ? song.refrainId : song.audioId);
+/**
+ * Sons d'une manche de statues, joués l'un après l'autre : ses chansons de la bibliothèque des sons (celles supprimées
+ * depuis sont sautées), sinon les extraits cochés dans les playlists (manches d'avant le 24/10). Vide : la musique
+ * maison de la TV.
+ */
+export function sonsDesStatues(round, playlists, songs) {
+  const sons = chansonsStatues(round).filter((id) => chansonJouable(songs?.[id])).map((id) => sonDesStatues(songs[id]));
+  return sons.length ? sons : roundSongs(round, playlists).map((t) => t.audioId);
+}
+/**
  * Pictionary : équipe par équipe, un mot par tour ; temps de dessin proposés (secondes), celui par défaut, et
  * points d'un dessin trouvé. Les mots viennent du catalogue intégré (réglable dans la page du jeu).
  */
@@ -1227,9 +1245,9 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       // Un seul élément : la musique joue et s'arrête par moments, l'animatrice désigne l'équipe gagnante.
       const duration = STATUES_SECONDS.includes(round.duration) ? round.duration : STATUES_SEC;
       // Chansons choisies dans la prestation, jouées l'une après l'autre ; aucune : la musique maison de la TV.
-      const songs = roundSongs(round, playlists).map((t) => t.audioId);
+      const sons = sonsDesStatues(round, playlists, songs);
       rounds.push({ title: ROUND_TYPES.statues, count: 1 });
-      questions.push({ id: `r${i + 1}s`, text: ROUND_TYPES.statues, kind: "statues", duration, double: false, round: ROUND_TYPES.statues, ...(songs.length ? { audioIds: songs } : {}) });
+      questions.push({ id: `r${i + 1}s`, text: ROUND_TYPES.statues, kind: "statues", duration, double: false, round: ROUND_TYPES.statues, ...(sons.length ? { audioIds: sons } : {}) });
       return;
     }
     if (round.type === "coffres" || round.type === "portes") {
