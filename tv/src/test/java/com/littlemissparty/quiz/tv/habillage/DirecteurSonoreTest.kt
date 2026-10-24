@@ -496,7 +496,7 @@ class DirecteurSonoreTest {
         // Raté : « pouet » gentil et la musique revient.
         val rate = d.observer(image.copy(ratees = 1))
         assertEquals(Ordre.Couper, rate.first())
-        assertEquals(listOf(Son.VF_FAUX), rate.sons())
+        assertEquals(listOf(Son.RATE), rate.sons())
         assertEquals(Ambiance.SUSPENSE, rate.musique())
         // La montée dramatique repart là où le buzz l'avait figée, comme la photo.
         assertTrue(rate.contains(Ordre.Reprendre(Son.FLOU_MONTEE, Tempo.FLOU_REPRISE)))
@@ -556,7 +556,7 @@ class DirecteurSonoreTest {
         assertEquals(Ambiance.SILENCE, buzz.musique())
         // Les deux changements arrivent d'un coup (raté de l'équipe 3, buzz de l'équipe 1) : pouet puis buzz.
         val coup = d.observer(image.copy(ratees = 2, buzzEquipe = 1))
-        assertEquals(listOf(Son.VF_FAUX, Son.BUZZ_GROS, Son.EQUIPE_2, Son.SUSPENSE_REPONSE), coup.sons())
+        assertEquals(listOf(Son.RATE, Son.BUZZ_GROS, Son.EQUIPE_2, Son.SUSPENSE_REPONSE), coup.sons())
     }
 
     @Test
@@ -604,7 +604,7 @@ class DirecteurSonoreTest {
         val buzz = d.observer(bt.copy(urgent = true, buzzEquipe = 1))
         assertEquals(listOf(Son.BT_SCRATCH, Son.BUZZ_GROS, Son.EQUIPE_2, Son.SUSPENSE_REPONSE), buzz.sons())
         val rate = d.observer(bt.copy(urgent = true, ratees = 1))
-        assertEquals(listOf(Son.VF_FAUX), rate.sons())
+        assertEquals(listOf(Son.RATE), rate.sons())
         assertEquals(Ambiance.SILENCE, rate.musique())
         val revele = d.observer(bt.copy(ecran = Ecran.REVELATION, ratees = 1, gagnants = 1))
         assertFalse(revele.any { it is Ordre.Musique && it.ambiance == Ambiance.FETE })
@@ -635,7 +635,7 @@ class DirecteurSonoreTest {
         // Mauvaise réponse : petit « pouet », le silence continue ; puis Sarah relance la chanson.
         val rate = d.observer(bt.copy(ratees = 1))
         assertTrue(Ordre.Couper in rate)
-        assertEquals(listOf(Son.VF_FAUX), rate.sons())
+        assertEquals(listOf(Son.RATE), rate.sons())
         assertEquals(Ambiance.SILENCE, rate.musique())
         assertEquals(listOf(Son.BT_DIAMANT), d.observer(bt.copy(ratees = 1, blindLecture = true)).sons())
         // Révélation avec un gagnant : fanfare du blind test, tampon et points ; raccourcie par Sarah, tout se tait.

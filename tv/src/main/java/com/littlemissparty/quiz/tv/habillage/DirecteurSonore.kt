@@ -372,8 +372,8 @@ class DirecteurSonore {
         // Annule d'abord tout ce qui était prévu (musique qui revenait après un raté, suspense, montée de l'image) :
         // un deuxième buzz juste après un raté ne doit jamais entendre la musique repartir sous sa réponse.
         if (nouveauBuzz || repart) o += Ordre.Couper
-        // Jamais moqueur : un petit « pouet » gentil quand une équipe s'est trompée.
-        if ((nouveauBuzz || repart) && i.ratees > p.ratees) o += Ordre.Jouer(Son.VF_FAUX)
+        // Jamais moqueur : un petit « pouet » gentil quand une équipe s'est trompée (Game Show : son à lui, cedric 24/10).
+        if ((nouveauBuzz || repart) && i.ratees > p.ratees) o += Ordre.Jouer(Son.RATE)
         if (nouveauBuzz && i.blind) {
             // Blind test : le disque freine, « BWAP » de cuivres, la note de l'équipe, puis un vrai silence pour la laisser
             // répondre (cedric, 24 octobre : plus de musique d'attente).
@@ -657,6 +657,11 @@ enum class Son(val fichier: String, val long: Boolean = false, val gs: String? =
     CHIFFRE_PILE("lmp_chiffre_pile", true),
     VF_VRAI("lmp_vf_vrai"),
     VF_FAUX("lmp_vf_faux"),
+    /**
+     * Mauvaise réponse aux jeux au buzzer : le « pouet » du Vrai ou Faux en Classique ; en Game Show un son à lui
+     * (cedric, 24/10 : l'ancien « dégueulasse »), sans toucher le « Faux » de la révélation du Vrai ou Faux.
+     */
+    RATE("lmp_vf_faux", gs = "gs_rate"),
     ZOOM_OUVERTURE("lmp_zoom_ouverture"),
     ZOOM_REVELE("lmp_zoom_revele", true),
     FLOU_MONTEE("lmp_flou_montee", true),
