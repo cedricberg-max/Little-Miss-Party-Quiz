@@ -436,30 +436,37 @@ describe("prestation de test (cedric, 24/10)", async () => {
         [TEST_PRESTATION]: { origin: "test", rounds: [{ type: "mimes", equipes: [[{ word: "Chat", banque: "chat" }]] }] },
         "-Nautre": { origin: "test", rounds: [] },
         ines: { origin: "admin", rounds: [{ type: "quiz", quizId: "animaux" }] },
-        // Une copie de démo que Sarah garde : son quiz reste.
-        tom: { copieDe: "test-lea-9-ans", rounds: [{ type: "quiz", quizId: "test-lea-9-ans" }] },
+        // Une copie de démo que Sarah garde (renommée pour une vraie fête) : son quiz reste.
+        tom: { title: "Anniversaire de Tom", copieDe: "test-lea-9-ans", rounds: [{ type: "quiz", quizId: "test-lea-9-ans" }] },
+        // Une copie de démo restée telle quelle : c'est un test, elle part (cedric, 24/10 : tout purger).
+        copie: { title: "Copie de ANNIVERSAIRE TEST – Léa, 9 ans", copieDe: "test-lea-9-ans", rounds: [{ type: "quiz", quizId: "test-lea-tous-les-jeux-quiz" }] },
       },
-      manches: { a: { showId: "test-lea-9-ans" }, b: { showId: TEST_PRESTATION }, c: { showId: "ines" } },
+      // [d] : une manche de la bibliothèque bâtie sur un quiz de test ; [e] : une vraie manche.
+      manches: { a: { showId: "test-lea-9-ans" }, b: { showId: TEST_PRESTATION }, c: { showId: "ines" },
+        d: { round: { type: "quiz", quizId: "test-vieux" } }, e: { round: { type: "quiz", quizId: "animaux" } } },
       quizzes: {
         animaux: { title: "Animaux", questions: [{ imageId: h("d") }] },
         "test-lea-9-ans": { title: "TEST", questions: [] },
+        "test-lea-tous-les-jeux-quiz": { title: "TEST – Quiz classique de Léa", questions: [] },
         "test-lea-tous-les-jeux-zoom": { title: "TEST", questions: [{ imageId: h("a") }, { imageId: h("d") }, { imageId: h("e") }] },
+        // Toute la rubrique « 🧪 Questions de test », même un quiz d'une version plus ancienne encore.
+        "test-vieux": { title: "TEST – Quiz illustré des petits", questions: [] },
       },
-      mimes: { "test-lea-tous-les-jeux-mimes": { title: "TEST", cards: [{ imageId: h("f") }] } },
+      mimes: { "test-lea-tous-les-jeux-mimes": { title: "TEST", cards: [{ imageId: h("f") }] }, "test-vieux-mimes": { title: "TEST", cards: [] } },
       playlists: { "test-lea-tous-les-jeux-comptines": { title: "TEST", tracks: [{ audioId: h("b") }, { audioId: h("9") }] } },
       songs: { s: { title: "Chanson", audioId: h("9") } },
       // Rangée par Sarah dans « Mes images ».
       medias: { [h("e")]: { name: "Fusée" } },
     };
     const plan = demosAEffacer(lib);
-    assert.deepEqual(plan.shows, ["test-lea-tous-les-jeux", "test-lea-9-ans", TEST_PRESTATION, "-Nautre"]);
-    assert.deepEqual(plan.manches, ["a", "b"]);
-    assert.deepEqual(plan.quizzes, ["test-lea-tous-les-jeux-zoom"], "le quiz de la copie de Tom reste");
-    assert.deepEqual(plan.mimes, ["test-lea-tous-les-jeux-mimes"]);
+    assert.deepEqual(plan.shows, ["test-lea-tous-les-jeux", "test-lea-9-ans", TEST_PRESTATION, "-Nautre", "copie"]);
+    assert.deepEqual(plan.manches, ["a", "b", "d"]);
+    assert.deepEqual(plan.quizzes.sort(), ["test-lea-tous-les-jeux-quiz", "test-lea-tous-les-jeux-zoom", "test-vieux"].sort(), "le quiz de la copie de Tom reste");
+    assert.deepEqual(plan.mimes.sort(), ["test-lea-tous-les-jeux-mimes", "test-vieux-mimes"].sort());
     assert.deepEqual(plan.playlists, ["test-lea-tous-les-jeux-comptines"]);
     // Les photos dessinées et la comptine partent ; celle du quiz de Sarah, la rangée et l'extrait d'une chanson restent.
     assert.deepEqual(plan.medias.sort(), [h("a"), h("f"), h("b")].sort());
-    assert.equal(nbDemos(plan), 4 + 2 + 1 + 1 + 1 + 3);
+    assert.equal(nbDemos(plan), 5 + 3 + 3 + 2 + 1 + 3);
     // Rien à effacer.
     assert.equal(nbDemos(demosAEffacer({ shows: { ines: lib.shows.ines }, quizzes: { animaux: lib.quizzes.animaux } })), 0);
     assert.equal(nbDemos(demosAEffacer()), 0);
