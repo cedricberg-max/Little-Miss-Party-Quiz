@@ -156,6 +156,20 @@ fun BlindIntro(playlist: String, morceaux: Int, points: Int, modifier: Modifier 
 @Composable
 fun BlindBuzz(equipe: String, couleur: Color, modifier: Modifier = Modifier) {
     val ms = horloge(equipe)
+    if (Look.gs) {
+        // Game Show (proposition D) : lasers qui convergent, anneau à la couleur de l'équipe, « STOP ! » en glitch.
+        Echelle(LARGEUR, HAUTEUR, modifier) {
+            AlerteBuzz(ms, couleur, { 1f }, Modifier.fillMaxSize())
+            Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+                StopGlitch(ms, 120.sp)
+                Spacer(Modifier.height(14.dp))
+                PastilleNom(equipe, couleur, 84f, 640.dp, Modifier.apparition(180, equipe))
+                Spacer(Modifier.height(22.dp))
+                LigneBuzz("A BUZZÉ · ON ÉCOUTE SA RÉPONSE", 22.sp, Modifier.apparition(420, equipe))
+            }
+        }
+        return
+    }
     val anim = rememberInfiniteTransition(label = "attente")
     val souffle by anim.animateFloat(0.45f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "attente")
     Echelle(LARGEUR, HAUTEUR, modifier) { Box(
