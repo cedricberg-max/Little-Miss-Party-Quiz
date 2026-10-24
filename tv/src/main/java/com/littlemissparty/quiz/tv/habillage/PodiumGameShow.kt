@@ -35,6 +35,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.viewinterop.AndroidView
+import com.littlemissparty.quiz.tv.R
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -71,13 +76,16 @@ import kotlin.math.roundToInt
  *   repartent jusqu'à leur vrai score : le tube du gagnant se remplit jusqu'en haut (deux tubes pleins à égalité),
  *   brille, puis tous les tubes s'enfoncent sous le plateau (cedric, 24 octobre : « le gagnant remplit la jauge en
  *   totalité ») ;
- * - le solo de guitare : flash, le robot arrive en gros plan et danse ([ROBOT_FETE]), le nom du gagnant claque
- *   lettre par lettre ([NomNerveux]), ses vrais points, puis le classement des autres sur une ou deux lignes ;
+ * - le solo de guitare : flash, la fête du gagnant en plan cinéma, plein écran ([FeteCinema] : le robot bondit,
+ *   s'arrête, fait un clin d'œil, la caméra bouge ; cedric, 24 octobre), le nom du gagnant claque lettre par lettre
+ *   ([NomNerveux]), ses vrais points, puis le classement des autres sur une ou deux lignes ;
  * - à [Tempo.PODIUM_FIN], quand la chanson s'éteint : l'écran de fin cinéma ([FinCinemaGameShow]).
  * Égalité en tête : mêmes tubes, puis « ÉGALITÉ ! » et les noms couronnés. Personne n'a marqué : les tubes restent
  * presque vides et « Bravo à toutes les équipes ! » arrive au solo. Les compteurs du suspense ne sont qu'un spectacle
  * plafonné ; tout nombre affiché après le solo est le vrai score ([Classee.points]) : rien ici ne compte de points.
- * Une seule vidéo du robot à la fois ; le reste ne bouge que par calques (échelle, position, opacité).
+ * Une seule vidéo à la fois : pendant la fête, le décor du dessous ne lit pas son fond ([Habillage.finVideo]). Si la
+ * vidéo de la fête ne se lit pas, l'ancien clip du robot qui vole ([ROBOT_FETE]) la remplace. Le reste ne bouge que
+ * par calques (échelle, position, opacité).
  */
 @Composable
 fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier) {
@@ -110,6 +118,7 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier) {
     // Une fois sous le plateau, les tubes ne sont plus dessinés du tout.
     val tubesPartis = apres(Tempo.PODIUM_REVELATION + 500, Unit)
     val petitRobot = if (classement.size >= 7) 0.8f else 1f
+    var feteEchec by remember { mutableStateOf(false) }
     val ligneNom = if (classement.size >= 6) 439.dp else 452.5.dp
     Box(modifier.fillMaxSize()) {
         // Salle un peu assombrie pendant le suspense (l'arche du plateau reste visible), qui se rallume au solo.
@@ -123,6 +132,8 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier) {
                 }
             }.background(GS.Noir),
         )
+        // Au solo, la fête en plan cinéma couvre tout le plateau ; elle part exactement sur le solo.
+        if (robot == 3 && !feteEchec) FeteCinema({ (revelation - ms()).toInt() }, { feteEchec = true })
         if (gagnants.size > 1) Rayons { (ms() - revelation).coerceAtLeast(0f) }
         // Secousse de caméra quand le nom du gagnant claque (tout le podium bouge, le décor derrière reste).
         Box(
@@ -138,7 +149,7 @@ fun PodiumGameShow(classement: List<Classee>, modifier: Modifier = Modifier) {
                 // Au solo, le robot vole au premier plan (clip 16:9 sur toute la largeur) ; un voile sombre en bas
                 // garde le nom et le classement lisibles par-dessus lui.
                 if (robot == 3) {
-                    ClipRobotEnBoucle(ROBOT_FETE, ROBOT_FETE_BOUCLE_MS, Modifier.align(Alignment.Center).fillMaxWidth().aspectRatio(16f / 9f))
+                    if (feteEchec) ClipRobotEnBoucle(ROBOT_FETE, ROBOT_FETE_BOUCLE_MS, Modifier.align(Alignment.Center).fillMaxWidth().aspectRatio(16f / 9f))
                     Box(
                         Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(0.5f)
                             .background(Brush.verticalGradient(0f to Color.Transparent, 0.3f to GS.Noir.copy(alpha = 0.55f), 1f to GS.Noir.copy(alpha = 0.7f))),
@@ -411,7 +422,37 @@ private const val ROBOT_ARCHE_L = 237f
 private const val ROBOT_ARCHE_H = 300f
 private const val ROBOT_ARCHE_SOL = 420f
 
-/** Le clip du robot qui félicite le gagnant : entrée de 3,85 s, puis 15,4 s de vol et de danse en boucle (16:9). */
+/**
+ * La fête du gagnant en plan cinéma, plein écran (res/raw/gs_podium_fete.mp4, calculée à l'avance en 3D sur le plateau) :
+ * 96 images (8 temps de Digital Love) pour le BOUM et l'approche de la caméra, puis une boucle parfaite de 64 temps
+ * ([FETE_BOUCLE_DEBUT_MS] → la fin du fichier). Le tiers bas et le haut restent calmes : l'appli y écrit le nom, les
+ * points, le classement et le logo. Elle démarre quand [attenteMs] tombe à zéro (le solo) et apparaît dès sa première
+ * image. Une seule vidéo à la fois : le décor du dessous ne lit plus son fond pendant ce temps.
+ */
+@Composable
+private fun FeteCinema(attenteMs: () -> Int, surEchec: () -> Unit) {
+    DisposableEffect(Unit) {
+        Habillage.finVideo.value = true
+        onDispose { Habillage.finVideo.value = false }
+    }
+    var prete by remember { mutableStateOf(false) }
+    AndroidView(
+        factory = {
+            LecteurFond(
+                it, R.raw.gs_podium_fete, surPret = { prete = true }, surEchec = surEchec, boucle = false,
+                repriseMs = FETE_BOUCLE_DEBUT_MS, attenteMs = { attenteMs().coerceAtLeast(0) },
+            )
+        },
+        update = { it.alpha = if (prete) 1f else 0f },
+        onRelease = { it.liberer() },
+        modifier = Modifier.fillMaxSize().clearAndSetSemantics {},
+    )
+}
+
+/** La fête en plan cinéma : 96 images d'arrivée (8 temps à 124,73 BPM, arrondis à l'image), puis la boucle de 64 temps jusqu'à la fin du fichier ; une image clé est posée sur la 96ᵉ. */
+internal const val FETE_BOUCLE_DEBUT_MS = 3_840
+
+/** Le clip du robot qui félicite le gagnant, si la fête en plan cinéma ne se lit pas : entrée de 3,85 s, puis 15,4 s de vol et de danse en boucle (16:9). */
 internal const val ROBOT_FETE = "gs_robot_fete"
 internal const val ROBOT_FETE_BOUCLE_MS = 3_849
 
