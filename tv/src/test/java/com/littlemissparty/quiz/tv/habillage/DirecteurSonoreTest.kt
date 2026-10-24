@@ -748,7 +748,7 @@ class DirecteurSonoreTest {
         assertEquals(0.8f, Ambiance.BILAN.volume(Lit.BILAN, gs = true), 0f)
         assertEquals(0f, Ambiance.BILAN.volume(Lit.COMPLET, gs = true), 0f)
         // Super finale : en Classique, l'express un peu plus bas ; en Game Show, la musique de la manche et la nappe.
-        assertEquals(0.4f, Ambiance.DECISIVE.volume(Lit.EXPRESS), 0f)
+        assertEquals(0.6f, Ambiance.DECISIVE.volume(Lit.EXPRESS), 0f)
         assertEquals(0f, Ambiance.DECISIVE.volume(Lit.TENSION), 0f)
         assertEquals(Ambiance.QUESTION.volume(Lit.LEGER, gs = true), Ambiance.DECISIVE.volume(Lit.LEGER, gs = true), 0f)
         assertTrue(Ambiance.DECISIVE.volume(Lit.TENSION, gs = true) > 0f)

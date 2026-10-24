@@ -570,35 +570,36 @@ enum class Ambiance(
     SALON(complete = 0.55f, gameShow = mapOf(Lit.ACCUEIL to 0.49f)),
     /** Relais du générique : la musique du salon entre presque aussi fort que lui, avant de redescendre. */
     SALON_ARRIVEE(complete = 0.85f, gameShow = mapOf(Lit.ACCUEIL to 0.49f)),
-    QUESTION(legere = 0.6f),
-    SUSPENSE(legere = 0.25f),
+    /** Plan de volumes du 25 octobre : la musique des questions remonte, le creux du suspense n'est plus que de 4 dB. */
+    QUESTION(legere = 0.7f),
+    SUSPENSE(legere = 0.45f),
     /**
      * Présentation d'un jeu : la musique du salon, assez bas pour que Sarah présente le jeu par-dessus ; 0,3 sonnait
      * trop éteint (cedric, 24/10).
      */
-    PRESENTATION(complete = 0.4f),
+    PRESENTATION(complete = 0.5f),
     FETE(complete = 0.8f),
     /** Tour de mimes : rythmique latine qui entraîne, sans couvrir les cris de ceux qui devinent. */
-    MIMES(mimes = 0.6f),
+    MIMES(mimes = 0.7f),
     /** Entre deux tours de mimes : la même musique, plus bas, pendant qu'on choisit l'équipe suivante. */
-    MIMES_ENTRE(mimes = 0.35f),
+    MIMES_ENTRE(mimes = 0.45f),
     /** Pause : musique lounge feutrée, qui tient aussi longtemps qu'il faut. */
     INTERMEDE(pause = 0.5f),
     /** Vrai ou Faux express : course contre la montre, sur toute la série. */
-    EXPRESS(express = 0.5f),
+    EXPRESS(express = 0.75f),
     /**
      * Dernières questions du quiz à points multipliés : la rythmique nerveuse de l'express, un peu plus bas. Game Show :
      * la musique de la manche continue, avec la nappe de tension par-dessus (cedric, 23 octobre).
      */
-    DECISIVE(express = 0.4f, gameShow = mapOf(Lit.LEGER to 0.6f, Lit.TENSION to 0.5f)),
+    DECISIVE(express = 0.6f, gameShow = mapOf(Lit.LEGER to 0.7f, Lit.TENSION to 0.55f)),
     /** Bilan des scores entre deux jeux : la musique de fête ; Game Show : le riff d'Aerodynamic. */
     BILAN(complete = 0.8f, gameShow = mapOf(Lit.BILAN to 0.8f)),
     /** Écran de fin, après le podium du Game Show : le dernier groove d'Aerodynamic ; Classique : la musique de fête. */
     AU_REVOIR(complete = 0.8f, gameShow = mapOf(Lit.FIN to 0.75f)),
     /** Qui a disparu ? : boîte à musique et harpe pendant qu'on mémorise les objets. */
-    MEMOIRE(magie = 0.55f),
+    MEMOIRE(magie = 0.6f),
     /** Qui a disparu ? : le tour de magie, la boîte à musique s'efface sous l'« abracadabra ». */
-    ENVOUTEMENT(magie = 0.18f);
+    ENVOUTEMENT(magie = 0.25f);
 
     /** Volume d'une boucle dans cette ambiance ; [gs] : design « The Game Show ». */
     fun volume(l: Lit, gs: Boolean = false): Float {
