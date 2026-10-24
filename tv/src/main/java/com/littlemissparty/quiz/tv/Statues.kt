@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.tv.habillage.Look
+import com.littlemissparty.quiz.tv.habillage.StatuesGameShow
 import com.littlemissparty.quiz.tv.habillage.panneauJeu
 import com.littlemissparty.quiz.tv.habillage.apparition
 
@@ -97,6 +98,8 @@ fun StatuesBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
     val danse = statuesDanse(q, state)
     // Seules les chansons déjà copiées sur la box ; aucune : la musique maison joue, la partie n'attend jamais.
     MusiqueStatues(danse, q.audioIds.ifEmpty { listOfNotNull(q.audioId) }.mapNotNull { state.sounds[it] })
+    // Game Show : DANSEZ ! qui rebondit, STATUE ! dans la glace, suspense et statue d'or (propositions S1 à S4, 24/10).
+    if (Look.gs) { StatuesGameShow(state, danse, modifier); return }
     val enCours = state.phase == Phase.QUESTION
     val anim = rememberInfiniteTransition(label = "danse")
     val balance by anim.animateFloat(-1f, 1f, infiniteRepeatable(tween(450, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "balance")
