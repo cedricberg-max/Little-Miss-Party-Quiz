@@ -10,7 +10,7 @@ import {
   soundIds, MUSIC_GAMES, playableTracks, STATUES_SEC, PICTO_SEC, isStatuesList, statuesSongs, MAX_STATUES_SONGS,
   isFutureRound, moveRound, removeRound, uniqueRoundTitle, roundQuizIds, roundTirees, roundSeriesQuiz, mimePool, mimeCards, CONTENT_GAMES, activeItems, pictoSeriesOf,
   isArchived, isPhotoTheme, disparuGroup, statuesChoices, quizQuestions, jeuDeLaManche, quizKind,
-  launchStates, launchLabel, jourHeure, isoDay,
+  launchStates, launchLabel, jourHeure, isoDay, couleurMimeEquipe,
 } from "./show.js";
 import { MIME_CATALOG } from "./mime-cards.js";
 import {
@@ -317,7 +317,10 @@ function nextLabel(st, teamCount) {
       if ((st.index ?? 0) + 1 >= (st.total ?? 0)) return "Résultats finaux 🏆";
       // Fin d'un jeu : on annonce le jeu qui commence, jamais une simple « question suivante ».
       const { next, questions } = gamesOf(st);
-      return next && next.start === (st.index ?? 0) + 1 ? `Jeu suivant : ${gameName(next, questions)} ▶` : "Question suivante";
+      if (next && next.start === (st.index ?? 0) + 1) return `Jeu suivant : ${gameName(next, questions)} ▶`;
+      // Mimes, une manche par équipe : la suivante est celle d'une autre couleur.
+      const suivante = questions[(st.index ?? 0) + 1];
+      return suivante?.kind === "mime" && couleurMimeEquipe(suivante.text) ? `Au tour de ${lEquipe(suivante.text)} ▶` : "Question suivante";
     }
     case "ended": {
       const { next, questions } = gamesOf(st);
@@ -444,7 +447,10 @@ function renderFactor(st) {
   }
   const n = (live.plan?.questions ?? []).slice(choice.start).findIndex((q, k, rest) => !(q.double || q.finale) || (k > 0 && q.round !== rest[0].round));
   const count = n < 0 ? (live.plan?.questions?.length ?? 0) - choice.start : n;
-  $("c-factor-text").textContent = `${count > 1 ? `Les ${count} dernières questions du quiz arrivent` : "La dernière question du quiz arrive"} : combien de points ?`;
+  // Vrai ou Faux express : sa Super Finale aussi (cedric, 23/10), en affirmations.
+  const vf = live.plan?.questions?.[choice.start]?.kind === "express";
+  const quoi = vf ? ["affirmation", "du Vrai ou Faux"] : ["question", "du quiz"];
+  $("c-factor-text").textContent = `${count > 1 ? `Les ${count} dernières ${quoi[0]}s ${quoi[1]} arrivent` : `La dernière ${quoi[0]} ${quoi[1]} arrive`} : combien de points ?`;
   box.querySelectorAll("[data-factor]").forEach((b) => {
     const on = Number(b.dataset.factor) === choice.factor;
     b.classList.toggle("on", on);
@@ -996,10 +1002,14 @@ function renderMime(st, teams) {
   // Un tour a été lancé depuis le choix (même si la régie ne l'a pas vu passer : écran éteint, reconnexion) :
   // le choix est oublié, et à la fin du tour la régie propose l'équipe qui a le moins joué.
   if (turns.length !== mimeTurnsSeen) { mimeTeam = null; mimeChosen = false; mimeTurnsSeen = turns.length; }
+  // Manche d'une seule équipe (cedric, 23/10) : l'équipe de sa couleur est choisie d'office.
+  const seule = equipesDeLaCouleur(st);
+  const titre = st.text ?? live.plan?.questions?.[st.index]?.text ?? "";
   if (playing) { mimeTeam = null; mimeChosen = false; }
   else if (!mimeChosen || !live.teams[mimeTeam]) {
     // Ordre d'inscription, en commençant par les équipes qui ont le moins joué (tri stable).
-    mimeTeam = [...teams].sort(([a], [b]) => turns.filter((t) => t === a).length - turns.filter((t) => t === b).length)[0]?.[0] ?? null;
+    const ordre = [...teams].sort(([a], [b]) => turns.filter((t) => t === a).length - turns.filter((t) => t === b).length);
+    mimeTeam = (seule?.length ? ordre.filter(([id]) => seule.includes(id)) : ordre)[0]?.[0] ?? null;
   }
   // Pictionary : un mot par tour, d'abord montré sur la tablette de l'équipe (m.secret), puis dessiné (m.team).
   const picto = st.kind === "pictionary";
@@ -1030,6 +1040,12 @@ function renderMime(st, teams) {
     ? `${name(playing)} joue : ${n(m.found ?? 0)} trouvé${(m.found ?? 0) > 1 ? "s" : ""} · 🔄 Changement de joueur : dès que le nouveau devineur est dos à l'écran, touchez « Image suivante ».`
     : playing
     ? `${name(playing)} joue : ${n(m.found ?? 0)} trouvé${(m.found ?? 0) > 1 ? "s" : ""} · ${m.left} image${m.left > 1 ? "s" : ""} restante${m.left > 1 ? "s" : ""}`
+    : seule && m.last
+      ? `Tour terminé : ${name(m.last.team)} a trouvé ${n(m.last.found)}. Touchez « Voir le classement », puis passez à l'équipe suivante.`
+    : seule
+      ? seule.length
+        ? `Au tour de ${lEquipe(titre)} : ${name(mimeTeam ?? seule[0])}. Faites retourner celui qui devine, puis « Top départ ! ».`
+        : `Aucune équipe ${titre.replace(/^Équipe /, "")} dans la partie : choisissez l'équipe qui mime ces images, ou passez avec « Voir le classement ».`
     : m.last
         ? `Tour terminé : ${name(m.last.team)} a trouvé ${n(m.last.found)}. ${mimeRemaining(st).length ? "Qui joue maintenant ?" : "Toutes les équipes sont passées."}`
         : "Qui commence ? Choisissez l'équipe puis « Top départ ! ».";
@@ -1037,7 +1053,9 @@ function renderMime(st, teams) {
   // Équipes déjà passées et celles qui restent : la manche ne se termine qu'après toutes, ou sur décision.
   const remaining = mimeRemaining(st);
   const done = [...new Set(turns)].filter((id) => live.teams[id]).map(name);
-  $("mime-progress").textContent = !done.length
+  $("mime-progress").textContent = seule
+    ? done.length ? `Manche de ${lEquipe(titre)} jouée : touchez « Voir le classement ».` : `Manche de ${lEquipe(titre)} : ses ${m.left ?? 0} images`
+    : !done.length
     ? `À faire passer : ${remaining.map(name).join(", ") || "aucune équipe"}`
     : remaining.length
       ? `Déjà passées : ${done.join(", ")} · Restent : ${remaining.map(name).join(", ")}`
@@ -1414,13 +1432,34 @@ $("mime-minus").onclick = () => { const t = live.state?.mime?.team; if (t) send(
 $("mime-fix-minus").onclick = () => { const t = live.state?.mime?.last?.team; if (t) send("mime_fix", { team: t, delta: -1 }); };
 $("mime-fix-plus").onclick = () => { const t = live.state?.mime?.last?.team; if (t) send("mime_fix", { team: t, delta: 1 }); };
 
-/** Équipes inscrites qui ne sont pas encore passées dans la manche de mimes en cours. */
+/**
+ * Équipes inscrites qui ne sont pas encore passées dans la manche de mimes en cours. Manche d'une seule équipe
+ * (« Équipe Rose », cedric 23/10) : seulement l'équipe de cette couleur.
+ */
 function mimeRemaining(st) {
   const turns = st.mime?.turns ?? [];
+  const seule = equipesDeLaCouleur(st);
   return Object.entries(live.teams)
     .sort((a, b) => (a[1].joinedAt ?? 0) - (b[1].joinedAt ?? 0))
     .map(([id]) => id)
-    .filter((id) => !turns.includes(id));
+    .filter((id) => !turns.includes(id) && (!seule || seule.includes(id)));
+}
+
+/**
+ * Mimes, une manche par équipe (cedric, 23/10 : chaque équipe a sa présélection d'images) : les équipes inscrites de la
+ * couleur de la manche en cours (« Équipe Rose »), [] si aucune ; null pour une manche de mimes jouée par toutes.
+ */
+function equipesDeLaCouleur(st) {
+  if (st?.kind === "pictionary") return null;
+  const c = couleurMimeEquipe(st?.text ?? live.plan?.questions?.[st?.index]?.text);
+  if (!c) return null;
+  return Object.entries(live.teams).filter(([, t]) => `${t?.color ?? ""}`.toUpperCase() === c.toUpperCase()).map(([id]) => id);
+}
+
+/** « l'équipe Rose » : le titre d'une manche de mimes d'une seule équipe, dans une phrase. */
+function lEquipe(text) {
+  const t = `${text ?? ""}`;
+  return `l'${t.charAt(0).toLowerCase()}${t.slice(1)}`;
 }
 
 // ---------- Jeux de la prestation : en cours, suivant, secours ----------
@@ -1443,11 +1482,16 @@ const played = (r, st, index) => r.start <= index && st.phase !== "lobby";
 
 function gameName(r, questions) {
   const q = questions[r.start];
-  return q?.kind === "mime" ? `Mimes : ${q.text}` : q?.kind === "pictionary" ? "Pictionary" : r.title;
+  // Mimes, une manche par équipe (cedric, 23/10) : un seul jeu, « Mimes ».
+  return q?.kind === "mime" ? (couleurMimeEquipe(q.text) ? "Mimes" : `Mimes : ${q.text}`) : q?.kind === "pictionary" ? "Pictionary" : r.title;
 }
 
 function gameDetail(r, questions) {
   const q = questions[r.start];
+  if (q?.kind === "mime" && couleurMimeEquipe(q.text)) {
+    const k = r.end - r.start + 1;
+    return `une manche par équipe (${k}) · ${q.cards?.length ?? 0} images chacune · tour de ${q.duration} s`;
+  }
   if (q?.kind === "mime") return `${q.cards?.length ?? 0} cartes · tour de ${q.duration} s par équipe`;
   if (q?.kind === "pictionary") return `un mot par équipe · ${q.duration} s de dessin · ${q.points ?? 150} points`;
   const n = r.end - r.start + 1;
@@ -1825,11 +1869,13 @@ async function fetchLibrary() {
   library = { loading: true };
   renderLibrary();
   try {
-    const [s, q, m, p, c, sm] = await Promise.all(["shows", "quizzes", "mimes", "playlists", "contents", "manches"].map((k) => get(ref(db, `library/${k}`))));
+    const [s, q, m, p, c, sm, so] = await Promise.all(["shows", "quizzes", "mimes", "playlists", "contents", "manches", "songs"].map((k) => get(ref(db, `library/${k}`))));
     const quizzes = q.val() ?? {};
     const mimes = m.val() ?? {};
     const playlists = p.val() ?? {};
     const contents = c.val() ?? {};
+    // Chansons de la bibliothèque des sons : un blind test tiré au 🎲 dans la Régie PC (cedric, 24/10) se rejoue avec.
+    const songs = so.val() ?? {};
     // Manches enregistrées dans la Régie PC (page de chaque jeu) : les épinglées d'abord, jamais les archivées.
     const saved = Object.keys(ROUND_TYPES).flatMap((type) => {
       const { pinned: pins, active } = mancheGroups(sm.val() ?? {}, type, quizzes);
@@ -1918,7 +1964,7 @@ async function fetchLibrary() {
       .map((type) => ({ type, n: collectionItems(type, { quizzes, playlists }, { hasard: true }).length }))
       .filter(({ n }) => n > 0)
       .map(({ type, n }) => ({ key: `hasard/${type}`, label: `${ROUND_TYPES[type]} au hasard`, random: true, size: n, source: { type } }));
-    library = { quizzes, mimes, playlists, contents, games, rounds, decks, quizGames, builtins, music, pinned, saved, drawn };
+    library = { quizzes, mimes, playlists, contents, songs, games, rounds, decks, quizGames, builtins, music, pinned, saved, drawn };
   } catch (e) {
     console.error(e);
     library = { denied: /permission/i.test(String(e?.message ?? e)) };
@@ -2117,7 +2163,7 @@ function drawPicked() {
   }
   // Un paquet, un quiz ou une manche choisis exprès se jouent tels quels ; seul le hasard écarte ce qui est déjà passé
   // (« jamais deux fois » : leurs parties tirées au hasard, comme les objets de Qui a disparu ?, évitent ce que la fête a montré).
-  const { questions, problems } = gameQuestions(picked.source, library.quizzes, profile ?? "MOYENS", prefix, library.mimes, library.playlists, library.contents, picked.random || picked.game.rejouer ? avoid : { concepts: avoid.concepts }, teams);
+  const { questions, problems } = gameQuestions(picked.source, library.quizzes, profile ?? "MOYENS", prefix, library.mimes, library.playlists, library.contents, picked.random || picked.game.rejouer ? avoid : { concepts: avoid.concepts }, teams, library.songs);
   Object.assign(picked, { questions, problems: [...notes, ...problems] });
   renderLibrary();
 }
@@ -2300,7 +2346,7 @@ function addChoices(questions) {
   }
   // Le même chemin que la prestation : l'élément choisi devient une question (grille tirée pour Qui a disparu ?).
   const ajoute = (round) => () => {
-    const { questions: one } = gameQuestions(round, library.quizzes, profile ?? "MOYENS", `a${Date.now().toString(36)}`, library.mimes, library.playlists, library.contents);
+    const { questions: one } = gameQuestions(round, library.quizzes, profile ?? "MOYENS", `a${Date.now().toString(36)}`, library.mimes, library.playlists, library.contents, {}, null, library.songs);
     if (one[0]) questions.push({ ...one[0], id: `${one[0].id}x${questions.length + 1}` });
   };
   // Statues musicales : une chanson cherchée dans toutes les playlists, jouée en premier.
@@ -2321,7 +2367,7 @@ function addChoices(questions) {
       label: x.label, group: x.group,
       add: () => {
         const next = { ...source, playlistId: null, tracks: [...tracks, x.key] };
-        const { questions: all } = gameQuestions(next, library.quizzes, profile ?? "MOYENS", `a${Date.now().toString(36)}`, library.mimes, library.playlists, library.contents);
+        const { questions: all } = gameQuestions(next, library.quizzes, profile ?? "MOYENS", `a${Date.now().toString(36)}`, library.mimes, library.playlists, library.contents, {}, null, library.songs);
         if (all.length) { questions.splice(0, questions.length, ...all); picked.source = next; }
       },
     }));
@@ -2527,7 +2573,8 @@ function liveManche({ random, source, questions }, title) {
   else if (type === "pictionary" && deck) round = { ...round, picks: deck.cards.map((c) => c.word.toLowerCase()), duration: deck.duration };
   else if (type === "zoom" || type === "flou") round = { ...round, picks: (round.picks ?? []).filter((k) => questions.some((q) => q.imageId === k || (q.banque && `${BANQUE}${q.banque}` === k))) };
   else if (type === "blind" || type === "musical") round = { ...round, tracks: (round.tracks ?? []).filter((k) => questions.some((q) => q.audioId === k)) };
-  else if (type === "chante" || type === "quisuis") round = { ...round, picks: questions.map((q) => q.choices?.[0]?.toLowerCase()).filter(Boolean), count: questions.length };
+  else if (type === "chante" || type === "quisuis") round = { ...round, seriesMots: null, ordreMots: null, picks: questions.map((q) => q.choices?.[0]?.toLowerCase()).filter(Boolean), count: questions.length };
+  else if (type === "disparu") round = { ...round, seriesMots: null, ordreMots: null, count: questions.length };
   return () => {
     const showId = typeof live.plan?.id === "string" && live.plan.id.length <= 40 ? { showId: live.plan.id } : {};
     const name = `${title} (en direct, ${new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "short" })})`.slice(0, 120);
@@ -2620,18 +2667,20 @@ const mayReplaceShow = (st) => st.phase !== "lobby" && st.phase !== "ended" && s
  * launches/) ; une prestation archivée ou passée reste dans la liste tant que sa fête n'est pas terminée.
  */
 async function readShows() {
-  const [s, q, m, p, c] = await Promise.all(["shows", "quizzes", "mimes", "playlists", "contents"].map((k) => get(ref(db, `library/${k}`))));
+  // Les chansons de la bibliothèque des sons : celles des blind tests tirés au 🎲 (cedric, 24/10).
+  const [s, q, m, p, c, so] = await Promise.all(["shows", "quizzes", "mimes", "playlists", "contents", "songs"].map((k) => get(ref(db, `library/${k}`))));
   const quizzes = q.val() ?? {};
   const mimes = m.val() ?? {};
   const playlists = p.val() ?? {};
   const contents = c.val() ?? {};
+  const songs = so.val() ?? {};
   const lire = (path) => get(ref(db, path)).then((x) => x.val(), () => null);
   const launches = await lire("launches") ?? {};
   const runs = await launchStates(launches, lire, { here: code, now: Date.now() + serverOffset });
   const today = new Date().toISOString().slice(0, 10);
   const list = Object.entries(s.val() ?? {})
     .filter(([id, show]) => (show.status === "publiee" && !isArchived(show)) || runs[id]?.etat === "ici" || AILLEURS.includes(runs[id]?.etat))
-    .map(([id, show]) => ({ id, show, run: runs[id] ?? { etat: "preparee" }, ...buildSnapshot(id, show, quizzes, mimes, Math.random, playlists, contents) }))
+    .map(([id, show]) => ({ id, show, run: runs[id] ?? { etat: "preparee" }, ...buildSnapshot(id, show, quizzes, mimes, Math.random, playlists, contents, {}, songs) }))
     // Les prestations à venir d'abord, la plus proche en tête ; les passées ensuite.
     .sort((a, b) => {
       const da = a.show.date ?? "9999", dbb = b.show.date ?? "9999";

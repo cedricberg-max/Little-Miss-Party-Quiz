@@ -746,13 +746,15 @@ describe("pupitre", () => {
     await licornes.locator("#pick-host .choix-carte").nth(2).click();
     await waitFor(async () => (await read("pictoChoice/r1p-150"))?.i === 2, "choix par toucher de la carte enregistré");
     await licornes.locator(".choix-valider", { hasText: "C'est noté" }).waitFor();
-    // Un mot avec sa vraie photo (Régie PC) : la photo remplace l'émoji sur la carte.
+    // Sur la tablette, l'émoji du mot (cedric, 24/10 : la vraie photo, c'est la TV qui la montre quand le dessin est
+    // trouvé) ; seul un mot sans émoji (une image à soi) montre sa photo.
     const PHOTO = "0123456789abcdef";
     await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/choiceImages/${PHOTO}`),
       "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="));
-    await hostState(picto({ secret: L, offer: [{ ...offer[0], imageId: PHOTO }, offer[1], offer[2]], chosen: null, pickKey: "r1p-160" }));
+    await hostState(picto({ secret: L, offer: [{ ...offer[0], imageId: PHOTO }, { word: "Doudou", imageId: PHOTO }, offer[2]], chosen: null, pickKey: "r1p-160" }));
     await licornes.locator('#pick-host .choix-carte .mot-secret-image img[src^="data:image/png"]').waitFor({ state: "attached" });
-    assert.equal(await licornes.locator("#pick-host .choix-carte .mot-secret-image img").count(), 1);
+    assert.equal(await licornes.locator("#pick-host .choix-carte .mot-secret-image img").count(), 1, "la photo seulement pour le mot sans émoji");
+    assert.match(await licornes.locator("#pick-host .choix-carte").nth(0).textContent(), /☀️/);
 
     // On dessine sur l'ardoise : les traits partent vers la TV par petits paquets ; « Tout effacer » aussi.
     await hostState(picto({ team: L, card: offer[1], drawKey: "r1p-200", turns: [L] }, { deadline: Date.now() + 60000 }));

@@ -4,10 +4,7 @@ import {
   getDatabase, ref, get, set, update, push, onValue, serverTimestamp, connectDatabaseEmulator, query, orderByKey, limitToLast,
 } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
 import { passwordHash, newSalt, cleanPassword, passwordCandidates, MIN_PASSWORD_LENGTH } from "./secret.js";
-import {
-  TEST_ID, TEST_QUIZ, TEST_SHOW, FULL_ID, FULL_KEYS, FULL_QUIZZES, FULL_MIMES, FULL_SHOW, FULL_PHOTOS, photoQuiz, drawPhoto,
-  FULL_TUNES, FULL_TUNE_SEC, FULL_NEW_ROUNDS, tunePlaylist, FULL_CHOICE_PHOTOS, imageQuiz, OLD_TEST_TITLES,
-} from "./test-show.js";
+import { TEST_PRESTATION, TEST_TITRE, TEST_FICHE, TEST_NOTES, JEUX_DU_TEST, demosAEffacer, nbDemos } from "./test-show.js";
 import { writeProof, isAdmin } from "./proof.js";
 import { parseQuiz, checkQuestions, geminiPrompt, chatgptUrl, imageKey, wordFromImage, photoQuestions, LETTERS } from "./importer.js";
 import { PROFILES, profileForAge, defaultDuration } from "./profiles.js";
@@ -16,24 +13,28 @@ import {
   roundFilled, MIME_TURN, MUSIC_GAMES, playableTracks, BLIND_SEC, STATUES_SECONDS, STATUES_SEC, PICTO_SECONDS, PICTO_SEC, PICTO_POINTS, PICTO_RULE,
   blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras, contentSlot, contentImages,
   pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches, isArchived, AUTO_ARCHIVE_DAYS, quizKind,
-  roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS,
+  roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS, mimeEquipes, mimeEquipesBrutes, mimeAges, MIME_SOURCES, MIME_EQUIPES_MAX, mimePerTeam,
+  chansonsBrutes, chansonsDe, chansonJouable, BLIND_NOMBRES, BLIND_NOMBRE_DEFAUT, MAX_CHANSONS_BLIND, seriesBlind,
   isStatuesList, statuesSongs, statuesChoices, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS, builtinConcepts, isPhotoTheme, disparuGroup,
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, alerteEquipes, EQUIPES_PAR_DEFAUT, pourLeHasard, premierQuiz,
-  launchStates, launchLabelPc, couleursEquipes, teamCount, roundTirees, chiffresDuTirage, MAX_TIREES,
+  launchStates, launchLabelPc, couleursEquipes, teamCount, roundTirees, chiffresDuTirage, MAX_TIREES, trousDuJeu,
   roundSeriesQuiz, questionsDeLaSerie, questionsDesSeries, questionJouable, FACTEURS_FINALE, SUPER_FINALE_LAST, questionBougies,
-  questionsDuQuiz, cleQuestion, placeDesBougies, CLE_BOUGIES, estEnSeries, choiceImageList,
+  questionsDuQuiz, cleQuestion, placeDesBougies, CLE_BOUGIES, estEnSeries, choiceImageList, estJeuDePhotos, signatureQuestion, zoomRoundQuestions,
+  estJeuDeMots, seriesMots, cleDuMot, motsDuJeu, MAX_MOTS, pickedItems, roundHasard, disparuObjects,
+  pictoToursBruts, pictoPropositions, pictoPassages, PICTO_PROPOSITIONS, PICTO_PASSAGES, PICTO_PASSAGES_MAX,
 } from "./show.js";
 import { TEAM_COLORS, TEAM_COLOR_NAMES } from "./theme.js";
-import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE, cheminPhotoBanque, imageLibre } from "./banque-photos.js";
+import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE, cheminPhotoBanque, imageLibre, questionBanque } from "./banque-photos.js";
+import { AFFIRMATIONS, tirerAffirmations } from "./banque-vrai-faux.js";
 import { shuffle } from "./mime-cards.js";
 import {
   MANCHE_TYPES, COLLECTION_UNIT, RANDOM_TYPES, RANDOM_COUNT, MIME_PER_TEAM, MIME_PER_TEAM_DEFAULT, LEVELS, collectionItems, collectionGroups,
   filterItems, drawItems, randomRound, cleanRound, mancheGroups, mancheSummary, defaultMancheTitle, mimeCardsNeeded,
-  itemConcepts, usedElsewhere, blocsDeJeu, versSeriesQuiz, fusionnerQuiz,
+  itemConcepts, usedElsewhere, versSeriesQuiz, fusionnerQuiz, versSeriesBlind, fusionnerBlind, photosDeMesImages,
 } from "./manches.js";
 import { concepts, neufsSiPossible, questionConcepts } from "./jamais-deux-fois.js";
 import { PICTO_OWN_SERIES } from "./picto-cards.js";
-import { EXTRACT_SECONDS, guessTrack, decodeFile, cutExtract, makeExtract, synthTune, encodeMp3, soundId } from "./audio.js";
+import { EXTRACT_SECONDS, guessTrack, decodeFile, cutExtract, makeExtract, encodeMp3, soundId } from "./audio.js";
 import { REFRAIN_SEC, REFRAIN_KBPS, buzzOf, defaultRefrain, songList, songsRetirees, songMatches, trackFromSong, songUpdates, marquerEffacees } from "./sons.js";
 import { lireLrc, refrainsDesParoles, debutDesParoles, parolesDuRefrain, associerParoles, nomSimple, ligneAuMoment, MAX_LRC } from "./paroles.js";
 import { volumes, explosionDuVolume, refrainAuVolume } from "./volume.js";
@@ -42,6 +43,8 @@ import { garderFichier, fichierGarde, oublierFichier } from "./sons-locaux.js";
 import { MIME_CATALOG, MIME_THEMES } from "./mime-cards.js";
 import { watchVersion, showUpdateBanner } from "./version.js";
 import { compressImage, imageId, cleanEmoji, CHOICE_IMAGE } from "./illustration.js";
+import { panneauPhotosManquantes, motsSansPhoto } from "./photos-manquantes.js";
+import { niveauMime, niveauxPourProfil, etiquetteMime } from "./banque-mimes.js";
 import { afficherMotsDePasse } from "./oeil.js";
 import { historique, noterEcran, barresRetour, quitterEcran, ecranModifie } from "./retour.js";
 import { confirmer, avertir, demanderTexte } from "./fenetre.js";
@@ -53,7 +56,7 @@ import {
   correspond, categoriesDe, categoriesPerso, ficheImage, motsCles,
 } from "./mediatheque.js";
 import { DOSSIERS, classerPartie, bilan, effacements, passageAFaire, moDe, texteMo, texteGardees } from "./nettoyage.js";
-import { GROUPES_QUESTIONS, questionsClassiquesPretes, questionsIllustreesPretes, mesQuestions, mesPacks, questionsDeTest, questionCorrespond, lirePacks, illustration, retirerQuestions, packsParTheme, estQuizDeTest } from "./questions.js";
+import { GROUPES_QUESTIONS, questionsClassiquesPretes, questionsIllustreesPretes, questionsVraiFauxPretes, mesQuestions, mesPacks, mesSeriesDePhotos, questionsDeTest, questionCorrespond, lirePacks, illustration, retirerQuestions, packsParTheme, estQuizDeTest } from "./questions.js";
 import { NIVEAUX_CHIFFRES, libelleNiveau, niveauPourAge, tirerChiffres } from "./banque-chiffres.js";
 import { QUESTIONS_TOUT_PRETES, THEMES_TOUT_PRETS, estJusteChiffre } from "./banque-classiques.js";
 
@@ -206,6 +209,8 @@ function show(name, { force = false } = {}) {
   if (name === "quizzes") renderQuizzes();
   if (name === "mimes") renderMimes();
   if (name === "music") renderPlaylists();
+  // Retour des réglages d'une chanson du blind test : ses nouveaux réglages (refrain, pochette, paroles) s'affichent.
+  if (name === "show-edit" && reglageDepuisPrestation) { reglageDepuisPrestation = false; refreshRounds(); }
   if (["quizzes", "mimes", "music", "builtin"].includes(name)) paintCollectionTabs(name);
   if (name !== "playlist-edit") stopPreview();
   if (name === "settings") { showLastChange(); afficherJournal(); }
@@ -598,9 +603,9 @@ async function copierDansBibliotheque(dossier, original) {
  * avec seulement Ouvrir, Renommer et Archiver (« Dupliquer » se fait depuis les listes).
  */
 function showCard(id, s, { accueil = false } = {}) {
-  const r = readiness(s, quizzes, mimes, playlists, contents);
+  const r = readiness(s, quizzes, mimes, playlists, contents, undefined, songs);
   const etat = etatPrestation(s);
-  const { snapshot } = buildSnapshot(id, s, quizzes, mimes, Math.random, playlists, contents);
+  const { snapshot } = buildSnapshot(id, s, quizzes, mimes, Math.random, playlists, contents, {}, songs);
   const date = s.date ? shortDate(s.date) : null;
   // Un clic sur la carte (hors de ses boutons) l'ouvre, comme « Ouvrir ».
   return h("article", { class: `card show-card ${r.level}${copieRecente(id)}`, "data-show": id, onclick: (e) => { if (!e.target.closest("button")) editShow(id); } },
@@ -871,7 +876,9 @@ function editShow(id) {
   // Une ancienne manche « Quiz » de quiz illustrés s'affiche (et s'enregistre) en Quiz illustré.
   // Un Quiz = une seule manche (cedric, 23/10) : ses manches Quiz qui se suivent n'en font plus qu'une.
   const { rounds: reunies, fusions } = fusionnerQuiz(rounds.map((r) => versSeriesQuiz(jeuDeLaManche(r, quizzes), quizzes)));
-  editing = { id, rounds: reunies, themes: s.themes ?? null };
+  // Pas de manches dans un blind test (cedric, 24/10) : ceux qui se suivent n'en font plus qu'un.
+  const { rounds: blinds, fusions: fusionsBlind } = fusionnerBlind(reunies.map((x) => versSeriesMots(versSeriesBlind(x))));
+  editing = { id, rounds: blinds, themes: s.themes ?? null };
   $("show-edit-title").textContent = id ? showTitle(s) : "Nouvelle prestation";
   // Fil d'Ariane : la liste de son état (une nouvelle commence « À compléter »).
   showsEtat = id ? etatPrestation(s) : "acompleter";
@@ -896,7 +903,8 @@ function editShow(id) {
   $("show-notes").value = s.notes ?? "";
   status("show-status-msg", s.copieDe && !s.childName ? "Copie : indiquez le prénom, l'âge et la date du nouvel anniversaire, puis enregistrez."
     : folded ? "L'ancienne manche « Super Finale » est devenue le réglage du quiz (ses dernières questions ×2). Enregistrez pour garder ce changement."
-    : fusions ? "Les manches Quiz qui se suivaient n'en font plus qu'une (une seule Super Finale, à la fin). Enregistrez pour garder ce changement." : "", !!s.copieDe || !!folded || !!fusions);
+    : fusions ? "Les manches Quiz qui se suivaient n'en font plus qu'une (une seule Super Finale, à la fin). Enregistrez pour garder ce changement."
+    : fusionsBlind ? "Les manches de blind test (ou de quiz musical) qui se suivaient n'en font plus qu'une (leurs chansons à la suite). Enregistrez pour garder ce changement." : "", !!s.copieDe || !!folded || !!fusions || !!fusionsBlind);
   show("show-edit");
   refreshRounds();
   histPrestation.depart();
@@ -923,16 +931,26 @@ const histPrestation = historique({
   restaurer: (e) => {
     SHOW_FIELDS.forEach((id, k) => { $(id).value = e.champs[k]; });
     $("show-title").dataset.auto = titreAuto($("show-child").value);
-    if (editing) editing.rounds = e.rounds;
+    if (editing) {
+      // Ctrl+Z, « Annuler les modifications » : les jeux dépliés le restent (rien de ça n'est dans l'historique).
+      const ouverts = new Set(editing.rounds.map((r, i) => (r?.[JEU_OUVERT] ? `${i}:${r.type ?? "quiz"}` : null)));
+      e.rounds.forEach((r, i) => { if (r && ouverts.has(`${i}:${r.type ?? "quiz"}`)) r[JEU_OUVERT] = true; });
+      editing.rounds = e.rounds;
+    }
     couleursSaisies = e.couleurs ?? [];
     pastilleOuverte = -1;
     renderCouleurs();
     refreshRounds();
   },
+  // « Enregistrer » dans la fenêtre « Des modifications ne sont pas enregistrées » (cedric, 24/10).
+  enregistrer: () => ($("show-form").reportValidity() ? enregistrerPrestation() : false),
 });
 // « Enregistrer » aussi en haut de la fiche (cedric, 21/10) : une retouche de dernière minute sans descendre tout en bas.
 $("screen-show-edit").querySelector(".retour-barre.haut")
   .append(h("button", { id: "show-save-haut", class: "btn", type: "button", onclick: () => $("show-save").click(), text: "Enregistrer" }));
+// En bas, « Enregistrer » ouvre la barre qui suit l'écran dès qu'il y a une modification : Enregistrer · ← Retour · Annuler
+// les modifications, de gauche à droite (cedric, 24/10). Le bouton garde son formulaire (attribut form).
+$("screen-show-edit").querySelector(".retour-barre.bas").prepend($("show-save"));
 
 function formShow() {
   const num = (v) => (v === "" ? null : Number(v));
@@ -1018,7 +1036,7 @@ function selectionEditor({ items, get, set, draw, unit, empty, own, round = null
         }));
     };
     box.replaceChildren(...[
-      h("span", { class: "small", text: n ? `${n} ${unit}${n > 1 ? "s" : ""} choisi${e}${n > 1 ? "s" : ""} : la manche joue exactement cette liste.` : empty }),
+      h("span", { class: "small", text: n ? `${n} ${unit}${n > 1 ? "s" : ""} choisi${e}${n > 1 ? "s" : ""}  : le jeu joue exactement cette liste.` : empty }),
       h("button", { type: "button", class: "chip pick-draw", text: "🎲 Tirer au hasard", onclick: () => change(draw()) }),
       chosen.length ? h("button", { type: "button", class: "chip", text: "Tout retirer (tirage au lancement)", onclick: () => change([]) }) : null,
       h("div", { class: "pick-list" }, ...chosen.map((k) => {
@@ -1089,6 +1107,1434 @@ function mimeSelection(r) {
   });
 }
 
+/** Durées d'un tour de mimes proposées (secondes) : 2 min d'office (cedric, 24/10). */
+const MIME_DUREES = [60, 90, 120, 150, 180];
+/** Images par équipe proposées (cedric, 24/10 : « une vingtaine par équipe par sécurité »). */
+const MIME_IMAGES = [10, 15, 20, 25, 30];
+const MIME_IMAGES_DEFAUT = 20;
+/** « 2 min », « 1 min 30 », « 45 s ». */
+const enMinutes = (sec) => (sec < 60 ? `${sec} s` : sec % 60 ? `${Math.floor(sec / 60)} min ${sec % 60}` : `${sec / 60} min`);
+/** Ce que montre une image de mimes, pour « jamais deux fois » : sa photo à soi par son identifiant, sinon son mot et son émoji. */
+const conceptsMime = (c) => (c?.imageId ? [`i:${c.imageId}`] : concepts(c ?? {}));
+/** Images retirées (✕) d'une manche de mimes pendant la saisie : le 🎲 de leur case ne les redonne pas. */
+const mimesRetires = new WeakMap();
+/** Lignes d'équipe dépliées (leur liste d'images visible), par manche de mimes : rien n'est enregistré. */
+const mimesDeplies = new WeakMap();
+
+/**
+ * Les images que le 🎲 des Mimes peut tirer, selon la source choisie par Sarah (cedric, 23/10) : photos libres, émojis
+ * ou ses images (« Mes images », exception à la règle du hasard accordée par cedric pour les mimes).
+ */
+function imagesPourMimes(source) {
+  if (source === "emojis") return emojisBibliotheque().map((x) => ({ word: x.nom, image: x.emoji }));
+  if (source === "miennes") return groupesImages().miennes.map((x) => ({ word: `${x.nom ?? ""}`.trim() || "Image", imageId: x.id }));
+  return photosLibres().map((x) => ({ word: x.nom, image: x.emoji, banque: x.id.slice(BANQUE.length) }));
+}
+
+/** Une image de la Bibliothèque (le « ＋ » d'une équipe) en image de mimes. */
+const imageDeMime = (x) => mimeCards([x.groupe === "emojis" ? { word: x.nom, image: x.emoji }
+  : x.groupe === "photos" ? { word: x.nom, image: x.emoji, banque: x.id.slice(BANQUE.length) }
+    : { word: `${x.nom ?? ""}`.trim() || "Image", imageId: x.id }])[0];
+
+/**
+ * Pioche [n] images de mimes pour la manche [r], jamais une qui montre déjà quelque chose de [prises] (concepts de la
+ * manche, mis à jour) ; d'abord celles qu'aucune autre manche de la prestation ne montre (« jamais deux fois »).
+ * Photos libres et émojis (cedric, 24/10) : seulement les images bonnes pour le mime, du niveau du [profil] d'abord
+ * (les Petits n'ont que les leurs) ; ses images à soi : tous âges.
+ */
+function piocherMimes(r, n, prises, profil = null) {
+  if (n <= 0) return [];
+  const ailleurs = roundCtx.elsewhere?.(r) ?? new Map();
+  const images = imagesPourMimes(r.source);
+  const paliers = r.source === "miennes" ? [images] : niveauxPourProfil(profil).map((nv) => images.filter((c) => nv.includes(niveauMime(c.word))));
+  const toutes = paliers.flatMap((l) => shuffle(l)).map((c) => mimeCards([c])[0]).filter(Boolean);
+  const neuves = toutes.filter((c) => !conceptsMime(c).some((k) => ailleurs.has(k)));
+  const out = [];
+  for (const c of [...neuves, ...toutes.filter((x) => !neuves.includes(x))]) {
+    if (out.length >= n) break;
+    if (conceptsMime(c).some((k) => prises.has(k))) continue;
+    conceptsMime(c).forEach((k) => prises.add(k));
+    out.push(c);
+  }
+  return out;
+}
+
+/** Concepts déjà dans la manche de mimes [r] (toutes équipes) et ceux qu'on y a retirés. */
+const prisesMimes = (r) => new Set([...mimeEquipes(r).flat().flatMap(conceptsMime), ...(mimesRetires.get(r) ?? [])]);
+
+/**
+ * Mimes dans une prestation (cedric, 23/10 puis 24/10) : une ligne par équipe, dans l'ordre des couleurs de la
+ * prestation. En haut : la source des images, le nombre d'images par équipe (20 d'office) et la durée du tour (2 min).
+ * Chaque ligne : sa tranche d'âge (celle de la prestation d'office), son 🎲 (les images de l'équipe), « ＋ » (des
+ * images choisies dans la Bibliothèque), 🔀 (l'ordre joué sur la TV) ; elle se déplie pour montrer ses images. ✕ retire
+ * une image et laisse un 🎲 à sa place ; une case laissée sur son 🎲 ne compte pas.
+ */
+function mancheMimes(r) {
+  const couleurs = couleursSaisies.length ? couleursSaisies : couleursEquipes({ teams: ctxTeams() });
+  const n = couleurs.length;
+  if (!MIME_SOURCES[r.source]) r.source = "photos";
+  const par = mimePerTeam(r) || MIME_IMAGES_DEFAUT;
+  // Moins d'équipes prévues : les présélections en trop partent.
+  if (mimeEquipesBrutes(r).length > n) r.equipes = mimeEquipesBrutes(r).slice(0, n);
+  const equipes = mimeEquipesBrutes(r);
+  const reelles = (k) => (equipes[k] ?? []).filter((c) => !c.vide);
+  const tire = equipes.some((l) => l.length);
+  const deplies = mimesDeplies.get(r) ?? new Set();
+  mimesDeplies.set(r, deplies);
+  const changer = () => roundCtx.refresh();
+  const nom = (k) => nomCouleur(couleurs[k]);
+  const profilPrestation = roundCtx.profile?.() ?? "MOYENS";
+  const age = (k) => mimeAges(r)[k] ?? profilPrestation;
+  /** La liste de l'équipe [k] devient [liste] ; les autres ne bougent pas. */
+  const poser = (k, liste) => {
+    const brutes = mimeEquipesBrutes(r);
+    r.equipes = couleurs.map((_, j) => (j === k ? liste : brutes[j] ?? []));
+    r.perTeam = par;
+    // L'ancienne façon de préparer la manche (paquet, tirage au lancement) laisse la place.
+    r.deckId = null; r.random = null; r.cards = null; r.photos = null;
+  };
+  /** Le 🎲 d'une équipe : [par] images de son âge, jamais une déjà dans la manche ; ses images d'avant sont remplacées. */
+  const tirerEquipe = async (k) => {
+    const avant = reelles(k).length;
+    if (avant && !(await confirmer(`Tirer de nouvelles images pour l'équipe ${nom(k)} ? Ses ${plural(avant, "image")} seront remplacées.`, { ok: "Tirer à nouveau", annuler: "Garder" }))) return;
+    const brutes = mimeEquipesBrutes(r);
+    const prises = new Set([...brutes.flatMap((l, j) => (j === k ? [] : l.filter((c) => !c.vide))).flatMap(conceptsMime), ...(mimesRetires.get(r) ?? [])]);
+    const cartes = piocherMimes(r, par, prises, age(k));
+    if (!cartes.length) return annonce(`Plus d'image à tirer pour l'équipe ${nom(k)} dans cette source : choisissez-en une autre, ou « ＋ ».`);
+    poser(k, cartes);
+    deplies.add(k);
+    if (cartes.length < par) annonce(`Seulement ${plural(cartes.length, "image")} à tirer pour l'équipe ${nom(k)} (${PROFILES[age(k)]?.label ?? "cet âge"}) : complétez avec « ＋ ».`);
+    changer();
+  };
+  /** Complète l'équipe [k] jusqu'au nombre choisi : ses cases vides d'abord, puis à la fin. */
+  const completer = (k) => {
+    const liste = [...(mimeEquipesBrutes(r)[k] ?? [])];
+    const nouvelles = piocherMimes(r, Math.max(0, par - liste.filter((c) => !c.vide).length), prisesMimes(r), age(k));
+    if (!nouvelles.length) return annonce(`Plus d'image à tirer pour l'équipe ${nom(k)} dans cette source : choisissez-en une autre, ou « ＋ ».`);
+    const remplie = liste.map((c) => (c.vide && nouvelles.length ? nouvelles.shift() : c));
+    poser(k, [...remplie, ...nouvelles]);
+    changer();
+  };
+  const tirerUne = (k, i) => {
+    const liste = [...(mimeEquipesBrutes(r)[k] ?? [])];
+    const [c] = piocherMimes(r, 1, prisesMimes(r), age(k));
+    if (!c) return annonce("Plus d'image à tirer dans cette source : choisissez-en une autre, ou « ＋ ».");
+    liste[i] = c;
+    poser(k, liste);
+    changer();
+  };
+  const retirer = (k, i) => {
+    const liste = [...(mimeEquipesBrutes(r)[k] ?? [])];
+    mimesRetires.set(r, new Set([...(mimesRetires.get(r) ?? []), ...conceptsMime(liste[i])]));
+    liste[i] = { vide: true };
+    poser(k, liste);
+    changer();
+  };
+  const melanger = (k) => { poser(k, shuffle([...(mimeEquipesBrutes(r)[k] ?? [])])); changer(); };
+  /** « ＋ » : des images choisies dans la Bibliothèque, ajoutées à la fin de la liste de l'équipe. */
+  const ajouterImages = async (k) => {
+    const autres = roundCtx.elsewhere?.(r) ?? new Map();
+    const ici = new Map(mimeEquipesBrutes(r).flatMap((l, j) => l.filter((c) => !c.vide).flatMap((c) => conceptsMime(c).map((x) => [x, `ces Mimes (équipe ${nom(j)})`]))));
+    const choisies = await choisirDansBibliotheque({
+      titre: `Images à mimer pour l'équipe ${nom(k)}`, groupes: ["photos", "emojis", "miennes"], plusieurs: true,
+      deja: (x) => { const c = imageDeMime(x); const hit = c && conceptsMime(c).find((y) => ici.has(y) || autres.has(y)); return hit ? ici.get(hit) ?? autres.get(hit) : null; },
+    });
+    const cartes = choisies.map(imageDeMime).filter(Boolean);
+    if (!cartes.length) return;
+    const liste = [...(mimeEquipesBrutes(r)[k] ?? [])];
+    const place = Math.max(0, MIME_EQUIPES_MAX - liste.length);
+    poser(k, [...liste, ...cartes.slice(0, place)]);
+    deplies.add(k);
+    annonce(cartes.length > place
+      ? `${plural(place, "image ajoutée", "images ajoutées")} à l'équipe ${nom(k)} : ${MIME_EQUIPES_MAX} au plus par équipe.`
+      : `${plural(cartes.length, "image ajoutée", "images ajoutées")} à l'équipe ${nom(k)}.`, cartes.length <= place);
+    changer();
+  };
+  const source = h("select", {
+    class: "mime-source", "aria-label": "Où prendre les images à mimer", title: "Où le 🎲 de chaque équipe prend ses images",
+    onchange: (e) => { r.source = e.target.value; changer(); },
+  }, ...Object.entries(MIME_SOURCES).map(([k, label]) => h("option", { value: k, selected: k === r.source, text: `Images : ${label}` })));
+  const nombre = h("select", {
+    class: "mime-par-equipe", "aria-label": "Images par équipe", title: "Combien d'images le 🎲 tire pour chaque équipe",
+    onchange: (e) => { r.perTeam = Number(e.target.value); changer(); },
+  }, ...[...new Set([...MIME_IMAGES, par])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: k === par, text: `${k} images par équipe` })));
+  const tour = r.duration ?? MIME_TURN;
+  const duree = h("select", {
+    class: "mime-duree", "aria-label": "Durée du tour de chaque équipe", title: "Durée du tour de chaque équipe",
+    onchange: (e) => { r.duration = Number(e.target.value) === MIME_TURN ? null : Number(e.target.value); roundCtx.summary(); },
+  }, ...[...new Set([...MIME_DUREES, tour])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: k === tour, text: `Tour de ${enMinutes(k)}` })));
+  const total = mimeEquipes(r).flat().length;
+  const manque = couleurs.reduce((t, _, k) => t + Math.max(0, par - reelles(k).length), 0);
+  const compteur = h("p", { class: "quiz-compteur", "aria-live": "polite",
+    text: tire ? `${n} équipe${n > 1 ? "s" : ""} · ${plural(total, "image")}${manque ? ` · ${manque} à tirer` : ""}` : "Aucune image pour l'instant : touchez 🎲 sur chaque équipe" });
+  const autres = roundCtx.elsewhere?.(r) ?? new Map();
+  const ailleurs = (c) => { const k = conceptsMime(c).find((x) => autres.has(x)); return k ? autres.get(k) : null; };
+  const vignette = (c) => apercuPhoto(c) ?? h("span", { class: "tirage-mini emoji", text: c.image ?? "🎭" });
+  const lignes = couleurs.map((couleur, k) => {
+    const liste = equipes[k] ?? [];
+    const vraies = reelles(k).length;
+    const ouverte = deplies.has(k) && liste.length > 0;
+    const manqueIci = vraies ? Math.max(0, par - vraies) : 0;
+    const nbDeja = reelles(k).filter((c) => ailleurs(c)).length;
+    const choixAge = h("select", {
+      class: "mime-age", "aria-label": `Âge des images de l'équipe ${nomCouleur(couleur)}`, title: "Âge des images que tire le 🎲 de cette équipe",
+      onchange: (e) => {
+        const ages = mimeAges(r);
+        ages[k] = e.target.value === profilPrestation ? null : e.target.value;
+        r.ages = Object.fromEntries(ages.map((p, j) => [j, p]).filter(([, p]) => p));
+        changer();
+      },
+    }, ...Object.entries(PROFILES).map(([key, p]) => h("option", { value: key, selected: key === age(k), text: p.label })));
+    return h("section", { class: `mime-equipe${ouverte ? " ouverte" : ""}`, style: `--c: ${couleur}`, "data-couleur": nomCouleur(couleur) },
+      h("div", { class: "mime-equipe-tete" },
+        h("button", {
+          type: "button", class: "mime-deplier", "aria-expanded": ouverte ? "true" : "false", disabled: !liste.length,
+          title: liste.length ? (ouverte ? "Replier la liste des images" : "Voir les images de l'équipe") : "Aucune image : touchez 🎲",
+          onclick: () => { if (deplies.has(k)) deplies.delete(k); else deplies.add(k); changer(); },
+        }, h("span", { class: "fleche", text: ouverte ? "▾" : "▸" }), h("span", { class: "rond" }), h("b", { text: `Équipe ${nomCouleur(couleur)}` })),
+        choixAge,
+        h("span", { class: "small hint mime-nombre", text: vraies ? plural(vraies, "image") : "Aucune image" }),
+        // Repliée, la ligne dit quand même qu'une de ses images sert déjà dans un autre jeu (« jamais deux fois »).
+        nbDeja ? h("span", { class: "mime-deja", text: `⚠ ${nbDeja} déjà dans un autre jeu`, title: [...new Set(reelles(k).map(ailleurs).filter(Boolean))].map((x) => `Déjà utilisée dans ${x}`).join("\n") }) : null,
+        h("button", {
+          type: "button", class: "btn tirage-de", text: "🎲", "aria-label": `Tirer les images de l'équipe ${nomCouleur(couleur)} au hasard`,
+          title: `Tirer ${par} images pour l'équipe ${nomCouleur(couleur)}`, onclick: () => tirerEquipe(k),
+        }),
+        h("button", {
+          type: "button", class: "btn secondary mime-plus", text: "＋", "aria-label": `Ajouter des images de la Bibliothèque à l'équipe ${nomCouleur(couleur)}`,
+          title: "Choisir des images dans la Bibliothèque", onclick: () => ajouterImages(k),
+        }),
+        h("button", {
+          type: "button", class: "icon mime-melanger", text: "🔀", "aria-label": `Mélanger les images de l'équipe ${nomCouleur(couleur)}`,
+          title: "Mélanger : la TV les montre dans cet ordre", disabled: vraies < 2, onclick: () => melanger(k),
+        }),
+        manqueIci ? h("button", { type: "button", class: "chip mime-completer", text: `🎲 Tirer ${manqueIci > 1 ? `les ${manqueIci} images` : "l'image"} qui manque${manqueIci > 1 ? "nt" : ""}`, onclick: () => completer(k) }) : null),
+      ouverte ? h("ul", { class: "mime-images" }, ...liste.map((c, i) => (c.vide
+        ? h("li", { class: "mime-image vide" }, h("button", {
+          type: "button", class: "btn tirage-de petit", text: "🎲", "aria-label": `Tirer une autre image pour l'équipe ${nomCouleur(couleur)}`,
+          title: "Tirer une autre image", onclick: () => tirerUne(k, i),
+        }))
+        : h("li", { class: `mime-image${ailleurs(c) ? " deja" : ""}`, title: ailleurs(c) ? `Déjà utilisée dans ${ailleurs(c)}` : c.word },
+          vignette(c),
+          h("span", { class: "mime-mot", text: c.word }),
+          h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": `Retirer « ${c.word} »`, title: "Retirer cette image (un 🎲 prend sa place)", onclick: () => retirer(k, i) }))))) : null);
+  });
+  // Une manche préparée avant (un paquet, un tirage au lancement) : elle se joue encore telle quelle.
+  const ancienne = !tire && (r.deckId || r.random === true || mimeCards(r.cards).length)
+    ? h("p", { class: "small hint mime-ancienne", text: `Manche préparée à l'ancienne : ${mancheSummary(r, { mimes })}, jouée telle quelle. Le 🎲 d'une équipe la remplace par une présélection pour chaque équipe.` })
+    : null;
+  return [
+    compteur,
+    h("div", { class: "quiz-outils" }, h("div", { class: "tirage-ligne" }, source, nombre, duree)),
+    ancienne,
+    h("div", { class: "mime-equipes" }, ...lignes),
+  ].filter(Boolean);
+}
+
+/** Mots retirés (✕) d'un Pictionary pendant la saisie : le 🎲 de leur case ne les redonne pas. */
+const dessinsRetires = new WeakMap();
+/** Équipes dépliées (leurs passages visibles), par Pictionary : rien n'est enregistré. */
+const dessinsDeplies = new WeakMap();
+
+/**
+ * Mots que le 🎲 du Pictionary propose (cedric, 24/10 : l'émoji sur la tablette, la vraie photo sur la TV quand le
+ * dessin est trouvé) : ceux de la banque de photos libres, qui ont chacun leur émoji et leur photo, choisis ensemble.
+ * D'abord les mots du jeu (faciles à dessiner), puis le reste de la banque ; jamais un mot du jeu que Sarah a retiré,
+ * ni, pour les Petits, un mot marqué « grands ».
+ */
+function motsPourDessin(profil) {
+  const actifs = new Set(activeItems("pictionary", contents.pictionary).map((w) => w.word.toLowerCase()));
+  const cle = (w) => motDeLaBanque(w.word)?.cle;
+  const exclus = new Set(CONTENT_GAMES.pictionary.catalog.filter((w) => !actifs.has(w.word.toLowerCase()) || (profil === "PETITS" && w.level === 2)).map(cle).filter(Boolean));
+  const faciles = new Set(activeItems("pictionary", contents.pictionary).filter((w) => profil !== "PETITS" || w.level !== 2).map(cle).filter(Boolean));
+  const photos = photosLibres().map((x) => ({ word: x.nom, image: x.emoji, banque: x.id.slice(BANQUE.length) })).filter((m) => !exclus.has(m.banque));
+  return [photos.filter((m) => faciles.has(m.banque)), photos.filter((m) => !faciles.has(m.banque))];
+}
+
+/**
+ * Pioche [n] mots pour le Pictionary [r], jamais un qui montre déjà quelque chose de [prises] (mots du jeu, mis à
+ * jour) ; d'abord ceux qu'aucun autre jeu de la prestation ne montre (« jamais deux fois »), les plus faciles d'abord.
+ */
+function piocherDessins(r, n, prises, profil) {
+  if (n <= 0) return [];
+  const ailleurs = roundCtx.elsewhere?.(r) ?? new Map();
+  const [faciles, autres] = motsPourDessin(profil);
+  const neuf = (m) => !concepts(m).some((k) => ailleurs.has(k));
+  const out = [];
+  for (const m of [...shuffle(faciles.filter(neuf)), ...shuffle(autres.filter(neuf)), ...shuffle(faciles.filter((x) => !neuf(x))), ...shuffle(autres.filter((x) => !neuf(x)))]) {
+    if (out.length >= n) break;
+    if (concepts(m).some((k) => prises.has(k))) continue;
+    concepts(m).forEach((k) => prises.add(k));
+    out.push(m);
+  }
+  return out;
+}
+
+/** Une image de la Bibliothèque (ajout à la main) en mot du Pictionary : son émoji, sa photo libre, ou votre image. */
+const imageDeDessin = (x) => motPictoDe(x.groupe === "emojis" ? { word: x.nom, image: x.emoji }
+  : x.groupe === "photos" ? { word: x.nom, image: x.emoji, banque: x.id.slice(BANQUE.length) }
+    : { word: `${x.nom ?? ""}`.trim() || "Image", imageId: x.id });
+const motPictoDe = (m) => (typeof m.word === "string" && m.word.trim() ? m : null);
+
+/**
+ * Pictionary dans une prestation (cedric, 24/10 : « à l'image des autres jeux ») : une première ligne avec le nombre de
+ * mots proposés au dessinateur, le nombre de passages de chaque équipe, le temps de dessin et le 🎲, qui prépare tous
+ * les passages ; une deuxième pour ajouter un passage à la main à une équipe (images de la Bibliothèque). Puis une ligne
+ * par équipe, dans la couleur de son bracelet : ses passages, chacun avec ses mots (émoji, vraie photo, nom). ✕ retire un
+ * mot et laisse un 🎲 à sa place.
+ */
+function mancheDessins(r) {
+  const couleurs = couleursSaisies.length ? couleursSaisies : couleursEquipes({ teams: ctxTeams() });
+  const n = couleurs.length;
+  const N = pictoPropositions(r);
+  const P = pictoPassages(r);
+  const profil = roundCtx.profile?.() ?? "MOYENS";
+  // Moins d'équipes prévues : les passages en trop partent.
+  if (pictoToursBruts(r).length > n) r.tours = pictoToursBruts(r).slice(0, n);
+  const tours = pictoToursBruts(r);
+  const reels = (k) => (tours[k] ?? []).map((p) => p.filter((m) => !m.vide)).filter((p) => p.length);
+  const tire = tours.some((ps) => ps.length);
+  const deplies = dessinsDeplies.get(r) ?? new Set();
+  dessinsDeplies.set(r, deplies);
+  const changer = () => roundCtx.refresh();
+  const nom = (k) => nomCouleur(couleurs[k]);
+  const prises = () => new Set([...pictoToursBruts(r).flat(2).filter((m) => !m.vide).flatMap(concepts), ...(dessinsRetires.get(r) ?? [])]);
+  /** Les passages de l'équipe [k] deviennent [passages] ; les autres ne bougent pas. */
+  const poser = (k, passages) => {
+    const brutes = pictoToursBruts(r);
+    r.tours = couleurs.map((_, j) => (j === k ? passages : brutes[j] ?? []));
+    r.propositions = N;
+    r.passages = P;
+    // L'ancienne façon (mots ou séries choisis, tirage au lancement) laisse la place.
+    r.picks = null; r.hasard = null; r.series = null;
+  };
+  /** [nb] passages neufs de [N] mots, sans rien de [deja]. */
+  const nouveaux = (nb, deja) => Array.from({ length: nb }, () => piocherDessins(r, N, deja, profil)).filter((p) => p.length);
+  const plusDeMots = () => annonce("Plus assez de mots à tirer : ajoutez-en à la main (deuxième ligne).");
+  /** Le 🎲 du haut : tous les passages de toutes les équipes, tirés à nouveau. */
+  const tirerTout = async () => {
+    const avant = tours.reduce((t, ps) => t + ps.length, 0);
+    if (avant && !(await confirmer(`Tirer de nouveaux mots pour toutes les équipes ? Les ${plural(avant, "passage")} déjà prêts seront remplacés.`, { ok: "Tirer à nouveau", annuler: "Garder" }))) return;
+    const deja = new Set(dessinsRetires.get(r) ?? []);
+    const tous = couleurs.map(() => nouveaux(P, deja));
+    if (!tous.some((ps) => ps.length)) return plusDeMots();
+    r.tours = null;
+    tous.forEach((ps, k) => poser(k, ps));
+    if (tous.some((ps) => ps.length < P || ps.some((p) => p.length < N))) plusDeMots();
+    changer();
+  };
+  /** Le 🎲 d'une équipe : ses passages tirés à nouveau. */
+  const tirerEquipe = async (k) => {
+    const avant = (tours[k] ?? []).length;
+    if (avant && !(await confirmer(`Tirer de nouveaux mots pour l'équipe ${nom(k)} ? Ses ${plural(avant, "passage")} seront remplacés.`, { ok: "Tirer à nouveau", annuler: "Garder" }))) return;
+    const deja = new Set([...pictoToursBruts(r).flatMap((ps, j) => (j === k ? [] : ps.flat())).filter((m) => !m.vide).flatMap(concepts), ...(dessinsRetires.get(r) ?? [])]);
+    const ps = nouveaux(P, deja);
+    if (!ps.length) return plusDeMots();
+    poser(k, ps);
+    deplies.add(k);
+    changer();
+  };
+  const tirerUn = (k, p, i) => {
+    const [m] = piocherDessins(r, 1, prises(), profil);
+    if (!m) return plusDeMots();
+    const ps = pictoToursBruts(r)[k].map((x) => [...x]);
+    ps[p][i] = m;
+    poser(k, ps);
+    changer();
+  };
+  const retirerMot = (k, p, i) => {
+    const ps = pictoToursBruts(r)[k].map((x) => [...x]);
+    dessinsRetires.set(r, new Set([...(dessinsRetires.get(r) ?? []), ...concepts(ps[p][i])]));
+    ps[p][i] = { vide: true };
+    poser(k, ps);
+    changer();
+  };
+  const retirerPassage = (k, p) => {
+    const ps = pictoToursBruts(r)[k].filter((_, j) => j !== p);
+    poser(k, ps);
+    changer();
+  };
+  /** Deuxième ligne : des images de la Bibliothèque pour l'équipe [k], [N] par passage, à la suite de ses passages. */
+  const ajouterMain = async (k) => {
+    const autres = roundCtx.elsewhere?.(r) ?? new Map();
+    const ici = new Map(pictoToursBruts(r).flatMap((ps, j) => ps.flat().filter((m) => !m.vide).flatMap((m) => concepts(m).map((x) => [x, `ce Pictionary (équipe ${nom(j)})`]))));
+    const choisies = await choisirDansBibliotheque({
+      titre: `Mots à dessiner pour l'équipe ${nom(k)} (${N} par passage)`, groupes: ["photos", "emojis", "miennes"], plusieurs: true,
+      deja: (x) => { const m = imageDeDessin(x); const hit = m && concepts(m).find((y) => ici.has(y) || autres.has(y)); return hit ? ici.get(hit) ?? autres.get(hit) : null; },
+    });
+    const mots = choisies.map(imageDeDessin).filter(Boolean);
+    if (!mots.length) return;
+    const ps = [...(pictoToursBruts(r)[k] ?? [])];
+    const place = Math.max(0, PICTO_PASSAGES_MAX - ps.length);
+    const neufs = [];
+    for (let i = 0; i < mots.length && neufs.length < place; i += N) neufs.push(mots.slice(i, i + N));
+    poser(k, [...ps, ...neufs]);
+    deplies.add(k);
+    annonce(neufs.length
+      ? `${plural(neufs.length, "passage ajouté", "passages ajoutés")} à l'équipe ${nom(k)}${neufs.length * N < mots.length ? ` (${PICTO_PASSAGES_MAX} au plus par équipe)` : ""}.`
+      : `${PICTO_PASSAGES_MAX} passages au plus par équipe : retirez-en avant d'en ajouter.`, neufs.length > 0);
+    changer();
+  };
+  /** Moins ou plus de mots proposés, de passages : les passages déjà prêts suivent (le 🎲 complète, la fin part). */
+  const regler = (cle, valeur) => {
+    r[cle] = valeur;
+    if (tire) {
+      const nN = pictoPropositions(r);
+      const nP = pictoPassages(r);
+      const deja = prises();
+      r.tours = couleurs.map((_, k) => {
+        const ps = (pictoToursBruts(r)[k] ?? []).map((p) => (p.length > nN ? p.slice(0, nN) : [...p, ...piocherDessins(r, nN - p.length, deja, profil)]));
+        if (cle === "passages") return ps.length > nP ? ps.slice(0, nP) : [...ps, ...Array.from({ length: nP - ps.length }, () => piocherDessins(r, nN, deja, profil)).filter((p) => p.length)];
+        return ps;
+      });
+    }
+    changer();
+  };
+  const choixN = h("select", {
+    class: "picto-propositions", "aria-label": "Mots proposés au dessinateur", title: "Combien de mots le dessinateur voit sur sa tablette, pour en choisir un",
+    onchange: (e) => regler("propositions", Number(e.target.value)),
+  }, ...PICTO_PROPOSITIONS.map((k) => h("option", { value: k, selected: k === N, text: `${k} mots proposés` })));
+  const choixP = h("select", {
+    class: "picto-nb-passages", "aria-label": "Passages par équipe", title: "Combien de fois chaque équipe dessine",
+    onchange: (e) => regler("passages", Number(e.target.value)),
+  }, ...PICTO_PASSAGES.map((k) => h("option", { value: k, selected: k === P, text: `${plural(k, "passage")} par équipe` })));
+  const duree = h("select", {
+    class: "picto-duree", "aria-label": "Temps de dessin", title: `Temps de dessin à chaque passage (${PICTO_POINTS} points si le dessin est trouvé)`,
+    onchange: (e) => { r.duration = Number(e.target.value); roundCtx.summary(); },
+  }, ...PICTO_SECONDS.map((k) => h("option", { value: k, selected: k === (r.duration ?? PICTO_SEC), text: `Dessin de ${enMinutes(k)}` })));
+  const ligne = h("div", { class: "tirage-ligne" }, choixN, choixP, duree,
+    h("button", { type: "button", class: "btn tirage-de picto-de", text: "🎲", "aria-label": "Tirer les mots de toutes les équipes au hasard",
+      title: `Tirer ${P} passage${P > 1 ? "s" : ""} de ${N} mots pour chaque équipe`, onclick: tirerTout }));
+  const main = h("div", { class: "quiz-ajouts picto-main" },
+    h("span", { class: "quiz-ajout-titre", text: "✋ Ajouter un passage à la main, pour l'équipe :" }),
+    h("div", { class: "picto-main-equipes" }, ...couleurs.map((c, k) => h("button", {
+      type: "button", class: "chip picto-main-equipe", style: `--c: ${c}`, "data-couleur": nomCouleur(c),
+      title: `Choisir des images dans la Bibliothèque pour l'équipe ${nomCouleur(c)} (${N} par passage)`, onclick: () => ajouterMain(k),
+    }, h("span", { class: "rond" }), nomCouleur(c)))));
+  const passages = tours.reduce((t, ps) => t + ps.length, 0);
+  const mots = tours.flat(2).filter((m) => !m.vide).length;
+  const manque = tours.flat(2).filter((m) => m.vide).length;
+  const compteur = h("p", { class: "quiz-compteur", "aria-live": "polite",
+    text: tire ? `${plural(n, "équipe")} · ${plural(passages, "passage")} · ${plural(mots, "mot")}${manque ? ` · ${manque} à tirer` : ""}` : "Aucun mot pour l'instant : touchez 🎲" });
+  const autres = roundCtx.elsewhere?.(r) ?? new Map();
+  const ailleurs = (m) => { const k = concepts(m).find((x) => autres.has(x)); return k ? autres.get(k) : null; };
+  const motCase = (k, p, i, m) => (m.vide
+    ? h("li", { class: "picto-mot vide" }, h("button", {
+      type: "button", class: "btn tirage-de petit", text: "🎲", "aria-label": `Tirer un autre mot pour l'équipe ${nom(k)}`,
+      title: "Tirer un autre mot", onclick: () => tirerUn(k, p, i),
+    }))
+    : h("li", { class: `picto-mot${ailleurs(m) ? " deja" : ""}`, title: ailleurs(m) ? `Déjà utilisé dans ${ailleurs(m)}` : m.word, "data-mot": m.word.toLowerCase() },
+      // L'émoji, celui de la tablette ; la vraie photo, celle de la TV quand le dessin est trouvé.
+      m.image ? h("span", { class: "picto-emoji", text: m.image }) : null,
+      apercuPhoto(m),
+      h("span", { class: "picto-nom", text: m.word }),
+      h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": `Retirer « ${m.word} »`, title: "Retirer ce mot (un 🎲 prend sa place)", onclick: () => retirerMot(k, p, i) })));
+  const lignes = couleurs.map((couleur, k) => {
+    const ps = tours[k] ?? [];
+    const ouverte = deplies.has(k) && ps.length > 0;
+    const nbDeja = reels(k).flat().filter(ailleurs).length;
+    return h("section", { class: `mime-equipe picto-equipe${ouverte ? " ouverte" : ""}`, style: `--c: ${couleur}`, "data-couleur": nomCouleur(couleur) },
+      h("div", { class: "mime-equipe-tete" },
+        h("button", {
+          type: "button", class: "mime-deplier", "aria-expanded": ouverte ? "true" : "false", disabled: !ps.length,
+          title: ps.length ? (ouverte ? "Replier les passages" : "Voir les passages de l'équipe") : "Aucun passage : touchez 🎲",
+          onclick: () => { if (deplies.has(k)) deplies.delete(k); else deplies.add(k); changer(); },
+        }, h("span", { class: "fleche", text: ouverte ? "▾" : "▸" }), h("span", { class: "rond" }), h("b", { text: `Équipe ${nomCouleur(couleur)}` })),
+        h("span", { class: "small hint picto-nombre", text: ps.length ? plural(ps.length, "passage") : "Aucun passage" }),
+        nbDeja ? h("span", { class: "mime-deja", text: `⚠ ${nbDeja} déjà dans un autre jeu` }) : null,
+        h("button", {
+          type: "button", class: "btn tirage-de", text: "🎲", "aria-label": `Tirer les mots de l'équipe ${nomCouleur(couleur)} au hasard`,
+          title: `Tirer ${P} passage${P > 1 ? "s" : ""} de ${N} mots pour l'équipe ${nomCouleur(couleur)}`, onclick: () => tirerEquipe(k),
+        })),
+      ouverte ? h("ol", { class: "picto-passages" }, ...ps.map((p, j) => h("li", { class: "picto-passage" },
+        h("span", { class: "picto-passage-num", text: `${j + 1}` }),
+        h("ul", { class: "picto-mots" }, ...p.map((m, i) => motCase(k, j, i, m))),
+        h("button", { type: "button", class: "icon picto-passage-retirer", text: "✕", "aria-label": `Retirer le passage ${j + 1} de l'équipe ${nomCouleur(couleur)}`, title: "Retirer ce passage", onclick: () => retirerPassage(k, j) })))) : null);
+  });
+  // Un Pictionary préparé avant (mots ou séries choisis) : il se joue encore tel quel.
+  const ancienne = !tire && (roundPicks(r).length || pictoRoundSeries(r))
+    ? h("p", { class: "small hint mime-ancienne", text: `Pictionary préparé à l'ancienne : ${mancheSummary(r, {})}, joué tel quel. Le 🎲 le remplace par des mots pour chaque équipe.` })
+    : null;
+  return [
+    compteur,
+    h("div", { class: "quiz-outils" }, ligne, main),
+    ancienne,
+    h("div", { class: "mime-equipes picto-equipes" }, ...lignes),
+  ].filter(Boolean);
+}
+
+/** Chansons retirées (✕) d'un blind test pendant la saisie : le 🎲 de leur case ne les redonne pas. */
+const chansonsRetirees = new WeakMap();
+/** Blind tests dont la liste des chansons est dépliée (comme les séries du Quiz). */
+const blindsDeplies = new WeakSet();
+/** Chanson de chaque blind test dont le petit menu (écouter, régler) est ouvert : un seul à la fois. */
+const blindEcoute = new WeakMap();
+/** Réglages d'une chanson ouverts depuis la prestation : au retour, sa liste se redessine avec les nouveaux réglages. */
+let reglageDepuisPrestation = false;
+
+/**
+ * « ⏱ Régler… » une chanson depuis la prestation (cedric, 24/10) : les réglages de la chanson, ceux de Bibliothèque ›
+ * Sons ; « Enregistrer les réglages » ou « ← Retour » ramène à la prestation. Des modifications de la prestation pas
+ * encore enregistrées : elle l'est d'abord (sinon elles seraient perdues).
+ */
+async function reglerDepuisPrestation(x) {
+  if (histPrestation.modifie) {
+    const ok = await confirmer("Pour régler cette chanson, la prestation est d'abord enregistrée (sinon ses modifications seraient perdues).", { ok: "Enregistrer et régler", annuler: "Rester" });
+    if (!ok || !(await enregistrerPrestation())) return;
+  }
+  reglageDepuisPrestation = true;
+  editSongs([x]);
+  if (ecranAffiche() !== "playlist-edit") reglageDepuisPrestation = false;
+}
+
+/**
+ * Petit menu d'une chanson du blind test (cedric, 24/10 : vérifier que l'extrait et le hook sont bien placés, sans
+ * charger la page) : écouter l'extrait du buzz depuis son début, écouter le refrain de la révélation, avec les paroles
+ * qui défilent, et « ⏱ Régler… » pour les déplacer.
+ */
+function menuChanson(id) {
+  const x = songList(songs, {}, isStatuesList).find((s) => s.id === id);
+  if (!x) return null;
+  const paroles = () => parolesFlottantes(x, "show-rounds");
+  const refrain = Number.isFinite(x.refrain) ? ` · ${mmss(x.refrain)}` : "";
+  return h("div", { class: "blind-reglage" },
+    boutonEcoute({ class: "btn secondary blind-extrait", title: "Écouter l'extrait joué pendant la chanson à trouver, depuis son début", text: `▶ Extrait · ${mmss(x.start ?? 0)}` },
+      (b) => listen(x, false, b, paroles)),
+    boutonEcoute({
+      class: "btn secondary blind-refrain", disabled: !x.refrainId, text: `▶ Refrain${refrain}`,
+      title: x.refrainId ? `Écouter le refrain de la révélation (« on chante tous ensemble »), ${x.auto ? "trouvé automatiquement" : "réglé à la main"}` : "Pas encore de refrain : touchez « ⏱ Régler… »",
+    }, (b) => listen(x, true, b, paroles)),
+    h("span", { class: "hint small blind-hook", text: x.refrainId ? (x.auto ? "Refrain trouvé automatiquement" : "Refrain réglé à la main") : "Refrain pas encore réglé" }),
+    h("button", { type: "button", class: "btn blind-regler", title: "Déplacer le début de l'extrait ou le refrain, comme dans Bibliothèque › Sons", text: "⏱ Régler…", onclick: () => reglerDepuisPrestation(x) }));
+}
+
+/**
+ * « Jamais deux fois » pour les chansons : celles des autres jeux musicaux de la prestation (blind test, quiz musical,
+ * statues), par identifiant de chanson et par extrait → nom du jeu.
+ */
+function chansonsAilleurs(r) {
+  const out = new Map();
+  (editing?.rounds ?? []).forEach((x) => {
+    if (!x || x === r) return;
+    const nom = ROUND_TYPES[x.type ?? "quiz"] ?? "une autre manche";
+    const noter = (k) => { if (k && !out.has(k)) out.set(k, nom); };
+    chansonsDe(x).forEach((id) => { noter(id); noter(songs[id]?.audioId); });
+    if (MUSIC_GAMES[x.type]) {
+      roundTracks(x).forEach(noter);
+      if (x.playlistId) playableTracks(playlists[x.playlistId]).forEach((t) => noter(t.audioId));
+    }
+    if (x.type === "statues") (Array.isArray(x.songs) ? x.songs : []).forEach(noter);
+  });
+  return out;
+}
+
+/** Paroles d'une chanson sur la TV (karaoké de la révélation) : il faut le fichier .lrc et l'extrait du refrain. */
+const parolesSurTv = (song) => !!(song && /^[0-9a-f]{16}$/.test(song.refrainId ?? "") && typeof song.paroles === "string" && song.paroles);
+
+/**
+ * Pioche [n] chansons de la bibliothèque des sons pour le blind test [r], jamais une de [prises] (déjà dans la manche ou
+ * retirées) : d'abord celles qu'aucun autre jeu de la prestation ne joue, et parmi elles celles qui ont leur pochette et
+ * leurs paroles (la plus belle révélation).
+ */
+function piocherChansons(r, n, prises) {
+  if (n <= 0) return [];
+  const ailleurs = chansonsAilleurs(r);
+  const toutes = Object.entries(songs ?? {}).filter(([id, x]) => chansonJouable(x) && !prises.has(id)).map(([id, x]) => ({ id, ...x }));
+  const neuve = (x) => !ailleurs.has(x.id) && !ailleurs.has(x.audioId);
+  const complete = (x) => /^[0-9a-f]{16}$/.test(x.imageId ?? "") && parolesSurTv(x);
+  return [
+    ...shuffle(toutes.filter((x) => neuve(x) && complete(x))),
+    ...shuffle(toutes.filter((x) => neuve(x) && !complete(x))),
+    ...shuffle(toutes.filter((x) => !neuve(x))),
+  ].slice(0, n).map((x) => x.id);
+}
+
+/** Mini pochette d'une chanson (cedric, 24/10 : « la certitude que la pochette est présente ») ; 💿 barré si elle manque. */
+function miniPochette(song) {
+  if (!/^[0-9a-f]{16}$/.test(song?.imageId ?? "")) {
+    return h("span", { class: "blind-pochette sans", role: "img", "aria-label": "Pas de pochette", title: "Pas de pochette : ajoutez-la dans Bibliothèque › Sons", text: "💿" });
+  }
+  const id = song.imageId;
+  const img = h("img", { class: "blind-pochette", alt: "Pochette", title: "Pochette présente" });
+  if (imageCache[id]) img.src = imageCache[id];
+  else get(ref(db, `library/images/${id}`)).then((snap) => { if (typeof snap.val() === "string") { imageCache[id] = snap.val(); img.src = snap.val(); } }).catch(() => {});
+  return img;
+}
+
+/**
+ * Fenêtre « 🎵 Bibliothèque des sons » (cedric, 24/10) : choisir des chansons à la main pour un blind test. Recherche à
+ * chaque lettre (titre, artiste ; ce qui commence par le mot d'abord), filtre « avec paroles ». [plusieurs] : un clic
+ * coche ou décoche, [cochees] le sont au départ, « ✓ Valider la sélection » rend les chansons cochées (celles d'avant
+ * dans leur ordre, puis les nouvelles dans l'ordre des clics) ; sinon un clic choisit une chanson. [prises] : déjà dans
+ * ce blind test (non choisissables une à une) ; [deja] : le jeu où une chanson sert déjà (en rouge, permis).
+ * Rend la liste (ou l'identifiant) choisie, ou null (Annuler, Échap).
+ */
+function choisirChansons({ titre, plusieurs = false, cochees = [], prises = new Set(), deja = () => null }) {
+  return new Promise((resolve) => {
+    const toutes = Object.entries(songs ?? {}).filter(([, x]) => chansonJouable(x)).map(([id, x]) => ({ id, ...x }))
+      .sort((a, b) => `${a.artist ?? ""} ${a.title}`.localeCompare(`${b.artist ?? ""} ${b.title}`, "fr", { sensitivity: "base" }));
+    const choisies = new Set(cochees.filter((id) => chansonJouable(songs[id])));
+    const ordre = [...choisies];
+    let filtre = null;
+    const champ = h("input", { type: "search", class: "choix-recherche", placeholder: "Rechercher : titre, artiste…", "aria-label": "Rechercher une chanson", autocomplete: "off" });
+    const puces = h("div", { class: "chips media-cats" });
+    const liste = h("ul", { class: "choix-chansons" });
+    const valider = h("button", { type: "button", class: "btn choix-valider", onclick: () => fermer(ordre.filter((id) => choisies.has(id))) });
+    const fermer = (x) => { stopPreview(); voile.remove(); resolve(x); };
+    const majValider = () => {
+      valider.textContent = `✓ Valider la sélection (${choisies.size})`;
+    };
+    const dessiner = () => {
+      const q = champ.value.trim();
+      const trouvees = parPertinence(toutes.filter((x) => contientTout([x.title, x.artist], q)), q, (x) => x.title, (x) => [x.artist]);
+      const avecParoles = trouvees.filter(parolesSurTv);
+      puces.replaceChildren(...[[null, "Toutes", trouvees.length], ["paroles", "✓ Avec paroles", avecParoles.length], ...(plusieurs ? [["cochees", "☑ Cochées", trouvees.filter((x) => choisies.has(x.id)).length]] : [])]
+        .map(([k, label, n]) => h("button", { type: "button", class: `chip${filtre === k ? " active" : ""}`, "data-filtre": k ?? "toutes", text: `${label} (${n})`, onclick: () => { filtre = k; dessiner(); } })));
+      const montrees = filtre === "paroles" ? avecParoles : filtre === "cochees" ? trouvees.filter((x) => choisies.has(x.id)) : trouvees;
+      liste.replaceChildren(...montrees.map((x) => {
+        const ou = deja(x.id) ?? deja(x.audioId);
+        // Déjà dans ce blind test (une autre série, en sélection : pas cochée ici) : pas choisissable.
+        const ici = prises.has(x.id) && !choisies.has(x.id);
+        const paroles = parolesSurTv(x);
+        const ligne = h("li", {}, h("button", {
+          type: "button", class: `choix-chanson${choisies.has(x.id) ? " cochee" : ""}${ou ? " deja" : ""}`, "data-chanson": x.id, disabled: ici,
+          title: ici ? "Déjà dans ce blind test" : ou ? `Déjà dans ${ou}` : "",
+          ...(plusieurs ? { "aria-pressed": choisies.has(x.id) ? "true" : "false" } : {}),
+          onclick: (e) => {
+            if (!plusieurs) return fermer(x.id);
+            if (choisies.has(x.id)) choisies.delete(x.id);
+            else { choisies.add(x.id); if (!ordre.includes(x.id)) ordre.push(x.id); }
+            e.currentTarget.classList.toggle("cochee", choisies.has(x.id));
+            e.currentTarget.setAttribute("aria-pressed", choisies.has(x.id) ? "true" : "false");
+            majValider();
+          },
+        },
+        plusieurs ? h("span", { class: "case", "aria-hidden": "true" }) : null,
+        miniPochette(x),
+        h("span", { class: "choix-chanson-titre" }, h("b", { text: x.title.trim() }), x.artist?.trim() ? h("span", { class: "hint", text: ` · ${x.artist.trim()}` }) : null),
+        ou ? h("span", { class: "choix-chanson-deja", text: `Déjà dans ${ou}` }) : ici ? h("span", { class: "hint small", text: "Déjà dans ce blind test" }) : null,
+        h("span", { class: `blind-paroles${paroles ? " ok" : " non"}`, text: paroles ? "✓ Paroles" : "✗ Pas de paroles" })));
+        return ligne;
+      }));
+      if (!montrees.length) liste.append(h("li", { class: "hint", text: toutes.length ? "Aucune chanson pour cette recherche : essayez un autre mot." : "Aucune chanson dans la bibliothèque des sons : ajoutez-en d'abord (Bibliothèque › Sons)." }));
+    };
+    champ.oninput = dessiner;
+    majValider();
+    const voile = h("div", {
+      class: "cadre-voile choix-voile", onclick: (e) => { if (e.target === voile) fermer(null); },
+      onkeydown: (e) => { if (e.key === "Escape") fermer(null); },
+    }, h("div", { class: "cadre-boite choix-boite choix-sons", role: "dialog", "aria-label": titre },
+      h("p", { class: "label", text: `🎵 ${titre}` }),
+      h("p", { class: "hint small", text: plusieurs
+        ? "Cherchez par titre ou artiste ; un clic coche ou décoche la chanson ; puis « ✓ Valider la sélection »."
+        : "Cherchez par titre ou artiste ; un clic choisit la chanson." }),
+      champ, puces, liste,
+      h("div", { class: "row" }, h("button", { type: "button", class: "btn secondary", text: "Annuler", onclick: () => fermer(null) }), plusieurs ? valider : null)));
+    document.body.append(voile);
+    dessiner();
+    champ.focus();
+  });
+}
+
+/** Série du 🎲 d'un blind test, ou null. */
+const serieDuDeBlind = (r) => r.seriesBlind.find((x) => x.origine === "de") ?? null;
+
+/** Chansons d'une playlist de la bibliothèque (cedric, 24/10) : celles qui sont encore dans la bibliothèque des sons. */
+function chansonsDePlaylist(p) {
+  const parExtrait = new Map(Object.entries(songs ?? {}).filter(([, x]) => chansonJouable(x)).map(([id, x]) => [x.audioId, id]));
+  const pistes = Array.isArray(p?.tracks) ? p.tracks : Object.values(p?.tracks ?? {});
+  return [...new Set(playableTracks({ tracks: pistes }).map((t) => (t.songId && chansonJouable(songs?.[t.songId]) ? t.songId : parExtrait.get(t.audioId))).filter(Boolean))];
+}
+
+/** Séries d'un blind test dépliées, et ses « Blind test complet » dépliés (le temps de l'écran). */
+const blindsCompletsDeplies = new WeakSet();
+
+/**
+ * Blind test dans une prestation (cedric, 24/10) : « exactement comme le Quiz », sans manches.
+ * - En haut, le compteur de tout le blind test (dans une prestation : sur la ligne du numéro du jeu).
+ * - Les outils de création, ensemble : le nombre de chansons et le 🎲 qui les tire dans la bibliothèque des sons ;
+ *   « 🎵 Sélectionner mes chansons » (à la main, cases à cocher) ; « 🎶 Ajouter une playlist » (une de ses playlists,
+ *   cherchée par son nom, ajoutée en entier).
+ * - Les séries : chacune se déplie, monte ou descend (↑ ↓) et s'enlève (✕). Chaque chanson : sa mini pochette, ses
+ *   paroles, 🎧 (écouter l'extrait et le refrain, « ⏱ Régler… ») et ✕ (au 🎲 : un 🎲 prend sa place ; ailleurs elle
+ *   part). « ＋ Une chanson » dans une playlist ajoutée.
+ * - En dernière ligne, le « Blind test complet » : toutes les chansons dans l'ordre de passage, chacune monte, descend
+ *   ou s'enlève, et 🔀 mélange tout.
+ * Un blind test préparé avant (une playlist entière, des extraits choisis) se joue encore tel quel.
+ */
+function mancheBlind(r) {
+  versSeriesBlind(r);
+  // Le Quiz musical aussi (cedric, 24/10 : « à la manière de tout ce qu'on a déjà fait ») : le 🎲, une playlist, le
+  // récapitulatif ; pas de « Sélectionner mes chansons », ni de paroles (seuls les titres comptent).
+  const musical = r.type === "musical";
+  const jeu = musical ? "quiz musical" : "blind test";
+  const series = r.seriesBlind;
+  const deSerie = serieDuDeBlind(r);
+  const n = deSerie?.chansons.length || (BLIND_NOMBRES.includes(r.nbChansons) ? r.nbChansons : BLIND_NOMBRE_DEFAUT);
+  const changer = () => roundCtx.refresh();
+  const pluriel = (k, mot) => `${k} ${mot}${k > 1 ? "s" : ""}`;
+  /** Après chaque changement : les séries vides partent, la liste jouée suit (lue aussi par les pages d'avant). */
+  const ranger = () => {
+    r.seriesBlind = r.seriesBlind.filter((x) => x.chansons.length);
+    r.chansons = r.seriesBlind.length ? chansonsBrutes(r) : [];
+    // L'ancienne façon de préparer la manche (une playlist, des extraits choisis) laisse la place.
+    if (r.seriesBlind.length) { r.playlistId = ""; r.tracks = null; r.byItem = null; }
+  };
+  const dansLeBlind = (sauf = null) => new Set(r.seriesBlind.filter((x) => x !== sauf).flatMap((x) => x.chansons).filter(Boolean));
+  const ecartees = () => new Set([...dansLeBlind(), ...(chansonsRetirees.get(r) ?? [])]);
+  const ecarter = (id) => chansonsRetirees.set(r, new Set([...(chansonsRetirees.get(r) ?? []), id]));
+  const place = (k) => Math.max(0, Math.min(k, MAX_CHANSONS_BLIND - chansonsBrutes(r).length));
+
+  // Première ligne : le nombre et le 🎲 (il remplace la série du 🎲 ; les autres séries ne bougent pas).
+  const tirerTout = (k) => {
+    chansonsRetirees.delete(r);
+    const sans = dansLeBlind(deSerie);
+    const ids = piocherChansons(r, Math.min(k, MAX_CHANSONS_BLIND - sans.size), sans);
+    if (!ids.length) return annonce("Aucune chanson dans la bibliothèque des sons : ajoutez-en d'abord (Bibliothèque › Sons).");
+    const serie = deSerie ?? { id: "de", origine: "de", chansons: [] };
+    if (!deSerie) r.seriesBlind.unshift(serie);
+    serie.chansons = ids;
+    r.nbChansons = k;
+    blindsDeplies.add(serie);
+    ranger();
+    changer();
+  };
+  const nombre = h("select", {
+    class: "tirage-nombre blind-nombre", "aria-label": "Nombre de chansons à tirer au hasard",
+    onchange: (e) => {
+      const k = Number(e.target.value);
+      r.nbChansons = k;
+      // Moins de chansons : les premières restent ; plus : le 🎲 complète sa série.
+      if (deSerie) {
+        const gardees = deSerie.chansons.slice(0, k);
+        deSerie.chansons = [...gardees, ...piocherChansons(r, place(k - gardees.length + (deSerie.chansons.length - gardees.length)), new Set([...ecartees(), ...gardees]))].slice(0, k);
+        ranger();
+      }
+      changer();
+    },
+  }, ...[...new Set([...BLIND_NOMBRES, n])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: k === n, text: `${k} chansons au hasard` })));
+  const de = h("button", {
+    type: "button", class: "btn tirage-de", text: "🎲", "aria-label": "Tirer les chansons au hasard",
+    title: "Tirer les chansons au hasard dans la bibliothèque des sons (les autres séries ne bougent pas)", onclick: () => tirerTout(Number(nombre.value)),
+  });
+
+  // Deuxième ligne : « 🎵 Sélectionner mes chansons » (cedric, 24/10) : la bibliothèque des sons, cases à cocher ; elles
+  // forment la série « choisies à la main » (décochées, elles en partent ; les nouvelles à la fin, dans l'ordre des clics).
+  const choix = r.seriesBlind.find((x) => x.origine === "choix") ?? null;
+  const selectionner = async () => {
+    const avant = choix?.chansons.filter(Boolean) ?? [];
+    const ids = await choisirChansons({ titre: "Sélectionner mes chansons", plusieurs: true, cochees: avant, prises: dansLeBlind(choix), deja: (k) => chansonsAilleurs(r).get(k) ?? null });
+    if (!ids) return;
+    const liste = [...avant.filter((id) => ids.includes(id)), ...ids.filter((id) => !avant.includes(id))];
+    const garde = Math.max(0, MAX_CHANSONS_BLIND - dansLeBlind(choix).size - (deSerie?.chansons.filter((id) => !id).length ?? 0));
+    if (liste.length > garde) annonce(`${MAX_CHANSONS_BLIND} chansons au plus dans un ${jeu} : les dernières ne sont pas ajoutées.`);
+    const serie = choix ?? { id: nouvelId("c"), origine: "choix", chansons: [] };
+    if (!choix) r.seriesBlind.push(serie);
+    serie.chansons = liste.slice(0, garde);
+    blindsDeplies.add(serie);
+    ranger();
+    changer();
+  };
+  const nChoisies = choix?.chansons.filter(Boolean).length ?? 0;
+  const aLaMain = h("div", { class: "tirage-ligne blind-manuel" },
+    h("button", { type: "button", class: "btn secondary blind-selectionner", text: "🎵 Sélectionner mes chansons", title: "Choisir les chansons à la main dans la bibliothèque des sons", onclick: selectionner }),
+    h("span", { class: "small hint blind-selection", text: nChoisies ? `${pluriel(nChoisies, "chanson")} sélectionnée${nChoisies > 1 ? "s" : ""}` : "Aucune chanson sélectionnée" }));
+
+  // Troisième ligne (à la place de la note, cedric 24/10) : « 🎶 Ajouter une playlist » : une de ses playlists de la
+  // bibliothèque, cherchée par son nom ; ses chansons forment une série à la fin (celles déjà dans le blind test n'y
+  // reviennent pas). La playlist de la bibliothèque ne change pas.
+  const dejaLa = new Set(r.seriesBlind.filter((x) => x.origine === "playlist").map((x) => x.playlistId));
+  const listes = Object.entries(playlists ?? {})
+    .filter(([, p]) => p?.title && !isStatuesList(p))
+    .map(([id, p]) => [id, p, chansonsDePlaylist(p)])
+    .filter(([, , ids]) => ids.length)
+    .sort(([, a], [, b]) => a.title.localeCompare(b.title, "fr"))
+    .map(([id, p, ids]) => ({ id, titre: p.title, ids, details: [pluriel(ids.length, "chanson"), dejaLa.has(id) ? `✓ déjà dans ce ${jeu}` : ""].filter(Boolean).join(" · "),
+      noms: [p.title], autres: ids.slice(0, 40).flatMap((k) => [songs[k]?.title, songs[k]?.artist]) }));
+  const ajoutPlaylist = ligneAjoutQuiz({
+    classe: "blind-playlist", titre: "🎶 Ajouter une playlist", label: "Chercher une de vos playlists",
+    placeholder: "Nom d'une de vos playlists", vide: "Pas encore de playlist : créez-en dans Bibliothèque › Sons",
+    aucun: "Aucune playlist ne correspond.", items: listes, attr: (x) => ({ "data-playlist": x.id }),
+    choisir: (x) => {
+      const deja = dansLeBlind();
+      const neuves = x.ids.filter((id) => !deja.has(id));
+      const k = place(neuves.length);
+      if (!neuves.length) return annonce(`Les chansons de « ${x.titre} » sont déjà toutes dans ce ${jeu}.`);
+      const serie = { id: nouvelId("p"), origine: "playlist", playlistId: x.id, titre: x.titre, chansons: neuves.slice(0, k) };
+      if (!serie.chansons.length) return annonce(`${MAX_CHANSONS_BLIND} chansons au plus dans un ${jeu} : retirez-en avant d'ajouter « ${x.titre} ».`);
+      r.seriesBlind.push(serie);
+      blindsDeplies.add(serie);
+      ranger();
+      const pasLa = x.ids.length - serie.chansons.length;
+      if (pasLa) annonce(`« ${x.titre} » ajoutée : ${pluriel(serie.chansons.length, "chanson")}${neuves.length > k ? ` (${MAX_CHANSONS_BLIND} au plus dans un ${jeu})` : ""}${x.ids.length > neuves.length ? `, ${x.ids.length - neuves.length} déjà dans ce ${jeu}` : ""}.`, true);
+      changer();
+    },
+  });
+
+  // Les séries : la ligne de chaque chanson.
+  const autres = chansonsAilleurs(r);
+  const ligneChanson = (serie, id, i) => {
+    const auDe = serie.origine === "de";
+    if (!id) {
+      return h("li", { class: "tirage-q vide blind-chanson" }, h("div", { class: "tirage-q-ligne" },
+        h("button", { type: "button", class: "btn tirage-de petit", text: "🎲", "aria-label": "Tirer une autre chanson", title: "Tirer une autre chanson", onclick: () => {
+          const [neuve] = piocherChansons(r, 1, ecartees());
+          if (!neuve) return annonce("Plus de chanson à tirer dans la bibliothèque des sons.");
+          serie.chansons[i] = neuve;
+          ranger();
+          changer();
+        } }),
+        h("button", { type: "button", class: "btn small secondary blind-choisir", text: "🎵 Choisir…", "aria-label": "Choisir la chanson dans la bibliothèque des sons", title: "Choisir la chanson dans la bibliothèque des sons", onclick: async () => {
+          const choisie = await choisirChansons({ titre: `Choisir une chanson pour le ${jeu}`, prises: dansLeBlind(), deja: (k) => chansonsAilleurs(r).get(k) ?? null });
+          if (!choisie) return;
+          serie.chansons[i] = choisie;
+          ranger();
+          changer();
+        } })));
+    }
+    // ✕ : au 🎲, un 🎲 prend sa place ; dans une playlist ou les chansons choisies, elle part.
+    const retirer = () => {
+      ecarter(id);
+      if (auDe) serie.chansons[i] = "";
+      else serie.chansons.splice(i, 1);
+      ranger();
+      changer();
+      noterEcran();
+    };
+    const titreRetirer = auDe ? "Retirer cette chanson (un 🎲 prend sa place)" : `Retirer cette chanson du ${jeu}`;
+    const song = songs[id];
+    if (!chansonJouable(song)) {
+      return h("li", { class: "tirage-q blind-chanson manquante" }, h("div", { class: "tirage-q-ligne" },
+        h("span", { class: "blind-pochette sans", text: "💿" }),
+        h("span", { class: "tirage-texte", text: "Chanson supprimée de la bibliothèque" }),
+        h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": "Retirer cette chanson", title: titreRetirer, onclick: retirer })));
+    }
+    const deja = autres.get(id) ?? autres.get(song.audioId);
+    const paroles = parolesSurTv(song);
+    const ouvert = blindEcoute.get(r) === id;
+    // Quiz musical aussi (cedric, 24/10) : l'extrait pendant la question, le refrain et ses paroles à la révélation.
+    const badge = h("span", {
+      class: `blind-paroles${paroles ? " ok" : " non"}`, text: paroles ? "✓ Paroles" : "✗ Pas de paroles",
+      title: paroles ? "Paroles présentes : elles défileront sur la TV à la révélation"
+        : song.lrc === true ? "Fichier .lrc présent, mais le refrain n'est pas encore réglé (Bibliothèque › Sons)" : "Pas de fichier .lrc : ajoutez-le dans Bibliothèque › Sons",
+    });
+    return h("li", { class: `tirage-q blind-chanson${deja ? " deja" : ""}${ouvert ? " ouverte" : ""}`, "data-chanson": id, ...(deja ? { title: `Déjà dans ${deja}` } : {}) },
+      h("div", { class: "tirage-q-ligne" },
+        miniPochette(song),
+        h("span", { class: "tirage-texte blind-titre" }, h("b", { text: song.title.trim() }), song.artist?.trim() ? h("span", { class: "hint", text: ` · ${song.artist.trim()}` }) : null),
+        badge,
+        h("button", {
+          type: "button", class: `icon blind-ecouter${ouvert ? " active" : ""}`, text: "🎧", "aria-expanded": ouvert ? "true" : "false",
+          "aria-label": `Écouter et régler « ${song.title.trim()} »`, title: "Écouter l'extrait et le refrain, et les régler",
+          onclick: () => {
+            stopPreview();
+            if (ouvert) blindEcoute.delete(r); else blindEcoute.set(r, id);
+            changer();
+          },
+        }),
+        h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": `Retirer « ${song.title.trim()} »`, title: titreRetirer, onclick: retirer })),
+      ouvert ? menuChanson(id) : null);
+  };
+  const titreSerie = (x) => {
+    const k = x.chansons.filter((id) => id && chansonJouable(songs[id])).length;
+    const vides = x.chansons.filter((id) => !id).length;
+    if (x.origine === "de") return `🎲 ${pluriel(k, "chanson")} tirée${k > 1 ? "s" : ""} au hasard${vides ? `, ${vides} à tirer` : ""}`;
+    if (x.origine === "playlist") return `🎶 Playlist « ${x.titre ?? playlists[x.playlistId]?.title ?? "sans nom"} » : ${pluriel(k, "chanson")}`;
+    return `🎵 ${pluriel(k, "chanson")} choisie${k > 1 ? "s" : ""} à la main`;
+  };
+  const ordre = chansonsDe(r);
+  const deplacerSerie = (i, d) => {
+    const j = i + d;
+    if (j < 0 || j >= r.seriesBlind.length) return;
+    [r.seriesBlind[i], r.seriesBlind[j]] = [r.seriesBlind[j], r.seriesBlind[i]];
+    // Rangé à la main : chaque série garde l'ordre de ses chansons, les séries passent dans leur nouvel ordre.
+    if (r.ordreBlind?.length) r.ordreBlind = r.seriesBlind.flatMap((y) => ordre.filter((id) => y.chansons.includes(id)));
+    ranger();
+    changer();
+  };
+  const liste = h("ol", { class: "quiz-series blind-series" }, ...r.seriesBlind.map((x, i) => {
+    const corps = h("ol", { class: "tirage-liste serie-liste blind-liste" }, ...x.chansons.map((id, k) => ligneChanson(x, id, k)));
+    corps.hidden = !blindsDeplies.has(x);
+    const voir = h("button", {
+      type: "button", class: "chip tirage-voir serie-voir blind-voir", "aria-expanded": corps.hidden ? "false" : "true", text: `${corps.hidden ? "▸" : "▾"} ${titreSerie(x)}`,
+      title: "Voir ou cacher les chansons de cette série, avec leur pochette et leurs paroles",
+      onclick: (e) => {
+        corps.hidden = !corps.hidden;
+        if (corps.hidden) blindsDeplies.delete(x); else blindsDeplies.add(x);
+        e.currentTarget.textContent = `${corps.hidden ? "▸" : "▾"} ${titreSerie(x)}`;
+        e.currentTarget.setAttribute("aria-expanded", corps.hidden ? "false" : "true");
+      },
+    });
+    const manque = x.chansons.filter((id) => !id).length;
+    const enlever = async () => {
+      const k = x.chansons.filter(Boolean).length;
+      if (k && !(await confirmer(`Enlever cette série (${pluriel(k, "chanson")}) du ${jeu} ?${x.origine === "playlist" ? " La playlist reste dans la bibliothèque." : ""}`, { ok: "Enlever", danger: true }))) return;
+      r.seriesBlind = r.seriesBlind.filter((y) => y !== x);
+      ranger();
+      changer();
+      noterEcran();
+    };
+    return h("li", { class: "serie blind-serie", "data-origine": x.origine },
+      h("div", { class: "serie-tete" },
+        voir,
+        manque ? h("button", { type: "button", class: "chip blind-completer", text: `🎲 Tirer ${manque > 1 ? `les ${manque} chansons` : "la chanson"} qui manque${manque > 1 ? "nt" : ""}`, onclick: () => {
+          const nouvelles = piocherChansons(r, manque, ecartees());
+          x.chansons = x.chansons.map((id) => id || nouvelles.shift() || "");
+          ranger();
+          changer();
+        } }) : null,
+        x.origine === "playlist" ? h("button", { type: "button", class: "chip blind-plus", text: "＋ Une chanson", title: "Ajouter une chanson de la bibliothèque des sons à cette série", onclick: async () => {
+          if (!place(1)) return annonce(`${MAX_CHANSONS_BLIND} chansons au plus dans un ${jeu}.`);
+          const choisie = await choisirChansons({ titre: `Ajouter une chanson au ${jeu}`, prises: dansLeBlind(), deja: (k) => chansonsAilleurs(r).get(k) ?? null });
+          if (!choisie) return;
+          x.chansons.push(choisie);
+          blindsDeplies.add(x);
+          ranger();
+          changer();
+        } }) : null,
+        h("button", { type: "button", class: "icon serie-monter", text: "↑", title: "Passer cette série plus tôt", "aria-label": "Monter cette série", disabled: i === 0, onclick: () => deplacerSerie(i, -1) }),
+        h("button", { type: "button", class: "icon serie-descendre", text: "↓", title: "Passer cette série plus tard", "aria-label": "Descendre cette série", disabled: i === r.seriesBlind.length - 1, onclick: () => deplacerSerie(i, 1) }),
+        h("button", { type: "button", class: "icon serie-enlever", text: "✕", title: `Enlever cette série du ${jeu}`, "aria-label": "Enlever cette série", onclick: enlever })),
+      corps);
+  }));
+
+  const presentes = ordre.filter((id) => chansonJouable(songs[id]));
+  const aTirer = chansonsBrutes(r).filter((id) => !id).length;
+  const compteur = h("p", { class: "quiz-compteur", "aria-live": "polite",
+    text: presentes.length || aTirer ? `${pluriel(presentes.length, "chanson")} à trouver${aTirer ? ` · ${aTirer} à tirer` : ""}`
+      : musical ? "Aucune chanson pour l'instant : touchez 🎲 ou ajoutez une playlist" : "Aucune chanson pour l'instant : touchez 🎲, « Sélectionner mes chansons » ou ajoutez une playlist" });
+  // Une manche préparée avant (une playlist entière, des extraits choisis) : elle se joue encore telle quelle.
+  const ancienne = !r.seriesBlind.length && (r.playlistId || roundTracks(r).length)
+    ? h("p", { class: "small hint blind-ancienne", text: `${musical ? "Quiz musical" : "Blind test"} préparé à l'ancienne : ${mancheSummary(r, { playlists })}, joué tel quel. Le 🎲${musical ? "" : ", vos chansons"} ou une playlist le remplacent.` })
+    : null;
+  return [
+    compteur,
+    h("div", { class: "quiz-outils" }, h("div", { class: "tirage-ligne" }, nombre, de), musical ? null : aLaMain, ajoutPlaylist),
+    ancienne,
+    r.seriesBlind.length ? liste : null,
+    blindComplet(r, presentes, ranger, changer),
+  ].filter(Boolean);
+}
+
+/**
+ * Dernière ligne d'un blind test (cedric, 24/10 : « un récapitulatif global des deux ajouts mélangés ») : le « Blind
+ * test complet », toutes les chansons dans l'ordre de passage. Déplié : chacune monte, descend ou s'enlève (de sa
+ * série) ; 🔀 mélange tout. L'ordre rangé ici est gardé dans le blind test (`ordreBlind`).
+ */
+function blindComplet(r, ordre, ranger, changer) {
+  if (!ordre.length) return null;
+  const tout = chansonsDe(r);
+  const poser = (nouvel) => { r.ordreBlind = nouvel; ranger(); changer(); noterEcran(); };
+  const deplacer = (k, d) => {
+    const j = k + d;
+    if (j < 0 || j >= tout.length) return;
+    const nouvel = [...tout];
+    const [a, b] = [tout.indexOf(ordre[k]), tout.indexOf(ordre[j])];
+    [nouvel[a], nouvel[b]] = [nouvel[b], nouvel[a]];
+    poser(nouvel);
+  };
+  const enlever = (id) => {
+    const serie = r.seriesBlind.find((x) => x.chansons.includes(id));
+    if (!serie) return;
+    chansonsRetirees.set(r, new Set([...(chansonsRetirees.get(r) ?? []), id]));
+    serie.chansons = serie.chansons.filter((x) => x !== id);
+    if (r.ordreBlind?.length) r.ordreBlind = tout.filter((x) => x !== id);
+    ranger();
+    changer();
+    noterEcran();
+  };
+  const melanger = () => {
+    let nouvel = shuffle(tout);
+    for (let essai = 0; essai < 5 && tout.length > 1 && nouvel.every((c, k) => c === tout[k]); essai++) nouvel = shuffle(tout);
+    poser(nouvel);
+  };
+  const lignes = ordre.map((id, k) => {
+    const song = songs[id];
+    return h("li", { class: "tirage-q blind-complet-q", "data-chanson": id },
+      h("div", { class: "tirage-q-ligne" },
+        h("span", { class: "quiz-complet-num", text: `${k + 1}` }),
+        miniPochette(song),
+        h("span", { class: "tirage-texte blind-titre" }, h("b", { text: song.title.trim() }), song.artist?.trim() ? h("span", { class: "hint", text: ` · ${song.artist.trim()}` }) : null),
+        h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: "Passer cette chanson plus tôt", "aria-label": "Monter cette chanson", disabled: k === 0, onclick: () => deplacer(k, -1) }),
+        h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: "Passer cette chanson plus tard", "aria-label": "Descendre cette chanson", disabled: k === ordre.length - 1, onclick: () => deplacer(k, 1) }),
+        h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: `Enlever cette chanson du ${r.type === "musical" ? "quiz musical" : "blind test"}`, "aria-label": `Enlever « ${song.title.trim()} »`, onclick: () => enlever(id) })));
+  });
+  const liste = h("ol", { class: "tirage-liste serie-liste quiz-complet-liste blind-complet-liste" }, ...lignes);
+  liste.hidden = !blindsCompletsDeplies.has(r);
+  const titre = () => `${liste.hidden ? "▸" : "▾"} 🧩 ${r.type === "musical" ? "Quiz musical" : "Blind test"} complet : ${ordre.length} chanson${ordre.length > 1 ? "s" : ""}, dans l'ordre de passage`;
+  const voir = h("button", {
+    type: "button", class: "chip tirage-voir serie-voir quiz-complet-voir blind-complet-voir", "aria-expanded": liste.hidden ? "false" : "true", text: titre(),
+    title: `Voir toutes les chansons du ${r.type === "musical" ? "quiz musical" : "blind test"}, dans l'ordre`,
+    onclick: (e) => {
+      liste.hidden = !liste.hidden;
+      if (liste.hidden) blindsCompletsDeplies.delete(r); else blindsCompletsDeplies.add(r);
+      e.currentTarget.textContent = titre();
+      e.currentTarget.setAttribute("aria-expanded", liste.hidden ? "false" : "true");
+    },
+  });
+  return h("div", { class: "serie quiz-complet blind-complet" },
+    h("div", { class: "serie-tete" },
+      voir,
+      h("button", { type: "button", class: "chip quiz-melanger blind-melanger", text: "🔀 Mélanger", title: `Mélanger toutes les chansons du ${r.type === "musical" ? "quiz musical" : "blind test"}`, disabled: ordre.length < 2, onclick: melanger })),
+    liste);
+}
+
+/** Séries de mots dépliées, « Chante le mot ! complet » déplié (le temps de l'écran) ; mots retirés (le 🎲 ne les reprend pas). */
+const motsCompletsDeplies = new WeakSet();
+const motsRetires = new WeakMap();
+/** Jeu de mots où un mot vient d'être écrit à la main : le curseur y revient après le rafraîchissement. */
+let motAFocaliser = null;
+/** Nombres de mots proposés au 🎲 d'un jeu de mots ; Qui a disparu ? : nombres de grilles. */
+const MOTS_NOMBRES = [3, 4, 5, 6, 8, 10, 12, 15, 20];
+const GRILLES_NOMBRES = [1, 2, 3, 4, 5, 6, 8];
+/** Qui a disparu ? : objets d'une grille tirée (selon l'âge, 5 au moins), d'une grille composée avec vos images. */
+const objetsParGrille = (r) => Math.max(5, disparuObjects(r, roundCtx.profile?.() ?? "MOYENS"));
+const GRILLE_MIN = 5;
+const GRILLE_MAX = 12;
+/** Qui a disparu ? : panneau « ⭐ Composer une grille avec vos images » ouvert, par jeu (recherche, images cochées). */
+const panneauxGrille = new WeakMap();
+
+/** Petite image d'un objet de Qui a disparu ? : votre image, sa photo libre, sinon son émoji. */
+const vignetteObjet = (o) => (o.imageId ? photoBibliotheque(o.imageId, { class: "grille-vignette", alt: o.word, title: o.word })
+  : o.banque ? h("img", { class: "grille-vignette", src: cheminPhotoBanque(o.banque), alt: o.word, title: o.word, loading: "lazy" })
+    : h("span", { class: "grille-vignette emoji", text: o.image ?? "❔", title: o.word }));
+
+/**
+ * « ⭐ Composer une grille avec vos images » (Qui a disparu ?, cedric 24/10) : de 5 à 12 de vos images (« Mes images »),
+ * cherchées par nom, catégorie ou mot-clé ; le nom de chaque image est le mot à trouver. [ajouterGrille] reçoit les objets.
+ */
+function ligneGrilleVosImages(r, ajouterGrille, changer) {
+  const panneau = panneauxGrille.get(r);
+  const titre = h("button", {
+    type: "button", class: "quiz-ajout-titre vos-images-titre grille-images-titre", "aria-expanded": panneau ? "true" : "false",
+    text: `${panneau ? "▾" : "▸"} ⭐ Composer une grille avec vos images`,
+    onclick: () => {
+      if (panneau) panneauxGrille.delete(r);
+      else panneauxGrille.set(r, { recherche: "", cochees: [], focus: true });
+      changer();
+    },
+  });
+  if (!panneau) return h("div", { class: "quiz-ajouts vos-images grille-images" }, titre,
+    h("span", { class: "hint small", text: `De ${GRILLE_MIN} à ${GRILLE_MAX} de vos images (« Mes images ») pour une grille ; le nom de chaque image est le mot à trouver.` }));
+  const images = groupesImages().miennes;
+  const cherche = h("input", { type: "search", class: "vos-images-cherche", "aria-label": "Chercher dans vos images", value: panneau.recherche, placeholder: "Nom, catégorie, mot-clé…" });
+  const grille = h("div", { class: "media-grid vos-images-grille" });
+  const ajouter = h("button", { type: "button", class: "btn vos-images-ajouter grille-images-ajouter" });
+  const majAjouter = () => {
+    const n = panneau.cochees.length;
+    ajouter.disabled = n < GRILLE_MIN || n > GRILLE_MAX;
+    ajouter.textContent = n > GRILLE_MAX ? `${GRILLE_MAX} images au plus par grille (${n} cochées)`
+      : n >= GRILLE_MIN ? `＋ Faire une grille avec ces ${n} images` : `Cochez de ${GRILLE_MIN} à ${GRILLE_MAX} images (${n})`;
+  };
+  const tuile = (x) => {
+    const nom = `${x.nom ?? ""}`.trim();
+    const on = () => panneau.cochees.includes(x.id);
+    const b = h("button", {
+      type: "button", class: `media-tile vos-images-tuile${on() ? " on" : ""}`, "data-image": x.id, "aria-pressed": on() ? "true" : "false",
+      disabled: !nom, title: nom ? `Cocher « ${nom} »` : "À nommer dans Mes images",
+      onclick: () => {
+        if (on()) panneau.cochees = panneau.cochees.filter((id) => id !== x.id); else panneau.cochees.push(x.id);
+        b.classList.toggle("on", on());
+        b.setAttribute("aria-pressed", on() ? "true" : "false");
+        majAjouter();
+      },
+    }, photoBibliotheque(x.id, { loading: "lazy" }), h("span", { text: nom || "Sans nom" }),
+    nom ? null : h("small", { class: "vos-images-etat", text: "À nommer dans Mes images" }));
+    return b;
+  };
+  const dessiner = () => {
+    const q = panneau.recherche;
+    const trouvees = parPertinence(images.filter((x) => contientTout([x.nom, x.cat, ...(x.tags ?? [])].filter(Boolean), q)), q,
+      (x) => [x.nom].filter(Boolean), (x) => [x.cat, ...(x.tags ?? [])].filter(Boolean));
+    grille.replaceChildren(...(trouvees.length ? trouvees.slice(0, VOS_IMAGES_MAX).map(tuile)
+      : [h("p", { class: "hint small", text: images.length ? "Aucune de vos images ne correspond." : "Pas encore d'image dans « Mes images » (Bibliothèque › Images)." })]),
+    ...(trouvees.length > VOS_IMAGES_MAX ? [h("p", { class: "hint small", text: `Et ${plural(trouvees.length - VOS_IMAGES_MAX, "autre image", "autres images")} : précisez la recherche.` })] : []));
+  };
+  cherche.addEventListener("input", () => { panneau.recherche = cherche.value; dessiner(); });
+  ajouter.onclick = () => {
+    const parId = new Map(images.map((x) => [x.id, x]));
+    const objets = panneau.cochees.map((id) => parId.get(id)).filter(Boolean)
+      .map((x) => ({ word: `${x.nom ?? ""}`.trim().slice(0, 40) || "Image", imageId: x.id }));
+    if (objets.length < GRILLE_MIN || objets.length > GRILLE_MAX) return;
+    panneauxGrille.delete(r);
+    ajouterGrille(objets);
+  };
+  dessiner();
+  majAjouter();
+  if (panneau.focus) { panneau.focus = false; requestAnimationFrame(() => cherche.focus()); }
+  return h("div", { class: "vos-images vos-images-ouvert grille-images" },
+    h("div", { class: "quiz-ajouts" }, titre, h("div", { class: "quiz-ajout-champ" }, cherche)),
+    grille,
+    h("div", { class: "vos-images-pied" }, ajouter,
+      h("button", { type: "button", class: "btn secondary vos-images-fermer", text: "Fermer", onclick: () => { panneauxGrille.delete(r); changer(); } })));
+}
+
+/**
+ * Un jeu de mots d'avant les séries (mots choisis un par un, cedric 24/10) : ses mots deviennent ses séries (ceux tirés
+ * au hasard, la série du 🎲 ; les autres, écrits à la main). Une copie : la prestation lue dans la base ne change pas.
+ */
+function versSeriesMots(r) {
+  if (!estJeuDeMots(r?.type) || Array.isArray(r.seriesMots)) return r;
+  const lues = seriesMots(r);
+  if (lues.length) return { ...r, seriesMots: lues };
+  const game = CONTENT_GAMES[r.type];
+  const hasard = new Set(roundHasard(r));
+  // Qui a disparu ? : chaque famille choisie devient une grille de ses objets (autant que l'âge en demande).
+  const enGrille = (t) => (r.type === "disparu" ? { theme: t.theme, objects: shuffle(t.objects).slice(0, Math.max(GRILLE_MIN, disparuObjects(r, "MOYENS"))) } : t);
+  const choisis = pickedItems(r.type, contents[r.type], roundPicks(r)).map(enGrille);
+  const tires = choisis.filter((m) => hasard.has(game.key(m))).map((m) => pourLeHasard(r.type, m)).filter(Boolean).map((m) => game.clean(m)).filter(Boolean);
+  const main = choisis.filter((m) => !hasard.has(game.key(m))).map((m) => game.clean(m)).filter(Boolean);
+  const series = [
+    ...(tires.length ? [{ id: "de", origine: "de", mots: tires }] : []),
+    ...(main.length ? [{ id: nouvelId("m"), origine: "main", mots: main }] : []),
+  ];
+  return series.length ? { ...r, seriesMots: series, picks: null, hasard: null } : { ...r, seriesMots: [] };
+}
+
+/**
+ * « 📚 Rappeler » de Qui suis-je ? (cedric, 24/10) : les prestations archivées qui en ont un, la plus récente d'abord,
+ * avec tous leurs personnages (dans l'ordre joué) et de quoi les retrouver (prénom, âge, date, notes).
+ */
+function motsArchives(type) {
+  const unite = BUILTIN_GAMES[type].unit;
+  return prestationsRecentes().filter(([, s]) => etatPrestation(s) === "archivee").map(([sid, s]) => {
+    const mots = (s.rounds ?? []).filter((x) => x?.type === type).flatMap((x) => motsDuJeu(versSeriesMots(x)).map((y) => y.m));
+    const date = s.date ? new Date(`${s.date}T12:00:00`) : null;
+    return {
+      id: sid, mots,
+      titre: `${showTitle(s)}${date ? ` (${date.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })})` : ""}`,
+      details: [date ? date.toLocaleDateString("fr-FR") : "", s.age != null && s.age !== "" ? `${s.age} ans` : "", plural(mots.length, unite)].filter(Boolean).join(" · "),
+      noms: [showTitle(s), s.childName],
+      autres: [...datesCherchables(s.date), s.age != null && s.age !== "" ? `${s.age} ans` : "", s.notes, s.themes],
+    };
+  }).filter((x) => x.mots.length);
+}
+
+/** Noms des séries de la bibliothèque d'un jeu (Qui suis-je ?), dans l'ordre alphabétique. */
+const nomsDesSeries = (extra) => [...new Set(extra.map((x) => x.serie).filter(Boolean))].sort((a, b) => a.localeCompare(b, "fr"));
+
+/** Séries de la bibliothèque d'un jeu (Qui suis-je ?, cedric 24/10) : [nom, ses éléments avec leur image]. */
+function seriesBibliotheque(type) {
+  const actifs = activeItems(type, contents[type]).filter((x) => x.serie);
+  return nomsDesSeries(actifs).map((nom) => [nom, actifs.filter((x) => x.serie === nom)]);
+}
+
+/**
+ * Chante le mot ! dans une prestation (cedric, 24/10 : « à la manière des quiz ») : le 🎲 tire le nombre de mots choisi
+ * dans les mots du jeu (selon l'âge, jamais un mot déjà dans la fête tant qu'il en reste) ; une ligne pour écrire un
+ * mot à la main ; puis les séries et le « Chante le mot ! complet » (↑ ↓ ✕, 🔀). Un mot n'y passe qu'une fois ; écrit à
+ * la main alors qu'il sert déjà ailleurs dans la fête : en rouge, mais possible (« Jamais deux fois »).
+ */
+function mancheMots(r) {
+  if (!Array.isArray(r.seriesMots)) r.seriesMots = seriesMots(r);
+  const type = r.type;
+  const game = CONTENT_GAMES[type];
+  const builtin = BUILTIN_GAMES[type];
+  const jeu = ROUND_TYPES[type];
+  const unite = builtin.unit;
+  // Qui suis-je ? (cedric, 24/10) : pas de personnage écrit ici (il lui faut ses indices) ; à la place, les personnages
+  // d'un ancien anniversaire et les séries de la bibliothèque ; chacun avec sa petite image, celle de la révélation.
+  const quisuis = type === "quisuis";
+  // Qui a disparu ? (cedric, 24/10) : le 🎲 tire des grilles dans les familles d'émojis ; puis une grille composée avec
+  // vos images, des grilles de photos libres ; chaque grille montre ses objets en petit.
+  const disparu = type === "disparu";
+  const nomDe = (m) => m.word ?? m.answer ?? m.theme ?? "";
+  // « grille » est féminin.
+  const e = disparu ? "e" : "";
+  const ce = disparu ? "cette" : "ce";
+  const tous = disparu ? "toutes" : "tous";
+  const NOMBRES = disparu ? GRILLES_NOMBRES : MOTS_NOMBRES;
+  const nMots = (k) => `${k} ${unite}${k > 1 ? "s" : ""}`;
+  const series = r.seriesMots;
+  const deSerie = series.find((x) => x.origine === "de") ?? null;
+  const n = deSerie?.mots.length || (NOMBRES.includes(r.count) ? r.count : builtin.count);
+  const changer = () => roundCtx.refresh();
+  const ailleurs = roundCtx.elsewhere?.(r) ?? new Map();
+  // Qui a disparu ? : ce que montre une grille, objet par objet.
+  const conceptsDe = (m) => (disparu ? (m.objects ?? []).flatMap(concepts) : builtinConcepts(type, m));
+  const autreJeu = (m) => conceptsDe(m).map((c) => ailleurs.get(c)).find(Boolean) ?? null;
+  /** Après chaque changement : les séries vides partent ; l'ancienne façon (mots choisis un par un) laisse la place. */
+  const ranger = () => {
+    r.seriesMots = r.seriesMots.filter((x) => x.mots.length);
+    if (r.seriesMots.length) { r.picks = null; r.hasard = null; }
+  };
+  const cles = (sauf = null) => new Set(r.seriesMots.filter((x) => x !== sauf).flatMap((x) => x.mots.map((m) => cleDuMot(type, m))).filter(Boolean));
+  const ecartes = () => new Set([...cles(), ...(motsRetires.get(r) ?? [])]);
+  const ecarter = (cle) => motsRetires.set(r, new Set([...(motsRetires.get(r) ?? []), cle]));
+  const place = () => Math.max(0, MAX_MOTS - motsDuJeu(r).length);
+  // Au hasard : émojis et banque de photos seulement, jamais une image téléversée (cedric, 21/10) ; selon l'âge ;
+  // « Jamais deux fois » : rien de ce que montrent les autres jeux de la fête, tant qu'il en reste assez.
+  // Qui a disparu ? : des familles d'émojis (le 🎲) ou de photos libres ([origine] « photos ») ; chacune donne une grille
+  // de ses objets, d'abord ceux qu'aucun autre jeu de la fête ne montre.
+  const piocher = (k, sans, origine = "de") => {
+    if (k <= 0) return [];
+    const libres = activeItems(type, contents[type]).filter((m) => !disparu || (origine === "photos") === isPhotoTheme(m))
+      .map((x) => pourLeHasard(type, x)).filter(Boolean).filter((m) => !sans.has(cleDuMot(type, m)));
+    if (disparu) {
+      const nObjets = objetsParGrille(r);
+      return shuffle(libres).slice(0, k).map((t) => ({ theme: t.theme, objects: shuffle(neufsSiPossible(t.objects, concepts, ailleurs, nObjets)).slice(0, nObjets) }));
+    }
+    const pourAge = builtin.items(roundCtx.profile?.() ?? "MOYENS", Math.random, libres, r);
+    return shuffle(neufsSiPossible(pourAge, (m) => builtinConcepts(type, m), ailleurs, k)).slice(0, k);
+  };
+
+  // Première ligne : le nombre et le 🎲 (il remplace la série du 🎲 ; les autres séries ne bougent pas).
+  const tirerTout = (k) => {
+    motsRetires.delete(r);
+    const sans = cles(deSerie);
+    const mots = piocher(Math.min(k, MAX_MOTS - sans.size), sans);
+    if (!mots.length) return annonce(`Plus aucun${e} ${unite} libre à tirer : ajoutez-en dans la page du jeu${quisuis || disparu ? "" : ", ou écrivez-les à la main"}.`);
+    const serie = deSerie ?? { id: "de", origine: "de", mots: [] };
+    if (!deSerie) r.seriesMots.unshift(serie);
+    serie.mots = mots;
+    r.count = k;
+    seriesDepliees.add(serie);
+    ranger();
+    changer();
+  };
+  const nombre = h("select", {
+    class: "tirage-nombre mots-nombre", "aria-label": `Nombre de ${unite}s à tirer au hasard`,
+    onchange: (e) => {
+      const k = Number(e.target.value);
+      r.count = k;
+      // Moins de mots : les premiers restent ; plus : le 🎲 complète sa série.
+      if (deSerie) {
+        const gardes = deSerie.mots.slice(0, k);
+        const sans = new Set([...ecartes(), ...gardes.map((m) => cleDuMot(type, m))]);
+        deSerie.mots = [...gardes, ...piocher(Math.min(k - gardes.length, MAX_MOTS - cles(deSerie).size - gardes.length), sans)].slice(0, k);
+        ranger();
+      }
+      changer();
+    },
+  }, ...[...new Set([...NOMBRES, n])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: k === n, text: `${nMots(k)} au hasard` })));
+  const ligne = h("div", { class: "tirage-ligne" },
+    nombre,
+    h("button", {
+      type: "button", class: "btn tirage-de", text: "🎲", "aria-label": `Tirer les ${unite}s au hasard`,
+      title: disparu ? "Tirer les grilles au hasard dans les familles d'émojis (les autres séries ne bougent pas)"
+        : `Tirer les ${unite}s au hasard, selon l'âge (les ${quisuis ? "autres séries" : `${unite}s écrits à la main`} ne bougent pas)`, onclick: () => tirerTout(Number(nombre.value)),
+    }));
+
+  // Deuxième ligne : écrire un mot à la main ; il rejoint la série « écrits à la main », à la fin.
+  const champ = h("input", { type: "text", class: "mots-ecrire", maxlength: 40, "aria-label": `Écrire un ${unite}`, placeholder: `Écrire un ${unite} à chanter…` });
+  const ajouter = () => {
+    const m = game.clean({ word: champ.value });
+    if (!m) { champ.focus(); return; }
+    const cle = cleDuMot(type, m);
+    if (cles().has(cle)) { annonce(`« ${m.word} » est déjà dans ce jeu.`); champ.select(); return; }
+    if (!place()) { annonce(`${MAX_MOTS} ${unite}s au plus dans ${jeu} : retirez-en avant d'en ajouter.`); return; }
+    let main = r.seriesMots.find((x) => x.origine === "main");
+    if (!main) { main = { id: nouvelId("m"), origine: "main", mots: [] }; r.seriesMots.push(main); }
+    main.mots.push(m);
+    seriesDepliees.add(main);
+    ranger();
+    motAFocaliser = r;
+    changer();
+    noterEcran();
+  };
+  champ.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); ajouter(); } });
+  const ecrire = h("div", { class: "quiz-ajouts mots-main" },
+    h("span", { class: "quiz-ajout-titre mots-main-titre", text: `✍ Écrire un ${unite} à la main` }),
+    h("div", { class: "quiz-ajout-champ mots-main-champ" }, champ,
+      h("button", { type: "button", class: "btn secondary mots-ajouter", text: "＋ Ajouter", onclick: ajouter })));
+  // Qui suis-je ? : une série entière (ancien anniversaire, bibliothèque), copiée à la fin, sans ce qui est déjà dans ce jeu.
+  const ajouterSerie = (origine, titre, mots) => {
+    const deja = cles();
+    const neufs = mots.map((m) => game.clean(m)).filter(Boolean).filter((m) => !deja.has(cleDuMot(type, m)) && deja.add(cleDuMot(type, m))).slice(0, place());
+    if (!neufs.length) return annonce(place() ? `Tous ces ${unite}s sont déjà dans ${jeu}.` : `${MAX_MOTS} ${unite}s au plus dans ${jeu} : retirez-en avant d'en ajouter.`);
+    const serie = { id: nouvelId(origine === "reprise" ? "p" : "b"), origine, titre, mots: neufs };
+    r.seriesMots.push(serie);
+    seriesDepliees.add(serie);
+    ranger();
+    changer();
+    noterEcran();
+  };
+  const rappel = quisuis ? ligneAjoutQuiz({
+    classe: "quiz-rappel", titre: "📚 Rappeler les personnages d'un ancien anniversaire", label: "Chercher une prestation archivée",
+    placeholder: "Prénom, âge, date… d'une prestation archivée", vide: "Aucun ancien anniversaire avec ce jeu",
+    aucun: "Aucune prestation archivée ne correspond.", items: motsArchives(type), attr: (x) => ({ "data-show": x.id }),
+    choisir: (x) => ajouterSerie("reprise", x.titre, x.mots),
+  }) : null;
+  const dejaLa = new Set(series.filter((x) => x.origine === "biblio").map((x) => x.titre));
+  const biblio = quisuis ? ligneAjoutQuiz({
+    classe: "quiz-biblio", titre: "📗 Intégrer une de vos séries de Qui suis-je ?", label: "Chercher une série de la bibliothèque",
+    placeholder: "Nom d'une de vos séries (« Disney »…)", vide: "Pas encore de série : créez-en dans la page du jeu",
+    aucun: "Aucune série ne correspond.",
+    items: seriesBibliotheque(type).map(([nom, mots]) => ({
+      id: nom, titre: nom, mots, details: [nMots(mots.length), dejaLa.has(nom) ? "✓ déjà dans ce jeu" : ""].filter(Boolean).join(" · "), noms: [nom], autres: mots.map(nomDe),
+    })),
+    attr: (x) => ({ "data-serie": x.id }),
+    choisir: (x) => ajouterSerie("biblio", x.titre, x.mots),
+  }) : null;
+  // Qui a disparu ? : une grille composée avec vos images rejoint la série « vos images », à la fin.
+  const ajouterGrille = (objets) => {
+    if (!place()) return annonce(`${MAX_MOTS} grilles au plus dans ${jeu} : retirez-en avant d'en ajouter.`);
+    let s = r.seriesMots.find((x) => x.origine === "images");
+    if (!s) { s = { id: nouvelId("i"), origine: "images", mots: [] }; r.seriesMots.push(s); }
+    let k = 1;
+    while (cles().has(`vos images ${k}`)) k++;
+    s.mots.push({ theme: `Vos images ${k}`, objects: objets });
+    seriesDepliees.add(s);
+    ranger();
+    changer();
+    noterEcran();
+  };
+  // Qui a disparu ? : des grilles de photos libres, au nombre choisi ; un nouveau 🎲 remplace celles d'avant.
+  const photosSerie = series.find((x) => x.origine === "photos") ?? null;
+  const nPhotos = photosSerie?.mots.length || 2;
+  const nombrePhotos = disparu ? h("select", { class: "tirage-nombre disparu-photos-nombre", "aria-label": "Nombre de grilles de photos libres" },
+    ...[...new Set([...GRILLES_NOMBRES, nPhotos])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: k === nPhotos, text: nMots(k) }))) : null;
+  const tirerPhotosLibres = (k) => {
+    const sans = cles(photosSerie);
+    const grilles = piocher(Math.min(k, MAX_MOTS - sans.size), sans, "photos");
+    if (!grilles.length) return annonce("Plus aucune famille de photos libres à tirer.");
+    const s = photosSerie ?? { id: nouvelId("f"), origine: "photos", mots: [] };
+    if (!photosSerie) r.seriesMots.push(s);
+    s.mots = grilles;
+    seriesDepliees.add(s);
+    ranger();
+    changer();
+  };
+  const lignePhotos = disparu ? h("div", { class: "quiz-ajouts disparu-photos" },
+    h("span", { class: "quiz-ajout-titre disparu-photos-titre", text: "📷 Piocher dans les photos libres" }),
+    h("div", { class: "tirage-ligne" }, nombrePhotos,
+      h("button", {
+        type: "button", class: "btn tirage-de disparu-photos-de", text: "🎲", "aria-label": "Tirer des grilles de photos libres",
+        title: "Tirer des grilles dans les familles de photos libres (une par famille)", onclick: () => tirerPhotosLibres(Number(nombrePhotos.value)),
+      }))) : null;
+  const outils = h("div", { class: "quiz-outils" }, ligne,
+    ...(disparu ? [ligneGrilleVosImages(r, ajouterGrille, changer), lignePhotos] : quisuis ? [rappel, biblio] : [ecrire]));
+
+  // Qui suis-je ? : la petite image du personnage (cedric, 24/10 : « vérifier qu'elle me convient »), celle que la TV
+  // montre à la révélation : son image, sinon son émoji ; tiré au 🎲, jamais une image téléversée.
+  const vignette = (m) => (m.imageId ? photoBibliotheque(m.imageId, { class: "tirage-mini", alt: "", title: "Image montrée à la révélation" })
+    : h("span", { class: "tirage-mini emoji", text: m.emoji || "❔", title: m.emoji ? "Émoji montré à la révélation" : "Ni image ni émoji : la TV montrera seulement son nom" }));
+  // Un mot dans une liste : déjà dans un autre jeu de la fête, en rouge. Un personnage : ses indices dessous.
+  const texteMot = (m) => {
+    const autre = autreJeu(m);
+    return [quisuis ? vignette(m) : null, h("span", { class: "tirage-texte mot-texte" }, nomDe(m),
+      quisuis ? h("small", { class: "mot-indices", text: m.clues.join(" · ") }) : null,
+      disparu ? h("span", { class: "grille-vignettes" }, ...(m.objects ?? []).map(vignetteObjet)) : null,
+      autre ? h("small", { class: "mot-deja", text: `Déjà dans « ${autre} »` }) : null)];
+  };
+  // ✕ : au 🎲, un 🎲 prend sa place ; écrit à la main, il part.
+  const retirer = (serie, i) => {
+    const m = serie.mots[i];
+    ecarter(cleDuMot(type, m));
+    if (serie.origine === "de" || serie.origine === "photos") serie.mots[i] = { vide: true };
+    else serie.mots.splice(i, 1);
+    ranger();
+    changer();
+    noterEcran();
+  };
+  const corps = (serie) => serie.mots.map((m, i) => (m.vide
+    ? h("li", { class: "tirage-q vide" }, h("div", { class: "tirage-q-ligne" },
+      h("button", { type: "button", class: "btn tirage-de petit", text: "🎲", "aria-label": `Tirer ${disparu ? "une autre" : "un autre"} ${unite}`, title: `Tirer ${disparu ? "une autre" : "un autre"} ${unite}`, onclick: () => {
+        const [neuf] = piocher(1, ecartes(), serie.origine);
+        if (!neuf) return annonce(`Plus aucun${e} ${unite} libre à tirer : ${quisuis || disparu ? "ajoutez-en dans la page du jeu" : "écrivez-le à la main"}.`);
+        serie.mots[i] = neuf;
+        ranger();
+        changer();
+      } }),
+      h("span", { class: "hint small", text: `${unite[0].toUpperCase()}${unite.slice(1)} à tirer` })))
+    : h("li", { class: `tirage-q${quisuis || disparu ? " perso" : ""}${autreJeu(m) ? " deja" : ""}`, "data-mot": cleDuMot(type, m) }, h("div", { class: "tirage-q-ligne" },
+      ...texteMot(m),
+      h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": `Retirer « ${nomDe(m)} »`, title: serie.origine === "de" || serie.origine === "photos" ? `Retirer ${ce} ${unite} (un 🎲 prend sa place)` : `Retirer ${ce} ${unite}`, onclick: () => retirer(serie, i) })))));
+  const titreSerie = (x) => {
+    const k = x.mots.filter((m) => !m.vide).length;
+    const vides = x.mots.length - k;
+    if (x.origine === "de") return `🎲 ${nMots(k)} tiré${e}${k > 1 ? "s" : ""} au hasard${disparu ? " (émojis)" : ""}${vides ? `, ${vides} à tirer` : ""}`;
+    if (x.origine === "photos") return `📷 ${nMots(k)} de photos libres${vides ? `, ${vides} à tirer` : ""}`;
+    if (x.origine === "images") return `⭐ ${nMots(k)} de vos images`;
+    if (x.origine === "reprise") return `📅 ${x.titre ?? `${unite[0].toUpperCase()}${unite.slice(1)}s repris`} : ${nMots(k)}`;
+    if (x.origine === "biblio") return `📚 Série « ${x.titre ?? "sans nom"} » : ${nMots(k)}`;
+    return quisuis || disparu ? `✋ ${nMots(k)} choisi${e}${k > 1 ? "s" : ""} ${disparu ? "une par une" : "un par un"}` : `✍ ${nMots(k)} écrit${k > 1 ? "s" : ""} à la main`;
+  };
+  const liste = h("ol", { class: "quiz-series" }, ...series.map((x) => {
+    const qs = h("ol", { class: "tirage-liste serie-liste" }, ...corps(x));
+    qs.hidden = !seriesDepliees.has(x);
+    const voir = h("button", {
+      type: "button", class: "chip tirage-voir serie-voir", "aria-expanded": qs.hidden ? "false" : "true", text: `${qs.hidden ? "▸" : "▾"} ${titreSerie(x)}`,
+      title: `Voir ou cacher les ${unite}s de cette série`,
+      onclick: (e) => {
+        qs.hidden = !qs.hidden;
+        if (qs.hidden) seriesDepliees.delete(x); else seriesDepliees.add(x);
+        e.currentTarget.textContent = `${qs.hidden ? "▸" : "▾"} ${titreSerie(x)}`;
+        e.currentTarget.setAttribute("aria-expanded", qs.hidden ? "false" : "true");
+      },
+    });
+    const enlever = async () => {
+      const k = x.mots.filter((m) => !m.vide).length;
+      if (k && !(await confirmer(`Enlever cette série (${nMots(k)}) de ${jeu} ?`, { ok: "Enlever", danger: true }))) return;
+      r.seriesMots = r.seriesMots.filter((y) => y !== x);
+      ranger();
+      changer();
+      noterEcran();
+    };
+    return h("li", { class: "serie", "data-origine": x.origine },
+      h("div", { class: "serie-tete" }, voir,
+        h("button", { type: "button", class: "icon serie-enlever", text: "✕", title: `Enlever cette série de ${jeu}`, "aria-label": "Enlever cette série", onclick: enlever })),
+      qs);
+  }));
+
+  // Dernière ligne : « Chante le mot ! complet » : tous les mots dans l'ordre de passage, ↑ ↓ ✕, 🔀 Mélanger.
+  const ordre = motsDuJeu(r);
+  const poser = (liste) => { r.ordreMots = liste.map((x) => x.cle); changer(); noterEcran(); };
+  const deplacer = (k, d) => {
+    const j = k + d;
+    if (j < 0 || j >= ordre.length) return;
+    const nouvel = [...ordre];
+    [nouvel[k], nouvel[j]] = [nouvel[j], nouvel[k]];
+    poser(nouvel);
+  };
+  const melanger = () => {
+    let nouvel = shuffle(ordre);
+    for (let essai = 0; essai < 5 && ordre.length > 1 && nouvel.every((x, k) => x === ordre[k]); essai++) nouvel = shuffle(ordre);
+    poser(nouvel);
+  };
+  // ✕ dans le « complet » : comme dans sa série.
+  const enleverDuComplet = (x) => {
+    const serie = r.seriesMots.find((y) => y.id === x.serie.id);
+    const i = serie ? serie.mots.findIndex((m) => cleDuMot(type, m) === x.cle) : -1;
+    if (i >= 0) retirer(serie, i);
+  };
+  const lignesCompletes = ordre.map((x, k) => h("li", { class: `tirage-q quiz-complet-q${quisuis || disparu ? " perso" : ""}${autreJeu(x.m) ? " deja" : ""}`, "data-mot": x.cle },
+    h("div", { class: "tirage-q-ligne" },
+      h("span", { class: "quiz-complet-num", text: `${k + 1}` }),
+      ...texteMot(x.m),
+      h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: `Passer ${ce} ${unite} plus tôt`, "aria-label": `Monter « ${nomDe(x.m)} »`, disabled: k === 0, onclick: () => deplacer(k, -1) }),
+      h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: `Passer ${ce} ${unite} plus tard`, "aria-label": `Descendre « ${nomDe(x.m)} »`, disabled: k === ordre.length - 1, onclick: () => deplacer(k, 1) }),
+      h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: `Enlever ${ce} ${unite} de ${jeu}`, "aria-label": `Enlever « ${nomDe(x.m)} »`, onclick: () => enleverDuComplet(x) }))));
+  const listeComplete = h("ol", { class: "tirage-liste serie-liste quiz-complet-liste" }, ...lignesCompletes);
+  listeComplete.hidden = !motsCompletsDeplies.has(r);
+  const titreComplet = () => `${listeComplete.hidden ? "▸" : "▾"} 🧩 ${jeu} complet : ${nMots(ordre.length)}, dans l'ordre de passage`;
+  const complet = h("div", { class: "serie quiz-complet mots-complet" },
+    h("div", { class: "serie-tete" },
+      h("button", {
+        type: "button", class: "chip tirage-voir serie-voir quiz-complet-voir", "aria-expanded": listeComplete.hidden ? "false" : "true", text: titreComplet(),
+        title: `Voir ${tous} les ${unite}s de ${jeu}, dans l'ordre`,
+        onclick: (e) => {
+          listeComplete.hidden = !listeComplete.hidden;
+          if (listeComplete.hidden) motsCompletsDeplies.delete(r); else motsCompletsDeplies.add(r);
+          e.currentTarget.textContent = titreComplet();
+          e.currentTarget.setAttribute("aria-expanded", listeComplete.hidden ? "false" : "true");
+        },
+      }),
+      h("button", { type: "button", class: "chip quiz-melanger", text: "🔀 Mélanger", title: `Mélanger ${tous} les ${unite}s de ${jeu}`, disabled: ordre.length < 2, onclick: melanger })),
+    listeComplete);
+
+  const compteur = h("p", {
+    class: "quiz-compteur", "aria-live": "polite",
+    text: ordre.length ? nMots(ordre.length) : `Aucun${e} ${unite} pour l'instant : la TV en tirera ${r.count ?? builtin.count} au hasard`,
+  });
+  // Un mot écrit à la main : le curseur reste dans la case, pour le suivant.
+  if (motAFocaliser === r) {
+    motAFocaliser = null;
+    requestAnimationFrame(() => document.querySelector(`#show-rounds [data-manche="${editing?.rounds.indexOf(r)}"] .mots-ecrire`)?.focus());
+  }
+  return [compteur, outils, series.length ? liste : null, ordre.length ? complet : null];
+}
+
 /** Jeux intégrés et Pictionary : éléments choisis un par un parmi ceux de la page du jeu. */
 function picksSelection(r) {
   const game = CONTENT_GAMES[r.type];
@@ -1150,7 +2596,7 @@ function quizSelection(r, all) {
     roundCtx.refresh();
   };
   const select = (current, k) => h("select", {
-    class: "grow", "aria-label": k === 0 ? "Quiz de la manche" : `Quiz ${k + 1} de la manche`,
+    class: "grow", "aria-label": k === 0 ? "Quiz du jeu" : `Quiz ${k + 1} du jeu`,
     onchange: (e) => { const next = [...ids]; next[k] = e.target.value; setIds(next); },
   },
   h("option", { value: "", text: options.length ? "Choisir un quiz…" : r.type === "illustre" ? "Aucun quiz illustré : créez-en un dans la page du Quiz illustré" : "Aucun quiz : créez-en un dans la page du Quiz" }),
@@ -1245,9 +2691,10 @@ const SANS_CONTENU = ["coffres", "patate", "gonfleur"];
  */
 /**
  * Jeu replié dans la page d'une prestation (cedric, 23/10) : une seule ligne, ↑ ↓ ✕ toujours là, pour ranger les jeux
- * facilement. Noté sur la première manche du jeu, jamais enregistré.
+ * facilement. Replié d'office en ouvrant une prestation (cedric, 24/10 : « chaque ligne de jeu fermée par défaut ») ;
+ * un jeu qu'on vient d'ajouter s'ouvre, pour le remplir. Déplié : noté sur la première manche du jeu, jamais enregistré.
  */
-const JEU_REPLIE = Symbol("jeu replié");
+const JEU_OUVERT = Symbol("jeu ouvert");
 
 function refreshRounds() {
   if (!editing) return;
@@ -1257,12 +2704,17 @@ function refreshRounds() {
   if (!editing.rounds.length) box.append(h("p", { class: "hint small", text: "Ajoutez un premier jeu avec « ＋ Ajouter un jeu »." }));
   // Un Quiz = une seule manche (cedric, 23/10) : en séries, et deux Quiz qui se touchent n'en font plus qu'un.
   const { rounds: reunies, fusions } = fusionnerQuiz(editing.rounds.map((r) => versSeriesQuiz(r, quizzes)));
-  editing.rounds = reunies;
+  // Pas de manches dans un blind test (cedric, 24/10) : deux blind tests qui se touchent n'en font plus qu'un.
+  const { rounds: blinds, fusions: fusionsBlind } = fusionnerBlind(reunies.map((x) => versSeriesMots(versSeriesBlind(x))));
+  editing.rounds = blinds;
   if (fusions) annonce("Les Quiz qui se suivaient n'en font plus qu'un : leurs questions à la suite, une seule Super Finale à la fin.");
-  const blocs = blocsDeJeu(editing.rounds);
+  if (fusionsBlind) annonce("Les blind tests (ou quiz musicaux) qui se suivaient n'en font plus qu'un : leurs chansons à la suite.");
+  // Plus de manches (cedric, 24/10 : « on abandonne complètement cette notion de manche ») : chaque jeu de la prestation
+  // a sa carte, avec son nombre de tours ; deux fois le même jeu, ce sont deux jeux.
+  const blocs = editing.rounds.map((r, i) => ({ type: r?.type ?? "quiz", indices: [i] }));
   blocs.forEach((b, k) => {
     const [debut, fin] = [b.indices[0], b.indices[b.indices.length - 1] + 1];
-    // Le bloc passe avant (ou après) le bloc voisin ; deux blocs du même jeu qui se touchent n'en font plus qu'un.
+    // Le jeu passe avant (ou après) son voisin.
     const deplacer = (d) => {
       const v = blocs[k + d];
       const [a, z] = [v.indices[0], v.indices[v.indices.length - 1] + 1];
@@ -1274,29 +2726,27 @@ function refreshRounds() {
     };
     const retirerJeu = async () => {
       const remplies = b.indices.filter((i) => roundFilled(editing.rounds[i]) && !SANS_CONTENU.includes(b.type)).length;
-      if (remplies && !(await confirmer(`Retirer « ${ROUND_TYPES[b.type]} » et ${remplies > 1 ? `ses ${remplies} manches` : "sa manche"} de la prestation ?`, { ok: "Retirer", danger: true }))) return;
+      if (remplies && !(await confirmer(`Retirer « ${ROUND_TYPES[b.type]} » de la prestation ?`, { ok: "Retirer", danger: true }))) return;
       editing.rounds.splice(debut, fin - debut);
       refreshRounds();
       // Confirmé dans la fenêtre, hors de l'écran : l'action est notée ici (Ctrl+Z, « Annuler les modifications »).
       noterEcran();
     };
-    const ajouterManche = () => { editing.rounds.splice(fin, 0, { type: b.type }); refreshRounds(); };
-    const n = b.indices.length;
+    // Jeux en séries (Quiz, blind test, Chante le mot !…) : tout s'ajoute dedans (compteur sur la ligne du numéro, pas
+    // de « Reprendre une partie déjà faite »).
+    const sansManches = estEnSeries(b.type) || b.type === "blind" || b.type === "musical" || estJeuDeMots(b.type);
     const premiere = editing.rounds[debut];
-    const replie = premiere[JEU_REPLIE] === true;
+    const replie = premiere[JEU_OUVERT] !== true;
     const resume = !replie ? "" : estEnSeries(b.type) ? compteurQuiz(premiere)
       : b.indices.map((i) => mancheSummary(editing.rounds[i], { mimes, playlists, quizzes })).filter(Boolean).join(" / ");
     box.append(h("div", { class: `jeu-bloc${replie ? " replie" : ""}`, "data-jeu": b.type },
       h("div", { class: "jeu-tete" },
         h("button", {
           type: "button", class: "icon jeu-replier", text: replie ? "▸" : "▾", "aria-expanded": replie ? "false" : "true",
-          title: replie ? "Déplier ce jeu" : "Replier ce jeu", onclick: () => { premiere[JEU_REPLIE] = !replie; refreshRounds(); },
+          title: replie ? "Déplier ce jeu" : "Replier ce jeu", onclick: () => { premiere[JEU_OUVERT] = replie; refreshRounds(); },
         }),
         h("span", { class: "jeu-nom", text: `${iconeJeu(b.type)} ${ROUND_TYPES[b.type]}`.trim() }),
         replie ? h("span", { class: "jeu-resume", text: resume }) : null,
-        // Le Quiz est une seule manche (cedric, 23/10) : pas de « ＋ Manche », ses questions s'ajoutent dans la manche.
-        estEnSeries(b.type) ? null : h("span", { class: "jeu-nb", text: n > 1 ? `${n} manches` : "1 manche" }),
-        estEnSeries(b.type) || replie ? null : h("button", { type: "button", class: "chip jeu-plus", text: "＋ Manche", title: `Ajouter une manche de ${ROUND_TYPES[b.type]}`, onclick: ajouterManche }),
         h("button", { type: "button", class: "icon", title: "Monter ce jeu", disabled: k === 0, onclick: () => deplacer(-1), text: "↑" }),
         h("button", { type: "button", class: "icon", title: "Descendre ce jeu", disabled: k === blocs.length - 1, onclick: () => deplacer(1), text: "↓" }),
         h("button", { type: "button", class: "icon", title: "Retirer ce jeu", onclick: retirerJeu, text: "✕" })),
@@ -1305,21 +2755,22 @@ function refreshRounds() {
         const r = editing.rounds[i];
         const vide = !roundFilled(r);
         const champs = roundFields(r);
-        // Le compteur du Quiz sur la ligne de son numéro (cedric, 23/10).
-        const compteur = estEnSeries(b.type) ? champs.find((x) => x?.classList?.contains("quiz-compteur")) ?? null : null;
+        // Le compteur du Quiz sur la ligne de son numéro (cedric, 23/10), celui du blind test aussi (cedric, 24/10).
+        const compteur = sansManches || b.type === "mimes" || b.type === "pictionary" ? champs.find((x) => x?.classList?.contains("quiz-compteur")) ?? null : null;
         const corps = h("div", { class: "round-body" }, ...champs.filter((x) => x !== compteur));
         // Créer d'abord (les champs ci-dessus), reprendre ensuite (cedric, 23/10). Pas pour le Quiz (cedric, 23/10) :
         // ses questions viennent du 🎲 et du quiz d'une prestation archivée (« Rappeler un de vos quiz »).
-        const reprise = SANS_CONTENU.includes(b.type) || estEnSeries(b.type) ? null : reprendreManche(r, (next) => {
-          editing.rounds[i] = next;
+        // Ni pour les Mimes (cedric, 23/10 : « uniquement mon bouton dé »), ni pour le blind test (cedric, 24/10 : « je ne
+        // veux pas pouvoir rappeler une manche déjà faite »).
+        const reprise = SANS_CONTENU.includes(b.type) || sansManches || b.type === "mimes" || b.type === "pictionary" ? null : reprendreManche(r, (next) => {
+          editing.rounds[i] = r[JEU_OUVERT] ? { ...next, [JEU_OUVERT]: true } : next;
           refreshRounds();
         });
         return h("div", { class: "round show-round", "data-manche": i },
           h("div", { class: "round-head" },
-            h("span", { class: "num", title: `Manche ${i + 1} de la prestation`, text: `${i + 1}` }),
-            compteur ?? (SANS_CONTENU.includes(b.type) ? h("span", { class: "grow hint small", text: n > 1 ? `Partie ${b.indices.indexOf(i) + 1}` : "" })
-              : h("span", { class: "grow hint small", text: vide && !estEnSeries(b.type) ? "Nouvelle manche : choisissez son contenu, ou reprenez une manche déjà faite (plus bas)." : "" })),
-            n > 1 ? h("button", { type: "button", class: "icon", title: "Retirer cette manche", onclick: () => { editing.rounds.splice(i, 1); refreshRounds(); }, text: "✕" }) : null),
+            h("span", { class: "num", title: `Jeu ${i + 1} de la prestation`, text: `${i + 1}` }),
+            compteur ?? (SANS_CONTENU.includes(b.type) ? h("span", { class: "grow hint small", text: "" })
+              : h("span", { class: "grow hint small", text: vide && !sansManches ? "Choisissez son contenu, ou reprenez une partie déjà faite (plus bas)." : "" }))),
           corps,
           reprise,
           alerteManche(r));
@@ -1328,16 +2779,26 @@ function refreshRounds() {
   refreshSummary();
 }
 
-/** Alerte rouge sous une manche dont le contenu ne suffit pas aux équipes prévues (cedric, 21/10). */
+/**
+ * Alerte rouge sous une manche dont le contenu ne suffit pas aux équipes prévues (cedric, 21/10), ou dont une liste a
+ * un trou : case laissée sur le 🎲, chanson supprimée de la bibliothèque (cedric, 24/10).
+ */
 function alerteManche(r) {
-  const texte = alerteEquipes(r, ctxTeams(), { mimes, contents, profile: roundCtx.profile?.() });
-  return texte ? h("p", { class: "alerte-equipes", role: "alert", text: `⚠ ${texte}` }) : null;
+  const couleurs = roundCtx === prestationCtx ? couleursSaisies : null;
+  const textes = [alerteEquipes(r, ctxTeams(), { mimes, contents, profile: roundCtx.profile?.(), couleurs }),
+    ...trousDuJeu(r, { songs, couleurs }).map((t) => `${t[0].toUpperCase()}${t.slice(1)}.`)].filter(Boolean);
+  return textes.length ? h("div", { class: "alerte-equipes", role: "alert" }, ...textes.map((t) => h("p", { text: `⚠ ${t}` }))) : null;
 }
 
-/** « ＋ Ajouter un jeu » : les jeux en tuiles, par famille ; un clic ajoute le jeu (une manche) en fin de prestation. */
-function ouvrirChoixJeu() {
+/**
+ * « ＋ Ajouter un jeu » : les jeux en tuiles, par famille ; un clic ajoute le jeu (une manche) en fin de prestation.
+ * Deux boutons (cedric, 24/10) : en haut de la page et sous les jeux ; les tuiles s'ouvrent sous celui qu'on a touché.
+ */
+function ouvrirChoixJeu(place = "bas") {
   const box = $("jeu-choix");
-  if (!box.hidden) { box.hidden = true; return; }
+  const lieu = $(`jeu-choix-${place}`);
+  if (!box.hidden && box.parentElement === lieu) { box.hidden = true; return; }
+  lieu.append(box);
   box.replaceChildren(...jeuxProposes().map((g) => h("div", { class: "jeu-famille" },
     h("p", { class: "small", text: g.title }),
     h("div", { class: "jeu-tuiles" }, ...g.games.map((x) => h("button", {
@@ -1346,17 +2807,25 @@ function ouvrirChoixJeu() {
         box.hidden = true;
         // Un Quiz juste après un Quiz n'en ferait qu'un : on y retourne, ses questions s'ajoutent dans sa manche.
         const dernier = editing.rounds[editing.rounds.length - 1];
-        if (dernier && estEnSeries(x.type) && (dernier.type ?? "quiz") === x.type) {
-          annonce(`Le ${ROUND_TYPES[x.type]} est déjà le dernier jeu : ajoutez-y vos questions (🎲, un ancien anniversaire, votre bibliothèque).`);
+        if (dernier && (estEnSeries(x.type) || x.type === "blind" || x.type === "musical" || estJeuDeMots(x.type)) && (dernier.type ?? "quiz") === x.type) {
+          annonce(x.type === "quisuis" ? "« Qui suis-je ? » est déjà le dernier jeu : ajoutez-y vos personnages (🎲, un ancien anniversaire, une de vos séries)."
+            : x.type === "disparu" ? "« Qui a disparu ? » est déjà le dernier jeu : ajoutez-y vos grilles (🎲, vos images, les photos libres)."
+            : estJeuDeMots(x.type) ? `${ROUND_TYPES[x.type]} est déjà le dernier jeu : ajoutez-y vos mots (🎲, ou écrits à la main).`
+            : x.type === "blind" ? "Le Blind test est déjà le dernier jeu : ajoutez-y vos chansons (🎲, « Sélectionner mes chansons », une playlist)."
+            : x.type === "musical" ? "Le Quiz musical est déjà le dernier jeu : ajoutez-y vos chansons (🎲, une playlist)."
+            : `${x.type === "flou" ? "L'Image floue" : `Le ${ROUND_TYPES[x.type]}`} est déjà le dernier jeu : ajoutez-y vos ${estJeuDePhotos(x.type) ? "photos" : x.type === "express" ? "affirmations" : "questions"} (🎲, un ancien anniversaire, votre bibliothèque).`);
+          dernier[JEU_OUVERT] = true;
+          refreshRounds();
           $("show-rounds").lastElementChild?.scrollIntoView({ block: "nearest", behavior: "smooth" });
           return;
         }
-        editing.rounds.push({ type: x.type });
+        editing.rounds.push({ type: x.type, [JEU_OUVERT]: true });
         refreshRounds();
         $("show-rounds").lastElementChild?.scrollIntoView({ block: "nearest", behavior: "smooth" });
       },
     }))))));
   box.hidden = false;
+  box.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
 
 /** Autres prestations, les plus récentes d'abord : par date (sans date : en dernier, la dernière modifiée d'abord). */
@@ -1433,15 +2902,17 @@ const versQuestionEnLigne = (q) => (q.kind === "number"
 function quizArchives(type = "quiz") {
   return prestationsRecentes().filter(([, s]) => etatPrestation(s) === "archivee").map(([sid, s]) => {
     const questions = (s.rounds ?? []).map((x) => (x ? versSeriesQuiz(x, quizzes) : null))
-      .filter((x) => x && (x.type ?? "quiz") === type && x.hasard !== true)
-      .flatMap((x) => questionsDesSeries(x, quizzes)).map(versQuestionEnLigne).filter(questionJouable)
+      // Zoom mystère et Image floue : les photos de l'un se rappellent dans l'autre.
+      .filter((x) => x && (estJeuDePhotos(type) ? estJeuDePhotos(x.type) : (x.type ?? "quiz") === type) && x.hasard !== true)
+      .flatMap((x) => questionsDesSeries(x, quizzes).map((q) => (estJeuDePhotos(type) ? { ...versQuestionEnLigne(q), id: signatureQuestion(q, x.type) } : versQuestionEnLigne(q))))
+      .filter(questionJouable)
       // Sa question des bougies était celle de l'enfant de cette fête-là : la nouvelle prestation a la sienne.
       .filter((q) => !(q.nombre && /combien de bougies sur le gâteau/i.test(q.text)));
     const date = s.date ? new Date(`${s.date}T12:00:00`) : null;
     return {
       id: sid, show: s, questions,
       titre: `${showTitle(s)}${date ? ` (${date.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })})` : ""}`,
-      details: [date ? date.toLocaleDateString("fr-FR") : "", s.age != null && s.age !== "" ? `${s.age} ans` : "", `${questions.length} question${questions.length > 1 ? "s" : ""}`].filter(Boolean).join(" · "),
+      details: [date ? date.toLocaleDateString("fr-FR") : "", s.age != null && s.age !== "" ? `${s.age} ans` : "", `${questions.length} ${estJeuDePhotos(type) ? "photo" : type === "express" ? "affirmation" : "question"}${questions.length > 1 ? "s" : ""}`].filter(Boolean).join(" · "),
       noms: [showTitle(s), s.childName],
       autres: [...datesCherchables(s.date), s.age != null && s.age !== "" ? `${s.age} ans` : "", s.notes, s.themes],
     };
@@ -1458,7 +2929,7 @@ function reprendreManche(r, replace) {
   const type = r.type ?? "quiz";
   const items = manchesAReprendre(type);
   if (!items.length) return null;
-  const champ = h("input", { type: "search", class: "reprendre-cherche", "aria-label": "Chercher une manche", placeholder: "Chercher : mot, prénom, date…" });
+  const champ = h("input", { type: "search", class: "reprendre-cherche", "aria-label": "Chercher une partie déjà faite", placeholder: "Chercher : mot, prénom, date…" });
   const liste = h("div", { class: "reprendre-liste" });
   const panneau = h("div", { class: "reprendre" });
   panneau.hidden = true;
@@ -1470,7 +2941,7 @@ function reprendreManche(r, replace) {
     const q = champ.value;
     if (q.trim()) {
       const trouvees = parPertinence(items.filter((x) => contientTout([...x.noms, ...x.autres].filter(Boolean), q)), q, (x) => x.noms.filter(Boolean), (x) => x.autres.filter(Boolean));
-      remplir(liste, h("p", { class: "reprendre-groupe", text: trouvees.length ? `${trouvees.length} manche${trouvees.length > 1 ? "s" : ""} trouvée${trouvees.length > 1 ? "s" : ""}` : "Aucune manche ne correspond." }), ...trouvees.map(ligne));
+      remplir(liste, h("p", { class: "reprendre-groupe", text: trouvees.length ? `${trouvees.length} partie${trouvees.length > 1 ? "s" : ""} trouvée${trouvees.length > 1 ? "s" : ""}` : "Aucune partie ne correspond." }), ...trouvees.map(ligne));
       return;
     }
     const epinglees = items.filter((x) => x.epinglee);
@@ -1490,7 +2961,7 @@ function reprendreManche(r, replace) {
     h("p", { class: "hint small", text: "Les plus récentes sont listées ; pour aller plus loin, tapez un mot, un prénom, une date ou une note." }),
     liste);
   return h("div", { class: "reprendre-zone" },
-    h("button", { type: "button", class: "chip reprendre-ouvrir", text: type === "quiz" ? "↺ Reprendre les questions d'une manche déjà faite" : "↺ Reprendre une manche déjà faite", "aria-expanded": "false",
+    h("button", { type: "button", class: "chip reprendre-ouvrir", text: type === "quiz" ? "↺ Reprendre les questions d'une partie déjà faite" : "↺ Reprendre une partie déjà faite", "aria-expanded": "false",
       onclick: (e) => {
         panneau.hidden = !panneau.hidden;
         e.currentTarget.setAttribute("aria-expanded", panneau.hidden ? "false" : "true");
@@ -1593,6 +3064,68 @@ function tirerQuestionsIllustre(r, n, famille) {
   r.famille = famille;
 }
 
+/**
+ * Photos déjà dans la prestation (Zoom mystère ou Image floue, n'importe quelle série) ou retirées de la manche [r]
+ * (✕) : leur signature (« b:vache », « i:<image> »).
+ */
+function photosPrises(r) {
+  const manches = roundCtx === prestationCtx && editing ? editing.rounds.filter(Boolean) : [r];
+  const prises = [...new Set([r, ...manches])].filter((m) => estJeuDePhotos(m.type))
+    .flatMap((m) => zoomRoundQuestions(m, quizzes).map((q) => signatureQuestion(q, m.type)));
+  return new Set([...prises, ...casesDuTirage(r).filter((q) => !caseVide(q)).map((q) => signatureQuestion(q, r.type)), ...(r.ecartees ?? [])]);
+}
+
+/** Une photo de la banque telle qu'elle est gardée dans une manche Zoom mystère ou Image floue. */
+function versPhotoTiree(cle) {
+  const q = questionBanque(cle);
+  return q ? { id: `b:${cle}`, text: q.text, choices: [...q.choices], correct: q.correct, banque: cle } : null;
+}
+
+/** Thèmes de la banque de photos qui ont des photos (le 🎲 du Zoom mystère et de l'Image floue). */
+const famillesPhotos = () => Object.entries(FAMILLES_PETITS).filter(([k]) => banqueItems().some((x) => x.famille === k));
+
+/**
+ * Pioche [n] photos de la banque de photos libres ([famille] : ce thème seulement) pour la manche [r] (cedric, 23/10) :
+ * jamais une photo déjà dans la prestation ni retirée de la manche ; « Jamais deux fois » : d'abord celles dont le mot
+ * ne sert pas déjà dans un autre jeu. Jamais « Mes images » (règle 16).
+ */
+function piocherPhotos(r, n, famille) {
+  if (n <= 0) return [];
+  const prises = photosPrises(r);
+  const libres = shuffle(banqueItems().filter((x) => (!famille || x.famille === famille) && !prises.has(`b:${x.key.slice(BANQUE.length)}`)))
+    .map((x) => versPhotoTiree(x.key.slice(BANQUE.length))).filter(Boolean);
+  return neufsSiPossible(libres, (q) => questionConcepts({ ...q, kind: r.type }), roundCtx.elsewhere?.(r), n).slice(0, n);
+}
+
+/** Tire [n] photos pour la série du dé du Zoom mystère ou de l'Image floue ; les autres séries ne bougent pas. */
+function tirerPhotos(r, n, famille) {
+  poserTirage(r, piocherPhotos(r, n, famille));
+  const de = serieDuDe(r);
+  if (de) { if (famille) de.famille = famille; else delete de.famille; }
+  r.famille = famille;
+}
+
+/** Une affirmation du Vrai ou Faux tout prêt telle qu'elle est gardée dans la manche. */
+const versAffirmation = (x) => ({ id: x.id, text: x.text, choices: ["Vrai", "Faux"], correct: x.vrai ? 0 : 1 });
+
+/**
+ * Pioche [n] affirmations du Vrai ou Faux tout prêt au niveau de [profil] (cedric, 23/10) : autant de vraies que de
+ * fausses à peu près, jamais une déjà dans la prestation ni retirée de la manche (✕).
+ */
+function piocherAffirmations(r, n, profil) {
+  if (n <= 0) return [];
+  return tirerAffirmations(n, { niveau: NIVEAU_DU_PROFIL[profil] ?? null, exclus: textesPris(r) }).map(versAffirmation);
+}
+
+/** Tire [n] affirmations pour la série du dé du Vrai ou Faux express ; les autres séries ne bougent pas. */
+function tirerAffirmationsVF(r, n, profil) {
+  poserTirage(r, piocherAffirmations(r, n, profil), profil);
+  r.profil = profil;
+}
+
+/** « Vrai » ou « Faux » : la bonne réponse d'une affirmation, en petit à côté d'elle. */
+const reponseVF = (q) => h("span", { class: `tirage-vf ${q.correct === 0 ? "vrai" : "faux"}`, text: q.correct === 0 ? "✓ Vrai" : "✗ Faux", title: "La bonne réponse" });
+
 /** Met [cases] dans la série du dé (créée à la fin des séries s'il n'y en a pas) ; aucune : la série part. */
 function poserTirage(r, cases, profil) {
   const series = seriesDe(r);
@@ -1626,8 +3159,10 @@ function changerNombreTirage(r, k, profil) {
     const vide = cases.map(caseVide).lastIndexOf(true);
     cases = vide >= 0 ? cases.filter((_, i) => i !== vide) : cases.slice(0, k);
   }
-  // Quiz illustré : de nouvelles questions du même thème ([profil] est alors le thème).
+  // Quiz illustré, Zoom mystère, Image floue : de nouvelles questions ou photos du même thème ([profil] est alors le thème).
   if (cases.length < k && r.type === "illustre") cases = [...cases, ...piocherIllustre(r, k - cases.length, profil)];
+  else if (cases.length < k && estJeuDePhotos(r.type)) cases = [...cases, ...piocherPhotos(r, k - cases.length, profil)];
+  else if (cases.length < k && r.type === "express") cases = [...cases, ...piocherAffirmations(r, k - cases.length, profil)];
   else if (cases.length < k) {
     const manque = k - cases.length;
     const nb = Math.min(manque, Math.max(0, chiffresDuTirage(k) - cases.filter((q) => q.nombre).length));
@@ -1658,18 +3193,28 @@ function reponsesIllustrees(q) {
   }));
 }
 
+/** Zoom mystère, Image floue : la photo à deviner, en petit (banque de photos libres, ou une de vos images). */
+const apercuPhoto = (q) => (q.banque ? h("img", { class: "tirage-photo", src: cheminPhotoBanque(q.banque), alt: "", loading: "lazy" })
+  : IMAGE_ID.test(q.imageId ?? "") ? photoBibliotheque(q.imageId, { class: "tirage-photo", loading: "lazy" }) : null);
+/**
+ * Ce qu'il faut trouver sur une photo du Zoom mystère ou de l'Image floue : sa bonne réponse, sans son émoji (cedric,
+ * 24/10 : « on exploite exclusivement les photos », la photo est déjà à côté).
+ */
+const reponsePhoto = (q) => `${q.choices?.[q.correct] ?? q.text ?? ""}`.replace(/^[^\p{L}\p{N}]+/u, "").trim();
+
 /** Petite étiquette des questions de la Super Finale, dans la liste (cedric, 23/10 : une seule, à la fin). */
 const etiquetteFinale = (r) => h("span", { class: "badge-finale", text: `🏆 ×${FACTEURS_FINALE.includes(r.facteur) ? r.facteur : FACTEURS_FINALE[0]}`, title: "Question de la Super Finale" });
 
 /** « 19 questions, dont 3 en Super Finale » : le compteur au-dessus de la première ligne (cedric, 23/10). */
 function compteurQuiz(r) {
   const total = questionsDesSeries(r, quizzes).length;
-  const finale = r.finale > 0 ? Math.min(r.finale, total) : 0;
+  const finale = hasFinale(r.type) && r.finale > 0 ? Math.min(r.finale, total) : 0;
+  const unite = estJeuDePhotos(r.type) ? "photo" : r.type === "express" ? "affirmation" : "question";
   const aTirer = casesDuTirage(r).filter(caseVide).length;
   const aFinir = seriesDe(r).filter((x) => x.origine === "main").flatMap((x) => x.questions ?? []).filter((q) => q && !questionJouable(q)).length;
   const bougies = roundCtx === prestationCtx && editing && premierQuiz(editing.rounds, quizzes) === r && questionBougies({ childName: $("show-child").value, age: $("show-age").value }, r);
   return [
-    total ? `${total} question${total > 1 ? "s" : ""}` : "Aucune question pour l'instant",
+    total ? `${total} ${unite}${total > 1 ? "s" : ""}` : `Aucune ${unite} pour l'instant`,
     finale ? `dont ${finale > 1 ? `${finale}` : "la dernière"} en Super Finale` : "",
     bougies && total ? "plus la question des bougies" : "",
   ].filter(Boolean).join(", ") + [aTirer ? ` · ${aTirer} à tirer` : "", aFinir ? ` · ${aFinir} à compléter` : ""].join("");
@@ -1697,14 +3242,24 @@ function mancheQuiz(r) {
   // Quiz illustré (cedric, 23/10 : « exactement la même architecture ») : le 🎲 tire dans le Quiz illustré tout prêt,
   // par thème (pas de profil ni de Juste Chiffre) ; pas de question des bougies.
   const illustre = r.type === "illustre";
+  // Zoom mystère, Image floue (cedric, 23/10) : pareil, avec des photos ; le 🎲 tire dans la banque de photos libres,
+  // par thème ; ni Super Finale ni bougies.
+  const photos = estJeuDePhotos(r.type);
+  const parTheme = illustre || photos;
+  // Vrai ou Faux express (cedric, 23/10) : pareil, avec des affirmations ; le 🎲 tire dans le Vrai ou Faux tout prêt,
+  // au niveau du profil ; sa Super Finale comme au Quiz, pas de bougies.
+  const express = r.type === "express";
+  const unite = photos ? "photo" : express ? "affirmation" : "question";
+  const nUnites = (k) => `${k} ${unite}${k > 1 ? "s" : ""}`;
+  const sig = (q) => (photos ? signatureQuestion(q, r.type) : q.text);
   const famille = familleDuDe(r);
   const profil = PROFILES[de?.profil] ? de.profil : PROFILES[r.profil] ? r.profil : roundCtx.profile?.() ?? "MOYENS";
-  const n = cases.length || r.nbTirage || TIRAGE_DEFAUT;
+  const n = cases.length || r.nbTirage || (photos ? RANDOM_COUNT[r.type] ?? TIRAGE_DEFAUT : TIRAGE_DEFAUT);
   // Une nouvelle manche part avec la Super Finale sur ses 3 dernières questions, ×2 (cedric, 23/10).
-  if (r.finale === undefined && !roundFilled(r)) r.finale = SUPER_FINALE_LAST;
+  if (hasFinale(r.type) && r.finale === undefined && !roundFilled(r)) r.finale = SUPER_FINALE_LAST;
   const assemblage = questionsDuQuiz(r, quizzes);
   const total = assemblage.length;
-  const finale = r.finale > 0 ? Math.min(r.finale, total) : 0;
+  const finale = hasFinale(r.type) && r.finale > 0 ? Math.min(r.finale, total) : 0;
   // Les questions de la Super Finale : les dernières dans l'ordre de passage (celui du « Quiz complet »).
   const clesFinale = new Set(finale ? assemblage.slice(-finale).map((x) => x.cle) : []);
   const compteur = h("p", { class: "quiz-compteur", "aria-live": "polite", text: compteurQuiz(r) });
@@ -1712,33 +3267,33 @@ function mancheQuiz(r) {
   const changer = () => { roundCtx.refresh(); };
 
   // Première ligne : profil (Quiz illustré : thème), nombre, 🎲.
-  const tirer = (k, p) => { if (illustre) tirerQuestionsIllustre(r, k, p); else tirerQuestionsQuiz(r, k, p); changer(); };
+  const tirer = (k, p) => { if (photos) tirerPhotos(r, k, p); else if (illustre) tirerQuestionsIllustre(r, k, p); else if (express) tirerAffirmationsVF(r, k, p); else tirerQuestionsQuiz(r, k, p); changer(); };
   const nombre = h("select", {
     class: "tirage-nombre", "aria-label": "Nombre de questions à tirer",
     onchange: (e) => {
       const k = Number(e.target.value);
       if (!cases.length) { r.nbTirage = k; return; }
-      changerNombreTirage(r, k, illustre ? famille : profil);
+      changerNombreTirage(r, k, parTheme ? famille : profil);
       changer();
     },
-  }, ...[...new Set([...TIRAGE_NOMBRES, n])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: k === n, text: k > 1 ? `${k} questions` : "1 question" })));
-  const reglage = illustre
+  }, ...[...new Set([...TIRAGE_NOMBRES, n])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: k === n, text: nUnites(k) })));
+  const reglage = parTheme
     ? h("select", {
-      class: "tirage-theme", "aria-label": "Thème des questions",
+      class: "tirage-theme", "aria-label": photos ? "Thème des photos" : "Thème des questions",
       onchange: (e) => { const f = e.target.value || null; if (cases.length) tirer(cases.length, f); else r.famille = f; },
     }, h("option", { value: "", selected: !famille, text: "Tous les thèmes" }),
-    ...Object.entries(FAMILLES_PETITS).map(([k, label]) => h("option", { value: k, selected: k === famille, text: label })))
+    ...(photos ? famillesPhotos() : Object.entries(FAMILLES_PETITS)).map(([k, label]) => h("option", { value: k, selected: k === famille, text: label })))
     : h("select", {
-      class: "tirage-profil", "aria-label": "Profil des questions",
+      class: "tirage-profil", "aria-label": express ? "Profil des affirmations" : "Profil des questions",
       onchange: (e) => { if (cases.length) tirer(cases.length, e.target.value); else r.profil = e.target.value; },
     }, ...Object.entries(PROFILES).map(([k, p]) => h("option", { value: k, selected: k === profil, text: p.label })));
   const ligne = h("div", { class: "tirage-ligne" },
     reglage,
     nombre,
     h("button", {
-      type: "button", class: "btn tirage-de", text: "🎲", "aria-label": "Tirer les questions au hasard",
-      title: `Tirer les questions au hasard dans ${illustre ? "le Quiz illustré tout prêt" : "la banque"} (les autres séries ne bougent pas)`,
-      onclick: () => tirer(Number(nombre.value), illustre ? reglage.value || null : reglage.value),
+      type: "button", class: "btn tirage-de", text: "🎲", "aria-label": `Tirer les ${unite}s au hasard`,
+      title: `Tirer les ${unite}s au hasard dans ${photos ? "la banque de photos libres" : illustre ? "le Quiz illustré tout prêt" : express ? "le Vrai ou Faux tout prêt" : "la banque"} (les autres séries ne bougent pas)`,
+      onclick: () => tirer(Number(nombre.value), parTheme ? reglage.value || null : reglage.value),
     }));
 
   // Deuxième ligne : « Rappeler un de vos quiz » (cedric, 23/10) : une recherche dans les prestations archivées
@@ -1746,8 +3301,8 @@ function mancheQuiz(r) {
   // prestation archivée ne change pas).
   const archives = quizArchives(r.type ?? "quiz");
   const rappel = ligneAjoutQuiz({
-    classe: "quiz-rappel", titre: illustre ? "📚 Rappeler un de vos quiz illustrés" : "📚 Rappeler un de vos quiz", label: "Chercher une prestation archivée",
-    placeholder: "Prénom, âge, date… d'une prestation archivée", vide: `Aucune prestation archivée avec un ${ROUND_TYPES[r.type ?? "quiz"]}`,
+    classe: "quiz-rappel", titre: photos ? "📚 Rappeler les photos d'un ancien anniversaire" : express ? "📚 Rappeler les affirmations d'un ancien anniversaire" : illustre ? "📚 Rappeler un de vos quiz illustrés" : "📚 Rappeler un de vos quiz", label: "Chercher une prestation archivée",
+    placeholder: "Prénom, âge, date… d'une prestation archivée", vide: "Aucun ancien anniversaire avec ce jeu",
     aucun: "Aucune prestation archivée ne correspond.", items: archives, attr: (x) => ({ "data-show": x.id }),
     choisir: (x) => {
       series.push({ id: nouvelId("p"), origine: "reprise", titre: x.titre, questions: JSON.parse(JSON.stringify(x.questions)) });
@@ -1761,31 +3316,59 @@ function mancheQuiz(r) {
   // floue), ni le Quiz illustré, ni un quiz de Vrai ou Faux. Dans un Quiz illustré : ses quiz illustrés.
   const dejaLa = new Set(series.filter((x) => x.origine === "quiz").map((x) => x.quizId));
   const quatreReponses = (x) => x.kind === "number" || (x.choices ?? []).filter((c) => `${c ?? ""}`.trim()).length === 4;
+  // Zoom mystère, Image floue : ses séries de photos (Bibliothèque › Questions › « 🔍 Mes séries de photos »).
+  const duJeu = (q) => (photos ? zoomQuestions(q) : illustre ? illustreQuestions(q) : express ? expressQuestions(q) : quizQuestions(q));
   const classiques = Object.entries(quizzes)
-    .filter(([qid, q]) => q?.title && !estQuizDeTest(qid) && (illustre ? illustreQuestions(q).length : quizKind(q) === "classique" && quizQuestions(q).some(quatreReponses)))
+    .filter(([qid, q]) => q?.title && !estQuizDeTest(qid) && (photos ? quizKind(q) === "images" && duJeu(q).length
+      : illustre || express ? duJeu(q).length : quizKind(q) === "classique" && quizQuestions(q).some(quatreReponses)))
     .sort(([, a], [, b]) => a.title.localeCompare(b.title, "fr"))
     .map(([qid, q]) => {
-      const k = (illustre ? illustreQuestions(q) : quizQuestions(q)).length;
-      return { id: qid, titre: q.title, details: [`${k} question${k > 1 ? "s" : ""}`, q.theme, dejaLa.has(qid) ? "✓ déjà dans ce Quiz" : ""].filter(Boolean).join(" · "),
+      const k = duJeu(q).length;
+      return { id: qid, titre: q.title, details: [nUnites(k), q.theme, dejaLa.has(qid) ? `✓ déjà dans ce ${photos ? "jeu" : "Quiz"}` : ""].filter(Boolean).join(" · "),
         noms: [q.title], autres: [q.theme] };
     });
   const biblio = ligneAjoutQuiz({
-    classe: "quiz-biblio", titre: illustre ? "📗 Intégrer un quiz illustré de votre bibliothèque" : "📗 Intégrer un quiz de votre bibliothèque", label: "Chercher un quiz de la bibliothèque",
-    placeholder: `Titre ou thème d'un de vos quiz${illustre ? " illustrés" : ""}`, vide: `Pas encore de quiz${illustre ? " illustré" : ""} dans votre bibliothèque`,
-    aucun: "Aucun quiz de la bibliothèque ne correspond.", items: classiques, attr: (x) => ({ "data-quiz": x.id }),
+    classe: "quiz-biblio", titre: photos ? "📗 Intégrer une de vos séries de photos" : express ? "📗 Intégrer un Vrai / Faux de la bibliothèque" : illustre ? "📗 Intégrer un quiz illustré de votre bibliothèque" : "📗 Intégrer un quiz de votre bibliothèque",
+    label: photos ? "Chercher une série de photos de la bibliothèque" : express ? "Chercher un Vrai / Faux de la bibliothèque" : "Chercher un quiz de la bibliothèque",
+    placeholder: photos ? "Titre ou thème d'une de vos séries de photos" : express ? "Titre ou thème d'un de vos Vrai / Faux" : `Titre ou thème d'un de vos quiz${illustre ? " illustrés" : ""}`,
+    vide: photos ? "Pas encore de série de photos dans votre bibliothèque" : express ? "Pas encore de Vrai / Faux dans votre bibliothèque" : `Pas encore de quiz${illustre ? " illustré" : ""} dans votre bibliothèque`,
+    aucun: photos ? "Aucune série de photos ne correspond." : express ? "Aucun Vrai / Faux de la bibliothèque ne correspond." : "Aucun quiz de la bibliothèque ne correspond.", items: classiques, attr: (x) => ({ "data-quiz": x.id }),
     choisir: (x) => { series.push({ id: nouvelId("q"), origine: "quiz", quizId: x.id }); changer(); },
   });
-  const outils = h("div", { class: "quiz-outils" }, ligne, rappel, biblio);
+  // Quatrième ligne (Zoom mystère, Image floue) : composer avec ses propres images de « Mes images ».
+  const outils = h("div", { class: "quiz-outils" }, ligne, rappel, biblio, photos ? ligneVosImages(r, changer) : null);
 
   // Les séries, dans l'ordre choisi ; les questions de la Super Finale y sont marquées.
   const ligneQuestion = (x, q, retirer, extra = null) => {
-    const fin = clesFinale.has(cleQuestion(x, q));
+    const fin = clesFinale.has(cleQuestion(x, q, r.type));
     return h("li", { class: `tirage-q${fin ? " en-finale" : ""}` }, h("div", { class: "tirage-q-ligne" },
-      h("span", { class: "tirage-texte", text: `${q.nombre || q.kind === "number" ? "🔢 " : ""}${q.text}` }),
-      illustre ? reponsesIllustrees(q) : miniature(q),
+      photos ? apercuPhoto(q) : null,
+      h("span", { class: "tirage-texte", text: photos ? reponsePhoto(q) : `${q.nombre || q.kind === "number" ? "🔢 " : ""}${q.text}`, ...(photos ? { title: q.text } : {}) }),
+      photos ? null : illustre ? reponsesIllustrees(q) : express ? reponseVF(q) : miniature(q),
       fin ? etiquetteFinale(r) : null,
       extra,
       h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": "Retirer cette question", title: "Retirer cette question", onclick: retirer })));
+  };
+  // Zoom mystère, Image floue (cedric, 24/10) : ↑ ↓ aussi dans la liste tirée au 🎲, pas seulement dans le « complet ».
+  // Rangé à la main dans le « complet », les deux photos y échangent aussi leur place.
+  const flechesDuTirage = (qs, i) => {
+    const deplacer = (d) => {
+      const j = i + d;
+      if (j < 0 || j >= qs.length) return;
+      const cles = [qs[i], qs[j]].map((y) => (caseVide(y) ? null : cleQuestion(serieDuDe(r), y, r.type)));
+      const nouvelles = [...qs];
+      [nouvelles[i], nouvelles[j]] = [nouvelles[j], nouvelles[i]];
+      poserTirage(r, nouvelles);
+      const ordre = [...(Array.isArray(r.ordreQuiz) ? r.ordreQuiz : Object.values(r.ordreQuiz ?? {}))];
+      const [a, b] = cles.map((c) => (c ? ordre.indexOf(c) : -1));
+      if (a >= 0 && b >= 0) { [ordre[a], ordre[b]] = [ordre[b], ordre[a]]; r.ordreQuiz = ordre; }
+      changer();
+      noterEcran();
+    };
+    return [
+      h("button", { type: "button", class: "icon tirage-monter", text: "↑", title: "Passer cette photo plus tôt", "aria-label": "Monter cette photo", disabled: i === 0, onclick: () => deplacer(-1) }),
+      h("button", { type: "button", class: "icon tirage-descendre", text: "↓", title: "Passer cette photo plus tard", "aria-label": "Descendre cette photo", disabled: i === qs.length - 1, onclick: () => deplacer(1) }),
+    ];
   };
   const corps = (x) => {
     if (x.origine === "de") {
@@ -1793,44 +3376,46 @@ function mancheQuiz(r) {
       const qs = casesDuTirage(r);
       return qs.map((q, i) => (caseVide(q)
         ? h("li", { class: "tirage-q vide" }, h("div", { class: "tirage-q-ligne" },
-          h("button", { type: "button", class: "btn tirage-de petit", text: "🎲", "aria-label": "Tirer une autre question", title: "Tirer une autre question", onclick: () => {
-            const pioche = illustre ? { qcm: piocherIllustre(r, 1, famille), chiffres: [] } : piocherQuiz(r, { qcm: q.nombre ? 0 : 1, chiffres: q.nombre ? 1 : 0, profil });
+          h("button", { type: "button", class: "btn tirage-de petit", text: "🎲", "aria-label": `Tirer une autre ${unite}`, title: `Tirer une autre ${unite}`, onclick: () => {
+            const pioche = photos ? { qcm: piocherPhotos(r, 1, famille), chiffres: [] } : illustre ? { qcm: piocherIllustre(r, 1, famille), chiffres: [] }
+              : express ? { qcm: piocherAffirmations(r, 1, profil), chiffres: [] } : piocherQuiz(r, { qcm: q.nombre ? 0 : 1, chiffres: q.nombre ? 1 : 0, profil });
             const neuve = pioche.qcm[0] ?? pioche.chiffres[0];
-            if (!neuve) { annonce(illustre ? "Plus aucune question libre dans ce thème : changez de thème, ou baissez le nombre de questions." : "Plus aucune question libre de cette sorte pour ce profil : changez le profil, ou baissez le nombre de questions."); return; }
+            if (!neuve) { annonce(parTheme ? `Plus aucune ${unite} libre dans ce thème : changez de thème, ou baissez le nombre de ${unite}s.` : express ? "Plus aucune affirmation libre pour ce profil : changez le profil, ou baissez le nombre d'affirmations." : "Plus aucune question libre de cette sorte pour ce profil : changez le profil, ou baissez le nombre de questions."); return; }
             poserTirage(r, qs.map((y, k) => (k === i ? neuve : y)));
             changer();
           } }),
-          h("span", { class: "hint small", text: q.nombre ? "Juste Chiffre à tirer" : "Question à tirer" })))
+          h("span", { class: "hint small", text: q.nombre ? "Juste Chiffre à tirer" : photos ? "Photo à tirer" : express ? "Affirmation à tirer" : "Question à tirer" })))
         : ligneQuestion(x, q, () => {
-          r.ecartees = [...(r.ecartees ?? []), q.text];
+          r.ecartees = [...(r.ecartees ?? []), sig(q)];
           poserTirage(r, qs.map((y, k) => (k === i ? { vide: true, ...(q.nombre ? { nombre: true } : {}) } : y)));
           changer();
-        })));
+        }, photos ? flechesDuTirage(qs, i) : null)));
     }
     if (x.origine === "quiz") {
       // Quiz rappelé : ✕ retire une question (gardée de côté, « ↺ » la remet) ; le quiz de la bibliothèque ne change pas.
-      return questionsDeLaSerie(x, quizzes).map((q) => ligneQuestion(x, q, () => { x.sans = [...(x.sans ?? []), q.text]; changer(); }));
+      return questionsDeLaSerie(x, quizzes, r.type).map((q) => ligneQuestion(x, q, () => { x.sans = [...(x.sans ?? []), sig(q)]; changer(); }));
     }
     if (x.origine === "main") {
-      return (x.questions ?? []).filter(Boolean).map((q) => questionEcrite(r, x, q, majCompteur, questionJouable(q) && clesFinale.has(cleQuestion(x, q))));
+      return (x.questions ?? []).filter(Boolean).map((q) => questionEcrite(r, x, q, majCompteur, questionJouable(q) && clesFinale.has(cleQuestion(x, q, r.type))));
     }
     // Reprise d'une autre manche : ses questions copiées ; ✕ en retire une.
     return (x.questions ?? []).filter(Boolean).map((q) => (questionJouable(q) ? ligneQuestion(x, q, () => { x.questions = x.questions.filter((y) => y !== q); changer(); }) : null));
   };
   const titreSerie = (x) => {
-    const k = questionsDeLaSerie(x, quizzes).length;
-    const nq = `${k} question${k > 1 ? "s" : ""}`;
+    const k = questionsDeLaSerie(x, quizzes, r.type).length;
+    const nq = nUnites(k);
     if (x.origine === "de") {
       const vides = casesDuTirage(r).filter(caseVide).length;
-      const sorte = illustre ? FAMILLES_PETITS[x.famille] ?? "tous les thèmes" : PROFILES[x.profil ?? profil]?.label.split(" (")[0] ?? "";
+      const sorte = parTheme ? FAMILLES_PETITS[x.famille] ?? "tous les thèmes" : PROFILES[x.profil ?? profil]?.label.split(" (")[0] ?? "";
       return `🎲 ${nq} tirée${k > 1 ? "s" : ""} au hasard (${sorte})${vides ? `, ${vides} à tirer` : ""}`;
     }
-    if (x.origine === "quiz") return quizzes[x.quizId] ? `📚 ${illustre ? "Quiz illustré" : "Quiz"} « ${quizzes[x.quizId].title} » : ${nq}${x.sans?.length ? ` (${x.sans.length} retirée${x.sans.length > 1 ? "s" : ""})` : ""}` : "📚 Ce quiz n'existe plus dans la bibliothèque";
+    if (x.origine === "quiz") return quizzes[x.quizId] ? `📚 ${photos ? "Série de photos" : illustre ? "Quiz illustré" : express ? "Vrai / Faux du quiz" : "Quiz"} « ${quizzes[x.quizId].title} » : ${nq}${x.sans?.length ? ` (${x.sans.length} retirée${x.sans.length > 1 ? "s" : ""})` : ""}` : `📚 ${photos ? "Cette série de photos" : "Ce quiz"} n'existe plus dans la bibliothèque`;
     if (x.origine === "main") {
       const aFinir = (x.questions ?? []).filter((q) => q && !questionJouable(q)).length;
       return `✍ ${nq} écrite${k > 1 ? "s" : ""} à la main${aFinir ? `, ${aFinir} à compléter` : ""}`;
     }
-    return `📅 ${x.titre ?? "Questions reprises"} : ${nq}`;
+    if (x.origine === "images") return `⭐ ${nq} choisie${k > 1 ? "s" : ""} dans la bibliothèque`;
+    return `📅 ${x.titre ?? (photos ? "Photos reprises" : express ? "Affirmations reprises" : "Questions reprises")} : ${nq}`;
   };
   const deplacer = (i, d) => {
     const j = i + d;
@@ -1851,7 +3436,7 @@ function mancheQuiz(r) {
     qs.hidden = !seriesDepliees.has(x);
     const voir = h("button", {
       type: "button", class: "chip tirage-voir serie-voir", "aria-expanded": qs.hidden ? "false" : "true", text: `${qs.hidden ? "▸" : "▾"} ${titreSerie(x)}`,
-      title: "Voir ou cacher les questions de cette série",
+      title: `Voir ou cacher les ${unite}s de cette série`,
       onclick: (e) => {
         qs.hidden = !qs.hidden;
         if (qs.hidden) seriesDepliees.delete(x); else seriesDepliees.add(x);
@@ -1860,8 +3445,8 @@ function mancheQuiz(r) {
       },
     });
     const enlever = async () => {
-      const k = x.origine === "main" ? (x.questions ?? []).filter(Boolean).length : questionsDeLaSerie(x, quizzes).length;
-      if (k && !(await confirmer(`Enlever cette série (${k} question${k > 1 ? "s" : ""}) de la manche ?${x.origine === "quiz" ? " Le quiz reste dans la bibliothèque." : ""}`, { ok: "Enlever", danger: true }))) return;
+      const k = x.origine === "main" ? (x.questions ?? []).filter(Boolean).length : questionsDeLaSerie(x, quizzes, r.type).length;
+      if (k && !(await confirmer(`Enlever cette série (${nUnites(k)}) du jeu ?${x.origine === "quiz" ? ` ${photos ? "La série" : "Le quiz"} reste dans la bibliothèque.` : ""}`, { ok: "Enlever", danger: true }))) return;
       r.seriesQuiz = series.filter((y) => y !== x);
       changer();
       noterEcran();
@@ -1879,7 +3464,7 @@ function mancheQuiz(r) {
         } }) : null,
         h("button", { type: "button", class: "icon serie-monter", text: "↑", title: "Passer cette série plus tôt", "aria-label": "Monter cette série", disabled: i === 0, onclick: () => deplacer(i, -1) }),
         h("button", { type: "button", class: "icon serie-descendre", text: "↓", title: "Passer cette série plus tard", "aria-label": "Descendre cette série", disabled: i === series.length - 1, onclick: () => deplacer(i, 1) }),
-        h("button", { type: "button", class: "icon serie-enlever", text: "✕", title: "Enlever cette série de la manche", "aria-label": "Enlever cette série", onclick: enlever })),
+        h("button", { type: "button", class: "icon serie-enlever", text: "✕", title: "Enlever cette série du jeu", "aria-label": "Enlever cette série", onclick: enlever })),
       qs);
   }));
 
@@ -1891,14 +3476,15 @@ function mancheQuiz(r) {
     : null;
 
   // Dernière ligne : la Super Finale (cedric, 23/10) : oui ou non, combien de dernières questions, le multiplicateur.
+  // Pas au Zoom mystère ni à l'Image floue.
   const avec = r.finale > 0;
-  const derniere = h("div", { class: "quiz-finale" },
+  const derniere = !hasFinale(r.type) ? null : h("div", { class: "quiz-finale" },
     h("span", { class: "quiz-finale-titre", text: "🏆 Super Finale" }),
     h("select", { class: "finale-oui", "aria-label": "Super Finale", onchange: (e) => { r.finale = e.target.value === "oui" ? (r.finaleAvant > 0 ? r.finaleAvant : SUPER_FINALE_LAST) : null; changer(); } },
       h("option", { value: "oui", selected: avec, text: "Oui" }),
       h("option", { value: "non", selected: !avec, text: "Non" })),
     avec ? h("select", { class: "finale", "aria-label": "Questions de la Super Finale", onchange: (e) => { r.finale = Number(e.target.value) || null; r.finaleAvant = r.finale; changer(); } },
-      ...[...new Set([1, 2, 3, 4, 5, 6, 8, 10, r.finale])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: r.finale === k, text: k === 1 ? "La dernière question" : `Les ${k} dernières questions` })))
+      ...[...new Set([1, 2, 3, 4, 5, 6, 8, 10, r.finale])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: r.finale === k, text: k === 1 ? `La dernière ${unite}` : `Les ${k} dernières ${unite}s` })))
       : null,
     avec ? h("select", { class: "finale-facteur", "aria-label": "Multiplicateur de la Super Finale", onchange: (e) => { r.facteur = Number(e.target.value); changer(); } },
       ...FACTEURS_FINALE.map((k) => h("option", { value: k, selected: (FACTEURS_FINALE.includes(r.facteur) ? r.facteur : FACTEURS_FINALE[0]) === k, text: `Points ×${k}` })))
@@ -1923,6 +3509,108 @@ const QUIZ_AJOUT_MAX = 6;
  * date…), les uns sous les autres, dans une liste posée à droite par-dessus l'écran (rien ne bouge en dessous). Un clic
  * sur un résultat l'ajoute.
  */
+/** Le panneau « ⭐ Composer avec vos images » ouvert (le temps de l'écran), par manche : sa recherche, les images cochées. */
+const panneauxVosImages = new WeakMap();
+/** Au plus autant d'images montrées à la fois dans ce panneau : la recherche trouve les autres. */
+const VOS_IMAGES_MAX = 60;
+
+/**
+ * Zoom mystère, Image floue (cedric, 23/10 : « créer une manche à travers mes images perso qui ont été uploadées dans
+ * la bibliothèque ») : ses images de Bibliothèque › Images › « Mes images », cochées une par une (jamais au 🎲 :
+ * règle 16), rejoignent la série « ⭐ Vos images » de la manche ; le nom de chaque image est la réponse à trouver.
+ * Toute la bibliothèque d'images (cedric, 24/10) : les photos libres aussi, après « Mes images ». Pas les émojis : ces
+ * jeux ne montrent que des photos.
+ * Une image déjà dans un autre jeu de la fête, ou dans une autre série de ce jeu (cedric, 24/10), est signalée en rouge,
+ * mais reste possible (« Jamais deux fois » : à Sarah de décider) ; seule celle déjà dans la composition ne se recoche pas.
+ */
+function ligneVosImages(r, changer) {
+  const panneau = panneauxVosImages.get(r);
+  const titre = h("button", {
+    type: "button", class: "quiz-ajout-titre vos-images-titre", "aria-expanded": panneau ? "true" : "false",
+    text: `${panneau ? "▾" : "▸"} ⭐ Composer avec vos images`,
+    onclick: () => {
+      if (panneau) panneauxVosImages.delete(r);
+      else panneauxVosImages.set(r, { recherche: "", cochees: new Set(), focus: true });
+      changer();
+    },
+  });
+  if (!panneau) return h("div", { class: "quiz-ajouts vos-images" }, titre,
+    h("span", { class: "hint small", text: "Toute la bibliothèque : « Mes images » et les photos libres ; le nom de chaque photo est la réponse à trouver." }));
+
+  const groupes = groupesImages();
+  const images = [...groupes.miennes, ...groupes.photos];
+  const idImage = (q) => q?.imageId ?? (q?.banque ? `${BANQUE}${q.banque}` : null);
+  const dansCeJeu = new Set(questionsDesSeries(r, quizzes).map(idImage).filter(Boolean));
+  const dansLaComposition = new Set((seriesDe(r).find((x) => x.origine === "images")?.questions ?? []).map(idImage).filter(Boolean));
+  const ailleurs = JSON.stringify((roundCtx === prestationCtx && editing ? editing.rounds : []).filter((m) => m && m !== r));
+  const cherche = h("input", {
+    type: "search", class: "vos-images-cherche", "aria-label": "Chercher dans vos images", value: panneau.recherche,
+    placeholder: "Nom, catégorie, mot-clé…",
+  });
+  const grille = h("div", { class: "media-grid vos-images-grille" });
+  const ajouter = h("button", { type: "button", class: "btn vos-images-ajouter" });
+  const majAjouter = () => {
+    const n = panneau.cochees.size;
+    ajouter.disabled = n === 0;
+    ajouter.textContent = n ? `＋ Ajouter ${n > 1 ? `ces ${n} photos` : "cette photo"}` : "Cochez vos photos";
+  };
+  const tuile = (x) => {
+    const nom = `${x.nom ?? ""}`.trim();
+    const deja = dansLaComposition.has(x.id);
+    const libre = x.groupe === "photos";
+    const ceJeu = !deja && dansCeJeu.has(x.id);
+    const autreJeu = !deja && !ceJeu && (ailleurs.includes(x.id) || (libre && ailleurs.includes(`"${x.id.slice(BANQUE.length)}"`)));
+    const etat = deja ? "✓ Déjà dans votre composition" : !nom ? "À nommer dans Mes images" : ceJeu ? "Déjà utilisée dans ce jeu" : autreJeu ? "Déjà utilisée dans la fête" : "";
+    const b = h("button", {
+      type: "button", class: `media-tile vos-images-tuile${panneau.cochees.has(x.id) ? " on" : ""}`, "data-image": x.id,
+      "aria-pressed": panneau.cochees.has(x.id) ? "true" : "false", disabled: deja || !nom, title: etat || `Cocher « ${nom} »`,
+      onclick: () => {
+        if (panneau.cochees.has(x.id)) panneau.cochees.delete(x.id); else panneau.cochees.add(x.id);
+        b.classList.toggle("on", panneau.cochees.has(x.id));
+        b.setAttribute("aria-pressed", panneau.cochees.has(x.id) ? "true" : "false");
+        majAjouter();
+      },
+    }, libre ? h("img", { src: x.src, alt: "", loading: "lazy" }) : photoBibliotheque(x.id, { loading: "lazy" }), h("span", { text: nom || "Sans nom" }),
+    etat ? h("small", { class: `vos-images-etat${autreJeu || ceJeu ? " alerte" : ""}`, text: etat }) : null);
+    return b;
+  };
+  const dessiner = () => {
+    const q = panneau.recherche;
+    const trouvees = parPertinence(images.filter((x) => contientTout([x.nom, x.cat, ...x.tags].filter(Boolean), q)), q,
+      (x) => [x.nom].filter(Boolean), (x) => [x.cat, ...x.tags].filter(Boolean));
+    grille.replaceChildren(...(trouvees.length ? trouvees.slice(0, VOS_IMAGES_MAX).map(tuile)
+      : [h("p", { class: "hint small", text: "Aucune image de la bibliothèque ne correspond." })]),
+    ...(trouvees.length > VOS_IMAGES_MAX ? [h("p", { class: "hint small", text: `Et ${plural(trouvees.length - VOS_IMAGES_MAX, "autre image", "autres images")} : précisez la recherche.` })] : []));
+  };
+  cherche.addEventListener("input", () => { panneau.recherche = cherche.value; dessiner(); });
+  ajouter.onclick = () => {
+    const serie = seriesDe(r).find((x) => x.origine === "images");
+    // Les autres propositions des pupitres : les réponses de la série, puis ses autres images, puis des mots de la banque.
+    const motsBanque = banqueItems().map((x) => x.value?.choices?.[x.value.correct]).filter(Boolean);
+    const miennes = photosDeMesImages(groupes.miennes.filter((x) => panneau.cochees.has(x.id)), {
+      voisines: (serie?.questions ?? []).filter(Boolean).map(reponsePhoto), secours: [...groupes.miennes, ...motsBanque], deja: [...dansLaComposition],
+    });
+    // Dans l'ordre des clics ; une photo libre garde les propositions de son mot dans la banque.
+    const parId = new Map(miennes.map((q) => [q.imageId, q]));
+    const nouvelles = [...panneau.cochees].map((id) => (id.startsWith(BANQUE) ? versPhotoTiree(id.slice(BANQUE.length)) : parId.get(id))).filter(Boolean);
+    if (!nouvelles.length) return;
+    const s = serie ?? { id: nouvelId("m"), origine: "images", questions: [] };
+    if (!serie) seriesDe(r).push(s);
+    s.questions = [...(s.questions ?? []).filter(Boolean), ...nouvelles];
+    seriesDepliees.add(s);
+    panneauxVosImages.delete(r);
+    changer();
+  };
+  dessiner();
+  majAjouter();
+  if (panneau.focus) { panneau.focus = false; requestAnimationFrame(() => cherche.focus()); }
+  return h("div", { class: "vos-images vos-images-ouvert" },
+    h("div", { class: "quiz-ajouts" }, titre, h("div", { class: "quiz-ajout-champ" }, cherche)),
+    grille,
+    h("div", { class: "vos-images-pied" }, ajouter,
+      h("button", { type: "button", class: "btn secondary vos-images-fermer", text: "Fermer", onclick: () => { panneauxVosImages.delete(r); changer(); } })));
+}
+
 function ligneAjoutQuiz({ classe, titre, label, placeholder, vide, aucun, items, attr, choisir }) {
   const cherche = h("input", { type: "search", class: `quiz-ajout-cherche ${classe}-cherche`, "aria-label": label, placeholder: items.length ? placeholder : vide });
   const resultats = h("div", { class: `quiz-ajout-liste ${classe}-liste` });
@@ -1959,6 +3647,9 @@ const oublierPlaceBougies = (r) => { if (r.ordreQuiz?.length) r.ordreQuiz = r.or
  */
 function quizComplet(r, assemblage, clesFinale, changer) {
   if (!assemblage.length) return null;
+  const photos = estJeuDePhotos(r.type);
+  const unite = photos ? "photo" : r.type === "express" ? "affirmation" : "question";
+  const sig = (q) => (photos ? signatureQuestion(q, r.type) : q.text);
   const bougies = roundCtx === prestationCtx && editing && premierQuiz(editing.rounds, quizzes) === r
     && !assemblage.some((x) => x.q.kind === "number" && /bougie/i.test(x.q.text ?? ""))
     ? questionBougies({ childName: $("show-child").value, age: $("show-age").value }, r) : null;
@@ -1991,12 +3682,12 @@ function quizComplet(r, assemblage, clesFinale, changer) {
     }
     const serie = seriesDe(r).find((y) => y.id === x.serie.id);
     if (!serie) return;
-    if (serie.origine === "quiz") serie.sans = [...(serie.sans ?? []), x.q.text];
+    if (serie.origine === "quiz") serie.sans = [...(serie.sans ?? []), sig(x.q)];
     else {
       const reste = (serie.questions ?? []).filter(Boolean);
-      const k = reste.findIndex((q) => cleQuestion(serie, q) === x.cle);
+      const k = reste.findIndex((q) => cleQuestion(serie, q, r.type) === x.cle);
       if (k < 0) return;
-      if (serie.origine === "de") r.ecartees = [...(r.ecartees ?? []), reste[k].text];
+      if (serie.origine === "de") r.ecartees = [...(r.ecartees ?? []), sig(reste[k])];
       serie.questions = reste.filter((_, i) => i !== k);
       if (!serie.questions.some((q) => !caseVide(q))) r.seriesQuiz = seriesDe(r).filter((y) => y !== serie);
     }
@@ -2012,18 +3703,20 @@ function quizComplet(r, assemblage, clesFinale, changer) {
   const lignes = vue.map((x, k) => h("li", { class: `tirage-q quiz-complet-q${x.bougies ? " quiz-complet-bougies" : ""}${clesFinale.has(x.cle) ? " en-finale" : ""}`, "data-cle": x.cle },
     h("div", { class: "tirage-q-ligne" },
       h("span", { class: "quiz-complet-num", text: `${k + 1}` }),
-      h("span", { class: "tirage-texte", text: `${x.bougies ? "🎂 " : ""}${x.q.kind === "number" ? "🔢 " : ""}${x.q.text}` }),
-      r.type === "illustre" ? reponsesIllustrees(x.q) : miniature(x.q),
+      photos ? apercuPhoto(x.q) : null,
+      h("span", { class: "tirage-texte", text: photos ? reponsePhoto(x.q) : `${x.bougies ? "🎂 " : ""}${x.q.kind === "number" ? "🔢 " : ""}${x.q.text}`, ...(photos ? { title: x.q.text } : {}) }),
+      photos ? null : r.type === "illustre" ? reponsesIllustrees(x.q) : r.type === "express" ? reponseVF(x.q) : miniature(x.q),
       clesFinale.has(x.cle) ? etiquetteFinale(r) : null,
-      h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: "Passer cette question plus tôt", "aria-label": "Monter cette question", disabled: k === 0, onclick: () => deplacer(k, -1) }),
-      h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: "Passer cette question plus tard", "aria-label": "Descendre cette question", disabled: k === vue.length - 1, onclick: () => deplacer(k, 1) }),
-      h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: x.bougies ? "Enlever la question des bougies (la case se décoche)" : "Enlever cette question du quiz", "aria-label": "Enlever cette question", onclick: () => enlever(x) }))));
+      h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: `Passer cette ${unite} plus tôt`, "aria-label": `Monter cette ${unite}`, disabled: k === 0, onclick: () => deplacer(k, -1) }),
+      h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: `Passer cette ${unite} plus tard`, "aria-label": `Descendre cette ${unite}`, disabled: k === vue.length - 1, onclick: () => deplacer(k, 1) }),
+      h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: x.bougies ? "Enlever la question des bougies (la case se décoche)" : photos || unite === "affirmation" ? `Enlever cette ${unite} du jeu` : "Enlever cette question du quiz", "aria-label": `Enlever cette ${unite}`, onclick: () => enlever(x) }))));
   const liste = h("ol", { class: "tirage-liste serie-liste quiz-complet-liste" }, ...lignes);
   liste.hidden = !quizCompletsDeplies.has(r);
-  const titre = () => `${liste.hidden ? "▸" : "▾"} 🧩 ${r.type === "illustre" ? "Quiz illustré complet" : "Quiz complet"} : ${vue.length} question${vue.length > 1 ? "s" : ""}, dans l'ordre de passage`;
+  const nom = { illustre: "Quiz illustré complet", zoom: "Zoom mystère complet", flou: "Image floue complète", express: "Vrai ou Faux complet" }[r.type] ?? "Quiz complet";
+  const titre = () => `${liste.hidden ? "▸" : "▾"} 🧩 ${nom} : ${vue.length} ${unite}${vue.length > 1 ? "s" : ""}, dans l'ordre de passage`;
   const voir = h("button", {
     type: "button", class: "chip tirage-voir serie-voir quiz-complet-voir", "aria-expanded": liste.hidden ? "false" : "true", text: titre(),
-    title: "Voir toutes les questions du quiz, dans l'ordre",
+    title: photos || unite === "affirmation" ? `Voir toutes les ${unite}s du jeu, dans l'ordre` : "Voir toutes les questions du quiz, dans l'ordre",
     onclick: (e) => {
       liste.hidden = !liste.hidden;
       if (liste.hidden) quizCompletsDeplies.delete(r); else quizCompletsDeplies.add(r);
@@ -2034,7 +3727,7 @@ function quizComplet(r, assemblage, clesFinale, changer) {
   return h("div", { class: "serie quiz-complet" },
     h("div", { class: "serie-tete" },
       voir,
-      h("button", { type: "button", class: "chip quiz-melanger", text: "🔀 Mélanger", title: "Mélanger toutes les questions du quiz", disabled: vue.length < 2, onclick: melanger })),
+      h("button", { type: "button", class: "chip quiz-melanger", text: "🔀 Mélanger", title: photos || unite === "affirmation" ? `Mélanger toutes les ${unite}s du jeu` : "Mélanger toutes les questions du quiz", disabled: vue.length < 2, onclick: melanger })),
     liste);
 }
 
@@ -2151,6 +3844,7 @@ function roundFields(r) {
       photoSwitch(r),
       mimeNeedLine(r),
       r.deckId || r.random === true || mimeCards(r.cards).length ? mimeSelection(r) : null)
+    : quiz ? null
     : photos
     // Zoom mystère, Image floue : un quiz entier, ou des photos choisies une par une dans tous les quiz.
     ? h("div", { class: "grow picto-round" },
@@ -2160,6 +3854,15 @@ function roundFields(r) {
       }),
       roundPicks(r).length || r.byItem ? itemSelection(r, "picks") : quizSelection(r, options))
     : quiz ? null : quizSelection(r, options);
+  // Mimes dans une prestation (cedric, 23/10) : le 🎲 seul, une présélection par équipe.
+  if (r.type === "mimes" && roundCtx === prestationCtx) return mancheMimes(r);
+  // Pictionary dans une prestation (cedric, 24/10) : le 🎲, un passage à la main, une ligne par équipe.
+  if (r.type === "pictionary" && roundCtx === prestationCtx) return mancheDessins(r);
+  // Blind test dans une prestation (cedric, 24/10) : « à la manière des quiz », le 🎲 tire les chansons.
+  // Blind test et Quiz musical (cedric, 24/10) : en séries de chansons de la bibliothèque des sons.
+  if ((r.type === "blind" || r.type === "musical") && roundCtx === prestationCtx) return mancheBlind(r);
+  // Chante le mot ! dans une prestation (cedric, 24/10) : le 🎲, un mot écrit à la main, le « complet ».
+  if (estJeuDeMots(r.type) && roundCtx === prestationCtx) return mancheMots(r);
   return [
     // Quiz, Quiz illustré (cedric, 23/10) : une seule manche faite de séries (🎲, quiz rappelés, questions écrites, reprises).
     ...(quiz ? mancheQuiz(r) : [content]),
@@ -2183,10 +3886,13 @@ function roundFields(r) {
       : null,
     // Note de la manche (cedric, 23/10) : pour s'en souvenir, et la retrouver avec « Reprendre une manche ». Pas dans
     // le Quiz (cedric, 23/10 : « n'a pas lieu d'être »).
-    SANS_CONTENU.includes(r.type) || quiz ? null : h("label", { class: "manche-note" }, "Note",
-      h("input", { type: "text", maxlength: "200", value: r.note ?? "", placeholder: "Pour la retrouver : thème, âge, remarque…", "aria-label": "Note de la manche", oninput: (e) => { r.note = e.target.value; } })),
+    SANS_CONTENU.includes(r.type) || quiz ? null : noteManche(r),
   ];
 }
+
+/** Note de la manche (cedric, 23/10) : pour s'en souvenir, et la retrouver avec « Reprendre une manche ». */
+const noteManche = (r) => h("label", { class: "manche-note" }, "Note",
+  h("input", { type: "text", maxlength: "200", value: r.note ?? "", placeholder: "Pour la retrouver : thème, âge, remarque…", "aria-label": "Note de la manche", oninput: (e) => { r.note = e.target.value; } }));
 
 /** Deux façons de remplir une manche (une source entière, ou des éléments au choix) : deux puces. */
 function modeSwitch(r, byItem, whole, items, set) {
@@ -2254,7 +3960,7 @@ function mimeNeedLine(r) {
 
 function refreshSummary() {
   const s = formShow();
-  const { snapshot, problems } = buildSnapshot(editing?.id ?? "nouvelle", s, quizzes, mimes, Math.random, playlists, contents);
+  const { snapshot, problems } = buildSnapshot(editing?.id ?? "nouvelle", s, quizzes, mimes, Math.random, playlists, contents, {}, songs);
   const profile = PROFILES[s.profile] ? s.profile : profileForAge(s.age);
   // Durée estimée toute seule d'après les jeux composés (cedric, 23/10) : elle ne se saisit plus.
   const duree = dureeEstimee(snapshot, s);
@@ -2263,13 +3969,16 @@ function refreshSummary() {
     ? `${contentLabel(snapshot)} jouables · environ ${duree.minutes} min · chrono ${defaultDuration(profile)} s par question ${profile === "NEUTRE" ? "(profil Neutre, tous âges)" : `pour les ${PROFILES[profile].label}`}, sauf durée imposée`
     : "";
   $("show-problems").replaceChildren(...problems.map((p) => h("li", { text: p })));
-  const r = readiness(s, quizzes, mimes, playlists, contents);
+  const r = readiness(s, quizzes, mimes, playlists, contents, undefined, songs);
   $("show-ready").className = `ready-box ${r.level}`;
+  // Un jeu encore vide que la TV remplira au hasard (cedric, 24/10) : une alerte, même quand elle est prête.
+  const alertes = r.alertes.map((t) => h("li", { class: "ready-alerte", text: `⚠ ${t}` }));
   $("show-ready").replaceChildren(r.level === "prete"
-    ? h("b", { text: "✓ À venir : prête, elle est visible sur la régie." })
+    ? h("div", {}, h("b", { text: "✓ À venir : prête, elle est visible sur la régie." }),
+      alertes.length ? [h("p", { class: "ready-alertes-titre", text: "À vérifier avant le jour J :" }), h("ul", {}, ...alertes)] : null)
     : r.level === "archivee"
       ? h("b", { text: "Prestation archivée : elle n'apparaît plus sur la régie." })
-      : h("div", {}, h("b", { text: "Reste à faire avant le jour J :" }), h("ul", {}, ...r.todo.map((t) => h("li", { text: t })))));
+      : h("div", {}, h("b", { text: "Reste à faire avant le jour J :" }), h("ul", {}, ...r.todo.map((t) => h("li", { text: t })), ...alertes)));
 }
 ["show-age", "show-profile", "show-child", "show-title", "show-date", "show-status"].forEach((id) => $(id).addEventListener("input", refreshSummary));
 // Le nombre d'équipes change ce qu'il faut prévoir pour les mimes : les manches sont redessinées. Il donne aussi
@@ -2314,14 +4023,17 @@ function choisirCouleur(i, c) {
   couleursSaisies[i] = c;
   pastilleOuverte = -1;
   renderCouleurs();
+  // Les mimes ont une manche par couleur d'équipe : leurs titres suivent.
+  if (editing?.rounds?.some((r) => r?.type === "mimes")) refreshRounds();
 }
-$("round-add").onclick = () => ouvrirChoixJeu();
+$("round-add").onclick = () => ouvrirChoixJeu("bas");
+$("round-add-top").onclick = () => ouvrirChoixJeu("haut");
 
 /** Contenu d'une manche (titre du quiz, du paquet, de la playlist), "" pour un jeu sans contenu, null s'il n'existe plus. */
 function roundContent(r) {
   if (!r?.type && !r?.quizId) return null;
   if (BUILTIN_GAMES[r.type] || r.type === "statues" || r.type === "pictionary" || r.type === "coffres" || r.type === "portes" || r.type === "gonfleur" || r.type === "patate") return "";
-  if (r.type === "mimes") return r.deckId ? mimes[r.deckId]?.title ?? null : "cartes au hasard";
+  if (r.type === "mimes") return mimeEquipes(r).some((l) => l.length) ? mancheSummary(r, { mimes }) : r.deckId ? mimes[r.deckId]?.title ?? null : "cartes au hasard";
   if (MUSIC_GAMES[r.type]) return playlists[r.playlistId]?.title ?? null;
   if (roundTirees(r).length || roundSeriesQuiz(r).length) return mancheSummary(r, { quizzes });
   const titles = roundQuizIds(r).map((id) => quizzes[id]?.title);
@@ -2357,13 +4069,22 @@ async function garderManches(showId, s) {
   return n;
 }
 
-$("show-form").onsubmit = async (e) => {
+$("show-form").onsubmit = (e) => {
   e.preventDefault();
+  enregistrerPrestation();
+};
+
+/** Enregistre la prestation ouverte ; rend vrai une fois enregistrée (même gardée « À compléter »). */
+async function enregistrerPrestation() {
   const s = formShow();
   // « À compléter » s'enregistre même incomplète (cedric, 21/10). « À venir » = prête pour la régie : s'il manque
   // quelque chose (prénom, âge, date, jeu prêt), elle est gardée « À compléter » et le message dit quoi.
   // Une date passée le dit aussi (sans cela, elle filerait directement dans les archivées).
-  const manque = s.status === "publiee" ? readiness({ ...s, keepActive: true }, quizzes, mimes, playlists, contents).todo : [];
+  const manque = s.status === "publiee" ? readiness({ ...s, keepActive: true }, quizzes, mimes, playlists, contents, undefined, songs).todo : [];
+  // Gardée « À compléter » : l'enregistrement dit aussi ce qui cloche dans les jeux (cedric, 24/10 : une chanson oubliée
+  // dans le blind test, une case restée sur le 🎲…).
+  const aRevoir = s.status === "brouillon" ? buildSnapshot("x", s, quizzes, mimes, Math.random, playlists, contents, {}, songs).problems
+    .filter((p) => !p.startsWith("Aucune question jouable")) : [];
   if (manque.length) {
     s.status = "brouillon";
     $("show-status").value = "brouillon";
@@ -2377,7 +4098,7 @@ $("show-form").onsubmit = async (e) => {
     // Chaque manche composée ici est aussi gardée dans la page de son jeu ; la prestation garde le lien vers elle.
     if (await garderManches(id, s)) s.rounds = editing.rounds.filter(roundFilled).map((r) => cleanRound(r, playlists));
     const enregistree = {
-      ...s, origin: prev.origin ?? "admin", createdAt: prev.createdAt ?? Date.now(),
+      ...s, origin: prev.origin ?? editing.origin ?? "admin", createdAt: prev.createdAt ?? Date.now(),
       // L'étoile d'une archivée et le « ne plus archiver toute seule » d'une désarchivée ne se perdent pas.
       ...(s.status === "archivee" && prev.pinned ? { pinned: true } : {}),
       // Seulement tant que sa date est passée : reprogrammée, elle s'archive de nouveau le lendemain de la fête.
@@ -2400,14 +4121,17 @@ $("show-form").onsubmit = async (e) => {
     if (manque.length && archivee) dire(`Toujours dans les « Archivées » : pour la remettre « À venir », il manque : ${manque.join(" · ")}.`);
     else if (manque.length) dire(`Enregistrée en « À compléter » : pour passer en « À venir », il manque : ${manque.join(" · ")}.`);
     else if (archivee && s.status !== "archivee") dire("Enregistrée dans les « Archivées » : sa date est passée. Pour la remettre « À venir », choisissez une date à venir.");
+    else if (aRevoir.length) dire(`Enregistrée. À revoir avant le jour J : ${aRevoir.join(" · ")}`);
     else dire(s.status === "publiee" ? "Enregistrée « À venir » : elle est visible sur la régie." : "Enregistrée.", true);
+    return true;
   } catch (err) {
     console.error(err);
     dire("Enregistrement refusé : vérifiez les champs ou vos droits d'administration.");
+    return false;
   } finally {
     $("show-save").disabled = false;
   }
-};
+}
 
 // ---------- Bibliothèque de quiz ----------
 
@@ -2494,10 +4218,11 @@ $("quiz-photos").onchange = async () => {
   const questions = photoQuestions(files.map((f) => f.name));
   const kept = [];
   for (const [k, f] of files.entries()) {
-    $("quiz-photos-open").textContent = `Préparation des photos… (${k + 1}/${files.length})`;
+    document.querySelectorAll("#quiz-photos-open, .photos-nouvelle").forEach((b) => { b.textContent = `Préparation des photos… (${k + 1}/${files.length})`; });
     try { kept.push({ ...questions[k], imageId: await storeIllustration(f) }); } catch (err) { console.error(err); }
   }
   $("quiz-photos-open").textContent = "📷 Nouveau quiz de photos à deviner";
+  document.querySelectorAll(".photos-nouvelle").forEach((b) => { b.textContent = "📷 Nouvelle série de photos"; });
   if (!kept.length) return avertir("Ces photos n'ont pas pu être lues : essayez des JPEG ou des PNG.");
   review(null, { title: "Mes photos", theme: "", source: "photos", kind: "images", questions: kept });
   status("rv-status", `${kept.length} photo${kept.length > 1 ? "s" : ""} prête${kept.length > 1 ? "s" : ""} : vérifiez chaque réponse, puis enregistrez.`, true);
@@ -3842,156 +5567,94 @@ async function afficherJournal() {
 
 // ---------- Prestation de test ----------
 
-/** Ajoute la prestation de test et son quiz, seulement s'ils n'existent pas encore : rien n'est jamais remplacé. */
-$("test-create").onclick = async () => {
-  const btn = $("test-create");
-  btn.disabled = true;
-  try {
-    const [q, s] = await Promise.all([get(ref(db, `library/quizzes/${TEST_ID}`)), get(ref(db, `library/shows/${TEST_ID}`))]);
-    if (q.exists() || s.exists()) {
-      status("test-status", "Elle existe déjà : retrouvez-la dans les listes de l'Accueil (rien n'a été modifié).", true);
-      return;
-    }
-    const now = Date.now();
-    await set(ref(db, `library/quizzes/${TEST_ID}`), { ...TEST_QUIZ, createdAt: now, updatedAt: serverTimestamp() });
-    await set(ref(db, `library/shows/${TEST_ID}`), { ...TEST_SHOW, createdAt: now, updatedAt: serverTimestamp() });
-    status("test-status", "Ajoutée : « ANNIVERSAIRE TEST – Léa, 9 ans » est dans « À venir » et sur la régie.", true);
-  } catch (err) {
-    console.error(err);
-    status("test-status", "Échec de l'ajout. Vérifiez la connexion puis réessayez.");
-  } finally {
-    btn.disabled = false;
-  }
-};
+/** Une ancienne démo effacée par le bouton, dite en clair dans la fenêtre de confirmation. */
+function lignesDemos(plan) {
+  const n = (k, un, des) => (plan[k].length ? plural(plan[k].length, un, des) : null);
+  return [
+    plan.shows.length ? `${n("shows", "prestation de test", "prestations de test")} : ${plan.shows.map((id) => `« ${showTitle(shows[id])} »`).join(", ")}` : null,
+    [n("quizzes", "quiz de démo", "quiz de démo"), n("mimes", "paquet de mimes de démo", "paquets de mimes de démo"), n("playlists", "playlist de démo", "playlists de démo")]
+      .filter(Boolean).join(", ") || null,
+    n("manches", "manche gardée pour elles", "manches gardées pour elles"),
+    plan.medias.length ? `leurs photos dessinées et comptines (${plural(plan.medias.length, "fichier")})` : null,
+  ].filter(Boolean).map((x) => `• ${x}`);
+}
 
-/** Playlist du blind test démo, à clé fixe : un nouveau tirage la remplace. */
-const DEMO_PLAYLIST = `${FULL_ID}-blind-demo`;
-/**
- * Blind test démo (cedric, 21/10) : 10 chansons de la bibliothèque des sons tirées au hasard, celles qui ont leur
- * refrain d'abord (« on chante tous ensemble » à chaque révélation), en premier jeu de la prestation de test « tous les
- * jeux ». Un nouveau clic tire 10 autres chansons ; rien d'autre de la prestation ne change.
- */
-$("test-blind-demo").onclick = async () => {
-  const btn = $("test-blind-demo");
-  const toutes = songList(songs, {}, isStatuesList);
-  if (!toutes.length) return status("test-blind-status", "La bibliothèque des sons est vide : ajoutez d'abord vos chansons (Bibliothèque, onglet Sons).");
-  const tirage = [...shuffle(toutes.filter((x) => x.refrainId)), ...shuffle(toutes.filter((x) => !x.refrainId))].slice(0, PLAYLIST_HASARD);
-  btn.disabled = true;
-  try {
-    await set(ref(db, `library/playlists/${DEMO_PLAYLIST}`), {
-      title: "TEST – Blind test démo", duration: BLIND_SEC, tracks: tirage.map((x) => trackFromSong(x)),
-      createdAt: playlists[DEMO_PLAYLIST]?.createdAt ?? Date.now(), updatedAt: serverTimestamp(),
-    });
-    const fete = (await get(ref(db, `library/shows/${FULL_ID}`))).val();
-    const chansons = `${plural(tirage.length, "chanson")} tirée${tirage.length > 1 ? "s" : ""} au hasard`;
-    if (!fete) {
-      return status("test-blind-status", `Playlist « TEST – Blind test démo » prête : ${chansons}. Ajoutez la prestation de test « tous les jeux » (bouton au-dessus), puis recliquez ici.`, true);
-    }
-    const rounds = Array.isArray(fete.rounds) ? fete.rounds : Object.values(fete.rounds ?? {});
-    if (!rounds.some((r) => r?.type === "blind" && r.playlistId === DEMO_PLAYLIST)) {
-      await set(ref(db, `library/shows/${FULL_ID}`), { ...fete, rounds: [{ type: "blind", playlistId: DEMO_PLAYLIST }, ...rounds], updatedAt: serverTimestamp() });
-    }
-    status("test-blind-status", `Blind test démo prêt : ${chansons}, en premier jeu de « ${FULL_SHOW.title} ». Rechargez la prestation dans la régie.`, true);
-  } catch (err) {
-    console.error(err);
-    status("test-blind-status", "Échec : vérifiez la connexion puis réessayez.");
-  } finally {
-    btn.disabled = false;
-  }
-};
+const tic = () => new Promise((fin) => setTimeout(fin, 0));
 
 /**
- * Prestation de test « tous les jeux » : photos dessinées ici, puis quiz, paquet de mimes et enfin la
- * prestation. Chaque contenu déjà présent est gardé tel quel : rien n'est jamais remplacé.
+ * Touche une fois le 🎲 de chaque jeu de la prestation ouverte, comme Sarah (celui de chaque équipe aux Mimes) : chaque
+ * jeu se remplit avec son propre tirage (âge, équipes, « jamais deux fois » avec les jeux d'avant).
  */
-$("test-full-create").onclick = async () => {
-  const btn = $("test-full-create");
+async function toucherLesDes() {
+  const bloc = (i) => $("show-rounds").querySelectorAll(".jeu-bloc")[i];
+  const n = $("show-rounds").querySelectorAll(".jeu-bloc").length;
+  for (let i = 0; i < n; i++) {
+    const equipes = bloc(i)?.dataset.jeu === "mimes" ? bloc(i).querySelectorAll(".mime-equipe").length : 0;
+    if (equipes) {
+      for (let k = 0; k < equipes; k++) {
+        bloc(i)?.querySelectorAll(".mime-equipe")[k]?.querySelector(".tirage-de:not(.petit)")?.click();
+        await tic();
+      }
+    } else {
+      bloc(i)?.querySelector(".tirage-de:not(.petit)")?.click();
+      await tic();
+    }
+  }
+}
+
+/**
+ * « 🧪 Créer la prestation de test » (cedric, 24/10) : un seul bouton. Les anciennes démos s'effacent (demosAEffacer :
+ * jamais rien d'autre), puis la prestation s'ouvre comme une nouvelle : une fête de 9 ans à 4 équipes datée du jour,
+ * les 16 jeux, chaque 🎲 touché une fois ; elle s'enregistre « À venir » (gardée « À compléter », avec ce qui manque,
+ * si un jeu n'a rien pu tirer : bibliothèque des sons vide par exemple).
+ */
+$("test-prestation").onclick = async () => {
+  const btn = $("test-prestation");
+  const plan = demosAEffacer({ shows, manches, quizzes, mimes, playlists, songs, contents, medias });
+  const lignes = lignesDemos(plan);
+  const message = [
+    "Créer la prestation de test ?",
+    `« ${TEST_TITRE} », datée d'aujourd'hui, ${plural(TEST_FICHE.teams, "équipe")} : les ${JEUX_DU_TEST.length} jeux, remplis au 🎲 comme pour une vraie fête.`,
+    ...(lignes.length ? [`Effacé pour de bon :\n${lignes.join("\n")}`] : []),
+    "Vos prestations, vos quiz et vos chansons ne sont pas touchés.",
+  ].join("\n\n");
+  if (!(await confirmer(message, { ok: "Créer", danger: lignes.length > 0 }))) return;
   btn.disabled = true;
-  const addIfMissing = async (path, value) => {
-    if ((await get(ref(db, path))).exists()) return;
-    await set(ref(db, path), value);
-  };
-  /** Comptines du blind test : fabriquées ici, rangées une seule fois dans la bibliothèque. */
-  const addTunes = async (now) => {
-    const ids = [];
-    for (const tune of FULL_TUNES) {
-      const data = await encodeMp3(await synthTune(tune.melody, FULL_TUNE_SEC), 96);
-      const id = await soundId(data);
-      await addIfMissing(`library/sounds/${id}`, data);
-      ids.push(id);
-    }
-    await addIfMissing(`library/playlists/${FULL_KEYS.playlist}`, { ...tunePlaylist(ids), createdAt: now, updatedAt: serverTimestamp() });
-  };
-  /** Quiz en images des petits : une photo dessinée par réponse, rangée une seule fois dans la bibliothèque. */
-  const addImageQuiz = async (now) => {
-    const ids = [];
-    for (const q of FULL_CHOICE_PHOTOS) {
-      const row = [];
-      for (const c of q.choices) {
-        const data = drawPhoto(c);
-        const id = await imageId(data);
-        await addIfMissing(`library/images/${id}`, data);
-        row.push(id);
-      }
-      ids.push(row);
-    }
-    await addIfMissing(`library/quizzes/${FULL_KEYS.images}`, { ...imageQuiz(ids), createdAt: now, updatedAt: serverTimestamp() });
-  };
   try {
-    const existing = (await get(ref(db, `library/shows/${FULL_ID}`))).val();
-    if (existing) {
-      // Prestation de test d'une version précédente : on lui ajoute seulement les jeux qui lui manquent
-      // (avant la Super Finale), sans rien retirer ni modifier d'autre.
-      // L'ancienne manche « Super Finale » disparaît : les dernières questions du quiz comptent double à la place.
-      const { rounds: anciennes, folded, converted } = foldLegacyFinale(existing.rounds);
-      // Le quiz en images des petits devient un Quiz illustré, avec son écran d'ouverture.
-      const illustre = anciennes.some((r) => (r.type ?? "quiz") === "quiz" && r.quizId === FULL_KEYS.images);
-      const rounds = anciennes.map((r) => ((r.type ?? "quiz") === "quiz" && r.quizId === FULL_KEYS.images ? { ...r, type: "illustre" } : r));
-      // Anciens noms des quiz de test (« Quiz illustré » ne désigne plus que le jeu des réponses en images).
-      const renommer = [FULL_KEYS.quiz, FULL_KEYS.images].filter((k) => OLD_TEST_TITLES[quizzes[k]?.title]);
-      const missing = FULL_NEW_ROUNDS.filter((m) => !rounds.some((r) => r.type === m.type && (!m.quizId || r.quizId === m.quizId)));
-      if (existing.origin !== "test" || (!missing.length && !folded && !converted && !illustre && !renommer.length)) {
-        status("test-full-status", "Elle existe déjà : retrouvez-la dans les listes de l'Accueil (rien n'a été modifié).", true);
-        return;
+    if (nbDemos(plan)) {
+      status("test-status", "Effacement des anciennes démos…", true);
+      const effacer = {};
+      for (const [k, chemin] of [["shows", "shows"], ["manches", "manches"], ["quizzes", "quizzes"], ["mimes", "mimes"], ["playlists", "playlists"]]) {
+        for (const id of plan[k]) effacer[`library/${chemin}/${id}`] = null;
       }
-      status("test-full-status", "Ajout des nouveaux jeux à la prestation de test…", true);
-      for (const k of renommer) await update(ref(db, `library/quizzes/${k}`), { title: OLD_TEST_TITLES[quizzes[k].title], updatedAt: serverTimestamp() });
-      if (missing.some((m) => m.playlistId)) await addTunes(Date.now());
-      if (missing.some((m) => m.quizId === FULL_KEYS.images)) await addImageQuiz(Date.now());
-      // Les coffres mystères restent le jeu final : tout à la fin.
-      const last = missing.filter((m) => m.type === "coffres");
-      const middle = missing.filter((m) => m.type !== "coffres");
-      // Coffres mystères déjà là (anciennes Portes mystères comprises) : les nouveaux jeux passent juste avant eux.
-      const at = rounds.findIndex((r) => r.type === "coffres");
-      const next = [...(at < 0 ? [...rounds, ...middle] : [...rounds.slice(0, at), ...middle, ...rounds.slice(at)]), ...last];
-      await set(ref(db, `library/shows/${FULL_ID}`), { ...existing, rounds: next, notes: FULL_SHOW.notes, updatedAt: serverTimestamp() });
-      const added = missing.map((m) => ROUND_TYPES[m.type]).join(", ");
-      status("test-full-status", `Mise à jour de « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux » :${added ? ` ${added} ajouté(s).` : ""}${folded ? " L'ancienne manche « Super Finale » est retirée : les 3 dernières questions du quiz comptent double." : ""}${converted ? " Les Portes mystères deviennent les Coffres mystères." : ""}${illustre ? " Le quiz en images des petits devient un Quiz illustré." : ""}${renommer.length ? " Quiz de test renommés : « TEST – Quiz classique de Léa » et « TEST – Quiz illustré des petits »." : ""} Rechargez la prestation dans la régie.`, true);
-      return;
+      // Une photo ou un extrait : effacé là où il est (l'autre effacement ne trouve rien).
+      for (const id of plan.medias) { effacer[`library/images/${id}`] = null; effacer[`library/sounds/${id}`] = null; }
+      await update(ref(db), effacer);
     }
-    status("test-full-status", "Préparation des photos, des musiques et des jeux…", true);
-    const now = Date.now();
-    await addTunes(now);
-    await addImageQuiz(now);
-    for (const kind of ["zoom", "flou"]) {
-      const ids = [];
-      for (const photo of FULL_PHOTOS[kind]) {
-        const data = drawPhoto(photo);
-        const id = await imageId(data);
-        await addIfMissing(`library/images/${id}`, data);
-        ids.push(id);
-      }
-      await addIfMissing(`library/quizzes/${FULL_KEYS[kind]}`, { ...photoQuiz(kind, ids), createdAt: now, updatedAt: serverTimestamp() });
-    }
-    for (const [id, quiz] of Object.entries(FULL_QUIZZES)) {
-      await addIfMissing(`library/quizzes/${id}`, { ...quiz, createdAt: now, updatedAt: serverTimestamp() });
-    }
-    await addIfMissing(`library/mimes/${FULL_KEYS.mimes}`, { ...FULL_MIMES, createdAt: now, updatedAt: serverTimestamp() });
-    await set(ref(db, `library/shows/${FULL_ID}`), { ...FULL_SHOW, createdAt: now, updatedAt: serverTimestamp() });
-    status("test-full-status", "Ajoutée : « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux » est dans « À venir » et sur la régie.", true);
+    editShow(null);
+    editing.id = TEST_PRESTATION;
+    editing.origin = "test";
+    $("show-child").value = TEST_FICHE.childName;
+    $("show-title").value = TEST_TITRE;
+    $("show-title").dataset.auto = "";
+    $("show-age").value = String(TEST_FICHE.age);
+    $("show-teams").value = String(TEST_FICHE.teams);
+    $("show-date").value = isoDay();
+    $("show-status").value = "publiee";
+    $("show-notes").value = TEST_NOTES;
+    renderCouleurs();
+    editing.rounds = JEUX_DU_TEST.map((type) => ({ type, [JEU_OUVERT]: true }));
+    refreshRounds();
+    await toucherLesDes();
+    // Tout replié, comme une prestation qu'on ouvre : une ligne par jeu.
+    editing.rounds.forEach((r) => { if (r) r[JEU_OUVERT] = false; });
+    refreshRounds();
+    const ok = await enregistrerPrestation();
+    status("test-status", ok ? `Créée : « ${TEST_TITRE} »${nbDemos(plan) ? ", anciennes démos effacées" : ""}.` : "Échec de l'enregistrement : vérifiez la connexion puis réessayez.", ok);
   } catch (err) {
     console.error(err);
-    status("test-full-status", "Échec de l'ajout. Vérifiez la connexion puis réessayez.");
+    status("test-status", "Échec : vérifiez la connexion puis réessayez.");
+    annonce("Échec de la prestation de test : vérifiez la connexion puis réessayez.");
   } finally {
     btn.disabled = false;
   }
@@ -4609,7 +6272,7 @@ function renderLibPicker() {
   const found = parPertinence(all.filter((x) => songMatches(x, $("playlist-lib-search").value)), $("playlist-lib-search").value, (x) => [x.title, x.artist], (x) => x.lists.map((l) => l.title));
   $("playlist-lib-count").textContent = `${found.length} chanson${found.length > 1 ? "s" : ""}`;
   $("playlist-lib-list").replaceChildren(...found.slice(0, 40).map((x) => songRow(x, [
-    boutonEcoute({ class: "btn secondary icon-ecoute", title: "Écouter l'extrait", text: "▶" }, (b) => listen({ audioId: x.audioId, title: x.title }, false, b)),
+    boutonEcoute({ class: "btn secondary icon-ecoute", title: "Écouter l'extrait", text: "▶" }, (b) => listen({ audioId: x.audioId, title: x.title, start: x.start }, false, b, () => parolesFlottantes(x, "screen-playlist-edit"))),
     h("button", {
       type: "button", class: "btn", disabled: inList.has(x.audioId), text: inList.has(x.audioId) ? "Déjà dedans" : "Ajouter",
       onclick: () => {
@@ -4965,16 +6628,17 @@ function fenetreParoles({ titre = "", fermer = null } = {}) {
 
 /**
  * Petite fenêtre des paroles de la liste des sons (cedric, 23/10) : elle s'ouvre en bas de l'écran avec « ▶ Extrait »
- * ou « ▶ Refrain » d'une chanson qui a ses paroles, et se ferme quand l'écoute s'arrête.
+ * ou « ▶ Refrain » d'une chanson qui a ses paroles, et se ferme quand l'écoute s'arrête. [vue] : l'écran qui l'ouvre
+ * (la liste des sons, ou les jeux d'une prestation).
  */
-function parolesFlottantes(x) {
+function parolesFlottantes(x, vue = "song-list") {
   if (!x.lrc || !x.id) return null;
   const f = fenetreParoles({ titre: x.title, fermer: () => stopPreview() });
   f.el.classList.add("flottante");
   f.remplir([]);
   const { montrer, arreter } = f;
-  // Cachée tant que la liste des sons n'est pas à l'écran (réglages ouverts pendant l'écoute).
-  f.montrer = (s) => { f.el.hidden = $("song-list").offsetParent === null; montrer(s); };
+  // Cachée tant que la liste des sons (ou la prestation) n'est pas à l'écran (réglages ouverts pendant l'écoute).
+  f.montrer = (s) => { f.el.hidden = $(vue).offsetParent === null; montrer(s); };
   f.arreter = () => { arreter(); f.el.remove(); };
   document.body.append(f.el);
   get(ref(db, `library/lyrics/${x.id}`))
@@ -4982,6 +6646,17 @@ function parolesFlottantes(x) {
     .catch(() => [])
     .then((l) => { if (f.el.isConnected) f.remplir(l, "Paroles introuvables."); });
   return f;
+}
+
+/**
+ * Paroles d'un morceau d'une playlist pendant son écoute (cedric, 24/10 : « s'il n'y a pas de paroles, rien ne
+ * s'affiche ») : celles de sa chanson de la bibliothèque (même extrait), dans la petite fenêtre de la liste des sons.
+ */
+function parolesDuMorceau(t) {
+  return () => {
+    const x = t?.audioId ? songList(songs, {}, isStatuesList).find((s) => s.audioId === t.audioId) : null;
+    return x ? parolesFlottantes(x, "screen-playlist-edit") : null;
+  };
 }
 
 /**
@@ -5151,8 +6826,8 @@ function renderTracks() {
         // La bibliothèque n'a pas d'ordre : pas de flèches.
         library ? null : h("button", { type: "button", class: "icon", title: "Plus tôt", disabled: i === 0, onclick: () => moveTrack(i, -1), text: "↑" }),
         library ? null : h("button", { type: "button", class: "icon", title: "Plus tard", disabled: i === n - 1, onclick: () => moveTrack(i, 1), text: "↓" }),
-        boutonEcoute({ class: "icon", title: "Écouter l'extrait", text: "▶" }, (b) => listen(t, false, b)),
-        statues ? null : boutonEcoute({ class: "icon", title: "Écouter le hook", text: "🎤" }, (b) => listen(t, true, b)),
+        boutonEcoute({ class: "icon", title: "Écouter l'extrait", text: "▶" }, (b) => listen(t, false, b, parolesDuMorceau(t))),
+        statues ? null : boutonEcoute({ class: "icon", title: "Écouter le hook", text: "🎤" }, (b) => listen(t, true, b, parolesDuMorceau(t))),
         h("button", { type: "button", class: "icon", title: library ? "Retirer de cet écran (la chanson reste dans la bibliothèque)" : "Retirer", onclick: () => { stopPreview(); playlist.tracks.splice(i, 1); renderTracks(); }, text: "✕" })),
       h("div", { class: "track-start" }, label,
         h("input", {
@@ -5408,7 +7083,13 @@ async function chargerParoles(t) {
   if (t.lignes || !t.songId || songs[t.songId]?.lrc !== true) return;
   try {
     const texte = (await get(ref(db, `library/lyrics/${t.songId}`))).val();
-    if (typeof texte === "string") { t.lignes = lireLrc(texte); t.lrcTexte = texte; }
+    if (typeof texte === "string") {
+      // Lues dans la bibliothèque, pas changées : « ← Retour » ne demande pas « Quitter sans enregistrer ? ».
+      const avant = histPlaylist.modifie;
+      t.lignes = lireLrc(texte);
+      t.lrcTexte = texte;
+      if (!avant && playlist?.tracks.includes(t)) histPlaylist.depart();
+    }
   } catch (e) {
     console.warn("Paroles introuvables", e);
   }
@@ -5857,9 +7538,109 @@ function renderLibrary(force = false) {
   $("library-images").hidden = libTab !== "images";
   $("library-sons").hidden = libTab !== "sons";
   $("library-questions").hidden = libTab !== "questions";
-  if (libTab === "sons") renderSongs();
+  if (libTab === "sons") { renderPlaylistsSons(); renderSongs(); }
   else if (libTab === "questions") renderQuestions();
   else renderMedias(force);
+}
+
+// ---------- Bibliothèque › Sons : mes playlists (cedric, 24/10) ----------
+
+/** Playlists dépliées dans Bibliothèque › Sons (le temps de l'écran). */
+const playlistsDepliees = new Set();
+/** Chanson de la bibliothèque d'un morceau de playlist : par son identifiant, sinon par son extrait. */
+function chansonDuMorceau(t) {
+  if (t?.songId && chansonJouable(songs?.[t.songId])) return t.songId;
+  return Object.entries(songs ?? {}).find(([, x]) => chansonJouable(x) && x.audioId === t?.audioId)?.[0] ?? null;
+}
+
+/**
+ * Change les chansons d'une playlist de la bibliothèque : [ids] (dans l'ordre voulu) remplacent celles d'avant. Les
+ * morceaux gardés ne bougent pas (leurs points, leur place), ni ceux d'avant la bibliothèque des sons ; les nouvelles
+ * chansons se mettent à la fin. Une playlist garde au moins une chanson.
+ */
+async function changerChansonsPlaylist(id, ids) {
+  const p = playlists[id];
+  if (!p) return false;
+  const pistes = Array.isArray(p.tracks) ? p.tracks : Object.values(p.tracks ?? {});
+  const avant = new Set(chansonsDePlaylist(p));
+  const voulues = new Set(ids);
+  const gardees = pistes.filter((t) => { const k = chansonDuMorceau(t); return !k || !avant.has(k) || voulues.has(k); });
+  const tracks = [...gardees, ...ids.filter((k) => !avant.has(k) && chansonJouable(songs[k])).map((k) => trackFromSong({ ...songs[k], id: k }))];
+  if (!tracks.length) {
+    await avertir("Une playlist garde au moins une chanson : pour la vider, supprimez-la (« Supprimer »).");
+    return false;
+  }
+  try {
+    await update(ref(db, `library/playlists/${id}`), { tracks, updatedAt: serverTimestamp() });
+    return true;
+  } catch (err) {
+    console.error(err);
+    await avertir("Playlist pas enregistrée : vérifiez Internet ou reconnectez-vous.");
+    return false;
+  }
+}
+
+/** « ＋ Créer une playlist » : son nom, puis ses chansons cochées dans la bibliothèque des sons. */
+async function creerPlaylistSons() {
+  const nom = await demanderTexte("Nom de la nouvelle playlist :", "", { ok: "Choisir ses chansons", maxlength: 120 });
+  const title = nom?.trim().replace(/\s+/g, " ").slice(0, 120);
+  if (!title) return;
+  const ids = await choisirChansons({ titre: `Chansons de la playlist « ${title} »`, plusieurs: true });
+  if (!ids?.length) return;
+  try {
+    const nouvelle = push(ref(db, "library/playlists"));
+    // Dépliée d'office (avant l'écriture : la liste se redessine dès qu'elle arrive).
+    playlistsDepliees.add(nouvelle.key);
+    await set(nouvelle, { title, duration: BLIND_SEC, tracks: ids.map((k) => trackFromSong({ ...songs[k], id: k })), updatedAt: serverTimestamp() });
+    renderPlaylistsSons();
+    status("song-status", `Playlist « ${title} » créée : ${ids.length} chanson${ids.length > 1 ? "s" : ""}.`, true);
+  } catch (err) {
+    console.error(err);
+    await avertir("Playlist pas enregistrée : vérifiez Internet ou reconnectez-vous.");
+  }
+}
+$("sons-playlist-new").onclick = creerPlaylistSons;
+
+/**
+ * « 🎶 Mes playlists » en haut de Bibliothèque › Sons : chacune se déplie (ses chansons : pochette, titre, paroles,
+ * ✕), « 🎵 Ajouter des chansons » (cases à cocher ; cedric, 24/10 : la playlist existe déjà), « Renommer », « Supprimer ».
+ */
+function renderPlaylistsSons() {
+  const box = $("sons-playlist-list");
+  const list = Object.entries(playlists ?? {}).filter(([, p]) => p?.title && !isStatuesList(p))
+    .sort(([, a], [, b]) => a.title.localeCompare(b.title, "fr", { sensitivity: "base" }));
+  box.replaceChildren(...list.map(([id, p]) => {
+    const ids = chansonsDePlaylist(p);
+    const ouverte = playlistsDepliees.has(id);
+    const autres = playableTracks(p).length - ids.length;
+    const texte = `${ouverte ? "▾" : "▸"} 🎶 ${p.title} · ${ids.length} chanson${ids.length > 1 ? "s" : ""}${autres > 0 ? ` (+ ${autres} hors bibliothèque des sons)` : ""}`;
+    const lignes = ouverte ? ids.map((k) => {
+      const song = songs[k];
+      const paroles = parolesSurTv(song);
+      return h("li", { class: "tirage-q sons-playlist-chanson", "data-chanson": k },
+        h("div", { class: "tirage-q-ligne" },
+          miniPochette(song),
+          h("span", { class: "tirage-texte" }, h("b", { text: song.title.trim() }), song.artist?.trim() ? h("span", { class: "hint", text: ` · ${song.artist.trim()}` }) : null),
+          h("span", { class: `blind-paroles${paroles ? " ok" : " non"}`, text: paroles ? "✓ Paroles" : "✗ Pas de paroles" }),
+          h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": `Retirer « ${song.title.trim()} » de la playlist`, title: "Retirer cette chanson de la playlist",
+            onclick: () => changerChansonsPlaylist(id, ids.filter((x) => x !== k)) })));
+    }) : [];
+    return h("div", { class: "serie sons-playlist", "data-playlist": id },
+      h("div", { class: "serie-tete" },
+        h("button", { type: "button", class: "chip tirage-voir serie-voir sons-playlist-voir", "aria-expanded": ouverte ? "true" : "false", text: texte,
+          title: "Voir ou cacher les chansons de cette playlist",
+          onclick: () => { if (ouverte) playlistsDepliees.delete(id); else playlistsDepliees.add(id); renderPlaylistsSons(); } }),
+        h("button", { type: "button", class: "btn small secondary sons-playlist-choisir", text: "🎵 Ajouter des chansons", title: "Cocher ou décocher les chansons de cette playlist",
+          onclick: async () => {
+            const choix = await choisirChansons({ titre: `Chansons de la playlist « ${p.title} »`, plusieurs: true, cochees: ids });
+            if (!choix) return;
+            if (await changerChansonsPlaylist(id, choix)) { playlistsDepliees.add(id); renderPlaylistsSons(); }
+          } }),
+        h("button", { type: "button", class: "btn small secondary", text: "Renommer", onclick: () => rename(`library/playlists/${id}`, p.title, "de la playlist") }),
+        h("button", { type: "button", class: "btn small danger", text: "Supprimer", onclick: () => deletePlaylist(id) })),
+      ouverte ? h("ol", { class: "tirage-liste serie-liste sons-playlist-liste" }, ...lignes) : null);
+  }));
+  if (!list.length) box.append(h("p", { class: "hint small", text: "Pas encore de playlist : « ＋ Créer une playlist », puis cochez ses chansons." }));
 }
 
 // ---------- Bibliothèque › Questions (cedric, 22/10) ----------
@@ -5876,6 +7657,7 @@ let packsNouveaux = new Set();
 /** Questions toutes prêtes du quiz illustré : fabriquées une fois (leurs mauvaises réponses sont tirées au hasard). */
 let illustreesCache = null;
 const classiquesPretes = questionsClassiquesPretes();
+const vraiFauxPrets = questionsVraiFauxPretes();
 /** Ses questions cochées (clés « quiz/numéro »), à supprimer ensemble ; celles de la liste affichée. */
 const qSelection = new Set();
 let qListees = [];
@@ -5895,7 +7677,7 @@ $("pack-exemple").textContent = JSON.stringify(EXEMPLE_PACK, null, 2);
 
 function groupesQuestions() {
   illustreesCache ??= questionsIllustreesPretes();
-  return { classiques: classiquesPretes, illustrees: illustreesCache, miennes: mesQuestions(quizzes), packs: mesPacks(quizzes), tests: questionsDeTest(quizzes) };
+  return { classiques: classiquesPretes, illustrees: illustreesCache, vraifaux: vraiFauxPrets, miennes: mesQuestions(quizzes), packs: mesPacks(quizzes), photos: mesSeriesDePhotos(quizzes), tests: questionsDeTest(quizzes) };
 }
 
 /** Vignette de l'illustration : sa photo, son émoji, la photo de la banque de la bonne réponse, sinon « ⚠ ». */
@@ -5907,6 +7689,8 @@ function illustrationQuestion(x) {
   if (photo) return photoBibliotheque(photo, { class: "q-illus" });
   if (x.banque?.[0]) return h("img", { class: "q-illus", src: `banque/${x.banque[0]}.jpg`, alt: "", loading: "lazy" });
   if (x.banqueEmojis?.[0]) return h("span", { class: "q-illus emoji", text: x.banqueEmojis[0] });
+  // Vrai ou Faux tout prêt : une affirmation, sans image.
+  if (x.vraiFaux) return h("span", { class: "q-illus emoji", title: "Vrai ou Faux : sans image", text: "✅" });
   // Juste Chiffre sans émoji : la TV montre son compteur qui tourne.
   if (x.nombre) return h("span", { class: "q-illus emoji compteur", title: "Le compteur du Juste Chiffre", text: "🔢" });
   return h("span", { class: "q-illus vide", title: "Pas d'illustration", text: "⚠" });
@@ -5943,7 +7727,7 @@ function ligneQuestion(x) {
 }
 
 /** Ses questions, toutes (en vrac, dans les packs, de test) : pour retrouver celles qui sont cochées. */
-const toutesMesQuestions = () => [...mesQuestions(quizzes), ...mesPacks(quizzes).flatMap((p) => p.questions), ...questionsDeTest(quizzes)];
+const toutesMesQuestions = () => [...mesQuestions(quizzes), ...[...mesPacks(quizzes), ...mesSeriesDePhotos(quizzes)].flatMap((p) => p.questions), ...questionsDeTest(quizzes)];
 
 /** Barre des questions cochées : combien, tout cocher ici, tout décocher, supprimer. */
 function barreSelection() {
@@ -6003,7 +7787,7 @@ function cartePack(p) {
     h("span", { class: "pill", text: QUIZ_KINDS[p.kind] ?? "📝 Quiz classique" }),
     h("b", { text: p.title }),
     h("span", { text: [p.theme, SOURCES[p.source] ?? ""].filter(Boolean).join(" · ") }),
-    h("span", { text: `${plural(p.total, "question")} · ${p.validees} validée${p.validees > 1 ? "s" : ""}` }),
+    h("span", { text: `${plural(p.total, p.kind === "images" ? "photo" : "question")} · ${p.validees} validée${p.validees > 1 ? "s" : ""}` }),
     p.sansIllustration ? h("span", { class: "q-alerte", text: `⚠ ${p.sansIllustration} sans illustration` }) : h("span", { class: "ok", text: "✓ Toutes illustrées" }),
     h("div", { class: "row" },
       h("button", { class: "btn", type: "button", text: "Ouvrir", onclick: () => { const y = window.scrollY; qPack = p.id; qSelection.clear(); status("q-status", ""); renderQuestions(); noterRubrique(y); } }),
@@ -6023,8 +7807,12 @@ function dessinerQuestions() {
   const recherche = $("q-search").value.trim();
   const filtre = (list) => (recherche ? list.filter((x) => questionCorrespond(x, recherche)) : list);
   // Un pack correspond si son titre, son thème ou une de ses questions correspond.
-  const packsTrouves = recherche ? g.packs.filter((p) => questionCorrespond({ text: p.title, categorie: p.theme }, recherche) || p.questions.some((x) => questionCorrespond(x, recherche))) : g.packs;
-  const compte = Object.fromEntries(Object.keys(GROUPES_QUESTIONS).map((k) => [k, k === "packs" ? packsTrouves.reduce((n, p) => n + p.total, 0) : filtre(g[k]).length]));
+  const cartesTrouvees = (cartes) => (recherche ? cartes.filter((p) => questionCorrespond({ text: p.title, categorie: p.theme }, recherche) || p.questions.some((x) => questionCorrespond(x, recherche))) : cartes);
+  const packsTrouves = cartesTrouvees(g.packs);
+  // Ses séries de photos (Zoom mystère, Image floue) : des cartes, comme les packs (cedric, 23/10).
+  const seriesTrouvees = cartesTrouvees(g.photos);
+  const enCartes = { packs: packsTrouves, photos: seriesTrouvees };
+  const compte = Object.fromEntries(Object.keys(GROUPES_QUESTIONS).map((k) => [k, enCartes[k] ? enCartes[k].reduce((n, p) => n + p.total, 0) : filtre(g[k]).length]));
   // « 🧪 Questions de test » n'apparaît que s'il y a une prestation de test dans la bibliothèque.
   const groupes = Object.entries(GROUPES_QUESTIONS).filter(([k]) => k !== "tests" || g.tests.length);
   if (qGroupe === "tests" && !g.tests.length) qGroupe = null;
@@ -6042,15 +7830,16 @@ function dessinerQuestions() {
 
   // Un pack ouvert : ses questions, chacune avec son illustration ou l'alerte.
   if (qPack) {
-    const p = g.packs.find((x) => x.id === qPack);
+    const p = [...g.packs, ...g.photos].find((x) => x.id === qPack);
+    const photos = p.kind === "images";
     const liste = filtre(p.questions);
     qListees = liste;
     box.replaceChildren(
       h("div", { class: "title-row" },
-        h("button", { type: "button", class: "btn secondary", text: "← Tous les packs", onclick: () => { const y = window.scrollY; qPack = null; qSelection.clear(); renderQuestions(); noterRubrique(y); } }),
-        h("button", { type: "button", class: "btn secondary", text: "Éditer le pack", onclick: () => review(p.id, quizzes[p.id]) })),
+        h("button", { type: "button", class: "btn secondary", text: photos ? "← Toutes les séries de photos" : "← Tous les packs", onclick: () => { const y = window.scrollY; qPack = null; qSelection.clear(); renderQuestions(); noterRubrique(y); } }),
+        h("button", { type: "button", class: "btn secondary", text: photos ? "Éditer la série" : "Éditer le pack", onclick: () => review(p.id, quizzes[p.id]) })),
       h("h2", { text: p.title }),
-      h("p", { class: "hint", text: [p.theme, plural(p.total, "question"), p.sansIllustration ? `⚠ ${p.sansIllustration} sans illustration` : "✓ toutes illustrées"].filter(Boolean).join(" · ") }),
+      h("p", { class: "hint", text: [p.theme, plural(p.total, photos ? "photo" : "question"), p.sansIllustration ? `⚠ ${p.sansIllustration} sans ${photos ? "photo" : "illustration"}` : photos ? "✓ toutes avec leur photo" : "✓ toutes illustrées"].filter(Boolean).join(" · ") }),
       liste.length ? h("div", { class: "q-liste" }, ...liste.map(ligneQuestion)) : h("p", { class: "hint", text: "Aucune question ne correspond à cette recherche." }));
     return;
   }
@@ -6059,13 +7848,28 @@ function dessinerQuestions() {
   if (!qGroupe) {
     box.replaceChildren(...groupes.map(([k, label]) => {
       const voir = h("button", { type: "button", class: "btn small secondary", text: "Voir tout", onclick: () => { const y = window.scrollY; qGroupe = k; renderQuestions(); noterRubrique(y); } });
-      const contenu = k === "packs"
-        ? (packsTrouves.length ? h("div", { class: "cards" }, ...packsTrouves.slice(0, QUESTIONS_APERCU).map(cartePack))
-          : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : "Aucun pack pour l'instant : « Voir tout », puis « 📥 Importer des packs JSON… »." }))
+      const contenu = enCartes[k]
+        ? (enCartes[k].length ? h("div", { class: "cards" }, ...enCartes[k].slice(0, QUESTIONS_APERCU).map(cartePack))
+          : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : k === "photos" ? "Aucune série de photos pour l'instant : « Voir tout », puis « 📷 Nouvelle série de photos »." : "Aucun pack pour l'instant : « Voir tout », puis « 📥 Importer des packs JSON… »." }))
         : (filtre(g[k]).length ? h("div", { class: "q-liste" }, ...filtre(g[k]).slice(0, QUESTIONS_APERCU).map(ligneQuestion))
           : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : k === "miennes" ? "Aucune question écrite à la main pour l'instant." : "" }));
       return h("section", { class: "q-groupe", "data-groupe": k }, h("div", { class: "title-row" }, h("h2", { text: label }), voir), contenu);
     }));
+    return;
+  }
+
+  // Mes séries de photos (cedric, 23/10) : par thème, comme les packs ; « 📷 Nouvelle série de photos » : vos photos
+  // d'un coup, le nom de chaque fichier devient sa réponse.
+  if (qGroupe === "photos") {
+    box.replaceChildren(
+      h("div", { class: "title-row" },
+        h("p", { class: "hint small grow", text: "Pour le Zoom mystère et l'Image floue : une série par thème (« Disney », « Animaux »…). Le nom de chaque photo devient sa réponse, à corriger avant d'enregistrer." }),
+        h("button", { type: "button", class: "btn photos-nouvelle", text: "📷 Nouvelle série de photos", onclick: () => $("quiz-photos").click() })),
+      seriesTrouvees.length
+        ? h("div", { class: "q-themes" }, ...packsParTheme(seriesTrouvees).map(([theme, series]) => h("section", { class: "q-theme", "data-theme": theme },
+          h("h3", { text: `${theme} · ${plural(series.length, "série")}` }),
+          h("div", { class: "cards" }, ...series.map(cartePack)))))
+        : h("p", { class: "hint", text: recherche ? "Aucune série de photos ne correspond à cette recherche." : "Aucune série de photos pour l'instant." }));
     return;
   }
 
@@ -6085,8 +7889,9 @@ function dessinerQuestions() {
   const types = qGroupe === "classiques" ? { qcm: ["❓ Questions à 4 réponses", (x) => !x.nombre], nombre: ["🔢 Juste Chiffre", (x) => x.nombre] } : {};
   if (!types[qType]) qType = null;
   const duType = qType ? tousTypes.filter(types[qType][1]) : tousTypes;
-  // Quiz classique : trois niveaux sans chevauchement (cedric, 22/10), Facile, Moyen et Difficile.
-  if (qGroupe !== "classiques") qNiveau = null;
+  // Quiz classique et Vrai ou Faux : trois niveaux sans chevauchement (cedric, 22/10), Facile, Moyen et Difficile.
+  const parNiveau = qGroupe === "classiques" || qGroupe === "vraifaux";
+  if (!parNiveau) qNiveau = null;
   const tout = qNiveau ? duType.filter((x) => x.niveau === qNiveau) : duType;
   const categories = [...new Set(tout.map((x) => x.categorie).filter(Boolean))];
   if (qCategorie && !categories.includes(qCategorie)) qCategorie = null;
@@ -6101,7 +7906,8 @@ function dessinerQuestions() {
         type: "button", class: `chip${qType === k ? " active" : ""}`, "data-type": k, text: `${label} (${tousTypes.filter(garde).length})`,
         onclick: () => { qType = k; renderQuestions(); },
       }))) : null,
-    qGroupe === "classiques" ? h("div", { class: "chips q-niveaux" },
+    qGroupe === "vraifaux" ? h("p", { class: "hint small", text: "Vrai ou Faux express : des affirmations toutes prêtes, à dire vraies ou fausses, sans image. Dans une prestation, le 🎲 de la manche Vrai ou Faux express en tire autant de vraies que de fausses, du niveau choisi." }) : null,
+    parNiveau ? h("div", { class: "chips q-niveaux" },
       h("button", { type: "button", class: `chip${qNiveau ? "" : " active"}`, "data-niveau": "tous", text: `Tous les niveaux (${duType.length})`, onclick: () => { qNiveau = null; renderQuestions(); } }),
       ...Object.keys(NIVEAUX_CHIFFRES).map(Number).map((n) => h("button", {
         type: "button", class: `chip${qNiveau === n ? " active" : ""}`, "data-niveau": n, text: `${libelleNiveau(n)} (${duType.filter((x) => x.niveau === n).length})`,
@@ -6251,7 +8057,8 @@ function renderMedias(force = false) {
       const voir = h("button", { type: "button", class: "btn small secondary", text: recherche ? `Voir les ${plural(list.length, "résultat")}` : `Tout voir (${list.length})`, onclick: () => { const y = window.scrollY; mediaGroupe = k; mediaCat = null; renderMedias(true); noterRubrique(y); } });
       return h("section", { class: "media-group", "data-groupe": k },
         h("div", { class: "title-row" }, h("h2", { text: label }), list.length ? voir : null,
-          k === "miennes" && !recherche ? h("button", { type: "button", class: "btn small", text: "＋ Ajouter mes images", onclick: () => { const y = window.scrollY; mediaGroupe = "miennes"; mediaCat = null; renderMedias(true); noterRubrique(y); } }) : null),
+          k === "miennes" && !recherche ? h("button", { type: "button", class: "btn small", text: "＋ Ajouter mes images", onclick: () => { const y = window.scrollY; mediaGroupe = "miennes"; mediaCat = null; renderMedias(true); noterRubrique(y); } }) : null,
+          k === "photos" && !recherche && motsSansPhoto().length ? h("button", { type: "button", class: "btn small secondary pm-ouvrir", text: `🧰 Photos manquantes (${motsSansPhoto().length})`, onclick: () => { const y = window.scrollY; mediaGroupe = "photos"; mediaCat = null; renderMedias(true); noterRubrique(y); } }) : null),
         list.length ? h("div", { class: "media-grid" }, ...list.slice(0, APERCU).map((x, i, l) => vignetteMedia(x, i, l)))
           : h("p", { class: "hint small", text: recherche ? "Rien ici pour cette recherche." : k === "miennes" ? "Aucune image à vous pour l'instant : « ＋ Ajouter mes images »." : k === "pochettes" ? AUCUNE_POCHETTE : "" }));
     }));
@@ -6284,6 +8091,8 @@ function renderMedias(force = false) {
       : h("div", { class: "media-grid" }, ...items.map((x, i) => vignetteMedia(x, i, items))),
   ]));
   if (list.length > montrees.length) box.append(h("p", { class: "hint small", text: `… et ${list.length - montrees.length} autres : précisez la recherche.` }));
+  // Menu temporaire (cedric, 24/10) : les mots de la banque sans vraie photo, à compléter avec ses photos.
+  if (mediaGroupe === "photos" && !recherche && !mediaCat) { const pm = panneauPhotosManquantes(h, annonce); if (pm) box.prepend(pm); }
 }
 $("media-search").oninput = () => renderMedias(true);
 
@@ -6338,7 +8147,9 @@ function dessinerVisionneuse() {
   $("vis-image").replaceChildren(x.groupe === "emojis" ? h("span", { class: "emoji", text: x.emoji })
     : x.groupe === "photos" ? h("img", { src: x.src, alt: x.nom ?? "" }) : photoBibliotheque(x.id, { alt: x.nom ?? "" }));
   $("vis-nom").textContent = x.nom || "Sans nom";
-  $("vis-details").textContent = [GROUPES_IMAGES[x.groupe], x.cat, ...(x.tags ?? [])].filter(Boolean).join(" · ");
+  // Bonne pour le mime (cedric, 24/10) : sa tranche d'âge, dans la fiche seulement (photos libres et émojis).
+  $("vis-details").textContent = [GROUPES_IMAGES[x.groupe], x.cat, ...(x.tags ?? []),
+    x.groupe === "photos" || x.groupe === "emojis" ? etiquetteMime(x.nom) : ""].filter(Boolean).join(" · ");
   $("vis-ou").textContent = x.ou?.length ? `Utilisée dans : ${x.ou.join(", ")}` : "";
   const plusieurs = vis.liste.length > 1;
   $("vis-prec").hidden = !plusieurs;
@@ -6450,40 +8261,77 @@ async function blobDe(x) {
 /**
  * Fenêtre « 🖼️ Bibliothèque » : la recherche de la page Bibliothèque, pour choisir une image en fabriquant un quiz.
  * [groupes] : ceux proposés ; [recherche] : le mot cherché d'abord. Rend l'image choisie, ou null (Annuler, Échap).
+ * [plusieurs] (cedric, 24/10, le « ＋ » des Mimes) : un clic coche ou décoche, les catégories du groupe filtrent aussi,
+ * « ＋ Ajouter la sélection » rend les images cochées dans l'ordre (une liste, vide si Annuler). [deja] : pour une
+ * image, où elle sert déjà (signalé en rouge, permis) ou rien.
  */
-function choisirDansBibliotheque({ titre, groupes = Object.keys(GROUPES_IMAGES), recherche = "" }) {
+function choisirDansBibliotheque({ titre, groupes = Object.keys(GROUPES_IMAGES), recherche = "", plusieurs = false, deja = null }) {
   return new Promise((resolve) => {
     const g = groupesImages();
     let groupe = null;
+    let cat = null;
+    const cochees = new Map();
     const champ = h("input", { type: "search", class: "choix-recherche", value: recherche, placeholder: "Rechercher : nom, catégorie, mot-clé…", "aria-label": "Rechercher une image", autocomplete: "off" });
     const puces = h("div", { class: "chips media-cats" });
+    const pucesCats = h("div", { class: "chips media-cats choix-cats" });
     const grille = h("div", { class: "media-grid choix-grille" });
-    const fermer = (x) => { voile.remove(); resolve(x); };
+    const ajouter = h("button", { type: "button", class: "btn choix-ajouter", onclick: () => fermer([...cochees.values()]) });
+    const fermer = (x) => { voile.remove(); resolve(plusieurs ? x ?? [] : x); };
+    const majAjouter = () => {
+      ajouter.disabled = !cochees.size;
+      ajouter.textContent = cochees.size ? `＋ Ajouter la sélection (${cochees.size})` : "＋ Ajouter la sélection";
+    };
     const dessiner = () => {
       const q = champ.value.trim();
       const listes = Object.fromEntries(groupes.map((k) => [k, g[k].filter((x) => correspond(x, q))]));
       const n = (k) => (k ? listes[k].length : groupes.reduce((t, x) => t + listes[x].length, 0));
       puces.replaceChildren(...[null, ...groupes].map((k) => h("button", {
         type: "button", class: `chip${groupe === k ? " active" : ""}`, "data-groupe": k ?? "tout", text: `${k ? GROUPES_IMAGES[k] : "Tout"} (${n(k)})`,
-        onclick: () => { groupe = k; dessiner(); },
+        onclick: () => { groupe = k; cat = null; dessiner(); },
       })));
       // Les meilleurs résultats d'abord ; à égalité, ses images avant les autres (on y cherche un personnage, un film).
-      const items = parPertinence(groupe ? listes[groupe] : [...groupes].sort((a, b) => (b === "miennes") - (a === "miennes")).flatMap((k) => listes[k]), q, nomMedia, autresMedia).slice(0, 120);
-      grille.replaceChildren(...items.map((x) => h("button", { type: "button", class: "media-tile", "data-media": x.id, title: [x.cat, ...(x.tags ?? [])].filter(Boolean).join(" · "), onclick: () => fermer(x) },
-        ...imageDeMedia(x), h("span", { text: x.nom || "Sans nom" }))));
+      let items = parPertinence(groupe ? listes[groupe] : [...groupes].sort((a, b) => (b === "miennes") - (a === "miennes")).flatMap((k) => listes[k]), q, nomMedia, autresMedia);
+      // Plusieurs à choisir : les catégories du groupe ouvert filtrent aussi (Animaux, À manger…).
+      const cats = plusieurs && groupe ? categoriesDe(items) : [];
+      if (cat && !cats.includes(cat)) cat = null;
+      pucesCats.replaceChildren(...(cats.length > 1 ? [null, ...cats].map((c) => h("button", {
+        type: "button", class: `chip${cat === c ? " active" : ""}`, "data-cat": c ?? "toutes", text: `${c ?? "Toutes"} (${c ? items.filter((x) => x.cat === c).length : items.length})`,
+        onclick: () => { cat = c; dessiner(); },
+      })) : []));
+      if (cat) items = items.filter((x) => x.cat === cat);
+      items = items.slice(0, plusieurs ? 400 : 120);
+      grille.replaceChildren(...items.map((x) => {
+        const ou = deja?.(x);
+        const tuile = h("button", {
+          type: "button", class: `media-tile${cochees.has(x.id) ? " cochee" : ""}${ou ? " deja" : ""}`, "data-media": x.id,
+          title: [ou ? `Déjà utilisée dans ${ou}` : null, [x.cat, ...(x.tags ?? [])].filter(Boolean).join(" · ")].filter(Boolean).join("\n"),
+          ...(plusieurs ? { "aria-pressed": cochees.has(x.id) ? "true" : "false" } : {}),
+          onclick: () => {
+            if (!plusieurs) return fermer(x);
+            if (cochees.has(x.id)) cochees.delete(x.id); else cochees.set(x.id, x);
+            tuile.classList.toggle("cochee", cochees.has(x.id));
+            tuile.setAttribute("aria-pressed", cochees.has(x.id) ? "true" : "false");
+            majAjouter();
+          },
+        }, ...imageDeMedia(x), h("span", { text: x.nom || "Sans nom" }));
+        return tuile;
+      }));
       if (!items.length) grille.append(h("p", { class: "hint", text: q ? "Aucune image pour cette recherche : essayez un autre mot." : "Aucune image." }));
     };
     champ.oninput = dessiner;
     // Rien pour le mot proposé : on montre toutes les images plutôt qu'une fenêtre vide.
     if (recherche && !groupes.some((k) => g[k].some((x) => correspond(x, recherche)))) champ.value = "";
+    majAjouter();
     const voile = h("div", {
       class: "cadre-voile choix-voile", onclick: (e) => { if (e.target === voile) fermer(null); },
       onkeydown: (e) => { if (e.key === "Escape") fermer(null); },
     }, h("div", { class: "cadre-boite choix-boite", role: "dialog", "aria-label": titre },
       h("p", { class: "label", text: `🖼️ ${titre}` }),
-      h("p", { class: "hint small", text: "Cherchez par nom, catégorie ou mot-clé ; un clic choisit l'image. Vos images se rangent dans Bibliothèque › Images." }),
-      champ, puces, grille,
-      h("div", { class: "row" }, h("button", { type: "button", class: "btn secondary", text: "Annuler", onclick: () => fermer(null) }))));
+      h("p", { class: "hint small", text: plusieurs
+        ? "Cherchez par nom, catégorie ou mot-clé ; un clic coche ou décoche l'image ; puis « ＋ Ajouter la sélection »."
+        : "Cherchez par nom, catégorie ou mot-clé ; un clic choisit l'image. Vos images se rangent dans Bibliothèque › Images." }),
+      champ, puces, pucesCats, grille,
+      h("div", { class: "row" }, h("button", { type: "button", class: "btn secondary", text: "Annuler", onclick: () => fermer(null) }), plusieurs ? ajouter : null)));
     document.body.append(voile);
     dessiner();
     champ.focus();
@@ -6561,7 +8409,7 @@ const GAME_GROUPS = [
       status: () => plural(statuesChoices(playlists).length, "chanson disponible", "chansons disponibles"), },
   ] },
   { title: "Tirés d'un quiz", hint: "Rien de plus à préparer : ces jeux reprennent les questions d'un quiz de la bibliothèque. Dans la prestation, choisissez le quiz et combien de questions.", games: [
-    { type: "express", icon: "✔", rule: "Les questions Vrai / Faux d'un quiz, au chrono court du profil.", needs: "Vrai / Faux validées" },
+    { type: "express", icon: "✔", rule: "Des affirmations Vrai / Faux au chrono court du profil : tirées au 🎲 dans le Vrai ou Faux tout prêt, reprises d'un ancien anniversaire ou de vos quiz. Super Finale : les dernières affirmations peuvent compter ×2, ×3 ou ×5 (choisi en direct sur la régie).", needs: "Vrai / Faux validées" },
     { type: "zoom", icon: "🔍", rule: "Une photo d'un quiz ou de la banque se dévoile peu à peu.", needs: "photos" },
     { type: "flou", icon: "🌫", rule: "Une photo d'un quiz ou de la banque devient nette peu à peu, le premier qui buzze répond.", needs: "photos" },
   ] },
@@ -6707,6 +8555,41 @@ function renderBuiltin() {
       }) : null);
   };
   const tiles = [...game.catalog.map((x) => [x, false]), ...extra.map((x) => [x, true])];
+  // Qui suis-je ? (cedric, 24/10) : les personnages tout prêts, les vôtres, puis vos séries (chacune se renomme ou se
+  // supprime d'un coup) ; une série s'appelle dans une prestation (« 📗 Intégrer une de vos séries »).
+  if (type === "quisuis") {
+    const noms = nomsDesSeries(extra);
+    $("bi-serie-list")?.replaceChildren(...noms.map((nom) => h("option", { value: nom })));
+    const renommerSerie = async (nom) => {
+      const neuf = (await demanderTexte(`Nouveau nom de la série « ${nom} »`, nom, { ok: "Renommer", maxlength: 30 }))?.trim();
+      if (!neuf || neuf === nom) return;
+      if (noms.includes(neuf)) return status("builtin-status", `La série « ${neuf} » existe déjà.`);
+      saveBuiltin(type, { off, extra: extra.map((x) => (x.serie === nom ? { ...x, serie: neuf } : x)) }, `Série « ${nom} » renommée « ${neuf} ».`);
+    };
+    const supprimerSerie = async (nom, xs) => {
+      if (!(await confirmer(`Supprimer la série « ${nom} » ${xs.length > 1 ? `et ses ${xs.length} personnages` : "et son personnage"} ?`, { ok: "Supprimer", danger: true }))) return;
+      const cles = new Set(xs.map(([x]) => game.key(x)));
+      const { images: imgs } = builtinState(type);
+      saveBuiltin(type, {
+        off: off.filter((k) => !cles.has(k)), extra: extra.filter((x) => x.serie !== nom),
+        images: Object.fromEntries(Object.entries(imgs).filter(([slot]) => ![...cles].some((k) => contentSlot(k) === slot))),
+      }, `Série « ${nom} » supprimée.`);
+    };
+    const groupes = [
+      ["Personnages tout prêts", tiles.filter(([, custom]) => !custom), null],
+      ["Mes personnages", tiles.filter(([x, custom]) => custom && !x.serie), null],
+      ...noms.map((nom) => [nom, tiles.filter(([x, custom]) => custom && x.serie === nom), nom]),
+    ].filter(([, xs]) => xs.length);
+    $("builtin-items").replaceChildren(...groupes.flatMap(([titre, xs, serie]) => [
+      serie ? h("div", { class: "content-series serie-biblio", "data-serie": serie },
+        h("h3", { text: `📚 Série « ${serie} » · ${plural(xs.length, "personnage")}` }),
+        h("button", { type: "button", class: "btn secondary small", text: "Renommer", onclick: () => renommerSerie(serie) }),
+        h("button", { type: "button", class: "btn danger small", text: "Supprimer la série", onclick: () => supprimerSerie(serie, xs) }))
+        : h("h3", { class: "content-series", text: titre }),
+      ...xs.map(([x, custom]) => tile(x, custom)),
+    ]));
+    return;
+  }
   // Pictionary : les mots rangés par série (Animaux, À manger…, puis « Mes mots »).
   if (type === "pictionary") {
     $("builtin-items").replaceChildren(...pictoSeriesList(tiles.map(([x]) => x)).flatMap((name) => [
@@ -6775,7 +8658,15 @@ function renderBuiltinForm() {
     ]
     : type === "quisuis" ? [
       field("Réponse", "bi-answer", { placeholder: "Le kangourou" }), field("Émoji (facultatif)", "bi-emoji", { max: 16, placeholder: "🦘" }),
+      // Sa série (cedric, 24/10) : une existante (liste) ou une nouvelle ; vide = « Mes personnages ».
+      h("label", {}, "Série (facultatif)", h("input", { id: "bi-serie", maxlength: 30, list: "bi-serie-list", placeholder: "Disney" }),
+        h("datalist", { id: "bi-serie-list" }, ...nomsDesSeries(builtinState(type).extra).map((nom) => h("option", { value: nom })))),
       ...[1, 2, 3, 4].map((n) => field(`Indice ${n}${n === 1 ? " (le plus difficile)" : n === 4 ? " (le plus facile)" : ""}`, `bi-clue${n}`, { wide: true, max: 120 })),
+      // Ou une série entière d'un coup, en JSON (écrite par exemple avec ChatGPT).
+      h("div", { class: "wide row" },
+        h("label", { class: "btn secondary file-btn" }, "📥 Importer une série (JSON)…",
+          h("input", { id: "bi-json", type: "file", accept: ".json,application/json", multiple: true, hidden: true, onchange: (e) => importerPersonnages(e.target) })),
+        h("span", { class: "hint small", text: "Un fichier par série : { \"serie\": \"Disney\", \"personnages\": [{ \"reponse\": \"Elsa\", \"emoji\": \"❄️\", \"indices\": [\"…\", \"…\", \"…\"] }] }" })),
     ]
     : [
       field("Nom de la famille d'objets", "bi-theme", { placeholder: "Les jouets" }),
@@ -6807,7 +8698,7 @@ $("builtin-add").onsubmit = async (e) => {
   }
   const raw = type === "chante" ? { word: val("bi-word") }
     : type === "pictionary" ? { word: val("bi-word"), image: val("bi-emoji"), series: val("bi-series") }
-    : type === "quisuis" ? { answer: val("bi-answer"), emoji: val("bi-emoji"), clues: [1, 2, 3, 4].map((n) => val(`bi-clue${n}`)).filter(Boolean) }
+    : type === "quisuis" ? { answer: val("bi-answer"), emoji: val("bi-emoji"), serie: val("bi-serie"), clues: [1, 2, 3, 4].map((n) => val(`bi-clue${n}`)).filter(Boolean) }
     : { theme: val("bi-theme"), objects: [...val("bi-objects").split("\n").map((line) => {
       const m = line.trim().match(/^(.*\S)\s+(\S+)$/u);
       return m ? { word: m[1], image: m[2] } : null;
@@ -6821,10 +8712,65 @@ $("builtin-add").onsubmit = async (e) => {
   const { off, extra } = builtinState(type);
   const key = game.key(item);
   if ([...game.catalog, ...extra].some((x) => game.key(x) === key)) return status("builtin-status", `« ${game.label(item)} » existe déjà.`);
-  await saveBuiltin(type, { off, extra: [...extra, item] }, `« ${game.label(item)} » est ajouté au jeu.`);
+  await saveBuiltin(type, { off, extra: [...extra, item] }, `« ${game.label(item)} » est ajouté ${item.serie ? `à la série « ${item.serie} »` : "au jeu"}.`);
+  // La série reste choisie, pour le personnage suivant.
+  const serie = val("bi-serie");
   form.reset();
+  if ($("bi-serie")) $("bi-serie").value = serie;
   if ($("bi-photos-count")) $("bi-photos-count").textContent = "";
 };
+
+/**
+ * Personnages de Qui suis-je ? lus dans un fichier JSON (cedric, 24/10 : « à la main ou en json ») : une série
+ * ({ serie, personnages }), plusieurs ({ series: [...] }, ou une liste de séries), ou une simple liste de personnages
+ * (sa série : le nom du fichier). En français ou en anglais : reponse / answer, indices / clues, emoji.
+ */
+function lirePersonnages(data, nomFichier) {
+  const liste = (x) => x?.personnages ?? x?.characters ?? x?.items;
+  const perso = (p) => ({ answer: p?.reponse ?? p?.["réponse"] ?? p?.answer ?? p?.nom ?? p?.name, emoji: p?.emoji, clues: p?.indices ?? p?.clues, serie: p?.serie ?? p?.["série"] });
+  const serieDe = (x) => ({
+    serie: [x?.serie, x?.["série"], x?.titre, x?.title, x?.nom, x?.name].find((v) => typeof v === "string" && v.trim()) ?? nomFichier,
+    personnages: liste(x).map(perso),
+  });
+  const estSerie = (x) => Array.isArray(liste(x));
+  if (Array.isArray(data?.series)) return data.series.filter(estSerie).map(serieDe);
+  if (estSerie(data)) return [serieDe(data)];
+  if (Array.isArray(data) && data.some(estSerie)) return data.filter(estSerie).map(serieDe);
+  if (Array.isArray(data)) return [{ serie: nomFichier, personnages: data.map(perso) }];
+  return [];
+}
+
+/** « 📥 Importer une série (JSON)… » de Qui suis-je ? : chaque personnage valable rejoint sa série ; ceux déjà là sont laissés. */
+async function importerPersonnages(input) {
+  const fichiers = [...(input.files ?? [])];
+  input.value = "";
+  if (!fichiers.length) return;
+  const type = "quisuis";
+  const game = CONTENT_GAMES[type];
+  const { off, extra } = builtinState(type);
+  const connus = new Set([...game.catalog, ...extra].map((x) => game.key(x)));
+  const ajouts = [];
+  const erreurs = [];
+  let deja = 0, refuses = 0;
+  for (const f of fichiers) {
+    let lu;
+    try { lu = JSON.parse(await f.text()); } catch { erreurs.push(`« ${f.name} » n'est pas un fichier JSON valable.`); continue; }
+    for (const { serie, personnages } of lirePersonnages(lu, f.name.replace(/\.json$/i, ""))) {
+      for (const p of personnages) {
+        const item = game.clean({ ...p, serie: p.serie || serie });
+        if (!item) { refuses++; continue; }
+        if (connus.has(game.key(item))) { deja++; continue; }
+        connus.add(game.key(item));
+        ajouts.push(item);
+      }
+    }
+  }
+  const notes = [deja ? `${plural(deja, "personnage était", "personnages étaient")} déjà dans le jeu` : "", refuses ? `${plural(refuses, "personnage ignoré", "personnages ignorés")} (il faut sa réponse et au moins 2 indices)` : ""].filter(Boolean);
+  if (!ajouts.length) return status("builtin-status", [...erreurs, notes.length ? `Rien d'ajouté : ${notes.join(" ; ")}.` : erreurs.length ? "" : "Aucun personnage trouvé dans ce fichier."].filter(Boolean).join(" "));
+  const series = nomsDesSeries(ajouts);
+  await saveBuiltin(type, { off, extra: [...extra, ...ajouts] },
+    `${plural(ajouts.length, "personnage ajouté", "personnages ajoutés")}${series.length ? ` (${series.map((s) => `série « ${s} »`).join(", ")})` : ""}${notes.length ? ` ; ${notes.join(" ; ")}` : ""}.${erreurs.length ? ` ${erreurs.join(" ")}` : ""}`);
+}
 
 // ---------- Page d'un jeu : ses manches ----------
 

@@ -183,6 +183,8 @@ button.tile:hover { border-color: var(--violet); }
 .ready-box.archivee { background: var(--violet-pale); color: var(--violet); border-color: var(--line-2); }
 .ready-box:empty { display: none; }
 .ready-box ul { margin: 6px 0 0; padding-left: 20px; }
+.ready-box .ready-alertes-titre { margin: 10px 0 0; font-weight: 800; color: var(--warn); }
+.ready-box .ready-alerte { color: var(--warn); }
 
 /* Bibliothèque de quiz */
 .list { display: flex; flex-direction: column; gap: 12px; }
@@ -202,6 +204,31 @@ button.item { cursor: pointer; }
 .round .num { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: var(--violet); color: #fff; font-weight: 800; font-size: 14px; }
 .round .grow { flex: 1; min-width: 180px; }
 .round-tools { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; }
+/* « ＋ Ajouter un jeu » (cedric, 24/10 : « il faut qu'il saute aux yeux ») : doré, grand, un halo qui respire autour.
+   Le halo ne grandit que par l'ombre, dans la marge du bouton : rien ne le coupe. */
+.btn.ajout-jeu {
+  display: inline-flex; align-items: center; gap: 12px; font-size: 20px; padding: 13px 30px 13px 14px; color: var(--plum);
+  background: linear-gradient(135deg, #ffe39a, var(--gold) 65%, #e48f2f); border: 0;
+  box-shadow: 0 6px 18px rgba(226, 143, 47, .4), 0 0 0 0 rgba(226, 169, 59, .5);
+  animation: ajout-halo 2.4s ease-in-out infinite;
+}
+.btn.ajout-jeu:hover { box-shadow: 0 8px 24px rgba(226, 143, 47, .55), 0 0 0 4px rgba(226, 169, 59, .25); animation: none; }
+.ajout-plus {
+  display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 50%;
+  background: #fff; color: var(--rose); font-size: 26px; font-weight: 900; line-height: 1;
+  box-shadow: 0 2px 6px rgba(74, 42, 110, .2);
+}
+@keyframes ajout-halo {
+  0%, 100% { box-shadow: 0 6px 18px rgba(226, 143, 47, .4), 0 0 0 0 rgba(226, 169, 59, .5); }
+  50% { box-shadow: 0 6px 18px rgba(226, 143, 47, .4), 0 0 0 9px rgba(226, 169, 59, 0); }
+}
+@media (prefers-reduced-motion: reduce) { .btn.ajout-jeu { animation: none; } }
+/* En haut de la page, à droite des couleurs des équipes (sous elles quand l'écran est étroit). */
+.couleurs-et-ajout { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px; }
+.couleurs-et-ajout .couleurs-equipes { flex: 1 1 320px; }
+.couleurs-et-ajout .ajout-jeu { margin-right: 10px; }
+/* Les tuiles des jeux s'ouvrent sous le bouton touché ; la place vide ne prend aucune hauteur. */
+.jeu-choix-place:not(:has(> :not([hidden]))) { display: none; }
 /* Jeux d'une prestation (cedric, 21/10) : un bloc par jeu, ses manches dedans ; « ＋ Ajouter un jeu » en tuiles. */
 .jeu-bloc { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 20px; border: 1px solid var(--line); background: var(--nacre); }
 .jeu-tete { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
@@ -540,6 +567,8 @@ body.essai::before {
 .show-round:has(> .alerte-equipes) { box-shadow: inset 0 0 0 2px var(--bad); }
 .alerte-equipes { flex: none; margin: 0 0 0 36px; padding: 10px 14px; border-radius: 12px; background: #fde8ee; color: var(--bad); border: 1px solid #f2bfd0; font-weight: 700; overflow-wrap: anywhere; }
 @media (max-width: 640px) { .alerte-equipes { margin-left: 0; } }
+.alerte-equipes p { margin: 0; }
+.alerte-equipes p + p { margin-top: 6px; }
 .round-body > .grow { flex: 1 1 420px; min-width: 0; }
 /* min-width 0 : un menu ne s'élargit plus à son option la plus longue (« Super Finale : la dernière question »),
    qui le faisait sortir du cadre sur téléphone (cedric, 21/10). */
@@ -654,6 +683,26 @@ button.media-tile:hover { border-color: var(--violet); }
 .choix-boite .choix-recherche { width: 100%; box-sizing: border-box; }
 .choix-boite .chips { margin: 0; }
 .choix-grille { overflow-y: auto; min-height: 120px; max-height: 56vh; padding: 2px; }
+/* Plusieurs images à choisir (le « ＋ » des Mimes) : cochées en violet, déjà utilisées bordées de rouge. */
+.choix-grille .media-tile { position: relative; }
+.choix-grille .media-tile.cochee { border-color: var(--violet); background: var(--violet-pale); box-shadow: inset 0 0 0 2px var(--violet); }
+.choix-grille .media-tile.cochee::after { content: "✓"; position: absolute; top: 4px; right: 8px; color: var(--violet); font-weight: 900; }
+.choix-grille .media-tile.deja { border-color: var(--bad); }
+.choix-grille .media-tile.deja > span { color: var(--bad); }
+.choix-boite .choix-ajouter { margin-left: auto; }
+/* Chansons à choisir pour un blind test (cedric, 24/10) : une ligne par chanson, cochée en violet. */
+.choix-chansons { list-style: none; margin: 0; padding: 2px; overflow-y: auto; min-height: 120px; max-height: 56vh; display: flex; flex-direction: column; gap: 4px; }
+.choix-chanson { width: 100%; display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
+.choix-chanson:hover:not(:disabled) { border-color: var(--violet); }
+.choix-chanson:disabled { opacity: .55; cursor: default; }
+.choix-chanson.cochee { border-color: var(--violet); background: var(--violet-pale); box-shadow: inset 0 0 0 2px var(--violet); }
+.choix-chanson.deja { border-color: var(--bad); }
+.choix-chanson .case { flex: none; width: 22px; height: 22px; border-radius: 7px; border: 2px solid var(--violet); display: grid; place-items: center; color: #fff; font-weight: 900; font-size: 14px; line-height: 1; }
+.choix-chanson.cochee .case { background: var(--violet); }
+.choix-chanson.cochee .case::after { content: "✓"; }
+.choix-chanson-titre { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.choix-chanson-deja { flex: none; color: var(--bad); font-size: 13px; font-weight: 700; }
+.choix-boite .choix-valider { margin-left: auto; }
 
 /* « Régler… » une chanson (21/10) : pochette, titre et artiste, puis deux curseurs sur toute la chanson. */
 .track.reglage { display: flex; flex-direction: column; align-items: stretch; gap: 16px; padding: 18px 20px; }
@@ -822,6 +871,11 @@ button.media-tile:hover { border-color: var(--violet); }
 .tirage-texte { flex: 0 1 auto; min-width: 0; }
 .tirage-mini { flex: none; height: 56px; width: 76px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line-2); background: #fff; }
 .tirage-mini.emoji { display: grid; place-items: center; font-size: 34px; line-height: 1; }
+/* Zoom mystère, Image floue : la photo à deviner, devant sa réponse. */
+.tirage-photo { flex: none; height: 64px; width: 88px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line-2); background: #fff; }
+.tirage-vf { flex: none; font-weight: 700; font-size: 13px; padding: 2px 8px; border-radius: 999px; }
+.tirage-vf.vrai { background: #e3f7e8; color: #1d6b35; }
+.tirage-vf.faux { background: #fde6e6; color: #a32020; }
 /* Quiz illustré (cedric, 23/10) : les 4 réponses en petites images avec leur mot, la bonne en vert. */
 .tirage-reponses { flex: 0 1 auto; display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
 .tirage-rep { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 60px; max-width: 110px; padding: 3px; border-radius: 10px; border: 2px solid transparent; font-size: 12px; line-height: 1.15; text-align: center; }
@@ -843,6 +897,42 @@ button.media-tile:hover { border-color: var(--violet); }
 .quiz-ajouts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
 .quiz-ajout-titre { flex: 0 0 auto; padding: 10px 14px; border-radius: 12px; background: var(--violet-pale); color: var(--violet); font-weight: 800; white-space: nowrap; }
 .quiz-ajout-champ { position: relative; flex: 1 1 240px; min-width: 0; }
+/* « ⭐ Composer avec vos images » (Zoom mystère, Image floue ; cedric, 23/10) : ses images de « Mes images », cochées
+   une par une ; la case du titre ouvre et ferme le panneau. */
+button.vos-images-titre { border: 0; font: inherit; font-weight: 800; cursor: pointer; }
+button.vos-images-titre:hover { background: var(--violet); color: #fff; }
+.vos-images-ouvert { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.vos-images-grille { max-height: 440px; overflow-y: auto; margin: 0; padding: 3px; }
+.vos-images-tuile { position: relative; border-width: 2px; }
+.vos-images-tuile.on { border-color: var(--gold); background: var(--gold-pale); box-shadow: 0 0 0 2px var(--gold); }
+.vos-images-tuile.on::after {
+  content: "✓"; position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; display: grid; place-items: center;
+  border-radius: 50%; background: var(--gold); color: #fff; font-weight: 900; font-size: 15px; line-height: 1;
+}
+.vos-images-tuile:disabled { opacity: .55; cursor: default; }
+.vos-images-etat { font-size: 12px; line-height: 1.2; color: var(--soft); text-align: center; }
+.vos-images-etat.alerte { color: var(--bad); font-weight: 800; }
+/* Chante le mot ! (cedric, 24/10) : écrire un mot à la main ; un mot déjà dans la fête, en rouge. */
+.mots-main-champ { display: flex; flex-wrap: wrap; gap: 8px; }
+.mots-main-champ > .mots-ecrire { flex: 1 1 180px; min-width: 0; }
+.mots-main-champ > .mots-ajouter { flex: 0 0 auto; white-space: nowrap; }
+.mot-texte { flex: 1 1 auto; overflow-wrap: anywhere; }
+.mot-indices { display: block; color: var(--muted, #6b5f80); font-size: 13px; font-weight: 600; line-height: 1.3; }
+.serie-biblio { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.serie-biblio h3 { margin: 0; font-size: inherit; color: inherit; flex: 1 1 auto; }
+/* Écran étroit : un personnage de Qui suis-je ? garde la place de son nom et de ses indices ; les flèches passent dessous. */
+@media (max-width: 640px) {
+  .tirage-q.perso .tirage-q-ligne { flex-wrap: wrap; row-gap: 6px; gap: 8px; }
+  .tirage-q.perso .mot-texte { flex: 1 1 0; min-width: 120px; }
+  .tirage-q.perso .tirage-mini { height: 44px; width: 60px; }
+  .tirage-q.perso .tirage-mini.emoji { font-size: 28px; }
+  .tirage-q.perso .quiz-complet-monter { margin-left: auto; }
+}
+.grille-vignettes { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.grille-vignette { width: 34px; height: 34px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line-2); background: #fff; }
+.grille-vignette.emoji { display: grid; place-items: center; font-size: 22px; line-height: 1; }
+.mot-deja { display: block; color: var(--bad); font-size: 13px; font-weight: 800; }
+.vos-images-pied { display: flex; flex-wrap: wrap; gap: 10px; }
 .quiz-ajout-champ > .quiz-ajout-cherche { width: 100%; }
 /* Ses résultats, 6 au plus : à droite sous la recherche, par-dessus l'écran (rien ne bouge en dessous). */
 .quiz-ajout-liste {
@@ -916,3 +1006,116 @@ button.media-tile:hover { border-color: var(--violet); }
 @media (max-width: 640px) { .reprendre-zone { padding-left: 0; } }
 /* Profil : « Automatique, selon l'âge », « Adultes (16 ans et plus) » se lisent en entier sur PC (règle 10). */
 @media (min-width: 900px) { .grid > label:has(#show-profile) { grid-column: span 2; } }
+
+/* Mimes dans une prestation (cedric, 23/10) : une manche par équipe, dans la couleur de son bracelet ; ses images
+   tirées au 🎲, chacune avec sa ✕ (un 🎲 prend sa place). */
+.round-body > .mime-ancienne { flex: 1 1 100%; margin: 0; }
+.round-body > .mime-equipes { flex: 1 1 100%; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.mime-equipe { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 10px 12px; border-radius: 14px; background: var(--card); border: 1px solid var(--line-2); box-shadow: inset 5px 0 0 var(--c); }
+.mime-equipe-tete { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.mime-equipe-tete .rond { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 2px rgba(45, 30, 58, .15); }
+.mime-equipe-tete .mime-completer { margin-left: auto; }
+/* Une ligne par équipe (cedric, 24/10) : son nom replie ou déplie la liste ; âge, 🎲, ＋, 🔀 à côté. */
+.mime-deplier { flex: 1 1 150px; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 4px 2px; border: 0; background: none; font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
+.mime-deplier:disabled { cursor: default; }
+.mime-deplier .fleche { flex: none; width: 14px; color: var(--violet); font-weight: 900; }
+.mime-deplier:disabled .fleche { visibility: hidden; }
+.mime-equipe-tete .mime-age { flex: 0 1 auto; max-width: 100%; }
+.mime-equipe-tete .mime-deja { color: var(--bad); font-weight: 700; font-size: 13px; }
+.mime-equipe-tete .mime-plus { font-size: 20px; padding: 6px 16px; line-height: 1.2; }
+.mime-equipe-tete .mime-melanger { font-size: 18px; }
+.mime-equipe.ouverte .mime-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: 6px 14px; }
+.mime-images { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.mime-image { display: flex; align-items: center; gap: 10px; min-height: 40px; }
+.mime-image .tirage-photo, .mime-image .tirage-mini { height: 48px; width: 64px; }
+.mime-image .tirage-mini.emoji { font-size: 30px; }
+.mime-mot { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.mime-image .tirage-retirer { flex: none; width: 32px; height: 32px; border-radius: 10px; font-size: 14px; }
+.mime-image .tirage-de.petit { font-size: 18px; padding: 4px 14px; }
+.mime-image.deja .mime-mot { color: var(--bad, #b3261e); }
+
+/* Pictionary dans une prestation (cedric, 24/10) : une ligne par équipe ; chaque passage, ses mots proposés (l'émoji de la
+   tablette, la vraie photo de la TV, le nom). */
+.picto-main { flex-wrap: wrap; align-items: center; gap: 8px; }
+.picto-main-equipes { display: flex; flex-wrap: wrap; gap: 6px; }
+.picto-main-equipe { display: inline-flex; align-items: center; gap: 6px; }
+.picto-main-equipe .rond { width: 14px; height: 14px; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 2px rgba(45, 30, 58, .15); }
+.picto-passages { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.picto-passage { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.picto-passage-num { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--violet-pale); color: var(--violet); font-weight: 800; line-height: 1; }
+.picto-mots { flex: 1 1 auto; min-width: 0; list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 10px; }
+.picto-mot { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 3px 4px 3px 8px; border-radius: 12px; background: var(--paper, #fff); border: 1px solid var(--line-2); }
+.picto-mot .picto-emoji { font-size: 26px; line-height: 1; }
+.picto-mot .tirage-photo { height: 38px; width: 50px; }
+.picto-nom { font-weight: 600; overflow-wrap: anywhere; }
+.picto-mot.deja .picto-nom { color: var(--bad, #b3261e); }
+.picto-mot .tirage-retirer { flex: none; width: 30px; height: 30px; border-radius: 10px; font-size: 13px; }
+.picto-mot.vide { border-style: dashed; padding: 3px 6px; }
+.picto-mot .tirage-de.petit { font-size: 18px; padding: 4px 14px; }
+.picto-passage-retirer { flex: none; }
+.picto-mot .picto-nom { flex: 1 1 auto; min-width: 0; }
+/* Téléphone : le numéro et ✕ du passage sur une ligne, ses mots dessous, un par ligne (jamais coupés lettre par lettre). */
+@media (max-width: 640px) {
+  .picto-passage { display: grid; grid-template-columns: auto 1fr auto; row-gap: 6px; }
+  .picto-passage .picto-mots { grid-column: 1 / -1; grid-row: 2; }
+  .picto-passage .picto-passage-retirer { grid-column: 3; justify-self: end; }
+  .picto-mot { flex: 1 1 100%; }
+}
+
+/* Blind test d'une prestation tiré au 🎲 (cedric, 24/10) : chaque chanson avec sa mini pochette et, à droite, ses paroles. */
+.blind-serie .serie-tete .blind-completer { margin-left: auto; }
+.blind-liste { list-style: none; padding-left: 4px; }
+.blind-chanson .tirage-q-ligne { min-height: 48px; }
+.blind-pochette { flex: none; width: 48px; height: 48px; border-radius: 8px; object-fit: cover; border: 1px solid var(--line-2); background: #fff; }
+.blind-pochette.sans { display: grid; place-items: center; font-size: 26px; line-height: 1; filter: grayscale(1); opacity: .7; border: 2px dashed var(--bad, #b3261e); }
+.blind-titre { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.blind-paroles { flex: none; margin-left: auto; padding: 4px 10px; border-radius: 999px; font-size: 14px; font-weight: 700; white-space: nowrap; }
+.blind-paroles.ok { color: #1d6b3a; background: #e3f6e9; }
+.blind-paroles.non { color: var(--bad, #b3261e); background: #fde8ee; }
+.blind-chanson.deja .blind-titre b { color: var(--bad, #b3261e); }
+.blind-chanson.manquante .tirage-texte { color: var(--bad, #b3261e); font-style: italic; }
+/* Petit menu d'une chanson du blind test (cedric, 24/10) : écouter l'extrait, le refrain, régler. */
+.blind-ecouter { flex: none; width: 32px; height: 32px; border-radius: 10px; font-size: 16px; }
+.blind-ecouter.active { background: var(--gold-pale); box-shadow: inset 0 0 0 2px var(--gold); }
+.blind-chanson.ouverte { border-radius: 10px; background: var(--gold-pale); box-shadow: inset 4px 0 0 var(--gold); padding-left: 8px; }
+.blind-reglage { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 0 4px 58px; padding-bottom: 6px; }
+.blind-reglage .btn { padding: 6px 12px; font-size: 14px; }
+.blind-reglage .blind-regler { margin-left: auto; }
+.blind-reglage .blind-hook { white-space: nowrap; }
+
+/* Menu temporaire des photos manquantes de la banque (cedric, 24/10) : à enlever avec photos-manquantes.js. */
+.photos-manquantes { margin: 6px 0 18px; padding: 12px 14px; border-radius: 14px; border: 2px dashed var(--gold); background: var(--card); }
+.photos-manquantes summary { cursor: pointer; }
+.pm-liste { list-style: none; margin: 10px 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 8px; }
+.pm-mot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg-2); min-width: 0; }
+.pm-mot.prete { border-color: var(--good); }
+.pm-mot.survol { border-color: var(--violet); box-shadow: 0 0 0 2px var(--violet) inset; }
+.pm-apercu { flex: 0 0 56px; width: 56px; height: 56px; border-radius: 10px; overflow: hidden; display: grid; place-items: center; background: var(--card); }
+.pm-apercu img { width: 100%; height: 100%; object-fit: cover; }
+.pm-apercu .emoji { font-size: 32px; line-height: 1; }
+.pm-nom { flex: 1 1 110px; min-width: 0; }
+.pm-choisir { flex: 0 0 auto; }
+.pm-bas { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
+
+/* Blind test en séries (cedric, 24/10) : 🎲, playlists, chansons choisies, puis le « Blind test complet ». */
+.blind-serie .serie-tete .blind-plus { flex: none; }
+.blind-complet-q .tirage-q-ligne { min-height: 48px; }
+.blind-complet-q .icon { flex: none; width: 32px; height: 32px; border-radius: 10px; font-size: 14px; }
+/* Bibliothèque › Sons : « 🎶 Mes playlists » (cedric, 24/10). */
+.sons-playlists { margin: 12px 0; }
+.sons-playlists h3 { margin: 0; }
+.sons-playlist-list { display: flex; flex-direction: column; gap: 8px; }
+.sons-playlist .serie-tete > .btn { flex: none; }
+.sons-playlist-liste { list-style: none; padding-left: 4px; }
+.sons-playlist-chanson .tirage-q-ligne { min-height: 48px; }
+.sons-playlist-chanson .tirage-texte { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+/* Écran étroit : pochette, titre et « ✓ Paroles » sur la ligne, les boutons passent dessous, à droite. */
+@media (max-width: 640px) {
+  .blind-chanson .tirage-q-ligne, .blind-complet-q .tirage-q-ligne, .sons-playlist-chanson .tirage-q-ligne { flex-wrap: wrap; row-gap: 6px; gap: 8px; }
+  .blind-chanson .blind-titre, .blind-complet-q .blind-titre, .sons-playlist-chanson .tirage-texte { flex: 1 1 0; min-width: 96px; }
+  .blind-chanson .blind-titre .hint, .sons-playlist-chanson .tirage-texte .hint { display: block; }
+  .blind-pochette { width: 40px; height: 40px; }
+  .blind-paroles { padding: 4px 8px; font-size: 13px; }
+  .blind-chanson .blind-paroles + .blind-ecouter, .sons-playlist-chanson .blind-paroles + .tirage-retirer { margin-left: auto; }
+  .blind-liste, .blind-complet-liste, .sons-playlist-liste { padding: 4px 0; }
+}

@@ -21,7 +21,7 @@ const paragraphes = (message) => `${message ?? ""}`.split(/\n[ \t]*\n/).map((p) 
  * Ouvre une fenêtre et attend la réponse : { ok, texte }. [annuler] : texte du second bouton (aucun s'il est nul) ;
  * [texte] : valeur de départ d'un champ à remplir (aucun champ s'il est nul).
  */
-function ouvrir(message, { ok, annuler = null, danger = false, texte = null, maxlength = null }) {
+function ouvrir(message, { ok, annuler = null, danger = false, texte = null, maxlength = null, premier = null }) {
   const tour = file.then(() => new Promise((resolve) => {
     const lignes = paragraphes(message);
     const champ = texte === null ? null : el("input", { type: "text", className: "fenetre-texte", value: texte, autocomplete: "off" });
@@ -34,11 +34,14 @@ function ouvrir(message, { ok, annuler = null, danger = false, texte = null, max
     boutonOk.dataset.fenetreOk = "";
     const boutonAnnuler = annuler ? el("button", { type: "button", className: "btn secondary", textContent: annuler }) : null;
     if (boutonAnnuler) boutonAnnuler.dataset.fenetreAnnuler = "";
+    // Un bouton de plus, en premier (« Enregistrer » avant de quitter un écran, cedric 24/10).
+    const boutonPremier = premier ? el("button", { type: "button", className: "btn", textContent: premier }) : null;
+    if (boutonPremier) boutonPremier.dataset.fenetrePremier = "";
     const d = el("dialog", { className: "fenetre", tabIndex: -1 },
       el("div", { className: "fenetre-message", id: "fenetre-message" },
         ...lignes.map((p, i) => el("p", { className: i === 0 ? "fenetre-titre" : "", textContent: p }))),
       champ,
-      el("div", { className: "fenetre-boutons" }, boutonOk, boutonAnnuler));
+      el("div", { className: "fenetre-boutons" }, boutonPremier, boutonOk, boutonAnnuler));
     d.dataset.fenetre = "";
     d.setAttribute("role", annuler ? "alertdialog" : "dialog");
     d.setAttribute("aria-labelledby", "fenetre-message");
@@ -46,6 +49,7 @@ function ouvrir(message, { ok, annuler = null, danger = false, texte = null, max
     let oui = false;
     const fermer = (reponse) => { oui = reponse; d.close(); };
     boutonOk.onclick = () => fermer(true);
+    if (boutonPremier) boutonPremier.onclick = () => fermer("premier");
     if (boutonAnnuler) boutonAnnuler.onclick = () => fermer(false);
     // Entrée dans le champ : comme OK.
     champ?.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); fermer(true); } });
@@ -55,7 +59,7 @@ function ouvrir(message, { ok, annuler = null, danger = false, texte = null, max
     d.addEventListener("close", () => { d.remove(); resolve({ ok: oui, texte: champ?.value ?? null }); }, { once: true });
     document.body.append(d);
     d.showModal();
-    if (champ) { champ.focus(); champ.select(); } else boutonOk.focus();
+    if (champ) { champ.focus(); champ.select(); } else (boutonPremier ?? boutonOk).focus();
   }));
   file = tour.then(() => {}, () => {});
   return tour;
@@ -64,6 +68,15 @@ function ouvrir(message, { ok, annuler = null, danger = false, texte = null, max
 /** Question oui / non (à la place de confirm) : vrai si on choisit [ok]. [danger] : bouton rouge, pour effacer ou retirer. */
 export async function confirmer(message, { ok = "OK", annuler = "Annuler", danger = false } = {}) {
   return (await ouvrir(message, { ok, annuler, danger })).ok;
+}
+
+/**
+ * Question à trois réponses : [premier] (bouton plein, en premier), [ok] (rouge si [danger]) ou [annuler] (Échap).
+ * Rend « premier », « ok » ou null.
+ */
+export async function choisirParmi(message, { premier, ok, annuler = "Annuler", danger = false }) {
+  const r = await ouvrir(message, { ok, annuler, danger, premier });
+  return r.ok === "premier" ? "premier" : r.ok ? "ok" : null;
 }
 
 /** Simple message (à la place de alert) : se ferme avec [ok] ou Échap. */
