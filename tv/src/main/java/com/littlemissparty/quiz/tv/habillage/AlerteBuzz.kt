@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -147,4 +148,47 @@ internal fun LigneBuzz(texte: String, taille: TextUnit, modifier: Modifier = Mod
             color = Color(0xFFFFF3E6), shadow = Shadow(GS.Cyan.copy(alpha = 0.6f), Offset.Zero, 14f),
         ),
     )
+}
+
+/** Micro dessiné en tube néon (tête à grille, étrier, pied), à la place de l'émoji 🎤 du Game Show. */
+@Composable
+internal fun MicroNeon(modifier: Modifier = Modifier, couleur: Color = GS.Cyan) {
+    Canvas(modifier.clearAndSetSemantics {}) {
+        val w = size.width
+        val h = size.height
+        val trait = w * 0.075f
+        fun tube(dessin: (Color, Float) -> Unit) {
+            dessin(couleur.copy(alpha = 0.22f), trait * 3.2f)
+            dessin(couleur, trait)
+            dessin(Color.White.copy(alpha = 0.7f), trait * 0.35f)
+        }
+        val tl = Offset(w * 0.32f, h * 0.04f)
+        val tete = androidx.compose.ui.geometry.Size(w * 0.36f, h * 0.5f)
+        tube { c, e -> drawRoundRect(c, tl, tete, androidx.compose.ui.geometry.CornerRadius(w * 0.18f), style = Stroke(e)) }
+        // Grille de la tête : trois barres.
+        for (k in 1..3) {
+            val y = tl.y + tete.height * k / 4.2f
+            tube { c, e -> drawLine(c, Offset(tl.x + tete.width * 0.28f, y), Offset(tl.x + tete.width * 0.72f, y), e * 0.6f, StrokeCap.Round) }
+        }
+        // Étrier en U sous la tête, pied et socle.
+        tube { c, e -> drawArc(c, 0f, 180f, false, Offset(w * 0.2f, h * 0.2f), androidx.compose.ui.geometry.Size(w * 0.6f, h * 0.52f), style = Stroke(e, cap = StrokeCap.Round)) }
+        tube { c, e -> drawLine(c, Offset(w * 0.5f, h * 0.72f), Offset(w * 0.5f, h * 0.9f), e, StrokeCap.Round) }
+        tube { c, e -> drawLine(c, Offset(w * 0.3f, h * 0.92f), Offset(w * 0.7f, h * 0.92f), e, StrokeCap.Round) }
+    }
+}
+
+/** « TOUT LE MONDE CHANTE ! » du Game Show : micro néon et lettres roses qui brillent. */
+@Composable
+internal fun ToutLeMondeChante(taille: TextUnit, modifier: Modifier = Modifier) {
+    androidx.compose.foundation.layout.Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        MicroNeon(Modifier.size(taille.value.dp * 1.15f, taille.value.dp * 1.5f))
+        androidx.compose.foundation.layout.Spacer(Modifier.size(taille.value.dp * 0.55f))
+        Text(
+            "TOUT LE MONDE CHANTE !", maxLines = 1, softWrap = false,
+            style = TextStyle(
+                brush = Brush.verticalGradient(listOf(Color(0xFFFFC1DC), GS.Rose, Color(0xFFFF6B9E))),
+                fontFamily = PoliceGsTitre, fontSize = taille, shadow = Shadow(GS.Rose.copy(alpha = 0.85f), Offset.Zero, 26f),
+            ),
+        )
+    }
 }
