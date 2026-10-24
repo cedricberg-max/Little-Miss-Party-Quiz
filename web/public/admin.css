@@ -926,6 +926,9 @@ button.vos-images-titre:hover { background: var(--violet); color: #fff; }
   .tirage-q.perso .tirage-mini.emoji { font-size: 28px; }
   .tirage-q.perso .quiz-complet-monter { margin-left: auto; }
 }
+.grille-vignettes { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.grille-vignette { width: 34px; height: 34px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line-2); background: #fff; }
+.grille-vignette.emoji { display: grid; place-items: center; font-size: 22px; line-height: 1; }
 .mot-deja { display: block; color: var(--bad); font-size: 13px; font-weight: 800; }
 .vos-images-pied { display: flex; flex-wrap: wrap; gap: 10px; }
 .quiz-ajout-champ > .quiz-ajout-cherche { width: 100%; }

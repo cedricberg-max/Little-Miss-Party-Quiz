@@ -2564,6 +2564,7 @@ function liveManche({ random, source, questions }, title) {
   else if (type === "zoom" || type === "flou") round = { ...round, picks: (round.picks ?? []).filter((k) => questions.some((q) => q.imageId === k || (q.banque && `${BANQUE}${q.banque}` === k))) };
   else if (type === "blind" || type === "musical") round = { ...round, tracks: (round.tracks ?? []).filter((k) => questions.some((q) => q.audioId === k)) };
   else if (type === "chante" || type === "quisuis") round = { ...round, seriesMots: null, ordreMots: null, picks: questions.map((q) => q.choices?.[0]?.toLowerCase()).filter(Boolean), count: questions.length };
+  else if (type === "disparu") round = { ...round, seriesMots: null, ordreMots: null, count: questions.length };
   return () => {
     const showId = typeof live.plan?.id === "string" && live.plan.id.length <= 40 ? { showId: live.plan.id } : {};
     const name = `${title} (en direct, ${new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "short" })})`.slice(0, 120);

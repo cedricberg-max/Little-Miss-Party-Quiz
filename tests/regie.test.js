@@ -6226,6 +6226,103 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Régie PC (cedric, 24/10) : Qui a disparu ? se construit comme le Quiz : 🎲 des grilles d'émojis, une grille composée avec vos images, des grilles de photos libres, chacune avec ses objets en petit ; « Qui a disparu ? complet » (↑ ↓ ✕ 🔀)", async () => {
+    const { buildSnapshot } = await import("../web/public/show.js");
+    const PNG = `data:image/png;base64,${png([40, 160, 90]).toString("base64")}`;
+    const MES = ["a1", "a2", "a3", "a4", "a5", "a6"].map((x) => x.padStart(16, "0"));
+    const NOMS = ["Doudou", "Vélo", "Ballon", "Tortue", "Cabane", "Gâteau"];
+    await seedLibrary("images", Object.fromEntries(MES.map((id) => [id, PNG])));
+    await seedLibrary("medias", Object.fromEntries(MES.map((id, k) => [id, { name: NOMS[k], cat: "Maison", createdAt: 1, updatedAt: 1 }])));
+    const page = await admin();
+    await page.click("#home-new");
+    await page.fill("#show-child", "Zoé");
+    await page.fill("#show-age", "9");
+    await ajouterJeu(page, "disparu");
+    const round = page.locator('#show-rounds .jeu-bloc[data-jeu="disparu"] .round');
+    const compteur = round.locator(".round-head > .quiz-compteur");
+    assert.equal(await compteur.textContent(), "Aucune grille pour l'instant : la TV en tirera 4 au hasard");
+    // Les outils : le 🎲 seul sur sa ligne, puis vos images, puis les photos libres.
+    assert.deepEqual(await round.locator(".quiz-outils > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-ligne", "quiz-ajouts vos-images grille-images", "quiz-ajouts disparu-photos"]);
+
+    // Le 🎲 : 3 grilles d'émojis de 7 objets (9 ans).
+    await round.locator(".quiz-outils > .tirage-ligne .tirage-nombre").selectOption("3");
+    await round.locator(".quiz-outils > .tirage-ligne .tirage-de").click();
+    await compteur.filter({ hasText: "3 grilles" }).waitFor();
+    const de = round.locator('.quiz-series > li.serie[data-origine="de"]');
+    assert.equal(await de.locator(".serie-voir").textContent(), "▾ 🎲 3 grilles tirées au hasard (émojis)");
+    const grillesDe = de.locator(".serie-liste .tirage-q");
+    assert.equal(await grillesDe.count(), 3);
+    for (let k = 0; k < 3; k++) assert.equal(await grillesDe.nth(k).locator(".grille-vignette.emoji").count(), 7);
+
+    // Une grille avec vos images : de 5 à 12 cochées.
+    await round.locator(".grille-images-titre").click();
+    const ajouter = round.locator(".grille-images-ajouter");
+    assert.equal(await ajouter.textContent(), "Cochez de 5 à 12 images (0)");
+    assert.equal(await ajouter.isDisabled(), true);
+    for (const id of MES.slice(0, 5)) await round.locator(`.vos-images-tuile[data-image="${id}"]`).click();
+    assert.equal(await ajouter.textContent(), "＋ Faire une grille avec ces 5 images");
+    await ajouter.click();
+    await compteur.filter({ hasText: "4 grilles" }).waitFor();
+    const vos = round.locator('.quiz-series > li.serie[data-origine="images"]');
+    assert.equal(await vos.locator(".serie-voir").textContent(), "▾ ⭐ 1 grille de vos images");
+    await vos.locator('[data-mot="vos images 1"] img.grille-vignette').nth(4).waitFor();
+    assert.equal(await vos.locator('[data-mot="vos images 1"] img.grille-vignette').count(), 5);
+
+    // Les photos libres : 2 grilles, une famille de photos chacune.
+    await round.locator(".disparu-photos-nombre").selectOption("2");
+    await round.locator(".disparu-photos-de").click();
+    await compteur.filter({ hasText: "6 grilles" }).waitFor();
+    const libres = round.locator('.quiz-series > li.serie[data-origine="photos"]');
+    assert.equal(await libres.locator(".serie-voir").textContent(), "▾ 📷 2 grilles de photos libres");
+    const themes = await libres.locator(".serie-liste .tirage-q").evaluateAll((xs) => xs.map((x) => x.dataset.mot));
+    for (const t of themes) assert.match(t, /^photos · /);
+    assert.equal(await libres.locator(".serie-liste .tirage-q").first().locator('img.grille-vignette[src^="banque/"]').count(), 7);
+    // ✕ : un 🎲 prend sa place, il tire une autre famille de photos.
+    await libres.locator(".serie-liste .tirage-retirer").first().click();
+    await compteur.filter({ hasText: "5 grilles" }).waitFor();
+    assert.equal(await libres.locator(".serie-voir").textContent(), "▾ 📷 1 grille de photos libres, 1 à tirer");
+    await libres.locator(".serie-liste li.vide .tirage-de").click();
+    await compteur.filter({ hasText: "6 grilles" }).waitFor();
+    const themes2 = await libres.locator(".serie-liste .tirage-q").evaluateAll((xs) => xs.map((x) => x.dataset.mot));
+    assert.ok(!themes2.includes(themes[0]), "la famille retirée ne revient pas");
+    for (const t of themes2) assert.match(t, /^photos · /);
+
+    // « Qui a disparu ? complet » : les 6 grilles, ↓, 🔀.
+    const complet = round.locator(".quiz-complet");
+    assert.equal(await complet.locator(".quiz-complet-voir").textContent(), "▸ 🧩 Qui a disparu ? complet : 6 grilles, dans l'ordre de passage");
+    await complet.locator(".quiz-complet-voir").click();
+    const ordre = () => complet.locator(".quiz-complet-q").evaluateAll((xs) => xs.map((x) => x.dataset.mot));
+    const avant = await ordre();
+    assert.equal(avant.length, 6);
+    const descendu = [avant[1], avant[0], ...avant.slice(2)];
+    await complet.locator(".quiz-complet-q").nth(0).locator(".quiz-complet-descendre").click();
+    await waitFor(async () => (await ordre()).join() === descendu.join(), "la première passe en 2e");
+    await complet.locator(".quiz-melanger").click();
+    await waitFor(async () => (await ordre()).join() !== descendu.join(), "mélangées");
+    const joues = await ordre();
+    await capture(page, "qui-a-disparu");
+
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
+    const zoe = Object.values(await library("shows")).find((x) => x.childName === "Zoé");
+    const [qd] = zoe.rounds;
+    assert.deepEqual(qd.seriesMots.map((x) => [x.origine, x.mots.length]), [["de", 3], ["images", 1], ["photos", 2]]);
+    assert.deepEqual(qd.seriesMots[1].mots[0].objects.map((o) => [o.word, o.imageId]), NOMS.slice(0, 5).map((w, k) => [w, MES[k]]));
+    assert.ok(qd.seriesMots[2].mots.every((g) => g.objects.every((o) => o.banque)), "photos libres gardées");
+    // Sur la TV : chaque grille telle quelle, dans l'ordre du « complet ».
+    const { snapshot, problems } = buildSnapshot("zoe", zoe, {});
+    assert.deepEqual(problems, []);
+    const questions = snapshot.quiz.questions.filter((q) => q.kind === "disparu");
+    assert.equal(questions.length, 6);
+    const parTheme = new Map(qd.seriesMots.flatMap((x) => x.mots).map((g) => [g.theme.toLowerCase(), g]));
+    questions.forEach((q, k) => {
+      const g = parTheme.get(joues[k]);
+      assert.deepEqual(q.cards.map((c) => c.word).sort(), g.objects.map((o) => o.word).sort());
+      assert.ok(g.objects.some((o) => o.word === q.choices[0]), "l'objet qui disparaît est dans sa grille");
+    });
+    await page.context().close();
+  });
+
   test("Régie PC (cedric, 23/10) : le Vrai ou Faux express se construit comme le Quiz : 🎲 dans le Vrai ou Faux tout prêt (autant de vraies que de fausses, au niveau du profil), un ancien anniversaire, les Vrai / Faux de ses quiz, « Vrai ou Faux complet », jamais deux fois la même affirmation", async () => {
     const { buildSnapshot } = await import("../web/public/show.js");
     const { AFFIRMATIONS } = await import("../web/public/banque-vrai-faux.js");

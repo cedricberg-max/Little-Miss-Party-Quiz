@@ -239,7 +239,10 @@ export const BUILTIN_GAMES = {
   disparu: {
     unit: "grille", count: 4, duration: 45, rule: "on mémorise les objets, puis l'un d'eux disparaît",
     // Nombre d'objets par grille : réglé sur la manche (4 à 12), sinon selon l'âge.
-    items: (profile, random, list, round, chosen, pris) => list.map((t) => disparuGrid(t, disparuObjects(round, profile), random, pris, round?.photos === true)),
+    // En séries (cedric, 24/10) : chaque grille est déjà faite, tous ses objets à l'écran.
+    items: (profile, random, list, round, chosen, pris) => list.map((t) => (chosen && seriesMots(round).length
+      ? disparuGrid(t, t.objects.length, random, null, false)
+      : disparuGrid(t, disparuObjects(round, profile), random, pris, round?.photos === true))),
     // Objet en photo à soi, sans émoji : pas d'émoji de réponse (la TV montre sa photo).
     question: (g) => ({ text: "Qui a disparu ?", choices: [g.missing.word], correct: 0, kind: "disparu", cards: g.objects, ...(g.missing.image ? { image: g.missing.image } : {}), duration: g.duration }),
   },
@@ -284,9 +287,14 @@ export const CONTENT_GAMES = {
       // Chaque objet : son émoji, ou une photo à soi (choisie dans la Régie PC), ou les deux.
       const photo = (o) => typeof o?.imageId === "string" && /^[0-9a-f]{16}$/.test(o.imageId);
       const emoji = (o) => typeof o?.image === "string" && o.image.trim();
+      // Une photo de la banque de photos libres (grilles en séries, cedric 24/10).
+      const libre = (o) => typeof o?.banque === "string" && /^[\w-]{1,80}$/.test(o.banque);
       const objects = (Array.isArray(x?.objects) ? x.objects : [])
-        .filter((o) => typeof o?.word === "string" && o.word.trim() && (emoji(o) || photo(o)))
-        .map((o) => ({ word: o.word.trim().slice(0, 40), ...(emoji(o) ? { image: o.image.trim().slice(0, 16) } : {}), ...(photo(o) ? { imageId: o.imageId } : {}) })).slice(0, 12);
+        .filter((o) => typeof o?.word === "string" && o.word.trim() && (emoji(o) || photo(o) || libre(o)))
+        .map((o) => ({
+          word: o.word.trim().slice(0, 40), ...(emoji(o) ? { image: o.image.trim().slice(0, 16) } : {}), ...(photo(o) ? { imageId: o.imageId } : {}),
+          ...(libre(o) ? { banque: o.banque } : {}),
+        })).slice(0, 12);
       if (typeof x?.theme !== "string" || !x.theme.trim() || objects.length < 5) return null;
       return { theme: x.theme.trim().slice(0, 60), objects };
     },
@@ -547,13 +555,15 @@ function rangerSelonOrdre(parSerie, ordre, extras = []) {
  * main ou mélangé (`ordreMots`, leurs clés), sinon série après série. Un mot n'y passe qu'une fois.
  */
 // Qui suis-je ? aussi (cedric, 24/10 : « même principe que tous les autres ») : ses personnages en séries.
-export const JEUX_DE_MOTS = ["chante", "quisuis"];
+// Qui a disparu ? aussi (cedric, 24/10) : ses grilles en séries (🎲 dans les émojis, vos images, les photos libres).
+export const JEUX_DE_MOTS = ["chante", "quisuis", "disparu"];
 export const estJeuDeMots = (type) => JEUX_DE_MOTS.includes(type);
 /**
  * Origines d'une série de mots : le 🎲, les mots écrits à la main (Qui suis-je ? d'avant les séries : choisis un par un) ;
- * Qui suis-je ? : les personnages d'un ancien anniversaire, une série de la bibliothèque.
+ * Qui suis-je ? : les personnages d'un ancien anniversaire, une série de la bibliothèque ; Qui a disparu ? : des grilles
+ * de photos libres, des grilles composées avec vos images.
  */
-export const ORIGINES_MOTS = ["de", "main", "reprise", "biblio"];
+export const ORIGINES_MOTS = ["de", "main", "reprise", "biblio", "photos", "images"];
 /** Au plus autant de mots dans un jeu de mots. */
 export const MAX_MOTS = 30;
 /** Un mot gardé dans une série, nettoyé ; { vide: true } : retiré du 🎲, en attente d'un autre. */
@@ -866,6 +876,8 @@ export function fixedConcepts(round, quizzes = {}, mimes = {}, contents = {}) {
     const deck = round.deckId ? mimes?.[round.deckId] : null;
     return [...mimeCards(round.cards), ...(deck ? mimeCards(deck.cards) : []), ...mimeEquipes(round).flat()].flatMap(concepts);
   }
+  // Qui a disparu ? en séries : les objets de toutes ses grilles.
+  if (type === "disparu" && motsDuJeu(round).length) return motsDuJeu(round).flatMap((x) => x.m.objects).flatMap(concepts);
   if (type === "chante" || type === "quisuis" || type === "pictionary") {
     // En séries (cedric, 24/10) : tous ses mots, ceux tirés au 🎲 compris (ils comptent une fois tirés).
     const enSeries = estJeuDeMots(type) ? motsDuJeu(round).map((x) => x.m) : [];

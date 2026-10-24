@@ -23,7 +23,7 @@ import {
   launchStates, launchLabelPc, couleursEquipes, teamCount, roundTirees, chiffresDuTirage, MAX_TIREES, trousDuJeu,
   roundSeriesQuiz, questionsDeLaSerie, questionsDesSeries, questionJouable, FACTEURS_FINALE, SUPER_FINALE_LAST, questionBougies,
   questionsDuQuiz, cleQuestion, placeDesBougies, CLE_BOUGIES, estEnSeries, choiceImageList, estJeuDePhotos, signatureQuestion, zoomRoundQuestions,
-  estJeuDeMots, seriesMots, cleDuMot, motsDuJeu, MAX_MOTS, pickedItems, roundHasard,
+  estJeuDeMots, seriesMots, cleDuMot, motsDuJeu, MAX_MOTS, pickedItems, roundHasard, disparuObjects,
 } from "./show.js";
 import { TEAM_COLORS, TEAM_COLOR_NAMES } from "./theme.js";
 import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE, cheminPhotoBanque, imageLibre, questionBanque } from "./banque-photos.js";
@@ -1854,8 +1854,90 @@ const motsCompletsDeplies = new WeakSet();
 const motsRetires = new WeakMap();
 /** Jeu de mots où un mot vient d'être écrit à la main : le curseur y revient après le rafraîchissement. */
 let motAFocaliser = null;
-/** Nombres de mots proposés au 🎲 d'un jeu de mots. */
+/** Nombres de mots proposés au 🎲 d'un jeu de mots ; Qui a disparu ? : nombres de grilles. */
 const MOTS_NOMBRES = [3, 4, 5, 6, 8, 10, 12, 15, 20];
+const GRILLES_NOMBRES = [1, 2, 3, 4, 5, 6, 8];
+/** Qui a disparu ? : objets d'une grille tirée (selon l'âge, 5 au moins), d'une grille composée avec vos images. */
+const objetsParGrille = (r) => Math.max(5, disparuObjects(r, roundCtx.profile?.() ?? "MOYENS"));
+const GRILLE_MIN = 5;
+const GRILLE_MAX = 12;
+/** Qui a disparu ? : panneau « ⭐ Composer une grille avec vos images » ouvert, par jeu (recherche, images cochées). */
+const panneauxGrille = new WeakMap();
+
+/** Petite image d'un objet de Qui a disparu ? : votre image, sa photo libre, sinon son émoji. */
+const vignetteObjet = (o) => (o.imageId ? photoBibliotheque(o.imageId, { class: "grille-vignette", alt: o.word, title: o.word })
+  : o.banque ? h("img", { class: "grille-vignette", src: cheminPhotoBanque(o.banque), alt: o.word, title: o.word, loading: "lazy" })
+    : h("span", { class: "grille-vignette emoji", text: o.image ?? "❔", title: o.word }));
+
+/**
+ * « ⭐ Composer une grille avec vos images » (Qui a disparu ?, cedric 24/10) : de 5 à 12 de vos images (« Mes images »),
+ * cherchées par nom, catégorie ou mot-clé ; le nom de chaque image est le mot à trouver. [ajouterGrille] reçoit les objets.
+ */
+function ligneGrilleVosImages(r, ajouterGrille, changer) {
+  const panneau = panneauxGrille.get(r);
+  const titre = h("button", {
+    type: "button", class: "quiz-ajout-titre vos-images-titre grille-images-titre", "aria-expanded": panneau ? "true" : "false",
+    text: `${panneau ? "▾" : "▸"} ⭐ Composer une grille avec vos images`,
+    onclick: () => {
+      if (panneau) panneauxGrille.delete(r);
+      else panneauxGrille.set(r, { recherche: "", cochees: [], focus: true });
+      changer();
+    },
+  });
+  if (!panneau) return h("div", { class: "quiz-ajouts vos-images grille-images" }, titre,
+    h("span", { class: "hint small", text: `De ${GRILLE_MIN} à ${GRILLE_MAX} de vos images (« Mes images ») pour une grille ; le nom de chaque image est le mot à trouver.` }));
+  const images = groupesImages().miennes;
+  const cherche = h("input", { type: "search", class: "vos-images-cherche", "aria-label": "Chercher dans vos images", value: panneau.recherche, placeholder: "Nom, catégorie, mot-clé…" });
+  const grille = h("div", { class: "media-grid vos-images-grille" });
+  const ajouter = h("button", { type: "button", class: "btn vos-images-ajouter grille-images-ajouter" });
+  const majAjouter = () => {
+    const n = panneau.cochees.length;
+    ajouter.disabled = n < GRILLE_MIN || n > GRILLE_MAX;
+    ajouter.textContent = n > GRILLE_MAX ? `${GRILLE_MAX} images au plus par grille (${n} cochées)`
+      : n >= GRILLE_MIN ? `＋ Faire une grille avec ces ${n} images` : `Cochez de ${GRILLE_MIN} à ${GRILLE_MAX} images (${n})`;
+  };
+  const tuile = (x) => {
+    const nom = `${x.nom ?? ""}`.trim();
+    const on = () => panneau.cochees.includes(x.id);
+    const b = h("button", {
+      type: "button", class: `media-tile vos-images-tuile${on() ? " on" : ""}`, "data-image": x.id, "aria-pressed": on() ? "true" : "false",
+      disabled: !nom, title: nom ? `Cocher « ${nom} »` : "À nommer dans Mes images",
+      onclick: () => {
+        if (on()) panneau.cochees = panneau.cochees.filter((id) => id !== x.id); else panneau.cochees.push(x.id);
+        b.classList.toggle("on", on());
+        b.setAttribute("aria-pressed", on() ? "true" : "false");
+        majAjouter();
+      },
+    }, photoBibliotheque(x.id, { loading: "lazy" }), h("span", { text: nom || "Sans nom" }),
+    nom ? null : h("small", { class: "vos-images-etat", text: "À nommer dans Mes images" }));
+    return b;
+  };
+  const dessiner = () => {
+    const q = panneau.recherche;
+    const trouvees = parPertinence(images.filter((x) => contientTout([x.nom, x.cat, ...(x.tags ?? [])].filter(Boolean), q)), q,
+      (x) => [x.nom].filter(Boolean), (x) => [x.cat, ...(x.tags ?? [])].filter(Boolean));
+    grille.replaceChildren(...(trouvees.length ? trouvees.slice(0, VOS_IMAGES_MAX).map(tuile)
+      : [h("p", { class: "hint small", text: images.length ? "Aucune de vos images ne correspond." : "Pas encore d'image dans « Mes images » (Bibliothèque › Images)." })]),
+    ...(trouvees.length > VOS_IMAGES_MAX ? [h("p", { class: "hint small", text: `Et ${plural(trouvees.length - VOS_IMAGES_MAX, "autre image", "autres images")} : précisez la recherche.` })] : []));
+  };
+  cherche.addEventListener("input", () => { panneau.recherche = cherche.value; dessiner(); });
+  ajouter.onclick = () => {
+    const parId = new Map(images.map((x) => [x.id, x]));
+    const objets = panneau.cochees.map((id) => parId.get(id)).filter(Boolean)
+      .map((x) => ({ word: `${x.nom ?? ""}`.trim().slice(0, 40) || "Image", imageId: x.id }));
+    if (objets.length < GRILLE_MIN || objets.length > GRILLE_MAX) return;
+    panneauxGrille.delete(r);
+    ajouterGrille(objets);
+  };
+  dessiner();
+  majAjouter();
+  if (panneau.focus) { panneau.focus = false; requestAnimationFrame(() => cherche.focus()); }
+  return h("div", { class: "vos-images vos-images-ouvert grille-images" },
+    h("div", { class: "quiz-ajouts" }, titre, h("div", { class: "quiz-ajout-champ" }, cherche)),
+    grille,
+    h("div", { class: "vos-images-pied" }, ajouter,
+      h("button", { type: "button", class: "btn secondary vos-images-fermer", text: "Fermer", onclick: () => { panneauxGrille.delete(r); changer(); } })));
+}
 
 /**
  * Un jeu de mots d'avant les séries (mots choisis un par un, cedric 24/10) : ses mots deviennent ses séries (ceux tirés
@@ -1867,7 +1949,9 @@ function versSeriesMots(r) {
   if (lues.length) return { ...r, seriesMots: lues };
   const game = CONTENT_GAMES[r.type];
   const hasard = new Set(roundHasard(r));
-  const choisis = pickedItems(r.type, contents[r.type], roundPicks(r));
+  // Qui a disparu ? : chaque famille choisie devient une grille de ses objets (autant que l'âge en demande).
+  const enGrille = (t) => (r.type === "disparu" ? { theme: t.theme, objects: shuffle(t.objects).slice(0, Math.max(GRILLE_MIN, disparuObjects(r, "MOYENS"))) } : t);
+  const choisis = pickedItems(r.type, contents[r.type], roundPicks(r)).map(enGrille);
   const tires = choisis.filter((m) => hasard.has(game.key(m))).map((m) => pourLeHasard(r.type, m)).filter(Boolean).map((m) => game.clean(m)).filter(Boolean);
   const main = choisis.filter((m) => !hasard.has(game.key(m))).map((m) => game.clean(m)).filter(Boolean);
   const series = [
@@ -1921,14 +2005,24 @@ function mancheMots(r) {
   // Qui suis-je ? (cedric, 24/10) : pas de personnage écrit ici (il lui faut ses indices) ; à la place, les personnages
   // d'un ancien anniversaire et les séries de la bibliothèque ; chacun avec sa petite image, celle de la révélation.
   const quisuis = type === "quisuis";
-  const nomDe = (m) => m.word ?? m.answer ?? "";
+  // Qui a disparu ? (cedric, 24/10) : le 🎲 tire des grilles dans les familles d'émojis ; puis une grille composée avec
+  // vos images, des grilles de photos libres ; chaque grille montre ses objets en petit.
+  const disparu = type === "disparu";
+  const nomDe = (m) => m.word ?? m.answer ?? m.theme ?? "";
+  // « grille » est féminin.
+  const e = disparu ? "e" : "";
+  const ce = disparu ? "cette" : "ce";
+  const tous = disparu ? "toutes" : "tous";
+  const NOMBRES = disparu ? GRILLES_NOMBRES : MOTS_NOMBRES;
   const nMots = (k) => `${k} ${unite}${k > 1 ? "s" : ""}`;
   const series = r.seriesMots;
   const deSerie = series.find((x) => x.origine === "de") ?? null;
-  const n = deSerie?.mots.length || (MOTS_NOMBRES.includes(r.count) ? r.count : builtin.count);
+  const n = deSerie?.mots.length || (NOMBRES.includes(r.count) ? r.count : builtin.count);
   const changer = () => roundCtx.refresh();
   const ailleurs = roundCtx.elsewhere?.(r) ?? new Map();
-  const autreJeu = (m) => builtinConcepts(type, m).map((c) => ailleurs.get(c)).find(Boolean) ?? null;
+  // Qui a disparu ? : ce que montre une grille, objet par objet.
+  const conceptsDe = (m) => (disparu ? (m.objects ?? []).flatMap(concepts) : builtinConcepts(type, m));
+  const autreJeu = (m) => conceptsDe(m).map((c) => ailleurs.get(c)).find(Boolean) ?? null;
   /** Après chaque changement : les séries vides partent ; l'ancienne façon (mots choisis un par un) laisse la place. */
   const ranger = () => {
     r.seriesMots = r.seriesMots.filter((x) => x.mots.length);
@@ -1940,9 +2034,16 @@ function mancheMots(r) {
   const place = () => Math.max(0, MAX_MOTS - motsDuJeu(r).length);
   // Au hasard : émojis et banque de photos seulement, jamais une image téléversée (cedric, 21/10) ; selon l'âge ;
   // « Jamais deux fois » : rien de ce que montrent les autres jeux de la fête, tant qu'il en reste assez.
-  const piocher = (k, sans) => {
+  // Qui a disparu ? : des familles d'émojis (le 🎲) ou de photos libres ([origine] « photos ») ; chacune donne une grille
+  // de ses objets, d'abord ceux qu'aucun autre jeu de la fête ne montre.
+  const piocher = (k, sans, origine = "de") => {
     if (k <= 0) return [];
-    const libres = activeItems(type, contents[type]).map((x) => pourLeHasard(type, x)).filter(Boolean).filter((m) => !sans.has(cleDuMot(type, m)));
+    const libres = activeItems(type, contents[type]).filter((m) => !disparu || (origine === "photos") === isPhotoTheme(m))
+      .map((x) => pourLeHasard(type, x)).filter(Boolean).filter((m) => !sans.has(cleDuMot(type, m)));
+    if (disparu) {
+      const nObjets = objetsParGrille(r);
+      return shuffle(libres).slice(0, k).map((t) => ({ theme: t.theme, objects: shuffle(neufsSiPossible(t.objects, concepts, ailleurs, nObjets)).slice(0, nObjets) }));
+    }
     const pourAge = builtin.items(roundCtx.profile?.() ?? "MOYENS", Math.random, libres, r);
     return shuffle(neufsSiPossible(pourAge, (m) => builtinConcepts(type, m), ailleurs, k)).slice(0, k);
   };
@@ -1952,7 +2053,7 @@ function mancheMots(r) {
     motsRetires.delete(r);
     const sans = cles(deSerie);
     const mots = piocher(Math.min(k, MAX_MOTS - sans.size), sans);
-    if (!mots.length) return annonce(`Plus aucun ${unite} libre à tirer : ajoutez-en dans la page du jeu${quisuis ? "" : ", ou écrivez-les à la main"}.`);
+    if (!mots.length) return annonce(`Plus aucun${e} ${unite} libre à tirer : ajoutez-en dans la page du jeu${quisuis || disparu ? "" : ", ou écrivez-les à la main"}.`);
     const serie = deSerie ?? { id: "de", origine: "de", mots: [] };
     if (!deSerie) r.seriesMots.unshift(serie);
     serie.mots = mots;
@@ -1975,12 +2076,13 @@ function mancheMots(r) {
       }
       changer();
     },
-  }, ...[...new Set([...MOTS_NOMBRES, n])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: k === n, text: `${nMots(k)} au hasard` })));
+  }, ...[...new Set([...NOMBRES, n])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: k === n, text: `${nMots(k)} au hasard` })));
   const ligne = h("div", { class: "tirage-ligne" },
     nombre,
     h("button", {
       type: "button", class: "btn tirage-de", text: "🎲", "aria-label": `Tirer les ${unite}s au hasard`,
-      title: `Tirer les ${unite}s au hasard, selon l'âge (les ${quisuis ? "autres séries" : `${unite}s écrits à la main`} ne bougent pas)`, onclick: () => tirerTout(Number(nombre.value)),
+      title: disparu ? "Tirer les grilles au hasard dans les familles d'émojis (les autres séries ne bougent pas)"
+        : `Tirer les ${unite}s au hasard, selon l'âge (les ${quisuis ? "autres séries" : `${unite}s écrits à la main`} ne bougent pas)`, onclick: () => tirerTout(Number(nombre.value)),
     }));
 
   // Deuxième ligne : écrire un mot à la main ; il rejoint la série « écrits à la main », à la fin.
@@ -2034,7 +2136,44 @@ function mancheMots(r) {
     attr: (x) => ({ "data-serie": x.id }),
     choisir: (x) => ajouterSerie("biblio", x.titre, x.mots),
   }) : null;
-  const outils = h("div", { class: "quiz-outils" }, ligne, ...(quisuis ? [rappel, biblio] : [ecrire]));
+  // Qui a disparu ? : une grille composée avec vos images rejoint la série « vos images », à la fin.
+  const ajouterGrille = (objets) => {
+    if (!place()) return annonce(`${MAX_MOTS} grilles au plus dans ${jeu} : retirez-en avant d'en ajouter.`);
+    let s = r.seriesMots.find((x) => x.origine === "images");
+    if (!s) { s = { id: nouvelId("i"), origine: "images", mots: [] }; r.seriesMots.push(s); }
+    let k = 1;
+    while (cles().has(`vos images ${k}`)) k++;
+    s.mots.push({ theme: `Vos images ${k}`, objects: objets });
+    seriesDepliees.add(s);
+    ranger();
+    changer();
+    noterEcran();
+  };
+  // Qui a disparu ? : des grilles de photos libres, au nombre choisi ; un nouveau 🎲 remplace celles d'avant.
+  const photosSerie = series.find((x) => x.origine === "photos") ?? null;
+  const nPhotos = photosSerie?.mots.length || 2;
+  const nombrePhotos = disparu ? h("select", { class: "tirage-nombre disparu-photos-nombre", "aria-label": "Nombre de grilles de photos libres" },
+    ...[...new Set([...GRILLES_NOMBRES, nPhotos])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: k === nPhotos, text: nMots(k) }))) : null;
+  const tirerPhotosLibres = (k) => {
+    const sans = cles(photosSerie);
+    const grilles = piocher(Math.min(k, MAX_MOTS - sans.size), sans, "photos");
+    if (!grilles.length) return annonce("Plus aucune famille de photos libres à tirer.");
+    const s = photosSerie ?? { id: nouvelId("f"), origine: "photos", mots: [] };
+    if (!photosSerie) r.seriesMots.push(s);
+    s.mots = grilles;
+    seriesDepliees.add(s);
+    ranger();
+    changer();
+  };
+  const lignePhotos = disparu ? h("div", { class: "quiz-ajouts disparu-photos" },
+    h("span", { class: "quiz-ajout-titre disparu-photos-titre", text: "📷 Piocher dans les photos libres" }),
+    h("div", { class: "tirage-ligne" }, nombrePhotos,
+      h("button", {
+        type: "button", class: "btn tirage-de disparu-photos-de", text: "🎲", "aria-label": "Tirer des grilles de photos libres",
+        title: "Tirer des grilles dans les familles de photos libres (une par famille)", onclick: () => tirerPhotosLibres(Number(nombrePhotos.value)),
+      }))) : null;
+  const outils = h("div", { class: "quiz-outils" }, ligne,
+    ...(disparu ? [ligneGrilleVosImages(r, ajouterGrille, changer), lignePhotos] : quisuis ? [rappel, biblio] : [ecrire]));
 
   // Qui suis-je ? : la petite image du personnage (cedric, 24/10 : « vérifier qu'elle me convient »), celle que la TV
   // montre à la révélation : son image, sinon son émoji ; tiré au 🎲, jamais une image téléversée.
@@ -2045,13 +2184,14 @@ function mancheMots(r) {
     const autre = autreJeu(m);
     return [quisuis ? vignette(m) : null, h("span", { class: "tirage-texte mot-texte" }, nomDe(m),
       quisuis ? h("small", { class: "mot-indices", text: m.clues.join(" · ") }) : null,
+      disparu ? h("span", { class: "grille-vignettes" }, ...(m.objects ?? []).map(vignetteObjet)) : null,
       autre ? h("small", { class: "mot-deja", text: `Déjà dans « ${autre} »` }) : null)];
   };
   // ✕ : au 🎲, un 🎲 prend sa place ; écrit à la main, il part.
   const retirer = (serie, i) => {
     const m = serie.mots[i];
     ecarter(cleDuMot(type, m));
-    if (serie.origine === "de") serie.mots[i] = { vide: true };
+    if (serie.origine === "de" || serie.origine === "photos") serie.mots[i] = { vide: true };
     else serie.mots.splice(i, 1);
     ranger();
     changer();
@@ -2059,24 +2199,26 @@ function mancheMots(r) {
   };
   const corps = (serie) => serie.mots.map((m, i) => (m.vide
     ? h("li", { class: "tirage-q vide" }, h("div", { class: "tirage-q-ligne" },
-      h("button", { type: "button", class: "btn tirage-de petit", text: "🎲", "aria-label": `Tirer un autre ${unite}`, title: `Tirer un autre ${unite}`, onclick: () => {
-        const [neuf] = piocher(1, ecartes());
-        if (!neuf) return annonce(`Plus aucun ${unite} libre à tirer : ${quisuis ? "ajoutez-en dans la page du jeu" : "écrivez-le à la main"}.`);
+      h("button", { type: "button", class: "btn tirage-de petit", text: "🎲", "aria-label": `Tirer ${disparu ? "une autre" : "un autre"} ${unite}`, title: `Tirer ${disparu ? "une autre" : "un autre"} ${unite}`, onclick: () => {
+        const [neuf] = piocher(1, ecartes(), serie.origine);
+        if (!neuf) return annonce(`Plus aucun${e} ${unite} libre à tirer : ${quisuis || disparu ? "ajoutez-en dans la page du jeu" : "écrivez-le à la main"}.`);
         serie.mots[i] = neuf;
         ranger();
         changer();
       } }),
       h("span", { class: "hint small", text: `${unite[0].toUpperCase()}${unite.slice(1)} à tirer` })))
-    : h("li", { class: `tirage-q${quisuis ? " perso" : ""}${autreJeu(m) ? " deja" : ""}`, "data-mot": cleDuMot(type, m) }, h("div", { class: "tirage-q-ligne" },
+    : h("li", { class: `tirage-q${quisuis || disparu ? " perso" : ""}${autreJeu(m) ? " deja" : ""}`, "data-mot": cleDuMot(type, m) }, h("div", { class: "tirage-q-ligne" },
       ...texteMot(m),
-      h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": `Retirer « ${nomDe(m)} »`, title: serie.origine === "de" ? `Retirer ce ${unite} (un 🎲 prend sa place)` : `Retirer ce ${unite}`, onclick: () => retirer(serie, i) })))));
+      h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": `Retirer « ${nomDe(m)} »`, title: serie.origine === "de" || serie.origine === "photos" ? `Retirer ${ce} ${unite} (un 🎲 prend sa place)` : `Retirer ${ce} ${unite}`, onclick: () => retirer(serie, i) })))));
   const titreSerie = (x) => {
     const k = x.mots.filter((m) => !m.vide).length;
     const vides = x.mots.length - k;
-    if (x.origine === "de") return `🎲 ${nMots(k)} tiré${k > 1 ? "s" : ""} au hasard${vides ? `, ${vides} à tirer` : ""}`;
+    if (x.origine === "de") return `🎲 ${nMots(k)} tiré${e}${k > 1 ? "s" : ""} au hasard${disparu ? " (émojis)" : ""}${vides ? `, ${vides} à tirer` : ""}`;
+    if (x.origine === "photos") return `📷 ${nMots(k)} de photos libres${vides ? `, ${vides} à tirer` : ""}`;
+    if (x.origine === "images") return `⭐ ${nMots(k)} de vos images`;
     if (x.origine === "reprise") return `📅 ${x.titre ?? `${unite[0].toUpperCase()}${unite.slice(1)}s repris`} : ${nMots(k)}`;
     if (x.origine === "biblio") return `📚 Série « ${x.titre ?? "sans nom"} » : ${nMots(k)}`;
-    return quisuis ? `✋ ${nMots(k)} choisi${k > 1 ? "s" : ""} un par un` : `✍ ${nMots(k)} écrit${k > 1 ? "s" : ""} à la main`;
+    return quisuis || disparu ? `✋ ${nMots(k)} choisi${e}${k > 1 ? "s" : ""} ${disparu ? "une par une" : "un par un"}` : `✍ ${nMots(k)} écrit${k > 1 ? "s" : ""} à la main`;
   };
   const liste = h("ol", { class: "quiz-series" }, ...series.map((x) => {
     const qs = h("ol", { class: "tirage-liste serie-liste" }, ...corps(x));
@@ -2126,13 +2268,13 @@ function mancheMots(r) {
     const i = serie ? serie.mots.findIndex((m) => cleDuMot(type, m) === x.cle) : -1;
     if (i >= 0) retirer(serie, i);
   };
-  const lignesCompletes = ordre.map((x, k) => h("li", { class: `tirage-q quiz-complet-q${quisuis ? " perso" : ""}${autreJeu(x.m) ? " deja" : ""}`, "data-mot": x.cle },
+  const lignesCompletes = ordre.map((x, k) => h("li", { class: `tirage-q quiz-complet-q${quisuis || disparu ? " perso" : ""}${autreJeu(x.m) ? " deja" : ""}`, "data-mot": x.cle },
     h("div", { class: "tirage-q-ligne" },
       h("span", { class: "quiz-complet-num", text: `${k + 1}` }),
       ...texteMot(x.m),
-      h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: `Passer ce ${unite} plus tôt`, "aria-label": `Monter « ${nomDe(x.m)} »`, disabled: k === 0, onclick: () => deplacer(k, -1) }),
-      h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: `Passer ce ${unite} plus tard`, "aria-label": `Descendre « ${nomDe(x.m)} »`, disabled: k === ordre.length - 1, onclick: () => deplacer(k, 1) }),
-      h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: `Enlever ce ${unite} de ${jeu}`, "aria-label": `Enlever « ${nomDe(x.m)} »`, onclick: () => enleverDuComplet(x) }))));
+      h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: `Passer ${ce} ${unite} plus tôt`, "aria-label": `Monter « ${nomDe(x.m)} »`, disabled: k === 0, onclick: () => deplacer(k, -1) }),
+      h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: `Passer ${ce} ${unite} plus tard`, "aria-label": `Descendre « ${nomDe(x.m)} »`, disabled: k === ordre.length - 1, onclick: () => deplacer(k, 1) }),
+      h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: `Enlever ${ce} ${unite} de ${jeu}`, "aria-label": `Enlever « ${nomDe(x.m)} »`, onclick: () => enleverDuComplet(x) }))));
   const listeComplete = h("ol", { class: "tirage-liste serie-liste quiz-complet-liste" }, ...lignesCompletes);
   listeComplete.hidden = !motsCompletsDeplies.has(r);
   const titreComplet = () => `${listeComplete.hidden ? "▸" : "▾"} 🧩 ${jeu} complet : ${nMots(ordre.length)}, dans l'ordre de passage`;
@@ -2140,7 +2282,7 @@ function mancheMots(r) {
     h("div", { class: "serie-tete" },
       h("button", {
         type: "button", class: "chip tirage-voir serie-voir quiz-complet-voir", "aria-expanded": listeComplete.hidden ? "false" : "true", text: titreComplet(),
-        title: `Voir tous les ${unite}s de ${jeu}, dans l'ordre`,
+        title: `Voir ${tous} les ${unite}s de ${jeu}, dans l'ordre`,
         onclick: (e) => {
           listeComplete.hidden = !listeComplete.hidden;
           if (listeComplete.hidden) motsCompletsDeplies.delete(r); else motsCompletsDeplies.add(r);
@@ -2148,12 +2290,12 @@ function mancheMots(r) {
           e.currentTarget.setAttribute("aria-expanded", listeComplete.hidden ? "false" : "true");
         },
       }),
-      h("button", { type: "button", class: "chip quiz-melanger", text: "🔀 Mélanger", title: `Mélanger tous les ${unite}s de ${jeu}`, disabled: ordre.length < 2, onclick: melanger })),
+      h("button", { type: "button", class: "chip quiz-melanger", text: "🔀 Mélanger", title: `Mélanger ${tous} les ${unite}s de ${jeu}`, disabled: ordre.length < 2, onclick: melanger })),
     listeComplete);
 
   const compteur = h("p", {
     class: "quiz-compteur", "aria-live": "polite",
-    text: ordre.length ? nMots(ordre.length) : `Aucun ${unite} pour l'instant : la TV en tirera ${r.count ?? builtin.count} au hasard`,
+    text: ordre.length ? nMots(ordre.length) : `Aucun${e} ${unite} pour l'instant : la TV en tirera ${r.count ?? builtin.count} au hasard`,
   });
   // Un mot écrit à la main : le curseur reste dans la case, pour le suivant.
   if (motAFocaliser === r) {
@@ -2437,6 +2579,7 @@ function ouvrirChoixJeu(place = "bas") {
         const dernier = editing.rounds[editing.rounds.length - 1];
         if (dernier && (estEnSeries(x.type) || x.type === "blind" || x.type === "musical" || estJeuDeMots(x.type)) && (dernier.type ?? "quiz") === x.type) {
           annonce(x.type === "quisuis" ? "« Qui suis-je ? » est déjà le dernier jeu : ajoutez-y vos personnages (🎲, un ancien anniversaire, une de vos séries)."
+            : x.type === "disparu" ? "« Qui a disparu ? » est déjà le dernier jeu : ajoutez-y vos grilles (🎲, vos images, les photos libres)."
             : estJeuDeMots(x.type) ? `${ROUND_TYPES[x.type]} est déjà le dernier jeu : ajoutez-y vos mots (🎲, ou écrits à la main).`
             : x.type === "blind" ? "Le Blind test est déjà le dernier jeu : ajoutez-y vos chansons (🎲, « Sélectionner mes chansons », une playlist)."
             : x.type === "musical" ? "Le Quiz musical est déjà le dernier jeu : ajoutez-y vos chansons (🎲, une playlist)."
