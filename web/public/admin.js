@@ -1878,6 +1878,34 @@ function versSeriesMots(r) {
 }
 
 /**
+ * « 📚 Rappeler » de Qui suis-je ? (cedric, 24/10) : les prestations archivées qui en ont un, la plus récente d'abord,
+ * avec tous leurs personnages (dans l'ordre joué) et de quoi les retrouver (prénom, âge, date, notes).
+ */
+function motsArchives(type) {
+  const unite = BUILTIN_GAMES[type].unit;
+  return prestationsRecentes().filter(([, s]) => etatPrestation(s) === "archivee").map(([sid, s]) => {
+    const mots = (s.rounds ?? []).filter((x) => x?.type === type).flatMap((x) => motsDuJeu(versSeriesMots(x)).map((y) => y.m));
+    const date = s.date ? new Date(`${s.date}T12:00:00`) : null;
+    return {
+      id: sid, mots,
+      titre: `${showTitle(s)}${date ? ` (${date.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })})` : ""}`,
+      details: [date ? date.toLocaleDateString("fr-FR") : "", s.age != null && s.age !== "" ? `${s.age} ans` : "", plural(mots.length, unite)].filter(Boolean).join(" · "),
+      noms: [showTitle(s), s.childName],
+      autres: [...datesCherchables(s.date), s.age != null && s.age !== "" ? `${s.age} ans` : "", s.notes, s.themes],
+    };
+  }).filter((x) => x.mots.length);
+}
+
+/** Noms des séries de la bibliothèque d'un jeu (Qui suis-je ?), dans l'ordre alphabétique. */
+const nomsDesSeries = (extra) => [...new Set(extra.map((x) => x.serie).filter(Boolean))].sort((a, b) => a.localeCompare(b, "fr"));
+
+/** Séries de la bibliothèque d'un jeu (Qui suis-je ?, cedric 24/10) : [nom, ses éléments avec leur image]. */
+function seriesBibliotheque(type) {
+  const actifs = activeItems(type, contents[type]).filter((x) => x.serie);
+  return nomsDesSeries(actifs).map((nom) => [nom, actifs.filter((x) => x.serie === nom)]);
+}
+
+/**
  * Chante le mot ! dans une prestation (cedric, 24/10 : « à la manière des quiz ») : le 🎲 tire le nombre de mots choisi
  * dans les mots du jeu (selon l'âge, jamais un mot déjà dans la fête tant qu'il en reste) ; une ligne pour écrire un
  * mot à la main ; puis les séries et le « Chante le mot ! complet » (↑ ↓ ✕, 🔀). Un mot n'y passe qu'une fois ; écrit à
@@ -1890,6 +1918,10 @@ function mancheMots(r) {
   const builtin = BUILTIN_GAMES[type];
   const jeu = ROUND_TYPES[type];
   const unite = builtin.unit;
+  // Qui suis-je ? (cedric, 24/10) : pas de personnage écrit ici (il lui faut ses indices) ; à la place, les personnages
+  // d'un ancien anniversaire et les séries de la bibliothèque ; chacun avec sa petite image, celle de la révélation.
+  const quisuis = type === "quisuis";
+  const nomDe = (m) => m.word ?? m.answer ?? "";
   const nMots = (k) => `${k} ${unite}${k > 1 ? "s" : ""}`;
   const series = r.seriesMots;
   const deSerie = series.find((x) => x.origine === "de") ?? null;
@@ -1920,7 +1952,7 @@ function mancheMots(r) {
     motsRetires.delete(r);
     const sans = cles(deSerie);
     const mots = piocher(Math.min(k, MAX_MOTS - sans.size), sans);
-    if (!mots.length) return annonce(`Plus aucun ${unite} libre à tirer : ajoutez-en dans la page du jeu, ou écrivez-les à la main.`);
+    if (!mots.length) return annonce(`Plus aucun ${unite} libre à tirer : ajoutez-en dans la page du jeu${quisuis ? "" : ", ou écrivez-les à la main"}.`);
     const serie = deSerie ?? { id: "de", origine: "de", mots: [] };
     if (!deSerie) r.seriesMots.unshift(serie);
     serie.mots = mots;
@@ -1948,7 +1980,7 @@ function mancheMots(r) {
     nombre,
     h("button", {
       type: "button", class: "btn tirage-de", text: "🎲", "aria-label": `Tirer les ${unite}s au hasard`,
-      title: `Tirer les ${unite}s au hasard, selon l'âge (les ${unite}s écrits à la main ne bougent pas)`, onclick: () => tirerTout(Number(nombre.value)),
+      title: `Tirer les ${unite}s au hasard, selon l'âge (les ${quisuis ? "autres séries" : `${unite}s écrits à la main`} ne bougent pas)`, onclick: () => tirerTout(Number(nombre.value)),
     }));
 
   // Deuxième ligne : écrire un mot à la main ; il rejoint la série « écrits à la main », à la fin.
@@ -1973,12 +2005,47 @@ function mancheMots(r) {
     h("span", { class: "quiz-ajout-titre mots-main-titre", text: `✍ Écrire un ${unite} à la main` }),
     h("div", { class: "quiz-ajout-champ mots-main-champ" }, champ,
       h("button", { type: "button", class: "btn secondary mots-ajouter", text: "＋ Ajouter", onclick: ajouter })));
-  const outils = h("div", { class: "quiz-outils" }, ligne, ecrire);
+  // Qui suis-je ? : une série entière (ancien anniversaire, bibliothèque), copiée à la fin, sans ce qui est déjà dans ce jeu.
+  const ajouterSerie = (origine, titre, mots) => {
+    const deja = cles();
+    const neufs = mots.map((m) => game.clean(m)).filter(Boolean).filter((m) => !deja.has(cleDuMot(type, m)) && deja.add(cleDuMot(type, m))).slice(0, place());
+    if (!neufs.length) return annonce(place() ? `Tous ces ${unite}s sont déjà dans ${jeu}.` : `${MAX_MOTS} ${unite}s au plus dans ${jeu} : retirez-en avant d'en ajouter.`);
+    const serie = { id: nouvelId(origine === "reprise" ? "p" : "b"), origine, titre, mots: neufs };
+    r.seriesMots.push(serie);
+    seriesDepliees.add(serie);
+    ranger();
+    changer();
+    noterEcran();
+  };
+  const rappel = quisuis ? ligneAjoutQuiz({
+    classe: "quiz-rappel", titre: "📚 Rappeler les personnages d'un ancien anniversaire", label: "Chercher une prestation archivée",
+    placeholder: "Prénom, âge, date… d'une prestation archivée", vide: "Aucun ancien anniversaire avec ce jeu",
+    aucun: "Aucune prestation archivée ne correspond.", items: motsArchives(type), attr: (x) => ({ "data-show": x.id }),
+    choisir: (x) => ajouterSerie("reprise", x.titre, x.mots),
+  }) : null;
+  const dejaLa = new Set(series.filter((x) => x.origine === "biblio").map((x) => x.titre));
+  const biblio = quisuis ? ligneAjoutQuiz({
+    classe: "quiz-biblio", titre: "📗 Intégrer une de vos séries de Qui suis-je ?", label: "Chercher une série de la bibliothèque",
+    placeholder: "Nom d'une de vos séries (« Disney »…)", vide: "Pas encore de série : créez-en dans la page du jeu",
+    aucun: "Aucune série ne correspond.",
+    items: seriesBibliotheque(type).map(([nom, mots]) => ({
+      id: nom, titre: nom, mots, details: [nMots(mots.length), dejaLa.has(nom) ? "✓ déjà dans ce jeu" : ""].filter(Boolean).join(" · "), noms: [nom], autres: mots.map(nomDe),
+    })),
+    attr: (x) => ({ "data-serie": x.id }),
+    choisir: (x) => ajouterSerie("biblio", x.titre, x.mots),
+  }) : null;
+  const outils = h("div", { class: "quiz-outils" }, ligne, ...(quisuis ? [rappel, biblio] : [ecrire]));
 
-  // Un mot dans une liste : déjà dans un autre jeu de la fête, en rouge.
+  // Qui suis-je ? : la petite image du personnage (cedric, 24/10 : « vérifier qu'elle me convient »), celle que la TV
+  // montre à la révélation : son image, sinon son émoji ; tiré au 🎲, jamais une image téléversée.
+  const vignette = (m) => (m.imageId ? photoBibliotheque(m.imageId, { class: "tirage-mini", alt: "", title: "Image montrée à la révélation" })
+    : h("span", { class: "tirage-mini emoji", text: m.emoji || "❔", title: m.emoji ? "Émoji montré à la révélation" : "Ni image ni émoji : la TV montrera seulement son nom" }));
+  // Un mot dans une liste : déjà dans un autre jeu de la fête, en rouge. Un personnage : ses indices dessous.
   const texteMot = (m) => {
     const autre = autreJeu(m);
-    return [h("span", { class: "tirage-texte mot-texte" }, m.word, autre ? h("small", { class: "mot-deja", text: `Déjà dans « ${autre} »` }) : null)];
+    return [quisuis ? vignette(m) : null, h("span", { class: "tirage-texte mot-texte" }, nomDe(m),
+      quisuis ? h("small", { class: "mot-indices", text: m.clues.join(" · ") }) : null,
+      autre ? h("small", { class: "mot-deja", text: `Déjà dans « ${autre} »` }) : null)];
   };
   // ✕ : au 🎲, un 🎲 prend sa place ; écrit à la main, il part.
   const retirer = (serie, i) => {
@@ -1994,20 +2061,22 @@ function mancheMots(r) {
     ? h("li", { class: "tirage-q vide" }, h("div", { class: "tirage-q-ligne" },
       h("button", { type: "button", class: "btn tirage-de petit", text: "🎲", "aria-label": `Tirer un autre ${unite}`, title: `Tirer un autre ${unite}`, onclick: () => {
         const [neuf] = piocher(1, ecartes());
-        if (!neuf) return annonce(`Plus aucun ${unite} libre à tirer : écrivez-le à la main.`);
+        if (!neuf) return annonce(`Plus aucun ${unite} libre à tirer : ${quisuis ? "ajoutez-en dans la page du jeu" : "écrivez-le à la main"}.`);
         serie.mots[i] = neuf;
         ranger();
         changer();
       } }),
       h("span", { class: "hint small", text: `${unite[0].toUpperCase()}${unite.slice(1)} à tirer` })))
-    : h("li", { class: `tirage-q${autreJeu(m) ? " deja" : ""}`, "data-mot": cleDuMot(type, m) }, h("div", { class: "tirage-q-ligne" },
+    : h("li", { class: `tirage-q${quisuis ? " perso" : ""}${autreJeu(m) ? " deja" : ""}`, "data-mot": cleDuMot(type, m) }, h("div", { class: "tirage-q-ligne" },
       ...texteMot(m),
-      h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": `Retirer « ${m.word} »`, title: serie.origine === "de" ? `Retirer ce ${unite} (un 🎲 prend sa place)` : `Retirer ce ${unite}`, onclick: () => retirer(serie, i) })))));
+      h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": `Retirer « ${nomDe(m)} »`, title: serie.origine === "de" ? `Retirer ce ${unite} (un 🎲 prend sa place)` : `Retirer ce ${unite}`, onclick: () => retirer(serie, i) })))));
   const titreSerie = (x) => {
     const k = x.mots.filter((m) => !m.vide).length;
     const vides = x.mots.length - k;
     if (x.origine === "de") return `🎲 ${nMots(k)} tiré${k > 1 ? "s" : ""} au hasard${vides ? `, ${vides} à tirer` : ""}`;
-    return `✍ ${nMots(k)} écrit${k > 1 ? "s" : ""} à la main`;
+    if (x.origine === "reprise") return `📅 ${x.titre ?? `${unite[0].toUpperCase()}${unite.slice(1)}s repris`} : ${nMots(k)}`;
+    if (x.origine === "biblio") return `📚 Série « ${x.titre ?? "sans nom"} » : ${nMots(k)}`;
+    return quisuis ? `✋ ${nMots(k)} choisi${k > 1 ? "s" : ""} un par un` : `✍ ${nMots(k)} écrit${k > 1 ? "s" : ""} à la main`;
   };
   const liste = h("ol", { class: "quiz-series" }, ...series.map((x) => {
     const qs = h("ol", { class: "tirage-liste serie-liste" }, ...corps(x));
@@ -2057,13 +2126,13 @@ function mancheMots(r) {
     const i = serie ? serie.mots.findIndex((m) => cleDuMot(type, m) === x.cle) : -1;
     if (i >= 0) retirer(serie, i);
   };
-  const lignesCompletes = ordre.map((x, k) => h("li", { class: `tirage-q quiz-complet-q${autreJeu(x.m) ? " deja" : ""}`, "data-mot": x.cle },
+  const lignesCompletes = ordre.map((x, k) => h("li", { class: `tirage-q quiz-complet-q${quisuis ? " perso" : ""}${autreJeu(x.m) ? " deja" : ""}`, "data-mot": x.cle },
     h("div", { class: "tirage-q-ligne" },
       h("span", { class: "quiz-complet-num", text: `${k + 1}` }),
       ...texteMot(x.m),
-      h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: `Passer ce ${unite} plus tôt`, "aria-label": `Monter « ${x.m.word} »`, disabled: k === 0, onclick: () => deplacer(k, -1) }),
-      h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: `Passer ce ${unite} plus tard`, "aria-label": `Descendre « ${x.m.word} »`, disabled: k === ordre.length - 1, onclick: () => deplacer(k, 1) }),
-      h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: `Enlever ce ${unite} de ${jeu}`, "aria-label": `Enlever « ${x.m.word} »`, onclick: () => enleverDuComplet(x) }))));
+      h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: `Passer ce ${unite} plus tôt`, "aria-label": `Monter « ${nomDe(x.m)} »`, disabled: k === 0, onclick: () => deplacer(k, -1) }),
+      h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: `Passer ce ${unite} plus tard`, "aria-label": `Descendre « ${nomDe(x.m)} »`, disabled: k === ordre.length - 1, onclick: () => deplacer(k, 1) }),
+      h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: `Enlever ce ${unite} de ${jeu}`, "aria-label": `Enlever « ${nomDe(x.m)} »`, onclick: () => enleverDuComplet(x) }))));
   const listeComplete = h("ol", { class: "tirage-liste serie-liste quiz-complet-liste" }, ...lignesCompletes);
   listeComplete.hidden = !motsCompletsDeplies.has(r);
   const titreComplet = () => `${listeComplete.hidden ? "▸" : "▾"} 🧩 ${jeu} complet : ${nMots(ordre.length)}, dans l'ordre de passage`;
@@ -2367,7 +2436,8 @@ function ouvrirChoixJeu(place = "bas") {
         // Un Quiz juste après un Quiz n'en ferait qu'un : on y retourne, ses questions s'ajoutent dans sa manche.
         const dernier = editing.rounds[editing.rounds.length - 1];
         if (dernier && (estEnSeries(x.type) || x.type === "blind" || x.type === "musical" || estJeuDeMots(x.type)) && (dernier.type ?? "quiz") === x.type) {
-          annonce(estJeuDeMots(x.type) ? `${ROUND_TYPES[x.type]} est déjà le dernier jeu : ajoutez-y vos mots (🎲, ou écrits à la main).`
+          annonce(x.type === "quisuis" ? "« Qui suis-je ? » est déjà le dernier jeu : ajoutez-y vos personnages (🎲, un ancien anniversaire, une de vos séries)."
+            : estJeuDeMots(x.type) ? `${ROUND_TYPES[x.type]} est déjà le dernier jeu : ajoutez-y vos mots (🎲, ou écrits à la main).`
             : x.type === "blind" ? "Le Blind test est déjà le dernier jeu : ajoutez-y vos chansons (🎲, « Sélectionner mes chansons », une playlist)."
             : x.type === "musical" ? "Le Quiz musical est déjà le dernier jeu : ajoutez-y vos chansons (🎲, une playlist)."
             : `${x.type === "flou" ? "L'Image floue" : `Le ${ROUND_TYPES[x.type]}`} est déjà le dernier jeu : ajoutez-y vos ${estJeuDePhotos(x.type) ? "photos" : x.type === "express" ? "affirmations" : "questions"} (🎲, un ancien anniversaire, votre bibliothèque).`);
@@ -8158,6 +8228,41 @@ function renderBuiltin() {
       }) : null);
   };
   const tiles = [...game.catalog.map((x) => [x, false]), ...extra.map((x) => [x, true])];
+  // Qui suis-je ? (cedric, 24/10) : les personnages tout prêts, les vôtres, puis vos séries (chacune se renomme ou se
+  // supprime d'un coup) ; une série s'appelle dans une prestation (« 📗 Intégrer une de vos séries »).
+  if (type === "quisuis") {
+    const noms = nomsDesSeries(extra);
+    $("bi-serie-list")?.replaceChildren(...noms.map((nom) => h("option", { value: nom })));
+    const renommerSerie = async (nom) => {
+      const neuf = (await demanderTexte(`Nouveau nom de la série « ${nom} »`, nom, { ok: "Renommer", maxlength: 30 }))?.trim();
+      if (!neuf || neuf === nom) return;
+      if (noms.includes(neuf)) return status("builtin-status", `La série « ${neuf} » existe déjà.`);
+      saveBuiltin(type, { off, extra: extra.map((x) => (x.serie === nom ? { ...x, serie: neuf } : x)) }, `Série « ${nom} » renommée « ${neuf} ».`);
+    };
+    const supprimerSerie = async (nom, xs) => {
+      if (!(await confirmer(`Supprimer la série « ${nom} » ${xs.length > 1 ? `et ses ${xs.length} personnages` : "et son personnage"} ?`, { ok: "Supprimer", danger: true }))) return;
+      const cles = new Set(xs.map(([x]) => game.key(x)));
+      const { images: imgs } = builtinState(type);
+      saveBuiltin(type, {
+        off: off.filter((k) => !cles.has(k)), extra: extra.filter((x) => x.serie !== nom),
+        images: Object.fromEntries(Object.entries(imgs).filter(([slot]) => ![...cles].some((k) => contentSlot(k) === slot))),
+      }, `Série « ${nom} » supprimée.`);
+    };
+    const groupes = [
+      ["Personnages tout prêts", tiles.filter(([, custom]) => !custom), null],
+      ["Mes personnages", tiles.filter(([x, custom]) => custom && !x.serie), null],
+      ...noms.map((nom) => [nom, tiles.filter(([x, custom]) => custom && x.serie === nom), nom]),
+    ].filter(([, xs]) => xs.length);
+    $("builtin-items").replaceChildren(...groupes.flatMap(([titre, xs, serie]) => [
+      serie ? h("div", { class: "content-series serie-biblio", "data-serie": serie },
+        h("h3", { text: `📚 Série « ${serie} » · ${plural(xs.length, "personnage")}` }),
+        h("button", { type: "button", class: "btn secondary small", text: "Renommer", onclick: () => renommerSerie(serie) }),
+        h("button", { type: "button", class: "btn danger small", text: "Supprimer la série", onclick: () => supprimerSerie(serie, xs) }))
+        : h("h3", { class: "content-series", text: titre }),
+      ...xs.map(([x, custom]) => tile(x, custom)),
+    ]));
+    return;
+  }
   // Pictionary : les mots rangés par série (Animaux, À manger…, puis « Mes mots »).
   if (type === "pictionary") {
     $("builtin-items").replaceChildren(...pictoSeriesList(tiles.map(([x]) => x)).flatMap((name) => [
@@ -8226,7 +8331,15 @@ function renderBuiltinForm() {
     ]
     : type === "quisuis" ? [
       field("Réponse", "bi-answer", { placeholder: "Le kangourou" }), field("Émoji (facultatif)", "bi-emoji", { max: 16, placeholder: "🦘" }),
+      // Sa série (cedric, 24/10) : une existante (liste) ou une nouvelle ; vide = « Mes personnages ».
+      h("label", {}, "Série (facultatif)", h("input", { id: "bi-serie", maxlength: 30, list: "bi-serie-list", placeholder: "Disney" }),
+        h("datalist", { id: "bi-serie-list" }, ...nomsDesSeries(builtinState(type).extra).map((nom) => h("option", { value: nom })))),
       ...[1, 2, 3, 4].map((n) => field(`Indice ${n}${n === 1 ? " (le plus difficile)" : n === 4 ? " (le plus facile)" : ""}`, `bi-clue${n}`, { wide: true, max: 120 })),
+      // Ou une série entière d'un coup, en JSON (écrite par exemple avec ChatGPT).
+      h("div", { class: "wide row" },
+        h("label", { class: "btn secondary file-btn" }, "📥 Importer une série (JSON)…",
+          h("input", { id: "bi-json", type: "file", accept: ".json,application/json", multiple: true, hidden: true, onchange: (e) => importerPersonnages(e.target) })),
+        h("span", { class: "hint small", text: "Un fichier par série : { \"serie\": \"Disney\", \"personnages\": [{ \"reponse\": \"Elsa\", \"emoji\": \"❄️\", \"indices\": [\"…\", \"…\", \"…\"] }] }" })),
     ]
     : [
       field("Nom de la famille d'objets", "bi-theme", { placeholder: "Les jouets" }),
@@ -8258,7 +8371,7 @@ $("builtin-add").onsubmit = async (e) => {
   }
   const raw = type === "chante" ? { word: val("bi-word") }
     : type === "pictionary" ? { word: val("bi-word"), image: val("bi-emoji"), series: val("bi-series") }
-    : type === "quisuis" ? { answer: val("bi-answer"), emoji: val("bi-emoji"), clues: [1, 2, 3, 4].map((n) => val(`bi-clue${n}`)).filter(Boolean) }
+    : type === "quisuis" ? { answer: val("bi-answer"), emoji: val("bi-emoji"), serie: val("bi-serie"), clues: [1, 2, 3, 4].map((n) => val(`bi-clue${n}`)).filter(Boolean) }
     : { theme: val("bi-theme"), objects: [...val("bi-objects").split("\n").map((line) => {
       const m = line.trim().match(/^(.*\S)\s+(\S+)$/u);
       return m ? { word: m[1], image: m[2] } : null;
@@ -8272,10 +8385,65 @@ $("builtin-add").onsubmit = async (e) => {
   const { off, extra } = builtinState(type);
   const key = game.key(item);
   if ([...game.catalog, ...extra].some((x) => game.key(x) === key)) return status("builtin-status", `« ${game.label(item)} » existe déjà.`);
-  await saveBuiltin(type, { off, extra: [...extra, item] }, `« ${game.label(item)} » est ajouté au jeu.`);
+  await saveBuiltin(type, { off, extra: [...extra, item] }, `« ${game.label(item)} » est ajouté ${item.serie ? `à la série « ${item.serie} »` : "au jeu"}.`);
+  // La série reste choisie, pour le personnage suivant.
+  const serie = val("bi-serie");
   form.reset();
+  if ($("bi-serie")) $("bi-serie").value = serie;
   if ($("bi-photos-count")) $("bi-photos-count").textContent = "";
 };
+
+/**
+ * Personnages de Qui suis-je ? lus dans un fichier JSON (cedric, 24/10 : « à la main ou en json ») : une série
+ * ({ serie, personnages }), plusieurs ({ series: [...] }, ou une liste de séries), ou une simple liste de personnages
+ * (sa série : le nom du fichier). En français ou en anglais : reponse / answer, indices / clues, emoji.
+ */
+function lirePersonnages(data, nomFichier) {
+  const liste = (x) => x?.personnages ?? x?.characters ?? x?.items;
+  const perso = (p) => ({ answer: p?.reponse ?? p?.["réponse"] ?? p?.answer ?? p?.nom ?? p?.name, emoji: p?.emoji, clues: p?.indices ?? p?.clues, serie: p?.serie ?? p?.["série"] });
+  const serieDe = (x) => ({
+    serie: [x?.serie, x?.["série"], x?.titre, x?.title, x?.nom, x?.name].find((v) => typeof v === "string" && v.trim()) ?? nomFichier,
+    personnages: liste(x).map(perso),
+  });
+  const estSerie = (x) => Array.isArray(liste(x));
+  if (Array.isArray(data?.series)) return data.series.filter(estSerie).map(serieDe);
+  if (estSerie(data)) return [serieDe(data)];
+  if (Array.isArray(data) && data.some(estSerie)) return data.filter(estSerie).map(serieDe);
+  if (Array.isArray(data)) return [{ serie: nomFichier, personnages: data.map(perso) }];
+  return [];
+}
+
+/** « 📥 Importer une série (JSON)… » de Qui suis-je ? : chaque personnage valable rejoint sa série ; ceux déjà là sont laissés. */
+async function importerPersonnages(input) {
+  const fichiers = [...(input.files ?? [])];
+  input.value = "";
+  if (!fichiers.length) return;
+  const type = "quisuis";
+  const game = CONTENT_GAMES[type];
+  const { off, extra } = builtinState(type);
+  const connus = new Set([...game.catalog, ...extra].map((x) => game.key(x)));
+  const ajouts = [];
+  const erreurs = [];
+  let deja = 0, refuses = 0;
+  for (const f of fichiers) {
+    let lu;
+    try { lu = JSON.parse(await f.text()); } catch { erreurs.push(`« ${f.name} » n'est pas un fichier JSON valable.`); continue; }
+    for (const { serie, personnages } of lirePersonnages(lu, f.name.replace(/\.json$/i, ""))) {
+      for (const p of personnages) {
+        const item = game.clean({ ...p, serie: p.serie || serie });
+        if (!item) { refuses++; continue; }
+        if (connus.has(game.key(item))) { deja++; continue; }
+        connus.add(game.key(item));
+        ajouts.push(item);
+      }
+    }
+  }
+  const notes = [deja ? `${plural(deja, "personnage était", "personnages étaient")} déjà dans le jeu` : "", refuses ? `${plural(refuses, "personnage ignoré", "personnages ignorés")} (il faut sa réponse et au moins 2 indices)` : ""].filter(Boolean);
+  if (!ajouts.length) return status("builtin-status", [...erreurs, notes.length ? `Rien d'ajouté : ${notes.join(" ; ")}.` : erreurs.length ? "" : "Aucun personnage trouvé dans ce fichier."].filter(Boolean).join(" "));
+  const series = nomsDesSeries(ajouts);
+  await saveBuiltin(type, { off, extra: [...extra, ...ajouts] },
+    `${plural(ajouts.length, "personnage ajouté", "personnages ajoutés")}${series.length ? ` (${series.map((s) => `série « ${s} »`).join(", ")})` : ""}${notes.length ? ` ; ${notes.join(" ; ")}` : ""}.${erreurs.length ? ` ${erreurs.join(" ")}` : ""}`);
+}
 
 // ---------- Page d'un jeu : ses manches ----------
 

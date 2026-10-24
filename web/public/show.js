@@ -260,7 +260,12 @@ export const CONTENT_GAMES = {
     clean: (x) => {
       const clues = (Array.isArray(x?.clues) ? x.clues : []).filter((c) => typeof c === "string" && c.trim()).map((c) => c.trim().slice(0, 120)).slice(0, 4);
       if (typeof x?.answer !== "string" || !x.answer.trim() || clues.length < 2) return null;
-      return { answer: x.answer.trim().slice(0, 60), emoji: typeof x.emoji === "string" ? x.emoji.trim().slice(0, 16) : "", clues, level: 1 };
+      // Sa série dans la bibliothèque (cedric, 24/10 : des séries de Qui suis-je ?) ; dans une prestation, son image.
+      return {
+        answer: x.answer.trim().slice(0, 60), emoji: typeof x.emoji === "string" ? x.emoji.trim().slice(0, 16) : "", clues, level: 1,
+        ...(typeof x.serie === "string" && x.serie.trim() ? { serie: x.serie.trim().slice(0, 30) } : {}),
+        ...(/^[0-9a-f]{16}$/.test(x.imageId ?? "") ? { imageId: x.imageId } : {}),
+      };
     },
   },
   pictionary: {
@@ -541,10 +546,14 @@ function rangerSelonOrdre(parSerie, ordre, extras = []) {
  * tirés au nombre choisi, selon l'âge) et les mots écrits à la main ; le « complet » les joue dans l'ordre rangé à la
  * main ou mélangé (`ordreMots`, leurs clés), sinon série après série. Un mot n'y passe qu'une fois.
  */
-export const JEUX_DE_MOTS = ["chante"];
+// Qui suis-je ? aussi (cedric, 24/10 : « même principe que tous les autres ») : ses personnages en séries.
+export const JEUX_DE_MOTS = ["chante", "quisuis"];
 export const estJeuDeMots = (type) => JEUX_DE_MOTS.includes(type);
-/** Origines d'une série de mots : le 🎲, les mots écrits à la main. */
-export const ORIGINES_MOTS = ["de", "main"];
+/**
+ * Origines d'une série de mots : le 🎲, les mots écrits à la main (Qui suis-je ? d'avant les séries : choisis un par un) ;
+ * Qui suis-je ? : les personnages d'un ancien anniversaire, une série de la bibliothèque.
+ */
+export const ORIGINES_MOTS = ["de", "main", "reprise", "biblio"];
 /** Au plus autant de mots dans un jeu de mots. */
 export const MAX_MOTS = 30;
 /** Un mot gardé dans une série, nettoyé ; { vide: true } : retiré du 🎲, en attente d'un autre. */

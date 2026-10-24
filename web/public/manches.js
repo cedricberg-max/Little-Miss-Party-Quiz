@@ -262,7 +262,11 @@ export function cleanRound(r, playlists = {}) {
   if (BUILTIN_GAMES[type]) {
     // Jeu de mots en séries (cedric, 24/10) : chaque série (🎲, écrits à la main), cases retirées comprises (en attente
     // de leur 🎲), et l'ordre du « complet » s'il a été rangé à la main.
-    const series = estJeuDeMots(type) ? seriesMots(r).map((x) => ({ id: x.id.slice(0, 40), origine: x.origine, mots: x.mots.slice(0, MAX_MOTS) })).filter((x) => x.mots.length) : [];
+    const series = estJeuDeMots(type) ? seriesMots(r).map((x) => ({
+      id: x.id.slice(0, 40), origine: x.origine, mots: x.mots.slice(0, MAX_MOTS),
+      // Ancien anniversaire, série de la bibliothèque : son nom.
+      ...(typeof x.titre === "string" && x.titre.trim() ? { titre: x.titre.trim().slice(0, 80) } : {}),
+    })).filter((x) => x.mots.length) : [];
     const ordre = series.length && Object.values(r.ordreMots ?? {}).length ? motsDuJeu(r).map((x) => x.cle) : [];
     out = { type, count: r.count ?? BUILTIN_GAMES[type].count, ...(type === "disparu" && r.objects ? { objects: r.objects } : {}), ...photos,
       ...(series.length ? { seriesMots: series, ...(ordre.length ? { ordreMots: ordre } : {}) } : picks) };

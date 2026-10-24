@@ -6074,6 +6074,158 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Régie PC (cedric, 24/10) : Qui suis-je ? se construit comme le Quiz : 🎲, les personnages d'un ancien anniversaire, une de vos séries, chacun avec sa petite image ; « Qui suis-je ? complet » (↑ ↓ ✕ 🔀)", async () => {
+    const { buildSnapshot } = await import("../web/public/show.js");
+    const PNG = `data:image/png;base64,${png([200, 40, 90]).toString("base64")}`;
+    const ELSA = "00000000000000e1";
+    const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
+    await seedLibrary("images", { [ELSA]: PNG });
+    // Une série « Disney » dans la bibliothèque (Elsa avec son image) ; un anniversaire archivé avec son Qui suis-je ?.
+    await seedLibrary("contents/quisuis", {
+      extra: [
+        { answer: "Elsa", emoji: "❄️", clues: ["Je suis reine", "Je fais de la glace", "Libérée, délivrée"], serie: "Disney" },
+        { answer: "Simba", emoji: "🦁", clues: ["Mon père est Mufasa", "Je deviens roi"], serie: "Disney" },
+      ],
+      images: { elsa: ELSA },
+    });
+    await seedLibrary("shows", { malo: { childName: "Malo", age: 9, date: day(-20), status: "publiee", updatedAt: 1,
+      rounds: [{ type: "quisuis", seriesMots: [{ id: "de", origine: "de", mots: [
+        { answer: "Le pirate", emoji: "🏴‍☠️", clues: ["J'ai un bateau", "Je cherche un trésor"] },
+        { answer: "La fée", emoji: "🧚", clues: ["J'ai une baguette", "Je vole avec mes ailes"] }] }] }] } });
+    const page = await admin();
+    await page.click("#home-new");
+    await page.fill("#show-child", "Zoé");
+    await page.fill("#show-age", "9");
+    await ajouterJeu(page, "quisuis");
+    const round = page.locator('#show-rounds .jeu-bloc[data-jeu="quisuis"] .round');
+    const compteur = round.locator(".round-head > .quiz-compteur");
+    const series = round.locator(".quiz-series > li.serie");
+    assert.equal(await compteur.textContent(), "Aucun personnage pour l'instant : la TV en tirera 5 au hasard");
+    // Les outils : le 🎲, un ancien anniversaire, une de vos séries ; pas de personnage écrit ici (il lui faut ses indices).
+    assert.deepEqual(await round.locator(".quiz-outils > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-ligne", "quiz-ajouts quiz-rappel", "quiz-ajouts quiz-biblio"]);
+    assert.equal(await round.locator(".quiz-rappel-titre").textContent(), "📚 Rappeler les personnages d'un ancien anniversaire");
+    assert.equal(await round.locator(".quiz-biblio-titre").textContent(), "📗 Intégrer une de vos séries de Qui suis-je ?");
+
+    // Un ancien anniversaire : tous ses personnages, en une série.
+    await round.locator(".quiz-rappel-cherche").fill("mal");
+    await round.locator('.quiz-rappel-item[data-show="malo"]').click();
+    await compteur.filter({ hasText: "2 personnages" }).waitFor();
+    assert.match(await series.nth(0).locator(".serie-voir").textContent(), /^▾ 📅 Anniversaire de Malo \(.+\) : 2 personnages$/);
+    // Une de vos séries : avec l'image d'Elsa, celle de la révélation ; Simba avec son émoji.
+    await round.locator(".quiz-biblio-cherche").fill("dis");
+    await round.locator('.quiz-biblio-item[data-serie="Disney"]').click();
+    await compteur.filter({ hasText: "4 personnages" }).waitFor();
+    const disney = series.nth(1);
+    assert.equal(await disney.locator(".serie-voir").textContent(), "▾ 📚 Série « Disney » : 2 personnages");
+    await waitFor(async () => (await disney.locator('[data-mot="elsa"] img.tirage-mini').getAttribute("src")) === PNG, "la petite image d'Elsa");
+    assert.equal(await disney.locator('[data-mot="simba"] .tirage-mini.emoji').textContent(), "🦁");
+    assert.equal(await disney.locator('[data-mot="elsa"] .mot-indices').textContent(), "Je suis reine · Je fais de la glace · Libérée, délivrée");
+    // Déjà là : la même série ne s'ajoute pas deux fois.
+    await round.locator(".quiz-biblio-cherche").fill("dis");
+    assert.match(await round.locator('.quiz-biblio-item[data-serie="Disney"]').textContent(), /✓ déjà dans ce jeu/);
+    await round.locator('.quiz-biblio-item[data-serie="Disney"]').click();
+    await page.locator("#annonce", { hasText: "Tous ces personnages sont déjà dans Qui suis-je ?." }).waitFor();
+
+    // Le 🎲 : 3 personnages, aucun de ceux déjà là ; tirés au hasard, jamais une image téléversée.
+    await round.locator(".tirage-nombre").selectOption("3");
+    await round.locator(".tirage-de").click();
+    await compteur.filter({ hasText: "7 personnages" }).waitFor();
+    const de = round.locator('.quiz-series > li.serie[data-origine="de"]');
+    assert.equal(await de.locator(".serie-voir").textContent(), "▾ 🎲 3 personnages tirés au hasard");
+    assert.equal(await de.locator(".serie-liste img").count(), 0);
+    const tires = await de.locator(".serie-liste .tirage-q").evaluateAll((xs) => xs.map((x) => x.dataset.mot));
+    for (const cle of ["le pirate", "la fée", "elsa", "simba"]) assert.ok(!tires.includes(cle), cle);
+
+    // « Qui suis-je ? complet » : le 🎲 d'abord, puis les séries ajoutées ; ↓, ✕ et 🔀 ; la petite image aussi.
+    const complet = round.locator(".quiz-complet");
+    assert.equal(await complet.locator(".quiz-complet-voir").textContent(), "▸ 🧩 Qui suis-je ? complet : 7 personnages, dans l'ordre de passage");
+    await complet.locator(".quiz-complet-voir").click();
+    const ordre = () => complet.locator(".quiz-complet-q").evaluateAll((xs) => xs.map((x) => x.dataset.mot));
+    assert.deepEqual(await ordre(), [...tires, "le pirate", "la fée", "elsa", "simba"]);
+    await complet.locator('.quiz-complet-q[data-mot="elsa"] img.tirage-mini').waitFor();
+    await complet.locator('.quiz-complet-q[data-mot="la fée"] .tirage-retirer').click();
+    await compteur.filter({ hasText: "6 personnages" }).waitFor();
+    await complet.locator(".quiz-complet-q").nth(0).locator(".quiz-complet-descendre").click();
+    await waitFor(async () => (await ordre()).join() === [tires[1], tires[0], tires[2], "le pirate", "elsa", "simba"].join(), "le premier passe en 2e");
+    const avant = await ordre();
+    await complet.locator(".quiz-melanger").click();
+    await waitFor(async () => (await ordre()).join() !== avant.join(), "mélangés");
+    const joues = await ordre();
+    await capture(page, "qui-suis-je");
+
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
+    const zoe = Object.values(await library("shows")).find((x) => x.childName === "Zoé");
+    const [qs] = zoe.rounds;
+    assert.deepEqual(qs.seriesMots.map((x) => [x.origine, x.mots.length]), [["de", 3], ["reprise", 1], ["biblio", 2]]);
+    assert.equal(qs.seriesMots[2].titre, "Disney");
+    assert.equal(qs.seriesMots[2].mots.find((m) => m.answer === "Elsa").imageId, ELSA);
+    // Sur la TV : dans l'ordre du « complet », Elsa avec son image, chacun avec ses indices.
+    const { snapshot, problems } = buildSnapshot("zoe", zoe, {});
+    assert.deepEqual(problems, []);
+    const questions = snapshot.quiz.questions.filter((q) => q.kind === "quisuis");
+    assert.deepEqual(questions.map((q) => q.choices[0].toLowerCase()), joues);
+    const elsa = questions.find((q) => q.choices[0] === "Elsa");
+    assert.equal(elsa.imageId, ELSA);
+    assert.deepEqual(elsa.cards.map((c) => c.word), ["Je suis reine", "Je fais de la glace", "Libérée, délivrée"]);
+    await page.context().close();
+  });
+
+  test("Régie PC (cedric, 24/10) : les séries de Qui suis-je ? dans la page du jeu : à la main (champ « Série ») ou en JSON, renommées ou supprimées d'un coup", async () => {
+    const page = await admin();
+    await openGamePage(page, "quisuis", "collections");
+    // À la main : la série reste choisie pour le personnage suivant.
+    await page.fill("#bi-answer", "Elsa");
+    await page.fill("#bi-emoji", "❄️");
+    await page.fill("#bi-serie", "Disney");
+    await page.fill("#bi-clue1", "Je suis reine");
+    await page.fill("#bi-clue2", "Je fais de la glace");
+    await page.click("#builtin-add button[type=submit]");
+    await page.locator("#builtin-status", { hasText: "« ❄️ Elsa » est ajouté à la série « Disney »." }).waitFor();
+    assert.equal(await page.inputValue("#bi-serie"), "Disney");
+    assert.equal(await page.inputValue("#bi-answer"), "");
+    const titre = (nom) => page.locator(`#builtin-items .serie-biblio[data-serie="${nom}"] h3`);
+    assert.equal(await titre("Disney").textContent(), "📚 Série « Disney » · 1 personnage");
+    // En JSON : une série par fichier ; un personnage sans assez d'indices est laissé, un déjà là aussi.
+    const fichier = { name: "heros.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify({
+      serie: "Super-héros",
+      personnages: [
+        { reponse: "Spider-Man", emoji: "🕷️", indices: ["Je grimpe aux murs", "Une araignée m'a piqué", "Je lance des toiles"] },
+        { reponse: "Batman", emoji: "🦇", indices: ["Je vis à Gotham", "Je porte une cape"] },
+        { reponse: "Hulk", indices: ["Je suis vert"] },
+        { reponse: "Elsa", indices: ["Je suis reine", "Je fais de la glace"] },
+      ],
+    })) };
+    await page.locator("#bi-json").setInputFiles(fichier);
+    await page.locator("#builtin-status", { hasText: "2 personnages ajoutés (série « Super-héros ») ; 1 personnage était déjà dans le jeu ; 1 personnage ignoré (il faut sa réponse et au moins 2 indices)." }).waitFor();
+    assert.equal(await titre("Super-héros").textContent(), "📚 Série « Super-héros » · 2 personnages");
+    let extra = (await library("contents")).quisuis.extra;
+    assert.deepEqual(extra.map((x) => [x.answer, x.serie]), [["Elsa", "Disney"], ["Spider-Man", "Super-héros"], ["Batman", "Super-héros"]]);
+    // Une simple liste : sa série prend le nom du fichier.
+    await page.locator("#bi-json").setInputFiles({ name: "Animaux.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify([
+      { answer: "Le panda", emoji: "🐼", clues: ["Je mange du bambou", "Je suis noir et blanc"] }])) });
+    await page.locator("#builtin-status", { hasText: "1 personnage ajouté (série « Animaux »)." }).waitFor();
+    // Un fichier illisible : dit.
+    await page.locator("#bi-json").setInputFiles({ name: "casse.json", mimeType: "application/json", buffer: Buffer.from("{ pas du json") });
+    await page.locator("#builtin-status", { hasText: "« casse.json » n'est pas un fichier JSON valable." }).waitFor();
+
+    // Renommer, supprimer d'un coup (fenêtres du site).
+    await page.locator('#builtin-items .serie-biblio[data-serie="Super-héros"]').getByRole("button", { name: "Renommer" }).click();
+    await page.locator(".fenetre input").fill("Héros");
+    await page.locator(".fenetre").getByRole("button", { name: "Renommer" }).click();
+    await page.locator("#builtin-status", { hasText: "Série « Super-héros » renommée « Héros »." }).waitFor();
+    await titre("Héros").waitFor();
+    await page.locator('#builtin-items .serie-biblio[data-serie="Animaux"]').getByRole("button", { name: "Supprimer la série" }).click();
+    await page.locator(".fenetre", { hasText: "Supprimer la série « Animaux » et son personnage ?" }).waitFor();
+    await page.locator(".fenetre").getByRole("button", { name: "Supprimer" }).click();
+    await page.locator("#builtin-status", { hasText: "Série « Animaux » supprimée." }).waitFor();
+    extra = (await library("contents")).quisuis.extra;
+    assert.deepEqual(extra.map((x) => [x.answer, x.serie]), [["Elsa", "Disney"], ["Spider-Man", "Héros"], ["Batman", "Héros"]]);
+    assert.equal(await page.locator('#builtin-items .serie-biblio[data-serie="Animaux"]').count(), 0);
+    await capture(page, "qui-suis-je-series");
+    await page.context().close();
+  });
+
   test("Régie PC (cedric, 23/10) : le Vrai ou Faux express se construit comme le Quiz : 🎲 dans le Vrai ou Faux tout prêt (autant de vraies que de fausses, au niveau du profil), un ancien anniversaire, les Vrai / Faux de ses quiz, « Vrai ou Faux complet », jamais deux fois la même affirmation", async () => {
     const { buildSnapshot } = await import("../web/public/show.js");
     const { AFFIRMATIONS } = await import("../web/public/banque-vrai-faux.js");
