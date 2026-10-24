@@ -5712,8 +5712,18 @@ describe("bibliothèque de quiz et prestations", () => {
     const zoom = await tirees();
     assert.equal(zoom.length, 6);
     for (const k of zoom) assert.ok(animaux.includes(k) && k !== p1 && k !== p2, k);
-    // La ligne dit la réponse à trouver (pas « Qu'est-ce que c'est ? »).
-    assert.ok((await lignes.locator(".tirage-texte").allTextContents()).every((t) => t && !/qu'est-ce/i.test(t)));
+    // La ligne dit la réponse à trouver (pas « Qu'est-ce que c'est ? »), sans son émoji : la photo est à côté (cedric, 24/10).
+    assert.ok((await lignes.locator(".tirage-texte").allTextContents()).every((t) => t && !/qu'est-ce/i.test(t) && /^\p{L}/u.test(t)));
+    // ↑ ↓ dans la liste tirée au 🎲 aussi (cedric, 24/10) : l'ordre de passage du « Zoom mystère complet » suit.
+    assert.equal(await lignes.nth(0).locator(".tirage-monter").isDisabled(), true);
+    assert.equal(await lignes.nth(5).locator(".tirage-descendre").isDisabled(), true);
+    const premiereDuComplet = async () => decodeURIComponent((await round.locator(".quiz-complet-q img.tirage-photo").first().getAttribute("src")).match(/^banque\/(.+)\.jpg$/)[1]);
+    assert.equal(await premiereDuComplet(), zoom[0]);
+    await lignes.nth(0).locator(".tirage-descendre").click();
+    await waitFor(async () => (await tirees()).join() === [zoom[1], zoom[0], ...zoom.slice(2)].join(), "la 1re photo passe en 2e");
+    assert.equal(await premiereDuComplet(), zoom[1]);
+    await lignes.nth(1).locator(".tirage-monter").click();
+    await waitFor(async () => (await tirees()).join() === zoom.join(), "remise à sa place");
     // ✕ : un 🎲 prend sa place et tire une autre photo.
     await lignes.nth(0).locator(".tirage-retirer").click();
     await series.nth(0).locator(".serie-liste li.vide", { hasText: "Photo à tirer" }).waitFor();

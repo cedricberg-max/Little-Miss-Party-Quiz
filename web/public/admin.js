@@ -2502,8 +2502,11 @@ function reponsesIllustrees(q) {
 /** Zoom mystère, Image floue : la photo à deviner, en petit (banque de photos libres, ou une de vos images). */
 const apercuPhoto = (q) => (q.banque ? h("img", { class: "tirage-photo", src: cheminPhotoBanque(q.banque), alt: "", loading: "lazy" })
   : IMAGE_ID.test(q.imageId ?? "") ? photoBibliotheque(q.imageId, { class: "tirage-photo", loading: "lazy" }) : null);
-/** Ce qu'il faut trouver sur une photo du Zoom mystère ou de l'Image floue : sa bonne réponse. */
-const reponsePhoto = (q) => `${q.choices?.[q.correct] ?? q.text ?? ""}`;
+/**
+ * Ce qu'il faut trouver sur une photo du Zoom mystère ou de l'Image floue : sa bonne réponse, sans son émoji (cedric,
+ * 24/10 : « on exploite exclusivement les photos », la photo est déjà à côté).
+ */
+const reponsePhoto = (q) => `${q.choices?.[q.correct] ?? q.text ?? ""}`.replace(/^[^\p{L}\p{N}]+/u, "").trim();
 
 /** Petite étiquette des questions de la Super Finale, dans la liste (cedric, 23/10 : une seule, à la fin). */
 const etiquetteFinale = (r) => h("span", { class: "badge-finale", text: `🏆 ×${FACTEURS_FINALE.includes(r.facteur) ? r.facteur : FACTEURS_FINALE[0]}`, title: "Question de la Super Finale" });
@@ -2652,6 +2655,27 @@ function mancheQuiz(r) {
       extra,
       h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": "Retirer cette question", title: "Retirer cette question", onclick: retirer })));
   };
+  // Zoom mystère, Image floue (cedric, 24/10) : ↑ ↓ aussi dans la liste tirée au 🎲, pas seulement dans le « complet ».
+  // Rangé à la main dans le « complet », les deux photos y échangent aussi leur place.
+  const flechesDuTirage = (qs, i) => {
+    const deplacer = (d) => {
+      const j = i + d;
+      if (j < 0 || j >= qs.length) return;
+      const cles = [qs[i], qs[j]].map((y) => (caseVide(y) ? null : cleQuestion(serieDuDe(r), y, r.type)));
+      const nouvelles = [...qs];
+      [nouvelles[i], nouvelles[j]] = [nouvelles[j], nouvelles[i]];
+      poserTirage(r, nouvelles);
+      const ordre = [...(Array.isArray(r.ordreQuiz) ? r.ordreQuiz : Object.values(r.ordreQuiz ?? {}))];
+      const [a, b] = cles.map((c) => (c ? ordre.indexOf(c) : -1));
+      if (a >= 0 && b >= 0) { [ordre[a], ordre[b]] = [ordre[b], ordre[a]]; r.ordreQuiz = ordre; }
+      changer();
+      noterEcran();
+    };
+    return [
+      h("button", { type: "button", class: "icon tirage-monter", text: "↑", title: "Passer cette photo plus tôt", "aria-label": "Monter cette photo", disabled: i === 0, onclick: () => deplacer(-1) }),
+      h("button", { type: "button", class: "icon tirage-descendre", text: "↓", title: "Passer cette photo plus tard", "aria-label": "Descendre cette photo", disabled: i === qs.length - 1, onclick: () => deplacer(1) }),
+    ];
+  };
   const corps = (x) => {
     if (x.origine === "de") {
       // ✕ : la question part, un 🎲 prend sa place ; il tire une question de la même sorte (Juste Chiffre ou 4 réponses).
@@ -2671,7 +2695,7 @@ function mancheQuiz(r) {
           r.ecartees = [...(r.ecartees ?? []), sig(q)];
           poserTirage(r, qs.map((y, k) => (k === i ? { vide: true, ...(q.nombre ? { nombre: true } : {}) } : y)));
           changer();
-        })));
+        }, photos ? flechesDuTirage(qs, i) : null)));
     }
     if (x.origine === "quiz") {
       // Quiz rappelé : ✕ retire une question (gardée de côté, « ↺ » la remet) ; le quiz de la bibliothèque ne change pas.
