@@ -5219,7 +5219,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await page.locator("#screen-show-edit button", { hasText: /^Enregistrer$/ }).count(), 2, "en haut et dans la barre du bas, pas une de plus");
     const retirerJeu = page.locator('#show-rounds .jeu-bloc[data-jeu="quiz"] button[title="Retirer ce jeu"]');
     await retirerJeu.click();
-    assert.match(await repondreFenetre(page, { accepter: false }), /^Retirer « .+ » et sa manche de la prestation \?$/);
+    assert.match(await repondreFenetre(page, { accepter: false }), /^Retirer « .+ » de la prestation \?$/);
     assert.equal(await page.locator("#show-rounds .round").count(), 1, "Annuler : le jeu reste");
     await retirerJeu.click();
     await repondreFenetre(page);
@@ -7118,7 +7118,7 @@ describe("bibliothèque de quiz et prestations", () => {
     // La recherche fouille tout, archives comprises : une note, un prénom, une date.
     const cherche = round.locator(".reprendre-cherche");
     await cherche.fill("jumeaux");
-    await round.locator(".reprendre-groupe", { hasText: "1 manche trouvée" }).waitFor();
+    await round.locator(".reprendre-groupe", { hasText: "1 partie trouvée" }).waitFor();
     await round.locator('.reprise-item[data-reprise="s11/0"]', { hasText: "📝 Super avec les jumeaux" }).waitFor();
     await cherche.fill("lison");
     await round.locator('.reprise-item[data-reprise="s12/0"]').waitFor();
@@ -7127,7 +7127,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await round.locator('.reprise-item[data-reprise="s12/0"]').waitFor();
     assert.equal(await round.locator(".reprise-item").count(), 1);
     await cherche.fill("introuvable");
-    await round.locator(".reprendre-groupe", { hasText: "Aucune manche ne correspond." }).waitFor();
+    await round.locator(".reprendre-groupe", { hasText: "Aucune partie ne correspond." }).waitFor();
     // Reprise de la manche notée : la note vient avec ; une note écrite ici s'enregistre avec la manche.
     await cherche.fill("jumeaux");
     await round.locator('.reprise-item[data-reprise="s11/0"]').click();
@@ -7342,13 +7342,13 @@ describe("bibliothèque de quiz et prestations", () => {
     await deplierJeux(page);
     await series.nth(2).waitFor();
     await round.locator('.quiz-series > li.serie[data-origine="de"] .serie-enlever').click();
-    assert.match(await repondreFenetre(page), /Enlever cette série \(8 questions\) de la manche \?/);
+    assert.match(await repondreFenetre(page), /Enlever cette série \(8 questions\) du jeu \?/);
     await round.locator('.quiz-series > li.serie[data-origine="de"]').waitFor({ state: "detached" });
     assert.deepEqual(await origines(), ["reprise", "reprise"]);
     assert.equal(await round.locator(".tirage-ligne .tirage-de").count(), 1);
     // Une série enlevée (✕ de la série) : demandé d'abord.
     await series.nth(1).locator(".serie-enlever").click();
-    assert.match(await repondreFenetre(page, { accepter: false }), /Enlever cette série \(2 questions\) de la manche \?/);
+    assert.match(await repondreFenetre(page, { accepter: false }), /Enlever cette série \(2 questions\) du jeu \?/);
     assert.equal(await series.count(), 2);
     await page.context().close();
   });
@@ -7575,6 +7575,13 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.keyboard.press("Control+z");
     await waitFor(async () => (await page.locator("#show-rounds .jeu-bloc").count()) === 2, "le jeu ajouté retiré");
     assert.deepEqual(await page.locator("#show-rounds .jeu-bloc").evaluateAll((xs) => xs.map((x) => [x.dataset.jeu, x.classList.contains("replie")])), [["statues", true], ["quiz", false]]);
+    // Plus de manches (cedric, 24/10) : ni « 1 manche » ni « ＋ Manche » ; deux fois le même jeu, ce sont deux jeux.
+    await ajouterJeu(page, "coffres");
+    await ajouterJeu(page, "coffres");
+    await waitFor(async () => (await page.locator('#show-rounds .jeu-bloc[data-jeu="coffres"]').count()) === 2, "deux jeux de coffres");
+    assert.equal(await page.locator("#show-rounds .jeu-nb, #show-rounds .jeu-plus").count(), 0);
+    assert.equal(await page.locator('#show-rounds .jeu-bloc[data-jeu="coffres"] button[title="Retirer ce jeu"]').count(), 2);
+    assert.equal(await page.locator("#show-rounds").innerText().then((t) => /manche/i.test(t)), false, "le mot « manche » n'apparaît plus");
     await page.context().close();
   });
 
@@ -7631,13 +7638,13 @@ describe("bibliothèque de quiz et prestations", () => {
 
   test("reprendre une manche d'une ancienne prestation et dupliquer un quiz, sans toucher aux originaux", async () => {
     await seedLibrary("quizzes", { animaux: ANIMAUX, finale: FINALE });
-    const LEA = { childName: "Léa", age: 7, date: "2026-03-01", status: "archivee", rounds: [{ type: "quiz", quizId: "animaux" }, { type: "finale", quizId: "finale" }, { type: "chante", count: 5 }], updatedAt: 1 };
+    const LEA = { childName: "Léa", age: 7, date: "2026-03-01", status: "archivee", rounds: [{ type: "quiz", quizId: "animaux" }, { type: "finale", quizId: "finale" }, { type: "pictionary", duration: 90 }], updatedAt: 1 };
     await seedLibrary("shows", { lea: LEA });
     const page = await admin();
     await page.click("#home-new");
     await page.fill("#show-child", "Zoé");
-    // Le jeu ajouté : « ↺ Reprendre une manche déjà faite » propose celles des autres prestations (pas le Quiz, cedric 23/10).
-    await ajouterJeu(page, "chante");
+    // Le jeu ajouté : « ↺ Reprendre une partie déjà faite » propose celles des autres prestations (pas le Quiz, cedric 23/10).
+    await ajouterJeu(page, "pictionary");
     const round = page.locator("#show-rounds .round").nth(0);
     await round.locator(".reprendre-ouvrir").click();
     const lea2 = round.locator('.reprise-item[data-reprise="lea/2"]');
@@ -7646,15 +7653,15 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(await round.locator('.reprise-item[data-reprise="lea/0"], .reprise-item[data-reprise="lea/1"]').count(), 0);
     assert.equal(await round.locator(".reprise-item", { hasText: "Super Finale" }).count(), 0);
     await lea2.click();
-    assert.equal(await page.locator("#show-rounds .round").nth(0).locator("select.grow").inputValue(), "5");
+    assert.equal(await page.locator("#show-rounds .round").nth(0).locator('select[aria-label="Temps de dessin"]').inputValue(), "90");
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "Enregistrée." }).waitFor();
     // Elle est gardée dans la page de son jeu, rattachée à la nouvelle prestation ; l'ancienne prestation ne change pas.
     const shows = await library("shows");
     const [zoeId, zoe] = Object.entries(shows).find(([, s]) => s.childName === "Zoé");
     const [mid, manche] = Object.entries(await library("manches"))[0];
-    assert.deepEqual(zoe.rounds, [{ type: "chante", count: 5, mancheId: mid }]);
-    assert.deepEqual([manche.round, manche.showId, manche.title], [{ type: "chante", count: 5 }, zoeId, "Chante le mot ! · Anniversaire de Zoé"]);
+    assert.deepEqual(zoe.rounds, [{ type: "pictionary", duration: 90, mancheId: mid }]);
+    assert.deepEqual([manche.round, manche.showId, manche.title], [{ type: "pictionary", duration: 90 }, zoeId, "Pictionary · Anniversaire de Zoé"]);
     assert.deepEqual(shows.lea, LEA, "Ancienne prestation inchangée");
 
     // Dupliquer un quiz : la copie apparaît en tête de la liste, sans s'ouvrir ; elle se modifie et s'enregistre à part.

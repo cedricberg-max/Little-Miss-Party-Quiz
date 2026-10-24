@@ -32,7 +32,7 @@ import { shuffle } from "./mime-cards.js";
 import {
   MANCHE_TYPES, COLLECTION_UNIT, RANDOM_TYPES, RANDOM_COUNT, MIME_PER_TEAM, MIME_PER_TEAM_DEFAULT, LEVELS, collectionItems, collectionGroups,
   filterItems, drawItems, randomRound, cleanRound, mancheGroups, mancheSummary, defaultMancheTitle, mimeCardsNeeded,
-  itemConcepts, usedElsewhere, blocsDeJeu, versSeriesQuiz, fusionnerQuiz, versSeriesBlind, fusionnerBlind, photosDeMesImages,
+  itemConcepts, usedElsewhere, versSeriesQuiz, fusionnerQuiz, versSeriesBlind, fusionnerBlind, photosDeMesImages,
 } from "./manches.js";
 import { concepts, neufsSiPossible, questionConcepts } from "./jamais-deux-fois.js";
 import { PICTO_OWN_SERIES } from "./picto-cards.js";
@@ -1038,7 +1038,7 @@ function selectionEditor({ items, get, set, draw, unit, empty, own, round = null
         }));
     };
     box.replaceChildren(...[
-      h("span", { class: "small", text: n ? `${n} ${unit}${n > 1 ? "s" : ""} choisi${e}${n > 1 ? "s" : ""} : la manche joue exactement cette liste.` : empty }),
+      h("span", { class: "small", text: n ? `${n} ${unit}${n > 1 ? "s" : ""} choisi${e}${n > 1 ? "s" : ""}  : le jeu joue exactement cette liste.` : empty }),
       h("button", { type: "button", class: "chip pick-draw", text: "🎲 Tirer au hasard", onclick: () => change(draw()) }),
       chosen.length ? h("button", { type: "button", class: "chip", text: "Tout retirer (tirage au lancement)", onclick: () => change([]) }) : null,
       h("div", { class: "pick-list" }, ...chosen.map((k) => {
@@ -2155,7 +2155,7 @@ function quizSelection(r, all) {
     roundCtx.refresh();
   };
   const select = (current, k) => h("select", {
-    class: "grow", "aria-label": k === 0 ? "Quiz de la manche" : `Quiz ${k + 1} de la manche`,
+    class: "grow", "aria-label": k === 0 ? "Quiz du jeu" : `Quiz ${k + 1} du jeu`,
     onchange: (e) => { const next = [...ids]; next[k] = e.target.value; setIds(next); },
   },
   h("option", { value: "", text: options.length ? "Choisir un quiz…" : r.type === "illustre" ? "Aucun quiz illustré : créez-en un dans la page du Quiz illustré" : "Aucun quiz : créez-en un dans la page du Quiz" }),
@@ -2268,10 +2268,12 @@ function refreshRounds() {
   editing.rounds = blinds;
   if (fusions) annonce("Les Quiz qui se suivaient n'en font plus qu'un : leurs questions à la suite, une seule Super Finale à la fin.");
   if (fusionsBlind) annonce("Les blind tests (ou quiz musicaux) qui se suivaient n'en font plus qu'un : leurs chansons à la suite.");
-  const blocs = blocsDeJeu(editing.rounds);
+  // Plus de manches (cedric, 24/10 : « on abandonne complètement cette notion de manche ») : chaque jeu de la prestation
+  // a sa carte, avec son nombre de tours ; deux fois le même jeu, ce sont deux jeux.
+  const blocs = editing.rounds.map((r, i) => ({ type: r?.type ?? "quiz", indices: [i] }));
   blocs.forEach((b, k) => {
     const [debut, fin] = [b.indices[0], b.indices[b.indices.length - 1] + 1];
-    // Le bloc passe avant (ou après) le bloc voisin ; deux blocs du même jeu qui se touchent n'en font plus qu'un.
+    // Le jeu passe avant (ou après) son voisin.
     const deplacer = (d) => {
       const v = blocs[k + d];
       const [a, z] = [v.indices[0], v.indices[v.indices.length - 1] + 1];
@@ -2283,16 +2285,14 @@ function refreshRounds() {
     };
     const retirerJeu = async () => {
       const remplies = b.indices.filter((i) => roundFilled(editing.rounds[i]) && !SANS_CONTENU.includes(b.type)).length;
-      if (remplies && !(await confirmer(`Retirer « ${ROUND_TYPES[b.type]} » et ${remplies > 1 ? `ses ${remplies} manches` : "sa manche"} de la prestation ?`, { ok: "Retirer", danger: true }))) return;
+      if (remplies && !(await confirmer(`Retirer « ${ROUND_TYPES[b.type]} » de la prestation ?`, { ok: "Retirer", danger: true }))) return;
       editing.rounds.splice(debut, fin - debut);
       refreshRounds();
       // Confirmé dans la fenêtre, hors de l'écran : l'action est notée ici (Ctrl+Z, « Annuler les modifications »).
       noterEcran();
     };
-    const ajouterManche = () => { editing.rounds.splice(fin, 0, { type: b.type }); refreshRounds(); };
-    const n = b.indices.length;
-    // Le Quiz est une seule manche (cedric, 23/10), le blind test aussi (cedric, 24/10 : « on abandonne la notion de
-    // manche ») : pas de « ＋ Manche », tout s'ajoute dedans.
+    // Jeux en séries (Quiz, blind test, Chante le mot !…) : tout s'ajoute dedans (compteur sur la ligne du numéro, pas
+    // de « Reprendre une partie déjà faite »).
     const sansManches = estEnSeries(b.type) || b.type === "blind" || b.type === "musical" || estJeuDeMots(b.type);
     const premiere = editing.rounds[debut];
     const replie = premiere[JEU_OUVERT] !== true;
@@ -2306,9 +2306,6 @@ function refreshRounds() {
         }),
         h("span", { class: "jeu-nom", text: `${iconeJeu(b.type)} ${ROUND_TYPES[b.type]}`.trim() }),
         replie ? h("span", { class: "jeu-resume", text: resume }) : null,
-        sansManches ? null : h("span", { class: "jeu-nb", text: n > 1 ? `${n} manches` : "1 manche" }),
-        // Mimes : une manche par équipe, toutes dans la même (cedric, 23/10) ; pas de seconde manche à ajouter.
-        sansManches || b.type === "mimes" || replie ? null : h("button", { type: "button", class: "chip jeu-plus", text: "＋ Manche", title: `Ajouter une manche de ${ROUND_TYPES[b.type]}`, onclick: ajouterManche }),
         h("button", { type: "button", class: "icon", title: "Monter ce jeu", disabled: k === 0, onclick: () => deplacer(-1), text: "↑" }),
         h("button", { type: "button", class: "icon", title: "Descendre ce jeu", disabled: k === blocs.length - 1, onclick: () => deplacer(1), text: "↓" }),
         h("button", { type: "button", class: "icon", title: "Retirer ce jeu", onclick: retirerJeu, text: "✕" })),
@@ -2330,10 +2327,9 @@ function refreshRounds() {
         });
         return h("div", { class: "round show-round", "data-manche": i },
           h("div", { class: "round-head" },
-            h("span", { class: "num", title: `Manche ${i + 1} de la prestation`, text: `${i + 1}` }),
-            compteur ?? (SANS_CONTENU.includes(b.type) ? h("span", { class: "grow hint small", text: n > 1 ? `Partie ${b.indices.indexOf(i) + 1}` : "" })
-              : h("span", { class: "grow hint small", text: vide && !sansManches ? "Nouvelle manche : choisissez son contenu, ou reprenez une manche déjà faite (plus bas)." : "" })),
-            n > 1 ? h("button", { type: "button", class: "icon", title: "Retirer cette manche", onclick: () => { editing.rounds.splice(i, 1); refreshRounds(); }, text: "✕" }) : null),
+            h("span", { class: "num", title: `Jeu ${i + 1} de la prestation`, text: `${i + 1}` }),
+            compteur ?? (SANS_CONTENU.includes(b.type) ? h("span", { class: "grow hint small", text: "" })
+              : h("span", { class: "grow hint small", text: vide && !sansManches ? "Choisissez son contenu, ou reprenez une partie déjà faite (plus bas)." : "" }))),
           corps,
           reprise,
           alerteManche(r));
@@ -2490,7 +2486,7 @@ function reprendreManche(r, replace) {
   const type = r.type ?? "quiz";
   const items = manchesAReprendre(type);
   if (!items.length) return null;
-  const champ = h("input", { type: "search", class: "reprendre-cherche", "aria-label": "Chercher une manche", placeholder: "Chercher : mot, prénom, date…" });
+  const champ = h("input", { type: "search", class: "reprendre-cherche", "aria-label": "Chercher une partie déjà faite", placeholder: "Chercher : mot, prénom, date…" });
   const liste = h("div", { class: "reprendre-liste" });
   const panneau = h("div", { class: "reprendre" });
   panneau.hidden = true;
@@ -2502,7 +2498,7 @@ function reprendreManche(r, replace) {
     const q = champ.value;
     if (q.trim()) {
       const trouvees = parPertinence(items.filter((x) => contientTout([...x.noms, ...x.autres].filter(Boolean), q)), q, (x) => x.noms.filter(Boolean), (x) => x.autres.filter(Boolean));
-      remplir(liste, h("p", { class: "reprendre-groupe", text: trouvees.length ? `${trouvees.length} manche${trouvees.length > 1 ? "s" : ""} trouvée${trouvees.length > 1 ? "s" : ""}` : "Aucune manche ne correspond." }), ...trouvees.map(ligne));
+      remplir(liste, h("p", { class: "reprendre-groupe", text: trouvees.length ? `${trouvees.length} partie${trouvees.length > 1 ? "s" : ""} trouvée${trouvees.length > 1 ? "s" : ""}` : "Aucune partie ne correspond." }), ...trouvees.map(ligne));
       return;
     }
     const epinglees = items.filter((x) => x.epinglee);
@@ -2522,7 +2518,7 @@ function reprendreManche(r, replace) {
     h("p", { class: "hint small", text: "Les plus récentes sont listées ; pour aller plus loin, tapez un mot, un prénom, une date ou une note." }),
     liste);
   return h("div", { class: "reprendre-zone" },
-    h("button", { type: "button", class: "chip reprendre-ouvrir", text: type === "quiz" ? "↺ Reprendre les questions d'une manche déjà faite" : "↺ Reprendre une manche déjà faite", "aria-expanded": "false",
+    h("button", { type: "button", class: "chip reprendre-ouvrir", text: type === "quiz" ? "↺ Reprendre les questions d'une partie déjà faite" : "↺ Reprendre une partie déjà faite", "aria-expanded": "false",
       onclick: (e) => {
         panneau.hidden = !panneau.hidden;
         e.currentTarget.setAttribute("aria-expanded", panneau.hidden ? "false" : "true");
@@ -3007,7 +3003,7 @@ function mancheQuiz(r) {
     });
     const enlever = async () => {
       const k = x.origine === "main" ? (x.questions ?? []).filter(Boolean).length : questionsDeLaSerie(x, quizzes, r.type).length;
-      if (k && !(await confirmer(`Enlever cette série (${nUnites(k)}) de la manche ?${x.origine === "quiz" ? ` ${photos ? "La série" : "Le quiz"} reste dans la bibliothèque.` : ""}`, { ok: "Enlever", danger: true }))) return;
+      if (k && !(await confirmer(`Enlever cette série (${nUnites(k)}) du jeu ?${x.origine === "quiz" ? ` ${photos ? "La série" : "Le quiz"} reste dans la bibliothèque.` : ""}`, { ok: "Enlever", danger: true }))) return;
       r.seriesQuiz = series.filter((y) => y !== x);
       changer();
       noterEcran();
@@ -3025,7 +3021,7 @@ function mancheQuiz(r) {
         } }) : null,
         h("button", { type: "button", class: "icon serie-monter", text: "↑", title: "Passer cette série plus tôt", "aria-label": "Monter cette série", disabled: i === 0, onclick: () => deplacer(i, -1) }),
         h("button", { type: "button", class: "icon serie-descendre", text: "↓", title: "Passer cette série plus tard", "aria-label": "Descendre cette série", disabled: i === series.length - 1, onclick: () => deplacer(i, 1) }),
-        h("button", { type: "button", class: "icon serie-enlever", text: "✕", title: "Enlever cette série de la manche", "aria-label": "Enlever cette série", onclick: enlever })),
+        h("button", { type: "button", class: "icon serie-enlever", text: "✕", title: "Enlever cette série du jeu", "aria-label": "Enlever cette série", onclick: enlever })),
       qs);
   }));
 
