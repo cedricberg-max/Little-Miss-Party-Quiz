@@ -24,6 +24,7 @@ import {
   roundSeriesQuiz, questionsDeLaSerie, questionsDesSeries, questionJouable, FACTEURS_FINALE, SUPER_FINALE_LAST, questionBougies,
   questionsDuQuiz, cleQuestion, placeDesBougies, CLE_BOUGIES, estEnSeries, choiceImageList, estJeuDePhotos, signatureQuestion, zoomRoundQuestions,
   estJeuDeMots, seriesMots, cleDuMot, motsDuJeu, MAX_MOTS, pickedItems, roundHasard, disparuObjects,
+  pictoToursBruts, pictoPropositions, pictoPassages, PICTO_PROPOSITIONS, PICTO_PASSAGES, PICTO_PASSAGES_MAX,
 } from "./show.js";
 import { TEAM_COLORS, TEAM_COLOR_NAMES } from "./theme.js";
 import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE, cheminPhotoBanque, imageLibre, questionBanque } from "./banque-photos.js";
@@ -1333,6 +1334,238 @@ function mancheMimes(r) {
   ].filter(Boolean);
 }
 
+/** Mots retirés (✕) d'un Pictionary pendant la saisie : le 🎲 de leur case ne les redonne pas. */
+const dessinsRetires = new WeakMap();
+/** Équipes dépliées (leurs passages visibles), par Pictionary : rien n'est enregistré. */
+const dessinsDeplies = new WeakMap();
+
+/**
+ * Mots que le 🎲 du Pictionary propose (cedric, 24/10 : l'émoji sur la tablette, la vraie photo sur la TV quand le
+ * dessin est trouvé) : ceux de la banque de photos libres, qui ont chacun leur émoji et leur photo, choisis ensemble.
+ * D'abord les mots du jeu (faciles à dessiner), puis le reste de la banque ; jamais un mot du jeu que Sarah a retiré,
+ * ni, pour les Petits, un mot marqué « grands ».
+ */
+function motsPourDessin(profil) {
+  const actifs = new Set(activeItems("pictionary", contents.pictionary).map((w) => w.word.toLowerCase()));
+  const cle = (w) => motDeLaBanque(w.word)?.cle;
+  const exclus = new Set(CONTENT_GAMES.pictionary.catalog.filter((w) => !actifs.has(w.word.toLowerCase()) || (profil === "PETITS" && w.level === 2)).map(cle).filter(Boolean));
+  const faciles = new Set(activeItems("pictionary", contents.pictionary).filter((w) => profil !== "PETITS" || w.level !== 2).map(cle).filter(Boolean));
+  const photos = photosLibres().map((x) => ({ word: x.nom, image: x.emoji, banque: x.id.slice(BANQUE.length) })).filter((m) => !exclus.has(m.banque));
+  return [photos.filter((m) => faciles.has(m.banque)), photos.filter((m) => !faciles.has(m.banque))];
+}
+
+/**
+ * Pioche [n] mots pour le Pictionary [r], jamais un qui montre déjà quelque chose de [prises] (mots du jeu, mis à
+ * jour) ; d'abord ceux qu'aucun autre jeu de la prestation ne montre (« jamais deux fois »), les plus faciles d'abord.
+ */
+function piocherDessins(r, n, prises, profil) {
+  if (n <= 0) return [];
+  const ailleurs = roundCtx.elsewhere?.(r) ?? new Map();
+  const [faciles, autres] = motsPourDessin(profil);
+  const neuf = (m) => !concepts(m).some((k) => ailleurs.has(k));
+  const out = [];
+  for (const m of [...shuffle(faciles.filter(neuf)), ...shuffle(autres.filter(neuf)), ...shuffle(faciles.filter((x) => !neuf(x))), ...shuffle(autres.filter((x) => !neuf(x)))]) {
+    if (out.length >= n) break;
+    if (concepts(m).some((k) => prises.has(k))) continue;
+    concepts(m).forEach((k) => prises.add(k));
+    out.push(m);
+  }
+  return out;
+}
+
+/** Une image de la Bibliothèque (ajout à la main) en mot du Pictionary : son émoji, sa photo libre, ou votre image. */
+const imageDeDessin = (x) => motPictoDe(x.groupe === "emojis" ? { word: x.nom, image: x.emoji }
+  : x.groupe === "photos" ? { word: x.nom, image: x.emoji, banque: x.id.slice(BANQUE.length) }
+    : { word: `${x.nom ?? ""}`.trim() || "Image", imageId: x.id });
+const motPictoDe = (m) => (typeof m.word === "string" && m.word.trim() ? m : null);
+
+/**
+ * Pictionary dans une prestation (cedric, 24/10 : « à l'image des autres jeux ») : une première ligne avec le nombre de
+ * mots proposés au dessinateur, le nombre de passages de chaque équipe, le temps de dessin et le 🎲, qui prépare tous
+ * les passages ; une deuxième pour ajouter un passage à la main à une équipe (images de la Bibliothèque). Puis une ligne
+ * par équipe, dans la couleur de son bracelet : ses passages, chacun avec ses mots (émoji, vraie photo, nom). ✕ retire un
+ * mot et laisse un 🎲 à sa place.
+ */
+function mancheDessins(r) {
+  const couleurs = couleursSaisies.length ? couleursSaisies : couleursEquipes({ teams: ctxTeams() });
+  const n = couleurs.length;
+  const N = pictoPropositions(r);
+  const P = pictoPassages(r);
+  const profil = roundCtx.profile?.() ?? "MOYENS";
+  // Moins d'équipes prévues : les passages en trop partent.
+  if (pictoToursBruts(r).length > n) r.tours = pictoToursBruts(r).slice(0, n);
+  const tours = pictoToursBruts(r);
+  const reels = (k) => (tours[k] ?? []).map((p) => p.filter((m) => !m.vide)).filter((p) => p.length);
+  const tire = tours.some((ps) => ps.length);
+  const deplies = dessinsDeplies.get(r) ?? new Set();
+  dessinsDeplies.set(r, deplies);
+  const changer = () => roundCtx.refresh();
+  const nom = (k) => nomCouleur(couleurs[k]);
+  const prises = () => new Set([...pictoToursBruts(r).flat(2).filter((m) => !m.vide).flatMap(concepts), ...(dessinsRetires.get(r) ?? [])]);
+  /** Les passages de l'équipe [k] deviennent [passages] ; les autres ne bougent pas. */
+  const poser = (k, passages) => {
+    const brutes = pictoToursBruts(r);
+    r.tours = couleurs.map((_, j) => (j === k ? passages : brutes[j] ?? []));
+    r.propositions = N;
+    r.passages = P;
+    // L'ancienne façon (mots ou séries choisis, tirage au lancement) laisse la place.
+    r.picks = null; r.hasard = null; r.series = null;
+  };
+  /** [nb] passages neufs de [N] mots, sans rien de [deja]. */
+  const nouveaux = (nb, deja) => Array.from({ length: nb }, () => piocherDessins(r, N, deja, profil)).filter((p) => p.length);
+  const plusDeMots = () => annonce("Plus assez de mots à tirer : ajoutez-en à la main (deuxième ligne).");
+  /** Le 🎲 du haut : tous les passages de toutes les équipes, tirés à nouveau. */
+  const tirerTout = async () => {
+    const avant = tours.reduce((t, ps) => t + ps.length, 0);
+    if (avant && !(await confirmer(`Tirer de nouveaux mots pour toutes les équipes ? Les ${plural(avant, "passage")} déjà prêts seront remplacés.`, { ok: "Tirer à nouveau", annuler: "Garder" }))) return;
+    const deja = new Set(dessinsRetires.get(r) ?? []);
+    const tous = couleurs.map(() => nouveaux(P, deja));
+    if (!tous.some((ps) => ps.length)) return plusDeMots();
+    r.tours = null;
+    tous.forEach((ps, k) => poser(k, ps));
+    if (tous.some((ps) => ps.length < P || ps.some((p) => p.length < N))) plusDeMots();
+    changer();
+  };
+  /** Le 🎲 d'une équipe : ses passages tirés à nouveau. */
+  const tirerEquipe = async (k) => {
+    const avant = (tours[k] ?? []).length;
+    if (avant && !(await confirmer(`Tirer de nouveaux mots pour l'équipe ${nom(k)} ? Ses ${plural(avant, "passage")} seront remplacés.`, { ok: "Tirer à nouveau", annuler: "Garder" }))) return;
+    const deja = new Set([...pictoToursBruts(r).flatMap((ps, j) => (j === k ? [] : ps.flat())).filter((m) => !m.vide).flatMap(concepts), ...(dessinsRetires.get(r) ?? [])]);
+    const ps = nouveaux(P, deja);
+    if (!ps.length) return plusDeMots();
+    poser(k, ps);
+    deplies.add(k);
+    changer();
+  };
+  const tirerUn = (k, p, i) => {
+    const [m] = piocherDessins(r, 1, prises(), profil);
+    if (!m) return plusDeMots();
+    const ps = pictoToursBruts(r)[k].map((x) => [...x]);
+    ps[p][i] = m;
+    poser(k, ps);
+    changer();
+  };
+  const retirerMot = (k, p, i) => {
+    const ps = pictoToursBruts(r)[k].map((x) => [...x]);
+    dessinsRetires.set(r, new Set([...(dessinsRetires.get(r) ?? []), ...concepts(ps[p][i])]));
+    ps[p][i] = { vide: true };
+    poser(k, ps);
+    changer();
+  };
+  const retirerPassage = (k, p) => {
+    const ps = pictoToursBruts(r)[k].filter((_, j) => j !== p);
+    poser(k, ps);
+    changer();
+  };
+  /** Deuxième ligne : des images de la Bibliothèque pour l'équipe [k], [N] par passage, à la suite de ses passages. */
+  const ajouterMain = async (k) => {
+    const autres = roundCtx.elsewhere?.(r) ?? new Map();
+    const ici = new Map(pictoToursBruts(r).flatMap((ps, j) => ps.flat().filter((m) => !m.vide).flatMap((m) => concepts(m).map((x) => [x, `ce Pictionary (équipe ${nom(j)})`]))));
+    const choisies = await choisirDansBibliotheque({
+      titre: `Mots à dessiner pour l'équipe ${nom(k)} (${N} par passage)`, groupes: ["photos", "emojis", "miennes"], plusieurs: true,
+      deja: (x) => { const m = imageDeDessin(x); const hit = m && concepts(m).find((y) => ici.has(y) || autres.has(y)); return hit ? ici.get(hit) ?? autres.get(hit) : null; },
+    });
+    const mots = choisies.map(imageDeDessin).filter(Boolean);
+    if (!mots.length) return;
+    const ps = [...(pictoToursBruts(r)[k] ?? [])];
+    const place = Math.max(0, PICTO_PASSAGES_MAX - ps.length);
+    const neufs = [];
+    for (let i = 0; i < mots.length && neufs.length < place; i += N) neufs.push(mots.slice(i, i + N));
+    poser(k, [...ps, ...neufs]);
+    deplies.add(k);
+    annonce(neufs.length
+      ? `${plural(neufs.length, "passage ajouté", "passages ajoutés")} à l'équipe ${nom(k)}${neufs.length * N < mots.length ? ` (${PICTO_PASSAGES_MAX} au plus par équipe)` : ""}.`
+      : `${PICTO_PASSAGES_MAX} passages au plus par équipe : retirez-en avant d'en ajouter.`, neufs.length > 0);
+    changer();
+  };
+  /** Moins ou plus de mots proposés, de passages : les passages déjà prêts suivent (le 🎲 complète, la fin part). */
+  const regler = (cle, valeur) => {
+    r[cle] = valeur;
+    if (tire) {
+      const nN = pictoPropositions(r);
+      const nP = pictoPassages(r);
+      const deja = prises();
+      r.tours = couleurs.map((_, k) => {
+        const ps = (pictoToursBruts(r)[k] ?? []).map((p) => (p.length > nN ? p.slice(0, nN) : [...p, ...piocherDessins(r, nN - p.length, deja, profil)]));
+        if (cle === "passages") return ps.length > nP ? ps.slice(0, nP) : [...ps, ...Array.from({ length: nP - ps.length }, () => piocherDessins(r, nN, deja, profil)).filter((p) => p.length)];
+        return ps;
+      });
+    }
+    changer();
+  };
+  const choixN = h("select", {
+    class: "picto-propositions", "aria-label": "Mots proposés au dessinateur", title: "Combien de mots le dessinateur voit sur sa tablette, pour en choisir un",
+    onchange: (e) => regler("propositions", Number(e.target.value)),
+  }, ...PICTO_PROPOSITIONS.map((k) => h("option", { value: k, selected: k === N, text: `${k} mots proposés` })));
+  const choixP = h("select", {
+    class: "picto-nb-passages", "aria-label": "Passages par équipe", title: "Combien de fois chaque équipe dessine",
+    onchange: (e) => regler("passages", Number(e.target.value)),
+  }, ...PICTO_PASSAGES.map((k) => h("option", { value: k, selected: k === P, text: `${plural(k, "passage")} par équipe` })));
+  const duree = h("select", {
+    class: "picto-duree", "aria-label": "Temps de dessin", title: `Temps de dessin à chaque passage (${PICTO_POINTS} points si le dessin est trouvé)`,
+    onchange: (e) => { r.duration = Number(e.target.value); roundCtx.summary(); },
+  }, ...PICTO_SECONDS.map((k) => h("option", { value: k, selected: k === (r.duration ?? PICTO_SEC), text: `Dessin de ${enMinutes(k)}` })));
+  const ligne = h("div", { class: "tirage-ligne" }, choixN, choixP, duree,
+    h("button", { type: "button", class: "btn tirage-de picto-de", text: "🎲", "aria-label": "Tirer les mots de toutes les équipes au hasard",
+      title: `Tirer ${P} passage${P > 1 ? "s" : ""} de ${N} mots pour chaque équipe`, onclick: tirerTout }));
+  const main = h("div", { class: "quiz-ajouts picto-main" },
+    h("span", { class: "quiz-ajout-titre", text: "✋ Ajouter un passage à la main, pour l'équipe :" }),
+    h("div", { class: "picto-main-equipes" }, ...couleurs.map((c, k) => h("button", {
+      type: "button", class: "chip picto-main-equipe", style: `--c: ${c}`, "data-couleur": nomCouleur(c),
+      title: `Choisir des images dans la Bibliothèque pour l'équipe ${nomCouleur(c)} (${N} par passage)`, onclick: () => ajouterMain(k),
+    }, h("span", { class: "rond" }), nomCouleur(c)))));
+  const passages = tours.reduce((t, ps) => t + ps.length, 0);
+  const mots = tours.flat(2).filter((m) => !m.vide).length;
+  const manque = tours.flat(2).filter((m) => m.vide).length;
+  const compteur = h("p", { class: "quiz-compteur", "aria-live": "polite",
+    text: tire ? `${plural(n, "équipe")} · ${plural(passages, "passage")} · ${plural(mots, "mot")}${manque ? ` · ${manque} à tirer` : ""}` : "Aucun mot pour l'instant : touchez 🎲" });
+  const autres = roundCtx.elsewhere?.(r) ?? new Map();
+  const ailleurs = (m) => { const k = concepts(m).find((x) => autres.has(x)); return k ? autres.get(k) : null; };
+  const motCase = (k, p, i, m) => (m.vide
+    ? h("li", { class: "picto-mot vide" }, h("button", {
+      type: "button", class: "btn tirage-de petit", text: "🎲", "aria-label": `Tirer un autre mot pour l'équipe ${nom(k)}`,
+      title: "Tirer un autre mot", onclick: () => tirerUn(k, p, i),
+    }))
+    : h("li", { class: `picto-mot${ailleurs(m) ? " deja" : ""}`, title: ailleurs(m) ? `Déjà utilisé dans ${ailleurs(m)}` : m.word, "data-mot": m.word.toLowerCase() },
+      // L'émoji, celui de la tablette ; la vraie photo, celle de la TV quand le dessin est trouvé.
+      m.image ? h("span", { class: "picto-emoji", text: m.image }) : null,
+      apercuPhoto(m),
+      h("span", { class: "picto-nom", text: m.word }),
+      h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": `Retirer « ${m.word} »`, title: "Retirer ce mot (un 🎲 prend sa place)", onclick: () => retirerMot(k, p, i) })));
+  const lignes = couleurs.map((couleur, k) => {
+    const ps = tours[k] ?? [];
+    const ouverte = deplies.has(k) && ps.length > 0;
+    const nbDeja = reels(k).flat().filter(ailleurs).length;
+    return h("section", { class: `mime-equipe picto-equipe${ouverte ? " ouverte" : ""}`, style: `--c: ${couleur}`, "data-couleur": nomCouleur(couleur) },
+      h("div", { class: "mime-equipe-tete" },
+        h("button", {
+          type: "button", class: "mime-deplier", "aria-expanded": ouverte ? "true" : "false", disabled: !ps.length,
+          title: ps.length ? (ouverte ? "Replier les passages" : "Voir les passages de l'équipe") : "Aucun passage : touchez 🎲",
+          onclick: () => { if (deplies.has(k)) deplies.delete(k); else deplies.add(k); changer(); },
+        }, h("span", { class: "fleche", text: ouverte ? "▾" : "▸" }), h("span", { class: "rond" }), h("b", { text: `Équipe ${nomCouleur(couleur)}` })),
+        h("span", { class: "small hint picto-nombre", text: ps.length ? plural(ps.length, "passage") : "Aucun passage" }),
+        nbDeja ? h("span", { class: "mime-deja", text: `⚠ ${nbDeja} déjà dans un autre jeu` }) : null,
+        h("button", {
+          type: "button", class: "btn tirage-de", text: "🎲", "aria-label": `Tirer les mots de l'équipe ${nomCouleur(couleur)} au hasard`,
+          title: `Tirer ${P} passage${P > 1 ? "s" : ""} de ${N} mots pour l'équipe ${nomCouleur(couleur)}`, onclick: () => tirerEquipe(k),
+        })),
+      ouverte ? h("ol", { class: "picto-passages" }, ...ps.map((p, j) => h("li", { class: "picto-passage" },
+        h("span", { class: "picto-passage-num", text: `${j + 1}` }),
+        h("ul", { class: "picto-mots" }, ...p.map((m, i) => motCase(k, j, i, m))),
+        h("button", { type: "button", class: "icon picto-passage-retirer", text: "✕", "aria-label": `Retirer le passage ${j + 1} de l'équipe ${nomCouleur(couleur)}`, title: "Retirer ce passage", onclick: () => retirerPassage(k, j) })))) : null);
+  });
+  // Un Pictionary préparé avant (mots ou séries choisis) : il se joue encore tel quel.
+  const ancienne = !tire && (roundPicks(r).length || pictoRoundSeries(r))
+    ? h("p", { class: "small hint mime-ancienne", text: `Pictionary préparé à l'ancienne : ${mancheSummary(r, {})}, joué tel quel. Le 🎲 le remplace par des mots pour chaque équipe.` })
+    : null;
+  return [
+    compteur,
+    h("div", { class: "quiz-outils" }, ligne, main),
+    ancienne,
+    h("div", { class: "mime-equipes picto-equipes" }, ...lignes),
+  ].filter(Boolean);
+}
+
 /** Chansons retirées (✕) d'un blind test pendant la saisie : le 🎲 de leur case ne les redonne pas. */
 const chansonsRetirees = new WeakMap();
 /** Blind tests dont la liste des chansons est dépliée (comme les séries du Quiz). */
@@ -2526,13 +2759,13 @@ function refreshRounds() {
         const vide = !roundFilled(r);
         const champs = roundFields(r);
         // Le compteur du Quiz sur la ligne de son numéro (cedric, 23/10), celui du blind test aussi (cedric, 24/10).
-        const compteur = sansManches || b.type === "mimes" ? champs.find((x) => x?.classList?.contains("quiz-compteur")) ?? null : null;
+        const compteur = sansManches || b.type === "mimes" || b.type === "pictionary" ? champs.find((x) => x?.classList?.contains("quiz-compteur")) ?? null : null;
         const corps = h("div", { class: "round-body" }, ...champs.filter((x) => x !== compteur));
         // Créer d'abord (les champs ci-dessus), reprendre ensuite (cedric, 23/10). Pas pour le Quiz (cedric, 23/10) :
         // ses questions viennent du 🎲 et du quiz d'une prestation archivée (« Rappeler un de vos quiz »).
         // Ni pour les Mimes (cedric, 23/10 : « uniquement mon bouton dé »), ni pour le blind test (cedric, 24/10 : « je ne
         // veux pas pouvoir rappeler une manche déjà faite »).
-        const reprise = SANS_CONTENU.includes(b.type) || sansManches || b.type === "mimes" ? null : reprendreManche(r, (next) => {
+        const reprise = SANS_CONTENU.includes(b.type) || sansManches || b.type === "mimes" || b.type === "pictionary" ? null : reprendreManche(r, (next) => {
           editing.rounds[i] = r[JEU_OUVERT] ? { ...next, [JEU_OUVERT]: true } : next;
           refreshRounds();
         });
@@ -3626,6 +3859,8 @@ function roundFields(r) {
     : quiz ? null : quizSelection(r, options);
   // Mimes dans une prestation (cedric, 23/10) : le 🎲 seul, une présélection par équipe.
   if (r.type === "mimes" && roundCtx === prestationCtx) return mancheMimes(r);
+  // Pictionary dans une prestation (cedric, 24/10) : le 🎲, un passage à la main, une ligne par équipe.
+  if (r.type === "pictionary" && roundCtx === prestationCtx) return mancheDessins(r);
   // Blind test dans une prestation (cedric, 24/10) : « à la manière des quiz », le 🎲 tire les chansons.
   // Blind test et Quiz musical (cedric, 24/10) : en séries de chansons de la bibliothèque des sons.
   if ((r.type === "blind" || r.type === "musical") && roundCtx === prestationCtx) return mancheBlind(r);

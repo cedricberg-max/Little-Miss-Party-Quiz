@@ -407,6 +407,45 @@ export function foldLegacyFinale(list) {
 }
 
 /** Séries retenues pour une manche de Pictionary, ou null pour toutes. */
+/**
+ * Pictionary en séries (cedric, 24/10) : pour chaque équipe, dans l'ordre des couleurs de la prestation, ses passages ;
+ * à chaque passage, le dessinateur choisit son mot parmi quelques propositions (l'émoji sur sa tablette, la vraie
+ * photo sur la TV quand le dessin est trouvé). Le 🎲 de la Régie PC les prépare, Sarah en ajoute à la main.
+ */
+export const PICTO_PROPOSITIONS = [2, 3, 4];
+export const PICTO_PASSAGES = [1, 2, 3, 4, 5];
+/** Au plus autant de passages par équipe (le 🎲, puis ceux ajoutés à la main). */
+export const PICTO_PASSAGES_MAX = 10;
+/** Mots proposés à chaque passage (3 d'office). */
+export const pictoPropositions = (round) => (PICTO_PROPOSITIONS.includes(round?.propositions) ? round.propositions : 3);
+/** Passages par équipe que tire le 🎲 (2 d'office). */
+export const pictoPassages = (round) => (PICTO_PASSAGES.includes(round?.passages) ? round.passages : 2);
+/** Un mot proposé : son émoji, sa photo libre (`banque`) ou sa photo à soi ; { vide: true } : retiré, en attente de son 🎲. */
+export const motPicto = (m) => {
+  if (m?.vide === true) return { vide: true };
+  if (typeof m?.word !== "string" || !m.word.trim()) return null;
+  return {
+    word: m.word.trim().slice(0, 40),
+    ...(typeof m.image === "string" && m.image.trim() ? { image: m.image.trim().slice(0, 16) } : {}),
+    ...(/^[0-9a-f]{16}$/.test(m.imageId ?? "") ? { imageId: m.imageId } : typeof m.banque === "string" && /^[\w-]{1,80}$/.test(m.banque) ? { banque: m.banque } : {}),
+  };
+};
+/**
+ * Les passages tels qu'enregistrés, une liste par équipe (au plus 8), chaque passage une liste de mots (cases vides
+ * comprises). Lus par leur rang : la base garde une équipe sans passage comme un trou (`{ 0: […], 2: […] }`).
+ */
+export function pictoToursBruts(round) {
+  const e = round?.type === "pictionary" ? round?.tours : null;
+  const parRang = Array.isArray(e) ? e.slice(0, 8) : e && typeof e === "object" ? Array.from({ length: 8 }, (_, k) => e[k]) : [];
+  while (parRang.length && !listOf(parRang[parRang.length - 1]).length) parRang.pop();
+  return parRang.map((passages) => listOf(passages).slice(0, PICTO_PASSAGES_MAX)
+    .map((p) => listOf(p).slice(0, Math.max(...PICTO_PROPOSITIONS)).map(motPicto).filter(Boolean)).filter((p) => p.length));
+}
+/** Les passages joués : sans case vide, sans passage vide. */
+export const pictoTours = (round) => pictoToursBruts(round).map((ps) => ps.map((p) => p.filter((m) => !m.vide)).filter((p) => p.length));
+/** Un Pictionary préparé dans la Régie PC (au moins un mot pour une équipe). */
+export const pictoEnSeries = (round) => pictoTours(round).some((ps) => ps.length);
+
 export const pictoRoundSeries = (round) => {
   const list = Array.isArray(round?.series) ? round.series.filter((x) => typeof x === "string" && x.trim()).map((x) => x.trim()) : [];
   return list.length ? list : null;
@@ -441,7 +480,7 @@ export function jeuxVides(show) {
     const mots = estJeuDeMots(type);
     const hasard = mots || type === "pictionary";
     const vide = mots ? !motsDuJeu(r).length && !roundPicks(r).length
-      : type === "pictionary" ? !roundPicks(r).length && !pictoRoundSeries(r)
+      : type === "pictionary" ? !roundPicks(r).length && !pictoRoundSeries(r) && !pictoEnSeries(r)
         : !roundFilled(r);
     if (!vide) return [];
     // Deux fois le même jeu : sa place dans la prestation.
@@ -914,6 +953,8 @@ export function fixedConcepts(round, quizzes = {}, mimes = {}, contents = {}) {
   }
   // Qui a disparu ? en séries : les objets de toutes ses grilles.
   if (type === "disparu" && motsDuJeu(round).length) return motsDuJeu(round).flatMap((x) => x.m.objects).flatMap(concepts);
+  // Pictionary préparé par équipe (cedric, 24/10) : tous les mots proposés.
+  if (type === "pictionary" && pictoEnSeries(round)) return pictoTours(round).flat(2).flatMap(concepts);
   if (type === "chante" || type === "quisuis" || type === "pictionary") {
     // En séries (cedric, 24/10) : tous ses mots, ceux tirés au 🎲 compris (ils comptent une fois tirés).
     const enSeries = estJeuDeMots(type) ? motsDuJeu(round).map((x) => x.m) : [];
@@ -1068,6 +1109,12 @@ export function alerteEquipes(round, teams, { mimes = {}, contents = {}, profile
   const besoin = PAR_EQUIPE_MIN * n;
   const pour = `pour ${n} équipe${n > 1 ? "s" : ""}, il en faut au moins ${besoin} (${PAR_EQUIPE_MIN} par équipe)`;
   if (round?.type === "patate" && n < 2) return "« Ça va exploser ! » se joue à 2 équipes au moins : une seule équipe est prévue.";
+  if (round?.type === "pictionary" && pictoEnSeries(round)) {
+    // Préparé par équipe (cedric, 24/10) : chaque équipe prévue a ses mots.
+    const c = Array.isArray(couleurs) && couleurs.length === n ? couleurs : TEAM_COLORS.slice(0, n);
+    const sans = c.filter((x, k) => !pictoTours(round)[k]?.length).map((x) => titreMimeEquipe(x).toLowerCase());
+    return sans.length ? `Pictionary : ${sans.join(", ")} sans mots (touchez 🎲).` : null;
+  }
   if (round?.type === "pictionary") {
     const mots = pickedItems("pictionary", contents?.pictionary, roundPicks(round)).length;
     if (mots && mots < besoin) return `Pictionary : ${mots} mot${mots > 1 ? "s" : ""} choisi${mots > 1 ? "s" : ""} ${pour}.`;
@@ -1163,6 +1210,28 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       // Un seul élément : la course de ballons, le chrono de secours en durée.
       rounds.push({ title: ROUND_TYPES.gonfleur, count: 1 });
       questions.push({ id: `r${i + 1}g`, text: ROUND_TYPES.gonfleur, kind: "gonfleur", choices: [], correct: -1, duration: GONFLEUR_SEC, double: false, round: ROUND_TYPES.gonfleur });
+      return;
+    }
+    if (round.type === "pictionary" && pictoEnSeries(round)) {
+      // Préparé par équipe (cedric, 24/10) : les mots dans l'ordre des passages, équipe après équipe dans l'ordre des
+      // couleurs (1er passage de chaque équipe, puis le 2e…) ; une TV qui ne lit pas encore `offres` les propose ainsi
+      // trois par trois. `offres` : pour chaque équipe, ses passages (rangs des mots dans `cards`). Les photos libres
+      // sont copiées dans la partie par la régie au lancement (la vraie photo de la révélation).
+      const tours = pictoTours(round);
+      const cards = [];
+      const offres = tours.map(() => []);
+      const passages = Math.max(...tours.map((ps) => ps.length));
+      for (let p = 0; p < passages; p++) {
+        tours.forEach((ps, k) => {
+          if (ps[p]) offres[k].push(ps[p].map((m) => cards.push({ word: m.word, ...(m.image ? { image: m.image } : {}), ...(m.imageId ? { imageId: m.imageId } : m.banque ? { banque: m.banque } : {}) }) - 1));
+        });
+      }
+      cards.forEach((c) => (used.pictionary ??= new Set()).add(c.word.toLowerCase()));
+      rounds.push({ title: ROUND_TYPES.pictionary, count: 1, kind: "pictionary" });
+      questions.push({
+        id: `r${i + 1}p`, text: ROUND_TYPES.pictionary, kind: "pictionary", duration: PICTO_SECONDS.includes(round.duration) ? round.duration : PICTO_SEC,
+        double: false, round: ROUND_TYPES.pictionary, points: PICTO_POINTS, cards, offres, propositions: pictoPropositions(round), passages,
+      });
       return;
     }
     if (round.type === "pictionary") {
@@ -1442,7 +1511,8 @@ export const DUREE_ESTIMEE = {
 function secondesDeJeu(q, equipes, parEquipe = 0) {
   const D = DUREE_ESTIMEE;
   if (q.kind === "mime") return (parEquipe || D.mimesParEquipe) * equipes * (q.duration + D.apresMime);
-  if (q.kind === "pictionary") return equipes * (q.duration + D.apresDessin);
+  // Préparé par équipe : autant de tours que de passages.
+  if (q.kind === "pictionary") return equipes * (Number.isInteger(q.passages) && q.passages > 0 ? q.passages : 1) * (q.duration + D.apresDessin);
   if (q.kind === "statues") return q.duration + D.apresStatues;
   if (q.kind === "coffres" || q.kind === "portes") return equipes * D.coffreParEquipe + D.coffres;
   if (q.kind === "gonfleur") return D.gonfleur;

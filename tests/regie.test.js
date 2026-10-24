@@ -2751,7 +2751,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
-  test("Régie PC : Pictionary rangé en séries, un mot à soi dans sa série, une manche choisit ses séries ou les tire au hasard", async () => {
+  test("Régie PC : Pictionary rangé en séries, un mot à soi dans sa série ; dans une prestation, le 🎲 prépare chaque équipe", async () => {
     const page = await admin();
     await openGamePage(page, "pictionary", "collections");
     await page.locator("#builtin-items h3.content-series", { hasText: "Animaux" }).waitFor();
@@ -2774,19 +2774,17 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.fill("#show-child", "Léa");
     await page.fill("#show-age", "9");
     await ajouterJeu(page, "pictionary");
-    const picker = page.locator("#show-rounds .picto-series");
-    await picker.locator("span", { hasText: "Toutes les séries : 77 mots" }).waitFor();
-    await picker.locator("button", { hasText: "🎲 Au hasard" }).click();
-    assert.equal(await picker.locator("button.chip.active").count(), 3);
-    await picker.locator("button", { hasText: "Toutes" }).click();
-    assert.equal(await picker.locator("button.chip.active").count(), 0);
-    await picker.locator("button", { hasText: "Animaux (18)" }).click();
-    await picker.locator("button", { hasText: "Au parc (1)" }).click();
-    await picker.locator("span", { hasText: "Séries : 19 mots" }).waitFor();
+    // Dans une prestation (cedric, 24/10) : plus de séries à cocher, le 🎲 prépare les passages de chaque équipe (voir
+    // « le Pictionary comme les autres jeux »).
+    const round = page.locator('#show-rounds .jeu-bloc[data-jeu="pictionary"] .round');
+    assert.equal(await page.locator("#show-rounds .picto-series").count(), 0);
+    await round.locator(".picto-de").click();
+    await round.locator(".round-head > .quiz-compteur", { hasText: "4 équipes · 8 passages · 24 mots" }).waitFor();
     await aVenir(page);
     await page.click("#show-save");
     await page.locator("#show-status-msg", { hasText: "visible sur la régie" }).waitFor();
-    assert.deepEqual(await sansManche(Object.values(await library("shows"))[0].rounds), [{ type: "pictionary", duration: 90, series: ["Animaux", "Au parc"] }]);
+    const [pr] = await sansManche(Object.values(await library("shows"))[0].rounds);
+    assert.deepEqual([pr.type, pr.duration, pr.propositions, pr.passages, pr.tours.length], ["pictionary", 90, 3, 2, 4]);
     await page.context().close();
   });
 
@@ -6323,6 +6321,97 @@ describe("bibliothèque de quiz et prestations", () => {
       assert.deepEqual(q.cards.map((c) => c.word).sort(), g.objects.map((o) => o.word).sort());
       assert.ok(g.objects.some((o) => o.word === q.choices[0]), "l'objet qui disparaît est dans sa grille");
     });
+    await page.context().close();
+  });
+
+  test("Régie PC (cedric, 24/10) : le Pictionary comme les autres jeux : mots proposés, passages par équipe et 🎲 (émoji et vraie photo de chaque mot), un passage à la main pour une équipe, ✕ laisse un 🎲 ; la TV reçoit les passages de chaque équipe", async () => {
+    const { buildSnapshot } = await import("../web/public/show.js");
+    const MIEN = "7777777777777777";
+    await seedLibrary("images", { [MIEN]: `data:image/png;base64,${png([200, 60, 90]).toString("base64")}` });
+    await seedLibrary("medias", { [MIEN]: { name: "Doudou", cat: "Maison", createdAt: 1, updatedAt: 1 } });
+    const page = await admin();
+    await page.click("#home-new");
+    await page.fill("#show-child", "Noé");
+    await page.fill("#show-age", "9");
+    await ajouterJeu(page, "pictionary");
+    const round = page.locator('#show-rounds .jeu-bloc[data-jeu="pictionary"] .round');
+    const compteur = round.locator(".round-head > .quiz-compteur");
+    assert.equal(await compteur.textContent(), "Aucun mot pour l'instant : touchez 🎲");
+    await page.locator("#show-ready li.ready-alerte", { hasText: "⚠ Pictionary : aucun mot choisi pour l'instant, la TV les tirera au hasard." }).waitFor();
+    // La première ligne : mots proposés, passages par équipe, temps de dessin, 🎲 ; la deuxième : à la main, par équipe.
+    assert.deepEqual(await round.locator(".quiz-outils > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-ligne", "quiz-ajouts picto-main"]);
+    assert.deepEqual(await round.locator(".picto-main-equipe").evaluateAll((xs) => xs.map((x) => x.dataset.couleur)), ["Rose", "Orange", "Vert", "Jaune"]);
+
+    // 🎲 : 2 mots proposés, 3 passages pour chacune des 4 équipes.
+    await round.locator(".picto-propositions").selectOption("2");
+    await round.locator(".picto-nb-passages").selectOption("3");
+    await round.locator(".picto-de").click();
+    await compteur.filter({ hasText: "4 équipes · 12 passages · 24 mots" }).waitFor();
+    await waitFor(async () => !(await page.locator("#show-ready li.ready-alerte").count()), "plus d'alerte");
+    assert.deepEqual(await round.locator(".picto-equipe").evaluateAll((xs) => xs.map((x) => x.dataset.couleur)), ["Rose", "Orange", "Vert", "Jaune"]);
+    const rose = round.locator('.picto-equipe[data-couleur="Rose"]');
+    assert.equal(await rose.locator(".picto-nombre").textContent(), "3 passages");
+    await rose.locator(".mime-deplier").click();
+    await rose.locator(".picto-passage").nth(2).waitFor();
+    // Chaque mot : l'émoji de la tablette et la vraie photo de la TV, jamais deux fois le même.
+    const mots = rose.locator(".picto-mot:not(.vide)");
+    assert.equal(await mots.count(), 6);
+    for (let k = 0; k < 6; k++) {
+      assert.ok((await mots.nth(k).locator(".picto-emoji").textContent()).trim(), "émoji");
+      assert.match(await mots.nth(k).locator("img.tirage-photo").getAttribute("src"), /^banque\//);
+    }
+    // ✕ : un 🎲 prend sa place, il tire un autre mot.
+    const premier = await mots.first().getAttribute("data-mot");
+    await mots.first().locator(".tirage-retirer").click();
+    await compteur.filter({ hasText: "23 mots · 1 à tirer" }).waitFor();
+    await rose.locator(".picto-mot.vide .tirage-de").click();
+    await compteur.filter({ hasText: "· 24 mots" }).waitFor();
+    assert.notEqual(await rose.locator(".picto-mot").first().getAttribute("data-mot"), premier, "le mot retiré ne revient pas");
+
+    // À la main pour l'équipe Verte : 3 images, 2 par passage, donc 2 passages de plus.
+    await round.locator('.picto-main-equipe[data-couleur="Vert"]').click();
+    const choix = page.locator(".choix-boite");
+    await choix.waitFor();
+    assert.equal(await choix.locator(".label").textContent(), "🖼️ Mots à dessiner pour l'équipe Vert (2 par passage)");
+    await choix.locator('.chip[data-groupe="photos"]').click();
+    await choix.locator(".choix-recherche").fill("chat");
+    await choix.locator('.media-tile[data-media="banque:chat"]').click();
+    await choix.locator(".choix-recherche").fill("chien");
+    await choix.locator('.media-tile[data-media="banque:chien"]').click();
+    await choix.locator('.chip[data-groupe="miennes"]').click();
+    await choix.locator(".choix-recherche").fill("");
+    await choix.locator(`.media-tile[data-media="${MIEN}"]`).click();
+    await choix.locator(".choix-ajouter", { hasText: "(3)" }).click();
+    await compteur.filter({ hasText: "4 équipes · 14 passages · 27 mots" }).waitFor();
+    const vert = round.locator('.picto-equipe[data-couleur="Vert"]');
+    assert.equal(await vert.locator(".picto-nombre").textContent(), "5 passages");
+    assert.deepEqual(await vert.locator(".picto-passage").nth(3).locator(".picto-mot").evaluateAll((xs) => xs.map((x) => x.dataset.mot)), ["chat", "chien"]);
+    assert.deepEqual(await vert.locator(".picto-passage").nth(4).locator(".picto-mot").evaluateAll((xs) => xs.map((x) => x.dataset.mot)), ["doudou"]);
+    // Un passage se retire d'un coup.
+    await vert.locator(".picto-passage").nth(4).locator(".picto-passage-retirer").click();
+    await compteur.filter({ hasText: "4 équipes · 13 passages · 26 mots" }).waitFor();
+    await capture(page, "pictionary");
+
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
+    const noe = Object.values(await library("shows")).find((x) => x.childName === "Noé");
+    const [pr] = noe.rounds;
+    assert.equal(pr.propositions, 2);
+    assert.equal(pr.passages, 3);
+    assert.deepEqual(pr.tours.map((ps) => ps.length), [3, 3, 4, 3]);
+    assert.ok(pr.tours.flat(2).every((m) => m.banque && m.image), "émoji et photo libre pour chaque mot");
+    assert.equal(pr.picks, undefined);
+    // Sur la TV : les mots dans l'ordre des passages, équipe après équipe ; chaque équipe a ses passages.
+    const { snapshot, problems } = buildSnapshot("noe", noe, {});
+    assert.deepEqual(problems, []);
+    const [q] = snapshot.quiz.questions.filter((x) => x.kind === "pictionary");
+    assert.equal(q.propositions, 2);
+    assert.equal(q.passages, 4);
+    assert.equal(q.cards.length, 26);
+    assert.deepEqual(q.offres.map((ps) => ps.length), [3, 3, 4, 3]);
+    assert.deepEqual(q.offres.map((ps) => ps[0]), [[0, 1], [2, 3], [4, 5], [6, 7]], "1er passage de chaque équipe, dans l'ordre des couleurs");
+    assert.deepEqual(q.offres[0].flat().map((k) => q.cards[k].word), pr.tours[0].flat().map((m) => m.word));
+    assert.ok(q.cards.every((c) => c.banque && c.image));
     await page.context().close();
   });
 

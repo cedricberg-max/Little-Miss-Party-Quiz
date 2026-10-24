@@ -830,12 +830,13 @@ function renderPick(m) {
   if (choixKey !== m.pickKey) {
     stopPick();
     choixKey = m.pickKey;
-    // Photo du mot (préparée dans la Régie PC) quand elle est lue, sinon son émoji ; les cartes se redessinent à son arrivée.
-    choix = choisirMot($("pick-host"), m.offer.map((c) => ({ mot: c.word, image: choicePhotos.get(c.imageId) ?? c.image ?? "✏️" })), {
+    // L'émoji du mot sur la tablette (cedric, 24/10 : la vraie photo, c'est la TV qui la montre quand le dessin est
+    // trouvé) ; un mot sans émoji (une de vos images) montre sa photo, quand elle est lue : les cartes se redessinent.
+    choix = choisirMot($("pick-host"), m.offer.map((c) => ({ mot: c.word, image: c.image || choicePhotos.get(c.imageId) || "✏️" })), {
       surChoix: (i) => choosePicto(m.pickKey, i),
     });
     const key = m.pickKey;
-    for (const id of m.offer.map((c) => c.imageId).filter((id) => IMAGE_ID.test(id ?? "") && !choicePhotos.has(id))) {
+    for (const id of m.offer.filter((c) => !c.image).map((c) => c.imageId).filter((id) => IMAGE_ID.test(id ?? "") && !choicePhotos.has(id))) {
       get(ref(db, `games/${code}/choiceImages/${id}`)).then((snap) => {
         if (typeof snap.val() !== "string" || !snap.val().startsWith("data:image/")) return;
         choicePhotos.set(id, snap.val());

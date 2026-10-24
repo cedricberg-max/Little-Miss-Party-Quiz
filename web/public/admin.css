@@ -1034,6 +1034,34 @@ button.vos-images-titre:hover { background: var(--violet); color: #fff; }
 .mime-image .tirage-de.petit { font-size: 18px; padding: 4px 14px; }
 .mime-image.deja .mime-mot { color: var(--bad, #b3261e); }
 
+/* Pictionary dans une prestation (cedric, 24/10) : une ligne par équipe ; chaque passage, ses mots proposés (l'émoji de la
+   tablette, la vraie photo de la TV, le nom). */
+.picto-main { flex-wrap: wrap; align-items: center; gap: 8px; }
+.picto-main-equipes { display: flex; flex-wrap: wrap; gap: 6px; }
+.picto-main-equipe { display: inline-flex; align-items: center; gap: 6px; }
+.picto-main-equipe .rond { width: 14px; height: 14px; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 2px rgba(45, 30, 58, .15); }
+.picto-passages { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.picto-passage { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.picto-passage-num { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--violet-pale); color: var(--violet); font-weight: 800; line-height: 1; }
+.picto-mots { flex: 1 1 auto; min-width: 0; list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 10px; }
+.picto-mot { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 3px 4px 3px 8px; border-radius: 12px; background: var(--paper, #fff); border: 1px solid var(--line-2); }
+.picto-mot .picto-emoji { font-size: 26px; line-height: 1; }
+.picto-mot .tirage-photo { height: 38px; width: 50px; }
+.picto-nom { font-weight: 600; overflow-wrap: anywhere; }
+.picto-mot.deja .picto-nom { color: var(--bad, #b3261e); }
+.picto-mot .tirage-retirer { flex: none; width: 30px; height: 30px; border-radius: 10px; font-size: 13px; }
+.picto-mot.vide { border-style: dashed; padding: 3px 6px; }
+.picto-mot .tirage-de.petit { font-size: 18px; padding: 4px 14px; }
+.picto-passage-retirer { flex: none; }
+.picto-mot .picto-nom { flex: 1 1 auto; min-width: 0; }
+/* Téléphone : le numéro et ✕ du passage sur une ligne, ses mots dessous, un par ligne (jamais coupés lettre par lettre). */
+@media (max-width: 640px) {
+  .picto-passage { display: grid; grid-template-columns: auto 1fr auto; row-gap: 6px; }
+  .picto-passage .picto-mots { grid-column: 1 / -1; grid-row: 2; }
+  .picto-passage .picto-passage-retirer { grid-column: 3; justify-self: end; }
+  .picto-mot { flex: 1 1 100%; }
+}
+
 /* Blind test d'une prestation tiré au 🎲 (cedric, 24/10) : chaque chanson avec sa mini pochette et, à droite, ses paroles. */
 .blind-serie .serie-tete .blind-completer { margin-left: auto; }
 .blind-liste { list-style: none; padding-left: 4px; }

@@ -13,7 +13,7 @@ import {
   roundSeriesQuiz, questionsDeLaSerie, questionJouable, FACTEURS_FINALE, MAX_QUESTIONS_MANCHE, playable, estEnSeries,
   estJeuDePhotos, signatureQuestion, questionsDuJeu, zoomRoundQuestions, mimeEquipes, mimeEquipesBrutes, mimeAges, MIME_SOURCES,
   chansonsBrutes, chansonsDe, BLIND_NOMBRES, seriesBlind, MAX_CHANSONS_BLIND, JEUX_DE_CHANSONS,
-  estJeuDeMots, seriesMots, motsDuJeu, MAX_MOTS,
+  estJeuDeMots, seriesMots, motsDuJeu, MAX_MOTS, pictoToursBruts, pictoTours, pictoPropositions, pictoPassages,
 } from "./show.js";
 import { PROFILES } from "./profiles.js";
 import { FAMILLES_PETITS } from "./banque-petits.js";
@@ -290,7 +290,11 @@ export function cleanRound(r, playlists = {}) {
       ...(mimePerTeam(r) ? { perTeam: mimePerTeam(r) } : {}), ...photos,
     };
   } else if (type === "statues") out = { type, duration: r.duration ?? STATUES_SEC, ...(roundSongs(r, playlists).length ? { songs: roundSongs(r, playlists).map((t) => t.audioId) } : {}) };
-  else if (type === "pictionary") out = { type, duration: r.duration ?? PICTO_SEC, ...(pictoRoundSeries(r) ? { series: pictoRoundSeries(r) } : {}), ...picks };
+  // Pictionary préparé par équipe (cedric, 24/10) : les passages de chaque équipe dans l'ordre des couleurs (cases
+  // retirées comprises, en attente de leur 🎲), les mots proposés à chaque passage et le nombre de passages du 🎲.
+  else if (type === "pictionary" && pictoToursBruts(r).some((ps) => ps.length)) {
+    out = { type, duration: r.duration ?? PICTO_SEC, tours: pictoToursBruts(r), propositions: pictoPropositions(r), passages: pictoPassages(r) };
+  } else if (type === "pictionary") out = { type, duration: r.duration ?? PICTO_SEC, ...(pictoRoundSeries(r) ? { series: pictoRoundSeries(r) } : {}), ...picks };
   else if (type === "coffres" || type === "gonfleur" || type === "patate") out = { type };
   // Blind test tiré au 🎲 dans la bibliothèque des sons (cedric, 24/10) : ses chansons dans l'ordre, cases retirées
   // comprises (en attente de leur 🎲), et le nombre demandé.
@@ -595,6 +599,14 @@ export function mancheSummary(round, lib = {}) {
   if (JEUX_DE_CHANSONS.includes(r.type) && chansonsDe(r).length) return `${chansonsDe(r).length} chanson${chansonsDe(r).length > 1 ? "s" : ""}`;
   if (MUSIC_GAMES[r.type]) return roundTracks(r).length ? n(roundTracks(r).length) : lib.playlists?.[r.playlistId]?.title ?? "playlist";
   if (r.type === "statues") return `${r.duration ?? STATUES_SEC} s · ${roundSongs(r, lib.playlists).length ? n(roundSongs(r, lib.playlists).length) : "musique de la fête"}`;
+  if (r.type === "pictionary" && pictoTours(r).some((ps) => ps.length)) {
+    // Préparé par équipe (cedric, 24/10) : passages et mots proposés.
+    const tours = pictoTours(r);
+    const equipes = tours.filter((ps) => ps.length).length;
+    const passages = tours.reduce((t, ps) => t + ps.length, 0);
+    return [`${passages} passage${passages > 1 ? "s" : ""} pour ${equipes} équipe${equipes > 1 ? "s" : ""}`, `${pictoPropositions(r)} mots proposés`,
+      `${r.duration ?? PICTO_SEC} s de dessin`].join(" · ");
+  }
   if (r.type === "pictionary") return [roundPicks(r).length ? n(roundPicks(r).length) : "mots au hasard", `${r.duration ?? PICTO_SEC} s de dessin`].join(" · ");
   if (estJeuDeMots(r.type) && motsDuJeu(r).length) return n(motsDuJeu(r).length);
   if (BUILTIN_GAMES[r.type]) return roundPicks(r).length ? n(roundPicks(r).length) : `${r.count ?? BUILTIN_GAMES[r.type].count} au hasard`;
