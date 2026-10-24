@@ -33,7 +33,7 @@ import kotlin.math.sin
  * dessinés une fois ; à chaque image seuls l'angle des faisceaux, le glissement des poussières et l'éclat de
  * l'horizon changent (calques déplacés, rien n'est redessiné). Fin du chrono : les bords chauffent en rose ;
  * [dore] : dernières questions à points multipliés, paillettes jaune néon. [accueil] : l'écran d'accueil, où le robot
- * dort sur le plateau ([VideoAccueil]) ; [sansVideo] : la grande intro du lancement passe par-dessus.
+ * dort sur le plateau ([VideoAccueil]) ; [sansVideo] : la grande intro du lancement ou l'intro d'un jeu passe par-dessus.
  */
 private const val BALAYAGE_GS_MS = 9_000L
 private const val MONTEE_MS = 26_000L
@@ -48,8 +48,8 @@ fun DecorGameShow(chaud: Boolean, dore: Boolean = false, accueil: Boolean = fals
     val chaleur by animateFloatAsState(if (chaud) 1f else 0f, tween(600), label = "chaleur")
     val paillettes by animateFloatAsState(if (dore) 1f else 0f, tween(1_200), label = "paillettes")
     // Une seule vidéo à la fois (la box n'en décode qu'une) : à l'accueil, le robot qui dort ; ailleurs, le fond 3D du
-    // menu Retour ; aucune pendant la grande intro du lancement. Elle remplace le décor dessiné dès sa première image ;
-    // si elle échoue, le décor reste.
+    // menu Retour ; aucune pendant la grande intro du lancement ni l'intro d'un jeu. Elle remplace le décor dessiné dès
+    // sa première image ; si elle échoue, le décor reste.
     val video = when {
         sansVideo -> 0
         accueil -> 1

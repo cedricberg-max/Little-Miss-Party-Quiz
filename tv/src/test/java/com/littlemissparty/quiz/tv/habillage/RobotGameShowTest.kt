@@ -3,6 +3,7 @@ package com.littlemissparty.quiz.tv.habillage
 import com.littlemissparty.quiz.engine.Award
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
+import com.littlemissparty.quiz.engine.QuestionKind
 import com.littlemissparty.quiz.tv.Team
 import com.littlemissparty.quiz.tv.UiState
 import org.junit.Assert.assertEquals
@@ -167,7 +168,8 @@ class RobotGameShowTest {
 
     @Test
     fun `chaque situation a son moment`() {
-        assertEquals(MomentRobot.MANCHE, momentRobot(partie(Phase.QUESTION) { copy(intro = true) }, 0, null)?.first)
+        // Présentation d'un jeu sans intro vidéo (Juste Chiffre) : le robot annonce la manche.
+        assertEquals(MomentRobot.MANCHE, momentRobot(partie(Phase.QUESTION) { copy(intro = true, question = q.copy(kind = QuestionKind.NUMBER)) }, 0, null)?.first)
         assertEquals(MomentRobot.SUPER_FINALE, momentRobot(partie(Phase.QUESTION) { copy(factor = 3, introUntil = 1L) }, 0, null)?.first)
         val tous = equipes.associate { it.uid to Award(0, true, 100, 0) }
         assertEquals(MomentRobot.TOUS, momentRobot(partie(Phase.REVEAL) { copy(awards = tous) }, 0, null)?.first)
@@ -177,6 +179,12 @@ class RobotGameShowTest {
         assertNull(momentRobot(partie(Phase.REVEAL) { copy(awards = aucun + ("e0" to Award(0, true, 100, 0))) }, 0, null))
         assertEquals(MomentRobot.PODIUM, momentRobot(partie(Phase.ENDED), 0, null)?.first)
         assertNull(momentRobot(partie(Phase.REVEAL) { copy(awards = tous, paused = true) }, 0, null))
+    }
+
+    @Test
+    fun `pas de second robot sur l'intro video d'un jeu`() {
+        // Le robot joue déjà au jeu dans la vidéo de présentation.
+        assertNull(momentRobot(partie(Phase.QUESTION) { copy(intro = true) }, 0, null))
     }
 
     @Test

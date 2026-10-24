@@ -335,7 +335,8 @@ internal fun momentRobot(s: UiState.Playing, secondes: Int, ancienMeneur: String
         q.kind in setOf(QuestionKind.CLASSIC, QuestionKind.EXPRESS, QuestionKind.NUMBER, QuestionKind.ZOOM, QuestionKind.FLOU)
     return when (s.phase) {
         Phase.QUESTION, Phase.CLOSED, Phase.REVEAL -> when {
-            s.intro -> MomentRobot.MANCHE to "manche ${s.code} ${s.index}"
+            // Présentation d'un jeu : son intro vidéo montre déjà le robot qui y joue, pas de second robot par-dessus.
+            s.intro -> if (nomIntroJeu(familleJeu(q)) != null) null else MomentRobot.MANCHE to "manche ${s.code} ${s.index}"
             quiz && s.phase == Phase.QUESTION && s.introUntil != null && s.factor > 1 -> MomentRobot.SUPER_FINALE to "finale ${s.code} ${q!!.id}"
             // Suspense seulement si une équipe n'a pas encore répondu : sinon, juste après une bonne réponse, le robot
             // inquiet passait pour un robot triste (cedric, 23 octobre).
