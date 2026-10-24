@@ -144,7 +144,7 @@ internal fun LigneBuzz(texte: String, taille: TextUnit, modifier: Modifier = Mod
     Text(
         texte, maxLines = 1, softWrap = false, modifier = modifier,
         style = TextStyle(
-            fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Bold, fontSize = taille, letterSpacing = 0.32f * taille,
+            fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Bold, fontSize = taille, letterSpacing = taille * 0.32f,
             color = Color(0xFFFFF3E6), shadow = Shadow(GS.Cyan.copy(alpha = 0.6f), Offset.Zero, 14f),
         ),
     )

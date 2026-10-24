@@ -55,6 +55,7 @@ internal fun ChanteArene(mot: String, cle: Any?, modifier: Modifier = Modifier) 
     // Une mesure à 120 BPM (2 s) : l'anneau respire, les étoiles scintillent l'une après l'autre.
     val t by boucle.animateFloat(0f, 1f, infiniteRepeatable(tween(2_000, easing = LinearEasing), RepeatMode.Restart), label = "t")
     BoxWithConstraints(modifier.clearAndSetSemantics {}, contentAlignment = Alignment.Center) {
+        val largeur = constraints.maxWidth * 0.78f
         Canvas(Modifier.fillMaxSize()) {
             val c = Offset(size.width / 2, size.height * 0.56f)
             val rx = size.width * 0.44f
@@ -88,7 +89,6 @@ internal fun ChanteArene(mot: String, cle: Any?, modifier: Modifier = Modifier) 
             )
             Spacer(Modifier.height(10.dp))
             val mesure = rememberTextMeasurer()
-            val largeur = constraints.maxWidth * 0.78f
             val taille = remember(mot, largeur) {
                 val style = TextStyle(fontFamily = PoliceGsTitre, fontSize = ARENE_TAILLE_MAX.sp)
                 val plusLong = mot.split(' ').maxOf { mesure.measure(it, style, softWrap = false, maxLines = 1).size.width }
