@@ -158,4 +158,11 @@ class PodiumGameShowTest {
         // Le robot attend en boucle puis joue du tambour : le tambour (4 s) finit au moment où la fête commence.
         assertTrue(ROBOT_TAMBOUR_AVANT_MS - 300 in 3_900L..4_100L)
     }
+
+    @Test
+    fun `la fete en plan cinema est dans l'appli et sa boucle part apres les 8 temps d'arrivee`() {
+        assertTrue(File("src/main/res/raw/gs_podium_fete.mp4").isFile)
+        // 96 images à 25 i/s (8 temps de Digital Love) : une image clé y est posée pour une reprise sans saut.
+        assertEquals(3_840, FETE_BOUCLE_DEBUT_MS)
+    }
 }
