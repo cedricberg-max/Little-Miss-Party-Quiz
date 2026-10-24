@@ -32,7 +32,7 @@ class HuitEquipesTest : TestTv() {
 
         val q = attendreQuestion(equipes[0], code, 0)
         ecran.entierementVisible("Arrêter le chrono")
-        ecran.capture("question-8-equipes")
+        ecran.capture("question-8-equipes", attente = Ecran.APRES_RIDEAU)
         equipes.forEachIndexed { i, e -> e.repondre(code, q.id, if (i % 2 == 0) q.correct else mauvaiseReponse(q)) }
         ecran.voit("Toutes les équipes ont répondu")
         ecran.entierementVisible("Révéler la réponse")

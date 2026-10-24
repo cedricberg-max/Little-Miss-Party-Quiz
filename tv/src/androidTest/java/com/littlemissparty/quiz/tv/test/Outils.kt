@@ -354,6 +354,9 @@ class Ecran(private val nomTest: () -> String) {
         /** Une révélation entière : tampons et points compris. */
         val APRES_REVELATION = Tempo.REVELATION_POINTS + 1_000L
 
+        /** Le rideau « C'est parti ! » d'un nouveau jeu, posé quelques secondes sur la première question. */
+        val APRES_RIDEAU = Tempo.TRANSITION_RIDEAU + 500L
+
         /** Récupéré par le workflow après les tests (adb pull). */
         const val DOSSIER_CAPTURES = "/data/local/tmp/lmp-captures"
     }

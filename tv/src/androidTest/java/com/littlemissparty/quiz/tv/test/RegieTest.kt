@@ -426,7 +426,7 @@ class RegieTest : TestTv() {
         attendreQue("question en nombre ouverte") {
             licornes.etat(code).takeIf { it.child("phase").value == "question" && it.child("qid").value == "a1n" }
         }
-        ecran.capture("juste-chiffre-question")
+        ecran.capture("juste-chiffre-question", attente = Ecran.APRES_RIDEAU)
         assertTrue(licornes.repondre(code, "a1n", 200))
         assertTrue(dragons.repondre(code, "a1n", 250))
         ecran.voit("Toutes les équipes ont répondu")
