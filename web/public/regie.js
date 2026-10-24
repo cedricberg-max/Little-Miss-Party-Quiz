@@ -126,6 +126,87 @@ export function startRegie(ctx, gameCode, exit) {
   control();
 }
 
+// ---------- Régie « cockpit » (proposition du 25/10) ----------
+
+/**
+ * Proposition de régie téléphone plus ergonomique (cedric, 24/10 : « une régie portable un peu plus ergonomique ») :
+ * barre du haut fixe (jeu, tablettes coupées en petite pastille, chrono), la scène au milieu, en bas Pause · ☰ Plus ·
+ * bouton principal ; tout le reste (secours, Tablette, Terminer, notes, onglets) passe dans « ☰ Plus ». Au buzz, le
+ * verdict prend tout l'écran sous la barre du haut, cadré dans la couleur de l'équipe, puis un bandeau de 2 s
+ * confirme le verdict. Tant que cedric n'a pas choisi : seulement avec ?cockpit=1 (gardé sur le téléphone, ?cockpit=0
+ * pour revenir à la régie actuelle).
+ */
+const COCKPIT = (() => {
+  const choix = new URLSearchParams(location.search).get("cockpit");
+  try {
+    if (choix === "1") localStorage.setItem("lmp-regie-cockpit", "1");
+    if (choix === "0") localStorage.removeItem("lmp-regie-cockpit");
+    return localStorage.getItem("lmp-regie-cockpit") === "1";
+  } catch {
+    return choix === "1";
+  }
+})();
+
+/** Range une fois pour toutes les commandes secondaires dans « ☰ Plus ». Leurs actions restent celles d'origine. */
+function installerCockpit() {
+  const regie = $("regie");
+  if (!COCKPIT || regie.classList.contains("cockpit")) return;
+  regie.classList.add("cockpit");
+  // « ☰ Plus » n'existe qu'en régie « cockpit » : la régie actuelle garde exactement ses boutons.
+  const plus = document.createElement("button");
+  plus.id = "c-plus";
+  plus.className = "btn secondary plus-ouvrir";
+  plus.type = "button";
+  plus.textContent = "☰ Plus";
+  $("c-pause").after(plus);
+  const grille = $("plus-grille");
+  for (const id of ["c-add", "c-replay", "c-rescue", "c-points", "c-tablette", "c-box", "c-end"]) grille.append($(id));
+  $("plus-onglets").append($("c-notes"), document.querySelector(".regie .tabs"),
+    $("panel-teams"), $("panel-plan"), $("panel-show"), $("panel-defis"));
+  // Une commande de « ☰ Plus » qui ouvre sa propre fenêtre referme d'abord la feuille (« Terminer » : appui long, elle reste).
+  grille.addEventListener("click", (e) => {
+    const bouton = e.target.closest("button");
+    if (bouton && bouton.id !== "c-end") fermerPlus();
+  }, true);
+  $("c-plus").onclick = ouvrirPlus;
+  $("plus-fermer").onclick = fermerPlus;
+  $("plus-fond").onclick = fermerPlus;
+}
+
+function ouvrirPlus() {
+  $("plus").hidden = false;
+  $("plus-fond").hidden = false;
+}
+
+function fermerPlus() {
+  $("plus").hidden = true;
+  $("plus-fond").hidden = true;
+}
+
+/** Tablettes coupées : une pastille rouge dans la barre du haut (verte un instant au retour) ; la toucher = la reconnecter. */
+function pastilleHorsLigne(bandeau, coupees, revenues) {
+  bandeau.hidden = true;
+  const pastille = $("c-horsligne");
+  pastille.hidden = !coupees.length && !revenues.length;
+  pastille.classList.toggle("revenue", !coupees.length);
+  pastille.textContent = coupees.length ? `📱 ${coupees.length} hors ligne` : "📱 revenue";
+  pastille.title = coupees.length ? `Déconnectée${coupees.length > 1 ? "s" : ""} : ${coupees.join(", ")}` : revenues.join(", ");
+  pastille.onclick = coupees.length ? ouvrirTablette : null;
+}
+
+/** Après le verdict d'un buzz : un bandeau de 2 s confirme ce qui a été envoyé, puis la scène reprend seule. */
+function flashVerdict(bonne) {
+  if (!COCKPIT) return;
+  const el = $("c-flash");
+  const nom = live.teams[live.state?.buzz?.team]?.name ?? "";
+  el.textContent = `${bonne ? "✓ Bonne réponse" : "✕ Mauvaise réponse"}${nom ? ` · ${nom}` : ""}`;
+  el.className = `flash-verdict ${bonne ? "bonne" : "mauvaise"}`;
+  el.style.top = `${Math.round(document.querySelector(".regie .top").getBoundingClientRect().bottom) + 6}px`;
+  el.hidden = false;
+  clearTimeout(el.minuteur);
+  el.minuteur = setTimeout(() => { el.hidden = true; }, 2000);
+}
+
 // ---------- Pilotage ----------
 
 function stopListening() {
@@ -206,6 +287,7 @@ function listen(path, fn) {
 }
 
 function control() {
+  installerCockpit();
   stopListening();
   live = { state: null, teams: {}, presence: {}, plan: null, answers: {}, requests: {}, media: {}, connected: true };
   tvMuette = null;
@@ -553,6 +635,7 @@ function renderAlerte(st, teams) {
     box.onclick = null;
     box.hidden = false;
   } else box.hidden = true;
+  if (COCKPIT) pastilleHorsLigne(box, visibles.map(name), revenue.jusqua > now ? revenue.noms : []);
   // Prochain changement à montrer : une coupure qui atteint 4 s, ou la fin du bandeau vert.
   const prochains = [...horsLigneDepuis.values()].map((t) => t + ALERTE_APRES_MS).filter((t) => t > now);
   if (revenue.jusqua > now) prochains.push(revenue.jusqua);
@@ -1325,8 +1408,8 @@ function renderBlind(st, teams) {
   }));
 }
 
-$("blind-ok").onclick = () => { navigator.vibrate?.(60); send("buzz_ok", {}, { advance: true }); };
-$("blind-ko").onclick = () => send("buzz_ko", {}, { advance: true });
+$("blind-ok").onclick = () => { navigator.vibrate?.(60); flashVerdict(true); send("buzz_ok", {}, { advance: true }); };
+$("blind-ko").onclick = () => { flashVerdict(false); send("buzz_ko", {}, { advance: true }); };
 $("blind-unblock").onclick = () => send("blind_unblock", {}, { advance: true });
 $("blind-reveal").onclick = async () => {
   // Personne n'a trouvé (cedric, 24/10) : sans attendre la fin de l'extrait, la TV passe à la révélation et au refrain.
@@ -1345,8 +1428,14 @@ $("blind-cut").onclick = () => send("blind_cut", {}, { advance: true });
 function couleurBuzz(el, teamId) {
   const color = teamId ? live.teams[teamId]?.color : null;
   el.classList.toggle("buzz-couleur", !!color);
-  if (!color) return el.style.removeProperty("--team");
+  // Régie « cockpit » : le verdict plein écran est cadré dans la couleur de l'équipe.
+  const cadre = el.closest(".verdict");
+  if (!color) {
+    cadre?.style.removeProperty("--team");
+    return el.style.removeProperty("--team");
+  }
   el.style.setProperty("--team", color);
+  cadre?.style.setProperty("--team", color);
   const nom = TEAM_COLOR_NAMES[TEAM_COLORS.findIndex((c) => c.toUpperCase() === color.toUpperCase())];
   if (nom) {
     const tag = document.createElement("b");
@@ -1378,6 +1467,8 @@ function verdictEnBas(id, on) {
   if (on && el.parentNode !== bas) bas.prepend(el);
   else if (!on && el.parentNode === bas) el.place.parent.insertBefore(el, el.place.avant);
   el.classList.toggle("en-bas", on);
+  // Régie « cockpit » : le verdict plein écran commence juste sous la barre du haut (pastille et chrono visibles).
+  if (COCKPIT && on) el.style.top = `${Math.round(document.querySelector(".regie .top").getBoundingClientRect().bottom) + 6}px`;
 }
 
 /** Jeux au buzzer : qui a buzzé, la réponse attendue, et les deux boutons du verdict. */
@@ -1548,9 +1639,9 @@ $("patate-random").onclick = () => {
   send("potato_random", {}, { advance: true });
 };
 
-$("flou-ok").onclick = () => { navigator.vibrate?.(60); send("buzz_ok", {}, { advance: true }); };
-$("flou-ko").onclick = () => send("buzz_ko", {}, { advance: true });
-$("flou-bonus").onclick = () => { navigator.vibrate?.(60); send("buzz_bonus", {}, { advance: true }); };
+$("flou-ok").onclick = () => { navigator.vibrate?.(60); flashVerdict(true); send("buzz_ok", {}, { advance: true }); };
+$("flou-ko").onclick = () => { flashVerdict(false); send("buzz_ko", {}, { advance: true }); };
+$("flou-bonus").onclick = () => { navigator.vibrate?.(60); flashVerdict(true); send("buzz_bonus", {}, { advance: true }); };
 
 $("mime-go").onclick = () => {
   if (!mimeTeam) return;

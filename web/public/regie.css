@@ -390,3 +390,74 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .box-code { align-self: center; max-width: 320px; font-size: 34px; font-weight: 900; letter-spacing: 8px; text-transform: uppercase; }
 .regie .box-code::placeholder { letter-spacing: 0; text-transform: none; }
 .regie #box .modal-status { text-align: center; line-height: 1.4; }
+
+/* ---------- Régie « cockpit » (proposition du 25/10, seulement avec ?cockpit=1) ----------
+   Une seule chose à faire par écran : la question, le bouton principal, Pause et « ☰ Plus » en bas. Les tablettes
+   coupées deviennent une pastille dans la barre du haut ; au buzz, le verdict prend tout l'écran (maquette B). */
+.regie .pastille-hl {
+  flex: none; min-height: 34px; padding: 0 12px; border-radius: 999px; border: 0; cursor: pointer;
+  background: var(--danger); color: #fff; font: inherit; font-size: 14px; font-weight: 900; white-space: nowrap;
+  box-shadow: 0 0 14px rgba(255, 90, 95, .55); animation: r-alerte 1.2s ease-in-out infinite alternate;
+}
+.regie .pastille-hl.revenue { background: var(--ok); color: #1a0b2e; box-shadow: none; animation: none; cursor: default; }
+
+/* Barre du haut sur une ligne : le jeu et l'étape (coupés au besoin), la pastille, le chrono toujours entier. */
+.regie.cockpit .top .code { display: none; }
+.regie.cockpit .top .step { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.regie.cockpit .top .timer { flex: none; }
+
+/* Bandeau de 2 s après le verdict, par-dessus le haut de la scène. */
+.regie .flash-verdict {
+  position: fixed; z-index: 12; left: 12px; right: 12px; top: calc(56px + env(safe-area-inset-top)); margin: 0;
+  padding: 12px 16px; border-radius: 16px; font-size: 19px; font-weight: 900; text-align: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .45); animation: flash-verdict .2s ease-out;
+}
+.regie .flash-verdict.bonne { background: var(--ok); color: #1a0b2e; }
+.regie .flash-verdict.mauvaise { background: #e0304a; color: #fff; }
+@keyframes flash-verdict { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+
+/* En bas : Pause et « ☰ Plus » côte à côte, le bouton principal dessous. */
+.regie.cockpit .actions .row .btn { min-height: 60px; }
+.regie.cockpit #c-plus { background: #4b2a8a; color: var(--ink); border: 1px solid #6c46b8; }
+.regie.cockpit .games-row:not(:has(.games:not(:empty))) { display: none; }
+
+/* « ☰ Plus » : une feuille qui monte du bas, les commandes en grille de gros boutons, puis équipes et conducteur. */
+.regie .plus-fond { position: fixed; inset: 0; z-index: 13; background: rgba(11, 6, 20, .7); }
+.regie .plus {
+  position: fixed; z-index: 14; left: 0; right: 0; bottom: 0; max-height: 88%; overflow-y: auto; overscroll-behavior: contain;
+  display: flex; flex-direction: column; gap: 12px; padding: 14px 16px calc(16px + env(safe-area-inset-bottom));
+  border-radius: 22px 22px 0 0; background: var(--fond-bas); border-top: 1px solid var(--trait);
+  box-shadow: 0 -18px 50px rgba(0, 0, 0, .55); animation: plus-monte .18s ease-out;
+}
+@keyframes plus-monte { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.regie .plus-haut { display: flex; align-items: center; gap: 10px; font-size: 20px; }
+.regie .plus-haut b { flex: 1; }
+.regie .plus-haut .btn { min-height: 48px; font-size: 16px; }
+.regie .plus-grille { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.regie .plus-grille .btn { width: 100%; min-height: 58px; padding: 6px 10px; font-size: 16px; line-height: 1.15; }
+.regie .plus-grille #c-tablette .icone { margin-right: 6px; }
+.regie .plus-grille #c-end { grid-column: 1 / -1; min-height: 52px; }
+.regie .plus-onglets { display: flex; flex-direction: column; gap: 8px; }
+.regie .plus-onglets .notes { margin-top: 0; }
+.regie .plus-onglets .panel { flex: none; overflow: visible; padding-bottom: 0; }
+
+/* Au buzz (maquette B) : tout l'écran sous la barre du haut devient le verdict, cadré dans la couleur de l'équipe.
+   Rien d'autre à toucher : impossible d'appuyer sur le mauvais bouton. */
+.regie.cockpit .actions .verdict.en-bas {
+  position: fixed; z-index: 11; left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); top: 64px;
+  gap: 10px; padding: 12px; border-radius: 24px; background: var(--fond-bas);
+  border: 5px solid var(--team, var(--gold)); box-shadow: 0 0 28px color-mix(in srgb, var(--team, var(--gold)) 55%, transparent);
+}
+.regie.cockpit .actions .verdict.en-bas .mime-info { font-size: 18px; line-height: 1.25; }
+.regie.cockpit .actions .verdict.en-bas .mime-info.buzz-couleur { padding: 10px 12px; border-radius: 14px; font-size: 18px; }
+.regie.cockpit .actions .verdict.en-bas .mime-info .buzz-nom-couleur { display: block; font-size: 30px; }
+.regie.cockpit .actions .verdict.en-bas .mime-info .buzz-reponse b { font-size: 26px; }
+.regie.cockpit .actions .verdict.en-bas .flou-judge { flex: 1; min-height: 0; grid-template-columns: 1fr; grid-auto-rows: 1fr; gap: 10px; }
+.regie.cockpit .actions .verdict.en-bas .flou-judge:has(.flou-bonus:not([hidden])) { grid-template-columns: 1fr 1fr; }
+.regie.cockpit .actions .verdict.en-bas .mime-found { min-height: 0; height: 100%; font-size: 30px; border-radius: 22px; }
+.regie.cockpit .actions .verdict.en-bas .mime-found small { font-size: 16px; }
+.regie.cockpit .actions .verdict.en-bas .flou-ko {
+  min-height: 0; height: 100%; font-size: 28px; font-weight: 900; border-radius: 22px; border: 0;
+  background: linear-gradient(180deg, #ff6b7a, #e0304a); color: #fff;
+}
+.regie.cockpit .actions .verdict.en-bas .flou-judge:has(.flou-bonus:not([hidden])) .mauvaise { min-height: 0; }

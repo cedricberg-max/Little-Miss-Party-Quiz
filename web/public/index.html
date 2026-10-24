@@ -160,8 +160,11 @@
         <span id="c-dot" class="dot on"></span>
         <span id="c-code" class="code"></span>
         <span id="c-step" class="step"></span>
+        <!-- Régie « cockpit » (proposition du 25/10) : les tablettes coupées en petite pastille, au lieu du bandeau rouge. -->
+        <button id="c-horsligne" class="pastille-hl" type="button" hidden></button>
         <span id="c-timer" class="timer"></span>
       </header>
+      <p id="c-flash" class="flash-verdict" role="status" hidden></p>
 
       <div class="card">
         <p id="c-phase" class="phase"></p>
@@ -293,6 +296,18 @@
         <button id="c-next" class="btn main"></button>
         <button id="c-fin" class="btn main fin-fete" hidden>🏁 Fin de la fête</button>
       </footer>
+    </section>
+
+    <!-- Régie « cockpit » : « ☰ Plus » rassemble tout ce qui ne sert pas à chaque question (boutons de secours,
+         équipes, conducteur, prestation, défis) ; l'écran principal ne défile plus. -->
+    <div id="plus-fond" class="plus-fond" hidden></div>
+    <section id="plus" class="plus" hidden aria-label="Plus de commandes">
+      <header class="plus-haut">
+        <b>☰ Plus</b>
+        <button id="plus-fermer" class="btn secondary" type="button">Fermer</button>
+      </header>
+      <div id="plus-grille" class="plus-grille"></div>
+      <div id="plus-onglets" class="plus-onglets"></div>
     </section>
 
     <!-- Secours : voir le jeu en cours et le suivant, passer au suivant, aller à un autre jeu ou le rejouer. -->

@@ -1038,6 +1038,76 @@ describe("régie", () => {
     await page.context().close();
   });
 
+  test("régie « cockpit » (proposition du 25/10, ?cockpit=1) : pastille des tablettes coupées, « ☰ Plus », verdict plein écran, bandeau du verdict", async () => {
+    box = startBox();
+    await addTeam("rose", "Les Roses", "#FFE600");
+    await addTeam("bleu", "Les Bleus");
+    await setPresence("rose", true);
+    await setPresence("bleu", true);
+    const plan = [{ id: "f1", text: "Qu'est-ce qui se cache sous le flou ?", choices: ["Un lion", "Un chat"], correct: 0, duration: 40, kind: "flou", imageId: "0123456789abcdef", round: "Image floue" }];
+    await set(gameRef("conducteur"), { id: "lea", title: "Léa", rev: "r1", mimes: true, numbers: true, express: true, zoom: true, flou: true, chante: true, quisuis: true, questions: plan });
+    await box.set({ ...questionState(1), qid: "f1", kind: "flou", text: plan[0].text, choices: null, total: 1, round: "f1-1000-0", buzzOpen: true, buzz: { team: null, blocked: [] } });
+    const page = await openRegie(await browser.newContext({ viewport: { width: 360, height: 640 } }), `?g=${CODE}&emu=1&cockpit=1`);
+    await pair(page);
+    await inRegie(page);
+    await page.locator("#regie.cockpit").waitFor();
+    // Un bouton est dans l'écran, sans rien faire défiler, et c'est bien lui qu'un doigt touche.
+    const dansLEcran = (id) => page.evaluate((id) => {
+      const el = document.getElementById(id);
+      const r = el.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return r.top >= 0 && r.bottom <= innerHeight + 0.5 && r.height > 0 && (hit === el || el.contains(hit));
+    }, id);
+    // Écran principal : la scène, Pause, « ☰ Plus » et le bouton principal ; le reste est rangé dans « ☰ Plus ».
+    for (const id of ["c-pause", "c-plus", "c-next"]) assert.ok(await dansLEcran(id), `#${id} dans l'écran`);
+    for (const id of ["c-points", "c-tablette", "c-box", "c-end", "c-notes", "panel-teams"]) {
+      assert.equal(await page.locator(`#plus #${id}`).count(), 1, `#${id} rangé dans « ☰ Plus »`);
+    }
+    assert.equal(await page.locator("#plus").isHidden(), true);
+    // Tablette coupée : une pastille dans la barre du haut, plus de grand bandeau rouge.
+    await setPresence("bleu", false);
+    await page.locator("#c-horsligne", { hasText: "📱 1 hors ligne" }).waitFor({ timeout: 8000 });
+    assert.equal(await page.locator("#r-alerte").isHidden(), true);
+    for (const id of ["c-horsligne", "c-timer"]) {
+      const r = await page.locator(`#${id}`).boundingBox();
+      assert.ok(r.x >= 0 && r.x + r.width <= 360 - 15, `#${id} entier dans la barre du haut : ${JSON.stringify(r)}`);
+    }
+    assert.equal(await page.locator("#c-horsligne").getAttribute("title"), "Déconnectée : Les Bleus");
+    await capture(page, "cockpit-question-360x640", { pleinePage: false });
+    // « ☰ Plus » monte du bas ; une commande qui ouvre sa fenêtre le referme.
+    await page.click("#c-plus");
+    await page.locator("#plus:not([hidden])").waitFor();
+    assert.ok(await dansLEcran("c-points"));
+    await page.waitForTimeout(300); // fin de l'animation, pour la capture
+    await capture(page, "cockpit-plus-360x640", { pleinePage: false });
+    await page.click("#c-box");
+    await page.locator("#plus").waitFor({ state: "hidden" });
+    await page.locator("#box:not([hidden])").waitFor();
+    await page.click("#box-close");
+    await page.locator("#box").waitFor({ state: "hidden" });
+    // Buzz des Roses (bracelets jaunes) : tout l'écran sous la barre du haut devient le verdict, cadré en jaune.
+    await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `games/${CODE}/buzz/f1-1000-0`), { team: "rose", at: Date.now() }));
+    await page.locator("#flou-verdict.en-bas").waitFor();
+    await page.locator("#flou-info .buzz-nom-couleur", { hasText: "JAUNE" }).waitFor();
+    const cadre = await page.locator("#flou-verdict").boundingBox();
+    const haut = await page.locator(".regie .top").boundingBox();
+    assert.ok(cadre.y >= haut.y + haut.height && cadre.height > 640 * 0.75, `verdict plein écran sous la barre du haut : ${JSON.stringify(cadre)}`);
+    assert.equal(await page.locator("#flou-verdict").evaluate((el) => getComputedStyle(el).borderTopColor), "rgb(255, 230, 0)");
+    for (const id of ["flou-ok", "flou-ko", "c-horsligne"]) assert.ok(await dansLEcran(id), `#${id} dans l'écran au buzz`);
+    await capture(page, "cockpit-buzz-360x640", { pleinePage: false });
+    await page.setViewportSize({ width: 390, height: 780 });
+    await capture(page, "cockpit-buzz-390x780", { pleinePage: false });
+    // Verdict : le bandeau de 2 s le confirme, la scène revient seule.
+    await page.click("#flou-ko");
+    await page.locator("#c-flash.mauvaise", { hasText: "✕ Mauvaise réponse · Les Roses" }).waitFor();
+    await page.locator("#flou-verdict:not(.en-bas)").waitFor({ state: "attached" });
+    await page.waitForTimeout(300);
+    await capture(page, "cockpit-verdict-390x780", { pleinePage: false });
+    await page.locator("#c-flash").waitFor({ state: "hidden", timeout: 4000 });
+    assert.deepEqual((await read("state")).buzz.blocked, ["rose"]);
+    await page.context().close();
+  });
+
   test("blind test : playlist et statuts, lancer, juger, relancer pour les autres, passer, raccourcir, titre suivant", async () => {
     box = startBox();
     await addTeam("rose", "Les Roses");
