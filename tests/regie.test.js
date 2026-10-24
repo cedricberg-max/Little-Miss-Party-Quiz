@@ -8783,6 +8783,42 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
+  test("Paroles pendant l'écoute dans l'écran d'une playlist aussi (cedric, 24/10) : ▶ et 🎤 d'un morceau font défiler celles de sa chanson ; sans paroles, rien ne s'affiche", async () => {
+    const WAV = `data:audio/wav;base64,${wav(440, 4).toString("base64")}`;
+    const hex = (c, k) => `${c}${k}`.padEnd(16, c);
+    await seedLibrary("songs", {
+      c1: { title: "Avec paroles", artist: "Les Tests", audioId: hex("e", 1), refrainId: hex("f", 1), start: 6, refrain: 40, lrc: true, updatedAt: 1 },
+      c2: { title: "Sans paroles", artist: "Les Tests", audioId: hex("e", 2), start: 0, updatedAt: 1 },
+    });
+    await seedLibrary("sounds", { [hex("e", 1)]: WAV, [hex("f", 1)]: WAV, [hex("e", 2)]: WAV });
+    await seedLibrary("lyrics", { c1: ["[00:05.00]Le couplet", "[00:39.00]Juste avant", "[00:41.00]On chante tous ensemble"].join("\n") });
+    await seedLibrary("playlists", { fete: { title: "Fête", duration: 20, updatedAt: 1, tracks: [
+      { title: "Avec paroles", audioId: hex("e", 1), refrainId: hex("f", 1), songId: "c1", start: 6, refrain: 40 },
+      { title: "Sans paroles", audioId: hex("e", 2), songId: "c2", start: 0 },
+    ] } });
+    const page = await admin();
+    await openGamePage(page, "blind", "collections");
+    await page.locator('#playlist-list [data-playlist="fete"]').getByRole("button", { name: "Éditer" }).click();
+    await page.locator("#screen-playlist-edit:not([hidden])").waitFor();
+    const piste = (i) => page.locator(`#playlist-tracks .track[data-track="${i}"]`);
+    const flottante = page.locator(".paroles-fenetre.flottante");
+    // L'extrait commence au début réglé (6 s) : la phrase de 5 s.
+    await piste(0).locator('button[title="Écouter l\'extrait"]').click();
+    await flottante.locator(".paroles-titre", { hasText: "Paroles · Avec paroles" }).waitFor();
+    await flottante.locator(".paroles-ligne.chantee", { hasText: "Le couplet" }).waitFor();
+    // Le hook commence au refrain (40 s) : la phrase de 39 s, puis celle de 41 s.
+    await piste(0).locator('button[title="Écouter le hook"]').click();
+    await flottante.locator(".paroles-ligne.chantee", { hasText: "On chante tous ensemble" }).waitFor({ timeout: 8000 });
+    await flottante.getByRole("button", { name: "Fermer les paroles" }).click();
+    await flottante.waitFor({ state: "detached" });
+    // Sans paroles : la chanson joue, aucune fenêtre.
+    await piste(1).locator('button[title="Écouter l\'extrait"]').click();
+    await piste(1).locator('button[title="Écouter l\'extrait"]', { hasText: "⏸" }).waitFor();
+    assert.equal(await page.locator(".paroles-fenetre").count(), 0);
+    await piste(1).locator('button[title="Écouter l\'extrait"]').click();
+    await page.context().close();
+  });
+
   test("Statues musicales : Sarah dépose ses chansons depuis la page du jeu, les coche dans la prestation, la TV les reçoit", async () => {
     const page = await admin();
     await page.locator('#screen-home .tile[data-game="statues"]', { hasText: "0 chanson" }).waitFor();

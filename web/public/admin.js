@@ -6272,7 +6272,7 @@ function renderLibPicker() {
   const found = parPertinence(all.filter((x) => songMatches(x, $("playlist-lib-search").value)), $("playlist-lib-search").value, (x) => [x.title, x.artist], (x) => x.lists.map((l) => l.title));
   $("playlist-lib-count").textContent = `${found.length} chanson${found.length > 1 ? "s" : ""}`;
   $("playlist-lib-list").replaceChildren(...found.slice(0, 40).map((x) => songRow(x, [
-    boutonEcoute({ class: "btn secondary icon-ecoute", title: "Écouter l'extrait", text: "▶" }, (b) => listen({ audioId: x.audioId, title: x.title }, false, b)),
+    boutonEcoute({ class: "btn secondary icon-ecoute", title: "Écouter l'extrait", text: "▶" }, (b) => listen({ audioId: x.audioId, title: x.title, start: x.start }, false, b, () => parolesFlottantes(x, "screen-playlist-edit"))),
     h("button", {
       type: "button", class: "btn", disabled: inList.has(x.audioId), text: inList.has(x.audioId) ? "Déjà dedans" : "Ajouter",
       onclick: () => {
@@ -6649,6 +6649,17 @@ function parolesFlottantes(x, vue = "song-list") {
 }
 
 /**
+ * Paroles d'un morceau d'une playlist pendant son écoute (cedric, 24/10 : « s'il n'y a pas de paroles, rien ne
+ * s'affiche ») : celles de sa chanson de la bibliothèque (même extrait), dans la petite fenêtre de la liste des sons.
+ */
+function parolesDuMorceau(t) {
+  return () => {
+    const x = t?.audioId ? songList(songs, {}, isStatuesList).find((s) => s.audioId === t.audioId) : null;
+    return x ? parolesFlottantes(x, "screen-playlist-edit") : null;
+  };
+}
+
+/**
  * La fenêtre [paroles] (ou ce qui l'ouvre) suit l'écoute [audio] ; [base] : moment de la chanson où commence le son
  * écouté.
  */
@@ -6815,8 +6826,8 @@ function renderTracks() {
         // La bibliothèque n'a pas d'ordre : pas de flèches.
         library ? null : h("button", { type: "button", class: "icon", title: "Plus tôt", disabled: i === 0, onclick: () => moveTrack(i, -1), text: "↑" }),
         library ? null : h("button", { type: "button", class: "icon", title: "Plus tard", disabled: i === n - 1, onclick: () => moveTrack(i, 1), text: "↓" }),
-        boutonEcoute({ class: "icon", title: "Écouter l'extrait", text: "▶" }, (b) => listen(t, false, b)),
-        statues ? null : boutonEcoute({ class: "icon", title: "Écouter le hook", text: "🎤" }, (b) => listen(t, true, b)),
+        boutonEcoute({ class: "icon", title: "Écouter l'extrait", text: "▶" }, (b) => listen(t, false, b, parolesDuMorceau(t))),
+        statues ? null : boutonEcoute({ class: "icon", title: "Écouter le hook", text: "🎤" }, (b) => listen(t, true, b, parolesDuMorceau(t))),
         h("button", { type: "button", class: "icon", title: library ? "Retirer de cet écran (la chanson reste dans la bibliothèque)" : "Retirer", onclick: () => { stopPreview(); playlist.tracks.splice(i, 1); renderTracks(); }, text: "✕" })),
       h("div", { class: "track-start" }, label,
         h("input", {
