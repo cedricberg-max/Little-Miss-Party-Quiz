@@ -41,6 +41,8 @@ import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.tv.habillage.CarteIndice
+import com.littlemissparty.quiz.tv.habillage.ChanteArene
+import com.littlemissparty.quiz.tv.habillage.Look
 import com.littlemissparty.quiz.tv.habillage.panneauJeu
 import com.littlemissparty.quiz.tv.habillage.PoliceLmp
 import com.littlemissparty.quiz.tv.habillage.RevelationPersonnage
@@ -62,6 +64,8 @@ private fun Badge(text: String, modifier: Modifier = Modifier) {
  */
 @Composable
 fun ChanteBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modifier) {
+    // Game Show : l'arène en or (proposition H, 24/10), sans badge ni notes.
+    if (Look.gs) { ChanteArene(q.text.uppercase(), q.id, modifier); return }
     val danse = rememberInfiniteTransition(label = "notes")
     val haut by danse.animateFloat(
         0f, 1f,
