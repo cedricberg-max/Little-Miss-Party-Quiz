@@ -370,7 +370,8 @@ private class Box(val quiz: Quiz, val teams: Set<String> = EQUIPES) {
                 mimeStart(ROSE)
                 assertNotNull(game.deadline())
                 etape("tour de mimes")
-                found(); found(); pass(); mimeStop()
+                // Roulement : chaque mime trouvé laisse place au changement de joueur, « Image suivante » montre la suivante.
+                found(); pass(); found(); pass(); pass(); mimeStop()
                 mimeStart(BLEU)
                 found()
                 timeUp()
@@ -616,7 +617,7 @@ class PrestationsCompletesTest {
         // Fin du quiz : « Suivant » lance les mimes (l'incident de la prestation).
         b.next()
         b.verifieOuverture(2)
-        b.mimeStart(ROSE); b.found(); b.found(); b.pass(); b.mimeStop()
+        b.mimeStart(ROSE); b.found(); b.pass(); b.found(); b.pass(); b.pass(); b.mimeStop()
         b.mimeStart(BLEU); b.found(); b.timeUp()
         b.mimeStart(VERT); b.found()
         assertNull(b.state.mime?.team, "paquet épuisé : le tour de Vert s'arrête seul")

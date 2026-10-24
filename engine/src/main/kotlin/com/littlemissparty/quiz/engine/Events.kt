@@ -146,7 +146,8 @@ data class Award(val choice: Int?, val correct: Boolean, val points: Int, val bo
 
 /*
  * Mimes : une manche entière jouée équipe par équipe. La régie choisit l'équipe et lance son tour ;
- * chaque mime trouvé rapporte [Scoring.MIME] points et fait apparaître la carte suivante.
+ * chaque mime trouvé rapporte [Scoring.MIME] points, puis deux autres joueurs prennent le relais et l'animatrice
+ * montre la carte suivante.
  */
 
 /** Tour de l'équipe [team] lancé : le chrono du tour démarre, la première carte s'affiche. */
@@ -161,10 +162,16 @@ data class PictoShown(override val seq: Int, override val at: Long, val team: St
 /** Pictionary : le dessinateur choisit, sur sa tablette, le mot [choice] (0 à 2) parmi ceux qui lui sont proposés. */
 data class PictoChosen(override val seq: Int, override val at: Long, val choice: Int) : GameEvent
 
-/** Mime trouvé, validé par l'animatrice : un point pour l'équipe qui joue, carte suivante. */
+/**
+ * Mime trouvé, validé par l'animatrice : un point pour l'équipe qui joue ; la carte suivante attend le changement de
+ * joueur (« Image suivante », [MimePassed]).
+ */
 data class MimeFound(override val seq: Int, override val at: Long) : GameEvent
 
-/** Carte passée, sans point : elle repart sous le paquet. */
+/**
+ * « Image suivante » : carte passée, sans point, elle repart sous le paquet ; pendant un changement de joueur, montre
+ * l'image qui attendait.
+ */
 data class MimePassed(override val seq: Int, override val at: Long) : GameEvent
 
 /** Correction de l'animatrice (+1 ou −1) sur les mimes trouvés par [team] pendant cette manche, jamais sous zéro. */

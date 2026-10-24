@@ -60,7 +60,7 @@ class GotoTest {
     fun `chaque équipe a son tour même quand le paquet est épuisé`() {
         val g = Game(quiz)
         g.goto(2, now())
-        g.mimeStart("bleu", now()); g.mimeFound(now()); g.mimeFound(now())
+        g.mimeStart("bleu", now()); g.mimeFound(now()); g.mimePass(now()); g.mimeFound(now())
         assertNull(g.state.mime?.team, "Paquet épuisé : le tour de Bleu s'arrête")
         assertNotNull(g.mimeStart("rose", now()), "Rose joue quand même : le paquet est rebattu")
         assertEquals("Chat", g.mimeCard?.word)

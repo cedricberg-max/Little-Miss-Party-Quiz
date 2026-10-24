@@ -341,6 +341,8 @@ class DirecteurSonore {
         if (i.ecran == Ecran.REVELATION && i.blind && i.blindCoupe && !p.blindCoupe) o += Ordre.Couper
         if (i.ecran == Ecran.MIMES_TOUR) {
             if (i.trouves > p.trouves) o += Ordre.Jouer(if (i.pictionary) Son.PICTIO_TROUVE else Son.MIME_TROUVE)
+            // Mimes en roulement (cedric, 24/10) : « Changement de joueur ! » arrive dans un souffle, la musique ne change pas.
+            if (i.trouves > p.trouves && !i.pictionary) o += Ordre.Jouer(Son.WHOOSH, Tempo.MIME_RELAIS)
             if (i.passes > p.passes) o += Ordre.Jouer(Son.MIME_PASSE)
             // Dix dernières secondes du tour : la musique s'efface sous la tension.
             if (i.urgent && !p.urgent) {
@@ -725,6 +727,9 @@ sealed interface Ordre {
 /** Minutage partagé par les sons et les animations, pour qu'image et son tombent ensemble (120 BPM, un temps = 500 ms). */
 object Tempo {
     const val TEMPS = 500L
+    /** Mimes : après « TROUVÉ ! », le message « Changement de joueur ! » (environ une seconde, cedric 24/10). */
+    const val MIME_RELAIS = 700L
+    const val MIME_RELAIS_DUREE = 1_100L
     /** Fondu enchaîné ordinaire d'une ambiance musicale à l'autre. */
     const val FONDU_MUSIQUE = 700L
     /** Temps fort qui suit la dernière note du générique (16 temps) : la musique du salon prend le relais. */

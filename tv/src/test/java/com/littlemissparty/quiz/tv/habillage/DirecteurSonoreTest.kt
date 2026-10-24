@@ -288,7 +288,11 @@ class DirecteurSonoreTest {
         val top = d.observer(tour)
         assertEquals(listOf(Son.MIME_TOP), top.sons())
         assertEquals(Ordre.Musique(Ambiance.MIMES, Tempo.MIME_TOP_IMPACT), top.filterIsInstance<Ordre.Musique>().last())
-        assertEquals(listOf(Son.MIME_TROUVE), d.observer(tour.copy(trouves = 1)).sons())
+        // Trouvé, puis le souffle du « Changement de joueur ! » (roulement des mimes, cedric 24/10).
+        val trouve = d.observer(tour.copy(trouves = 1))
+        assertEquals(listOf(Son.MIME_TROUVE, Son.WHOOSH), trouve.sons())
+        assertEquals(Ordre.Jouer(Son.WHOOSH, Tempo.MIME_RELAIS), trouve.filterIsInstance<Ordre.Jouer>().last())
+        assertTrue(trouve.filterIsInstance<Ordre.Musique>().isEmpty(), "La musique du tour ne change pas")
         assertEquals(listOf(Son.MIME_PASSE), d.observer(tour.copy(trouves = 1, passes = 1)).sons())
         // La même carte montrée deux fois (reconnexion de la régie, rafraîchissement) ne rejoue rien.
         assertTrue(d.observer(tour.copy(trouves = 1, passes = 1)).isEmpty())

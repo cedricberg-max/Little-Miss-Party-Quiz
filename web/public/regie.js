@@ -1006,6 +1006,10 @@ function renderMime(st, teams) {
   const secret = picto ? m.secret : null;
   if (secret && live.teams[secret] && !playing && !mimeChosen) mimeTeam = secret;
   const card = m.card;
+  // Mimes en roulement (cedric, 24/10) : après un mime trouvé, deux autres joueurs prennent le relais ; l'image
+  // suivante attend « Image suivante », une fois le nouveau devineur dos à l'écran. Le chrono continue.
+  const relais = !picto && !!playing && m.relais != null;
+  $("mime").classList.toggle("relais", relais);
   $("mime-now").hidden = !(playing || secret) || !card;
   if (card) {
     $("mime-now").querySelector(".emoji").textContent = card.image ?? "🎭";
@@ -1022,8 +1026,10 @@ function renderMime(st, teams) {
         : m.last
           ? `Tour terminé : ${name(m.last.team)} ${m.last.found ? `a trouvé « ${m.last.word ?? "?"} » !` : `n'a pas trouvé « ${m.last.word ?? "?"} ».`} ${mimeRemaining(st).length ? "Qui joue maintenant ?" : "Toutes les équipes sont passées."}`
           : "Qui commence ? Choisissez l'équipe, faites retourner ses coéquipiers, puis montrez le mot au dessinateur."
+    : relais
+    ? `${name(playing)} joue : ${n(m.found ?? 0)} trouvé${(m.found ?? 0) > 1 ? "s" : ""} · 🔄 Changement de joueur : dès que le nouveau devineur est dos à l'écran, touchez « Image suivante ».`
     : playing
-    ? `${name(playing)} joue : ${n(m.found ?? 0)} trouvé${(m.found ?? 0) > 1 ? "s" : ""} · ${m.left} carte${m.left > 1 ? "s" : ""} restante${m.left > 1 ? "s" : ""}`
+    ? `${name(playing)} joue : ${n(m.found ?? 0)} trouvé${(m.found ?? 0) > 1 ? "s" : ""} · ${m.left} image${m.left > 1 ? "s" : ""} restante${m.left > 1 ? "s" : ""}`
     : m.last
         ? `Tour terminé : ${name(m.last.team)} a trouvé ${n(m.last.found)}. ${mimeRemaining(st).length ? "Qui joue maintenant ?" : "Toutes les équipes sont passées."}`
         : "Qui commence ? Choisissez l'équipe puis « Top départ ! ».";
@@ -1062,12 +1068,16 @@ function renderMime(st, teams) {
   // Pictionary : on ne masque qu'une fois le mot choisi par le dessinateur.
   go.disabled = busy || !mimeTeam || (picto && secret && secret === mimeTeam && m.chosen == null);
   $("mime-found").hidden = !playing;
-  $("mime-found").disabled = busy;
+  // Pendant le changement de joueur, pas d'image à trouver : un double appui sur « Trouvé » ne compte pas.
+  $("mime-found").disabled = busy || relais;
   $("mime-found").querySelector("small").textContent = picto ? `+${m.points ?? 150} points` : "+1 mime";
   // Pictionary : « Autre mot » tant que le dessinateur découvre le sien ; pas de « Passer » ni de −1 pendant le dessin.
   $("mime-row").hidden = picto ? !secret : !playing;
-  $("mime-pass").textContent = picto ? "Proposer 3 autres mots" : "Passer";
-  $("mime-pass").disabled = busy || (m.left ?? 0) < (picto ? (m.offer?.length ?? 0) + 1 : 2);
+  $("mime-pass").textContent = picto ? "Proposer 3 autres mots" : relais ? "▶ Image suivante" : "Image suivante";
+  // Changement de joueur : « Image suivante » devient le bouton principal, il montre l'image qui attendait.
+  $("mime-pass").classList.toggle("main", relais);
+  $("mime-pass").classList.toggle("secondary", !relais);
+  $("mime-pass").disabled = busy || (!relais && (m.left ?? 0) < (picto ? (m.offer?.length ?? 0) + 1 : 2));
   $("mime-minus").hidden = picto;
   $("mime-minus").disabled = busy || !(m.found > 0);
   // Juste après un tour : corriger le compte de l'équipe qui vient de jouer, sans relancer de chrono.

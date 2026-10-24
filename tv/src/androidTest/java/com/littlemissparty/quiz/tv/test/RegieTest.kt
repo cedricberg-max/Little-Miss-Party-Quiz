@@ -153,6 +153,12 @@ class RegieTest : TestTv() {
         ecran.capture("mimes-tour")
 
         assertEquals("applied", regie.commande(code, "mime_found"))
+        // Roulement (cedric, 24/10) : changement de joueur, l'image suivante attend « Image suivante » de la régie.
+        ecran.voit("Dos à l'écran !")
+        ecran.neVoitPas("Lion")
+        ecran.capture("mimes-changement-de-joueur")
+        assertEquals("Pas d'image : un double appui ne compte pas", "refused", regie.commande(code, "mime_found"))
+        assertEquals("applied", regie.commande(code, "mime_pass"))
         ecran.voit("Lion")
         assertEquals("applied", regie.commande(code, "mime_stop"))
         ecran.voit("Bravo Licornes")
