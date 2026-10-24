@@ -8653,7 +8653,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.match(message, /leurs photos dessinées et comptines \(2 fichiers\)/);
     // La prestation s'ouvre, remplie, et s'enregistre « À venir ».
     await page.locator("#show-status-msg", { hasText: "Enregistrée « À venir »" }).waitFor({ timeout: 30000 });
-    await page.locator("#show-edit-title", { hasText: "ANNIVERSAIRE TEST – Léa, 9 ans" }).waitFor();
+    await page.locator("#show-edit-title", { hasText: "ANNIVERSAIRE TEST – Touktouka, 9 ans" }).waitFor();
     assert.equal(await page.locator("#show-rounds .jeu-bloc").count(), 16);
     assert.equal(await page.locator("#show-rounds .jeu-bloc.replie").count(), 16, "tout replié : une ligne par jeu");
     assert.equal(await page.locator("#show-rounds .alerte-equipes").count(), 0, "chaque équipe a ses images et ses mots");
@@ -8665,7 +8665,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.deepEqual(shows.copie, COPIE);
     const fete = shows["test-prestation"];
     assert.deepEqual([fete.childName, fete.age, fete.teams, fete.date, fete.status, fete.origin, fete.title],
-      ["Léa", 9, 4, isoDay(), "publiee", "test", "ANNIVERSAIRE TEST – Léa, 9 ans"]);
+      ["Touktouka", 9, 4, isoDay(), "publiee", "test", "ANNIVERSAIRE TEST – Touktouka, 9 ans"]);
     assert.deepEqual(fete.rounds.map((r) => r.type), ["quiz", "mimes", "blind", "zoom", "chante", "express", "illustre", "quisuis",
       "flou", "disparu", "musical", "statues", "pictionary", "gonfleur", "patate", "coffres"]);
     // Chaque jeu rempli par son 🎲.
@@ -8698,7 +8698,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.click("#nav button[data-screen=settings]");
     await page.click("#test-prestation");
     const encore = await repondreFenetre(page);
-    assert.match(encore, /1 prestation de test : « ANNIVERSAIRE TEST – Léa, 9 ans »/);
+    assert.match(encore, /1 prestation de test : « ANNIVERSAIRE TEST – Touktouka, 9 ans »/);
     assert.match(encore, /13 manches gardées pour elles/);
     await page.locator("#show-status-msg", { hasText: "Enregistrée « À venir »" }).waitFor({ timeout: 30000 });
     shows = await library("shows");
@@ -8706,7 +8706,7 @@ describe("bibliothèque de quiz et prestations", () => {
     manches = await library("manches");
     assert.equal(Object.values(manches).filter((m) => m.showId === "test-prestation").length, 13);
     await page.click("#nav button[data-screen=settings]");
-    await page.locator("#test-status", { hasText: "Créée : « ANNIVERSAIRE TEST – Léa, 9 ans », anciennes démos effacées." }).waitFor();
+    await page.locator("#test-status", { hasText: "Créée : « ANNIVERSAIRE TEST – Touktouka, 9 ans », anciennes démos effacées." }).waitFor();
     await page.context().close();
 
     // Sur la régie : chargée sur la TV, les 16 jeux.
@@ -8714,7 +8714,7 @@ describe("bibliothèque de quiz et prestations", () => {
     const regie = await openRegie();
     await pair(regie);
     await inRegie(regie);
-    await regie.locator(".show-item", { hasText: "ANNIVERSAIRE TEST – Léa, 9 ans" }).click();
+    await regie.locator(".show-item", { hasText: "ANNIVERSAIRE TEST – Touktouka, 9 ans" }).click();
     await respond(regie);
     await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor({ timeout: 30000 });
     const questions = (await read("show")).quiz.questions;

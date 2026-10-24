@@ -4,9 +4,9 @@
 
 /** Clé fixe de la prestation de test : un nouveau clic la refait à neuf, jamais en double. */
 export const TEST_PRESTATION = "test-prestation";
-export const TEST_TITRE = "ANNIVERSAIRE TEST – Léa, 9 ans";
+export const TEST_TITRE = "ANNIVERSAIRE TEST – Touktouka, 9 ans";
 /** La fiche : une fête de 9 ans à 4 équipes, datée du jour (voir creerPrestationDeTest dans admin.js). */
-export const TEST_FICHE = { childName: "Léa", age: 9, teams: 4 };
+export const TEST_FICHE = { childName: "Touktouka", age: 9, teams: 4 };
 export const TEST_NOTES = "Prestation de TEST : les 16 jeux, remplis au 🎲 comme pour une vraie fête. "
   + "« 🧪 Créer la prestation de test » (Paramètres) la refait à neuf.";
 
