@@ -21,7 +21,7 @@ import {
   roundSeriesQuiz, questionsDeLaSerie, questionsDesSeries, questionJouable, FACTEURS_FINALE, SUPER_FINALE_LAST, questionBougies,
   questionsDuQuiz, cleQuestion, placeDesBougies, CLE_BOUGIES, estEnSeries, choiceImageList, estJeuDePhotos, signatureQuestion, zoomRoundQuestions,
   estJeuDeMots, seriesMots, cleDuMot, motsDuJeu, MAX_MOTS, pickedItems, roundHasard, disparuObjects,
-  pictoToursBruts, pictoPropositions, pictoPassages, PICTO_PROPOSITIONS, PICTO_PASSAGES, PICTO_PASSAGES_MAX,
+  pictoToursBruts, pictoPropositions, pictoPassages, PICTO_PROPOSITIONS, PICTO_PASSAGES, PICTO_PASSAGES_MAX, leurresDeChanson, parolesDuHook,
 } from "./show.js";
 import { TEAM_COLORS, TEAM_COLOR_NAMES } from "./theme.js";
 import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE, cheminPhotoBanque, imageLibre, questionBanque } from "./banque-photos.js";
@@ -36,7 +36,7 @@ import { concepts, neufsSiPossible, questionConcepts } from "./jamais-deux-fois.
 import { PICTO_OWN_SERIES } from "./picto-cards.js";
 import { EXTRACT_SECONDS, guessTrack, decodeFile, cutExtract, makeExtract, encodeMp3, soundId } from "./audio.js";
 import { REFRAIN_SEC, REFRAIN_KBPS, buzzOf, defaultRefrain, songList, songsRetirees, songMatches, trackFromSong, songUpdates, marquerEffacees } from "./sons.js";
-import { lireLrc, refrainsDesParoles, debutDesParoles, parolesDuRefrain, associerParoles, nomSimple, ligneAuMoment, MAX_LRC } from "./paroles.js";
+import { lireLrc, refrainsDesParoles, debutDesParoles, parolesDuRefrain, associerParoles, nomSimple, ligneAuMoment, MAX_LRC, propositionsDeTitre, cle, LEURRE_MAX } from "./paroles.js";
 import { volumes, explosionDuVolume, refrainAuVolume } from "./volume.js";
 import { etiquettesMp3 } from "./id3.js";
 import { garderFichier, fichierGarde, oublierFichier } from "./sons-locaux.js";
@@ -1746,6 +1746,66 @@ function chansonsDePlaylist(p) {
   return [...new Set(playableTracks({ tracks: pistes }).map((t) => (t.songId && chansonJouable(songs?.[t.songId]) ? t.songId : parExtrait.get(t.audioId))).filter(Boolean))];
 }
 
+/** Mauvaises réponses enlevées d'un ✕ pendant l'écran (par manche, puis par chanson) : le ✕ suivant ne les repropose pas. */
+const leurresEnleves = new WeakMap();
+
+/**
+ * Les 3 mauvaises réponses d'une chanson du Quiz musical (cedric, 24/10) : des mots de son refrain qui pourraient passer
+ * pour le titre, proposés d'après le hook réglé et le fichier .lrc. Chacune se modifie en tapant ; ✕ l'enlève et la
+ * proposition suivante du refrain prend sa place (plus rien à proposer : la case reste vide, un autre titre est tiré au
+ * hasard). Rangées dans la manche (`leurres`, par chanson) ; la bibliothèque des sons ne change pas.
+ */
+function leurresChanson(r, id, song) {
+  const titre = song.title.trim();
+  const fixes = () => {
+    const x = r.leurres?.[id];
+    const liste = Array.isArray(x) ? x : x && typeof x === "object" ? Object.values(x) : null;
+    return liste && Array.from({ length: 3 }, (_, k) => (typeof liste[k] === "string" ? liste[k] : ""));
+  };
+  const actuels = () => fixes() ?? [...leurresDeChanson(song), "", "", ""].slice(0, 3);
+  const ranger = (liste) => {
+    r.leurres = { ...(r.leurres && typeof r.leurres === "object" ? r.leurres : {}), [id]: liste.map((x) => x.trim().slice(0, LEURRE_MAX)) };
+    roundCtx.summary();
+    noterEcran();
+  };
+  const enleves = () => {
+    if (!leurresEnleves.has(r)) leurresEnleves.set(r, new Map());
+    const m = leurresEnleves.get(r);
+    if (!m.has(id)) m.set(id, new Set());
+    return m.get(id);
+  };
+  const propositions = () => propositionsDeTitre(parolesDuHook(song), titre);
+  const sansParoles = !propositions().length;
+  const cases = actuels().map((valeur, k) => {
+    const champ = h("input", {
+      type: "text", class: "leurre-texte", value: valeur, maxlength: String(LEURRE_MAX), placeholder: "Un autre titre au hasard",
+      "aria-label": `Mauvaise réponse ${k + 1} pour « ${titre} »`,
+      oninput: (e) => {
+        const liste = actuels();
+        liste[k] = e.target.value;
+        ranger(liste);
+      },
+    });
+    const enlever = h("button", {
+      type: "button", class: "icon leurre-retirer", text: "✕", "aria-label": `Enlever la mauvaise réponse ${k + 1} de « ${titre} »`,
+      title: "Enlever cette mauvaise réponse : la proposition suivante du refrain prend sa place",
+      onclick: () => {
+        const liste = actuels();
+        if (liste[k].trim()) enleves().add(cle(liste[k]));
+        const pris = new Set([cle(titre), ...liste.filter((x, j) => j !== k && x.trim()).map(cle), ...enleves()]);
+        liste[k] = propositions().find((x) => !pris.has(cle(x))) ?? "";
+        ranger(liste);
+        roundCtx.refresh();
+      },
+    });
+    return h("span", { class: "leurre" }, champ, enlever);
+  });
+  return h("div", { class: "leurres", "data-chanson": id },
+    h("span", { class: "leurres-titre", text: "Mauvaises réponses :", title: "Les 3 réponses proposées à côté du vrai titre sur les pupitres, tirées du refrain de la chanson" }),
+    ...cases,
+    sansParoles ? h("span", { class: "small hint leurres-aide", text: "Pas de paroles du refrain : tapez vos mauvaises réponses, sinon d'autres titres sont tirés au hasard." }) : null);
+}
+
 /** Séries d'un blind test dépliées, et ses « Blind test complet » dépliés (le temps de l'écran). */
 const blindsCompletsDeplies = new WeakSet();
 
@@ -1765,7 +1825,7 @@ const blindsCompletsDeplies = new WeakSet();
 function mancheBlind(r) {
   versSeriesBlind(r);
   // Le Quiz musical aussi (cedric, 24/10 : « à la manière de tout ce qu'on a déjà fait ») : le 🎲, une playlist, le
-  // récapitulatif ; pas de « Sélectionner mes chansons », ni de paroles (seuls les titres comptent).
+  // récapitulatif ; sous chaque chanson, ses 3 mauvaises réponses tirées du refrain (leurresChanson).
   const musical = r.type === "musical";
   const jeu = musical ? "quiz musical" : "blind test";
   const series = r.seriesBlind;
@@ -1933,6 +1993,7 @@ function mancheBlind(r) {
           },
         }),
         h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": `Retirer « ${song.title.trim()} »`, title: titreRetirer, onclick: retirer })),
+      musical ? leurresChanson(r, id, song) : null,
       ouvert ? menuChanson(id) : null);
   };
   const titreSerie = (x) => {

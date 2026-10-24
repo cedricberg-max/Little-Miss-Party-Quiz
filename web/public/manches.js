@@ -12,7 +12,7 @@ import {
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, pourLeHasard, roundHasard, roundTirees,
   roundSeriesQuiz, questionsDeLaSerie, questionJouable, FACTEURS_FINALE, MAX_QUESTIONS_MANCHE, playable, estEnSeries,
   estJeuDePhotos, signatureQuestion, questionsDuJeu, zoomRoundQuestions, mimeEquipes, mimeEquipesBrutes, mimeAges, MIME_SOURCES,
-  chansonsBrutes, chansonsDe, BLIND_NOMBRES, seriesBlind, MAX_CHANSONS_BLIND, JEUX_DE_CHANSONS,
+  chansonsBrutes, chansonsDe, BLIND_NOMBRES, seriesBlind, MAX_CHANSONS_BLIND, JEUX_DE_CHANSONS, leurresDeLaManche,
   estJeuDeMots, seriesMots, motsDuJeu, MAX_MOTS, pictoToursBruts, pictoTours, pictoPropositions, pictoPassages,
 } from "./show.js";
 import { PROFILES } from "./profiles.js";
@@ -307,9 +307,12 @@ export function cleanRound(r, playlists = {}) {
       ...(typeof x.playlistId === "string" && x.playlistId ? { playlistId: x.playlistId.slice(0, 40) } : {}),
     })).filter((x) => x.chansons.length);
     const ordre = series.length ? chansonsDe(r) : [];
+    // Quiz musical : les mauvaises réponses modifiées dans la prestation, par chanson (cedric, 24/10).
+    const leurres = leurresDeLaManche(r);
     out = {
       type, chansons: chansonsBrutes(r), ...(BLIND_NOMBRES.includes(r.nbChansons) ? { nbChansons: r.nbChansons } : {}),
       ...(series.length ? { seriesBlind: series, ...(Object.values(r.ordreBlind ?? {}).length ? { ordreBlind: ordre } : {}) } : {}),
+      ...(Object.keys(leurres).length ? { leurres } : {}),
     };
   } else if (MUSIC_GAMES[type]) out = roundTracks(r).length ? { type, tracks: roundTracks(r) } : { type, playlistId: r.playlistId };
   else if ((type === "zoom" || type === "flou") && roundPicks(r).length && !roundSeriesQuiz(r).length) out = { type, ...picks };
@@ -505,6 +508,8 @@ export function fusionnerBlind(rounds) {
       ...garde, seriesBlind: series,
       // Rangé à la main dans l'un ou l'autre : l'ordre suit, celui du premier puis celui du second.
       ...(ordre(prev).length || ordre(r).length ? { ordreBlind: [...chansonsDe(prev), ...chansonsDe(r).filter((id) => !chansonsDe(prev).includes(id))] } : {}),
+      // Quiz musical : les mauvaises réponses rangées dans l'un ou l'autre suivent leurs chansons.
+      ...(prev.leurres || r.leurres ? { leurres: { ...(r.leurres ?? {}), ...(prev.leurres ?? {}) } } : {}),
     };
     out[out.length - 1].chansons = chansonsBrutes(out[out.length - 1]);
   }

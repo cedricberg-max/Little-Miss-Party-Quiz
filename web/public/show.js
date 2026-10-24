@@ -8,6 +8,7 @@ import { concepts, questionConcepts, neufsSiPossible } from "./jamais-deux-fois.
 import { BANQUE, questionBanque, avecPhoto, disparuPhotos, imageLibre } from "./banque-photos.js";
 import { TEAM_COLORS, TEAM_COLOR_NAMES } from "./theme.js";
 import { trackFromSong } from "./sons.js";
+import { propositionsDeTitre, cle, LEURRE_MAX } from "./paroles.js";
 
 /**
  * Portes mystères (jeu final) : 3 ou 4 portes, chacune cache un bonus ou un malus qui peut renverser le classement ;
@@ -83,7 +84,7 @@ export const PICTO_RULE = "équipe par équipe, un enfant dessine le mot sur la 
 /** Jeux musicaux : leurs extraits viennent d'une playlist de la bibliothèque (library/playlists). */
 export const MUSIC_GAMES = {
   blind: { rule: "le premier qui buzze donne le titre ; les derniers morceaux valent double" },
-  musical: { rule: "4 titres proposés sur les pupitres, toutes les équipes répondent" },
+  musical: { rule: "Le vrai titre et 3 mots du refrain proposés sur les pupitres, toutes les équipes répondent" },
 };
 /** Durée d'un extrait de blind test par défaut (secondes) : le temps de buzzer, chrono compris. */
 export const BLIND_SEC = 30;
@@ -732,7 +733,9 @@ export const chansonJouable = (song) => !!(song && song.retiree !== true && type
  * n'existe plus.
  */
 export function chansonsPlaylist(round, songs, title = "") {
-  const tracks = chansonsDe(round).map((id) => (chansonJouable(songs?.[id]) ? trackFromSong({ ...songs[id], id }) : null)).filter(Boolean);
+  // Quiz musical : les mauvaises réponses rangées dans la prestation pour chaque chanson (cedric, 24/10).
+  const fixes = (id) => (round?.type === "musical" && round.leurres?.[id] != null ? { leurres: listOf(round.leurres[id]) } : {});
+  const tracks = chansonsDe(round).map((id) => (chansonJouable(songs?.[id]) ? { ...trackFromSong({ ...songs[id], id }), ...fixes(id) } : null)).filter(Boolean);
   return tracks.length ? { title: typeof title === "string" ? title.trim().slice(0, 60) : "", duration: BLIND_SEC, tracks } : null;
 }
 
@@ -970,6 +973,38 @@ export function fixedConcepts(round, quizzes = {}, mimes = {}, contents = {}) {
   return [];
 }
 
+/**
+ * Mauvaises réponses d'une chanson du Quiz musical (cedric, 24/10 : « elles doivent faire partie des paroles et être
+ * dans le refrain ») : celles rangées dans la prestation ([fixes] ; une case vidée laisse la place à un autre titre tiré
+ * au hasard), sinon les 3 premières propositions tirées du refrain (propositionsDeTitre). Au plus 3, jamais le titre,
+ * jamais deux fois la même. [song] : une chanson de la bibliothèque ou un morceau ({ title, paroles }).
+ */
+export function leurresDeChanson(song, fixes = null) {
+  const titre = typeof song?.title === "string" ? song.title.trim() : "";
+  const brutes = fixes != null ? listOf(fixes).slice(0, 3) : propositionsDeTitre(parolesDuHook(song), titre).slice(0, 3);
+  const vus = new Set([cle(titre)]);
+  return brutes.map((x) => (typeof x === "string" ? x.trim().slice(0, LEURRE_MAX) : "")).filter((x) => {
+    const k = cle(x);
+    if (!k || vus.has(k)) return false;
+    vus.add(k);
+    return true;
+  });
+}
+
+/** Paroles du refrain d'une chanson, seulement si son refrain (le hook) est réglé : c'est de là que viennent les leurres. */
+export const parolesDuHook = (song) => (/^[0-9a-f]{16}$/.test(song?.refrainId ?? "") && typeof song?.paroles === "string" ? song.paroles : "");
+
+/**
+ * Mauvaises réponses rangées dans une manche de Quiz musical (`leurres`), nettoyées pour l'enregistrement : 3 cases par
+ * chanson encore dans la manche (une case vide : un autre titre au hasard).
+ */
+export function leurresDeLaManche(round) {
+  if (round?.type !== "musical" || !round.leurres || typeof round.leurres !== "object") return {};
+  const dedans = new Set(chansonsDe(round));
+  return Object.fromEntries(Object.entries(round.leurres).filter(([id, x]) => dedans.has(id) && x != null)
+    .map(([id, x]) => [id, Array.from({ length: 3 }, (_, k) => (typeof listOf(x)[k] === "string" ? listOf(x)[k].trim().slice(0, LEURRE_MAX) : ""))]));
+}
+
 /** Morceaux jouables d'une playlist : un titre et un extrait enregistré. */
 export const playableTracks = (playlist) => (playlist?.tracks ?? []).filter((t) => t?.title?.trim() && /^[0-9a-f]{16}$/.test(t.audioId ?? ""));
 
@@ -995,7 +1030,8 @@ export function tracksPlaylist(ids, playlists, title = "") {
 /**
  * Questions d'un jeu musical. Blind test : les morceaux dans l'ordre de la playlist, un buzz par morceau,
  * réponse à voix haute, chaque morceau avec sa valeur, sa pochette et sa durée de révélation. Quiz musical : le bon
- * titre parmi trois autres titres de la même playlist, sur les pupitres, morceaux mélangés. [dansLOrdre] : le Quiz
+ * titre parmi trois mauvaises réponses tirées de son refrain (cedric, 24/10 ; sinon d'autres titres de la même
+ * playlist), sur les pupitres, morceaux mélangés. [dansLOrdre] : le Quiz
  * musical garde l'ordre rangé dans la Régie PC (cedric, 24/10) ; [autresTitres] complètent les mauvaises réponses quand
  * la liste a moins de 4 titres (ceux de la bibliothèque des sons).
  */
@@ -1024,8 +1060,11 @@ function musicQuestions(type, playlist, prefix, random, { dansLOrdre = false, au
         points: trackPoints(playlist, t, j, tracks.length), reveal: scale.reveal, ...revelation,
       };
     }
-    const proches = shuffle(titles.filter((x) => x !== title), random).slice(0, 3);
-    const others = [...proches, ...shuffle(secours, random).slice(0, 3 - proches.length)];
+    // Les mauvaises réponses viennent du refrain (cedric, 24/10) ; d'autres titres complètent s'il en manque.
+    const leurres = leurresDeChanson(t, t.leurres ?? null);
+    const pris = new Set([title, ...leurres].map(cle));
+    const proches = shuffle(titles.filter((x) => !pris.has(cle(x))), random).slice(0, 3 - leurres.length);
+    const others = [...leurres, ...proches, ...shuffle(secours.filter((x) => !pris.has(cle(x))), random).slice(0, 3 - leurres.length - proches.length)];
     const choices = shuffle([title, ...others], random);
     return { ...base, text: "Quel est ce titre ?", choices, correct: choices.indexOf(title), kind: "classic", ...revelation };
   });

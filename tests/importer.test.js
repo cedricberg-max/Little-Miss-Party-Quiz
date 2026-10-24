@@ -3235,4 +3235,71 @@ describe("Mimes : une manche par équipe, sa présélection tirée au 🎲 (cedr
     // Un blind test vide avant un autre laisse la place.
     assert.deepEqual(M.fusionnerBlind([{ type: "blind", seriesBlind: [] }, { type: "blind", seriesBlind: [{ id: "de", origine: "de", chansons: ["a"] }] }].map(M.versSeriesBlind)).rounds.map((r) => chansonsDe(r)), [["a"]]);
   });
+
+  test("Quiz musical (cedric, 24/10) : les 3 mauvaises réponses sont des mots du refrain, modifiables dans la prestation", async () => {
+    const { propositionsDeTitre, cle, LEURRE_MAX, LEURRES_FENETRE_SEC } = await import("../web/public/paroles.js");
+    const { leurresDeChanson, leurresDeLaManche } = await import("../web/public/show.js");
+    const M = await import("../web/public/manches.js");
+    const refrain = (lignes) => lignes.map(([s, t]) => `${s * 1000}|${t}`).join("\n");
+    const titre = "Libérée, délivrée";
+    const libere = refrain([[0, "Libérée, délivrée"], [3, "Je ne mentirai plus jamais"], [7, "Libérée, délivrée"], [10, "C'est décidé, je m'en vais"],
+      [14, "J'ai laissé mon enfance en été"], [18, "Perdue dans l'hiver"], [LEURRES_FENETRE_SEC + 2, "Le froid est pour moi le prix de la liberté"]]);
+    const p = propositionsDeTitre(libere, titre);
+    assert.ok(p.length >= 3);
+    // Jamais le titre, ni une phrase qui le contient ; une majuscule, et pas trop long pour une carte de la TV.
+    assert.ok(p.every((x) => cle(x) !== cle(titre) && !cle(x).includes(cle(titre)) && x.length <= LEURRE_MAX && x[0] === x[0].toUpperCase()), p.join(" / "));
+    // Pris dans les 30 premières secondes du refrain réglé pour le hook.
+    assert.ok(!p.some((x) => /froid|liberté/i.test(x)), p.join(" / "));
+    assert.ok(p.includes("C'est décidé") && p.includes("Perdue dans l'hiver") && p.includes("Je ne mentirai plus jamais"), p.join(" / "));
+    // Jamais deux propositions dont l'une contient l'autre, et un seul bout du titre (« Libérée »).
+    for (const a of p) for (const b of p) if (a !== b) assert.ok(!cle(a).includes(cle(b)), `${a} / ${b}`);
+    assert.ok(p.filter((x) => cle(titre).includes(cle(x))).length <= 1);
+    // Bruits chantés et petits mots de liaison : jamais seuls, jamais à la fin.
+    const bruits = propositionsDeTitre(refrain([[0, "Oh oh oh, na na na"], [2, "Je danse dans la rue"]]), "Danse");
+    assert.ok(!bruits.some((x) => /^(oh|na)\b/i.test(x) || /\b(dans|la|le|de)$/i.test(x)), bruits.join(" / "));
+    assert.ok(bruits.includes("Dans la rue"));
+    // Un refrain qui ne dit que le titre : tout l'extrait du refrain sert.
+    assert.ok(propositionsDeTitre(refrain([[0, "Around the world, around the world"], [40, "Paris est magique"]]), "Around the World").includes("Paris est magique"));
+    assert.deepEqual(propositionsDeTitre("", "X"), []);
+    assert.deepEqual(propositionsDeTitre(undefined, "X"), []);
+
+    // Le hook doit être réglé : sans refrain, pas de leurres tirés des paroles.
+    const ID = (n) => `${n}123456789abcdef`;
+    const songs = {
+      a: { title: titre, audioId: ID(1), refrainId: ID(2), paroles: libere },
+      b: { title: "Hakuna Matata", audioId: ID(3), paroles: refrain([[0, "Quel chant fantastique"]]) },
+      c: { title: "Sous l'océan", audioId: ID(4) },
+      d: { title: "Ce rêve bleu", audioId: ID(5) },
+      e: { title: "Je voudrais déjà être roi", audioId: ID(6) },
+    };
+    assert.deepEqual(leurresDeChanson(songs.a), p.slice(0, 3));
+    assert.deepEqual(leurresDeChanson(songs.b), []);
+    // Rangées dans la prestation : une case vidée, un doublon ou le titre lui-même laissent la place à un autre titre.
+    assert.deepEqual(leurresDeChanson(songs.a, ["Il fait froid", "", "il fait froid !"]), ["Il fait froid"]);
+    assert.deepEqual(leurresDeChanson(songs.a, ["Libérée délivrée", "Reine des neiges", "Elsa"]), ["Reine des neiges", "Elsa"]);
+
+    const round = (leurres) => ({ type: "musical", seriesBlind: [{ id: "c1", origine: "choix", chansons: ["a", "b"] }], ...(leurres ? { leurres } : {}) });
+    const jouer = (r) => buildSnapshot("x", { childName: "Zoé", age: 8, teams: 2, rounds: [r] }, {}, {}, Math.random, {}, {}, {}, songs).snapshot.quiz.questions;
+    const [qa, qb] = jouer(round());
+    // Le vrai titre et ses 3 leurres du refrain, mélangés ; sans paroles réglées, d'autres titres comme avant.
+    assert.deepEqual([...qa.choices].sort(), [titre, ...p.slice(0, 3)].sort());
+    assert.equal(qa.choices[qa.correct], titre);
+    assert.equal(qb.choices.length, 4);
+    assert.equal(qb.choices[qb.correct], "Hakuna Matata");
+    assert.ok(qb.choices.every((x) => Object.values(songs).some((s) => s.title === x)), "d'autres titres de la bibliothèque");
+    // Modifiés dans la prestation : ceux-là ; une case vide prend un autre titre.
+    const [qa2] = jouer(round({ a: ["Il fait froid", "", "Reine des neiges"] }));
+    assert.equal(qa2.choices.length, 4);
+    assert.ok(qa2.choices.includes("Il fait froid") && qa2.choices.includes("Reine des neiges") && qa2.choices.includes(titre));
+    assert.ok(qa2.choices.some((x) => ["Hakuna Matata", "Sous l'océan", "Ce rêve bleu", "Je voudrais déjà être roi"].includes(x)));
+
+    // Enregistrés avec la manche, 3 cases par chanson encore dans la manche ; pas pour un blind test.
+    const propre = M.cleanRound(round({ a: ["  Il fait froid ", "", "x".repeat(60)], zz: ["Partie", "", ""] }));
+    assert.deepEqual(propre.leurres, { a: ["Il fait froid", "", "x".repeat(LEURRE_MAX)] });
+    assert.equal(M.cleanRound(round()).leurres, undefined);
+    assert.deepEqual(leurresDeLaManche({ ...round({ a: ["A"] }), type: "blind" }), {});
+    // Deux Quiz musicaux qui se suivent n'en font qu'un : leurs leurres suivent leurs chansons.
+    const deux = M.fusionnerBlind([round({ a: ["A", "B", "C"] }), { type: "musical", seriesBlind: [{ id: "c2", origine: "choix", chansons: ["d"] }], leurres: { d: ["D", "E", "F"] } }].map(M.versSeriesBlind));
+    assert.deepEqual(M.cleanRound(deux.rounds[0]).leurres, { a: ["A", "B", "C"], d: ["D", "E", "F"] });
+  });
 });

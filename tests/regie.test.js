@@ -7147,6 +7147,76 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.context().close();
   });
 
+  test("Régie PC (cedric, 24/10) : Quiz musical, sous chaque chanson ses 3 mauvaises réponses tirées du refrain : proposées, modifiées, ✕ prend la suivante, enregistrées et jouées", async () => {
+    const { buildSnapshot, leurresDeChanson } = await import("../web/public/show.js");
+    const { propositionsDeTitre } = await import("../web/public/paroles.js");
+    const hex = (c, k) => `${c}${k}`.padEnd(16, c);
+    const refrain = (lignes) => lignes.map(([s, t]) => `${s * 1000}|${t}`).join("\n");
+    const SONGS = {
+      s1: { title: "Libérée, délivrée", artist: "La Reine des neiges", audioId: hex("a", 1), refrainId: hex("b", 1), start: 0, refrain: 60, buzz: 25, lrc: true, updatedAt: 1,
+        paroles: refrain([[0, "Libérée, délivrée"], [3, "Je ne mentirai plus jamais"], [7, "Libérée, délivrée"], [10, "C'est décidé, je m'en vais"], [14, "J'ai laissé mon enfance en été"], [18, "Perdue dans l'hiver"]]) },
+      s2: { title: "Hakuna Matata", artist: "Le Roi lion", audioId: hex("a", 2), refrainId: hex("b", 2), start: 0, refrain: 50, buzz: 25, lrc: true, updatedAt: 1,
+        paroles: refrain([[0, "Hakuna matata, mais quelle phrase magnifique"], [5, "Hakuna matata, quel chant fantastique"], [9, "Sans aucun souci, philosophie"]]) },
+      s3: { title: "Sous l'océan", artist: "La Petite Sirène", audioId: hex("a", 3), start: 0, buzz: 25, updatedAt: 1 },
+      s4: { title: "Ce rêve bleu", artist: "Aladdin", audioId: hex("a", 4), start: 0, buzz: 25, updatedAt: 1 },
+    };
+    await seedLibrary("songs", SONGS);
+    await seedLibrary("playlists", { pl: { title: "Disney", duration: 30, updatedAt: 1, tracks: Object.entries(SONGS).map(([k, x]) => ({ title: x.title, audioId: x.audioId, songId: k, duration: 25 })) } });
+    const page = await admin();
+    await page.click("#home-new");
+    await page.fill("#show-child", "Zoé");
+    await ajouterJeu(page, "musical");
+    const round = page.locator("#show-rounds .round").nth(0);
+    await round.locator(".blind-playlist-cherche").fill("dis");
+    await round.locator('.blind-playlist-item[data-playlist="pl"]').click();
+    const leurres = (k) => round.locator(`.blind-chanson[data-chanson="${k}"] .leurre-texte`);
+    const valeurs = (k) => leurres(k).evaluateAll((xs) => xs.map((x) => x.value));
+    // Dépliée : sous chaque chanson, ses 3 mauvaises réponses proposées d'après le refrain réglé pour le hook.
+    const p1 = propositionsDeTitre(SONGS.s1.paroles, SONGS.s1.title);
+    await leurres("s1").first().waitFor();
+    assert.deepEqual(await valeurs("s1"), leurresDeChanson(SONGS.s1));
+    assert.deepEqual(await valeurs("s1"), p1.slice(0, 3));
+    assert.deepEqual(await valeurs("s2"), leurresDeChanson(SONGS.s2));
+    assert.equal((await valeurs("s2")).length, 3);
+    // Sans paroles du refrain : cases vides, d'autres titres seront tirés (ou celles que Sarah tape).
+    assert.deepEqual(await valeurs("s3"), ["", "", ""]);
+    await round.locator('.blind-chanson[data-chanson="s3"] .leurres-aide', { hasText: "Pas de paroles du refrain" }).waitFor();
+    // ✕ : la proposition suivante du refrain prend sa place ; on modifie en tapant.
+    await round.locator('.blind-chanson[data-chanson="s1"] .leurre-retirer').nth(2).click();
+    await waitFor(async () => (await valeurs("s1"))[2] === p1[3], "la proposition suivante remplace celle enlevée");
+    await leurres("s1").nth(1).fill("Reine des neiges");
+    await leurres("s3").nth(0).fill("Le Roi lion");
+    // Rien ne dépasse de la chanson, même sur un écran étroit.
+    const deborde = await round.locator(".leurre").evaluateAll((xs) => xs.filter((x) => x.getBoundingClientRect().right > x.closest(".blind-chanson").getBoundingClientRect().right + 0.5).length);
+    assert.equal(deborde, 0, "aucune mauvaise réponse ne dépasse");
+    await capture(page, "quiz-musical-leurres");
+    await page.click("#show-save");
+    let zoe;
+    await waitFor(async () => {
+      zoe = Object.values((await library("shows")) ?? {}).find((x) => x.childName === "Zoé");
+      return !!zoe?.rounds?.[0]?.leurres?.s1;
+    }, "mauvaises réponses enregistrées");
+    assert.deepEqual(zoe.rounds[0].leurres.s1, [p1[0], "Reine des neiges", p1[3]]);
+    assert.deepEqual(zoe.rounds[0].leurres.s3, ["Le Roi lion", "", ""]);
+    assert.equal(zoe.rounds[0].leurres.s2, undefined, "pas modifiées : proposées à nouveau au lancement");
+    // La TV : le vrai titre et ces mauvaises réponses, mélangés ; une case vide prend un autre titre.
+    const qs = buildSnapshot("zoe", zoe, {}, {}, Math.random, {}, {}, {}, SONGS).snapshot.quiz.questions;
+    const q = (k) => qs.find((x) => x.audioId === SONGS[k].audioId);
+    assert.deepEqual([...q("s1").choices].sort(), [SONGS.s1.title, p1[0], "Reine des neiges", p1[3]].sort());
+    assert.deepEqual([...q("s2").choices].sort(), [SONGS.s2.title, ...leurresDeChanson(SONGS.s2)].sort());
+    assert.ok(q("s3").choices.includes("Le Roi lion") && q("s3").choices.length === 4 && new Set(q("s3").choices).size === 4);
+    assert.ok(qs.every((x) => x.choices[x.correct] === Object.values(SONGS).find((s) => s.audioId === x.audioId).title));
+    // Rouverte : les mauvaises réponses modifiées sont là, celles de s2 toujours proposées.
+    await page.click("#show-edit-crumb");
+    await page.locator(".show-card", { hasText: "Zoé" }).first().click();
+    await deplierJeux(page);
+    await round.locator(".blind-voir").first().click();
+    await leurres("s1").first().waitFor();
+    assert.deepEqual(await valeurs("s1"), [p1[0], "Reine des neiges", p1[3]]);
+    assert.deepEqual(await valeurs("s2"), leurresDeChanson(SONGS.s2));
+    await page.context().close();
+  });
+
   test("Bibliothèque › Sons (cedric, 24/10) : « 🎶 Mes playlists » : créer une playlist (son nom, ses chansons cochées, autant qu'on veut), la déplier, ✕ une chanson, « 🎵 Ajouter des chansons », renommer, supprimer", async () => {
     const hex = (c, k) => `${c}${k}`.padEnd(16, c);
     await seedLibrary("songs", Object.fromEntries([1, 2, 3, 4].map((k) => [`s${k}`, { title: `Chanson ${k}`, artist: "Les Tests", audioId: hex("a", k), start: 0, updatedAt: 1 }])));
