@@ -17,6 +17,7 @@ import {
   blindScale, trackPoints, BLIND_REVEAL_SECONDS, QUIZ_GAMES, CONTENT_GAMES, activeItems, contentExtras, contentSlot, contentImages,
   pictoSeriesOf, pictoSeriesList, pictoRoundSeries, foldLegacyFinale, showMatches, isArchived, AUTO_ARCHIVE_DAYS, quizKind,
   roundQuizIds, roundPicks, roundTracks, mimeCards, mimeDraw, MIME_RANDOM, MAX_PICKS, mimeEquipes, mimeEquipesBrutes, MIME_SOURCES, mimePerTeam,
+  chansonsBrutes, chansonsDe, chansonJouable, BLIND_NOMBRES, BLIND_NOMBRE_DEFAUT, MAX_CHANSONS_BLIND,
   isStatuesList, statuesSongs, statuesChoices, roundSongs, STATUES_EXTRACTS, STATUES_EXTRACT, MAX_STATUES_SONGS, builtinConcepts, isPhotoTheme, disparuGroup,
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, alerteEquipes, EQUIPES_PAR_DEFAUT, pourLeHasard, premierQuiz,
   launchStates, launchLabelPc, couleursEquipes, teamCount, roundTirees, chiffresDuTirage, MAX_TIREES,
@@ -207,6 +208,8 @@ function show(name, { force = false } = {}) {
   if (name === "quizzes") renderQuizzes();
   if (name === "mimes") renderMimes();
   if (name === "music") renderPlaylists();
+  // Retour des réglages d'une chanson du blind test : ses nouveaux réglages (refrain, pochette, paroles) s'affichent.
+  if (name === "show-edit" && reglageDepuisPrestation) { reglageDepuisPrestation = false; refreshRounds(); }
   if (["quizzes", "mimes", "music", "builtin"].includes(name)) paintCollectionTabs(name);
   if (name !== "playlist-edit") stopPreview();
   if (name === "settings") { showLastChange(); afficherJournal(); }
@@ -599,9 +602,9 @@ async function copierDansBibliotheque(dossier, original) {
  * avec seulement Ouvrir, Renommer et Archiver (« Dupliquer » se fait depuis les listes).
  */
 function showCard(id, s, { accueil = false } = {}) {
-  const r = readiness(s, quizzes, mimes, playlists, contents);
+  const r = readiness(s, quizzes, mimes, playlists, contents, undefined, songs);
   const etat = etatPrestation(s);
-  const { snapshot } = buildSnapshot(id, s, quizzes, mimes, Math.random, playlists, contents);
+  const { snapshot } = buildSnapshot(id, s, quizzes, mimes, Math.random, playlists, contents, {}, songs);
   const date = s.date ? shortDate(s.date) : null;
   // Un clic sur la carte (hors de ses boutons) l'ouvre, comme « Ouvrir ».
   return h("article", { class: `card show-card ${r.level}${copieRecente(id)}`, "data-show": id, onclick: (e) => { if (!e.target.closest("button")) editShow(id); } },
@@ -1247,6 +1250,235 @@ function mancheMimes(r) {
     h("div", { class: "quiz-outils" }, h("div", { class: "tirage-ligne" }, source, nombre, duree, de)),
     ancienne,
     tire ? h("div", { class: "mime-equipes" }, ...blocs) : null,
+  ].filter(Boolean);
+}
+
+/** Chansons retirées (✕) d'un blind test pendant la saisie : le 🎲 de leur case ne les redonne pas. */
+const chansonsRetirees = new WeakMap();
+/** Blind tests dont la liste des chansons est dépliée (comme les séries du Quiz). */
+const blindsDeplies = new WeakSet();
+/** Chanson de chaque blind test dont le petit menu (écouter, régler) est ouvert : un seul à la fois. */
+const blindEcoute = new WeakMap();
+/** Réglages d'une chanson ouverts depuis la prestation : au retour, sa liste se redessine avec les nouveaux réglages. */
+let reglageDepuisPrestation = false;
+
+/**
+ * « ⏱ Régler… » une chanson depuis la prestation (cedric, 24/10) : les réglages de la chanson, ceux de Bibliothèque ›
+ * Sons ; « Enregistrer les réglages » ou « ← Retour » ramène à la prestation. Des modifications de la prestation pas
+ * encore enregistrées : elle l'est d'abord (sinon elles seraient perdues).
+ */
+async function reglerDepuisPrestation(x) {
+  if (histPrestation.modifie) {
+    const ok = await confirmer("Pour régler cette chanson, la prestation est d'abord enregistrée (sinon ses modifications seraient perdues).", { ok: "Enregistrer et régler", annuler: "Rester" });
+    if (!ok || !(await enregistrerPrestation())) return;
+  }
+  reglageDepuisPrestation = true;
+  editSongs([x]);
+  if (ecranAffiche() !== "playlist-edit") reglageDepuisPrestation = false;
+}
+
+/**
+ * Petit menu d'une chanson du blind test (cedric, 24/10 : vérifier que l'extrait et le hook sont bien placés, sans
+ * charger la page) : écouter l'extrait du buzz depuis son début, écouter le refrain de la révélation, avec les paroles
+ * qui défilent, et « ⏱ Régler… » pour les déplacer.
+ */
+function menuChanson(id) {
+  const x = songList(songs, {}, isStatuesList).find((s) => s.id === id);
+  if (!x) return null;
+  const paroles = () => parolesFlottantes(x, "show-rounds");
+  const refrain = Number.isFinite(x.refrain) ? ` · ${mmss(x.refrain)}` : "";
+  return h("div", { class: "blind-reglage" },
+    boutonEcoute({ class: "btn secondary blind-extrait", title: "Écouter l'extrait du buzz, depuis son début", text: `▶ Extrait · ${mmss(x.start ?? 0)}` },
+      (b) => listen(x, false, b, paroles)),
+    boutonEcoute({
+      class: "btn secondary blind-refrain", disabled: !x.refrainId, text: `▶ Refrain${refrain}`,
+      title: x.refrainId ? `Écouter le refrain de la révélation (« on chante tous ensemble »), ${x.auto ? "trouvé automatiquement" : "réglé à la main"}` : "Pas encore de refrain : touchez « ⏱ Régler… »",
+    }, (b) => listen(x, true, b, paroles)),
+    h("span", { class: "hint small blind-hook", text: x.refrainId ? (x.auto ? "Refrain trouvé automatiquement" : "Refrain réglé à la main") : "Refrain pas encore réglé" }),
+    h("button", { type: "button", class: "btn blind-regler", title: "Déplacer le début de l'extrait ou le refrain, comme dans Bibliothèque › Sons", text: "⏱ Régler…", onclick: () => reglerDepuisPrestation(x) }));
+}
+
+/**
+ * « Jamais deux fois » pour les chansons : celles des autres jeux musicaux de la prestation (blind test, quiz musical,
+ * statues), par identifiant de chanson et par extrait → nom du jeu.
+ */
+function chansonsAilleurs(r) {
+  const out = new Map();
+  (editing?.rounds ?? []).forEach((x) => {
+    if (!x || x === r) return;
+    const nom = ROUND_TYPES[x.type ?? "quiz"] ?? "une autre manche";
+    const noter = (k) => { if (k && !out.has(k)) out.set(k, nom); };
+    chansonsDe(x).forEach((id) => { noter(id); noter(songs[id]?.audioId); });
+    if (MUSIC_GAMES[x.type]) {
+      roundTracks(x).forEach(noter);
+      if (x.playlistId) playableTracks(playlists[x.playlistId]).forEach((t) => noter(t.audioId));
+    }
+    if (x.type === "statues") (Array.isArray(x.songs) ? x.songs : []).forEach(noter);
+  });
+  return out;
+}
+
+/** Paroles d'une chanson sur la TV (karaoké de la révélation) : il faut le fichier .lrc et l'extrait du refrain. */
+const parolesSurTv = (song) => !!(song && /^[0-9a-f]{16}$/.test(song.refrainId ?? "") && typeof song.paroles === "string" && song.paroles);
+
+/**
+ * Pioche [n] chansons de la bibliothèque des sons pour le blind test [r], jamais une de [prises] (déjà dans la manche ou
+ * retirées) : d'abord celles qu'aucun autre jeu de la prestation ne joue, et parmi elles celles qui ont leur pochette et
+ * leurs paroles (la plus belle révélation).
+ */
+function piocherChansons(r, n, prises) {
+  if (n <= 0) return [];
+  const ailleurs = chansonsAilleurs(r);
+  const toutes = Object.entries(songs ?? {}).filter(([id, x]) => chansonJouable(x) && !prises.has(id)).map(([id, x]) => ({ id, ...x }));
+  const neuve = (x) => !ailleurs.has(x.id) && !ailleurs.has(x.audioId);
+  const complete = (x) => /^[0-9a-f]{16}$/.test(x.imageId ?? "") && parolesSurTv(x);
+  return [
+    ...shuffle(toutes.filter((x) => neuve(x) && complete(x))),
+    ...shuffle(toutes.filter((x) => neuve(x) && !complete(x))),
+    ...shuffle(toutes.filter((x) => !neuve(x))),
+  ].slice(0, n).map((x) => x.id);
+}
+
+/** Mini pochette d'une chanson (cedric, 24/10 : « la certitude que la pochette est présente ») ; 💿 barré si elle manque. */
+function miniPochette(song) {
+  if (!/^[0-9a-f]{16}$/.test(song?.imageId ?? "")) {
+    return h("span", { class: "blind-pochette sans", role: "img", "aria-label": "Pas de pochette", title: "Pas de pochette : ajoutez-la dans Bibliothèque › Sons", text: "💿" });
+  }
+  const id = song.imageId;
+  const img = h("img", { class: "blind-pochette", alt: "Pochette", title: "Pochette présente" });
+  if (imageCache[id]) img.src = imageCache[id];
+  else get(ref(db, `library/images/${id}`)).then((snap) => { if (typeof snap.val() === "string") { imageCache[id] = snap.val(); img.src = snap.val(); } }).catch(() => {});
+  return img;
+}
+
+/**
+ * Blind test dans une prestation (cedric, 24/10) : « à la manière des quiz ». Première ligne : le nombre de chansons à
+ * trouver et le 🎲, qui les tire dans la bibliothèque des sons. Dessous, la liste des chansons du blind test, repliable
+ * comme une série du Quiz : chaque titre avec sa mini pochette et, à droite, si ses paroles sont là. ✕ retire une
+ * chanson et laisse un 🎲 à sa place. Une manche préparée avant (une playlist, des extraits) se joue encore telle quelle.
+ */
+function mancheBlind(r) {
+  const brutes = chansonsBrutes(r);
+  const tire = brutes.some(Boolean);
+  const n = tire ? brutes.length : BLIND_NOMBRES.includes(r.nbChansons) ? r.nbChansons : BLIND_NOMBRE_DEFAUT;
+  const changer = () => roundCtx.refresh();
+  const prises = () => new Set([...chansonsBrutes(r).filter(Boolean), ...(chansonsRetirees.get(r) ?? [])]);
+  const tirerTout = (k) => {
+    chansonsRetirees.delete(r);
+    const ids = piocherChansons(r, k, new Set());
+    if (!ids.length) return annonce("Aucune chanson dans la bibliothèque des sons : ajoutez-en d'abord (Bibliothèque › Sons).");
+    r.chansons = ids;
+    r.nbChansons = k;
+    // L'ancienne façon de préparer la manche (une playlist, des extraits choisis) laisse la place.
+    r.playlistId = ""; r.tracks = null; r.byItem = null;
+    blindsDeplies.add(r);
+    changer();
+  };
+  const tirerUne = (i) => {
+    const liste = chansonsBrutes(r);
+    const [id] = piocherChansons(r, 1, prises());
+    if (!id) return annonce("Plus de chanson à tirer dans la bibliothèque des sons.");
+    liste[i] = id;
+    r.chansons = liste;
+    changer();
+  };
+  const retirer = (i) => {
+    const liste = chansonsBrutes(r);
+    chansonsRetirees.set(r, new Set([...(chansonsRetirees.get(r) ?? []), liste[i]]));
+    liste[i] = "";
+    r.chansons = liste;
+    changer();
+  };
+  const nombre = h("select", {
+    class: "tirage-nombre blind-nombre", "aria-label": "Nombre de chansons à trouver",
+    onchange: (e) => {
+      const k = Number(e.target.value);
+      r.nbChansons = k;
+      // Moins de chansons : les premières restent ; plus : le 🎲 complète la liste.
+      if (tire) {
+        const liste = chansonsBrutes(r).slice(0, k);
+        r.chansons = [...liste, ...piocherChansons(r, k - liste.length, new Set([...liste.filter(Boolean), ...(chansonsRetirees.get(r) ?? [])]))];
+      }
+      changer();
+    },
+  }, ...[...new Set([...BLIND_NOMBRES, n])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: k === n, text: `${k} chansons à trouver` })));
+  const de = h("button", {
+    type: "button", class: "btn tirage-de", text: "🎲", "aria-label": "Tirer les chansons au hasard",
+    title: "Tirer les chansons au hasard dans la bibliothèque des sons", onclick: () => tirerTout(Number(nombre.value)),
+  });
+  const presentes = chansonsDe(r).filter((id) => chansonJouable(songs[id]));
+  const compteur = h("p", { class: "quiz-compteur", "aria-live": "polite",
+    text: tire ? `${presentes.length} chanson${presentes.length > 1 ? "s" : ""} à trouver` : "Aucune chanson pour l'instant : touchez 🎲" });
+  const autres = chansonsAilleurs(r);
+  const lignes = brutes.map((id, i) => {
+    const song = id ? songs[id] : null;
+    if (!id) {
+      return h("li", { class: "tirage-q vide blind-chanson" }, h("div", { class: "tirage-q-ligne" },
+        h("button", { type: "button", class: "btn tirage-de petit", text: "🎲", "aria-label": "Tirer une autre chanson", title: "Tirer une autre chanson", onclick: () => tirerUne(i) })));
+    }
+    if (!chansonJouable(song)) {
+      return h("li", { class: "tirage-q blind-chanson manquante" }, h("div", { class: "tirage-q-ligne" },
+        h("span", { class: "blind-pochette sans", text: "💿" }),
+        h("span", { class: "tirage-texte", text: "Chanson supprimée de la bibliothèque" }),
+        h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": "Retirer cette chanson", title: "Retirer cette chanson (un 🎲 prend sa place)", onclick: () => retirer(i) })));
+    }
+    const deja = autres.get(id) ?? autres.get(song.audioId);
+    const paroles = parolesSurTv(song);
+    const ouvert = blindEcoute.get(r) === id;
+    return h("li", { class: `tirage-q blind-chanson${deja ? " deja" : ""}${ouvert ? " ouverte" : ""}`, "data-chanson": id, ...(deja ? { title: `Déjà dans ${deja}` } : {}) },
+      h("div", { class: "tirage-q-ligne" },
+        miniPochette(song),
+        h("span", { class: "tirage-texte blind-titre" }, h("b", { text: song.title.trim() }), song.artist?.trim() ? h("span", { class: "hint", text: ` · ${song.artist.trim()}` }) : null),
+        h("span", {
+          class: `blind-paroles${paroles ? " ok" : " non"}`, text: paroles ? "✓ Paroles" : "✗ Pas de paroles",
+          title: paroles ? "Paroles présentes : elles défileront sur la TV à la révélation"
+            : song.lrc === true ? "Fichier .lrc présent, mais le refrain n'est pas encore réglé (Bibliothèque › Sons)" : "Pas de fichier .lrc : ajoutez-le dans Bibliothèque › Sons",
+        }),
+        h("button", {
+          type: "button", class: `icon blind-ecouter${ouvert ? " active" : ""}`, text: "🎧", "aria-expanded": ouvert ? "true" : "false",
+          "aria-label": `Écouter et régler « ${song.title.trim()} »`, title: "Écouter l'extrait et le refrain, et les régler",
+          onclick: () => {
+            stopPreview();
+            if (ouvert) blindEcoute.delete(r); else blindEcoute.set(r, id);
+            changer();
+          },
+        }),
+        h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": `Retirer « ${song.title.trim()} »`, title: "Retirer cette chanson (un 🎲 prend sa place)", onclick: () => retirer(i) })),
+      ouvert ? menuChanson(id) : null);
+  });
+  const liste = h("ol", { class: "tirage-liste serie-liste blind-liste" }, ...lignes);
+  liste.hidden = !blindsDeplies.has(r);
+  const titre = () => `${liste.hidden ? "▸" : "▾"} 🎵 Les chansons du blind test : ${presentes.length}`;
+  const voir = h("button", {
+    type: "button", class: "chip tirage-voir serie-voir blind-voir", "aria-expanded": liste.hidden ? "false" : "true", text: titre(),
+    title: "Voir ou cacher les chansons, avec leur pochette et leurs paroles",
+    onclick: (e) => {
+      liste.hidden = !liste.hidden;
+      if (liste.hidden) blindsDeplies.delete(r); else blindsDeplies.add(r);
+      e.currentTarget.textContent = titre();
+      e.currentTarget.setAttribute("aria-expanded", liste.hidden ? "false" : "true");
+    },
+  });
+  const manque = brutes.filter((id) => !id).length;
+  // Une manche préparée avant (une playlist entière, des extraits choisis) : elle se joue encore telle quelle.
+  const ancienne = !tire && (r.playlistId || roundTracks(r).length)
+    ? h("p", { class: "small hint blind-ancienne", text: `Blind test préparé à l'ancienne : ${mancheSummary(r, { playlists })}, joué tel quel. Le 🎲 le remplace par des chansons de la bibliothèque des sons.` })
+    : null;
+  return [
+    compteur,
+    h("div", { class: "quiz-outils" }, h("div", { class: "tirage-ligne" }, nombre, de)),
+    ancienne,
+    tire ? h("div", { class: "serie blind-serie" },
+      h("div", { class: "serie-tete" },
+        voir,
+        manque ? h("button", { type: "button", class: "chip blind-completer", text: `🎲 Tirer ${manque > 1 ? `les ${manque} chansons` : "la chanson"} qui manque${manque > 1 ? "nt" : ""}`, onclick: () => {
+          const l = chansonsBrutes(r);
+          const nouvelles = piocherChansons(r, manque, prises());
+          r.chansons = l.map((id) => id || nouvelles.shift() || "");
+          changer();
+        } }) : null),
+      liste) : null,
+    noteManche(r),
   ].filter(Boolean);
 }
 
@@ -2521,6 +2753,8 @@ function roundFields(r) {
     : quiz ? null : quizSelection(r, options);
   // Mimes dans une prestation (cedric, 23/10) : le 🎲 seul, une présélection par équipe.
   if (r.type === "mimes" && roundCtx === prestationCtx) return mancheMimes(r);
+  // Blind test dans une prestation (cedric, 24/10) : « à la manière des quiz », le 🎲 tire les chansons.
+  if (r.type === "blind" && roundCtx === prestationCtx) return mancheBlind(r);
   return [
     // Quiz, Quiz illustré (cedric, 23/10) : une seule manche faite de séries (🎲, quiz rappelés, questions écrites, reprises).
     ...(quiz ? mancheQuiz(r) : [content]),
@@ -2544,10 +2778,13 @@ function roundFields(r) {
       : null,
     // Note de la manche (cedric, 23/10) : pour s'en souvenir, et la retrouver avec « Reprendre une manche ». Pas dans
     // le Quiz (cedric, 23/10 : « n'a pas lieu d'être »).
-    SANS_CONTENU.includes(r.type) || quiz ? null : h("label", { class: "manche-note" }, "Note",
-      h("input", { type: "text", maxlength: "200", value: r.note ?? "", placeholder: "Pour la retrouver : thème, âge, remarque…", "aria-label": "Note de la manche", oninput: (e) => { r.note = e.target.value; } })),
+    SANS_CONTENU.includes(r.type) || quiz ? null : noteManche(r),
   ];
 }
+
+/** Note de la manche (cedric, 23/10) : pour s'en souvenir, et la retrouver avec « Reprendre une manche ». */
+const noteManche = (r) => h("label", { class: "manche-note" }, "Note",
+  h("input", { type: "text", maxlength: "200", value: r.note ?? "", placeholder: "Pour la retrouver : thème, âge, remarque…", "aria-label": "Note de la manche", oninput: (e) => { r.note = e.target.value; } }));
 
 /** Deux façons de remplir une manche (une source entière, ou des éléments au choix) : deux puces. */
 function modeSwitch(r, byItem, whole, items, set) {
@@ -2615,7 +2852,7 @@ function mimeNeedLine(r) {
 
 function refreshSummary() {
   const s = formShow();
-  const { snapshot, problems } = buildSnapshot(editing?.id ?? "nouvelle", s, quizzes, mimes, Math.random, playlists, contents);
+  const { snapshot, problems } = buildSnapshot(editing?.id ?? "nouvelle", s, quizzes, mimes, Math.random, playlists, contents, {}, songs);
   const profile = PROFILES[s.profile] ? s.profile : profileForAge(s.age);
   // Durée estimée toute seule d'après les jeux composés (cedric, 23/10) : elle ne se saisit plus.
   const duree = dureeEstimee(snapshot, s);
@@ -2624,7 +2861,7 @@ function refreshSummary() {
     ? `${contentLabel(snapshot)} jouables · environ ${duree.minutes} min · chrono ${defaultDuration(profile)} s par question ${profile === "NEUTRE" ? "(profil Neutre, tous âges)" : `pour les ${PROFILES[profile].label}`}, sauf durée imposée`
     : "";
   $("show-problems").replaceChildren(...problems.map((p) => h("li", { text: p })));
-  const r = readiness(s, quizzes, mimes, playlists, contents);
+  const r = readiness(s, quizzes, mimes, playlists, contents, undefined, songs);
   $("show-ready").className = `ready-box ${r.level}`;
   $("show-ready").replaceChildren(r.level === "prete"
     ? h("b", { text: "✓ À venir : prête, elle est visible sur la régie." })
@@ -2721,13 +2958,18 @@ async function garderManches(showId, s) {
   return n;
 }
 
-$("show-form").onsubmit = async (e) => {
+$("show-form").onsubmit = (e) => {
   e.preventDefault();
+  enregistrerPrestation();
+};
+
+/** Enregistre la prestation ouverte ; rend vrai une fois enregistrée (même gardée « À compléter »). */
+async function enregistrerPrestation() {
   const s = formShow();
   // « À compléter » s'enregistre même incomplète (cedric, 21/10). « À venir » = prête pour la régie : s'il manque
   // quelque chose (prénom, âge, date, jeu prêt), elle est gardée « À compléter » et le message dit quoi.
   // Une date passée le dit aussi (sans cela, elle filerait directement dans les archivées).
-  const manque = s.status === "publiee" ? readiness({ ...s, keepActive: true }, quizzes, mimes, playlists, contents).todo : [];
+  const manque = s.status === "publiee" ? readiness({ ...s, keepActive: true }, quizzes, mimes, playlists, contents, undefined, songs).todo : [];
   if (manque.length) {
     s.status = "brouillon";
     $("show-status").value = "brouillon";
@@ -2765,13 +3007,15 @@ $("show-form").onsubmit = async (e) => {
     else if (manque.length) dire(`Enregistrée en « À compléter » : pour passer en « À venir », il manque : ${manque.join(" · ")}.`);
     else if (archivee && s.status !== "archivee") dire("Enregistrée dans les « Archivées » : sa date est passée. Pour la remettre « À venir », choisissez une date à venir.");
     else dire(s.status === "publiee" ? "Enregistrée « À venir » : elle est visible sur la régie." : "Enregistrée.", true);
+    return true;
   } catch (err) {
     console.error(err);
     dire("Enregistrement refusé : vérifiez les champs ou vos droits d'administration.");
+    return false;
   } finally {
     $("show-save").disabled = false;
   }
-};
+}
 
 // ---------- Bibliothèque de quiz ----------
 
@@ -5330,16 +5574,17 @@ function fenetreParoles({ titre = "", fermer = null } = {}) {
 
 /**
  * Petite fenêtre des paroles de la liste des sons (cedric, 23/10) : elle s'ouvre en bas de l'écran avec « ▶ Extrait »
- * ou « ▶ Refrain » d'une chanson qui a ses paroles, et se ferme quand l'écoute s'arrête.
+ * ou « ▶ Refrain » d'une chanson qui a ses paroles, et se ferme quand l'écoute s'arrête. [vue] : l'écran qui l'ouvre
+ * (la liste des sons, ou les jeux d'une prestation).
  */
-function parolesFlottantes(x) {
+function parolesFlottantes(x, vue = "song-list") {
   if (!x.lrc || !x.id) return null;
   const f = fenetreParoles({ titre: x.title, fermer: () => stopPreview() });
   f.el.classList.add("flottante");
   f.remplir([]);
   const { montrer, arreter } = f;
-  // Cachée tant que la liste des sons n'est pas à l'écran (réglages ouverts pendant l'écoute).
-  f.montrer = (s) => { f.el.hidden = $("song-list").offsetParent === null; montrer(s); };
+  // Cachée tant que la liste des sons (ou la prestation) n'est pas à l'écran (réglages ouverts pendant l'écoute).
+  f.montrer = (s) => { f.el.hidden = $(vue).offsetParent === null; montrer(s); };
   f.arreter = () => { arreter(); f.el.remove(); };
   document.body.append(f.el);
   get(ref(db, `library/lyrics/${x.id}`))
@@ -5773,7 +6018,13 @@ async function chargerParoles(t) {
   if (t.lignes || !t.songId || songs[t.songId]?.lrc !== true) return;
   try {
     const texte = (await get(ref(db, `library/lyrics/${t.songId}`))).val();
-    if (typeof texte === "string") { t.lignes = lireLrc(texte); t.lrcTexte = texte; }
+    if (typeof texte === "string") {
+      // Lues dans la bibliothèque, pas changées : « ← Retour » ne demande pas « Quitter sans enregistrer ? ».
+      const avant = histPlaylist.modifie;
+      t.lignes = lireLrc(texte);
+      t.lrcTexte = texte;
+      if (!avant && playlist?.tracks.includes(t)) histPlaylist.depart();
+    }
   } catch (e) {
     console.warn("Paroles introuvables", e);
   }

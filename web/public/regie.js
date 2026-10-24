@@ -1859,11 +1859,13 @@ async function fetchLibrary() {
   library = { loading: true };
   renderLibrary();
   try {
-    const [s, q, m, p, c, sm] = await Promise.all(["shows", "quizzes", "mimes", "playlists", "contents", "manches"].map((k) => get(ref(db, `library/${k}`))));
+    const [s, q, m, p, c, sm, so] = await Promise.all(["shows", "quizzes", "mimes", "playlists", "contents", "manches", "songs"].map((k) => get(ref(db, `library/${k}`))));
     const quizzes = q.val() ?? {};
     const mimes = m.val() ?? {};
     const playlists = p.val() ?? {};
     const contents = c.val() ?? {};
+    // Chansons de la bibliothèque des sons : un blind test tiré au 🎲 dans la Régie PC (cedric, 24/10) se rejoue avec.
+    const songs = so.val() ?? {};
     // Manches enregistrées dans la Régie PC (page de chaque jeu) : les épinglées d'abord, jamais les archivées.
     const saved = Object.keys(ROUND_TYPES).flatMap((type) => {
       const { pinned: pins, active } = mancheGroups(sm.val() ?? {}, type, quizzes);
@@ -1952,7 +1954,7 @@ async function fetchLibrary() {
       .map((type) => ({ type, n: collectionItems(type, { quizzes, playlists }, { hasard: true }).length }))
       .filter(({ n }) => n > 0)
       .map(({ type, n }) => ({ key: `hasard/${type}`, label: `${ROUND_TYPES[type]} au hasard`, random: true, size: n, source: { type } }));
-    library = { quizzes, mimes, playlists, contents, games, rounds, decks, quizGames, builtins, music, pinned, saved, drawn };
+    library = { quizzes, mimes, playlists, contents, songs, games, rounds, decks, quizGames, builtins, music, pinned, saved, drawn };
   } catch (e) {
     console.error(e);
     library = { denied: /permission/i.test(String(e?.message ?? e)) };
@@ -2151,7 +2153,7 @@ function drawPicked() {
   }
   // Un paquet, un quiz ou une manche choisis exprès se jouent tels quels ; seul le hasard écarte ce qui est déjà passé
   // (« jamais deux fois » : leurs parties tirées au hasard, comme les objets de Qui a disparu ?, évitent ce que la fête a montré).
-  const { questions, problems } = gameQuestions(picked.source, library.quizzes, profile ?? "MOYENS", prefix, library.mimes, library.playlists, library.contents, picked.random || picked.game.rejouer ? avoid : { concepts: avoid.concepts }, teams);
+  const { questions, problems } = gameQuestions(picked.source, library.quizzes, profile ?? "MOYENS", prefix, library.mimes, library.playlists, library.contents, picked.random || picked.game.rejouer ? avoid : { concepts: avoid.concepts }, teams, library.songs);
   Object.assign(picked, { questions, problems: [...notes, ...problems] });
   renderLibrary();
 }
@@ -2334,7 +2336,7 @@ function addChoices(questions) {
   }
   // Le même chemin que la prestation : l'élément choisi devient une question (grille tirée pour Qui a disparu ?).
   const ajoute = (round) => () => {
-    const { questions: one } = gameQuestions(round, library.quizzes, profile ?? "MOYENS", `a${Date.now().toString(36)}`, library.mimes, library.playlists, library.contents);
+    const { questions: one } = gameQuestions(round, library.quizzes, profile ?? "MOYENS", `a${Date.now().toString(36)}`, library.mimes, library.playlists, library.contents, {}, null, library.songs);
     if (one[0]) questions.push({ ...one[0], id: `${one[0].id}x${questions.length + 1}` });
   };
   // Statues musicales : une chanson cherchée dans toutes les playlists, jouée en premier.
@@ -2355,7 +2357,7 @@ function addChoices(questions) {
       label: x.label, group: x.group,
       add: () => {
         const next = { ...source, playlistId: null, tracks: [...tracks, x.key] };
-        const { questions: all } = gameQuestions(next, library.quizzes, profile ?? "MOYENS", `a${Date.now().toString(36)}`, library.mimes, library.playlists, library.contents);
+        const { questions: all } = gameQuestions(next, library.quizzes, profile ?? "MOYENS", `a${Date.now().toString(36)}`, library.mimes, library.playlists, library.contents, {}, null, library.songs);
         if (all.length) { questions.splice(0, questions.length, ...all); picked.source = next; }
       },
     }));
@@ -2654,18 +2656,20 @@ const mayReplaceShow = (st) => st.phase !== "lobby" && st.phase !== "ended" && s
  * launches/) ; une prestation archivée ou passée reste dans la liste tant que sa fête n'est pas terminée.
  */
 async function readShows() {
-  const [s, q, m, p, c] = await Promise.all(["shows", "quizzes", "mimes", "playlists", "contents"].map((k) => get(ref(db, `library/${k}`))));
+  // Les chansons de la bibliothèque des sons : celles des blind tests tirés au 🎲 (cedric, 24/10).
+  const [s, q, m, p, c, so] = await Promise.all(["shows", "quizzes", "mimes", "playlists", "contents", "songs"].map((k) => get(ref(db, `library/${k}`))));
   const quizzes = q.val() ?? {};
   const mimes = m.val() ?? {};
   const playlists = p.val() ?? {};
   const contents = c.val() ?? {};
+  const songs = so.val() ?? {};
   const lire = (path) => get(ref(db, path)).then((x) => x.val(), () => null);
   const launches = await lire("launches") ?? {};
   const runs = await launchStates(launches, lire, { here: code, now: Date.now() + serverOffset });
   const today = new Date().toISOString().slice(0, 10);
   const list = Object.entries(s.val() ?? {})
     .filter(([id, show]) => (show.status === "publiee" && !isArchived(show)) || runs[id]?.etat === "ici" || AILLEURS.includes(runs[id]?.etat))
-    .map(([id, show]) => ({ id, show, run: runs[id] ?? { etat: "preparee" }, ...buildSnapshot(id, show, quizzes, mimes, Math.random, playlists, contents) }))
+    .map(([id, show]) => ({ id, show, run: runs[id] ?? { etat: "preparee" }, ...buildSnapshot(id, show, quizzes, mimes, Math.random, playlists, contents, {}, songs) }))
     // Les prestations à venir d'abord, la plus proche en tête ; les passées ensuite.
     .sort((a, b) => {
       const da = a.show.date ?? "9999", dbb = b.show.date ?? "9999";

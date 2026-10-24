@@ -6039,6 +6039,163 @@ describe("bibliothèque de quiz et prestations", () => {
     await regie.context().close();
   });
 
+  test("Régie PC (cedric, 24/10) : le Blind test comme le Quiz : nombre de chansons et 🎲, liste repliable avec mini pochette et « ✓ Paroles » à droite ; ✕ laisse un 🎲 ; 🎧 écoute l'extrait et le refrain, « ⏱ Régler… » et retour à la prestation ; la TV reçoit les chansons", async () => {
+    const { buildSnapshot } = await import("../web/public/show.js");
+    const PNG = `data:image/png;base64,${png([30, 90, 200]).toString("base64")}`;
+    const WAV = `data:audio/wav;base64,${wav(440, 4).toString("base64")}`;
+    const POCHETTE = "a1a1a1a1a1a1a1a1";
+    const hex = (c, k) => `${c}${k}`.padEnd(16, c);
+    const SONGS = Object.fromEntries([1, 2, 3, 4, 5, 6].map((k) => [`c${k}`, {
+      title: `Complète ${k}`, artist: "Les Tests", audioId: hex("e", k), imageId: POCHETTE, refrainId: hex("f", k),
+      start: 6, refrain: 40, lrc: true, auto: true, paroles: "40000|La la la", updatedAt: 1,
+    }]));
+    Object.assign(SONGS, {
+      sp: { title: "Sans pochette", artist: "Les Tests", audioId: hex("e", 7), refrainId: hex("f", 7), start: 0, refrain: 30, lrc: true, auto: true, paroles: "30000|Oh oh", updatedAt: 1 },
+      pr: { title: "Paroles sans refrain", artist: "Les Tests", audioId: hex("e", 8), imageId: POCHETTE, start: 0, lrc: true, updatedAt: 1 },
+      ret: { title: "Retirée", artist: "Les Tests", audioId: hex("e", 9), imageId: POCHETTE, retiree: true, updatedAt: 1 },
+    });
+    await seedLibrary("songs", SONGS);
+    await seedLibrary("images", { [POCHETTE]: PNG });
+    await seedLibrary("sounds", { [hex("e", 1)]: WAV, [hex("f", 1)]: WAV });
+    await seedLibrary("lyrics", { c1: ["[00:05.00]Le couplet", "[00:39.00]Juste avant", "[00:41.00]On chante tous ensemble"].join("\n") });
+    const page = await admin();
+    await page.click("#home-new");
+    await page.fill("#show-child", "Zoé");
+    await page.fill("#show-age", "9");
+    await ajouterJeu(page, "blind");
+    const round = page.locator("#show-rounds .round").nth(0);
+    const ligne = round.locator(".quiz-outils > .tirage-ligne");
+    const compteur = round.locator(".quiz-compteur");
+    const voir = round.locator(".blind-voir");
+    const liste = round.locator(".blind-liste");
+    const chanson = (id) => round.locator(`.blind-chanson[data-chanson="${id}"]`);
+    const ids = () => round.locator(".blind-chanson[data-chanson]").evaluateAll((xs) => xs.map((x) => x.dataset.chanson));
+    // Comme le Quiz (cedric) : une ligne avec le nombre de chansons à trouver et le 🎲.
+    assert.deepEqual(await ligne.locator(":scope > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-nombre blind-nombre", "btn tirage-de"]);
+    assert.equal(await ligne.locator(".blind-nombre").inputValue(), "10");
+    assert.equal(await compteur.textContent(), "Aucune chanson pour l'instant : touchez 🎲");
+    assert.equal(await round.locator(".blind-serie").count(), 0);
+
+    // 5 chansons : d'abord celles qui ont pochette et paroles ; la liste s'ouvre, chaque titre avec sa mini pochette et,
+    // à sa droite, « ✓ Paroles ».
+    await ligne.locator(".blind-nombre").selectOption("5");
+    await ligne.locator(".tirage-de").click();
+    await compteur.filter({ hasText: /^5 chansons à trouver$/ }).waitFor();
+    assert.equal(await voir.textContent(), "▾ 🎵 Les chansons du blind test : 5");
+    assert.equal(await liste.isVisible(), true);
+    assert.ok((await round.locator(".blind-titre b").allTextContents()).every((t) => /^Complète \d$/.test(t)));
+    await waitFor(async () => (await round.locator("img.blind-pochette").evaluateAll((xs) => xs.filter((x) => x.src.startsWith("data:image/png")).length)) === 5, "5 mini pochettes");
+    assert.deepEqual(await round.locator(".blind-paroles").allTextContents(), Array(5).fill("✓ Paroles"));
+    const [titre, paroles] = await Promise.all([round.locator(".blind-titre").first().boundingBox(), round.locator(".blind-paroles").first().boundingBox()]);
+    assert.ok(paroles.x >= titre.x + titre.width - 1, "« ✓ Paroles » à droite du titre");
+    await capture(page, "blind-test-chansons");
+    // Repliable comme une série du Quiz.
+    await voir.click();
+    assert.equal(await liste.isHidden(), true);
+    assert.equal(await voir.textContent(), "▸ 🎵 Les chansons du blind test : 5");
+    await voir.click();
+    await liste.waitFor();
+
+    // 8 chansons : les 5 premières restent ; sans pochette, un 💿 barré ; un .lrc sans refrain réglé, « ✗ Pas de paroles ».
+    const cinq = await ids();
+    await ligne.locator(".blind-nombre").selectOption("8");
+    await compteur.filter({ hasText: /^8 chansons à trouver$/ }).waitFor();
+    const huit = await ids();
+    assert.deepEqual(huit.slice(0, 5), cinq);
+    assert.equal(new Set(huit).size, 8);
+    assert.ok(!huit.includes("ret"), "une chanson supprimée n'est jamais tirée");
+    assert.equal(await chanson("sp").locator(".blind-pochette.sans").count(), 1);
+    assert.equal(await chanson("pr").locator(".blind-paroles.non").textContent(), "✗ Pas de paroles");
+
+    // ✕ laisse un 🎲 ; plus rien à tirer (la chanson retirée ne revient pas).
+    await chanson("c2").locator(".tirage-retirer").click();
+    await round.locator(".blind-chanson.vide .tirage-de").waitFor();
+    await compteur.filter({ hasText: /^7 chansons à trouver$/ }).waitFor();
+    await round.locator(".blind-completer", { hasText: "🎲 Tirer la chanson qui manque" }).waitFor();
+    await round.locator(".blind-chanson.vide .tirage-de").click();
+    await page.locator("#annonce", { hasText: "Plus de chanson à tirer dans la bibliothèque des sons." }).waitFor();
+    assert.ok(!(await ids()).includes("c2"));
+
+    // 🎧 (cedric : vérifier l'extrait et le hook sans charger la page) : un petit menu sous la chanson, un seul ouvert.
+    await chanson("sp").locator(".blind-ecouter").click();
+    await chanson("sp").locator(".blind-reglage").waitFor();
+    await chanson("pr").locator(".blind-ecouter").click();
+    const menuPr = chanson("pr").locator(".blind-reglage");
+    await menuPr.waitFor();
+    assert.equal(await chanson("sp").locator(".blind-reglage").count(), 0, "un seul petit menu ouvert");
+    assert.equal(await menuPr.locator(".blind-refrain").isDisabled(), true, "pas de refrain à écouter");
+    assert.equal(await menuPr.locator(".blind-hook").textContent(), "Refrain pas encore réglé");
+    await chanson("c1").locator(".blind-ecouter").click();
+    const menu = chanson("c1").locator(".blind-reglage");
+    await menu.waitFor();
+    assert.deepEqual(await menu.locator("button").allTextContents(), ["▶ Extrait · 0:06", "▶ Refrain · 0:40", "⏱ Régler…"]);
+    assert.equal(await menu.locator(".blind-hook").textContent(), "Refrain trouvé automatiquement");
+    // Le refrain joue, avec ses paroles qui défilent ; « ⏸ Pause » l'arrête.
+    await menu.locator(".blind-refrain").click();
+    await menu.locator(".blind-refrain", { hasText: "⏸ Pause" }).waitFor();
+    const flottante = page.locator(".paroles-fenetre.flottante");
+    await flottante.locator(".paroles-titre", { hasText: "Paroles · Complète 1" }).waitFor();
+    await flottante.locator(".paroles-ligne.chantee", { hasText: "On chante tous ensemble" }).waitFor({ timeout: 8000 });
+    await capture(page, "blind-test-ecoute-refrain", { pleinePage: false });
+    await menu.locator(".blind-refrain").click();
+    await menu.locator(".blind-refrain", { hasText: "▶ Refrain · 0:40" }).waitFor();
+    await flottante.waitFor({ state: "detached" });
+    await menu.locator(".blind-extrait").click();
+    await menu.locator(".blind-extrait", { hasText: "⏸ Pause" }).waitFor();
+    await menu.locator(".blind-extrait").click();
+    await menu.locator(".blind-extrait", { hasText: "▶ Extrait · 0:06" }).waitFor();
+
+    // « ⏱ Régler… » : la prestation (pas encore enregistrée) l'est d'abord, puis les réglages de la chanson s'ouvrent.
+    await menu.locator(".blind-regler").click();
+    assert.match(await repondreFenetre(page), /la prestation est d'abord enregistrée/);
+    await page.locator("#screen-playlist-edit:not([hidden])").waitFor();
+    assert.equal(await page.textContent("#playlist-edit-title"), "Réglages de « Complète 1 »");
+    // Ses paroles arrivent dans les réglages : les lire n'est pas une modification.
+    await page.locator(".track.reglage .reglage-paroles .paroles-ligne", { hasText: "On chante tous ensemble" }).waitFor();
+    const zoe = Object.values(await library("shows")).find((x) => x.childName === "Zoé");
+    const [manche] = zoe.rounds;
+    assert.equal(manche.type, "blind");
+    assert.equal(manche.nbChansons, 8);
+    assert.deepEqual(manche.chansons.filter(Boolean).sort(), huit.filter((id) => id !== "c2").sort());
+    assert.equal(manche.chansons.filter((id) => !id).length, 1, "la case retirée reste à tirer");
+    // Hook déplacé (ici directement dans la bibliothèque) ; « ← Retour » : la prestation telle qu'on l'a laissée, avec
+    // le nouveau réglage.
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const d = ctx.database();
+      await set(ref(d, "library/songs/c1/refrain"), 52);
+      await set(ref(d, "library/songs/c1/auto"), null);
+    });
+    await page.locator("#screen-playlist-edit .retour-page").first().click();
+    await page.locator("#screen-show-edit:not([hidden])").waitFor();
+    await chanson("c1").locator(".blind-refrain", { hasText: "▶ Refrain · 0:52" }).waitFor();
+    assert.equal(await chanson("c1").locator(".blind-hook").textContent(), "Refrain réglé à la main");
+    assert.equal(await liste.isVisible(), true, "la liste est restée dépliée");
+    assert.equal(await compteur.textContent(), "7 chansons à trouver");
+    await page.context().close();
+
+    // Sur la TV : les 7 chansons, avec pochette, refrain et paroles quand elles les ont.
+    const songs = await library("songs");
+    const { snapshot } = buildSnapshot("zoe", zoe, {}, {}, Math.random, {}, {}, {}, songs);
+    const qs = snapshot.quiz.questions.filter((q) => q.kind === "blind");
+    assert.equal(qs.length, 7);
+    assert.ok(!qs.some((q) => q.choices[0] === "Retirée" || q.choices[0] === "Complète 2"));
+    const c1 = qs.find((q) => q.choices[0] === "Complète 1");
+    assert.deepEqual([c1.audioId, c1.imageId, c1.refrainId, c1.lyrics], [hex("e", 1), POCHETTE, hex("f", 1), "40000|La la la"]);
+    assert.equal(qs.find((q) => q.choices[0] === "Paroles sans refrain").lyrics, undefined);
+    // Lancée par la régie : la TV reçoit ces chansons.
+    await seedLibrary("shows/zoe", { ...zoe, date: "2099-12-02", status: "publiee" });
+    box = startBox();
+    const regie = await openRegie();
+    await pair(regie);
+    await inRegie(regie);
+    await regie.locator("#panel-show:not([hidden]) .show-item", { hasText: "Zoé" }).click();
+    await respond(regie);
+    await regie.locator("#r-toast", { hasText: "est chargée sur la TV" }).waitFor();
+    const jouees = (await read("show")).quiz.questions.filter((q) => q.kind === "blind");
+    assert.deepEqual(jouees.map((q) => q.choices[0]).sort(), qs.map((q) => q.choices[0]).sort());
+    await regie.context().close();
+  });
+
   test("tableau de bord : trois compteurs, les prochains anniversaires « À venir », dupliquer depuis une liste sans toucher l'original, archiver", async () => {
     const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
     await seedLibrary("quizzes", { animaux: ANIMAUX });

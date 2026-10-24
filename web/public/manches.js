@@ -12,6 +12,7 @@ import {
   illustreQuestions, quizQuestions, jeuDeLaManche, hasFinale, pourLeHasard, roundHasard, roundTirees,
   roundSeriesQuiz, questionsDeLaSerie, questionJouable, FACTEURS_FINALE, MAX_QUESTIONS_MANCHE, playable, estEnSeries,
   estJeuDePhotos, signatureQuestion, questionsDuJeu, zoomRoundQuestions, mimeEquipes, mimeEquipesBrutes, MIME_SOURCES,
+  chansonsBrutes, chansonsDe, BLIND_NOMBRES,
 } from "./show.js";
 import { PROFILES } from "./profiles.js";
 import { FAMILLES_PETITS } from "./banque-petits.js";
@@ -161,7 +162,7 @@ export function randomRound(type, lib, opts = {}, random = Math.random) {
 /** Nombre d'éléments d'une manche existante (pour la rejouer avec autant d'éléments). */
 function baseCount(type, base) {
   if (type === "mimes") return mimeCards(base.cards).length || null;
-  if (MUSIC_GAMES[type]) return roundTracks(base).length || null;
+  if (MUSIC_GAMES[type]) return chansonsDe(base).length || roundTracks(base).length || null;
   return roundPicks(base).length || (Number.isInteger(base.count) && base.count > 0 ? base.count : null);
 }
 
@@ -276,7 +277,11 @@ export function cleanRound(r, playlists = {}) {
   } else if (type === "statues") out = { type, duration: r.duration ?? STATUES_SEC, ...(roundSongs(r, playlists).length ? { songs: roundSongs(r, playlists).map((t) => t.audioId) } : {}) };
   else if (type === "pictionary") out = { type, duration: r.duration ?? PICTO_SEC, ...(pictoRoundSeries(r) ? { series: pictoRoundSeries(r) } : {}), ...picks };
   else if (type === "coffres" || type === "gonfleur" || type === "patate") out = { type };
-  else if (MUSIC_GAMES[type]) out = roundTracks(r).length ? { type, tracks: roundTracks(r) } : { type, playlistId: r.playlistId };
+  // Blind test tiré au 🎲 dans la bibliothèque des sons (cedric, 24/10) : ses chansons dans l'ordre, cases retirées
+  // comprises (en attente de leur 🎲), et le nombre demandé.
+  else if (type === "blind" && chansonsBrutes(r).some(Boolean)) {
+    out = { type, chansons: chansonsBrutes(r), ...(BLIND_NOMBRES.includes(r.nbChansons) ? { nbChansons: r.nbChansons } : {}) };
+  } else if (MUSIC_GAMES[type]) out = roundTracks(r).length ? { type, tracks: roundTracks(r) } : { type, playlistId: r.playlistId };
   else if ((type === "zoom" || type === "flou") && roundPicks(r).length && !roundSeriesQuiz(r).length) out = { type, ...picks };
   else if (estEnSeries(type) && roundSeriesQuiz(r).length) {
     // Manche Quiz faite de séries (cedric, 23/10) : les séries dans l'ordre, une seule Super Finale et son multiplicateur.
@@ -498,6 +503,7 @@ export function mancheSummary(round, lib = {}) {
       mimePerTeam(r) ? `${mimePerTeam(r)} par équipe` : "", `tour de ${r.duration ?? deck?.duration ?? MIME_TURN} s`, r.photos === true ? "📷 photos" : ""].filter(Boolean).join(" · ");
   }
   if (r.type === "disparu" && r.photos === true) return `${roundPicks(r).length ? n(roundPicks(r).length) : `${r.count ?? BUILTIN_GAMES.disparu.count} au hasard`} · 📷 photos`;
+  if (r.type === "blind" && chansonsDe(r).length) return `${chansonsDe(r).length} chanson${chansonsDe(r).length > 1 ? "s" : ""}`;
   if (MUSIC_GAMES[r.type]) return roundTracks(r).length ? n(roundTracks(r).length) : lib.playlists?.[r.playlistId]?.title ?? "playlist";
   if (r.type === "statues") return `${r.duration ?? STATUES_SEC} s · ${roundSongs(r, lib.playlists).length ? n(roundSongs(r, lib.playlists).length) : "musique de la fête"}`;
   if (r.type === "pictionary") return [roundPicks(r).length ? n(roundPicks(r).length) : "mots au hasard", `${r.duration ?? PICTO_SEC} s de dessin`].join(" · ");

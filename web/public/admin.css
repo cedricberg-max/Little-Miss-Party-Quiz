@@ -979,3 +979,24 @@ button.vos-images-titre:hover { background: var(--violet); color: #fff; }
 .mime-image .tirage-retirer { flex: none; width: 32px; height: 32px; border-radius: 10px; font-size: 14px; }
 .mime-image .tirage-de.petit { font-size: 18px; padding: 4px 14px; }
 .mime-image.deja .mime-mot { color: var(--bad, #b3261e); }
+
+/* Blind test d'une prestation tiré au 🎲 (cedric, 24/10) : chaque chanson avec sa mini pochette et, à droite, ses paroles. */
+.blind-serie .serie-tete .blind-completer { margin-left: auto; }
+.blind-liste { list-style: none; padding-left: 4px; }
+.blind-chanson .tirage-q-ligne { min-height: 48px; }
+.blind-pochette { flex: none; width: 48px; height: 48px; border-radius: 8px; object-fit: cover; border: 1px solid var(--line-2); background: #fff; }
+.blind-pochette.sans { display: grid; place-items: center; font-size: 26px; line-height: 1; filter: grayscale(1); opacity: .7; border: 2px dashed var(--bad, #b3261e); }
+.blind-titre { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.blind-paroles { flex: none; margin-left: auto; padding: 4px 10px; border-radius: 999px; font-size: 14px; font-weight: 700; white-space: nowrap; }
+.blind-paroles.ok { color: #1d6b3a; background: #e3f6e9; }
+.blind-paroles.non { color: var(--bad, #b3261e); background: #fde8ee; }
+.blind-chanson.deja .blind-titre b { color: var(--bad, #b3261e); }
+.blind-chanson.manquante .tirage-texte { color: var(--bad, #b3261e); font-style: italic; }
+/* Petit menu d'une chanson du blind test (cedric, 24/10) : écouter l'extrait, le refrain, régler. */
+.blind-ecouter { flex: none; width: 32px; height: 32px; border-radius: 10px; font-size: 16px; }
+.blind-ecouter.active { background: var(--gold-pale); box-shadow: inset 0 0 0 2px var(--gold); }
+.blind-chanson.ouverte { border-radius: 10px; background: var(--gold-pale); box-shadow: inset 4px 0 0 var(--gold); padding-left: 8px; }
+.blind-reglage { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 0 4px 58px; padding-bottom: 6px; }
+.blind-reglage .btn { padding: 6px 12px; font-size: 14px; }
+.blind-reglage .blind-regler { margin-left: auto; }
+.blind-reglage .blind-hook { white-space: nowrap; }

@@ -7,6 +7,7 @@ import { PICTO_WORDS, PICTO_OWN_SERIES } from "./picto-cards.js";
 import { concepts, questionConcepts, neufsSiPossible } from "./jamais-deux-fois.js";
 import { BANQUE, questionBanque, avecPhoto, disparuPhotos, imageLibre } from "./banque-photos.js";
 import { TEAM_COLORS, TEAM_COLOR_NAMES } from "./theme.js";
+import { trackFromSong } from "./sons.js";
 
 /**
  * Portes mystères (jeu final) : 3 ou 4 portes, chacune cache un bonus ou un malus qui peut renverser le classement ;
@@ -86,6 +87,13 @@ export const MUSIC_GAMES = {
 };
 /** Durée d'un extrait de blind test par défaut (secondes) : le temps de buzzer, chrono compris. */
 export const BLIND_SEC = 30;
+/**
+ * Blind test d'une prestation tiré au 🎲 dans la bibliothèque des sons (cedric, 24/10) : nombres de chansons proposés,
+ * celui par défaut, et le plafond d'une manche.
+ */
+export const BLIND_NOMBRES = [5, 8, 10, 12, 15, 20];
+export const BLIND_NOMBRE_DEFAUT = 10;
+export const MAX_CHANSONS_BLIND = 30;
 /**
  * Barème d'un blind test par défaut : valeur d'un morceau, valeur des derniers morceaux, combien de derniers
  * morceaux valent plus, et secondes de révélation (pochette, titre, extrait rejoué). Réglable par playlist.
@@ -389,7 +397,7 @@ export const pictoRoundSeries = (round) => {
 
 export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || round.type === "statues" || round.type === "pictionary" || round.type === "portes" || round.type === "coffres" || round.type === "gonfleur" || round.type === "patate" ? true
   : round.type === "mimes" ? round.deckId || round.random === true || mimeCards(round.cards).length || mimeEquipes(round).some((l) => l.length)
-  : MUSIC_GAMES[round.type] ? round.playlistId || roundTracks(round).length
+  : MUSIC_GAMES[round.type] ? round.playlistId || roundTracks(round).length || chansonsDe(round).length
   : (round.type === "zoom" || round.type === "flou") && roundPicks(round).length ? true
   : roundSeriesQuiz(round).some((x) => x.origine === "quiz" || questionsEnLigne(x.questions).length) || roundTirees(round).length || roundQuizIds(round).length));
 
@@ -546,6 +554,26 @@ export const roundTracks = (round) => [...new Set(listOf(round?.tracks).filter((
 
 /** Liste lue dans la base : un tableau, ou un objet indexé (tableau à trous). */
 const listOf = (x) => (Array.isArray(x) ? x : x && typeof x === "object" ? Object.values(x) : []);
+
+/**
+ * Chansons d'un blind test tiré au 🎲 (cedric, 24/10) : leurs identifiants dans la bibliothèque des sons
+ * (library/songs), dans l'ordre de passage ; les cases vidées par ✕ (chaîne vide) attendent leur 🎲 et ne comptent pas.
+ */
+export const chansonsBrutes = (round) => listOf(round?.chansons).map((id) => (typeof id === "string" && /^[-\w]{1,40}$/.test(id) ? id : "")).slice(0, MAX_CHANSONS_BLIND);
+export const chansonsDe = (round) => [...new Set(chansonsBrutes(round).filter(Boolean))];
+
+/** Une chanson de la bibliothèque qu'un blind test peut jouer : un titre et son extrait, pas supprimée. */
+export const chansonJouable = (song) => !!(song && song.retiree !== true && typeof song.title === "string" && song.title.trim() && /^[0-9a-f]{16}$/.test(song.audioId ?? ""));
+
+/**
+ * Playlist d'un blind test tiré au 🎲 : ses chansons lues dans la bibliothèque des sons au moment du lancement (une
+ * pochette ou des paroles ajoutées depuis sont donc jouées), chacune avec son temps pour buzzer. Null si aucune
+ * n'existe plus.
+ */
+export function chansonsPlaylist(round, songs, title = "") {
+  const tracks = chansonsDe(round).map((id) => (chansonJouable(songs?.[id]) ? trackFromSong({ ...songs[id], id }) : null)).filter(Boolean);
+  return tracks.length ? { title: typeof title === "string" ? title.trim().slice(0, 60) : "", duration: BLIND_SEC, tracks } : null;
+}
 
 /**
  * Quiz d'une manche tirée de quiz (Quiz, Vrai ou Faux, Zoom, Image floue) : un ou plusieurs, choisis par Sarah
@@ -874,7 +902,7 @@ export function alerteEquipes(round, teams, { mimes = {}, contents = {}, profile
  * un seul élément qui porte son paquet de cartes.
  * Renvoie `{ snapshot, problems }` ; `snapshot` est nul si rien n'est jouable.
  */
-export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.random, playlists = {}, contents = {}, avoid = {}) {
+export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.random, playlists = {}, contents = {}, avoid = {}, songs = {}) {
   const profile = PROFILES[show.profile] ? show.profile : profileForAge(show.age);
   const problems = [];
   // Un bloc par manche préparée : la Super Finale rejoint ensuite le quiz qu'elle termine.
@@ -970,8 +998,15 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       return;
     }
     if (MUSIC_GAMES[round.type]) {
-      const playlist = roundTracks(round).length ? tracksPlaylist(roundTracks(round), playlists, round.title) : playlists[round.playlistId];
-      if (!playlist) { problems.push(`Manche ${i + 1} : la playlist n'existe plus dans la bibliothèque.`); return; }
+      // Blind test tiré au 🎲 dans la bibliothèque des sons (cedric, 24/10) : ses chansons ; sinon des extraits choisis
+      // dans les playlists, ou une playlist entière (manches préparées avant).
+      const tirees = round.type === "blind" && chansonsDe(round).length;
+      const playlist = tirees ? chansonsPlaylist(round, songs, round.title)
+        : roundTracks(round).length ? tracksPlaylist(roundTracks(round), playlists, round.title) : playlists[round.playlistId];
+      if (!playlist) {
+        problems.push(tirees ? `Manche ${i + 1} (Blind test) : ses chansons ne sont plus dans la bibliothèque des sons (touchez 🎲).` : `Manche ${i + 1} : la playlist n'existe plus dans la bibliothèque.`);
+        return;
+      }
       const list = musicQuestions(round.type, playlist, `r${i + 1}q`, random);
       if (round.type === "musical" && new Set(list.map((q) => q.choices[q.correct])).size < 2) {
         problems.push(`Manche ${i + 1} (${playlist.title}) : il faut au moins 2 morceaux pour proposer des titres.`);
@@ -1380,7 +1415,7 @@ export function launchLabelPc(run) {
  * État de préparation d'une prestation, pour le tableau de bord : « prete » quand elle est
  * complète et visible sur la régie, sinon la liste de ce qui reste à faire.
  */
-export function readiness(show, quizzes, mimes = {}, playlists = {}, contents = {}, today = isoDay()) {
+export function readiness(show, quizzes, mimes = {}, playlists = {}, contents = {}, today = isoDay(), songs = {}) {
   if (isArchived(show, today)) return { level: "archivee", todo: [] };
   const todo = [];
   if (!show.childName?.trim()) todo.push("Indiquer le prénom de l'enfant");
@@ -1389,7 +1424,7 @@ export function readiness(show, quizzes, mimes = {}, playlists = {}, contents = 
   if (!show.age) todo.push("Indiquer l'âge");
   if (!(show.rounds ?? []).filter(roundFilled).length) todo.push("Ajouter une manche");
   else {
-    const { snapshot, problems } = buildSnapshot("x", show, quizzes, mimes, Math.random, playlists, contents);
+    const { snapshot, problems } = buildSnapshot("x", show, quizzes, mimes, Math.random, playlists, contents, {}, songs);
     todo.push(...problems.filter((p) => snapshot || !p.startsWith("Aucune question jouable")));
     if (!snapshot && !problems.some((p) => p.startsWith("Manche"))) todo.push("Valider des questions");
   }
@@ -1477,8 +1512,8 @@ export function lockedUntil(questions, index) {
  * insérer : chrono du profil de la prestation, identifiants nouveaux (préfixe [prefix]) pour ne jamais
  * croiser une question déjà jouée. Le quiz de la bibliothèque n'est pas modifié.
  */
-export function gameQuestions(source, quizzes, profile, prefix, mimes = {}, playlists = {}, contents = {}, avoid = {}, teams = null) {
-  const { snapshot, problems } = buildSnapshot("ajout", { profile, teams, rounds: [source] }, quizzes, mimes, Math.random, playlists, contents, avoid);
+export function gameQuestions(source, quizzes, profile, prefix, mimes = {}, playlists = {}, contents = {}, avoid = {}, teams = null, songs = {}) {
+  const { snapshot, problems } = buildSnapshot("ajout", { profile, teams, rounds: [source] }, quizzes, mimes, Math.random, playlists, contents, avoid, songs);
   if (!snapshot) return { questions: [], problems };
   return { questions: snapshot.quiz.questions.map((q, j) => ({ ...q, id: `${prefix}${q.kind === "mime" ? "m" : "q"}${j + 1}` })), problems };
 }
