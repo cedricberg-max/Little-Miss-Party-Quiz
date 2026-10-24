@@ -269,9 +269,11 @@ private fun Playing(state: UiState.Playing, actions: TvActions) {
     )
     HabillageEcran(state)
     IntroLancement(state)
-    // Design « The Game Show » : le robot animateur surgit à quelques moments (rien en design classique).
-    RobotGameShow(state)
+    // Design « The Game Show » : le robot animateur surgit à quelques moments (rien en design classique). En pause, il
+    // passe après l'intermède (opaque), sinon ses numéros seraient dessinés dessous.
+    if (!state.paused) RobotGameShow(state)
     PauseLayer(state, actions.unpause)
+    if (state.paused) RobotGameShow(state)
 }
 
 /**
