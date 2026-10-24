@@ -204,6 +204,41 @@ class RegieTest : TestTv() {
         ecran.capture("mimes-classement")
     }
 
+    /**
+     * Mimes à 6 équipes, mot sur deux lignes (cedric, 24/10 : « Image suivante » rogné en bas à droite) : la carte
+     * rapetisse s'il le faut, les boutons de l'animatrice et le mot restent entiers.
+     */
+    @Test
+    fun mimesBoutonsEntiersAvecBeaucoupDEquipes() {
+        val code = lancerBoite()
+        val couleurs = listOf(VERT, ROSE, "#FF6B1A", "#FFE600", "#2D7BFF", "#A64DFF")
+        val equipes = listOf("Licornes", "Dragons", "Pirates", "Fusées", "Tigres", "Étoiles").mapIndexed { i, nom ->
+            pupitre("equipe$i").also { it.rejoindre(code, nom, couleurs[i]) }
+        }
+        val regie = regie()
+        assertTrue(regie.connecter(code, RegieSimulee.MOT_DE_PASSE))
+        @Suppress("UNCHECKED_CAST")
+        val avant = regie.programme(code)["questions"] as List<Map<String, Any?>>
+        val mot = "Un hippopotame qui fait du ski"
+        val mimes = mapOf(
+            "id" to "a1m", "text" to "Animaux", "kind" to "mime", "duration" to 60, "round" to "Animaux",
+            "cards" to listOf(mapOf("word" to mot, "image" to "🦛"), mapOf("word" to "Lion", "image" to "🦁")),
+        )
+        assertEquals("applied", regie.modifierProgramme(code, regie.programme(code)["rev"] as String, listOf(mimes) + avant))
+        assertEquals("applied", regie.commande(code, "next"))
+        ecran.voit("Les Mimes !")
+        assertEquals("applied", regie.commande(code, "mime_start", mapOf("team" to equipes[0].uid)))
+        ecran.voit("Au tour de Licornes")
+        ecran.entierementVisible("Image suivante")
+        ecran.entierementVisible("Trouvé !")
+        ecran.entierementVisible("Arrêter le tour")
+        ecran.capture("mimes-6-equipes-tour")
+        assertEquals("applied", regie.commande(code, "mime_found"))
+        ecran.voit("Dos à l'écran !")
+        ecran.entierementVisible("Image suivante")
+        ecran.capture("mimes-6-equipes-changement")
+    }
+
     /** Le scénario du premier vrai test de cedric : un quiz, puis les mimes, puis le classement et le jeu suivant. */
     @Test
     fun quizPuisMimesPuisJeuSuivantPuisRejouer() {

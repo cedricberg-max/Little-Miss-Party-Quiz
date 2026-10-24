@@ -44,9 +44,12 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -96,8 +99,9 @@ fun MimeScreen(state: UiState.Playing, actions: TvActions) {
                 if (team != null) MimeCountdown(state)
             }
             Spacer(Modifier.height(8.dp))
-            if (team != null) Turn(state, m, team) else BetweenTurns(state, m, Modifier.weight(1f))
-            if (team != null) Spacer(Modifier.weight(1f))
+            // Le bandeau des équipes est mesuré d'abord : ses boutons gardent toujours leur hauteur (cedric, 24/10 :
+            // « Image suivante » rogné sous une carte avec photo et mot sur deux lignes) ; la carte prend le reste.
+            if (team != null) Turn(state, m, team, Modifier.weight(1f)) else BetweenTurns(state, m, Modifier.weight(1f))
             Spacer(Modifier.height(12.dp))
             // De 1 à 8 équipes : les pastilles passent au-dessus des boutons quand elles ne tiennent plus à côté.
             BandeauEquipes(
@@ -118,17 +122,39 @@ fun MimeScreen(state: UiState.Playing, actions: TvActions) {
 
 /** Tour en cours : « Au tour des Licornes ! », la carte en très grand et le compteur de mimes trouvés. */
 @Composable
-private fun Turn(state: UiState.Playing, m: MimeUi, team: Team) {
+private fun Turn(state: UiState.Playing, m: MimeUi, team: Team, modifier: Modifier = Modifier) {
     val color = team.color.toColor()
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            "Au tour de ${team.name} !", color = color, fontSize = 28.sp, fontWeight = FontWeight.Black,
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-        )
-        Spacer(Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-            MimeCardView(m, color, state.images)
-            FoundCounter(m.found)
+    Box(modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+        Column(Modifier.reduitSiTropHaut(), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                "Au tour de ${team.name} !", color = color, fontSize = 28.sp, fontWeight = FontWeight.Black,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+                MimeCardView(m, color, state.images)
+                FoundCounter(m.found)
+            }
+        }
+    }
+}
+
+/**
+ * Hauteur qui manque (beaucoup d'équipes, photo et mot sur deux lignes) : le contenu rapetisse en entier, depuis le
+ * haut, au lieu d'être rogné. Sans clip : les animations de la carte peuvent toujours déborder.
+ */
+private fun Modifier.reduitSiTropHaut() = layout { mesurable, contraintes ->
+    val p = mesurable.measure(contraintes.copy(minHeight = 0, maxHeight = Constraints.Infinity))
+    if (!contraintes.hasBoundedHeight || p.height <= contraintes.maxHeight) {
+        layout(p.width, p.height) { p.place(0, 0) }
+    } else {
+        val echelle = contraintes.maxHeight.toFloat() / p.height
+        layout(p.width, contraintes.maxHeight) {
+            p.placeWithLayer(0, 0) {
+                scaleX = echelle
+                scaleY = echelle
+                transformOrigin = TransformOrigin(0.5f, 0f)
+            }
         }
     }
 }
