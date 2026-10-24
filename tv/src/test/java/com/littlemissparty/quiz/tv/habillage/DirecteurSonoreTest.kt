@@ -292,7 +292,7 @@ class DirecteurSonoreTest {
         val trouve = d.observer(tour.copy(trouves = 1))
         assertEquals(listOf(Son.MIME_TROUVE, Son.WHOOSH), trouve.sons())
         assertEquals(Ordre.Jouer(Son.WHOOSH, Tempo.MIME_RELAIS), trouve.filterIsInstance<Ordre.Jouer>().last())
-        assertTrue(trouve.filterIsInstance<Ordre.Musique>().isEmpty(), "La musique du tour ne change pas")
+        assertTrue("La musique du tour ne change pas", trouve.filterIsInstance<Ordre.Musique>().isEmpty())
         assertEquals(listOf(Son.MIME_PASSE), d.observer(tour.copy(trouves = 1, passes = 1)).sons())
         // La même carte montrée deux fois (reconnexion de la régie, rafraîchissement) ne rejoue rien.
         assertTrue(d.observer(tour.copy(trouves = 1, passes = 1)).isEmpty())
