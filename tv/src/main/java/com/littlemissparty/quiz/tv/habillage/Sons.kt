@@ -32,8 +32,11 @@ object Sons {
     private const val CRAYON_SORTIE_MS = 200L
     /** Versions d'un même son long au plus (gs_tension_2 … gs_tension_5). */
     private const val MAX_VARIANTES = 5
-    /** Musique calée sur la partie : écart toléré avant de la recaler, et temps laissé au lecteur pour finir un recalage. */
-    private const val CALAGE_ECART_MS = 150
+    /**
+     * Musique calée sur la partie : écart toléré avant de la recaler en pleine lecture, et temps laissé au lecteur pour
+     * finir un recalage. Large exprès (cedric, 24/10) : chaque recalage s'entend, et la musique dure exactement la mèche.
+     */
+    private const val CALAGE_ECART_MS = 1_000
     private const val CALAGE_ATTENTE_MS = 400L
     /** Veille des boucles : une boucle qui devrait s'entendre et ne joue plus est relancée (cedric, 23 octobre). */
     private const val VEILLE_MS = 1_000L
@@ -267,7 +270,8 @@ object Sons {
 
     /**
      * Musique calée sur une horloge de la partie (la mèche de « Ça va exploser ! ») : elle doit être à [positionMs]
-     * maintenant. Elle ne se recale que si elle s'en écarte de plus de [CALAGE_ECART_MS], pour ne pas hoqueter.
+     * maintenant. Elle part au bon endroit (au départ et à chaque reprise), puis joue librement : elle ne se recale en
+     * pleine lecture que si elle s'en écarte de plus de [CALAGE_ECART_MS], pour ne jamais hoqueter.
      * [joue] faux (pause de la partie, bombe qui explose, entre deux bombes) la fige là où elle est. À rappeler souvent :
      * un changement d'écran qui coupe les sons longs ne la fait taire qu'un instant.
      */
@@ -284,11 +288,15 @@ object Sons {
                 mp.setVolume(1f, 1f)
                 val maintenant = SystemClock.uptimeMillis()
                 val enRecalage = maintenant - (recalages[s] ?: Long.MIN_VALUE / 2) < CALAGE_ATTENTE_MS
-                if (!enRecalage && abs(mp.currentPosition - positionMs) > CALAGE_ECART_MS) {
+                if (!mp.isPlaying) {
+                    // Départ ou reprise : le saut se fait pendant le silence, il ne s'entend pas.
+                    mp.seekTo(positionMs, MediaPlayer.SEEK_CLOSEST)
+                    recalages[s] = maintenant
+                    mp.start()
+                } else if (!enRecalage && abs(mp.currentPosition - positionMs) > CALAGE_ECART_MS) {
                     mp.seekTo(positionMs, MediaPlayer.SEEK_CLOSEST)
                     recalages[s] = maintenant
                 }
-                if (!mp.isPlaying) mp.start()
             }
         }
     }
