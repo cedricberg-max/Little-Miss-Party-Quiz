@@ -2722,7 +2722,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await serieAnimaux.locator(".serie-liste li", { hasText: "Combien de pattes" }).locator("button.tirage-retirer").click();
     await page.locator('#show-rounds li.serie[data-origine="quiz"] button.serie-voir', { hasText: "1 question (1 retirée)" }).waitFor();
     await ajouterJeu(page, "chante");
-    await page.locator("#show-rounds .round").nth(1).locator("select.grow").selectOption("4");
+    await page.locator("#show-rounds .round").nth(1).locator("select.tirage-nombre").selectOption("4");
     await page.fill("#show-notes", "Gâteau à 16 h.\nLéa adore les licornes.");
     // 1 question du quiz + celle des bougies (Léa, 9 ans) + 4 mots.
     await page.locator("#show-summary", { hasText: "6 questions" }).waitFor();
@@ -4263,23 +4263,24 @@ describe("bibliothèque de quiz et prestations", () => {
     await mimes.locator(".mime-image", { hasText: "Chat" }).waitFor();
     await ajouterJeu(page, "chante");
     const chante = page.locator("#show-rounds .round").nth(1);
-    assert.match(await chante.locator('select.pick-add option[value="chat"]').textContent(), /déjà utilisé dans Mimes/);
-    await chante.locator("select.pick-add").selectOption("chat");
-    // Choisi à la main : permis, en rouge des deux côtés.
-    await chante.locator('button.pick-item.deja[data-key="chat"]').waitFor();
-    await chante.locator(".pick-deja", { hasText: "chat : déjà utilisé dans Mimes" }).waitFor();
+    // Écrit à la main (cedric, 24/10 : Chante le mot ! en séries) : permis, en rouge des deux côtés.
+    await chante.locator(".mots-ecrire").fill("chat");
+    await chante.locator(".mots-ajouter").click();
+    await chante.locator('.quiz-series li.deja[data-mot="chat"] .mot-deja', { hasText: "Déjà dans « Mimes »" }).waitFor();
     await mimes.locator(".mime-image.deja", { hasText: "Chat" }).waitFor();
     assert.equal(await mimes.locator(".mime-image.deja").getAttribute("title"), "Déjà utilisée dans Chante le mot !");
     // Repliée, la ligne le dit aussi.
     await mimes.locator(".mime-equipe").nth(0).locator(".mime-deplier").click();
     await mimes.locator(".mime-equipe").nth(0).locator(".mime-deja", { hasText: "⚠ 1 déjà dans un autre jeu" }).waitFor();
     await mimes.locator(".mime-equipe").nth(0).locator(".mime-deplier").click();
-    // 🎲 : le tirage ne reprend pas le chat des Mimes.
-    await chante.locator("button.pick-draw").click();
-    await chante.locator(".pick-box .small", { hasText: "6 mots choisis" }).waitFor();
-    assert.equal(await chante.locator('button.pick-item[data-key="chat"]').count(), 0);
+    // ✕ puis 🎲 : le tirage ne reprend pas le chat des Mimes.
+    await chante.locator('.quiz-series li[data-mot="chat"] .tirage-retirer').click();
+    await chante.locator(".round-head > .quiz-compteur", { hasText: "Aucun mot" }).waitFor();
+    await chante.locator(".tirage-de").click();
+    await chante.locator(".round-head > .quiz-compteur", { hasText: "6 mots" }).waitFor();
+    assert.equal(await chante.locator('[data-mot="chat"]').count(), 0);
     await mimes.locator(".mime-image:not(.deja)", { hasText: "Chat" }).waitFor();
-    assert.equal(await page.locator(".pick-deja, .mime-image.deja").count(), 0);
+    assert.equal(await page.locator(".mot-deja, .mime-image.deja").count(), 0);
     await page.context().close();
   });
 
@@ -5955,6 +5956,117 @@ describe("bibliothèque de quiz et prestations", () => {
       [...zoom.seriesQuiz[0].questions, ...zoom.seriesQuiz[1].questions].map(cleTv).sort());
     assert.deepEqual(qs.filter((q) => q.kind === "flou").map((q) => [cleTv(q), q.choices[q.correct]]),
       floue.seriesQuiz[0].questions.map((q) => [cleTv(q), q.choices[q.correct]]));
+  });
+
+  test("Régie PC (cedric, 24/10) : Chante le mot ! se construit comme le Quiz : 🎲 au nombre de mots choisi, un mot écrit à la main, « Chante le mot ! complet » (↑ ↓ ✕ 🔀) ; jamais de manche ; un mot déjà dans la fête en rouge, mais possible", async () => {
+    const { buildSnapshot } = await import("../web/public/show.js");
+    const { CHANTE_WORDS } = await import("../web/public/buzz-cards.js");
+    const petits = new Set(CHANTE_WORDS.filter((w) => w.level === 1).map((w) => w.word));
+    const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv-SE"); };
+    // Une prestation d'avant les séries : ses mots choisis un par un (« soleil » tiré au hasard, « lune » à la main).
+    await seedLibrary("shows", { malo: { childName: "Malo", age: 9, date: day(10), status: "publiee", updatedAt: 1,
+      rounds: [{ type: "chante", count: 6, picks: ["soleil", "lune"], hasard: ["soleil"] }] } });
+    const page = await admin();
+    await page.click('#screen-home [data-etat="avenir"]');
+    await page.locator('#show-list [data-show="malo"]').getByRole("button", { name: "Ouvrir" }).click();
+    const vieux = page.locator('#show-rounds .jeu-bloc[data-jeu="chante"]');
+    await vieux.locator(".jeu-replier").click();
+    assert.deepEqual(await vieux.locator(".quiz-series .serie-voir").allTextContents(), ["▸ 🎲 1 mot tiré au hasard", "▸ ✍ 1 mot écrit à la main"]);
+    assert.equal(await vieux.locator(".round-head > .quiz-compteur").textContent(), "2 mots");
+
+    await page.click("#nav button[data-screen=home]");
+    await page.click("#home-new");
+    await page.fill("#show-child", "Zoé");
+    await page.fill("#show-age", "7");
+    await ajouterJeu(page, "chante");
+    const bloc = page.locator('#show-rounds .jeu-bloc[data-jeu="chante"]');
+    const round = bloc.locator(".round");
+    const compteur = round.locator(".round-head > .quiz-compteur");
+    const series = round.locator(".quiz-series > li.serie");
+    // Pas de manche (cedric, 24/10) : ni « 1 manche », ni « ＋ Manche » ; le nombre de mots, c'est le nombre de tours.
+    assert.equal(await bloc.locator(".jeu-plus").count(), 0);
+    assert.equal(await bloc.locator(".jeu-nb").count(), 0);
+    assert.equal(await compteur.textContent(), "Aucun mot pour l'instant : la TV en tirera 6 au hasard");
+    assert.deepEqual(await round.locator(".quiz-outils > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-ligne", "quiz-ajouts mots-main"]);
+    assert.equal(await round.locator(".mots-main-titre").textContent(), "✍ Écrire un mot à la main");
+
+    // Le 🎲 : 4 mots pour les petits (Zoé, 7 ans).
+    await round.locator(".tirage-nombre").selectOption("4");
+    await round.locator(".tirage-de").click();
+    await compteur.filter({ hasText: "4 mots" }).waitFor();
+    assert.equal(await series.nth(0).locator(".serie-voir").textContent(), "▾ 🎲 4 mots tirés au hasard");
+    const tires = await series.nth(0).locator(".serie-liste .tirage-texte").allTextContents();
+    assert.equal(tires.length, 4);
+    for (const w of tires) assert.ok(petits.has(w), w);
+
+    // Un mot écrit à la main (Entrée), à la fin ; un mot déjà dans ce jeu ne s'ajoute pas.
+    await round.locator(".mots-ecrire").fill("Arc-en-ciel");
+    await round.locator(".mots-ecrire").press("Enter");
+    await compteur.filter({ hasText: "5 mots" }).waitFor();
+    assert.equal(await series.nth(1).locator(".serie-voir").textContent(), "▾ ✍ 1 mot écrit à la main");
+    assert.equal(await round.locator(".mots-ecrire").inputValue(), "");
+    await round.locator(".mots-ecrire").fill(tires[1].toUpperCase());
+    await round.locator(".mots-ajouter").click();
+    await page.locator("#annonce", { hasText: `« ${tires[1].toUpperCase()} » est déjà dans ce jeu.` }).waitFor();
+    assert.equal(await compteur.textContent(), "5 mots");
+    await round.locator(".mots-ecrire").fill("");
+
+    // ✕ au 🎲 : un 🎲 prend sa place, il tire un autre mot.
+    await series.nth(0).locator(".serie-liste .tirage-retirer").first().click();
+    await compteur.filter({ hasText: "4 mots" }).waitFor();
+    assert.equal(await series.nth(0).locator(".serie-voir").textContent(), "▾ 🎲 3 mots tirés au hasard, 1 à tirer");
+    await series.nth(0).locator(".serie-liste li.vide .tirage-de").click();
+    await compteur.filter({ hasText: "5 mots" }).waitFor();
+    const tires2 = await series.nth(0).locator(".serie-liste .tirage-texte").allTextContents();
+    assert.ok(!tires2.includes(tires[0]), "le mot retiré ne revient pas");
+
+    // « Chante le mot ! complet » : les mots du 🎲 puis celui écrit à la main ; ↓ ; 🔀.
+    const complet = round.locator(".quiz-complet");
+    assert.equal(await complet.locator(".quiz-complet-voir").textContent(), "▸ 🧩 Chante le mot ! complet : 5 mots, dans l'ordre de passage");
+    await complet.locator(".quiz-complet-voir").click();
+    const ordre = () => complet.locator(".quiz-complet-q .tirage-texte").allTextContents();
+    assert.deepEqual(await ordre(), [...tires2, "Arc-en-ciel"]);
+    await complet.locator(".quiz-complet-q").nth(0).locator(".quiz-complet-descendre").click();
+    await waitFor(async () => (await ordre()).join() === [tires2[1], tires2[0], ...tires2.slice(2), "Arc-en-ciel"].join(), "le premier passe en 2e");
+    const avant = await ordre();
+    await complet.locator(".quiz-melanger").click();
+    await waitFor(async () => (await ordre()).join() !== avant.join(), "mélangés");
+    assert.deepEqual([...await ordre()].sort(), [...avant].sort());
+    const joues = await ordre();
+
+    // Un second Chante le mot ! plus loin : son 🎲 ne reprend aucun mot du premier ; un mot écrit à la main déjà dans
+    // la fête : en rouge, mais ajouté (« Jamais deux fois »).
+    await ajouterJeu(page, "coffres");
+    await ajouterJeu(page, "chante");
+    const second = page.locator("#show-rounds .round").nth(2);
+    await second.locator(".tirage-nombre").selectOption("20");
+    await second.locator(".tirage-de").click();
+    await second.locator(".round-head > .quiz-compteur", { hasText: "20 mots" }).waitFor();
+    await second.locator('.quiz-series > li.serie[data-origine="de"] .serie-voir').click();
+    for (const w of await second.locator(".quiz-series .serie-liste .tirage-texte").allTextContents()) assert.ok(!joues.includes(w), `déjà dans le premier : ${w}`);
+    await second.locator(".mots-ecrire").fill("Arc-en-ciel");
+    await second.locator(".mots-ajouter").click();
+    await second.locator(".round-head > .quiz-compteur", { hasText: "21 mots" }).waitFor();
+    const deja = second.locator('.quiz-series > li.serie[data-origine="main"] .serie-liste li.deja');
+    assert.equal(await deja.locator(".mot-deja").textContent(), "Déjà dans « Chante le mot ! »");
+    await capture(page, "chante-le-mot");
+
+    await page.click("#show-save");
+    await page.locator("#show-status-msg", { hasText: "Enregistrée" }).waitFor();
+    const zoe = Object.values(await library("shows")).find((x) => x.childName === "Zoé");
+    assert.deepEqual(zoe.rounds.map((r) => r.type), ["chante", "coffres", "chante"]);
+    const [chante] = zoe.rounds;
+    assert.deepEqual(chante.seriesMots.map((x) => [x.origine, x.mots.length]), [["de", 4], ["main", 1]]);
+    assert.equal(chante.picks, undefined);
+    assert.equal(chante.ordreMots.length, 5);
+    // Sur la TV : les mots dans l'ordre du « complet ».
+    const { snapshot, problems } = buildSnapshot("zoe", zoe, {});
+    assert.deepEqual(problems, []);
+    assert.deepEqual(snapshot.quiz.questions.filter((q) => q.kind === "chante").map((q) => q.text).slice(0, 5), joues);
+    // La prestation d'avant se joue toujours avec ses mots.
+    const malo = (await library("shows")).malo;
+    assert.deepEqual(buildSnapshot("malo", malo, {}).snapshot.quiz.questions.map((q) => q.text), ["soleil", "lune"]);
+    await page.context().close();
   });
 
   test("Régie PC (cedric, 23/10) : le Vrai ou Faux express se construit comme le Quiz : 🎲 dans le Vrai ou Faux tout prêt (autant de vraies que de fausses, au niveau du profil), un ancien anniversaire, les Vrai / Faux de ses quiz, « Vrai ou Faux complet », jamais deux fois la même affirmation", async () => {

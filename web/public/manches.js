@@ -13,6 +13,7 @@ import {
   roundSeriesQuiz, questionsDeLaSerie, questionJouable, FACTEURS_FINALE, MAX_QUESTIONS_MANCHE, playable, estEnSeries,
   estJeuDePhotos, signatureQuestion, questionsDuJeu, zoomRoundQuestions, mimeEquipes, mimeEquipesBrutes, mimeAges, MIME_SOURCES,
   chansonsBrutes, chansonsDe, BLIND_NOMBRES, seriesBlind, MAX_CHANSONS_BLIND, JEUX_DE_CHANSONS,
+  estJeuDeMots, seriesMots, motsDuJeu, MAX_MOTS,
 } from "./show.js";
 import { PROFILES } from "./profiles.js";
 import { FAMILLES_PETITS } from "./banque-petits.js";
@@ -163,6 +164,7 @@ export function randomRound(type, lib, opts = {}, random = Math.random) {
 function baseCount(type, base) {
   if (type === "mimes") return mimeCards(base.cards).length || null;
   if (MUSIC_GAMES[type]) return chansonsDe(base).length || roundTracks(base).length || null;
+  if (estJeuDeMots(type) && motsDuJeu(base).length) return motsDuJeu(base).length;
   return roundPicks(base).length || (Number.isInteger(base.count) && base.count > 0 ? base.count : null);
 }
 
@@ -257,7 +259,14 @@ export function cleanRound(r, playlists = {}) {
   const note = typeof r?.note === "string" && r.note.trim() ? { note: r.note.trim().slice(0, 200) } : {};
   let out;
   const photos = (type === "mimes" || type === "disparu") && r.photos === true ? { photos: true } : {};
-  if (BUILTIN_GAMES[type]) out = { type, count: r.count ?? BUILTIN_GAMES[type].count, ...(type === "disparu" && r.objects ? { objects: r.objects } : {}), ...photos, ...picks };
+  if (BUILTIN_GAMES[type]) {
+    // Jeu de mots en séries (cedric, 24/10) : chaque série (🎲, écrits à la main), cases retirées comprises (en attente
+    // de leur 🎲), et l'ordre du « complet » s'il a été rangé à la main.
+    const series = estJeuDeMots(type) ? seriesMots(r).map((x) => ({ id: x.id.slice(0, 40), origine: x.origine, mots: x.mots.slice(0, MAX_MOTS) })).filter((x) => x.mots.length) : [];
+    const ordre = series.length && Object.values(r.ordreMots ?? {}).length ? motsDuJeu(r).map((x) => x.cle) : [];
+    out = { type, count: r.count ?? BUILTIN_GAMES[type].count, ...(type === "disparu" && r.objects ? { objects: r.objects } : {}), ...photos,
+      ...(series.length ? { seriesMots: series, ...(ordre.length ? { ordreMots: ordre } : {}) } : picks) };
+  }
   // Mimes : un paquet, ou le catalogue au hasard ; cartes choisies (tirage modifié à la main) gardées dans la manche.
   else if (type === "mimes" && mimeEquipesBrutes(r).some((l) => l.length)) {
     // Une présélection par équipe, tirée au 🎲 (cedric, 23/10) : la source choisie, les images de chaque équipe dans
@@ -583,6 +592,7 @@ export function mancheSummary(round, lib = {}) {
   if (MUSIC_GAMES[r.type]) return roundTracks(r).length ? n(roundTracks(r).length) : lib.playlists?.[r.playlistId]?.title ?? "playlist";
   if (r.type === "statues") return `${r.duration ?? STATUES_SEC} s · ${roundSongs(r, lib.playlists).length ? n(roundSongs(r, lib.playlists).length) : "musique de la fête"}`;
   if (r.type === "pictionary") return [roundPicks(r).length ? n(roundPicks(r).length) : "mots au hasard", `${r.duration ?? PICTO_SEC} s de dessin`].join(" · ");
+  if (estJeuDeMots(r.type) && motsDuJeu(r).length) return n(motsDuJeu(r).length);
   if (BUILTIN_GAMES[r.type]) return roundPicks(r).length ? n(roundPicks(r).length) : `${r.count ?? BUILTIN_GAMES[r.type].count} au hasard`;
   if ((r.type === "zoom" || r.type === "flou") && roundPicks(r).length) return n(roundPicks(r).length);
   if (r.type === "coffres" || r.type === "patate" || r.type === "gonfleur") return "rien à préparer";

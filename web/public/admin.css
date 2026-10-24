@@ -910,6 +910,12 @@ button.vos-images-titre:hover { background: var(--violet); color: #fff; }
 .vos-images-tuile:disabled { opacity: .55; cursor: default; }
 .vos-images-etat { font-size: 12px; line-height: 1.2; color: var(--soft); text-align: center; }
 .vos-images-etat.alerte { color: var(--bad); font-weight: 800; }
+/* Chante le mot ! (cedric, 24/10) : écrire un mot à la main ; un mot déjà dans la fête, en rouge. */
+.mots-main-champ { display: flex; flex-wrap: wrap; gap: 8px; }
+.mots-main-champ > .mots-ecrire { flex: 1 1 180px; min-width: 0; }
+.mots-main-champ > .mots-ajouter { flex: 0 0 auto; white-space: nowrap; }
+.mot-texte { flex: 1 1 auto; overflow-wrap: anywhere; }
+.mot-deja { display: block; color: var(--bad); font-size: 13px; font-weight: 800; }
 .vos-images-pied { display: flex; flex-wrap: wrap; gap: 10px; }
 .quiz-ajout-champ > .quiz-ajout-cherche { width: 100%; }
 /* Ses résultats, 6 au plus : à droite sous la recherche, par-dessus l'écran (rien ne bouge en dessous). */

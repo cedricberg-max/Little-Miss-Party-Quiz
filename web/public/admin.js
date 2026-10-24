@@ -23,6 +23,7 @@ import {
   launchStates, launchLabelPc, couleursEquipes, teamCount, roundTirees, chiffresDuTirage, MAX_TIREES, trousDuJeu,
   roundSeriesQuiz, questionsDeLaSerie, questionsDesSeries, questionJouable, FACTEURS_FINALE, SUPER_FINALE_LAST, questionBougies,
   questionsDuQuiz, cleQuestion, placeDesBougies, CLE_BOUGIES, estEnSeries, choiceImageList, estJeuDePhotos, signatureQuestion, zoomRoundQuestions,
+  estJeuDeMots, seriesMots, cleDuMot, motsDuJeu, MAX_MOTS, pickedItems, roundHasard,
 } from "./show.js";
 import { TEAM_COLORS, TEAM_COLOR_NAMES } from "./theme.js";
 import { motDeLaBanque, PHOTOS_BANQUE, banqueItems, BANQUE, cheminPhotoBanque, imageLibre, questionBanque } from "./banque-photos.js";
@@ -878,7 +879,7 @@ function editShow(id) {
   // Un Quiz = une seule manche (cedric, 23/10) : ses manches Quiz qui se suivent n'en font plus qu'une.
   const { rounds: reunies, fusions } = fusionnerQuiz(rounds.map((r) => versSeriesQuiz(jeuDeLaManche(r, quizzes), quizzes)));
   // Pas de manches dans un blind test (cedric, 24/10) : ceux qui se suivent n'en font plus qu'un.
-  const { rounds: blinds, fusions: fusionsBlind } = fusionnerBlind(reunies.map(versSeriesBlind));
+  const { rounds: blinds, fusions: fusionsBlind } = fusionnerBlind(reunies.map((x) => versSeriesMots(versSeriesBlind(x))));
   editing = { id, rounds: blinds, themes: s.themes ?? null };
   $("show-edit-title").textContent = id ? showTitle(s) : "Nouvelle prestation";
   // Fil d'Ariane : la liste de son état (une nouvelle commence « À compléter »).
@@ -1848,6 +1849,251 @@ function blindComplet(r, ordre, ranger, changer) {
     liste);
 }
 
+/** Séries de mots dépliées, « Chante le mot ! complet » déplié (le temps de l'écran) ; mots retirés (le 🎲 ne les reprend pas). */
+const motsCompletsDeplies = new WeakSet();
+const motsRetires = new WeakMap();
+/** Jeu de mots où un mot vient d'être écrit à la main : le curseur y revient après le rafraîchissement. */
+let motAFocaliser = null;
+/** Nombres de mots proposés au 🎲 d'un jeu de mots. */
+const MOTS_NOMBRES = [3, 4, 5, 6, 8, 10, 12, 15, 20];
+
+/**
+ * Un jeu de mots d'avant les séries (mots choisis un par un, cedric 24/10) : ses mots deviennent ses séries (ceux tirés
+ * au hasard, la série du 🎲 ; les autres, écrits à la main). Une copie : la prestation lue dans la base ne change pas.
+ */
+function versSeriesMots(r) {
+  if (!estJeuDeMots(r?.type) || Array.isArray(r.seriesMots)) return r;
+  const lues = seriesMots(r);
+  if (lues.length) return { ...r, seriesMots: lues };
+  const game = CONTENT_GAMES[r.type];
+  const hasard = new Set(roundHasard(r));
+  const choisis = pickedItems(r.type, contents[r.type], roundPicks(r));
+  const tires = choisis.filter((m) => hasard.has(game.key(m))).map((m) => pourLeHasard(r.type, m)).filter(Boolean).map((m) => game.clean(m)).filter(Boolean);
+  const main = choisis.filter((m) => !hasard.has(game.key(m))).map((m) => game.clean(m)).filter(Boolean);
+  const series = [
+    ...(tires.length ? [{ id: "de", origine: "de", mots: tires }] : []),
+    ...(main.length ? [{ id: nouvelId("m"), origine: "main", mots: main }] : []),
+  ];
+  return series.length ? { ...r, seriesMots: series, picks: null, hasard: null } : { ...r, seriesMots: [] };
+}
+
+/**
+ * Chante le mot ! dans une prestation (cedric, 24/10 : « à la manière des quiz ») : le 🎲 tire le nombre de mots choisi
+ * dans les mots du jeu (selon l'âge, jamais un mot déjà dans la fête tant qu'il en reste) ; une ligne pour écrire un
+ * mot à la main ; puis les séries et le « Chante le mot ! complet » (↑ ↓ ✕, 🔀). Un mot n'y passe qu'une fois ; écrit à
+ * la main alors qu'il sert déjà ailleurs dans la fête : en rouge, mais possible (« Jamais deux fois »).
+ */
+function mancheMots(r) {
+  if (!Array.isArray(r.seriesMots)) r.seriesMots = seriesMots(r);
+  const type = r.type;
+  const game = CONTENT_GAMES[type];
+  const builtin = BUILTIN_GAMES[type];
+  const jeu = ROUND_TYPES[type];
+  const unite = builtin.unit;
+  const nMots = (k) => `${k} ${unite}${k > 1 ? "s" : ""}`;
+  const series = r.seriesMots;
+  const deSerie = series.find((x) => x.origine === "de") ?? null;
+  const n = deSerie?.mots.length || (MOTS_NOMBRES.includes(r.count) ? r.count : builtin.count);
+  const changer = () => roundCtx.refresh();
+  const ailleurs = roundCtx.elsewhere?.(r) ?? new Map();
+  const autreJeu = (m) => builtinConcepts(type, m).map((c) => ailleurs.get(c)).find(Boolean) ?? null;
+  /** Après chaque changement : les séries vides partent ; l'ancienne façon (mots choisis un par un) laisse la place. */
+  const ranger = () => {
+    r.seriesMots = r.seriesMots.filter((x) => x.mots.length);
+    if (r.seriesMots.length) { r.picks = null; r.hasard = null; }
+  };
+  const cles = (sauf = null) => new Set(r.seriesMots.filter((x) => x !== sauf).flatMap((x) => x.mots.map((m) => cleDuMot(type, m))).filter(Boolean));
+  const ecartes = () => new Set([...cles(), ...(motsRetires.get(r) ?? [])]);
+  const ecarter = (cle) => motsRetires.set(r, new Set([...(motsRetires.get(r) ?? []), cle]));
+  const place = () => Math.max(0, MAX_MOTS - motsDuJeu(r).length);
+  // Au hasard : émojis et banque de photos seulement, jamais une image téléversée (cedric, 21/10) ; selon l'âge ;
+  // « Jamais deux fois » : rien de ce que montrent les autres jeux de la fête, tant qu'il en reste assez.
+  const piocher = (k, sans) => {
+    if (k <= 0) return [];
+    const libres = activeItems(type, contents[type]).map((x) => pourLeHasard(type, x)).filter(Boolean).filter((m) => !sans.has(cleDuMot(type, m)));
+    const pourAge = builtin.items(roundCtx.profile?.() ?? "MOYENS", Math.random, libres, r);
+    return shuffle(neufsSiPossible(pourAge, (m) => builtinConcepts(type, m), ailleurs, k)).slice(0, k);
+  };
+
+  // Première ligne : le nombre et le 🎲 (il remplace la série du 🎲 ; les autres séries ne bougent pas).
+  const tirerTout = (k) => {
+    motsRetires.delete(r);
+    const sans = cles(deSerie);
+    const mots = piocher(Math.min(k, MAX_MOTS - sans.size), sans);
+    if (!mots.length) return annonce(`Plus aucun ${unite} libre à tirer : ajoutez-en dans la page du jeu, ou écrivez-les à la main.`);
+    const serie = deSerie ?? { id: "de", origine: "de", mots: [] };
+    if (!deSerie) r.seriesMots.unshift(serie);
+    serie.mots = mots;
+    r.count = k;
+    seriesDepliees.add(serie);
+    ranger();
+    changer();
+  };
+  const nombre = h("select", {
+    class: "tirage-nombre mots-nombre", "aria-label": `Nombre de ${unite}s à tirer au hasard`,
+    onchange: (e) => {
+      const k = Number(e.target.value);
+      r.count = k;
+      // Moins de mots : les premiers restent ; plus : le 🎲 complète sa série.
+      if (deSerie) {
+        const gardes = deSerie.mots.slice(0, k);
+        const sans = new Set([...ecartes(), ...gardes.map((m) => cleDuMot(type, m))]);
+        deSerie.mots = [...gardes, ...piocher(Math.min(k - gardes.length, MAX_MOTS - cles(deSerie).size - gardes.length), sans)].slice(0, k);
+        ranger();
+      }
+      changer();
+    },
+  }, ...[...new Set([...MOTS_NOMBRES, n])].sort((a, b) => a - b).map((k) => h("option", { value: k, selected: k === n, text: `${nMots(k)} au hasard` })));
+  const ligne = h("div", { class: "tirage-ligne" },
+    nombre,
+    h("button", {
+      type: "button", class: "btn tirage-de", text: "🎲", "aria-label": `Tirer les ${unite}s au hasard`,
+      title: `Tirer les ${unite}s au hasard, selon l'âge (les ${unite}s écrits à la main ne bougent pas)`, onclick: () => tirerTout(Number(nombre.value)),
+    }));
+
+  // Deuxième ligne : écrire un mot à la main ; il rejoint la série « écrits à la main », à la fin.
+  const champ = h("input", { type: "text", class: "mots-ecrire", maxlength: 40, "aria-label": `Écrire un ${unite}`, placeholder: `Écrire un ${unite} à chanter…` });
+  const ajouter = () => {
+    const m = game.clean({ word: champ.value });
+    if (!m) { champ.focus(); return; }
+    const cle = cleDuMot(type, m);
+    if (cles().has(cle)) { annonce(`« ${m.word} » est déjà dans ce jeu.`); champ.select(); return; }
+    if (!place()) { annonce(`${MAX_MOTS} ${unite}s au plus dans ${jeu} : retirez-en avant d'en ajouter.`); return; }
+    let main = r.seriesMots.find((x) => x.origine === "main");
+    if (!main) { main = { id: nouvelId("m"), origine: "main", mots: [] }; r.seriesMots.push(main); }
+    main.mots.push(m);
+    seriesDepliees.add(main);
+    ranger();
+    motAFocaliser = r;
+    changer();
+    noterEcran();
+  };
+  champ.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); ajouter(); } });
+  const ecrire = h("div", { class: "quiz-ajouts mots-main" },
+    h("span", { class: "quiz-ajout-titre mots-main-titre", text: `✍ Écrire un ${unite} à la main` }),
+    h("div", { class: "quiz-ajout-champ mots-main-champ" }, champ,
+      h("button", { type: "button", class: "btn secondary mots-ajouter", text: "＋ Ajouter", onclick: ajouter })));
+  const outils = h("div", { class: "quiz-outils" }, ligne, ecrire);
+
+  // Un mot dans une liste : déjà dans un autre jeu de la fête, en rouge.
+  const texteMot = (m) => {
+    const autre = autreJeu(m);
+    return [h("span", { class: "tirage-texte mot-texte" }, m.word, autre ? h("small", { class: "mot-deja", text: `Déjà dans « ${autre} »` }) : null)];
+  };
+  // ✕ : au 🎲, un 🎲 prend sa place ; écrit à la main, il part.
+  const retirer = (serie, i) => {
+    const m = serie.mots[i];
+    ecarter(cleDuMot(type, m));
+    if (serie.origine === "de") serie.mots[i] = { vide: true };
+    else serie.mots.splice(i, 1);
+    ranger();
+    changer();
+    noterEcran();
+  };
+  const corps = (serie) => serie.mots.map((m, i) => (m.vide
+    ? h("li", { class: "tirage-q vide" }, h("div", { class: "tirage-q-ligne" },
+      h("button", { type: "button", class: "btn tirage-de petit", text: "🎲", "aria-label": `Tirer un autre ${unite}`, title: `Tirer un autre ${unite}`, onclick: () => {
+        const [neuf] = piocher(1, ecartes());
+        if (!neuf) return annonce(`Plus aucun ${unite} libre à tirer : écrivez-le à la main.`);
+        serie.mots[i] = neuf;
+        ranger();
+        changer();
+      } }),
+      h("span", { class: "hint small", text: `${unite[0].toUpperCase()}${unite.slice(1)} à tirer` })))
+    : h("li", { class: `tirage-q${autreJeu(m) ? " deja" : ""}`, "data-mot": cleDuMot(type, m) }, h("div", { class: "tirage-q-ligne" },
+      ...texteMot(m),
+      h("button", { type: "button", class: "icon tirage-retirer", text: "✕", "aria-label": `Retirer « ${m.word} »`, title: serie.origine === "de" ? `Retirer ce ${unite} (un 🎲 prend sa place)` : `Retirer ce ${unite}`, onclick: () => retirer(serie, i) })))));
+  const titreSerie = (x) => {
+    const k = x.mots.filter((m) => !m.vide).length;
+    const vides = x.mots.length - k;
+    if (x.origine === "de") return `🎲 ${nMots(k)} tiré${k > 1 ? "s" : ""} au hasard${vides ? `, ${vides} à tirer` : ""}`;
+    return `✍ ${nMots(k)} écrit${k > 1 ? "s" : ""} à la main`;
+  };
+  const liste = h("ol", { class: "quiz-series" }, ...series.map((x) => {
+    const qs = h("ol", { class: "tirage-liste serie-liste" }, ...corps(x));
+    qs.hidden = !seriesDepliees.has(x);
+    const voir = h("button", {
+      type: "button", class: "chip tirage-voir serie-voir", "aria-expanded": qs.hidden ? "false" : "true", text: `${qs.hidden ? "▸" : "▾"} ${titreSerie(x)}`,
+      title: `Voir ou cacher les ${unite}s de cette série`,
+      onclick: (e) => {
+        qs.hidden = !qs.hidden;
+        if (qs.hidden) seriesDepliees.delete(x); else seriesDepliees.add(x);
+        e.currentTarget.textContent = `${qs.hidden ? "▸" : "▾"} ${titreSerie(x)}`;
+        e.currentTarget.setAttribute("aria-expanded", qs.hidden ? "false" : "true");
+      },
+    });
+    const enlever = async () => {
+      const k = x.mots.filter((m) => !m.vide).length;
+      if (k && !(await confirmer(`Enlever cette série (${nMots(k)}) de ${jeu} ?`, { ok: "Enlever", danger: true }))) return;
+      r.seriesMots = r.seriesMots.filter((y) => y !== x);
+      ranger();
+      changer();
+      noterEcran();
+    };
+    return h("li", { class: "serie", "data-origine": x.origine },
+      h("div", { class: "serie-tete" }, voir,
+        h("button", { type: "button", class: "icon serie-enlever", text: "✕", title: `Enlever cette série de ${jeu}`, "aria-label": "Enlever cette série", onclick: enlever })),
+      qs);
+  }));
+
+  // Dernière ligne : « Chante le mot ! complet » : tous les mots dans l'ordre de passage, ↑ ↓ ✕, 🔀 Mélanger.
+  const ordre = motsDuJeu(r);
+  const poser = (liste) => { r.ordreMots = liste.map((x) => x.cle); changer(); noterEcran(); };
+  const deplacer = (k, d) => {
+    const j = k + d;
+    if (j < 0 || j >= ordre.length) return;
+    const nouvel = [...ordre];
+    [nouvel[k], nouvel[j]] = [nouvel[j], nouvel[k]];
+    poser(nouvel);
+  };
+  const melanger = () => {
+    let nouvel = shuffle(ordre);
+    for (let essai = 0; essai < 5 && ordre.length > 1 && nouvel.every((x, k) => x === ordre[k]); essai++) nouvel = shuffle(ordre);
+    poser(nouvel);
+  };
+  // ✕ dans le « complet » : comme dans sa série.
+  const enleverDuComplet = (x) => {
+    const serie = r.seriesMots.find((y) => y.id === x.serie.id);
+    const i = serie ? serie.mots.findIndex((m) => cleDuMot(type, m) === x.cle) : -1;
+    if (i >= 0) retirer(serie, i);
+  };
+  const lignesCompletes = ordre.map((x, k) => h("li", { class: `tirage-q quiz-complet-q${autreJeu(x.m) ? " deja" : ""}`, "data-mot": x.cle },
+    h("div", { class: "tirage-q-ligne" },
+      h("span", { class: "quiz-complet-num", text: `${k + 1}` }),
+      ...texteMot(x.m),
+      h("button", { type: "button", class: "icon quiz-complet-monter", text: "↑", title: `Passer ce ${unite} plus tôt`, "aria-label": `Monter « ${x.m.word} »`, disabled: k === 0, onclick: () => deplacer(k, -1) }),
+      h("button", { type: "button", class: "icon quiz-complet-descendre", text: "↓", title: `Passer ce ${unite} plus tard`, "aria-label": `Descendre « ${x.m.word} »`, disabled: k === ordre.length - 1, onclick: () => deplacer(k, 1) }),
+      h("button", { type: "button", class: "icon tirage-retirer", text: "✕", title: `Enlever ce ${unite} de ${jeu}`, "aria-label": `Enlever « ${x.m.word} »`, onclick: () => enleverDuComplet(x) }))));
+  const listeComplete = h("ol", { class: "tirage-liste serie-liste quiz-complet-liste" }, ...lignesCompletes);
+  listeComplete.hidden = !motsCompletsDeplies.has(r);
+  const titreComplet = () => `${listeComplete.hidden ? "▸" : "▾"} 🧩 ${jeu} complet : ${nMots(ordre.length)}, dans l'ordre de passage`;
+  const complet = h("div", { class: "serie quiz-complet mots-complet" },
+    h("div", { class: "serie-tete" },
+      h("button", {
+        type: "button", class: "chip tirage-voir serie-voir quiz-complet-voir", "aria-expanded": listeComplete.hidden ? "false" : "true", text: titreComplet(),
+        title: `Voir tous les ${unite}s de ${jeu}, dans l'ordre`,
+        onclick: (e) => {
+          listeComplete.hidden = !listeComplete.hidden;
+          if (listeComplete.hidden) motsCompletsDeplies.delete(r); else motsCompletsDeplies.add(r);
+          e.currentTarget.textContent = titreComplet();
+          e.currentTarget.setAttribute("aria-expanded", listeComplete.hidden ? "false" : "true");
+        },
+      }),
+      h("button", { type: "button", class: "chip quiz-melanger", text: "🔀 Mélanger", title: `Mélanger tous les ${unite}s de ${jeu}`, disabled: ordre.length < 2, onclick: melanger })),
+    listeComplete);
+
+  const compteur = h("p", {
+    class: "quiz-compteur", "aria-live": "polite",
+    text: ordre.length ? nMots(ordre.length) : `Aucun ${unite} pour l'instant : la TV en tirera ${r.count ?? builtin.count} au hasard`,
+  });
+  // Un mot écrit à la main : le curseur reste dans la case, pour le suivant.
+  if (motAFocaliser === r) {
+    motAFocaliser = null;
+    requestAnimationFrame(() => document.querySelector(`#show-rounds [data-manche="${editing?.rounds.indexOf(r)}"] .mots-ecrire`)?.focus());
+  }
+  return [compteur, outils, series.length ? liste : null, ordre.length ? complet : null];
+}
+
 /** Jeux intégrés et Pictionary : éléments choisis un par un parmi ceux de la page du jeu. */
 function picksSelection(r) {
   const game = CONTENT_GAMES[r.type];
@@ -2018,7 +2264,7 @@ function refreshRounds() {
   // Un Quiz = une seule manche (cedric, 23/10) : en séries, et deux Quiz qui se touchent n'en font plus qu'un.
   const { rounds: reunies, fusions } = fusionnerQuiz(editing.rounds.map((r) => versSeriesQuiz(r, quizzes)));
   // Pas de manches dans un blind test (cedric, 24/10) : deux blind tests qui se touchent n'en font plus qu'un.
-  const { rounds: blinds, fusions: fusionsBlind } = fusionnerBlind(reunies.map(versSeriesBlind));
+  const { rounds: blinds, fusions: fusionsBlind } = fusionnerBlind(reunies.map((x) => versSeriesMots(versSeriesBlind(x))));
   editing.rounds = blinds;
   if (fusions) annonce("Les Quiz qui se suivaient n'en font plus qu'un : leurs questions à la suite, une seule Super Finale à la fin.");
   if (fusionsBlind) annonce("Les blind tests (ou quiz musicaux) qui se suivaient n'en font plus qu'un : leurs chansons à la suite.");
@@ -2047,7 +2293,7 @@ function refreshRounds() {
     const n = b.indices.length;
     // Le Quiz est une seule manche (cedric, 23/10), le blind test aussi (cedric, 24/10 : « on abandonne la notion de
     // manche ») : pas de « ＋ Manche », tout s'ajoute dedans.
-    const sansManches = estEnSeries(b.type) || b.type === "blind" || b.type === "musical";
+    const sansManches = estEnSeries(b.type) || b.type === "blind" || b.type === "musical" || estJeuDeMots(b.type);
     const premiere = editing.rounds[debut];
     const replie = premiere[JEU_OUVERT] !== true;
     const resume = !replie ? "" : estEnSeries(b.type) ? compteurQuiz(premiere)
@@ -2124,8 +2370,9 @@ function ouvrirChoixJeu(place = "bas") {
         box.hidden = true;
         // Un Quiz juste après un Quiz n'en ferait qu'un : on y retourne, ses questions s'ajoutent dans sa manche.
         const dernier = editing.rounds[editing.rounds.length - 1];
-        if (dernier && (estEnSeries(x.type) || x.type === "blind" || x.type === "musical") && (dernier.type ?? "quiz") === x.type) {
-          annonce(x.type === "blind" ? "Le Blind test est déjà le dernier jeu : ajoutez-y vos chansons (🎲, « Sélectionner mes chansons », une playlist)."
+        if (dernier && (estEnSeries(x.type) || x.type === "blind" || x.type === "musical" || estJeuDeMots(x.type)) && (dernier.type ?? "quiz") === x.type) {
+          annonce(estJeuDeMots(x.type) ? `${ROUND_TYPES[x.type]} est déjà le dernier jeu : ajoutez-y vos mots (🎲, ou écrits à la main).`
+            : x.type === "blind" ? "Le Blind test est déjà le dernier jeu : ajoutez-y vos chansons (🎲, « Sélectionner mes chansons », une playlist)."
             : x.type === "musical" ? "Le Quiz musical est déjà le dernier jeu : ajoutez-y vos chansons (🎲, une playlist)."
             : `${x.type === "flou" ? "L'Image floue" : `Le ${ROUND_TYPES[x.type]}`} est déjà le dernier jeu : ajoutez-y vos ${estJeuDePhotos(x.type) ? "photos" : x.type === "express" ? "affirmations" : "questions"} (🎲, un ancien anniversaire, votre bibliothèque).`);
           dernier[JEU_OUVERT] = true;
@@ -3173,6 +3420,8 @@ function roundFields(r) {
   // Blind test dans une prestation (cedric, 24/10) : « à la manière des quiz », le 🎲 tire les chansons.
   // Blind test et Quiz musical (cedric, 24/10) : en séries de chansons de la bibliothèque des sons.
   if ((r.type === "blind" || r.type === "musical") && roundCtx === prestationCtx) return mancheBlind(r);
+  // Chante le mot ! dans une prestation (cedric, 24/10) : le 🎲, un mot écrit à la main, le « complet ».
+  if (estJeuDeMots(r.type) && roundCtx === prestationCtx) return mancheMots(r);
   return [
     // Quiz, Quiz illustré (cedric, 23/10) : une seule manche faite de séries (🎲, quiz rappelés, questions écrites, reprises).
     ...(quiz ? mancheQuiz(r) : [content]),

@@ -513,11 +513,20 @@ export const CLE_BOUGIES = "bougies";
  */
 function ordreDuQuiz(round, quizzes) {
   const parSerie = roundSeriesQuiz(round).map((serie) => itemsDeLaSerie(serie, quizzes, round?.type ?? "quiz").map((x) => ({ ...x, serie })));
+  return rangerSelonOrdre(parSerie, round?.ordreQuiz, [{ cle: CLE_BOUGIES, bougies: true }]);
+}
+
+/**
+ * Les éléments de séries ([parSerie] : une liste de { cle } par série) dans l'ordre rangé à la main ([ordre] : leurs
+ * clés), avec [extras] (places hors des séries, rangées à la main). Sans ordre : série après série. Un élément arrivé
+ * ensuite se met à côté de sa voisine de série ; une série toute nouvelle, au début si c'est la première (le 🎲),
+ * sinon à la fin.
+ */
+function rangerSelonOrdre(parSerie, ordre, extras = []) {
   const rang = new Map();
-  listOf(round?.ordreQuiz).forEach((c, k) => { if (typeof c === "string" && !rang.has(c)) rang.set(c, k); });
+  listOf(ordre).forEach((c, k) => { if (typeof c === "string" && !rang.has(c)) rang.set(c, k); });
   if (!rang.size) return parSerie.flat();
-  const places = [...parSerie.flat(), ...(rang.has(CLE_BOUGIES) ? [{ cle: CLE_BOUGIES, bougies: true }] : [])];
-  const out = places.filter((x) => rang.has(x.cle)).sort((a, b) => rang.get(a.cle) - rang.get(b.cle));
+  const out = [...parSerie.flat(), ...extras].filter((x) => rang.has(x.cle)).sort((a, b) => rang.get(a.cle) - rang.get(b.cle));
   parSerie.forEach((liste, s) => liste.forEach((x, k) => {
     if (rang.has(x.cle)) return;
     const avant = liste.slice(0, k).reverse().find((y) => out.includes(y));
@@ -525,6 +534,34 @@ function ordreDuQuiz(round, quizzes) {
     out.splice(avant ? out.indexOf(avant) + 1 : apres ? out.indexOf(apres) : s === 0 ? 0 : out.length, 0, x);
   }));
   return out;
+}
+
+/**
+ * Jeux de mots en séries (cedric, 24/10 : Chante le mot ! « à la manière des quiz ») : la série du 🎲 (mots du jeu
+ * tirés au nombre choisi, selon l'âge) et les mots écrits à la main ; le « complet » les joue dans l'ordre rangé à la
+ * main ou mélangé (`ordreMots`, leurs clés), sinon série après série. Un mot n'y passe qu'une fois.
+ */
+export const JEUX_DE_MOTS = ["chante"];
+export const estJeuDeMots = (type) => JEUX_DE_MOTS.includes(type);
+/** Origines d'une série de mots : le 🎲, les mots écrits à la main. */
+export const ORIGINES_MOTS = ["de", "main"];
+/** Au plus autant de mots dans un jeu de mots. */
+export const MAX_MOTS = 30;
+/** Un mot gardé dans une série, nettoyé ; { vide: true } : retiré du 🎲, en attente d'un autre. */
+const motDeSerie = (type, m) => (m?.vide === true ? { vide: true } : CONTENT_GAMES[type]?.clean(m) ?? null);
+/** Séries d'un jeu de mots : { id, origine, mots }. */
+export const seriesMots = (round) => (estJeuDeMots(round?.type) ? listOf(round.seriesMots) : [])
+  .filter((x) => x && typeof x.id === "string" && x.id && ORIGINES_MOTS.includes(x.origine))
+  .map((x) => ({ ...x, mots: listOf(x.mots).map((m) => motDeSerie(round.type, m)).filter(Boolean) }));
+/** Clé d'un mot dans son jeu (« Soleil » et « soleil » sont le même mot) ; "" pour une case vide. */
+export const cleDuMot = (type, m) => (m && m.vide !== true && CONTENT_GAMES[type] ? CONTENT_GAMES[type].key(m) : "");
+/** Les mots d'un jeu de mots dans l'ordre de passage : { cle, m, serie }, chacun une fois, au plus MAX_MOTS. */
+export function motsDuJeu(round) {
+  const type = round?.type;
+  const vus = new Set();
+  const parSerie = seriesMots(round).map((serie) => serie.mots.map((m) => ({ cle: cleDuMot(type, m), m, serie }))
+    .filter((x) => x.cle && !vus.has(x.cle) && vus.add(x.cle)));
+  return rangerSelonOrdre(parSerie, round?.ordreMots).slice(0, MAX_MOTS);
 }
 
 /**
@@ -821,7 +858,9 @@ export function fixedConcepts(round, quizzes = {}, mimes = {}, contents = {}) {
     return [...mimeCards(round.cards), ...(deck ? mimeCards(deck.cards) : []), ...mimeEquipes(round).flat()].flatMap(concepts);
   }
   if (type === "chante" || type === "quisuis" || type === "pictionary") {
-    return pickedItems(type, contents?.[type], roundPicks(round)).flatMap((x) => builtinConcepts(type, x));
+    // En séries (cedric, 24/10) : tous ses mots, ceux tirés au 🎲 compris (ils comptent une fois tirés).
+    const enSeries = estJeuDeMots(type) ? motsDuJeu(round).map((x) => x.m) : [];
+    return (enSeries.length ? enSeries : pickedItems(type, contents?.[type], roundPicks(round))).flatMap((x) => builtinConcepts(type, x));
   }
   if (type === "zoom" || type === "flou") return zoomRoundQuestions(round, quizzes).flatMap((q) => questionConcepts({ ...q, kind: type }));
   // Quiz choisi : les photos de ses réponses (quiz illustré) et ses illustrations. Ses questions reprises au hasard
@@ -1129,7 +1168,9 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       // Éléments choisis un par un dans la Régie PC : ceux-là, dans cet ordre ; sinon le tirage au hasard.
       // Choisis à la main : avec leurs images ; tirés au hasard (Régie PC ou régie) : sans image téléversée.
       const hasard = new Set(roundHasard(round));
-      const chosen = pickedItems(round.type, contents?.[round.type], roundPicks(round))
+      // Jeu de mots en séries (cedric, 24/10) : ses mots dans l'ordre de passage (ceux du 🎲 gardés sans image téléversée).
+      const enSeries = estJeuDeMots(round.type) ? motsDuJeu(round).map((x) => x.m) : [];
+      const chosen = enSeries.length ? enSeries : pickedItems(round.type, contents?.[round.type], roundPicks(round))
         .map((x) => (hasard.has(game.key(x)) ? pourLeHasard(round.type, x) : x)).filter(Boolean);
       const picked = chosen.length
         ? builtin.items(profile, random, chosen, round, true, pris)
