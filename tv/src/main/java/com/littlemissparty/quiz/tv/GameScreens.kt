@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.BlindStatus
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
+import com.littlemissparty.quiz.tv.habillage.LettresQuiDansent
 import com.littlemissparty.quiz.tv.habillage.Look
 import com.littlemissparty.quiz.tv.habillage.selonLook
 import com.littlemissparty.quiz.tv.habillage.ANNONCE_MULTIPLICATEUR_MS
@@ -129,7 +130,8 @@ fun QuestionScreen(state: UiState.Playing, actions: TvActions) {
             if (!q.isBlind && !q.isStatues) {
                 // Game Show 3D : la question dans son enseigne néon (hors jeux au buzzer, qui ont leur propre scène).
                 val panneau = planchesQuiz3d()?.takeIf { !q.isBuzz }
-                if (panneau != null) QuestionPanneau3d(panneau, q.text, Modifier.fillMaxWidth().apparition(0, state.index))
+                if (panneau != null) QuestionPanneau3d(panneau, q.text, Modifier.fillMaxWidth().apparition(0, state.index), festif = q.isMusical)
+                else if (Look.gs && q.isMusical && q.text.length <= 24) LettresQuiDansent(q.text, 40.sp, Modifier.apparition(0, state.index))
                 else Text(
                     q.text,
                     color = Palette.Ink, fontSize = selonLook(34.sp, 38.sp), fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
