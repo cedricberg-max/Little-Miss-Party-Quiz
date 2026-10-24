@@ -1279,7 +1279,8 @@ function renderBlind(st, teams) {
   } else {
     info = `Musique en cours… En attente d'un buzz.${tried.length ? ` Déjà essayé : ${tried.join(", ")}.` : ""}`;
   }
-  $("blind-info").textContent = info;
+  if (st.phase === "question" && buzzer) texteBuzz($("blind-info"), name(buzzer), expected);
+  else $("blind-info").textContent = info;
   couleurBuzz($("blind-info"), st.phase !== "scores" && st.phase !== "reveal" ? buzzer : null);
   $("blind-judge").hidden = !(st.phase === "question" && buzzer);
   $("blind-ok").disabled = busy;
@@ -1355,6 +1356,16 @@ function couleurBuzz(el, teamId) {
   }
 }
 
+/** Qui a buzzé, puis la réponse attendue sur sa propre ligne, en gros : Sarah voit tout d'un coup d'œil (cedric, 24/10). */
+function texteBuzz(el, equipe, attendu) {
+  const reponse = document.createElement("span");
+  reponse.className = "buzz-reponse";
+  const mot = document.createElement("b");
+  mot.textContent = attendu;
+  reponse.append("Réponse attendue : ", mot);
+  el.replaceChildren(`${equipe} a buzzé ! `, reponse);
+}
+
 /**
  * Au buzz (cedric, 24/10) : la couleur et le nom de l'équipe, la réponse attendue et les boutons du verdict passent
  * juste au-dessus des commandes du bas, qui restent toujours à l'écran : Sarah juge sans faire défiler, même avec le
@@ -1384,9 +1395,8 @@ function renderFlou(st) {
     : blind ? `« ${answer} »${q?.artist ? ` (bonus : ${q.artist})` : ""}` : answer;
   const tried = (b.blocked ?? []).filter((id) => live.teams[id]).map(name);
   const memo = st.kind === "disparu" && st.buzzOpen !== true && !b.team && !st.paused;
-  $("flou-info").textContent = b.team
-    ? `${name(b.team)} a buzzé ! Réponse attendue : ${expected || "voir la fiche"}`
-    : memo ? `Les enfants mémorisent les objets… Celui qui va disparaître : ${answer}.`
+  if (b.team) texteBuzz($("flou-info"), name(b.team), expected || "voir la fiche");
+  else $("flou-info").textContent = memo ? `Les enfants mémorisent les objets… Celui qui va disparaître : ${answer}.`
     : `En attente d'un buzz…${tried.length ? ` Déjà essayé : ${tried.join(", ")}.` : ""}`;
   couleurBuzz($("flou-info"), b.team);
   $("flou-judge").hidden = !b.team;

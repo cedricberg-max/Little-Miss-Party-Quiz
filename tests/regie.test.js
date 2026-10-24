@@ -973,6 +973,10 @@ describe("régie", () => {
       await page.locator("#r-alerte", { hasText: "Les Bleus" }).waitFor({ timeout: 8000 });
       await page.locator("#flou-info", { hasText: "Les Roses a buzzé ! Réponse attendue : une chanson avec le mot « roi »" }).waitFor();
       assert.equal(await page.locator("#flou-info .buzz-nom-couleur").textContent(), "JAUNE");
+      // La réponse attendue sur sa propre ligne, en gros, dans le même cadre que la couleur et le verdict (cedric, 24/10).
+      const reponse = page.locator("#flou-info .buzz-reponse b");
+      assert.equal(await reponse.textContent(), "une chanson avec le mot « roi »");
+      assert.ok(parseFloat(await reponse.evaluate((el) => getComputedStyle(el).fontSize)) >= 20, "réponse en gros");
       const dansLEcran = (id) => page.evaluate((id) => {
         const el = document.getElementById(id);
         const r = el.getBoundingClientRect();
@@ -986,7 +990,7 @@ describe("régie", () => {
         }
       }
       // Fine bande : bien moins haute que l'ancien gros carré jaune.
-      assert.ok((await page.locator("#flou-info").boundingBox()).height <= 80, "bande de l'équipe fine (le gros carré jaune faisait 150 px)");
+      assert.ok((await page.locator("#flou-info").boundingBox()).height <= 100, "bande de l'équipe fine (le gros carré jaune faisait 150 px)");
       await capture(page, `verdict-buzz-${width}x${height}`);
       await page.locator("#c-pause", { hasText: "Reprendre (3, 2, 1)" }).click();
       await waitFor(async () => (await commands()).some((c) => c.type === "resume"), "reprise envoyée");

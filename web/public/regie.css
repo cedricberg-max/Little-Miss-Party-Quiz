@@ -292,6 +292,8 @@ body.regie-mode #app, body.regie-mode #paused, body.regie-mode #resume-count, bo
 .regie .actions .verdict .mime-info { font-size: 15px; line-height: 1.25; }
 .regie .actions .verdict .mime-info.buzz-couleur { padding: 6px 10px; border-radius: 10px; font-size: 15px; font-weight: 800; }
 .regie .actions .verdict .mime-info .buzz-nom-couleur { display: inline; margin-right: 8px; font-size: 19px; letter-spacing: 1px; }
+.regie .mime-info .buzz-reponse { display: block; margin-top: 2px; }
+.regie .actions .verdict .mime-info .buzz-reponse b { font-size: 20px; font-weight: 900; line-height: 1.15; }
 .regie .actions .verdict .flou-judge { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .regie .actions .verdict .flou-judge[hidden] { display: none; }
 .regie .actions .verdict .mime-found { min-height: 84px; padding: 4px 6px; border-radius: 18px; font-size: 22px; line-height: 1.05; box-shadow: 0 6px 0 #4f9f22; }
