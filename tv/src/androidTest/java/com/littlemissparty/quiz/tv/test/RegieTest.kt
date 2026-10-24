@@ -290,8 +290,13 @@ class RegieTest : TestTv() {
         assertEquals(apresQuiz + Scoring.MIME, points(licornes, code, licornes.uid))
         ecran.capture("quiz-mimes-finale")
 
-        // Secours : rejouer le quiz retire ses points (pas de double compte), les mimes restent.
+        // Secours depuis la finale en cours : bilan des scores d'abord (cedric, 24/10), points intacts ; puis « Jeu
+        // suivant » rejoue le quiz, ses points retirés (pas de double compte), les mimes restent.
         assertEquals("applied", regie.commande(code, "goto", mapOf("index" to 0, "qid" to demo[0]["id"] as String)))
+        ecran.voit("Jeu suivant : Quiz")
+        ecran.capture("bilan-jeu-quitte")
+        assertEquals(apresQuiz + Scoring.MIME, points(licornes, code, licornes.uid))
+        assertEquals("applied", regie.commande(code, "next"))
         ecran.voit("Quiz · question 1 / 1")
         attendreQue("points du quiz retirés") { points(licornes, code, licornes.uid).takeIf { it == Scoring.MIME.toLong() } }
         assertTrue("La tablette peut répondre de nouveau", licornes.repondre(code, demo[0]["id"] as String, (demo[0]["correct"] as Number).toInt()))

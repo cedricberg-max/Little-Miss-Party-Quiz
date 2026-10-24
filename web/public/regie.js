@@ -320,9 +320,11 @@ function nextLabel(st, teamCount) {
     // Portes mystères : l'animatrice ouvre les portes une à une, puis montre le classement final.
     case "reveal": return st.kind === "portes" ? ((st.portes?.opened ?? 0) < (st.portes?.count ?? 0) ? "🚪 Ouvrir la porte suivante" : "Classement final 🏆") : "Voir les scores";
     case "scores": {
+      const { next, questions } = gamesOf(st);
+      // Bilan d'un jeu quitté en cours de route (cedric, 24/10) : « suivant » ouvre le jeu choisi.
+      if (st.leaveTo != null && next) return `Jeu suivant : ${gameName(next, questions)} ▶`;
       if ((st.index ?? 0) + 1 >= (st.total ?? 0)) return "Résultats finaux 🏆";
       // Fin d'un jeu : on annonce le jeu qui commence, jamais une simple « question suivante ».
-      const { next, questions } = gamesOf(st);
       if (next && next.start === (st.index ?? 0) + 1) return `Jeu suivant : ${gameName(next, questions)} ▶`;
       // Mimes, une manche par équipe : la suivante est celle d'une autre couleur.
       const suivante = questions[(st.index ?? 0) + 1];
@@ -1578,9 +1580,14 @@ function gamesOf(st) {
   const index = st.phase === "lobby" ? -1 : st.index ?? -1;
   const current = st.phase === "ended" ? null : rounds.find((r) => r.start <= index && index <= r.end) ?? null;
   // Après la fin de la partie, un jeu ajouté au programme est encore « à venir » : la partie peut reprendre avec lui.
-  const next = rounds.find((r) => r.start > index) ?? null;
+  // Bilan d'un jeu quitté en cours de route : la suite est le jeu choisi par la régie.
+  const next = (st.phase === "scores" && st.leaveTo != null ? rounds.find((r) => r.start === st.leaveTo) : null)
+    ?? rounds.find((r) => r.start > index) ?? null;
   return { questions, rounds, index, current, next };
 }
+
+/** Le jeu en cours a commencé (ni présentation, ni classement) : le quitter passe par le bilan des scores sur la TV. */
+const jeuEnCours = (st) => ["question", "closed", "reveal"].includes(st.phase);
 
 /** Jeu déjà commencé (ou joué) : y aller, c'est le recommencer. */
 const played = (r, st, index) => r.start <= index && st.phase !== "lobby";
@@ -1699,12 +1706,14 @@ function renderRescue(st) {
 
 /** Saut vers le début du jeu [r], après confirmation adaptée (aller plus loin, ou recommencer). */
 async function jumpTo(r, st) {
-  const { questions, index } = gamesOf(st);
+  const { questions, index, current } = gamesOf(st);
   const name = gameName(r, questions);
   const replay = played(r, st, index);
+  // Quitter le jeu en cours pour un autre (cedric, 24/10) : la TV montre d'abord le bilan des scores.
+  const bilan = jeuEnCours(st) && r !== current;
   const ok = await demander(replay
-    ? { title: `Recommencer « ${name} » ?`, text: "Le jeu repart de sa première question, avec les mêmes questions. Les points gagnés dans ce jeu sont retirés puis rejoués : rien n'est compté deux fois. Les équipes et les points des autres jeux sont gardés.", ok: "Recommencer ce jeu", alert: true }
-    : { title: `Passer à « ${name} » ?`, text: st.phase === "ended" ? "La partie reprend avec ce jeu. Les équipes et leurs points sont gardés." : `Le jeu en cours s'arrête là, ses points déjà gagnés sont gardés. Si « ${name} » avait déjà été commencé, il repart de zéro sans compter deux fois.`, ok: `Aller à « ${name} »` });
+    ? { title: `Recommencer « ${name} » ?`, text: `Le jeu repart de sa première question, avec les mêmes questions. Les points gagnés dans ce jeu sont retirés puis rejoués : rien n'est compté deux fois. Les équipes et les points des autres jeux sont gardés.${bilan ? " La TV montre d'abord le bilan des scores." : ""}`, ok: "Recommencer ce jeu", alert: true }
+    : { title: `Passer à « ${name} » ?`, text: st.phase === "ended" ? "La partie reprend avec ce jeu. Les équipes et leurs points sont gardés." : `Le jeu en cours s'arrête là, ses points déjà gagnés sont gardés.${bilan ? ` La TV montre le bilan des scores, puis « ${name} » quand vous appuyez sur « Jeu suivant ».` : ""} Si « ${name} » avait déjà été commencé, il repart de zéro sans compter deux fois.`, ok: `Aller à « ${name} »` });
   if (!ok) return;
   // Photos et extraits du jeu recopiés dans la partie s'ils y manquent (copies effacées après la fête, partie reprise
   // sur une autre box) : jamais bloquant, une copie déjà là n'est pas refaite.
@@ -1714,7 +1723,7 @@ async function jumpTo(r, st) {
   const status = await send("goto", { index: r.start, qid: questions[r.start].id }, { advance: true });
   if (status?.status === "applied") {
     rescueOpen = false;
-    toast(replay ? `« ${name} » recommence.` : `C'est parti pour « ${name} » !`);
+    toast(bilan ? `Bilan des scores sur la TV, puis « ${name} ».` : replay ? `« ${name} » recommence.` : `C'est parti pour « ${name} » !`);
     render();
   }
 }
@@ -2660,8 +2669,9 @@ async function addPicked(where) {
   const lancer = now ? async () => {
     const start = program.findIndex((q) => q.id === added[0]?.id);
     if (start < 0) return;
+    const bilan = jeuEnCours(live.state ?? {});
     const status = await send("goto", { index: start, qid: added[0].id }, { advance: true });
-    if (status?.status === "applied") toast(`C'est reparti pour « ${title} » !`);
+    if (status?.status === "applied") toast(bilan ? `Bilan des scores sur la TV, puis « ${title} ».` : `C'est reparti pour « ${title} » !`);
   } : null;
   sendProgram(program, now ? `« ${title} » arrive sur la TV…` : `« ${title} » est ajouté ${place}.`, true, () => { keep?.(); lancer?.(); });
 }

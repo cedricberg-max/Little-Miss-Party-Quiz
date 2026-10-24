@@ -1069,7 +1069,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 portes = q?.takeIf { it.isPortes && s.phase != Phase.LOBBY }?.let { PortesUi(g.doorOrder(), s.doorsOpened, g.doorsOf(it)) },
                 coffres = g.chestRound.takeIf { s.phase != Phase.LOBBY },
                 lastGain = if (q?.isTurns == true) mimeCounts.mapValues { it.value * s.pointsPerFound(q.id) } else revealedAwards.mapValues { it.value.points },
-                isLast = g.isLastQuestion,
+                isLast = g.isLastQuestion && g.leaveTarget == null,
                 nextGame = g.nextGameTitle(),
                 etape = g.gameStep()?.label,
                 intro = s.intro,
@@ -1118,17 +1118,18 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             act { it.takeIf { g -> g.state.phase == Phase.QUESTION && g.state.buzz?.blocked.orEmpty().containsAll(teamIds) }?.close(serverNow()) }
         }
         // Photo de la question en cours et de la suivante chargées d'avance (dès le salon d'attente pour la
-        // première) : la révélation, ou le Zoom mystère, ne l'attend jamais.
-        listOfNotNull(q?.imageId.takeIf { s.phase != Phase.LOBBY }, g.quiz.questions.getOrNull(s.index + 1)?.imageId).forEach(::prefetchImage)
+        // première) : la révélation, ou le Zoom mystère, ne l'attend jamais. Bilan d'un jeu quitté : le jeu choisi.
+        val suivante = g.quiz.questions.getOrNull(g.leaveTarget ?: (s.index + 1))
+        listOfNotNull(q?.imageId.takeIf { s.phase != Phase.LOBBY }, suivante?.imageId).forEach(::prefetchImage)
         // Réponses en images : celles de la question en cours et de la suivante (lisibles aussi par les pupitres).
-        listOfNotNull(q, g.quiz.questions.getOrNull(s.index + 1)).flatMap { it.choiceImages }.filterNotNull()
+        listOfNotNull(q, suivante).flatMap { it.choiceImages }.filterNotNull()
             .forEach { prefetchImage(it, "choiceImages") }
         // Pictionary : photos des mots proposés (rangées avec les réponses en images), prêtes pour la révélation.
         (g.offerCards + listOfNotNull(g.lastCard)).mapNotNull { it.imageId }.forEach { prefetchImage(it, "choiceImages") }
         // Mimes et Qui a disparu ? en photos : la carte montrée et les deux suivantes ; toute la grille de la
         // question en cours et de la suivante.
         val cartesMime = s.mime?.deck.orEmpty().take(3).mapNotNull { q?.cards?.getOrNull(it) }
-        val grilles = listOfNotNull(q, g.quiz.questions.getOrNull(s.index + 1)).filter { it.isDisparu }.flatMap { it.cards }
+        val grilles = listOfNotNull(q, suivante).filter { it.isDisparu }.flatMap { it.cards }
         (cartesMime + grilles).mapNotNull { it.imageId }.forEach { prefetchImage(it, "choiceImages") }
         // Photos : toutes celles du programme gardées sur la box, pour une fête qui continue sans Internet.
         savePhotos(g)

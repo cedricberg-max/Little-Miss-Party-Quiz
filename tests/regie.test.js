@@ -156,11 +156,13 @@ function startBox({ silent = false, held = false, host = HOST, from = null, seen
           if (!q || q.id !== cmd.qid) status = { status: "refused", reason: "stale_program" };
           else {
             gotos.push({ index: cmd.index, qid: cmd.qid });
-            state = q.kind === "mime"
-              ? { ...state, seq, phase: "question", index: cmd.index, qid: q.id, kind: "mime", text: q.text, choices: null, deadline: null, paused: false, mime: { team: null, card: null, found: 0, passed: 0, left: q.cards.length, turns: [], counts: {}, points: 50 } }
-              : { ...questionState(seq), index: cmd.index, qid: q.id, text: q.text, choices: q.choices, total: plan.questions.length, scores: state.scores, mime: null };
+            // Jeu quitté en cours de route : bilan des scores d'abord, puis « suivant » y va (GameLeft, cedric 24/10).
+            const enCours = ["question", "closed", "reveal"].includes(state.phase);
+            if (enCours && plan.questions[state.index]?.round !== q.round) state = { ...state, seq, phase: "scores", leaveTo: cmd.index, deadline: null, paused: false, mime: null, buzz: null };
+            else state = sauter(plan, cmd.index, seq);
           }
         }
+        else if (cmd.type === "next" && state.phase === "scores" && state.leaveTo != null) state = sauter((await read("conducteur")) ?? { questions: [] }, state.leaveTo, seq);
         else if (cmd.type === "buzz_ok" || cmd.type === "buzz_ko") {
           // Image floue : même verdict que BuzzJudged (150 au premier, 100 au rebond ; erreur = équipe bloquée, nouvelle clé).
           const b = state.buzz;
@@ -202,6 +204,13 @@ function startBox({ silent = false, held = false, host = HOST, from = null, seen
       }
       await update(ref(db, `games/${CODE}`), { state, [`commandStatus/${id}`]: { ...status, at: Date.now() } });
     }
+  }
+  /** Début du jeu qui commence à la question [index] du programme (Jumped). */
+  function sauter(plan, index, seq) {
+    const q = plan.questions[index];
+    return q.kind === "mime"
+      ? { ...state, seq, phase: "question", index, qid: q.id, kind: "mime", text: q.text, choices: null, deadline: null, paused: false, leaveTo: null, mime: { team: null, card: null, found: 0, passed: 0, left: q.cards.length, turns: [], counts: {}, points: 50 } }
+      : { ...questionState(seq), index, qid: q.id, text: q.text, choices: q.choices, total: plan.questions.length, scores: state.scores, mime: null, leaveTo: null };
   }
   /** Mimes : mêmes règles que le moteur (MimeTurnStarted, MimeFound, MimePassed, MimeCorrected, MimeTurnEnded). */
   function mimeStep(st, cmd, seq) {
@@ -1126,21 +1135,30 @@ describe("régie", () => {
     await respond(page, false);
     await page.waitForTimeout(300);
     assert.equal(box.gotos.length, 0);
-    // Passer au jeu suivant : les mimes s'ouvrent, les points restent.
+    // Passer au jeu suivant : bilan des scores sur la TV d'abord (cedric, 24/10), puis « Jeu suivant » ouvre les
+    // mimes ; les points restent.
     await page.locator("#rescue-next", { hasText: "Passer au jeu suivant : Mimes : Animaux" }).click();
     let asked = await respond(page);
-    await page.locator("#r-toast", { hasText: "C'est parti pour « Mimes : Animaux » !" }).waitFor();
+    await page.locator("#r-toast", { hasText: "Bilan des scores sur la TV, puis « Mimes : Animaux »." }).waitFor();
     assert.match(asked, /points déjà gagnés sont gardés/);
+    assert.match(asked, /La TV montre le bilan des scores, puis « Mimes : Animaux »/);
     assert.deepEqual(box.gotos, [{ index: 2, qid: "a1m" }]);
+    await page.locator("#c-next:not([hidden])", { hasText: "Jeu suivant : Mimes : Animaux ▶" }).waitFor();
+    await page.locator("#c-games", { hasText: "Ensuite : Mimes : Animaux" }).waitFor();
+    await page.click("#c-next");
     await page.locator("#mime:not([hidden])").waitFor();
+    assert.equal((await read("state")).scores.rose, 100);
     await page.locator("#c-games", { hasText: "En cours : Mimes : Animaux · Ensuite : Finale" }).waitFor();
     // Recommencer le quiz (« Rejouer » avant le 21/10) : confirmation qui dit que ses points sont retirés puis rejoués.
     await page.click("#c-rescue");
     await page.locator("#rescue-list .rescue-game", { hasText: "Quiz de Léa" }).locator("button", { hasText: "Recommencer" }).click();
     asked = await respond(page);
-    await page.locator("#r-toast", { hasText: "« Quiz de Léa » recommence." }).waitFor();
+    // Depuis les mimes en cours : le bilan des scores d'abord, là aussi.
+    await page.locator("#r-toast", { hasText: "Bilan des scores sur la TV, puis « Quiz de Léa »." }).waitFor();
     assert.match(asked, /rien n'est compté deux fois/);
+    assert.match(asked, /La TV montre d'abord le bilan des scores/);
     assert.deepEqual(box.gotos[1], { index: 0, qid: "q1" });
+    await page.locator("#c-next:not([hidden])", { hasText: "Jeu suivant : Quiz de Léa ▶" }).waitFor();
     // Partie terminée par erreur pendant les mimes : la finale jamais jouée reste à venir, la partie peut reprendre.
     await box.set({ phase: "ended", index: 2, qid: "a1m", mime: null, seq: (await read("state")).seq + 1 });
     await page.locator("#c-next:not([hidden])", { hasText: "Jeu suivant : Finale" }).waitFor();
@@ -2250,7 +2268,7 @@ describe("lancement des prestations : un anniversaire sur une seule box (cedric,
     await regie.click("#c-rescue");
     await regie.locator('#rescue-list [data-start="1"] button', { hasText: "Aller à ce jeu" }).click();
     await respond(regie);
-    await regie.locator("#r-toast", { hasText: "C'est parti pour « Animaux »" }).waitFor();
+    await regie.locator("#r-toast", { hasText: "Bilan des scores sur la TV, puis « Animaux »." }).waitFor();
     await waitFor(async () => (await read(`images/${PHOTO}`)) === PNG && (await read(`sounds/${SON}`)) === MP3, "photo et extrait recopiés dans la partie");
     await regie.context().close();
   });
@@ -4954,7 +4972,8 @@ describe("bibliothèque de quiz et prestations", () => {
     // « ▶ Rejouer maintenant » : les 2 questions juste après le quiz en cours, et la TV y va tout de suite.
     const avant = box.gotos.length;
     await regie.click("#lib-now");
-    await regie.locator("#r-toast", { hasText: "C'est reparti pour" }).waitFor();
+    // Quiz en cours : bilan des scores sur la TV d'abord (cedric, 24/10).
+    await regie.locator("#r-toast", { hasText: "Bilan des scores sur la TV, puis" }).waitFor();
     await regie.locator("#lib").waitFor({ state: "hidden" });
     assert.deepEqual(await textes(), ["Animal 0 ?", "Animal 1 ?", "Animal 2 ?", "Animal 3 ?", "Animal 5 ?"]);
     const nouveau = (await read("conducteur")).questions;
