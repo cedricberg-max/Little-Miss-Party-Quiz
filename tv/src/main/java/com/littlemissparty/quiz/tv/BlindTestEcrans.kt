@@ -3,6 +3,7 @@ package com.littlemissparty.quiz.tv
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -37,6 +38,8 @@ import com.littlemissparty.quiz.tv.habillage.BlindIntro
 import com.littlemissparty.quiz.tv.habillage.BlindRevelation
 import com.littlemissparty.quiz.tv.habillage.BlindTestBoard
 import com.littlemissparty.quiz.tv.habillage.Echelle
+import com.littlemissparty.quiz.tv.habillage.EchelleSansCoupe
+import com.littlemissparty.quiz.tv.habillage.Look
 import com.littlemissparty.quiz.tv.habillage.apparition
 import com.littlemissparty.quiz.tv.habillage.apres
 import com.littlemissparty.quiz.tv.habillage.rebond
@@ -82,16 +85,43 @@ fun BlindScene(q: Question, state: UiState.Playing, modifier: Modifier = Modifie
         state.phase == Phase.QUESTION && buzzer != null -> BlindBuzz(buzzer.name, buzzer.color.toColor(), modifier)
         state.phase == Phase.QUESTION && b != null && b.numero == 1 && b.waiting && !b.played ->
             BlindIntro(nomPlaylist(b.playlist), b.total, b.points, modifier)
-        else -> Echelle(880.dp, 400.dp, modifier) {
-            Row(Modifier.fillMaxSize()) {
-                val joue = state.phase == Phase.QUESTION && state.deadline != null && !state.paused && b?.waiting != true
-                val manquant = q.audioId == null || state.sounds[q.audioId] == null
-                BlindTestBoard(joue, manquant, Modifier.weight(1.1f).fillMaxHeight())
-                Spacer(Modifier.width(20.dp))
-                BlindPanel(q, state, Modifier.weight(1f).fillMaxHeight())
+        else -> {
+            val ecoute: @Composable BoxScope.() -> Unit = {
+                Row(Modifier.fillMaxSize()) {
+                    val joue = state.phase == Phase.QUESTION && state.deadline != null && !state.paused && b?.waiting != true
+                    val manquant = q.audioId == null || state.sounds[q.audioId] == null
+                    BlindTestBoard(joue, manquant, Modifier.weight(1.1f).fillMaxHeight())
+                    Spacer(Modifier.width(20.dp))
+                    BlindPanel(q, state, Modifier.weight(1f).fillMaxHeight())
+                }
             }
+            // Game Show : les lasers de la platine néon montent au-dessus de la scène, rien ne les coupe.
+            if (Look.gs) EchelleSansCoupe(880.dp, 400.dp, modifier, ecoute) else Echelle(880.dp, 400.dp, modifier, contenu = ecoute)
         }
     }
+}
+
+/**
+ * Quiz musical, révélation (cedric, 24/10) : celle du blind test en plus court, après la bonne réponse allumée sur les
+ * cartes. Pochette, titre et artiste ; avec un refrain préparé, ses paroles au rythme des quelques secondes de musique.
+ * Toutes les équipes qui ont trouvé sont félicitées, chacune dans sa couleur ; leurs points restent sous la scène.
+ */
+@Composable
+fun RevelationMusicale(q: Question, state: UiState.Playing, modifier: Modifier = Modifier) {
+    BlindRevelation(
+        cle = q.id,
+        pochette = pochette(q, state),
+        titre = q.choices.getOrNull(q.correct).orEmpty(),
+        artiste = q.artist,
+        gagnant = null,
+        points = 0,
+        double = false,
+        modifier = modifier,
+        chantons = q.refrainId?.let { it in state.sounds } == true,
+        paroles = q.paroles,
+        positionMs = PositionRefrain::ms,
+        gagnants = state.teams.filter { (state.awards[it.uid]?.points ?: 0) > 0 }.map { it.name to it.color.toColor() },
+    )
 }
 
 /**

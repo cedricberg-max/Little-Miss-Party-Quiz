@@ -5,7 +5,7 @@ import { parseQuiz, checkQuestions, geminiPrompt, resolveCorrect, chatgptImagePr
 import { MIME_CATALOG } from "../web/public/mime-cards.js";
 import { DISPARU_THEMES } from "../web/public/buzz-cards.js";
 import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, dureeEstimee, DUREE_ESTIMEE, roundFilled,
-  readiness, upcoming, daysUntil, isoDay, duplicateShow, etatPrestation, isArchived, ETATS, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
+  readiness, jeuxVides, upcoming, daysUntil, isoDay, duplicateShow, etatPrestation, isArchived, ETATS, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
   soundIds, choiceImageIds, choiceImageList, pictoSeriesList, pictoSeriesOf, foldLegacyFinale,
   roundQuizIds, MIME_RANDOM, alerteEquipes, EQUIPES_PAR_DEFAUT, PAR_EQUIPE_MIN,
   statuesSongs, statuesChoices, roundSongs, isStatuesList, couleursEquipes, mimePool, titreAuto, chiffresDuTirage,
@@ -17,7 +17,7 @@ import { songList, songsRetirees, songMatches, trackFromSong, songUpdates, marqu
 import { lireLrc, refrainDesParoles, refrainsDesParoles, debutDesParoles, parolesDuRefrain, associerParoles, nomSimple, ligneAuMoment } from "../web/public/paroles.js";
 import { volumes, explosionDuVolume, refrainAuVolume, PAS_VOLUME } from "../web/public/volume.js";
 import { lireId3 } from "../web/public/id3.js";
-import { FULL_SHOW, FULL_TUNES, tunePlaylist } from "../web/public/test-show.js";
+import { demosAEffacer, nbDemos, JEUX_DU_TEST, TEST_PRESTATION } from "../web/public/test-show.js";
 import { cadrageInitial, borner, zoomer, zoneGardee, BULLES } from "../web/public/cadrage.js";
 import { BANQUE_MOTS, QUESTIONS_PETITS, FAMILLES_PETITS, MODELES_PETITS, motBanque, cleMot, reponsesModele, fabriquerPetite, cataloguePetits, tirerPetits } from "../web/public/banque-petits.js";
 
@@ -294,14 +294,42 @@ describe("tableau de bord des prestations", () => {
 
   test("état de préparation : prête seulement quand tout est complet et visible sur la régie", () => {
     const ok = { childName: "Léa", age: 7, date: "2026-12-02", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }] };
-    assert.deepEqual(readiness(ok, quizzes), { level: "prete", todo: [] });
+    assert.deepEqual(readiness(ok, quizzes), { level: "prete", todo: [], alertes: [] });
     assert.deepEqual(readiness({ ...ok, status: "brouillon" }, quizzes).todo, ["Passer le statut à « À venir »"]);
-    assert.deepEqual(readiness({ childName: "Tom", status: "brouillon" }, quizzes).todo, ["Ajouter la date", "Indiquer l'âge", "Ajouter une manche"]);
+    assert.deepEqual(readiness({ childName: "Tom", status: "brouillon" }, quizzes).todo, ["Ajouter la date", "Indiquer l'âge", "Ajouter un jeu"]);
     const draftOnly = readiness({ ...ok, rounds: [{ type: "quiz", quizId: "draft" }] }, quizzes);
     assert.equal(draftOnly.level, "a-completer");
     assert.match(draftOnly.todo.join(), /aucune question validée/);
     assert.match(readiness({ ...ok, rounds: [{ type: "quiz", quizId: "efface" }] }, quizzes).todo.join(), /n'existe plus/);
     assert.equal(readiness({ ...ok, status: "archivee" }, quizzes).level, "archivee");
+  });
+
+  test("un jeu ajouté mais encore vide (cedric, 24/10) : à faire s'il ne se joue pas vide, simple alerte si la TV le tire au hasard", () => {
+    const ok = { childName: "Léa", age: 7, date: "2026-12-02", status: "publiee", teams: 4, rounds: [{ type: "quiz", quizId: "animaux" }] };
+    const avec = (...rounds) => readiness({ ...ok, rounds: [...ok.rounds, ...rounds] }, quizzes, {}, {}, {}, "2026-10-24");
+    // Ne se jouent pas vides : la prestation reste « À compléter », et la phrase dit ce qui manque (plus « n'existe plus »).
+    for (const [type, texte] of [["quiz", "Quiz (jeu 2) : aucune question choisie pour l'instant."], ["illustre", "Quiz illustré : aucune question choisie pour l'instant."],
+      ["express", "Vrai ou Faux express : aucune affirmation choisie pour l'instant."], ["zoom", "Zoom mystère : aucune photo choisie pour l'instant."],
+      ["flou", "Image floue : aucune photo choisie pour l'instant."], ["blind", "Blind test : aucune chanson choisie pour l'instant."],
+      ["musical", "Quiz musical : aucune chanson choisie pour l'instant."], ["mimes", "Mimes : aucune image tirée pour l'instant."]]) {
+      const r = avec({ type });
+      assert.equal(r.level, "a-completer", type);
+      assert.deepEqual(r.todo, [texte], type);
+      assert.deepEqual(r.alertes, [], type);
+    }
+    // La TV les tire au hasard : prête quand même, avec l'alerte.
+    for (const [round, texte] of [[{ type: "pictionary" }, "Pictionary : aucun mot choisi pour l'instant, la TV les tirera au hasard."],
+      [{ type: "disparu", count: 3 }, "Qui a disparu ? : aucune grille choisie pour l'instant, la TV en tirera 3 au hasard."],
+      [{ type: "chante" }, "Chante le mot ! : aucun mot choisi pour l'instant, la TV en tirera 6 au hasard."],
+      [{ type: "quisuis" }, "Qui suis-je ? : aucun personnage choisi pour l'instant, la TV en tirera 5 au hasard."]]) {
+      assert.deepEqual(avec(round), { level: "prete", todo: [], alertes: [texte] }, round.type);
+    }
+    // Rempli : plus rien ; les jeux sans rien à préparer ne sont jamais vides.
+    const grille = { theme: "Fruits", objects: ["pomme", "poire", "kiwi", "fraise", "cerise"].map((word) => ({ word, image: "🍎" })) };
+    assert.deepEqual(avec({ type: "disparu", seriesMots: [{ id: "de", origine: "de", mots: [grille] }] }).alertes, []);
+    assert.deepEqual(avec({ type: "pictionary", series: ["Animaux"] }).alertes, []);
+    assert.deepEqual(avec({ type: "statues" }, { type: "coffres" }, { type: "gonfleur" }, { type: "patate" }), { level: "prete", todo: [], alertes: [] });
+    assert.deepEqual(jeuxVides({ rounds: [{ type: "statues" }, { type: "chante" }] }).map((x) => [x.i, x.type, x.hasard]), [[1, "chante", true]]);
   });
 
   test("trois états, mêmes mots partout : À compléter, À venir, Archivée ; archivée toute seule le lendemain de la fête", () => {
@@ -318,7 +346,7 @@ describe("tableau de bord des prestations", () => {
     // « À venir » demande une date à venir : une date passée est signalée (sinon elle filerait dans les archives).
     const ok = { childName: "Léa", age: 7, date: "2026-10-20", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }] };
     assert.deepEqual(readiness({ ...ok, keepActive: true }, quizzes, {}, {}, {}, "2026-10-21").todo, ["Choisir une date à venir (celle-ci est passée)"]);
-    assert.deepEqual(readiness(ok, quizzes, {}, {}, {}, "2026-10-20"), { level: "prete", todo: [] });
+    assert.deepEqual(readiness(ok, quizzes, {}, {}, {}, "2026-10-20"), { level: "prete", todo: [], alertes: [] });
   });
 
   test("anniversaires à venir : du plus proche au plus lointain, sans les passés ni les archivés", () => {
@@ -390,25 +418,51 @@ describe("programme modifié pendant la partie", () => {
   });
 });
 
-describe("prestation de test", () => {
-  test("10 questions jouables pour 9 ans, chronos imposés, finale ×2, prête pour la régie", async () => {
-    const { TEST_ID, TEST_QUIZ, TEST_SHOW } = await import("../web/public/test-show.js");
-    const quizzes = { [TEST_ID]: TEST_QUIZ };
-    const { snapshot, problems } = buildSnapshot(TEST_ID, TEST_SHOW, quizzes);
-    assert.deepEqual(problems, []);
-    assert.equal(snapshot.title, "ANNIVERSAIRE TEST – Léa, 9 ans");
-    assert.equal(snapshot.profile, "MOYENS");
-    const q = snapshot.quiz.questions;
-    assert.equal(q.length, 11);
-    assert.deepEqual(q.map((x) => x.duration), [20, 20, 15, 20, 20, 20, 15, 20, 20, 20, 25]);
-    assert.deepEqual(q.map((x) => x.double), [false, false, false, false, false, false, false, false, false, false, true]);
-    // La question des bougies (cedric, 21/10), juste avant la Super Finale.
-    assert.deepEqual([q[9].kind, q[9].text, q[9].correct], ["number", "Le Juste Chiffre : combien de bougies sur le gâteau de Léa cette année ?", 9]);
-    assert.equal(q.filter((x) => x.kind === "true_false").length, 2);
-    const report = checkQuestions(TEST_QUIZ.questions, { profile: "MOYENS" });
-    assert.deepEqual(report.flatMap((r) => [...r.errors, ...r.warnings]), []);
-    // Avant sa date (elle s'archive toute seule le lendemain de la fête) : prête.
-    assert.equal(readiness(TEST_SHOW, quizzes, {}, {}, {}, "2026-10-21").level, "prete");
+describe("prestation de test (cedric, 24/10)", async () => {
+  const S = await import("../web/public/show.js");
+  test("les 16 jeux, une seule fois chacun, jamais deux fois le même à la suite, les Coffres mystères pour finir", () => {
+    assert.equal(JEUX_DU_TEST.length, 16);
+    assert.equal(new Set(JEUX_DU_TEST).size, 16);
+    assert.deepEqual([...JEUX_DU_TEST].sort(), Object.keys(S.ROUND_TYPES).filter((k) => !["finale", "portes"].includes(k)).sort());
+    assert.equal(JEUX_DU_TEST.at(-1), "coffres");
+  });
+
+  test("le bouton n'efface que les anciennes démos : jamais une prestation, un quiz, une image ou un son de Sarah, ni une démo qui lui sert encore", () => {
+    const h = (c) => c.repeat(16);
+    const lib = {
+      shows: {
+        "test-lea-tous-les-jeux": { origin: "test", rounds: [{ type: "zoom", quizId: "test-lea-tous-les-jeux-zoom" }, { type: "blind", playlistId: "test-lea-tous-les-jeux-comptines" }] },
+        "test-lea-9-ans": { origin: "test", rounds: [{ type: "quiz", quizId: "test-lea-9-ans" }] },
+        [TEST_PRESTATION]: { origin: "test", rounds: [{ type: "mimes", equipes: [[{ word: "Chat", banque: "chat" }]] }] },
+        "-Nautre": { origin: "test", rounds: [] },
+        ines: { origin: "admin", rounds: [{ type: "quiz", quizId: "animaux" }] },
+        // Une copie de démo que Sarah garde : son quiz reste.
+        tom: { copieDe: "test-lea-9-ans", rounds: [{ type: "quiz", quizId: "test-lea-9-ans" }] },
+      },
+      manches: { a: { showId: "test-lea-9-ans" }, b: { showId: TEST_PRESTATION }, c: { showId: "ines" } },
+      quizzes: {
+        animaux: { title: "Animaux", questions: [{ imageId: h("d") }] },
+        "test-lea-9-ans": { title: "TEST", questions: [] },
+        "test-lea-tous-les-jeux-zoom": { title: "TEST", questions: [{ imageId: h("a") }, { imageId: h("d") }, { imageId: h("e") }] },
+      },
+      mimes: { "test-lea-tous-les-jeux-mimes": { title: "TEST", cards: [{ imageId: h("f") }] } },
+      playlists: { "test-lea-tous-les-jeux-comptines": { title: "TEST", tracks: [{ audioId: h("b") }, { audioId: h("9") }] } },
+      songs: { s: { title: "Chanson", audioId: h("9") } },
+      // Rangée par Sarah dans « Mes images ».
+      medias: { [h("e")]: { name: "Fusée" } },
+    };
+    const plan = demosAEffacer(lib);
+    assert.deepEqual(plan.shows, ["test-lea-tous-les-jeux", "test-lea-9-ans", TEST_PRESTATION, "-Nautre"]);
+    assert.deepEqual(plan.manches, ["a", "b"]);
+    assert.deepEqual(plan.quizzes, ["test-lea-tous-les-jeux-zoom"], "le quiz de la copie de Tom reste");
+    assert.deepEqual(plan.mimes, ["test-lea-tous-les-jeux-mimes"]);
+    assert.deepEqual(plan.playlists, ["test-lea-tous-les-jeux-comptines"]);
+    // Les photos dessinées et la comptine partent ; celle du quiz de Sarah, la rangée et l'extrait d'une chanson restent.
+    assert.deepEqual(plan.medias.sort(), [h("a"), h("f"), h("b")].sort());
+    assert.equal(nbDemos(plan), 4 + 2 + 1 + 1 + 1 + 3);
+    // Rien à effacer.
+    assert.equal(nbDemos(demosAEffacer({ shows: { ines: lib.shows.ines }, quizzes: { animaux: lib.quizzes.animaux } })), 0);
+    assert.equal(nbDemos(demosAEffacer()), 0);
   });
 });
 
@@ -626,6 +680,11 @@ describe("blind test et quiz musical", () => {
       const track = playlist.tracks.find((t) => t.audioId === q.audioId);
       assert.equal(q.choices[q.correct], track.title, "la bonne réponse est le titre de l'extrait joué");
     }
+    // Quiz musical (cedric, 24/10) : la révélation du blind test en plus court, avec l'artiste, le refrain et ses paroles.
+    const hakuna = musical.find((q) => q.choices[q.correct] === "Hakuna Matata");
+    assert.deepEqual([hakuna.artist, hakuna.refrainId, hakuna.lyrics], ["Le Roi lion", ID(5), "0|Hakuna matata"]);
+    const ocean = musical.find((q) => q.choices[q.correct] === "Sous l'océan");
+    assert.deepEqual([ocean.artist, ocean.refrainId, ocean.lyrics], [undefined, undefined, undefined]);
     assert.deepEqual(programRounds(qs).map((r) => r.title), ["Blind test · Dessins animés", "Quiz musical · Dessins animés"]);
     assert.equal(soundIds(qs).length, 5, "4 extraits et 1 refrain");
     assert.equal(roundFilled({ type: "blind" }), false);
@@ -662,7 +721,7 @@ describe("blind test et quiz musical", () => {
     assert.match(musical.problems.join(), /au moins 2 morceaux/);
     const blind = buildSnapshot("s", { childName: "Tom", age: 8, rounds: [{ type: "blind", playlistId: "o" }] }, {}, {}, Math.random, { o: one });
     assert.equal(blind.snapshot.quiz.questions.length, 1);
-    assert.deepEqual(readiness({ childName: "Tom", age: 8, date: "2026-12-02", status: "publiee", rounds: [{ type: "blind", playlistId: "o" }] }, {}, {}, { o: one }), { level: "prete", todo: [] });
+    assert.deepEqual(readiness({ childName: "Tom", age: 8, date: "2026-12-02", status: "publiee", rounds: [{ type: "blind", playlistId: "o" }] }, {}, {}, { o: one }), { level: "prete", todo: [], alertes: [] });
   });
   test("titre et artiste devinés depuis le nom du fichier", () => {
     assert.deepEqual(guessTrack("Stromae - Alors on danse.mp3"), { artist: "Stromae", title: "Alors on danse" });
@@ -686,14 +745,6 @@ describe("blind test et quiz musical", () => {
     const silence = new Float32Array(1000);
     assert.equal(normalizeLevel(silence), 1);
     assert.ok(silence.every((x) => x === 0));
-  });
-  test("la prestation de test « tous les jeux » a un blind test et un quiz musical de comptines du domaine public", () => {
-    const pl = tunePlaylist(FULL_TUNES.map((_, i) => ID(i)));
-    const { snapshot, problems } = buildSnapshot("t", FULL_SHOW, {}, {}, Math.random, { [FULL_SHOW.rounds.find((r) => r.type === "blind").playlistId]: pl });
-    assert.ok(pl.tracks.every((t) => t.rights === "Domaine public"));
-    const kinds = snapshot.quiz.questions.map((q) => q.kind);
-    assert.equal(kinds.filter((k) => k === "blind").length, FULL_TUNES.length);
-    assert.ok(problems.every((p) => !/playlist|morceau/.test(p)));
   });
 });
 
@@ -783,7 +834,7 @@ describe("Super Finale : les dernières questions du quiz, pas un jeu à part", 
     assert.deepEqual(one.quiz.questions.map((q) => q.double ?? false), [false, true]);
     assert.deepEqual(play([{ type: "quiz", quizId: "a", finale: 9 }]).snapshot.quiz.questions.map((q) => q.double), [true, true], "jamais plus que le quiz");
     assert.deepEqual(play([{ type: "quiz", quizId: "a" }]).snapshot.quiz.questions.map((q) => q.double), [false, false], "sans réglage : rien ×2");
-    assert.deepEqual(play([{ type: "express", quizId: "a", finale: 2 }]).snapshot?.quiz.questions.map((q) => q.double ?? false) ?? [], play([{ type: "express", quizId: "a" }]).snapshot?.quiz.questions.map((q) => q.double ?? false) ?? [], "seulement pour le Quiz");
+    assert.deepEqual(play([{ type: "flou", quizId: "a", finale: 2 }]).snapshot?.quiz.questions.map((q) => q.double ?? false) ?? [], play([{ type: "flou", quizId: "a" }]).snapshot?.quiz.questions.map((q) => q.double ?? false) ?? [], "pas à l'Image floue");
   });
 
   test("après un quiz : ses questions ×2 terminent ce quiz, sous son titre", () => {
@@ -1248,7 +1299,6 @@ describe("banque des tout-petits", () => {
 describe("Quiz illustré : un jeu à part, les quiz à réponses en images", async () => {
   const M = await import("../web/public/manches.js");
   const S = await import("../web/public/show.js");
-  const T = await import("../web/public/test-show.js");
   const img = (n) => `${n}`.repeat(16);
   const PETITS = { title: "Animaux des petits", kind: "photo", questions: [
     { text: "Où est le chat ?", choices: ["Chat", "Chien", "Vache", "Lion"], correct: 0, status: "validee", choiceImages: [img(1), img(2), img(3), img(4)] },
@@ -1353,13 +1403,6 @@ describe("Quiz illustré : un jeu à part, les quiz à réponses en images", asy
     }
   });
 
-  test("prestation de test « tous les jeux » : le quiz des petits est un Quiz illustré, plus de quiz classique nommé « illustré »", () => {
-    assert.ok(T.FULL_SHOW.rounds.some((r) => r.type === "illustre" && r.quizId === T.FULL_KEYS.images));
-    assert.equal(T.imageQuiz([[img(1), img(2), img(3), img(4)], [img(1), img(2), img(3), img(4)]]).title, "TEST – Quiz illustré des petits");
-    assert.equal(T.FULL_QUIZZES[T.FULL_KEYS.quiz].title, "TEST – Quiz classique de Léa");
-    assert.equal(S.quizKind(T.FULL_QUIZZES[T.FULL_KEYS.quiz]), "classique");
-    assert.deepEqual(T.OLD_TEST_TITLES, { "TEST – Quiz en images des petits": "TEST – Quiz illustré des petits", "TEST – Quiz illustré de Léa": "TEST – Quiz classique de Léa" });
-  });
 });
 
 describe("collections, manches et prestation", async () => {
@@ -2580,7 +2623,7 @@ describe("Mes questions : supprimer, en vrac par thème, packs rangés par thèm
       ["Animaux", ["p7"]], ["disney", ["p2", "p4"]], ["Éléphants", ["p6"]], ["Musique", ["p1"]], [Q.SANS_THEME, ["p3", "p5"]],
     ]);
     assert.deepEqual(Q.packsParTheme([]), []);
-    assert.deepEqual(Object.values(Q.GROUPES_QUESTIONS), ["📝 Quiz classique tout prêt", "🖼️ Quiz illustré tout prêt", "✍️ Mes questions en vrac", "📥 Mes packs par thème", "🧪 Questions de test"]);
+    assert.deepEqual(Object.values(Q.GROUPES_QUESTIONS), ["📝 Quiz classique tout prêt", "🖼️ Quiz illustré tout prêt", "✅ Vrai ou Faux tout prêt", "✍️ Mes questions en vrac", "📥 Mes packs par thème", "🔍 Mes séries de photos", "🧪 Questions de test"]);
   });
 
   test("questions de test : celles des prestations de test (clés « test-… ») sont à part, en vrac comme en pack", () => {
@@ -2602,6 +2645,222 @@ describe("Mes questions : supprimer, en vrac par thème, packs rangés par thèm
     assert.equal(Q.estQuizDeTest("test-lea-9-ans"), true);
     assert.equal(Q.estQuizDeTest("-Ntest-lea"), false);
     assert.equal(Q.estQuizDeTest(undefined), false);
+  });
+});
+
+describe("Zoom mystère et Image floue en séries, comme le Quiz (cedric, 23/10)", async () => {
+  const S = await import("../web/public/show.js");
+  const M = await import("../web/public/manches.js");
+  const Q = await import("../web/public/questions.js");
+  const { questionBanque } = await import("../web/public/banque-photos.js");
+  const A = "a".repeat(16);
+  const B = "b".repeat(16);
+  const photo = (imageId, mot) => ({ text: "Qu'est-ce que c'est ?", choices: [mot, "Anna", "Simba", "Nemo"], correct: 0, imageId, status: "validee" });
+  const quizzes = { disney: { title: "Disney", kind: "images", source: "photos", questions: [photo(A, "Elsa"), photo(B, "Olaf")] } };
+  const vue = (qs) => qs.map((q) => [q.kind, q.imageId ?? q.banque, q.choices[q.correct]]);
+
+  test("photos choisies une par une (avant) : une série copiée, le même jeu sur la TV", () => {
+    const avant = { type: "zoom", picks: [B, "banque:vache"] };
+    const round = M.versSeriesQuiz(avant, quizzes);
+    assert.deepEqual(round.seriesQuiz.map((x) => [x.origine, x.titre]), [["reprise", "Photos choisies"]]);
+    assert.deepEqual(round.seriesQuiz[0].questions.map((q) => q.id), [`i:${B}`, "b:vache"]);
+    assert.equal(round.picks, undefined);
+    const propre = M.cleanRound(round);
+    assert.deepEqual(Object.keys(propre).sort(), ["seriesQuiz", "type"]);
+    const tv = (r) => S.buildSnapshot("s", { rounds: [r] }, quizzes).snapshot.quiz.questions;
+    assert.deepEqual(vue(tv(propre)), vue(tv(avant)));
+    assert.deepEqual(vue(tv(propre)), [["zoom", B, "Olaf"], ["zoom", "vache", questionBanque("vache").choices[questionBanque("vache").correct]]]);
+    // Une manche du téléphone (photos choisies, sans séries) reste comme avant.
+    assert.deepEqual(M.cleanRound({ type: "flou", picks: [A] }), { type: "flou", picks: [A] });
+  });
+
+  test("une série de photos entière : gardée comme avant ; ✕ retire une photo par son image (elles disent toutes « Qu'est-ce que c'est ? »)", () => {
+    const entiere = M.versSeriesQuiz({ type: "flou", quizId: "disney" }, quizzes);
+    assert.deepEqual(entiere.seriesQuiz.map((x) => [x.origine, x.quizId]), [["quiz", "disney"]]);
+    assert.deepEqual(M.cleanRound(entiere), { type: "flou", quizId: "disney" });
+    const sansElsa = { type: "flou", seriesQuiz: [{ id: "q1", origine: "quiz", quizId: "disney", sans: [S.signatureQuestion(photo(A, "Elsa"), "flou")] }] };
+    assert.deepEqual(S.questionsDesSeries(sansElsa, quizzes).map((q) => q.imageId), [B]);
+    const { snapshot } = S.buildSnapshot("s", { rounds: [M.cleanRound(sansElsa)] }, quizzes);
+    assert.deepEqual(vue(snapshot.quiz.questions), [["flou", B, "Olaf"]]);
+    assert.equal(snapshot.quiz.questions[0].round, "Image floue");
+    assert.equal(S.signatureQuestion(photo(A, "Elsa"), "zoom"), `i:${A}`);
+    assert.equal(S.signatureQuestion({ text: "Qu'est-ce que c'est ?", banque: "vache" }, "flou"), "b:vache");
+    assert.equal(S.signatureQuestion({ text: " Capitale ? " }, "quiz"), "capitale ?");
+  });
+
+  test("🎲, série de la bibliothèque et ordre rangé : l'ordre du « complet » va jusqu'à la TV, sans Super Finale ; « Jamais deux fois » voit chaque photo", () => {
+    const vache = questionBanque("vache");
+    const round = {
+      type: "zoom", finale: 3, facteur: 3,
+      seriesQuiz: [
+        { id: "de", origine: "de", famille: "animaux", questions: [{ id: "b:vache", text: vache.text, choices: [...vache.choices], correct: vache.correct, banque: "vache" }] },
+        { id: "q1", origine: "quiz", quizId: "disney" },
+      ],
+      ordreQuiz: [`q1|t:i:${A}`, "de|b:vache", `q1|t:i:${B}`],
+    };
+    const propre = M.cleanRound(round);
+    assert.equal(propre.finale, undefined, "pas de Super Finale au Zoom mystère");
+    assert.equal(propre.facteur, undefined);
+    assert.equal(propre.seriesQuiz[0].famille, "animaux");
+    const qs = S.buildSnapshot("s", { rounds: [propre] }, quizzes).snapshot.quiz.questions;
+    assert.deepEqual(qs.map((q) => q.imageId ?? q.banque), [A, "vache", B]);
+    assert.ok(qs.every((q) => q.kind === "zoom" && q.double === false));
+    assert.equal(M.resumeDesSeries(propre, quizzes), "3 photos : 🎲 1 tirée (Animaux) · 📚 Disney (2)");
+    const vus = S.fixedConcepts(propre, quizzes);
+    for (const c of [`i:${A}`, `i:${B}`, "m:vache", "m:elsa"]) assert.ok(vus.includes(c), c);
+    assert.equal(S.roundFilled(propre), true);
+  });
+
+  test("Bibliothèque › Questions : ses séries de photos à part, ni dans ses questions en vrac ni dans ses packs", () => {
+    const q = (text) => ({ text, choices: ["Oui", "Non"], correct: 0, status: "validee" });
+    const lib = {
+      disney: { title: "Disney", theme: "Dessins animés", kind: "images", source: "photos", updatedAt: 3, questions: [photo(A, "Elsa"), photo(B, "Olaf")] },
+      importee: { title: "Animaux en photos", kind: "images", source: "json", updatedAt: 2, questions: [photo(A, "Lion")] },
+      pack: { title: "Pack", source: "json", updatedAt: 1, questions: [q("Pack ?")] },
+      mien: { title: "Mien", source: "saisie", updatedAt: 1, questions: [q("À moi ?")] },
+      "test-photos": { title: "TEST – photos", kind: "images", source: "photos", questions: [photo(A, "Test")] },
+    };
+    assert.deepEqual(Q.mesSeriesDePhotos(lib).map((p) => [p.id, p.total, p.groupe ?? p.questions[0].groupe]), [["disney", 2, "photos"], ["importee", 1, "photos"]]);
+    assert.deepEqual(Q.mesPacks(lib).map((p) => p.id), ["pack"]);
+    assert.deepEqual(Q.mesQuestions(lib).map((x) => x.cle), ["mien/0"]);
+    assert.deepEqual(Q.questionsDeTest(lib).map((x) => x.cle), ["test-photos/0"]);
+  });
+
+  test("« ⭐ Composer avec vos images » : leur nom pour réponse, 4 propositions sans doublon, ni image sans nom ni image déjà là ; la TV les joue", () => {
+    const [C, D, E, F] = ["c", "d", "e", "f"].map((x) => x.repeat(16));
+    const mes = [{ id: C, nom: " Mamie Jo " }, { id: D, nom: "Tigre" }, { id: E, nom: "" }, { id: A, nom: "Elsa" }, { id: "pas-une-image", nom: "Rien" }];
+    const graine = (n) => () => ((n = (n * 16807) % 2147483647) - 1) / 2147483646;
+    const qs = M.photosDeMesImages(mes, { deja: [A], secours: ["tigre", "Vache", "Chat", "Mamie jo"], random: graine(3) });
+    assert.deepEqual(qs.map((q) => [q.id, q.imageId, q.choices[q.correct], q.text]), [
+      [`i:${C}`, C, "Mamie Jo", "Qu'est-ce que c'est ?"], [`i:${D}`, D, "Tigre", "Qu'est-ce que c'est ?"]]);
+    for (const q of qs) {
+      assert.equal(q.choices.length, 4);
+      assert.equal(new Set(q.choices.map((c) => c.toLowerCase())).size, 4, `sans doublon : ${q.choices}`);
+    }
+    // D'abord les autres réponses de la série et du même ajout, avant les mots de secours.
+    assert.ok(qs[0].choices.includes("Tigre") && qs[1].choices.includes("Mamie Jo"));
+    const fin = M.photosDeMesImages([{ id: F, nom: "Licorne" }], { voisines: ["Mamie Jo", "Tigre"], secours: ["Vache"], random: graine(5) })[0];
+    assert.deepEqual([...fin.choices].sort(), ["Licorne", "Mamie Jo", "Tigre", "Vache"]);
+    // Une seule image et rien d'autre : jouable quand même s'il y a un mot de secours.
+    assert.equal(M.photosDeMesImages([{ id: F, nom: "Licorne" }], { secours: ["Vache"] })[0].choices.length, 2);
+
+    const round = { type: "zoom", seriesQuiz: [{ id: "m1", origine: "images", questions: [...qs, fin] }] };
+    const propre = M.cleanRound(round);
+    assert.deepEqual(propre.seriesQuiz.map((x) => [x.origine, x.questions.length]), [["images", 3]]);
+    assert.equal(M.resumeDesSeries(propre, {}), "3 photos : ⭐ 3 choisies dans la bibliothèque");
+    const { snapshot, problems } = S.buildSnapshot("s", { age: 7, rounds: [propre] }, {});
+    assert.deepEqual(problems, []);
+    assert.deepEqual(snapshot.quiz.questions.map((q) => [q.kind, q.imageId, q.choices[q.correct]]),
+      [["zoom", C, "Mamie Jo"], ["zoom", D, "Tigre"], ["zoom", F, "Licorne"]]);
+    // « Jamais deux fois » : une image de « Mes images » se reconnaît à son image, comme les séries de photos.
+    assert.equal(S.signatureQuestion(qs[0], "flou"), `i:${C}`);
+  });
+});
+
+describe("Vrai ou Faux express en séries, avec sa banque d'affirmations toutes prêtes (cedric, 23/10)", async () => {
+  const VF = await import("../web/public/banque-vrai-faux.js");
+  const S = await import("../web/public/show.js");
+  const M = await import("../web/public/manches.js");
+  const Q = await import("../web/public/questions.js");
+  const { NIVEAUX_CHIFFRES } = await import("../web/public/banque-chiffres.js");
+  // Hasard rejouable : les mêmes tirages à chaque essai.
+  const graine = (n) => () => ((n = (n * 16807) % 2147483647) - 1) / 2147483646;
+
+  test("la banque : des affirmations courtes et uniques, trois niveaux, des thèmes connus, autant de vraies que de fausses à peu près", () => {
+    const A = VF.AFFIRMATIONS;
+    assert.ok(A.length >= 200, `${A.length} affirmations`);
+    assert.equal(new Set(A.map((x) => x.id)).size, A.length, "identifiants uniques");
+    assert.equal(new Set(A.map((x) => x.text.toLowerCase())).size, A.length, "textes uniques");
+    for (const x of A) {
+      assert.ok(VF.THEMES_VRAI_FAUX[x.theme], `${x.text} : thème ${x.theme}`);
+      assert.ok([1, 2, 3].includes(x.niveau), x.text);
+      assert.deepEqual([x.ageMin, x.ageMax], NIVEAUX_CHIFFRES[x.niveau]);
+      assert.deepEqual(x.choices, ["Vrai", "Faux"]);
+      assert.equal(x.correct, x.vrai ? 0 : 1);
+      assert.match(x.text, /^[A-ZÀ-ÖØ-Ý0-9].*\.$/u, `${x.text} : une phrase`);
+      assert.ok(x.text.split(/\s+/).length <= 16, `${x.text} : trop longue`);
+      assert.ok(x.id.length <= 64 && /^vf-[a-z0-9-]+$/.test(x.id), x.id);
+    }
+    for (const niveau of [1, 2, 3]) {
+      const du = A.filter((x) => x.niveau === niveau);
+      const vraies = du.filter((x) => x.vrai).length;
+      assert.ok(du.length >= 50, `niveau ${niveau} : ${du.length}`);
+      assert.ok(vraies >= du.length * 0.35 && vraies <= du.length * 0.65, `niveau ${niveau} : ${vraies} vraies sur ${du.length}`);
+    }
+    // Elles se jouent telles quelles au Vrai ou Faux express.
+    assert.equal(S.expressQuestions({ questions: A.map((x) => ({ ...x, status: "validee" })) }).length, A.length);
+  });
+
+  test("le tirage : du niveau demandé, moitié vraies moitié fausses, jamais une affirmation déjà prise, ni deux fois la même", () => {
+    for (const n of [1, 6, 7, 10]) {
+      const t = VF.tirerAffirmations(n, { niveau: 2, rng: graine(n) });
+      assert.equal(t.length, n);
+      assert.ok(t.every((x) => x.niveau === 2));
+      assert.equal(new Set(t.map((x) => x.id)).size, n);
+      const vraies = t.filter((x) => x.vrai).length;
+      assert.ok(Math.abs(vraies - (n - vraies)) <= 1, `${n} : ${vraies} vraies`);
+    }
+    const premier = VF.tirerAffirmations(10, { niveau: 1, rng: graine(3) });
+    const second = VF.tirerAffirmations(10, { niveau: 1, rng: graine(3), exclus: new Set(premier.map((x) => x.text)) });
+    assert.equal(second.length, 10);
+    assert.ok(second.every((x) => !premier.some((y) => y.text === x.text)), "jamais deux fois");
+    // Plus assez d'un côté : complété de l'autre ; plus rien de libre : rien.
+    const liste = VF.AFFIRMATIONS.filter((x) => x.niveau === 3).filter((x, k, all) => x.vrai || all.filter((y) => !y.vrai).indexOf(x) < 1);
+    assert.equal(VF.tirerAffirmations(6, { liste, rng: graine(5) }).length, 6);
+    assert.deepEqual(VF.tirerAffirmations(4, { niveau: 1, exclus: new Set(VF.AFFIRMATIONS.map((x) => x.text)) }), []);
+  });
+
+  test("une manche en séries : 🎲, Vrai / Faux d'un de ses quiz, ordre rangé ; la TV les joue dans cet ordre, Super Finale sur les dernières", () => {
+    const quizzes = {
+      sciences: { title: "Sciences", source: "tableur", questions: [
+        { text: "Le Soleil est une étoile", choices: ["Vrai", "Faux"], correct: 0, status: "validee" },
+        { text: "Planète la plus proche ?", choices: ["Mercure", "Mars"], correct: 0, status: "validee" },
+        { text: "Les poissons volent", choices: ["Vrai", "Faux"], correct: 1, status: "validee" },
+      ] },
+    };
+    const [a, b] = VF.tirerAffirmations(2, { niveau: 2, rng: graine(7) });
+    const enLigne = (x) => ({ id: x.id, text: x.text, choices: ["Vrai", "Faux"], correct: x.correct });
+    const round = {
+      type: "express", finale: 2, facteur: 3,
+      seriesQuiz: [
+        { id: "de", origine: "de", profil: "MOYENS", questions: [enLigne(a), enLigne(b)] },
+        { id: "q1", origine: "quiz", quizId: "sciences", sans: ["les poissons volent"] },
+      ],
+      ordreQuiz: [`de|${b.id}`, "q1|t:le soleil est une étoile", `de|${a.id}`],
+    };
+    const propre = M.cleanRound(round);
+    // Super Finale comme au Quiz (cedric, 23/10 : « à l'image du quiz principal ») : les 2 dernières, ×3.
+    assert.equal(propre.finale, 2);
+    assert.equal(propre.facteur, 3);
+    assert.equal(propre.seriesQuiz[0].profil, "MOYENS");
+    assert.deepEqual(propre.seriesQuiz[0].questions.map((q) => q.id), [a.id, b.id]);
+    const { snapshot, problems } = S.buildSnapshot("s", { childName: "Léa", age: 9, rounds: [propre] }, quizzes);
+    assert.deepEqual(problems, []);
+    const qs = snapshot.quiz.questions;
+    assert.deepEqual(qs.map((q) => q.text), [b.text, "Le Soleil est une étoile", a.text]);
+    assert.ok(qs.every((q) => q.kind === "express" && q.round === "Vrai ou Faux express"));
+    assert.deepEqual(qs.map((q) => q.double), [false, true, true]);
+    assert.deepEqual(qs.map((q) => q.finale === true), [false, true, true]);
+    assert.deepEqual(snapshot.facteurs, { [qs[1].id]: 3 }, "le téléphone propose ×3 juste avant");
+    assert.deepEqual(snapshot.rounds.map((x) => x.finale), [2]);
+    assert.deepEqual(qs.map((q) => q.choices[q.correct]), [b.vrai ? "Vrai" : "Faux", "Vrai", a.vrai ? "Vrai" : "Faux"]);
+    assert.equal(M.resumeDesSeries(propre, quizzes), "3 affirmations : 🎲 2 tirées (Moyens) · 📚 Sciences (1)");
+    // Une ancienne manche (un quiz, ses N premières) : les mêmes affirmations, en séries ; seule, gardée comme avant.
+    const ancienne = { type: "express", quizId: "sciences", count: 1 };
+    const enSeries = M.versSeriesQuiz(ancienne, quizzes);
+    assert.deepEqual(enSeries.seriesQuiz, [{ id: "q-sciences", origine: "quiz", quizId: "sciences", sans: ["les poissons volent"] }]);
+    const tv = (r) => S.buildSnapshot("s", { age: 9, rounds: [r] }, quizzes).snapshot.quiz.questions.map((q) => q.text);
+    assert.deepEqual(tv(M.cleanRound(enSeries)), tv(ancienne));
+    assert.deepEqual(M.cleanRound(M.versSeriesQuiz({ type: "express", quizId: "sciences" }, quizzes)), { type: "express", quizId: "sciences" });
+  });
+
+  test("Bibliothèque › Questions : « ✅ Vrai ou Faux tout prêt », par niveau et par thème, sans alerte d'illustration", () => {
+    const items = Q.questionsVraiFauxPretes();
+    assert.equal(items.length, VF.AFFIRMATIONS.length);
+    assert.ok(items.every((x) => x.groupe === "vraifaux" && x.ok && x.validee && x.vraiFaux && x.choices.join("/") === "Vrai/Faux"));
+    const lune = items.find((x) => x.text === "La Lune tourne autour de la Terre.");
+    assert.deepEqual([lune.correct, lune.niveau, lune.categorie, lune.source], [0, 1, "Espace et sciences", "Vrai ou Faux tout prêt · Facile · 5 à 8 ans"]);
+    assert.ok(Q.questionCorrespond(lune, "lune"));
   });
 });
 
@@ -2767,5 +3026,206 @@ describe("Le quiz classique tout prêt : Juste Chiffre et questions à 4 répons
     // Une question Moyen sans photo aurait son alerte (jamais d'émoji à ce niveau).
     const [sans] = Q.questionsClassiquesPretes([{ ...C.QUESTIONS_CLASSIQUES.find((x) => x.niveau === 2), photo: undefined }]);
     assert.deepEqual([sans.ok, sans.manque, sans.image, sans.photo], [false, "Pas d'illustration", null, null]);
+  });
+});
+
+describe("Mimes : une manche par équipe, sa présélection tirée au 🎲 (cedric, 23/10)", async () => {
+  const S = await import("../web/public/show.js");
+  const M = await import("../web/public/manches.js");
+  const B = await import("../web/public/banque-photos.js");
+  const { TEAM_COLORS } = await import("../web/public/theme.js");
+  const carte = (word, extra = {}) => ({ word, ...extra });
+  // Équipes rose, vert, orange (ordre choisi dans la prestation) : chacune ses images.
+  const round = {
+    type: "mimes", source: "photos", perTeam: 3, duration: 45,
+    equipes: [
+      [carte("Vache", { image: "🐄", banque: "vache" }), carte("Chat", { image: "🐱", banque: "chat" }), { vide: true }],
+      [carte("Lion", { image: "🦁" }), carte("Ma tata", { imageId: "0123456789abcdef" }), carte("Pomme", { image: "🍎" })],
+      [carte("Vélo", { image: "🚲" })],
+    ],
+  };
+  const show = { title: "Fête de Zoé", age: 9, teams: 3, teamColors: [TEAM_COLORS[0], TEAM_COLORS[2], TEAM_COLORS[1]], rounds: [round] };
+
+  test("titre d'une manche d'équipe ↔ sa couleur, pour les 8 couleurs ; une manche de mimes ordinaire n'a pas de couleur", () => {
+    TEAM_COLORS.forEach((c) => assert.equal(S.couleurMimeEquipe(S.titreMimeEquipe(c)), c));
+    assert.equal(S.titreMimeEquipe(TEAM_COLORS[1]), "Équipe Orange");
+    assert.equal(S.couleurMimeEquipe("Équipe turquoise"), TEAM_COLORS[7]);
+    for (const t of ["Mimes", "Mimes au hasard", "Équipe des Licornes", "Équipe", "", null]) assert.equal(S.couleurMimeEquipe(t), null, `${t}`);
+  });
+
+  test("enregistrée : source, images par équipe (dans l'ordre des couleurs, cases retirées comprises), durée ; lue par rang", () => {
+    const propre = M.cleanRound({ ...round, deckId: "vieux", cards: [carte("Vieille")], random: true, photos: true });
+    assert.deepEqual(Object.keys(propre).sort(), ["duration", "equipes", "perTeam", "source", "type"]);
+    assert.equal(propre.equipes.length, 3);
+    assert.deepEqual(propre.equipes[0][2], { vide: true });
+    assert.deepEqual(propre.equipes[0][0], { word: "Vache", image: "🐄", banque: "vache" });
+    assert.deepEqual(propre.equipes[1][1], { word: "Ma tata", imageId: "0123456789abcdef" });
+    // Source inconnue : les photos libres.
+    assert.equal(M.cleanRound({ ...round, source: "pirate" }).source, "photos");
+    // La base garde une équipe sans images comme un trou : la 3e équipe reste la 3e.
+    const relue = { ...round, equipes: { 0: round.equipes[0], 3: round.equipes[2] } };
+    assert.equal(S.mimeEquipes(relue).length, 4);
+    assert.deepEqual(S.mimeEquipes(relue)[1], []);
+    assert.equal(S.mimeEquipes(relue)[3][0].word, "Vélo");
+    assert.ok(S.roundFilled(round));
+    assert.equal(M.mancheSummary(round), "6 images pour 3 équipes · 📷 Photos libres · tour de 45 s");
+    // Sans aucune image : rien à jouer, la manche n'est pas gardée.
+    assert.ok(!S.roundFilled({ type: "mimes", source: "emojis", equipes: [[{ vide: true }]] }));
+  });
+
+  test("la TV : une manche par équipe, dans l'ordre des couleurs de la prestation, sous un seul jeu « Mimes » (une seule présentation)", () => {
+    const { snapshot, problems } = S.buildSnapshot("zoe", show, {}, {}, () => 0.5);
+    // La case retirée de l'équipe Rose ne se joue pas ; « Reste à faire » la signale (cedric, 24/10).
+    assert.deepEqual(problems, ["Manche 1 (Mimes) : il manque 1 image (case 🎲 vide) : Équipe Rose."]);
+    const qs = snapshot.quiz.questions;
+    assert.deepEqual(qs.map((q) => q.text), ["Équipe Rose", "Équipe Vert", "Équipe Orange"]);
+    assert.deepEqual(qs.map((q) => q.id), ["r1m1", "r1m2", "r1m3"]);
+    assert.ok(qs.every((q) => q.kind === "mime" && q.round === "Mimes" && q.duration === 45));
+    assert.deepEqual(snapshot.rounds.map((r) => [r.title, r.count]), [["Mimes", 3]]);
+    // Chaque équipe ne mime que ses images ; une case retirée ne se joue pas.
+    assert.deepEqual(qs[0].cards.map((c) => c.word).sort(), ["Chat", "Vache"]);
+    assert.deepEqual(qs[1].cards.map((c) => c.word).sort(), ["Lion", "Ma tata", "Pomme"]);
+    assert.equal(qs[1].cards.find((c) => c.word === "Ma tata").imageId, "0123456789abcdef");
+    // Photos libres : copiées dans la partie par la régie au lancement.
+    assert.deepEqual(B.banqueRefs(qs).map((x) => x.cle).sort(), ["chat", "vache"]);
+    // La régie copie aussi ses images à elle.
+    assert.ok(S.choiceImageIds(qs).includes("0123456789abcdef"));
+  });
+
+  test("une équipe prévue sans images : signalée (programme, alerte rouge), les autres jouent", () => {
+    const sans = { ...show, teams: 4, teamColors: [...show.teamColors, TEAM_COLORS[3]] };
+    const { snapshot, problems } = S.buildSnapshot("zoe", sans, {}, {}, () => 0.5);
+    assert.equal(snapshot.quiz.questions.length, 3);
+    assert.match(problems.join(" "), /équipe jaune sans images/);
+    assert.equal(S.alerteEquipes(round, 4, { couleurs: sans.teamColors }), "Mimes : équipe jaune sans images (touchez 🎲).");
+    assert.equal(S.alerteEquipes(round, 3, { couleurs: show.teamColors }), null);
+  });
+
+  test("durée estimée : un tour par équipe ; « jamais deux fois » : les images des mimes comptent dans toute la prestation", () => {
+    const { snapshot } = S.buildSnapshot("zoe", show, {}, {}, () => 0.5);
+    const D = S.DUREE_ESTIMEE;
+    const seul = { ...show, rounds: [] };
+    const avec = S.dureeEstimee(snapshot, show);
+    // 3 tours de 45 s, chacun suivi du changement d'équipe, et une présentation de jeu (pas trois).
+    const jeu = 3 * (45 + D.apresMime) + D.presentation;
+    const attendu = Math.ceil(((jeu + D.accueil + D.podium) * (1 + D.pauses)) / 300) * 5;
+    assert.equal(avec.minutes, attendu);
+    assert.equal(avec.jeux, 1);
+    assert.equal(S.dureeEstimee(null, seul), null);
+    const ailleurs = M.usedElsewhere([round, { type: "pictionary" }], 1);
+    for (const mot of ["vache", "lion", "velo"]) assert.ok([...ailleurs.keys()].some((k) => k.includes(mot)), mot);
+    assert.ok(ailleurs.has("i:0123456789abcdef"));
+  });
+
+  test("Banque (cedric, 24/10) : les images bonnes pour le mime, par âge ; chaque mot existe ; le 🎲 des Petits n'en tire que de faciles", async () => {
+    const { MIMES_BANQUE, niveauMime, niveauxPourProfil, etiquetteMime } = await import("../web/public/banque-mimes.js");
+    const { mimeAges } = await import("../web/public/show.js");
+    const mots = new Set(BANQUE_MOTS.map((m) => m.mot));
+    assert.deepEqual([...MIMES_BANQUE.keys()].filter((m) => !mots.has(m)), [], "chaque mot de mime est dans la banque");
+    for (const m of ["Voiture", "Maison", "Chat", "Avion", "Brosse à dents"]) assert.equal(niveauMime(m), 1, m);
+    for (const m of ["Poireau", "Règle", "Nez", "Table"]) assert.equal(niveauMime(m), 0, `${m} ne se mime pas`);
+    assert.equal(niveauMime("Pompier"), 1, "carte de mimes facile");
+    assert.equal(niveauMime("Vampire"), 2, "carte de mimes plus dure");
+    assert.ok([...MIMES_BANQUE.values()].filter((n) => n === 1).length >= 75, "assez d'images faciles pour les Petits");
+    assert.deepEqual(niveauxPourProfil("PETITS"), [[1]]);
+    assert.deepEqual(niveauxPourProfil("MOYENS"), [[2], [1]]);
+    assert.deepEqual(niveauxPourProfil("GRANDS"), [[3], [2], [1]]);
+    assert.deepEqual(niveauxPourProfil("NEUTRE"), [[1, 2, 3]]);
+    assert.equal(etiquetteMime("Voiture"), "🎭 Mime : Petits (6 à 8 ans)");
+    assert.equal(etiquetteMime("Poireau"), "");
+    // L'âge de chaque équipe : celui choisi à la main, sinon null (celui de la prestation).
+    assert.deepEqual(mimeAges({ type: "mimes", ages: { 2: "GRANDS", 3: "FAUX" } }).slice(0, 4), [null, null, "GRANDS", null]);
+    assert.deepEqual(mimeAges({ type: "quiz", ages: { 0: "GRANDS" } })[0], null);
+  });
+
+  test("Prestation (cedric, 24/10) : une chanson oubliée dans le blind test, une case restée sur le 🎲 : rien ne plante, mais « Reste à faire » le dit", async () => {
+    const { trousDuJeu } = await import("../web/public/show.js");
+    const son = (title) => ({ title, artist: "Test", audioId: "0123456789abcdef", start: 0 });
+    const songs = { a: son("Alpha"), b: son("Bravo"), parti: { ...son("Partie"), retiree: true } };
+    const blind = { type: "blind", nbChansons: 5, chansons: ["a", "", "b", "parti", ""] };
+    assert.deepEqual(trousDuJeu(blind, { songs }), ["il manque 2 chansons (cases 🎲 vides) et 1 chanson supprimée de la bibliothèque des sons : 2 jouées au lieu de 5"]);
+    assert.deepEqual(trousDuJeu({ ...blind, chansons: ["a", "", "b"] }, { songs }), ["il manque 1 chanson (case 🎲 vide) : 2 jouées au lieu de 3"]);
+    assert.deepEqual(trousDuJeu({ ...blind, chansons: ["a", "b"] }, { songs }), [], "rien ne manque");
+    assert.deepEqual(trousDuJeu({ ...blind, chansons: ["a", "", "parti"] }), ["il manque 1 chanson (case 🎲 vide) : 2 jouées au lieu de 3"], "bibliothèque pas encore lue : seulement les cases vides");
+    const show = { childName: "Zoé", age: 8, date: "2099-01-01", status: "publiee", teams: 2, rounds: [{ ...blind, chansons: ["a", "", "b"] }] };
+    const { snapshot, problems } = buildSnapshot("x", show, {}, {}, Math.random, {}, {}, {}, songs);
+    assert.equal(snapshot.quiz.questions.length, 2, "le blind test se joue avec 2 chansons, sans trou");
+    assert.deepEqual(problems, ["Manche 1 (Blind test) : il manque 1 chanson (case 🎲 vide) : 2 jouées au lieu de 3."]);
+    const r = readiness(show, {}, {}, {}, {}, "2026-10-24", songs);
+    assert.equal(r.level, "a-completer");
+    assert.deepEqual(r.todo, ["Manche 1 (Blind test) : il manque 1 chanson (case 🎲 vide) : 2 jouées au lieu de 3."]);
+    assert.equal(readiness({ ...show, rounds: [{ ...blind, chansons: ["a", "b"] }] }, {}, {}, {}, {}, "2026-10-24", songs).level, "prete");
+    // Quiz (et les jeux en séries) : les questions retirées par ✕ en attente de leur 🎲.
+    const q = (text) => ({ id: text, text, choices: ["Un", "Deux", "Trois", "Quatre"], correct: 0 });
+    assert.deepEqual(trousDuJeu({ type: "quiz", seriesQuiz: [{ origine: "de", questions: [q("A ?"), { vide: true }, q("B ?")] }] }), ["il manque 1 question (case 🎲 vide)"]);
+    assert.deepEqual(trousDuJeu({ type: "zoom", seriesQuiz: [{ origine: "de", questions: [{ vide: true }, { vide: true }, q("C ?")] }] }), ["il manque 2 photos (cases 🎲 vides)"]);
+    assert.deepEqual(trousDuJeu({ type: "quiz", seriesQuiz: [{ origine: "quiz", quizId: "k" }] }), []);
+    // Mimes : les équipes qui ont un trou ; une équipe sans aucune image est signalée à part.
+    const couleurs = couleursEquipes({ teams: 3 });
+    const mimes = { type: "mimes", equipes: [[{ word: "Chat" }, { vide: true }, { vide: true }], [{ vide: true }], [{ word: "Lion" }]] };
+    assert.deepEqual(trousDuJeu(mimes, { couleurs }), ["il manque 2 images (cases 🎲 vides) : Équipe Rose"]);
+    assert.deepEqual(trousDuJeu(mimes), ["il manque 2 images (cases 🎲 vides)"]);
+    assert.deepEqual(trousDuJeu({ type: "statues" }), []);
+  });
+
+  test("Blind test (cedric, 24/10) : plus de manches ; séries 🎲, playlist, chansons choisies, l'ordre du « Blind test complet », ce qui est enregistré", async () => {
+    const { seriesBlind, chansonsBrutes, chansonsDe, trousDuJeu, MAX_CHANSONS_BLIND } = await import("../web/public/show.js");
+    const M = await import("../web/public/manches.js");
+    const son = (title) => ({ title, artist: "Test", audioId: "0123456789abcdef", start: 0 });
+    const songs = Object.fromEntries(["a", "b", "c", "d", "e", "f"].map((k) => [k, son(k.toUpperCase())]));
+    const blind = {
+      type: "blind", nbChansons: 5, seriesBlind: [
+        { id: "de", origine: "de", chansons: ["a", "", "b"] },
+        { id: "p-1", origine: "playlist", playlistId: "pl", titre: "Années 80", chansons: ["c", "d"] },
+        { id: "c-1", origine: "choix", chansons: { 0: "e", 1: "a" } },
+        { id: "x", origine: "inconnue", chansons: ["f"] },
+      ],
+    };
+    // Série après série (une chanson n'y passe qu'une fois), les cases du 🎲 à tirer à la fin ; une série inconnue est ignorée.
+    assert.deepEqual(seriesBlind(blind).map((x) => x.origine), ["de", "playlist", "choix"]);
+    assert.deepEqual(chansonsBrutes(blind), ["a", "b", "c", "d", "e", ""]);
+    assert.deepEqual(chansonsDe(blind), ["a", "b", "c", "d", "e"]);
+    // Rangé à la main ou mélangé (« Blind test complet ») : cet ordre, puis celles qui n'y sont pas encore.
+    const range = { ...blind, ordreBlind: ["d", "zz", "a", "d"] };
+    assert.deepEqual(chansonsBrutes(range), ["d", "a", "b", "c", "e", ""]);
+    assert.deepEqual(trousDuJeu(range, { songs }), ["il manque 1 chanson (case 🎲 vide) : 5 jouées au lieu de 6"]);
+    // La TV joue cet ordre.
+    const show = { childName: "Zoé", age: 8, date: "2099-01-01", status: "publiee", teams: 2, rounds: [{ ...range, seriesBlind: range.seriesBlind.slice(0, 3) }] };
+    const { snapshot } = buildSnapshot("x", show, {}, {}, Math.random, {}, {}, {}, songs);
+    assert.deepEqual(snapshot.quiz.questions.map((q) => q.choices[0]), ["D", "A", "B", "C", "E"]);
+    // Enregistré : les séries, l'ordre et `chansons` (lu par les pages d'avant les séries).
+    const propre = M.cleanRound({ ...range, note: "x", seriesBlind: [...range.seriesBlind.slice(0, 3), { id: "vide", origine: "choix", chansons: [] }] });
+    assert.deepEqual(propre.chansons, ["d", "a", "b", "c", "e", ""]);
+    assert.deepEqual(propre.ordreBlind, ["d", "a", "b", "c", "e"]);
+    assert.deepEqual(propre.seriesBlind.map((x) => [x.id, x.origine, x.chansons, x.titre ?? null, x.playlistId ?? null]), [
+      ["de", "de", ["a", "", "b"], null, null], ["p-1", "playlist", ["c", "d"], "Années 80", "pl"], ["c-1", "choix", ["e", "a"], null, null]]);
+    assert.equal(M.cleanRound({ ...blind, ordreBlind: undefined }).ordreBlind, undefined, "pas rangé à la main : pas d'ordre");
+    // 50 chansons au plus.
+    const beaucoup = { type: "blind", seriesBlind: [{ id: "c", origine: "choix", chansons: Array.from({ length: 70 }, (_, k) => `s${k}`) }] };
+    assert.equal(chansonsBrutes(beaucoup).length, MAX_CHANSONS_BLIND);
+    // Un blind test d'avant (une liste) devient la série du 🎲 ; une playlist entière préparée à l'ancienne ne change pas.
+    assert.deepEqual(M.versSeriesBlind({ type: "blind", chansons: ["a", "", "b"] }).seriesBlind, [{ id: "de", origine: "de", chansons: ["a", "", "b"] }]);
+    assert.deepEqual(M.versSeriesBlind({ type: "blind", playlistId: "pl" }).seriesBlind, []);
+    assert.equal(M.versSeriesBlind({ type: "quiz" }).seriesBlind, undefined);
+    // Les blind tests qui se suivent n'en font plus qu'un : un seul 🎲 et une seule série choisie, sans doublon.
+    const deux = [
+      { type: "quiz", quizId: "q" },
+      { type: "blind", nbChansons: 5, seriesBlind: [{ id: "de", origine: "de", chansons: ["a", "b"] }] },
+      { type: "blind" },
+      { type: "blind", seriesBlind: [{ id: "de", origine: "de", chansons: ["b", "c"] }, { id: "p-1", origine: "playlist", playlistId: "pl", chansons: ["d"] }] },
+      { type: "blind", seriesBlind: [{ id: "p-1", origine: "playlist", playlistId: "pl2", chansons: ["e"] }] },
+      { type: "blind", playlistId: "ancienne" },
+      { type: "blind" },
+    ];
+    const { rounds, fusions } = M.fusionnerBlind(deux.map(M.versSeriesBlind));
+    assert.equal(fusions, 2);
+    assert.deepEqual(rounds.map((r) => r.type), ["quiz", "blind", "blind"]);
+    assert.deepEqual(rounds[1].seriesBlind.map((x) => [x.origine, x.chansons]), [["de", ["a", "b", "c"]], ["playlist", ["d"]], ["playlist", ["e"]]]);
+    assert.equal(new Set(rounds[1].seriesBlind.map((x) => x.id)).size, 3, "des séries aux identifiants différents");
+    assert.deepEqual(rounds[1].chansons, ["a", "b", "c", "d", "e"]);
+    assert.equal(rounds[1].nbChansons, 5);
+    assert.equal(rounds[2].playlistId, "ancienne", "préparé à l'ancienne : à part, joué tel quel");
+    // Un blind test vide avant un autre laisse la place.
+    assert.deepEqual(M.fusionnerBlind([{ type: "blind", seriesBlind: [] }, { type: "blind", seriesBlind: [{ id: "de", origine: "de", chansons: ["a"] }] }].map(M.versSeriesBlind)).rounds.map((r) => chansonsDe(r)), [["a"]]);
   });
 });

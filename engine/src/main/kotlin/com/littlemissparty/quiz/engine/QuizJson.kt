@@ -10,7 +10,7 @@ import org.json.JSONObject
  * `"pictionary"`, sans propositions ; `"points"` : valeur d'un dessin trouvé),
  * l'illustration facultative d'une question : `"image"` (émoji) et `"imageId"` (photo), des réponses en images
  * (`"choiceImages"`, une photo par proposition), les valeurs des Portes mystères (`"doors"`), et pour la
- * musique `"audioId"` (extrait) et `"artist"` (blind test).
+ * musique `"audioId"` (extrait), `"artist"`, `"refrainId"` et `"lyrics"` (blind test et quiz musical).
  * Toute erreur est signalée avec la question concernée, pour pouvoir la corriger.
  */
 object QuizJson {
@@ -66,6 +66,9 @@ object QuizJson {
         val cards: JSONArray = q.optJSONArray("cards") ?: JSONArray()
         val turns = kind == QuestionKind.MIME || kind == QuestionKind.PICTIONARY
         val doors: JSONArray = q.optJSONArray("doors") ?: JSONArray()
+        // Blind test, ou Quiz musical (question à propositions avec un extrait) : l'artiste, le refrain et ses paroles
+        // de la révélation (cedric, 24/10 : la révélation du Quiz musical reprend celle du blind test, en plus court).
+        val chanson = kind == QuestionKind.BLIND || (kind == QuestionKind.CLASSIC && q.optString("audioId").matches(IMAGE_ID))
         return Question(
             id = q.optString("id", "q${i + 1}"),
             text = q.getString("text"),
@@ -85,11 +88,11 @@ object QuizJson {
             imageId = imageId?.takeIf { !turns },
             choiceImages = choiceImages(q.optJSONArray("choiceImages"), choices.length(), kind),
             doors = if (kind == QuestionKind.PORTES) (0 until doors.length()).map { doors.getInt(it) } else emptyList(),
-            artist = q.optString("artist").trim().takeIf { it.isNotEmpty() && kind == QuestionKind.BLIND }?.take(MAX_ARTIST),
+            artist = q.optString("artist").trim().takeIf { it.isNotEmpty() && chanson }?.take(MAX_ARTIST),
             audioId = q.optString("audioId").takeIf { it.matches(IMAGE_ID) && !turns },
-            refrainId = q.optString("refrainId").takeIf { it.matches(IMAGE_ID) && kind == QuestionKind.BLIND },
+            refrainId = q.optString("refrainId").takeIf { it.matches(IMAGE_ID) && chanson },
             // Paroles du refrain : seulement avec un refrain, et jamais trop longues.
-            lyrics = q.optString("lyrics").takeIf { it.isNotBlank() && it.length <= MAX_PAROLES && kind == QuestionKind.BLIND && q.optString("refrainId").matches(IMAGE_ID) },
+            lyrics = q.optString("lyrics").takeIf { it.isNotBlank() && it.length <= MAX_PAROLES && chanson && q.optString("refrainId").matches(IMAGE_ID) },
             audioIds = q.optJSONArray("audioIds")?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty()
                 .filter { it.matches(IMAGE_ID) && kind == QuestionKind.STATUES }.distinct().take(MAX_STATUES_SONGS),
             points = q.optInt("points", 0).takeIf { it > 0 && (kind == QuestionKind.BLIND || kind == QuestionKind.PICTIONARY) }?.coerceAtMost(MAX_TRACK_POINTS),

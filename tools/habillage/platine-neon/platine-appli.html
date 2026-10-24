@@ -1,0 +1,280 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>html,body{margin:0;background:#000;overflow:hidden}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/"}}</script>
+</head><body>
+<script type="module">
+// Platine néon v2 du Blind test (Game Show) : maquette de l'écran d'écoute.
+// t = secondes de la maquette. La musique joue de T_ON à T_OFF (arrêt = buzz / « Arrêter la musique »).
+// Deux passes par image : frame(t, "c") couleur sur fond noir, frame(t, "m") masque de silhouette (blanc = opaque).
+import * as THREE from "three";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+
+const Q = new URLSearchParams(location.search);
+const W = +Q.get("w") || 1920, H = +Q.get("h") || 1080;
+const C = { rose: 0xff2d95, orange: 0xff6b1a, vert: 0x39ff14, jaune: 0xffe600, cyan: 0x00f0ff, violet: 0x8b2cff };
+const T_ON = 0.6, T_OFF = 10.6, PERIODE = 3.64, TOUR = 2 / PERIODE; const MODE = Q.get("mode") || "disque"; const LEVE = +(Q.get("leve") || 0);                  // 33 tours/min ≈ 0,55 tour/s
+const spectre = { kick: [0], bandes: [null], fps: 15, temps: [] };
+const clamp = (x) => Math.min(1, Math.max(0, x));
+const lisse = (x) => { x = clamp(x); return x * x * (3 - 2 * x); };
+const lerp = (a, b, u) => a + (b - a) * u;
+const TAU = Math.PI * 2;
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+
+// Lecture : 0 → 1 au départ (le disque prend sa vitesse), 1 → 0 très vite à l'arrêt.
+const joue = (t) => t < T_OFF ? lisse((t - .15) / .45) : 1 - lisse((t - T_OFF) / .22);
+const angleDisque = (() => { const pas = 1 / 400, tab = [0]; for (let k = 1; k <= 400 * 20; k++) tab.push(tab[k - 1] + TAU * TOUR * joue(k * pas) * pas); return (t) => tab[Math.max(0, Math.min(tab.length - 1, Math.round(t * 400)))]; })();
+const leve = (t) => t < T_OFF ? 1 - lisse((t - .1) / .5) : lisse((t - T_OFF) / .3);
+const iSpec = (t) => Math.max(0, Math.min(spectre.kick.length - 1, Math.round((t - T_ON) * spectre.fps)));
+const ecoute = (t) => t >= T_ON && t < T_OFF;
+const niveau = (t) => t < T_OFF ? lisse((t - T_ON + .05) / .3) : 1 - lisse((t - T_OFF) / .35);
+const temps = spectre.temps.map((x) => x + T_ON).filter((x) => x < T_OFF);
+const dernierTemps = (t) => { let k = -1; for (let i = 0; i < temps.length; i++) if (temps[i] <= t) k = i; return k; };
+
+// ---------- Rendu ----------
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1); renderer.setSize(W, H);
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0);
+{
+  const env = new THREE.Scene(); env.background = new THREE.Color(0x020006);
+  const pan = (c, i, x, y, z, w, h) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(i), side: THREE.DoubleSide })); m.position.set(x, y, z); m.lookAt(0, 0, 0); env.add(m); };
+  pan(C.rose, 3, -6, 2, 3, 3, 6); pan(C.cyan, 3, 6, 1, 2, 2, 7); pan(C.violet, 4, 0, 6, -4, 8, 2); pan(0xffffff, 1.6, 0, 5, 5, 4, 1); pan(C.rose, 2, 4, -2, -5, 6, 1);
+  const pm = new THREE.PMREMGenerator(renderer); scene.environment = pm.fromScene(env, .02).texture; scene.environmentIntensity = 1;
+}
+const CAM = { fov: +(Q.get("fov") || 27), el: +(Q.get("el") || 31), d: +(Q.get("d") || 8.0), ty: +(Q.get("ty") || .28), tx: +(Q.get("tx") || .1) };
+const camera = new THREE.PerspectiveCamera(CAM.fov, W / H, .1, 100);
+{ const el = CAM.el * Math.PI / 180; camera.position.set(CAM.tx, Math.sin(el) * CAM.d + CAM.ty, Math.cos(el) * CAM.d); camera.lookAt(CAM.tx, CAM.ty, 0); }
+window.CAM = CAM;
+const comp = new EffectComposer(renderer);
+comp.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(W, H), .5, .2, .9); comp.addPass(bloom);
+comp.addPass(new OutputPass());
+
+const solides = [], lumieres = [];
+const S = (m) => { solides.push(m); return m; }, L = (m) => { lumieres.push(m); return m; };
+const add = (m, ...o) => { (o[0] || scene).add(m); return m; };
+const basic = (c, i) => new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(i), toneMapped: false });
+const additif = (c, i, map) => new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(i), map: map || null, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+const point = (() => { const c = document.createElement("canvas"); c.width = c.height = 128; const g = c.getContext("2d");
+  const r = g.createRadialGradient(64, 64, 0, 64, 64, 64); r.addColorStop(0, "rgba(255,255,255,1)"); r.addColorStop(.18, "rgba(255,255,255,.55)"); r.addColorStop(.5, "rgba(255,255,255,.12)"); r.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = r; g.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c); })();
+const sprite = (c, i, s) => { const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: point, color: new THREE.Color(c).multiplyScalar(i), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })); m.scale.setScalar(s); return m; };
+
+await Promise.all([["Bungee", "fonts/bungee.ttf"], ["Orbitron", "fonts/orbitron900.ttf"]].map(async ([n, u]) => { const f = new FontFace(n, `url(${u})`); await f.load(); document.fonts.add(f); }));
+
+// ---------- Socle flottant ----------
+const noirLaque = new THREE.MeshPhysicalMaterial({ color: 0x07040d, metalness: .3, roughness: .18, clearcoat: 1, clearcoatRoughness: .05 });
+const chrome = new THREE.MeshPhysicalMaterial({ color: 0xd8d4ec, metalness: 1, roughness: .12 });
+const graphite = new THREE.MeshPhysicalMaterial({ color: 0x1a1626, metalness: .85, roughness: .3, clearcoat: .6 });
+const socle = S(add(new THREE.Mesh(new THREE.CylinderGeometry(1.16, 1.08, .12, 128), noirLaque))); socle.position.y = -.13;
+const bordSocle = L(add(new THREE.Mesh(new THREE.TorusGeometry(1.16, .011, 10, 200), additif(C.rose, 1.6)))); bordSocle.rotation.x = Math.PI / 2; bordSocle.position.y = -.07;
+const bordSocle2 = L(add(new THREE.Mesh(new THREE.TorusGeometry(1.085, .008, 10, 200), additif(C.violet, 1.2)))); bordSocle2.rotation.x = Math.PI / 2; bordSocle2.position.y = -.19;
+// Halo posé sous l'objet (il « éclaire » le plateau).
+const halo = L(add(new THREE.Mesh(new THREE.CircleGeometry(1.9, 96), additif(C.violet, .5, point)))); halo.rotation.x = -Math.PI / 2; halo.position.y = -.22;
+
+// ---------- Plateau du disque : bord chromé + anneau néon ----------
+const plateauD = S(add(new THREE.Mesh(new THREE.CylinderGeometry(1.03, 1.03, .05, 160), graphite))); plateauD.position.y = -.035;
+const anneauBord = L(add(new THREE.Mesh(new THREE.TorusGeometry(1.03, .012, 10, 220), additif(C.cyan, 1.6)))); anneauBord.rotation.x = Math.PI / 2; anneauBord.position.y = -.012;
+
+// ---------- Le vinyle : un seul shader (sillons irisés, plages, comètes de lumière, trace du diamant) ----------
+const disque = new THREE.Group(); scene.add(disque);
+const matDisque = new THREE.ShaderMaterial({
+  toneMapped: false,
+  uniforms: { uAng: { value: 0 }, uT: { value: 0 }, uJoue: { value: 0 }, uDiam: { value: new THREE.Vector3(0, .8, 0) }, uK: { value: 0 } },
+  vertexShader: `varying vec2 vP; varying vec3 vW; void main(){ vP = position.xy; vW = (modelMatrix * vec4(position, 1.)).xyz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
+  fragmentShader: `uniform float uAng, uT, uJoue, uK; uniform vec3 uDiam; varying vec2 vP; varying vec3 vW;
+    const float TAU = 6.2831853;
+    vec3 neon(float h){ return mix(mix(vec3(0., .94, 1.), vec3(.55, .17, 1.), smoothstep(0., .5, h)), vec3(1., .18, .58), smoothstep(.5, 1., h)); }
+    void main(){
+      float r = length(vP); if (r > 1.) discard;
+      float thW = atan(vP.y, vP.x);              // angle dans le monde (le plan est couché, y = -z)
+      float th = thW + uAng;                      // angle dans le disque (il tourne dans le sens horaire)
+      vec3 c = vec3(.006, .004, .012);
+      float sillon = smoothstep(.335, .345, r) * (1. - smoothstep(.965, .975, r));
+      // Plages : 5 morceaux séparés par des pistes lisses.
+      float plage = 1.;
+      for (int k = 0; k < 4; k++) { float rk = .48 + float(k) * .12; plage *= smoothstep(.0035, .007, abs(r - rk)); }
+      // Sillons fins : relief qui accroche la lumière.
+      float fin = .5 + .5 * sin(r * 1400.) * clamp(1.6 - fwidth(r * 1400.) * .9, 0., 1.);
+      // Reflet irisé fixe (comme sous une lampe) : deux pinceaux opposés, couleur qui glisse avec le rayon.
+      float pinceau = pow(abs(cos(thW - 2.25)), 60.) + .06 * pow(abs(cos(thW - 2.25)), 8.);
+      vec3 iris = neon(fract(r * 1.6 + .15 * sin(thW * 2.)));
+      c += sillon * plage * (iris * pinceau * (.25 + .2 * fin) * .9 + vec3(.006, .005, .012) * fin);
+      c += sillon * (1. - plage) * vec3(.02, .018, .035) * (.5 + 1.5 * pinceau);
+      // Lueur néon de fond par plage (très douce), qui monte quand le disque joue.
+      float idP = floor((r - .36) / .12);
+      vec3 cp = idP < .5 ? vec3(0., .94, 1.) : idP < 1.5 ? vec3(.55, .17, 1.) : idP < 2.5 ? vec3(1., .18, .58) : idP < 3.5 ? vec3(.55, .17, 1.) : vec3(0., .94, 1.);
+      c += sillon * plage * cp * .012 * (.4 + .6 * uJoue) * (.6 + .4 * fin);
+      // Comètes de lumière qui courent dans les sillons (dans le sens du disque, plus vite que lui).
+      for (int k = 0; k < 7; k++) {
+        float fk = float(k);
+        float rk = .37 + fract(fk * .618 + .11) * .58;
+        float wk = 2.6 + fract(fk * .37) * 2.6;
+        float wv = TAU / 3.64 * (k % 2 == 0 ? 1. : 2.); float pos = fract((th - uT * wv * (k < 4 ? 1. : -1.)) / TAU + fk * .29);
+        float queue = k < 4 ? pos : 1. - pos;
+        float a = exp(-queue * 9.) * step(0., queue);
+        float ra = exp(-pow((r - rk) / .0045, 2.));
+        vec3 ck = k % 3 == 0 ? vec3(0., .94, 1.) : k % 3 == 1 ? vec3(1., .18, .58) : vec3(.62, .3, 1.);
+        c += ck * a * ra * 1.6 * uJoue * (1. + .6 * uK);
+      }
+      // Balayage radar dans les sillons : un pinceau de lumière qui fait le tour (fixe par rapport à la scène).
+      float rad = mod(thW + uT * TAU / 3.64 * 2., TAU);
+      c += sillon * plage * mix(vec3(0., .94, 1.), vec3(.55, .17, 1.), r) * exp(-rad * 3.5) * .16 * uJoue * (.5 + .5 * fin);
+      // Trace du diamant : la lumière laissée dans le sillon derrière la pointe.
+      float dth = mod(uDiam.x - thW, TAU);
+      c += vec3(1., .5, .85) * exp(-dth * 2.2) * exp(-pow((r - uDiam.y) / .005, 2.)) * 1.6 * uDiam.z;
+      // Diodes du bord (comme le stroboscope d'une platine), en chenillard.
+      float nb = 96.; float j = floor(fract(th / TAU) * nb); float cell = fract(fract(th / TAU) * nb);
+      float diode = smoothstep(.5, .15, length(vec2(cell - .5, (r - .988) * 70.)));
+      float chen = .25 + .75 * pow(.5 + .5 * sin(j * .5 - uT * TAU / 3.64 * 5.), 6.);
+      c += diode * mix(vec3(0., .94, 1.), vec3(1., .18, .58), step(.5, fract(j / 8.))) * chen * 1.3 * (.35 + .65 * uJoue);
+      gl_FragColor = vec4(c, 1.);
+    }`,
+});
+const vinyle = S(add(new THREE.Mesh(new THREE.CircleGeometry(1, 200), matDisque))); vinyle.rotation.x = -Math.PI / 2;
+
+// Étiquette : cœur holographique en verre (texte néon en cercle, anneaux), tourne avec le disque.
+const toileL = document.createElement("canvas"); toileL.width = toileL.height = 1024; const gL = toileL.getContext("2d");
+{
+  const g = gL, c = 512;
+  const fond = g.createRadialGradient(c, c, 0, c, c, 512); fond.addColorStop(0, "#1a0838"); fond.addColorStop(.6, "#0b0420"); fond.addColorStop(1, "#05020e");
+  g.fillStyle = fond; g.beginPath(); g.arc(c, c, 512, 0, TAU); g.fill();
+  const anneau = (r, w, col, blur, al = 1) => { g.globalAlpha = al; g.lineWidth = w; g.strokeStyle = col; g.shadowColor = col; g.shadowBlur = blur; g.beginPath(); g.arc(c, c, r, 0, TAU); g.stroke(); g.shadowBlur = 0; g.globalAlpha = 1; };
+  anneau(492, 10, "#ff2d95", 26); anneau(470, 3, "#ff2d95", 10, .6);
+  // Grille hexagonale fine (verre technique).
+  g.save(); g.beginPath(); g.arc(c, c, 300, 0, TAU); g.clip(); g.strokeStyle = "rgba(139,44,255,.35)"; g.lineWidth = 2;
+  for (let y = -10; y < 22; y++) for (let x = -10; x < 22; x++) { const hx = x * 52 + (y % 2) * 26, hy = y * 45; g.beginPath(); for (let k = 0; k < 6; k++) { const a = k / 6 * TAU + Math.PI / 6; g.lineTo(hx + Math.cos(a) * 26, hy + Math.sin(a) * 26); } g.closePath(); g.stroke(); }
+  g.restore();
+  anneau(300, 8, "#00f0ff", 24); anneau(190, 5, "#8b2cff", 18); anneau(96, 14, "#00f0ff", 30);
+  // Texte en cercle.
+  const cercle = (txt, r, taille, col) => { g.font = `${taille}px Bungee`; g.fillStyle = col; g.shadowColor = col; g.shadowBlur = 18; g.textAlign = "center"; g.textBaseline = "middle";
+    const n = txt.length; for (let k = 0; k < n; k++) { const a = -Math.PI / 2 + k / n * TAU; g.save(); g.translate(c + Math.cos(a) * r, c + Math.sin(a) * r); g.rotate(a + Math.PI / 2); g.fillText(txt[k], 0, 0); g.restore(); } g.shadowBlur = 0; };
+  cercle("THE GAME SHOW • BLIND TEST • THE GAME SHOW • BLIND TEST • ", 388, 52, "#ff5fb2");
+  // Graduations comme un cadran.
+  g.strokeStyle = "rgba(0,240,255,.8)"; g.lineWidth = 4; g.shadowColor = "#00f0ff"; g.shadowBlur = 8;
+  for (let k = 0; k < 60; k++) { const a = k / 60 * TAU, r1 = k % 5 ? 258 : 240; g.beginPath(); g.moveTo(c + Math.cos(a) * r1, c + Math.sin(a) * r1); g.lineTo(c + Math.cos(a) * 286, c + Math.sin(a) * 286); g.stroke(); }
+  g.shadowBlur = 0;
+  g.font = "64px Bungee"; g.fillStyle = "#ffffff"; g.shadowColor = "#00f0ff"; g.shadowBlur = 24; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("BLIND", c, c - 128); g.fillText("TEST", c, c + 134); g.shadowBlur = 0;
+}
+const texL = new THREE.CanvasTexture(toileL); texL.colorSpace = THREE.SRGBColorSpace; texL.anisotropy = 8;
+const etiquette = S(add(new THREE.Mesh(new THREE.CircleGeometry(.335, 128), new THREE.MeshBasicMaterial({ map: texL, toneMapped: false, color: new THREE.Color(1.6, 1.6, 1.6) })), disque));
+etiquette.rotation.x = -Math.PI / 2; etiquette.position.y = .002;
+const verreL = S(add(new THREE.Mesh(new THREE.CylinderGeometry(.335, .335, .012, 128, 1, true), chrome), disque)); verreL.position.y = .004;
+const axe = S(add(new THREE.Mesh(new THREE.CylinderGeometry(.018, .022, .09, 24), chrome), disque)); axe.position.y = .045;
+const pointeAxe = L(add(sprite(0xffffff, 1.4, .12))); pointeAxe.position.set(0, .095, 0);
+
+// ---------- Hologramme au-dessus de l'axe (dessiné en direct dans l'appli) ----------
+const holo = new THREE.Group(); scene.add(holo);
+const matCone = new THREE.ShaderMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false,
+  uniforms: { uI: { value: 1 }, uT: { value: 0 } },
+  vertexShader: `varying vec2 vU; varying vec3 vN, vV; void main(){ vU = uv; vN = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(position, 1.); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }`,
+  fragmentShader: `uniform float uI, uT; varying vec2 vU; varying vec3 vN, vV;
+    void main(){ float bord = pow(1. - abs(dot(vN, vV)), 1.6); float h = vU.y;
+      float lignes = .7 + .3 * sin(h * 90. - uT * 6.);
+      vec3 c = mix(vec3(0., .94, 1.), vec3(.55, .17, 1.), h);
+      gl_FragColor = vec4(c * (.08 + .9 * bord) * (1. - h) * (1. - h) * lignes * uI * .7, 1.); }` });
+const cone = L(add(new THREE.Mesh(new THREE.CylinderGeometry(.27, .03, .78, 64, 1, true), matCone), holo)); cone.position.y = .1 + .39;
+const anneauxH = [0, 1, 2].map((k) => { const m = L(add(new THREE.Mesh(new THREE.TorusGeometry(.13 + k * .055, .006, 8, 128), additif(k === 1 ? C.rose : C.cyan, 1.5)), holo)); return m; });
+// Note de musique holographique qui tourne sur elle-même.
+const toileN = document.createElement("canvas"); toileN.width = toileN.height = 256; const gN = toileN.getContext("2d");
+{ const g = gN; g.fillStyle = "#fff"; g.strokeStyle = "#fff"; g.shadowColor = "#fff"; g.shadowBlur = 12;
+  g.beginPath(); g.ellipse(70, 190, 34, 25, -.45, 0, TAU); g.fill(); g.beginPath(); g.ellipse(178, 168, 34, 25, -.45, 0, TAU); g.fill();
+  g.fillRect(96, 58, 13, 134); g.fillRect(204, 36, 13, 134); g.beginPath(); g.moveTo(96, 58); g.lineTo(217, 36); g.lineTo(217, 68); g.lineTo(96, 90); g.closePath(); g.fill(); }
+const texN = new THREE.CanvasTexture(toileN);
+const note = L(add(new THREE.Mesh(new THREE.PlaneGeometry(.34, .34), new THREE.MeshBasicMaterial({ map: texN, color: new THREE.Color(C.cyan).multiplyScalar(1.3), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false })), holo));
+const noteR = L(add(new THREE.Mesh(new THREE.PlaneGeometry(.34, .34), new THREE.MeshBasicMaterial({ map: texN, color: new THREE.Color(C.rose).multiplyScalar(.9), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false })), holo));
+
+// ---------- Ondes de choc sur le disque à chaque temps (direct) ----------
+const ondes = [0, 1, 2].map(() => { const m = L(add(new THREE.Mesh(new THREE.RingGeometry(.985, 1, 200), additif(C.cyan, 2)))); m.rotation.x = -Math.PI / 2; m.position.y = .006; return m; });
+
+// ---------- Couronne spectrale autour du socle (direct, suit la musique) ----------
+const NBARRES = 72, R0 = 1.24;
+const geoBarre = new THREE.PlaneGeometry(1, 1); geoBarre.translate(.5, 0, 0);
+const matBarre = new THREE.ShaderMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false,
+  vertexShader: `attribute vec3 couleur; varying vec2 vU; varying vec3 vC; void main(){ vU = uv; vC = couleur; gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.); }`,
+  fragmentShader: `varying vec2 vU; varying vec3 vC; void main(){ float bord = 1. - abs(vU.y - .5) * 2.; float a = smoothstep(0., .5, bord);
+    float tete = smoothstep(.82, 1., vU.x); vec3 c = vC * (.35 + .65 * vU.x) * a * 1.25 + vC * tete * a * .9; gl_FragColor = vec4(c, 1.); }` });
+const barres = L(new THREE.InstancedMesh(geoBarre, matBarre, NBARRES)); scene.add(barres);
+const couleurs = new Float32Array(NBARRES * 3);
+const colBarre = (k) => { const u = Math.abs(((k / NBARRES) * 2 + .5) % 2 - 1); const a = new THREE.Color(C.rose), b = new THREE.Color(C.violet), c = new THREE.Color(C.cyan); return u < .5 ? a.lerp(b, u * 2) : b.lerp(c, (u - .5) * 2); };
+for (let k = 0; k < NBARRES; k++) { const c = colBarre(k); couleurs.set([c.r, c.g, c.b], k * 3); }
+geoBarre.setAttribute("couleur", new THREE.InstancedBufferAttribute(couleurs, 3));
+const pics = L(new THREE.InstancedMesh(new THREE.PlaneGeometry(.03, .018), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.1, 1.1, 1.25), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }), NBARRES)); scene.add(pics);
+const ligneR = L(add(new THREE.Mesh(new THREE.TorusGeometry(R0, .005, 8, 240), additif(C.cyan, 1.0)))); ligneR.rotation.x = Math.PI / 2; ligneR.position.y = -.07;
+const memPic = new Float32Array(NBARRES);
+const Y_BARRES = -.07;
+
+// ---------- Lasers qui jaillissent du bord du disque sur les temps forts (direct) ----------
+const geoLaser = new THREE.CylinderGeometry(1, 1, 1, 8, 1, true); geoLaser.translate(0, .5, 0);
+const matLaser = (c) => new THREE.ShaderMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
+  uniforms: { uC: { value: new THREE.Color(c) }, uI: { value: 0 } },
+  vertexShader: `varying float vH; void main(){ vH = uv.y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
+  fragmentShader: `uniform vec3 uC; uniform float uI; varying float vH; void main(){ float f = pow(1. - vH, 1.5); gl_FragColor = vec4((uC * 2.2 + vec3(.5)) * f * uI, 1.); }` });
+const lasers = Array.from({ length: 12 }, (_, k) => { const m = L(add(new THREE.Mesh(geoLaser, matLaser([C.cyan, C.rose, C.violet][k % 3])))); m.scale.set(.011, 7, .011); const s = L(add(sprite([C.cyan, C.rose, C.violet][k % 3], 2.2, .34))); return { m, s }; });
+
+// ---------- Bras de lecture (image fixe dans l'appli, pivote autour de son socle) ----------
+const PIVOT = V(1.32, 0, -.62);
+const piedBras = S(add(new THREE.Mesh(new THREE.CylinderGeometry(.16, .19, .2, 64), noirLaque))); piedBras.position.set(PIVOT.x, -.1, PIVOT.z);
+const ringPied = L(add(new THREE.Mesh(new THREE.TorusGeometry(.165, .008, 8, 96), additif(C.cyan, 1.6)))); ringPied.rotation.x = Math.PI / 2; ringPied.position.set(PIVOT.x, .0, PIVOT.z);
+const bras = new THREE.Group(); bras.position.set(PIVOT.x, .11, PIVOT.z); scene.add(bras);
+const tourelle = S(add(new THREE.Mesh(new THREE.CylinderGeometry(.07, .08, .1, 40), chrome), bras)); tourelle.position.y = -.03;
+// Le tube : du pivot vers la tête (le long de -X local), légèrement coudé près de la tête.
+const tubeCourbe = new THREE.CatmullRomCurve3([V(.18, .02, 0), V(0, .03, 0), V(-.6, .03, -.02), V(-1.02, .03, .03), V(-1.2, .025, .17)]);
+const tube = S(add(new THREE.Mesh(new THREE.TubeGeometry(tubeCourbe, 120, .022, 20, false), chrome), bras));
+const tubeNeon = L(add(new THREE.Mesh(new THREE.TubeGeometry(tubeCourbe, 120, .006, 8, false), additif(C.cyan, 1.5)), bras)); tubeNeon.position.y = .022;
+const contrepoids = S(add(new THREE.Mesh(new THREE.CylinderGeometry(.065, .065, .1, 40), graphite), bras)); contrepoids.rotation.z = Math.PI / 2; contrepoids.position.set(.24, .02, 0);
+const ringCP = L(add(new THREE.Mesh(new THREE.TorusGeometry(.066, .006, 8, 64), additif(C.rose, 1.6)), bras)); ringCP.rotation.y = Math.PI / 2; ringCP.position.set(.2, .02, 0);
+const tete = S(add(new THREE.Mesh(new THREE.BoxGeometry(.2, .03, .085), graphite), bras)); tete.position.set(-1.25, .02, .2); tete.rotation.y = -.45;
+const ledTete = L(add(new THREE.Mesh(new THREE.BoxGeometry(.16, .006, .006), additif(C.rose, 1.6)), bras)); ledTete.position.set(-1.25, .038, .2); ledTete.rotation.y = -.45;
+const diamant = new THREE.Object3D(); diamant.position.set(-1.29, -.06, .22); bras.add(diamant);
+const etincelle = L(add(sprite(0xff9ad8, 1.6, .2))); const etincelle2 = L(add(sprite(0xffffff, 2, .06)));
+// Repose-bras.
+const repos = S(add(new THREE.Mesh(new THREE.CylinderGeometry(.035, .04, .14, 24), chrome))); repos.position.set(1.3, -.04, .45);
+const ANGLE_JOUE = .8, ANGLE_REPOS = 1.45;   // rotation du bras autour de Y (repos = le long du disque, sur le repose-bras)
+
+// ---------- Image ----------
+const vW = new THREE.Vector3(), vD = new THREE.Vector3(), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+// Pièces du disque (boucle vidéo) et pièces du bras (images) ; tout le reste est dessiné en direct par l'appli.
+const pieceBras = [bras, piedBras, ringPied, repos];
+const enDirect = [holo, ...ondes, barres, pics, ligneR, ...lasers.flatMap((l) => [l.m, l.s]), etincelle, etincelle2];
+window.frame = (t, passe = "c") => {
+  for (const m of enDirect) m.visible = false;
+  const disqueVisible = MODE === "disque";
+  for (const m of [socle, bordSocle, bordSocle2, halo, plateauD, anneauBord, vinyle, etiquette, verreL, axe, pointeAxe]) m.visible = disqueVisible;
+  disque.visible = disqueVisible;
+  for (const m of pieceBras) m.visible = MODE === "bras";
+  // Le disque tourne à vitesse constante : deux tours en 3,64 s, toute la lumière est périodique sur cette durée.
+  const ang = TAU * TOUR * t;
+  disque.rotation.y = -ang;
+  const u = matDisque.uniforms; u.uAng.value = ang; u.uT.value = t; u.uJoue.value = 1; u.uK.value = 0;
+  const lv = MODE === "bras" ? LEVE : 0;
+  const angB = lerp(ANGLE_JOUE, ANGLE_REPOS, lv);
+  bras.rotation.set(0, angB, -.05 * Math.sin(Math.PI * clamp(lv)) - (lv > .02 ? .03 : 0));
+  bras.updateMatrixWorld(true); diamant.getWorldPosition(vD);
+  u.uDiam.value.set(Math.atan2(-vD.z, vD.x), Math.hypot(vD.x, vD.z), 1);
+  window.DIAMANT = [vD.x, vD.y, vD.z];
+  ledTete.material.color.set(C.rose).multiplyScalar(1.8 - .8 * lv);
+  pointeAxe.material.opacity = 1;
+  halo.material.color.set(C.violet).multiplyScalar(.3);
+  bordSocle.material.color.set(C.rose).multiplyScalar(1.5);
+  anneauBord.material.color.set(C.cyan).multiplyScalar(1.6);
+  if (passe === "m") {
+    const sauv = new Map();
+    for (const m of lumieres) { sauv.set(m, m.visible); m.visible = false; }
+    const blanc = new THREE.MeshBasicMaterial({ color: 0xffffff }); const mats = new Map();
+    for (const m of solides) { mats.set(m, m.material); m.material = blanc; }
+    renderer.toneMapping = THREE.NoToneMapping; renderer.render(scene, camera); renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    for (const [m, v] of sauv) m.visible = v; for (const [m, mt] of mats) m.material = mt;
+    return;
+  }
+  comp.render();
+};
+// Projection d'un point du monde dans l'image (0..1), pour vérifier la même projection côté appli.
+window.projeter = (x, y, z) => { const v = new THREE.Vector3(x, y, z).project(camera); return [(v.x + 1) / 2, (1 - v.y) / 2]; };
+window.PRET = true;
+</script></body></html>

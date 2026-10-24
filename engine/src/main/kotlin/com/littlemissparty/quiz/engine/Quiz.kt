@@ -244,6 +244,9 @@ data class Question(
     val isStatues: Boolean get() = kind == QuestionKind.STATUES
     val isDisparu: Boolean get() = kind == QuestionKind.DISPARU
 
+    /** Quiz musical : une question à propositions jouée sur un extrait (le bon titre parmi quatre). */
+    val isMusical: Boolean get() = kind == QuestionKind.CLASSIC && audioId != null
+
     /** Qui a disparu ? : temps pour mémoriser les objets, deux secondes par objet (10 à 18 s). */
     val memoMs: Long get() = if (isDisparu) (cards.size * 2_000L).coerceIn(10_000L, 18_000L) else 0L
 

@@ -209,6 +209,7 @@ fun BlindBuzz(equipe: String, couleur: Color, modifier: Modifier = Modifier) {
  * @param paroles paroles du refrain, synchronisées : avec [chantons], la scène des paroles ([SceneParoles]) remplace
  *   la révélation classique ; vides, la pochette et son vinyle (ou le vinyle seul) restent au centre
  * @param positionMs position du refrain qu'on entend (ms depuis le début de l'extrait), null s'il ne joue pas
+ * @param gagnants Quiz musical : les équipes qui ont trouvé (vide : personne), à la place de [gagnant] et de [points]
  */
 @Composable
 fun BlindRevelation(
@@ -223,13 +224,15 @@ fun BlindRevelation(
     chantons: Boolean = false,
     paroles: List<LigneParole> = emptyList(),
     positionMs: () -> Long? = { null },
+    gagnants: List<Pair<String, Color>>? = null,
 ) {
     val ms = horloge(cle)
+    val fete = if (gagnants != null) gagnants.isNotEmpty() else gagnant != null && points > 0
     if (chantons && paroles.isNotEmpty()) {
         Echelle(LARGEUR, HAUTEUR, modifier) {
             Scene { Rayons(ms) }
-            SceneParoles(cle, pochette, titre, artiste, gagnant, points, double, paroles, positionMs)
-            if (gagnant != null && points > 0) Gerbe(cle, actif = apres(500, cle))
+            SceneParoles(cle, pochette, titre, artiste, gagnant, points, double, paroles, positionMs, gagnants)
+            if (fete) Gerbe(cle, actif = apres(500, cle))
         }
         return
     }
@@ -288,7 +291,9 @@ fun BlindRevelation(
                     )
                 }
                 Spacer(Modifier.height(36.dp))
-                if (gagnant != null && points > 0) {
+                if (!gagnants.isNullOrEmpty()) {
+                    BravoEquipes(gagnants, 46.sp, Modifier.apparition(1800, cle))
+                } else if (gagnants == null && gagnant != null && points > 0) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.apparition(1800, cle)) {
                         Box(
                             Modifier.size(170.dp).rebond(true, 0.06f).clip(CircleShape).background(gagnant.second),
@@ -325,7 +330,7 @@ fun BlindRevelation(
                 }
             }
         }
-        if (gagnant != null && points > 0) Gerbe(cle, actif = apres(1800, cle))
+        if (fete) Gerbe(cle, actif = apres(1800, cle))
         // Le moment le plus festif : toute la salle chante le refrain jusqu'au « Titre suivant ». Sous la platine et le
         // titre (bande libre du bas de la scène), jamais par-dessus.
         if (chantons) {

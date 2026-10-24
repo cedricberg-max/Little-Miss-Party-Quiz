@@ -30,15 +30,16 @@ import kotlin.math.sin
  * [BALAYAGE_MS], une étoile met 3,5 à 8,5 s à scintiller. Fond, faisceaux et étoiles sont dessinés une fois ; à chaque
  * image seuls l'angle des faisceaux (calque tourné) et l'éclat des étoiles changent, pour rester fluide sur une
  * petite box. Dans les 5 dernières secondes, les bords chauffent (orange) ; [dore] : dernières questions à points
- * multipliés, mêmes couleurs avec des paillettes d'or et des projecteurs plus vifs.
+ * multipliés, mêmes couleurs avec des paillettes d'or et des projecteurs plus vifs. [accueil] et [sansVideo] : voir
+ * [DecorGameShow] (rien en design classique).
  */
 private const val BALAYAGE_MS = 11_000L
 private const val AMPLITUDE_DEGRES = 14f
 
 @Composable
-fun DecorPlateau(chaud: Boolean, dore: Boolean = false) {
+fun DecorPlateau(chaud: Boolean, dore: Boolean = false, accueil: Boolean = false, sansVideo: Boolean = false) {
     // Design « The Game Show » (menu Retour) : la scène lumière noire.
-    if (Look.gs) return DecorGameShow(chaud, dore)
+    if (Look.gs) return DecorGameShow(chaud, dore, accueil, sansVideo)
     val temps = remember { mutableLongStateOf(0L) }
     LaunchedEffect(Unit) {
         val debut = withInfiniteAnimationFrameMillis { it }

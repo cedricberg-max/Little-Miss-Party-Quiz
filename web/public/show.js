@@ -6,7 +6,8 @@ import { CHANTE_WORDS, QUI_SUIS_JE, DISPARU_THEMES } from "./buzz-cards.js";
 import { PICTO_WORDS, PICTO_OWN_SERIES } from "./picto-cards.js";
 import { concepts, questionConcepts, neufsSiPossible } from "./jamais-deux-fois.js";
 import { BANQUE, questionBanque, avecPhoto, disparuPhotos, imageLibre } from "./banque-photos.js";
-import { TEAM_COLORS } from "./theme.js";
+import { TEAM_COLORS, TEAM_COLOR_NAMES } from "./theme.js";
+import { trackFromSong } from "./sons.js";
 
 /**
  * Portes mystères (jeu final) : 3 ou 4 portes, chacune cache un bonus ou un malus qui peut renverser le classement ;
@@ -39,7 +40,8 @@ export const PATATE_RULE = "la bombe peut exploser à tout moment ! Chaque équi
 export const roundType = (type) => (type === "portes" ? "coffres" : type);
 
 /** Jeux dont les dernières questions peuvent compter double (Super Finale) : le Quiz et le Quiz illustré. */
-export const hasFinale = (type) => (type ?? "quiz") === "quiz" || type === "illustre";
+// Super Finale : au Quiz, au Quiz illustré et au Vrai ou Faux express (cedric, 23/10 : « à l'image du quiz »).
+export const hasFinale = (type) => (type ?? "quiz") === "quiz" || type === "illustre" || type === "express";
 
 export const ROUND_TYPES = { quiz: "Quiz", illustre: "Quiz illustré", finale: "Super Finale", express: "Vrai ou Faux express", zoom: "Zoom mystère", flou: "Image floue", chante: "Chante le mot !", quisuis: "Qui suis-je ?", disparu: "Qui a disparu ?", blind: "Blind test", musical: "Quiz musical", statues: "Statues musicales", mimes: "Mimes", pictionary: "Pictionary", coffres: "Les Coffres mystères", portes: "Les Coffres mystères", gonfleur: "Le Gonfleur fou", patate: "Ça va exploser !" };
 /** Statues musicales : durées proposées (secondes) et durée par défaut. Sans chanson choisie : musique maison de la TV. */
@@ -86,6 +88,14 @@ export const MUSIC_GAMES = {
 /** Durée d'un extrait de blind test par défaut (secondes) : le temps de buzzer, chrono compris. */
 export const BLIND_SEC = 30;
 /**
+ * Blind test d'une prestation tiré au 🎲 dans la bibliothèque des sons (cedric, 24/10) : nombres de chansons proposés,
+ * celui par défaut, et le plafond d'une manche.
+ */
+export const BLIND_NOMBRES = [5, 8, 10, 12, 15, 20];
+export const BLIND_NOMBRE_DEFAUT = 10;
+// 50 avec les playlists ajoutées au 🎲 (cedric, 24/10).
+export const MAX_CHANSONS_BLIND = 50;
+/**
  * Barème d'un blind test par défaut : valeur d'un morceau, valeur des derniers morceaux, combien de derniers
  * morceaux valent plus, et secondes de révélation (pochette, titre, extrait rejoué). Réglable par playlist.
  */
@@ -112,8 +122,11 @@ export function trackPoints(playlist, track, i, n) {
 }
 /** Image floue : temps pour que la photo devienne nette (secondes), le même pour tous les âges. */
 export const FLOU_SEC = 40;
-/** Durée d'un tour de mimes par défaut (secondes). */
-export const MIME_TURN = 60;
+/**
+ * Durée d'un tour de mimes par défaut (secondes) : 2 min (cedric, 24/10 : avec des enfants et le roulement des
+ * joueurs, une minute était bien trop court).
+ */
+export const MIME_TURN = 120;
 export const MAX_QUESTIONS = 200;
 
 /**
@@ -226,7 +239,10 @@ export const BUILTIN_GAMES = {
   disparu: {
     unit: "grille", count: 4, duration: 45, rule: "on mémorise les objets, puis l'un d'eux disparaît",
     // Nombre d'objets par grille : réglé sur la manche (4 à 12), sinon selon l'âge.
-    items: (profile, random, list, round, chosen, pris) => list.map((t) => disparuGrid(t, disparuObjects(round, profile), random, pris, round?.photos === true)),
+    // En séries (cedric, 24/10) : chaque grille est déjà faite, tous ses objets à l'écran.
+    items: (profile, random, list, round, chosen, pris) => list.map((t) => (chosen && seriesMots(round).length
+      ? disparuGrid(t, t.objects.length, random, null, false)
+      : disparuGrid(t, disparuObjects(round, profile), random, pris, round?.photos === true))),
     // Objet en photo à soi, sans émoji : pas d'émoji de réponse (la TV montre sa photo).
     question: (g) => ({ text: "Qui a disparu ?", choices: [g.missing.word], correct: 0, kind: "disparu", cards: g.objects, ...(g.missing.image ? { image: g.missing.image } : {}), duration: g.duration }),
   },
@@ -247,7 +263,12 @@ export const CONTENT_GAMES = {
     clean: (x) => {
       const clues = (Array.isArray(x?.clues) ? x.clues : []).filter((c) => typeof c === "string" && c.trim()).map((c) => c.trim().slice(0, 120)).slice(0, 4);
       if (typeof x?.answer !== "string" || !x.answer.trim() || clues.length < 2) return null;
-      return { answer: x.answer.trim().slice(0, 60), emoji: typeof x.emoji === "string" ? x.emoji.trim().slice(0, 16) : "", clues, level: 1 };
+      // Sa série dans la bibliothèque (cedric, 24/10 : des séries de Qui suis-je ?) ; dans une prestation, son image.
+      return {
+        answer: x.answer.trim().slice(0, 60), emoji: typeof x.emoji === "string" ? x.emoji.trim().slice(0, 16) : "", clues, level: 1,
+        ...(typeof x.serie === "string" && x.serie.trim() ? { serie: x.serie.trim().slice(0, 30) } : {}),
+        ...(/^[0-9a-f]{16}$/.test(x.imageId ?? "") ? { imageId: x.imageId } : {}),
+      };
     },
   },
   pictionary: {
@@ -266,9 +287,14 @@ export const CONTENT_GAMES = {
       // Chaque objet : son émoji, ou une photo à soi (choisie dans la Régie PC), ou les deux.
       const photo = (o) => typeof o?.imageId === "string" && /^[0-9a-f]{16}$/.test(o.imageId);
       const emoji = (o) => typeof o?.image === "string" && o.image.trim();
+      // Une photo de la banque de photos libres (grilles en séries, cedric 24/10).
+      const libre = (o) => typeof o?.banque === "string" && /^[\w-]{1,80}$/.test(o.banque);
       const objects = (Array.isArray(x?.objects) ? x.objects : [])
-        .filter((o) => typeof o?.word === "string" && o.word.trim() && (emoji(o) || photo(o)))
-        .map((o) => ({ word: o.word.trim().slice(0, 40), ...(emoji(o) ? { image: o.image.trim().slice(0, 16) } : {}), ...(photo(o) ? { imageId: o.imageId } : {}) })).slice(0, 12);
+        .filter((o) => typeof o?.word === "string" && o.word.trim() && (emoji(o) || photo(o) || libre(o)))
+        .map((o) => ({
+          word: o.word.trim().slice(0, 40), ...(emoji(o) ? { image: o.image.trim().slice(0, 16) } : {}), ...(photo(o) ? { imageId: o.imageId } : {}),
+          ...(libre(o) ? { banque: o.banque } : {}),
+        })).slice(0, 12);
       if (typeof x?.theme !== "string" || !x.theme.trim() || objects.length < 5) return null;
       return { theme: x.theme.trim().slice(0, 60), objects };
     },
@@ -381,16 +407,91 @@ export function foldLegacyFinale(list) {
 }
 
 /** Séries retenues pour une manche de Pictionary, ou null pour toutes. */
+/**
+ * Pictionary en séries (cedric, 24/10) : pour chaque équipe, dans l'ordre des couleurs de la prestation, ses passages ;
+ * à chaque passage, le dessinateur choisit son mot parmi quelques propositions (l'émoji sur sa tablette, la vraie
+ * photo sur la TV quand le dessin est trouvé). Le 🎲 de la Régie PC les prépare, Sarah en ajoute à la main.
+ */
+export const PICTO_PROPOSITIONS = [2, 3, 4];
+export const PICTO_PASSAGES = [1, 2, 3, 4, 5];
+/** Au plus autant de passages par équipe (le 🎲, puis ceux ajoutés à la main). */
+export const PICTO_PASSAGES_MAX = 10;
+/** Mots proposés à chaque passage (3 d'office). */
+export const pictoPropositions = (round) => (PICTO_PROPOSITIONS.includes(round?.propositions) ? round.propositions : 3);
+/** Passages par équipe que tire le 🎲 (2 d'office). */
+export const pictoPassages = (round) => (PICTO_PASSAGES.includes(round?.passages) ? round.passages : 2);
+/** Un mot proposé : son émoji, sa photo libre (`banque`) ou sa photo à soi ; { vide: true } : retiré, en attente de son 🎲. */
+export const motPicto = (m) => {
+  if (m?.vide === true) return { vide: true };
+  if (typeof m?.word !== "string" || !m.word.trim()) return null;
+  return {
+    word: m.word.trim().slice(0, 40),
+    ...(typeof m.image === "string" && m.image.trim() ? { image: m.image.trim().slice(0, 16) } : {}),
+    ...(/^[0-9a-f]{16}$/.test(m.imageId ?? "") ? { imageId: m.imageId } : typeof m.banque === "string" && /^[\w-]{1,80}$/.test(m.banque) ? { banque: m.banque } : {}),
+  };
+};
+/**
+ * Les passages tels qu'enregistrés, une liste par équipe (au plus 8), chaque passage une liste de mots (cases vides
+ * comprises). Lus par leur rang : la base garde une équipe sans passage comme un trou (`{ 0: […], 2: […] }`).
+ */
+export function pictoToursBruts(round) {
+  const e = round?.type === "pictionary" ? round?.tours : null;
+  const parRang = Array.isArray(e) ? e.slice(0, 8) : e && typeof e === "object" ? Array.from({ length: 8 }, (_, k) => e[k]) : [];
+  while (parRang.length && !listOf(parRang[parRang.length - 1]).length) parRang.pop();
+  return parRang.map((passages) => listOf(passages).slice(0, PICTO_PASSAGES_MAX)
+    .map((p) => listOf(p).slice(0, Math.max(...PICTO_PROPOSITIONS)).map(motPicto).filter(Boolean)).filter((p) => p.length));
+}
+/** Les passages joués : sans case vide, sans passage vide. */
+export const pictoTours = (round) => pictoToursBruts(round).map((ps) => ps.map((p) => p.filter((m) => !m.vide)).filter((p) => p.length));
+/** Un Pictionary préparé dans la Régie PC (au moins un mot pour une équipe). */
+export const pictoEnSeries = (round) => pictoTours(round).some((ps) => ps.length);
+
 export const pictoRoundSeries = (round) => {
   const list = Array.isArray(round?.series) ? round.series.filter((x) => typeof x === "string" && x.trim()).map((x) => x.trim()) : [];
   return list.length ? list : null;
 };
 
 export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || round.type === "statues" || round.type === "pictionary" || round.type === "portes" || round.type === "coffres" || round.type === "gonfleur" || round.type === "patate" ? true
-  : round.type === "mimes" ? round.deckId || round.random === true || mimeCards(round.cards).length
-  : MUSIC_GAMES[round.type] ? round.playlistId || roundTracks(round).length
+  : round.type === "mimes" ? round.deckId || round.random === true || mimeCards(round.cards).length || mimeEquipes(round).some((l) => l.length)
+  : MUSIC_GAMES[round.type] ? round.playlistId || roundTracks(round).length || chansonsDe(round).length
   : (round.type === "zoom" || round.type === "flou") && roundPicks(round).length ? true
   : roundSeriesQuiz(round).some((x) => x.origine === "quiz" || questionsEnLigne(x.questions).length) || roundTirees(round).length || roundQuizIds(round).length));
+
+/** Ce qui manque à un jeu encore vide, pour « Reste à faire ». */
+const RIEN_DE_CHOISI = {
+  quiz: "aucune question choisie", illustre: "aucune question choisie", express: "aucune affirmation choisie",
+  zoom: "aucune photo choisie", flou: "aucune photo choisie", blind: "aucune chanson choisie", musical: "aucune chanson choisie",
+  mimes: "aucune image tirée", chante: "aucun mot choisi", quisuis: "aucun personnage choisi", disparu: "aucune grille choisie",
+  pictionary: "aucun mot choisi",
+};
+
+/**
+ * Jeux de la prestation encore vides (cedric, 24/10 : « le pictionary fait partie de la prestation mais il n'y a pas eu
+ * de sélection d'images ») : { i, type, hasard, texte }, une phrase par jeu pour « Reste à faire ». [hasard] : la TV le
+ * remplit seule au lancement (Chante le mot !, Qui suis-je ?, Qui a disparu ?, Pictionary), c'est une simple alerte ;
+ * les autres ne se jouent pas vides. Les jeux sans rien à préparer (Statues, Coffres…) ne sont jamais vides.
+ */
+export function jeuxVides(show) {
+  const rounds = (show?.rounds ?? []).filter(Boolean);
+  const types = rounds.map((r) => r.type ?? "quiz");
+  return rounds.flatMap((r, i) => {
+    const type = types[i];
+    if (!RIEN_DE_CHOISI[type]) return [];
+    const mots = estJeuDeMots(type);
+    const hasard = mots || type === "pictionary";
+    const vide = mots ? !motsDuJeu(r).length && !roundPicks(r).length
+      : type === "pictionary" ? !roundPicks(r).length && !pictoRoundSeries(r) && !pictoEnSeries(r)
+        : !roundFilled(r);
+    if (!vide) return [];
+    // Deux fois le même jeu : sa place dans la prestation.
+    const nom = `${ROUND_TYPES[type]}${types.filter((t) => t === type).length > 1 ? ` (jeu ${i + 1})` : ""}`;
+    const n = mots ? r.count ?? BUILTIN_GAMES[type]?.count : null;
+    const suite = !hasard ? "" : n ? `, la TV en tirera ${n} au hasard` : ", la TV les tirera au hasard";
+    return [{ i, type, hasard, texte: `${nom} : ${RIEN_DE_CHOISI[type]} pour l'instant${suite}.` }];
+  });
+}
+/** La phrase d'un jeu vide de la prestation ([i] : sa place), null s'il ne l'est pas. */
+const texteJeuVide = (show, i) => jeuxVides(show).find((x) => x.i === i)?.texte ?? null;
 
 /** Au plus autant de questions tirées au 🎲 dans une manche Quiz. */
 export const MAX_TIREES = 20;
@@ -425,13 +526,27 @@ export const MAX_QUESTIONS_MANCHE = 100;
 /** Multiplicateurs de la Super Finale ; le premier est celui d'office (comme sur la régie). */
 export const FACTEURS_FINALE = [2, 3, 5];
 /** Origines d'une série de questions d'une manche Quiz. */
-export const ORIGINES_SERIE = ["de", "quiz", "main", "reprise"];
+export const ORIGINES_SERIE = ["de", "quiz", "main", "reprise", "images"];
 /**
  * Jeux dont une manche est faite de séries, comme le Quiz (cedric, 23/10 : « exactement la même architecture ») : 🎲,
  * séries rappelées d'un ancien anniversaire, séries de la bibliothèque, Super Finale, « Quiz complet ».
  */
-export const JEUX_EN_SERIES = ["quiz", "illustre"];
+export const JEUX_EN_SERIES = ["quiz", "illustre", "zoom", "flou", "express"];
 export const estEnSeries = (type) => JEUX_EN_SERIES.includes(type ?? "quiz");
+/** Jeux de photos à deviner (Zoom mystère, Image floue) : une photo par question, la réponse à trouver. */
+export const JEUX_DE_PHOTOS = ["zoom", "flou"];
+export const estJeuDePhotos = (type) => JEUX_DE_PHOTOS.includes(type);
+/**
+ * Ce qui reconnaît une question dans sa série : son texte ; au Zoom mystère et à l'Image floue, sa photo (leurs
+ * questions disent toutes « Qu'est-ce que c'est ? »).
+ */
+export const signatureQuestion = (q, type) => (estJeuDePhotos(type) && (IMAGE_ID.test(q?.imageId ?? "") || q?.banque)
+  ? (IMAGE_ID.test(q?.imageId ?? "") ? `i:${q.imageId}` : `b:${q.banque}`) : `${q?.text ?? ""}`.trim().toLowerCase());
+/**
+ * Questions d'un quiz de la bibliothèque jouables dans un jeu en séries : ses photos au Zoom et à l'Image floue, ses
+ * Vrai / Faux au Vrai ou Faux express.
+ */
+export const questionsDuJeu = (type, quiz) => (estJeuDePhotos(type) ? zoomQuestions(quiz) : type === "express" ? expressQuestions(quiz) : playable(quiz));
 
 /**
  * Séries d'une manche Quiz (cedric, 23/10 : un Quiz = une seule manche, quelle que soit l'origine de ses questions),
@@ -439,6 +554,7 @@ export const estEnSeries = (type) => JEUX_EN_SERIES.includes(type ?? "quiz");
  * - « de » : questions tirées au 🎲 dans la banque, gardées dans la série (`questions`, `profil` du tirage) ;
  * - « main » : questions écrites à la main dans la manche (`questions`) ;
  * - « reprise » : questions d'une autre manche, copiées (`questions`) ;
+ * - « images » : Zoom mystère, Image floue : ses photos de « Mes images », choisies une par une (`questions`) ;
  * - « quiz » : un quiz de la bibliothèque rappelé (`quizId`), lu au lancement, sans ses questions retirées (`sans`,
  *   leurs textes) ; s'il est changé dans la bibliothèque, la manche suit.
  */
@@ -452,16 +568,16 @@ export const roundSeriesQuiz = (round) => (estEnSeries(round?.type) ? listOf(rou
  * Clé d'une question dans sa série, pour l'ordre du « Quiz complet » (`ordreQuiz`) : la série, puis l'identifiant de la
  * question gardée dans la série, sinon son texte (celles d'un quiz rappelé, comme leurs questions retirées).
  */
-export const cleQuestion = (serie, q) => `${serie?.id ?? ""}|${serie?.origine !== "quiz" && typeof q?.id === "string" && q.id ? q.id : `t:${`${q?.text ?? ""}`.trim().toLowerCase()}`}`;
+export const cleQuestion = (serie, q, type) => `${serie?.id ?? ""}|${serie?.origine !== "quiz" && typeof q?.id === "string" && q.id ? q.id : `t:${signatureQuestion(q, type)}`}`;
 
-/** Questions jouées d'une série, avec leur clé : { cle, q } (q au format d'une question de quiz). */
-function itemsDeLaSerie(serie, quizzes = {}) {
+/** Questions jouées d'une série d'une manche de [type], avec leur clé : { cle, q } (q au format d'une question de quiz). */
+function itemsDeLaSerie(serie, quizzes = {}, type = "quiz") {
   if (serie?.origine === "quiz") {
     const quiz = quizzes?.[serie.quizId];
     const sans = new Set(listOf(serie.sans).map((t) => `${t}`.trim().toLowerCase()));
-    return quiz ? playable(quiz).filter((q) => !sans.has(`${q.text ?? ""}`.trim().toLowerCase())).map((q) => ({ cle: cleQuestion(serie, q), q })) : [];
+    return quiz ? questionsDuJeu(type, quiz).filter((q) => !sans.has(signatureQuestion(q, type))).map((q) => ({ cle: cleQuestion(serie, q, type), q })) : [];
   }
-  return questionsEnLigne(serie?.questions).map((q) => ({ cle: cleQuestion(serie, q), q: q.nombre
+  return questionsEnLigne(serie?.questions).map((q) => ({ cle: cleQuestion(serie, q, type), q: q.nombre
     ? { text: q.text, kind: "number", correct: q.correct, status: "validee" }
     : { text: q.text, choices: q.choices, correct: q.correct, status: "validee",
       ...(q.banque ? { banque: q.banque } : q.imageId ? { imageId: q.imageId } : q.emoji ? { image: q.emoji } : {}),
@@ -474,7 +590,7 @@ function itemsDeLaSerie(serie, quizzes = {}) {
  * Questions jouées d'une série, au format d'une question de quiz (validées) : celles gardées dans la série, ou celles du
  * quiz rappelé (validées, sans celles retirées). Un quiz qui n'existe plus : aucune.
  */
-export const questionsDeLaSerie = (serie, quizzes = {}) => itemsDeLaSerie(serie, quizzes).map((x) => x.q);
+export const questionsDeLaSerie = (serie, quizzes = {}, type = "quiz") => itemsDeLaSerie(serie, quizzes, type).map((x) => x.q);
 
 /** Clé de la question des bougies dans l'ordre du « Quiz complet », une fois qu'elle y a été rangée à la main. */
 export const CLE_BOUGIES = "bougies";
@@ -484,12 +600,21 @@ export const CLE_BOUGIES = "bougies";
  * de la question des bougies ({ cle: CLE_BOUGIES, bougies: true }).
  */
 function ordreDuQuiz(round, quizzes) {
-  const parSerie = roundSeriesQuiz(round).map((serie) => itemsDeLaSerie(serie, quizzes).map((x) => ({ ...x, serie })));
+  const parSerie = roundSeriesQuiz(round).map((serie) => itemsDeLaSerie(serie, quizzes, round?.type ?? "quiz").map((x) => ({ ...x, serie })));
+  return rangerSelonOrdre(parSerie, round?.ordreQuiz, [{ cle: CLE_BOUGIES, bougies: true }]);
+}
+
+/**
+ * Les éléments de séries ([parSerie] : une liste de { cle } par série) dans l'ordre rangé à la main ([ordre] : leurs
+ * clés), avec [extras] (places hors des séries, rangées à la main). Sans ordre : série après série. Un élément arrivé
+ * ensuite se met à côté de sa voisine de série ; une série toute nouvelle, au début si c'est la première (le 🎲),
+ * sinon à la fin.
+ */
+function rangerSelonOrdre(parSerie, ordre, extras = []) {
   const rang = new Map();
-  listOf(round?.ordreQuiz).forEach((c, k) => { if (typeof c === "string" && !rang.has(c)) rang.set(c, k); });
+  listOf(ordre).forEach((c, k) => { if (typeof c === "string" && !rang.has(c)) rang.set(c, k); });
   if (!rang.size) return parSerie.flat();
-  const places = [...parSerie.flat(), ...(rang.has(CLE_BOUGIES) ? [{ cle: CLE_BOUGIES, bougies: true }] : [])];
-  const out = places.filter((x) => rang.has(x.cle)).sort((a, b) => rang.get(a.cle) - rang.get(b.cle));
+  const out = [...parSerie.flat(), ...extras].filter((x) => rang.has(x.cle)).sort((a, b) => rang.get(a.cle) - rang.get(b.cle));
   parSerie.forEach((liste, s) => liste.forEach((x, k) => {
     if (rang.has(x.cle)) return;
     const avant = liste.slice(0, k).reverse().find((y) => out.includes(y));
@@ -497,6 +622,40 @@ function ordreDuQuiz(round, quizzes) {
     out.splice(avant ? out.indexOf(avant) + 1 : apres ? out.indexOf(apres) : s === 0 ? 0 : out.length, 0, x);
   }));
   return out;
+}
+
+/**
+ * Jeux de mots en séries (cedric, 24/10 : Chante le mot ! « à la manière des quiz ») : la série du 🎲 (mots du jeu
+ * tirés au nombre choisi, selon l'âge) et les mots écrits à la main ; le « complet » les joue dans l'ordre rangé à la
+ * main ou mélangé (`ordreMots`, leurs clés), sinon série après série. Un mot n'y passe qu'une fois.
+ */
+// Qui suis-je ? aussi (cedric, 24/10 : « même principe que tous les autres ») : ses personnages en séries.
+// Qui a disparu ? aussi (cedric, 24/10) : ses grilles en séries (🎲 dans les émojis, vos images, les photos libres).
+export const JEUX_DE_MOTS = ["chante", "quisuis", "disparu"];
+export const estJeuDeMots = (type) => JEUX_DE_MOTS.includes(type);
+/**
+ * Origines d'une série de mots : le 🎲, les mots écrits à la main (Qui suis-je ? d'avant les séries : choisis un par un) ;
+ * Qui suis-je ? : les personnages d'un ancien anniversaire, une série de la bibliothèque ; Qui a disparu ? : des grilles
+ * de photos libres, des grilles composées avec vos images.
+ */
+export const ORIGINES_MOTS = ["de", "main", "reprise", "biblio", "photos", "images"];
+/** Au plus autant de mots dans un jeu de mots. */
+export const MAX_MOTS = 30;
+/** Un mot gardé dans une série, nettoyé ; { vide: true } : retiré du 🎲, en attente d'un autre. */
+const motDeSerie = (type, m) => (m?.vide === true ? { vide: true } : CONTENT_GAMES[type]?.clean(m) ?? null);
+/** Séries d'un jeu de mots : { id, origine, mots }. */
+export const seriesMots = (round) => (estJeuDeMots(round?.type) ? listOf(round.seriesMots) : [])
+  .filter((x) => x && typeof x.id === "string" && x.id && ORIGINES_MOTS.includes(x.origine))
+  .map((x) => ({ ...x, mots: listOf(x.mots).map((m) => motDeSerie(round.type, m)).filter(Boolean) }));
+/** Clé d'un mot dans son jeu (« Soleil » et « soleil » sont le même mot) ; "" pour une case vide. */
+export const cleDuMot = (type, m) => (m && m.vide !== true && CONTENT_GAMES[type] ? CONTENT_GAMES[type].key(m) : "");
+/** Les mots d'un jeu de mots dans l'ordre de passage : { cle, m, serie }, chacun une fois, au plus MAX_MOTS. */
+export function motsDuJeu(round) {
+  const type = round?.type;
+  const vus = new Set();
+  const parSerie = seriesMots(round).map((serie) => serie.mots.map((m) => ({ cle: cleDuMot(type, m), m, serie }))
+    .filter((x) => x.cle && !vus.has(x.cle) && vus.add(x.cle)));
+  return rangerSelonOrdre(parSerie, round?.ordreMots).slice(0, MAX_MOTS);
 }
 
 /**
@@ -532,6 +691,52 @@ export const roundTracks = (round) => [...new Set(listOf(round?.tracks).filter((
 const listOf = (x) => (Array.isArray(x) ? x : x && typeof x === "object" ? Object.values(x) : []);
 
 /**
+ * Chansons d'un blind test tiré au 🎲 (cedric, 24/10) : leurs identifiants dans la bibliothèque des sons
+ * (library/songs), dans l'ordre de passage ; les cases vidées par ✕ (chaîne vide) attendent leur 🎲 et ne comptent pas.
+ */
+const idChanson = (id) => (typeof id === "string" && /^[-\w]{1,40}$/.test(id) ? id : "");
+/** Jeux faits de chansons de la bibliothèque des sons, en séries : le Blind test, et le Quiz musical (cedric, 24/10). */
+export const JEUX_DE_CHANSONS = ["blind", "musical"];
+/** Origines d'une série de chansons d'un blind test : le 🎲, une playlist de la bibliothèque, des chansons choisies. */
+export const ORIGINES_BLIND = ["de", "playlist", "choix"];
+/**
+ * Blind test en séries (cedric, 24/10 : « de la même manière qu'avec le quiz ») : la série du 🎲, chaque playlist
+ * ajoutée, les chansons choisies à la main ; chacune garde ses chansons (cases vidées comprises, en attente de leur 🎲).
+ * Le « Blind test complet » les joue toutes dans l'ordre rangé à la main ou mélangé (`ordreBlind`), sinon série après
+ * série. Une chanson n'y passe qu'une fois.
+ */
+export const seriesBlind = (round) => (JEUX_DE_CHANSONS.includes(round?.type) ? listOf(round.seriesBlind) : [])
+  .filter((x) => x && typeof x.id === "string" && x.id && ORIGINES_BLIND.includes(x.origine))
+  .map((x) => ({ ...x, chansons: listOf(x.chansons).map(idChanson) }));
+/**
+ * Chansons d'un blind test dans l'ordre de passage, puis les cases vides ("", en attente de leur 🎲). Sans séries
+ * (manches d'avant) : la liste `chansons` telle quelle.
+ */
+export function chansonsBrutes(round) {
+  const series = seriesBlind(round);
+  if (!series.length) return listOf(round?.chansons).map(idChanson).slice(0, MAX_CHANSONS_BLIND);
+  const toutes = [...new Set(series.flatMap((x) => x.chansons.filter(Boolean)))];
+  const dedans = new Set(toutes);
+  const ordre = [...new Set(listOf(round.ordreBlind).map(idChanson).filter((id) => dedans.has(id)))];
+  const rangees = new Set(ordre);
+  return [...ordre, ...toutes.filter((id) => !rangees.has(id)), ...series.flatMap((x) => x.chansons.filter((id) => !id))].slice(0, MAX_CHANSONS_BLIND);
+}
+export const chansonsDe = (round) => [...new Set(chansonsBrutes(round).filter(Boolean))];
+
+/** Une chanson de la bibliothèque qu'un blind test peut jouer : un titre et son extrait, pas supprimée. */
+export const chansonJouable = (song) => !!(song && song.retiree !== true && typeof song.title === "string" && song.title.trim() && /^[0-9a-f]{16}$/.test(song.audioId ?? ""));
+
+/**
+ * Playlist d'un blind test tiré au 🎲 : ses chansons lues dans la bibliothèque des sons au moment du lancement (une
+ * pochette ou des paroles ajoutées depuis sont donc jouées), chacune avec son temps pour buzzer. Null si aucune
+ * n'existe plus.
+ */
+export function chansonsPlaylist(round, songs, title = "") {
+  const tracks = chansonsDe(round).map((id) => (chansonJouable(songs?.[id]) ? trackFromSong({ ...songs[id], id }) : null)).filter(Boolean);
+  return tracks.length ? { title: typeof title === "string" ? title.trim().slice(0, 60) : "", duration: BLIND_SEC, tracks } : null;
+}
+
+/**
  * Quiz d'une manche tirée de quiz (Quiz, Vrai ou Faux, Zoom, Image floue) : un ou plusieurs, choisis par Sarah
  * (`quizIds`), sinon le seul `quizId`. Leurs questions s'enchaînent dans cet ordre ; jamais de tirage au hasard.
  */
@@ -546,7 +751,89 @@ export const mimeCards = (list) => listOf(list).filter((c) => typeof c?.word ===
     ...(typeof c.image === "string" && c.image.trim() ? { image: c.image.trim().slice(0, 16) } : {}),
     // Photo à soi, choisie dans la Régie PC : elle remplace l'émoji sur la TV.
     ...(typeof c.imageId === "string" && /^[0-9a-f]{16}$/.test(c.imageId) ? { imageId: c.imageId } : {}),
+    // Photo libre de la banque (clé de son mot), copiée dans la partie par la régie au lancement.
+    ...(!c.imageId && typeof c.banque === "string" && /^[a-z0-9_-]{1,60}$/.test(c.banque) ? { banque: c.banque } : {}),
   }));
+
+/**
+ * Mimes, une présélection par équipe (cedric, 23/10 : « autant de manches que d'équipes », le 🎲 seul) : les images
+ * tirées pour chaque équipe, dans l'ordre des couleurs de la prestation (`equipes` : une liste par équipe, la 1re pour
+ * la 1re couleur…). Une image retirée ({ vide: true }, en attente de son 🎲) n'est pas jouée.
+ */
+export const MIME_EQUIPES_MAX = 30;
+/**
+ * Les présélections telles qu'enregistrées, une liste par équipe (au plus 8), cases vides comprises ({ vide: true }).
+ * Lues par leur rang : la base garde une équipe sans images comme un trou (`{ 0: […], 2: […] }`), jamais décalée.
+ */
+export function mimeEquipesBrutes(round) {
+  const e = round?.type === "mimes" ? round?.equipes : null;
+  const parRang = Array.isArray(e) ? e.slice(0, 8) : e && typeof e === "object" ? Array.from({ length: 8 }, (_, k) => e[k]) : [];
+  while (parRang.length && !listOf(parRang[parRang.length - 1]).length) parRang.pop();
+  return parRang.map((liste) => listOf(liste).slice(0, MIME_EQUIPES_MAX)
+    .map((c) => (c?.vide === true ? { vide: true } : mimeCards([c])[0])).filter(Boolean));
+}
+export const mimeEquipes = (round) => mimeEquipesBrutes(round).map((liste) => liste.filter((c) => !c.vide));
+/**
+ * Tranche d'âge de chaque équipe des Mimes, choisie à la main dans la Régie PC (cedric, 24/10) ; null : celle de la
+ * prestation. Le 🎲 de la ligne de l'équipe tire des images de cet âge.
+ */
+export function mimeAges(round) {
+  const a = round?.type === "mimes" && round?.ages && typeof round.ages === "object" ? round.ages : {};
+  return Array.from({ length: 8 }, (_, k) => (Object.hasOwn(PROFILES, `${a[k]}`) ? a[k] : null));
+}
+/** Sources du 🎲 des Mimes, choisies par Sarah (« Mes images » : exception à la règle du hasard accordée par cedric). */
+export const MIME_SOURCES = { photos: "📷 Photos libres", emojis: "😀 Émojis", miennes: "🖼️ Mes images" };
+/** Titre de la manche de mimes d'une équipe (« Équipe Rose ») : la régie y retrouve la couleur de l'équipe qui joue. */
+export const titreMimeEquipe = (couleur) => `Équipe ${TEAM_COLOR_NAMES[TEAM_COLORS.indexOf(couleur)] ?? "suivante"}`;
+/** La couleur d'une manche de mimes d'une équipe, d'après son titre ; null pour une manche de mimes ordinaire. */
+export function couleurMimeEquipe(text) {
+  const nom = /^Équipe (\S+)$/.exec(`${text ?? ""}`.trim())?.[1];
+  const k = nom ? TEAM_COLOR_NAMES.findIndex((x) => x.toLowerCase() === nom.toLowerCase()) : -1;
+  return k >= 0 ? TEAM_COLORS[k] : null;
+}
+
+/**
+ * Ce qui manque dans les listes d'un jeu (cedric, 24/10 : « s'il manque une chanson dans une série, ou quelque chose
+ * de mal programmé, qu'on le voie ») : les cases laissées sur le 🎲 après un ✕, les chansons supprimées depuis de la
+ * bibliothèque des sons. Rien ne plante pour autant (la TV saute ces cases, le blind test a une chanson de moins), mais
+ * la Régie PC le dit sous le jeu, dans « Reste à faire » et à l'enregistrement. Une phrase par souci, sans « Manche N ».
+ * [couleurs] : celles des équipes de la prestation (Mimes : quelles équipes) ; [songs] : la bibliothèque des sons.
+ */
+export function trousDuJeu(round, { songs = null, couleurs = null } = {}) {
+  const pl = (n, mot) => `${n} ${mot}${n > 1 ? "s" : ""}`;
+  const cases = (n) => `case${n > 1 ? "s" : ""} 🎲 vide${n > 1 ? "s" : ""}`;
+  const type = round?.type ?? "quiz";
+  if (JEUX_DE_CHANSONS.includes(type)) {
+    const brutes = chansonsBrutes(round);
+    const vides = brutes.filter((id) => !id).length;
+    // Chansons supprimées de la bibliothèque : seulement une fois la bibliothèque lue, et s'il en reste à jouer (sinon
+    // le blind test entier est signalé ailleurs).
+    const connues = songs && Object.keys(songs).length ? songs : null;
+    const jouees = connues ? chansonsDe(round).filter((id) => chansonJouable(connues[id])).length : chansonsDe(round).length;
+    if (!jouees) return [];
+    const perdues = connues ? chansonsDe(round).length - jouees : 0;
+    if (!vides && !perdues) return [];
+    const quoi = [vides ? `il manque ${pl(vides, "chanson")} (${cases(vides)})` : "",
+      perdues ? `${pl(perdues, "chanson")} supprimée${perdues > 1 ? "s" : ""} de la bibliothèque des sons` : ""].filter(Boolean).join(" et ");
+    return [`${quoi} : ${jouees} jouée${jouees > 1 ? "s" : ""} au lieu de ${jouees + vides + perdues}`];
+  }
+  if (type === "mimes") {
+    // Une équipe sans aucune image est déjà signalée à part (« sans images »).
+    const avecTrous = mimeEquipesBrutes(round).map((l, k) => [k, l.filter((c) => c.vide).length, l.some((c) => !c.vide)]).filter(([, n, reste]) => n && reste);
+    const n = avecTrous.reduce((s, [, x]) => s + x, 0);
+    if (!n) return [];
+    const qui = couleurs?.length ? avecTrous.map(([k]) => (couleurs[k] ? titreMimeEquipe(couleurs[k]) : null)).filter(Boolean).join(", ") : "";
+    return [`il manque ${pl(n, "image")} (${cases(n)})${qui ? ` : ${qui}` : ""}`];
+  }
+  if (estEnSeries(type)) {
+    const vides = [...(type === "quiz" ? listOf(round?.tirees) : []), ...roundSeriesQuiz(round).flatMap((x) => (x.origine === "quiz" ? [] : x.questions))]
+      .filter((q) => q?.vide === true).length;
+    if (!vides) return [];
+    const unite = estJeuDePhotos(type) ? "photo" : type === "express" ? "affirmation" : "question";
+    return [`il manque ${pl(vides, unite)} (${cases(vides)})`];
+  }
+  return [];
+}
 
 /** Cartes tirées par « Mimes au hasard » quand Sarah n'a rien précisé. */
 export const MIME_RANDOM = 30;
@@ -643,6 +930,8 @@ export function builtinConcepts(type, x) {
 
 /** Questions d'une manche Zoom mystère ou Image floue : les photos choisies une par une, sinon celles des quiz choisis. */
 export function zoomRoundQuestions(round, quizzes) {
+  // En séries (cedric, 23/10) : toutes ses photos, dans l'ordre de passage.
+  if (roundSeriesQuiz(round).length) return questionsDesSeries(round, quizzes);
   if (roundPicks(round).length) {
     const byImage = new Map();
     Object.values(quizzes ?? {}).forEach((qz) => (qz ? zoomQuestions(qz) : []).forEach((q) => { if (!byImage.has(q.imageId)) byImage.set(q.imageId, q); }));
@@ -660,10 +949,16 @@ export function fixedConcepts(round, quizzes = {}, mimes = {}, contents = {}) {
   const type = round?.type;
   if (type === "mimes") {
     const deck = round.deckId ? mimes?.[round.deckId] : null;
-    return [...mimeCards(round.cards), ...(deck ? mimeCards(deck.cards) : [])].flatMap(concepts);
+    return [...mimeCards(round.cards), ...(deck ? mimeCards(deck.cards) : []), ...mimeEquipes(round).flat()].flatMap(concepts);
   }
+  // Qui a disparu ? en séries : les objets de toutes ses grilles.
+  if (type === "disparu" && motsDuJeu(round).length) return motsDuJeu(round).flatMap((x) => x.m.objects).flatMap(concepts);
+  // Pictionary préparé par équipe (cedric, 24/10) : tous les mots proposés.
+  if (type === "pictionary" && pictoEnSeries(round)) return pictoTours(round).flat(2).flatMap(concepts);
   if (type === "chante" || type === "quisuis" || type === "pictionary") {
-    return pickedItems(type, contents?.[type], roundPicks(round)).flatMap((x) => builtinConcepts(type, x));
+    // En séries (cedric, 24/10) : tous ses mots, ceux tirés au 🎲 compris (ils comptent une fois tirés).
+    const enSeries = estJeuDeMots(type) ? motsDuJeu(round).map((x) => x.m) : [];
+    return (enSeries.length ? enSeries : pickedItems(type, contents?.[type], roundPicks(round))).flatMap((x) => builtinConcepts(type, x));
   }
   if (type === "zoom" || type === "flou") return zoomRoundQuestions(round, quizzes).flatMap((q) => questionConcepts({ ...q, kind: type }));
   // Quiz choisi : les photos de ses réponses (quiz illustré) et ses illustrations. Ses questions reprises au hasard
@@ -700,32 +995,39 @@ export function tracksPlaylist(ids, playlists, title = "") {
 /**
  * Questions d'un jeu musical. Blind test : les morceaux dans l'ordre de la playlist, un buzz par morceau,
  * réponse à voix haute, chaque morceau avec sa valeur, sa pochette et sa durée de révélation. Quiz musical : le bon
- * titre parmi trois autres titres de la même playlist, sur les pupitres, morceaux mélangés.
+ * titre parmi trois autres titres de la même playlist, sur les pupitres, morceaux mélangés. [dansLOrdre] : le Quiz
+ * musical garde l'ordre rangé dans la Régie PC (cedric, 24/10) ; [autresTitres] complètent les mauvaises réponses quand
+ * la liste a moins de 4 titres (ceux de la bibliothèque des sons).
  */
-function musicQuestions(type, playlist, prefix, random) {
-  const tracks = type === "blind" ? playableTracks(playlist) : shuffle(playableTracks(playlist), random);
+function musicQuestions(type, playlist, prefix, random, { dansLOrdre = false, autresTitres = [] } = {}) {
+  const tracks = type === "blind" || dansLOrdre ? playableTracks(playlist) : shuffle(playableTracks(playlist), random);
   const scale = blindScale(playlist);
   const titles = [...new Set(tracks.map((t) => t.title.trim()))];
+  const secours = [...new Set(autresTitres.map((x) => (typeof x === "string" ? x.trim() : "")).filter((x) => x && !titles.includes(x)))];
   // Le type dans le titre : blind test et quiz musical d'une même playlist restent deux manches distinctes.
   const label = playlist.title?.trim() ? `${ROUND_TYPES[type]} · ${playlist.title.trim()}` : ROUND_TYPES[type];
   return tracks.map((t, j) => {
     const title = t.title.trim();
     const base = { id: `${prefix}${j + 1}`, double: false, round: label, audioId: t.audioId, duration: t.duration ?? playlist.duration ?? BLIND_SEC };
+    // La révélation, au blind test comme au quiz musical (cedric, 24/10) : pochette, artiste, et le refrain de la chanson.
+    const revelation = {
+      ...(t.artist?.trim() ? { artist: t.artist.trim() } : {}),
+      ...(/^[0-9a-f]{16}$/.test(t.imageId ?? "") ? { imageId: t.imageId } : {}),
+      // Refrain (environ 90 s) : joué à la révélation, « on chante tous ensemble » (quelques secondes au quiz musical).
+      ...(/^[0-9a-f]{16}$/.test(t.refrainId ?? "") ? { refrainId: t.refrainId } : {}),
+      // Paroles du refrain (cedric, 21/10) : elles apparaissent sur la TV au rythme de la chanson.
+      ...(/^[0-9a-f]{16}$/.test(t.refrainId ?? "") && typeof t.paroles === "string" && t.paroles ? { lyrics: t.paroles.slice(0, 8000) } : {}),
+    };
     if (type === "blind") {
       return {
         ...base, text: "Quel est ce titre ?", choices: [title], correct: 0, kind: "blind",
-        points: trackPoints(playlist, t, j, tracks.length), reveal: scale.reveal,
-        ...(t.artist?.trim() ? { artist: t.artist.trim() } : {}),
-        ...(/^[0-9a-f]{16}$/.test(t.imageId ?? "") ? { imageId: t.imageId } : {}),
-        // Refrain (environ 90 s) : joué en boucle à la révélation, « on chante tous ensemble ».
-        ...(/^[0-9a-f]{16}$/.test(t.refrainId ?? "") ? { refrainId: t.refrainId } : {}),
-        // Paroles du refrain (cedric, 21/10) : elles apparaissent sur la TV au rythme de la chanson.
-        ...(/^[0-9a-f]{16}$/.test(t.refrainId ?? "") && typeof t.paroles === "string" && t.paroles ? { lyrics: t.paroles.slice(0, 8000) } : {}),
+        points: trackPoints(playlist, t, j, tracks.length), reveal: scale.reveal, ...revelation,
       };
     }
-    const others = shuffle(titles.filter((x) => x !== title), random).slice(0, 3);
+    const proches = shuffle(titles.filter((x) => x !== title), random).slice(0, 3);
+    const others = [...proches, ...shuffle(secours, random).slice(0, 3 - proches.length)];
     const choices = shuffle([title, ...others], random);
-    return { ...base, text: "Quel est ce titre ?", choices, correct: choices.indexOf(title), kind: "classic" };
+    return { ...base, text: "Quel est ce titre ?", choices, correct: choices.indexOf(title), kind: "classic", ...revelation };
   });
 }
 
@@ -759,8 +1061,8 @@ function mimeItem(round, deck, i, random, profile, mimes, teams, avoid, pris = n
   };
 }
 
-/** Cartes par équipe d'une manche de mimes (1 à 20), ou 0 quand la manche joue sa liste telle quelle. */
-export const mimePerTeam = (round) => (Number.isInteger(round?.perTeam) && round.perTeam >= 1 && round.perTeam <= 20 ? round.perTeam : 0);
+/** Cartes par équipe d'une manche de mimes (1 à 30), ou 0 quand la manche joue sa liste telle quelle. */
+export const mimePerTeam = (round) => (Number.isInteger(round?.perTeam) && round.perTeam >= 1 && round.perTeam <= MIME_EQUIPES_MAX ? round.perTeam : 0);
 
 /** Équipes de rechange prévues par la réserve de cartes des mimes. */
 export const MIME_SPARE_TEAMS = 2;
@@ -796,11 +1098,23 @@ export const PAR_EQUIPE_MIN = 3;
  * toujours (tous les mots actifs, ou de quoi jouer pour chaque équipe) ; seule une liste faite à la main peut manquer.
  * Rend le message, ou null.
  */
-export function alerteEquipes(round, teams, { mimes = {}, contents = {}, profile = null } = {}) {
+export function alerteEquipes(round, teams, { mimes = {}, contents = {}, profile = null, couleurs = null } = {}) {
   const n = teamCount(teams);
+  if (round?.type === "mimes" && mimeEquipes(round).some((l) => l.length)) {
+    // Une présélection par équipe (cedric, 23/10) : chaque équipe prévue doit avoir ses images.
+    const c = Array.isArray(couleurs) && couleurs.length === n ? couleurs : TEAM_COLORS.slice(0, n);
+    const sans = c.filter((x, k) => !mimeEquipes(round)[k]?.length).map((x) => titreMimeEquipe(x).toLowerCase());
+    return sans.length ? `Mimes : ${sans.join(", ")} sans images (touchez 🎲).` : null;
+  }
   const besoin = PAR_EQUIPE_MIN * n;
   const pour = `pour ${n} équipe${n > 1 ? "s" : ""}, il en faut au moins ${besoin} (${PAR_EQUIPE_MIN} par équipe)`;
   if (round?.type === "patate" && n < 2) return "« Ça va exploser ! » se joue à 2 équipes au moins : une seule équipe est prévue.";
+  if (round?.type === "pictionary" && pictoEnSeries(round)) {
+    // Préparé par équipe (cedric, 24/10) : chaque équipe prévue a ses mots.
+    const c = Array.isArray(couleurs) && couleurs.length === n ? couleurs : TEAM_COLORS.slice(0, n);
+    const sans = c.filter((x, k) => !pictoTours(round)[k]?.length).map((x) => titreMimeEquipe(x).toLowerCase());
+    return sans.length ? `Pictionary : ${sans.join(", ")} sans mots (touchez 🎲).` : null;
+  }
   if (round?.type === "pictionary") {
     const mots = pickedItems("pictionary", contents?.pictionary, roundPicks(round)).length;
     if (mots && mots < besoin) return `Pictionary : ${mots} mot${mots > 1 ? "s" : ""} choisi${mots > 1 ? "s" : ""} ${pour}.`;
@@ -819,7 +1133,7 @@ export function alerteEquipes(round, teams, { mimes = {}, contents = {}, profile
  * un seul élément qui porte son paquet de cartes.
  * Renvoie `{ snapshot, problems }` ; `snapshot` est nul si rien n'est jouable.
  */
-export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.random, playlists = {}, contents = {}, avoid = {}) {
+export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.random, playlists = {}, contents = {}, avoid = {}, songs = {}) {
   const profile = PROFILES[show.profile] ? show.profile : profileForAge(show.age);
   const problems = [];
   // Un bloc par manche préparée : la Super Finale rejoint ensuite le quiz qu'elle termine.
@@ -838,9 +1152,32 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
   const quizDesBougies = premierQuiz(show.rounds, quizzes);
   (show.rounds ?? []).filter(Boolean).map((r) => [r, jeuDeLaManche(r, quizzes)]).forEach(([prepare, round], i) => {
     begin(round.type);
+    // Une case oubliée sur le 🎲, une chanson supprimée : la manche se joue sans elle, mais « Reste à faire » le dit.
+    trousDuJeu(round, { songs, couleurs: couleursEquipes(show) }).forEach((t) => problems.push(`Manche ${i + 1} (${ROUND_TYPES[round.type ?? "quiz"]}) : ${t}.`));
+    if (round.type === "mimes" && mimeEquipes(round).some((l) => l.length)) {
+      // Une manche de mimes par équipe (cedric, 23/10), à la suite dans le même jeu : la 1re couleur de la prestation
+      // joue la 1re présélection, et ainsi de suite. Chaque équipe ne mime que ses images, pendant un tour.
+      const couleurs = couleursEquipes(show);
+      const equipes = mimeEquipes(round);
+      const duration = Number.isInteger(round.duration) && round.duration >= 15 && round.duration <= 180 ? round.duration : MIME_TURN;
+      const vides = couleurs.filter((c, k) => !equipes[k]?.length);
+      if (vides.length) problems.push(`Manche ${i + 1} (Mimes) : ${vides.map((c) => titreMimeEquipe(c).toLowerCase()).join(", ")} sans images (🎲 dans la Régie PC).`);
+      const jouees = couleurs.map((c, k) => [c, equipes[k] ?? []]).filter(([, cartes]) => cartes.length);
+      if (!jouees.length) return;
+      rounds.push({ title: ROUND_TYPES.mimes, count: jouees.length, kind: "mime" });
+      jouees.forEach(([c, cartes], k) => questions.push({
+        // Dans l'ordre de la Régie PC (🔀 l'y mélange, cedric 24/10) : la TV montre les images dans cet ordre.
+        id: `r${i + 1}m${k + 1}`, text: titreMimeEquipe(c), kind: "mime", duration, cards: cartes, round: ROUND_TYPES.mimes,
+      }));
+      return;
+    }
     if (round.type === "mimes") {
       const deck = round.deckId ? mimes[round.deckId] : null;
-      if (!deck && round.random !== true && !mimeCards(round.cards).length) { problems.push(`Manche ${i + 1} : le paquet de mimes n'existe plus dans la bibliothèque.`); return; }
+      if (!deck && round.random !== true && !mimeCards(round.cards).length) {
+        // Rien de tiré : « Reste à faire » le dit (cedric, 24/10) ; un paquet effacé depuis, autrement.
+        problems.push((!round.deckId && texteJeuVide(show, i)) || `Manche ${i + 1} : le paquet de mimes n'existe plus dans la bibliothèque.`);
+        return;
+      }
       const item = mimeItem(round, deck, i, random, profile, mimes, show.teams, used.mimes, pris);
       if (!item.cards.length) { problems.push(`Manche ${i + 1} (${item.text}) : aucune carte.`); return; }
       rounds.push({ title: item.text, count: 1, kind: "mime" });
@@ -875,6 +1212,28 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       questions.push({ id: `r${i + 1}g`, text: ROUND_TYPES.gonfleur, kind: "gonfleur", choices: [], correct: -1, duration: GONFLEUR_SEC, double: false, round: ROUND_TYPES.gonfleur });
       return;
     }
+    if (round.type === "pictionary" && pictoEnSeries(round)) {
+      // Préparé par équipe (cedric, 24/10) : les mots dans l'ordre des passages, équipe après équipe dans l'ordre des
+      // couleurs (1er passage de chaque équipe, puis le 2e…) ; une TV qui ne lit pas encore `offres` les propose ainsi
+      // trois par trois. `offres` : pour chaque équipe, ses passages (rangs des mots dans `cards`). Les photos libres
+      // sont copiées dans la partie par la régie au lancement (la vraie photo de la révélation).
+      const tours = pictoTours(round);
+      const cards = [];
+      const offres = tours.map(() => []);
+      const passages = Math.max(...tours.map((ps) => ps.length));
+      for (let p = 0; p < passages; p++) {
+        tours.forEach((ps, k) => {
+          if (ps[p]) offres[k].push(ps[p].map((m) => cards.push({ word: m.word, ...(m.image ? { image: m.image } : {}), ...(m.imageId ? { imageId: m.imageId } : m.banque ? { banque: m.banque } : {}) }) - 1));
+        });
+      }
+      cards.forEach((c) => (used.pictionary ??= new Set()).add(c.word.toLowerCase()));
+      rounds.push({ title: ROUND_TYPES.pictionary, count: 1, kind: "pictionary" });
+      questions.push({
+        id: `r${i + 1}p`, text: ROUND_TYPES.pictionary, kind: "pictionary", duration: PICTO_SECONDS.includes(round.duration) ? round.duration : PICTO_SEC,
+        double: false, round: ROUND_TYPES.pictionary, points: PICTO_POINTS, cards, offres, propositions: pictoPropositions(round), passages,
+      });
+      return;
+    }
     if (round.type === "pictionary") {
       // Un seul élément : le paquet de mots mélangé (adapté à l'âge), joué équipe par équipe, un mot par tour.
       // Séries choisies pour la manche (aucune : toutes les séries).
@@ -899,10 +1258,22 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       return;
     }
     if (MUSIC_GAMES[round.type]) {
-      const playlist = roundTracks(round).length ? tracksPlaylist(roundTracks(round), playlists, round.title) : playlists[round.playlistId];
-      if (!playlist) { problems.push(`Manche ${i + 1} : la playlist n'existe plus dans la bibliothèque.`); return; }
-      const list = musicQuestions(round.type, playlist, `r${i + 1}q`, random);
-      if (round.type === "musical" && new Set(list.map((q) => q.choices[q.correct])).size < 2) {
+      // Blind test tiré au 🎲 dans la bibliothèque des sons (cedric, 24/10) : ses chansons ; sinon des extraits choisis
+      // dans les playlists, ou une playlist entière (manches préparées avant).
+      const tirees = JEUX_DE_CHANSONS.includes(round.type) && chansonsDe(round).length;
+      const playlist = tirees ? chansonsPlaylist(round, songs, round.title)
+        : roundTracks(round).length ? tracksPlaylist(roundTracks(round), playlists, round.title) : playlists[round.playlistId];
+      if (!playlist) {
+        problems.push(tirees ? `Manche ${i + 1} (${ROUND_TYPES[round.type]}) : ses chansons ne sont plus dans la bibliothèque des sons (touchez 🎲).`
+          : (!round.playlistId && !roundTracks(round).length && texteJeuVide(show, i)) || `Manche ${i + 1} : la playlist n'existe plus dans la bibliothèque.`);
+        return;
+      }
+      // Quiz musical en séries (cedric, 24/10) : l'ordre du « Quiz musical complet », les mauvaises réponses complétées
+      // par les autres titres de la bibliothèque des sons.
+      const list = musicQuestions(round.type, playlist, `r${i + 1}q`, random, tirees ? {
+        dansLOrdre: true, autresTitres: Object.values(songs ?? {}).filter(chansonJouable).map((x) => x.title),
+      } : {});
+      if (round.type === "musical" && list.some((q) => q.choices.length < 2)) {
         problems.push(`Manche ${i + 1} (${playlist.title}) : il faut au moins 2 morceaux pour proposer des titres.`);
         return;
       }
@@ -928,7 +1299,9 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       // Éléments choisis un par un dans la Régie PC : ceux-là, dans cet ordre ; sinon le tirage au hasard.
       // Choisis à la main : avec leurs images ; tirés au hasard (Régie PC ou régie) : sans image téléversée.
       const hasard = new Set(roundHasard(round));
-      const chosen = pickedItems(round.type, contents?.[round.type], roundPicks(round))
+      // Jeu de mots en séries (cedric, 24/10) : ses mots dans l'ordre de passage (ceux du 🎲 gardés sans image téléversée).
+      const enSeries = estJeuDeMots(round.type) ? motsDuJeu(round).map((x) => x.m) : [];
+      const chosen = enSeries.length ? enSeries : pickedItems(round.type, contents?.[round.type], roundPicks(round))
         .map((x) => (hasard.has(game.key(x)) ? pourLeHasard(round.type, x) : x)).filter(Boolean);
       const picked = chosen.length
         ? builtin.items(profile, random, chosen, round, true, pris)
@@ -944,10 +1317,11 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       }));
       return;
     }
-    if ((round.type === "zoom" || round.type === "flou") && roundPicks(round).length) {
-      // Photos choisies une par une, dans tous les quiz (la même photo n'est jouée qu'une fois).
+    if (estJeuDePhotos(round.type) && (roundPicks(round).length || roundSeriesQuiz(round).length)) {
+      // Photos choisies une par une, dans tous les quiz (la même photo n'est jouée qu'une fois) ; ou en séries
+      // (cedric, 23/10 : 🎲, ancien anniversaire, ses séries de photos), dans l'ordre de passage.
       const list = zoomRoundQuestions(round, quizzes);
-      if (!list.length) { problems.push(`Manche ${i + 1} (${ROUND_TYPES[round.type]}) : les photos choisies n'existent plus.`); return; }
+      if (!list.length) { problems.push(`Manche ${i + 1} (${ROUND_TYPES[round.type]}) : ${roundSeriesQuiz(round).length ? "aucune photo" : "les photos choisies n'existent plus"}.`); return; }
       const label = ROUND_TYPES[round.type];
       rounds.push({ title: label, count: list.length });
       list.forEach((q, j) => questions.push({
@@ -985,7 +1359,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     const label = round.type === "finale" || game ? ROUND_TYPES[round.type] : quiz?.title ?? `Manche ${i + 1}`;
     if (choisis.length < ids.length) problems.push(`Manche ${i + 1} : ${ids.length > 1 ? "un des quiz choisis" : "le quiz"} n'existe plus dans la bibliothèque.`);
     if (series.length && !found[0].questions.length) { problems.push(`Manche ${i + 1} (${ROUND_TYPES[round.type ?? "quiz"]}) : aucune question.`); return; }
-    if (!quiz) { if (!ids.length) problems.push(`Manche ${i + 1} : le quiz n'existe plus dans la bibliothèque.`); return; }
+    if (!quiz) { if (!ids.length) problems.push(texteJeuVide(show, i) ?? `Manche ${i + 1} : le quiz n'existe plus dans la bibliothèque.`); return; }
     // Nombre de questions choisi dans la prestation : les premières du quiz, dans son ordre. « 🔁 Rejouer » sur la
     // régie (cedric, 21/10) : jamais une question déjà posée pendant la fête ([avoid].questions).
     const toutes = game ? game.questions(quiz) : playable(quiz);
@@ -1015,7 +1389,8 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       problems.push(`Liste plus courte : il ne restait que ${list.length} question${list.length > 1 ? "s" : ""} à reprendre au hasard${ecartees
         ? ` (${ecartees} écartée${ecartees > 1 ? "s" : ""} : une réponse en photo sans photo dans la banque ni émoji)` : ""}.`);
     }
-    // Super Finale : réglage d'une manche Quiz (ou Quiz illustré), ses N dernières questions comptent double (ce n'est pas un jeu à part).
+    // Super Finale : réglage d'une manche Quiz (Quiz illustré, Vrai ou Faux express), ses N dernières questions comptent double
+    // (ce n'est pas un jeu à part).
     const finale = hasFinale(round.type) ? Math.max(0, Math.min(list.length, Math.floor(Number(round.finale) || 0))) : 0;
     // Les bougies, juste avant les questions de la Super Finale (elles ne comptent pas double), ou à la place choisie
     // dans le « Quiz complet » (cedric, 23/10). Pas deux fois : ni si le quiz a déjà sa question des bougies, ni si
@@ -1136,7 +1511,8 @@ export const DUREE_ESTIMEE = {
 function secondesDeJeu(q, equipes, parEquipe = 0) {
   const D = DUREE_ESTIMEE;
   if (q.kind === "mime") return (parEquipe || D.mimesParEquipe) * equipes * (q.duration + D.apresMime);
-  if (q.kind === "pictionary") return equipes * (q.duration + D.apresDessin);
+  // Préparé par équipe : autant de tours que de passages.
+  if (q.kind === "pictionary") return equipes * (Number.isInteger(q.passages) && q.passages > 0 ? q.passages : 1) * (q.duration + D.apresDessin);
   if (q.kind === "statues") return q.duration + D.apresStatues;
   if (q.kind === "coffres" || q.kind === "portes") return equipes * D.coffreParEquipe + D.coffres;
   if (q.kind === "gonfleur") return D.gonfleur;
@@ -1161,9 +1537,11 @@ export function dureeEstimee(snapshot, show = {}) {
   const equipes = teamCount(show?.teams);
   const manches = (show?.rounds ?? []).filter(Boolean);
   const questions = snapshot.quiz.questions;
-  // Une manche de mimes « r3m » est la 3e manche de la prestation : son nombre de mimes par équipe.
+  // Une manche de mimes « r3m » est la 3e manche de la prestation : son nombre de mimes par équipe. Une manche de mimes
+  // d'une seule équipe (« r3m2 », cedric, 23/10) : un tour.
   const parEquipe = (q) => mimePerTeam(manches[Number(/^r(\d+)m$/.exec(q.id ?? "")?.[1]) - 1]);
-  const jeu = questions.reduce((t, q) => t + secondesDeJeu(q, equipes, q.kind === "mime" ? parEquipe(q) : 0), 0);
+  const jeu = questions.reduce((t, q) => t + (q.kind === "mime" && couleurMimeEquipe(q.text) ? secondesDeJeu(q, 1, 1)
+    : secondesDeJeu(q, equipes, q.kind === "mime" ? parEquipe(q) : 0)), 0);
   // Un jeu commence à chaque nouvelle manche (« r3… » : la 3e), sauf la Super Finale, jouée à la suite de son quiz.
   const manche = (q) => /^r(\d+)/.exec(q.id ?? "")?.[1];
   const jeux = questions.filter((q, k) => k === 0 || (!q.finale && manche(q) !== manche(questions[k - 1]))).length;
@@ -1305,21 +1683,24 @@ export function launchLabelPc(run) {
  * État de préparation d'une prestation, pour le tableau de bord : « prete » quand elle est
  * complète et visible sur la régie, sinon la liste de ce qui reste à faire.
  */
-export function readiness(show, quizzes, mimes = {}, playlists = {}, contents = {}, today = isoDay()) {
-  if (isArchived(show, today)) return { level: "archivee", todo: [] };
+export function readiness(show, quizzes, mimes = {}, playlists = {}, contents = {}, today = isoDay(), songs = {}) {
+  if (isArchived(show, today)) return { level: "archivee", todo: [], alertes: [] };
   const todo = [];
   if (!show.childName?.trim()) todo.push("Indiquer le prénom de l'enfant");
   if (!show.date) todo.push("Ajouter la date");
   else if (show.date < today) todo.push("Choisir une date à venir (celle-ci est passée)");
   if (!show.age) todo.push("Indiquer l'âge");
-  if (!(show.rounds ?? []).filter(roundFilled).length) todo.push("Ajouter une manche");
+  // Un jeu vide (cedric, 24/10) : à faire s'il ne se joue pas vide (son « aucune … choisie » vient du programme),
+  // simple alerte si la TV le remplit seule au hasard.
+  const vides = jeuxVides(show);
+  if (!(show.rounds ?? []).filter(Boolean).length) todo.push("Ajouter un jeu");
   else {
-    const { snapshot, problems } = buildSnapshot("x", show, quizzes, mimes, Math.random, playlists, contents);
+    const { snapshot, problems } = buildSnapshot("x", show, quizzes, mimes, Math.random, playlists, contents, {}, songs);
     todo.push(...problems.filter((p) => snapshot || !p.startsWith("Aucune question jouable")));
-    if (!snapshot && !problems.some((p) => p.startsWith("Manche"))) todo.push("Valider des questions");
+    if (!snapshot && !problems.some((p) => p.startsWith("Manche")) && !vides.some((x) => !x.hasard)) todo.push("Valider des questions");
   }
   if (!todo.length && show.status !== "publiee") todo.push("Passer le statut à « À venir »");
-  return { level: todo.length ? "a-completer" : "prete", todo };
+  return { level: todo.length ? "a-completer" : "prete", todo, alertes: vides.filter((x) => x.hasard).map((x) => x.texte) };
 }
 
 const sansAccent = (x) => `${x ?? ""}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -1402,8 +1783,8 @@ export function lockedUntil(questions, index) {
  * insérer : chrono du profil de la prestation, identifiants nouveaux (préfixe [prefix]) pour ne jamais
  * croiser une question déjà jouée. Le quiz de la bibliothèque n'est pas modifié.
  */
-export function gameQuestions(source, quizzes, profile, prefix, mimes = {}, playlists = {}, contents = {}, avoid = {}, teams = null) {
-  const { snapshot, problems } = buildSnapshot("ajout", { profile, teams, rounds: [source] }, quizzes, mimes, Math.random, playlists, contents, avoid);
+export function gameQuestions(source, quizzes, profile, prefix, mimes = {}, playlists = {}, contents = {}, avoid = {}, teams = null, songs = {}) {
+  const { snapshot, problems } = buildSnapshot("ajout", { profile, teams, rounds: [source] }, quizzes, mimes, Math.random, playlists, contents, avoid, songs);
   if (!snapshot) return { questions: [], problems };
   return { questions: snapshot.quiz.questions.map((q, j) => ({ ...q, id: `${prefix}${q.kind === "mime" ? "m" : "q"}${j + 1}` })), problems };
 }

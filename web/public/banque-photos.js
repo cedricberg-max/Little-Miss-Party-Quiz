@@ -79,6 +79,7 @@ export function questionBanque(cle) {
 /** Photos de la banque comme éléments de collection (Zoom mystère, Image floue), rangées par famille. */
 export const banqueItems = () => BANQUE_MOTS.filter(aPhoto).map((m) => ({
   key: `${BANQUE}${m.cle}`, label: `📷 ${m.emoji} ${m.mot}`, group: `Photos · ${FAMILLES_PETITS[m.famille] ?? m.famille}`, level: 1, value: questionBanque(m.cle),
+  famille: m.famille,
 }));
 
 /**

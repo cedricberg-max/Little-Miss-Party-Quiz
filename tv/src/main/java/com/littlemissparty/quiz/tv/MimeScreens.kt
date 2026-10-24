@@ -142,19 +142,22 @@ private class Sortie(val carte: MimeCard, val trouvee: Boolean)
  */
 @Composable
 private fun MimeCardView(m: MimeUi, color: Color, photos: Map<String, ByteArray>) {
-    val card = m.card ?: return
-    val pop = remember(card.word, m.found, m.passed) { Animatable(0.6f) }
-    LaunchedEffect(card.word, m.found, m.passed) {
+    val card = m.card
+    // Changement de joueur (roulement, cedric 24/10) : pas d'image, la face « Changement de joueur ! » à sa place.
+    if (card == null && m.relais == null) return
+    val cle = Triple(card?.word, m.found, m.passed)
+    val pop = remember(cle) { Animatable(0.6f) }
+    LaunchedEffect(cle) {
         pop.snapTo(0.6f)
         pop.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium))
     }
     var vue by remember { mutableStateOf(Triple(card, m.found, m.passed)) }
     var sortie by remember { mutableStateOf<Sortie?>(null) }
     val depart = remember { Animatable(1f) }
-    LaunchedEffect(card.word, m.found, m.passed) {
+    LaunchedEffect(cle) {
         val (ancienne, trouves, passes) = vue
         vue = Triple(card, m.found, m.passed)
-        if (m.found > trouves || m.passed > passes) {
+        if (ancienne != null && (m.found > trouves || m.passed > passes)) {
             sortie = Sortie(ancienne, trouvee = m.found > trouves)
             depart.snapTo(0f)
             depart.animateTo(1f, tween(550, easing = FastOutSlowInEasing))
@@ -179,9 +182,84 @@ private fun MimeCardView(m: MimeUi, color: Color, photos: Map<String, ByteArray>
                 },
             )
         }
-        MimeCardFace(card, color, card.imageId?.let { photos[it] }, Modifier.graphicsLayer { scaleX = pop.value; scaleY = pop.value; rotationZ = (1f - pop.value) * -12f })
+        val entree = Modifier.graphicsLayer { scaleX = pop.value; scaleY = pop.value; rotationZ = (1f - pop.value) * -12f }
+        if (card != null) MimeCardFace(card, color, card.imageId?.let { photos[it] }, entree)
+        else RelaisFace(color, cle = m.found, modifier = entree)
         Gerbe(cle = m.found, actif = m.found > 0, modifier = Modifier.matchParentSize())
-        Tampon("TROUVÉ !", cle = m.found, actif = m.found > 0, tailleSp = 56, dureeMs = 1_000, modifier = Modifier.matchParentSize())
+        // Roulement : le tampon laisse vite la place au « Changement de joueur ! ».
+        Tampon("TROUVÉ !", cle = m.found, actif = m.found > 0, tailleSp = 56, dureeMs = Tempo.MIME_RELAIS.toInt() + 50, modifier = Modifier.matchParentSize())
+    }
+}
+
+/**
+ * Mimes en roulement (cedric, 24/10) : le mime est trouvé, deux autres joueurs de l'équipe prennent le relais. Après
+ * « TROUVÉ ! », « CHANGEMENT DE JOUEUR ! » claque une seconde, puis la carte reste retournée (« Dos à l'écran ! »)
+ * jusqu'à ce que Sarah montre l'image suivante. Même taille que la carte : rien ne saute à l'écran.
+ */
+@Composable
+private fun RelaisFace(color: Color, cle: Any?, modifier: Modifier) {
+    // 0 : « TROUVÉ ! » ; 1 : « Changement de joueur ! » ; 2 : on attend le nouveau devineur, dos à l'écran.
+    var etape by remember(cle) { mutableStateOf(0) }
+    LaunchedEffect(cle) {
+        delay(Tempo.MIME_RELAIS)
+        etape = 1
+        delay(Tempo.MIME_RELAIS_DUREE)
+        etape = 2
+    }
+    val coup = remember(cle) { Animatable(0f) }
+    LaunchedEffect(cle, etape) {
+        if (etape != 1) return@LaunchedEffect
+        coup.snapTo(0f)
+        coup.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow))
+    }
+    val respire by rememberInfiniteTransition(label = "relais").animateFloat(
+        0.55f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "respire",
+    )
+    Box(
+        modifier
+            .width(500.dp)
+            .height(300.dp)
+            .clip(RoundedCornerShape(36.dp))
+            .background(Brush.verticalGradient(listOf(color.copy(alpha = 0.40f), Neon.Nuit2.copy(alpha = 0.9f), Neon.Nuit.copy(alpha = 0.95f))))
+            .border(4.dp, color.copy(alpha = if (etape == 2) respire else 1f), RoundedCornerShape(36.dp))
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (etape == 1) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.graphicsLayer {
+                    val v = coup.value
+                    scaleX = 0.4f + 0.6f * v
+                    scaleY = 0.4f + 0.6f * v
+                    rotationZ = -6f * (1f - v)
+                    alpha = v.coerceIn(0f, 1f)
+                },
+            ) {
+                Text("🔄", fontSize = 64.sp, lineHeight = 70.sp)
+                Text(
+                    "CHANGEMENT\nDE JOUEUR !",
+                    textAlign = TextAlign.Center, maxLines = 2,
+                    style = TextStyle(
+                        fontFamily = PoliceLmp, brush = Brush.verticalGradient(listOf(Neon.OrClair, Neon.Or, Neon.OrProfond)),
+                        fontSize = 46.sp, lineHeight = 50.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp,
+                        shadow = Shadow(color.copy(alpha = 0.9f), Offset.Zero, 26f),
+                    ),
+                )
+            }
+        } else if (etape == 2) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("🙈", fontSize = 84.sp, lineHeight = 90.sp, modifier = Modifier.scale(0.92f + 0.08f * respire))
+                Text(
+                    "Dos à l'écran !", color = Neon.Blanc, fontSize = 40.sp, lineHeight = 44.sp, fontWeight = FontWeight.Black,
+                    textAlign = TextAlign.Center, maxLines = 1,
+                )
+                Text(
+                    "L'image arrive…", color = Palette.InkSoft, fontSize = 24.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center, maxLines = 1,
+                )
+            }
+        }
     }
 }
 
@@ -311,12 +389,19 @@ private fun MimeTeamChip(team: Team, count: Int, playing: Boolean, passed: Boole
 /** Équipes qui ne sont pas encore passées dans cette manche de mimes, dans l'ordre d'inscription. */
 private fun remainingTeams(state: UiState.Playing, m: MimeUi): List<Team> = state.teams.filter { it.uid !in m.turns }
 
-/** Secours à la télécommande : « Trouvé » a toujours le focus pendant un tour, « Top départ » entre deux tours. */
+/**
+ * Secours à la télécommande : « Trouvé » a le focus pendant un tour, « Image suivante » pendant le changement de joueur,
+ * « Top départ » entre deux tours.
+ */
 @Composable
 private fun MimeButtons(state: UiState.Playing, m: MimeUi, actions: TvActions) {
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (m.team != null) {
-            TvButton("Passer", actions.mimePass, fontSize = 20.sp)
+        if (m.team != null && m.relais != null) {
+            // Changement de joueur : le nouveau devineur est dos à l'écran, on montre l'image suivante.
+            TvButton("Arrêter le tour", actions.mimeStop, fontSize = 20.sp)
+            NextButton("Image suivante", actions.mimePass, key = "relais-${m.turns.size}-${m.found}")
+        } else if (m.team != null) {
+            TvButton("Image suivante", actions.mimePass, fontSize = 20.sp)
             TvButton("Arrêter le tour", actions.mimeStop, fontSize = 20.sp)
             NextButton("Trouvé !", actions.mimeFound, key = "turn-${m.turns.size}")
         } else {

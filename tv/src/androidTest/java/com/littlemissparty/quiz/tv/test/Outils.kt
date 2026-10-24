@@ -17,6 +17,8 @@ import androidx.test.uiautomator.By
 import androidx.test.uiautomator.Configurator
 import androidx.test.uiautomator.UiDevice
 import com.google.firebase.FirebaseApp
+import com.google.firebase.FirebaseException
+import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
@@ -63,6 +65,24 @@ fun <T> bloquer(ms: Long = 20_000, bloc: suspend () -> T): T {
     }
 }
 
+/**
+ * Connexion anonyme d'un client simulé (pupitre, régie, autre box). L'émulateur d'authentification ferme parfois une
+ * connexion gardée ouverte au moment où on la réutilise (« unexpected end of stream », essai du 23 octobre, dix
+ * connexions en quelques secondes) : on recommence, comme un vrai pupitre qui se recharge. Toute autre erreur échoue.
+ */
+fun connexionAnonyme(auth: FirebaseAuth): String {
+    repeat(2) { essai ->
+        try {
+            return bloquer { auth.signInAnonymously().await().user!!.uid }
+        } catch (e: FirebaseException) {
+            if (e !is FirebaseNetworkException && e.message?.contains("end of stream") != true) throw e
+            Log.w(TAG, "Connexion anonyme coupée par l'émulateur (essai ${essai + 1}), on recommence : ${e.message}")
+            Thread.sleep(500)
+        }
+    }
+    return bloquer { auth.signInAnonymously().await().user!!.uid }
+}
+
 /** Lecture ponctuelle par écouteur : `get()` peut rester bloqué quand la connexion s'est mise en veille. */
 suspend fun DatabaseReference.lireUneFois(): DataSnapshot = suspendCancellableCoroutine { suite ->
     val ecouteur = object : ValueEventListener {
@@ -92,8 +112,8 @@ object Boite {
 
     private val design get() = contexte.getSharedPreferences("lmp_design", Context.MODE_PRIVATE)
 
-    /** Design choisi dans le menu Retour (« gs » ou « classique ») ; null = celui de la box par défaut (The Game Show). */
-    fun choisirDesign(cle: String?) = design.edit().apply { if (cle == null) clear() else putString("design-v2", cle) }.commit()
+    /** Design choisi dans le menu Retour (« gs3d », « gs » ou « classique ») ; null = celui de la box par défaut (plateau 3D). */
+    fun choisirDesign(cle: String?) = design.edit().apply { if (cle == null) clear() else putString("design-v3", cle) }.commit()
 
     fun codeActif(): String? = prefs.getString("active_game", null)
 
@@ -329,7 +349,7 @@ class PupitreSimule(etiquette: String) : AutoCloseable {
 
     init {
         Emulateur.brancher(auth, base)
-        uid = bloquer { auth.signInAnonymously().await().user!!.uid }
+        uid = connexionAnonyme(auth)
         base.getReference(".info/connected").addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 connecte = snapshot.getValue(Boolean::class.java) == true

@@ -2,9 +2,12 @@
 // - Les questions toutes prêtes de l'appli, jamais modifiées ici, en deux rubriques à ne pas mélanger (cedric, 22/10) :
 //   « Quiz classique » (questions à 4 réponses écrites, banque-classiques.js, avec une illustration pour la révélation,
 //   et le Juste Chiffre tout prêt, banque-chiffres.js, sans illustration : la TV montre son compteur) et
-//   « Quiz illustré » (banque des tout-petits : une image par réponse).
+//   « Quiz illustré » (banque des tout-petits : une image par réponse), et le « Vrai ou Faux » tout prêt (cedric, 23/10 :
+//   des affirmations sans image, banque-vrai-faux.js, tirées au 🎲 dans le Vrai ou Faux express).
 // - « Mes questions » : celles écrites à la main dans la Régie PC, avec leur illustration.
 // - « Mes packs » : les quiz importés (fichier JSON, tableur, texte collé), un pack par thème.
+// - « Mes séries de photos » (cedric, 23/10) : ses quiz de photos à deviner, pour le Zoom mystère et l'Image floue
+//   (une série « Disney », « Animaux »…), à part de ses questions et de ses packs.
 // - « Questions de test » : celles des prestations de test (Paramètres), à part pour ne pas encombrer les siennes.
 // Chaque question dit si son illustration est là ; sinon la Régie PC affiche une petite alerte. Fonctions pures, testées.
 import { parseQuiz } from "./importer.js";
@@ -12,10 +15,12 @@ import { cataloguePetits, FAMILLES_PETITS, motBanque } from "./banque-petits.js"
 import { PHOTOS_BANQUE } from "./banque-photos.js";
 import { QUESTIONS_TOUT_PRETES, THEMES_TOUT_PRETS, estJusteChiffre } from "./banque-classiques.js";
 import { libelleNiveau } from "./banque-chiffres.js";
+import { AFFIRMATIONS, THEMES_VRAI_FAUX } from "./banque-vrai-faux.js";
 import { quizKind } from "./show.js";
 
 export const GROUPES_QUESTIONS = {
-  classiques: "📝 Quiz classique tout prêt", illustrees: "🖼️ Quiz illustré tout prêt", miennes: "✍️ Mes questions en vrac", packs: "📥 Mes packs par thème", tests: "🧪 Questions de test",
+  classiques: "📝 Quiz classique tout prêt", illustrees: "🖼️ Quiz illustré tout prêt", vraifaux: "✅ Vrai ou Faux tout prêt", miennes: "✍️ Mes questions en vrac", packs: "📥 Mes packs par thème",
+  photos: "🔍 Mes séries de photos", tests: "🧪 Questions de test",
 };
 export const JUSTE_CHIFFRE = "🔢 Juste Chiffre";
 export const QUESTION_4_REPONSES = "❓ Question à 4 réponses toute prête";
@@ -28,6 +33,8 @@ const SOURCES_PACK = new Set(["json", "tableur", "gemini"]);
 export const estPack = (quiz) => SOURCES_PACK.has(quiz?.source);
 /** Quiz des prestations de test de Paramètres (« TEST – … de Léa ») : leurs clés fixes commencent par « test- ». */
 export const estQuizDeTest = (id) => `${id ?? ""}`.startsWith("test-");
+/** Quiz de photos à deviner (Zoom mystère, Image floue) : une série de photos, importée ou non. */
+export const estSerieDePhotos = (quiz) => quizKind(quiz) === "images";
 
 /** Mot d'une réponse sans son émoji de tête (« 🐱 Chat » → « Chat »). */
 const motSeul = (c) => `${c ?? ""}`.replace(/^[^\p{L}\p{N}]+/u, "").trim();
@@ -84,6 +91,15 @@ export function questionsClassiquesPretes(liste = QUESTIONS_TOUT_PRETES) {
   });
 }
 
+/** Vrai ou Faux tout prêt (cedric, 23/10) : des affirmations sans image (la TV n'en montre pas), par thème et par niveau. */
+export function questionsVraiFauxPretes(liste = AFFIRMATIONS) {
+  return liste.map((x) => ({
+    groupe: "vraifaux", cle: x.id, text: x.text, choices: ["Vrai", "Faux"], correct: x.vrai ? 0 : 1, nombre: false, vraiFaux: true, niveau: x.niveau,
+    categorie: THEMES_VRAI_FAUX[x.theme] ?? x.theme, source: `Vrai ou Faux tout prêt · ${libelleNiveau(x.niveau)}`,
+    validee: true, ok: true, manque: null,
+  }));
+}
+
 /**
  * Quiz illustré tout prêt : la banque des tout-petits, par famille ; il faut une image par réponse. Chaque réponse a
  * la photo de la banque de son mot ([banque] : clés des photos, null si le mot n'en a pas), sinon l'émoji de son mot
@@ -117,18 +133,24 @@ function enVrac(quizzes, groupe, garde) {
 }
 
 /** Ses questions écrites à la main, en vrac (sans celles des prestations de test). */
-export const mesQuestions = (quizzes = {}) => enVrac(quizzes, "miennes", (id, quiz) => !estPack(quiz) && !estQuizDeTest(id));
+export const mesQuestions = (quizzes = {}) => enVrac(quizzes, "miennes", (id, quiz) => !estPack(quiz) && !estQuizDeTest(id) && !estSerieDePhotos(quiz));
 
 /** Les questions des prestations de test, à part (cedric, 22/10 : elles encombraient « Mes questions en vrac »). */
 export const questionsDeTest = (quizzes = {}) => enVrac(quizzes, "tests", (id) => estQuizDeTest(id));
 
 /** Ses packs : un par quiz importé, avec le compte des questions et de celles sans illustration. */
-export function mesPacks(quizzes = {}) {
+export const mesPacks = (quizzes = {}) => enCartes(quizzes, "packs", (id, quiz) => estPack(quiz) && !estQuizDeTest(id) && !estSerieDePhotos(quiz));
+
+/** Ses séries de photos (Zoom mystère, Image floue), comme ses packs : une carte par quiz de photos. */
+export const mesSeriesDePhotos = (quizzes = {}) => enCartes(quizzes, "photos", (id, quiz) => estSerieDePhotos(quiz) && !estQuizDeTest(id));
+
+/** Les quiz gardés par [garde], une carte chacun, du plus récent au plus ancien. */
+function enCartes(quizzes, groupe, garde) {
   return Object.entries(quizzes)
-    .filter(([id, quiz]) => quiz && estPack(quiz) && !estQuizDeTest(id))
+    .filter(([id, quiz]) => quiz && garde(id, quiz))
     .map(([id, quiz]) => {
       const kind = quizKind(quiz);
-      const questions = questionsDe(quiz).map((q, i) => fiche(q, kind, { groupe: "packs", cle: `${id}/${i}`, quizId: id, index: i }));
+      const questions = questionsDe(quiz).map((q, i) => fiche(q, kind, { groupe, cle: `${id}/${i}`, quizId: id, index: i }));
       return {
         id, title: quiz.title ?? "", theme: quiz.theme ?? "", kind, source: quiz.source, updatedAt: quiz.updatedAt ?? 0,
         total: questions.length, validees: questions.filter((q) => q.validee).length, sansIllustration: questions.filter((q) => !q.ok).length, questions,

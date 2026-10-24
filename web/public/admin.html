@@ -99,11 +99,16 @@
               <option value="5">5 équipes</option><option value="6">6 équipes</option><option value="7">7 équipes</option><option value="8">8 équipes</option>
             </select>
           </label>
-          <div class="wide couleurs-equipes">
-            <p class="label">Couleurs des équipes (bracelets et bandeaux)</p>
-            <div id="show-couleurs"></div>
-            <p class="hint small">Les tablettes ne proposeront que ces couleurs. Touchez une pastille pour changer sa couleur.</p>
+          <div class="wide couleurs-et-ajout">
+            <div class="couleurs-equipes">
+              <p class="label">Couleurs des équipes (bracelets et bandeaux)</p>
+              <div id="show-couleurs"></div>
+              <p class="hint small">Les tablettes ne proposeront que ces couleurs. Touchez une pastille pour changer sa couleur.</p>
+            </div>
+            <!-- cedric, 24/10 : « ＋ Ajouter un jeu » aussi en haut de la page, sans descendre jusqu'aux jeux. -->
+            <button id="round-add-top" type="button" class="btn ajout-jeu"><span class="ajout-plus" aria-hidden="true">＋</span>Ajouter un jeu</button>
           </div>
+          <div id="jeu-choix-haut" class="wide jeu-choix-place"></div>
           <label>Date<input id="show-date" type="date"></label>
           <label>Statut
             <select id="show-status">
@@ -121,15 +126,14 @@
         <h2>Jeux, dans l'ordre</h2>
         <div id="show-rounds" class="rounds"></div>
         <div class="round-tools">
-          <button id="round-add" type="button" class="btn secondary">＋ Ajouter un jeu</button>
+          <button id="round-add" type="button" class="btn ajout-jeu"><span class="ajout-plus" aria-hidden="true">＋</span>Ajouter un jeu</button>
         </div>
-        <div id="jeu-choix" class="panel jeu-choix" hidden></div>
+        <div id="jeu-choix-bas" class="jeu-choix-place"><div id="jeu-choix" class="panel jeu-choix" hidden></div></div>
         <p id="show-summary" class="hint"></p>
         <ul id="show-problems" class="problems"></ul>
         <label class="wide">Notes pour l'animatrice<textarea id="show-notes" rows="3" maxlength="2000"></textarea></label>
-        <div class="actions">
-          <button id="show-save" class="btn" type="submit">Enregistrer</button>
-        </div>
+        <!-- « Enregistrer » du bas : dans la barre qui suit l'écran, à gauche d'« Annuler les modifications » et de « ← Retour » (admin.js). -->
+        <button id="show-save" class="btn" type="submit" form="show-form">Enregistrer</button>
         <p id="show-status-msg" class="status"></p>
       </form>
     </section>
@@ -182,6 +186,18 @@
           qu'elle est rangée. « ⏱ Réglé ✓ » ouvre ses réglages. Chaque chanson est aussi rangée en entier en ligne, pour
           la régler depuis n'importe quel PC.
         </p>
+        <!-- Mes playlists (cedric, 24/10) : autant de chansons qu'il veut ; « 🎶 Ajouter une playlist » dans le blind test d'une prestation. -->
+        <div id="sons-playlists" class="panel sons-playlists">
+          <div class="title-row">
+            <h3>🎶 Mes playlists</h3>
+            <button id="sons-playlist-new" type="button" class="btn secondary">＋ Créer une playlist</button>
+          </div>
+          <p class="hint small">
+            Une playlist, ce sont les chansons de votre choix, autant que vous voulez. Dans une prestation, « 🎶 Ajouter
+            une playlist » met toutes ses chansons dans le blind test.
+          </p>
+          <div id="sons-playlist-list" class="sons-playlist-list"></div>
+        </div>
         <div class="search-row">
           <input id="song-search" type="search" placeholder="Rechercher : titre, artiste…" aria-label="Rechercher une chanson" autocomplete="off">
           <span id="song-count" class="hint small"></span>
@@ -649,28 +665,16 @@
       </form>
       </div>
 
-      <div class="panel">
+      <div class="panel" id="test-panel">
       <h2>Prestation de test</h2>
       <p class="hint">
-        Ajoute « ANNIVERSAIRE TEST – Léa, 9 ans » et son quiz de 10 questions, pour essayer l'administration,
-        la régie et la TV ensemble. Rien d'existant n'est remplacé ; elle se modifie ou s'archive comme les autres.
+        Crée « ANNIVERSAIRE TEST – Léa, 9 ans », datée du jour, à 4 équipes : les 16 jeux, remplis au 🎲 comme pour une
+        vraie fête, pour essayer la Régie PC, la régie et la TV ensemble. Les anciennes démos (anciennes prestations de
+        test, leurs quiz, mimes, playlists, photos dessinées et comptines) sont effacées ; vos prestations, vos quiz et vos
+        chansons ne sont jamais touchés. Un nouveau clic la refait à neuf.
       </p>
-      <button id="test-create" class="btn" type="button">Ajouter la prestation de test</button>
+      <button id="test-prestation" class="btn" type="button">🧪 Créer la prestation de test</button>
       <p id="test-status" class="status"></p>
-      <p class="hint">
-        Pour tout voir sur la TV : « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux » enchaîne un peu de chaque jeu
-        (quiz illustré, Juste Chiffre, Vrai ou Faux express, Mimes, Zoom mystère, Chante le mot !, Image floue,
-        Qui suis-je ?, Qui a disparu ?, Blind test et Quiz musical sur des comptines libres de droits, Statues musicales, Pictionary, Les Coffres mystères ; les dernières questions du quiz comptent double). Elle s'ajoute à
-        côté de la première, sans rien remplacer ; déjà ajoutée, le même bouton lui ajoute les nouveaux jeux.
-      </p>
-      <button id="test-full-create" class="btn" type="button">Ajouter la prestation de test « tous les jeux »</button>
-      <p id="test-full-status" class="status"></p>
-      <p class="hint">
-        Blind test démo avec vos chansons : 10 chansons de la bibliothèque des sons tirées au hasard (celles qui ont leur
-        refrain d'abord), en premier jeu de « ANNIVERSAIRE TEST – Léa, 9 ans · tous les jeux ». Un nouveau clic en tire 10 autres.
-      </p>
-      <button id="test-blind-demo" class="btn" type="button">🎵 Blind test démo avec mes chansons</button>
-      <p id="test-blind-status" class="status"></p>
       </div>
 
       <!-- Copies des extraits et des photos dans les parties terminées : contrôle, puis effacement 24 h après la fin. -->

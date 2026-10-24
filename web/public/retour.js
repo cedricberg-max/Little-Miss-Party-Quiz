@@ -6,7 +6,7 @@
  * rend les modifications. Enregistrer fixe le nouveau point de départ.
  */
 
-import { confirmer } from "./fenetre.js";
+import { confirmer, choisirParmi } from "./fenetre.js";
 
 /** Copie profonde des objets et tableaux simples ; les fichiers (photos, morceaux pas encore envoyés) gardés tels quels. */
 const cloner = (v) => (Array.isArray(v) ? v.map(cloner)
@@ -52,13 +52,30 @@ function placer(ecran, [haut, bas]) {
 }
 
 /**
+ * Sur une page de modification, la barre du bas suit l'écran quand on monte ou descend, toujours (cedric, 24/10) : les
+ * boutons d'enregistrement de l'écran y passent, à gauche, avec leur message ; « Supprimer » reste à sa place, en bas
+ * de la page.
+ */
+function rassembler(ecran, bas) {
+  bas.classList.add("flottante");
+  const actions = ecran.querySelector(":scope > .actions");
+  if (!actions) return;
+  const enregistrer = (b) => (b.id.endsWith("-save") ? 0 : 1);
+  bas.prepend(...[...actions.querySelectorAll(":scope > button:not(.danger)")].sort((a, b) => enregistrer(a) - enregistrer(b)));
+  const suivant = actions.nextElementSibling;
+  const message = actions.querySelector(":scope > .status") ?? (suivant?.classList.contains("status") ? suivant : null);
+  if (message) bas.prepend(message);
+  actions.classList.remove("sticky");
+}
+
+/**
  * Historique d'un écran. [capturer] renvoie l'état modifiable de l'écran, [restaurer] le remet et redessine l'écran,
  * [precedent] ouvre la page précédente. Deux barres (Retour, Annuler) sont ajoutées en haut et en bas de [ecran] ;
- * dès qu'il y a quelque chose à annuler, celle du bas reste visible en bas de la fenêtre.
+ * celle du bas reste toujours visible en bas de la fenêtre (voir rassembler).
  * [enregistreSeul] : écran enregistré à chaque touche, jamais de modification en attente.
  * Les clics, choix et saisies dans l'écran sont notés tout seuls ; [noter] sert après une action qui finit plus tard.
  */
-export function historique({ ecran, capturer, restaurer, precedent, enregistreSeul = false }) {
+export function historique({ ecran, capturer, restaurer, precedent, enregistreSeul = false, enregistrer = null }) {
   let pile = [];
   let depart = null;
   /** Ouvert avec un contenu jamais enregistré (quiz importé…) : le quitter le perdrait. */
@@ -66,19 +83,20 @@ export function historique({ ecran, capturer, restaurer, precedent, enregistreSe
   const barres = ["haut", "bas"].map((place) => {
     const barre = document.createElement("div");
     barre.className = `retour-barre ${place}`;
-    barre.append(
-      bouton("← Retour", "Revenir à la page précédente", "retour-page", () => precedent()),
-      bouton("Annuler les modifications", "Revenir au dernier enregistrement", "retour-tout", () => h.annuler()));
+    const retour = bouton("← Retour", "Revenir à la page précédente", "retour-page", () => precedent());
+    const annuler = bouton("Annuler les modifications", "Revenir au dernier enregistrement", "retour-tout", () => h.annuler());
+    // En bas : Enregistrer · Annuler les modifications · ← Retour, de gauche à droite ; quitter la page en dernier
+    // (cedric, 24/10).
+    barre.append(...(place === "bas" ? [annuler, retour] : [retour, annuler]));
     return barre;
   });
   placer(ecran, barres);
+  rassembler(ecran, barres[1]);
   const annulers = barres.map((b) => b.querySelector(".retour-tout"));
 
   const maj = () => {
     const rien = !depart || empreinte(pile[pile.length - 1]) === empreinte(depart);
     annulers.forEach((b) => { b.disabled = rien; });
-    // Rien à annuler : la barre du bas reste à sa place en bas de l'écran, sans passer sur le contenu.
-    barres[1].classList.toggle("flottante", !rien);
   };
   const appliquer = (etat) => { restaurer(cloner(etat)); maj(); };
   const h = {
@@ -119,11 +137,14 @@ export function historique({ ecran, capturer, restaurer, precedent, enregistreSe
       appliquer(depart);
     },
     get visible() { return !ecran.hidden; },
+    /** Enregistre l'écran (vrai une fois enregistré), s'il sait le faire ; sinon null. */
+    enregistrer,
   };
   // Les gestionnaires de l'écran passent d'abord : l'état est lu juste après eux.
   const plusTard = () => setTimeout(h.noter, 0);
   let saisie = null;
-  ecran.addEventListener("click", (e) => { if (!barres.some((b) => b.contains(e.target))) plusTard(); });
+  // Les boutons de l'écran passés dans la barre (Enregistrer, Tout valider…) restent notés ; Retour et Annuler non.
+  ecran.addEventListener("click", (e) => { if (!(e.target instanceof Element && e.target.closest(".retour-page, .retour-tout"))) plusTard(); });
   ecran.addEventListener("change", plusTard);
   // Une saisie au clavier compte pour une seule action quand on s'arrête de taper.
   ecran.addEventListener("input", () => { clearTimeout(saisie); saisie = setTimeout(h.noter, 600); });
@@ -150,7 +171,14 @@ export function ecranModifie() {
 export async function quitterEcran() {
   const h = [...ouverts].find((x) => x.modifie);
   if (!h) return true;
-  if (!(await confirmer("Des modifications ne sont pas enregistrées.\n\nQuitter sans enregistrer ? Elles seront perdues.", { ok: "Quitter sans enregistrer", annuler: "Rester", danger: true }))) return false;
+  // « Enregistrer » aussi (cedric, 24/10) : l'écran est enregistré, puis on va où on voulait aller ; s'il ne s'enregistre
+  // pas (message à l'écran), on reste.
+  if (h.enregistrer) {
+    const choix = await choisirParmi("Des modifications ne sont pas enregistrées.\n\nLes enregistrer avant de quitter ? Sinon, elles seront perdues.",
+      { premier: "Enregistrer", ok: "Quitter sans enregistrer", annuler: "Rester", danger: true });
+    if (choix === "premier") return (await h.enregistrer()) === true;
+    if (choix !== "ok") return false;
+  } else if (!(await confirmer("Des modifications ne sont pas enregistrées.\n\nQuitter sans enregistrer ? Elles seront perdues.", { ok: "Quitter sans enregistrer", annuler: "Rester", danger: true }))) return false;
   h.abandonner();
   return true;
 }

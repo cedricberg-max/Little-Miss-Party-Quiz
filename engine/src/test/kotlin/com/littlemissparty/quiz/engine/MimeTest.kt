@@ -7,7 +7,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** Manche de mimes : tours d'équipe, Trouvé / Passer / correction, chrono, pause, points au classement. */
+/** Manche de mimes : tours d'équipe, Trouvé / Image suivante / correction, chrono, pause, points au classement. */
 class MimeTest {
 
     private val cards = listOf("Chat", "Pirate", "Pizza", "Danseuse").map { MimeCard(it, "🙂") }
@@ -48,18 +48,73 @@ class MimeTest {
     }
 
     @Test
-    fun `trouvé rapporte des points au classement général et passe à la carte suivante, passer ne rapporte rien`() {
+    fun `trouvé rapporte des points au classement général, image suivante ne rapporte rien`() {
         val g = atMimes()
         val before = g.state.scores()
         g.mimeStart("bleu", t0 + 10_000)
         g.mimeFound(t0 + 15_000)
+        g.mimePass(t0 + 16_000)
         assertEquals("Pirate", g.mimeCard?.word)
         g.mimePass(t0 + 20_000)
         assertEquals("Pizza", g.mimeCard?.word, "La carte passée repart sous le paquet")
+        assertEquals(1, g.state.mime?.passed)
         g.mimeFound(t0 + 25_000)
+        g.mimePass(t0 + 26_000)
         assertEquals((before["bleu"] ?: 0) + 2 * Scoring.MIME, g.state.scores()["bleu"])
         assertEquals(before["rose"], g.state.scores()["rose"], "Les points du quiz sont gardés")
         assertEquals("Danseuse", g.mimeCard?.word)
+        assertEquals(1, g.state.mime?.passed, "Montrer l'image après un changement de joueur ne compte pas comme passer")
+    }
+
+    @Test
+    fun `roulement (cedric, 24-10), mime trouvé, changement de joueur, l'image suivante attend l'animatrice, le chrono continue`() {
+        val g = atMimes()
+        g.mimeStart("bleu", t0 + 10_000)
+        assertNotNull(g.mimeFound(t0 + 15_000))
+        assertEquals(t0 + 15_000, g.state.mime?.relais)
+        assertNull(g.mimeCard, "Image cachée pendant que deux autres joueurs prennent le relais")
+        assertEquals(t0 + 70_000, g.deadline(), "Le chrono continue pendant le changement de joueur")
+        assertNull(g.mimeFound(t0 + 15_200), "Double appui sur Trouvé : pas d'image, pas de second mime")
+        assertEquals(1, g.state.mimes["m1"]?.get("bleu"))
+        @Suppress("UNCHECKED_CAST")
+        val publie = Codec.publicState(g)["mime"] as Map<String, Any?>
+        assertEquals(t0 + 15_000, publie["relais"])
+        assertNull(publie["card"], "Ni la TV ni la régie ne montrent l'image avant le relais")
+        // Le nouveau devineur est dos à l'écran : « Image suivante » montre l'image qui attendait, sans la passer.
+        assertNotNull(g.mimePass(t0 + 19_000))
+        assertNull(g.state.mime?.relais)
+        assertEquals("Pirate", g.mimeCard?.word)
+        assertEquals(0, g.state.mime?.passed)
+        assertEquals(3, g.state.mime?.deck?.size)
+        assertNull(Codec.publicState(g).let { (it["mime"] as Map<*, *>)["relais"] })
+    }
+
+    @Test
+    fun `roulement, le chrono qui s'écoule pendant le changement de joueur termine le tour, le suivant repart sans relais`() {
+        val g = atMimes()
+        g.mimeStart("bleu", t0 + 10_000)
+        g.mimeFound(t0 + 69_000)
+        assertNotNull(g.timeUp(t0 + 70_000))
+        assertFalse(g.state.mimeTurn)
+        assertNull(g.state.mime?.relais)
+        assertEquals(MimeTurn("bleu", 1, 0), g.state.mime?.last)
+        assertNull(g.mimePass(t0 + 71_000))
+        g.mimeStart("rose", t0 + 80_000)
+        assertNull(g.state.mime?.relais)
+        assertEquals("Pirate", g.mimeCard?.word, "L'image qui attendait est la première du tour suivant")
+    }
+
+    @Test
+    fun `roulement, pause pendant le changement de joueur, rien ne bouge, l'image attend toujours`() {
+        val g = atMimes()
+        g.mimeStart("bleu", t0 + 10_000)
+        g.mimeFound(t0 + 15_000)
+        g.pause(t0 + 16_000)
+        assertNull(g.mimePass(t0 + 17_000))
+        g.resume(t0 + 20_000)
+        assertNull(g.mimeCard)
+        assertNotNull(g.mimePass(t0 + 25_000))
+        assertEquals("Pirate", g.mimeCard?.word)
     }
 
     @Test
@@ -69,7 +124,11 @@ class MimeTest {
         val seen = g.state.lastSeq
         assertEquals(CommandStatus.APPLIED, g.cmd(Command.MimeFound("c2", seen), t0 + 12_000).status)
         assertEquals(CommandStatus.STALE, g.cmd(Command.MimeFound("c3", seen), t0 + 12_050).status)
+        // Même renvoyé à jour : pendant le changement de joueur, aucune image à trouver.
+        assertEquals(CommandStatus.REFUSED, g.cmd(Command.MimeFound("c4", g.state.lastSeq), t0 + 12_100).status)
         assertEquals(1, g.state.mimes["m1"]?.get("rose"))
+        assertEquals(CommandStatus.APPLIED, g.cmd(Command.MimePass("c5", g.state.lastSeq), t0 + 14_000).status)
+        assertEquals("Pirate", g.mimeCard?.word)
     }
 
     @Test
@@ -78,6 +137,7 @@ class MimeTest {
         g.mimeStart("bleu", t0 + 10_000)
         assertNull(g.mimeFix("bleu", -1, t0 + 11_000), "Rien à retirer : jamais de points négatifs")
         g.mimeFound(t0 + 12_000)
+        g.mimePass(t0 + 12_500)
         g.mimeFound(t0 + 13_000)
         g.mimeFix("bleu", -1, t0 + 14_000)
         assertEquals(1, g.state.mimes["m1"]?.get("bleu"))
@@ -103,7 +163,7 @@ class MimeTest {
         assertNull(g.deadline())
         assertEquals("rose", g.nextMimeTeam(listOf("bleu", "rose")), "La télécommande propose l'équipe qui n'a pas joué")
         g.mimeStart("rose", t0 + 80_000)
-        assertEquals("Pirate", g.mimeCard?.word, "Le paquet continue là où il s'était arrêté")
+        assertEquals("Pirate", g.mimeCard?.word, "Le paquet continue là où il s'était arrêté, sans changement de joueur à attendre")
         assertEquals(t0 + 140_000, g.deadline(), "Chaque tour a son propre chrono")
     }
 
@@ -136,7 +196,10 @@ class MimeTest {
     fun `paquet épuisé, le tour s'arrête tout seul et l'équipe suivante joue avec le paquet rebattu`() {
         val g = atMimes()
         g.mimeStart("rose", t0 + 10_000)
-        repeat(4) { g.mimeFound(t0 + 11_000 + it * 1_000L) }
+        repeat(4) {
+            assertNotNull(g.mimeFound(t0 + 11_000 + it * 1_000L))
+            if (it < 3) assertNotNull(g.mimePass(t0 + 11_500 + it * 1_000L))
+        }
         assertFalse(g.state.mimeTurn)
         assertEquals(4, g.state.mime?.last?.found)
         assertNotNull(g.mimeStart("bleu", t0 + 20_000), "Chaque équipe a son tour")
@@ -164,7 +227,9 @@ class MimeTest {
         g.mimeStart("rose", t0 + 10_000)
         g.mimeFound(t0 + 11_000)
         g.mimePass(t0 + 12_000)
+        g.mimePass(t0 + 12_500)
         g.mimeFix("rose", 1, t0 + 13_000)
+        g.mimeFound(t0 + 13_500)
         g.pause(t0 + 14_000)
         val stored = g.events.map { Codec.encode(it) }
         val replayed = Game(quiz, stored.map { assertNotNull(Codec.decode(it)) })
@@ -177,6 +242,7 @@ class MimeTest {
         val g = atMimes()
         g.mimeStart("rose", t0 + 10_000)
         g.mimeFound(t0 + 11_000)
+        g.mimePass(t0 + 12_000)
         @Suppress("UNCHECKED_CAST")
         val mime = Codec.publicState(g)["mime"] as Map<String, Any?>
         assertEquals("rose", mime["team"])

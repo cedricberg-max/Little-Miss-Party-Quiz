@@ -71,6 +71,7 @@ import com.littlemissparty.quiz.tv.habillage.RobotGameShow
 import com.littlemissparty.quiz.tv.habillage.GrilleEquipes
 import com.littlemissparty.quiz.tv.habillage.HabillageEcran
 import com.littlemissparty.quiz.tv.habillage.HabillageTv
+import com.littlemissparty.quiz.tv.habillage.IntroLancement
 import com.littlemissparty.quiz.tv.habillage.LogoQuiz
 import com.littlemissparty.quiz.tv.habillage.Look
 import com.littlemissparty.quiz.tv.habillage.enNeon
@@ -244,7 +245,7 @@ fun QuizTvApp(state: UiState, actions: TvActions, update: UpdateScreen? = null, 
 @Composable
 private fun Playing(state: UiState.Playing, actions: TvActions) {
     when (state.phase) {
-        Phase.LOBBY -> Lobby(state, actions)
+        Phase.LOBBY -> if (Look.gs) LobbyGameShow(state, actions) else Lobby(state, actions)
         Phase.QUESTION, Phase.CLOSED, Phase.REVEAL ->
             if (state.intro) PresentationScreen(state, actions)
             else if (state.coffres != null || state.question?.isCoffres == true) CoffresScreen(state, actions)
@@ -256,7 +257,8 @@ private fun Playing(state: UiState.Playing, actions: TvActions) {
         Phase.SCORES -> if (state.portes != null) PortesClassementScreen(state, actions) else ScoresScreen(state, actions)
         Phase.ENDED -> FinalScreen(state, actions)
     }
-    if (state.phase == Phase.LOBBY) GeneriqueSalon(state.code, state.childName, state.title)
+    // Le Game Show n'a pas de générique à l'accueil : le robot y dort sur Get Lucky, la grande intro vient au lancement.
+    if (state.phase == Phase.LOBBY && !Look.gs) GeneriqueSalon(state.code, state.childName, state.title)
     BalayageDore(
         when (state.phase) {
             Phase.LOBBY -> "salon"
@@ -266,9 +268,12 @@ private fun Playing(state: UiState.Playing, actions: TvActions) {
         },
     )
     HabillageEcran(state)
-    // Design « The Game Show » : le robot animateur surgit à quelques moments (rien en design classique).
-    RobotGameShow(state)
+    IntroLancement(state)
+    // Design « The Game Show » : le robot animateur surgit à quelques moments (rien en design classique). En pause, il
+    // passe après l'intermède (opaque), sinon ses numéros seraient dessinés dessous.
+    if (!state.paused) RobotGameShow(state)
     PauseLayer(state, actions.unpause)
+    if (state.paused) RobotGameShow(state)
 }
 
 /**

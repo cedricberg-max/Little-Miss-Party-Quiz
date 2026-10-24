@@ -54,6 +54,62 @@ class DirecteurSonoreTest {
     }
 
     @Test
+    fun `Game Show, l'accueil part directement sur la boucle de Get Lucky, sans generique, meme pour une nouvelle partie`() {
+        val d = DirecteurSonore()
+        val accueil = salon.copy(gameShow = true)
+        val o = d.observer(accueil)
+        assertTrue(o.sons().isEmpty())
+        assertEquals(Ambiance.SALON, o.musique())
+        assertEquals(0.49f, Ambiance.SALON.volume(Lit.ACCUEIL, gs = true))
+        assertEquals(0f, Ambiance.SALON.volume(Lit.COMPLET, gs = true))
+        // Classique : la boucle de Get Lucky n'existe pas.
+        assertEquals(0f, Ambiance.SALON.volume(Lit.ACCUEIL, gs = false))
+        assertNull(Lit.ACCUEIL.fichierPour(false))
+        assertEquals("gs_accueil", Lit.ACCUEIL.fichierPour(true))
+        // « Fin de la fête » puis nouvelle partie : toujours Get Lucky, jamais le générique.
+        d.observer(Instant(Ecran.FIN, partie = "ABCD", index = 10, gameShow = true))
+        val nouvelle = d.observer(accueil.copy(partie = "WXYZ"))
+        assertFalse(Son.GENERIQUE in nouvelle.sons())
+        assertEquals(Ambiance.SALON, nouvelle.musique())
+    }
+
+    @Test
+    fun `Game Show, intro du lancement, silence pendant la video puis la presentation du premier jeu entre`() {
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        val presentation = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 0, equipes = 2, epreuve = "quiz|Quiz", gameShow = true)
+        val debut = d.observer(presentation.copy(lancement = true))
+        assertEquals(listOf(Ordre.Couper, Ordre.Musique(Ambiance.SILENCE)), debut)
+        // Rien ne passe par-dessus la vidéo : ni équipe, ni buzzer.
+        assertTrue(d.observer(presentation.copy(lancement = true, buzzeur = 0, buzzs = 1)).isEmpty())
+        val fin = d.observer(presentation)
+        assertEquals(Ambiance.PRESENTATION, fin.musique())
+        assertFalse(Son.TRANSITION in fin.sons())
+        assertTrue(d.observer(presentation).isEmpty())
+        // Sarah lance l'épreuve : le jingle de manche, comme d'habitude.
+        assertTrue(Son.MANCHE in d.observer(Instant(Ecran.QUESTION, partie = "ABCD", index = 0, equipes = 2, epreuve = "quiz|Quiz", gameShow = true)).sons())
+    }
+
+    @Test
+    fun `Game Show, intro du lancement coupee par l'epreuve lancee, la question entre avec sa musique`() {
+        val presentation = Instant(Ecran.PRESENTATION, partie = "ABCD", index = 0, equipes = 2, epreuve = "quiz|Quiz", gameShow = true)
+        val question = Instant(Ecran.QUESTION, partie = "ABCD", index = 0, equipes = 2, epreuve = "quiz|Quiz", gameShow = true)
+        val d = DirecteurSonore()
+        d.observer(salon.copy(gameShow = true, equipes = 2))
+        d.observer(presentation.copy(lancement = true))
+        val q = d.observer(question)
+        // Exactement comme une question lancée après une présentation sans intro.
+        val habituelle = DirecteurSonore().run {
+            observer(salon.copy(gameShow = true, equipes = 2))
+            observer(presentation)
+            observer(question)
+        }
+        assertEquals(habituelle, q)
+        assertEquals(listOf(Son.MANCHE, Son.IMPACT), q.sons().take(2))
+        assertEquals(Ambiance.QUESTION, q.musique())
+    }
+
+    @Test
     fun `le son d'arrivee d'une equipe seulement quand une equipe arrive`() {
         val d = DirecteurSonore()
         d.observer(salon)
@@ -208,6 +264,17 @@ class DirecteurSonoreTest {
         assertEquals(listOf(Son.RIGOLO_1), d.observer(salon.copy(buzzeur = 0, buzzs = 3)).sons())
     }
 
+    @Test
+    fun `Game Show, buzzer de l'accueil, chaque appui fait le mot robot de l'equipe, jamais l'ancien buzzer`() {
+        val d = DirecteurSonore()
+        val salon = Instant(Ecran.SALON, partie = "ABCD", equipes = 6, gameShow = true)
+        d.observer(salon)
+        assertEquals(listOf(Son.EQUIPE_2), d.observer(salon.copy(buzzeur = 1, buzzs = 1)).sons())
+        assertEquals(listOf(Son.EQUIPE_2), d.observer(salon.copy(buzzeur = 1, buzzs = 2)).sons())
+        assertEquals(listOf(Son.EQUIPE_6), d.observer(salon.copy(buzzeur = 5, buzzs = 3)).sons())
+        assertTrue(d.observer(salon.copy(buzzeur = 5, buzzs = 3)).isEmpty())
+    }
+
     private val mimes = Instant(Ecran.MIMES, partie = "ABCD", index = 3, equipes = 2)
     private val tour = mimes.copy(ecran = Ecran.MIMES_TOUR)
 
@@ -221,7 +288,11 @@ class DirecteurSonoreTest {
         val top = d.observer(tour)
         assertEquals(listOf(Son.MIME_TOP), top.sons())
         assertEquals(Ordre.Musique(Ambiance.MIMES, Tempo.MIME_TOP_IMPACT), top.filterIsInstance<Ordre.Musique>().last())
-        assertEquals(listOf(Son.MIME_TROUVE), d.observer(tour.copy(trouves = 1)).sons())
+        // Trouvé, puis le souffle du « Changement de joueur ! » (roulement des mimes, cedric 24/10).
+        val trouve = d.observer(tour.copy(trouves = 1))
+        assertEquals(listOf(Son.MIME_TROUVE, Son.WHOOSH), trouve.sons())
+        assertEquals(Ordre.Jouer(Son.WHOOSH, Tempo.MIME_RELAIS), trouve.filterIsInstance<Ordre.Jouer>().last())
+        assertTrue("La musique du tour ne change pas", trouve.filterIsInstance<Ordre.Musique>().isEmpty())
         assertEquals(listOf(Son.MIME_PASSE), d.observer(tour.copy(trouves = 1, passes = 1)).sons())
         // La même carte montrée deux fois (reconnexion de la régie, rafraîchissement) ne rejoue rien.
         assertTrue(d.observer(tour.copy(trouves = 1, passes = 1)).isEmpty())
@@ -535,11 +606,11 @@ class DirecteurSonoreTest {
         // Sarah lance la chanson : le diamant se pose, une seule fois.
         assertEquals(listOf(Son.BT_DIAMANT), d.observer(bt.copy(blindLecture = true)).sons())
         assertTrue(d.observer(bt.copy(blindLecture = true)).isEmpty())
-        // Buzz : le buzzer du blind test, la note de l'équipe, puis l'attente feutrée ; ni scratch ni gros buzz.
+        // Buzz : le buzzer du blind test, la note de l'équipe, puis le silence pour répondre ; ni scratch ni gros buzz.
         val buzz = d.observer(bt.copy(buzzEquipe = 1))
-        assertEquals(listOf(Son.BT_BUZZ, Son.EQUIPE_2, Son.BT_ATTENTE), buzz.sons())
+        assertEquals(listOf(Son.BT_BUZZ, Son.EQUIPE_2), buzz.sons())
         assertEquals(Ambiance.SILENCE, buzz.musique())
-        // Mauvaise réponse : petit « pouet », silence, l'attente se coupe ; puis Sarah relance la chanson.
+        // Mauvaise réponse : petit « pouet », le silence continue ; puis Sarah relance la chanson.
         val rate = d.observer(bt.copy(ratees = 1))
         assertTrue(Ordre.Couper in rate)
         assertEquals(listOf(Son.VF_FAUX), rate.sons())

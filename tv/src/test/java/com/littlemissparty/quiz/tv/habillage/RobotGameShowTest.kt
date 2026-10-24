@@ -3,6 +3,7 @@ package com.littlemissparty.quiz.tv.habillage
 import com.littlemissparty.quiz.engine.Award
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
+import com.littlemissparty.quiz.engine.QuestionKind
 import com.littlemissparty.quiz.tv.Team
 import com.littlemissparty.quiz.tv.UiState
 import org.junit.Assert.assertEquals
@@ -18,7 +19,7 @@ class RobotGameShowTest {
     private fun demiLargeur(echelle: Float) = 0.9f * 0.8f * echelle * 9f / 16f / 2f
 
     /** Les clips où il vole (réacteurs) ou pend du haut de l'écran : eux seuls quittent le sol. */
-    private val volants = setOf("gs_robot_descente", "gs_robot_energie", "gs_robot_dort", "gs_robot_envers", "gs_robot_vole", "gs_robot_pique")
+    private val volants = setOf("gs_robot_descente", "gs_robot_energie", "gs_robot_dort", "gs_robot_envers", "gs_robot_vole", "gs_robot_pique", "gs_robot_fusee")
 
     @Test
     fun `le robot arrive et repart hors de l'ecran`() {
@@ -42,6 +43,15 @@ class RobotGameShowTest {
                 ms += 50f
             }
         }
+    }
+
+    @Test
+    fun `avant la revelation, jamais un robot triste qui ferait croire a une mauvaise reponse`() {
+        // cedric, 23/10 : il avait bien répondu, et pendant les dernières secondes le robot semblait pleurer.
+        val tristes = setOf("gs_robot_pleure", "gs_robot_rate", "gs_robot_oups", "gs_robot_inquiet", "gs_robot_cache")
+        val avant = setOf(MomentRobot.MANCHE, MomentRobot.SUSPENSE, MomentRobot.SUPER_FINALE)
+        for (c in CATALOGUE.filter { it.moment in avant }) assertTrue("$c", c.fichier !in tristes)
+        assertTrue(CATALOGUE.any { it.moment == MomentRobot.SUSPENSE })
     }
 
     @Test
@@ -95,6 +105,22 @@ class RobotGameShowTest {
         assertTrue(suite.zipWithNext().none { (a, b) -> a == b })
     }
 
+    /** Les clips où il est déçu, boude ou a peur. */
+    private val negatifs = setOf(
+        "gs_robot_rate", "gs_robot_oups", "gs_robot_pleure", "gs_robot_cache", "gs_robot_inquiet", "gs_robot_boude",
+        "gs_robot_facepalm", "gs_robot_courtcircuit", "gs_robot_degonfle", "gs_robot_peur",
+    )
+
+    @Test
+    fun `il ne fait la tete que dans les moments negatifs, et jamais dans les moments negatifs il ne se rejouit`() {
+        // cedric, 23 octobre : deux familles bien séparées. Personne n'a trouvé, malus et bombe = déçu ou apeuré ;
+        // partout ailleurs (lancement, suspense, bonnes réponses, scores, podium, pause) = joyeux.
+        val momentsNegatifs = setOf(MomentRobot.RATE, MomentRobot.MALUS, MomentRobot.BOMBE)
+        for (c in CATALOGUE) {
+            assertEquals("$c au moment ${c.moment}", c.moment in momentsNegatifs, c.fichier in negatifs)
+        }
+    }
+
     @Test
     fun `le trajet avance dans le temps`() {
         for (c in CATALOGUE) {
@@ -142,7 +168,8 @@ class RobotGameShowTest {
 
     @Test
     fun `chaque situation a son moment`() {
-        assertEquals(MomentRobot.MANCHE, momentRobot(partie(Phase.QUESTION) { copy(intro = true) }, 0, null)?.first)
+        // Présentation d'un jeu sans intro vidéo (Juste Chiffre) : le robot annonce la manche.
+        assertEquals(MomentRobot.MANCHE, momentRobot(partie(Phase.QUESTION) { copy(intro = true, question = q.copy(kind = QuestionKind.NUMBER, choices = emptyList(), correct = 42)) }, 0, null)?.first)
         assertEquals(MomentRobot.SUPER_FINALE, momentRobot(partie(Phase.QUESTION) { copy(factor = 3, introUntil = 1L) }, 0, null)?.first)
         val tous = equipes.associate { it.uid to Award(0, true, 100, 0) }
         assertEquals(MomentRobot.TOUS, momentRobot(partie(Phase.REVEAL) { copy(awards = tous) }, 0, null)?.first)
@@ -152,6 +179,18 @@ class RobotGameShowTest {
         assertNull(momentRobot(partie(Phase.REVEAL) { copy(awards = aucun + ("e0" to Award(0, true, 100, 0))) }, 0, null))
         assertEquals(MomentRobot.PODIUM, momentRobot(partie(Phase.ENDED), 0, null)?.first)
         assertNull(momentRobot(partie(Phase.REVEAL) { copy(awards = tous, paused = true) }, 0, null))
+    }
+
+    @Test
+    fun `pas de second robot sur l'intro video d'un jeu`() {
+        // Le robot joue déjà au jeu dans la vidéo de présentation.
+        assertNull(momentRobot(partie(Phase.QUESTION) { copy(intro = true) }, 0, null))
+    }
+
+    @Test
+    fun `pas de robot inquiet quand toutes les equipes ont deja repondu`() {
+        assertEquals(MomentRobot.SUSPENSE, momentRobot(partie(Phase.QUESTION) { copy(answered = setOf("e0", "e1")) }, 4, null)?.first)
+        assertNull(momentRobot(partie(Phase.QUESTION) { copy(answered = setOf("e0", "e1", "e2")) }, 4, null))
     }
 
     @Test

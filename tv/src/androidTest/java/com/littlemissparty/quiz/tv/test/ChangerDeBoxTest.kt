@@ -143,7 +143,7 @@ class BoxSimulee : AutoCloseable {
 
     init {
         Emulateur.brancher(auth, base)
-        uid = bloquer { auth.signInAnonymously().await().user!!.uid }
+        uid = connexionAnonyme(auth)
     }
 
     /** Comme une box qui démarre : un salon d'attente vide, dont le code s'affiche sur sa TV. */

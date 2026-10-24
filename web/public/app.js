@@ -130,9 +130,15 @@ function beep(freq = 880, ms = 180) {
 
 /** Demande de plein écran en cours : un même geste (toucher puis clic) ne la fait qu'une fois. */
 let pleinEcranDemande = null;
+/**
+ * Pupitre installé comme une appli (Chrome ⋮ › « Ajouter à l'écran d'accueil », manifeste en plein écran) : il s'ouvre
+ * déjà en plein écran et Android l'y garde au retour d'une autre appli. Le redemander ne ferait que ramener le bandeau
+ * de Chrome en bas de l'écran à chaque toucher (cedric, 23/10). Lu au chargement, avant toute demande.
+ */
+const appliInstallee = window.matchMedia?.("(display-mode: fullscreen)").matches === true;
 /** Plein écran au premier toucher (l'écran allumé, lui, suit l'état de la partie : voir show()). */
 async function keepAwake() {
-  if (document.fullscreenElement || pleinEcranDemande) return;
+  if (appliInstallee || document.fullscreenElement || pleinEcranDemande) return;
   try {
     pleinEcranDemande = document.documentElement.requestFullscreen?.();
     await pleinEcranDemande;
@@ -830,12 +836,13 @@ function renderPick(m) {
   if (choixKey !== m.pickKey) {
     stopPick();
     choixKey = m.pickKey;
-    // Photo du mot (préparée dans la Régie PC) quand elle est lue, sinon son émoji ; les cartes se redessinent à son arrivée.
-    choix = choisirMot($("pick-host"), m.offer.map((c) => ({ mot: c.word, image: choicePhotos.get(c.imageId) ?? c.image ?? "✏️" })), {
+    // L'émoji du mot sur la tablette (cedric, 24/10 : la vraie photo, c'est la TV qui la montre quand le dessin est
+    // trouvé) ; un mot sans émoji (une de vos images) montre sa photo, quand elle est lue : les cartes se redessinent.
+    choix = choisirMot($("pick-host"), m.offer.map((c) => ({ mot: c.word, image: c.image || choicePhotos.get(c.imageId) || "✏️" })), {
       surChoix: (i) => choosePicto(m.pickKey, i),
     });
     const key = m.pickKey;
-    for (const id of m.offer.map((c) => c.imageId).filter((id) => IMAGE_ID.test(id ?? "") && !choicePhotos.has(id))) {
+    for (const id of m.offer.filter((c) => !c.image).map((c) => c.imageId).filter((id) => IMAGE_ID.test(id ?? "") && !choicePhotos.has(id))) {
       get(ref(db, `games/${code}/choiceImages/${id}`)).then((snap) => {
         if (typeof snap.val() !== "string" || !snap.val().startsWith("data:image/")) return;
         choicePhotos.set(id, snap.val());
