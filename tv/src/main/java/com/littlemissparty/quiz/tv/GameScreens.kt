@@ -402,6 +402,10 @@ private fun ChoiceCard(
     val image = photo?.let { remember(it) { runCatching { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() } }
     val cadre = modifier
         .rebond(juste)
+        // Fond plein sous la carte image : en s'éteignant, l'image fond dans la nuit, jamais dans les néons du décor
+        // qui passaient à travers les vignettes (cedric, 24 octobre).
+        .clip(forme)
+        .background(Neon.Nuit)
         .alpha(dim)
         .clip(forme)
         .then(
