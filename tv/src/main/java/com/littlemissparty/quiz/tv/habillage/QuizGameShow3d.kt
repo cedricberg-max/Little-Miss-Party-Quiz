@@ -260,7 +260,8 @@ private fun DrawScope.dessineCarte(p: PlanchesQuiz3d, c: Int, j: Float, e: Float
     val y = -mg
     val w = size.width + 2 * mg
     val h = size.height + 2 * mg
-    neufParts(p.carteFond, x, y, w, h, 170, 120, s, 1f - 0.38f * e)
+    // Carte éteinte : le verre reste presque plein, le décor ne remonte pas à travers (cedric, 24 octobre).
+    neufParts(p.carteFond, x, y, w, h, 170, 120, s, 1f - 0.12f * e)
     neufParts(p.neons[c], x, y, w, h, 170, 120, s, (1f - j - e).coerceIn(0f, 1f))
     neufParts(p.juste, x, y, w, h, 170, 120, s, j)
     neufParts(p.eteinte, x, y, w, h, 170, 120, s, e)

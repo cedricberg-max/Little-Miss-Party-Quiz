@@ -84,10 +84,13 @@ internal fun horloge(cle: Any?): () -> Float {
     return { (maintenant.longValue - depart).toFloat() }
 }
 
-/** Fond de scène : un panneau aux coins arrondis, comme les autres cartes du plateau, qui borne les rayons. */
+/**
+ * Fond de scène. Classique : un panneau aux coins arrondis qui borne les rayons. Game Show : aucun cadre sur le plateau
+ * (cedric, 24 octobre), les rayons s'éteignent d'eux-mêmes dans la fumée.
+ */
 @Composable
 private fun Scene(fond: @Composable () -> Unit) {
-    Box(Modifier.fillMaxSize().clip(RoundedCornerShape(36.dp)).background(Color.White.copy(alpha = 0.05f))) { fond() }
+    Box(Modifier.fillMaxSize().then(if (Look.gs) Modifier.panneauJeu() else Modifier.clip(RoundedCornerShape(36.dp)).background(Color.White.copy(alpha = 0.05f)))) { fond() }
 }
 
 /**

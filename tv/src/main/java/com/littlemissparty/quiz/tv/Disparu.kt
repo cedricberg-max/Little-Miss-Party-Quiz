@@ -47,6 +47,7 @@ import com.littlemissparty.quiz.engine.MimeCard
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.tv.habillage.apparition
+import com.littlemissparty.quiz.tv.habillage.panneauJeu
 
 /** Qui a disparu ? : où en est la question, d'après le chrono. */
 enum class EtapeDisparu { MEMORISER, MAGIE, CHERCHER, REPONSE }
@@ -73,7 +74,7 @@ fun DisparuBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
     val anim = rememberInfiniteTransition(label = "magie")
     val tourne by anim.animateFloat(-8f, 8f, infiniteRepeatable(tween(260, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "tourne")
     Column(
-        modifier.clip(RoundedCornerShape(28.dp)).background(Color.White.copy(alpha = 0.10f)).padding(horizontal = 24.dp, vertical = 14.dp),
+        modifier.panneauJeu().padding(horizontal = 24.dp, vertical = 14.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(

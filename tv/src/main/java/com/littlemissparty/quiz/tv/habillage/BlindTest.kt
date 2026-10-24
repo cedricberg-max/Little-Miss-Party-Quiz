@@ -86,7 +86,7 @@ private fun BlindTestBoardClassique(joue: Boolean, manquant: Boolean, modifier: 
     val vie by animateFloatAsState(if (joue) 1f else 0f, tween(400), label = "lumiere")
     // Le bras se pose quand l'extrait joue et se relève (vite) quand il s'arrête.
     val leve by animateFloatAsState(if (joue) 0f else 1f, tween(if (joue) 500 else 300, easing = FastOutSlowInEasing), label = "bras")
-    Box(Modifier.then(modifier).clip(RoundedCornerShape(28.dp)).background(Color.White.copy(alpha = 0.07f))) {
+    Box(Modifier.then(modifier).panneauJeu(0.07f)) {
         Text(
             "BLIND TEST",
             color = Neon.Nuit, fontSize = 18.sp, fontWeight = FontWeight.Black,

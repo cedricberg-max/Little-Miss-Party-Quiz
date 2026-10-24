@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.tv.habillage.Look
+import com.littlemissparty.quiz.tv.habillage.panneauJeu
 import com.littlemissparty.quiz.tv.habillage.apparition
 
 /** Statues musicales : la musique joue-t-elle à cet instant (question en cours, chrono qui tourne, pas une statue) ? */
@@ -100,7 +101,7 @@ fun StatuesBoard(q: Question, state: UiState.Playing, modifier: Modifier = Modif
     val anim = rememberInfiniteTransition(label = "danse")
     val balance by anim.animateFloat(-1f, 1f, infiniteRepeatable(tween(450, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "balance")
     BoxWithConstraints(
-        modifier.clip(RoundedCornerShape(28.dp)).background(if (enCours && !danse) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.08f)),
+        modifier.panneauJeu(if (enCours && !danse) 0.18f else 0.08f),
         contentAlignment = Alignment.Center,
     ) {
         // Le panneau rétrécit avec le bandeau des équipes (jusqu'à 8) : les textes rapetissent pour tenir sous
