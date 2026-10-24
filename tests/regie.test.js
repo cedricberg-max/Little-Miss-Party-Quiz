@@ -6241,6 +6241,8 @@ describe("bibliothèque de quiz et prestations", () => {
     const round = page.locator('#show-rounds .jeu-bloc[data-jeu="disparu"] .round');
     const compteur = round.locator(".round-head > .quiz-compteur");
     assert.equal(await compteur.textContent(), "Aucune grille pour l'instant : la TV en tirera 4 au hasard");
+    // Un jeu encore vide se voit en haut de la page (cedric, 24/10), en simple alerte : la TV le remplira au hasard.
+    await page.locator("#show-ready li.ready-alerte", { hasText: "⚠ Qui a disparu ? : aucune grille choisie pour l'instant, la TV en tirera 4 au hasard." }).waitFor();
     // Les outils : le 🎲 seul sur sa ligne, puis vos images, puis les photos libres.
     assert.deepEqual(await round.locator(".quiz-outils > *").evaluateAll((xs) => xs.map((x) => x.className)), ["tirage-ligne", "quiz-ajouts vos-images grille-images", "quiz-ajouts disparu-photos"]);
 
@@ -6248,6 +6250,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await round.locator(".quiz-outils > .tirage-ligne .tirage-nombre").selectOption("3");
     await round.locator(".quiz-outils > .tirage-ligne .tirage-de").click();
     await compteur.filter({ hasText: "3 grilles" }).waitFor();
+    await waitFor(async () => !(await page.locator("#show-ready li.ready-alerte").count()), "plus d'alerte une fois des grilles tirées");
     const de = round.locator('.quiz-series > li.serie[data-origine="de"]');
     assert.equal(await de.locator(".serie-voir").textContent(), "▾ 🎲 3 grilles tirées au hasard (émojis)");
     const grillesDe = de.locator(".serie-liste .tirage-q");
@@ -7197,7 +7200,7 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.fill("#show-child", "Noé");
     await page.selectOption("#show-status", "publiee");
     await page.click("#show-save");
-    await page.locator("#show-status-msg", { hasText: "Enregistrée en « À compléter » : pour passer en « À venir », il manque : Ajouter la date · Indiquer l'âge · Ajouter une manche." }).waitFor();
+    await page.locator("#show-status-msg", { hasText: "Enregistrée en « À compléter » : pour passer en « À venir », il manque : Ajouter la date · Indiquer l'âge · Ajouter un jeu." }).waitFor();
     assert.equal(await page.inputValue("#show-status"), "brouillon");
     const noe = Object.values(await library("shows")).find((s) => s.childName === "Noé");
     assert.equal(noe.status, "brouillon");

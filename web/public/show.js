@@ -418,6 +418,42 @@ export const roundFilled = (round) => !!(round && (BUILTIN_GAMES[round.type] || 
   : (round.type === "zoom" || round.type === "flou") && roundPicks(round).length ? true
   : roundSeriesQuiz(round).some((x) => x.origine === "quiz" || questionsEnLigne(x.questions).length) || roundTirees(round).length || roundQuizIds(round).length));
 
+/** Ce qui manque à un jeu encore vide, pour « Reste à faire ». */
+const RIEN_DE_CHOISI = {
+  quiz: "aucune question choisie", illustre: "aucune question choisie", express: "aucune affirmation choisie",
+  zoom: "aucune photo choisie", flou: "aucune photo choisie", blind: "aucune chanson choisie", musical: "aucune chanson choisie",
+  mimes: "aucune image tirée", chante: "aucun mot choisi", quisuis: "aucun personnage choisi", disparu: "aucune grille choisie",
+  pictionary: "aucun mot choisi",
+};
+
+/**
+ * Jeux de la prestation encore vides (cedric, 24/10 : « le pictionary fait partie de la prestation mais il n'y a pas eu
+ * de sélection d'images ») : { i, type, hasard, texte }, une phrase par jeu pour « Reste à faire ». [hasard] : la TV le
+ * remplit seule au lancement (Chante le mot !, Qui suis-je ?, Qui a disparu ?, Pictionary), c'est une simple alerte ;
+ * les autres ne se jouent pas vides. Les jeux sans rien à préparer (Statues, Coffres…) ne sont jamais vides.
+ */
+export function jeuxVides(show) {
+  const rounds = (show?.rounds ?? []).filter(Boolean);
+  const types = rounds.map((r) => r.type ?? "quiz");
+  return rounds.flatMap((r, i) => {
+    const type = types[i];
+    if (!RIEN_DE_CHOISI[type]) return [];
+    const mots = estJeuDeMots(type);
+    const hasard = mots || type === "pictionary";
+    const vide = mots ? !motsDuJeu(r).length && !roundPicks(r).length
+      : type === "pictionary" ? !roundPicks(r).length && !pictoRoundSeries(r)
+        : !roundFilled(r);
+    if (!vide) return [];
+    // Deux fois le même jeu : sa place dans la prestation.
+    const nom = `${ROUND_TYPES[type]}${types.filter((t) => t === type).length > 1 ? ` (jeu ${i + 1})` : ""}`;
+    const n = mots ? r.count ?? BUILTIN_GAMES[type]?.count : null;
+    const suite = !hasard ? "" : n ? `, la TV en tirera ${n} au hasard` : ", la TV les tirera au hasard";
+    return [{ i, type, hasard, texte: `${nom} : ${RIEN_DE_CHOISI[type]} pour l'instant${suite}.` }];
+  });
+}
+/** La phrase d'un jeu vide de la prestation ([i] : sa place), null s'il ne l'est pas. */
+const texteJeuVide = (show, i) => jeuxVides(show).find((x) => x.i === i)?.texte ?? null;
+
 /** Au plus autant de questions tirées au 🎲 dans une manche Quiz. */
 export const MAX_TIREES = 20;
 
@@ -1090,7 +1126,11 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     }
     if (round.type === "mimes") {
       const deck = round.deckId ? mimes[round.deckId] : null;
-      if (!deck && round.random !== true && !mimeCards(round.cards).length) { problems.push(`Manche ${i + 1} : le paquet de mimes n'existe plus dans la bibliothèque.`); return; }
+      if (!deck && round.random !== true && !mimeCards(round.cards).length) {
+        // Rien de tiré : « Reste à faire » le dit (cedric, 24/10) ; un paquet effacé depuis, autrement.
+        problems.push((!round.deckId && texteJeuVide(show, i)) || `Manche ${i + 1} : le paquet de mimes n'existe plus dans la bibliothèque.`);
+        return;
+      }
       const item = mimeItem(round, deck, i, random, profile, mimes, show.teams, used.mimes, pris);
       if (!item.cards.length) { problems.push(`Manche ${i + 1} (${item.text}) : aucune carte.`); return; }
       rounds.push({ title: item.text, count: 1, kind: "mime" });
@@ -1155,7 +1195,8 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
       const playlist = tirees ? chansonsPlaylist(round, songs, round.title)
         : roundTracks(round).length ? tracksPlaylist(roundTracks(round), playlists, round.title) : playlists[round.playlistId];
       if (!playlist) {
-        problems.push(tirees ? `Manche ${i + 1} (${ROUND_TYPES[round.type]}) : ses chansons ne sont plus dans la bibliothèque des sons (touchez 🎲).` : `Manche ${i + 1} : la playlist n'existe plus dans la bibliothèque.`);
+        problems.push(tirees ? `Manche ${i + 1} (${ROUND_TYPES[round.type]}) : ses chansons ne sont plus dans la bibliothèque des sons (touchez 🎲).`
+          : (!round.playlistId && !roundTracks(round).length && texteJeuVide(show, i)) || `Manche ${i + 1} : la playlist n'existe plus dans la bibliothèque.`);
         return;
       }
       // Quiz musical en séries (cedric, 24/10) : l'ordre du « Quiz musical complet », les mauvaises réponses complétées
@@ -1249,7 +1290,7 @@ export function buildSnapshot(showId, show, quizzes, mimes = {}, random = Math.r
     const label = round.type === "finale" || game ? ROUND_TYPES[round.type] : quiz?.title ?? `Manche ${i + 1}`;
     if (choisis.length < ids.length) problems.push(`Manche ${i + 1} : ${ids.length > 1 ? "un des quiz choisis" : "le quiz"} n'existe plus dans la bibliothèque.`);
     if (series.length && !found[0].questions.length) { problems.push(`Manche ${i + 1} (${ROUND_TYPES[round.type ?? "quiz"]}) : aucune question.`); return; }
-    if (!quiz) { if (!ids.length) problems.push(`Manche ${i + 1} : le quiz n'existe plus dans la bibliothèque.`); return; }
+    if (!quiz) { if (!ids.length) problems.push(texteJeuVide(show, i) ?? `Manche ${i + 1} : le quiz n'existe plus dans la bibliothèque.`); return; }
     // Nombre de questions choisi dans la prestation : les premières du quiz, dans son ordre. « 🔁 Rejouer » sur la
     // régie (cedric, 21/10) : jamais une question déjà posée pendant la fête ([avoid].questions).
     const toutes = game ? game.questions(quiz) : playable(quiz);
@@ -1573,20 +1614,23 @@ export function launchLabelPc(run) {
  * complète et visible sur la régie, sinon la liste de ce qui reste à faire.
  */
 export function readiness(show, quizzes, mimes = {}, playlists = {}, contents = {}, today = isoDay(), songs = {}) {
-  if (isArchived(show, today)) return { level: "archivee", todo: [] };
+  if (isArchived(show, today)) return { level: "archivee", todo: [], alertes: [] };
   const todo = [];
   if (!show.childName?.trim()) todo.push("Indiquer le prénom de l'enfant");
   if (!show.date) todo.push("Ajouter la date");
   else if (show.date < today) todo.push("Choisir une date à venir (celle-ci est passée)");
   if (!show.age) todo.push("Indiquer l'âge");
-  if (!(show.rounds ?? []).filter(roundFilled).length) todo.push("Ajouter une manche");
+  // Un jeu vide (cedric, 24/10) : à faire s'il ne se joue pas vide (son « aucune … choisie » vient du programme),
+  // simple alerte si la TV le remplit seule au hasard.
+  const vides = jeuxVides(show);
+  if (!(show.rounds ?? []).filter(Boolean).length) todo.push("Ajouter un jeu");
   else {
     const { snapshot, problems } = buildSnapshot("x", show, quizzes, mimes, Math.random, playlists, contents, {}, songs);
     todo.push(...problems.filter((p) => snapshot || !p.startsWith("Aucune question jouable")));
-    if (!snapshot && !problems.some((p) => p.startsWith("Manche"))) todo.push("Valider des questions");
+    if (!snapshot && !problems.some((p) => p.startsWith("Manche")) && !vides.some((x) => !x.hasard)) todo.push("Valider des questions");
   }
   if (!todo.length && show.status !== "publiee") todo.push("Passer le statut à « À venir »");
-  return { level: todo.length ? "a-completer" : "prete", todo };
+  return { level: todo.length ? "a-completer" : "prete", todo, alertes: vides.filter((x) => x.hasard).map((x) => x.texte) };
 }
 
 const sansAccent = (x) => `${x ?? ""}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();

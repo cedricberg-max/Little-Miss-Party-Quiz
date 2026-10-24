@@ -3739,11 +3739,14 @@ function refreshSummary() {
   $("show-problems").replaceChildren(...problems.map((p) => h("li", { text: p })));
   const r = readiness(s, quizzes, mimes, playlists, contents, undefined, songs);
   $("show-ready").className = `ready-box ${r.level}`;
+  // Un jeu encore vide que la TV remplira au hasard (cedric, 24/10) : une alerte, même quand elle est prête.
+  const alertes = r.alertes.map((t) => h("li", { class: "ready-alerte", text: `⚠ ${t}` }));
   $("show-ready").replaceChildren(r.level === "prete"
-    ? h("b", { text: "✓ À venir : prête, elle est visible sur la régie." })
+    ? h("div", {}, h("b", { text: "✓ À venir : prête, elle est visible sur la régie." }),
+      alertes.length ? [h("p", { class: "ready-alertes-titre", text: "À vérifier avant le jour J :" }), h("ul", {}, ...alertes)] : null)
     : r.level === "archivee"
       ? h("b", { text: "Prestation archivée : elle n'apparaît plus sur la régie." })
-      : h("div", {}, h("b", { text: "Reste à faire avant le jour J :" }), h("ul", {}, ...r.todo.map((t) => h("li", { text: t })))));
+      : h("div", {}, h("b", { text: "Reste à faire avant le jour J :" }), h("ul", {}, ...r.todo.map((t) => h("li", { text: t })), ...alertes)));
 }
 ["show-age", "show-profile", "show-child", "show-title", "show-date", "show-status"].forEach((id) => $(id).addEventListener("input", refreshSummary));
 // Le nombre d'équipes change ce qu'il faut prévoir pour les mimes : les manches sont redessinées. Il donne aussi

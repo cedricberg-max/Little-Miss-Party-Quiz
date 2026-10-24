@@ -5,7 +5,7 @@ import { parseQuiz, checkQuestions, geminiPrompt, resolveCorrect, chatgptImagePr
 import { MIME_CATALOG } from "../web/public/mime-cards.js";
 import { DISPARU_THEMES } from "../web/public/buzz-cards.js";
 import { disparuObjects, activeItems, buildSnapshot, estimateMinutes, dureeEstimee, DUREE_ESTIMEE, roundFilled,
-  readiness, upcoming, daysUntil, isoDay, duplicateShow, etatPrestation, isArchived, ETATS, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
+  readiness, jeuxVides, upcoming, daysUntil, isoDay, duplicateShow, etatPrestation, isArchived, ETATS, programRounds, lockedUntil, gameQuestions, insertGame, moveRound, removeRound, uniqueRoundTitle,
   soundIds, choiceImageIds, choiceImageList, pictoSeriesList, pictoSeriesOf, foldLegacyFinale,
   roundQuizIds, MIME_RANDOM, alerteEquipes, EQUIPES_PAR_DEFAUT, PAR_EQUIPE_MIN,
   statuesSongs, statuesChoices, roundSongs, isStatuesList, couleursEquipes, mimePool, titreAuto, chiffresDuTirage,
@@ -294,14 +294,42 @@ describe("tableau de bord des prestations", () => {
 
   test("état de préparation : prête seulement quand tout est complet et visible sur la régie", () => {
     const ok = { childName: "Léa", age: 7, date: "2026-12-02", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }] };
-    assert.deepEqual(readiness(ok, quizzes), { level: "prete", todo: [] });
+    assert.deepEqual(readiness(ok, quizzes), { level: "prete", todo: [], alertes: [] });
     assert.deepEqual(readiness({ ...ok, status: "brouillon" }, quizzes).todo, ["Passer le statut à « À venir »"]);
-    assert.deepEqual(readiness({ childName: "Tom", status: "brouillon" }, quizzes).todo, ["Ajouter la date", "Indiquer l'âge", "Ajouter une manche"]);
+    assert.deepEqual(readiness({ childName: "Tom", status: "brouillon" }, quizzes).todo, ["Ajouter la date", "Indiquer l'âge", "Ajouter un jeu"]);
     const draftOnly = readiness({ ...ok, rounds: [{ type: "quiz", quizId: "draft" }] }, quizzes);
     assert.equal(draftOnly.level, "a-completer");
     assert.match(draftOnly.todo.join(), /aucune question validée/);
     assert.match(readiness({ ...ok, rounds: [{ type: "quiz", quizId: "efface" }] }, quizzes).todo.join(), /n'existe plus/);
     assert.equal(readiness({ ...ok, status: "archivee" }, quizzes).level, "archivee");
+  });
+
+  test("un jeu ajouté mais encore vide (cedric, 24/10) : à faire s'il ne se joue pas vide, simple alerte si la TV le tire au hasard", () => {
+    const ok = { childName: "Léa", age: 7, date: "2026-12-02", status: "publiee", teams: 4, rounds: [{ type: "quiz", quizId: "animaux" }] };
+    const avec = (...rounds) => readiness({ ...ok, rounds: [...ok.rounds, ...rounds] }, quizzes, {}, {}, {}, "2026-10-24");
+    // Ne se jouent pas vides : la prestation reste « À compléter », et la phrase dit ce qui manque (plus « n'existe plus »).
+    for (const [type, texte] of [["quiz", "Quiz (jeu 2) : aucune question choisie pour l'instant."], ["illustre", "Quiz illustré : aucune question choisie pour l'instant."],
+      ["express", "Vrai ou Faux express : aucune affirmation choisie pour l'instant."], ["zoom", "Zoom mystère : aucune photo choisie pour l'instant."],
+      ["flou", "Image floue : aucune photo choisie pour l'instant."], ["blind", "Blind test : aucune chanson choisie pour l'instant."],
+      ["musical", "Quiz musical : aucune chanson choisie pour l'instant."], ["mimes", "Mimes : aucune image tirée pour l'instant."]]) {
+      const r = avec({ type });
+      assert.equal(r.level, "a-completer", type);
+      assert.deepEqual(r.todo, [texte], type);
+      assert.deepEqual(r.alertes, [], type);
+    }
+    // La TV les tire au hasard : prête quand même, avec l'alerte.
+    for (const [round, texte] of [[{ type: "pictionary" }, "Pictionary : aucun mot choisi pour l'instant, la TV les tirera au hasard."],
+      [{ type: "disparu", count: 3 }, "Qui a disparu ? : aucune grille choisie pour l'instant, la TV en tirera 3 au hasard."],
+      [{ type: "chante" }, "Chante le mot ! : aucun mot choisi pour l'instant, la TV en tirera 6 au hasard."],
+      [{ type: "quisuis" }, "Qui suis-je ? : aucun personnage choisi pour l'instant, la TV en tirera 5 au hasard."]]) {
+      assert.deepEqual(avec(round), { level: "prete", todo: [], alertes: [texte] }, round.type);
+    }
+    // Rempli : plus rien ; les jeux sans rien à préparer ne sont jamais vides.
+    const grille = { theme: "Fruits", objects: ["pomme", "poire", "kiwi", "fraise", "cerise"].map((word) => ({ word, image: "🍎" })) };
+    assert.deepEqual(avec({ type: "disparu", seriesMots: [{ id: "de", origine: "de", mots: [grille] }] }).alertes, []);
+    assert.deepEqual(avec({ type: "pictionary", series: ["Animaux"] }).alertes, []);
+    assert.deepEqual(avec({ type: "statues" }, { type: "coffres" }, { type: "gonfleur" }, { type: "patate" }), { level: "prete", todo: [], alertes: [] });
+    assert.deepEqual(jeuxVides({ rounds: [{ type: "statues" }, { type: "chante" }] }).map((x) => [x.i, x.type, x.hasard]), [[1, "chante", true]]);
   });
 
   test("trois états, mêmes mots partout : À compléter, À venir, Archivée ; archivée toute seule le lendemain de la fête", () => {
@@ -318,7 +346,7 @@ describe("tableau de bord des prestations", () => {
     // « À venir » demande une date à venir : une date passée est signalée (sinon elle filerait dans les archives).
     const ok = { childName: "Léa", age: 7, date: "2026-10-20", status: "publiee", rounds: [{ type: "quiz", quizId: "animaux" }] };
     assert.deepEqual(readiness({ ...ok, keepActive: true }, quizzes, {}, {}, {}, "2026-10-21").todo, ["Choisir une date à venir (celle-ci est passée)"]);
-    assert.deepEqual(readiness(ok, quizzes, {}, {}, {}, "2026-10-20"), { level: "prete", todo: [] });
+    assert.deepEqual(readiness(ok, quizzes, {}, {}, {}, "2026-10-20"), { level: "prete", todo: [], alertes: [] });
   });
 
   test("anniversaires à venir : du plus proche au plus lointain, sans les passés ni les archivés", () => {
@@ -667,7 +695,7 @@ describe("blind test et quiz musical", () => {
     assert.match(musical.problems.join(), /au moins 2 morceaux/);
     const blind = buildSnapshot("s", { childName: "Tom", age: 8, rounds: [{ type: "blind", playlistId: "o" }] }, {}, {}, Math.random, { o: one });
     assert.equal(blind.snapshot.quiz.questions.length, 1);
-    assert.deepEqual(readiness({ childName: "Tom", age: 8, date: "2026-12-02", status: "publiee", rounds: [{ type: "blind", playlistId: "o" }] }, {}, {}, { o: one }), { level: "prete", todo: [] });
+    assert.deepEqual(readiness({ childName: "Tom", age: 8, date: "2026-12-02", status: "publiee", rounds: [{ type: "blind", playlistId: "o" }] }, {}, {}, { o: one }), { level: "prete", todo: [], alertes: [] });
   });
   test("titre et artiste devinés depuis le nom du fichier", () => {
     assert.deepEqual(guessTrack("Stromae - Alors on danse.mp3"), { artist: "Stromae", title: "Alors on danse" });
