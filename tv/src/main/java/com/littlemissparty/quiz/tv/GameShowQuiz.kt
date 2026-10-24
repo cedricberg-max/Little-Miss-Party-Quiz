@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -66,6 +67,9 @@ import com.littlemissparty.quiz.tv.habillage.Tempo
 import com.littlemissparty.quiz.tv.habillage.apparition
 import com.littlemissparty.quiz.tv.habillage.planchesQuiz3d
 import com.littlemissparty.quiz.tv.habillage.apres
+import com.littlemissparty.quiz.tv.habillage.dessineJauge
+import com.littlemissparty.quiz.tv.habillage.dessineJaugeSimple
+import com.littlemissparty.quiz.tv.habillage.planchesJauge
 import com.littlemissparty.quiz.tv.habillage.rebond
 import com.littlemissparty.quiz.tv.habillage.reflet
 import com.littlemissparty.quiz.tv.habillage.styleCentre
@@ -233,13 +237,21 @@ internal fun CountdownGs(seconds: Int, fraction: Float) {
  * entier), couronne au premier. De 1 à 8 équipes.
  */
 @Composable
-internal fun ClassementGameShow(state: UiState.Playing, actions: TvActions) {
+internal fun ClassementGameShow(
+    state: UiState.Playing,
+    actions: TvActions,
+    titre: String = "TABLEAU DES SCORES",
+    sousTitre: String? = null,
+    lignes: List<Pair<Team, Int>> = state.ranking,
+    gains: Map<String, Int> = state.lastGain,
+) {
     Column(Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 22.dp)) {
         Row(verticalAlignment = Alignment.Bottom) {
-            Text("TABLEAU DES SCORES", style = styleTitreNeon(38.sp, GS.Cyan, TextAlign.Start), maxLines = 1, softWrap = false)
+            Text(titre, style = styleTitreNeon(38.sp, GS.Cyan, TextAlign.Start), maxLines = 1, softWrap = false)
             Spacer(Modifier.width(20.dp))
             Text(
                 when {
+                    sousTitre != null -> sousTitre
                     state.mime?.picto == true -> "Après le Pictionary"
                     state.mime != null -> "Après les mimes"
                     else -> "Après ${state.etape ?: "la question ${state.index + 1}"}"
@@ -249,7 +261,7 @@ internal fun ClassementGameShow(state: UiState.Playing, actions: TvActions) {
             )
         }
         Spacer(Modifier.height(10.dp))
-        Jauges(state, Modifier.weight(1f).fillMaxWidth())
+        Jauges(lignes, gains, Modifier.weight(1f).fillMaxWidth())
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             LogoQuiz(46.dp)
@@ -260,8 +272,8 @@ internal fun ClassementGameShow(state: UiState.Playing, actions: TvActions) {
 }
 
 @Composable
-private fun Jauges(state: UiState.Playing, modifier: Modifier) {
-    val ranking = state.ranking
+private fun Jauges(ranking: List<Pair<Team, Int>>, gains: Map<String, Int>, modifier: Modifier) {
+    val planches = planchesJauge()
     val best = (ranking.firstOrNull()?.second ?: 0).coerceAtLeast(1)
     val couronne = apres(Tempo.CLASSEMENT_COURONNE, Unit)
     val serre = ranking.size > 5
@@ -269,13 +281,13 @@ private fun Jauges(state: UiState.Playing, modifier: Modifier) {
         val colonne = (maxWidth / ranking.size.coerceAtLeast(1)).coerceAtMost(200.dp)
         Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.Center) {
             ranking.forEachIndexed { i, (team, score) ->
-                val compteur = remember(team.uid) { Animatable((score - (state.lastGain[team.uid] ?: 0)).coerceAtLeast(0).toFloat()) }
+                val compteur = remember(team.uid) { Animatable((score - (gains[team.uid] ?: 0)).coerceAtLeast(0).toFloat()) }
                 LaunchedEffect(score) {
                     delay(Tempo.CLASSEMENT_COMPTEUR)
                     compteur.animateTo(score.toFloat(), tween(1_500, easing = FastOutSlowInEasing))
                 }
                 val color = team.color.toColor()
-                val gain = state.lastGain[team.uid] ?: 0
+                val gain = gains[team.uid] ?: 0
                 Column(
                     Modifier.width(colonne).fillMaxHeight().padding(horizontal = if (serre) 6.dp else 12.dp).apparition(90L * i, Unit),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -296,19 +308,21 @@ private fun Jauges(state: UiState.Playing, modifier: Modifier) {
                         style = TextStyle(fontFamily = PoliceGsChiffres, fontWeight = FontWeight.Bold, fontSize = if (serre) 13.sp else 15.sp, color = GS.Jaune),
                     )
                     Spacer(Modifier.height(4.dp))
-                    // La jauge : rail de verre bordé de la couleur, remplissage néon qui monte du bas.
-                    val forme = RoundedCornerShape(14.dp)
-                    Box(
-                        Modifier.weight(1f).widthIn(max = 86.dp).fillMaxWidth(if (serre) 0.8f else 0.62f)
-                            .lueurNeon(color, 14.dp, 0.6f)
-                            .clip(forme).background(GS.Nuit.copy(alpha = 0.85f)).border(2.dp, color.copy(alpha = 0.55f), forme),
-                        contentAlignment = Alignment.BottomCenter,
-                    ) {
+                    // La jauge : le tube de verre du podium (cedric, 24/10), liquide néon à la couleur de l'équipe qui monte
+                    // avec le compteur. Sans ses planches, le même tube en dessin simple.
+                    Canvas(Modifier.weight(1f).widthIn(max = 86.dp).fillMaxWidth(if (serre) 0.8f else 0.62f)) {
                         val part = (compteur.value / best).coerceIn(0.03f, 1f)
-                        Box(
-                            Modifier.fillMaxWidth().fillMaxHeight(part).padding(4.dp).clip(RoundedCornerShape(10.dp))
-                                .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.9f), color, color.copy(alpha = 0.55f)))),
-                        )
+                        // Lueur néon autour du verre, comme au podium : quatre anneaux de plus en plus pâles.
+                        val pas = size.width * 0.0837f
+                        val r = size.width * 0.39f
+                        for (a in 4 downTo 1) {
+                            val d = pas * a * 2
+                            drawRoundRect(
+                                color.copy(alpha = minOf(1f, 0.09f * 0.45f * (5 - a) / 2f)), Offset(-d / 2, -d / 2), Size(size.width + d, size.height + d),
+                                CornerRadius(r + d / 2), style = Stroke(pas * 2),
+                            )
+                        }
+                        if (planches != null) dessineJauge(planches, part, color) else dessineJaugeSimple(part, color)
                     }
                     Spacer(Modifier.height(6.dp))
                     NomQuiTient(team.name, if (serre) 17.sp else 22.sp, Modifier.fillMaxWidth())

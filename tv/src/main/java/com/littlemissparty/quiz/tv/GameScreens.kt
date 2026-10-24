@@ -53,6 +53,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.littlemissparty.quiz.engine.BlindStatus
 import com.littlemissparty.quiz.engine.Phase
 import com.littlemissparty.quiz.engine.Question
 import com.littlemissparty.quiz.tv.habillage.Look
@@ -587,6 +588,15 @@ private fun Countdown(state: UiState.Playing) {
 fun ScoresScreen(state: UiState.Playing, actions: TvActions) {
     // Fin du blind test : le bilan de ses morceaux trouvés plutôt que le classement général.
     if (state.blind != null && state.mime == null) {
+        // Game Show : les mêmes tubes de verre que le tableau des scores et le podium (cedric, 24/10), remplis des
+        // points gagnés pendant le blind test.
+        if (Look.gs) {
+            val b = state.blind ?: return
+            val lignes = state.teams.map { t ->
+                t to b.tracks.filter { it.status == BlindStatus.FOUND && it.team == t.uid }.sumOf { it.points }
+            }.sortedByDescending { it.second }
+            return ClassementGameShow(state, actions, "BILAN DU BLIND TEST", "Points gagnés pendant le blind test", lignes, emptyMap())
+        }
         Column(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 24.dp)) {
             BlindBilanEcran(state, Modifier.weight(1f).fillMaxWidth())
             Row {

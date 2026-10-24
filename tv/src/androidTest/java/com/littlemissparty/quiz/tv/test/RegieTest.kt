@@ -5,6 +5,7 @@ import com.littlemissparty.quiz.engine.POTATO_BOMBS
 import com.littlemissparty.quiz.engine.POTATO_POINTS
 import com.littlemissparty.quiz.engine.PUMP_TARGET
 import com.littlemissparty.quiz.engine.Scoring
+import com.littlemissparty.quiz.tv.habillage.Look
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -701,8 +702,9 @@ class RegieTest : TestTv() {
         ecran.entierementVisible("Pierrot")
         ecran.capture("blind-test-refrain")
         assertEquals("applied", regie.commande(code, "next"))
-        ecran.voit("Bilan du blind test")
-        ecran.voit("100 pts")
+        // Game Show : les tubes de verre du tableau des scores, remplis des points du blind test (cedric, 24/10).
+        ecran.voit(if (Look.gs) "BILAN DU BLIND TEST" else "Bilan du blind test")
+        ecran.voit(if (Look.gs) "Points gagnés pendant le blind test" else "100 pts")
         // Le jeu suivant (le quiz de démonstration, sans titre de manche) est annoncé.
         ecran.entierementVisible("Jeu suivant : Quiz")
         assertEquals(100L, points(dragons, code, dragons.uid))
