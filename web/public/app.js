@@ -150,6 +150,8 @@ async function keepAwake() {
 // même sur une réponse déjà verrouillée (elle ne fait pas de clic), un clic ou le gros buzzer USB. Pas pendant la
 // frappe d'un nom (le clavier de l'écran se fermerait), ni sur Échap, qui sert justement à en sortir.
 const redemanderPleinEcran = (e) => {
+  // Son préparé avant le premier toucher (mots du Game Show) : le navigateur ne le laisse jouer qu'après un geste.
+  if (audio?.state === "suspended") audio.resume().catch(() => {});
   if (!code || document.fullscreenElement) return;
   if (e.type === "keydown" && (e.key === "Escape" || enFrappe(e))) return;
   keepAwake();
@@ -409,6 +411,14 @@ onAwakeChange((awake) => {
 
 function play() {
   stopListening();
+  // Game Show : les mots de Daft Punk se chargent dès l'entrée dans l'équipe, prêts pour le tout premier buzz (la
+  // tablette n'est plus touchée avant : l'animatrice l'a fait entrer depuis son téléphone, cedric 24/10).
+  if (lookGs) {
+    try {
+      audio ??= new (window.AudioContext || window.webkitAudioContext)();
+      chargerMotsEquipes();
+    } catch { /* pas de son sur ce navigateur : le jeu continue */ }
+  }
   game = { state: null, teams: {}, myAnswer: null, connected: true };
   presenceRef = ref(db, `games/${code}/presence/${teamId}`);
   listen(".info/serverTimeOffset", (s) => { serverOffset = s.val() ?? 0; });
@@ -1365,7 +1375,8 @@ function funSound() {
 /**
  * Design The Game Show : au buzz, la tablette joue le même mot de Daft Punk que la TV pour son équipe (« Work it »…
  * « Stronger », cedric 24/10). La place de l'équipe se compte comme sur la TV : ordre d'arrivée, 8 équipes au plus.
- * Les 8 mots (100 Ko en tout) se chargent au premier toucher ; tant qu'ils ne sont pas prêts, le petit air habituel.
+ * Les 8 mots (100 Ko en tout) se chargent dès l'entrée dans l'équipe ; tant qu'ils ne sont pas prêts, le petit air
+ * habituel.
  */
 const motsEquipes = [];
 let motsDemandes = false;

@@ -1325,7 +1325,8 @@ $("blind-ok").onclick = () => { navigator.vibrate?.(60); send("buzz_ok", {}, { a
 $("blind-ko").onclick = () => send("buzz_ko", {}, { advance: true });
 $("blind-unblock").onclick = () => send("blind_unblock", {}, { advance: true });
 $("blind-reveal").onclick = async () => {
-  if (await demander({ title: "Révéler ce morceau sans points ?", text: "La TV montre le titre et l'artiste. Aucune équipe ne marque.", ok: "Révéler sans points" })) send("blind_reveal", {}, { advance: true });
+  // Personne n'a trouvé (cedric, 24/10) : sans attendre la fin de l'extrait, la TV passe à la révélation et au refrain.
+  if (await demander({ title: "Passer à la révélation ?", text: "La TV montre le titre et l'artiste, et tout le monde chante le refrain. Aucune équipe ne marque.", ok: "🎤 On chante ensemble" })) send("blind_reveal", {}, { advance: true });
 };
 $("blind-skip").onclick = async () => {
   if (await demander({ title: "Passer ce morceau ?", text: "Il n'est pas révélé et ne rapporte aucun point.", ok: "Passer le morceau" })) send("blind_skip", {}, { advance: true });
