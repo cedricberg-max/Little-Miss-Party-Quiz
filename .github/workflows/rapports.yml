@@ -43,14 +43,21 @@ jobs:
       - name: Afficher les captures
         run: |
           command -v convert >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick >/dev/null; }
+          echo "== Toutes les captures du passage =="
+          find archive -name '*.png' -printf '%f\n' | sort
+          # Une capture s'appelle « <Test>-<n°>-<nom>.png » ; un même nom peut venir de plusieurs tests.
           for nom in $(printf '%s' "$NOMS" | tr ',' ' '); do
-            case "$nom" in *[!a-z0-9-]*) echo "Nom ignoré : $nom"; continue ;; esac
-            png=$(find archive -name "$nom.png" | head -1)
-            if [ -z "$png" ]; then echo "=== ABSENTE $nom"; continue; fi
-            convert "$png" -resize '1280x>' -quality 85 "$RUNNER_TEMP/$nom.jpg"
-            echo "=== CAPTURE $nom $(identify -format '%wx%h' "$png") $(wc -c < "$RUNNER_TEMP/$nom.jpg")"
-            base64 -w 1000 "$RUNNER_TEMP/$nom.jpg" | sed 's/^/B64 /'
-            echo "=== FIN $nom"
+            case "$nom" in *[!a-zA-Z0-9-]*) echo "Nom ignoré : $nom"; continue ;; esac
+            trouve=
+            for png in $(find archive -name "*-[0-9][0-9]-$nom.png" -o -name "$nom.png" | sort | head -3); do
+              trouve=1
+              fichier=$(basename "$png" .png)
+              convert "$png" -resize '1280x>' -quality 85 "$RUNNER_TEMP/$fichier.jpg"
+              echo "=== CAPTURE $fichier $(identify -format '%wx%h' "$png") $(wc -c < "$RUNNER_TEMP/$fichier.jpg")"
+              base64 -w 1000 "$RUNNER_TEMP/$fichier.jpg" | sed 's/^/B64 /'
+              echo "=== FIN $fichier"
+            done
+            [ -n "$trouve" ] || echo "=== ABSENTE $nom"
           done
 
   lire:
