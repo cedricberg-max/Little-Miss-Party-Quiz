@@ -5199,6 +5199,10 @@ describe("bibliothèque de quiz et prestations", () => {
     await page.locator("#screen-show-edit:not([hidden])").waitFor();
     const annulerTout = page.locator("#screen-show-edit .retour-barre.bas .retour-tout");
     assert.equal(await annulerTout.isDisabled(), true);
+    // La barre du bas (cedric, 24/10) : Enregistrer · ← Retour · Annuler les modifications, de gauche à droite.
+    const barreBas = page.locator("#screen-show-edit .retour-barre.bas");
+    assert.deepEqual(await barreBas.locator(".btn").allInnerTexts(), ["Enregistrer", "← Retour", "Annuler les modifications"]);
+    assert.equal(await page.locator("#screen-show-edit button", { hasText: /^Enregistrer$/ }).count(), 2, "en haut et dans la barre du bas, pas une de plus");
     const retirerJeu = page.locator('#show-rounds .jeu-bloc[data-jeu="quiz"] button[title="Retirer ce jeu"]');
     await retirerJeu.click();
     assert.match(await repondreFenetre(page, { accepter: false }), /^Retirer « .+ » et sa manche de la prestation \?$/);
@@ -5207,6 +5211,13 @@ describe("bibliothèque de quiz et prestations", () => {
     await repondreFenetre(page);
     await waitFor(async () => (await page.locator("#show-rounds .round").count()) === 0, "jeu retiré");
     await waitFor(async () => !(await annulerTout.isDisabled()), "« Annuler les modifications » possible aussitôt");
+    // Une modification : la barre suit l'écran, Enregistrer à gauche de Retour, tous trois à portée en bas de la fenêtre.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await waitFor(async () => (await barreBas.evaluate((b) => b.classList.contains("flottante"))), "barre flottante");
+    const boites = await barreBas.locator(".btn").evaluateAll((xs) => xs.map((x) => x.getBoundingClientRect()).map((r) => ({ g: r.left, d: r.right, b: r.bottom })));
+    assert.ok(boites[0].d <= boites[1].g && boites[1].d <= boites[2].g, JSON.stringify(boites));
+    assert.ok(boites.every((r) => r.b <= 800), "dans la fenêtre");
+    await capture(page, "barre-bas-enregistrer", { pleinePage: false });
     await page.keyboard.press("Control+z");
     await waitFor(async () => (await page.locator("#show-rounds .round").count()) === 1, "Ctrl+Z : le jeu revient");
     assert.equal(await annulerTout.isDisabled(), true);
