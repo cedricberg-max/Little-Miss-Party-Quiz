@@ -8707,6 +8707,7 @@ describe("bibliothèque de quiz et prestations", () => {
     assert.equal(Object.values(manches).filter((m) => m.showId === "test-prestation").length, 13);
     await page.click("#nav button[data-screen=settings]");
     await page.locator("#test-status", { hasText: "Créée : « ANNIVERSAIRE TEST – Touktouka, 9 ans », anciennes démos effacées." }).waitFor();
+    assert.equal(await page.locator("#test-titre").textContent(), "ANNIVERSAIRE TEST – Touktouka, 9 ans", "le texte de Paramètres dit le bon nom");
     await page.context().close();
 
     // Sur la régie : chargée sur la TV, les 16 jeux.

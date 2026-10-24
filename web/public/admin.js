@@ -5608,6 +5608,8 @@ async function toucherLesDes() {
  * les 16 jeux, chaque 🎲 touché une fois ; elle s'enregistre « À venir » (gardée « À compléter », avec ce qui manque,
  * si un jeu n'a rien pu tirer : bibliothèque des sons vide par exemple).
  */
+// Le nom affiché dans Paramètres vient de test-show.js : il suit tout seul un changement de nom (Touktouka, 24/10).
+$("test-titre").textContent = TEST_TITRE;
 $("test-prestation").onclick = async () => {
   const btn = $("test-prestation");
   const plan = demosAEffacer({ shows, manches, quizzes, mimes, playlists, songs, contents, medias });
